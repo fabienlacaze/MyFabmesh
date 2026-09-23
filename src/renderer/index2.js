@@ -5971,18 +5971,18 @@ if (qualityEl && qualityLabel) {
 //  2. Pile up "ONE X only" / "single instance" tokens.
 //  3. Negative prompt (local_juggernaut_bridge.py) blocks grid layouts.
 const ASSET_TYPE_PROMPTS = {
-  character: 'isolated 3D character, full body, fully clothed, wearing a complete outfit, dressed in appropriate clothing, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI',
-  building: 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, nothing cropped, plain white background, even studio lighting, no shadows, centered, strict front view, clean silhouette',
+  character: 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
+  building: 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, plain white background, centered, strict front view, clean silhouette',
   vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no rear view inset',
   weapon: 'isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI',
   prop: 'isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
-  creature: '3D game asset reference sheet, full body character sheet, long shot, full figure shot, wide establishing shot, distant camera, entire creature visible from head to feet to tail, body fills 60 percent of frame, isolated, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot',
+  creature: 'full body creature, wide establishing shot, entire creature visible from head to tail, body fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
   environment: 'isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
-  icon: 'flat icon, app icon, UI icon, isolated subject centered in square frame, transparent or pure white background, soft rim light, vibrant colors, clean silhouette, slight isometric 3/4 angle, glossy material, mobile / desktop application icon style, no text, no logo, no extra elements',
-  avion: 'complete passenger aircraft, isolated, 3/4 isometric view, full body visible from nose to tail, both wings visible, tail fin visible, plain white background, even studio lighting, no shadows, no clouds, no horizon, no contrail, centered, clean silhouette, no text, no UI',
-  bateau: 'complete boat, isolated, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, even studio lighting, no shadows, no water, no wake, no horizon, centered, clean silhouette, no text, no UI',
-  animal: '3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders',
-  insect: '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, isolated, exactly six legs in total, three legs on the left side and three legs on the right side, six legs and no more, anatomically correct insect leg count, segmented body with distinct head thorax and abdomen, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, NOT eight legs, NOT a spider, NOT an arachnid, no extra legs, no doubled legs, no duplicated legs, no overlapping duplicate limbs, no mirrored extra legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no humanoid posture, NOT a front head-on view, NOT a portrait, NOT a close-up, NOT a headshot, no text, no UI',
+  icon: 'flat app icon, isolated subject centered in square frame, pure white background, soft rim light, vibrant colors, slight isometric 3/4 angle, glossy material, clean silhouette',
+  avion: 'complete passenger aircraft, 3/4 isometric view, full body visible from nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
+  bateau: 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
+  animal: 'full body animal, lateral profile, entire animal visible from nose to tail, all four feet on the ground, fills 60 percent of frame, plain white background, centered',
+  insect: 'full body insect, exactly six legs, segmented head thorax abdomen, antennae, 3/4 isometric view from above, all six legs visible, fills 60 percent of frame, plain white background, centered',
   // Per-category "Other …" presets: keep the category's framing/staging but
   // drop the SPECIFIC-object bias, so e.g. a catapult under "Other vehicle"
   // stays a vehicle (not a car) instead of a random studio object. A fully
@@ -5990,7 +5990,7 @@ const ASSET_TYPE_PROMPTS = {
   other_living:  'full body, isolated, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI',
   other_vehicle: 'complete vehicle, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI',
   other_built:   'full structure, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
-  other_item:    'ONE item only, single item, only one instance, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate, no second item',
+  other_item:    'full item, plain white background, centered, strict front view, clean silhouette',
   custom: '',
 };
 
@@ -6369,6 +6369,28 @@ function stripKnownPromptSuffixes(raw) {
    * Le gabarit est TOUJOURS ajoute en fin de chaine. Il suffit donc de reperer
    * son DEBUT (quelques mots stables, insensibles aux revisions) et de couper
    * jusqu'a la fin. Insensible aux versions, present et futur. */
+  /* MARQUEURS HISTORIQUES -- ajoutes le 2026-09-23.
+   *
+   * La coupe ci-dessous se fonde sur le PREMIER segment des gabarits COURANTS.
+   * En reecrivant les gabarits ce jour-la, j'ai rendu le nettoyeur aveugle aux
+   * projets crees avant : leur texte commencait par « 3D game asset reference
+   * sheet » ou « ONE item only », phrases qui n'existent plus nulle part. Ces
+   * ouvertures sont donc gravees ici, definitivement. NE JAMAIS EN RETIRER :
+   * un projet cree en 2026 doit rester nettoyable en 2030. */
+  const MARQUEURS_HISTORIQUES = [
+    'architectural building exterior',
+    'isolated 3D character',
+    '3D game asset reference sheet',
+    'full body character sheet',
+    'ONE item only',
+    'complete passenger aircraft',
+    'complete boat',
+    'flat icon, app icon',
+    'isolated, full item',
+    'isolated, complete vehicle',
+    'isolated, full weapon',
+    'isolated, full structure',
+  ];
   const MARQUEURS_GABARIT = [
     ...Object.values(ASSET_TYPE_PROMPTS),
     ...Object.values(ASSET_TYPE_PREFIXES),
@@ -6381,10 +6403,28 @@ function stripKnownPromptSuffixes(raw) {
    .flatMap(s => [s.split(',')[0], s.split(',').slice(0, 2).join(',')])
    .map(m => m.trim())
    .filter((m, i, a) => m.length > 12 && a.indexOf(m) === i);
-  for (const m of MARQUEURS_GABARIT) {
+  for (const m of MARQUEURS_GABARIT.concat(MARQUEURS_HISTORIQUES)) {
     const i = txt.toLowerCase().indexOf(m.toLowerCase());
-    if (i > 0) txt = txt.slice(0, i);
+    if (i > 0) {
+      // Cas normal : le gabarit est colle APRES le texte de l'utilisateur.
+      txt = txt.slice(0, i);
+    } else if (i === 0) {
+      /* Cas des vieux projets : le gabarit ouvre la chaine et le sujet est au
+       * MILIEU (« 3D game asset reference sheet, full body character sheet,
+       * long shot, a winged dragon, NOT a portrait »). Couper a 0 effacerait
+       * tout ; on retire donc le seul marqueur et on laisse les passes
+       * suivantes nettoyer le reste. */
+      txt = txt.slice(m.length).replace(/^\s*,\s*/, '');
+    }
   }
+  /* Les negations n'ont aucun effet dans un prompt POSITIF -- SDXL dessine
+   * volontiers ce qu'on lui demande d'eviter, et elles mangent des jetons.
+   * Elles vivent dans _ANATOMY_NEG (modal_app/_realvis.py). On retire donc
+   * tout segment qui commence par « not » ou « never », quelle que soit la
+   * casse : c'est du gabarit, jamais une intention d'utilisateur utile. */
+  txt = txt.split(',')
+           .filter(seg => !/^\s*(not|never|no)\b/i.test(seg))
+           .join(',');
   // Collapse any resulting double commas / leading comma / extra whitespace.
   txt = txt.replace(/\s*,\s*,\s*/g, ', ').replace(/^\s*,\s*/, '').replace(/\s*,\s*$/, '').trim();
   return txt;

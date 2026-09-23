@@ -1,0 +1,15 @@
+{
+  "_commentaire": [
+    "Dette de jetons CLIP. Chaque valeur est un PLAFOND : le garde refuse toute",
+    "augmentation et tout nouveau depassement. Elle ne doit que diminuer.",
+    "",
+    "Au-dela de 77 jetons, SDXL jette la fin du prompt sans rien dire. Budget",
+    "vise : 60, ce qui laisse ~17 jetons au sujet ecrit par l utilisateur.",
+    "",
+    "2026-09-23 : les 9 gabarits en dette ont ete reecrits (negations retirees",
+    "du prompt POSITIF -- elles font dessiner ce qu on veut eviter, et elles",
+    "etaient deja dans _ANATOMY_NEG de modal_app/_realvis.py). Liste vide = plus",
+    "aucune dette. Ne JAMAIS ajouter une ligne ici pour faire passer une",
+    "construction : c est le defaut que ce fichier surveille."
+  ]
+}
