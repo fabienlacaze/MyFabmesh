@@ -89,9 +89,32 @@ ASSET_STYLE_PROMPTS = {
 
 
 def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -> str:
+    """Ajoute style + gabarit autour du texte de l'utilisateur, SANS doublon.
+
+    2026-09-23 : ce concatenait sans rien verifier. Or le client enrichit
+    deja de son cote, et envoie le resultat : le gabarit arrivait donc DEUX
+    FOIS. Mesure sur un projet reel : 193 jetons CLIP pour une limite de 77,
+    soit ~60 % du prompt jete en silence, en plein milieu des consignes de
+    cadrage -- d'ou des batiments coupes malgre « nothing cropped ».
+
+    On teste donc la presence avant d'ajouter. Le test porte sur le PREMIER
+    segment du gabarit (« architectural building exterior »), stable d'une
+    version a l'autre : un client plus ancien ou plus recent que le serveur
+    ne peut plus produire de doublon.
+    """
     style_prefix = ASSET_STYLE_PROMPTS.get(asset_style, '')
     type_suffix = ASSET_TYPE_PROMPTS.get(asset_type, '')
-    parts = [p for p in (style_prefix, user_prompt, type_suffix) if p]
+    deja = (user_prompt or '').lower()
+
+    def _absent(bloc: str) -> bool:
+        if not bloc:
+            return False
+        tete = bloc.split(',')[0].strip().lower()
+        return not (tete and len(tete) > 12 and tete in deja)
+
+    parts = [p for p in (style_prefix if _absent(style_prefix) else '',
+                         user_prompt,
+                         type_suffix if _absent(type_suffix) else '') if p]
     return ', '.join(parts)
 
 
