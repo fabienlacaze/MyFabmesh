@@ -21200,3 +21200,48 @@ boutons), lien de confidentialite present et traduit, `isStoreBuild()` rend
 faux en developpement, cadenas conserve hors Store, canal mailto qui refuse un
 destinataire etranger et un protocole non conforme, bouton de signalement sous
 l'image, ZERO erreur console.
+
+---
+
+## 2026-09-23 — Outil lasso dans la modale Selection (bureau + web)
+
+La selection ne savait decouper que des rectangles. Un rectangle autour d'un
+bras emporte le fond autour : pour retirer une piece d'un personnage il
+fallait plusieurs passes et le resultat restait carre.
+
+AJOUTE : un second mode de selection, contour libre a la souris.
+
+  * `selState.mode` ('rect' | 'lasso') et `selState.poly` (le contour).
+    Deux boutons « Rect » / « Lasso » dans la barre de la modale, l'actif
+    surligne par une nouvelle regle CSS `.tool-btn.active`.
+
+  * `_selTracePath(ctx, ox, oy)` — UN SEUL endroit trace le contour, pour
+    l'apercu, pour la piece copiee et pour le trou. C'etait le vrai risque :
+    trois traces separes donnent une piece qui ne remplit pas son trou.
+    Refuse un contour de moins de 3 points (un clic isole ne decoupe rien).
+
+  * `_selPercerPoly()` — `clearRect` n'efface que des rectangles ; le trou en
+    forme de lasso passe par `globalCompositeOperation = 'destination-out'`.
+
+  * La capture applique `clip()` sur le meme contour, decale de la boite
+    englobante, AVANT de dessiner. La piece flottante est donc decoupee net.
+
+  * Points ajoutes au contour seulement au-dela de 2 px de deplacement, avec
+    recalcul de la boite englobante a chaque point (c'est elle qui sert de
+    rectangle de capture).
+
+CABLE AUSSI : les touches Suppr et Retour arriere declenchent `_selDelete()`
+quand une zone est selectionnee et qu'aucune piece ne flotte (`preventDefault`
+pour que Retour arriere ne navigue pas en arriere). Verifie au passage que
+annuler/refaire etaient deja en place : boutons `select-undo` / `select-redo`
++ Ctrl+Z / Ctrl+Y par CanvasManager (canvas-utils.js:350) ; `_selDelete` et
+`_selCapture(cut)` appellent `pushUndo()` AVANT de modifier, donc une seule
+annulation retablit le trou.
+
+VERIFIE — banc `scratchpad/banc_lasso.py` : les deux fonctions livrees sont
+extraites du fichier et rejouees sur un faux contexte 2D qui enregistre les
+operations. Resultat : trou en `destination-out` avec ses 6 sommets et un
+remplissage ; piece coupee tracant la MEME suite de points que le trou,
+decalee de la boite englobante ; `clip()` avant le dessin ; contour de 2
+points refuse. Parite bureau/web : les deux fichiers ne different que par le
+detour de connexion Cloud deja present (14 lignes, sans rapport).

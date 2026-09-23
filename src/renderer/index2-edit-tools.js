@@ -705,6 +705,8 @@
     isCut: false,        // float came from a Cut (undo restores the hole)
     floatDragging: false,
     dragOff: null,       // {dx,dy} grab offset inside the float
+    mode: 'rect',        // 'rect' | 'lasso'
+    poly: null,          // [{x,y}] contour libre quand mode === 'lasso'
   };
 
   function _selStatus(msg) {
@@ -733,11 +735,20 @@
     if (!selectOverlay) return;
     var octx = selectOverlay.getContext('2d');
     octx.clearRect(0, 0, selectOverlay.width, selectOverlay.height);
-    if (selState.rect) {
+    // En lasso, `rect` n'est que la boite englobante servant a la capture :
+    // la montrer par-dessus le contour brouille la lecture. Seul le contour.
+    if (selState.rect && !selState.poly) {
       var s = _selRectNorm(selState.rect);
       octx.save();
       octx.strokeStyle = '#22c55e'; octx.lineWidth = 2; octx.setLineDash([6, 4]);
       octx.strokeRect(s.x + 0.5, s.y + 0.5, s.w, s.h);
+      octx.restore();
+    }
+    if (selState.poly && selState.poly.length > 1) {
+      octx.save();
+      octx.strokeStyle = '#22c55e'; octx.lineWidth = 2; octx.setLineDash([6, 4]);
+      _selTracePath(octx, 0, 0);
+      octx.stroke();
       octx.restore();
     }
     if (selState.float) {
@@ -749,20 +760,46 @@
       octx.restore();
     }
   }
+  /* Trace le contour du lasso dans un contexte donne, decale de (ox, oy).
+   * Un seul endroit : l'apercu, la copie et le trou doivent suivre exactement
+   * la meme ligne, sinon la piece decoupee ne correspond pas au trou laisse. */
+  function _selTracePath(ctx, ox, oy) {
+    var pts = selState.poly;
+    if (!pts || pts.length < 3) return false;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x + ox, pts[0].y + oy);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x + ox, pts[i].y + oy);
+    ctx.closePath();
+    return true;
+  }
+  /* Perce un trou transparent EN FORME DE LASSO.
+   * `clearRect` ne sait effacer qu'un rectangle ; on passe donc par
+   * 'destination-out', qui efface la ou l'on peint. */
+  function _selPercerPoly() {
+    var ctx = _selMgr.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    if (_selTracePath(ctx, 0, 0)) ctx.fill();
+    ctx.restore();
+  }
   function _selCapture(cut) {
     if (!_selHasRect() || selState.float) return;
     var s = _selRectNorm(selState.rect);
     var rx = Math.round(s.x), ry = Math.round(s.y), rw = Math.round(s.w), rh = Math.round(s.h);
     var fc = document.createElement('canvas');
     fc.width = rw; fc.height = rh;
-    fc.getContext('2d').drawImage(selectCanvas, rx, ry, rw, rh, 0, 0, rw, rh);
+    var fctx = fc.getContext('2d');
+    if (selState.poly) { fctx.save(); _selTracePath(fctx, -rx, -ry); fctx.clip(); }
+    fctx.drawImage(selectCanvas, rx, ry, rw, rh, 0, 0, rw, rh);
+    if (selState.poly) fctx.restore();
     if (cut) {
       _selMgr.pushUndo();                      // one undo reverts hole + paste
-      _selMgr.ctx.clearRect(rx, ry, rw, rh);   // transparent hole ("sans fond")
+      if (selState.poly) _selPercerPoly();
+      else _selMgr.ctx.clearRect(rx, ry, rw, rh);   // transparent hole ("sans fond")
     }
     selState.float = { canvas: fc, w: rw, h: rh, x: rx, y: ry };
     selState.isCut = !!cut;
-    selState.rect = null;
+    selState.rect = null; selState.poly = null;
     _selStatus(cut ? 'Cut — drag the piece where you want it, then Drop (or Save).'
                    : 'Copied — drag the piece where you want it, then Drop (or Save).');
     _selDrawOverlay(); _selUpdateButtons();
@@ -774,8 +811,9 @@
     var s = _selRectNorm(selState.rect);
     var rx = Math.round(s.x), ry = Math.round(s.y), rw = Math.round(s.w), rh = Math.round(s.h);
     _selMgr.pushUndo();
-    _selMgr.ctx.clearRect(rx, ry, rw, rh);
-    selState.rect = null;
+    if (selState.poly) _selPercerPoly();
+    else _selMgr.ctx.clearRect(rx, ry, rw, rh);
+    selState.rect = null; selState.poly = null;
     _selStatus('Deleted — save as a new version, or select another zone.');
     _selDrawOverlay(); _selUpdateButtons();
   }
@@ -791,8 +829,9 @@
   function _selDeselect() {
     if (selState.float && selState.isCut) _selMgr.undo();  // restore the cut hole
     selState.float = null; selState.isCut = false; selState.floatDragging = false;
-    selState.rect = null; selState.dragging = false;
-    _selStatus('Drag to select a rectangle.');
+    selState.rect = null; selState.poly = null; selState.dragging = false;
+    _selStatus(selState.mode === 'lasso' ? 'Lasso : entoure la zone en gardant le bouton enfonce.'
+                                         : 'Trace un rectangle autour de la zone.');
     _selDrawOverlay(); _selUpdateButtons();
   }
   function _selPointInFloat(x, y) {
@@ -827,6 +866,7 @@
       }
       if (selState.float) _selDrop();          // auto-commit before a new selection
       selState.rect = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+      selState.poly = (selState.mode === 'lasso') ? [{ x: p.x, y: p.y }] : null;
       selState.dragging = true;
       _selDrawOverlay(); _selUpdateButtons();
     });
@@ -837,6 +877,15 @@
       if (selState.floatDragging && selState.float) {
         selState.float.x = p.x - selState.dragOff.dx;
         selState.float.y = p.y - selState.dragOff.dy;
+      } else if (selState.dragging && selState.poly) {
+        /* Un point tous les 2 px : suffisant a l'oeil, et evite des milliers
+         * de sommets qui ralentiraient le trace a chaque image. */
+        var d = selState.poly[selState.poly.length - 1];
+        if (Math.abs(p.x - d.x) >= 2 || Math.abs(p.y - d.y) >= 2) selState.poly.push({ x: p.x, y: p.y });
+        var xs = selState.poly.map(function (q) { return q.x; });
+        var ys = selState.poly.map(function (q) { return q.y; });
+        selState.rect = { x1: Math.min.apply(null, xs), y1: Math.min.apply(null, ys),
+                          x2: Math.max.apply(null, xs), y2: Math.max.apply(null, ys) };
       } else if (selState.dragging && selState.rect) {
         selState.rect.x2 = p.x; selState.rect.y2 = p.y;
       }
@@ -845,7 +894,8 @@
     window.addEventListener('mouseup', function () {
       if (selState.dragging) {
         selState.dragging = false;
-        if (!_selHasRect()) selState.rect = null;
+        if (selState.poly && selState.poly.length < 3) selState.poly = null;
+        if (!_selHasRect()) { selState.rect = null; selState.poly = null; }
         else _selStatus('Selected. Cut (transparent hole) or Copy the zone.');
         _selDrawOverlay(); _selUpdateButtons();
       }
@@ -862,10 +912,28 @@
     if ((b = document.getElementById('select-modal-close'))) b.addEventListener('click', _closeSelect);
     if ((b = document.getElementById('select-recenter'))) b.onclick = function () { if (_selMgr.recenter) _selMgr.recenter(); };
 
+    function _selSetMode(mode) {
+      selState.mode = mode;
+      selState.rect = null; selState.poly = null; selState.dragging = false;
+      var r = document.getElementById('select-mode-rect');
+      var l = document.getElementById('select-mode-lasso');
+      if (r) r.classList.toggle('active', mode === 'rect');
+      if (l) l.classList.toggle('active', mode === 'lasso');
+      _selStatus(mode === 'lasso' ? 'Lasso : entoure la zone en gardant le bouton enfonce.'
+                                  : 'Trace un rectangle autour de la zone.');
+      _selDrawOverlay(); _selUpdateButtons();
+    }
+    if ((b = document.getElementById('select-mode-rect'))) b.addEventListener('click', function () { _selSetMode('rect'); });
+    if ((b = document.getElementById('select-mode-lasso'))) b.addEventListener('click', function () { _selSetMode('lasso'); });
+
     document.addEventListener('keydown', function (e) {
       if (!selectModal || selectModal.classList.contains('hidden')) return;
       if (e.key === 'Escape') { if (selState.float || selState.rect) _selDeselect(); else _closeSelect(); }
       else if (e.key === 'Enter' && selState.float) _selDrop();
+      else if ((e.key === 'Delete' || e.key === 'Backspace') && _selHasRect() && !selState.float) {
+        e.preventDefault();                    // Retour arriere ne doit pas naviguer
+        _selDelete();
+      }
     });
 
     var sSave = document.getElementById('select-save');

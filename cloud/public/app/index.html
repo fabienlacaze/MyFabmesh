@@ -132,7 +132,11 @@
     .versions-strip .version-thumb[data-vkm]:hover .version-history-btn {
       display: none !important;
     }
-  </style>
+      /* Mode de selection actif (Rect / Lasso) : sans cette regle, rien
+       n'indiquait a l'utilisateur quel outil etait arme. */
+    .tool-btn.active { border-color: #22c55e !important; color: #22c55e !important;
+                       background: rgba(34,197,94,0.12) !important; }
+</style>
   <!-- Console capture: patches console.* into a ring buffer that gets
        auto-flushed to /api/client-log at every Generate event. Loaded
        FIRST so it captures everything from boot. -->
@@ -2855,7 +2859,7 @@
           <button id="select-modal-close" class="settings-close-x">&#10005;</button>
         </div>
         <div style="font-size: 11px; color: var(--text-muted);">
-          <strong>Drag</strong> a rectangle &nbsp;|&nbsp; <strong>Cut</strong> (leaves a transparent hole) or <strong>Copy</strong> &nbsp;|&nbsp;
+          <strong>Rect</strong> or <strong>Lasso</strong>, then drag around the zone &nbsp;|&nbsp; <strong>Cut</strong> (leaves a transparent hole) or <strong>Copy</strong> &nbsp;|&nbsp;
           drag the piece to move it &nbsp;|&nbsp; <strong>Drop</strong> (or Enter) to place &nbsp;|&nbsp; right-drag to pan, wheel to zoom
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
@@ -2865,6 +2869,8 @@
           <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Drop the floating piece here (Enter)" disabled>&#128204; Drop</button>
           <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Deselect / cancel move (Esc)" disabled>&#10006; Deselect</button>
           <span style="flex:1;"></span>
+          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:12px;" title="Selection rectangulaire">&#9647; Rect</button>
+          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Selection libre au lasso">&#10227; Lasso</button>
           <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
           <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
           <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)">&#8631;</button>
