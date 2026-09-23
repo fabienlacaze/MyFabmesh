@@ -21245,3 +21245,11 @@ remplissage ; piece coupee tracant la MEME suite de points que le trou,
 decalee de la boite englobante ; `clip()` avant le dessin ; contour de 2
 points refuse. Parite bureau/web : les deux fichiers ne different que par le
 detour de connexion Cloud deja present (14 lignes, sans rapport).
+
+### Garde des prompts : le web y echappait
+
+`check-prompts-budget.mjs` n'etait branche que sur la chaine de packaging
+BUREAU (`prebuild:licence-check`). Or c'est le controle de PARITE
+bureau/web/modal : construire le web sans lui laissait passer exactement la
+divergence qui avait produit le doublon de gabarit. Ajoute au `prebuild` de
+`cloud/package.json`.
