@@ -5972,7 +5972,7 @@ if (qualityEl && qualityLabel) {
 //  3. Negative prompt (local_juggernaut_bridge.py) blocks grid layouts.
 const ASSET_TYPE_PROMPTS = {
   character: 'isolated 3D character, full body, fully clothed, wearing a complete outfit, dressed in appropriate clothing, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI',
-  building: 'architectural building exterior, complete edifice, entire building visible from base to roof, wide establishing shot, long shot, distant camera, the whole structure fits inside the frame with clear margin on every side, building fills about 70 percent of frame, nothing cropped, not touching the frame edges, isolated, full structure, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town',
+  building: 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, nothing cropped, plain white background, even studio lighting, no shadows, centered, strict front view, clean silhouette',
   vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no rear view inset',
   weapon: 'isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI',
   prop: 'isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
@@ -6356,6 +6356,34 @@ function stripKnownPromptSuffixes(raw) {
     const esc = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp('(^|,\\s*)' + esc + '(?=$|,\\s*)', 'gi');
     txt = txt.replace(re, (_, sep) => '');
+  }
+  /* COUPE PAR MARQUEUR -- ajoute le 2026-09-23.
+   *
+   * Les passes ci-dessus effacent le gabarit MOT POUR MOT. Un projet cree avec
+   * une version ANTERIEURE du gabarit n'est donc pas reconnu : son texte reste,
+   * et la generation lui recolle le gabarit courant. Mesure sur un projet reel
+   * (« medieval townhall ») : 193 jetons CLIP pour une limite de 77 -- 60 % du
+   * prompt ignore, en plein milieu des consignes de cadrage. D'ou des batiments
+   * coupes malgre « nothing cropped ».
+   *
+   * Le gabarit est TOUJOURS ajoute en fin de chaine. Il suffit donc de reperer
+   * son DEBUT (quelques mots stables, insensibles aux revisions) et de couper
+   * jusqu'a la fin. Insensible aux versions, present et futur. */
+  const MARQUEURS_GABARIT = [
+    ...Object.values(ASSET_TYPE_PROMPTS),
+    ...Object.values(ASSET_TYPE_PREFIXES),
+  ].filter(s => s && s.length > 20)
+   /* Le marqueur est le PREMIER segment, pas les deux premiers : en trimant le
+    * gabarit « batiment » j'ai casse ma propre coupe, parce que le 2e segment
+    * avait change (« complete edifice » -> « wide establishing shot ») alors que
+    * les projets existants portent l'ancien. Le 1er segment, lui, ne bouge pas.
+    * On garde aussi la paire, qui attrape des cas que le seul 1er segment rate. */
+   .flatMap(s => [s.split(',')[0], s.split(',').slice(0, 2).join(',')])
+   .map(m => m.trim())
+   .filter((m, i, a) => m.length > 12 && a.indexOf(m) === i);
+  for (const m of MARQUEURS_GABARIT) {
+    const i = txt.toLowerCase().indexOf(m.toLowerCase());
+    if (i > 0) txt = txt.slice(0, i);
   }
   // Collapse any resulting double commas / leading comma / extra whitespace.
   txt = txt.replace(/\s*,\s*,\s*/g, ', ').replace(/^\s*,\s*/, '').replace(/\s*,\s*$/, '').trim();
