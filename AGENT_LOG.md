@@ -21610,3 +21610,36 @@ Corrige en supprimant la liste plutot qu'en l'allongeant : la carte est
 desormais deduite de la reponse du worker (toute entree qui porte un champ
 `warm`). Ajouter un service en amont suffit maintenant — il n'y a plus de
 troisieme endroit ou penser.
+
+### Habits : premier vrai resultat, et deux defauts qu'aucun banc ne voyait
+
+L'outil a REUSSI son premier passage GPU (outfit/1790247908501_outfit.png,
+11:05 UTC) — mais le resultat etait mauvais : la tete remplacee par un bloc
+blanc uniforme, et la peau du torse conservee.
+
+DEUX CAUSES, distinctes :
+
+  A. LA TETE ETAIT COMPTEE COMME UN TROU DE VETEMENT. Elle est entouree par
+     les epaules et le col, donc `_trous_enclos` la voyait comme une zone que
+     le vetement entoure — exactement ce qu'il est cense recoudre. SDXL la
+     repeignait. Correctif : les trous sont desormais bornes a la silhouette
+     PUIS debarrasses de la peau (dilatee de 3 px pour ne pas laisser de halo
+     au ras du col).
+
+  B. LE MODE « ENSEMBLE » INTERROGEAIT CLIPSEG AVEC VINGT CONCEPTS COLLES en
+     une seule phrase (« a cape, a cloak, body armor, breastplate, ... »).
+     CLIPSeg rend alors une tache vague couvrant tout le personnage, peau
+     comprise. Correctif : une requete PAR PIECE, puis union des masques.
+     Cout : quelques passes CLIPSeg de plus, negligeable (~50 ms chacune).
+
+  Et un troisieme, revele par le banc en corrigeant les deux premiers :
+  l'alpha final etait borne a la silhouette mais PAS a la peau, si bien que
+  l'adoucissement repoussait le bord du vetement dans le visage — 1036 px de
+  lisere sur la tete, 736 px de peau dans la tenue. Meme correction : les
+  DEUX bornages apres le flou.
+
+BANC n2 (scratchpad/banc_outfit2.py) : tete entouree d'epaules, armure et
+bottes. Mesures apres correctifs — recouture sur la tete 0 px sur 9900, alpha
+final sur la tete 0 px, peau dans la tenue 0 px, couverture armure 94 % et
+bottes 100 %, et l'ensemble interroge bien 2 termes separement. Le banc n1
+passe toujours.

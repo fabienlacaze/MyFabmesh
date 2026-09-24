@@ -187,16 +187,24 @@ def decouper_tenue(
     m_peau = _et(m_peau, m_perso)
 
     noms = list(pieces) if pieces else list(PIECES_TENUE.keys())
+    # Chaque entree porte une LISTE de termes, dont on unit les masques.
+    # L'ensemble interrogeait CLIPSeg avec les vingt concepts colles en une
+    # seule phrase : le modele rendait alors une tache vague couvrant tout le
+    # personnage, peau comprise (constate sur un orc le 2026-09-24). Interroge
+    # piece par piece, chaque masque est net, et leur union est la tenue.
     demandes = []
     if ensemble:
-        demandes.append(('outfit', ', '.join(PIECES_TENUE[n] for n in noms if n in PIECES_TENUE)
-                                   or 'clothing, garment'))
+        termes = [PIECES_TENUE[n] for n in noms if n in PIECES_TENUE]
+        demandes.append(('outfit', termes or ['clothing, garment']))
     if par_piece:
-        demandes += [(n, PIECES_TENUE[n]) for n in noms if n in PIECES_TENUE]
+        demandes += [(n, [PIECES_TENUE[n]]) for n in noms if n in PIECES_TENUE]
 
     resultats = []
-    for nom, terme in demandes:
-        m = Image.fromarray(_binariser(clipseg(terme), rel=0.45), mode='L')
+    for nom, termes in demandes:
+        m = None
+        for t in termes:
+            mt = Image.fromarray(_binariser(clipseg(t), rel=0.45), mode='L')
+            m = mt if m is None else _ou(m, mt)
         m = _sauf(_et(m, m_perso), m_peau)     # BORNAGE DUR + retrait de la peau
         if _aire(m) < AIRE_MINI_PIECE:
             continue                            # piece absente de l'image
@@ -211,7 +219,13 @@ def decouper_tenue(
             # Ni l'un ni l'autre ne peut ajouter quoi que ce soit a
             # l'exterieur du vetement ; on re-borne quand meme a la silhouette.
             trous = _ou(_trous_enclos(m), _sauf(_fermeture(m, rayon_fermeture), m))
-            trous = _et(trous, m_perso)
+            # BORNAGE a la silhouette, PUIS retrait de la peau : la tete est
+            # entouree par les epaules et le col, donc le remplissage des trous
+            # enclos la comptait comme du tissu a recoudre — SDXL la repeignait
+            # en bloc uniforme (constate sur un orc le 2026-09-24). La peau est
+            # dilatee un peu avant soustraction pour ne pas laisser un halo au
+            # ras du col.
+            trous = _sauf(_et(trous, m_perso), _dilater(m_peau, 3))
             if _aire(trous) > 0.001:
                 try:
                     rgb_piece = inpaint(
@@ -230,7 +244,11 @@ def decouper_tenue(
         # suffit a rendre fausse la garantie « la tenue ne deborde pas du
         # personnage ». Ici le flou ne peut que ronger vers l'interieur.
         alpha = m.filter(ImageFilter.GaussianBlur(adoucir)) if adoucir > 0 else m
-        alpha = _et(alpha, m_perso)
+        # Les DEUX bornages, pas seulement la silhouette : le flou repousse le
+        # bord du vetement de quelques pixels DANS la peau (mesure : un lisere
+        # de 1036 px sur la tete, 736 px de peau dans la tenue). Une encolure
+        # un peu serree vaut mieux qu'un morceau de visage colle au col.
+        alpha = _sauf(_et(alpha, m_perso), m_peau)
         out = rgb_piece.convert('RGBA')
         out.putalpha(alpha)
         out = out.resize((ow, oh), Image.LANCZOS)      # CADRE D'ORIGINE
