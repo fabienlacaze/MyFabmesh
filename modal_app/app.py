@@ -149,7 +149,7 @@ def _ai_pnginfo():
     from PIL.PngImagePlugin import PngInfo
     info = PngInfo()
     xmp = (
-        '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
         '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
         '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
         '<rdf:Description rdf:about="" '
@@ -273,8 +273,28 @@ image = (
     # l'outil n'a jamais fonctionne. MEME accident que fast_simplification
     # ci-dessus : une dependance absente rend une operation FACTUREE
     # inoperante, en silence tant que personne ne clique.
+    # rembg : moteur de détourage de l'op « Auto-rectify source view »
+    # (modal_app/_rectify.py:symmetry_score -> `from rembg import remove`).
+    #
+    # MESURE DU 2026-09-25 : l'op échouait sur « Cloud GPU rectify HTTP 500 »
+    # à CHAQUE appel depuis le 17:29, en 6 secondes (duree=6223ms) — donc
+    # avant toute diffusion. Cause : rembg n'était installé QUE dans
+    # mesh_image (L366), alors que la route /rectify vit sur MyFabmeshBackview,
+    # qui porte CETTE image. L'import étant fait DANS la fonction (et non au
+    # chargement du module), l'erreur ne se déclarait qu'au premier appel —
+    # invisible au déploiement, et sans aucune trace dans les journaux de
+    # l'app. Le garde-fou build/check_modal_deps.py ne l'a pas vu non plus :
+    # il ne surveille que les dépendances des ops mesh.
+    #
+    # MEME accident que scikit-image et fast_simplification ci-dessus : une
+    # dépendance absente rend une opération FACTURÉE inopérante. Les crédits
+    # étaient remboursés (addCredits + refundModalSpend), mais l'outil
+    # n'a jamais fonctionné.
+    #
+    # onnxruntime-gpu est requis par rembg : sans lui rembg retombe sur le
+    # CPU, ce qui rendrait le détourage plus lent que la diffusion elle-même.
     .pip_install("opencv-python-headless", "trimesh>=4.0", "scipy>=1.10", "mapbox_earcut",
-                 "fast_simplification", "scikit-image")
+                 "fast_simplification", "scikit-image", "rembg[gpu]>=2.0")
     .add_local_python_source("modal_app")
     .add_local_file(
         "modal_app/back_tpose_skeleton.png",
