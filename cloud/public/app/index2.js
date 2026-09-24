@@ -1485,7 +1485,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-smooth':       true,   // paint, chrome
     'ws-trellis2-refine':       null,   // hallucinates wear on smooth surfaces
     'ws-trellis2-quality-plus': true,
-    'ws-trellis2-ultra-q':      null,   // no face to gain from 1536
+    'ws-trellis2-ultra-q':      false,   // no face to gain from 1536
     'ws-trellis2-ultra-hd':     null,   // masque: doublon du prereglage Ultra 8K (qui pose forceUltraHd). La qualite de texture se choisit UNIQUEMENT dans QUALITY PRESET.
     'ws-trellis2-face-fix':     null,
   },
@@ -1494,7 +1494,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
-    'ws-trellis2-ultra-q':      null,
+    'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     null,   // masque: doublon du prereglage Ultra 8K (qui pose forceUltraHd). La qualite de texture se choisit UNIQUEMENT dans QUALITY PRESET.
     'ws-trellis2-face-fix':     null,
   },
@@ -1503,7 +1503,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
-    'ws-trellis2-ultra-q':      null,
+    'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     null,   // masque: doublon du prereglage Ultra 8K (qui pose forceUltraHd). La qualite de texture se choisit UNIQUEMENT dans QUALITY PRESET.
     'ws-trellis2-face-fix':     null,
   },
@@ -1512,7 +1512,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
-    'ws-trellis2-ultra-q':      null,
+    'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     null,   // masque: doublon du prereglage Ultra 8K (qui pose forceUltraHd). La qualite de texture se choisit UNIQUEMENT dans QUALITY PRESET.
     'ws-trellis2-face-fix':     null,
   },
@@ -1521,7 +1521,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
-    'ws-trellis2-ultra-q':      null,
+    'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     null,   // masque: doublon du prereglage Ultra 8K (qui pose forceUltraHd). La qualite de texture se choisit UNIQUEMENT dans QUALITY PRESET.
     'ws-trellis2-face-fix':     null,
   },
@@ -1539,7 +1539,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-smooth':       true,   // metal panels
     'ws-trellis2-refine':       null,   // hallucinates wear on smooth fuselage
     'ws-trellis2-quality-plus': true,
-    'ws-trellis2-ultra-q':      null,
+    'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     null,   // masque: doublon du prereglage Ultra 8K (qui pose forceUltraHd). La qualite de texture se choisit UNIQUEMENT dans QUALITY PRESET.
     'ws-trellis2-face-fix':     null,
   },
@@ -1548,7 +1548,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-smooth':       true,   // hull paint
     'ws-trellis2-refine':       null,   // hallucinates wear on smooth hull
     'ws-trellis2-quality-plus': true,
-    'ws-trellis2-ultra-q':      null,
+    'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     null,   // masque: doublon du prereglage Ultra 8K (qui pose forceUltraHd). La qualite de texture se choisit UNIQUEMENT dans QUALITY PRESET.
     'ws-trellis2-face-fix':     null,
   },

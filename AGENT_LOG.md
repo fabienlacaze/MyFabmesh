@@ -22222,3 +22222,35 @@ coche. Les trois champs sont maintenant ajoutes aux DEUX sites qui ecrivent
 
 Et le garde de syntaxe a attrape ma propre casse en chemin (une chaine coupee
 par un echappement rate) : c'est exactement ce pour quoi il a ete ecrit.
+
+### Paille et fourrure : la resolution de voxels etait INACCESSIBLE pour ces assets
+
+Le user signale des trous dans la paille d'une hutte, puis le meme symptome
+sur les fourrures d'animaux. Mesure du GLB : 8 aretes de bord seulement (donc
+pas de trous topologiques) mais 12 010 COMPOSANTES — les structures fines
+sont reconstruites en fragments disjoints.
+
+CAUSE TROUVEE dans ASSET_OPTIONS_PROFILE :
+
+    building : 'ws-trellis2-ultra-q': null
+
+`null` signifie « ligne MASQUEE et option forcee a off ». La plus haute
+resolution de voxels (1536_cascade) etait donc INACCESSIBLE pour un batiment,
+un decor, un accessoire, une arme, un vehicule. Le user ne pouvait pas la
+cocher — sa capture d'ecran le montrait, l'option n'etait simplement pas dans
+la liste.
+
+La justification d'origine (« face detail matters ») ne vaut que pour un
+personnage. La resolution de voxels ne concerne pas que les visages : elle
+decide de tout ce qui est FIN — paille, poutres, rambardes, feuillage,
+poils.
+
+CORRECTIF : `null` -> `false` pour building, environment, prop, weapon,
+vehicle, avion, bateau. L'option devient VISIBLE et DECOCHEE par defaut :
+personne ne paie 2 credits sans le vouloir, mais le levier existe. `icon`
+reste masque (une icone n'a rien de fin a resoudre). Libelle corrige : il
+parlait de « fine face detail », il parle maintenant des parties fines.
+
+VERIFIE : la plomberie etait deja bonne — worker.ts:6992 envoie bien
+`mode: '1536_cascade'` quand ultra_q est coche. Je l'avais d'abord suppose
+absente, a tort.
