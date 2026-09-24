@@ -448,10 +448,40 @@ function _plafond(brut: string | undefined, defaut: number): number {
   return Math.max(0, n);
 }
 
+/** DEUX compteurs, et c'est le point important.
+ *
+ *  `_meta/userspend/<uid>/<jour>` est un compteur de COMPTABILITE : il additionne
+ *  ce que le compte a depense chez TOUS les fournisseurs. La voie Modal l'ecrit
+ *  sans jamais le comparer a un plafond — son propre commentaire le dit, « on ne
+ *  fait que dire la verite sur ce qui a ete depense ».
+ *
+ *  `_meta/userspend_cap/<uid>/<jour>` est le compteur de PLAFOND : seule cette
+ *  fonction l'ecrit, seule elle le compare a MAX_USER_DAILY_SPEND_USD.
+ *
+ *  Ils etaient confondus, et le defaut etait severe (mesure le 2026-09-24) :
+ *  une matinee de travail Modal — que ce plafond n'arbitre PAS — remplissait le
+ *  compteur jusqu'a 2,099 $, puis le premier Remove BG de la journee, seule
+ *  operation image restee sur la voie Replicate et donc seule a CONSULTER ce
+ *  compteur, se faisait refuser. Le budget GPU global, lui, etait a 2,08 $ sur
+ *  10 $. Autrement dit : un chemin remplissait le seau, un autre le payait.
+ *
+ *  Separer les deux ne desarme rien : la voie Modal n'appliquait deja aucun
+ *  plafond par compte. Cela rend seulement au plafond Replicate ce qu'il est
+ *  cense arbitrer — la depense Replicate. */
+function _cleSpendUser(userId: string): string {
+  return `_meta/userspend/${userId}/${todayUTC()}`;
+}
+function _cleCapUser(userId: string): string {
+  return `_meta/userspend_cap/${userId}/${todayUTC()}`;
+}
+
 async function checkAndIncrementUserDailySpend(env: Env, userId: string, estimatedUsd: number): Promise<number | null> {
   const maxUsd = _plafond(env.MAX_USER_DAILY_SPEND_USD, DEFAULT_MAX_USER_DAILY_SPEND_USD);
-  const next = await _casIncrementCounter(env, `_meta/userspend/${userId}/${todayUTC()}`, estimatedUsd, maxUsd);
-  return next == null ? null : maxUsd - next;
+  const next = await _casIncrementCounter(env, _cleCapUser(userId), estimatedUsd, maxUsd);
+  if (next == null) return null;
+  // La comptabilite continue d'additionner tout, sans jamais refuser.
+  try { await _incrementAtomique(env, _cleSpendUser(userId), estimatedUsd); } catch { /* comptabilite seule */ }
+  return maxUsd - next;
 }
 
 /** Check the daily Replicate spend cap. Returns the remaining budget
@@ -489,11 +519,14 @@ async function refundDailySpend(env: Env, refundUsd: number, userId?: string): P
    * `checkAndIncrementDailySpend`, ou l'increment personnel a justement
    * echoue — il n'y a rien a rendre. */
   if (userId) {
-    try {
-      const uk = `_meta/userspend/${userId}/${todayUTC()}`;
-      const u = parseFloat((await r2GetText(env, uk)) || '0') || 0;
-      await env.MESHES.put(uk, String(Math.max(0, u - refundUsd)));
-    } catch (_) { /* comptabilite seule — ne jamais faire echouer un remboursement */ }
+    // Les DEUX : le compteur de plafond (sinon la marge du jour reste entamee
+    // par un travail jamais livre) ET la comptabilite.
+    for (const uk of [_cleCapUser(userId), _cleSpendUser(userId)]) {
+      try {
+        const u = parseFloat((await r2GetText(env, uk)) || '0') || 0;
+        await env.MESHES.put(uk, String(Math.max(0, u - refundUsd)));
+      } catch (_) { /* comptabilite seule — ne jamais faire echouer un remboursement */ }
+    }
   }
 }
 
@@ -558,7 +591,8 @@ async function _spendRefusalMessage(env: Env, userId?: string): Promise<string> 
   if (!userId || !env.MESHES) return GENERIC;
   try {
     const maxUser = _plafond(env.MAX_USER_DAILY_SPEND_USD, DEFAULT_MAX_USER_DAILY_SPEND_USD);
-    const cur = parseFloat((await r2GetText(env, `_meta/userspend/${userId}/${todayUTC()}`)) || '0') || 0;
+    // Le compteur de PLAFOND, pas celui de comptabilite : c'est lui qui refuse.
+    const cur = parseFloat((await r2GetText(env, _cleCapUser(userId))) || '0') || 0;
     // Within 20% of the personal cap => it is almost certainly the one
     // that refused. Below that, the global cap is the culprit and the
     // generic wording is the honest one.
@@ -756,7 +790,7 @@ async function checkAndIncrementModalSpend(env: Env, estimatedUsd: number, userI
        * applique ici — on ne fait que dire la verite sur ce qui a ete
        * depense. */
       if (userId) {
-        await _incrementAtomique(env, `_meta/userspend/${userId}/${todayUTC()}`, estimatedUsd);
+        await _incrementAtomique(env, _cleSpendUser(userId), estimatedUsd);
       }
       await _maybeAlertModalBudget(env);
     } catch { /* accounting only — never block a paid call on it */ }
@@ -811,7 +845,7 @@ async function refundModalSpend(env: Env, refundUsd: number, userId?: string): P
   } catch (_) {}
   if (userId) {
     try {
-      const uk = `_meta/userspend/${userId}/${todayUTC()}`;
+      const uk = _cleSpendUser(userId);
       const u = parseFloat((await r2GetText(env, uk)) || '0') || 0;
       await env.MESHES.put(uk, String(Math.max(0, u - refundUsd)));
     } catch (_) { /* comptabilite seule — ne jamais faire echouer un remboursement */ }
@@ -8399,8 +8433,13 @@ async function handleRemoveBackground(req: Request, env: Env): Promise<Response>
   const ESTIMATED_USD = 0.02;
   const remainingBudget = await checkAndIncrementDailySpend(env, ESTIMATED_USD, user.id);
   if (remainingBudget == null) {
+    // _spendRefusalMessage distingue le plafond PERSONNEL du plafond global et
+    // nomme celui qui a reellement refuse. Cette route annoncait « daily Cloud
+    // GPU budget reached » dans les deux cas : le 2026-09-24 l'utilisateur a
+    // cherche une panne de GPU pendant que son budget global etait a 2,08 $
+    // sur 10 $.
     return json({ ok: false, success: false,
-      error: `daily Cloud GPU budget reached. Try again after midnight UTC.` }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -9850,9 +9889,8 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
     ? await checkAndIncrementModalSpend(env, estimatedTotal, user.id)
     : await checkAndIncrementDailySpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
-    const provider = 'Cloud GPU';
     return json({ ok: false, success: false,
-      error: `daily ${provider} budget reached. Try again after midnight UTC.` }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {

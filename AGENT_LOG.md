@@ -21353,3 +21353,55 @@ compilateur arrete en route). `node --check` sur main/preload/cloud_fallback,
 `py_compile` sur les quatre fichiers Python, garde de parite au vert.
 
 RESTE : la modale et le bouton, reserves au type « character ».
+
+---
+
+## 2026-09-24 — Le fusible « par compte » bloquait a tort, et accusait le mauvais plafond
+
+Le user a ete refuse sur Remove BG par « daily Cloud GPU budget reached »
+apres une matinee de travail normale.
+
+MESURE au moment du refus (compteurs R2 lus directement) :
+  _meta/userspend/<uid>/2026-09-24 = 2,099   plafond par compte  2,00  DEPASSE
+  _meta/modal_spend/2026-09-24     = 2,079   plafond global     10,00  ok
+  _meta/spend/2026-09-24           = 0,02    plafond Replicate   4,00  ok
+
+Le message accusait donc le budget GPU global, qui allait tres bien.
+
+ECARTE, mesure et non suppose : MAX_DAILY_MODAL_SPEND_USD vaut bien 10.00 en
+production (lu sur la version live 6e937ce4, deployee le 23/09 a 20:10 UTC ;
+aucun secret de meme nom). J'avais avance l'hypothese « la valeur est restee
+au defaut 2.00 » — elle est FAUSSE.
+
+CAUSE. Un seul compteur, `_meta/userspend/<uid>/<jour>`, servait a deux
+choses opposees :
+  - la voie MODAL l'incremente sans JAMAIS l'appliquer — le commentaire du
+    code le dit lui-meme, « on ne fait que dire la verite sur ce qui a ete
+    depense » ;
+  - la voie REPLICATE (`checkAndIncrementDailySpend`) l'APPLIQUE.
+Or Remove BG est la SEULE operation image restee sur la voie Replicate. Le
+travail Modal remplissait donc le seau sans jamais etre refuse, et le premier
+Remove BG de la journee le payait. Toute journee Modal chargee condamnait
+Remove BG jusqu'a minuit UTC.
+
+CORRECTIFS
+  * Compteur de PLAFOND separe : `_meta/userspend_cap/<uid>/<jour>`, ecrit et
+    lu par le seul chemin qui l'applique. `_meta/userspend/` reste la
+    comptabilite tous fournisseurs, jamais comparee a un plafond. Verifie par
+    relecture : plus aucun `_casIncrementCounter` plafonne sur la
+    comptabilite, et les quatre ecritures passent par `_cleSpendUser`.
+  * Le remboursement rend desormais les DEUX compteurs, sans quoi un travail
+    jamais livre continuerait d'entamer la marge du jour.
+  * Les deux routes qui annoncaient « daily Cloud GPU budget reached » en dur
+    utilisent `_spendRefusalMessage`, helper qui EXISTAIT DEJA et nomme le
+    plafond reellement atteint. Deux autres routes l'utilisaient deja : le
+    defaut etait une omission, pas une absence d'outil.
+
+Cela ne desarme rien : la voie Modal n'appliquait deja aucun plafond par
+compte. Effet de bord assume : au deploiement, `userspend_cap` repart de zero,
+ce qui rend sa marge du jour a tout le monde.
+
+NON FAIT : remettre le compteur du user a sa vraie depense Replicate pour le
+debloquer tout de suite — l'ecriture R2 m'a ete refusee (ressource partagee).
+Le deploiement web reste par ailleurs bloque par le garde des mentions
+legales, donc ces correctifs ne partiront pas en production sans le user.
