@@ -22193,3 +22193,32 @@ plateformes : plus aucune occurrence.
 
 Verifie que le garde des etapes tient : « Auto-rig AI » contient toujours
 « rig », le travail reste donc rattache a l'etape 3.
+
+### Generation d'image fantome : j'arrete de deviner, j'instrumente
+
+Le user signale pour la 4e fois une generation d'image qui part seule a chaque
+mesh, et suggere justement de la COUPLER visuellement au 3D.
+
+TROIS HYPOTHESES ECARTEES PAR LA MESURE, pas par le raisonnement :
+  * le bouton image ne la declenche pas — handler 3D relu en entier (5 892
+    octets), aucun appel ;
+  * la reprise de travaux ne concerne que les rigs (`fabmesh_pending_rigs`) ;
+  * la file d'attente ne bloque rien : `hasVramHeadroomFor` rend `ok`
+    immediatement en mode cloud.
+Et le rectify, lui, est PUREMENT serveur : aucun `rectifyImage` cote client.
+
+Donc je ne sais pas d'ou vient la tuile, et j'ai assez suppose. `pushJob`
+enregistre desormais la PILE D'APPEL quand le nom commence par « Generate
+images ». Les journaux console partent vers R2 a chaque fin de travail
+([[project_debug_infrastructure]]) : la prochaine occurrence nommera son
+appelant.
+
+AU PASSAGE, mon correctif de journalisation precedent NE FAISAIT PAS ce que
+j'annoncais : j'avais ajoute quality_plus / ultra_q / trellis_mode a la
+charge utile MODAL, pas a la ligne du JOURNAL — deux endroits differents.
+Constate parce que `refine` manquait lui aussi alors que le user l'avait
+coche. Les trois champs sont maintenant ajoutes aux DEUX sites qui ecrivent
+`options` dans la table `jobs`.
+
+Et le garde de syntaxe a attrape ma propre casse en chemin (une chaine coupee
+par un echappement rate) : c'est exactement ce pour quoi il a ete ecrit.

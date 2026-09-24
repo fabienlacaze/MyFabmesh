@@ -6762,6 +6762,11 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
       options: {
         rectify: input.rectify, back_view: input.back_view, smooth: input.smooth,
         face_fix: input.face_fix, ultra_hd: input.ultra_hd, fast: input.fast,
+        // Les options de GEOMETRIE manquaient : impossible de savoir apres
+        // coup a quelle resolution de voxels un mesh avait ete fabrique.
+        // C est exactement ce qui a bloque le diagnostic d une hutte a la
+        // paille fragmentee le 2026-09-24. `refine` manquait aussi.
+        refine: input.refine, quality_plus: input.quality_plus, ultra_q: input.ultra_q,
       },
       mesh_url: null, error: null,
       created_at: new Date().toISOString(), finished_at: null,
@@ -6957,6 +6962,11 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
       options: {
         rectify: input.rectify, back_view: input.back_view, smooth: input.smooth,
         face_fix: input.face_fix, ultra_hd: input.ultra_hd, fast: input.fast,
+        // Les options de GEOMETRIE manquaient : impossible de savoir apres
+        // coup a quelle resolution de voxels un mesh avait ete fabrique.
+        // C est exactement ce qui a bloque le diagnostic d une hutte a la
+        // paille fragmentee le 2026-09-24. `refine` manquait aussi.
+        refine: input.refine, quality_plus: input.quality_plus, ultra_q: input.ultra_q,
         backend: 'modal',
         operation_type: 'mesh',
         // Same value the budget guard just charged (preset-aware).

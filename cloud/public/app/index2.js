@@ -17530,6 +17530,18 @@ if (!window.__fabmesh_ai3d_listener_installed && window.meshyAPI && window.meshy
 // Because index2.js is an ES module, plain `function foo()` declarations
 // don't land on `window`; we wire them up explicitly below after definition.
 function pushJob(name, onCancel, params, expectedMsOverride, startedAtOverride, opts) {
+  // INSTRUMENTATION (2026-09-24). L'utilisateur voit une generation d'image
+  // se lancer seule a chaque mesh. Trois hypotheses ecartees par la mesure :
+  // le bouton image ne la declenche pas, la reprise ne concerne que les rigs,
+  // la file d'attente rend `ok` en mode cloud. On enregistre donc la PILE
+  // D'APPEL — les journaux partent vers R2 a chaque fin de travail, la
+  // prochaine occurrence nommera son appelant au lieu de nous faire deviner.
+  try {
+    if (/^Generate images/i.test(String(name || ''))) {
+      var _pile = (new Error().stack || '').split(String.fromCharCode(10));
+      console.warn('[trace] Generate images pousse par :', _pile.slice(1, 6).join(' | '));
+    }
+  } catch (_) {}
   const id = ++state.jobIdCounter;
   const kind = inferKind(name);
   // Pre-compute expected: caller wins, else infer container-aware
