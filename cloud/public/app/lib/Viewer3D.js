@@ -114,7 +114,13 @@ export class Viewer3D {
     back.position.set(0, 5, -8);
     this.scene.add(back);
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    this.renderer.toneMappingExposure = 1.3;
+    // Le banc de lumieres ci-dessus et cette exposition forment UN reglage :
+    // l'un sans l'autre rend sombre. Elle est exposee sur l'objet parce que
+    // l'appelant remplace parfois le renderer (WebGL avec alpha, contexte
+    // perdu) et doit pouvoir la reposer sans la recopier — c'est justement en
+    // la recopiant a 1.0 que les vues sont redevenues sombres (2026-09-24).
+    this.expositionParDefaut = 1.3;
+    this.renderer.toneMappingExposure = this.expositionParDefaut;
   }
 
   _setupAutoResize() {

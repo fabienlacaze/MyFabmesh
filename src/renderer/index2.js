@@ -9053,7 +9053,7 @@ function initWsThree() {
     _wsV.renderer.setSize(canvas.clientWidth || 320, canvas.clientHeight || 260, false);
     _wsV.renderer.setPixelRatio(window.devicePixelRatio);
     _wsV.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    _wsV.renderer.toneMappingExposure = 1.0;
+    _wsV.renderer.toneMappingExposure = _wsV.expositionParDefaut || 1.3;   // et non 1.0 : le banc de lumieres est regle pour cette valeur
   }
   wsRenderer = _wsV.renderer;
   wsScene = _wsV.scene;

@@ -21689,3 +21689,24 @@ VERIFIE : analyseur de syntaxe au vert sur les deux copies, garde des etapes
 au vert. La confirmation au survol revient a l'utilisateur — l'appli bureau
 etait fermee au moment du correctif, et je ne l'ai pas relancee de ma propre
 initiative.
+
+### Le rendu 3D etait sombre : l'exposition etait defaite apres coup
+
+Le user signale que le rendu des meshes est tres sombre. Indice decisif dans
+sa capture : les VIGNETTES sont claires, seule la grande vue est sombre — donc
+la texture est bonne, c'est l'eclairage du visualiseur.
+
+CAUSE. `Viewer3D._addDefaultLighting()` pose quatre lumieres ET
+`toneMappingExposure = 1.3` — un seul reglage en deux morceaux. Son
+commentaire raconte deja l'histoire : « user reported all 3D viewers looked
+too dark », d'ou des valeurs montees de 1.0/1.2/0.5/0.3 a 1.6/1.8/0.9/0.6.
+Mais `initWsThree()` REMPLACE ensuite le renderer (pour un contexte WebGL avec
+alpha) et repose l'exposition a 1.0. Les lumieres restaient, l'exposition
+partait : ~23 % de moins que ce pour quoi le banc a ete regle. Le meme defaut
+existait sur LES DEUX plateformes — ce n'etait pas un travers du web.
+
+CORRECTIF : `this.expositionParDefaut = 1.3` est expose sur l'objet, et les
+deux sites qui remplacent le renderer la reposent depuis l'objet au lieu de
+recopier un nombre. Encore une valeur qui vivait en deux exemplaires dont un
+seul etait maintenu — troisieme cas de la journee apres les gabarits de
+prompt et la liste des services.
