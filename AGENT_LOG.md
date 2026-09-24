@@ -21278,3 +21278,47 @@ defaut, pas seulement le masque manuel.
 
 CORRECTIF : la fonction web est remplacee par la version bureau, a
 l'identique (verifie par `diff`).
+
+---
+
+## 2026-09-24 — Outil « Habits seuls » : noyau + garde de parite
+
+Demande du user : extraire les vetements d'une image de personnage pour les
+reprendre comme asset. Contrainte posee explicitement : « il faut bien
+respecter la morphologie du caracter ». Choix valide par le user : le mode
+(ensemble / une image par piece) est un CHOIX dans la modale, et les parties
+cachees par le corps sont RECOUSUES par IA.
+
+La morphologie n'est pas confiee a une consigne de prompt — elle est tenue
+par deux invariants de code :
+  1. tout masque est intersecte avec la silhouette du personnage ;
+  2. la sortie garde la taille et les coordonnees de la source, donc la tenue
+     se replace au pixel pres (le recadrage est une option).
+
+AUCUN nouveau modele : CLIPSeg (Apache 2.0) et SDXL Inpainting sont deja
+embarques pour l'Auto Inpaint, des deux cotes.
+
+BANC (scratchpad/banc_outfit.py, sans GPU : les modeles sont des bouchons qui
+renvoient des masques connus). Il a trouve DEUX defauts reels :
+
+  * LA COMPLETION NE SE DECLENCHAIT JAMAIS. Les creux etaient cherches par
+    fermeture morphologique de rayon 14, qui ne franchit que ~28 px ; un bras
+    en travers d'une cape en fait 40 a 100. Corrige par un remplissage des
+    trous ENCLOS (depuis le bord, sans limite de taille) ; la fermeture ne
+    sert plus qu'aux encoches ouvertes sur le contour. Mesure apres
+    correctif : l'entaille du banc est couverte a 4400 px sur 4400.
+
+  * L'ALPHA DEBORDAIT DE LA SILHOUETTE. L'adoucissement etait applique APRES
+    le bornage, donc il bavait de 2-3 px dehors — ce qui suffisait a rendre
+    fausse la garantie donnee au user. Bornage deplace APRES le flou : le
+    banc, durci a tolerance ZERO, mesure desormais 0 px hors silhouette.
+
+PARITE. Le noyau vit en deux exemplaires et ne peut pas faire autrement :
+l'image Modal ne monte que `modal_app`, l'appli packagee n'embarque que
+`scripts`. `build/check-outfit-parity.mjs` compare les deux blocs (fins de
+ligne normalisees, sinon Git sous Windows ferait crier le garde pour rien) et
+sait les resynchroniser (`--sync`). Verifie en cassant volontairement la copie
+Modal : le garde nomme la ligne exacte, puis repare.
+
+RESTE A FAIRE : route Modal, route worker + tarif, IPC bureau, modale et
+bouton reserves au type « character ».
