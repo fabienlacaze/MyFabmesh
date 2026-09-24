@@ -8652,7 +8652,26 @@ document.getElementById('ws-3d-triangles')?.addEventListener('change', updateMes
 
 document.getElementById('ws-generate-mesh').addEventListener('click', async () => {
   const p = state.currentProject;
-  if (!p || !p.selectedImagePath) { showToast('Pick an image first.', 'error'); return; }
+  /* JOURNAL PERMANENT DU CLIC (2026-09-25).
+   *
+   * Le user clique « Generate new 3D version » et RIEN ne se passe : aucun
+   * job cree cote serveur (mesure sur la base : le dernier datait de 18:55,
+   * rien de nouveau), aucune tuile, aucune erreur visible. Un clic qui ne
+   * produit rien laisse trois causes possibles, et elles sont
+   * indiscernables de l'exterieur : (a) sortie silencieuse sur une garde,
+   * (b) exception levee avant tout envoi, (c) appel parti mais refuse par le
+   * serveur. Ce journal nomme la cause au lieu de la faire deviner. Les
+   * console.log du renderer partent vers R2 a chaque fin de travail. */
+  console.log('[mesh-click] clic recu', JSON.stringify({
+    projet: p ? p.name : null,
+    imageSelectionnee: p ? (p.selectedImagePath || null) : null,
+    nbImages: p && p.images ? p.images.length : 0,
+  }));
+  if (!p || !p.selectedImagePath) {
+    console.warn('[mesh-click] SORTIE : aucune image selectionnee pour ce projet');
+    showToast('Pick an image first.', 'error');
+    return;
+  }
   const engine = document.getElementById('ws-3d-engine').value;
   const quality = document.getElementById('ws-3d-quality')?.value || 'standard';
   const triLevel = document.getElementById('ws-3d-triangles')?.value || '0';
