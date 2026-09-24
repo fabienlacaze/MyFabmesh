@@ -17793,6 +17793,38 @@ function completeJob(id, success, errorMessage) {
   if (!success && errorMessage) {
     j.errorMessage = String(errorMessage);
   }
+  /* RETRAIT AUTOMATIQUE DES TRAVAUX TERMINES (2026-09-25).
+   *
+   * Un travail n'etait retire de state.jobs que par l'ANNULATION (cancelJob)
+   * ou par « Kill processes ». Un travail qui se terminait NORMALEMENT restait
+   * donc dans la liste INDEFINIMENT, avec sa derniere progression figee — et
+   * comme son tickTimer est arrete, la barre ne bouge plus jamais.
+   *
+   * Consequence mesuree : l'utilisateur voyait « Generate 3D: orc W1 » a
+   * 9m6s/87 % ET a 5m32s/90 % alors qu'AUCUN travail n'etait en cours cote
+   * serveur (verifie en base : zero job actif). Ce n'etaient pas des doublons
+   * ni des travaux vivants, mais les CENDRES de sessions precedentes. Cela a
+   * fait chercher pendant plusieurs tours un doublon qui n'existait pas, et
+   * masquait les vrais defauts.
+   *
+   * On garde la tuile quelques secondes : le temps de voir le resultat, et de
+   * laisser le clic « Go to » utilisable. Un echec reste PLUS LONGTEMPS
+   * (le message d'erreur doit pouvoir etre lu), et sans enfant en cours — on
+   * ne fait pas disparaitre un parent dont une sous-tache tourne encore. */
+  try {
+    const _aDesEnfants = _jobChildren(j.id).some(c => c.status === 'running');
+    if (!_aDesEnfants) {
+      const _delai = success ? 9000 : 20000;
+      setTimeout(() => {
+        // On ne retire que si le travail n'a pas ete relance entre-temps
+        // (meme identifiant reutilise) et qu'il est toujours dans cet etat.
+        const encore = state.jobs.find(x => x.id === j.id);
+        if (!encore || encore.status === 'running') return;
+        state.jobs = state.jobs.filter(x => x.id !== j.id);
+        renderJobs();
+      }, _delai);
+    }
+  } catch (_) {}
   // 2026-06-02 liveliness: trigger the one-shot bounce-and-flash on
   // the matching step card so the user gets a satisfying visual cue
   // that something just succeeded. CSS animation is 1.5s; we remove
