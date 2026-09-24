@@ -438,7 +438,7 @@
                   </div>
                 </div>
                 <input type="checkbox" id="ws-auto-multiview" style="display:none;" />
-                <button id="ws-generate-image" class="primary-btn">Generate <span class="generate-cost-pill"><span class="generate-cost-bolt">⚡</span><span id="ws-image-cost-value">2</span></span></button>
+                <button id="ws-generate-image" class="primary-btn" title="Generate new reference images from your prompt. Existing versions are kept.">Generate <span class="generate-cost-pill"><span class="generate-cost-bolt">⚡</span><span id="ws-image-cost-value">2</span></span></button>
               </div>
             </details>
 
@@ -508,7 +508,7 @@
                     <button id="ws-report-img-inline-btn" class="ghost-btn" title="Report inappropriate AI-generated content">&#9873; Report</button>
                   </div>
                   <div id="ws-use-for-3d-bar" class="use-for-bar hidden">
-                    <button id="ws-use-for-3d-btn" class="primary-btn">Use this image for 3D &rarr;</button>
+                    <button id="ws-use-for-3d-btn" class="primary-btn" title="Select this image as the source for 3D generation.">Use this image for 3D &rarr;</button>
                   </div>
                 </div>
                 <div class="stage-edit-side">
@@ -517,8 +517,8 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-export-img-btn" class="ghost-btn tool-btn">&#128190; Export</button>
-                        <button id="ws-image-publish-btn" class="ghost-btn tool-btn">&#128722; Publish to marketplace</button>
+                        <button id="ws-export-img-btn" class="ghost-btn tool-btn" title="Save this image to disk.">&#128190; Export</button>
+                        <button id="ws-image-publish-btn" class="ghost-btn tool-btn" title="Publish this image to the marketplace.">&#128722; Publish to marketplace</button>
                         <!-- Signalement de contenu IA — politique 11.16 du Microsoft
                              Store. Doit rester visible a cote du contenu genere. -->
                         <button id="ws-report-img-btn" class="ghost-btn tool-btn" title="Report inappropriate AI-generated content">&#9873; Report content</button>
@@ -527,12 +527,12 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">AI tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-modify-btn" class="ghost-btn tool-btn">&#9998; Modify</button>
-                        <button id="ws-autoinpaint-btn" class="ghost-btn tool-btn">&#129668; Auto Inpaint</button>
-                        <button id="ws-removebg-btn" class="ghost-btn tool-btn">&#9986; Remove BG</button>
-                        <button id="ws-resolution-btn" class="ghost-btn tool-btn">&#128300; Resolution</button>
+                        <button id="ws-modify-btn" class="ghost-btn tool-btn" title="Rewrite the whole image from a prompt. Shape and framing may change.">&#9998; Modify</button>
+                        <button id="ws-autoinpaint-btn" class="ghost-btn tool-btn" title="Describe a zone in words; the AI finds it and repaints only that zone.">&#129668; Auto Inpaint</button>
+                        <button id="ws-removebg-btn" class="ghost-btn tool-btn" title="Cut the subject out and make the background transparent.">&#9986; Remove BG</button>
+                        <button id="ws-resolution-btn" class="ghost-btn tool-btn" title="Enlarge the image. Recovers detail, invents nothing.">&#128300; Resolution</button>
                         <div class="style-dropdown" style="position:relative;">
-                          <button id="ws-style-btn" type="button" class="ghost-btn tool-btn" style="width:100%; text-align:left; display:flex; align-items:center; justify-content:space-between;">
+                          <button id="ws-style-btn" type="button" class="ghost-btn tool-btn" style="width:100%; text-align:left; display:flex; align-items:center; justify-content:space-between;" title="Repaint the image in a chosen style, keeping the subject.">
                             <span id="ws-style-label">&#127912; Style...</span>
                             <span style="opacity:0.6;">&#9662;</span>
                           </button>
@@ -571,28 +571,28 @@
                             <div class="style-option" data-value="art deco, geometric gold ornament, elegant symmetrical 1920s luxury">Art deco</div>
                           </div>
                         </div>
-                        <button id="ws-facefix-btn" class="ghost-btn tool-btn">&#128566; Face Fix</button>
+                        <button id="ws-facefix-btn" class="ghost-btn tool-btn" title="Detect the face and repaint it sharper. Best on portraits.">&#128566; Face Fix</button>
                         <button id="ws-outfit-btn" class="ghost-btn tool-btn" title="Extrait les vetements seuls, sur fond transparent (personnages)">&#128087; Habits</button>
                         <button id="ws-recolor-btn" class="ghost-btn tool-btn" title="Auto-détecte une partie et la recolore en gardant la forme (ex: cape rouge)">&#127912; Recolorier</button>
                         <button id="ws-age-btn" class="ghost-btn tool-btn" title="Make the subject younger or older — keeps the shape, changes the apparent age">&#9203; Age</button>
-                        <button id="ws-symmetrize-auto-btn" class="ghost-btn tool-btn">&#8651; Sym. Auto</button>
-                        <button id="ws-multiview-btn" class="ghost-btn tool-btn">&#128065; Multi-Views</button>
+                        <button id="ws-symmetrize-auto-btn" class="ghost-btn tool-btn" title="Detect the symmetry axis and mirror the image automatically.">&#8651; Sym. Auto</button>
+                        <button id="ws-multiview-btn" class="ghost-btn tool-btn" title="Generate 6 orthographic views from this image.">&#128065; Multi-Views</button>
                         <button id="ws-variant-btn" class="ghost-btn tool-btn" title="Create variants of the current image — re-roll seed or img2img with controlled strength">&#10024; Variant</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-clone-btn" class="ghost-btn tool-btn">&#128203; Clone Stamp</button>
-                        <button id="ws-mask-btn" class="ghost-btn tool-btn">&#9999; Draw Mask</button>
-                        <button id="ws-crop-btn" class="ghost-btn tool-btn">&#9986; Crop</button>
+                        <button id="ws-clone-btn" class="ghost-btn tool-btn" title="Copy pixels from one area onto another with a brush.">&#128203; Clone Stamp</button>
+                        <button id="ws-mask-btn" class="ghost-btn tool-btn" title="Paint a zone by hand, then have the AI repaint just it.">&#9999; Draw Mask</button>
+                        <button id="ws-crop-btn" class="ghost-btn tool-btn" title="Trim the image. Removes pixels, adds none.">&#9986; Crop</button>
                         <button id="ws-select-btn" class="ghost-btn tool-btn" title="Cut / copy a rectangular zone and move it elsewhere on the image (manual, no AI)">&#9635; Cut/Paste</button>
                         <button id="ws-extend-btn" class="ghost-btn tool-btn" title="Extend / outpaint — add margin around the image and fill it with AI">&#10696; Extend</button>
-                        <button id="ws-brightness-btn" class="ghost-btn tool-btn">&#9728; Brightness</button>
-                        <button id="ws-picker-btn" class="ghost-btn tool-btn">&#128167; Color Pick</button>
-                        <button id="ws-blur-btn" class="ghost-btn tool-btn">&#128168; Blur Brush</button>
-                        <button id="ws-symmetrize-btn" class="ghost-btn tool-btn">&#8651; Symmetrize</button>
-                        <button id="ws-paint-btn" class="ghost-btn tool-btn">&#127912; Paint</button>
+                        <button id="ws-brightness-btn" class="ghost-btn tool-btn" title="Adjust brightness, contrast, saturation and sharpness.">&#9728; Brightness</button>
+                        <button id="ws-picker-btn" class="ghost-btn tool-btn" title="Pick a colour from the image.">&#128167; Color Pick</button>
+                        <button id="ws-blur-btn" class="ghost-btn tool-btn" title="Blur or sharpen locally with a brush.">&#128168; Blur Brush</button>
+                        <button id="ws-symmetrize-btn" class="ghost-btn tool-btn" title="Mirror one half of the image onto the other, axis chosen by hand.">&#8651; Symmetrize</button>
+                        <button id="ws-paint-btn" class="ghost-btn tool-btn" title="Paint directly on the image with a brush.">&#127912; Paint</button>
                       </div>
                     </div>
                   </div>
@@ -729,7 +729,7 @@
                     </div>
                     <div class="form-hint" style="font-size:10px;">PBR baseColor + roughness + metallic exported in the GLB automatically.</div>
                   </details>
-                  <button id="ws-generate-mesh" class="primary-btn" disabled>Generate 3D <span id="ws-mesh-cost-pill" class="generate-cost-pill"><span class="generate-cost-bolt">⚡</span><span id="ws-mesh-cost-value">8</span></span></button>
+                  <button id="ws-generate-mesh" class="primary-btn" disabled title="Build a 3D mesh from the selected image. Quality and options are set just above.">Generate 3D <span id="ws-mesh-cost-pill" class="generate-cost-pill"><span class="generate-cost-bolt">⚡</span><span id="ws-mesh-cost-value">8</span></span></button>
                 </div>
                 <div class="stage-create-source">
                   <div class="stage-source-label">Source image for 3D (front)</div>
@@ -744,7 +744,7 @@
                       <div class="preview-placeholder">+ Add back photo</div>
                     </div>
                     <div id="ws-3d-source-back-filename" class="viewer-filename"></div>
-                    <button id="ws-3d-source-back-clear" class="ghost-btn" style="margin-top:4px; display:none; font-size:11px; padding:2px 8px;">Remove back photo</button>
+                    <button id="ws-3d-source-back-clear" class="ghost-btn" style="margin-top:4px; display:none; font-size:11px; padding:2px 8px;" title="Drop the back photo — generation returns to single-view.">Remove back photo</button>
                   </div>
                   <!-- 6-view grid (auto-shown when <stem>_multiview/ exists) -->
                   <div id="ws-3d-source-mv-block" class="hidden" style="margin-top:10px;">
@@ -823,7 +823,7 @@
                   <div id="ws-mesh-filename" class="viewer-filename"></div>
                   <div id="ws-mesh-stats" class="viewer-stats"></div>
                   <div id="ws-use-for-rig-bar" class="use-for-bar hidden">
-                    <button id="ws-use-for-rig-btn" class="primary-btn">Use this mesh for Rig &rarr;</button>
+                    <button id="ws-use-for-rig-btn" class="primary-btn" title="Select this mesh as the source for rigging.">Use this mesh for Rig &rarr;</button>
                   </div>
                 </div>
                 <div class="stage-edit-side">
@@ -832,24 +832,24 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-mesh-export-btn" class="ghost-btn tool-btn">&#128190; Export...</button>
-                        <button id="ws-mesh-publish-btn" class="ghost-btn tool-btn">&#128722; Publish to marketplace</button>
+                        <button id="ws-mesh-export-btn" class="ghost-btn tool-btn" title="Export the mesh (GLB, FBX, OBJ...). The original version is kept.">&#128190; Export...</button>
+                        <button id="ws-mesh-publish-btn" class="ghost-btn tool-btn" title="Publish this mesh to the marketplace.">&#128722; Publish to marketplace</button>
                         <!-- Voir le commentaire du bouton image : politique 11.16. -->
                         <button id="ws-report-mesh-btn" class="ghost-btn tool-btn" title="Report inappropriate AI-generated content">&#9873; Report content</button>
-                        <button id="ws-mesh-blender-btn" class="ghost-btn tool-btn">&#129704; Open in Blender</button>
-                        <button id="ws-mesh-folder-btn" class="ghost-btn tool-btn">&#128193; Show in folder</button>
+                        <button id="ws-mesh-blender-btn" class="ghost-btn tool-btn" title="Open this mesh in Blender.">&#129704; Open in Blender</button>
+                        <button id="ws-mesh-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">AI tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-mesh-smooth-btn" class="ghost-btn tool-btn">&#10024; Smooth</button>
+                        <button id="ws-mesh-smooth-btn" class="ghost-btn tool-btn" title="Soften the surface. Removes faceting, also removes fine detail.">&#10024; Smooth</button>
                         <button id="ws-mesh-decimate-btn" class="ghost-btn tool-btn" title="Reduce the mesh triangle count">&#9660; Triangle count</button>
-                        <button id="ws-mesh-subdivide-btn" class="ghost-btn tool-btn">&#9650; Subdivide</button>
-                        <button id="ws-mesh-fixnormals-btn" class="ghost-btn tool-btn">&#8634; Fix Normals</button>
-                        <button id="ws-mesh-fillholes-btn" class="ghost-btn tool-btn">&#9673; Fill Holes</button>
+                        <button id="ws-mesh-subdivide-btn" class="ghost-btn tool-btn" title="Split each triangle to gain definition. The shape does not change.">&#9650; Subdivide</button>
+                        <button id="ws-mesh-fixnormals-btn" class="ghost-btn tool-btn" title="Re-orient the faces. Fixes surfaces that look black or see-through.">&#8634; Fix Normals</button>
+                        <button id="ws-mesh-fillholes-btn" class="ghost-btn tool-btn" title="Close the holes in the surface. The texture is kept.">&#9673; Fill Holes</button>
                         <button id="ws-mesh-watertight-btn" class="ghost-btn tool-btn" title="Rebuild a closed watertight shell (voxel remesh) — fuses all parts, removes texture (re-texture after)">&#128167; Watertight</button>
-                        <button id="ws-mesh-center-btn" class="ghost-btn tool-btn">&#9678; Pivot</button>
+                        <button id="ws-mesh-center-btn" class="ghost-btn tool-btn" title="Move the pivot point. Nothing else changes.">&#9678; Pivot</button>
                         <button id="ws-mesh-retexture-btn" class="ghost-btn tool-btn" title="Re-bake the mesh texture at a higher (or lower) resolution by reprojecting the source photo onto the UVs">&#128300; Resolution</button>
                         <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint with native PBR engine — qualité SOTA">&#11088; Re-Texture</button>
                         <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin) on cloud GPU">&#9986; Segment parts (AI)</button>
@@ -858,13 +858,13 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-mesh-sculpt-btn" class="ghost-btn tool-btn">&#9997; Sculpt</button>
+                        <button id="ws-mesh-sculpt-btn" class="ghost-btn tool-btn" title="Reshape the surface by hand with a brush.">&#9997; Sculpt</button>
                         <!-- Tooltip is cloud-only (desktop has no title here): the cloud
                              also ships "Paint Mesh" just below, and two 🎨 buttons side by
                              side needed disambiguating — this one writes VERTEX colours
                              (no UV / texture needed), Paint Mesh writes the texture. -->
                         <button id="ws-mesh-paintvert-btn" class="ghost-btn tool-btn" title="Vertex paint — brush colours straight onto the vertices (works even with no UVs / no texture). For pixel-precise painting on the texture itself, use Paint Mesh.">&#127912; Paint</button>
-                        <button id="ws-mesh-selectface-btn" class="ghost-btn tool-btn">&#9634; Select</button>
+                        <button id="ws-mesh-selectface-btn" class="ghost-btn tool-btn" title="Select faces to isolate, hide or work on them.">&#9634; Select</button>
                         <button id="ws-mesh-explode-btn" class="ghost-btn tool-btn" title="Fracture the mesh into shards and blast them outward with the viewer explode slider (explosion / destruction). Texture preserved, exportable.">&#128165; Explode / destroy</button>
                         <button id="ws-mesh-stages3d-btn" class="ghost-btn tool-btn" title="Fabricate the 3D meshes of the construction stages (sliced building + frame + scaffolding), navigable and exportable">&#127959;&#65039; 3D construction stages</button>
                         <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize / dimension the mesh with a scale gizmo and on-screen rulers (uniform or per-axis). Bakes a new scaled version.">&#128207; Resize / dimension</button>
@@ -908,7 +908,7 @@
                       <option value="unirig" selected>MyFabmesh.AI Rig (cloud GPU)</option>
                     </select>
                   </div>
-                  <button id="ws-generate-rig-ai" class="primary-btn" disabled>Generate Rig</button>
+                  <button id="ws-generate-rig-ai" class="primary-btn" disabled title="Add a skeleton to the mesh automatically, so it can be animated.">Generate Rig</button>
                 </div>
                 <div class="stage-create-source">
                   <div class="stage-source-label">Source mesh for rig</div>
@@ -944,7 +944,7 @@
                 <div class="step-preview-col">
                   <div id="ws-rig-anim-bar" class="rig-anim-bar hidden">
                     <select id="ws-rig-anim-select"><option value="">No animation</option></select>
-                    <button id="ws-rig-anim-play" class="ghost-btn">&#9654; Play</button>
+                    <button id="ws-rig-anim-play" class="ghost-btn" title="Play the animation.">&#9654; Play</button>
                   </div>
                   <div class="step-card-preview large" id="step3-preview">
                     <canvas id="ws-rig-canvas"></canvas>
@@ -990,7 +990,7 @@
                   </div>
                   <div id="ws-rig-filename" class="viewer-filename"></div>
                   <div id="ws-use-for-anim-bar" class="use-for-bar hidden">
-                    <button id="ws-use-for-anim-btn" class="primary-btn">Use this rig for Animation &rarr;</button>
+                    <button id="ws-use-for-anim-btn" class="primary-btn" title="Select this rig as the source for animation.">Use this rig for Animation &rarr;</button>
                   </div>
                 </div>
                 <div class="stage-edit-side">
@@ -999,24 +999,24 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-rig-unreal-btn" class="ghost-btn tool-btn rig-tool-btn">&#127918; Export to Unreal</button>
-                        <button id="ws-rig-blender-btn" class="ghost-btn tool-btn rig-tool-btn">&#129704; Edit in Blender</button>
-                        <button id="ws-rig-folder-btn" class="ghost-btn tool-btn rig-tool-btn">&#128193; Show in folder</button>
+                        <button id="ws-rig-unreal-btn" class="ghost-btn tool-btn rig-tool-btn" title="Export the rig in a layout Unreal Engine understands.">&#127918; Export to Unreal</button>
+                        <button id="ws-rig-blender-btn" class="ghost-btn tool-btn rig-tool-btn" title="Open the rig in Blender.">&#129704; Edit in Blender</button>
+                        <button id="ws-rig-folder-btn" class="ghost-btn tool-btn rig-tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">AI tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-rig-reskin-btn" class="ghost-btn tool-btn rig-tool-btn">&#127814; Re-skin only</button>
+                        <button id="ws-rig-reskin-btn" class="ghost-btn tool-btn rig-tool-btn" title="Recompute the skin weights only. The skeleton is kept.">&#127814; Re-skin only</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-lm-manual" class="ghost-btn tool-btn rig-tool-btn">&#9999; Landmarks</button>
+                        <button id="ws-lm-manual" class="ghost-btn tool-btn rig-tool-btn" title="Place the skeleton landmarks by hand when auto-detection misses.">&#9999; Landmarks</button>
                         <!-- Test animation removed: Step 4 Animation now
                              handles playback / generation natively. -->
-                        <button id="ws-rig-test-btn" class="ghost-btn tool-btn rig-tool-btn" style="display:none;">&#9654; Test animation</button>
+                        <button id="ws-rig-test-btn" class="ghost-btn tool-btn rig-tool-btn" style="display:none;" title="Play a test motion to check the rig holds up.">&#9654; Test animation</button>
                       </div>
                     </div>
                   </div>
@@ -1196,15 +1196,15 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-anim-export-btn" class="ghost-btn tool-btn rig-tool-btn">&#128229; Export FBX</button>
-                        <button id="ws-anim-folder-btn" class="ghost-btn tool-btn rig-tool-btn">&#128193; Show in folder</button>
+                        <button id="ws-anim-export-btn" class="ghost-btn tool-btn rig-tool-btn" title="Export the animation as FBX.">&#128229; Export FBX</button>
+                        <button id="ws-anim-folder-btn" class="ghost-btn tool-btn rig-tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Playback</div>
                       <div class="step-tools-grid">
-                        <button id="ws-anim-play-btn" class="ghost-btn tool-btn rig-tool-btn">&#9654; Play</button>
-                        <button id="ws-anim-loop-btn" class="ghost-btn tool-btn rig-tool-btn active">&#128257; Loop</button>
+                        <button id="ws-anim-play-btn" class="ghost-btn tool-btn rig-tool-btn" title="Play the animation.">&#9654; Play</button>
+                        <button id="ws-anim-loop-btn" class="ghost-btn tool-btn rig-tool-btn active" title="Loop playback.">&#128257; Loop</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -3314,7 +3314,7 @@
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Select</span>
             <button id="paint-tool-sel-rect" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9634; Rect</button>
             <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#10038; Lasso</button>
-            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#10022; Wand</button>
+            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Select an area of similar colour in one click.">&#10022; Wand</button>
             <div style="display:flex; gap:4px;">
               <button id="paint-sel-invert" class="secondary-btn" style="padding:4px 4px; font-size:10px; flex:1;" title="Invert selection">&#8646; Invert</button>
               <button id="paint-sel-none" class="secondary-btn" style="padding:4px 4px; font-size:10px; flex:1;" title="Deselect (edit everywhere)">&#10005; None</button>
@@ -3326,7 +3326,7 @@
             <button id="paint-tool-spray" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128168; Spray</button>
             <button id="paint-tool-ink" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128396; Ink</button>
             <button id="paint-tool-line" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9585; Line</button>
-            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9775; Smudge</button>
+            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Drag colour around as if with a finger.">&#9775; Smudge</button>
             <button id="paint-tool-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9781; Fill</button>
             <button id="paint-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9003; Eraser</button>
           </div>
@@ -3401,20 +3401,20 @@
           <!-- Sculpt options -->
           <div id="me-sculpt-opts" style="display:flex; flex-direction:column; gap:4px;">
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Sculpt</span>
-            <button id="me-sculpt-push" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; width:100%;">&#9650; Push</button>
-            <button id="me-sculpt-pull" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#9660; Pull</button>
-            <button id="me-sculpt-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#10024; Smooth</button>
-            <button id="me-sculpt-flatten" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#9644; Flatten</button>
-            <button id="me-sculpt-grab" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#9995; Grab</button>
-            <button id="me-sculpt-inflate" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#8853; Inflate</button>
+            <button id="me-sculpt-push" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; width:100%;" title="Push the surface inwards.">&#9650; Push</button>
+            <button id="me-sculpt-pull" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Pull the surface outwards.">&#9660; Pull</button>
+            <button id="me-sculpt-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Even out the surface under the brush.">&#10024; Smooth</button>
+            <button id="me-sculpt-flatten" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Flatten the surface under the brush.">&#9644; Flatten</button>
+            <button id="me-sculpt-grab" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Drag a whole region without deforming its detail.">&#9995; Grab</button>
+            <button id="me-sculpt-inflate" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Swell the surface along its normals.">&#8853; Inflate</button>
           </div>
           <!-- Symmetry mirror -->
           <div id="me-sym-opts" style="display:flex; flex-direction:column; gap:4px; padding-top:8px; border-top:1px solid var(--border, #333);">
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Symmetry mirror</span>
             <div style="display:flex; gap:4px;">
-              <button id="me-sym-x" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; flex:1;">X</button>
-              <button id="me-sym-y" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; flex:1;">Y</button>
-              <button id="me-sym-z" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; flex:1;">Z</button>
+              <button id="me-sym-x" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; flex:1;" title="Mirror edits across the X axis (left / right).">X</button>
+              <button id="me-sym-y" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; flex:1;" title="Mirror edits across the Y axis (up / down).">Y</button>
+              <button id="me-sym-z" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; flex:1;" title="Mirror edits across the Z axis (front / back).">Z</button>
             </div>
           </div>
           <!-- Select options -->
@@ -3439,11 +3439,11 @@
             <span style="font-size:9px; color:var(--text-muted);">Ctrl = add &middot; Del = delete</span>
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border, #333);">Modify selection</span>
             <div style="display:flex; gap:5px;">
-              <button id="me-sel-grow" class="secondary-btn tool-btn" style="padding:5px 8px; font-size:11px; flex:1; white-space:nowrap;">&#10133; Grow</button>
-              <button id="me-sel-shrink" class="secondary-btn tool-btn" style="padding:5px 8px; font-size:11px; flex:1; white-space:nowrap;">&#10134; Shrink</button>
+              <button id="me-sel-grow" class="secondary-btn tool-btn" style="padding:5px 8px; font-size:11px; flex:1; white-space:nowrap;" title="Extend the selection to neighbouring faces.">&#10133; Grow</button>
+              <button id="me-sel-shrink" class="secondary-btn tool-btn" style="padding:5px 8px; font-size:11px; flex:1; white-space:nowrap;" title="Pull the selection back from its edges.">&#10134; Shrink</button>
             </div>
             <button id="me-sel-all" class="secondary-btn tool-btn" style="padding:5px 8px; font-size:11px; width:100%;">&#9635; Select all</button>
-            <button id="me-sel-invert" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#8634; Invert</button>
+            <button id="me-sel-invert" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Select everything that is not selected.">&#8634; Invert</button>
             <button id="me-sel-clear" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#10005; Clear</button>
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border, #333);">View</span>
             <div style="display:flex; gap:5px;">

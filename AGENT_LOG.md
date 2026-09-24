@@ -21984,3 +21984,21 @@ les termes d'ombre sont conserves.
 A FAIRE : `check-prompts-budget.mjs` ne mesure que le positif. Le negatif
 merite le meme garde. Et le bureau (`local_juggernaut_bridge.py`) n'a pas
 `_ANATOMY_NEG` du tout — divergence connue, non traitee ici.
+
+### Infobulles : 91 boutons n'en avaient aucune
+
+Le user signale des boutons muets. Mesure : 81 cote web, 73 cote bureau.
+
+Les reprendre depuis la lightbox n'aurait servi a rien — ses titres repetent
+le libelle (« Modify with AI » sur un bouton « Modify »). Elles ont donc ete
+ECRITES : ce que l'outil fait, et surtout ce qu'il TOUCHE. « Watertight :
+rebuild a closed shell. REPLACES the geometry and REMOVES the texture. »
+« Crop : trim the image. Removes pixels, adds none. » « Resolution : enlarge
+the image. Recovers detail, invents nothing. »
+
+Resultat : 76/76 cote web et 79/80 cote bureau pour les boutons `ws-*`.
+
+ARRET VOLONTAIRE sur les outils DANS les modales de dessin et de sculpture
+(« Pen », « Eraser », « Grow »...) quand le libelle se suffit : une infobulle
+« Pen : dessiner au stylo » est du bruit. Seuls les cryptiques ont ete
+couverts — les axes de symetrie X/Y/Z, la baguette magique, le doigt.
