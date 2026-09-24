@@ -1322,6 +1322,80 @@ class MyFabmeshBackview:
         print(f"[{tag}] DONE dt={time.time() - t0:.1f}s bytes={len(png)}", flush=True)
         return Response(content=png, media_type="image/png")
 
+    def _route_outfit(self, payload: dict):
+        """Habits seuls — extrait les vetements d'une image de personnage.
+
+        Reutilise CLIPSeg + SDXL Inpaint deja charges par
+        _get_auto_inpaint_models() : aucun modele supplementaire.
+
+        Renvoie du JSON (et non une image, comme image_op) parce qu'un appel
+        peut produire PLUSIEURS pieces. Les PNG sont en base64 ; le nombre de
+        pieces est plafonne pour ne pas fabriquer une reponse que le worker
+        Cloudflare ne pourrait pas tenir en memoire.
+        """
+        import base64
+        from fastapi import HTTPException
+        from fastapi.responses import JSONResponse
+        from modal_app._outfit_cutout import generate as outfit_generate, PIECES_TENUE
+
+        _check_auth(payload)
+
+        image_url = (payload.get("image_url") or "").strip()
+        if not image_url:
+            raise HTTPException(status_code=400, detail="image_url required")
+        try:
+            src_img = _fetch_image(image_url)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"image download: {e}")
+
+        demandees = payload.get("pieces") or list(PIECES_TENUE.keys())
+        inconnues = [p for p in demandees if p not in PIECES_TENUE]
+        if inconnues:
+            raise HTTPException(status_code=400,
+                detail="pieces inconnues: %s (connues: %s)"
+                       % (", ".join(inconnues), ", ".join(PIECES_TENUE)))
+        ensemble = bool(payload.get("ensemble", True))
+        par_piece = bool(payload.get("par_piece", False))
+        if not ensemble and not par_piece:
+            raise HTTPException(status_code=400,
+                detail="il faut demander l'ensemble, les pieces, ou les deux")
+        # Plafond de sortie : ~1 Mo par PNG en base64, et le worker doit tout
+        # tenir en memoire avant de le pousser vers R2.
+        if len(demandees) * int(par_piece) + int(ensemble) > 8:
+            raise HTTPException(status_code=400,
+                detail="8 pieces au maximum par appel")
+
+        t0 = time.time()
+        seg_proc, seg_model, inpaint_pipe = self._get_auto_inpaint_models()
+        try:
+            pieces, absentes = outfit_generate(
+                seg_proc, seg_model, inpaint_pipe, src_img,
+                pieces=demandees,
+                ensemble=ensemble,
+                par_piece=par_piece,
+                completer=bool(payload.get("completer", True)),
+                recadrer=bool(payload.get("recadrer", False)),
+            )
+        except ValueError as e:
+            # Aucun vetement detecte — l'appelant rembourse, comme face_fix
+            # sans visage.
+            raise HTTPException(status_code=422, detail=str(e))
+
+        sortie = []
+        for p in pieces:
+            buf = io.BytesIO()
+            p["image"].save(buf, format="PNG", optimize=True, pnginfo=_ai_pnginfo())
+            sortie.append({
+                "nom": p["nom"],
+                "png_b64": base64.b64encode(buf.getvalue()).decode("ascii"),
+                "aire": round(float(p["aire"]), 4),
+                "complete": bool(p["complete"]),
+            })
+        octets = sum(len(x["png_b64"]) for x in sortie)
+        print(f"[outfit] DONE dt={time.time() - t0:.1f}s pieces={len(sortie)} "
+              f"absentes={absentes} b64={octets}", flush=True)
+        return JSONResponse({"ok": True, "pieces": sortie, "absentes": absentes})
+
     def _route_sheet(self, payload: dict):
         """4-view orthographic model-sheet generator (front/right/back/left).
         Verbatim port of `scripts/multiview_sheet_gen.py` — single SDXL
@@ -1410,6 +1484,10 @@ class MyFabmeshBackview:
         @api.post("/sheet")
         async def sheet(request: Request):
             return self._route_sheet(await _read_json(request))
+
+        @api.post("/outfit")
+        async def outfit(request: Request):
+            return self._route_outfit(await _read_json(request))
 
         @api.get("/healthz")
         async def healthz():

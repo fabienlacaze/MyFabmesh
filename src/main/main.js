@@ -565,6 +565,7 @@ const _POIGNEES_MOTEUR_LOCAL = new Set([
   'analyze-skeleton',
   'animate-ai',
   'auto-inpaint',
+  'outfit-cutout',
   'auto-rig',
   'batch-check-nsfw',
   'calib-run',
@@ -5178,6 +5179,48 @@ ipcMain.handle('recolor', async (event, { imagePath, prompt, strength, dilate, r
       return { success: true, newPath: newImagePath };
     }
     return { success: false, error: r.error || 'recolor failed' };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+/** Habits seuls — extrait les vetements d'une image de personnage.
+ *
+ *  Sortie MULTIPLE (une image par piece), contrairement aux autres outils
+ *  image : le handler rend { success, pieces:[{nom,chemin,aire,complete}],
+ *  absentes:[...] } et non un seul newPath. */
+ipcMain.handle('outfit-cutout', async (event, opts = {}) => {
+  try {
+    const { imagePath, pieces, ensemble, parPiece, completer, recadrer } = opts;
+    if (!imagePath || !fs.existsSync(imagePath)) {
+      return { success: false, error: 'Image introuvable' };
+    }
+    const outDir = path.dirname(imagePath);
+
+    if (isCloudMode()) {
+      const r = await cloudFallback.outfitOp({
+        srcPath: imagePath, outDir,
+        extraBody: {
+          pieces, ensemble: ensemble !== false, parPiece: !!parPiece,
+          completer: completer !== false, recadrer: !!recadrer,
+        },
+      });
+      if (r.creditsRemaining != null) {
+        safeSend('ai3d-progress', `[cloud] Credits restants: ${r.creditsRemaining}
+`);
+      }
+      return r;
+    }
+
+    await ensureSdxlServer();
+    if (!sdxlReady) return { success: false, error: 'Serveur SDXL indisponible' };
+    const r = await sdxlServerCall('/outfit_cutout', {
+      input: imagePath, output_dir: outDir,
+      pieces, ensemble: ensemble !== false, par_piece: !!parPiece,
+      completer: completer !== false, recadrer: !!recadrer,
+    });
+    if (!r.ok) return { success: false, error: r.error || "echec de l'extraction" };
+    return { success: true, pieces: r.pieces || [], absentes: r.absentes || [] };
   } catch (e) {
     return { success: false, error: e.message };
   }

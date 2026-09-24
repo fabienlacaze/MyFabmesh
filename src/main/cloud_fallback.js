@@ -488,6 +488,70 @@ async function shareAsset({ filePath, projectName }) {
 // (≤5 Mo) → endpoint d'op (modify/removebg/upscale/inpaint…) → télécharge
 // le résultat au chemin de sortie fourni (même contrat que les outils
 // locaux : nouveau fichier à côté de la source).
+/** Habits seuls en mode Cloud — comme imageOp, mais l'appel rend PLUSIEURS
+ *  images (une par piece) qu'on telecharge toutes dans `outDir`.
+ *  Retourne { success, pieces: [{ nom, chemin, aire, complete }], absentes }. */
+async function outfitOp({ srcPath, outDir, extraBody = {} }) {
+  if (!fs.existsSync(srcPath)) return { success: false, error: 'source not found' };
+  const buf = fs.readFileSync(srcPath);
+  if (buf.length > 5 * 1024 * 1024) {
+    return { success: false, error: 'Image > 5 MB — cloud tool limit. Downscale it first.' };
+  }
+  const ext = path.extname(srcPath).toLowerCase();
+  const mime = ext === '.webp' ? 'image/webp' : (ext === '.jpg' || ext === '.jpeg') ? 'image/jpeg' : 'image/png';
+
+  const up = await _authedFetch('/api/upload-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      dataUrl: `data:${mime};base64,${buf.toString('base64')}`,
+      suffix: 'desktop_op',
+    }),
+  });
+  if (up.needsCloudLogin) return { success: false, needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
+  const uj = await up.resp.json().catch(() => ({}));
+  if (!up.resp.ok || !(uj.ok || uj.success)) {
+    return { success: false, error: uj.error || `upload HTTP ${up.resp.status}` };
+  }
+
+  const attempt = async () => {
+    // Meme raison que imageOp : le worker rejoue lui-meme deux 524 de
+    // demarrage a froid, il peut donc mettre plusieurs minutes a repondre.
+    const op = await _authedPostLong('/api/outfit', { imageUrl: uj.path, ...extraBody }, 12 * 60 * 1000);
+    if (op.needsCloudLogin) return { success: false, needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
+    if (op.error) return { success: false, error: op.error, _httpStatus: 0 };
+    const j = op.json || {};
+    if (op.status === 402) {
+      return { success: false, _httpStatus: 402, error: 'Not enough MyFabmesh credits. Top up on the website.' };
+    }
+    if (!(op.status >= 200 && op.status < 300) || j.ok === false || j.success === false) {
+      return { success: false, _httpStatus: op.status, error: _httpErr(op.status, j) };
+    }
+    return { success: true, json: j };
+  };
+  const opRes = await _withColdRetry(attempt, { label: 'outfit' });
+  if (!opRes.success) return opRes;
+
+  const oj = opRes.json || {};
+  const brutes = Array.isArray(oj.pieces) ? oj.pieces : [];
+  if (!brutes.length) return { success: false, error: 'aucune piece dans la reponse du worker' };
+
+  const souche = String(path.basename(srcPath, path.extname(srcPath))).replace(/[^a-zA-Z0-9_.-]/g, '_');
+  fs.mkdirSync(outDir, { recursive: true });
+  const pieces = [];
+  for (const p of brutes) {
+    const dl = await fetch(_absUrl(p.url));
+    if (!dl.ok) return { success: false, error: `telechargement de « ${p.nom} » HTTP ${dl.status}` };
+    const out = Buffer.from(await dl.arrayBuffer());
+    if (out.length < 500) return { success: false, error: `piece « ${p.nom} » trop petite` };
+    const suffixe = p.nom === 'outfit' ? 'outfit' : `outfit_${p.nom}`;
+    const chemin = path.join(outDir, `${souche}_${suffixe}.png`);
+    fs.writeFileSync(chemin, out);
+    pieces.push({ nom: p.nom, chemin, aire: p.aire, complete: p.complete });
+  }
+  return { success: true, pieces, absentes: oj.absentes || [], creditsRemaining: oj.creditsRemaining };
+}
+
 async function imageOp({ endpoint, srcPath, extraBody = {}, outPath }) {
   if (!fs.existsSync(srcPath)) return { success: false, error: 'source not found' };
   const buf = fs.readFileSync(srcPath);
@@ -1285,7 +1349,7 @@ function register(deps) {
 }
 
 module.exports = {
-  register, generateImages, imageOp, generateMesh, getAccessToken, status, login, logout,
+  register, generateImages, imageOp, outfitOp, generateMesh, getAccessToken, status, login, logout,
   // Cold start Modal : préchauffage à la demande + retry partagé
   prewarm,
   // Outils mesh mode Cloud (R2-reuse)

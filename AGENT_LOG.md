@@ -21322,3 +21322,34 @@ Modal : le garde nomme la ligne exacte, puis repare.
 
 RESTE A FAIRE : route Modal, route worker + tarif, IPC bureau, modale et
 bouton reserves au type « character ».
+
+### Habits seuls — chaine serveur des deux cotes
+
+MODAL : route `POST /outfit` sur MyFabmeshBackview (meme classe que image_op,
+donc meme URL de base). Elle rend du JSON et non une image, parce qu'un appel
+peut produire PLUSIEURS pieces ; les PNG partent en base64, plafonnes a 8 par
+appel pour que la reponse tienne dans la memoire du Worker. Reutilise
+`_get_auto_inpaint_models()` : aucun modele supplementaire charge.
+
+WORKER : `/api/outfit` + `callModalOutfit`. Meme escalade de reprise sur 524
+que image_op (le demarrage a froid charge ~6 Go), meme discipline de
+remboursement : budget GPU, appels par utilisateur, credits — et un 422
+« aucun vetement detecte » rembourse tout, comme face_fix sans visage.
+Tarifs : `outfit` 2 credits sans completion (CLIPSeg seul), `outfit_complete`
+6 avec (une passe SDXL par piece). L'estimation de budget suit le nombre de
+sorties au lieu d'un forfait, sinon le fusible serait aveugle sur un appel a
+8 pieces.
+
+BUREAU : route `/outfit_cutout` sur sdxl_server (charge l'inpaint, qui charge
+CLIPSeg, decharge img2img comme les autres ops), `outfitOp` dans
+cloud_fallback pour le mode Cloud (telecharge les N resultats au lieu d'un),
+et `ipcMain.handle('outfit-cutout')` qui aiguille entre les deux. Le handler
+rend une LISTE de pieces, pas un newPath unique — c'est le premier outil image
+dans ce cas.
+
+VERIFIE : `tsc --noEmit` rend 0 erreur, comme sur HEAD (mesure de la base
+faite exprès : hier un compteur d'erreurs qui BAISSE s'etait revele etre un
+compilateur arrete en route). `node --check` sur main/preload/cloud_fallback,
+`py_compile` sur les quatre fichiers Python, garde de parite au vert.
+
+RESTE : la modale et le bouton, reserves au type « character ».

@@ -1568,6 +1568,11 @@ const PRICING_DEFAULTS = {
   upscale:          3,  // x2 = this price, x4 = this + 1
   rectify:          3,
   remove_background: 1,
+  // Habits seuls. Sans completion c'est CLIPSeg seul (une passe, tres
+  // court) ; avec completion c'est une passe SDXL Inpaint PAR PIECE,
+  // d'ou l'ecart. Le tarif affiche suit la case cochee dans la modale.
+  outfit:           2,
+  outfit_complete:  6,
   // Mesh ops
   mesh_op_simple:   1,
   // Mesh generation ladder repriced 2026-07-28 from MEASURED Modal cost,
@@ -9105,6 +9110,95 @@ async function callModalImageOp(env: Env, userId: string, input: {
   throw new Error('R2 bucket unavailable; cannot persist image_op output');
 }
 
+/** Habits seuls — extrait les vetements d'une image de personnage.
+ *
+ *  Contrairement a callModalImageOp, la reponse est du JSON : un appel peut
+ *  rendre PLUSIEURS pieces. Chaque PNG arrive en base64 et est pousse dans R2
+ *  separement, puis signe. Modal plafonne a 8 pieces par appel pour que la
+ *  reponse tienne en memoire dans le Worker.
+ *
+ *  Meme classe Modal que image_op, donc meme URL de base, chemin /outfit. */
+async function callModalOutfit(env: Env, userId: string, input: {
+  imageUrl: string;
+  pieces?: string[];
+  ensemble?: boolean;
+  parPiece?: boolean;
+  completer?: boolean;
+  recadrer?: boolean;
+}, folder: string): Promise<
+  { pieces: Array<{ nom: string; url: string; aire: number; complete: boolean }>; absentes: string[] }
+  | { rienTrouve: true; error: string }
+> {
+  const base = env.MODAL_IMAGE_OP_URL;
+  const secret = env.MODAL_SHARED_SECRET;
+  if (!base) throw new Error('MODAL_IMAGE_OP_URL not set');
+  if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
+  const url = base.replace(/\/[^/]*$/, '/outfit');
+
+  const body = {
+    _auth: secret,
+    image_url: input.imageUrl,
+    pieces: input.pieces,
+    ensemble: input.ensemble ?? true,
+    par_piece: input.parPiece ?? false,
+    completer: input.completer ?? true,
+    recadrer: input.recadrer ?? false,
+  };
+
+  // Meme escalade de reprise que image_op : le demarrage a froid de
+  // MyFabmeshBackview charge CLIPSeg + SDXL Inpaint (~6 Go) et Cloudflare
+  // coupe chaque sous-requete a 100 s avec un 524.
+  const t0 = Date.now();
+  const doFetch = () => fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(300_000),
+  });
+  let r = await doFetch();
+  for (const delay of [60_000, 90_000]) {
+    if (r.status !== 524) break;
+    console.log(`[modal] outfit 524 — cold start retry after ${delay / 1000}s`);
+    await new Promise(res => setTimeout(res, delay));
+    r = await doFetch();
+  }
+
+  if (r.status === 422) {
+    // Aucun vetement detecte — l'appelant rembourse.
+    return { rienTrouve: true, error: (await r.text()).slice(0, 200) };
+  }
+  if (!r.ok) {
+    if (r.status === 524) {
+      throw new Error('the AI model is taking longer than usual to warm up. '
+        + 'Please retry in 1-2 minutes — your credits were refunded.');
+    }
+    throw new Error(`Cloud GPU outfit HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  }
+  _writeLastWarmMs(env, '_meta/last_warm_image_op.txt').catch(() => {});
+
+  const data = await r.json() as {
+    pieces?: Array<{ nom: string; png_b64: string; aire: number; complete: boolean }>;
+    absentes?: string[];
+  };
+  const brutes = data.pieces ?? [];
+  if (!brutes.length) return { rienTrouve: true, error: 'aucune piece produite' };
+  if (!env.MESHES || !env.R2_PUBLIC_URL) {
+    throw new Error('R2 bucket unavailable; cannot persist outfit output');
+  }
+
+  const horodatage = Date.now();
+  const sorties: Array<{ nom: string; url: string; aire: number; complete: boolean }> = [];
+  for (const p of brutes) {
+    const bin = Uint8Array.from(atob(p.png_b64), c => c.charCodeAt(0));
+    const key = `${userId}/${folder}/${horodatage}_${p.nom}.png`;
+    await env.MESHES.put(key, bin, { httpMetadata: { contentType: 'image/png' } });
+    sorties.push({ nom: p.nom, url: await signedR2Url(env, key, 'image'),
+                   aire: p.aire, complete: p.complete });
+  }
+  console.log(`[modal] outfit dt=${Date.now() - t0}ms pieces=${sorties.length}`);
+  return { pieces: sorties, absentes: data.absentes ?? [] };
+}
+
 /** 4-view orthographic model-sheet — port of multiview_sheet_gen.py.
  *  Used by Wave 2.3 to auto-generate a back-view for hard-surface assets
  *  (vehicle/building/weapon/prop) where the realvis T-pose pipeline
@@ -10057,6 +10151,97 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
                        'failed', { req, projectName, op: 'auto_inpaint', error: e instanceof Error ? e.message : String(e) });
     return err(502, `auto-inpaint failed (credits refunded): ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** Habits seuls — reserve au type d'asset « character ».
+ *
+ *  Le type d'asset n'est PAS verifie ici : le worker ne le connait pas de
+ *  facon fiable (il vit dans le projet cote client). Le bouton est masque
+ *  hors « character » dans l'interface ; cette route reste utilisable par
+ *  n'importe quelle image, ce qui ne coute rien de plus qu'un Auto Inpaint. */
+async function handleOutfit(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MODAL_IMAGE_OP_URL) return err(503, 'outfit backend unavailable');
+
+  const { imagePath, imageUrl, pieces, ensemble, parPiece, completer, recadrer, projectName } =
+    await req.json() as {
+      projectName?: string;
+      imagePath?: string; imageUrl?: string;
+      pieces?: string[];
+      ensemble?: boolean; parPiece?: boolean;
+      completer?: boolean; recadrer?: boolean;
+    };
+  const src = imageUrl || imagePath;
+  if (!src) return err(400, 'imageUrl or imagePath required');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+
+  const veutEnsemble = ensemble ?? true;
+  const veutPieces = parPiece ?? false;
+  if (!veutEnsemble && !veutPieces) {
+    return err(400, "il faut demander l'ensemble, les pieces, ou les deux");
+  }
+  const avecCompletion = completer ?? true;
+  const nbSorties = (veutPieces ? (pieces?.length ?? 8) : 0) + (veutEnsemble ? 1 : 0);
+  if (nbSorties > 8) return err(400, '8 pieces au maximum par appel');
+
+  const cost = await getPrice(env, avecCompletion ? 'outfit_complete' : 'outfit');
+  // Budget GPU : sans completion c'est une poignee de passes CLIPSeg ; avec,
+  // c'est une passe SDXL Inpaint par piece produite. On estime au nombre de
+  // sorties pour que le fusible ne soit pas aveugle sur un appel a 8 pieces.
+  const estimatedTotal = avecCompletion ? 0.08 * nbSorties : 0.01;
+
+  const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
+  if (remainingBudget == null) {
+    return json({ ok: false, success: false,
+      error: 'daily Cloud GPU budget reached. Try again after midnight UTC.' }, { status: 429 });
+  }
+  const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
+  if (remainingUserCalls == null) {
+    await refundModalSpend(env, estimatedTotal, user.id);
+    return json({ ok: false, success: false,
+      error: 'per-user daily generation limit reached.' }, { status: 429 });
+  }
+  const remaining = await spendCredits(env, user.id, cost);
+  if (remaining == null) {
+    await refundModalSpend(env, estimatedTotal, user.id);
+    return json({ ok: false, success: false,
+      error: `insufficient credits — outfit costs ${cost} credits` }, { status: 402 });
+  }
+
+  const opStart = Date.now();
+  try {
+    const result = await callModalOutfit(env, user.id, {
+      imageUrl: src, pieces,
+      ensemble: veutEnsemble, parPiece: veutPieces,
+      completer: avecCompletion, recadrer: recadrer ?? false,
+    }, 'outfit');
+
+    if ('rienTrouve' in result) {
+      // Aucun vetement detecte : le GPU n'a fait que segmenter, on ne
+      // facture pas une recherche infructueuse.
+      await addCredits(env, user.id, cost);
+      await refundModalSpend(env, estimatedTotal, user.id);
+      await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
+                         'failed', { req, projectName, op: 'outfit', reason: 'aucun_vetement' });
+      return json({ ok: false, success: false,
+        error: 'aucun vetement detecte sur cette image (credits rembourses)' }, { status: 422 });
+    }
+
+    await logOperation(env, user.id, 'text2image', cost, opStart, Date.now(),
+                       'succeeded', { req, projectName, op: 'outfit',
+                                      pieces: result.pieces.length });
+    return json({ ok: true, success: true,
+                  pieces: result.pieces, absentes: result.absentes,
+                  creditsRemaining: remaining });
+  } catch (e) {
+    await addCredits(env, user.id, cost);
+    await refundModalSpend(env, estimatedTotal, user.id);
+    await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
+                       'failed', { req, projectName, op: 'outfit',
+                                   error: e instanceof Error ? e.message : String(e) });
+    return err(502, `outfit failed (credits refunded): ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -17295,7 +17480,7 @@ export default {
       //                           broken UI shell.
       const MODAL_PATHS = new Set([
         '/api/generate', '/api/generate-image', '/api/generate-back-view',
-        '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint',
+        '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit',
         '/api/segment-preview',
         '/api/mask-inpaint', '/api/face-fix-image', '/api/upscale-image',
         '/api/face-fix-mesh', '/api/mesh-op', '/api/text2image-tpose',
@@ -17468,6 +17653,7 @@ export default {
         if (pathname === '/api/rectify-image'         && method === 'POST') return await handleRectifyImage(req, env);
         if (pathname === '/api/modify-image'          && method === 'POST') return await handleModifyImage(req, env);
         if (pathname === '/api/auto-inpaint'          && method === 'POST') return await handleAutoInpaint(req, env);
+        if (pathname === '/api/outfit'                && method === 'POST') return await handleOutfit(req, env);
         if (pathname === '/api/segment-preview'       && method === 'POST') return await handleSegmentPreview(req, env);
         if (pathname === '/api/mask-inpaint'          && method === 'POST') return await handleMaskInpaint(req, env);
         if (pathname === '/api/face-fix-image'        && method === 'POST') return await handleFaceFixImage(req, env);

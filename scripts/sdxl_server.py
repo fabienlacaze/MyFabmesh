@@ -1109,6 +1109,49 @@ def _clipseg_mask(img_work, work_w, work_h, target_text, dilate, rel=0.5):
     return mask_binary.filter(ImageFilter.GaussianBlur(3))
 
 
+def do_outfit_cutout(input_path, output_dir, pieces=None, ensemble=True,
+                     par_piece=False, completer=True, recadrer=False):
+    """Habits seuls — extrait les vetements, seuls, sur fond transparent.
+
+    L'algorithme vit dans scripts/outfit_cutout.py (noyau partage avec Modal,
+    surveille par build/check-outfit-parity.mjs). Ici on ne fait que preter au
+    noyau les modeles deja charges par ce serveur.
+    """
+    if not os.path.exists(input_path):
+        return {"ok": False, "error": f"Input not found: {input_path}"}
+    if not ensemble and not par_piece:
+        return {"ok": False, "error": "il faut demander l'ensemble, les pieces, ou les deux"}
+
+    import outfit_cutout
+
+    inconnues = [p for p in (pieces or []) if p not in outfit_cutout.PIECES_TENUE]
+    if inconnues:
+        return {"ok": False, "error": "pieces inconnues: %s (connues: %s)"
+                % (", ".join(inconnues), ", ".join(outfit_cutout.PIECES_TENUE))}
+
+    # Un seul pipeline SDXL a la fois — meme regle que do_img2img/do_inpaint.
+    if state.img2img_pipe is not None:
+        unload_model('img2img')
+    load_inpaint()                       # charge AUSSI CLIPSeg
+    state.last_use['inpaint'] = time.time()
+
+    with state.inference_lock:
+        try:
+            t0 = time.time()
+            res = outfit_cutout.decouper_tenue_local(
+                state, input_path, output_dir,
+                pieces=pieces, ensemble=ensemble, par_piece=par_piece,
+                completer=completer, recadrer=recadrer)
+            if not res.get('pieces'):
+                return {"ok": False, "error": "Aucun vetement detecte sur cette image."}
+            log("outfit_cutout: %d piece(s) en %.1fs (absentes: %s)"
+                % (len(res['pieces']), time.time() - t0, res.get('absentes')))
+            return res
+        except Exception as e:
+            log(f"outfit_cutout failed: {e}", 'error')
+            return {"ok": False, "error": str(e)}
+
+
 def do_recolor(input_path, prompt, output_path, strength=1.0, dilate=15, rel=0.5, recolor_all=False):
     """Auto-recolour: detect the named part (CLIPSeg) and recolour ONLY it via a
     luminance-preserving HSV shift (shape/folds intact). Falls back to
@@ -1783,6 +1826,21 @@ class Handler(BaseHTTPRequestHandler):
                     data.get('seed', 42),
                     data.get('negative_prompt'),
                     data.get('control_guidance_end', 1.0),
+                )
+                self._json_response(200 if result.get('ok') else 500, result)
+
+            elif self.path == '/outfit_cutout':
+                if 'input' not in data or 'output_dir' not in data:
+                    self._json_response(400, {"ok": False, "error": "missing input/output_dir"})
+                    return
+                result = do_outfit_cutout(
+                    data['input'],
+                    data['output_dir'],
+                    data.get('pieces'),
+                    data.get('ensemble', True),
+                    data.get('par_piece', False),
+                    data.get('completer', True),
+                    data.get('recadrer', False),
                 )
                 self._json_response(200 if result.get('ok') else 500, result)
 
