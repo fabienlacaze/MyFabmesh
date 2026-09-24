@@ -17313,17 +17313,17 @@ function _jobStepIndex(j) {
   // image keyword, so the anchored test above missed them and they never
   // showed in the Image step's GENERATING widget (only in the global
   // running-jobs panel). Match them anywhere in the name.
-  if (/(mask inpaint|auto[- ]?inpaint|manual (mask|inpaint|paint|crop)|clone stamp|draw mask|brightness|symmetri[sz]e|color pick|blur brush|\bcrop\b|\bpaint\b|recolor|\bage\b|variant)/i.test(n)) return 1;
+  if (/(mask inpaint|auto[- ]?inpaint|manual (mask|inpaint|paint|crop)|clone stamp|draw mask|brightness|symmetri[sz]e|color pick|blur brush|\bcrop\b|\bpaint\b|recolor|recolorier|habits|outfit|back photo|downscale|style transfer|export image|remove background|\bage\b|variant)/i.test(n)) return 1;
   if (/^(generate 3d|mesh op|fill[- ]?holes|smooth|material[- ]?adjust|generate mesh|texture|pbr|enhance texture)/i.test(n)) return 2;
   // Mesh texture ops can carry a prefix (e.g. "trellis2 retex: …", "Region re-texture: …")
   // so the anchored test above misses them — match the texture keywords anywhere.
-  if (/(retex|re-?texture|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth)/i.test(n)) return 2;
+  if (/(retex|re-?texture|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth|refine mesh|explosion 3d|explode|\bresize\b|construction stages|export to unreal|^export )/i.test(n)) return 2;
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated
   // item" button must appear and jump to the mesh step.
   if (/(mesh edit|save mesh|sculpt|watertight|decimate|set[- ]?pivot|fix[- ]?normals|segment)/i.test(n)) return 2;
-  if (/(rig|skeleton)/i.test(n)) return 3;
-  if (/^(animate|animation)/i.test(n)) return 4;
+  if (/(rig|skeleton|re-?skin)/i.test(n)) return 3;
+  if (/(^animate|animation)/i.test(n)) return 4;
   return 0;
 }
 

@@ -21519,3 +21519,37 @@ le meme travail GPU qu'un `modify`, facture 3.
 RESTE : chemin MATIERE de Recolorier (do_recolor_tile a ses propres reglages :
 20/30 pas, guidance 5.5/6.5, composition par masque), Etapes de construction,
 et les six outils mesh.
+
+---
+
+## 2026-09-24 — Le bouton « Go to » manquait, et pas que pour un outil
+
+Le user signale que « Habits seuls » n'a pas de bouton « Go to ». C'est ma
+regression du jour : `_jobStepIndex()` range un travail par motif sur son NOM,
+tous les motifs sont anglais, et j'avais nomme le travail en FRANCAIS. Aucun
+motif ne mordait -> etape 0 -> ni panneau d'etape, ni bouton.
+
+Le user demande alors : « on n'a pas ce probleme ailleurs ? ». MESURE, en
+passant tous les noms de travaux dans la vraie fonction : **11 orphelins cote
+bureau, 14 cote web**. Dont « Remove background », utilise tous les jours,
+depuis toujours sans etape ni bouton. Aussi : photo de dos 2 vues, Downscale,
+Style Transfer, Refine mesh, Explosion 3D, Resize, etapes de construction 3D,
+Import animation, Re-skin, les exports.
+
+Deux motifs etaient faux pour des raisons differentes et instructives :
+  * `remove[- ]?bg` vit dans la regex ANCREE et exige « bg » — le travail
+    s'appelle « Remove background », il ne pouvait jamais mordre.
+  * le motif de l'etape 4 etait ancre (`^(animate|animation)`), donc
+    « Import animation » ne mordait pas.
+Et j'ai introduit un troisieme en chemin : mon echappement shell a transforme
+`\bresize\b` en `bresizeb`, un motif qui ne correspond a RIEN. Corrige en
+Python, sans passer par le shell. Lecon repetee de la journee : ne pas
+fabriquer de regex a travers sed/heredoc.
+
+CORRECTIF DURABLE : `build/check-job-steps.mjs` extrait tous les noms passes a
+pushJob/addJob, les fait passer dans la VRAIE fonction du fichier, et refuse
+la construction si l'un retombe a 0. Il porte en plus 13 temoins
+anti-regression (nom -> etape attendue) pour qu'on ne puisse pas « reparer »
+en elargissant un motif au point de tout attraper. Verifie en retirant
+volontairement un motif : le garde nomme le travail orphelin. Branche sur les
+deux chaines de construction.
