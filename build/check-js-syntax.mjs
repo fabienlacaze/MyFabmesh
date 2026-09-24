@@ -49,6 +49,39 @@ const LIVRES = [
   'cloud/public/app/lib/Viewer3D.js',
 ];
 
+/** Les pages HTML embarquent des <script> EN LIGNE. Ils ne sont dans aucun
+ *  fichier .js, donc ce garde ne les voyait pas — et le 2026-09-24 un
+ *  nettoyage trop large y a transforme `(function () {` en `(function {` et
+ *  `, () => {` en `, => {`. Huit lignes cassees, LIVREES en production : le
+ *  panneau de prechauffage ne se depliait plus au survol, et rien ne l'a
+ *  signale. Ils sont analyses comme le reste, maintenant. */
+const PAGES = ['src/renderer/index2.html', 'cloud/public/app/index.html'];
+
+function scriptsEnLigne(chemin) {
+  const brut = readFileSync(join(RACINE, chemin), 'utf-8');
+  // Les commentaires HTML CITENT parfois <script> en prose (c'est le cas
+  // dans index2.html, qui explique a quoi sert son script de secours). Sans
+  // cette neutralisation, le motif mord dans le commentaire et l'analyse
+  // porte sur du texte anglais. On remplace chaque commentaire par le MEME
+  // nombre de sauts de ligne, pour que les numeros restent justes.
+  const html = brut.replace(/<!--[\s\S]*?-->/g,
+    (c) => (c.match(/[\n]/g) || []).join(''));
+  const blocs = [];
+  // Regex LITTERAL, surtout pas `new RegExp('...')` : dans une chaine JS,
+  // \b est un caractere backspace et non une limite de mot. Le motif ne
+  // mordait alors sur RIEN et ce garde annoncait « tout va bien » sans avoir
+  // rien lu — le pire comportement possible pour un garde-fou.
+  const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const attrs = m[1] || '';
+    if (/src\s*=/i.test(attrs)) continue;
+    if (/type\s*=\s*["'](?!text\/javascript|module)/i.test(attrs)) continue;
+    blocs.push({ code: m[2], ligne: (html.slice(0, m.index).match(/[\n]/g) || []).length + 1 });
+  }
+  return blocs;
+}
+
 const cibles = process.argv.slice(2);
 const liste = (cibles.length ? cibles : LIVRES)
   .map(f => (cibles.length ? f : join(RACINE, f)))
@@ -87,6 +120,25 @@ for (const f of liste) {
       const ligne = src.split('\n')[e.loc.line - 1];
       if (ligne) console.error(`           ${ligne.trim().slice(0, 140)}`);
     }
+  }
+}
+
+// --- <script> en ligne des pages HTML ---------------------------------------
+if (!cibles.length) {
+  for (const page of PAGES) {
+    if (!existsSync(join(RACINE, page))) continue;
+    let n = 0;
+    for (const bloc of scriptsEnLigne(page)) {
+      n++;
+      try {
+        acorn.parse(bloc.code, { ecmaVersion: 'latest', sourceType: 'script' });
+      } catch (e) {
+        casse++;
+        console.error('  CASSE  ' + page + ' — <script> en ligne commencant ligne ' + bloc.ligne);
+        console.error('           ' + e.message);
+      }
+    }
+    if (n) console.log('  ok     ' + page + ' — ' + n + ' <script> en ligne');
   }
 }
 

@@ -196,7 +196,7 @@
           @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
         </style>
         <script>
-          (function {
+          (function () {
             const wrap    = document.getElementById('gpu-warmup-wrap');
             const popover = document.getElementById('gpu-warmup-popover');
             if (!wrap || !popover) return;
@@ -220,10 +220,10 @@
             }
             wrap.addEventListener('mouseenter', showPopover);
             wrap.addEventListener('mouseleave', scheduleHide);
-            popover.addEventListener('mouseenter', => { if (hideT) { clearTimeout(hideT); hideT = null; } });
+            popover.addEventListener('mouseenter', () => { if (hideT) { clearTimeout(hideT); hideT = null; } });
             popover.addEventListener('mouseleave', scheduleHide);
             // Click also opens (mobile / sticky inspection).
-            wrap.addEventListener('click', => {
+            wrap.addEventListener('click', () => {
               if (popover.style.display === 'block') popover.style.display = 'none';
               else showPopover();
             });
@@ -3711,9 +3711,9 @@
         `).join('');
         // Click-to-expand handlers.
         tbody.querySelectorAll('tr[data-job-id]').forEach(tr => {
-          tr.addEventListener('mouseenter', => { tr.style.background = 'rgba(168,85,247,0.06)'; });
-          tr.addEventListener('mouseleave', => { tr.style.background = ''; });
-          tr.addEventListener('click', => showDetail(tr.dataset.jobId));
+          tr.addEventListener('mouseenter', () => { tr.style.background = 'rgba(168,85,247,0.06)'; });
+          tr.addEventListener('mouseleave', () => { tr.style.background = ''; });
+          tr.addEventListener('click', () => showDetail(tr.dataset.jobId));
         });
       }
 
@@ -3722,7 +3722,7 @@
       const detailTitle = document.getElementById('history-detail-title');
       const detailBody  = document.getElementById('history-detail-body');
       const detailClose = document.getElementById('history-detail-close');
-      detailClose?.addEventListener('click', => { detailWrap.style.display = 'none'; });
+      detailClose?.addEventListener('click', () => { detailWrap.style.display = 'none'; });
       function row(label, val, mono) {
         if (val == null || val === '') return '';
         const v = mono

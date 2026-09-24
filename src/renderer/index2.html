@@ -14,7 +14,7 @@
        graph and surfaces ANY uncaught error / failed import as a visible
        panel + a log line, so the window always paints something. -->
   <script>
-    (function {
+    (function () {
       function showBootError(msg) {
         try {
           if (document.getElementById('fab-boot-error')) return;

@@ -21908,3 +21908,44 @@ la meme liste, source unique.
 A FAIRE UN JOUR : `Detail refine` a un equivalent bureau
 (scripts/texture_refine.py). Le porter retirerait son id de la liste au lieu
 de le masquer.
+
+---
+
+## 2026-09-24 — Un nettoyage trop large a CASSE du code livre en production
+
+Le user signale que le panneau de prechauffage ne se deplie plus au survol.
+C'est moi. Dans le commit 0c38401 (retrait des estimations de temps), un
+`replace(' ()', '')` pose pour supprimer la parenthese vide laissee par
+« (+~60s) » a mange TOUS les ` ()` des deux HTML :
+
+    (function () {                      ->  (function {
+    addEventListener('mouseenter', () => {  ->  addEventListener('mouseenter', => {
+
+HUIT lignes cassees, LIVREES. Restaurees a l'identique depuis le commit, pas
+reecrites : on retrouve chaque ligne d'origine dans le diff et on remet le
+` ()` la ou il manquait.
+
+POURQUOI RIEN NE L'A VU. `check-js-syntax.mjs` n'analysait que les fichiers
+.js. Les pages embarquent pourtant 15 (bureau) et 19 (web) blocs `<script>`
+EN LIGNE, invisibles pour lui. Corrige : il les extrait et les analyse.
+  * Les commentaires HTML sont neutralises d'abord — index2.html CITE
+    « <script> » en prose, et le motif mordait dedans.
+  * Regex LITTERAL et non `new RegExp('...')` : dans une chaine, `\b` est un
+    backspace, pas une limite de mot. Ma premiere version avait ce defaut et
+    annoncait « tout va bien » sans avoir rien lu — le pire comportement
+    possible pour un garde.
+  * Verifie en REPRODUISANT le degat : il nomme le bloc et la ligne.
+
+GARDE DES DEPENDANCES MODAL (build/check_modal_deps.py) — ecrit apres l'echec
+de « watertight » (`ModuleNotFoundError: No module named 'skimage'`, op
+FACTUREE qui n'avait jamais fonctionne). Ma premiere version scannait les
+`import` de _mesh_op.py : elle N'AURAIT PAS attrape ce cas, puisque le fichier
+n'importe pas skimage — c'est trimesh qui le charge au moment de l'appel.
+Renforce avec une table des fonctions trimesh a moteur optionnel
+(simplify_quadric_decimation -> fast_simplification, marching_cubes ->
+scikit-image, triangulate -> mapbox_earcut) : elle couvre les DEUX accidents
+historiques. Verifie en retirant scikit-image de l'image.
+
+Enfin, les deux `confirm()` natifs des outils mesh passent par
+`customConfirm()`, qui existait deja et dont l'en-tete du fichier dit
+« replaces window.confirm ».

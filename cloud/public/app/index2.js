@@ -10604,7 +10604,7 @@ function openMeshToolModal(toolName) {
   if (closeX) closeX.onclick = close;
   applyBtn.onclick = async () => {
     const vals = _mtCollectVals(body);
-    if (schema.confirm && !confirm(schema.confirm)) return;
+    if (schema.confirm && !(await customConfirm(schema.confirm, schema.title || 'Confirm', 'Continue'))) return;
     const ctx = { imagePath: p.selectedImagePath, meshPath: p.selectedMeshPath };
     const params = schema.build(vals, ctx);
     close();
@@ -10613,7 +10613,7 @@ function openMeshToolModal(toolName) {
   if (deviceBtn) {
     deviceBtn.onclick = async () => {
       if (deviceBtn.disabled) return;
-      if (schema.confirm && !confirm(schema.confirm)) return;
+      if (schema.confirm && !(await customConfirm(schema.confirm, schema.title || 'Confirm', 'Continue'))) return;
       const prevText = deviceBtn.textContent;
       deviceBtn.disabled = true;
       deviceBtn.textContent = 'Saving…';

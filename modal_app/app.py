@@ -265,8 +265,16 @@ image = (
     # l'appel leve et l'outil « Nombre de triangles » renvoyait le maillage
     # INTACT tout en debitant 1 credit (constate en production le 2026-07-27 :
     # cible 4 500, resultat 481 202 triangles). Voir _mesh_op.decimate().
+    # scikit-image : moteur de marching cubes de trimesh, requis par
+    # VoxelGrid.marching_cubes — donc par l'op « watertight ». Sans lui,
+    # l'op levait ModuleNotFoundError et echouait a CHAQUE appel depuis
+    # qu'elle est proposee (mesure du 2026-09-24 : « No module named
+    # 'skimage' » en production). Les credits etaient rembourses, mais
+    # l'outil n'a jamais fonctionne. MEME accident que fast_simplification
+    # ci-dessus : une dependance absente rend une operation FACTUREE
+    # inoperante, en silence tant que personne ne clique.
     .pip_install("opencv-python-headless", "trimesh>=4.0", "scipy>=1.10", "mapbox_earcut",
-                 "fast_simplification")
+                 "fast_simplification", "scikit-image")
     .add_local_python_source("modal_app")
     .add_local_file(
         "modal_app/back_tpose_skeleton.png",
