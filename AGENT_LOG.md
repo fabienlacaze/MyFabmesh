@@ -21553,3 +21553,26 @@ anti-regression (nom -> etape attendue) pour qu'on ne puisse pas « reparer »
 en elargissant un motif au point de tout attraper. Verifie en retirant
 volontairement un motif : le garde nomme le travail orphelin. Branche sur les
 deux chaines de construction.
+
+### La prechauffe ne prechauffait rien
+
+Premier vrai passage GPU de l'outil Habits : ECHEC apres 8 min 45, credits
+rembourses automatiquement (le filet a tenu). Deuxieme echec du jour de la
+meme famille, apres le mask-inpaint a 4 min du matin.
+
+CAUSE, la meme qu'au matin et enfin corrigee : `preWarmModal` pingait
+`/healthz`, qui repond `{"ok": true}` SANS rien charger. Le conteneur
+demarrait, le service etait annonce « warm », et le premier appel reel payait
+en plus le chargement de CLIPSeg + SDXL Inpaint (~6 Go) — desormais aussi
+ControlNet-Tile. Le budget de reprise du worker (~5 a 10 min) n'y suffit pas
+quand le conteneur est froid ET les modeles absents.
+
+CORRECTIF
+  * Modal : route `POST /warm` qui appelle vraiment `_get_auto_inpaint_models()`
+    et `_get_tile_pipe()`. Parametre `quoi` = inpaint | tile | tout.
+  * Worker : la prechauffe d'`image_op` appelle `/warm` au lieu de `/healthz`.
+    On ne l'attend pas — Cloudflare coupe a 100 s, le conteneur poursuit le
+    chargement et reste chaud. Le 524 est un succes, pas une erreur, comme
+    pour les autres pings de prechauffe.
+  * Les autres services gardent `/healthz` : leurs modeles sont dans la photo
+    (snapshot), il n'y a rien a charger paresseusement.

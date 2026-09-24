@@ -16997,12 +16997,31 @@ async function preWarmModal(env: Env, opts: { imageOp?: boolean } = {}): Promise
         console.log(`[pre-warm] ${t.label} already warm — skipped`);
         continue;
       }
-      // Do NOT log the url: /healthz is unauthenticated and publicly pingable.
-      await fetch(_healthzUrl(t.url), {
-        method: 'GET',
-        signal: AbortSignal.timeout(120_000),
-      }).catch(() => null);
-      console.log(`[pre-warm] ${t.label} healthz pinged`);
+      // image_op : /healthz repond {ok:true} SANS rien charger. CLIPSeg +
+      // SDXL Inpaint (~6 Go) et ControlNet-Tile ne se chargent qu'au premier
+      // appel reel, si bien que le service etait annonce « warm » alors que
+      // le prochain clic allait payer 6 Go de chargement. Deux echecs
+      // mesures le 2026-09-24 a cause de ca : un mask-inpaint a 4 min et une
+      // extraction de tenue a 8 min 45, tous deux rembourses.
+      //
+      // La route /warm charge VRAIMENT les modeles. On ne l'attend pas :
+      // Cloudflare coupe a 100 s, le conteneur poursuit et reste chaud.
+      if (t.label === 'image_op') {
+        await fetch(t.url.replace(/\/[^/]*$/, '/warm'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '', quoi: 'tout' }),
+          signal: AbortSignal.timeout(120_000),
+        }).catch(() => null);
+        console.log(`[pre-warm] ${t.label} /warm declenche (modeles en chargement)`);
+      } else {
+        // Do NOT log the url: /healthz is unauthenticated and publicly pingable.
+        await fetch(_healthzUrl(t.url), {
+          method: 'GET',
+          signal: AbortSignal.timeout(120_000),
+        }).catch(() => null);
+        console.log(`[pre-warm] ${t.label} healthz pinged`);
+      }
     } catch (e) {
       console.warn(`[pre-warm] ${t.label} failed:`,
                    e instanceof Error ? e.message : String(e));

@@ -1569,6 +1569,36 @@ class MyFabmeshBackview:
         async def outfit(request: Request):
             return self._route_outfit(await _read_json(request))
 
+        @api.post("/warm")
+        async def warm(request: Request):
+            """Prechauffe REELLE : charge les gros modeles, pas seulement le
+            conteneur.
+
+            POURQUOI. `/healthz` repond {"ok": true} sans rien charger. La
+            prechauffe du worker le pingait et declarait le service « warm »,
+            alors que CLIPSeg + SDXL Inpaint (~6 Go) et ControlNet-Tile ne se
+            chargent qu'au PREMIER appel reel. Deux echecs mesures le
+            2026-09-24 a cause de ca : un mask-inpaint a 4 min et une
+            extraction de tenue a 8 min 45, tous deux rembourses.
+
+            L'appelant n'a pas besoin d'attendre : Cloudflare coupe a 100 s
+            avec un 524, mais le conteneur poursuit le chargement et reste
+            chaud. Le 524 est donc un succes, pas une erreur.
+            """
+            payload = await _read_json(request)
+            _check_auth(payload)
+            quoi = (payload.get("quoi") or "inpaint").strip()
+            t0 = time.time()
+            charges = []
+            if quoi in ("inpaint", "tout"):
+                self._get_auto_inpaint_models()
+                charges.append("clipseg+inpaint")
+            if quoi in ("tile", "tout"):
+                self._get_tile_pipe()
+                charges.append("controlnet-tile")
+            print(f"[warm] {'+'.join(charges)} prets en {time.time() - t0:.1f}s", flush=True)
+            return {"ok": True, "charges": charges, "secondes": round(time.time() - t0, 1)}
+
         @api.get("/healthz")
         async def healthz():
             return {"ok": True, "class": "MyFabmeshBackview"}
