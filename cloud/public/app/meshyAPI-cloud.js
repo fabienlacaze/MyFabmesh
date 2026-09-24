@@ -2075,6 +2075,32 @@
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
+    outfitCutout: async ({ imagePath, pieces, ensemble, parPiece, completer, recadrer } = {}) => {
+      // Habits seuls — port cloud de l'IPC bureau 'outfit-cutout'.
+      // SEUL outil image a sortie MULTIPLE : on rend une LISTE de pieces,
+      // chacune rattachee au projet courant comme une image de plus.
+      if (!imagePath) return { success: false, error: 'imagePath required' };
+      try {
+        const r = await postJSON('/api/outfit', {
+          imageUrl: imagePath,
+          pieces,
+          ensemble: ensemble !== false,
+          parPiece: !!parPiece,
+          completer: completer !== false,
+          recadrer: !!recadrer,
+        });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (!r?.success || !Array.isArray(r.pieces) || !r.pieces.length) {
+          return { success: false, error: r?.error || 'aucune piece produite' };
+        }
+        const sorties = [];
+        for (const p of r.pieces) {
+          await _attachToCurrentProject(p.url, 'front');
+          sorties.push({ nom: p.nom, chemin: p.url, aire: p.aire, complete: p.complete });
+        }
+        return { success: true, pieces: sorties, absentes: r.absentes || [] };
+      } catch (e) { return { success: false, error: String(e) }; }
+    },
     segmentMask: async ({ imagePath, targetText, dilate } = {}) => {
       // Detect-only CLIPSeg mask for the Auto Inpaint "Preview mask" button.
       // ONE GPU call on demand (not live-on-keystroke); returns { success,

@@ -1573,6 +1573,16 @@ const ASSET_OPTIONS_PROFILE = {
 };
 
 function _applyAssetOptionsProfile(assetType) {
+  // « Habits seuls » n'a de sens que sur un personnage : sur un batiment ou un
+  // vehicule, CLIPSeg trouverait n'importe quoi. Le bouton est masque ailleurs,
+  // au lieu d'etre propose puis de decevoir.
+  try {
+    const _perso = assetType === 'character';
+    const _ob = document.getElementById('ws-outfit-btn');
+    if (_ob) _ob.style.display = _perso ? '' : 'none';
+    const _olb = document.querySelector('.lb-tool-btn[data-lb-tool="outfit"]');
+    if (_olb) _olb.style.display = _perso ? '' : 'none';
+  } catch (_) {}
   const profile = ASSET_OPTIONS_PROFILE[assetType] || ASSET_OPTIONS_PROFILE.custom;
   for (const [id, state] of Object.entries(profile)) {
     const cb = document.getElementById(id);
@@ -4512,6 +4522,7 @@ document.getElementById('lb-multiview-bar')?.addEventListener('click', (e) => {
   const TOOL_MAP = {
     modify:      'ws-modify-btn',
     autoinpaint: 'ws-autoinpaint-btn',
+    outfit:      'ws-outfit-btn',
     removebg:    'ws-removebg-btn',
     resolution:  'ws-resolution-btn',
     facefix:     'ws-facefix-btn',
@@ -4536,7 +4547,7 @@ document.getElementById('lb-multiview-bar')?.addEventListener('click', (e) => {
     // Some tools (Modify, Draw Mask, Clone, Paint, Auto Inpaint)
     // open their own modal. The lightbox stays open in the background;
     // close it so the modal gets focus and isn't layered under.
-    const OPENS_MODAL = ['modify', 'autoinpaint', 'mask', 'clone',
+    const OPENS_MODAL = ['modify', 'autoinpaint', 'outfit', 'mask', 'clone',
                          'paint', 'crop', 'select', 'resolution'];
     if (OPENS_MODAL.includes(toolKey)) {
       closeLightbox();
@@ -18493,6 +18504,80 @@ if (aiDilate) aiDilate.addEventListener('input', () => {
 document.getElementById('ai-cancel')?.addEventListener('click', () => {
   document.getElementById('modal-auto-inpaint').classList.add('hidden');
 });
+// ===== Habits seuls — extrait les vetements, reserve au type « character » =====
+function _outfitSyncMode() {
+  const mode = document.getElementById('of-mode')?.value || 'ensemble';
+  const box = document.getElementById('of-pieces-box');
+  if (box) box.style.display = (mode === 'ensemble') ? 'none' : '';
+}
+document.getElementById('of-mode')?.addEventListener('change', _outfitSyncMode);
+
+document.getElementById('ws-outfit-btn')?.addEventListener('click', () => {
+  const p = state.currentProject;
+  const target = editTarget(p);
+  if (!target) { showToast('Choisis d'abord une image.', 'error'); return; }
+  const img = document.getElementById('of-source-img');
+  if (img) img.src = _bust(_toFileUrl(target));
+  const abs = document.getElementById('of-absentes');
+  if (abs) { abs.style.display = 'none'; abs.textContent = ''; }
+  _outfitSyncMode();
+  document.getElementById('modal-outfit')?.classList.remove('hidden');
+});
+document.getElementById('of-cancel')?.addEventListener('click', () => {
+  document.getElementById('modal-outfit')?.classList.add('hidden');
+});
+
+document.getElementById('of-go')?.addEventListener('click', async () => {
+  const p = state.currentProject;
+  const imagePath = editTarget(p);
+  if (!imagePath) return;
+  const mode = document.getElementById('of-mode')?.value || 'ensemble';
+  const ensemble = (mode === 'ensemble' || mode === 'deux');
+  const parPiece = (mode === 'pieces' || mode === 'deux');
+  const pieces = Array.from(document.querySelectorAll('.of-piece:checked')).map(c => c.value);
+  if (parPiece && !pieces.length) {
+    showToast('Coche au moins une piece.', 'error');
+    return;
+  }
+  if ((parPiece ? pieces.length : 0) + (ensemble ? 1 : 0) > 8) {
+    showToast('8 pieces au maximum par appel.', 'error');
+    return;
+  }
+  const completer = !!document.getElementById('of-completer')?.checked;
+  const recadrer = !!document.getElementById('of-recadrer')?.checked;
+  document.getElementById('modal-outfit')?.classList.add('hidden');
+
+  const nb = (parPiece ? pieces.length : 0) + (ensemble ? 1 : 0);
+  gatedRun('inpaint', `Habits seuls: ${p.name}`, async () => {
+    const job = pushJob(`Habits seuls: ${p.name}`, null, {
+      Sortie: mode === 'ensemble' ? 'la tenue entiere'
+            : mode === 'pieces' ? `${pieces.length} piece(s)`
+            : `la tenue + ${pieces.length} piece(s)`,
+      Completion: completer ? 'oui (IA)' : 'non (decoupe fidele)',
+    }, completer ? 60000 * nb : 45000, { sourceImageUrl: imagePath, projectName: p.name });
+    try {
+      const r = await API.outfitCutout({ imagePath, pieces, ensemble, parPiece, completer, recadrer, jobId: job.id });
+      if (r?.success) {
+        completeJob(job.id, true);
+        await reloadCurrentProject();
+        const noms = (r.pieces || []).map(x => x.nom).join(', ');
+        showToast(`Habits: ${(r.pieces || []).length} image(s) — ${noms}`, 'success');
+        if (r.absentes && r.absentes.length) {
+          // On le DIT au lieu de livrer une image vide : ces pieces ne sont
+          // pas sur l'image, elles n'ont pas ete inventees.
+          showToast(`Non detectees, donc ignorees : ${r.absentes.join(', ')}`, 'info');
+        }
+      } else {
+        completeJob(job.id, false);
+        if (!job.cancelled) customError(r?.error || 'unknown', 'Habits seuls');
+      }
+    } catch (e) {
+      completeJob(job.id, false);
+      if (!job.cancelled) customError(e?.error || e?.message || String(e), 'Habits seuls');
+    }
+  });
+});
+
 document.getElementById('ai-go')?.addEventListener('click', async () => {
   const p = state.currentProject;
   const imagePath = editTarget(p);

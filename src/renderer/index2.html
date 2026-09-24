@@ -457,6 +457,7 @@
                           </div>
                         </div>
                         <button id="ws-facefix-btn" class="ghost-btn tool-btn">&#128566; Face Fix</button>
+                        <button id="ws-outfit-btn" class="ghost-btn tool-btn" title="Extrait les vetements seuls, sur fond transparent (personnages)">&#128087; Habits</button>
                         <button id="ws-symmetrize-auto-btn" class="ghost-btn tool-btn">&#8651; Sym. Auto</button>
                         <button id="ws-multiview-btn" class="ghost-btn tool-btn">&#128065; Multi-Views</button>
                         <button id="ws-buildstages-btn" class="ghost-btn tool-btn" title="Génère une timeline de chantier (échafaudages → bâtiment fini) à partir de l'image finale, affichée comme les multi-vues">&#127959;&#65039; Étapes de construction</button>
@@ -1364,6 +1365,7 @@
         <button class="lb-tool-btn" data-lb-tool="resolution" title="Change resolution">&#127906; Resolution</button>
         <button class="lb-tool-btn" data-lb-tool="style" title="Apply a style preset">&#127912; Style&hellip;</button>
         <button class="lb-tool-btn" data-lb-tool="facefix" title="Fix face details">&#128578; Face Fix</button>
+        <button class="lb-tool-btn" data-lb-tool="outfit" title="Habits seuls">&#128087; Habits</button>
         <button class="lb-tool-btn" data-lb-tool="symmetry" title="Auto symmetry">&#8646; Sym. Auto</button>
         <button class="lb-tool-btn" data-lb-tool="multiview" title="Generate multi-views">&#128065; Multi-Views</button>
         <button class="lb-tool-btn" data-lb-tool="variant" title="Create variants of the current image">&#10024; Variant</button>
@@ -1427,6 +1429,64 @@
         <div class="modal-actions">
           <button class="ghost-btn" id="ai-cancel">Cancel</button>
           <button class="primary-btn" id="ai-go">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         HABITS SEULS (CLIPSeg + SDXL, reserve au type « character »)
+         ============================================================ -->
+    <div id="modal-outfit" class="modal-overlay hidden">
+      <div class="modal-card modal-card-wide">
+        <h2>Habits seuls</h2>
+        <p class="modal-subtitle">Extrait les v&ecirc;tements du personnage, seuls, sur fond transparent. La sortie garde le cadre de l&rsquo;image source&nbsp;: la tenue se repose au pixel pr&egrave;s sur le personnage.</p>
+        <div class="modal-with-image">
+          <div class="modal-image-side" style="position:relative;">
+            <img id="of-source-img" alt="" />
+            <div id="of-spinner" style="display:none; position:absolute; inset:0; flex-direction:column; gap:12px; align-items:center; justify-content:center; background:rgba(0,0,0,0.25); border-radius:inherit;">
+              <div style="width:42px; height:42px; border:4px solid rgba(255,255,255,0.25); border-top-color:#fff; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+              <div id="of-spinner-label" style="color:#fff; font-size:13px; font-weight:500; letter-spacing:0.3px; text-shadow:0 1px 4px rgba(0,0,0,0.7); text-align:center; max-width:80%;">Extraction&hellip;</div>
+            </div>
+          </div>
+          <div class="modal-form-side">
+            <label>Sortie</label>
+            <select id="of-mode" style="width:100%; padding:9px 10px; margin-bottom:12px; background:var(--surface-2, #1b1b24); color:var(--text, #eee); border:1px solid var(--border, #333); border-radius:7px; font-size:13px; cursor:pointer;">
+              <option value="ensemble" selected>Une seule image&nbsp;: toute la tenue</option>
+              <option value="pieces">Une image par pi&egrave;ce</option>
+              <option value="deux">Les deux</option>
+            </select>
+
+            <div id="of-pieces-box" style="display:none; margin-bottom:12px;">
+              <label>Pi&egrave;ces &agrave; chercher</label>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; margin-top:4px;">
+              <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;"><input type="checkbox" class="of-piece" value="cape" checked /> Cape</label>
+              <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;"><input type="checkbox" class="of-piece" value="armor" checked /> Armure</label>
+              <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;"><input type="checkbox" class="of-piece" value="top" checked /> Haut</label>
+              <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;"><input type="checkbox" class="of-piece" value="bottom" checked /> Bas</label>
+              <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;"><input type="checkbox" class="of-piece" value="boots" checked /> Bottes</label>
+              <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;"><input type="checkbox" class="of-piece" value="gloves" checked /> Gants</label>
+              <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;"><input type="checkbox" class="of-piece" value="belt" checked /> Ceinture</label>
+              <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;"><input type="checkbox" class="of-piece" value="helmet" checked /> Casque</label>
+              </div>
+              <small class="modal-subtitle" style="display:block; margin-top:6px; font-size:11px; line-height:1.3;">Une pi&egrave;ce absente de l&rsquo;image est ignor&eacute;e et signal&eacute;e &mdash; elle n&rsquo;est pas invent&eacute;e. 8&nbsp;pi&egrave;ces au maximum par appel.</small>
+            </div>
+
+            <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+              <input type="checkbox" id="of-completer" checked /> Compl&eacute;ter les zones cach&eacute;es (IA)
+            </label>
+            <small class="modal-subtitle" style="display:block; margin:4px 0 12px; font-size:11px; line-height:1.3;">Recoud le v&ecirc;tement l&agrave; o&ugrave; un bras ou le corps le masquait. La retouche est born&eacute;e &agrave; la silhouette du personnage&nbsp;: elle ne peut pas &eacute;largir la tenue. D&eacute;coch&eacute;&nbsp;= d&eacute;coupe fid&egrave;le, rien d&rsquo;invent&eacute;&nbsp;: 2&nbsp;cr&eacute;dits au lieu de 6.</small>
+
+            <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+              <input type="checkbox" id="of-recadrer" /> Recadrer sur la pi&egrave;ce
+            </label>
+            <small class="modal-subtitle" style="display:block; margin:4px 0 0; font-size:11px; line-height:1.3;">D&eacute;coch&eacute; (recommand&eacute;)&nbsp;: l&rsquo;image garde le cadre du personnage, donc la tenue se replace exactement dessus.</small>
+
+            <div id="of-absentes" class="modal-subtitle" style="display:none; margin-top:12px; font-size:12px;"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="of-cancel">Annuler</button>
+          <button class="primary-btn" id="of-go">Extraire</button>
         </div>
       </div>
     </div>

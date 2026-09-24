@@ -598,6 +598,10 @@
     'ws-removebg-btn':      1,   // /api/remove-background
     'ws-multiview-btn':     6,   // generateMultiviews — 6 views generated
     'ws-facefix-btn':       2,   // /api/face-fix-image — OpenCV + SDXL inpaint
+    // /api/outfit — CLIPSeg + une passe SDXL par piece. La pastille montre le
+    // tarif AVEC completion (le defaut) ; sans elle l'appel coute 2, ce que la
+    // modale annonce noir sur blanc.
+    'ws-outfit-btn':        6,
     'ws-resolution-btn':    2,   // /api/upscale-image — LANCZOS + SDXL refine
     // Style: when the user picks an entry in the style dropdown,
     // index2.js:4754 calls API.img2img with the style as prompt →
@@ -1029,6 +1033,7 @@
     'ws-mask-btn':         'mask_inpaint',
     'ws-facefix-btn':      'face_fix_image',
     'ws-removebg-btn':     'remove_background',
+    'ws-outfit-btn':       'outfit_complete',
     'ws-resolution-btn':   'upscale',
   };
   async function syncLivePricing() {

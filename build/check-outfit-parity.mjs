@@ -51,9 +51,38 @@ function noyau(chemin) {
 const a = noyau(SOURCE);
 const b = noyau(COPIE);
 
+/** Les cases a cocher de la modale envoient des cles de piece au serveur, qui
+ *  refuse d'un 400 toute cle inconnue. Une case ajoutee dans le HTML sans sa
+ *  ligne dans PIECES_TENUE casse donc l'outil au clic, et seulement au clic. */
+function verifierPiecesUI(clesNoyau) {
+  const pages = ['src/renderer/index2.html', 'cloud/public/app/index.html'];
+  const soucis = [];
+  for (const page of pages) {
+    const html = lf(readFileSync(join(RACINE, page), 'utf-8'));
+    const vues = [...html.matchAll(/class="of-piece" value="([^"]+)"/g)].map(m => m[1]);
+    if (!vues.length) { soucis.push(`${page} : aucune case .of-piece`); continue; }
+    const inconnues = vues.filter(v => !clesNoyau.includes(v));
+    const oubliees = clesNoyau.filter(k => !vues.includes(k));
+    if (inconnues.length) soucis.push(`${page} : case(s) inconnues du noyau — ${inconnues.join(', ')}`);
+    if (oubliees.length) soucis.push(`${page} : piece(s) du noyau sans case — ${oubliees.join(', ')}`);
+  }
+  return soucis;
+}
+
 if (a.bloc === b.bloc) {
+  const table = a.bloc.slice(a.bloc.indexOf('PIECES_TENUE = {'));
+  const cles = [...table.slice(0, table.indexOf('}')).matchAll(/'([a-z]+)':/g)].map(m => m[1]);
+  const soucis = verifierPiecesUI(cles);
+  if (soucis.length) {
+    console.error('\n  HABITS SEULS : la modale et le noyau ne parlent pas des memes pieces.\n');
+    for (const s of soucis) console.error('  ' + s);
+    console.error('\n  Le serveur refuse une piece inconnue par un 400 : le defaut ne se');
+    console.error('  verrait qu\'au clic de l\'utilisateur.\n');
+    process.exit(1);
+  }
   const lignes = a.bloc.split('\n').length;
-  console.log(`[habits] noyau partage identique (${lignes} lignes, ${a.bloc.length} octets)`);
+  console.log(`[habits] noyau partage identique (${lignes} lignes, ${a.bloc.length} octets)`
+    + `, ${cles.length} pieces alignees avec les deux modales`);
   process.exit(0);
 }
 
