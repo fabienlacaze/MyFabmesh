@@ -8786,12 +8786,30 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
       desabonne = window.__meshyOn?.('ai3d-progress', (m) => {
         if (m && typeof m === 'object' && m.jobId && !job.workerJobId) {
           job.workerJobId = m.jobId;
+          /* DECLARATION AU REGISTRE (2026-09-25).
+           * Le worker insere une ligne `jobs` (type 'mesh', status 'queued')
+           * pour ce meme travail. Le sondage /api/me/active-jobs la voit, ne
+           * sait pas que le client a DEJA sa tuile, et en cree une SECONDE :
+           * l'utilisateur voyait « Generate 3D: orc W1 » DEUX FOIS, avec des
+           * durees differentes (celle du clic et celle du serveur) et deux
+           * barres de progression concurrentes pour un seul travail.
+           *
+           * Les reprises de rig et de travaux « spawnes » declarent deja leur
+           * identifiant ; le maillage, lui, ne le faisait pas — d'ou le
+           * doublon constate sur une generation de mesh. */
+          try { window.fabmeshJobs?.declareServerJob?.(m.jobId); } catch (_) {}
         }
       }) || null;
     } catch (_) {}
     try {
       const r = await API.imageTo3D(params);
-      if (r?.jobId) job.workerJobId = r.jobId;
+      if (r?.jobId) {
+        job.workerJobId = r.jobId;
+        // Meme declaration que ci-dessus : si l'identifiant n'a pas ete vu
+        // passer par 'ai3d-progress', on le declare ici. Sans quoi la ligne
+        // du worker reste non declaree et se reaffiche en tuile separee.
+        try { window.fabmeshJobs?.declareServerJob?.(r.jobId); } catch (_) {}
+      }
       if (r?.success) {
         // Show mesh stats in the job details before completing
         if (r.meshVerts || r.meshFaces) {
