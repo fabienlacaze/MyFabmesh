@@ -15305,21 +15305,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // operations sont maintenant rendues comme SOUS-TACHES du travail auquel
     // elles appartiennent (voir _renderSousTaches cote rendu).
     //
-    // Le discriminant fiable est `type` (colonne dediee depuis la migration
-    // 20260804120000_jobs_type_cost.sql) : les generations d'image portent
-    // 'text2image', les operations internes leur propre nom d'op. Un travail
-    // SANS type est une generation de premier niveau (mesh, rig, anim).
-    const _estOperationInterne = (row) => {
-      const t = String(row && row.type || '').toLowerCase();
-      if (!t) return false;
-      return /^(text2image|image_op|rectify|back[-_]?view|backview|sheet|mvadapter|remove[-_]?bg|removebg|face[-_]?fix|auto[-_]?inpaint|inpaint|upscale|esrgan|recolor|tex[-_]?variant|outfit|cutout|segment)/.test(t);
-    };
+    // Le predicat qui les reconnait est defini plus bas, juste apres
+    // _expectedFor : il sert aussi au rattachement parent/enfant.
     const _kindFromAssetType = (at, name) => {
       const a = String(at || '').toLowerCase();
       if (a === 'animation' || a === 'anim') return 'anim';
       if (a === 'rig' || a === 'rigging') return 'rig';
       if (a === 'mesh' || a === '3d' || a === 'image-to-3d') return 'mesh';
-      if (a === 'image' || a === 'text-to-image') return 'image';
+      /* 2026-09-25 — LES TYPES D'OBJET SONT AUSSI DES MAILLAGES.
+       *
+       * Mesure sur la base reelle : `character | type=mesh` (11 lignes) et
+       * `building | type=mesh` (5). Le worker ecrit dans `asset_type` le TYPE
+       * D'OBJET (character, building, creature…) et dans `type` la NATURE DU
+       * TRAVAIL (mesh, rig, rectify, text2image, back-view). Ce test ne
+       * reconnaissait ni character ni building : ces maillages tombaient sur
+       * inferKind('') -> 'image' et s'affichaient « Generate images ». */
+      if (/^(character|creature|animal|building|environment|prop|weapon|vehicle|insect|icon|other_item|item)$/.test(a)) return 'mesh';
+      /* 'text2image' MANQUAIT, et c'est ce qui produisait le faux
+       * « Generate images ».
+       *
+       * La base ecrit `asset_type = 'text2image'` (SANS tirets) ; ce test ne
+       * cherchait que 'text-to-image' (AVEC tirets). Il ne correspondait donc
+       * JAMAIS. Les variantes sont desormais acceptees : le worker a ecrit
+       * text2image, text-to-image et text_to_image selon les epoques. */
+      if (/^(image|text2image|text-to-image|text_to_image|img2img)$/.test(a)) return 'image';
       return inferKind(name || '') || 'image';
     };
     const _displayName = (row) => {
@@ -15334,6 +15343,25 @@ document.addEventListener('DOMContentLoaded', () => {
       return `${verb}: ${project}`;
     };
     const _expectedFor = (kind) => ({ anim: 180000, rig: 180000, mesh: 110000, image: 30000 })[kind] || 60000;
+    /* Une ligne est-elle une OPERATION interne (image produite PENDANT un
+     * autre travail) plutot qu'une generation demandee par l'utilisateur ?
+     *
+     * `type` porte le nom de l'operation quand elle passe par logOperation
+     * ('rectify', 'back-view', 'text2image'…) et vaut 'mesh'/'rig'/'anim'
+     * pour une generation de premier niveau. C'est le discriminant fiable,
+     * la colonne existant depuis la migration 20260804120000_jobs_type_cost.
+     * 2026-09-25 : ce predicat alimente le rattachement en SOUS-TACHE. Il
+     * n'existait pas quand l'utilisateur a signale le doublon ; l'image
+     * s'affichait alors a plat, a cote de la generation qui l'avait produite. */
+    const _estOperationInterne = (row) => {
+      const t = String((row && row.type) || '').toLowerCase();
+      const at = String((row && row.asset_type) || '').toLowerCase();
+      // Une operation d'image : le type est un nom d'op, OU asset_type dit
+      // text2image alors que le type ne dit pas 'mesh'/'rig'/'anim'.
+      if (/^(mesh|rig|animation|anim|segment)$/.test(t)) return false;
+      if (/^(rectify|back[-_]?view|backview|sheet|mvadapter|remove[-_]?bg|removebg|face[-_]?fix|auto[-_]?inpaint|inpaint|upscale|esrgan|recolor|tex[-_]?variant|outfit|cutout|segment)/.test(t)) return true;
+      return /^(text2image|text-to-image|text_to_image|image|img2img)$/.test(at) && !!t;
+    };
     const _serverPolledIds = new Set();  // local job.id we created → server job.id
     const _jobByServerId = new Map();     // server job.id → local job
 
@@ -15366,15 +15394,30 @@ document.addEventListener('DOMContentLoaded', () => {
         Resumed: 'yes',
       };
       const opts = { projectName: project || null };
-      // Rattachement au travail parent : on cherche une generation de premier
-      // niveau EN COURS sur le meme projet. Le nom du parent est resolu par le
-      // rendu (_jobParent), qui accepte un identifiant local OU un nom.
-      if (_estOperationInterne(row)) {
+      /* RATTACHEMENT EN SOUS-TACHE (2026-09-25).
+       *
+       * Une operation d'image (rectify, face_fix, back-view…) appartient a la
+       * generation qui l'a produite, mais le serveur ne stocke AUCUNE
+       * filiation : on la retrouve par le PROJET, qui est la seule clef
+       * commune.
+       *
+       * Le parent n'est plus exige « running » : a l'arrivee de la ligne, la
+       * generation qui l'a lancee peut deja etre terminee (le mesh est insere
+       * a la FIN cote serveur pour les operations qui le precedent), et des
+       * qu'elle est cloturee le rattachement echouait — l'image retombait a
+       * plat, en tuile independante. C'est exactement le doublon signale par
+       * l'utilisateur. On accepte donc aussi un parent termine depuis peu.
+       *
+       * Un parent n'est jamais une operation interne : sans cette garde, deux
+       * operations du meme projet se rattacheraient l'une a l'autre. */
+      if (_estOperationInterne(row) && project) {
+        const _VIVANT = 5 * 60 * 1000;   // un parent termine depuis < 5 min compte
         const parent = state.jobs.find(p =>
-          p.status === 'running'
-          && !p.parentJobId
-          && p.name !== _displayName(row)
-          && (!project || _jobProjectName(p) === project));
+          !p.parentJobId
+          && !_estOperationInterne({ type: p.kind, asset_type: p.assetKind })
+          && _jobProjectName(p) === project
+          && (p.status === 'running'
+              || (p.startedAt && Date.now() - p.startedAt < _VIVANT)));
         if (parent) {
           opts.parentJobId = parent.id;
           opts.parentJobName = parent.name;
