@@ -1853,6 +1853,38 @@ class MyFabmeshMesh:
                 smooth=bool(payload.get("smooth")),
             )
 
+            # AFFINAGE DE L ATLAS (case « Detail refine »). Il exige le
+            # ControlNet-Tile, absent de Modal jusqu au 2026-09-24 — d ou une
+            # option facturee 2 credits que personne ne lisait. Applique ici
+            # et non dans _mesh : le pipe Tile appartient a cette classe.
+            if payload.get("refine"):
+                try:
+                    import trimesh as _tm
+                    from modal_app._texture_refine import affiner_atlas
+                    _t = time.time()
+                    _scene = _tm.load(io.BytesIO(glb_bytes), file_type="glb")
+                    _geoms = (list(_scene.geometry.values())
+                              if hasattr(_scene, "geometry") else [_scene])
+                    _fait = False
+                    for _g in _geoms:
+                        _mat = getattr(getattr(_g, "visual", None), "material", None)
+                        _tex = getattr(_mat, "baseColorTexture", None) if _mat else None
+                        if _tex is None:
+                            continue
+                        _mat.baseColorTexture = affiner_atlas(
+                            self._get_tile_pipe(), _tex,
+                            strength=float(payload.get("refine_strength") or 0.25),
+                            seed=int(payload.get("seed") or 42))
+                        _fait = True
+                    if _fait:
+                        _buf = io.BytesIO()
+                        _scene.export(_buf, file_type="glb", extension_webp=True)
+                        glb_bytes = _buf.getvalue()
+                        print(f"[refine] atlas affine en {time.time()-_t:.1f}s",
+                              flush=True)
+                except Exception as _e:
+                    print(f"[refine] ignore: {_e}", flush=True)
+
             # Optional face polish — SDXL inpaint on the atlas face region.
             # Verbatim port of scripts/face_inpaint_atlas.py (with the
             # pyrender step replaced by face detection on the original

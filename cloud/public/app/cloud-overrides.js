@@ -11,7 +11,13 @@
  * traitement qui n a jamais lieu. Signale par l utilisateur le 2026-09-24. */
 // 'ws-trellis2-smooth' RETIRE le 2026-09-24 : le filtre bilateral est
 // desormais porte (modal_app/_mesh.lisser_atlas), la case agit a nouveau.
-window.__optionsMortesCloud = new Set(['ws-trellis2-refine']);
+// 2026-09-24 : les DEUX options sont desormais portees.
+//   smooth -> modal_app/_mesh.lisser_atlas (filtre bilateral CPU)
+//   refine -> modal_app/_texture_refine.affiner_atlas (ControlNet-Tile)
+// La liste reste en place : c'est elle qui empeche le tableau par type
+// d'asset de ressusciter une option sans lecteur, le jour ou il y en aura
+// de nouveau une.
+window.__optionsMortesCloud = new Set([]);
 
 /**
  * Cloud-only overrides for the desktop renderer UI.

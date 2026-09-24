@@ -22027,3 +22027,26 @@ surface lisse, ce qui est la raison d'etre de cette option.
 RESTE « Detail refine » : lui demande le ControlNet-Tile, ajoute a Modal ce
 matin pour l'outil Age. Il est donc portable desormais, ce qui n'etait pas
 vrai hier.
+
+### Detail refine porte lui aussi — plus aucune option facturee sans lecteur
+
+`modal_app/_texture_refine.py` porte l'affinage par tuiles : atlas decoupe en
+1024 px avec 128 px de recouvrement, chaque tuile repassee par SDXL a faible
+denoise guidee par ControlNet-Tile, recombinaison par masque en degrade pour
+qu'aucune couture n'apparaisse. TILE, OVERLAP et la construction de la grille
+sont recopies un a un du bureau.
+
+Il est branche dans app.py et non dans _mesh.py : le pipe Tile appartient a
+la classe MyFabmeshBackview. Une tuile qui echoue est laissee TELLE QUELLE —
+un defaut local vaut mieux qu'un atlas perdu.
+
+`OPTIONS_SANS_EFFET_CLOUD` et `__optionsMortesCloud` sont maintenant VIDES.
+Les deux listes restent en place : ce sont elles qui empechent le tableau par
+type d'asset de ressusciter une option sans lecteur, le jour ou il y en aura
+de nouveau une.
+
+RAPPEL DE LA LIMITE, heritee du bureau et non corrigee ici : l'affinage AIDE
+sur l'organique (peau, poil, fourrure) et INVENTE de l'usure sur les surfaces
+lisses (carrosserie, chrome, verre). C'est la raison d'etre de « Texture
+smooth », qui fait l'inverse — et le tableau par type d'asset decide lequel
+est coche.
