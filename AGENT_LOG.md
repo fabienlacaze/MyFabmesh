@@ -21777,3 +21777,49 @@ Deux boutons et un seul endroit : `intensiteEnvironnement`, `intensiteCle`.
 Le commentaire qui vantait les valeurs « 1.6/1.8/0.9/0.6 » a ete remplace :
 il decrivait quatre lumieres qui n'existent plus, et ces valeurs n'avaient ete
 montees que pour compenser l'absence d'IBL — le vrai manque.
+
+---
+
+## 2026-09-24 — Le rendu noir : TROIS correctifs d'eclairage avant de MESURER
+
+Le user signale un rendu tres sombre. J'ai tente, dans l'ordre :
+  1. retablir l'exposition 1.3 defaite par le remplacement du renderer ;
+  2. ajouter une carte d'environnement (elle manquait vraiment) ;
+  3. accrocher les directionnelles a la camera, puis les supprimer.
+Les trois etaient des ameliorations reelles. AUCUNE ne pouvait resoudre le
+probleme, parce que je n'avais pas mesure l'asset.
+
+MESURE (scratchpad, lecture directe du GLB livre) :
+    baseColor   luminance moyenne 0.104
+    G rugosite  moyenne 0.959  mediane 0.996
+    B METAL     moyenne 0.937  mediane 0.957  --  99,1 % des texels > 0,5
+
+TRELLIS-2 declarait un orc — peau, cuir, tissu — metallique a 94 % sur
+toute sa surface. En PBR un metal n'a AUCUNE composante diffuse : sa couleur
+vient entierement des reflets. Un personnage organique declare metallique
+rend NOIR quel que soit l'eclairage. Le canal R etant vide (0.003), ce
+n'etait pas un melange de canaux : la prediction elle-meme est degeneree.
+
+PIEGE DE MESURE EVITE EN CHEMIN : ma premiere lecture donnait une mediane de
+0.023 sur la baseColor, dont j'ai failli conclure « texture noire ». Un
+atlas UV est majoritairement VIDE, et le vide est noir — je mesurais
+l'espace inutilise. Refait sur la zone reellement couverte.
+
+CORRECTIF : `corriger_metal_degenere()` dans les DEUX pipelines (Modal et
+bureau). Il exige metal ELEVE **et** rugosite ELEVEE simultanement, ce qui
+est physiquement degenere — un metal a rugosite 0.96 ne reflechit presque
+rien. Un objet vraiment metallique est metallique et LISSE, il ne declenche
+donc pas le garde. Au-dela de 80 % de la surface, `metallicFactor` passe a
+0.05 ; la texture 4K n'est pas touchee, un seul nombre la multiplie.
+
+VERIFIE sur le mesh reel du user : 92,1 % de surface concernee, metal
+effectif 0.937 -> 0.047.
+
+CE QUE CA NE CORRIGE PAS : les meshes DEJA generes gardent leur carte. Pour
+ceux-la, l'outil « Material » (mesh-op material_adjust, 1 credit) a un
+curseur de metal.
+
+VISUALISEUR, etat final apres la demande du user : plus AUCUNE lumiere
+ponctuelle, seule la carte d'environnement eclaire — c'est la seule source
+qui traite un materiau metallique correctement, et c'est ce que fait
+model-viewer. Un unique bouton : `intensiteEnvironnement`.

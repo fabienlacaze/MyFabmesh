@@ -141,17 +141,10 @@ export class Viewer3D {
     // aveugle. La CIBLE doit l'etre aussi : sans elle, three vise l'origine du
     // MONDE et la direction se remettrait a dependre de la position de la
     // camera au lieu de son orientation.
-    const _suitLaCamera = (lumiere, x, y, z, cx, cy, cz) => {
-      lumiere.position.set(x, y, z);
-      lumiere.target.position.set(cx, cy, cz);
-      this.camera.add(lumiere);
-      this.camera.add(lumiere.target);
-    };
-    // UNE SEULE, et douce. L'environnement fait l'essentiel du travail ; celle-ci
-    // n'est la que pour le relief et un reflet franc, sans quoi un rendu
-    // purement IBL parait plat. Son intensite est le second bouton de reglage.
-    this.intensiteCle = 0.55;
-    _suitLaCamera(new THREE.DirectionalLight(0xffffff, this.intensiteCle), 2.0, 2.5, 1.5, 0, 0, -5);
+    // PLUS AUCUNE LUMIERE PONCTUELLE (demande du user, 2026-09-24). Seule la
+    // carte d'environnement eclaire : c'est la seule source qui traite un
+    // materiau metallique correctement, et c'est ce que fait model-viewer.
+    // Un unique bouton reste : intensiteEnvironnement.
     // Une camera ne fait pas partie du graphe par defaut : sans cet ajout,
     // ses enfants ne seraient jamais parcourus et aucune de ces trois
     // lumieres n'eclairerait quoi que ce soit.

@@ -57,6 +57,45 @@ def brighten_baseColor(glb_obj) -> None:
         material.baseColorTexture = tex
 
 
+
+def corriger_metal_degenere(glb_obj) -> None:
+    """Rabat le facteur metallique quand TRELLIS-2 declare TOUT metallique.
+
+    MESURE DU 2026-09-24 sur un orc (peau, cuir, tissu) : la carte
+    metal/rugosite portait metal 0.94 et rugosite 0.96 sur 99 % de la
+    surface. En PBR un metal n'a AUCUNE composante diffuse — sa couleur vient
+    entierement des reflets — donc un personnage organique declare metallique
+    rend NOIR quel que soit l'eclairage. Trois correctifs d'eclairage ont ete
+    tentes avant de mesurer ; aucun ne pouvait marcher.
+
+    POURQUOI CETTE REGLE NE CASSE PAS UNE EPEE. Elle exige metal ELEVE **et**
+    rugosite ELEVEE en meme temps, ce qui est physiquement degenere : un metal
+    a rugosite 0.96 ne reflechit presque rien, c'est un trou noir. Un objet
+    reellement metallique est metallique et LISSE (rugosite 0.2 a 0.6) — il ne
+    declenche donc pas ce garde.
+
+    On ne touche PAS a la texture 4K : `metallicFactor` la multiplie, un seul
+    nombre suffit.
+    """
+    import numpy as np
+    geoms = (list(glb_obj.geometry.values())
+             if hasattr(glb_obj, 'geometry') else [glb_obj])
+    for m in geoms:
+        visual = getattr(m, 'visual', None)
+        if not visual: continue
+        material = getattr(visual, 'material', None)
+        if not material: continue
+        tex = getattr(material, 'metallicRoughnessTexture', None)
+        if tex is None: continue
+        a = np.asarray(tex.convert('RGB')).astype(np.float32) / 255.0
+        rugosite, metal = a[..., 1], a[..., 2]      # glTF : G rugosite, B metal
+        part = float(((metal > 0.8) & (rugosite > 0.85)).mean())
+        if part > 0.8:
+            material.metallicFactor = 0.05
+            print(f'[mesh] metal degenere ({part*100:.0f} % de la surface en '
+                  f'metal rugueux) -> metallicFactor rabattu a 0.05', flush=True)
+
+
 def generate(
     pipeline,                     # Trellis2ImageTo3DPipeline (already on GPU)
     o_voxel_module,               # imported o_voxel module
@@ -202,6 +241,11 @@ def generate(
         brighten_baseColor(glb_obj)
     except Exception as e:
         print(f'[mesh] brighten skipped: {e}', flush=True)
+
+    try:
+        corriger_metal_degenere(glb_obj)
+    except Exception as e:
+        print(f'[mesh] correction du metal ignoree: {e}', flush=True)
 
     # Serialize to bytes in-memory (trimesh's .export needs a path OR
     # a writeable file-like; BytesIO works).
