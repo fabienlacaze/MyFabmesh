@@ -9,7 +9,9 @@
  * APRES leur masquage : la ligne reapparaissait, les clics etaient refuses
  * (« non cochable »), et « Detail refine » etait FACTURE 2 credits pour un
  * traitement qui n a jamais lieu. Signale par l utilisateur le 2026-09-24. */
-window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-smooth']);
+// 'ws-trellis2-smooth' RETIRE le 2026-09-24 : le filtre bilateral est
+// desormais porte (modal_app/_mesh.lisser_atlas), la case agit a nouveau.
+window.__optionsMortesCloud = new Set(['ws-trellis2-refine']);
 
 /**
  * Cloud-only overrides for the desktop renderer UI.

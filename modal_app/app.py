@@ -1847,6 +1847,10 @@ class MyFabmeshMesh:
                 # d'environnement, donc comportement inchange si le
                 # worker ne le transmet pas.
                 tex_steps=int(payload.get("tex_steps") or 0),
+                # Case « Texture smooth » : filtre bilateral sur l atlas.
+                # Le drapeau etait transmis depuis toujours et n avait aucun
+                # lecteur — la case etait donc desactivee cote web.
+                smooth=bool(payload.get("smooth")),
             )
 
             # Optional face polish — SDXL inpaint on the atlas face region.
@@ -1922,6 +1926,7 @@ class MyFabmeshMesh:
             mode=mode, seed=seed,
             decimation_target=decimation,
             texture_size=texture_size,
+            smooth=bool(payload.get('smooth')),
         )
         return glb_bytes
 

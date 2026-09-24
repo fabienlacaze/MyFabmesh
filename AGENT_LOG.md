@@ -22002,3 +22002,28 @@ ARRET VOLONTAIRE sur les outils DANS les modales de dessin et de sculpture
 (« Pen », « Eraser », « Grow »...) quand le libelle se suffit : une infobulle
 « Pen : dessiner au stylo » est du bruit. Seuls les cryptiques ont ete
 couverts — les axes de symetrie X/Y/Z, la baguette magique, le doigt.
+
+---
+
+## 2026-09-24 — « Comment ca, ca n'existe pas en cloud ? » — Texture smooth porte
+
+Le user reagit aux deux cases eteintes. Verification : Modal ne lisait
+toujours pas `refine` ni `smooth` (l'audit du 2026-08-02 tient). MAIS la
+reponse a change le jour meme.
+
+TEXTURE SMOOTH — porte, et il n'y avait rien a installer. `texture_smooth.py`
+n'utilise qu'OpenCV, trimesh et PIL, tous DEJA dans l'image Modal. Le worker
+transmettait deja le drapeau depuis toujours (worker.ts:2454). Il ne manquait
+qu'un LECTEUR. `modal_app/_mesh.lisser_atlas()` porte le filtre bilateral
+avec les memes parametres que le bureau (d=9, sigma 50/50, 1 passe), branche
+sur les DEUX sites d'appel de generate(). La case sort de
+`__optionsMortesCloud` et `smooth` sort de `OPTIONS_SANS_EFFET_CLOUD`.
+
+Ce que fait ce filtre : il lisse le grain moucheté que le rendu interne de
+TRELLIS-2 cuit dans l'atlas, en PRESERVANT les aretes reelles. Zero
+hallucination — contrairement au refine SDXL qui invente de l'usure sur une
+surface lisse, ce qui est la raison d'etre de cette option.
+
+RESTE « Detail refine » : lui demande le ControlNet-Tile, ajoute a Modal ce
+matin pour l'outil Age. Il est donc portable desormais, ce qui n'etait pas
+vrai hier.

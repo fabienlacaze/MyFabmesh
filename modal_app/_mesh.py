@@ -58,6 +58,40 @@ def brighten_baseColor(glb_obj) -> None:
 
 
 
+def lisser_atlas(glb_obj, d=9, sigma_color=50, sigma_space=50, passes=1) -> None:
+    """Filtre bilateral sur l'atlas baseColor — portage de scripts/texture_smooth.py.
+
+    POURQUOI ICI. L'option « Texture smooth » existait dans l'interface web,
+    envoyait bien son drapeau, et AUCUN code serveur ne le lisait : l'audit du
+    2026-08-02 l'avait constate et la case avait ete desactivee. Or le script
+    bureau n'utilise qu'OpenCV, trimesh et PIL — tous deja dans l'image Modal.
+    Il n'y avait donc rien a installer, juste un lecteur a ecrire.
+
+    Le filtre lisse les zones uniformes (le grain moucheté que le rendu interne
+    de TRELLIS-2 cuit dans l'atlas) en PRESERVANT les aretes reelles — joints
+    de carrosserie, grilles, encadrements. Zero hallucination, contrairement au
+    refine SDXL qui invente de l'usure sur une surface lisse.
+
+    Memes parametres par defaut que le bureau (d=9, sigma 50/50, 1 passe).
+    """
+    import cv2
+    geoms = (list(glb_obj.geometry.values())
+             if hasattr(glb_obj, 'geometry') else [glb_obj])
+    for m in geoms:
+        visual = getattr(m, 'visual', None)
+        if not visual: continue
+        material = getattr(visual, 'material', None)
+        if not material: continue
+        tex = getattr(material, 'baseColorTexture', None)
+        if tex is None: continue
+        arr = np.array(tex.convert('RGB'))
+        arr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+        for _ in range(max(1, int(passes))):
+            arr = cv2.bilateralFilter(arr, int(d), float(sigma_color), float(sigma_space))
+        arr = cv2.cvtColor(arr, cv2.COLOR_BGR2RGB)
+        material.baseColorTexture = Image.fromarray(arr)
+
+
 def corriger_metal_degenere(glb_obj) -> None:
     """Rabat le facteur metallique quand TRELLIS-2 declare TOUT metallique.
 
@@ -106,6 +140,7 @@ def generate(
     decimation_target: int = 500_000,
     texture_size: int = 2048,
     tex_steps: int = 0,           # 0 = garder le defaut d'environnement
+    smooth: bool = False,         # filtre bilateral sur l'atlas (case « Texture smooth »)
 ) -> bytes:
     """Run TRELLIS-2 inference + GLB export. Returns the GLB bytes
     (caller pushes to R2). When `back_img` is provided, runs the
@@ -241,6 +276,13 @@ def generate(
         brighten_baseColor(glb_obj)
     except Exception as e:
         print(f'[mesh] brighten skipped: {e}', flush=True)
+
+    if smooth:
+        try:
+            lisser_atlas(glb_obj)
+            print('[mesh] texture smooth applique', flush=True)
+        except Exception as e:
+            print(f'[mesh] texture smooth ignore: {e}', flush=True)
 
     try:
         corriger_metal_degenere(glb_obj)

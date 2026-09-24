@@ -2386,7 +2386,7 @@ async function logOperation(
  * source, et une interface qui affichait l inverse de la verite.
  * `refine` et `smooth`, eux, restent sans lecteur (verifie : 0 occurrence
  * dans modal_app/*.py). */
-const OPTIONS_SANS_EFFET_CLOUD = ['refine', 'smooth'] as const;
+const OPTIONS_SANS_EFFET_CLOUD = ['refine'] as const;  // 'smooth' porte le 2026-09-24
 
 function _neutraliserOptionsSansEffet(i: GenerateInput): GenerateInput {
   const rec = i as unknown as Record<string, unknown>;
