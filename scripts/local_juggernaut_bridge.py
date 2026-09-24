@@ -264,15 +264,22 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             f"perfectly centered, strict front view, orthographic-like flat view, "
             f"looking directly at the camera, no tilt, no rotation, "
             f"single character isolated on plain white background, "
-            f"studio lighting, sharp focus, ultra detailed, 8k, "
-            f"no text, no watermark, full body visible, feet on the ground"
+            f"flat even lighting, diffuse light, "
+            f"sharp focus, ultra detailed, 8k, "
+            f"clean plain background, full body visible, feet on the ground"
         )
         negative_prompt = (
             "nude, naked, topless, undressed, bare skin, exposed, nsfw, "
+            # 2026-09-25 — ombres, EN TETE (demande du user). Meme raison que
+            # cote cloud (modal_app/_realvis.py) : l'image sert de SOURCE au
+            # maillage, toute ombre est cuite en tache sombre dans l'atlas UV,
+            # et le maillage ressort tache. Ce bloc etait place plus bas et se
+            # faisait jeter par la limite CLIP de 77 jetons.
+            "cast shadow, soft shadow, ambient occlusion, "
             "dynamic pose, action pose, combat stance, fighting, running, "
             "jumping, crouching, bent arms, bent legs, tilted head, "
             "twisted torso, asymmetric, side view, three-quarter view, "
-            "profile view, back view, perspective distortion, foreshortening, "
+            "profile view, back view, perspective distortion, "
             "blurry, low quality, text, watermark, signature, deformed, "
             "extra limbs, bad anatomy, cropped, worst quality"
         )
@@ -305,10 +312,11 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
         # modal_app/_realvis.py L40-46.
         optimized_prompt = (
             f"{prompt}, {_angle_token}"
-            f"centered subject, neutral grey studio backdrop, soft seamless background, "
+            f"centered subject, plain seamless background, "
             f"plain backdrop, no composition grid, "
-            f"studio lighting, ultra detailed, 8k, sharp focus, professional photography, "
-            f"masterpiece, no text, no watermark"
+            f"flat even lighting, diffuse light, ultra detailed, 8k, "
+            f"sharp focus, professional product photography, "
+            f"masterpiece"
         )
         # Asset-type-aware negative — mirrors cloud modal_app/_realvis.py.
         # For animal/creature, RealVis V4 tends to default to portrait /
@@ -332,8 +340,11 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
                 else "extra wings, missing wing, five legs, three legs, two heads, "
             )
             negative_prompt = (
-                _anatomy +
-                "two animals, animal pair, duplicate, twin, "
+                # 2026-09-25 — ombres EN TETE, avant l'anatomie : placees
+                # apres, elles tombaient derriere la limite de 77 jetons.
+                "cast shadow, soft shadow, ambient occlusion, "
+                + _anatomy
+                + "two animals, animal pair, duplicate, twin, "
                 "split image, collage, side by side, "
                 "headshot, portrait, close-up, head only, partial body, "
                 "body cut off, cropped, out of frame, "
@@ -346,43 +357,51 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             # only kills 2-up product shots, not a cluster, so buildings get a
             # dedicated anti-cluster negative. Kept < 77 CLIP tokens.
             negative_prompt = (
+                # 2026-09-25 — ombres EN TETE, comme les deux autres branches.
+                "cast shadow, soft shadow, ambient occlusion, "
                 "blurry, low quality, text, watermark, deformed, cropped, "
                 "cut off, out of frame, partial building, close-up, "
-                "building touching frame edges, "
-                "village, town, city, cityscape, suburb, neighborhood, "
-                "multiple buildings, rows of houses, many houses, "
-                "housing development, street, aerial view, bird's eye view, "
+                # 2026-09-25 — redondances retirees : « building touching frame
+                # edges » disait « out of frame, cropped », et « suburb,
+                # neighborhood, housing development, street » disaient
+                # « multiple buildings, rows of houses, many houses ». Mesure :
+                # ce bloc pesait 97 jetons, donc la fin etait jetee en silence
+                # — dont « creature, animal » et tout le bloc anti-figure. La
+                # repetition ne renforce rien (CLIP deduplique), elle consomme
+                # le budget.
+                "village, town, city, cityscape, "
+                "multiple buildings, rows of houses, aerial view, "
                 "isometric city, tiled, repeated pattern, duplicate, "
-                "two buildings, collage, grid layout, diorama, "
-                # A noun like "robot house" makes SDXL render the FIGURE, not
+                "two buildings, collage, grid layout, diorama, "                # A noun like "robot house" makes SDXL render the FIGURE, not
                 # the building — "no characters" in the positive is ignored, so
-                # suppress the figure shapes here instead (< 77 CLIP tokens).
-                "humanoid, android, robot figure, character, person, people, "
-                "mascot, standing figure, statue, mannequin, creature, animal"
+                # suppress the figure shapes here instead.
+                "humanoid, android, robot figure, character, person, "
+                "mascot, standing figure, statue, mannequin, creature"
             )
         else:
             negative_prompt = (
                 "nude, naked, topless, undressed, bare skin, exposed, nsfw, "
-                "blurry, low quality, text, watermark, signature, deformed, "
-                "extra limbs, bad anatomy, distorted, cropped, worst quality, "
-                "flat profile, "
+                # 2026-09-25 — ombres, meme place qu'ailleurs (en tete).
+                "cast shadow, soft shadow, ambient occlusion, "
+                "blurry, low quality, text, watermark, deformed, "
+                "bad anatomy, distorted, cropped, worst quality, flat profile, "
                 # Anti-doubling: product/vehicle/kitchenware datasets often pair
                 # 2 angles of the same item OR show a "set" of 2-3 items
-                # side-by-side. We weighted-block the doubling pattern across
-                # all common subject categories.
-                # WEIGHTED tokens (parenthesis+:1.4) get extra strength from
-                # the SDXL prompt parser; we go aggressive on duplication.
-                "(two:1.6), (pair:1.5), (duplicate:1.5), (twin:1.5), "
-                "(set of two:1.5), (multiple instances:1.5), "
-                "(two objects:1.5), (two subjects:1.5), (two items:1.5), "
-                "(two cars:1.5), (two vehicles:1.5), (two knives:1.5), "
-                "(two characters:1.5), (two props:1.5), (two weapons:1.5), "
-                "(second instance:1.5), (second copy:1.4), (companion item:1.4), "
-                "(side by side:1.5), (paired:1.4), (matched set:1.4), "
-                "(rear view inset:1.4), (front and back:1.4), "
-                "split image, stacked vertically, stacked horizontally, "
-                "collage, grid layout, comparison view, "
-                "product comparison, kitchenware set, catalog grid"
+                # side-by-side.
+                #
+                # 2026-09-25 — MESURE : ce bloc pesait 126 JETONS, donc 49
+                # etaient jetes par SDXL sans rien dire. Deux reductions, sans
+                # perdre un seul SENS : (1) les poids Compel `(two:1.6)` sont
+                # retires — diffusers ne parse pas cette syntaxe, 3 jetons au
+                # lieu de 1 pour ZERO renforcement ; (2) les listes d'exemples
+                # reviennent a leur categorie : « two cars, two vehicles, two
+                # knives, two weapons, two characters, two props » disaient
+                # tous « two objects ».
+                "two, pair, duplicate, twin, "
+                "set of two, multiple instances, two subjects, "
+                "second instance, side by side, "
+                "rear view inset, front and back, "
+                "split image, collage, grid layout"
             )
 
     _throttle_cb = make_throttle_callback()  # None if disabled
@@ -516,7 +535,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             from PIL.PngImagePlugin import PngInfo
             _info = PngInfo()
             _info.add_itxt("XML:com.adobe.xmp",
-                '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+                '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
                 '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF '
                 'xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
                 '<rdf:Description rdf:about="" '

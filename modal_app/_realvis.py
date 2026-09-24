@@ -44,15 +44,12 @@ _ANATOMY_NEG = {
                  "(polydactyly:1.5), (three legs:1.4), (two heads:1.5), "
                  "(deformed legs:1.4)",
     'creature':  "(extra wings:1.6), (missing wing:1.6), (single wing:1.6), "
-                 "(only one wing:1.6), (one wing visible:1.5), "
-                 "(wing hidden behind body:1.4), "
                  "(five legs:1.6), (three legs:1.4), (two heads:1.5), "
                  "(fused wings:1.4), "
-                 "(bust shot:1.6), (portrait:1.5), (cropped body:1.6), "
-                 "(feet not visible:1.4), (waist up:1.5), (chest up:1.5), "
-                 "(pedestal:1.6), (plinth:1.6), (base platform:1.6), "
-                 "(stone platform:1.5), (statue base:1.5), "
-                 "(pedestal under feet:1.4), (decorative base:1.4)",
+                 "(bust shot:1.6), (cropped body:1.6), (feet not visible:1.4), "
+                 "(waist up:1.5), "
+                 "(pedestal:1.6), (plinth:1.6), (stone platform:1.5), "
+                 "(statue base:1.5), (decorative base:1.4)",
     'character': "(three arms:1.5), (extra arms:1.6), missing arm, "
                  "(mutated hands:1.4), (two weapons:1.6), "
                  "(dual wielding:1.5), (mirrored weapons:1.5), "
@@ -106,9 +103,20 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
     # 'single instance only, one subject, no duplicate' — empirically
     # (workflow wb66mnlri + SDXL community) those POSITIVE tokens make
     # SDXL fill empty space with a second subject (bear-cub doubling).
+    #
+    # 2026-09-25 — « studio lighting » RETIRE. Le user signale que les ombres
+    # faussent la generation : en demandant un eclairage de studio on en
+    # FABRIQUAIT la cause (ombre portee au sol + fond gris degrade), puis on
+    # les interdisait dans le negatif — les deux consignes se combattaient.
+    # L'image sert de SOURCE au maillage : ce qui est ombre dans la photo est
+    # cuit comme une tache sombre dans l'atlas UV. On demande donc un
+    # eclairage PLAT et diffuse (« even lighting, no directional light »),
+    # qui n'appelle pas d'ombre. Une negation ne va pas ici : SDXL dessine ce
+    # qu'on nomme dans le positif (voir le negatif ci-dessous).
     optimized = (
         f"{prompt}, {angle_token}"
-        f"studio lighting, sharp focus, 8k, professional photography"
+        f"flat even lighting, diffuse light, no directional light, "
+        f"sharp focus, 8k, professional product photography"
     )
 
     # NEGATIVE: front-load anti-anatomy + anti-doubling so they reach
@@ -134,6 +142,27 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
     _MORCEAUX = [
         # La securite d'abord : elle ne doit jamais sauter.
         "nude, naked, nsfw, undressed",
+        # LES OMBRES, EN TETE — demande explicite du user (2026-09-25).
+        #
+        # Elles etaient placees plus bas et SE FAISAIENT JETER chez character,
+        # building ET creature : l'anatomie par type consomme le budget avant
+        # elles (mesure : la consigne « pas d'ombres » n'etait appliquee que
+        # sur animal, soit 1 type sur 5). Une consigne qui ne survit que sur
+        # les types dont l'utilisateur ne sert pas ne corrige rien.
+        #
+        # POURQUOI CETTE PLACE EST JUSTE, ET PAS SEULEMENT ARRANGEANTE :
+        # l'image sert de SOURCE au maillage, toute ombre est cuite en tache
+        # sombre dans l'atlas UV, donc le defaut est VISIBLE SUR LE RESULTAT
+        # FINAL. Une patte en trop est un defaut de forme, qu'une nouvelle
+        # generation peut corriger ; une ombre cuite dans la texture est un
+        # defaut que le client ne peut retirer qu'a la main dans Blender.
+        #
+        # REDUCTION A 11 JETONS, ET CE N'EST PAS UN COMPROMIS : la premiere
+        # version en pesait 36 et nommait « shadow » quatre fois. CLIP
+        # deduplique les jetons identiques, la repetition n'ajoute aucun poids
+        # et consomme seulement le budget — meme lecon que les triples
+        # « close-up, portrait, headshot » retires a cote.
+        "cast shadow, soft shadow, ambient occlusion",
         # L'anatomie propre au type d'asset — c'est elle qui corrige les
         # cinq pattes et les ailes manquantes.
         anatomy.rstrip(', ') if anatomy else '',
@@ -141,11 +170,15 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
         "duplicate, twin, split image, collage, side by side",
         # Cadrage : un buste ne fait pas un mesh complet.
         "headshot, portrait, close-up, partial body, cropped, out of frame",
-        # Eclairage et proprete du cadre. Ces termes vivaient dans le prompt
-        # POSITIF sous la forme « no shadows », « no text », « no characters » :
-        # SDXL ne comprend pas la negation, il n'y voyait que « shadows »,
-        # « text », « characters » — et les dessinait.
-        "cast shadow, drop shadow, harsh shadows",
+        # Eclairage et proprete du cadre. La consigne d'ombres N'EST PLUS ICI :
+        # elle est remontee en tete du bloc (voir plus haut), car a cette
+        # place elle se faisait jeter des que le type d'asset avait une
+        # anatomie. Ce qui reste ici ne vaut que si le budget le permet.
+        #
+        # Rappel de l'origine de ces termes : ils vivaient dans le prompt
+        # POSITIF sous la forme « no shadows », « no text », « no characters »,
+        # ou SDXL ne comprend pas la negation — il n'y voyait que le mot et le
+        # dessinait.
         "text, watermark, logo, user interface",
         "extra characters, bystanders",
         # Qualite generique, en dernier : c'est le moins couteux a perdre.
