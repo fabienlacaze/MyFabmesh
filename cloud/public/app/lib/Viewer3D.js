@@ -120,7 +120,62 @@ export class Viewer3D {
     // perdu) et doit pouvoir la reposer sans la recopier — c'est justement en
     // la recopiant a 1.0 que les vues sont redevenues sombres (2026-09-24).
     this.expositionParDefaut = 1.3;
+    //: Poids de la carte d'environnement. Un seul endroit a regler si le
+    //: rendu parait trop clair ou trop terne.
+    this.intensiteEnvironnement = 1.0;
     this.renderer.toneMappingExposure = this.expositionParDefaut;
+    this.rebuildEnvironment();
+  }
+
+
+  /** Carte d'environnement — indispensable au PBR metallique.
+   *
+   *  POURQUOI. Un materiau metallique ne renvoie presque QUE des reflets :
+   *  sans environnement, des lumieres ponctuelles ne lui donnent qu'un point
+   *  speculaire et il rend NOIR. Les meshes TRELLIS-2 sortent en
+   *  metallic/roughness, d'ou le « rendu tres sombre » signale le 2026-09-24.
+   *  Monter l'exposition ne pouvait pas compenser : il n'y avait rien a
+   *  exposer.
+   *
+   *  On la fabrique avec le SEUL coeur de three, sans RoomEnvironment :
+   *  l'appli bureau ne sert que quelques modules addons depuis ./lib/, et
+   *  importer un module absent casserait le visualiseur.
+   *
+   *  RECONSTRUCTIBLE, et c'est essentiel : la texture produite est liee au
+   *  contexte du renderer. L'appelant remplace parfois celui-ci — il doit
+   *  alors rappeler cette methode, sinon l'environnement pointe vers un
+   *  contexte detruit.
+   */
+  rebuildEnvironment() {
+    if (!this.renderer || !this.scene) return;
+    try {
+      const anc = this.scene.environment;
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      const studio = new THREE.Scene();
+      const geo = new THREE.BoxGeometry();
+      geo.deleteAttribute('uv');
+      const panneau = (couleur, x, y, z, sx, sy, sz) => {
+        const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+          color: couleur, side: THREE.BackSide,
+        }));
+        m.position.set(x, y, z);
+        m.scale.set(sx, sy, sz);
+        studio.add(m);
+      };
+      panneau(0x3a3f4a, 0, 0, 0, 20, 20, 20);     // la boite, gris neutre
+      panneau(0xffffff, 0, 7, 0, 10, 0.5, 10);    // plafond lumineux
+      panneau(0x9fb8ff, -7, 1, 0, 0.5, 8, 8);     // remplissage froid
+      panneau(0xffd2a0, 7, 1, 0, 0.5, 8, 8);      // remplissage chaud
+      this.scene.environment = pmrem.fromScene(studio, 0.04).texture;
+      this.scene.environmentIntensity = this.intensiteEnvironnement;
+      geo.dispose();
+      studio.traverse(o => { if (o.material) o.material.dispose(); });
+      pmrem.dispose();
+      if (anc && anc.dispose) anc.dispose();
+    } catch (e) {
+      // Jamais fatal : on garde les lumieres ponctuelles.
+      console.warn('[Viewer3D] environnement indisponible:', e && e.message);
+    }
   }
 
   _setupAutoResize() {

@@ -21710,3 +21710,36 @@ deux sites qui remplacent le renderer la reposent depuis l'objet au lieu de
 recopier un nombre. Encore une valeur qui vivait en deux exemplaires dont un
 seul etait maintenu — troisieme cas de la journee apres les gabarits de
 prompt et la liste des services.
+
+### Le rendu sombre : la vraie cause etait l'ABSENCE d'environnement
+
+Mon premier correctif (exposition 1.3 retablie) n'a rien change — il ne
+visait pas la cause. Et mon raisonnement de depart etait faux : j'avais
+compare les vignettes, claires, a la vue, sombre, en croyant qu'elles
+rendaient la meme chose. Elles ont un fond clair : ce ne sont pas des
+captures du visualiseur.
+
+VRAIE CAUSE. `Viewer3D` n'a AUCUNE carte d'environnement — ni
+`scene.environment`, ni PMREM, ni RoomEnvironment. Or un materiau metallique
+ne renvoie presque QUE des reflets : sans environnement, des lumieres
+ponctuelles ne lui donnent qu'un point speculaire et il rend NOIR. Les
+meshes TRELLIS-2 sortent en metallic/roughness. Monter l'exposition ne
+pouvait rien y faire : il n'y avait rien a exposer.
+
+CORRECTIF : `rebuildEnvironment()` fabrique un petit studio (boite grise,
+plafond lumineux, remplissage froid et chaud) et le passe au PMREM. Fait
+avec le SEUL coeur de three, sans importer RoomEnvironment : l'appli bureau
+ne sert que quelques addons depuis ./lib/, et importer un module absent
+casserait le visualiseur.
+
+PIEGE EVITE : la texture PMREM est liee au contexte du renderer. Or
+`initWsThree()` REMPLACE le renderer juste apres la construction — un
+environnement fabrique avant pointerait vers un contexte detruit. D'ou une
+methode publique, rappelee a l'endroit exact du remplacement.
+
+Au passage : les deux `lib/Viewer3D.js` sont des fichiers LIVRES et ne
+figuraient pas dans la liste de `check-js-syntax.mjs`. Ajoutes — 13 fichiers
+verifies au lieu de 11.
+
+A REGLER AVEC LE USER : `intensiteEnvironnement` (1.0) est le seul bouton si
+le rendu parait desormais trop clair ou trop terne.

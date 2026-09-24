@@ -7760,6 +7760,9 @@ function initWsThree() {
   _wsV.renderer.setPixelRatio(window.devicePixelRatio);
   _wsV.renderer.toneMapping = THREE.ACESFilmicToneMapping;
   _wsV.renderer.toneMappingExposure = _wsV.expositionParDefaut || 1.3;   // et non 1.0 : le banc de lumieres est regle pour cette valeur
+    // Le renderer vient d'etre remplace : la carte d'environnement etait liee
+    // a l'ancien contexte, il faut la refabriquer sinon le PBR metallique rend noir.
+    _wsV.rebuildEnvironment && _wsV.rebuildEnvironment();
   wsRenderer = _wsV.renderer;
   wsScene = _wsV.scene;
   wsCamera = _wsV.camera;

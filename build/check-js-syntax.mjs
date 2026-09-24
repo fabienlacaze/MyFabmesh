@@ -37,6 +37,7 @@ const LIVRES = [
   'src/renderer/index2.js',
   'src/renderer/index2-edit-tools.js',
   'src/renderer/canvas-utils.js',
+  'src/renderer/lib/Viewer3D.js',
   'src/main/main.js',
   'src/main/preload.js',
   'src/main/cloud_fallback.js',
@@ -45,6 +46,7 @@ const LIVRES = [
   'cloud/public/app/meshyAPI-cloud.js',
   'cloud/public/app/cloud-overrides.js',
   'cloud/public/app/canvas-utils.js',
+  'cloud/public/app/lib/Viewer3D.js',
 ];
 
 const cibles = process.argv.slice(2);
