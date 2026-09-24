@@ -18205,7 +18205,6 @@ async function refreshJobDetailsModal(id) {
   document.getElementById('jd-status').textContent = j.status === 'running' ? 'Running' : (j.status === 'done' ? 'Done' : 'Error');
   document.getElementById('jd-started').textContent = new Date(j.startedAt).toLocaleTimeString();
   document.getElementById('jd-elapsed').textContent = fmtDuration(Date.now() - j.startedAt);
-  document.getElementById('jd-estimated').textContent = '~' + fmtDuration(j.expectedMs);
   document.getElementById('jd-project').textContent = state.currentProject ? state.currentProject.name : '--';
   // Parameters block
   const paramsBox = document.getElementById('jd-params');

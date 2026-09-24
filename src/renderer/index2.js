@@ -17779,7 +17779,6 @@ async function refreshJobDetailsModal(id) {
     const _blended = _w * _dyn + (1 - _w) * (j.expectedMs || _dyn);
     _estMs = Math.max(_blended, _elapsed);  // never below already-elapsed
   }
-  document.getElementById('jd-estimated').textContent = '~' + fmtDuration(_estMs);
   // Show the job's OWN project (snapshot at pushJob time) instead of whatever
   // is currently open. If the user switches projects mid-job the popup must
   // keep pointing at the project that started the job.

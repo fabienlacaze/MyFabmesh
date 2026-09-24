@@ -22162,3 +22162,19 @@ VRAI DEFAUT : le journal n'enregistrait NI `quality_plus` NI `ultra_q`.
 Impossible de savoir apres coup avec quels reglages un mesh a ete fabrique —
 c'est exactement ce qui a bloque ce diagnostic. Les deux options et le
 `trellis_mode` resolu sont desormais journalises.
+
+### Ligne « Estimated » retiree des fiches de travail
+
+Derniere des estimations de temps a disparaitre, apres les libelles et les
+infobulles. Le user l'a signalee deux fois : « ~4m 38s » affiche pendant
+qu'un travail en est a 3m 10s, sur des estimations dementies toute la
+journee.
+
+PIEGE EVITE : retirer la ligne du HTML sans retirer les DEUX ecritures qui
+l'alimentaient aurait fait planter `getElementById('jd-estimated').textContent`
+sur null — et avec lui tout le rafraichissement de la fiche. Les deux sont
+retirees, dans les deux copies.
+
+A REGARDER PLUS TARD, vu sur la meme capture : la fiche titrait « Generate
+3D: Primitive prehistoric Hut » avec PROJECT = « orc W1 ». Le nom du projet
+affiche ne suit pas celui du travail.
