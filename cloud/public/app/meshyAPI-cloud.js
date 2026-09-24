@@ -2101,6 +2101,28 @@
         return { success: true, pieces: sorties, absentes: r.absentes || [] };
       } catch (e) { return { success: false, error: String(e) }; }
     },
+    texVariant: async ({ imagePath, prompt, strength, seed, cnScale, negPrompt } = {}) => {
+      // Variante de texture a structure verrouillee (ControlNet-Tile) — c'est
+      // aussi le moteur de l'outil « Age ». cnScale bas = les proportions
+      // peuvent bouger, haut = la silhouette est tenue.
+      if (!imagePath) return { success: false, error: 'imagePath required' };
+      try {
+        const r = await postJSON('/api/tex-variant', {
+          imageUrl: imagePath, prompt: prompt || '',
+          strength: strength != null ? strength : 0.45,
+          seed: seed != null ? seed : 0,
+          cnScale: cnScale != null ? cnScale : 0.45,
+          negPrompt: negPrompt || undefined,
+        });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (r?.success && (r.newPath || r.path)) {
+          const newPath = r.newPath || r.path;
+          await _attachToCurrentProject(newPath, 'front');
+          return { success: true, newPath };
+        }
+        return { success: false, error: r?.error || 'unknown' };
+      } catch (e) { return { success: false, error: String(e) }; }
+    },
     recolor: async ({ imagePath, prompt, strength, dilate, recolorAll } = {}) => {
       // Recolorier — port cloud de l'IPC bureau. CLIPSeg detecte la partie
       // nommee, puis virage HSV qui preserve la luminance : plis et ombres

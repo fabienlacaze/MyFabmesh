@@ -1607,6 +1607,10 @@ const PRICING_DEFAULTS = {
   // d'ou l'ecart. Le tarif affiche suit la case cochee dans la modale.
   // Recolorier : CLIPSeg + virage HSV, aucune diffusion. Tres court, d'ou
   // un tarif de 2 la ou un modify en coute 3.
+  // Variante de texture / Age : une VRAIE passe SDXL + ControlNet-Tile, donc
+  // le meme travail GPU qu'un modify (facture 3). Tarif pose a 2 sur demande
+  // explicite du user le 2026-09-24 — ecart assume, pas un oubli.
+  tex_variant:      2,
   recolor:          2,
   outfit:           2,
   outfit_complete:  6,
@@ -9050,7 +9054,7 @@ async function callModalTpose(env: Env, userId: string, input: {
  *  Returns either the persisted R2 URL or a discriminated mask-empty
  *  shape for the auto_inpaint case (so the Worker can refund). */
 async function callModalImageOp(env: Env, userId: string, input: {
-  op: 'modify' | 'auto_inpaint' | 'mask_inpaint' | 'face_fix_image' | 'upscale' | 'segment' | 'recolor';
+  op: 'modify' | 'auto_inpaint' | 'mask_inpaint' | 'face_fix_image' | 'upscale' | 'segment' | 'recolor' | 'tex_variant';
   imageUrl: string;
   prompt?: string;
   strength?: number;          // modify + face_fix_image
@@ -9062,6 +9066,8 @@ async function callModalImageOp(env: Env, userId: string, input: {
   scale?: number;             // upscale only (2 or 4)
   refineStrength?: number;    // upscale only
   recolorAll?: boolean;       // recolor only
+  cnScale?: number;           // tex_variant only — bas = les proportions peuvent bouger
+  negPrompt?: string;         // tex_variant only
 }, folder: string): Promise<{ url: string } | { maskEmpty: true; error: string }> {
   const url = env.MODAL_IMAGE_OP_URL;
   const secret = env.MODAL_SHARED_SECRET;
@@ -9083,6 +9089,11 @@ async function callModalImageOp(env: Env, userId: string, input: {
     body.dilate = input.dilate ?? 15;
   } else if (input.op === 'mask_inpaint') {
     body.mask_url = input.maskUrl ?? '';
+  } else if (input.op === 'tex_variant') {
+    body.strength = input.strength ?? 0.45;
+    body.seed = input.seed ?? 0;
+    body.cn_scale = input.cnScale ?? 0.45;
+    body.neg_prompt = input.negPrompt;
   } else if (input.op === 'recolor') {
     body.strength = input.strength ?? 1.0;
     body.dilate = input.dilate ?? 15;
@@ -9148,7 +9159,10 @@ async function callModalImageOp(env: Env, userId: string, input: {
 
   _assertImageBytes(buf, `Modal image_op (${input.op})`);
   if (env.MESHES && env.R2_PUBLIC_URL) {
-    const tag = input.op === 'modify' ? 'modified' : input.op === 'recolor' ? 'recolor' : 'inpaint';
+    const tag = input.op === 'modify' ? 'modified'
+      : input.op === 'recolor' ? 'recolor'
+      : input.op === 'tex_variant' ? 'texvar'
+      : 'inpaint';
     const seed = input.seed ?? Math.floor(Math.random() * 1e9);
     const key = `${userId}/${folder}/${Date.now()}_${seed}_${tag}.png`;
     await env.MESHES.put(key, buf, { httpMetadata: { contentType: 'image/png' } });
@@ -10197,6 +10211,85 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
                        'failed', { req, projectName, op: 'auto_inpaint', error: e instanceof Error ? e.message : String(e) });
     return err(502, `auto-inpaint failed (credits refunded): ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** Variante de texture a structure verrouillee — et moteur de l'outil « Age ».
+ *
+ *  ControlNet-Tile tient la geometrie : l'image source sert d'image de
+ *  controle. Le levier est `cnScale` — haut, la silhouette ne bouge pas
+ *  (variante de texture) ; bas, les proportions peuvent glisser, ce dont
+ *  « Age » a besoin pour passer d'un adulte a un jeune. */
+async function handleTexVariant(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MODAL_IMAGE_OP_URL) return err(503, 'tex-variant backend unavailable');
+
+  const { imagePath, imageUrl, prompt, strength, seed, cnScale, negPrompt, projectName } =
+    await req.json() as {
+      projectName?: string;
+      imagePath?: string; imageUrl?: string; prompt?: string;
+      strength?: number; seed?: number; cnScale?: number; negPrompt?: string;
+    };
+  const src = imageUrl || imagePath;
+  if (!src) return err(400, 'imageUrl or imagePath required');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+
+  const rawPrompt = (prompt ?? '').toString().trim();
+  if (rawPrompt) {
+    const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
+    const userState = await getParentalState(env, user.id);
+    const safety = checkPromptSafety(rawPrompt, envUnrestricted || userState.unrestricted);
+    if (!safety.safe) {
+      return json({ ok: false, success: false,
+        error: safety.reason ?? 'prompt blocked by content filter',
+        blocked: safety.blocked }, { status: 400 });
+    }
+  }
+
+  const cost = await getPrice(env, 'tex_variant');
+  const estimatedTotal = 0.08;
+
+  const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
+  if (remainingBudget == null) {
+    return json({ ok: false, success: false,
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
+  }
+  const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
+  if (remainingUserCalls == null) {
+    await refundModalSpend(env, estimatedTotal, user.id);
+    return json({ ok: false, success: false,
+      error: 'per-user daily generation limit reached.' }, { status: 429 });
+  }
+  const remaining = await spendCredits(env, user.id, cost);
+  if (remaining == null) {
+    await refundModalSpend(env, estimatedTotal, user.id);
+    return json({ ok: false, success: false,
+      error: `insufficient credits — this costs ${cost} credits` }, { status: 402 });
+  }
+
+  const opStart = Date.now();
+  try {
+    const result = await callModalImageOp(env, user.id, {
+      op: 'tex_variant', imageUrl: src, prompt: rawPrompt,
+      strength, seed, cnScale, negPrompt,
+    }, 'texvar');
+    if ('maskEmpty' in result) {
+      await addCredits(env, user.id, cost);
+      await refundModalSpend(env, estimatedTotal, user.id);
+      return json({ ok: false, success: false, error: result.error }, { status: 422 });
+    }
+    await logOperation(env, user.id, 'text2image', cost, opStart, Date.now(),
+                       'succeeded', { req, projectName, op: 'tex_variant' });
+    return json({ ok: true, success: true, path: result.url, newPath: result.url,
+                  creditsRemaining: remaining });
+  } catch (e) {
+    await addCredits(env, user.id, cost);
+    await refundModalSpend(env, estimatedTotal, user.id);
+    await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
+                       'failed', { req, projectName, op: 'tex_variant',
+                                   error: e instanceof Error ? e.message : String(e) });
+    return err(502, `tex-variant failed (credits refunded): ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -17611,7 +17704,7 @@ export default {
       //                           broken UI shell.
       const MODAL_PATHS = new Set([
         '/api/generate', '/api/generate-image', '/api/generate-back-view',
-        '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit', '/api/recolor',
+        '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit', '/api/recolor', '/api/tex-variant',
         '/api/segment-preview',
         '/api/mask-inpaint', '/api/face-fix-image', '/api/upscale-image',
         '/api/face-fix-mesh', '/api/mesh-op', '/api/text2image-tpose',
@@ -17786,6 +17879,7 @@ export default {
         if (pathname === '/api/auto-inpaint'          && method === 'POST') return await handleAutoInpaint(req, env);
         if (pathname === '/api/outfit'                && method === 'POST') return await handleOutfit(req, env);
         if (pathname === '/api/recolor'               && method === 'POST') return await handleRecolor(req, env);
+        if (pathname === '/api/tex-variant'           && method === 'POST') return await handleTexVariant(req, env);
         if (pathname === '/api/segment-preview'       && method === 'POST') return await handleSegmentPreview(req, env);
         if (pathname === '/api/mask-inpaint'          && method === 'POST') return await handleMaskInpaint(req, env);
         if (pathname === '/api/face-fix-image'        && method === 'POST') return await handleFaceFixImage(req, env);

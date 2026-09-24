@@ -18760,6 +18760,75 @@ function _ageStrength(v) {
   const m = Math.abs(v) / 100;
   return Math.max(0.4, Math.min(0.78, 0.4 + m * 0.38));
 }
+document.getElementById('ws-age-btn')?.addEventListener('click', () => {
+  const p = state.currentProject;
+  const target = editTarget(p);
+  if (!target) { showToast('Pick an image first.', 'error'); return; }
+  const sl = document.getElementById('age-slider'); if (sl) sl.value = 0;
+  const vl = document.getElementById('age-val'); if (vl) vl.textContent = 'Neutral';
+  const g = document.getElementById('age-guide'); if (g) g.value = '';
+  const srcImg = document.getElementById('age-source-img');
+  if (srcImg) srcImg.src = _bust(_toFileUrl(target));
+  _ageSrcPath = target;
+  document.getElementById('modal-age').classList.remove('hidden');
+});
+document.getElementById('age-slider')?.addEventListener('input', (e) => {
+  const el = document.getElementById('age-val');
+  if (el) el.textContent = _ageLabel(parseInt(e.target.value) || 0);
+});
+document.getElementById('age-cancel')?.addEventListener('click', () => {
+  document.getElementById('modal-age').classList.add('hidden');
+});
+document.getElementById('age-go')?.addEventListener('click', async () => {
+  const p = state.currentProject;
+  const imagePath = editTarget(p);
+  if (!imagePath) return;
+  const v = parseInt(document.getElementById('age-slider').value) || 0;
+  if (v === 0) { showToast('Move the slider toward younger or older first', 'error'); return; }
+  const guide = (document.getElementById('age-guide').value || '').trim();
+  const assetType = document.getElementById('ws-asset-type')?.value || 'character';
+  const isChar = ['character', 'creature', 'animal', 'humanoid', 'dragon'].includes(assetType);
+  let prompt = _ageBuildPrompt(v, assetType);
+  if (guide) prompt = prompt + ', ' + (await translateUserPrompt(guide));
+  const strength = _ageStrength(v);
+  // Variable structure lock: for CHARACTERS a small age change keeps the
+  // silhouette (high cn), a strong one frees the PROPORTIONS (cub/baby). For
+  // INANIMATE assets weathering is surface-only, so keep the shape LOCKED even
+  // at the extreme.
+  const m = Math.abs(v) / 100;
+  const cnScale = isChar ? (0.52 - m * 0.32) : 0.55;  // char: 0.52→0.20 ; inanimate: locked
+  let negPrompt = m > 0.55
+    ? 'deformed, mutated, extra limbs, missing limbs, fused limbs, blurry, low quality, bad anatomy'
+    : null;
+  if (!isChar) {
+    // Inanimate: NEVER grow a face and NEVER go grayscale — the facial-aging
+    // model otherwise adds eyes and desaturates buildings/vehicles.
+    negPrompt = 'human face, face, eyes, mouth, person, people, portrait, character, humanoid, mask, skull, '
+      + 'grayscale, greyscale, black and white, monochrome, desaturated, sepia, '
+      + 'blurry, low quality' + (negPrompt ? ', ' + negPrompt : '');
+  }
+  document.getElementById('modal-age').classList.add('hidden');
+  gatedRun('img2img', `Age: ${p.name}`, async () => {
+    const job = pushJob(`Age: ${p.name}`, null, {
+      Direction: v < 0 ? 'Younger' : 'Older',
+      Amount: Math.abs(v) + '%',
+    }, 20000, { sourceImageUrl: imagePath, projectName: p.name });
+    try {
+      const r = await API.texVariant({ imagePath, prompt, strength, seed: 0, cnScale, negPrompt });
+      if (r?.success) {
+        completeJob(job.id, true);
+        await reloadCurrentProject();
+      } else {
+        completeJob(job.id, false);
+        if (!job.cancelled) customError(r?.error || 'unknown', 'Age change failed');
+      }
+    } catch (e) {
+      completeJob(job.id, false);
+      if (!job.cancelled) customError(e?.error || e?.message || String(e), 'Age change error');
+    }
+  });
+});
+
 // ===== Habits seuls — extrait les vetements, reserve au type « character » =====
 function _outfitSyncMode() {
   const mode = document.getElementById('of-mode')?.value || 'ensemble';

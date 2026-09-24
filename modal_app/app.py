@@ -1172,6 +1172,41 @@ class MyFabmeshBackview:
         print(f'[auto-inpaint] models ready in {time.time() - t0:.1f}s', flush=True)
         return self._ai_seg_processor, self._ai_seg_model, self._ai_inpaint_pipe
 
+    def _get_tile_pipe(self):
+        """Charge ControlNet-Tile + RealVisXL au premier appel qui en a besoin.
+
+        Meme modeles que le bureau (scripts/sdxl_server.load_controlnet_tile) :
+        xinsir/controlnet-tile-sdxl-1.0 sur SG161222/RealVisXL_V4.0. Cette
+        classe charge DEJA un ControlNet SDXL (OpenPose) pour la vue arriere,
+        donc rien de nouveau dans l'image — seulement des poids de plus.
+
+        Paresseux et mis en cache, comme _get_auto_inpaint_models : la plupart
+        des sessions ne demandent jamais de variante de texture, inutile de
+        payer ce chargement a chaque demarrage.
+        """
+        if getattr(self, '_tile_loaded', False):
+            return self._tile_pipe
+        t0 = time.time()
+        print('[tile] chargement ControlNet-Tile + RealVisXL...', flush=True)
+        import torch
+        from diffusers import (StableDiffusionXLControlNetImg2ImgPipeline,
+                               ControlNetModel, AutoencoderKL)
+        controlnet = ControlNetModel.from_pretrained(
+            'xinsir/controlnet-tile-sdxl-1.0', torch_dtype=torch.float16)
+        vae = AutoencoderKL.from_pretrained(
+            'madebyollin/sdxl-vae-fp16-fix', torch_dtype=torch.float16)
+        self._tile_pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
+            'SG161222/RealVisXL_V4.0',
+            controlnet=controlnet, vae=vae,
+            torch_dtype=torch.float16, variant='fp16', use_safetensors=True,
+        )
+        self._tile_pipe.to('cuda')
+        self._tile_pipe.enable_attention_slicing()
+        self._tile_pipe.enable_vae_tiling()
+        self._tile_loaded = True
+        print(f'[tile] pret en {time.time() - t0:.1f}s', flush=True)
+        return self._tile_pipe
+
     def _route_image_op(self, payload: dict):
         """Unified img2img/auto-inpaint dispatcher core — called from the
         ASGI router below.
@@ -1192,9 +1227,9 @@ class MyFabmeshBackview:
         image_url = (payload.get("image_url") or "").strip()
         if not image_url:
             raise HTTPException(status_code=400, detail="image_url required")
-        if op not in ("modify", "auto_inpaint", "mask_inpaint", "face_fix_image", "upscale", "segment", "recolor"):
+        if op not in ("modify", "auto_inpaint", "mask_inpaint", "face_fix_image", "upscale", "segment", "recolor", "tex_variant"):
             raise HTTPException(status_code=400,
-                detail="op must be 'modify', 'auto_inpaint', 'mask_inpaint', 'face_fix_image', 'upscale', 'segment' or 'recolor'")
+                detail="op must be 'modify', 'auto_inpaint', 'mask_inpaint', 'face_fix_image', 'upscale', 'segment', 'recolor' or 'tex_variant'")
 
         try:
             src_img = _fetch_image(image_url)
@@ -1272,6 +1307,24 @@ class MyFabmeshBackview:
                 # No face detected — caller refunds credits.
                 raise HTTPException(status_code=422, detail=str(e))
             tag = "face_fix_image"
+
+        elif op == "tex_variant":
+            # Variante de texture a structure verrouillee (ControlNet-Tile).
+            # C'est aussi le moteur de l'outil « Age » : un conditionnement bas
+            # laisse les proportions glisser, un haut tient la silhouette.
+            from modal_app._tex_variant import generate as tv_generate
+            prompt = (payload.get("prompt") or "").strip()
+            _hf = _prompt_hard_floor(prompt)
+            if _hf:
+                raise HTTPException(status_code=403, detail=_hf)
+            img = tv_generate(
+                self._get_tile_pipe(), src_img, prompt,
+                strength=float(payload.get("strength") or 0.45),
+                seed=int(payload.get("seed") or 0),
+                cn_scale=float(payload.get("cn_scale") or 0.45),
+                neg_prompt=payload.get("neg_prompt") or None,
+            )
+            tag = "tex_variant"
 
         elif op == "recolor":
             # Recolorier — CLIPSeg detecte la partie nommee, puis virage HSV

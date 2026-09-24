@@ -23901,6 +23901,7 @@ const _CLOUD_TOOL_PRICES = {
   'ws-facefix-btn': 2,           // face_fix_image
   'ws-outfit-btn': 6,            // outfit_complete (2 sans completion)
   'ws-recolor-btn': 2,           // recolor
+  'ws-age-btn': 2,               // tex_variant (Age)
   'ws-variant-btn': 2,           // modify (re-roll)
   // ws-buildstages-btn : PAS de pastille — generate-construction-stages est un
   // script SDXL/PIL 100 % local, sans endpoint worker. Annoncer « ⚡6 » puis
@@ -23929,7 +23930,7 @@ const _CLOUD_TOOL_PRICES = {
 // Outils SANS équivalent cloud (gaps de parité) : masqués en mode Cloud.
 const _CLOUD_HIDDEN_TOOLS = [
   // 'ws-recolor-btn' retire le 2026-09-24 : /api/recolor existe desormais.
-  'ws-age-btn',
+  // 'ws-age-btn' retire le 2026-09-24 : /api/tex-variant existe desormais.
   'ws-buildstages-btn',  // étapes de construction 2D : SDXL local, pas d'endpoint
   'ws-multiview-btn',    // MV-Adapter / vue arrière : local uniquement
 ];
@@ -23980,7 +23981,7 @@ window._applyToolPills = function () {
     }
     // Pendants lightbox des boutons masqués : la lightbox route par clic
     // simulé vers le bouton workspace, masquer ce dernier ne suffit donc pas.
-    for (const tool of ['age', 'multiview']) {
+    for (const tool of ['multiview']) {
       const b = document.querySelector(`.lb-tool-btn[data-lb-tool="${tool}"]`);
       if (b) b.style.display = cloud ? 'none' : '';
     }

@@ -604,6 +604,8 @@
     'ws-outfit-btn':        6,
     // /api/recolor — CLIPSeg + virage HSV, aucune diffusion : tres court.
     'ws-recolor-btn':       2,
+    // /api/tex-variant — ControlNet-Tile, moteur de l'outil Age.
+    'ws-age-btn':           2,
     'ws-resolution-btn':    2,   // /api/upscale-image — LANCZOS + SDXL refine
     // Style: when the user picks an entry in the style dropdown,
     // index2.js:4754 calls API.img2img with the style as prompt →
@@ -1037,6 +1039,7 @@
     'ws-removebg-btn':     'remove_background',
     'ws-outfit-btn':       'outfit_complete',
     'ws-recolor-btn':      'recolor',
+    'ws-age-btn':          'tex_variant',
     'ws-resolution-btn':   'upscale',
   };
   async function syncLivePricing() {

@@ -21492,3 +21492,30 @@ corriger change le comportement des DEUX plateformes — a decider par le user.
 VERIFIE : les 11 fichiers livres passent l'analyseur acorn ; les 18 ids
 interroges par le bloc porte existent tous dans le HTML web ; `tsc` 0 erreur ;
 les deux noyaux partages sont identiques.
+
+### ControlNet-Tile sur Modal : la brique qui debloque quatre outils
+
+Mon premier verdict — « Age n'est pas portable, il demande un ControlNet-Tile
+que Modal n'a pas » — etait trop rapide. Mesure : le bureau utilise
+`xinsir/controlnet-tile-sdxl-1.0` SUR `SG161222/RealVisXL_V4.0`, et la classe
+Modal MyFabmeshBackview charge DEJA un ControlNet SDXL (OpenPose) sur cette
+meme base. Ce n'etait donc pas une impasse, juste des poids a charger.
+
+  * `_get_tile_pipe()` — chargement paresseux et mis en cache, calque sur
+    `_get_auto_inpaint_models` : la plupart des sessions n'en ont pas besoin.
+  * `modal_app/_tex_variant.py` — portage de `do_tex_variant`, avec les MEMES
+    litteraux que le bureau (28 pas, guidance 7.5, force bornee [0.35, 0.9],
+    conditionnement borne [0.1, 0.95], meme prompt negatif). Les changer d'un
+    seul cote ferait diverger le rendu sans que rien ne le signale.
+  * Op `tex_variant` dans image_op, route worker `/api/tex-variant`, shim
+    `texVariant`, modale + bouton + comportement portes cote web.
+
+AGE EST DONC SUR LE CLOUD. Son levier est `cnScale` : bas, les proportions
+glissent (adulte -> jeune) ; haut, la silhouette est tenue.
+
+TARIF : 2 credits, comme demande par le user. Ecart assume et signale — c'est
+le meme travail GPU qu'un `modify`, facture 3.
+
+RESTE : chemin MATIERE de Recolorier (do_recolor_tile a ses propres reglages :
+20/30 pas, guidance 5.5/6.5, composition par masque), Etapes de construction,
+et les six outils mesh.

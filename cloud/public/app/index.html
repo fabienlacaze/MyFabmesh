@@ -574,6 +574,7 @@
                         <button id="ws-facefix-btn" class="ghost-btn tool-btn">&#128566; Face Fix</button>
                         <button id="ws-outfit-btn" class="ghost-btn tool-btn" title="Extrait les vetements seuls, sur fond transparent (personnages)">&#128087; Habits</button>
                         <button id="ws-recolor-btn" class="ghost-btn tool-btn" title="Auto-détecte une partie et la recolore en gardant la forme (ex: cape rouge)">&#127912; Recolorier</button>
+                        <button id="ws-age-btn" class="ghost-btn tool-btn" title="Make the subject younger or older — keeps the shape, changes the apparent age">&#9203; Age</button>
                         <button id="ws-symmetrize-auto-btn" class="ghost-btn tool-btn">&#8651; Sym. Auto</button>
                         <button id="ws-multiview-btn" class="ghost-btn tool-btn">&#128065; Multi-Views</button>
                         <button id="ws-variant-btn" class="ghost-btn tool-btn" title="Create variants of the current image — re-roll seed or img2img with controlled strength">&#10024; Variant</button>
@@ -1602,6 +1603,37 @@
       </div>
     </div>
 
+    <div id="modal-age" class="modal-overlay hidden">
+      <div class="modal-card modal-card-wide">
+        <h2>Age</h2>
+        <p class="modal-subtitle">Make the subject younger or older — the AI keeps the shape and pose, only the apparent age changes.</p>
+        <div class="modal-with-image">
+          <div class="modal-image-side" style="position:relative;">
+            <img id="age-source-img" alt="" />
+          </div>
+          <div class="modal-form-side">
+            <label>Age <span id="age-val" class="slider-val">Neutral</span></label>
+            <input type="range" id="age-slider" min="-100" max="100" value="0" />
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-top:2px;">
+              <span>&#128118; Younger</span><span>Older &#128116;</span>
+            </div>
+            <label style="margin-top:14px;">Optional guide</label>
+            <input type="text" id="age-guide" placeholder="e.g. grey beard, smooth skin... (optional)" />
+            <small class="modal-subtitle" style="display:block; margin-top:8px; font-size:11px; line-height:1.3;">Keeps the silhouette/pose and re-renders the surface toward the chosen age (skin, wrinkles, hair). Works best on characters; for objects it reads as wear/patina.</small>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="age-cancel">Cancel</button>
+          <button class="primary-btn" id="age-go">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         MULTI-VIEW OPTIONS MODAL
+         Picks post-gen refinements before launching 6-view generation.
+         A new image version is created so the original stays untouched.
+         ============================================================ -->
     <div id="modal-outfit" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
         <h2>Habits seuls</h2>
