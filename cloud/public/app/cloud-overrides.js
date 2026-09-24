@@ -499,15 +499,22 @@
         const list = document.getElementById('gpu-warmup-list');
         if (wrap) {
           const C = window.__modalContainers || {};
+          // 2026-09-24 : la liste se disait complete et il y manquait DEUX
+          // services que l'utilisateur peut declencher — la segmentation
+          // PartSAM (15 credits) et le retarget FBX. Les descriptions
+          // omettaient aussi les outils ajoutes depuis (Recolorier, Age,
+          // Habits), tous portes par le conteneur « Image edit ».
           const SERVICES = [
-            { key: 'text2image', label: 'Image generation',  desc: 'Generate image from prompt' },
-            { key: 'image_op',   label: 'Image edit',        desc: 'Modify, Inpaint, Upscale, Face Fix, Remove BG' },
-            { key: 'mvadapter',  label: 'Multi-view',        desc: '6 orthographic views (creature, animal)' },
-            { key: 'back_view',  label: 'Back view',         desc: '2-view back photo generation' },
-            { key: 'tpose',      label: 'T-pose rectify',    desc: 'Strict T-pose front rectifier' },
-            { key: 'mesh',       label: '3D mesh',           desc: 'Generate 3D from image' },
-            { key: 'rig',        label: 'Rig',               desc: 'Automatic skeleton rigging' },
-            { key: 'anim',       label: 'Animation',         desc: 'Generative motion + retargeting' },
+            { key: 'text2image',   label: 'Image generation', desc: 'Generate image from prompt' },
+            { key: 'image_op',     label: 'Image edit',       desc: 'Modify, Inpaint, Upscale, Face Fix, Remove BG, Recolor, Age, Outfit' },
+            { key: 'mvadapter',    label: 'Multi-view',       desc: '6 orthographic views (creature, animal)' },
+            { key: 'back_view',    label: 'Back view',        desc: '2-view back photo generation' },
+            { key: 'tpose',        label: 'T-pose rectify',   desc: 'Strict T-pose front rectifier' },
+            { key: 'mesh',         label: '3D mesh',          desc: 'Generate 3D from image' },
+            { key: 'mesh_segment', label: 'Part segmentation', desc: 'PartSAM — split a mesh into parts' },
+            { key: 'rig',          label: 'Rig',              desc: 'Automatic skeleton rigging' },
+            { key: 'anim',         label: 'Animation',        desc: 'Generative motion + retargeting' },
+            { key: 'fbx_retarget', label: 'FBX retarget',     desc: 'Import an animation onto your rig' },
           ];
           let coldCount = 0;
           let allUnknown = true;

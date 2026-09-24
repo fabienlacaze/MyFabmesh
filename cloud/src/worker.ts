@@ -11214,7 +11214,7 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
       bump('mesh', j.finished_at);
     } else if (opType === 'back_view' || opType === 'back-view') {
       bump('back_view', j.finished_at);
-    } else if (['modify','auto_inpaint','mask_inpaint','face_fix_image','remove_background','upscale'].includes(opType)) {
+    } else if (['modify','auto_inpaint','mask_inpaint','face_fix_image','remove_background','upscale','recolor','tex_variant','outfit','segment'].includes(opType)) {
       bump('image_op', j.finished_at);
     } else if (opType === 'auto_rig' || opType === 'rig' || at === 'rig') {
       bump('rig', j.finished_at);
@@ -11222,6 +11222,10 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
       bump('anim', j.finished_at);
     } else if (opType === 'multiview' || opType === 'mvadapter') {
       bump('mvadapter', j.finished_at);
+    } else if (opType === 'segment' || opType === 'mesh_segment' || opType === 'partsam') {
+      bump('mesh_segment', j.finished_at);
+    } else if (opType === 'fbx_retarget' || opType === 'animate_fbx') {
+      bump('fbx_retarget', j.finished_at);
     } else if (at === 'text2image') {
       bump('text2image', j.finished_at);
     } else {
@@ -11233,7 +11237,11 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
   // (multi-view generator) so the "Server warming up (N services)"
   // popover lists every Modal container the user can actually trigger
   // — previous list missed rig and anim which were silent surprises.
-  const [image_op, text2image, back_view, tpose, mesh, rig, anim, mvadapter] = await Promise.all([
+  // 2026-09-24 : ajout de mesh_segment (PartSAM, 15 credits — un service que
+  // l'utilisateur peut declencher et qui n'apparaissait NULLE PART) et de
+  // fbx_retarget. Le tableau pretendait lister « tous » les conteneurs.
+  const [image_op, text2image, back_view, tpose, mesh, rig, anim, mvadapter,
+         mesh_segment, fbx_retarget] = await Promise.all([
     status('_meta/last_warm_image_op.txt',  30, 150, lastByContainer.image_op   ?? null),
     status('_meta/last_warm_text2image.txt', 30, 150, lastByContainer.text2image ?? null),
     status('_meta/last_warm_back_view.txt',  40, 180, lastByContainer.back_view  ?? null),
@@ -11242,9 +11250,12 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
     status('_meta/last_warm_rig.txt',        45, 180, lastByContainer.rig        ?? null),
     status('_meta/last_warm_anim.txt',       60, 240, lastByContainer.anim       ?? null),
     status('_meta/last_warm_mvadapter.txt',  40, 180, lastByContainer.mvadapter  ?? null),
+    status('_meta/last_warm_mesh_segment.txt', 60, 240, lastByContainer.mesh_segment ?? null),
+    status('_meta/last_warm_fbx_retarget.txt', 45, 180, lastByContainer.fbx_retarget ?? null),
   ]);
   return json({
     image_op, text2image, back_view, tpose, mesh, rig, anim, mvadapter,
+    mesh_segment, fbx_retarget,
     cold_threshold_seconds: Math.floor(COLD_THRESHOLD_MS / 1000),
   });
 }

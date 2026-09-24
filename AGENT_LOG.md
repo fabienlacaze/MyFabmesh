@@ -21576,3 +21576,24 @@ CORRECTIF
     pour les autres pings de prechauffe.
   * Les autres services gardent `/healthz` : leurs modeles sont dans la photo
     (snapshot), il n'y a rien a charger paresseusement.
+
+### La liste des services de prechauffe se disait complete et ne l'etait pas
+
+Demande du user : « mets a jour la liste pour avoir vraiment tous les server
+warming necessaires ». Mesure : elle annoncait 8 services et il en manquait
+DEUX que l'utilisateur peut declencher —
+  * `mesh_segment` (PartSAM, /api/mesh-segment, **15 credits**) : nulle part ;
+  * `fbx_retarget` (/api/animate-fbx) : nulle part.
+Ecartes apres verification : `MODAL_PUPPETEER_RIG_URL` (0 usage dans le
+worker) et SkinTokens (pas cable) — on ne liste pas ce qu'on ne declenche pas.
+
+Et le classement de chaleur ignorait les quatre operations ajoutees le jour
+meme (`recolor`, `tex_variant`, `outfit`, `segment`) : les utiliser ne
+marquait donc PAS `image_op` comme chaud.
+
+Corrige : 10 services listes, descriptions a jour (« Image edit » mentionne
+desormais Recolor, Age, Outfit), et les nouvelles operations marquent bien
+leur conteneur. Les deux services ajoutes s'appuient sur l'historique des
+travaux plutot que sur un marqueur R2 dedie — leurs appels sont asynchrones
+(start/status) et l'historique est deja peuple, donc exact sans aller
+instrumenter deux chemins de plus.
