@@ -15185,6 +15185,9 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         window.__rigsRepris = window.__rigsRepris || new Set();
         window.__rigsRepris.add(String(p.jobId));
+        // Registre GENERAL : le sondage /api/me/active-jobs s'y refere et
+        // s'abstient de reprendre la meme ligne une seconde fois.
+        window.fabmeshJobs?.declareServerJob?.(p.jobId);
       } catch (_) {}
       const projectLabel = p.projectName || p.jobId;
       // Re-create the live progress popup. pushJob computes the initial
@@ -15295,6 +15298,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // the new asset shows up immediately.
   try {
     if (typeof fetch !== 'function') return;
+    // SOUS-TACHES (2026-09-25). Le worker insere une ligne `jobs` par operation
+    // interne (rectify, back-view, text2image…). /api/me/active-jobs les
+    // renvoyait telles quelles, donc une seule generation de maillage faisait
+    // apparaitre DEUX popups — « Generate 3D » et « Generate images ». Ces
+    // operations sont maintenant rendues comme SOUS-TACHES du travail auquel
+    // elles appartiennent (voir _renderSousTaches cote rendu).
+    //
+    // Le discriminant fiable est `type` (colonne dediee depuis la migration
+    // 20260804120000_jobs_type_cost.sql) : les generations d'image portent
+    // 'text2image', les operations internes leur propre nom d'op. Un travail
+    // SANS type est une generation de premier niveau (mesh, rig, anim).
+    const _estOperationInterne = (row) => {
+      const t = String(row && row.type || '').toLowerCase();
+      if (!t) return false;
+      return /^(text2image|image_op|rectify|back[-_]?view|backview|sheet|mvadapter|remove[-_]?bg|removebg|face[-_]?fix|auto[-_]?inpaint|inpaint|upscale|esrgan|recolor|tex[-_]?variant|outfit|cutout|segment)/.test(t);
+    };
     const _kindFromAssetType = (at, name) => {
       const a = String(at || '').toLowerCase();
       if (a === 'animation' || a === 'anim') return 'anim';
@@ -15331,6 +15350,13 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         if (window.__rigsRepris && window.__rigsRepris.has(String(row.id))) return;
       } catch (_) {}
+      // Meme regle, mais GENERALE : toute reprise dediee (rig, segment, anim)
+      // a declare l'identifiant serveur qu'elle suit. Sans ce test, un travail
+      // saisi par deux mecanismes produisait DEUX popups pour un seul clic
+      // (constate le 2026-09-25).
+      try {
+        if (window.fabmeshJobs?.serverJobSuivi?.(row.id)) return;
+      } catch (_) {}
       const kind = _kindFromAssetType(row.asset_type, '');
       const project = row.project_name || (row.options && row.options.project_name) || null;
       const startedAt = row.created_at ? Date.parse(row.created_at) : Date.now();
@@ -15339,13 +15365,28 @@ document.addEventListener('DOMContentLoaded', () => {
         Type: row.asset_type || '—',
         Resumed: 'yes',
       };
+      const opts = { projectName: project || null };
+      // Rattachement au travail parent : on cherche une generation de premier
+      // niveau EN COURS sur le meme projet. Le nom du parent est resolu par le
+      // rendu (_jobParent), qui accepte un identifiant local OU un nom.
+      if (_estOperationInterne(row)) {
+        const parent = state.jobs.find(p =>
+          p.status === 'running'
+          && !p.parentJobId
+          && p.name !== _displayName(row)
+          && (!project || _jobProjectName(p) === project));
+        if (parent) {
+          opts.parentJobId = parent.id;
+          opts.parentJobName = parent.name;
+        }
+      }
       const local = pushJob(
         _displayName(row),
         null,
         params,
         _expectedFor(kind),
         startedAt,
-        { projectName: project || null },
+        opts,
       );
       _jobByServerId.set(row.id, local);
       _serverPolledIds.add(local.id);
@@ -15367,6 +15408,15 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         const stillActive = new Set(cur.map(r => r.id));
+        // Un travail serveur disparu de la liste active est termine : on
+        // l'oublie du registre de suivi, sinon il y resterait indefiniment
+        // (fuite memoire sur une longue session, et un travail legitime
+        // portant le meme identifiant ne serait plus jamais repris).
+        for (const sid of Array.from(window.__fabmeshJobsServeurSuivis || [])) {
+          if (!stillActive.has(sid)) {
+            try { window.fabmeshJobs?.oublierServerJob?.(sid); } catch (_) {}
+          }
+        }
         for (const [sid, local] of Array.from(_jobByServerId.entries())) {
           if (!stillActive.has(sid)) {
             try { completeJob(local.id, true); } catch (_) {}
@@ -17612,6 +17662,15 @@ function pushJob(name, onCancel, params, expectedMsOverride, startedAtOverride, 
     sourceImageUrl: o.sourceImageUrl || null,
     projectName: o.projectName || (state.currentProject ? state.currentProject.name : null),
     assetKind: o.assetKind || null,
+    // SOUS-TACHE (2026-09-25). Un travail peut n'etre qu'une ETAPE d'un autre
+    // (le worker insere une ligne `jobs` par operation interne : rectify,
+    // back-view, text2image). Sans ce rattachement l'utilisateur voyait deux
+    // popups pour une seule action (« Generate 3D » + « Generate images ») et
+    // ne pouvait pas dire laquelle appartenait a l'autre. Le parent est
+    // designe par son identifiant LOCAL (job.id) ou par son nom si l'appelant
+    // n'en a pas — les travaux repris du serveur n'ont pas d'identifiant local.
+    parentJobId: o.parentJobId || null,
+    parentJobName: o.parentJobName || null,
   };
   // Smoothly climb from 5 to 90% over expected duration UNTIL the bridge
   // starts emitting real progress events. After that, the bridge is the
@@ -17644,6 +17703,13 @@ function completeJob(id, success, errorMessage) {
   if (j.tickTimer) { clearInterval(j.tickTimer); j.tickTimer = null; }
   j.progress = 100;
   j.status = success ? 'done' : 'error';
+  // Un parent ne peut pas se terminer avant ses sous-taches : sinon sa tuile
+  // passe en vert alors que la barre de l'enfant continue de courir.
+  try {
+    for (const c of _jobChildren(j.id)) {
+      if (c.status === 'running') return;
+    }
+  } catch (_) {}
   if (!success && errorMessage) {
     j.errorMessage = String(errorMessage);
   }
@@ -17710,6 +17776,33 @@ window.fabmeshJobs = {
   enqueue: (kind, name, runFn) => enqueueJob(kind, name, runFn),
   complete: (id, success, errorMessage) => completeJob(id, success, errorMessage),
   render: () => renderJobs(),
+};
+/* REGISTRE DES TRAVAUX SERVEUR DEJA COUVERS PAR UNE REPRISE DEDIEE.
+ *
+ * Plusieurs mecanismes reconstruisent une tuile pour un meme travail serveur :
+ * la reprise des rigs (fabmesh_pending_rigs), celle des travaux "spawnes"
+ * (segment, anim) et le sondage generique /api/me/active-jobs. Chacun a sa
+ * propre liste d'exclusion — et elle ne couvrait que les rigs. Consequence
+ * constatee le 2026-09-25 : deux popups pour un seul clic, la seconde etant
+ * meme illisible (« Auto-rig AI: 717b471b », le project_name etant NULL cote
+ * serveur donc remplace par un fragment d'identifiant).
+ *
+ * Ce registre est la source UNIQUE : une reprise dediee y declare
+ * l'identifiant serveur qu'elle suit, le sondage generique s'y refere et
+ * rattache sa ligne au lieu de creer une tuile de plus. */
+window.__fabmeshJobsServeurSuivis = window.__fabmeshJobsServeurSuivis || new Set();
+window.fabmeshJobs.declareServerJob = (serverId) => {
+  try { if (serverId) window.__fabmeshJobsServeurSuivis.add(String(serverId)); } catch (_) {}
+};
+window.fabmeshJobs.serverJobSuivi = (serverId) => {
+  try { return window.__fabmeshJobsServeurSuivis.has(String(serverId)); } catch (_) { return false; }
+};
+/* Le registre doit se vider, sinon un identifiant serveur recycle (ou une
+ * longue session) ferait disparaitre un travail legitime du panneau. On
+ * l'oublie quand le travail n'est plus actif cote serveur : a ce moment la
+ * son suivi dedie a de toute facon rendu la main. */
+window.fabmeshJobs.oublierServerJob = (serverId) => {
+  try { window.__fabmeshJobsServeurSuivis.delete(String(serverId)); } catch (_) {}
 };
 // index2.js is loaded as a module so top-level declarations don't
 // auto-attach to window. Expose the bits the cloud's pending-job
@@ -17812,6 +17905,39 @@ function _jobProjectName(j) {
   const m = (j.name || '').match(/[:—–-]\s*([^:—–-]+)\s*$/);
   if (m) return m[1].trim();
   return null;
+}
+
+/** SOUS-TACHES (2026-09-25). Un travail rattache a un autre ne doit pas
+ *  occuper sa propre tuile : l'utilisateur voyait « Generate 3D » ET
+ *  « Generate images » pour un seul clic. On resout donc le parent une fois,
+ *  puis les rendus groupent les enfants sous lui.
+ *  Retourne le job parent, ou null si ce job est autonome. */
+function _jobParent(j) {
+  if (!j) return null;
+  const pid = j.parentJobId;
+  if (pid != null) {
+    const p = state.jobs.find(x => x.id === pid);
+    if (p && p !== j) return p;
+  }
+  if (j.parentJobName) {
+    // Repli par nom : les travaux repris du serveur n'ont pas toujours de
+    // parentJobId, seulement le nom du parent.
+    const p = state.jobs.find(x => x !== j && x.name === j.parentJobName);
+    if (p) return p;
+  }
+  return null;
+}
+window._jobParent = _jobParent;
+
+/** Les enfants d'un job, dans l'ordre d'apparition. */
+function _jobChildren(parentId) {
+  return (state.jobs || []).filter(x => x.parentJobId === parentId);
+}
+
+/** Un enfant ne s'affiche jamais comme tuile de premier niveau : il est
+ *  rendu SOUS son parent. Les listes principales filtrent avec ce predicat. */
+function _estSousTache(j) {
+  return _jobParent(j) !== null;
 }
 
 // Open the project (if different from current) and scroll/expand the
@@ -17941,6 +18067,10 @@ function renderStepProgressWidgets() {
     if (!widget) continue;
     const matching = state.jobs.filter(j => {
       if (_jobStepIndex(j) !== s) return false;
+      // Une SOUS-TACHE n'est pas un item de premier niveau : elle est rendue
+      // dans sa tuile parente (voir _renderSousTaches). Sinon l'etape affichait
+      // « Generate 3D » et « Generate images » cote a cote pour un seul clic.
+      if (_estSousTache(j)) return false;
       const pn = _jobProjectName(j);
       // No project label on the job → show in the current project's
       // widget only (best-effort). With a label, show only if matching.
@@ -17992,6 +18122,7 @@ function renderStepProgressWidgets() {
             <div class="step-progress-item-bar-fill" style="width:${pct}%"></div>
           </div>
           <div class="step-progress-item-pct">${elapsed ? `<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">${elapsed}</span>` : ''}${pct}%</div>
+          ${_renderSousTaches(j.id, 'job-item-2-sub')}
         </div>`;
     }).join('');
     widget.querySelectorAll('.step-progress-item[data-job-id]').forEach(el => {
@@ -18001,6 +18132,44 @@ function renderStepProgressWidgets() {
       });
     });
   }
+}
+
+// Rendu des SOUS-TACHES d'un travail (2026-09-25). Un travail parent peut
+// enchainer des operations qui, elles aussi, creent une ligne `jobs` cote
+// serveur (rectify, back-view, text2image). L'utilisateur demandait a voir
+// "une sous-tache dans la generation du mesh" plutot que deux popups
+// independantes dont on ne savait pas laquelle appartenait a l'autre.
+//
+// Le rendu est volontairement PLUS LEGER qu'une tuile de premier niveau :
+// pas de bouton « Go to » (la sous-tache n'est pas un point d'entree), pas de
+// vignette (elle herite du contexte visuel du parent), barre plus fine.
+// Le bouton d'annulation reste : un pipeline bloque doit pouvoir etre coupe.
+function _renderSousTaches(parentId, cls) {
+  let enfants = [];
+  try { enfants = _jobChildren(parentId); } catch (_) { return ''; }
+  if (!enfants.length) return '';
+  return enfants.map(c => {
+    const pct = Math.round(c.progress || 0);
+    const canCancel = c.status === 'running';
+    const statusClass = c.status === 'done' ? ' done'
+                      : c.status === 'error' ? ' error'
+                      : '';
+    const elapsed = c.startedAt ? fmtDuration(Date.now() - c.startedAt) : '';
+    const label = `${elapsed ? elapsed + ' \u00b7 ' : ''}${pct}%`;
+    return `
+      <div class="${cls}${statusClass}" data-job-id="${c.id}">
+        <div class="${cls}-row">
+          <span class="${cls}-bullet">&#8627;</span>
+          <span class="${cls}-name">${escapeHtml(_displayJobName(c.name))}</span>
+          ${canCancel ? `<button class="job-cancel-btn" onclick="event.stopPropagation(); window._cancelJob(${c.id})" title="Cancel job">&#10005;</button>` : ''}
+        </div>
+        <div class="${cls}-bar">
+          <div class="job-item-2-bar-fill" style="width:${pct}%"></div>
+        </div>
+        <div class="${cls}-pct">${label}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderJobs() {
@@ -18025,8 +18194,12 @@ function renderJobs() {
     bubble.classList.remove('hidden');
   }
   const list = document.getElementById('jobs-list-2');
-  // Active jobs
-  let html = state.jobs.map(j => {
+  // Active jobs. Les SOUS-TACHES ne sont pas rendues ici : elles le sont sous
+  // leur parent (voir _renderSousTaches). Sans ce filtre, une generation de
+  // mesh avec back-view apparaissait deux fois — « Generate 3D » ET
+  // « Generate images » — pour un seul clic de l'utilisateur (2026-09-25).
+  const _racines = state.jobs.filter(j => !_estSousTache(j));
+  let html = _racines.map(j => {
     const pct = Math.round(j.progress);
     const canCancel = j.status === 'running';
     // Show a "Go to step" pill when the job maps to a known step so the
@@ -18054,6 +18227,7 @@ function renderJobs() {
           <div class="job-item-2-bar-fill" style="width:${pct}%"></div>
         </div>
         <div class="job-item-2-pct">${elapsed ? `<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">${elapsed}</span>` : ''}${pct}%</div>
+        ${_renderSousTaches(j.id, 'job-item-2-sub')}
       </div>
     `;
   }).join('');
@@ -18083,7 +18257,8 @@ function renderJobs() {
   // qu'a la barre et au pourcentage, et le DOM survit au survol.
   const _sigJobs = state.jobs.map(j =>
       j.id + ':' + j.status + ':' + (_jobStepIndex(j) > 0 ? 'g' : '-')
-      + ':' + (j.status === 'running' ? 'x' : '-')).join(',')
+      + ':' + (j.status === 'running' ? 'x' : '-')
+      + ':' + (_jobParent(j) ? 's' : '-')).join(',')
     + '|' + queuedJobs.map(q => q.displayName || '').join(',');
   if (list.dataset.sigJobs === _sigJobs) {
     state.jobs.forEach(j => {
@@ -18099,6 +18274,15 @@ function renderJobs() {
           ? '<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">'
             + escapeHtml(elapsed) + '</span>'
           : '') + pct + '%';
+      }
+      // Les sous-taches portent la meme classe : leur barre doit aussi suivre
+      // le tick, sinon elles restent figees pendant que le parent avance.
+      const subEl = list.querySelector('.job-item-2-sub[data-job-id="' + j.id + '"]');
+      if (subEl) {
+        const subFill = subEl.querySelector('.job-item-2-bar-fill');
+        if (subFill) subFill.style.width = pct + '%';
+        const subPct = subEl.querySelector('.job-item-2-sub-pct');
+        if (subPct) subPct.textContent = pct + '%';
       }
     });
     if (state._jobDetailsOpenId) refreshJobDetailsModal(state._jobDetailsOpenId);

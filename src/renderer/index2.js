@@ -17189,6 +17189,15 @@ function pushJob(name, onCancel, params, expectedMsOverride, opts, _cloudOpts) {
     // (e.g. "Orc rose: chapter 2" was matched as project="chapter 2").
     sourceProject: o.sourceProject || projectName,
     assetKind: o.assetKind || null,
+    // SOUS-TACHE (2026-09-25). Un travail peut n'etre qu'une ETAPE d'un autre
+    // (le worker insere une ligne `jobs` par operation interne : rectify,
+    // back-view, text2image). Sans ce rattachement l'utilisateur voyait deux
+    // popups pour une seule action (« Generate 3D » + « Generate images ») et
+    // ne pouvait pas dire laquelle appartenait a l'autre. Le parent est
+    // designe par son identifiant LOCAL (job.id) ou par son nom si l'appelant
+    // n'en a pas. Voir renderJobs / renderStepProgressWidgets pour le rendu.
+    parentJobId: o.parentJobId || null,
+    parentJobName: o.parentJobName || null,
   };
   // Smoothly climb from 5 to 90% over expected duration UNTIL the bridge
   // starts emitting real progress events. After that, the bridge is the
@@ -17235,12 +17244,55 @@ function _jobProjectName(j) {
 }
 window._jobProjectName = _jobProjectName;
 
+/** SOUS-TACHES (2026-09-25). Un travail rattache a un autre ne doit pas
+ *  occuper sa propre tuile : l'utilisateur voyait « Generate 3D » ET
+ *  « Generate images » pour un seul clic. On resout donc le parent une fois,
+ *  puis les rendus groupent les enfants sous lui.
+ *  Retourne le job parent, ou null si ce job est autonome. */
+function _jobParent(j) {
+  if (!j) return null;
+  const pid = j.parentJobId;
+  if (pid != null) {
+    const p = state.jobs.find(x => x.id === pid);
+    if (p && p !== j) return p;
+  }
+  if (j.parentJobName) {
+    // Repli par nom : les jobs repris du serveur n'ont pas de parentJobId
+    // (le worker ne stocke pas la filiation), seulement le nom du parent.
+    const p = state.jobs.find(x => x !== j && x.name === j.parentJobName);
+    if (p) return p;
+  }
+  return null;
+}
+window._jobParent = _jobParent;
+
+/** Les enfants d'un job, dans l'ordre d'apparition. Un enfant dont le parent
+ *  a disparu de state.jobs retombe comme job autonome (mieux vaut une tuile
+ *  orpheline qu'une barre de progression invisible). */
+function _jobChildren(parentId) {
+  return (state.jobs || []).filter(x => x.parentJobId === parentId);
+}
+
+/** Un enfant ne s'affiche jamais comme tuile de premier niveau : il est
+ *  rendu SOUS son parent. Les listes principales filtrent avec ce predicat. */
+function _estSousTache(j) {
+  return _jobParent(j) !== null;
+}
+
 function completeJob(id, success, errorMessage) {
   const j = state.jobs.find(j => j.id === id);
   if (!j) return;
   if (j.tickTimer) { clearInterval(j.tickTimer); j.tickTimer = null; }
   j.progress = 100;
   j.status = success ? 'done' : 'error';
+  // Un parent ne peut pas se terminer avant ses sous-taches : sinon sa tuile
+  // passe en vert alors que la barre de l'enfant continue de courir. Le
+  // parent est requalifie d'office quand son dernier enfant se termine.
+  try {
+    for (const c of _jobChildren(j.id)) {
+      if (c.status === 'running') return;
+    }
+  } catch (_) {}
   if (!success && errorMessage) {
     // Mappe les OOM VRAM/RAM en message FR clair (au lieu d'une stack brute).
     j.errorMessage = (typeof humanizeErrorMessage === 'function')
@@ -17446,6 +17498,10 @@ function renderStepProgressWidgets() {
     if (!widget) continue;
     const matching = state.jobs.filter(j => {
       if (_jobStepIndex(j) !== s) return false;
+      // Une SOUS-TACHE n'est pas un item de premier niveau : elle est rendue
+      // dans sa tuile parente (voir _renderSousTaches). Sinon l'etape affichait
+      // « Generate 3D » et « Generate images » cote a cote pour un seul clic.
+      if (_estSousTache(j)) return false;
       const pn = _jobProjectName(j);
       // No project label on the job → show in the current project's
       // widget only (best-effort). With a label, show only if matching.
@@ -17468,7 +17524,7 @@ function renderStepProgressWidgets() {
     try { _toggleGeneratingStage(s, hasRunning); } catch (_) {}
     // Targeted update: patch bars/% in place while the item SET is unchanged,
     // instead of rebuilding innerHTML every tick (the violent green flicker).
-    const _sigW = matching.map(j => j.id + ':' + j.status).join(',');
+    const _sigW = matching.map(j => j.id + ':' + j.status + ':' + _jobChildren(j.id).length).join(',');
     if (widget.dataset.sig === _sigW) {
       matching.forEach(j => {
         const el = widget.querySelector(`.step-progress-item[data-job-id="${j.id}"]`);
@@ -17481,6 +17537,20 @@ function renderStepProgressWidgets() {
           const elapsed = j.startedAt ? fmtDuration(Date.now() - j.startedAt) : '';
           pctEl.innerHTML = (elapsed ? `<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">${elapsed}</span>` : '') + pct + '%';
         }
+        // Sous-taches : meme tick, meme mise a jour en place (pas de rebuild,
+        // sinon la barre de l'enfant repart de zero a chaque rafraichissement).
+        _jobChildren(j.id).forEach(c => {
+          const sc = widget.querySelector(`.job-item-2-sub[data-job-id="${c.id}"]`);
+          if (!sc) return;
+          const cpct = Math.round(c.progress || 0);
+          const cfill = sc.querySelector('.job-item-2-bar-fill');
+          if (cfill) cfill.style.width = cpct + '%';
+          const cpctEl = sc.querySelector('.job-item-2-sub-pct');
+          if (cpctEl) {
+            const cel = c.startedAt ? fmtDuration(Date.now() - c.startedAt) : '';
+            cpctEl.textContent = (cel ? cel + ' \u00b7 ' : '') + cpct + '%';
+          }
+        });
       });
       continue;
     }
@@ -17514,6 +17584,7 @@ function renderStepProgressWidgets() {
             <div class="step-progress-item-bar-fill" style="width:${pct}%"></div>
           </div>
           <div class="step-progress-item-pct">${elapsed ? `<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">${elapsed}</span>` : ''}${pct}%</div>
+          ${_renderSousTaches(j.id, 'job-item-2-sub')}
         </div>`;
     }).join('');
     widget.querySelectorAll('.step-progress-item[data-job-id]').forEach(el => {
@@ -17523,6 +17594,44 @@ function renderStepProgressWidgets() {
       });
     });
   }
+}
+
+// Rendu des SOUS-TACHES d'un travail (2026-09-25). Un travail parent peut
+// enchainer des operations qui, elles aussi, creent une ligne `jobs` cote
+// serveur (rectify, back-view, text2image). L'utilisateur demandait a voir
+// "une sous-tache dans la generation du mesh" plutot que deux popups
+// independantes dont on ne savait pas laquelle appartenait a l'autre.
+//
+// Le rendu est volontairement PLUS LEGER qu'une tuile de premier niveau :
+// pas de bouton « Go to » (la sous-tache n'est pas un point d'entree), pas de
+// vignette (elle herite du contexte visuel du parent), barre plus fine.
+// Le bouton d'annulation reste : un pipeline bloque doit pouvoir etre coupe.
+function _renderSousTaches(parentId, cls) {
+  let enfants = [];
+  try { enfants = _jobChildren(parentId); } catch (_) { return ''; }
+  if (!enfants.length) return '';
+  return enfants.map(c => {
+    const pct = Math.round(c.progress || 0);
+    const canCancel = c.status === 'running';
+    const statusClass = c.status === 'done' ? ' done'
+                      : c.status === 'error' ? ' error'
+                      : '';
+    const elapsed = c.startedAt ? fmtDuration(Date.now() - c.startedAt) : '';
+    const label = `${elapsed ? elapsed + ' · ' : ''}${pct}%`;
+    return `
+      <div class="${cls}${statusClass}" data-job-id="${c.id}">
+        <div class="${cls}-row">
+          <span class="${cls}-bullet">&#8627;</span>
+          <span class="${cls}-name">${escapeHtml(_displayJobName(c.name))}</span>
+          ${canCancel ? `<button class="job-cancel-btn" onclick="event.stopPropagation(); window._cancelJob(${c.id})" title="Cancel job">&#10005;</button>` : ''}
+        </div>
+        <div class="${cls}-bar">
+          <div class="job-item-2-bar-fill" style="width:${pct}%"></div>
+        </div>
+        <div class="${cls}-pct">${label}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderJobs() {
@@ -17570,8 +17679,12 @@ function renderJobs() {
     return;
   }
   list.dataset.sig = _sig;
-  // Active jobs
-  let html = state.jobs.map(j => {
+  // Active jobs. Les SOUS-TACHES ne sont pas rendues ici : elles le sont sous
+  // leur parent (voir _jobChildren plus bas). Sans ce filtre, une generation de
+  // mesh avec back-view apparaissait deux fois — « Generate 3D » ET
+  // « Generate images » — pour un seul clic de l'utilisateur (2026-09-25).
+  const _racines = state.jobs.filter(j => !_estSousTache(j));
+  let html = _racines.map(j => {
     const pct = Math.round(j.progress);
     const canCancel = j.status === 'running';
     // Show a "Go to step" pill when the job maps to a known step so the
@@ -17599,6 +17712,7 @@ function renderJobs() {
           <div class="job-item-2-bar-fill" style="width:${pct}%"></div>
         </div>
         <div class="job-item-2-pct">${elapsed ? `<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">${elapsed}</span>` : ''}${pct}%</div>
+        ${_renderSousTaches(j.id, 'job-item-2-sub')}
       </div>
     `;
   }).join('');
@@ -17628,7 +17742,8 @@ function renderJobs() {
   // qu'a la barre et au pourcentage, et le DOM survit au survol.
   const _sigJobs = state.jobs.map(j =>
       j.id + ':' + j.status + ':' + (_jobStepIndex(j) > 0 ? 'g' : '-')
-      + ':' + (j.status === 'running' ? 'x' : '-')).join(',')
+      + ':' + (j.status === 'running' ? 'x' : '-')
+      + ':' + (_jobParent(j) ? 's' : '-')).join(',')
     + '|' + queuedJobs.map(q => q.displayName || '').join(',');
   if (list.dataset.sigJobs === _sigJobs) {
     state.jobs.forEach(j => {
@@ -17644,6 +17759,15 @@ function renderJobs() {
           ? '<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">'
             + escapeHtml(elapsed) + '</span>'
           : '') + pct + '%';
+      }
+      // Les sous-taches portent la meme classe : leur barre doit aussi suivre
+      // le tick, sinon elles restent figees pendant que le parent avance.
+      const subEl = list.querySelector('.job-item-2-sub[data-job-id="' + j.id + '"]');
+      if (subEl) {
+        const subFill = subEl.querySelector('.job-item-2-bar-fill');
+        if (subFill) subFill.style.width = pct + '%';
+        const subPct = subEl.querySelector('.job-item-2-sub-pct');
+        if (subPct) subPct.textContent = pct + '%';
       }
     });
     if (state._jobDetailsOpenId) refreshJobDetailsModal(state._jobDetailsOpenId);

@@ -249,6 +249,9 @@
     const list = _readPendingJobs().filter((j) => j.jobId !== entry.jobId);
     list.push({ ...entry, ts: Date.now() });
     _writePendingJobs(list);
+    // Le travail est suivi ici : le sondage generique ne doit pas en refaire
+    // une seconde tuile (voir __fabmeshJobsServeurSuivis dans index2.js).
+    try { window.fabmeshJobs?.declareServerJob?.(entry.jobId); } catch (e) { /* ignore */ }
   }
   function _removePendingJob(jobId) {
     _writePendingJobs(_readPendingJobs().filter((j) => j.jobId !== jobId));
@@ -401,6 +404,9 @@
     const list = _readSpawnedPending(key).filter((e) => e && e.jobId !== entry.jobId);
     list.push({ ...entry, createdAt: Date.now() });
     _writeSpawnedPending(key, list);
+    // Idem : ce travail a sa propre fenetre de progression, on le declare
+    // pour que /api/me/active-jobs ne le reprenne pas une seconde fois.
+    try { window.fabmeshJobs?.declareServerJob?.(entry.jobId); } catch (e) { /* ignore */ }
   }
   function _removeSpawnedPending(key, jobId) {
     _writeSpawnedPending(key, _readSpawnedPending(key).filter((e) => e && e.jobId !== jobId));
@@ -2271,6 +2277,16 @@
       // the GLB still lands in R2 but the active UI never gets the "done"
       // handoff (the closure is gone) — the user's only recovery is to
       // open the project later when /api/meshes lists the rigged file.
+      /* DECLARATION AUPRES DU REGISTRE DES TRAVAUX SERVEUR.
+       *
+       * Le worker a insere une ligne `jobs` (type 'rig', status 'processing')
+       * pour ce meme travail. Le sondage generique /api/me/active-jobs la voit
+       * et en refaisait une SECONDE popup — l'utilisateur avait « Auto-rig AI
+       * (unirig): orc W1 » ET « Auto-rig AI: 717b471b », cette derniere
+       * illisible car son project_name est NULL cote serveur (remplace par un
+       * fragment d'identifiant). On declare donc l'identifiant des le spawn :
+       * la ligne est couverte ici, le sondage generique s'abstient. */
+      try { window.fabmeshJobs?.declareServerJob?.(jobId); } catch (e) { /* ignore */ }
       try {
         const pending = JSON.parse(localStorage.getItem('fabmesh_pending_rigs') || '[]');
         const projectId = window.state?.currentProject?.id || null;
@@ -2414,7 +2430,7 @@
               console.warn('[auto-rig] done but no currentProject — dispatched fabmesh:rig-done-orphan');
             }
           } catch (e) { console.warn('[auto-rig] state push failed:', e); }
-          return { success: true, ok: true, glb_url: glbUrl, path: glbUrl };
+          return { success: true, ok: true, glb_url: glbUrl, path: glbUrl, jobId };
         }
         // Unknown status — log and keep polling, but expose to caller via lastWarn.
         console.warn(`[auto-rig] unexpected status poll=${i + 1}`, st);

@@ -2654,6 +2654,60 @@ button.tool-active {
 .job-item-2 { cursor: pointer; transition: background 0.15s; }
 .job-item-2:hover { background: var(--bg-3); }
 
+/* SOUS-TACHES (2026-09-25). Une operation interne a un travail (rectify,
+   back-view, text2image) n'occupe plus sa propre tuile : elle est rendue ici,
+   SOUS la tuile parente, pour qu'on comprenne d'un coup d'oeil ce qui
+   appartient a quoi. Volontairement plus discret que le parent : retrait a
+   gauche + barre verticale qui materialise le lien, pas de vignette (le
+   contexte visuel vient du parent). */
+.job-item-2-sub {
+  margin: 6px 0 0 10px;
+  padding: 6px 8px 6px 10px;
+  border-left: 2px solid var(--border-strong);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: default;
+}
+.job-item-2-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.job-item-2-sub-bullet {
+  color: var(--text-2);
+  font-size: 11px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+.job-item-2-sub-name {
+  font-size: 11px;
+  color: var(--text-1);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.job-item-2-sub-bar {
+  height: 3px;
+  background: var(--bg-3);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.job-item-2-sub-pct {
+  text-align: right;
+  font-size: 9px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.job-item-2-sub.error { border-left-color: var(--error); }
+.job-item-2-sub.error .job-item-2-bar-fill { background: var(--error); }
+.job-item-2-sub.error .job-item-2-sub-pct { color: var(--error); }
+.job-item-2-sub.done { border-left-color: var(--success); }
+.job-item-2-sub.done .job-item-2-bar-fill { background: var(--success); }
+.job-item-2-sub.done .job-item-2-sub-pct { color: var(--success); }
+
 /* Per-step progress widget inside the GENERATING section. Always
    visible (the empty state shows "No generation in progress"); the
    GENERATING <details> handles the open/closed UX. */
