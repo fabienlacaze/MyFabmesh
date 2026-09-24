@@ -21597,3 +21597,16 @@ leur conteneur. Les deux services ajoutes s'appuient sur l'historique des
 travaux plutot que sur un marqueur R2 dedie — leurs appels sont asynchrones
 (start/status) et l'historique est deja peuple, donc exact sans aller
 instrumenter deux chemins de plus.
+
+### « unknown » : la liste des services existait en TROIS exemplaires
+
+Apres le correctif precedent, `Part segmentation` et `FBX retarget`
+s'affichaient « unknown ». Le worker renvoyait pourtant bien leur etat, et la
+liste d'affichage les contenait. Entre les deux, un passe-plat :
+`window.__modalContainers`, construit a partir de HUIT cles ecrites en dur.
+Troisieme copie de la meme liste, et celle qu'on oublie.
+
+Corrige en supprimant la liste plutot qu'en l'allongeant : la carte est
+desormais deduite de la reponse du worker (toute entree qui porte un champ
+`warm`). Ajouter un service en amont suffit maintenant — il n'y a plus de
+troisieme endroit ou penser.

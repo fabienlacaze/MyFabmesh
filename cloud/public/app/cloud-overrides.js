@@ -446,16 +446,15 @@
       window.__modalSecondsSinceLastSuccess = io.seconds_since_last_success;
       // Per-container map so callers can pick the right pill based on
       // the op they're about to fire (text2image vs mesh vs rig…).
-      window.__modalContainers = {
-        image_op:   d?.image_op,
-        text2image: d?.text2image,
-        back_view:  d?.back_view,
-        tpose:      d?.tpose,
-        mesh:       d?.mesh,
-        rig:        d?.rig,
-        anim:       d?.anim,
-        mvadapter:  d?.mvadapter,
-      };
+      // GENERIQUE, et c'est le point : cette carte etait une TROISIEME copie
+      // de la liste des services, ecrite en dur. Le 2026-09-24, deux services
+      // ajoutes cote worker ET cote affichage sont quand meme ressortis
+      // « unknown » parce que ce passe-plat, lui, ne les connaissait pas.
+      // On reprend desormais toute entree du worker qui ressemble a un etat
+      // de conteneur : ajouter un service en amont suffit.
+      window.__modalContainers = Object.fromEntries(
+        Object.entries(d || {}).filter(([, v]) =>
+          v && typeof v === 'object' && 'warm' in v));
       // Helper: which Modal container is associated with a job kind?
       window.__modalContainerForKind = function (kind) {
         const map = {
