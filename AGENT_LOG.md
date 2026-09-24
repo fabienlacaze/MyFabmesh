@@ -21405,3 +21405,45 @@ NON FAIT : remettre le compteur du user a sa vraie depense Replicate pour le
 debloquer tout de suite — l'ecriture R2 m'a ete refusee (ressource partagee).
 Le deploiement web reste par ailleurs bloque par le garde des mentions
 legales, donc ces correctifs ne partiront pas en production sans le user.
+
+---
+
+## 2026-09-24 — `node --check` ment sur les gros fichiers (l'appli ne demarrait plus)
+
+L'appli s'est lancee sur « MyFabmesh.AI failed to start — SyntaxError:
+missing ) after argument list ». Cause : une apostrophe non echappee que
+j'avais introduite le jour meme dans le nouvel outil Habits :
+
+    showToast('Choisis d'abord une image.', 'error');
+
+Le detail qui compte : j'avais VERIFIE ce fichier avec `node --check
+src/renderer/index2.js`, qui avait renvoye 0.
+
+MESURE, reproduite trois fois :
+  - `node --check <fichier>` sur index2.js (1,18 Mo, casse)  -> exit 0, MUET
+  - meme contenu dans un fichier d'UNE ligne                 -> exit 1, correct
+  - `node --check` par STDIN sur le meme gros fichier        -> exit 1, ligne 18179
+  - acorn                                                    -> exit 1, ligne 18179
+Seule la forme « --check <chemin> » ment, et elle ment en silence. Node
+v22.13.1.
+
+GRAVITE. La meme casse etait dans les DEUX copies, et `cloud/out/app/index2.js`
+— deja construit — la contenait : la commande de deploiement que je venais de
+donner au user aurait mis le site en « failed to start ». Verifie apres coup :
+out/ portait bien le fichier casse, reconstruit depuis (empreinte
+d290c64c4d -> f42143ecb8).
+
+CORRECTIFS
+  * L'apostrophe : la chaine passe en guillemets doubles, plus rien a echapper.
+    Lecon d'ecriture : ne plus fabriquer de code JS contenant \' depuis un
+    heredoc Python — c'est la DEUXIEME fois aujourd'hui (main.js l'avait eu
+    aussi, attrape a temps celui-la).
+  * `build/check-js-syntax.mjs` : analyse les 11 fichiers LIVRES avec acorn
+    (deja dans node_modules), essaie module puis script, et pointe ligne +
+    colonne + le texte de la ligne. Branche EN PREMIER sur les deux chaines
+    de construction, avant les gardes metier : un fichier qui ne se charge
+    pas rend tout le reste sans objet.
+  * Controle du garde : il refuse la copie cassee en nommant la ligne 18179,
+    et passe sur les 11 fichiers reels.
+
+NE PLUS JAMAIS utiliser `node --check <fichier>` comme preuve sur ce depot.

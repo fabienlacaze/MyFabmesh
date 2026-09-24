@@ -18176,7 +18176,7 @@ document.getElementById('of-mode')?.addEventListener('change', _outfitSyncMode);
 document.getElementById('ws-outfit-btn')?.addEventListener('click', () => {
   const p = state.currentProject;
   const target = editTarget(p);
-  if (!target) { showToast('Choisis d'abord une image.', 'error'); return; }
+  if (!target) { showToast("Choisis d'abord une image.", 'error'); return; }
   const img = document.getElementById('of-source-img');
   if (img) img.src = _bust(_toFileUrl(target));
   const abs = document.getElementById('of-absentes');
