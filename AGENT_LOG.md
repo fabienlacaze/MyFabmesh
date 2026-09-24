@@ -21670,3 +21670,22 @@ reste couverte a 100 %. Les cas A et B tiennent toujours.
 CONSEQUENCE ASSUMEE : sur beaucoup de personnages, la completion ne se
 declenchera tout simplement pas. C'est le comportement correct — l'outil
 livre alors ce qu'il sait faire honnetement, une decoupe.
+
+### Le bouton « Go to » clignotait et refusait le clic
+
+`renderJobs()` faisait `list.innerHTML = html` a CHAQUE tick de progression :
+chaque ligne etait detruite et recreee plusieurs fois par seconde, y compris
+le bouton sous le curseur. D'ou le survol qui clignote et le clic qui tombe
+sur un noeud deja disparu.
+
+Le panneau d'ETAPE avait deja recu ce correctif — son commentaire parle meme
+du « violent green flicker » — mais le panneau des TRAVAUX, non.
+
+Meme remede : une signature de la STRUCTURE (identifiant, statut, presence
+des boutons, file d'attente). Tant qu'elle est stable, on ne met a jour que
+la largeur de barre et le pourcentage, et le DOM survit.
+
+VERIFIE : analyseur de syntaxe au vert sur les deux copies, garde des etapes
+au vert. La confirmation au survol revient a l'utilisateur — l'appli bureau
+etait fermee au moment du correctif, et je ne l'ai pas relancee de ma propre
+initiative.

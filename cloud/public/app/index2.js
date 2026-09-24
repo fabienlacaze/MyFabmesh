@@ -18051,7 +18051,40 @@ function renderJobs() {
       </div>
     `).join('');
   }
+  // MISE A JOUR CIBLEE. `list.innerHTML = html` a chaque tick detruisait et
+  // recreait chaque ligne — donc le bouton « Go to » SOUS LE CURSEUR. Le
+  // survol clignotait et le clic tombait sur un noeud qui venait de
+  // disparaitre (signale par l'utilisateur le 2026-09-24). Le panneau
+  // d'etape avait deja recu ce correctif ; celui-ci, non.
+  //
+  // La signature ne retient que ce qui change la STRUCTURE : identifiant,
+  // statut, presence des boutons. Tant qu'elle est stable, on ne touche
+  // qu'a la barre et au pourcentage, et le DOM survit au survol.
+  const _sigJobs = state.jobs.map(j =>
+      j.id + ':' + j.status + ':' + (_jobStepIndex(j) > 0 ? 'g' : '-')
+      + ':' + (j.status === 'running' ? 'x' : '-')).join(',')
+    + '|' + queuedJobs.map(q => q.displayName || '').join(',');
+  if (list.dataset.sigJobs === _sigJobs) {
+    state.jobs.forEach(j => {
+      const el = list.querySelector('.job-item-2[data-job-id="' + j.id + '"]');
+      if (!el) return;
+      const pct = Math.round(j.progress);
+      const fill = el.querySelector('.job-item-2-bar-fill');
+      if (fill) fill.style.width = pct + '%';
+      const pctEl = el.querySelector('.job-item-2-pct');
+      if (pctEl) {
+        const elapsed = j.startedAt ? fmtDuration(Date.now() - j.startedAt) : '';
+        pctEl.innerHTML = (elapsed
+          ? '<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">'
+            + escapeHtml(elapsed) + '</span>'
+          : '') + pct + '%';
+      }
+    });
+    if (state._jobDetailsOpenId) refreshJobDetailsModal(state._jobDetailsOpenId);
+    return;
+  }
   list.innerHTML = html;
+  list.dataset.sigJobs = _sigJobs;
   // Bind click on each active job item to open the details modal
   list.querySelectorAll('.job-item-2[data-job-id]').forEach(el => {
     el.addEventListener('click', () => {
