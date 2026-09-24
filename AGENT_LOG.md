@@ -21253,3 +21253,28 @@ BUREAU (`prebuild:licence-check`). Or c'est le controle de PARITE
 bureau/web/modal : construire le web sans lui laissait passer exactement la
 divergence qui avait produit le doublon de gabarit. Ajoute au `prebuild` de
 `cloud/package.json`.
+
+---
+
+## 2026-09-24 — « Manual mask inpaint » invisible dans l'etape GENERATING (web)
+
+Le user signale un travail visible dans le panneau global « Running jobs »
+mais absent du panneau « GENERATING » de l'etape, et sans bouton « Go to ».
+
+CAUSE. `_jobStepIndex()` range un travail dans une etape par motif sur son
+NOM. La copie WEB etait restee a la version ANCREE (`^`) : « Manual mask
+inpaint » commence par « Manual », qui n'est aucune des alternatives, donc
+aucun motif ne mordait et la fonction renvoyait 0 = aucune etape. Le panneau
+global ne filtre pas par etape, d'ou un travail visible d'un cote et pas de
+l'autre. Le bouton « Go to » depend du meme indice, d'ou son absence.
+
+Le correctif existe cote BUREAU depuis le 2026-06-14 (motifs non ancres pour
+les outils manuels) et n'avait jamais ete porte. Le web perdait aussi les
+mots-cles etape 2 ajoutes depuis (`texture variation`, `enhance texture`,
+`detail synth`, `segment`) et une dizaine d'outils manuels etape 1
+(`clone stamp`, `draw mask`, `brightness`, `symmetrize`, `color pick`,
+`blur brush`, `crop`, `paint`, `recolor`, `age`) — tous avaient le meme
+defaut, pas seulement le masque manuel.
+
+CORRECTIF : la fonction web est remplacee par la version bureau, a
+l'identique (verifie par `diff`).

@@ -17746,13 +17746,21 @@ window._cancelJob = cancelJob;
 function _jobStepIndex(j) {
   const n = (j && j.name) || '';
   // Step 1 (image) — generation, edits, variants, view rectifiers.
-  // 2026-06-02 add: re-roll / variant patterns. Previously the
-  // resumed "Re-roll variant: orc rose" job missed every regex and
-  // fell to 0 → no Go-to button, no per-step widget.
-  if (/^(generate images?|generating (back|6) views|generate back views|multi[- ]?views|auto[- ]?inpaint|modify|inpaint|face[- ]?fix|remove[- ]?bg|rectif|upscal|back[- ]?view|t[- ]?pose|re[- ]?roll|variant|img2img|sdxl|flux)/i.test(n)) return 1;
-  if (/^(generate 3d|mesh op|fill[- ]?holes|smooth|material[- ]?adjust|generate mesh|texture|pbr)/i.test(n)) return 2;
-  // Mesh-editor saves + manual mesh tools produce a new mesh version → step 2.
-  if (/(retex|re-?texture|mesh edit|save mesh|sculpt|watertight|decimate|set[- ]?pivot|fix[- ]?normals)/i.test(n)) return 2;
+  if (/^(generate images?|generating (back|6) views|generate back views|multi[- ]?views|modify|inpaint|face[- ]?fix|remove[- ]?bg|rectif|upscal|back[- ]?view|t[- ]?pose|re[- ]?roll|variant|img2img|sdxl|flux|image[- ]?to[- ]?image)/i.test(n)) return 1;
+  // 2026-06-14: manual image-edit tools are named "Manual mask inpaint",
+  // "Clone stamp: ...", "Draw mask: ...", etc. — they don't START with an
+  // image keyword, so the anchored test above missed them and they never
+  // showed in the Image step's GENERATING widget (only in the global
+  // running-jobs panel). Match them anywhere in the name.
+  if (/(mask inpaint|auto[- ]?inpaint|manual (mask|inpaint|paint|crop)|clone stamp|draw mask|brightness|symmetri[sz]e|color pick|blur brush|\bcrop\b|\bpaint\b|recolor|\bage\b|variant)/i.test(n)) return 1;
+  if (/^(generate 3d|mesh op|fill[- ]?holes|smooth|material[- ]?adjust|generate mesh|texture|pbr|enhance texture)/i.test(n)) return 2;
+  // Mesh texture ops can carry a prefix (e.g. "trellis2 retex: …", "Region re-texture: …")
+  // so the anchored test above misses them — match the texture keywords anywhere.
+  if (/(retex|re-?texture|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth)/i.test(n)) return 2;
+  // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
+  // mesh tools — they produce a new mesh version, so the "Go to generated
+  // item" button must appear and jump to the mesh step.
+  if (/(mesh edit|save mesh|sculpt|watertight|decimate|set[- ]?pivot|fix[- ]?normals|segment)/i.test(n)) return 2;
   if (/(rig|skeleton)/i.test(n)) return 3;
   if (/^(animate|animation)/i.test(n)) return 4;
   return 0;
