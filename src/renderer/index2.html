@@ -14,7 +14,7 @@
        graph and surfaces ANY uncaught error / failed import as a visible
        panel + a log line, so the window always paints something. -->
   <script>
-    (function () {
+    (function {
       function showBootError(msg) {
         try {
           if (document.getElementById('fab-boot-error')) return;
@@ -507,9 +507,9 @@
                 <div class="stage-create-form">
                   <div class="form-row">
                     <label>Engine</label>
-                    <div class="engine-static" style="padding:8px 10px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; font-size:13px; color:var(--text-1);">MyFabmesh.AI 3D Native (mesh + PBR in one shot, ~100s)</div>
+                    <div class="engine-static" style="padding:8px 10px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; font-size:13px; color:var(--text-1);">MyFabmesh.AI 3D Native (mesh + PBR in one shot)</div>
                     <select id="ws-3d-engine" style="display:none">
-                      <option value="trellis2_native" selected>MyFabmesh.AI 3D Native (mesh + PBR in one shot, ~100s, recommended)</option>
+                      <option value="trellis2_native" selected>MyFabmesh.AI 3D Native (mesh + PBR in one shot, recommended)</option>
                     </select>
                   </div>
                   <!-- Texture resolution — UNUSED by trellis2_native (atlas baked
@@ -551,7 +551,7 @@
                   <div id="ws-3d-highcount-warn" class="form-hint hidden" style="color: #f4a632; margin-top:4px;">&#9888;&#65039; Above ~50K triangles the UV atlas gets over-crowded (micro-island packing) and the texture ends up as voronoi noise. For best texture quality keep triangles ≤ 50K. High-poly only makes sense when you only need the geometry.</div>
                   <!-- TRELLIS-2 Texturing options -->
                   <details id="ws-3d-trellis2-opts" style="margin-top:8px; font-size:12px;">
-                    <summary style="cursor:pointer; color:var(--text-muted);">&#9881;&#65039; Advanced texture options</summary>
+                    <summary style="cursor:pointer; color:var(--text-muted);">&#9881;&#65039; Advanced options</summary>
                     <div class="form-row" style="margin-top:6px;">
                       <label style="font-size:11px;">Quality preset</label>
                       <select id="ws-trellis2-preset">
@@ -570,31 +570,31 @@
                     <div class="form-row check-row" style="margin-top:6px;">
                       <label class="inline-check" style="font-size:11px;" title="Tile-by-tile detail refinement that adds micro-details (skin pores, fabric weave, scales, fur). Works best on objects/animals/creatures; less effective on human faces.">
                         <input type="checkbox" id="ws-trellis2-refine" />
-                        Detail refine (+~90s, sharper micro-details)
+                        Detail refine (sharper micro-details)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Pre-process: rectify source image to a canonical view (strict front for characters, 3/4 ISO for vehicles / objects / creatures). Dramatically improves mesh proportions. Sampled over 3 seeds with auto-scoring. Adds ~36s.">
                         <input type="checkbox" id="ws-trellis2-rectify" checked />
-                        Auto-rectify source view (+~36s, better mesh proportions)
+                        Auto-rectify source view (better mesh proportions)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Edge-preserving bilateral filter on the baseColor atlas. Cleans speckled grain on smooth surfaces (paint, chrome, glass) while keeping panel-gap edges sharp. No AI, no hallucination. Best for vehicles / objects / hard surfaces.">
                         <input type="checkbox" id="ws-trellis2-smooth" checked />
-                        Texture smooth (+~12s, cleaner smooth surfaces, no AI)
+                        Texture smooth (cleaner smooth surfaces, no AI)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Cascade mode (2-stage generation) + decim 1M faces. Sharper geometry on edges (panel gaps, grilles). Adds ~30s.">
                         <input type="checkbox" id="ws-trellis2-quality-plus" checked />
-                        Quality+ (cascade mode, decim 1M, +~30s)
+                        Quality+ (cascade mode, decim 1M)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Voxel resolution 1536 (vs 1024 default) for finer geometric detail on faces and small features. Strongly recommended for character/creature assets where facial fidelity matters. Adds ~50s and ~30MB to the GLB. Overrides Quality+ mode setting.">
                         <input type="checkbox" id="ws-trellis2-ultra-q" />
-                        Fine mesh shape (1536_cascade — geometry, not texture, +~50s)
+                        Fine mesh shape (1536_cascade — geometry, not texture)
                       </label>
                     </div>
                     <!-- 2026-06-14: "Ultra HD 8K texture" checkbox removed —
@@ -606,7 +606,7 @@
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="EXPERIMENTAL. Re-projects the sharp face from your SOURCE image onto the mesh (no AI repaint, never destructive). Helps most on PORTRAIT / face-focused sources; little gain on full-body subjects whose face is tiny in the image. Off by default.">
                         <input type="checkbox" id="ws-trellis2-face-fix" />
-                        Face fix (experimental) (+~60s)
+                        Face fix (experimental) 
                       </label>
                     </div>
                     <div class="form-hint" style="font-size:10px;">PBR baseColor + roughness + metallic exported in the GLB automatically.</div>
@@ -736,8 +736,8 @@
                         <button id="ws-mesh-retexture-btn" class="ghost-btn tool-btn" title="Re-bake the WHOLE texture from the source photo at a chosen resolution (reprojects the photo onto the UVs)">&#128300; Re-bake from photo (HD)</button>
                         <button id="ws-mesh-texvar-btn" class="ghost-btn tool-btn" title="Generate DIFFERENT texture looks (geometry untouched) — change the seed for a new variant">&#127912; Texture variants</button>
                         <button id="ws-mesh-enhance-tex-btn" class="ghost-btn tool-btn" title="Sharpen / upscale the EXISTING baked texture (Real-ESRGAN x2, no hallucination) — no re-generation">&#10024; Sharpen texture (x2)</button>
-                        <button id="ws-mesh-detail-synth-btn" class="ghost-btn tool-btn" title="Ajoute du vrai détail (rendu → IA → re-bake, ~2 min)">&#10024; Détail++ (IA)</button>
-                        <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint the WHOLE texture with the 3D Native PBR engine (best quality, ~90s)">&#11088; Re-texture all (AI)</button>
+                        <button id="ws-mesh-detail-synth-btn" class="ghost-btn tool-btn" title="Ajoute du vrai détail (rendu → IA → re-bake)">&#10024; Détail++ (IA)</button>
+                        <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint the WHOLE texture with the 3D Native PBR engine (best quality)">&#11088; Re-texture all (AI)</button>
                         <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part (AI detects it) with a prompt — geometry stays intact">&#127912; Re-texture a region (AI)</button>
                         <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin). Runs locally on your GPU, ~6-10 min. Adds a colored, separable parts version.">&#9986; Segment parts (AI)</button>
                         <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head) with AI. Requires a segmented mesh.">&#127991; Name the zones (AI)</button>
@@ -1578,8 +1578,8 @@
         <div style="display:flex; flex-direction:column; gap:10px; margin:14px 0;">
           <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Mode</label>
           <select id="mv-opt-mode" style="width:100%;">
-            <option value="2view">Auto 2-view (back photo, ~25s)</option>
-            <option value="6view" selected>6 views (front/right/back/left/top/bottom, ~70s)</option>
+            <option value="2view">Auto 2-view (back photo)</option>
+            <option value="6view" selected>6 views (front/right/back/left/top/bottom)</option>
           </select>
           <!-- Sub-options visible only for 6-view mode -->
           <div id="mv-opt-6view-block" style="display:flex; flex-direction:column; gap:10px; padding-left:8px; border-left:2px solid var(--accent);">

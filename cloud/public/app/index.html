@@ -196,7 +196,7 @@
           @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
         </style>
         <script>
-          (function () {
+          (function {
             const wrap    = document.getElementById('gpu-warmup-wrap');
             const popover = document.getElementById('gpu-warmup-popover');
             if (!wrap || !popover) return;
@@ -220,10 +220,10 @@
             }
             wrap.addEventListener('mouseenter', showPopover);
             wrap.addEventListener('mouseleave', scheduleHide);
-            popover.addEventListener('mouseenter', () => { if (hideT) { clearTimeout(hideT); hideT = null; } });
+            popover.addEventListener('mouseenter', => { if (hideT) { clearTimeout(hideT); hideT = null; } });
             popover.addEventListener('mouseleave', scheduleHide);
             // Click also opens (mobile / sticky inspection).
-            wrap.addEventListener('click', () => {
+            wrap.addEventListener('click', => {
               if (popover.style.display === 'block') popover.style.display = 'none';
               else showPopover();
             });
@@ -622,7 +622,7 @@
                   <div class="form-row">
                     <label>Engine</label>
                     <select id="ws-3d-engine">
-                      <option value="native_3d" selected>MyFabmesh.AI 3D Native (mesh + PBR in one shot, ~100s, recommended)</option>
+                      <option value="native_3d" selected>MyFabmesh.AI 3D Native (mesh + PBR in one shot, recommended)</option>
                     </select>
                   </div>
                   <!-- Texture resolution (UNUSED by TRELLIS-2, only relevant for legacy engines)
@@ -669,14 +669,14 @@
                   </div>
                   <!-- TRELLIS-2 Texturing options -->
                   <details id="ws-3d-trellis2-opts" style="margin-top:8px; font-size:12px;">
-                    <summary style="cursor:pointer; color:var(--text-muted);">&#9881;&#65039; Advanced texture options</summary>
+                    <summary style="cursor:pointer; color:var(--text-muted);">&#9881;&#65039; Advanced options</summary>
                     <div class="form-row" style="margin-top:6px;">
                       <label style="font-size:11px;">Quality preset</label>
                       <select id="ws-trellis2-preset" data-cost-base="1">
-                        <option value="fast" selected data-credits="1">Fast (12 steps · 2048px · ~90s · 1 cr)</option>
-                        <option value="balanced" data-credits="2">Balanced (24 steps · 2048px · ~130s · 2 cr)</option>
-                        <option value="quality" data-credits="4">Quality (32 steps · 4096px · ~3min · 4 cr)</option>
-                        <option value="ultra_8k" data-credits="8">Ultra 8K (32 steps · 4096→8192px · ~5min · 8 cr)</option>
+                        <option value="fast" selected data-credits="1">Fast (12 steps · 2048px · 1 cr)</option>
+                        <option value="balanced" data-credits="2">Balanced (24 steps · 2048px · 2 cr)</option>
+                        <option value="quality" data-credits="4">Quality (32 steps · 4096px · 4 cr)</option>
+                        <option value="ultra_8k" data-credits="8">Ultra 8K (32 steps · 4096→8192px · 8 cr)</option>
                       </select>
                     </div>
                     <div class="form-row check-row" id="ws-trellis2-multiref-row" style="margin-top:6px; display:none;">
@@ -688,43 +688,43 @@
                     <div class="form-row check-row" style="margin-top:6px;">
                       <label class="inline-check" style="font-size:11px;" title="Tile-by-tile detail refinement that adds micro-details (skin pores, fabric weave, scales, fur). Works best on objects/animals/creatures; less effective on human faces.">
                         <input type="checkbox" id="ws-trellis2-refine" data-credits="2" />
-                        Detail refine (+~90s · +2 cr · sharper micro-details)
+                        Detail refine (+2 cr · sharper micro-details)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Pre-process: rectify source image to a canonical view (strict front for characters, 3/4 ISO for vehicles / objects / creatures). Dramatically improves mesh proportions. Sampled over 3 seeds with auto-scoring. Adds ~36s.">
                         <input type="checkbox" id="ws-trellis2-rectify" data-credits="1" checked />
-                        Auto-rectify source view (+~36s · +1 cr · better mesh proportions)
+                        Auto-rectify source view (+1 cr · better mesh proportions)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Edge-preserving bilateral filter on the baseColor atlas. Cleans speckled grain on smooth surfaces (paint, chrome, glass) while keeping panel-gap edges sharp. No AI, no hallucination. Best for vehicles / objects / hard surfaces.">
                         <input type="checkbox" id="ws-trellis2-smooth" data-credits="0" checked />
-                        Texture smooth (+~12s · free · CPU only, no AI)
+                        Texture smooth (free · CPU only, no AI)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Sharper geometry on edges (panel gaps, grilles). Adds ~30s.">
                         <input type="checkbox" id="ws-trellis2-quality-plus" data-credits="1" checked />
-                        Quality+ (sharper edges · +~30s · +1 cr)
+                        Sharp edges, geometry (+1 cr)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Higher voxel resolution for finer geometric detail on faces and small features. Strongly recommended for character/creature assets where facial fidelity matters. Adds ~50s and ~30MB to the GLB. Overrides Quality+ mode setting.">
                         <input type="checkbox" id="ws-trellis2-ultra-q" data-credits="2" />
-                        Ultra Quality (+~50s · +2 cr · fine face detail)
+                        Fine geometry, voxels (+2 cr · fine face detail)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Upscale the baseColor atlas to 8192² (no hallucination, lossless detail recovery). Final GLB ~120 MB.">
                         <input type="checkbox" id="ws-trellis2-ultra-hd" data-credits="3" checked />
-                        Ultra HD 8K texture (+~5min · +3 cr)
+                        Ultra HD 8K texture (+3 cr)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Post-process the baseColor atlas to refine the face zone. Fixes blurry or distorted faces on characters. Strength 0.45.">
                         <input type="checkbox" id="ws-trellis2-face-fix" data-credits="2" />
-                        Face fix (+~60s · +2 cr)
+                        Face fix (+2 cr)
                       </label>
                     </div>
                     <div class="form-hint" style="font-size:10px;">PBR baseColor + roughness + metallic exported in the GLB automatically.</div>
@@ -851,8 +851,8 @@
                         <button id="ws-mesh-watertight-btn" class="ghost-btn tool-btn" title="Rebuild a closed watertight shell (voxel remesh) — fuses all parts, removes texture (re-texture after)">&#128167; Watertight</button>
                         <button id="ws-mesh-center-btn" class="ghost-btn tool-btn">&#9678; Pivot</button>
                         <button id="ws-mesh-retexture-btn" class="ghost-btn tool-btn" title="Re-bake the mesh texture at a higher (or lower) resolution by reprojecting the source photo onto the UVs">&#128300; Resolution</button>
-                        <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint with native PBR engine — qualité SOTA, ~90s">&#11088; Re-Texture</button>
-                        <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin) on cloud GPU, ~2 min">&#9986; Segment parts (AI)</button>
+                        <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint with native PBR engine — qualité SOTA">&#11088; Re-Texture</button>
+                        <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin) on cloud GPU">&#9986; Segment parts (AI)</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -1696,8 +1696,8 @@
         <div style="display:flex; flex-direction:column; gap:10px; margin:14px 0;">
           <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Mode</label>
           <select id="mv-opt-mode" style="width:100%;">
-            <option value="2view">Auto 2-view (back photo, ~25s)</option>
-            <option value="6view" selected>6 views (front/right/back/left/top/bottom, ~70s)</option>
+            <option value="2view">Auto 2-view (back photo)</option>
+            <option value="6view" selected>6 views (front/right/back/left/top/bottom)</option>
           </select>
           <!-- Sub-options visible only for 6-view mode -->
           <div id="mv-opt-6view-block" style="display:flex; flex-direction:column; gap:10px; padding-left:8px; border-left:2px solid var(--accent);">
@@ -3711,9 +3711,9 @@
         `).join('');
         // Click-to-expand handlers.
         tbody.querySelectorAll('tr[data-job-id]').forEach(tr => {
-          tr.addEventListener('mouseenter', () => { tr.style.background = 'rgba(168,85,247,0.06)'; });
-          tr.addEventListener('mouseleave', () => { tr.style.background = ''; });
-          tr.addEventListener('click', () => showDetail(tr.dataset.jobId));
+          tr.addEventListener('mouseenter', => { tr.style.background = 'rgba(168,85,247,0.06)'; });
+          tr.addEventListener('mouseleave', => { tr.style.background = ''; });
+          tr.addEventListener('click', => showDetail(tr.dataset.jobId));
         });
       }
 
@@ -3722,7 +3722,7 @@
       const detailTitle = document.getElementById('history-detail-title');
       const detailBody  = document.getElementById('history-detail-body');
       const detailClose = document.getElementById('history-detail-close');
-      detailClose?.addEventListener('click', () => { detailWrap.style.display = 'none'; });
+      detailClose?.addEventListener('click', => { detailWrap.style.display = 'none'; });
       function row(label, val, mono) {
         if (val == null || val === '') return '';
         const v = mono

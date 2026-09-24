@@ -21823,3 +21823,32 @@ VISUALISEUR, etat final apres la demande du user : plus AUCUNE lumiere
 ponctuelle, seule la carte d'environnement eclaire — c'est la seule source
 qui traite un materiau metallique correctement, et c'est ce que fait
 model-viewer. Un unique bouton : `intensiteEnvironnement`.
+
+### Estimations de temps retirees des choix, et deux libelles qui mentaient
+
+Demande du user : retirer les estimations de temps des choix d'avant
+generation. Justifie par la journee meme — un preset annonce « ~5 min » a
+pris plus de dix minutes. Une estimation systematiquement dementie coute
+plus de confiance qu'elle n'apporte d'information. Les CREDITS restent : eux
+sont exacts.
+
+28 estimations retirees (12 bureau, 16 web). Les deux fichiers n'ecrivaient
+pas pareil — le web separe par « · », le bureau par des virgules — et mon
+premier passage n'a donc rien attrape cote bureau. C'est le user qui l'a
+releve : « il faut faire tous ces changements pour cloud ET desktop ».
+
+DEUX LIBELLES CORRIGES CETE WEB. Le user demandait pourquoi « Ultra Quality »
+etait une case a cocher alors qu'un menu deroulant choisit deja la qualite.
+Lecture des infobulles : le menu regle la TEXTURE (pas, resolution), « Ultra
+Quality » regle la GEOMETRIE (resolution des voxels), « Ultra HD » agrandit
+l'ATLAS. Trois axes differents, ranges sous un titre « Advanced TEXTURE
+options » dont deux entrees ne touchent pas a la texture. Le bureau, lui,
+nommait deja correctement : « Fine mesh shape (1536_cascade — geometry, not
+texture) ». C'est donc le WEB qui etait fautif, et il s'aligne.
+
+ACCIDENT EVITE DE JUSTESSE : mon premier passage contenait un
+`replace('  ', ' ')` applique a TOUT le fichier — il a ecrase l'indentation
+des deux HTML, 7 024 lignes modifiees chacun. Repere en lisant `git diff
+--stat` avant de commiter, revert et refait sans toucher aux espaces : 38
+lignes. Lecon deja vue aujourd'hui avec sed : ne jamais appliquer une
+substitution generique a un fichier entier pour corriger quelques libelles.
