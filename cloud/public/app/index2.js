@@ -1587,6 +1587,12 @@ function _applyAssetOptionsProfile(assetType) {
   for (const [id, state] of Object.entries(profile)) {
     const cb = document.getElementById(id);
     if (!cb) continue;
+    // Une option declaree MORTE par cloud-overrides (aucun code serveur ne lit
+    // son drapeau) ne doit pas etre ressuscitee ici : ni reaffichee, ni
+    // recochee. C'est ce conflit qui facturait « Detail refine » 2 credits
+    // pour rien et rendait « Texture smooth » impossible a cocher.
+    if ((cb.dataset && cb.dataset.morte === '1')
+        || (window.__optionsMortesCloud && window.__optionsMortesCloud.has(id))) continue;
     const row = cb.closest('.form-row');
     if (state === null) {
       if (row) row.style.display = 'none';

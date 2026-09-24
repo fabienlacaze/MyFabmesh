@@ -1,3 +1,16 @@
+/* OPTIONS MORTES COTE CLOUD — pose ICI, au tout debut du script.
+ *
+ * Ce fichier est un script CLASSIQUE ; index2.js est un MODULE, donc
+ * differe. Cette liste est donc connue avant que le moindre code de
+ * l interface ne tourne, quel que soit l ordre des DOMContentLoaded.
+ *
+ * Aucun code serveur ne lit ces drapeaux (audit de parite du 2026-08-02).
+ * Le tableau des valeurs par defaut par type d asset les remettait a vrai
+ * APRES leur masquage : la ligne reapparaissait, les clics etaient refuses
+ * (« non cochable »), et « Detail refine » etait FACTURE 2 credits pour un
+ * traitement qui n a jamais lieu. Signale par l utilisateur le 2026-09-24. */
+window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-smooth']);
+
 /**
  * Cloud-only overrides for the desktop renderer UI.
  *
@@ -1311,10 +1324,11 @@
     // fonction. Le jour ou le backend saura le faire (le desktop, lui, a
     // scripts/texture_refine.py), il suffira de retirer l'id de cette liste.
     (function removeUnimplementedPaidOptions() {
-      const morts = [
-        ['ws-trellis2-refine',   'Detail refine (2 cr) — aucun code serveur ne lit ce drapeau'],
-        ['ws-trellis2-smooth',   'Texture smooth — non porte cote cloud'],
-      ];
+      const POURQUOI = {
+        'ws-trellis2-refine': 'Detail refine (2 cr) — aucun code serveur ne lit ce drapeau',
+        'ws-trellis2-smooth': 'Texture smooth — non porte cote cloud',
+      };
+      const morts = [...window.__optionsMortesCloud].map(id => [id, POURQUOI[id] || 'sans effet']);
       for (const [id, pourquoi] of morts) {
         const el = document.getElementById(id);
         if (!el) continue;
@@ -1322,6 +1336,13 @@
         if (row) row.style.display = 'none';
         el.checked = false;
         el.addEventListener('change', () => { if (el.checked) el.checked = false; });
+        // MARQUEE MORTE SUR L'ELEMENT. Sans ca, _applyAssetOptionsProfile — qui
+        // s'execute APRES — refaisait `row.style.display = ''` et
+        // `cb.checked = true` : la ligne reapparaissait, l'ecouteur ci-dessus
+        // refusait les clics (« non cochable »), et surtout « Detail refine »
+        // se recochait seul et etait FACTURE 2 credits pour un traitement qui
+        // n'a jamais lieu. Signale par l'utilisateur le 2026-09-24.
+        el.dataset.morte = '1';
         try { console.log('[cloud] option masquee car sans effet :', id, '—', pourquoi); } catch (_) {}
       }
     })();

@@ -21876,3 +21876,35 @@ reformatage volontaire : `ALLOW_REFORMAT=1`.
 
 Branche EN PREMIER sur les deux chaines : inutile de verifier la syntaxe et
 les etapes d'un arbre dont on s'apprete a livrer 7 000 lignes de bruit.
+
+### « Texture smooth est non cochable » — et Detail refine etait facture pour rien
+
+Le user signale une case a cocher qui refuse le clic. La cause est un
+CONFLIT entre deux morceaux de code qui se disputent la meme ligne :
+
+  * `cloud-overrides.js` masque et decoche `ws-trellis2-refine` et
+    `ws-trellis2-smooth` parce qu'AUCUN code serveur ne lit ces drapeaux
+    cote cloud (audit de parite du 2026-08-02). Il pose en plus un ecouteur
+    qui re-decoche a chaque tentative.
+  * `_applyAssetOptionsProfile()` s'execute APRES et fait
+    `row.style.display = ''` puis `cb.checked = !!state`.
+
+Resultat, les deux symptomes :
+  - la ligne REAPPARAIT alors qu'elle devait disparaitre, et l'ecouteur de
+    l'override refuse les clics de l'utilisateur -> « non cochable » ;
+  - « Detail refine » est recoche PAR PROGRAMME (l'ecouteur ne se declenche
+    que sur un changement utilisateur) et donc FACTURE 2 CREDITS a chaque
+    generation, pour un traitement qui n'a jamais lieu. C'est exactement ce
+    que l'override avait ete ecrit pour empecher, et il etait defait.
+
+CORRECTIF, independant de l'ordre d'execution : la liste des options mortes
+devient un global pose AU DEBUT de cloud-overrides.js. Ce fichier est un
+script CLASSIQUE, index2.js est un MODULE donc differe — la liste est donc
+connue avant que la moindre ligne d'interface ne tourne, quel que soit
+l'ordre des DOMContentLoaded. `_applyAssetOptionsProfile` consulte ce global
+et saute ces options : ni reaffichage, ni recochage. Le bloc de masquage lit
+la meme liste, source unique.
+
+A FAIRE UN JOUR : `Detail refine` a un equivalent bureau
+(scripts/texture_refine.py). Le porter retirerait son id de la liste au lieu
+de le masquer.
