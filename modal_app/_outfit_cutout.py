@@ -40,6 +40,18 @@ TERMES_PEAU = 'a face, a head, hair, bare skin, a bare hand'
 #: Ce qui identifie le personnage quand l'image n'a pas d'alpha exploitable.
 TERME_PERSONNAGE = 'a person, a character, a full body'
 
+#: Au-dela de cette fraction de la piece, les « trous » ne sont plus des trous :
+#: recoudre revient a repeindre le vetement en entier, et SDXL invente alors
+#: librement. Mesure du 2026-09-24 sur un orc : la completion a rendu un HOMME
+#: en veste militaire a la place du personnage. Au-dessus de ce seuil on ne
+#: complete pas, et on le DIT.
+AIRE_MAX_TROUS = 0.35
+
+#: Ce que la recouture n'a JAMAIS le droit de peindre. Sans lui, un inpaint a
+#: forte denoise sur une grande zone fabrique un personnage entier.
+NEGATIF_RECOUTURE = ('a person, a face, a head, hair, skin, a human, a body, '
+                     'a character, hands, eyes')
+
 #: En dessous de cette fraction de la silhouette, la piece est jugee absente.
 #: Mesure de garde : une cape occupe ~10-30 % du perso, une ceinture ~1-2 %.
 #: 0.004 laisse passer la ceinture sans laisser passer le bruit de CLIPSeg.
@@ -168,7 +180,7 @@ def decouper_tenue(
 
     clipseg(texte) -> tableau 0..255 a la taille de travail (le noyau ne
         charge aucun modele : chaque plateforme branche le sien).
-    inpaint(image_rgb, masque_L, prompt) -> PIL.Image RGB, ou None pour
+    inpaint(image_rgb, masque_L, prompt, negatif) -> PIL.Image RGB, ou None pour
         desactiver la completion.
 
     Chaque element : {'nom', 'image' (RGBA), 'aire', 'complete' (bool)}.
@@ -226,12 +238,20 @@ def decouper_tenue(
             # dilatee un peu avant soustraction pour ne pas laisser un halo au
             # ras du col.
             trous = _sauf(_et(trous, m_perso), _dilater(m_peau, 3))
-            if _aire(trous) > 0.001:
+            # PLAFOND. Des trous qui pesent plus que AIRE_MAX_TROUS de la piece
+            # ne sont plus des manques a combler : les recoudre revient a
+            # laisser le modele redessiner le vetement, et il redessine alors
+            # le personnage avec. On prefere livrer la decoupe fidele et le
+            # signaler plutot que rendre une invention.
+            part = _aire(trous) / max(1e-6, _aire(m))
+            if part > AIRE_MAX_TROUS:
+                trous = None
+            if trous is not None and _aire(trous) > 0.001:
                 try:
                     rgb_piece = inpaint(
                         rgb, _dilater(trous, 2).filter(ImageFilter.GaussianBlur(2)),
                         'seamless continuation of the same garment, same fabric, '
-                        'same colors, same lighting')
+                        'same colors, same lighting', NEGATIF_RECOUTURE)
                     if rgb_piece.size != (w, h):
                         rgb_piece = rgb_piece.resize((w, h), Image.LANCZOS)
                     m = _et(_ou(m, trous), m_perso)   # BORNAGE DUR, a nouveau
@@ -289,9 +309,10 @@ def generate(seg_processor, seg_model, inpaint_pipe, source_img,
         return np.asarray(Image.fromarray((proba * 255).astype(np.uint8))
                           .resize((w, h), Image.LANCZOS))
 
-    def inpaint(image_rgb, masque, prompt):
+    def inpaint(image_rgb, masque, prompt, negatif=None):
         return inpaint_pipe(
-            prompt=prompt, image=image_rgb, mask_image=masque,
+            prompt=prompt, negative_prompt=negatif or NEGATIF_RECOUTURE,
+            image=image_rgb, mask_image=masque,
             num_inference_steps=25, guidance_scale=7.0, strength=0.99,
         ).images[0]
 

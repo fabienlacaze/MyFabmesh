@@ -21643,3 +21643,30 @@ bottes. Mesures apres correctifs — recouture sur la tete 0 px sur 9900, alpha
 final sur la tete 0 px, peau dans la tenue 0 px, couverture armure 94 % et
 bottes 100 %, et l'ensemble interroge bien 2 termes separement. Le banc n1
 passe toujours.
+
+### Habits sur l'orc : la completion fabriquait un AUTRE personnage
+
+Deuxieme essai reel : l'outil a rendu un HOMME en veste militaire verte a la
+place de l'orc. Ce n'est pas un masque imprecis, c'est un defaut de
+conception de ma part.
+
+CAUSE. Rien ne bornait la TAILLE des trous. Sur un personnage dont la tenue
+est eparse (ceinture, bracelets, bottes autour d'un grand torse nu), les
+« trous » couvrent presque toute la figure. Un inpaint a denoise 0.99 sur une
+zone pareille n'est plus une recouture : c'est une generation libre, et le
+modele dessine ce qu'il connait le mieux — quelqu'un.
+
+CORRECTIFS
+  * `AIRE_MAX_TROUS = 0.35` : au-dela d'un tiers de la piece, la completion
+    est ABANDONNEE, la decoupe fidele est livree, et `complete: False` le dit.
+    Mieux vaut un vetement troue qu'une invention.
+  * `NEGATIF_RECOUTURE` : la recouture interdit desormais explicitement de
+    peindre une personne, un visage, une tete, de la peau, des mains, des yeux.
+  * Le texte de la modale annonce la limite au lieu de la laisser decouvrir.
+
+BANC, cas C (tenue eparse) : zero appel a SDXL, `complete: False`, la piece
+reste couverte a 100 %. Les cas A et B tiennent toujours.
+
+CONSEQUENCE ASSUMEE : sur beaucoup de personnages, la completion ne se
+declenchera tout simplement pas. C'est le comportement correct — l'outil
+livre alors ce qu'il sait faire honnetement, une decoupe.
