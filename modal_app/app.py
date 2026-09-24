@@ -1192,9 +1192,9 @@ class MyFabmeshBackview:
         image_url = (payload.get("image_url") or "").strip()
         if not image_url:
             raise HTTPException(status_code=400, detail="image_url required")
-        if op not in ("modify", "auto_inpaint", "mask_inpaint", "face_fix_image", "upscale", "segment"):
+        if op not in ("modify", "auto_inpaint", "mask_inpaint", "face_fix_image", "upscale", "segment", "recolor"):
             raise HTTPException(status_code=400,
-                detail="op must be 'modify', 'auto_inpaint', 'mask_inpaint', 'face_fix_image', 'upscale' or 'segment'")
+                detail="op must be 'modify', 'auto_inpaint', 'mask_inpaint', 'face_fix_image', 'upscale', 'segment' or 'recolor'")
 
         try:
             src_img = _fetch_image(image_url)
@@ -1272,6 +1272,33 @@ class MyFabmeshBackview:
                 # No face detected — caller refunds credits.
                 raise HTTPException(status_code=422, detail=str(e))
             tag = "face_fix_image"
+
+        elif op == "recolor":
+            # Recolorier — CLIPSeg detecte la partie nommee, puis virage HSV
+            # qui PRESERVE la luminance : plis, ombres et matiere intacts,
+            # seule la teinte change. Aucun modele en plus : le CLIPSeg de
+            # l'Auto Inpaint suffit, et le reste est du numpy.
+            from modal_app._recolor import generate as recolor_generate
+            prompt = (payload.get("prompt") or "").strip()
+            if not prompt:
+                raise HTTPException(status_code=400, detail="prompt required for recolor")
+            _hf = _prompt_hard_floor(prompt)
+            if _hf:
+                raise HTTPException(status_code=403, detail=_hf)
+            seg_proc, seg_model, _ = self._get_auto_inpaint_models()
+            try:
+                img, couverture = recolor_generate(
+                    seg_proc, seg_model, src_img, prompt,
+                    strength=float(payload.get("strength") or 1.0),
+                    dilate=int(payload.get("dilate") or 15),
+                    recolor_all=bool(payload.get("recolor_all")),
+                )
+            except ValueError as e:
+                # Couleur inconnue ou partie introuvable : l'appelant rembourse
+                # et se rabat sur l'img2img, comme pour un masque vide.
+                raise HTTPException(status_code=422, detail=str(e))
+            print(f"[recolor] couverture={couverture:.1f}%", flush=True)
+            tag = "recolor"
 
         elif op == "segment":
             # Detect-only CLIPSeg mask for the on-demand "Preview mask" button —

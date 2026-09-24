@@ -1605,6 +1605,9 @@ const PRICING_DEFAULTS = {
   // Habits seuls. Sans completion c'est CLIPSeg seul (une passe, tres
   // court) ; avec completion c'est une passe SDXL Inpaint PAR PIECE,
   // d'ou l'ecart. Le tarif affiche suit la case cochee dans la modale.
+  // Recolorier : CLIPSeg + virage HSV, aucune diffusion. Tres court, d'ou
+  // un tarif de 2 la ou un modify en coute 3.
+  recolor:          2,
   outfit:           2,
   outfit_complete:  6,
   // Mesh ops
@@ -9047,7 +9050,7 @@ async function callModalTpose(env: Env, userId: string, input: {
  *  Returns either the persisted R2 URL or a discriminated mask-empty
  *  shape for the auto_inpaint case (so the Worker can refund). */
 async function callModalImageOp(env: Env, userId: string, input: {
-  op: 'modify' | 'auto_inpaint' | 'mask_inpaint' | 'face_fix_image' | 'upscale' | 'segment';
+  op: 'modify' | 'auto_inpaint' | 'mask_inpaint' | 'face_fix_image' | 'upscale' | 'segment' | 'recolor';
   imageUrl: string;
   prompt?: string;
   strength?: number;          // modify + face_fix_image
@@ -9058,6 +9061,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
   maskUrl?: string;           // mask_inpaint only
   scale?: number;             // upscale only (2 or 4)
   refineStrength?: number;    // upscale only
+  recolorAll?: boolean;       // recolor only
 }, folder: string): Promise<{ url: string } | { maskEmpty: true; error: string }> {
   const url = env.MODAL_IMAGE_OP_URL;
   const secret = env.MODAL_SHARED_SECRET;
@@ -9079,6 +9083,10 @@ async function callModalImageOp(env: Env, userId: string, input: {
     body.dilate = input.dilate ?? 15;
   } else if (input.op === 'mask_inpaint') {
     body.mask_url = input.maskUrl ?? '';
+  } else if (input.op === 'recolor') {
+    body.strength = input.strength ?? 1.0;
+    body.dilate = input.dilate ?? 15;
+    body.recolor_all = input.recolorAll ?? false;
   } else if (input.op === 'face_fix_image') {
     body.strength = input.strength ?? 0.45;
   } else if (input.op === 'upscale') {
@@ -9140,7 +9148,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
 
   _assertImageBytes(buf, `Modal image_op (${input.op})`);
   if (env.MESHES && env.R2_PUBLIC_URL) {
-    const tag = input.op === 'modify' ? 'modified' : 'inpaint';
+    const tag = input.op === 'modify' ? 'modified' : input.op === 'recolor' ? 'recolor' : 'inpaint';
     const seed = input.seed ?? Math.floor(Math.random() * 1e9);
     const key = `${userId}/${folder}/${Date.now()}_${seed}_${tag}.png`;
     await env.MESHES.put(key, buf, { httpMetadata: { contentType: 'image/png' } });
@@ -10189,6 +10197,91 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
                        'failed', { req, projectName, op: 'auto_inpaint', error: e instanceof Error ? e.message : String(e) });
     return err(502, `auto-inpaint failed (credits refunded): ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** Recolorier — detecte la partie nommee (CLIPSeg) et ne change QUE sa teinte,
+ *  en preservant la luminance : les plis et les ombres restent.
+ *
+ *  L'outil n'existait que sur le bureau. Deux chemins existaient la-bas ; seul
+ *  celui du virage HSV est portable, l'autre demandait un ControlNet-Tile que
+ *  Modal n'a pas. Quand le prompt nomme une MATIERE et non une couleur, Modal
+ *  repond 422 : on rembourse et on le dit, au lieu de rendre l'image
+ *  inchangee apres l'avoir facturee. */
+async function handleRecolor(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MODAL_IMAGE_OP_URL) return err(503, 'recolor backend unavailable');
+
+  const { imagePath, imageUrl, prompt, strength, dilate, recolorAll, projectName } =
+    await req.json() as {
+      projectName?: string;
+      imagePath?: string; imageUrl?: string; prompt?: string;
+      strength?: number; dilate?: number; recolorAll?: boolean;
+    };
+  const src = imageUrl || imagePath;
+  if (!src) return err(400, 'imageUrl or imagePath required');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  const rawPrompt = (prompt ?? '').toString().trim();
+  if (!rawPrompt) return err(400, 'prompt required (ex : « cape rouge »)');
+
+  const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
+  const userState = await getParentalState(env, user.id);
+  const safety = checkPromptSafety(rawPrompt, envUnrestricted || userState.unrestricted);
+  if (!safety.safe) {
+    return json({ ok: false, success: false,
+      error: safety.reason ?? 'prompt blocked by content filter',
+      blocked: safety.blocked }, { status: 400 });
+  }
+
+  const cost = await getPrice(env, 'recolor');
+  // Pas de diffusion : une passe CLIPSeg puis du numpy. Bien moins qu'un modify.
+  const estimatedTotal = 0.02;
+
+  const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
+  if (remainingBudget == null) {
+    return json({ ok: false, success: false,
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
+  }
+  const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
+  if (remainingUserCalls == null) {
+    await refundModalSpend(env, estimatedTotal, user.id);
+    return json({ ok: false, success: false,
+      error: 'per-user daily generation limit reached.' }, { status: 429 });
+  }
+  const remaining = await spendCredits(env, user.id, cost);
+  if (remaining == null) {
+    await refundModalSpend(env, estimatedTotal, user.id);
+    return json({ ok: false, success: false,
+      error: `insufficient credits — recolor costs ${cost} credits` }, { status: 402 });
+  }
+
+  const opStart = Date.now();
+  try {
+    const result = await callModalImageOp(env, user.id, {
+      op: 'recolor', imageUrl: src, prompt: rawPrompt,
+      strength, dilate, recolorAll,
+    }, 'recolor');
+    if ('maskEmpty' in result) {
+      await addCredits(env, user.id, cost);
+      await refundModalSpend(env, estimatedTotal, user.id);
+      await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
+                         'failed', { req, projectName, op: 'recolor', reason: 'couleur_ou_partie_absente' });
+      return json({ ok: false, success: false, needsModify: true,
+        error: `${result.error} (credits rembourses — essaie « Modify » pour une matiere)` },
+        { status: 422 });
+    }
+    await logOperation(env, user.id, 'text2image', cost, opStart, Date.now(),
+                       'succeeded', { req, projectName, op: 'recolor' });
+    return json({ ok: true, success: true, path: result.url, newPath: result.url,
+                  creditsRemaining: remaining });
+  } catch (e) {
+    await addCredits(env, user.id, cost);
+    await refundModalSpend(env, estimatedTotal, user.id);
+    await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
+                       'failed', { req, projectName, op: 'recolor',
+                                   error: e instanceof Error ? e.message : String(e) });
+    return err(502, `recolor failed (credits refunded): ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -17518,7 +17611,7 @@ export default {
       //                           broken UI shell.
       const MODAL_PATHS = new Set([
         '/api/generate', '/api/generate-image', '/api/generate-back-view',
-        '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit',
+        '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit', '/api/recolor',
         '/api/segment-preview',
         '/api/mask-inpaint', '/api/face-fix-image', '/api/upscale-image',
         '/api/face-fix-mesh', '/api/mesh-op', '/api/text2image-tpose',
@@ -17692,6 +17785,7 @@ export default {
         if (pathname === '/api/modify-image'          && method === 'POST') return await handleModifyImage(req, env);
         if (pathname === '/api/auto-inpaint'          && method === 'POST') return await handleAutoInpaint(req, env);
         if (pathname === '/api/outfit'                && method === 'POST') return await handleOutfit(req, env);
+        if (pathname === '/api/recolor'               && method === 'POST') return await handleRecolor(req, env);
         if (pathname === '/api/segment-preview'       && method === 'POST') return await handleSegmentPreview(req, env);
         if (pathname === '/api/mask-inpaint'          && method === 'POST') return await handleMaskInpaint(req, env);
         if (pathname === '/api/face-fix-image'        && method === 'POST') return await handleFaceFixImage(req, env);

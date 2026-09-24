@@ -2101,6 +2101,30 @@
         return { success: true, pieces: sorties, absentes: r.absentes || [] };
       } catch (e) { return { success: false, error: String(e) }; }
     },
+    recolor: async ({ imagePath, prompt, strength, dilate, recolorAll } = {}) => {
+      // Recolorier — port cloud de l'IPC bureau. CLIPSeg detecte la partie
+      // nommee, puis virage HSV qui preserve la luminance : plis et ombres
+      // restent. Le chemin ControlNet-Tile du bureau (matieres : « rusty
+      // metal ») n'existe pas sur Modal — le worker repond alors 422 avec
+      // needsModify, credits rembourses.
+      if (!imagePath) return { success: false, error: 'imagePath required' };
+      if (!prompt)    return { success: false, error: 'prompt required' };
+      try {
+        const r = await postJSON('/api/recolor', {
+          imageUrl: imagePath, prompt,
+          strength: strength != null ? strength : 1.0,
+          dilate: dilate != null ? dilate : 15,
+          recolorAll: !!recolorAll,
+        });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (r?.success && (r.newPath || r.path)) {
+          const newPath = r.newPath || r.path;
+          await _attachToCurrentProject(newPath, 'front');
+          return { success: true, newPath };
+        }
+        return { success: false, error: r?.error || 'unknown', needsModify: !!r?.needsModify };
+      } catch (e) { return { success: false, error: String(e) }; }
+    },
     segmentMask: async ({ imagePath, targetText, dilate } = {}) => {
       // Detect-only CLIPSeg mask for the Auto Inpaint "Preview mask" button.
       // ONE GPU call on demand (not live-on-keystroke); returns { success,

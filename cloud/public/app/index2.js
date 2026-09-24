@@ -18504,6 +18504,262 @@ if (aiDilate) aiDilate.addEventListener('input', () => {
 document.getElementById('ai-cancel')?.addEventListener('click', () => {
   document.getElementById('modal-auto-inpaint').classList.add('hidden');
 });
+// ===== Recolorier: auto-detect a part (CLIPSeg) + recolor only it (shape kept) =====
+const _RC_COLOR_WORDS = new Set(['rouge','red','orange','jaune','yellow','vert','verte','green','cyan','turquoise','bleu','bleue','blue','violet','violette','purple','mauve','rose','pink','marron','brun','brune','brown','dore','doree','gold','golden','or','argent','argente','argentee','silver','gris','grise','grey','gray','noir','noire','black','blanc','blanche','white']);
+function _stripColorWords(text) {
+  const kept = String(text || '').split(/\s+/).filter((w) => {
+    const n = w.replace(/[.,;:!?"'()]/g, '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return n && !_RC_COLOR_WORDS.has(n);
+  });
+  return kept.join(' ').trim() || String(text || '').trim();
+}
+document.getElementById('ws-recolor-btn')?.addEventListener('click', () => {
+  const p = state.currentProject;
+  const target = editTarget(p);
+  if (!target) { showToast('Pick an image first.', 'error'); return; }
+  document.getElementById('rc-prompt').value = '';
+  // Reset to the default mode (couleur générale) + clear fields each open.
+  const rcMode = document.getElementById('rc-mode');
+  if (rcMode) rcMode.value = 'general';
+  const rcAllP = document.getElementById('rc-all-prompt');
+  if (rcAllP) rcAllP.value = '';
+  _rcClearColor();
+  const srcImg = document.getElementById('rc-source-img');
+  if (srcImg) { srcImg.src = _bust(_toFileUrl(target)); srcImg.style.opacity = ''; }
+  _rcSrcPath = target;
+  document.getElementById('modal-recolor').classList.remove('hidden');
+  _rcApplyMode();
+});
+let _rcSrcPath = null;
+let _rcPreviewTimer = null;
+let _rcFirstDetectDone = false;
+// Précision slider (id) -> CLIPSeg relative threshold (rel*peak). 0%->0.2 (large),
+// 50%->0.55, 100%->0.9 (très serré, ne garde que le cœur de la zone détectée).
+function _precisionRel(id) {
+  const pr = parseInt(document.getElementById(id)?.value);
+  return 0.2 + ((isNaN(pr) ? 55 : pr) / 100) * 0.7;
+}
+function _rcRel() { return _precisionRel('rc-precision'); }
+async function _rcUpdateMaskPreview() {
+  const srcImg = document.getElementById('rc-source-img');
+  if (!srcImg || !_rcSrcPath) return;
+  const rawPrompt = (document.getElementById('rc-prompt').value || '').trim();
+  const dilate = parseInt(document.getElementById('rc-dilate').value) || 15;
+  const origUrl = _toFileUrl(_rcSrcPath);
+  const noun = _stripColorWords(rawPrompt);
+  if (!noun) { srcImg.src = origUrl; srcImg.style.opacity = ''; return; }
+  if (!API.segmentMask) return;
+  const spinner = document.getElementById('rc-detect-spinner');
+  const label = document.getElementById('rc-detect-label');
+  if (label) label.textContent = _rcFirstDetectDone ? 'Detecting…' : 'Warming up the AI… first detection ~15s, then instant.';
+  if (spinner) spinner.style.display = 'flex';
+  srcImg.style.opacity = '0.6';
+  try {
+    const target = await translateUserPrompt(noun);
+    const r = await API.segmentMask({ imagePath: _rcSrcPath, targetText: target, dilate, rel: _rcRel() });
+    if (((document.getElementById('rc-prompt').value || '').trim()) !== rawPrompt) return;
+    _rcFirstDetectDone = true;
+    srcImg.style.opacity = '';
+    if (spinner) spinner.style.display = 'none';
+    srcImg.src = (r && r.success && r.overlayPath)
+      ? _bust(_toFileUrl(r.overlayPath))
+      : origUrl;
+  } catch (_) {
+    srcImg.style.opacity = '';
+    if (spinner) spinner.style.display = 'none';
+  }
+}
+function _rcSchedulePreview() {
+  if (_rcPreviewTimer) clearTimeout(_rcPreviewTimer);
+  _rcPreviewTimer = setTimeout(_rcUpdateMaskPreview, 300);
+}
+document.getElementById('rc-prompt')?.addEventListener('input', _rcSchedulePreview);
+const rcDilate = document.getElementById('rc-dilate');
+if (rcDilate) rcDilate.addEventListener('input', () => {
+  document.getElementById('rc-dilate-val').textContent = rcDilate.value + 'px';
+  _rcSchedulePreview();
+});
+const rcStrength = document.getElementById('rc-strength');
+if (rcStrength) rcStrength.addEventListener('input', () => {
+  document.getElementById('rc-strength-val').textContent = rcStrength.value + '%';
+});
+const rcPrecision = document.getElementById('rc-precision');
+if (rcPrecision) rcPrecision.addEventListener('input', () => {
+  document.getElementById('rc-precision-val').textContent = rcPrecision.value + '%';
+  _rcSchedulePreview();
+});
+// Colour swatches — selecting one sets the target colour, kept SEPARATE from the
+// "what to recolor" field (the field is the part, the swatch is the colour).
+let _rcSelectedColor = '';
+function _rcClearColor() {
+  _rcSelectedColor = '';
+  document.querySelectorAll('#rc-swatches button').forEach((x) => { x.style.boxShadow = ''; });
+}
+(function _buildRcSwatches() {
+  const box = document.getElementById('rc-swatches');
+  if (!box) return;
+  const COLS = [['red', '#e23b3b'], ['orange', '#f08a23'], ['yellow', '#f2c10e'], ['green', '#2eb84d'], ['blue', '#2f7ce0'], ['purple', '#9b51e0'], ['pink', '#f06ab0'], ['brown', '#8a5a2b'], ['gold', '#d4af37'], ['silver', '#c8ccd4'], ['black', '#2a2a2a'], ['white', '#eeeeee']];
+  COLS.forEach(([word, css]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.title = word; b.dataset.color = word;
+    b.style.cssText = 'width:26px;height:26px;border-radius:6px;border:2px solid var(--border);cursor:pointer;flex:none;background:' + css + ';';
+    b.addEventListener('click', () => {
+      // toggle: click the active swatch again to clear
+      const next = (_rcSelectedColor === word) ? '' : word;
+      box.querySelectorAll('button').forEach((x) => { x.style.boxShadow = ''; });
+      _rcSelectedColor = next;
+      if (next) b.style.boxShadow = '0 0 0 2px var(--accent)';
+    });
+    box.appendChild(b);
+  });
+})();
+document.getElementById('rc-cancel')?.addEventListener('click', () => {
+  document.getElementById('modal-recolor').classList.add('hidden');
+});
+// Mode dropdown → show only the relevant controls.
+//   general     : whole image tinted with a swatch colour (fast HSV shift)
+//   zone        : detect a named part + recolour it (CLIPSeg + preview overlay)
+//   whole-style : whole image repainted from a free-text style prompt (AI render)
+function _rcApplyMode() {
+  const mode = document.getElementById('rc-mode')?.value || 'general';
+  const show = (sel, on) => document.querySelectorAll('#modal-recolor ' + sel)
+    .forEach(el => { el.style.display = on ? '' : 'none'; });
+  show('.rc-f-zone', mode === 'zone');                          // part field + detection sliders
+  show('.rc-f-color', mode === 'general' || mode === 'zone');   // colour swatches
+  show('.rc-f-style', mode === 'whole-style');                  // style prompt field
+  const hint = document.getElementById('rc-mode-hint');
+  if (hint) hint.textContent =
+    mode === 'zone'
+      ? 'The AI detects the named part and only changes its colour — shape, folds and shadows are preserved.'
+    : mode === 'whole-style'
+      ? 'The whole image is repainted following your style prompt, with a coherent, realistic palette (shapes and shading kept).'
+      : 'The whole image is re-tinted with the chosen colour while keeping the original lighting and shading.';
+  const srcImg = document.getElementById('rc-source-img');
+  if (mode === 'zone') {
+    _rcSchedulePreview();                       // live mask overlay
+  } else if (srcImg && _rcSrcPath) {
+    srcImg.src = _toFileUrl(_rcSrcPath);   // plain image, no overlay
+    srcImg.style.opacity = '';
+    const sp = document.getElementById('rc-detect-spinner');
+    if (sp) sp.style.display = 'none';
+  }
+}
+document.getElementById('rc-mode')?.addEventListener('change', _rcApplyMode);
+document.getElementById('rc-go')?.addEventListener('click', async () => {
+  const p = state.currentProject;
+  const imagePath = editTarget(p);
+  if (!imagePath) return;
+  const mode = document.getElementById('rc-mode')?.value || 'general';
+  const recolorAll = (mode === 'general' || mode === 'whole-style');
+  const stylePrompt = (document.getElementById('rc-all-prompt')?.value || '').trim();
+  const fieldRaw = (document.getElementById('rc-prompt').value || '').trim();
+  const part = _stripColorWords(fieldRaw).trim();
+  const fieldHasColor = fieldRaw !== part;
+  // Per-mode validation.
+  if (mode === 'general') {
+    if (!_rcSelectedColor) { showToast('Pick a colour', 'error'); return; }
+  } else if (mode === 'whole-style') {
+    if (!stylePrompt) {
+      showToast('Describe the colours / style you want', 'error');
+      document.getElementById('rc-all-prompt')?.focus();
+      return;
+    }
+  } else { // zone
+    if (!part) {
+      showToast('Type what to recolor', 'error');
+      document.getElementById('rc-prompt')?.focus();
+      return;
+    }
+    if (!_rcSelectedColor && !fieldHasColor) {
+      showToast('Pick a colour below (or type one)', 'error');
+      return;
+    }
+  }
+  // Build the backend prompt per mode:
+  //   general     → the swatch colour word alone (whole image → HSV shift)
+  //   whole-style → the free-text style prompt (whole image → ControlNet AI render)
+  //   zone        → part + colour (CLIPSeg detect + recolour)
+  const rawPrompt =
+    mode === 'general'     ? _rcSelectedColor :
+    mode === 'whole-style' ? stylePrompt :
+    (_rcSelectedColor ? (part + ' ' + _rcSelectedColor) : fieldRaw);
+  const strength = (parseInt(document.getElementById('rc-strength').value) || 100) / 100;
+  const dilate = parseInt(document.getElementById('rc-dilate').value) || 15;
+  document.getElementById('modal-recolor').classList.add('hidden');
+  const prompt = await translateUserPrompt(rawPrompt);  // -> EN so CLIPSeg detects the part
+  gatedRun('img2img', `Recolor: ${p.name}`, async () => {
+    const job = pushJob(`Recolor: ${p.name}`, null, {
+      Prompt: recolorAll ? (rawPrompt + ' (whole image)') : rawPrompt,
+      Strength: Math.round(strength * 100) + '%',
+      Padding: recolorAll ? '—' : dilate + 'px',
+    }, 20000, { sourceImageUrl: imagePath, projectName: p.name });
+    try {
+      const r = await API.recolor({ imagePath, prompt, strength, dilate, rel: _rcRel(), recolorAll, jobId: job.id });
+      if (r?.success) {
+        completeJob(job.id, true);
+        await reloadCurrentProject();
+      } else {
+        completeJob(job.id, false);
+        if (!job.cancelled) customError(r?.error || 'unknown', 'Recolor failed');
+      }
+    } catch (e) {
+      completeJob(job.id, false);
+      if (!job.cancelled) customError(e?.error || e?.message || String(e), 'Recolor error');
+    }
+  });
+});
+
+// ============================================================
+// AGE TOOL — younger / older. Reuses the structure-preserving ControlNet-Tile
+// pipeline (texVariant) with an age-mapped prompt + strength, so the silhouette/pose
+// holds while skin/hair/wrinkles shift toward the chosen age. No backend change.
+// ============================================================
+let _ageSrcPath = null;
+function _ageLabel(v) {
+  if (v === 0) return 'Neutral';
+  const dir = v < 0 ? 'Younger' : 'Older';
+  const m = Math.abs(v);
+  const lvl = m > 66 ? 'strong' : m > 33 ? 'medium' : 'slight';
+  return `${dir} (${lvl})`;
+}
+function _ageBuildPrompt(v, assetType) {
+  if (v === 0) return null;
+  const m = Math.abs(v);
+  const t = assetType || 'character';
+  const isChar = ['character', 'creature', 'animal', 'humanoid', 'dragon'].includes(t);
+  // CHARACTERS/CREATURES: facial + body aging (the original behaviour).
+  if (isChar) {
+    if (v < 0) {  // younger — at the extreme, push PROPORTIONS (baby/cub)
+      if (m > 66) return 'a baby / juvenile version, much younger, smaller body with a noticeably larger head proportion, short stubby limbs, soft rounded features, big eyes, smooth youthful skin or downy fur';
+      if (m > 33) return 'a younger, adolescent version, slimmer, smoother skin, softer rounder features';
+      return 'slightly younger, fresher smoother skin';
+    }
+    if (m > 66) return 'a very old, elderly version, aged, deep wrinkles, sagging skin, grey or white hair or fur, gaunt weathered look';
+    if (m > 33) return 'an older, mature version, some wrinkles, greying hair or fur, aged skin';
+    return 'slightly older, a few wrinkles, mature look';
+  }
+  // INANIMATE (building / vehicle / prop / environment / weapon): "age" = surface
+  // weathering / patina, NOT a face. Keep the original colors + materials.
+  const isVehicle = ['vehicle', 'bateau', 'avion', 'other_vehicle'].includes(t);
+  if (v < 0) {  // younger = newer / pristine
+    if (m > 66) return 'a brand-new pristine version, freshly built, factory-new, spotless, immaculate clean surfaces, vivid clean materials, no wear, same colors, full color';
+    if (m > 33) return 'a newer cleaner version, well-maintained, fresh paint, minimal wear, same colors, full color';
+    return 'slightly newer and cleaner, fresh surfaces, same colors, full color';
+  }
+  if (isVehicle) {  // older vehicle = rust / dents / faded paint
+    if (m > 66) return 'a heavily aged weathered rusty version, corroded metal, peeling and faded paint, dents, deep scratches, grime and dust, patina, aged but still full color';
+    if (m > 33) return 'an aged worn version, some rust, faded paint, scratches, dust and grime, full color';
+    return 'slightly aged, light wear, a few scratches and dust, full color';
+  }
+  // building / environment / prop / weapon / structure = weathering + moss + cracks
+  if (m > 66) return 'a very old heavily weathered version, aged and decayed, cracked and crumbling surfaces, moss and lichen, water stains, rust streaks, peeling paint, faded but still colored materials, overgrown, ruined patina, full color';
+  if (m > 33) return 'an aged weathered version, worn surfaces, some cracks, moss, stains, faded paint, patina, full color';
+  return 'slightly aged and weathered, light wear, faint stains and patina, full color';
+}
+function _ageStrength(v) {
+  const m = Math.abs(v) / 100;
+  return Math.max(0.4, Math.min(0.78, 0.4 + m * 0.38));
+}
 // ===== Habits seuls — extrait les vetements, reserve au type « character » =====
 function _outfitSyncMode() {
   const mode = document.getElementById('of-mode')?.value || 'ensemble';

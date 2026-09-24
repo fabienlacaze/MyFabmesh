@@ -21447,3 +21447,48 @@ CORRECTIFS
     et passe sur les 11 fichiers reels.
 
 NE PLUS JAMAIS utiliser `node --check <fichier>` comme preuve sur ce depot.
+
+---
+
+## 2026-09-24 — Recolorier passe sur le cloud (2 credits)
+
+Le user constate que le panneau web a moins d'outils que le bureau et demande
+de les porter, a 1 ou 2 credits. Mesure de l'ecart : trois outils IMAGE
+absents du web (Recolorier, Age, Etapes de construction) et six outils MESH
+(clone3d, detail-synth, enhance-tex, name, region-retex, texvar).
+
+PORTE ICI : **Recolorier**, le seul des trois portable SANS compromis. Son
+cœur est du pur numpy une fois le masque obtenu, et CLIPSeg tourne deja sur
+Modal pour l'Auto Inpaint : zero modele ajoute.
+
+  * `scripts/recolor_core.py` — noyau EXTRAIT de sdxl_server.py par script
+    (lexique de 42 couleurs, analyse du prompt, virage HSV preservant la
+    luminance), donc fidele par construction. Copie a l'identique dans
+    `modal_app/_recolor.py`.
+  * Le garde de parite devient `build/check-noyaux-partages.mjs` : il
+    surveille desormais DEUX noyaux (habits, recolorier) au lieu d'un.
+    Renomme parce qu'un garde nomme « outfit » qui surveille autre chose est
+    un nom qui pourrit ; les deux chaines de construction sont mises a jour
+    et plus aucune reference a l'ancien nom ne subsiste.
+  * Modal : op `recolor` ajoutee a image_op (elle rend UNE image, donc elle
+    entre telle quelle dans le contrat existant).
+  * Worker : `/api/recolor`, tarif 2, estimation GPU 0,02 $ (aucune
+    diffusion). Remboursement complet sur 422.
+  * Web : modale + bouton + les 256 lignes de comportement portees depuis le
+    bureau, chemins `file:///` convertis vers `_toFileUrl` (present des deux
+    cotes). Shim `recolor`, pastille 2 credits, prix vivant branche.
+  * Bureau : `ws-recolor-btn` sort de `_CLOUD_HIDDEN_TOOLS` — ce n'est plus
+    un trou de parite.
+
+LIMITE ASSUMEE, dite a l'utilisateur au lieu d'etre cachee : le bureau a un
+SECOND chemin pour les MATIERES (« rusty metal ») via ControlNet-Tile, que
+Modal n'a pas. Dans ce cas Modal repond 422, les credits sont rembourses et
+le message renvoie vers « Modify ».
+
+DEFAUT PREEXISTANT REPERE, NON CORRIGE : le lexique connait `noir` mais pas
+`noires`. « bottes noires » bascule donc a tort sur le chemin matiere. Le
+corriger change le comportement des DEUX plateformes — a decider par le user.
+
+VERIFIE : les 11 fichiers livres passent l'analyseur acorn ; les 18 ids
+interroges par le bloc porte existent tous dans le HTML web ; `tsc` 0 erreur ;
+les deux noyaux partages sont identiques.
