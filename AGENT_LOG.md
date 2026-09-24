@@ -21743,3 +21743,37 @@ verifies au lieu de 11.
 
 A REGLER AVEC LE USER : `intensiteEnvironnement` (1.0) est le seul bouton si
 le rendu parait desormais trop clair ou trop terne.
+
+### « On est oblige d'avoir des directionnelles ? » — non, et c'est mieux sans
+
+Le user constate qu'un cote du modele est eclaire et l'autre presque noir,
+puis pose la bonne question.
+
+DIAGNOSTIC. Les trois directionnelles etaient fixees dans la SCENE, a des
+positions du monde. En tournant autour du modele, l'utilisateur ramenait
+devant lui une face que le dispositif laissait dans l'ombre. Un eclairage de
+studio fixe convient a une scene fixe, pas a un visualiseur qu'on fait
+tourner.
+
+REPONSE. Non : une carte d'environnement eclaire de TOUTES les directions a
+la fois, donc l'inegalite disparait par construction au lieu d'etre
+rattrapee. C'est ce que font model-viewer et la plupart des visualiseurs
+glTF. Maintenant que l'IBL existe (correctif precedent), les lumieres fixes
+n'avaient plus de raison d'etre.
+
+NOUVEAU DISPOSITIF
+  * l'environnement PMREM est la source PRINCIPALE, intensite 1.6 ;
+  * UNE directionnelle douce (0.55) accrochee a la CAMERA — avec sa cible,
+    sans quoi three viserait l'origine du monde et la direction dependrait
+    de la position de la camera au lieu de son orientation ;
+  * PLUS d'hemispherique ni d'ambiante : l'IBL fait leur travail en mieux.
+    Les cumuler ajoutait une lumiere plate a tous les materiaux et delavait
+    le PBR sans lui donner le moindre reflet.
+  * `this.scene.add(this.camera)` est indispensable : une camera n'est pas
+    dans le graphe par defaut, ses enfants ne seraient jamais parcourus.
+
+Deux boutons et un seul endroit : `intensiteEnvironnement`, `intensiteCle`.
+
+Le commentaire qui vantait les valeurs « 1.6/1.8/0.9/0.6 » a ete remplace :
+il decrivait quatre lumieres qui n'existent plus, et ces valeurs n'avaient ete
+montees que pour compenser l'absence d'IBL — le vrai manque.

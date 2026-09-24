@@ -100,20 +100,38 @@ export class Viewer3D {
   }
 
   _addDefaultLighting() {
-    // Bumped from 1.0/1.2/0.5/0.3 — user reported all 3D viewers
-    // looked too dark with the previous values, especially for meshes
-    // baked with PBR metallic/roughness that swallow ambient.
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.6));
-    const dir = new THREE.DirectionalLight(0xffffff, 1.8);
-    dir.position.set(5, 8, 5);
-    this.scene.add(dir);
-    const fill = new THREE.DirectionalLight(0xffffff, 0.9);
-    fill.position.set(-5, 3, -5);
-    this.scene.add(fill);
-    const back = new THREE.DirectionalLight(0xffffff, 0.6);
-    back.position.set(0, 5, -8);
-    this.scene.add(back);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    // 2026-09-24 : le banc a QUATRE lumieres fixes est remplace par une carte
+    // d'environnement plus UNE cle douce suivant la camera. Les valeurs
+    // 1.6/1.8/0.9/0.6 dont parlait ce commentaire n'existent plus : elles
+    // avaient ete montees pour compenser l'absence d'IBL, qui etait le vrai
+    // manque. Deux boutons desormais : intensiteEnvironnement et intensiteCle.
+
+    // Les DIRECTIONNELLES suivent la CAMERA.
+    //
+    // Fixees dans la scene, elles eclairaient toujours la meme face du monde :
+    // en tournant autour du modele, l'utilisateur ramenait devant lui une face
+    // que le dispositif laissait dans le noir (signale le 2026-09-24, photos a
+    // l'appui — un cote eclaire, l'autre presque noir).
+    //
+    // Accrochees a la camera, l'eclairage suit le regard et aucun angle n'est
+    // aveugle. La CIBLE doit l'etre aussi : sans elle, three vise l'origine du
+    // MONDE et la direction se remettrait a dependre de la position de la
+    // camera au lieu de son orientation.
+    const _suitLaCamera = (lumiere, x, y, z, cx, cy, cz) => {
+      lumiere.position.set(x, y, z);
+      lumiere.target.position.set(cx, cy, cz);
+      this.camera.add(lumiere);
+      this.camera.add(lumiere.target);
+    };
+    // UNE SEULE, et douce. L'environnement fait l'essentiel du travail ; celle-ci
+    // n'est la que pour le relief et un reflet franc, sans quoi un rendu
+    // purement IBL parait plat. Son intensite est le second bouton de reglage.
+    this.intensiteCle = 0.55;
+    _suitLaCamera(new THREE.DirectionalLight(0xffffff, this.intensiteCle), 2.0, 2.5, 1.5, 0, 0, -5);
+    // Une camera ne fait pas partie du graphe par defaut : sans cet ajout,
+    // ses enfants ne seraient jamais parcourus et aucune de ces trois
+    // lumieres n'eclairerait quoi que ce soit.
+    this.scene.add(this.camera);
     // Le banc de lumieres ci-dessus et cette exposition forment UN reglage :
     // l'un sans l'autre rend sombre. Elle est exposee sur l'objet parce que
     // l'appelant remplace parfois le renderer (WebGL avec alpha, contexte
@@ -122,7 +140,7 @@ export class Viewer3D {
     this.expositionParDefaut = 1.3;
     //: Poids de la carte d'environnement. Un seul endroit a regler si le
     //: rendu parait trop clair ou trop terne.
-    this.intensiteEnvironnement = 1.0;
+    this.intensiteEnvironnement = 1.6;
     this.renderer.toneMappingExposure = this.expositionParDefaut;
     this.rebuildEnvironment();
   }
