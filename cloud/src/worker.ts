@@ -9380,23 +9380,45 @@ async function callModalRectify(env: Env, userId: string, input: {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: corps,
-    // Multi-seed (3) × diffusion (35s) + rembg per candidate.
-    // 8 min budget covers cold start + 3 candidates + scoring.
-    signal: AbortSignal.timeout(480_000),
+    // 300 s et non 480 s : Cloudflare coupe de toute facon la sous-requete a
+    // 100 s avec un 524. Attendre plus longtemps ne fait que retarder la
+    // reprise, alors que le conteneur, lui, continue de demarrer pendant ce
+    // temps. Aligne sur ce que image_op fait et qui fonctionne.
+    signal: AbortSignal.timeout(300_000),
   });
-  // REPRISE SUR DEMARRAGE A FROID. Cette route n'en avait AUCUNE, la ou
-  // image_op rejoue deux fois — resultat : elle echouait sur « HTTP 524 » a
-  // chaque conteneur froid. Mesure du 2026-09-24 : deux rectify d'affilee en
-  // echec, l'utilisateur voyant un mystérieux travail « Generate images » qui
-  // ne produisait jamais rien. Meme escalade que image_op.
+  /* REPRISE SUR DEMARRAGE A FROID — MEME ESCALADE QUE image_op.
+   *
+   * MESURE DU 2026-09-25 : l'erreur est passee de « HTTP 500 » (rembg absent
+   * de l'image, corrige) a « HTTP 524 ». Le 524 n'est PAS une panne : c'est
+   * Cloudflare qui coupe la sous-requete a 100 s, et le demarrage a froid de
+   * MyFabmeshBackview demande 90 a 180 s (restauration du snapshot + chargement
+   * paresseux de CLIPSeg/SDXL Inpaint). Une seule reprise apres 60 s ne suffit
+   * donc pas a couvrir un conteneur qui vient d'etre reconstruit (et l'image
+   * l'a ete : ajout de rembg).
+   *
+   * Calendrier, pire cas ~5 min, comme image_op :
+   *   t=0    1re requete -> coupee a 100 s (524)
+   *   +60 s  t=160  2e requete -> coupee a 100 s si ENCORE froide
+   *   +90 s  t=350  3e requete -> doit tomber sur un conteneur chaud
+   * Le temps passe sous la limite de 15 min de wallclock des Workers payants. */
   let r = await envoyer();
+  let attenteCumulee = 0;
   for (const attente of [60_000, 90_000]) {
     if (r.status !== 524) break;
-    console.log(`[modal] rectify 524 — reprise apres ${attente / 1000}s`);
+    attenteCumulee += attente;
+    console.log(`[modal] rectify 524 — reprise apres demarrage a froid ${attente / 1000}s ` +
+                `(attente cumulee: ${attenteCumulee / 1000}s)`);
     await new Promise(res => setTimeout(res, attente));
     r = await envoyer();
   }
   if (!r.ok) {
+    // Message utilisable plutot qu'un code brut : le travail est rembourse, on
+    // dit a l'utilisateur quoi faire et non « HTTP 524: error code: 524 ».
+    if (r.status === 524) {
+      throw new Error('Cloud GPU rectify: le modele met plus de temps que ' +
+                      'd\'habitude a demarrer. Reessayez dans 1-2 minutes — ' +
+                      'vos credits ont ete rendus.');
+    }
     throw new Error(`Cloud GPU rectify HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   const buf = await r.arrayBuffer();

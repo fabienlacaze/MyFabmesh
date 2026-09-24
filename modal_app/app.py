@@ -287,14 +287,37 @@ image = (
     # il ne surveille que les dépendances des ops mesh.
     #
     # MEME accident que scikit-image et fast_simplification ci-dessus : une
-    # dépendance absente rend une opération FACTURÉE inopérante. Les crédits
-    # étaient remboursés (addCredits + refundModalSpend), mais l'outil
-    # n'a jamais fonctionné.
+    # dependance absente rend une operation FACTUREE inoperante. Les credits
+    # etaient rembourses (addCredits + refundModalSpend), mais l'outil
+    # n'a jamais fonctionne.
     #
     # onnxruntime-gpu est requis par rembg : sans lui rembg retombe sur le
-    # CPU, ce qui rendrait le détourage plus lent que la diffusion elle-même.
+    # CPU, ce qui rendrait le detourage plus lent que la diffusion elle-meme.
+    #
+    # ── PIEGE N°2, MESURE DANS LES JOURNAUX DU DEPLOIEMENT (2026-09-25) ──
+    #
+    # Ajouter rembg en un mot a CASSE l'environnement : pip a rapporte
+    #
+    #     Installing collected packages: ... rembg
+    #       Attempting uninstall: numpy
+    #         Found existing installation: numpy 1.26.4
+    #         Successfully uninstalled numpy-1.26.4
+    #
+    # donc rembg a fait MONTER numpy en 2.4.6 alors que l'image epingle
+    # `numpy>=1.26,<2.0` a la ligne 238 — et ce n'est pas une precaution de
+    # style : torch 2.4.1 est compile contre la 1.x, et le conteneur plante au
+    # chargement du pipeline. Le rectify a donc CONTINUE d'echouer en 500
+    # APRES ce premier correctif, exactement comme avant.
+    #
+    # La parade : numpy 1.x est REINSTALLE EN DERNIER argument du meme appel.
+    # pip applique les contraintes dans l'ordre, et `rembg` ne reclame que
+    # « numpy » sans borne haute — le fait repasser en 1.x apres lui suffit, et
+    # son propre code fonctionne sur les deux versions.
     .pip_install("opencv-python-headless", "trimesh>=4.0", "scipy>=1.10", "mapbox_earcut",
-                 "fast_simplification", "scikit-image", "rembg[gpu]>=2.0")
+                 "fast_simplification", "scikit-image", "rembg[gpu]>=2.0",
+                 # DOIT RESTER EN DERNIER : annule la montee de version faite
+                 # par rembg (voir le piege n°2 ci-dessus).
+                 "numpy>=1.26,<2.0")
     .add_local_python_source("modal_app")
     .add_local_file(
         "modal_app/back_tpose_skeleton.png",
