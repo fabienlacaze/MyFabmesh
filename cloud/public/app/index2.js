@@ -15512,8 +15512,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // Also pick up jobs we didn't know about yet (e.g. spawned in
         // another tab).
+        //
+        // ── DOUBLON DE TUILES CORRIGE ICI (2026-09-25) ──
+        //
+        // Ce test ne regardait que `_jobByServerId`, une carte LOCALE a ce
+        // bloc, vide au demarrage. Il ignorait donc le registre
+        // `__fabmeshJobsServeurSuivis`, rempli par le clic (declareServerJob).
+        // A chaque tick de 8 s, le client voyait la ligne serveur du travail
+        // EN COURS, ne savait pas que sa propre tuile la suivait deja, et en
+        // posait une SECONDE. Mesure : deux tuiles « Generate 3D: orc W1 »,
+        // 1m25s/16 % et 12s/14 %, alors que la base ne contenait qu'UNE
+        // ligne mesh active — donc les deux venaient du client.
+        //
+        // C'est le troisieme mecanisme de reprise du fichier, et le seul qui
+        // ignorait le registre : resumePendingJobs (survie au rechargement)
+        // et resumeSpawnedJobs le consultaient deja.
         for (const row of cur) {
-          if (!_jobByServerId.has(row.id)) _resumeOne(row);
+          if (_jobByServerId.has(row.id)) continue;
+          let dejaSuivi = false;
+          try {
+            dejaSuivi = !!window.fabmeshJobs?.serverJobSuivi?.(row.id);
+          } catch (_) {}
+          if (dejaSuivi) continue;
+          _resumeOne(row);
         }
         setTimeout(_tick, 8000);
       };
