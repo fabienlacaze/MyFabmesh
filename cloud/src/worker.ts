@@ -7024,6 +7024,13 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         smooth: input.smooth,
         ultra_hd: input.ultra_hd,
         multiref: input.multiref,
+        // Transmis pour information : Modal derive deja la resolution de
+        // `mode`, mais les journaliser permet de savoir APRES COUP avec quels
+        // reglages un mesh a ete fabrique. Leur absence a rendu impossible le
+        // diagnostic d'une hutte a la paille fragmentee, le 2026-09-24.
+        quality_plus: input.quality_plus,
+        ultra_q: input.ultra_q,
+        trellis_mode: trellisMode,
       });
       // Modal accepted the spawn — flip queued -> processing.
       await supabaseAdmin(env).from('jobs').update({ status: 'processing' }).eq('id', jobId);
@@ -9330,23 +9337,36 @@ async function callModalRectify(env: Env, userId: string, input: {
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
 
   const t0 = Date.now();
-  const r = await fetch(url, {
+  const corps = JSON.stringify({
+    _auth: secret,
+    prompt: input.prompt ?? '',
+    ref_image_url: input.refImageUrl ?? '',
+    mode: input.mode ?? 'front',
+    seeds: input.seeds,
+    steps: input.steps,
+    guidance: input.guidance,
+    ip_scale: input.ip_scale,
+  });
+  const envoyer = () => fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      _auth: secret,
-      prompt: input.prompt ?? '',
-      ref_image_url: input.refImageUrl ?? '',
-      mode: input.mode ?? 'front',
-      seeds: input.seeds,
-      steps: input.steps,
-      guidance: input.guidance,
-      ip_scale: input.ip_scale,
-    }),
+    body: corps,
     // Multi-seed (3) × diffusion (35s) + rembg per candidate.
     // 8 min budget covers cold start + 3 candidates + scoring.
     signal: AbortSignal.timeout(480_000),
   });
+  // REPRISE SUR DEMARRAGE A FROID. Cette route n'en avait AUCUNE, la ou
+  // image_op rejoue deux fois — resultat : elle echouait sur « HTTP 524 » a
+  // chaque conteneur froid. Mesure du 2026-09-24 : deux rectify d'affilee en
+  // echec, l'utilisateur voyant un mystérieux travail « Generate images » qui
+  // ne produisait jamais rien. Meme escalade que image_op.
+  let r = await envoyer();
+  for (const attente of [60_000, 90_000]) {
+    if (r.status !== 524) break;
+    console.log(`[modal] rectify 524 — reprise apres ${attente / 1000}s`);
+    await new Promise(res => setTimeout(res, attente));
+    r = await envoyer();
+  }
   if (!r.ok) {
     throw new Error(`Cloud GPU rectify HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }

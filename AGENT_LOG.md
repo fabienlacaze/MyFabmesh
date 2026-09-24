@@ -22072,3 +22072,48 @@ REGLE QUE JE ME DONNE : ne JAMAIS appliquer une substitution generique
 (espaces, parentheses, ponctuation) a un fichier entier pour corriger
 quelques chaines. On cible chaque chaine, en entier. Les trois accidents du
 jour viennent tous de la meme facilite.
+
+---
+
+## 2026-09-24 — « Generate images » a chaque mesh : c'etait le RECTIFY, et il echouait toujours
+
+Le user signale depuis des heures une generation d'image parasite a chaque
+mesh. Mes deux premieres reponses etaient fausses (« seul le bouton image
+peut la declencher », puis « la file d'attente »). Le journal des travaux a
+tranche :
+
+    rectify  failed  cr=0  13:39:50  Cloud GPU rectify HTTP 524
+    rectify  failed  cr=0  12:38:28  Cloud GPU rectify HTTP 524
+
+C'est l'option « Auto-rectify source view », cochee. Deux defauts :
+
+  * `callModalRectify` n'avait AUCUNE reprise sur 524, la ou
+    `callModalImageOp` rejoue deux fois. Elle echouait donc a chaque
+    conteneur froid — c'est-a-dire presque toujours. Meme escalade ajoutee
+    (60 s puis 90 s).
+  * Aucune image n'etait jamais produite (verifie dans R2 : zero objet
+    `front/` depuis 09:18 malgre des dizaines de tuiles vues), et les credits
+    etaient rembourses. Le user payait en temps d'attente, pas en credits.
+
+HYPOTHESES ECARTEES EN CHEMIN, chacune par la mesure : le bouton image ne
+declenche rien tout seul (5 892 octets de handler 3D relus, aucun appel) ; la
+reprise de travaux ne concerne que les rigs ; la file d'attente rend `ok`
+immediatement en mode cloud (`hasVramHeadroomFor`).
+
+## Hutte a la paille fragmentee — et la meme chose sur les fourrures
+
+Mesure du GLB : 8 aretes de bord seulement (donc pas de trous au sens
+topologique) mais 12 010 COMPOSANTES, la plus grosse a 72 %. La paille fine
+est reconstruite en milliers de fragments disjoints. Meme symptome signale
+sur les fourrures d'animaux : ce sont les structures FINES ET REPETITIVES qui
+passent sous la resolution des voxels.
+
+J'ai d'abord accuse a tort la couleur (saturation 0.525, teinte orange) : le
+user a corrige, la couleur lui convient. Puis j'ai suppose que les options de
+geometrie n'etaient pas transmises — FAUX aussi, le worker calcule bien
+`mode: '1536_cascade'` quand ultra_q est coche (worker.ts:6992).
+
+VRAI DEFAUT TROUVE : le journal des travaux n'enregistrait NI `quality_plus`
+NI `ultra_q`. Impossible de savoir apres coup avec quels reglages un mesh a
+ete fabrique — c'est precisement ce qui m'a bloque. Les deux options et le
+`trellis_mode` resolu sont desormais journalises.
