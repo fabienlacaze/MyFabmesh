@@ -21949,3 +21949,38 @@ historiques. Verifie en retirant scikit-image de l'image.
 Enfin, les deux `confirm()` natifs des outils mesh passent par
 `customConfirm()`, qui existait deja et dont l'en-tete du fichier dit
 « replaces window.confirm ».
+
+---
+
+## 2026-09-24 — « On dit bien qu'il ne faut pas d'ombre ? » Oui, mais du mauvais cote
+
+Question du user devant un orc fortement ombre. Reponse mesuree : le prompt
+disait bien « no shadows » — dans le prompt POSITIF, ou SDXL ne comprend pas
+la negation et n'y voit que le mot « shadows ». Et `_ANATOMY_NEG` ne
+contenait AUCUNE mention d'ombre.
+
+Inventaire : 4 familles de negation restees du mauvais cote, 20 occurrences
+dans les gabarits — `no shadows` x7, `no text` x7, `no characters` x5,
+`no rear view inset` x1 — et pas une seule dans le negatif. Toutes deplacees
+(27-28 retraits par fichier, les trois copies restant a parite).
+
+DEFAUT PLUS GRAVE TROUVE EN CHEMIN. En verifiant que les nouveaux termes
+tiendraient, mesure du prompt NEGATIF avec le bloc d'anatomie insere :
+
+    animal 88 · character 97 · environment 101 · building 113 · creature 136
+
+Tous au-dessus de la limite CLIP de 77. La FIN du negatif etait donc jetee
+en silence DEPUIS TOUJOURS — « blurry, deformed, bad anatomy » n'a jamais
+agi, et mes termes d'ombre n'auraient pas agi davantage. C'est exactement le
+defaut du matin (prompt positif a 193 jetons), cote negatif, jamais mesure.
+
+CORRECTIF : le negatif est desormais assemble PAR PRIORITE decroissante —
+securite, anatomie, anti-doublement, cadrage, eclairage, qualite generique —
+et s'arrete net au budget. Ce qui tombe est ECRIT dans le journal Modal :
+une troncature qu'on voit vaut mieux qu'une consigne qu'on croit appliquee.
+Simule pour les 7 types : tous entre 53 et 76 jetons. Pour un personnage,
+les termes d'ombre sont conserves.
+
+A FAIRE : `check-prompts-budget.mjs` ne mesure que le positif. Le negatif
+merite le meme garde. Et le bureau (`local_juggernaut_bridge.py`) n'a pas
+`_ANATOMY_NEG` du tout — divergence connue, non traitee ici.

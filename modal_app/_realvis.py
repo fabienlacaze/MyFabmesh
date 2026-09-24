@@ -119,19 +119,53 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
     anatomy = _ANATOMY_NEG.get(asset_type or "") if asset_type else ""
     if anatomy:
         anatomy = anatomy + ", "
-    negative = (
-        # Safety: never produce nudity from a benign character prompt.
-        "nude, naked, nsfw, undressed, "
-        # Anti-doubling FIRST — most important for batch generation.
-        f"{anatomy}"
-        "two animals, animal pair, duplicate, twin, "
-        "split image, collage, side by side, "
-        # Anti-portrait framing
-        "headshot, portrait, close-up, head only, partial body, "
-        "body cut off, cropped, out of frame, "
-        # Generic quality
-        "blurry, deformed, bad anatomy"
-    )
+    # NEGATIF CONSTRUIT SOUS BUDGET, par ordre d'importance.
+    #
+    # MESURE DU 2026-09-24 : ce negatif depassait la limite CLIP de 77 jetons
+    # pour TOUS les types d'asset — 88 pour un animal, 97 pour un personnage,
+    # 136 pour une creature. Au-dela, SDXL jette la fin SANS RIEN DIRE : la
+    # qualite generique (« blurry, deformed, bad anatomy ») et les consignes
+    # d'eclairage etaient donc ignorees depuis toujours, alors qu'elles
+    # figuraient dans le code.
+    #
+    # On ajoute desormais par priorite decroissante et on s'arrete net quand
+    # le budget est atteint. Ce qui tombe est ECRIT dans le journal : une
+    # troncature qu'on voit vaut mieux qu'une consigne qu'on croit appliquee.
+    _MORCEAUX = [
+        # La securite d'abord : elle ne doit jamais sauter.
+        "nude, naked, nsfw, undressed",
+        # L'anatomie propre au type d'asset — c'est elle qui corrige les
+        # cinq pattes et les ailes manquantes.
+        anatomy.rstrip(', ') if anatomy else '',
+        # Anti-doublement : deux sujets dans une image la rendent inutilisable.
+        "duplicate, twin, split image, collage, side by side",
+        # Cadrage : un buste ne fait pas un mesh complet.
+        "headshot, portrait, close-up, partial body, cropped, out of frame",
+        # Eclairage et proprete du cadre. Ces termes vivaient dans le prompt
+        # POSITIF sous la forme « no shadows », « no text », « no characters » :
+        # SDXL ne comprend pas la negation, il n'y voyait que « shadows »,
+        # « text », « characters » — et les dessinait.
+        "cast shadow, drop shadow, harsh shadows",
+        "text, watermark, logo, user interface",
+        "extra characters, bystanders",
+        # Qualite generique, en dernier : c'est le moins couteux a perdre.
+        "blurry, deformed, bad anatomy",
+    ]
+    _BUDGET_NEG = 77          # limite CLIP, au-dela la fin est jetee
+    _gardes, _jetons, _jetes = [], 0, []
+    for _m in _MORCEAUX:
+        if not _m:
+            continue
+        _n = round(len(_m.replace(',', ' ').split()) * 1.35)
+        if _jetons + _n > _BUDGET_NEG:
+            _jetes.append(_m)
+            continue
+        _gardes.append(_m)
+        _jetons += _n
+    if _jetes:
+        print(f"[prompt] negatif tronque a {_jetons} jetons — ecarte : "
+              f"{' | '.join(_jetes)}", flush=True)
+    negative = ", ".join(_gardes)
     return optimized, negative
 
 

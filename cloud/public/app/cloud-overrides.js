@@ -1332,9 +1332,24 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-smooth
       for (const [id, pourquoi] of morts) {
         const el = document.getElementById(id);
         if (!el) continue;
+        // AFFICHEE MAIS DESACTIVEE, et non masquee. Masquer laissait
+        // l'utilisateur chercher une option disparue ; la laisser cliquable
+        // mais sans effet etait pire encore — il a signale deux fois une case
+        // « impossible a cocher » sans savoir pourquoi. On la montre eteinte,
+        // avec la raison ecrite a cote.
         const row = el.closest('.form-row');
-        if (row) row.style.display = 'none';
         el.checked = false;
+        el.disabled = true;
+        const lab = el.closest('label');
+        if (lab && !lab.dataset.raisonPosee) {
+          lab.dataset.raisonPosee = '1';
+          lab.style.opacity = '0.45';
+          lab.title = pourquoi;
+          const note = document.createElement('span');
+          note.textContent = ' — indisponible en Cloud';
+          note.style.cssText = 'font-style:italic; opacity:0.8;';
+          lab.appendChild(note);
+        }
         el.addEventListener('change', () => { if (el.checked) el.checked = false; });
         // MARQUEE MORTE SUR L'ELEMENT. Sans ca, _applyAssetOptionsProfile — qui
         // s'execute APRES — refaisait `row.style.display = ''` et

@@ -1832,7 +1832,7 @@ document.getElementById('np-create').addEventListener('click', async () => {
 // the UI:
 //   true  -> visible + checked by default
 //   false -> visible + unchecked by default
-//   null  -> hidden (forced off, no UI noise)
+//   null  -> hidden (forced off noise)
 //
 // 'custom' shows everything (user picks).
 const ASSET_OPTIONS_PROFILE = {
@@ -5984,11 +5984,11 @@ if (qualityEl && qualityLabel) {
 const ASSET_TYPE_PROMPTS = {
   character: 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
   building: 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, plain white background, centered, strict front view, clean silhouette',
-  vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no rear view inset',
-  weapon: 'isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI',
-  prop: 'isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+  vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
+  weapon: 'isolated, full weapon, plain white background, even studio lighting, centered, side profile, clean silhouette',
+  prop: 'isolated, full item, plain white background, even studio lighting, centered, strict front view, clean silhouette',
   creature: 'full body creature, wide establishing shot, entire creature visible from head to tail, body fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
-  environment: 'isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+  environment: 'isolated, full structure, plain white background, even studio lighting, centered, strict front view, clean silhouette',
   icon: 'flat app icon, isolated subject centered in square frame, pure white background, soft rim light, vibrant colors, slight isometric 3/4 angle, glossy material, clean silhouette',
   avion: 'complete passenger aircraft, 3/4 isometric view, full body visible from nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
   bateau: 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
@@ -5998,9 +5998,9 @@ const ASSET_TYPE_PROMPTS = {
   // drop the SPECIFIC-object bias, so e.g. a catapult under "Other vehicle"
   // stays a vehicle (not a car) instead of a random studio object. A fully
   // generic prompt was too vague (produced a camera on a tripod).
-  other_living:  'full body, isolated, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI',
-  other_vehicle: 'complete vehicle, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI',
-  other_built:   'full structure, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+  other_living:  'full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
+  other_vehicle: 'complete vehicle, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
+  other_built:   'full structure, isolated, plain white background, even studio lighting, centered, strict front view, clean silhouette',
   other_item:    'full item, plain white background, centered, strict front view, clean silhouette',
   custom: '',
 };
