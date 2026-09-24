@@ -15308,7 +15308,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const project = row.project_name || (row.options && row.options.project_name) || row.id.slice(0, 8);
       const verb = ({
         anim: `Animate ${row.mode || 'run'}`,
-        rig: 'Auto-rig AI (unirig)',
+        rig: 'Auto-rig AI',
         mesh: 'Generate 3D',
         image: 'Generate images',
       })[kind] || 'Job';

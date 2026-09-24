@@ -22178,3 +22178,18 @@ retirees, dans les deux copies.
 A REGARDER PLUS TARD, vu sur la meme capture : la fiche titrait « Generate
 3D: Primitive prehistoric Hut » avec PROJECT = « orc W1 ». Le nom du projet
 affiche ne suit pas celui du travail.
+
+### « unirig » ne doit pas apparaitre dans l'interface
+
+Le user : le nom du moteur de rigging est un secret industriel. Une seule
+fuite dans un libelle visible — `rig: 'Auto-rig AI (unirig)'`
+(cloud/public/app/index2.js) — le bureau nommait deja correctement
+(« MyFabmesh.AI Rig ») et le menu deroulant aussi.
+
+Balayage des douze noms de moteurs du projet (unirig, trellis, puppeteer,
+sf3d, hunyuan, triposg, realvis, juggernaut, clipseg, anytop, partsam,
+skintokens) dans TOUS les libelles de travaux et de boutons des deux
+plateformes : plus aucune occurrence.
+
+Verifie que le garde des etapes tient : « Auto-rig AI » contient toujours
+« rig », le travail reste donc rattache a l'etape 3.
