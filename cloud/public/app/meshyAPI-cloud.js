@@ -247,11 +247,29 @@
   }
   function _addPendingJob(entry) {
     const list = _readPendingJobs().filter((j) => j.jobId !== entry.jobId);
-    list.push({ ...entry, ts: Date.now() });
+    /* `vivante: true` — UNE TUILE LOCALE SUIT DEJA CE TRAVAIL.
+     *
+     * L'entree de reprise sert a retrouver un travail apres un RECHARGEMENT.
+     * Mais elle est ecrite DES LE DEPART (des que /api/generate repond), et
+     * `resumePendingJobs` tourne 1,5 s apres le chargement du script : elle
+     * lisait donc cette entree alors que le travail etait en cours, et
+     * recreait une SECONDE tuile. Mesure du 2026-09-25 : « Generate 3D:
+     * orc W1 » affiche DEUX fois, 8m53s/85 % et 5s/7 % — la seconde etait
+     * cette reprise, pas un travail de plus.
+     *
+     * Le marqueur vit dans localStorage, donc il DISPARAIT a la session
+     * suivante : apres un F5 il n'y a plus de tuile locale, la reprise joue
+     * son role, et c'est elle qui pose la tuile. C'est exactement le
+     * comportement voulu, dans les deux cas. */
+    list.push({ ...entry, ts: Date.now(), vivante: true });
     _writePendingJobs(list);
     // Le travail est suivi ici : le sondage generique ne doit pas en refaire
     // une seconde tuile (voir __fabmeshJobsServeurSuivis dans index2.js).
     try { window.fabmeshJobs?.declareServerJob?.(entry.jobId); } catch (e) { /* ignore */ }
+  }
+  /** L'entree est-elle couverte par une tuile de CETTE session ? */
+  function _entreeVivante(entry) {
+    return entry && entry.vivante === true;
   }
   function _removePendingJob(jobId) {
     _writePendingJobs(_readPendingJobs().filter((j) => j.jobId !== jobId));
@@ -281,6 +299,24 @@
       // popup just won't show. Better than aborting the resume entirely.
     }
     for (const entry of fresh) {
+      /* DEJA SUIVI EN DIRECT : NE PAS REFAIRE DE TUILE.
+       *
+       * Deux gardes, parce qu'une seule ne suffisait pas : (1) le marqueur
+       * `vivante` ecrit avec l'entree — il est pose DES LE DEPART, donc
+       * fiable, contrairement au registre par identifiant qui n'est rempli
+       * qu'a l'arrivee de la reponse d'API ; (2) le registre
+       * __fabmeshJobsServeurSuivis, qui couvre les cas ou la tuile est posee
+       * par un autre mecanisme (rig, travaux « spawnes »).
+       *
+       * On ne supprime PAS l'entree : elle reste le filet de securite d'un
+       * rechargement ulterieur (et son marqueur disparaitra a ce moment-la,
+       * puisque localStorage sera relu dans une session neuve). */
+      if (_entreeVivante(entry)) continue;
+      let dejaSuivi = false;
+      try {
+        dejaSuivi = !!window.fabmeshJobs?.serverJobSuivi?.(entry.jobId);
+      } catch (_) {}
+      if (dejaSuivi) continue;
       // Pass entry.ts as the 5th arg so the popup's ELAPSED counter
       // reflects the time since the REAL job start (not just the time
       // since the page reload).
@@ -291,6 +327,11 @@
         entry.expectedMs || 150_000,
         entry.ts,
       ) : null;
+      // Apres un RECHARGEMENT, le registre en memoire est vide : cette reprise
+      // est desormais la SEULE a suivre ce travail, on s'y declare pour que le
+      // sondage /api/me/active-jobs ne cree pas une tuile de plus. (C'est
+      // exactement le doublon signale, par l'autre bout.)
+      try { window.fabmeshJobs?.declareServerJob?.(entry.jobId); } catch (_) {}
       // Don't await — let all resumed jobs run in parallel.
       (async () => {
         try {
@@ -633,6 +674,12 @@
         return { ok: false, success: false, error: created.error };
       }
       window.__meshyEmit('ai3d-progress', { stage: 'queued', jobId: created.jobId });
+      // Le renderer suit ce travail en direct (il a pose sa tuile au clic).
+      // On le declare AVANT d'ecrire l'entree de reprise : sans cette
+      // declaration, `resumePendingJobs` recree une tuile pour un travail
+      // deja affiche (mesure du 2026-09-25 : « Generate 3D: orc W1 » deux
+      // fois, l'une a 8m53s et l'autre a 5s).
+      try { window.fabmeshJobs?.declareServerJob?.(created.jobId); } catch (_) {}
       // Survive a page reload: persist this jobId so resumePendingJobs()
       // can re-create the popup + re-poll after refresh. Removed in the
       // finally below regardless of outcome.
@@ -648,6 +695,10 @@
         // Trigger credit pill refresh — mesh gen costs 1-2 credits.
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         _removePendingJob(created.jobId);
+        // Le travail est fini : on le retire du registre de suivi, sinon son
+        // identifiant y resterait indefiniment et empecherait toute reprise
+        // legitime d'un travail ulterieur portant le meme identifiant.
+        try { window.fabmeshJobs?.oublierServerJob?.(created.jobId); } catch (_) {}
         return {
           ok: true, success: true,
           meshPath: result.url, meshUrl: result.url,
@@ -665,7 +716,13 @@
          * On ne la retire donc que sur une fin REELLE (succes, echec ou
          * annulation renvoyes par le serveur) ; un abandon de sondage la
          * laisse en place pour que resumePendingJobs() la reprenne. */
-        if (_finDuServeur(e)) _removePendingJob(created.jobId);
+        if (_finDuServeur(e)) {
+          _removePendingJob(created.jobId);
+          // Fin reelle : le suivi en direct n'a plus lieu d'etre. Sur un
+          // ABANDON de sondage, au contraire, on GARDE les deux (le registre
+          // pour la tuile vivante, l'entree pour la reprise apres F5).
+          try { window.fabmeshJobs?.oublierServerJob?.(created.jobId); } catch (_) {}
+        }
         throw e;
       } finally {
         // Le succes retire toujours l'entree (voir le return ci-dessus,
