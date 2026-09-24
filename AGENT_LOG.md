@@ -21852,3 +21852,27 @@ des deux HTML, 7 024 lignes modifiees chacun. Repere en lisant `git diff
 --stat` avant de commiter, revert et refait sans toucher aux espaces : 38
 lignes. Lecon deja vue aujourd'hui avec sed : ne jamais appliquer une
 substitution generique a un fichier entier pour corriger quelques libelles.
+
+### Un garde contre les reecritures en masse
+
+Deux fois dans la journee, une substitution generique appliquee a un fichier
+ENTIER a failli partir en production :
+  1. `sed -i` sur des fichiers CRLF a converti tout le fichier en LF ;
+  2. un `replace('  ', ' ')` pose pour corriger trois libelles a ecrase
+     l'indentation des deux index.html — 7 024 lignes chacun, pour 38 lignes
+     de vrai changement.
+Les deux ont ete rattrapes en lisant `git diff --stat` par reflexe. Un
+reflexe n'est pas un garde-fou : la fois ou l'on ne regarde pas, le bruit
+part en production et masquera le prochain vrai defaut dans la relecture.
+
+`build/check-diff-sain.mjs` compare `git diff --numstat` et `git diff -w
+--numstat`. Un fichier dont le premier compte est gros (> 200 lignes) et dont
+il ne reste presque rien une fois les espaces ignores a ete reecrit sans rien
+dire de neuf. Refus, avec les deux chiffres.
+
+Verifie en REPRODUISANT l'accident : le garde nomme le fichier et affiche
+« 7442 lignes changees, dont 0 seulement hors espaces ». Echappatoire pour un
+reformatage volontaire : `ALLOW_REFORMAT=1`.
+
+Branche EN PREMIER sur les deux chaines : inutile de verifier la syntaxe et
+les etapes d'un arbre dont on s'apprete a livrer 7 000 lignes de bruit.
