@@ -1395,7 +1395,43 @@ document.getElementById('np-create').addEventListener('click', async () => {
     assetType,
     assetStyle,
   };
+  /* JOURNAL PERMANENT DE CREATION (2026-09-25).
+   *
+   * Le user a cree « orc woman », demande une image, et RIEN n'a ete
+   * sauvegarde : mesure en base, zero job et zero user_asset portent ce nom —
+   * ses deux images sont tombees sous « orc W1 ». Un projet cree ici n'existe
+   * QUE dans la memoire du navigateur : cote cloud il n'existe qu'a partir du
+   * moment ou une ligne le porte (user_assets ou jobs). Si le nom ne part pas
+   * au premier enregistrement, le projet est perdu au rechargement.
+   *
+   * Ce journal nomme le nom RETENU et le projet PRECEDENT, pour distinguer
+   * deux causes indiscernables de l'exterieur : le nom n'est pas celui qu'on
+   * croit, ou rien n'est jamais enregistre. */
+  console.log('[new-project] creation', JSON.stringify({
+    nomRetenu: name,
+    nomSaisi: (document.getElementById('np-name') || {}).value || null,
+    projetPrecedent: state.currentProject ? state.currentProject.name : null,
+    promptFourni: !!prompt,
+  }));
   state.currentProject = proj;
+  /* ENREGISTREMENT IMMEDIAT DU PROJET (2026-09-25).
+   *
+   * Jusqu'ici la ligne ci-dessus etait la SEULE creation : une coquille en
+   * memoire. Cote cloud, un projet n'existe que si une ligne le porte — il
+   * disparaissait donc au rechargement suivant, et le premier asset genere y
+   * etait rattache sous le nom du projet PRECEDENT. Mesure : « orc woman »
+   * cree, deux images generees, zero ligne serveur a ce nom — les images sont
+   * tombees sous « orc W1 » et le projet a disparu.
+   *
+   * On n'attend PAS la reponse : ouvrir l'espace de travail ne doit jamais
+   * dependre d'un aller-retour reseau. En cas d'echec, le premier asset
+   * materialisera le projet — c'est le filet de secours existant. */
+  try {
+    if (API.createProject) {
+      API.createProject({ projectName: name, assetType, assetStyle, prompt })
+        .catch(() => {});
+    }
+  } catch (_) {}
   showPage('workspace');
   populateWorkspace(proj);
   if (prompt) {

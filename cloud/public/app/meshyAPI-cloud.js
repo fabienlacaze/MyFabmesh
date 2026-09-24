@@ -1383,8 +1383,46 @@
     }
   }
 
+  /* MATÉRIALISER UN PROJET DES SA CREATION (2026-09-25).
+   *
+   * Cote navigateur, creer un projet ne faisait que poser une coquille en
+   * MEMOIRE (`state.currentProject = { name, ... }`). Cote cloud, un projet
+   * n'existe que si une ligne le porte : `handleCloudProjects` reconstruit la
+   * liste depuis les colonnes `project_name` de `jobs` et `user_assets`. Un
+   * projet sans actif n'existait donc pas.
+   *
+   * Mesure : le user cree « orc woman », demande une image, et rien n'est
+   * sauvegarde — ses deux images sont tombees sous « orc W1 ». Le projet
+   * disparaissait au rechargement suivant.
+   *
+   * On n'attend PAS la reponse : la creation du projet ne doit jamais bloquer
+   * l'ouverture de l'espace de travail. En cas d'echec, le premier asset
+   * materialisera le projet de toute facon — c'est le filet existant. */
+  async function _createCloudProject(projectName, assetType, assetStyle, prompt) {
+    if (!projectName) return { ok: false };
+    try {
+      const r = await fetch('/api/projects/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectName,
+          assetType: assetType || null,
+          assetStyle: assetStyle || null,
+          prompt: prompt || null,
+        }),
+        credentials: 'include',
+      });
+      const j = await r.json().catch(() => ({}));
+      console.log('[projects/create]', projectName,
+                  'ok=', j?.ok, j?.alreadyExists ? '(deja existant)' : '', j?.error || '');
+      return j;
+    } catch (e) {
+      console.warn('[projects/create] failed:', e?.message || e);
+      return { ok: false, error: String(e) };
+    }
+  }
+
   async function _appendCloudImages(projectName, urls, kind /* 'front'|'back'|'view' */, parentPath) {
-    console.log('[_appendCloudImages] CALLED name=', projectName, 'urls=', urls, 'kind=', kind);
     if (!projectName) { console.warn('[_appendCloudImages] no projectName, skip'); return; }
     // Server is the source of truth: POST /api/user-assets/record.
     // AWAITS so reloadCurrentProject() called right after sees the row.
@@ -1601,6 +1639,20 @@
       if (!name) return { ok: false, error: 'no project' };
       try { return await postJSON('/api/cloud-projects/delete', { projectName: name }); }
       catch (e) { return { ok: false, error: String(e) }; }
+    },
+    /* Materialise un projet cote serveur des sa creation (2026-09-25).
+     *
+     * Le renderer pose une coquille en MEMOIRE ; cote cloud un projet n'existe
+     * que si une ligne le porte. Sans cet appel, le projet disparait au
+     * rechargement et le premier asset genere tombe sous le projet PRECEDENT
+     * (mesure : « orc woman » cree puis perdu, ses deux images sous « orc W1 »). */
+    createProject: async (opts) => {
+      return _createCloudProject(
+        (opts && opts.projectName) || (opts && opts.name) || '',
+        opts && opts.assetType,
+        opts && opts.assetStyle,
+        opts && opts.prompt,
+      );
     },
     deleteFile: async (filePath) => {
       if (!filePath) return { ok: false };

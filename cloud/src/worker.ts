@@ -12938,6 +12938,95 @@ async function handleUserAssetsRecord(req: Request, env: Env): Promise<Response>
   return json({ ok: true, inserted, rejected });
 }
 
+/** POST /api/projects/create — MATÉRIALISER UN PROJET DÈS SA CRÉATION.
+ *
+ * MESURE DU 2026-09-25 : le user crée « orc woman » dans l'interface, demande
+ * une image... et rien n'est sauvegardé. Vérifié en base : zéro job et zéro
+ * user_asset portent ce nom, ses deux images sont tombées sous « orc W1 ».
+ *
+ * CAUSE : côté navigateur, créer un projet ne fait que
+ * `state.currentProject = { name, ... }` (index2.js L1398) — une coquille en
+ * MÉMOIRE. Côté cloud, un projet n'existe QUE si une ligne le porte :
+ * `handleCloudProjects` reconstruit la liste depuis les colonnes
+ * `project_name` de `jobs` et de `user_assets`. Un projet sans aucun actif
+ * n'existe donc pas, et disparaît au premier rechargement.
+ *
+ * Cette route écrit une ligne `jobs` de type 'project' : elle ne produit
+ * aucun asset, ne consomme aucun crédit, et n'appelle aucun GPU. Elle sert
+ * uniquement à ce que le nom existe côté serveur — donc à ce que l'interface
+ * le retrouve, et à ce que le premier asset généré dans ce projet y soit
+ * rattaché au lieu du projet précédent.
+ *
+ * On ne refuse PAS un nom déjà présent : un utilisateur peut vouloir deux
+ * projets homonymes, et `handleCloudProjects` les fusionne de toute façon en
+ * une seule entrée. Renvoyer une erreur ferait échouer la création sans
+ * raison visible pour lui. */
+async function handleProjectCreate(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  const body = await req.json().catch(() => ({})) as {
+    projectName?: string;
+    assetType?: string;
+    assetStyle?: string;
+    prompt?: string;
+  };
+  const name = String(body?.projectName || '').trim().slice(0, 128);
+  if (!name) return err(400, 'projectName required');
+  if (isMock(env)) return json({ ok: true, mock: true, projectName: name });
+
+  const sb = supabaseAdmin(env);
+  // Le projet existe-t-il deja (un actif ou une coquille le porte) ? Si oui,
+  // on ne pose pas une seconde coquille : c'est celle-la qui ferait un
+  // doublon de projet a l'affichage.
+  try {
+    const { data: dejaVu } = await sb.from('jobs')
+      .select('id').eq('user_id', user.id).eq('project_name', name).limit(1).maybeSingle();
+    if (dejaVu && (dejaVu as { id?: string }).id) {
+      return json({ ok: true, alreadyExists: true, projectName: name });
+    }
+  } catch (e) {
+    console.warn('[projects/create] verification impossible, on cree :',
+                 e instanceof Error ? e.message : String(e));
+  }
+
+  const id = 'proj_' + crypto.randomUUID().replace(/-/g, '');
+  const { error } = await sb.from('jobs').insert({
+    id,
+    user_id: user.id,
+    asset_type: String(body?.assetType || 'character').slice(0, 32),
+    // 'project' est la NATURE du travail : une coquille, pas une generation.
+    // Distinct de 'mesh'/'rig'/'text2image' pour qu'aucun compteur, aucun
+    // tableau de bord et aucun faucheur ne la prenne pour un vrai travail.
+    type: 'project',
+    mode: 'project',
+    seed: 0,
+    credit_cost: 0,
+    cost_usd: 0,
+    status: 'succeeded',
+    project_name: name,
+    options: {
+      operation_type: 'project',
+      coquille: true,
+      asset_style: String(body?.assetStyle || '').slice(0, 32),
+      prompt: String(body?.prompt || '').slice(0, 500),
+      project_name: name,
+      provenance: _provenance(req),
+      pays: _paysRequete(req),
+    },
+    created_at: new Date().toISOString(),
+    finished_at: new Date().toISOString(),
+  });
+  if (error) {
+    // On ne fait PAS echouer la creation du cote interface : le projet reste
+    // utilisable en memoire, et le premier asset le materialisera. On le dit
+    // seulement dans le journal, pour ne pas bloquer l'utilisateur sur un
+    // defaut qui ne l'empeche pas de travailler.
+    console.warn('[projects/create] insertion impossible :', error.message);
+    return json({ ok: false, error: error.message, projectName: name });
+  }
+  return json({ ok: true, projectName: name, jobId: id });
+}
+
 /** GET /api/admin/logs/list — lists client logs in R2, optionally
  *  filtered by ?uid=<userId> or ?email=<email>. ADMIN-only.
  *  Returns up to ?limit=N (default 50, max 200) most-recent log keys
@@ -17950,6 +18039,10 @@ export default {
         if (pathname === '/api/admin/logs/list'       && method === 'GET')  return await handleAdminLogsList(req, env);
         if (pathname === '/api/admin/logs/get'        && method === 'GET')  return await handleAdminLogsGet(req, env);
         if (pathname === '/api/user-assets/record'    && method === 'POST') return await handleUserAssetsRecord(req, env);
+        // Materialise un projet cote serveur des sa creation (2026-09-25).
+        // Sans cette route, un projet cree dans l'interface n'existe qu'en
+        // memoire du navigateur et disparait au rechargement.
+        if (pathname === '/api/projects/create'       && method === 'POST') return await handleProjectCreate(req, env);
         if (pathname === '/api/user-assets/delete'    && method === 'POST') return await handleUserAssetsDelete(req, env);
         if (pathname === '/api/user-assets/migrate-from-jobs' && method === 'POST') return await handleUserAssetsMigrateFromJobs(req, env);
         if (pathname === '/api/user-assets/reassign-orphans'  && method === 'POST') return await handleUserAssetsReassignOrphans(req, env);
