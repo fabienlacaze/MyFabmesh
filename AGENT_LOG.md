@@ -22050,3 +22050,25 @@ sur l'organique (peau, poil, fourrure) et INVENTE de l'usure sur les surfaces
 lisses (carrosserie, chrome, verre). C'est la raison d'etre de « Texture
 smooth », qui fait l'inverse — et le tableau par type d'asset decide lequel
 est coche.
+
+### Temps retires aussi des infobulles — et 3e debordement d une substitution generique
+
+Le user demande de retirer les estimations de temps des infobulles, apres les
+libelles. Sept retraits (« Adds ~36s. », « Adds ~30s. », « Adds ~50s and ~30MB »).
+Les estimations de TAILLE sont gardees : « ~30MB to the GLB », « Final GLB
+~120 MB » avertissent d'un fichier enorme, c'est utile et verifiable.
+
+Le pied du panneau de prechauffage promettait lui aussi « first call takes
+~2 min, then warm for ~9 min idle » — dementi par la journee meme, ou un
+demarrage a froid a depasse 8 minutes. Reformule sans chiffre.
+
+TROISIEME DEBORDEMENT DU MEME TYPE. J'avais ajoute un `replace('  ', ' ')`
+pour nettoyer un double espace : il a mange une espace d'indentation de la
+carte d'imports et d'un commentaire — 16 lignes au diff pour 7 vrais
+changements. Repere en lisant `git diff --stat`, revert, refait SANS aucun
+nettoyage d'espaces : 7 lignes.
+
+REGLE QUE JE ME DONNE : ne JAMAIS appliquer une substitution generique
+(espaces, parentheses, ponctuation) a un fichier entier pour corriger
+quelques chaines. On cible chaque chaine, en entier. Les trois accidents du
+jour viennent tous de la meme facilite.
