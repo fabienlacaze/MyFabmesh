@@ -7640,6 +7640,11 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
     // maillages d'un projet supprime reapparaissaient dans la liste et
     // le client en reformait une carte '_orphans'.
     .filter(j => j.project_name !== '_deleted')
+    // Les rigs sont fusionnes depuis R2 plus bas, avec asset_type 'rig'. La
+    // ligne `jobs` du meme rig porte aussi un mesh_url : sans ce filtre elle
+    // revenait une SECONDE fois, renommee « untitled_trellis2_… », donc sans
+    // « _rigged_ » — le client la classait en MAILLAGE d'un projet fantome.
+    .filter(j => !/\/rigged\//i.test(j.mesh_url ?? ''))
     .map(async j => {
     // C7: name meshes like the desktop convention so meshProject()
     // strips down to the project name. Format:
@@ -7683,6 +7688,13 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
       const cleanSlug = beforeRigged.replace(/^modal_/i, '').toLowerCase();
       // Look for a source mesh whose URL or id contains this hex slug.
       const source = meshes.find(m => {
+        // JAMAIS un rig ni une animation : leur nom CONTIENT celui du
+        // maillage source, et la ligne `rig` du journal (project_name null)
+        // arrive en tete du tri par date. Sans cette exclusion, `find`
+        // s'arretait sur le rig lui-meme, heritait de son projet nul, et le
+        // rangeait dans « _orphans » — invisible dans l'etape Rig du projet.
+        if (m.asset_type === 'rig' || m.asset_type === 'animation'
+            || /_rigged_/i.test(m.filename || '')) return false;
         const u = (m.url || '').toLowerCase();
         const id = (m.id || '').toLowerCase().replace(/-/g, '');
         return cleanSlug && (u.includes(cleanSlug) || id === cleanSlug || id.includes(cleanSlug));
@@ -7785,6 +7797,13 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
       const beforeRigged = beforeAnim.replace(/_rigged_.*$/i, '');
       const cleanSlug = beforeRigged.replace(/^modal_/i, '').toLowerCase();
       const source = meshes.find(m => {
+        // JAMAIS un rig ni une animation : leur nom CONTIENT celui du
+        // maillage source, et la ligne `rig` du journal (project_name null)
+        // arrive en tete du tri par date. Sans cette exclusion, `find`
+        // s'arretait sur le rig lui-meme, heritait de son projet nul, et le
+        // rangeait dans « _orphans » — invisible dans l'etape Rig du projet.
+        if (m.asset_type === 'rig' || m.asset_type === 'animation'
+            || /_rigged_/i.test(m.filename || '')) return false;
         const u = (m.url || '').toLowerCase();
         const id = (m.id || '').toLowerCase().replace(/-/g, '');
         return cleanSlug && (u.includes(cleanSlug) || id === cleanSlug || id.includes(cleanSlug));
@@ -11763,7 +11782,13 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
   try {
     const { data: parent } = await supabaseAdmin(env).from('jobs')
       .select('project_name').eq('user_id', user.id)
-      .eq('mesh_url', String(meshUrl).replace(/^https?:\/\/[^/]+\//, ''))
+      /* LA CLE, PAS L'URL. Le client envoie une URL SIGNEE
+       * (« <site>/r2/mesh/modal_x.glb?exp=…&sig=… ») ; l'ancien retrait du
+       * seul domaine laissait « r2/mesh/modal_x.glb?exp=…&sig=… », qui n'est
+       * egal a aucune cle stockee. La deduction echouait donc TOUJOURS, et
+       * toutes les lignes `rig` restaient a project_name NULL — c'est ce qui
+       * faisait atterrir les rigs dans « _orphans » au lieu de leur projet. */
+      .eq('mesh_url', r2PathFromPublicUrl(env, String(meshUrl)) ?? String(meshUrl))
       .not('project_name', 'is', null)
       .order('created_at', { ascending: false }).limit(1).maybeSingle();
     projetDeduit = (parent as { project_name?: string | null } | null)?.project_name ?? null;

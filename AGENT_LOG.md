@@ -22254,3 +22254,30 @@ parlait de « fine face detail », il parle maintenant des parties fines.
 VERIFIE : la plomberie etait deja bonne — worker.ts:6992 envoie bien
 `mode: '1536_cascade'` quand ultra_q est coche. Je l'avais d'abord suppose
 absente, a tort.
+
+## 2026-09-25 — Les rigs reussis etaient ranges dans « _orphans »
+
+**Constat.** Un rig se termine (succeeded, 68 Mo ecrits dans
+`<uid>/rigged/…_rigged_puppeteer_<ts>.glb`) mais l'etape Rig du projet reste
+vide : aucune categorie « existant » a deplier, donc rien a voir.
+
+**Trois defauts empiles, tous mesures.**
+
+1. `handleAutoRig` deduit le projet du rig en cherchant la ligne du maillage
+   source par `mesh_url`. Il comparait la cle stockee (`mesh/modal_x.glb`) a
+   l'URL SIGNEE recue du client, amputee de son seul domaine
+   (`r2/mesh/modal_x.glb?exp=…&sig=…`). Aucune egalite possible : la deduction
+   echouait a CHAQUE rig, et `jobs.project_name` restait NULL. Corrige en
+   passant par `r2PathFromPublicUrl()`, qui existait deja.
+2. `handleListMeshes` / `handleProjects` retrouvent le maillage source d'un rig
+   par son empreinte hexadecimale. Or le nom d'un rig CONTIENT celui de son
+   maillage, et la ligne `rig` (project_name NULL) arrive en tete du tri par
+   date : `find` s'arretait sur le rig lui-meme et heritait de son projet nul,
+   d'ou `_orphans`. Les rigs et animations sont desormais exclus des candidats.
+3. La ligne `jobs` d'un rig porte aussi un `mesh_url`, donc elle revenait une
+   seconde fois dans la liste des maillages, renommee `untitled_trellis2_…` —
+   sans `_rigged_`, le client la classait en MAILLAGE d'un projet fantome.
+   Filtree sur `/rigged/`.
+
+Le correctif 2 repare aussi les rigs DEJA produits : leur rattachement est
+recalcule a chaque listing.
