@@ -22692,3 +22692,64 @@ decalage squelette ») : le doublon ajoute ce matin est retire.
 **Lecon.** Un « non reproduit » doit faire varier les conditions
 d'affichage (onglet masque, panneau replie), pas seulement le fichier : le
 defaut dependait de l'ordre compilation/modification du materiau.
+
+## 2026-09-26 — Rig : le maillage sortait BLANC (SkinTokens --use_transfer)
+
+**Constat.** Rig cloud du chevalier : maillage blanc. Le GLB n'a ni UV ni
+materiau (POSITION, NORMAL, JOINTS_0, WEIGHTS_0), hauteur exactement 2,
+soupe de triangles (1 426 035 sommets = 3 x 475 345 faces).
+
+**Fausse piste ecartee.** L'etape 7 « re-texture » de `_puppeteer_rig.py`
+n'est plus en production : le rig cloud est SkinTokens depuis le 08/08
+(Puppeteer interdit : Michelangelo GPL-3.0 + PartField NC). Le suffixe
+`_rigged_puppeteer_` des fichiers est un vestige de nommage. (Pour memoire,
+`export.py` de Puppeteer reconstruit le maillage par `from_pydata` : les UV
+y sont perdues aussi.)
+
+**Cause.** `_skintokens_rig.py` ET `scripts/skintokens_bridge.py` appelaient
+`demo.py` SANS `--use_transfer` : SkinTokens exporte alors son propre
+maillage normalise, sans UV ni materiau. L'option avait ete ecartee au motif
+qu'elle laissait « les os flotter au-dessus du maillage » — jugement porte
+dans un visualiseur qui avait precisement ce bug (aide squelette enfant du
+modele, transformation appliquee deux fois, corrige ce jour).
+
+**Mesure (SkinTokens local, RTX 5080, maillage source de l'utilisateur).**
+Avec `--use_transfer` : 1 materiau, 2 textures, TEXCOORD_0 present,
+504 876 sommets / 475 467 faces (maillage source, coutures UV), hauteur
+d'origine (y -0,5 a 0,5). Os 100 % dans le maillage, decalage centre
+os/maillage 1 % de la hauteur — IDENTIQUE a l'export normalise ; Monde x IBM
+= identite ; fichier 37 Mo au lieu de 68. Affiche sur le vrai GPU : chevalier
+texture, os dans le corps.
+
+**Piege trouve en verifiant : l'alignement du transfert est ALEATOIRE.**
+`estimate_similarity_transform` passe par `_pca_similarity` des que les deux
+maillages n'ont pas le meme nombre de sommets (toujours : coutures UV) :
+4 096 points tires au hasard de chaque cote, axes principaux SANS levee
+d'ambiguite de signe. Mesure sur 200 tirages par maillage : retournement a
+180 degres dans 42 % des cas (chevalier de l'utilisateur), 43 % (elephant),
+26 % (poisson) ; 0-1 % pour alligator, fourmi, humain (axes moins
+symetriques). Mes deux essais n'etaient PAS retournes (orientations des os
+coherentes avec leurs enfants, cosinus tous positifs comme la reference) :
+de la chance. Un rig retourne garde ses os dans le corps mais inverse
+gauche/droite et fausse les orientations -> animations cassees.
+La normalisation d'inference (config `predict_transform` du checkpoint :
+trim -> affine [-1, 1] -> normalize) ne tourne JAMAIS l'entree : la
+similitude exacte se lit sur les boites englobantes.
+
+**Correctif (bureau + cloud).**
+- `--use_transfer` active.
+- `patch_skintokens_transfert.py` (copies identiques `scripts/` et
+  `modal_app/`, surveillees par check-noyaux-partages) insere dans
+  SkinTokens une similitude par boites englobantes, essayee AVANT l'ancien
+  chemin (qui reprend si les boites ne sont pas homothetiques). Auto-test :
+  homothetie retrouvee malgre des doublons, rotation refusee. Modal :
+  applique au BUILD (couche apres les poids ; le build echoue s'il ne
+  s'applique plus). Bureau : applique par le pont avant chaque rig
+  (`external/SkinTokens` n'est pas versionne).
+- Sans correctif applique : PAS de transfert (rig blanc mais juste).
+- Repli sur l'export normalise si le transfert echoue ; pas de relance si
+  le MODELE a refuse le maillage (« [SKIP] ») : elle echouerait pareil.
+
+**Verification cloud.** App myfabmesh-skintokens redeployee (couche de correctif : « applique (auto-test OK) » sur le code SkinTokens de l'image). Rig REEL sur Modal (fonction deployee, maillage de l'utilisateur) : 95 s, 1 materiau + 2 textures + UV, os 100 % dans le maillage, Monde x IBM = identite, orientations coherentes (cos median +0,85, tous positifs). Bureau (pont) : « [fabmesh] transfert : similitude par boites englobantes (echelle 0,49986) », meme resultat.
+
+**Consommateurs en aval (echelle).** Audit (agent) : rien de vivant ne casse. Reciblage d'animation (anytop_retarget : seuils relatifs a la taille du corps, mouvement racine a l'echelle des os), nommage des zones (normalise ses boites), visualiseurs (cadrage sur la boite) : independants de l'echelle. SkinTokens normalise l'axe le PLUS LONG (fourmi : z dans [-1,1]) : rien ne pouvait supposer « hauteur 2 ». Seul effet visible : l'export FBX Unreal d'un rig (x100) sort a la taille des maillages simples (~1 m au lieu de ~2 m), comme a l'epoque Puppeteer. clips_fbx_bridge / gabarit_recaler separent gauche/droite a x=0 : sans effet, le rig transfere reste centre (decalage 0,2 %).

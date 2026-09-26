@@ -125,6 +125,7 @@ const FICHIERS = [
   { nom: 'nommage (routeur)', source: 'scripts/name_parts.py',        copie: 'modal_app/part_namer/name_parts.py' },
   { nom: 'nommage (vision)',  source: 'scripts/part_namer_vision.py', copie: 'modal_app/part_namer/part_namer_vision.py' },
   { nom: 'nommage (squelette)', source: 'scripts/skin_zone_namer.py', copie: 'modal_app/part_namer/skin_zone_namer.py' },
+  { nom: 'alignement du transfert SkinTokens', source: 'scripts/patch_skintokens_transfert.py', copie: 'modal_app/patch_skintokens_transfert.py' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));

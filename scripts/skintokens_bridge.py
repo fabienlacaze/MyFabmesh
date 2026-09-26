@@ -67,26 +67,50 @@ def main():
         sys.exit(1)
 
     os.makedirs(os.path.dirname(output_glb), exist_ok=True)
-    # NOTE: --use_transfer (keep original texture) is intentionally OFF. It
-    # re-targets the skin onto the *source* mesh but leaves the skeleton in
-    # SkinTokens' normalised space → the bones float offset above the mesh.
-    # Exporting the asset's own mesh keeps skeleton + mesh in the same space
-    # (matches the aligned rigs validated in the comparison viewer).
-    cmd = [venv_py, demo, "--input", mesh_path, "--output", output_glb]
-    log(f"python={venv_py}")
-    log(f"exec: {' '.join(cmd)}")
+    # --use_transfer ACTIVE (2026-09-26). Sans lui, SkinTokens exporte SON
+    # maillage normalise (hauteur 2) SANS UV ni materiau : le rig sortait
+    # BLANC. Le transfert remet squelette et peau sur le maillage SOURCE (UV,
+    # textures et materiaux conserves). L'ancienne note l'accusait de laisser
+    # les os « flottant au-dessus du maillage » : c'etait un bug D'AFFICHAGE
+    # (aide squelette du visualiseur web), corrige le meme jour. Mesure sur
+    # le fichier : os 100 % dans le maillage, Monde x IBM = identite.
+    def _run(cmd):
+        log(f"exec: {' '.join(cmd)}")
+        proc = subprocess.Popen(
+            cmd, cwd=SKINTOKENS_DIR,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1,
+        )
+        refuse = False
+        for line in iter(proc.stdout.readline, ""):
+            line = line.rstrip()
+            if line:
+                print(line, flush=True)
+                # « [SKIP] » = le MODELE refuse le maillage, pas le transfert.
+                if "[SKIP]" in line:
+                    refuse = True
+        proc.stdout.close()
+        return proc.wait(), refuse
 
-    proc = subprocess.Popen(
-        cmd, cwd=SKINTOKENS_DIR,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1,
-    )
-    for line in iter(proc.stdout.readline, ""):
-        line = line.rstrip()
-        if line:
-            print(line, flush=True)
-    proc.stdout.close()
-    rc = proc.wait()
+    log(f"python={venv_py}")
+    # Alignement EXACT du transfert (voir patch_skintokens_transfert.py) :
+    # sans lui, SkinTokens aligne par une ACP a tirage aleatoire, retournement
+    # a 180 degres mesure dans ~40 % des cas. S'il ne s'applique pas, on
+    # renonce au transfert : un rig sans texture vaut mieux qu'un rig retourne.
+    try:
+        from patch_skintokens_transfert import appliquer
+        log(f"correctif d'alignement : {appliquer(SKINTOKENS_DIR)}")
+        transfert = True
+    except Exception as exc:
+        log(f"correctif d'alignement indisponible ({exc}) - rig SANS texture")
+        transfert = False
+    rc, refuse = _run([venv_py, demo, "--input", mesh_path, "--output", output_glb]
+                      + (["--use_transfer"] if transfert else []))
+    if (not os.path.exists(output_glb) or os.path.getsize(output_glb) == 0) and not refuse and transfert:
+        # Repli : un rig sans texture vaut mieux qu'aucun rig. Pas de relance
+        # si le modele a refuse le maillage : elle echouerait pareil.
+        log("transfert de texture en echec - repli sur l'export normalise, sans texture")
+        rc, refuse = _run([venv_py, demo, "--input", mesh_path, "--output", output_glb])
 
     if not os.path.exists(output_glb):
         print(f"AUTORIG_ERROR: SkinTokens produced no output (rc={rc}). "

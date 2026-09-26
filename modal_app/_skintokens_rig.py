@@ -134,6 +134,20 @@ image = (
         f"cd {SKINTOKENS_DIR} && python download.py --model",
         secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
     )
+    # ---- Alignement EXACT du transfert de texture (FabMesh) ----------------
+    # APRES les poids : cette couche change sans refaire telecharger 1,6 Go.
+    # SkinTokens aligne le rig sur le maillage d'origine par une ACP a tirage
+    # aleatoire, sans lever l'ambiguite de signe : retournement a 180 degres
+    # mesure dans ~40 % des cas. Le correctif lit la similitude exacte sur les
+    # boites englobantes ; son auto-test fait echouer le BUILD s'il ne
+    # s'applique plus (SkinTokens modifie en amont). Explication complete dans
+    # modal_app/patch_skintokens_transfert.py.
+    .add_local_file(
+        "modal_app/patch_skintokens_transfert.py",
+        remote_path="/tmp/patch_skintokens_transfert.py",
+        copy=True,
+    )
+    .run_commands(f"python /tmp/patch_skintokens_transfert.py {SKINTOKENS_DIR}")
     .add_local_python_source("modal_app")
 )
 
@@ -180,32 +194,64 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None) -> bytes:
             rig_output_volume.commit()
         raise RuntimeError(msg)
 
-    # `--use_transfer` est VOLONTAIREMENT absent : il retargete la peau sur le
-    # maillage source mais laisse le squelette dans l'espace normalise de
-    # SkinTokens, d'ou des os flottant au-dessus du maillage. Exporter le
-    # maillage propre du modele garde squelette et geometrie dans le meme
-    # repere — c'est la configuration validee dans le comparateur.
-    cmd = ["python", "demo.py", "--input", src, "--output", out]
-    print(f"[skintokens] {' '.join(cmd)}", flush=True)
-    proc = subprocess.Popen(
-        cmd, cwd=SKINTOKENS_DIR,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1,
-        env={**os.environ, "PYTHONUNBUFFERED": "1"},
-    )
-    # On CONSERVE la fin de la sortie : la premiere version affichait un
-    # message generique (« objets mecaniques refuses ») pour ce qui etait en
-    # realite une erreur d'import. Un message qui explique le mauvais
-    # probleme coute un aller-retour de diagnostic complet.
-    dernieres = []
-    for line in iter(proc.stdout.readline, ""):
-        if line.strip():
-            print(line.rstrip(), flush=True)
-            dernieres.append(line.rstrip())
-            if len(dernieres) > 12:
-                dernieres.pop(0)
-    proc.stdout.close()
-    rc = proc.wait()
+    # `--use_transfer` ACTIVE (2026-09-26). Sans lui, SkinTokens exporte SON
+    # maillage normalise (hauteur 2) SANS UV ni materiau : le rig sortait
+    # BLANC. Le transfert remet squelette et peau sur le maillage SOURCE (UV,
+    # textures et materiaux conserves) via une similitude estimee.
+    # L'ancien commentaire l'accusait de laisser les os « flottant au-dessus
+    # du maillage » : c'etait un bug D'AFFICHAGE du visualiseur (aide
+    # squelette enfant du modele, transformation appliquee deux fois),
+    # corrige le meme jour. Mesure sur le fichier : os 100 % dans le
+    # maillage, meme decalage relatif que l'export normalise, Monde x IBM =
+    # identite, peau identique (memes faces, plus proche voisin a distance 0).
+    def _lancer(cmd):
+        print(f"[skintokens] {' '.join(cmd)}", flush=True)
+        proc = subprocess.Popen(
+            cmd, cwd=SKINTOKENS_DIR,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        # On CONSERVE la fin de la sortie : la premiere version affichait un
+        # message generique (« objets mecaniques refuses ») pour ce qui etait
+        # en realite une erreur d'import. Un message qui explique le mauvais
+        # probleme coute un aller-retour de diagnostic complet.
+        dernieres = []
+        refuse = False
+        for line in iter(proc.stdout.readline, ""):
+            if line.strip():
+                print(line.rstrip(), flush=True)
+                dernieres.append(line.rstrip())
+                if len(dernieres) > 12:
+                    dernieres.pop(0)
+                # demo.py ecrit « [SKIP] » quand le MODELE refuse le maillage
+                # (objet sans squelette naturel) : ce n'est pas le transfert.
+                if "[SKIP]" in line:
+                    refuse = True
+        proc.stdout.close()
+        return proc.wait(), dernieres, refuse
+
+    # Garde-fou : le correctif d'alignement est pose au BUILD de l'image. S'il
+    # manquait (image anterieure), pas de transfert — un rig retourne serait
+    # pire qu'un rig sans texture.
+    try:
+        with open(os.path.join(SKINTOKENS_DIR, "src", "rig_package", "parser", "bpy.py"),
+                  encoding="utf-8") as fh:
+            aligne = "_fabmesh_similitude_boites" in fh.read()
+    except OSError:
+        aligne = False
+    if not aligne:
+        print("[skintokens] correctif d'alignement ABSENT de l'image — rig sans "
+              "texture", flush=True)
+    rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out]
+                                    + (["--use_transfer"] if aligne else []))
+    if (not os.path.isfile(out) or os.path.getsize(out) == 0) and not refuse and aligne:
+        # Repli : un rig sans texture vaut mieux qu'aucun rig. Relance SANS
+        # transfert (l'inference est refaite : cout GPU double, cas rare). Pas
+        # de relance si le modele a refuse le maillage : elle echouerait pareil.
+        print("[skintokens] transfert de texture en echec — repli sur l'export "
+              "normalise, sans texture", flush=True)
+        rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out])
 
     if not os.path.isfile(out) or os.path.getsize(out) == 0:
         queue = " | ".join(dernieres[-4:])[:300]
