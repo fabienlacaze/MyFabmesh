@@ -442,9 +442,17 @@ si une case est cochée, décochée ou masquée :
   `enhance-tex`, `name`, `region-retex`, `texvar`, plus les Étapes de
   construction 3D. Aucun n'est bloqué : kaolin et l'inpaint d'atlas sont déjà
   sur Modal ; seul `enhance-tex` demande d'ajouter Real-ESRGAN à l'image.
-- **`Variant`, `Extend`, `Sym. Auto` sont des coquilles vides côté web** —
-  `Variant` s'y contente d'un `duplicateImageVersion` alors que le bureau
-  lance une vraie variante SDXL.
+- ~~`Variant`, `Extend`, `Sym. Auto` coquilles vides cote web~~ — **regle le
+  2026-09-26.** `Extend` et `Sym. Auto` etaient en fait deja a parite (meme
+  algorithme des deux cotes) ; `Variant` a recu le guide de variation et le
+  verrou de forme, avec le bon moteur (`tex_variant` si la forme est
+  verrouillee, `modify` sinon) et le bon tarif.
+- **Piege decouvert le 2026-09-26 : une fonction peut etre APPELEE sans
+  exister.** `translateUserPrompt()` etait appelee trois fois dans le
+  renderer web et definie nulle part — Recolorier et Age ne faisaient
+  strictement rien depuis leur portage, sans message ni tuile. Avant de
+  declarer un outil porte, verifier que CHAQUE fonction que le bloc copie
+  appelle existe aussi cote web.
 - **Génération d'image fantôme** : une tuile « Generate images » apparaît à
   chaque mesh sans produire d'image. Trois hypothèses écartées par la mesure ;
   `pushJob` enregistre désormais sa **pile d'appel** — lire les journaux R2
