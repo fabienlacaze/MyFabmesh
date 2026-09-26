@@ -60,10 +60,23 @@ PYPI_PACKAGES = [
     # bpy_server.py : `from bottle import ...` + serveur tornado (indispensables)
     'bottle==0.13.4', 'tornado==6.5.7', 'requests==2.34.2',
 ]
-POIDS = [
-    os.path.join('experiments', 'skin_vae_2_10_32768', 'last.ckpt'),
-    os.path.join('experiments', 'articulation_xl_quantization_256_token_4', 'grpo_1400.ckpt'),
+# Poids telecharges PAR NOUS (URL publiques, reprise, taille + SHA-256) et non
+# par download.py : huggingface_hub 1.24 y plante (« Cannot send a request, as
+# the client has been closed », constate a l'installation du 2026-09-26).
+# Revisions figees : un changement amont ne change rien sans qu'on le decide.
+HF = 'https://huggingface.co'
+REVISION_POIDS = '79736cad0fd84de384d5eede659b4ebd24effe33'          # VAST-AI/SkinTokens (MIT)
+POIDS = [   # (chemin dans le depot = chemin local, octets, sha256)
+    ('experiments/skin_vae_2_10_32768/last.ckpt', 487311745,
+     '4843f49e58afff88345806b94ca82e6cc9d8def6e7432e2853c677b154de0ed4'),
+    ('experiments/articulation_xl_quantization_256_token_4/grpo_1400.ckpt', 1131603979,
+     'f4e4706a11cfb520cdde65156a0358545e4fbf8f36237aca01ea5e79d5cb5692'),
 ]
+# Configuration du transformeur (download.py --model la prend aussi, SANS les
+# poids du LLM : ceux du rigger sont dans son checkpoint).
+REVISION_QWEN = 'c1899de289a04d12100db370d81485cdf75e47ca'           # Qwen/Qwen3-0.6B (Apache-2.0)
+QWEN_FICHIERS = ['config.json', 'generation_config.json', 'merges.txt', 'tokenizer.json',
+                 'tokenizer_config.json', 'vocab.json', 'LICENSE']
 
 
 def emit(obj):
@@ -118,6 +131,68 @@ def _telecharger_code(dest):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _sha256(chemin):
+    import hashlib
+    h = hashlib.sha256()
+    with open(chemin, 'rb') as f:
+        for bloc in iter(lambda: f.read(8 << 20), b''):
+            h.update(bloc)
+    return h.hexdigest()
+
+
+def _telecharger(url, dest, taille=None, sha256=None, suivi=None):
+    """Telecharge `url` vers `dest` via un .part (REPRISE par Range apres une
+    coupure), puis verifie taille et SHA-256. Deja present et conforme : rien."""
+    if os.path.isfile(dest) and (taille is None or os.path.getsize(dest) == taille) \
+            and (sha256 is None or _sha256(dest) == sha256):
+        return
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    part = dest + '.part'
+    for essai in range(4):
+        deja = os.path.getsize(part) if os.path.isfile(part) else 0
+        req = urllib.request.Request(url, headers={'User-Agent': 'MyFabmesh.AI installer',
+                                                   **({'Range': f'bytes={deja}-'} if deja else {})})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                if deja and r.status != 206:          # pas de reprise cote serveur
+                    deja = 0
+                with open(part, 'ab' if deja else 'wb') as f:
+                    while True:
+                        bloc = r.read(4 << 20)
+                        if not bloc:
+                            break
+                        f.write(bloc)
+                        if suivi:
+                            suivi(len(bloc))
+            break
+        except OSError as e:
+            if essai == 3:
+                raise RuntimeError(f'download failed ({url}): {e}')
+    if taille is not None and os.path.getsize(part) != taille:
+        os.remove(part)
+        raise RuntimeError(f'download size mismatch for {os.path.basename(dest)}')
+    if sha256 is not None and _sha256(part) != sha256:
+        os.remove(part)
+        raise RuntimeError(f'checksum mismatch for {os.path.basename(dest)}')
+    os.replace(part, dest)
+
+
+def _poids(dest):
+    total = sum(t for _, t, _ in POIDS)
+    fait = [0]
+
+    def suivi(n):
+        fait[0] += n
+        emit({'step': 'rig-weights', 'pct': 70 + round(25 * min(1.0, fait[0] / total)), 'done': False,
+              'current': f'{fait[0] >> 20} / {total >> 20} MB'})
+    for chemin, taille, sha in POIDS:
+        _telecharger(f'{HF}/VAST-AI/SkinTokens/resolve/{REVISION_POIDS}/{chemin}',
+                     os.path.join(dest, *chemin.split('/')), taille, sha, suivi)
+    for f in QWEN_FICHIERS:
+        _telecharger(f'{HF}/Qwen/Qwen3-0.6B/resolve/{REVISION_QWEN}/{f}',
+                     os.path.join(dest, 'models', 'Qwen3-0.6B', f))
+
+
 def _remplacer(chemin, ancien, nouveau, absent=None):
     with open(chemin, encoding='utf-8', newline='') as f:
         texte = f.read()
@@ -166,6 +241,13 @@ def main():
     a = ap.parse_args()
     py = a.python
     try:
+        # pip : le Python embarque n'en a pas, mais fournit get-pip.py
+        emit({'step': 'rig-pip-bootstrap', 'pct': 0, 'done': False})
+        if subprocess.run([py, '-m', 'pip', '--version'], capture_output=True).returncode != 0:
+            getpip = os.path.join(os.path.dirname(py), 'get-pip.py')
+            if not os.path.isfile(getpip):
+                raise RuntimeError(f'pip missing and no get-pip.py at {getpip}')
+            _run([py, getpip, '--no-warn-script-location'], 'rig-pip-bootstrap')
         pip = [py, '-m', 'pip', 'install', '--no-warn-script-location', '--disable-pip-version-check']
         emit({'step': 'rig-torch', 'pct': 5, 'done': False})
         _run(pip + TORCH_PACKAGES + ['--index-url', TORCH_INDEX], 'rig-torch')
@@ -173,11 +255,18 @@ def main():
         _run(pip + PYPI_PACKAGES, 'rig-deps')
         _telecharger_code(a.dest)
         _patcher(a.dest)
+        # Le Python EMBARQUE ignore le dossier courant et celui du script (son
+        # fichier ._pth fixe sys.path) : ni demo.py, ni le serveur bpy lance en
+        # sous-processus, ni le shim ne se trouveraient. Un .pth dans ses
+        # site-packages ajoute SkinTokens a sys.path pour TOUS ses processus
+        # (constate a l'installation du 2026-09-26 : « No module named
+        # flash_attn_interface »).
+        site = os.path.join(os.path.dirname(os.path.abspath(py)), 'Lib', 'site-packages')
+        if os.path.isdir(site):
+            with open(os.path.join(site, 'fabmesh_skintokens.pth'), 'w', encoding='utf-8') as f:
+                f.write(os.path.abspath(a.dest) + chr(10))
         emit({'step': 'rig-weights', 'pct': 70, 'done': False, 'msg': 'huggingface.co/VAST-AI/SkinTokens (1.6 GB)'})
-        _run([py, 'download.py', '--model'], 'rig-weights', cwd=a.dest)
-        manquants = [p for p in POIDS if not os.path.isfile(os.path.join(a.dest, p))]
-        if manquants:
-            raise RuntimeError(f'weights missing after download: {manquants}')
+        _poids(a.dest)
         # verification : les imports dont le rig a besoin passent
         emit({'step': 'rig-check', 'pct': 95, 'done': False})
         _run([py, '-c', 'import torch, bpy, transformers, open3d, trimesh, scipy; '

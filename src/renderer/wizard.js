@@ -657,6 +657,7 @@ async function _startDownloadInterne() {
   // auteur (open source, en partie GPL-3.0 — voir Licenses), poids Hugging Face.
   const _RIG_STEPS = {
     'rig-copy-python': 'Preparing the rig Python environment…',
+    'rig-pip-bootstrap': 'Setting up the rig installer…',
     'rig-torch': 'Downloading PyTorch for the rig engine (~3.3 GB)…',
     'rig-deps': 'Installing rig libraries…',
     'rig-code': 'Downloading the open-source rig engine from its authors…',

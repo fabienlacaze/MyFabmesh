@@ -23555,3 +23555,25 @@ positive au cout reel. Worker : cout et estimation par mode dans handleAutoRig
 (debit, remboursement, enregistrement, ligne de travail) ; le remboursement
 du statut relit deja le montant enregistre. Pastilles : « Re-skin only » 6 ;
 bouton de l'editeur 10, ou 6 des qu'une articulation a bouge.
+
+## 2026-09-26 — Rig LOCAL du bureau : installeur TESTE de bout en bout
+
+Installation reelle dans C:	mpigtest (copie de build/python-embed, comme
+l'appli), en 3 passes ; chaque echec a revele un vrai defaut, corrige :
+1. pip absent du Python embarque -> amorce via son get-pip.py (etape
+   rig-pip-bootstrap, comme l'ancien installeur).
+2. Poids : download.py plante dans huggingface_hub 1.24 (« Cannot send a
+   request, as the client has been closed ») -> l'installeur telecharge
+   lui-meme depuis les URL publiques Hugging Face, REVISIONS FIGEES
+   (SkinTokens 79736ca, Qwen3-0.6B c1899de : configuration seule), reprise par
+   Range, taille + SHA-256 verifies. 1,6 Go en ~1 min.
+3. Le Python EMBARQUE ignore le dossier courant et celui du script (._pth) :
+   « No module named flash_attn_interface » ; le serveur bpy lance en
+   sous-processus aurait eu le meme probleme -> fichier
+   fabmesh_skintokens.pth dans ses site-packages.
+Resultat : 8 etapes -> « done », marque .fabmesh_pret ; torch voit la RTX
+5080 (CUDA 12.8) ; 7,2 Go d'environnement + 1,6 Go (SkinTokens + poids).
+RIG REEL avec ce moteur, par le meme chemin que l'appli (skintokens_bridge.py
+avec FABMESH_SKINTOKENS_PY/_DIR, peau seule sur le barbare, Unreal ouvert) :
+correctifs deja appliques, « squelette impose conserve tel quel », TERMINE en
+116 s, AUTORIG_SUCCESS. Aucun processus laisse (verifie).
