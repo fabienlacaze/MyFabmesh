@@ -22560,3 +22560,42 @@ NameError a chaque appel, introduit le 24 en branchant « Texture smooth ».
 Et ma nouvelle route utilisait `Image` sans l'importer (app.py n'importe PIL
 que localement) : rattrape avant deploiement. Prouve sur la version
 precedente d'app.py.
+
+## 2026-09-26 — Tuile fantome, sous-taches invisibles, alpha partiel de l'atlas
+
+**Signalement 1 : « une nouvelle version d'image a chaque maillage, meme sans
+option » + deux tuiles « Generate 3D: orc W1 » a 2 s d'ecart.** Mesure :
+UNE ligne mesh en base, toutes options a false, aucune operation interne,
+et rien d'autre dans R2 que le GLB et sa vignette (rangee dans le projet
+technique `_thumbs`, jamais comptee comme image). Aucune image n'a ete
+creee. La seconde tuile est la « tuile fantome » connue (appelee « Generate
+images » avant le correctif du 25) : COURSE entre le sondage
+/api/me/active-jobs (8 s) et la declaration de l'identifiant, qui n'arrive
+qu'au retour de /api/generate. Correctif double : marqueur « lancement en
+cours » (prevention) + retrait de la tuile de reprise a la declaration
+(reparation). PROUVE en navigateur (/api/generate simule a 6 s) : ancien
+code -> 2 tuiles des t=6 s ; nouveau -> 1 tuile sur les 13 releves.
+
+**Signalement 2 : « vraies sous-taches visuellement ».** Deux defauts :
+(a) une operation interne s'appelait « Generate 3D: <projet> » comme son
+parent (nom tire d'asset_type = type d'OBJET) -> trois « Generate 3D » pour
+un clic ; nommee desormais d'apres son type (Rectify source view, Back
+view…), sans repeter le projet sous le parent. (b) Le serveur n'ecrivait ces
+operations qu'A LA FIN : le sondage des travaux en cours ne les voyait
+jamais. _journaliserAppelAux ecrit la ligne « processing » au demarrage puis
+la met a jour. Le faucheur ignorait les lignes d'operation : il clot
+maintenant une operation restee en cours (> 15 min), sans remboursement
+(elles ne coutent aucun credit) ; filet client equivalent.
+
+**Signalement 3 : « pourquoi c'est transparent ».** Non reproduit. Mesures
+sur le fichier : couleur fidele (Blender), carte metal correcte (armure
+metal, peau non), aucune face retournee (0,1 % de pixels changes avec
+l'elimination des faces arriere), rendu web identique avec et sans alpha.
+Seule nouveaute : atlas RGBA avec alpha < 250 sur 16 % de la zone peinte
+(consequence du fond noir en entree ; avant : alpha 255 partout). three.js
+r170 force alpha = 1 pour un materiau OPAQUE (verifie dans son source) ;
+d'autres logiciels pourraient ne pas l'ignorer. DURCISSEMENT, pas cause
+prouvee : `_strip_opaque_alpha` (noyau partage bureau/Modal) repasse
+l'atlas en RGB quand le materiau est OPAQUE. Hypotheses ecartees par la
+mesure : option X-Ray (rend aussi la tete transparente), mode « bones » par
+defaut (sans effet mesurable dans ce visualiseur), carte metal.

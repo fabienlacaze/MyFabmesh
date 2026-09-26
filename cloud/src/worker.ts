@@ -8909,17 +8909,75 @@ async function _journaliserAppelAux<T>(
   req?: Request, projectName?: string,
 ): Promise<T> {
   const t0 = Date.now();
+  /* LA LIGNE EXISTE PENDANT L'OPERATION (2026-09-26).
+   *
+   * Ces operations (rectification, vue arriere, feuille, text2image…) ne
+   * s'ecrivaient qu'A LA FIN, deja terminees. Le sondage /api/me/active-jobs
+   * ne liste que les travaux en cours : il ne les voyait donc JAMAIS, et le
+   * client ne pouvait pas les afficher en sous-taches de la generation qui
+   * les produit — le panneau montrait un « Generate 3D » opaque pendant des
+   * minutes de rectification. On ecrit maintenant la ligne « processing » au
+   * demarrage, puis on la met a jour a la fin, au meme format que
+   * logOperation. Si l'insertion initiale echoue, on retombe sur l'ancien
+   * comportement (une seule ecriture a la fin) : le suivi est un confort.
+   * Une ligne restee en cours (worker coupe) est close par le faucheur. */
+  const idEnCours = await _debuterOperation(env, userId, opType, t0, req, projectName);
   try {
     const r = await appel();
-    await logOperation(env, userId, opType, 0, t0, Date.now(), 'succeeded',
-                       { auto: true, req, projectName });
+    if (!idEnCours || !(await _terminerOperation(env, idEnCours, opType, t0, 'succeeded', {})))
+      await logOperation(env, userId, opType, 0, t0, Date.now(), 'succeeded',
+                         { auto: true, req, projectName });
     return r;
   } catch (e) {
-    await logOperation(env, userId, opType, 0, t0, Date.now(), 'failed',
-                       { auto: true, req, projectName,
-                         error: e instanceof Error ? e.message : String(e) });
+    const motif = e instanceof Error ? e.message : String(e);
+    if (!idEnCours || !(await _terminerOperation(env, idEnCours, opType, t0, 'failed', { error: motif })))
+      await logOperation(env, userId, opType, 0, t0, Date.now(), 'failed',
+                         { auto: true, req, projectName, error: motif });
     throw e;
   }
+}
+
+/** Ligne `jobs` « processing » d'une operation interne, au format de
+ *  logOperation. Rend son identifiant, ou null si l'ecriture a echoue. */
+async function _debuterOperation(env: Env, userId: string, opType: string, t0: number,
+                                 req?: Request, projectName?: string): Promise<string | null> {
+  if (isMock(env)) return null;
+  const id = 'op_' + crypto.randomUUID().replace(/-/g, '');
+  try {
+    const { error } = await supabaseAdmin(env).from('jobs').insert({
+      id, user_id: userId, asset_type: opType, type: opType,
+      cost_usd: MODAL_COST_USD[opType] ?? 0, mode: 'op', seed: 0, credit_cost: 0,
+      status: 'processing',
+      project_name: projectName ? String(projectName).slice(0, 128) : null,
+      options: { operation_type: opType, auto: true,
+                 provenance: _provenance(req), pays: _paysRequete(req) },
+      created_at: new Date(t0).toISOString(),
+    });
+    return error ? null : id;
+  } catch { return null; }
+}
+
+/** Clot la ligne ouverte par _debuterOperation. Rend false si rien n'a ete
+ *  mis a jour (l'appelant ecrit alors la ligne complete a la place). */
+async function _terminerOperation(env: Env, id: string, opType: string, t0: number,
+                                  status: 'succeeded' | 'failed',
+                                  meta: { error?: string }): Promise<boolean> {
+  try {
+    const fin = Date.now();
+    const { data, error } = await supabaseAdmin(env).from('jobs')
+      .update({
+        status,
+        error: status === 'failed' ? String(meta.error ?? '').slice(0, 500) || null : null,
+        finished_at: new Date(fin).toISOString(),
+        options: { operation_type: opType, auto: true, duration_ms: fin - t0,
+                   cost_usd: MODAL_COST_USD[opType] ?? 0,
+                   ...(status === 'failed' ? { error: meta.error } : {}) },
+      })
+      .eq('id', id)
+      .eq('status', 'processing')
+      .select('id');
+    return !error && Array.isArray(data) && data.length > 0;
+  } catch { return false; }
 }
 
 async function callModalBackView(env: Env, userId: string, input: {
@@ -17869,7 +17927,7 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
   const GRACE_LABEL = `${Math.round(GRACE_MS / 60000)} min`;
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const { data: stuck, error: selErr } = await sb.from('jobs')
-    .select('id, user_id, credit_cost, created_at, status, options, asset_type, type, cost_usd')
+    .select('id, user_id, credit_cost, created_at, status, options, asset_type, type, cost_usd, mode')
     .in('status', NON_TERMINAL_JOB_STATUSES as unknown as string[])
     .lt('created_at', cutoff)
     // 200 max: each job costs up to 1 status POST + 1 UPDATE + 1 RPC + 1-2 R2
@@ -17883,9 +17941,25 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
   for (const job of stuck as Array<{
     id: unknown; user_id?: unknown; credit_cost?: unknown;
     created_at?: unknown; status?: unknown;
-    options?: Record<string, unknown> | null; asset_type?: unknown;
+    options?: Record<string, unknown> | null; asset_type?: unknown; mode?: unknown;
   }>) {
     const id = String(job.id);
+    /* OPERATION INTERNE RESTEE EN COURS (2026-09-26). _journaliserAppelAux
+     * ecrit desormais sa ligne au demarrage ; si le worker est coupe avant la
+     * fin, elle resterait « processing » a jamais — et le client l'afficherait
+     * indefiniment en sous-tache. Aucune de ces operations n'est facturee
+     * (credit_cost 0, cout Modal compte dans la generation parente) : on la
+     * clot, sans remboursement. */
+    if (String(job.mode ?? '') === 'op' && (job.options as Record<string, unknown> | null)?.auto === true) {
+      try {
+        await sb.from('jobs').update({
+          status: 'failed', error: 'reaped: operation interrompue avant sa fin',
+          finished_at: new Date().toISOString(),
+        }).eq('id', id).in('status', NON_TERMINAL_JOB_STATUSES as unknown as string[]);
+        out.reaped++;
+      } catch (e) { noteErr(`${id}: ${e instanceof Error ? e.message : String(e)}`); }
+      continue;
+    }
     const at = String(job.asset_type ?? '');
     // options.operation_type is authoritative (every insert writes it since
     // 2026-07-26); asset_type then the 'modal_' id prefix are fallbacks for

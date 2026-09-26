@@ -85,6 +85,32 @@ def _composite_on_black(image):
     arr = np.asarray(image).astype(np.float32)
     arr[:, :, :3] *= arr[:, :, 3:4] / 255.0
     return Image.fromarray(np.clip(arr + 0.5, 0, 255).astype(np.uint8), 'RGBA')
+def _strip_opaque_alpha(glb_obj):
+    """Atlas baseColor en RGB quand le materiau est OPAQUE.
+
+    MESURE DU 2026-09-26. Depuis que l'image d'entree est composee sur fond noir
+    (voir plus haut), TRELLIS-2 predit une opacite PARTIELLE sur une partie de
+    l'atlas : alpha < 250 sur 16 % de la zone peinte de l'orc « orc W1 »,
+    alors qu'il etait a 255 partout avant. Le materiau exporte reste declare
+    OPAQUE, et la spec glTF demande alors d'IGNORER l'alpha — three.js le fait.
+    Mais un canal alpha incoherent avec le materiau est une donnee trompeuse
+    pour tout autre logiciel (import Unreal, visionneuses) : on le retire.
+    Les materiaux reellement transparents (alphaMode BLEND ou MASK) ne sont
+    pas touches. Rend le nombre d'atlas convertis."""
+    geoms = (list(glb_obj.geometry.values())
+             if hasattr(glb_obj, 'geometry') else [glb_obj])
+    n = 0
+    for g in geoms:
+        mat = getattr(getattr(g, 'visual', None), 'material', None)
+        tex = getattr(mat, 'baseColorTexture', None) if mat is not None else None
+        if tex is None or getattr(tex, 'mode', '') != 'RGBA':
+            continue
+        if str(getattr(mat, 'alphaMode', None) or 'OPAQUE').upper() != 'OPAQUE':
+            continue
+        mat.baseColorTexture = tex.convert('RGB')
+        n += 1
+    return n
+
 # --- NOYAU PARTAGE : FIN ---
 
 
@@ -366,6 +392,13 @@ def generate(
         corriger_metal_degenere(glb_obj)
     except Exception as e:
         print(f'[mesh] correction du metal ignoree: {e}', flush=True)
+
+    try:
+        _n = _strip_opaque_alpha(glb_obj)
+        if _n:
+            print(f'[mesh] alpha retire de {_n} atlas (materiau OPAQUE)', flush=True)
+    except Exception as e:
+        print(f'[mesh] retrait alpha ignore: {e}', flush=True)
 
     # Serialize to bytes in-memory (trimesh's .export needs a path OR
     # a writeable file-like; BytesIO works).

@@ -471,10 +471,11 @@ si une case est cochée, décochée ou masquée :
   strictement rien depuis leur portage, sans message ni tuile. Avant de
   declarer un outil porte, verifier que CHAQUE fonction que le bloc copie
   appelle existe aussi cote web.
-- **Génération d'image fantôme** : une tuile « Generate images » apparaît à
-  chaque mesh sans produire d'image. Trois hypothèses écartées par la mesure ;
-  `pushJob` enregistre désormais sa **pile d'appel** — lire les journaux R2
-  après la prochaine occurrence.
+- ~~Génération d'image fantôme~~ — **réglé le 2026-09-26** : ce n'était pas une
+  image mais une COURSE entre le sondage `/api/me/active-jobs` et la déclaration
+  de l'identifiant du maillage (tuile en double). Prouvé en navigateur avant/après.
+  Les opérations internes (rectification, vue arrière…) sont désormais écrites
+  « processing » au démarrage et affichées en vraies sous-tâches.
 - **Le garde des prompts ne mesure que le positif** ; le négatif mérite le
   même traitement.
 - La **vente est volontairement fermée** (503) tant que les mentions légales

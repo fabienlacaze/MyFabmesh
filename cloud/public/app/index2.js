@@ -8898,6 +8898,9 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
      *
      * Le shim emet l'identifiant des la creation du travail ; on s'y
      * abonne le temps de l'operation. */
+    // Marqueur de lancement, pose AVANT l'abonnement et la requete : voir
+    // window.__lancementsEnCours (course avec le sondage de reprise).
+    const _lancement = window.fabmeshJobs?.noterLancement?.('mesh', meshProjectName);
     let desabonne = null;
     try {
       desabonne = window.__meshyOn?.('ai3d-progress', (m) => {
@@ -8915,6 +8918,9 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
            * identifiant ; le maillage, lui, ne le faisait pas — d'ou le
            * doublon constate sur une generation de mesh. */
           try { window.fabmeshJobs?.declareServerJob?.(m.jobId); } catch (_) {}
+          // Identifiant connu : le registre couvre desormais ce travail, le
+          // marqueur de lancement n'a plus d'objet.
+          try { window.fabmeshJobs?.oublierLancement?.(_lancement); } catch (_) {}
         }
       }) || null;
     } catch (_) {}
@@ -8926,6 +8932,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
         // passer par 'ai3d-progress', on le declare ici. Sans quoi la ligne
         // du worker reste non declaree et se reaffiche en tuile separee.
         try { window.fabmeshJobs?.declareServerJob?.(r.jobId); } catch (_) {}
+        try { window.fabmeshJobs?.oublierLancement?.(_lancement); } catch (_) {}
       }
       if (r?.success) {
         // Show mesh stats in the job details before completing
@@ -8949,6 +8956,8 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     } finally {
       // Un abonnement par generation, sinon ils s'empilent a chaque clic.
       try { if (desabonne) desabonne(); } catch (_) {}
+      // Filet : le marqueur de lancement ne survit jamais a la generation.
+      try { window.fabmeshJobs?.oublierLancement?.(_lancement); } catch (_) {}
     }
   });
 });
@@ -16087,6 +16096,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const _displayName = (row) => {
       const kind = _kindFromAssetType(row.asset_type, '');
       const project = row.project_name || (row.options && row.options.project_name) || row.id.slice(0, 8);
+      /* OPERATION INTERNE : nommee d'apres son TYPE (2026-09-26).
+       *
+       * `asset_type` porte le type d'OBJET (character, building…), pas
+       * l'operation. Une rectification ou une vue arriere lancee pendant la
+       * generation d'un personnage s'appelait donc « Generate 3D: orc W1 »,
+       * exactement comme son parent : rattachee en sous-tache, elle
+       * s'affichait comme une COPIE du travail parent. Mesure en test
+       * navigateur : trois lignes « Generate 3D » pour un seul clic. Le
+       * type de la ligne dit l'operation ; les noms restent en anglais,
+       * _displayJobName les traduit a l'affichage. */
+      if (_estOperationInterne(row)) {
+        const t = String(row.type || '').toLowerCase();
+        const op = [
+          [/^rectify/, 'Rectify source view'],
+          [/^back[-_]?view|^backview/, 'Back view'],
+          [/^sheet/, 'Back view'],
+          [/^mvadapter/, 'Multi-view'],
+          [/^remove[-_]?bg|^removebg/, 'Remove background'],
+          [/^face[-_]?fix/, 'Face fix'],
+          [/^(auto[-_]?)?inpaint/, 'Inpaint'],
+          [/^upscale|^esrgan/, 'Upscale'],
+          [/^recolor/, 'Recolor'],
+          [/^tex[-_]?variant/, 'Texture variant'],
+          [/^outfit|^cutout/, 'Outfit'],
+          [/^segment/, 'Segment parts'],
+        ].find(([re]) => re.test(t));
+        return `${op ? op[1] : 'Generate images'}: ${project}`;
+      }
       const verb = ({
         anim: `Animate ${row.mode || 'run'}`,
         rig: 'Auto-rig AI',
@@ -16141,6 +16178,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const kind = _kindFromAssetType(row.asset_type, '');
       const project = row.project_name || (row.options && row.options.project_name) || null;
       const startedAt = row.created_at ? Date.parse(row.created_at) : Date.now();
+      // Filet : une operation interne « en cours » depuis plus de 15 min est
+      // une ligne orpheline (worker coupe) que le faucheur n'a pas encore
+      // close. L'afficher ferait une sous-tache eternelle.
+      if (_estOperationInterne(row) && Date.now() - startedAt > 15 * 60 * 1000) return;
+      // Prevention (voir window.__lancementsEnCours) : la tuile du clic suit
+      // deja ce travail, son identifiant arrive dans quelques secondes. Les
+      // operations internes ne sont PAS concernees : elles deviennent des
+      // sous-taches plus bas.
+      try {
+        if (String(row.type || '') === 'mesh' && !_estOperationInterne(row)
+            && window.fabmeshJobs?.lancementCouvre?.('mesh', project, startedAt)) {
+          console.log('[jobs] reprise ignoree : lancement en cours pour', project, row.id);
+          return;
+        }
+      } catch (_) {}
       const params = {
         Project: project || '—',
         Type: row.asset_type || '—',
@@ -16186,6 +16238,9 @@ document.addEventListener('DOMContentLoaded', () => {
       );
       _jobByServerId.set(row.id, local);
       _serverPolledIds.add(local.id);
+      // Connue du registre : si l'identifiant est declare plus tard par le
+      // clic, cette tuile de reprise sera retiree (reparation).
+      try { window.__tuilesReprises.set(String(row.id), local.id); } catch (_) {}
     };
 
     const _bootAndPoll = async () => {
@@ -18640,8 +18695,52 @@ window.fabmeshJobs = {
  * l'identifiant serveur qu'elle suit, le sondage generique s'y refere et
  * rattache sa ligne au lieu de creer une tuile de plus. */
 window.__fabmeshJobsServeurSuivis = window.__fabmeshJobsServeurSuivis || new Set();
+/* LA COURSE QUI RESTAIT (mesuree le 2026-09-26 : deux tuiles « Generate 3D:
+ * orc W1 » a 2 s d'ecart, UNE seule ligne mesh en base, aucune operation
+ * interne). Le worker cree sa ligne `jobs` des le debut de /api/generate ;
+ * le navigateur ne declare l'identifiant qu'au RETOUR de la requete. Si le
+ * sondage /api/me/active-jobs (toutes les 8 s) tombe entre les deux, il ne
+ * sait pas que la tuile du clic suit deja ce travail, et en pose une
+ * seconde. C'est la « tuile fantome » signalee depuis des semaines (elle
+ * s'appelait « Generate images » avant le correctif du 2026-09-25).
+ *
+ * Deux protections complementaires :
+ *   1. PREVENTION — le clic note un « lancement en cours » (nature, projet,
+ *      heure) ; la reprise ignore une ligne de meme nature et de meme projet
+ *      nee apres ce moment, tant que l'identifiant n'est pas declare ;
+ *   2. REPARATION — si une tuile de reprise existe deja quand l'identifiant
+ *      est declare, elle est retiree sur-le-champ. */
+window.__lancementsEnCours = window.__lancementsEnCours || [];
+window.__tuilesReprises = window.__tuilesReprises || new Map();
+window.fabmeshJobs.noterLancement = (nature, projet) => {
+  const l = { nature: String(nature || ''), projet: String(projet || ''), t0: Date.now() };
+  try { window.__lancementsEnCours.push(l); } catch (_) {}
+  return l;
+};
+window.fabmeshJobs.oublierLancement = (l) => {
+  try { window.__lancementsEnCours = window.__lancementsEnCours.filter(x => x !== l); } catch (_) {}
+};
+window.fabmeshJobs.lancementCouvre = (nature, projet, creeLe) => {
+  const DUREE = 10 * 60 * 1000;          // un lancement ne couvre pas indefiniment
+  const maintenant = Date.now();
+  try {
+    window.__lancementsEnCours = window.__lancementsEnCours.filter(x => maintenant - x.t0 < DUREE);
+    return window.__lancementsEnCours.some(x => x.nature === nature && x.projet === String(projet || '')
+      && (!creeLe || creeLe >= x.t0 - 30_000));   // 30 s de marge d'horloge client/serveur
+  } catch (_) { return false; }
+};
 window.fabmeshJobs.declareServerJob = (serverId) => {
   try { if (serverId) window.__fabmeshJobsServeurSuivis.add(String(serverId)); } catch (_) {}
+  // Reparation : une tuile de reprise posee pour ce meme travail disparait.
+  try {
+    const locale = window.__tuilesReprises.get(String(serverId));
+    if (locale != null) {
+      window.__tuilesReprises.delete(String(serverId));
+      state.jobs = state.jobs.filter(x => x.id !== locale);
+      renderJobs();
+      console.log('[jobs] tuile de reprise en double retiree pour', serverId);
+    }
+  } catch (_) {}
 };
 window.fabmeshJobs.serverJobSuivi = (serverId) => {
   try { return window.__fabmeshJobsServeurSuivis.has(String(serverId)); } catch (_) { return false; }
@@ -19009,7 +19108,7 @@ function _renderSousTaches(parentId, cls) {
       <div class="${cls}${statusClass}" data-job-id="${c.id}">
         <div class="${cls}-row">
           <span class="${cls}-bullet">&#8627;</span>
-          <span class="${cls}-name">${escapeHtml(_displayJobName(c.name))}</span>
+          <span class="${cls}-name">${escapeHtml(_displayJobName(c.name).replace(/:[^:]*$/, ''))}</span>
           ${canCancel ? `<button class="job-cancel-btn" onclick="event.stopPropagation(); window._cancelJob(${c.id})" title="Cancel job">&#10005;</button>` : ''}
         </div>
         <div class="${cls}-bar">
