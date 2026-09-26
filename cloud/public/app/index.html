@@ -3074,10 +3074,20 @@
     </button>
     <div id="jobs-panel-2" class="hidden">
       <div class="jobs-panel-header">
-        <span>Running jobs</span>
+        <span>Jobs</span>
         <button id="jobs-close-2" class="icon-btn" title="Collapse jobs panel">&#9662;</button>
       </div>
-      <div id="jobs-list-2"></div>
+      <!-- Onglets (2026-09-26, demande de l'utilisateur) : un travail termine
+           remonte en tete, reste visible ~4 s, puis passe dans « Travaux finis ». -->
+      <div class="jobs-onglets-2" role="tablist">
+        <button type="button" id="jobs-onglet-encours" class="jobs-onglet-2 actif" role="tab" aria-selected="true" aria-controls="jobs-list-2"><span>Running</span><span class="jobs-onglet-nb" id="jobs-nb-encours">0</span></button>
+        <button type="button" id="jobs-onglet-termines" class="jobs-onglet-2" role="tab" aria-selected="false" aria-controls="jobs-termines-2"><span>Finished</span><span class="jobs-onglet-nb" id="jobs-nb-termines">0</span></button>
+      </div>
+      <div id="jobs-list-2" role="tabpanel"></div>
+      <div id="jobs-termines-2" role="tabpanel" hidden>
+        <div class="jobs-termines-barre"><button type="button" id="jobs-termines-effacer" class="jobs-termines-effacer">Clear</button></div>
+        <div id="jobs-termines-liste"></div>
+      </div>
     </div>
   </div>
 

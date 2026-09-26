@@ -163,4 +163,35 @@
     'Brush': 'الفرشاة',
     'Clear paint': 'مسح الطلاء',
   });
+  // Fenetre des taches : onglets « En cours » / « Travaux finis » (2026-09-26).
+  window.FabI18n.register('fr', {
+    'Jobs': 'Tâches',
+    'Finished': 'Travaux finis',
+    'No running jobs': 'Aucune tâche en cours',
+    'No finished jobs yet': 'Aucun travail fini pour l’instant',
+  });
+  window.FabI18n.register('es', {
+    'Jobs': 'Tareas',
+    'Finished': 'Terminadas',
+    'No running jobs': 'Ninguna tarea en curso',
+    'No finished jobs yet': 'Aún no hay tareas terminadas',
+  });
+  window.FabI18n.register('zh', {
+    'Jobs': '任务',
+    'Finished': '已完成',
+    'No running jobs': '没有进行中的任务',
+    'No finished jobs yet': '暂无已完成的任务',
+  });
+  window.FabI18n.register('hi', {
+    'Jobs': 'कार्य',
+    'Finished': 'पूर्ण',
+    'No running jobs': 'कोई कार्य जारी नहीं',
+    'No finished jobs yet': 'अभी तक कोई कार्य पूर्ण नहीं',
+  });
+  window.FabI18n.register('ar', {
+    'Jobs': 'المهام',
+    'Finished': 'المنتهية',
+    'No running jobs': 'لا توجد مهام قيد التنفيذ',
+    'No finished jobs yet': 'لا توجد مهام منتهية بعد',
+  });
 })();

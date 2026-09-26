@@ -18683,6 +18683,118 @@ function pushJob(name, onCancel, params, expectedMsOverride, startedAtOverride, 
   return job;
 }
 
+/* ONGLETS « EN COURS » / « TRAVAUX FINIS » (2026-09-26, demande de
+ * l'utilisateur). Un travail termine REMONTE en tete de la liste, reste
+ * visible ~4 s, puis passe dans l'onglet « Travaux finis ». L'historique est
+ * garde dans CE navigateur (localStorage, 50 entrees) pour survivre a un
+ * rechargement ; une vignette blob:/data: ne survit pas, elle n'est pas
+ * gardee. Les sous-taches n'y figurent pas : elles appartiennent a leur
+ * parent. */
+const _CLE_JOBS_TERMINES = 'fabmesh_jobs_termines_v1';
+const _DELAI_ARCHIVAGE_MS = 4000;
+state.jobsTermines = (() => {
+  try {
+    const a = JSON.parse(localStorage.getItem(_CLE_JOBS_TERMINES) || '[]');
+    return Array.isArray(a) ? a.slice(0, 50) : [];
+  } catch (_) { return []; }
+})();
+state.jobsOnglet = 'encours';
+
+function _sauverJobsTermines() {
+  try { localStorage.setItem(_CLE_JOBS_TERMINES, JSON.stringify((state.jobsTermines || []).slice(0, 50))); } catch (_) {}
+}
+
+/** Place un travail termine dans l'historique (jamais une sous-tache). */
+function _archiverJob(j) {
+  if (!j || j.parentJobId != null) return;
+  const vignette = j.sourceImageUrl && /^(https?:|file:)/i.test(String(j.sourceImageUrl))
+    ? j.sourceImageUrl : null;
+  const entree = {
+    finiId: 'f' + Date.now().toString(36) + '_' + j.id,
+    name: j.name,
+    statut: j.cancelled ? 'annule' : (j.status === 'error' ? 'echec' : 'ok'),
+    startedAt: j.startedAt || null,
+    finiLe: Date.now(),
+    projectName: _jobProjectName(j) || null,
+    sourceImageUrl: vignette,
+    errorMessage: j.errorMessage ? String(j.errorMessage).slice(0, 300) : null,
+  };
+  state.jobsTermines = [entree, ...(state.jobsTermines || [])].slice(0, 50);
+  _sauverJobsTermines();
+}
+
+/** Retire un travail termine de « En cours » apres `delai`, et l'archive.
+ *  Un ECHEC dont la fiche detaillee est ouverte attend sa fermeture :
+ *  l'utilisateur lit l'erreur (ou utilise son bouton de reprise). Une
+ *  reussite part a l'heure — pushJob ouvre la fiche de chaque nouveau
+ *  travail, attendre sa fermeture bloquerait presque toujours l'archivage ;
+ *  sa fiche est simplement refermee. */
+function _programmerArchivage(j, delai) {
+  setTimeout(() => {
+    const encore = state.jobs.find(x => x.id === j.id);
+    if (!encore || encore.status === 'running') return;
+    if (state._jobDetailsOpenId === encore.id) {
+      if (encore.status === 'error') { _programmerArchivage(encore, 2000); return; }
+      try { closeJobDetails(); } catch (_) {}
+    }
+    state.jobs = state.jobs.filter(x => x.id !== encore.id);
+    _archiverJob(encore);
+    renderJobs();
+    renderJobsTermines();
+  }, delai);
+}
+
+/** Liste « Travaux finis ». Reconstruite seulement quand elle change. */
+function renderJobsTermines() {
+  const liste = document.getElementById('jobs-termines-liste');
+  const termines = state.jobsTermines || [];
+  const nb = document.getElementById('jobs-nb-termines');
+  if (nb) nb.textContent = String(termines.length);
+  if (!liste) return;
+  const sig = termines.map(e => e.finiId).join(',');
+  if (liste.dataset.sig === sig && liste.childElementCount) return;
+  liste.dataset.sig = sig;
+  if (!termines.length) {
+    liste.innerHTML = '<div class="jobs-vide-2">No finished jobs yet</div>';
+    return;
+  }
+  liste.innerHTML = termines.map(e => {
+    const aller = _jobStepIndex(e) > 0;
+    const duree = e.startedAt && e.finiLe ? fmtDuration(e.finiLe - e.startedAt) : '';
+    let heure = '';
+    try { heure = new Date(e.finiLe).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (_) {}
+    const icone = e.statut === 'ok' ? '&#10003;' : (e.statut === 'annule' ? '&#8856;' : '&#10005;');
+    const vign = e.sourceImageUrl
+      ? `<img src="${escapeHtml(e.sourceImageUrl)}" alt="" class="step-progress-item-thumb"/>` : '';
+    return `
+      <div class="job-fini-2 ${escapeHtml(e.statut)}" data-fini-id="${escapeHtml(e.finiId)}">
+        <div class="job-fini-2-ligne">
+          <span class="job-fini-2-icone" aria-hidden="true">${icone}</span>
+          ${vign}
+          <span class="job-fini-2-nom">${escapeHtml(_displayJobName(e.name))}</span>
+          ${aller ? `<button type="button" class="job-goto-btn" data-fini-goto="${escapeHtml(e.finiId)}">Go to</button>` : ''}
+        </div>
+        <div class="job-fini-2-meta">${escapeHtml([duree, heure].filter(Boolean).join(' \u00b7 '))}</div>
+        ${e.errorMessage ? `<div class="job-fini-2-erreur">${escapeHtml(e.errorMessage)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/** Bascule entre les onglets « En cours » et « Travaux finis ». */
+function _choisirOngletJobs(onglet) {
+  state.jobsOnglet = onglet === 'termines' ? 'termines' : 'encours';
+  const enCours = state.jobsOnglet === 'encours';
+  const bEnCours = document.getElementById('jobs-onglet-encours');
+  const bTermines = document.getElementById('jobs-onglet-termines');
+  if (bEnCours) { bEnCours.classList.toggle('actif', enCours); bEnCours.setAttribute('aria-selected', String(enCours)); }
+  if (bTermines) { bTermines.classList.toggle('actif', !enCours); bTermines.setAttribute('aria-selected', String(!enCours)); }
+  const lEnCours = document.getElementById('jobs-list-2');
+  const lTermines = document.getElementById('jobs-termines-2');
+  if (lEnCours) lEnCours.hidden = !enCours;
+  if (lTermines) lTermines.hidden = enCours;
+  if (!enCours) renderJobsTermines();
+}
+
 function completeJob(id, success, errorMessage) {
   const j = state.jobs.find(j => j.id === id);
   if (!j) return;
@@ -18692,6 +18804,9 @@ function completeJob(id, success, errorMessage) {
   if (_finDiffereeSiEnfants(j, success, errorMessage)) return;
   j.progress = 100;
   j.status = success ? 'done' : 'error';
+  // Un travail termine REMONTE en tete de la liste (demande de l'utilisateur),
+  // puis part dans « Travaux finis » (_programmerArchivage).
+  state.jobs = [j, ...state.jobs.filter(x => x !== j)];
   // Sous-tache terminee : son parent attendait peut-etre qu'elle.
   setTimeout(() => _terminerParentEnAttente(j), 0);
   if (!success && errorMessage) {
@@ -18718,15 +18833,9 @@ function completeJob(id, success, errorMessage) {
   try {
     const _aDesEnfants = _jobChildren(j.id).some(c => c.status === 'running');
     if (!_aDesEnfants) {
-      const _delai = success ? 9000 : 20000;
-      setTimeout(() => {
-        // On ne retire que si le travail n'a pas ete relance entre-temps
-        // (meme identifiant reutilise) et qu'il est toujours dans cet etat.
-        const encore = state.jobs.find(x => x.id === j.id);
-        if (!encore || encore.status === 'running') return;
-        state.jobs = state.jobs.filter(x => x.id !== j.id);
-        renderJobs();
-      }, _delai);
+      // ~4 s en tete de liste, puis « Travaux finis » (demande de
+      // l'utilisateur). Un echec y garde son message d'erreur.
+      _programmerArchivage(j, _DELAI_ARCHIVAGE_MS);
     }
   } catch (_) {}
   // 2026-06-02 liveliness: trigger the one-shot bounce-and-flash on
@@ -18918,10 +19027,8 @@ async function cancelJob(id) {
   if (j.onCancel) {
     try { j.onCancel(); } catch (e) {}
   }
-  setTimeout(() => {
-    state.jobs = state.jobs.filter(x => x.id !== id);
-    renderJobs();
-  }, 3000);
+  // Travail annule : il part aussi dans « Travaux finis » (statut annule).
+  _programmerArchivage(j, 3000);
 }
 window._cancelJob = cancelJob;
 
@@ -19053,8 +19160,9 @@ function _estSousTache(j) {
 // Open the project (if different from current) and scroll/expand the
 // step card matching this job. Exposed on window so HTML onclick can
 // reach it from anywhere.
-window._navigateToJobStep = async function(jobId) {
-  const j = state.jobs.find(x => x.id === jobId);
+window._navigateToJobStep = async function(jobId, jobObj) {
+  // `jobObj` : une entree de « Travaux finis », qui n'est plus dans state.jobs.
+  const j = jobObj || state.jobs.find(x => x.id === jobId);
   if (!j) return;
   const stepIdx = _jobStepIndex(j);
   if (!stepIdx) return;
@@ -19292,11 +19400,21 @@ function renderJobs() {
   document.getElementById('jobs-bubble-count-2').textContent = badgeText;
   // Per-step widgets piggy-back on the same refresh tick.
   try { renderStepProgressWidgets(); } catch (_) {}
-  if (totalCount === 0) {
+  // Onglets : compteurs. Tant qu'il reste des travaux finis, la bulle reste
+  // accessible (grisee s'il n'y a rien en cours) pour consulter l'historique.
+  const nbTermines = (state.jobsTermines || []).length;
+  try {
+    const nbEnCours = document.getElementById('jobs-nb-encours');
+    if (nbEnCours) nbEnCours.textContent = String(state.jobs.filter(j => !_estSousTache(j)).length + queuedCount);
+    const nbT = document.getElementById('jobs-nb-termines');
+    if (nbT) nbT.textContent = String(nbTermines);
+  } catch (_) {}
+  if (totalCount === 0 && nbTermines === 0) {
     bubble.classList.add('hidden');
     panel.classList.add('hidden');
     return;
   }
+  bubble.classList.toggle('jobs-bubble-inactive', totalCount === 0);
   // Always show the bubble when there are active or queued jobs and the panel
   // is closed — this was the bug: queued jobs were invisible because they
   // weren't in state.jobs and the bubble only appeared for state.jobs.length > 0.
@@ -19356,6 +19474,8 @@ function renderJobs() {
       </div>
     `).join('');
   }
+  // Onglet « En cours » vide : un message plutot qu'un panneau blanc.
+  if (!html) html = '<div class="jobs-vide-2">No running jobs</div>';
   // MISE A JOUR CIBLEE. `list.innerHTML = html` a chaque tick detruisait et
   // recreait chaque ligne — donc le bouton « Go to » SOUS LE CURSEUR. Le
   // survol clignotait et le clic tombait sur un noeud qui venait de
@@ -19778,8 +19898,29 @@ document.getElementById('jobs-bubble-2').addEventListener('click', () => {
 });
 document.getElementById('jobs-close-2').addEventListener('click', () => {
   document.getElementById('jobs-panel-2').classList.add('hidden');
-  if (state.jobs.length > 0) document.getElementById('jobs-bubble-2').classList.remove('hidden');
+  if (state.jobs.length > 0 || (state.jobsTermines || []).length > 0) document.getElementById('jobs-bubble-2').classList.remove('hidden');
 });
+// Onglets de la fenetre des taches (voir _archiverJob).
+document.getElementById('jobs-onglet-encours')?.addEventListener('click', () => _choisirOngletJobs('encours'));
+document.getElementById('jobs-onglet-termines')?.addEventListener('click', () => _choisirOngletJobs('termines'));
+document.getElementById('jobs-termines-effacer')?.addEventListener('click', () => {
+  state.jobsTermines = [];
+  _sauverJobsTermines();
+  renderJobsTermines();
+  renderJobs();
+});
+document.getElementById('jobs-termines-liste')?.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-fini-goto]');
+  if (!b) return;
+  e.stopPropagation();
+  const entree = (state.jobsTermines || []).find(x => x.finiId === b.dataset.finiGoto);
+  if (entree && typeof window._navigateToJobStep === 'function') window._navigateToJobStep(null, entree);
+});
+// Premier rendu APRES l'evaluation du module : renderJobs lit `queuedJobs`,
+// declaree plus bas dans ce fichier — l'appeler ici leverait une erreur de
+// zone morte temporelle (et la bulle ne s'afficherait pas au chargement).
+setTimeout(() => { try { renderJobsTermines(); renderJobs(); } catch (_) {} }, 0);
+
 
 // ============================================================
 // AUTO INPAINT (CLIPSeg target + replace)

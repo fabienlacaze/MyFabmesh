@@ -4278,3 +4278,27 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   margin: 0 auto;
   pointer-events: none;
 }
+
+/* ---- Fenetre des taches : onglets « En cours » / « Travaux finis » (2026-09-26) ---- */
+.jobs-onglets-2 { display: flex; gap: 4px; padding: 4px 8px 0; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+.jobs-onglet-2 { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--text-2); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+.jobs-onglet-2:hover { color: var(--text-0); }
+.jobs-onglet-2.actif { color: var(--text-0); border-bottom-color: var(--accent); }
+.jobs-onglet-2:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.jobs-onglet-nb { min-width: 18px; padding: 1px 6px; border-radius: 9px; background: var(--bg-3); color: var(--text-0); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.jobs-vide-2 { padding: 18px 8px; text-align: center; color: var(--text-2); font-size: 12px; }
+#jobs-termines-2 { overflow-y: auto; padding: 8px; }
+#jobs-termines-2[hidden], #jobs-list-2[hidden] { display: none; }
+.jobs-termines-barre { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.jobs-termines-effacer { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-2); cursor: pointer; }
+.jobs-termines-effacer:hover { color: var(--text-0); border-color: var(--border-strong); }
+.job-fini-2 { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 6px; }
+.job-fini-2-ligne { display: flex; align-items: center; gap: 8px; }
+.job-fini-2-icone { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; flex: none; }
+.job-fini-2.ok .job-fini-2-icone { background: rgba(74, 222, 128, .16); color: var(--success); }
+.job-fini-2.echec .job-fini-2-icone { background: rgba(248, 113, 113, .16); color: var(--error); }
+.job-fini-2.annule .job-fini-2-icone { background: var(--bg-3); color: var(--text-2); }
+.job-fini-2-nom { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--text-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-fini-2-meta { margin-top: 4px; padding-left: 26px; font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.job-fini-2-erreur { margin-top: 4px; padding-left: 26px; font-size: 11px; color: var(--error); overflow-wrap: anywhere; }
+#jobs-bubble-2.jobs-bubble-inactive { opacity: .72; }

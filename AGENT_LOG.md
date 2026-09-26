@@ -22902,3 +22902,34 @@ viking chief). Releve image par image, cas douteux verifies de pres.
 **« prehistoric worker » -> ouvrier de chantier moderne.** Mesure (4 graines) : la ponderation « (prehistoric:1.4) » seule ne change rien (4 casques de chantier sur 4). Decrire la TENUE de l'epoque juste apres le sujet (« stone age clothing of animal fur and hides ») : 4 sur 4 en fourrures et peaux ; « medieval worker » passe de 3 a 4 sur 4 medievaux. Interdire les anachronismes dans le negatif (casque, gilet, jean) : 3 casques sur 4, ecarte. Regle livree pour les SEULES epoques mesurees (prehistoric, stone age, neolithic, paleolithic ; medieval) : une autre epoque ne recoit rien tant qu'elle n'est pas mesuree sur le banc. PIEGE REVECU : le code JS de cette regle, ecrit a travers un heredoc shell, avait perdu ses antislashs (regex invalide) — attrape par un test node avant tout commit ; corrige a l'outil d'edition.
 
 Page de comparaison publiee (artefact « Banc des unites sans armes »).
+
+## 2026-09-26 — Fenetre des taches : onglets « En cours » / « Travaux finis »
+
+**Demande.** Un travail fini remonte en tete de la liste, puis part apres
+3-5 s dans un second onglet « Travaux finis » (libelles traduits) ; les
+travaux en cours ont leur onglet « En cours ».
+
+**Realisation (bureau + web).** Titre « Jobs » (FR « Taches »), deux onglets
+avec compteurs. `completeJob` remonte le travail en tete ; apres 4 s,
+`_programmerArchivage` le retire et l'archive (`state.jobsTermines`,
+localStorage `fabmesh_jobs_termines_v1`, 50 entrees, sans vignette blob:
+ni data:). Echecs archives avec leur message ; annulations aussi (statut
+« annule »). Les sous-taches ne sont pas archivees (elles appartiennent a
+leur parent). « Aller a » fonctionne depuis l'historique
+(`_navigateToJobStep(null, entree)`). « Effacer » vide l'historique. La
+bulle reste accessible tant qu'il y a un historique (grisee sans travail en
+cours). Traductions fr/es/zh/hi/ar (_additions5.js, deux copies).
+
+**Deux defauts trouves par le test navigateur, corriges.**
+- Archivage bloque : je reportais l'archivage tant que la fiche detaillee
+  du travail etait ouverte — or pushJob l'ouvre pour CHAQUE travail. Le
+  report ne vaut plus que pour un ECHEC (le temps de lire l'erreur) ; une
+  reussite referme sa fiche et part a l'heure.
+- Bulle invisible au chargement : le premier rendu s'executait pendant
+  l'evaluation du module, avant la declaration de `queuedJobs` (zone morte
+  temporelle, erreur avalee). Rendu differe d'un tick.
+
+**Preuve (navigateur).** Remontee en tete, archivage a 4 s, compteurs, echec
+avec message, message « aucune tache en cours », persistance au
+rechargement, libelles FR, « Effacer » ; aucune erreur de page. Capture
+des deux onglets en francais verifiee.
