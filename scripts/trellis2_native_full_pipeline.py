@@ -129,6 +129,26 @@ def _patch_rmbg_in_hf_cache():
         log('patched HF cache: briaai/RMBG-2.0 -> ZhengPeng7/BiRefNet')
 
 
+# --- NOYAU PARTAGE : DEBUT (image -> TRELLIS-2) ---
+# Copie surveillee par build/check-noyaux-partages.mjs. Source :
+# scripts/trellis2_native_full_pipeline.py ; copie : modal_app/_mesh.py.
+#
+# POURQUOI (mesure du 2026-09-26). FabMesh appelle TRELLIS-2 avec
+# preprocess_image=False, donc SANS son pretraitement, qui fait deux choses :
+# recadrer sur le sujet, et composer l'image sur FOND NOIR (RGB x alpha).
+# L'extracteur DINOv3 fait ensuite `image.convert('RGB')` : l'alpha est JETE,
+# et ce qui reste sous les zones transparentes redevient visible.
+#
+# Une image detouree par rembg a du noir sous la transparence : sans effet.
+# Mais le detourage web garde le FOND D'ORIGINE sous l'alpha (gris ~200 sur
+# l'orc « orc W1 »). Le modele voyait donc le sujet sur un fond gris qu'il n'a
+# jamais vu a l'entrainement : sur cinq maillages tires de la meme image, les
+# quatre generes a partir de l'image detouree avaient une texture marbree,
+# « camouflage » (peau verte en taches sur le torse, cotte de mailles en
+# neige blanche) ; le seul propre etait parti de l'image rectifiee, que rembg
+# avait recomposee sur noir. Aucune option ne distinguait les deux groupes.
+
+
 def _crop_to_subject(image, pad_frac=None):
     """Tight SQUARE crop around the alpha subject so it FILLS the frame.
 
@@ -160,6 +180,22 @@ def _crop_to_subject(image, pad_frac=None):
     return canvas
 
 
+def _composite_on_black(image):
+    """RGB x alpha, comme la fin de Trellis2ImageTo3DPipeline.preprocess_image.
+
+    L'alpha est conserve (le reste du pipeline s'en sert pour le recadrage) ;
+    seules les couleurs des pixels transparents ou semi-transparents sont
+    ramenees vers le noir, qui est le fond de la distribution d'entrainement."""
+    from PIL import Image
+    import numpy as np
+    if image.mode != 'RGBA':
+        return image
+    arr = np.asarray(image).astype(np.float32)
+    arr[:, :, :3] *= arr[:, :, 3:4] / 255.0
+    return Image.fromarray(np.clip(arr + 0.5, 0, 255).astype(np.uint8), 'RGBA')
+# --- NOYAU PARTAGE : FIN ---
+
+
 def _prep_image(path):
     """Background removal via rembg u2net (Apache 2.0) — skip TRELLIS-2's
     internal rembg which uses the gated briaai/RMBG-2.0."""
@@ -188,6 +224,8 @@ def _prep_image(path):
                 log(f'crop-to-subject: {_before} -> {image.size} (subject fills frame)')
         except Exception as _ce:
             log(f'crop-to-subject skipped: {type(_ce).__name__}: {_ce}')
+    # Fond noir sous la transparence : voir le noyau partage ci-dessus.
+    image = _composite_on_black(image)
     return image
 
 

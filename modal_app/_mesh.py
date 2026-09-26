@@ -21,9 +21,79 @@ import numpy as np
 from PIL import Image, ImageEnhance
 
 
+# --- NOYAU PARTAGE : DEBUT (image -> TRELLIS-2) ---
+# Copie surveillee par build/check-noyaux-partages.mjs. Source :
+# scripts/trellis2_native_full_pipeline.py ; copie : modal_app/_mesh.py.
+#
+# POURQUOI (mesure du 2026-09-26). FabMesh appelle TRELLIS-2 avec
+# preprocess_image=False, donc SANS son pretraitement, qui fait deux choses :
+# recadrer sur le sujet, et composer l'image sur FOND NOIR (RGB x alpha).
+# L'extracteur DINOv3 fait ensuite `image.convert('RGB')` : l'alpha est JETE,
+# et ce qui reste sous les zones transparentes redevient visible.
+#
+# Une image detouree par rembg a du noir sous la transparence : sans effet.
+# Mais le detourage web garde le FOND D'ORIGINE sous l'alpha (gris ~200 sur
+# l'orc « orc W1 »). Le modele voyait donc le sujet sur un fond gris qu'il n'a
+# jamais vu a l'entrainement : sur cinq maillages tires de la meme image, les
+# quatre generes a partir de l'image detouree avaient une texture marbree,
+# « camouflage » (peau verte en taches sur le torse, cotte de mailles en
+# neige blanche) ; le seul propre etait parti de l'image rectifiee, que rembg
+# avait recomposee sur noir. Aucune option ne distinguait les deux groupes.
+
+
+def _crop_to_subject(image, pad_frac=None):
+    """Tight SQUARE crop around the alpha subject so it FILLS the frame.
+
+    Audit fix: FabMesh runs the pipeline with preprocess_image=False (TRELLIS's own
+    crop is skipped), so a small / off-centre rembg'd subject reached the model
+    full-frame and DINOv3 captured little fine detail. This re-introduces the crop:
+    bbox of the opaque pixels -> centred square + small margin, transparent-padded if
+    it overflows. Returns the cropped RGBA (the pipeline resizes to 1024 itself)."""
+    from PIL import Image
+    import numpy as np
+    if image.mode != 'RGBA':
+        return image
+    if pad_frac is None:
+        pad_frac = float(os.environ.get('FABMESH_TEX_CROP_PAD', '0.08'))
+    a = np.asarray(image)[:, :, 3]
+    ys, xs = np.where(a > 10)
+    if len(xs) == 0:
+        return image  # nothing detected -> leave as-is
+    x0, x1, y0, y1 = int(xs.min()), int(xs.max()), int(ys.min()), int(ys.max())
+    side = int(max(x1 - x0, y1 - y0) * (1.0 + 2.0 * pad_frac))
+    if side <= 0:
+        return image
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+    L, T = cx - side // 2, cy - side // 2
+    canvas = Image.new('RGBA', (side, side), (0, 0, 0, 0))
+    src = image.crop((max(L, 0), max(T, 0),
+                      min(L + side, image.width), min(T + side, image.height)))
+    canvas.paste(src, (max(-L, 0), max(-T, 0)))
+    return canvas
+
+
+def _composite_on_black(image):
+    """RGB x alpha, comme la fin de Trellis2ImageTo3DPipeline.preprocess_image.
+
+    L'alpha est conserve (le reste du pipeline s'en sert pour le recadrage) ;
+    seules les couleurs des pixels transparents ou semi-transparents sont
+    ramenees vers le noir, qui est le fond de la distribution d'entrainement."""
+    from PIL import Image
+    import numpy as np
+    if image.mode != 'RGBA':
+        return image
+    arr = np.asarray(image).astype(np.float32)
+    arr[:, :, :3] *= arr[:, :, 3:4] / 255.0
+    return Image.fromarray(np.clip(arr + 0.5, 0, 255).astype(np.uint8), 'RGBA')
+# --- NOYAU PARTAGE : FIN ---
+
+
 def prep_image(image: Image.Image) -> Image.Image:
     """Background removal via rembg u2net (Apache 2.0) — same as
-    desktop pipeline. Skip if image already has a non-trivial alpha."""
+    desktop pipeline. Skip if image already has a non-trivial alpha.
+
+    Puis, comme le bureau : recadrage sur le sujet (absent ici jusqu'au
+    2026-09-26 — ecart de parite) et composition sur fond noir."""
     needs_rembg = True
     if image.mode == 'RGBA':
         a = np.asarray(image)[:, :, 3]
@@ -34,7 +104,15 @@ def prep_image(image: Image.Image) -> Image.Image:
         image = rembg.remove(
             image.convert('RGBA'),
             session=rembg.new_session('u2net'))
-    return image
+    if os.environ.get('FABMESH_TEX_SKIP_CROP') != '1':
+        try:
+            _avant = image.size
+            image = _crop_to_subject(image)
+            if image.size != _avant:
+                print(f'[mesh] recadrage sur le sujet : {_avant} -> {image.size}', flush=True)
+        except Exception as _ce:
+            print(f'[mesh] recadrage ignore : {type(_ce).__name__}: {_ce}', flush=True)
+    return _composite_on_black(image)
 
 
 def brighten_baseColor(glb_obj) -> None:

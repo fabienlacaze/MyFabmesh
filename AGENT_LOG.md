@@ -22463,3 +22463,37 @@ maillage segmente reel : 13 parties en 11,5 s, voie vision, abstentions
 Constat de doc : les Etapes de construction 3D etaient DEJA portees sur le
 web (bouton, pont, route worker, op Modal construction3d). Le journal disait
 le contraire.
+
+## 2026-09-26 — Texture « camouflage » : le detourage etait annule avant TRELLIS-2
+
+**Signalement.** Maillage d'orc (modal_0af35102) a la texture marbree : peau
+verte en taches sur le torse, cotte de mailles en neige blanche.
+
+**Mesure, pas supposition.** Rendus Blender de face, NON eclaires (couleur de
+texture pure), de 12 maillages de l'orc, par paires aux options differentes.
+Premiere hypothese (combinaison ultra_hd + ultra_q) REFUTEE : les trois
+maillages avec cette combinaison etaient propres. Correlation parfaite en
+revanche sur les cinq maillages tires de l'image 266439243 : rectification
+ECHOUEE (16:15, 16:21, 16:47, 19:11) -> maillage marbre ; rectification
+REUSSIE (17:24) -> maillage propre. Aucune option ne distinguait les groupes.
+
+**Cause.** Sur echec de rectification, le worker envoie l'image detouree
+(RGBA). FabMesh appelle TRELLIS-2 avec preprocess_image=False, donc sans son
+pretraitement (recadrage + RGB x alpha sur fond noir). L'extracteur DINOv3
+fait `image.convert('RGB')` : l'alpha est JETE. Or le detourage web garde le
+fond d'origine sous la transparence (RGB moyen 199/202/205). Reconstitution
+de ce que le modele voyait : l'image d'ORIGINE, fond de studio gris et ombre
+au sol compris — le detourage etait integralement annule. L'image rectifiee,
+elle, repassait par rembg, qui compose sur noir : d'ou le maillage propre.
+
+**Correctif.** Noyau partage (scripts/trellis2_native_full_pipeline.py ->
+modal_app/_mesh.py, surveille par check-noyaux-partages.mjs) : recadrage sur
+le sujet (le bureau l'avait deja, Modal NON — ecart de parite) + composition
+sur fond noir, exactement la fin de Trellis2ImageTo3DPipeline.preprocess_image.
+Verifie sur la vraie image : fond vu par DINOv3 199/202/205 -> 0/0/0.
+Le bureau n'etait pas touche en pratique (rembg y met deja du noir), mais le
+noyau est commun pour qu'une image detouree ailleurs ne le touche jamais.
+
+Portee : TOUT maillage web genere depuis une image detouree sans
+rectification reussie (rectification decochee, ou en echec — elle a echoue
+toute la journee du 24).
