@@ -22657,3 +22657,38 @@ de l'utilisateur : avant, os au-dessus du casque ; apres, os dans le corps.
 triangles (1 426 035 sommets = 3 x 475 345 faces). L'etape 7 de
 `_puppeteer_rig.py` (re-texture depuis la source) ne peut rien projeter
 sans UV. Correctif en aval de Puppeteer a suivre (transfert d'UV).
+
+## 2026-09-26 — « Apres generation le mesh sort semi-transparent » : CAUSE TROUVEE
+
+**Constat (utilisateur, cloud).** Apres chaque generation, le maillage
+s'affiche semi-transparent (grille visible a travers le corps) ; apres
+actualisation de la page, il redevient opaque. Le signalement precedent
+(« pourquoi c'est transparent ») n'avait PAS ete reproduit : le banc
+chargeait le maillage dans un visualiseur visible.
+
+**Cause.** `ensureSkeletonHelper` (mode « bones », actif par defaut, appele
+par `refreshAll` 50 ms apres chaque chargement) creait une aide squelette
+pour TOUT modele — meme sans aucun os — et passait ses materiaux a
+`transparent = true, opacity = 0.35`, SANS `needsUpdate`. Effet selon
+l'ordre des evenements :
+- maillage deja dessine une fois : three.js garde le shader compile avec
+  OPAQUE (alpha force a 1) -> rien ne se voit (cas « apres actualisation ») ;
+- maillage pas encore dessine : le shader se compile translucide -> 35 %.
+  Viewer3D ne dessine RIEN tant que l'onglet est en arriere-plan ou le
+  panneau replie (`offsetParent` / `visibilityState`) : une generation qui
+  se termine pendant que l'utilisateur regarde ailleurs tombe dans ce cas.
+
+**Preuve (vrai GPU, ANGLE D3D11).** Visualiseur masque pendant le
+chargement puis re-affiche : ancien code -> semi-transparent, identique a la
+capture utilisateur ; ancien code visualiseur visible -> opaque ; nouveau
+code masque -> opaque.
+
+**Correctif (bureau + web).** Pas d'aide squelette sur un modele sans os ;
+plus de translucidite forcee (les os sont dessines par-dessus avec
+depthTest false, et le bouton X-Ray existe pour voir a travers). Au
+passage, le bureau avait DEJA sa matrice identite pour l'aide (bloc « FIX
+decalage squelette ») : le doublon ajoute ce matin est retire.
+
+**Lecon.** Un « non reproduit » doit faire varier les conditions
+d'affichage (onglet masque, panneau replie), pas seulement le fichier : le
+defaut dependait de l'ordre compilation/modification du materiau.

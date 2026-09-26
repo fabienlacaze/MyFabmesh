@@ -3608,6 +3608,11 @@ function createMeshViewerControls(toolbarEl, getViewer) {
     let existing = null;
     viewer.model.traverse(o => { if (o.name === 'SkeletonHelper') existing = o; });
     if (state.bones && !existing) {
+      // MAILLAGE SANS OS : aucune aide squelette (2026-09-26). Elle etait
+      // creee pour TOUT modele, rig ou non — voir « TRANSLUCIDITE » plus bas.
+      let _aDesOs = false;
+      viewer.model.traverse(o => { if (o.isBone) _aDesOs = true; });
+      if (!_aDesOs) return;
       const helper = new THREE.SkeletonHelper(viewer.model);
       // WebGL on Windows/ANGLE ignores linewidth, so we boost visibility via
       // a bright color + always-on-top rendering. The helper auto-updates each
@@ -3665,13 +3670,19 @@ function createMeshViewerControls(toolbarEl, getViewer) {
         s.renderOrder = 999;
         b.add(s); // attach as child of the bone — auto-follows animation
       });
-      // Make the mesh semi-transparent so the bones are visible
-      viewer.model.traverse(c => {
-        if (c.isMesh && c.material) {
-          const mats = Array.isArray(c.material) ? c.material : [c.material];
-          mats.forEach(m => { m.transparent = true; m.opacity = 0.35; });
-        }
-      });
+      // TRANSLUCIDITE RETIREE (2026-09-26). Ce bloc passait le maillage a
+      // 35 % d'opacite des que le mode « bones » (actif par defaut) creait
+      // l'aide — y compris sur un maillage SANS os — et sans `needsUpdate`.
+      // Le resultat dependait donc d'une course : si le maillage avait deja
+      // ete dessine, three.js gardait son shader OPAQUE (alpha force a 1) et
+      // rien ne se voyait ; s'il ne l'avait pas encore ete — generation
+      // terminee pendant que l'onglet etait en arriere-plan ou le panneau
+      // replie, Viewer3D ne dessinant rien tant qu'il n'est pas visible — le
+      // shader se compilait translucide. Symptome rapporte : « apres
+      // generation les mesh sortent semi-transparents, apres actualisation
+      // ca redevient bon ». Les os n'en ont pas besoin : l'aide et les
+      // spheres sont dessinees par-dessus (depthTest false). Pour voir a
+      // travers le maillage, il y a le bouton X-Ray.
     } else if (!state.bones && existing) {
       if (existing.parent) existing.parent.remove(existing);
       try { existing.dispose && existing.dispose(); } catch (e) {}

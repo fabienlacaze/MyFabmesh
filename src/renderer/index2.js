@@ -4480,6 +4480,11 @@ function createMeshViewerControls(toolbarEl, getViewer) {
     let existing = null;
     viewer.model.traverse(o => { if (o.name === 'SkeletonHelper') existing = o; });
     if (state.bones && !existing) {
+      // MAILLAGE SANS OS : aucune aide squelette (2026-09-26). Elle etait
+      // creee pour TOUT modele, rig ou non — voir « TRANSLUCIDITE » plus bas.
+      let _aDesOs = false;
+      viewer.model.traverse(o => { if (o.isBone) _aDesOs = true; });
+      if (!_aDesOs) return;
       const helper = new THREE.SkeletonHelper(viewer.model);
       // FIX décalage squelette: SkeletonHelper fait `this.matrix = model.matrixWorld`
       // (il est prévu pour être ajouté à la SCÈNE). On l'attache SOUS le modèle
@@ -4501,16 +4506,6 @@ function createMeshViewerControls(toolbarEl, getViewer) {
       } catch (e) {}
       helper.renderOrder = 998; // above the mesh, below landmark markers
       helper.name = 'SkeletonHelper';
-      // MATRICE IDENTITE (2026-09-26). three.js donne a SkeletonHelper la
-      // matrice du modele PAR REFERENCE (`this.matrix = object.matrixWorld`),
-      // prevue pour une aide posee a la RACINE de la scene. Ajoutee ici comme
-      // ENFANT du modele, elle recevait sa transformation DEUX fois : des que
-      // « Pivot: bottom » remonte le modele, le squelette flottait une
-      // demi-hauteur au-dessus du corps (constate sur un rig dont le FICHIER
-      // plaçait bien les os dans le maillage). Enfant du modele + identite =
-      // exactement l'espace du modele, ou l'aide calcule ses segments.
-      helper.matrix = new THREE.Matrix4();
-      helper.matrixAutoUpdate = false;
       viewer.model.add(helper);
       // Add cyan spheres directly as children of each bone so they inherit
       // the animated transformations and follow the skeleton during playback.
@@ -4541,13 +4536,19 @@ function createMeshViewerControls(toolbarEl, getViewer) {
         s.renderOrder = 999;
         b.add(s); // attach as child of the bone — auto-follows animation
       });
-      // Make the mesh semi-transparent so the bones are visible
-      viewer.model.traverse(c => {
-        if (c.isMesh && c.material) {
-          const mats = Array.isArray(c.material) ? c.material : [c.material];
-          mats.forEach(m => { m.transparent = true; m.opacity = 0.35; });
-        }
-      });
+      // TRANSLUCIDITE RETIREE (2026-09-26). Ce bloc passait le maillage a
+      // 35 % d'opacite des que le mode « bones » (actif par defaut) creait
+      // l'aide — y compris sur un maillage SANS os — et sans `needsUpdate`.
+      // Le resultat dependait donc d'une course : si le maillage avait deja
+      // ete dessine, three.js gardait son shader OPAQUE (alpha force a 1) et
+      // rien ne se voyait ; s'il ne l'avait pas encore ete — generation
+      // terminee pendant que l'onglet etait en arriere-plan ou le panneau
+      // replie, Viewer3D ne dessinant rien tant qu'il n'est pas visible — le
+      // shader se compilait translucide. Symptome rapporte : « apres
+      // generation les mesh sortent semi-transparents, apres actualisation
+      // ca redevient bon ». Les os n'en ont pas besoin : l'aide et les
+      // spheres sont dessinees par-dessus (depthTest false). Pour voir a
+      // travers le maillage, il y a le bouton X-Ray.
     } else if (!state.bones && existing) {
       if (existing.parent) existing.parent.remove(existing);
       try { existing.dispose && existing.dispose(); } catch (e) {}
