@@ -675,6 +675,14 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-stages3d-btn':     2,   // etapes de construction 3D (/api/construction-stages-3d)
     'ws-variant-btn':           3,   // Variant (tex_variant ou modify, 3 chacun), par variante
     'ws-anim-gen-more-btn':     5,   // par animation generee
+    // Boutons de VALIDATION des fenetres, sans prix jusqu'au 2026-09-27 :
+    'age-go':                   3,   // Age (tex_variant)
+    'rc-go':                    3,   // Recolor
+    'of-go':                    6,   // Outfit : 6 avec completion (defaut), 3 sans
+    'bs3d-start':               2,   // Construction stages 3D
+    'mat-apply-btn':            1,   // Material (mesh-op)
+    'rz-apply':                 1,   // Resize (mesh-op)
+    'ex3d-start':               1,   // Explode (mesh-op)
   };
 
   // Buttons we hide on cloud. Note: `ws-mesh-sculpt-btn` is now ENABLED
@@ -833,6 +841,17 @@ window.__optionsMortesCloud = new Set([]);
     badge.title = `${credits} credit${credits === 1 ? '' : 's'}`;
     button.appendChild(badge);
   }
+
+  // Outfit : le prix depend de la case « Completer les zones cachees ».
+  let _prixOutfit = { avec: 6, sans: 3 };
+  function _majPrixOutfit() {
+    const cb = document.getElementById('of-completer');
+    const b = document.querySelector('#of-go .cloud-cost-badge');
+    const v = cb && !cb.checked ? _prixOutfit.sans : _prixOutfit.avec;
+    ACTION_COSTS['of-go'] = v;
+    if (b) b.textContent = String(v);
+  }
+  document.addEventListener('change', (e) => { if (e.target && e.target.id === 'of-completer') _majPrixOutfit(); });
 
   function installActionCostBadges() {
     _ensureCostBadgeStyle();
@@ -1107,6 +1126,13 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-stages3d-btn': 'construction3d',
     'ws-variant-btn':      'tex_variant',
     'ws-anim-gen-more-btn': 'anim',
+    'age-go':              'tex_variant',
+    'rc-go':               'recolor',
+    'of-go':               'outfit_complete',
+    'bs3d-start':          'construction3d',
+    'mat-apply-btn':       'mesh_op_simple',
+    'rz-apply':            'mesh_op_simple',
+    'ex3d-start':          'mesh_op_simple',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',
@@ -1177,6 +1203,11 @@ window.__optionsMortesCloud = new Set([]);
       if (typeof v !== 'number') continue;
       // Retenu aussi pour la pastille persistante (voir installActionCostBadges).
       ACTION_COSTS[btnId] = v;
+      if (btnId === 'of-go') {
+        _prixOutfit = { avec: v, sans: typeof prices.outfit === 'number' ? prices.outfit : _prixOutfit.sans };
+        _majPrixOutfit();
+        continue;
+      }
       const btn = document.getElementById(btnId);
       if (!btn) continue;
       const existing = btn.querySelector('.cloud-cost-badge');
