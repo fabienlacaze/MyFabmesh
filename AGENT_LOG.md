@@ -22394,3 +22394,34 @@ aleatoire (deux ouvertures donnaient la meme variante). Portes du bureau.
 
 Constat a traiter ensuite : « Re-texture all (AI) » est visible sur le web
 mais `meshTool` n'y renvoie qu'un message d'erreur.
+
+## 2026-09-26 — Portage cloud : « Sharpen texture (x2) »
+
+Bureau : scripts/texture_upscale.py = Real-ESRGAN x4plus (BSD-3) ramene a x2,
+via les paquets realesrgan + basicsr. Impossible tel quel sur Modal :
+basicsr 1.4.2 importe torchvision.transforms.functional_tensor, supprime
+depuis torchvision 0.17 (image Modal : 0.19.1). L import aurait plante a
+chaque appel.
+
+modal_app/_esrgan.py embarque les deux pieces utiles : l architecture RRDBNet
+(BasicSR, Apache-2.0) et la decoupe de RealESRGANer.tile_process. Chargement
+strict=True (une architecture recopiee de travers echoue au chargement, pas
+en silence), torch.load(weights_only=True). Poids telecharges a la
+CONSTRUCTION de l image et verifies par sha256sum -c (meme empreinte que le
+bureau) : le journal de deploiement affiche « RealESRGAN_x4plus.pth: OK ».
+
+MESURE DE PARITE : sortie comparee a la reference RealESRGANer du venv
+bureau sur un atlas reel recadre a 700x600 (tuiles de bord incompletes).
+Ecart max 0, 0,0000 % de pixels differents : identique au bit pres.
+
+Worker : handleMeshTexVar factorise en _opAtlasGpu, coeur commun (budget,
+appels, credits, remboursement sur chaque chemin, escalade anti-524).
+Tarif enhance_tex = 1 credit.
+
+Le garde check-fonctions-portees.mjs a servi a son premier usage reel : le
+handler copie du bureau appelait _meshJobThumb(), absente du web. Portee.
+
+Ecart de parite trouve en chemin : runMeshTool, la modale et son apercu
+operaient sur selectedMeshPath cote web, sur la version AFFICHEE
+(previewMeshPath) cote bureau. Correctif du bureau jamais reporte : un outil
+lance sur la v2 a l ecran travaillait sur une autre version. Reporte.

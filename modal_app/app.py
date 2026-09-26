@@ -318,6 +318,19 @@ image = (
                  # DOIT RESTER EN DERNIER : annule la montee de version faite
                  # par rembg (voir le piege n°2 ci-dessus).
                  "numpy>=1.26,<2.0")
+    # Poids Real-ESRGAN x4plus (BSD-3) pour « Sharpen texture ». Telecharges
+    # A LA CONSTRUCTION et verifies par SHA-256 — `sha256sum -c` fait
+    # echouer la construction si le fichier differe : un .pth est un pickle,
+    # donc du code. Meme empreinte que scripts/texture_upscale.py du bureau.
+    # Pas de paquet `realesrgan` : voir modal_app/_esrgan.py (basicsr casse
+    # sur torchvision 0.19).
+    .run_commands(
+        "mkdir -p /opt/esrgan && python -c \"import urllib.request; "
+        "urllib.request.urlretrieve('https://github.com/xinntao/Real-ESRGAN/releases/"
+        "download/v0.1.0/RealESRGAN_x4plus.pth', '/opt/esrgan/RealESRGAN_x4plus.pth')\"",
+        "echo '4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1  "
+        "/opt/esrgan/RealESRGAN_x4plus.pth' | sha256sum -c -",
+    )
     .add_local_python_source("modal_app")
     .add_local_file(
         "modal_app/back_tpose_skeleton.png",
@@ -1546,6 +1559,60 @@ class MyFabmeshBackview:
         return {"ok": True, "op_type": "texture_var", "bytes": len(out),
                 "glb_base64": base64.b64encode(out).decode("ascii")}
 
+    def _route_mesh_enhance_tex(self, payload: dict):
+        """« Sharpen texture (x2) » — portage cloud de scripts/texture_upscale.py.
+
+        Real-ESRGAN x4plus ramene a x2 sur l'atlas baseColor ; geometrie, UV
+        et autres cartes intacts. Voir modal_app/_esrgan.py pour la parite
+        et pour la raison d'une architecture embarquee.
+        """
+        import base64
+        import trimesh
+        import urllib.request
+        from fastapi import HTTPException
+        from modal_app._esrgan import affuter_atlas
+
+        _check_auth(payload)
+        mesh_url = (payload.get("mesh_url") or "").strip()
+        if not mesh_url:
+            raise HTTPException(status_code=400, detail="mesh_url required")
+        try:
+            req = urllib.request.Request(mesh_url, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                src = r.read()
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+
+        t0 = time.time()
+        scene = trimesh.load(io.BytesIO(src), file_type="glb")
+        geoms = list(scene.geometry.values()) if hasattr(scene, "geometry") else [scene]
+        faits = 0
+        tailles = []
+        for g in geoms:
+            mat = getattr(getattr(g, "visual", None), "material", None)
+            tex = getattr(mat, "baseColorTexture", None) if mat is not None else None
+            if tex is None:
+                continue
+            # Plafond 4096 en sortie : au-dela, l'atlas depasse ce que le
+            # worker peut rapatrier en une reponse, et aucun moteur de jeu
+            # courant n'en tire parti. Un atlas deja >= 4096 est laisse tel quel.
+            if max(tex.size) * 2 > 4096:
+                continue
+            mat.baseColorTexture = affuter_atlas(tex, echelle_sortie=2)
+            tailles.append(f"{tex.size[0]}->{mat.baseColorTexture.size[0]}")
+            faits += 1
+        if not faits:
+            raise HTTPException(status_code=422,
+                detail="no baked texture to sharpen (or already at 4096)")
+        buf = io.BytesIO()
+        scene.export(buf, file_type="glb", extension_webp=True)
+        out = buf.getvalue()
+        print(f"[enhance-tex] {faits} atlas ({', '.join(tailles)}) "
+              f"en {time.time() - t0:.1f}s", flush=True)
+        return {"ok": True, "op_type": "enhance_tex", "bytes": len(out),
+                "glb_base64": base64.b64encode(out).decode("ascii")}
+
     def _route_outfit(self, payload: dict):
         """Habits seuls — extrait les vetements d'une image de personnage.
 
@@ -1716,6 +1783,10 @@ class MyFabmeshBackview:
         @api.post("/mesh_texvar")
         async def mesh_texvar(request: Request):
             return self._route_mesh_texvar(await _read_json(request))
+
+        @api.post("/mesh_enhance_tex")
+        async def mesh_enhance_tex(request: Request):
+            return self._route_mesh_enhance_tex(await _read_json(request))
 
         @api.post("/warm")
         async def warm(request: Request):

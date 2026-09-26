@@ -9039,10 +9039,24 @@ const MESH_TOOL_EXPECTED_MS = {
   texture_var:    150000,
 };
 
+/* Vignette d'une tuile de travail mesh — portee du bureau le 2026-09-26.
+ * Le handler « Sharpen texture » copie du bureau l'appelait ; elle n'existait
+ * pas ici. check-fonctions-portees.mjs l'a refuse a la construction. */
+function _meshJobThumb(meshPath) {
+  const p = state.currentProject;
+  const m = ((p && p.meshes) || []).find((x) => x && x.path === meshPath);
+  const t = (m && (m.thumb || m.sourceImage)) || (p && p.thumb) || null;
+  return t ? _toFileUrl(t) : null;
+}
+
 async function runMeshTool(operation, params = []) {
   const p = state.currentProject;
-  if (!p || !p.selectedMeshPath) { showToast('Pick a mesh first.', 'error'); return; }
-  const meshPath = p.selectedMeshPath;
+  // La version AFFICHEE (previewMeshPath), pas la derniere generee ni celle
+  // choisie pour le rig. Correctif du bureau jamais reporte ici : un outil
+  // lance sur la v2 a l'ecran travaillait sur la v5, et la nouvelle version
+  // ne contenait rien de ce que l'utilisateur regardait.
+  const meshPath = p && (p.previewMeshPath || p.selectedMeshPath);
+  if (!p || !meshPath) { showToast('Pick a mesh first.', 'error'); return; }
   const meshName = meshPath.split(/[\\/]/).pop();
   const expectedMs = MESH_TOOL_EXPECTED_MS[operation] || 10000;
   // For texture ops (retexture/trellis2_retex) the cloud worker needs
@@ -10498,7 +10512,7 @@ function openMeshToolModal(toolName) {
   const schema = MESH_TOOL_SCHEMAS[toolName];
   if (!schema) { showToast(`Unknown tool: ${toolName}`, 'error'); return; }
   const p = state.currentProject;
-  if (!p || !p.selectedMeshPath) { showToast('Pick a mesh first.', 'error'); return; }
+  if (!p || !(p.previewMeshPath || p.selectedMeshPath)) { showToast('Pick a mesh first.', 'error'); return; }
   if (schema.needsImage && !p.selectedImagePath) { showToast('Pick a source image first.', 'error'); return; }
 
   const modal = document.getElementById('modal-mesh-tool');
@@ -10776,7 +10790,7 @@ function openMeshToolModal(toolName) {
   applyBtn.onclick = async () => {
     const vals = _mtCollectVals(body);
     if (schema.confirm && !(await customConfirm(schema.confirm, schema.title || 'Confirm', 'Continue'))) return;
-    const ctx = { imagePath: p.selectedImagePath, meshPath: p.selectedMeshPath };
+    const ctx = { imagePath: p.selectedImagePath, meshPath: p.previewMeshPath || p.selectedMeshPath };
     const params = schema.build(vals, ctx);
     close();
     runMeshTool(toolName, params);
@@ -10803,7 +10817,7 @@ function openMeshToolModal(toolName) {
   // Init viewport then load mesh; preview kicks off once geoms are cached.
   requestAnimationFrame(async () => {
     await _mtInitViewport();
-    _mtLoadMesh(p.selectedMeshPath);
+    _mtLoadMesh(p.previewMeshPath || p.selectedMeshPath);
   });
 }
 
@@ -10817,6 +10831,34 @@ document.getElementById('ws-mesh-center-btn')?.addEventListener('click', () => o
 document.getElementById('ws-mesh-retexture-btn')?.addEventListener('click', () => openMeshToolModal('retexture'));
 document.getElementById('ws-mesh-trellis2-btn')?.addEventListener('click', () => openMeshToolModal('trellis2_retex'));
 document.getElementById('ws-mesh-texvar-btn')?.addEventListener('click', () => openMeshToolModal('texture_var'));
+
+// « Sharpen texture (x2) » — porte du bureau le 2026-09-26. Real-ESRGAN sur
+// l'atlas existant, sans rien inventer : c'est l'outil a utiliser sur les
+// surfaces lisses (carrosserie, chrome) ou l'affinage SDXL invente de l'usure.
+document.getElementById('ws-mesh-enhance-tex-btn')?.addEventListener('click', () => {
+  const p = state.currentProject;
+  const m = getCurrentMeshObj();
+  if (!p || !m) { showToast('Pick a mesh first.', 'error'); return; }
+  gatedRun('rig', `Enhance texture: ${p.name}`, async () => {
+    const job = pushJob(`Enhance texture: ${p.name}`, null, {
+      Method: 'Real-ESRGAN x2',
+      'Source mesh': m.filename,
+    }, 240000, { sourceImageUrl: _meshJobThumb(m.path), projectName: p.name });
+    try {
+      const r = await API.enhanceMeshTexture({ meshPath: m.path, jobId: job.id, projectName: p.name });
+      if (r?.success || r?.newPath) {
+        completeJob(job.id, true);
+        await reloadCurrentProject();
+      } else {
+        completeJob(job.id, false);
+        if (!job.cancelled) customError(r?.error || 'unknown', 'Enhance texture failed');
+      }
+    } catch (e) {
+      completeJob(job.id, false);
+      if (!job.cancelled) customError(e?.error || e?.message || String(e), 'Enhance texture error');
+    }
+  });
+});
 
 // ── Segment parts (AI) — SAMPart3D part-segmentation on cloud GPU ──
 // Async spawn+poll (like auto-rig). Output = a segmented GLB (named,

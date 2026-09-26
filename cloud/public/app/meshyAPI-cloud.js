@@ -2916,6 +2916,21 @@
     // disk), so there is nothing to poll — return the no-stages contract.
     checkExplodeDir: async () => ({ success: false, exists: false, stages: [] }),
 
+    // « Sharpen texture (x2) » — port cloud de l'IPC bureau
+    // 'enhance-mesh-texture' (scripts/texture_upscale.py). Real-ESRGAN sur
+    // l'atlas, geometrie intacte. Meme forme de retour que le bureau.
+    enhanceMeshTexture: async ({ meshPath, meshUrl, projectName } = {}) => {
+      const url = meshUrl || meshPath;
+      if (!url) return { success: false, error: 'meshPath or meshUrl required' };
+      try {
+        const r = await postJSON('/api/mesh-enhance-tex', { meshUrl: url, projectName: projectName || null });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (r?.success && (r.path || r.newPath || r.mesh_url)) {
+          return { success: true, newPath: r.path || r.newPath || r.mesh_url };
+        }
+        return { success: false, error: r?.error || 'unknown' };
+      } catch (e) { return { success: false, error: String(e) }; }
+    },
     meshTool: async ({ operation, meshPath, meshUrl, meshId, imagePath, params, projectName } = {}) => {
       // 'retexture' is the desktop's quick re-texture (UV reproject via
       // Blender). Cloud has no Blender → we do a best-effort
