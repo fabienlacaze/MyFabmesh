@@ -106,6 +106,43 @@ def matrices_monde(js):
     return W, parent
 
 
+_TYPES = {5126: np.float32, 5125: np.uint32, 5123: np.uint16, 5121: np.uint8}
+_NCOMP = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}
+
+
+def _accesseur(js, bn, i):
+    a = js['accessors'][i]
+    bv = js['bufferViews'][a['bufferView']]
+    dt = np.dtype(_TYPES[a['componentType']])
+    nc = _NCOMP[a['type']]
+    o = bv.get('byteOffset', 0) + a.get('byteOffset', 0)
+    st = bv.get('byteStride', 0)
+    if st and st != dt.itemsize * nc:
+        return np.stack([np.frombuffer(bn, dt, nc, o + k * st) for k in range(a['count'])])
+    return np.frombuffer(bn, dt, a['count'] * nc, o).reshape(a['count'], nc)
+
+
+def influence_du_rig(chemin):
+    """(sommets monde, joint dominant de chaque sommet) du maillage peau d'un
+    rig ; les indices de joints suivent l'ordre de squelette_du_glb. Sert a
+    rattacher une nouvelle chaine a l'os qui fait DEJA bouger cette zone."""
+    js, bn = lire_glb(open(chemin, 'rb').read())
+    W, _ = matrices_monde(js)
+    for i, n in enumerate(js['nodes']):
+        if 'mesh' not in n or 'skin' not in n:
+            continue
+        for prim in js['meshes'][n['mesh']]['primitives']:
+            at = prim['attributes']
+            if 'JOINTS_0' not in at or 'WEIGHTS_0' not in at:
+                continue
+            V = _accesseur(js, bn, at['POSITION']).astype(np.float64)
+            V = (W[i][:3, :3] @ V.T).T + W[i][:3, 3]
+            J4 = _accesseur(js, bn, at['JOINTS_0']).astype(np.int64)
+            W4 = _accesseur(js, bn, at['WEIGHTS_0']).astype(np.float64)
+            return V, J4[np.arange(len(J4)), W4.argmax(axis=1)]
+    return None
+
+
 def squelette_du_glb(chemin):
     """(positions monde (J,3), parents [indice ou -1], noms) du premier skin."""
     js, _ = lire_glb(open(chemin, 'rb').read())
@@ -287,9 +324,11 @@ def cle_de_note(n):
 
 
 # ============================================================== completion
-def completer(vol, lignes, J, parents, noms):
+def completer(vol, lignes, J, parents, noms, influence=None):
     """Complete le squelette de l'IA. Rend (J, parents, noms, rapport) ; les
-    len(J_ia) premiers joints sont ceux de l'IA, inchanges."""
+    len(J_ia) premiers joints sont ceux de l'IA, inchanges. `influence` =
+    influence_du_rig(rig de l'IA) : les nouvelles chaines se rattachent a l'os
+    qui fait deja bouger la zone ou elles naissent."""
     from scipy import ndimage
     J = [np.asarray(p, dtype=np.float64) for p in J]
     parents, noms = list(parents), list(noms)
@@ -302,9 +341,24 @@ def completer(vol, lignes, J, parents, noms):
     def dans_tronc(p):
         return bool(tronc_large[_voxel(vol, p)])
 
+    arbre_inf = None
+    if influence is not None:
+        from scipy.spatial import cKDTree
+        arbre_inf = cKDTree(influence[0])
+
     def parent_pour(point):
-        """Os le plus proche, de preference DANS le tronc (un pedipalpe ne doit
-        pas pendre a la patte voisine)."""
+        """L'os qui fait DEJA bouger la zone (peau calculee par l'IA) : un pagne
+        suit le bassin, une tete suit le cou. Mesure sur un barbare : la regle
+        « os du tronc le plus proche » accrochait le pagne au GENOU (chez un
+        humanoide les cuisses epaisses font partie du tronc). Repli sans peau :
+        os le plus proche, de preference dans le tronc."""
+        if arbre_inf is not None:
+            idx = arbre_inf.query_ball_point(point, 0.04 * ext)
+            if idx:
+                dom = influence[1][idx]
+                dom = dom[dom < n_ia]
+                if len(dom):
+                    return int(np.bincount(dom).argmax())
         d = np.linalg.norm(np.array(J) - point, axis=1)
         tronc_j = [j for j in range(len(J)) if dans_tronc(J[j])]
         return int(min(tronc_j, key=lambda j: d[j])) if tronc_j else int(np.argmin(d))

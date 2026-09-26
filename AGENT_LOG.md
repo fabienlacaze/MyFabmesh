@@ -23267,3 +23267,23 @@ texture (cause = decodage rate) avant l'export sans texture.
 **A TRANCHER (user)** : un rig est facture 5 credits (~0,20 $). Cout GPU
 estime ~0,14 $, et le cout Modal REEL mesure est ~2,5 x l'estimation du code
 (memoire « modele de cout ») : la marge devient negative. Prix a revoir.
+
+## 2026-09-26 — Squelette complet : verifie en production + rattachement par la peau
+
+**Verification.** Un premier test « reglage par defaut » a rendu en 90 s,
+par l'ANCIEN chemin : l'appel etait tombe sur un conteneur encore chaud de
+la version precedente (voie desactivee), laisse actif par le test direct
+(scaledown 300 s). PIEGE A RETENIR : apres un deploiement, un conteneur
+chaud de l'ancienne version peut encore servir ; attendre sa fin avant de
+conclure. Test refait : barbare par la voie complete, 2 tirages (117 s),
+meilleur 3/11 extremites (5 ratees) -> 28 -> 44 os -> 11/11, portee 0,99,
+191 s au total.
+
+**Rattachement des nouvelles chaines par la PEAU de l'IA.** Sur le barbare,
+une chaine du pagne pendait au GENOU : la regle « os du tronc le plus
+proche » echoue chez un humanoide (les cuisses epaisses sont dans le tronc).
+Nouvelle regle generique (`influence_du_rig` + `completer(..., influence)`) :
+une nouvelle chaine se rattache a l'os qui fait DEJA bouger la zone ou elle
+nait (joint dominant des sommets a moins de 0,04 x la taille). Verifie : les
+deux chaines du pagne partent de la hanche. Repli sans peau : ancienne
+regle.

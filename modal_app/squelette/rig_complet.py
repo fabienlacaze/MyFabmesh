@@ -96,7 +96,12 @@ def main():
     final = meilleur
     try:
         J, parents, noms = sq.squelette_du_glb(str(meilleur))
-        J2, parents2, noms2, rapport = sq.completer(vol, lignes, J, parents, noms)
+        try:
+            influence = sq.influence_du_rig(str(meilleur))
+        except Exception as e:
+            journal(f'peau du tirage illisible, rattachement au plus proche : {e}')
+            influence = None
+        J2, parents2, noms2, rapport = sq.completer(vol, lignes, J, parents, noms, influence)
         compte_rendu['completion'] = rapport
         if len(J2) > len(J):
             journal(f'completion : {len(J)} -> {len(J2)} os')
