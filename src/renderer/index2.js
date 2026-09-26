@@ -24752,7 +24752,7 @@ window._applyCloudFeatureMask();
 // _updateGenButtonsEstimate ET refreshButtonLabelsAndHiding (ce qui
 // détruit la pastille enfant) → cette fonction est ré-appelée après
 // chaque réécriture, en plus des 2 sites de bascule Local/Cloud.
-// En mode Cloud : rig = /api/auto-rig (puppeteer) 5 crédits, anim =
+// En mode Cloud : rig = /api/auto-rig 10 crédits, anim =
 // /api/animate (anytop) 5 crédits ; la Motion Library (Blender/Rokoko
 // locale) n'a pas d'équivalent worker → option masquée + défaut
 // basculé sur le moteur génératif (kimodo_ai).
@@ -24774,7 +24774,9 @@ window._applyRigAnimPills = function () {
       const v = pill.querySelector('.gcp-val');
       if (v) v.textContent = String(price);
     };
-    setPill(document.getElementById('ws-generate-rig-ai'), 5);
+    // 10 depuis le 2026-09-26 (RIG_COST du worker, squelette complet) : la
+    // pastille etait restee a 5 apres la hausse — prix affiche faux.
+    setPill(document.getElementById('ws-generate-rig-ai'), 10);
     setPill(document.getElementById('ws-generate-anim'), 5);
     const sel = document.getElementById('ws-anim-engine');
     const opt = sel?.querySelector('option[value="rokoko_library"]');
