@@ -439,10 +439,15 @@ si une case est cochée, décochée ou masquée :
 
 ## 16. État au 2026-09-24 — ce qui reste ouvert
 
-- **6 outils mesh non portés sur le cloud** : `clone3d`, `detail-synth`,
-  `enhance-tex`, `name`, `region-retex`, `texvar`, plus les Étapes de
-  construction 3D. Aucun n'est bloqué : kaolin et l'inpaint d'atlas sont déjà
-  sur Modal ; seul `enhance-tex` demande d'ajouter Real-ESRGAN à l'image.
+- **5 outils mesh non portés sur le cloud** : `clone3d`, `detail-synth`,
+  `enhance-tex`, `name`, `region-retex`, plus les Étapes de construction 3D.
+  `texvar` porté le 2026-09-26 — route GPU dédiée `/mesh_texvar`, car les
+  ops `/api/mesh-op` tournent sur un conteneur CPU (`mesh_router`).
+  `detail-synth` utilise nvdiffrast (licence NON commerciale) : à porter sur
+  kaolin. `clone3d` et `region-retex` passent par le visualiseur de peinture
+  3D, qui a divergé entre bureau et web. `enhance-tex` demande Real-ESRGAN.
+- **« Re-texture all (AI) » est visible sur le web mais n'y fait rien** :
+  `meshTool` renvoie un message d'erreur pour `trellis2_retex`.
 - ~~`Variant`, `Extend`, `Sym. Auto` coquilles vides cote web~~ — **regle le
   2026-09-26.** `Extend` et `Sym. Auto` etaient en fait deja a parite (meme
   algorithme des deux cotes) ; `Variant` a recu le guide de variation et le
