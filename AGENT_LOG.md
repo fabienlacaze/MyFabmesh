@@ -22753,3 +22753,17 @@ similitude exacte se lit sur les boites englobantes.
 **Verification cloud.** App myfabmesh-skintokens redeployee (couche de correctif : « applique (auto-test OK) » sur le code SkinTokens de l'image). Rig REEL sur Modal (fonction deployee, maillage de l'utilisateur) : 95 s, 1 materiau + 2 textures + UV, os 100 % dans le maillage, Monde x IBM = identite, orientations coherentes (cos median +0,85, tous positifs). Bureau (pont) : « [fabmesh] transfert : similitude par boites englobantes (echelle 0,49986) », meme resultat.
 
 **Consommateurs en aval (echelle).** Audit (agent) : rien de vivant ne casse. Reciblage d'animation (anytop_retarget : seuils relatifs a la taille du corps, mouvement racine a l'echelle des os), nommage des zones (normalise ses boites), visualiseurs (cadrage sur la boite) : independants de l'echelle. SkinTokens normalise l'axe le PLUS LONG (fourmi : z dans [-1,1]) : rien ne pouvait supposer « hauteur 2 ». Seul effet visible : l'export FBX Unreal d'un rig (x100) sort a la taille des maillages simples (~1 m au lieu de ~2 m), comme a l'epoque Puppeteer. clips_fbx_bridge / gabarit_recaler separent gauche/droite a x=0 : sans effet, le rig transfere reste centre (decalage 0,2 %).
+
+## 2026-09-26 — Tuile « Auto-rig AI (unirig) » : nom de moteur visible
+
+**Constat (capture utilisateur, cloud).** La tuile de rig affichait « Auto-rig
+AI (unirig): orc W1 ». Le web nommait la tache d'apres la VALEUR interne du
+selecteur `#ws-rig-engine` (« unirig ») : nom de moteur visible (interdit,
+secret industriel), faux de surcroit (le rig cloud est SkinTokens depuis le
+08/08) et jamais traduit (aucune cle « Auto-rig AI (unirig): {x} »).
+
+**Correctif (web).** Nom « Auto-rig AI: <projet> », deja traduit dans toutes
+les langues et range par le motif d'etape /rig/. Le bureau ecrivait deja
+« Auto-rig AI (local) ». Balayage : plus aucun nom de moteur dans les noms de
+taches ni dans le texte visible des deux HTML (hors commentaires et valeurs
+internes).

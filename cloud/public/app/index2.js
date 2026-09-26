@@ -17275,7 +17275,12 @@ document.getElementById('ws-generate-rig-ai')?.addEventListener('click', async (
   // 1m30s was the pre-cloud desktop figure and made the bar look dead within 90s.
   const expectedMs = 240000;
   gatedRun('rig', `Auto-rig AI: ${p.name}`, async () => {
-    const job = pushJob(`Auto-rig AI (${rigEngine}): ${p.name}`, null, {
+    // Nom SANS le moteur (2026-09-26) : `rigEngine` est la valeur interne du
+    // selecteur (« unirig »), qui s'affichait telle quelle dans la tuile —
+    // un nom de moteur visible (secret industriel), faux de surcroit (le rig
+    // cloud est SkinTokens) et sans traduction. « Auto-rig AI: {x} » est deja
+    // traduit dans toutes les langues ; le motif d'etape (/rig/) le range.
+    const job = pushJob(`Auto-rig AI: ${p.name}`, null, {
       Engine: engineLabel,
       'Source mesh': meshPathToUse.split(/[/\\]/).pop(),
     }, expectedMs);
