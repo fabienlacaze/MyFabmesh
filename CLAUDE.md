@@ -210,6 +210,7 @@ Chacun vient d'un défaut livré en production :
 |---|---|
 | `check-diff-sain.mjs` | une réécriture en masse sans changement de code (indentation écrasée : 7 024 lignes de diff pour 38 vraies) |
 | `check-js-syntax.mjs` | du JS invalide dans un fichier livré **ou dans un `<script>` en ligne du HTML** |
+| `check-fonctions-portees.mjs` | le web qui appelle une fonction définie seulement sur le bureau, ou une méthode `API.xxx()` absente de `meshyAPI-cloud.js` — un `ReferenceError` au clic, invisible à tout contrôle de syntaxe (Recolorier et Âge n'ont rien fait pendant deux jours) |
 | `check_modal_deps.py` | une op mesh facturée dont la dépendance manque à l'image Modal |
 | `check-job-steps.mjs` | un travail rattaché à aucune étape (donc sans bouton « Go to ») |
 | `check-prompts-budget.mjs` | un gabarit de prompt au-delà de 77 jetons CLIP, et la divergence bureau/web/modal |

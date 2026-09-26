@@ -22329,3 +22329,19 @@ verrouillee, `modify` (3 credits) sinon — le badge de cout suivait le seul
 tarif `modify` et annoncait 3 pour une operation facturee 2. Une tuile par
 variante desormais, comme sur le bureau : la tuile unique restait a 0 %
 jusqu'a la derniere image, soit plusieurs minutes d'ecran fige sur huit.
+
+## 2026-09-26 — Garde `check-fonctions-portees.mjs`
+
+Suite directe du `translateUserPrompt` introuvable. Le garde cherche la
+signature exacte du defaut : appelee cote web, definie nulle part cote web,
+definie cote bureau. Le troisieme critere elimine le bruit (une fonction du
+navigateur n'est declaree dans aucun fichier du bureau). Seconde forme du
+meme defaut : `API.xxx()` appele par le renderer web sans methode dans
+`meshyAPI-cloud.js`. Piege de lecture note dans le garde :
+`window.meshyAPI?.xxx()` ne protege PAS — le `?.` ne court-circuite que si
+meshyAPI manque, pas si xxx manque.
+
+Prouve : en renommant la definition web, le garde bloque et cite les quatre
+appels. Etat actuel : aucun trou ; cinq appels proteges par une verification
+prealable (`if (API.writeLicenceFile)`…), signales sans bloquer. Branche sur
+`prebuild` des deux cotes.
