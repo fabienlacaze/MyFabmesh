@@ -23054,3 +23054,45 @@ bouton, viewer charge, ⛶ visible ; plein ecran : canvas 501 -> 1498 px,
 sortie OK ; projet sans animation : viewer vide, ⛶ cache ; lot idle+attack :
 « ⏳ idle / ◻ attack » puis « ✓ idle / ⏳ attack », engine motionplus
 envoye ; aucune erreur de page.
+
+## 2026-09-26 — Viewer d'animation : sur place, lecture reparee, frise, reglages, course
+
+**« Figer » (In place), bureau + web.** Demande user : l'araignee sortait du
+cadre en courant. On bloque X/Z de la piste de position de l'os RACINE (la
+plus haute des pistes de position) sur leur valeur de depart, hauteur
+conservee (sauts, rebond). Piege : `clip.clone()` PARTAGE les tableaux de
+valeurs (convertArray ne recopie pas un tableau deja du bon type) — sans
+`.slice()`, l'original etait fige aussi. Bascule au meme instant du clip ;
+etat memorise (localStorage). Le FICHIER suit : web = GLB fige dans le
+navigateur (`_glbEnPlace`, flottants reecrits en place) ; bureau = le
+processus principal fige une copie temporaire avant l'export FBX Blender
+(`anim:export` accepte `inPlace`, suffixe `_inplace`). Les deux versions
+testees sur un vrai GLB : X/Z constants, Y intact, taille identique.
+
+**Clip d'un projet dans un autre (encore).** Capture user : l'araignee dans
+« black and white cow », AVEC « No animation selected » affiche — donc le
+vidage avait eu lieu. Course : le GLB (lourd) etait encore en telechargement ;
+le rappel comparait son numero a `_animLoadId`, mais le vidage ne
+l'incrementait pas. Incremente desormais (le bureau, lui, testait deja
+`disposed`).
+
+**Lecture reparee (« ces boutons ne marchent pas correctement »).** « Play »
+ne passait jamais en « Pause » ; sans boucle, un clip fini (LoopOnce + clamp
+= action en pause sur la derniere image) ne repartait plus ; sur le bureau
+la boucle etait carrement IGNOREE (toujours LoopRepeat). Web : les vues
+camera et le fond pilotaient l'ANCIEN viewer model-viewer via des setters
+vides de `_getStep4MV` — ils ne faisaient rien. Tout est pilote sur three.js :
+Play/Pause a deux etats (relance du debut si fini), boucle appliquee, vues
+reelles (avant = +Z), reset, fond.
+
+**Frise image par image (bureau + web)** : curseur, precedente/suivante (qui
+bouclent), « 31 / 60 », cadence lue sur les pistes ; toujours visible et dans
+la carte (donc en plein ecran). Clavier sur le viewer : espace, fleches.
+**Reglages ajoutes (web)** : fil de fer, grille au sol, camera qui suit
+l'os racine.
+
+**Preuve (navigateur, API simulee).** Course : clip retarde de 7 s, bascule
+de projet -> 0 clip charge apres, viewer vide. Lecture : Pause/Play
+alternent, frise a 30, suivante 31, sans boucle arret a 60/60 puis relance.
+Sur place : amplitude horizontale du personnage 190 px -> 8 px sur captures.
+Vues : face/gauche differentes ; fond gris (68,68,68). Aucune erreur de page.

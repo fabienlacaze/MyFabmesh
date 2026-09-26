@@ -17685,6 +17685,7 @@ function _initAnimViewer() {
       const dt = Math.min(0.1, now - (_animLastTime || now));
       _animLastTime = now;
       if (_animMixer) _animMixer.update(dt * _animPlaybackRate);
+      _animApresImage();   // frise, etat des boutons, camera qui suit
       // Keep the custom bone overlay in sync with the animated skeleton.
       if (typeof _animHelperRefresh === 'function' && _animHelper && _animHelper.visible) {
         try { _animHelperRefresh(); } catch (_) {}
@@ -17698,6 +17699,8 @@ function _initAnimViewer() {
 function _disposeAnimModel() {
   if (_animMixer) { try { _animMixer.stopAllAction(); } catch (_) {} _animMixer = null; }
   _animAction = null;
+  try { _animClipOriginal = null; } catch (_) {}   // declare plus bas (let)
+  try { _animApresDisposition(); } catch (_) {}    // frise cachee, grille retiree
   if (_animHelper) {
     try { _animHelper.parent?.remove(_animHelper); _animHelper.material?.dispose?.(); } catch (_) {}
     _animHelper = null;
@@ -17750,6 +17753,12 @@ function showStep4AnimPreview(anim) {
   if (prev) prev.remove();
   const expandBtn = document.getElementById('ws-anim-expand-btn');
   if (!anim) {
+    // INVALIDER un chargement en cours : le GLB d'un projet (lourd) pouvait
+    // arriver APRES ce vidage et s'installer dans le viewer du projet suivant
+    // (araignee jouee dans « black and white cow », capture user 2026-09-26).
+    // Le rappel compare son numero a _animLoadId et s'abandonne.
+    _animLoadId++;
+    setViewerLoading('step4-preview', false);
     if (placeholder) placeholder.style.display = '';
     if (canvas) canvas.style.display = '';
     if (expandBtn) expandBtn.classList.add('hidden');
@@ -17872,13 +17881,15 @@ function showStep4AnimPreview(anim) {
                      'First 8 model node names:', [...allModelNames].slice(0, 8));
       }
       _animMixer = new THREE.AnimationMixer(_animModel);
-      _animAction = _animMixer.clipAction(clip);
+      _animClipOriginal = clip;
+      _animAction = _animMixer.clipAction(_animEnPlace ? _clipEnPlace(clip, _animModel) : clip);
       _animAction.setLoop(_animLooping ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
       _animAction.clampWhenFinished = !_animLooping;
       _animAction.enabled = true;
       _animAction.reset();
       _animAction.play();
       _animLastTime = 0;
+      _animApresChargement(clip);
       console.log('[anim-vw] mixer started, action.isRunning =', _animAction.isRunning(),
                   'paused =', _animAction.paused);
     } else {
@@ -17969,6 +17980,95 @@ function showStep4AnimPreview(anim) {
   });
 }
 
+// « In place » (figer) : l'animation joue sur place, sans deplacement dans
+// l'espace — le mode attendu par un moteur de jeu, ou c'est le code qui
+// deplace l'unite. On bloque X et Z de la piste de position de l'os RACINE
+// (la plus haute des pistes de position dans la hierarchie) sur leur valeur
+// de depart ; la hauteur reste (sauts, rebond de la course). Demande user du
+// 2026-09-26 : l'araignee sortait du cadre en courant. Etat memorise.
+let _animEnPlace = false;
+try { _animEnPlace = localStorage.getItem('fabmesh_anim_en_place') === '1'; } catch (_) {}
+let _animClipOriginal = null;
+
+function _clipEnPlace(clip, racine) {
+  const copie = clip.clone();
+  let piste = null, profondeur = Infinity;
+  for (const t of copie.tracks) {
+    if (!t.name.endsWith('.position')) continue;
+    const nom = t.name.slice(0, -'.position'.length);
+    const obj = racine.getObjectByName(nom) || racine.getObjectByProperty('uuid', nom);
+    if (!obj) continue;
+    let d = 0;
+    for (let o = obj; o && o !== racine; o = o.parent) d++;
+    if (d < profondeur) { profondeur = d; piste = t; }
+  }
+  if (!piste || piste.values.length < 3) return copie;
+  // clone() PARTAGE les tableaux de valeurs (convertArray ne recopie pas un
+  // tableau deja du bon type) : sans copie, l'original serait fige aussi.
+  const v = piste.values.slice();
+  const x0 = v[0], z0 = v[2];
+  for (let i = 0; i < v.length; i += 3) { v[i] = x0; v[i + 2] = z0; }
+  piste.values = v;
+  return copie;
+}
+
+function _majBoutonsEnPlace() {
+  document.getElementById('ws-anim-inplace-btn')?.classList.toggle('active', _animEnPlace);
+  document.querySelector('#ws-anim-toolbar [data-act="inplace"]')?.classList.toggle('active', _animEnPlace);
+}
+
+function _basculerEnPlace() {
+  _animEnPlace = !_animEnPlace;
+  try { localStorage.setItem('fabmesh_anim_en_place', _animEnPlace ? '1' : '0'); } catch (_) {}
+  _majBoutonsEnPlace();
+  if (_animMixer && _animAction && _animClipOriginal && _animModel) {
+    const temps = _animAction.time, enPause = _animAction.paused;
+    _animAction.stop();
+    _animMixer.uncacheClip(_animAction.getClip());
+    _animAction = _animMixer.clipAction(_animEnPlace ? _clipEnPlace(_animClipOriginal, _animModel) : _animClipOriginal);
+    _animAction.setLoop(_animLooping ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+    _animAction.clampWhenFinished = !_animLooping;
+    _animAction.play();
+    _animAction.time = temps;
+    _animAction.paused = enPause;
+  }
+  showToast(_animEnPlace ? 'In place: the animation no longer travels' : 'Root motion restored', 'info', 2000);
+}
+
+/** Meme gel, applique au FICHIER telecharge : GLB copie, pistes de
+ *  translation de l'os racine (le plus haut des noeuds animes en
+ *  translation) ramenees a leur X/Z de depart. Tailles inchangees : on
+ *  reecrit les flottants en place dans une copie du tampon. */
+function _glbEnPlace(tampon) {
+  const dv = new DataView(tampon);
+  if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a GLB');
+  const lgJson = dv.getUint32(12, true);
+  const js = JSON.parse(new TextDecoder().decode(new Uint8Array(tampon, 20, lgJson)));
+  const debutBin = 20 + lgJson + 8;
+  const parent = {};
+  (js.nodes || []).forEach((n, i) => (n.children || []).forEach((c) => { parent[c] = i; }));
+  const profondeur = (i) => { let d = 0; while (parent[i] !== undefined) { i = parent[i]; d++; } return d; };
+  for (const anim of (js.animations || [])) {
+    const trans = (anim.channels || []).filter((c) => c.target && c.target.path === 'translation');
+    if (!trans.length) continue;
+    const racine = trans.reduce((a, b) => (profondeur(b.target.node) < profondeur(a.target.node) ? b : a));
+    const acc = js.accessors[anim.samplers[racine.sampler].output];
+    if (acc.componentType !== 5126 || acc.type !== 'VEC3' || acc.bufferView === undefined) continue;
+    const bv = js.bufferViews[acc.bufferView];
+    const pas = bv.byteStride || 12;
+    const base = debutBin + (bv.byteOffset || 0) + (acc.byteOffset || 0);
+    const x0 = dv.getFloat32(base, true), z0 = dv.getFloat32(base + 8, true);
+    for (let k = 0; k < acc.count; k++) {
+      dv.setFloat32(base + k * pas, x0, true);
+      dv.setFloat32(base + k * pas + 8, z0, true);
+    }
+  }
+  return tampon;
+}
+
+document.getElementById('ws-anim-inplace-btn')?.addEventListener('click', _basculerEnPlace);
+_majBoutonsEnPlace();
+
 // Shim for the legacy _getStep4MV() callers — returns an object with
 // the play/pause/loop interface they expect, backed by the Three.js
 // mixer instead of model-viewer.
@@ -18004,41 +18104,227 @@ function _getStep4MV() {
     style: { background: '' },
   };
 }
-document.getElementById('ws-anim-play-btn')?.addEventListener('click', (e) => {
-  const mv = _getStep4MV();
-  if (!mv) { showToast('Pick a clip first', 'error'); return; }
-  const tracks = mv.availableAnimations || [];
-  if (tracks.length === 0) {
-    showToast('No animation tracks in this GLB — nothing to play.', 'warning', 5000);
-    return;
+// ---------------------------------------------------------------------------
+// LECTURE ET REGLAGES DU VIEWER D'ANIMATION (2026-09-26, « ces boutons ne
+// marchent pas correctement »). Defauts constates : « Play » ne passait
+// jamais en « Pause » ; sans boucle, le clip fini (LoopOnce + clamp -> action
+// en pause a la derniere image) ne repartait plus, ni par Play ni par Loop ;
+// les vues camera et le fond pilotaient l'ANCIEN viewer model-viewer (des
+// setters vides dans _getStep4MV) : ils ne faisaient plus rien. Tout est
+// maintenant pilote directement sur le moteur three.js.
+// ---------------------------------------------------------------------------
+let _animFps = 30, _animNbImages = 60, _animGlisse = false, _animEtatBoutons = '';
+let _animGrille = null, _animGrilleOn = false, _animFilDeFer = false;
+let _animSuivi = false, _animSuiviOs = null, _animSuiviPrec = null;
+
+function _animActionFinie() {
+  if (!_animAction) return false;
+  return !_animAction.enabled
+    || (_animAction.loop === THREE.LoopOnce && _animAction.time >= _animAction.getClip().duration - 1e-4);
+}
+function _animJoue() {
+  return !!_animAction && _animAction.enabled && !_animAction.paused && !_animActionFinie();
+}
+function _majBoutonsLecture() {
+  const joue = _animJoue();
+  const etat = `${joue}|${_animLooping}`;
+  if (etat === _animEtatBoutons) return;
+  _animEtatBoutons = etat;
+  const b = document.getElementById('ws-anim-play-btn');
+  if (b) {
+    b.innerHTML = joue ? `&#10074;&#10074; ${escapeHtml(_i18nT('Pause'))}` : `&#9654; ${escapeHtml(_i18nT('Play'))}`;
+    b.classList.toggle('active', joue);
   }
-  if (mv.paused) {
-    mv.play();
-    e.currentTarget.classList.add('active');
+  document.querySelectorAll('#ws-anim-toolbar [data-act="play"], #ws-anim-timeline [data-t="play"]')
+    .forEach((x) => { x.innerHTML = joue ? '&#10074;&#10074;' : '&#9654;'; });
+  document.getElementById('ws-anim-loop-btn')?.classList.toggle('active', _animLooping);
+  document.querySelector('#ws-anim-toolbar [data-act="loop"]')?.classList.toggle('active', _animLooping);
+}
+function _animBasculerLecture() {
+  if (!_animAction) { showToast('Pick a clip first', 'error'); return; }
+  if (_animActionFinie()) {            // clip fini sans boucle : on repart du debut
+    _animAction.enabled = true;
+    _animAction.reset();
+    _animAction.play();
   } else {
-    mv.pause();
-    e.currentTarget.classList.remove('active');
+    _animAction.paused = !_animAction.paused;
   }
+  _animEtatBoutons = '';
+  _majBoutonsLecture();
+}
+function _animBasculerBoucle() {
+  _animLooping = !_animLooping;
+  if (_animAction) {
+    const finie = _animActionFinie();
+    _animAction.setLoop(_animLooping ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+    _animAction.clampWhenFinished = !_animLooping;
+    if (_animLooping && finie) { _animAction.enabled = true; _animAction.reset(); _animAction.play(); }
+  }
+  _animEtatBoutons = '';
+  _majBoutonsLecture();
+}
+
+// Frise : une graduation par IMAGE du clip (cadence lue sur les pistes).
+function _animPreparerFrise(clip) {
+  let dt = 0;
+  for (const t of clip.tracks) { if (t.times.length > 1) { dt = t.times[1] - t.times[0]; break; } }
+  _animFps = dt > 0 ? Math.max(1, Math.round(1 / dt)) : 30;
+  _animNbImages = Math.max(1, Math.round(clip.duration * _animFps) + 1);
+  const s = document.getElementById('ws-anim-scrub');
+  if (s) { s.max = String(_animNbImages - 1); s.value = '0'; }
+  document.getElementById('ws-anim-timeline')?.classList.remove('hidden');
+  _animMajFrise();
+}
+function _animMajFrise() {
+  if (!_animAction) return;
+  const img = Math.min(_animNbImages - 1, Math.max(0, Math.round(_animAction.time * _animFps)));
+  const s = document.getElementById('ws-anim-scrub');
+  if (s && !_animGlisse && s.value !== String(img)) s.value = String(img);
+  const l = document.getElementById('ws-anim-frame');
+  const txt = `${img + 1} / ${_animNbImages}`;
+  if (l && l.textContent !== txt) l.textContent = txt;
+}
+function _animAllerA(image) {
+  if (!_animAction || !_animMixer) return;
+  const n = _animNbImages;
+  image = ((image % n) + n) % n;       // precedente/suivante bouclent
+  _animAction.enabled = true;
+  _animAction.paused = true;            // parcourir image par image = pause
+  if (!_animAction.isScheduled()) _animAction.play();
+  _animAction.time = Math.min(image / _animFps, _animAction.getClip().duration);
+  _animMixer.update(0);
+  _animMajFrise();
+  _animEtatBoutons = '';
+  _majBoutonsLecture();
+}
+
+// Appele a chaque image par la boucle de rendu.
+function _animApresImage() {
+  if (!_animAction) return;
+  _animMajFrise();
+  _majBoutonsLecture();
+  if (_animSuivi && _animSuiviOs && _animVw) {
+    const p = new THREE.Vector3();
+    _animSuiviOs.getWorldPosition(p);
+    if (_animSuiviPrec) {
+      const d = p.clone().sub(_animSuiviPrec);
+      _animVw.camera.position.add(d);
+      _animVw.controls.target.add(d);
+    }
+    _animSuiviPrec = p;
+  }
+}
+
+function _animApresChargement(clip) {
+  _animPreparerFrise(clip);
+  _animEtatBoutons = '';
+  _majBoutonsLecture();
+  // os racine (le plus haut de la hierarchie) pour la camera qui suit
+  _animSuiviOs = null; _animSuiviPrec = null;
+  let prof = Infinity;
+  _animModel?.traverse((o) => {
+    if (!o.isBone) return;
+    let d = 0;
+    for (let x = o; x && x !== _animModel; x = x.parent) d++;
+    if (d < prof) { prof = d; _animSuiviOs = o; }
+  });
+  _animAppliquerFilDeFer();
+  _animConstruireGrille();
+}
+function _animApresDisposition() {
+  document.getElementById('ws-anim-timeline')?.classList.add('hidden');
+  if (_animGrille && _animVw) { _animVw.scene.remove(_animGrille); _animGrille.geometry?.dispose?.(); _animGrille.material?.dispose?.(); }
+  _animGrille = null;
+  _animSuiviOs = null; _animSuiviPrec = null;
+  _animEtatBoutons = '';
+}
+
+function _animAppliquerFilDeFer() {
+  _animModel?.traverse((o) => {
+    if (!o.isMesh) return;
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m) m.wireframe = _animFilDeFer; });
+  });
+  document.querySelector('#ws-anim-toolbar [data-act="wire"]')?.classList.toggle('active', _animFilDeFer);
+}
+function _animConstruireGrille() {
+  if (!_animVw || !_animModel) return;
+  if (_animGrille) { _animVw.scene.remove(_animGrille); _animGrille.geometry?.dispose?.(); _animGrille.material?.dispose?.(); }
+  const box = new THREE.Box3().setFromObject(_animModel);
+  const taille = (box.getSize(new THREE.Vector3()).length() || 1) * 3;
+  _animGrille = new THREE.GridHelper(taille, 30, 0x55557a, 0x2c2c40);
+  const c = box.getCenter(new THREE.Vector3());
+  _animGrille.position.set(c.x, box.min.y, c.z);
+  _animGrille.visible = _animGrilleOn;
+  _animVw.scene.add(_animGrille);
+  document.querySelector('#ws-anim-toolbar [data-act="grid"]')?.classList.toggle('active', _animGrilleOn);
+}
+
+// Vues camera reelles (l'avant des assets FabMesh regarde +Z).
+function _animCadrer(vue) {
+  if (!_animVw || !_animModel) return;
+  const box = new THREE.Box3().setFromObject(_animModel);
+  const c = box.getCenter(new THREE.Vector3());
+  const r = box.getSize(new THREE.Vector3()).length() || 1;
+  const dirs = {
+    iso: [0.9, 0.5, 0.9], front: [0, 0.12, 1.3], back: [0, 0.12, -1.3],
+    left: [-1.3, 0.12, 0], right: [1.3, 0.12, 0], top: [0, 1.3, 0.001], bottom: [0, -1.3, 0.001],
+  };
+  const d = dirs[vue] || dirs.iso;
+  _animVw.camera.position.set(c.x + d[0] * r, c.y + d[1] * r, c.z + d[2] * r);
+  _animVw.controls.target.copy(c);
+  _animVw.controls.update();
+  _animSuiviPrec = null;
+}
+
+document.getElementById('ws-anim-play-btn')?.addEventListener('click', _animBasculerLecture);
+document.getElementById('ws-anim-loop-btn')?.addEventListener('click', _animBasculerBoucle);
+document.querySelectorAll('#ws-anim-timeline [data-t]').forEach((b) => {
+  b.addEventListener('click', () => {
+    if (b.dataset.t === 'play') _animBasculerLecture();
+    else if (b.dataset.t === 'prev') _animAllerA(Math.round((_animAction?.time || 0) * _animFps) - 1);
+    else if (b.dataset.t === 'next') _animAllerA(Math.round((_animAction?.time || 0) * _animFps) + 1);
+  });
 });
-document.getElementById('ws-anim-loop-btn')?.addEventListener('click', (e) => {
-  const mv = _getStep4MV();
-  if (!mv) return;
-  const next = !mv.hasAttribute('loop');
-  if (next) mv.setAttribute('loop', '');
-  else mv.removeAttribute('loop');
-  e.currentTarget.classList.toggle('active', next);
+(() => {
+  const s = document.getElementById('ws-anim-scrub');
+  if (!s) return;
+  s.addEventListener('input', () => { _animGlisse = true; _animAllerA(parseInt(s.value, 10) || 0); });
+  s.addEventListener('change', () => { _animGlisse = false; });
+})();
+// Clavier (viewer survole ou en plein ecran) : espace = lecture/pause,
+// fleches = image precedente/suivante.
+document.addEventListener('keydown', (e) => {
+  const carte = document.getElementById('step4-preview');
+  if (!carte || !_animAction) return;
+  if (!(document.fullscreenElement === carte || carte.matches(':hover'))) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') && document.activeElement?.id !== 'ws-anim-scrub') return;
+  if (e.key === ' ') { e.preventDefault(); _animBasculerLecture(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); _animAllerA(Math.round(_animAction.time * _animFps) - 1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); _animAllerA(Math.round(_animAction.time * _animFps) + 1); }
 });
 document.getElementById('ws-anim-export-btn')?.addEventListener('click', async () => {
   const a = _step4ActiveAnim;
   if (!a?.url && !a?.path) { showToast('Select an animation first', 'error'); return; }
   // FBX export not available on cloud; offer the raw GLB download instead.
   const url = a.url || a.path;
+  const nom = (a.filename || url.split('/').pop().split('?')[0] || 'animation.glb');
   try {
     const link = document.createElement('a');
-    link.href = url;
-    link.download = (a.filename || url.split('/').pop() || 'animation.glb');
+    let objetUrl = null;
+    if (_animEnPlace) {
+      // Le fichier suit l'aperçu : fige s'il est affiche fige.
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      objetUrl = URL.createObjectURL(new Blob([_glbEnPlace(await r.arrayBuffer())], { type: 'model/gltf-binary' }));
+      link.href = objetUrl;
+      link.download = nom.replace(/\.glb$/i, '') + '_inplace.glb';
+    } else {
+      link.href = url;
+      link.download = nom;
+    }
     document.body.appendChild(link); link.click(); link.remove();
-    showToast('Animation GLB downloaded (FBX export requires desktop)', 'info', 4000);
+    if (objetUrl) setTimeout(() => URL.revokeObjectURL(objetUrl), 30000);
+    showToast(_animEnPlace ? 'Animation GLB downloaded (in place)' : 'Animation GLB downloaded (FBX export requires desktop)', 'info', 4000);
   } catch (e) {
     showToast(`Download failed: ${e.message}`, 'error');
   }
@@ -18067,28 +18353,30 @@ document.querySelectorAll('#ws-anim-toolbar [data-act]').forEach(el => {
   if (isButton) {
     el.addEventListener('click', () => {
       if (act === 'bones') _toggleAnimBones();
-      else if (act === 'play') document.getElementById('ws-anim-play-btn')?.click();
-      else if (act === 'loop') document.getElementById('ws-anim-loop-btn')?.click();
+      else if (act === 'inplace') _basculerEnPlace();
+      else if (act === 'play') _animBasculerLecture();
+      else if (act === 'loop') _animBasculerBoucle();
+      else if (act === 'wire') { _animFilDeFer = !_animFilDeFer; _animAppliquerFilDeFer(); }
+      else if (act === 'grid') {
+        _animGrilleOn = !_animGrilleOn;
+        if (_animGrille) _animGrille.visible = _animGrilleOn;
+        el.classList.toggle('active', _animGrilleOn);
+      }
+      else if (act === 'follow') {
+        _animSuivi = !_animSuivi;
+        _animSuiviPrec = null;
+        el.classList.toggle('active', _animSuivi);
+      }
       else if (act === 'reset') {
-        const mv = _getStep4MV();
-        if (mv) { mv.resetTurntableRotation?.(); mv.cameraOrbit = 'auto auto auto'; }
+        _animCadrer('iso');
+        const v = document.querySelector('#ws-anim-toolbar [data-act="view"]');
+        if (v) v.value = 'iso';
       }
     });
   }
 });
 document.querySelector('#ws-anim-toolbar [data-act="view"]')?.addEventListener('change', (e) => {
-  const mv = _getStep4MV();
-  if (!mv) return;
-  const orbits = {
-    iso:    '45deg 65deg auto',
-    front:  '0deg 90deg auto',
-    back:   '180deg 90deg auto',
-    left:   '-90deg 90deg auto',
-    right:  '90deg 90deg auto',
-    top:    '0deg 0deg auto',
-    bottom: '0deg 180deg auto',
-  };
-  if (orbits[e.target.value]) mv.cameraOrbit = orbits[e.target.value];
+  _animCadrer(e.target.value);
 });
 document.querySelector('#ws-anim-toolbar [data-act="speed"]')?.addEventListener('change', (e) => {
   const mv = _getStep4MV();
@@ -18097,10 +18385,10 @@ document.querySelector('#ws-anim-toolbar [data-act="speed"]')?.addEventListener(
   if (Number.isFinite(s) && s > 0) mv.playbackRate = s;
 });
 document.querySelector('#ws-anim-toolbar [data-act="bg"]')?.addEventListener('change', (e) => {
-  const mv = _getStep4MV();
-  if (!mv) return;
-  const bgs = { dark: '#0a0a0e', studio: '#222233', black: '#000', gray: '#444' };
-  mv.style.background = bgs[e.target.value] || '#0a0a0e';
+  // Le fond du moteur 3D (l'ancien reglage ecrivait dans un objet factice).
+  if (!_animVw?.scene) return;
+  const bgs = { dark: 0x0a0a0e, studio: 0x222233, black: 0x000000, gray: 0x444444 };
+  _animVw.scene.background = new THREE.Color(bgs[e.target.value] ?? 0x0a0a0e);
 });
 document.querySelector('#ws-anim-toolbar [data-act="light"]')?.addEventListener('input', (e) => {
   const mv = _getStep4MV();

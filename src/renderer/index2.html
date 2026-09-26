@@ -1030,6 +1030,14 @@
                     <!-- Plein ecran NATIF de cette carte (la visionneuse 3D
                          commune n'a pas de mixer : l'animation s'y figerait). -->
                     <button id="ws-anim-expand-btn" class="preview-expand-btn hidden" title="View animation fullscreen">&#x26F6;</button>
+                    <!-- Frise de lecture image par image (parite web). -->
+                    <div id="ws-anim-timeline" class="anim-timeline hidden">
+                      <button type="button" data-t="play" title="Play / Pause">&#9654;</button>
+                      <button type="button" data-t="prev" title="Previous frame">&#9198;</button>
+                      <input type="range" id="ws-anim-scrub" min="0" max="59" step="1" value="0" title="Scrub frame by frame" />
+                      <button type="button" data-t="next" title="Next frame">&#9197;</button>
+                      <span id="ws-anim-frame" class="anim-frame">1 / 60</span>
+                    </div>
                   </div>
                   <div id="ws-anim-filename" class="viewer-filename"></div>
                   <div id="ws-anim-stats" class="viewer-stats"></div>
@@ -1049,6 +1057,7 @@
                       <div class="step-tools-grid">
                         <button id="ws-anim-play-btn" class="ghost-btn tool-btn" title="Play the animation.">&#9654; Play</button>
                         <button id="ws-anim-loop-btn" class="ghost-btn tool-btn" title="Loop playback.">&#128257; Loop</button>
+                        <button id="ws-anim-inplace-btn" class="ghost-btn tool-btn" title="In place: the animation stays on the spot (no travel). The exported file follows this setting.">&#128204; In place</button>
                       </div>
                     </div>
                   </div>

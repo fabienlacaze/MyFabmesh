@@ -16549,6 +16549,7 @@ function renderAnimVersions(p) {
     const fn = document.getElementById('ws-anim-filename');
     if (fn) fn.textContent = '';
     document.getElementById('ws-anim-expand-btn')?.classList.add('hidden');
+    document.getElementById('ws-anim-timeline')?.classList.add('hidden');
     if (document.fullscreenElement?.id === 'ws-anim-preview') { document.exitFullscreen().catch(() => {}); }
     return;
   }
@@ -16701,6 +16702,7 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
     const ctl = new OrbitControls(cam, canvas); ctl.enableDamping = true;
     ctl.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
     let mixer = null, action = null, raf = 0, disposed = false;
+    let clipOriginal = null, racineAnim = null;   // pour basculer « In place »
     const url = anim.url || ('file:///' + (anim.path || '').replace(/\\/g, '/'));
     console.log('[anim-result] loading', url);
     new GLTFLoader().load(url, (g) => {
@@ -16722,13 +16724,17 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
         const clip = clips[pickIdx];
         console.log('[anim-result] clip name=', clip.name, 'duration=', clip.duration, 'tracks=', clip.tracks.length);
         mixer = new THREE.AnimationMixer(root);
-        action = mixer.clipAction(clip);
-        action.setLoop(THREE.LoopRepeat);
-        action.clampWhenFinished = false;
+        clipOriginal = clip; racineAnim = root;
+        action = mixer.clipAction(_animEnPlace ? _clipEnPlace(clip, root) : clip);
+        // La boucle etait IGNOREE (toujours LoopRepeat) : le bouton Loop ne
+        // changeait rien. Clamp : un clip sans boucle s'arrete sur sa fin.
+        action.setLoop(_animLoop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+        action.clampWhenFinished = true;
         action.enabled = true;
         action.reset();
         action.play();
         _animPlaying = true;
+        _animFrisePreparer(clip);
         // Debug: log mixer.time after 1s to confirm it advances
         setTimeout(() => console.log('[anim-result] mixer.time after 1s =', mixer ? mixer.time.toFixed(3) : 'null'), 1000);
       } else {
@@ -16760,7 +16766,13 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
     (function tick() {
       if (disposed) return;
       raf = requestAnimationFrame(tick);
-      if (mixer && _animPlaying) mixer.update(clk.getDelta());
+      const dtImage = clk.getDelta();
+      if (mixer && _animPlaying) mixer.update(dtImage);
+      if (action) {
+        _animFriseMaj(action);
+        // clip sans boucle arrive au bout : le bouton repasse sur « Play »
+        if (_animPlaying && _animFinie(action)) { _animPlaying = false; _animMajBoutonsLecture(); }
+      }
       ctl.update();
       renderer.render(scene, cam);
     })();
@@ -16783,17 +16795,146 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       cancelAnimationFrame(raf);
       try { _suiviTaille?.disconnect(); } catch (_) {}
       try { renderer.dispose(); } catch (_) {}
-    }
+    },
+    // Rejoue le clip (fige ou non) au MEME instant.
+    enPlace(actif) {
+      if (!mixer || !action || !clipOriginal) return;
+      const t = action.time;
+      action.stop();
+      mixer.uncacheClip(action.getClip());
+      action = mixer.clipAction(actif ? _clipEnPlace(clipOriginal, racineAnim) : clipOriginal);
+      action.setLoop(_animLoop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+      action.clampWhenFinished = true;
+      action.play();
+      action.time = t;
+    },
+    boucle(actif) {
+      if (!action) return;
+      const finie = _animFinie(action);
+      action.setLoop(actif ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+      if (actif && finie) { action.enabled = true; action.reset(); action.play(); }
+    },
+    estFini() { return !!action && _animFinie(action); },
+    // Lecture : un clip fini (sans boucle) repart du debut.
+    relancerSiFini() {
+      if (action && _animFinie(action)) { action.enabled = true; action.reset(); action.play(); }
+    },
+    allerA(image) {
+      if (!mixer || !action) return;
+      const n = _animNbImages;
+      image = ((image % n) + n) % n;
+      _animPlaying = false;              // parcourir image par image = pause
+      action.enabled = true;
+      action.paused = false;
+      if (!action.isScheduled()) action.play();
+      action.time = Math.min(image / _animFps, action.getClip().duration);
+      mixer.update(0);
+      _animFriseMaj(action);
+      _animMajBoutonsLecture();
+    },
+    image() { return action ? Math.round(action.time * _animFps) : 0; },
   };
 }
 
-// Wire EDIT SELECTED toolbar buttons (Play / Loop / Export FBX / Show in folder)
-document.getElementById('ws-anim-play-btn')?.addEventListener('click', () => {
-  _animPlaying = !_animPlaying;
+// Frise image par image + etat des boutons Lecture (parite web, 2026-09-26).
+let _animFps = 30, _animNbImages = 60, _animGlisse = false;
+function _animFinie(action) {
+  return !action.enabled
+    || (action.loop === THREE.LoopOnce && action.time >= action.getClip().duration - 1e-4);
+}
+function _animFrisePreparer(clip) {
+  let dt = 0;
+  for (const t of clip.tracks) { if (t.times.length > 1) { dt = t.times[1] - t.times[0]; break; } }
+  _animFps = dt > 0 ? Math.max(1, Math.round(1 / dt)) : 30;
+  _animNbImages = Math.max(1, Math.round(clip.duration * _animFps) + 1);
+  const s = document.getElementById('ws-anim-scrub');
+  if (s) { s.max = String(_animNbImages - 1); s.value = '0'; }
+  document.getElementById('ws-anim-timeline')?.classList.remove('hidden');
+  _animMajBoutonsLecture();
+}
+function _animFriseMaj(action) {
+  const img = Math.min(_animNbImages - 1, Math.max(0, Math.round(action.time * _animFps)));
+  const s = document.getElementById('ws-anim-scrub');
+  if (s && !_animGlisse && s.value !== String(img)) s.value = String(img);
+  const l = document.getElementById('ws-anim-frame');
+  const txt = `${img + 1} / ${_animNbImages}`;
+  if (l && l.textContent !== txt) l.textContent = txt;
+}
+function _animMajBoutonsLecture() {
+  const b = document.getElementById('ws-anim-play-btn');
+  const libelle = (s) => (typeof _i18nT === 'function' ? _i18nT(s) : s);
+  if (b) {
+    b.innerHTML = _animPlaying ? `&#10074;&#10074; ${libelle('Pause')}` : `&#9654; ${libelle('Play')}`;
+    b.classList.toggle('active', _animPlaying);
+  }
+  const bf = document.querySelector('#ws-anim-timeline [data-t="play"]');
+  if (bf) bf.innerHTML = _animPlaying ? '&#10074;&#10074;' : '&#9654;';
+  document.getElementById('ws-anim-loop-btn')?.classList.toggle('active', _animLoop);
+}
+function _animBasculerLectureBureau() {
+  if (!_animViewer) return;
+  if (_animViewer.estFini?.()) {        // clip fini sans boucle : repart du debut
+    _animViewer.relancerSiFini();
+    _animPlaying = true;
+  } else {
+    _animPlaying = !_animPlaying;
+  }
+  _animMajBoutonsLecture();
+}
+document.querySelectorAll('#ws-anim-timeline [data-t]').forEach((b) => {
+  b.addEventListener('click', () => {
+    if (b.dataset.t === 'play') _animBasculerLectureBureau();
+    else if (b.dataset.t === 'prev') _animViewer?.allerA?.((_animViewer.image?.() || 0) - 1);
+    else if (b.dataset.t === 'next') _animViewer?.allerA?.((_animViewer.image?.() || 0) + 1);
+  });
 });
+(() => {
+  const s = document.getElementById('ws-anim-scrub');
+  if (!s) return;
+  s.addEventListener('input', () => { _animGlisse = true; _animViewer?.allerA?.(parseInt(s.value, 10) || 0); });
+  s.addEventListener('change', () => { _animGlisse = false; });
+})();
+
+// « In place » (figer) — meme regle que le web : X/Z de la piste de position
+// de l'os racine bloques sur leur valeur de depart, hauteur conservee.
+let _animEnPlace = false;
+try { _animEnPlace = localStorage.getItem('fabmesh_anim_en_place') === '1'; } catch (_) {}
+function _clipEnPlace(clip, racine) {
+  const copie = clip.clone();
+  let piste = null, profondeur = Infinity;
+  for (const t of copie.tracks) {
+    if (!t.name.endsWith('.position')) continue;
+    const nom = t.name.slice(0, -'.position'.length);
+    const obj = racine.getObjectByName(nom) || racine.getObjectByProperty('uuid', nom);
+    if (!obj) continue;
+    let d = 0;
+    for (let o = obj; o && o !== racine; o = o.parent) d++;
+    if (d < profondeur) { profondeur = d; piste = t; }
+  }
+  if (!piste || piste.values.length < 3) return copie;
+  // clone() PARTAGE les tableaux : copie avant d'ecrire.
+  const v = piste.values.slice();
+  const x0 = v[0], z0 = v[2];
+  for (let i = 0; i < v.length; i += 3) { v[i] = x0; v[i + 2] = z0; }
+  piste.values = v;
+  return copie;
+}
+document.getElementById('ws-anim-inplace-btn')?.addEventListener('click', (e) => {
+  _animEnPlace = !_animEnPlace;
+  try { localStorage.setItem('fabmesh_anim_en_place', _animEnPlace ? '1' : '0'); } catch (_) {}
+  e.currentTarget.classList.toggle('active', _animEnPlace);
+  _animViewer?.enPlace?.(_animEnPlace);
+});
+document.getElementById('ws-anim-inplace-btn')?.classList.toggle('active', _animEnPlace);
+
+// Wire EDIT SELECTED toolbar buttons (Play / Loop / Export FBX / Show in folder)
+document.getElementById('ws-anim-play-btn')?.addEventListener('click', _animBasculerLectureBureau);
 document.getElementById('ws-anim-loop-btn')?.addEventListener('click', () => {
   _animLoop = !_animLoop;
+  _animViewer?.boucle?.(_animLoop);   // la boucle est maintenant APPLIQUEE au clip
+  _animMajBoutonsLecture();
 });
+_animMajBoutonsLecture();
 document.getElementById('ws-anim-folder-btn')?.addEventListener('click', async () => {
   if (!_selectedAnim?.path) return;
   try { await window.meshyAPI.showInExplorer?.(_selectedAnim.path); } catch (_) {}
@@ -16801,7 +16942,8 @@ document.getElementById('ws-anim-folder-btn')?.addEventListener('click', async (
 document.getElementById('ws-anim-export-btn')?.addEventListener('click', async () => {
   if (!_selectedAnim?.path) return;
   try {
-    const res = await window.meshyAPI.animExport?.({ glbPath: _selectedAnim.path, format: 'fbx' });
+    // Le fichier suit l'aperçu : fige s'il est affiche fige.
+    const res = await window.meshyAPI.animExport?.({ glbPath: _selectedAnim.path, format: 'fbx', inPlace: _animEnPlace });
     if (res?.success) showToast?.(`Exported: ${res.path}`, 'success');
     else showToast?.(`Export failed: ${res?.error || 'unknown'}`, 'error');
   } catch (e) { showToast?.(`Export error: ${e.message}`, 'error'); }

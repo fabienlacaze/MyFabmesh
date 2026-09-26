@@ -1130,7 +1130,11 @@
                       </select>
                       <button data-act="play" title="Play / Pause">&#9654;</button>
                       <button data-act="loop" class="active" title="Loop">&#128257;</button>
+                      <button data-act="inplace" title="In place: the animation stays on the spot (no travel)">&#128204;</button>
                       <button data-act="bones" title="Show skeleton">Bones</button>
+                      <button data-act="wire" title="Wireframe">Wire</button>
+                      <button data-act="grid" title="Ground grid">Grid</button>
+                      <button data-act="follow" title="Camera follows the character">Follow</button>
                       <select data-act="speed" title="Playback speed">
                         <option value="0.25">0.25x</option>
                         <option value="0.5">0.5x</option>
@@ -1146,6 +1150,15 @@
                       </select>
                       <span class="light-label" title="Exposure">&#9728;</span>
                       <input type="range" data-act="light" min="0" max="300" value="100" title="Exposure" />
+                    </div>
+                    <!-- Frise de lecture : TOUJOURS visible (pas seulement au
+                         survol) et dans la carte, pour rester la en plein ecran. -->
+                    <div id="ws-anim-timeline" class="anim-timeline hidden">
+                      <button type="button" data-t="play" title="Play / Pause">&#9654;</button>
+                      <button type="button" data-t="prev" title="Previous frame">&#9198;</button>
+                      <input type="range" id="ws-anim-scrub" min="0" max="59" step="1" value="0" title="Scrub frame by frame" />
+                      <button type="button" data-t="next" title="Next frame">&#9197;</button>
+                      <span id="ws-anim-frame" class="anim-frame">1 / 60</span>
                     </div>
                   </div>
                   <div id="ws-anim-filename" class="viewer-filename"></div>
@@ -1171,6 +1184,7 @@
                       <div class="step-tools-grid">
                         <button id="ws-anim-play-btn" class="ghost-btn tool-btn rig-tool-btn" title="Play the animation.">&#9654; Play</button>
                         <button id="ws-anim-loop-btn" class="ghost-btn tool-btn rig-tool-btn active" title="Loop playback.">&#128257; Loop</button>
+                        <button id="ws-anim-inplace-btn" class="ghost-btn tool-btn rig-tool-btn" title="In place: the animation stays on the spot (no travel). The downloaded file follows this setting.">&#128204; In place</button>
                       </div>
                     </div>
                     <div class="step-tools-group">

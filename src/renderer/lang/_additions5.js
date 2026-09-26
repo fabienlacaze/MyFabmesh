@@ -194,4 +194,10 @@
     'No running jobs': 'لا توجد مهام قيد التنفيذ',
     'No finished jobs yet': 'لا توجد مهام منتهية بعد',
   });
+  // Animation : lecture sur place (2026-09-26).
+  window.FabI18n.register('fr', { 'In place': 'Sur place' });
+  window.FabI18n.register('es', { 'In place': 'En el sitio' });
+  window.FabI18n.register('zh', { 'In place': '原地' });
+  window.FabI18n.register('hi', { 'In place': 'एक ही जगह' });
+  window.FabI18n.register('ar', { 'In place': 'في المكان' });
 })();

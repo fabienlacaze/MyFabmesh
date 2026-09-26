@@ -426,6 +426,37 @@ function _runExport({ glbPath, format, dest }) {
   });
 }
 
+// « In place » (2026-09-26) — meme regle que le web (_glbEnPlace dans
+// cloud/public/app/index2.js) : dans chaque clip, la piste de translation de
+// l'os le PLUS HAUT dans la hierarchie garde son X/Z de depart ; la hauteur
+// reste (sauts, rebond). Flottants reecrits en place dans une copie.
+function _glbEnPlace(octets) {
+  const buf = Buffer.from(octets);
+  if (buf.readUInt32LE(0) !== 0x46546C67) throw new Error('not a GLB');
+  const lgJson = buf.readUInt32LE(12);
+  const js = JSON.parse(buf.toString('utf8', 20, 20 + lgJson));
+  const debutBin = 20 + lgJson + 8;
+  const parent = {};
+  (js.nodes || []).forEach((n, i) => (n.children || []).forEach((c) => { parent[c] = i; }));
+  const profondeur = (i) => { let d = 0; while (parent[i] !== undefined) { i = parent[i]; d++; } return d; };
+  for (const anim of (js.animations || [])) {
+    const trans = (anim.channels || []).filter((c) => c.target && c.target.path === 'translation');
+    if (!trans.length) continue;
+    const racine = trans.reduce((a, b) => (profondeur(b.target.node) < profondeur(a.target.node) ? b : a));
+    const acc = js.accessors[anim.samplers[racine.sampler].output];
+    if (acc.componentType !== 5126 || acc.type !== 'VEC3' || acc.bufferView === undefined) continue;
+    const bv = js.bufferViews[acc.bufferView];
+    const pas = bv.byteStride || 12;
+    const base = debutBin + (bv.byteOffset || 0) + (acc.byteOffset || 0);
+    const x0 = buf.readFloatLE(base), z0 = buf.readFloatLE(base + 8);
+    for (let k = 0; k < acc.count; k++) {
+      buf.writeFloatLE(x0, base + k * pas);
+      buf.writeFloatLE(z0, base + k * pas + 8);
+    }
+  }
+  return buf;
+}
+
 // =============================================================================
 // register({ ipcMain, app, BrowserWindow, MESHES_DIR, isPathAllowed, trackProc })
 // =============================================================================
@@ -869,7 +900,7 @@ function register(deps) {
   // ---------------------------------------------------------------------------
   // anim:export â€” GLB pass-through, FBX/USD via Blender
   // ---------------------------------------------------------------------------
-  ipcMain.handle('anim:export', async (_e, { glbPath, format, dest } = {}) => {
+  ipcMain.handle('anim:export', async (_e, { glbPath, format, dest, inPlace } = {}) => {
     if (!glbPath || !fs.existsSync(glbPath)) {
       return { success: false, error: 'Source GLB missing' };
     }
@@ -877,15 +908,26 @@ function register(deps) {
     if (!['glb', 'fbx', 'usd', 'abc'].includes(fmt)) {
       return { success: false, error: `Unsupported format=${fmt}` };
     }
+    const suffixe = inPlace ? '_inplace' : '';
     const target = dest || path.join(
       app.getPath('documents'), 'MyFabmesh', 'exports',
-      `${path.basename(glbPath, '.glb')}.${fmt}`);
+      `${path.basename(glbPath, '.glb')}${suffixe}.${fmt}`);
     _ensureDir(path.dirname(target));
+    // « In place » : on exporte une COPIE figee (le fichier du projet garde
+    // son deplacement), comme l'apercu l'affiche.
+    let source = glbPath, temporaire = null;
     try {
-      const { path: outPath } = await _runExport({ glbPath, format: fmt, dest: target });
+      if (inPlace) {
+        temporaire = path.join(os.tmpdir(), `fabmesh_inplace_${Date.now()}.glb`);
+        fs.writeFileSync(temporaire, _glbEnPlace(fs.readFileSync(glbPath)));
+        source = temporaire;
+      }
+      const { path: outPath } = await _runExport({ glbPath: source, format: fmt, dest: target });
       return { success: true, path: outPath };
     } catch (err) {
       return { success: false, error: String(err.message || err) };
+    } finally {
+      if (temporaire) { try { fs.unlinkSync(temporaire); } catch (_) {} }
     }
   });
 
