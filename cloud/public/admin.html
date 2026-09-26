@@ -211,6 +211,21 @@
     #users-table td.col-tight, #users-table th.col-tight { width:1%; }
     #users-table td.col-actions, #users-table th.col-actions { width:1%; text-align:right; }
     #users-table td.col-actions .btn { margin-left:6px; margin-bottom:2px; }
+    /* LARGEUR FIXE PAR BOUTON : le libelle porte un compteur (« Meshes (93) »
+       contre « Meshes (0) »), donc chaque ligne avait ses propres largeurs et,
+       cale a droite, aucun bouton ne tombait sous celui de la ligne voisine. */
+    #users-table td.col-actions { white-space:nowrap; }
+    #users-table td.col-actions .btn {
+      display:inline-flex; justify-content:center; align-items:center;
+      box-sizing:border-box; white-space:nowrap;
+    }
+    #users-table td.col-actions .btn-user-projects { width:128px; }
+    #users-table td.col-actions .btn-user-images   { width:118px; }
+    #users-table td.col-actions .btn-user-meshes   { width:132px; }
+    #users-table td.col-actions .btn-user-rigs     { width:104px; }
+    #users-table td.col-actions .btn-user-anims    { width:152px; }
+    #users-table td.col-actions .btn-user-credits  { width:96px; }
+    #users-table td.col-actions .btn-user-ban      { width:88px; }
     #users-table th.sortable { cursor:pointer; user-select:none; }
     #users-table th.sortable:hover { color:var(--text-0); }
     #users-table th.sortable .sort-arrow { font-size:9px; margin-left:3px; opacity:0.9; }
@@ -738,6 +753,7 @@
                    API, calculée par _usersCompare (branche dédiée). -->
               <th class="col-num   sortable" data-sort="fail_rate" role="button" tabindex="0" title="Failed / total ops">% fail <span class="sort-arrow"></span></th>
               <th class="col-num   sortable" data-sort="rigs_count" role="button" tabindex="0">Rigs <span class="sort-arrow"></span></th>
+              <th class="col-num   sortable" data-sort="animations_count" role="button" tabindex="0">Anims <span class="sort-arrow"></span></th>
               <th class="col-tight sortable" data-sort="created_at" role="button" tabindex="0">Joined <span class="sort-arrow"></span></th>
               <!-- « Status » affichait `banned ? BANNED : active`. Tout le monde
                    etait donc « active », y compris un compte n'ayant jamais rien
@@ -749,7 +765,7 @@
               <th class="col-actions">Actions</th>
             </tr>
           </thead>
-          <tbody><tr><td colspan="12" style="color:var(--text-2)">Loading…</td></tr></tbody>
+          <tbody><tr><td colspan="13" style="color:var(--text-2)">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1101,8 +1117,10 @@
     <!-- Mesh viewer modal -->
     <div id="meshes-overlay"
          style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1001; align-items:center; justify-content:center;">
-      <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:90vw; max-height:90vh; width:1000px; overflow:auto;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+      <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:12px; padding:0 20px 20px; max-width:90vw; max-height:90vh; width:1000px; overflow:auto;">
+        <!-- En-tete COLLANT : titre et « Close » restent visibles pendant le
+             defilement (images, maillages, rigs partagent cette fenetre). -->
+        <div style="position:sticky; top:0; z-index:5; background:var(--bg-1); padding:20px 0 12px; display:flex; align-items:center; justify-content:space-between;">
           <div id="meshes-title" style="font-size:16px; font-weight:700;"></div>
           <button class="btn" onclick="document.getElementById('meshes-overlay').style.display='none'">✕ Close</button>
         </div>
@@ -1987,7 +2005,7 @@
        ═══════════════════════════════════════════════════════════════ */
     // Doit rester égal au nombre de <th> du thead ci-dessus (11), sinon les
     // lignes de secours « Loading… » / erreur / « No users. » se désalignent.
-    const USERS_COLSPAN = 11;
+    const USERS_COLSPAN = 13;   // 12 colonnes + Anims (valait 11, deja une de moins que l'en-tete)
     const USERS_PAGE_SIZE = 50;
     let _allUsers = [];
     let _usersMeta = { total: 0, returned: 0, truncated: false, assets_scanned: false, assets_scan_partial: false };
@@ -2108,6 +2126,7 @@
           ? '<span class="muted">—</span>'
           : `<span${rate > 20 ? ' style="color:var(--err); font-weight:700;"' : ''} title="${failed} failed / ${Number(u.ops_total) || 0} ops">${rate.toFixed(rate >= 10 ? 0 : 1)}%</span>`;
         const rigs = Number(u.rigs_count) || 0;
+        const anims = Number(u.animations_count) || 0;
         /* ACTIVITE REELLE, derivee de la derniere operation.
          *
          * C'est l'information qu'on croyait lire dans « Status ». Un compte
@@ -2142,6 +2161,7 @@
           <td class="col-num"${failed > 0 ? ' style="color:var(--err); font-weight:700;"' : ''}>${failed}</td>
           <td class="col-num">${rateCell}</td>
           <td class="col-num">${rigs}</td>
+          <td class="col-num">${anims}</td>
           <td class="col-tight">${escapeHtml(fmtDate(u.created_at))}</td>
           <td class="col-tight">${activiteCell}</td>
           <td class="col-tight">${u.banned ? '<span style="color:var(--err); font-weight:700;">BANNI</span>' : '<span class="muted">ouvert</span>'}</td>
@@ -2165,6 +2185,10 @@
                     data-uid="${escapeHtml(uid)}"
                     data-uwho="${escapeHtml(who)}"
                     title="Browse this user's rigs">🦴 Rigs (${rigs})</button>
+            <button class="btn btn-user-anims"
+                    data-uid="${escapeHtml(uid)}"
+                    data-uwho="${escapeHtml(who)}"
+                    title="Browse this user's animations">🎬 Animations (${anims})</button>
             <button class="btn btn-user-credits"
                     data-uid="${escapeHtml(uid)}"
                     data-uwho="${escapeHtml(who)}"
@@ -2194,6 +2218,9 @@
       });
       tbody.querySelectorAll('.btn-user-rigs').forEach((b) => {
         b.addEventListener('click', () => viewUserRigs(b.dataset.uid, b.dataset.uwho));
+      });
+      tbody.querySelectorAll('.btn-user-anims').forEach((b) => {
+        b.addEventListener('click', () => viewUserMeshes(b.dataset.uid, b.dataset.uwho, 'animations'));
       });
       tbody.querySelectorAll('.btn-user-credits').forEach((b) => {
         b.addEventListener('click', () => openCreditsModal(b.dataset.uid, b.dataset.uwho, Number(b.dataset.ucredits) || 0));
@@ -2688,14 +2715,18 @@
           ${pill}
           <div style="font-weight:600; font-size:13px;">${escapeHtml(m.project_name || '—')}</div>
           <div style="color:var(--text-2); font-size:11px;">${escapeHtml(m.asset_type)} · ${escapeHtml(fmtDate(m.created_at))}</div>
-          <model-viewer
-              src="${escapeHtml(m.mesh_url)}"
-              camera-controls
-              touch-action="pan-y"
-              shadow-intensity="1"
-              exposure="1"
-              style="width:100%; height:240px; background:#0a0a0e; border:1px solid var(--border); border-radius:6px;">
-          </model-viewer>
+          <div style="position:relative;">
+            <model-viewer
+                data-src="${escapeHtml(m.mesh_url)}"
+                ${m.asset_type === 'animation' ? 'autoplay' : ''}
+                camera-controls
+                touch-action="pan-y"
+                shadow-intensity="1"
+                exposure="1"
+                style="width:100%; height:240px; background:#0a0a0e; border:1px solid var(--border); border-radius:6px;">
+            </model-viewer>
+            <div class="mv-etat" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; color:var(--text-2); font-size:12px; text-align:center; padding:8px;">En attente…${m.options && m.options.size ? ' (' + (m.options.size / 1048576).toFixed(0) + ' Mo)' : ''}</div>
+          </div>
           <div style="display:flex; gap:6px;">
             <a class="btn" href="${escapeHtml(m.mesh_url)}" target="_blank" rel="noopener" style="flex:1; text-align:center; font-size:12px;">⬇ Download GLB</a>
             <button class="btn btn-admin-delete-mesh" style="background:var(--err); border-color:var(--err); color:#fff; font-size:12px; padding:4px 10px;" title="Delete this mesh from R2 and Supabase">🗑</button>
@@ -2711,6 +2742,7 @@
             ? `<div style="grid-column:1/-1; color:var(--text-2); text-align:center; padding:8px; font-size:12px;">All ${_adminAllMeshes.length} meshes loaded.</div>`
             : '');
       grid.innerHTML = cards + more;
+      _chargerViewersEnFile(grid);
       const moreBtn = grid.querySelector('#admin-mesh-more');
       if (moreBtn) moreBtn.addEventListener('click', () => {
         _adminMeshPageSize += ADMIN_MESH_PAGE_SIZE;
@@ -2743,9 +2775,47 @@
       });
     }
 
-    async function viewUserMeshes(userId, who) {
+    /* CHARGEMENT UN PAR UN des aperçus 3D.
+     *
+     * Chaque GLB pese 15 a 36 Mo (atlas de texture). Les 12 cartes d'une
+     * page partaient EN MEME TEMPS : ~300 Mo en parallele, la bande passante
+     * partagee en douze, et plus rien ne s'affichait avant plusieurs minutes
+     * — des cartes noires, indiscernables d'un echec. On charge deux
+     * aperçus a la fois, dans l'ordre de la grille, et chaque carte dit ou
+     * elle en est (en attente, chargement, echec). Un nouveau rendu de la
+     * grille ou la fermeture de la fenetre arrete la file en cours. */
+    let _mvFileGeneration = 0;
+    async function _chargerViewersEnFile(grid) {
+      const gen = ++_mvFileGeneration;
+      const file = Array.from(grid.querySelectorAll('model-viewer[data-src]'));
+      const ouverte = () => gen === _mvFileGeneration
+        && document.getElementById('meshes-overlay').style.display !== 'none';
+      const charger = (mv) => new Promise((fin) => {
+        const etat = mv.parentElement.querySelector('.mv-etat');
+        const poser = (t) => { if (etat) { etat.textContent = t; etat.style.display = t ? 'flex' : 'none'; } };
+        const taille = etat && /\(\d+ Mo\)/.test(etat.textContent) ? ' ' + etat.textContent.match(/\(\d+ Mo\)/)[0] : '';
+        poser('Chargement…' + taille);
+        const minuteur = setTimeout(() => { poser('Trop long — utilisez « Download GLB »'); fin(); }, 180000);
+        mv.addEventListener('load', () => { clearTimeout(minuteur); poser(''); fin(); }, { once: true });
+        mv.addEventListener('error', (e) => {
+          clearTimeout(minuteur);
+          const d = e && e.detail && (e.detail.type || (e.detail.sourceError && e.detail.sourceError.message));
+          poser('Échec du chargement' + (d ? ' : ' + String(d).slice(0, 80) : ''));
+          fin();
+        }, { once: true });
+        mv.setAttribute('src', mv.getAttribute('data-src'));
+        mv.removeAttribute('data-src');
+      });
+      const ouvrier = async () => {
+        while (file.length && ouverte()) await charger(file.shift());
+      };
+      await Promise.all([ouvrier(), ouvrier()]);
+    }
+
+    async function viewUserMeshes(userId, who, kind) {
+      const anims = kind === 'animations';
       const grid = document.getElementById('meshes-grid');
-      document.getElementById('meshes-title').textContent = 'Meshes for ' + who;
+      document.getElementById('meshes-title').textContent = (anims ? 'Animations for ' : 'Meshes for ') + who;
       grid.innerHTML = '<div style="color:var(--text-2);">Loading…</div>';
       document.getElementById('meshes-overlay').style.display = 'flex';
       _adminAllMeshes = [];
@@ -2756,7 +2826,7 @@
         // grid can badge each card with its listing state (pending / live /
         // rejected) without a second round-trip.
         const [r, listings] = await Promise.all([
-          fetch(`/api/admin/users/${encodeURIComponent(userId)}/meshes`, { credentials: 'include' }),
+          fetch(`/api/admin/users/${encodeURIComponent(userId)}/meshes${anims ? '?kind=animations' : ''}`, { credentials: 'include' }),
           _fetchAdminUserListings(userId),
         ]);
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -2764,7 +2834,7 @@
         _adminAllMeshes = data.meshes || [];
         _indexAdminUserListings(listings);
         if (!_adminAllMeshes.length) {
-          grid.innerHTML = '<div style="color:var(--text-2);">No succeeded meshes.</div>';
+          grid.innerHTML = `<div style="color:var(--text-2);">${anims ? 'No animations yet.' : 'No succeeded meshes.'}</div>`;
           return;
         }
         _renderAdminMeshGrid();
@@ -2793,7 +2863,11 @@
         const data = await r.json();
         // Normalise rig records into the mesh-card shape the existing grid
         // expects: { id, mesh_url, project_name, asset_type, created_at }.
-        _adminAllMeshes = (data.rigs || []).map((r) => ({
+        // Du plus recent au plus ancien, comme la grille des maillages (la
+        // liste R2 arrive dans l'ordre des cles, donc au hasard des noms).
+        _adminAllMeshes = (data.rigs || []).slice()
+          .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+          .map((r) => ({
           id: r.id,
           mesh_url: r.mesh_url,
           project_name: r.project_name,

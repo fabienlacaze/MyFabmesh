@@ -16895,6 +16895,7 @@ async function handleAdminListUsers(req: Request, env: Env): Promise<Response> {
   const opsSucceeded = new Map<string, number>();
   const creditsSpent = new Map<string, number>();
   const rigsCount = new Map<string, number>();
+  const animationsCount = new Map<string, number>();
   const lastActivity = new Map<string, number>();
   const bump = (m: Map<string, number>, k: string, by = 1) => m.set(k, (m.get(k) || 0) + by);
   const jobsList = (jobsRows || []) as Array<{
@@ -16909,7 +16910,14 @@ async function handleAdminListUsers(req: Request, env: Env): Promise<Response> {
       set.add(row.project_name);
       projects.set(row.user_id, set);
     }
-    if (row.mesh_url && row.status === 'succeeded') bump(meshes, row.user_id);
+    // Trois natures de GLB dans la meme table : maillage, rig, animation. Les
+    // animations etaient comptees (et listees) comme des maillages ; elles
+    // ont desormais leur colonne. Rigs : compteur par operation_type, plus bas.
+    if (row.mesh_url && row.status === 'succeeded') {
+      const nature = _natureGlb(row.mesh_url, row.options);
+      if (nature === 'animation') bump(animationsCount, row.user_id);
+      else if (nature === 'mesh') bump(meshes, row.user_id);
+    }
     bump(opsTotal, row.user_id);
     if (row.status === 'failed') bump(opsFailed, row.user_id);
     if (row.status === 'succeeded') {
@@ -16979,6 +16987,7 @@ async function handleAdminListUsers(req: Request, env: Env): Promise<Response> {
       ops_succeeded: opsSucceeded.get(u.id) || 0,
       credits_spent: creditsSpent.get(u.id) || 0,
       rigs_count: rigsCount.get(u.id) || 0,
+      animations_count: animationsCount.get(u.id) || 0,
       last_activity: lastActivity.has(u.id)
         ? new Date(lastActivity.get(u.id) as number).toISOString() : null,
     })),
@@ -17335,19 +17344,41 @@ async function handleAdminUserProjects(req: Request, env: Env, userId: string): 
 
 /** GET /api/admin/users/<userId>/meshes — ADMIN ONLY. Lists every
  *  succeeded mesh job for a user so the admin can preview / moderate. */
+/** Nature d'un GLB produit : maillage, rig ou animation. Deduite du chemin
+ *  R2 (`<uid>/rigged/`, `<uid>/animations/`) puis de operation_type. */
+function _natureGlb(meshUrl: string | null, options: Record<string, unknown> | null): 'mesh' | 'rig' | 'animation' {
+  const op = String(options?.operation_type ?? '');
+  if (/\/animations\//i.test(meshUrl ?? '') || op.startsWith('animate')) return 'animation';
+  if (/\/rigged\//i.test(meshUrl ?? '') || op === 'rig') return 'rig';
+  return 'mesh';
+}
+
+/** GET /api/admin/users/<uid>/meshes[?kind=animations] — maillages seuls par
+ *  defaut (les rigs ont leur propre route, depuis R2), ou les animations. */
 async function handleAdminUserMeshes(req: Request, env: Env, userId: string): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  const voulu = new URL(req.url).searchParams.get('kind') === 'animations' ? 'animation' : 'mesh';
   const sb = supabaseAdmin(env);
-  const { data, error } = await sb.from('jobs')
+  const { data: brut, error } = await sb.from('jobs')
     .select('id, user_id, asset_type, mesh_url, status, project_name, created_at, options, type, cost_usd')
     .eq('user_id', userId)
     .eq('status', 'succeeded')
     .not('mesh_url', 'is', null)
     .order('created_at', { ascending: false })
-    .limit(200);
+    .limit(500);
   if (error) return err(500, error.message);
-  return json({ meshes: data || [] });
+  const data = ((brut ?? []) as Array<{ mesh_url: string | null; options: Record<string, unknown> | null }>)
+    .filter((j) => _natureGlb(j.mesh_url, j.options) === voulu)
+    .slice(0, 200);
+  // `mesh_url` est stocke comme CLE R2 (« mesh/modal_x.glb »), plus comme
+  // URL, depuis la fermeture de l'acces public r2.dev. Renvoyee telle
+  // quelle, le visualiseur la resolvait contre /admin : 404, cartes NOIRES
+  // pour toutes les generations. On re-signe a la lecture, comme
+  // handleListMeshes (une ancienne URL complete passe inchangee).
+  const meshes = await Promise.all(((data ?? []) as Array<{ mesh_url: string | null } & Record<string, unknown>>)
+    .map(async (j) => ({ ...j, mesh_url: j.mesh_url ? await signedR2Url(env, j.mesh_url, 'mesh') : null })));
+  return json({ meshes });
 }
 
 /** POST /api/landmarks — JSON-only landmarks persistence keyed by mesh slug.
