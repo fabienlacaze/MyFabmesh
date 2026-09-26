@@ -1626,6 +1626,10 @@ const PRICING_DEFAULTS = {
   // « Name the zones (AI) » : rendu isole + CLIP-L, ou poids de skinning d'un
   // rig. Aucune diffusion, quelques dizaines de secondes.
   name_parts:       1,
+  // « Re-texture a region (AI) » : une passe SDXL Inpaint sur l'atlas, le meme
+  // travail GPU qu'un mask_inpaint (6). Pose a 2 comme les autres outils
+  // portes, sur demande explicite du user (« 1 ou 2 credits »).
+  region_retex:     2,
   // Mesh generation ladder repriced 2026-07-28 from MEASURED Modal cost,
   // not from the (wrong) _meshCostUsd estimate. 30 days of succeeded
   // jobs: median 373s for the 1-credit preset, 420s for the 8-credit one
@@ -11041,6 +11045,31 @@ function handleMeshEnhanceTex(req: Request, env: Env): Promise<Response> {
   });
 }
 
+/** POST /api/mesh-region-retex — « Re-texture a region (AI) », portage de l'IPC
+ *  bureau 'mesh:region-retex' (face_inpaint_atlas.py --uv-mask). Le masque est
+ *  peint sur le maillage 3D, donc deja en espace UV. */
+function handleMeshRegionRetex(req: Request, env: Env): Promise<Response> {
+  return _opAtlasGpu(req, env, {
+    route: '/mesh_region_retex', op: 'region_retex', prixCle: 'region_retex',
+    libelle: 'region re-texture',
+    // RealVisXL Inpaint, 30 pas a 1024 : ~20 s a chaud, chargement du pipe
+    // depuis le disque a froid. Plafond reserve, pas une facture.
+    estimationUsd: 0.06,
+    texteLibre: (c) => String(c.prompt ?? '').trim().slice(0, 300),
+    champs: (c) => {
+      // Le masque arrive en data URL PNG. On borne sa taille : un masque
+      // binaire 1024x1024 pese quelques dizaines de Ko ; au-dela de 8 Mo ce
+      // n'est pas un masque.
+      const m = String(c.mask ?? '');
+      return {
+        mask_b64: m.length <= 8_000_000 ? m : '',
+        prompt: String(c.prompt ?? '').trim().slice(0, 300),
+        strength: typeof c.strength === 'number' ? c.strength : 0.8,
+      };
+    },
+  });
+}
+
 /** POST /api/mesh-name-parts — « Name the zones (AI) », portage de l'IPC bureau
  *  'name-parts'. Nomme les sous-parties d'un maillage SEGMENTE (roue / tourelle
  *  — bras / jambe) et ecrit le fichier annexe `<maillage>.parts.json` a cote du
@@ -11407,11 +11436,29 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
 
-  const { opType, glbBase64, projectName } = await req.json() as {
-    /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
-    projectName?: string;
-    opType?: string; glbBase64?: string;
-  };
+  /* DEUX FORMATS. Le navigateur envoie desormais les OCTETS BRUTS
+   * (content-type model/gltf-binary, operation et projet dans l'URL) : un GLB
+   * 4K re-exporte pese ~67 Mo, et sa version base64-dans-du-JSON obligeait ce
+   * worker a tenir trois copies en memoire (~220 Mo pour 128 Mo permis). Le
+   * JSON reste accepte pour un onglet encore ouvert sur l'ancienne version. */
+  const binaire = /gltf-binary|octet-stream/i.test(req.headers.get('content-type') ?? '');
+  let opType: string | undefined, glbBase64: string | undefined, projectName: string | undefined;
+  let octetsBruts: Uint8Array | null = null;
+  if (binaire) {
+    const q = new URL(req.url).searchParams;
+    opType = q.get('op') ?? undefined;
+    projectName = q.get('project') || undefined;
+    // Cloudflare refuse de toute facon un corps > 100 Mo ; on le dit clairement.
+    const annonce = Number(req.headers.get('content-length') ?? '0');
+    if (annonce > 100_000_000) return err(413, 'glb too large (>100 MB)');
+    octetsBruts = new Uint8Array(await req.arrayBuffer());
+  } else {
+    ({ opType, glbBase64, projectName } = await req.json() as {
+      /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
+      projectName?: string;
+      opType?: string; glbBase64?: string;
+    });
+  }
   const CLIENT_OPS = new Set([
     'smooth', 'decimate', 'subdivide', 'fix_normals', 'fill_holes', 'center',
     // Peintures faites dans le navigateur. Elles passaient jusqu'ici sous le
@@ -11424,13 +11471,13 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
   if (!CLIENT_OPS.has(op)) {
     return err(400, `opType must be one of ${Array.from(CLIENT_OPS).join(', ')} (client-side ops only)`);
   }
-  if (!glbBase64 || typeof glbBase64 !== 'string') return err(400, 'glbBase64 required');
+  if (!octetsBruts && (!glbBase64 || typeof glbBase64 !== 'string')) return err(400, 'glbBase64 required');
   // 100 MB max — pathological mesh would never legitimately exceed this
   // and we don't want to host runaway uploads for free.
   // 250 MB max (~335 M base64 chars). Trellis2 outputs with full PBR
   // sets + our 1024² emissive texture can easily push past 100 MB
   // once GLTFExporter re-embeds everything for the saved version.
-  if (glbBase64.length > 335_000_000) return err(413, 'glb too large (>250 MB)');
+  if (glbBase64 && glbBase64.length > 335_000_000) return err(413, 'glb too large (>250 MB)');
 
   // Per-user call quota (shared bucket with /api/mesh-op).
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
@@ -11438,9 +11485,14 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
     return json({ ok: false, success: false, error: 'user limit reached.' }, { status: 429 });
   }
 
-  const bin = atob(glbBase64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  let bytes: Uint8Array;
+  if (octetsBruts) {
+    bytes = octetsBruts;
+  } else {
+    const bin = atob(glbBase64!);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  }
   // glTF 2.0 binary magic: "glTF" (0x676C5446) then version 2.
   if (bytes.length < 12 ||
       bytes[0] !== 0x67 || bytes[1] !== 0x6C || bytes[2] !== 0x54 || bytes[3] !== 0x46) {
@@ -18174,7 +18226,7 @@ export default {
         '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit', '/api/recolor', '/api/tex-variant',
         '/api/segment-preview',
         '/api/mask-inpaint', '/api/face-fix-image', '/api/upscale-image',
-        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/mesh-enhance-tex', '/api/mesh-name-parts', '/api/text2image-tpose',
+        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/mesh-enhance-tex', '/api/mesh-name-parts', '/api/mesh-region-retex', '/api/text2image-tpose',
         // Boots a Blender container on Modal -> same kill switch.
         '/api/mesh-convert',
         '/api/auto-rig', '/api/auto-rig-status',
@@ -18354,6 +18406,7 @@ export default {
         if (pathname === '/api/mesh-texvar'           && method === 'POST') return await handleMeshTexVar(req, env);
         if (pathname === '/api/mesh-enhance-tex'      && method === 'POST') return await handleMeshEnhanceTex(req, env);
         if (pathname === '/api/mesh-name-parts'       && method === 'POST') return await handleMeshNameParts(req, env);
+        if (pathname === '/api/mesh-region-retex'     && method === 'POST') return await handleMeshRegionRetex(req, env);
         if (pathname === '/api/segment-preview'       && method === 'POST') return await handleSegmentPreview(req, env);
         if (pathname === '/api/mask-inpaint'          && method === 'POST') return await handleMaskInpaint(req, env);
         if (pathname === '/api/face-fix-image'        && method === 'POST') return await handleFaceFixImage(req, env);

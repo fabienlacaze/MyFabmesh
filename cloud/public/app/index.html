@@ -857,6 +857,7 @@
                         <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint with native PBR engine — qualité SOTA">&#11088; Re-Texture</button>
                         <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin) on cloud GPU">&#9986; Segment parts (AI)</button>
                         <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head) with AI. Requires a segmented mesh.">&#127991; Name the zones (AI)</button>
+                        <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part: paint it on the 3D mesh, describe the new look — geometry stays intact">&#127912; Re-texture a region (AI)</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -869,6 +870,7 @@
                              (no UV / texture needed), Paint Mesh writes the texture. -->
                         <button id="ws-mesh-paintvert-btn" class="ghost-btn tool-btn" title="Vertex paint — brush colours straight onto the vertices (works even with no UVs / no texture). For pixel-precise painting on the texture itself, use Paint Mesh.">&#127912; Paint</button>
                         <button id="ws-mesh-selectface-btn" class="ghost-btn tool-btn" title="Select faces to isolate, hide or work on them.">&#9634; Select</button>
+                        <button id="ws-mesh-clone3d-btn" class="ghost-btn tool-btn" title="Clone one area of the texture onto another, directly on the 3D mesh (like the 2D clone stamp)">&#129657; 3D clone stamp</button>
                         <button id="ws-mesh-explode-btn" class="ghost-btn tool-btn" title="Fracture the mesh into shards and blast them outward with the viewer explode slider (explosion / destruction). Texture preserved, exportable.">&#128165; Explode / destroy</button>
                         <button id="ws-mesh-stages3d-btn" class="ghost-btn tool-btn" title="Fabricate the 3D meshes of the construction stages (sliced building + frame + scaffolding), navigable and exportable">&#127959;&#65039; 3D construction stages</button>
                         <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize / dimension the mesh with a scale gizmo and on-screen rulers (uniform or per-axis). Bakes a new scaled version.">&#128207; Resize / dimension</button>
@@ -1994,11 +1996,29 @@
           </div>
           <!-- Right: brush controls -->
           <div style="width:280px; flex-shrink:0; display:flex; flex-direction:column; gap:10px;">
-            <div>
+            <!-- Region re-texture (mask) mode — shown only when opened from
+                 "Re-texture a region": paint a white UV mask, then the AI
+                 repaints only that area (uvMask → no back-face bleed).
+                 Ported from the desktop on 2026-09-26. -->
+            <div id="pe-mask-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#160f2e; border:1px solid var(--accent, #5a4fcf); border-radius:6px;">
+              <div style="font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Area to re-texture</div>
+              <label style="font-size:11px;">What should this area look like?</label>
+              <input type="text" id="pe-mask-prompt" placeholder="e.g. polished golden metal armor" style="width:100%; padding:6px; font-size:12px;" />
+              <label style="display:flex; justify-content:space-between; font-size:11px;">Strength <span id="pe-mask-strength-val" class="slider-val">0.8</span></label>
+              <input type="range" id="pe-mask-strength" min="0.3" max="1" step="0.05" value="0.8" style="width:100%;" />
+              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Paint the area in <b>white</b> on the mesh (left-click + drag). Orbit with right-click, zoom with the wheel.</div>
+            </div>
+            <!-- 3D clone-stamp mode — shown only when opened from "3D clone stamp". -->
+            <div id="pe-clone-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#0f1e2e; border:1px solid #2a7fb8; border-radius:6px;">
+              <div style="font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Clone stamp</div>
+              <div style="font-size:11px; line-height:1.5;"><b>Ctrl+click</b> on the mesh = set the <b>source</b>.<br><b>Left-click + drag</b> = clone onto the destination.</div>
+              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Adjust the brush below. The base-color texture is edited in place; the geometry is untouched.</div>
+            </div>
+            <div class="pe-emissive-only">
               <label style="display:block; font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Emissive color</label>
               <input type="color" id="pe-color" value="#ffaa33" style="width:100%; height:36px; cursor:pointer; background:#1a1a2e; border:1px solid #333; border-radius:4px;" />
             </div>
-            <div>
+            <div class="pe-emissive-only">
               <label style="display:flex; justify-content:space-between; font-size:11px;">Intensity <span id="pe-intensity-val" class="slider-val">1.0</span></label>
               <input type="range" id="pe-intensity" min="0.1" max="20" step="0.1" value="1.0" style="width:100%;" />
             </div>
@@ -2018,24 +2038,29 @@
               <button id="pe-mode-paint" class="ghost-btn" style="flex:1; padding:6px; font-size:11px; background:var(--accent, #5a4fcf); color:#fff;">🖌 Paint</button>
               <button id="pe-mode-erase" class="ghost-btn" style="flex:1; padding:6px; font-size:11px;">🧽 Erase</button>
             </div>
-            <div style="display:flex; gap:6px;">
-              <button id="pe-undo" class="ghost-btn" style="flex:1; padding:6px; font-size:11px;" title="Undo (Ctrl+Z)">↶ Undo</button>
-              <button id="pe-redo" class="ghost-btn" style="flex:1; padding:6px; font-size:11px;" title="Redo (Ctrl+Y)">↷ Redo</button>
+            <!-- Compact icon toolbar (magnifier / undo / redo / clear) — same
+                 layout as the desktop. -->
+            <div style="display:flex; gap:6px; justify-content:center; align-items:center;">
+              <button id="pe-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128269;</button>
+              <button id="pe-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
+              <button id="pe-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)">&#8631;</button>
+              <button id="pe-clear" class="secondary-btn tool-btn" title="Clear all">&#8635;</button>
             </div>
-            <button id="pe-toggle-emissive" class="ghost-btn" style="padding:6px; font-size:11px; background:var(--accent, #5a4fcf); color:#fff;" title="Show/hide the emissive texture on the mesh">💡 Emissive ON</button>
-            <button id="pe-load-image-layer" class="ghost-btn" style="padding:6px; font-size:11px;" title="Re-project the emissive layer painted on the source image">⬇ Load from image layer</button>
-            <button id="pe-clear" class="ghost-btn" style="padding:6px; font-size:11px;">↺ Clear all</button>
-            <div style="padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:10px; color:var(--text-2);">
+            <button id="pe-toggle-emissive" class="ghost-btn pe-emissive-only" style="padding:6px; font-size:11px; background:var(--accent, #5a4fcf); color:#fff;" title="Show/hide the emissive texture on the mesh">💡 Emissive ON</button>
+            <button id="pe-load-image-layer" class="ghost-btn pe-emissive-only" style="padding:6px; font-size:11px;" title="Re-project the emissive layer painted on the source image">⬇ Load from image layer</button>
+            <div class="pe-emissive-only" style="padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:10px; color:var(--text-2);">
               Output: <code>T_emissive</code> 1024×1024 PNG embedded in the GLB.
             </div>
           </div>
         </div>
         <div class="modal-actions" style="margin-top:10px;">
           <button class="ghost-btn" id="pe-cancel">Cancel</button>
-          <button class="primary-btn" id="pe-apply-device" style="margin:0; padding:8px 24px; width:auto;">Apply (free)</button>
+          <button class="primary-btn" id="pe-apply-device" style="margin:0; padding:8px 24px; width:auto;">💾 Save new version</button>
         </div>
       </div>
     </div>
+    <!-- Magnifier loupe for the Paint-Emissive / region-retex 3D viewer -->
+    <div id="pe-loupe" style="position:fixed; display:none; z-index:11000; border:2px solid rgba(245,158,11,0.9); border-radius:6px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.6); pointer-events:none; background:#000;"><canvas id="pe-loupe-canvas" width="150" height="150" style="width:150px; height:150px;"></canvas></div>
 
     <!-- ============================================================
          SETTINGS MODAL
@@ -3061,7 +3086,8 @@
     {
       "imports": {
         "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+        "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/",
+        "three-mesh-bvh": "./lib/three-mesh-bvh.module.js"
       }
     }
   </script>

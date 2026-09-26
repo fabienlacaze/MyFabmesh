@@ -22509,3 +22509,54 @@ fichier de ce type dans R2 (defaut latent, jamais declenche). Cle corrigee
 avec la meme regle de slug que /api/mesh-op. Au passage, Paint Emissive et
 Paint Mesh passaient sous le nom 'center' (seul moyen de franchir la liste
 blanche) : ils ont desormais leur nom, plus 'clone3d' pour le tampon 3D.
+
+## 2026-09-26 — Portage cloud : tampon de clonage 3D + re-texture de zone (IA)
+
+**Renderer.** La section « Paint Emissive » du web etait une version
+anterieure a celle du bureau : sans les modes clonage et masque, sans loupe
+ni suivi des modifications. Section du bureau reprise, seules les E/S
+adaptees (fetch de l'URL signee ; route gratuite client-result ; nouvelle
+route /api/mesh-region-retex). Modale reprise (panneaux masque et clonage,
+loupe), libelles en anglais comme le reste du web. `three-mesh-bvh` (MIT,
+meme module que le bureau, meme revision de three : 170) ajoute a
+l'importmap : le clonage lance des centaines de raycasts par coup de
+pinceau, sans BVH le navigateur gele sur 485 000 triangles. Le garde des
+fonctions portees a bloque `_mkRenderer()` (absente du web) : portee.
+
+**Backend.** /mesh_region_retex sur MyFabmeshBackview : masque deja en espace
+UV (peint sur le maillage 3D), binarise a la taille de l'atlas, puis
+`_face_fix.inpaint_atlas` (recopie du bureau) avec RealVisXL en inpainting,
+comme le bureau. RealVisXL fp16 (6,9 Go) embarque dans l'image. Zone < 0,1 %
+de l'atlas : 422 + remboursement (le bureau recopiait le fichier inchange,
+gratuit en local, facture ici). Tarif 2 credits.
+
+**Banc GPU (vrai orc, atlas 4K)** : pipe charge DEPUIS L'IMAGE en 27,8 s
+(local_files_only), inpainting 13,8 s, ecart hors masque 0,0, dans le masque
+42. Rectification remesuree : 509 s au premier appel apres un deploiement,
+puis 24 s — le premier chiffre depasse la reprise du worker (~450 s).
+
+**Test navigateur de bout en bout** (patchright, API simulee, vrai orc 27 Mo) :
+modale en mode clonage, trait -> rendu modifie + « annuler » actif, source
+marquee en vert ; sauvegarde -> GLB valide, op `clone3d`, rangee sous le
+projet ; re-texture -> masque PNG + prompt + force envoyes. Trois defauts
+trouves PAR CE TEST, tous corriges :
+1. La sauvegarde envoyait 89 Mo (GLB re-exporte de 67 Mo, textures WebP
+   ressorties en PNG, puis base64 dans du JSON). Le worker aurait tenu trois
+   copies en memoire (~220 Mo pour 128 permis). Envoi en OCTETS BRUTS
+   (model/gltf-binary, op et projet dans l'URL) : 67 Mo, une seule copie.
+   L'ancien format JSON reste accepte. Vaut pour TOUTES les sauvegardes du
+   navigateur (Paint Mesh, Paint Emissive, outils mesh sur l'appareil).
+2. Apres un enregistrement reussi, le bouton de la modale restait GRISE a la
+   reouverture (il n'etait reactive que sur echec) : la deuxieme utilisation
+   dans la session ne faisait rien. Defaut du BUREAU, porte tel quel :
+   corrige des deux cotes.
+3. (verification du chargement) : evaluate de patchright tourne dans un monde
+   isole — ni globales ni importmap. Verification refaite par un vrai
+   <script type=module> injecte : three 170, BVH actif, module execute.
+
+**Pyflakes, noms indefinis**, ajoute a check_modal_methodes.py :
+`inference_bytes` (lot d'entrainement) referencait `payload` inexistant —
+NameError a chaque appel, introduit le 24 en branchant « Texture smooth ».
+Et ma nouvelle route utilisait `Image` sans l'importer (app.py n'importe PIL
+que localement) : rattrape avant deploiement. Prouve sur la version
+precedente d'app.py.

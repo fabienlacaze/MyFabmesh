@@ -356,6 +356,17 @@ image = (
         "snapshot_download('madebyollin/sdxl-vae-fp16-fix', "
         "allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors'])\"",
     )
+    # RealVisXL V4.0, variante fp16 (6,9 Go) : moteur de « Re-texture a region »,
+    # le MEME que le bureau (scripts/face_inpaint_atlas.py le charge en
+    # StableDiffusionXLInpaintPipeline). Sans lui dans l'image, le premier appel
+    # d'un conteneur froid le telechargeait depuis HuggingFace — la lenteur
+    # mesuree le 2026-09-26 sur le pipe Tile (281 s), bien au-dela des 100 s
+    # de Cloudflare. Seuls les fichiers de la variante fp16 et les configs.
+    .run_commands(
+        "python -c \"from huggingface_hub import snapshot_download; "
+        "snapshot_download('SG161222/RealVisXL_V4.0', "
+        "allow_patterns=['*.json', '*.txt', '*.fp16.safetensors'])\"",
+    )
     .add_local_python_source("modal_app")
     .add_local_file(
         "modal_app/back_tpose_skeleton.png",
@@ -1712,6 +1723,106 @@ class MyFabmeshBackview:
               f"en {time.time() - t0:.1f}s", flush=True)
         return {"ok": True, "sidecar": data}
 
+    def _get_realvis_inpaint_pipe(self):
+        """RealVisXL V4.0 en inpainting — le moteur de « Re-texture a region »
+        sur le bureau (scripts/face_inpaint_atlas.py.inpaint_atlas).
+
+        Distinct du pipe d'auto-inpaint de cette classe (SDXL-inpainting-0.1) :
+        la parite de rendu avec le bureau passe par le meme modele. Decharge
+        sur CPU comme le bureau : les autres pipes de la classe occupent deja
+        la VRAM. Parametres de precision recopies du face-fix (VAE en fp32,
+        sans quoi le VAE fp16 de SDXL rend une image grise)."""
+        if getattr(self, '_rv_inpaint', None) is not None:
+            return self._rv_inpaint
+        import torch
+        from diffusers import StableDiffusionXLInpaintPipeline
+        t0 = time.time()
+        pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
+            "SG161222/RealVisXL_V4.0", torch_dtype=torch.float16,
+            variant="fp16", use_safetensors=True)
+        try:
+            pipe.upcast_vae()
+        except Exception:
+            try:
+                pipe.vae.to(torch.float32)
+            except Exception:
+                pass
+        pipe.enable_model_cpu_offload()
+        self._rv_inpaint = pipe
+        print(f"[region-retex] RealVisXL inpaint pret en {time.time() - t0:.1f}s", flush=True)
+        return pipe
+
+    def _route_mesh_region_retex(self, payload: dict):
+        """« Re-texture a region (AI) » — portage cloud de l'IPC bureau
+        'mesh:region-retex' (face_inpaint_atlas.py --uv-mask).
+
+        Le masque arrive DEJA en espace UV : l'utilisateur l'a peint sur le
+        maillage 3D, et chaque touche a ete ecrite a la coordonnee UV du point
+        touche. Il s'applique donc directement a l'atlas, sans projection.
+        Meme chaine que le bureau : masque redimensionne a la taille de
+        l'atlas, binarise (> 40), puis inpaint_atlas (1024 px, 30 pas,
+        guidance 7.5, recomposition a pleine resolution hors masque).
+        """
+        import base64
+        import numpy as np
+        import trimesh
+        import urllib.request
+        from fastapi import HTTPException
+        from modal_app._face_fix import inpaint_atlas
+        from PIL import Image
+
+        _check_auth(payload)
+        mesh_url = (payload.get("mesh_url") or "").strip()
+        masque_b64 = (payload.get("mask_b64") or "").strip()
+        prompt = (payload.get("prompt") or "").strip() or "detailed texture"
+        force = max(0.3, min(1.0, float(payload.get("strength") or 0.8)))
+        if not mesh_url or not masque_b64:
+            raise HTTPException(status_code=400, detail="mesh_url and mask_b64 required")
+        if "," in masque_b64[:64]:
+            masque_b64 = masque_b64.split(",", 1)[1]      # data URL tolere
+        try:
+            masque_uv = Image.open(io.BytesIO(base64.b64decode(masque_b64))).convert("L")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"mask decode: {e}")
+        try:
+            req = urllib.request.Request(mesh_url, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                src = r.read()
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+
+        t0 = time.time()
+        scene = trimesh.load(io.BytesIO(src), file_type="glb")
+        geoms = list(scene.geometry.values()) if hasattr(scene, "geometry") else [scene]
+        # Le bureau traite le PREMIER maillage porteur d'atlas (geoms[0]).
+        cible = None
+        for g in geoms:
+            mat = getattr(getattr(g, "visual", None), "material", None)
+            if mat is not None and getattr(mat, "baseColorTexture", None) is not None:
+                cible = mat
+                break
+        if cible is None:
+            raise HTTPException(status_code=422, detail="no baked texture to re-texture")
+        tex = cible.baseColorTexture
+        um = np.asarray(masque_uv.resize(tex.size, Image.LANCZOS))
+        masque = Image.fromarray((um > 40).astype("uint8") * 255, mode="L")
+        couverture = float(np.asarray(masque).mean() / 255.0)
+        if couverture < 0.001:
+            # Le bureau recopie alors le fichier INCHANGE — gratuit en local.
+            # Ici ce serait facturer une version identique : on refuse (422),
+            # et le worker rembourse.
+            raise HTTPException(status_code=422, detail="painted area too small")
+        cible.baseColorTexture = inpaint_atlas(
+            self._get_realvis_inpaint_pipe(), tex, masque, prompt, force)
+        buf = io.BytesIO()
+        scene.export(buf, file_type="glb", extension_webp=True)
+        out = buf.getvalue()
+        print(f"[region-retex] zone {couverture * 100:.1f}% de l'atlas, force={force} "
+              f"en {time.time() - t0:.1f}s", flush=True)
+        return {"ok": True, "op_type": "region_retex", "bytes": len(out),
+                "glb_base64": base64.b64encode(out).decode("ascii")}
+
     def _route_outfit(self, payload: dict):
         """Habits seuls — extrait les vetements d'une image de personnage.
 
@@ -1890,6 +2001,10 @@ class MyFabmeshBackview:
         @api.post("/mesh_name_parts")
         async def mesh_name_parts(request: Request):
             return self._route_mesh_name_parts(await _read_json(request))
+
+        @api.post("/mesh_region_retex")
+        async def mesh_region_retex(request: Request):
+            return self._route_mesh_region_retex(await _read_json(request))
 
         @api.post("/warm")
         async def warm(request: Request):
@@ -2262,6 +2377,7 @@ class MyFabmeshMesh:
         seed: int = 42,
         decimation: int = 500_000,
         texture_size: int = 1024,
+        smooth: bool = False,
     ) -> bytes:
         """Batch-friendly TRELLIS-2 inference: image bytes in, GLB bytes out.
 
@@ -2283,7 +2399,11 @@ class MyFabmeshMesh:
             mode=mode, seed=seed,
             decimation_target=decimation,
             texture_size=texture_size,
-            smooth=bool(payload.get('smooth')),
+            # Parametre explicite : cette methode n'a pas de `payload`. La
+            # ligne `payload.get('smooth')`, ajoutee le 2026-09-24 en
+            # branchant « Texture smooth » sur les deux appels de generate(),
+            # levait NameError a CHAQUE appel du lot d'entrainement.
+            smooth=bool(smooth),
         )
         return glb_bytes
 

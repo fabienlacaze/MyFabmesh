@@ -12995,6 +12995,12 @@ function _peConfigureModeUI() {
   const h2 = document.querySelector('#modal-paint-emissive h2');
   const sub = document.querySelector('#modal-paint-emissive .modal-subtitle');
   const apply = $('pe-apply-device');
+  // Reactive a chaque ouverture. Apres un enregistrement REUSSI, le
+  // gestionnaire du clic ferme la modale sans reactiver le bouton (il ne le
+  // fait que sur echec) : la deuxieme utilisation de l'outil dans la meme
+  // session trouvait un bouton grise, et le clic ne faisait rien. Constate
+  // en test navigateur le 2026-09-26 (clonage puis re-texture de zone).
+  if (apply) apply.disabled = false;
   const status = $('pe-status');
   if (cloneMode) {
     if (h2) h2.textContent = '🩹 ' + _i18nT('3D Clone Stamp');

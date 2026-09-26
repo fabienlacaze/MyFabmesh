@@ -2921,6 +2921,25 @@
     // l'atlas, geometrie intacte. Meme forme de retour que le bureau.
     // « Name the zones (AI) » — port cloud de l'IPC bureau 'name-parts'.
     // Meme forme de retour : { success, parts, source, assetType }.
+    // « Re-texture a region (AI) » — port cloud de l'IPC bureau
+    // 'mesh:region-retex'. Meme contrat de retour que le bureau : { ok, path }.
+    regionRetex: async ({ meshPath, meshUrl, maskDataUrl, prompt, strength } = {}) => {
+      const url = meshUrl || meshPath;
+      if (!url) return { ok: false, error: 'meshPath or meshUrl required' };
+      if (!maskDataUrl) return { ok: false, error: 'mask required' };
+      try {
+        const r = await postJSON('/api/mesh-region-retex', {
+          meshUrl: url, mask: maskDataUrl, prompt: prompt || '',
+          strength: typeof strength === 'number' ? strength : 0.8,
+          projectName: (window.state && window.state.currentProject
+                        && window.state.currentProject.name) || null,
+        });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        const chemin = r?.path || r?.newPath || r?.mesh_url;
+        if (r?.success && chemin) return { ok: true, success: true, path: chemin };
+        return { ok: false, error: r?.error || 'unknown' };
+      } catch (e) { return { ok: false, error: String(e) }; }
+    },
     nameParts: async ({ meshPath, meshUrl, assetType, rigPath, projectName } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { success: false, error: 'meshPath or meshUrl required' };

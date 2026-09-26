@@ -13,7 +13,21 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
+
+// Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
+// tampon de clonage 3D, qui lance des centaines de raycasts par coup de
+// pinceau : sans BVH, chacun parcourt tous les triangles (485 000 sur un orc
+// TRELLIS-2) et le navigateur gele. Meme module que le bureau (copie locale
+// dans lib/, pour la meme revision de three : 170). Prototypes patches UNE
+// fois, puis computeBoundsTree() sur les geometries qui en ont besoin.
+if (!THREE.Mesh.prototype.__bvhPatched) {
+  THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+  THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+  THREE.Mesh.prototype.raycast = acceleratedRaycast;
+  THREE.Mesh.prototype.__bvhPatched = true;
+}
 
 const API = window.meshyAPI;
 
@@ -178,32 +192,23 @@ window.openProjectByName = async function (projectName, focusAssetUrl) {
 // supplies (no hardcoded value here).
 // ────────────────────────────────────────────────────────────────
 async function uploadClientMeshResult(bytes, opType, extra = {}) {
-  // Chunked base64 encode — avoids the "Maximum call stack" trap
-  // String.fromCharCode.apply hits on multi-MB buffers.
-  let bin = '';
-  const CHUNK = 8192;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
-  }
-  const b64 = btoa(bin);
-  const r = await fetch('/api/mesh-op/client-result', {
+  /* OCTETS BRUTS, PLUS DE BASE64 DANS DU JSON (2026-09-26).
+   *
+   * Mesure en navigateur sur un orc TRELLIS-2 (atlas 4K) : le GLB re-exporte
+   * par GLTFExporter pese ~67 Mo (les textures WebP ressortent en PNG), soit
+   * 89 Mo une fois encode en base64 dans du JSON. Le worker devait alors tenir
+   * en memoire la chaine JSON, la chaine decodee ET le tableau d'octets —
+   * ~220 Mo pour une limite de 128 Mo par isolat : l'enregistrement aurait
+   * echoue sur tout maillage 4K. En binaire, le worker ne garde qu'une copie.
+   * Le projet et le nom d'operation passent dans l'URL. */
+  const projectName = (extra && extra.projectName)
+    || (window.state && window.state.currentProject && window.state.currentProject.name) || '';
+  const qs = new URLSearchParams({ op: String(opType || ''), project: projectName });
+  const r = await fetch('/api/mesh-op/client-result?' + qs.toString(), {
     method: 'POST',
     credentials: 'include',
-    headers: { 'content-type': 'application/json' },
-    /* LE PROJET, PRIS ICI PLUTOT QU'A CHAQUE APPELANT.
-     *
-     * Le serveur sait ecrire `project_name` sur cette route, mais aucun des
-     * trois appelants ne passait `extra` : la colonne restait NULL. On le
-     * lit au seul endroit commun, comme dans postJSON — un appelant peut
-     * toujours le surcharger via `extra`. Ce fetch n'utilise pas postJSON
-     * (encodage base64 volumineux), d'ou cette reprise explicite. */
-    body: JSON.stringify({
-      opType,
-      glbBase64: b64,
-      projectName: (window.state && window.state.currentProject
-                    && window.state.currentProject.name) || undefined,
-      ...extra,
-    }),
+    headers: { 'content-type': 'model/gltf-binary' },
+    body: bytes,
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data?.success) {
@@ -12017,20 +12022,59 @@ document.getElementById('ws-mesh-stages-bar')?.addEventListener('click', (e) => 
 });
 
 // ============================================================
-// PAINT EMISSIVE TOOL — raycast-driven painting onto a separate
-// emissive texture. UX is inspired by the user's BuildingSlicer
-// plugin (apovivor): a dedicated T_emissive map + color tint +
-// intensity scalar; here those values feed THREE.MeshStandardMaterial's
-// emissiveMap + emissiveIntensity. Painted texture is embedded in the
-// GLB at Apply time and uploaded for FREE via /api/mesh-op/client-result.
+// PAINT EMISSIVE / 3D CLONE STAMP / REGION RE-TEXTURE — portage
+// de la section du bureau (src/renderer/index2.js) le 2026-09-26.
+//
+// Le web avait une version ANTERIEURE de ce visualiseur, sans les
+// modes « tampon de clonage 3D » et « re-texturer une zone » (IA),
+// sans loupe ni suivi des modifications : les boutons correspondants
+// n'existaient pas sur le web. Le code est celui du bureau ; seules
+// les entrees/sorties different :
+//   * chargement : fetch de l'URL signee (le bureau lit un fichier) ;
+//   * sauvegarde : route gratuite /api/mesh-op/client-result (le
+//     bureau ecrit a cote du fichier source) ;
+//   * re-texture IA : /api/mesh-region-retex (le bureau lance
+//     scripts/face_inpaint_atlas.py --uv-mask en local).
+// Le bouton « Paint Emissive » du web reste branche sur Paint Mesh
+// (choix du web) : cette section sert au clonage et a la zone.
 // ============================================================
+// Creation protegee du rendu WebGL, portee du bureau avec la section
+// ci-dessous (elle l'appelait ; le garde check-fonctions-portees l'a vu).
+function _webglNote(hostEl) {
+  if (!hostEl || !hostEl.querySelector) return;
+  if (hostEl.querySelector('.webgl-unavailable')) return;
+  const n = document.createElement('div');
+  n.className = 'webgl-unavailable';
+  n.textContent = _i18nT('3D preview unavailable on this device (no WebGL / graphics acceleration). '
+    + 'Generation still works and the file is saved to disk.');
+  hostEl.appendChild(n);
+}
+function _mkRenderer(opts, hostEl) {
+  // Canvas OPAQUE par defaut. Toutes nos scenes 3D peignent leur propre fond,
+  // donc rien ne doit transparaitre de la page. Avec alpha:true, un materiau
+  // pourtant declare OPAQUE dans le glTF mais dont la texture baseColor porte
+  // un canal alpha (les WebP sortis de TRELLIS-2 en portent un) ecrit cet alpha
+  // dans le framebuffer : le melange WebGL est bien desactive, mais le
+  // NAVIGATEUR composite ensuite le canvas par-dessus la page avec cet alpha,
+  // et le maillage parait semi-transparent. Aucun reglage de materiau ne corrige
+  // ca, puisque le probleme est au niveau de la composition du canvas.
+  // Un appelant peut toujours redemander explicitement alpha:true.
+  opts = Object.assign({ alpha: false }, opts || {});
+  try { return new THREE.WebGLRenderer(opts); }
+  catch (e) {
+    console.warn('[webgl] renderer creation failed:', (e && e.message) || e);
+    _webglNote(hostEl);
+    return null;
+  }
+}
+
 const PE_TEX_SIZE = 1024;
 
 const peState = {
   renderer: null, scene: null, camera: null, controls: null,
   rafId: null,
   origModel: null,
-  meshes: [],                  // array of { mesh, prev: [{ mat, emissiveMap, ... }] }
+  meshes: [],                  // [{ mesh, prev: [{ mat, emissiveMap, ... }] }]
   raycaster: null,
   pointer: null,
   canvases: null,              // Map<Mesh, { canvas, ctx, texture }>
@@ -12038,21 +12082,53 @@ const peState = {
   brushSize: 40,
   brushOpacity: 1.0,
   brushFalloff: 0.5,
-  brushMode: 'paint',          // 'paint' | 'erase'
-  intensity: 1.0,              // 1.0 = canvas color is the emissive 1:1; >1 boosts brightness (HDR)
+  brushMode: 'paint',
+  intensity: 1.0,
   isPainting: false,
-  // Undo/redo: snapshots of every canvas at the END of each stroke.
-  // Each snapshot is Map<Mesh, ImageData>. Capped to avoid runaway
-  // memory on long sessions.
   history: [],
   historyIndex: -1,
+  // Region-retex "mask" sub-mode: paint a WHITE UV mask, then SDXL inpaints
+  // only that area (uvMask:true). Reuses the whole paint engine + undo/redo.
+  maskMode: false,
+  retexMeshPath: null,
+  loupeOn: false,
+  // 3D clone-stamp sub-mode: edits the mesh's BASE-COLOR atlas in place.
+  // The clone works in SCREEN space (see _pcStampClone): Ctrl+click stores the
+  // source 3D point (cloneSource3D) + its screen position; each stroke fixes a
+  // screen-space offset and snapshots every mesh atlas once. Both source and
+  // dest are re-resolved through per-sample raycasts, so the discontinuous UV
+  // atlas never leaks cross-island / gutter artefacts.
+  cloneMode: false,
+  cloneSource: null,          // { mesh, u, v } — kept for the green marker
+  cloneSource3D: null,        // THREE.Vector3 world point of the source
+  cloneSourceScreen: null,    // { x, y } client px of the source at Ctrl+click
+  cloneOffsetScreen: null,    // { dx, dy } screen px, fixed per stroke
+  cloneSrcSnaps: null,        // Map<Mesh, ImageData> — atlas snapshot per stroke
 };
+function _peClamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+// Throttle the (expensive) CanvasTexture→GPU re-upload during a paint stroke:
+// mark entries dirty, but only flag needsUpdate ~18×/s. _peFlushDirty() forces
+// the final upload at stroke end so the result is never left stale.
+const _peDirtyEntries = new Set();
+let _peLastFlush = 0;
+function _peMarkDirty(entry) {
+  _peDirtyEntries.add(entry);
+  let now = 0; try { now = performance.now(); } catch (_) {}
+  if (now - _peLastFlush >= 55) _peFlushDirty();
+}
+function _peFlushDirty() {
+  try { _peLastFlush = performance.now(); } catch (_) {}
+  _peDirtyEntries.forEach((e) => { e.texture.needsUpdate = true; });
+  _peDirtyEntries.clear();
+}
 const PE_HISTORY_MAX = 30;
 function _peSnapshotAll() {
   if (!peState.canvases) return null;
   const snap = new Map();
   peState.canvases.forEach((entry, mesh) => {
-    snap.set(mesh, entry.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE));
+    // Per-canvas size: emissive/mask canvases are PE_TEX_SIZE, but clone
+    // canvases match the mesh's native atlas resolution (e.g. 2048).
+    snap.set(mesh, entry.ctx.getImageData(0, 0, entry.canvas.width, entry.canvas.height));
   });
   return snap;
 }
@@ -12100,7 +12176,10 @@ async function _peInitViewport() {
   if (!canvas || !wrap) return;
   const w = wrap.clientWidth || 800;
   const h = wrap.clientHeight || 560;
-  peState.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false  /* canvas OPAQUE : la scene peint deja son fond, rien ne doit transparaitre de la page. Avec alpha:true, un materiau pourtant declare OPAQUE dont la texture baseColor porte un canal alpha (WebP TRELLIS-2) ecrit cet alpha dans le framebuffer, et le navigateur compositait le maillage en semi-transparent par-dessus la page. */ });
+  // preserveDrawingBuffer:true so the magnifier loupe can drawImage() the
+  // rendered canvas (needed by _peUpdateLoupe).
+  peState.renderer = _mkRenderer({ canvas, antialias: true, alpha: false /* canvas opaque : la scene peint son fond (cf. _mkRenderer) */, preserveDrawingBuffer: true }, wrap);
+  if (!peState.renderer) { peState.webglUnavailable = true; return; }
   peState.renderer.setSize(w, h, false);
   peState.renderer.setPixelRatio(window.devicePixelRatio);
   peState.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -12112,11 +12191,10 @@ async function _peInitViewport() {
   try {
     peState.controls = new OrbitControls(peState.camera, canvas);
     peState.controls.enableDamping = true;
-    // Left-click is reserved for painting; orbit on right, pan on middle.
     peState.controls.mouseButtons = {
       LEFT: null,
-      MIDDLE: THREE.MOUSE.PAN,
-      RIGHT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.ROTATE,
+      RIGHT: THREE.MOUSE.PAN,
     };
   } catch (e) { console.error('[paint-emissive] OrbitControls error:', e); }
   peState.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.0));
@@ -12148,13 +12226,8 @@ async function _peInitViewport() {
   }).observe(wrap);
 }
 
-// Build ONE 1024×1024 paint canvas PER submesh + bind each as its
-// material's emissiveMap. Per-submesh canvases are critical when the
-// mesh has overlapping UV layouts across submeshes (the common case
-// for Trellis2 output) — a single shared canvas would mean painting
-// one spot lit up unrelated geometry that shared the same UV region.
 function _peSetupCanvasAndBind() {
-  peState.canvases = new Map();   // mesh → { canvas, ctx, texture }
+  peState.canvases = new Map();
   peState.meshes.forEach((entry) => {
     const canvas = document.createElement('canvas');
     canvas.width = PE_TEX_SIZE;
@@ -12164,11 +12237,10 @@ function _peSetupCanvasAndBind() {
     ctx.fillRect(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.flipY = false;             // glTF UV convention
-    texture.name = 'T_emissive';        // surfaces in the GLB metadata
+    texture.flipY = false;
+    texture.name = 'T_emissive';
     texture.needsUpdate = true;
     peState.canvases.set(entry.mesh, { canvas, ctx, texture });
-
     const m = entry.mesh.material;
     const mats = Array.isArray(m) ? m : [m];
     entry.prev = mats.map((mat) => ({
@@ -12179,13 +12251,23 @@ function _peSetupCanvasAndBind() {
     }));
     mats.forEach((mat) => {
       mat.emissiveMap = texture;
-      mat.emissive = new THREE.Color(0xffffff);  // white tint, the canvas carries the per-pixel color
-      mat.emissiveIntensity = peState.intensity;
+      if (peState.maskMode) {
+        // FEATURE A — mode "Re-texturer une zone" : la sélection s'affiche
+        // comme un surlignage CYAN additif par-dessus le mesh (option A choisie
+        // par l'utilisateur). Le masque blanc-sur-noir sert d'emissiveMap et
+        // module l'émission cyan → blanc du masque = glow cyan additif, noir =
+        // rien (la texture du mesh reste visible dessous). Le canvas exporté
+        // vers le backend (--uv-mask, blanc/noir) est INCHANGÉ, et
+        // _peRestoreMaterials() restaure l'émission d'origine à la fermeture.
+        mat.emissive = new THREE.Color(0x00ffff);
+        mat.emissiveIntensity = 0.9;
+      } else {
+        mat.emissive = new THREE.Color(0xffffff);
+        mat.emissiveIntensity = peState.intensity;
+      }
       mat.needsUpdate = true;
     });
   });
-  // Reset history with the blank canvases as the base state so the
-  // first undo brings the user back to "nothing painted".
   peState.history = [];
   peState.historyIndex = -1;
   _peHistoryPush();
@@ -12194,223 +12276,284 @@ function _peSetupCanvasAndBind() {
 function _peRestoreMaterials() {
   peState.meshes.forEach((entry) => {
     if (!entry.prev) return;
-    entry.prev.forEach(({ mat, emissiveMap, emissiveIntensity, emissive }) => {
-      mat.emissiveMap = emissiveMap;
-      mat.emissiveIntensity = emissiveIntensity;
-      if (emissive) mat.emissive = emissive;
+    entry.prev.forEach((p) => {
+      const mat = p.mat;
+      if ('map' in p) mat.map = p.map;               // clone mode restores baseColor
+      if ('emissiveMap' in p) {                      // emissive/mask mode
+        mat.emissiveMap = p.emissiveMap;
+        mat.emissiveIntensity = p.emissiveIntensity;
+        if (p.emissive) mat.emissive = p.emissive;
+      }
       mat.needsUpdate = true;
     });
   });
 }
 
-function _peLoadMesh(meshPath) {
-  // Clean any previous load.
-  if (peState.origModel) {
-    peState.scene.remove(peState.origModel);
-    peState.origModel = null;
-  }
-  peState.meshes = [];
-  const url = (typeof meshPath === 'string' && /^[a-z]+:/i.test(meshPath))
-    ? meshPath
-    : _toFileUrl(meshPath);
-  fetch(url, { credentials: 'omit' })
-    .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
-    .then((buffer) => {
-      const loader = new GLTFLoader();
-      loader.parse(buffer, '', (gltf) => {
-        peState.origModel = gltf.scene;
-        peState.scene.add(peState.origModel);
-        const box = new THREE.Box3().setFromObject(peState.origModel);
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        peState.origModel.position.sub(center);
-        peState.origModel.position.y += size.y / 2;
-        peState.camera.position.set(0, size.y * 0.5, maxDim * 2);
-        peState.controls?.target.set(0, size.y * 0.5, 0);
-        peState.controls?.update();
-        peState.origModel.traverse((child) => {
-          if (child.isMesh && child.geometry && child.material) {
-            peState.meshes.push({ mesh: child });
-          }
-        });
-        _peSetupCanvasAndBind();
-        // Auto-project the image emissive layer (if the project has
-        // one for the source image) onto the mesh's T_emissive canvas.
-        // Asynchronous; shows a toast when done.
-        _peTryProjectFromImageLayer();
-      });
-    })
-    .catch((e) => {
-      console.error('[paint-emissive] load failed:', e);
-      if (typeof showToast === 'function') {
-        showToast('Mesh load failed: ' + (e?.message || e), 'error', 5000);
-      }
-    });
+// ── 3D clone-stamp helpers ────────────────────────────────────────────────
+// Set up per-mesh canvases pre-filled from the EXISTING base-color atlas (at
+// native resolution so cloning never downscales the texture), bound to mat.map.
+function _pcSetupCloneCanvas() {
+  peState.canvases = new Map();
+  peState.cloneSource = null; peState.cloneSource3D = null; peState.cloneSourceScreen = null;
+  peState.cloneOffsetScreen = null; peState.cloneSrcSnaps = null;
+  peState.meshes.forEach((entry) => {
+    // Build a BVH so the clone-stamp's per-sample raycasts stay real-time even
+    // on 500k-tri meshes. computeBoundsTree() is idempotent-ish (rebuilds); we
+    // only call it here, once per mesh when the clone viewer loads.
+    try { entry.mesh.geometry.computeBoundsTree?.(); } catch (_) {}
+    const m = entry.mesh.material;
+    const mats = Array.isArray(m) ? m : [m];
+    const mat0 = mats.find((mm) => mm && mm.map && mm.map.image) || mats[0];
+    const img = mat0 && mat0.map && mat0.map.image;
+    // Cap at 2048: a 4096² CanvasTexture re-uploaded to the GPU every frame
+    // froze the machine. 2048 keeps good fidelity while the upload stays cheap.
+    const sz = (img && img.width) ? Math.min(2048, img.width) : PE_TEX_SIZE;
+    const canvas = document.createElement('canvas');
+    canvas.width = sz; canvas.height = sz;
+    const ctx = canvas.getContext('2d');
+    try { if (img) ctx.drawImage(img, 0, 0, sz, sz); else throw 0; }
+    catch (_) { ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, sz, sz); }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.flipY = false;
+    texture.name = (mat0 && mat0.map && mat0.map.name) || 'T_baseColor';
+    texture.needsUpdate = true;
+    peState.canvases.set(entry.mesh, { canvas, ctx, texture });
+    entry.prev = mats.map((mat) => ({ mat, map: mat.map }));
+    mats.forEach((mat) => { mat.map = texture; mat.needsUpdate = true; });
+  });
+  peState.history = []; peState.historyIndex = -1;
+  _peHistoryPush();
 }
 
-// Raycast at the current pointer position. Returns the hit { object,
-// uv } or null. Only considers the loaded mesh's submeshes (NOT the
-// grid or any helper) so painting can't be confused by background
-// geometry.
-function _peRaycast(clientX, clientY) {
-  if (!peState.origModel || !peState.raycaster) return null;
-  const canvas = peState.renderer.domElement;
-  const rect = canvas.getBoundingClientRect();
-  const x = ((clientX - rect.left) / rect.width)  *  2 - 1;
-  const y = ((clientY - rect.top)  / rect.height) * -2 + 1;
+// Ctrl+click defines the clone SOURCE. We store the source WORLD point (so the
+// screen anchor can be re-projected at each stroke start, surviving camera
+// moves between strokes) plus its current screen position as a fallback.
+function _pcSetSource(clientX, clientY) {
+  const hit = _peRaycast(clientX, clientY);
+  if (!hit) { showToast(_i18nT('Aim at the mesh to set the clone source.'), 'error', 2000); return; }
+  peState.cloneSource = { mesh: hit.object, u: _peClamp01(hit.uv.x), v: _peClamp01(hit.uv.y) };
+  peState.cloneSource3D = hit.point.clone();
+  peState.cloneSourceScreen = { x: clientX, y: clientY };
+  peState.cloneOffsetScreen = null;
+  peState.cloneSrcSnaps = null;
+  // Green source marker on the mesh (the 3D equivalent of the 2D clone's green
+  // source ring) so the user sees exactly where the clone is copying FROM.
+  try {
+    if (!peState.cloneSrcMarker && peState.scene) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0x22dd55, depthTest: false, transparent: true, opacity: 0.9 });
+      peState.cloneSrcMarker = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 20), mat);
+      peState.cloneSrcMarker.renderOrder = 999;
+      peState.scene.add(peState.cloneSrcMarker);
+    }
+    if (peState.cloneSrcMarker) {
+      peState.cloneSrcMarker.visible = true;
+      peState.cloneSrcMarker.position.copy(hit.point);
+      // Size the marker to the brush footprint in world units.
+      const cam = peState.camera;
+      const camDist = cam.position.distanceTo(hit.point);
+      const viewH = peState.renderer.domElement.clientHeight || 600;
+      const unitsPerPx = (2 * camDist * Math.tan((cam.fov * Math.PI / 180) / 2)) / viewH;
+      peState.cloneSrcMarker.scale.setScalar(Math.max(peState.brushSize * 0.5 * unitsPerPx, 1e-4));
+    }
+  } catch (_) {}
+  showToast(_i18nT('Source set — left-click and drag to clone.'), 'success', 1800);
+}
+
+// Fast raycast for a client-space point, reusing a cached canvas rect and the
+// shared pointer/raycaster (BVH-accelerated). Returns the nearest hit with a uv.
+function _pcRaycastAt(clientX, clientY, rect, meshes) {
+  const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  const y = ((clientY - rect.top) / rect.height) * -2 + 1;
   peState.pointer.set(x, y);
   peState.raycaster.setFromCamera(peState.pointer, peState.camera);
-  const meshes = peState.meshes.map((e) => e.mesh);
   const hits = peState.raycaster.intersectObjects(meshes, false);
   if (!hits.length || !hits[0].uv) return null;
   return hits[0];
 }
 
-// Paint a soft circle into the canvas that owns the hit submesh, at
-// uv × canvasSize. Brush parameters all come from the modal sliders.
-// Painting goes ONLY into the hit mesh's own canvas — never to other
-// submeshes that share the same UV region.
-function _peStampAtPointer(clientX, clientY) {
-  const hit = _peRaycast(clientX, clientY);
-  if (!hit) return;
-  const entry = peState.canvases?.get(hit.object);
-  if (!entry) return;
-  const ctx = entry.ctx;
-  const TEX = PE_TEX_SIZE;
-  const px = Math.max(0, Math.min(1, hit.uv.x)) * TEX;
-  const py = Math.max(0, Math.min(1, hit.uv.y)) * TEX;
-  const r = Math.max(1, peState.brushSize * 0.5);
-  const fall = Math.max(0, Math.min(1, peState.brushFalloff));
-  const innerColor = peState.brushMode === 'erase'
-    ? `rgba(0, 0, 0, ${peState.brushOpacity})`
-    : _peHexToRgba(peState.brushColor, peState.brushOpacity);
-  const edgeColor = peState.brushMode === 'erase'
-    ? 'rgba(0, 0, 0, 0)'
-    : _peHexToRgba(peState.brushColor, 0);
-  const grad = ctx.createRadialGradient(px, py, 0, px, py, r);
-  grad.addColorStop(0, innerColor);
-  grad.addColorStop(1 - fall, innerColor);
-  grad.addColorStop(1, edgeColor);
-
-  const mesh = hit.object;
-  const geom = mesh.geometry;
-  const uvAttr = geom.attributes.uv;
-  const posAttr = geom.attributes.position;
-  const idx = geom.index?.array;
-
-  ctx.globalCompositeOperation = peState.brushMode === 'erase' ? 'destination-out' : 'source-over';
-
-  if (!uvAttr || !posAttr) {
-    // No UVs → fall back to plain disc stamp.
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-    entry.texture.needsUpdate = true;
+// SCREEN-SPACE clone stamp. The UV atlas is DISCONTINUOUS (islands scattered
+// arbitrarily), so the old fixed atlas-space offset only held at the exact
+// source point and sampled the wrong island/gutter for every neighbouring
+// pixel → garbled/black artefacts. Instead we clone in screen space: for each
+// brush sample we raycast the DEST point AND the offset SOURCE point, resolving
+// each one's true UV independently, so cross-island offsets are always correct.
+// BVH raycasting (three-mesh-bvh) keeps the many casts/stamp real-time.
+function _pcStampClone(clientX, clientY, isStart) {
+  if (!peState.cloneSource3D && !peState.cloneSourceScreen) {
+    showToast(_i18nT('Ctrl+click to set the clone source first.'), 'error', 2500);
     return;
   }
+  if (!peState.canvases || !peState.raycaster || !peState.camera) return;
+  const rect = peState.renderer.domElement.getBoundingClientRect();
+  const meshes = peState.meshes.map((e) => e.mesh);
+  if (!meshes.length) return;
 
-  // 3D-aware stamping: only paint canvas regions that come from
-  // triangles physically close to the hit point. This kills the
-  // "stray paint on the ground when I clicked the sign" issue caused
-  // by overlapping UV islands in Trellis2's texture atlas — far-away
-  // mesh parts that happen to share UV space with the hit no longer
-  // pick up the brush.
-  const localHit = mesh.worldToLocal(hit.point.clone());
-  // 3D brush radius scales with the brush's CSS pixel size and the
-  // camera-to-hit distance via the perspective FOV (so a 40-px brush
-  // covers a similar mesh footprint regardless of zoom).
-  const cam = peState.camera;
-  const camDist = cam.position.distanceTo(hit.point);
-  const viewH = peState.renderer.domElement.clientHeight || 600;
-  const heightAtDist = 2 * camDist * Math.tan((cam.fov * Math.PI / 180) / 2);
-  const unitsPerPx = heightAtDist / viewH;
-  const R3D = peState.brushSize * 0.5 * unitsPerPx * 1.2; // 1.2 = small overshoot so triangle edges aren't clipped
-  const R3DSq = R3D * R3D;
-
-  const posArr = posAttr.array;
-  const uvArr = uvAttr.array;
-  const triCount = idx ? Math.floor(idx.length / 3) : Math.floor(posAttr.count / 3);
-
-  // Clip the canvas operations to the brush circle around the hit UV
-  // — combined with the per-triangle fills below, this gives a soft,
-  // gradient-shaped paint that respects 3D locality.
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(px, py, r, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.fillStyle = grad;
-
-  for (let t = 0; t < triCount; t++) {
-    const i0 = idx ? idx[t*3]   : t*3;
-    const i1 = idx ? idx[t*3+1] : t*3+1;
-    const i2 = idx ? idx[t*3+2] : t*3+2;
-    const p0x = posArr[i0*3],   p0y = posArr[i0*3+1], p0z = posArr[i0*3+2];
-    const p1x = posArr[i1*3],   p1y = posArr[i1*3+1], p1z = posArr[i1*3+2];
-    const p2x = posArr[i2*3],   p2y = posArr[i2*3+1], p2z = posArr[i2*3+2];
-    // Reject the triangle if all 3 vertices are outside the 3D
-    // brush sphere. Cheap and good enough for an interactive tool.
-    const d0 = (p0x-localHit.x)**2 + (p0y-localHit.y)**2 + (p0z-localHit.z)**2;
-    if (d0 < R3DSq) { /* keep */ }
-    else {
-      const d1 = (p1x-localHit.x)**2 + (p1y-localHit.y)**2 + (p1z-localHit.z)**2;
-      if (d1 < R3DSq) { /* keep */ }
-      else {
-        const d2 = (p2x-localHit.x)**2 + (p2y-localHit.y)**2 + (p2z-localHit.z)**2;
-        if (d2 >= R3DSq) continue;
-      }
+  if (isStart) {
+    // Re-project the source WORLD point to the current screen (survives camera
+    // moves between strokes); fall back to the stored screen point.
+    let srcScreen = peState.cloneSourceScreen;
+    if (peState.cloneSource3D) {
+      const ndc = peState.cloneSource3D.clone().project(peState.camera);
+      srcScreen = {
+        x: (ndc.x * 0.5 + 0.5) * rect.width + rect.left,
+        y: (-ndc.y * 0.5 + 0.5) * rect.height + rect.top,
+      };
     }
-    // Fill the triangle on the canvas — the clip path above limits
-    // the actual painted area to the brush circle intersection.
-    const u0x = uvArr[i0*2] * TEX, u0y = uvArr[i0*2+1] * TEX;
-    const u1x = uvArr[i1*2] * TEX, u1y = uvArr[i1*2+1] * TEX;
-    const u2x = uvArr[i2*2] * TEX, u2y = uvArr[i2*2+1] * TEX;
-    ctx.beginPath();
-    ctx.moveTo(u0x, u0y);
-    ctx.lineTo(u1x, u1y);
-    ctx.lineTo(u2x, u2y);
-    ctx.closePath();
-    ctx.fill();
+    peState.cloneOffsetScreen = { dx: srcScreen.x - clientX, dy: srcScreen.y - clientY };
+    // Snapshot EVERY mesh atlas once per stroke (source samples may resolve to a
+    // different mesh than the one being painted). Fast pixel reads afterwards.
+    peState.cloneSrcSnaps = new Map();
+    peState.canvases.forEach((entry, mesh) => {
+      peState.cloneSrcSnaps.set(mesh, entry.ctx.getImageData(0, 0, entry.canvas.width, entry.canvas.height));
+    });
   }
+  const off = peState.cloneOffsetScreen, snaps = peState.cloneSrcSnaps;
+  if (!off || !snaps) return;
 
-  ctx.restore();
-  ctx.globalCompositeOperation = 'source-over';
-  entry.texture.needsUpdate = true;
+  const r = Math.max(1, peState.brushSize * 0.5);
+  const hardness = _peClamp01(peState.brushFalloff);
+  const opacity = _peClamp01(peState.brushOpacity);
+  // Sample the brush footprint on a screen grid (~16 steps across, min 3px) —
+  // one raycast per grid node, not per pixel.
+  const step = Math.max(3, Math.ceil((2 * r) / 16));
+
+  // Estimate atlas-pixels-per-screen-pixel at the brush centre so each resolved
+  // sample can paint a small disc that just fills the gap to its neighbours.
+  let scale = 1;
+  const centerDest = _pcRaycastAt(clientX, clientY, rect, meshes);
+  if (centerDest) {
+    const cEntry = peState.canvases.get(centerDest.object);
+    const cTEX = (cEntry && cEntry.canvas.width) || PE_TEX_SIZE;
+    const cx = _peClamp01(centerDest.uv.x) * cTEX, cy = _peClamp01(centerDest.uv.y) * cTEX;
+    // Probe TWO orthogonal neighbours and keep the SMALLEST plausible texels/px.
+    // A neighbour that straddles a UV seam / lands on a different island yields a
+    // huge bogus texel distance; taking the min rejects that outlier. Any estimate
+    // still above SCALE_MAX is discarded (fall back to scale=1) so a seam crossing
+    // can never blow the disc radius up and flood the shared atlas.
+    const SCALE_MAX = 32; // sane ceiling on atlas texels per screen pixel
+    let best = Infinity;
+    const nbs = [
+      _pcRaycastAt(clientX + step, clientY, rect, meshes),
+      _pcRaycastAt(clientX, clientY + step, rect, meshes),
+    ];
+    for (const nb of nbs) {
+      if (!nb || nb.object !== centerDest.object) continue;
+      const d = Math.hypot(_peClamp01(nb.uv.x) * cTEX - cx, _peClamp01(nb.uv.y) * cTEX - cy);
+      if (isFinite(d) && d > 0) best = Math.min(best, d / step);
+    }
+    if (best !== Infinity && best <= SCALE_MAX) scale = best;
+  }
+  // Hard clamp: a single stamp disc must NEVER cover more than a couple of grid
+  // steps' worth of texels (and never a large fraction of the atlas). Without this
+  // ceiling a bad scale estimate produces a disc that floods the whole 2048 atlas
+  // — and since every sub-material shares that one atlas, it darkens the entire
+  // mesh cumulatively. 24 texels on a 2048 canvas is ~0.04% of the atlas area.
+  const discCeil = Math.max(4, Math.min(step * 2, 24));
+  const discR = Math.max(1.5, Math.min(scale * step * 0.7, discCeil));
+
+  const touched = new Set();
+  for (let gy = -r; gy <= r; gy += step) {
+    for (let gx = -r; gx <= r; gx += step) {
+      const ds = Math.hypot(gx, gy);
+      if (ds > r) continue;
+      // Radial brush falloff by screen distance from the brush centre.
+      const t = ds / r;
+      const a = ((1 - t * t) * (hardness + (1 - hardness) * (1 - t))) * opacity;
+      if (a <= 0) continue;
+
+      const destHit = _pcRaycastAt(clientX + gx, clientY + gy, rect, meshes);
+      if (!destHit) continue;
+      const dEntry = peState.canvases.get(destHit.object);
+      if (!dEntry) continue;
+
+      const srcHit = _pcRaycastAt(clientX + gx + off.dx, clientY + gy + off.dy, rect, meshes);
+      if (!srcHit) continue;
+      const snap = snaps.get(srcHit.object);
+      if (!snap) continue;
+      const sW = snap.width, sH = snap.height;
+      const sx = Math.round(_peClamp01(srcHit.uv.x) * sW);
+      const sy = Math.round(_peClamp01(srcHit.uv.y) * sH);
+      if (sx < 0 || sy < 0 || sx >= sW || sy >= sH) continue;
+      const si = (sy * sW + sx) * 4;
+      const sr = snap.data[si], sg = snap.data[si + 1], sb = snap.data[si + 2], sa = snap.data[si + 3];
+      // Skip atlas GUTTERS (transparent, or pure-black island padding) — cloning
+      // those would paint black artefacts. Legit dark texture is not (0,0,0).
+      if (sa < 8 || (sr < 8 && sg < 8 && sb < 8)) continue;
+
+      const dTEX = dEntry.canvas.width;
+      const dax = _peClamp01(destHit.uv.x) * dTEX;
+      const day = _peClamp01(destHit.uv.y) * dTEX;
+      const dctx = dEntry.ctx;
+      dctx.globalAlpha = a;
+      dctx.fillStyle = `rgb(${sr},${sg},${sb})`;
+      dctx.beginPath();
+      dctx.arc(dax, day, discR, 0, Math.PI * 2);
+      dctx.fill();
+      dctx.globalAlpha = 1;
+      touched.add(dEntry);
+    }
+  }
+  touched.forEach((e) => _peMarkDirty(e));
 }
 
-function _peHexToRgba(hex, alpha) {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16) || 0;
-  const g = parseInt(h.slice(2, 4), 16) || 0;
-  const b = parseInt(h.slice(4, 6), 16) || 0;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+async function _peLoadMesh(meshPath) {
+  if (!peState.renderer || !peState.scene) return;   // WebGL indisponible
+  if (peState.origModel) {
+    peState.scene.remove(peState.origModel);
+    peState.origModel = null;
+  }
+  peState.meshes = [];
+  // Web : l'URL signee se charge par fetch (le bureau lit le fichier par IPC).
+  let buffer;
+  try {
+    const url = (typeof meshPath === 'string' && /^[a-z]+:/i.test(meshPath))
+      ? meshPath : _toFileUrl(meshPath);
+    const r = await fetch(url, { credentials: 'omit' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    buffer = await r.arrayBuffer();
+  } catch (e) {
+    console.error('[paint-emissive] load failed:', e);
+    showToast('Mesh load failed: ' + (e?.message || e), 'error', 5000);
+    return;
+  }
+  if (!buffer) {
+    showToast('Mesh load returned empty buffer.', 'error', 5000);
+    return;
+  }
+  const loader = new GLTFLoader();
+  loader.parse(buffer, '', (gltf) => {
+    peState.origModel = gltf.scene;
+    peState.scene.add(peState.origModel);
+    const box = new THREE.Box3().setFromObject(peState.origModel);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    peState.origModel.position.sub(center);
+    peState.origModel.position.y += size.y / 2;
+    peState.camera.position.set(0, size.y * 0.5, maxDim * 2);
+    peState.controls?.target.set(0, size.y * 0.5, 0);
+    peState.controls?.update();
+    peState.origModel.traverse((child) => {
+      if (child.isMesh && child.geometry && child.material) {
+        peState.meshes.push({ mesh: child });
+      }
+    });
+    if (peState.cloneMode) {
+      _pcSetupCloneCanvas();
+    } else {
+      _peSetupCanvasAndBind();
+      _peTryProjectFromImageLayer();
+    }
+  });
 }
 
-// Project a saved image emissive layer onto each submesh's T_emissive
-// canvas via front-view raycast. For every non-transparent pixel of
-// the image layer, cast a ray from an orthographic front camera
-// through that pixel into the mesh; the hit triangle's UV becomes
-// the write target on its submesh's canvas.
-//
-// Returns true if the projection ran (a layer existed for the source
-// image), false otherwise.
 async function _peProjectImageLayer(imgPath) {
   const layerDataUrl = _emissiveLayerGet(imgPath);
   if (!layerDataUrl) return false;
   if (!peState.origModel || !peState.canvases) return false;
   if (peState.projecting) return false;
   peState.projecting = true;
-  // GPU-baked projection: instead of N image_pixels × M triangles
-  // raycasts (the old loop took 10-30 s on a 1024² × 100k-tri mesh),
-  // we render each submesh once with a UV-encoding shader (R=u, G=v,
-  // B=hit-mask), read the pixels back, and then for every painted
-  // image pixel look up the canvas write position from that buffer.
-  // ~100 ms total on a typical mesh.
-
-  // Decode the image emissive layer into an off-screen canvas we can
-  // sample pixel-by-pixel.
   const img = await new Promise((resolve, reject) => {
     const i = new Image();
     i.onload = () => resolve(i);
@@ -12423,11 +12566,6 @@ async function _peProjectImageLayer(imgPath) {
   const srcCtx = srcCanvas.getContext('2d');
   srcCtx.drawImage(img, 0, 0);
   const srcData = srcCtx.getImageData(0, 0, srcW, srcH).data;
-  // Pre-compute the bbox of non-transparent pixels — for a typical
-  // user, only a small portion of the image carries strokes, so
-  // iterating the WHOLE image was mostly wasted raycasts. We sample
-  // every Nth row/col to find min/max, then only project within that
-  // rectangle (with a small padding).
   let bbXmin = srcW, bbXmax = 0, bbYmin = srcH, bbYmax = 0;
   const scanStride = Math.max(1, Math.floor(Math.min(srcW, srcH) / 256));
   for (let y = 0; y < srcH; y += scanStride) {
@@ -12442,30 +12580,22 @@ async function _peProjectImageLayer(imgPath) {
   }
   if (bbXmax < bbXmin || bbYmax < bbYmin) {
     peState.projecting = false;
-    return false;  // nothing painted
+    return false;
   }
   const pad = scanStride * 2;
   bbXmin = Math.max(0, bbXmin - pad);
   bbYmin = Math.max(0, bbYmin - pad);
   bbXmax = Math.min(srcW - 1, bbXmax + pad);
   bbYmax = Math.min(srcH - 1, bbYmax + pad);
-
-  // Set up an orthographic camera positioned at +Z, looking down -Z,
-  // sized to encompass the model's XY footprint. This matches how the
-  // user views their image-side painting (camera-facing view).
   const box = new THREE.Box3().setFromObject(peState.origModel);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
-  // Account for the framing lift we applied in _peLoadMesh
-  // (origModel.position) so the camera is in WORLD space relative to
-  // the actual displayed bounds.
   const halfW = size.x * 0.5 + 1e-4;
   const halfH = size.y * 0.5 + 1e-4;
   const orthoCam = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.01, size.z * 4 + 10);
   orthoCam.position.set(center.x, center.y, center.z + size.z * 2 + 1);
   orthoCam.lookAt(center.x, center.y, center.z);
   orthoCam.updateMatrixWorld();
-
   const TEX = PE_TEX_SIZE;
   const status = document.getElementById('pe-status');
   const RT_W = Math.min(srcW, 2048);
@@ -12491,7 +12621,6 @@ async function _peProjectImageLayer(imgPath) {
       const targetMesh = entry.mesh;
       const canvasEntry = peState.canvases.get(targetMesh);
       if (!canvasEntry) continue;
-      // Render JUST this submesh by hiding the others.
       const visStates = peState.meshes.map((e) => ({ m: e.mesh, v: e.mesh.visible }));
       peState.meshes.forEach((e) => { e.mesh.visible = (e.mesh === targetMesh); });
       const origMat = targetMesh.material;
@@ -12508,9 +12637,6 @@ async function _peProjectImageLayer(imgPath) {
       }
       await new Promise((r) => requestAnimationFrame(r));
       const ctx = canvasEntry.ctx;
-      // Iterate painted pixels inside the bbox; look up the matching
-      // entry in the UV buffer (Y flipped: image is top-down, ReadPixels
-      // is bottom-up).
       for (let y = bbYmin; y <= bbYmax; y++) {
         const ry = RT_H - 1 - Math.round((y / srcH) * RT_H);
         if (ry < 0 || ry >= RT_H) continue;
@@ -12523,11 +12649,10 @@ async function _peProjectImageLayer(imgPath) {
           const rx = Math.round((x / srcW) * RT_W);
           if (rx < 0 || rx >= RT_W) continue;
           const ri = ryRow + rx * 4;
-          if (uvBuffer[ri + 2] < 200) continue;  // no mesh at this pixel
+          if (uvBuffer[ri + 2] < 200) continue;
           const px = (uvBuffer[ri] / 255) * TEX;
           const py = (uvBuffer[ri + 1] / 255) * TEX;
           ctx.fillStyle = `rgba(${srcData[si]}, ${srcData[si+1]}, ${srcData[si+2]}, ${a / 255})`;
-          // 4×4 splat fills the gaps left by the 256-level UV encoding.
           ctx.fillRect(px - 2, py - 2, 4, 4);
           painted++;
         }
@@ -12544,7 +12669,7 @@ async function _peProjectImageLayer(imgPath) {
 }
 
 async function _peTryProjectFromImageLayer() {
-  if (peState.projecting) return;  // one projection at a time
+  if (peState.projecting) return;
   const p = state.currentProject;
   if (!p) return;
   let imgPath = p.selectedImagePath || p.previewImagePath;
@@ -12559,7 +12684,6 @@ async function _peTryProjectFromImageLayer() {
     }
     const ok = await _peProjectImageLayer(imgPath);
     if (ok) {
-      // Reset history so undo doesn't go past the projection state.
       peState.history = [];
       peState.historyIndex = -1;
       _peHistoryPush();
@@ -12572,35 +12696,194 @@ async function _peTryProjectFromImageLayer() {
   }
 }
 
-function openPaintEmissive() {
+function _peRaycast(clientX, clientY) {
+  if (!peState.origModel || !peState.raycaster) return null;
+  const canvas = peState.renderer.domElement;
+  const rect = canvas.getBoundingClientRect();
+  const x = ((clientX - rect.left) / rect.width)  *  2 - 1;
+  const y = ((clientY - rect.top)  / rect.height) * -2 + 1;
+  peState.pointer.set(x, y);
+  peState.raycaster.setFromCamera(peState.pointer, peState.camera);
+  const meshes = peState.meshes.map((e) => e.mesh);
+  const hits = peState.raycaster.intersectObjects(meshes, false);
+  if (!hits.length || !hits[0].uv) return null;
+  return hits[0];
+}
+
+function _peStampAtPointer(clientX, clientY) {
+  const hit = _peRaycast(clientX, clientY);
+  if (!hit) return;
+  const entry = peState.canvases?.get(hit.object);
+  if (!entry) return;
+  const ctx = entry.ctx;
+  const TEX = PE_TEX_SIZE;
+  const px = Math.max(0, Math.min(1, hit.uv.x)) * TEX;
+  const py = Math.max(0, Math.min(1, hit.uv.y)) * TEX;
+  const r = Math.max(1, peState.brushSize * 0.5);
+  const fall = Math.max(0, Math.min(1, peState.brushFalloff));
+  const innerColor = peState.brushMode === 'erase'
+    ? `rgba(0, 0, 0, ${peState.brushOpacity})`
+    : _peHexToRgba(peState.brushColor, peState.brushOpacity);
+  const edgeColor = peState.brushMode === 'erase'
+    ? 'rgba(0, 0, 0, 0)'
+    : _peHexToRgba(peState.brushColor, 0);
+  const grad = ctx.createRadialGradient(px, py, 0, px, py, r);
+  grad.addColorStop(0, innerColor);
+  grad.addColorStop(1 - fall, innerColor);
+  grad.addColorStop(1, edgeColor);
+  const mesh = hit.object;
+  const geom = mesh.geometry;
+  const uvAttr = geom.attributes.uv;
+  const posAttr = geom.attributes.position;
+  const idx = geom.index?.array;
+  ctx.globalCompositeOperation = peState.brushMode === 'erase' ? 'destination-out' : 'source-over';
+  if (!uvAttr || !posAttr) {
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    entry.texture.needsUpdate = true;
+    return;
+  }
+  // 3D-aware stamping — kills the "stray paint on the ground when I
+  // clicked the sign" issue from overlapping UV islands in Trellis2's
+  // texture atlas. Only triangles physically close (in 3D) to the
+  // hit point can pick up the brush.
+  const localHit = mesh.worldToLocal(hit.point.clone());
+  const cam = peState.camera;
+  const camDist = cam.position.distanceTo(hit.point);
+  const viewH = peState.renderer.domElement.clientHeight || 600;
+  const heightAtDist = 2 * camDist * Math.tan((cam.fov * Math.PI / 180) / 2);
+  const unitsPerPx = heightAtDist / viewH;
+  const R3D = peState.brushSize * 0.5 * unitsPerPx * 1.2;
+  const R3DSq = R3D * R3D;
+  const posArr = posAttr.array;
+  const uvArr = uvAttr.array;
+  const triCount = idx ? Math.floor(idx.length / 3) : Math.floor(posAttr.count / 3);
+  ctx.save();
+  // Fill each near-3D triangle SOLIDLY — no UV-disc clip, no UV-centred
+  // gradient. A brush stroke covers a surface region that spans MULTIPLE UV
+  // islands; a UV-centred clip/gradient left triangles in the OTHER islands
+  // unpainted → patchy mask with "forgotten" triangles. 3D proximity (R3D)
+  // already bounds the footprint, so a flat fill covers every touched triangle.
+  ctx.fillStyle = innerColor;
+  for (let t = 0; t < triCount; t++) {
+    const i0 = idx ? idx[t*3]   : t*3;
+    const i1 = idx ? idx[t*3+1] : t*3+1;
+    const i2 = idx ? idx[t*3+2] : t*3+2;
+    const p0x = posArr[i0*3], p0y = posArr[i0*3+1], p0z = posArr[i0*3+2];
+    const p1x = posArr[i1*3], p1y = posArr[i1*3+1], p1z = posArr[i1*3+2];
+    const p2x = posArr[i2*3], p2y = posArr[i2*3+1], p2z = posArr[i2*3+2];
+    const d0 = (p0x-localHit.x)**2 + (p0y-localHit.y)**2 + (p0z-localHit.z)**2;
+    if (d0 >= R3DSq) {
+      const d1 = (p1x-localHit.x)**2 + (p1y-localHit.y)**2 + (p1z-localHit.z)**2;
+      if (d1 >= R3DSq) {
+        const d2 = (p2x-localHit.x)**2 + (p2y-localHit.y)**2 + (p2z-localHit.z)**2;
+        if (d2 >= R3DSq) continue;
+      }
+    }
+    const u0x = uvArr[i0*2] * TEX, u0y = uvArr[i0*2+1] * TEX;
+    const u1x = uvArr[i1*2] * TEX, u1y = uvArr[i1*2+1] * TEX;
+    const u2x = uvArr[i2*2] * TEX, u2y = uvArr[i2*2+1] * TEX;
+    ctx.beginPath();
+    ctx.moveTo(u0x, u0y);
+    ctx.lineTo(u1x, u1y);
+    ctx.lineTo(u2x, u2y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalCompositeOperation = 'source-over';
+  entry.texture.needsUpdate = true;
+}
+
+function _peHexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16) || 0;
+  const g = parseInt(h.slice(2, 4), 16) || 0;
+  const b = parseInt(h.slice(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Reshape the Paint-Emissive modal for either "emissive paint" or "region
+// mask" mode: hide the emissive-only controls + show the mask panel, and set
+// the title / apply-button label accordingly.
+function _peConfigureModeUI() {
+  const $ = (id) => document.getElementById(id);
+  const maskMode = peState.maskMode, cloneMode = peState.cloneMode;
+  const special = maskMode || cloneMode;   // non-emissive modes hide emissive controls
+  document.querySelectorAll('#modal-paint-emissive .pe-emissive-only')
+    .forEach((el) => { el.style.display = special ? 'none' : ''; });
+  const maskPanel = $('pe-mask-panel'); if (maskPanel) maskPanel.style.display = maskMode ? 'flex' : 'none';
+  const clonePanel = $('pe-clone-panel'); if (clonePanel) clonePanel.style.display = cloneMode ? 'flex' : 'none';
+  const h2 = document.querySelector('#modal-paint-emissive h2');
+  const sub = document.querySelector('#modal-paint-emissive .modal-subtitle');
+  const apply = $('pe-apply-device');
+  // Reactive a chaque ouverture. Apres un enregistrement REUSSI, le
+  // gestionnaire du clic ferme la modale sans reactiver le bouton (il ne le
+  // fait que sur echec) : la deuxieme utilisation de l'outil dans la meme
+  // session trouvait un bouton grise, et le clic ne faisait rien. Constate
+  // en test navigateur le 2026-09-26 (clonage puis re-texture de zone).
+  if (apply) apply.disabled = false;
+  const status = $('pe-status');
+  if (cloneMode) {
+    if (h2) h2.textContent = '🩹 ' + _i18nT('3D Clone Stamp');
+    if (sub) sub.textContent = _i18nT('Clone one area of the texture onto another. Ctrl+click = set the source, then left-click and drag = clone. Orbit (right-click), zoom, magnifier, undo/redo.');
+    if (apply) apply.textContent = '💾 ' + _i18nT('Save new version');
+    if (status) status.textContent = _i18nT('Ctrl+click = source · left-click + drag = clone · right-click = orbit · wheel = zoom');
+  } else if (maskMode) {
+    if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area (AI)');
+    if (sub) sub.textContent = _i18nT('Paint the area to re-texture straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe the new look and apply.');
+    if (apply) apply.textContent = '✨ ' + _i18nT('Apply re-texture');
+    if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-click = orbit. Wheel = zoom.');
+  } else {
+    if (h2) h2.textContent = '💡 Paint Emissive';
+    if (sub) sub.innerHTML = 'Paint glow areas (lamps, windows, runes). The painted areas become a separate <code>T_emissive</code> texture wired to <code>emissiveMap</code> on the material.';
+    if (apply) apply.textContent = '💾 Save new version';
+    if (status) status.textContent = 'Left-click + drag on the mesh to paint. Orbit with right-click.';
+  }
+}
+
+function openPaintEmissive(opts = {}) {
   const p = state.currentProject;
-  if (!p || !p.selectedMeshPath) { showToast('Pick a mesh first.', 'error'); return; }
+  const maskMode = !!opts.maskMode;
+  const cloneMode = !!opts.cloneMode;
+  const meshPath = opts.meshPath || (p && (p.previewMeshPath || p.selectedMeshPath));
+  if (!meshPath) { showToast('Pick a mesh first.', 'error'); return; }
   const modal = document.getElementById('modal-paint-emissive');
   if (!modal) return;
+  peState.maskMode = maskMode;
+  peState.cloneMode = cloneMode;
+  peState.retexMeshPath = meshPath;
+  peState.cloneSource = null; peState.cloneSource3D = null; peState.cloneSourceScreen = null;
+  peState.cloneOffsetScreen = null; peState.cloneSrcSnaps = null;
   modal.classList.remove('hidden');
 
-  // Hook up the brush controls (idempotent — we just overwrite handlers).
   const $ = (id) => document.getElementById(id);
-  const sync = (id, valId, parse, sink) => {
-    const el = $(id), lab = $(valId);
-    if (!el) return;
-    el.oninput = () => {
-      const v = parse(el.value);
-      sink(v);
-      if (lab) lab.textContent = String(el.value);
-    };
-  };
+  _peConfigureModeUI();
+  // Mask mode: white brush produces a white-on-black UV mask; the emissive glow
+  // is only a live preview of what's selected. Clone mode paints the atlas.
+  if (maskMode) { peState.brushColor = '#ffffff'; peState.brushMode = 'paint'; }
+  if (cloneMode) { peState.brushMode = 'paint'; }
   $('pe-color').oninput = (e) => { peState.brushColor = e.target.value; };
-  peState.brushColor = $('pe-color').value;
-  sync('pe-intensity', 'pe-intensity-val', Number, (v) => {
+  if (!maskMode) peState.brushColor = $('pe-color').value;
+  // Mask-panel strength slider (region-retex).
+  const ms = $('pe-mask-strength');
+  if (ms) ms.oninput = (e) => { const v = $('pe-mask-strength-val'); if (v) v.textContent = e.target.value; };
+  $('pe-intensity').oninput = (e) => {
+    const v = Number(e.target.value);
     peState.intensity = v;
+    $('pe-intensity-val').textContent = String(v);
     peState.meshes.forEach((entry) => {
       const mats = Array.isArray(entry.mesh.material) ? entry.mesh.material : [entry.mesh.material];
       mats.forEach((m) => { m.emissiveIntensity = v; m.needsUpdate = true; });
     });
-  });
-  sync('pe-brush-size', 'pe-brush-size-val', Number, (v) => { peState.brushSize = v; });
-  $('pe-brush-opacity-val').textContent = $('pe-brush-opacity').value + '%';
+  };
+  $('pe-brush-size').oninput = (e) => {
+    peState.brushSize = Number(e.target.value);
+    $('pe-brush-size-val').textContent = e.target.value;
+  };
   $('pe-brush-opacity').oninput = (e) => {
     peState.brushOpacity = Number(e.target.value) / 100;
     $('pe-brush-opacity-val').textContent = e.target.value + '%';
@@ -12609,7 +12892,6 @@ function openPaintEmissive() {
     peState.brushFalloff = Number(e.target.value) / 100;
     $('pe-brush-falloff-val').textContent = e.target.value + '%';
   };
-  $('pe-brush-falloff-val').textContent = $('pe-brush-falloff').value + '%';
   const paintBtn = $('pe-mode-paint');
   const eraseBtn = $('pe-mode-erase');
   const setMode = (mode) => {
@@ -12632,20 +12914,22 @@ function openPaintEmissive() {
   };
   $('pe-undo').onclick = () => _peUndo();
   $('pe-redo').onclick = () => _peRedo();
+  const loupeBtn = $('pe-loupe-toggle');
+  if (loupeBtn) {
+    const syncLoupeBtn = () => {
+      loupeBtn.classList.toggle('tool-active', peState.loupeOn);
+      if (!peState.loupeOn) { const lb = $('pe-loupe'); if (lb) lb.style.display = 'none'; }
+    };
+    loupeBtn.onclick = () => { peState.loupeOn = !peState.loupeOn; syncLoupeBtn(); };
+    syncLoupeBtn();
+  }
   $('pe-load-image-layer').onclick = async () => {
     const btn = $('pe-load-image-layer');
     const orig = btn.textContent;
     btn.disabled = true; btn.textContent = 'Projecting…';
-    try {
-      await _peTryProjectFromImageLayer();
-    } finally {
-      btn.disabled = false; btn.textContent = orig;
-    }
+    try { await _peTryProjectFromImageLayer(); }
+    finally { btn.disabled = false; btn.textContent = orig; }
   };
-  // Toggle the emissive texture on/off — flips material.emissiveMap
-  // between our canvas and null on every submesh, leaving the painted
-  // canvas data intact so the user can flip back and forth without
-  // losing work. Acts like "preview with vs without my emissive".
   let emissiveOn = true;
   $('pe-toggle-emissive').onclick = () => {
     if (!peState.canvases) return;
@@ -12662,7 +12946,6 @@ function openPaintEmissive() {
     btn.style.background = emissiveOn ? 'var(--accent, #5a4fcf)' : '';
     btn.style.color = emissiveOn ? '#fff' : '';
   };
-  // Keyboard: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z = redo.
   const onKey = (e) => {
     if (modal.classList.contains('hidden')) return;
     const mod = e.ctrlKey || e.metaKey;
@@ -12677,13 +12960,8 @@ function openPaintEmissive() {
   };
   document.addEventListener('keydown', onKey);
 
-  // Init viewport then load mesh.
   requestAnimationFrame(async () => {
     await _peInitViewport();
-    // Set up a CSS brush preview that follows the cursor over the
-    // viewport. It's an unscaled CSS-pixel circle (size = brushSize)
-    // — not pixel-perfect against the UV footprint, but a clear
-    // indicator of "where the brush is" + "how big it roughly is".
     const wrap = document.getElementById('pe-viewport-wrap');
     let preview = document.getElementById('pe-brush-preview');
     if (!preview) {
@@ -12702,32 +12980,49 @@ function openPaintEmissive() {
       preview.style.borderColor = peState.brushMode === 'erase' ? '#ff4466' : peState.brushColor;
       preview.style.display = 'block';
     };
+    // Coalesce raw pointermove events into ONE stamp per animation frame — a
+    // high-poly mesh iterates every triangle per stamp, so processing 100+
+    // raw events/s froze the machine. One stamp/frame is smooth and enough.
+    let _pendPos = null, _pendRaf = 0;
+    const _flushStamp = () => {
+      _pendRaf = 0;
+      if (!_pendPos || !peState.isPainting) return;
+      const px = _pendPos.x, py = _pendPos.y; _pendPos = null;
+      if (peState.cloneMode) _pcStampClone(px, py, false);
+      else _peStampAtPointer(px, py);
+    };
     const down = (e) => {
-      if (e.button !== 0) return;  // only left click
+      if (e.button !== 0) return;
+      if (peState.cloneMode && (e.ctrlKey || e.metaKey)) { _pcSetSource(e.clientX, e.clientY); return; }
       peState.isPainting = true;
       cv.setPointerCapture(e.pointerId);
-      _peStampAtPointer(e.clientX, e.clientY);
+      if (peState.cloneMode) _pcStampClone(e.clientX, e.clientY, true);
+      else _peStampAtPointer(e.clientX, e.clientY);
     };
     const move = (e) => {
       updateBrushPreview(e);
+      if (peState.loupeOn) _peUpdateLoupe(e);
       if (!peState.isPainting) return;
-      _peStampAtPointer(e.clientX, e.clientY);
+      _pendPos = { x: e.clientX, y: e.clientY };
+      if (!_pendRaf) _pendRaf = requestAnimationFrame(_flushStamp);
     };
     const up = (e) => {
       if (peState.isPainting) {
         peState.isPainting = false;
-        // End of stroke → snapshot every canvas for undo.
+        if (_pendRaf) { cancelAnimationFrame(_pendRaf); _pendRaf = 0; }
+        _pendPos = null;
+        _peFlushDirty();   // force the final full-res upload at stroke end
         _peHistoryPush();
       }
       try { cv.releasePointerCapture(e.pointerId); } catch {}
     };
-    const leave = () => { preview.style.display = 'none'; };
+    const leave = () => { preview.style.display = 'none'; const lb = document.getElementById('pe-loupe'); if (lb) lb.style.display = 'none'; };
     cv.onpointerdown = down;
     cv.onpointermove = move;
     cv.onpointerup = up;
     cv.onpointercancel = up;
     cv.onpointerleave = leave;
-    _peLoadMesh(p.selectedMeshPath);
+    _peLoadMesh(meshPath);
   });
 
   const close = (restore) => {
@@ -12735,28 +13030,113 @@ function openPaintEmissive() {
     if (restore) _peRestoreMaterials();
     const preview = document.getElementById('pe-brush-preview');
     if (preview) preview.style.display = 'none';
+    if (peState.cloneSrcMarker) peState.cloneSrcMarker.visible = false;
+    // Free the BVHs built for the clone-stamp raycasts.
+    try { peState.meshes?.forEach((e) => e.mesh.geometry?.disposeBoundsTree?.()); } catch (_) {}
+    peState.cloneSrcSnaps = null;
   };
   $('pe-cancel').onclick = () => close(true);
   $('pe-apply-device').onclick = async () => {
     const btn = $('pe-apply-device');
     const orig = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Saving…';
+    btn.textContent = peState.maskMode ? 'Re-texture…' : 'Saving…';
     try {
-      await _peApplyOnDevice();
+      if (peState.maskMode) {
+        await _peApplyMaskRetex();
+      } else {
+        await _peApplyOnDevice();
+      }
       close(false);
     } catch (e) {
-      showToast(`Paint Emissive failed: ${e?.message || e}`, 'error', 5000);
+      showToast(`${peState.maskMode ? 'Re-texture' : 'Paint Emissive'} failed: ${e?.message || e}`, 'error', 5000);
       btn.textContent = orig;
       btn.disabled = false;
     }
   };
 }
 
+// Region-retex apply: the painted white-on-black canvas IS the UV/atlas mask.
+// Export it and call regionRetex with uvMask:true — the backend applies it
+// straight to the atlas (no screen→UV projection, no back-face bleed).
+async function _peApplyMaskRetex() {
+  const meshPath = peState.retexMeshPath;
+  if (!meshPath) throw new Error('no mesh');
+  const rawPrompt = (document.getElementById('pe-mask-prompt')?.value || '').trim();
+  if (!rawPrompt) { showToast(_i18nT('Describe what the painted area should look like.'), 'error'); throw new Error('no prompt'); }
+  // Pick the painted mask canvas. Region-retex targets a single atlas; use the
+  // mesh with the most painted texels (handles single-mesh GLBs = the common case).
+  let best = null, bestScore = -1;
+  peState.canvases?.forEach((entry) => {
+    const d = entry.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE).data;
+    let s = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i] > 40 || d[i + 1] > 40 || d[i + 2] > 40) s++; }
+    if (s > bestScore) { bestScore = s; best = entry; }
+  });
+  if (!best || bestScore <= 0) { showToast(_i18nT('Paint the area to re-texture first (in white).'), 'error'); throw new Error('empty mask'); }
+  // Binarize to pure white-on-black (the atlas may carry faint falloff edges).
+  const mc = document.createElement('canvas'); mc.width = PE_TEX_SIZE; mc.height = PE_TEX_SIZE;
+  const mctx = mc.getContext('2d');
+  mctx.fillStyle = '#000000'; mctx.fillRect(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
+  const src = best.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE).data;
+  const out = mctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
+  for (let i = 0; i < src.length; i += 4) {
+    if (src[i] > 40 || src[i + 1] > 40 || src[i + 2] > 40) { out.data[i] = out.data[i + 1] = out.data[i + 2] = out.data[i + 3] = 255; }
+  }
+  mctx.putImageData(out, 0, 0);
+  const maskDataUrl = mc.toDataURL('image/png');
+  const prompt = await translateUserPrompt(rawPrompt);
+  const strength = parseFloat(document.getElementById('pe-mask-strength')?.value) || 0.8;
+  const job = (typeof pushJob === 'function')
+    ? pushJob('AI region re-texture', null, { 'Source mesh': String(meshPath).split(/[/\\]/).pop() }, 60000) : null;
+  const r = await window.meshyAPI.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true });
+  if (r && r.ok && r.path) {
+    if (job) completeJob(job.id, true);
+    showToast(_i18nT('Region re-textured') + ' ✅', 'success');
+    try { await reloadCurrentProject(); } catch (_) {}
+  } else {
+    if (job) completeJob(job.id, false);
+    throw new Error((r && r.error) || 'unknown');
+  }
+}
+
+// Magnifier loupe for the Paint-Emissive / region-retex 3D viewer. Ported from
+// _meUpdateLoupe — reads the rendered canvas (needs preserveDrawingBuffer:true).
+function _peUpdateLoupe(e) {
+  const box = document.getElementById('pe-loupe');
+  if (!box) return;
+  if (!peState.loupeOn) { box.style.display = 'none'; return; }
+  const src = peState.renderer && peState.renderer.domElement;
+  const loupeCv = document.getElementById('pe-loupe-canvas');
+  if (!src || !loupeCv) return;
+  const rect = src.getBoundingClientRect();
+  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+    box.style.display = 'none'; return;
+  }
+  const ix = (e.clientX - rect.left) * (src.width / rect.width);
+  const iy = (e.clientY - rect.top) * (src.height / rect.height);
+  const L = loupeCv.width;
+  const MAG = 3.2;
+  const crop = L / MAG;
+  const lctx = loupeCv.getContext('2d');
+  lctx.imageSmoothingEnabled = false;
+  lctx.clearRect(0, 0, L, L);
+  try { lctx.drawImage(src, ix - crop / 2, iy - crop / 2, crop, crop, 0, 0, L, L); } catch (_) {}
+  lctx.strokeStyle = 'rgba(245,158,11,0.9)'; lctx.lineWidth = 1;
+  lctx.beginPath();
+  lctx.moveTo(L / 2 - 8, L / 2); lctx.lineTo(L / 2 + 8, L / 2);
+  lctx.moveTo(L / 2, L / 2 - 8); lctx.lineTo(L / 2, L / 2 + 8);
+  lctx.stroke();
+  const off = 26, size = 150;
+  let px = e.clientX + off, py = e.clientY - size - off;
+  if (px + size > window.innerWidth) px = e.clientX - size - off;
+  if (py < 0) py = e.clientY + off;
+  box.style.left = px + 'px'; box.style.top = py + 'px';
+  box.style.display = 'block';
+}
+
 async function _peApplyOnDevice() {
   if (!peState.origModel) throw new Error('no model loaded');
-  // Zero out the framing offset for export so the saved GLB origin
-  // matches the source mesh.
   const savedPos = peState.origModel.position.clone();
   peState.origModel.position.set(0, 0, 0);
   try {
@@ -12773,19 +13153,19 @@ async function _peApplyOnDevice() {
       );
     });
     const bytes = new Uint8Array(arrayBuffer);
-    // Meme route gratuite que les autres outils du navigateur (auth +
-    // verification de l'en-tete GLB + stockage R2, aucun credit). La
-    // peinture y a desormais son propre nom au lieu de passer pour 'center'.
-    const data = await uploadClientMeshResult(bytes, 'paint_emissive');
-    const newUrl = data.path || data.newPath || data.mesh_url;
-    showToast('Paint Emissive applied (free, on device)', 'success');
+    // Web : route gratuite (auth + en-tete GLB verifie + stockage R2 sous le
+    // projet, aucun credit). Le nom d'operation dit ce que contient la version.
+    const data = await uploadClientMeshResult(bytes, peState.cloneMode ? 'clone3d' : 'paint_emissive');
+    const newPath = data.path || data.newPath || data.mesh_url;
+    if (!newPath) throw new Error('upload returned no path');
+    showToast(peState.cloneMode ? _i18nT('3D clone saved') + ' ✅' : 'Paint Emissive saved!', 'success');
     const p = state.currentProject;
-    if (p && newUrl) {
-      const filename = String(newUrl).split('/').pop() || 'paint_emissive.glb';
+    if (p) {
+      const filename = String(newPath).split('?')[0].split('/').pop();
       p.meshes = p.meshes || [];
-      p.meshes.unshift({ path: newUrl, filename, size: 0, mtime: Date.now() });
-      p.selectedMeshPath = newUrl;
-      p.previewMeshPath = newUrl;
+      p.meshes.unshift({ path: newPath, filename, size: 0, mtime: Date.now() });
+      p.selectedMeshPath = newPath;
+      p.previewMeshPath = newPath;
       if (typeof populateWorkspace === 'function') {
         try { await populateWorkspace(p); } catch {}
       }
@@ -12794,6 +13174,23 @@ async function _peApplyOnDevice() {
     peState.origModel.position.copy(savedPos);
   }
 }
+
+// Boutons portes du bureau : ils ouvrent ce visualiseur dans l'un de ses
+// deux modes speciaux. (« Paint Emissive » reste sur Paint Mesh, plus bas.)
+function _peMeshCourant() {
+  const p = state.currentProject;
+  return p && (p.previewMeshPath || p.selectedMeshPath);
+}
+document.getElementById('ws-mesh-region-retex-btn')?.addEventListener('click', () => {
+  const mp = _peMeshCourant();
+  if (!mp) { showToast('Pick a mesh first.', 'error'); return; }
+  openPaintEmissive({ maskMode: true, meshPath: mp });
+});
+document.getElementById('ws-mesh-clone3d-btn')?.addEventListener('click', () => {
+  const mp = _peMeshCourant();
+  if (!mp) { showToast('Pick a mesh first.', 'error'); return; }
+  openPaintEmissive({ cloneMode: true, meshPath: mp });
+});
 
 // Both Manual Tools buttons funnel into the unified Paint Mesh modal —
 // "Paint Emissive" just pre-toggles the emissive layer so the user

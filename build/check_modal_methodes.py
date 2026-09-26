@@ -56,6 +56,47 @@ for chemin in sorted(glob.glob(os.path.join(RACINE, 'modal_app', '*.py'))):
                 if nom not in definies and nom not in affectes:
                     trous.append((rel, n.lineno, classe.name, nom))
 
+# ── NOMS INDEFINIS ─────────────────────────────────────────────────────────
+# Meme famille de defaut, autre forme : un nom utilise sans avoir ete defini ni
+# importe. Deux cas reels le 2026-09-26, tous deux invisibles au deploiement :
+#   * `payload.get('smooth')` dans MyFabmeshMesh.inference_bytes, qui n'a pas
+#     de `payload` — NameError a chaque appel du lot d'entrainement ;
+#   * `Image.open(...)` dans une route neuve d'app.py, ou PIL n'est importe que
+#     localement dans chaque fonction — rattrape avant le deploiement.
+# pyflakes le voit statiquement ; on ne retient QUE « undefined name ».
+noms = []
+try:
+    from pyflakes import api as _pf_api
+    from pyflakes import reporter as _pf_rep
+
+    class _Collecte(_pf_rep.Reporter):
+        def __init__(self):
+            super().__init__(io.StringIO(), io.StringIO())
+
+        def flake(self, message):
+            if type(message).__name__ == 'UndefinedName':
+                noms.append(str(message))
+
+    _r = _Collecte()
+    for chemin in sorted(glob.glob(os.path.join(RACINE, 'modal_app', '*.py'))):
+        _pf_api.checkPath(chemin, _r)
+except ImportError:
+    print("[modal] ATTENTION : pyflakes absent, noms indefinis NON verifies "
+          "(pip install pyflakes)")
+
+if noms:
+    print()
+    print('=' * 72)
+    print('  MODAL : nom utilise sans definition ni import.')
+    print()
+    for n in noms:
+        print('  ' + os.path.relpath(n, RACINE) if os.path.isabs(n.split(':')[0]) else '  ' + n)
+    print()
+    print("  NameError a l'execution seulement — le deploiement passe quand meme.")
+    print('=' * 72)
+    print()
+    sys.exit(1)
+
 if trous:
     print()
     print('=' * 72)

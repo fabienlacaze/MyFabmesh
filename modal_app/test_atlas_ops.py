@@ -115,8 +115,92 @@ def essai_nommage(glb_url: str, asset_type: str = "character"):
             "stderr_fin": (p.stderr or "")[-800:] if p.returncode else ""}
 
 
+@app.function(timeout=900, secrets=[
+    modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"])])
+def essai_rectify(image_url: str, mode: str = "front"):
+    """Appelle la route /rectify DEPLOYEE, comme le worker, mais sans la
+    coupure de 100 s de Cloudflare : on mesure le temps reel de reponse (a
+    froid puis a chaud) et on verifie qu'une image revient."""
+    import json
+    import os
+    import time
+    import urllib.request
+    url = "https://fabienlacaze--myfabmesh-cloud-myfabmeshbackview-router.modal.run/rectify"
+    corps = json.dumps({"_auth": os.environ["SHARED_SECRET"], "ref_image_url": image_url,
+                        "mode": mode, "seeds": 3}).encode()
+    essais = []
+    for n in range(2):          # 1er appel : froid probable ; 2e : chaud
+        t0 = time.time()
+        req = urllib.request.Request(url, data=corps, method="POST",
+                                     headers={"content-type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                octets = r.read()
+                essais.append({"statut": r.status, "s": round(time.time() - t0, 1),
+                               "octets": len(octets), "png": octets[:4] == b"\x89PNG"})
+        except urllib.error.HTTPError as e:
+            essais.append({"statut": e.code, "s": round(time.time() - t0, 1),
+                           "erreur": e.read()[:400].decode("utf-8", "replace")})
+        except Exception as e:
+            essais.append({"statut": None, "s": round(time.time() - t0, 1), "erreur": str(e)[:300]})
+    return essais
+
+
+@app.function(gpu="L40S", timeout=900)
+def essai_region_retex(glb_url: str):
+    """Meme chaine que /mesh_region_retex : RealVisXL Inpaint charge depuis
+    l'IMAGE (pas depuis HuggingFace), masque UV synthetique sur le quart
+    haut-gauche de l'atlas, inpaint_atlas du face-fix. Verifie que seul
+    l'interieur du masque change."""
+    import io
+    import time
+    import urllib.request
+
+    import numpy as np
+    import torch
+    import trimesh
+    from diffusers import StableDiffusionXLInpaintPipeline
+    from PIL import Image
+    from modal_app._face_fix import inpaint_atlas
+
+    src = urllib.request.urlopen(glb_url, timeout=120).read()
+    scene = trimesh.load(io.BytesIO(src), file_type="glb")
+    mat = [g.visual.material for g in scene.geometry.values()
+           if getattr(getattr(g.visual, "material", None), "baseColorTexture", None) is not None][0]
+    tex = mat.baseColorTexture
+    t0 = time.time()
+    pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
+        "SG161222/RealVisXL_V4.0", torch_dtype=torch.float16, variant="fp16",
+        use_safetensors=True, local_files_only=True)   # DOIT venir de l'image
+    try:
+        pipe.upcast_vae()
+    except Exception:
+        pipe.vae.to(torch.float32)
+    pipe.enable_model_cpu_offload()
+    charge = round(time.time() - t0, 1)
+    w, h = tex.size
+    m = np.zeros((h, w), np.uint8)
+    m[: h // 4, : w // 4] = 255
+    masque = Image.fromarray(m, "L")
+    t0 = time.time()
+    neuf = inpaint_atlas(pipe, tex, masque, "polished golden metal armor", 0.8)
+    duree = round(time.time() - t0, 1)
+    a = np.asarray(tex.convert("RGB"), np.int16)
+    b = np.asarray(neuf.convert("RGB"), np.int16)
+    dedans = float(np.abs(a - b)[m > 0].mean())
+    dehors = float(np.abs(a - b)[m == 0].mean())
+    return {"chargement_pipe_s": charge, "inpaint_s": duree, "atlas": [w, h],
+            "ecart_dans_masque": round(dedans, 2), "ecart_hors_masque": round(dehors, 3)}
+
+
 @app.local_entrypoint()
-def main(glb_url: str = "", seg_url: str = ""):
+def main(glb_url: str = "", seg_url: str = "", rect_url: str = "", retex_url: str = ""):
+    if retex_url:
+        import json as _j2
+        print(_j2.dumps(essai_region_retex.remote(retex_url), indent=2))
+    if rect_url:
+        import json as _j
+        print(_j.dumps(essai_rectify.remote(rect_url), indent=2))
     import json
     if glb_url:
         print(json.dumps(essai.remote(glb_url), indent=2))

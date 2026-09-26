@@ -660,6 +660,7 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-texvar-btn':       2,   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
     'ws-mesh-enhance-tex-btn':  1,   // Real-ESRGAN sur l'atlas (/api/mesh-enhance-tex)
     'ws-mesh-name-btn':         1,   // rendu isole + CLIP-L (/api/mesh-name-parts)
+    'ws-mesh-region-retex-btn': 2,   // SDXL Inpaint de l'atlas sous masque UV (/api/mesh-region-retex)
     'ws-mesh-segment-btn':      15,  // SAMPart3D part-seg — A100 ~8 min/mesh
   };
 
@@ -1073,6 +1074,7 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-texvar-btn':  'texture_var',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
+    'ws-mesh-region-retex-btn': 'region_retex',
     'ws-resolution-btn':   'upscale',
   };
   async function syncLivePricing() {

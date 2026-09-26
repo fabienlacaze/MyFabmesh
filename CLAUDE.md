@@ -439,19 +439,25 @@ si une case est cochée, décochée ou masquée :
 
 ## 16. État au 2026-09-24 — ce qui reste ouvert
 
-- **Outils mesh encore absents du web** : `clone3d` et `region-retex` (ils
-  passent par le visualiseur de peinture 3D, qui a divergé : ~1 080 lignes
-  côté bureau contre ~570 côté web ; le backend de region-retex est
-  l'inpaint d'atlas déjà porté pour le face-fix), `detail-synth` (utilise
+- **Outils mesh encore absents du web** : `detail-synth` (utilise
   nvdiffrast, licence NON commerciale : à porter sur kaolin) et « Re-texture
   all (AI) » (`trellis2_retex`, visible sur le web mais qui n'y renvoie
   qu'une erreur ; demande le pipeline de texturation TRELLIS-2 en
-  asynchrone). Portés le 2026-09-26 : `texvar`, `enhance-tex`, `name` ; les
-  Étapes de construction 3D l'étaient déjà.
+  asynchrone). Portés le 2026-09-26 : `texvar`, `enhance-tex`, `name`,
+  `clone3d`, `region-retex` ; les Étapes de construction 3D l'étaient déjà.
+- **Rectification à froid** : 509 s au premier appel après un déploiement
+  (mesuré le 2026-09-26), au-delà de la reprise du worker (~450 s). Les
+  appels suivants : 24 s.
 - **Banc GPU** : `modal_app/test_atlas_ops.py` exécute les ops d'atlas et le
   nommage sur la VRAIE image Modal (~0,15 $). Un déploiement qui passe ne
   prouve pas qu'une inférence passe : c'est ce banc qui a trouvé le
   chargement de 281 s et le plafond 4096 qui refusait les atlas normaux.
+- **Test navigateur** : le skill `browser-automation` (patchright) fait tourner le
+  web servi LOCALEMENT depuis une copie de `cloud/out` avec l'API simulée par
+  `page.route`. Piège : `page.evaluate` tourne dans un monde isolé (ni globales
+  ni importmap) — injecter un `<script type=module>` qui écrit dans le DOM.
+  Ne jamais servir `cloud/out` lui-même : le serveur verrouille le dossier et
+  la construction suivante échoue sur EBUSY.
 - ~~`Variant`, `Extend`, `Sym. Auto` coquilles vides cote web~~ — **regle le
   2026-09-26.** `Extend` et `Sym. Auto` etaient en fait deja a parite (meme
   algorithme des deux cotes) ; `Variant` a recu le guide de variation et le
