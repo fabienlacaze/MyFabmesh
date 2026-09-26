@@ -3913,21 +3913,37 @@
         b = document.createElement('div');
         b.id = 'modal-alert-banner';
         b.style.cssText = 'display:none; position:fixed; top:0; left:0; right:0; z-index:10001; padding:11px 16px; text-align:center; font-weight:700; font-size:14px; color:#0a0a0e; box-shadow:0 2px 12px rgba(0,0,0,0.45); cursor:pointer;';
-        b.title = 'Budget Modal — cliquez pour ouvrir l\'onglet Finance';
-        b.addEventListener('click', () => { const t = document.querySelector('.tab[data-tab="finance"]'); if (t) t.click(); });
+        b.title = 'Budget Modal — cliquez pour régler la limite (onglet Finance)';
+        // Ouvrir l'onglet ne suffisait pas : deja sur Finance, le clic ne
+        // produisait AUCUN effet visible et se lisait comme un lien casse.
+        // On descend jusqu'au champ de la limite et on y met le curseur.
+        b.addEventListener('click', () => {
+          const t = document.querySelector('.tab[data-tab="finance"]');
+          if (t) t.click();
+          setTimeout(() => {
+            const champ = document.getElementById('mc-budget-input');
+            if (!champ) return;
+            champ.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            champ.focus({ preventScroll: true });
+            champ.select();
+          }, 80);
+        });
         document.body.appendChild(b);
       }
       return b;
     }
     function _updateModalBanner(alert) {
       const b = _ensureModalBanner();
-      if (!alert || !alert.level) { b.style.display = 'none'; return; }
+      // Le bandeau est fixe : sans reserve de place il masquait le haut de
+      // la page (titre et boutons d'export).
+      if (!alert || !alert.level) { b.style.display = 'none'; document.body.style.paddingTop = ''; return; }
       const empty = alert.level === 'empty';
       b.style.background = empty ? '#ff4d4f' : '#ffb020';
       b.textContent = (empty ? '🚨 Budget Modal ÉPUISÉ' : '⚠️ Budget Modal faible')
         + ` — restant $${(Number(alert.remaining) || 0).toFixed(2)} / $${(Number(alert.budget) || 0).toFixed(2)}.`
-        + ' Rechargez Modal puis mettez à jour le budget (onglet Finance) pour réarmer l\'alerte.';
+        + ' Relevez la limite sur modal.com (Usage limit) puis ici — cliquez pour régler.';
       b.style.display = 'block';
+      document.body.style.paddingTop = b.offsetHeight + 'px';
     }
     async function checkModalAlert() {
       try {
