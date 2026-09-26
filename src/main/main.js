@@ -833,6 +833,12 @@ const AI_PYTHON_DIR = path.join(HEAVY_DIR, 'python');
 // with the AI env's torch 2.8. Provisioned by wizard:install-rig.
 const RIG_PYTHON_DIR = path.join(HEAVY_DIR, 'python-rig');
 const PUPPETEER_DIR  = path.join(HEAVY_DIR, 'puppeteer');
+// Moteur de rig LOCAL (SkinTokens, 2026-09-26) : code telecharge CHEZ SON
+// AUTEUR (GitHub, commit fige) + poids Hugging Face, par wizard:install-rig
+// (scripts/wizard_install_skintokens.py), avec l'env RIG_PYTHON_DIR. Jamais
+// dans le paquet : son dossier michelangelo est sous GPL-3.0 (voir
+// package.json > doNotBundleSkinTokens et THIRD_PARTY_LICENSES.txt).
+const SKINTOKENS_DIR = path.join(HEAVY_DIR, 'SkinTokens');
 // Part segmentation (SAMPart3D) — SEPARATE env: torch cu128 sm_120 +
 // pointops + tiny-cuda-nn (incompatible with the AI + rig envs' torch
 // pins). Provisioned by wizard:install-segment. Runs LOCALLY on the
@@ -3995,15 +4001,23 @@ ipcMain.handle('read-bones-json', async (_event, targetName) => {
  *  autre voie qu'un renvoi vers un assistant impuissant.
  */
 function _rigLocalDisponible() {
-  try {
-    const py = [process.env.FABMESH_SKINTOKENS_PY, 'C:\\tmp\\skv\\Scripts\\python.exe',
-                'C:\\skv\\Scripts\\python.exe'].find(p => p && fs.existsSync(p));
-    if (!py) return false;
-    const racine = app.isPackaged
-      ? path.join(process.resourcesPath, 'SkinTokens')
-      : path.join(__dirname, '..', '..', 'external', 'SkinTokens');
-    return fs.existsSync(path.join(racine, 'demo.py'));
-  } catch { return false; }
+  try { return !!_moteurRigLocal(); } catch { return false; }
+}
+
+/** Le moteur de rig local, s'il est COMPLET : { py, racine } ou null.
+ *  1. installe par l'assistant (paquet) : env python-rig + SkinTokens sous
+ *     HEAVY_DIR, marque `.fabmesh_pret` ecrite a la toute fin de
+ *     l'installation (une installation interrompue ne compte pas) ;
+ *  2. developpement : venv court (C:\\tmp\\skv) + external/SkinTokens. */
+function _moteurRigLocal() {
+  const installe = { py: path.join(RIG_PYTHON_DIR, 'python.exe'), racine: SKINTOKENS_DIR };
+  if (fs.existsSync(installe.py) && fs.existsSync(path.join(installe.racine, '.fabmesh_pret'))) return installe;
+  const py = [process.env.FABMESH_SKINTOKENS_PY, 'C:\\tmp\\skv\\Scripts\\python.exe',
+              'C:\\skv\\Scripts\\python.exe'].find(p => p && fs.existsSync(p));
+  const racine = process.env.FABMESH_SKINTOKENS_DIR
+    || (app.isPackaged ? null : path.join(__dirname, '..', '..', 'external', 'SkinTokens'));
+  if (py && racine && fs.existsSync(path.join(racine, 'demo.py'))) return { py, racine };
+  return null;
 }
 
 ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points, graine, tirage }) => {
@@ -4115,6 +4129,7 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points
     // Resolve step-1 bridge + python interpreter based on selected engine
     let step1Script;
     let step1Python = 'python';
+    let moteurSkinTokens = null;   // { py, racine } du rig local SkinTokens
     let step1Label;
     let engineSuffix;
     if (rigEngine === 'unirig') {
@@ -4137,20 +4152,16 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points
       // de Puppeteer : elle retombait sur le `python` du systeme, qui dans un
       // paquet Store n'existe pas ou n'a pas torch. L'utilisateur recevait
       // une erreur de processus brute au lieu d'une consigne exploitable.
-      const stPy = [process.env.FABMESH_SKINTOKENS_PY, 'C:\\tmp\\skv\\Scripts\\python.exe',
-                    'C:\\skv\\Scripts\\python.exe']
-        .find(p => p && fs.existsSync(p));
-      const stRoot = app.isPackaged
-        ? path.join(process.resourcesPath, 'SkinTokens')
-        : path.join(__dirname, '..', '..', 'external', 'SkinTokens');
-      if (!stPy || !fs.existsSync(path.join(stRoot, 'demo.py'))) {
-        log.warn('main', 'auto-rig-ai: moteur SkinTokens local absent (python='
-          + (stPy || 'aucun') + ', racine=' + stRoot + ')');
+      const moteur = _moteurRigLocal();
+      if (!moteur) {
+        log.warn('main', 'auto-rig-ai: moteur SkinTokens local absent (ni installe '
+          + 'par l\'assistant dans ' + SKINTOKENS_DIR + ', ni venv de developpement)');
         return { success: false, needsLocalEngine: true, error:
           'The local rig engine is not installed. Switch to Cloud mode to rig '
           + 'this mesh, or install the local engine from Settings.' };
       }
-      step1Python = stPy;
+      step1Python = moteur.py;
+      moteurSkinTokens = moteur;
       step1Label = 'SkinTokens';
       engineSuffix = 'skintokens';
     } else {
@@ -4210,7 +4221,11 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points
     // Step 1: AI skeleton+skin prediction → temp GLB (engine-dependent).
     // Packaged Puppeteer: route the bridge onto the provisioned tree/venv
     // + the shared HF cache (opt-350m config pre-seeded by install-rig).
-    const step1Env = (engineSuffix === 'puppeteer' && app.isPackaged) ? {
+    const step1Env = moteurSkinTokens ? {
+      FABMESH_SKINTOKENS_PY: moteurSkinTokens.py,
+      FABMESH_SKINTOKENS_DIR: moteurSkinTokens.racine,
+      HF_HOME: HF_CACHE_DIR,
+    } : (engineSuffix === 'puppeteer' && app.isPackaged) ? {
       FABMESH_PUPPETEER_ROOT: puppeteerRoot,
       FABMESH_PUPPETEER_PYTHON: puppeteerVenvPython,
       HF_HOME: HF_CACHE_DIR,
@@ -9890,76 +9905,58 @@ ipcMain.handle('wizard:install-deps', async (event) => {
 // from resources, download the 3 checkpoints (~9.6 GB) from HuggingFace.
 // Streams JSONL progress via wizard:rig-progress.
 ipcMain.handle('wizard:install-rig', async (event) => {
-  /* LE MOTEUR DE RIG NE PEUT PAS S'INSTALLER DEPUIS UN PAQUET.
+  /* MOTEUR DE RIG LOCAL = SkinTokens (2026-09-26).
    *
-   * La source du code est cherchee dans `resources/Puppeteer`, or
-   * `package.json` INTERDIT explicitement de l'embarquer (licence
-   * GPL-3.0 + NVIDIA-NC) et `extraResources` n'en contient aucune entree.
-   * Le script partait quand meme : torch 2.7 cu128, torch_scatter,
-   * flash_attn — plusieurs gigaoctets telecharges — puis levait a la
-   * derniere etape « reinstall the app (resources/Puppeteer missing) ».
-   * L'utilisateur payait le telechargement complet pour s'entendre dire
-   * de reinstaller un produit qui ne pourra jamais aboutir.
-   *
-   * On sort donc AVANT le moindre pip quand la source est absente, en
-   * annoncant l'etape comme ignoree et non comme reussie. */
-  const codeSrcTest = app.isPackaged
-    ? path.join(process.resourcesPath, 'Puppeteer')
-    : path.join(__dirname, '..', '..', 'external', 'Puppeteer');
-  if (!fs.existsSync(codeSrcTest)) {
-    log.warn('main', 'install-rig: source absente (' + codeSrcTest + ') — phase ignoree, aucun telechargement lance');
-    event.sender.send('wizard:rig-progress', { step: 'rig-skip', pct: 100, done: true, skipped: true });
-    return { ok: true, skipped: true, reason: 'rig-engine-not-bundled' };
-  }
-
+   * Puppeteer est interdit (Michelangelo GPL-3.0 + PartField NVIDIA-NC) ;
+   * SkinTokens est MIT sauf son dossier michelangelo (GPL-3.0). Son code
+   * est donc TELECHARGE CHEZ SON AUTEUR (GitHub, commit fige) — jamais
+   * embarque — puis corrige comme l'image Modal de production, et ses
+   * poids (MIT) viennent de Hugging Face. Il tourne comme programme separe.
+   * Echec non bloquant : l'assistant continue, le rig passe par le cloud. */
   const destPy = path.join(RIG_PYTHON_DIR, 'python.exe');
-  log.info('main', 'install-rig: START. RIG_PYTHON_DIR=' + RIG_PYTHON_DIR + ' destPy exists=' + fs.existsSync(destPy));
+  log.info('main', 'install-rig: START (SkinTokens). RIG_PYTHON_DIR=' + RIG_PYTHON_DIR + ' dest=' + SKINTOKENS_DIR);
   if (!fs.existsSync(destPy)) {
-    const srcDir = path.dirname(_embeddedPython());
     event.sender.send('wizard:rig-progress', { step: 'rig-copy-python', pct: 0, done: false });
     try {
-      fs.cpSync(srcDir, RIG_PYTHON_DIR, { recursive: true });
+      fs.cpSync(path.dirname(_embeddedPython()), RIG_PYTHON_DIR, { recursive: true });
     } catch (e) {
       log.error('main', 'install-rig: COPY FAILED: ' + (e && e.message));
       return { ok: false, error: 'copy failed: ' + (e && e.message) };
     }
   }
-  const script = path.join(SCRIPTS_DIR, 'wizard_install_rig.py');
-  const codeSrc = app.isPackaged
-    ? path.join(process.resourcesPath, 'Puppeteer')
-    : path.join(__dirname, '..', '..', 'external', 'Puppeteer');
-  log.info('main', 'install-rig: spawning ' + destPy + ' ' + script);
+  const script = path.join(SCRIPTS_DIR, 'wizard_install_skintokens.py');
   return new Promise((resolve, reject) => {
     let stderrBuf = '';
-    const proc = execFile(destPy, [script, '--python', destPy], {
+    let erreurJsonl = null;
+    const proc = execFile(destPy, [script, '--python', destPy, '--dest', SKINTOKENS_DIR], {
       timeout: 0, maxBuffer: 64 * 1024 * 1024,
       env: {
         ...process.env, PYTHONUNBUFFERED: '1',
         HF_HOME: HF_CACHE_DIR,
         HUGGINGFACE_HUB_CACHE: path.join(HF_CACHE_DIR, 'hub'),
-        FABMESH_PUPPETEER_CODE: codeSrc,
-        FABMESH_PUPPETEER_DIR: PUPPETEER_DIR,
       },
     }, (err) => {
       if (err) {
-        log.error('main', 'install-rig: FAILED code=' + err.code + ' msg=' + err.message + ' | stderr tail: ' + stderrBuf.slice(-2000));
-        reject(new Error(err.message + (stderrBuf ? ' | ' + stderrBuf.slice(-400) : '')));
+        const msg = erreurJsonl || err.message;
+        log.error('main', 'install-rig: FAILED ' + msg + ' | stderr tail: ' + stderrBuf.slice(-2000));
+        reject(new Error(String(msg).slice(0, 600)));
       } else {
-        log.info('main', 'install-rig: SUCCESS. rigReady=' + fs.existsSync(path.join(PUPPETEER_DIR, 'skeleton', 'demo.py')));
+        log.info('main', 'install-rig: SUCCESS. rigReady=' + !!_moteurRigLocal());
         resolve({ ok: true });
       }
     });
     let buf = '';
     proc.stdout?.on('data', (d) => {
       buf += d.toString();
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        if (!line) continue;
+      let n;
+      while ((n = buf.indexOf('\n')) >= 0) {
+        const ligne = buf.slice(0, n).trim();
+        buf = buf.slice(n + 1);
+        if (!ligne) continue;
         try {
-          const p = JSON.parse(line);
-          if (p.step) log.info('main', 'install-rig step=' + p.step + ' pct=' + p.pct + (p.error ? ' ERROR=' + p.error : '') + (p.warn ? ' warn=' + p.warn : ''));
+          const p = JSON.parse(ligne);
+          if (p.error) erreurJsonl = p.error;
+          if (p.step) log.info('main', 'install-rig step=' + p.step + ' pct=' + p.pct + (p.error ? ' ERROR=' + p.error : ''));
           event.sender.send('wizard:rig-progress', p);
         } catch (_) {}
       }

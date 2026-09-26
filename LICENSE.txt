@@ -57,6 +57,13 @@ MyFabmesh.AI bundles and depends on third-party open-source software and AI mode
 weights, each governed by its own license. See THIRD_PARTY_LICENSES.txt for
 the full inventory and license terms of those components.
 
+Components licensed under the GNU General Public License (notably the
+optional local auto-rigging engine and the FabMesh scripts that run inside
+it) remain under that license. Nothing in this Agreement restricts the
+rights that license grants you over those components; this Agreement
+applies to them only to the extent the GPL permits. Their source code is
+available at the addresses given in THIRD_PARTY_LICENSES.txt.
+
 The Licensee acknowledges that some third-party AI model licenses (notably
 the Stability AI Community License) impose a revenue threshold above which a
 separate commercial license must be obtained from the third-party rightsholder.

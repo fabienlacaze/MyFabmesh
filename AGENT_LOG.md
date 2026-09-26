@@ -23470,3 +23470,39 @@ JUGEMENT (pas un avis d'avocat) :
   contrat du Store pour ce composant) ; le reste de l'appli reste proprietaire.
   Garde `doNotBundleSkinTokens` ajoutee a package.json ; la note Puppeteer qui
   disait « SkinTokens (MIT) » est corrigee.
+
+## 2026-09-26 — Rig LOCAL du bureau (SkinTokens) + conformite GPL
+
+Demande user : pouvoir utiliser le rig en local sur le bureau, en regle avec
+la GPL (dossier michelangelo de SkinTokens). Backup :
+backup-avant-rig-local-gpl-20260926-225550.
+
+**Conformite GPL.**
+- THIRD_PARTY_LICENSES.txt : notice SkinTokens reecrite (MIT sauf
+  src/model/michelangelo en GPL-3.0, source, poids, usage cloud/bureau,
+  modifications FabMesh, droits GPL) ; notice Puppeteer corrigee (« NOT
+  BUNDLED, NOT USED » — elle disait encore « FabMesh bundles Puppeteer »).
+- LICENSE.txt, section 4 : le contrat ne restreint pas les droits GPL sur ces
+  composants.
+- En-tetes SPDX GPL-3.0-or-later sur les scripts qui tournent DANS le
+  processus du rigger : rig_complet.py, squelette_complet.py,
+  patch_skintokens_transfert.py, skintokens_flash_attn_interface.py (+ copies
+  modal_app synchronisees).
+- Le shim flash-attn vit maintenant dans scripts/ (suivi par git) : l'image
+  Modal le lisait dans external/SkinTokens, NON suivi — un clone neuf du depot
+  ne pouvait pas reconstruire l'image.
+
+**Installeur du rig local** (scripts/wizard_install_skintokens.py, lance par
+wizard:install-rig a la place de l'ancien installeur Puppeteer, interdit) :
+env python-rig (copie du Python embarque) + torch 2.7.0 cu128 + versions
+FIGEES du venv valide (transformers 5.14.1, bpy 5.0.1, open3d 0.19.0...) ;
+code SkinTokens TELECHARGE CHEZ SON AUTEUR (codeload GitHub, commit
+273b691, valide en production) — FabMesh ne redistribue pas la partie GPL ;
+memes correctifs que l'image Modal (SDPA, gradio paresseux, shim,
+patch_skintokens_transfert) chacun verifie ; poids Hugging Face (download.py
+--model, 1,6 Go) ; verification des imports ; marque `.fabmesh_pret` ecrite
+EN DERNIER. main.js : `_moteurRigLocal()` ne propose le rig local qu'une fois
+cette marque presente (sinon cloud, comme avant) et passe l'emplacement au
+pont (FABMESH_SKINTOKENS_PY / _DIR). Assistant : libelles SkinTokens, ~6 Go.
+NON TESTE DE BOUT EN BOUT : l'installation reelle (~6 Go, puis un rig sur le
+GPU du poste) attend le feu vert du user. Echec non bloquant par construction.

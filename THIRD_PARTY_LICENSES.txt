@@ -358,16 +358,11 @@ https://github.com/argosopentech/argos-translate/blob/master/LICENSE
 --------------------------------------------------------------------------------
 License: Apache-2.0
 URL:     https://github.com/chaoyuesong/Puppeteer
-FabMesh bundles Puppeteer (`external/Puppeteer/`) as its default automatic
-skeleton + skinning backend for character/creature rigging. Copyright (c)
-Chaoyue Song et al. (Nanyang Technological University / ByteDance Seed).
-Apache License 2.0. The bundled copy ships WITHOUT its `animation/`,
-`examples/`, `inputs/` and `assets/` directories and without model
-checkpoints (downloaded at runtime). Full license text:
-https://github.com/chaoyuesong/Puppeteer/blob/main/LICENSE
-Puppeteer vendors additional third-party components under `third_partys/`
-(e.g. Michelangelo, PartField), each retaining its own upstream license; see
-those sub-directories for their respective notices.
+NOT BUNDLED, NOT USED. Puppeteer was FabMesh's rigging backend until
+2026-08; it was removed because its default rig embeds Michelangelo
+(GPL-3.0) and PartField (NVIDIA non-commercial). Rigging now uses
+SkinTokens (see the SkinTokens notice below). This entry is kept only to
+document that decision.
 
 --------------------------------------------------------------------------------
  34. PartSAM (3D part segmentation)
@@ -449,12 +444,41 @@ You may use, modify, and redistribute them without restriction.
   provenance of the shipped animation library.
 
 ================================================================================
- SkinTokens / TokenRig — automatic rigging (MIT)
+ SkinTokens / TokenRig — automatic rigging (MIT, with a GPL-3.0 sub-directory)
 ================================================================================
 
-  Source    : VAST-AI-Research — TokenRig / SkinTokens
-  Used for  : skeleton + skin weight prediction (Step 3)
-  License   : MIT
+  Source    : https://github.com/VAST-AI-Research/SkinTokens
+  Weights   : https://huggingface.co/VAST-AI/SkinTokens (MIT)
+  Used for  : skeleton + skin weight prediction (Step 3 — Rig)
+  License   : MIT, EXCEPT the sub-directory `src/model/michelangelo/`, which
+              is derived from Michelangelo
+              (https://github.com/NeuralCarver/Michelangelo) and is licensed
+              under the GNU General Public License v3.0 (GPL-3.0-or-later).
+              Upstream confirmation: SkinTokens issue #9 ("only michelangelo
+              subfolder is marked GPL"); the same sub-directory carries a
+              GPL-3.0 LICENSE in UniRig, by the same authors.
+
+  How FabMesh uses it:
+  - Cloud: the rigging engine runs on MyFabmesh.AI servers; it is not
+    distributed to you.
+  - Desktop (optional local rigging): the first-run setup downloads the
+    SkinTokens source code directly from the upstream repository above, at a
+    pinned commit, and the weights from Hugging Face. The engine runs as a
+    separate program (its own Python process), started by the application.
+  - FabMesh applies small modifications to that downloaded copy (attention
+    implementation, transfer alignment, bone-tail, skin-token and token
+    budget fixes). They are listed and implemented in
+    `scripts/patch_skintokens_transfert.py`; FabMesh's scripts that run
+    inside the engine's process (`scripts/rig_complet.py`,
+    `scripts/squelette_complet.py`, `scripts/patch_skintokens_transfert.py`,
+    `scripts/skintokens_flash_attn_interface.py`) are licensed under
+    GPL-3.0-or-later. Their source is available at
+    https://github.com/fabienlacaze/MyFabmesh (directory `scripts/`).
+
+  Your rights: the GPL-3.0 components remain under the GPL-3.0. Nothing in
+  the MyFabmesh.AI license agreement restricts the rights the GPL-3.0 grants
+  you over them, including to copy, modify and redistribute them under that
+  license. Full text: https://www.gnu.org/licenses/gpl-3.0.txt
 
 ================================================================================
  NVIDIA Kimodo — text-to-motion (Apache-2.0 code, NVIDIA Open Model License)

@@ -118,7 +118,7 @@ image = (
     # les transpositions ; FA-3 renvoie (out, softmax_lse), on rend
     # (out, None) car aucun appelant n'exploite le second element.
     .add_local_file(
-        "external/SkinTokens/flash_attn_interface.py",
+        "scripts/skintokens_flash_attn_interface.py",   # suivi par git (l'ancien chemin ne l'etait pas)
         remote_path=f"{SKINTOKENS_DIR}/flash_attn_interface.py",
         copy=True,          # copy=True : les etapes de build suivantes doivent le voir
     )

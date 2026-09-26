@@ -22,7 +22,10 @@ import subprocess
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(HERE, ".."))
-SKINTOKENS_DIR = os.path.join(PROJECT_ROOT, "external", "SkinTokens")
+# Installe par l'assistant (appli packagee) : chemin fourni par main.js ;
+# en developpement : external/SkinTokens.
+SKINTOKENS_DIR = (os.environ.get("FABMESH_SKINTOKENS_DIR")
+                  or os.path.join(PROJECT_ROOT, "external", "SkinTokens"))
 
 
 def _resolve_python():

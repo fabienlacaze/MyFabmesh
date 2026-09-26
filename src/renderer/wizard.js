@@ -653,20 +653,22 @@ async function _startDownloadInterne() {
   // checkpoints (~9.6 GB, resumable). A failure here does NOT block the
   // wizard: mesh generation works without rigging, so Continue stays
   // available with a clear warning.
+  // Moteur de rig local = SkinTokens (2026-09-26) : code telecharge chez son
+  // auteur (open source, en partie GPL-3.0 — voir Licenses), poids Hugging Face.
   const _RIG_STEPS = {
     'rig-copy-python': 'Preparing the rig Python environment…',
-    'rig-pip-bootstrap': 'Setting up the rig installer…',
     'rig-torch': 'Downloading PyTorch for the rig engine (~3.3 GB)…',
-    'rig-scatter': 'Installing rig libraries (torch-scatter)…',
-    'rig-flash-attn': 'Installing rig libraries (flash-attention)…',
-    'rig-pypi': 'Installing rig libraries…',
-    'rig-code': 'Installing the rig engine code…',
+    'rig-deps': 'Installing rig libraries…',
+    'rig-code': 'Downloading the open-source rig engine from its authors…',
+    'rig-patch': 'Preparing the rig engine…',
+    'rig-weights': 'Downloading the rig model (1.6 GB)…',
+    'rig-check': 'Checking the rig engine…',
     'done': 'Rig engine ready ✓',
   };
   list.innerHTML += `
     <div class="wiz-dl-row in-progress" data-id="__rigenv">
       <span class="name" id="rigenv-name">Installing the rig engine (auto-rig)…</span>
-      <span class="size">~14 GB</span>
+      <span class="size">~6 GB</span>
       <div class="bar"><div class="bar-fill"></div></div>
     </div>`;
   window.wizardAPI.onRigProgress((p) => {

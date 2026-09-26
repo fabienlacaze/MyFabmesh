@@ -1,3 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 MyFabmesh.AI contributors
+# Tourne dans le processus du moteur de rig SkinTokens, dont le dossier
+# src/model/michelangelo est sous GPL-3.0 : ce fichier est distribue sous
+# GPL-3.0 ou ulterieure. Voir THIRD_PARTY_LICENSES.txt (notice SkinTokens).
 """SQUELETTE COMPLET d'un rig produit par le rigger IA — generique, sans aucune
 connaissance de l'espece (araignee, vache, dragon, humain : meme code).
 
