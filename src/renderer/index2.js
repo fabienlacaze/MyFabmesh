@@ -23761,6 +23761,10 @@ function _ptsMajBoutons() {
   if (refaire) refaire.disabled = _pts.futur.length === 0 && (typeof lmHistoryFuture === 'undefined' || lmHistoryFuture.length === 0);
   const regen = document.getElementById('pts-regenerer');
   if (regen) regen.disabled = !_pts.actif || !lmFsModel || !_pts.points.length;
+  // prix affiche : squelette impose (articulation deplacee) = RESKIN_COST (6)
+  // du worker, sinon RIG_COST (10)
+  const prix = document.querySelector('#pts-regenerer .cloud-cost-badge, #pts-regenerer .gcp-val');
+  if (prix) prix.textContent = _pts.osModifies ? '6' : '10';
 }
 function ptsAnnuler() {
   if (!_pts.passe.length) return false;
@@ -23827,9 +23831,10 @@ function _ptsRayon(canevas, cam, e) {
   return LM_RAYCASTER;
 }
 
-/** Point sous le curseur, au MILIEU de l'epaisseur (facon AccuRIG) : entre
- *  la face d'entree et la face de sortie du rayon. Un point pose a la
- *  surface serait hors du volume que le moteur parcourt. */
+/** NOUVEAU point sous le curseur, au MILIEU de l'epaisseur : entre la face
+ *  d'entree et la face de sortie du rayon (un point pose a la surface serait
+ *  hors du volume que le moteur parcourt). Le GLISSER, lui, se fait dans le
+ *  plan de la vue, profondeur figee. */
 function _ptsCentreSous(canevas, cam, e) {
   const rc = _ptsRayon(canevas, cam, e);
   const maillages = [];
@@ -23898,7 +23903,15 @@ function _ptsLierCanevas(canevas, camera) {
     }
     const c = _ptsSousCurseur(canevas, cam, e);
     if (!c) return;                          // rien sous le curseur : la camera tourne
-    _pts.glisse = { type: c.type, id: c.id, canevas, cam, bouge: false };
+    // Glisser dans le PLAN DE LA VUE passant par la position de depart : la
+    // coordonnee perpendiculaire a la vue reste FIGEE (face : X/Y, profil :
+    // Z/Y), comme AccuRIG. L'ancien « milieu de l'epaisseur sous le curseur »
+    // sautait sur un visage (nez, casque, meches) — impossible a regler.
+    const depart = c.type === 'os'
+      ? _ptsVersMonde(_pts.os[c.id].p)
+      : _pts.marqueurs.get(c.id).boule.position.clone();
+    const plan = new THREE.Plane().setFromNormalAndCoplanarPoint(cam.getWorldDirection(new THREE.Vector3()), depart);
+    _pts.glisse = { type: c.type, id: c.id, canevas, cam, plan, bouge: false };
     if (c.type === 'point') _ptsSelectionner(c.id);
     if (lmFsControls) lmFsControls.enabled = false;
     if (lmFsControlsB) lmFsControlsB.enabled = false;
@@ -23910,7 +23923,7 @@ function _ptsLierCanevas(canevas, camera) {
     if (!_pts.actif) return;
     const g = _pts.glisse;
     if (g && g.canevas === canevas) {
-      const w = _ptsCentreSous(canevas, g.cam, e);
+      const w = _ptsRayon(canevas, g.cam, e).ray.intersectPlane(g.plan, new THREE.Vector3());
       if (w && g.type === 'os') {
         if (!g.bouge) { _ptsMemoriser(); g.bouge = true; }
         _ptsBougerOs(g.id, _ptsVersLocal(w));
@@ -25462,6 +25475,8 @@ window._applyRigAnimPills = function () {
     // 10 depuis le 2026-09-26 (RIG_COST du worker, squelette complet) : la
     // pastille etait restee a 5 apres la hausse — prix affiche faux.
     setPill(document.getElementById('ws-generate-rig-ai'), 10);
+    setPill(document.getElementById('ws-rig-reskin-btn'), 6);    // RESKIN_COST
+    setPill(document.getElementById('pts-regenerer'), 10);
     setPill(document.getElementById('ws-generate-anim'), 5);
     const sel = document.getElementById('ws-anim-engine');
     const opt = sel?.querySelector('option[value="rokoko_library"]');

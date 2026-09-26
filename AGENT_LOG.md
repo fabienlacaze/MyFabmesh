@@ -23535,3 +23535,23 @@ corps /api/auto-rig avec 53 os dont UN seul deplace (0,032), parents
 identiques ; « Re-skin only » -> squelette du rig tel quel, sans points ;
 aucune erreur de page. Bouton bureau demasque et retire de la liste des
 outils caches en mode cloud. Prix : RIG_COST (10) pour l'instant.
+
+## 2026-09-26 — Editeur : glisser a profondeur FIGEE + prix de la peau seule
+
+**Glisser** (retour user avec captures : « quand je bouge les points sur des
+faces orthonormees il faut que ca reste statique perpendiculairement... c'est
+impossible de regler comme ca ») : le glisser replacait l'element au MILIEU DE
+L'EPAISSEUR sous le curseur ; sur un visage (nez, casque, meches) ce milieu
+sautait et l'articulation partait sur le nez en vue de profil. Desormais, points
+ET articulations se deplacent dans le PLAN DE LA VUE passant par leur position
+de depart : la coordonnee perpendiculaire a la vue reste figee (face : X/Y,
+profil : Z/Y), comme AccuRIG. Le milieu de l'epaisseur ne sert plus qu'a poser
+un NOUVEAU point. Verifie en navigateur : articulation glissee en vue de face ->
+dX -0,030, dY +0,020, dZ 0,000000, les 52 autres inchangees.
+
+**Prix** : squelette impose (peau seule, articulations deplacees) = RESKIN_COST
+6 credits (~135 s d'A10G mesures contre ~215 s pour un rig : ~63 %), marge
+positive au cout reel. Worker : cout et estimation par mode dans handleAutoRig
+(debit, remboursement, enregistrement, ligne de travail) ; le remboursement
+du statut relit deja le montant enregistre. Pastilles : « Re-skin only » 6 ;
+bouton de l'editeur 10, ou 6 des qu'une articulation a bouge.

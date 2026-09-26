@@ -642,6 +642,8 @@ window.__optionsMortesCloud = new Set([]);
     // meme prix que le rig (RIG_COST du worker, absent de /api/pricing :
     // a changer avec lui).
     'pts-regenerer':       10,
+    // Peau seule (squelette du rig garde tel quel) : RESKIN_COST du worker.
+    'ws-rig-reskin-btn':   6,
     // Manual tools — only Draw Mask actually triggers a Modal call
     // (mask_inpaint, 3 cr) when the user clicks "Apply" inside the
     // modal. The dance of painting the mask itself is canvas-only and

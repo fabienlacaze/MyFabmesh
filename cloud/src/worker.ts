@@ -11955,6 +11955,11 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
  *  et le cout Modal reel mesure est ~2,5 x l'estimation : a 5 credits
  *  (~0,20 $) la marge devenait negative. */
 const RIG_COST = 10;
+/** Peau seule / squelette impose (2026-09-26) : aucun tirage de l'IA ; ~135 s
+ *  d'A10G mesures contre ~215 s pour un rig complet -> 6 credits (~63 % du
+ *  rig), marge positive au cout reel (~2,5 x l'estimation). */
+const RESKIN_COST = 6;
+const ESTIMATED_USD_RESKIN = 0.08;  // ~A10G $0.000542/s × ~135 s + R2 ops
 const ESTIMATED_USD_RIG = 0.14;  // ~A10G $0.000542/s × ~250 s (squelette complet : 2 tirages + peau, 2026-09-26 ; avant ~90 s) + R2 ops
 
 /** Job record persisted by /api/auto-rig and read by /api/auto-rig-status.
@@ -12226,19 +12231,23 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
     };
   }
 
-  const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_RIG, user.id);
+  // Squelette impose (peau seule / articulations editees) : aucun tirage de
+  // l'IA, donc prix reduit. Le remboursement relit le montant enregistre.
+  const cout = squelette ? RESKIN_COST : RIG_COST;
+  const estime = squelette ? ESTIMATED_USD_RESKIN : ESTIMATED_USD_RIG;
+  const remainingBudget = await checkAndIncrementModalSpend(env, estime, user.id);
   if (remainingBudget == null) {
     return err(429, 'daily Cloud GPU budget reached. Try again after midnight UTC.');
   }
   const refundRigSpend = async () => {
-    await refundModalSpend(env, ESTIMATED_USD_RIG, user.id);
+    await refundModalSpend(env, estime, user.id);
   };
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
     await refundRigSpend();
     return err(429, 'you have reached the per-user daily generation limit.');
   }
-  const remaining = await spendCredits(env, user.id, RIG_COST);
+  const remaining = await spendCredits(env, user.id, cout);
   if (remaining == null) {
     await refundRigSpend();
     return err(402, 'insufficient credits');
@@ -12277,7 +12286,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
     if (!jobId) throw new Error('rig-start returned no job_id');
     console.log(`[auto-rig] spawn dt=${Date.now() - t0}ms job_id=${jobId} user=${user.id}`);
   } catch (e: unknown) {
-    await addCredits(env, user.id, RIG_COST);
+    await addCredits(env, user.id, cout);
     await refundRigSpend();
     const msg = e instanceof Error ? e.message : String(e);
     console.error('[auto-rig.spawn]', msg, e);
@@ -12290,8 +12299,8 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
   try {
     await putRigJobRecord(env, jobId, {
       user_id: user.id,
-      modal_spend: ESTIMATED_USD_RIG,
-      credits: RIG_COST,
+      modal_spend: estime,
+      credits: cout,
       mesh_url: meshUrl,
       created_at: Date.now(),
     });
@@ -12330,10 +12339,10 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
     await supabaseAdmin(env).from('jobs').insert({
       id: jobId, user_id: user.id,
       asset_type: 'rig', mode: 'rig', seed: 0,
-      credit_cost: RIG_COST, status: 'processing',
+      credit_cost: cout, status: 'processing',
       type: 'rig',
       project_name: projetDeduit,
-      cost_usd: ESTIMATED_USD_RIG,
+      cost_usd: estime,
       options: {
         // Pays et provenance : ces insertions n'ont pas le meme chemin que
         // logOperation, elles etaient donc les seules absentes des
@@ -12345,7 +12354,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
         ...(points ? { squelette_points: points.length } : {}),
         ...(squelette ? { squelette_impose: squelette.joints.length } : {}),
         // Without cost_usd the admin stats fell back to 0 → 100% margin.
-        cost_usd: ESTIMATED_USD_RIG,
+        cost_usd: estime,
       },
       created_at: new Date().toISOString(),
     });
