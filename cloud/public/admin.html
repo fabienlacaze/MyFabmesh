@@ -566,6 +566,30 @@
 
     <!-- Tab: Finances -->
     <div class="tab-panel" data-panel="finance">
+      <!-- ACHATS STRIPE (2026-09-27) : l'historique complet, qui manquait. -->
+      <div class="chart-card" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div class="label" style="text-transform:uppercase; letter-spacing:1px; font-size:11px; color:var(--text-2);">💳 Achats Stripe</div>
+          <button class="btn" onclick="loadStripePurchases()">🔄 Actualiser</button>
+        </div>
+        <div id="achats-resume" style="margin-top:8px; font-size:13px;">—</div>
+        <div style="overflow-x:auto; margin-top:8px;">
+          <table id="achats-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Compte</th>
+                <th>Pack</th>
+                <th class="num">Encaissé (€)</th>
+                <th class="num">Crédits</th>
+                <th>État</th>
+                <th>Stripe</th>
+              </tr>
+            </thead>
+            <tbody><tr><td colspan="7" class="muted">—</td></tr></tbody>
+          </table>
+        </div>
+      </div>
       <!-- STRIPE RECONCILIATION — hidden entirely when count == 0 so the tab
            stays calm in the normal case. A row listed here means Stripe took
            the customer's money but the credit grant never completed: the
@@ -786,7 +810,7 @@
         <div style="background:var(--bg-1); border:2px solid var(--accent); border-radius:12px; padding:16px; margin-bottom:14px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
           <div style="flex:1; min-width:200px;">
             <div style="font-weight:700; font-size:14px;">🎚️ Master switch</div>
-            <div style="color:var(--text-2); font-size:12px; margin-top:2px;">One click flips Modal + Site + Total blackout together.</div>
+            <div style="color:var(--text-2); font-size:12px; margin-top:2px;">One click flips Modal + Stripe + Site + Marketplace together.</div>
             <div id="master-state-line" style="font-size:12px; margin-top:4px;"></div>
           </div>
           <button class="btn" id="master-kill-btn" style="background:var(--err); border-color:var(--err); font-size:14px; padding:10px 18px;"
@@ -812,6 +836,10 @@
           <div id="totp-status-line" style="color:var(--text-2);">Loading…</div>
           <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn btn-accent" id="totp-enroll-btn" style="display:none;" onclick="startTotpEnroll()">📱 Enroll Microsoft Authenticator</button>
+            <!-- Remplacement : exige un code de l'authenticator ACTUEL (voir
+                 handleAdminTotpConfirm). Sert a changer de telephone, et a
+                 renouveler un secret expose (incident r2.dev du 18/08). -->
+            <button class="btn" id="totp-replace-btn" style="display:none;" onclick="startTotpEnroll(true)">🔄 Replace authenticator</button>
             <!-- Bouton « Disable 2FA » RETIRE le 2026-07-27 : on ne doit pas
                  pouvoir desactiver l'authentification depuis le dashboard.
                  L'endpoint refuse desormais (403 totp_disable_unavailable).
@@ -837,7 +865,13 @@
               <div style="color:var(--text-2); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Secret (manual entry)</div>
               <span id="totp-secret-text"></span>
             </div>
-            <label style="display:block; font-size:12px; color:var(--text-2); margin-bottom:4px;">Confirmation code</label>
+            <div id="totp-current-row" style="display:none;">
+              <label for="totp-current-input" style="display:block; font-size:12px; color:var(--text-2); margin-bottom:4px;">Code from your CURRENT authenticator entry</label>
+              <input id="totp-current-input" type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code"
+                     placeholder="123 456"
+                     style="width:100%; box-sizing:border-box; padding:10px 14px; background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:6px; font-size:18px; letter-spacing:6px; text-align:center; font-family:ui-monospace,monospace; margin-bottom:10px;" />
+            </div>
+            <label for="totp-confirm-input" style="display:block; font-size:12px; color:var(--text-2); margin-bottom:4px;">Code from the NEW entry (confirmation)</label>
             <input id="totp-confirm-input" type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code"
                    placeholder="123 456"
                    style="width:100%; box-sizing:border-box; padding:10px 14px; background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:6px; font-size:18px; letter-spacing:6px; text-align:center; font-family:ui-monospace,monospace; margin-bottom:8px;" />
@@ -3187,10 +3221,11 @@
         `;
       }).join('');
       // Show a warning badge on the tab when something's disabled.
+      // Le Marketplace compte aussi : l'interrupteur general le pilote.
       const allOn = _servicesState.modal_enabled && _servicesState.site_enabled
-                  && _servicesState.stripe_enabled;
+                  && _servicesState.stripe_enabled && _servicesState.market_enabled !== false;
       const allOff = !_servicesState.modal_enabled && !_servicesState.site_enabled
-                  && !_servicesState.stripe_enabled;
+                  && !_servicesState.stripe_enabled && _servicesState.market_enabled === false;
       const badge = document.getElementById('services-badge');
       if (badge) badge.style.display = allOn ? 'none' : '';
       // Master switch labels — gray out the action that's already
@@ -3210,8 +3245,8 @@
     function masterFlip(enabled) {
       const verb = enabled ? 'Enable everything' : 'Stop everything';
       const detail = enabled
-        ? 'Re-enables Modal + Stripe + Site in one shot. Every user can use the app again within ~30s.'
-        : 'Disables Modal + Stripe + Site. Users see the maintenance page; /admin keeps working.';
+        ? 'Re-enables Modal + Stripe + Site + Marketplace in one shot. Every user can use the app again within ~30s.'
+        : 'Disables Modal + Stripe + Site + Marketplace. Users see the maintenance page; /admin keeps working.';
       confirmAction(verb + '?', detail, async () => {
         const r = await fetch('/api/admin/services', {
           method: 'POST', credentials: 'include',
@@ -3310,35 +3345,49 @@
        TOTP 2FA — Microsoft Authenticator enrolment / disable
        ═══════════════════════════════════════════════════════════════ */
     let _totpDraftSecret = null;
+    let _totpRemplacement = false;
 
     async function refreshTotpStatus() {
       const line = document.getElementById('totp-status-line');
       const enrollBtn = document.getElementById('totp-enroll-btn');
-      const disableBtn = document.getElementById('totp-disable-btn');
+      const replaceBtn = document.getElementById('totp-replace-btn');
+      // Le bouton « Disable 2FA » a ete RETIRE du balisage le 2026-07-27, mais
+      // ce code l'utilisait encore sans test : TypeError, attrapee plus bas,
+      // et la ligne d'etat affichait l'erreur au lieu de « 2FA enabled ».
+      const montrer = (el, oui) => { if (el) el.style.display = oui ? '' : 'none'; };
       try {
         const r = await fetch('/api/admin/totp/status', { credentials: 'include' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
         if (j.enrolled) {
           const when = j.enrolled_at ? new Date(j.enrolled_at).toLocaleString() : '?';
+          // Secret enrole avant la fermeture de l'acces public r2.dev (18/08) :
+          // il etait lisible par n'importe qui, il faut le renouveler.
+          const expose = j.enrolled_at && Date.parse(j.enrolled_at) < Date.parse('2026-08-19T00:00:00Z');
           line.innerHTML = `<span style="color:var(--ok); font-weight:700;">✓ 2FA enabled</span>
-            <span style="color:var(--text-2);"> — enrolled ${escapeHtml(j.email || '')} on ${escapeHtml(when)}</span>`;
-          enrollBtn.style.display = 'none';
-          disableBtn.style.display = '';
+            <span style="color:var(--text-2);"> — enrolled ${escapeHtml(j.email || '')} on ${escapeHtml(when)}</span>`
+            + (expose ? `<div style="color:var(--warn); margin-top:6px;">⚠ This secret was stored in the bucket while it was publicly readable (fixed on 18/08). Replace your authenticator entry.</div>` : '');
+          montrer(enrollBtn, false);
+          montrer(replaceBtn, true);
         } else {
           line.innerHTML = '<span style="color:var(--warn); font-weight:700;">⚠ 2FA not configured</span>'
             + '<span style="color:var(--text-2);"> — anyone who knows the admin password can reach this dashboard.</span>';
-          enrollBtn.style.display = '';
-          disableBtn.style.display = 'none';
+          montrer(enrollBtn, true);
+          montrer(replaceBtn, false);
         }
       } catch (e) {
         line.innerHTML = `<span style="color:var(--err)">${escapeHtml(e?.message || e)}</span>`;
       }
     }
 
-    async function startTotpEnroll() {
+    async function startTotpEnroll(remplacement) {
       const err = document.getElementById('totp-enroll-err');
       err.style.display = 'none';
+      _totpRemplacement = !!remplacement;
+      const ligneActuel = document.getElementById('totp-current-row');
+      if (ligneActuel) ligneActuel.style.display = _totpRemplacement ? '' : 'none';
+      const champActuel = document.getElementById('totp-current-input');
+      if (champActuel) champActuel.value = '';
       try {
         const r = await fetch('/api/admin/totp/setup', { method: 'POST', credentials: 'include' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -3356,7 +3405,7 @@
         qrEl.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 1 });
         document.getElementById('totp-confirm-input').value = '';
         document.getElementById('totp-enroll-overlay').style.display = 'flex';
-        setTimeout(() => document.getElementById('totp-confirm-input').focus(), 100);
+        setTimeout(() => document.getElementById(_totpRemplacement ? 'totp-current-input' : 'totp-confirm-input').focus(), 100);
       } catch (e) {
         showAdminInfo('Setup failed', e?.message || String(e), 'err');
       }
@@ -3365,10 +3414,11 @@
     async function confirmTotpEnroll() {
       const err = document.getElementById('totp-enroll-err');
       const codeInput = document.getElementById('totp-confirm-input');
-      const code = codeInput.value.trim();
+      const code = codeInput.value.trim().replace(/\s/g, '');
+      const codeActuel = (document.getElementById('totp-current-input')?.value || '').trim().replace(/\s/g, '');
       err.style.display = 'none';
-      if (!/^\d{6}$/.test(code)) {
-        err.textContent = 'Code must be 6 digits.';
+      if (!/^\d{6}$/.test(code) || (_totpRemplacement && !/^\d{6}$/.test(codeActuel))) {
+        err.textContent = _totpRemplacement ? 'Both codes must be 6 digits.' : 'Code must be 6 digits.';
         err.style.display = 'block';
         return;
       }
@@ -3376,10 +3426,15 @@
         const r = await fetch('/api/admin/totp/confirm', {
           method: 'POST', credentials: 'include',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ secret: _totpDraftSecret, code }),
+          body: JSON.stringify({ secret: _totpDraftSecret, code,
+                                 current_code: _totpRemplacement ? codeActuel : undefined }),
         });
         if (r.status === 401) {
-          err.textContent = 'Wrong code, try again.';
+          let detail = '';
+          try { detail = (await r.json()).error || ''; } catch (_) {}
+          err.textContent = /current/i.test(detail)
+            ? 'The code from your CURRENT authenticator entry is wrong (or missing).'
+            : 'Wrong code for the NEW entry, try again.';
           err.style.display = 'block';
           codeInput.select();
           return;
@@ -3387,7 +3442,10 @@
         if (!r.ok) throw new Error('HTTP ' + r.status);
         _totpDraftSecret = null;
         document.getElementById('totp-enroll-overlay').style.display = 'none';
-        showAdminInfo('2FA enabled', 'From now on every admin login will need your Authenticator code.', 'ok');
+        showAdminInfo(_totpRemplacement ? 'Authenticator replaced' : '2FA enabled',
+          _totpRemplacement
+            ? 'The old entry no longer works. Delete it from your Authenticator app; use the new one from now on.'
+            : 'From now on every admin login will need your Authenticator code.', 'ok');
         refreshTotpStatus();
       } catch (e) {
         err.textContent = e?.message || String(e);
@@ -4087,6 +4145,49 @@
       if (/^fabmesh-|test|banc|diag/.test(app)) return "Tests et bancs d'essai";
       return app;
     }
+    async function loadStripePurchases() {
+      const tbody = document.querySelector('#achats-table tbody');
+      const resume = document.getElementById('achats-resume');
+      if (!tbody) return;
+      try {
+        const r = await fetch('/api/admin/payments', { credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        const etats = {
+          credite: ['Crédité', 'var(--ok)'],
+          rembourse_partiel: ['Remboursé en partie', 'var(--warn)'],
+          rembourse: ['Remboursé', 'var(--err)'],
+          non_rapproche: ['Payé, crédits NON versés', 'var(--err)'],
+        };
+        if (resume) {
+          resume.innerHTML = j.count
+            ? `<b>${j.count}</b> achat(s), <b>${j.acheteurs}</b> acheteur(s), <b>${(Number(j.total_encaisse_eur) || 0).toFixed(2)} €</b> encaissés.`
+              + (j.achats.some((a) => a.test) ? ' <span class="muted">(dont paiements en mode TEST Stripe)</span>' : '')
+            : 'Aucun achat pour l\'instant.';
+        }
+        tbody.innerHTML = j.count ? j.achats.map((a) => {
+          const [libelle, couleur] = etats[a.etat] || [a.etat, ''];
+          const sid = a.stripe_id || '';
+          const lien = sid.startsWith('cs_')
+            ? `https://dashboard.stripe.com/${a.test ? 'test/' : ''}checkout/sessions/${encodeURIComponent(sid)}`
+            : sid.startsWith('in_') ? `https://dashboard.stripe.com/invoices/${encodeURIComponent(sid)}` : '';
+          const credits = a.credits_origine != null && a.credits_origine !== a.credits
+            ? `${a.credits} <span class="muted">/ ${a.credits_origine}</span>` : `${a.credits}`;
+          return `<tr>
+            <td style="white-space:nowrap;">${escapeHtml(fmtDate(a.date))}</td>
+            <td>${escapeHtml(a.email || '—')}</td>
+            <td>${escapeHtml(a.pack || '—')}${a.abonnement ? ' <span class="muted">(abonnement)</span>' : ''}${a.test ? ' <span class="muted">· test</span>' : ''}</td>
+            <td class="num">${(Number(a.encaisse_eur) || 0).toFixed(2)}</td>
+            <td class="num">${credits}</td>
+            <td style="color:${couleur}; white-space:nowrap;">${escapeHtml(libelle)}</td>
+            <td>${lien ? `<a href="${escapeHtml(lien)}" target="_blank" rel="noopener">ouvrir ↗</a>` : '<span class="muted">—</span>'}</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="7" class="muted">Aucun achat.</td></tr>';
+      } catch (e) {
+        if (resume) resume.innerHTML = `<span style="color:var(--err)">${escapeHtml(e.message || String(e))}</span>`;
+      }
+    }
+
     async function loadModalCredits() {
       try {
         const r = await fetch('/api/admin/modal-credits', { credentials: 'include' });
@@ -4313,6 +4414,7 @@
       tab?.addEventListener('click', () => {
         loadModalCredits();
         loadUnreconciledPayments();
+        loadStripePurchases();
       });
       setInterval(() => {
         if (document.hidden) return;

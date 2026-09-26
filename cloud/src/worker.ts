@@ -16743,6 +16743,66 @@ function _packPayout(packId: string | null | undefined): { credits: number; eur:
   return p ? { credits: p.credits, eur: p.euros } : null;
 }
 
+/** GET /api/admin/payments — ADMIN ONLY. Historique COMPLET des achats Stripe.
+ *
+ *  Ajoute le 2026-09-27 : « je n'ai pas de suivi des achats Stripe realises »
+ *  (user). L'admin n'affichait qu'un total encaisse et la liste des paiements
+ *  NON rapproches ; rien ne permettait de voir qui avait achete quoi, quand,
+ *  ni ce qui avait ete rembourse. L'etat est deduit de la ligne :
+ *  - credits > 0 et credits = credits_origine (ou pas d'origine) : credite ;
+ *  - credits < credits_origine : rembourse / litige (partiel ou total) ;
+ *  - credits = 0 sans origine : non rapproche (argent pris, credits absents). */
+async function handleAdminPayments(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  const sb = supabaseAdmin(env);
+  // `credits_origine` peut ne pas exister (voir le litige plus haut) : repli.
+  let res = await sb.from('payments')
+    .select('id, stripe_session_id, user_id, pack_id, credits, credits_origine, amount_eur, created_at')
+    .order('created_at', { ascending: false }).limit(1000);
+  if (res.error) {
+    res = await sb.from('payments')
+      .select('id, stripe_session_id, user_id, pack_id, credits, amount_eur, created_at')
+      .order('created_at', { ascending: false }).limit(1000) as typeof res;
+  }
+  if (res.error) return err(500, res.error.message);
+  const rows = (res.data || []) as Array<{
+    id: unknown; stripe_session_id: string | null; user_id: string | null; pack_id: string | null;
+    credits: number | null; credits_origine?: number | null; amount_eur: number | null; created_at: string | null;
+  }>;
+  const userIds = [...new Set(rows.map((p) => p.user_id).filter((x): x is string => !!x))];
+  const emails = new Map<string, string | null>();
+  if (userIds.length) {
+    const { data: profiles } = await sb.from('profiles').select('id, email').in('id', userIds);
+    for (const p of (profiles || []) as Array<{ id: string; email: string | null }>) emails.set(p.id, p.email);
+  }
+  const achats = rows.map((p) => {
+    const credits = Number(p.credits ?? 0);
+    const origine = p.credits_origine != null ? Number(p.credits_origine) : null;
+    const etat = credits <= 0 && origine == null ? 'non_rapproche'
+      : origine != null && credits <= 0 ? 'rembourse'
+      : origine != null && credits < origine ? 'rembourse_partiel'
+      : 'credite';
+    const sid = String(p.stripe_session_id || '');
+    const pack = (PACKS as Record<string, { name: string; euros: number; credits: number; mode: string } | undefined>)[String(p.pack_id ?? '')];
+    return {
+      id: p.id, date: p.created_at, email: p.user_id ? (emails.get(p.user_id) ?? null) : null,
+      pack_id: p.pack_id, pack: pack?.name ?? p.pack_id, abonnement: pack?.mode === 'subscription' || sid.startsWith('in_'),
+      prix_pack_eur: pack?.euros ?? null, encaisse_eur: Number(p.amount_eur ?? 0),
+      credits, credits_origine: origine, etat,
+      stripe_id: sid || null, test: /^cs_test_/.test(sid),
+    };
+  });
+  const credites = achats.filter((a) => a.etat !== 'non_rapproche');
+  return json({
+    ok: true,
+    count: achats.length,
+    total_encaisse_eur: +credites.reduce((t, a) => t + a.encaisse_eur, 0).toFixed(2),
+    acheteurs: new Set(achats.map((a) => a.email).filter(Boolean)).size,
+    achats,
+  });
+}
+
 /** GET /api/admin/payments/unreconciled — ADMIN ONLY.
  *
  *  _processPayment (Stripe webhook) INSERTs a placeholder row
@@ -17157,18 +17217,32 @@ async function handleAdminTotpSetup(req: Request, env: Env): Promise<Response> {
 async function handleAdminTotpConfirm(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
-  let body: { secret?: string; code?: string };
-  try { body = await req.json() as { secret?: string; code?: string }; } catch { return err(400, 'bad json'); }
+  let body: { secret?: string; code?: string; current_code?: string };
+  try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
   const secret = String(body.secret || '').trim();
   const code = String(body.code || '').trim();
   if (!secret || !code) return err(400, 'secret + code required');
+  /* REMPLACER UN SECRET EXISTANT EXIGE LE CODE ACTUEL (2026-09-27).
+   *
+   * Cette route ecrasait le secret en place sans rien demander de plus que la
+   * session admin : un cookie vole suffisait a y enroler SON telephone, et a
+   * garder l'acces en evincant le proprietaire. La desactivation web est
+   * refusee depuis le 27/07 pour cette raison ; le remplacement restait ouvert.
+   * Desormais, s'il existe deja un secret, il faut un code valide de
+   * l'authenticator ACTUEL (preuve de possession). */
+  const actuel = await _getAdminTotpSecret(env);
+  if (actuel) {
+    const codeActuel = String(body.current_code || '').trim();
+    if (!codeActuel) return err(401, 'current_code_required');
+    if (!(await _totpVerify(actuel, codeActuel))) return err(401, 'invalid current code');
+  }
   if (!(await _totpVerify(secret, code))) return err(401, 'invalid code');
   await env.MESHES.put(TOTP_KEY, JSON.stringify({
     secret,
     enrolled_email: guard.email,
     enrolled_at: new Date().toISOString(),
   }));
-  await _auditLog(env, { req, actorEmail: guard.email, action: 'totp_enroll' });
+  await _auditLog(env, { req, actorEmail: guard.email, action: actuel ? 'totp_replace' : 'totp_enroll' });
   return json({ ok: true });
 }
 
@@ -17362,6 +17436,23 @@ async function handleAdminServicesToggle(req: Request, env: Env): Promise<Respon
       };
   await env.MESHES.put(SERVICE_FLAGS_KEY, JSON.stringify(next));
   _invalidateServiceFlagsCache();
+  /* « STOP EVERYTHING » ARRETE AUSSI LE MARKETPLACE (2026-09-27).
+   *
+   * Le Marketplace a son propre interrupteur (_meta/market_killswitch.json,
+   * semantique inversee : enabled = COUPE). L'interrupteur general ne le
+   * touchait pas : apres « Stop everything », l'admin le montrait toujours
+   * actif, et « Enable everything » ne le rallumait pas davantage. Constate
+   * par le user. Le general pilote desormais les QUATRE, dans les deux sens. */
+  if (service === 'all') {
+    const rec: MarketKillSwitch = {
+      enabled: !enabled,
+      reason: enabled ? '' : 'Stop everything (interrupteur general)',
+      set_at: new Date().toISOString(),
+      set_by: guard.email || guard.id,
+    };
+    await env.MESHES.put('_meta/market_killswitch.json', JSON.stringify(rec),
+                         { httpMetadata: { contentType: 'application/json' } });
+  }
   await _auditLog(env, {
     req, actorEmail: guard.email,
     action: 'toggle_service', target: service,
@@ -18891,6 +18982,7 @@ export default {
         // /api/admin/users/<id>/... patterns further down the chain.
         if (pathname === '/api/admin/users/credits'   && method === 'POST') return await handleAdminAdjustCredits(req, env);
         if (pathname === '/api/admin/badges'          && method === 'GET')  return await handleAdminBadges(req, env);
+        if (pathname === '/api/admin/payments'              && method === 'GET')  return await handleAdminPayments(req, env);
         if (pathname === '/api/admin/payments/unreconciled' && method === 'GET')  return await handleAdminUnreconciledPayments(req, env);
         if (pathname === '/api/admin/payments/reconcile'    && method === 'POST') return await handleAdminReconcilePayment(req, env);
         if (pathname === '/api/admin/services'        && method === 'GET')  return await handleAdminServices(req, env);
