@@ -630,9 +630,9 @@ window.__optionsMortesCloud = new Set([]);
     // modale annonce noir sur blanc.
     'ws-outfit-btn':        6,
     // /api/recolor — CLIPSeg + virage HSV, aucune diffusion : tres court.
-    'ws-recolor-btn':       2,
+    'ws-recolor-btn':       3,
     // /api/tex-variant — ControlNet-Tile, moteur de l'outil Age.
-    'ws-age-btn':           2,
+    'ws-age-btn':           3,
     'ws-resolution-btn':    2,   // /api/upscale-image — LANCZOS + SDXL refine
     // Style: when the user picks an entry in the style dropdown,
     // index2.js:4754 calls API.img2img with the style as prompt →
@@ -663,10 +663,10 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-aligntex-btn':     1,   // Wave 4.2 (no-op for now)
     'ws-mesh-material-btn':     1,   // Wave 4.2 (PBR normalize)
     'ws-mesh-retexture-btn':    1,   // Wave 4.2 (atlas swap)
-    'ws-mesh-texvar-btn':       2,   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
-    'ws-mesh-enhance-tex-btn':  1,   // Real-ESRGAN sur l'atlas (/api/mesh-enhance-tex)
-    'ws-mesh-name-btn':         1,   // rendu isole + CLIP-L (/api/mesh-name-parts)
-    'ws-mesh-region-retex-btn': 2,   // SDXL Inpaint de l'atlas sous masque UV (/api/mesh-region-retex)
+    'ws-mesh-texvar-btn':       3,   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
+    'ws-mesh-enhance-tex-btn':  3,   // Real-ESRGAN sur l'atlas (/api/mesh-enhance-tex)
+    'ws-mesh-name-btn':         3,   // rendu isole + CLIP-L (/api/mesh-name-parts)
+    'ws-mesh-region-retex-btn': 3,   // SDXL Inpaint de l'atlas sous masque UV (/api/mesh-region-retex)
     'ws-mesh-segment-btn':      15,  // SAMPart3D part-seg — A100 ~8 min/mesh
   };
 

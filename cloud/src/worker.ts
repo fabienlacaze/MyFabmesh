@@ -1637,28 +1637,38 @@ const PRICING_DEFAULTS = {
   // Recolorier : CLIPSeg + virage HSV, aucune diffusion. Tres court, d'ou
   // un tarif de 2 la ou un modify en coute 3.
   // Variante de texture / Age : une VRAIE passe SDXL + ControlNet-Tile, donc
-  // le meme travail GPU qu'un modify (facture 3). Tarif pose a 2 sur demande
-  // explicite du user le 2026-09-24 — ecart assume, pas un oubli.
-  tex_variant:      2,
-  recolor:          2,
-  outfit:           2,
+  // le meme travail GPU qu'un modify (facture 3).
+  //
+  // RELEVES LE 2026-09-27, A LA DEMANDE DU USER (« rentable partout »). Audit
+  // de la facture Modal reelle : au trafic actuel presque chaque appel
+  // reveille un conteneur FROID (chargement + traine de 300 s facturee), soit
+  // 0,19 a 0,27 EUR par appel isole. Au pire cas d'un credit (Studio Monthly,
+  // Stripe deduit : 0,13 EUR ; 0,11 EUR si la TVA est due), 1 credit perdait
+  // 0,06-0,07 EUR et 2 credits etaient a l'equilibre. 3 credits = au moins
+  // x1,2 meme isole avec TVA. Les anciens 1-2 credits venaient d'une demande
+  // du user du 2026-09-24, remplacee par celle-ci.
+  tex_variant:      3,
+  recolor:          3,
+  outfit:           3,
   outfit_complete:  6,
   // Mesh ops
   mesh_op_simple:   1,
   // « Texture variants » : l'atlas repasse en SDXL + ControlNet-Tile par
   // tuiles (4 tuiles de 1024 pour un atlas 2K). Meme moteur et meme
   // tarif que tex_variant, a la demande du user (« 1 ou 2 credits »).
-  texture_var:      2,
+  texture_var:      3,          // releve 2026-09-27 (voir tex_variant)
   // « Sharpen texture (x2) » : Real-ESRGAN, un reseau de restauration et non
-  // une diffusion — quelques secondes a chaud. D'ou 1 credit.
-  enhance_tex:      1,
+  // une diffusion — quelques secondes a chaud, mais ~0,20 EUR isole a froid
+  // (chargement + traine) : 1 credit perdait 0,07 EUR. Releve a 3 le 2026-09-27.
+  enhance_tex:      3,
   // « Name the zones (AI) » : rendu isole + CLIP-L, ou poids de skinning d'un
-  // rig. Aucune diffusion, quelques dizaines de secondes.
-  name_parts:       1,
+  // rig. Aucune diffusion, quelques dizaines de secondes ; ~0,19 EUR isole a
+  // froid : 1 credit perdait 0,06 EUR. Releve a 3 le 2026-09-27.
+  name_parts:       3,
   // « Re-texture a region (AI) » : une passe SDXL Inpaint sur l'atlas, le meme
   // travail GPU qu'un mask_inpaint (6). Pose a 2 comme les autres outils
   // portes, sur demande explicite du user (« 1 ou 2 credits »).
-  region_retex:     2,
+  region_retex:     3,          // releve 2026-09-27 (voir tex_variant)
   // Mesh generation ladder repriced 2026-07-28 from MEASURED Modal cost,
   // not from the (wrong) _meshCostUsd estimate. 30 days of succeeded
   // jobs: median 373s for the 1-credit preset, 420s for the 8-credit one
@@ -1673,7 +1683,10 @@ const PRICING_DEFAULTS = {
   mesh_ultra_8k:    16,
   mesh_multiref:    1,
   mesh_refine:      2,
-  mesh_rectify:     1,
+  // Option « Auto-rectify » : un appel GPU a part (classe image, traine de
+  // 300 s), ~0,23 EUR isole. A 1 credit elle perdait 0,10 EUR. Releve a 3 le
+  // 2026-09-27 (meme prix que le rectify lance seul).
+  mesh_rectify:     3,
   mesh_quality_plus: 1,
   mesh_ultra_q:     2,
   mesh_ultra_hd:    3,
@@ -2455,7 +2468,7 @@ async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   // Optional add-ons — admin can tune each one independently.
   if (i.multiref)     n += p.mesh_multiref     ?? 1;
   if (i.refine)       n += p.mesh_refine       ?? 2;
-  if (i.rectify)      n += p.mesh_rectify      ?? 1;
+  if (i.rectify)      n += p.mesh_rectify      ?? 3;
   if (i.quality_plus) n += p.mesh_quality_plus ?? 1;
   if (i.ultra_q)      n += p.mesh_ultra_q      ?? 2;
   // ultra_hd add-on is INCLUDED in the ultra_8k preset price (8 cr),
