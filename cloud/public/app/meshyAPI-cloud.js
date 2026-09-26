@@ -1005,9 +1005,9 @@
       return { success: true, ok: true, path: filename, downloaded: true };
     },
     // Debit d'un outil manuel qui n'enregistre rien (Color Pick).
-    chargeTool: async ({ tool } = {}) => {
+    chargeTool: async ({ tool, prix } = {}) => {
       try {
-        const r = await postJSON('/api/tool-charge', { tool });
+        const r = await postJSON('/api/tool-charge', { tool, ...(prix ? { prix } : {}) });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         return r?.success ? { success: true, charged: r.charged ?? 0 }
                           : { success: false, error: r?.error || 'charge failed', status: r?.status };
@@ -1850,6 +1850,10 @@
         // « .fbx » refuse par Blender et Unreal.
         const _grab = async (meshUrl) => {
           if (fmt === 'glb') {
+            // Telechargement direct : l'export est facture ici ; les autres
+            // formats le sont par /api/mesh-convert (serveur).
+            const c = await impl.chargeTool({ tool: 'export_glb', prix: 'export' });
+            if (!c.success) throw new Error(c.error || 'not enough credits');
             const r = await fetch(meshUrl);
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return { blob: await r.blob(), ext: 'glb' };

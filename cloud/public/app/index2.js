@@ -1677,30 +1677,29 @@ function _applyAssetOptionsProfile(assetType) {
   _applyAssetOptionsProfile(sel.value || 'character');
 })();
 
-// Show/hide "Construction stages" checkbox based on asset type —
-// hidden for living subjects (character, creature) where 3-stage
-// progressive build doesn't make sense. Visible for buildings,
-// vehicles, weapons, props, environment, custom — assets that have
-// a natural "blueprint → rough → finished" progression.
-(function _wireBuildStagesVisibility() {
-  const applyVisibility = () => {
+/* CONSTRUCTION STAGES : seulement pour ce qui se CONSTRUIT (2026-09-27, user :
+ * « visible seulement la ou on en a besoin (building, ...) »). Case de l'etape
+ * image et boutons « Construction stages » (2D et 3D) masques pour tout autre
+ * type d'asset. Le type est reapplique a chaque chargement de projet (les
+ * deux chemins declenchent `change`). */
+(function _wireConstructionStagesVisibility() {
+  const TYPES_CHANTIER = new Set(['building', 'other_built', 'environment']);
+  const appliquer = () => {
     const at = document.getElementById('ws-asset-type')?.value || 'character';
+    const montrer = TYPES_CHANTIER.has(at);
     const row = document.getElementById('ws-img-buildstages-row');
-    if (!row) return;
-    // No build stages for living subjects (character/creature/animal) or flat 2D icons.
-    const hide = (at === 'character' || at === 'creature' || at === 'animal' || at === 'icon');
-    row.style.display = hide ? 'none' : '';
-    if (hide) {
+    if (row) row.style.display = montrer ? '' : 'none';
+    if (!montrer) {
       const cb = document.getElementById('ws-img-buildstages');
       if (cb) cb.checked = false;
     }
+    for (const id of ['ws-mesh-stages3d-btn', 'ws-buildstages-btn']) {
+      const b = document.getElementById(id);
+      if (b) b.style.display = montrer ? '' : 'none';
+    }
   };
   const sel = document.getElementById('ws-asset-type');
-  if (sel) {
-    sel.addEventListener('change', applyVisibility);
-    // Run once on load so default view is correct
-    applyVisibility();
-  }
+  if (sel) { sel.addEventListener('change', appliquer); appliquer(); }
 })();
 
 // Import Image → create project with imported image
@@ -5657,6 +5656,11 @@ document.getElementById('expimg-go')?.addEventListener('click', async () => {
     Licence: LICENCE_LABELS_IMAGE[licenceKey] || licenceKey,
   });
   try {
+    // Export payant (cle `export`, debit serveur) — 2026-09-27.
+    if (typeof API.chargeTool === 'function') {
+      const c = await API.chargeTool({ tool: 'export_image', prix: 'export' });
+      if (!c.success) throw new Error(c.error || 'not enough credits');
+    }
     // Format-transcode via canvas before downloading. PNG keeps
     // alpha, JPG flattens onto white, WebP uses the same encoder
     // as Chromium's canvas API.
@@ -6458,7 +6462,7 @@ document.getElementById('ws-facefix-btn')?.addEventListener('click', async () =>
   const expectedMs = (window.__modalExpectedSeconds || 45) * 1000;
   const warmLabel = window.__modalWarm === false
     ? `Warming up AI (~${Math.round((window.__modalExpectedSeconds || 150) / 60)} min cold start)`
-    : 'Cloud GPU (MyFabmesh.AI Refine)';
+    : 'MyFabmesh.AI Refine';
   const faceFixSource = target;
   const faceFixProject = p.name;
   gatedRun('img2img', `Face Fix: ${p.name}`, async () => {
@@ -10997,7 +11001,7 @@ async function _runNamePartsJob(meshPath, assetType, rigPath) {
   const meshName = meshPath.split(/[\\/]/).pop().split('?')[0];
   const job = (typeof pushJob === 'function')
     ? pushJob(`name: ${p.name}`, null, {
-        Tool: 'Name zones (AI)', Mesh: meshName, 'Asset type': assetType,
+        Tool: 'Name zones', Mesh: meshName, 'Asset type': assetType,
       }, 30000, { sourceImageUrl: _meshJobThumb(meshPath), projectName: p.name })
     : null;
   try {
@@ -11048,7 +11052,7 @@ function _openNameCategoryModal(defaultCat) {
     const btns = CATS.map((c) =>
       `<button class="np-cat ghost-btn" data-cat="${c.id}" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;margin-bottom:8px;text-align:left;font-size:14px;${c.id === defaultCat ? 'border-color:#8b5cf6;background:rgba(139,92,246,0.12);' : ''}"><span style="font-size:18px;">${c.ico}</span>${escapeHtml(_i18nT(c.en))}</button>`).join('');
     box.innerHTML =
-      `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#127991; ${escapeHtml(_i18nT('Name the zones (AI)'))}</div>` +
+      `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#127991; ${escapeHtml(_i18nT('Name the zones'))}</div>` +
       `<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:14px;">${escapeHtml(_i18nT('What kind of object is this? (sets the naming vocabulary)'))}</div>` +
       btns +
       `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button id="np-cancel" class="ghost-btn" style="padding:8px 16px;">${escapeHtml(_i18nT('Cancel'))}</button></div>`;
@@ -11109,7 +11113,7 @@ document.getElementById('ws-mesh-enhance-tex-btn')?.addEventListener('click', ()
   });
 });
 
-// ── Segment parts (AI) — SAMPart3D part-segmentation on cloud GPU ──
+// ── Segment parts — SAMPart3D part-segmentation on cloud GPU ──
 // Async spawn+poll (like auto-rig). Output = a segmented GLB (named,
 // colored per-part submeshes) added as a new MESH version.
 function openSegmentModal() {
@@ -11119,9 +11123,9 @@ function openSegmentModal() {
     const box = document.createElement('div');
     box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:430px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
     box.innerHTML =
-      '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">✂ ' + FabI18n.t('Segment parts (AI)') + '</div>' +
+      '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">✂ ' + FabI18n.t('Segment parts') + '</div>' +
       '<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:16px;">' +
-        FabI18n.t('Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / cabin). Runs on cloud GPU, ~8 min. The result is added as a new colored mesh version.') +
+        FabI18n.t('Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / cabin). Takes ~8 min. The result is added as a new colored mesh version.') +
       '</div>' +
       '<label style="font-size:13px;font-weight:500;">' + FabI18n.t('Granularity') + ': <span id="seg-gran-label"></span></label>' +
       '<input id="seg-gran" type="range" min="0" max="2" step="0.5" value="1" style="width:100%;margin:8px 0 4px;">' +
@@ -11157,7 +11161,7 @@ document.getElementById('ws-mesh-segment-btn')?.addEventListener('click', async 
   if (scale == null) return;  // cancelled
   const expectedMs = 480000;  // ~8 min A100 (train 5000 iters + render + SAM)
   gatedRun('mesh', `Segment parts: ${p.name}`, async () => {
-    const job = pushJob(`Segment parts (AI): ${p.name}`, null, {
+    const job = pushJob(`Segment parts: ${p.name}`, null, {
       Granularity: scale.toFixed(1),
       'Source mesh': String(meshPathToUse).split(/[/\\]/).pop(),
     }, expectedMs);
@@ -12945,7 +12949,7 @@ function _peConfigureModeUI() {
     if (apply) apply.textContent = '💾 ' + _i18nT('Save new version');
     if (status) status.textContent = _i18nT('Ctrl+click = source · left-click + drag = clone · right-click = orbit · wheel = zoom');
   } else if (maskMode) {
-    if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area (AI)');
+    if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area');
     if (sub) sub.textContent = _i18nT('Paint the area to re-texture straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe the new look and apply.');
     if (apply) apply.textContent = '✨ ' + _i18nT('Apply re-texture');
     if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-click = orbit. Wheel = zoom.');
@@ -17379,7 +17383,7 @@ async function lancerRigIA(options = {}) {
   const points = Array.isArray(options.points) && options.points.length ? options.points : null;
   if (!API.autoRigAI) { alert('Rigging bridge not available.'); return; }
   const rigEngine = document.getElementById('ws-rig-engine')?.value || 'unirig';
-  const engineLabel = 'MyFabmesh.AI Rig (cloud GPU)';
+  const engineLabel = 'MyFabmesh.AI Rig (cloud)';
   // Realistic budget: Modal A10G cold-start 60-120s + Puppeteer pipeline 120-180s.
   // 1m30s was the pre-cloud desktop figure and made the bar look dead within 90s.
   const expectedMs = 240000;
@@ -18343,6 +18347,10 @@ document.getElementById('ws-anim-export-btn')?.addEventListener('click', async (
   const url = a.url || a.path;
   const nom = (a.filename || url.split('/').pop().split('?')[0] || 'animation.glb');
   try {
+    if (typeof API.chargeTool === 'function') {
+      const c = await API.chargeTool({ tool: 'export_anim', prix: 'export' });
+      if (!c.success) throw new Error(c.error || 'not enough credits');
+    }
     const link = document.createElement('a');
     let objetUrl = null;
     if (_animEnPlace) {
@@ -18541,6 +18549,7 @@ document.getElementById('ws-anim-import-file')?.addEventListener('change', async
     form.append('file', file);
     form.append('animType', animType);
     form.append('projectName', p.name || '');
+    form.append('import', '1');   // import manuel : facture (manual_tool)
     const r = await fetch('/api/animations/upload', {
       method: 'POST',
       credentials: 'same-origin',
@@ -18559,9 +18568,14 @@ document.getElementById('ws-anim-import-file')?.addEventListener('change', async
   }
 });
 
-document.getElementById('ws-anim-folder-btn')?.addEventListener('click', () => {
+document.getElementById('ws-anim-folder-btn')?.addEventListener('click', async () => {
   const a = _step4ActiveAnim;
   if (!a?.url && !a?.path) { showToast('Select an animation first', 'error'); return; }
+  // Sur le web, ouvrir le fichier revient a l'exporter : meme prix.
+  if (typeof API.chargeTool === 'function') {
+    const c = await API.chargeTool({ tool: 'open_anim', prix: 'export' });
+    if (!c.success) { showToast(c.error || 'not enough credits', 'error', 5000); return; }
+  }
   // On cloud this opens the R2 URL in a new tab; desktop overrides this.
   window.open(a.url || a.path, '_blank');
 });
@@ -18623,7 +18637,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   const _listeLot = () => toRun.map((t, i) => `${_ICONES_LOT[etatLot[i]]} ${t}`).join('\n');
   gatedRun('anim', `Animate ${toRun.join('+')}: ${p.name}`, async () => {
     const batchJob = pushJob(`Animate ${toRun.join('+')}: ${p.name}`, null, {
-      Engine: 'Generative motion AI (cloud GPU)',
+      Engine: 'MyFabmesh.AI Motion',
       Animations: _listeLot(),
       'Source rig': (rig.filename || rig.url).split(/[/\\]/).pop(),
       Batch: `0/${toRun.length}`,
@@ -18950,7 +18964,7 @@ function pushJob(name, onCancel, params, expectedMsOverride, startedAtOverride, 
   }
   // 2026-06-02: cold-start toast suppressed per user request — the
   // floating "Image gen container is cold..." popup was redundant
-  // with the "Warming up cloud AI" hint inside the Running task
+  // with the "Warming up" hint inside the Running task
   // modal. The popup now lives ONLY inside the modal (jd-hint-coldstart)
   // for users who explicitly open the task to check progress.
   // Original toast kept for reference: see git blame.
@@ -20307,7 +20321,7 @@ document.getElementById('ai-preview-btn')?.addEventListener('click', async () =>
   const prevHtml = btn ? btn.innerHTML : '';
   if (label) label.textContent = _aiFirstDetectDone
     ? 'Detecting target…'
-    : 'Warming up the cloud GPU… first detection ~15s, then fast.';
+    : 'Warming up… first detection ~15s, then fast.';
   if (spinner) spinner.style.display = 'flex';
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Detecting…'; }
   try {
@@ -21591,7 +21605,7 @@ document.getElementById('set-reconfigure')?.addEventListener('click', async () =
 document.getElementById('set-uninstall')?.addEventListener('click', async () => {
   const ok = await customConfirm(
     'This will launch the Windows uninstaller. You can choose to also '
-    + 'delete the AI models (~17 GB) and your settings in the next '
+    + 'delete the downloaded models (~17 GB) and your settings in the next '
     + 'step. Generated meshes in your projects folder are never '
     + 'touched. Continue?',
     'Uninstall MyFabmesh.AI', 'Uninstall');
@@ -22706,7 +22720,7 @@ document.getElementById('set-kill-sdxl')?.addEventListener('click', async () => 
     showToast('AI engine killed. VRAM freed.', 'success');
     setTimeout(refreshPythonStats, 1000);
   } catch(e) {
-    showToast('Kill AI engine failed: ' + e.message, 'error');
+    showToast('Stop engine failed: ' + e.message, 'error');
   }
 });
 
@@ -24628,7 +24642,15 @@ function closeLandmarksFullscreen() {
     }
   }
 }
-document.getElementById('ws-lm-manual')?.addEventListener('click', () => ptsOuvrir());
+document.getElementById('ws-lm-manual')?.addEventListener('click', async () => {
+  // Ouvrir l'editeur des points est payant (manual_tool) ; regenerer depuis
+  // l'editeur est facture a part (prix du rig).
+  if (typeof API.chargeTool === 'function') {
+    const c = await API.chargeTool({ tool: 'skeleton_points' });
+    if (!c.success) { showToast(c.error || 'not enough credits', 'error', 5000); return; }
+  }
+  ptsOuvrir();
+});
 document.getElementById('lm-fs-close')?.addEventListener('click', closeLandmarksFullscreen);
 document.getElementById('lm-fs-from-rig')?.addEventListener('click', () => {
   extractLandmarksFromRig();

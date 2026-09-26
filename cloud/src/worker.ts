@@ -1701,6 +1701,9 @@ const PRICING_DEFAULTS = {
   mesh_ultra_q:     2,
   mesh_ultra_hd:    3,
   mesh_face_fix:    2,
+  // « Texture smooth » : etait GRATUIT (« free »). Le user, 2026-09-27 : aucune
+  // option ne doit etre gratuite.
+  mesh_smooth:      1,
   // face_fix_mesh RETIRE le 2026-09-27 : aucune route ne le facturait, il
   // n'apparaissait dans l'onglet Pricing que pour semer le doute.
   //
@@ -1718,6 +1721,11 @@ const PRICING_DEFAULTS = {
   // resultat (/api/upload-image avec `tool`), ou a l'ouverture pour Color
   // Pick qui n'enregistre rien (/api/tool-charge).
   manual_tool:      1,
+  // EXPORTS ET PUBLICATION (2026-09-27, « rends-les payants ») : image,
+  // maillage (tout format), Unreal, animation. Conversion serveur debitee par
+  // /api/mesh-convert ; telechargements directs par /api/tool-charge.
+  export:           1,
+  market_publish:   1,
 };
 type PricingKey = keyof typeof PRICING_DEFAULTS;
 const PRICING_KEY = '_meta/pricing.json';
@@ -2505,6 +2513,7 @@ async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   // so don't double-charge for it when the preset already covers it.
   if (i.ultra_hd && i.preset !== 'ultra_8k') n += p.mesh_ultra_hd ?? 3;
   if (i.face_fix)     n += p.mesh_face_fix     ?? 2;
+  if (i.smooth)       n += p.mesh_smooth       ?? 1;
 
   // Legacy: old clients still send mode=full without preset.
   if (i.mode === 'full' && !i.preset) {
@@ -4009,9 +4018,20 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     approved_at: null,
     downloads: 0,
   };
-  await env.MESHES.put(`_market/listings/${id}.json`, JSON.stringify(listing),
-                       { httpMetadata: { contentType: 'application/json' } });
-  return json({ ok: true, success: true, id, status: 'pending' });
+  // PUBLIER EST PAYANT depuis le 2026-09-27 (demande du user) ; rendu si
+  // l'enregistrement de la fiche echoue.
+  const prixPubli = await getPrice(env, 'market_publish');
+  if (prixPubli > 0 && (await spendCredits(env, user.id, prixPubli)) == null) {
+    return err(402, `insufficient credits — publishing costs ${prixPubli} credit${prixPubli === 1 ? '' : 's'}`);
+  }
+  try {
+    await env.MESHES.put(`_market/listings/${id}.json`, JSON.stringify(listing),
+                         { httpMetadata: { contentType: 'application/json' } });
+  } catch (e) {
+    if (prixPubli > 0) await addCredits(env, user.id, prixPubli);
+    return err(500, 'publish failed (credits refunded)');
+  }
+  return json({ ok: true, success: true, id, status: 'pending', charged: prixPubli });
 }
 
 /** PATCH /api/market/listing/<id>  body { title?, description?, price_cents?, licence? } —
@@ -11715,6 +11735,13 @@ async function handleMeshConvert(req: Request, env: Env): Promise<Response> {
     return err(429, 'Daily conversion limit reached for this account. '
                   + 'It resets at midnight UTC.');
   }
+  // L'EXPORT EST PAYANT depuis le 2026-09-27 (demande du user) : rendu si la
+  // conversion echoue.
+  const prixExport = await getPrice(env, 'export');
+  if (prixExport > 0 && (await spendCredits(env, user.id, prixExport)) == null) {
+    return err(402, `insufficient credits — export costs ${prixExport} credit${prixExport === 1 ? '' : 's'}`);
+  }
+  const rendreExport = async () => { if (prixExport > 0) await addCredits(env, user.id, prixExport); };
 
   const started = Date.now();
   try {
@@ -11731,12 +11758,13 @@ async function handleMeshConvert(req: Request, env: Env): Promise<Response> {
       });
     if (!r.ok) {
       const detail = await r.text().catch(() => '');
+      await rendreExport();
       return err(502, `conversion failed (HTTP ${r.status}) ${detail}`.trim());
     }
     const data = await r.json() as {
       data_base64?: string; ext?: string; bytes?: number;
     };
-    if (!data.data_base64) return err(502, 'conversion returned no data');
+    if (!data.data_base64) { await rendreExport(); return err(502, 'conversion returned no data'); }
 
     const bin = atob(data.data_base64);
     const bytes = new Uint8Array(bin.length);
@@ -11755,7 +11783,7 @@ async function handleMeshConvert(req: Request, env: Env): Promise<Response> {
     const url = await signedR2Url(env, key, 'export');
 
     await logOperation(env, user.id, 'mesh-convert',
-                       0, started, Date.now(), 'succeeded',
+                       prixExport, started, Date.now(), 'succeeded',
                        { req, projectName, format: fmt, ext, bytes: bytes.length });
     return json({ ok: true, url, ext, format: fmt, bytes: bytes.length });
   } catch (e) {
@@ -12102,11 +12130,13 @@ async function handleUploadImage(req: Request, env: Env): Promise<Response> {
 async function handleToolCharge(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
-  let body: { tool?: string } = {};
+  let body: { tool?: string; prix?: string } = {};
   try { body = await req.json() as typeof body; } catch { /* corps vide */ }
   const outil = typeof body.tool === 'string' && /^[a-z_]{2,24}$/.test(body.tool) ? body.tool : null;
   if (!outil) return err(400, 'tool required');
-  const prix = await getPrice(env, 'manual_tool');
+  // Cle de prix en LISTE FERMEE : un client ne choisit pas son tarif au-dela.
+  const cle = (body as { prix?: string }).prix === 'export' ? 'export' : 'manual_tool';
+  const prix = await getPrice(env, cle);
   if (prix <= 0) return json({ ok: true, success: true, charged: 0 });
   const t0 = Date.now();
   const restant = await spendCredits(env, user.id, prix);
@@ -14117,11 +14147,19 @@ async function handleAnimUpload(req: Request, env: Env): Promise<Response> {
   const batchId = incomingBatch || `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const baseName = (file.name || 'imported').replace(/\.(glb|gltf)$/i, '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80) || 'imported';
   const key = `${user.id}/animations/${projectSlug}/${baseName}_manual_${animType}_${batchId}_${Date.now()}.glb`;
+  // Bouton « Import GLB » : facture (manual_tool). La meme route sert aussi a
+  // regrouper les clips d'une generation (copies internes) : seul le champ
+  // `import` du bouton declenche le debit.
+  const prixImport = form.get('import') === '1' ? await getPrice(env, 'manual_tool') : 0;
+  if (prixImport > 0 && (await spendCredits(env, user.id, prixImport)) == null) {
+    return err(402, `insufficient credits — importing costs ${prixImport} credit${prixImport === 1 ? '' : 's'}`);
+  }
   try {
     await env.MESHES.put(key, file.stream(), {
       httpMetadata: { contentType: 'model/gltf-binary' },
     });
   } catch (e) {
+    if (prixImport > 0) await addCredits(env, user.id, prixImport);
     return err(500, `R2 upload failed: ${e instanceof Error ? e.message : String(e)}`);
   }
   const publicUrl = await signedR2Url(env, key, 'mesh');

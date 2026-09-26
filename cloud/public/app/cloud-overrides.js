@@ -669,7 +669,7 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-material-btn':     1,   // Wave 4.2 (PBR normalize)
     'ws-mesh-retexture-btn':    1,   // Wave 4.2 (atlas swap)
     'ws-mesh-texvar-btn':       3,
-    'ws-mesh-trellis2-btn':     4,   // « Re-texture all (AI) », palier Fast (/api/mesh-retexture)   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
+    'ws-mesh-trellis2-btn':     4,   // « Re-texture all », palier Fast (/api/mesh-retexture)   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
     'ws-mesh-enhance-tex-btn':  3,   // Real-ESRGAN sur l'atlas (/api/mesh-enhance-tex)
     'ws-mesh-name-btn':         3,   // rendu isole + CLIP-L (/api/mesh-name-parts)
     'ws-mesh-region-retex-btn': 3,   // SDXL Inpaint de l'atlas sous masque UV (/api/mesh-region-retex)
@@ -709,6 +709,16 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-paint-mesh-btn':   1,
     'ws-mesh-explode-btn':      1,
     'ws-mesh-resize-btn':       1,
+    // EXPORTS, PUBLICATION, IMPORT (2026-09-27, « rends-les payants »).
+    'ws-export-img-btn':        1,
+    'ws-mesh-export-btn':       1,
+    'ws-rig-unreal-btn':        1,
+    'ws-anim-export-btn':       1,
+    'ws-anim-folder-btn':       1,
+    'ws-image-publish-btn':     1,
+    'ws-mesh-publish-btn':      1,
+    'ws-anim-import-btn':       1,
+    'ws-lm-manual':             1,   // Skeleton points
   };
 
   // Buttons we hide on cloud. Note: `ws-mesh-sculpt-btn` is now ENABLED
@@ -1131,6 +1141,7 @@ window.__optionsMortesCloud = new Set([]);
     // et force a false depuis le 02/08 comme « sans effet » ; le lecteur
     // existe pourtant dans modal_app/app.py:1665 (_face_fix.py). Voir worker.ts.
     mesh_face_fix:    'ws-trellis2-face-fix',
+    mesh_smooth:      'ws-trellis2-smooth',
   };
   // Tool-button badges (ACTION_COSTS keys) -> pricing keys.
   const ACTION_COST_TO_PRICING = {
@@ -1178,6 +1189,15 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-paint-mesh-btn': 'manual_tool',
     'ws-mesh-explode-btn': 'mesh_op_simple',
     'ws-mesh-resize-btn':  'mesh_op_simple',
+    'ws-export-img-btn':   'export',
+    'ws-mesh-export-btn':  'export',
+    'ws-rig-unreal-btn':   'export',
+    'ws-anim-export-btn':  'export',
+    'ws-anim-folder-btn':  'export',
+    'ws-image-publish-btn': 'market_publish',
+    'ws-mesh-publish-btn': 'market_publish',
+    'ws-anim-import-btn':  'manual_tool',
+    'ws-lm-manual':        'manual_tool',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',
@@ -1562,7 +1582,7 @@ window.__optionsMortesCloud = new Set([]);
       // Relabel the lone remaining option so the user sees what the
       // cloud actually does, not the desktop "in one shot, local" copy.
       if (eng3d.options.length === 1) {
-        eng3d.options[0].textContent = 'MyFabmesh.AI 3D Native (cloud GPU · ~100s)';
+        eng3d.options[0].textContent = 'MyFabmesh.AI 3D Native';
         eng3d.value = 'native_3d';
       }
     }
@@ -1577,7 +1597,7 @@ window.__optionsMortesCloud = new Set([]);
         if (!keep) opt.remove();
       });
       if (engImg.options.length >= 1) {
-        engImg.options[0].textContent = 'MyFabmesh.AI Image Engine (cloud GPU)';
+        engImg.options[0].textContent = 'MyFabmesh.AI Image Engine';
       }
     }
   }

@@ -2113,6 +2113,32 @@ function _autoDetectAssetType(text) {
   _applyAssetOptionsProfile(sel.value || 'character');
 })();
 
+/* CONSTRUCTION STAGES : seulement pour ce qui se CONSTRUIT (2026-09-27, user :
+ * « visible seulement la ou on en a besoin (building, ...) »). Case de l'etape
+ * image et boutons « Construction stages » (2D et 3D) masques pour tout autre
+ * type d'asset. Le type est reapplique a chaque chargement de projet (les
+ * deux chemins declenchent `change`). */
+(function _wireConstructionStagesVisibility() {
+  const TYPES_CHANTIER = new Set(['building', 'other_built', 'environment']);
+  const appliquer = () => {
+    const at = document.getElementById('ws-asset-type')?.value || 'character';
+    const montrer = TYPES_CHANTIER.has(at);
+    const row = document.getElementById('ws-img-buildstages-row');
+    if (row) row.style.display = montrer ? '' : 'none';
+    if (!montrer) {
+      const cb = document.getElementById('ws-img-buildstages');
+      if (cb) cb.checked = false;
+    }
+    for (const id of ['ws-mesh-stages3d-btn', 'ws-buildstages-btn']) {
+      const b = document.getElementById(id);
+      if (b) b.style.display = montrer ? '' : 'none';
+    }
+  };
+  const sel = document.getElementById('ws-asset-type');
+  if (sel) { sel.addEventListener('change', appliquer); appliquer(); }
+})();
+
+
 // Each step has a single fixed engine, so don't show the ENGINE field at all —
 // the user never changes it. We KEEP the hidden <select> in the DOM (the
 // generators still read its .value) and just hide the label + static display.
@@ -10496,7 +10522,7 @@ async function runMeshTool(operation, params = [], namedParams = null) {
   }
 }
 
-// ── Segment parts (AI) — SAMPart3D LOCAL sur la RTX 5080 ──────────────
+// ── Segment parts — SAMPart3D LOCAL sur la RTX 5080 ──────────────
 // Long GPU job (~6-10 min) via API.meshSegment (main.js 'mesh-segment' →
 // scripts/sampart3d_bridge.py). Sortie = version MESH segmentée (sous-meshes
 // nommés + couleurs par partie). Réutilise le popup pushJob + l'add-version +
@@ -10508,7 +10534,7 @@ function _openSegmentGranularityModal() {
     const box = document.createElement('div');
     box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:430px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
     box.innerHTML =
-      '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">&#9986; Segment parts (AI)</div>' +
+      '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">&#9986; Segment parts</div>' +
       '<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:16px;">' +
         'Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / turret / barrel). ' +
         'Runs locally on your GPU, ~1&nbsp;min. Adds a new colored, separable mesh version.</div>' +
@@ -10589,7 +10615,7 @@ async function _runSegmentJob(granularity, allowInstall) {
   const expectedMs = 120000;  // ~1-2 min (PartSAM feedforward)
   const job = (typeof pushJob === 'function')
     ? pushJob(`segment: ${p.name}`, null, {
-        Tool: 'Segment parts (AI)', Mesh: meshName, Granularity: granularity.toFixed(1),
+        Tool: 'Segment parts', Mesh: meshName, Granularity: granularity.toFixed(1),
       }, expectedMs, { sourceImageUrl: _meshJobThumb(meshPath), projectName: p.name })
     : null;
   try {
@@ -10693,7 +10719,7 @@ async function _runNamePartsJob(meshPath, assetType, rigPath) {
   const meshName = meshPath.split(/[\\/]/).pop();
   const job = (typeof pushJob === 'function')
     ? pushJob(`name: ${p.name}`, null, {
-        Tool: 'Name zones (AI)', Mesh: _maskAiNames(meshName), 'Asset type': assetType,
+        Tool: 'Name zones', Mesh: _maskAiNames(meshName), 'Asset type': assetType,
       }, 30000, { sourceImageUrl: _meshJobThumb(meshPath), projectName: p.name })
     : null;
   try {
@@ -10744,7 +10770,7 @@ function _openNameCategoryModal(defaultCat) {
     const btns = CATS.map((c) =>
       `<button class="np-cat ghost-btn" data-cat="${c.id}" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;margin-bottom:8px;text-align:left;font-size:14px;${c.id === defaultCat ? 'border-color:#8b5cf6;background:rgba(139,92,246,0.12);' : ''}"><span style="font-size:18px;">${c.ico}</span>${_escapeHtml(_i18nT(c.en))}</button>`).join('');
     box.innerHTML =
-      `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#127991; ${_escapeHtml(_i18nT('Name the zones (AI)'))}</div>` +
+      `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#127991; ${_escapeHtml(_i18nT('Name the zones'))}</div>` +
       `<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:14px;">${_escapeHtml(_i18nT('What kind of object is this? (sets the naming vocabulary)'))}</div>` +
       btns +
       `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button id="np-cancel" class="ghost-btn" style="padding:8px 16px;">${_escapeHtml(_i18nT('Cancel'))}</button></div>`;
@@ -13119,7 +13145,7 @@ function _peConfigureModeUI() {
     if (apply) apply.textContent = '💾 ' + _i18nT('Save new version');
     if (status) status.textContent = _i18nT('Ctrl+click = source · left-click + drag = clone · right-click = orbit · wheel = zoom');
   } else if (maskMode) {
-    if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area (AI)');
+    if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area');
     if (sub) sub.textContent = _i18nT('Paint the area to re-texture straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe the new look and apply.');
     if (apply) apply.textContent = '✨ ' + _i18nT('Apply re-texture');
     if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-click = orbit. Wheel = zoom.');
@@ -21527,7 +21553,7 @@ document.getElementById('set-kill-sdxl')?.addEventListener('click', async () => 
     showToast('AI engine killed. VRAM freed.', 'success');
     setTimeout(refreshPythonStats, 1000);
   } catch(e) {
-    showToast('Kill AI engine failed: ' + e.message, 'error');
+    showToast('Stop engine failed: ' + e.message, 'error');
   }
 });
 

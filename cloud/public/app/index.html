@@ -187,7 +187,7 @@
           <!-- Hover popover with per-service status. Anchored to the
                RIGHT EDGE of the pill so it stays inside the viewport. -->
           <div id="gpu-warmup-popover" style="display:none; position:fixed; top:auto; left:auto; min-width:280px; max-width:340px; background:var(--bg-1); border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); padding:8px 10px; z-index:10000; pointer-events:auto;">
-            <div style="font-size:10px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; padding-bottom:6px; border-bottom:1px solid var(--border); margin-bottom:6px;">Cloud GPU services</div>
+            <div style="font-size:10px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; padding-bottom:6px; border-bottom:1px solid var(--border); margin-bottom:6px;">Cloud services</div>
             <div id="gpu-warmup-list" style="display:flex; flex-direction:column; gap:6px; font-size:11px;"></div>
             <div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--border); font-size:10px; color:var(--text-2);">Each container warms up on its own. A cold one takes a few minutes on the first call, then stays warm.</div>
           </div>
@@ -525,10 +525,10 @@
                       </div>
                     </div>
                     <div class="step-tools-group">
-                      <div class="step-tools-label">AI tools</div>
+                      <div class="step-tools-label">Smart tools</div>
                       <div class="step-tools-grid">
                         <button id="ws-modify-btn" class="ghost-btn tool-btn" title="Rewrite the whole image from a prompt. Shape and framing may change.">&#9998; Modify</button>
-                        <button id="ws-autoinpaint-btn" class="ghost-btn tool-btn" title="Describe a zone in words; the AI finds it and repaints only that zone.">&#129668; Auto Inpaint</button>
+                        <button id="ws-autoinpaint-btn" class="ghost-btn tool-btn" title="Describe a zone in words; only that zone is found and repainted.">&#129668; Auto Inpaint</button>
                         <button id="ws-removebg-btn" class="ghost-btn tool-btn" title="Cut the subject out and make the background transparent.">&#9986; Remove BG</button>
                         <button id="ws-resolution-btn" class="ghost-btn tool-btn" title="Enlarge the image. Recovers detail, invents nothing.">&#128300; Resolution</button>
                         <div class="style-dropdown" style="position:relative;">
@@ -584,10 +584,10 @@
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
                         <button id="ws-clone-btn" class="ghost-btn tool-btn" title="Copy pixels from one area onto another with a brush.">&#128203; Clone Stamp</button>
-                        <button id="ws-mask-btn" class="ghost-btn tool-btn" title="Paint a zone by hand, then have the AI repaint just it.">&#9999; Draw Mask</button>
+                        <button id="ws-mask-btn" class="ghost-btn tool-btn" title="Paint a zone by hand, then have just that zone repainted.">&#9999; Draw Mask</button>
                         <button id="ws-crop-btn" class="ghost-btn tool-btn" title="Trim the image. Removes pixels, adds none.">&#9986; Crop</button>
-                        <button id="ws-select-btn" class="ghost-btn tool-btn" title="Cut / copy a rectangular zone and move it elsewhere on the image (manual, no AI)">&#9635; Cut/Paste</button>
-                        <button id="ws-extend-btn" class="ghost-btn tool-btn" title="Extend / outpaint — add margin around the image and fill it with AI">&#10696; Extend</button>
+                        <button id="ws-select-btn" class="ghost-btn tool-btn" title="Cut / copy a rectangular zone and move it elsewhere on the image">&#9635; Cut/Paste</button>
+                        <button id="ws-extend-btn" class="ghost-btn tool-btn" title="Extend / outpaint — add margin around the image and fill it">&#10696; Extend</button>
                         <button id="ws-brightness-btn" class="ghost-btn tool-btn" title="Adjust brightness, contrast, saturation and sharpness.">&#9728; Brightness</button>
                         <button id="ws-picker-btn" class="ghost-btn tool-btn" title="Pick a colour from the image.">&#128167; Color Pick</button>
                         <button id="ws-blur-btn" class="ghost-btn tool-btn" title="Blur or sharpen locally with a brush.">&#128168; Blur Brush</button>
@@ -659,7 +659,7 @@
                     </select>
                   </div>
                   <div id="ws-3d-quality-hint" class="form-hint" style="display:none;">~200K triangles · 1024 px texture</div>
-                  <div id="ws-3d-sf3d-hint" class="form-hint" style="margin-top:2px; display:none;">Texture is baked on the GPU. Triangles are added via subdivision (CPU, no extra VRAM).</div>
+                  <div id="ws-3d-sf3d-hint" class="form-hint" style="margin-top:2px; display:none;">Triangles are added via subdivision; the texture is baked on top.</div>
                   <div id="ws-3d-highcount-warn" class="form-hint hidden" style="color: #f4a632; margin-top:4px;">&#9888;&#65039; Above ~50K triangles the UV atlas gets over-crowded (micro-island packing) and the texture ends up as voronoi noise. For best texture quality keep triangles ≤ 50K. High-poly only makes sense when you only need the geometry.</div>
                   <div class="form-row check-row">
                     <label class="inline-check">
@@ -698,9 +698,9 @@
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
-                      <label class="inline-check" style="font-size:11px;" title="Edge-preserving bilateral filter on the baseColor atlas. Cleans speckled grain on smooth surfaces (paint, chrome, glass) while keeping panel-gap edges sharp. No AI, no hallucination. Best for vehicles / objects / hard surfaces.">
-                        <input type="checkbox" id="ws-trellis2-smooth" data-credits="0" checked />
-                        Texture smooth (free · CPU only, no AI)
+                      <label class="inline-check" style="font-size:11px;" title="Edge-preserving bilateral filter on the baseColor atlas. Cleans speckled grain on smooth surfaces (paint, chrome, glass) while keeping panel-gap edges sharp. Best for vehicles / objects / hard surfaces.">
+                        <input type="checkbox" id="ws-trellis2-smooth" data-credits="1" checked />
+                        Texture smooth (+1 cr · cleaner smooth surfaces)
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
@@ -842,7 +842,7 @@
                       </div>
                     </div>
                     <div class="step-tools-group">
-                      <div class="step-tools-label">AI tools</div>
+                      <div class="step-tools-label">Smart tools</div>
                       <div class="step-tools-grid">
                         <button id="ws-mesh-smooth-btn" class="ghost-btn tool-btn" title="Soften the surface. Removes faceting, also removes fine detail.">&#10024; Smooth</button>
                         <button id="ws-mesh-decimate-btn" class="ghost-btn tool-btn" title="Reduce the mesh triangle count">&#9660; Triangle count</button>
@@ -855,9 +855,9 @@
                         <button id="ws-mesh-texvar-btn" class="ghost-btn tool-btn" title="Generate DIFFERENT texture looks (geometry untouched) — change the seed for a new variant">&#127912; Texture variants</button>
                         <button id="ws-mesh-enhance-tex-btn" class="ghost-btn tool-btn" title="Sharpen / upscale the EXISTING baked texture (x2, no hallucination) — no re-generation">&#10024; Sharpen texture (x2)</button>
                         <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint with native PBR engine — qualité SOTA">&#11088; Re-Texture</button>
-                        <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin) on cloud GPU">&#9986; Segment parts (AI)</button>
-                        <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head) with AI. Requires a segmented mesh.">&#127991; Name the zones (AI)</button>
-                        <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part: paint it on the 3D mesh, describe the new look — geometry stays intact">&#127912; Re-texture a region (AI)</button>
+                        <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin)">&#9986; Segment parts</button>
+                        <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head). Requires a segmented mesh.">&#127991; Name the zones</button>
+                        <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part: paint it on the 3D mesh, describe the new look — geometry stays intact">&#127912; Re-texture a region</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -911,7 +911,7 @@
                   <div class="form-row">
                     <label>Engine</label>
                     <select id="ws-rig-engine">
-                      <option value="unirig" selected>MyFabmesh.AI Rig (cloud GPU)</option>
+                      <option value="unirig" selected>MyFabmesh.AI Rig (cloud)</option>
                     </select>
                   </div>
                   <button id="ws-generate-rig-ai" class="primary-btn" disabled title="Add a skeleton to the mesh automatically, so it can be animated.">Generate Rig</button>
@@ -1011,7 +1011,7 @@
                       </div>
                     </div>
                     <div class="step-tools-group">
-                      <div class="step-tools-label">AI tools</div>
+                      <div class="step-tools-label">Smart tools</div>
                       <div class="step-tools-grid">
                         <button id="ws-rig-reskin-btn" class="ghost-btn tool-btn rig-tool-btn" title="Recompute the skin weights only. The skeleton is kept.">&#127814; Re-skin only</button>
                       </div>
@@ -1048,7 +1048,7 @@
               <summary>
                 <span class="stage-icon">&#10010;</span>
                 <span class="stage-title">Create new</span>
-                <span class="stage-hint">Generate animation clips for your rig via AI</span>
+                <span class="stage-hint">Generate animation clips for your rig</span>
               </summary>
               <div class="stage-body stage-create-with-source">
                 <div class="stage-create-form">
@@ -1179,18 +1179,12 @@
                         <button id="ws-anim-folder-btn" class="ghost-btn tool-btn rig-tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
                       </div>
                     </div>
+                    <!-- Bloc « Playback » (Play / Loop / In place) RETIRE le 2026-09-27 a la demande du user :
+                         doublon de la barre du visualiseur (#ws-anim-toolbar), qui porte les memes commandes. -->
                     <div class="step-tools-group">
-                      <div class="step-tools-label">Playback</div>
+                      <div class="step-tools-label">Smart tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-anim-play-btn" class="ghost-btn tool-btn rig-tool-btn" title="Play the animation.">&#9654; Play</button>
-                        <button id="ws-anim-loop-btn" class="ghost-btn tool-btn rig-tool-btn active" title="Loop playback.">&#128257; Loop</button>
-                        <button id="ws-anim-inplace-btn" class="ghost-btn tool-btn rig-tool-btn" title="In place: the animation stays on the spot (no travel). The downloaded file follows this setting.">&#128204; In place</button>
-                      </div>
-                    </div>
-                    <div class="step-tools-group">
-                      <div class="step-tools-label">AI tools</div>
-                      <div class="step-tools-grid">
-                        <button id="ws-anim-gen-more-btn" class="ghost-btn tool-btn rig-tool-btn" title="Generate an AI animation batch (= new version)">&#10024; Add Animation</button>
+                        <button id="ws-anim-gen-more-btn" class="ghost-btn tool-btn rig-tool-btn" title="Generate an animation batch (= new version)">&#10024; Add Animation</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -1434,8 +1428,8 @@
            whichever angle is currently selected (editTarget reads
            _activeMultiview which stays in sync with the lightbox). -->
       <div id="lb-toolbox" class="lb-toolbox">
-        <div class="lb-toolbox-group-label">AI TOOLS</div>
-        <button class="lb-tool-btn" data-lb-tool="modify" title="Modify with AI">&#128736;&#65039; Modify</button>
+        <div class="lb-toolbox-group-label">SMART TOOLS</div>
+        <button class="lb-tool-btn" data-lb-tool="modify" title="Modify">&#128736;&#65039; Modify</button>
         <button class="lb-tool-btn" data-lb-tool="autoinpaint" title="Auto Inpaint">&#129668; Auto Inpaint</button>
         <button class="lb-tool-btn" data-lb-tool="removebg" title="Remove background">&#9986;&#65039; Remove BG</button>
         <button class="lb-tool-btn" data-lb-tool="resolution" title="Change resolution">&#127906; Resolution</button>
@@ -1470,7 +1464,7 @@
     <div id="modal-auto-inpaint" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
         <h2>Auto Inpaint</h2>
-        <p class="modal-subtitle">Describe what to replace — the AI finds and repaints it.</p>
+        <p class="modal-subtitle">Describe what to replace — it is found and repainted automatically.</p>
         <div class="modal-with-image">
           <div class="modal-image-side" style="position:relative;">
             <img id="ai-source-img" alt="" />
@@ -1558,7 +1552,7 @@
     <div id="modal-age" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
         <h2>Age</h2>
-        <p class="modal-subtitle">Make the subject younger or older — the AI keeps the shape and pose, only the apparent age changes.</p>
+        <p class="modal-subtitle">Make the subject younger or older — the shape and pose are kept, only the apparent age changes.</p>
         <div class="modal-with-image">
           <div class="modal-image-side" style="position:relative;">
             <img id="age-source-img" alt="" />
@@ -1622,7 +1616,7 @@
             </div>
 
             <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
-              <input type="checkbox" id="of-completer" checked /> Compl&eacute;ter les zones cach&eacute;es (IA)
+              <input type="checkbox" id="of-completer" checked /> Compl&eacute;ter les zones cach&eacute;es
             </label>
             <small class="modal-subtitle" style="display:block; margin:4px 0 12px; font-size:11px; line-height:1.3;">Recoud le v&ecirc;tement l&agrave; o&ugrave; un bras le masquait, uniquement sur des zones PETITES. Si le manque d&eacute;passe un tiers de la pi&egrave;ce, la complétion est abandonn&eacute;e et la d&eacute;coupe reste fid&egrave;le&nbsp;: au-del&agrave;, l&rsquo;IA ne recoud plus, elle invente un personnage. La retouche est born&eacute;e &agrave; la silhouette et &agrave; la peau. D&eacute;coch&eacute;&nbsp;: 2&nbsp;cr&eacute;dits au lieu de 6.</small>
 
@@ -1656,8 +1650,8 @@
             <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
               <input type="checkbox" id="mv-opt-harmonize" checked style="margin-top:3px;" />
               <span>
-                <strong>AI harmonize</strong><br/>
-                <span style="color:var(--text-3); font-size:12px;">Passe les 6 vues dans l'harmoniseur AI (strength 0.3) pour récupérer le style photoréaliste. Recommandé. +30s.</span>
+                <strong>Harmonize</strong><br/>
+                <span style="color:var(--text-3); font-size:12px;">Passe les 6 vues dans l'harmoniseur (strength 0.3) pour récupérer le style photoréaliste. Recommandé. +30s.</span>
               </span>
             </label>
             <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
@@ -2038,7 +2032,7 @@
         </div>
 
         <!-- ═══ AI ASSISTANT ═══ -->
-        <div class="settings-section-header">AI Assistant</div>
+        <div class="settings-section-header">Assistant</div>
         <div class="settings-box">
           <div class="settings-box-title">Claude Desktop</div>
           <div class="settings-box-desc">Let Claude generate batches of assets for you via text commands.</div>
@@ -2143,10 +2137,10 @@
         <div class="settings-box">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
             <span class="settings-field-label">Processes</span>
-            <span style="font-size:11px; color:var(--text-2);"><span id="set-python-count">0</span> active &middot; AI engine <span id="set-python-sdxl">stopped</span></span>
+            <span style="font-size:11px; color:var(--text-2);"><span id="set-python-count">0</span> active &middot; engine <span id="set-python-sdxl">stopped</span></span>
           </div>
           <div style="display:flex; gap:6px;">
-            <button id="set-kill-sdxl" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:11px;" disabled>Kill AI engine</button>
+            <button id="set-kill-sdxl" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:11px;" disabled>Stop engine</button>
             <button id="set-kill-python" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:11px;" disabled>Kill Processes</button>
             <button id="set-kill-all" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:11px;" disabled>Kill All</button>
           </div>
@@ -2166,7 +2160,7 @@
         </div>
         <div class="settings-box" style="margin-top:8px;">
           <div class="settings-box-title">Uninstall MyFabmesh.AI</div>
-          <div class="settings-box-desc">Remove MyFabmesh.AI from your computer. You'll be asked whether to also delete the AI models (~17 GB) and your settings. Your generated meshes folder is never touched.</div>
+          <div class="settings-box-desc">Remove MyFabmesh.AI from your computer. You'll be asked whether to also delete the downloaded models (~17 GB) and your settings. Your generated meshes folder is never touched.</div>
           <div style="margin-top:8px;">
             <button id="set-uninstall" class="ghost-btn danger" style="width:100%; padding:6px 12px; font-size:12px;">&#128465;&#65039; Uninstall MyFabmesh.AI</button>
           </div>
@@ -2224,7 +2218,7 @@
          ============================================================ -->
     <div id="modal-anim-gen" class="modal-overlay hidden">
       <div class="modal-card" style="width:440px; max-width:92vw;">
-        <h2>Generate AI Animation</h2>
+        <h2>Generate Animation</h2>
         <p class="modal-subtitle">Each click creates ONE new version. Check the types you want in this batch.</p>
         <div id="modal-anim-types" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px; margin:12px 0;">
           <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
@@ -2373,8 +2367,8 @@
          ============================================================ -->
     <div id="modal-refine-mesh" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>Refine mesh with AI</h2>
-        <p class="modal-subtitle">Describe what to change. The AI rebuilds the mesh from a new script.</p>
+        <h2>Refine mesh</h2>
+        <p class="modal-subtitle">Describe what to change. The mesh is rebuilt from a new script.</p>
         <label>Modification</label>
         <textarea id="rfn-prompt" rows="3" placeholder="add wheels, make it taller, smoother surface..."></textarea>
         <label>Output format</label>
@@ -2384,7 +2378,7 @@
           <option value="obj">OBJ</option>
           <option value="stl">STL</option>
         </select>
-        <label>AI model</label>
+        <label>Model</label>
         <select id="rfn-model">
           <option value="claude" selected>Claude (best)</option>
           <option value="gpt-4o">GPT-4o</option>
@@ -2593,12 +2587,12 @@
           <span class="jd-hint-icon">&#9432;</span>
           <span class="jd-hint-text" id="jd-hint-text">
             <span id="jd-hint-default">
-              First run after idle loads <strong>~7&nbsp;GB</strong> into VRAM (~30&ndash;60&nbsp;s).
+              First run after idle loads <strong>~7&nbsp;GB</strong> into memory (~30&ndash;60&nbsp;s).
               Subsequent runs are much faster (a few seconds).
               Models are unloaded after 5&nbsp;min of inactivity to free VRAM.
             </span>
             <span id="jd-hint-coldstart" style="display:none;">
-              <strong>Warming up cloud AI ❄️</strong> — Cloud GPU is loading the model into a GPU container.
+              <strong>Warming up ❄️</strong> — the service is starting up.
               Cold starts take ~<span id="jd-hint-coldstart-eta">2&nbsp;min</span>. Subsequent generations
               within 5&nbsp;min run in ~30&nbsp;s. Hang tight.
             </span>
@@ -2624,7 +2618,7 @@
     <div id="modal-modify-image" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
         <h2>Modify image</h2>
-        <p class="modal-subtitle">Describe the changes you want. The AI keeps the composition.</p>
+        <p class="modal-subtitle">Describe the changes you want. The composition is kept.</p>
         <div class="modal-with-image">
           <div class="modal-image-side">
             <img id="mod-source-img" alt="" />
