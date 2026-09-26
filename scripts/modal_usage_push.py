@@ -16,6 +16,7 @@ Env vars:
 Schedule it ~hourly: Windows Task Scheduler, cron, or a GitHub Action.
 Requires the `modal` CLI to be installed + authenticated on the host that runs it.
 """
+import datetime
 import json
 import os
 import subprocess
@@ -46,11 +47,43 @@ def modal_usage():
     return round(total, 6), by_app
 
 
+def modal_usage_by_day(days=30):
+    """Facture REELLE jour par jour ({'AAAA-MM-JJ': usd}) sur `days` jours.
+
+    Le graphique « Revenue vs Cost » de l'admin tracait l'ESTIMATION du
+    worker : 9 EUR le 24/09 pour 25 EUR factures. Seul le total du mois
+    etait reel ; le detail par jour n'etait jamais remonte. Un echec ici ne
+    doit pas empecher de pousser le total : on rend None.
+
+    30 jours = ceux du graphique ; Modal refuse un rapport journalier de
+    plus de 31 jours (« Daily reports cannot span more than 31 days »)."""
+    fin = datetime.date.today() + datetime.timedelta(days=1)
+    debut = fin - datetime.timedelta(days=days)
+    proc = subprocess.run(
+        [sys.executable, "-m", "modal", "billing", "report", "--start", debut.isoformat(),
+         "--end", fin.isoformat(), "--resolution", "d", "--json"],
+        capture_output=True, text=True, timeout=180,
+    )
+    if proc.returncode != 0:
+        print(f"detail par jour indisponible: {proc.stderr.strip()[:300]}")
+        return None
+    by_day = {}
+    for r in json.loads(proc.stdout):
+        jour = str(r.get("Interval Start") or "")[:10]
+        if len(jour) == 10:
+            by_day[jour] = round(by_day.get(jour, 0.0) + float(r.get("Cost", 0) or 0), 6)
+    return by_day
+
+
 def main() -> None:
     if not SECRET:
         raise SystemExit("Set MODAL_USAGE_SECRET (must match the Worker's MODAL_USAGE_SECRET).")
     usage, by_app = modal_usage()
-    payload = json.dumps({"usage": usage, "by_app": by_app, "cycle": PERIOD}).encode("utf-8")
+    corps = {"usage": usage, "by_app": by_app, "cycle": PERIOD}
+    by_day = modal_usage_by_day()
+    if by_day is not None:
+        corps["by_day"] = by_day
+    payload = json.dumps(corps).encode("utf-8")
     req = urllib.request.Request(
         f"{WORKER}/api/admin/modal-usage", data=payload, method="POST",
         headers={"content-type": "application/json", "x-ingest-secret": SECRET.strip(),

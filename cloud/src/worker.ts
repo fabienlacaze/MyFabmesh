@@ -3742,13 +3742,23 @@ async function handleAdminModalUsageIngest(req: Request, env: Env): Promise<Resp
   const provided = (req.headers.get('x-ingest-secret') || '').trim();
   if (!secret || provided !== secret) return err(401, 'unauthorized');
   if (!env.MESHES) return err(500, 'storage not configured');
-  let body: { usage?: number; cycle?: string; by_app?: Record<string, number> };
+  let body: { usage?: number; cycle?: string; by_app?: Record<string, number>; by_day?: Record<string, number> };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
   const usage = Number(body?.usage);
   if (!Number.isFinite(usage) || usage < 0) return err(400, 'usage must be a non-negative number');
   const byApp = (body?.by_app && typeof body.by_app === 'object') ? body.by_app : null;
+  // Facture reelle JOUR PAR JOUR : sans elle, le graphique de l'admin
+  // tracait l'estimation (9 EUR le 24/09 pour 25 EUR factures).
+  let byDay: Record<string, number> | null = null;
+  if (body?.by_day && typeof body.by_day === 'object') {
+    byDay = {};
+    for (const [jour, v] of Object.entries(body.by_day).slice(0, 62)) {
+      const n = Number(v);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(jour) && Number.isFinite(n) && n >= 0) byDay[jour] = Math.round(n * 10000) / 10000;
+    }
+  }
   await env.MESHES.put('_meta/modal_real_usage.json', JSON.stringify({
-    usage: Math.round(usage * 10000) / 10000, by_app: byApp, cycle: String(body?.cycle || ''), ts: new Date().toISOString(),
+    usage: Math.round(usage * 10000) / 10000, by_app: byApp, by_day: byDay, cycle: String(body?.cycle || ''), ts: new Date().toISOString(),
   }));
   await _maybeAlertModalBudget(env);
   return json({ ok: true, success: true });
@@ -15901,7 +15911,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   } catch { /* ignore */ }
 
   // Activity in the last 7 / 30 days.
-  const series30: Array<{ day: string; ops: number; users: number; revenue_eur: number; cost_eur: number; margin_eur: number; downloads: number }> = [];
+  const series30: Array<{ day: string; ops: number; users: number; revenue_eur: number; cost_eur: number; margin_eur: number; downloads: number; real_cost_eur?: number | null; real_margin_eur?: number | null }> = [];
   for (let i = 29; i >= 0; i--) {
     const day = new Date(now - i * DAY).toISOString().slice(0, 10);
     const s = seriesByDay[day];
@@ -15923,15 +15933,38 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   // the KPIs reflect the ACTUAL bill, not just the worker's per-op estimate.
   let realUsageUsd: number | null = null, realUsageTs: string | null = null;
   let realByApp: Record<string, number> | null = null;
+  let realByDay: Record<string, number> | null = null;
   try {
     const rt = await r2GetText(env, '_meta/modal_real_usage.json');
     const r = rt ? JSON.parse(rt) : null;
     if (r && typeof r.usage === 'number') {
       realUsageUsd = r.usage; realUsageTs = r.ts || null;
       realByApp = (r.by_app && typeof r.by_app === 'object') ? r.by_app : null;
+      realByDay = (r.by_day && typeof r.by_day === 'object') ? r.by_day : null;
     }
   } catch {}
   const realCostEur = realUsageUsd == null ? null : +(realUsageUsd * USD_TO_EUR).toFixed(2);
+
+  /* COUT REEL PAR JOUR dans la serie de 30 jours.
+   *
+   * La serie ne portait que l'estimation par operation : 9 EUR le 24/09 pour
+   * 25 EUR factures par Modal (constructions d'images, demarrages a froid,
+   * inactivite facturee et bancs d'essai n'y figurent pas). Le graphique et
+   * le rythme de depense se lisaient comme la facture, ce qu'ils n'etaient
+   * pas. Modal n'ecrit AUCUNE ligne pour un jour sans usage : dans la
+   * fenetre du releve, un jour absent vaut donc 0 reel. Un jour POSTERIEUR
+   * au releve (minuit passe, releve horaire pas encore tombe) garde
+   * `real_cost_eur: null` et l'estimation : on n'invente pas de zero. */
+  const jourReleve = realUsageTs ? realUsageTs.slice(0, 10) : null;
+  for (const p of series30) {
+    const usd = realByDay ? realByDay[p.day] : undefined;
+    const reel = typeof usd === 'number' ? +(usd * USD_TO_EUR).toFixed(2)
+      : (realByDay && jourReleve && p.day <= jourReleve) ? 0 : null;
+    p.real_cost_eur = reel;
+    p.real_margin_eur = reel == null ? null : +(p.revenue_eur - reel).toFixed(2);
+  }
+  const coutJour = (p: typeof series30[number]) => p.real_cost_eur ?? p.cost_eur;
+  const serieReelle = !!realByDay && series30.some(p => p.real_cost_eur != null);
 
   // PERIODES ALIGNEES. `realCostEur` vient du poller qui interroge Modal
   // avec --for "this month" : c'est un cout DU MOIS EN COURS. Il etait
@@ -15999,8 +16032,8 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   const realFresh = realUsageTs ? (Date.now() - Date.parse(realUsageTs)) < 26 * 3600 * 1000 : false;
   const usedUsd = (realFresh && realUsageUsd != null) ? realUsageUsd : budgetSpentUsd;
   const budgetRemainingUsd = budgetTotalUsd > 0 ? Math.max(0, budgetTotalUsd - usedUsd) : 0;
-  const cost7 = last7.reduce((a, b) => a + b.cost_eur, 0);
-  const cost30 = series30.reduce((a, b) => a + b.cost_eur, 0);
+  const cost7 = last7.reduce((a, b) => a + coutJour(b), 0);
+  const cost30 = series30.reduce((a, b) => a + coutJour(b), 0);
   const eurPerDay7  = +(cost7 / 7).toFixed(3);
   const eurPerDay30 = +(cost30 / 30).toFixed(3);
   // Runway uses the 7-day rate (most representative of current traffic) and
@@ -16020,6 +16053,8 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     budget_total_usd: +budgetTotalUsd.toFixed(2),
     budget_remaining_usd: +budgetRemainingUsd.toFixed(2),
     budget_source: (realFresh && realUsageUsd != null) ? 'real' : 'estimate',
+    // D'ou viennent les couts journaliers du rythme de depense.
+    rate_source: serieReelle ? 'real' : 'estimate',
     days_left: daysLeft,
     depletion_date: daysLeft == null ? null
       : new Date(now + daysLeft * DAY).toISOString().slice(0, 10),
