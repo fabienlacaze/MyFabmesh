@@ -8713,13 +8713,6 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
       genBtn.disabled = false;
       genBtn.title = '';
     }
-    // Force the engine dropdown to Generative motion (the only wired engine) and
-    // collapse the Seed3D / Procedural options behind a disabled state.
-    const engineSel = document.getElementById('ws-anim-engine');
-    if (engineSel && engineSel.value !== 'anytop') {
-      engineSel.value = 'anytop';
-      engineSel.dispatchEvent(new Event('change'));
-    }
   } catch (e) { console.warn('[anim-source] preview populate failed:', e); }
   const step4Card = document.getElementById('step-card-animation');
   if (step4Card) {
@@ -17428,23 +17421,13 @@ document.getElementById('ws-generate-rig-ai')?.addEventListener('click', async (
 // UI scaffold only — backend wiring TBD.
 // ============================================================
 // Anim engine dropdown drives which sub-fields are visible.
+// Plus de menu de moteur (2026-09-26) : le serveur n'en a qu'un, texte ->
+// mouvement. La description libre (#ws-anim-prompt) reste donc TOUJOURS
+// visible ; la video de reference n'a aucun moteur qui la lise.
 function _wsAnimEngineSync() {
-  const engine = document.getElementById('ws-anim-engine')?.value || 'anytop';
-  const animType = document.getElementById('ws-anim-type')?.value || 'idle';
-  const promptRow = document.getElementById('ws-anim-prompt-row');
   const videoRow = document.getElementById('ws-anim-video-row');
-  // Prompt only when animType === 'custom'. Generative motion itself ignores
-  // free-text prompts at inference (T5 is for joint-name embedding only),
-  // so the row stays hidden for the standard anim types.
-  const showPrompt = (animType === 'custom');
-  // Seed3D would require a reference video, but it's deferred (no wired
-  // engine consumes it).
-  const showVideo = false && (engine === 'seed3d_puppeteer');
-  if (promptRow) promptRow.style.display = showPrompt ? '' : 'none';
-  if (videoRow) videoRow.style.display = showVideo ? '' : 'none';
+  if (videoRow) videoRow.style.display = 'none';
 }
-document.getElementById('ws-anim-engine')?.addEventListener('change', _wsAnimEngineSync);
-document.getElementById('ws-anim-type')?.addEventListener('change', _wsAnimEngineSync);
 _wsAnimEngineSync();
 
 // Render animation versions strip (placeholder).
@@ -18259,22 +18242,18 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
     customError('No rig selected. Click "Use this rig for Animation" in Step 3 first.', 'No rig selected');
     return;
   }
-  const engine = document.getElementById('ws-anim-engine')?.value || 'anytop';
-  // Multi-select: read all checked anim-type checkboxes. Fall back to
-  // the legacy single-select for any callsite still using it.
+  // Moteur unique texte -> mouvement (2026-09-26) : plus de menu. Le serveur
+  // l'impose de toute facon ; on l'envoie pour que la requete soit lisible.
+  const engine = 'motionplus';
+  // Cases cochees + UN clip « custom » si une description libre est saisie
+  // (elle ne remplace PAS les cases : chaque type garde sa propre legende).
   const checked = Array.from(document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked'))
     .map(cb => cb.value);
-  const animTypes = checked.length
-    ? checked
-    : [document.getElementById('ws-anim-type')?.value || 'idle'];
   const prompt = (document.getElementById('ws-anim-prompt')?.value || '').trim();
-  if (engine !== 'anytop') {
-    customError(
-      `Only the generative motion engine is available in this build. Other engines come later.`,
-      'Engine not yet wired',
-    );
-    return;
-  }
+  const animTypes = prompt ? [...checked, 'custom'] : checked;
+  // Le type d'asset du projet choisit le squelette de reference du modele
+  // (humain / animal) — la detection automatique se trompe sur nos rigs.
+  const assetType = p.assetType || document.getElementById('ws-asset-type')?.value || '';
   if (!API.autoAnimAI) {
     customError('autoAnimAI not exposed on this build', 'API missing');
     return;
@@ -18286,7 +18265,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   // batch — which surprised the user (2s "New version with 1 clip" toast
   // and no Modal call). Now every checked type is regenerated.
   if (!animTypes.length) {
-    showToast('Check at least one type to generate.', 'info', 4000);
+    showToast('Check at least one type or describe a custom motion.', 'info', 4000);
     return;
   }
   const toCopy = [];          // intentionally empty — no copy path anymore
@@ -18318,8 +18297,10 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
         const r = await API.autoAnimAI({
           rigUrl: rig.url,
           animType,
-          prompt,
+          // la description libre ne vaut que pour SON clip
+          prompt: animType === 'custom' ? prompt : '',
           engine,
+          assetType,
           batchId,
           projectName: p?.name || null,
           onProgress: ({ polls, elapsedMs, lastWarn }) => {

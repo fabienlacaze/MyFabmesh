@@ -13832,7 +13832,7 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_SHARED_SECRET) return err(500, 'MODAL_SHARED_SECRET not set');
   if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
 
-  let body: { rig_url?: string; anim_type?: string; prompt?: string; engine?: string; batch_id?: string; projectName?: string };
+  let body: { rig_url?: string; anim_type?: string; prompt?: string; engine?: string; batch_id?: string; projectName?: string; asset_type?: string };
   try {
     body = await req.json() as typeof body;
   } catch {
@@ -13843,6 +13843,15 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
   if (!isTrustedAssetHost(env, rigUrl)) return err(400, 'rig_url host not allowed');
   const animType = typeof body.anim_type === 'string' ? body.anim_type.slice(0, 32) : 'idle';
   const prompt = typeof body.prompt === 'string' ? body.prompt.slice(0, 400) : '';
+  // Moteur UNIQUE depuis le 2026-09-26 : « Motion+ » (texte -> mouvement,
+  // app myfabmesh-unimate, routee par l'app d'animation). L'ancien moteur ne
+  // produisait rien d'exploitable (decision user) — y compris pour un client
+  // en cache qui envoie encore engine:'anytop'.
+  // ⚠ Poids = entrainement TIERS sur des donnees sous licences restrictives :
+  // a trancher AVANT d'ouvrir la vente (voir CLAUDE.md §16).
+  const engine = 'motionplus';
+  const assetType = typeof body.asset_type === 'string'
+    ? body.asset_type.replace(/[^a-z_]/gi, '').slice(0, 32) : '';
   // batch_id groups all animations spawned by the same "Generate" click
   // so the client can show them as ONE version (v0 = batch with run+idle,
   // v1 = batch with run+attack, etc.) instead of one version per type.
@@ -13877,6 +13886,8 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
         rig_url: rigUrl,
         anim_type: animType,
         prompt,
+        engine,
+        asset_type: assetType,
       }),
       // 90s — covers Modal cold-start (~20-40s on the AnyTop image)
       // plus the GLB download from R2 inside the endpoint (up to 60s
@@ -13934,7 +13945,7 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
         provenance: _provenance(req),
         pays: _paysRequete(req),
         operation_type: 'animate', sourceRig: rigUrl, anim_type: animType,
-        prompt: prompt || null, batch_id: batchId || null, backend: 'modal',
+        prompt: prompt || null, batch_id: batchId || null, backend: 'modal', engine,
         cost_usd: ESTIMATED_USD_ANIM,
       },
       created_at: new Date().toISOString(),

@@ -1638,7 +1638,16 @@ def anim_router():
         # event loop isn't blocked while Modal enqueues the call. The
         # sync version was emitting "blocking Modal interface used in
         # async context" warnings and contributed to the 120s timeout.
-        call = await animate_mesh.spawn.aio(in_bytes, anim_type, prompt, job_id=job_id)
+        if (payload.get("engine") or "").strip().lower() == "motionplus":
+            # Moteur texte -> mouvement (app myfabmesh-unimate, image a part).
+            # Il ecrit sur CE volume avec le meme protocole : sondage,
+            # recuperation et annulation ci-dessous restent inchanges. Le
+            # worker a deja verifie que le compte y a droit.
+            asset_type = (payload.get("asset_type") or "").strip().lower()[:32]
+            fn = modal.Function.from_name("myfabmesh-unimate", "animer_unimate")
+            call = await fn.spawn.aio(in_bytes, anim_type, prompt, asset_type, job_id)
+        else:
+            call = await animate_mesh.spawn.aio(in_bytes, anim_type, prompt, job_id=job_id)
         try:
             with open(f"/anim_data/{job_id}.call_id", "w") as f:
                 f.write(call.object_id)

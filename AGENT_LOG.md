@@ -22933,3 +22933,60 @@ cours). Traductions fr/es/zh/hi/ar (_additions5.js, deux copies).
 avec message, message « aucune tache en cours », persistance au
 rechargement, libelles FR, « Effacer » ; aucune erreur de page. Capture
 des deux onglets en francais verifiee.
+
+## 2026-09-26 — Animation web : moteur texte -> mouvement « Motion+ » (UniMate)
+
+**Demande user.** Brancher les animations sur les poids UniMate publies par
+un tiers, sans menu de moteur ; l'ancien moteur (AnyTop) « ne marchait pas,
+donc ca sert a rien » : plus de repli, moteur unique pour tous.
+
+**Pilote autonome, sans bpy ni la bibliotheque Motion (sans licence).**
+`modal_app/_unimate_moteur.py` : GLB -> hierarchie + repos -> roles d'os
+(classifieur de `_anytop_anim.py`, lu par ast) -> vocabulaire UniMate
+(« Hips », « Left Thigh »...) -> ordre BFS d'UniMate -> canonisation (XZ
+au centre, diametre 2, sol a 0, face +Z) -> T-pose normalisee + graphe +
+spectre + noms T5 + legende T5 -> flow matching (CFG 3) -> 60 images a
+30 i/s -> rotations par os `L = Cp^-1 . R . C` + trajectoire de la racine
+-> clip glTF ajoute au rig, SANS reciblage. Convention de decodage verifiee
+par cinematique directe (ecart 0,04 contre 0,19-0,30 pour les autres).
+Moteur porte == pilote valide : ecart 0 sur les 35 pistes (meme graine).
+
+**Famille forcee par le type d'asset** (`famille_pour`) : la detection
+automatique classe le chevalier « flying ». character/other_living ->
+bipeds (stats mixamo), animal -> quadropeds (truebones), sinon detection.
+
+**Securite des poids tiers.** Revisions figees (UniMate 9f3076e, poids
+tarn59 518325e, flan-t5-base 7bcac57) et SHA-256 verifies a la
+construction de l'image. `dataset_stats.npy` est un PICKLE : inventaire
+pickletools (numpy seulement), puis chargement par un depickleur en liste
+blanche (`charger_stats`), jamais `allow_pickle=True`.
+
+**Descriptions libres en francais.** Le modele n'a appris que l'anglais.
+flan-t5-base (deja embarque) ESSAYE ET ECARTE : « marche en boitant » ->
+« a sand castle ». Opus-MT fr-en (Apache-2.0, safetensors, empreintes
+verifiees) : 9/12 phrases de mouvement correctes, anglais intact 3/3, donc
+aucune detection de langue. Une legende sans sujet en recoit un
+(« A person digs the earth with a shovel »).
+
+**Architecture : zero changement du cycle de vie.** App a part
+`myfabmesh-unimate` (torch 2.7 / Py 3.11, A10G), lancee par le routeur de
+`myfabmesh-anim` quand `engine == "motionplus"` ; elle ecrit sur le MEME
+volume avec le MEME protocole (`<job>.glb|.err`, `.call_id`). Sondage,
+livraison R2, annulation, remboursement et faucheur du worker inchanges.
+Annulation inter-apps verifiee (spawn puis cancel par call_id).
+
+**Worker** : `handleAutoAnim` impose `engine = 'motionplus'` (meme pour un
+client en cache qui envoie 'anytop') et transmet `asset_type`.
+**Web** : menu de moteur cache supprime ; champ « Custom motion (optional) »
+toujours visible, qui AJOUTE un clip `custom` (les cases cochees gardent
+leur propre legende) ; traductions fr/es/zh/hi/ar.
+
+**Mesures GPU (rig du chevalier, 34 os).** Marche 48 s a froid (racine
++0,95), course 30 s a chaud (+2,1).
+
+**Ouvert.** (1) LICENCE : poids entraines par un tiers sur Mixamo /
+Objaverse (NC) / Truebones — a trancher AVANT d'ouvrir la vente. (2) Clips
+de 2 s, cycles non bouclants ; pas encore de generation par lot (besoin
+user : ~78 animations d'ouvriers + ~15 de guerriers + animaux/creatures).
+(3) Bureau non porte : il faudrait livrer les poids dans l'appli du Store,
+donc la vraie exposition de licence — attendre la decision.

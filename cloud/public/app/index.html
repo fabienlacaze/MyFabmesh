@@ -1052,16 +1052,6 @@
               </summary>
               <div class="stage-body stage-create-with-source">
                 <div class="stage-create-form">
-                  <!-- Engine dropdown hidden: Generative motion is the only wired
-                       engine. Re-show when Procedural / Seed3D land. -->
-                  <div class="form-row" style="display:none;">
-                    <label>Engine</label>
-                    <select id="ws-anim-engine">
-                      <option value="anytop" selected>Generative motion AI</option>
-                      <option value="seed3d_puppeteer" disabled>Procedural animation (coming soon)</option>
-                      <option value="procedural" disabled>Procedural (deferred — humanoid only)</option>
-                    </select>
-                  </div>
                   <div class="form-row">
                     <label>Animations <span style="color:var(--text-2); font-weight:normal; font-size:11px;">(check 1+ types — each becomes a new version)</span></label>
                     <div id="ws-anim-types" class="anim-types-checklist" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px; padding:8px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px;">
@@ -1091,15 +1081,12 @@
                       <option value="idle" selected>Idle</option>
                     </select>
                   </div>
-                  <!-- Prompt + reference video hidden by default: Generative motion
-                       ignores text prompts (T5 is internal joint-name
-                       embedding only), and the only video-conditioned
-                       engine (Seed3D) is deferred. _wsAnimEngineSync()
-                       can re-show them if/when a text-conditioned engine
-                       comes online. -->
-                  <div class="form-row" id="ws-anim-prompt-row" style="display:none;">
-                    <label for="ws-anim-prompt">Prompt</label>
-                    <input id="ws-anim-prompt" type="text" placeholder="e.g. dragon breathes fire" style="width:100%; padding:6px;">
+                  <!-- Le moteur d'animation est texte -> mouvement depuis le
+                       2026-09-26 : une description libre ajoute UN clip de plus
+                       (type « custom »), en plus des cases cochees. -->
+                  <div class="form-row" id="ws-anim-prompt-row">
+                    <label for="ws-anim-prompt">Custom motion (optional)</label>
+                    <input id="ws-anim-prompt" type="text" placeholder="e.g. waves hello with the right hand" style="width:100%; padding:6px;">
                   </div>
                   <div class="form-row" id="ws-anim-video-row" style="display:none;">
                     <label for="ws-anim-video">Reference video</label>

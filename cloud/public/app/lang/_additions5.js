@@ -194,4 +194,30 @@
     'No running jobs': 'لا توجد مهام قيد التنفيذ',
     'No finished jobs yet': 'لا توجد مهام منتهية بعد',
   });
+  // Animation : description libre du mouvement (moteur texte -> mouvement, 2026-09-26).
+  window.FabI18n.register('fr', {
+    'Custom motion (optional)': 'Mouvement personnalisé (facultatif)',
+    'e.g. waves hello with the right hand': 'ex. : salue de la main droite',
+    'Check at least one type or describe a custom motion.': 'Cochez au moins un type ou décrivez un mouvement personnalisé.',
+  });
+  window.FabI18n.register('es', {
+    'Custom motion (optional)': 'Movimiento personalizado (opcional)',
+    'e.g. waves hello with the right hand': 'p. ej.: saluda con la mano derecha',
+    'Check at least one type or describe a custom motion.': 'Marca al menos un tipo o describe un movimiento personalizado.',
+  });
+  window.FabI18n.register('zh', {
+    'Custom motion (optional)': '自定义动作（可选）',
+    'e.g. waves hello with the right hand': '例如：用右手挥手打招呼',
+    'Check at least one type or describe a custom motion.': '请至少勾选一种类型或描述一个自定义动作。',
+  });
+  window.FabI18n.register('hi', {
+    'Custom motion (optional)': 'कस्टम गति (वैकल्पिक)',
+    'e.g. waves hello with the right hand': 'उदा. दाहिने हाथ से हाथ हिलाकर नमस्ते करता है',
+    'Check at least one type or describe a custom motion.': 'कम से कम एक प्रकार चुनें या कस्टम गति का वर्णन करें।',
+  });
+  window.FabI18n.register('ar', {
+    'Custom motion (optional)': 'حركة مخصصة (اختياري)',
+    'e.g. waves hello with the right hand': 'مثال: يلوّح بيده اليمنى للتحية',
+    'Check at least one type or describe a custom motion.': 'حدّد نوعًا واحدًا على الأقل أو صِف حركة مخصصة.',
+  });
 })();

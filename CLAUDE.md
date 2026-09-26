@@ -359,7 +359,13 @@ gatedRun(kind, nom, fn)      ← file d'attente (VRAM ; rend ok() en cloud)
 - `MyFabmeshMesh` — TRELLIS-2, **asynchrone** (`/mesh_start` + `/mesh_status`)
   parce qu'un démarrage à froid dépasse le délai HTTP de 150 s.
 - Applications séparées : `myfabmesh-rig`, `myfabmesh-anim`,
-  `myfabmesh-partsam`, `myfabmesh-fbx-retarget`.
+  `myfabmesh-partsam`, `myfabmesh-fbx-retarget`, `myfabmesh-unimate`.
+- **L'animation de production est `myfabmesh-unimate`** (texte → mouvement,
+  `_unimate_anim.py` + `_unimate_moteur.py`) depuis le 2026-09-26, moteur
+  unique (AnyTop ne produisait rien d'exploitable). Elle est LANCÉE PAR le
+  routeur de `myfabmesh-anim` (`engine == "motionplus"`, imposé par le
+  worker) et écrit sur le même volume : le cycle de vie du worker est
+  inchangé. Libellé visible : jamais le nom du moteur.
 - **Le rig de production est `myfabmesh-skintokens`** (`_skintokens_rig.py`),
   PAS `myfabmesh-rig` (Puppeteer, interdit : Michelangelo GPL-3.0 + PartField
   NC). Le suffixe `_rigged_puppeteer_` des fichiers est un vestige de nommage.
@@ -487,3 +493,9 @@ si une case est cochée, décochée ou masquée :
   même traitement.
 - La **vente est volontairement fermée** (503) tant que les mentions légales
   ne sont pas remplies : 14 champs dans `cloud/src/config/legal-identity.ts`.
+- **Licence des poids d'animation — À TRANCHER AVANT D'OUVRIR LA VENTE.** Le
+  code UniMate est MIT, mais les poids utilisés (`tarn59/UniMate-Weights`)
+  sont un entraînement TIERS sur Mixamo, Objaverse (objets NC) et Truebones.
+  L'étiquette MIT du dépôt tiers ne couvre pas ces données. Le bureau n'est
+  volontairement PAS porté : livrer les poids dans l'appli du Store serait la
+  vraie exposition.
