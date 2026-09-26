@@ -6879,7 +6879,13 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     // Failure is non-fatal — we fall back to the un-rectified image so
     // a transient rectify outage doesn't tank the whole mesh.
     if (env.MODAL_RECTIFY_URL && input.rectify !== false) {
-      const rectifyMode: 'front' | 'iso' = isOrganic ? 'front' : 'iso';
+      // FACE STRICTE pour les seuls humanoides — parite bureau (main.js :
+      // 'front' pour character, 'iso' pour tout le reste). Le web mettait
+      // aussi creature et animal de face : MESURE DU 2026-09-26 sur une
+      // araignee, la vue de face cache l'abdomen derriere la tete et le
+      // maillage le reconstruit en disque plat (ressemblance a l'angle optimal
+      // 0,41 contre 0,60 depuis l'image d'origine).
+      const rectifyMode: 'front' | 'iso' = input.asset_type === 'character' ? 'front' : 'iso';
       try {
         const rectifiedUrl = await _journaliserAppelAux(env, user.id, 'rectify',
           () => callModalRectify(env, user.id, {

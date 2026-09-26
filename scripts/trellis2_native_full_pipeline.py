@@ -219,6 +219,101 @@ def _strip_opaque_alpha(glb_obj):
         n += 1
     return n
 
+
+# ACCORD DES COULEURS SUR L'IMAGE SOURCE (2026-09-26) — remplace
+# l'eclaircissement FIXE. Mesure sur une araignee rouge sombre : atlas final
+# 34 % plus clair que l'image (luminance mediane 0,465 contre 0,302) et MOINS
+# sature (0,50 contre 0,59) malgre +30 % de saturation ajoutes ; avant
+# l'eclaircissement, sa luminance (~0,31) collait deja a l'image. Un gain fixe
+# ne peut pas etre juste pour tous les sujets : on mesure l'image et l'atlas,
+# et on corrige l'atlas vers l'image. Gains bornes (une image quasi noire ou
+# un atlas degenere ne doivent pas produire un extreme).
+def _stats_couleur(rgb):
+    """(luminance mediane, saturation moyenne) de pixels RGB 0..1, forme (N, 3)."""
+    import numpy as np
+    lum = 0.2126 * rgb[:, 0] + 0.7152 * rgb[:, 1] + 0.0722 * rgb[:, 2]
+    mx, mn = rgb.max(axis=1), rgb.min(axis=1)
+    sat = np.where(mx > 1e-6, (mx - mn) / np.maximum(mx, 1e-6), 0.0)
+    return float(np.median(lum)), float(sat.mean())
+
+
+def _pixels_sujet(image):
+    """Pixels du sujet : alpha > 127 si l'image en a un, hors quasi-noir (le
+    fond compose sur noir n'est pas le sujet)."""
+    import numpy as np
+    a = np.asarray(image.convert('RGBA')).astype(np.float32) / 255.0
+    m = a[:, :, 3] > 0.5 if image.mode == 'RGBA' else np.ones(a.shape[:2], bool)
+    px = a[:, :, :3][m]
+    return px[px.max(axis=1) > 0.04]
+
+
+def _masque_couverture_uv(geom, largeur, hauteur):
+    """Texels REELLEMENT couverts par les triangles UV : le vide de l'atlas est
+    noir et ecraserait toute mediane (piege mesure, voir CLAUDE.md)."""
+    import numpy as np
+    try:
+        import cv2
+    except ImportError:
+        return None      # repli : seuil « non noir » dans l'appelant
+    uv = getattr(getattr(geom, 'visual', None), 'uv', None)
+    if uv is None or len(uv) == 0:
+        return None
+    pts = np.stack([uv[:, 0] * (largeur - 1), (1.0 - uv[:, 1]) * (hauteur - 1)], axis=1)
+    tri = np.round(pts[np.asarray(geom.faces)]).astype(np.int32)
+    m = np.zeros((hauteur, largeur), np.uint8)
+    cv2.drawContours(m, list(tri), -1, 1, thickness=-1)   # chaque triangle rempli, union
+    return m.astype(bool)
+
+
+def _accorder_couleurs_source(glb_obj, image_ref, log=print):
+    """Accorde luminance mediane et saturation moyenne de l'atlas baseColor sur
+    celles du sujet de `image_ref`. Rend True si au moins un atlas a ete traite."""
+    import os
+    import numpy as np
+    from PIL import Image, ImageEnhance
+    if image_ref is None:
+        return False
+    ref = _pixels_sujet(image_ref)
+    if len(ref) < 500:
+        return False
+    lum_ref, sat_ref = _stats_couleur(ref)
+    lo_l, hi_l = 0.75, float(os.environ.get('FABMESH_TEX_ACCORD_MAX', '1.6'))
+    geoms = (list(glb_obj.geometry.values())
+             if hasattr(glb_obj, 'geometry') else [glb_obj])
+    fait = False
+    for g in geoms:
+        mat = getattr(getattr(g, 'visual', None), 'material', None)
+        tex = getattr(mat, 'baseColorTexture', None) if mat is not None else None
+        if tex is None:
+            continue
+        alpha = tex.getchannel('A') if tex.mode == 'RGBA' else None
+        rgb = tex.convert('RGB')
+        masque = _masque_couverture_uv(g, rgb.width, rgb.height)
+
+        def mesurer(im):
+            arr = np.asarray(im).astype(np.float32) / 255.0
+            px = arr[masque] if masque is not None else arr.reshape(-1, 3)
+            px = px[px.max(axis=1) > 0.04]
+            return _stats_couleur(px) if len(px) >= 500 else (None, None)
+
+        lum_a, _ = mesurer(rgb)
+        if lum_a is None:
+            continue
+        g_l = min(hi_l, max(lo_l, lum_ref / max(lum_a, 1e-3)))
+        rgb = ImageEnhance.Brightness(rgb).enhance(g_l)
+        _, sat_a = mesurer(rgb)
+        g_s = min(1.5, max(0.8, sat_ref / max(sat_a, 1e-3)))
+        rgb = ImageEnhance.Color(rgb).enhance(g_s)
+        lum_f, sat_f = mesurer(rgb)
+        if alpha is not None:
+            rgb.putalpha(alpha)
+        mat.baseColorTexture = rgb
+        fait = True
+        log(f'couleurs accordees sur la source : luminance {lum_a:.3f}->{lum_f:.3f} '
+            f'(image {lum_ref:.3f}, gain x{g_l:.2f}), saturation ->{sat_f:.3f} '
+            f'(image {sat_ref:.3f}, gain x{g_s:.2f})')
+    return fait
+
 # --- NOYAU PARTAGE : FIN ---
 
 
@@ -572,9 +667,17 @@ def main():
     log(f'GLB built in {time.time()-t_exp:.1f}s')
     print('LOCAL_TRELLIS2_PROGRESS: 92 brightening', flush=True)
 
-    # Auto-brighten the baseColor texture (TRELLIS-2 output under-lit in PBR viewers).
+    # Couleurs accordees sur l'IMAGE SOURCE (noyau partage, 2026-09-26) ; repli
+    # sur l'eclaircissement adouci si rien n'a pu etre mesure.
     if os.environ.get('FABMESH_TRELLIS2_SKIP_BRIGHTEN') != '1':
-        _brighten_baseColor(glb)
+        try:
+            accorde = (os.environ.get('FABMESH_TEX_ACCORD', '1') == '1'
+                       and _accorder_couleurs_source(glb, img, log=log))
+        except Exception as _e:
+            log(f'accord des couleurs ignore: {type(_e).__name__}: {_e}')
+            accorde = False
+        if not accorde:
+            _brighten_baseColor(glb)
         try:
             _corriger_metal_degenere(glb)
         except Exception as _e:

@@ -1527,7 +1527,8 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     true,
   },
   creature: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false,  // decoche 2026-09-26 : la rectification REDESSINE le sujet ;
+                                        // araignee : ressemblance 0,41 (rectifiee) contre 0,60 (image d'origine)
     'ws-trellis2-smooth':       false,  // fur, scales
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
@@ -1617,7 +1618,8 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   animal: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false,  // decoche 2026-09-26 : la rectification REDESSINE le sujet ;
+                                        // araignee : ressemblance 0,41 (rectifiee) contre 0,60 (image d'origine)
     'ws-trellis2-smooth':       false,  // fur, scales
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,

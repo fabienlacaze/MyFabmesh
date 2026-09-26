@@ -1851,13 +1851,25 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     false,
   },
   creature: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false,  // decoche 2026-09-26 : la rectification REDESSINE le sujet ;
+                                        // araignee : ressemblance 0,41 (rectifiee) contre 0,60 (image d'origine)
     'ws-trellis2-smooth':       false,  // fur, scales
     'ws-trellis2-refine':       true,   // ON: main.js --protect-face preserves the face (Tier 2)
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      true,   // creature faces too
     'ws-trellis2-ultra-hd':     true,
     'ws-trellis2-face-fix':     false,  // OFF: generative face repaint wrecks identity (see character)
+  },
+  // Absent du bureau jusqu'au 2026-09-26 alors que le web l'a : un projet
+  // « animal » ne recevait AUCUN profil (cases du projet precedent).
+  animal: {
+    'ws-trellis2-rectify':      false,  // voir creature : la rectification redessine le sujet
+    'ws-trellis2-smooth':       false,  // fur, scales
+    'ws-trellis2-refine':       true,
+    'ws-trellis2-quality-plus': true,
+    'ws-trellis2-ultra-q':      true,   // animal faces matter
+    'ws-trellis2-ultra-hd':     true,
+    'ws-trellis2-face-fix':     false,
   },
   insect: {
     'ws-trellis2-rectify':      false,  // the 3/4 iso image IS the reference; do NOT re-rectify to a front view (head-on breaks insect meshes — no depth)

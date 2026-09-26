@@ -23096,3 +23096,50 @@ de projet -> 0 clip charge apres, viewer vide. Lecture : Pause/Play
 alternent, frise a 30, suivante 31, sans boucle arret a 60/60 puis relance.
 Sur place : amplitude horizontale du personnage 190 px -> 8 px sur captures.
 Vues : face/gauche differentes ; fond gris (68,68,68). Aucune erreur de page.
+
+## 2026-09-26 — Ressemblance image -> 3D : la rectification redessinait le sujet
+
+**Signalement.** « On est loin d'une araignee » (projet « red killing
+spider ») : abdomen en disque plat, pattes epaisses, rouge orange vif.
+Backup `backup-avant-ressemblance-3d-20260926-180231` avant toute modif.
+
+**Mesure, pas supposition.** Maillage (mesh/modal_6724...) et image
+detouree recuperes dans R2 ; rendus Blender non eclaires sous 120 angles,
+meilleur angle retenu par silhouette. PIEGE : la transformation d'affichage
+par defaut de Blender 5 (AgX) desature — premier diagnostic couleur FAUX
+(« moins sature »), refait en 'Standard'.
+
+**Cause 1 — l'entree n'etait pas l'image du user.** R2 : une image
+`rectify/..._rectified.png` produite 6 min avant le maillage = araignee
+redessinee DE FACE, abdomen cache derriere la tete (il n'en reste qu'une
+calotte), pattes fusionnees, rouge-brun plus clair. Le worker rectifiait en
+mode 'front' pour character, creature ET animal ; le bureau ne le fait que
+pour character (le reste en 'iso') — ecart de parite. A/B GPU (meme graine,
+1024) : image rectifiee -> ressemblance a l'angle optimal 0,41 ; image
+d'origine -> 0,60, abdomen rond rouge/noir, yeux, 8 pattes, meme posture.
+Correctifs : worker 'front' pour character seul (parite) ; profils creature
+et animal : rectification DECOCHEE par defaut (bureau + web ; le profil
+insect l'etait deja pour la meme raison). Profil « animal » AJOUTE au
+bureau, qui n'en avait pas (un projet animal gardait les cases du precedent).
+
+**Cause 2 — couleurs.** L'eclaircissement cloud etait x1,5 / sat x1,3 /
+contraste x1,1, commentaire « memes multiplicateurs que le bureau » — FAUX
+depuis le 2026-06-27 (audit : trop fort ; bureau ramene a x1,2 / x1,1).
+Atlas mesure (zone UV couverte) : luminance 0,421 contre 0,307 pour l'image,
+et PLUS sature. Remplace sur les deux plateformes par
+`_accorder_couleurs_source` (noyau partage) : luminance mediane et
+saturation moyenne de l'atlas accordees sur le sujet de l'image source,
+mesurees sur les seuls texels couverts par les triangles UV (le vide noir
+fausserait la mediane), gains bornes [0,75 ; 1,6] et [0,8 ; 1,5] ; repli sur
+l'eclaircissement adouci si rien n'est mesurable ; FABMESH_TEX_ACCORD=0 pour
+l'ancien comportement. Teste hors ligne : luminance 0,421 -> 0,317 (image
+0,307). VERIFIE EN PRODUCTION apres deploiement (inference_bytes, image
+d'origine) : « couleurs accordees sur la source : luminance 0.223->0.300
+(image 0.300, gain x1.35), saturation ->0.639 (image 0.592) », 35,7 s.
+
+**Rig (signale en parallele, pas encore traite).** Rig SkinTokens de
+l'araignee : 42 os, 14 extremites, dont 10 laissent 8 a 16 % de la taille
+du corps SANS os au-dela du dernier (bouts de pattes) ; une patte sans
+chaine ; aucune machoire/oreille sur les tetes (vache : pas de tete du tout).
+Voie connue : squelette-gabarit (POC valide le 2026-08-08, ecarte alors par
+le user au profit du squelette natif) — decision a reposer au user.
