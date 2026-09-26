@@ -13850,7 +13850,7 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
   // ⚠ Poids = entrainement TIERS sur des donnees sous licences restrictives :
   // a trancher AVANT d'ouvrir la vente (voir CLAUDE.md §16).
   const engine = 'motionplus';
-  const assetType = typeof body.asset_type === 'string'
+  let assetType = typeof body.asset_type === 'string'
     ? body.asset_type.replace(/[^a-z_]/gi, '').slice(0, 32) : '';
   // batch_id groups all animations spawned by the same "Generate" click
   // so the client can show them as ONE version (v0 = batch with run+idle,
@@ -13859,6 +13859,21 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
     ? body.batch_id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32)
     : '';
   const projectName = typeof body.projectName === 'string' ? body.projectName : '';
+  // Le type d'asset du PROJET fait foi : le navigateur ne le connait que par
+  // son localStorage, et le menu garde sinon la valeur du projet PRECEDENT
+  // (« character » par defaut) — une araignee partait animee comme un humain.
+  // Il est enregistre sur les travaux d'image / de maillage du projet.
+  if (projectName) {
+    try {
+      const { data } = await supabaseAdmin(env).from('jobs').select('asset_type')
+        .eq('user_id', user.id).eq('project_name', projectName)
+        .in('asset_type', ['character', 'creature', 'animal', 'insect', 'other_living', 'vehicle',
+          'avion', 'bateau', 'other_vehicle', 'building', 'environment'])
+        .order('created_at', { ascending: false }).limit(1);
+      const duProjet = (data as { asset_type?: string }[] | null)?.[0]?.asset_type;
+      if (duProjet) assetType = duProjet;
+    } catch (e) { console.warn('[animate] asset_type du projet illisible', e); }
+  }
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_ANIM, user.id);
   if (remainingBudget == null) return err(429, 'daily Cloud GPU budget reached. Try again after midnight UTC.');

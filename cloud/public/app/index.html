@@ -1113,6 +1113,10 @@
                   <div class="step-card-preview large" id="step4-preview">
                     <canvas id="ws-anim-canvas"></canvas>
                     <div class="preview-placeholder" id="step4-placeholder">No animation selected</div>
+                    <!-- Plein ecran NATIF de cette carte (et non la visionneuse
+                         3D commune, qui n'a pas de mixer : l'animation s'y
+                         figerait). La barre d'outils suit dans le plein ecran. -->
+                    <button id="ws-anim-expand-btn" class="preview-expand-btn hidden" title="View animation fullscreen">&#x26F6;</button>
                     <div id="ws-anim-toolbar" class="mesh-toolbar">
                       <button data-act="reset" title="Reset camera">&#10227;</button>
                       <select data-act="view" title="Camera view">

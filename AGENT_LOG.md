@@ -23018,3 +23018,39 @@ animes, la marche avance toujours (+0,94). `os_total` ajoute aux infos.
 **Viewer « Edit selected ».** Le web ne masquait jamais « No animation
 selected » une fois un clip choisi (le bureau si) : texte coupe a droite
 du viewer. Masque comme sur le bureau ; le spinner est un calque distinct.
+
+## 2026-09-26 — Animation : clip d'un AUTRE projet, plein ecran, liste du lot, type d'asset
+
+**Clip du mauvais personnage.** Capture user : projet « red killing spider »
+(aucune animation), viewer jouant le « attack » du barbare genere a 17 h 37
+dans l'autre projet. `renderAnimVersions` (web) affichait « No animations
+yet » et SORTAIT sans vider le viewer ; le bureau le vidait deja. Porte :
+selection remise a zero + `showStep4AnimPreview(null)` (dans un try : la
+variable `_step4ActiveAnim` est declaree plus bas, zone morte possible).
+La capture precedente (liste vide + clip qui joue) etait le MEME defaut.
+
+**Bouton plein ecran (bureau + web).** Image, maillage et rig avaient leur
+bouton ⛶ ; pas l'animation. La visionneuse 3D commune n'a pas de mixer
+(l'animation s'y figerait) : plein ecran NATIF de la carte du viewer,
+barre d'outils comprise. Le viewer bureau fixait sa taille une fois au
+demarrage : ResizeObserver ajoute (deconnecte au cleanup).
+
+**Fiche du travail : chaque clip du lot.** Ligne « Animations » avec une
+ligne par clip (◻ en attente, ⏳ en cours, ✓ fait, ✗ echec) et « Batch »
+en compteur. Le rendu des parametres accepte les valeurs multi-lignes
+(pre-line, jamais tronquees) ; « Types » et « Prompt » retires.
+
+**Type d'asset du projet.** Sur le web il ne vient que du localStorage du
+navigateur ; a defaut le menu garde la valeur du projet PRECEDENT
+(« character » par defaut). Le worker lit desormais le type sur le dernier
+travail du projet (table jobs, types connus seulement) et il fait foi.
+Moteur : `insect` -> famille a pattes non ailee (la detection classe
+>= 4 chaines laterales en « flying » : une araignee aurait eu huit « Left
+Wing »), stats Truebones ; sujet de la legende selon le type (« An insect
+walks forward »).
+
+**Preuve (navigateur, API simulee).** Projet avec clip : 1 version, 1
+bouton, viewer charge, ⛶ visible ; plein ecran : canvas 501 -> 1498 px,
+sortie OK ; projet sans animation : viewer vide, ⛶ cache ; lot idle+attack :
+« ⏳ idle / ◻ attack » puis « ✓ idle / ⏳ attack », engine motionplus
+envoye ; aucune erreur de page.

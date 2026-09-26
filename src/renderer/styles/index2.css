@@ -4302,3 +4302,7 @@ details.stage-generating > summary .stage-gear .gear-glyph {
 .job-fini-2-meta { margin-top: 4px; padding-left: 26px; font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .job-fini-2-erreur { margin-top: 4px; padding-left: 26px; font-size: 11px; color: var(--error); overflow-wrap: anywhere; }
 #jobs-bubble-2.jobs-bubble-inactive { opacity: .72; }
+
+/* Viewer d'animation en plein ecran natif (bouton de la carte #ws-anim-preview). */
+#ws-anim-preview:fullscreen { background: #0a0a0e; border-radius: 0; }
+#ws-anim-preview:fullscreen .preview-expand-btn { opacity: 1; transform: scale(1); pointer-events: auto; }

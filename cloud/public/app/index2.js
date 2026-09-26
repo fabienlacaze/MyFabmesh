@@ -17437,6 +17437,14 @@ function renderAnimVersions(p) {
   if (!anims.length) {
     typeBtns.innerHTML = '';
     strip.innerHTML = '<div style="color:var(--text-2); font-size:12px; padding:4px;">No animations yet. Pick types in Create new and click Generate Animation.</div>';
+    // VIDER le viewer : sans ca, le clip du projet PRECEDENT continuait de
+    // jouer dans un projet qui n'a aucune animation (barbare « attack »
+    // affiche dans « red killing spider », capture user du 2026-09-26).
+    _step4SelectedBatch = null;
+    _step4SelectedClipInBatch = null;
+    // try : `_step4ActiveAnim` est declare PLUS BAS (let) — un appel pendant
+    // l'evaluation du module tomberait dans sa zone morte temporelle.
+    try { if (_step4ActiveAnim) showStep4AnimPreview(null); } catch (_) {}
     return;
   }
   const iconFor = (t) => t === 'idle' ? '😴' : t === 'walk' ? '🚶'
@@ -17740,12 +17748,26 @@ function showStep4AnimPreview(anim) {
   // Clean any leftover model-viewer node from a prior build.
   const prev = card.querySelector('model-viewer.anim-mv');
   if (prev) prev.remove();
+  const expandBtn = document.getElementById('ws-anim-expand-btn');
   if (!anim) {
     if (placeholder) placeholder.style.display = '';
     if (canvas) canvas.style.display = '';
+    if (expandBtn) expandBtn.classList.add('hidden');
+    if (document.fullscreenElement === card) { try { document.exitFullscreen(); } catch (_) {} }
     _disposeAnimModel();
     setViewerFilename('ws-anim-filename', '');
     return;
+  }
+  if (expandBtn) {
+    expandBtn.classList.remove('hidden');
+    expandBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (document.fullscreenElement === card) {
+        document.exitFullscreen().catch(() => {});
+      } else {
+        card.requestFullscreen?.().catch((err) => console.warn('[anim-vw] plein ecran refuse:', err));
+      }
+    };
   }
   if (canvas) canvas.style.display = '';
   // Le bureau masque ce texte des qu'un clip est choisi ; le web l'oubliait :
@@ -18271,19 +18293,31 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   // job (instead of per-type popups) — the user sees a single Running
   // task that walks through 1/N → N/N. No copy path: every checked
   // type is always regenerated.
+  // Etat de CHAQUE animation du lot, liste dans la fiche du travail (une
+  // ligne par clip) : le user voyait seulement « 1/2 (attack) » sans savoir
+  // ce qui restait a generer.
+  const _ICONES_LOT = { pending: '◻', running: '⏳', done: '✓', failed: '✗' };
+  const etatLot = toRun.map(() => 'pending');
+  const _listeLot = () => toRun.map((t, i) => `${_ICONES_LOT[etatLot[i]]} ${t}`).join('\n');
   gatedRun('anim', `Animate ${toRun.join('+')}: ${p.name}`, async () => {
     const batchJob = pushJob(`Animate ${toRun.join('+')}: ${p.name}`, null, {
       Engine: 'Generative motion AI (cloud GPU)',
-      Types: toRun.join(', '),
-      Prompt: prompt || '—',
+      Animations: _listeLot(),
       'Source rig': (rig.filename || rig.url).split(/[/\\]/).pop(),
       Batch: `0/${toRun.length}`,
     }, 180000 * toRun.length);
+    const _majLot = () => {
+      const j = state.jobs.find(x => x.id === batchJob.id);
+      if (!j) return;
+      j.params.Animations = _listeLot();
+      j.params.Batch = `${etatLot.filter(e => e === 'done').length}/${toRun.length}`;
+    };
     let done = 0;
-    for (const animType of toRun) {
+    for (const [indexLot, animType] of toRun.entries()) {
+      etatLot[indexLot] = 'running';
+      _majLot();
       const bj = state.jobs.find(x => x.id === batchJob.id);
       if (bj) {
-        bj.params.Batch = `${done + 1}/${toRun.length} (${animType})`;
         bj.subtitle = `Spawning Modal for ${animType}...`;
         renderJobs();
       }
@@ -18315,6 +18349,8 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
         });
         if (r?.success) {
           done++;
+          etatLot[indexLot] = 'done';
+          _majLot();
           const j = state.jobs.find(x => x.id === batchJob.id);
           if (j) {
             j.progress = (done / toRun.length) * 100;
@@ -18323,11 +18359,15 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
           }
           renderAnimVersions(p);
         } else {
+          etatLot[indexLot] = 'failed';
+          _majLot();
           completeJob(batchJob.id, false, r?.error || 'unknown');
           if (!batchJob.cancelled) reportPipelineError(r?.error, `Animate failed (${animType})`);
           break;
         }
       } catch (e) {
+        etatLot[indexLot] = 'failed';
+        _majLot();
         completeJob(batchJob.id, false, e?.error || e?.message || String(e));
         if (!batchJob.cancelled) reportPipelineError(e?.error || e?.message || String(e), `Animate error (${animType})`);
         break;
@@ -19621,8 +19661,12 @@ async function refreshJobDetailsModal(id) {
         const full = String(v == null ? '--' : v);
         // The value column now wraps (CSS overflow-wrap), so allow a longer
         // filename before truncating; the full name is always in the tooltip.
-        const val = full.length > 120 ? full.slice(0, 117) + '...' : full;
-        return `<div class="jd-row"><span class="jd-label">${escapeHtml(k)}</span><span class="jd-value" title="${escapeHtml(full)}">${escapeHtml(val)}</span></div>`;
+        // Une valeur MULTI-LIGNES est une liste (animations d'un lot) : une
+        // ligne par element, jamais tronquee.
+        const liste = full.includes('\n');
+        const val = (!liste && full.length > 120) ? full.slice(0, 117) + '...' : full;
+        const style = liste ? ' style="white-space:pre-line; text-align:right;"' : '';
+        return `<div class="jd-row"><span class="jd-label">${escapeHtml(k)}</span><span class="jd-value"${style} title="${escapeHtml(full)}">${escapeHtml(val)}</span></div>`;
       }).join('');
       paramsBox.innerHTML = rows;
       paramsBox.classList.remove('hidden');

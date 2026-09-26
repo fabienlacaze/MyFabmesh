@@ -54,21 +54,30 @@ def famille_pour(asset_type):
     t = (asset_type or '').lower()
     if t in ('character', 'other_living', 'humanoid'):
         return 'bipeds'
-    if t == 'animal':
+    # Insectes / araignees : leurs pattes sont des chaines LATERALES, que la
+    # detection prend pour des ailes (>= 4 laterales -> « flying ») — une
+    # araignee aurait eu huit « Left Wing ». Famille a pattes non ailee ;
+    # statistiques Truebones (qui contient araignees, scorpions, fourmis).
+    if t in ('animal', 'insect'):
         return 'quadropeds'
     return 'auto'
+
+
+_SUJET_PAR_TYPE = {'character': 'A person', 'other_living': 'A person', 'humanoid': 'A person',
+                   'animal': 'An animal', 'insect': 'An insect', 'creature': 'A creature'}
 
 
 _SUJETS = ('a ', 'an ', 'the ', 'he ', 'she ', 'it ', 'they ', 'someone', 'somebody', 'person', 'man ',
            'woman ', 'character', 'creature', 'animal')
 
 
-def prompt_pour(anim_type, famille, prompt_utilisateur=''):
+def prompt_pour(anim_type, famille, prompt_utilisateur='', asset_type=''):
     """Legende au format appris par le modele : « A person walks forward ».
-    Une description libre sans sujet (« digs the earth with a shovel ») en
-    recoit un."""
-    sujet = {'bipeds': 'A person', 'quadropeds': 'An animal', 'flying': 'A bird',
-             'millipeds_snakes': 'A creature'}.get(famille, 'A creature')
+    Le sujet suit le type d'asset quand il est connu (« An insect... »),
+    sinon la famille. Une description libre sans sujet en recoit un."""
+    sujet = _SUJET_PAR_TYPE.get((asset_type or '').lower()) or {
+        'bipeds': 'A person', 'quadropeds': 'An animal', 'flying': 'A bird',
+        'millipeds_snakes': 'A creature'}.get(famille, 'A creature')
     libre = (prompt_utilisateur or '').strip().rstrip('.')
     if libre:
         if libre.lower().startswith(_SUJETS):

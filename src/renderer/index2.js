@@ -16548,6 +16548,8 @@ function renderAnimVersions(p) {
     if (ph) ph.style.display = '';
     const fn = document.getElementById('ws-anim-filename');
     if (fn) fn.textContent = '';
+    document.getElementById('ws-anim-expand-btn')?.classList.add('hidden');
+    if (document.fullscreenElement?.id === 'ws-anim-preview') { document.exitFullscreen().catch(() => {}); }
     return;
   }
   const iconFor = (t) => t === 'idle' ? '😴' : t === 'walk' ? '🚶'
@@ -16633,6 +16635,18 @@ function _selectAnim(anim) {
   const fnEl = document.getElementById('ws-anim-filename');
   if (!previewBox || !canvas) return;
   if (placeholder) placeholder.style.display = 'none';
+  const expandBtn = document.getElementById('ws-anim-expand-btn');
+  if (expandBtn) {
+    expandBtn.classList.remove('hidden');
+    expandBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (document.fullscreenElement === previewBox) {
+        document.exitFullscreen().catch(() => {});
+      } else {
+        previewBox.requestFullscreen?.().catch((err) => console.warn('[anim-result] plein ecran refuse:', err));
+      }
+    };
+  }
   if (fnEl) {
     fnEl.textContent = (anim.motionLabel || anim.filename || '')
       + (anim.verdict ? ` · judge: ${anim.verdict}` : '');
@@ -16750,10 +16764,24 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       ctl.update();
       renderer.render(scene, cam);
     })();
+  // La taille etait fixee UNE fois au demarrage : en plein ecran (bouton ⛶)
+  // l'image restait a sa taille d'origine. On suit desormais le canvas.
+  let _suiviTaille = null;
+  if (typeof ResizeObserver !== 'undefined') {
+    _suiviTaille = new ResizeObserver(() => {
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      if (!W || !H) return;
+      renderer.setSize(W, H, false);
+      cam.aspect = W / H;
+      cam.updateProjectionMatrix();
+    });
+    _suiviTaille.observe(canvas);
+  }
   _animViewer = {
     cleanup() {
       disposed = true;
       cancelAnimationFrame(raf);
+      try { _suiviTaille?.disconnect(); } catch (_) {}
       try { renderer.dispose(); } catch (_) {}
     }
   };

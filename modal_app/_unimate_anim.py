@@ -140,7 +140,7 @@ def animer_unimate(rig_octets: bytes, anim_type: str, prompt: str, asset_type: s
         m = _moteur()
         import _unimate_moteur as um
         famille = um.famille_pour(asset_type)
-        texte = um.prompt_pour(anim_type, famille, m.traduire(prompt))
+        texte = um.prompt_pour(anim_type, famille, m.traduire(prompt), asset_type)
         # graine tiree du job : un meme job rejoue donne le meme clip
         graine = int(hashlib.sha256(job_id.encode()).hexdigest()[:8], 16) % 100000
         nom = texte[:48] if (anim_type or "").lower() == "custom" else (anim_type or "clip")
