@@ -663,7 +663,8 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-aligntex-btn':     1,   // Wave 4.2 (no-op for now)
     'ws-mesh-material-btn':     1,   // Wave 4.2 (PBR normalize)
     'ws-mesh-retexture-btn':    1,   // Wave 4.2 (atlas swap)
-    'ws-mesh-texvar-btn':       3,   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
+    'ws-mesh-texvar-btn':       3,
+    'ws-mesh-trellis2-btn':     4,   // « Re-texture all (AI) », palier Fast (/api/mesh-retexture)   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
     'ws-mesh-enhance-tex-btn':  3,   // Real-ESRGAN sur l'atlas (/api/mesh-enhance-tex)
     'ws-mesh-name-btn':         3,   // rendu isole + CLIP-L (/api/mesh-name-parts)
     'ws-mesh-region-retex-btn': 3,   // SDXL Inpaint de l'atlas sous masque UV (/api/mesh-region-retex)
@@ -690,7 +691,8 @@ window.__optionsMortesCloud = new Set([]);
     // Smooth/Grow/Shrink/Isolate/Hide all shipped on cloud, and the missing
     // piece — the ways to actually SELECT (Add/Erase brush, Magic wand,
     // Lasso, Move gizmo) — was ported from the desktop editor in index2.js.
-    'ws-mesh-trellis2-btn',    // desktop-only TRELLIS-2 retexture path
+    // 'ws-mesh-trellis2-btn' — VISIBLE depuis le 2026-09-27 : « Re-texture all
+    // (AI) » tourne sur Modal (/api/mesh-retexture, pipeline de texturation).
     // Part segmentation: cloud backend (Modal PartSAM) not deployed yet —
     // hide until the cloud PartSAM job is wired, else the button errors.
     'ws-mesh-segment-btn',
@@ -1078,6 +1080,7 @@ window.__optionsMortesCloud = new Set([]);
     'ws-recolor-btn':      'recolor',
     'ws-age-btn':          'tex_variant',
     'ws-mesh-texvar-btn':  'texture_var',
+    'ws-mesh-trellis2-btn': 'retex_fast',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',
@@ -1243,16 +1246,19 @@ window.__optionsMortesCloud = new Set([]);
     catch (_) { /* sans effet sur l'UI */ }
   }
 
-  async function prewarmGpu(imageOp) {
+  // Une garde PAR CONTENEUR : reveiller l'un ne dispense pas de l'autre.
+  const _dernierPrechauffage = {};
+  async function prewarmGpu(cible) {
     // Garde locale : inutile de re-poster plus d'une fois par minute, le
     // worker sait deja repondre sans rien faire mais autant s'en passer.
-    if (Date.now() - _lastPrewarm < 60_000) return;
+    if (Date.now() - (_dernierPrechauffage[cible] || 0) < 60_000) return;
+    _dernierPrechauffage[cible] = Date.now();
     _lastPrewarm = Date.now();
     try {
       await fetch('/api/prewarm', {
         method: 'POST', credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ imageOp: !!imageOp }),
+        body: JSON.stringify({ cible }),
       });
     } catch (_) { /* best-effort */ }
   }
@@ -1279,16 +1285,21 @@ window.__optionsMortesCloud = new Set([]);
       if (!document.hidden) pingHeartbeat();
     });
     // Ouvrir le panneau d'options 3D ou saisir un prompt = intention de generer.
-    const armer = (id, imageOp) => {
+    // UNE INTENTION, UN CONTENEUR (2026-09-27). Le prompt reveillait AUSSI
+    // le conteneur d'edition d'image avec tous ses modeles (~6 Go), alors
+    // qu'il ne sert qu'a generer une image ; et le menu des options 3D, qui
+    // annonce rectification + vue arriere (conteneur image_op), ne reveillait
+    // que text2image. Remis dans le bon sens.
+    const armer = (id, cible) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.addEventListener('focus', () => prewarmGpu(imageOp), { passive: true });
-      el.addEventListener('click', () => prewarmGpu(imageOp), { passive: true });
+      el.addEventListener('focus', () => prewarmGpu(cible), { passive: true });
+      el.addEventListener('click', () => prewarmGpu(cible), { passive: true });
     };
-    armer('ws-prompt', true);
-    armer('np-prompt', true);
-    armer('ws-trellis2-preset', false);
-    armer('ws-asset-type', true);
+    armer('ws-prompt', 'text2image');
+    armer('np-prompt', 'text2image');
+    armer('ws-asset-type', 'text2image');
+    armer('ws-trellis2-preset', 'image_op');
   }
 
   function installMeshCostMeter() {

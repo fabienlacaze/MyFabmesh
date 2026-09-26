@@ -1657,6 +1657,16 @@ const PRICING_DEFAULTS = {
   // tuiles (4 tuiles de 1024 pour un atlas 2K). Meme moteur et meme
   // tarif que tex_variant, a la demande du user (« 1 ou 2 credits »).
   texture_var:      3,          // releve 2026-09-27 (voir tex_variant)
+  // « Re-texture all (AI) » (porte le 2026-09-27) : pipeline de texturation
+  // du moteur 3D sur le GPU de la generation (L40S, traine 90 s), chargement
+  // du pipeline a froid + 12/24/32 pas. ~0,15-0,25 EUR isole : au pire
+  // credit (0,11 EUR TVA comprise) ces tarifs rapportent x1,7 a x2,5.
+  // « ultra_8k » cuit en 4096 comme « quality » ; le client enchaine ensuite
+  // « Sharpen texture » (facture a part), exactement comme le bureau.
+  retex_fast:       4,
+  retex_balanced:   5,
+  retex_quality:    6,
+  retex_ultra_8k:   6,
   // « Sharpen texture (x2) » : Real-ESRGAN, un reseau de restauration et non
   // une diffusion — quelques secondes a chaud, mais ~0,20 EUR isole a froid
   // (chargement + traine) : 1 credit perdait 0,07 EUR. Releve a 3 le 2026-09-27.
@@ -2138,6 +2148,7 @@ const MODAL_COST_USD: Record<string, number> = {
   'tpose':       0.004,
   'mesh':        0.370,   // MESURE (n=17, 373 s) + traine scaledown 300 s
   'mesh-face':   0.420,   // 'mesh' + le delta face_fix de l'ancienne table
+  'retexture':   0.150,   // voir handleMeshRetexture (estimation, non mesuree)
   'remove-bg':   0.005,   // non mesure
   // 2026-07-26 — the four async Modal op types had NO entry here AND no
   // cost_usd on their jobs row, so the admin dashboard reported a 100%
@@ -2469,7 +2480,10 @@ async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   if (i.multiref)     n += p.mesh_multiref     ?? 1;
   if (i.refine)       n += p.mesh_refine       ?? 2;
   if (i.rectify)      n += p.mesh_rectify      ?? 3;
-  if (i.quality_plus) n += p.mesh_quality_plus ?? 1;
+  // Ultra Q (1536) L'EMPORTE sur Quality+ (1024 cascade) dans le choix du mode
+  // envoye a Modal : cocher les deux facturait Quality+ pour un reglage jamais
+  // applique (audit du 2026-09-27).
+  if (i.quality_plus && !i.ultra_q) n += p.mesh_quality_plus ?? 1;
   if (i.ultra_q)      n += p.mesh_ultra_q      ?? 2;
   // ultra_hd add-on is INCLUDED in the ultra_8k preset price (8 cr),
   // so don't double-charge for it when the preset already covers it.
@@ -6801,7 +6815,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     preset: (form.get('preset') as GenerateInput['preset']) || undefined,
   };
 
-  const cost = await creditCost(env, input);
+  let cost = await creditCost(env, input);
   // Decide backend FIRST so we hit the right budget counter. Mesh
   // routes to Modal when both MODAL_MESH_* URLs are set; otherwise
   // falls back to the Replicate Cog (fishwowater/trellis2). Each
@@ -6941,6 +6955,19 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         frontUrl = rectifiedUrl;
       } catch (e: unknown) {
         console.warn(`[wave2.1] rectify failed, using original front: ${e instanceof Error ? e.message : String(e)}`);
+        /* L'OPTION ECHOUEE EST REMBOURSEE (2026-09-27).
+         *
+         * La generation continue sur l'image d'origine, ce qui est voulu ;
+         * mais le supplement « Auto-rectify » restait debite pour une
+         * rectification qui n'avait pas eu lieu. Mesure : 26 echecs sur 45
+         * en septembre. On rend son prix et la ligne `jobs` (inseree plus
+         * bas) porte le cout reellement du. */
+        if (input.rectify) {
+          const prixRectif = (await _getPricing(env)).mesh_rectify ?? PRICING_DEFAULTS.mesh_rectify;
+          if (prixRectif > 0 && (await addCredits(env, user.id, prixRectif)) != null) {
+            cost = Math.max(0, cost - prixRectif);
+          }
+        }
       }
     }
     // ────────────────────────────────────────────────────────────────
@@ -7099,6 +7126,20 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
        // user's coarse mode picker. Without this map, ticking
        // "Ultra Quality (+~50s, +2 cr)" was a paid no-op — the worker
        // sent mode=1024 to Modal and the user got the default mesh.
+      /* LE PALIER PAYE DECIDE DU TRAVAIL GPU (2026-09-27).
+       *
+       * Le client calcule 12/24/32 pas dans `trellis2Steps`, mais le shim ne
+       * l'envoyait pas : tous les paliers recevaient le meme travail (24 pas
+       * par defaut cote Modal, atlas 1024) pour 8 a 16 credits. On derive
+       * desormais les reglages du PALIER FACTURE, cote serveur. Fast garde
+       * exactement son calcul actuel (personne n'y perd) ; chaque palier
+       * au-dessus est strictement meilleur : Balanced atlas 2048, Quality et
+       * Ultra 32 pas + atlas 4096 (comme le bureau). */
+      const PALIERS: Record<string, { pas: number; atlas: number }> = {
+        fast: { pas: 24, atlas: 1024 }, balanced: { pas: 24, atlas: 2048 },
+        quality: { pas: 32, atlas: 4096 }, ultra_8k: { pas: 32, atlas: 4096 },
+      };
+      const palier = input.preset ? PALIERS[input.preset] : undefined;
       const trellisMode = input.ultra_q     ? '1536_cascade'
                         : input.quality_plus ? '1024_cascade'
                         : input.mode === 'full' ? '1024_cascade'
@@ -7115,6 +7156,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         // ultra_hd bumps the atlas to 4096 for the Real-ESRGAN x2 pass
         // downstream. Otherwise 2048 for "full", 1024 elsewhere.
         texture_size: input.ultra_hd ? 4096
+                    : palier ? palier.atlas
                     : input.mode === 'full' ? 2048
                     : 1024,
         // STEPS DU PALIER DE QUALITE. Le client calcule 12/24/32 selon
@@ -7123,7 +7165,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         // quatre paliers, factures 3/4/6/8 credits, produisaient le meme
         // travail GPU. Borne a [8, 48] pour qu'un client trafique ne
         // puisse pas commander une generation interminable.
-        tex_steps: Math.max(0, Math.min(48,
+        tex_steps: palier ? palier.pas : Math.max(0, Math.min(48,
           parseInt(String((input as unknown as Record<string, unknown>).trellis2Steps ?? 0), 10) || 0)),
         rectify: input.rectify,
         face_fix: input.face_fix,
@@ -11193,6 +11235,101 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
     console.error(`[${conf.op}]`, motif);
     return err(502, `${conf.libelle} failed (credits refunded)`);
   }
+}
+
+/** POST /api/mesh-retexture — « Re-texture all (AI) », portage du bridge
+ *  bureau scripts/trellis2_texturing_bridge.py (mesh_tools.trellis2_retex).
+ *
+ *  Garde la geometrie, regenere toute la texture PBR depuis l'image de
+ *  reference, avec le pipeline de texturation du moteur 3D. ASYNCHRONE :
+ *  ~90 s a 3 min plus le chargement a froid, bien au-dela des 100 s d'une
+ *  requete. On cree donc une ligne `jobs` `modal_<uuid>` exactement comme une
+ *  generation : /api/jobs/:id la suit par /mesh_status, range le GLB dans R2
+ *  et rembourse sur echec ; le faucheur couvre les travaux bloques. */
+const ESTIMATED_USD_RETEX = 0.15;
+async function handleMeshRetexture(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MODAL_MESH_START_URL || !env.MODAL_MESH_STATUS_URL || !env.MODAL_SHARED_SECRET) {
+    return err(503, 're-texture backend unavailable (cloud GPU not configured)');
+  }
+  const { meshUrl, imageUrl, backImageUrl, preset, seed, projectName, assetType } = await req.json() as {
+    meshUrl?: string; imageUrl?: string; backImageUrl?: string; preset?: string;
+    seed?: number | string; projectName?: string; assetType?: string;
+  };
+  if (!meshUrl) return err(400, 'meshUrl required');
+  if (!imageUrl) return err(400, 'imageUrl required (reference image)');
+  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed');
+  if (!isTrustedAssetHost(env, imageUrl)) return err(400, 'imageUrl host not allowed');
+  if (backImageUrl && !isTrustedAssetHost(env, backImageUrl)) return err(400, 'backImageUrl host not allowed');
+  const palier = ['fast', 'balanced', 'quality', 'ultra_8k'].includes(String(preset)) ? String(preset) : 'fast';
+  const graine = Number.isFinite(Number(seed)) ? Math.max(0, Math.min(999_999, Math.floor(Number(seed)))) : 42;
+  const cost = await getPrice(env, `retex_${palier}` as PricingKey);
+
+  const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_RETEX, user.id);
+  if (remainingBudget == null) return err(429, await _spendRefusalMessage(env, user.id));
+  const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
+  if (remainingUserCalls == null) {
+    await refundModalSpend(env, ESTIMATED_USD_RETEX, user.id);
+    return err(429, 'you have reached the per-user daily generation limit.');
+  }
+  const remaining = await spendCredits(env, user.id, cost);
+  if (remaining == null) {
+    await refundModalSpend(env, ESTIMATED_USD_RETEX, user.id);
+    return err(402, `insufficient credits — re-texture costs ${cost}`);
+  }
+
+  // Vignette : l'image de reference, stockee par sa CLE si elle est au compte.
+  let sourceImageStore: string | undefined = imageUrl;
+  const cleSource = r2PathFromPublicUrl(env, imageUrl);
+  if (cleSource && cleSource.startsWith(`${user.id}/`)) sourceImageStore = cleSource;
+  const at = String(assetType || 'other').replace(/[^a-z_]/gi, '').slice(0, 20) || 'other';
+
+  const jobId = 'modal_' + crypto.randomUUID().replace(/-/g, '');
+  const jobIns = await supabaseAdmin(env).from('jobs').insert({
+    id: jobId, user_id: user.id,
+    asset_type: at, mode: palier, seed: graine,
+    credit_cost: cost, status: 'queued',
+    type: 'mesh',
+    cost_usd: ESTIMATED_USD_RETEX,
+    project_name: projectName || null,
+    options: {
+      backend: 'modal', operation_type: 'retexture', preset: palier,
+      cost_usd: ESTIMATED_USD_RETEX, sourceImage: sourceImageStore,
+      mesh_url_in: meshUrl,
+      provenance: _provenance(req), pays: _paysRequete(req),
+    },
+    created_at: new Date().toISOString(),
+  });
+  if (jobIns.error) {
+    await addCredits(env, user.id, cost);
+    await refundModalSpend(env, ESTIMATED_USD_RETEX, user.id);
+    console.error('[retexture] jobs.insert', jobIns.error.message);
+    return err(500, 'job creation failed (credits refunded)');
+  }
+  try {
+    const r = await fetch(env.MODAL_MESH_START_URL, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        _auth: env.MODAL_SHARED_SECRET, op_type: 'retexture', job_id: jobId,
+        mesh_url: meshUrl, front_image_url: imageUrl, back_image_url: backImageUrl || null,
+        preset: palier, seed: graine,
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (!r.ok) throw new Error(`mesh_start HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    await supabaseAdmin(env).from('jobs').update({ status: 'processing' }).eq('id', jobId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await addCredits(env, user.id, cost);
+    await refundModalSpend(env, ESTIMATED_USD_RETEX, user.id);
+    await supabaseAdmin(env).from('jobs').update({
+      status: 'failed', error: msg.slice(0, 500), finished_at: new Date().toISOString(),
+    }).eq('id', jobId);
+    console.error('[retexture] mesh_start', msg);
+    return err(502, 're-texture could not start (credits refunded)');
+  }
+  return json({ ok: true, success: true, jobId, creditsRemaining: remaining });
 }
 
 /** POST /api/mesh-texvar — « Texture variants », portage de
@@ -17981,14 +18118,18 @@ function _healthzUrl(fullUrl: string): string {
  *  A 524 / timeout on the ping is EXPECTED and counts as success: the
  *  container boots regardless of whether Cloudflare kept the connection.
  *  Never throws. */
-async function preWarmModal(env: Env, opts: { imageOp?: boolean } = {}): Promise<void> {
-  const targets: Array<{ label: string; url?: string; warmKey: string }> = [
-    { label: 'text2image', url: env.MODAL_TEXT2IMAGE_URL, warmKey: '_meta/last_warm_text2image.txt' },
-  ];
-  if (opts.imageOp) {
-    targets.push({ label: 'image_op', url: env.MODAL_IMAGE_OP_URL ?? env.MODAL_BACKVIEW_URL,
-                   warmKey: '_meta/last_warm_image_op.txt' });
-  }
+async function preWarmModal(env: Env,
+                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' } = {}): Promise<void> {
+  // `cible` (2026-09-27) : ne reveiller QUE le conteneur utile a l'intention
+  // montree. Sans elle, comportement historique (text2image, + image_op si
+  // imageOp) — c'est ce qu'envoie encore l'application de bureau.
+  const t2i = { label: 'text2image', url: env.MODAL_TEXT2IMAGE_URL, warmKey: '_meta/last_warm_text2image.txt' };
+  const iop = { label: 'image_op', url: env.MODAL_IMAGE_OP_URL ?? env.MODAL_BACKVIEW_URL,
+                warmKey: '_meta/last_warm_image_op.txt' };
+  const targets: Array<{ label: string; url?: string; warmKey: string }> =
+    opts.cible === 'text2image' ? [t2i]
+    : opts.cible === 'image_op' ? [iop]
+    : (opts.imageOp ? [t2i, iop] : [t2i]);
   for (const t of targets) {
     if (!t.url) continue;
     try {
@@ -17997,6 +18138,15 @@ async function preWarmModal(env: Env, opts: { imageOp?: boolean } = {}): Promise
         console.log(`[pre-warm] ${t.label} already warm — skipped`);
         continue;
       }
+      /* L'HEURE DE CHAUFFE EST NOTEE DES LE LANCEMENT (2026-09-27).
+       *
+       * Elle n'etait ecrite que par les VRAIS appels (text2image, image_op…),
+       * jamais par le prechauffage : chaque focus du prompt (une fois par
+       * minute au plus) relancait donc /warm, et maintenait les deux L40S
+       * allumes pendant toute la saisie. Audit : ~0,45 EUR par session a
+       * faible trafic, jamais facture. Le conteneur demarre maintenant :
+       * les prechauffages des 4 minutes suivantes sont inutiles. */
+      await _writeLastWarmMs(env, t.warmKey).catch(() => {});
       // image_op : /healthz repond {ok:true} SANS rien charger. CLIPSeg +
       // SDXL Inpaint (~6 Go) et ControlNet-Tile ne se chargent qu'au premier
       // appel reel, si bien que le service etait annonce « warm » alors que
@@ -18115,12 +18265,18 @@ async function handlePrewarm(req: Request, env: Env,
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   let imageOp = false;
-  try { imageOp = !!(await req.json().catch(() => ({})) as { imageOp?: boolean }).imageOp; } catch { /* body optional */ }
-  const last = await _readLastWarmMs(env, '_meta/last_warm_text2image.txt').catch(() => null);
-  if (last != null && Date.now() - last < PREWARM_FRESH_MS && !imageOp) {
+  let cible: 'text2image' | 'image_op' | undefined;
+  try {
+    const b = await req.json().catch(() => ({})) as { imageOp?: boolean; cible?: string };
+    imageOp = !!b.imageOp;
+    if (b.cible === 'text2image' || b.cible === 'image_op') cible = b.cible;
+  } catch { /* body optional */ }
+  const cleChaud = cible === 'image_op' ? '_meta/last_warm_image_op.txt' : '_meta/last_warm_text2image.txt';
+  const last = await _readLastWarmMs(env, cleChaud).catch(() => null);
+  if (last != null && Date.now() - last < PREWARM_FRESH_MS && (cible || !imageOp)) {
     return json({ ok: true, warming: false, warm: true });
   }
-  const p = preWarmModal(env, { imageOp });
+  const p = preWarmModal(env, { imageOp, cible });
   if (ctx?.waitUntil) ctx.waitUntil(p);
   else p.catch(() => {});          // never block the caller on a GPU boot
   return json({ ok: true, warming: true });
@@ -18742,7 +18898,7 @@ export default {
         '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit', '/api/recolor', '/api/tex-variant',
         '/api/segment-preview',
         '/api/mask-inpaint', '/api/face-fix-image', '/api/upscale-image',
-        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/mesh-enhance-tex', '/api/mesh-name-parts', '/api/mesh-region-retex', '/api/text2image-tpose',
+        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/mesh-retexture', '/api/mesh-enhance-tex', '/api/mesh-name-parts', '/api/mesh-region-retex', '/api/text2image-tpose',
         // Boots a Blender container on Modal -> same kill switch.
         '/api/mesh-convert',
         '/api/auto-rig', '/api/auto-rig-status',
@@ -18920,6 +19076,7 @@ export default {
         if (pathname === '/api/recolor'               && method === 'POST') return await handleRecolor(req, env);
         if (pathname === '/api/tex-variant'           && method === 'POST') return await handleTexVariant(req, env);
         if (pathname === '/api/mesh-texvar'           && method === 'POST') return await handleMeshTexVar(req, env);
+        if (pathname === '/api/mesh-retexture'        && method === 'POST') return await handleMeshRetexture(req, env);
         if (pathname === '/api/mesh-enhance-tex'      && method === 'POST') return await handleMeshEnhanceTex(req, env);
         if (pathname === '/api/mesh-name-parts'       && method === 'POST') return await handleMeshNameParts(req, env);
         if (pathname === '/api/mesh-region-retex'     && method === 'POST') return await handleMeshRegionRetex(req, env);

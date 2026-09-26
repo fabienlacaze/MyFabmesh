@@ -32,6 +32,7 @@ const PAIRES = [
   { nom: 'habits',     source: 'scripts/outfit_cutout.py', copie: 'modal_app/_outfit_cutout.py', verifUI: true },
   { nom: 'recolorier', source: 'scripts/recolor_core.py',  copie: 'modal_app/_recolor.py' },
   { nom: 'image TRELLIS-2', source: 'scripts/trellis2_native_full_pipeline.py', copie: 'modal_app/_mesh.py' },
+  { nom: 're-texture (finitions)', source: 'scripts/trellis2_texturing_bridge.py', copie: 'modal_app/_retexture.py' },
 ];
 
 function noyau(chemin) {

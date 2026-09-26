@@ -3055,9 +3055,31 @@
           return { success: false, error: r?.error || 'unknown' };
         } catch (e) { return { success: false, error: String(e) }; }
       }
+      // « Re-texture all (AI) » — porte le 2026-09-27 (bureau :
+      // mesh_tools.trellis2_retex). ASYNCHRONE : la route cree un travail
+      // `modal_…` suivi comme une generation. Params dans l'ordre du schema
+      // bureau : [image de reference, preset, graine].
       if (operation === 'trellis2_retex') {
-        return { success: false, ok: false,
-          error: 'Re-Texture (MyFabmesh.AI 3D Native) on cloud uses the standard "Generate 3D" path — please use the Image step\'s Modify/Style tool to change the source, then click Generate 3D to re-bake.' };
+        const url = meshUrl || meshPath;
+        const a = Array.isArray(params) ? params : [];
+        const reference = a[0] || imagePath;
+        if (!url) return { success: false, error: 'meshPath or meshUrl required' };
+        if (!reference) return { success: false, error: 'Pick a reference image first (Image step).' };
+        try {
+          const r = await postJSON('/api/mesh-retexture', {
+            meshUrl: url, imageUrl: reference,
+            preset: a[1] || 'fast',
+            seed: a[2] != null ? parseInt(a[2], 10) : undefined,
+            projectName: projectName || null,
+          });
+          if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+          if (!r?.jobId) return { success: false, error: r?.error || 'unknown' };
+          // Cette tuile suit le travail : le sondage /api/me/active-jobs ne
+          // doit pas en creer une seconde.
+          try { window.fabmeshJobs?.declareServerJob?.(r.jobId); } catch (_) {}
+          const fin = await pollPrediction(r.jobId, { channel: null });
+          return { success: true, newPath: fin.url };
+        } catch (e) { return { success: false, error: e?.message || String(e) }; }
       }
       if (!CLOUD_OPS.has(realOp)) {
         return { success: false, ok: false,

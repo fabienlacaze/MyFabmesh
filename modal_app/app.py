@@ -2194,6 +2194,100 @@ class MyFabmeshMesh:
         self._tile_loaded = True
         return self._tile_pipe
 
+    def _get_tex_pipe(self):
+        """Pipeline de TEXTURATION du moteur 3D (« Re-texture all (AI) »),
+        charge au premier appel : la generation n'en a pas besoin et le
+        charger d'office alourdirait chaque demarrage. Meme depot de poids
+        que la generation, config `texturing_pipeline.json`, comme le bridge
+        du bureau."""
+        if getattr(self, '_tex_pipe', None) is not None:
+            return self._tex_pipe
+        t0 = time.time()
+        print("[retexture] chargement du pipeline de texturation…", flush=True)
+        # MEME PIEGE QUE pipeline.json (voir load_everything) : la config de
+        # texturation designe briaai/RMBG-2.0, depot a acces RESTREINT — le
+        # chargement echouait en 403 avant meme de commencer (banc du
+        # 2026-09-27). Reecrire le fichier du cache n'a pas suffi (relu via
+        # hf_hub_download) : on intercepte le NOM a la construction de la
+        # classe de detourage, en memoire. ZhengPeng7/BiRefNet (Apache 2.0) ;
+        # le detourage est de toute facon fait en amont (prep_reference).
+        from trellis2.pipelines import rembg as _rembg_mod
+        if not getattr(_rembg_mod.BiRefNet, "_fabmesh_libre", False):
+            _Origine = _rembg_mod.BiRefNet
+
+            class _BiRefNetLibre(_Origine):
+                _fabmesh_libre = True
+
+                def __init__(self, model_name: str = "ZhengPeng7/BiRefNet", *a, **k):
+                    if "RMBG-2.0" in str(model_name):
+                        print(f"[retexture] detourage {model_name} -> ZhengPeng7/BiRefNet", flush=True)
+                        model_name = "ZhengPeng7/BiRefNet"
+                    super().__init__(model_name, *a, **k)
+
+            _rembg_mod.BiRefNet = _BiRefNetLibre
+        from trellis2.pipelines import Trellis2TexturingPipeline
+        pipe = Trellis2TexturingPipeline.from_pretrained(
+            "microsoft/TRELLIS.2-4B", config_file="texturing_pipeline.json")
+        pipe.rembg_model = None          # detourage fait en amont (prep_reference)
+        pipe.cuda()
+        self._tex_pipe = pipe
+        print(f"[retexture] pipeline pret en {time.time() - t0:.1f}s", flush=True)
+        return self._tex_pipe
+
+    @modal.method()
+    def retexture_to_volume(self, job_id: str, payload: dict):
+        """« Re-texture all (AI) » : garde la geometrie, regenere la texture.
+        Meme contrat que generate_to_volume (GLB dans /data/<job_id>.glb,
+        erreur dans /data/<job_id>.err) : le worker suit ce travail par
+        /mesh_status comme une generation, rangement dans R2 et
+        remboursement compris."""
+        import urllib.request
+        import traceback
+        from PIL import Image as _PImg
+        from modal_app._retexture import retexturer
+
+        t0 = time.time()
+        out_path = f"/data/{job_id}.glb"
+        err_path = f"/data/{job_id}.err"
+        try:
+            def _telecharger(url: str) -> bytes:
+                req = urllib.request.Request(url, headers={
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
+                with urllib.request.urlopen(req, timeout=120) as r:
+                    return r.read()
+
+            mesh_url = (payload.get("mesh_url") or "").strip()
+            front_url = (payload.get("front_image_url") or "").strip()
+            if not mesh_url or not front_url:
+                raise ValueError("mesh_url and front_image_url required")
+            mesh_bytes = _telecharger(mesh_url)
+            images = [_PImg.open(io.BytesIO(_telecharger(front_url)))]
+            back_url = (payload.get("back_image_url") or "").strip()
+            if back_url:
+                try:
+                    images.append(_PImg.open(io.BytesIO(_telecharger(back_url))))
+                except Exception as e:
+                    print(f"[retexture] vue arriere ignoree ({e})", flush=True)
+
+            glb_bytes = retexturer(self._get_tex_pipe(), mesh_bytes, images,
+                                   preset=str(payload.get("preset") or "fast"),
+                                   seed=int(payload.get("seed") or 42))
+            with open(out_path, "wb") as f:
+                f.write(glb_bytes)
+            mesh_output_volume.commit()
+            print(f"[retexture] DONE job={job_id} dt={time.time() - t0:.1f}s "
+                  f"bytes={len(glb_bytes)}", flush=True)
+        except Exception as e:
+            err_msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+            try:
+                with open(err_path, "w") as f:
+                    f.write(err_msg)
+                mesh_output_volume.commit()
+            except Exception:
+                pass
+            print(f"[retexture] FAILED job={job_id}: {err_msg}", flush=True)
+            raise
+
     def _get_inpaint_pipe(self):
         """Lazy-load SDXL inpaint (RealVisXL_V4.0 weights). Cached on the
         instance so subsequent face_fix calls don't reload."""
@@ -2507,6 +2601,24 @@ def mesh_router():
                 sizes.append(len(blob))
             mesh_output_volume.commit()
             return {"ok": True, "job_id": job_id, "count": len(stages), "sizes": sizes}
+
+        # ── « Re-texture all (AI) » : ASYNCHRONE, comme une generation ──
+        # Le pipeline de texturation tourne sur le GPU de MyFabmeshMesh
+        # (~90 s + chargement a froid) : bien au-dela des 100 s d'une requete
+        # synchrone. Meme mecanique que 'generate' : spawn, identifiant
+        # d'appel persiste pour l'annulation, suivi par /mesh_status.
+        if op_type == "retexture":
+            if not payload.get("mesh_url") or not payload.get("front_image_url"):
+                raise HTTPException(status_code=400, detail="mesh_url and front_image_url required")
+            job_id = payload.get("job_id") or uuid.uuid4().hex
+            call = MyFabmeshMesh().retexture_to_volume.spawn(job_id, payload)
+            try:
+                with open(f"/data/{job_id}.call_id", "w") as f:
+                    f.write(call.object_id)
+                mesh_output_volume.commit()
+            except Exception as e:
+                print(f"[mesh_start] WARN call_id non persiste pour {job_id}: {e}", flush=True)
+            return {"job_id": job_id, "status": "queued"}
 
         # ── Synchronous CPU mesh edits ──────────────────────────────
         if op_type != "generate" and op_type != "cancel":

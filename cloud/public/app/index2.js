@@ -9177,6 +9177,15 @@ async function runMeshTool(operation, params = []) {
     : null;
   try {
     const result = await API.meshTool({ operation, meshPath, imagePath: meshImagePath, params, projectName: p?.name || null });
+    // Ultra 8K : la re-texture cuit en 4096, puis « Sharpen texture » x2 ->
+    // 8192, comme au bureau (un bake 8K sature la memoire du GPU).
+    if (result && result.success && operation === 'trellis2_retex' && params[1] === 'ultra_8k'
+        && (result.newPath || result.path)) {
+      try {
+        const er = await API.enhanceMeshTexture({ meshPath: result.newPath || result.path, projectName: p?.name || null });
+        if (er && er.success && er.newPath) result.newPath = er.newPath;
+      } catch (_) {}
+    }
     if (result && result.success) {
       // fill_holes returns a verdict — drive a smarter toast and
       // optionally suppress the new-version push when nothing was filled.
@@ -10063,24 +10072,22 @@ const MESH_TOOL_SCHEMAS = {
     ],
     build: (vals, ctx) => [ctx.imagePath, String(vals.tex_res)],
   },
+  // Aligne sur le bureau le 2026-09-27 (meme schema, meme ordre de params) :
+  // le web n'avait ni Ultra 8K ni graine, et le preset ne partait nulle part
+  // (window.__trellis2Preset, jamais lu).
   trellis2_retex: {
-    title: 'Re-Texture (AI native)',
-    subtitle: 'Native PBR re-texturing on cloud GPU (~90s).',
+    title: 'Re-Texture (MyFabmesh.AI 3D Native)',
+    subtitle: 'Regenerate the mesh texture with MyFabmesh.AI 3D Native PBR (~90s, GPU). Change the Variation seed for a different texture from the same mesh + reference.',
     needsImage: true,
     params: [
       { id: 'preset', label: 'Quality preset', type: 'select', default: 'fast',
-        options: [['fast','Fast (12 steps · 2048px · ~90s)'],
-                  ['balanced','Balanced (24 steps · 2048px · ~130s)'],
-                  ['quality','Quality (32 steps · 4096px · ~3min)']] },
+        options: [['fast','Fast (12 steps · 2048px)'],
+                  ['balanced','Balanced (24 steps · 2048px)'],
+                  ['quality','Quality (32 steps · 4096px)'],
+                  ['ultra_8k','Ultra 8K (32 steps · 4096→8192px)']] },
+      { id: 'seed', label: 'Variation (seed)', type: 'number', min: 0, max: 999999, step: 1, default: 42, randomize: true },
     ],
-    build: (vals, ctx) => {
-      // Forward preset via env to mesh_tools → trellis2_retex bridge.
-      // We can't pass env directly from runMeshTool, so we set
-      // window.__trellis2Preset for the IPC layer to pick up if wired,
-      // otherwise the bridge uses its 'fast' default.
-      window.__trellis2Preset = vals.preset;
-      return [ctx.imagePath];
-    },
+    build: (vals, ctx) => [ctx.imagePath, vals.preset, String(vals.seed)],
   },
 };
 
@@ -16197,6 +16204,9 @@ document.addEventListener('DOMContentLoaded', () => {
        * navigateur : trois lignes « Generate 3D » pour un seul clic. Le
        * type de la ligne dit l'operation ; les noms restent en anglais,
        * _displayJobName les traduit a l'affichage. */
+      // Re-texture repris apres rechargement : meme nom que la tuile du clic
+      // (runMeshTool), sinon il s'afficherait « Generate 3D ».
+      if (row.options && row.options.operation_type === 'retexture') return `trellis2_retex: ${project}`;
       if (_estOperationInterne(row)) {
         const t = String(row.type || '').toLowerCase();
         const op = [

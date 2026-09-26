@@ -33,6 +33,98 @@ def log(msg):
     print(f'[trellis2_tex] {msg}', flush=True)
 
 
+# --- NOYAU PARTAGE : DEBUT (re-texture : finitions) ---
+# Copie identique dans scripts/trellis2_texturing_bridge.py (source, bureau)
+# et modal_app/_retexture.py (cloud) ; build/check-noyaux-partages.mjs refuse
+# une construction si les deux divergent. Utilise la fonction `log` du module.
+def eclaircir_atlas(output):
+    """Luminosite x1,5, saturation x1,3, contraste x1,1 sur le baseColor : le
+    PBR du moteur sort sous-expose dans les visionneuses glTF. Desactivable par
+    FABMESH_TRELLIS2_SKIP_BRIGHTEN=1."""
+    import os
+    if os.environ.get('FABMESH_TRELLIS2_SKIP_BRIGHTEN') == '1':
+        return
+    try:
+        from PIL import ImageEnhance
+        geoms = (list(output.geometry.values())
+                 if hasattr(output, 'geometry') else [output])
+        n = 0
+        for m in geoms:
+            material = getattr(getattr(m, 'visual', None), 'material', None)
+            tex = getattr(material, 'baseColorTexture', None) if material is not None else None
+            if tex is None:
+                continue
+            tex = ImageEnhance.Brightness(tex).enhance(1.5)
+            tex = ImageEnhance.Color(tex).enhance(1.3)
+            material.baseColorTexture = ImageEnhance.Contrast(tex).enhance(1.1)
+            n += 1
+        if n:
+            log(f'post-process: brightness x1.5, sat x1.3, contrast x1.1 ({n} material(s))')
+    except Exception as e:
+        log(f'auto-brighten skipped: {type(e).__name__}: {e}')
+
+
+def _metal_moyen(obj):
+    """Metal EFFECTIF moyen (canal B x metallicFactor) sur la zone couverte de
+    l'atlas (le vide est noir : le compter ecraserait la moyenne). None si le
+    maillage n'a pas de carte metal/rugosite."""
+    import numpy as np
+    geoms = list(obj.geometry.values()) if hasattr(obj, 'geometry') else [obj]
+    total, poids = 0.0, 0
+    for m in geoms:
+        material = getattr(getattr(m, 'visual', None), 'material', None)
+        mr = getattr(material, 'metallicRoughnessTexture', None) if material is not None else None
+        if mr is None:
+            continue
+        metal = np.asarray(mr.convert('RGB')).astype(np.float32)[..., 2] / 255.0
+        base = getattr(material, 'baseColorTexture', None)
+        if base is not None:
+            lum = np.asarray(base.convert('RGB').resize(mr.size)).astype(np.float32).mean(axis=2)
+            couvert = lum > 8
+        else:
+            couvert = np.ones(metal.shape, dtype=bool)
+        if not couvert.any():
+            continue
+        facteur = getattr(material, 'metallicFactor', None)
+        facteur = 1.0 if facteur is None else float(facteur)
+        total += float(metal[couvert].sum()) * facteur
+        poids += int(couvert.sum())
+    return (total / poids) if poids else None
+
+
+def aligner_metal_sur_source(output, source):
+    """Une re-texture ne doit pas changer la NATURE des materiaux.
+
+    MESURE DU 2026-09-27 (banc cloud, personnage en peau et fourrure) : le
+    maillage d'origine avait un metal moyen de 0,08 ; la re-texture sortait
+    0,77 (76 % de la surface au-dessus de 0,5, mediane 0,87). En PBR un metal
+    n'a pas de composante diffuse : le personnage aurait rendu sombre et
+    metallise. La regle de la generation (metal > 0,8 ET rugosite > 0,85 sur
+    80 % de la surface) ne le voyait pas (32 %).
+
+    Si l'origine n'etait PAS metallique (< 0,3) et que la re-texture l'est
+    devenue (> 0,5), on ramene le metal au niveau de l'origine par le seul
+    `metallicFactor` (la texture n'est pas touchee). Un objet reellement
+    metallique a l'origine (epee, armure) ne declenche pas la regle."""
+    m_src = _metal_moyen(source)
+    m_out = _metal_moyen(output)
+    if m_src is None or m_out is None:
+        return
+    if not (m_out > 0.5 and m_src < 0.3):
+        return
+    facteur = max(0.05, m_src / m_out)
+    geoms = list(output.geometry.values()) if hasattr(output, 'geometry') else [output]
+    for m in geoms:
+        material = getattr(getattr(m, 'visual', None), 'material', None)
+        if material is None or getattr(material, 'metallicRoughnessTexture', None) is None:
+            continue
+        actuel = getattr(material, 'metallicFactor', None)
+        material.metallicFactor = (1.0 if actuel is None else float(actuel)) * facteur
+    log(f'metal aligne sur la source : {m_out:.2f} -> {m_out * facteur:.2f} '
+        f'(origine {m_src:.2f}, metallicFactor x{facteur:.3f})')
+# --- NOYAU PARTAGE : FIN ---
+
+
 def _prep_image(path, log_label='image'):
     """Load + rembg if needed."""
     from PIL import Image
@@ -170,36 +262,15 @@ def main():
     log(f'texturing done in {time.time()-t_run:.1f}s')
     print('LOCAL_TRELLIS2_PROGRESS: 91 brightening', flush=True)
 
-    # Auto-brighten the baseColor texture before export. TRELLIS-2 PBR
-    # output tends to look under-lit in glTF viewers (model-viewer ACES
-    # tonemapping). Same boost as the SF3D bake path applied a few days
-    # back (commit bc475eb). Disable with FABMESH_TRELLIS2_SKIP_BRIGHTEN=1.
-    if os.environ.get('FABMESH_TRELLIS2_SKIP_BRIGHTEN') != '1':
-        try:
-            from PIL import ImageEnhance
-            geoms = (list(output.geometry.values())
-                     if hasattr(output, 'geometry') else [output])
-            n_boosted = 0
-            for m in geoms:
-                visual = getattr(m, 'visual', None)
-                if visual is None:
-                    continue
-                material = getattr(visual, 'material', None)
-                if material is None:
-                    continue
-                tex = getattr(material, 'baseColorTexture', None)
-                if tex is None:
-                    continue
-                new_tex = ImageEnhance.Brightness(tex).enhance(1.5)
-                new_tex = ImageEnhance.Color(new_tex).enhance(1.3)
-                new_tex = ImageEnhance.Contrast(new_tex).enhance(1.1)
-                material.baseColorTexture = new_tex
-                n_boosted += 1
-            if n_boosted:
-                log(f'post-process: brightness x1.5, sat x1.3, contrast x1.1'
-                    f' ({n_boosted} material(s))')
-        except Exception as e:
-            log(f'auto-brighten skipped: {type(e).__name__}: {e}')
+    # Auto-brighten the baseColor texture before export (TRELLIS-2 PBR looks
+    # under-lit in glTF viewers) — noyau partage avec le cloud, voir plus haut.
+    eclaircir_atlas(output)
+    # La re-texture ne doit pas rendre metallique un maillage qui ne l'etait
+    # pas (mesure du 2026-09-27 : 0,08 -> 0,77, personnage noirci).
+    try:
+        aligner_metal_sur_source(output, trimesh.load(args.mesh))
+    except Exception as e:
+        log(f'metal alignment skipped: {type(e).__name__}: {e}')
 
     log(f'exporting to {args.out}')
     if hasattr(output, 'export'):
