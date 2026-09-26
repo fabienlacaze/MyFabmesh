@@ -31,6 +31,11 @@ MODE POINTS (--points) : les extremites detectees sont remplacees par les
 points de l'utilisateur. Echec EXPLICITE (code 4) si la completion echoue :
 rendre le rig de l'IA seule ignorerait sans le dire ce qu'il a demande.
 
+SQUELETTE IMPOSE (--squelette, 2026-09-26) : AUCUN tirage de l'IA. Le squelette
+fourni (celui du rig pour « recalculer la peau seule », ou ses articulations
+deplacees dans l'editeur) est greffe tel quel — relie aux points s'il y en a —
+puis l'IA recalcule la PEAU. Echec explicite (code 4), jamais de repli.
+
 Fichier PARTAGE : source scripts/rig_complet.py, copie identique
 modal_app/squelette/rig_complet.py (build/check-noyaux-partages.mjs).
 """
@@ -61,6 +66,15 @@ def semer(graine):
         torch.cuda.manual_seed_all(graine)
 
 
+def lire_squelette(chemin):
+    d = json.load(open(chemin, encoding='utf-8'))
+    J = [[float(c) for c in p][:3] for p in d['joints']]
+    parents = [int(x) for x in d['parents']]
+    if not J or len(J) != len(parents) or -1 not in parents:
+        raise ValueError('squelette : joints et parents incoherents')
+    return J, parents
+
+
 def lire_points(chemin):
     points = json.load(open(chemin, encoding='utf-8'))
     if not isinstance(points, list) or not points:
@@ -77,6 +91,7 @@ def main():
     ap.add_argument('--graine', type=int, default=None)
     ap.add_argument('--tirage', type=int, default=None,
                     help='rejouer d\'abord ce tirage (graine + tirage) : celui du rig edite')
+    ap.add_argument('--squelette', help='JSON {joints, parents} : squelette IMPOSE (peau seule)')
     a = ap.parse_args()
     t0 = time.time()
     entree = Path(a.entree).resolve()
@@ -97,6 +112,10 @@ def main():
         demo.run_rig([Path(fichier)], 5, 0.95, 1.0, 2.0, 10, squelette_impose, True, False,
                      [Path(dest)], ckpt, None)
         return Path(dest).is_file() and Path(dest).stat().st_size > 0
+
+    if a.squelette:
+        rig_impose(sq, entree, sortie, lire_squelette(a.squelette), points, graine, rigger, tmp, t0)
+        return
 
     def tirer(i):
         dest = tmp / f'tirage_{i}.glb'
@@ -211,6 +230,44 @@ def main():
     except Exception as e:
         journal(f'compte rendu non ecrit dans le GLB : {e}')
     journal(f'TERMINE en {time.time() - t0:.0f} s ({"complete" if final != meilleur else "IA seule"})')
+
+
+def rig_impose(sq, entree, sortie, squelette, points, graine, rigger, tmp, t0):
+    """Squelette IMPOSE : pas de tirage de l'IA ; greffe (+ points), peau par l'IA."""
+    import numpy as np
+    J, parents = squelette
+    J = np.asarray(J, dtype=np.float64)
+    noms = [f'bone_{i}' for i in range(len(J))]
+    compte_rendu = {'squelette_impose': True, 'graine': graine}
+    J2, parents2, noms2 = J, parents, noms
+    try:
+        vol = sq.volume(str(entree))
+        if points:
+            lignes = sq.lignes_vers_points(vol, points)
+            J2, parents2, noms2, rapport = sq.completer(vol, lignes, J, parents, noms, None, pointes=points)
+            compte_rendu.update({'completion': rapport, 'points_utilisateur': True,
+                                 'extremites': [[round(float(x), 5) for x in p] for p in points]})
+        else:
+            compte_rendu['extremites'] = [[round(float(x), 5) for x in P[-1]] for P in sq.extremites(vol)]
+    except Exception as e:
+        if points:
+            journal(f'ECHEC : points non appliques au squelette impose : {type(e).__name__}: {str(e)[:300]}')
+            sys.exit(4)
+        journal(f'analyse du maillage impossible (peau seule, sans consequence) : {e}')
+    journal(f'squelette impose : {len(J)} os' + (f' -> {len(J2)} avec les points' if len(J2) != len(J) else ''))
+    arm = tmp / 'armature.glb'
+    sq.greffer(str(entree), J2, parents2, noms2, str(arm))
+    dest = tmp / 'impose.glb'
+    semer(graine + 1000)
+    if not rigger(arm, dest, True):
+        journal('ECHEC : peau IA sans resultat sur le squelette impose')
+        sys.exit(4)
+    shutil.copyfile(dest, sortie)
+    try:
+        sq.ajouter_extras(str(sortie), compte_rendu)
+    except Exception as e:
+        journal(f'compte rendu non ecrit dans le GLB : {e}')
+    journal(f'TERMINE en {time.time() - t0:.0f} s (squelette impose, peau IA)')
 
 
 if __name__ == '__main__':

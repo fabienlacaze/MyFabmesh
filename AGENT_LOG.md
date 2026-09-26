@@ -23506,3 +23506,32 @@ cette marque presente (sinon cloud, comme avant) et passe l'emplacement au
 pont (FABMESH_SKINTOKENS_PY / _DIR). Assistant : libelles SkinTokens, ~6 Go.
 NON TESTE DE BOUT EN BOUT : l'installation reelle (~6 Go, puis un rig sur le
 GPU du poste) attend le feu vert du user. Echec non bloquant par construction.
+
+## 2026-09-26 — Squelette IMPOSE : articulations deplacables + « Re-skin only » rebranche
+
+Demandes user : « il faut pouvoir bouger les points violets aussi » (les
+articulations dans l'editeur) et, sur « Re-skin only » (web : message « pas
+encore branche » ; bureau : bouton masque depuis le 28/08 faute de chemin) :
+« si on sait pas le faire marcher il faut l'enlever ». On sait desormais :
+c'est la 2e passe du rig complet (peau par l'IA sur un squelette impose).
+
+**Moteur** : `rig_complet.py --squelette {joints, parents}` (repere du
+maillage) : AUCUN tirage de l'IA ; squelette greffe tel quel (relie aux points
+s'il y en a), peau par l'IA, echec explicite (code 4) sans repli. Modal
+(`options.squelette`, routeur : 1-512 os, parents valides, sans cycle),
+worker (meme validation), pont web, IPC bureau (fichier temporaire ->
+skintokens_bridge.py --squelette).
+**MESURE GPU (barbare)** : peau seule 134 s, squelette de sortie IDENTIQUE a
+l'impose (ecart 0, parents identiques) ; une articulation deplacee ressort
+exactement a sa nouvelle position (137 s). Plus rapide qu'un rig (~215 s).
+
+**Editeur** (web + bureau) : les articulations violettes se glissent comme les
+points (milieu de l'epaisseur sous le curseur), les os qui les relient
+suivent, annuler/refaire et « Reset » les couvrent, retouches gardees par
+rig. Un point est « atteint » selon les articulations ACTUELLES. Si une
+articulation a bouge, « Re-generate » impose ce squelette (plus de tirage).
+Verifie en navigateur : articulations reperees par leur couleur, glisser ->
+corps /api/auto-rig avec 53 os dont UN seul deplace (0,032), parents
+identiques ; « Re-skin only » -> squelette du rig tel quel, sans points ;
+aucune erreur de page. Bouton bureau demasque et retire de la liste des
+outils caches en mode cloud. Prix : RIG_COST (10) pour l'instant.

@@ -57,6 +57,7 @@ def main():
     ap.add_argument("--points")
     ap.add_argument("--graine", type=int)
     ap.add_argument("--tirage", type=int)
+    ap.add_argument("--squelette")   # squelette IMPOSE : peau seule / articulations editees
     a, _ = ap.parse_known_args()
     if not a.mesh_path or not a.output_glb:
         print("AUTORIG_ERROR: usage: skintokens_bridge.py <mesh_path> <output_glb>")
@@ -129,14 +130,16 @@ def main():
         options += ["--graine", str(a.graine)]
     if a.tirage is not None:
         options += ["--tirage", str(a.tirage)]
-    if a.points:
-        # Points de l'utilisateur : PAS de repli sur l'ancien chemin, il rendrait
-        # un rig qui ignore ce qu'il a demande. Echec explicite a la place.
+    if a.squelette:
+        options += ["--squelette", os.path.abspath(a.squelette)]
+    if a.points or a.squelette:
+        # Points ou squelette de l'utilisateur : PAS de repli sur l'ancien chemin,
+        # il rendrait un rig qui ignore ce qu'il a demande. Echec explicite.
         if not transfert or not os.path.exists(pilote):
             print("AUTORIG_ERROR: skeleton points need the up-to-date rig engine.")
             sys.exit(1)
-        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2",
-                           "--points", os.path.abspath(a.points)] + options)
+        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2"]
+                          + (["--points", os.path.abspath(a.points)] if a.points else []) + options)
         if not produit():
             print(f"AUTORIG_ERROR: rig with the skeleton points failed (rc={rc}).")
             sys.exit(1)

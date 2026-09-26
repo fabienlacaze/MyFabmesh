@@ -12168,7 +12168,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_SHARED_SECRET) return err(500, 'MODAL_SHARED_SECRET not set');
   if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
 
-  let body: { mesh_url?: string; skeleton?: string; points?: unknown; graine?: unknown; tirage?: unknown };
+  let body: { mesh_url?: string; skeleton?: string; points?: unknown; graine?: unknown; tirage?: unknown; squelette?: unknown };
   try {
     body = await req.json() as typeof body;
   } catch {
@@ -12201,6 +12201,30 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
   const graine = entierBorne(body.graine, 2 ** 31);
   const tirage = entierBorne(body.tirage, 16);
   if (graine === null || tirage === null) return err(400, 'graine / tirage: small non-negative integers expected');
+  /* SQUELETTE IMPOSE (peau seule, ou articulations deplacees dans l'editeur) :
+   * { joints: [[x,y,z]...], parents: [...] } dans le repere du maillage. Aucun
+   * tirage de l'IA : le squelette est greffe tel quel, l'IA refait la peau. */
+  let squelette: { joints: number[][]; parents: number[] } | undefined;
+  if (body.squelette !== undefined && body.squelette !== null) {
+    const sk = body.squelette as { joints?: unknown; parents?: unknown };
+    const joints = sk?.joints, parents = sk?.parents;
+    const n = Array.isArray(joints) ? joints.length : 0;
+    const okJoints = Array.isArray(joints) && n >= 1 && n <= 512 && joints.every(p => Array.isArray(p)
+      && p.length === 3 && p.every(c => typeof c === 'number' && Number.isFinite(c) && Math.abs(c) < 1e4));
+    const okParents = Array.isArray(parents) && parents.length === n
+      && parents.every((x, i) => Number.isInteger(x) && x >= -1 && x < n && x !== i) && parents.includes(-1);
+    if (!okJoints || !okParents) return err(400, 'squelette: 1 to 512 joints with valid parents expected');
+    const par = parents as number[];
+    for (let i = 0; i < n; i++) {          // pas de cycle : chaque os remonte a une racine
+      let x = i, pas = 0;
+      while (x !== -1 && pas <= n) { x = par[x]; pas++; }
+      if (x !== -1) return err(400, 'squelette: cycle in parents');
+    }
+    squelette = {
+      joints: (joints as number[][]).map(p => p.map(c => Math.round(c * 1e5) / 1e5)),
+      parents: par,
+    };
+  }
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_RIG, user.id);
   if (remainingBudget == null) {
@@ -12239,6 +12263,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
         ...(points ? { points } : {}),
         ...(graine !== undefined ? { graine } : {}),
         ...(tirage !== undefined ? { tirage } : {}),
+        ...(squelette ? { squelette } : {}),
       }),
       // rig-start downloads the source GLB + .spawn()s — should return
       // in ~1-2 s. 30 s budget covers a cold CPU container start.
@@ -12318,6 +12343,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
         operation_type: 'rig', sourceMesh: meshUrl, backend: 'modal', skeleton,
         // rig refait depuis l'editeur de points : combien de points
         ...(points ? { squelette_points: points.length } : {}),
+        ...(squelette ? { squelette_impose: squelette.joints.length } : {}),
         // Without cost_usd the admin stats fell back to 0 → 100% margin.
         cost_usd: ESTIMATED_USD_RIG,
       },

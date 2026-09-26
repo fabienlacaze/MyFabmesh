@@ -197,6 +197,10 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
     """
     options = options or {}
     points = options.get("points") or None
+    # squelette IMPOSE {joints, parents} : peau seule, ou articulations
+    # deplacees dans l'editeur — aucun tirage de l'IA, pas de repli non plus
+    squelette = options.get("squelette") or None
+    explicite = bool(points or squelette)
     t0 = time.time()
     tmp = tempfile.mkdtemp(prefix="skintokens_")
     src = os.path.join(tmp, "in.glb")
@@ -263,9 +267,9 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
               "texture", flush=True)
     produit = lambda: os.path.isfile(out) and os.path.getsize(out) > 0
     rc, dernieres, refuse = 0, [], False
-    if points and not aligne:
+    if explicite and not aligne:
         _echec("points du squelette : le moteur de rig n'est pas a jour (alignement absent)")
-    if points or ((SQUELETTE_COMPLET_DEFAUT if complet is None else complet) and aligne):
+    if explicite or ((SQUELETTE_COMPLET_DEFAUT if complet is None else complet) and aligne):
         import modal_app
         pilote = os.path.join(os.path.dirname(modal_app.__file__), "squelette", "rig_complet.py")
         if os.path.isfile(pilote):
@@ -279,15 +283,20 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
                 with open(chemin_points, "w", encoding="utf-8") as f:
                     json.dump(points, f)
                 cmd += ["--points", chemin_points]
+            if squelette:
+                chemin_squelette = os.path.join(tmp, "squelette.json")
+                with open(chemin_squelette, "w", encoding="utf-8") as f:
+                    json.dump(squelette, f)
+                cmd += ["--squelette", chemin_squelette]
             rc, dernieres, refuse = _lancer(cmd)
             if not produit():
-                if points:
+                if explicite:
                     queue = " | ".join(dernieres[-3:])[:300]
                     _echec(f"rig avec les points du squelette en echec (rc={rc}). "
                            f"Derniere sortie : {queue}")
                 print(f"[skintokens] squelette complet sans resultat (rc={rc}) — ancien "
                       f"chemin", flush=True)
-        elif points:
+        elif explicite:
             _echec("points du squelette : pilote absent de l'image")
     if not produit():
         rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out]
@@ -459,6 +468,25 @@ def rig_router():
                     len(p) != 3 or not all(math.isfinite(c) and abs(c) < 1e4 for c in p) for p in points):
                 raise HTTPException(status_code=400, detail="points: 1 to 64 finite [x, y, z]")
             options["points"] = points
+        squelette = payload.get("squelette")
+        if squelette is not None:
+            try:
+                joints = [[float(c) for c in p] for p in squelette["joints"]]
+                parents = [int(x) for x in squelette["parents"]]
+            except (TypeError, ValueError, KeyError):
+                raise HTTPException(status_code=400, detail="squelette: {joints, parents} expected")
+            n = len(joints)
+            if not (1 <= n <= 512) or len(parents) != n or any(
+                    len(p) != 3 or not all(math.isfinite(c) and abs(c) < 1e4 for c in p) for p in joints) \
+                    or any(not -1 <= x < n or x == i for i, x in enumerate(parents)) or -1 not in parents:
+                raise HTTPException(status_code=400, detail="squelette: 1 to 512 joints, valid parents")
+            for i in range(n):                  # pas de cycle : on remonte a une racine
+                x, pas = i, 0
+                while x != -1 and pas <= n:
+                    x, pas = parents[x], pas + 1
+                if x != -1:
+                    raise HTTPException(status_code=400, detail="squelette: cycle in parents")
+            options["squelette"] = {"joints": joints, "parents": parents}
         for cle, borne in (("graine", 2 ** 31), ("tirage", 16)):
             v = payload.get(cle)
             if v is None:

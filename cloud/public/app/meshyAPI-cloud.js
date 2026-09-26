@@ -2393,7 +2393,7 @@
     //   { success, ok, glb_url, path, error? }
     // so callers can hot-swap the mesh in the viewer without knowing
     // anything changed under the hood.
-    autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress, points, graine, tirage } = {}) => {
+    autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress, points, graine, tirage, squelette } = {}) => {
       const _projetLancement = _projetAuLancement(null);   // voir _projetAuLancement
       const url = meshUrl || meshPath;
       if (!url) return { success: false, ok: false, error: 'meshPath or meshUrl required' };
@@ -2408,6 +2408,8 @@
           ...(Array.isArray(points) && points.length ? { points } : {}),
           ...(Number.isInteger(graine) ? { graine } : {}),
           ...(Number.isInteger(tirage) ? { tirage } : {}),
+          // squelette IMPOSE : peau seule, ou articulations deplacees
+          ...(squelette && Array.isArray(squelette.joints) ? { squelette } : {}),
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (!spawn?.success || !spawn?.job_id) {

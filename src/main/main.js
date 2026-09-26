@@ -4020,7 +4020,7 @@ function _moteurRigLocal() {
   return null;
 }
 
-ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points, graine, tirage }) => {
+ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points, graine, tirage, squelette }) => {
   const _t0 = Date.now();
   // Editeur des points du squelette (2026-09-26) : ce que le squelette doit
   // atteindre (repere du maillage) + graine et tirage du rig edite. Valides
@@ -4029,7 +4029,16 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points
     && points.every(q => Array.isArray(q) && q.length === 3
       && q.every(c => typeof c === 'number' && Number.isFinite(c) && Math.abs(c) < 1e4));
   const entier = (v, borne) => (Number.isInteger(v) && v >= 0 && v < borne ? v : null);
+  // squelette IMPOSE { joints, parents } (peau seule / articulations editees)
+  const n = squelette && Array.isArray(squelette.joints) ? squelette.joints.length : 0;
+  const squeletteOk = n >= 1 && n <= 512
+    && squelette.joints.every(q => Array.isArray(q) && q.length === 3
+      && q.every(c => typeof c === 'number' && Number.isFinite(c) && Math.abs(c) < 1e4))
+    && Array.isArray(squelette.parents) && squelette.parents.length === n
+    && squelette.parents.every((x, i) => Number.isInteger(x) && x >= -1 && x < n && x !== i)
+    && squelette.parents.includes(-1);
   const optsSquelette = {
+    ...(squeletteOk ? { squelette: { joints: squelette.joints, parents: squelette.parents } } : {}),
     ...(pointsOk ? { points } : {}),
     ...(entier(graine, 2 ** 31) !== null ? { graine } : {}),
     ...(entier(tirage, 16) !== null ? { tirage } : {}),
@@ -4239,6 +4248,11 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points
         const fichierPoints = path.join(_tmpWorkDir(), `_points_squelette_${Date.now()}.json`);
         fs.writeFileSync(fichierPoints, JSON.stringify(optsSquelette.points));
         argsSquelette.push('--points', fichierPoints);
+      }
+      if (optsSquelette.squelette) {
+        const fichierSquelette = path.join(_tmpWorkDir(), `_squelette_impose_${Date.now()}.json`);
+        fs.writeFileSync(fichierSquelette, JSON.stringify(optsSquelette.squelette));
+        argsSquelette.push('--squelette', fichierSquelette);
       }
       if (optsSquelette.graine !== undefined) argsSquelette.push('--graine', String(optsSquelette.graine));
       if (optsSquelette.tirage !== undefined) argsSquelette.push('--tirage', String(optsSquelette.tirage));

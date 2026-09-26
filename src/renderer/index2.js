@@ -16410,6 +16410,7 @@ async function lancerRigIA(options = {}) {
       Engine: engineLabel,
       'Source mesh': meshPathToUse.split(/[/\\]/).pop(),
       ...(points ? { 'Skeleton points': points.length } : {}),
+      ...(options.squelette ? { 'Mode': points ? 'Edited skeleton' : 'Skin only (skeleton kept)' } : {}),
     }, expectedMs, { sourceImageUrl: _meshJobThumb(meshPathToUse), projectName: p.name });
     try {
       const skeleton = state.currentProject?.rigTarget
@@ -16434,6 +16435,7 @@ async function lancerRigIA(options = {}) {
         ...(points ? { points } : {}),
         ...(Number.isInteger(options.graine) ? { graine: options.graine } : {}),
         ...(Number.isInteger(options.tirage) ? { tirage: options.tirage } : {}),
+        ...(options.squelette ? { squelette: options.squelette } : {}),
       });
       if (r?.success) {
         completeJob(job.id, true);
@@ -21688,7 +21690,32 @@ if (skinSlider && skinSliderVal) {
 // ============================================================
 // RE-SKIN ONLY (post-rig)
 // ============================================================
-/* « Re-skin only » RETIRE le 2026-08-28.
+// RE-SKIN ONLY (2026-09-26) : l'IA recalcule la PEAU sur le squelette du rig,
+// garde TEL QUEL (squelette impose, la 2e passe du rig complet). Aucun tirage
+// de squelette : le maillage d'origine du rig + ses os -> nouvelle version.
+document.getElementById('ws-rig-reskin-btn')?.addEventListener('click', async () => {
+  const p = state.currentProject;
+  const rig = p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
+  if (!rig) { showToast(_i18nT('No rig yet.'), 'error'); return; }
+  const source = _ptsSourceDuRig(p, rig);
+  if (!source) {
+    customError(_i18nT('The mesh this rig was made from is no longer in the project, so the skin cannot be recomputed.'), _i18nT('Re-skin only'));
+    return;
+  }
+  const ok = await customConfirm(_i18nT('Recompute the skin weights of this rig? The skeleton stays exactly as it is.'),
+    _i18nT('Re-skin only'), _i18nT('Re-skin'));
+  if (!ok) return;
+  let squelette;
+  try { squelette = await _ptsLireSquelette(rig); }
+  catch (e) {
+    console.warn('[re-skin] squelette illisible', e);
+    customError(_i18nT('Could not read the skeleton of this rig.'), _i18nT('Re-skin only'));
+    return;
+  }
+  lancerRigIA({ meshPath: source, squelette });
+});
+/* « Re-skin only » RETIRE le 2026-08-28 — REBRANCHE le 2026-09-26 ci-dessus.
+ * Historique :
  * Le bouton envoyait `reskinOnly: true` avec `templateName: ''` a un handler
  * qui ne connait ni l'un ni l'autre : la garde « Invalid template name »
  * le faisait ECHOUER A 100 %, apres une confirmation et l'ouverture d'une
@@ -23348,7 +23375,10 @@ const _pts = {
   origine: [],            // points du rig, repere GLB : [[x, y, z], ...]
   points: [],             // [{ id, p: THREE.Vector3 (repere GLB) }]
   marqueurs: new Map(),   // id -> { boule, etiquette }
-  articulations: [],      // positions MONDE des os du rig affiche
+  os: [],                 // articulations : { parent, p (repere GLB), sphere, cyl }
+  osOrigine: [],          // positions d'origine (repere GLB) — pour « Reset »
+  osModifies: false,      // une articulation a bouge : la regeneration l'impose
+  osSurvol: null,
   seuil: -1,              // « atteint » : un os a moins d'une demi-longueur d'os
   rayon: 0.01, diag: 1,
   groupe: null,           // squelette + marqueurs (enfant de la scene)
@@ -23376,6 +23406,33 @@ function _ptsValide(v) {
 }
 function _ptsVersMonde(p) { return lmFsModel.localToWorld(p.clone()); }
 function _ptsVersLocal(w) { return lmFsModel.worldToLocal(w.clone()); }
+
+/** Os d'un modele charge, dans un ordre stable (celui de la traversee). */
+function _ptsOsDuModele(modele) {
+  const os = [];
+  modele.traverse(c => {
+    if (c.isBone && !os.includes(c)) os.push(c);
+    else if (c.isSkinnedMesh && c.skeleton) for (const b of c.skeleton.bones) if (!os.includes(b)) os.push(b);
+  });
+  return os;
+}
+
+/** Squelette d'un rig (repere du GLB) : { joints, parents } — ce que le moteur
+ *  greffe tel quel pour « Re-skin only ». */
+async function _ptsLireSquelette(rig) {
+  const tampon = await API.readMeshFile(rig);
+  if (!tampon) throw new Error('rig unreadable');
+  const gltf = await new Promise((ok, ko) => new GLTFLoader().parse(tampon, '', ok, ko));
+  const scene = gltf.scene;
+  scene.updateMatrixWorld(true);
+  const os = _ptsOsDuModele(scene);
+  if (!os.length) throw new Error('no bones');
+  const index = new Map(os.map((b, i) => [b, i]));
+  return {
+    joints: os.map(b => { const w = b.getWorldPosition(new THREE.Vector3()); return [w.x, w.y, w.z].map(c => Math.round(c * 1e5) / 1e5); }),
+    parents: os.map(b => (b.parent && index.has(b.parent) ? index.get(b.parent) : -1)),
+  };
+}
 
 async function ptsOuvrir() {
   const p = state.currentProject;
@@ -23429,35 +23486,28 @@ async function _ptsInstaller(gltf, jeton) {
   // centaines de milliers de triangles
   modele.traverse(c => { if (c.isMesh && c.geometry && !c.geometry.boundsTree) { try { c.geometry.computeBoundsTree?.(); } catch (_) {} } });
 
-  // squelette discret : ce sont les points qui doivent ressortir
-  const os = [];
-  modele.traverse(c => {
-    if (c.isBone && !os.includes(c)) os.push(c);
-    else if (c.isSkinnedMesh && c.skeleton) for (const b of c.skeleton.bones) if (!os.includes(b)) os.push(b);
-  });
+  // squelette : articulations (violet) DEPLACABLES, os (cylindres) qui suivent
+  const os = _ptsOsDuModele(modele);
+  const index = new Map(os.map((b, i) => [b, i]));
   _pts.groupe = new THREE.Group();
   lmFsScene.add(_pts.groupe);
-  const pos = new Map(os.map(b => [b, b.getWorldPosition(new THREE.Vector3())]));
-  _pts.articulations = [...pos.values()];
-  const matOs = new THREE.MeshBasicMaterial({ color: 0x00ffd0, depthTest: false, transparent: true, opacity: 0.5 });
-  const matArt = new THREE.MeshBasicMaterial({ color: 0xff00ff, depthTest: false, transparent: true, opacity: 0.75 });
-  const geoArt = new THREE.SphereGeometry(_pts.diag * 0.004, 8, 8);
-  const longueurs = [];
-  for (const b of os) {
-    const a = new THREE.Mesh(geoArt, matArt);
-    a.position.copy(pos.get(b)); a.renderOrder = 998;
-    _pts.groupe.add(a);
-    if (!b.parent || !pos.has(b.parent)) continue;
-    const d = new THREE.Vector3().subVectors(pos.get(b), pos.get(b.parent));
-    const L = d.length();
-    if (L < 1e-6) continue;
-    longueurs.push(L);
-    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(_pts.diag * 0.0017, _pts.diag * 0.0017, L, 6), matOs);
-    cyl.position.copy(pos.get(b.parent)).addScaledVector(d, 0.5);
-    cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
-    cyl.renderOrder = 997;
-    _pts.groupe.add(cyl);
-  }
+  _pts.matOs = new THREE.MeshBasicMaterial({ color: 0x00ffd0, depthTest: false, transparent: true, opacity: 0.5 });
+  _pts.matArt = new THREE.MeshBasicMaterial({ color: 0xff00ff, depthTest: false, transparent: true, opacity: 0.85 });
+  _pts.rayonOs = _pts.diag * 0.0045;
+  const geoArt = new THREE.SphereGeometry(_pts.rayonOs, 10, 10);
+  _pts.os = os.map((b) => {
+    const sphere = new THREE.Mesh(geoArt, _pts.matArt);
+    sphere.renderOrder = 998;
+    _pts.groupe.add(sphere);
+    return { parent: b.parent && index.has(b.parent) ? index.get(b.parent) : -1,
+             p: _ptsVersLocal(b.getWorldPosition(new THREE.Vector3())), sphere, cyl: null };
+  });
+  _pts.osOrigine = _pts.os.map(o => o.p.clone());
+  _pts.osModifies = false;
+  _pts.osSurvol = null;
+  _pts.os.forEach((_, i) => _ptsDessinerOs(i));
+  const longueurs = _pts.os.filter(o => o.parent >= 0)
+    .map(o => o.p.distanceTo(_pts.os[o.parent].p)).filter(L => L > 1e-6);
   longueurs.sort((x, y) => x - y);
   _pts.seuil = longueurs.length ? 0.5 * longueurs[Math.floor(longueurs.length / 2)] : -1;
   _ptsCadrer(taille);
@@ -23469,8 +23519,8 @@ async function _ptsInstaller(gltf, jeton) {
   let origine = Array.isArray(ex?.extremites) ? ex.extremites.filter(_ptsValide) : [];
   if (!origine.length) {
     // rig anterieur a l'editeur : un point au bout de chaque chaine d'os
-    origine = os.filter(b => !b.children.some(c => c.isBone))
-      .map(b => { const l = _ptsVersLocal(pos.get(b)); return [l.x, l.y, l.z]; });
+    const parents = new Set(_pts.os.map(o => o.parent));
+    origine = _pts.os.filter((o, i) => !parents.has(i)).map(o => [o.p.x, o.p.y, o.p.z]);
   }
   _pts.origine = origine.map(v => v.slice());
   let depart = _pts.origine;
@@ -23478,7 +23528,8 @@ async function _ptsInstaller(gltf, jeton) {
     const sauve = await API.loadLandmarks?.({ meshPath: _pts.rig });
     const lm = (sauve && sauve.landmarks) || sauve;
     if (Array.isArray(lm?.fabmesh_points) && lm.fabmesh_points.length && lm.fabmesh_points.every(_ptsValide)) {
-      depart = lm.fabmesh_points;
+      depart = { pts: lm.fabmesh_points,
+                 os: Array.isArray(lm.fabmesh_os) && lm.fabmesh_os.every(_ptsValide) ? lm.fabmesh_os : null };
     }
   } catch (_) { /* pas de retouche enregistree */ }
   if (jeton !== _pts.jeton) return;
@@ -23514,12 +23565,45 @@ function _ptsCadrer(taille) {
   }, 100);
 }
 
+/** Place l'articulation i et l'os qui la relie a son parent. */
+function _ptsDessinerOs(i) {
+  const o = _pts.os[i];
+  if (!o || !lmFsModel) return;
+  const w = _ptsVersMonde(o.p);
+  o.sphere.position.copy(w);
+  o.sphere.scale.setScalar(i === _pts.osSurvol || (_pts.glisse && _pts.glisse.type === 'os' && _pts.glisse.id === i) ? 1.9 : 1);
+  if (o.parent < 0) return;
+  const wp = _ptsVersMonde(_pts.os[o.parent].p);
+  const d = new THREE.Vector3().subVectors(w, wp);
+  const L = d.length();
+  if (!o.cyl) {
+    o.cyl = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 6), _pts.matOs);
+    o.cyl.renderOrder = 997;
+    _pts.groupe.add(o.cyl);
+  }
+  o.cyl.visible = L > 1e-6;
+  if (!o.cyl.visible) return;
+  const r = _pts.diag * 0.0017;
+  o.cyl.scale.set(r, L, r);
+  o.cyl.position.copy(wp).addScaledVector(d, 0.5);
+  o.cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+}
+
+/** Deplace l'articulation i (repere GLB) : elle, son os et ceux de ses enfants. */
+function _ptsBougerOs(i, local) {
+  _pts.os[i].p.copy(local);
+  _ptsDessinerOs(i);
+  _pts.os.forEach((o, j) => { if (o.parent === i) _ptsDessinerOs(j); });
+  _pts.osModifies = _pts.os.some((o, j) => o.p.distanceTo(_pts.osOrigine[j]) > 1e-7);
+}
+
 function _ptsVider() {
   for (const { boule, etiquette } of _pts.marqueurs.values()) {
     try { boule.geometry.dispose(); boule.material.dispose(); } catch (_) {}
     try { etiquette.material.map?.dispose(); etiquette.material.dispose(); } catch (_) {}
   }
   _pts.marqueurs.clear();
+  _pts.os = [];
   if (_pts.groupe) {
     lmFsScene?.remove(_pts.groupe);
     _pts.groupe.traverse(c => { if (c.isMesh) { try { c.geometry.dispose(); c.material.dispose(); } catch (_) {} } });
@@ -23544,8 +23628,15 @@ function _ptsEtiquette(n) {
   return s;
 }
 
-/** Remplace tous les points (chargement, reinitialisation, annuler). */
-function _ptsAppliquer(liste) {
+/** Remplace tous les points — et les articulations si l'instantane les porte
+ *  (chargement, reinitialisation, annuler). `x` : [[x,y,z]...] ou { pts, os }. */
+function _ptsAppliquer(x) {
+  const liste = Array.isArray(x) ? x : x.pts;
+  if (!Array.isArray(x) && Array.isArray(x.os) && x.os.length === _pts.os.length) {
+    x.os.forEach((v, i) => _pts.os[i].p.set(v[0], v[1], v[2]));
+    _pts.os.forEach((_, i) => _ptsDessinerOs(i));
+    _pts.osModifies = _pts.os.some((o, j) => o.p.distanceTo(_pts.osOrigine[j]) > 1e-7);
+  }
   for (const { boule, etiquette } of _pts.marqueurs.values()) {
     _pts.groupe?.remove(boule); _pts.groupe?.remove(etiquette);
     try { boule.geometry.dispose(); boule.material.dispose(); etiquette.material.map?.dispose(); etiquette.material.dispose(); } catch (_) {}
@@ -23586,8 +23677,7 @@ function _ptsRenumeroter() {
 
 function _ptsStatut(pt) {
   if (_pts.seuil < 0 || !lmFsModel) return 'manque';
-  const w = _ptsVersMonde(pt.p);
-  return _pts.articulations.some(a => a.distanceTo(w) <= _pts.seuil) ? 'atteint' : 'manque';
+  return _pts.os.some(o => o.p.distanceTo(pt.p) <= _pts.seuil) ? 'atteint' : 'manque';
 }
 
 function _ptsPlacer(pt) {
@@ -23628,7 +23718,7 @@ function _ptsListe() {
   const info = document.getElementById('lm-fs-info');
   if (info && lmFsModel && _pts.rig) {
     renderViewerInfo(info, _pts.rig, [
-      { label: 'Bones', value: _pts.articulations.length },
+      { label: 'Bones', value: _pts.os.length },
       { label: 'Points', value: `${atteints} / ${_pts.points.length}` },
     ]);
   }
@@ -23655,7 +23745,8 @@ function _ptsSurvoler(id) {
 }
 
 function _ptsInstantane() {
-  return _pts.points.map(pt => [pt.p.x, pt.p.y, pt.p.z]);
+  return { pts: _pts.points.map(pt => [pt.p.x, pt.p.y, pt.p.z]),
+           os: _pts.os.map(o => [o.p.x, o.p.y, o.p.z]) };
 }
 function _ptsMemoriser() {
   _pts.passe.push(_ptsInstantane());
@@ -23710,7 +23801,9 @@ function _ptsSupprimer(id) {
 function _ptsSauver(immediat) {
   clearTimeout(_pts.minuterie);
   const rig = _pts.rig;
-  const donnees = { fabmesh_points: _ptsInstantane().map(v => v.map(c => Math.round(c * 1e5) / 1e5)) };
+  const inst = _ptsInstantane();
+  const r5 = v => v.map(c => Math.round(c * 1e5) / 1e5);
+  const donnees = { fabmesh_points: inst.pts.map(r5), ...(_pts.osModifies ? { fabmesh_os: inst.os.map(r5) } : {}) };
   const ecrire = () => { try { API.saveLandmarks?.({ meshPath: rig, landmarks: donnees }); } catch (_) {} };
   if (immediat) ecrire(); else _pts.minuterie = setTimeout(ecrire, 600);
 }
@@ -23723,7 +23816,7 @@ function _ptsModeAjout(actif) {
   if (consigne) {
     consigne.textContent = _i18nT(_pts.ajout
       ? 'Click the mesh where the new point goes (Esc to cancel).'
-      : 'Drag a point to where the skeleton must reach. Right-drag pans, wheel zooms.');
+      : 'Drag a point or a purple joint. Right-drag pans, wheel zooms.');
   }
 }
 
@@ -23755,16 +23848,32 @@ function _ptsCentreSous(canevas, cam, e) {
   return entree.point.clone().add(sortie.point).multiplyScalar(0.5);
 }
 
-/** Point le plus proche du rayon, avec une tolerance genereuse : les boules
- *  font quelques pixels. */
+/** Cible sous le curseur : un POINT en priorite (plus gros), sinon une
+ *  ARTICULATION (violet). Tolerance genereuse : ce sont de petites boules.
+ *  Rend { type: 'point' | 'os', id } ou null. */
 function _ptsSousCurseur(canevas, cam, e) {
   const rayon = _ptsRayon(canevas, cam, e).ray;
   let meilleur = null, dMin = Infinity;
   for (const [id, m] of _pts.marqueurs) {
     const d = rayon.distanceToPoint(m.boule.position);
-    if (d < 2.4 * _pts.rayon && d < dMin) { dMin = d; meilleur = id; }
+    if (d < 2.4 * _pts.rayon && d < dMin) { dMin = d; meilleur = { type: 'point', id }; }
   }
+  if (meilleur) return meilleur;
+  _pts.os.forEach((o, i) => {
+    const d = rayon.distanceToPoint(o.sphere.position);
+    if (d < Math.max(2.6 * _pts.rayonOs, 1.1 * _pts.rayon) && d < dMin) { dMin = d; meilleur = { type: 'os', id: i }; }
+  });
   return meilleur;
+}
+
+function _ptsSurvolerCible(c) {
+  _ptsSurvoler(c && c.type === 'point' ? c.id : null);
+  const avant = _pts.osSurvol;
+  _pts.osSurvol = c && c.type === 'os' ? c.id : null;
+  if (avant !== _pts.osSurvol) {
+    if (avant != null) _ptsDessinerOs(avant);
+    if (_pts.osSurvol != null) _ptsDessinerOs(_pts.osSurvol);
+  }
 }
 
 function _ptsLierCanevas(canevas, camera) {
@@ -23787,10 +23896,10 @@ function _ptsLierCanevas(canevas, camera) {
       e.stopImmediatePropagation(); e.preventDefault();
       return;
     }
-    const id = _ptsSousCurseur(canevas, cam, e);
-    if (id == null) return;                 // rien sous le curseur : la camera tourne
-    _pts.glisse = { id, canevas, cam, bouge: false };
-    _ptsSelectionner(id);
+    const c = _ptsSousCurseur(canevas, cam, e);
+    if (!c) return;                          // rien sous le curseur : la camera tourne
+    _pts.glisse = { type: c.type, id: c.id, canevas, cam, bouge: false };
+    if (c.type === 'point') _ptsSelectionner(c.id);
     if (lmFsControls) lmFsControls.enabled = false;
     if (lmFsControlsB) lmFsControlsB.enabled = false;
     try { canevas.setPointerCapture(e.pointerId); } catch (_) {}
@@ -23802,7 +23911,11 @@ function _ptsLierCanevas(canevas, camera) {
     const g = _pts.glisse;
     if (g && g.canevas === canevas) {
       const w = _ptsCentreSous(canevas, g.cam, e);
-      if (w) {
+      if (w && g.type === 'os') {
+        if (!g.bouge) { _ptsMemoriser(); g.bouge = true; }
+        _ptsBougerOs(g.id, _ptsVersLocal(w));
+        for (const pt of _pts.points) _ptsPlacer(pt);   // un point peut devenir atteint
+      } else if (w) {
         if (!g.bouge) { _ptsMemoriser(); g.bouge = true; }
         const pt = _pts.points.find(x => x.id === g.id);
         if (pt) {
@@ -23821,9 +23934,9 @@ function _ptsLierCanevas(canevas, camera) {
     if (_pts.ajout) { canevas.style.cursor = 'crosshair'; return; }
     const cam = camera();
     if (!cam || !lmFsModel) return;
-    const id = _ptsSousCurseur(canevas, cam, e);
-    canevas.style.cursor = id != null ? 'grab' : '';
-    _ptsSurvoler(id);
+    const c = _ptsSousCurseur(canevas, cam, e);
+    canevas.style.cursor = c ? 'grab' : '';
+    _ptsSurvolerCible(c);
   }, true);
   const fin = () => {
     const g = _pts.glisse;
@@ -23832,11 +23945,12 @@ function _ptsLierCanevas(canevas, camera) {
     if (lmFsControls) lmFsControls.enabled = true;
     if (lmFsControlsB) lmFsControlsB.enabled = true;
     canevas.style.cursor = '';
+    if (g.type === 'os') _ptsDessinerOs(g.id);
     if (g.bouge) { _ptsListe(); _ptsSauver(); }
   };
   canevas.addEventListener('pointerup', fin, true);
   canevas.addEventListener('pointercancel', fin, true);
-  canevas.addEventListener('pointerleave', () => { if (!_pts.glisse) _ptsSurvoler(null); });
+  canevas.addEventListener('pointerleave', () => { if (!_pts.glisse) _ptsSurvolerCible(null); });
 }
 _ptsLierCanevas(document.getElementById('lm-fs-canvas'), () => lmFsCamera);
 _ptsLierCanevas(document.getElementById('lm-fs-canvas-b'), () => lmFsCameraB);
@@ -23872,8 +23986,11 @@ async function ptsRegenerer() {
     customError(_i18nT('The mesh this rig was made from is no longer in the project, so the points cannot be applied.'), _i18nT('Skeleton points'));
     return;
   }
-  const points = _ptsInstantane().map(v => v.map(c => Math.round(c * 1e5) / 1e5));
-  const options = { meshPath: source, points, graine: _pts.graine, tirage: _pts.tirage };
+  const inst = _ptsInstantane();
+  const r5 = v => v.map(c => Math.round(c * 1e5) / 1e5);
+  const options = { meshPath: source, points: inst.pts.map(r5), graine: _pts.graine, tirage: _pts.tirage };
+  // articulations deplacees : ce squelette-la est impose (plus de tirage de l'IA)
+  if (_pts.osModifies) options.squelette = { joints: inst.os.map(r5), parents: _pts.os.map(o => o.parent) };
   closeLandmarksFullscreen();
   lancerRigIA(options);
 }
@@ -23882,7 +23999,7 @@ document.getElementById('pts-ajouter')?.addEventListener('click', () => _ptsMode
 document.getElementById('pts-reinit')?.addEventListener('click', () => {
   if (!_pts.actif || !_pts.origine.length) return;
   _ptsMemoriser();
-  _ptsAppliquer(_pts.origine);
+  _ptsAppliquer({ pts: _pts.origine, os: _pts.osOrigine.map(v => [v.x, v.y, v.z]) });
   _ptsSauver();
 });
 document.getElementById('pts-regenerer')?.addEventListener('click', ptsRegenerer);
@@ -25227,7 +25344,6 @@ const _CLOUD_HIDDEN_MESH_TOOLS = [
   'ws-mesh-texvar-btn',        // texture_var absent de la whitelist /api/mesh-op
   'ws-mesh-trellis2-btn',      // trellis2_retex absent de la whitelist /api/mesh-op
   'ws-mesh-name-btn',          // part namer local (Modal _partnamer non déployé)
-  'ws-rig-reskin-btn',         // re-skin SkinTokens local (seul /api/auto-rig existe)
   'ws-mesh-aligntex-btn',      // align_texture retiré de la whitelist /api/mesh-op
                                // (paid no-op côté worker, pas de vraie reprojection)
   'ws-mesh-center-btn',        // set_pivot absent de la whitelist /api/mesh-op

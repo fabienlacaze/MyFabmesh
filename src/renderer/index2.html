@@ -910,7 +910,7 @@
                       <div class="step-tools-label">AI tools</div>
                       <div class="step-tools-grid">
                         <!-- Re-skin only : masque le 2026-08-28, echouait a 100 % (voir index2.js) -->
-                        <button id="ws-rig-reskin-btn" class="ghost-btn tool-btn rig-tool-btn" hidden title="Recompute the skin weights only. The skeleton is kept.">&#127814; Re-skin only</button>
+                        <button id="ws-rig-reskin-btn" class="ghost-btn tool-btn rig-tool-btn" title="Recompute the skin weights only. The skeleton is kept.">&#127814; Re-skin only</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -1217,7 +1217,7 @@
           </div>
           <div class="lm-fs-pane-label" id="lm-fs-pane-label-b">RIGHT</div>
         </div>
-        <div id="lm-fs-instruction">Drag a point to where the skeleton must reach. Right-drag pans, wheel zooms.</div>
+        <div id="lm-fs-instruction">Drag a point or a purple joint. Right-drag pans, wheel zooms.</div>
         <div id="lm-fs-undo-toolbar" class="lm-fs-undo-toolbar">
           <button id="lm-fs-undo" title="Undo (Ctrl+Z)">&#8630; Undo</button>
           <button id="lm-fs-redo" title="Redo (Ctrl+Y)">&#8631; Redo</button>
@@ -1235,6 +1235,7 @@
           <div class="pts-legende">
             <span><i class="pts-pastille atteint"></i>Reached by a bone</span>
             <span><i class="pts-pastille manque"></i>Not reached yet</span>
+            <span><i class="pts-pastille os"></i>Joint (drag to move)</span>
           </div>
         </div>
         <div id="pts-liste" class="pts-liste" aria-live="polite"></div>
