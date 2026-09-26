@@ -22301,3 +22301,31 @@ vide : aucune categorie « existant » a deplier, donc rien a voir.
 
 Le correctif 2 repare aussi les rigs DEJA produits : leur rattachement est
 recalcule a chaque listing.
+
+## 2026-09-26 — Parite web : Variant, et une fonction appelee mais jamais ecrite
+
+**Ce qui etait suppose ouvert.** Le journal listait « Variant, Extend et
+Sym. Auto sont des coquilles vides cote web ». Verification faite, deux des
+trois etaient deja a parite : `symmetrize` et `extend` executent le MEME
+algorithme des deux cotes (miroir aveugle de la demi-image ; marge blanche).
+Le libelle du bouton ment en revanche des DEUX cotes — il promet une
+« detection de l'axe de symetrie » que personne n'implemente.
+
+**Le vrai defaut, trouve en cherchant l'autre.** `translateUserPrompt()` est
+APPELEE trois fois dans `cloud/public/app/index2.js` — apercu du masque de
+Recolorier, application de Recolorier, guide de l'outil Age — et DEFINIE
+nulle part. Chaque clic levait « ReferenceError: translateUserPrompt is not
+defined ». Pour Recolorier et Age, l'appel precede le `gatedRun` et n'est
+dans aucun `try` : le bouton ne faisait RIEN, sans message ni tuile. Les deux
+outils venaient d'etre portes sur le web (2026-09-24) ; ils n'y ont jamais
+fonctionne. Le bureau traduit via Argos en local ; le web n'a aucun service
+equivalent, la version web rend donc le texte tel quel — un prompt francais
+est moins bien compris par SDXL, mais il fonctionne.
+
+**Variant, ecart reel comble.** Le web n'avait ni le champ « guide de
+variation », ni la case « garder la forme ». Ajoutes, avec le moteur qui va
+avec : `tex_variant` (ControlNet-Tile, 2 credits) quand la forme est
+verrouillee, `modify` (3 credits) sinon — le badge de cout suivait le seul
+tarif `modify` et annoncait 3 pour une operation facturee 2. Une tuile par
+variante desormais, comme sur le bureau : la tuile unique restait a 0 %
+jusqu'a la derniere image, soit plusieurs minutes d'ecran fige sur huit.

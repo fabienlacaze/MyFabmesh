@@ -490,6 +490,29 @@ function promptBuyCredits(message) {
     .catch(() => { _creditsPromptOpen = false; });
 }
 
+/* TRADUCTION DU TEXTE LIBRE — VERSION WEB.
+ *
+ * MESURE DU 2026-09-26 : cette fonction etait APPELEE trois fois dans ce
+ * fichier (apercu du masque de Recolorier, application de Recolorier,
+ * guide de l'outil Age) et DEFINIE nulle part. Chaque clic levait donc
+ * « ReferenceError: translateUserPrompt is not defined » — et pour
+ * Recolorier comme pour Age l'appel se fait AVANT le gatedRun, hors de
+ * tout try : le bouton ne faisait tout simplement rien, sans message.
+ * Les deux outils venaient d'etre portes sur le web ; ils n'y ont jamais
+ * fonctionne.
+ *
+ * Le bureau traduit via Argos en local (IPC `translatePrompt`). Le web n'a
+ * aucun service equivalent — ni cote worker, ni cote Modal. On rend donc le
+ * texte TEL QUEL plutot que d'inventer un appel : un prompt en francais est
+ * moins bien compris par SDXL qu'un prompt en anglais, mais il fonctionne,
+ * la ou l'absence de fonction ne fonctionnait pas du tout.
+ *
+ * La signature reste identique au bureau (async, meme nom, meme retour) :
+ * le jour ou une route de traduction existe, seul ce corps change. */
+async function translateUserPrompt(text) {
+  return (text && String(text)) || '';
+}
+
 function showToast(message, type = 'info', durationMs = 3000) {
   let container = document.getElementById('toast-container');
   if (!container) {
@@ -3143,6 +3166,15 @@ function _updateVarStrengthHint() {
  * par syncLivePricing) ; sans elle on retombe sur le defaut de la grille. */
 function _prixVariante() {
   const p = window.__LIVE_PRICES;
+  // DEUX MOTEURS, DEUX TARIFS. Forme verrouillee = `tex_variant`
+  // (ControlNet-Tile, 2 credits) ; forme libre = `modify` (3 credits).
+  // Le badge suivait le seul tarif `modify` et annoncait donc 3 credits pour
+  // une operation facturee 2 des que la case etait cochee.
+  const verrou = !!document.getElementById('var-tex-mode')?.checked;
+  if (verrou) {
+    if (p && typeof p.tex_variant === 'number') return p.tex_variant;
+    return 2;   // valeur de PRICING_DEFAULTS.tex_variant
+  }
   if (p && typeof p.modify === 'number') return p.modify;
   return 3;   // valeur de PRICING_DEFAULTS.modify
 }
@@ -3185,6 +3217,11 @@ document.getElementById('var-count')?.addEventListener('input', (e) => {
   document.getElementById('var-count-val').textContent = e.target.value;
   window._majCoutVariantes();
 });
+// Cocher « garder la forme » change de moteur, donc de tarif : le badge doit
+// suivre immediatement, sinon il annonce le prix de l'autre operation.
+document.getElementById('var-tex-mode')?.addEventListener('change', () => {
+  window._majCoutVariantes();
+});
 const _varClose = () => document.getElementById('variant-modal')?.classList.add('hidden');
 document.getElementById('var-cancel')?.addEventListener('click', _varClose);
 document.getElementById('var-close-x')?.addEventListener('click', _varClose);
@@ -3193,26 +3230,44 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   if (!p || !p.selectedImagePath) { showToast('Pick an image first.', 'error'); return; }
   const strength = (parseInt(document.getElementById('var-strength').value) || 50) / 100;
   const count = parseInt(document.getElementById('var-count').value) || 1;
+  // DEUX REGLAGES QUI N'EXISTAIENT QUE SUR LE BUREAU (parite du 2026-09-26).
+  //
+  // « Guide » oriente la variation dans les DEUX modes ; « garder la forme »
+  // bascule sur tex_variant, qui tient la silhouette par ControlNet-Tile et
+  // ne fait varier que matiere et couleur. Sans eux, la version web ne savait
+  // que rejouer l'image au hasard : on ne pouvait ni demander « armure doree »
+  // ni proteger les proportions.
+  const texMode = !!document.getElementById('var-tex-mode')?.checked;
+  const rawGuide = (document.getElementById('var-tex-prompt')?.value || '').trim();
   _varClose();
   const variantSource = p.selectedImagePath;
   const prompt = (p.prompt || p.initialPrompt) || 'variation';
-  const job = (typeof pushJob === 'function')
-    ? pushJob(`Variant${count > 1 ? 's' : ''}: ${p.name}`, null,
-        { Variants: count, Variation: Math.round(strength * 100) + '%' }, 30000 * count, undefined,
-        { sourceImageUrl: variantSource, projectName: p.name })
-    : null;
-  try {
-    for (let i = 0; i < count; i++) {
-      const r = await window.meshyAPI?.img2img({ imagePath: variantSource, prompt, strength });
-      if (!r?.success) throw new Error(r?.error || 'img2img failed');
+  const guide = rawGuide ? await translateUserPrompt(rawGuide) : '';
+  showToast(`Generating ${count} variant${count > 1 ? 's' : ''}…`, 'info', 2000);
+  // UNE TUILE PAR VARIANTE, comme sur le bureau. La tuile unique precedente
+  // restait a 0 % jusqu'a la derniere image : sur huit variantes, l'ecran
+  // paraissait fige pendant plusieurs minutes.
+  for (let i = 0; i < count; i++) {
+    const seed = Math.floor(Math.random() * 1000000);
+    const job = (typeof pushJob === 'function')
+      ? pushJob(`Variant: ${p.name}`, null,
+          texMode ? { Seed: seed, Texture: rawGuide || '(free)', Mode: 'shape locked' }
+                  : { Seed: seed, Variation: Math.round(strength * 100) + '%' },
+          texMode ? 60000 : 30000, undefined,
+          { sourceImageUrl: variantSource, projectName: p.name })
+      : null;
+    try {
+      const r = texMode
+        ? await window.meshyAPI?.texVariant({ imagePath: variantSource, prompt: guide, strength, seed })
+        : await window.meshyAPI?.img2img({ imagePath: variantSource, prompt: (guide || prompt), strength, seed });
+      if (!r?.success) throw new Error(r?.error || 'variant failed');
+      if (job && typeof completeJob === 'function') completeJob(job.id, true);
+    } catch (e) {
+      if (job && typeof completeJob === 'function') completeJob(job.id, false, e?.message || String(e));
+      showToast('Variant failed: ' + (e?.message || e), 'error', 5000);
     }
-    if (job && typeof completeJob === 'function') completeJob(job.id, true);
-    if (typeof reloadCurrentProject === 'function') await reloadCurrentProject();
-    showToast(`✓ ${count} variant${count > 1 ? 's' : ''} generated.`, 'success');
-  } catch (e) {
-    if (job && typeof completeJob === 'function') completeJob(job.id, false, e?.message || String(e));
-    showToast('Variant failed: ' + (e?.message || e), 'error', 5000);
   }
+  if (typeof reloadCurrentProject === 'function') await reloadCurrentProject();
 });
 
 document.getElementById('ws-multiview-btn')?.addEventListener('click', () => {
