@@ -104,12 +104,29 @@ def main():
     except Exception as exc:
         log(f"correctif d'alignement indisponible ({exc}) - rig SANS texture")
         transfert = False
-    rc, refuse = _run([venv_py, demo, "--input", mesh_path, "--output", output_glb]
-                      + (["--use_transfer"] if transfert else []))
-    if (not os.path.exists(output_glb) or os.path.getsize(output_glb) == 0) and not refuse and transfert:
+    produit = lambda: os.path.exists(output_glb) and os.path.getsize(output_glb) > 0
+    rc, refuse = 0, False
+    # SQUELETTE COMPLET (2026-09-26, parite cloud) : meilleur de 2 tirages de
+    # l'IA + completion generique + peau recalculee par l'IA (rig_complet.py,
+    # meme fichier que modal_app/squelette/rig_complet.py). Sans resultat,
+    # l'ancien chemin prend le relais. FABMESH_RIG_COMPLET=0 le desactive.
+    pilote = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rig_complet.py")
+    if transfert and os.environ.get("FABMESH_RIG_COMPLET", "1") != "0" and os.path.exists(pilote):
+        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2"])
+        if not produit():
+            log(f"squelette complet sans resultat (rc={rc}) - ancien chemin")
+    if not produit():
+        rc, refuse = _run([venv_py, demo, "--input", mesh_path, "--output", output_glb]
+                          + (["--use_transfer"] if transfert else []))
+    if not produit() and not refuse and transfert:
+        # Le plus souvent un DECODAGE rate (tirage aleatoire), pas le
+        # transfert : un nouveau tirage AVEC texture suffit presque toujours.
+        log("rig sans resultat - nouveau tirage avec texture")
+        rc, refuse = _run([venv_py, demo, "--input", mesh_path, "--output", output_glb, "--use_transfer"])
+    if not produit() and not refuse and transfert:
         # Repli : un rig sans texture vaut mieux qu'aucun rig. Pas de relance
         # si le modele a refuse le maillage : elle echouerait pareil.
-        log("transfert de texture en echec - repli sur l'export normalise, sans texture")
+        log("deux tirages sans resultat - repli sur l'export normalise, sans texture")
         rc, refuse = _run([venv_py, demo, "--input", mesh_path, "--output", output_glb])
 
     if not os.path.exists(output_glb):

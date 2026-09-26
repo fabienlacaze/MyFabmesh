@@ -23236,3 +23236,34 @@ facon AccuRIG (idee user : reutiliser l'outil Landmarks, aujourd'hui un
 gabarit humanoide fige de 19 points dont le bouton « Re-generate rig »
 n'envoie rien au moteur), machoire (pas une extremite : non couverte),
 humanoides (doigts), correctif du repli « sans texture ».
+
+## 2026-09-26 — Squelette complet EN PRODUCTION (cloud + bureau)
+
+**Fichiers partages** (build/check-noyaux-partages.mjs, fichiers entiers) :
+`scripts/squelette_complet.py` = `modal_app/squelette/squelette_complet.py`
+(module autonome : GLB, volume, extremites, note, completion, greffe) et
+`scripts/rig_complet.py` = `modal_app/squelette/rig_complet.py` (pilote lance
+avec le python du rigger, cwd = depot SkinTokens) : N tirages de l'IA en un
+seul chargement du modele (un tirage qui plante au decodage est ecarte), le
+meilleur a la note de completude, completion, greffe, peau IA
+(`--use_skeleton --use_transfer`). Garde-fous : le complete n'est rendu QUE
+s'il note au moins aussi bien que l'IA seule ; analyse impossible -> meilleur
+tirage ; aucun tirage -> code 3 et l'ancien chemin (un demo.py) reprend.
+Garde `__main__` obligatoire (Windows : les workers du DataLoader
+reimportent le script). Compte rendu (extremites, notes, completion) dans
+`extras.fabmesh_squelette` du GLB, pour le futur editeur de points.
+
+**Cloud** (`_skintokens_rig.py`) : `rig_mesh(..., complet=None)` ->
+`SQUELETTE_COMPLET_DEFAUT = True`, `TIRAGES_IA = 2` ; couche `scipy` ajoutee
+APRES les poids. Premier deploiement avec la voie DESACTIVEE, test par appel
+direct : araignee 11/11 extremites (79 os imposes -> 76 gardes, portee 1,00),
+vache 14/14, 300-330 s avec 3 tirages. Puis activation (2 tirages, ~250 s).
+Correctif du repli : un rig sans resultat retente d'abord un tirage AVEC
+texture (cause = decodage rate) avant l'export sans texture.
+**Bureau** (`skintokens_bridge.py`) : meme pilote (2 tirages), memes replis ;
+`FABMESH_RIG_COMPLET=0` le desactive.
+**Worker** : `ESTIMATED_USD_RIG` 0,05 -> 0,14 $ (~250 s d'A10G).
+
+**A TRANCHER (user)** : un rig est facture 5 credits (~0,20 $). Cout GPU
+estime ~0,14 $, et le cout Modal REEL mesure est ~2,5 x l'estimation du code
+(memoire « modele de cout ») : la marge devient negative. Prix a revoir.

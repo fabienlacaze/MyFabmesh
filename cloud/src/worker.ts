@@ -11952,7 +11952,7 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
  *  (5 credits). Refunded if the spawn fails OR rig-status surfaces an
  *  error so a transient Modal outage never burns the user's balance. */
 const RIG_COST = 5;
-const ESTIMATED_USD_RIG = 0.05;  // ~A10G $0.000542/s × ~90 s + R2 ops
+const ESTIMATED_USD_RIG = 0.14;  // ~A10G $0.000542/s × ~250 s (squelette complet : 2 tirages + peau, 2026-09-26 ; avant ~90 s) + R2 ops
 
 /** Job record persisted by /api/auto-rig and read by /api/auto-rig-status.
  *  Stored in R2 (not a separate KV namespace) to stay consistent with the

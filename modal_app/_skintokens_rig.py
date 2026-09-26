@@ -148,8 +148,17 @@ image = (
         copy=True,
     )
     .run_commands(f"python /tmp/patch_skintokens_transfert.py {SKINTOKENS_DIR}")
+    # scipy : squelette complet (modal_app/squelette/). Couche APRES les poids.
+    .pip_install("scipy>=1.11,<1.18")
     .add_local_python_source("modal_app")
 )
+
+# SQUELETTE COMPLET (2026-09-26) : meilleur de N tirages de l'IA + completion
+# generique + peau recalculee par l'IA (modal_app/squelette/rig_complet.py).
+# Mesure : araignee 0/11 -> 11/11 extremites completes, vache 1/14 -> 14/14.
+# Si le pilote n'aboutit pas, l'ancien chemin (un seul demo.py) prend le relais.
+SQUELETTE_COMPLET_DEFAUT = True
+TIRAGES_IA = 2   # 3 : ~330 s de GPU ; 2 : ~250 s (la completion rattrape les membres oublies)
 
 app = modal.App("myfabmesh-skintokens", image=image)
 
@@ -172,7 +181,7 @@ CKPT = "experiments/articulation_xl_quantization_256_token_4/grpo_1400.ckpt"
     volumes={"/rig_data": rig_output_volume},
     secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
 )
-def rig_mesh(glb_bytes: bytes, job_id: str | None = None) -> bytes:
+def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None = None) -> bytes:
     """Rig `glb_bytes` avec SkinTokens et renvoie le GLB riggé.
 
     Quand `job_id` est fourni, écrit aussi le résultat (ou l'erreur) sur le
@@ -243,13 +252,33 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None) -> bytes:
     if not aligne:
         print("[skintokens] correctif d'alignement ABSENT de l'image — rig sans "
               "texture", flush=True)
-    rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out]
-                                    + (["--use_transfer"] if aligne else []))
-    if (not os.path.isfile(out) or os.path.getsize(out) == 0) and not refuse and aligne:
+    produit = lambda: os.path.isfile(out) and os.path.getsize(out) > 0
+    rc, dernieres, refuse = 0, [], False
+    if (SQUELETTE_COMPLET_DEFAUT if complet is None else complet) and aligne:
+        import modal_app
+        pilote = os.path.join(os.path.dirname(modal_app.__file__), "squelette", "rig_complet.py")
+        if os.path.isfile(pilote):
+            rc, dernieres, refuse = _lancer(["python", pilote, src, out, "--tirages", str(TIRAGES_IA)])
+            if not produit():
+                print(f"[skintokens] squelette complet sans resultat (rc={rc}) — ancien "
+                      f"chemin", flush=True)
+    if not produit():
+        rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out]
+                                        + (["--use_transfer"] if aligne else []))
+    if not produit() and not refuse and aligne:
+        # Un echec ici est le plus souvent un DECODAGE rate (sequence de
+        # squelette mal formee, tirage aleatoire) et non le transfert : le
+        # message « transfert en echec » d'avant mentait. Un nouveau tirage AVEC
+        # transfert suffit presque toujours ; on le tente avant de sacrifier la
+        # texture.
+        print("[skintokens] rig sans resultat — nouveau tirage avec texture", flush=True)
+        rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out,
+                                         "--use_transfer"])
+    if not produit() and not refuse and aligne:
         # Repli : un rig sans texture vaut mieux qu'aucun rig. Relance SANS
         # transfert (l'inference est refaite : cout GPU double, cas rare). Pas
         # de relance si le modele a refuse le maillage : elle echouerait pareil.
-        print("[skintokens] transfert de texture en echec — repli sur l'export "
+        print("[skintokens] deux tirages sans resultat — repli sur l'export "
               "normalise, sans texture", flush=True)
         rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out])
 

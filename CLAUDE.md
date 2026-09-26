@@ -373,6 +373,16 @@ gatedRun(kind, nom, fn)      ← file d'attente (VRAM ; rend ok() en cloud)
   avec `patch_skintokens_transfert.py` : sans lui, SkinTokens aligne le rig
   par une ACP aléatoire qui se retourne à 180° dans ~40 % des cas (mesure du
   2026-09-26). Déployer : `python -m modal deploy modal_app/_skintokens_rig.py`.
+- **Squelette complet** (depuis le 2026-09-26, cloud ET bureau) : le rig passe
+  par `squelette/rig_complet.py` — meilleur de 2 tirages de l'IA, complétion
+  GÉNÉRIQUE (chaînes prolongées jusqu'aux extrémités réelles du maillage,
+  chaîne neuve pour une extrémité sans os, moyeu commun pour une tête), puis
+  l'IA recalcule la peau (`--use_skeleton`). Aucun code par espèce : le user a
+  refusé un recalage « manuel ». Le module est un fichier partagé
+  (`scripts/squelette_complet.py` = `modal_app/squelette/`). Les réglages du
+  modèle (classes `rignet`/`vroid`, pénalité de répétition) ont été mesurés :
+  aucun ne complète le squelette, `repetition_penalty` 1,2 fait planter le
+  décodage. Banc d'essai : `rig_mesh_essai` (aucune route de production).
 
 **Démarrage à froid — le piège récurrent.** Cloudflare coupe chaque
 sous-requête à 100 s avec un **524**. Toute route synchrone DOIT donc rejouer :
