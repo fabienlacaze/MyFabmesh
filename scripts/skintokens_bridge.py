@@ -108,8 +108,8 @@ def main():
     # a 180 degres mesure dans ~40 % des cas. S'il ne s'applique pas, on
     # renonce au transfert : un rig sans texture vaut mieux qu'un rig retourne.
     try:
-        from patch_skintokens_transfert import appliquer
-        log(f"correctif d'alignement : {appliquer(SKINTOKENS_DIR)}")
+        from patch_skintokens_transfert import appliquer_tout
+        log(f"correctifs SkinTokens : {appliquer_tout(SKINTOKENS_DIR)}")
         transfert = True
     except Exception as exc:
         log(f"correctif d'alignement indisponible ({exc}) - rig SANS texture")

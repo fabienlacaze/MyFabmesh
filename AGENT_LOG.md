@@ -23393,3 +23393,50 @@ l'epaisseur. Araignee 9 -> 13 extremites : les deux CROCHETS trouves seuls,
 mais 2 bosses de pattes ; barbare 11 -> 16 (doigts, orteils) ; vache 14 ->
 33 (oreilles, cornes, museau, mais aussi genoux, jarrets, ergots) : trop
 permissif, filtre a trouver avant tout deploiement.
+
+## 2026-09-26 — Rigger : 4 correctifs du code amont + diagnostic de l'entree
+
+Audit complet (depot SkinTokens, 60 forks, article arXiv 2602.04805, page du
+projet, Space officiel, portage skin-tokens.cpp) : AUCUN reglage, checkpoint
+ou fork ne rend le squelette complet. Le code explique nos defauts : les os
+terminaux sont supprimes a l'entrainement (`trim`, le modele n'a jamais appris
+les bouts de membres : notre completion geometrique est la bonne reponse) et
+le jeton « fin du squelette » est permis apres chaque chaine sans minimum.
+
+**Diagnostic de l'entree** (banc, araignee) : decodage FIGE (glouton, 1
+faisceau), seul le nuage de points d'entree varie d'un tirage a l'autre :
+60 a 131 os, 0 a 8 pattes completes sur 9. C'est l'ENTREE qui fait varier le
+squelette : le meilleur de N tirages, qui re-tire le nuage a chaque fois, est
+le bon principe (deja en place).
+
+**4 correctifs du rigger** (`correctifs_rigger` dans
+patch_skintokens_transfert.py, fichier partage ; appliques au BUILD de l'image
+Modal — le build echoue si une ancre disparait — et avant chaque rig bureau
+via `appliquer_tout`) :
+1. PEAU EXACTE (tokenrig.py) : fin de sequence forcee un jeton trop tot et
+   jetons non-peau acceptes en phase peau -> dernier code de peau du dernier
+   os faux. Repris du fork marklalon (3f999d64).
+2. FILS UNIQUES (bpy.py, issue #8 amont) : liste des enfants remplie deux
+   fois -> aucune queue d'os vers son enfant. MESURE : os a enfant unique
+   pointant vers lui : araignee 26 % -> 100 %, barbare 14 % -> 100 % (ecart
+   median 20 deg / 37 deg -> 0 deg). Axes corrects a l'import Unreal.
+3. SQUELETTE IMPOSE (tokenrig.py, predict_step) : la 2e passe rendait une
+   copie QUANTIFIEE de notre squelette complete, parents recalcules au plus
+   proche. Joints et parents d'entree gardes tels quels si le decodage suit
+   le meme ordre (garde : chaque joint a moins de 0,02). Verifie dans le
+   journal Modal sur les deux rigs : « squelette impose conserve tel quel ».
+4. BUDGET DE JETONS (demo.py) : max_length=2048 comptait les 514 plongements
+   d'entree (1 534 jetons utiles) : un tirage trop long plantait et etait
+   ecarte sans message. max_new_tokens=2040, comme le checkpoint.
+Verifie apres deploiement (memes graines) : araignee 9/9 et barbare 11/11
+bouts atteints, ~215 s par rig.
+
+**Non deploye** : detection des petits appendices, testee sur 12 modeles
+(mygale, raptor, scorpion, rat, oiseau, libellule, dragon...) : vrais ajouts
+(crochets, oreille du rat, pattes de libellule) mais aussi genoux, plumes et
+piques dorsales : ne s'adapte pas a n'importe quel maillage.
+
+**Licence a trancher** : un mainteneur indique (issue #9) que le dossier
+`src/model/michelangelo` de SkinTokens est sous GPL ; c'est l'encodeur de
+maillage utilise. Sans consequence probable pour le cloud (execution
+serveur), a trancher avant de distribuer le rig dans l'appli bureau.

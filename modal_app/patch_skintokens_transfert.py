@@ -24,6 +24,26 @@ Le meme fichier sert au cloud (execute au BUILD de l'image Modal) et au bureau
 (appele par skintokens_bridge.py avant chaque rig). Les deux copies doivent
 rester identiques : build/check-noyaux-partages.mjs le verifie.
 
+CORRECTIFS DU RIGGER (2026-09-26, audit du depot, de l'article, du Space et
+des 60 forks ; le fork marklalon en corrige plusieurs) — `correctifs_rigger` :
+  1. PEAU EXACTE (src/model/tokenrig.py, VocabSwitchingLogitsProcessor) : la
+     fin de sequence etait forcee UN jeton trop tot, et la phase peau
+     acceptait des jetons qui ne sont pas de la peau (258-266) : le dernier
+     code de peau du dernier os etait faux.
+  2. FILS UNIQUES (src/rig_package/parser/bpy.py, issue #8 amont) : la liste
+     des enfants etait remplie DEUX fois ; aucun os n'avait donc « un seul
+     enfant » et aucune queue d'os ne pointait vers son enfant : axes des os
+     faux dans le GLB exporte (visible a l'import Unreal).
+  3. SQUELETTE IMPOSE (tokenrig.py, predict_step) : en --use_skeleton, le
+     squelette rendu etait sa copie QUANTIFIEE (grille de 256) avec des
+     parents recalcules « au joint precedent le plus proche » — nos chaines
+     completees pouvaient changer de parent. Les joints et parents d'entree
+     sont gardes tels quels, seulement si le decodage suit le meme ordre.
+  4. BUDGET DE JETONS (demo.py) : max_length=2048 comptait les 514
+     plongements d'entree (1 534 jetons utiles) ; un squelette plus long
+     plantait et le tirage etait ecarte sans message — les plus LONGS, donc
+     les plus complets. max_new_tokens=2040, comme le checkpoint.
+
 Usage : python patch_skintokens_transfert.py <racine SkinTokens>
 """
 import os
@@ -87,6 +107,96 @@ def _auto_test():
     assert f(src, src @ R.T) is None, "rotation acceptee a tort"
 
 
+CORRECTIFS = [
+    # (fichier, marqueur, ancien, nouveau)
+    (os.path.join("src", "model", "tokenrig.py"), "FABMESH_PEAU_EXACTE",
+     """            if self.switch_token_id in sequence:
+                mask[self.switch_token_id:] = 0
+                where = torch.where(sequence == self.switch_token_id)[0][:1]
+                J = self.tokenizer.bones_in_sequence(ids=sequence.detach().cpu().numpy())
+                if (length-where) == J*self.tokens_per_skin:
+                    mask[:] = float('-inf')
+                    mask[self.eos_token_id] = 0
+                else:
+                    mask[self.eos_token_id] = float('-inf')
+""",
+     """            if self.switch_token_id in sequence:
+                # FABMESH_PEAU_EXACTE : jetons de PEAU seuls, fin apres exactement
+                # J x tokens_per_skin jetons (l'amont la forcait un jeton trop tot)
+                where = int(torch.where(sequence == self.switch_token_id)[0][0])
+                J = self.tokenizer.bones_in_sequence(ids=sequence.detach().cpu().numpy())
+                if length - where - 1 >= J * self.tokens_per_skin:
+                    mask[self.eos_token_id] = 0
+                else:
+                    mask[self.tokenizer.vocab_size:self.eos_token_id] = 0
+"""),
+    (os.path.join("src", "rig_package", "parser", "bpy.py"), "FABMESH_FILS_UNIQUES",
+     """            sons[p].append(i)
+            d = np.linalg.norm(joints[i] - joints[p])
+""",
+     """            # FABMESH_FILS_UNIQUES : `sons` est deja rempli par la boucle
+            # precedente ; le remplir deux fois faussait les queues d'os
+            d = np.linalg.norm(joints[i] - joints[p])
+"""),
+    (os.path.join("src", "model", "tokenrig.py"), "FABMESH_SQUELETTE_IMPOSE",
+     """                res.asset = Asset.from_data(
+                    vertices=asset.vertices,
+                    faces=asset.faces,
+                    sampled_vertices=vertices[i].detach().float().cpu().numpy(),
+                    sampled_skin=res.skin_pred.detach().float().cpu().numpy(),
+                    joints=res.detokenize_output.joints,
+                    parents=np.array(res.detokenize_output.parents),
+""",
+     """                _joints = res.detokenize_output.joints
+                _parents = np.array(res.detokenize_output.parents)
+                # FABMESH_SQUELETTE_IMPOSE : squelette impose -> joints et
+                # parents EXACTS de l'entree, si le decodage suit le meme ordre
+                # (chaque joint decode a moins de 0,02 de son original)
+                if (skeleton_tokens[i] is not None and asset.joints is not None
+                        and asset.parents is not None and len(asset.joints) == len(_joints)
+                        and np.abs(np.asarray(asset.joints) - np.asarray(_joints)).max() < 0.02):
+                    _joints = np.asarray(asset.joints).copy()
+                    _parents = np.array(asset.parents)
+                    print("[fabmesh] squelette impose conserve tel quel", flush=True)
+                res.asset = Asset.from_data(
+                    vertices=asset.vertices,
+                    faces=asset.faces,
+                    sampled_vertices=vertices[i].detach().float().cpu().numpy(),
+                    sampled_skin=res.skin_pred.detach().float().cpu().numpy(),
+                    joints=_joints,
+                    parents=_parents,
+"""),
+    ("demo.py", "FABMESH_BUDGET_JETONS",
+     """            max_length=2048,
+""",
+     """            max_new_tokens=2040,  # FABMESH_BUDGET_JETONS : max_length comptait l'entree
+"""),
+]
+
+
+def correctifs_rigger(racine):
+    """Applique les correctifs du rigger (idempotents). Rend {marqueur: etat} ;
+    un correctif dont l'ancre a disparu (version amont differente) est
+    signale « ancre absente » sans bloquer les autres."""
+    etats = {}
+    for fichier, marqueur, ancien, nouveau in CORRECTIFS:
+        chemin = os.path.join(racine, fichier)
+        with open(chemin, encoding="utf-8", newline="") as fh:
+            texte = fh.read()
+        if marqueur in texte:
+            etats[marqueur] = "deja"
+            continue
+        fin = "\r\n" if "\r\n" in texte else "\n"
+        a, n = ancien.replace("\n", fin), nouveau.replace("\n", fin)
+        if texte.count(a) != 1:
+            etats[marqueur] = "ancre absente"
+            continue
+        with open(chemin, "w", encoding="utf-8", newline="") as fh:
+            fh.write(texte.replace(a, n))
+        etats[marqueur] = "applique"
+    return etats
+
+
 def appliquer(racine):
     """Applique le correctif (idempotent). Rend 'deja' ou 'applique' ; leve une
     exception si le fichier de SkinTokens ne ressemble plus a ce qu'on attend
@@ -112,6 +222,16 @@ def appliquer(racine):
     return "applique"
 
 
+def appliquer_tout(racine):
+    """Alignement du transfert + correctifs du rigger. Rend un resume lisible."""
+    etat = appliquer(racine)
+    try:
+        autres = correctifs_rigger(racine)
+    except Exception as e:                  # un correctif rate ne bloque pas le rig
+        autres = {"erreur": f"{type(e).__name__}: {e}"}
+    return "alignement %s ; %s" % (etat, ", ".join("%s %s" % kv for kv in autres.items()))
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("usage : python patch_skintokens_transfert.py <racine SkinTokens>")
@@ -121,3 +241,8 @@ if __name__ == "__main__":
     with open(os.path.join(sys.argv[1], CIBLE), encoding="utf-8") as fh:
         assert MARQUEUR in fh.read(), "correctif absent apres application"
     print("correctif d'alignement SkinTokens : %s (auto-test OK)" % etat)
+    # Au BUILD de l'image : un correctif du rigger qui ne s'applique plus doit
+    # faire echouer la construction (sinon il manquerait sans qu'on le sache).
+    autres = correctifs_rigger(sys.argv[1])
+    print("correctifs du rigger : %s" % autres)
+    assert all(v in ("applique", "deja") for v in autres.values()), autres
