@@ -23193,3 +23193,46 @@ AVEC transfert suffirait. A corriger.
 experiences sur Modal seulement.
 
 Viewer comparatif publie pour le user (artefact « Banc des squelettes »).
+
+## 2026-09-26 — Squelette complet : IA + completion generique + peau IA (prototype valide)
+
+**Question user** (sur le viewer) : « pourquoi on n'a pas d'os dans
+l'extremite, les points semblent bien places ? » — les points sont les
+extremites de MON detecteur ; l'IA place ses articulations la ou un membre
+plie et s'arrete avant la pointe (convention de ses donnees), et ne met
+aucun os dans une tete de vache. D'ou : utiliser ces points pour completer.
+
+**Prototype** (`build/squelette/`, hors paquet, AUCUNE branche en production) :
+- `completer_squelette.py` : aucune connaissance d'espece. Extremites =
+  branches geodesiques depuis le tronc (tronc = ce qui survit a une erosion
+  a 0,3 x epaisseur max), recentrees sur la LIGNE MEDIANE (barycentre d'une
+  tranche perpendiculaire). Chaine de l'IA qui s'arrete avant le bout :
+  PROLONGEE avec son propre espacement d'os. Extremite sans os : NOUVELLE
+  chaine, rattachee de preference a un os du TRONC (un pedipalpe accroche a
+  une patte sinon) ; plusieurs nouvelles chaines nees au meme endroit
+  partagent un MOYEU (tete : museau, oreilles, cornes). Tronc sans os
+  (abdomen) : chaine le long de l'AXE PRINCIPAL du bloc entier du coeur,
+  seulement si le coeur est a plus de 1,2 x l'epaisseur de tout os — a 0,5 x
+  le ventre d'une vache recevait une seconde colonne vertebrale parallele.
+- `greffer_armature.py` : greffe le squelette dans le GLB TEXTURE (UV et
+  materiaux intacts) + poids d'amorcage (plus proche joint ; 60 sommets
+  forces pour tout joint orphelin, sinon trim_skeleton elague les bouts).
+- Banc Modal `rig_mesh_essai(..., {'use_skeleton': True})` : l'IA ne predit
+  que la peau.
+- `noter_rigs.py` : la note de completude (portee par extremite).
+
+**Resultats (A10G).** Araignee : 46 os de l'IA (meilleur de 6 tirages) ->
+69 ; l'IA garde les 69 os a 4 mm pres (quantification), texture conservee,
+os renommes bone_N ; peau repartie sur les os ajoutes (1 200 a 29 000
+sommets par os, 4 os ajoutes sans sommet dominant dont une chaine de
+pedipalpe) ; portee 0,55 -> 0,99, extremites completes 0/11 -> 11/11.
+Vache : 28 -> 58 os, tete (moyeu + museau/oreilles/cornes), queue, pattes au
+sol ; portee 0,22 -> 0,99, 1/14 -> 14/14. Viewer republie (os ajoutes en
+bleu).
+
+**Reste** : cablage production (meilleur de N + completion + peau IA dans
+`_skintokens_rig.py` et le pont bureau), edition des points par l'user
+facon AccuRIG (idee user : reutiliser l'outil Landmarks, aujourd'hui un
+gabarit humanoide fige de 19 points dont le bouton « Re-generate rig »
+n'envoie rien au moteur), machoire (pas une extremite : non couverte),
+humanoides (doigts), correctif du repli « sans texture ».

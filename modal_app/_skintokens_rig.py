@@ -307,6 +307,9 @@ def rig_mesh_essai(glb_bytes: bytes, classe: str = "articulation", options: dict
     with open(variante, "w", encoding="utf-8") as f:
         f.write(code)
     cmd = ["python", variante, "--input", src, "--output", out, "--use_transfer"]
+    # squelette IMPOSE (celui du GLB d'entree) : l'IA ne predit que la peau
+    if options.get("use_skeleton"):
+        cmd.append("--use_skeleton")
     for cle in ("top_k", "top_p", "temperature", "repetition_penalty", "num_beams"):
         if cle in options:
             cmd += [f"--{cle}", str(options[cle])]
