@@ -1701,7 +1701,16 @@ const PRICING_DEFAULTS = {
   mesh_ultra_q:     2,
   mesh_ultra_hd:    3,
   mesh_face_fix:    2,
-  face_fix_mesh:    2,
+  // face_fix_mesh RETIRE le 2026-09-27 : aucune route ne le facturait, il
+  // n'apparaissait dans l'onglet Pricing que pour semer le doute.
+  //
+  // TARIFS JUSQU'ICI ECRITS EN DUR (2026-09-27) : absents de l'onglet Pricing,
+  // donc impossibles a regler sans deployer. Memes valeurs qu'avant.
+  rig:              10,         // squelette complet + peau (A10G, ~250 s)
+  reskin:           6,          // peau seule, squelette impose (~135 s)
+  mesh_segment:     15,         // decoupe en pieces 3D (A100)
+  anim:             5,          // une animation (texte -> mouvement, ou retarget FBX)
+  construction3d:   2,          // etapes de construction 3D (CPU) — etait 2 x mesh_op_simple
 };
 type PricingKey = keyof typeof PRICING_DEFAULTS;
 const PRICING_KEY = '_meta/pricing.json';
@@ -11516,7 +11525,7 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
   if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed');
 
   // CPU-only Modal op, but N stages of work — charge 2× a simple mesh op.
-  const COST_PER = (await getPrice(env, 'mesh_op_simple')) * 2;
+  const COST_PER = await getPrice(env, 'construction3d');   // etait 2 x mesh_op_simple
   const estimatedTotal = 0.01;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
@@ -12414,7 +12423,8 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
 
   // Squelette impose (peau seule / articulations editees) : aucun tirage de
   // l'IA, donc prix reduit. Le remboursement relit le montant enregistre.
-  const cout = squelette ? RESKIN_COST : RIG_COST;
+  // Prix de la grille (onglet Pricing), plus des constantes en dur.
+  const cout = await getPrice(env, squelette ? 'reskin' : 'rig');
   const estime = squelette ? ESTIMATED_USD_RESKIN : ESTIMATED_USD_RIG;
   const remainingBudget = await checkAndIncrementModalSpend(env, estime, user.id);
   if (remainingBudget == null) {
@@ -12825,6 +12835,9 @@ async function handleMeshSegment(req: Request, env: Env): Promise<Response> {
     await refundSegmentSpend();
     return err(429, 'you have reached the per-user daily generation limit.');
   }
+  // Prix de la grille ; masque la constante du module pour que debit,
+  // remboursements et ligne `jobs` utilisent tous le MEME montant.
+  const SEGMENT_COST = await getPrice(env, 'mesh_segment');
   const remaining = await spendCredits(env, user.id, SEGMENT_COST);
   if (remaining == null) {
     await refundSegmentSpend();
@@ -14220,6 +14233,7 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
     await refundAnimSpend();
     return err(429, 'you have reached the per-user daily generation limit.');
   }
+  const ANIM_COST = await getPrice(env, 'anim');   // grille (Pricing) ; masque la constante
   const remaining = await spendCredits(env, user.id, ANIM_COST);
   if (remaining == null) {
     await refundAnimSpend();
@@ -14531,6 +14545,7 @@ async function handleAnimateFromReference(req: Request, env: Env): Promise<Respo
     await refundSpend();
     return err(429, 'you have reached the per-user daily generation limit.');
   }
+  const ANIM_COST = await getPrice(env, 'anim');   // grille (Pricing) ; masque la constante
   const remaining = await spendCredits(env, user.id, ANIM_COST);
   if (remaining == null) {
     await refundSpend();
@@ -15007,7 +15022,7 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
   // Cost: 1 rectify call ≈ N seeds × back-view ≈ $0.10 × 3 = $0.30 estimate.
   // Credit-wise we charge 3 credits to match the GPU work.
   const nSeeds = Math.max(1, Math.min(5, seeds ?? 3));
-  const COST_PER_RECTIFY = 3;
+  const COST_PER_RECTIFY = await getPrice(env, 'rectify');   // etait 3 en dur
   const cost = COST_PER_RECTIFY;
   const estimatedTotal = 0.10 * nSeeds;
 

@@ -642,6 +642,8 @@ window.__optionsMortesCloud = new Set([]);
     // meme prix que le rig (RIG_COST du worker, absent de /api/pricing :
     // a changer avec lui).
     'pts-regenerer':       10,
+    // Bouton principal du rig : aucune pastille jusqu'au 2026-09-27.
+    'ws-generate-rig-ai':  10,
     // Peau seule (squelette du rig garde tel quel) : RESKIN_COST du worker.
     'ws-rig-reskin-btn':   6,
     // Manual tools — only Draw Mask actually triggers a Modal call
@@ -669,6 +671,10 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-name-btn':         3,   // rendu isole + CLIP-L (/api/mesh-name-parts)
     'ws-mesh-region-retex-btn': 3,   // SDXL Inpaint de l'atlas sous masque UV (/api/mesh-region-retex)
     'ws-mesh-segment-btn':      15,  // SAMPart3D part-seg — A100 ~8 min/mesh
+    // Payants mais sans pastille jusqu'au 2026-09-27 :
+    'ws-mesh-stages3d-btn':     2,   // etapes de construction 3D (/api/construction-stages-3d)
+    'ws-variant-btn':           3,   // Variant (tex_variant ou modify, 3 chacun), par variante
+    'ws-anim-gen-more-btn':     5,   // par animation generee
   };
 
   // Buttons we hide on cloud. Note: `ws-mesh-sculpt-btn` is now ENABLED
@@ -831,7 +837,20 @@ window.__optionsMortesCloud = new Set([]);
   function installActionCostBadges() {
     _ensureCostBadgeStyle();
     for (const [id, cost] of Object.entries(ACTION_COSTS)) {
-      _attachCostBadge(document.getElementById(id), cost);
+      const btn = document.getElementById(id);
+      _attachCostBadge(btn, cost);
+      /* PASTILLE PERSISTANTE (2026-09-27). Certains boutons reecrivent leur
+       * texte selon l'etat (« Generate Rig » -> « Generate new rig
+       * version ») : `textContent =` effacait la pastille posee une seule
+       * fois au demarrage, et le prix disparaissait. On la repose des
+       * qu'elle manque, au dernier prix connu (ACTION_COSTS est tenu a jour
+       * par syncLivePricing). */
+      if (btn && !btn.__coutSurveille) {
+        btn.__coutSurveille = true;
+        new MutationObserver(() => {
+          if (!btn.querySelector('.cloud-cost-badge')) _attachCostBadge(btn, ACTION_COSTS[id]);
+        }).observe(btn, { childList: true });
+      }
     }
   }
 
@@ -1081,6 +1100,13 @@ window.__optionsMortesCloud = new Set([]);
     'ws-age-btn':          'tex_variant',
     'ws-mesh-texvar-btn':  'texture_var',
     'ws-mesh-trellis2-btn': 'retex_fast',
+    'ws-generate-rig-ai':  'rig',
+    'pts-regenerer':       'rig',
+    'ws-rig-reskin-btn':   'reskin',
+    'ws-mesh-segment-btn': 'mesh_segment',
+    'ws-mesh-stages3d-btn': 'construction3d',
+    'ws-variant-btn':      'tex_variant',
+    'ws-anim-gen-more-btn': 'anim',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',
@@ -1149,6 +1175,8 @@ window.__optionsMortesCloud = new Set([]);
     for (const [btnId, pkey] of Object.entries(ACTION_COST_TO_PRICING)) {
       const v = prices[pkey];
       if (typeof v !== 'number') continue;
+      // Retenu aussi pour la pastille persistante (voir installActionCostBadges).
+      ACTION_COSTS[btnId] = v;
       const btn = document.getElementById(btnId);
       if (!btn) continue;
       const existing = btn.querySelector('.cloud-cost-badge');
