@@ -23440,3 +23440,33 @@ piques dorsales : ne s'adapte pas a n'importe quel maillage.
 `src/model/michelangelo` de SkinTokens est sous GPL ; c'est l'encodeur de
 maillage utilise. Sans consequence probable pour le cloud (execution
 serveur), a trancher avant de distribuer le rig dans l'appli bureau.
+
+## 2026-09-26 — Licence de SkinTokens : dossier michelangelo sous GPL-3.0 (verifie)
+
+Question du user : peut-on l'utiliser ? VERIFIE A LA SOURCE :
+- Depot SkinTokens : LICENSE = MIT ; README : « Michelangelo — 3D shape
+  encoder » en remerciements.
+- Issue #9 amont (ouverte, posee par une societe qui vend une appli Windows) :
+  reponse de czpcf (mainteneur, a fusionne la PR #1) le 19/08/2026 : « only
+  michelangelo subfolder is marked GPL ».
+- Michelangelo (NeuralCarver/Michelangelo) : GPL-3.0 (pas AGPL).
+- UniRig (meme editeur VAST, MIT en tete) : son src/model/michelangelo porte
+  un LICENSE GPL-3.0 complet. SkinTokens a le meme dossier SANS ce fichier.
+- Comparaison des 5 fichiers de src/model/michelangelo avec les originaux :
+  embedder 100 %, distributions 100 %, checkpoint 97 %, transformer_blocks
+  87 %, sal_perceiver 59 % (85 % avec la version UniRig, elle-meme GPL). Ce
+  sont des copies : la GPL-3.0 s'y applique quel que soit le MIT affiche.
+- Poids Hugging Face de SkinTokens : MIT. Poids de Michelangelo : LGPL-3.0.
+
+JUGEMENT (pas un avis d'avocat) :
+- Cloud (web, et bureau qui bascule sur le cloud) : utilisable, y compris en
+  vente. La GPL-3.0 ne s'applique qu'a la DISTRIBUTION ; executer le code sur
+  nos serveurs et livrer le rig n'en est pas une (pas de clause reseau : ce
+  n'est pas l'AGPL). Les rigs produits ne sont pas couverts.
+- Appli bureau publiee : conforme, elle n'embarque pas SkinTokens (paquet
+  verifie le 2026-08-08) ; le rig y passe par le cloud.
+- Rig local futur : possible sous obligations GPL (composant separe, licence
+  GPL-3.0 et code source fournis, aucune restriction supplementaire dans le
+  contrat du Store pour ce composant) ; le reste de l'appli reste proprietaire.
+  Garde `doNotBundleSkinTokens` ajoutee a package.json ; la note Puppeteer qui
+  disait « SkinTokens (MIT) » est corrigee.
