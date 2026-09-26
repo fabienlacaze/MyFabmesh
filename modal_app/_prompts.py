@@ -22,7 +22,7 @@ ASSET_TYPE_PROMPTS = {
     # Source de verite : src/renderer/index2.js (ce que voit
     # l'utilisateur dans les menus). Toute modification faite ici
     # sera ecrasee, et `--verify` fera echouer le build.
-    'character'         : 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
+    'character'         : 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
     'building'          : 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, plain white background, centered, strict front view, clean silhouette',
     'vehicle'           : 'isolated, complete vehicle, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
     'weapon'            : 'isolated, full weapon, plain white background, even studio lighting, centered, side profile, clean silhouette',
@@ -112,10 +112,61 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
         tete = bloc.split(',')[0].strip().lower()
         return not (tete and len(tete) > 12 and tete in deja)
 
-    parts = [p for p in (style_prefix if _absent(style_prefix) else '',
-                         user_prompt,
-                         type_suffix if _absent(type_suffix) else '') if p]
+    style = style_prefix if _absent(style_prefix) else ''
+    gabarit = type_suffix if _absent(type_suffix) else ''
+    if asset_type in _TYPES_UNITE:
+        # UNITES : le SUJET EN TETE, et son EPOQUE rendue visible (2026-09-26).
+        # Mesures (banc modal_app/test_prompts_unites.py, graines fixes) :
+        # - derriere le prefixe de style, la description pesait moins que les
+        #   poncifs du modele (armes tenues, pose approximative) ; en tete,
+        #   avec le negatif anti-armes : 1 image armee sur 24 au lieu de 17 ;
+        # - « prehistoric worker » donnait un ouvrier de chantier casque sur
+        #   4 graines sur 4, MEME avec « (prehistoric:1.4) » : le nom ecrase le
+        #   qualificatif. Decrire la TENUE de l'epoque juste apres le sujet
+        #   donne 4 sur 4 en fourrures et peaux ; « medieval worker » passe de
+        #   3 a 4 sur 4. Interdire les anachronismes dans le negatif (casque,
+        #   gilet, jean) ne marchait pas : 3 casques sur 4.
+        texte, tenue = _epoque_unite(user_prompt)
+        parts = [p for p in (texte, tenue, style, gabarit) if p]
+    else:
+        parts = [p for p in (style, user_prompt, gabarit) if p]
     return ', '.join(parts)
+
+
+# Types dont la sortie est une UNITE jouable (menu « Character / Unit » et
+# « autre etre vivant ») : sujet en tete et epoque rendue visible.
+_TYPES_UNITE = ('character', 'other_living')
+
+# Epoque -> tenue a decrire. SEULES les epoques MESUREES figurent ici (banc du
+# 2026-09-26) ; une autre epoque ne recoit rien plutot qu'une regle non
+# verifiee. Pour en ajouter une : la mesurer d'abord sur le banc.
+_TENUE_PREHISTORIQUE = 'stone age clothing of animal fur and hides'
+_TENUES_EPOQUE = {
+    'prehistoric': _TENUE_PREHISTORIQUE,
+    'stone age': _TENUE_PREHISTORIQUE,
+    'neolithic': _TENUE_PREHISTORIQUE,
+    'paleolithic': _TENUE_PREHISTORIQUE,
+    'medieval': 'medieval linen and wool clothing',
+}
+
+
+def _epoque_unite(texte: str):
+    """Rend (texte, tenue) : chaque epoque connue recoit un poids 1,4 (sauf si
+    elle est deja ponderee — l'encodeur de production lit « (mot:1.4) »), et
+    la tenue de la PREMIERE epoque trouvee est rendue a part, pour etre placee
+    juste apres le sujet. Tenue vide si aucune epoque connue."""
+    import re
+    if not texte:
+        return texte, ''
+    tenue = ''
+    for mot, habit in _TENUES_EPOQUE.items():
+        motif = re.compile(r'(?<![\w(])(' + re.escape(mot) + r')(?![\w:])', re.IGNORECASE)
+        if motif.search(texte) or re.search(r'\(' + re.escape(mot) + r':', texte, re.IGNORECASE):
+            tenue = tenue or habit
+        texte = motif.sub(lambda m: '(' + m.group(1) + ':1.4)', texte)
+    if tenue and tenue.lower() in texte.lower():
+        tenue = ''
+    return texte, tenue
 
 
 def is_tpose_prompt(prompt: str) -> bool:

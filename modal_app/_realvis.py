@@ -50,10 +50,11 @@ _ANATOMY_NEG = {
                  "(waist up:1.5), "
                  "(pedestal:1.6), (plinth:1.6), (stone platform:1.5), "
                  "(statue base:1.5), (decorative base:1.4)",
+    # Les consignes « deux armes » (two weapons, dual wielding, mirrored
+    # weapons…) sont retirees le 2026-09-26 : elles n'interdisaient que la
+    # SECONDE arme. Toute arme est desormais interdite, voir _ARMES_NEG.
     'character': "(three arms:1.5), (extra arms:1.6), missing arm, "
-                 "(mutated hands:1.4), (two weapons:1.6), "
-                 "(dual wielding:1.5), (mirrored weapons:1.5), "
-                 "(weapon in each hand:1.4), (extra weapon:1.4)",
+                 "(mutated hands:1.4)",
     # Buildings/structures: SDXL's isometric-architecture prior tiles a
     # whole village/town into one frame ("house for orc" -> 30-house
     # diorama). Front-load anti-cluster tokens so they reach the U-Net.
@@ -74,6 +75,36 @@ _ANATOMY_NEG = {
                    "(isometric city:1.4), (tiled:1.4), (diorama:1.4), "
                    "(humanoid:1.5), (android:1.5), (character:1.4), "
                    "(person:1.4), (mascot:1.4), (standing figure:1.4)",
+}
+
+
+# LES UNITES NE PORTENT JAMAIS D'ARME (demande de l'utilisateur, 2026-09-26).
+#
+# Dans un jeu, l'arme est un asset SEPARE que le moteur attache a la main.
+# Tenue dans l'image source, elle est fondue dans le maillage, deformee par la
+# peau du rig, et ne peut plus etre retiree. L'ancien negatif n'interdisait que
+# la SECONDE arme (« two weapons », « dual wielding ») : il tolerait la
+# premiere, et « warrior », « spartan », « knight » en appellent toujours une.
+#
+# Une negation dans le positif ne marche pas (SDXL dessinerait l'arme nommee) :
+# l'interdiction va ICI, et le gabarit positif demande des mains vides
+# (« empty open hands », ASSET_TYPE_PROMPTS['character']). Priorite haute dans
+# le budget : juste apres la securite et les ombres. La creature n'a qu'une
+# version courte : son anatomie (ailes, pattes, cadrage) consomme deja presque
+# tout le budget.
+#
+# Liste MESUREE (banc modal_app/test_prompts_unites.py, 6 unites x 2 graines,
+# RealVisXL 30 pas) : sans elle 8 unites sur 12 tenaient une arme ; la premiere
+# version (avec « dagger », « bow and arrow ») en laissait encore passer —
+# deux LAMES dans les mains d'un guerrier. « blade », « knife », « club »
+# couvrent ces cas, a budget egal (« bow » seul au lieu de « bow and arrow »).
+_ARMES_UNITE = ("(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), "
+                "(knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), "
+                "(bow:1.4), (gun:1.4), (staff:1.3)")
+_ARMES_NEG = {
+    'character':    _ARMES_UNITE,
+    'other_living': _ARMES_UNITE,
+    'creature':     "(weapon:1.6), (holding weapon:1.6)",
 }
 
 
@@ -163,6 +194,8 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
         # et consomme seulement le budget — meme lecon que les triples
         # « close-up, portrait, headshot » retires a cote.
         "cast shadow, soft shadow, ambient occlusion",
+        # Les armes, pour les unites : voir _ARMES_NEG.
+        _ARMES_NEG.get(asset_type or "", ""),
         # L'anatomie propre au type d'asset — c'est elle qui corrige les
         # cinq pattes et les ailes manquantes.
         anatomy.rstrip(', ') if anatomy else '',

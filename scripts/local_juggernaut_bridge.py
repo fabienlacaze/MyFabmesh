@@ -254,6 +254,18 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
         pipe.enable_model_cpu_offload()
         print("LOCAL_REALVIS: Loaded with fp32 VAE (no grey/NaN) + CPU offload")
         sys.stdout.flush()
+    # LES UNITES NE PORTENT JAMAIS D'ARME (2026-09-26) — meme regle et meme
+    # liste mesuree que le cloud (modal_app/_realvis.py, _ARMES_NEG). Dans un
+    # jeu l'arme est un asset separe ; tenue dans l'image, elle est fondue dans
+    # le maillage et deformee par le rig. Sans ponderation ici, comme le reste
+    # de ce fichier. NB : sur le chemin T-pose (guidage 2), le negatif pese
+    # peu : ce sont les « empty open hands » du gabarit qui portent l'effet.
+    _armes_neg = (
+        "weapon, holding weapon, sword, blade, knife, spear, axe, club, "
+        "shield, bow, gun, staff, "
+        if _asset_type in ('character', 'other_living')
+        else ("weapon, holding weapon, " if _asset_type == 'creature' else "")
+    )
     if _is_tpose:
         # T-pose/front mode: reinforce strict symmetry, arms out horizontally,
         # no perspective. Zero123++ will be able to rotate around properly.
@@ -276,6 +288,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             # et le maillage ressort tache. Ce bloc etait place plus bas et se
             # faisait jeter par la limite CLIP de 77 jetons.
             "cast shadow, soft shadow, ambient occlusion, "
+            + _armes_neg +
             "dynamic pose, action pose, combat stance, fighting, running, "
             "jumping, crouching, bent arms, bent legs, tilted head, "
             "twisted torso, asymmetric, side view, three-quarter view, "
@@ -343,6 +356,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
                 # 2026-09-25 — ombres EN TETE, avant l'anatomie : placees
                 # apres, elles tombaient derriere la limite de 77 jetons.
                 "cast shadow, soft shadow, ambient occlusion, "
+                + _armes_neg
                 + _anatomy
                 + "two animals, animal pair, duplicate, twin, "
                 "split image, collage, side by side, "
@@ -383,6 +397,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
                 "nude, naked, topless, undressed, bare skin, exposed, nsfw, "
                 # 2026-09-25 — ombres, meme place qu'ailleurs (en tete).
                 "cast shadow, soft shadow, ambient occlusion, "
+                + _armes_neg +
                 "blurry, low quality, text, watermark, deformed, "
                 "bad anatomy, distorted, cropped, worst quality, flat profile, "
                 # Anti-doubling: product/vehicle/kitchenware datasets often pair

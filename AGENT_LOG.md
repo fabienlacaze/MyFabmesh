@@ -22861,3 +22861,44 @@ dans « red killing spider » au lieu de « prehistoric warrior male », et
 « prehistoric man » (projet du lancement lu dans `jobs`, operation terminee
 dans la meme seconde que l'image). Correction en base NON faite : refusee
 par le garde des permissions, laissee a la decision de l'utilisateur.
+
+## 2026-09-26 — Les unites ne portent plus d'armes (mesure sur 24 images)
+
+**Demande.** « Fais en sorte que les unites n'aient jamais d'armes » (type
+« Character / Unit »). Dans un jeu, l'arme est un asset separe attache a la
+main ; tenue dans l'image source, elle est fondue dans le maillage et
+deformee par le rig.
+
+**Etat avant.** Le negatif « character » n'interdisait que la SECONDE arme
+(« two weapons, dual wielding, mirrored weapons, weapon in each hand ») : il
+tolerait la premiere. Le texte de l'utilisateur venait apres le prefixe de
+style.
+
+**Banc** (`modal_app/test_prompts_unites.py`, vraie image Modal, RealVisXL
+V4.0, 30 pas, guidage 9,5, memes graines ; 6 unites : prehistoric worker,
+prehistoric warrior male, spartan warrior, orc warrior, medieval knight,
+viking chief). Releve image par image, cas douteux verifies de pres.
+- A actuel : 17 images armees sur 24 (graines 11/22/33/44).
+- B negatif anti-armes + « empty open hands » : 3 sur 12 (deux LAMES
+  tenues : « dagger » ne couvrait pas « knife/blade »).
+- C = B + sujet en tete : 1 sur 12 (deux couteaux).
+- D = C + liste completee (blade, knife, club), budget egal : 1 sur 24
+  (un spartiate, epee et bouclier, graine 33).
+
+**Correctif livre (D).**
+- `_realvis.py` : `_ARMES_NEG` (unites : liste complete ; creature : version
+  courte, son anatomie consomme deja le budget), place juste apres la
+  securite et les ombres ; consignes « deux armes » retirees de l'anatomie.
+  Budget verifie : « character » garde tout ce que l'ancien negatif gardait.
+- Gabarit « character » (3 copies, parite verifiee) : « empty open hands ».
+- Unites (`character`, `other_living`) : sujet EN TETE (serveur
+  `build_enriched_prompt` + `buildFullPrompt` bureau/web). Autres types
+  inchanges.
+- Bureau (`local_juggernaut_bridge.py`) : meme liste, sans ponderation, pour
+  les unites ; NON mesure (autre modele : DreamShaper Lightning en T-pose,
+  guidage 2 — le negatif y pese peu, les mains vides du gabarit portent
+  l'effet).
+
+**« prehistoric worker » -> ouvrier de chantier moderne.** Mesure (4 graines) : la ponderation « (prehistoric:1.4) » seule ne change rien (4 casques de chantier sur 4). Decrire la TENUE de l'epoque juste apres le sujet (« stone age clothing of animal fur and hides ») : 4 sur 4 en fourrures et peaux ; « medieval worker » passe de 3 a 4 sur 4 medievaux. Interdire les anachronismes dans le negatif (casque, gilet, jean) : 3 casques sur 4, ecarte. Regle livree pour les SEULES epoques mesurees (prehistoric, stone age, neolithic, paleolithic ; medieval) : une autre epoque ne recoit rien tant qu'elle n'est pas mesuree sur le banc. PIEGE REVECU : le code JS de cette regle, ecrit a travers un heredoc shell, avait perdu ses antislashs (regex invalide) — attrape par un test node avant tout commit ; corrige a l'outil d'edition.
+
+Page de comparaison publiee (artefact « Banc des unites sans armes »).

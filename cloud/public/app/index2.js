@@ -4823,7 +4823,7 @@ if (qualityEl && qualityLabel) {
 //  2. Pile up "ONE X only" / "single instance" tokens.
 //  3. Negative prompt (local_juggernaut_bridge.py) blocks grid layouts.
 const ASSET_TYPE_PROMPTS = {
-  character: 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
+  character: 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
   building: 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, plain white background, centered, strict front view, clean silhouette',
   vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
   weapon: 'isolated, full weapon, plain white background, even studio lighting, centered, side profile, clean silhouette',
@@ -4910,12 +4910,48 @@ const ASSET_TYPE_PREFIXES = {
   environment: 'an architectural structure',
 };
 
+// UNITES (2026-09-26) — meme regle que le serveur (modal_app/_prompts.py,
+// build_enriched_prompt) : pour une unite, la description de l'utilisateur
+// passe EN TETE, et son EPOQUE est rendue visible. Mesures a graines fixes :
+// derriere le prefixe de style, « warrior » attirait une arme ; et
+// « prehistoric worker » donnait un ouvrier de chantier casque (4 sur 4),
+// meme pondere — decrire la TENUE de l'epoque juste apres le sujet donne 4
+// sur 4 en fourrures et peaux. Seules les epoques MESUREES figurent ici.
+const _TYPES_UNITE = ['character', 'other_living'];
+const _TENUE_PREHISTORIQUE = 'stone age clothing of animal fur and hides';
+const _TENUES_EPOQUE = {
+  'prehistoric': _TENUE_PREHISTORIQUE,
+  'stone age': _TENUE_PREHISTORIQUE,
+  'neolithic': _TENUE_PREHISTORIQUE,
+  'paleolithic': _TENUE_PREHISTORIQUE,
+  'medieval': 'medieval linen and wool clothing',
+};
+/** Rend [texte, tenue] : epoques connues ponderees a 1,4 (sauf si deja
+ *  ponderees), tenue de la PREMIERE epoque trouvee, vide sinon. */
+function _epoqueUnite(texte) {
+  if (!texte) return [texte, ''];
+  let t = String(texte);
+  let tenue = '';
+  for (const [mot, habit] of Object.entries(_TENUES_EPOQUE)) {
+    const esc = mot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const libre = new RegExp('(?<![\\w(])(' + esc + ')(?![\\w:])', 'gi');
+    const pondere = new RegExp('\\(' + esc + ':', 'i');
+    if (libre.test(t) || pondere.test(t)) tenue = tenue || habit;
+    libre.lastIndex = 0;
+    t = t.replace(libre, '($1:1.4)');
+  }
+  if (tenue && t.toLowerCase().includes(tenue.toLowerCase())) tenue = '';
+  return [t, tenue];
+}
+
 function buildFullPrompt(userPrompt, assetType, assetStyle) {
   const typePrefix = ASSET_TYPE_PREFIXES[assetType] || '';
   const typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
   const stylePrefix = ASSET_STYLE_PROMPTS[assetStyle] || '';
-  const parts = [stylePrefix, typePrefix, userPrompt, typeSuffix].filter(Boolean);
-  return parts.join(', ');
+  const parts = _TYPES_UNITE.includes(assetType)
+    ? [typePrefix, ..._epoqueUnite(userPrompt), stylePrefix, typeSuffix]
+    : [stylePrefix, typePrefix, userPrompt, typeSuffix];
+  return parts.filter(Boolean).join(', ');
 }
 
 // Legacy projects saved the ENRICHED prompt (with style/type suffixes
