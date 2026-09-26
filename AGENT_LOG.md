@@ -23297,3 +23297,67 @@ par l'interface (aucune entree dans ACTION_COSTS, aucune page publique).
 Raison : squelette complet ~250 s d'A10G (estimation 0,14 $, cout reel
 ~2,5 x) contre ~0,20 $ factures a 5 credits. Deploye ; route verifiee (401
 sans session).
+
+## 2026-09-26 — Editeur des points du squelette (facon AccuRIG), cloud + bureau
+
+Idee du user : « on preposition les points d'extremite et l'user peut les
+bouger pour adapter le squelette ». L'outil « Landmarks » de l'etape Rig
+etait un gabarit HUMANOIDE fige de 19 reperes dont « Re-generate rig »
+n'envoyait RIEN au moteur (bureau : les reperes partaient dans l'IPC, qui les
+ignorait). Il devient l'editeur des POINTS DU SQUELETTE.
+
+**Moteur (squelette_complet.py / rig_complet.py, partages).**
+- `lignes_vers_points(vol, points)` : meme chemin geodesique que la detection
+  (bord du tronc -> point, recentre sur la ligne mediane) mais qui finit
+  EXACTEMENT au point ; `None` pour un point du tronc (a moins de 4 voxels du
+  tronc : machoire, crane d'un humanoide).
+- `completer(..., pointes=points)` : chaque point doit etre ATTEINT a une
+  demi-longueur d'os pres (la detection auto se contente de 90 % de la
+  longueur du membre, ce qui laissait un bout de pied sans os). Un point du
+  tronc est relie EN DROITE a l'os qui fait bouger sa zone (peau de l'IA,
+  rayon a l'echelle de l'epaisseur locale : a 0,04 x la taille, aucun sommet
+  trouve au centre d'une tete, et repli sur le cou).
+- GRAINE : chaque tirage i est seme `graine + i` (torch, numpy, random ; le
+  DataLoader seme ses processus depuis torch). Graine et tirage retenu sont
+  ranges dans `extras.fabmesh_squelette` avec les points. Le rig refait avec
+  des points REJOUE le tirage du rig edite (un seul tirage : 192 s au lieu de
+  244) : seul ce que l'utilisateur a demande change.
+- Mode points : echec EXPLICITE (code 4, pas de repli sur l'ancien chemin)
+  si les points ne s'appliquent pas — rendre le rig de l'IA seule ignorerait
+  sans le dire ce que l'utilisateur a demande. Garde « complete moins bon que
+  l'IA » leve en mode points.
+
+**Mesures.** Banc CPU (Modal, logique seule) : barbare et araignee, points =
+pointes detectees, puis edition (point deplace, point retire, sommet du crane
+ajoute) : tous les points a 0,0 os du squelette ; le point du crane de
+l'araignee (dans le tronc) relie par 2 os. Banc GPU (rig_mesh deploye,
+barbare) : auto 244 s (graine 2112812180, tirage 0) ; memes points : AUCUN
+os du squelette de base deplace de plus de 0,21 longueur d'os (18/44 a moins
+de 1 mm — la peau IA requantifie a ~4 mm) ; points edites : les 11 points a
+moins de 0,52 os, le sommet du crane a 0,05 os.
+
+**Chaine.** Worker `/api/auto-rig` : `points` (1 a 64 [x, y, z] finis),
+`graine`, `tirage` valides avant tout debit, relayes a `/rig-start` (Modal
+revalide). Prix inchange (RIG_COST, 10). Shim `autoRigAI` et IPC
+`auto-rig-ai` (bureau : fichier temporaire -> `skintokens_bridge.py --points
+--graine --tirage` -> pilote ; en mode cloud, meme corps que le web).
+
+**Interface (web + bureau).** Bouton « Skeleton points » (etape Rig) ->
+modale existante a deux vues. Points pre-positionnes depuis les extras du rig
+(rig anterieur : bouts des chaines), numerotes, VERTS si un os les atteint,
+ORANGE sinon. Glisser = le point se place au MILIEU de l'epaisseur sous le
+curseur (entre la face d'entree et de sortie du rayon, DoubleSide le temps du
+lancer, BVH) ; « Add point » + clic ; x ou Suppr ; annuler/refaire ;
+« Reset » ; retouches gardees par rig (/api/landmarks, deja existant).
+« Re-generate rig with these points » re-rigge le maillage D'ORIGINE du rig
+(retrouve par le nom `<maillage>_rigged_…`), pastille 10 credits.
+`lancerRigIA(options)` factorise le bouton Rig (les deux plateformes). Le
+bureau garde son outil « All bones / Save adjusted rig » dans une section
+repliable. Verifie en navigateur (web servi localement, API simulee) :
+11 points charges et atteints, ajout (orange), glisser, suppression,
+annuler, regeneration -> /api/auto-rig recoit 12 points + graine + tirage +
+le maillage d'origine ; le bouton Rig habituel part sans points ; aucune
+erreur de page.
+
+**Au passage.** La pastille ⚡ du bouton Rig du bureau (mode cloud) affichait
+encore 5 credits apres la hausse a 10 (commit d5f7225).

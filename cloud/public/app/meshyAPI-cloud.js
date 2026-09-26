@@ -2393,7 +2393,7 @@
     //   { success, ok, glb_url, path, error? }
     // so callers can hot-swap the mesh in the viewer without knowing
     // anything changed under the hood.
-    autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress } = {}) => {
+    autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress, points, graine, tirage } = {}) => {
       const _projetLancement = _projetAuLancement(null);   // voir _projetAuLancement
       const url = meshUrl || meshPath;
       if (!url) return { success: false, ok: false, error: 'meshPath or meshUrl required' };
@@ -2403,6 +2403,11 @@
       try {
         const spawn = await postJSON('/api/auto-rig', {
           mesh_url: url, skeleton: skeleton || 'orc_m1', engine: engine || 'puppeteer',
+          // editeur de points : ce que le squelette doit atteindre + graine
+          // et tirage du rig edite (l'IA rejoue le meme squelette de base)
+          ...(Array.isArray(points) && points.length ? { points } : {}),
+          ...(Number.isInteger(graine) ? { graine } : {}),
+          ...(Number.isInteger(tirage) ? { tirage } : {}),
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (!spawn?.success || !spawn?.job_id) {

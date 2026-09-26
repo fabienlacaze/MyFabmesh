@@ -6,6 +6,7 @@ skeleton) that FabMesh loads in its viewer. Same CLI contract as
 ``puppeteer_bridge.py`` / ``unirig_bridge.py`` so the caller stays engine-agnostic:
 
     python skintokens_bridge.py <mesh_path> <output_glb>
+        [--points points.json --graine G --tirage T]   (editeur de points)
 
 Runtime notes (Windows / RTX 5080 sm_120):
   - SkinTokens runs on torch 2.7 cu128 with an SDPA attention path (no flash-attn
@@ -45,11 +46,20 @@ def log(msg):
 
 
 def main():
-    if len(sys.argv) < 3:
+    import argparse
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("mesh_path", nargs="?")
+    ap.add_argument("output_glb", nargs="?")
+    # Editeur des points du squelette : transmis tels quels au pilote
+    ap.add_argument("--points")
+    ap.add_argument("--graine", type=int)
+    ap.add_argument("--tirage", type=int)
+    a, _ = ap.parse_known_args()
+    if not a.mesh_path or not a.output_glb:
         print("AUTORIG_ERROR: usage: skintokens_bridge.py <mesh_path> <output_glb>")
         sys.exit(1)
-    mesh_path = os.path.abspath(sys.argv[1])
-    output_glb = os.path.abspath(sys.argv[2])
+    mesh_path = os.path.abspath(a.mesh_path)
+    output_glb = os.path.abspath(a.output_glb)
 
     if not os.path.exists(mesh_path):
         print(f"AUTORIG_ERROR: mesh not found: {mesh_path}")
@@ -111,8 +121,26 @@ def main():
     # meme fichier que modal_app/squelette/rig_complet.py). Sans resultat,
     # l'ancien chemin prend le relais. FABMESH_RIG_COMPLET=0 le desactive.
     pilote = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rig_complet.py")
+    options = []
+    if a.graine is not None:
+        options += ["--graine", str(a.graine)]
+    if a.tirage is not None:
+        options += ["--tirage", str(a.tirage)]
+    if a.points:
+        # Points de l'utilisateur : PAS de repli sur l'ancien chemin, il rendrait
+        # un rig qui ignore ce qu'il a demande. Echec explicite a la place.
+        if not transfert or not os.path.exists(pilote):
+            print("AUTORIG_ERROR: skeleton points need the up-to-date rig engine.")
+            sys.exit(1)
+        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2",
+                           "--points", os.path.abspath(a.points)] + options)
+        if not produit():
+            print(f"AUTORIG_ERROR: rig with the skeleton points failed (rc={rc}).")
+            sys.exit(1)
+        print(f"AUTORIG_SUCCESS: {output_glb} ({os.path.getsize(output_glb)} bytes)")
+        sys.exit(0)
     if transfert and os.environ.get("FABMESH_RIG_COMPLET", "1") != "0" and os.path.exists(pilote):
-        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2"])
+        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2"] + options)
         if not produit():
             log(f"squelette complet sans resultat (rc={rc}) - ancien chemin")
     if not produit():

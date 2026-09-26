@@ -12168,9 +12168,9 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_SHARED_SECRET) return err(500, 'MODAL_SHARED_SECRET not set');
   if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
 
-  let body: { mesh_url?: string; skeleton?: string };
+  let body: { mesh_url?: string; skeleton?: string; points?: unknown; graine?: unknown; tirage?: unknown };
   try {
-    body = await req.json() as { mesh_url?: string; skeleton?: string };
+    body = await req.json() as typeof body;
   } catch {
     return err(400, 'invalid JSON body');
   }
@@ -12182,6 +12182,25 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
     return err(400, 'mesh_url host not allowed');
   }
   const skeleton = typeof body.skeleton === 'string' ? body.skeleton : undefined;
+  /* EDITEUR DE POINTS (2026-09-26) : les points que le squelette doit
+   * atteindre (repere du maillage), et la graine + le tirage du rig edite
+   * pour que l'IA rejoue le MEME squelette de base. Valides avant tout debit :
+   * une requete mal formee ne coute rien. Modal revalide de son cote. */
+  let points: number[][] | undefined;
+  if (body.points !== undefined && body.points !== null) {
+    if (!Array.isArray(body.points) || body.points.length < 1 || body.points.length > 64
+        || !body.points.every(p => Array.isArray(p) && p.length === 3
+          && p.every(c => typeof c === 'number' && Number.isFinite(c) && Math.abs(c) < 1e4))) {
+      return err(400, 'points: 1 to 64 finite [x, y, z] expected');
+    }
+    points = (body.points as number[][]).map(p => p.map(c => Math.round(c * 1e5) / 1e5));
+  }
+  const entierBorne = (v: unknown, borne: number): number | undefined | null =>
+    v === undefined || v === null ? undefined
+      : (Number.isInteger(v) && (v as number) >= 0 && (v as number) < borne ? v as number : null);
+  const graine = entierBorne(body.graine, 2 ** 31);
+  const tirage = entierBorne(body.tirage, 16);
+  if (graine === null || tirage === null) return err(400, 'graine / tirage: small non-negative integers expected');
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_RIG, user.id);
   if (remainingBudget == null) {
@@ -12217,6 +12236,9 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
         _auth: env.MODAL_SHARED_SECRET,
         mesh_url: meshUrl,
         ...(skeleton ? { skeleton } : {}),
+        ...(points ? { points } : {}),
+        ...(graine !== undefined ? { graine } : {}),
+        ...(tirage !== undefined ? { tirage } : {}),
       }),
       // rig-start downloads the source GLB + .spawn()s — should return
       // in ~1-2 s. 30 s budget covers a cold CPU container start.
@@ -12294,6 +12316,8 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
         provenance: _provenance(req),
         pays: _paysRequete(req),
         operation_type: 'rig', sourceMesh: meshUrl, backend: 'modal', skeleton,
+        // rig refait depuis l'editeur de points : combien de points
+        ...(points ? { squelette_points: points.length } : {}),
         // Without cost_usd the admin stats fell back to 0 → 100% margin.
         cost_usd: ESTIMATED_USD_RIG,
       },

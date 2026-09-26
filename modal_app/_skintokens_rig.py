@@ -22,6 +22,7 @@ spawn + sondage : `/rig-start` rend la main en 1-2 s et le navigateur
 interroge `/rig-status`.
 """
 import json
+import math
 import os
 import subprocess
 import tempfile
@@ -181,13 +182,21 @@ CKPT = "experiments/articulation_xl_quantization_256_token_4/grpo_1400.ckpt"
     volumes={"/rig_data": rig_output_volume},
     secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
 )
-def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None = None) -> bytes:
+def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None = None,
+             options: dict | None = None) -> bytes:
     """Rig `glb_bytes` avec SkinTokens et renvoie le GLB riggé.
 
     Quand `job_id` est fourni, écrit aussi le résultat (ou l'erreur) sur le
     volume — c'est le seul point de synchronisation entre ce conteneur GPU et
     le routeur, qui tourne ailleurs.
+
+    `options` (editeur de points, deja valide par le routeur) : `points`
+    (liste de [x, y, z] dans le repere du maillage), `graine` et `tirage` du
+    rig edite. Avec des points, PAS de repli sur l'ancien chemin : il rendrait
+    un rig qui ignore ce que l'utilisateur a demande.
     """
+    options = options or {}
+    points = options.get("points") or None
     t0 = time.time()
     tmp = tempfile.mkdtemp(prefix="skintokens_")
     src = os.path.join(tmp, "in.glb")
@@ -254,14 +263,32 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
               "texture", flush=True)
     produit = lambda: os.path.isfile(out) and os.path.getsize(out) > 0
     rc, dernieres, refuse = 0, [], False
-    if (SQUELETTE_COMPLET_DEFAUT if complet is None else complet) and aligne:
+    if points and not aligne:
+        _echec("points du squelette : le moteur de rig n'est pas a jour (alignement absent)")
+    if points or ((SQUELETTE_COMPLET_DEFAUT if complet is None else complet) and aligne):
         import modal_app
         pilote = os.path.join(os.path.dirname(modal_app.__file__), "squelette", "rig_complet.py")
         if os.path.isfile(pilote):
-            rc, dernieres, refuse = _lancer(["python", pilote, src, out, "--tirages", str(TIRAGES_IA)])
+            cmd = ["python", pilote, src, out, "--tirages", str(TIRAGES_IA)]
+            if options.get("graine") is not None:
+                cmd += ["--graine", str(int(options["graine"]))]
+            if options.get("tirage") is not None:
+                cmd += ["--tirage", str(int(options["tirage"]))]
+            if points:
+                chemin_points = os.path.join(tmp, "points.json")
+                with open(chemin_points, "w", encoding="utf-8") as f:
+                    json.dump(points, f)
+                cmd += ["--points", chemin_points]
+            rc, dernieres, refuse = _lancer(cmd)
             if not produit():
+                if points:
+                    queue = " | ".join(dernieres[-3:])[:300]
+                    _echec(f"rig avec les points du squelette en echec (rc={rc}). "
+                           f"Derniere sortie : {queue}")
                 print(f"[skintokens] squelette complet sans resultat (rc={rc}) — ancien "
                       f"chemin", flush=True)
+        elif points:
+            _echec("points du squelette : pilote absent de l'image")
     if not produit():
         rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out]
                                         + (["--use_transfer"] if aligne else []))
@@ -419,7 +446,28 @@ def rig_router():
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"mesh download failed: {e}")
 
-        appel = rig_mesh.spawn(glb, job_id)
+        # Editeur de points : valide ICI (le worker valide aussi) — ces
+        # valeurs finissent en arguments d'un processus.
+        options = {}
+        points = payload.get("points")
+        if points is not None:
+            try:
+                points = [[float(c) for c in p] for p in points]
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="points: list of [x, y, z] expected")
+            if not (1 <= len(points) <= 64) or any(
+                    len(p) != 3 or not all(math.isfinite(c) and abs(c) < 1e4 for c in p) for p in points):
+                raise HTTPException(status_code=400, detail="points: 1 to 64 finite [x, y, z]")
+            options["points"] = points
+        for cle, borne in (("graine", 2 ** 31), ("tirage", 16)):
+            v = payload.get(cle)
+            if v is None:
+                continue
+            if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v < borne:
+                raise HTTPException(status_code=400, detail=f"{cle}: integer in [0, {borne})")
+            options[cle] = v
+
+        appel = rig_mesh.spawn(glb, job_id, None, options or None)
         try:
             with open(f"/rig_data/{job_id}.call_id", "w") as f:
                 f.write(appel.object_id)

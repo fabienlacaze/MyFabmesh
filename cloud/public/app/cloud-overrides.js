@@ -638,6 +638,10 @@ window.__optionsMortesCloud = new Set([]);
     // index2.js:4754 calls API.img2img with the style as prompt →
     // /api/modify-image → Modal. 2 credits per pick.
     'ws-style-btn':         2,
+    // Rig refait depuis l'editeur des points du squelette : meme route et
+    // meme prix que le rig (RIG_COST du worker, absent de /api/pricing :
+    // a changer avec lui).
+    'pts-regenerer':       10,
     // Manual tools — only Draw Mask actually triggers a Modal call
     // (mask_inpaint, 3 cr) when the user clicks "Apply" inside the
     // modal. The dance of painting the mask itself is canvas-only and

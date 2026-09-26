@@ -4006,8 +4006,20 @@ function _rigLocalDisponible() {
   } catch { return false; }
 }
 
-ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton }) => {
+ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points, graine, tirage }) => {
   const _t0 = Date.now();
+  // Editeur des points du squelette (2026-09-26) : ce que le squelette doit
+  // atteindre (repere du maillage) + graine et tirage du rig edite. Valides
+  // ICI : ils finissent en arguments d'un processus (local) ou d'une requete.
+  const pointsOk = Array.isArray(points) && points.length >= 1 && points.length <= 64
+    && points.every(q => Array.isArray(q) && q.length === 3
+      && q.every(c => typeof c === 'number' && Number.isFinite(c) && Math.abs(c) < 1e4));
+  const entier = (v, borne) => (Number.isInteger(v) && v >= 0 && v < borne ? v : null);
+  const optsSquelette = {
+    ...(pointsOk ? { points } : {}),
+    ...(entier(graine, 2 ** 31) !== null ? { graine } : {}),
+    ...(entier(tirage, 16) !== null ? { tirage } : {}),
+  };
   // Defaut = SkinTokens (VAST-AI, MIT). Il etait a 'puppeteer', dont le rig
   // par defaut embarque Michelangelo (GPL-3.0) et PartField (NVIDIA
   // non-commercial) : interdit dans un produit vendu. Un appelant qui omet
@@ -4044,7 +4056,7 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton }) => {
       safeSend('ai3d-progress', '[cloud] Rig (moteur cloud)…');
       const start = await cloudFallback.startMeshJob({
         meshPath, startPath: '/api/auto-rig',
-        bodyFor: (u) => ({ mesh_url: u, skeleton: 'orc_m1', engine: 'skintokens' }),
+        bodyFor: (u) => ({ mesh_url: u, skeleton: 'orc_m1', engine: 'skintokens', ...optsSquelette }),
       });
       if (!start.success) {
         return { success: false, error: start.error || 'cloud rig start failed',
@@ -4204,7 +4216,19 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton }) => {
       HF_HOME: HF_CACHE_DIR,
       HUGGINGFACE_HUB_CACHE: path.join(HF_CACHE_DIR, 'hub'),
     } : undefined;
-    const step1 = await runStep(step1Label, [step1Script, meshPath, tempUnirigGlb], step1Python, step1Env);
+    // SkinTokens : points du squelette passes au pont (fichier temporaire,
+    // pas de longue ligne de commande sous Windows)
+    const argsSquelette = [];
+    if (engineSuffix === 'skintokens') {
+      if (optsSquelette.points) {
+        const fichierPoints = path.join(_tmpWorkDir(), `_points_squelette_${Date.now()}.json`);
+        fs.writeFileSync(fichierPoints, JSON.stringify(optsSquelette.points));
+        argsSquelette.push('--points', fichierPoints);
+      }
+      if (optsSquelette.graine !== undefined) argsSquelette.push('--graine', String(optsSquelette.graine));
+      if (optsSquelette.tirage !== undefined) argsSquelette.push('--tirage', String(optsSquelette.tirage));
+    }
+    const step1 = await runStep(step1Label, [step1Script, meshPath, tempUnirigGlb, ...argsSquelette], step1Python, step1Env);
     if (step1.error || !fs.existsSync(tempUnirigGlb)) {
       const dur = ((Date.now() - _t0) / 1000).toFixed(2);
       console.log(`[auto-rig-ai] Step 1 FAILED duration=${dur}s`);

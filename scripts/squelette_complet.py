@@ -25,6 +25,10 @@ METHODE
      recoit une chaine le long de son axe principal.
   4. GREFFE du squelette dans le GLB TEXTURE, avec des poids d'amorcage, pour
      que l'IA recalcule la peau (`--use_skeleton`).
+  5. MODE POINTS (editeur facon AccuRIG) : les extremites detectees sont
+     remplacees par les points de l'utilisateur (lignes_vers_points) ; chacun
+     doit etre atteint a une demi-longueur d'os pres ; un point du tronc
+     (machoire, crane) est relie en droite a l'os qui fait bouger sa zone.
 
 Resultat mesure : araignee 0/11 -> 11/11 extremites completes, vache 1/14 ->
 14/14 (portee 0,22 -> 0,99), texture conservee.
@@ -229,6 +233,11 @@ def extremites(vol):
             v = (u[0] + d[0], u[1] + d[1], u[2] + d[2])
             if 0 <= v[0] < sh[0] and 0 <= v[1] < sh[1] and 0 <= v[2] < sh[2] and reste[v] and dg[v] < 0:
                 dg[v] = dg[u] + 1; pred[v] = u; file.append(v)
+    from scipy.spatial import cKDTree
+    pts_pleins = np.argwhere(plein)
+    arbre = cKDTree(pts_pleins)
+    # garde pour lignes_vers_points() (editeur de points) : memes chemins
+    vol['_geo'] = {'dg': dg, 'pred': pred, 'arbre': arbre, 'pleins': pts_pleins}
     if dg.max() <= 0:
         return []
     maxloc = ndimage.maximum_filter(np.where(dg >= 0, dg, -1), size=5) == dg
@@ -255,10 +264,44 @@ def extremites(vol):
         consomme |= ndimage.binary_dilation(tr, iterations=3)
         traces |= tr
         dtr = ndimage.distance_transform_edt(~traces)
-    from scipy.spatial import cKDTree
-    pts_pleins = np.argwhere(plein)
-    arbre = cKDTree(pts_pleins)
     return [_monde(vol, _ligne_mediane(c, dist, arbre, pts_pleins)) for c in chemins]
+
+
+def lignes_vers_points(vol, points):
+    """Lignes tronc -> point pour des points places par l'UTILISATEUR (editeur
+    facon AccuRIG). Meme construction que extremites() — chemin geodesique
+    depuis le bord du tronc, recentre sur la ligne mediane — mais qui finit
+    EXACTEMENT au point. None pour un point du tronc ou de sa bordure (tete
+    d'un humanoide, machoire, epaule) : completer() le relie alors a l'os qui
+    fait deja bouger la zone."""
+    if '_geo' not in vol:
+        extremites(vol)
+    geo = vol['_geo']
+    dg, pred, arbre, pleins = geo['dg'], geo['pred'], geo['arbre'], geo['pleins']
+    lignes = []
+    for p in points:
+        p = np.asarray(p, dtype=np.float64)
+        q = vol['inv'][:3, :3] @ p + vol['inv'][:3, 3]
+        v = tuple(pleins[arbre.query(q)[1]])
+        # moins de 4 voxels depuis le tronc : le point EST a la racine du
+        # membre, une ligne de 2 voxels donnerait des os de longueur nulle
+        if dg[v] < 4:
+            lignes.append(None)
+            continue
+        c = []
+        u = v
+        while u is not None:
+            c.append(u); u = pred[u]
+        P = _monde(vol, _ligne_mediane(np.array(c[::-1]), vol['dist'], arbre, pleins))
+        # le chemin s'arrete au voxel plein le plus proche : on le finit au
+        # point exact (hors du volume au-dela de 10 % : clic aberrant, ignore)
+        ecart = float(np.linalg.norm(p - P[-1]))
+        if ecart < vol['pas']:
+            P[-1] = p
+        elif ecart <= 0.1 * vol['ext']:
+            P = np.vstack([P, p])
+        lignes.append(P)
+    return lignes
 
 
 def _ligne_mediane(chemin_vox, dist, arbre, pts_pleins):
@@ -310,6 +353,7 @@ def portee(P, J, rayon):
 
 
 def noter(vol, lignes, J):
+    lignes = [P for P in lignes if P is not None]   # points du tronc : sans ligne
     if not lignes:
         return {'portees': [], 'portee_moy': 1.0, 'complets': 0, 'rates': 0, 'n': 0}
     p = [portee(P, J, 0.03 * vol['ext']) for P in lignes]
@@ -324,11 +368,17 @@ def cle_de_note(n):
 
 
 # ============================================================== completion
-def completer(vol, lignes, J, parents, noms, influence=None):
+def completer(vol, lignes, J, parents, noms, influence=None, pointes=None):
     """Complete le squelette de l'IA. Rend (J, parents, noms, rapport) ; les
     len(J_ia) premiers joints sont ceux de l'IA, inchanges. `influence` =
     influence_du_rig(rig de l'IA) : les nouvelles chaines se rattachent a l'os
-    qui fait deja bouger la zone ou elles naissent."""
+    qui fait deja bouger la zone ou elles naissent.
+
+    `pointes` (editeur de points) : les points de l'utilisateur, alignes sur
+    `lignes` (lignes_vers_points). Chacun doit etre ATTEINT, a une demi-
+    longueur d'os pres — et non plus a 90 % de la longueur du membre, seuil
+    de la detection automatique qui laissait un bout de pied sans os. Un point
+    sans ligne (tronc) est relie en droite a l'os qui fait bouger sa zone."""
     from scipy import ndimage
     J = [np.asarray(p, dtype=np.float64) for p in J]
     parents, noms = list(parents), list(noms)
@@ -365,7 +415,8 @@ def completer(vol, lignes, J, parents, noms, influence=None):
 
     rapport = []
     nouvelles = []
-    for a_i, P in sorted(enumerate(lignes), key=lambda t: -_abscisse(t[1])[-1]):
+    avec_ligne = [(a_i, P) for a_i, P in enumerate(lignes) if P is not None]
+    for a_i, P in sorted(avec_ligne, key=lambda t: -_abscisse(t[1])[-1]):
         s = _abscisse(P); L = float(s[-1])
         d = np.linalg.norm(np.array(J)[:, None, :] - P[None, :, :], axis=2)
         rayon = max(0.03 * ext, 1.5 * _epaisseur(vol, P))
@@ -376,14 +427,19 @@ def completer(vol, lignes, J, parents, noms, influence=None):
         else:
             s_j, dernier, s_max = np.array([]), None, 0.0
         p_ia = s_max / L if L > 0 else 1.0
-        if p_ia >= PORTEE_COMPLETE:
+        # espacement des os de l'IA le long de ce membre
+        st = np.sort(s_j)
+        pas = float(np.median(np.diff(st))) if len(st) > 1 else pas_global
+        pas = max(pas, 0.02 * ext)
+        if pointes is None:
+            complet = p_ia >= PORTEE_COMPLETE
+        else:
+            complet = dernier is not None and (L - s_max) <= 0.5 * pas
+        if complet:
             rapport.append({'extremite': a_i, 'portee_ia': round(p_ia, 2), 'action': 'complete', 'os': 0})
             continue
         if dernier is not None and p_ia >= 0.15:
             # PROLONGER la chaine de l'IA, avec son propre espacement
-            st = np.sort(s_j)
-            pas = float(np.median(np.diff(st))) if len(st) > 1 else pas_global
-            pas = max(pas, 0.02 * ext)
             n_new = max(1, int(round((L - s_max) / pas)))
             p = dernier
             for q in range(1, n_new + 1):
@@ -419,8 +475,42 @@ def completer(vol, lignes, J, parents, noms, influence=None):
                 J.append(_point_a(P, q * L / n_new)); parents.append(p); noms.append(f'membre_{a_i}_{q}')
                 p = len(J) - 1
             for r in rapport:
-                if r['extremite'] == a_i:
+                if r.get('extremite') == a_i:
                     r['os'] = n_new + 1 - debut
+
+    # POINTS DU TRONC (editeur) : machoire, sommet du crane, oreille collee a
+    # la tete... Aucun chemin de membre n'y mene : on les relie EN DROITE a
+    # l'os qui fait bouger leur zone. Rayon de recherche a l'echelle de
+    # l'epaisseur locale : le point est au CENTRE du volume, une tete fait
+    # ~9 cm de rayon quand 0,04 x la hauteur n'en fait que 7 — sans cela
+    # aucun sommet trouve et repli sur l'os le plus proche (le cou).
+    if pointes is not None:
+        for a_i, (P, pt) in enumerate(zip(lignes, pointes)):
+            if P is not None:
+                continue
+            pt = np.asarray(pt, dtype=np.float64)
+            # deja un os sur le point (ex. bout de tete pose par l'IA)
+            if float(np.linalg.norm(np.array(J) - pt, axis=1).min()) <= 0.5 * pas_global:
+                rapport.append({'point': a_i, 'action': 'atteint', 'os': 0})
+                continue
+            par = None
+            if arbre_inf is not None:
+                r_loc = max(0.04 * ext, 1.5 * float(vol['dist'][_voxel(vol, pt)]) * vol['pas'])
+                idx = arbre_inf.query_ball_point(pt, r_loc)
+                if idx:
+                    dom = influence[1][idx]
+                    dom = dom[dom < n_ia]
+                    if len(dom):
+                        par = int(np.bincount(dom).argmax())
+            if par is None:
+                par = int(np.argmin(np.linalg.norm(np.array(J) - pt, axis=1)))
+            depart = np.array(J[par])
+            n_new = max(1, int(round(float(np.linalg.norm(pt - depart)) / pas_global)))
+            p = par
+            for q in range(1, n_new + 1):
+                J.append(depart + (pt - depart) * q / n_new); parents.append(p); noms.append(f'point_{a_i}_{q}')
+                p = len(J) - 1
+            rapport.append({'point': a_i, 'action': 'relie', 'os': n_new})
 
     # TRONC SANS OS : un bloc du coeur a plus de 1,2 x l'epaisseur de tout os
     # (a 0,5 x, le ventre d'une vache — a ~1 rayon de sa colonne qui longe le

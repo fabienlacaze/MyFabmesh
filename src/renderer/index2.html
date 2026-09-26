@@ -916,7 +916,7 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-lm-manual" class="ghost-btn tool-btn rig-tool-btn" title="Open the bone editor: place a marker on every bone and drag to adjust each joint, then save the corrected rig">&#9999; Edit bones / Landmarks</button>
+                        <button id="ws-lm-manual" class="ghost-btn tool-btn rig-tool-btn" title="Move the points the skeleton must reach (foot tips, jaw, ears, tail), then re-generate the rig.">&#9999; Skeleton points</button>
                         <!-- Test animation removed: Step 4 Animation now
                              handles playback / generation natively. -->
                         <button id="ws-rig-test-btn" class="ghost-btn tool-btn rig-tool-btn" style="display:none;" title="Play a test motion to check the rig holds up.">&#9654; Test animation</button>
@@ -1217,7 +1217,7 @@
           </div>
           <div class="lm-fs-pane-label" id="lm-fs-pane-label-b">RIGHT</div>
         </div>
-        <div id="lm-fs-instruction">Click <b>All bones</b> to show every joint, then drag a marker to adjust it (mesh stays put). Click <b>Save adjusted rig</b> when done. — Or place the 22 humanoid landmarks manually (click a body part → click a view).</div>
+        <div id="lm-fs-instruction">Drag a point to where the skeleton must reach. Right-drag pans, wheel zooms.</div>
         <div id="lm-fs-undo-toolbar" class="lm-fs-undo-toolbar">
           <button id="lm-fs-undo" title="Undo (Ctrl+Z)">&#8630; Undo</button>
           <button id="lm-fs-redo" title="Redo (Ctrl+Y)">&#8631; Redo</button>
@@ -1225,13 +1225,24 @@
       </div>
       <div class="lm-fs-side">
         <div class="lm-fs-side-header">
-          <div class="lm-fs-title">Landmarks</div>
+          <div class="lm-fs-title">Skeleton points</div>
+          <p class="pts-aide">Each point marks a place the skeleton must reach: foot tips, jaw, ears, tail. Drag a point onto the right spot, add one where the rig stops short, remove the ones you don't need, then re-generate the rig.</p>
+          <div class="lm-fs-actions">
+            <button id="pts-ajouter" class="ghost-btn" title="Then click the mesh where the new point goes">&#65291; Add point</button>
+            <button id="pts-reinit" class="ghost-btn" title="Back to the points of this rig">&#8634; Reset</button>
+          </div>
+          <button id="pts-regenerer" class="primary-btn lm-fs-regen-btn" title="Rig the mesh again: the skeleton will reach every point">&#10227; Re-generate rig with these points</button>
+          <div class="pts-legende">
+            <span><i class="pts-pastille atteint"></i>Reached by a bone</span>
+            <span><i class="pts-pastille manque"></i>Not reached yet</span>
+          </div>
+        </div>
+        <div id="pts-liste" class="pts-liste" aria-live="polite"></div>
+        <details class="pts-os-manuels">
+          <summary>Manual bone adjustment</summary>
+          <p class="pts-aide">Move the joints themselves, without the AI: show every bone, drag its marker, then save the corrected rig.</p>
           <div class="lm-fs-actions">
             <button id="lm-fs-all-bones" class="ghost-btn" title="Place one draggable marker on EVERY bone of the rig (any shape — tank, creature, humanoid). Drag to adjust each joint.">&#129460; All bones</button>
-            <button id="lm-fs-auto" class="ghost-btn" title="Auto-place the 22 humanoid landmarks (characters only)">Auto-detect</button>
-            <button id="lm-fs-from-rig" class="ghost-btn" title="Match the rig's bones to the 22 humanoid landmarks (characters only)">&#128205; From rig</button>
-            <button id="lm-fs-guided" class="ghost-btn">&#9758; Guided</button>
-            <button id="lm-fs-clear" class="ghost-btn">Clear all</button>
           </div>
           <!-- Drag mode toggle. Default ON (freeze) so dragging a marker
                REALIGNS the bone to the mesh without warping the mesh.
@@ -1241,34 +1252,7 @@
             <span>&#128274; Freeze mesh while dragging (align bone, don't deform)</span>
           </label>
           <button id="lm-fs-save-rig" class="primary-btn lm-fs-regen-btn" title="Save the adjusted skeleton as a new rig version (keeps the mesh; only the bones are corrected)">&#128190; Save adjusted rig</button>
-          <button id="lm-fs-regen-rig" class="primary-btn lm-fs-regen-btn">&#10227; Re-generate rig with these landmarks</button>
-        </div>
-        <div class="lm-fs-silhouettes">
-          <svg viewBox="0 0 100 200" class="lm-silhouette" id="lm-fs-svg-front" aria-label="Front view">
-            <text x="50" y="14" text-anchor="middle" font-size="9" fill="#7c7c95">FRONT</text>
-            <!-- humanoid front silhouette -->
-            <circle cx="50" cy="38" r="13" fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <path d="M 35 55 L 65 55 L 70 110 L 60 110 L 60 165 L 53 165 L 53 110 L 47 110 L 47 165 L 40 165 L 40 110 L 30 110 Z"
-                  fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1" />
-            <path d="M 35 60 L 18 105 L 22 110 L 38 70 Z" fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <path d="M 65 60 L 82 105 L 78 110 L 62 70 Z" fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <!-- Feet (front view = two small ovals at the base of each leg) -->
-            <ellipse cx="42" cy="176" rx="6" ry="3" fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <ellipse cx="58" cy="176" rx="6" ry="3" fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <g id="lm-fs-svg-front-dots"></g>
-          </svg>
-          <svg viewBox="0 0 100 200" class="lm-silhouette" id="lm-fs-svg-side" aria-label="Side view">
-            <text x="50" y="14" text-anchor="middle" font-size="9" fill="#7c7c95">SIDE</text>
-            <circle cx="52" cy="38" r="13" fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <path d="M 42 55 L 58 55 L 60 110 L 56 110 L 60 165 L 50 165 L 52 110 L 48 110 L 50 165 L 40 165 L 42 110 Z"
-                  fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <path d="M 50 60 L 42 105 L 46 110 L 54 65 Z" fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <!-- Foot profile (side view = heel + sole extending forward) -->
-            <path d="M 46 165 L 46 176 L 64 176 L 66 172 L 54 165 Z" fill="rgba(168,85,247,0.15)" stroke="#5a5a7a" stroke-width="1"/>
-            <g id="lm-fs-svg-side-dots"></g>
-          </svg>
-        </div>
-        <div id="lm-fs-list" class="lm-list lm-fs-list"></div>
+        </details>
       </div>
     </div>
 
