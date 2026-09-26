@@ -2573,6 +2573,33 @@ function resetWorkspaceUI() {
   if (rigExpandBtn) rigExpandBtn.classList.add('hidden');
   const rigStrip = document.getElementById('ws-rig-versions');
   if (rigStrip) rigStrip.innerHTML = '';
+
+  // Animation step — la SOURCE RIG (2026-09-26). Elle n'etait JAMAIS videe
+  // au changement de projet : le rig du projet precedent restait affiche
+  // (« ca montre le rig d'un autre projet alors que je n'ai pas de rig dans
+  // celui-la », signale par l'utilisateur) et « Generate Animation » restait
+  // actif. Le remplissage la reconstruit si le nouveau projet a un rig.
+  _viderSourceAnimation();
+}
+
+/** Remet la SOURCE RIG de l'etape Animation dans son etat d'origine (voir
+ *  l'appel en fin de resetWorkspaceUI) et desactive la generation tant
+ *  qu'aucun rig n'est choisi. */
+function _viderSourceAnimation() {
+  try {
+    const preview = document.getElementById('ws-anim-source-preview');
+    if (preview) {
+      preview.innerHTML = '<canvas id="ws-anim-source-canvas"></canvas>'
+        + '<div class="preview-placeholder" id="ws-anim-source-placeholder"></div>';
+      const ph = document.getElementById('ws-anim-source-placeholder');
+      if (ph) {
+        ph.textContent = (window.FabI18n && typeof window.FabI18n.t === 'function')
+          ? window.FabI18n.t('No rig selected') : 'No rig selected';
+      }
+    }
+    const genBtn = document.getElementById('ws-generate-anim');
+    if (genBtn) genBtn.disabled = true;
+  } catch (_) { /* purement visuel */ }
 }
 
 function populateWorkspace(p) {
@@ -9894,6 +9921,15 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
             clearLoading();
           });
           (function tick() {
+            // Canevas retire du DOM (changement de projet, autre rig) : on
+            // arrete la boucle et on rend le contexte WebGL. Sans ce test,
+            // chaque remplacement laissait tourner un rendu invisible et
+            // gardait un contexte — le navigateur en limite le nombre, et
+            // au-dela il fait perdre le leur aux AUTRES visualiseurs.
+            if (!canvas.isConnected) {
+              try { ctl.dispose(); renderer.dispose(); renderer.forceContextLoss(); } catch (_) {}
+              return;
+            }
             requestAnimationFrame(tick);
             ctl.update();
             renderer.render(scene, cam);

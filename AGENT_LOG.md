@@ -22832,3 +22832,32 @@ Ancien code : image enregistree sous « Projet B ». Nouveau : « Projet A ».
 
 **Signale, non traite ici.** Les vues arriere (appels sans projectName) ne
 sont rattachees a AUCUN projet (`_appendCloudImages` les ignore).
+
+## 2026-09-26 — Etape Animation : le rig d'un AUTRE projet en « Source rig »
+
+**Constat (capture utilisateur, cloud).** Projet « prehistoric warrior male »
+sans rig : l'etape Animation affiche le chevalier d'un autre projet en
+« Source rig ».
+
+**Cause (bureau + web).** `resetWorkspaceUI()` (appele au changement de
+projet) vidait les visualiseurs image, mesh et rig, mais JAMAIS la source
+d'animation : son remplissage n'a lieu que si le projet a un rig, donc le
+contenu du projet precedent restait, avec « Generate Animation » actif.
+
+**Correctif.** `_viderSourceAnimation()` en fin de resetWorkspaceUI (contenu
+d'origine + bouton desactive). Bureau en plus : la boucle de rendu three.js
+de cette source ne s'arretait jamais — chaque remplacement laissait un rendu
+invisible et un contexte WebGL occupe (nombre limite par le navigateur) ;
+elle s'arrete et libere le contexte quand son canevas quitte le DOM.
+
+**Preuve (navigateur, projet avec rig puis projet sans rig).** Ancien code :
+rig toujours affiche, generation active. Nouveau : « No rig selected »,
+generation desactivee ; le projet avec rig reste correct.
+
+**Donnees deja mal rangees (bug precedent, avant son deploiement).** Deux
+images en base (`user_assets.project`) : `1790427020639_229139881_modified.png`
+dans « red killing spider » au lieu de « prehistoric warrior male », et
+`1790427845876_211106271_modified.png` dans « centipade » au lieu de
+« prehistoric man » (projet du lancement lu dans `jobs`, operation terminee
+dans la meme seconde que l'image). Correction en base NON faite : refusee
+par le garde des permissions, laissee a la decision de l'utilisateur.
