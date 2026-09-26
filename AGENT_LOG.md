@@ -23287,3 +23287,13 @@ une nouvelle chaine se rattache a l'os qui fait DEJA bouger la zone ou elle
 nait (joint dominant des sommets a moins de 0,04 x la taille). Verifie : les
 deux chaines du pagne partent de la hanche. Repli sans peau : ancienne
 regle.
+
+## 2026-09-26 — Prix du rig : 5 -> 10 credits (decision user)
+
+« ok pour 10 ». Le prix n'existe qu'a UN endroit : `RIG_COST` dans
+worker.ts (debit, remboursements, fiche du travail) ; il n'est ni dans
+PRICING_DEFAULTS (donc pas surchargeable par `_meta/pricing.json`) ni affiche
+par l'interface (aucune entree dans ACTION_COSTS, aucune page publique).
+Raison : squelette complet ~250 s d'A10G (estimation 0,14 $, cout reel
+~2,5 x) contre ~0,20 $ factures a 5 credits. Deploye ; route verifiee (401
+sans session).

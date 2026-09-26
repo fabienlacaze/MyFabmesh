@@ -11948,10 +11948,13 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
   return json({ success: true, path: key, url: await signedR2Url(env, key, 'mesh') });
 }
 
-/** Flat per-rig cost. Same order of magnitude as the existing mesh ops
- *  (5 credits). Refunded if the spawn fails OR rig-status surfaces an
- *  error so a transient Modal outage never burns the user's balance. */
-const RIG_COST = 5;
+/** Flat per-rig cost. Refunded if the spawn fails OR rig-status surfaces an
+ *  error so a transient Modal outage never burns the user's balance.
+ *  10 credits depuis le 2026-09-26 (decision user) : le squelette complet
+ *  (2 tirages + completion + peau IA, ~250 s d'A10G) coute ~3 x l'ancien rig,
+ *  et le cout Modal reel mesure est ~2,5 x l'estimation : a 5 credits
+ *  (~0,20 $) la marge devenait negative. */
+const RIG_COST = 10;
 const ESTIMATED_USD_RIG = 0.14;  // ~A10G $0.000542/s × ~250 s (squelette complet : 2 tirages + peau, 2026-09-26 ; avant ~90 s) + R2 ops
 
 /** Job record persisted by /api/auto-rig and read by /api/auto-rig-status.
