@@ -1400,6 +1400,35 @@ async function insertUserAsset(
  *  (https://pub-xxx.r2.dev/<uid>/front/<file>.png) AND the new signed form
  *  (<SITE>/r2/<url-encoded-key>?exp&sig). Returns null if neither matches
  *  (callers then treat the input as a raw key via `?? url`). */
+/** Image source d'un maillage, SIGNEE A NEUF a chaque lecture.
+ *
+ *  POURQUOI (mesure du 2026-09-26). `options.sourceImage` stocke l'URL que le
+ *  navigateur a envoyee au lancement — une URL SIGNEE, valable 24 h. Le
+ *  listing la renvoyait telle quelle : passe 24 h, toutes les vignettes du
+ *  bandeau des versions (qui affichent l'image source) repondaient 403
+ *  « expired », d'ou une rangee d'icones cassees. Seules les versions de la
+ *  journee s'affichaient.
+ *
+ *  SECURITE — la valeur vient du NAVIGATEUR. Re-signer n'importe quelle cle
+ *  ferait du worker un oracle de signature : c'est exactement la faille du
+ *  2026-08-23 (image source pointant vers `<autre-uid>/...`, telechargeable
+ *  par un compte gratuit ; voir insertUserAsset). On ne re-signe donc QUE les
+ *  cles du compte. Une URL externe ou une cle etrangere repart inchangee : on
+ *  ne lui donne aucune capacite qu'elle n'avait pas. */
+async function _imageSourceSignee(env: Env, userId: string,
+                                  stocke: string | null | undefined): Promise<string | null> {
+  if (!stocke) return null;
+  const valeur = String(stocke);
+  if (!/^https?:\/\//i.test(valeur)) {
+    // Cle nue : ecrite par le serveur sous <uid>/source/… — on reste strict.
+    return valeur.replace(/^\/+/, '').startsWith(`${userId}/`)
+      ? await signedR2Url(env, valeur, 'image') : null;
+  }
+  const cle = r2PathFromPublicUrl(env, valeur);
+  if (cle && cle.startsWith(`${userId}/`)) return await signedR2Url(env, cle, 'image');
+  return valeur;
+}
+
 function r2PathFromPublicUrl(env: Env, url: string): string | null {
   if (!url) return null;
   // New signed form: <SITE>/r2/<encoded-key>?exp=...&sig=... — the key is the
@@ -6813,6 +6842,13 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     // re-sign it on read with a fresh TTL. For caller-supplied https URLs
     // there is no key — we persist the URL itself (legacy pass-through).
     let sourceImageStore: string | undefined = imageHttpsUrl;
+    // Une URL signee de NOTRE R2 expire en 24 h : stockee telle quelle, elle
+    // cassait la vignette du maillage le lendemain. On stocke sa CLE — mais
+    // seulement si le fichier appartient au compte (voir _imageSourceSignee).
+    if (imageHttpsUrl) {
+      const cleSource = r2PathFromPublicUrl(env, imageHttpsUrl);
+      if (cleSource && cleSource.startsWith(`${user.id}/`)) sourceImageStore = cleSource;
+    }
     if (!frontUrl) {
       if (!env.MESHES || !env.R2_PUBLIC_URL) {
         await addCredits(env, user.id, cost);
@@ -7545,7 +7581,7 @@ async function handleCloudProjects(req: Request, env: Env): Promise<Response> {
       // stores the source-photo KEY (legacy: full URL).
       const meshSigned = await signedR2Url(env, j.mesh_url, 'mesh');
       const srcKey = (j.options?.sourceImage as string | undefined) ?? null;
-      const srcSigned = srcKey ? await signedR2Url(env, srcKey, 'image') : null;
+      const srcSigned = await _imageSourceSignee(env, user.id, srcKey);
       p.meshes.push({
         filename: `${j.id}.glb`, path: meshSigned, url: meshSigned,
         created: j.created_at, format: 'GLB',
@@ -7670,7 +7706,7 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
     // Re-sign on read from the stored KEY (legacy full URL → passthrough).
     const meshSigned = await signedR2Url(env, j.mesh_url!, 'mesh');
     const srcKey = (j.options?.sourceImage as string | undefined) ?? null;
-    const srcSigned = srcKey ? await signedR2Url(env, srcKey, 'image') : null;
+    const srcSigned = await _imageSourceSignee(env, user.id, srcKey);
     return ({
     filename: `${stem}.glb`,
     path: meshSigned,
@@ -7881,6 +7917,43 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
     if (!k || seenPath.has(k)) continue;
     seenPath.add(k);
     deduped.push(m);
+  }
+
+  /* VIGNETTES DE RENDU (2026-09-26).
+   *
+   * Le bandeau des versions affiche d'abord `thumb` (rendu du maillage), sinon
+   * l'image source. Ces rendus sont bien enregistres a chaque generation
+   * (`<uid>/thumb/<base>.png`, /api/thumbs/upload), mais ce listing renvoyait
+   * `thumb: null` partout : le navigateur ne les connaissait que pour les
+   * versions vues pendant la session. Toutes les autres montraient l'image
+   * source — la meme pour la plupart des versions d'un projet. Une seule
+   * liste R2 (source d'autorite : le fichier existe), signee a neuf. La base
+   * est derivee comme a l'enregistrement : nom du fichier du maillage, sans
+   * extension, assaini. Le prefixe `<uid>/thumb/` est celui du compte : rien
+   * d'etranger ne peut etre signe ici. */
+  try {
+    const parBase = new Map<string, string>();
+    let curseur: string | undefined;
+    for (let pageR2 = 0; pageR2 < 5; pageR2++) {
+      const l = await env.MESHES.list({ prefix: `${user.id}/thumb/`, limit: 1000, cursor: curseur });
+      for (const o of l.objects) {
+        const nom = o.key.split('/').pop() || '';
+        parBase.set(nom.replace(/\.[^.]+$/, ''), o.key);
+      }
+      if (!l.truncated) break;
+      curseur = l.cursor;
+    }
+    for (const m of deduped) {
+      const cible = m as { thumb?: string | null; url?: string };
+      if (cible.thumb) continue;
+      const cle = r2PathFromPublicUrl(env, String(cible.url || '')) || '';
+      const base = (cle.split('/').pop() || '').replace(/\.[^.]+$/, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
+      const k = base ? parBase.get(base) : undefined;
+      if (k) cible.thumb = await signedR2Url(env, k, 'image');
+    }
+  } catch (e) {
+    console.warn('[handleListMeshes] vignettes ignorees:', e instanceof Error ? e.message : String(e));
   }
 
   // No-store so the client always sees fresh rigged + mesh-op + anim

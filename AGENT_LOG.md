@@ -22599,3 +22599,33 @@ prouvee : `_strip_opaque_alpha` (noyau partage bureau/Modal) repasse
 l'atlas en RGB quand le materiau est OPAQUE. Hypotheses ecartees par la
 mesure : option X-Ray (rend aussi la tete transparente), mode « bones » par
 defaut (sans effet mesurable dans ce visualiseur), carte metal.
+
+## 2026-09-26 — Bandeau des versions : icones cassees au-dela de 24 h
+
+**Constat (capture utilisateur).** v20 et v19 affichees, v18 a v9 en icone
+cassee.
+
+**Cause mesuree.** `jobs.options.sourceImage` stocke l'URL SIGNEE envoyee par
+le navigateur au lancement (validite 24 h). Le listing la renvoyait telle
+quelle (« legacy pass-through » de signedR2Url) : le 26, toutes les images
+sources des maillages du 24 repondaient 403 {"error":"expired"}. Seules les
+deux versions du jour etaient encore valides — exactement la capture.
+
+**Correctif.**
+- Lecture : `_imageSourceSignee` extrait la cle et re-signe A NEUF, mais
+  SEULEMENT si la cle appartient au compte. La valeur vient du navigateur :
+  re-signer n'importe quoi recreerait l'oracle de signature du 2026-08-23
+  (image source pointant vers `<autre-uid>/...`). Une cle etrangere repart
+  inchangee, sans capacite nouvelle.
+- Ecriture : on stocke desormais la CLE quand le fichier est au compte.
+- Verifie sur les 20 maillages du projet : cle au compte et fichier present
+  pour les 20.
+
+**Incoherence corrigee au passage.** Le bandeau affiche d'abord le RENDU du
+maillage (`thumb`), enregistre dans R2 a chaque generation
+(`<uid>/thumb/<base>.png`) — mais /api/meshes renvoyait `thumb: null`
+partout : seules les versions vues pendant la session avaient leur rendu,
+les autres montraient toutes la meme image source. Une liste R2 par appel
+rattache maintenant chaque rendu a son maillage (base derivee comme a
+l'enregistrement). Prevision mesuree : 20 versions sur 21 retrouvent leur
+rendu.
