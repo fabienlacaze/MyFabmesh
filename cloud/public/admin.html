@@ -729,9 +729,6 @@
              which used to be unconditional at 5 pages × 500 users ≈ 2500
              sub-requests — over Cloudflare's 1000/request ceiling, i.e. the
              tab simply broke as the user base grew. -->
-        <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
-          <input type="checkbox" id="users-with-assets"> Load asset counts (slow — scans R2 per user)
-        </label>
         <button class="btn" onclick="loadUsers()">🔄 Reload</button>
       </div>
       <!-- Truncation banner: the search box filters CLIENT-side only, so
@@ -2033,8 +2030,37 @@
         };
         _usersPage = 0;
         renderUsers();
+        if (!_usersMeta.assets_scanned) _compterImagesEnFond();
       } catch (e) {
         tbody.innerHTML = `<tr><td colspan="${USERS_COLSPAN}" style="color:var(--err)">${escapeHtml(e.message || e)}</td></tr>`;
+      }
+    }
+
+    /* NOMBRE D'IMAGES, compte EN ARRIERE-PLAN.
+     *
+     * Le compter oblige a lister le dossier R2 de chaque compte : c'etait donc
+     * derriere une case « Load asset counts » que personne ne cochait, et le
+     * bouton affichait « Images (?) » en permanence. Le tableau s'affiche
+     * d'abord (requete rapide), puis une seconde requete compte les images
+     * et met les boutons a jour sans toucher au tri ni a la page. */
+    let _imagesGeneration = 0;
+    async function _compterImagesEnFond() {
+      const gen = ++_imagesGeneration;
+      _usersMeta.assets_counting = true;
+      renderUsers();
+      try {
+        const r = await fetch('/api/admin/users?withAssets=1', { credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        if (gen !== _imagesGeneration) return;          // un rechargement a eu lieu entre-temps
+        const parId = new Map((data.users || []).map((u) => [u.id, u.images_count]));
+        for (const u of _allUsers) if (parId.has(u.id)) u.images_count = parId.get(u.id);
+        _usersMeta.assets_scanned = !!data.assets_scanned;
+        _usersMeta.assets_scan_partial = !!data.assets_scan_partial;
+      } catch (e) {
+        console.warn('[users] comptage des images impossible:', e);
+      } finally {
+        if (gen === _imagesGeneration) { _usersMeta.assets_counting = false; renderUsers(); }
       }
     }
 
@@ -2149,8 +2175,10 @@
         // Sans le balayage R2 (case « Load asset counts »), le nombre est
         // INCONNU et non nul : on met « ? » plutot que rien, sinon le bouton
         // se lit comme « zero image » a cote de « Meshes (6) ».
-        const imgLabel = assetsOn ? `🖼 Images (${u.images_count ?? 0})` : '🖼 Images (?)';
-        const imgTitle = assetsOn ? 'Browse this user\'s images' : 'Asset counts not loaded — tick \'Load asset counts\'';
+        const imgLabel = assetsOn ? `🖼 Images (${u.images_count ?? 0})`
+          : (_usersMeta.assets_counting ? '🖼 Images (…)' : '🖼 Images (?)');
+        const imgTitle = assetsOn ? 'Browse this user\'s images'
+          : (_usersMeta.assets_counting ? 'Counting images…' : 'Image count unavailable — click Reload');
         return `
         <tr>
           <td class="col-email">${emailCell}</td>
@@ -2267,8 +2295,8 @@
       if (!bar) return;
       const total = _usersMeta.total || _allUsers.length;
       const notes = [];
-      if (!_usersMeta.assets_scanned) {
-        notes.push('Asset counts (images) not loaded — tick the checkbox to scan R2.');
+      if (!_usersMeta.assets_scanned && !_usersMeta.assets_counting) {
+        notes.push('Image counts unavailable — click Reload.');
       }
       bar.innerHTML =
         `<span><strong style="color:var(--text-1);">${total}</strong> users (${shown} shown`
