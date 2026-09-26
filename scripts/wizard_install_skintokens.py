@@ -234,12 +234,28 @@ def _patcher(dest):
     emit({'step': 'rig-patch', 'pct': 100, 'done': False, 'msg': correctifs.appliquer_tout(dest)})
 
 
+def _gpu_nvidia():
+    """Une carte NVIDIA avec son pilote ? (nvidia-smi est installe avec le
+    pilote). Le rigger exige CUDA : sans carte, ~6 Go pour rien."""
+    exe = shutil.which('nvidia-smi') or os.path.join(os.environ.get('SystemRoot', r'C:\Windows'),
+                                                     'System32', 'nvidia-smi.exe')
+    try:
+        r = subprocess.run([exe, '-L'], capture_output=True, text=True, timeout=30)
+        return r.returncode == 0 and 'GPU' in r.stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--python', required=True, help='python.exe de l\'environnement du rig')
     ap.add_argument('--dest', required=True, help='dossier de SkinTokens (HEAVY_DIR/SkinTokens)')
     a = ap.parse_args()
     py = a.python
+    if not _gpu_nvidia():
+        # rien a telecharger : le rig passe par le cloud (pas de .fabmesh_pret)
+        emit({'step': 'done', 'pct': 100, 'done': True, 'skipped': True, 'reason': 'no-nvidia-gpu'})
+        return
     try:
         # pip : le Python embarque n'en a pas, mais fournit get-pip.py
         emit({'step': 'rig-pip-bootstrap', 'pct': 0, 'done': False})

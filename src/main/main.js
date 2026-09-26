@@ -9942,6 +9942,7 @@ ipcMain.handle('wizard:install-rig', async (event) => {
   return new Promise((resolve, reject) => {
     let stderrBuf = '';
     let erreurJsonl = null;
+    let ignore = null;          // { reason } : installation sautee (pas de carte NVIDIA)
     const proc = execFile(destPy, [script, '--python', destPy, '--dest', SKINTOKENS_DIR], {
       timeout: 0, maxBuffer: 64 * 1024 * 1024,
       env: {
@@ -9955,8 +9956,9 @@ ipcMain.handle('wizard:install-rig', async (event) => {
         log.error('main', 'install-rig: FAILED ' + msg + ' | stderr tail: ' + stderrBuf.slice(-2000));
         reject(new Error(String(msg).slice(0, 600)));
       } else {
-        log.info('main', 'install-rig: SUCCESS. rigReady=' + !!_moteurRigLocal());
-        resolve({ ok: true });
+        log.info('main', 'install-rig: ' + (ignore ? 'SKIPPED (' + ignore.reason + ')' : 'SUCCESS')
+          + '. rigReady=' + !!_moteurRigLocal());
+        resolve(ignore ? { ok: true, skipped: true, reason: ignore.reason } : { ok: true });
       }
     });
     let buf = '';
@@ -9970,6 +9972,7 @@ ipcMain.handle('wizard:install-rig', async (event) => {
         try {
           const p = JSON.parse(ligne);
           if (p.error) erreurJsonl = p.error;
+          if (p.skipped) ignore = { reason: p.reason || 'skipped' };
           if (p.step) log.info('main', 'install-rig step=' + p.step + ' pct=' + p.pct + (p.error ? ' ERROR=' + p.error : ''));
           event.sender.send('wizard:rig-progress', p);
         } catch (_) {}

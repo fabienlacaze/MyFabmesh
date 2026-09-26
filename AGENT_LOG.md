@@ -23577,3 +23577,17 @@ RIG REEL avec ce moteur, par le meme chemin que l'appli (skintokens_bridge.py
 avec FABMESH_SKINTOKENS_PY/_DIR, peau seule sur le barbare, Unreal ouvert) :
 correctifs deja appliques, « squelette impose conserve tel quel », TERMINE en
 116 s, AUTORIG_SUCCESS. Aucun processus laisse (verifie).
+
+## 2026-09-26 — Release 1.0.35 (rig local) : preparation
+
+Demande user : sortir le rig local sur le bureau (backup :
+backup-avant-release-rig-local-20260926-232833). Perimetre de l'audit =
+delta embarque depuis la 1.0.34 (abfdfa7, WACK PASS + banc MSIX le 28/08) :
+27 fichiers, +5 145/-423 lignes ; imports nouveaux tous standards, deja
+utilises, ou executes dans l'environnement separe du rigger ; nouvel outil
+d'habits = CLIPSeg deja declare (notice 37), aucun nouveau modele.
+Defaut trouve (robustesse, dimension 7) et corrige : sur un PC SANS carte
+NVIDIA, l'assistant aurait telecharge ~6 Go puis propose un rig local voue a
+l'echec (le rigger exige CUDA) au lieu du cloud. L'installeur verifie d'abord
+`nvidia-smi -L` ; sans carte : rien n'est telecharge, pas de .fabmesh_pret
+(le rig passe par le cloud) et l'assistant l'annonce. Version 1.0.35.

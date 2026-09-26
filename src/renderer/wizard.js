@@ -699,7 +699,9 @@ async function _startDownloadInterne() {
         ligne.classList.remove('in-progress', 'done');
         const nom = ligne.querySelector('#rigenv-name');
         if (nom) {
-          nom.textContent = 'Auto-rigging is not included in this edition — skipped.';
+          nom.textContent = (r.reason === 'no-nvidia-gpu')
+            ? 'No NVIDIA graphics card: auto-rigging will run in the cloud — nothing to download.'
+            : 'Auto-rigging is not included in this edition — skipped.';
           nom.style.color = 'var(--text-2)';
         }
         const taille = ligne.querySelector('.size');
