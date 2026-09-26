@@ -22366,3 +22366,31 @@ Garde `build/check_modal_methodes.py` : refuse tout `self.m()` dont la classe
 ne definit ni la methode ni l'attribut. Prouve sur la version precedente
 d'app.py (il signale la ligne 1918), muet sur la version corrigee. Branche
 sur `prebuild` des deux cotes. Deploye sur Modal.
+
+## 2026-09-26 — Portage cloud : « Texture variants »
+
+Bureau : `mesh_tools.texture_var` = l'atlas repasse dans
+`scripts/texture_refine.py` avec ControlNet-Tile (cn_scale 0.75), une force,
+une graine et un style optionnel. Le moteur existait deja sur Modal
+(`affiner_atlas`, porte le 24 pour « Detail refine »).
+
+Choix d'architecture : PAS une operation `/api/mesh-op`. Celles-ci tournent
+sur `mesh_router`, conteneur CPU, alors que celle-ci est une passe de
+diffusion. Route dediee `/mesh_texvar` sur `MyFabmeshBackview` (GPU, pipe
+Tile deja la), handler worker `handleMeshTexVar` avec escalade anti-524 et
+remboursement sur chaque chemin d'echec (y compris 422 « pas d'atlas »). Le
+GLB est range sous `<uid>/mesh-op/<projet>/<ts>_texture_var.glb`, donc
+rattache au projet par le listing existant. Tarif 2 credits (cle
+`texture_var`), dans les deux tables de `cloud-overrides.js`.
+
+Parite du prompt : meme construction que le bureau (style + mots de qualite
+de texture), 25 pas par tuile comme `/img2img_tile` du bureau —
+`affiner_atlas` a recu un parametre `pas` (20 par defaut, inchange pour
+« Detail refine »).
+
+Deux manques de la modale generique web, trouves en portant : aucun champ
+TEXTE (le « Style » devenait un champ numerique) et pas de graine
+aleatoire (deux ouvertures donnaient la meme variante). Portes du bureau.
+
+Constat a traiter ensuite : « Re-texture all (AI) » est visible sur le web
+mais `meshTool` n'y renvoie qu'un message d'erreur.

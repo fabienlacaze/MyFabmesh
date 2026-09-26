@@ -1616,6 +1616,10 @@ const PRICING_DEFAULTS = {
   outfit_complete:  6,
   // Mesh ops
   mesh_op_simple:   1,
+  // « Texture variants » : l'atlas repasse en SDXL + ControlNet-Tile par
+  // tuiles (4 tuiles de 1024 pour un atlas 2K). Meme moteur et meme
+  // tarif que tex_variant, a la demande du user (« 1 ou 2 credits »).
+  texture_var:      2,
   // Mesh generation ladder repriced 2026-07-28 from MEASURED Modal cost,
   // not from the (wrong) _meshCostUsd estimate. 30 days of succeeded
   // jobs: median 373s for the 1-credit preset, 420s for the 8-credit one
@@ -10868,6 +10872,121 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   }
 }
 
+/** POST /api/mesh-texvar — « Texture variants », portage cloud de
+ *  mesh_tools.texture_var (bureau).
+ *
+ *  Regenere l'atlas SEUL (geometrie et UV intacts) par SDXL + ControlNet-Tile
+ *  sur MyFabmeshBackview. Ce n'est PAS une operation /api/mesh-op : celles-ci
+ *  tournent sur mesh_router, un conteneur CPU, alors que celle-ci est une
+ *  passe de diffusion. Le resultat est range au MEME endroit que les autres
+ *  operations mesh (`<uid>/mesh-op/<projet>/<ts>_texture_var.glb`), donc le
+ *  listing le rattache au projet comme une nouvelle version, sans code
+ *  supplementaire. */
+async function handleMeshTexVar(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MODAL_IMAGE_OP_URL || !env.MODAL_SHARED_SECRET) {
+    return err(503, 'texture variants backend unavailable (cloud GPU not configured)');
+  }
+  if (!env.MESHES) return err(503, 'R2 binding required');
+
+  const { meshUrl, strength, seed, style, projectName } = await req.json() as {
+    meshUrl?: string; strength?: number; seed?: number; style?: string; projectName?: string;
+  };
+  if (!meshUrl) return err(400, 'meshUrl required');
+  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed');
+  const projectSlug = ((projectName || 'untitled').toString()
+    .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled');
+  const rawStyle = (style ?? '').toString().trim().slice(0, 200);
+
+  // Le style part dans un prompt SDXL : meme filtre que tout texte libre.
+  if (rawStyle) {
+    const userState = await getParentalState(env, user.id);
+    const unrestricted = env.FABMESH_UNRESTRICTED === '1' || userState.unrestricted;
+    const safety = checkPromptSafety(rawStyle, unrestricted);
+    if (!safety.safe) {
+      return json({ ok: false, success: false,
+        error: safety.reason ?? 'prompt blocked by content filter' }, { status: 400 });
+    }
+  }
+
+  const cost = await getPrice(env, 'texture_var');
+  // Estimation Modal : L40S a 0,000542 $/s, ~60 s de chargement du pipe Tile
+  // a froid + ~4 tuiles de 25 pas. Majoree : c'est un plafond, pas une facture.
+  const estimatedTotal = 0.08;
+  const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
+  if (remainingBudget == null) {
+    return json({ ok: false, success: false, error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
+  }
+  const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
+  if (remainingUserCalls == null) {
+    await refundModalSpend(env, estimatedTotal, user.id);
+    return json({ ok: false, success: false, error: 'user limit reached.' }, { status: 429 });
+  }
+  const remaining = await spendCredits(env, user.id, cost);
+  if (remaining == null) {
+    await refundModalSpend(env, estimatedTotal, user.id);
+    return json({ ok: false, success: false,
+      error: `insufficient credits — texture variants costs ${cost}` }, { status: 402 });
+  }
+
+  const opStart = Date.now();
+  const rembourser = async (motif: string) => {
+    await addCredits(env, user.id, cost);
+    await refundModalSpend(env, estimatedTotal, user.id);
+    await logOperation(env, user.id, 'mesh-op', 0, opStart, Date.now(), 'failed',
+                       { req, projectName, op_type: 'texture_var', error: motif });
+  };
+  try {
+    const url = env.MODAL_IMAGE_OP_URL.replace(/\/[^/]*$/, '/mesh_texvar');
+    const body = JSON.stringify({
+      _auth: env.MODAL_SHARED_SECRET,
+      mesh_url: meshUrl,
+      strength: typeof strength === 'number' ? strength : 0.4,
+      seed: Number.isFinite(Number(seed)) ? Number(seed) : Math.floor(Math.random() * 1e6),
+      style: rawStyle,
+    });
+    const envoyer = () => fetch(url, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body,
+      signal: AbortSignal.timeout(300_000),
+    });
+    // Escalade anti-524 : un demarrage a froid charge le pipe Tile (~7 Go),
+    // et Cloudflare coupe chaque sous-requete a 100 s.
+    let r = await envoyer();
+    for (const attente of [60_000, 90_000]) {
+      if (r.status !== 524) break;
+      console.log(`[mesh-texvar] 524 — reprise a froid dans ${attente / 1000}s`);
+      await new Promise(res => setTimeout(res, attente));
+      r = await envoyer();
+    }
+    if (r.status === 422) {
+      const detail = (await r.text()).slice(0, 200);
+      await rembourser('no baked texture: ' + detail);
+      return json({ ok: false, success: false,
+        error: 'This mesh has no baked texture to vary (credits refunded).' }, { status: 422 });
+    }
+    if (!r.ok) throw new Error(`Cloud GPU texture_var HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const data = await r.json() as { glb_base64?: string };
+    if (!data.glb_base64) throw new Error('Modal texture_var missing glb_base64');
+
+    const bin = atob(data.glb_base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const key = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_texture_var.glb`;
+    await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    const signed = await signedR2Url(env, key, 'mesh');
+    await logOperation(env, user.id, 'mesh-op', cost, opStart, Date.now(), 'succeeded',
+                       { req, projectName, op_type: 'texture_var', mesh_url_in: meshUrl });
+    return json({ ok: true, success: true, path: signed, newPath: signed, mesh_url: signed,
+                  creditsRemaining: remaining });
+  } catch (e) {
+    const motif = e instanceof Error ? e.message : String(e);
+    await rembourser(motif);
+    console.error('[mesh-texvar]', motif);
+    return err(502, 'texture variants failed (credits refunded)');
+  }
+}
+
 /** POST /api/construction-stages-3d — fabricate REAL 3D construction-stage
  *  meshes (Manor Lords style) on Modal CPU (trimesh), then mirror every
  *  stage GLB to R2 one at a time (a 5-stage castle is ~200MB total, far
@@ -17903,7 +18022,7 @@ export default {
         '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit', '/api/recolor', '/api/tex-variant',
         '/api/segment-preview',
         '/api/mask-inpaint', '/api/face-fix-image', '/api/upscale-image',
-        '/api/face-fix-mesh', '/api/mesh-op', '/api/text2image-tpose',
+        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/text2image-tpose',
         // Boots a Blender container on Modal -> same kill switch.
         '/api/mesh-convert',
         '/api/auto-rig', '/api/auto-rig-status',
@@ -18080,6 +18199,7 @@ export default {
         if (pathname === '/api/outfit'                && method === 'POST') return await handleOutfit(req, env);
         if (pathname === '/api/recolor'               && method === 'POST') return await handleRecolor(req, env);
         if (pathname === '/api/tex-variant'           && method === 'POST') return await handleTexVariant(req, env);
+        if (pathname === '/api/mesh-texvar'           && method === 'POST') return await handleMeshTexVar(req, env);
         if (pathname === '/api/segment-preview'       && method === 'POST') return await handleSegmentPreview(req, env);
         if (pathname === '/api/mask-inpaint'          && method === 'POST') return await handleMaskInpaint(req, env);
         if (pathname === '/api/face-fix-image'        && method === 'POST') return await handleFaceFixImage(req, env);

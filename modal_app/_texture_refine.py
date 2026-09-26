@@ -72,12 +72,16 @@ def _grille(taille):
 
 
 def affiner_atlas(pipe, atlas, prompt=None, strength=0.25,
-                  cn_scale=0.7, seed=42, negatif=None):
+                  cn_scale=0.7, seed=42, negatif=None, pas=20):
     """Retourne un atlas affine, de la meme taille que l'entree.
 
     `pipe` est le StableDiffusionXLControlNetImg2ImgPipeline deja charge
-    (MyFabmeshBackview._get_tile_pipe). Une tuile qui echoue est laissee
+    (_charger_pipe_tile, dans app.py). Une tuile qui echoue est laissee
     TELLE QUELLE : un defaut local vaut mieux qu'un atlas perdu.
+
+    `pas` : 20 pour « Detail refine » (affinage leger), 25 pour « Texture
+    variants » — la valeur que le bureau envoie a /img2img_tile
+    (scripts/texture_refine.py, `payload['steps'] = 25`).
     """
     import torch
 
@@ -111,7 +115,7 @@ def affiner_atlas(pipe, atlas, prompt=None, strength=0.25,
                         image=tuile,
                         control_image=tuile,
                         strength=float(max(0.05, min(0.6, strength))),
-                        num_inference_steps=20,
+                        num_inference_steps=int(pas),
                         guidance_scale=5.5,
                         controlnet_conditioning_scale=float(max(0.1, min(0.95, cn_scale))),
                         generator=torch.Generator('cuda').manual_seed(int(seed) + n),

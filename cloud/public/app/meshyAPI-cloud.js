@@ -2935,6 +2935,30 @@
       // re-generate the mesh from the same image with the same prompt
       // — same effective output (new texture from same input). Wire
       // that explicit redirect here so the button isn't a stub.
+      // « Texture variants » : ce n'est PAS une operation /api/mesh-op. Celles-
+      // ci tournent sur un conteneur CPU ; celle-ci est une passe SDXL +
+      // ControlNet-Tile sur l'atlas, servie par une route GPU dediee. Les
+      // params arrivent dans l'ordre du schema bureau :
+      //   [force 0-1, graine, style]   (MESH_TOOL_SCHEMAS.texture_var.build)
+      if (operation === 'texture_var') {
+        const url = meshUrl || meshPath;
+        if (!url) return { success: false, error: 'meshPath or meshUrl required' };
+        const a = Array.isArray(params) ? params : [];
+        try {
+          const r = await postJSON('/api/mesh-texvar', {
+            meshUrl: url,
+            strength: a[0] != null ? Number(a[0]) : 0.4,
+            seed: a[1] != null ? parseInt(a[1], 10) : undefined,
+            style: a[2] != null ? String(a[2]) : '',
+            projectName: projectName || null,
+          });
+          if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+          if (r?.success && (r.path || r.newPath || r.mesh_url)) {
+            return { success: true, newPath: r.path || r.newPath || r.mesh_url };
+          }
+          return { success: false, error: r?.error || 'unknown' };
+        } catch (e) { return { success: false, error: String(e) }; }
+      }
       if (operation === 'trellis2_retex') {
         return { success: false, ok: false,
           error: 'Re-Texture (MyFabmesh.AI 3D Native) on cloud uses the standard "Generate 3D" path — please use the Image step\'s Modify/Style tool to change the source, then click Generate 3D to re-bake.' };

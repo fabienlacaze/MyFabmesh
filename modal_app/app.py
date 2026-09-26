@@ -1476,6 +1476,76 @@ class MyFabmeshBackview:
         print(f"[{tag}] DONE dt={time.time() - t0:.1f}s bytes={len(png)}", flush=True)
         return Response(content=png, media_type="image/png")
 
+    def _route_mesh_texvar(self, payload: dict):
+        """« Texture variants » — portage cloud de mesh_tools.texture_var.
+
+        Regenere UNIQUEMENT l'atlas : geometrie et UV restent identiques au
+        bit pres. Le bureau passe l'atlas dans scripts/texture_refine.py avec
+        ControlNet-Tile (cn_scale 0.75), une force et une graine ; on fait la
+        meme chose avec le meme moteur (affiner_atlas).
+
+        POURQUOI ICI ET PAS DANS mesh_router. Les operations mesh synchrones
+        tournent sur mesh_router, un conteneur CPU : SDXL n'y a pas sa place.
+        Cette classe a deja le GPU et le pipe Tile (outil « Age ») ; elle rend
+        le GLB en base64, exactement comme les autres operations mesh, pour
+        que le worker le range au meme endroit.
+
+        PROMPT : meme construction que le bureau — le style saisi (« rusty »,
+        « golden ») suivi des mots de qualite de texture ; sans style, la
+        phrase par defaut du bureau.
+        """
+        import base64
+        import trimesh
+        import urllib.request
+        from fastapi import HTTPException
+        from modal_app._texture_refine import affiner_atlas
+
+        _check_auth(payload)
+        mesh_url = (payload.get("mesh_url") or "").strip()
+        if not mesh_url:
+            raise HTTPException(status_code=400, detail="mesh_url required")
+        try:
+            req = urllib.request.Request(mesh_url, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                src = r.read()
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+
+        force = float(payload.get("strength") or 0.4)
+        force = max(0.15, min(0.8, force))          # bornes du curseur bureau
+        graine = int(payload.get("seed") or 42)
+        style = (payload.get("style") or "").strip()
+        suffixe = 'photorealistic detailed surface texture, natural materials, sharp focus, 8k'
+        prompt = (style + ', ' + suffixe) if style else suffixe
+
+        t0 = time.time()
+        scene = trimesh.load(io.BytesIO(src), file_type="glb")
+        geoms = list(scene.geometry.values()) if hasattr(scene, "geometry") else [scene]
+        faits = 0
+        for g in geoms:
+            mat = getattr(getattr(g, "visual", None), "material", None)
+            tex = getattr(mat, "baseColorTexture", None) if mat is not None else None
+            if tex is None:
+                continue
+            mat.baseColorTexture = affiner_atlas(
+                self._get_tile_pipe(), tex, prompt=prompt, strength=force,
+                cn_scale=0.75, seed=graine, pas=25)
+            faits += 1
+        if not faits:
+            # Rien a varier : un maillage sans atlas (couleurs par sommet,
+            # ou etanche apres Watertight). On le DIT au lieu de renvoyer le
+            # fichier inchange — le worker rembourse sur ce 422.
+            raise HTTPException(status_code=422,
+                detail="this mesh has no baked texture to vary")
+        buf = io.BytesIO()
+        scene.export(buf, file_type="glb", extension_webp=True)
+        out = buf.getvalue()
+        print(f"[texvar] {faits} atlas, force={force} graine={graine} "
+              f"style={style!r} en {time.time() - t0:.1f}s", flush=True)
+        return {"ok": True, "op_type": "texture_var", "bytes": len(out),
+                "glb_base64": base64.b64encode(out).decode("ascii")}
+
     def _route_outfit(self, payload: dict):
         """Habits seuls — extrait les vetements d'une image de personnage.
 
@@ -1642,6 +1712,10 @@ class MyFabmeshBackview:
         @api.post("/outfit")
         async def outfit(request: Request):
             return self._route_outfit(await _read_json(request))
+
+        @api.post("/mesh_texvar")
+        async def mesh_texvar(request: Request):
+            return self._route_mesh_texvar(await _read_json(request))
 
         @api.post("/warm")
         async def warm(request: Request):

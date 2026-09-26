@@ -9036,6 +9036,7 @@ const MESH_TOOL_EXPECTED_MS = {
   center:         1000,
   retexture:      45000,
   trellis2_retex: 110000,
+  texture_var:    150000,
 };
 
 async function runMeshTool(operation, params = []) {
@@ -9930,6 +9931,19 @@ const MESH_TOOL_SCHEMAS = {
     // = free-move in the view plane. Sliders update live as you drag.
     useTransformGizmo: true,
   },
+  texture_var: {
+    title: 'Texture variations',
+    subtitle: 'Regenerate ONLY the texture — geometry & UVs stay exactly the same. Change the Variation seed for a different look; raise Strength for a bigger change. Add a Style word (rusty, golden, camo…) to steer it. ~1–3 min.',
+    needsImage: false,
+    params: [
+      { id: 'strength', label: 'Change strength', type: 'range', min: 15, max: 80, step: 5, default: 40 },
+      { id: 'seed', label: 'Variation (seed)', type: 'number', min: 0, max: 999999, step: 1, default: 42, randomize: true },
+      { id: 'style', label: 'Style (optional)', type: 'text', default: '', placeholder: 'rusty, golden, camouflage…' },
+    ],
+    // Meme ordre que le bureau : [force 0-1, graine, style]. Le pont web
+    // (meshyAPI-cloud.js, meshTool) les relit dans cet ordre.
+    build: (vals) => [String((Number(vals.strength) || 40) / 100), String(vals.seed), vals.style || ''],
+  },
   retexture: {
     title: 'Resolution',
     subtitle: 'Re-bake the mesh texture at a different resolution by reprojecting the source photo onto the UVs. Higher resolution (4096+) coming soon — currently capped at 2048 because the upstream UV unwrap is baked at 2K and stretching produces corruption (black patches / bleached areas).',
@@ -10585,6 +10599,16 @@ function openMeshToolModal(toolName) {
         });
         setActive(spec.default);
         labVal.style.display = 'none';
+      } else if (spec.type === 'text') {
+        // Champ TEXTE (style de « Texture variants »). Absent du web jusqu'au
+        // 2026-09-26 : le parametre tombait dans la branche par defaut et
+        // devenait un champ NUMERIQUE — impossible d'y taper « rusty ».
+        input = document.createElement('input');
+        input.type = 'text';
+        input.value = String(spec.default || '');
+        if (spec.placeholder) input.placeholder = spec.placeholder;
+        input.style.width = '100%';
+        labVal.style.display = 'none';
       } else {
         input = document.createElement('input');
         input.type = spec.type === 'range' ? 'range' : 'number';
@@ -10633,6 +10657,25 @@ function openMeshToolModal(toolName) {
       }
       input.addEventListener('change', () => _mtSchedulePreview());
       wrap.appendChild(input);
+      // Graine aleatoire a l'ouverture + bouton « nouvelle variation », comme
+      // sur le bureau : sans lui, deux ouvertures donnaient la MEME variante.
+      if (spec.randomize) {
+        const lo = spec.min || 0, hi = spec.max || 999999;
+        const roll = () => Math.floor(Math.random() * (hi - lo + 1)) + lo;
+        input.value = String(roll());
+        _mtSetLabVal(labVal, input.value);
+        const db = document.createElement('button');
+        db.type = 'button';
+        db.className = 'secondary-btn';
+        db.style.cssText = 'margin-top:4px; padding:4px 8px; font-size:11px; width:100%;';
+        db.textContent = '🎲 ' + _i18nT('New variation');
+        db.onclick = () => {
+          input.value = String(roll());
+          _mtSetLabVal(labVal, input.value);
+          _mtSchedulePreview();
+        };
+        wrap.appendChild(db);
+      }
       body.appendChild(wrap);
     });
   }
@@ -10773,6 +10816,7 @@ document.getElementById('ws-mesh-watertight-btn')?.addEventListener('click', () 
 document.getElementById('ws-mesh-center-btn')?.addEventListener('click', () => openMeshToolModal('center'));
 document.getElementById('ws-mesh-retexture-btn')?.addEventListener('click', () => openMeshToolModal('retexture'));
 document.getElementById('ws-mesh-trellis2-btn')?.addEventListener('click', () => openMeshToolModal('trellis2_retex'));
+document.getElementById('ws-mesh-texvar-btn')?.addEventListener('click', () => openMeshToolModal('texture_var'));
 
 // ── Segment parts (AI) — SAMPart3D part-segmentation on cloud GPU ──
 // Async spawn+poll (like auto-rig). Output = a segmented GLB (named,
