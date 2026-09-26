@@ -846,6 +846,46 @@ class MyFabmeshPredictor:
 # pipe is on GPU — calling it before .to('cuda') silently picks the CPU
 # path and crashes at inference. That call lives in @enter(snap=False).
 # ===========================================================================
+def _charger_pipe_tile(decharger_cpu):
+    """ControlNet-Tile + RealVisXL, pour TOUTE classe qui en a besoin.
+
+    POURQUOI UNE FONCTION DE MODULE (mesure du 2026-09-26). Ce chargeur etait
+    une methode de MyFabmeshBackview. Le 2026-09-24, l'affinage d'atlas
+    (« Detail refine ») a ete branche dans MyFabmeshMesh, qui appelait
+    `self._get_tile_pipe()` — une methode que cette classe n'avait PAS.
+    Chaque appel levait AttributeError, rattrape par le `except` qui ecrit
+    « [refine] ignore » : l'option etait facturee 2 credits et ne faisait
+    rien, exactement le defaut qu'elle venait corriger. Un seul chargeur,
+    appele par les deux classes, rend cette erreur impossible.
+
+    `decharger_cpu` : la classe maillage garde TRELLIS-2 en VRAM ; comme son
+    chargeur SDXL inpaint voisin, elle decharge sur CPU pour tenir dans les
+    48 Go du L40S. La classe image n'a rien d'autre en memoire.
+    """
+    t0 = time.time()
+    print('[tile] chargement ControlNet-Tile + RealVisXL...', flush=True)
+    import torch
+    from diffusers import (StableDiffusionXLControlNetImg2ImgPipeline,
+                           ControlNetModel, AutoencoderKL)
+    controlnet = ControlNetModel.from_pretrained(
+        'xinsir/controlnet-tile-sdxl-1.0', torch_dtype=torch.float16)
+    vae = AutoencoderKL.from_pretrained(
+        'madebyollin/sdxl-vae-fp16-fix', torch_dtype=torch.float16)
+    pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
+        'SG161222/RealVisXL_V4.0',
+        controlnet=controlnet, vae=vae,
+        torch_dtype=torch.float16, variant='fp16', use_safetensors=True,
+    )
+    if decharger_cpu:
+        pipe.enable_model_cpu_offload()
+    else:
+        pipe.to('cuda')
+    pipe.enable_attention_slicing()
+    pipe.enable_vae_tiling()
+    print(f'[tile] pret en {time.time() - t0:.1f}s', flush=True)
+    return pipe
+
+
 @app.cls(
     gpu="L40S",
     timeout=600,
@@ -1237,25 +1277,8 @@ class MyFabmeshBackview:
         """
         if getattr(self, '_tile_loaded', False):
             return self._tile_pipe
-        t0 = time.time()
-        print('[tile] chargement ControlNet-Tile + RealVisXL...', flush=True)
-        import torch
-        from diffusers import (StableDiffusionXLControlNetImg2ImgPipeline,
-                               ControlNetModel, AutoencoderKL)
-        controlnet = ControlNetModel.from_pretrained(
-            'xinsir/controlnet-tile-sdxl-1.0', torch_dtype=torch.float16)
-        vae = AutoencoderKL.from_pretrained(
-            'madebyollin/sdxl-vae-fp16-fix', torch_dtype=torch.float16)
-        self._tile_pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
-            'SG161222/RealVisXL_V4.0',
-            controlnet=controlnet, vae=vae,
-            torch_dtype=torch.float16, variant='fp16', use_safetensors=True,
-        )
-        self._tile_pipe.to('cuda')
-        self._tile_pipe.enable_attention_slicing()
-        self._tile_pipe.enable_vae_tiling()
+        self._tile_pipe = _charger_pipe_tile(decharger_cpu=False)
         self._tile_loaded = True
-        print(f'[tile] pret en {time.time() - t0:.1f}s', flush=True)
         return self._tile_pipe
 
     def _route_image_op(self, payload: dict):
@@ -1796,6 +1819,17 @@ class MyFabmeshMesh:
         self.inpaint_pipe = None
         print(f"[mesh/ready] full load + GPU move done in {time.time() - t0:.1f}s",
               flush=True)
+
+    def _get_tile_pipe(self):
+        """ControlNet-Tile pour l'affinage d'atlas — voir _charger_pipe_tile.
+
+        Absente jusqu'au 2026-09-26 : le bloc « Detail refine » l'appelait
+        quand meme, et l'AttributeError etait avalee par son `except`."""
+        if getattr(self, '_tile_loaded', False):
+            return self._tile_pipe
+        self._tile_pipe = _charger_pipe_tile(decharger_cpu=True)
+        self._tile_loaded = True
+        return self._tile_pipe
 
     def _get_inpaint_pipe(self):
         """Lazy-load SDXL inpaint (RealVisXL_V4.0 weights). Cached on the

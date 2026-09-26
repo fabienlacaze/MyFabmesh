@@ -22345,3 +22345,24 @@ Prouve : en renommant la definition web, le garde bloque et cite les quatre
 appels. Etat actuel : aucun trou ; cinq appels proteges par une verification
 prealable (`if (API.writeLicenceFile)`…), signales sans bloquer. Branche sur
 `prebuild` des deux cotes.
+
+## 2026-09-26 — « Detail refine » : facture, branche, et toujours inoperant
+
+En preparant le portage de « Texture variants » (qui reutilise le meme
+affinage d'atlas), lecture du bloc « Detail refine » de `MyFabmeshMesh` : il
+appelle `self._get_tile_pipe()`, methode definie UNIQUEMENT dans
+`MyFabmeshBackview`. Aucun heritage entre les deux. Chaque appel levait donc
+AttributeError, rattrape par `except Exception: print('[refine] ignore')`.
+L'option, branchee le 2026-09-24 precisement parce qu'elle etait facturee
+sans lecteur, restait facturee sans effet — elle avait un lecteur, qui
+plantait en silence.
+
+Correctif : le chargeur devient une fonction de module `_charger_pipe_tile`,
+appelee par les deux classes. La classe maillage decharge sur CPU
+(`enable_model_cpu_offload`), comme son chargeur SDXL inpaint voisin :
+TRELLIS-2 occupe deja la VRAM du L40S.
+
+Garde `build/check_modal_methodes.py` : refuse tout `self.m()` dont la classe
+ne definit ni la methode ni l'attribut. Prouve sur la version precedente
+d'app.py (il signale la ligne 1918), muet sur la version corrigee. Branche
+sur `prebuild` des deux cotes. Deploye sur Modal.
