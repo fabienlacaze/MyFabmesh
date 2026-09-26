@@ -2919,6 +2919,21 @@
     // « Sharpen texture (x2) » — port cloud de l'IPC bureau
     // 'enhance-mesh-texture' (scripts/texture_upscale.py). Real-ESRGAN sur
     // l'atlas, geometrie intacte. Meme forme de retour que le bureau.
+    // « Name the zones (AI) » — port cloud de l'IPC bureau 'name-parts'.
+    // Meme forme de retour : { success, parts, source, assetType }.
+    nameParts: async ({ meshPath, meshUrl, assetType, rigPath, projectName } = {}) => {
+      const url = meshUrl || meshPath;
+      if (!url) return { success: false, error: 'meshPath or meshUrl required' };
+      try {
+        const r = await postJSON('/api/mesh-name-parts', {
+          meshUrl: url, assetType: assetType || 'other',
+          rigUrl: rigPath || null, projectName: projectName || null,
+        });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (r?.success) return { success: true, parts: r.parts || [], source: r.source || null, assetType: r.assetType };
+        return { success: false, error: r?.error || 'unknown' };
+      } catch (e) { return { success: false, error: String(e) }; }
+    },
     enhanceMeshTexture: async ({ meshPath, meshUrl, projectName } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { success: false, error: 'meshPath or meshUrl required' };

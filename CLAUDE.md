@@ -439,15 +439,19 @@ si une case est cochée, décochée ou masquée :
 
 ## 16. État au 2026-09-24 — ce qui reste ouvert
 
-- **5 outils mesh non portés sur le cloud** : `clone3d`, `detail-synth`,
-  `enhance-tex`, `name`, `region-retex`, plus les Étapes de construction 3D.
-  `texvar` porté le 2026-09-26 — route GPU dédiée `/mesh_texvar`, car les
-  ops `/api/mesh-op` tournent sur un conteneur CPU (`mesh_router`).
-  `detail-synth` utilise nvdiffrast (licence NON commerciale) : à porter sur
-  kaolin. `clone3d` et `region-retex` passent par le visualiseur de peinture
-  3D, qui a divergé entre bureau et web. `enhance-tex` demande Real-ESRGAN.
-- **« Re-texture all (AI) » est visible sur le web mais n'y fait rien** :
-  `meshTool` renvoie un message d'erreur pour `trellis2_retex`.
+- **Outils mesh encore absents du web** : `clone3d` et `region-retex` (ils
+  passent par le visualiseur de peinture 3D, qui a divergé : ~1 080 lignes
+  côté bureau contre ~570 côté web ; le backend de region-retex est
+  l'inpaint d'atlas déjà porté pour le face-fix), `detail-synth` (utilise
+  nvdiffrast, licence NON commerciale : à porter sur kaolin) et « Re-texture
+  all (AI) » (`trellis2_retex`, visible sur le web mais qui n'y renvoie
+  qu'une erreur ; demande le pipeline de texturation TRELLIS-2 en
+  asynchrone). Portés le 2026-09-26 : `texvar`, `enhance-tex`, `name` ; les
+  Étapes de construction 3D l'étaient déjà.
+- **Banc GPU** : `modal_app/test_atlas_ops.py` exécute les ops d'atlas et le
+  nommage sur la VRAIE image Modal (~0,15 $). Un déploiement qui passe ne
+  prouve pas qu'une inférence passe : c'est ce banc qui a trouvé le
+  chargement de 281 s et le plafond 4096 qui refusait les atlas normaux.
 - ~~`Variant`, `Extend`, `Sym. Auto` coquilles vides cote web~~ — **regle le
   2026-09-26.** `Extend` et `Sym. Auto` etaient en fait deja a parite (meme
   algorithme des deux cotes) ; `Variant` a recu le guide de variation et le

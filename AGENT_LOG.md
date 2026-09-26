@@ -22425,3 +22425,41 @@ Ecart de parite trouve en chemin : runMeshTool, la modale et son apercu
 operaient sur selectedMeshPath cote web, sur la version AFFICHEE
 (previewMeshPath) cote bureau. Correctif du bureau jamais reporte : un outil
 lance sur la v2 a l ecran travaillait sur une autre version. Reporte.
+
+## 2026-09-26 — Portage cloud : « Name the zones (AI) » + banc GPU des ops d'atlas
+
+**Nommage.** Les trois scripts du bureau (routeur name_parts.py, voie vision
+part_namer_vision.py, voie squelette skin_zone_namer.py) sont copies TELS
+QUELS dans modal_app/part_namer/ : ils s'appellent entre eux par chemin de
+fichier, les decouper casserait ces appels. check-noyaux-partages.mjs exige
+desormais l'identite du fichier ENTIER pour ces copies (--sync pour
+resynchroniser). CLIP-L (MIT) embarque dans l'image : le script le charge en
+local_files_only. Route /mesh_name_parts sur MyFabmeshBackview, handler
+worker qui ecrit `<maillage>.glb.parts.json` a cote du maillage dans R2 —
+seuls les maillages DU compte, sinon un maillage partage recevrait les noms
+choisis par n'importe qui. Le listing ignore desormais tout ce qui n'est pas
+un .glb sous mesh-op/ (le fichier annexe serait apparu comme une version) et
+attache `parts` au maillage decrit. Motif web adapte : le bureau nomme
+« …_segment_<ts> », le web « <ts>_segment.glb » — le motif du bureau
+refusait TOUS les maillages segmentes du web. Le garde des fonctions portees
+a bloque `_escapeHtml()` (absente du web) : remplace par `escapeHtml`.
+
+BANC (modal_app/test_atlas_ops.py, vraie image, vrai GPU) — nommage sur un
+maillage segmente reel : 13 parties en 11,5 s, voie vision, abstentions
+« unknown » la ou CLIP hesite.
+
+**Banc des ops d'atlas**, orc reel (atlas 4096) :
+- Sharpen texture : 27,5 s, 4096 -> 8192, GLB WebP 26,8 Mo relu sans erreur.
+  MAIS la route refusait tout atlas >= 4096 — la sortie normale d'une
+  generation. Plafond aligne sur le bureau : 8192.
+- Texture variants : 72 s, taille conservee, geometrie IDENTIQUE, atlas
+  modifie (ecart moyen 7,3/255).
+- Chargement du pipe Tile : 281 s a froid depuis HuggingFace, contre 100 s
+  de coupure Cloudflare. Le premier clic sur un conteneur froid (Age, Texture
+  variants, Detail refine) echouait donc presque a coup sur. ControlNet-Tile
+  et VAE fp16 embarques dans l'image ; RealVisXL non, Backview le charge deja
+  a son demarrage (meme depot, meme variante).
+
+Constat de doc : les Etapes de construction 3D etaient DEJA portees sur le
+web (bouton, pont, route worker, op Modal construction3d). Le journal disait
+le contraire.

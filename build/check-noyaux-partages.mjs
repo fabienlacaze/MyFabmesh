@@ -113,4 +113,38 @@ for (const p of PAIRES) {
   console.log(`[noyaux] ${p.nom} : identique (${a.bloc.split('\n').length} lignes, ${a.bloc.length} octets)${extra}`);
 }
 
+/* ── COPIES DE FICHIERS ENTIERS ────────────────────────────────────────────
+ *
+ * Certains outils sont faits de scripts AUTONOMES qui s'appellent entre eux
+ * par chemin de fichier (le nommage des zones : un routeur qui lance deux
+ * voies en sous-processus). Les decouper en noyau + colle casserait ces
+ * appels. On les copie donc tels quels, sous le MEME nom de fichier dans un
+ * sous-dossier de modal_app, et on exige l'identite du fichier entier. */
+const FICHIERS = [
+  { nom: 'nommage (routeur)', source: 'scripts/name_parts.py',        copie: 'modal_app/part_namer/name_parts.py' },
+  { nom: 'nommage (vision)',  source: 'scripts/part_namer_vision.py', copie: 'modal_app/part_namer/part_namer_vision.py' },
+  { nom: 'nommage (squelette)', source: 'scripts/skin_zone_namer.py', copie: 'modal_app/part_namer/skin_zone_namer.py' },
+];
+for (const p of FICHIERS) {
+  const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));
+  let b = null;
+  try { b = lf(readFileSync(join(RACINE, p.copie), 'utf-8')); } catch (_) { /* copie absente */ }
+  if (a === b) {
+    console.log(`[noyaux] ${p.nom} : fichier identique (${a.split('\n').length} lignes)`);
+    continue;
+  }
+  if (sync) {
+    writeFileSync(join(RACINE, p.copie), a, 'utf-8');
+    console.log(`[noyaux] ${p.nom} : copie resynchronisee depuis ${p.source}`);
+    continue;
+  }
+  console.error(`\n========================================================================`);
+  console.error(`  FICHIER PARTAGE « ${p.nom} » : ${b === null ? 'copie ABSENTE' : 'les deux copies ont diverge'}.\n`);
+  console.error(`  source : ${p.source}`);
+  console.error(`  copie  : ${p.copie}`);
+  console.error(`\n  Editer la source, puis :  node build/check-noyaux-partages.mjs --sync`);
+  console.error(`========================================================================\n`);
+  echecs++;
+}
+
 process.exit(echecs ? 1 : 0);

@@ -7970,6 +7970,8 @@ async function showStep2Preview(mesh) {
     console.log('[mesh-viewer] parse OK, scene children:', gltf.scene.children.length);
     wsModel = gltf.scene;
     wsModel.userData.__wsMesh = true;
+    wsModel.userData.parts = mesh.parts || null;   // zones nommees (fichier annexe .parts.json)
+    if (typeof renderPartLegend === 'function') renderPartLegend(mesh.parts || null);
     wsScene.add(wsModel);
     _applyMeshTextureFilter(wsModel);
     fitWsCamera(wsModel);
@@ -10831,6 +10833,148 @@ document.getElementById('ws-mesh-center-btn')?.addEventListener('click', () => o
 document.getElementById('ws-mesh-retexture-btn')?.addEventListener('click', () => openMeshToolModal('retexture'));
 document.getElementById('ws-mesh-trellis2-btn')?.addEventListener('click', () => openMeshToolModal('trellis2_retex'));
 document.getElementById('ws-mesh-texvar-btn')?.addEventListener('click', () => openMeshToolModal('texture_var'));
+
+// ═══════════════ NOMMAGE DES PARTIES (roue/tourelle — bras/jambe) ═══════════════
+// Porte du bureau le 2026-09-26. Sur un maillage SEGMENTE : voie squelette si
+// un rig existe (etres vivants), sinon voie vision (rendu isole + CLIP-L). Le
+// serveur ecrit <maillage>.parts.json a cote du maillage ; la legende reprend
+// les couleurs de segments du visualiseur.
+const _LIVING_ASSETS = new Set(['character', 'creature', 'animal', 'insect', 'other_living']);
+
+// Nom d'un maillage decoupe. Le bureau nomme ses fichiers « …_segment_<ts> »,
+// le web « <ts>_segment.glb » (cle R2) : le motif du bureau, qui exige un « _ »
+// final, refusait TOUS les maillages segmentes du web.
+const _SEGMENTE_RE = /_(segment|explode)[_.]/i;
+
+function _findRigForMesh(p, meshPath) {
+  const rigs = (p && p.rigs) || [];
+  if (!rigs.length) return null;
+  const base = (meshPath.split(/[\\/]/).pop() || '').split('?')[0]
+    .replace(/_(segment|explode)[_.].*$/i, '').replace(/\.[^.]+$/, '');
+  const key = base.slice(0, 24);
+  const match = key ? rigs.find((r) => (r.filename || '').includes(key)) : null;
+  const newest = rigs.slice().sort((a, b) => new Date(b.created || b.mtime || 0) - new Date(a.created || a.mtime || 0))[0];
+  return (match || newest || {}).path || null;
+}
+
+function _prettifyPartLabel(lbl) {
+  const s = String(lbl || '').replace(/_/g, ' ').trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+function _partColorHex(partId) {
+  const mm = /part[_-]?(\d+)/i.exec(String(partId || ''));
+  const pi = mm ? parseInt(mm[1], 10) : 0;
+  const c = new THREE.Color().setHSL((pi * 0.61803398875) % 1, 0.85, 0.5);
+  return '#' + c.getHexString();
+}
+
+// Legende des zones nommees (overlay du visualiseur). parts = [{part_id,label,
+// confidence,abstained}] ; null/[] -> cache la legende.
+function renderPartLegend(parts) {
+  const box = document.getElementById('ws-mesh-part-legend');
+  if (!box) return;
+  if (!parts || !parts.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const rows = parts.map((pt) => {
+    const abst = !!pt.abstained || !pt.label || pt.label === 'unknown';
+    const name = abst ? _i18nT('Unknown') : _i18nT(_prettifyPartLabel(pt.label));
+    const col = abst ? '#8a8a90' : _partColorHex(pt.part_id);
+    const conf = Number.isFinite(+pt.confidence) ? Math.round(+pt.confidence * 100) + '%' : '';
+    return `<div class="pl-row${abst ? ' pl-abst' : ''}"><span class="pl-sw" style="background:${col}"></span>`
+      + `<span class="pl-name">${escapeHtml(name)}</span><span class="pl-conf">${conf}</span></div>`;
+  }).join('');
+  box.innerHTML = `<div class="pl-title">${escapeHtml(_i18nT('Named zones'))}</div>${rows}`;
+  box.style.display = 'block';
+}
+
+async function _runNamePartsJob(meshPath, assetType, rigPath) {
+  const p = state.currentProject;
+  const meshName = meshPath.split(/[\\/]/).pop().split('?')[0];
+  const job = (typeof pushJob === 'function')
+    ? pushJob(`name: ${p.name}`, null, {
+        Tool: 'Name zones (AI)', Mesh: meshName, 'Asset type': assetType,
+      }, 30000, { sourceImageUrl: _meshJobThumb(meshPath), projectName: p.name })
+    : null;
+  try {
+    const r = await API.nameParts({ meshPath, assetType, rigPath, projectName: p.name });
+    if (r && r.success) {
+      const named = (r.parts || []).filter((x) => x && !x.abstained && x.label && x.label !== 'unknown').length;
+      showToast(_i18nTf('{x} zones named', String(named)), 'success');
+      if (job && typeof completeJob === 'function') completeJob(job.id, true);
+      const m = (p.meshes || []).find((x) => x && x.path === meshPath);
+      if (m) m.parts = r.parts;
+      if (typeof wsModel !== 'undefined' && wsModel && wsModel.userData) wsModel.userData.parts = r.parts;
+      renderPartLegend(r.parts);
+    } else {
+      if (job && typeof completeJob === 'function') completeJob(job.id, false, r && r.error);
+      showToast(`${_i18nT('Naming failed')}: ${(r && r.error) || 'unknown'}`, 'error', 6000);
+    }
+  } catch (e) {
+    if (job && typeof completeJob === 'function') completeJob(job.id, false, e.message);
+    showToast(`${_i18nT('Naming error')}: ${e.message}`, 'error', 5000);
+  }
+}
+
+// Le vocabulaire depend de la CATEGORIE (vehicule != personnage != batiment).
+// Le type de projet est souvent un defaut ('character') : on DEMANDE au clic,
+// pre-selectionne depuis le type de projet.
+function _nameCategoryFromAsset(at) {
+  at = String(at || '').toLowerCase();
+  if (['character', 'creature', 'animal', 'insect', 'other_living'].includes(at)) return 'character';
+  if (['vehicle', 'avion', 'bateau'].includes(at)) return 'vehicle';
+  if (['building', 'environment'].includes(at)) return 'building';
+  if (at === 'weapon') return 'weapon';
+  return 'other';
+}
+
+function _openNameCategoryModal(defaultCat) {
+  const CATS = [
+    { id: 'vehicle', ico: '🚗', en: 'Vehicle' },
+    { id: 'character', ico: '🧍', en: 'Character / Creature' },
+    { id: 'building', ico: '🏛️', en: 'Building' },
+    { id: 'weapon', ico: '⚔️', en: 'Weapon' },
+    { id: 'other', ico: '📦', en: 'Object (generic)' },
+  ];
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:420px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
+    const btns = CATS.map((c) =>
+      `<button class="np-cat ghost-btn" data-cat="${c.id}" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;margin-bottom:8px;text-align:left;font-size:14px;${c.id === defaultCat ? 'border-color:#8b5cf6;background:rgba(139,92,246,0.12);' : ''}"><span style="font-size:18px;">${c.ico}</span>${escapeHtml(_i18nT(c.en))}</button>`).join('');
+    box.innerHTML =
+      `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#127991; ${escapeHtml(_i18nT('Name the zones (AI)'))}</div>` +
+      `<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:14px;">${escapeHtml(_i18nT('What kind of object is this? (sets the naming vocabulary)'))}</div>` +
+      btns +
+      `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button id="np-cancel" class="ghost-btn" style="padding:8px 16px;">${escapeHtml(_i18nT('Cancel'))}</button></div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    function cleanup(v) { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); }
+    function onKey(e) { if (e.key === 'Escape') cleanup(null); }
+    box.querySelectorAll('.np-cat').forEach((b) => b.addEventListener('click', () => cleanup(b.dataset.cat)));
+    box.querySelector('#np-cancel').addEventListener('click', () => cleanup(null));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+async function runNameParts() {
+  const p = state.currentProject;
+  const meshPath = p && (p.previewMeshPath || p.selectedMeshPath);
+  if (!p || !meshPath) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
+  if (!API.nameParts) { showToast('Naming engine not available.', 'error'); return; }
+  if (!_SEGMENTE_RE.test(meshPath)) {
+    showToast(_i18nT('Segment the mesh into parts first (scissors), then name the zones.'), 'info', 3800);
+    return;
+  }
+  const projAsset = document.getElementById('ws-asset-type')?.value || p.assetType || 'character';
+  const cat = await _openNameCategoryModal(_nameCategoryFromAsset(projAsset));
+  if (!cat) return;  // annule
+  // 'character' -> cherche un rig (voie squelette) ; sinon vision directe.
+  const rigPath = cat === 'character' ? _findRigForMesh(p, meshPath) : null;
+  gatedRun('name', `name: ${p.name}`, () => _runNamePartsJob(meshPath, cat, rigPath));
+}
+document.getElementById('ws-mesh-name-btn')?.addEventListener('click', runNameParts);
 
 // « Sharpen texture (x2) » — porte du bureau le 2026-09-26. Real-ESRGAN sur
 // l'atlas existant, sans rien inventer : c'est l'outil a utiliser sur les

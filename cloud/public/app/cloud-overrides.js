@@ -659,6 +659,7 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-retexture-btn':    1,   // Wave 4.2 (atlas swap)
     'ws-mesh-texvar-btn':       2,   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
     'ws-mesh-enhance-tex-btn':  1,   // Real-ESRGAN sur l'atlas (/api/mesh-enhance-tex)
+    'ws-mesh-name-btn':         1,   // rendu isole + CLIP-L (/api/mesh-name-parts)
     'ws-mesh-segment-btn':      15,  // SAMPart3D part-seg — A100 ~8 min/mesh
   };
 
@@ -1071,6 +1072,7 @@ window.__optionsMortesCloud = new Set([]);
     'ws-age-btn':          'tex_variant',
     'ws-mesh-texvar-btn':  'texture_var',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
+    'ws-mesh-name-btn':    'name_parts',
     'ws-resolution-btn':   'upscale',
   };
   async function syncLivePricing() {

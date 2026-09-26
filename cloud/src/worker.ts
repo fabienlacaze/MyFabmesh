@@ -1623,6 +1623,9 @@ const PRICING_DEFAULTS = {
   // « Sharpen texture (x2) » : Real-ESRGAN, un reseau de restauration et non
   // une diffusion — quelques secondes a chaud. D'ou 1 credit.
   enhance_tex:      1,
+  // « Name the zones (AI) » : rendu isole + CLIP-L, ou poids de skinning d'un
+  // rig. Aucune diffusion, quelques dizaines de secondes.
+  name_parts:       1,
   // Mesh generation ladder repriced 2026-07-28 from MEASURED Modal cost,
   // not from the (wrong) _meshCostUsd estimate. 30 days of succeeded
   // jobs: median 373s for the 1-credit preset, 420s for the 8-credit one
@@ -7364,6 +7367,7 @@ async function handleProjects(req: Request, env: Env): Promise<Response> {
     for (const p of projects) projectBySlug.set(slugify(p.name), p);
     const listed = await env.MESHES.list({ prefix: `${user.id}/mesh-op/`, limit: 500 });
     for (const obj of listed.objects) {
+      if (!obj.key.endsWith('.glb')) continue;   // fichiers annexes (.parts.json)
       const filename = obj.key.split('/').pop() || 'mesh-op.glb';
       const parts = obj.key.split('/');
       const projectSlug = parts.length >= 4 ? parts[2] : null;
@@ -7747,7 +7751,14 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
     }
     const listed = await env.MESHES.list({ prefix: `${user.id}/mesh-op/`, limit: 500 });
     console.log(`[handleListMeshes] user=${user.id} mesh_op_count=${listed.objects.length}`);
+    // ZONES NOMMEES. « Name the zones (AI) » ecrit `<maillage>.glb.parts.json`
+    // a cote du maillage, comme le bureau ecrit son fichier annexe. Ce n'est
+    // PAS une version : sans ce tri, il apparaissait comme un maillage de
+    // plus. On le lit et on l'attache au maillage qu'il decrit (`parts`), que
+    // l'interface affiche en legende.
+    const annexes = new Set(listed.objects.map(o => o.key).filter(k => k.endsWith('.parts.json')));
     for (const obj of listed.objects) {
+      if (!obj.key.endsWith('.glb')) continue;
       const filename = obj.key.split('/').pop() || 'mesh-op.glb';
       // Key layout: <uid>/mesh-op/<projectSlug>/<filename>. Legacy
       // (pre-persistence) keys are <uid>/mesh-op/<filename> with no
@@ -7765,6 +7776,14 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
       let assetType = 'mesh';
       if (/_material_adjust\.glb$/i.test(filename)) assetType = 'mesh';
       else if (/_fill_holes\.glb$/i.test(filename))  assetType = 'mesh';
+      let zones: unknown = null;
+      if (annexes.has(obj.key + '.parts.json')) {
+        try {
+          const a = await env.MESHES.get(obj.key + '.parts.json');
+          const d = a ? await a.json() as { parts?: unknown } : null;
+          zones = Array.isArray(d?.parts) ? d!.parts : null;
+        } catch { /* annexe illisible : le maillage reste affichable sans legende */ }
+      }
       meshes.push({
         filename,
         path: url,
@@ -7777,6 +7796,7 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
         asset_type: assetType,
         projectName: inheritedProject,
         id: filename.replace(/\.glb$/i, ''),
+        parts: zones,
       });
     }
   } catch (e) {
@@ -11019,6 +11039,91 @@ function handleMeshEnhanceTex(req: Request, env: Env): Promise<Response> {
     estimationUsd: 0.04,
     champs: () => ({}),
   });
+}
+
+/** POST /api/mesh-name-parts — « Name the zones (AI) », portage de l'IPC bureau
+ *  'name-parts'. Nomme les sous-parties d'un maillage SEGMENTE (roue / tourelle
+ *  — bras / jambe) et ecrit le fichier annexe `<maillage>.parts.json` a cote du
+ *  maillage dans R2, comme le bureau l'ecrit a cote du fichier. Le listing
+ *  l'attache ensuite au maillage (`parts`).
+ *
+ *  Seuls les maillages DU compte peuvent etre nommes : le fichier annexe est
+ *  ecrit sous la meme cle, et un maillage partage (`mesh/…`) recevrait sinon
+ *  les noms choisis par n'importe qui. */
+async function handleMeshNameParts(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MODAL_IMAGE_OP_URL || !env.MODAL_SHARED_SECRET) {
+    return err(503, 'naming backend unavailable (cloud GPU not configured)');
+  }
+  if (!env.MESHES) return err(503, 'R2 binding required');
+
+  const { meshUrl, assetType, rigUrl, projectName } = await req.json() as {
+    meshUrl?: string; assetType?: string; rigUrl?: string; projectName?: string;
+  };
+  if (!meshUrl) return err(400, 'meshUrl required');
+  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed');
+  if (rigUrl && !isTrustedAssetHost(env, rigUrl)) return err(400, 'rigUrl host not allowed');
+  const cleMaillage = r2PathFromPublicUrl(env, meshUrl);
+  if (!cleMaillage || !cleMaillage.startsWith(`${user.id}/`) || !cleMaillage.endsWith('.glb')) {
+    return err(400, 'only your own segmented meshes can be named');
+  }
+  const at = String(assetType || 'other').replace(/[^a-z_]/gi, '').slice(0, 20) || 'other';
+
+  const cost = await getPrice(env, 'name_parts');
+  const estimationUsd = 0.03;
+  const remainingBudget = await checkAndIncrementModalSpend(env, estimationUsd, user.id);
+  if (remainingBudget == null) {
+    return json({ ok: false, success: false, error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
+  }
+  const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
+  if (remainingUserCalls == null) {
+    await refundModalSpend(env, estimationUsd, user.id);
+    return json({ ok: false, success: false, error: 'user limit reached.' }, { status: 429 });
+  }
+  const remaining = await spendCredits(env, user.id, cost);
+  if (remaining == null) {
+    await refundModalSpend(env, estimationUsd, user.id);
+    return json({ ok: false, success: false,
+      error: `insufficient credits — naming costs ${cost}` }, { status: 402 });
+  }
+
+  const opStart = Date.now();
+  try {
+    const url = env.MODAL_IMAGE_OP_URL.replace(/\/[^/]*$/, '/mesh_name_parts');
+    const body = JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, mesh_url: meshUrl,
+                                  asset_type: at, rig_url: rigUrl || '' });
+    const envoyer = () => fetch(url, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body,
+      signal: AbortSignal.timeout(300_000),
+    });
+    let r = await envoyer();
+    for (const attente of [60_000, 90_000]) {
+      if (r.status !== 524) break;
+      console.log(`[name-parts] 524 — reprise a froid dans ${attente / 1000}s`);
+      await new Promise(res => setTimeout(res, attente));
+      r = await envoyer();
+    }
+    if (!r.ok) throw new Error(`Cloud GPU name_parts HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    const data = await r.json() as { sidecar?: { parts?: unknown[]; source?: string } };
+    const annexe = data.sidecar;
+    if (!annexe || !Array.isArray(annexe.parts)) throw new Error('Modal name_parts returned no parts');
+    await env.MESHES.put(cleMaillage + '.parts.json', JSON.stringify(annexe),
+                         { httpMetadata: { contentType: 'application/json' } });
+    await logOperation(env, user.id, 'mesh-op', cost, opStart, Date.now(), 'succeeded',
+                       { req, projectName, op_type: 'name_parts', mesh_url_in: meshUrl,
+                         source: annexe.source, parts: annexe.parts.length });
+    return json({ ok: true, success: true, parts: annexe.parts, source: annexe.source ?? null,
+                  assetType: at, creditsRemaining: remaining });
+  } catch (e) {
+    const motif = e instanceof Error ? e.message : String(e);
+    await addCredits(env, user.id, cost);
+    await refundModalSpend(env, estimationUsd, user.id);
+    await logOperation(env, user.id, 'mesh-op', 0, opStart, Date.now(), 'failed',
+                       { req, projectName, op_type: 'name_parts', error: motif });
+    console.error('[name-parts]', motif);
+    return err(502, 'naming failed (credits refunded)');
+  }
 }
 
 /** POST /api/construction-stages-3d — fabricate REAL 3D construction-stage
@@ -18056,7 +18161,7 @@ export default {
         '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit', '/api/recolor', '/api/tex-variant',
         '/api/segment-preview',
         '/api/mask-inpaint', '/api/face-fix-image', '/api/upscale-image',
-        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/mesh-enhance-tex', '/api/text2image-tpose',
+        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/mesh-enhance-tex', '/api/mesh-name-parts', '/api/text2image-tpose',
         // Boots a Blender container on Modal -> same kill switch.
         '/api/mesh-convert',
         '/api/auto-rig', '/api/auto-rig-status',
@@ -18235,6 +18340,7 @@ export default {
         if (pathname === '/api/tex-variant'           && method === 'POST') return await handleTexVariant(req, env);
         if (pathname === '/api/mesh-texvar'           && method === 'POST') return await handleMeshTexVar(req, env);
         if (pathname === '/api/mesh-enhance-tex'      && method === 'POST') return await handleMeshEnhanceTex(req, env);
+        if (pathname === '/api/mesh-name-parts'       && method === 'POST') return await handleMeshNameParts(req, env);
         if (pathname === '/api/segment-preview'       && method === 'POST') return await handleSegmentPreview(req, env);
         if (pathname === '/api/mask-inpaint'          && method === 'POST') return await handleMaskInpaint(req, env);
         if (pathname === '/api/face-fix-image'        && method === 'POST') return await handleFaceFixImage(req, env);

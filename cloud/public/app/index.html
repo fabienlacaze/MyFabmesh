@@ -780,6 +780,7 @@
                 <div class="step-preview-col">
                   <div class="step-card-preview" id="step2-preview">
                     <canvas id="ws-mesh-canvas"></canvas>
+                    <div id="ws-mesh-part-legend" class="part-legend" style="display:none;"></div>
                     <div id="ws-mesh-stages-bar" class="stages-bar hidden"></div>
                     <div class="preview-placeholder" id="step2-placeholder">No mesh yet</div>
                     <button id="ws-mesh-expand-btn" class="preview-expand-btn hidden" title="View 3D fullscreen">&#x26F6;</button>
@@ -855,6 +856,7 @@
                         <button id="ws-mesh-enhance-tex-btn" class="ghost-btn tool-btn" title="Sharpen / upscale the EXISTING baked texture (x2, no hallucination) — no re-generation">&#10024; Sharpen texture (x2)</button>
                         <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint with native PBR engine — qualité SOTA">&#11088; Re-Texture</button>
                         <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin) on cloud GPU">&#9986; Segment parts (AI)</button>
+                        <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head) with AI. Requires a segmented mesh.">&#127991; Name the zones (AI)</button>
                       </div>
                     </div>
                     <div class="step-tools-group">

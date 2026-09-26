@@ -331,6 +331,31 @@ image = (
         "echo '4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1  "
         "/opt/esrgan/RealESRGAN_x4plus.pth' | sha256sum -c -",
     )
+    # CLIP-L (MIT) pour « Name the zones (AI) ». Le script de nommage le
+    # charge en `local_files_only=True` et force HF_HUB_OFFLINE : sans ces
+    # fichiers dans l'image, il echouerait a CHAQUE appel. Seuls les fichiers
+    # lus par CLIPModel / CLIPImageProcessor / AutoTokenizer sont pris
+    # (safetensors, pas les poids TF/Flax en double).
+    .run_commands(
+        "python -c \"from huggingface_hub import snapshot_download; "
+        "snapshot_download('openai/clip-vit-large-patch14', "
+        "allow_patterns=['*.json', '*.txt', 'model.safetensors'])\"",
+    )
+    # ControlNet-Tile + VAE fp16 pour le pipe Tile (Age, Texture variants,
+    # Detail refine). MESURE DU 2026-09-26 sur banc isole : charges
+    # paresseusement depuis HuggingFace, ils prenaient 281 s a froid — alors
+    # que Cloudflare coupe chaque sous-requete a 100 s. Le premier clic sur un
+    # conteneur froid echouait donc presque a coup sur, et la reprise tombait
+    # sur un AUTRE conteneur froid. Dans l'image, ils se lisent depuis le
+    # disque. RealVisXL n'est pas repris ici : MyFabmeshBackview le charge
+    # deja au demarrage (meme depot, meme variante fp16).
+    .run_commands(
+        "python -c \"from huggingface_hub import snapshot_download; "
+        "snapshot_download('xinsir/controlnet-tile-sdxl-1.0', "
+        "allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors']); "
+        "snapshot_download('madebyollin/sdxl-vae-fp16-fix', "
+        "allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors'])\"",
+    )
     .add_local_python_source("modal_app")
     .add_local_file(
         "modal_app/back_tpose_skeleton.png",
@@ -1594,17 +1619,19 @@ class MyFabmeshBackview:
             tex = getattr(mat, "baseColorTexture", None) if mat is not None else None
             if tex is None:
                 continue
-            # Plafond 4096 en sortie : au-dela, l'atlas depasse ce que le
-            # worker peut rapatrier en une reponse, et aucun moteur de jeu
-            # courant n'en tire parti. Un atlas deja >= 4096 est laisse tel quel.
-            if max(tex.size) * 2 > 4096:
+            # Plafond 8192 en sortie. Il etait a 4096, ce qui refusait les
+            # atlas 4K — soit la sortie normale d'une generation (mesure du
+            # 2026-09-26 sur l'orc : atlas 4096). Le bureau, lui, les passe en
+            # 8K. Au banc : 27,5 s, GLB WebP de 26,8 Mo, plus leger que
+            # l'entree ; 8192 reste importable dans Unreal.
+            if max(tex.size) * 2 > 8192:
                 continue
             mat.baseColorTexture = affuter_atlas(tex, echelle_sortie=2)
             tailles.append(f"{tex.size[0]}->{mat.baseColorTexture.size[0]}")
             faits += 1
         if not faits:
             raise HTTPException(status_code=422,
-                detail="no baked texture to sharpen (or already at 4096)")
+                detail="no baked texture to sharpen (or already at 8192)")
         buf = io.BytesIO()
         scene.export(buf, file_type="glb", extension_webp=True)
         out = buf.getvalue()
@@ -1612,6 +1639,78 @@ class MyFabmeshBackview:
               f"en {time.time() - t0:.1f}s", flush=True)
         return {"ok": True, "op_type": "enhance_tex", "bytes": len(out),
                 "glb_base64": base64.b64encode(out).decode("ascii")}
+
+    def _route_mesh_name_parts(self, payload: dict):
+        """« Name the zones (AI) » — portage cloud de l'IPC bureau 'name-parts'.
+
+        Execute les MEMES scripts que le bureau (copies surveillees dans
+        modal_app/part_namer/, fichier entier identique) : le routeur
+        name_parts.py choisit la voie squelette (poids de skinning d'un rig)
+        ou la voie vision (rendu isole + CLIP-L + priors geometriques), et
+        ecrit le fichier annexe JSON que l'interface lit par part_id.
+
+        Sous-processus, comme sur le bureau : le routeur lance lui-meme ses
+        deux voies avec `sys.executable`, et un contexte CUDA neuf evite de
+        partager la VRAM des pipes SDXL deja charges dans ce conteneur.
+        """
+        import json as _json
+        import os as _os
+        import subprocess
+        import sys as _sys
+        import tempfile
+        import urllib.request
+        from fastapi import HTTPException
+
+        _check_auth(payload)
+        mesh_url = (payload.get("mesh_url") or "").strip()
+        if not mesh_url:
+            raise HTTPException(status_code=400, detail="mesh_url required")
+        asset = "".join(c for c in str(payload.get("asset_type") or "other")
+                        if c.isalpha() or c == "_")[:20] or "other"
+        rig_url = (payload.get("rig_url") or "").strip()
+
+        def telecharger(url, chemin):
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
+            with urllib.request.urlopen(req, timeout=120) as r, open(chemin, "wb") as f:
+                f.write(r.read())
+
+        dossier = tempfile.mkdtemp(prefix="name_")
+        maillage = _os.path.join(dossier, "segmented.glb")
+        sortie = _os.path.join(dossier, "segmented.glb.parts.json")
+        try:
+            telecharger(mesh_url, maillage)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+        routeur = _os.path.join(_os.path.dirname(__file__), "part_namer", "name_parts.py")
+        cmd = [_sys.executable, routeur, maillage, sortie, "--asset-type", asset]
+        if rig_url:
+            rig = _os.path.join(dossier, "rig.glb")
+            try:
+                telecharger(rig_url, rig)
+                cmd += ["--rig", rig]
+            except Exception as e:
+                # Le rig est un plus (voie squelette) : sans lui, la voie
+                # vision prend le relais, exactement comme sur le bureau.
+                print(f"[name-parts] rig ignore ({e}) -> voie vision", flush=True)
+        env = dict(_os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8",
+                   HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
+        t0 = time.time()
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              encoding="utf-8", timeout=300, env=env)
+        if proc.stdout:
+            print(proc.stdout[-3000:], flush=True)
+        try:
+            data = _json.load(open(sortie, encoding="utf-8"))
+        except Exception:
+            data = None
+        if proc.returncode != 0 or not data or data.get("source") == "error":
+            motif = (data or {}).get("error") or (proc.stderr or "")[-600:] or "naming failed"
+            print(f"[name-parts] ECHEC rc={proc.returncode}: {motif}", flush=True)
+            raise HTTPException(status_code=500, detail=f"naming failed: {motif}")
+        print(f"[name-parts] {len(data.get('parts') or [])} parts ({data.get('source')}) "
+              f"en {time.time() - t0:.1f}s", flush=True)
+        return {"ok": True, "sidecar": data}
 
     def _route_outfit(self, payload: dict):
         """Habits seuls — extrait les vetements d'une image de personnage.
@@ -1787,6 +1886,10 @@ class MyFabmeshBackview:
         @api.post("/mesh_enhance_tex")
         async def mesh_enhance_tex(request: Request):
             return self._route_mesh_enhance_tex(await _read_json(request))
+
+        @api.post("/mesh_name_parts")
+        async def mesh_name_parts(request: Request):
+            return self._route_mesh_name_parts(await _read_json(request))
 
         @api.post("/warm")
         async def warm(request: Request):
