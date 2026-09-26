@@ -11701,7 +11701,11 @@ document.getElementById('bs3d-start')?.addEventListener('click', () => {
         // source version stays untouched. Reload picks it up; pin selection to it.
         await reloadCurrentProject();
         const np = state.currentProject;
-        if (np) {
+        // Projet change PENDANT l'operation (2026-09-26) : le nouveau fichier
+        // appartient au projet du lancement (p), pas a celui qui est ouvert
+        // maintenant. Le designer ici faisait traiter le maillage de A par
+        // l'operation suivante lancee sur B, et l'enregistrait sous B.
+        if (np && p && np.name === p.name) {
           np._meshStages = r.stages;
           if (r.versionMeshPath) {
             np.previewMeshPath = r.versionMeshPath;
@@ -11749,7 +11753,11 @@ document.getElementById('ex3d-start')?.addEventListener('click', () => {
         completeJob(job.id, true);
         await reloadCurrentProject();
         const np = state.currentProject;
-        if (np) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
+        // Projet change PENDANT l'operation (2026-09-26) : le nouveau fichier
+        // appartient au projet du lancement (p), pas a celui qui est ouvert
+        // maintenant. Le designer ici faisait traiter le maillage de A par
+        // l'operation suivante lancee sur B, et l'enregistrait sous B.
+        if (np && p && np.name === p.name) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
         showToast('New "explosion" version — use the viewer explode slider.', 'success', 3200);
       } else {
         completeJob(job.id, false);
@@ -12009,7 +12017,11 @@ document.getElementById('rz-apply')?.addEventListener('click', () => {
         completeJob(job.id, true);
         await reloadCurrentProject();
         const np = state.currentProject;
-        if (np) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
+        // Projet change PENDANT l'operation (2026-09-26) : le nouveau fichier
+        // appartient au projet du lancement (p), pas a celui qui est ouvert
+        // maintenant. Le designer ici faisait traiter le maillage de A par
+        // l'operation suivante lancee sur B, et l'enregistrait sous B.
+        if (np && p && np.name === p.name) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
         showToast('New resized version created.', 'success', 2500);
       } else {
         completeJob(job.id, false);

@@ -22800,3 +22800,35 @@ pendant que l'enfant tourne, jamais retire. Nouveau : « 2s · 8 % » ->
 « 4s · 11 % », parent « running » puis « done » a la fin de l'enfant, les
 deux retires ; enfant survivant > 30 s detache et affiche seul. Aucune
 erreur de page.
+
+## 2026-09-26 — Resultat range dans le MAUVAIS projet (« ca s'est melange »)
+
+**Constat (capture utilisateur, cloud).** L'image Modify d'un guerrier
+(`1790427020639_229139881_modified.png`) est apparue en v2 d'un projet
+araignee : l'utilisateur avait change de projet pendant l'operation.
+
+**Cause (audit par agent, confirme).** `_attachToCurrentProject()`
+(meshyAPI-cloud.js) lisait `window.state.currentProject` APRES l'attente du
+resultat, puis enregistrait l'image sous ce nom (`/api/user-assets/record` ->
+`user_assets.project`, seul lien image -> projet ; la cle R2
+`<uid>/modified/...` ne porte pas le projet). Onze rattachements concernes :
+Modify, Style, Variant, Age, Auto Inpaint, inpaint au masque, Recolorier,
+Face Fix, Habits, Remove BG, Resolution, retouches canvas. Le bureau range
+par DOSSIER (a cote du fichier source) : non concerne.
+
+**Meme defaut, autre forme (bureau + web).** Apres Explode, Resize et les
+etapes de construction (2D bureau, 3D les deux), `np = state.currentProject`
+recevait le fichier du projet du lancement comme maillage affiche : l'op
+suivante lancee sur B aurait traite le maillage de A et l'aurait enregistre
+sous B. Rig/animation : ajout en memoire au projet ouvert (sans persistance).
+
+**Correctif.** Chaque shim capture le projet DES SON APPEL
+(`_projetAuLancement`, option `projectName` possible) et rattache au projet
+capture (`_attachToProject`). Garde `np.name === p.name` sur les sites
+d'interface ; rig/animation compares au projet du lancement.
+
+**Preuve (navigateur, API simulee, Modify de 3 s, bascule A -> B a 0,5 s).**
+Ancien code : image enregistree sous « Projet B ». Nouveau : « Projet A ».
+
+**Signale, non traite ici.** Les vues arriere (appels sans projectName) ne
+sont rattachees a AUCUN projet (`_appendCloudImages` les ignore).

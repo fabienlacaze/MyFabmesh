@@ -3885,7 +3885,11 @@ document.getElementById('bs-start')?.addEventListener('click', async () => {
         // via the disk association (check-stages-dir on <newStem>_stages/).
         await reloadCurrentProject();
         const np = state.currentProject;
-        if (np && r.versionImagePath) {
+        // Projet change PENDANT l'operation (2026-09-26) : le nouveau fichier
+        // appartient au projet du lancement (p), pas a celui qui est ouvert
+        // maintenant. Le designer ici faisait traiter le maillage de A par
+        // l'operation suivante lancee sur B, et l'enregistrait sous B.
+        if (np && r.versionImagePath && p && np.name === p.name) {
           np.previewImagePath = r.versionImagePath;
           np.selectedImagePath = r.versionImagePath;
           np._activeStageKey = r.stages.length - 1;  // land on the final by default
@@ -4015,7 +4019,11 @@ document.getElementById('ex3d-start')?.addEventListener('click', () => {
         completeJob(job.id, true);
         await reloadCurrentProject();
         const np = state.currentProject;
-        if (np) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
+        // Projet change PENDANT l'operation (2026-09-26) : le nouveau fichier
+        // appartient au projet du lancement (p), pas a celui qui est ouvert
+        // maintenant. Le designer ici faisait traiter le maillage de A par
+        // l'operation suivante lancee sur B, et l'enregistrait sous B.
+        if (np && p && np.name === p.name) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
         showToast(_i18nT('"Exploded" version created — use the explode slider in the viewer.'), 'success', 3200);
       } else {
         completeJob(job.id, false);
@@ -4287,7 +4295,11 @@ document.getElementById('rz-apply')?.addEventListener('click', () => {
         completeJob(job.id, true);
         await reloadCurrentProject();
         const np = state.currentProject;
-        if (np) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
+        // Projet change PENDANT l'operation (2026-09-26) : le nouveau fichier
+        // appartient au projet du lancement (p), pas a celui qui est ouvert
+        // maintenant. Le designer ici faisait traiter le maillage de A par
+        // l'operation suivante lancee sur B, et l'enregistrait sous B.
+        if (np && p && np.name === p.name) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
         showToast(_i18nT('New resized version created.'), 'success', 2500);
       } else {
         completeJob(job.id, false);
@@ -4342,7 +4354,11 @@ document.getElementById('bs3d-start')?.addEventListener('click', () => {
         // source version stays untouched. Reload picks it up; pin selection to it.
         await reloadCurrentProject();
         const np = state.currentProject;
-        if (np) {
+        // Projet change PENDANT l'operation (2026-09-26) : le nouveau fichier
+        // appartient au projet du lancement (p), pas a celui qui est ouvert
+        // maintenant. Le designer ici faisait traiter le maillage de A par
+        // l'operation suivante lancee sur B, et l'enregistrait sous B.
+        if (np && p && np.name === p.name) {
           np._meshStages = r.stages;
           if (r.versionMeshPath) {
             np.previewMeshPath = r.versionMeshPath;

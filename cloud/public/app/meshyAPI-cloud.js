@@ -1003,7 +1003,8 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       return { success: true, ok: true, path: filename, downloaded: true };
     },
-    saveImageDataUrl: async ({ dataUrl, filename, basePath, suffix } = {}) => {
+    saveImageDataUrl: async ({ dataUrl, filename, basePath, suffix, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud-correct behaviour: upload the dataURL produced by the
       // canvas editor (Clone Stamp, Mask, Blur, Paint, etc.) to R2 via
       // the Worker, get back a stable HTTPS URL, attach it as a new
@@ -1022,7 +1023,7 @@
           return { success: false, error: r?.error || 'upload failed' };
         }
         const newPath = r.path;
-        await _attachToCurrentProject(newPath, 'front');
+        await _attachToProject(_projetLancement, newPath, 'front');
         const base = basePath ? _stripExt(_basename(basePath)) : 'image';
         const fn   = filename || `${base}_${suf}_${Date.now()}.png`;
         return { success: true, ok: true, newPath, path: newPath, filename: fn };
@@ -1329,6 +1330,27 @@
   // BEFORE reloadCurrentProject() so the Supabase row is visible to
   // the next /api/cloud-projects call. Without this, the user had
   // to manually refresh after Remove BG / Modify / Inpaint / Upscale.
+  /* PROJET CAPTURE AU LANCEMENT (2026-09-26).
+   *
+   * _attachToCurrentProject lisait le projet ouvert APRES l'attente du
+   * resultat. Un utilisateur qui changeait de projet pendant une operation
+   * voyait le resultat range dans le MAUVAIS projet : l'image « Modify » d'un
+   * guerrier est apparue en v2 d'un projet araignee (signale le 2026-09-26).
+   * Le lien image -> projet est persiste par /api/user-assets/record
+   * (Supabase `user_assets.project`), qui enregistre le nom qu'on lui donne.
+   *
+   * Chaque shim capture donc le projet DES SON APPEL — au clic, avant toute
+   * attente — et rattache le resultat a ce projet-la. Un appelant peut aussi
+   * le donner explicitement (option `projectName`). */
+  function _projetAuLancement(explicite) {
+    return (explicite && String(explicite)) || window.state?.currentProject?.name || null;
+  }
+  async function _attachToProject(projectName, newPath, kind /* 'front'|'back' */) {
+    if (!newPath || !projectName) return;
+    try {
+      await _appendCloudImages(projectName, [newPath], kind || 'front');
+    } catch (_) { /* ignore */ }
+  }
   async function _attachToCurrentProject(newPath, kind /* 'front'|'back' */) {
     if (!newPath) return;
     try {
@@ -1952,7 +1974,8 @@
         return { success: true, newPath };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    imageQuickEdit: async ({ imagePath, operation, params } = {}) => {
+    imageQuickEdit: async ({ imagePath, operation, params, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud override: 'upscale' routes to Modal SDXL refine pass for
       // a real AI upscale (instead of the desktop's pure-LANCZOS
       // canvas drawImage). Costs 2 credits at x2, 3 at x4. The
@@ -1963,7 +1986,7 @@
           const r = await postJSON('/api/upscale-image', { imageUrl: imagePath, scale: (params?.scale === 4 ? 4 : 2) });
           if (r?.success && (r.newPath || r.path)) {
             const newPath = r.newPath || r.path;
-            await _attachToCurrentProject(newPath, 'front');
+            await _attachToProject(_projetLancement, newPath, 'front');
             if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
             return { success: true, newPath };
           }
@@ -2027,7 +2050,7 @@
           return { success: false, error: 'Unknown operation: ' + operation };
         }
         const newPath = await _canvasToBlobUrl(out);
-        await _attachToCurrentProject(newPath, 'front');
+        await _attachToProject(_projetLancement, newPath, 'front');
         return { success: true, newPath };
       } catch (e) { return { success: false, error: String(e) }; }
     },
@@ -2067,7 +2090,8 @@
     },
 
     /* ── background removal (Worker / Replicate) ────────────────── */
-    removeBackground: async (imagePathOrUrl) => {
+    removeBackground: async (imagePathOrUrl, { projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       const imageUrl = imagePathOrUrl;
       // The Worker accepts JSON with imageUrl OR multipart with image=Blob.
       // Blob URLs aren't fetchable from Replicate, so we upload via
@@ -2084,7 +2108,7 @@
           r = await postForm('/api/remove-background', fd);
         }
         if (r?.success && (r.newPath || r.path)) {
-          await _attachToCurrentProject(r.newPath || r.path, 'front');
+          await _attachToProject(_projetLancement, r.newPath || r.path, 'front');
         }
         return r;
       } catch (e) { return { success: false, ok: false, error: String(e) }; }
@@ -2149,7 +2173,8 @@
     refineMesh: async () => ({ success: false, ok: false, error: 'Mesh refine (Blender + Claude) is Desktop-only.' }),
     stopSdxlServer: async () => ({ ok: true }),
     checkMultiviewDir: async () => ({ ok: true, exists: false, files: [] }),
-    img2img: async ({ imagePath, prompt, strength } = {}) => {
+    img2img: async ({ imagePath, prompt, strength, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud port of the desktop /img2img IPC handler (main.js:2874).
       // Worker POSTs to MODAL_MODIFY_URL with imageUrl + prompt + strength
       // and returns the URL of the freshly written R2 PNG. We expose the
@@ -2163,14 +2188,15 @@
         });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
-          await _attachToCurrentProject(newPath, 'front');
+          await _attachToProject(_projetLancement, newPath, 'front');
           if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
           return { success: true, newPath };
         }
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    autoInpaint: async ({ imagePath, targetText, prompt, dilate } = {}) => {
+    autoInpaint: async ({ imagePath, targetText, prompt, dilate, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud port of the desktop /auto-inpaint IPC handler
       // (main.js:2824). CLIPSeg detects the area + SDXL Inpaint paints
       // the new content. Returns { success, newPath } so the renderer
@@ -2183,14 +2209,15 @@
         });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
-          await _attachToCurrentProject(newPath, 'front');
+          await _attachToProject(_projetLancement, newPath, 'front');
           if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
           return { success: true, newPath };
         }
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    outfitCutout: async ({ imagePath, pieces, ensemble, parPiece, completer, recadrer } = {}) => {
+    outfitCutout: async ({ imagePath, pieces, ensemble, parPiece, completer, recadrer, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Habits seuls — port cloud de l'IPC bureau 'outfit-cutout'.
       // SEUL outil image a sortie MULTIPLE : on rend une LISTE de pieces,
       // chacune rattachee au projet courant comme une image de plus.
@@ -2210,13 +2237,14 @@
         }
         const sorties = [];
         for (const p of r.pieces) {
-          await _attachToCurrentProject(p.url, 'front');
+          await _attachToProject(_projetLancement, p.url, 'front');
           sorties.push({ nom: p.nom, chemin: p.url, aire: p.aire, complete: p.complete });
         }
         return { success: true, pieces: sorties, absentes: r.absentes || [] };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    texVariant: async ({ imagePath, prompt, strength, seed, cnScale, negPrompt } = {}) => {
+    texVariant: async ({ imagePath, prompt, strength, seed, cnScale, negPrompt, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Variante de texture a structure verrouillee (ControlNet-Tile) — c'est
       // aussi le moteur de l'outil « Age ». cnScale bas = les proportions
       // peuvent bouger, haut = la silhouette est tenue.
@@ -2232,13 +2260,14 @@
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
-          await _attachToCurrentProject(newPath, 'front');
+          await _attachToProject(_projetLancement, newPath, 'front');
           return { success: true, newPath };
         }
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    recolor: async ({ imagePath, prompt, strength, dilate, recolorAll } = {}) => {
+    recolor: async ({ imagePath, prompt, strength, dilate, recolorAll, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Recolorier — port cloud de l'IPC bureau. CLIPSeg detecte la partie
       // nommee, puis virage HSV qui preserve la luminance : plis et ombres
       // restent. Le chemin ControlNet-Tile du bureau (matieres : « rusty
@@ -2256,7 +2285,7 @@
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
-          await _attachToCurrentProject(newPath, 'front');
+          await _attachToProject(_projetLancement, newPath, 'front');
           return { success: true, newPath };
         }
         return { success: false, error: r?.error || 'unknown', needsModify: !!r?.needsModify };
@@ -2279,7 +2308,8 @@
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    maskInpaint: async ({ imagePath, maskDataUrl, prompt } = {}) => {
+    maskInpaint: async ({ imagePath, maskDataUrl, prompt, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud port of the desktop /mask-inpaint IPC (main.js:2790).
       // Frontend sends image URL + base64 mask + prompt; Worker
       // decodes the mask, uploads it to R2, and forwards to Modal's
@@ -2291,7 +2321,7 @@
         const r = await postJSON('/api/mask-inpaint', { imageUrl: imagePath, maskDataUrl, prompt });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
-          await _attachToCurrentProject(newPath, 'front');
+          await _attachToProject(_projetLancement, newPath, 'front');
           if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
           return { success: true, newPath };
         }
@@ -2300,13 +2330,14 @@
     },
     // Image-level Face Fix (NOT the 3D atlas one). OpenCV Haar Cascade
     // → SDXL Inpaint over the face bbox. Was a stub before Wave 3.
-    faceFixImage: async ({ imagePath, strength } = {}) => {
+    faceFixImage: async ({ imagePath, strength, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       if (!imagePath) return { success: false, error: 'imagePath required' };
       try {
         const r = await postJSON('/api/face-fix-image', { imageUrl: imagePath, strength });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
-          await _attachToCurrentProject(newPath, 'front');
+          await _attachToProject(_projetLancement, newPath, 'front');
           if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
           return { success: true, newPath };
         }
@@ -2363,6 +2394,7 @@
     // so callers can hot-swap the mesh in the viewer without knowing
     // anything changed under the hood.
     autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress } = {}) => {
+      const _projetLancement = _projetAuLancement(null);   // voir _projetAuLancement
       const url = meshUrl || meshPath;
       if (!url) return { success: false, ok: false, error: 'meshPath or meshUrl required' };
 
@@ -2511,7 +2543,10 @@
           // immediately, even if reloadCurrentProject doesn't pick it up
           // from /api/meshes (browser cache, stale state, etc.).
           try {
-            if (window.state?.currentProject) {
+            // Projet change pendant le rig : le rig appartient au projet du
+            // lancement ; on passe par la branche « projet change » plus bas.
+            if (window.state?.currentProject
+                && (!_projetLancement || window.state.currentProject.name === _projetLancement)) {
               const filename = _basename(glbUrl) || 'rigged_puppeteer.glb';
               window.state.currentProject.rigs = window.state.currentProject.rigs || [];
               const already = window.state.currentProject.rigs.some(r => r.url === glbUrl);
@@ -2701,6 +2736,7 @@
     // every 5s. Worker uploads the animated GLB to R2 on done; we push
     // it into state.currentProject.animations[].
     autoAnimAI: async ({ rigPath, rigUrl, animType, prompt, engine, onProgress, batchId, projectName } = {}) => {
+      const _projetLancement = _projetAuLancement(projectName);   // voir _projetAuLancement
       const url = rigUrl || rigPath;
       if (!url) return { success: false, ok: false, error: 'rigPath or rigUrl required' };
       let jobId;
@@ -2793,7 +2829,10 @@
           const animUrl = st.anim_url || st.url || st.path || null;
           if (!animUrl) return { success: false, ok: false, error: 'animate done but no URL returned' };
           try {
-            if (window.state?.currentProject) {
+            // Seulement si c'est TOUJOURS le projet du lancement (sinon le
+            // rechargement du bon projet la montrera a son ouverture).
+            if (window.state?.currentProject
+                && (!_projetLancement || window.state.currentProject.name === _projetLancement)) {
               const p = window.state.currentProject;
               p.animations = p.animations || [];
               const filename = _basename(animUrl) || 'anim.glb';
