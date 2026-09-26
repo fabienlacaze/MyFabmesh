@@ -3644,7 +3644,8 @@ async function handleAdminModalCredits(req: Request, env: Env): Promise<Response
     const todaySpent = parseFloat(await r2GetText(env, `_meta/modal_spend/${todayUTC()}`) || '0') || 0;
     const budget = parseFloat(await r2GetText(env, '_meta/modal_budget_total.txt') || '0') || 0;
     let realUsage: number | null = null, realTs: string | null = null, realByApp: Record<string, number> | null = null;
-    try { const rt = await r2GetText(env, '_meta/modal_real_usage.json'); const r = rt ? JSON.parse(rt) : null; if (r && typeof r.usage === 'number') { realUsage = r.usage; realTs = r.ts || null; realByApp = (r.by_app && typeof r.by_app === 'object') ? r.by_app : null; } } catch {}
+    let realByDay: Record<string, number> | null = null;
+    try { const rt = await r2GetText(env, '_meta/modal_real_usage.json'); const r = rt ? JSON.parse(rt) : null; if (r && typeof r.usage === 'number') { realUsage = r.usage; realTs = r.ts || null; realByApp = (r.by_app && typeof r.by_app === 'object') ? r.by_app : null; realByDay = (r.by_day && typeof r.by_day === 'object') ? r.by_day : null; } } catch {}
     const fresh = realTs ? (Date.now() - Date.parse(realTs)) < 26 * 3600 * 1000 : false;
     const usage = (fresh && realUsage != null) ? realUsage : estSpent;
     let alert: unknown = null;
@@ -3702,6 +3703,12 @@ async function handleAdminModalCredits(req: Request, env: Env): Promise<Response
       real_usage_ts: realTs,
       real_usage_fresh: fresh,
       real_usage_by_app: realByApp,
+      // Facture reelle jour par jour (30 j) : « aujourd'hui », moyenne par
+      // jour et jours restants se lisent sur la FACTURE, pas sur l'estimation.
+      real_by_day: realByDay,
+      // Plafond quotidien des comptes gratuits : il s'applique au compteur
+      // d'ESTIMATION du jour (`today_spent`), pas a la facture.
+      daily_cap_usd: _plafond(env.MAX_DAILY_MODAL_SPEND_USD, DEFAULT_MAX_MODAL_SPEND_USD),
       estimate_spent: round(estSpent),
       today_spent: round(todaySpent),
       remaining: Math.max(0, round(budget - usage)),

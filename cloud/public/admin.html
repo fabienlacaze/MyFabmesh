@@ -599,60 +599,43 @@
           </table>
         </div>
       </div>
-      <!-- Modal credit balance — admin-managed (top up budget on Modal,
-           paste the new total here, the worker sums every daily spend
-           file under _meta/modal_spend/ to give remaining). -->
+      <!-- COUT GPU (MODAL) — reecrit le 2026-09-27 : le user la trouvait
+           illisible (anglais et francais, dollars et euros, facture et
+           estimation melangees, « rattache », « burn rate », 15 noms d'app).
+           Tout est en dollars (Modal facture en $) et tire de la FACTURE
+           REELLE (releve horaire), sauf le plafond quotidien, qui s'applique
+           par construction au compteur d'estimation et le dit. -->
       <div class="chart-card" style="margin-bottom:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-          <div class="label" style="text-transform:uppercase; letter-spacing:1px; font-size:11px; color:var(--text-2);">💰 Modal credits</div>
-          <button class="btn" onclick="loadModalCredits()">🔄 Refresh</button>
+          <div class="label" style="text-transform:uppercase; letter-spacing:1px; font-size:11px; color:var(--text-2);">💰 Coût GPU (Modal) <span id="mc-releve" style="text-transform:none; letter-spacing:0;"></span></div>
+          <button class="btn" onclick="loadModalCredits()">🔄 Actualiser</button>
         </div>
+        <div id="mc-etat" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:14px; font-weight:600; background:var(--bg-2); border:1px solid var(--border);">—</div>
         <div id="modal-credits-grid" class="grid grid-4" style="margin-top:10px;">
-          <div class="metric-card"><div class="metric-label">Limite Modal</div><div class="metric-value" id="mc-total">—</div></div>
-          <div class="metric-card"><div class="metric-label">Total spent</div><div class="metric-value" id="mc-spent">—</div></div>
-          <div class="metric-card"><div class="metric-label">Remaining</div><div class="metric-value" id="mc-remaining">—</div></div>
-          <div class="metric-card"><div class="metric-label">Today</div><div class="metric-value" id="mc-today">—</div></div>
+          <div class="metric-card"><div class="metric-label">Dépensé ce mois</div><div class="metric-value" id="mc-spent">—</div><div class="metric-sub" id="mc-spent-sub"></div></div>
+          <div class="metric-card"><div class="metric-label">Aujourd'hui</div><div class="metric-value" id="mc-today">—</div><div class="metric-sub" id="mc-today-sub"></div></div>
+          <div class="metric-card"><div class="metric-label">Moyenne par jour (7 j)</div><div class="metric-value" id="mc-moyenne">—</div><div class="metric-sub" id="mc-moyenne-sub"></div></div>
+          <div class="metric-card"><div class="metric-label">Reste avant la limite</div><div class="metric-value" id="mc-remaining">—</div><div class="metric-sub" id="mc-remaining-sub"></div></div>
         </div>
-        <!-- GPU BURN RATE — €/day over 7d and 30d, plus how long the prepaid
-             Modal budget lasts at that rate. All three figures come from
-             stats.json → burn (server-computed from series_30d + the R2
-             budget counters), so the dashboard and the budget guard can't
-             drift apart. -->
-        <div class="grid grid-3" id="burn-grid" style="margin-top:10px;">
-          <div class="metric-card">
-            <div class="metric-label">Burn rate (7d)</div>
-            <div class="metric-value" id="burn-7d">—</div>
-            <div class="metric-sub" id="burn-7d-sub"></div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-label">Burn rate (30d)</div>
-            <div class="metric-value" id="burn-30d">—</div>
-            <div class="metric-sub" id="burn-30d-sub"></div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-label">Runway</div>
-            <div class="metric-value" id="burn-runway">—</div>
-            <div class="metric-sub" id="burn-eta"></div>
-          </div>
+        <div style="margin-top:14px;">
+          <div class="metric-label" style="margin-bottom:6px;">Où part l'argent ce mois</div>
+          <div id="mc-postes" style="display:grid; gap:6px;"></div>
+          <div id="mc-fixes" class="metric-sub" style="margin-top:8px; line-height:1.5;"></div>
         </div>
-        <div id="cap-bar-wrap" style="display:none; margin-top:12px;">
-          <div class="metric-label" style="margin-bottom:5px;">Today's GPU cost vs daily cap</div>
+        <div id="cap-bar-wrap" style="display:none; margin-top:14px;">
+          <div class="metric-label" style="margin-bottom:5px;">Plafond quotidien des comptes gratuits</div>
           <div style="height:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:999px; overflow:hidden;">
             <div id="cap-bar-fill" style="height:100%; width:0%; transition:width .3s;"></div>
           </div>
           <div class="metric-sub" id="cap-bar-text" style="margin-top:4px;"></div>
+          <div class="metric-sub" id="cap-bar-explic" style="margin-top:2px;">Au-delà, les comptes <b>gratuits</b> sont refusés jusqu'à minuit (UTC). Les comptes payants ne sont jamais bloqués par ce plafond. Compté sur l'estimation du jour, pas sur la facture.</div>
         </div>
-        <div class="muted" style="font-size:11px; margin-top:8px;">
-          Burn rate et graphique : facture Modal <em>réelle</em> jour par jour
-          (relevé horaire) ; l'estimation par opération ne sert que pour un jour
-          absent du relevé.
-        </div>
-        <div style="display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap;">
-          <label style="font-size:12px; color:var(--text-2);">Limite d'usage Modal ($):</label>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:14px; flex-wrap:wrap;">
+          <label for="mc-budget-input" style="font-size:12px; color:var(--text-2);">Limite mensuelle ($)</label>
           <input type="number" id="mc-budget-input" step="0.01" min="0"
-                 style="width:140px; padding:6px 10px; background:var(--bg-2); color:var(--text-0); border:1px solid var(--border); border-radius:6px; font-size:12px;" />
-          <button class="btn" onclick="saveModalBudget()">Save</button>
-          <span style="font-size:11px; color:var(--text-2);">Mets ta limite Modal (le « budget » de ton dashboard Modal, ex. $65). L'alerte (bannière + email) se déclenche quand la conso réelle approche (≤15 % restant) ou atteint cette limite.</span>
+                 style="width:120px; padding:6px 10px; background:var(--bg-2); color:var(--text-0); border:1px solid var(--border); border-radius:6px; font-size:12px;" />
+          <button class="btn" onclick="saveModalBudget()">Enregistrer</button>
+          <span style="font-size:11px; color:var(--text-2);">Mets la même valeur que « Usage limit » sur modal.com. Alerte (bandeau + e-mail) à 15 % restant ; à 100 %, le cloud refuse tout calcul GPU.</span>
         </div>
       </div>
       <div class="grid grid-4" id="cards-finance"></div>
@@ -1775,7 +1758,8 @@
         card('Last 7d margin (€)',     d.last_7d.margin_eur.toFixed(2),        '', 'ok'),
       ].join('');
       renderMoneyChartInto('chart-money', d.series_30d, 220);
-      renderBurn(d.burn);
+      // La carte « Coût GPU (Modal) » est remplie par loadModalCredits() seul
+      // (facture reelle) ; renderBurn ecrivait dans la meme barre de plafond.
 
       // ── Tab: Par type
       const rows = Object.entries(d.by_type)
@@ -4069,6 +4053,16 @@
         _updateModalBanner((await r.json()).alert);
       } catch (_) {}
     }
+    // Regroupe les applications Modal en postes lisibles (et sans nom de
+    // moteur a l'ecran).
+    function _posteModal(app) {
+      if (app === 'myfabmesh-cloud') return 'Images et maillages 3D';
+      if (/skintokens|-rig$/.test(app)) return 'Rig';
+      if (/unimate|-anim$|fbx-retarget/.test(app)) return 'Animation';
+      if (/partsam|sampart/.test(app)) return 'Segmentation';
+      if (/^fabmesh-|test|banc|diag/.test(app)) return "Tests et bancs d'essai";
+      return app;
+    }
     async function loadModalCredits() {
       try {
         const r = await fetch('/api/admin/modal-credits', { credentials: 'include' });
@@ -4078,76 +4072,129 @@
           throw new Error('HTTP ' + r.status + (body ? ' — ' + body.slice(0, 120) : ''));
         }
         const j = await r.json();
-        const fmt = (n) => '$' + (Number(n) || 0).toFixed(2);
-        document.getElementById('mc-total').textContent     = fmt(j.total_budget);
-        document.getElementById('mc-spent').textContent     = fmt(j.total_spent);
-        document.getElementById('mc-remaining').textContent = fmt(j.remaining);
-        document.getElementById('mc-today').textContent     = fmt(j.today_spent);
-        const input = document.getElementById('mc-budget-input');
-        if (input && !input.value) input.value = (Number(j.total_budget) || 0).toFixed(2);
-        // Colour "remaining" by budget health + sync the global alert banner.
-        const remEl = document.getElementById('mc-remaining');
-        if (remEl) {
-          const b = Number(j.total_budget) || 0, rem = Number(j.remaining) || 0;
-          const pct = b > 0 ? rem / b : 1;
-          remEl.style.color = (rem <= 0) ? 'var(--err)' : (pct <= 0.15 ? 'var(--warn)' : '');
-        }
-        // Show whether the figure is the REAL Modal usage (billing poller) or the estimate.
-        let note = document.getElementById('mc-source-note');
-        if (!note) {
-          note = document.createElement('div'); note.id = 'mc-source-note';
-          note.style.cssText = 'font-size:12px; margin-top:8px; line-height:1.5;';
-          const grid = document.getElementById('modal-credits-grid');
-          if (grid && grid.after) grid.after(note);
-        }
-        if (note) {
-          if (j.usage_source === 'real' && j.real_usage_ts) {
-            const ageMin = Math.round((Date.now() - Date.parse(j.real_usage_ts)) / 60000);
-            note.innerHTML = `✅ Conso <b>réelle Modal</b> (modal billing) — màj il y a ${ageMin} min · estimation worker $${(Number(j.estimate_spent) || 0).toFixed(2)}`
-              + (j.real_usage_fresh ? '' : ' · ⚠️ donnée ancienne (poller arrêté ?)');
-            if (j.real_usage_by_app && typeof j.real_usage_by_app === 'object') {
-              const apps = Object.entries(j.real_usage_by_app).sort((a, b) => b[1] - a[1]);
-              if (apps.length) note.innerHTML += '<br><span style="opacity:.85">Par app : '
-                + apps.map(([a, c]) => `<b>${a}</b> $${Number(c).toFixed(2)}`).join(' · ') + '</span>';
-            }
-            // RÉCONCILIATION — ce que la facture dit contre ce que le
-            // système sait rattacher. Sans cette ligne, le tableau de bord
-            // laissait croire que la somme des coûts par opération EST la
-            // facture. Mesuré le 2026-08-04 : 11,79 $ facturés pour 3,68 $
-            // rattachés, soit 69 % dans le vide. Un écart élevé n'est pas
-            // forcément anormal (constructions d'images, snapshots,
-            // préchauffages), mais il doit être VISIBLE.
-            if (typeof j.unattributed_usd === 'number') {
-              const pct = Number(j.unattributed_pct) || 0;
-              const couleur = pct >= 50 ? 'var(--err)' : (pct >= 25 ? 'var(--warn)' : 'var(--text-2)');
-              note.innerHTML += `<br><span style="color:${couleur}">`
-                + `Rattaché aux opérations : <b>$${(Number(j.attributed_usd) || 0).toFixed(2)}</b>`
-                + ` sur ${Number(j.attributed_ops) || 0} opérations`
-                + ` · <b>non rattaché : $${Number(j.unattributed_usd).toFixed(2)} (${pct} %)</b>`
-                + `</span><br><span style="opacity:.7; font-size:11px;">`
-                + `Le non rattaché couvre les constructions d'images Modal, les snapshots recréés `
-                + `après chaque déploiement et les préchauffages. Élevé pendant le développement, `
-                + `il doit retomber sur une période sans déploiement.</span>`;
-            }
-            note.style.color = j.real_usage_fresh ? 'var(--text-2)' : 'var(--warn)';
+        const $ = (n) => '$' + (Number(n) || 0).toFixed(2);
+        const poser = (id, txt, couleur) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.textContent = txt;
+          el.style.color = couleur || '';
+        };
+        const limite = Number(j.total_budget) || 0;
+        const depense = Number(j.total_spent) || 0;
+        const reste = limite - depense;
+        const reel = j.usage_source === 'real';
+
+        // Facture par jour : aujourd'hui, hier, moyennes 7 / 30 jours.
+        const parJour = (j.real_by_day && typeof j.real_by_day === 'object') ? j.real_by_day : null;
+        const jour = (decalage) => new Date(Date.now() - decalage * 86400000).toISOString().slice(0, 10);
+        const somme = (n) => { let t = 0; for (let i = 0; i < n; i++) t += Number(parJour?.[jour(i)] || 0); return t; };
+        const aujourdhui = parJour ? Number(parJour[jour(0)] || 0) : null;
+        const hier = parJour ? Number(parJour[jour(1)] || 0) : null;
+        const moy7 = parJour ? somme(7) / 7 : null;
+        const moy30 = parJour ? somme(30) / 30 : null;
+        const joursRestants = (moy7 && moy7 > 0 && reste > 0) ? Math.floor(reste / moy7) : null;
+
+        const releve = document.getElementById('mc-releve');
+        if (releve) {
+          if (reel && j.real_usage_ts) {
+            const min = Math.round((Date.now() - Date.parse(j.real_usage_ts)) / 60000);
+            releve.textContent = `· facture réelle, relevée il y a ${min} min` + (j.real_usage_fresh ? '' : ' ⚠️ relevé arrêté ?');
+            releve.style.color = j.real_usage_fresh ? '' : 'var(--warn)';
           } else {
-            note.innerHTML = '⚠️ Conso = <b>estimation worker</b> (imprécise). Lancez <code>scripts/modal_usage_push.py</code> pour la vraie conso Modal.';
-            note.style.color = 'var(--warn)';
+            releve.textContent = '· ⚠️ estimation seulement (relevé Modal absent)';
+            releve.style.color = 'var(--warn)';
+          }
+        }
+
+        // PHRASE D'ETAT : ce qu'il faut savoir en une ligne.
+        const etat = document.getElementById('mc-etat');
+        if (etat) {
+          let txt, fond, bord;
+          if (limite <= 0) {
+            txt = "Aucune limite mensuelle définie : aucune alerte ne sera envoyée.";
+            fond = 'var(--bg-2)'; bord = 'var(--warn)';
+          } else if (reste <= 0) {
+            txt = `🔴 Limite atteinte (${$(depense)} sur ${$(limite)}) : le cloud refuse tout calcul GPU. Relève la limite ci-dessous et sur modal.com.`;
+            fond = 'rgba(255,77,79,0.12)'; bord = 'var(--err)';
+          } else if (reste / limite <= 0.15) {
+            txt = `🟠 Bientôt atteinte : reste ${$(reste)} sur ${$(limite)}` + (joursRestants != null ? `, environ ${joursRestants} jour(s) au rythme actuel.` : '.');
+            fond = 'rgba(255,176,32,0.12)'; bord = 'var(--warn)';
+          } else {
+            txt = `🟢 OK : reste ${$(reste)} sur ${$(limite)}` + (joursRestants != null ? `, environ ${joursRestants} jour(s) au rythme actuel.` : '.');
+            fond = 'var(--bg-2)'; bord = 'var(--ok)';
+          }
+          etat.textContent = txt;
+          etat.style.background = fond;
+          etat.style.borderColor = bord;
+        }
+
+        poser('mc-spent', $(depense));
+        poser('mc-spent-sub', reel ? 'facture réelle Modal' : 'estimation (relevé absent)');
+        poser('mc-today', aujourdhui == null ? '—' : $(aujourdhui));
+        poser('mc-today-sub', hier == null ? '' : `hier : ${$(hier)}`);
+        poser('mc-moyenne', moy7 == null ? '—' : $(moy7));
+        poser('mc-moyenne-sub', moy30 == null ? '' : `sur 30 jours : ${$(moy30)} / jour`);
+        poser('mc-remaining', limite > 0 ? $(Math.max(0, reste)) : '—',
+          limite > 0 && reste <= 0 ? 'var(--err)' : (limite > 0 && reste / limite <= 0.15 ? 'var(--warn)' : ''));
+        poser('mc-remaining-sub', limite <= 0 ? 'aucune limite définie'
+          : reste <= 0 ? `dépassée de ${$(-reste)}`
+          : (joursRestants != null ? `≈ ${joursRestants} jour(s) au rythme actuel` : `sur ${$(limite)}`));
+        const input = document.getElementById('mc-budget-input');
+        if (input && !input.value) input.value = limite.toFixed(2);
+
+        // OU PART L'ARGENT : barres par poste.
+        const postes = document.getElementById('mc-postes');
+        if (postes) {
+          const tot = {};
+          for (const [app, c] of Object.entries(j.real_usage_by_app || {})) {
+            const k = _posteModal(app);
+            tot[k] = (tot[k] || 0) + (Number(c) || 0);
+          }
+          const liste = Object.entries(tot).filter(([, c]) => c >= 0.005).sort((a, b) => b[1] - a[1]);
+          const max = Math.max(0.01, ...liste.map(([, c]) => c));
+          postes.innerHTML = liste.length ? liste.map(([k, c]) => `
+            <div style="display:grid; grid-template-columns:minmax(120px,190px) 1fr 70px; gap:10px; align-items:center; font-size:12px;">
+              <span>${escapeHtml(k)}</span>
+              <span style="height:8px; background:var(--bg-2); border-radius:999px; overflow:hidden;"><span style="display:block; height:100%; width:${(100 * c / max).toFixed(1)}%; background:var(--cost);"></span></span>
+              <span style="text-align:right; font-variant-numeric:tabular-nums;">${$(c)}</span>
+            </div>`).join('')
+            : '<div class="metric-sub">Détail indisponible (relevé Modal absent).</div>';
+        }
+        // COUT DES CLIENTS CONTRE FRAIS FIXES.
+        const fixes = document.getElementById('mc-fixes');
+        if (fixes) {
+          if (typeof j.unattributed_usd === 'number') {
+            fixes.innerHTML = `Sur ${$(depense)} : <b>${$(j.attributed_usd)}</b> pour les ${Number(j.attributed_ops) || 0} opérations lancées par les comptes, `
+              + `et <b>${$(j.unattributed_usd)} (${Number(j.unattributed_pct) || 0} %)</b> de frais sans client : `
+              + `déploiements, démarrages à froid, tests. Ces frais baissent quand on ne déploie pas.`;
+          } else {
+            fixes.textContent = '';
+          }
+        }
+        // Plafond quotidien des comptes gratuits (compteur d'estimation).
+        const wrap = document.getElementById('cap-bar-wrap');
+        const fill = document.getElementById('cap-bar-fill');
+        const cap = Number(j.daily_cap_usd) || 0;
+        if (wrap && fill) {
+          if (cap <= 0) { wrap.style.display = 'none'; }
+          else {
+            wrap.style.display = '';
+            const est = Number(j.today_spent) || 0;
+            const pct = Math.min(100, (est / cap) * 100);
+            fill.style.width = pct.toFixed(1) + '%';
+            fill.style.background = pct < 70 ? 'var(--ok)' : (pct < 100 ? 'var(--warn)' : 'var(--err)');
+            poser('cap-bar-text', `${$(est)} sur ${$(cap)} aujourd'hui` + (pct >= 100 ? ' — atteint : comptes gratuits refusés' : ''),
+              pct >= 100 ? 'var(--err)' : '');
           }
         }
         _updateModalBanner(j.alert);
-        // Burn rate / runway / cap bar come from stats.json (server-computed),
-        // NOT from this endpoint. Re-render from the last payload so opening
-        // Finance directly still fills the cells; if refresh() has not landed
-        // yet they stay '—' and populate on the next cycle.
-        renderBurn(_lastStats && _lastStats.burn);
       } catch (e) {
         // Replace the cryptic "!" with the real reason (HTTP code +
         // body snippet) so the admin can act on it (401 → log back in,
         // 500 → check Worker logs, etc.).
         const msg = String(e?.message || e || 'error');
         const short = msg.length > 22 ? msg.slice(0, 20) + '…' : msg;
-        ['mc-total', 'mc-spent', 'mc-remaining', 'mc-today'].forEach((id) => {
+        ['mc-spent', 'mc-remaining', 'mc-today', 'mc-moyenne'].forEach((id) => {
           const el = document.getElementById(id);
           if (el) {
             el.textContent = short;
