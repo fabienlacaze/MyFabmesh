@@ -22629,3 +22629,31 @@ les autres montraient toutes la meme image source. Une liste R2 par appel
 rattache maintenant chaque rendu a son maillage (base derivee comme a
 l'enregistrement). Prevision mesuree : 20 versions sur 21 retrouvent leur
 rendu.
+
+## 2026-09-26 — Rig : le squelette flottait au-dessus du personnage
+
+**Constat (capture utilisateur, cloud).** Chevalier rigge : le squelette
+cyan est dessine une demi-hauteur AU-DESSUS du casque ; le maillage est blanc.
+
+**Mesure sur le fichier.** Rig telecharge depuis R2 : 34 os, positions
+monde y -0,988 a 0,73, maillage y -1 a 1 (hauteur normalisee a 2). Les os
+sont DANS le corps : le fichier est juste, l'affichage est faux.
+
+**Cause (source three.js r170).** `SkeletonHelper` fait
+`this.matrix = object.matrixWorld` PAR REFERENCE et `matrixAutoUpdate =
+false` : il est concu pour etre pose a la racine de la scene. Le
+visualiseur l'ajoutait comme ENFANT du modele — la transformation du modele
+etait donc appliquee deux fois. Avec « Pivot: bottom », qui remonte le
+modele d'une demi-hauteur, le squelette montait d'autant de trop.
+
+**Correctif (bureau + web).** Matrice identite propre a l'aide
+(`helper.matrix = new THREE.Matrix4()`, `matrixAutoUpdate = false`) :
+enfant du modele + identite = l'espace du modele, celui ou l'aide calcule
+ses segments. PROUVE sur le vrai GPU (ANGLE D3D11, RTX 5080) avec le rig
+de l'utilisateur : avant, os au-dessus du casque ; apres, os dans le corps.
+
+**Reste ouvert : le maillage blanc.** Le GLB rigge n'a NI coordonnees UV
+(attributs POSITION, NORMAL, JOINTS_0, WEIGHTS_0) NI materiau : soupe de
+triangles (1 426 035 sommets = 3 x 475 345 faces). L'etape 7 de
+`_puppeteer_rig.py` (re-texture depuis la source) ne peut rien projeter
+sans UV. Correctif en aval de Puppeteer a suivre (transfert d'UV).

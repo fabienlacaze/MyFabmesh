@@ -3621,6 +3621,16 @@ function createMeshViewerControls(toolbarEl, getViewer) {
       } catch (e) {}
       helper.renderOrder = 998; // above the mesh, below landmark markers
       helper.name = 'SkeletonHelper';
+      // MATRICE IDENTITE (2026-09-26). three.js donne a SkeletonHelper la
+      // matrice du modele PAR REFERENCE (`this.matrix = object.matrixWorld`),
+      // prevue pour une aide posee a la RACINE de la scene. Ajoutee ici comme
+      // ENFANT du modele, elle recevait sa transformation DEUX fois : des que
+      // « Pivot: bottom » remonte le modele, le squelette flottait une
+      // demi-hauteur au-dessus du corps (constate sur un rig dont le FICHIER
+      // plaçait bien les os dans le maillage). Enfant du modele + identite =
+      // exactement l'espace du modele, ou l'aide calcule ses segments.
+      helper.matrix = new THREE.Matrix4();
+      helper.matrixAutoUpdate = false;
       viewer.model.add(helper);
       // Add cyan spheres directly as children of each bone so they inherit
       // the animated transformations and follow the skeleton during playback.
