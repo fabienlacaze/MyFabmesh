@@ -23361,3 +23361,35 @@ erreur de page.
 
 **Au passage.** La pastille ⚡ du bouton Rig du bureau (mode cloud) affichait
 encore 5 credits apres la hausse a 10 (commit d5f7225).
+
+## 2026-09-26 — Rig automatique : bouts atteints + balayage des reglages du rigger
+
+Consigne user : « le but c'est que ca soit automatique sinon ca sert a
+rien » — l'editeur de points n'est qu'une retouche. Test automatique de
+l'araignee : 3 bouts de pattes sur 9 NON atteints. Cause : en mode auto,
+une extremite etait jugee complete a 90 % de la longueur du membre, donc le
+dernier segment (le bout de patte, le defaut signale au depart) restait sans
+os. Correctif : meme critere que l'editeur, chaque extremite detectee doit
+etre atteinte a une demi-longueur d'os pres (`PORTEE_COMPLETE` supprime).
+
+**Balayage des reglages du rigger** (banc `rig_mesh_essai`, araignee, 2
+tirages par reglage, squelette BRUT sans completion). Nos reglages SONT ceux
+de la demo officielle (Space VAST-AI/SkinTokens : grpo_1400, top_k 5, top_p
+0,95, temperature 1, penalite 2, 10 faisceaux). Resultat : DEUX REGIMES quel
+que soit le reglage — tirage « plein » (~70 os, 6 a 8 pattes completes sur
+9) ou « court » (~40 os, 0 patte complete) : officiels 43/72 os, temp 0,7
+47/68, top_k 50 53/67, penalite 2,5 70/43 ; temp 1,3 (44/38) et 20 faisceaux
+(42/33) : toujours courts ; penalite 1,5 : decodage plante 2 fois sur 2
+(comme 1,2) ; top_p 0,8 : 1 plantage sur 2. Conclusion : aucun reglage ne
+rend le squelette complet, le TIRAGE decide (~1 sur 2 plein) ; le levier est
+le nombre de tirages (2 -> ~75 % d'avoir un plein, 3 -> ~87 %) + la
+completion. La bimodalite fait soupconner une fin de sequence (EOS)
+prematuree : piste a verifier dans le code.
+
+**Detection des petits appendices** (essai NON deploye, version gardee hors
+depot) : seuil de candidats a 12 % du plus long (au lieu de 25 %), branche
+partagee acceptee si elle se separe pres du tronc, ecart minimal relatif a
+l'epaisseur. Araignee 9 -> 13 extremites : les deux CROCHETS trouves seuls,
+mais 2 bosses de pattes ; barbare 11 -> 16 (doigts, orteils) ; vache 14 ->
+33 (oreilles, cornes, museau, mais aussi genoux, jarrets, ergots) : trop
+permissif, filtre a trouver avant tout deploiement.

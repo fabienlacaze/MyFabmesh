@@ -45,7 +45,6 @@ import struct
 import numpy as np
 
 RESOLUTION = 220          # voxels sur la plus grande dimension
-PORTEE_COMPLETE = 0.9     # au-dela, une extremite est jugee couverte
 
 
 # =============================================================== GLB minimal
@@ -374,11 +373,15 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None):
     influence_du_rig(rig de l'IA) : les nouvelles chaines se rattachent a l'os
     qui fait deja bouger la zone ou elles naissent.
 
+    Chaque extremite doit etre ATTEINTE, a une demi-longueur d'os pres.
+    L'ancien seuil (90 % de la longueur du membre) laissait le bout sans os :
+    3 pattes sur 9 de l'araignee restaient courtes en mode automatique, le
+    defaut meme que le user avait signale (« ne va pas jusqu'au bout de
+    patte »).
+
     `pointes` (editeur de points) : les points de l'utilisateur, alignes sur
-    `lignes` (lignes_vers_points). Chacun doit etre ATTEINT, a une demi-
-    longueur d'os pres — et non plus a 90 % de la longueur du membre, seuil
-    de la detection automatique qui laissait un bout de pied sans os. Un point
-    sans ligne (tronc) est relie en droite a l'os qui fait bouger sa zone."""
+    `lignes` (lignes_vers_points). Un point sans ligne (tronc) est relie en
+    droite a l'os qui fait bouger sa zone."""
     from scipy import ndimage
     J = [np.asarray(p, dtype=np.float64) for p in J]
     parents, noms = list(parents), list(noms)
@@ -431,11 +434,7 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None):
         st = np.sort(s_j)
         pas = float(np.median(np.diff(st))) if len(st) > 1 else pas_global
         pas = max(pas, 0.02 * ext)
-        if pointes is None:
-            complet = p_ia >= PORTEE_COMPLETE
-        else:
-            complet = dernier is not None and (L - s_max) <= 0.5 * pas
-        if complet:
+        if dernier is not None and (L - s_max) <= 0.5 * pas:
             rapport.append({'extremite': a_i, 'portee_ia': round(p_ia, 2), 'action': 'complete', 'os': 0})
             continue
         if dernier is not None and p_ia >= 0.15:
