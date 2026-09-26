@@ -2150,6 +2150,17 @@ window.__optionsMortesCloud = new Set([]);
         <button id="cloud-diag-save" class="ghost-btn" type="button"
                 style="padding:4px 12px; font-size:11px;">Save a copy instead</button>
       </div>
+      <div class="settings-box-desc" style="margin-top:12px;">
+        Error reports: when an operation FAILS, the last 300 lines of this
+        tab's console are sent so we can fix the problem — with your prompts,
+        e-mail address, passwords and tokens removed. Nothing is sent when an
+        operation succeeds. Deleted after 30 days. You can object by
+        unticking the box.
+      </div>
+      <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-size:12px; margin-top:8px;">
+        <input type="checkbox" id="cloud-diag-errors" style="width:15px; height:15px; cursor:pointer;">
+        <span>Send error reports automatically (anonymised)</span>
+      </label>
     `;
 
     // The Account section header + its box are two siblings; drop this
@@ -2168,6 +2179,11 @@ window.__optionsMortesCloud = new Set([]);
     };
     majText();
     if (cb) cb.addEventListener('change', () => { cc.setEnabled(cb.checked); majText(); });
+    const cbErr = box.querySelector('#cloud-diag-errors');
+    if (cbErr && typeof cc.errorsAllowed === 'function') {
+      cbErr.checked = cc.errorsAllowed();
+      cbErr.addEventListener('change', () => { cbErr.checked = cc.setErrorsAllowed(cbErr.checked); });
+    }
     const save = box.querySelector('#cloud-diag-save');
     if (save) save.addEventListener('click', () => { try { cc.download(); } catch (_) {} });
   }

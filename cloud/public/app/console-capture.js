@@ -18,6 +18,15 @@
 //   - the current project name and job id
 // The server keeps it for 30 days (DIAG_LOG_RETENTION_DAYS in worker.ts)
 // and the privacy policy says so. Keep the three in sync.
+//
+// RAPPORTS D'ERREUR (2026-09-27, demande du user : « faire remonter les
+// logs utiles, au mieux du RGPD »). Sans consentement au diagnostic complet,
+// une operation qui ECHOUE envoie tout de meme un rapport MINIMISE : les 300
+// dernieres lignes, secrets ET prompts masques (_redactPrompts). Base legale :
+// interet legitime a corriger les defaillances (art. 6.1.f), annonce dans la
+// politique de confidentialite, avec OPPOSITION possible dans Settings
+// (ERR_KEY). Rien n'est envoye pour une operation reussie. Le serveur borne
+// lui-meme ce mode (handleClientLog) : la garde cliente ne suffit pas.
 
 (function () {
   if (window.__consoleCaptureInstalled) return;
@@ -25,6 +34,10 @@
 
   const MAX_LINES = 2000;
   const OPTIN_KEY = 'fabmesh.diag.optin';
+  // Opposition aux rapports d'erreur : '0' = refuse. Absent = accepte (interet
+  // legitime, annonce dans la politique ; l'utilisateur peut s'y opposer).
+  const ERR_KEY = 'fabmesh.diag.errors';
+  const ERR_LINES = 300;
   const buffer = [];
   const orig = {
     log:   console.log.bind(console),
@@ -37,6 +50,17 @@
   function isEnabled() {
     try { return localStorage.getItem(OPTIN_KEY) === '1'; }
     catch (_) { return false; }   // storage blocked → stay off
+  }
+
+  function errorsAllowed() {
+    try { return localStorage.getItem(ERR_KEY) !== '0'; }
+    catch (_) { return false; }   // storage blocked → no automatic report
+  }
+
+  function setErrorsAllowed(on) {
+    try { localStorage.setItem(ERR_KEY, on ? '1' : '0'); } catch (_) {}
+    orig.log('[console-capture] error reports', on ? 'allowed' : 'refused by user');
+    return errorsAllowed();
   }
 
   function setEnabled(on) {
@@ -64,6 +88,22 @@
     for (const [re, to] of REDACTIONS) s = s.replace(re, to);
     return s;
   }
+
+  // Rapports d'erreur seulement : les TEXTES SAISIS (prompt, prompt negatif,
+  // style, zone ciblee…) sont masques, qu'ils apparaissent en JSON
+  // ("prompt":"…") ou en texte (prompt: …, prompt=…). Le reste — etapes,
+  // codes HTTP, messages d'erreur — est ce qui sert a corriger.
+  const CLES_SAISIES = '(?:prompt|negative_?prompt|neg_?prompt|negPrompt|negativePrompt|userPrompt|user_prompt|positive|style|target_?text|targetText|caption|description)';
+  const PROMPT_REDACTIONS = [
+    [new RegExp('("' + CLES_SAISIES + '"\\s*:\\s*)"(?:[^"\\\\]|\\\\.)*"', 'gi'), '$1"[texte-masque]"'],
+    [new RegExp('\\b(' + CLES_SAISIES + ')(\\s*[:=]\\s*)[^\\n]+', 'gi'), '$1$2[texte-masque]'],   // jusqu'a la fin de ligne : un prompt contient des virgules
+  ];
+  function _redactPrompts(line) {
+    let s = _redact(line);
+    for (const [re, to] of PROMPT_REDACTIONS) s = s.replace(re, to);
+    return s.length > 600 ? s.slice(0, 600) + ' [...]' : s;
+  }
+  const ECHEC = /^(error|failed|fail|echec|canceled|cancelled)$/i;
 
   function _fmt(args) {
     try {
@@ -112,12 +152,29 @@
     };
   }
 
-  // Flush — POST the current buffer to /api/client-log. No-op unless the
-  // user opted in; the caller doesn't have to check.
+  // Rapport d'erreur minimise : 300 dernieres lignes, prompts masques.
+  function _payloadErreur(meta) {
+    return {
+      mode: 'erreur',
+      kind: meta.kind || 'unknown',
+      status: meta.status || 'error',
+      job_id: meta.job_id || null,
+      project: meta.project || (window.state?.currentProject?.name || null),
+      ua: navigator.userAgent,
+      url: _redact(location.href),
+      lines: buffer.slice(-ERR_LINES).map(_redactPrompts),
+    };
+  }
+
+  // Flush — POST the current buffer to /api/client-log. Full console only
+  // with the diagnostics opt-in; otherwise a MINIMISED report for a FAILED
+  // operation (unless the user objected). The caller doesn't have to check.
   async function flush(meta = {}) {
     if (!buffer.length) return { ok: true, skipped: true, reason: 'empty' };
-    if (!isEnabled()) return { ok: true, skipped: true, reason: 'diagnostics off' };
-    const payload = _payload(meta);
+    let payload;
+    if (isEnabled()) payload = _payload(meta);
+    else if (ECHEC.test(String(meta.status || '')) && errorsAllowed()) payload = _payloadErreur(meta);
+    else return { ok: true, skipped: true, reason: 'diagnostics off' };
     try {
       const r = await fetch('/api/client-log', {
         method: 'POST',
@@ -159,6 +216,8 @@
     download,
     isEnabled,
     setEnabled,
+    errorsAllowed,
+    setErrorsAllowed,
     buffer: () => buffer.slice(),
     clear: () => { buffer.length = 0; },
     size: () => buffer.length,
@@ -175,5 +234,6 @@
   });
 
   orig.log('[console-capture] installed — buffer max', MAX_LINES,
-           'lines; upload', isEnabled() ? 'ENABLED (user opt-in)' : 'off');
+           'lines; upload', isEnabled() ? 'ENABLED (user opt-in)'
+             : (errorsAllowed() ? 'error reports only (minimised)' : 'off'));
 })();

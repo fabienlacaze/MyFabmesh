@@ -94,6 +94,19 @@ export default function PrivacyPage() {
           plutôt une copie), qui écrit le même journal dans un fichier sur votre
           ordinateur et ne téléverse rien.
         </li>
+        <li>
+          <strong>Rapports d&apos;erreur &mdash; seulement quand une opération échoue&nbsp;:</strong>{' '}
+          si une génération ou un outil échoue, les 300 dernières lignes de la
+          console de votre navigateur nous sont envoyées pour que nous puissions
+          corriger le problème. Avant de quitter votre navigateur, ce rapport est
+          <strong> débarrassé de vos prompts et autres textes saisis</strong>, de
+          votre adresse e-mail, des mots de passe et des jetons d&apos;accès. Rien
+          n&apos;est envoyé quand l&apos;opération réussit. Base légale&nbsp;:
+          intérêt légitime (art. 6.1.f) à corriger les défaillances du service.
+          Vous pouvez vous y opposer à tout moment en décochant &laquo;&nbsp;Send
+          error reports automatically&nbsp;&raquo; dans &laquo;&nbsp;Settings&nbsp;&raquo;
+          (Réglages). Conservés 30 jours, puis supprimés automatiquement.
+        </li>
       </ul>
 
       <h2>3. Pourquoi nous les collectons</h2>
@@ -103,6 +116,7 @@ export default function PrivacyPage() {
         <li>Pour vous facturer les crédits consommés (exécution du contrat).</li>
         <li>Pour protéger le service contre les abus &mdash; limitation de débit, listes de bannissement, journaux d&apos;audit (intérêt légitime).</li>
         <li>Pour instruire un problème que vous nous avez signalé, si &mdash; et seulement si &mdash; vous avez activé les journaux de diagnostic (consentement, art. 6.1.a&nbsp;; retirez-le en les désactivant).</li>
+        <li>Pour diagnostiquer et corriger une opération qui a échoué, à partir d&apos;un rapport d&apos;erreur sans vos textes saisis (intérêt légitime, art. 6.1.f&nbsp;; vous pouvez vous y opposer dans Settings).</li>
         <li>Pour nous conformer au droit français et au droit de l&apos;Union européenne lorsqu&apos;ils s&apos;appliquent (obligation légale).</li>
       </ul>
 
@@ -207,6 +221,7 @@ export default function PrivacyPage() {
         <li>Contenus générés stockés sur R2&nbsp;: jusqu&apos;à ce que vous les supprimiez, ou jusqu&apos;à la suppression de votre compte.</li>
         <li>Journaux d&apos;audit de l&apos;administration&nbsp;: 12 mois.</li>
         <li>Journaux de diagnostic (uniquement si vous les avez activés)&nbsp;: 30 jours, puis suppression automatique.</li>
+        <li>Rapports d&apos;erreur automatiques (opérations échouées)&nbsp;: 30 jours, puis suppression automatique.</li>
         <li>Journaux techniques Cloudflare&nbsp;: 24 heures (valeur par défaut de Cloudflare).</li>
       </ul>
 

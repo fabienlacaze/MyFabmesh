@@ -13203,10 +13203,24 @@ async function handleClientLog(req: Request, env: Env): Promise<Response> {
   } catch {
     return err(400, 'JSON body required');
   }
-  const lines = Array.isArray(body?.lines) ? body.lines : [];
+  let lines = Array.isArray(body?.lines) ? body.lines : [];
   if (!lines.length) return json({ ok: true, skipped: true, reason: 'no lines' });
   const kind   = String(body?.kind   || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'unknown';
   const status = String(body?.status || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'unknown';
+  /* RAPPORT D'ERREUR MINIMISE (2026-09-27). Envoye SANS le consentement au
+   * diagnostic complet, sur la base de l'interet legitime a corriger une
+   * defaillance : il n'est donc accepte que pour un ECHEC, et borne ici,
+   * cote serveur (la garde du navigateur ne suffit pas) : 400 lignes au plus,
+   * 600 caracteres par ligne. Le masquage des prompts est fait par le client
+   * (console-capture.js) ; ce mode n'enregistre ni URL complete ni rien de
+   * plus que le mode consenti. */
+  const modeErreur = body?.mode === 'erreur';
+  if (modeErreur) {
+    if (!/^(error|failed|fail|echec|canceled|cancelled)$/i.test(status)) {
+      return err(400, 'error reports are only accepted for failed operations');
+    }
+    lines = lines.slice(-400).map((l: unknown) => String(l).slice(0, 600));
+  }
   const project = String(body?.project || '').replace(/[^a-zA-Z0-9_\- ]/g, '').slice(0, 64);
   const job_id = String(body?.job_id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
@@ -13214,7 +13228,7 @@ async function handleClientLog(req: Request, env: Env): Promise<Response> {
   // enumerate every diagnostic log with one list() instead of walking the
   // whole bucket — and so console dumps stop sitting inside the same
   // prefix as the user's own meshes.
-  const key = `_logs/diag/${user.id}/${ts}_${kind}_${status}${job_id ? `_${job_id}` : ''}.log`;
+  const key = `_logs/diag/${user.id}/${ts}_${kind}_${status}${modeErreur ? '_auto' : ''}${job_id ? `_${job_id}` : ''}.log`;
   // Build a header + body. Keep it text/plain for easy reading via curl.
   const header = [
     `# fabmesh client-log`,
@@ -13227,6 +13241,7 @@ async function handleClientLog(req: Request, env: Env): Promise<Response> {
     `# ua: ${String(body?.ua || '').slice(0, 256)}`,
     `# server_ts: ${ts}`,
     `# lines: ${lines.length}`,
+    `# mode: ${modeErreur ? 'rapport d erreur automatique (minimise, prompts masques)' : 'diagnostic complet (consentement)'}`,
     `# retention: deleted after ${DIAG_LOG_RETENTION_DAYS} days`,
     ``,
   ].join('\n');
@@ -13810,6 +13825,79 @@ async function handleAdminLogsList(req: Request, env: Env): Promise<Response> {
   // Newest first across all users.
   collected.sort((a, b) => (b.uploaded || '').localeCompare(a.uploaded || ''));
   return json({ ok: true, count: collected.length, logs: collected.slice(0, limit) });
+}
+
+/** GET /api/admin/traces?email=|uid=&limit=&failed=1 — ADMIN. La trace
+ *  SERVEUR de chaque generation / operation, pour tous les comptes.
+ *
+ *  Ajoute le 2026-09-27 (« faire remonter les logs des users a chaque
+ *  generation », au mieux du RGPD). La table `jobs` porte deja tout ce qui
+ *  sert a diagnostiquer — operation, reglages, statut, duree, credits,
+ *  erreur exacte du serveur ou du GPU — pour CHAQUE operation, sans rien
+ *  demander au navigateur. On l'expose ici, SANS les textes saisis (les cles
+ *  de prompt / style / description sont retirees des reglages), et on relie
+ *  chaque ligne au rapport navigateur du meme travail s'il existe. */
+async function handleAdminTraces(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  const url = new URL(req.url);
+  const limit = Math.max(1, Math.min(200, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
+  const echecsSeuls = url.searchParams.get('failed') === '1';
+  let uid = (url.searchParams.get('uid') || '').trim();
+  const email = (url.searchParams.get('email') || '').trim().toLowerCase();
+  const sb = supabaseAdmin(env);
+  if (!uid && email) {
+    const { data } = await sb.from('profiles').select('id').ilike('email', email).limit(1);
+    uid = (data?.[0]?.id as string) || '';
+    if (!uid) return json({ ok: true, count: 0, traces: [], note: 'no account with this e-mail' });
+  }
+  let q = sb.from('jobs')
+    .select('id, user_id, type, asset_type, mode, status, credit_cost, cost_usd, project_name, options, error, created_at, finished_at')
+    .order('created_at', { ascending: false }).limit(limit);
+  if (uid) q = q.eq('user_id', uid);
+  if (echecsSeuls) q = q.in('status', ['failed', 'canceled']);
+  const { data, error } = await q;
+  if (error) return err(500, error.message);
+  const rows = (data || []) as Array<Record<string, unknown>>;
+  const emails = new Map<string, string | null>();
+  const ids = [...new Set(rows.map((r) => r.user_id as string).filter(Boolean))];
+  if (ids.length) {
+    const { data: pr } = await sb.from('profiles').select('id, email').in('id', ids);
+    for (const p of (pr || []) as Array<{ id: string; email: string | null }>) emails.set(p.id, p.email);
+  }
+  // Rapports navigateur (diagnostic consenti ou rapport d'erreur) rattaches
+  // par identifiant de travail, encode en fin de cle.
+  const cles: string[] = [];
+  if (env.MESHES) {
+    try {
+      const l = await env.MESHES.list({ prefix: uid ? `_logs/diag/${uid}/` : '_logs/diag/', limit: 1000 });
+      for (const o of l.objects || []) cles.push(o.key);
+    } catch { /* la trace serveur reste utile sans eux */ }
+  }
+  const TEXTE_SAISI = /prompt|style|text|caption|description|negative|translat/i;
+  const traces = rows.map((r) => {
+    const opts = (r.options && typeof r.options === 'object') ? r.options as Record<string, unknown> : {};
+    const reglages: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(opts)) {
+      if (TEXTE_SAISI.test(k)) continue;
+      if (typeof v === 'string' && v.length > 200) continue;
+      reglages[k] = v;
+    }
+    const debut = Date.parse(String(r.created_at || ''));
+    const fin = Date.parse(String(r.finished_at || ''));
+    const jobId = String(r.id);
+    return {
+      id: jobId, date: r.created_at, email: emails.get(r.user_id as string) ?? null,
+      operation: String(opts.operation_type || r.type || 'mesh'),
+      type: r.type, asset_type: r.asset_type, status: r.status,
+      duree_s: Number.isFinite(debut) && Number.isFinite(fin) ? Math.round((fin - debut) / 1000) : null,
+      credits: r.credit_cost, cout_usd: r.cost_usd, projet: r.project_name,
+      erreur: r.error ? String(r.error).slice(0, 2000) : null,
+      reglages,
+      rapport: cles.find((k) => k.endsWith(`_${jobId}.log`)) || null,
+    };
+  });
+  return json({ ok: true, count: traces.length, traces });
 }
 
 /** GET /api/admin/logs/get?key=<key> — fetches the content of one log.
@@ -19032,6 +19120,7 @@ export default {
         if (pathname === '/api/client-log'            && method === 'POST') return await handleClientLog(req, env);
         if (pathname === '/api/client-log/list'       && method === 'GET')  return await handleClientLogList(req, env);
         if (pathname === '/api/admin/logs/list'       && method === 'GET')  return await handleAdminLogsList(req, env);
+        if (pathname === '/api/admin/traces'          && method === 'GET')  return await handleAdminTraces(req, env);
         if (pathname === '/api/admin/logs/get'        && method === 'GET')  return await handleAdminLogsGet(req, env);
         if (pathname === '/api/user-assets/record'    && method === 'POST') return await handleUserAssetsRecord(req, env);
         // Materialise un projet cote serveur des sa creation (2026-09-25).

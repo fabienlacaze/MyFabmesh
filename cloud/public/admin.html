@@ -961,6 +961,38 @@
         </div>
       </div>
       <div id="debuglogs-result" style="display:none; margin-bottom:8px; padding:8px 10px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px; font-size:12px; color:var(--text-2);"></div>
+      <!-- TRACE SERVEUR de chaque generation (2026-09-27) : la table `jobs`,
+           sans textes saisis, reliee au rapport navigateur s'il existe. -->
+      <div class="chart-card" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div class="label" style="text-transform:uppercase; letter-spacing:1px; font-size:11px; color:var(--text-2);">Every generation — server trace</div>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
+            <input type="checkbox" id="traces-failed"> Failed only
+          </label>
+        </div>
+        <div class="muted" style="font-size:12px; margin:6px 0 8px;">
+          One line per operation, for every user: settings (never the prompt), status, duration, credits and the exact server / GPU error.
+          "Report" opens the browser console sent for that operation (automatic on failure, prompts masked; full only with the user's opt-in).
+        </div>
+        <div style="overflow-x:auto;">
+          <table id="traces-table">
+            <thead>
+              <tr>
+                <th style="width:150px;">When (UTC)</th>
+                <th>Account</th>
+                <th>Operation</th>
+                <th style="width:80px;">Status</th>
+                <th class="num" style="width:70px;">Duration</th>
+                <th class="num" style="width:60px;">Credits</th>
+                <th>Error</th>
+                <th style="width:140px;"></th>
+              </tr>
+            </thead>
+            <tbody><tr><td colspan="8" class="muted">Click Fetch.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="label" style="text-transform:uppercase; letter-spacing:1px; font-size:11px; color:var(--text-2); margin-bottom:6px;">Browser console reports</div>
       <table id="debuglogs-table">
         <thead>
           <tr>
@@ -4478,7 +4510,78 @@
       note.textContent = j.note || '';
     }
 
+    let _traces = [];
+    async function loadTraces() {
+      const tbody = document.querySelector('#traces-table tbody');
+      if (!tbody) return;
+      const email = document.getElementById('debuglogs-email').value.trim();
+      const uid = document.getElementById('debuglogs-uid').value.trim();
+      const limit = Math.max(1, Math.min(200, parseInt(document.getElementById('debuglogs-limit').value || '50', 10)));
+      const qs = new URLSearchParams({ limit: String(limit) });
+      if (uid) qs.set('uid', uid); else if (email) qs.set('email', email);
+      if (document.getElementById('traces-failed')?.checked) qs.set('failed', '1');
+      tbody.innerHTML = '<tr><td colspan="8" class="muted">Loading…</td></tr>';
+      try {
+        const r = await fetch('/api/admin/traces?' + qs.toString(), { credentials: 'include' });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        _traces = j.traces || [];
+        if (!_traces.length) { tbody.innerHTML = `<tr><td colspan="8" class="muted">${escapeHtml(j.note || 'No operation for this filter.')}</td></tr>`; return; }
+        tbody.innerHTML = _traces.map((t, i) => {
+          const when = t.date ? String(t.date).replace('T', ' ').slice(0, 19) : '—';
+          const col = t.status === 'succeeded' ? 'var(--ok)' : (t.status === 'failed' || t.status === 'canceled') ? 'var(--err)' : 'var(--warn)';
+          const err = t.erreur ? escapeHtml(String(t.erreur).split('\n')[0].slice(0, 140)) : '<span class="muted">—</span>';
+          return `<tr>
+            <td style="font-family:Consolas,monospace; font-size:11px;">${escapeHtml(when)}</td>
+            <td>${escapeHtml(t.email || '—')}</td>
+            <td><span style="background:var(--bg-2); padding:2px 6px; border-radius:4px; font-size:11px;">${escapeHtml(t.operation)}</span>
+                <span class="muted" style="font-size:11px;">${escapeHtml(t.projet || '')}</span></td>
+            <td style="color:${col};">${escapeHtml(t.status || '—')}</td>
+            <td class="num">${t.duree_s == null ? '—' : t.duree_s + ' s'}</td>
+            <td class="num">${t.credits ?? '—'}</td>
+            <td style="font-size:11px; max-width:380px;">${err}</td>
+            <td style="white-space:nowrap;">
+              <button class="btn" style="font-size:11px; padding:3px 8px;" onclick="viewTrace(${i})">Details</button>
+              ${t.rapport ? `<button class="btn" style="font-size:11px; padding:3px 8px;" onclick="viewDebugLog(${JSON.stringify(t.rapport).replace(/"/g, '&quot;')})">Report</button>` : ''}
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--err)">${escapeHtml(e.message || String(e))}</td></tr>`;
+      }
+    }
+
+    function viewTrace(i) {
+      const t = _traces[i];
+      if (!t) return;
+      const wrap = document.getElementById('debuglogs-viewer-wrap');
+      const viewer = document.getElementById('debuglogs-viewer');
+      const title = document.getElementById('debuglogs-viewer-title');
+      title.textContent = `${t.operation} · ${t.id}`;
+      const texte = [
+        `operation : ${t.operation}   (type ${t.type || '—'}, asset ${t.asset_type || '—'})`,
+        `status    : ${t.status}`,
+        `account   : ${t.email || '—'}`,
+        `project   : ${t.projet || '—'}`,
+        `when      : ${t.date}`,
+        `duration  : ${t.duree_s == null ? '—' : t.duree_s + ' s'}`,
+        `credits   : ${t.credits ?? '—'}   estimated GPU cost: ${t.cout_usd ?? '—'} $`,
+        '',
+        'settings (typed text removed):',
+        JSON.stringify(t.reglages || {}, null, 2),
+        '',
+        'error:',
+        t.erreur || '—',
+      ].join('\n');
+      _debugLogCurrentText = texte;
+      _debugLogCurrentName = 'trace_' + t.id;
+      viewer.textContent = texte;
+      wrap.style.display = '';
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     async function loadDebugLogs() {
+      loadTraces();
       const tbody = document.querySelector('#debuglogs-table tbody');
       const result = document.getElementById('debuglogs-result');
       const email = document.getElementById('debuglogs-email').value.trim();
@@ -4642,6 +4745,8 @@
         if (t === 'active') { btn.dataset.loaded = '1'; loadActiveJobs(); }
         if (t === 'active'  && !btn.dataset.loaded) { btn.dataset.loaded = '1'; loadActiveJobs(); }
         if (t === 'users'   && !btn.dataset.loaded) { btn.dataset.loaded = '1'; loadUsers(); }
+        // Debug logs : s'ouvrait VIDE tant qu'on ne cliquait pas sur Fetch.
+        if (t === 'debuglogs' && !btn.dataset.loaded) { btn.dataset.loaded = '1'; loadDebugLogs(); }
         // Trafic : la seule facon de remplir les tableaux etait de cliquer
         // « 🔄 Charger ». L'onglet s'ouvrait donc VIDE, ce qui se lit comme
         // « aucune donnee » alors que la collecte fonctionne. On charge a
