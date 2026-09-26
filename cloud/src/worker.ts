@@ -3749,7 +3749,7 @@ async function handleAdminModalUsageIngest(req: Request, env: Env): Promise<Resp
   const provided = (req.headers.get('x-ingest-secret') || '').trim();
   if (!secret || provided !== secret) return err(401, 'unauthorized');
   if (!env.MESHES) return err(500, 'storage not configured');
-  let body: { usage?: number; cycle?: string; by_app?: Record<string, number>; by_day?: Record<string, number> };
+  let body: { usage?: number; cycle?: string; by_app?: Record<string, number>; by_day?: Record<string, number>; by_day_app?: Record<string, Record<string, number>> };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
   const usage = Number(body?.usage);
   if (!Number.isFinite(usage) || usage < 0) return err(400, 'usage must be a non-negative number');
@@ -3764,8 +3764,22 @@ async function handleAdminModalUsageIngest(req: Request, env: Env): Promise<Resp
       if (/^\d{4}-\d{2}-\d{2}$/.test(jour) && Number.isFinite(n) && n >= 0) byDay[jour] = Math.round(n * 10000) / 10000;
     }
   }
+  // Meme facture, par jour ET par application (bornee : 62 jours x 40 apps).
+  let byDayApp: Record<string, Record<string, number>> | null = null;
+  if (body?.by_day_app && typeof body.by_day_app === 'object') {
+    byDayApp = {};
+    for (const [jour, apps] of Object.entries(body.by_day_app).slice(0, 62)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || !apps || typeof apps !== 'object') continue;
+      const propre: Record<string, number> = {};
+      for (const [app, v] of Object.entries(apps).slice(0, 40)) {
+        const n = Number(v);
+        if (Number.isFinite(n) && n >= 0) propre[String(app).slice(0, 80)] = Math.round(n * 10000) / 10000;
+      }
+      byDayApp[jour] = propre;
+    }
+  }
   await env.MESHES.put('_meta/modal_real_usage.json', JSON.stringify({
-    usage: Math.round(usage * 10000) / 10000, by_app: byApp, by_day: byDay, cycle: String(body?.cycle || ''), ts: new Date().toISOString(),
+    usage: Math.round(usage * 10000) / 10000, by_app: byApp, by_day: byDay, by_day_app: byDayApp, cycle: String(body?.cycle || ''), ts: new Date().toISOString(),
   }));
   await _maybeAlertModalBudget(env);
   return json({ ok: true, success: true });
@@ -15781,6 +15795,9 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   let totalRevenueEur = 0, totalCostEur = 0;
   // Activity series (last 30 days, bucket by day).
   const seriesByDay: Record<string, { ops: number; users: Set<string>; revenue_eur: number; cost_eur: number; margin_eur: number }> = {};
+  // Operations des 30 derniers jours, gardees une par une pour le tableau
+  // « Par type » au COUT REEL (voir byType30 plus bas).
+  const ops30: Array<{ day: string; op: string; ok: boolean; credits: number; paye: number; mesure: number }> = [];
 
   type J = {
     user_id: string; status: string; credit_cost: number;
@@ -15836,6 +15853,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       s.revenue_eur += revenueEur;
       s.cost_eur += costEur;
       s.margin_eur += marginEur;
+      ops30.push({ day, op: opType, ok: j.status === 'succeeded', credits, paye: revenueEur, mesure: costEur });
     }
   }
 
@@ -15941,6 +15959,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   let realUsageUsd: number | null = null, realUsageTs: string | null = null;
   let realByApp: Record<string, number> | null = null;
   let realByDay: Record<string, number> | null = null;
+  let realByDayApp: Record<string, Record<string, number>> | null = null;
   try {
     const rt = await r2GetText(env, '_meta/modal_real_usage.json');
     const r = rt ? JSON.parse(rt) : null;
@@ -15948,6 +15967,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       realUsageUsd = r.usage; realUsageTs = r.ts || null;
       realByApp = (r.by_app && typeof r.by_app === 'object') ? r.by_app : null;
       realByDay = (r.by_day && typeof r.by_day === 'object') ? r.by_day : null;
+      realByDayApp = (r.by_day_app && typeof r.by_day_app === 'object') ? r.by_day_app : null;
     }
   } catch {}
   const realCostEur = realUsageUsd == null ? null : +(realUsageUsd * USD_TO_EUR).toFixed(2);
@@ -15972,6 +15992,78 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   }
   const coutJour = (p: typeof series30[number]) => p.real_cost_eur ?? p.cost_eur;
   const serieReelle = !!realByDay && series30.some(p => p.real_cost_eur != null);
+
+  /* « PAR TYPE » SUR 30 JOURS, AU COUT REEL.
+   *
+   * Le tableau historique (byType) etait faux a trois titres : il couvrait
+   * TOUT l'historique, sa recette ne comptait que les comptes ayant paye
+   * (donc 0 partout et « 0 % » rouge sur chaque ligne), et son cout n'etait
+   * que la duree mesuree x tarif — sans demarrages a froid ni inactivite
+   * facturee, soit ~40 % de la facture absente.
+   *
+   * Ici : la facture Modal REELLE de chaque jour est repartie sur les
+   * operations de ce jour au prorata de leur cout mesure (une operation
+   * longue porte davantage de frais). Un jour facture SANS aucune operation
+   * (constructions d'images, tests) n'est attribue a personne : il sort en
+   * ligne a part. La recette est la VALEUR des credits factures au prix de
+   * vente net moyen, ce que l'operation rapporterait sur un compte payant ;
+   * l'encaisse reel reste a part. */
+  // Poste d'une application Modal et poste d'une operation : la facture d'une
+  // application n'est repartie que sur les operations de SON poste (le rig
+  // tourne dans son app a part ; reparti sur tout le jour, son cout retombait
+  // sur les maillages). Sans detail par app, repli sur la facture du jour.
+  const posteApp = (app: string): string | null => {
+    if (app === 'myfabmesh-cloud') return 'cloud';
+    if (/skintokens|-rig$/.test(app)) return 'rig';
+    if (/unimate|-anim$|fbx-retarget/.test(app)) return 'anim';
+    if (/partsam|sampart/.test(app)) return 'segment';
+    return null;                                     // tests, bancs d'essai, diagnostics
+  };
+  const posteOp = (op: string): string =>
+    op === 'rig' ? 'rig' : op.startsWith('animate') ? 'anim' : op === 'segment' ? 'segment' : 'cloud';
+  const cleOp = (o: { day: string; op: string }) => realByDayApp ? `${o.day}|${posteOp(o.op)}` : o.day;
+  const debut30 = series30[0]?.day ?? '';
+  const mesureParCle: Record<string, number> = {};
+  for (const o of ops30) mesureParCle[cleOp(o)] = (mesureParCle[cleOp(o)] ?? 0) + o.mesure;
+  const factureParCle: Record<string, number> = {};    // en EUR
+  let factureSansOperationEur = 0;
+  const imputer = (cle: string, eur: number) => {
+    if (mesureParCle[cle] > 0) factureParCle[cle] = (factureParCle[cle] ?? 0) + eur;
+    else factureSansOperationEur += eur;
+  };
+  if (realByDayApp) {
+    for (const [d, apps] of Object.entries(realByDayApp)) {
+      if (d < debut30 || !apps || typeof apps !== 'object') continue;
+      for (const [app, usd] of Object.entries(apps)) {
+        if (typeof usd !== 'number') continue;
+        const poste = posteApp(app);
+        if (poste) imputer(`${d}|${poste}`, usd * USD_TO_EUR);
+        else factureSansOperationEur += usd * USD_TO_EUR;
+      }
+    }
+  } else if (realByDay) {
+    for (const [d, usd] of Object.entries(realByDay)) {
+      if (d >= debut30 && typeof usd === 'number') imputer(d, usd * USD_TO_EUR);
+    }
+  }
+  const byType30: Record<string, { count: number; failed: number; credits: number; value_eur: number; paid_eur: number; measured_eur: number; real_eur: number }> = {};
+  for (const o of ops30) {
+    const b = (byType30[o.op] ??= { count: 0, failed: 0, credits: 0, value_eur: 0, paid_eur: 0, measured_eur: 0, real_eur: 0 });
+    b.count += 1;
+    if (!o.ok) b.failed += 1;
+    b.credits += o.credits;
+    b.value_eur += o.credits * EUR_PER_CREDIT_NET;
+    b.paid_eur += o.paye;
+    b.measured_eur += o.mesure;
+    const cle = cleOp(o);
+    const facture = factureParCle[cle];
+    b.real_eur += (typeof facture === 'number' && mesureParCle[cle] > 0)
+      ? facture * (o.mesure / mesureParCle[cle])
+      : o.mesure;                                      // rien de facture sur ce poste ce jour-la : la mesure
+  }
+  for (const b of Object.values(byType30)) {
+    for (const k of ['value_eur', 'paid_eur', 'measured_eur', 'real_eur'] as const) b[k] = +b[k].toFixed(3);
+  }
 
   // PERIODES ALIGNEES. `realCostEur` vient du poller qui interroge Modal
   // avec --for "this month" : c'est un cout DU MOIS EN COURS. Il etait
@@ -16087,6 +16179,12 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     burn,
     operations: ops,
     by_type: byType,
+    by_type_30d: {
+      types: byType30,
+      facture_sans_operation_eur: +factureSansOperationEur.toFixed(2),
+      cout_reel: !!realByDay,
+      eur_par_credit: EUR_PER_CREDIT_NET,
+    },
     // Where the cost figures come from, so the dashboard can say it
     // rather than presenting guesses with the same authority as
     // measurements. `measured_rows` were priced from their own duration;

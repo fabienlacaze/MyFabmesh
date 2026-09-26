@@ -67,12 +67,18 @@ def modal_usage_by_day(days=30):
     if proc.returncode != 0:
         print(f"detail par jour indisponible: {proc.stderr.strip()[:300]}")
         return None
-    by_day = {}
+    by_day, by_day_app = {}, {}
     for r in json.loads(proc.stdout):
         jour = str(r.get("Interval Start") or "")[:10]
         if len(jour) == 10:
-            by_day[jour] = round(by_day.get(jour, 0.0) + float(r.get("Cost", 0) or 0), 6)
-    return by_day
+            c = float(r.get("Cost", 0) or 0)
+            by_day[jour] = round(by_day.get(jour, 0.0) + c, 6)
+            # Par application aussi : le tableau « Par type » attribue ainsi
+            # la facture du rig au rig, et non aux maillages du meme jour.
+            app = str(r.get("Description") or r.get("Object ID") or "unknown")
+            jour_app = by_day_app.setdefault(jour, {})
+            jour_app[app] = round(jour_app.get(app, 0.0) + c, 6)
+    return by_day, by_day_app
 
 
 def main() -> None:
@@ -80,9 +86,9 @@ def main() -> None:
         raise SystemExit("Set MODAL_USAGE_SECRET (must match the Worker's MODAL_USAGE_SECRET).")
     usage, by_app = modal_usage()
     corps = {"usage": usage, "by_app": by_app, "cycle": PERIOD}
-    by_day = modal_usage_by_day()
-    if by_day is not None:
-        corps["by_day"] = by_day
+    detail = modal_usage_by_day()
+    if detail is not None:
+        corps["by_day"], corps["by_day_app"] = detail
     payload = json.dumps(corps).encode("utf-8")
     req = urllib.request.Request(
         f"{WORKER}/api/admin/modal-usage", data=payload, method="POST",

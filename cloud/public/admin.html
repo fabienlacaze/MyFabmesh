@@ -654,22 +654,26 @@
 
     <!-- Tab: By type -->
     <div class="tab-panel" data-panel="bytype">
-      <div id="by-type-note" class="muted" style="font-size:12px; margin-bottom:10px; line-height:1.5;"></div>
+      <div id="by-type-resume" style="margin-bottom:10px; padding:10px 12px; border-radius:8px; background:var(--bg-2); border:1px solid var(--border); font-size:13px; line-height:1.6;"></div>
+      <div style="overflow-x:auto;">
       <table id="by-type-table">
         <thead>
           <tr>
-            <th>Type</th>
-            <th class="num">Count</th>
-            <th class="num">Revenue (€)</th>
-            <th class="num">Cost (€)</th>
-            <th class="num">Margin (€)</th>
-            <th class="num" title="Recette ÷ coût, par opération. &lt; 100 % = vendu à perte.">Marge %</th>
-            <th class="num" title="Recette moyenne par opération">€ / op</th>
-            <th class="num" title="Coût moyen par opération, calculé sur la durée réellement mesurée">Coût / op</th>
+            <th>Opération</th>
+            <th class="num" title="Nombre d'opérations sur 30 jours (dont échecs, remboursés au client mais payés à Modal)">Nombre</th>
+            <th class="num" title="Crédits réellement débités (échecs remboursés)">Crédits</th>
+            <th class="num" title="Crédits × prix de vente net moyen d'un crédit : ce que ces opérations rapporteraient sur des comptes payants">Valeur vendue (€)</th>
+            <th class="num" title="Facture Modal réelle du jour, répartie sur les opérations du jour au prorata de leur durée">Coût réel (€)</th>
+            <th class="num">Marge (€)</th>
+            <th class="num" title="Valeur vendue par opération réussie">Prix / op</th>
+            <th class="num" title="Coût réel par opération (échecs inclus)">Coût / op</th>
+            <th>Verdict</th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
+      </div>
+      <div id="by-type-note" class="muted" style="font-size:12px; margin-top:10px; line-height:1.5;"></div>
     </div>
 
     <!-- Tab: Active Jobs -->
@@ -1761,47 +1765,67 @@
       // La carte « Coût GPU (Modal) » est remplie par loadModalCredits() seul
       // (facture reelle) ; renderBurn ecrivait dans la meme barre de plafond.
 
-      // ── Tab: Par type
-      const rows = Object.entries(d.by_type)
-        .sort((a, b) => b[1].margin_eur - a[1].margin_eur)
-        .map(([type, m]) => {
-          // Marge en % du COÛT : < 100 % veut dire vendu sous le prix de
-          // revient. C'est la colonne qui a manqué pour reperer que la
-          // generation 3D partait a perte.
-          const ratio = m.cost_eur > 0 ? (m.revenue_eur / m.cost_eur) * 100 : null;
-          const perOpRev  = m.count ? m.revenue_eur / m.count : 0;
-          const perOpCost = m.count ? m.cost_eur / m.count : 0;
-          const col = m.margin_eur >= 0 ? 'var(--ok)' : 'var(--err)';
+      // ── Tab: Par type — 30 derniers jours, au COUT REEL (facture Modal).
+      // L'ancien tableau couvrait tout l'historique, comptait une recette nulle
+      // pour tout compte n'ayant pas paye (donc « 0 % » rouge partout) et un
+      // cout sans demarrages a froid ni inactivite (~40 % de la facture).
+      const bt = d.by_type_30d;
+      const tbodyType = document.querySelector('#by-type-table tbody');
+      const resume = document.getElementById('by-type-resume');
+      const noteType = document.getElementById('by-type-note');
+      if (!bt || !bt.types) {
+        tbodyType.innerHTML = '<tr><td colspan="9" class="muted">Données indisponibles (worker plus ancien que la page).</td></tr>';
+      } else {
+        const eur = (n) => (Number(n) || 0).toFixed(2);
+        const lignes = Object.entries(bt.types).map(([op, m]) => ({ op, ...m, marge: m.value_eur - m.real_eur }))
+          .sort((a, b) => b.real_eur - a.real_eur);
+        let totValeur = 0, totReel = 0, totPaye = 0;
+        const html = lignes.map((m) => {
+          totValeur += m.value_eur; totReel += m.real_eur; totPaye += m.paid_eur;
+          const reussies = m.count - m.failed;
+          const prixOp = reussies > 0 ? m.value_eur / reussies : 0;
+          const coutOp = m.count > 0 ? m.real_eur / m.count : 0;
+          let verdict, couleur;
+          if (m.credits <= 0 && m.real_eur > 0.005) {
+            verdict = 'Non facturé (inclus ailleurs ou échec)'; couleur = 'var(--text-2)';
+          } else if (m.real_eur <= 0.005) {
+            verdict = '✔ Coût négligeable'; couleur = 'var(--ok)';
+          } else {
+            const x = m.value_eur / m.real_eur;
+            if (x >= 2) { verdict = `✔ Rentable (×${x.toFixed(1)})`; couleur = 'var(--ok)'; }
+            else if (x >= 1) { verdict = `⚠ Juste (×${x.toFixed(1)})`; couleur = 'var(--warn)'; }
+            else { verdict = `✖ À perte (×${x.toFixed(2)})`; couleur = 'var(--err)'; }
+          }
           return `
           <tr>
-            <td>${type}</td>
-            <td class="num">${m.count}</td>
-            <td class="num">${m.revenue_eur.toFixed(2)}</td>
-            <td class="num">${m.cost_eur.toFixed(2)}</td>
-            <td class="num" style="color:${col}">${m.margin_eur.toFixed(2)}</td>
-            <td class="num" style="color:${ratio === null ? 'var(--text-2)' : (ratio >= 100 ? 'var(--ok)' : 'var(--err)')}">
-              ${ratio === null ? '—' : Math.round(ratio) + '%'}
-            </td>
-            <td class="num">${perOpRev.toFixed(3)}</td>
-            <td class="num">${perOpCost.toFixed(3)}</td>
+            <td>${escapeHtml(m.op)}</td>
+            <td class="num">${m.count}${m.failed ? ` <span class="muted" title="échecs">(${m.failed} ✖)</span>` : ''}</td>
+            <td class="num">${m.credits}</td>
+            <td class="num">${eur(m.value_eur)}</td>
+            <td class="num">${eur(m.real_eur)}</td>
+            <td class="num" style="color:${m.marge >= 0 ? 'var(--ok)' : 'var(--err)'}">${eur(m.marge)}</td>
+            <td class="num">${prixOp.toFixed(3)}</td>
+            <td class="num">${coutOp.toFixed(3)}</td>
+            <td style="color:${couleur}; white-space:nowrap;">${verdict}</td>
           </tr>`;
         }).join('');
-      document.querySelector('#by-type-table tbody').innerHTML =
-        rows || '<tr><td colspan="8" class="muted">No data yet</td></tr>';
-
-      // D'ou viennent ces couts, et ce qu'ils ne couvrent PAS. Sans ca le
-      // tableau se lit comme une verite comptable alors que l'inactivite
-      // facturee par Modal n'y figure pas.
-      const cc = d.cost_confidence;
-      const noteEl = document.getElementById('by-type-note');
-      if (cc && noteEl) {
-        const tot = (cc.measured_rows || 0) + (cc.guessed_rows || 0);
-        const pct = tot ? Math.round((cc.measured_rows / tot) * 100) : 0;
-        noteEl.innerHTML =
-          `<b>${pct}%</b> des lignes sont chiffrées sur leur <b>durée réellement mesurée</b> `
-        + `(${cc.measured_rows} op., ${cc.measured_hours} h de conteneur) ; `
-        + `${cc.guessed_rows} retombent sur une estimation forfaitaire.<br>`
-        + `<span style="color:var(--err)">${cc.note}</span>`;
+        tbodyType.innerHTML = html || '<tr><td colspan="9" class="muted">Aucune opération sur 30 jours.</td></tr>';
+        const sansOp = Number(bt.facture_sans_operation_eur) || 0;
+        if (resume) {
+          const ratio = totReel > 0 ? totValeur / totReel : null;
+          resume.innerHTML = `<b>30 derniers jours.</b> Les opérations ont été facturées <b>${eur(totValeur)} €</b> en crédits `
+            + `(au prix de vente moyen de ${(Number(bt.eur_par_credit) || 0).toFixed(3)} € le crédit) et ont coûté <b>${eur(totReel)} €</b> chez Modal`
+            + (ratio != null ? ` : <b style="color:${ratio >= 1 ? 'var(--ok)' : 'var(--err)'}">×${ratio.toFixed(1)}</b>` : '') + '.'
+            + (sansOp > 0.005 ? ` S'y ajoutent <b>${eur(sansOp)} €</b> facturés des jours sans aucune opération (tests, constructions d'images).` : '')
+            + `<br>Réellement encaissé sur ces opérations (comptes ayant payé) : <b>${eur(totPaye)} €</b> — le reste a été consommé avec des crédits offerts ou de test.`;
+        }
+        if (noteType) {
+          noteType.innerHTML = bt.cout_reel
+            ? `Coût réel = facture Modal de chaque jour, répartie sur les opérations du jour selon leur durée. `
+              + `Un jour de développement (déploiements, démarrages à froid) charge donc ses opérations : `
+              + `le coût par opération d'un jour calme est plus bas. Les échecs coûtent sans rien rapporter.`
+            : `<span style="color:var(--warn)">Relevé Modal absent : coût = durée mesurée × tarif du GPU, sans démarrages à froid ni inactivité (sous-estimé).</span>`;
+        }
       }
     }
 
