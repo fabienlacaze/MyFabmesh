@@ -365,6 +365,13 @@ class MoteurUniMate:
         idx_de = {n: k for k, n in enumerate(joints)}
         par_k = [idx_de[par_noeud[n]] if par_noeud[n] is not None else -1 for n in joints]
         ordre_k = ordre_bfs(par_k, np.array([pos_monde[n] for n in joints]))
+        # Au-dela de la capacite du modele (61 os : insectes, mille-pattes,
+        # creatures ailees), on anime les os les PLUS PROCHES DU TRONC. L'ordre
+        # BFS range chaque parent avant ses enfants : le prefixe est donc un
+        # sous-arbre connexe ; les extremites ecartees n'ont pas de piste et
+        # suivent leur parent dans sa pose de repos. Mieux qu'un refus.
+        os_total = len(ordre_k)
+        ordre_k = ordre_k[:getattr(self, 'max_os', None) or self.cfg.dataset.max_joints]
         noeud_de = [joints[k] for k in ordre_k]
         u_de_k = {k: u for u, k in enumerate(ordre_k)}
         parents = np.array([u_de_k[par_k[k]] if par_k[k] >= 0 else -1 for k in ordre_k], dtype=np.int64)
@@ -438,7 +445,7 @@ class MoteurUniMate:
 
         glb = self._ecrire(js, bn, noeud_de, R, rp, X, s, W, parent_noeud, rot_monde, pos_monde,
                            nom_clip or prompt[:60])
-        return glb, {'os': J, 'famille': famille, 'stats': stats, 'prompt': prompt,
+        return glb, {'os': J, 'os_total': os_total, 'famille': famille, 'stats': stats, 'prompt': prompt,
                      'deplacement_racine': float(np.linalg.norm((rp[-1] - rp[0])[[0, 2]]) / s)}
 
     @staticmethod

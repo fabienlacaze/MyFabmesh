@@ -22990,3 +22990,31 @@ de 2 s, cycles non bouclants ; pas encore de generation par lot (besoin
 user : ~78 animations d'ouvriers + ~15 de guerriers + animaux/creatures).
 (3) Bureau non porte : il faudrait livrer les poids dans l'appli du Store,
 donc la vraie exposition de licence — attendre la decision.
+
+## 2026-09-26 — Animation web : formulaire reduit aux cases + miniature
+
+**Demande user.** « Juste les checkbox et le viewer de mesh miniature, l'user
+selectionne les animations qu'il veut et on les genere » ; motif donne :
+eviter la traduction et garder des prompts ENCADRES (une legende anglaise
+ecrite a l'avance par type). Retires du web : champ de mouvement libre (et
+ses traductions), video de reference cachee, bloc d'import FBX — dont le
+bouton « Retarget » n'avait d'ailleurs AUCUN gestionnaire cote web.
+`_wsAnimEngineSync` supprimee (plus rien a synchroniser). La traduction
+Opus-MT reste dans l'app Modal, jamais chargee sans texte libre (reservee
+a une future generation par lot).
+
+**Faux defaut ecarte.** L'insecte « disloque » de la capture user : clip
+de 15 h 13 (identifiant de lot decode), deux heures AVANT la bascule
+(17 h 25) — c'est une sortie de l'ANCIEN moteur, et les journaux du
+nouveau n'en portent aucune trace.
+
+**Correctif anticipe : rigs de plus de 61 os.** Le modele plafonne a 61
+os ; un insecte a 8 pattes + ailes peut depasser et l'appel echouait. On
+anime desormais le prefixe BFS (os les plus proches du tronc, sous-arbre
+connexe puisque chaque parent precede ses enfants) ; les extremites
+suivent leur parent. Verifie en local en plafonnant a 20 : 20/34 os
+animes, la marche avance toujours (+0,94). `os_total` ajoute aux infos.
+
+**Viewer « Edit selected ».** Le web ne masquait jamais « No animation
+selected » une fois un clip choisi (le bureau si) : texte coupe a droite
+du viewer. Masque comme sur le bureau ; le spinner est un calque distinct.

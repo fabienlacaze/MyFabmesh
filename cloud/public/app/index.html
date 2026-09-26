@@ -1074,44 +1074,13 @@
                         <input type="checkbox" name="anim-type" value="fly"> <span>✈️ Fly</span>
                       </label>
                     </div>
-                    <!-- Legacy single-select kept hidden for code paths that
-                         still reference it (e.g. _wsAnimEngineSync). The
-                         checkbox list above is the source of truth. -->
-                    <select id="ws-anim-type" style="display:none;">
-                      <option value="idle" selected>Idle</option>
-                    </select>
                   </div>
-                  <!-- Le moteur d'animation est texte -> mouvement depuis le
-                       2026-09-26 : une description libre ajoute UN clip de plus
-                       (type « custom »), en plus des cases cochees. -->
-                  <div class="form-row" id="ws-anim-prompt-row">
-                    <label for="ws-anim-prompt">Custom motion (optional)</label>
-                    <input id="ws-anim-prompt" type="text" placeholder="e.g. waves hello with the right hand" style="width:100%; padding:6px;">
-                  </div>
-                  <div class="form-row" id="ws-anim-video-row" style="display:none;">
-                    <label for="ws-anim-video">Reference video</label>
-                    <input id="ws-anim-video" type="file" accept="video/mp4,video/webm,video/quicktime" style="width:100%;">
-                  </div>
+                  <!-- Formulaire reduit a sa demande (2026-09-26) : les cases
+                       cochees + la miniature du rig, rien d'autre. Le champ de
+                       mouvement libre, la video de reference et l'import FBX
+                       (dont le bouton n'avait d'ailleurs AUCUN gestionnaire sur
+                       le web) sont retires. -->
                   <button id="ws-generate-anim" class="primary-btn" disabled title="Backend not wired yet — coming soon">Generate Animation</button>
-                  <!-- ===== FBX REFERENCE ANIMATION (2026-06-02) =====
-                       User uploads an .fbx (UE5 Mannequin or Apovivor
-                       ORC_M1 export). We retarget it onto the current
-                       project's Puppeteer rig and treat the result as
-                       a new animation version in the same strip. -->
-                  <div class="form-row" id="ws-anim-from-fbx-row" style="margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);">
-                    <label style="font-weight:600;">Import reference animation (.fbx)</label>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                      <select id="ws-anim-fbx-hint" style="padding:4px 6px;">
-                        <option value="auto" selected>Auto-detect skeleton</option>
-                        <option value="ue5_mannequin">UE5 Mannequin</option>
-                        <option value="orc_m1">Apovivor ORC_M1</option>
-                      </select>
-                      <input id="ws-anim-fbx-file" type="file" accept=".fbx" style="display:none;">
-                      <button id="ws-anim-fbx-pick" class="secondary-btn" type="button" title="Pick an .fbx reference animation">Pick .fbx</button>
-                      <span id="ws-anim-fbx-name" style="font-size:11px; color:var(--text-2); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">No file</span>
-                    </div>
-                    <button id="ws-anim-fbx-go" class="primary-btn" type="button" disabled style="margin-top:6px;" title="Retarget the chosen FBX onto your rig">Retarget FBX onto rig</button>
-                  </div>
                 </div>
                 <div class="stage-create-source">
                   <div class="stage-source-label">Source rig</div>

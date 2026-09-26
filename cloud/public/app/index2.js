@@ -17421,14 +17421,6 @@ document.getElementById('ws-generate-rig-ai')?.addEventListener('click', async (
 // UI scaffold only — backend wiring TBD.
 // ============================================================
 // Anim engine dropdown drives which sub-fields are visible.
-// Plus de menu de moteur (2026-09-26) : le serveur n'en a qu'un, texte ->
-// mouvement. La description libre (#ws-anim-prompt) reste donc TOUJOURS
-// visible ; la video de reference n'a aucun moteur qui la lise.
-function _wsAnimEngineSync() {
-  const videoRow = document.getElementById('ws-anim-video-row');
-  if (videoRow) videoRow.style.display = 'none';
-}
-_wsAnimEngineSync();
 
 // Render animation versions strip (placeholder).
 // User model: 1 VERSION = 1 batch of generation (all clips spawned by
@@ -17756,6 +17748,10 @@ function showStep4AnimPreview(anim) {
     return;
   }
   if (canvas) canvas.style.display = '';
+  // Le bureau masque ce texte des qu'un clip est choisi ; le web l'oubliait :
+  // « No animation selected » restait affiche, coupe, a droite du viewer
+  // pendant que le clip jouait (capture user du 2026-09-26).
+  if (placeholder) placeholder.style.display = 'none';
   setViewerFilename('ws-anim-filename', anim.filename || anim.path || anim.url || '');
   _initAnimViewer();
   _disposeAnimModel();
@@ -18245,12 +18241,10 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   // Moteur unique texte -> mouvement (2026-09-26) : plus de menu. Le serveur
   // l'impose de toute facon ; on l'envoie pour que la requete soit lisible.
   const engine = 'motionplus';
-  // Cases cochees + UN clip « custom » si une description libre est saisie
-  // (elle ne remplace PAS les cases : chaque type garde sa propre legende).
-  const checked = Array.from(document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked'))
+  // Seules les cases cochees : le formulaire n'a plus de champ libre.
+  const animTypes = Array.from(document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked'))
     .map(cb => cb.value);
-  const prompt = (document.getElementById('ws-anim-prompt')?.value || '').trim();
-  const animTypes = prompt ? [...checked, 'custom'] : checked;
+  const prompt = '';
   // Le type d'asset du projet choisit le squelette de reference du modele
   // (humain / animal) — la detection automatique se trompe sur nos rigs.
   const assetType = p.assetType || document.getElementById('ws-asset-type')?.value || '';
@@ -18265,7 +18259,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   // batch — which surprised the user (2s "New version with 1 clip" toast
   // and no Modal call). Now every checked type is regenerated.
   if (!animTypes.length) {
-    showToast('Check at least one type or describe a custom motion.', 'info', 4000);
+    showToast('Check at least one type to generate.', 'info', 4000);
     return;
   }
   const toCopy = [];          // intentionally empty — no copy path anymore
@@ -18297,8 +18291,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
         const r = await API.autoAnimAI({
           rigUrl: rig.url,
           animType,
-          // la description libre ne vaut que pour SON clip
-          prompt: animType === 'custom' ? prompt : '',
+          prompt,
           engine,
           assetType,
           batchId,
