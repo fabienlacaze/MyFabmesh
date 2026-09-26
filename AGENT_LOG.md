@@ -23591,3 +23591,22 @@ NVIDIA, l'assistant aurait telecharge ~6 Go puis propose un rig local voue a
 l'echec (le rigger exige CUDA) au lieu du cloud. L'installeur verifie d'abord
 `nvidia-smi -L` ; sans carte : rien n'est telecharge, pas de .fabmesh_pret
 (le rig passe par le cloud) et l'assistant l'annonce. Version 1.0.35.
+
+## 2026-09-26 — Release 1.0.35 : paquet Store SOUMETTABLE (WACK PASS + banc MSIX)
+
+`dist/installer/MicrosoftStore/MyFabmesh.AI 1.0.35.appx` (209,2 Mo, 599
+fichiers ; controle de licences du prebuild passe).
+- Contenu verifie : AUCUN arbre SkinTokens / Puppeteer / Michelangelo /
+  PartField / nvdiffrast embarque ; les 6 scripts du rig local et les notices
+  a jour presents ; aucune VALEUR secrete (sk_live/sk_test/whsec/hf_/cle
+  privee/service_role).
+- WACK : OVERALL_RESULT = PASS, 23 tests PASS ; 1 FAIL OPTIONNEL « Blocked
+  executables » (references cmd/reg/CreateProcess dans les binaires
+  Electron/Chromium/Python) IDENTIQUE a la 1.0.34 acceptee — pas une
+  regression. Rapport : WACK_1.0.35_PASS_20260926-2334.xml.
+- Banc MSIX (build/banc_msix.ps1 via une enveloppe qui enregistre la sortie et
+  nettoie) : cache HuggingFace masque, vrai conteneur, processus 0 -> 5,
+  fenetre « MyFabmesh.AI — Setup » visible a 6 321 ms (1.0.34 : 7 483),
+  app.getVersion() = 1.0.35, assistant navigable ; cache restaure, paquet de
+  test desinstalle (Get-AppxPackage : 0).
+Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
