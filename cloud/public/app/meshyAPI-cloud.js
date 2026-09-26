@@ -982,12 +982,13 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ base64: arg.base64, filename })
+            body: JSON.stringify({ base64: arg.base64, filename, ...(arg.tool ? { tool: arg.tool } : {}) })
           });
           const r = await resp.json().catch(() => ({}));
           if (!r || !r.success) {
             return { success: false, error: (r && r.error) || 'upload failed' };
           }
+          if (arg.tool && typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
           return { success: true, ok: true, path: r.path, url: r.url };
         } catch (e) {
           return { success: false, error: String(e) };

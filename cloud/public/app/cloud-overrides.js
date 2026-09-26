@@ -699,6 +699,16 @@ window.__optionsMortesCloud = new Set([]);
     'ws-symmetrize-auto-btn':   1,
     'ws-paint-btn':             1,
     'res-downscale':            1,   // reduction de taille (canvas) : outil manuel
+    // OUTILS MANUELS 3D (2026-09-27) : Sculpt / Paint / Select a
+    // l'enregistrement (/api/upload-mesh), tampon 3D et Paint Mesh
+    // (/api/mesh-op/client-result) ; Explode et Resize = /api/mesh-op.
+    'ws-mesh-sculpt-btn':       1,
+    'ws-mesh-paintvert-btn':    1,
+    'ws-mesh-selectface-btn':   1,
+    'ws-mesh-clone3d-btn':      1,
+    'ws-mesh-paint-mesh-btn':   1,
+    'ws-mesh-explode-btn':      1,
+    'ws-mesh-resize-btn':       1,
   };
 
   // Buttons we hide on cloud. Note: `ws-mesh-sculpt-btn` is now ENABLED
@@ -1161,6 +1171,13 @@ window.__optionsMortesCloud = new Set([]);
     'ws-symmetrize-auto-btn': 'manual_tool',
     'ws-paint-btn':        'manual_tool',
     'res-downscale':       'manual_tool',
+    'ws-mesh-sculpt-btn':  'manual_tool',
+    'ws-mesh-paintvert-btn': 'manual_tool',
+    'ws-mesh-selectface-btn': 'manual_tool',
+    'ws-mesh-clone3d-btn': 'manual_tool',
+    'ws-mesh-paint-mesh-btn': 'manual_tool',
+    'ws-mesh-explode-btn': 'mesh_op_simple',
+    'ws-mesh-resize-btn':  'mesh_op_simple',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',

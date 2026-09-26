@@ -15917,7 +15917,9 @@ document.getElementById('me-save')?.addEventListener('click', async () => {
           binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
         }
         const b64 = btoa(binary);
-        const r = await API.saveBuffer({ path: newPath, base64: b64 });
+        // Sculpt / Paint / Select : facture a l'enregistrement (manual_tool).
+        const r = await API.saveBuffer({ path: newPath, base64: b64,
+                                         tool: 'mesh_' + String(meState.mode || 'edit').replace(/[^a-z]/g, '') });
         if (r && r.success) {
           // Cloud worker writes to a different R2 location (per-user prefix)
           // and returns the actual URL in r.url. Falling back to r.path keeps

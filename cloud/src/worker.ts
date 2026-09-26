@@ -11819,6 +11819,18 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
     return json({ ok: false, success: false, error: 'user limit reached.' }, { status: 429 });
   }
 
+  /* CES OPERATIONS SONT FACTUREES (2026-09-27, « chaque outil doit couter »).
+   * La route disait « zero credits » : Smooth / Decimate / Fill holes…
+   * annonces 1 credit etaient donc GRATUITS des qu'ils tournaient dans le
+   * navigateur plutot que sur le serveur. Meme prix que la version serveur
+   * (mesh_op_simple) ; peintures et tampon 3D = outil manuel (manual_tool).
+   * Rendu si l'enregistrement echoue. */
+  const prixClient = await getPrice(env,
+    (op === 'paint_emissive' || op === 'paint_mesh' || op === 'clone3d') ? 'manual_tool' : 'mesh_op_simple');
+  if (prixClient > 0 && (await spendCredits(env, user.id, prixClient)) == null) {
+    return err(402, `insufficient credits — this tool costs ${prixClient} credit${prixClient === 1 ? '' : 's'}`);
+  }
+
   let bytes: Uint8Array;
   if (octetsBruts) {
     bytes = octetsBruts;
@@ -11830,9 +11842,13 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
   // glTF 2.0 binary magic: "glTF" (0x676C5446) then version 2.
   if (bytes.length < 12 ||
       bytes[0] !== 0x67 || bytes[1] !== 0x6C || bytes[2] !== 0x54 || bytes[3] !== 0x46) {
+    if (prixClient > 0) await addCredits(env, user.id, prixClient);
     return err(400, 'payload is not a valid GLB (magic bytes missing)');
   }
-  if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
+  if (!env.MESHES || !env.R2_PUBLIC_URL) {
+    if (prixClient > 0) await addCredits(env, user.id, prixClient);
+    return err(500, 'R2 binding required');
+  }
 
   const opStart = Date.now();
   try {
@@ -11847,13 +11863,13 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
     const key = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}_client.glb`;
     await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
     const url = await signedR2Url(env, key, 'mesh');
-    // Pure R2 upload — zero GPU, zero credits. Booking it as 'mesh' billed a
-    // free client-side op at $0.060 a pop.
+    // Zero GPU (cout 0 dans MODAL_COST_USD), mais facture depuis le 2026-09-27.
     await logOperation(env, user.id, 'mesh-op-client',
-                       0, opStart, Date.now(), 'succeeded',
+                       prixClient, opStart, Date.now(), 'succeeded',
                        { req, projectName, op_type: op, client_side: true, size_bytes: bytes.length });
     return json({ ok: true, success: true, path: url, newPath: url, mesh_url: url });
   } catch (e) {
+    if (prixClient > 0) await addCredits(env, user.id, prixClient);
     await logOperation(env, user.id, 'mesh-op-client',
                        0, opStart, Date.now(), 'failed',
                        { req, projectName, op_type: op, client_side: true,
@@ -12111,8 +12127,10 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
 
-  const { base64, filename } = await req.json() as { base64?: string; filename?: string };
+  const { base64, filename, tool } = await req.json() as { base64?: string; filename?: string; tool?: string };
   if (!base64 || !filename) return err(400, 'base64 and filename required');
+  // Sculpt / Paint / Select enregistrent ici : factures (manual_tool).
+  const outilMesh = typeof tool === 'string' && /^[a-z_]{2,24}$/.test(tool) ? tool : null;
 
   let bytes: Uint8Array;
   try {
@@ -12172,12 +12190,25 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
   const base = safe.replace(/\.(glb|gltf)$/i, '');
   const ext = safe.toLowerCase().endsWith('.gltf') ? 'gltf' : 'glb';
   const key = `${user.id}/edited/${base}_${Date.now()}.${ext}`;
+  const tOutil = Date.now();
+  let prixOutil = 0;
+  if (outilMesh) {
+    prixOutil = await getPrice(env, 'manual_tool');
+    if (prixOutil > 0 && (await spendCredits(env, user.id, prixOutil)) == null) {
+      return err(402, `insufficient credits — this tool costs ${prixOutil} credit${prixOutil === 1 ? '' : 's'}`);
+    }
+  }
   try {
     await env.MESHES.put(key, bytes, {
       httpMetadata: { contentType: 'model/gltf-binary' },
     });
+    if (outilMesh) {
+      await logOperation(env, user.id, 'manual-tool', prixOutil, tOutil, Date.now(), 'succeeded',
+                         { req, op_type: outilMesh });
+    }
   } catch (e) {
     console.error('[upload-mesh]', e instanceof Error ? e.message : String(e), e);
+    if (prixOutil > 0) await addCredits(env, user.id, prixOutil);
     return new Response(
       JSON.stringify({ success: false, error: 'R2 upload failed' }),
       { status: 500, headers: { 'content-type': 'application/json' } },
