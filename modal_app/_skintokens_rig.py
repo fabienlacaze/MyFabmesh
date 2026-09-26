@@ -271,6 +271,54 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None) -> bytes:
 
 
 # ---------------------------------------------------------------------------
+# Banc d'essai (2026-09-26) — N'EST APPELE PAR AUCUNE ROUTE DE PRODUCTION
+# ---------------------------------------------------------------------------
+# Le checkpoint connait TROIS classes de squelette (tokenizer_config.
+# cls_token_id = {'rignet': 0, 'vroid': 1, 'articulation': 2}, lu dans le
+# checkpoint sans le charger) ; demo.py code « articulation » en dur, deux
+# fois. Cette fonction rejoue rig_mesh avec une classe et des parametres de
+# generation choisis, pour les comparer sur des maillages reels avant de
+# toucher a la production.
+CLASSES_SQUELETTE = ("articulation", "rignet", "vroid")
+
+
+@app.function(
+    gpu="A10G",
+    timeout=900,
+    scaledown_window=120,
+    secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
+)
+def rig_mesh_essai(glb_bytes: bytes, classe: str = "articulation", options: dict | None = None) -> bytes:
+    if classe not in CLASSES_SQUELETTE:
+        raise ValueError(f"classe inconnue : {classe}")
+    options = options or {}
+    tmp = tempfile.mkdtemp(prefix="skintokens_essai_")
+    src = os.path.join(tmp, "in.glb")
+    out = os.path.join(tmp, "rigged.glb")
+    with open(src, "wb") as f:
+        f.write(glb_bytes)
+    code = open(os.path.join(SKINTOKENS_DIR, "demo.py"), encoding="utf-8").read()
+    avant = code
+    code = code.replace('"filepaths": {"articulation": [', f'"filepaths": {{"{classe}": [')
+    code = code.replace('predict_dataloader()["articulation"]', f'predict_dataloader()["{classe}"]')
+    if classe != "articulation" and code == avant:
+        raise RuntimeError("demo.py a change : ancres de classe introuvables")
+    variante = os.path.join(SKINTOKENS_DIR, f"demo_{classe}.py")
+    with open(variante, "w", encoding="utf-8") as f:
+        f.write(code)
+    cmd = ["python", variante, "--input", src, "--output", out, "--use_transfer"]
+    for cle in ("top_k", "top_p", "temperature", "repetition_penalty", "num_beams"):
+        if cle in options:
+            cmd += [f"--{cle}", str(options[cle])]
+    print(f"[essai] classe={classe} options={options}", flush=True)
+    proc = subprocess.run(cmd, cwd=SKINTOKENS_DIR, capture_output=True, text=True)
+    print(proc.stdout[-3000:], proc.stderr[-2000:], flush=True)
+    if not os.path.isfile(out) or os.path.getsize(out) == 0:
+        raise RuntimeError(f"aucun fichier (rc={proc.returncode}) : {(proc.stdout + proc.stderr)[-400:]}")
+    return open(out, "rb").read()
+
+
+# ---------------------------------------------------------------------------
 # Routeur ASGI — contrat identique a _puppeteer_rig.py
 # ---------------------------------------------------------------------------
 @app.function(

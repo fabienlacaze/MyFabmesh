@@ -23143,3 +23143,53 @@ du corps SANS os au-dela du dernier (bouts de pattes) ; une patte sans
 chaine ; aucune machoire/oreille sur les tetes (vache : pas de tete du tout).
 Voie connue : squelette-gabarit (POC valide le 2026-08-08, ecarte alors par
 le user au profit du squelette natif) — decision a reposer au user.
+
+## 2026-09-26 — Rigger : les reglages du modele, mesures (classes, penalite, tirages)
+
+**Contexte.** Le user veut un squelette complet ; il refuse un recalage
+« manuel » par espece (« le rigger n'a plus vraiment de sens ») et demande si
+le depot du rigger a des reglages. Un recalage araignee specifique avait ete
+commence puis ARRETE sur cette remarque.
+
+**Reglages trouves dans le checkpoint** (lu sans charger les poids : dezip +
+unpickler neutre). `tokenizer_config.cls_token_id = {rignet, vroid,
+articulation}` ; demo.py code « articulation » en DUR (cle de filepaths ET du
+dataloader) ; `configs/skeleton/vroid.yaml` = humanoide corps + mains. Banc
+`rig_mesh_essai(glb, classe, options)` ajoute a `_skintokens_rig.py` : variante
+de demo.py a la volee, AUCUNE route de production ne l'appelle.
+
+**Note de completude generique** (scratchpad noter_rigs.py, sans code
+d'espece) : tronc = ce qui survit a une erosion proportionnelle a l'epaisseur
+max ; appendices = branches geodesiques partant du tronc (maxima locaux, branche
+propre >= 90 % du chemin, ecart > 15 voxels aux branches retenues) ; portee =
+fraction de chaque appendice atteinte par un os. Validee sur le rig de prod de
+l'araignee plate : 0 patte complete sur 9, portee 0,62, une patte a 0,00 —
+exactement le signalement du user.
+
+**Mesures (A10G, maillages reels du user).**
+- Araignee, classe articulation (actuelle), 6 tirages : portee 0,18 a 0,55,
+  de 2 a 7 extremites ratees. Le meilleur tirage a ses 8 pattes ; AUCUN ne
+  depasse ~0,7 de chaque patte (defaut systematique, pas de hasard).
+- rignet : 32-37 os, portee 0,13-0,16 (pire). Penalite de repetition 1,2 :
+  4 essais sur 4 PLANTES (sequence mal formee au decodage) -> 2,0 requis.
+- Vache (14 extremites) : articulation 0,17-0,22, rignet 0,07-0,15 ; seules
+  les 4 pattes ont des os, jamais tete, queue ni oreilles.
+- Barbare : articulation 0,33-0,37, vroid 0,15-0,22, rignet 0,00-0,07
+  (16-18 os).
+Verdict : aucun reglage du modele ne rend le squelette complet ; la classe
+actuelle est la meilleure partout. Seul levier interne : plusieurs tirages et
+garder le meilleur (regle les membres oublies, pas les bouts ni la tete).
+
+**Defaut de production decouvert.** Le message « transfert de texture en
+echec -> repli sans texture » ment : la cause est un DECODAGE rate
+(tokenizer_part.detokenize, np.stack de formes differentes — sequence
+stochastique mal formee), pas le transfert. Le repli relance SANS transfert :
+l'utilisateur recoit un rig sans texture alors qu'un simple nouveau tirage
+AVEC transfert suffirait. A corriger.
+
+**Incident.** Un premier essai LOCAL (6 tirages, script sans garde
+`__main__`) a lance des serveurs bpy en cascade (port deja pris) et laisse
+~4 Go de processus sur le PC du user, qui fait tourner Unreal. Tues ; regle :
+experiences sur Modal seulement.
+
+Viewer comparatif publie pour le user (artefact « Banc des squelettes »).
