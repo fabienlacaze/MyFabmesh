@@ -16238,12 +16238,25 @@ document.addEventListener('DOMContentLoaded', () => {
        * operations du meme projet se rattacheraient l'une a l'autre. */
       if (_estOperationInterne(row) && project) {
         const _VIVANT = 5 * 60 * 1000;   // un parent termine depuis < 5 min compte
-        const parent = state.jobs.find(p =>
+        /* CHOIX DU PARENT (2026-09-26). `find` prenait le PREMIER travail du
+         * projet : avec « Generate back views » (lance a -3 min) et
+         * « Generate 3D » (-1 min 50) sur le meme projet, la rectification du
+         * MESH (-1 min 42) etait rangee sous les vues arriere. Celles-ci
+         * finissaient, leur faux « enfant » tournait encore, et la tuile
+         * restait figee (signale par l'utilisateur). Une operation ne commence
+         * pas avant son parent : parmi les candidats lances AVANT elle (30 s de
+         * tolerance d'horloge client/serveur), on prend un travail EN COURS de
+         * preference, puis le plus recent. */
+        const _candidats = state.jobs.filter(p =>
           !p.parentJobId
           && !_estOperationInterne({ type: p.kind, asset_type: p.assetKind })
           && _jobProjectName(p) === project
           && (p.status === 'running'
               || (p.startedAt && Date.now() - p.startedAt < _VIVANT)));
+        const _avant = _candidats.filter(p => !p.startedAt || p.startedAt <= startedAt + 30000);
+        const parent = (_avant.length ? _avant : _candidats).slice().sort((a, b) =>
+          ((b.status === 'running') - (a.status === 'running'))
+          || ((b.startedAt || 0) - (a.startedAt || 0)))[0] || null;
         if (parent) {
           opts.parentJobId = parent.id;
           opts.parentJobName = parent.name;
@@ -18599,15 +18612,13 @@ function completeJob(id, success, errorMessage) {
   const j = state.jobs.find(j => j.id === id);
   if (!j) return;
   if (j.tickTimer) { clearInterval(j.tickTimer); j.tickTimer = null; }
+  // Un parent ne se termine pas avant ses sous-taches : sa fin est differee
+  // (voir _finDiffereeSiEnfants), et non plus abandonnee a mi-chemin.
+  if (_finDiffereeSiEnfants(j, success, errorMessage)) return;
   j.progress = 100;
   j.status = success ? 'done' : 'error';
-  // Un parent ne peut pas se terminer avant ses sous-taches : sinon sa tuile
-  // passe en vert alors que la barre de l'enfant continue de courir.
-  try {
-    for (const c of _jobChildren(j.id)) {
-      if (c.status === 'running') return;
-    }
-  } catch (_) {}
+  // Sous-tache terminee : son parent attendait peut-etre qu'elle.
+  setTimeout(() => _terminerParentEnAttente(j), 0);
   if (!success && errorMessage) {
     j.errorMessage = String(errorMessage);
   }
@@ -18906,6 +18917,56 @@ window._jobParent = _jobParent;
 /** Les enfants d'un job, dans l'ordre d'apparition. */
 function _jobChildren(parentId) {
   return (state.jobs || []).filter(x => x.parentJobId === parentId);
+}
+
+/* FIN D'UN PARENT DONT UNE SOUS-TACHE TOURNE ENCORE (2026-09-26).
+ *
+ * L'ancienne version de completeJob passait le parent a « done » (vert,
+ * 100 %) PUIS sortait avant d'en programmer le retrait : quand la sous-tache
+ * finissait, personne ne reprenait le parent et sa tuile restait affichee a
+ * jamais (« Generate back views » fige a 100 %, signale par l'utilisateur).
+ * Desormais le parent reste « en cours » et sa fin est MEMORISEE ; la fin de
+ * son dernier enfant la rejoue (_terminerParentEnAttente). Au plus 30 s
+ * d'attente : un enfant qui survit a son parent n'etait sans doute pas le
+ * sien (rattachement par projet = heuristique) ; il est detache et devient
+ * une tuile autonome. Rend true si la fin est differee. */
+function _finDiffereeSiEnfants(j, success, errorMessage) {
+  let enCours = [];
+  try { enCours = _jobChildren(j.id).filter(c => c.status === 'running'); } catch (_) {}
+  if (!enCours.length) return false;
+  j._finEnAttente = { success, errorMessage };
+  j.progress = Math.max(j.progress || 0, 95);
+  if (!j._attenteTimer) {
+    j._attenteTimer = setTimeout(() => {
+      j._attenteTimer = null;
+      const f = j._finEnAttente;
+      if (!f || !state.jobs.includes(j)) return;
+      j._finEnAttente = null;
+      try {
+        for (const c of _jobChildren(j.id)) {
+          if (c.status === 'running') { c.parentJobId = null; c.parentJobName = null; }
+        }
+      } catch (_) {}
+      completeJob(j.id, f.success, f.errorMessage);
+    }, 30000);
+  }
+  try { renderJobs(); } catch (_) {}
+  return true;
+}
+
+/** Fin d'une sous-tache : si son parent n'attendait plus qu'elle, on le
+ *  termine avec l'issue qu'il avait memorisee. */
+function _terminerParentEnAttente(enfant) {
+  try {
+    const par = enfant.parentJobId != null
+      ? state.jobs.find(x => x.id === enfant.parentJobId) : null;
+    if (!par || !par._finEnAttente) return;
+    if (_jobChildren(par.id).some(c => c.status === 'running')) return;
+    if (par._attenteTimer) { clearTimeout(par._attenteTimer); par._attenteTimer = null; }
+    const f = par._finEnAttente;
+    par._finEnAttente = null;
+    completeJob(par.id, f.success, f.errorMessage);
+  } catch (_) {}
 }
 
 /** Un enfant ne s'affiche jamais comme tuile de premier niveau : il est
@@ -19236,27 +19297,34 @@ function renderJobs() {
     + '|' + queuedJobs.map(q => q.displayName || '').join(',');
   if (list.dataset.sigJobs === _sigJobs) {
     state.jobs.forEach(j => {
-      const el = list.querySelector('.job-item-2[data-job-id="' + j.id + '"]');
-      if (!el) return;
       const pct = Math.round(j.progress);
-      const fill = el.querySelector('.job-item-2-bar-fill');
-      if (fill) fill.style.width = pct + '%';
-      const pctEl = el.querySelector('.job-item-2-pct');
-      if (pctEl) {
-        const elapsed = j.startedAt ? fmtDuration(Date.now() - j.startedAt) : '';
-        pctEl.innerHTML = (elapsed
-          ? '<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">'
-            + escapeHtml(elapsed) + '</span>'
-          : '') + pct + '%';
+      const elapsed = j.startedAt ? fmtDuration(Date.now() - j.startedAt) : '';
+      const el = list.querySelector('.job-item-2[data-job-id="' + j.id + '"]');
+      if (el) {
+        // `:scope >` : la barre et le pourcentage PROPRES a la tuile, jamais
+        // ceux d'une sous-tache imbriquee dessous.
+        const fill = el.querySelector(':scope > .job-item-2-bar > .job-item-2-bar-fill');
+        if (fill) fill.style.width = pct + '%';
+        const pctEl = el.querySelector(':scope > .job-item-2-pct');
+        if (pctEl) {
+          pctEl.innerHTML = (elapsed
+            ? '<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">'
+              + escapeHtml(elapsed) + '</span>'
+            : '') + pct + '%';
+        }
       }
-      // Les sous-taches portent la meme classe : leur barre doit aussi suivre
-      // le tick, sinon elles restent figees pendant que le parent avance.
+      // SOUS-TACHE (2026-09-26) : son element porte la classe job-item-2-sub,
+      // PAS job-item-2. L'ancien code sortait sur `if (!el) return` juste
+      // au-dessus, AVANT d'arriver ici : aucune sous-tache n'etait jamais mise
+      // a jour en place — barre et chrono figes (« Rectify source view »
+      // bloque a 1m42s / 90 %, signale par l'utilisateur). Le libelle garde le
+      // format du rendu complet (« duree · pct »).
       const subEl = list.querySelector('.job-item-2-sub[data-job-id="' + j.id + '"]');
       if (subEl) {
         const subFill = subEl.querySelector('.job-item-2-bar-fill');
         if (subFill) subFill.style.width = pct + '%';
         const subPct = subEl.querySelector('.job-item-2-sub-pct');
-        if (subPct) subPct.textContent = pct + '%';
+        if (subPct) subPct.textContent = (elapsed ? elapsed + ' \u00b7 ' : '') + pct + '%';
       }
     });
     if (state._jobDetailsOpenId) refreshJobDetailsModal(state._jobDetailsOpenId);

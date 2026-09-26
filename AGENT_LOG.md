@@ -22767,3 +22767,36 @@ les langues et range par le motif d'etape /rig/. Le bureau ecrivait deja
 « Auto-rig AI (local) ». Balayage : plus aucun nom de moteur dans les noms de
 taches ni dans le texte visible des deux HTML (hors commentaires et valeurs
 internes).
+
+## 2026-09-26 — Panneau des taches fige (« ca ne se met plus a jour »)
+
+**Constat (capture utilisateur, cloud).** « Generate back views: red killing
+spider » affiche 100 % en vert et ne disparait jamais ; sa sous-tache
+« Rectify source view » reste figee a 1m42s / 90 %.
+
+**Trois defauts (bureau + web pour 1 et 2, web seul pour 3).**
+1. `completeJob` : si une sous-tache tournait, il passait le parent a « done »
+   PUIS sortait avant de programmer son retrait. Le bureau annoncait en
+   commentaire que le parent etait « requalifie d'office quand son dernier
+   enfant se termine » : aucun code ne le faisait. Tuile eternelle.
+2. Mise a jour en place : `if (!el) return` sur `.job-item-2[data-job-id]`,
+   qui n'existe pas pour une sous-tache (classe `job-item-2-sub`) — le code
+   de mise a jour des sous-taches, juste dessous, n'etait JAMAIS atteint.
+3. Rattachement d'une operation serveur : `find` prenait le PREMIER travail
+   du projet en cours ou lance depuis < 5 min. Avec « Generate back views »
+   (-3 min) et « Generate 3D » (-1 min 50) sur le meme projet, la
+   rectification du MESH (-1 min 42) etait rangee sous les vues arriere.
+
+**Correctif.** (1) La fin d'un parent est MEMORISEE tant qu'un enfant tourne
+et rejouee a la fin du dernier enfant ; au plus 30 s d'attente, apres quoi
+l'enfant est detache (tuile autonome). (2) Parent et sous-tache mis a jour
+separement (`:scope >` pour la tuile, libelle « duree · pct » conserve).
+(3) Parmi les candidats lances AVANT l'operation (30 s de tolerance
+d'horloge), un travail en cours de preference, puis le plus recent.
+
+**Preuve (navigateur, window.fabmeshJobs pilote depuis le monde principal).**
+Ancien code : chrono de la sous-tache fige a « 0s · 5 % », parent « done »
+pendant que l'enfant tourne, jamais retire. Nouveau : « 2s · 8 % » ->
+« 4s · 11 % », parent « running » puis « done » a la fin de l'enfant, les
+deux retires ; enfant survivant > 30 s detache et affiche seul. Aucune
+erreur de page.
