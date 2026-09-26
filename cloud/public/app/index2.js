@@ -6795,10 +6795,15 @@ document.getElementById('ws-style-menu')?.addEventListener('click', async (e) =>
 // ============================================================
 // COLOR PICKER MODAL
 // ============================================================
-document.getElementById('ws-picker-btn')?.addEventListener('click', () => {
+document.getElementById('ws-picker-btn')?.addEventListener('click', async () => {
   const p = state.currentProject;
   const tgt = editTarget(p);
   if (!tgt) { showToast('Pick an image first.', 'error'); return; }
+  // Color Pick n'enregistre rien : il est facture a l'ouverture (manual_tool).
+  if (typeof API.chargeTool === 'function') {
+    const c = await API.chargeTool({ tool: 'color_pick' });
+    if (!c.success) { showToast('Color Pick: ' + (c.error || 'not enough credits'), 'error', 5000); return; }
+  }
   const modal = document.getElementById('modal-colorpick');
   const canvas = document.getElementById('cpick-canvas');
   if (!modal || !canvas) return;

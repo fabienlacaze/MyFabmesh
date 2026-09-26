@@ -623,7 +623,10 @@ window.__optionsMortesCloud = new Set([]);
     'ws-modify-btn':        2,   // /api/modify-image — SDXL img2img
     'ws-autoinpaint-btn':   3,   // /api/auto-inpaint — CLIPSeg + SDXL inpaint
     'ws-removebg-btn':      1,   // /api/remove-background
-    'ws-multiview-btn':     6,   // generateMultiviews — 6 views generated
+    // Multi-Views : sur le web seul le mode « 2 vues » existe (vue arriere,
+    // prix back_view). La pastille disait 6 pour un mode 6 vues qui renvoie
+    // une erreur sans rien debiter (corrige le 2026-09-27).
+    'ws-multiview-btn':     3,
     'ws-facefix-btn':       2,   // /api/face-fix-image — OpenCV + SDXL inpaint
     // /api/outfit — CLIPSeg + une passe SDXL par piece. La pastille montre le
     // tarif AVEC completion (le defaut) ; sans elle l'appel coute 2, ce que la
@@ -637,7 +640,7 @@ window.__optionsMortesCloud = new Set([]);
     // Style: when the user picks an entry in the style dropdown,
     // index2.js:4754 calls API.img2img with the style as prompt →
     // /api/modify-image → Modal. 2 credits per pick.
-    'ws-style-btn':         2,
+    'ws-style-btn':         3,   // Style = Modify (/api/modify-image), pas 2 (corrige le 2026-09-27)
     // Rig refait depuis l'editeur des points du squelette : meme route et
     // meme prix que le rig (RIG_COST du worker, absent de /api/pricing :
     // a changer avec lui).
@@ -683,6 +686,19 @@ window.__optionsMortesCloud = new Set([]);
     'mat-apply-btn':            1,   // Material (mesh-op)
     'rz-apply':                 1,   // Resize (mesh-op)
     'ex3d-start':               1,   // Explode (mesh-op)
+    // OUTILS MANUELS : 1 credit chacun (manual_tool), debite a l'enregistrement
+    // du resultat, ou a l'ouverture pour Color Pick (2026-09-27).
+    'ws-clone-btn':             1,
+    'ws-crop-btn':              1,
+    'ws-select-btn':            1,   // Cut/Paste
+    'ws-extend-btn':            1,
+    'ws-brightness-btn':        1,
+    'ws-picker-btn':            1,   // Color Pick
+    'ws-blur-btn':              1,
+    'ws-symmetrize-btn':        1,
+    'ws-symmetrize-auto-btn':   1,
+    'ws-paint-btn':             1,
+    'res-downscale':            1,   // reduction de taille (canvas) : outil manuel
   };
 
   // Buttons we hide on cloud. Note: `ws-mesh-sculpt-btn` is now ENABLED
@@ -936,10 +952,9 @@ window.__optionsMortesCloud = new Set([]);
     segment: 'segment',
   };
 
-  /* Boutons qui ne declenchent AUCUN appel serveur : ils ne doivent porter
-   * aucun badge. `res-downscale` en portait un a 2 credits alors qu'il ne
-   * fait qu'un drawImage dans un canvas local — on facturait a l'ecran une
-   * operation gratuite. */
+  /* Boutons exclus du badge de MODALE (prix de l'agrandissement). Depuis le
+   * 2026-09-27 `res-downscale` est un outil manuel facture 1 (manual_tool) :
+   * sa pastille vient d'ACTION_COSTS, pas du badge de la modale. */
   const _BOUTONS_GRATUITS = new Set(['res-downscale']);
 
   function _ensureModalBalanceStyle() {
@@ -1126,6 +1141,8 @@ window.__optionsMortesCloud = new Set([]);
     'ws-mesh-stages3d-btn': 'construction3d',
     'ws-variant-btn':      'tex_variant',
     'ws-anim-gen-more-btn': 'anim',
+    'ws-style-btn':        'modify',
+    'ws-multiview-btn':    'back_view',
     'age-go':              'tex_variant',
     'rc-go':               'recolor',
     'of-go':               'outfit_complete',
@@ -1133,6 +1150,17 @@ window.__optionsMortesCloud = new Set([]);
     'mat-apply-btn':       'mesh_op_simple',
     'rz-apply':            'mesh_op_simple',
     'ex3d-start':          'mesh_op_simple',
+    'ws-clone-btn':        'manual_tool',
+    'ws-crop-btn':         'manual_tool',
+    'ws-select-btn':       'manual_tool',
+    'ws-extend-btn':       'manual_tool',
+    'ws-brightness-btn':   'manual_tool',
+    'ws-picker-btn':       'manual_tool',
+    'ws-blur-btn':         'manual_tool',
+    'ws-symmetrize-btn':   'manual_tool',
+    'ws-symmetrize-auto-btn': 'manual_tool',
+    'ws-paint-btn':        'manual_tool',
+    'res-downscale':       'manual_tool',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',

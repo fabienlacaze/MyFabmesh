@@ -1003,6 +1003,17 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       return { success: true, ok: true, path: filename, downloaded: true };
     },
+    // Debit d'un outil manuel qui n'enregistre rien (Color Pick).
+    chargeTool: async ({ tool } = {}) => {
+      try {
+        const r = await postJSON('/api/tool-charge', { tool });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        return r?.success ? { success: true, charged: r.charged ?? 0 }
+                          : { success: false, error: r?.error || 'charge failed', status: r?.status };
+      } catch (e) {
+        return { success: false, error: e?.message || String(e), status: e?.status };
+      }
+    },
     saveImageDataUrl: async ({ dataUrl, filename, basePath, suffix, projectName: _projetDemande } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud-correct behaviour: upload the dataURL produced by the
@@ -1018,7 +1029,14 @@
       if (!dataUrl) return { success: false, error: 'dataUrl required' };
       try {
         const suf = (suffix || 'edit').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 16);
-        const r = await postJSON('/api/upload-image', { dataUrl, suffix: suf });
+        // Outils manuels factures a l'enregistrement (manual_tool, worker).
+        // Liste FERMEE : un import (« back ») ou un usage futur n'est pas
+        // facture par defaut.
+        const OUTIL_PAR_SUFFIXE = { cloned: 'clone_stamp', blur: 'blur', painted: 'paint',
+                                    symmetrized: 'symmetrize', edit: 'cut_paste' };
+        const tool = OUTIL_PAR_SUFFIXE[suf];
+        const r = await postJSON('/api/upload-image', { dataUrl, suffix: suf, ...(tool ? { tool } : {}) });
+        if (tool && typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (!r?.success || !r.path) {
           return { success: false, error: r?.error || 'upload failed' };
         }
@@ -1236,12 +1254,24 @@
   // survives a page reload. Falls back to a local blob: URL (which
   // does NOT survive reload — see _canvasFor warning) if the upload
   // fails, so the user at least sees the result in this session.
-  async function _canvasToBlobUrl(canvas, mime = 'image/png', suffix = 'edit') {
+  async function _canvasToBlobUrl(canvas, mime = 'image/png', suffix = 'edit', tool = null) {
     const dataUrl = canvas.toDataURL(mime);
     try {
-      const r = await postJSON('/api/upload-image', { dataUrl, suffix });
-      if (r?.success && r.path) return r.path;
-    } catch (_) { /* fall through to blob */ }
+      const r = await postJSON('/api/upload-image', { dataUrl, suffix, ...(tool ? { tool } : {}) });
+      // postJSON ne leve pas : un 402 revient en { status: 402 }. Sans ce
+      // test, l'outil retombait sur l'URL locale ci-dessous, donc GRATUIT.
+      if (r && r.status === 402) {
+        const e402 = new Error(r.error || 'insufficient credits'); e402.status = 402; throw e402;
+      }
+      if (r?.success && r.path) {
+        if (tool && typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        return r.path;
+      }
+    } catch (e) {
+      // Credits insuffisants : PAS de repli local, sinon l'outil devient
+      // gratuit. On remonte l'erreur a l'appelant.
+      if (e && e.status === 402) throw e;
+    }
     return await new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(URL.createObjectURL(blob)), mime);
     });
@@ -1970,7 +2000,7 @@
           ctx.drawImage(tmp, 0, 0);
           ctx.filter = 'none';
         }
-        const newPath = await _canvasToBlobUrl(canvas);
+        const newPath = await _canvasToBlobUrl(canvas, 'image/png', 'adjusted', 'brightness');
         return { success: true, newPath };
       } catch (e) { return { success: false, error: String(e) }; }
     },
@@ -2049,7 +2079,8 @@
         } else {
           return { success: false, error: 'Unknown operation: ' + operation };
         }
-        const newPath = await _canvasToBlobUrl(out);
+        const newPath = await _canvasToBlobUrl(out, 'image/png', operation.slice(0, 16),
+                                               String(operation).replace(/[^a-z_]/g, '_').slice(0, 24));
         await _attachToProject(_projetLancement, newPath, 'front');
         return { success: true, newPath };
       } catch (e) { return { success: false, error: String(e) }; }

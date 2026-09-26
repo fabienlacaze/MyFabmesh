@@ -1711,6 +1711,13 @@ const PRICING_DEFAULTS = {
   mesh_segment:     15,         // decoupe en pieces 3D (A100)
   anim:             5,          // une animation (texte -> mouvement, ou retarget FBX)
   construction3d:   2,          // etapes de construction 3D (CPU) — etait 2 x mesh_op_simple
+  // OUTILS MANUELS (2026-09-27, demande du user : « chaque outil doit couter
+  // des credits, pas forcement beaucoup ») : Clone Stamp, Crop, Cut/Paste,
+  // Extend, Brightness, Color Pick, Blur, Symmetrize, Sym. Auto, Paint.
+  // Ils tournent dans le navigateur ; le debit se fait a l'ENREGISTREMENT du
+  // resultat (/api/upload-image avec `tool`), ou a l'ouverture pour Color
+  // Pick qui n'enregistre rien (/api/tool-charge).
+  manual_tool:      1,
 };
 type PricingKey = keyof typeof PRICING_DEFAULTS;
 const PRICING_KEY = '_meta/pricing.json';
@@ -11990,8 +11997,11 @@ async function handleUploadImage(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
 
-  const { dataUrl, suffix } = await req.json() as { dataUrl?: string; suffix?: string };
+  const { dataUrl, suffix, tool } = await req.json() as { dataUrl?: string; suffix?: string; tool?: string };
   if (!dataUrl) return err(400, 'dataUrl required');
+  // Outil manuel qui enregistre son resultat : facture (voir manual_tool).
+  // Sans `tool` (import d'une image, photo de dos), rien n'est debite.
+  const outil = typeof tool === 'string' && /^[a-z_]{2,24}$/.test(tool) ? tool : null;
 
   // Strict extension whitelist — SVG is forbidden (active content via
   // <script>), and the regex ensures the suffix can't be a path traversal.
@@ -12040,6 +12050,18 @@ async function handleUploadImage(req: Request, env: Env): Promise<Response> {
     await env.MESHES.put(cntKey, String(cur + 1));
   } catch {}
 
+  const t0 = Date.now();
+  let prix = 0;
+  let restant: number | null = null;
+  if (outil) {
+    prix = await getPrice(env, 'manual_tool');
+    if (prix > 0) {
+      restant = await spendCredits(env, user.id, prix);
+      if (restant == null) {
+        return err(402, `insufficient credits — this tool costs ${prix} credit${prix === 1 ? '' : 's'}`);
+      }
+    }
+  }
   const safeSuf = (suffix ?? 'edit').toString().replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 16);
   const key = `${user.id}/canvas/${Date.now()}_${safeSuf}.${ext}`;
   try {
@@ -12048,9 +12070,35 @@ async function handleUploadImage(req: Request, env: Env): Promise<Response> {
     });
   } catch (e) {
     console.error('[upload-image]', e instanceof Error ? e.message : String(e), e);
+    if (prix > 0) await addCredits(env, user.id, prix);      // rien d'enregistre : rendu
     return err(502, 'R2 upload failed');
   }
-  return json({ ok: true, success: true, path: await signedR2Url(env, key, 'image') });
+  if (outil) {
+    await logOperation(env, user.id, 'manual-tool', prix, t0, Date.now(), 'succeeded',
+                       { req, op_type: outil });
+  }
+  return json({ ok: true, success: true, path: await signedR2Url(env, key, 'image'),
+                ...(restant != null ? { creditsRemaining: restant } : {}) });
+}
+
+/** POST /api/tool-charge  body { tool } — debite un outil manuel qui
+ *  n'enregistre aucun resultat (Color Pick). Voir manual_tool. */
+async function handleToolCharge(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  let body: { tool?: string } = {};
+  try { body = await req.json() as typeof body; } catch { /* corps vide */ }
+  const outil = typeof body.tool === 'string' && /^[a-z_]{2,24}$/.test(body.tool) ? body.tool : null;
+  if (!outil) return err(400, 'tool required');
+  const prix = await getPrice(env, 'manual_tool');
+  if (prix <= 0) return json({ ok: true, success: true, charged: 0 });
+  const t0 = Date.now();
+  const restant = await spendCredits(env, user.id, prix);
+  if (restant == null) {
+    return err(402, `insufficient credits — this tool costs ${prix} credit${prix === 1 ? '' : 's'}`);
+  }
+  await logOperation(env, user.id, 'manual-tool', prix, t0, Date.now(), 'succeeded', { req, op_type: outil });
+  return json({ ok: true, success: true, charged: prix, creditsRemaining: restant });
 }
 
 /** POST /api/upload-mesh — accept a client-side sculpted/edited GLB and
@@ -19191,6 +19239,7 @@ export default {
         if (pathname === '/api/upscale-image'         && method === 'POST') return await handleUpscaleImage(req, env);
         if (pathname === '/api/proxy-image'           && method === 'GET')  return await handleProxyImage(req, env);
         if (pathname === '/api/upload-image'          && method === 'POST') return await handleUploadImage(req, env);
+        if (pathname === '/api/tool-charge'           && method === 'POST') return await handleToolCharge(req, env);
         if (pathname === '/api/upload-mesh'           && method === 'POST') return await handleUploadMesh(req, env);
         if (pathname === '/api/auto-rig'              && method === 'POST') return await handleAutoRig(req, env);
         if (pathname === '/api/auto-rig-status'       && (method === 'GET' || method === 'POST')) return await handleAutoRigStatus(req, env);
