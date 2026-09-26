@@ -360,6 +360,13 @@ gatedRun(kind, nom, fn)      ← file d'attente (VRAM ; rend ok() en cloud)
   parce qu'un démarrage à froid dépasse le délai HTTP de 150 s.
 - Applications séparées : `myfabmesh-rig`, `myfabmesh-anim`,
   `myfabmesh-partsam`, `myfabmesh-fbx-retarget`.
+- **Le rig de production est `myfabmesh-skintokens`** (`_skintokens_rig.py`),
+  PAS `myfabmesh-rig` (Puppeteer, interdit : Michelangelo GPL-3.0 + PartField
+  NC). Le suffixe `_rigged_puppeteer_` des fichiers est un vestige de nommage.
+  Appel `demo.py --use_transfer` (garde UV et texture du maillage source),
+  avec `patch_skintokens_transfert.py` : sans lui, SkinTokens aligne le rig
+  par une ACP aléatoire qui se retourne à 180° dans ~40 % des cas (mesure du
+  2026-09-26). Déployer : `python -m modal deploy modal_app/_skintokens_rig.py`.
 
 **Démarrage à froid — le piège récurrent.** Cloudflare coupe chaque
 sous-requête à 100 s avec un **524**. Toute route synchrone DOIT donc rejouer :
