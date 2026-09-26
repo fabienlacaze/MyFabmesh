@@ -11414,6 +11414,11 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
   };
   const CLIENT_OPS = new Set([
     'smooth', 'decimate', 'subdivide', 'fix_normals', 'fill_holes', 'center',
+    // Peintures faites dans le navigateur. Elles passaient jusqu'ici sous le
+    // nom 'center' (« purely to store the modified GLB ») : la version
+    // s'appelait donc « …_center_client.glb », sans rapport avec ce qu'elle
+    // contient.
+    'paint_emissive', 'paint_mesh', 'clone3d',
   ]);
   const op = (opType ?? '').toLowerCase();
   if (!CLIENT_OPS.has(op)) {
@@ -11445,7 +11450,15 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
 
   const opStart = Date.now();
   try {
-    const key = `${user.id}/mesh-op/${Date.now()}_${op}_client.glb`;
+    /* LE PROJET DANS LA CLE (2026-09-26). Elle etait `<uid>/mesh-op/<fichier>`,
+     * sans segment de projet — or le listing IGNORE toute cle mesh-op sans
+     * projet (« legacy keys … SKIPPED »). Chaque retouche faite dans le
+     * navigateur (lissage, decimation, peinture) apparaissait donc une fois,
+     * puis disparaissait au rechargement de la page. Meme regle de slug que
+     * /api/mesh-op, pour que le listing la rattache au bon projet. */
+    const projectSlug = ((projectName || 'untitled').toString()
+      .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled');
+    const key = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}_client.glb`;
     await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
     const url = await signedR2Url(env, key, 'mesh');
     // Pure R2 upload — zero GPU, zero credits. Booking it as 'mesh' billed a

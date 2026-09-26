@@ -22497,3 +22497,15 @@ noyau est commun pour qu'une image detouree ailleurs ne le touche jamais.
 Portee : TOUT maillage web genere depuis une image detouree sans
 rectification reussie (rectification decochee, ou en echec — elle a echoue
 toute la journee du 24).
+
+## 2026-09-26 — Les retouches faites dans le navigateur disparaissaient au rechargement
+
+`/api/mesh-op/client-result` (route GRATUITE : lissage, decimation, peinture
+calcules dans le navigateur) rangeait le GLB sous `<uid>/mesh-op/<fichier>`,
+SANS segment de projet. Or le listing ignore toute cle mesh-op sans projet :
+la nouvelle version apparaissait, puis disparaissait au rechargement. Trouve
+en lisant le code pendant le portage du visualiseur de peinture ; aucun
+fichier de ce type dans R2 (defaut latent, jamais declenche). Cle corrigee
+avec la meme regle de slug que /api/mesh-op. Au passage, Paint Emissive et
+Paint Mesh passaient sous le nom 'center' (seul moyen de franchir la liste
+blanche) : ils ont desormais leur nom, plus 'clone3d' pour le tampon 3D.

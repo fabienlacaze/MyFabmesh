@@ -12773,11 +12773,10 @@ async function _peApplyOnDevice() {
       );
     });
     const bytes = new Uint8Array(arrayBuffer);
-    // Reuse the client-result endpoint that the other free tools use
-    // (auth + magic-byte check + R2 store, no credit charge). Paint
-    // Emissive isn't on the server allowlist, so we tunnel through
-    // 'center' purely to store the modified GLB.
-    const data = await uploadClientMeshResult(bytes, 'center');
+    // Meme route gratuite que les autres outils du navigateur (auth +
+    // verification de l'en-tete GLB + stockage R2, aucun credit). La
+    // peinture y a desormais son propre nom au lieu de passer pour 'center'.
+    const data = await uploadClientMeshResult(bytes, 'paint_emissive');
     const newUrl = data.path || data.newPath || data.mesh_url;
     showToast('Paint Emissive applied (free, on device)', 'success');
     const p = state.currentProject;
@@ -13371,10 +13370,9 @@ async function _pmApplyOnDevice() {
       );
     });
     const bytes = new Uint8Array(buf);
-    // Same tunneling as Paint Emissive: Paint Mesh isn't on the
-    // server allowlist (smooth/decimate/subdivide/fix_normals/
-    // fill_holes/center), so we pass 'center' to store the GLB.
-    const data = await uploadClientMeshResult(bytes, 'center');
+    // Paint Mesh a son propre nom sur la route gratuite (il passait pour
+    // 'center', faute d'etre dans la liste blanche du serveur).
+    const data = await uploadClientMeshResult(bytes, 'paint_mesh');
     const newUrl = data.path || data.newPath || data.mesh_url;
     showToast('Paint Mesh saved!', 'success');
     const p = state.currentProject;
