@@ -199,6 +199,30 @@
   #info-outil .nom { display: block; font-weight: 700; font-size: 14px; margin-bottom: 2px; }
   #info-outil .desc { display: block; font-size: 13px; color: var(--text-1); line-height: 1.45; }
   @media (prefers-reduced-motion: reduce) { #info-outil { transition: none; } }
+  /* minuteur vertical : se remplit jusqu'au prochain changement de sujet */
+  .minuteur { position: absolute; z-index: 3; right: 6px; top: 10px; bottom: 10px; width: 4px; border-radius: 2px;
+              background: rgba(255, 255, 255, 0.12); overflow: hidden; pointer-events: none; }
+  .minuteur i { position: absolute; inset: 0; border-radius: 2px; background: var(--cat, var(--accent));
+                transform: scaleY(0); transform-origin: bottom; }
+  .minuteur.court i { animation: minuteur linear forwards; }
+  @keyframes minuteur { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  .bobine .aide3d { right: 18px; }
+  /* mini fenetre flottante : web ou Windows, toujours a portee de clic */
+  #essayer { position: fixed; z-index: 40; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+             width: 270px; max-width: calc(100vw - 32px); padding: 10px 12px 12px; border-radius: 12px;
+             border: 1.5px solid transparent;
+             background: linear-gradient(var(--bg-1), var(--bg-1)) padding-box, var(--grad) border-box;
+             box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+             transition: opacity 0.25s, transform 0.25s; }
+  #essayer.cache { opacity: 0; transform: translateY(12px); pointer-events: none; }
+  #essayer .titre { font-weight: 700; font-size: 14px; margin: 0 22px 8px 0; }
+  #essayer .choix { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  #essayer .btn { justify-content: center; padding: 7px 8px; font-size: 13px; }
+  #essayer .fermer { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; border-radius: 6px;
+                     background: transparent; color: var(--text-2); font-size: 16px; line-height: 1; cursor: pointer; }
+  #essayer .fermer:hover { color: var(--text-0); background: var(--bg-2); }
+  #essayer .fermer:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  @media (prefers-reduced-motion: reduce) { #essayer { transition: none; } }
   /* machine a sous : deux sujets par etape, le suivant descend du haut */
   .bobine > .panneau { position: absolute; inset: 0; transition: transform 0.9s cubic-bezier(0.25, 0.9, 0.3, 1.12); }
   .bobine > .panneau.cache-haut { transform: translateY(-100%); }
@@ -465,6 +489,15 @@
   </section>
 </main>
 
+<aside id="essayer" class="cache" aria-label="Try MyFabmesh">
+  <button type="button" class="fermer" aria-label="Close">×</button>
+  <p class="titre">Try MyFabmesh</p>
+  <div class="choix">
+    <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Web app</a>
+    <a class="btn" href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener">Windows app</a>
+  </div>
+</aside>
+
 <footer>
   <div class="wrap">
     <span>© 2026 MyFabmesh.AI</span>
@@ -523,13 +556,29 @@
 <script>
 // MACHINE A SOUS des etapes : toutes les 15 s, chaque vignette fait descendre
 // le sujet suivant (araignee <-> guerrier), avec un leger decalage de l'une a
-// l'autre. Le sujet suivant est charge 5 s avant.
+// l'autre. Le sujet suivant est charge 5 s avant. Le compte a rebours ne
+// commence que lorsque les etapes sont a l'ecran (sinon le visiteur arrivait
+// en cours de route) et s'arrete quand elles en sortent.
 (function () {
   var bobines = [].slice.call(document.querySelectorAll('.bobine'));
   if (!bobines.length || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  var PERIODE = 15000, DECALAGE = 220;
+  // barre verticale a droite de chaque vignette : pleine au moment ou le
+  // sujet suivant descend, puis repart de zero
+  var minuteurs = bobines.map(function (b) {
+    var m = document.createElement('span'); m.className = 'minuteur'; m.setAttribute('aria-hidden', 'true');
+    m.appendChild(document.createElement('i')); b.appendChild(m); return m;
+  });
+  function relancer(m, delai) {
+    m.classList.remove('court'); void m.offsetHeight;
+    m.firstChild.style.animationDuration = PERIODE + 'ms';
+    m.firstChild.style.animationDelay = (delai || 0) + 'ms';
+    m.classList.add('court');
+  }
   function tourner() {
     bobines.forEach(function (b, k) {
       setTimeout(function () {
+        relancer(minuteurs[k], 0);
         var panneaux = [].slice.call(b.querySelectorAll(':scope > .panneau'));
         var actuel = panneaux.find(function (x) { return !x.classList.contains('cache-haut'); });
         var suivant = panneaux[(panneaux.indexOf(actuel) + 1) % panneaux.length];
@@ -541,11 +590,46 @@
           actuel.classList.add('sans-transition'); actuel.classList.remove('cache-bas'); actuel.classList.add('cache-haut');
           void actuel.offsetHeight; actuel.classList.remove('sans-transition');
         }, 1000);
-      }, k * 220);
+      }, k * DECALAGE);
     });
   }
-  setTimeout(function () { if (window.__prechargerVues) window.__prechargerVues(); }, 10000);
-  setInterval(tourner, 15000);
+  var cycle = null, prechargement = null;
+  function demarrer() {
+    if (cycle) return;
+    minuteurs.forEach(function (m, k) { relancer(m, k * DECALAGE); });
+    cycle = setInterval(tourner, PERIODE);
+    if (!prechargement) prechargement = setTimeout(function () { if (window.__prechargerVues) window.__prechargerVues(); }, PERIODE - 5000);
+  }
+  function arreter() {
+    clearInterval(cycle); cycle = null;
+    minuteurs.forEach(function (m) { m.classList.remove('court'); });
+  }
+  var zone = bobines[0].closest('.etapes') || bobines[0];
+  new IntersectionObserver(function (e) { if (e[0].isIntersecting) demarrer(); else arreter(); },
+                           { threshold: 0.5 }).observe(zone);
+})();
+</script>
+<script>
+// Mini fenetre « web ou Windows » en bas a droite : apparait une fois le haut
+// de page passe (ses boutons y sont deja), s'efface sur la section des offres
+// (qui propose les memes), et reste fermee si le visiteur l'a fermee.
+(function () {
+  var f = document.getElementById('essayer'); if (!f) return;
+  var ferme = false;
+  try { ferme = sessionStorage.getItem('essayer-ferme') === '1'; } catch (e) {}
+  if (ferme) { f.remove(); return; }
+  var heroVisible = true, offresVisibles = false;
+  function maj() { f.classList.toggle('cache', heroVisible || offresVisibles); }
+  var hero = document.querySelector('.hero'), offres = document.getElementById('editions');
+  if (hero) new IntersectionObserver(function (e) { heroVisible = e[0].isIntersecting; maj(); }).observe(hero);
+  else heroVisible = false;
+  if (offres) new IntersectionObserver(function (e) { offresVisibles = e[0].isIntersecting; maj(); }, { threshold: 0.2 }).observe(offres);
+  maj();
+  f.querySelector('.fermer').addEventListener('click', function () {
+    f.classList.add('cache');
+    try { sessionStorage.setItem('essayer-ferme', '1'); } catch (e) {}
+    setTimeout(function () { f.remove(); }, 300);
+  });
 })();
 </script>
 <script>
@@ -627,8 +711,15 @@ function monter(hote) {
     controls.target.set(0, 0, 0); controls.update();
     if (mode === 'rig') {
       m.traverse((o) => { if (o.isMesh) { o.material.transparent = true; o.material.opacity = 0.45; o.material.depthWrite = false; } });
+      // Os TOUJOURS visibles, quel que soit l'angle : le maillage transparent
+      // etait dessine APRES eux et les recouvrait (plusieurs epaisseurs de
+      // pattes les effacaient), et three.js ecartait parfois l'aide hors de
+      // sa boite de depart. Donc : passe transparente, ordre de rendu apres
+      // le maillage, jamais ecartee.
       const os = new THREE.SkeletonHelper(m);
-      os.material.linewidth = 2; os.material.depthTest = false; os.material.color = new THREE.Color('#5eead4');
+      Object.assign(os.material, { linewidth: 2, depthTest: false, depthWrite: false, transparent: true });
+      os.material.color = new THREE.Color('#5eead4');
+      os.renderOrder = 10; os.frustumCulled = false;
       scene.add(os);
     }
     if (mode === 'anim' && gltf.animations.length) {
@@ -666,7 +757,7 @@ window.__prechargerVues = () => document.querySelectorAll('.vue3d:not([data-mont
   var c = document.getElementById('carrousel'); if (!c) return;
   var diapos = [].slice.call(c.querySelectorAll('.diapo'));
   var points = document.getElementById('car-points');
-  var i = 0, minuterie = null, pause = false;
+  var i = 0, minuterie = null, pause = false, horsVue = true, dejaVu = false;
   diapos.forEach(function (_, k) {
     var b = document.createElement('button');
     b.type = 'button'; b.setAttribute('aria-label', 'Show slide ' + (k + 1));
@@ -682,8 +773,15 @@ window.__prechargerVues = () => document.querySelectorAll('.vue3d:not([data-mont
   var calme = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function relancer() {
     clearInterval(minuterie);
-    if (!calme) minuterie = setInterval(function () { if (!pause) montrer(i + 1); }, 6000);
+    if (!calme && !horsVue) minuterie = setInterval(function () { if (!pause) montrer(i + 1); }, 6000);
   }
+  // ne defile que lorsqu'elle est a l'ecran : le visiteur la voit depuis la
+  // premiere page au lieu d'arriver en cours de route
+  new IntersectionObserver(function (e) {
+    horsVue = !e[0].isIntersecting;
+    if (!horsVue && !dejaVu) { dejaVu = true; montrer(0); }
+    relancer();
+  }, { threshold: 0.5 }).observe(c);
   document.getElementById('car-prec').addEventListener('click', function () { montrer(i - 1); relancer(); });
   document.getElementById('car-suiv').addEventListener('click', function () { montrer(i + 1); relancer(); });
   c.addEventListener('mouseenter', function () { pause = true; });
