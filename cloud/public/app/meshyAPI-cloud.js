@@ -168,7 +168,11 @@
     let consecutiveErrors = 0;
     let premierEchec = 0;
     const TOLERANCE_ERREURS_MS = 3 * 60 * 1000;
-    while (Date.now() - start < POLL_TIMEOUT_MS) {
+    // Le serveur annonce le delai maximal de CE travail (adapte a ses
+    // reglages : 10 M de triangles en 4K = plus d'une heure). On le suit
+    // jusque-la, plus 5 min, au lieu de lacher a 30 min.
+    let horizonMs = POLL_TIMEOUT_MS;
+    while (Date.now() - start < horizonMs) {
       await new Promise((r) => setTimeout(r, 2500));
       let j;
       try {
@@ -202,6 +206,7 @@
         }
         continue;
       }
+      if (j && j.delai_max_s > 0) horizonMs = Math.max(POLL_TIMEOUT_MS, j.delai_max_s * 1000 + 5 * 60 * 1000);
       if (onProgress) onProgress(j);
       if (channel) window.__meshyEmit(channel, j);
       if (j.status === 'succeeded') return j;
@@ -225,7 +230,7 @@
     // et resumePendingJobs les reprend au rechargement). Un message sec faisait
     // croire a une perte seche alors que les credits etaient deja debites.
     throw new Error(
-      'La generation depasse ' + Math.round(POLL_TIMEOUT_MS / 60000) + ' min de suivi. '
+      'La generation depasse ' + Math.round(horizonMs / 60000) + ' min de suivi. '
       + 'Elle CONTINUE sur le serveur : recharge la page dans quelques minutes, '
       + 'le resultat apparaitra dans le projet. Aucun credit supplementaire ne sera debite.');
   }

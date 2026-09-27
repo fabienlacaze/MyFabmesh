@@ -7445,8 +7445,12 @@ async function handleJob(req: Request, env: Env, id: string): Promise<Response> 
       // `glb_base64` n'est plus demande dans la reponse d'etat (voir
       // callModalMeshStatus) : `ready` suffit, les octets viennent en flux.
       // La chaine reste acceptee si un backend ancien la renvoie.
+      // `delai_max_s` : le client suit le travail AU MOINS jusque-la. Il
+      // abandonnait a 30 min fixes ; une generation de 66 min n'a ete livree
+      // que par le faucheur, 14 min apres la fin du calcul (2026-09-27).
+      const delaiMaxS = Number((job.options as Record<string, unknown> | null)?.delai_max_s || 0) || undefined;
       if (!status.ready) {
-        return json({ status: 'processing' });
+        return json({ status: 'processing', delai_max_s: delaiMaxS });
       }
       const stableUrl = await persistModalGlb(env, id, status.glb_base64 ?? '');
       /* COURSE AVEC L'ANNULATION — la garde de statut est indispensable.
@@ -7481,7 +7485,8 @@ async function handleJob(req: Request, env: Env, id: string): Promise<Response> 
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('modal poll error:', msg);
-      return json({ status: 'processing', poll_warning: msg.slice(0, 200) });
+      return json({ status: 'processing', poll_warning: msg.slice(0, 200),
+                    delai_max_s: Number((job.options as Record<string, unknown> | null)?.delai_max_s || 0) || undefined });
     }
   }
 
@@ -19009,6 +19014,9 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
             if (maj && maj.length) {
               out.delivered = (out.delivered ?? 0) + 1;
               console.log(`[reaper] ${id} termine sans sondage client — maillage livre`);
+              // Meme remboursement des tranches de triangles non livrees que
+              // le sondage client (oublie ici jusqu'au 2026-09-27).
+              await _rembourserTrianglesNonLivres(env, job as Record<string, unknown>, status.faces);
             }
           } catch (e) {
             noteErr(`${id}: livraison impossible: ${e instanceof Error ? e.message : String(e)}`);

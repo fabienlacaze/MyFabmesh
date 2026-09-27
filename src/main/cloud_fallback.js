@@ -1010,12 +1010,15 @@ async function generateMesh({ imagePath, imagePathBack, assetType, preset, flags
   // s'ajoutent 2-3 min de demarrage a froid du conteneur Modal. Le job continue
   // cote serveur au-dela du plafond et les credits sont deja debites : abandonner
   // trop tot fait croire a une perte seche. Aligne sur le web le 2026-07-28.
-  while (Date.now() - t0 < 30 * 60 * 1000) {
+  // Puis jusqu'au delai maximal annonce par le serveur pour CE travail (+5 min).
+  let horizonMs = 30 * 60 * 1000;
+  while (Date.now() - t0 < horizonMs) {
     await new Promise((res) => setTimeout(res, 4000));
     polls++;
     const a = await _authedFetch(`/api/jobs/${encodeURIComponent(jobId)}`);
     if (a.needsCloudLogin) return { success: false, needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
     const js = await a.resp.json().catch(() => ({}));
+    if (js.delai_max_s > 0) horizonMs = Math.max(30 * 60 * 1000, js.delai_max_s * 1000 + 5 * 60 * 1000);
     const st = String(js.status || js.state || '');
     try { onProgress?.(st, polls); } catch (_) {}
     // Un GPU froid se voit ici comme un « queued » qui s'éternise : on
@@ -1046,7 +1049,7 @@ async function generateMesh({ imagePath, imagePathBack, assetType, preset, flags
   // Message honnete : le job n'est PAS annule, il continue cote serveur et les
   // credits sont deja debites. Dire « timeout » tout court faisait croire a une
   // perte seche.
-  return { success: false, error: 'La generation depasse 30 min de suivi. '
+  return { success: false, error: 'La generation depasse ' + Math.round(horizonMs / 60000) + ' min de suivi. '
     + 'Elle CONTINUE sur le serveur : le resultat apparaitra dans le projet '
     + 'une fois termine. Aucun credit supplementaire ne sera debite.' };
 }
