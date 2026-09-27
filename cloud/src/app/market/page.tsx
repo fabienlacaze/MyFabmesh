@@ -7,7 +7,7 @@
 // /market?paid=1 and sees the item in the "Owned" tab with a
 // Download button.
 //
-import { useEffect, useState, Component, type ReactNode } from 'react';
+import { useEffect, useRef, useState, Component, type ReactNode } from 'react';
 import Script from 'next/script';
 
 // Defensive error boundary — surfaces the next regression instead of the
@@ -194,6 +194,79 @@ function Stars({
         </span>
       )}
     </span>
+  );
+}
+
+// Circular "Loading item" indicator shown while the 3D file downloads.
+// The poster used to fill that time: a large frozen picture that looked
+// like the viewer had hung, so the viewer gets no poster and this ring
+// tracks model-viewer's `progress` event until `load` (or `error`) fires.
+function LoadingRing({ progress, failed }: { progress: number; failed: boolean }) {
+  const r = 26;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.round(progress * 100);
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: 12,
+      background: '#0a0a0e', borderRadius: 8, pointerEvents: 'none',
+    }}>
+      {failed ? (
+        <span style={{ color: 'var(--text-2)', fontSize: 13 }}>Could not load the 3D preview.</span>
+      ) : (
+        <>
+          <svg width={64} height={64} viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx={32} cy={32} r={r} fill="none" stroke="var(--border)" strokeWidth={5} />
+            <circle
+              cx={32} cy={32} r={r} fill="none" stroke="var(--accent)" strokeWidth={5} strokeLinecap="round"
+              strokeDasharray={circ} strokeDashoffset={circ * (1 - progress)}
+              transform="rotate(-90 32 32)" style={{ transition: 'stroke-dashoffset 0.2s linear' }}
+            />
+          </svg>
+          <span style={{ color: 'var(--text-2)', fontSize: 13 }} role="status">
+            Loading item… {pct}%
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ModelViewerWithLoader({ src, animated }: { src: string; animated: boolean }) {
+  const ref = useRef<HTMLElement | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setProgress(0);
+    setLoaded(false);
+    setFailed(false);
+    const el = ref.current;
+    if (!el) return;
+    const onProgress = (e: Event) => {
+      const p = (e as CustomEvent<{ totalProgress?: number }>).detail?.totalProgress ?? 0;
+      setProgress(Math.max(0, Math.min(1, p)));
+    };
+    const onLoad = () => setLoaded(true);
+    const onError = () => setFailed(true);
+    el.addEventListener('progress', onProgress);
+    el.addEventListener('load', onLoad);
+    el.addEventListener('error', onError);
+    return () => {
+      el.removeEventListener('progress', onProgress);
+      el.removeEventListener('load', onLoad);
+      el.removeEventListener('error', onError);
+    };
+  }, [src]);
+
+  return (
+    <div style={{ position: 'relative', height: 420 }}>
+      {/* --progress-bar-height 0 hides model-viewer's own thin bar: the ring replaces it. */}
+      {/* @ts-expect-error model-viewer is a custom element */}
+      <model-viewer ref={ref} src={src} autoplay={animated ? true : undefined} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8, '--progress-bar-height': '0px' }} />
+      {!loaded && <LoadingRing progress={progress} failed={failed} />}
+    </div>
   );
 }
 
@@ -981,15 +1054,16 @@ function MarketPageInner() {
               return kind === 'image' ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={url} alt={selected.title} style={{ width: '100%', maxHeight: 480, objectFit: 'contain', background: '#0a0a0e', borderRadius: 8 }} />
-              ) : !mounted || !url ? (
+              ) : !url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={`/api/market/poster/${selected.id}`} alt={selected.title}
                      style={{ width: '100%', height: 420, objectFit: 'contain', background: '#0a0a0e', borderRadius: 8 }} />
-              ) : (
-                <div style={{ position: 'relative' }}>
-                  {/* @ts-expect-error model-viewer is a custom element */}
-                  <model-viewer src={url} poster={`/api/market/poster/${selected.id}`} autoplay={kind === 'animation' ? true : undefined} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8 }} />
+              ) : !mounted ? (
+                <div style={{ position: 'relative', height: 420 }}>
+                  <LoadingRing progress={0} failed={false} />
                 </div>
+              ) : (
+                <ModelViewerWithLoader key={url} src={url} animated={kind === 'animation'} />
               );
             })()}
             {!selected.asset_url && selected.preview_url && (
