@@ -1,5 +1,6 @@
 # FabMesh Agent Log
 
+- 2026-09-27 (site vitrine) - Intro « How it works » : « 2D or 3D viewer » remis (le user l'aime) ; etape Animation sans « exported to FBX » (l'export a sa rubrique).
 - 2026-09-27 (site vitrine) - Intro « How it works » reformulee en anglais plus naturel (user : « Four steps, each in its own 2D or 3D viewer » sonnait faux).
 - 2026-09-27 (site vitrine : export en rubrique) - « Everything is exportable » devient une section #export (entre Versions et Marketplace) avec son entree « Export » dans le menu, formats en liste. Legende « AI tool / manual tool » retiree (jugee perturbante ; les puces AI portent deja leur marque). Intros en pleine largeur : le max-width 62ch coupait les phrases courtes en plein milieu.
 - 2026-09-27 (site vitrine : retouches user) - Etape Rig : « not just humans: animals, insects, creatures ». Etape Animation : « Idle, walk, run, attack and other clips, exported to FBX » (plus de « beta » ni « Unreal », aussi retire de la diapo Animation). Nouveau paragraphe « Everything is exportable » sous les etapes, formats verifies dans l'appli web : images PNG/JPG/WebP, modeles GLB/GLTF/FBX/OBJ/STL/PLY + preset Unreal, rigs GLB/FBX, animations FBX ; FAQ formats alignee.
