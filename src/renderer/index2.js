@@ -18040,6 +18040,30 @@ function _toggleGeneratingStage(stepIdx, hasRunning) {
 // Open the project (if different from current) and scroll/expand the
 // step card matching this job. Exposed on window so HTML onclick can
 // reach it from anywhere.
+/* DEFILEMENT VERS UNE ETAPE QUI TIENT (2026-09-27, user : « Go to m'amene dans
+ * le bon projet mais en bas au lieu de l'endroit exact »). Un seul
+ * scrollIntoView apres deux images ne suffit pas : l'ouverture du projet
+ * charge ensuite images et visualiseurs, la page grandit AU-DESSUS de la
+ * carte et la pousse vers le bas. On re-vise la carte pendant ~2,5 s, et on
+ * s'arrete des que l'utilisateur fait defiler ou clique lui-meme. */
+function _defilerVersCarte(el) {
+  if (!el) return;
+  let arrete = false;
+  const EVTS = ['wheel', 'touchstart', 'keydown', 'mousedown'];
+  const stop = () => { arrete = true; };
+  EVTS.forEach(ev => window.addEventListener(ev, stop, { passive: true, capture: true }));
+  const viser = (doux) => {
+    if (arrete) return;
+    try {
+      const r = el.getBoundingClientRect();
+      if (Math.abs(r.top - 12) > 24) el.scrollIntoView({ behavior: doux ? 'smooth' : 'auto', block: 'start' });
+    } catch (_) {}
+  };
+  viser(true);
+  [450, 900, 1500, 2400].forEach(t => setTimeout(() => viser(false), t));
+  setTimeout(() => EVTS.forEach(ev => window.removeEventListener(ev, stop, { capture: true })), 2600);
+}
+
 window._navigateToJobStep = async function(jobId, jobObj) {
   // `jobObj` : une entree de « Travaux finis », qui n'est plus dans state.jobs.
   const j = jobObj || state.jobs.find(x => x.id === jobId);
@@ -18062,13 +18086,17 @@ window._navigateToJobStep = async function(jobId, jobObj) {
   const card = document.getElementById(cardId);
   if (!card) return;
   card.classList.remove('collapsed');
+  // Replie les AUTRES etapes (user : « en depliant le bon menu et en repliant
+  // les mauvais »).
+  ['step-card-image', 'step-card-mesh', 'step-card-rig', 'step-card-animation']
+    .filter(id => id !== cardId).forEach(id => document.getElementById(id)?.classList.add('collapsed'));
   // Expand its Create New stage if collapsed.
   const stage = card.querySelector('.stage-create');
   if (stage && !stage.open) stage.open = true;
   // Wait a beat for the details to fully reflow before scrolling so the
   // browser has settled on its final layout box.
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  try { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
+  _defilerVersCarte(card);
   // Pulse-highlight the destination card so the user gets a visual cue
   // that the navigation actually happened.
   try {
