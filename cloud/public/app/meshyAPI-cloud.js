@@ -2608,7 +2608,7 @@
               }
             }
             if (typeof onProgress === 'function') {
-              try { onProgress({ polls: i + 1, elapsedMs: Date.now() - t0, lastWarn }); } catch {}
+              try { onProgress({ polls: i + 1, elapsedMs: Date.now() - t0, lastWarn, jobId }); } catch {}
             }
             continue;
           }
@@ -2619,7 +2619,7 @@
           console.warn(`[auto-rig] status fetch threw poll=${i + 1}`, e);
           lastWarn = e?.message || String(e);
           if (typeof onProgress === 'function') {
-            try { onProgress({ polls: i + 1, elapsedMs: Date.now() - t0, lastWarn }); } catch {}
+            try { onProgress({ polls: i + 1, elapsedMs: Date.now() - t0, lastWarn, jobId }); } catch {}
           }
           continue;
         }
@@ -2627,7 +2627,7 @@
         if (st?.status === 'pending') {
           if (st.warn || st.last_error) lastWarn = st.warn || st.last_error;
           if (typeof onProgress === 'function') {
-            try { onProgress({ polls: i + 1, elapsedMs: Date.now() - t0, lastWarn }); } catch {}
+            try { onProgress({ polls: i + 1, elapsedMs: Date.now() - t0, lastWarn, jobId }); } catch {}
           }
           continue;
         }
@@ -2683,7 +2683,7 @@
         console.warn(`[auto-rig] unexpected status poll=${i + 1}`, st);
         lastWarn = `unexpected status: ${JSON.stringify(st).slice(0, 80)}`;
         if (typeof onProgress === 'function') {
-          try { onProgress({ polls: i + 1, elapsedMs: Date.now() - t0, lastWarn }); } catch {}
+          try { onProgress({ polls: i + 1, elapsedMs: Date.now() - t0, lastWarn, jobId }); } catch {}
         }
       }
 

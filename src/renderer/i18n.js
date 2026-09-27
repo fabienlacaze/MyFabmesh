@@ -658,6 +658,13 @@
       'Open the MyFabmesh website': 'Ouvrir le site MyFabmesh',
       'Privacy policy': 'Politique de confidentialité',
       'Report content': 'Signaler le contenu',
+      'Cancel "{x}"? The computation will be stopped. Credits for work already started are not refunded.': 'Annuler « {x} » ? Le calcul sera arrêté. Les crédits d’un travail déjà commencé ne sont pas rendus.',
+      'Stopped in the app. This short operation cannot be interrupted on the server: it finishes within a few minutes at most.': 'Arrêté dans l’appli. Cette opération courte ne peut pas être interrompue sur le serveur : elle se termine en quelques minutes au plus.',
+      'The server refused the cancellation:': 'Le serveur a refusé l’annulation :',
+      'unknown reason': 'raison inconnue',
+      'Cancelled, but the server did not confirm the stop: the result may still arrive.': 'Annulé, mais le serveur n’a pas confirmé l’arrêt : le résultat peut encore arriver.',
+      'Stopped. The computation has been interrupted.': 'Arrêté. Le calcul a été interrompu.',
+      'The cancellation could not reach the server.': 'L’annulation n’a pas pu être transmise au serveur.',
       // « Report » seul : le repli automatique l'avait rendu par
       // « Rapport annuel » sur le bouton place sous l'image.
       'Report': 'Signaler',

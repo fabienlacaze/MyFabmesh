@@ -11383,8 +11383,9 @@ document.getElementById('ws-mesh-segment-btn')?.addEventListener('click', async 
         meshPath: meshPathToUse,
         scale,
         projectName: p.name,
-        onProgress: ({ polls, elapsedMs, lastWarn }) => {
+        onProgress: ({ polls, elapsedMs, lastWarn, jobId: idServeur }) => {
           const j = state.jobs.find(x => x.id === job.id);
+          if (j && idServeur && !j.workerJobId) j.workerJobId = idServeur;   // Annuler l'arrete vraiment
           if (!j || j.status !== 'running') return;
           j.bridgeReporting = true;
           const overTime = Math.max(0, elapsedMs - expectedMs);
@@ -16308,6 +16309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         p.createdAt || Date.now(),
         { projectName: p.projectName || null, sourceImageUrl: p.meshUrl || null },
       );
+      if (job && p.jobId) job.workerJobId = String(p.jobId);   // Annuler l'arrete vraiment
 
       let cancelled = false;
       const POLL_INTERVAL_MS = 5000;
@@ -16613,6 +16615,12 @@ document.addEventListener('DOMContentLoaded', () => {
       );
       _jobByServerId.set(row.id, local);
       _serverPolledIds.add(local.id);
+      // ANNULER UN TRAVAIL REPRIS (2026-09-27, user : « le but d'annuler c'est de
+      // ne pas aller au bout »). Sans identifiant serveur, Annuler ne faisait que
+      // retirer la tuile : le calcul continuait, facture.
+      if (local && /^(mesh|rig|segment|animate|animation|anim)$/.test(String(row.type || ''))) {
+        local.workerJobId = row.id;
+      }
       // Connue du registre : si l'identifiant est declare plus tard par le
       // clic, cette tuile de reprise sera retiree (reparation).
       try { window.__tuilesReprises.set(String(row.id), local.id); } catch (_) {}
@@ -17731,8 +17739,9 @@ async function lancerRigIA(options = {}) {
         ...(Number.isInteger(options.graine) ? { graine: options.graine } : {}),
         ...(Number.isInteger(options.tirage) ? { tirage: options.tirage } : {}),
         ...(options.squelette ? { squelette: options.squelette } : {}),
-        onProgress: ({ polls, elapsedMs, lastWarn }) => {
+        onProgress: ({ polls, elapsedMs, lastWarn, jobId: idServeur }) => {
           const j = state.jobs.find(x => x.id === job.id);
+          if (j && idServeur && !j.workerJobId) j.workerJobId = idServeur;   // Annuler l'arrete vraiment
           if (!j || j.status !== 'running') return;
           j.bridgeReporting = true; // stops the synthetic min(90,...) cap
           // Past expectedMs we creep 90 → 99 at +1% per 20s overshoot.
@@ -19718,7 +19727,7 @@ async function cancelJob(id) {
   const j = state.jobs.find(j => j.id === id);
   if (!j) return;
   if (j.status !== 'running') return;
-  const ok = await customConfirm(`Cancel "${j.name}"? The current operation will be stopped.`, 'Cancel job', 'Cancel job');
+  const ok = await customConfirm(_i18nTf('Cancel "{x}"? The computation will be stopped. Credits for work already started are not refunded.', j.name), _i18nT('Cancel job'), _i18nT('Cancel job'));
   if (!ok) return;
   // Mark the job as cancelled BEFORE killing the process so the awaiting
   // promise can detect the cancellation and skip the error popup
@@ -19740,25 +19749,25 @@ async function cancelJob(id) {
         // Aucune poignee serveur : le travail est synchrone (images) ou
         // n'a jamais renvoye d'identifiant. Il n'y a rien a arreter a
         // distance — on le dit plutot que de le laisser croire.
-        showToast('Arrêté dans l’interface. Le traitement déjà lancé '
-          + 'côté serveur ira à son terme et reste facturé.', 'warn', 7000);
+        showToast(_i18nT('Stopped in the app. This short operation cannot be interrupted on the server: it finishes within a few minutes at most.'), 'warn', 7000);
       } else {
         const r = await API.cancelJob(j.workerJobId);
         if (r && r.ok === false) {
-          showToast('Annulation refusée par le serveur : '
-            + (r.error || 'raison inconnue'), 'error', 7000);
+          showToast(_i18nT('The server refused the cancellation:') + ' '
+            + (r.error || _i18nT('unknown reason')), 'error', 7000);
         } else if (r && r.modalStopped === false) {
           // Le registre est a jour et le credit rendu, mais le conteneur
           // GPU n'a pas confirme son arret : autant le dire.
-          showToast('Travail annulé et crédits rendus, mais l’arrêt du GPU '
-            + 'n’a pas été confirmé — le résultat peut encore arriver.',
+          showToast(_i18nT('Cancelled, but the server did not confirm the stop: the result may still arrive.'),
             'warn', 7000);
+        } else {
+          showToast(_i18nT('Stopped. The computation has been interrupted.'), 'success', 5000);
         }
       }
     }
   } catch (e) {
     console.warn('cancelJob failed:', e);
-    showToast('L’annulation n’a pas pu être transmise au serveur.', 'error', 6000);
+    showToast(_i18nT('The cancellation could not reach the server.'), 'error', 6000);
   }
   if (j.onCancel) {
     try { j.onCancel(); } catch (e) {}

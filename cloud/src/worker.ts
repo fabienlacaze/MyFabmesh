@@ -8834,12 +8834,17 @@ async function handleJobCancel(req: Request, env: Env): Promise<Response> {
     // deja finalise ce job : ne PAS rembourser une seconde fois.
     return json({ ok: true, alreadyDone: true, modalStopped: modal.cancelled });
   }
-  if (typeof job.credit_cost === 'number') {
+  // PAS DE REMBOURSEMENT UNE FOIS LE CALCUL COMMENCE (2026-09-27, decision du
+  // user : « le but d'annuler c'est de ne pas aller au bout ; on ne peut pas
+  // rembourser car deja debute »). Le calcul est ARRETE (ci-dessus) ; seul un
+  // travail encore en file d'attente, qui n'a rien consomme, est rendu.
+  const commence = !['queued', 'starting'].includes(String(job.status));
+  if (!commence && typeof job.credit_cost === 'number') {
     await addCredits(env, user.id as string, job.credit_cost);
   }
   // `modalStopped` remonte l'issue REELLE : l'interface ne doit plus
   // affirmer que tout est arrete quand seul le registre a change.
-  return json({ ok: true, modalStopped: modal.cancelled, modalError: modal.error });
+  return json({ ok: true, modalStopped: modal.cancelled, modalError: modal.error, rembourse: !commence });
 }
 
 /**

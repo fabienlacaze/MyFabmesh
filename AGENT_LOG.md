@@ -23826,3 +23826,17 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Cause de l'echec signale (mask inpaint) : mise en memoire du conteneur refaite apres mon
   deploiement de 16h13 (279 s) > fenetre de reprise du worker. Rembourse. D'ou le point C
   (grouper les deploiements Modal).
+
+## 2026-09-27 — Annuler arrete vraiment le calcul ; pas de remboursement une fois commence
+
+- Constat : Annuler n'arretait le calcul serveur QUE pour une generation 3D lancee dans la
+  meme session. Un travail REPRIS apres rechargement (centipede) et tout rig n'avaient pas
+  de `workerJobId` : la tuile disparaissait, le calcul continuait, facture.
+- Web : `workerJobId = row.id` pour les travaux repris (mesh / rig / segment / anim) et
+  pour les rigs repris via fabmesh_pending_rigs ; le rig lance dans la session le recoit
+  par onProgress (le shim transmet `jobId`).
+- Worker /api/jobs/cancel : decision du user — arret reel, PAS de remboursement une fois le
+  calcul commence (seul un travail en file d'attente est rendu). Messages traduits,
+  sans « GPU ».
+- Les operations courtes synchrones (retouches d'image, rectification) restent non
+  interruptibles cote serveur (10 min maximum par appel).
