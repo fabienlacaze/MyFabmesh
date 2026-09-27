@@ -21,6 +21,20 @@
 // texture a plat -> plaques aux bords droits ; voir OPTIONS_SANS_EFFET_CLOUD
 // dans le worker, qui les ignore et ne les facture plus).
 window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-fix']);
+/* Bloc « Assistant / Claude Desktop » des reglages : il relie Claude Desktop au
+ * serveur local de l'APPLI DE BUREAU (scripts/mcp_server.py). Sur le web il n'y a
+ * rien a relier : le bouton ne faisait rien. Masque (2026-09-27). */
+(function _masquerAssistantBureau() {
+  const f = () => {
+    const b = document.getElementById('set-claude-connect');
+    const boite = b && b.closest('.settings-box');
+    if (!boite) return;
+    boite.style.display = 'none';
+    const titre = boite.previousElementSibling;
+    if (titre && titre.classList.contains('settings-section-header')) titre.style.display = 'none';
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f); else f();
+})();
 /* « Fast (Turbo) » : l'accelerateur 4 pas ne se chargeait pas sur Modal (peft
  * absent) ; retire un moment le 2026-09-27, REMIS le meme jour avec peft dans
  * l'image du generateur d'images. */
