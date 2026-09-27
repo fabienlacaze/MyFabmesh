@@ -23901,3 +23901,13 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Site : visionneuses 3D — contexte graphique perdu signale et rendu par le navigateur, erreur
   de rendu affichee, cadrage exact des modeles a squelette (matrices des os calculees avant la
   boite : le rig etait cadre trop serre).
+
+## 2026-09-27 — Admin Marketplace : prix modifiable, miniatures ; « Clone stamp » sans « 3D »
+
+- POST /api/admin/market/<id>/price { price_cents } (admin) : fixe le prix d'une annonce en
+  euros (devise forcee EUR), journal d'audit, notification au vendeur. Admin : champ prix +
+  « Save price » sur chaque carte ; prix affiches en € (ils l'etaient en $).
+- Cartes admin : miniature (/api/market/poster) au lieu du maillage complet (noir).
+- Appli (web + bureau) : « 3D clone stamp » -> « Clone stamp » (c'est un tampon de TEXTURE).
+- Site : bascule machine a sous araignee/guerrier, projets mis en avant, infobulles avec
+  contour et image d'exemple (image de l'etape, specifique quand on en a une).

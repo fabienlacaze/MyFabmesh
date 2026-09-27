@@ -4698,6 +4698,40 @@ async function handleAdminMarketApprove(req: Request, env: Env, id: string): Pro
   }
 }
 
+/** POST /api/admin/market/<id>/price  body { price_cents } — ADMIN (2026-09-27,
+ *  user : « il faut que je puisse adapter le prix moi-meme »). Fixe le prix
+ *  d'une annonce, en euros (seule devise acceptee), et previent le vendeur. */
+async function handleAdminMarketPrice(req: Request, env: Env, id: string): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  if (!env.MESHES) return err(500, 'storage not configured');
+  let body: { price_cents?: unknown };
+  try { body = await req.json() as typeof body; } catch { body = {}; }
+  const prix = Number(body.price_cents);
+  if (!Number.isInteger(prix) || prix < 0 || prix > 1_000_000) return err(400, 'price_cents: integer 0 to 1000000 expected');
+  const key = `_market/listings/${id}.json`;
+  const txt = await r2GetText(env, key);
+  if (!txt) return err(404, 'listing not found');
+  const parsed = JSON.parse(txt);
+  const ancien = Number(parsed.price_cents ?? 0);
+  parsed.price_cents = prix;
+  parsed.currency = 'EUR';
+  await env.MESHES.put(key, JSON.stringify(parsed), { httpMetadata: { contentType: 'application/json' } });
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'market_price',
+                         details: { listing: id, avant: ancien, apres: prix } });
+  const txtPrix = prix === 0 ? 'free' : `${(prix / 100).toFixed(2)} €`;
+  await _addUserNotification(env, parsed.user_id, {
+    kind: 'market_price',
+    message: `The price of your listing "${parsed.title}" is now ${txtPrix}.`,
+    listing_id: id,
+    subject: parsed.title || 'Listing updated',
+    asset_url: parsed.asset_url || parsed.mesh_url,
+    asset_kind: parsed.asset_kind || (parsed.mesh_url ? 'mesh' : 'image'),
+    job_id: parsed.job_id,
+  });
+  return json({ ok: true, success: true, price_cents: prix });
+}
+
 /** POST /api/admin/market/<id>/reject  body { reason } — ADMIN. */
 async function handleAdminMarketReject(req: Request, env: Env, id: string): Promise<Response> {
   const guard = await _requireAdmin(req, env);
@@ -19687,8 +19721,9 @@ export default {
           if (m && method === 'PATCH') return await handleMarketListingUpdate(req, env, m[1]);
         }
         {
-          const m = pathname.match(/^\/api\/admin\/market\/([A-Za-z0-9_]+)(?:\/(approve|reject))?$/);
+          const m = pathname.match(/^\/api\/admin\/market\/([A-Za-z0-9_]+)(?:\/(approve|reject|price))?$/);
           if (m) {
+            if (m[2] === 'price'   && method === 'POST')   return await handleAdminMarketPrice(req, env, m[1]);
             if (m[2] === 'approve' && method === 'POST')   return await handleAdminMarketApprove(req, env, m[1]);
             if (m[2] === 'reject'  && method === 'POST')   return await handleAdminMarketReject(req, env, m[1]);
             if (!m[2]              && method === 'DELETE') return await handleAdminMarketDelete(req, env, m[1]);
