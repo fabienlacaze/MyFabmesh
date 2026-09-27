@@ -1,5 +1,12 @@
 # FabMesh — Claude Code instructions
 
+## Rester sur MyFabmesh (exigence user, 2026-09-28)
+Cette discussion est dédiée à **MyFabmesh**. Si une demande ne concerne
+visiblement pas MyFabmesh — Apovivor, Unreal, un autre projet, ou un message
+manifestement destiné à une autre discussion (le user en a déjà envoyé un
+par erreur) — **ne pas agir** : demander d'abord au user s'il est sûr de
+vouloir continuer ce travail ici.
+
 ## Auto-commit
 Après chaque modification testable (feature finie, fix validé, refactor
 qui compile), créer immédiatement un commit avec message clair, sans
