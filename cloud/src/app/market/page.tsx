@@ -48,7 +48,7 @@ interface Listing {
   price_cents: number;
   currency: string;
   licence: string;
-  asset_kind?: 'mesh' | 'image' | 'rig';
+  asset_kind?: 'mesh' | 'image' | 'rig' | 'animation';
   asset_type: string | null;
   asset_url?: string;
   mesh_url: string;
@@ -106,7 +106,7 @@ function saveCart(ids: string[]) {
 
 interface MineItem {
   listing_id: string;
-  kind: 'mesh' | 'image' | 'rig';
+  kind: 'mesh' | 'image' | 'rig' | 'animation';
   job_id: string | null;
   asset_url: string;
   mesh_url: string;
@@ -218,7 +218,7 @@ function MarketPageInner() {
   const [filtered, setFiltered] = useState<Listing[]>([]);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'all' | 'offerts' | 'free' | 'paid' | 'owned' | 'mine'>('all');
-  const [kindFilter, setKindFilter] = useState<'all' | 'mesh' | 'image' | 'rig'>('all');
+  const [kindFilter, setKindFilter] = useState<'all' | 'mesh' | 'image' | 'rig' | 'animation'>('all');
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Listing | null>(null);
   const [cart, setCart] = useState<string[]>([]);
@@ -353,6 +353,7 @@ function MarketPageInner() {
       if (kindFilter === 'mesh' && kind !== 'mesh') return false;
       if (kindFilter === 'image' && kind !== 'image') return false;
       if (kindFilter === 'rig' && kind !== 'rig') return false;
+      if (kindFilter === 'animation' && kind !== 'animation') return false;
       if (q && !`${l.title} ${l.description} ${l.author_display}`.toLowerCase().includes(q)) return false;
       return true;
     }).sort((a, b) => Number(!!b.offert) - Number(!!a.offert)));
@@ -496,13 +497,14 @@ function MarketPageInner() {
     if (kindFilter === 'mesh' && eff !== 'mesh') return false;
     if (kindFilter === 'image' && eff !== 'image') return false;
     if (kindFilter === 'rig' && eff !== 'rig') return false;
+    if (kindFilter === 'animation' && eff !== 'animation') return false;
     return true;
   };
   const displayItems: Listing[] = tab === 'owned'
     ? owned.filter((o) => kindMatch(o.asset_kind)).map((o) => ({
         id: o.id, title: o.title, description: o.description,
         price_cents: o.price_cents, currency: o.currency, licence: o.licence,
-        asset_kind: (o.asset_kind as 'mesh' | 'image' | 'rig' | undefined) || 'mesh',
+        asset_kind: (o.asset_kind as 'mesh' | 'image' | 'rig' | 'animation' | undefined) || 'mesh',
         asset_type: null,
         asset_url: o.asset_url, mesh_url: o.mesh_url,
         author_display: o.author_display, user_id: o.user_id,
@@ -678,7 +680,7 @@ function MarketPageInner() {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        {(['all', 'mesh', 'image', 'rig'] as const).map((k) => (
+        {(['all', 'mesh', 'image', 'rig', 'animation'] as const).map((k) => (
           <button
             key={k}
             onClick={() => setKindFilter(k)}
@@ -688,7 +690,8 @@ function MarketPageInner() {
             {k === 'all' ? '🎴 All kinds'
               : k === 'mesh' ? '🧊 3D Meshes'
               : k === 'image' ? '🖼 2D Images'
-              : '🦴 Rigs'}
+              : k === 'rig' ? '🦴 Rigs'
+              : '🎬 Animations'}
           </button>
         ))}
       </div>
@@ -824,7 +827,7 @@ function MarketPageInner() {
                     ) : (
                       <>by {l.author_display}</>
                     )}
-                    {' · '}{kind === 'image' ? '2D image' : (l.asset_type || '3D mesh')}
+                    {' · '}{kind === 'image' ? '2D image' : kind === 'rig' ? 'Rig' : kind === 'animation' ? (l.asset_type || 'Animation') : (l.asset_type || '3D mesh')}
                   </div>
                   <div style={{ color: 'var(--text-3)', fontSize: 10 }}>
                     {LICENCE_LABELS[l.licence] || l.licence}
@@ -967,7 +970,7 @@ function MarketPageInner() {
                      style={{ width: '100%', height: 420, objectFit: 'contain', background: '#0a0a0e', borderRadius: 8 }} />
               ) : (
                 // @ts-expect-error model-viewer is a custom element
-                <model-viewer src={url} poster={`/api/market/poster/${selected.id}`} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8 }} />
+                <model-viewer src={url} poster={`/api/market/poster/${selected.id}`} autoplay={kind === 'animation' ? true : undefined} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8 }} />
               );
             })()}
             {selected.description && (

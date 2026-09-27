@@ -3964,7 +3964,7 @@ type MarketListing = {
   price_cents: number;
   currency: string;
   licence: string;
-  asset_kind: 'mesh' | 'image';
+  asset_kind: 'mesh' | 'image' | 'rig' | 'animation';
   asset_type: string | null;
   // Canonical asset URL — for backwards compatibility we keep
   // `mesh_url` populated when asset_kind === 'mesh' so older clients
@@ -3982,6 +3982,47 @@ type MarketListing = {
 const MARKET_LICENCES = new Set([
   'personal', 'cc0', 'cc-by', 'cc-by-nc', 'commercial',
 ]);
+
+/** Cle R2 d'un actif de fiche. Trois formes coexistent dans `asset_url` :
+ *  la cle nue (`mesh/modal_x.glb`, fiches recentes), l'URL signee du worker
+ *  (`https://<site>/r2/<cle>?exp&sig`) et l'ancienne URL publique r2.dev.
+ *  Le telechargement ne lisait que les deux dernieres : une fiche en cle nue
+ *  finissait en `fetch('mesh/…')`, donc jamais telechargeable (mesure du
+ *  2026-09-27 sur la production). null = hote externe ou cle invalide. */
+function _cleR2DepuisUrl(env: Env, v: string): string | null {
+  if (!v) return null;
+  let cle: string | null = null;
+  if (!/^https?:\/\//i.test(v)) {
+    cle = v.replace(/^\/+/, '');
+  } else {
+    try {
+      const u = new URL(v);
+      const siteHost = new URL(siteUrl(env, 'http://localhost:3030')).host;
+      if (u.pathname.startsWith('/r2/') && u.host === siteHost) {
+        cle = u.pathname.slice('/r2/'.length).split('/').map(decodeURIComponent).join('/');
+      } else if (env.R2_PUBLIC_URL && u.host === new URL(env.R2_PUBLIC_URL).host) {
+        cle = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+      }
+    } catch { cle = null; }
+  }
+  if (!cle || cle.includes('..') || cle.startsWith('/')) return null;
+  return cle;
+}
+
+/** Flux de l'actif d'une fiche : depuis R2 quand il y vit, sinon depuis son
+ *  hote d'origine (anciennes URL externes). null = introuvable. */
+async function _fluxActifFiche(env: Env, url: string): Promise<{ body: ReadableStream; type: string | null; taille: string | null } | null> {
+  const cle = _cleR2DepuisUrl(env, url);
+  if (cle) {
+    const obj = await env.MESHES!.get(cle);
+    if (!obj) return null;
+    return { body: (obj as { body: ReadableStream }).body, type: r2ContentType(cle), taille: String(obj.size) };
+  }
+  if (!/^https?:\/\//i.test(url)) return null;
+  const upstream = await fetch(url);
+  if (!upstream.ok || !upstream.body) return null;
+  return { body: upstream.body, type: upstream.headers.get('Content-Type'), taille: upstream.headers.get('Content-Length') };
+}
 
 async function _loadAllListings(env: Env): Promise<MarketListing[]> {
   if (!env.MESHES) return [];
@@ -4005,9 +4046,11 @@ async function _loadAllListings(env: Env): Promise<MarketListing[]> {
 }
 
 /** POST /api/market/publish — author publishes one of their own
- *  succeeded meshes OR an image they own. Body shapes:
- *    mesh:  { asset_kind:'mesh',  jobId, title, description, price_cents, currency, licence }
- *    image: { asset_kind:'image', imageUrl, title, description, price_cents, currency, licence }
+ *  succeeded meshes, an image, a rig or an animation they own. Body shapes:
+ *    mesh:      { asset_kind:'mesh',      jobId, title, description, price_cents, currency, licence }
+ *    image:     { asset_kind:'image',     imageUrl, title, ... }
+ *    rig:       { asset_kind:'rig',       assetUrl, title, ... }   (2026-09-27)
+ *    animation: { asset_kind:'animation', assetUrl, title, ... }   (2026-09-27)
  *  We snapshot the asset URL at publish time. Status starts as
  *  'pending' so admin can approve before it shows on the public grid. */
 async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
@@ -4020,6 +4063,7 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     asset_kind?: string;
     jobId?: string;
     imageUrl?: string;
+    assetUrl?: string;
     title?: string;
     description?: string;
     price_cents?: number;
@@ -4051,7 +4095,9 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     return err(400, `currency ${currency} not supported — listings are priced in EUR`);
   }
   const licence = String(body.licence ?? 'personal').trim().toLowerCase();
-  if (kind !== 'mesh' && kind !== 'image') return err(400, 'asset_kind must be mesh or image');
+  if (!['mesh', 'image', 'rig', 'animation'].includes(kind)) {
+    return err(400, 'asset_kind must be mesh, image, rig or animation');
+  }
   if (!title) return err(400, 'title required');
   if (!MARKET_LICENCES.has(licence)) return err(400, 'invalid licence');
 
@@ -4071,6 +4117,34 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     if (!job.mesh_url)              return err(400, 'mesh has no URL');
     assetUrl = job.mesh_url;
     assetType = (job.asset_type as string | null) ?? null;
+  } else if (kind === 'rig' || kind === 'animation') {
+    /* RIGS ET ANIMATIONS (2026-09-27, user : « doivent pouvoir etre publies »).
+     * Ils n'ont pas de ligne `jobs` fiable : ce sont des fichiers R2 que
+     * /api/list-meshes classe par emplacement. On retrouve la cle depuis l'URL
+     * signee que le client affiche, et on exige qu'elle soit dans l'espace de
+     * l'auteur ET au bon endroit :
+     *   rig       : <uid>/rigged/…glb, ou <uid>/mesh-op/<projet>/…_rigged_…glb
+     *               (squelette ajuste a la main, rangé avec les operations) ;
+     *   animation : <uid>/animations/…glb. */
+    const cle = _cleR2DepuisUrl(env, String(body.assetUrl ?? '').trim());
+    if (!cle) return err(400, 'assetUrl required');
+    const nom = cle.split('/').pop() || '';
+    const aLui = cle.startsWith(`${user.id}/`);
+    const bonEndroit = kind === 'rig'
+      ? (cle.startsWith(`${user.id}/rigged/`) || (cle.startsWith(`${user.id}/mesh-op/`) && /_rigged_/i.test(nom)))
+      : cle.startsWith(`${user.id}/animations/`);
+    if (!aLui || !bonEndroit || !/\.glb$/i.test(nom)) {
+      return err(403, `this ${kind} must be one of your own`);
+    }
+    if (!(await env.MESHES.head(cle))) return err(404, `${kind} not found`);
+    assetUrl = cle;
+    // job_id reste null : le client indexe les fiches par job_id, et celui du
+    // maillage source ferait passer CE maillage pour deja publie. La miniature
+    // est retrouvee depuis le nom du fichier (voir handleMarketPoster).
+    const clip = kind === 'animation'
+      ? ((nom.match(/_(idle|walk|run|attack|death|fly|jump|custom|clip)_/i) || [])[1] || '').toLowerCase()
+      : '';
+    assetType = kind === 'rig' ? 'rig' : (clip ? `animation · ${clip}` : 'animation');
   } else {
     const imageUrl = String(body.imageUrl ?? '').trim();
     if (!imageUrl) return err(400, 'imageUrl required for image listings');
@@ -4109,10 +4183,10 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     price_cents,
     currency,
     licence,
-    asset_kind: kind as 'mesh' | 'image',
+    asset_kind: kind as MarketListing['asset_kind'],
     asset_type: assetType,
     asset_url: assetUrl,
-    mesh_url: kind === 'mesh' ? assetUrl : '',  // legacy field kept populated for meshes
+    mesh_url: kind === 'image' ? '' : assetUrl,  // legacy field kept populated for 3D kinds
     thumbnail_url: kind === 'image' ? assetUrl : null,
     status: 'pending',
     created_at: new Date().toISOString(),
@@ -4269,7 +4343,7 @@ async function handleMarketListingUpdate(req: Request, env: Env, id: string): Pr
  *  image vendue — il faudrait un filigrane ou une version basse
  *  definition, ce qui n'existe pas dans le produit. Les maillages, eux,
  *  n'ont pas de miniature separee et sont reellement proteges. */
-function _ficheVitrine(l: Record<string, unknown>): Record<string, unknown> {
+function _ficheVitrine(l: Record<string, unknown>, env: Env): Record<string, unknown> {
   const prix = Number(l.price_cents ?? 0);
   const kind = (l.asset_kind as string) || (l.mesh_url ? 'mesh' : 'image');
   const base: Record<string, unknown> = {
@@ -4283,8 +4357,12 @@ function _ficheVitrine(l: Record<string, unknown>): Record<string, unknown> {
     downloads: l.downloads,
   };
   if (prix > 0) return base;                       // payante : pas d'URL
-  base.asset_url = l.asset_url || l.mesh_url;      // gratuite : telechargeable
-  base.mesh_url = l.mesh_url;
+  // Gratuite : servie par /api/market/preview/<id>, qui lit R2. La valeur
+  // stockee (cle nue, URL signee perimee, ancienne URL r2.dev) ne
+  // s'affichait pas telle quelle dans la vitrine.
+  const apercu = `${siteUrl(env, 'http://localhost:3030').replace(/\/+$/, '')}/api/market/preview/${encodeURIComponent(String(l.id))}`;
+  base.asset_url = apercu;
+  base.mesh_url = kind === 'image' ? '' : apercu;
   return base;
 }
 
@@ -4298,7 +4376,13 @@ async function handleMarketPoster(env: Env, id: string): Promise<Response> {
   if (!env.MESHES) return err(404, 'not found');
   const l = (await _loadAllListings(env)).find((x) => x.id === id);
   if (!l || l.asset_kind === 'image') return err(404, 'not found');
-  const maillage = l.job_id || (String(l.mesh_url || '').match(/(modal_[A-Za-z0-9]+)\.glb/) || [])[1] || '';
+  // Rig et animation : le maillage source est dans le nom du fichier
+  // (modal_<hex>_rigged_…glb, …_walk_<lot>_<ts>.glb) — on reprend SA miniature.
+  // Le prefixe « modal_ » manque sur certains rigs (<hex>_rigged_…glb).
+  const hex = (String(l.mesh_url || '').match(/(?:^|[/_])(?:modal_)?([a-f0-9]{32})(?=[._])/i) || [])[1];
+  const maillage = l.job_id
+    || (hex ? `modal_${hex.toLowerCase()}` : '')
+    || (String(l.mesh_url || '').match(/(modal_[A-Za-z0-9]+)\.glb/) || [])[1] || '';
   if (!/^modal_[A-Za-z0-9]+$/.test(maillage)) return err(404, 'no thumbnail');
   for (const ext of ['png', 'webp', 'jpg']) {
     const o = await env.MESHES.get(`${l.user_id}/thumb/${maillage}.${ext}`);
@@ -4451,7 +4535,7 @@ async function handleMarketList(_req: Request, env: Env): Promise<Response> {
       const r = ratingsByListing.get(l.id) || { avg: 0, count: 0 };
       // author_email retire : surface publique. asset_url retire aussi
       // quand la fiche est payante — voir _ficheVitrine.
-      return { ..._ficheVitrine(l as unknown as Record<string, unknown>),
+      return { ..._ficheVitrine(l as unknown as Record<string, unknown>, env),
         ...(offerts.has(l.id) ? { offert: true, offert_fin: finOffre } : {}),
                rating_avg: r.avg, rating_count: r.count };
     });
@@ -4489,7 +4573,7 @@ async function handleMarketGet(_req: Request, env: Env, id: string): Promise<Res
       }
     }
     return json({ ok: true, listing: {
-      ..._ficheVitrine(parsed as Record<string, unknown>),
+      ..._ficheVitrine(parsed as Record<string, unknown>, env),
       rating_avg: stats.avg,
       rating_count: stats.count,
       my_rating: myRating,
@@ -4728,7 +4812,7 @@ async function handleMarketAuthorPage(_req: Request, env: Env, authorId: string)
      * Lecon : la projection publique doit passer par UNE seule fonction.
      * Trois copies, c'est trois occasions d'en oublier une — et c'est
      * exactement ce qui s'est produit. */
-    return { ..._ficheVitrine(l as unknown as Record<string, unknown>),
+    return { ..._ficheVitrine(l as unknown as Record<string, unknown>, env),
              author_display: l.author_display,
              rating_avg: r.avg, rating_count: r.count };
   });
@@ -4767,8 +4851,16 @@ async function handleAdminMarketList(req: Request, env: Env): Promise<Response> 
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
   const all = await _loadAllListings(env);
+  // L'admin doit VOIR ce qu'il approuve : une cle nue (rigs, animations,
+  // maillages recents) ou une URL signee perimee ne s'ouvrait pas dans
+  // l'inspecteur. On lui passe une URL signee fraiche, en plus de l'originale.
+  const signees = await Promise.all(all.map(async (l) => {
+    const cle = _cleR2DepuisUrl(env, l.asset_url || l.mesh_url);
+    const apercu = cle ? await signedR2Url(env, cle, l.asset_kind === 'image' ? 'image' : 'mesh') : (l.asset_url || l.mesh_url);
+    return { ...l, apercu_url: apercu };
+  }));
   const mois = _moisCourant();
-  return json({ ok: true, listings: all, offerts: await _offertsDuMois(env, mois), offerts_mois: mois, offerts_max: OFFERTS_MAX });
+  return json({ ok: true, listings: signees, offerts: await _offertsDuMois(env, mois), offerts_mois: mois, offerts_max: OFFERTS_MAX });
 }
 
 /** GET /api/admin/market/killswitch — ADMIN. Read current state. */
@@ -5910,56 +6002,46 @@ async function handleMarketDownload(req: Request, env: Env, listingId: string): 
   const url = listing.asset_url || listing.mesh_url;
   if (!url) return err(404, 'asset URL missing');
 
-  // Resolve to an R2 KEY when the asset lives in our bucket, so we stream
-  // from the MESHES binding directly — robust to the r2.dev public bucket
-  // being disabled AND to a signed /r2/ URL's TTL expiring. Only fall back
-  // to an outbound fetch for genuinely external hosts (legacy replicate URLs).
-  let r2Key: string | null = null;
-  try {
-    const u = new URL(url);
-    const siteHost = new URL(siteUrl(env, 'http://localhost:3030')).host;
-    if (u.pathname.startsWith('/r2/') && u.host === siteHost) {
-      r2Key = u.pathname.slice('/r2/'.length).split('/').map(decodeURIComponent).join('/');
-    } else if (env.R2_PUBLIC_URL && u.host === new URL(env.R2_PUBLIC_URL).host) {
-      r2Key = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
-    }
-  } catch {}
-  if (r2Key && (r2Key.includes('..') || r2Key.startsWith('/'))) r2Key = null;
-
   // Safe filename: alphanumerics + dash + underscore from the title,
-  // plus the extension lifted off the asset URL pathname.
+  // plus the extension lifted off the asset key or URL pathname.
   const safeTitle = (listing.title || 'asset').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 80) || 'asset';
-  let ext = '';
-  try {
-    const m = new URL(url).pathname.match(/\.([A-Za-z0-9]{1,8})$/);
-    if (m) ext = '.' + m[1].toLowerCase();
-  } catch {}
-  const filename = safeTitle + ext;
+  const m = (_cleR2DepuisUrl(env, url) || url.split('?')[0]).match(/\.([A-Za-z0-9]{1,8})$/);
+  const filename = safeTitle + (m ? '.' + m[1].toLowerCase() : '');
 
+  // Streamed from R2 when the asset lives there (bare key, signed /r2/ URL or
+  // legacy r2.dev URL); outbound fetch only for genuinely external hosts.
+  const flux = await _fluxActifFiche(env, url);
+  if (!flux) return err(404, 'asset not found in storage');
   const headers = new Headers();
   headers.set('Content-Disposition', `attachment; filename="${filename}"`);
   headers.set('Cache-Control', 'private, max-age=60');
-
-  let bodyStream: ReadableStream;
-  if (r2Key) {
-    const obj = await env.MESHES.get(r2Key);
-    if (!obj) return err(404, 'asset not found in storage');
-    bodyStream = (obj as { body: ReadableStream }).body;
-    headers.set('Content-Type', r2ContentType(r2Key));
-  } else {
-    const upstream = await fetch(url);
-    if (!upstream.ok || !upstream.body) return err(502, 'asset fetch failed');
-    bodyStream = upstream.body;
-    const upCT = upstream.headers.get('Content-Type');
-    if (upCT) headers.set('Content-Type', upCT);
-    const upCL = upstream.headers.get('Content-Length');
-    if (upCL) headers.set('Content-Length', upCL);
-  }
+  if (flux.type) headers.set('Content-Type', flux.type);
+  if (flux.taille) headers.set('Content-Length', flux.taille);
 
   // Best-effort downloads counter — atomic CAS on a separate R2 key.
   await bumpListingDownloads(env, listingId);
 
-  return new Response(bodyStream, { status: 200, headers });
+  return new Response(flux.body, { status: 200, headers });
+}
+
+/** GET /api/market/preview/<id> — PUBLIC, fiches GRATUITES approuvees seulement.
+ *  L'apercu 3D (et l'image) de la vitrine lisait `asset_url` tel quel : une cle
+ *  nue ou une URL signee perimee (24 h pour une image) ne s'affichait pas. Cette
+ *  route sert le fichier depuis R2, sans compter de telechargement. Les fiches
+ *  payantes restent derriere l'achat (/api/market/download). */
+async function handleMarketPreview(env: Env, id: string): Promise<Response> {
+  if (!env.MESHES) return err(404, 'not found');
+  const txt = await r2GetText(env, `_market/listings/${id}.json`);
+  if (!txt) return err(404, 'not found');
+  let l: MarketListing;
+  try { l = JSON.parse(txt); } catch { return err(404, 'not found'); }
+  if (l.status !== 'approved' || Number(l.price_cents) > 0) return err(404, 'not found');
+  const flux = await _fluxActifFiche(env, l.asset_url || l.mesh_url);
+  if (!flux) return err(404, 'not found');
+  const h = new Headers({ 'cache-control': 'public, max-age=3600' });
+  if (flux.type) h.set('content-type', flux.type);
+  if (flux.taille) h.set('content-length', flux.taille);
+  return new Response(flux.body, { headers: h });
 }
 
 /** DELETE /api/admin/market/<id> — ADMIN. Hard-remove a listing. */
@@ -19884,6 +19966,10 @@ export default {
         {
           const m = pathname.match(/^\/api\/market\/poster\/([A-Za-z0-9_]+)$/);
           if (m && method === 'GET') return await handleMarketPoster(env, m[1]);
+        }
+        {
+          const m = pathname.match(/^\/api\/market\/preview\/([A-Za-z0-9_]+)$/);
+          if (m && method === 'GET') return await handleMarketPreview(env, m[1]);
         }
         {
           const m = pathname.match(/^\/api\/market\/([A-Za-z0-9_]+)\/claim$/);

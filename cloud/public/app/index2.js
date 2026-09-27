@@ -17530,6 +17530,8 @@ function getCurrentRigObj() {
   }
   return p.rigs[0];
 }
+// expose for cloud-overrides.js (publication Marketplace du rig affiche)
+window.getCurrentRigObj = getCurrentRigObj;
 
 document.getElementById('ws-rig-folder-btn')?.addEventListener('click', async () => {
   const r = getCurrentRigObj();
@@ -18011,6 +18013,8 @@ function renderAnimVersions(p) {
 // Bones overlay was impossible. With Viewer3D + AnimationMixer +
 // SkeletonHelper we own the render loop and can toggle bones natively.
 let _step4ActiveAnim = null;
+// expose for cloud-overrides.js : le clip affiche, pour le publier sur la Marketplace
+window.getCurrentAnimObj = () => _step4ActiveAnim;
 let _animVw = null;      // Viewer3D
 let _animMixer = null;
 let _animAction = null;

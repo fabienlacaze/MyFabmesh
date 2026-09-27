@@ -741,6 +741,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-anim-folder-btn':       1,
     'ws-image-publish-btn':     1,
     'ws-mesh-publish-btn':      1,
+    'ws-rig-publish-btn':       1,
+    'ws-anim-publish-btn':      1,
     'ws-anim-import-btn':       1,
     'ws-lm-manual':             1,   // Skeleton points
   };
@@ -1223,6 +1225,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-anim-folder-btn':  'export',
     'ws-image-publish-btn': 'market_publish',
     'ws-mesh-publish-btn': 'market_publish',
+    'ws-rig-publish-btn':  'market_publish',
+    'ws-anim-publish-btn': 'market_publish',
     'ws-anim-import-btn':  'manual_tool',
     'ws-lm-manual':        'manual_tool',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
@@ -2574,6 +2578,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     if (!modal) return;
     const meshBtn  = document.getElementById('ws-mesh-publish-btn');
     const imageBtn = document.getElementById('ws-image-publish-btn');
+    // Rigs et animations (2026-09-27, user : « doivent pouvoir etre publies »)
+    const rigBtn   = document.getElementById('ws-rig-publish-btn');
+    const animBtn  = document.getElementById('ws-anim-publish-btn');
     const cancel = document.getElementById('pub-cancel');
     const go     = document.getElementById('pub-go');
     const close = () => modal.classList.add('hidden');
@@ -2598,6 +2605,22 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         }
         payload = { kind: 'mesh', jobId };
         previewUrl = m.path || m.url || '';
+      } else if (kind === 'rig' || kind === 'animation') {
+        // Le fichier affiche : son URL signee suffit, le serveur en retrouve
+        // la cle et verifie qu'il appartient bien a l'auteur.
+        const fn = kind === 'rig' ? window.getCurrentRigObj : window.getCurrentAnimObj;
+        const o = (typeof fn === 'function') ? fn() : null;
+        const url = o ? (o.url || o.path || '') : '';
+        if (!url) {
+          if (typeof window.showToast === 'function') window.showToast(kind === 'rig' ? 'Pick a rig first.' : 'Pick an animation first.', 'error');
+          return;
+        }
+        if (!/^https?:\/\//i.test(url)) {
+          if (typeof window.showToast === 'function') window.showToast('This file is not saved online yet. Save it, then publish.', 'error', 5000);
+          return;
+        }
+        payload = { kind, assetUrl: url };
+        previewUrl = url;
       } else {
         // Image: prefer the image actually shown in the big viewer
         // (previewImagePath — updated by version-thumb clicks). Fall
@@ -2626,8 +2649,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       // Tweak the title + subtitle so users know whether they're
       // publishing a mesh or an image.
       const h2 = document.getElementById('pub-title-h2');
-      if (h2) h2.innerHTML = kind === 'image'
-        ? '\u{1F6D2} Publish image to marketplace'
+      if (h2) h2.innerHTML = kind === 'image' ? '\u{1F6D2} Publish image to marketplace'
+        : kind === 'rig' ? '\u{1F6D2} Publish rig to marketplace'
+        : kind === 'animation' ? '\u{1F6D2} Publish animation to marketplace'
         : '\u{1F6D2} Publish 3D mesh to marketplace';
       const titleInput = document.getElementById('pub-title');
       if (titleInput && !titleInput.value) titleInput.value = p?.name || '';
@@ -2702,6 +2726,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     }
     meshBtn?.addEventListener('click',  () => openFor('mesh'));
     imageBtn?.addEventListener('click', () => openFor('image'));
+    rigBtn?.addEventListener('click',   () => openFor('rig'));
+    animBtn?.addEventListener('click',  () => openFor('animation'));
 
     // showToast may not exist (timing / scope) — wrap so failures are
     // never silent. The user reported clicking Submit and seeing
@@ -2743,6 +2769,10 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         notify('No image selected — close and pick an image first.', 'error');
         return;
       }
+      if ((kind === 'rig' || kind === 'animation') && !payload?.assetUrl) {
+        notify('Nothing selected — close and pick a ' + kind + ' first.', 'error');
+        return;
+      }
       go.disabled = true;
       go.textContent = 'Submitting…';
       try {
@@ -2754,6 +2784,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         };
         if (kind === 'mesh')  body.jobId    = payload.jobId;
         if (kind === 'image') body.imageUrl = payload.imageUrl;
+        if (kind === 'rig' || kind === 'animation') body.assetUrl = payload.assetUrl;
         console.log('[market.publish] POST body=', body);
         const r = await fetch('/api/market/publish', {
           method: 'POST', credentials: 'include',
