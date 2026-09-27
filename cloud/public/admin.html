@@ -922,6 +922,8 @@
         <button class="btn market-filter-btn active" data-mf="pending">Pending <span id="mf-pending-count" style="background:var(--warn); color:#000; padding:1px 6px; border-radius:9px; font-size:10px; margin-left:4px;">0</span></button>
         <button class="btn market-filter-btn" data-mf="approved">Approved <span id="mf-approved-count" style="background:var(--ok); color:#fff; padding:1px 6px; border-radius:9px; font-size:10px; margin-left:4px;">0</span></button>
         <button class="btn market-filter-btn" data-mf="rejected">Rejected <span id="mf-rejected-count" style="background:var(--err); color:#fff; padding:1px 6px; border-radius:9px; font-size:10px; margin-left:4px;">0</span></button>
+        <span id="mf-offerts" style="margin-left:auto; align-self:center; font-size:12px; color:var(--text-2);"
+              title="Free items of the month: anyone signed in can claim them for free and keep them. The platform pays the creator 35% of the price per claim.">🎁 Free this month: <b id="mf-offerts-n">0</b> / 5</span>
       </div>
       <div id="market-list" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
         <div style="color:var(--text-2); text-align:center; padding:24px; grid-column:1/-1;">Click Refresh to load.</div>
@@ -3943,6 +3945,7 @@
     // MARKETPLACE moderation panel
     // ============================================================
     let _allMarketListings = [];
+    let _marketOfferts = [], _marketOffertsMax = 5;
     let _marketFilter = 'pending';
     const _MARKET_LIC_LABEL = {
       personal: 'Personal use',
@@ -3961,6 +3964,8 @@
         }
         const j = await r.json();
         _allMarketListings = j.listings || [];
+        _marketOfferts = Array.isArray(j.offerts) ? j.offerts : [];
+        _marketOffertsMax = j.offerts_max || 5;
         _renderMarketListings();
       } catch (e) {
         list.innerHTML = '<div style="color:var(--err); padding:14px; grid-column:1/-1;">' + escapeHtml(e?.message || String(e)) + '</div>';
@@ -3973,6 +3978,8 @@
       document.getElementById('mf-pending-count').textContent  = String(counts.pending);
       document.getElementById('mf-approved-count').textContent = String(counts.approved);
       document.getElementById('mf-rejected-count').textContent = String(counts.rejected);
+      const nOff = document.getElementById('mf-offerts-n');
+      if (nOff) nOff.parentNode.innerHTML = `🎁 Free this month: <b id="mf-offerts-n">${_marketOfferts.length}</b> / ${_marketOffertsMax}`;
       const badge = document.getElementById('badge-market');
       if (badge) {
         if (counts.pending > 0) { badge.textContent = String(counts.pending); badge.style.display = ''; }
@@ -4027,6 +4034,12 @@
               <button class="btn" style="padding:3px 10px; font-size:11px;" onclick="prixListing('${escapeHtml(l.id)}')">Save price</button>
               <span style="font-size:11px;">(0 = free)</span>
             </div>
+            ${l.status === 'approved' && l.price_cents > 0 ? `
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:${_marketOfferts.includes(l.id) ? '#ffcc66' : 'var(--text-2)'}; cursor:pointer;"
+                   title="Anyone signed in can claim it for free until the end of the month and keeps it. The creator gets ${((l.price_cents * 0.35) / 100).toFixed(2)} € per claim, paid by the platform.">
+              <input type="checkbox" ${_marketOfferts.includes(l.id) ? 'checked' : ''} onchange="offertListing('${escapeHtml(l.id)}', this)" />
+              🎁 Free this month <span style="font-size:11px;">(creator gets ${((l.price_cents * 0.35) / 100).toFixed(2)} € per claim)</span>
+            </label>` : ''}
             ${l.description ? `<div style="font-size:12px; color:var(--text-1); max-height:60px; overflow:hidden;">${escapeHtml(l.description)}</div>` : ''}
             ${l.rejection_reason ? `<div style="font-size:11px; color:var(--err); padding:6px; background:rgba(244,67,54,0.1); border-radius:4px;">Rejected: ${escapeHtml(l.rejection_reason)}</div>` : ''}
             <div style="display:flex; gap:6px; flex-wrap:wrap;">${actions}</div>
@@ -4049,6 +4062,26 @@
         if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
         await loadMarketListings();
       } catch (e) { alert('Price not saved: ' + (e.message || e)); }
+    }
+
+    // « Gratuit ce mois-ci » : 5 annonces au plus, le createur reste paye.
+    async function offertListing(id, caseACocher) {
+      const actif = !!caseACocher.checked;
+      caseACocher.disabled = true;
+      try {
+        const r = await fetch('/api/admin/market/' + encodeURIComponent(id) + '/offert', {
+          method: 'POST', credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ actif }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        _marketOfferts = j.ids || [];
+        _renderMarketListings();
+      } catch (e) {
+        caseACocher.checked = !actif;
+        alert('Not saved: ' + (e.message || e));
+      } finally { caseACocher.disabled = false; }
     }
 
     // Fullscreen lightbox for admin Marketplace cards. Image: <img>

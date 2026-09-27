@@ -2526,8 +2526,14 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       el.style.color = '#d4a017';
       return;
     }
+    // choix du createur dans /account : credits ou argent (2026-09-27)
+    if (status.payout_mode === 'credits') {
+      el.textContent = 'Payout: credits (your choice, change it in /account to receive money).';
+      el.style.color = 'var(--text-2)';
+      return;
+    }
     const cash = (price * 0.70).toFixed(2);
-    el.textContent = 'Payout: cash via Stripe (~$' + cash + ' to your bank after 30% platform fee).';
+    el.textContent = 'Payout: money via Stripe (~' + cash + ' € to your bank after the 30% platform fee).';
     el.style.color = '#3fb950';
   }
 
@@ -2654,6 +2660,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
                 charges_enabled: !!ss.charges_enabled,
                 payouts_enabled: !!ss.payouts_enabled,
                 details_submitted: !!ss.details_submitted,
+                payout_mode: ss.payout_mode === 'cash' ? 'cash' : 'credits',
               };
             }
           })

@@ -45,6 +45,27 @@ export default function AccountPage() {
   const [sellerStatus, setSellerStatus] = useState<SellerStatus | null>(null);
   const [stripeReturn, setStripeReturn] = useState<'return' | 'refresh' | null>(null);
   const [onboardBusy, setOnboardBusy] = useState(false);
+  const [payoutMode, setPayoutMode] = useState<'credits' | 'cash'>('credits');
+  const [payoutBusy, setPayoutBusy] = useState(false);
+  const [creditsParEuro, setCreditsParEuro] = useState(8);
+
+  async function choisirVersement(mode: 'credits' | 'cash') {
+    setPayoutBusy(true);
+    try {
+      const r = await fetch('/api/market/seller/payout-pref', {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      const j = await r.json().catch(() => ({} as { error?: string }));
+      if (!r.ok) throw new Error((j as { error?: string }).error || String(r.status));
+      setPayoutMode((j as { mode?: 'credits' | 'cash' }).mode === 'cash' ? 'cash' : 'credits');
+    } catch (e) {
+      alert('Choice not saved: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setPayoutBusy(false);
+    }
+  }
 
   // After a Stripe payment (?paid=1), the credit grant lands via the webhook a
   // moment AFTER the redirect, so the first /api/me can still show the old
@@ -143,7 +164,10 @@ export default function AccountPage() {
             payouts_enabled: !!ss.payouts_enabled,
             details_submitted: !!ss.details_submitted,
           });
+          setPayoutMode(ss.payout_mode === 'cash' ? 'cash' : 'credits');
         }
+        fetch('/api/market/seller/payout-pref').then((r) => r.ok ? r.json() : null)
+          .then((p) => { if (p && p.credits_par_euro) setCreditsParEuro(p.credits_par_euro); }).catch(() => {});
       } catch {}
       setLoading(false);
     })();
@@ -351,6 +375,37 @@ export default function AccountPage() {
                   </button>
                 </>
               )}
+            </div>
+            {/* Choix du createur : credits ou argent (2026-09-27). L'argent
+                passe par Stripe : possible seulement quand le compte Stripe
+                est actif. */}
+            <div style={{ flex: '1 1 100%', borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+              <div style={{ color: 'var(--text-2)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Receive my earnings as</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {([
+                  ['credits', 'Credits', `1 € earned = ${creditsParEuro} credits, with a 20% bonus. Added to your balance right away.`],
+                  ['cash', 'Money', sellerStatus?.charges_enabled
+                    ? 'Paid to your bank account through Stripe.'
+                    : 'Paid to your bank account through Stripe. Set up cash payouts first.'],
+                ] as const).map(([mode, titre, texte]) => {
+                  const actif = payoutMode === mode;
+                  const bloque = mode === 'cash' && !sellerStatus?.charges_enabled;
+                  return (
+                    <label key={mode} style={{
+                      flex: '1 1 220px', display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
+                      border: `1px solid ${actif ? 'var(--accent)' : 'var(--border)'}`, background: actif ? 'var(--bg-2)' : 'transparent',
+                      cursor: bloque ? 'not-allowed' : 'pointer', opacity: bloque ? 0.6 : 1,
+                    }}>
+                      <input type="radio" name="payout-mode" id={`payout-${mode}`} checked={actif} disabled={bloque || payoutBusy}
+                             onChange={() => choisirVersement(mode)} style={{ marginTop: 3 }} />
+                      <span>
+                        <span style={{ display: 'block', fontWeight: 700, fontSize: 14 }}>{titre}</span>
+                        <span style={{ display: 'block', color: 'var(--text-2)', fontSize: 12, lineHeight: 1.45 }}>{texte}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

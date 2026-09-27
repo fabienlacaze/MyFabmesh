@@ -58,6 +58,10 @@ interface Listing {
   downloads: number;
   rating_avg?: number;
   rating_count?: number;
+  /** « Gratuit ce mois-ci » (choisi par l'admin, 5 au plus) : recuperable
+   *  gratuitement jusqu'a offert_fin, et garde pour toujours. */
+  offert?: boolean;
+  offert_fin?: string;
 }
 
 interface OwnedItem {
@@ -243,6 +247,7 @@ function MarketPageInner() {
   const [editing, setEditing] = useState<EditingDraft | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [meUserId, setMeUserId] = useState<string | null>(null);
+  const [claimBusy, setClaimBusy] = useState<string | null>(null);
   const [ratingBusy, setRatingBusy] = useState(false);
   const [marketDisabled, setMarketDisabled] = useState(false);
   const [marketDisabledReason, setMarketDisabledReason] = useState<string | null>(null);
@@ -340,7 +345,7 @@ function MarketPageInner() {
   useEffect(() => {
     const q = search.trim().toLowerCase();
     setFiltered(listings.filter((l) => {
-      if (tab === 'free' && l.price_cents !== 0) return false;
+      if (tab === 'free' && l.price_cents !== 0 && !l.offert) return false;
       if (tab === 'paid' && l.price_cents === 0) return false;
       const kind = l.asset_kind || (l.mesh_url ? 'mesh' : 'image');
       if (kindFilter === 'mesh' && kind !== 'mesh') return false;
@@ -348,8 +353,26 @@ function MarketPageInner() {
       if (kindFilter === 'rig' && kind !== 'rig') return false;
       if (q && !`${l.title} ${l.description} ${l.author_display}`.toLowerCase().includes(q)) return false;
       return true;
-    }));
+    }).sort((a, b) => Number(!!b.offert) - Number(!!a.offert)));
   }, [listings, search, tab, kindFilter]);
+
+  // Articles gratuits du mois : recuperes sans paiement, gardes pour toujours
+  // (le createur est paye par la plateforme).
+  async function claimFree(l: Listing) {
+    if (!meUserId) { window.location.href = '/login?next=' + encodeURIComponent('/market?item=' + l.id); return; }
+    setClaimBusy(l.id);
+    try {
+      const r = await fetch('/api/market/' + encodeURIComponent(l.id) + '/claim', { method: 'POST', credentials: 'include' });
+      const j = await r.json().catch(() => ({} as { error?: string }));
+      if (!r.ok) throw new Error((j as { error?: string }).error || ('HTTP ' + r.status));
+      const o = await fetch('/api/market/owned');
+      if (o.ok) { const oj = await o.json(); setOwned(oj.items ?? []); }
+    } catch (e) {
+      alert('Could not claim this item: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setClaimBusy(null);
+    }
+  }
 
   const inCart = (id: string) => cart.includes(id);
   const reportListing = async (id: string) => {
@@ -698,6 +721,18 @@ function MarketPageInner() {
         </div>
       </div>
 
+      {(tab === 'all' || tab === 'free') && (() => {
+        const offerts = listings.filter((l) => l.offert);
+        if (!offerts.length) return null;
+        const fin = offerts[0].offert_fin ? new Date(offerts[0].offert_fin).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : '';
+        return (
+          <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(76,175,80,0.45)', background: 'rgba(76,175,80,0.10)', fontSize: 13, color: 'var(--text-1)' }}>
+            🎁 <strong>{offerts.length} free item{offerts.length === 1 ? '' : 's'} this month</strong>
+            {fin ? ` — claim ${offerts.length === 1 ? 'it' : 'them'} before ${fin}` : ''} and keep {offerts.length === 1 ? 'it' : 'them'} forever. The creators are still paid.
+          </div>
+        );
+      })()}
+
       {!loading && displayItems.length === 0 ? (
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-2)' }}>
           {tab === 'owned'
@@ -741,9 +776,14 @@ function MarketPageInner() {
                     <img src={`/api/market/poster/${l.id}`} alt={l.title}
                          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                    {l.price_cents > 0 && (
+                    {l.price_cents > 0 && !l.offert && (
                       <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.65)', color: 'var(--text-1)' }}>
                         🔒 Aperçu 3D après achat
+                      </div>
+                    )}
+                    {l.offert && (
+                      <div style={{ position: 'absolute', left: 8, top: 8, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: 'var(--ok)', color: '#06140a' }}>
+                        🎁 Free this month
                       </div>
                     )}
                   </div>
@@ -751,9 +791,16 @@ function MarketPageInner() {
                 <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.title}</div>
+                    {l.offert ? (
+                      <div title={l.offert_fin ? `Free until ${new Date(l.offert_fin).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : undefined}
+                           style={{ background: 'rgba(76,175,80,0.2)', color: 'var(--ok)', padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        <s style={{ color: 'var(--text-3)', fontWeight: 400, marginRight: 5 }}>{formatPrice(l.price_cents, l.currency)}</s>Free
+                      </div>
+                    ) : (
                     <div style={{ background: l.price_cents === 0 ? 'rgba(76,175,80,0.2)' : 'rgba(255,200,80,0.2)', color: l.price_cents === 0 ? 'var(--ok)' : '#ffcc66', padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
                       {formatPrice(l.price_cents, l.currency)}
                     </div>
+                    )}
                   </div>
                   <div style={{ color: 'var(--text-2)', fontSize: 11 }}>
                     {l.user_id ? (
@@ -834,6 +881,15 @@ function MarketPageInner() {
                     >
                       ⬇ Free download
                     </a>
+                  ) : (l.offert && !(meUserId && l.user_id === meUserId)) ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); claimFree(l); }}
+                      disabled={claimBusy === l.id}
+                      className="primary-btn"
+                      style={{ marginTop: 6, padding: '6px 12px', fontSize: 12 }}
+                    >
+                      {claimBusy === l.id ? '…' : '🎁 Get it free'}
+                    </button>
                   ) : (meUserId && l.user_id === meUserId) ? (
                     <span
                       style={{
@@ -931,7 +987,18 @@ function MarketPageInner() {
               )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+              {selected.offert ? (
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>
+                    <s style={{ color: 'var(--text-3)', fontWeight: 400, fontSize: 15, marginRight: 8 }}>{formatPrice(selected.price_cents, selected.currency)}</s>Free
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ok)' }}>
+                    🎁 Free this month{selected.offert_fin ? ` · until ${new Date(selected.offert_fin).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''} · the creator is still paid
+                  </div>
+                </div>
+              ) : (
               <div style={{ fontSize: 18, fontWeight: 800 }}>{formatPrice(selected.price_cents, selected.currency)}</div>
+              )}
               {ownedIds.has(selected.id) ? (
                 <a href={`/api/market/download/${encodeURIComponent(selected.id)}`} download className="primary-btn" style={{ padding: '10px 24px', textDecoration: 'none' }}>
                   ⬇ Download
@@ -940,6 +1007,11 @@ function MarketPageInner() {
                 <a href={`/api/market/download/${encodeURIComponent(selected.id)}`} download className="primary-btn" style={{ padding: '10px 24px', textDecoration: 'none' }}>
                   ⬇ Free download
                 </a>
+              ) : (selected.offert && !(meUserId && selected.user_id === meUserId)) ? (
+                <button onClick={() => claimFree(selected)} disabled={claimBusy === selected.id}
+                        className="primary-btn" style={{ padding: '10px 24px' }}>
+                  {claimBusy === selected.id ? '…' : '🎁 Get it free — yours to keep'}
+                </button>
               ) : (meUserId && selected.user_id === meUserId) ? (
                 <span
                   style={{

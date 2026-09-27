@@ -4312,8 +4312,138 @@ async function handleMarketPoster(env: Env, id: string): Promise<Response> {
   return err(404, 'no thumbnail');
 }
 
+/* ═══ ARTICLES GRATUITS DU MOIS (2026-09-27, user : « comme Fab, 5 articles
+ * gratuits par mois ; les createurs doivent quand meme toucher l'argent »).
+ *
+ * L'admin choisit jusqu'a 5 annonces PAYANTES approuvees pour le mois en cours
+ * (_market/offerts/<AAAA-MM>.json). Pendant ce mois, tout utilisateur connecte
+ * peut les recuperer gratuitement et les GARDE pour toujours (meme registre de
+ * propriete qu'un achat). A chaque recuperation, la plateforme paie le createur
+ * a la place de l'acheteur : 35 % du prix (la moitie de sa part habituelle de
+ * 70 %), par le meme circuit qu'une vente — virement Stripe Connect si le
+ * createur est relie, sinon credits. Stripe n'est pas encore operationnel
+ * (pas de societe) : pour l'instant, ce sont des credits. ═══ */
+const OFFERTS_MAX = 5;
+const OFFERT_PART_CREATEUR_PCT = 35;
+
+function _moisCourant(): string {
+  return new Date().toISOString().slice(0, 7);          // AAAA-MM (UTC)
+}
+function _finDuMois(mois: string): string {
+  const [a, m] = mois.split('-').map(Number);
+  return new Date(Date.UTC(a, m, 1) - 1000).toISOString();
+}
+async function _offertsDuMois(env: Env, mois = _moisCourant()): Promise<string[]> {
+  const txt = await r2GetText(env, `_market/offerts/${mois}.json`);
+  if (!txt) return [];
+  try { const j = JSON.parse(txt); return Array.isArray(j.ids) ? j.ids.map(String) : []; } catch { return []; }
+}
+
+/** POST /api/admin/market/<id>/offert  body { actif } — ADMIN. */
+async function handleAdminMarketOffert(req: Request, env: Env, id: string): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  if (!env.MESHES) return err(500, 'storage not configured');
+  let body: { actif?: unknown };
+  try { body = await req.json() as typeof body; } catch { body = {}; }
+  const actif = !!body.actif;
+  const mois = _moisCourant();
+  const ids = await _offertsDuMois(env, mois);
+  if (actif && !ids.includes(id)) {
+    const txt = await r2GetText(env, `_market/listings/${id}.json`);
+    if (!txt) return err(404, 'listing not found');
+    const l = JSON.parse(txt) as MarketListing;
+    if (l.status !== 'approved') return err(400, 'only approved listings can be offered');
+    if (!(Number(l.price_cents) > 0)) return err(400, 'this listing is already free');
+    if (ids.length >= OFFERTS_MAX) return err(400, `already ${OFFERTS_MAX} free items this month — remove one first`);
+    ids.push(id);
+  } else if (!actif) {
+    const i = ids.indexOf(id);
+    if (i >= 0) ids.splice(i, 1);
+  }
+  await env.MESHES.put(`_market/offerts/${mois}.json`, JSON.stringify({ ids, maj: _isoNow() }),
+                       { httpMetadata: { contentType: 'application/json' } });
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'market_offert', details: { listing: id, actif, mois } });
+  return json({ ok: true, mois, ids, fin: _finDuMois(mois) });
+}
+
+/** POST /api/market/<id>/claim — recuperer gratuitement un article du mois. */
+async function handleMarketClaim(req: Request, env: Env, id: string): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'sign in to claim this item');
+  if (!env.MESHES) return err(500, 'storage not configured');
+  const mois = _moisCourant();
+  if (!(await _offertsDuMois(env, mois)).includes(id)) return err(400, 'this item is not free this month');
+  const txt = await r2GetText(env, `_market/listings/${id}.json`);
+  if (!txt) return err(404, 'listing not found');
+  const listing = JSON.parse(txt) as MarketListing;
+  if (listing.status !== 'approved') return err(404, 'listing not visible');
+  const ownerKey = `_market/owners/${id}/${user.id}.json`;
+  if (await env.MESHES.head(ownerKey)) return json({ ok: true, deja: true });
+  // reservation atomique : un double clic ne paie pas deux fois le createur
+  try {
+    const pose = await env.MESHES.put(ownerKey, JSON.stringify({ claiming: true, at: _isoNow() }),
+      { httpMetadata: { contentType: 'application/json' }, onlyIf: { etagDoesNotMatch: '*' } });
+    if (pose === null) return json({ ok: true, deja: true });
+  } catch { /* option non supportee : le HEAD ci-dessus a deja filtre */ }
+
+  // le createur qui recupere son propre article n'est pas paye
+  const payer = !!listing.user_id && listing.user_id !== user.id;
+  const partCreateur = payer ? Math.round(Number(listing.price_cents) * OFFERT_PART_CREATEUR_PCT / 100) : 0;
+  const saleId = `offert_${mois}_${id}_${user.id}`.replace(/[^A-Za-z0-9_-]/g, '');
+  const sale: Record<string, unknown> = {
+    id: saleId, listing_id: id, buyer_user_id: user.id, seller_user_id: listing.user_id,
+    amount_cents: 0, platform_fee_cents: -partCreateur, seller_amount_cents: partCreateur,
+    currency: 'EUR', offert: true, offert_mois: mois,
+    created_at: _isoNow(), paid_at: _isoNow(), status: 'paid', payout_status: payer ? 'pending' : 'none',
+  };
+  await env.MESHES.put(`_market/sales/${saleId}.json`, JSON.stringify(sale), { httpMetadata: { contentType: 'application/json' } });
+
+  // paiement du createur : Stripe Connect s'il est relie, sinon credits
+  let paye = '';
+  if (payer && partCreateur > 0) {
+    let cash = false;
+    try {
+      const seller = await _versementEnArgent(env, listing.user_id);
+      if (seller) {
+        const t = await _stripeRest(env, 'https://api.stripe.com/v1/transfers', {
+          amount: partCreateur, currency: 'eur', destination: seller.stripe_account_id,
+          metadata: { kind: 'marketplace_offert', listing_id: id, seller_user_id: listing.user_id, sale_id: saleId },
+        }, 'POST', `offert_${saleId}`);
+        if (t.ok) {
+          cash = true; sale.payout_status = 'paid_cash'; sale.payout_cash_cents = partCreateur;
+          sale.payout_transfer_id = String(t.data.id ?? ''); paye = `+${(partCreateur / 100).toFixed(2)} € via Stripe`;
+        }
+      }
+    } catch (e) { console.warn('[offert] virement impossible :', (e as Error).message); }
+    if (!cash) {
+      const credits = _sellerPayoutCredits(partCreateur);
+      const bal = credits > 0 ? await addCredits(env, listing.user_id, credits) : null;
+      sale.payout_status = bal == null ? 'failed' : 'paid_credits';
+      sale.payout_credits = credits; paye = `+${credits} credits`;
+    }
+    sale.payout_at = _isoNow();
+    await env.MESHES.put(`_market/sales/${saleId}.json`, JSON.stringify(sale), { httpMetadata: { contentType: 'application/json' } });
+    try {
+      await _addUserNotification(env, listing.user_id, {
+        kind: 'market_sale',
+        message: `"${listing.title}" was claimed as a free item of the month (${paye}).`,
+        listing_id: id, subject: listing.title || 'Listing claimed',
+        asset_url: listing.asset_url || listing.mesh_url,
+        asset_kind: listing.asset_kind || (listing.mesh_url ? 'mesh' : 'image'), job_id: listing.job_id,
+      });
+    } catch { /* notification au mieux */ }
+  }
+  await env.MESHES.put(ownerKey, JSON.stringify({ sale_id: saleId, at: _isoNow(), offert: true }),
+                       { httpMetadata: { contentType: 'application/json' } });
+  await bumpListingDownloads(env, id);
+  return json({ ok: true, owned: true });
+}
+
 async function handleMarketList(_req: Request, env: Env): Promise<Response> {
   const all = await _loadAllListings(env);
+  const offerts = new Set(await _offertsDuMois(env));
+  const finOffre = _finDuMois(_moisCourant());
   // One bulk pass over _market/ratings/ so we don't N+1 per listing.
   const ratingsByListing = await _loadAllRatingsByListing(env);
   const visible = all.filter((l) => l.status === 'approved')
@@ -4322,6 +4452,7 @@ async function handleMarketList(_req: Request, env: Env): Promise<Response> {
       // author_email retire : surface publique. asset_url retire aussi
       // quand la fiche est payante — voir _ficheVitrine.
       return { ..._ficheVitrine(l as unknown as Record<string, unknown>),
+        ...(offerts.has(l.id) ? { offert: true, offert_fin: finOffre } : {}),
                rating_avg: r.avg, rating_count: r.count };
     });
   // Surface the killswitch state so the UI can grey out buy/publish
@@ -4636,7 +4767,8 @@ async function handleAdminMarketList(req: Request, env: Env): Promise<Response> 
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
   const all = await _loadAllListings(env);
-  return json({ ok: true, listings: all });
+  const mois = _moisCourant();
+  return json({ ok: true, listings: all, offerts: await _offertsDuMois(env, mois), offerts_mois: mois, offerts_max: OFFERTS_MAX });
 }
 
 /** GET /api/admin/market/killswitch — ADMIN. Read current state. */
@@ -4944,6 +5076,52 @@ async function _putSeller(env: Env, rec: SellerRecord): Promise<void> {
   rec.updated_at = _isoNow();
   await env.MESHES.put(`_market/sellers/${rec.user_id}.json`, JSON.stringify(rec),
                        { httpMetadata: { contentType: 'application/json' } });
+}
+
+/* CHOIX DU CREATEUR : CREDITS OU ARGENT (2026-09-27, user : « il faut que
+ * l'user puisse choisir entre toucher des credits ou de l'argent »).
+ *
+ * Range dans un fichier A PART (_market/payout_pref/<uid>.json) : la fiche
+ * vendeur est reecrite entiere par _normalizeStripeAccount a chaque
+ * rafraichissement Stripe et perdrait le choix.
+ *
+ * L'argent passe par un virement Stripe Connect : il n'est possible que si le
+ * compte Stripe du createur est actif. Sans compte actif, c'est des credits,
+ * quel que soit le choix (la route refuse d'ailleurs d'enregistrer « argent »
+ * dans ce cas). Sans choix enregistre et avec un compte actif : argent
+ * (comportement d'avant). */
+type ModeVersement = 'credits' | 'cash';
+async function _prefVersement(env: Env, userId: string): Promise<ModeVersement | null> {
+  const txt = await r2GetText(env, `_market/payout_pref/${userId}.json`);
+  if (!txt) return null;
+  try { const m = JSON.parse(txt).mode; return m === 'credits' || m === 'cash' ? m : null; } catch { return null; }
+}
+async function _versementEnArgent(env: Env, userId: string): Promise<SellerRecord | null> {
+  const seller = await _getSeller(env, userId);
+  if (!(seller && seller.charges_enabled && seller.stripe_account_id)) return null;
+  return (await _prefVersement(env, userId)) === 'credits' ? null : seller;
+}
+
+/** GET|POST /api/market/seller/payout-pref  body { mode: 'credits'|'cash' } */
+async function handleSellerPayoutPref(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MESHES) return err(500, 'storage not configured');
+  const seller = await _getSeller(env, user.id);
+  const stripeActif = !!(seller && seller.charges_enabled && seller.stripe_account_id);
+  if (req.method === 'POST') {
+    let body: { mode?: unknown };
+    try { body = await req.json() as typeof body; } catch { body = {}; }
+    const mode = body.mode === 'cash' ? 'cash' : body.mode === 'credits' ? 'credits' : null;
+    if (!mode) return err(400, "mode: 'credits' or 'cash' expected");
+    if (mode === 'cash' && !stripeActif) return err(400, 'Set up Stripe payouts first to receive money.');
+    await env.MESHES.put(`_market/payout_pref/${user.id}.json`, JSON.stringify({ mode, maj: _isoNow() }),
+                         { httpMetadata: { contentType: 'application/json' } });
+  }
+  const pref = await _prefVersement(env, user.id);
+  return json({ ok: true, mode: stripeActif && pref !== 'credits' ? 'cash' : 'credits',
+                choix: pref, stripe_actif: stripeActif,
+                credits_par_euro: _sellerPayoutCredits(100) });
 }
 
 /** Minimal Stripe REST helper for Connect endpoints. Uses the same
@@ -5273,8 +5451,9 @@ async function handleMarketSellerStatus(req: Request, env: Env): Promise<Respons
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   const seller = await _getSeller(env, user.id);
+  const pref = await _prefVersement(env, user.id);
   if (!seller) {
-    return json({ ok: true, has_account: false });
+    return json({ ok: true, has_account: false, payout_mode: 'credits', payout_choice: pref });
   }
   // Refresh from Stripe (best-effort; if it fails, return cached).
   try {
@@ -5285,6 +5464,7 @@ async function handleMarketSellerStatus(req: Request, env: Env): Promise<Respons
       await _putSeller(env, refreshed);
       return json({
         ok: true, has_account: true,
+        payout_mode: refreshed.charges_enabled && pref !== 'credits' ? 'cash' : 'credits', payout_choice: pref,
         account_id: refreshed.stripe_account_id,
         charges_enabled: refreshed.charges_enabled,
         payouts_enabled: refreshed.payouts_enabled,
@@ -5295,6 +5475,7 @@ async function handleMarketSellerStatus(req: Request, env: Env): Promise<Respons
   } catch {}
   return json({
     ok: true, has_account: true,
+    payout_mode: seller.charges_enabled && pref !== 'credits' ? 'cash' : 'credits', payout_choice: pref,
     account_id: seller.stripe_account_id,
     charges_enabled: seller.charges_enabled,
     payouts_enabled: seller.payouts_enabled,
@@ -5584,8 +5765,8 @@ async function _processMarketPurchase(env: Env, sess: {
     let paidCash = false;
     if (listing.user_id) {
       try {
-        const seller = await _getSeller(env, listing.user_id);
-        if (seller && seller.charges_enabled && seller.stripe_account_id && sellerNet > 0) {
+        const seller = await _versementEnArgent(env, listing.user_id);   // null = credits (choix ou Stripe inactif)
+        if (seller && sellerNet > 0) {
           const transfer = await _stripeRest(env, 'https://api.stripe.com/v1/transfers', {
             amount: sellerNet,
             currency: (listing.currency || 'usd').toLowerCase(),
@@ -19681,6 +19862,7 @@ export default {
         if (pathname === '/api/market/seller/status'        && method === 'GET')  return await handleMarketSellerStatus(req, env);
         if (pathname === '/api/market/seller/dashboard'     && method === 'POST') return await handleMarketSellerDashboard(req, env);
         if (pathname === '/api/market/seller/earnings'      && method === 'GET')  return await handleMarketSellerEarnings(req, env);
+        if (pathname === '/api/market/seller/payout-pref'   && (method === 'GET' || method === 'POST')) return await handleSellerPayoutPref(req, env);
         if (pathname === '/api/admin/market/list'           && method === 'GET')  return await handleAdminMarketList(req, env);
         if (pathname === '/api/admin/market/killswitch'     && method === 'GET')  return await handleAdminMarketKillSwitchGet(req, env);
         if (pathname === '/api/admin/market/killswitch'     && method === 'POST') return await handleAdminMarketKillSwitchSet(req, env);
@@ -19691,6 +19873,10 @@ export default {
         {
           const m = pathname.match(/^\/api\/market\/poster\/([A-Za-z0-9_]+)$/);
           if (m && method === 'GET') return await handleMarketPoster(env, m[1]);
+        }
+        {
+          const m = pathname.match(/^\/api\/market\/([A-Za-z0-9_]+)\/claim$/);
+          if (m && method === 'POST') return await handleMarketClaim(req, env, m[1]);
         }
         // Rate a listing — must come BEFORE the bare /api/market/<id> regex
         // so the trailing /rate segment isn't swallowed.
@@ -19721,8 +19907,9 @@ export default {
           if (m && method === 'PATCH') return await handleMarketListingUpdate(req, env, m[1]);
         }
         {
-          const m = pathname.match(/^\/api\/admin\/market\/([A-Za-z0-9_]+)(?:\/(approve|reject|price))?$/);
+          const m = pathname.match(/^\/api\/admin\/market\/([A-Za-z0-9_]+)(?:\/(approve|reject|price|offert))?$/);
           if (m) {
+            if (m[2] === 'offert'  && method === 'POST')   return await handleAdminMarketOffert(req, env, m[1]);
             if (m[2] === 'price'   && method === 'POST')   return await handleAdminMarketPrice(req, env, m[1]);
             if (m[2] === 'approve' && method === 'POST')   return await handleAdminMarketApprove(req, env, m[1]);
             if (m[2] === 'reject'  && method === 'POST')   return await handleAdminMarketReject(req, env, m[1]);
