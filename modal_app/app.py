@@ -2073,7 +2073,10 @@ mesh_output_volume = modal.Volume.from_name(
 @app.cls(
     image=mesh_image,
     gpu="L40S",
-    timeout=900,           # full TRELLIS-2 pipeline can run ~5-10 min cold
+    # 900 s ne suffisait plus (2026-09-27) : 10 M triangles en grille 1536 + Detail
+    # refine + Face fix (modeles telecharges a froid) depassent 15 min — la generation
+    # du user a ete COUPEE sans message. 1 h laisse toute la marge.
+    timeout=3600,
     # TRAINE RAMENEE DE 300 A 90 s LE 2026-08-04, apres mesure.
     #
     # Une longue traine est une ASSURANCE CONTRE UN DEMARRAGE LENT. Le
@@ -2725,6 +2728,26 @@ def mesh_router():
         if os.path.isfile(err_path):
             with open(err_path) as f:
                 return {"ready": False, "error": f.read()[:500]}
+        # EXECUTION COUPEE PAR MODAL (delai depasse, conteneur tue) : ni .glb ni
+        # .err ne sont ecrits, et le travail restait « processing » jusqu'au
+        # faucheur. On interroge l'appel lui-meme (2026-09-27).
+        if not os.path.isfile(f"/data/{job_id}.glb"):
+            try:
+                with open(f"/data/{job_id}.call_id") as f:
+                    _cid = f.read().strip()
+                if _cid:
+                    try:
+                        modal.FunctionCall.from_id(_cid).get(timeout=0)
+                    except TimeoutError:
+                        pass                                  # toujours en cours
+                    except Exception as _e:
+                        _msg = (f"{type(_e).__name__}: {_e}")[:400]
+                        if "timeout" in _msg.lower():
+                            _msg = ("Generation stopped: it exceeded the maximum duration. "
+                                    "Try fewer triangles or fewer options. (" + _msg + ")")
+                        return {"ready": False, "error": _msg}
+            except FileNotFoundError:
+                pass
         if os.path.isfile(out_path):
             taille = os.path.getsize(out_path)
             # SANS BASE64 QUAND LE WORKER LE DEMANDE.
