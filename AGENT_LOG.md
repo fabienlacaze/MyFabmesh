@@ -23754,3 +23754,13 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
      est un echec rembourse.
 - « Report content » retire des panneaux d'outils (user). Image : le bouton sous l'image
   reste. Maillage : le bouton passe SOUS le maillage (politique 11.16 du Store).
+
+## 2026-09-27 — Tuile d'etape cliquable, details du travail justes, Auto settings complet
+
+- Tuile « Generate 3D » de l'etape (web) reconstruite a chaque tick : il fallait cliquer
+  plusieurs fois. Mise a jour en place derriere une signature (portage du bureau).
+- Details du travail : « Target triangles ~13K » / « Quality High » venaient des anciens
+  menus. Moteur natif : preset, Max triangles, options cochees, nom de l'image sans
+  signature d'URL (web + bureau).
+- Auto settings regle aussi le preset (Ultra 8K) et Max triangles (500 K), le reglage
+  valide par le user ; toucher l'un des deux menus decoche Auto (web + bureau).

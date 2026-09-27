@@ -1705,7 +1705,14 @@ function _applyAssetOptionsProfile(assetType) {
  * changent le prix. Toucher soi-meme une option decoche « Auto settings ». */
 var _AUTO3D_SEUIL_BIAIS = 0.55;
 var _AUTO3D_OPTIONS = ['ws-trellis2-rectify', 'ws-trellis2-smooth', 'ws-trellis2-quality-plus',
-                         'ws-trellis2-ultra-q', 'ws-trellis2-multiref'];
+                         'ws-trellis2-ultra-q', 'ws-trellis2-multiref',
+                         'ws-trellis2-preset', 'ws-trellis2-tris', 'ws-trellis2-tris-custom'];
+/* QUALITE ET TRIANGLES (2026-09-27, user : « Auto settings ne change pas la
+ * qualite ni le nombre de triangles »). Reglage de reference valide par le
+ * user sur guerrier, chevalier et araignee (« c'est nickel » : raccords 4-6,
+ * rien de brule) : Ultra 8K, 500 K. Un seul reglage tant qu'aucun autre type
+ * n'a ete mesure ; toucher soi-meme le menu decoche « Auto settings ». */
+var _AUTO3D_QUALITE = { preset: 'ultra_8k', tris: '500000', libelle: 'Ultra 8K · 500 K triangles' };
 var _auto3dSymetrie = null;   // { src, sym } de l'image source affichee
 
 function _symetrieSilhouette(img) {
@@ -1788,6 +1795,16 @@ function _ajusterAuto3D() {
   if (qp && uq && uq.checked) qp.checked = false;
   const sm = visible('ws-trellis2-smooth');
   if (sm) dits.push(sm.checked ? 'Texture smooth on' : 'Texture smooth off');
+  const pr = document.getElementById('ws-trellis2-preset');
+  const tr = document.getElementById('ws-trellis2-tris');
+  const choisir = (sel, v) => {
+    if (!sel || ![...sel.options].some(o => o.value === v && !o.disabled)) return false;
+    sel.value = v;
+    return true;
+  };
+  const okP = choisir(pr, _AUTO3D_QUALITE.preset);
+  const okT = choisir(tr, _AUTO3D_QUALITE.tris);
+  if (okP || okT) dits.unshift(_AUTO3D_QUALITE.libelle);
   if (note) note.textContent = dits.join(' · ');
   // Rafraichit le prix : evenement synthetique (isTrusted = false), que
   // l'ecouteur « manuel » ci-dessous ignore.
@@ -9104,11 +9121,26 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     asset_type: document.getElementById('ws-asset-type')?.value || 'character',
   };
   const qualityLabels = { draft: 'Draft', standard: 'Standard', high: 'High' };
-  const jobParams = {
+  // DETAILS DU TRAVAIL (2026-09-27, user : « les infos de la vignette ne sont
+  // pas a jour, je n'ai pas 13K target ») : ils lisaient les anciens menus
+  // (qualite, triangles) au lieu des reglages reellement envoyes.
+  const t2PresetLabels = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality', ultra_8k: 'Ultra 8K' };
+  const _fmtTris = (n) => n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}K`;
+  const _optsActives = [trellis2MultiRef && 'Multi-reference', trellis2RectifySource && 'Auto-rectify',
+    trellis2Smooth && 'Texture smooth', trellis2QualityPlus && 'Sharp edges',
+    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Ultra HD 8K'].filter(Boolean);
+  const _nomSource = p.selectedImagePath ? p.selectedImagePath.split('?')[0].split(/[/\\]/).pop() : '--';
+  const jobParams = engine === 'native_3d' ? {
+    Engine: engineLabel(engine),
+    Quality: t2PresetLabels[trellis2Preset] || trellis2Preset,
+    'Max triangles': _fmtTris(trellis2MaxTris),
+    Options: _optsActives.join(', ') || 'None',
+    'Source image': _nomSource,
+  } : {
     Engine: engineLabel(engine),
     Quality: qualityLabels[quality] || quality,
     'Target triangles': triPreset.label,
-    'Source image': p.selectedImagePath ? p.selectedImagePath.split(/[/\\]/).pop() : '--',
+    'Source image': _nomSource,
   };
   // SNAPSHOT the source image NOW (before gatedRun queues) so the Job
   // Details modal can never show a different version the user clicks
@@ -19940,7 +19972,10 @@ function renderStepProgressWidgets() {
     });
     if (!matching.length) {
       widget.classList.remove('has-jobs');
-      widget.innerHTML = '<div class="step-progress-empty">No generation in progress</div>';
+      if (widget.dataset.sig !== '__empty__') {
+        widget.innerHTML = '<div class="step-progress-empty">No generation in progress</div>';
+        widget.dataset.sig = '__empty__';
+      }
       try { _toggleGeneratingStage(s, false); } catch (_) {}
       continue;
     }
@@ -19950,6 +19985,41 @@ function renderStepProgressWidgets() {
     // being "active" so we let the badge calm down.
     const hasRunning = matching.some(j => j.status === 'running');
     try { _toggleGeneratingStage(s, hasRunning); } catch (_) {}
+    // MISE A JOUR EN PLACE (2026-09-27, user : « je dois cliquer plusieurs
+    // fois pour ouvrir la vignette »). La tuile etait reconstruite a chaque
+    // tick : le clic commencait sur un noeud detruit avant d'etre relache, et
+    // la miniature se rechargeait. Tant que la STRUCTURE ne change pas, on ne
+    // touche qu'aux barres et aux pourcentages (le bureau le faisait deja).
+    const _sigW = matching.map(j => j.id + ':' + j.status + ':'
+      + _jobChildren(j.id).map(c => c.id + '/' + c.status).join('+')).join(',');
+    if (widget.dataset.sig === _sigW) {
+      matching.forEach(j => {
+        const el = widget.querySelector(`.step-progress-item[data-job-id="${j.id}"]`);
+        if (!el) return;
+        const pct = Math.round(j.progress || 0);
+        const fill = el.querySelector(':scope > .step-progress-item-bar > .step-progress-item-bar-fill');
+        if (fill) fill.style.width = pct + '%';
+        const pctEl = el.querySelector(':scope > .step-progress-item-pct');
+        if (pctEl) {
+          const elapsed = j.startedAt ? fmtDuration(Date.now() - j.startedAt) : '';
+          pctEl.innerHTML = (elapsed ? `<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">${elapsed}</span>` : '') + pct + '%';
+        }
+        _jobChildren(j.id).forEach(c => {
+          const sc = widget.querySelector(`.job-item-2-sub[data-job-id="${c.id}"]`);
+          if (!sc) return;
+          const cpct = Math.round(c.progress || 0);
+          const cfill = sc.querySelector('.job-item-2-bar-fill');
+          if (cfill) cfill.style.width = cpct + '%';
+          const cpctEl = sc.querySelector('.job-item-2-sub-pct');
+          if (cpctEl) {
+            const cel = c.startedAt ? fmtDuration(Date.now() - c.startedAt) : '';
+            cpctEl.textContent = (cel ? cel + ' \u00b7 ' : '') + cpct + '%';
+          }
+        });
+      });
+      continue;
+    }
+    widget.dataset.sig = _sigW;
     widget.innerHTML = matching.map(j => {
       const pct = Math.round(j.progress || 0);
       const canCancel = j.status === 'running';

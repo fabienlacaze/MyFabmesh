@@ -2145,7 +2145,14 @@ function _autoDetectAssetType(text) {
  * changent le prix. Toucher soi-meme une option decoche « Auto settings ». */
 var _AUTO3D_SEUIL_BIAIS = 0.55;
 var _AUTO3D_OPTIONS = ['ws-trellis2-rectify', 'ws-trellis2-smooth', 'ws-trellis2-quality-plus',
-                         'ws-trellis2-ultra-q', 'ws-trellis2-multiref'];
+                         'ws-trellis2-ultra-q', 'ws-trellis2-multiref',
+                         'ws-trellis2-preset', 'ws-trellis2-tris', 'ws-trellis2-tris-custom'];
+/* QUALITE ET TRIANGLES (2026-09-27, user : « Auto settings ne change pas la
+ * qualite ni le nombre de triangles »). Reglage de reference valide par le
+ * user sur guerrier, chevalier et araignee (« c'est nickel » : raccords 4-6,
+ * rien de brule) : Ultra 8K, 500 K. Un seul reglage tant qu'aucun autre type
+ * n'a ete mesure ; toucher soi-meme le menu decoche « Auto settings ». */
+var _AUTO3D_QUALITE = { preset: 'ultra_8k', tris: '500000', libelle: 'Ultra 8K · 500 K triangles' };
 var _auto3dSymetrie = null;   // { src, sym } de l'image source affichee
 
 function _symetrieSilhouette(img) {
@@ -2228,6 +2235,16 @@ function _ajusterAuto3D() {
   if (qp && uq && uq.checked) qp.checked = false;
   const sm = visible('ws-trellis2-smooth');
   if (sm) dits.push(sm.checked ? 'Texture smooth on' : 'Texture smooth off');
+  const pr = document.getElementById('ws-trellis2-preset');
+  const tr = document.getElementById('ws-trellis2-tris');
+  const choisir = (sel, v) => {
+    if (!sel || ![...sel.options].some(o => o.value === v && !o.disabled)) return false;
+    sel.value = v;
+    return true;
+  };
+  const okP = choisir(pr, _AUTO3D_QUALITE.preset);
+  const okT = choisir(tr, _AUTO3D_QUALITE.tris);
+  if (okP || okT) dits.unshift(_AUTO3D_QUALITE.libelle);
   if (note) note.textContent = dits.join(' · ');
   // Rafraichit le prix : evenement synthetique (isTrusted = false), que
   // l'ecouteur « manuel » ci-dessous ignore.
@@ -10405,7 +10422,20 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   const qualityDisplay = (engine === 'trellis2_native')
     ? (t2PresetLabels[trellis2Preset] || trellis2Preset)
     : (qualityLabels[quality] || quality);
-  const jobParams = {
+  // DETAILS DU TRAVAIL (2026-09-27, user : « je n'ai pas 13K target ») :
+  // le moteur natif affiche ses vrais reglages, pas l'ancien menu triangles.
+  const _fmtTris = (n) => n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}K`;
+  const _optsActives = [trellis2MultiRef && 'Multi-reference', trellis2RectifySource && 'Auto-rectify',
+    trellis2Smooth && 'Texture smooth', trellis2QualityPlus && 'Sharp edges',
+    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Ultra HD 8K',
+    trellis2Refine && 'Detail refine', trellis2FaceFix && 'Face fix'].filter(Boolean);
+  const jobParams = engine === 'trellis2_native' ? {
+    Engine: engineLabel(engine),
+    Quality: qualityDisplay,
+    'Max triangles': _fmtTris(trellis2MaxTris),
+    Options: _optsActives.join(', ') || 'None',
+    'Source image': p.selectedImagePath ? p.selectedImagePath.split(/[/\\]/).pop() : '--',
+  } : {
     Engine: engineLabel(engine),
     Quality: qualityDisplay,
     'Target triangles': triPreset.label,
