@@ -21,6 +21,11 @@
   const I18N = {
     fr: {
       // ---- Libelles du 27/09/2026 (audit 1.0.36 : sans traduction ecrite) ----
+      "Construction stages": "Étapes de construction",
+      "Builds a construction timeline (scaffolding → finished building) from the final image, shown like the multi-views": "Génère une timeline de chantier (échafaudages → bâtiment fini) à partir de l'image finale, affichée comme les multi-vues",
+      "Builds a construction timeline from the final image (scaffolding, structural work…). The final image stays untouched and becomes the last stage.": "Génère une timeline de chantier à partir de l'image finale (échafaudages, gros œuvre…). L'image finale reste intacte et sert de dernière étape.",
+      "Number of stages": "Nombre d'étapes",
+      "From 2 (site → finished) to 20 (detailed timeline). Each stage takes about 5 to 15 seconds.": "De 2 (chantier → final) à 20 (timeline détaillée). Chaque étape prend environ 5 à 15 secondes.",
       "Outfits": "Tenues",
       "Recolor": "Recolorer",
       "Extracts each piece of clothing on a transparent background (characters)": "Extrait chaque vêtement sur fond transparent (personnages)",

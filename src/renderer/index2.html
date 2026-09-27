@@ -467,7 +467,7 @@
                         <button id="ws-outfit-btn" class="ghost-btn tool-btn" title="Extracts each piece of clothing on a transparent background (characters)">&#128087; Outfits</button>
                         <button id="ws-symmetrize-auto-btn" class="ghost-btn tool-btn" title="Mirror the left half onto the right half, to make the subject symmetrical.">&#8651; Sym. Auto</button>
                         <button id="ws-multiview-btn" class="ghost-btn tool-btn" title="Generate 6 orthographic views from this image.">&#128065; Multi-Views</button>
-                        <button id="ws-buildstages-btn" class="ghost-btn tool-btn" title="Génère une timeline de chantier (échafaudages → bâtiment fini) à partir de l'image finale, affichée comme les multi-vues">&#127959;&#65039; Étapes de construction</button>
+                        <button id="ws-buildstages-btn" class="ghost-btn tool-btn" title="Builds a construction timeline (scaffolding → finished building) from the final image, shown like the multi-views">&#127959;&#65039; Construction stages</button>
                         <button id="ws-variant-btn" class="ghost-btn tool-btn" title="Create variants of the current image — re-roll seed or img2img with controlled strength">&#10024; Variant</button>
                         <button id="ws-recolor-btn" class="ghost-btn tool-btn" title="Finds a part automatically and recolours it, keeping its shape (e.g. a red cape)">&#127912; Recolor</button>
                         <button id="ws-age-btn" class="ghost-btn tool-btn" title="Make the subject younger or older — keeps the shape, changes the apparent age">&#9203; Age</button>
@@ -1840,18 +1840,18 @@
     </div>
     <div id="modal-buildstages-options" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>&#127959;&#65039; Étapes de construction</h2>
-        <p class="modal-subtitle">Génère une timeline de chantier à partir de l'image finale (img2img : échafaudages, gros œuvre…). L'image finale reste intacte et sert de dernière étape.</p>
+        <h2>&#127959;&#65039; Construction stages</h2>
+        <p class="modal-subtitle">Builds a construction timeline from the final image (scaffolding, structural work…). The final image stays untouched and becomes the last stage.</p>
         <div style="display:flex; flex-direction:column; gap:8px; margin:16px 0;">
           <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
-            Nombre d'étapes <span id="bs-count-val" class="slider-val">4</span>
+            Number of stages <span id="bs-count-val" class="slider-val">4</span>
           </label>
           <input type="range" id="bs-count" min="2" max="20" value="4" />
-          <small id="bs-count-hint" class="modal-subtitle" style="font-size:12px; margin-top:2px;">De 2 (chantier → final) à 20 (timeline détaillée). Chaque étape = un img2img (~5-15 s), donc plus d'étapes = plus long.</small>
+          <small id="bs-count-hint" class="modal-subtitle" style="font-size:12px; margin-top:2px;">From 2 (site → finished) to 20 (detailed timeline). Each stage takes about 5 to 15 seconds.</small>
         </div>
         <div class="modal-actions">
-          <button class="ghost-btn" id="bs-cancel">Annuler</button>
-          <button class="primary-btn" id="bs-start">Générer</button>
+          <button class="ghost-btn" id="bs-cancel">Cancel</button>
+          <button class="primary-btn" id="bs-start">Generate</button>
         </div>
       </div>
     </div>
