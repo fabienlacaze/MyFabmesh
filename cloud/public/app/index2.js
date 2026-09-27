@@ -2175,7 +2175,7 @@ function _autoPickSourceForCreateNew(card) {
         const placeholder = document.getElementById('ws-anim-source-placeholder');
         if (placeholder) placeholder.style.display = 'none';
         if (preview) {
-          const filename = (rig.filename || url).split(/[/\\]/).pop() || 'rig.glb';
+          const filename = escapeHtml(_maskAiNames((rig.filename || url).split(/[/\\]/).pop() || 'rig.glb'));
           preview.style.position = 'relative';
           preview.style.minHeight = '200px';
           preview.innerHTML = `
@@ -8857,7 +8857,7 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
     if (placeholder) placeholder.style.display = 'none';
     const preview = document.getElementById('ws-anim-source-preview');
     if (preview) {
-      const filename = (rig.filename || rig.url || '').split(/[/\\]/).pop() || 'rig.glb';
+      const filename = escapeHtml(_maskAiNames((rig.filename || rig.url || '').split(/[/\\]/).pop() || 'rig.glb'));
       const url = rig.url || rig.path;
       // model-viewer with absolute fill so the parent's CSS height
       // (stage-source-img class) drives the canvas size. position:relative

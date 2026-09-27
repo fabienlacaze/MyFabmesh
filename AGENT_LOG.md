@@ -23865,3 +23865,15 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   fenetre et dans le fichier telecharge. Le bureau le nettoyait deja (_cleanExportBase).
 - A trancher par le user : la fenetre d'export propose par defaut « Personal use only —
   NOT SELLABLE BY USERS », en contradiction avec la FAQ du site (usage commercial).
+
+## 2026-09-27 — Menage des 30 jours : ne plus supprimer les versions de projet ; site : outils, rig, animation, marketplace
+
+- PERTE DE DONNEES EVITEE : purgeTransientUploads supprimait tout `<uid>/canvas/` de plus de
+  30 jours. Or canvas/ contient des VERSIONS d'image de projet (tampon, flou, peinture,
+  images importees) : 15 references dans user_assets le 27/09. Desormais : on ne supprime que
+  ce que user_assets ne reference pas ; lecture impossible = rien supprime ce tour.
+- Legende « Source rig » de l'animation (web) : nom de fichier sans moteur (« _rigged_puppeteer_ »).
+- Site (docs/, pas encore publie) : sections Outils (image, 3D, reglages auto), Rig multi-especes
+  modifiable (guerrier + araignee), Animation beta, Marketplace ; FAQ RGPD (UE Francfort,
+  30 jours, suppression du compte) et protection des mineurs (filtre par defaut, code PIN
+  adulte, signalement).

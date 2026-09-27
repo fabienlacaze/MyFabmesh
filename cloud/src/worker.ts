@@ -18875,11 +18875,31 @@ async function purgeTransientUploads(env: Env): Promise<void> {
     return;
   }
   let deleted = 0;
-  for (const obj of listed.objects) {
-    if (!/\/(masks|canvas)\//.test(obj.key)) continue;
-    if (now - obj.uploaded.getTime() > MAX_AGE_MS) {
-      try { await env.MESHES.delete(obj.key); deleted++; } catch { /* keep going */ }
+  const candidats = listed.objects
+    .filter((obj) => /\/(masks|canvas)\//.test(obj.key) && now - obj.uploaded.getTime() > MAX_AGE_MS)
+    .map((obj) => obj.key);
+  /* UN FICHIER UTILISE PAR UN PROJET N'EST PAS « TRANSITOIRE » (2026-09-27).
+   * `canvas/` recoit aussi des VERSIONS d'image rattachees a un projet :
+   * sauvegardes du tampon, du flou, de la peinture, et les images importees.
+   * Mesure du jour : 15 versions de projet sous canvas/, toutes promises a la
+   * suppression au bout de 30 jours. On garde donc tout ce que user_assets
+   * reference ; en cas de doute (lecture impossible), on ne supprime rien. */
+  const references = new Set<string>();
+  try {
+    const sb = supabaseAdmin(env);
+    for (let i = 0; i < candidats.length; i += 100) {
+      const lot = candidats.slice(i, i + 100);
+      const { data, error } = await sb.from('user_assets').select('r2_path').in('r2_path', lot);
+      if (error) throw new Error(error.message);
+      for (const r of (data || []) as { r2_path: string }[]) references.add(r.r2_path);
     }
+  } catch (e) {
+    console.log(`[retention] references illisibles, rien supprime ce tour : ${e instanceof Error ? e.message : String(e)}`);
+    candidats.length = 0;
+  }
+  for (const key of candidats) {
+    if (references.has(key)) continue;
+    try { await env.MESHES.delete(key); deleted++; } catch { /* keep going */ }
   }
   const nextCursor = listed.truncated ? listed.cursor : '';
   try { await env.MESHES.put(cursorKey, nextCursor); } catch { /* ignore */ }

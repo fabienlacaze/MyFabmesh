@@ -105,6 +105,26 @@
   footer a { text-decoration: none; }
   footer a:hover { color: var(--text-0); }
 
+  /* outils : lignes image + texte, puces des noms d'outils */
+  .ligne { display: grid; grid-template-columns: 1.25fr 1fr; gap: 32px; align-items: center; margin-top: 36px; }
+  .ligne.inverse { grid-template-columns: 1fr 1.25fr; }
+  .ligne.inverse figure { order: 2; }
+  .ligne figure img, .duo img { border: 1px solid var(--border); border-radius: var(--radius); width: 100%; }
+  .ligne h3 { font-size: 22px; margin-bottom: 8px; }
+  .ligne p { color: var(--text-1); margin-bottom: 14px; }
+  .puces { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; }
+  .puces li { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--bg-2);
+              border: 1px solid var(--border); color: var(--text-1); }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .duo figcaption { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+  .badge-beta { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; vertical-align: 6px;
+                padding: 2px 8px; border-radius: 999px; background: var(--grad); }
+  .bandeau { background: var(--bg-1); border-block: 1px solid var(--border); }
+  @media (max-width: 860px) {
+    .ligne, .ligne.inverse { grid-template-columns: 1fr; }
+    .ligne.inverse figure { order: 0; }
+    .duo { grid-template-columns: 1fr; }
+  }
   @media (max-width: 860px) {
     .etapes { grid-template-columns: 1fr 1fr; }
     .editions { grid-template-columns: 1fr; }
@@ -124,6 +144,7 @@
     <a class="brand" href="#">MyFabmesh<b>.AI</b></a>
     <nav>
       <a class="opt" href="#how">How it works</a>
+      <a href="#tools">Tools</a>
       <a href="#editions">Pricing</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -171,6 +192,77 @@
     </div>
   </section>
 
+  <section id="tools" class="bandeau">
+    <div class="wrap">
+      <h2>An editor at every step</h2>
+      <p class="intro">Most generators stop at the result: if something is wrong, you start again. Here every step has its own tools, so you fix what you don't like and keep the rest.</p>
+
+      <div class="ligne">
+        <figure><img src="screenshots/v2/outils-image.jpg" alt="Image editing tools next to a generated spider" loading="lazy"></figure>
+        <div>
+          <h3>Image tools</h3>
+          <p>Prepare the perfect reference before building the 3D model.</p>
+          <ul class="puces">
+            <li>Modify</li><li>Auto inpaint</li><li>Remove background</li><li>Upscale</li><li>Style</li>
+            <li>Face fix</li><li>Outfits</li><li>Recolor</li><li>Age</li><li>Auto symmetry</li>
+            <li>Multi-views</li><li>Variants</li><li>Clone stamp</li><li>Mask</li><li>Crop</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ligne inverse">
+        <figure><img src="screenshots/v2/outils-3d.jpg" alt="3D editing tools next to a textured spider model" loading="lazy"></figure>
+        <div>
+          <h3>3D tools</h3>
+          <p>Repair, reshape and repaint the model without leaving the app.</p>
+          <ul class="puces">
+            <li>Smooth</li><li>Triangle count</li><li>Subdivide</li><li>Fix normals</li><li>Fill holes</li>
+            <li>Watertight</li><li>Pivot</li><li>Texture variants</li><li>Sharpen texture</li><li>Re-texture</li>
+            <li>Re-texture a region</li><li>Segment parts</li><li>Sculpt</li><li>Paint</li><li>3D clone stamp</li>
+            <li>Explode</li><li>Resize</li><li>Material adjust</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ligne">
+        <figure><img src="screenshots/v2/reglages-3d.jpg" alt="3D creation settings with Auto settings enabled" loading="lazy"></figure>
+        <div>
+          <h3>Smart settings</h3>
+          <p>Auto settings picks the right quality, detail and triangle count for your subject. Prefer to decide? Every option stays available, with its price shown next to it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="rig">
+    <div class="wrap">
+      <h2>Rig any creature, then adjust it</h2>
+      <p class="intro">The skeleton adapts to the body: two legs, four, six or eight. Every point can be moved, added, removed or relinked, then the rig is rebuilt around your changes.</p>
+      <div class="duo">
+        <figure><img src="screenshots/v2/etape-rig.jpg" alt="Skeleton editor on a warrior" loading="lazy"><figcaption>Human character</figcaption></figure>
+        <figure><img src="screenshots/v2/rig-araignee.jpg" alt="Skeleton editor on a spider with eight legs" loading="lazy"><figcaption>Eight-legged spider</figcaption></figure>
+      </div>
+      <ul class="puces">
+        <li>Humans</li><li>Animals</li><li>Insects</li><li>Creatures</li><li>Move points</li>
+        <li>Add or remove points</li><li>Relink bones</li><li>Undo / redo</li><li>Export to Unreal</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="animation" class="bandeau">
+    <div class="wrap">
+      <h2>Animation <span class="badge-beta">BETA</span></h2>
+      <p class="intro">Pick the clips you need and the rig comes to life. Each clip becomes a new version you can preview and export.</p>
+      <div class="duo">
+        <figure><img src="screenshots/v2/anim-creer.jpg" alt="Choosing animation clips: idle, walk, run, attack, death, fly" loading="lazy"></figure>
+        <figure><img src="screenshots/v2/anim-lecture.jpg" alt="An idle animation playing on a spider" loading="lazy"></figure>
+      </div>
+      <ul class="puces">
+        <li>Idle</li><li>Walk</li><li>Run</li><li>Attack</li><li>Death</li><li>Fly</li><li>FBX export</li>
+      </ul>
+    </div>
+  </section>
+
   <section id="editions">
     <div class="wrap">
       <h2>Two ways to use it</h2>
@@ -183,7 +275,7 @@
           <ul>
             <li>Nothing to install, works on any PC, Mac or tablet</li>
             <li>No graphics card needed</li>
-            <li>Includes animation from a text description</li>
+            <li>Includes animation (beta)</li>
             <li>The price of every action is shown before you click</li>
           </ul>
           <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Open the web app</a>
@@ -213,6 +305,14 @@
     </div>
   </section>
 
+  <section id="marketplace">
+    <div class="wrap">
+      <h2>Marketplace</h2>
+      <p class="intro">Publish your images and models on the built-in marketplace, for free or at your own price, and browse what other creators made. Paid sales open soon.</p>
+      <a class="btn" href="https://myfabmesh-cloud.fabien65400.workers.dev/market">Visit the marketplace</a>
+    </div>
+  </section>
+
   <section id="faq" class="faq">
     <div class="wrap">
       <h2>FAQ</h2>
@@ -231,6 +331,14 @@
       <details>
         <summary>Which formats can I export?</summary>
         <p>GLB, FBX, OBJ and STL. The Unreal export sets the right scale and axes, so the model lands in your level at the correct size.</p>
+      </details>
+      <details>
+        <summary>What happens to my data?</summary>
+        <p>Your account and projects are stored in the European Union (Frankfurt). Temporary working files are deleted after 30 days, error logs too. You can delete your account at any time: everything is erased within 30 days. Details in the <a href="privacy.html">privacy policy</a>.</p>
+      </details>
+      <details>
+        <summary>Is it safe for young users?</summary>
+        <p>A content filter is on by default: it blocks inappropriate requests before anything is generated, and checks every image produced. Only an adult can lift it, with a PIN code, and lock it again at any time. Every creation also has a Report button.</p>
       </details>
       <details>
         <summary>Does it work with AMD or Intel graphics?</summary>
