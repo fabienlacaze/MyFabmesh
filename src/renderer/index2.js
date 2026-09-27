@@ -20569,6 +20569,15 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
 // Brand in the topbar = link to the public website. Opens in the
 // user's default browser (not inside Electron) via the whitelisted
 // app:open-website IPC.
+// Pastilles de la barre (27/09, comme sur le web) : la marque ouvre le site,
+// « Marketplace » ouvre la bibliotheque cloud sur son onglet Marketplace.
+document.getElementById('topbar-brand')?.addEventListener('click', async () => {
+  try { await window.meshyAPI.openWebsite(); } catch (_) {}
+});
+document.getElementById('topbar-market')?.addEventListener('click', async () => {
+  try { await showCloudLibraryModal(); } catch (_) {}
+  document.getElementById('clb-tab-market')?.click();
+});
 (() => {
   const brand = document.querySelector('#topbar .brand');
   if (!brand) return;
