@@ -1802,6 +1802,10 @@ function _ajusterAuto3D() {
     if (e.isTrusted && auto.checked) { auto.checked = false; _ajusterAuto3D(); }
   }));
   auto.addEventListener('change', () => {
+    // Decoche = on veut regler soi-meme : les options avancees s'ouvrent ;
+    // recoche = elles se replient (user, 2026-09-27).
+    const det = document.getElementById('ws-3d-trellis2-opts');
+    if (det) det.open = !auto.checked;
     if (auto.checked) _applyAssetOptionsProfile(document.getElementById('ws-asset-type')?.value || 'character');
     else _ajusterAuto3D();
   });
