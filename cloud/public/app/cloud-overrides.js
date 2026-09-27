@@ -2569,7 +2569,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       return;
     }
     const cash = (price * 0.70).toFixed(2);
-    el.textContent = 'Payout: money via Stripe (~' + cash + ' € to your bank after the 30% platform fee).';
+    el.textContent = 'Payout: money via Stripe (~' + cash + ' € to your bank).';
     el.style.color = '#3fb950';
   }
 
@@ -2654,7 +2654,11 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         : kind === 'animation' ? '\u{1F6D2} Publish animation to marketplace'
         : '\u{1F6D2} Publish 3D mesh to marketplace';
       const titleInput = document.getElementById('pub-title');
-      if (titleInput && !titleInput.value) titleInput.value = p?.name || '';
+      // Toujours le nom du projet ouvert : le champ gardait le titre de la
+      // publication precedente (« fighter plane » sur une hutte en bois).
+      if (titleInput) titleInput.value = p?.name || '';
+      const descInput = document.getElementById('pub-description');
+      if (descInput) descInput.value = '';
       // Populate top-right thumbnail. <img> for images, <model-viewer>
       // for meshes (works because the model-viewer script is loaded
       // for the rest of the app).
@@ -2686,7 +2690,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
             hint.textContent = 'Free listing — no credit payout.';
           } else {
             hint.textContent = 'You’ll earn ~' + credits +
-              ' credits per sale (after 30% platform fee, +20% bonus paid in credits).';
+              ' credits per sale.';
           }
           renderPayoutMethod(p, __sellerStatus);
         };
@@ -3047,17 +3051,21 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const imageBtn = document.getElementById('ws-image-publish-btn');
     const apply = (btn, already) => {
       if (!btn) return;
+      // Seul le noeud texte du libelle change : textContent ecrasait le badge
+      // de prix (enfant du bouton) et recopiait son chiffre dans le libelle.
+      const libelle = Array.from(btn.childNodes).find((n) => n.nodeType === 3 && n.textContent.trim());
+      if (!libelle) return;
       if (!btn.dataset.originalLabel) {
-        btn.dataset.originalLabel = btn.textContent || '';
+        btn.dataset.originalLabel = libelle.textContent.trim().replace(/^✓\s*/, '');
       }
       if (already) {
         btn.disabled = true;
         btn.title = 'Already published';
-        btn.textContent = '✓ ' + btn.dataset.originalLabel.replace(/^✓\s*/, '');
+        libelle.textContent = '✓ ' + btn.dataset.originalLabel;
       } else {
         btn.disabled = false;
         btn.title = '';
-        btn.textContent = btn.dataset.originalLabel;
+        libelle.textContent = btn.dataset.originalLabel;
       }
     };
     // Mesh button — check current mesh by job_id, fall back to URL.
