@@ -2907,6 +2907,37 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     teteBin.setUint32(0, pos, true); teteBin.setUint32(4, 0x004E4942, true);
     return new Blob([tete.buffer, js, teteBin.buffer].concat(morceaux), { type: 'model/gltf-binary' });
   }
+  /* MINIATURE DE LA FICHE (2026-09-28) : les anciens maillages n'avaient souvent
+   * aucune vignette, et la carte /market restait vide. A la publication d'un
+   * modele 3D, un model-viewer hors ecran (512 px) photographie le fichier publie ;
+   * la vignette est deposee sur /api/market/poster-upload/<id>. */
+  async function _miniatureNavigateur(id, url) {
+    const mv = document.createElement('model-viewer');
+    mv.setAttribute('src', url);
+    mv.setAttribute('camera-orbit', '30deg 75deg 105%');
+    mv.setAttribute('exposure', '1');
+    // DANS l'ecran mais invisible, derriere le contenu : hors ecran, model-viewer suspend son rendu
+    mv.style.cssText = 'position:fixed; left:0; top:0; width:512px; height:512px; opacity:0; z-index:-1; pointer-events:none; background:#0a0a0e;';
+    document.body.appendChild(mv);
+    try {
+      await new Promise((ok, ko) => {
+        const t = setTimeout(() => ko(new Error('model load timeout')), 120000);
+        mv.addEventListener('load', () => { clearTimeout(t); ok(); }, { once: true });
+        mv.addEventListener('error', () => { clearTimeout(t); ko(new Error('model load failed')); }, { once: true });
+      });
+      await new Promise((r) => setTimeout(r, 800));
+      const blob = await mv.toBlob({ mimeType: 'image/webp', qualityArgument: 0.85 });
+      const r = await fetch('/api/market/poster-upload/' + encodeURIComponent(id), {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': blob.type || 'image/webp' },
+        body: blob,
+      });
+      if (!r.ok) throw new Error('poster upload HTTP ' + r.status);
+    } finally {
+      mv.remove();
+    }
+  }
+
   async function _apercuNavigateur(id, kind, url) {
     const logo = await _filigraneImage();
     const src = await fetch(url, { credentials: 'include' });
@@ -3180,6 +3211,11 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         // Fiche payante : la copie filigranee de la vitrine est fabriquee ici,
         // gratuitement. En cas d'echec, le serveur la fabrique a la premiere ouverture.
         const srcApercu = kind === 'image' ? payload.imageUrl : (payload.assetUrl || '');
+        if (kind !== 'image' && rep && rep.id && srcApercu) {
+          _miniatureNavigateur(rep.id, srcApercu)
+            .then(() => console.log('[market.miniature] deposee', rep.id))
+            .catch((e) => console.warn('[market.miniature] echec :', e?.message || e));
+        }
         if (priceUSD > 0 && rep && rep.id && srcApercu) {
           _apercuNavigateur(rep.id, kind, srcApercu)
             .then(() => console.log('[market.apercu] copie filigranee deposee', rep.id))

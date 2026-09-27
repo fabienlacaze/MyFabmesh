@@ -4373,6 +4373,7 @@ async function handleMarketUnpublish(req: Request, env: Env, id: string): Promis
     if (parsed.user_id !== user.id) return err(403, 'not your listing');
     await env.MESHES.delete(key);
     try { await env.MESHES.delete(APERCU_PREFIXE + id); } catch {}
+    try { await env.MESHES.delete(`_market/poster/${id}`); } catch {}
     return json({ ok: true, success: true });
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));
@@ -4486,6 +4487,17 @@ async function handleMarketPoster(env: Env, id: string): Promise<Response> {
   if (!env.MESHES) return err(404, 'not found');
   const l = (await _loadAllListings(env)).find((x) => x.id === id);
   if (!l || l.asset_kind === 'image') return err(404, 'not found');
+  // MINIATURE PROPRE A LA FICHE (2026-09-28) : photographiee par le navigateur
+  // du vendeur a la publication (/api/market/poster-upload). Prioritaire : c'est
+  // exactement le fichier publie, et les anciens maillages n'avaient souvent
+  // AUCUNE vignette (carte vide sur /market).
+  const propre = await env.MESHES.get(`_market/poster/${id}`);
+  if (propre) {
+    return new Response(propre.body, { headers: {
+      'content-type': propre.httpMetadata?.contentType || 'image/webp',
+      'cache-control': 'public, max-age=3600',
+    } });
+  }
   // Rig et animation : le maillage source est dans le nom du fichier
   // (modal_<hex>_rigged_…glb, …_walk_<lot>_<ts>.glb) — on reprend SA miniature.
   // Le prefixe « modal_ » manque sur certains rigs (<hex>_rigged_…glb).
@@ -6167,6 +6179,25 @@ async function handleMarketPreviewUpload(req: Request, env: Env, id: string): Pr
   return json({ ok: true, bytes: octets.length });
 }
 
+/** POST /api/market/poster-upload/<id> — le VENDEUR depose la miniature de sa
+ *  fiche 3D, photographiee par son navigateur a la publication (image, 2 Mo max). */
+async function handleMarketPosterUpload(req: Request, env: Env, id: string): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MESHES) return err(500, 'storage not configured');
+  const txt = await r2GetText(env, `_market/listings/${id}.json`);
+  if (!txt) return err(404, 'listing not found');
+  let l: MarketListing;
+  try { l = JSON.parse(txt); } catch { return err(500, 'listing parse failed'); }
+  if (l.user_id !== user.id) return err(403, 'not your listing');
+  const octets = new Uint8Array(await req.arrayBuffer());
+  if (octets.length < 16 || octets.length > 2 * 1024 * 1024) return err(413, 'poster size out of range');
+  const type = _typeOctets(octets);
+  if (!type.startsWith('image/')) return err(400, 'poster must be an image');
+  await env.MESHES.put(`_market/poster/${id}`, octets, { httpMetadata: { contentType: type } });
+  return json({ ok: true, bytes: octets.length });
+}
+
 /** GET /api/market/preview/<id> — PUBLIC, fiches approuvees. Gratuite : le fichier.
  *  Payante : la copie filigranee (voir _genererApercu), jamais le fichier vendu.
  *  L'apercu 3D (et l'image) de la vitrine lisait `asset_url` tel quel : une cle
@@ -6235,6 +6266,7 @@ async function handleAdminMarketDelete(req: Request, env: Env, id: string): Prom
   // Drop the downloads counter too (separate key per FIX 15).
   try { await env.MESHES.delete(`_market/downloads/${id}.txt`); } catch {}
   try { await env.MESHES.delete(APERCU_PREFIXE + id); } catch {}
+  try { await env.MESHES.delete(`_market/poster/${id}`); } catch {}
   return json({ ok: true, success: true });
 }
 
@@ -20141,6 +20173,10 @@ export default {
         {
           const m = pathname.match(/^\/api\/market\/preview-upload\/([A-Za-z0-9_]+)$/);
           if (m && method === 'POST') return await handleMarketPreviewUpload(req, env, m[1]);
+        }
+        {
+          const m = pathname.match(/^\/api\/market\/poster-upload\/([A-Za-z0-9_]+)$/);
+          if (m && method === 'POST') return await handleMarketPosterUpload(req, env, m[1]);
         }
         {
           const m = pathname.match(/^\/api\/market\/([A-Za-z0-9_]+)\/claim$/);
