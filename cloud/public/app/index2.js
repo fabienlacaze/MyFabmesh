@@ -1846,6 +1846,12 @@ function _ajusterAuto3D() {
       const cb = document.getElementById('ws-img-buildstages');
       if (cb) cb.checked = false;
     }
+    // case « Construction stages (3 versions) » de la creation 3D : meme regle
+    // (elle restait visible, et facturable, pour un personnage)
+    const cb3d = document.getElementById('ws-3d-buildstages');
+    const row3d = cb3d?.closest('.form-row');
+    if (row3d) row3d.style.display = montrer ? '' : 'none';
+    if (cb3d && !montrer && cb3d.checked) { cb3d.checked = false; cb3d.dispatchEvent(new Event('change')); }
     for (const id of ['ws-mesh-stages3d-btn', 'ws-buildstages-btn']) {
       const b = document.getElementById(id);
       if (b) b.style.display = montrer ? '' : 'none';

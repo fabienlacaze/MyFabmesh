@@ -23840,3 +23840,14 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   sans « GPU ».
 - Les operations courtes synchrones (retouches d'image, rectification) restent non
   interruptibles cote serveur (10 min maximum par appel).
+
+## 2026-09-27 — Captures Microsoft Store ; case Construction stages 3D masquee hors batiments
+
+- 7 captures 1920 x 1080 faites par navigateur sans fenetre sur le web (session temporaire
+  creee par lien magique cote administration, avec l'accord du user ; jeton supprime apres) :
+  build/marketing/store-screenshots/2026-09-27/ + LEGENDES.md (EN/FR).
+- En passant, verifie en vrai : l'editeur de points (liste, after/before, suppression), le
+  seuil « moved » corrige, Auto settings (Ultra 8K + 500 K), pastille Construction stages.
+- La case « Construction stages (3 versions) » de la creation 3D restait visible (et
+  facturable) pour un personnage : masquee hors building / other_built / environment.
+- Constat : les animations existantes du guerrier sortent deformees (maillage « explose »).
