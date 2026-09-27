@@ -3640,7 +3640,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       <div class="reg-ligne"><span class="credit-badge" id="reg-solde">…</span><span style="font-size:12px; color:var(--text-2);">credits</span>
         <a href="/buy" class="primary-btn" style="margin-left:auto; text-decoration:none;">+ Top up</a></div>
       <div class="reg-ligne"><span style="font-size:12px; color:var(--text-2);">Every job, its cost and its result</span>
-        <button type="button" class="ghost-btn" id="reg-historique" style="margin-left:auto;">Usage history</button></div>
+        <button type="button" class="ghost-btn" id="reg-historique" style="margin-left:auto;">&#128229; Usage history</button></div>
     </div>
     <div class="settings-section-header" id="reg-titre-paiements">Marketplace earnings</div>
     <div class="settings-box" id="reg-gains"><span style="font-size:12px; color:var(--text-2);">Loading…</span></div>
@@ -3836,6 +3836,11 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       document.head.appendChild(st);
     }
     entete.insertAdjacentHTML('afterend', _REG_HTML);
+    // L'historique est dans les parametres : l'icone 📥 de la barre du haut
+    // faisait doublon (user, 2026-09-28). Le bouton reste dans la page, masque :
+    // « Usage history » le declenche.
+    const histoBarre = document.getElementById('btn-history');
+    if (histoBarre) histoBarre.style.display = 'none';
     document.getElementById('reg-deconnexion').addEventListener('click', async () => {
       const bouton = document.getElementById('cloud-logout-btn');
       if (bouton) { bouton.click(); return; }
