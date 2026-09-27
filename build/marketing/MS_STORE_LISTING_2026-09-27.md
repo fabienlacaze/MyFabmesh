@@ -7,8 +7,8 @@ Partner Center → MyFabmesh.AI → nouvelle soumission → **Store listings** �
 English (United States), puis Français (France). Les captures et leurs légendes
 sont dans `store-screenshots/2026-09-27/` (voir `LEGENDES.md`).
 
-**Paquet visé : 1.0.36** (construit le 27/09 avec tout le travail du jour : réglages automatiques,
-10 M de triangles, ajout / suppression / rattachement des points du squelette, annuler / rétablir).
+**Paquet visé : 1.0.37** (27/09 : tout le travail du jour — réglages automatiques, 10 M de triangles,
+ajout / suppression / rattachement des points du squelette, annuler / rétablir — plus l'historique d'utilisation).
 
 Faits vérifiés dans le code le 27/09 :
 - mode local = carte NVIDIA avec 12 Go de mémoire vidéo ou plus (wizard.js) ; sinon
@@ -99,6 +99,7 @@ A major update of the public beta:
 • The rig can run on your own NVIDIA card: the setup assistant downloads it for you.
 • Animation clips (beta).
 • Cloud mode: PCs without a compatible NVIDIA card can now use every tool.
+• Usage history: every job, its cost and its result in one list, with an Excel export.
 • Marketplace, with five free items every month.
 • Many fixes and speed improvements.
 ```
@@ -117,6 +118,7 @@ Edit the skeleton point by point, relink bones, undo and redo every change
 Animation clips (beta): idle, walk, run, attack and more
 Versions at every step: nothing you generate is ever lost
 Projects group your images, models, rigs and animations in one place
+Usage history: every job with its cost, exportable to Excel
 Export to GLB, FBX, OBJ and STL, with a dedicated Unreal Engine export
 Local mode: unlimited generations on an NVIDIA card with 12 GB+, offline after setup
 Cloud mode: works on any PC, with the price of every action shown before you click
@@ -232,6 +234,7 @@ Une grande mise à jour de la bêta publique :
 • Le rig peut tourner sur votre carte NVIDIA : l'assistant d'installation le télécharge pour vous.
 • Clips d'animation (bêta).
 • Mode cloud : les PC sans carte NVIDIA compatible ont désormais accès à tous les outils.
+• Historique d'utilisation : chaque travail, son coût et son résultat dans une seule liste, avec export Excel.
 • Marketplace, avec cinq articles offerts chaque mois.
 • De nombreux correctifs et gains de vitesse.
 ```
@@ -250,6 +253,7 @@ Modifiez le squelette point par point, rattachez les os, annulez et rétablissez
 Clips d'animation (bêta) : repos, marche, course, attaque et plus
 Des versions à chaque étape : rien de ce que vous générez n'est perdu
 Les projets regroupent vos images, modèles, squelettes et animations au même endroit
+Historique d'utilisation : chaque travail avec son coût, exportable en Excel
 Export GLB, FBX, OBJ et STL, avec un export dédié à Unreal Engine
 Mode local : générations illimitées sur une carte NVIDIA de 12 Go ou plus, hors ligne après l'installation
 Mode cloud : fonctionne sur tout PC, avec le prix de chaque action affiché avant le clic
