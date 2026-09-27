@@ -1903,6 +1903,11 @@ async function openProject(p) {
         if (createStage) createStage.open = false;
         if (editStage) editStage.open = true;
         scrollTargetId = s.id; // last one wins → most advanced
+      } else if (steps.some(x => x.has) || s.id !== 'step-card-image') {
+        // ETAPE VIDE : carte repliee (user, 2026-09-27 : « si vide, reduis la
+        // carte »). Seule exception : un projet entierement vide garde
+        // l'etape Image ouverte, c'est par la qu'on commence.
+        card.classList.add('collapsed');
       }
     }
     if (!scrollTargetId) return;
@@ -19189,7 +19194,18 @@ function pushJob(name, onCancel, params, expectedMsOverride, startedAtOverride, 
   renderJobs();
   // Auto-open the details modal so the user sees the live progress + cancel button
   // without having to click the bubble in the corner.
-  try { openJobDetails(id); } catch (e) {}
+  // SAUF une REPRISE apres rechargement (params.Resumed) : avec plusieurs
+  // travaux repris, seule la derniere fiche restait visible (« une analyse
+  // en cours, c'est faux, j'en ai plusieurs », 2026-09-27). On ouvre le
+  // panneau des travaux, qui les montre tous.
+  if (params && params.Resumed) {
+    try {
+      document.getElementById('jobs-panel-2')?.classList.remove('hidden');
+      document.getElementById('jobs-bubble-2')?.classList.add('hidden');
+    } catch (_) {}
+  } else {
+    try { openJobDetails(id); } catch (e) {}
+  }
   return job;
 }
 
