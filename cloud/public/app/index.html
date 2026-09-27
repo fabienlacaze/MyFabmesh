@@ -679,6 +679,25 @@
                         <option value="ultra_8k" data-credits="8">Ultra 8K (32 steps · 4096→8192px · 8 cr)</option>
                       </select>
                     </div>
+                    <!-- TRIANGLES MAX (2026-09-27) : plafond applique par le moteur a la
+                         generation. Au-dela de 500 K, supplement par tranche de 500 K
+                         (cle mesh_tris_500k, voir le worker). -->
+                    <div class="form-row" id="ws-trellis2-tris-row" style="margin-top:6px;">
+                      <label for="ws-trellis2-tris" style="font-size:11px;">Max triangles</label>
+                      <select id="ws-trellis2-tris">
+                        <option value="50000">50 K (crowds, mobile)</option>
+                        <option value="100000">100 K (game units)</option>
+                        <option value="250000">250 K</option>
+                        <option value="500000" selected>500 K (default)</option>
+                        <option value="1000000">1 M</option>
+                        <option value="2000000">2 M</option>
+                        <option value="3000000">3 M (ultra detailed)</option>
+                        <option value="custom">Custom…</option>
+                      </select>
+                      <input type="number" id="ws-trellis2-tris-custom" min="5000" max="3000000" step="1000" value="750000"
+                             style="display:none; width:110px; margin-left:6px;" title="5 000 to 3 000 000 triangles" />
+                      <span id="ws-trellis2-tris-cost" class="form-hint" style="margin-left:6px;"></span>
+                    </div>
                     <div class="form-row check-row" id="ws-trellis2-multiref-row" style="margin-top:6px; display:none;">
                       <label class="inline-check" style="font-size:11px;">
                         <input type="checkbox" id="ws-trellis2-multiref" data-credits="1" />

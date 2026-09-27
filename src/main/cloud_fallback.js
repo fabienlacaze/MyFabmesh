@@ -948,7 +948,7 @@ function _findGlbUrl(o) {
   return found;
 }
 
-async function generateMesh({ imagePath, imagePathBack, assetType, preset, flags = {}, outPath, onProgress }) {
+async function generateMesh({ imagePath, imagePathBack, assetType, preset, flags = {}, maxTris, outPath, onProgress }) {
   const tok = await getAccessToken();
   if (!tok) return { success: false, needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
 
@@ -970,6 +970,7 @@ async function generateMesh({ imagePath, imagePathBack, assetType, preset, flags
   fd.append('asset_type', assetType || 'character');
   fd.append('preset', preset || 'fast');
   for (const [k, v] of Object.entries(flags)) fd.append(k, v ? 'true' : 'false');
+  if (Number(maxTris) > 0) fd.append('max_tris', String(Math.round(Number(maxTris))));
 
   // Seul le POST de DÉMARRAGE est protégé par le retry cold start : il ne
   // fait qu'enfiler le job (le routeur mesh de Modal est un dispatcher CPU),

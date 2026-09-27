@@ -1268,6 +1268,7 @@ window.__optionsMortesCloud = new Set([]);
       if (typeof v !== 'number') continue;
       // Retenu aussi pour la pastille persistante (voir installActionCostBadges).
       ACTION_COSTS[btnId] = v;
+      if (typeof prices.mesh_tris_500k === 'number') window.__prixTris500k = prices.mesh_tris_500k;
       if (btnId === 'of-go') {
         _prixOutfit = { avec: v, sans: typeof prices.outfit === 'number' ? prices.outfit : _prixOutfit.sans };
         _majPrixOutfit();
@@ -1525,11 +1526,25 @@ window.__optionsMortesCloud = new Set([]);
         const el = document.getElementById(id);
         if (el?.checked) total += parseInt(el.dataset.credits || '0', 10);
       }
+      // Supplement « Max triangles » : meme regle que creditCost (worker).
+      const trisSel = document.getElementById('ws-trellis2-tris');
+      if (trisSel) {
+        const brut = trisSel.value === 'custom'
+          ? parseInt(document.getElementById('ws-trellis2-tris-custom')?.value || '500000', 10)
+          : parseInt(trisSel.value, 10);
+        const tris = Math.max(5000, Math.min(3_000_000, brut || 500000));
+        const sup = tris > 500000 ? Math.ceil((tris - 500000) / 500000) * (window.__prixTris500k ?? 1) : 0;
+        total += sup;
+        const hint = document.getElementById('ws-trellis2-tris-cost');
+        if (hint) hint.textContent = sup ? `+${sup} cr` : '';
+      }
       const valueEl = document.getElementById('ws-mesh-cost-value');
       if (valueEl) valueEl.textContent = String(total);
     }
 
     preset.addEventListener('change', recompute);
+    document.getElementById('ws-trellis2-tris')?.addEventListener('change', recompute);
+    document.getElementById('ws-trellis2-tris-custom')?.addEventListener('input', recompute);
     for (const id of optionIds) {
       document.getElementById(id)?.addEventListener('change', recompute);
     }

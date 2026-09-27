@@ -1704,6 +1704,10 @@ const PRICING_DEFAULTS = {
   // « Texture smooth » : etait GRATUIT (« free »). Le user, 2026-09-27 : aucune
   // option ne doit etre gratuite.
   mesh_smooth:      1,
+  // Triangles max (2026-09-27) : supplement par TRANCHE de 500 K au-dela de
+  // 500 K (1 M = +1, 2 M = +3, 3 M = +5 par defaut). Plus de triangles =
+  // cuisson de texture plus longue et fichier plus lourd.
+  mesh_tris_500k:   1,
   // face_fix_mesh RETIRE le 2026-09-27 : aucune route ne le facturait, il
   // n'apparaissait dans l'onglet Pricing que pour semer le doute.
   //
@@ -2060,6 +2064,8 @@ interface GenerateInput {
   refine?: boolean;
   quality_plus?: boolean;
   ultra_q?: boolean;
+  /** Plafond de triangles choisi (5 000 - 3 000 000) ; absent = regle du mode. */
+  max_tris?: number;
 }
 
 /** Approximate Modal cost per operation type, in USD. Used by the
@@ -2490,6 +2496,10 @@ function _neutraliserOptionsSansEffet(i: GenerateInput): GenerateInput {
   return i;
 }
 
+/** Plafond du choix « Max triangles ». Au-dela, le maillage brut du moteur
+ *  (grille de voxels) est de toute facon atteint : aucun detail en plus. */
+const MAX_TRIS_GENERATION = 3_000_000;
+
 async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   _neutraliserOptionsSansEffet(i);
   const p = await _getPricing(env);
@@ -2514,6 +2524,9 @@ async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   if (i.ultra_hd && i.preset !== 'ultra_8k') n += p.mesh_ultra_hd ?? 3;
   if (i.face_fix)     n += p.mesh_face_fix     ?? 2;
   if (i.smooth)       n += p.mesh_smooth       ?? 1;
+  if (i.max_tris && i.max_tris > 500_000) {
+    n += Math.ceil((i.max_tris - 500_000) / 500_000) * (p.mesh_tris_500k ?? 1);
+  }
 
   // Legacy: old clients still send mode=full without preset.
   if (i.mode === 'full' && !i.preset) {
@@ -6849,6 +6862,10 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     quality_plus: form.get('quality_plus') === 'true',
     ultra_q: form.get('ultra_q') === 'true',
     preset: (form.get('preset') as GenerateInput['preset']) || undefined,
+    max_tris: (() => {
+      const n = parseInt(String(form.get('max_tris') ?? ''), 10);
+      return Number.isFinite(n) && n > 0 ? Math.max(5000, Math.min(MAX_TRIS_GENERATION, n)) : undefined;
+    })(),
   };
 
   let cost = await creditCost(env, input);
@@ -7187,7 +7204,9 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         backImageUrl: input.multiref ? backImageHttpsUrl : null,
         mode: trellisMode,
         seed: input.seed ?? 42,
-        decimation_target: input.mode === 'lite' ? 100_000
+        // Le choix « Max triangles » l'emporte ; sinon la regle historique du mode.
+        decimation_target: input.max_tris ? input.max_tris
+                         : input.mode === 'lite' ? 100_000
                          : input.mode === 'full' ? 1_500_000 : 500_000,
         // ultra_hd bumps the atlas to 4096 for the Real-ESRGAN x2 pass
         // downstream. Otherwise 2048 for "full", 1024 elsewhere.

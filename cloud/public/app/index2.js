@@ -1669,6 +1669,16 @@ function _applyAssetOptionsProfile(assetType) {
     }
   }
 }
+// Menu « Max triangles » : la saisie libre n'apparait que pour « Custom ».
+(function _wireTrisCustom() {
+  const sel = document.getElementById('ws-trellis2-tris');
+  const inp = document.getElementById('ws-trellis2-tris-custom');
+  if (!sel || !inp) return;
+  const maj = () => { inp.style.display = sel.value === 'custom' ? '' : 'none'; };
+  sel.addEventListener('change', maj);
+  maj();
+})();
+
 (function _wireAssetOptionsProfile() {
   const sel = document.getElementById('ws-asset-type');
   if (!sel) return;
@@ -8880,6 +8890,10 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   if (buildStages) expectedMs *= 2.5;
   // TRELLIS-2 texture options.
   const trellis2Preset = document.getElementById('ws-trellis2-preset')?.value || 'fast';
+  // Triangles max : valeur du menu, ou saisie « Custom » bornee 5 000 - 3 000 000.
+  const _trisSel = document.getElementById('ws-trellis2-tris')?.value || '500000';
+  const trellis2MaxTris = Math.max(5000, Math.min(3_000_000, parseInt(_trisSel === 'custom'
+    ? (document.getElementById('ws-trellis2-tris-custom')?.value || '500000') : _trisSel, 10) || 500000));
   const trellis2MultiRef = document.getElementById('ws-trellis2-multiref')?.checked || false;
   const trellis2Refine = document.getElementById('ws-trellis2-refine')?.checked || false;
   if (trellis2Refine) expectedMs += 90000;  // ~90s for SDXL Tile Refine
@@ -8925,6 +8939,8 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     subdivide: triPreset.subdivide,
     vramFraction: (gpuLimits?.vram || 90) / 100,
     trellis2Steps: t2cfg.steps,
+    trellis2MaxTris,
+    max_tris: trellis2MaxTris,   // nom lu par le worker (FormData)
     trellis2TexSize: t2cfg.texSize,
     trellis2ImgRes: t2cfg.imgRes,
     // Cloud wire names — worker reads these from FormData, then forwards

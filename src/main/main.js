@@ -7547,7 +7547,7 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
 // --- Image-to-3D: TRELLIS-2 native (default). SF3D and TripoSR have
 // been retired for non-commercial license; legacy requests for those
 // engines are silently rerouted to trellis2_native. ---
-ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, assetType }) => {
+ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2MaxTris, assetType }) => {
   let imagePath = _imagePath;
   let engine = _engine;
   // SF3D and TripoSR both disabled at the UI level — Stability AI
@@ -7586,6 +7586,7 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
           multiref: !!trellis2MultiRef,
           back_view: false,
         },
+        maxTris: trellis2MaxTris,   // « Max triangles » (nombre, pas un drapeau)
         outPath: meshPath,
         onProgress: (st, polls) => {
           // Progression croissante 30→90 pendant le polling (4 s/poll).
@@ -7891,6 +7892,11 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
                 FABMESH_TRELLIS2_NATIVE_MODE: '1024_cascade',
                 FABMESH_TRELLIS2_NATIVE_DECIM: '1000000',
               } : {})),
+      // « Max triangles » choisi par l'utilisateur : l'emporte sur les valeurs
+      // ci-dessus (borne 5 000 - 3 000 000, meme regle que le web).
+      ...(engine === 'trellis2_native' && Number(trellis2MaxTris) > 0
+        ? { FABMESH_TRELLIS2_NATIVE_DECIM: String(Math.max(5000, Math.min(3000000, Math.round(Number(trellis2MaxTris))))) }
+        : {}),
       // TRELLIS-2 native: auto-feed extra views to the mesh
       // pipeline when the user generated them. DISABLED BY DEFAULT since
       // 2026-05-20 — confirmed via the singe / red car tests that
