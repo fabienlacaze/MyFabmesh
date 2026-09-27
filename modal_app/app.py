@@ -1972,6 +1972,16 @@ class MyFabmeshBackview:
         print(f"[sheet] DONE dt={time.time() - t0:.1f}s bytes={len(png)}", flush=True)
         return Response(content=png, media_type="image/png")
 
+    @modal.method()
+    def rectifier_banc(self, ref_image_url: str, mode: str = "front", seeds: int = 3) -> bytes:
+        """BANC (2026-09-27) : la MEME rectification que la route /rectify,
+        appelee par le SDK Modal (authentifie par le jeton du compte Modal, pas
+        de route publique). Sert a valider un correctif sur UNE image avant de
+        payer un maillage. Rend le PNG."""
+        payload = {"_auth": os.environ.get("SHARED_SECRET", ""),
+                   "ref_image_url": ref_image_url, "mode": mode, "seeds": seeds}
+        return bytes(self._route_rectify(payload).body)
+
     @modal.asgi_app()
     def router(self):
         """ASGI router consolidating the 5 back-view family routes
