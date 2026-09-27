@@ -2492,13 +2492,19 @@ async function logOperation(
  * source, et une interface qui affichait l inverse de la verite.
  * `refine` et `smooth`, eux, restent sans lecteur (verifie : 0 occurrence
  * dans modal_app/*.py). */
-const OPTIONS_SANS_EFFET_CLOUD = [] as const;  // 'smooth' et 'refine' portes le 2026-09-24
+// 'refine' et 'face_fix' SUSPENDUS le 2026-09-27 : tous deux retravaillent
+// l'image de texture A PLAT (tuiles SDXL / repeinture d'une zone), sans savoir
+// quels morceaux se touchent sur l'objet. Chaque morceau change de teinte a
+// part -> plaques aux bords droits sur la peau (captures du user ; ecart de
+// couleur aux raccords mesure x2,5 : 5,5 sans, 12-14 avec). Ignores et NON
+// factures jusqu'a leur refonte.
+const OPTIONS_SANS_EFFET_CLOUD = ['refine', 'face_fix'] as const;
 
 function _neutraliserOptionsSansEffet(i: GenerateInput): GenerateInput {
   const rec = i as unknown as Record<string, unknown>;
   for (const k of OPTIONS_SANS_EFFET_CLOUD) {
     if (rec[k]) {
-      console.log(`[parite] option '${k}' ignoree et NON facturee : aucun code serveur ne l'execute`);
+      console.log(`[parite] option '${k}' ignoree et NON facturee (suspendue)`);
       rec[k] = false;
     }
   }

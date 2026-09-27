@@ -17,7 +17,10 @@
 // La liste reste en place : c'est elle qui empeche le tableau par type
 // d'asset de ressusciter une option sans lecteur, le jour ou il y en aura
 // de nouveau une.
-window.__optionsMortesCloud = new Set([]);
+// 2026-09-27 : Detail refine et Face fix SUSPENDUS (retouche de l'image de
+// texture a plat -> plaques aux bords droits ; voir OPTIONS_SANS_EFFET_CLOUD
+// dans le worker, qui les ignore et ne les facture plus).
+window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-fix']);
 
 /**
  * Cloud-only overrides for the desktop renderer UI.
@@ -1491,7 +1494,8 @@ window.__optionsMortesCloud = new Set([]);
     // scripts/texture_refine.py), il suffira de retirer l'id de cette liste.
     (function removeUnimplementedPaidOptions() {
       const POURQUOI = {
-        'ws-trellis2-refine': 'Detail refine (2 cr) — aucun code serveur ne lit ce drapeau',
+        'ws-trellis2-refine': 'Detail refine — temporarily unavailable while it is being improved',
+        'ws-trellis2-face-fix': 'Face fix — temporarily unavailable while it is being improved',
         'ws-trellis2-smooth': 'Texture smooth — non porte cote cloud',
       };
       const morts = [...window.__optionsMortesCloud].map(id => [id, POURQUOI[id] || 'sans effet']);
@@ -1512,7 +1516,7 @@ window.__optionsMortesCloud = new Set([]);
           lab.style.opacity = '0.45';
           lab.title = pourquoi;
           const note = document.createElement('span');
-          note.textContent = ' — indisponible en Cloud';
+          note.textContent = ' — temporarily unavailable';
           note.style.cssText = 'font-style:italic; opacity:0.8;';
           lab.appendChild(note);
         }

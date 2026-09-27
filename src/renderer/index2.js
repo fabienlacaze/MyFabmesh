@@ -1835,6 +1835,10 @@ document.getElementById('np-create').addEventListener('click', async () => {
 //   null  -> hidden (forced off noise)
 //
 // 'custom' shows everything (user picks).
+// 2026-09-27 : Detail refine et Face fix SUSPENDUS (null = masque et force a off)
+// sur tous les types : ils retouchent l'image de texture a plat, sans savoir
+// quels morceaux se touchent sur l'objet -> plaques aux bords droits (mesure
+// sur le web, meme principe ici : scripts/texture_refine.py, face fix SDXL).
 const ASSET_OPTIONS_PROFILE = {
   character: {
     'ws-trellis2-rectify':      true,   // strict front T-pose
@@ -1842,39 +1846,39 @@ const ASSET_OPTIONS_PROFILE = {
     // ON: 'refine' sharpens the body. For character/creature, main.js passes
     // --protect-face so texture_refine preserves the face UV island (Tier 2) —
     // the option improves the body WITHOUT touching the AI face.
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      true,   // face detail matters
     'ws-trellis2-ultra-hd':     true,
     // OFF by default: 'face-fix' is a GENERATIVE SDXL repaint of the face ->
     // wrecks stylized/AI identity even when there's no artifact. Opt-in only.
-    'ws-trellis2-face-fix':     false,
+    'ws-trellis2-face-fix':     null,
   },
   creature: {
     'ws-trellis2-rectify':      false,  // decoche 2026-09-26 : la rectification REDESSINE le sujet ;
                                         // araignee : ressemblance 0,41 (rectifiee) contre 0,60 (image d'origine)
     'ws-trellis2-smooth':       false,  // fur, scales
-    'ws-trellis2-refine':       true,   // ON: main.js --protect-face preserves the face (Tier 2)
+    'ws-trellis2-refine':       null,   // ON: main.js --protect-face preserves the face (Tier 2)
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      true,   // creature faces too
     'ws-trellis2-ultra-hd':     true,
-    'ws-trellis2-face-fix':     false,  // OFF: generative face repaint wrecks identity (see character)
+    'ws-trellis2-face-fix':     null,   // OFF: generative face repaint wrecks identity (see character)
   },
   // Absent du bureau jusqu'au 2026-09-26 alors que le web l'a : un projet
   // « animal » ne recevait AUCUN profil (cases du projet precedent).
   animal: {
     'ws-trellis2-rectify':      false,  // voir creature : la rectification redessine le sujet
     'ws-trellis2-smooth':       false,  // fur, scales
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      true,   // animal faces matter
     'ws-trellis2-ultra-hd':     true,
-    'ws-trellis2-face-fix':     false,
+    'ws-trellis2-face-fix':     null,
   },
   insect: {
     'ws-trellis2-rectify':      false,  // the 3/4 iso image IS the reference; do NOT re-rectify to a front view (head-on breaks insect meshes — no depth)
     'ws-trellis2-smooth':       false,  // exoskeleton / chitin detail
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      false,  // no human face to gain from 1536
     'ws-trellis2-ultra-hd':     true,
@@ -1892,7 +1896,7 @@ const ASSET_OPTIONS_PROFILE = {
   building: {
     'ws-trellis2-rectify':      true,
     'ws-trellis2-smooth':       true,
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     true,
@@ -1901,7 +1905,7 @@ const ASSET_OPTIONS_PROFILE = {
   weapon: {
     'ws-trellis2-rectify':      true,
     'ws-trellis2-smooth':       true,
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     true,
@@ -1910,7 +1914,7 @@ const ASSET_OPTIONS_PROFILE = {
   prop: {
     'ws-trellis2-rectify':      true,
     'ws-trellis2-smooth':       true,
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     true,
@@ -1919,7 +1923,7 @@ const ASSET_OPTIONS_PROFILE = {
   environment: {
     'ws-trellis2-rectify':      true,
     'ws-trellis2-smooth':       true,
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     true,
@@ -1956,11 +1960,11 @@ const ASSET_OPTIONS_PROFILE = {
   other_living: {   // like creature (faces possible -> same face-safety as character)
     'ws-trellis2-rectify':      true,
     'ws-trellis2-smooth':       false,
-    'ws-trellis2-refine':       true,   // safe: main.js passes --protect-face for other_living
+    'ws-trellis2-refine':       null,   // safe: main.js passes --protect-face for other_living
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      true,
     'ws-trellis2-ultra-hd':     true,
-    'ws-trellis2-face-fix':     false,  // OFF: generative face repaint wrecks identity
+    'ws-trellis2-face-fix':     null,   // OFF: generative face repaint wrecks identity
   },
   other_vehicle: {  // like vehicle (refine OFF on smooth surfaces)
     'ws-trellis2-rectify':      true,
@@ -1974,7 +1978,7 @@ const ASSET_OPTIONS_PROFILE = {
   other_built: {    // like building
     'ws-trellis2-rectify':      true,
     'ws-trellis2-smooth':       true,
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      null,
     'ws-trellis2-ultra-hd':     true,
@@ -1983,7 +1987,7 @@ const ASSET_OPTIONS_PROFILE = {
   other_item: {     // like prop
     'ws-trellis2-rectify':      true,
     'ws-trellis2-smooth':       true,
-    'ws-trellis2-refine':       true,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      null,
     'ws-trellis2-ultra-hd':     true,
@@ -1992,11 +1996,11 @@ const ASSET_OPTIONS_PROFILE = {
   custom: {
     'ws-trellis2-rectify':      true,
     'ws-trellis2-smooth':       true,
-    'ws-trellis2-refine':       false,
+    'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
     'ws-trellis2-ultra-q':      false,
     'ws-trellis2-ultra-hd':     true,
-    'ws-trellis2-face-fix':     false,
+    'ws-trellis2-face-fix':     null,
   },
 };
 
