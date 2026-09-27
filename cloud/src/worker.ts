@@ -1708,6 +1708,11 @@ const PRICING_DEFAULTS = {
   // 500 K (1 M = +1, 2 M = +3, 3 M = +5 par defaut). Plus de triangles =
   // cuisson de texture plus longue et fichier plus lourd.
   mesh_tris_500k:   1,
+  // Socle « Max triangles » (2026-09-27, user : « 50 K = 1 credit, 100 K =
+  // 1 credit… ») : TOUT choix coute au moins ce socle, les tranches de 500 K
+  // s'y ajoutent. Bareme par defaut : 50 K a 500 K = 1, 1 M = 2, 2 M = 4,
+  // 3 M = 6, 10 M = 20.
+  mesh_tris_base:   1,
   // face_fix_mesh RETIRE le 2026-09-27 : aucune route ne le facturait, il
   // n'apparaissait dans l'onglet Pricing que pour semer le doute.
   //
@@ -2540,9 +2545,10 @@ function _delaiMaxGenerationS(input: GenerateInput, mode1536: boolean): number {
  *  la fin du travail (_rembourserTrianglesNonLivres). */
 const MAX_TRIS_GENERATION = 10_000_000;
 
-/** Supplement « Max triangles » en credits pour `tris` triangles. */
-function _supplementTriangles(tris: number, prixTranche: number): number {
-  return tris > 500_000 ? Math.ceil((tris - 500_000) / 500_000) * prixTranche : 0;
+/** Supplement « Max triangles » en credits pour `tris` triangles : le socle,
+ *  plus une tranche par 500 K au-dela de 500 K. */
+function _supplementTriangles(tris: number, prixTranche: number, socle = 0): number {
+  return socle + (tris > 500_000 ? Math.ceil((tris - 500_000) / 500_000) * prixTranche : 0);
 }
 
 async function creditCost(env: Env, i: GenerateInput): Promise<number> {
@@ -2569,7 +2575,9 @@ async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   if (i.ultra_hd && i.preset !== 'ultra_8k') n += p.mesh_ultra_hd ?? 3;
   if (i.face_fix)     n += p.mesh_face_fix     ?? 2;
   if (i.smooth)       n += p.mesh_smooth       ?? 1;
-  if (i.max_tris) n += _supplementTriangles(i.max_tris, p.mesh_tris_500k ?? 1);
+  // Sans choix explicite (anciens clients), le maillage par defaut est 500 K :
+  // le socle s'applique aussi.
+  n += _supplementTriangles(i.max_tris ?? 500_000, p.mesh_tris_500k ?? 1, p.mesh_tris_base ?? 1);
 
   // Legacy: old clients still send mode=full without preset.
   if (i.mode === 'full' && !i.preset) {
@@ -7225,7 +7233,9 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         ...(input.max_tris ? {
           max_tris: input.max_tris,
           tris_prix_tranche: (await _getPricing(env)).mesh_tris_500k ?? 1,
-          tris_supplement: _supplementTriangles(input.max_tris, (await _getPricing(env)).mesh_tris_500k ?? 1),
+          tris_prix_socle: (await _getPricing(env)).mesh_tris_base ?? 1,
+          tris_supplement: _supplementTriangles(input.max_tris, (await _getPricing(env)).mesh_tris_500k ?? 1,
+                                                (await _getPricing(env)).mesh_tris_base ?? 1),
         } : {}),
         backend: 'modal',
         operation_type: 'mesh',
@@ -9945,7 +9955,7 @@ async function _rembourserTrianglesNonLivres(env: Env, job: Record<string, unkno
     const paye = Number(opts.tris_supplement || 0);
     const prix = Number(opts.tris_prix_tranche || 0);
     if (!faces || !demande || !paye || !prix || opts.tris_rendu) return;
-    const du = _supplementTriangles(Math.min(demande, faces), prix);
+    const du = _supplementTriangles(Math.min(demande, faces), prix, Number(opts.tris_prix_socle || 0));
     const aRendre = Math.max(0, paye - du);
     if (!aRendre) return;
     await addCredits(env, String(job.user_id), aRendre);
