@@ -23802,19 +23802,15 @@ async function _ptsInstaller(gltf, jeton) {
   _pts.matOs = new THREE.MeshBasicMaterial({ color: 0x00ffd0, depthTest: false, transparent: true, opacity: 0.5 });
   _pts.matArt = new THREE.MeshBasicMaterial({ color: 0xff00ff, depthTest: false, transparent: true, opacity: 0.85 });
   _pts.rayonOs = _pts.diag * 0.0045;
-  const geoArt = new THREE.SphereGeometry(_pts.rayonOs, 10, 10);
-  _pts.os = os.map((b) => {
-    const sphere = new THREE.Mesh(geoArt, _pts.matArt);
-    sphere.renderOrder = 998;
-    _pts.groupe.add(sphere);
-    return { parent: b.parent && index.has(b.parent) ? index.get(b.parent) : -1,
-             p: _ptsVersLocal(b.getWorldPosition(new THREE.Vector3())), sphere, cyl: null,
-             nom: b.name || '' };
-  });
+  _pts.geoArt = new THREE.SphereGeometry(_pts.rayonOs, 10, 10);
+  _pts.os = os.map((b, i) => _ptsCreerOs(_ptsVersLocal(b.getWorldPosition(new THREE.Vector3())),
+    b.parent && index.has(b.parent) ? index.get(b.parent) : -1, b.name || '', i));
   _pts.osOrigine = _pts.os.map(o => o.p.clone());
   _pts.osParentsOrigine = _pts.os.map(o => o.parent);
+  _pts.osNomsOrigine = _pts.os.map(o => o.nom);
   _pts.osModifies = false;
   _pts.osSurvol = null;
+  _pts.osSelection = null;
   _pts.os.forEach((_, i) => _ptsDessinerOs(i));
   const longueurs = _pts.os.filter(o => o.parent >= 0)
     .map(o => o.p.distanceTo(_pts.os[o.parent].p)).filter(L => L > 1e-6);
@@ -23841,6 +23837,7 @@ async function _ptsInstaller(gltf, jeton) {
       depart = { pts: lm.fabmesh_points,
                  os: Array.isArray(lm.fabmesh_os) && lm.fabmesh_os.every(_ptsValide) ? lm.fabmesh_os : null,
                  parents: Array.isArray(lm.fabmesh_parents) ? lm.fabmesh_parents : null,
+                 osOrig: Array.isArray(lm.fabmesh_os_orig) ? lm.fabmesh_os_orig : null,
                  liens: Array.isArray(lm.fabmesh_liens) ? lm.fabmesh_liens : null };
     }
   } catch (_) { /* pas de retouche enregistree */ }
@@ -23885,7 +23882,8 @@ function _ptsDessinerOs(i) {
   const voir = _pts.voirOs !== false;
   o.sphere.visible = voir;
   o.sphere.position.copy(w);
-  o.sphere.scale.setScalar(i === _pts.osSurvol || (_pts.glisse && _pts.glisse.type === 'os' && _pts.glisse.id === i) ? 1.9 : 1);
+  o.sphere.scale.setScalar(i === _pts.osSurvol || i === _pts.osSelection
+    || (_pts.glisse && _pts.glisse.type === 'os' && _pts.glisse.id === i) ? 1.9 : 1);
   if (o.etiquette) {
     o.etiquette.visible = voir;
     o.etiquette.position.copy(w).add(new THREE.Vector3(0, _pts.rayonOs * 3.2, 0));
@@ -23980,8 +23978,7 @@ function _ptsVoirOs(v) {
  *  (chargement, reinitialisation, annuler). `x` : [[x,y,z]...] ou { pts, os }. */
 function _ptsAppliquer(x) {
   const liste = Array.isArray(x) ? x : x.pts;
-  if (!Array.isArray(x) && Array.isArray(x.os) && x.os.length === _pts.os.length) {
-    x.os.forEach((v, i) => _pts.os[i].p.set(v[0], v[1], v[2]));
+  if (!Array.isArray(x) && Array.isArray(x.os) && x.os.length && _ptsFormeOs(x)) {
     const par = x.parents;
     const n = _pts.os.length;
     if (Array.isArray(par) && par.length === n
@@ -24082,25 +24079,43 @@ function _ptsListe() {
   if (_pts.os.length) {
     titre(`${_i18nT('Skeleton')} (${_pts.os.length})`);
     _pts.os.forEach((o, i) => {
-      const bouge = !!_pts.osOrigine[i] && o.p.distanceTo(_pts.osOrigine[i]) > 1e-7;
-      const relie = Array.isArray(_pts.osParentsOrigine) && o.parent !== _pts.osParentsOrigine[i];
+      const k = o.orig ?? i;
+      const bouge = !!_pts.osOrigine[k] && o.p.distanceTo(_pts.osOrigine[k]) > 1e-7;
+      const relie = Array.isArray(_pts.osParentsOrigine) && _ptsParentOrig(o) !== _pts.osParentsOrigine[k];
       const ligne = document.createElement('div');
-      ligne.className = 'pts-ligne pts-ligne-os' + (i === _pts.osSurvol ? ' survol' : '');
+      ligne.className = 'pts-ligne pts-ligne-os' + (i === _pts.osSurvol ? ' survol' : '')
+        + (i === _pts.osSelection ? ' selection' : '');
       ligne.dataset.os = String(i);
       if (o.nom) ligne.title = o.nom;
       ligne.innerHTML = `<i class="pts-pastille os"></i>`
         + `<span class="pts-nom">${_i18nT('Point')} ${_ptsNumOs(i)}</span>`
-        + `<span class="pts-statut">${bouge ? _i18nT('moved') : relie ? _i18nT('relinked') : ''}</span>`
-        + (bouge || relie ? `<button class="pts-suppr pts-reinit-os" type="button" title="${_i18nT('Put this point back')}" aria-label="${_i18nT('Put this point back')}">&#8634;</button>` : '<span></span>');
+        + `<span class="pts-statut">${bouge ? _i18nT('moved') : relie ? _i18nT('relinked') : ''}`
+        + (bouge || relie ? ` <button class="pts-suppr pts-reinit-os" type="button" title="${_i18nT('Put this point back')}" aria-label="${_i18nT('Put this point back')}">&#8634;</button>` : '')
+        + `</span>`
+        + `<button class="pts-suppr pts-suppr-os" type="button" title="${_i18nT('Remove this point')}" aria-label="${_i18nT('Remove this point')}">&times;</button>`;
       ligne.appendChild(_ptsLiensOs(i));
       ligne.addEventListener('mouseenter', () => _ptsSurvolerOsListe(i));
       ligne.addEventListener('mouseleave', () => _ptsSurvolerOsListe(null));
+      ligne.addEventListener('click', (e) => {
+        if (!e.target.closest('.pts-suppr') && !e.target.closest('.pts-liens')) _ptsSelectionnerOsListe(i);
+      });
+      ligne.querySelector('.pts-suppr-os').addEventListener('click', (e) => {
+        e.stopPropagation();
+        _ptsSupprimerOs(i);
+      });
       ligne.querySelector('.pts-reinit-os')?.addEventListener('click', (e) => {
         e.stopPropagation();
         _ptsMemoriser();
-        const orig = Array.isArray(_pts.osParentsOrigine) ? _pts.osParentsOrigine[i] : o.parent;
-        if (orig !== o.parent && (orig < 0 || !_ptsDescendDe(orig, i))) _ptsRelierOs(i, orig);
-        _ptsBougerOs(i, _pts.osOrigine[i].clone());
+        // le rattachement d'origine, si ce point-la existe encore et sans boucle
+        const po = Array.isArray(_pts.osParentsOrigine) ? _pts.osParentsOrigine[k] : null;
+        let cible = null;
+        if (po === -1 && !_pts.os.some((y, j) => j !== i && y.parent < 0)) cible = -1;
+        else if (po >= 0) {
+          const c = _pts.os.findIndex(y => y.orig === po);
+          if (c >= 0 && !_ptsDescendDe(c, i)) cible = c;
+        }
+        if (cible !== null && cible !== o.parent) _ptsRelierOs(i, cible);
+        _ptsBougerOs(i, _pts.osOrigine[k].clone());
         _ptsListe(); _ptsMajBoutons(); _ptsSauver();
       });
       liste.appendChild(ligne);
@@ -24229,8 +24244,87 @@ function _ptsRelierOs(i, p) {
 }
 /** Squelette retouche (position OU rattachement) : la regeneration l'impose. */
 function _ptsOsModifie() {
-  return _pts.os.some((o, j) => (_pts.osOrigine[j] && o.p.distanceTo(_pts.osOrigine[j]) > 1e-7)
-    || (Array.isArray(_pts.osParentsOrigine) && o.parent !== _pts.osParentsOrigine[j]));
+  if (_pts.os.length !== (_pts.osOrigine || []).length) return true;   // point supprime
+  return _pts.os.some((o, j) => {
+    const k = o.orig ?? j;
+    return (_pts.osOrigine[k] && o.p.distanceTo(_pts.osOrigine[k]) > 1e-7)
+      || (Array.isArray(_pts.osParentsOrigine) && _ptsParentOrig(o) !== _pts.osParentsOrigine[k]);
+  });
+}
+/** Parent d'un point du squelette, exprime en indice du squelette D'ORIGINE. */
+function _ptsParentOrig(o) {
+  return o.parent >= 0 && _pts.os[o.parent] ? (_pts.os[o.parent].orig ?? o.parent) : -1;
+}
+function _ptsCreerOs(p, parent, nom, orig) {
+  const sphere = new THREE.Mesh(_pts.geoArt, _pts.matArt);
+  sphere.renderOrder = 998;
+  _pts.groupe.add(sphere);
+  return { parent, p, sphere, cyl: null, nom: nom || '', orig };
+}
+function _ptsRetirerOs(o) {
+  if (!o) return;
+  _pts.groupe?.remove(o.sphere);
+  if (o.cyl) { _pts.groupe?.remove(o.cyl); try { o.cyl.geometry.dispose(); } catch (_) {} }
+  if (o.etiquette) {
+    _pts.groupe?.remove(o.etiquette);
+    try { o.etiquette.material.map?.dispose(); o.etiquette.material.dispose(); } catch (_) {}
+  }
+}
+/** Applique les positions du squelette d'un instantane, et le REBATIT si des
+ *  points ont ete supprimes ou restaures entre-temps (annuler, refaire,
+ *  Reset). Faux si l'instantane ne correspond pas a ce rig. */
+function _ptsFormeOs(x) {
+  const n = x.os.length;
+  const orig = Array.isArray(x.osOrig) && x.osOrig.length === n ? x.osOrig : null;
+  const meme = n === _pts.os.length && (!orig || orig.every((k, i) => (_pts.os[i].orig ?? i) === k));
+  if (!meme) {
+    const N = (_pts.osOrigine || []).length;
+    if (!orig || !_pts.groupe || !orig.every(k => Number.isInteger(k) && k >= 0 && k < N)) return false;
+    _pts.os.forEach(_ptsRetirerOs);
+    _pts.os = orig.map(k => _ptsCreerOs(new THREE.Vector3(), -1, (_pts.osNomsOrigine || [])[k] || '', k));
+    _pts.os.forEach(o => {
+      const po = _pts.osParentsOrigine[o.orig];
+      o.parent = po >= 0 ? _pts.os.findIndex(y => y.orig === po) : -1;
+    });
+    _pts.osSurvol = null;
+    _pts.osSelection = null;
+  }
+  x.os.forEach((v, i) => _pts.os[i].p.set(v[0], v[1], v[2]));
+  return true;
+}
+/** SUPPRIMER UN POINT DU SQUELETTE (2026-09-27, user : « il faudrait que je
+ *  puisse supprimer ces points aussi »). Ce qui pendait de lui se rattache au
+ *  point du dessus ; le premier point (racine) ne part que s'il n'a qu'un
+ *  point dessous, qui devient la racine. Annulable (Ctrl+Z). */
+function _ptsSupprimerOs(i) {
+  const o = _pts.os[i];
+  if (!o || _pts.os.length <= 1) return;
+  const enfants = _pts.os.map((x, j) => x.parent === i ? j : -1).filter(j => j >= 0);
+  if (o.parent < 0 && enfants.length !== 1) {
+    showToast(_i18nT('The first point of the skeleton can only be removed when a single point hangs from it.'), 'error');
+    return;
+  }
+  _ptsMemoriser();
+  const dessus = o.parent;                 // -1 : l'unique enfant devient la racine
+  enfants.forEach(j => { _pts.os[j].parent = dessus; });
+  _pts.points.forEach(q => {
+    if (q.lien && q.lien.os === i) q.lien = dessus >= 0 ? { os: dessus } : { os: enfants[0] };
+    if (q.avantOs === i) q.avantOs = null;
+  });
+  _ptsRetirerOs(o);
+  _pts.os.splice(i, 1);
+  const decale = (k) => (k > i ? k - 1 : k);
+  _pts.os.forEach(x => { if (x.parent >= 0) x.parent = decale(x.parent); });
+  _pts.points.forEach(q => {
+    if (q.lien && Number.isInteger(q.lien.os)) q.lien = { os: decale(q.lien.os) };
+    if (Number.isInteger(q.avantOs)) q.avantOs = decale(q.avantOs);
+  });
+  _pts.osSurvol = null;
+  _pts.osSelection = null;
+  _pts.os.forEach((_, j) => _ptsDessinerOs(j));
+  _ptsRenumeroter();                       // les points a atteindre suivent le squelette
+  _pts.osModifies = _ptsOsModifie();
+  _ptsListe(); _ptsMajBoutons(); _ptsSauver();
 }
 /** AFTER / BEFORE D'UN POINT DU SQUELETTE (2026-09-27, user : « on peut
  *  rajouter before et after pour ces points aussi ? »). After = le point
@@ -24288,6 +24382,11 @@ function _ptsLiensOs(i) {
 
 function _ptsSelectionner(id) {
   _pts.selection = id;
+  if (_pts.osSelection != null) {
+    const avant = _pts.osSelection;
+    _pts.osSelection = null;
+    _ptsDessinerOs(avant);
+  }
   for (const pt of _pts.points) _ptsPlacer(pt);
   document.querySelectorAll('#pts-liste .pts-ligne').forEach(l => {
     const moi = l.dataset.id === String(id);
@@ -24310,6 +24409,7 @@ function _ptsInstantane() {
   return { pts: _pts.points.map(pt => [pt.p.x, pt.p.y, pt.p.z]),
            os: _pts.os.map(o => [o.p.x, o.p.y, o.p.z]),
            parents: _pts.os.map(o => o.parent),
+           osOrig: _pts.os.map((o, i) => o.orig ?? i),
            liens: _ptsLiensIndex() };
 }
 /** Liens imposes, alignes sur les points : { os: indice } | { point: indice } | null. */
@@ -24412,7 +24512,8 @@ function _ptsSauver(immediat) {
   const inst = _ptsInstantane();
   const r5 = v => v.map(c => Math.round(c * 1e5) / 1e5);
   const donnees = { fabmesh_points: inst.pts.map(r5),
-                    ...(_pts.osModifies ? { fabmesh_os: inst.os.map(r5), fabmesh_parents: inst.parents } : {}),
+                    ...(_pts.osModifies ? { fabmesh_os: inst.os.map(r5), fabmesh_parents: inst.parents,
+                                            fabmesh_os_orig: inst.osOrig } : {}),
                     ...(inst.liens.some(Boolean) ? { fabmesh_liens: inst.liens } : {}) };
   const ecrire = () => { try { API.saveLandmarks?.({ meshPath: rig, landmarks: donnees }); } catch (_) {} };
   if (immediat) ecrire(); else _pts.minuterie = setTimeout(ecrire, 600);
@@ -24420,6 +24521,8 @@ function _ptsSauver(immediat) {
 
 function _ptsModeAjout(actif) {
   _pts.ajout = !!actif;
+  // options de placement : visibles seulement pendant l'ajout (user)
+  document.getElementById('pts-ajout-options')?.classList.toggle('hidden', !_pts.ajout);
   document.getElementById('pts-ajouter')?.classList.toggle('active', _pts.ajout);
   document.getElementById('lm-fullscreen')?.classList.toggle('pts-ajout', _pts.ajout);
   const consigne = document.getElementById('lm-fs-instruction');
@@ -24441,7 +24544,21 @@ function _ptsRayon(canevas, cam, e) {
  *  d'entree et la face de sortie du rayon (un point pose a la surface serait
  *  hors du volume que le moteur parcourt). Le GLISSER, lui, se fait dans le
  *  plan de la vue, profondeur figee. */
-function _ptsCentreSous(canevas, cam, e) {
+/** Position d'un point AJOUTE (2026-09-27, user : un bouton pour brider ou
+ *  non le nouveau point sur le maillage, un autre pour le centrer dans
+ *  l'epaisseur). « Stick to the mesh » decoche : le point va la ou l'on
+ *  clique, dans le plan de la vue qui passe par le milieu du modele, meme
+ *  hors du maillage. « Centre in the thickness » decoche : sur la surface. */
+function _ptsPositionAjout(canevas, cam, e) {
+  if (document.getElementById('pts-ajout-coller')?.checked === false) {
+    const centre = new THREE.Box3().setFromObject(lmFsModel).getCenter(new THREE.Vector3());
+    const plan = new THREE.Plane().setFromNormalAndCoplanarPoint(cam.getWorldDirection(new THREE.Vector3()), centre);
+    return _ptsRayon(canevas, cam, e).ray.intersectPlane(plan, new THREE.Vector3());
+  }
+  return _ptsCentreSous(canevas, cam, e, document.getElementById('pts-ajout-centrer')?.checked !== false);
+}
+
+function _ptsCentreSous(canevas, cam, e, centrer = true) {
   const rc = _ptsRayon(canevas, cam, e);
   const maillages = [];
   lmFsModel.traverse(c => { if (c.isMesh && c.visible) maillages.push(c); });
@@ -24454,6 +24571,7 @@ function _ptsCentreSous(canevas, cam, e) {
   finally { for (const [mat, s] of cotes) mat.side = s; }
   if (!hits.length) return null;
   const entree = hits[0];
+  if (!centrer) return entree.point.clone();
   const sortie = hits.find(h => h.distance > entree.distance + 1e-4 * _pts.diag);
   if (!sortie || sortie.distance - entree.distance > 0.35 * _pts.diag) return entree.point.clone();
   return entree.point.clone().add(sortie.point).multiplyScalar(0.5);
@@ -24485,6 +24603,15 @@ function _ptsSurvolerCible(c) {
 
 /** Clic sur un point du squelette : sa ligne est selectionnee et amenee a l'ecran. */
 function _ptsSelectionnerOsListe(i) {
+  // Selection d'un point du squelette : la touche Suppr s'y applique
+  const avant = _pts.osSelection;
+  _pts.osSelection = i;
+  if (avant != null && avant !== i) _ptsDessinerOs(avant);
+  _ptsDessinerOs(i);
+  if (_pts.selection != null) {
+    _pts.selection = null;
+    for (const pt of _pts.points) _ptsPlacer(pt);
+  }
   document.querySelectorAll('#pts-liste .pts-ligne').forEach(l => {
     const moi = l.dataset.os === String(i);
     l.classList.toggle('selection', moi);
@@ -24510,7 +24637,7 @@ function _ptsLierCanevas(canevas, camera) {
     const cam = camera();
     if (!cam) return;
     if (_pts.ajout) {
-      const w = _ptsCentreSous(canevas, cam, e);
+      const w = _ptsPositionAjout(canevas, cam, e);
       if (w) {
         _ptsMemoriser();
         const id = _ptsCreer(_ptsVersLocal(w));
@@ -24601,6 +24728,9 @@ document.addEventListener('keydown', (e) => {
   } else if ((e.key === 'Delete' || e.key === 'Backspace') && _pts.selection != null) {
     _ptsSupprimer(_pts.selection);
     e.preventDefault();
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && _pts.osSelection != null) {
+    _ptsSupprimerOs(_pts.osSelection);
+    e.preventDefault();
   }
 }, true);
 
@@ -24642,10 +24772,16 @@ async function ptsRegenerer() {
 }
 
 document.getElementById('pts-ajouter')?.addEventListener('click', () => _ptsModeAjout(!_pts.ajout));
+// « Centre in the thickness » n'a de sens que si le point colle au maillage
+document.getElementById('pts-ajout-coller')?.addEventListener('change', (e) => {
+  const c = document.getElementById('pts-ajout-centrer');
+  if (c) c.disabled = !e.target.checked;
+});
 document.getElementById('pts-reinit')?.addEventListener('click', () => {
   if (!_pts.actif || !_pts.origine.length) return;
   _ptsMemoriser();
-  _ptsAppliquer({ pts: _pts.origine, os: _pts.osOrigine.map(v => [v.x, v.y, v.z]), parents: _pts.osParentsOrigine });
+  _ptsAppliquer({ pts: _pts.origine, os: _pts.osOrigine.map(v => [v.x, v.y, v.z]), parents: _pts.osParentsOrigine,
+                  osOrig: _pts.osOrigine.map((_, i) => i) });
   _ptsSauver();
 });
 document.getElementById('pts-regenerer')?.addEventListener('click', ptsRegenerer);

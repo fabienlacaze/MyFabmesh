@@ -23764,3 +23764,17 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   signature d'URL (web + bureau).
 - Auto settings regle aussi le preset (Ultra 8K) et Max triangles (500 K), le reglage
   valide par le user ; toucher l'un des deux menus decoche Auto (web + bureau).
+
+## 2026-09-27 — Editeur de points : supprimer un point du squelette, options d'ajout ; vignette des rigs
+
+- Suppression d'un point du squelette (croix de la ligne ou touche Suppr apres selection) :
+  ce qui pendait de lui se rattache au point du dessus ; la racine ne part que si un seul
+  point en pend. Chaque point garde son indice d'ORIGINE (`orig`) : « moved / relinked »,
+  Reset et la sauvegarde (`fabmesh_os_orig`) restent justes. Annuler / refaire rebatit
+  le squelette quand le nombre de points change (`_ptsFormeOs`) ; deplacement deja couvert.
+- Ajout d'un point : deux cases visibles seulement en mode ajout — « Stick to the mesh »
+  (decoche : le point va la ou l'on clique, plan de vue passant par le milieu du modele) et
+  « Centre in the thickness » (decoche : sur la surface).
+- Web : la vignette d'un rig (et d'une animation) venait de la vignette du PROJET, donc de
+  la derniere image ajoutee (un martin-pecheur glisse dans « Red river hog »). Desormais :
+  la sienne, celle de son maillage, puis l'image source de ce maillage.

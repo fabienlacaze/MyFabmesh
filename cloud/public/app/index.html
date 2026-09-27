@@ -1384,6 +1384,10 @@
             <button id="pts-ajouter" class="ghost-btn" title="Then click the mesh where the new point goes">&#65291; Add point</button>
             <button id="pts-reinit" class="ghost-btn" title="Back to the points of this rig">&#8634; Reset</button>
           </div>
+          <div id="pts-ajout-options" class="pts-ajout-options hidden">
+            <label title="On: the point lands on the mesh under the cursor. Off: it lands where you click, even outside the mesh."><input type="checkbox" id="pts-ajout-coller" checked /> Stick to the mesh</label>
+            <label title="On: the point goes to the middle of the mesh under the cursor. Off: it stays on the surface."><input type="checkbox" id="pts-ajout-centrer" checked /> Centre in the thickness</label>
+          </div>
           <button id="pts-regenerer" class="primary-btn lm-fs-regen-btn" title="Rig the mesh again: the skeleton will reach every point">&#10227; Re-generate rig with these points</button>
           <div class="pts-legende">
             <span><i class="pts-pastille atteint"></i>Reached by a bone</span>
