@@ -7,10 +7,14 @@ Partner Center → MyFabmesh.AI → nouvelle soumission → **Store listings** �
 English (United States), puis Français (France). Les captures et leurs légendes
 sont dans `store-screenshots/2026-09-27/` (voir `LEGENDES.md`).
 
+**Paquet visé : 1.0.35** (26/09, WACK validé). Ce qui est arrivé le 27/09 — 10 M de triangles,
+réglages automatiques, ajout / suppression / rattachement des points du squelette — n'y est pas :
+la fiche ne l'annonce donc pas. À rajouter avec la 1.0.36.
+
 Faits vérifiés dans le code le 27/09 :
 - mode local = carte NVIDIA avec 12 Go de mémoire vidéo ou plus (wizard.js) ; sinon
   mode Cloud, avec tous les outils (images, 3D, rig, animation) ;
-- Ultra 8K et jusqu'à 10 M de triangles aussi sur le bureau (index2.html) ;
+- Ultra 8K présent dans la 1.0.35 (depuis juin) ; le choix 10 M date du 27/09, absent de la 1.0.35 ;
 - exports GLB, FBX, OBJ, STL ; serveur MCP intégré ;
 - crédits achetés sur le site (Stripe Checkout), rapports de plantage anonymes et
   désactivables (Sentry, opt-out).
@@ -30,7 +34,7 @@ Create game-ready 3D assets from a text prompt or a picture, then edit everythin
 HOW IT WORKS
 
 1. Image: type a prompt or drop a picture, then perfect it with the image tools.
-2. 3D model: one click turns the image into a textured model, with up to 8K textures and 10 million triangles.
+2. 3D model: one click turns the image into a textured model, with textures up to 8K.
 3. Rig: an automatic skeleton for any body (humans, animals, insects, creatures) that you can adjust point by point.
 4. Animation (beta): add idle, walk, run or attack clips, then export to FBX or Unreal Engine.
 
@@ -40,7 +44,7 @@ Not happy with a detail? Fix it in a few clicks instead of starting over, direct
 
 • Image tools. AI: modify from an instruction, auto inpaint, remove background, upscale, restyle, face fix, outfits, recolor, age, multi-views, variants. Manual: mask, clone stamp, crop, auto symmetry.
 • 3D tools. AI: texture variants, sharpen texture, re-texture the whole model or one region, segment parts. Automatic: smooth, set the triangle count, subdivide, fix normals, fill holes, watertight for 3D printing. Manual: pivot, sculpt, paint, texture clone, explode, resize, material adjust.
-• Rig tools: move, add or remove skeleton points, relink bones, and undo or redo every change.
+• Rig tools: move the skeleton points in the front and side views, then update the skin in one click.
 
 NOTHING IS LOST
 
@@ -90,9 +94,9 @@ Create game-ready 3D assets from a prompt or a picture: textured model, automati
 A major update of the public beta:
 • Projects and versions: every image, model, rig and animation is kept, nothing is lost.
 • New image tools: outfits, recolor, age, multi-views, variants, auto inpaint, face fix.
-• Auto settings pick the best 3D options for your subject.
-• Ultra 8K quality and up to 10 million triangles.
+• Ultra 8K texture quality.
 • Automatic rig for any body (humans, animals, insects, creatures) with a point-by-point skeleton editor.
+• The rig can now run on your own NVIDIA card: the setup assistant downloads it for you.
 • Animation clips (beta).
 • Cloud mode: PCs without a compatible NVIDIA card can now use every tool.
 • Marketplace, with five free items every month.
@@ -102,14 +106,13 @@ A major update of the public beta:
 ### Product features (one per line, 200 characters max each)
 
 ```
-Text or picture to a textured 3D model, with up to 8K textures and 10 million triangles
-Auto settings: picks the best 3D options for your subject before generating
+Text or picture to a textured 3D model, with textures up to 8K
 AI image tools: modify, inpaint, remove background, upscale, restyle, outfits, recolor, age, multi-views
 Manual image tools: mask, clone stamp, crop and auto symmetry
 3D tools: re-texture, sharpen texture, segment parts, smooth, triangle count, fill holes, watertight
 Sculpt, paint and resize the model directly in the 3D viewer
 Automatic rig for any body: humans, animals, insects and creatures
-Edit the skeleton point by point, relink bones, undo and redo every change
+Adjust the skeleton point by point, then update the skin in one click
 Animation clips (beta): idle, walk, run, attack and more
 Versions at every step: nothing you generate is ever lost
 Projects group your images, models, rigs and animations in one place
@@ -162,7 +165,7 @@ Créez des assets 3D prêts pour le jeu à partir d'un texte ou d'une image, pui
 COMMENT ÇA MARCHE
 
 1. Image : écrivez une description ou déposez une image, puis peaufinez-la avec les outils d'image.
-2. Modèle 3D : un clic transforme l'image en modèle texturé, jusqu'à des textures 8K et 10 millions de triangles.
+2. Modèle 3D : un clic transforme l'image en modèle texturé, avec des textures jusqu'à 8K.
 3. Rig : un squelette automatique pour tout corps (humains, animaux, insectes, créatures), ajustable point par point.
 4. Animation (bêta) : ajoutez des clips de repos, marche, course ou attaque, puis exportez en FBX ou vers Unreal Engine.
 
@@ -172,7 +175,7 @@ Un détail ne vous plaît pas ? Corrigez-le en quelques clics au lieu de tout re
 
 • Outils d'image. IA : modifier à partir d'une consigne, retouche automatique, détourage, agrandissement, changement de style, correction du visage, tenues, recoloration, âge, multi-vues, variantes. Manuels : masque, tampon, recadrage, symétrie automatique.
 • Outils 3D. IA : variantes de texture, texture plus nette, retexturer tout le modèle ou une zone, découpe en parties. Automatiques : lissage, nombre de triangles, subdivision, correction des normales, bouchage des trous, maillage étanche pour l'impression 3D. Manuels : pivot, sculpture, peinture, tampon de texture, éclatement, dimensions, réglage des matériaux.
-• Outils de rig : déplacer, ajouter ou supprimer des points du squelette, rattacher les os, annuler ou rétablir chaque modification.
+• Outils de rig : déplacez les points du squelette dans les vues de face et de profil, puis mettez à jour la peau en un clic.
 
 RIEN N'EST PERDU
 
@@ -222,9 +225,9 @@ Créez des assets 3D prêts pour le jeu à partir d'un texte ou d'une image : mo
 Une grande mise à jour de la bêta publique :
 • Projets et versions : chaque image, modèle, squelette et animation est conservé, rien n'est perdu.
 • Nouveaux outils d'image : tenues, recoloration, âge, multi-vues, variantes, retouche automatique, correction du visage.
-• Les réglages automatiques choisissent les meilleures options 3D pour votre sujet.
-• Qualité Ultra 8K et jusqu'à 10 millions de triangles.
+• Qualité de texture Ultra 8K.
 • Rig automatique pour tout corps (humains, animaux, insectes, créatures) avec éditeur du squelette point par point.
+• Le rig peut désormais tourner sur votre carte NVIDIA : l'assistant d'installation le télécharge pour vous.
 • Clips d'animation (bêta).
 • Mode cloud : les PC sans carte NVIDIA compatible ont désormais accès à tous les outils.
 • Marketplace, avec cinq articles offerts chaque mois.
@@ -234,14 +237,13 @@ Une grande mise à jour de la bêta publique :
 ### Fonctionnalités du produit (une par ligne, 200 caractères au plus)
 
 ```
-Du texte ou d'une image à un modèle 3D texturé, jusqu'à des textures 8K et 10 millions de triangles
-Réglages automatiques : les meilleures options 3D pour votre sujet, choisies avant la génération
+Du texte ou d'une image à un modèle 3D texturé, avec des textures jusqu'à 8K
 Outils d'image IA : modifier, retoucher, détourer, agrandir, changer de style, tenues, couleurs, âge, multi-vues
 Outils d'image manuels : masque, tampon, recadrage et symétrie automatique
 Outils 3D : retexturer, texture plus nette, découpe en parties, lissage, nombre de triangles, trous, maillage étanche
 Sculptez, peignez et redimensionnez le modèle directement dans la visionneuse 3D
 Rig automatique pour tout corps : humains, animaux, insectes et créatures
-Modifiez le squelette point par point, rattachez les os, annulez et rétablissez chaque changement
+Ajustez le squelette point par point, puis mettez à jour la peau en un clic
 Clips d'animation (bêta) : repos, marche, course, attaque et plus
 Des versions à chaque étape : rien de ce que vous générez n'est perdu
 Les projets regroupent vos images, modèles, squelettes et animations au même endroit
