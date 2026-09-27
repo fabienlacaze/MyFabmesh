@@ -372,6 +372,9 @@ def cle_de_note(n):
 
 
 # ============================================================== completion
+MAX_OS_PAR_CHAINE = 24   # une chaine ajoutee ne depasse pas 24 os
+
+
 def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens=None):
     """Complete le squelette de l'IA. Rend (J, parents, noms, rapport) ; les
     len(J_ia) premiers joints sont ceux de l'IA, inchanges. `influence` =
@@ -401,6 +404,16 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens
     ext = vol['ext']
     longueurs = [np.linalg.norm(J[j] - J[p]) for j, p in enumerate(parents) if p >= 0]
     pas_global = float(np.median(longueurs)) if longueurs else 0.1 * ext
+    # PLANCHER ET PLAFOND (2026-09-27, avion de chasse : 160 -> 2092 os). Un
+    # squelette de l'IA fait de tout petits os donne un espacement median
+    # minuscule, et chaque chaine neuve en empilait des centaines ; la peau a
+    # ensuite plante (« serializing a string larger than 4 GiB ») et tout le
+    # squelette complete etait perdu. Sans effet sur un humanoide (os de 5 a
+    # 8 % de la hauteur).
+    pas_global = max(pas_global, 0.03 * ext)
+
+    def nb_os(L, pas_ref):
+        return max(1, min(MAX_OS_PAR_CHAINE, int(round(L / pas_ref))))
     tronc_large = ndimage.binary_dilation(vol['tronc'], iterations=2)
 
     def dans_tronc(p):
@@ -459,7 +472,7 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens
             continue
         if dernier is not None and p_ia >= 0.15:
             # PROLONGER la chaine de l'IA, avec son propre espacement
-            n_new = max(1, int(round((L - s_max) / pas)))
+            n_new = nb_os(L - s_max, pas)
             p = dernier
             for q in range(1, n_new + 1):
                 J.append(_point_a(P, s_max + q * (L - s_max) / n_new))
@@ -487,7 +500,7 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens
             parent = len(J) - 1
         for a_i, P in g['membres']:
             L = float(_abscisse(P)[-1])
-            n_new = max(2, int(round(L / pas_global)))
+            n_new = max(2, nb_os(L, pas_global))
             p = parent
             debut = 0 if len(g['membres']) == 1 else 1
             for q in range(debut, n_new + 1):
@@ -524,7 +537,7 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens
             if par is None:
                 par = int(np.argmin(np.linalg.norm(np.array(J) - pt, axis=1)))
             depart = np.array(J[par])
-            n_new = max(1, int(round(float(np.linalg.norm(pt - depart)) / pas_global)))
+            n_new = nb_os(float(np.linalg.norm(pt - depart)), pas_global)
             p = par
             for q in range(1, n_new + 1):
                 J.append(depart + (pt - depart) * q / n_new); parents.append(p); noms.append(f'point_{a_i}_{q}')
@@ -569,7 +582,7 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens
                     bouts[a_i] = depart
                     rapport.append({'point': a_i, 'action': 'lien', 'os': 0})
                     continue
-                n_new = max(1, int(round(L / pas_global)))
+                n_new = nb_os(L, pas_global)
                 p = depart
                 for q in range(1, n_new + 1):
                     J.append(origine + (pt - origine) * q / n_new); parents.append(p); noms.append(f'lien_{a_i}_{q}')

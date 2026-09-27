@@ -23718,3 +23718,13 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   animal seulement ; elle la comptait aussi pour un batiment).
 - Count 6 : le serveur plafonne a 4 images par appel, 6 demandees en donnaient 4. Le
   shim web fait des appels de 4 au plus.
+
+## 2026-09-27 — Rig : la completion ne peut plus exploser le nombre d'os
+
+- Constat (avion de chasse, rig 33998588) : completion 160 -> 2092 os. L'espacement
+  median des os de l'IA etait minuscule, chaque chaine neuve en empilait des centaines ;
+  la peau a plante (« serializing a string larger than 4 GiB ») et le rig est retombe
+  sur le squelette de l'IA seul (160 os, 1/13 bouts atteints).
+- `squelette_complet.completer` : espacement plancher 3 % de l'etendue, 24 os max par
+  chaine ajoutee (`MAX_OS_PAR_CHAINE`). Sans effet sur un humanoide (os de 5 a 8 %).
+- Deploye : `myfabmesh-skintokens`. Non reteste sur l'avion (un rig ~0,14 $).
