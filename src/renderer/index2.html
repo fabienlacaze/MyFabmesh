@@ -549,6 +549,14 @@
                   <div id="ws-3d-quality-hint" class="form-hint" style="display:none;">~200K triangles · 1024 px texture</div>
                   <div id="ws-3d-sf3d-hint" class="form-hint" style="margin-top:2px; display:none;">Triangles are added via subdivision; the texture is baked on top.</div>
                   <div id="ws-3d-highcount-warn" class="form-hint hidden" style="color: #f4a632; margin-top:4px;">&#9888;&#65039; Above ~50K triangles the UV atlas gets over-crowded (micro-island packing) and the texture ends up as voronoi noise. For best texture quality keep triangles ≤ 50K. High-poly only makes sense when you only need the geometry.</div>
+                  <!-- REGLAGES AUTOMATIQUES (2026-09-27) : voir _ajusterAuto3D dans index2.js. -->
+                  <div class="form-row check-row" id="ws-3d-auto-row" style="margin-top:8px;">
+                    <label class="inline-check" title="Picks the best settings for this image and asset type. Changing an option yourself turns it off.">
+                      <input type="checkbox" id="ws-3d-auto" checked />
+                      Auto settings
+                    </label>
+                  </div>
+                  <div id="ws-3d-auto-note" class="form-hint" style="font-size:10px; margin-top:2px;"></div>
                   <!-- TRELLIS-2 Texturing options -->
                   <details id="ws-3d-trellis2-opts" style="margin-top:8px; font-size:12px;">
                     <summary style="cursor:pointer; color:var(--text-muted);">&#9881;&#65039; Advanced options</summary>

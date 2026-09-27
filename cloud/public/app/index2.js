@@ -1668,6 +1668,7 @@ function _applyAssetOptionsProfile(assetType) {
       cb.checked = !!state;
     }
   }
+  try { _ajusterAuto3D(); } catch (_) {}
 }
 // Menu « Max triangles » : la saisie libre n'apparait que pour « Custom ».
 (function _wireTrisCustom() {
@@ -1685,6 +1686,126 @@ function _applyAssetOptionsProfile(assetType) {
   sel.addEventListener('change', () => _applyAssetOptionsProfile(sel.value));
   // Apply once on initial render so the default character profile takes effect.
   _applyAssetOptionsProfile(sel.value || 'character');
+})();
+
+/* REGLAGES AUTOMATIQUES DE LA GENERATION 3D (2026-09-27, user : « l'utilisateur
+ * ne connaitra pas les settings qui vont bien, un bouton pour automatiser les
+ * choix en fonction de ce qu'il fait »). Case « Auto settings », cochee par
+ * defaut. Elle part du tableau par type d'asset (_applyAssetOptionsProfile,
+ * qui l'appelle a la fin) puis ajuste d'apres l'IMAGE :
+ *   - Auto-rectify (personnages) : la rectification REDESSINE le sujet (mesure
+ *     du 2026-09-27 : costume appauvri, visage flou, raccords 8,9 contre 6,3).
+ *     Fidelite d'abord : seulement si la silhouette est franchement de biais.
+ *     Seuil 0,55 : des dessins « de face » produits par la rectification elle-
+ *     meme mesuraient de 0,53 a 0,81 (pose et accessoires font baisser la
+ *     symetrie), une image de face du user 0,79 a 0,90.
+ *   - Fine geometry coche (le vrai levier de forme), Sharp edges decoche (sans
+ *     effet a cote, et non facture).
+ * Le preset de qualite et le nombre de triangles restent au choix : ils
+ * changent le prix. Toucher soi-meme une option decoche « Auto settings ». */
+var _AUTO3D_SEUIL_BIAIS = 0.55;
+var _AUTO3D_OPTIONS = ['ws-trellis2-rectify', 'ws-trellis2-smooth', 'ws-trellis2-quality-plus',
+                         'ws-trellis2-ultra-q', 'ws-trellis2-multiref'];
+var _auto3dSymetrie = null;   // { src, sym } de l'image source affichee
+
+function _symetrieSilhouette(img) {
+  // Symetrie gauche/droite de la silhouette (IoU avec son miroir), 0..1.
+  // Transparence si l'image en a, sinon ecart a la couleur des coins.
+  try {
+    const w0 = img.naturalWidth, h0 = img.naturalHeight;
+    if (!w0 || !h0) return null;
+    const k = 256 / Math.max(w0, h0);
+    const w = Math.max(8, Math.round(w0 * k)), h = Math.max(8, Math.round(h0 * k));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(img, 0, 0, w, h);
+    const d = cx.getImageData(0, 0, w, h).data;
+    let transp = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 250) transp++;
+    const parAlpha = transp > w * h * 0.02;
+    const coin = (x, y) => { const i = (y * w + x) * 4; return [d[i], d[i + 1], d[i + 2]]; };
+    const cs = [coin(0, 0), coin(w - 1, 0), coin(0, h - 1), coin(w - 1, h - 1)];
+    const fond = [0, 1, 2].map(c => cs.reduce((s, v) => s + v[c], 0) / 4);
+    const m = new Uint8Array(w * h);
+    let x0 = w, x1 = -1, y0 = h, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const dedans = parAlpha ? d[i + 3] > 128
+        : (Math.abs(d[i] - fond[0]) + Math.abs(d[i + 1] - fond[1]) + Math.abs(d[i + 2] - fond[2])) > 60;
+      if (dedans) { m[y * w + x] = 1; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    if (x1 < x0 || (x1 - x0) * (y1 - y0) < 100) return null;
+    let inter = 0, union = 0;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const a = m[y * w + x], b = m[y * w + (x0 + x1 - x)];
+      if (a && b) inter++; if (a || b) union++;
+    }
+    return union ? inter / union : null;
+  } catch (_) { return null; }   // image d'une autre origine : illisible, on garde le profil
+}
+
+function _analyserSourceAuto3D(imgEl, src) {
+  if (!imgEl) return;
+  const lire = () => {
+    const s = _symetrieSilhouette(imgEl);
+    _auto3dSymetrie = (s == null) ? null : { src, sym: s };
+    const at = document.getElementById('ws-asset-type');
+    if (document.getElementById('ws-3d-auto')?.checked && at) _applyAssetOptionsProfile(at.value || 'character');
+  };
+  if (imgEl.complete && imgEl.naturalWidth > 0) lire();
+  else imgEl.addEventListener('load', lire, { once: true });
+}
+
+function _ajusterAuto3D() {
+  const auto = document.getElementById('ws-3d-auto');
+  const note = document.getElementById('ws-3d-auto-note');
+  if (!auto) return;
+  if (!auto.checked) { if (note) note.textContent = 'Manual settings. Tick "Auto settings" to let the app choose.'; return; }
+  const at = document.getElementById('ws-asset-type')?.value || 'character';
+  const visible = (id) => {
+    const cb = document.getElementById(id);
+    if (!cb || cb.disabled || (cb.dataset && cb.dataset.morte === '1')) return null;
+    const row = cb.closest('.form-row');
+    return (row && row.style.display === 'none') ? null : cb;
+  };
+  const dits = [];
+  const rect = visible('ws-trellis2-rectify');
+  if (rect && at === 'character') {
+    const s = _auto3dSymetrie && _auto3dSymetrie.sym;
+    if (typeof s === 'number') {
+      rect.checked = s < _AUTO3D_SEUIL_BIAIS;
+      dits.push(rect.checked ? 'Angled view: rectify on' : 'Front view: no rectify');
+    } else {
+      rect.checked = false;
+      dits.push('No rectify (keeps your image as is)');
+    }
+  } else if (rect) {
+    dits.push(rect.checked ? 'Rectify on for this type' : 'No rectify');
+  }
+  const uq = visible('ws-trellis2-ultra-q');
+  if (uq) { uq.checked = true; dits.push('Fine geometry on'); }
+  const qp = visible('ws-trellis2-quality-plus');
+  if (qp && uq && uq.checked) qp.checked = false;
+  const sm = visible('ws-trellis2-smooth');
+  if (sm) dits.push(sm.checked ? 'Texture smooth on' : 'Texture smooth off');
+  if (note) note.textContent = dits.join(' · ');
+  // Rafraichit le prix : evenement synthetique (isTrusted = false), que
+  // l'ecouteur « manuel » ci-dessous ignore.
+  _AUTO3D_OPTIONS.forEach(id => document.getElementById(id)?.dispatchEvent(new Event('change', { bubbles: true })));
+}
+
+(function _wireAuto3D() {
+  const auto = document.getElementById('ws-3d-auto');
+  if (!auto) return;
+  // Une option touchee A LA MAIN (evenement de confiance) coupe l'automatique.
+  _AUTO3D_OPTIONS.forEach(id => document.getElementById(id)?.addEventListener('change', (e) => {
+    if (e.isTrusted && auto.checked) { auto.checked = false; _ajusterAuto3D(); }
+  }));
+  auto.addEventListener('change', () => {
+    if (auto.checked) _applyAssetOptionsProfile(document.getElementById('ws-asset-type')?.value || 'character');
+    else _ajusterAuto3D();
+  });
+  _ajusterAuto3D();
 })();
 
 /* CONSTRUCTION STAGES : seulement pour ce qui se CONSTRUIT (2026-09-27, user :
@@ -2689,6 +2810,7 @@ async function showStep2SourceImage(imgPath) {
   if (!target) return;
   if (imgPath) {
     target.innerHTML = `<img src="${_toFileUrl(imgPath)}">`;
+    try { _analyserSourceAuto3D(target.querySelector('img'), imgPath); } catch (_) {}
     // Spinner while the <img> decodes — only relevant for big PNGs
     // or remote R2 URLs. Cleared on load/error or after 10s safety.
     try { setViewerLoading('ws-3d-source-preview', true, 'Loading image…'); } catch (_) {}
