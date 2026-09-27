@@ -633,6 +633,16 @@ mesh_image = (
         "print('FINAL transformers', transformers.__version__, "
         "'triton', triton.__version__, 'DINOv3ViTModel OK')\"",
     )
+    # Real-ESRGAN pour ULTRA 8K (2026-09-27) : l'agrandissement x2 de l'atlas
+    # se fait dans le calcul du maillage (voir generate_to_volume). Memes
+    # poids et meme verification SHA-256 que l'image de MyFabmeshBackview.
+    .run_commands(
+        "mkdir -p /opt/esrgan && python -c \"import urllib.request; "
+        "urllib.request.urlretrieve('https://github.com/xinntao/Real-ESRGAN/releases/"
+        "download/v0.1.0/RealESRGAN_x4plus.pth', '/opt/esrgan/RealESRGAN_x4plus.pth')\"",
+        "echo '4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1  "
+        "/opt/esrgan/RealESRGAN_x4plus.pth' | sha256sum -c -",
+    )
     .add_local_python_source("modal_app")
 )
 
@@ -2481,6 +2491,37 @@ class MyFabmeshMesh:
                           f"bytes={len(glb_bytes)}", flush=True)
                 except Exception as e:
                     print(f"[mesh] face_fix skipped: {e}", flush=True)
+
+            # ULTRA 8K (2026-09-27). Le prereglage promet « 4096 -> 8192 px » et
+            # le bureau enchaine Real-ESRGAN x2 (main.js, runUpscale '8k') ; le
+            # web livrait l'atlas 4096 tel quel (« c'est flou quand on zoome »,
+            # le user). Fait ICI plutot que par /mesh_enhance_tex : cette route
+            # renvoie le GLB en base64 dans du JSON, que le worker ne peut pas
+            # decoder au-dela de ~30 Mo (limite memoire de 128 Mo). Plafond 8192.
+            if payload.get("ultra_hd"):
+                try:
+                    import trimesh as _tm
+                    from modal_app._esrgan import affuter_atlas
+                    _t = time.time()
+                    _scene = _tm.load(io.BytesIO(glb_bytes), file_type="glb")
+                    _geoms = (list(_scene.geometry.values())
+                              if hasattr(_scene, "geometry") else [_scene])
+                    _tailles = []
+                    for _g in _geoms:
+                        _mat = getattr(getattr(_g, "visual", None), "material", None)
+                        _tex = getattr(_mat, "baseColorTexture", None) if _mat else None
+                        if _tex is None or max(_tex.size) * 2 > 8192:
+                            continue
+                        _mat.baseColorTexture = affuter_atlas(_tex, echelle_sortie=2)
+                        _tailles.append(f"{_tex.size[0]}->{_mat.baseColorTexture.size[0]}")
+                    if _tailles:
+                        _buf = io.BytesIO()
+                        _scene.export(_buf, file_type="glb", extension_webp=True)
+                        glb_bytes = _buf.getvalue()
+                        print(f"[mesh] ultra 8K : atlas {', '.join(_tailles)} en "
+                              f"{time.time()-_t:.1f}s bytes={len(glb_bytes)}", flush=True)
+                except Exception as _e:
+                    print(f"[mesh] ultra 8K ignore : {_e}", flush=True)
 
             with open(out_path, "wb") as f:
                 f.write(glb_bytes)
