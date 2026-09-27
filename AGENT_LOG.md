@@ -1,5 +1,6 @@
 # FabMesh Agent Log
 
+- 2026-09-27 (site vitrine) - Note sous les quatre etapes (visionneuses 3D, 400 000 triangles) centree et en italique, a la demande du user.
 - 2026-09-27 (site vitrine) - Intro « How it works » : « 2D or 3D viewer » remis (le user l'aime) ; etape Animation sans « exported to FBX » (l'export a sa rubrique).
 - 2026-09-27 (site vitrine) - Intro « How it works » reformulee en anglais plus naturel (user : « Four steps, each in its own 2D or 3D viewer » sonnait faux).
 - 2026-09-27 (site vitrine : export en rubrique) - « Everything is exportable » devient une section #export (entre Versions et Marketplace) avec son entree « Export » dans le menu, formats en liste. Legende « AI tool / manual tool » retiree (jugee perturbante ; les puces AI portent deja leur marque). Intros en pleine largeur : le max-width 62ch coupait les phrases courtes en plein milieu.
