@@ -978,6 +978,172 @@ def explode(glb_bytes: bytes, fragments: int = 24) -> bytes:
     return _export(out)
 
 
+def _logo_filigrane():
+    """Logo + nom MyFabmesh.AI (RGBA), embarque en base64 (voir _filigrane.py)."""
+    import base64
+    from PIL import Image
+    from modal_app._filigrane import FILIGRANE_PNG_B64
+    return Image.open(io.BytesIO(base64.b64decode(''.join(FILIGRANE_PNG_B64)))).convert('RGBA')
+
+
+def _filigraner(img):
+    """Logo + nom repetes en diagonale sur toute la texture, a 60 % d'opacite.
+    Une texture est un atlas UV decoupe : un filigrane unique tomberait sur un
+    seul ilot, ou dans le vide. Repete, il marque toute la surface — coupe ou
+    deforme par endroits sur le modele, ce qui le rend dur a effacer."""
+    from PIL import Image
+    avait_alpha = img.mode in ('RGBA', 'LA') or 'transparency' in img.info
+    base = img.convert('RGBA')
+    W, H = base.size
+    logo = _logo_filigrane()
+    # Grand et franc (user : « ca ne pourra pas se rater ») : une demi-largeur
+    # de texture, 60 % d'opacite. Plus petit, le nom devenait illisible.
+    lw = max(96, int(W * 0.5))
+    lh = max(1, int(logo.height * lw / logo.width))
+    tampon = logo.resize((lw, lh), Image.LANCZOS).rotate(25, expand=True, resample=Image.BICUBIC)
+    tampon.putalpha(tampon.getchannel('A').point(lambda v: int(v * 0.6)))
+    # alpha_composite et non paste(masque) : paste sur un calque vide mettait
+    # l'opacite au carre (0,6 x 0,6) et assombrissait les lettres blanches.
+    # Le calque deborde d'un tampon de chaque cote (alpha_composite refuse les
+    # positions negatives), puis il est recadre.
+    px, py = tampon.width, tampon.height
+    calque = Image.new('RGBA', (W + 2 * px, H + 2 * py), (0, 0, 0, 0))
+    pas_x, pas_y = int(tampon.width * 1.0), int(tampon.height * 1.05)
+    for rang, y in enumerate(range(-pas_y // 2, H, pas_y)):
+        decal = pas_x // 2 if rang % 2 else 0
+        for x in range(-pas_x // 2 + decal, W, pas_x):
+            calque.alpha_composite(tampon, (x + px, y + py))
+    out = Image.alpha_composite(base, calque.crop((px, py, px + W, py + H)))
+    return out if avait_alpha else out.convert('RGB')
+
+
+def _textures_apercu(glb_bytes: bytes, max_px: int, filigrane: bool) -> bytes:
+    """Reduit TOUTES les images embarquees a max_px et filigrane les textures de
+    couleur, en reecrivant le GLB a la main : ni la geometrie, ni la peau, ni
+    les animations ne passent par un reexport (trimesh les perdrait). Chaque
+    image garde son format (PNG, JPEG, WebP) : les extensions qui le declarent
+    (EXT_texture_webp) restent justes."""
+    import json
+    import struct
+    from PIL import Image
+    magic, _version, _long = struct.unpack_from('<III', glb_bytes, 0)
+    if magic != 0x46546C67:
+        raise ValueError('not a GLB file')
+    doc, bin_, off = None, b'', 12
+    while off + 8 <= len(glb_bytes):
+        clen, ctype = struct.unpack_from('<II', glb_bytes, off)
+        off += 8
+        if ctype == 0x4E4F534A:
+            doc = json.loads(glb_bytes[off:off + clen])
+        elif ctype == 0x004E4942:
+            bin_ = glb_bytes[off:off + clen]
+        off += clen
+    if doc is None:
+        raise ValueError('GLB without JSON chunk')
+    vues = doc.get('bufferViews', [])
+    textures = doc.get('textures', [])
+    # Images de COULEUR : seules a recevoir le filigrane (une carte de normales
+    # ou de rugosite filigranee donnerait des reliefs parasites).
+    couleur = set()
+    for mat in doc.get('materials', []):
+        idx = ((mat.get('pbrMetallicRoughness') or {}).get('baseColorTexture') or {}).get('index')
+        if idx is None or idx >= len(textures):
+            continue
+        t = textures[idx]
+        for src in [t.get('source')] + [e.get('source') for e in (t.get('extensions') or {}).values() if isinstance(e, dict)]:
+            if src is not None:
+                couleur.add(src)
+    nouvelles = {}
+    for ii, im in enumerate(doc.get('images', [])):
+        bv = im.get('bufferView')
+        if bv is None or bv >= len(vues):
+            continue                      # image externe ou data URI : absente des GLB du produit
+        v = vues[bv]
+        debut = v.get('byteOffset', 0)
+        try:
+            img = Image.open(io.BytesIO(bin_[debut:debut + v['byteLength']]))
+            img.load()
+        except Exception:
+            continue                      # format non lisible (KTX2…) : laisse tel quel
+        fmt = (img.format or 'PNG').upper()
+        img.thumbnail((max_px, max_px), Image.LANCZOS)
+        if filigrane and ii in couleur:
+            img = _filigraner(img)
+        sortie = io.BytesIO()
+        if fmt == 'JPEG':
+            img.convert('RGB').save(sortie, 'JPEG', quality=82)
+        elif fmt == 'WEBP':
+            img.save(sortie, 'WEBP', quality=82)
+        else:
+            img.save(sortie, 'PNG', optimize=True)
+        nouvelles[bv] = sortie.getvalue()
+    # BIN reconstruit : chaque vue du tampon 0 recopiee dans l'ordre, alignee
+    # sur 4 octets ; les accesseurs, relatifs a leur vue, restent valides.
+    morceaux, pos = [], 0
+    for i, v in enumerate(vues):
+        if v.get('buffer', 0) != 0:
+            continue
+        donnees = nouvelles.get(i)
+        if donnees is None:
+            debut = v.get('byteOffset', 0)
+            donnees = bin_[debut:debut + v['byteLength']]
+        bourre = (-pos) % 4
+        if bourre:
+            morceaux.append(b'\0' * bourre)
+            pos += bourre
+        v['byteOffset'] = pos
+        v['byteLength'] = len(donnees)
+        morceaux.append(donnees)
+        pos += len(donnees)
+    nouveau_bin = b''.join(morceaux)
+    nouveau_bin += b'\0' * ((-len(nouveau_bin)) % 4)
+    if doc.get('buffers'):
+        doc['buffers'][0]['byteLength'] = len(nouveau_bin)
+    js = json.dumps(doc, separators=(',', ':')).encode('utf-8')
+    js += b' ' * ((-len(js)) % 4)
+    total = 12 + 8 + len(js) + 8 + len(nouveau_bin)
+    return (struct.pack('<III', 0x46546C67, 2, total)
+            + struct.pack('<II', len(js), 0x4E4F534A) + js
+            + struct.pack('<II', len(nouveau_bin), 0x004E4942) + nouveau_bin)
+
+
+def _image_apercu(data: bytes, max_px: int, filigrane: bool) -> bytes:
+    """Apercu d'une IMAGE payante : reduite a max_px et filigranee. PNG si elle
+    a de la transparence (detourage), JPEG sinon."""
+    from PIL import Image
+    img = Image.open(io.BytesIO(data))
+    img.load()
+    alpha = 'A' in img.getbands() or 'transparency' in img.info
+    img = img.convert('RGBA' if alpha else 'RGB')
+    img.thumbnail((max_px, max_px), Image.LANCZOS)
+    if filigrane:
+        img = _filigraner(img)
+    sortie = io.BytesIO()
+    if alpha:
+        img.save(sortie, 'PNG', optimize=True)
+    else:
+        img.convert('RGB').save(sortie, 'JPEG', quality=85)
+    return sortie.getvalue()
+
+
+def apercu(glb_bytes: bytes, max_px: int = 512, faces: int = 0, filigrane: bool = True) -> bytes:
+    """COPIE DE DEMONSTRATION d'une fiche payante de la Marketplace (2026-09-27,
+    user : « que les gens puissent voir avant d'acheter », principe de
+    Sketchfab : la vraie 3D, mais pas le fichier vendu). Textures reduites a
+    max_px et filigranees (logo + nom) ; maillage statique allege a `faces`
+    triangles si demande (0 = geometrie intacte : rigs et animations, qu'un
+    reexport casserait). Une IMAGE (pas l'en-tete glTF) est reduite et
+    filigranee de la meme facon."""
+    if glb_bytes[:4] != b'glTF':
+        return _image_apercu(glb_bytes, max(64, min(int(max_px), 2048)), filigrane)
+    if faces:
+        try:
+            glb_bytes = decimate(glb_bytes, target_faces=faces)
+        except Exception:
+            pass                          # deja sous la cible, ou echec : geometrie d'origine
+    return _textures_apercu(glb_bytes, max(64, min(int(max_px), 2048)), filigrane)
+
+
 OPS = {
     'smooth':          smooth,
     'decimate':        decimate,
@@ -992,6 +1158,7 @@ OPS = {
     'retex_swap':      retex_swap_atlas,
     'resize':          resize,     # per-axis scale (manual Resize/dimension tool)
     'explode':         explode,    # Voronoi fracture -> part_XX submeshes (explode slider)
+    'apercu':          apercu,     # copie de demonstration filigranee (Marketplace, fiches payantes)
 }
 
 
@@ -1031,6 +1198,10 @@ def run(op_type: str, glb_bytes: bytes, params: dict | None = None):
                       sz=float(p.get('sz', 1.0))), None
     if op_type == 'explode':
         return explode(glb_bytes, fragments=int(p.get('fragments', 24))), None
+    if op_type == 'apercu':
+        return apercu(glb_bytes, max_px=int(p.get('max_px', 512)),
+                      faces=int(p.get('faces', 0)),
+                      filigrane=bool(p.get('filigrane', True))), None
     if op_type == 'fill_holes':
         # Les deux curseurs de l'interface sont enfin TRANSMIS. Ils
         # etaient jetes cote client (« take no params on the Modal

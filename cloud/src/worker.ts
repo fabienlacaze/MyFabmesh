@@ -4024,6 +4024,80 @@ async function _fluxActifFiche(env: Env, url: string): Promise<{ body: ReadableS
   return { body: upstream.body, type: upstream.headers.get('Content-Type'), taille: upstream.headers.get('Content-Length') };
 }
 
+/* ═══ APERCU FILIGRANE DES FICHES PAYANTES (2026-09-27, user : « que les gens
+ * puissent voir avant d'acheter », « le logo + le nom sur la texture », « gratuit
+ * pour moi, ou paye par le credit de publication »).
+ *
+ * Principe de Sketchfab : la vitrine montre une COPIE DE DEMONSTRATION, jamais
+ * le fichier vendu — textures reduites a 512 px (images a 1024) et filigranees
+ * (logo + nom MyFabmesh.AI), maillage statique allege a 100 000 triangles. Les
+ * rigs et animations gardent leur geometrie : la reexporter casserait la peau.
+ * Calcul : op Modal `apercu` (_mesh_op.py, conteneur CPU, ~0,005 $), couvert par
+ * le credit de publication. Genere au clic sur « Publish », regenere a la
+ * premiere ouverture s'il manque (fiche passee de gratuite a payante, ancienne
+ * fiche, echec a la publication). ═══ */
+const APERCU_PREFIXE = '_market/apercu/';
+
+function _typeOctets(b: Uint8Array): string {
+  if (b[0] === 0x67 && b[1] === 0x6C && b[2] === 0x54 && b[3] === 0x46) return 'model/gltf-binary';
+  if (b[0] === 0xFF && b[1] === 0xD8) return 'image/jpeg';
+  if (b[0] === 0x89 && b[1] === 0x50) return 'image/png';
+  if (b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  return 'application/octet-stream';
+}
+
+async function _genererApercu(env: Env, l: MarketListing): Promise<boolean> {
+  if (!env.MESHES || !env.MODAL_MESH_START_URL) return false;
+  const cleApercu = APERCU_PREFIXE + l.id;
+  const verrou = cleApercu + '.lock';
+  // Une generation a la fois par fiche (deux premiers visiteurs simultanes).
+  const v = await env.MESHES.head(verrou);
+  if (v && Date.now() - v.uploaded.getTime() < 180_000) return false;
+  await env.MESHES.put(verrou, '1');
+  const estime = 0.005;
+  let reserve = false;
+  try {
+    const src = l.asset_url || l.mesh_url;
+    const cle = _cleR2DepuisUrl(env, src);
+    const url = cle ? await signedR2Url(env, cle, l.asset_kind === 'image' ? 'image' : 'mesh') : src;
+    if (!url || !/^https?:\/\//i.test(url)) return false;
+    if ((await checkAndIncrementModalSpend(env, estime)) == null) return false;
+    reserve = true;
+    const envoyer = () => fetch(env.MODAL_MESH_START_URL!, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        _auth: env.MODAL_SHARED_SECRET ?? '',
+        op_type: 'apercu',
+        mesh_url: url,
+        params: { max_px: l.asset_kind === 'image' ? 1024 : 512,
+                  faces: l.asset_kind === 'mesh' ? 100_000 : 0, filigrane: true },
+      }),
+    });
+    // Demarrage a froid : Cloudflare coupe a 100 s (524), on rejoue.
+    let r = await envoyer();
+    for (const attente of [60_000, 90_000]) {
+      if (r.status !== 524) break;
+      await new Promise((res) => setTimeout(res, attente));
+      r = await envoyer();
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const data = await r.json() as { glb_base64?: string };
+    if (!data.glb_base64) throw new Error('no output');
+    const bin = atob(data.glb_base64);
+    const octets = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
+    await env.MESHES.put(cleApercu, octets, { httpMetadata: { contentType: _typeOctets(octets) } });
+    return true;
+  } catch (e) {
+    if (reserve) await refundModalSpend(env, estime);
+    console.error('[market.apercu]', l.id, e instanceof Error ? e.message : String(e));
+    return false;
+  } finally {
+    try { await env.MESHES.delete(verrou); } catch {}
+  }
+}
+
 async function _loadAllListings(env: Env): Promise<MarketListing[]> {
   if (!env.MESHES) return [];
   const out: MarketListing[] = [];
@@ -4218,6 +4292,10 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     if (prixPubli > 0) await addCredits(env, user.id, prixPubli);
     return err(500, 'publish failed (credits refunded)');
   }
+  // Fiche payante : copie filigranee creee maintenant, couverte par le credit de
+  // publication. Un echec ne bloque pas la publication : elle sera regeneree a
+  // la premiere ouverture.
+  if (price_cents > 0) await _genererApercu(env, listing);
   return json({ ok: true, success: true, id, status: 'pending', charged: prixPubli });
 }
 
@@ -4280,6 +4358,7 @@ async function handleMarketUnpublish(req: Request, env: Env, id: string): Promis
     const parsed = JSON.parse(txt);
     if (parsed.user_id !== user.id) return err(403, 'not your listing');
     await env.MESHES.delete(key);
+    try { await env.MESHES.delete(APERCU_PREFIXE + id); } catch {}
     return json({ ok: true, success: true });
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));
@@ -4368,13 +4447,16 @@ function _ficheVitrine(l: Record<string, unknown>, env: Env): Record<string, unk
     created_at: l.created_at,
     downloads: l.downloads,
   };
-  if (prix > 0) return base;                       // payante : pas d'URL
+  const apercuPublic = `${siteUrl(env, 'http://localhost:3030').replace(/\/+$/, '')}/api/market/preview/${encodeURIComponent(String(l.id))}`;
+  if (prix > 0) {                                  // payante : pas d'URL du fichier,
+    base.preview_url = apercuPublic;               // seulement la copie filigranee
+    return base;
+  }
   // Gratuite : servie par /api/market/preview/<id>, qui lit R2. La valeur
   // stockee (cle nue, URL signee perimee, ancienne URL r2.dev) ne
   // s'affichait pas telle quelle dans la vitrine.
-  const apercu = `${siteUrl(env, 'http://localhost:3030').replace(/\/+$/, '')}/api/market/preview/${encodeURIComponent(String(l.id))}`;
-  base.asset_url = apercu;
-  base.mesh_url = kind === 'image' ? '' : apercu;
+  base.asset_url = apercuPublic;
+  base.mesh_url = kind === 'image' ? '' : apercuPublic;
   return base;
 }
 
@@ -6047,7 +6129,8 @@ async function handleMarketDownload(req: Request, env: Env, listingId: string): 
   return new Response(flux.body, { status: 200, headers });
 }
 
-/** GET /api/market/preview/<id> — PUBLIC, fiches GRATUITES approuvees seulement.
+/** GET /api/market/preview/<id> — PUBLIC, fiches approuvees. Gratuite : le fichier.
+ *  Payante : la copie filigranee (voir _genererApercu), jamais le fichier vendu.
  *  L'apercu 3D (et l'image) de la vitrine lisait `asset_url` tel quel : une cle
  *  nue ou une URL signee perimee (24 h pour une image) ne s'affichait pas. Cette
  *  route sert le fichier depuis R2, sans compter de telechargement. Les fiches
@@ -6058,7 +6141,18 @@ async function handleMarketPreview(env: Env, id: string): Promise<Response> {
   if (!txt) return err(404, 'not found');
   let l: MarketListing;
   try { l = JSON.parse(txt); } catch { return err(404, 'not found'); }
-  if (l.status !== 'approved' || Number(l.price_cents) > 0) return err(404, 'not found');
+  if (l.status !== 'approved') return err(404, 'not found');
+  if (Number(l.price_cents) > 0) {
+    // Payante : la copie filigranee, JAMAIS le fichier vendu.
+    let o = await env.MESHES.get(APERCU_PREFIXE + l.id);
+    if (!o && await _genererApercu(env, l)) o = await env.MESHES.get(APERCU_PREFIXE + l.id);
+    if (!o) return err(503, 'preview not ready');
+    return new Response(o.body, { headers: {
+      'content-type': o.httpMetadata?.contentType || 'application/octet-stream',
+      'content-length': String(o.size),
+      'cache-control': 'public, max-age=3600',
+    } });
+  }
   const flux = await _fluxActifFiche(env, l.asset_url || l.mesh_url);
   if (!flux) return err(404, 'not found');
   const h = new Headers({ 'cache-control': 'public, max-age=3600' });
@@ -6091,6 +6185,7 @@ async function handleAdminMarketDelete(req: Request, env: Env, id: string): Prom
   }
   // Drop the downloads counter too (separate key per FIX 15).
   try { await env.MESHES.delete(`_market/downloads/${id}.txt`); } catch {}
+  try { await env.MESHES.delete(APERCU_PREFIXE + id); } catch {}
   return json({ ok: true, success: true });
 }
 

@@ -52,6 +52,8 @@ interface Listing {
   asset_type: string | null;
   asset_url?: string;
   mesh_url: string;
+  // Fiche payante : copie de demonstration filigranee (jamais le fichier vendu)
+  preview_url?: string;
   author_display: string;
   user_id?: string;
   created_at: string;
@@ -761,7 +763,7 @@ function MarketPageInner() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
           {displayItems.map((l) => {
             const kind = l.asset_kind || (l.mesh_url ? 'mesh' : 'image');
-            const url = l.asset_url || l.mesh_url;
+            const url = l.asset_url || l.mesh_url || l.preview_url;
             const owns = ownedIds.has(l.id);
             const isFlashing = flashListingId === l.id;
             return (
@@ -794,7 +796,7 @@ function MarketPageInner() {
                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                     {l.price_cents > 0 && !l.offert && (
                       <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.65)', color: 'var(--text-1)' }}>
-                        🔒 Aperçu 3D après achat
+                        🔍 Preview · full quality after purchase
                       </div>
                     )}
                     {l.offert && (
@@ -963,7 +965,7 @@ function MarketPageInner() {
             </div>
             {(() => {
               const kind = selected.asset_kind || (selected.mesh_url ? 'mesh' : 'image');
-              const url = selected.asset_url || selected.mesh_url;
+              const url = selected.asset_url || selected.mesh_url || selected.preview_url;
               return kind === 'image' ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={url} alt={selected.title} style={{ width: '100%', maxHeight: 480, objectFit: 'contain', background: '#0a0a0e', borderRadius: 8 }} />
@@ -976,6 +978,11 @@ function MarketPageInner() {
                 <model-viewer src={url} poster={`/api/market/poster/${selected.id}`} autoplay={kind === 'animation' ? true : undefined} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8 }} />
               );
             })()}
+            {!selected.asset_url && selected.preview_url && (
+              <p style={{ color: 'var(--text-2)', fontSize: 12, margin: 0 }}>
+                Preview: reduced quality with a watermark. The full-quality file comes with your purchase.
+              </p>
+            )}
             {selected.description && (
               <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-1)', fontSize: 13, lineHeight: 1.5, margin: 0 }}>{selected.description}</p>
             )}
