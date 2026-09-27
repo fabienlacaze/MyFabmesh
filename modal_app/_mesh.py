@@ -246,7 +246,143 @@ def subdiviser_milieux(vertices, faces):
     return v2, f.to(faces.dtype)
 
 
+# Au-dela d'1 M de triangles, le depliage UV du maillage FINAL se fragmente.
+# MESURE (generation 10 M / atlas 4096 du 2026-09-27) : 32 % des sommets dans
+# 1/64 de l'atlas, le reste en micro-ilots de 1-2 pixels ; au rendu le filtrage
+# melange les ilots voisins -> texture mouchetee (« la geometrie est super, la
+# texture a un probleme »), et l'export seul a pris 57 min. On deplie et on cuit
+# donc un maillage INTERMEDIAIRE (cible / 4^k <= 1 M), puis on le subdivise k
+# fois (milieux des aretes : chaque UV reste dans son ilot, la texture reste
+# juste) et on plaque les sommets crees sur la surface detaillee d'origine.
+PROXY_MAX = 1_000_000
+
+
+def densifier(glb, vertices, faces, k, log=print):
+    """Subdivise k fois le maillage texture `glb` (1 triangle -> 4, UV
+    interpoles) puis plaque les sommets crees sur la surface d'origine
+    (vertices, faces : maillage brut du moteur, dans SON repere)."""
+    import numpy as np
+    import torch
+    import trimesh
+    import cumesh
+    g = glb
+    if hasattr(glb, 'geometry'):
+        geoms = list(glb.geometry.values())
+        if len(geoms) != 1:
+            raise ValueError(f'{len(geoms)} geometries')
+        g = geoms[0]
+    dev = 'cuda'
+    v = torch.as_tensor(np.asarray(g.vertices), dtype=torch.float32, device=dev)
+    uv = torch.as_tensor(np.asarray(g.visual.uv), dtype=torch.float32, device=dev)
+    nrm = torch.as_tensor(np.asarray(g.vertex_normals), dtype=torch.float32, device=dev)
+    f = torch.as_tensor(np.asarray(g.faces), dtype=torch.int64, device=dev)
+    n0 = v.shape[0]
+    # Position, UV et normale subdivisees ENSEMBLE ; un sommet duplique sur une
+    # couture UV donne deux milieux de meme position (memes extremites).
+    a = torch.cat([v, uv, nrm], 1)
+    for _ in range(k):
+        a, f = subdiviser_milieux(a, f)
+    v, uv, nrm = a[:, :3].contiguous(), a[:, 3:5].contiguous(), a[:, 5:].contiguous()
+    del a
+
+    # Toute la geometrie se fait sur le maillage SOUDE : un sommet de couture
+    # et son double bougent ensemble (sinon fissure), normales sans cassure.
+    plan, inv = torch.unique(v, dim=0, return_inverse=True)
+    fw = inv[f]
+    nw = torch.zeros_like(plan).index_add_(0, inv, nrm)
+    nw = torch.nn.functional.normalize(nw, dim=1)
+    nouveau = torch.ones(plan.shape[0], dtype=torch.bool, device=dev)
+    nouveau[inv[:n0]] = False
+
+    # Surface d'origine dans le repere GLB (to_glb : y, z <- z, -y).
+    rv = torch.as_tensor(vertices, device=dev).float()
+    rv = torch.stack([rv[:, 0], rv[:, 2], -rv[:, 1]], 1).contiguous()
+    rf = torch.as_tensor(faces, device=dev).long()
+    ech = rf[::max(1, rf.shape[0] // 200_000)]
+    arete = float((rv[ech[:, 0]] - rv[ech[:, 1]]).norm(dim=1).median())
+    plafond = 2.0 * arete
+    bvh = cumesh.cuBVH(rv, rf.int())
+    # Projection le long de la normale LISSEE (rayons dans les deux sens, impact
+    # le plus proche) et non « au point le plus proche » : sur une surface
+    # bosselee ce dernier replie les triangles (MESURE au banc 10 M : 7,2 % de
+    # faces retournees, 1,8 % degenerees, contre 0,9 % / 0 % a la reference).
+    p, d = plan[nouveau], nw[nouveau]
+    meilleur, dist = p.clone(), torch.full((p.shape[0],), float('inf'), device=dev)
+    for sens in (1.0, -1.0):
+        hit, fid, prof = bvh.ray_trace(p, d * sens)
+        ok = (fid >= 0) & torch.isfinite(prof) & (prof >= 0) & (prof <= plafond) & (prof < dist)
+        meilleur = torch.where(ok.unsqueeze(1), hit, meilleur)
+        dist = torch.where(ok, prof, dist)
+    del bvh, rv, rf
+    pos = plan.clone()
+    pos[nouveau] = meilleur
+    touches = int(torch.isfinite(dist).sum())
+
+    # Garde anti-pli : un triangle qui se retourne ou s'ecrase par rapport au
+    # plan, OU qui contredit la normale lissee de ses sommets (pli local : au
+    # banc, 2,6 % de faces dans ce cas avec la seule premiere regle, contre
+    # 0,9 % a la reference — materiau non double face, donc de petits trous
+    # sombres au rendu), remet ses sommets NEUFS a plat ; on recommence
+    # jusqu'a n'en plus avoir.
+    def normales_faces(q):
+        return torch.cross(q[fw[:, 1]] - q[fw[:, 0]], q[fw[:, 2]] - q[fw[:, 0]], dim=1)
+    fn0 = normales_faces(plan)
+    a0 = fn0.norm(dim=1)
+    remis = 0
+    for _ in range(12):
+        fn1 = normales_faces(pos)
+        vl = torch.zeros_like(pos)
+        for j in range(3):
+            vl.index_add_(0, fw[:, j], fn1)
+        vl = torch.nn.functional.normalize(vl, dim=1)
+        mauvais = ((fn0 * fn1).sum(1) <= 0) | (fn1.norm(dim=1) < 0.05 * a0)
+        mauvais |= (fn1 * (vl[fw[:, 0]] + vl[fw[:, 1]] + vl[fw[:, 2]])).sum(1) <= 0
+        mauvais &= a0 > 0
+        if not bool(mauvais.any()):
+            break
+        s_ = torch.unique(fw[mauvais].reshape(-1))
+        s_ = s_[nouveau[s_]]
+        s_ = s_[(pos[s_] != plan[s_]).any(1)]
+        if not s_.numel():
+            break
+        pos[s_] = plan[s_]
+        remis += int(s_.numel())
+    log(f'[tris] {touches - remis}/{int(nouveau.sum())} sommets plaques sur la surface '
+        f'({remis} remis a plat contre les plis)')
+
+    fn = normales_faces(pos)
+    vn = torch.zeros_like(pos)
+    for j in range(3):
+        vn.index_add_(0, fw[:, j], fn)
+    vn = torch.nn.functional.normalize(vn, dim=1)[inv]
+    v = pos[inv]
+    return trimesh.Trimesh(
+        vertices=v.cpu().numpy(), faces=f.cpu().numpy(),
+        vertex_normals=vn.cpu().numpy(), process=False,
+        visual=trimesh.visual.TextureVisuals(uv=uv.cpu().numpy(), material=g.visual.material))
+
+
 def exporter_exact(exporter, vertices, faces, cible, log=print):
+    """Au-dela de PROXY_MAX : maillage intermediaire texture puis densifie."""
+    k = 0
+    while cible / 4 ** k > PROXY_MAX:
+        k += 1
+    if not k:
+        return _exporter_cible(exporter, vertices, faces, cible, log)
+    inter = int(round(cible / 4 ** k))
+    log(f'[tris] cible {cible} : texture cuite sur {inter} faces, subdivisee {k} fois')
+    glb = _exporter_cible(exporter, vertices, faces, inter, log)
+    try:
+        glb = densifier(glb, vertices, faces, k, log)
+    except Exception as e:
+        log(f'[tris] densification ECHOUEE ({type(e).__name__}: {e}) : export direct')
+        return _exporter_cible(exporter, vertices, faces, cible, log)
+    n = compter_faces(glb)
+    log(f'[tris] cible {cible} -> {n} faces ({n / cible - 1:+.1%})')
+    return glb
+
+
+def _exporter_cible(exporter, vertices, faces, cible, log=print):
     """exporter(vertices, faces, decimation_target, remesh) -> glb_obj.
     1) export normal (remesh) a la cible compensee ; 2) s'il manque plus de
     5 %, maillage brut subdivise puis reduit (remesh=False) ; on garde le plus
