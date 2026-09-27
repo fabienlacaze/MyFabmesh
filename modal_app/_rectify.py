@@ -76,6 +76,50 @@ def symmetry_score(img: Image.Image) -> float:
     return float(inter / union) if union > 0 else 0.0
 
 
+def sur_blanc(im):
+    """Compose une image a transparence sur fond BLANC. `convert('RGB')` seul
+    aplatit la transparence en NOIR : l'empreinte IP-Adapter portait alors un
+    fond noir alors que la consigne demande « plain white background »."""
+    if im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info):
+        im = im.convert('RGBA')
+        fond = Image.new('RGB', im.size, (255, 255, 255))
+        fond.paste(im, mask=im.split()[-1])
+        return fond
+    return im.convert('RGB')
+
+
+def ressemblance(pipe, ref_img, imgs):
+    """Cosinus CLIP entre la reference et chaque candidat, avec l'encodeur
+    d'image de l'IP-Adapter DEJA charge (aucun modele en plus). None si
+    indisponible."""
+    try:
+        from transformers import CLIPImageProcessor
+        enc = pipe.image_encoder
+        proc = getattr(pipe, 'feature_extractor', None) or CLIPImageProcessor()
+        x = proc(images=[sur_blanc(ref_img)] + [sur_blanc(i) for i in imgs],
+                 return_tensors='pt').pixel_values.to('cuda', torch.float16)
+        with torch.no_grad():
+            e = enc(x).image_embeds.float()
+        e = torch.nn.functional.normalize(e, dim=1)
+        return [float((e[0] * e[k + 1]).sum()) for k in range(len(imgs))]
+    except Exception as ex:
+        print(f'[rectify] ressemblance non mesuree ({type(ex).__name__}: {ex})', flush=True)
+        return None
+
+
+def choisir(candidates, sims, tolerance=0.05):
+    """(score, img, seed) -> index retenu. Le score (symetrie en face,
+    asymetrie bornee en 3/4) ne sert plus qu'a ECARTER les dessins mal
+    orientes ; parmi ceux a moins de `tolerance` du meilleur, on garde celui
+    qui RESSEMBLE le plus a la reference. Avant (2026-09-27) : le plus
+    symetrique l'emportait, meme s'il avait perdu la moitie du costume."""
+    meilleur = max(c[0] for c in candidates)
+    if not sims:
+        return max(range(len(candidates)), key=lambda k: candidates[k][0])
+    eligibles = [k for k, c in enumerate(candidates) if c[0] >= meilleur - tolerance]
+    return max(eligibles, key=lambda k: sims[k])
+
+
 def generate(
     pipe,                            # StableDiffusionXLControlNetPipeline (on CUDA)
     prompt: str,
@@ -167,8 +211,13 @@ def generate(
             score = sym
         candidates.append((score, img, seed))
 
-    candidates.sort(key=lambda t: -t[0])
-    best_score, best_img, best_seed = candidates[0]
+    sims = ressemblance(pipe, ref_img, [c[1] for c in candidates]) if ref_img is not None else None
+    for k, (sc, _, sd) in enumerate(candidates):
+        print(f'[rectify]   seed={sd} score={sc:.3f}'
+              + (f' ressemblance={sims[k]:.3f}' if sims else ''), flush=True)
+    k = choisir(candidates, sims)
+    best_score, best_img, best_seed = candidates[k]
     print(f'[rectify] mode={mode} best seed={best_seed} score={best_score:.3f} '
-          f'(over {seeds} seeds)', flush=True)
+          + (f'ressemblance={sims[k]:.3f} ' if sims else '')
+          + f'(over {seeds} seeds)', flush=True)
     return remove_bg_and_center(best_img, size=size)

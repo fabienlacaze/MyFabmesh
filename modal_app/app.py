@@ -1255,12 +1255,27 @@ class MyFabmeshBackview:
         ref_img = None
         if ref_url:
             try:
-                ref_img = _fetch_image(ref_url)
+                # RGBA puis fond BLANC (sur_blanc) : convert('RGB') aplatissait
+                # la transparence d'une image detouree en NOIR.
+                from modal_app._rectify import sur_blanc
+                ref_img = sur_blanc(_fetch_image(ref_url, mode="RGBA"))
             except Exception as e:
                 raise HTTPException(status_code=502, detail=f"ref download: {e}")
             if not prompt:
-                # Same generic fallback as desktop generate_front_strict.py:main()
-                prompt = "subject"
+                # DESCRIPTION DU SUJET (2026-09-27). Le seul mot « subject »
+                # servait de consigne : le personnage etait REDESSINE a partir
+                # d'une vague empreinte d'image (fourrure, jupe, epaulieres
+                # perdues ou changees d'un essai a l'autre — « resultats
+                # hasardeux », le user). Florence-2, deja charge pour la vue
+                # arriere, decrit l'image ; la consigne de vue s'y ajoute.
+                try:
+                    from modal_app._backview import caption_outfit
+                    prompt = (caption_outfit(self.florence_proc, self.florence_model, ref_img)
+                              or "").strip() or "subject"
+                    print(f"[rectify] description : {prompt[:200]}", flush=True)
+                except Exception as _e:
+                    print(f"[rectify] description impossible ({_e}) — 'subject'", flush=True)
+                    prompt = "subject"
 
         mode = (payload.get("mode") or "front").strip()
         if mode not in ("front", "iso"):
