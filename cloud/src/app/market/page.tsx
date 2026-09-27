@@ -528,10 +528,28 @@ function MarketPageInner() {
         }))
     : filtered;
 
-  // Visible "Mine" count excludes rejected listings — the rejection reason
-  // is already delivered via the 📬 Inbox, so the visible Rejected card is
-  // redundant. Used for both the Mine pill badge and the count summary.
-  const visibleMineCount = myListings.filter((m) => m.status !== 'rejected').length;
+  // NOMBRES ENTRE PARENTHESES sur les filtres (2026-09-27, demande user). Le
+  // nombre d'un bouton = ce qu'on verrait en cliquant dessus : une rangee compte
+  // avec le filtre choisi dans l'AUTRE rangee, et la recherche comme la liste
+  // (Owned et Mine l'ignorent, comme leur affichage).
+  type Onglet = typeof tab;
+  type Genre = typeof kindFilter;
+  const qCompte = search.trim().toLowerCase();
+  const genresDe = (t: Onglet): string[] => t === 'owned'
+    ? owned.map((o) => o.asset_kind || 'mesh')
+    : t === 'mine'
+    ? myListings.filter((m) => m.status !== 'rejected').map((m) => m.kind || 'mesh')
+    : listings.filter((l) => {
+        if (t === 'offerts' && !l.offert) return false;
+        if (t === 'free' && l.price_cents !== 0 && !l.offert) return false;
+        if (t === 'paid' && l.price_cents === 0) return false;
+        return !qCompte || `${l.title} ${l.description} ${l.author_display}`.toLowerCase().includes(qCompte);
+      }).map((l) => l.asset_kind || (l.mesh_url ? 'mesh' : 'image'));
+  const nbGenre = (k: Genre) => {
+    const g = genresDe(tab);
+    return k === 'all' ? g.length : g.filter((x) => x === k).length;
+  };
+  const nbOnglet = (t: Onglet) => genresDe(t).filter((x) => kindFilter === 'all' || x === kindFilter).length;
 
   // Quick lookup for status badges on the "Mine" tab.
   const mineById = new Map(myListings.map((m) => [m.listing_id, m]));
@@ -691,7 +709,7 @@ function MarketPageInner() {
               : k === 'mesh' ? '🧊 3D Meshes'
               : k === 'image' ? '🖼 2D Images'
               : k === 'rig' ? '🦴 Rigs'
-              : '🎬 Animations'}
+              : '🎬 Animations'} ({nbGenre(k)})
           </button>
         ))}
       </div>
@@ -709,22 +727,7 @@ function MarketPageInner() {
               : p === 'free' ? 'Free'
               : p === 'paid' ? 'Paid'
               : p === 'owned' ? '✓ Owned'
-              : '📝 Mine'}
-            {p === 'offerts' && listings.some((l) => l.offert) && (
-              <span style={{ background: 'var(--ok)', color: '#fff', borderRadius: 999, padding: '0 7px', fontSize: 11, fontWeight: 700 }}>
-                {listings.filter((l) => l.offert).length}
-              </span>
-            )}
-            {p === 'owned' && owned.length > 0 && (
-              <span style={{ background: 'var(--ok)', color: '#fff', borderRadius: 999, padding: '0 7px', fontSize: 11, fontWeight: 700 }}>
-                {owned.length}
-              </span>
-            )}
-            {p === 'mine' && visibleMineCount > 0 && (
-              <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: 999, padding: '0 7px', fontSize: 11, fontWeight: 700 }}>
-                {visibleMineCount}
-              </span>
-            )}
+              : '📝 Mine'} ({nbOnglet(p)})
           </button>
         ))}
         <div style={{ marginLeft: 'auto', color: 'var(--text-2)', fontSize: 12, alignSelf: 'center' }}>
