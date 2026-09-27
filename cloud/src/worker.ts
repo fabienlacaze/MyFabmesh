@@ -7044,7 +7044,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
       if (!env.MESHES || !env.R2_PUBLIC_URL) {
         await addCredits(env, user.id, cost);
         await refundMeshSpend();
-        return err(500, 'cloud GPU mesh path needs R2 (no imagePath URL provided)');
+        return err(500, 'mesh path needs storage (no imagePath URL provided)');
       }
       const fileBytes = new Uint8Array(await input.image.arrayBuffer());
       const key = `${user.id}/source/${Date.now()}_${input.seed ?? 42}.png`;
@@ -7365,7 +7365,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
       await supabaseAdmin(env).from('jobs').update({
         status: 'failed', error: msg, finished_at: new Date().toISOString(),
       }).eq('id', jobId);
-      return err(502, `cloud GPU mesh-start failed (credits refunded): ${msg.slice(0, 200)}`);
+      return err(502, `mesh start failed (credits refunded): ${msg.slice(0, 200)}`);
     }
     return json({ jobId, creditsRemaining: remaining });
   }
@@ -7377,7 +7377,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     await addCredits(env, user.id, cost);
     await refundMeshSpend();
     console.error('[replicate]', e instanceof Error ? e.message : String(e), e);
-    return err(502, 'cloud GPU failed (credits refunded)');
+    return err(502, 'generation failed (credits refunded)');
   }
 
   const predIns = await supabaseAdmin(env).from('jobs').insert({
@@ -9101,11 +9101,11 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
   if (!r.ok) {
     if (r.status === 524) {
       throw new Error(
-        'the cloud GPU took too long to start (cold start). '
+        'the service took too long to start. '
         + 'Please try again in a minute — your credits were refunded.'
       );
     }
-    throw new Error(`Cloud GPU HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   let buf = await r.arrayBuffer();
   console.log(`[modal] text2image dt=${Date.now() - t0}ms bytes=${buf.byteLength}`);
@@ -9369,7 +9369,7 @@ async function callModalBackView(env: Env, userId: string, input: {
     signal: AbortSignal.timeout(300_000),
   });
   if (!r.ok) {
-    throw new Error(`Cloud GPU back-view HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service back-view HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   const buf = await r.arrayBuffer();
   console.log(`[modal] back-view dt=${Date.now() - t0}ms bytes=${buf.byteLength}`);
@@ -9428,7 +9428,7 @@ async function callModalMVAdapter(env: Env, userId: string, input: {
     signal: AbortSignal.timeout(420_000),
   });
   if (!r.ok) {
-    throw new Error(`Cloud GPU multiview HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service multiview HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
 
   // Expected response shape (Modal side persists to R2 and returns URLs):
@@ -9442,11 +9442,11 @@ async function callModalMVAdapter(env: Env, userId: string, input: {
     error?: string;
   };
   if (payload.error) {
-    throw new Error(`Cloud GPU multiview error: ${payload.error}`);
+    throw new Error(`Service multiview error: ${payload.error}`);
   }
   const views = Array.isArray(payload.views) ? payload.views : [];
   if (views.length !== 6) {
-    throw new Error(`Cloud GPU multiview expected 6 views, got ${views.length}`);
+    throw new Error(`Service multiview expected 6 views, got ${views.length}`);
   }
   const back = views[2]; // VIEW_SLOTS[2] = (180, 0) = back
   if (!back || typeof back !== 'string') {
@@ -9512,11 +9512,11 @@ async function callModalTpose(env: Env, userId: string, input: {
   if (!r.ok) {
     if (r.status === 524) {
       throw new Error(
-        'the cloud GPU took too long to start (cold start). '
+        'the service took too long to start. '
         + 'Please try again in a minute — your credits were refunded.'
       );
     }
-    throw new Error(`Cloud GPU tpose HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service tpose HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   const buf = await r.arrayBuffer();
   console.log(`[modal] tpose dt=${Date.now() - t0}ms bytes=${buf.byteLength}`);
@@ -9630,7 +9630,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
         `Please retry in 1-2 minutes — your credits were refunded.`
       );
     }
-    throw new Error(`Cloud GPU image_op (${input.op}) HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service image_op (${input.op}) HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   const buf = await r.arrayBuffer();
   console.log(`[modal] image_op op=${input.op} dt=${Date.now() - t0}ms bytes=${buf.byteLength}`);
@@ -9716,7 +9716,7 @@ async function callModalOutfit(env: Env, userId: string, input: {
       throw new Error('the AI model is taking longer than usual to warm up. '
         + 'Please retry in 1-2 minutes — your credits were refunded.');
     }
-    throw new Error(`Cloud GPU outfit HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service outfit HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   _writeLastWarmMs(env, '_meta/last_warm_image_op.txt').catch(() => {});
 
@@ -9778,7 +9778,7 @@ async function callModalSheet(env: Env, userId: string, input: {
     signal: AbortSignal.timeout(300_000),
   });
   if (!r.ok) {
-    throw new Error(`Cloud GPU sheet HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service sheet HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   const buf = await r.arrayBuffer();
   console.log(`[modal] sheet dt=${Date.now() - t0}ms bytes=${buf.byteLength}`);
@@ -9862,11 +9862,10 @@ async function callModalRectify(env: Env, userId: string, input: {
     // Message utilisable plutot qu'un code brut : le travail est rembourse, on
     // dit a l'utilisateur quoi faire et non « HTTP 524: error code: 524 ».
     if (r.status === 524) {
-      throw new Error('Cloud GPU rectify: le modele met plus de temps que ' +
-                      'd\'habitude a demarrer. Reessayez dans 1-2 minutes — ' +
-                      'vos credits ont ete rendus.');
+      throw new Error('Rectify: the service is taking longer than usual to start. ' +
+                      'Try again in 1-2 minutes. Your credits have been refunded.');
     }
-    throw new Error(`Cloud GPU rectify HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service rectify HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   const buf = await r.arrayBuffer();
   console.log(`[modal] rectify dt=${Date.now() - t0}ms bytes=${buf.byteLength}`);
@@ -9955,7 +9954,7 @@ async function callModalMeshStart(env: Env, input: {
     signal: AbortSignal.timeout(240_000),
   });
   if (!r.ok) {
-    throw new Error(`Cloud GPU mesh-start HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service mesh-start HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   return await r.json() as { job_id: string };
 }
@@ -10032,7 +10031,7 @@ async function callModalMeshStatus(env: Env, jobId: string): Promise<ModalMeshSt
     signal: AbortSignal.timeout(30_000),
   });
   if (!r.ok) {
-    throw new Error(`Cloud GPU mesh-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    throw new Error(`Service mesh-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   return await r.json() as ModalMeshStatusResp;
 }
@@ -10141,7 +10140,7 @@ async function callMyfabmeshCog(env: Env, userId: string, input: CogInput, folde
     },
   );
   if (!createRes.ok) {
-    throw new Error(`Cloud GPU create HTTP ${createRes.status}: ${await createRes.text()}`);
+    throw new Error(`Service create HTTP ${createRes.status}: ${await createRes.text()}`);
   }
   const created = await createRes.json() as { id: string; output?: string | string[]; status: string; error?: string };
 
@@ -10174,7 +10173,7 @@ async function callMyfabmeshCog(env: Env, userId: string, input: CogInput, folde
     if (created.status === 'succeeded') {
       outputUrl = Array.isArray(created.output) ? created.output[0] : created.output;
     } else if (created.status === 'failed') {
-      throw new Error(`Cloud GPU failed: ${created.error || 'unknown'}`);
+      throw new Error(`Service failed: ${created.error || 'unknown'}`);
     } else {
       // HARD CAP on poll count: subrequest budget on Workers is 50
       // (free) / 1000 (paid). We use at most MAX_POLLS = 20 polls so
@@ -10196,13 +10195,13 @@ async function callMyfabmeshCog(env: Env, userId: string, input: CogInput, folde
           break;
         }
         if (p.status === 'failed' || p.status === 'canceled') {
-          throw new Error(`Cloud GPU ${p.status}: ${p.error || 'unknown'}`);
+          throw new Error(`Service ${p.status}: ${p.error || 'unknown'}`);
         }
       }
       if (!outputUrl) {
         // Timeout: cancel so the prediction doesn't keep burning GPU.
         await cancelPrediction();
-        throw new Error(`Cloud GPU timeout after ${(60 + MAX_POLLS * POLL_INTERVAL_MS / 1000)}s`);
+        throw new Error(`Service timeout after ${(60 + MAX_POLLS * POLL_INTERVAL_MS / 1000)}s`);
       }
     }
     if (!outputUrl) throw new Error('Replicate succeeded but no output URL');
@@ -10538,7 +10537,7 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) {
-    return err(503, 'modify backend unavailable (cloud GPU not configured)');
+    return err(503, 'modify backend unavailable (not configured)');
   }
   const { imageUrl, prompt, strength, seed, steps, projectName } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
@@ -10575,7 +10574,7 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: `daily Cloud GPU budget reached. Try again after midnight UTC.` }, { status: 429 });
+      error: `Daily service capacity reached. Try again after midnight UTC.` }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -10642,7 +10641,7 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'daily Cloud GPU budget reached. Try again after midnight UTC.' }, { status: 429 });
+      error: 'Daily service capacity reached. Try again after midnight UTC.' }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -10733,7 +10732,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'daily Cloud GPU budget reached. Try again after midnight UTC.' }, { status: 429 });
+      error: 'Daily service capacity reached. Try again after midnight UTC.' }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -10981,7 +10980,7 @@ async function handleOutfit(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'daily Cloud GPU budget reached. Try again after midnight UTC.' }, { status: 429 });
+      error: 'Daily service capacity reached. Try again after midnight UTC.' }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11098,7 +11097,7 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'daily Cloud GPU budget reached. Try again after midnight UTC.' }, { status: 429 });
+      error: 'Daily service capacity reached. Try again after midnight UTC.' }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11158,7 +11157,7 @@ async function handleFaceFixImage(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'daily Cloud GPU budget reached.' }, { status: 429 });
+      error: 'Daily service capacity reached.' }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11279,7 +11278,7 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   const estimatedTotal = 0.005;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
-    return json({ ok: false, success: false, error: 'daily Cloud GPU budget reached.' }, { status: 429 });
+    return json({ ok: false, success: false, error: 'Daily service capacity reached.' }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11306,7 +11305,7 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
       }),
       signal: AbortSignal.timeout(120_000),
     });
-    if (!r.ok) throw new Error(`Cloud GPU mesh_op HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    if (!r.ok) throw new Error(`Service mesh_op HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const data = await r.json() as { glb_base64?: string; stats?: Record<string, unknown> };
     if (!data.glb_base64) throw new Error('Modal mesh_op missing glb_base64');
 
@@ -11382,7 +11381,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL || !env.MODAL_SHARED_SECRET) {
-    return err(503, `${conf.libelle} backend unavailable (cloud GPU not configured)`);
+    return err(503, `${conf.libelle} backend unavailable (not configured)`);
   }
   if (!env.MESHES) return err(503, 'R2 binding required');
 
@@ -11452,7 +11451,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
       return json({ ok: false, success: false,
         error: `This mesh has no baked texture for ${conf.libelle} (credits refunded).` }, { status: 422 });
     }
-    if (!r.ok) throw new Error(`Cloud GPU ${conf.op} HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    if (!r.ok) throw new Error(`Service ${conf.op} HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const data = await r.json() as { glb_base64?: string };
     if (!data.glb_base64) throw new Error(`Modal ${conf.op} missing glb_base64`);
 
@@ -11488,7 +11487,7 @@ async function handleMeshRetexture(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_MESH_START_URL || !env.MODAL_MESH_STATUS_URL || !env.MODAL_SHARED_SECRET) {
-    return err(503, 're-texture backend unavailable (cloud GPU not configured)');
+    return err(503, 're-texture backend unavailable (not configured)');
   }
   const { meshUrl, imageUrl, backImageUrl, preset, seed, projectName, assetType } = await req.json() as {
     meshUrl?: string; imageUrl?: string; backImageUrl?: string; preset?: string;
@@ -11638,7 +11637,7 @@ async function handleMeshNameParts(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL || !env.MODAL_SHARED_SECRET) {
-    return err(503, 'naming backend unavailable (cloud GPU not configured)');
+    return err(503, 'naming backend unavailable (not configured)');
   }
   if (!env.MESHES) return err(503, 'R2 binding required');
 
@@ -11688,7 +11687,7 @@ async function handleMeshNameParts(req: Request, env: Env): Promise<Response> {
       await new Promise(res => setTimeout(res, attente));
       r = await envoyer();
     }
-    if (!r.ok) throw new Error(`Cloud GPU name_parts HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    if (!r.ok) throw new Error(`Service name_parts HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`);
     const data = await r.json() as { sidecar?: { parts?: unknown[]; source?: string } };
     const annexe = data.sidecar;
     if (!annexe || !Array.isArray(annexe.parts)) throw new Error('Modal name_parts returned no parts');
@@ -11757,7 +11756,7 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
   const estimatedTotal = 0.01;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
-    return json({ ok: false, success: false, error: 'daily Cloud GPU budget reached.' }, { status: 429 });
+    return json({ ok: false, success: false, error: 'Daily service capacity reached.' }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11785,7 +11784,7 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
       }),
       signal: AbortSignal.timeout(290_000),
     });
-    if (!r.ok) throw new Error(`Cloud GPU construction3d HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    if (!r.ok) throw new Error(`Service construction3d HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const start = await r.json() as { ok?: boolean; job_id?: string; count?: number };
     if (!start.ok || !start.job_id || !start.count) throw new Error('Modal construction3d bad response');
 
@@ -12740,7 +12739,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
   const estime = squelette ? ESTIMATED_USD_RESKIN : ESTIMATED_USD_RIG;
   const remainingBudget = await checkAndIncrementModalSpend(env, estime, user.id);
   if (remainingBudget == null) {
-    return err(429, 'daily Cloud GPU budget reached. Try again after midnight UTC.');
+    return err(429, 'Daily service capacity reached. Try again after midnight UTC.');
   }
   const refundRigSpend = async () => {
     await refundModalSpend(env, estime, user.id);
@@ -12782,7 +12781,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
       signal: AbortSignal.timeout(30_000),
     });
     if (!r.ok) {
-      throw new Error(`Cloud GPU rig-start HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      throw new Error(`Service rig-start HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     }
     const j = await r.json() as { job_id?: string };
     jobId = String(j?.job_id || '').trim();
@@ -12964,7 +12963,7 @@ async function handleAutoRigStatus(req: Request, env: Env): Promise<Response> {
       signal: AbortSignal.timeout(20_000),
     });
     if (!r.ok) {
-      throw new Error(`Cloud GPU rig-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      throw new Error(`Service rig-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     }
     modalResp = await r.json() as typeof modalResp;
   } catch (e: unknown) {
@@ -13137,7 +13136,7 @@ async function handleMeshSegment(req: Request, env: Env): Promise<Response> {
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_SEGMENT, user.id);
   if (remainingBudget == null) {
-    return err(429, 'daily Cloud GPU budget reached. Try again after midnight UTC.');
+    return err(429, 'Daily service capacity reached. Try again after midnight UTC.');
   }
   const refundSegmentSpend = async () => {
     await refundModalSpend(env, ESTIMATED_USD_SEGMENT, user.id);
@@ -13172,7 +13171,7 @@ async function handleMeshSegment(req: Request, env: Env): Promise<Response> {
       signal: AbortSignal.timeout(30_000),
     });
     if (!r.ok) {
-      throw new Error(`Cloud GPU segment-start HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      throw new Error(`Service segment-start HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     }
     const j = await r.json() as { job_id?: string };
     jobId = String(j?.job_id || '').trim();
@@ -13319,7 +13318,7 @@ async function handleMeshSegmentStatus(req: Request, env: Env): Promise<Response
       signal: AbortSignal.timeout(20_000),
     });
     if (!r.ok) {
-      throw new Error(`Cloud GPU segment-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      throw new Error(`Service segment-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     }
     modalResp = await r.json() as typeof modalResp;
   } catch (e: unknown) {
@@ -14546,7 +14545,7 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
   }
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_ANIM, user.id);
-  if (remainingBudget == null) return err(429, 'daily Cloud GPU budget reached. Try again after midnight UTC.');
+  if (remainingBudget == null) return err(429, 'Daily service capacity reached. Try again after midnight UTC.');
   const refundAnimSpend = async () => { await refundModalSpend(env, ESTIMATED_USD_ANIM, user.id); };
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -14714,7 +14713,7 @@ async function handleAutoAnimStatus(req: Request, env: Env): Promise<Response> {
       signal: AbortSignal.timeout(20_000),
     });
     if (!r.ok) {
-      throw new Error(`Cloud GPU anim-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      throw new Error(`Service anim-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     }
     modalResp = await r.json() as typeof modalResp;
   } catch (e: unknown) {
@@ -14858,7 +14857,7 @@ async function handleAnimateFromReference(req: Request, env: Env): Promise<Respo
   const projectName = typeof body.projectName === 'string' ? body.projectName : '';
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_ANIM, user.id);
-  if (remainingBudget == null) return err(429, 'daily Cloud GPU budget reached. Try again after midnight UTC.');
+  if (remainingBudget == null) return err(429, 'Daily service capacity reached. Try again after midnight UTC.');
   const refundSpend = async () => { await refundModalSpend(env, ESTIMATED_USD_ANIM, user.id); };
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -15024,7 +15023,7 @@ async function handleAnimateFromReferenceStatus(req: Request, env: Env): Promise
       signal: AbortSignal.timeout(20_000),
     });
     if (!r.ok) {
-      throw new Error(`Cloud GPU fbx-retarget-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      throw new Error(`Service fbx-retarget-status HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     }
     modalResp = await r.json() as typeof modalResp;
   } catch (e: unknown) {
@@ -15212,7 +15211,7 @@ async function handleUpscaleImage(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'daily Cloud GPU budget reached.' }, { status: 429 });
+      error: 'Daily service capacity reached.' }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -15309,7 +15308,7 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_RECTIFY_URL) {
-    return err(503, 'rectify backend unavailable (cloud GPU not configured)');
+    return err(503, 'rectify backend unavailable (not configured)');
   }
   const { prompt, refImageUrl, mode, seeds, steps, guidance, ip_scale, projectName } =
     await req.json() as {
@@ -15349,7 +15348,7 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: `daily Cloud GPU budget reached. Try again after midnight UTC.` }, { status: 429 });
+      error: `Daily service capacity reached. Try again after midnight UTC.` }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -18990,7 +18989,7 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
     if (String(job.mode ?? '') === 'op' && (job.options as Record<string, unknown> | null)?.auto === true) {
       try {
         await sb.from('jobs').update({
-          status: 'failed', error: 'reaped: operation interrompue avant sa fin',
+          status: 'failed', error: 'This step was interrupted before it finished.',
           finished_at: new Date().toISOString(),
         }).eq('id', id).in('status', NON_TERMINAL_JOB_STATUSES as unknown as string[]);
         out.reaped++;
@@ -19079,7 +19078,7 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
              * chargement de page, sans jamais l'obtenir ni etre rembourse.
              * Passe le delai de grace, on tranche. */
             if (age > GRACE_MS) {
-              claimed = await _failAndRefundJob(env, job, 'reaped: pret mais livraison impossible');
+              claimed = await _failAndRefundJob(env, job, 'The result was ready but could not be saved. Your credits have been refunded.');
             }
           }
         }
@@ -19095,7 +19094,7 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
           } else if (age > delaiMs) {
             await _annulerCalculMaillage(env, id);
             claimed = await _failAndRefundJob(env, job,
-              `reaped: no result after ${Math.round(delaiMs / 60000)} min (maximum for these settings)`);
+              `No result after ${Math.round(delaiMs / 60000)} min (the maximum for these settings). Your credits have been refunded.`);
           }
         }
         if (claimed) {
@@ -19106,7 +19105,7 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
       } catch (e) {
         const m = e instanceof Error ? e.message : String(e);
         if (age > GRACE_MS) {
-          if (await _failAndRefundJob(env, job, `reaped: unreachable after ${GRACE_LABEL}`)) {
+          if (await _failAndRefundJob(env, job, `The service did not respond for ${GRACE_LABEL}. Your credits have been refunded.`)) {
             out.reaped++; out.credits_refunded += creditCost;
             await refundMeshBudget();
           }
@@ -19127,7 +19126,7 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
     };
     if (!base) {
       // Backend disabled/rotated since the job started — it can never finish.
-      if (age > GRACE_MS) await finalize(`reaped: ${opType} backend unavailable`);
+      if (age > GRACE_MS) await finalize('This service is currently unavailable. Your credits have been refunded.');
       else out.skipped++;
       continue;
     }
@@ -19216,14 +19215,14 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
           }
           /* Rien livre : la ligne ne doit pas rester non terminale pour
            * autant, sinon le fantome « Resumed » revient a chaque page. */
-          if (!livre) await finalize(`reaped: ${opType} pret mais non recuperable`);
+          if (!livre) await finalize('The result was ready but could not be retrieved. Your credits have been refunded.');
         }
       } else if (age > GRACE_MS) {
-        await finalize(`reaped: ${opType} produced no result after ${GRACE_LABEL}`);
+        await finalize(`No result after ${GRACE_LABEL}. Your credits have been refunded.`);
       }
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e);
-      if (age > GRACE_MS) await finalize(`reaped: ${opType} unreachable after ${GRACE_LABEL}`);
+      if (age > GRACE_MS) await finalize(`The service did not respond for ${GRACE_LABEL}. Your credits have been refunded.`);
       else noteErr(`${id}: ${m}`);
     }
   }
@@ -19434,7 +19433,7 @@ export default {
         }
         if (pathname.startsWith('/api/')) {
           if (!flags.modal_enabled && MODAL_PATHS.has(pathname)) {
-            return err(503, 'Cloud GPU backend temporarily disabled by admin');
+            return err(503, 'Service backend temporarily disabled by admin');
           }
           // Stripe kill: block new checkouts but NEVER block the
           // webhook — Stripe has already charged the card; if we 503
