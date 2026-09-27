@@ -139,7 +139,7 @@
         <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Try it in your browser</a>
         <a class="btn" href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener">Get the Windows app</a>
       </div>
-      <p class="note" style="margin-top:12px">50 free credits on sign-up · Windows app free during the beta</p>
+      <p class="note" style="margin-top:12px">50 free credits on sign-up · <span id="note-desktop">Windows app free during the beta</span></p>
       <figure>
         <img src="screenshots/v2/hero.jpg" width="1280" height="720" alt="A red spider generated as a textured 3D model, shown in the MyFabmesh 3D viewer">
       </figure>
@@ -191,7 +191,7 @@
         <article class="edition">
           <span class="etiquette">Windows app</span>
           <h3>On your own PC</h3>
-          <div class="prix">Free during the beta<small>one-time purchase later, no subscription</small></div>
+          <div class="prix" id="prix-desktop">Free during the beta<small>then €89.99 one-time, no subscription</small></div>
           <ul>
             <li>Runs on your graphics card: unlimited generations</li>
             <li>Works offline once the models are downloaded</li>
@@ -251,5 +251,26 @@
   </div>
 </footer>
 
+<script>
+// Prix de l'appli Windows : regle dans l'admin (Pricing), lu en direct.
+// En cas d'echec, le texte ecrit dans la page reste affiche.
+(function () {
+  fetch('https://myfabmesh-cloud.fabien65400.workers.dev/api/pricing')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var p = d && d.prices; if (!p) return;
+      var prix = (Number(p.desktop_prix_centimes) || 8999) / 100;
+      var txt = prix.toLocaleString('en-IE', { style: 'currency', currency: 'EUR' });
+      var gratuit = Number(p.desktop_gratuit) !== 0;
+      var bloc = document.getElementById('prix-desktop');
+      var note = document.getElementById('note-desktop');
+      if (bloc) bloc.innerHTML = gratuit
+        ? 'Free during the beta<small>then ' + txt + ' one-time, no subscription</small>'
+        : txt + '<small>one-time purchase, no subscription</small>';
+      if (note) note.textContent = gratuit ? 'Windows app free during the beta' : 'Windows app ' + txt + ' one-time';
+    })
+    .catch(function () {});
+})();
+</script>
 </body>
 </html>

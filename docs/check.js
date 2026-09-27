@@ -101,25 +101,25 @@
       box.classList.add('verdict-full');
       box.textContent = '✓ Compatible — Full mode unlocked';
       cta.innerHTML =
-        '<a href="index.html#buy-desktop" class="btn-primary">Buy Desktop — 49,99 € TTC</a>' +
-        '<a href="index.html#cloud-soon" class="btn-ghost">Or try Cloud</a>';
+        '<a href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener" class="btn-primary prix-desktop-cta">Get the Windows app</a>' +
+        '<a href="https://myfabmesh-cloud.fabien65400.workers.dev/" class="btn-ghost">Or use the web app</a>';
     } else if (v === 'standard') {
       box.classList.add('verdict-std');
       box.textContent = '✓ Compatible — Standard mode';
       cta.innerHTML =
-        '<a href="index.html#buy-desktop" class="btn-primary">Buy Desktop — 49,99 € TTC</a>' +
-        '<a href="index.html#cloud-soon" class="btn-ghost">Or try Cloud</a>';
+        '<a href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener" class="btn-primary prix-desktop-cta">Get the Windows app</a>' +
+        '<a href="https://myfabmesh-cloud.fabien65400.workers.dev/" class="btn-ghost">Or use the web app</a>';
     } else if (v === 'unknown') {
       box.classList.add('verdict-std');
       box.textContent = '? GPU model not in our database';
       cta.innerHTML =
-        '<a href="index.html#buy-desktop" class="btn-ghost">Buy Desktop (at your own risk)</a>' +
-        '<a href="index.html#cloud-soon" class="btn-primary">Try Cloud first (safer)</a>';
+        '<a href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener" class="btn-ghost">Get the Windows app (at your own risk)</a>' +
+        '<a href="https://myfabmesh-cloud.fabien65400.workers.dev/" class="btn-primary">Try the web app first (safer)</a>';
     } else {
       box.classList.add('verdict-cloud');
       box.textContent = '✗ Not compatible for Desktop — use Cloud';
       cta.innerHTML =
-        '<a href="index.html#cloud-soon" class="btn-primary">Open Cloud — works on your machine</a>';
+        '<a href="https://myfabmesh-cloud.fabien65400.workers.dev/" class="btn-primary">Open the web app — works on your machine</a>';
     }
   }
 

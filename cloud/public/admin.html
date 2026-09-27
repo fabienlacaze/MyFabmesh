@@ -1068,6 +1068,18 @@
           <span style="color:var(--text-2); font-size:12px;">Credit cost per operation. Saves take effect within ~60s for every user. "Reset" reverts a single row to its hardcoded default.</span>
           <button class="btn" onclick="loadPricing()">🔄 Reload</button>
         </div>
+        <!-- APPLI WINDOWS : prix affiche par le site vitrine (2026-09-27). -->
+        <div id="pricing-desktop" style="display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; padding:12px 14px; margin-bottom:14px; border:1px solid var(--border); border-radius:8px; background:var(--bg-2);">
+          <b style="font-size:13px;">Windows app (Microsoft Store)</b>
+          <label style="font-size:12px; color:var(--text-2); display:inline-flex; align-items:center; gap:6px;">
+            Price (€, VAT incl.)
+            <input type="number" id="pricing-desktop-prix" min="0" step="0.01" style="width:90px; padding:4px 8px; background:var(--bg-1); color:var(--text-0); border:1px solid var(--border); border-radius:4px; font-size:13px; text-align:right;" />
+          </label>
+          <label style="font-size:12px; color:var(--text-2); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="pricing-desktop-gratuit" /> Free during the beta
+          </label>
+          <span style="font-size:11px; color:var(--text-2);">Shown on the website. The price actually charged is set in Partner Center.</span>
+        </div>
         <table id="pricing-table">
           <thead>
             <tr>
@@ -3528,6 +3540,8 @@
     const PRICING_DESCRIPTIONS = {
       text2image:        'Image generation, per image at 30 steps (scales with the Quality slider: 10 steps = 1/3)',
       watertight_hd:     'Watertight above resolution 256 (up to 256: the simple mesh operation price)',
+      desktop_prix_centimes: 'Windows app price shown on the website, in cents',
+      desktop_gratuit:   'Windows app shown as free during the beta (1) or at its price (0)',
       back_view:         'Back-view generation from front photo',
       modify:            'Modify image (img2img)',
       segment:           'Auto Inpaint live mask detection (CLIPSeg — charged per detection)',
@@ -3595,7 +3609,9 @@
 
     function _renderPricingTable() {
       const tbody = document.querySelector('#pricing-table tbody');
-      const rows = Object.keys(_pricingDefaults).map((k) => {
+      _renderPrixDesktop();
+      // les cles desktop_* ont leur propre bloc (prix en euros, pas en credits)
+      const rows = Object.keys(_pricingDefaults).filter((k) => !k.startsWith('desktop_')).map((k) => {
         const def = _pricingDefaults[k];
         const cur = _pricingCurrent[k];
         const modified = cur !== def;
@@ -3641,6 +3657,21 @@
           }
         });
       });
+    }
+
+    // Bloc « Windows app » : euros <-> centimes, case « gratuit ».
+    function _renderPrixDesktop() {
+      const prix = document.getElementById('pricing-desktop-prix');
+      const gratuit = document.getElementById('pricing-desktop-gratuit');
+      if (!prix || !gratuit) return;
+      const c = Number(_pricingCurrent.desktop_prix_centimes ?? _pricingDefaults.desktop_prix_centimes ?? 8999);
+      prix.value = (c / 100).toFixed(2);
+      gratuit.checked = Number(_pricingCurrent.desktop_gratuit ?? 1) !== 0;
+      prix.oninput = () => {
+        const v = parseFloat(String(prix.value).replace(',', '.'));
+        if (Number.isFinite(v) && v >= 0) _pricingCurrent.desktop_prix_centimes = Math.round(v * 100);
+      };
+      gratuit.onchange = () => { _pricingCurrent.desktop_gratuit = gratuit.checked ? 1 : 0; };
     }
 
     // Password kept in JS memory for the unlocked session — never

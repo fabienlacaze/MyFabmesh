@@ -23851,3 +23851,17 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - La case « Construction stages (3 versions) » de la creation 3D restait visible (et
   facturable) pour un personnage : masquee hors building / other_built / environment.
 - Constat : les animations existantes du guerrier sortent deformees (maillage « explose »).
+
+## 2026-09-27 — Prix de l'appli Windows dans l'admin ; site vitrine ; nom de moteur dans l'export
+
+- Admin > Pricing : bloc « Windows app » (prix en euros TTC + case « Free during the beta »),
+  stocke en `desktop_prix_centimes` (8999) et `desktop_gratuit` (1) — la grille n'a que des
+  entiers. Prix AFFICHE seulement : le prix facture se regle dans Partner Center.
+- /api/pricing : `access-control-allow-origin: *` (lu par le site GitHub Pages).
+- Site (docs/, branche de travail, PAS encore publie sur master) : page refaite ; le prix
+  du bureau vient de l'admin ; images des etapes = une seule chaine (image -> maillage
+  modal_6dbd5bbf -> son rig -> export) ; check.js et terms.html sans le vieux 49,99 €.
+- Export web : le nom du fichier portait le nom du moteur (« _trellis2_ ») — masque dans la
+  fenetre et dans le fichier telecharge. Le bureau le nettoyait deja (_cleanExportBase).
+- A trancher par le user : la fenetre d'export propose par defaut « Personal use only —
+  NOT SELLABLE BY USERS », en contradiction avec la FAQ du site (usage commercial).

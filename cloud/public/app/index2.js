@@ -16769,7 +16769,8 @@ document.getElementById('ws-mesh-export-btn')?.addEventListener('click', () => {
   const m = getCurrentMeshObj();
   if (!m) { showToast('Pick a mesh first.', 'error'); return; }
   const modal = document.getElementById('modal-export-mesh');
-  const baseName = m.filename.replace(/\.[^.]+$/, '');
+  // nom sans moteur (secret technique : le fichier portait « _trellis2_ »)
+  const baseName = _maskAiNames(m.filename.replace(/\.[^.]+$/, ''));
   // Output path defaults to the OS Downloads folder. On cloud the
   // browser writes there by default for any <a download>; on
   // desktop the IPC handler resolves "Downloads/" via app.getPath.
@@ -16784,7 +16785,7 @@ document.getElementById('exp-browse')?.addEventListener('click', async () => {
   const m = getCurrentMeshObj();
   if (!m) return;
   const format = document.getElementById('exp-format').value;
-  const defaultName = m.filename.replace(/\.[^.]+$/, '');
+  const defaultName = _maskAiNames(m.filename.replace(/\.[^.]+$/, ''));
   if (!API.pickExportPath) return;
   const picked = await API.pickExportPath({ defaultName, format });
   // Desktop returns a plain string ("C:\Users\…"), cloud returns an

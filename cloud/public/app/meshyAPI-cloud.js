@@ -1939,7 +1939,10 @@
         }
         const blob = main.blob;
         const ext = main.ext;
-        const baseName = _stripExt(_basename(outputPath || sourcePath || 'mesh'));
+        // nom du fichier telecharge sans nom de moteur (secret technique) :
+        // le maillage stocke s'appelle « <projet>_trellis2_<id>.glb »
+        const baseName = _stripExt(_basename(outputPath || sourcePath || 'mesh'))
+          .replace(/_(trellis2_native|trellis2|trellis|native_3d|sf3d|hunyuan|puppeteer|unirig)(?=_|$)/gi, '');
 
         // ETAPES DE CONSTRUCTION : meme resultat que le desktop, traduit pour un
         // navigateur — qui ne peut pas creer de dossier sur le disque. On livre

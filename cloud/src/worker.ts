@@ -1636,6 +1636,13 @@ function _invalidateServiceFlagsCache() {
  * ATTENTION : `_meta/pricing.json` dans R2 PRIME sur ces valeurs. Elles ne
  * servent que de repli — mais un repli qui vendait a perte etait un piege. */
 const PRICING_DEFAULTS = {
+  // APPLI WINDOWS (2026-09-27, user : « une partie dans admin / pricing pour
+  // definir le prix de desktop »). Ce n'est PAS un tarif en credits : c'est le
+  // prix AFFICHE par le site vitrine (docs/, via GET /api/pricing). Le prix
+  // reellement facture se regle dans Partner Center (Microsoft Store).
+  // Centimes, parce que la grille ne stocke que des entiers.
+  desktop_prix_centimes: 8999,
+  desktop_gratuit:       1,          // 1 = « gratuit pendant la beta » affiche
   // Image ops
   text2image:       3,
   back_view:        3,
@@ -18014,6 +18021,8 @@ async function handlePublicPricing(_req: Request, env: Env): Promise<Response> {
     headers: {
       'content-type': 'application/json',
       'cache-control': 'public, max-age=30',
+      // lu aussi par le site vitrine (GitHub Pages) : donnees publiques
+      'access-control-allow-origin': '*',
     },
   });
 }
