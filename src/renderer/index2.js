@@ -18159,9 +18159,17 @@ window._navigateToJobStep = async function(jobId, jobObj) {
   // les mauvais »).
   ['step-card-image', 'step-card-mesh', 'step-card-rig', 'step-card-animation']
     .filter(id => id !== cardId).forEach(id => document.getElementById(id)?.classList.add('collapsed'));
-  // Expand its Create New stage if collapsed.
+  // TRAVAIL TERMINE : on ouvre « Edit selected », ou se trouve le resultat,
+  // et on referme « Create new » (user, 2026-09-27 : « ca ne deplie pas
+  // Edit selected, je ne vois pas l'element genere »). En cours ou en
+  // echec : « Create new », ou se suit la generation.
+  const _fini = (jobObj && jobObj.statut === 'ok') || j.status === 'done';
   const stage = card.querySelector('.stage-create');
-  if (stage && !stage.open) stage.open = true;
+  const _edit = card.querySelector('.stage-edit');
+  if (_fini && _edit) {
+    _edit.open = true;
+    if (stage) stage.open = false;
+  } else if (stage && !stage.open) stage.open = true;
   // Wait a beat for the details to fully reflow before scrolling so the
   // browser has settled on its final layout box.
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
