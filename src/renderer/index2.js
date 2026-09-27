@@ -17877,6 +17877,11 @@ function _sauverJobsTermines() {
 /** Place un travail termine dans l'historique (jamais une sous-tache). */
 function _archiverJob(j) {
   if (!j || j.parentJobId != null) return;
+  const _base = (n) => String(n || '').replace(' (resumed)', '');
+  const deja = (state.jobsTermines || []).some(e => e.projectName === (_jobProjectName(j) || null)
+    && _base(e.name) === _base(j.name) && j.startedAt && e.startedAt
+    && Math.abs(e.startedAt - j.startedAt) < 2 * 60 * 1000);
+  if (deja) return;
   const vignette = j.sourceImageUrl && /^(https?:|file:)/i.test(String(j.sourceImageUrl))
     ? j.sourceImageUrl : null;
   const entree = {
@@ -23777,6 +23782,7 @@ async function _ptsInstaller(gltf, jeton) {
              nom: b.name || '' };
   });
   _pts.osOrigine = _pts.os.map(o => o.p.clone());
+  _pts.osParentsOrigine = _pts.os.map(o => o.parent);
   _pts.osModifies = false;
   _pts.osSurvol = null;
   _pts.os.forEach((_, i) => _ptsDessinerOs(i));
@@ -23804,6 +23810,7 @@ async function _ptsInstaller(gltf, jeton) {
     if (Array.isArray(lm?.fabmesh_points) && lm.fabmesh_points.length && lm.fabmesh_points.every(_ptsValide)) {
       depart = { pts: lm.fabmesh_points,
                  os: Array.isArray(lm.fabmesh_os) && lm.fabmesh_os.every(_ptsValide) ? lm.fabmesh_os : null,
+                 parents: Array.isArray(lm.fabmesh_parents) ? lm.fabmesh_parents : null,
                  liens: Array.isArray(lm.fabmesh_liens) ? lm.fabmesh_liens : null };
     }
   } catch (_) { /* pas de retouche enregistree */ }
@@ -23853,7 +23860,7 @@ function _ptsDessinerOs(i) {
     o.etiquette.visible = voir;
     o.etiquette.position.copy(w).add(new THREE.Vector3(0, _pts.rayonOs * 3.2, 0));
   }
-  if (o.parent < 0) return;
+  if (o.parent < 0) { if (o.cyl) o.cyl.visible = false; return; }
   const wp = _ptsVersMonde(_pts.os[o.parent].p);
   const d = new THREE.Vector3().subVectors(w, wp);
   const L = d.length();
@@ -23875,7 +23882,7 @@ function _ptsBougerOs(i, local) {
   _pts.os[i].p.copy(local);
   _ptsDessinerOs(i);
   _pts.os.forEach((o, j) => { if (o.parent === i) _ptsDessinerOs(j); });
-  _pts.osModifies = _pts.os.some((o, j) => o.p.distanceTo(_pts.osOrigine[j]) > 1e-7);
+  _pts.osModifies = _ptsOsModifie();
   if (_pts.points.some(q => q.lien && q.lien.os === i)) _ptsDessinerLiens();
 }
 
@@ -23910,9 +23917,13 @@ function _ptsEtiquette(n, squelette) {
   s.renderOrder = 1001;
   return s;
 }
-/** Numero affiche d'un point du SQUELETTE : a la suite des points a atteindre
- *  (un seul mot, « point », pour l'utilisateur — user, 2026-09-27). */
-function _ptsNumOs(i) { return _pts.points.length + i + 1; }
+/** Numero affiche d'un point du SQUELETTE : le squelette vient en premier
+ *  (1 a N, numeros FIXES) et les points a atteindre continuent la liste
+ *  (user, 2026-09-27 : « quand je rajoute un point il faut continuer la
+ *  liste » — un ajout decalait tous les numeros du squelette). */
+function _ptsNumOs(i) { return i + 1; }
+/** Numero affiche du point a atteindre d'indice k (a la suite du squelette). */
+function _ptsNumPt(k) { return _pts.os.length + k + 1; }
 /** (Re)numerote les points du squelette dans la vue quand le nombre de points
  *  a atteindre change. */
 function _ptsRenumeroterOs() {
@@ -23941,8 +23952,19 @@ function _ptsAppliquer(x) {
   const liste = Array.isArray(x) ? x : x.pts;
   if (!Array.isArray(x) && Array.isArray(x.os) && x.os.length === _pts.os.length) {
     x.os.forEach((v, i) => _pts.os[i].p.set(v[0], v[1], v[2]));
+    const par = x.parents;
+    const n = _pts.os.length;
+    if (Array.isArray(par) && par.length === n
+        && par.every((p, i) => p === -1 || (Number.isInteger(p) && p >= 0 && p < n && p !== i))) {
+      const avant = _pts.os.map(o => o.parent);
+      par.forEach((p, i) => { _pts.os[i].parent = p; });
+      // un enregistrement abime (boucle) ne doit pas figer l'editeur
+      if (_pts.os.some((_, i) => { let k = _pts.os[i].parent, g = 0; while (k >= 0 && g++ <= n) { if (k === i) return true; k = _pts.os[k].parent; } return g > n; })) {
+        avant.forEach((p, i) => { _pts.os[i].parent = p; });
+      }
+    }
     _pts.os.forEach((_, i) => _ptsDessinerOs(i));
-    _pts.osModifies = _pts.os.some((o, j) => o.p.distanceTo(_pts.osOrigine[j]) > 1e-7);
+    _pts.osModifies = _ptsOsModifie();
   }
   for (const { boule, etiquette } of _pts.marqueurs.values()) {
     _pts.groupe?.remove(boule); _pts.groupe?.remove(etiquette);
@@ -23972,7 +23994,7 @@ function _ptsCreer(local) {
   const boule = new THREE.Mesh(new THREE.SphereGeometry(_pts.rayon, 18, 14),
     new THREE.MeshBasicMaterial({ color: PTS_COULEURS.manque, depthTest: false, transparent: true, opacity: 0.95 }));
   boule.renderOrder = 1000;
-  const etiquette = _ptsEtiquette(_pts.points.length);
+  const etiquette = _ptsEtiquette(_ptsNumPt(_pts.points.length - 1));
   _pts.groupe?.add(boule); _pts.groupe?.add(etiquette);
   _pts.marqueurs.set(id, { boule, etiquette });
   _ptsPlacer(pt);
@@ -23985,7 +24007,7 @@ function _ptsRenumeroter() {
     if (!m) return;
     _pts.groupe?.remove(m.etiquette);
     try { m.etiquette.material.map?.dispose(); m.etiquette.material.dispose(); } catch (_) {}
-    m.etiquette = _ptsEtiquette(i + 1);
+    m.etiquette = _ptsEtiquette(_ptsNumPt(i));
     _pts.groupe?.add(m.etiquette);
     _ptsPlacer(pt);
   });
@@ -24011,95 +24033,105 @@ function _ptsPlacer(pt) {
 function _ptsListe() {
   const liste = document.getElementById('pts-liste');
   if (!liste) return;
-  if (!_pts.points.length) {
-    liste.innerHTML = `<div class="pts-vide">${_i18nT('No points yet. Click “Add point”, then click the mesh.')}</div>`;
-  } else {
-    liste.innerHTML = '';
-    _pts.points.forEach((pt, i) => {
-      const st = _ptsStatut(pt);
-      const ligne = document.createElement('div');
-      ligne.className = 'pts-ligne' + (pt.id === _pts.selection ? ' selection' : '');
-      ligne.dataset.id = String(pt.id);
-      ligne.innerHTML = `<i class="pts-pastille ${st}"></i>`
-        + `<span class="pts-nom">${_i18nT('Point')} ${i + 1}</span>`
-        + `<span class="pts-statut">${_i18nT(st === 'atteint' ? 'reached' : 'not reached')}</span>`
-        + `<button class="pts-suppr" type="button" title="${_i18nT('Remove this point')}" aria-label="${_i18nT('Remove this point')}">&times;</button>`;
-      // LIENS IMPOSES (user : « point 15 = apres joint 5, avant point 16 »)
-      const liens = document.createElement('div');
-      liens.className = 'pts-liens';
-      const valA = !pt.lien ? '' : Number.isInteger(pt.lien.os) ? `os:${pt.lien.os}` : `pt:${pt.lien.point}`;
-      const suivant = _pts.points.find(q => q.lien && q.lien.point === pt.id);
-      const autres = _pts.points.map((q, k) => q.id === pt.id ? ''
-        : `<option value="pt:${q.id}">${_i18nT('Point')} ${k + 1}</option>`).join('');
-      liens.innerHTML = `<label title="${_i18nT('What this point hangs from. Auto lets the app decide.')}">${_i18nT('after')}`
-        + `<select class="pts-lien-apres"><option value="">${_i18nT('auto')}</option>`
-        + _pts.os.map((o, j) => `<option value="os:${j}">${_i18nT('Point')} ${_ptsNumOs(j)}</option>`).join('')
-        + autres + `</select></label>`
-        + `<label title="${_i18nT('The next point in the chain, if any.')}">${_i18nT('before')}`
-        + `<select class="pts-lien-avant"><option value="">—</option>` + autres
-        + _pts.os.map((o, j) => `<option value="os:${j}">${_i18nT('Point')} ${_ptsNumOs(j)}</option>`).join('')
-        + `</select></label>`;
-      const selA = liens.querySelector('.pts-lien-apres'), selB = liens.querySelector('.pts-lien-avant');
-      selA.value = valA;
-      selB.value = suivant ? `pt:${suivant.id}` : (Number.isInteger(pt.avantOs) ? `os:${pt.avantOs}` : '');
-      selA.addEventListener('change', () => {
-        _ptsMemoriser();
-        const v = selA.value;
-        pt.lien = !v ? null : v.startsWith('os:') ? { os: +v.slice(3) } : { point: +v.slice(3) };
-        _ptsListe(); _ptsSauver();
-      });
-      selB.addEventListener('change', () => {
-        _ptsMemoriser();
-        _pts.points.forEach(q => { if (q.lien && q.lien.point === pt.id) q.lien = null; });
-        pt.avantOs = null;
-        const v = selB.value;
-        if (v.startsWith('os:')) pt.avantOs = +v.slice(3);
-        else if (v.startsWith('pt:')) {
-          const q = _pts.points.find(x => x.id === +v.slice(3));
-          if (q) q.lien = { point: pt.id };
-        }
-        _ptsListe(); _ptsSauver();
-      });
-      ligne.appendChild(liens);
-      ligne.addEventListener('click', (e) => { if (!e.target.closest('.pts-suppr') && !e.target.closest('.pts-liens')) _ptsSelectionner(pt.id); });
-      ligne.querySelector('.pts-suppr').addEventListener('click', () => _ptsSupprimer(pt.id));
-      ligne.addEventListener('mouseenter', () => _ptsSurvoler(pt.id));
-      ligne.addEventListener('mouseleave', () => _ptsSurvoler(null));
-      liste.appendChild(ligne);
-    });
-  }
+  // la liste est reconstruite a chaque changement : sans ca elle remontait
+  // en haut a chaque menu modifie
+  const haut = liste.scrollTop;
+  liste.innerHTML = '';
   _ptsDessinerLiens();
   _ptsRenumeroterOs();
-  // ARTICULATIONS DANS LA LISTE (2026-09-27, user : « les joints doivent aussi
-  // apparaitre dans le listing »). Survol = mise en evidence dans la vue ;
-  // une articulation deplacee peut etre remise a sa place d'origine.
+  const titre = (t) => {
+    const d = document.createElement('div');
+    d.className = 'pts-titre-os';
+    d.textContent = t;
+    liste.appendChild(d);
+  };
+  // ORDRE DE LA LISTE = ORDRE DES NUMEROS (2026-09-27, user : « c'est pas
+  // bien range, et quand je rajoute un point il faut continuer la liste ») :
+  // le squelette d'abord (1 a N, numeros fixes), puis les points a atteindre,
+  // qui prennent les numeros suivants. Un point ajoute arrive en bas.
   if (_pts.os.length) {
-    const titre = document.createElement('div');
-    titre.className = 'pts-titre-os';
-    titre.textContent = `${_i18nT('Skeleton')} (${_pts.os.length})`;
-    liste.appendChild(titre);
+    titre(`${_i18nT('Skeleton')} (${_pts.os.length})`);
     _pts.os.forEach((o, i) => {
       const bouge = !!_pts.osOrigine[i] && o.p.distanceTo(_pts.osOrigine[i]) > 1e-7;
+      const relie = Array.isArray(_pts.osParentsOrigine) && o.parent !== _pts.osParentsOrigine[i];
       const ligne = document.createElement('div');
       ligne.className = 'pts-ligne pts-ligne-os' + (i === _pts.osSurvol ? ' survol' : '');
       ligne.dataset.os = String(i);
       if (o.nom) ligne.title = o.nom;
-      const lien = o.parent >= 0 ? `${_i18nT('after point')} ${_ptsNumOs(o.parent)}` : _i18nT('root');
       ligne.innerHTML = `<i class="pts-pastille os"></i>`
         + `<span class="pts-nom">${_i18nT('Point')} ${_ptsNumOs(i)}</span>`
-        + `<span class="pts-statut">${bouge ? _i18nT('moved') : lien}</span>`
-        + (bouge ? `<button class="pts-suppr pts-reinit-os" type="button" title="${_i18nT('Put this point back')}" aria-label="${_i18nT('Put this point back')}">&#8634;</button>` : '<span></span>');
+        + `<span class="pts-statut">${bouge ? _i18nT('moved') : relie ? _i18nT('relinked') : ''}</span>`
+        + (bouge || relie ? `<button class="pts-suppr pts-reinit-os" type="button" title="${_i18nT('Put this point back')}" aria-label="${_i18nT('Put this point back')}">&#8634;</button>` : '<span></span>');
+      ligne.appendChild(_ptsLiensOs(i));
       ligne.addEventListener('mouseenter', () => _ptsSurvolerOsListe(i));
       ligne.addEventListener('mouseleave', () => _ptsSurvolerOsListe(null));
       ligne.querySelector('.pts-reinit-os')?.addEventListener('click', (e) => {
         e.stopPropagation();
         _ptsMemoriser();
+        const orig = Array.isArray(_pts.osParentsOrigine) ? _pts.osParentsOrigine[i] : o.parent;
+        if (orig !== o.parent && (orig < 0 || !_ptsDescendDe(orig, i))) _ptsRelierOs(i, orig);
         _ptsBougerOs(i, _pts.osOrigine[i].clone());
         _ptsListe(); _ptsMajBoutons(); _ptsSauver();
       });
       liste.appendChild(ligne);
     });
   }
+  if (_pts.os.length) titre(`${_i18nT('Points to reach')} (${_pts.points.length})`);
+  if (!_pts.points.length) {
+    const vide = document.createElement('div');
+    vide.className = 'pts-vide';
+    vide.textContent = _i18nT('No points yet. Click “Add point”, then click the mesh.');
+    liste.appendChild(vide);
+  }
+  _pts.points.forEach((pt, i) => {
+    const st = _ptsStatut(pt);
+    const ligne = document.createElement('div');
+    ligne.className = 'pts-ligne' + (pt.id === _pts.selection ? ' selection' : '');
+    ligne.dataset.id = String(pt.id);
+    ligne.innerHTML = `<i class="pts-pastille ${st}"></i>`
+      + `<span class="pts-nom">${_i18nT('Point')} ${_ptsNumPt(i)}</span>`
+      + `<span class="pts-statut">${_i18nT(st === 'atteint' ? 'reached' : 'not reached')}</span>`
+      + `<button class="pts-suppr" type="button" title="${_i18nT('Remove this point')}" aria-label="${_i18nT('Remove this point')}">&times;</button>`;
+    // LIENS IMPOSES (user : « point 15 = apres joint 5, avant point 16 »)
+    const liens = document.createElement('div');
+    liens.className = 'pts-liens';
+    const valA = !pt.lien ? '' : Number.isInteger(pt.lien.os) ? `os:${pt.lien.os}` : `pt:${pt.lien.point}`;
+    const suivant = _pts.points.find(q => q.lien && q.lien.point === pt.id);
+    const valB = suivant ? `pt:${suivant.id}` : (Number.isInteger(pt.avantOs) ? `os:${pt.avantOs}` : '');
+    const tous = () => _ptsOptionsOs(() => true) + _ptsOptionsPts(q => q.id !== pt.id);
+    const selA = _ptsMenuLien('pts-lien-apres', `<option value="">${_i18nT('auto')}</option>`, valA, tous);
+    const selB = _ptsMenuLien('pts-lien-avant', `<option value="">—</option>`, valB, tous);
+    liens.append(_ptsEtiquetteMenu('after', 'What this point hangs from. Auto lets the app decide.', selA),
+                 _ptsEtiquetteMenu('before', 'The next point in the chain, if any.', selB));
+    selA.addEventListener('change', () => {
+      _ptsMemoriser();
+      const v = selA.value;
+      pt.lien = !v ? null : v.startsWith('os:') ? { os: +v.slice(3) } : { point: +v.slice(3) };
+      _ptsListe(); _ptsSauver();
+    });
+    selB.addEventListener('change', () => {
+      _ptsMemoriser();
+      _pts.points.forEach(q => { if (q.lien && q.lien.point === pt.id) q.lien = null; });
+      pt.avantOs = null;
+      const v = selB.value;
+      if (v.startsWith('os:')) {
+        const j = +v.slice(3);
+        _pts.points.forEach(q => { if (q.avantOs === j) q.avantOs = null; });
+        pt.avantOs = j;
+      } else if (v.startsWith('pt:')) {
+        const q = _pts.points.find(x => x.id === +v.slice(3));
+        if (q) q.lien = { point: pt.id };
+      }
+      _ptsListe(); _ptsSauver();
+    });
+    ligne.appendChild(liens);
+    ligne.addEventListener('click', (e) => { if (!e.target.closest('.pts-suppr') && !e.target.closest('.pts-liens')) _ptsSelectionner(pt.id); });
+    ligne.querySelector('.pts-suppr').addEventListener('click', () => _ptsSupprimer(pt.id));
+    ligne.addEventListener('mouseenter', () => _ptsSurvoler(pt.id));
+    ligne.addEventListener('mouseleave', () => _ptsSurvoler(null));
+    liste.appendChild(ligne);
+  });
+  liste.scrollTop = haut;
   const atteints = _pts.points.filter(pt => _ptsStatut(pt) === 'atteint').length;
   const info = document.getElementById('lm-fs-info');
   if (info && lmFsModel && _pts.rig) {
@@ -24108,6 +24140,120 @@ function _ptsListe() {
       { label: 'Points', value: `${atteints} / ${_pts.points.length}` },
     ]);
   }
+}
+
+/** Options de menu, DANS L'ORDRE DES NUMEROS : squelette puis points a atteindre. */
+function _ptsOptionsOs(garder) {
+  return _pts.os.map((o, j) => garder(j) ? `<option value="os:${j}">${_i18nT('Point')} ${_ptsNumOs(j)}</option>` : '').join('');
+}
+function _ptsOptionsPts(garder) {
+  return _pts.points.map((q, k) => garder(q) ? `<option value="pt:${q.id}">${_i18nT('Point')} ${_ptsNumPt(k)}</option>` : '').join('');
+}
+/** Libelle lisible d'une valeur de menu (« os:3 », « pt:12 »). */
+function _ptsLibelleValeur(v) {
+  if (!v) return '';
+  if (v.startsWith('os:')) return `${_i18nT('Point')} ${_ptsNumOs(+v.slice(3))}`;
+  const k = _pts.points.findIndex(q => q.id === +v.slice(3));
+  return k >= 0 ? `${_i18nT('Point')} ${_ptsNumPt(k)}` : '';
+}
+/** Menu de lien REMPLI A L'OUVERTURE : un squelette de plusieurs centaines de
+ *  points ferait sinon des centaines de milliers d'options a chaque rendu de
+ *  la liste. Fermé, il ne porte que la valeur courante. */
+function _ptsMenuLien(classe, premier, valeur, options) {
+  const sel = document.createElement('select');
+  sel.className = classe;
+  const lib = _ptsLibelleValeur(valeur);
+  sel.innerHTML = premier + (lib ? `<option value="${valeur}">${lib}</option>` : '');
+  sel.value = lib ? valeur : '';
+  let plein = false;
+  const remplir = () => {
+    if (plein) return;
+    plein = true;
+    const v = sel.value;
+    sel.innerHTML = premier + options();
+    sel.value = v;
+  };
+  sel.addEventListener('pointerdown', remplir);
+  sel.addEventListener('focus', remplir);
+  return sel;
+}
+function _ptsEtiquetteMenu(mot, aide, sel) {
+  const l = document.createElement('label');
+  l.title = _i18nT(aide);
+  l.append(_i18nT(mot), sel);
+  return l;
+}
+/** Vrai si le point du squelette j descend de i (j = i compris). */
+function _ptsDescendDe(j, i) {
+  for (let k = j, garde = 0; k >= 0 && garde <= _pts.os.length; k = _pts.os[k].parent, garde++) {
+    if (k === i) return true;
+  }
+  return false;
+}
+/** Rattache le point du squelette i a p, et redessine l'os qui les relie. */
+function _ptsRelierOs(i, p) {
+  _pts.os[i].parent = p;
+  _pts.points.forEach(q => { if (q.avantOs === i) q.avantOs = null; });
+  _ptsDessinerOs(i);
+  _pts.osModifies = _ptsOsModifie();
+}
+/** Squelette retouche (position OU rattachement) : la regeneration l'impose. */
+function _ptsOsModifie() {
+  return _pts.os.some((o, j) => (_pts.osOrigine[j] && o.p.distanceTo(_pts.osOrigine[j]) > 1e-7)
+    || (Array.isArray(_pts.osParentsOrigine) && o.parent !== _pts.osParentsOrigine[j]));
+}
+/** AFTER / BEFORE D'UN POINT DU SQUELETTE (2026-09-27, user : « on peut
+ *  rajouter before et after pour ces points aussi ? »). After = le point
+ *  auquel il est rattache ; before = un point qu'on rattache a lui. Un choix
+ *  qui fermerait une boucle n'est pas propose. */
+function _ptsLiensOs(i) {
+  const o = _pts.os[i];
+  const liens = document.createElement('div');
+  liens.className = 'pts-liens';
+  const accroche = _pts.points.find(q => q.avantOs === i);
+  const valA = accroche ? `pt:${accroche.id}` : (o.parent >= 0 ? `os:${o.parent}` : '');
+  const enfants = _pts.os.map((x, j) => x.parent === i ? `os:${j}` : null).filter(Boolean)
+    .concat(_pts.points.filter(q => q.lien && q.lien.os === i).map(q => `pt:${q.id}`));
+  const valB = enfants.length === 1 ? enfants[0] : '';
+  const premierA = o.parent < 0 && !accroche ? `<option value="">${_i18nT('root')}</option>` : '';
+  const premierB = `<option value="">${enfants.length > 1 ? `${enfants.length} ${_i18nT('points')}` : '—'}</option>`;
+  const selA = _ptsMenuLien('pts-lien-apres', premierA, valA,
+    () => _ptsOptionsOs(j => !_ptsDescendDe(j, i)) + _ptsOptionsPts(() => true));
+  const selB = _ptsMenuLien('pts-lien-avant', premierB, valB,
+    () => _ptsOptionsOs(j => j !== i && !_ptsDescendDe(i, j)) + _ptsOptionsPts(() => true));
+  liens.append(_ptsEtiquetteMenu('after', 'The point this one is attached to.', selA),
+               _ptsEtiquetteMenu('before', 'Attach another point to this one.', selB));
+  selA.addEventListener('change', () => {
+    const v = selA.value;
+    if (!v) return;
+    _ptsMemoriser();
+    if (v.startsWith('os:')) {
+      _ptsRelierOs(i, +v.slice(3));
+    } else {
+      const q = _pts.points.find(x => x.id === +v.slice(3));
+      _pts.points.forEach(x => { if (x.avantOs === i) x.avantOs = null; });
+      if (q) {
+        _pts.points.forEach(x => { if (x.lien && x.lien.point === q.id) x.lien = null; });
+        q.avantOs = i;
+      }
+    }
+    _ptsListe(); _ptsMajBoutons(); _ptsSauver();
+  });
+  selB.addEventListener('change', () => {
+    const v = selB.value;
+    if (!v) return;
+    _ptsMemoriser();
+    if (v.startsWith('os:')) {
+      const j = +v.slice(3);
+      if (!_ptsDescendDe(i, j)) _ptsRelierOs(j, i);
+    } else {
+      const q = _pts.points.find(x => x.id === +v.slice(3));
+      if (q) q.lien = { os: i };
+    }
+    _ptsListe(); _ptsMajBoutons(); _ptsSauver();
+  });
+  liens.addEventListener('click', (e) => e.stopPropagation());
+  return liens;
 }
 
 function _ptsSelectionner(id) {
@@ -24133,6 +24279,7 @@ function _ptsSurvoler(id) {
 function _ptsInstantane() {
   return { pts: _pts.points.map(pt => [pt.p.x, pt.p.y, pt.p.z]),
            os: _pts.os.map(o => [o.p.x, o.p.y, o.p.z]),
+           parents: _pts.os.map(o => o.parent),
            liens: _ptsLiensIndex() };
 }
 /** Liens imposes, alignes sur les points : { os: indice } | { point: indice } | null. */
@@ -24234,7 +24381,8 @@ function _ptsSauver(immediat) {
   const rig = _pts.rig;
   const inst = _ptsInstantane();
   const r5 = v => v.map(c => Math.round(c * 1e5) / 1e5);
-  const donnees = { fabmesh_points: inst.pts.map(r5), ...(_pts.osModifies ? { fabmesh_os: inst.os.map(r5) } : {}),
+  const donnees = { fabmesh_points: inst.pts.map(r5),
+                    ...(_pts.osModifies ? { fabmesh_os: inst.os.map(r5), fabmesh_parents: inst.parents } : {}),
                     ...(inst.liens.some(Boolean) ? { fabmesh_liens: inst.liens } : {}) };
   const ecrire = () => { try { API.saveLandmarks?.({ meshPath: rig, landmarks: donnees }); } catch (_) {} };
   if (immediat) ecrire(); else _pts.minuterie = setTimeout(ecrire, 600);
@@ -24467,7 +24615,7 @@ document.getElementById('pts-ajouter')?.addEventListener('click', () => _ptsMode
 document.getElementById('pts-reinit')?.addEventListener('click', () => {
   if (!_pts.actif || !_pts.origine.length) return;
   _ptsMemoriser();
-  _ptsAppliquer({ pts: _pts.origine, os: _pts.osOrigine.map(v => [v.x, v.y, v.z]) });
+  _ptsAppliquer({ pts: _pts.origine, os: _pts.osOrigine.map(v => [v.x, v.y, v.z]), parents: _pts.osParentsOrigine });
   _ptsSauver();
 });
 document.getElementById('pts-regenerer')?.addEventListener('click', ptsRegenerer);

@@ -23690,3 +23690,20 @@ fichiers ; controle de licences du prebuild passe).
   app.getVersion() = 1.0.35, assistant navigable ; cache restaure, paquet de
   test desinstalle (Get-AppxPackage : 0).
 Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
+
+## 2026-09-27 — Editeur de points : numeros dans l'ordre, after/before sur le squelette ; Finished filtre
+
+- Numerotation : le squelette d'abord (1 a N, numeros fixes), les points a atteindre
+  a la suite. Un point ajoute prend le numero suivant et arrive en bas de la liste
+  (avant : il decalait tous les numeros du squelette, et les menus melangaient
+  « Point 54…59 » puis « Point 2 »).
+- Menus after/before dans l'ordre des numeros, remplis a l'ouverture (un squelette
+  de 2 000 os ferait des millions d'options a chaque rendu).
+- After/before sur les points du squelette : rattacher un point a un autre (un
+  choix qui fermerait une boucle n'est pas propose). Le rattachement fait partie
+  du squelette impose a la regeneration, est enregistre (`fabmesh_parents`),
+  annulable, et « Reset » le defait.
+- La liste garde sa position de defilement a chaque modification.
+- Finished (fusion serveur) : seulement mesh / rig / anim / images d'un projet ;
+  plus d'entree « op_xxx » sans projet (Go to -> « Project not found ») ; un meme
+  travail suivi deux fois (tuile + reprise) n'est archive qu'une fois.
