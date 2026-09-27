@@ -3762,6 +3762,12 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   background: #facc15;
   vertical-align: middle;
 }
+.pts-voir-os {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
 .pts-vide {
   padding: 10px 2px;
   font-size: 12px;

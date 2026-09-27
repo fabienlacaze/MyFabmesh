@@ -89,12 +89,14 @@ def lire_liens(chemin, n_points):
     liens = []
     for i in range(n_points):
         l = brut[i] if isinstance(brut, list) and i < len(brut) else None
+        propre = {}
         if isinstance(l, dict) and isinstance(l.get('os'), list) and len(l['os']) == 3:
-            liens.append({'os': [float(c) for c in l['os']]})
+            propre['os'] = [float(c) for c in l['os']]
         elif isinstance(l, dict) and isinstance(l.get('point'), int) and 0 <= l['point'] < n_points and l['point'] != i:
-            liens.append({'point': int(l['point'])})
-        else:
-            liens.append(None)
+            propre['point'] = int(l['point'])
+        if isinstance(l, dict) and isinstance(l.get('avant_os'), list) and len(l['avant_os']) == 3:
+            propre['avant_os'] = [float(c) for c in l['avant_os']]
+        liens.append(propre or None)
     return liens if any(liens) else None
 
 

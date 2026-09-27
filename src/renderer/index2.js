@@ -23715,7 +23715,7 @@ async function _ptsInstaller(gltf, jeton) {
   modele.position.set(-centre.x, -boite.min.y, -centre.z);
   modele.updateMatrixWorld(true);
   _pts.diag = taille.length() || 1;
-  _pts.rayon = _pts.diag * 0.011;
+  _pts.rayon = _pts.diag * 0.0066;   // 0,011 : trop gros (user, 2026-09-27)
   // BVH : chaque deplacement lance des rayons sur un maillage de plusieurs
   // centaines de milliers de triangles
   modele.traverse(c => { if (c.isMesh && c.geometry && !c.geometry.boundsTree) { try { c.geometry.computeBoundsTree?.(); } catch (_) {} } });
@@ -23806,8 +23806,14 @@ function _ptsDessinerOs(i) {
   const o = _pts.os[i];
   if (!o || !lmFsModel) return;
   const w = _ptsVersMonde(o.p);
+  const voir = _pts.voirOs !== false;
+  o.sphere.visible = voir;
   o.sphere.position.copy(w);
   o.sphere.scale.setScalar(i === _pts.osSurvol || (_pts.glisse && _pts.glisse.type === 'os' && _pts.glisse.id === i) ? 1.9 : 1);
+  if (o.etiquette) {
+    o.etiquette.visible = voir;
+    o.etiquette.position.copy(w).add(new THREE.Vector3(0, _pts.rayonOs * 3.2, 0));
+  }
   if (o.parent < 0) return;
   const wp = _ptsVersMonde(_pts.os[o.parent].p);
   const d = new THREE.Vector3().subVectors(w, wp);
@@ -23817,7 +23823,7 @@ function _ptsDessinerOs(i) {
     o.cyl.renderOrder = 997;
     _pts.groupe.add(o.cyl);
   }
-  o.cyl.visible = L > 1e-6;
+  o.cyl.visible = L > 1e-6 && voir;
   if (!o.cyl.visible) return;
   const r = _pts.diag * 0.0017;
   o.cyl.scale.set(r, L, r);
@@ -23849,7 +23855,7 @@ function _ptsVider() {
   _pts.points = [];
 }
 
-function _ptsEtiquette(n) {
+function _ptsEtiquette(n, squelette) {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d');
@@ -23857,12 +23863,37 @@ function _ptsEtiquette(n) {
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.lineWidth = 7; g.strokeStyle = 'rgba(8,8,16,0.9)';
   g.strokeText(String(n), 32, 34);
-  g.fillStyle = '#ffffff';
+  g.fillStyle = squelette ? '#ff9cf5' : '#ffffff';
   g.fillText(String(n), 32, 34);
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
-  s.scale.set(_pts.rayon * 3.2, _pts.rayon * 3.2, 1);
+  const k = _pts.diag * (squelette ? 0.02 : 0.03);
+  s.scale.set(k, k, 1);
   s.renderOrder = 1001;
   return s;
+}
+/** Numero affiche d'un point du SQUELETTE : a la suite des points a atteindre
+ *  (un seul mot, « point », pour l'utilisateur — user, 2026-09-27). */
+function _ptsNumOs(i) { return _pts.points.length + i + 1; }
+/** (Re)numerote les points du squelette dans la vue quand le nombre de points
+ *  a atteindre change. */
+function _ptsRenumeroterOs() {
+  _pts.os.forEach((o, i) => {
+    const n = _ptsNumOs(i);
+    if (o.etiquette && o.num === n) return;
+    if (o.etiquette) {
+      _pts.groupe?.remove(o.etiquette);
+      try { o.etiquette.material.map?.dispose(); o.etiquette.material.dispose(); } catch (_) {}
+    }
+    o.etiquette = _ptsEtiquette(n, true);
+    o.num = n;
+    _pts.groupe?.add(o.etiquette);
+    _ptsDessinerOs(i);
+  });
+}
+/** Affiche ou masque les os et les points du squelette (case « Show bones »). */
+function _ptsVoirOs(v) {
+  _pts.voirOs = !!v;
+  _pts.os.forEach((_, i) => _ptsDessinerOs(i));
 }
 
 /** Remplace tous les points — et les articulations si l'instantane les porte
@@ -23888,6 +23919,7 @@ function _ptsAppliquer(x) {
       : Number.isInteger(l.os) && _pts.os[l.os] ? { os: l.os }
       : Number.isInteger(l.point) && l.point !== i && _pts.points[l.point] ? { point: _pts.points[l.point].id }
       : null;
+    pt.avantOs = l && Number.isInteger(l.avantOs) && _pts.os[l.avantOs] ? l.avantOs : null;
   });
   if (!_pts.points.some(pt => pt.id === _pts.selection)) _pts.selection = null;
   _ptsListe();
@@ -23962,12 +23994,15 @@ function _ptsListe() {
         : `<option value="pt:${q.id}">${_i18nT('Point')} ${k + 1}</option>`).join('');
       liens.innerHTML = `<label title="${_i18nT('What this point hangs from. Auto lets the app decide.')}">${_i18nT('after')}`
         + `<select class="pts-lien-apres"><option value="">${_i18nT('auto')}</option>`
-        + _pts.os.map((o, j) => `<option value="os:${j}">${_i18nT('Joint')} ${j + 1}</option>`).join('')
+        + _pts.os.map((o, j) => `<option value="os:${j}">${_i18nT('Point')} ${_ptsNumOs(j)}</option>`).join('')
         + autres + `</select></label>`
         + `<label title="${_i18nT('The next point in the chain, if any.')}">${_i18nT('before')}`
-        + `<select class="pts-lien-avant"><option value="">—</option>` + autres + `</select></label>`;
+        + `<select class="pts-lien-avant"><option value="">—</option>` + autres
+        + _pts.os.map((o, j) => `<option value="os:${j}">${_i18nT('Point')} ${_ptsNumOs(j)}</option>`).join('')
+        + `</select></label>`;
       const selA = liens.querySelector('.pts-lien-apres'), selB = liens.querySelector('.pts-lien-avant');
-      selA.value = valA; selB.value = suivant ? `pt:${suivant.id}` : '';
+      selA.value = valA;
+      selB.value = suivant ? `pt:${suivant.id}` : (Number.isInteger(pt.avantOs) ? `os:${pt.avantOs}` : '');
       selA.addEventListener('change', () => {
         _ptsMemoriser();
         const v = selA.value;
@@ -23977,8 +24012,13 @@ function _ptsListe() {
       selB.addEventListener('change', () => {
         _ptsMemoriser();
         _pts.points.forEach(q => { if (q.lien && q.lien.point === pt.id) q.lien = null; });
-        const q = selB.value ? _pts.points.find(x => x.id === +selB.value.slice(3)) : null;
-        if (q) q.lien = { point: pt.id };
+        pt.avantOs = null;
+        const v = selB.value;
+        if (v.startsWith('os:')) pt.avantOs = +v.slice(3);
+        else if (v.startsWith('pt:')) {
+          const q = _pts.points.find(x => x.id === +v.slice(3));
+          if (q) q.lien = { point: pt.id };
+        }
         _ptsListe(); _ptsSauver();
       });
       ligne.appendChild(liens);
@@ -23990,13 +24030,14 @@ function _ptsListe() {
     });
   }
   _ptsDessinerLiens();
+  _ptsRenumeroterOs();
   // ARTICULATIONS DANS LA LISTE (2026-09-27, user : « les joints doivent aussi
   // apparaitre dans le listing »). Survol = mise en evidence dans la vue ;
   // une articulation deplacee peut etre remise a sa place d'origine.
   if (_pts.os.length) {
     const titre = document.createElement('div');
     titre.className = 'pts-titre-os';
-    titre.textContent = `${_i18nT('Joints')} (${_pts.os.length})`;
+    titre.textContent = `${_i18nT('Skeleton')} (${_pts.os.length})`;
     liste.appendChild(titre);
     _pts.os.forEach((o, i) => {
       const bouge = !!_pts.osOrigine[i] && o.p.distanceTo(_pts.osOrigine[i]) > 1e-7;
@@ -24004,11 +24045,11 @@ function _ptsListe() {
       ligne.className = 'pts-ligne pts-ligne-os' + (i === _pts.osSurvol ? ' survol' : '');
       ligne.dataset.os = String(i);
       if (o.nom) ligne.title = o.nom;
-      const lien = o.parent >= 0 ? `${_i18nT('after joint')} ${o.parent + 1}` : _i18nT('root');
+      const lien = o.parent >= 0 ? `${_i18nT('after point')} ${_ptsNumOs(o.parent)}` : _i18nT('root');
       ligne.innerHTML = `<i class="pts-pastille os"></i>`
-        + `<span class="pts-nom">${_i18nT('Joint')} ${i + 1}</span>`
+        + `<span class="pts-nom">${_i18nT('Point')} ${_ptsNumOs(i)}</span>`
         + `<span class="pts-statut">${bouge ? _i18nT('moved') : lien}</span>`
-        + (bouge ? `<button class="pts-suppr pts-reinit-os" type="button" title="${_i18nT('Put this joint back')}" aria-label="${_i18nT('Put this joint back')}">&#8634;</button>` : '<span></span>');
+        + (bouge ? `<button class="pts-suppr pts-reinit-os" type="button" title="${_i18nT('Put this point back')}" aria-label="${_i18nT('Put this point back')}">&#8634;</button>` : '<span></span>');
       ligne.addEventListener('mouseenter', () => _ptsSurvolerOsListe(i));
       ligne.addEventListener('mouseleave', () => _ptsSurvolerOsListe(null));
       ligne.querySelector('.pts-reinit-os')?.addEventListener('click', (e) => {
@@ -24059,10 +24100,11 @@ function _ptsInstantane() {
 function _ptsLiensIndex() {
   return _pts.points.map((pt) => {
     const l = pt.lien;
-    if (!l) return null;
-    if (Number.isInteger(l.os) && _pts.os[l.os]) return { os: l.os };
+    const av = Number.isInteger(pt.avantOs) && _pts.os[pt.avantOs] ? { avantOs: pt.avantOs } : {};
+    if (!l) return Object.keys(av).length ? av : null;
+    if (Number.isInteger(l.os) && _pts.os[l.os]) return { os: l.os, ...av };
     const k = _pts.points.findIndex(q => q.id === l.point);
-    return k >= 0 ? { point: k } : null;
+    return k >= 0 ? { point: k, ...av } : (Object.keys(av).length ? av : null);
   });
 }
 /** Trait jaune pour chaque lien impose : de l'articulation (ou du point) « avant » au point. */
@@ -24077,6 +24119,11 @@ function _ptsDessinerLiens() {
     else { const q = _pts.points.find(x => x.id === l.point); if (q) a = q.p; }
     if (!a) continue;
     const wa = _ptsVersMonde(a), wb = _ptsVersMonde(pt.p);
+    seg.push(wa.x, wa.y, wa.z, wb.x, wb.y, wb.z);
+  }
+  for (const pt of _pts.points) {
+    if (!Number.isInteger(pt.avantOs) || !_pts.os[pt.avantOs]) continue;
+    const wa = _ptsVersMonde(pt.p), wb = _ptsVersMonde(_pts.os[pt.avantOs].p);
     seg.push(wa.x, wa.y, wa.z, wb.x, wb.y, wb.z);
   }
   if (!_pts.lignesLiens) {
@@ -24162,7 +24209,7 @@ function _ptsModeAjout(actif) {
   if (consigne) {
     consigne.textContent = _i18nT(_pts.ajout
       ? 'Click the mesh where the new point goes (Esc to cancel).'
-      : 'Drag a point or a purple joint. Right-drag pans, wheel zooms.');
+      : 'Drag any point. Right-drag pans, wheel zooms.');
   }
 }
 
@@ -24207,6 +24254,7 @@ function _ptsSousCurseur(canevas, cam, e) {
   }
   if (meilleur) return meilleur;
   _pts.os.forEach((o, i) => {
+    if (_pts.voirOs === false) return;
     const d = rayon.distanceToPoint(o.sphere.position);
     if (d < Math.max(2.6 * _pts.rayonOs, 1.1 * _pts.rayon) && d < dMin) { dMin = d; meilleur = { type: 'os', id: i }; }
   });
@@ -24216,6 +24264,15 @@ function _ptsSousCurseur(canevas, cam, e) {
 function _ptsSurvolerCible(c) {
   _ptsSurvoler(c && c.type === 'point' ? c.id : null);
   _ptsSurvolerOsListe(c && c.type === 'os' ? c.id : null);
+}
+
+/** Clic sur un point du squelette : sa ligne est selectionnee et amenee a l'ecran. */
+function _ptsSelectionnerOsListe(i) {
+  document.querySelectorAll('#pts-liste .pts-ligne').forEach(l => {
+    const moi = l.dataset.os === String(i);
+    l.classList.toggle('selection', moi);
+    if (moi) l.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
 }
 
 /** Met en evidence l'articulation i dans la vue ET dans la liste (null = aucune). */
@@ -24261,6 +24318,7 @@ function _ptsLierCanevas(canevas, camera) {
     const plan = new THREE.Plane().setFromNormalAndCoplanarPoint(cam.getWorldDirection(new THREE.Vector3()), depart);
     _pts.glisse = { type: c.type, id: c.id, canevas, cam, plan, bouge: false };
     if (c.type === 'point') _ptsSelectionner(c.id);
+    else _ptsSelectionnerOsListe(c.id);
     if (lmFsControls) lmFsControls.enabled = false;
     if (lmFsControlsB) lmFsControlsB.enabled = false;
     try { canevas.setPointerCapture(e.pointerId); } catch (_) {}
@@ -24352,9 +24410,13 @@ async function ptsRegenerer() {
   const options = { meshPath: source, points: inst.pts.map(r5), graine: _pts.graine, tirage: _pts.tirage };
   // liens imposes : une articulation voyage par sa POSITION (le generateur
   // reconstruit son squelette, ses indices ne sont pas ceux de cet editeur)
-  const liens = inst.liens.map(l => !l ? null
-    : Number.isInteger(l.os) ? { os: r5([_pts.os[l.os].p.x, _pts.os[l.os].p.y, _pts.os[l.os].p.z]) }
-    : { point: l.point });
+  const posOs = (j) => r5([_pts.os[j].p.x, _pts.os[j].p.y, _pts.os[j].p.z]);
+  const liens = inst.liens.map(l => {
+    if (!l) return null;
+    const x = Number.isInteger(l.os) ? { os: posOs(l.os) } : Number.isInteger(l.point) ? { point: l.point } : {};
+    if (Number.isInteger(l.avantOs)) x.avant_os = posOs(l.avantOs);
+    return Object.keys(x).length ? x : null;
+  });
   if (liens.some(Boolean)) options.liens = liens;
   // articulations deplacees : ce squelette-la est impose (plus de tirage de l'IA)
   if (_pts.osModifies) options.squelette = { joints: inst.os.map(r5), parents: _pts.os.map(o => o.parent) };
@@ -24370,6 +24432,9 @@ document.getElementById('pts-reinit')?.addEventListener('click', () => {
   _ptsSauver();
 });
 document.getElementById('pts-regenerer')?.addEventListener('click', ptsRegenerer);
+// Case « Show bones » (user, 2026-09-27 : « il faut pouvoir montrer les bones »)
+document.getElementById('pts-voir-os')?.addEventListener('change', (e) => _ptsVoirOs(e.target.checked));
+
 // Crochets pour l'ancien code (annuler/refaire, fermeture) sans zone morte
 // temporelle : il est evalue AVANT ce bloc.
 window.__ptsAnnuler = ptsAnnuler;

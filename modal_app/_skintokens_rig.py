@@ -479,18 +479,22 @@ def rig_router():
             liens = payload.get("liens")
             if isinstance(liens, list):
                 propres = []
+                def _pos(v):
+                    try:
+                        v = [float(c) for c in v]
+                    except (TypeError, ValueError):
+                        return None
+                    return v if len(v) == 3 and all(math.isfinite(c) and abs(c) < 1e4 for c in v) else None
                 for i in range(len(points)):
                     l = liens[i] if i < len(liens) else None
-                    if isinstance(l, dict) and isinstance(l.get("os"), list) and len(l["os"]) == 3:
-                        try:
-                            v = [float(c) for c in l["os"]]
-                        except (TypeError, ValueError):
-                            v = None
-                        propres.append({"os": v} if v and all(math.isfinite(c) and abs(c) < 1e4 for c in v) else None)
+                    p = {}
+                    if isinstance(l, dict) and isinstance(l.get("os"), list) and _pos(l["os"]):
+                        p["os"] = _pos(l["os"])
                     elif isinstance(l, dict) and isinstance(l.get("point"), int) and 0 <= l["point"] < len(points) and l["point"] != i:
-                        propres.append({"point": int(l["point"])})
-                    else:
-                        propres.append(None)
+                        p["point"] = int(l["point"])
+                    if isinstance(l, dict) and isinstance(l.get("avant_os"), list) and _pos(l["avant_os"]):
+                        p["avant_os"] = _pos(l["avant_os"])
+                    propres.append(p or None)
                 if any(propres):
                     options["liens"] = propres
         squelette = payload.get("squelette")

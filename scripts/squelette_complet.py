@@ -430,7 +430,14 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens
 
     rapport = []
     nouvelles = []
-    manuels = {a_i for a_i, l in enumerate(liens or []) if l and pointes is not None and a_i < len(pointes)}
+    manuels = {a_i for a_i, l in enumerate(liens or [])
+               if isinstance(l, dict) and (l.get('os') is not None or l.get('point') is not None)
+               and pointes is not None and a_i < len(pointes)}
+    # « avant un point du squelette » : l'os le plus proche de cette position (et
+    # tout ce qui en depend) est raccroche au bout de la chaine du point
+    avants = {a_i: l['avant_os'] for a_i, l in enumerate(liens or [])
+              if isinstance(l, dict) and l.get('avant_os') is not None
+              and pointes is not None and a_i < len(pointes)}
     avec_ligne = [(a_i, P) for a_i, P in enumerate(lignes) if P is not None and a_i not in manuels]
     for a_i, P in sorted(avec_ligne, key=lambda t: -_abscisse(t[1])[-1]):
         s = _abscisse(P); L = float(s[-1])
@@ -573,6 +580,27 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens
                 for a_i in suivants:
                     liens[a_i] = None if not isinstance(liens[a_i], dict) else {'os': list(map(float, pointes[a_i]))}
             restants = suivants
+
+    if avants:
+        bouts_av = locals().get('bouts', {})
+        for a_i, pos in avants.items():
+            pt = np.asarray(pointes[a_i], dtype=np.float64)
+            fin = bouts_av.get(a_i)
+            if fin is None:                              # point automatique : l'os qui l'atteint
+                fin = int(np.argmin(np.linalg.norm(np.array(J) - pt, axis=1)))
+            j = int(np.argmin(np.linalg.norm(np.array(J) - np.asarray(pos, dtype=np.float64), axis=1)))
+            # pas de boucle : j ne doit pas etre un ancetre de `fin` (ni lui-meme)
+            x, boucle = fin, False
+            while x is not None and x >= 0:
+                if x == j:
+                    boucle = True
+                    break
+                x = parents[x]
+            if boucle:
+                rapport.append({'point': a_i, 'action': 'avant_refuse_boucle', 'os': j})
+                continue
+            parents[j] = fin
+            rapport.append({'point': a_i, 'action': 'avant', 'os': j, 'nouveau_parent': fin})
 
     # TRONC SANS OS : un bloc du coeur a plus de 1,2 x l'epaisseur de tout os
     # (a 0,5 x, le ventre d'une vache — a ~1 rayon de sa colonne qui longe le

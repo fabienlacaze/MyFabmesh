@@ -12705,20 +12705,23 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
    * 16 ») : alignes sur `points`, null = automatique, { os: [x,y,z] } ou
    * { point: k }. Filtres ici (Modal refiltre) : ce qui n'est pas propre est
    * ignore, pas refuse — le rig reste faisable. */
-  let liens: ({ os: number[] } | { point: number } | null)[] | undefined;
+  let liens: ({ os?: number[]; point?: number; avant_os?: number[] } | null)[] | undefined;
   if (points && Array.isArray(body.liens)) {
     const brut = body.liens as unknown[];
+    const pos = (v: unknown): number[] | null =>
+      Array.isArray(v) && v.length === 3 && v.every(c => typeof c === 'number' && Number.isFinite(c) && Math.abs(c) < 1e4)
+        ? (v as number[]).map(c => Math.round(c * 1e5) / 1e5) : null;
     liens = points.map((_, i) => {
-      const l = brut[i] as { os?: unknown; point?: unknown } | null | undefined;
-      if (l && Array.isArray(l.os) && l.os.length === 3
-          && l.os.every(c => typeof c === 'number' && Number.isFinite(c) && Math.abs(c) < 1e4)) {
-        return { os: (l.os as number[]).map(c => Math.round(c * 1e5) / 1e5) };
-      }
-      if (l && Number.isInteger(l.point) && (l.point as number) >= 0
-          && (l.point as number) < points!.length && l.point !== i) {
-        return { point: l.point as number };
-      }
-      return null;
+      const l = brut[i] as { os?: unknown; point?: unknown; avant_os?: unknown } | null | undefined;
+      if (!l) return null;
+      const propre: { os?: number[]; point?: number; avant_os?: number[] } = {};
+      const o = pos(l.os);
+      if (o) propre.os = o;
+      else if (Number.isInteger(l.point) && (l.point as number) >= 0
+               && (l.point as number) < points!.length && l.point !== i) propre.point = l.point as number;
+      const av = pos(l.avant_os);
+      if (av) propre.avant_os = av;
+      return Object.keys(propre).length ? propre : null;
     });
     if (!liens.some(Boolean)) liens = undefined;
   }
