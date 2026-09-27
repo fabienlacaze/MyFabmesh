@@ -19193,6 +19193,40 @@ state.jobsTermines = (() => {
 })();
 state.jobsOnglet = 'encours';
 
+/* VIGNETTE D'UN TRAVAIL (2026-09-27, user : « certaines generations n'ont pas
+ * d'image »). Trois trous : un rig repris passait l'URL du GLB comme image
+ * (image cassee), le rig et la reprise d'une generation n'en passaient
+ * aucune, et une URL signee expire en 24 h. On garde l'image source si c'en
+ * est une ; sinon, et en repli si elle ne charge plus, l'image du projet. */
+function _vignetteProjet(nom) {
+  const p = (state.projects || []).find(x => x && x.name === nom)
+    || (state.currentProject && state.currentProject.name === nom ? state.currentProject : null);
+  const t = p && p.thumb;
+  if (!t) return '';
+  return /^(https?:|data:|blob:)/i.test(String(t)) ? String(t) : (typeof _toFileUrl === 'function' ? _toFileUrl(t) : String(t));
+}
+function _vignetteTravailHtml(url, nomProjet) {
+  const repli = _vignetteProjet(nomProjet);
+  let u = url ? String(url) : '';
+  if (/\.(glb|gltf|fbx|obj|ply)(\?|#|$)/i.test(u)) u = '';
+  if (u && !/^(https?:|data:|blob:)/i.test(u) && typeof _toFileUrl === 'function') u = _toFileUrl(u);
+  const src = u || repli;
+  if (!src) return '';
+  return `<img src="${escapeHtml(src)}" alt="" class="step-progress-item-thumb"`
+    + (repli && repli !== src ? ` data-repli="${escapeHtml(repli)}"` : '') + `/>`;
+}
+// Une vignette qui ne charge plus (URL signee expiree) passe sur l'image du
+// projet, puis disparait plutot que de rester cassee.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!img || !img.classList || !img.classList.contains('step-progress-item-thumb')) return;
+  if (img.dataset.repli && img.getAttribute('src') !== img.dataset.repli) {
+    img.src = img.dataset.repli; img.dataset.repli = '';
+  } else {
+    img.remove();
+  }
+}, true);
+
 function _sauverJobsTermines() {
   try { localStorage.setItem(_CLE_JOBS_TERMINES, JSON.stringify((state.jobsTermines || []).slice(0, 50))); } catch (_) {}
 }
@@ -19257,8 +19291,7 @@ function renderJobsTermines() {
     let heure = '';
     try { heure = new Date(e.finiLe).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (_) {}
     const icone = e.statut === 'ok' ? '&#10003;' : (e.statut === 'annule' ? '&#8856;' : '&#10005;');
-    const vign = e.sourceImageUrl
-      ? `<img src="${escapeHtml(e.sourceImageUrl)}" alt="" class="step-progress-item-thumb"/>` : '';
+    const vign = _vignetteTravailHtml(e.sourceImageUrl, e.projectName);
     return `
       <div class="job-fini-2 ${escapeHtml(e.statut)}" data-fini-id="${escapeHtml(e.finiId)}">
         <div class="job-fini-2-ligne">
@@ -19829,14 +19862,7 @@ function renderStepProgressWidgets() {
       // user instantly recognises which generation is theirs. Uses
       // sourceImageUrl snapshot stamped at pushJob time → never the
       // currently-selected version (race-safe).
-      const thumbUrl = j.sourceImageUrl ? (
-        /^(https?:|data:|blob:)/i.test(j.sourceImageUrl)
-          ? j.sourceImageUrl
-          : (typeof _toFileUrl === 'function' ? _toFileUrl(j.sourceImageUrl) : j.sourceImageUrl)
-      ) : '';
-      const thumbHtml = thumbUrl
-        ? `<img src="${escapeHtml(thumbUrl)}" alt="" class="step-progress-item-thumb"/>`
-        : '';
+      const thumbHtml = _vignetteTravailHtml(j.sourceImageUrl, _jobProjectName(j));
       return `
         <div class="step-progress-item${statusClass}" data-job-id="${j.id}">
           <div class="step-progress-item-header">
@@ -19943,14 +19969,7 @@ function renderJobs() {
     // for it across projects.
     const hasStep = _jobStepIndex(j) > 0;
     const elapsed = j.startedAt ? fmtDuration(Date.now() - j.startedAt) : '';
-    const sbThumbUrl = j.sourceImageUrl ? (
-      /^(https?:|data:|blob:)/i.test(j.sourceImageUrl)
-        ? j.sourceImageUrl
-        : (typeof _toFileUrl === 'function' ? _toFileUrl(j.sourceImageUrl) : j.sourceImageUrl)
-    ) : '';
-    const sbThumbHtml = sbThumbUrl
-      ? `<img src="${escapeHtml(sbThumbUrl)}" alt="" class="step-progress-item-thumb"/>`
-      : '';
+    const sbThumbHtml = _vignetteTravailHtml(j.sourceImageUrl, _jobProjectName(j));
     return `
       <div class="job-item-2 ${j.status}" data-job-id="${j.id}">
         <div class="job-item-2-header">
