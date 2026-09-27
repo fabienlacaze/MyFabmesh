@@ -665,15 +665,27 @@ function monter(hote) {
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
   catch (e) { if (aide) aide.textContent = '3D not supported by this browser'; return; }
-  // contexte graphique perdu (carte tres sollicitee, pilote) : on le signale et
-  // on laisse le navigateur le rendre, three.js recharge alors la scene
+  // CONTEXTE GRAPHIQUE PERDU (carte tres sollicitee, Unreal ouvert, pilote) :
+  // l'eclairage calcule sur la carte (environnement PMREM) ne revient pas avec
+  // le contexte. On reconstruit donc la visionneuse entiere, le modele revenant
+  // du cache du navigateur.
+  let reconstruite = false;
+  function reconstruire() {
+    if (reconstruite) return; reconstruite = true;
+    renderer.setAnimationLoop(null);
+    try { renderer.dispose(); } catch (e) {}
+    renderer.domElement.remove();
+    delete hote.dataset.monte;
+    if (aide) aide.textContent = 'Loading 3D…';
+    monter(hote);
+  }
   renderer.domElement.addEventListener('webglcontextlost', (e) => {
     e.preventDefault(); hote.classList.remove('pret');
+    console.warn('[3D] contexte graphique perdu :', hote.dataset.glb);
     if (aide) aide.textContent = 'Graphics paused by the browser';
+    setTimeout(reconstruire, 3000);            // si le navigateur ne le rend pas
   });
-  renderer.domElement.addEventListener('webglcontextrestored', () => {
-    hote.classList.add('pret'); if (aide) aide.textContent = 'Drag to rotate';
-  });
+  renderer.domElement.addEventListener('webglcontextrestored', reconstruire);
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -734,7 +746,8 @@ function monter(hote) {
   new IntersectionObserver((e) => { visible = e[0].isIntersecting; }).observe(hote);
   let erreurVue = false;
   renderer.setAnimationLoop(() => {
-    if (!visible || erreurVue) return;
+    // hors ecran, ou sujet cache de la machine a sous : aucun calcul
+    if (!visible || erreurVue || hote.classList.contains('cache-haut')) return;
     const dt = horloge.getDelta();
     if (mixer) mixer.update(dt);
     controls.update();
