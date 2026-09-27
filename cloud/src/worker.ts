@@ -19091,8 +19091,52 @@ async function keepAliveSupabase(env: Env): Promise<void> {
   }
 }
 
+/* ECRITURES R2 AVEC REPRISE (2026-09-27).
+ *
+ * Constat : une rectification de 8 minutes, calculee et payee chez Modal, a ete
+ * PERDUE parce que son unique `MESHES.put` a recu l'erreur R2 10043 (service
+ * momentanement indisponible) — erreur TRANSITOIRE que Cloudflare demande de
+ * reessayer. Aucune des ~115 ecritures du worker ne reessayait. On enveloppe
+ * le seau une fois a l'entree : `put` est rejoue (3 essais, 0,4 s / 1,5 s /
+ * 4 s) sur une erreur transitoire. Ecrire deux fois la meme cle avec le meme
+ * contenu est sans effet de bord. Un corps en FLUX (ReadableStream) ne peut
+ * pas etre rejoue : il n'est tente qu'une fois, comme avant. */
+const R2_ERREUR_TRANSITOIRE = /\b(10001|10043|10054|10058)\b|internal error|unavailable|temporarily|try again|timed? ?out|network|reset|overloaded/i;
+function _r2AvecReprises(bucket: R2Bucket): R2Bucket {
+  if ((bucket as unknown as { __repris?: boolean }).__repris) return bucket;
+  const put = bucket.put.bind(bucket);
+  const enveloppe = new Proxy(bucket, {
+    get(cible, nom, recepteur) {
+      if (nom === '__repris') return true;
+      if (nom !== 'put') {
+        const v = Reflect.get(cible, nom, recepteur);
+        return typeof v === 'function' ? v.bind(cible) : v;
+      }
+      return async (key: string, value: unknown, options?: R2PutOptions) => {
+        const rejouable = !(value && typeof (value as ReadableStream).getReader === 'function');
+        const delais = rejouable ? [400, 1500, 4000] : [];
+        for (let i = 0; ; i++) {
+          try {
+            return await put(key, value as Parameters<R2Bucket['put']>[1], options);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (i >= delais.length || !R2_ERREUR_TRANSITOIRE.test(msg)) throw e;
+            console.warn(`[r2] put ${key} : ${msg} — nouvel essai dans ${delais[i]} ms`);
+            await new Promise((res) => setTimeout(res, delais[i]));
+          }
+        }
+      };
+    },
+  });
+  return enveloppe as R2Bucket;
+}
+function _envAvecReprises(env: Env): Env {
+  return env.MESHES ? { ...env, MESHES: _r2AvecReprises(env.MESHES) } as Env : env;
+}
+
 export default {
-  async scheduled(event: { cron?: string }, env: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }): Promise<void> {
+  async scheduled(event: { cron?: string }, envBrut: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }): Promise<void> {
+    const env = _envAvecReprises(envBrut);
     // Weekly keep-alive: one cheap Supabase read so the free-tier project never
     // auto-pauses (7-day inactivity). Cheap + safe — runs on every cron.
     ctx.waitUntil(keepAliveSupabase(env));
@@ -19161,7 +19205,8 @@ export default {
     }
   },
 
-  async fetch(req: Request, env: Env, _ctx: unknown): Promise<Response> {
+  async fetch(req: Request, envBrut: Env, _ctx: unknown): Promise<Response> {
+    const env = _envAvecReprises(envBrut);
     const url = new URL(req.url);
     const { pathname } = url;
     const method = req.method.toUpperCase();
