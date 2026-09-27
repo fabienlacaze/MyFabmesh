@@ -23728,3 +23728,13 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - `squelette_complet.completer` : espacement plancher 3 % de l'etendue, 24 os max par
   chaine ajoutee (`MAX_OS_PAR_CHAINE`). Sans effet sur un humanoide (os de 5 a 8 %).
 - Deploye : `myfabmesh-skintokens`. Non reteste sur l'avion (un rig ~0,14 $).
+
+## 2026-09-27 — Rig : un lien impose cree toujours son os
+
+- Constat (vache, rig 39a0e143) : les points 55 et 68 (sabots) « after point 41 » ;
+  compte rendu du GLB : `{"point": 0, "action": "lien", "os": 0}` et idem point 13.
+  Le seuil « deja atteint » (0,5 x longueur d'os mediane) s'appliquait aussi aux liens
+  imposes : a moins d'un demi-os de l'articulation, aucun os n'etait cree et la
+  regeneration semblait ignorer les liens.
+- `completer`, etape des liens : seuil ramene a 0,1 x os (point pose sur l'articulation).
+  Les passes automatiques gardent 0,5. Deploye (`myfabmesh-skintokens`), non reteste.

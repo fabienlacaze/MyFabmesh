@@ -578,7 +578,13 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens
                 pt = np.asarray(pointes[a_i], dtype=np.float64)
                 origine = np.array(J[depart])
                 L = float(np.linalg.norm(pt - origine))
-                if L <= 0.5 * pas_global:
+                # Un lien IMPOSE cree toujours son os, sauf point pose SUR
+                # l'articulation (2026-09-27, vache : deux sabots « apres le
+                # point 41 », a moins d'un demi-os de lui, etaient comptes
+                # comme atteints — aucun os, la regeneration semblait ignorer
+                # les liens). L'ancien seuil (0,5 x os) reste celui des
+                # passes automatiques.
+                if L <= 0.1 * pas_global:
                     bouts[a_i] = depart
                     rapport.append({'point': a_i, 'action': 'lien', 'os': 0})
                     continue
