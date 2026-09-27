@@ -23806,3 +23806,13 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   Web : l'option revient, la pastille la compte a 4 pas.
 - Fiche d'un maillage REPRIS apres rechargement : Quality (preset, desormais enregistre dans
   options), Max triangles, options cochees.
+
+## 2026-09-27 — Watertight : prix selon la resolution, curseur aligne sur le serveur
+
+- La grille de voxels croit comme le cube de la resolution (128 -> 2 M, 400 -> 64 M ; une
+  mesure en prod : ~24 s au maximum). Au-dela de 256 : tarif `watertight_hd` (2, reglable
+  dans l'admin), sinon `mesh_op_simple` (1). Pastille sur le bouton Apply, qui suit le curseur
+  (posee apres le reetiquetage du bouton, qui l'effacait).
+- Curseur 48-512 -> 48-400 : `_mesh_op.watertight` ramenait en silence a 400.
+- Fill holes : aucun appel serveur aujourd'hui (ni job, ni journal Modal) — le probleme
+  signale vient de l'apercu ou de l'application dans le navigateur ; en attente de precision.

@@ -10189,9 +10189,18 @@ const MESH_TOOL_SCHEMAS = {
     needsImage: false,
     confirm: 'Watertight rebuilds the mesh as a new closed shell and removes its texture (re-texture afterwards). Continue?',
     params: [
-      { id: 'resolution', label: 'Resolution', type: 'range', min: 48, max: 512, step: 8, default: 128 },
+      // 400 = plafond reel du serveur (_mesh_op.watertight) : le curseur allait
+      // a 512 et le serveur ramenait en silence a 400.
+      { id: 'resolution', label: 'Resolution', type: 'range', min: 48, max: 400, step: 8, default: 128 },
     ],
     build: (vals) => [String(vals.resolution)],
+    // prix selon la resolution (meme seuil que le worker)
+    cost: (vals) => {
+      const p = window.__LIVE_PRICES || {};
+      return (Number(vals.resolution) || 128) > 256
+        ? (typeof p.watertight_hd === 'number' ? p.watertight_hd : 2)
+        : (typeof p.mesh_op_simple === 'number' ? p.mesh_op_simple : 1);
+    },
   },
   center: {
     title: 'Set pivot point',
@@ -10820,6 +10829,28 @@ function openMeshToolModal(toolName) {
   title.textContent = schema.title;
   subtitle.textContent = schema.subtitle || '';
   body.innerHTML = '';
+  // PASTILLE DE PRIX DU BOUTON APPLY quand le prix depend des reglages
+  // (2026-09-27 : Watertight selon la resolution).
+  // Posee APRES le reetiquetage du bouton plus bas (textContent l'effacerait),
+  // et retiree a la fermeture par ce meme reetiquetage.
+  const _apply = document.getElementById('mt-apply');
+  _apply?.querySelector('.mt-apply-cost')?.remove();
+  if (_apply && typeof schema.cost === 'function') {
+    let pastille = null;
+    const maj = () => { try { if (pastille) pastille.textContent = String(schema.cost(_mtCollectVals(body))); } catch (_) {} };
+    setTimeout(() => {
+      pastille = document.createElement('span');
+      pastille.className = 'cloud-cost-badge opt-cost mt-apply-cost';
+      pastille.style.marginLeft = '8px';
+      _apply.appendChild(pastille);
+      maj();
+    }, 0);
+    body.oninput = maj;
+    body.onchange = maj;
+  } else {
+    body.oninput = null;
+    body.onchange = null;
+  }
 
   if (schema.params.length === 0) {
     const note = document.createElement('div');

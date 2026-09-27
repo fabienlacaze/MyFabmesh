@@ -1669,6 +1669,7 @@ const PRICING_DEFAULTS = {
   outfit_complete:  6,
   // Mesh ops
   mesh_op_simple:   1,
+  watertight_hd:    2,          // Watertight au-dela de 256 (grille de voxels 3 a 8 x plus grande)
   // « Texture variants » : l'atlas repasse en SDXL + ControlNet-Tile par
   // tuiles (4 tuiles de 1024 pour un atlas 2K). Meme moteur et meme
   // tarif que tex_variant, a la demande du user (« 1 ou 2 credits »).
@@ -11358,7 +11359,13 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   }
 
   // Cheap op (CPU, ~$0.001 Modal) — defaults to 1 credit, admin-tunable.
-  const COST_PER = await getPrice(env, 'mesh_op_simple');
+  // WATERTIGHT : PRIX SELON LA RESOLUTION (2026-09-27, user : « la resolution
+  // change la duree ? si oui il faut faire evoluer le prix »). La grille de
+  // voxels croit comme le cube de la resolution : 128 -> 2 M de voxels, 400 ->
+  // 64 M (mesure : ~24 s a la resolution maximale). Au-dela de 256, tarif
+  // `watertight_hd`.
+  const resoWt = op === 'watertight' ? Number((params as Record<string, unknown> | undefined)?.resolution) || 128 : 0;
+  const COST_PER = await getPrice(env, resoWt > 256 ? 'watertight_hd' : 'mesh_op_simple');
   const estimatedTotal = 0.005;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
