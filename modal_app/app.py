@@ -2075,10 +2075,11 @@ mesh_output_volume = modal.Volume.from_name(
     gpu="L40S",
     # 900 s ne suffisait plus (2026-09-27) : 10 M triangles en grille 1536 + Detail
     # refine + Face fix (modeles telecharges a froid) depassent 15 min — la generation
-    # du user a ete COUPEE sans message. 2 h : TOUJOURS au-dessus du delai
-    # adapte aux reglages que le worker applique (40-110 min, _delaiMaxGenerationS),
-    # pour que ce plafond ne coupe jamais une generation saine le premier.
-    timeout=7200,
+    # du user a ete COUPEE sans message. 4 h : TOUJOURS au-dessus du delai
+    # adapte aux reglages que le worker applique (40 min - 3 h 30,
+    # _delaiMaxGenerationS), pour que ce plafond ne coupe jamais une generation
+    # saine le premier. Mesure : 10 M triangles + texture 4K = 66 min de calcul.
+    timeout=14400,
     # TRAINE RAMENEE DE 300 A 90 s LE 2026-08-04, apres mesure.
     #
     # Une longue traine est une ASSURANCE CONTRE UN DEMARRAGE LENT. Le

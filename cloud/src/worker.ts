@@ -2506,21 +2506,32 @@ function _neutraliserOptionsSansEffet(i: GenerateInput): GenerateInput {
  *  3 x l'estimation, borne entre 40 et 110 min (voir le calcul). Au-dela :
  *  calcul presume bloque -> arret chez Modal, echec, remboursement. */
 function _delaiMaxGenerationS(input: GenerateInput, mode1536: boolean): number {
-  let s = 600;
+  /* RECALE SUR MESURES (2026-09-27, nuit). L'EXPORT (depliage UV + cuisson de
+   * la texture) domine et croit avec triangles x pixels de texture :
+   *   10 M, 1536, texture 2048 :   697 s d'export (banc)
+   *   10 M, 1536, texture 4096 :  3418 s d'export (generation du user, Ultra HD)
+   *   7,6 M, 1024, texture 2048 :  213 s
+   * soit ~70 s par million de triangles en 2048, x4,9 en 4096. La premiere
+   * version ignorait la texture : 66 min reels pour 110 min permis. */
+  const tex = (input.ultra_hd || input.preset === 'ultra_8k' || input.preset === 'quality') ? 4096
+            : input.preset === 'balanced' ? 2048
+            : input.preset === 'fast' ? 1024
+            : input.mode === 'full' ? 2048 : 1024;
+  const facteurTex = tex >= 4096 ? 4.9 : tex >= 2048 ? 1 : 0.5;
+  const trisM = (input.max_tris ?? 500_000) / 1_000_000;
+  let s = 600;                                          // froid + rectification + inference 1024
   if (mode1536) s += 300;
-  const tris = input.max_tris ?? 500_000;
-  if (tris > 500_000) s += Math.round((tris - 500_000) / 1_000_000 * 60);
-  if (input.refine) s += 300;
-  if (input.face_fix) s += 420;
-  if (input.preset === 'quality' || input.preset === 'ultra_8k') s += 120;
+  s += Math.round(70 * trisM * facteurTex);             // export
+  if (input.refine) s += tex >= 4096 ? 240 : 120;       // 25 tuiles en 4096 : 179 s mesures
+  if (input.face_fix) s += 180;                         // 85 s mesures + chargement
   if (input.ultra_hd || input.preset === 'ultra_8k') s += 300;
   // LARGE A DESSEIN (user : « il ne faut pas que la limite devienne une source
   // d'erreur »). Les vrais plantages (exception, calcul tue) remontent AUSSITOT
   // par /mesh_status ; ce delai ne sert qu'a un calcul qui tournerait sans fin.
-  // 3 x l'estimation, 40 min minimum (plus long travail normal mesure : 25 min),
-  // 110 min maximum — sous le plafond Modal de 2 h, qui ne coupe donc jamais
-  // le premier.
-  return Math.max(2400, Math.min(6600, s * 3));
+  // 2 x l'estimation (la generation 10 M / 4K a dure 0,85 x la sienne), 40 min
+  // minimum, 3 h 30 maximum — sous le plafond Modal de 4 h, qui ne coupe donc
+  // jamais le premier.
+  return Math.max(2400, Math.min(12_600, s * 2));
 }
 
 /** Plafond du choix « Max triangles » (« Max » = le maillage brut du moteur).
