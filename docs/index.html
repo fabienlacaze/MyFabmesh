@@ -63,7 +63,7 @@
 
   section { padding-block: 56px; }
   section > .wrap > h2 { font-size: clamp(24px, 3vw, 32px); margin-bottom: 8px; }
-  section > .wrap > p.intro { color: var(--text-1); margin-bottom: 32px; max-width: 62ch; }
+  section > .wrap > p.intro { color: var(--text-1); margin-bottom: 32px; }
 
   /* etapes */
   .etapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; counter-reset: e; }
@@ -254,6 +254,7 @@
       <a href="#tools">Tools</a>
       <a class="opt opt2" href="#projects">Projects</a>
       <a class="opt opt2" href="#versions">Versions</a>
+      <a class="opt opt2" href="#export">Export</a>
       <a class="opt" href="#marketplace">Marketplace</a>
       <a class="opt opt2" href="#payments">Payments</a>
       <a href="#editions">Web or Windows</a>
@@ -312,7 +313,6 @@
           </div>
         </article>
       </div>
-      <p class="intro" style="margin-top:28px"><strong>Everything is exportable.</strong> Images as PNG, JPG or WebP; 3D models as GLB, GLTF, FBX, OBJ, STL or PLY, with a ready-made preset for Unreal Engine; rigs as GLB or FBX; animations as FBX. The files are yours, ready for any game engine or 3D tool.</p>
       <p class="note" style="margin-top:12px">Steps 2 to 4 are live 3D viewers: drag to rotate, scroll to zoom. Models are reduced to about 400,000 triangles for display; the app exports the full model.</p>
     </div>
   </section>
@@ -321,7 +321,6 @@
     <div class="wrap">
       <h2>Tools</h2>
       <p class="intro"><strong>Edit anything you generate.</strong> Fix a detail right in the 2D or 3D viewer instead of starting over. AI tools do the work for you; manual tools give you full control.</p>
-      <p class="legende-outils"><span class="puce-ia">AI</span> AI tool <span class="puce-main">Manual</span> manual tool</p>
       <div class="carrousel" id="carrousel" aria-roledescription="carousel" aria-label="The editing tools">
         <figure class="diapo active" aria-roledescription="slide" aria-label="1 / 6">
           <div class="diapo-img zoom"><img src="screenshots/v2/outils-image.jpg" alt="Image generated from a prompt, with the image tools next to it"></div>
@@ -416,7 +415,20 @@
     </div>
   </section>
 
-  <section id="marketplace">
+  <section id="export">
+    <div class="wrap">
+      <h2>Everything is exportable</h2>
+      <p class="intro" style="margin-bottom:16px">The files are yours, ready for any game engine or 3D tool.</p>
+      <ul class="liste-ok">
+        <li>Images: PNG, JPG or WebP</li>
+        <li>3D models: GLB, GLTF, FBX, OBJ, STL or PLY, with a ready-made preset for Unreal Engine</li>
+        <li>Rigs: GLB or FBX</li>
+        <li>Animations: FBX</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="marketplace" style="border-top:1px solid var(--border)">
     <div class="wrap">
       <h2>Marketplace</h2>
       <p class="intro">Publish your images and models for free or at your price, and browse what other creators made. Each month, five paid items are free to claim and keep; their creators are still paid. Paid sales open soon.</p>
