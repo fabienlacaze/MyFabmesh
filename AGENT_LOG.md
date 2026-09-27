@@ -23890,3 +23890,14 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   outils IA / semi-manuels distingues.
 - Marketplace (web) : la fenetre de publication envoyait `currency: 'USD'` (« Price (USD) »)
   alors que le serveur n'accepte que l'euro -> HTTP 400 a chaque publication payante.
+
+## 2026-09-27 — Marketplace : miniature des fiches maillage ; site : visionneuses 3D robustes
+
+- Marketplace : chaque carte chargeait le maillage COMPLET (35 Mo, texture 8K) dans un
+  <model-viewer> sans image d'attente -> carte noire (chargement, ou carte graphique saturee).
+  Nouvelle route GET /api/market/poster/<id> : miniature <auteur>/thumb/<maillage>.png (fiches
+  gratuites et payantes, ce n'est pas le produit vendu). Carte = miniature ; fiche = 3D avec la
+  miniature en attente (ou la miniature seule si payante).
+- Site : visionneuses 3D — contexte graphique perdu signale et rendu par le navigateur, erreur
+  de rendu affichee, cadrage exact des modeles a squelette (matrices des os calculees avant la
+  boite : le rig etait cadre trop serre).

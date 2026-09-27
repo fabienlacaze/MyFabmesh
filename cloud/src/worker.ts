@@ -4288,6 +4288,30 @@ function _ficheVitrine(l: Record<string, unknown>): Record<string, unknown> {
   return base;
 }
 
+/** GET /api/market/poster/<id> — MINIATURE D'UNE FICHE MAILLAGE (2026-09-27).
+ *  La vitrine chargeait le maillage ENTIER (35 Mo, texture 8K) dans chaque carte,
+ *  sans image d'attente : carte noire pendant le chargement, ou pour de bon si la
+ *  carte graphique sature. La miniature du maillage existe deja
+ *  (<auteur>/thumb/<maillage>.png) : elle sert d'apercu, pour les fiches
+ *  gratuites comme payantes (ce n'est pas le produit vendu). */
+async function handleMarketPoster(env: Env, id: string): Promise<Response> {
+  if (!env.MESHES) return err(404, 'not found');
+  const l = (await _loadAllListings(env)).find((x) => x.id === id);
+  if (!l || l.asset_kind === 'image') return err(404, 'not found');
+  const maillage = l.job_id || (String(l.mesh_url || '').match(/(modal_[A-Za-z0-9]+)\.glb/) || [])[1] || '';
+  if (!/^modal_[A-Za-z0-9]+$/.test(maillage)) return err(404, 'no thumbnail');
+  for (const ext of ['png', 'webp', 'jpg']) {
+    const o = await env.MESHES.get(`${l.user_id}/thumb/${maillage}.${ext}`);
+    if (o) {
+      return new Response(o.body, { headers: {
+        'content-type': o.httpMetadata?.contentType || (ext === 'jpg' ? 'image/jpeg' : `image/${ext}`),
+        'cache-control': 'public, max-age=3600',
+      } });
+    }
+  }
+  return err(404, 'no thumbnail');
+}
+
 async function handleMarketList(_req: Request, env: Env): Promise<Response> {
   const all = await _loadAllListings(env);
   // One bulk pass over _market/ratings/ so we don't N+1 per listing.
@@ -19629,6 +19653,10 @@ export default {
         {
           const m = pathname.match(/^\/api\/market\/download\/([A-Za-z0-9_]+)$/);
           if (m && method === 'GET') return await handleMarketDownload(req, env, m[1]);
+        }
+        {
+          const m = pathname.match(/^\/api\/market\/poster\/([A-Za-z0-9_]+)$/);
+          if (m && method === 'GET') return await handleMarketPoster(env, m[1]);
         }
         // Rate a listing — must come BEFORE the bare /api/market/<id> regex
         // so the trailing /rate segment isn't swallowed.

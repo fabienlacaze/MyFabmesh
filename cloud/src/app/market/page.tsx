@@ -732,32 +732,21 @@ function MarketPageInner() {
                 {kind === 'image' ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={url} alt={l.title} style={{ width: '100%', height: 200, objectFit: 'cover', background: '#0a0a0e', display: 'block' }} />
-                ) : !mounted || !url ? (
-                  /* CARRE NOIR -> APERCU EXPLIQUE.
-                   *
-                   * Depuis que la vitrine ne publie plus l'URL des fiches
-                   * PAYANTES (le fichier etait telechargeable sans achat),
-                   * `url` est absent pour celles-ci et cette branche affichait
-                   * un rectangle noir muet. Le paywall est juste ; l'ecran, lui,
-                   * laissait croire a une fiche cassee.
-                   *
-                   * On dit ce qu'il en est : le modele est visible apres
-                   * l'achat. Les fiches GRATUITES gardent leur apercu 3D. */
-                  <div style={{
-                    width: '100%', height: 200, background: '#0a0a0e',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    justifyContent: 'center', gap: 6, color: 'var(--text-2)',
-                  }}>
-                    <div style={{ fontSize: 30, opacity: 0.5 }}>🔒</div>
-                    <div style={{ fontSize: 12, textAlign: 'center', padding: '0 12px' }}>
-                      {l.price_cents > 0
-                        ? 'Aperçu 3D disponible après achat'
-                        : 'Aperçu indisponible'}
-                    </div>
-                  </div>
                 ) : (
-                  // @ts-expect-error model-viewer is a custom element
-                  <model-viewer src={url} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 200, background: '#0a0a0e' }} />
+                  /* MINIATURE (2026-09-27) : la carte chargeait le maillage complet
+                   * (35 Mo, texture 8K) et restait noire. La miniature s'affiche
+                   * tout de suite ; la 3D se charge dans la fiche. */
+                  <div style={{ position: 'relative', width: '100%', height: 200, background: '#0a0a0e' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/api/market/poster/${l.id}`} alt={l.title}
+                         style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                    {l.price_cents > 0 && (
+                      <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.65)', color: 'var(--text-1)' }}>
+                        🔒 Aperçu 3D après achat
+                      </div>
+                    )}
+                  </div>
                 )}
                 <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -907,10 +896,12 @@ function MarketPageInner() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={url} alt={selected.title} style={{ width: '100%', maxHeight: 480, objectFit: 'contain', background: '#0a0a0e', borderRadius: 8 }} />
               ) : !mounted || !url ? (
-                <div style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8 }} />
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`/api/market/poster/${selected.id}`} alt={selected.title}
+                     style={{ width: '100%', height: 420, objectFit: 'contain', background: '#0a0a0e', borderRadius: 8 }} />
               ) : (
                 // @ts-expect-error model-viewer is a custom element
-                <model-viewer src={url} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8 }} />
+                <model-viewer src={url} poster={`/api/market/poster/${selected.id}`} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8 }} />
               );
             })()}
             {selected.description && (
