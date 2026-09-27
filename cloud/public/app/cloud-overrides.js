@@ -21,6 +21,14 @@
 // texture a plat -> plaques aux bords droits ; voir OPTIONS_SANS_EFFET_CLOUD
 // dans le worker, qui les ignore et ne les facture plus).
 window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-fix']);
+/* « Fast (Turbo) » RETIRE DU WEB (2026-09-27, user : « c'est fonctionnel ca ? »).
+ * Non : l'accelerateur 4 pas ne se charge pas sur Modal (« PEFT backend is
+ * required », a chaque demarrage) ; le choix donnait une generation normale,
+ * ou une image ratee a 4 pas. Il reviendra quand il fonctionnera. */
+(function _retirerTurbo() {
+  const f = () => document.querySelector('#ws-engine option[value="local-lightning"]')?.remove();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f); else f();
+})();
 
 /**
  * Cloud-only overrides for the desktop renderer UI.
@@ -1358,6 +1366,42 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         const pBack = typeof prices.back_view === 'number' ? prices.back_view : 0;
         const total = nImg * pImg + (avecDos ? nImg * pBack : 0);
         cible.textContent = String(total);
+        // PASTILLES PAR OPTION (2026-09-27, user : « je veux voir les
+        // pastilles de credits ») : meme vignette que les options 3D, en bout
+        // de ligne. Quality = prix d'UNE image a ce nombre de pas ; Count et
+        // Construction stages = ce que coutent les images demandees.
+        const pastille = (id, apres, valeur, aide) => {
+          let b = document.getElementById(id);
+          if (!b && apres) {
+            b = document.createElement('span');
+            b.id = id;
+            b.className = 'cloud-cost-badge opt-cost';
+            apres.insertAdjacentElement('afterend', b);
+          }
+          if (!b) return;
+          b.textContent = String(valeur);
+          b.title = aide;
+          b.style.display = valeur > 0 ? '' : 'none';
+        };
+        pastille('ws-quality-cost', document.getElementById('ws-quality-val'), pImg,
+                 `${pImg} credit(s) per image at ${pas} steps`);
+        pastille('ws-count-cost', document.getElementById('ws-count'), etapes ? 0 : n * pImg,
+                 `${n} image(s) x ${pImg}`);
+        const labEtapes = document.getElementById('ws-img-buildstages')?.closest('label');
+        if (labEtapes) {
+          labEtapes.style.display = 'flex';
+          labEtapes.style.alignItems = 'center';
+          labEtapes.style.gap = '6px';
+          labEtapes.style.width = '100%';
+          let bs = labEtapes.querySelector(':scope > .opt-cost');
+          if (!bs) {
+            bs = document.createElement('span');
+            bs.className = 'cloud-cost-badge opt-cost';
+            labEtapes.appendChild(bs);
+          }
+          bs.textContent = String(3 * pImg);
+          bs.title = `3 images x ${pImg}`;
+        }
         // Le detail evite la question « pourquoi 16 alors que l'image
         // est a 2 ? » : on montre la composition.
         const pill = cible.closest('[class*="cost"]') || cible.parentElement;
@@ -1565,6 +1609,28 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         if (id === 'ws-trellis2-quality-plus' && _ultraQ) continue;
         if (el?.checked) total += parseInt(el.dataset.credits || '0', 10);
       }
+      // Construction stages (3 versions) : l'outil 3D construction stages part
+      // apres la generation, a son propre tarif (2026-09-27).
+      const chantier = document.getElementById('ws-3d-buildstages');
+      const prixChantier = typeof window.__LIVE_PRICES?.construction3d === 'number'
+        ? window.__LIVE_PRICES.construction3d : 2;
+      const chantierVisible = chantier && chantier.closest('.form-row')?.style.display !== 'none';
+      if (chantier?.checked && chantierVisible) total += prixChantier;
+      const labChantier = chantier?.closest('label');
+      if (labChantier) {
+        labChantier.style.display = 'flex';
+        labChantier.style.alignItems = 'center';
+        labChantier.style.gap = '6px';
+        labChantier.style.width = '100%';
+        let vc = labChantier.querySelector(':scope > .opt-cost');
+        if (!vc) {
+          vc = document.createElement('span');
+          vc.className = 'cloud-cost-badge opt-cost';
+          labChantier.appendChild(vc);
+        }
+        vc.textContent = String(prixChantier);
+        vc.title = `3D construction stages, run right after the mesh: ${prixChantier} credit(s)`;
+      }
       // Supplement « Max triangles » : meme regle que creditCost (worker).
       const trisSel = document.getElementById('ws-trellis2-tris');
       if (trisSel) {
@@ -1624,6 +1690,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     }
 
     preset.addEventListener('change', recompute);
+    document.getElementById('ws-3d-buildstages')?.addEventListener('change', recompute);
     document.getElementById('ws-trellis2-tris')?.addEventListener('change', recompute);
     document.getElementById('ws-trellis2-tris-custom')?.addEventListener('input', recompute);
     for (const id of optionIds) {

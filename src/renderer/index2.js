@@ -4553,6 +4553,29 @@ document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
   if (autoRow) autoRow.style.display = manual ? 'none' : '';
   if (manualRows) { manualRows.classList.toggle('hidden', !manual); manualRows.style.display = manual ? 'grid' : 'none'; }
 });
+/* ETAPES DE CONSTRUCTION DEMANDEES A LA GENERATION (2026-09-27, user : « ca
+ * ne change pas le prix », case « Construction stages (3 versions) » de Create
+ * new). La case ne faisait RIEN : aucun code ne la lisait apres la generation,
+ * elle ne faisait qu'allonger l'estimation de duree. Elle lance maintenant
+ * l'outil « 3D construction stages » (3 etapes, materiaux en automatique) sur
+ * le maillage qui vient d'etre livre, facture a son propre tarif. Rien n'est
+ * lance si l'utilisateur a change de projet entre-temps : l'outil agit sur le
+ * maillage AFFICHE, ce serait celui d'un autre projet. */
+function _chantierApresGeneration(p, meshPath) {
+  const cur = state.currentProject;
+  const mp = meshPath || (cur && cur.meshes && cur.meshes[0] && cur.meshes[0].path) || null;
+  if (!cur || !p || cur.name !== p.name || !mp) {
+    showToast(_i18nT('Construction stages were not started: open the project, select the mesh and use "3D construction stages".'), 'error', 7000);
+    return;
+  }
+  cur.previewMeshPath = mp;
+  const nb = document.getElementById('bs3d-count');
+  if (nb) { nb.value = '3'; nb.dispatchEvent(new Event('input')); }
+  const mode = document.getElementById('bs3d-mat-mode');
+  if (mode && mode.value !== 'auto') { mode.value = 'auto'; mode.dispatchEvent(new Event('change')); }
+  document.getElementById('bs3d-start')?.click();
+}
+
 document.getElementById('bs3d-start')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
   const p = state.currentProject;
@@ -10344,7 +10367,8 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   } else {
     expectedMs = 60000;
   }
-  if (buildStages) expectedMs *= 2.5;
+  // (les etapes de construction partent APRES, en travail separe : la
+  // generation elle-meme ne dure pas plus longtemps)
   // TRELLIS-2 texture options.
   const trellis2Preset = document.getElementById('ws-trellis2-preset')?.value || 'fast';
   // Triangles max : valeur du menu, ou saisie « Custom » bornee 5 000 - 10 000 000.
@@ -10462,6 +10486,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
         }
         completeJob(job.id, true);
         await reloadCurrentProject();
+        if (buildStages) _chantierApresGeneration(p, r.meshPath || null);
       } else {
         completeJob(job.id, false, r?.error || 'unknown');
         if (!job.cancelled) reportPipelineError(r?.error, '3D generation failed');

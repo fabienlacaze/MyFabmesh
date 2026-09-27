@@ -23778,3 +23778,18 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Web : la vignette d'un rig (et d'une animation) venait de la vignette du PROJET, donc de
   la derniere image ajoutee (un martin-pecheur glisse dans « Red river hog »). Desormais :
   la sienne, celle de son maillage, puis l'image source de ce maillage.
+
+## 2026-09-27 — Pastilles de prix (images, etapes 3D), Turbo retire du web, case « Construction stages » 3D branchee
+
+- Pastille du bouton Generate (images) : relue a chaque calcul (le bouton reecrit la recreait).
+  Pastilles par option : Quality (prix d'une image a ce nombre de pas), Count, Construction
+  stages (3 images).
+- « Fast (Turbo) » : ne fonctionne PAS sur le web — journaux Modal a chaque demarrage :
+  « lightning adapter skipped: PEFT backend is required ». Retire du menu web ; le worker ne
+  force plus 4 pas (4 pas sans l'accelerateur = image ratee, facturee 1). Pour le reactiver :
+  ajouter `peft` (0.13.x, compatible diffusers 0.31 / transformers 4.45) a l'image du seul
+  MyFabmeshPredictor — ne pas toucher l'image du Backview (snapshot, pipelines IP-Adapter).
+- Case « Construction stages (3 versions) » de Create new (3D) : ne faisait RIEN (aucun code ne
+  la lisait apres la generation, elle ne faisait qu'allonger l'estimation x2,5). Elle lance
+  maintenant l'outil 3D construction stages (3 etapes, materiaux auto) sur le maillage livre,
+  a son tarif (construction3d), affiche en pastille et dans le total. Web + bureau.

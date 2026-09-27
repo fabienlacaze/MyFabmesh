@@ -10354,7 +10354,10 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   }
   const n = Math.max(1, Math.min(4, numImages ?? 1));
   // borne aussi ce qui part au calcul : 500 pas se payaient au prix de 30
-  const pas = turbo ? 4 : Math.max(10, Math.min(60, Math.round(Number(steps) || 30)));
+  // Turbo ne force plus 4 pas : l'accelerateur ne se charge pas sur Modal
+  // (PEFT absent) et 4 pas SANS lui donnent une image ratee. Modal passe
+  // lui-meme a 4 pas le jour ou l'accelerateur est reellement charge.
+  const pas = Math.max(10, Math.min(60, Math.round(Number(steps) || 30)));
   const COST_PER_IMAGE = _prixImageSelonPas(await getPrice(env, 'text2image'), pas);
   const cost = n * COST_PER_IMAGE;
 
