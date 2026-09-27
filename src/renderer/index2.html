@@ -2234,41 +2234,36 @@
           </div>
         </div>
 
-        <!-- ═══ AI ASSISTANT ═══ -->
-        <div class="settings-section-header">Assistant</div>
+        <!-- ═══ PARENTAL CONTROL ═══ -->
+        <div class="settings-section-header">Parental Control</div>
         <div class="settings-box">
-          <div class="settings-box-title">Claude Desktop</div>
-          <div class="settings-box-desc">Let Claude generate batches of assets for you via text commands.</div>
-          <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
-            <button id="set-claude-connect" class="ghost-btn" style="flex:1; padding:6px 12px;">&#129302; Connect to Claude Desktop</button>
-            <button id="set-claude-disconnect" class="ghost-btn danger" style="flex:1; padding:6px 12px; display:none;">Disconnect</button>
-            <span id="set-claude-status" class="settings-status-dot"></span>
-          </div>
-          <div class="settings-box-footer">
-            Free &middot; <a href="https://claude.ai/download" target="_blank" rel="noopener">claude.ai/download</a>
+          <div class="settings-box-title">Content Filter</div>
+          <div class="settings-box-desc">Blocks NSFW, violent, and illegal content in prompts. Disable with a PIN code for unrestricted adult use.</div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+            <span id="parental-status" style="font-size:12px; font-weight:700;"></span>
+            <span style="flex:1;"></span>
+            <button id="parental-toggle" class="ghost-btn" style="padding:4px 12px; font-size:11px;"></button>
           </div>
         </div>
 
-        <div class="settings-box" id="set-control-api-box" style="margin-top:10px;">
-          <div class="settings-box-title">
-            <span id="set-api-dot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#666; margin-right:6px; vertical-align:middle;"></span>
-            <span id="set-api-status">Control API · checking...</span>
+        <!-- ═══ PRIVACY ═══ -->
+        <!-- La politique de confidentialite publiee promet ce reglage
+             depuis le premier jour ; il n'existait nulle part avant le
+             2026-08-20. Voir crashReportsDisabled() dans main.js. -->
+        <div class="settings-section-header">Privacy</div>
+        <div class="settings-box">
+          <div class="settings-box-title">Crash reports</div>
+          <div class="settings-box-desc" id="set-crash-desc">When the app hits an unexpected error, an anonymous report is sent to our error tracker (Sentry): the stack trace, the app version, the Windows version, and a random installation id. Your Windows username and machine name are removed first. No prompt, image or mesh is ever included.</div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:9px; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-size:12px;">
+              <input type="checkbox" id="set-crash-optin" checked style="width:15px; height:15px; cursor:pointer;">
+              <span>Send anonymous crash reports</span>
+            </label>
+            <span style="flex:1;"></span>
+            <span id="set-crash-hint" style="font-size:11px; color:var(--text-2);"></span>
           </div>
-          <div class="settings-box-desc" id="set-api-detail" style="font-size:11px; color:var(--text-2);">
-            Local HTTP control plane on 127.0.0.1:7331. Drive MyFabmesh.AI from scripts (Claude Code, batch generators, CI...).
-          </div>
-          <div style="display:flex; gap:6px; align-items:center; margin-top:6px; font-size:11px;">
-            <span class="settings-field-label" style="min-width:50px;">Token</span>
-            <input id="set-api-token" type="text" readonly style="flex:1; background:var(--bg-0); border:1px solid var(--border); color:var(--text-2); border-radius:4px; padding:3px 6px; font-size:11px; font-family:monospace;">
-            <button id="set-api-copy-token" class="ghost-btn" style="padding:3px 8px; font-size:11px;">&#128203; Copy</button>
-          </div>
-          <div id="set-api-traffic" style="margin-top:8px; font-size:11px; color:var(--text-2);"></div>
-          <details style="margin-top:6px;">
-            <summary style="cursor:pointer; font-size:10px; color:var(--text-3);">Recent requests</summary>
-            <pre id="set-api-recent" style="margin:4px 0 0 0; padding:6px 8px; background:#000; border-radius:4px; font-size:10px; max-height:140px; overflow:auto; color:#9bbac8; line-height:1.35;"></pre>
-          </details>
-          <div class="settings-box-footer">
-            Free &middot; local &middot; <a href="FABMESH_API.md" id="set-api-docs">FABMESH_API.md</a>
+          <div style="margin-top:8px;">
+            <a href="#" id="set-privacy-link" style="font-size:11px;">Read the privacy policy</a>
           </div>
         </div>
 
@@ -2323,36 +2318,41 @@
           <div class="settings-box-hint">Drag markers to set limits. Jobs queue until all limits are met.</div>
         </div>
 
-        <!-- ═══ PARENTAL CONTROL ═══ -->
-        <div class="settings-section-header">Parental Control</div>
+        <!-- ═══ AI ASSISTANT ═══ -->
+        <div class="settings-section-header">Assistant</div>
         <div class="settings-box">
-          <div class="settings-box-title">Content Filter</div>
-          <div class="settings-box-desc">Blocks NSFW, violent, and illegal content in prompts. Disable with a PIN code for unrestricted adult use.</div>
-          <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-            <span id="parental-status" style="font-size:12px; font-weight:700;"></span>
-            <span style="flex:1;"></span>
-            <button id="parental-toggle" class="ghost-btn" style="padding:4px 12px; font-size:11px;"></button>
+          <div class="settings-box-title">Claude Desktop</div>
+          <div class="settings-box-desc">Let Claude generate batches of assets for you via text commands.</div>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+            <button id="set-claude-connect" class="ghost-btn" style="flex:1; padding:6px 12px;">&#129302; Connect to Claude Desktop</button>
+            <button id="set-claude-disconnect" class="ghost-btn danger" style="flex:1; padding:6px 12px; display:none;">Disconnect</button>
+            <span id="set-claude-status" class="settings-status-dot"></span>
+          </div>
+          <div class="settings-box-footer">
+            Free &middot; <a href="https://claude.ai/download" target="_blank" rel="noopener">claude.ai/download</a>
           </div>
         </div>
 
-        <!-- ═══ PRIVACY ═══ -->
-        <!-- La politique de confidentialite publiee promet ce reglage
-             depuis le premier jour ; il n'existait nulle part avant le
-             2026-08-20. Voir crashReportsDisabled() dans main.js. -->
-        <div class="settings-section-header">Privacy</div>
-        <div class="settings-box">
-          <div class="settings-box-title">Crash reports</div>
-          <div class="settings-box-desc" id="set-crash-desc">When the app hits an unexpected error, an anonymous report is sent to our error tracker (Sentry): the stack trace, the app version, the Windows version, and a random installation id. Your Windows username and machine name are removed first. No prompt, image or mesh is ever included.</div>
-          <div style="display:flex; align-items:center; gap:10px; margin-top:9px; flex-wrap:wrap;">
-            <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-size:12px;">
-              <input type="checkbox" id="set-crash-optin" checked style="width:15px; height:15px; cursor:pointer;">
-              <span>Send anonymous crash reports</span>
-            </label>
-            <span style="flex:1;"></span>
-            <span id="set-crash-hint" style="font-size:11px; color:var(--text-2);"></span>
+        <div class="settings-box" id="set-control-api-box" style="margin-top:10px;">
+          <div class="settings-box-title">
+            <span id="set-api-dot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#666; margin-right:6px; vertical-align:middle;"></span>
+            <span id="set-api-status">Control API · checking...</span>
           </div>
-          <div style="margin-top:8px;">
-            <a href="#" id="set-privacy-link" style="font-size:11px;">Read the privacy policy</a>
+          <div class="settings-box-desc" id="set-api-detail" style="font-size:11px; color:var(--text-2);">
+            Local HTTP control plane on 127.0.0.1:7331. Drive MyFabmesh.AI from scripts (Claude Code, batch generators, CI...).
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; margin-top:6px; font-size:11px;">
+            <span class="settings-field-label" style="min-width:50px;">Token</span>
+            <input id="set-api-token" type="text" readonly style="flex:1; background:var(--bg-0); border:1px solid var(--border); color:var(--text-2); border-radius:4px; padding:3px 6px; font-size:11px; font-family:monospace;">
+            <button id="set-api-copy-token" class="ghost-btn" style="padding:3px 8px; font-size:11px;">&#128203; Copy</button>
+          </div>
+          <div id="set-api-traffic" style="margin-top:8px; font-size:11px; color:var(--text-2);"></div>
+          <details style="margin-top:6px;">
+            <summary style="cursor:pointer; font-size:10px; color:var(--text-3);">Recent requests</summary>
+            <pre id="set-api-recent" style="margin:4px 0 0 0; padding:6px 8px; background:#000; border-radius:4px; font-size:10px; max-height:140px; overflow:auto; color:#9bbac8; line-height:1.35;"></pre>
+          </details>
+          <div class="settings-box-footer">
+            Free &middot; local &middot; <a href="FABMESH_API.md" id="set-api-docs">FABMESH_API.md</a>
           </div>
         </div>
 
@@ -2376,9 +2376,15 @@
           </div>
         </div>
 
-        <button id="set-open-logs" class="ghost-btn" style="width:100%; padding:6px 8px; font-size:11px; margin-top:8px;">&#128193; Open logs folder</button>
-        <button id="set-live-logs" class="ghost-btn" style="width:100%; padding:6px 8px; font-size:11px; margin-top:6px;">&#128269; Live logs viewer</button>
-        <button id="set-export-logs" class="ghost-btn" style="width:100%; padding:6px 8px; font-size:11px; margin-top:6px;" title="Bundle all logs into one text file on your Desktop, to send for support">&#128203; Export logs to a file (for support)</button>
+        <div class="settings-box" style="margin-top:10px;">
+          <div class="settings-box-title">Logs</div>
+          <div class="settings-box-desc">For support: open, watch or export the app logs.</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+            <button id="set-open-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:11px; ">&#128193; Open logs folder</button>
+            <button id="set-live-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:11px; ">&#128269; Live logs viewer</button>
+            <button id="set-export-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:11px; " title="Bundle all logs into one text file on your Desktop, to send for support">&#128203; Export logs to a file (for support)</button>
+          </div>
+        </div>
 
         <!-- ═══ INSTALLATION ═══ -->
         <div class="settings-section-header">Installation</div>

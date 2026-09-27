@@ -21,6 +21,8 @@
   const I18N = {
     fr: {
       // ---- Libelles du 27/09/2026 (audit 1.0.36 : sans traduction ecrite) ----
+      "Logs": "Journaux",
+      "For support: open, watch or export the app logs.": "Pour l'assistance : ouvrir, suivre ou exporter les journaux de l'appli.",
       "Usage history": "Historique",
       "Every job, its cost and its result": "Chaque tâche, son coût et son résultat",
       "+ Top up": "+ Recharger",
