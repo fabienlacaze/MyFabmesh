@@ -2496,6 +2496,33 @@ function _neutraliserOptionsSansEffet(i: GenerateInput): GenerateInput {
   return i;
 }
 
+/** DUREE MAXIMALE D'UNE GENERATION, SELON SES REGLAGES (2026-09-27, user :
+ *  « que la limite s'adapte aux settings pour qu'elle serve en cas de
+ *  plantage »). Estimation a partir des mesures de la nuit : ~10 min de base
+ *  a froid (rectification + chargement + inference 1024), grille 1536 +5 min,
+ *  +1 min par million de triangles au-dela de 500 K (cuisson : 7,6 M = 11,6
+ *  min, 10 M en 1536 = 18,75 min), Detail refine +5 min, Face fix +7 min
+ *  (modeles telecharges a froid), 32 pas +2 min, Ultra HD +5 min. Delai =
+ *  3 x l'estimation, borne entre 40 et 110 min (voir le calcul). Au-dela :
+ *  calcul presume bloque -> arret chez Modal, echec, remboursement. */
+function _delaiMaxGenerationS(input: GenerateInput, mode1536: boolean): number {
+  let s = 600;
+  if (mode1536) s += 300;
+  const tris = input.max_tris ?? 500_000;
+  if (tris > 500_000) s += Math.round((tris - 500_000) / 1_000_000 * 60);
+  if (input.refine) s += 300;
+  if (input.face_fix) s += 420;
+  if (input.preset === 'quality' || input.preset === 'ultra_8k') s += 120;
+  if (input.ultra_hd || input.preset === 'ultra_8k') s += 300;
+  // LARGE A DESSEIN (user : « il ne faut pas que la limite devienne une source
+  // d'erreur »). Les vrais plantages (exception, calcul tue) remontent AUSSITOT
+  // par /mesh_status ; ce delai ne sert qu'a un calcul qui tournerait sans fin.
+  // 3 x l'estimation, 40 min minimum (plus long travail normal mesure : 25 min),
+  // 110 min maximum — sous le plafond Modal de 2 h, qui ne coupe donc jamais
+  // le premier.
+  return Math.max(2400, Math.min(6600, s * 3));
+}
+
 /** Plafond du choix « Max triangles » (« Max » = le maillage brut du moteur).
  *  Mesure du 2026-09-27 : 7,6 M faces brutes en mode 1024 (GLB 324 Mo) ;
  *  10 M laisse passer le mode 1536. Les tranches NON livrees sont rendues a
@@ -7173,6 +7200,9 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         } : {}),
         backend: 'modal',
         operation_type: 'mesh',
+        // Duree maximale adaptee aux reglages (sondage client + faucheur).
+        delai_max_s: _delaiMaxGenerationS(input,
+          !!(input.ultra_q || (input.max_tris ?? 0) > 5_000_000)),
         // Same value the budget guard just charged (preset-aware).
         cost_usd: ESTIMATED_USD_MESH,
         // 2026-06-01: store the source image URL so handleListMeshes
@@ -7379,6 +7409,18 @@ async function handleJob(req: Request, env: Env, id: string): Promise<Response> 
     if (job.status === 'canceled' || job.status === 'failed') {
       return json({ status: job.status as string,
                     error: (job.error as string) || 'cancelled' });
+    }
+    // DELAI ADAPTE DEPASSE : plantage presume. On arrete le calcul chez Modal
+    // (il cesse de couter) puis on echoue et rembourse.
+    {
+      const delai = Number((job.options as Record<string, unknown> | null)?.delai_max_s || 0);
+      const age = (Date.now() - new Date(String(job.created_at)).getTime()) / 1000;
+      if (delai > 0 && age > delai) {
+        await _annulerCalculMaillage(env, id);
+        const msg = `Generation stopped: no result after ${Math.round(delai / 60)} min (maximum for these settings).`;
+        await _failAndRefundJob(env, job, msg);
+        return json({ status: 'failed', error: msg });
+      }
     }
     try {
       const status = await callModalMeshStatus(env, id);
@@ -9880,6 +9922,21 @@ async function _rembourserTrianglesNonLivres(env: Env, job: Record<string, unkno
     console.log(`[tris] ${job.id} : ${faces} faces livrees pour ${demande} demandees -> ${aRendre} credit(s) rendu(s)`);
   } catch (e) {
     console.warn('[tris] remboursement impossible :', e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** Arrete le calcul Modal d'un maillage (meme appel que l'annulation par
+ *  l'utilisateur). Au mieux : une erreur n'empeche pas l'echec cote base. */
+async function _annulerCalculMaillage(env: Env, jobId: string): Promise<void> {
+  if (!env.MODAL_MESH_START_URL || !env.MODAL_SHARED_SECRET) return;
+  try {
+    await fetch(env.MODAL_MESH_START_URL, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, op_type: 'cancel', job_id: jobId }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (e) {
+    console.warn('[delai] annulation Modal impossible :', e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -18954,7 +19011,18 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
             }
           }
         }
-        else if (age > GRACE_MS) claimed = await _failAndRefundJob(env, job, `reaped: no result after ${GRACE_LABEL}`);
+        else {
+          /* DELAI ADAPTE AUX REGLAGES (2026-09-27). Les 20 min fixes tuaient
+           * une generation lourde (10 M triangles, grille 1536, Face fix :
+           * ~35 min) qui calculait normalement. Les lignes anciennes, sans
+           * `delai_max_s`, gardent les 20 min. */
+          const delaiMs = Number((job.options as Record<string, unknown> | null)?.delai_max_s || 0) * 1000 || GRACE_MS;
+          if (age > delaiMs) {
+            await _annulerCalculMaillage(env, id);
+            claimed = await _failAndRefundJob(env, job,
+              `reaped: no result after ${Math.round(delaiMs / 60000)} min (maximum for these settings)`);
+          }
+        }
         if (claimed) {
           out.reaped++; out.credits_refunded += creditCost;
           // Give the GPU budget back too — the old reaper never did.
