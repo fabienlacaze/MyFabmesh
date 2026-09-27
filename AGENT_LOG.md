@@ -23877,3 +23877,16 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   modifiable (guerrier + araignee), Animation beta, Marketplace ; FAQ RGPD (UE Francfort,
   30 jours, suppression du compte) et protection des mineurs (filtre par defaut, code PIN
   adulte, signalement).
+
+## 2026-09-27 — Site : etapes comme l'appli + visionneuses 3D ; visionneuse d'outils ; marketplace en euros
+
+- Site (docs/, non publie) : « How it works » = les 4 etapes de l'appli (icones et couleurs),
+  araignee de bout en bout ; etape 1 = photo zoomable ; etapes 2-4 = vraies visionneuses 3D
+  three.js (maillage, rig avec os, animation « idle ») chargees a l'arrivee a l'ecran.
+  Modeles allegés par gltf-transform (~400 K triangles, textures 2048 WebP, meshopt) :
+  docs/modeles/araignee-*.glb (4,2 a 4,9 Mo). Mention « reduit a ~400 000 triangles ».
+- « An editor at every step » : une seule visionneuse qui defile en boucle (6 pages : outils
+  image, outils 3D, reglages auto, rig humain, rig araignee, animation), zoom au survol,
+  outils IA / semi-manuels distingues.
+- Marketplace (web) : la fenetre de publication envoyait `currency: 'USD'` (« Price (USD) »)
+  alors que le serveur n'accepte que l'euro -> HTTP 400 a chaque publication payante.

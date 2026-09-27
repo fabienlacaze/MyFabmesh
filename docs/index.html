@@ -71,9 +71,15 @@
   .etape img { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; border-bottom: 1px solid var(--border); }
   .etape div { padding: 16px; }
   .etape h3 { font-size: 17px; margin-bottom: 6px; }
-  .etape h3::before { counter-increment: e; content: counter(e); display: inline-grid; place-items: center;
-                      width: 24px; height: 24px; margin-right: 8px; border-radius: 50%; font-size: 13px;
-                      background: var(--grad); vertical-align: 2px; }
+  .etape h3 { display: flex; align-items: center; gap: 10px; }
+  .icone-etape { position: relative; flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px;
+                 border-radius: 50%; border: 2px solid var(--cat); color: var(--cat);
+                 background: color-mix(in srgb, var(--cat) 14%, var(--bg-1)); }
+  .icone-etape svg { width: 18px; height: 18px; }
+  .icone-etape b { position: absolute; right: -6px; bottom: -5px; min-width: 15px; height: 15px; padding: 0 3px;
+                   border-radius: 8px; font-size: 9px; line-height: 15px; text-align: center; color: #fff;
+                   background: var(--cat); box-shadow: 0 0 0 2px var(--bg-1); }
+  .etape { border-top: 3px solid var(--cat, var(--border)); }
   .etape p { font-size: 14px; color: var(--text-1); }
 
   /* editions */
@@ -115,6 +121,16 @@
   .puces { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; }
   .puces li { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--bg-2);
               border: 1px solid var(--border); color: var(--text-1); }
+  .puces li.ia { color: var(--text-0); border-color: transparent;
+                 background: linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--grad) border-box; }
+  .puces li.ia::before { content: 'AI'; font-size: 10px; font-weight: 800; margin-right: 6px;
+                         background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .legende-outils { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px;
+                    color: var(--text-2); margin: -18px 0 8px; }
+  .puce-ia, .puce-main { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+  .puce-ia { border: 1px solid transparent; color: var(--text-0);
+             background: linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--grad) border-box; }
+  .puce-main { border: 1px solid var(--border); background: var(--bg-2); color: var(--text-1); }
   .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
   .duo figcaption { font-size: 13px; color: var(--text-2); margin-top: 6px; }
   .badge-beta { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; vertical-align: 6px;
@@ -125,6 +141,42 @@
     .ligne.inverse figure { order: 0; }
     .duo { grid-template-columns: 1fr; }
   }
+  /* visionneuse unique des outils : une page a la fois, en boucle */
+  .carrousel { position: relative; background: var(--bg-2); border: 1px solid var(--border);
+               border-radius: var(--radius); overflow: hidden; }
+  .diapo { display: none; grid-template-columns: 1.4fr 1fr; gap: 28px; align-items: center; padding: 22px; }
+  .diapo.active { display: grid; animation: fondu 0.5s ease; }
+  @keyframes fondu { from { opacity: 0.2; } to { opacity: 1; } }
+  .diapo-img { aspect-ratio: 16 / 11; display: grid; place-items: center; background: var(--bg-0);
+               border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .diapo-img img { width: 100%; height: 100%; object-fit: contain; }
+  .diapo .lieu { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+  .diapo h3 { font-size: 24px; margin: 4px 0 8px; }
+  .diapo p { color: var(--text-1); margin-bottom: 14px; }
+  .carrousel-nav { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 0 18px; }
+  .fleche { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-1);
+            color: var(--text-0); font-size: 22px; line-height: 1; cursor: pointer; }
+  .fleche:hover { border-color: var(--accent); }
+  .points { display: flex; gap: 8px; }
+  .points button { width: 9px; height: 9px; border-radius: 50%; border: 0; padding: 0; background: var(--border); cursor: pointer; }
+  .points button.actif { background: var(--accent); width: 22px; border-radius: 5px; }
+  .fleche:focus-visible, .points button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 860px) { .diapo.active { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { .diapo.active { animation: none; } }
+  /* etapes : photo zoomable, visionneuses 3D */
+  .etape .media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: #1c1c28;
+                  border-bottom: 1px solid var(--border); }
+  .etape .media img { width: 100%; height: 100%; object-fit: cover; border: 0; aspect-ratio: auto;
+                      transition: transform 0.35s ease; }
+  .media.zoom { cursor: zoom-in; }
+  .media.zoom:hover img, .diapo-img.zoom:hover img { transform: scale(1.8); }
+  .diapo-img.zoom { cursor: zoom-in; }
+  .diapo-img.zoom img { transition: transform 0.35s ease; }
+  .vue3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  .vue3d.pret img { visibility: hidden; }
+  .aide3d { position: absolute; right: 8px; bottom: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+            background: rgba(11, 11, 20, 0.75); color: var(--text-1); pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .media.zoom:hover img, .diapo-img.zoom:hover img { transform: none; } }
   @media (max-width: 860px) {
     .etapes { grid-template-columns: 1fr 1fr; }
     .editions { grid-template-columns: 1fr; }
@@ -170,96 +222,107 @@
   <section id="how">
     <div class="wrap">
       <h2>How it works</h2>
-      <p class="intro">Four steps, all in the same app. Every step can be redone or edited without starting over.</p>
+      <p class="intro">The same four steps as in the app. Each step opens in its own 2D or 3D viewer, where you edit the result directly, then redo only what you want.</p>
       <div class="etapes">
-        <article class="etape">
-          <img src="screenshots/v2/etape-image.jpg" alt="Image step with editing tools" loading="lazy">
-          <div><h3>Image</h3><p>Write a prompt or import a picture, then clean it up: remove the background, retouch, change the style.</p></div>
+        <article class="etape" style="--cat:#4a90e2">
+          <div class="media zoom"><img src="screenshots/v2/etape1-image.jpg" alt="A generated spider image" loading="lazy"></div>
+          <div>
+            <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.7"/><path d="M4.5 17.5l5-5 3.5 3.5 2.5-2.5 4 4"/></svg><b>1</b></span>Image</h3>
+            <p>Write a prompt or import a picture, then perfect it with the image tools.</p>
+          </div>
         </article>
-        <article class="etape">
-          <img src="screenshots/v2/etape-3d.jpg" alt="Textured 3D character" loading="lazy">
-          <div><h3>3D model</h3><p>One click turns the image into a textured mesh: up to 8K textures and 10 million triangles.</p></div>
+        <article class="etape" style="--cat:#c35ce0">
+          <div class="media vue3d" data-glb="modeles/araignee-maillage.glb" data-mode="mesh"><img src="screenshots/v2/etape2-3d.jpg" alt="The spider as a textured 3D model" loading="lazy"><span class="aide3d">Loading 3D…</span></div>
+          <div>
+            <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l8.2 4.6v9.2L12 21.2l-8.2-4.6V7.4z"/><path d="M12 12l8.2-4.6M12 12v9.2M12 12L3.8 7.4"/><path d="M8 5.1l8.1 4.6M16 5.1L7.9 9.7" stroke-opacity="0.45"/></svg><b>2</b></span>3D Mesh</h3>
+            <p>One click turns the image into a textured model: up to 8K textures and 10 million triangles.</p>
+          </div>
         </article>
-        <article class="etape">
-          <img src="screenshots/v2/etape-rig.jpg" alt="Skeleton editor on a character" loading="lazy">
-          <div><h3>Rig</h3><p>An automatic skeleton for people, animals and creatures. Move any point if you want it different.</p></div>
+        <article class="etape" style="--cat:#f08a24">
+          <div class="media vue3d" data-glb="modeles/araignee-rig.glb" data-mode="rig"><img src="screenshots/v2/etape3-rig.jpg" alt="The spider with its automatic skeleton" loading="lazy"><span class="aide3d">Loading 3D…</span></div>
+          <div>
+            <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.3" r="2.1"/><path d="M12 6.4v7.2M12 8.8l-4.3 3.1M12 8.8l4.3 3.1M12 13.6l-3.2 6.4M12 13.6l3.2 6.4"/><g fill="currentColor" stroke="none"><circle cx="7.7" cy="11.9" r="1.3"/><circle cx="16.3" cy="11.9" r="1.3"/><circle cx="12" cy="13.6" r="1.3"/><circle cx="8.8" cy="20" r="1.2"/><circle cx="15.2" cy="20" r="1.2"/></g></svg><b>3</b></span>Rig</h3>
+            <p>An automatic skeleton for any body, which you can adjust point by point.</p>
+          </div>
         </article>
-        <article class="etape">
-          <img src="screenshots/v2/etape-export.jpg" alt="Textured 3D building" loading="lazy">
-          <div><h3>Export</h3><p>GLB, FBX, OBJ or STL, with a ready-made preset for Unreal Engine.</p></div>
+        <article class="etape" style="--cat:#22c55e">
+          <div class="media vue3d" data-glb="modeles/araignee-animation.glb" data-mode="anim"><img src="screenshots/v2/etape4-animation.jpg" alt="The spider playing an idle animation" loading="lazy"><span class="aide3d">Loading 3D…</span></div>
+          <div>
+            <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="4.3" r="2.1"/><path d="M14 7.2l-2.3 5.2 3.2 3-1.3 5.6M11.7 12.4l-3.4 1.2M14 7.9l4.1 2.4M14.9 15.4l4.3 1.4"/><path d="M2.8 8.5h4.4M2 12.2h4.3M3.4 16h3.4" stroke-opacity="0.55"/></svg><b>4</b></span>Animation</h3>
+            <p>Add idle, walk, run or attack clips, then export to FBX or Unreal. In beta.</p>
+          </div>
         </article>
       </div>
+      <p class="note" style="margin-top:12px">Steps 2 to 4 are live 3D viewers: drag to rotate, scroll to zoom. The models are reduced to about 400,000 triangles here for smooth display; the app keeps and exports the full model.</p>
     </div>
   </section>
 
   <section id="tools" class="bandeau">
     <div class="wrap">
       <h2>An editor at every step</h2>
-      <p class="intro">Most generators stop at the result: if something is wrong, you start again. Here every step has its own tools, so you fix what you don't like and keep the rest.</p>
-
-      <div class="ligne">
-        <figure><img src="screenshots/v2/outils-image.jpg" alt="Image editing tools next to a generated spider" loading="lazy"></figure>
-        <div>
-          <h3>Image tools</h3>
-          <p>Prepare the perfect reference before building the 3D model.</p>
-          <ul class="puces">
-            <li>Modify</li><li>Auto inpaint</li><li>Remove background</li><li>Upscale</li><li>Style</li>
-            <li>Face fix</li><li>Outfits</li><li>Recolor</li><li>Age</li><li>Auto symmetry</li>
-            <li>Multi-views</li><li>Variants</li><li>Clone stamp</li><li>Mask</li><li>Crop</li>
-          </ul>
+      <p class="intro">Most generators stop at the result: if something is wrong, you start again. Here you edit directly in the 2D and 3D viewers, with two kinds of tools: automatic AI tools, and semi-manual tools you control by hand.</p>
+      <p class="legende-outils"><span class="puce-ia">AI</span> automatic AI tool <span class="puce-main">Manual</span> semi-manual tool</p>
+      <div class="carrousel" id="carrousel" aria-roledescription="carousel" aria-label="The editing tools">
+        <figure class="diapo active" aria-roledescription="slide" aria-label="1 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/outils-image.jpg" alt="Image generated from a prompt, with the image tools next to it"></div>
+          <figcaption>
+            <span class="lieu">2D viewer</span>
+            <h3>Image tools</h3>
+            <p>Edit the picture right in the viewer: let the AI repaint, restyle or clean it, or retouch it yourself with the brush, mask and clone tools.</p>
+            <ul class="puces"><li class="ia">Modify</li><li class="ia">Auto inpaint</li><li class="ia">Remove background</li><li class="ia">Upscale</li><li class="ia">Style</li><li class="ia">Face fix</li><li class="ia">Outfits</li><li class="ia">Recolor</li><li class="ia">Age</li><li class="ia">Multi-views</li><li class="ia">Variants</li><li>Auto symmetry</li><li>Clone stamp</li><li>Mask</li><li>Crop</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="2 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/outils-3d.jpg" alt="Textured 3D spider with the 3D tools next to it" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">3D viewer</span>
+            <h3>3D tools</h3>
+            <p>Work on the model in the 3D viewer: AI re-texturing and part detection, automatic repairs, and hands-on sculpting, painting and cloning on the surface.</p>
+            <ul class="puces"><li class="ia">Texture variants</li><li class="ia">Sharpen texture</li><li class="ia">Re-texture</li><li class="ia">Re-texture a region</li><li class="ia">Segment parts</li><li>Smooth</li><li>Triangle count</li><li>Subdivide</li><li>Fix normals</li><li>Fill holes</li><li>Watertight</li><li>Pivot</li><li>Sculpt</li><li>Paint</li><li>3D clone stamp</li><li>Explode</li><li>Resize</li><li>Material adjust</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="3 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/reglages-3d.jpg" alt="3D creation settings with Auto settings enabled" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">Before generating</span>
+            <h3>Smart settings</h3>
+            <p>Auto settings picks the right quality, detail and triangle count for your subject. Prefer to decide? Every option stays available, with its price shown next to it.</p>
+            <ul class="puces"><li class="ia">Auto settings</li><li>Quality preset</li><li>Max triangles</li><li>Fine geometry</li><li>Texture smooth</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="4 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/etape-rig.jpg" alt="Skeleton editor on a warrior, front and side views" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">3D viewer</span>
+            <h3>Rig a character</h3>
+            <p>The skeleton is built automatically. Move any point in the front and side views, add or remove points, then rebuild the rig around your changes.</p>
+            <ul class="puces"><li class="ia">Automatic skeleton</li><li>Move points</li><li>Add or remove points</li><li>Relink bones</li><li>Undo / redo</li><li>Export to Unreal</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="5 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/rig-araignee.jpg" alt="Skeleton editor on an eight-legged spider" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">3D viewer</span>
+            <h3>Rig any creature</h3>
+            <p>Two legs, four, six or eight: the skeleton adapts to the body. Every point stays editable, whatever the species.</p>
+            <ul class="puces"><li>Humans</li><li>Animals</li><li>Insects</li><li>Creatures</li><li class="ia">Automatic skeleton</li><li>Relink bones</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="6 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/anim-lecture.jpg" alt="An idle animation playing on a spider" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">3D viewer · beta</span>
+            <h3>Animation</h3>
+            <p>Pick the clips you need and the rig comes to life. Each clip becomes a new version you can preview and export.</p>
+            <ul class="puces"><li class="ia">Clip generation</li><li>Idle</li><li>Walk</li><li>Run</li><li>Attack</li><li>Death</li><li>Fly</li><li>FBX export</li></ul>
+          </figcaption>
+        </figure>
+        <div class="carrousel-nav">
+          <button type="button" class="fleche" id="car-prec" aria-label="Previous">&#8249;</button>
+          <div class="points" id="car-points"></div>
+          <button type="button" class="fleche" id="car-suiv" aria-label="Next">&#8250;</button>
         </div>
       </div>
-
-      <div class="ligne inverse">
-        <figure><img src="screenshots/v2/outils-3d.jpg" alt="3D editing tools next to a textured spider model" loading="lazy"></figure>
-        <div>
-          <h3>3D tools</h3>
-          <p>Repair, reshape and repaint the model without leaving the app.</p>
-          <ul class="puces">
-            <li>Smooth</li><li>Triangle count</li><li>Subdivide</li><li>Fix normals</li><li>Fill holes</li>
-            <li>Watertight</li><li>Pivot</li><li>Texture variants</li><li>Sharpen texture</li><li>Re-texture</li>
-            <li>Re-texture a region</li><li>Segment parts</li><li>Sculpt</li><li>Paint</li><li>3D clone stamp</li>
-            <li>Explode</li><li>Resize</li><li>Material adjust</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="ligne">
-        <figure><img src="screenshots/v2/reglages-3d.jpg" alt="3D creation settings with Auto settings enabled" loading="lazy"></figure>
-        <div>
-          <h3>Smart settings</h3>
-          <p>Auto settings picks the right quality, detail and triangle count for your subject. Prefer to decide? Every option stays available, with its price shown next to it.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="rig">
-    <div class="wrap">
-      <h2>Rig any creature, then adjust it</h2>
-      <p class="intro">The skeleton adapts to the body: two legs, four, six or eight. Every point can be moved, added, removed or relinked, then the rig is rebuilt around your changes.</p>
-      <div class="duo">
-        <figure><img src="screenshots/v2/etape-rig.jpg" alt="Skeleton editor on a warrior" loading="lazy"><figcaption>Human character</figcaption></figure>
-        <figure><img src="screenshots/v2/rig-araignee.jpg" alt="Skeleton editor on a spider with eight legs" loading="lazy"><figcaption>Eight-legged spider</figcaption></figure>
-      </div>
-      <ul class="puces">
-        <li>Humans</li><li>Animals</li><li>Insects</li><li>Creatures</li><li>Move points</li>
-        <li>Add or remove points</li><li>Relink bones</li><li>Undo / redo</li><li>Export to Unreal</li>
-      </ul>
-    </div>
-  </section>
-
-  <section id="animation" class="bandeau">
-    <div class="wrap">
-      <h2>Animation <span class="badge-beta">BETA</span></h2>
-      <p class="intro">Pick the clips you need and the rig comes to life. Each clip becomes a new version you can preview and export.</p>
-      <div class="duo">
-        <figure><img src="screenshots/v2/anim-creer.jpg" alt="Choosing animation clips: idle, walk, run, attack, death, fly" loading="lazy"></figure>
-        <figure><img src="screenshots/v2/anim-lecture.jpg" alt="An idle animation playing on a spider" loading="lazy"></figure>
-      </div>
-      <ul class="puces">
-        <li>Idle</li><li>Walk</li><li>Run</li><li>Attack</li><li>Death</li><li>Fly</li><li>FBX export</li>
-      </ul>
     </div>
   </section>
 
@@ -359,6 +422,125 @@
   </div>
 </footer>
 
+<script>
+// Zoom qui suit le curseur (photo d'etape, pages du carrousel).
+document.querySelectorAll('.media.zoom, .diapo-img.zoom').forEach(function (z) {
+  z.addEventListener('mousemove', function (e) {
+    var r = z.getBoundingClientRect(), img = z.querySelector('img');
+    if (img) img.style.transformOrigin = ((e.clientX - r.left) / r.width * 100) + '% ' + ((e.clientY - r.top) / r.height * 100) + '%';
+  });
+});
+</script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+// Visionneuses 3D des etapes : maillage, rig (os visibles), animation.
+// Chargees seulement quand elles arrivent a l'ecran ; rendu arrete hors ecran.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+
+function monter(hote) {
+  const mode = hote.dataset.mode;
+  const aide = hote.querySelector('.aide3d');
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  hote.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.2;
+  controls.addEventListener('start', () => { controls.autoRotate = false; });
+  let mixer = null; const horloge = new THREE.Clock(); let visible = true;
+
+  function taille() {
+    const w = hote.clientWidth, h = hote.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(taille).observe(hote); taille();
+
+  loader.load(hote.dataset.glb, (gltf) => {
+    const m = gltf.scene;
+    const boite = new THREE.Box3().setFromObject(m);
+    const centre = boite.getCenter(new THREE.Vector3()), dim = boite.getSize(new THREE.Vector3());
+    m.position.sub(centre);
+    scene.add(m);
+    const rayon = Math.max(dim.x, dim.y, dim.z);
+    camera.position.set(rayon * 0.9, rayon * 0.55, rayon * 1.1);
+    camera.near = rayon / 100; camera.far = rayon * 20; camera.updateProjectionMatrix();
+    controls.target.set(0, 0, 0); controls.update();
+    if (mode === 'rig') {
+      m.traverse((o) => { if (o.isMesh) { o.material.transparent = true; o.material.opacity = 0.45; o.material.depthWrite = false; } });
+      const os = new THREE.SkeletonHelper(m);
+      os.material.linewidth = 2; os.material.depthTest = false; os.material.color = new THREE.Color('#5eead4');
+      scene.add(os);
+    }
+    if (mode === 'anim' && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(m);
+      mixer.clipAction(gltf.animations[0]).play();
+    }
+    hote.classList.add('pret');
+    if (aide) aide.textContent = 'Drag to rotate';
+  }, undefined, () => { if (aide) aide.textContent = '3D preview unavailable'; });
+
+  new IntersectionObserver((e) => { visible = e[0].isIntersecting; }).observe(hote);
+  renderer.setAnimationLoop(() => {
+    if (!visible) return;
+    const dt = horloge.getDelta();
+    if (mixer) mixer.update(dt);
+    controls.update();
+    renderer.render(scene, camera);
+  });
+}
+
+const obs = new IntersectionObserver((entrees) => {
+  entrees.forEach((e) => { if (e.isIntersecting) { obs.unobserve(e.target); monter(e.target); } });
+}, { rootMargin: '200px' });
+document.querySelectorAll('.vue3d').forEach((h) => obs.observe(h));
+</script>
+<script>
+// Visionneuse des outils : defile seule en boucle (6 s), pause au survol ou au
+// focus, fleches et points ; immobile si l'utilisateur prefere moins d'animations.
+(function () {
+  var c = document.getElementById('carrousel'); if (!c) return;
+  var diapos = [].slice.call(c.querySelectorAll('.diapo'));
+  var points = document.getElementById('car-points');
+  var i = 0, minuterie = null, pause = false;
+  diapos.forEach(function (_, k) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('aria-label', 'Show slide ' + (k + 1));
+    b.addEventListener('click', function () { montrer(k); relancer(); });
+    points.appendChild(b);
+  });
+  function montrer(k) {
+    i = (k + diapos.length) % diapos.length;
+    diapos.forEach(function (d, j) { d.classList.toggle('active', j === i); });
+    [].forEach.call(points.children, function (b, j) { b.classList.toggle('actif', j === i); });
+    var img = diapos[i].querySelector('img'); if (img) img.loading = 'eager';
+  }
+  var calme = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function relancer() {
+    clearInterval(minuterie);
+    if (!calme) minuterie = setInterval(function () { if (!pause) montrer(i + 1); }, 6000);
+  }
+  document.getElementById('car-prec').addEventListener('click', function () { montrer(i - 1); relancer(); });
+  document.getElementById('car-suiv').addEventListener('click', function () { montrer(i + 1); relancer(); });
+  c.addEventListener('mouseenter', function () { pause = true; });
+  c.addEventListener('mouseleave', function () { pause = false; });
+  c.addEventListener('focusin', function () { pause = true; });
+  c.addEventListener('focusout', function () { pause = false; });
+  montrer(0); relancer();
+})();
+</script>
 <script>
 // Prix de l'appli Windows : regle dans l'admin (Pricing), lu en direct.
 // En cas d'echec, le texte ecrit dans la page reste affiche.

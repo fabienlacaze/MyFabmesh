@@ -2696,7 +2696,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         const body = {
           title, description,
           price_cents: Math.round(priceUSD * 100),
-          currency: 'USD', licence,
+          currency: 'EUR', licence,   // le serveur n'accepte que l'euro (2026-09-27)
           asset_kind: kind,
         };
         if (kind === 'mesh')  body.jobId    = payload.jobId;
