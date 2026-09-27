@@ -977,6 +977,14 @@ def _charger_pipe_tile(decharger_cpu):
     # vrai motif d'origine et restent valables.
     scaledown_window=300,
     enable_memory_snapshot=True,
+    # UN SEUL CONTENEUR (2026-09-27). Sans plafond, chaque requete arrivee
+    # pendant qu'un conteneur froid charge ses ~6 Go en demarrait un AUTRE :
+    # pour UNE rectification du user, 4 L40S allumes (le rejeu apres un 524
+    # de Cloudflare, puis ses suivants), chacun charge puis garde 300 s a ne
+    # rien faire — ~1 $ perdu par generation lancee a froid. Plafonne, les
+    # requetes attendent le conteneur qui charge. A relever si plusieurs
+    # clients simultanes attendent trop.
+    max_containers=1,
     secrets=[
         modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"]),
     ],
