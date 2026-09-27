@@ -695,6 +695,22 @@ async function _budgetR2(env: Env): Promise<number | null> {
   } catch { return null; }
 }
 
+/** LIMITE MODAL ATTEINTE PENDANT UN CALCUL (2026-09-27). Modal coupe alors
+ *  les conteneurs SANS signaler l'appel en echec (FunctionCall.get repond
+ *  « pas fini ») : la tuile du user a tourne dans le vide jusqu'au delai
+ *  adapte (~40 min). Le sondage et le faucheur consultent cette garde pour
+ *  echouer et rembourser tout de suite. Memo 60 s : le sondage client passe
+ *  toutes les 2,5 s. */
+let _limiteMemo: { t: number; v: boolean } | null = null;
+async function _limiteCalculAtteinte(env: Env): Promise<boolean> {
+  if (_limiteMemo && Date.now() - _limiteMemo.t < 60_000) return _limiteMemo.v;
+  const v = await _budgetReelEpuise(env);
+  _limiteMemo = { t: Date.now(), v };
+  return v;
+}
+const MSG_LIMITE_CALCUL = 'Generation stopped: service capacity is temporarily exhausted. '
+                        + 'Your credits have been refunded.';
+
 async function _budgetReelEpuise(env: Env): Promise<boolean> {
   if (!env.MESHES) return false;
   try {
@@ -7450,6 +7466,12 @@ async function handleJob(req: Request, env: Env, id: string): Promise<Response> 
     if (job.status === 'canceled' || job.status === 'failed') {
       return json({ status: job.status as string,
                     error: (job.error as string) || 'cancelled' });
+    }
+    // LIMITE DE CALCUL ATTEINTE : Modal a coupe le calcul sans le dire.
+    if (id.startsWith('modal_') && await _limiteCalculAtteinte(env)) {
+      await _annulerCalculMaillage(env, id);
+      await _failAndRefundJob(env, job, MSG_LIMITE_CALCUL);
+      return json({ status: 'failed', error: MSG_LIMITE_CALCUL });
     }
     // DELAI ADAPTE DEPASSE : plantage presume. On arrete le calcul chez Modal
     // (il cesse de couter) puis on echoue et rembourse.
@@ -19067,7 +19089,10 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
            * ~35 min) qui calculait normalement. Les lignes anciennes, sans
            * `delai_max_s`, gardent les 20 min. */
           const delaiMs = Number((job.options as Record<string, unknown> | null)?.delai_max_s || 0) * 1000 || GRACE_MS;
-          if (age > delaiMs) {
+          if (pollable && await _limiteCalculAtteinte(env)) {
+            await _annulerCalculMaillage(env, id);
+            claimed = await _failAndRefundJob(env, job, MSG_LIMITE_CALCUL);
+          } else if (age > delaiMs) {
             await _annulerCalculMaillage(env, id);
             claimed = await _failAndRefundJob(env, job,
               `reaped: no result after ${Math.round(delaiMs / 60000)} min (maximum for these settings)`);
