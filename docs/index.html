@@ -3,464 +3,253 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MyFabmesh.AI — image to 3D mesh in seconds</title>
-<meta name="description" content="MyFabmesh.AI — turn any reference image into a textured 3D mesh ready for Unreal, Blender, Unity. Desktop (local NVIDIA) or Cloud (any device).">
-
-<!-- Open Graph / Twitter cards: previews when the link is shared on
-     Twitter, Discord, LinkedIn, iMessage, etc. -->
+<title>MyFabmesh.AI — image to game-ready 3D</title>
+<meta name="description" content="Type a prompt or drop an image, get a textured 3D model, rig it and export it to Unreal, Blender or Unity. Windows app or web app.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="MyFabmesh.AI — Image to 3D mesh, edit every step">
-<meta property="og:description" content="Generate textured 3D meshes from a photo on your NVIDIA GPU. Edit photo, mesh, and textures end-to-end. MCP server for Claude Code + Unreal pairing. Free during public beta.">
+<meta property="og:title" content="MyFabmesh.AI — image to game-ready 3D">
+<meta property="og:description" content="Textured 3D models from an image or a prompt, automatic rigging, export to Unreal, Blender and Unity.">
 <meta property="og:url" content="https://fabienlacaze.github.io/MyFabmesh/">
 <meta property="og:image" content="https://fabienlacaze.github.io/MyFabmesh/og-image.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="MyFabmesh.AI — Image to 3D mesh, edit every step">
-<meta name="twitter:description" content="Generate textured 3D meshes from a photo on your NVIDIA GPU. Edit photo + mesh in-app. MCP for Claude Code. Free beta.">
-<meta name="twitter:image" content="https://fabienlacaze.github.io/MyFabmesh/og-image.png">
-
 <link rel="icon" href="favicon.png">
-<link rel="stylesheet" href="styles.css?v=3">
+<style>
+  :root {
+    --bg-0: #0b0b14; --bg-1: #13131d; --bg-2: #1b1b29; --border: #2a2a40;
+    --text-0: #f5f5fa; --text-1: #c2c2d4; --text-2: #8a8aa3;
+    --accent: #a855f7; --accent-2: #e94560;
+    --grad: linear-gradient(135deg, #e94560, #a855f7);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-0); color: var(--text-0);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  img { max-width: 100%; display: block; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; }
+  h1, h2, h3 { line-height: 1.2; text-wrap: balance; }
+
+  /* en-tete */
+  .top { position: sticky; top: 0; z-index: 10; background: rgba(11, 11, 20, 0.88);
+         backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+  .brand { font-weight: 800; font-size: 19px; text-decoration: none; }
+  .brand b { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .top nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
+  .top nav a { color: var(--text-1); text-decoration: none; }
+  .top nav a:hover { color: var(--text-0); }
+
+  /* boutons */
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px;
+         border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none;
+         border: 1px solid var(--border); background: var(--bg-2); color: var(--text-0); }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primaire { background: var(--grad); border-color: transparent; }
+  .btn:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .note { font-size: 13px; color: var(--text-2); }
+
+  /* hero */
+  .hero { padding-block: 64px 40px; text-align: center; }
+  .hero h1 { font-size: clamp(32px, 5vw, 52px); font-weight: 800; letter-spacing: -0.02em; }
+  .hero h1 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.sous { margin: 16px auto 0; max-width: 58ch; color: var(--text-1); font-size: 18px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 28px; }
+  .hero figure { margin-top: 40px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+                 box-shadow: 0 30px 80px -30px rgba(168, 85, 247, 0.45); }
+
+  section { padding-block: 56px; }
+  section > .wrap > h2 { font-size: clamp(24px, 3vw, 32px); margin-bottom: 8px; }
+  section > .wrap > p.intro { color: var(--text-1); margin-bottom: 32px; max-width: 62ch; }
+
+  /* etapes */
+  .etapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; counter-reset: e; }
+  .etape { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+           display: flex; flex-direction: column; }
+  .etape img { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; border-bottom: 1px solid var(--border); }
+  .etape div { padding: 16px; }
+  .etape h3 { font-size: 17px; margin-bottom: 6px; }
+  .etape h3::before { counter-increment: e; content: counter(e); display: inline-grid; place-items: center;
+                      width: 24px; height: 24px; margin-right: 8px; border-radius: 50%; font-size: 13px;
+                      background: var(--grad); vertical-align: 2px; }
+  .etape p { font-size: 14px; color: var(--text-1); }
+
+  /* editions */
+  .editions { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .edition { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px;
+             display: flex; flex-direction: column; gap: 14px; }
+  .edition .etiquette { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+  .edition h3 { font-size: 22px; }
+  .edition .prix { font-size: 28px; font-weight: 800; }
+  .edition .prix small { font-size: 14px; font-weight: 500; color: var(--text-2); display: block; }
+  .edition ul { list-style: none; display: grid; gap: 8px; font-size: 15px; color: var(--text-1); }
+  .edition li { padding-left: 22px; position: relative; }
+  .edition li::before { content: '✓'; position: absolute; left: 0; color: #4ade80; font-weight: 700; }
+  .edition .btn { margin-top: auto; justify-content: center; }
+
+  /* galerie */
+  .galerie img { border: 1px solid var(--border); border-radius: var(--radius); }
+
+  /* faq */
+  .faq details { border-bottom: 1px solid var(--border); padding-block: 16px; }
+  .faq summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  .faq summary::after { content: '+'; color: var(--text-2); font-weight: 400; }
+  .faq details[open] summary::after { content: '−'; }
+  .faq p { margin-top: 10px; color: var(--text-1); max-width: 70ch; }
+
+  footer { border-top: 1px solid var(--border); padding-block: 28px; font-size: 14px; color: var(--text-2); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+  footer nav { display: flex; gap: 18px; margin-left: auto; }
+  footer a { text-decoration: none; }
+  footer a:hover { color: var(--text-0); }
+
+  @media (max-width: 860px) {
+    .etapes { grid-template-columns: 1fr 1fr; }
+    .editions { grid-template-columns: 1fr; }
+    .top nav a.opt { display: none; }
+  }
+  @media (max-width: 480px) {
+    .etapes { grid-template-columns: 1fr; }
+    .top nav { gap: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
 </head>
 <body>
 
-<header class="site-header">
-  <a href="index.html" class="brand">MyFabmesh<span class="brand-ai">.AI</span><span class="beta-badge" id="version-badge">BETA</span></a>
-  <nav class="nav">
-    <a href="#products">Products</a>
-    <a href="#how">How it works</a>
-    <a href="#faq">FAQ</a>
-    <a href="https://myfabmesh-cloud.fabien65400.workers.dev/market">Marketplace</a>
-  </nav>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#">MyFabmesh<b>.AI</b></a>
+    <nav>
+      <a class="opt" href="#how">How it works</a>
+      <a href="#editions">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </div>
 </header>
 
 <main>
-
   <section class="hero">
-    <h1>From a photo to a 3D mesh.<br><span class="gradient">Edit every step.</span></h1>
-    <p class="lead">
-      Generate textured, game-ready 3D meshes from any reference image —
-      then refine <b>the photo, the mesh, and the textures</b> directly
-      inside the app.
-    </p>
-
-    <!-- Auto-playing screenshot slideshow (centered, between the two
-         lead paragraphs). Drop real PNGs into docs/screenshots/01..05.png
-         to replace the placeholder mockups. -->
-    <div class="hero-viewer">
-      <div class="ss-frame">
-          <div class="ss-track" id="ss-track">
-            <figure class="ss-slide active" data-caption="Setup wizard — auto-detect your PC, pick install mode" data-img="screenshots/01-wizard.png">
-              <div class="ss-mock ss-mock-wizard">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body">
-                  <div class="ss-mock-card"></div>
-                  <div class="ss-mock-row"></div>
-                  <div class="ss-mock-row"></div>
-                </div>
-              </div>
-            </figure>
-            <figure class="ss-slide" data-caption="Your projects, organized in one place." data-img="screenshots/02-gallery.png">
-              <div class="ss-mock ss-mock-generate">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body ss-mock-split">
-                  <div class="ss-mock-image"></div>
-                  <div class="ss-mock-3d"></div>
-                </div>
-              </div>
-            </figure>
-            <figure class="ss-slide" data-caption="From image to a textured 3D mesh — edit every stage." data-img="screenshots/03-pipeline.png">
-              <div class="ss-mock ss-mock-photo">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body ss-mock-toolbar">
-                  <div class="ss-mock-tools"></div>
-                  <div class="ss-mock-image"></div>
-                </div>
-              </div>
-            </figure>
-            <figure class="ss-slide" data-caption="Polish the mesh: paint &amp; retexture on the 3D model." data-img="screenshots/04-editor3d.png">
-              <div class="ss-mock ss-mock-mesh">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body ss-mock-toolbar">
-                  <div class="ss-mock-tools"></div>
-                  <div class="ss-mock-3d"></div>
-                </div>
-              </div>
-            </figure>
-            <figure class="ss-slide" data-caption="Auto-rig, animate &amp; export to Unreal, Blender, FBX." data-img="screenshots/05-rig-anim.png">
-              <div class="ss-mock ss-mock-export">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body ss-mock-grid">
-                  <div class="ss-mock-thumb"></div>
-                  <div class="ss-mock-thumb"></div>
-                  <div class="ss-mock-thumb"></div>
-                  <div class="ss-mock-thumb"></div>
-                </div>
-              </div>
-            </figure>
-          </div>
-          <div class="ss-caption" id="ss-caption">Setup wizard — auto-detect your PC, pick install mode</div>
-        </div>
-      <div class="ss-dots" id="ss-dots">
-        <button class="ss-dot active" data-i="0" aria-label="slide 1"></button>
-        <button class="ss-dot" data-i="1" aria-label="slide 2"></button>
-        <button class="ss-dot" data-i="2" aria-label="slide 3"></button>
-        <button class="ss-dot" data-i="3" aria-label="slide 4"></button>
-        <button class="ss-dot" data-i="4" aria-label="slide 5"></button>
+    <div class="wrap">
+      <h1>From an image to a <span>game-ready 3D model</span></h1>
+      <p class="sous">Type a prompt or drop a picture. Get a textured 3D model, rig it, and export it to Unreal, Blender or Unity.</p>
+      <div class="actions">
+        <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Try it in your browser</a>
+        <a class="btn" href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener">Get the Windows app</a>
       </div>
+      <p class="note" style="margin-top:12px">50 free credits on sign-up · Windows app free during the beta</p>
+      <figure>
+        <img src="screenshots/v2/hero.jpg" width="1280" height="720" alt="A red spider generated as a textured 3D model, shown in the MyFabmesh 3D viewer">
+      </figure>
     </div>
-
-    <p class="lead">
-      Paint, mask, inpaint, retouch geometry.
-      End-to-end, no round-trips to other software.
-    </p>
-    <div class="hero-cta">
-      <a href="#products" class="btn-primary">Choose your plan</a>
-    </div>
-    <p class="hero-trust">
-      All AI models are commercial-safe (MIT / Apache / BSD / OpenRAIL++-M).
-      Your generated meshes are 100% yours to sell.
-    </p>
   </section>
 
-  <section id="products" class="products">
-    <h2>One pipeline, two ways to run it.</h2>
-    <div class="cards">
+  <section id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="intro">Four steps, all in the same app. Every step can be redone or edited without starting over.</p>
+      <div class="etapes">
+        <article class="etape">
+          <img src="screenshots/v2/etape-image.jpg" alt="Image step with editing tools" loading="lazy">
+          <div><h3>Image</h3><p>Write a prompt or import a picture, then clean it up: remove the background, retouch, change the style.</p></div>
+        </article>
+        <article class="etape">
+          <img src="screenshots/v2/etape-3d.jpg" alt="Textured 3D character" loading="lazy">
+          <div><h3>3D model</h3><p>One click turns the image into a textured mesh: up to 8K textures and 10 million triangles.</p></div>
+        </article>
+        <article class="etape">
+          <img src="screenshots/v2/etape-rig.jpg" alt="Skeleton editor on a character" loading="lazy">
+          <div><h3>Rig</h3><p>An automatic skeleton for people, animals and creatures. Move any point if you want it different.</p></div>
+        </article>
+        <article class="etape">
+          <img src="screenshots/v2/etape-export.jpg" alt="Textured 3D building" loading="lazy">
+          <div><h3>Export</h3><p>GLB, FBX, OBJ or STL, with a ready-made preset for Unreal Engine.</p></div>
+        </article>
+      </div>
+    </div>
+  </section>
 
-      <!-- DESKTOP CARD -->
-      <article class="card" id="desktop-card">
-        <div class="card-tag">Desktop</div>
-        <h3>MyFabmesh.AI <span class="card-edition">Desktop</span></h3>
-        <div id="desktop-gpu-warn" style="display:none; margin:10px 0 2px; padding:8px 10px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.5); border-radius:6px; font-size:12px; color:#f5b53b; line-height:1.4;">&#9888; Your GPU doesn't look like NVIDIA. The Desktop app needs an NVIDIA GPU — the <b>Cloud</b> version runs on any device (AMD, Intel, Mac, phone). &#8594;</div>
-        <div class="card-price">
-          <span class="price">Free</span>
-          <span class="price-note">during public beta · 49,99 € TTC</span>
-        </div>
-        <ul class="card-features">
-          <li>✓ Runs locally on your NVIDIA GPU — <b>unlimited generations</b></li>
-          <li>✓ Full pipeline: image → 3D → auto-rig → animation</li>
-          <li>✓ Built-in photo editor + mesh editor (paint, sculpt, inpaint)</li>
-          <li>✓ 32 art styles, from realistic to lowpoly &amp; anime</li>
-          <li>✓ Export GLB for Unreal, Blender, Unity, Godot</li>
-          <li>✓ Works offline after install · free lifetime updates</li>
-          <li>✓ <b>Scriptable from Claude Code / VS Code</b> (MCP)</li>
-        </ul>
-        <div class="card-reqs">
-          <div class="reqs-title">Requirements</div>
+  <section id="editions">
+    <div class="wrap">
+      <h2>Two ways to use it</h2>
+      <p class="intro">Same tools, same projects. Pick the one that fits your computer.</p>
+      <div class="editions">
+        <article class="edition">
+          <span class="etiquette">Web app</span>
+          <h3>In your browser</h3>
+          <div class="prix">50 free credits<small>then pay only for what you make, no subscription</small></div>
           <ul>
-            <li>NVIDIA GPU with <b>12 GB VRAM</b> or more (below 12 GB, use <b>Cloud</b>)</li>
-            <li>Windows 10 / 11 (64-bit)</li>
-            <li>16 GB RAM, 30 GB free disk</li>
-            <li>Internet (first run only, ~15 GB models)</li>
+            <li>Nothing to install, works on any PC, Mac or tablet</li>
+            <li>No graphics card needed</li>
+            <li>Includes animation from a text description</li>
+            <li>The price of every action is shown before you click</li>
           </ul>
-        </div>
-        <a href="check.html" class="btn-ghost-full">Check my PC first</a>
-        <a href="https://github.com/fabienlacaze/MyFabmesh/releases/latest"
-           class="btn-primary-full" id="desktop-store-cta" target="_blank" rel="noopener">
-          Download for Windows (Beta)
-        </a>
-        <p style="font-size:11px;color:var(--text-2);text-align:center;margin-top:8px;">
-          Standalone installer · auto-update · Windows 10/11 · Microsoft Store version coming soon
-        </p>
-        <details style="margin-top:14px;font-size:12px;color:var(--text-2);">
-          <summary style="cursor:pointer;text-align:center;">About the download</summary>
-          <p style="margin-top:8px;text-align:center;">
-            <a href="https://github.com/fabienlacaze/MyFabmesh/releases/latest" target="_blank" rel="noopener">
-              Latest release on GitHub
-            </a><br>
-            <span style="font-size:11px;">~170 MB · standalone NSIS installer · may prompt Windows SmartScreen (unsigned build)</span>
-          </p>
-        </details>
-      </article>
-
-      <!-- CLOUD CARD -->
-      <article class="card">
-        <div class="card-tag card-tag-cloud">Cloud</div>
-        <h3>MyFabmesh.AI <span class="card-edition">Cloud</span></h3>
-        <div class="card-price">
-          <span class="price">0,20 € <span class="price-unit">/ mesh</span></span>
-          <span class="price-note">TTC (TVA incluse) · pay as you go · no subscription</span>
-        </div>
-        <ul class="card-features">
-          <li>✓ Runs in your browser — <b>no install, no GPU required</b></li>
-          <li>✓ Works on any PC, Mac, tablet or phone</li>
-          <li>✓ Same pipeline &amp; quality: image, 3D, rig, animation</li>
-          <li>✓ Photo &amp; mesh editing online, 32 art styles</li>
-          <li>✓ Pay only for what you generate — no subscription</li>
-          <li>✓ 50 free credits to start</li>
-        </ul>
-        <div class="card-reqs">
-          <div class="reqs-title">Requirements</div>
+          <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Open the web app</a>
+        </article>
+        <article class="edition">
+          <span class="etiquette">Windows app</span>
+          <h3>On your own PC</h3>
+          <div class="prix">Free during the beta<small>one-time purchase later, no subscription</small></div>
           <ul>
-            <li>A web browser (Chrome / Edge / Firefox / Safari)</li>
-            <li>Internet connection</li>
-            <li>Nothing else</li>
+            <li>Runs on your graphics card: unlimited generations</li>
+            <li>Works offline once the models are downloaded</li>
+            <li>Needs Windows 10/11 and an NVIDIA card with 12 GB of memory</li>
+            <li>Installed and updated through the Microsoft Store</li>
           </ul>
-        </div>
-        <a href="https://myfabmesh-cloud.fabien65400.workers.dev/" class="btn-ghost-full">Try free (50 credits)</a>
-        <a href="https://myfabmesh-cloud.fabien65400.workers.dev/" class="btn-primary-full">Open Cloud</a>
-      </article>
-
-    </div>
-
-    <p class="products-note">
-      Not sure which one? <a href="check.html">Run the 5-second compatibility check</a>
-      — we'll tell you which one matches your machine.
-    </p>
-  </section>
-
-  <section id="how" class="how">
-    <h2>How it works</h2>
-    <ol class="how-steps">
-      <li>
-        <div class="how-num">1</div>
-        <h4>Drop a reference image</h4>
-        <p>A photo, a sketch, a screenshot — any single image of what you want to model.</p>
-      </li>
-      <li>
-        <div class="how-num">2</div>
-        <h4>Refine the photo if needed</h4>
-        <p>Built-in editor: remove background, inpaint a missing part, paint over an unwanted element, clone-stamp a detail. Get a clean reference before generation.</p>
-      </li>
-      <li>
-        <div class="how-num">3</div>
-        <h4>AI engine generates the mesh</h4>
-        <p>The pipeline produces geometry, unwraps UVs and paints PBR textures in one pass. A few minutes of GPU time.</p>
-      </li>
-      <li>
-        <div class="how-num">4</div>
-        <h4>Polish the mesh</h4>
-        <p>Retouch the texture directly on the 3D model, fix face artefacts, re-paint zones, regenerate parts. All in the same app — no Blender round-trip required.</p>
-      </li>
-      <li>
-        <div class="how-num">5</div>
-        <h4>Export ready-to-use GLB</h4>
-        <p>Import straight into Unreal, Blender, Unity, Godot. Yours to use, sell, or remix.</p>
-      </li>
-    </ol>
-  </section>
-
-  <!-- DIFFERENTIATOR — the editing flow is the core value prop -->
-  <section id="edit" class="how" style="background: var(--bg-1); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 60px 24px; margin-top: 40px;">
-    <h2 style="text-align:center; font-size:32px; margin-bottom:14px;">Generation is half the work. <span class="gradient">Editing is the other half.</span></h2>
-    <p style="text-align:center; color: var(--text-1); max-width: 720px; margin: 0 auto 36px;">
-      Most tools stop at generation and leave you to fix things in
-      another app. MyFabmesh.AI puts the editor inside — for both the
-      photo you start from and the mesh you end up with.
-    </p>
-    <div style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px;">
-      <div style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px;">
-        <h4 style="font-size: 16px; margin-bottom: 10px;">📷 Photo editor</h4>
-        <p style="color: var(--text-1); font-size: 14px;">Remove background · paint over · inpaint missing parts · clone stamp · mask zones · blur · crop. Get a clean front-view before you generate.</p>
+          <a class="btn" href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener">Get it on Microsoft Store</a>
+        </article>
       </div>
-      <div style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px;">
-        <h4 style="font-size: 16px; margin-bottom: 10px;">🪞 Mesh editor</h4>
-        <p style="color: var(--text-1); font-size: 14px;">Paint textures directly on the 3D model · regenerate broken zones · fix face artefacts · refine UV islands · 4K then 8K upscale · re-texture from a new reference.</p>
-      </div>
-      <div style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px;">
-        <h4 style="font-size: 16px; margin-bottom: 10px;">🔁 Iterative loop</h4>
-        <p style="color: var(--text-1); font-size: 14px;">Generate · spot the issue · fix it · regenerate just that part. No round-trips to Photoshop and Blender between every iteration.</p>
-      </div>
+      <p class="note" style="margin-top:14px">Not sure your PC is powerful enough? <a href="check.html">Check it in 5 seconds</a>.</p>
     </div>
   </section>
 
-  <!-- Developer differentiator — scriptable end-to-end via MCP -->
-  <section id="for-devs" class="devs-section">
-    <h2 class="devs-h2">
-      For developers: <span class="gradient">one prompt, image to engine.</span>
-    </h2>
-    <p class="devs-lead">
-      Open MyFabmesh.AI next to your IDE. Claude reads your intent,
-      MyFabmesh.AI builds the mesh, Unreal drops it in your scene — all
-      through MCP, no glue code, no API keys.
-    </p>
-
-    <div class="devs-chain">
-      <div class="devs-card">
-        <div class="devs-icon">💬</div>
-        <div class="devs-card-title">Claude Code</div>
-        <div class="devs-card-text">You tell Claude what to build.</div>
-      </div>
-      <div class="devs-arrow">→</div>
-      <div class="devs-card devs-card-accent">
-        <div class="devs-icon">🪞</div>
-        <div class="devs-card-title">MyFabmesh.AI</div>
-        <div class="devs-card-text">Generates the textured mesh from a reference image.</div>
-      </div>
-      <div class="devs-arrow">→</div>
-      <div class="devs-card">
-        <div class="devs-icon">🎮</div>
-        <div class="devs-card-title">Unreal Engine</div>
-        <div class="devs-card-text">Imports the GLB and spawns it in your level.</div>
-      </div>
+  <section class="galerie">
+    <div class="wrap">
+      <h2>All your projects in one place</h2>
+      <p class="intro">Characters, animals, buildings, vehicles: each project keeps every version of its images, models and rigs.</p>
+      <img src="screenshots/v2/projets.jpg" width="1280" height="680" alt="Project gallery with characters, animals and buildings" loading="lazy">
     </div>
-
-    <p class="devs-note">
-      Works with any MCP-compatible client (Claude Desktop, Claude Code, VS Code Continue) and any tool with an MCP server — Unreal, Blender, Unity.
-    </p>
   </section>
 
   <section id="faq" class="faq">
-    <h2>FAQ</h2>
-
-    <details>
-      <summary>Can I use AMD or Intel GPU for Desktop?</summary>
-      <p>No, Desktop requires NVIDIA. AMD Radeon, Intel Arc, and integrated graphics are not supported locally. <b>Use Cloud instead</b> — it runs from any browser and works on any GPU.</p>
-    </details>
-
-    <details>
-      <summary>Will it work on my MacBook?</summary>
-      <p>The Desktop app is Windows only. On Mac, use the <b>Cloud</b> version directly from Safari.</p>
-    </details>
-
-    <details>
-      <summary>Why 12 GB of VRAM?</summary>
-      <p>The AI engine needs to load several large neural networks at once (mesh generation + texture synthesis + back-view + face refinement). Below 12 GB the app runs out of GPU memory and generations crash, so Desktop now requires <b>12 GB VRAM minimum</b>. If your GPU has less than 12 GB, use the <b>Cloud</b> version instead — it runs the same pipeline on our servers from any browser. With 16 GB or more you also unlock the "Full" mode with face refinement and 8K textures.</p>
-    </details>
-
-    <details>
-      <summary>Are the generated meshes mine to sell?</summary>
-      <p>Yes, 100%. We use only AI models with commercial-safe licenses (MIT, Apache 2.0, BSD, OpenRAIL++-M). You own your output and can sell it on Fab, Sketchfab, Unity Asset Store, or anywhere.</p>
-    </details>
-
-    <details>
-      <summary>Can I drive the app from VS Code or Claude Code?</summary>
-      <p>Yes. The desktop app exposes an MCP (Model Context Protocol) server on first launch. Any MCP-compatible client — Claude Desktop, Claude Code in VS Code, Continue, etc. — can connect locally and issue commands: generate from an image, batch-process a folder, edit a texture, export a GLB. No API keys, no subscription, no cloud round-trip — everything runs on your machine through the same engine the GUI uses.</p>
-    </details>
-
-    <details>
-      <summary>Can it pipe assets directly into Unreal Engine?</summary>
-      <p>Yes — if you also install the Unreal Engine MCP plugin (community-maintained, free). Then a single Claude prompt can: (1) ask MyFabmesh.AI to generate or refine a mesh, (2) ask Unreal to import the resulting GLB at a chosen path, (3) spawn it as an actor in your level. The whole loop — image → mesh → engine → in-scene — runs without leaving the chat. Same trick works for Blender, Unity (if you wire their MCP bridges) or any tool with an MCP server.</p>
-    </details>
-
-    <details>
-      <summary>Why does Windows say "Unknown publisher" when installing?</summary>
-      <p>We're a young indie studio and the beta is unsigned. The installer is safe — you can verify the source on our GitHub. Click <b>"More info → Run anyway"</b> on the SmartScreen warning. The signed v1.1 (Azure Trusted Signing) ships as soon as we hit the milestone for the certificate.</p>
-    </details>
-
-    <details>
-      <summary>I get a DLL load error blocked by "Application Control"</summary>
-      <p>Windows 11's <b>Smart App Control</b> (a stricter policy than SmartScreen) blocks unsigned native libraries on first launch. This will be fixed for everyone in v1.1 once we sign every binary with <a href="https://learn.microsoft.com/azure/trusted-signing/overview">Azure Trusted Signing</a>. In the meantime: <b>v1.1 is the right fix</b>, we don't recommend disabling Smart App Control (it's permanent and weakens your PC). If you can't wait for v1.1, your safest option is to use the <b>Cloud version</b> instead — no install, no DLL, no policy issue.</p>
-    </details>
-
-    <details>
-      <summary>Can I refund?</summary>
-      <p>Yes. If you ran the compatibility checker and your PC was marked compatible but the app doesn't work, we refund 100%. If you skipped the check and bought anyway, we still try to help case by case.</p>
-    </details>
-  </section>
-
-  <!-- Latest release block, populated from the GitHub API at page load.
-       Hidden gracefully if the network call fails. -->
-  <section id="latest-release" class="latest-release hidden">
-    <div class="latest-release-inner">
-      <div class="latest-release-tag" id="latest-tag">Latest release</div>
-      <h3 id="latest-title">—</h3>
-      <p id="latest-date" class="latest-date">—</p>
-      <pre id="latest-notes" class="latest-notes">—</pre>
-      <div class="latest-actions">
-        <a id="latest-download" href="https://github.com/fabienlacaze/MyFabmesh/releases/latest/download/MyFabmesh.AI-Setup-1.0.0.exe" class="btn-primary">Download installer</a>
-        <a id="latest-release-link" href="https://github.com/fabienlacaze/MyFabmesh/releases" class="btn-ghost">All releases</a>
-      </div>
+    <div class="wrap">
+      <h2>FAQ</h2>
+      <details>
+        <summary>Web app or Windows app?</summary>
+        <p>If you have a Windows PC with an NVIDIA card of 12 GB or more, the Windows app gives you unlimited generations. Otherwise, use the web app: it runs on our servers and works on any device, Mac included.</p>
+      </details>
+      <details>
+        <summary>How much does a model cost on the web app?</summary>
+        <p>It depends on the quality you choose. An image costs 1 to 6 credits, a 3D model a few credits in draft quality and around 20 at the highest quality, a rig 10 credits. The exact price is always shown on the button before you start.</p>
+      </details>
+      <details>
+        <summary>Can I use what I create in my games?</summary>
+        <p>Yes. The images and models you create are yours to use in your own projects, including commercial ones.</p>
+      </details>
+      <details>
+        <summary>Which formats can I export?</summary>
+        <p>GLB, FBX, OBJ and STL. The Unreal export sets the right scale and axes, so the model lands in your level at the correct size.</p>
+      </details>
+      <details>
+        <summary>Does it work with AMD or Intel graphics?</summary>
+        <p>The Windows app needs an NVIDIA card. With AMD, Intel or a Mac, use the web app: it does not use your graphics card.</p>
+      </details>
     </div>
   </section>
-
-  <section class="cta-bottom">
-    <h2>Ready to start?</h2>
-    <a href="check.html" class="btn-primary">Check my PC (5 sec)</a>
-  </section>
-
 </main>
 
-<footer class="site-footer">
-  <div class="footer-cols">
-    <div>
-      <div class="footer-brand">MyFabmesh<span class="brand-ai">.AI</span></div>
-      <p>Image to 3D mesh, in seconds.</p>
-    </div>
-    <div>
-      <h5>Product</h5>
-      <a href="#products">Desktop</a>
-      <a href="cloud.html">Cloud</a>
-      <a href="check.html">Compatibility</a>
-    </div>
-    <div>
-      <h5>Resources</h5>
-      <a href="#faq">FAQ</a>
-      <a href="https://github.com/fabienlacaze/MyFabmesh">GitHub</a>
-    </div>
-    <div>
-      <h5>Legal</h5>
+<footer>
+  <div class="wrap">
+    <span>© 2026 MyFabmesh.AI</span>
+    <nav>
       <a href="terms.html">Terms</a>
       <a href="privacy.html">Privacy</a>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    © 2026 MyFabmesh.AI · An Ayros Studio production
+      <a href="https://github.com/fabienlacaze/MyFabmesh">GitHub</a>
+    </nav>
   </div>
 </footer>
 
-<script src="slideshow.js"></script>
-<script>
-// GPU routing: if the visitor's GPU isn't NVIDIA, the Desktop app won't run
-// locally — surface a notice and steer them to the Cloud version (which works
-// on any device). Soft by design: hybrid NVIDIA laptops often report their
-// Intel iGPU in WebGL, so we de-emphasize rather than hide the Desktop CTA.
-(function _gpuRouting() {
-  function vendor() {
-    try {
-      const c = document.createElement('canvas');
-      const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-      if (!gl) return '';
-      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-      return String(dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : (gl.getParameter(gl.RENDERER) || ''));
-    } catch (_) { return ''; }
-  }
-  const g = vendor().toLowerCase();
-  if (!g) return;  // masked / undetectable → don't assume, leave the page as-is
-  if (/(nvidia|geforce|\brtx\b|\bgtx\b|quadro|tesla)/.test(g)) return;  // NVIDIA → Desktop is fine
-  // Non-NVIDIA (AMD / Intel / Apple / mobile) → steer to Cloud.
-  const warn = document.getElementById('desktop-gpu-warn');
-  if (warn) warn.style.display = 'block';
-  const card = document.getElementById('desktop-card');
-  if (card) card.style.opacity = '0.6';
-  const cta = document.getElementById('desktop-store-cta');
-  if (cta) { cta.style.filter = 'grayscale(0.6)'; cta.style.opacity = '0.85'; }
-}());
-
-// Pull the latest release info from GitHub on page load. Falls back
-// silently if rate-limited or offline — the static download link in
-// the cards still points to /releases/latest/download/, which always
-// resolves.
-(function () {
-  fetch('https://api.github.com/repos/fabienlacaze/MyFabmesh/releases/latest', {
-    headers: { 'Accept': 'application/vnd.github+json' }
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(rel => {
-      if (!rel) return;
-      var tag = (rel.tag_name || '').replace(/^v/, '');
-      var badge = document.getElementById('version-badge');
-      if (badge && tag) badge.textContent = 'BETA ' + tag;
-
-      var box = document.getElementById('latest-release');
-      if (!box) return;
-      document.getElementById('latest-title').textContent = rel.name || rel.tag_name || 'Latest';
-      var d = rel.published_at ? new Date(rel.published_at) : null;
-      document.getElementById('latest-date').textContent = d
-        ? 'Published ' + d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        : '';
-      // Truncate the release notes to ~6 lines so we don't overrun.
-      var notes = (rel.body || '').split('\n').slice(0, 8).join('\n');
-      document.getElementById('latest-notes').textContent = notes || 'No notes for this release.';
-      document.getElementById('latest-release-link').href = rel.html_url;
-      // Find the .exe asset and point Download at it.
-      var exeAsset = (rel.assets || []).find(a => /\.exe$/i.test(a.name));
-      if (exeAsset) document.getElementById('latest-download').href = exeAsset.browser_download_url;
-      box.classList.remove('hidden');
-    })
-    .catch(function () { /* silent */ });
-})();
-</script>
 </body>
 </html>
