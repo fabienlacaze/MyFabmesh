@@ -826,6 +826,22 @@ def watertight(glb_bytes: bytes, resolution: int = 128) -> bytes:
         return _export(scene)
     mesh = trimesh.util.concatenate(
         [trimesh.Trimesh(vertices=np.asarray(m.vertices), faces=np.asarray(m.faces)) for m in meshes])
+    # Couleurs de la surface SOURCE (texture echantillonnee par sommet), reportees
+    # ensuite sur la nouvelle coque : sans UV, elle sortait grise. Portage du
+    # bureau (scripts/mesh_tools.watertight).
+    src_xyz, src_rgba = [], []
+    for m in meshes:
+        try:
+            vis = getattr(m, 'visual', None)
+            cv = vis.to_color() if (vis is not None and hasattr(vis, 'to_color')) else vis
+            vc = np.asarray(getattr(cv, 'vertex_colors', None)) if cv is not None else None
+            if vc is not None and vc.ndim == 2 and len(vc) == len(m.vertices) and vc.shape[-1] >= 3:
+                src_xyz.append(np.asarray(m.vertices, dtype=np.float64))
+                rgba = vc[:, :4] if vc.shape[1] >= 4 else np.column_stack(
+                    [vc[:, :3], np.full(len(vc), 255, np.uint8)])
+                src_rgba.append(rgba.astype(np.uint8))
+        except Exception as e:
+            print(f'[mesh-op] watertight colour capture warn: {e}', flush=True)
     diag = float(np.linalg.norm(mesh.bounds[1] - mesh.bounds[0])) or 1.0
     vg = mesh.voxelized(pitch=diag / resolution)
     try:
@@ -833,14 +849,45 @@ def watertight(glb_bytes: bytes, resolution: int = 128) -> bytes:
     except Exception as e:
         print(f'[mesh-op] watertight fill warn: {e}', flush=True)
     wt = vg.marching_cubes
+    # MAILLAGE « VIDE » (2026-09-27, centipede) : marching_cubes rend la surface
+    # en INDICES de voxels (0..resolution), pas dans le repere du maillage. Le
+    # resultat mesurait 270 x 58 x 290 au lieu de ~1 : la vue le cadrait hors
+    # champ, vignette et apercu vides. Le bureau avait deja ce correctif :
+    # recalage sur la boite englobante de la source (voxels cubiques, donc une
+    # echelle uniforme + un centrage suffisent).
     try:
-        trimesh.smoothing.filter_laplacian(wt, iterations=2, lamb=0.5, volume_constraint=False)
+        src_lo, src_hi = mesh.bounds
+        wt_lo, wt_hi = wt.bounds
+        echelle = float(np.median((src_hi - src_lo) / np.maximum(wt_hi - wt_lo, 1e-9)))
+        if not np.isfinite(echelle) or echelle <= 0:
+            echelle = 1.0
+        wt.apply_translation(-(wt_lo + wt_hi) / 2.0)
+        wt.apply_scale(echelle)
+        wt.apply_translation((src_lo + src_hi) / 2.0)
+        print(f'[mesh-op] watertight: recale sur la source (echelle {echelle:.5f})', flush=True)
+    except Exception as e:
+        print(f'[mesh-op] watertight rescale warn: {e}', flush=True)
+    try:
+        # moins de lissage a haute resolution : l'escalier y est deja fin
+        trimesh.smoothing.filter_laplacian(wt, iterations=1 if resolution >= 192 else 2,
+                                           lamb=0.5, volume_constraint=False)
     except Exception:
         pass
     try:
         wt.fix_normals()
     except Exception:
         pass
+    if src_xyz:
+        try:
+            from scipy.spatial import cKDTree
+            sx = np.vstack(src_xyz)
+            sc = np.vstack(src_rgba)
+            _, idx = cKDTree(sx).query(np.asarray(wt.vertices, dtype=np.float64), k=1)
+            wt.visual = trimesh.visual.ColorVisuals(wt, vertex_colors=sc[idx])
+        except Exception as e:
+            print(f'[mesh-op] watertight colour bake warn: {e}', flush=True)
+    print(f'[mesh-op] watertight: {len(wt.faces)} faces, watertight={wt.is_watertight} '
+          f'(resolution={resolution})', flush=True)
     return _export(trimesh.Scene(wt))
 
 
