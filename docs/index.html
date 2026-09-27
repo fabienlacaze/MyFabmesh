@@ -230,6 +230,8 @@
   .bobine > .panneau.cache-bas { transform: translateY(100%); }
   .bobine > .panneau.sans-transition { transition: none; }
   @media (prefers-reduced-motion: reduce) { .bobine > .panneau { transition: none; } }
+  /* entrees secondaires du menu : masquees avant que le menu passe sur deux lignes */
+  @media (max-width: 1000px) { .top nav a.opt2 { display: none; } }
   @media (max-width: 860px) {
     .etapes { grid-template-columns: 1fr 1fr; }
     .editions { grid-template-columns: 1fr; }
@@ -250,7 +252,10 @@
     <nav>
       <a class="opt" href="#how">How it works</a>
       <a href="#tools">Tools</a>
+      <a class="opt opt2" href="#projects">Projects</a>
+      <a class="opt opt2" href="#versions">Versions</a>
       <a class="opt" href="#marketplace">Marketplace</a>
+      <a class="opt opt2" href="#payments">Payments</a>
       <a href="#editions">Web or Windows</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -380,7 +385,7 @@
     </div>
   </section>
 
-  <section class="galerie">
+  <section id="projects" class="galerie">
     <div class="wrap">
       <h2>Everything about an asset, in one project</h2>
       <p class="intro" style="margin-bottom:16px">Each project gathers all the work on one asset, laid out on a single page, step by step. Open it and you see at a glance where it stands and everything it contains.</p>
@@ -420,7 +425,7 @@
     </div>
   </section>
 
-  <section id="paiements" class="bandeau">
+  <section id="payments" class="bandeau">
     <div class="wrap">
       <h2>Secure payments</h2>
       <p class="intro" style="margin-bottom:16px">Every payment goes through Stripe, whether you pay or get paid. You enter your card on Stripe's secure page: your card details never reach us.</p>
