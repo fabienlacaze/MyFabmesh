@@ -403,10 +403,6 @@
                       <div class="step-tools-grid">
                         <button id="ws-export-img-btn" class="ghost-btn tool-btn" title="Save this image to disk.">&#128190; Export image</button>
                         <button id="ws-cloud-share-img-btn" class="ghost-btn tool-btn" title="Send this image to your MyFabmesh web library">&#9729; Send to cloud</button>
-                        <!-- Signalement de contenu IA — exige par la politique 11.16
-                             du Microsoft Store (refus du 2026-08-04). Doit rester
-                             visible a cote du contenu genere, pas cache dans un menu. -->
-                        <button id="ws-report-img-btn" class="ghost-btn tool-btn" title="Report inappropriate AI-generated content">&#9873; Report content</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -732,6 +728,12 @@
                   </div>
                   <div id="ws-mesh-filename" class="viewer-filename"></div>
                   <div id="ws-mesh-stats" class="viewer-stats"></div>
+                  <!-- Signalement (politique 11.16 du Store) JUSTE SOUS le maillage,
+                       comme pour l'image — retire du panneau d'outils (user,
+                       2026-09-27 : « pas besoin du bouton report dans les tools »). -->
+                  <div class="use-for-bar" style="display:flex; justify-content:center; margin-top:6px;">
+                    <button id="ws-report-mesh-btn" class="ghost-btn" title="Report inappropriate AI-generated content">&#9873; Report</button>
+                  </div>
                   <div id="ws-use-for-rig-bar" class="use-for-bar hidden">
                     <button id="ws-use-for-rig-btn" class="primary-btn" title="Select this mesh as the source for rigging.">Use this mesh for Rig &rarr;</button>
                   </div>
@@ -746,8 +748,6 @@
                         <button id="ws-mesh-blender-btn" class="ghost-btn tool-btn" title="Open this mesh in Blender.">&#129704; Open in Blender</button>
                         <button id="ws-mesh-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
                         <button id="ws-cloud-share-mesh-btn" class="ghost-btn tool-btn" title="Send this mesh (GLB ≤50 MB) to your MyFabmesh web library">&#9729; Send to cloud</button>
-                        <!-- Voir le commentaire du bouton image : politique 11.16. -->
-                        <button id="ws-report-mesh-btn" class="ghost-btn tool-btn" title="Report inappropriate AI-generated content">&#9873; Report content</button>
                       </div>
                     </div>
                     <div class="step-tools-group">

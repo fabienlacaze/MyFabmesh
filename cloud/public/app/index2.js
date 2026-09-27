@@ -23249,8 +23249,19 @@ window.addEventListener('drop', async (e) => {
       window.__cloudImportedFiles[blobURL] = f;
       if (kind === 'image') {
         proj.images = proj.images || [];
-        proj.images.unshift({ path: blobURL, kind: 'front', mtime: ts });
-        try { window.__cloudImg?.append?.(proj.name, [blobURL], 'front'); } catch (_) {}
+        // TELEVERSEE (2026-09-27) : une URL blob: ne survit pas au
+        // rechargement du projet — l'image disparaissait des le Remove
+        // background suivant.
+        let chemin = blobURL;
+        try {
+          const r = await API.importDroppedImage?.({ file: f, projectName: proj.name });
+          if (r?.ok && r.path) chemin = r.path;
+        } catch (_) {}
+        proj.images.unshift({ path: chemin, kind: 'front', mtime: ts });
+        if (chemin === blobURL) {
+          try { window.__cloudImg?.append?.(proj.name, [blobURL], 'front'); } catch (_) {}
+          try { showToast('Upload failed: this image is kept for this session only.', 'error', 6000); } catch (_) {}
+        }
         await populateWorkspace(proj);
         // After successful image import, open the Edit stage (not CREATE NEW) and scroll
         const imgCard = document.getElementById('step-card-image');

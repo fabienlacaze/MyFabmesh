@@ -1448,6 +1448,37 @@
     }
   }
 
+  /* IMPORT D'UNE IMAGE (glisser-deposer, selecteur) — 2026-09-27.
+   * Le navigateur ne gardait qu'une URL blob:, valable le temps de la page et
+   * refusee par /api/user-assets/record : l'image disparaissait au premier
+   * rechargement du projet (le user l'a perdue juste apres un Remove
+   * background, qui recharge le projet). On la televerse dans R2 ; au-dela
+   * de 4,5 Mo ou d'un format refuse par le serveur, on la re-encode
+   * (2048 px au plus). Rend l'URL signee, ou null. */
+  async function _televerserImport(fichierOuUrl) {
+    let blob = fichierOuUrl instanceof Blob ? fichierOuUrl : await (await fetch(fichierOuUrl)).blob();
+    const accepte = /^image\/(png|jpeg|webp)$/i.test(blob.type || '');
+    if (!accepte || blob.size > 4.5 * 1024 * 1024) {
+      const bmp = await createImageBitmap(blob);
+      const k = Math.min(1, 2048 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(bmp.width * k));
+      c.height = Math.max(1, Math.round(bmp.height * k));
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      blob = await new Promise(res => c.toBlob(res, 'image/png'));
+      if (blob && blob.size > 4.5 * 1024 * 1024) blob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.92));
+      if (!blob) return null;
+    }
+    const dataUrl = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = () => rej(fr.error);
+      fr.readAsDataURL(blob);
+    });
+    const r = await postJSON('/api/upload-image', { dataUrl, suffix: 'import' });
+    return r?.success && r.path ? r.path : null;
+  }
+
   /* MATÉRIALISER UN PROJET DES SA CREATION (2026-09-25).
    *
    * Cote navigateur, creer un projet ne faisait que poser une coquille en
@@ -1797,9 +1828,14 @@
         const stashed = (window.__cloudImportedFiles || {})[filePath];
         const name = stashed?.name || _basename(filePath) || 'imported.png';
         const pname = _stripExt(name) || 'imported';
+        // televersee : une URL blob: ne survit pas au rechargement
+        let chemin = filePath;
+        if (!/^https?:/i.test(filePath)) {
+          try { chemin = (await _televerserImport(stashed || filePath)) || filePath; } catch (_) {}
+        }
         // Also cache it under that project so listImageFolders sees it.
-        _appendCloudImages(pname, [filePath], 'front');
-        return { ok: true, path: filePath, name, projectName: pname };
+        _appendCloudImages(pname, [chemin], 'front');
+        return { ok: true, path: chemin, name, projectName: pname };
       }
       // Fallback: open picker.
       return new Promise((resolve) => {
@@ -1814,6 +1850,16 @@
         };
         input.click();
       });
+    },
+    /* Image glissee dans un projet ouvert : televersee et rattachee au projet
+     * (avant : URL blob: seule, perdue au premier rechargement). */
+    importDroppedImage: async ({ file, projectName } = {}) => {
+      try {
+        const url = await _televerserImport(file);
+        if (!url) return { ok: false, error: 'upload failed' };
+        if (projectName) await _appendCloudImages(projectName, [url], 'front');
+        return { ok: true, path: url };
+      } catch (e) { return { ok: false, error: String(e) }; }
     },
     pickExportPath: async ({ defaultName, format } = {}) => {
       const ext = (format || 'glb').replace('fbx_unreal', 'fbx');

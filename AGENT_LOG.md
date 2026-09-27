@@ -23738,3 +23738,19 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   regeneration semblait ignorer les liens.
 - `completer`, etape des liens : seuil ramene a 0,1 x os (point pose sur l'articulation).
   Les passes automatiques gardent 0,5. Deploye (`myfabmesh-skintokens`), non reteste.
+
+## 2026-09-27 — Image importee perdue apres Remove background ; Report retire des outils
+
+- Constat (Red river hog) : image glissee dans le projet puis Remove background -> plus
+  que v0. Deux causes :
+  1. l'import web ne gardait qu'une URL blob: (refusee par /api/user-assets/record) ;
+     le rechargement du projet qui suit Remove background l'effacait. Desormais
+     `_televerserImport` la televerse (/api/upload-image, suffixe `import`, gratuit ;
+     re-encodage 2048 px si > 4,5 Mo) : glisser-deposer ET selecteur.
+  2. le miroir R2 de Remove background passait par `_assertImageBytes` (garde des
+     generations : < 768 px ou < 50 Ko = image bidon) : une image importee plus petite
+     etait refusee, l'echec avale, l'URL Replicate brute non enregistrable -> resultat
+     debite et perdu. Seule la signature du format est verifiee ; un miroir impossible
+     est un echec rembourse.
+- « Report content » retire des panneaux d'outils (user). Image : le bouton sous l'image
+  reste. Maillage : le bouton passe SOUS le maillage (politique 11.16 du Store).

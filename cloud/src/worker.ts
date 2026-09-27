@@ -8923,21 +8923,28 @@ async function handleRemoveBackground(req: Request, env: Env): Promise<Response>
 
     // Mirror the Replicate output into R2 so the URL doesn't expire (~1h TTL on
     // replicate.delivery would otherwise trip the renderer's Expired-hostname guard).
+    //
+    // RESULTAT PERDU (2026-09-27, Red river hog). Le miroir passait par
+    // `_assertImageBytes`, fait pour reperer les images BIDON d'une generation
+    // (moins de 768 px de large ou de 50 Ko) : une image IMPORTEE plus petite
+    // est tout a fait legitime et etait refusee. L'echec etait avale, on
+    // rendait l'URL Replicate brute, que /api/user-assets/record refuse :
+    // debite, affiche nulle part, perdu au rechargement. Desormais on ne
+    // verifie que la signature du format, et un miroir impossible est un
+    // ECHEC (rembourse par le catch ci-dessous) au lieu d'un succes fantome.
     if (env.MESHES && env.R2_PUBLIC_URL) {
-      try {
-        const upstream = await fetch(url);
-        if (upstream.ok) {
-          const buf = await upstream.arrayBuffer();
-          _assertImageBytes(buf, 'remove-bg');
-          const key = `${user.id}/removebg/${Date.now()}_${Math.floor(Math.random() * 1e9)}_nobg.png`;
-          await env.MESHES.put(key, buf, { httpMetadata: { contentType: 'image/png' } });
-          url = await signedR2Url(env, key, 'image');
-        } else {
-          console.warn('[remove-bg] upstream fetch failed, returning raw Replicate URL', upstream.status);
-        }
-      } catch (e) {
-        console.warn('[remove-bg] R2 mirror failed, returning raw Replicate URL', e);
-      }
+      const upstream = await fetch(url);
+      if (!upstream.ok) throw new Error(`could not fetch the result (HTTP ${upstream.status})`);
+      const buf = await upstream.arrayBuffer();
+      const h = new Uint8Array(buf, 0, Math.min(12, buf.byteLength));
+      const estImage = buf.byteLength >= 256 && (
+        (h[0] === 0x89 && h[1] === 0x50 && h[2] === 0x4E && h[3] === 0x47)
+        || (h[0] === 0xFF && h[1] === 0xD8 && h[2] === 0xFF)
+        || (h[0] === 0x52 && h[1] === 0x49 && h[2] === 0x46 && h[3] === 0x46 && h[8] === 0x57));
+      if (!estImage) throw new Error('the background remover returned something that is not an image');
+      const key = `${user.id}/removebg/${Date.now()}_${Math.floor(Math.random() * 1e9)}_nobg.png`;
+      await env.MESHES.put(key, buf, { httpMetadata: { contentType: 'image/png' } });
+      url = await signedR2Url(env, key, 'image');
     } else {
       console.warn('[remove-bg] MESHES/R2_PUBLIC_URL unset, returning raw Replicate URL (will expire ~1h)');
     }
