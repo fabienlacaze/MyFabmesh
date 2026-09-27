@@ -522,7 +522,11 @@ function MarketPageInner() {
           id: m.listing_id, title: m.title, description: m.description,
           price_cents: m.price_cents, currency: m.currency, licence: m.licence,
           asset_kind: m.kind, asset_type: m.asset_type,
-          asset_url: m.asset_url, mesh_url: m.mesh_url,
+          // Liens de la fiche PUBLIQUE quand elle est en ligne : la cle brute
+          // de m.asset_url ne s'affiche pas dans un navigateur.
+          asset_url: listings.find((x) => x.id === m.listing_id)?.asset_url ?? m.asset_url,
+          mesh_url: listings.find((x) => x.id === m.listing_id)?.mesh_url ?? m.mesh_url,
+          preview_url: listings.find((x) => x.id === m.listing_id)?.preview_url,
           author_display: m.author_display, user_id: m.user_id,
           created_at: m.created_at,
           downloads: 0,
@@ -794,6 +798,14 @@ function MarketPageInner() {
                     <img src={`/api/market/poster/${l.id}`} alt={l.title}
                          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                    {l.price_cents > 0 && (
+                      /* Filigrane (logo + nom) sur la miniature d'une fiche payante :
+                       * la 3D de la fiche est la copie filigranee, la vignette aussi. */
+                      <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+                        backgroundImage: 'url(/filigrane.png)', backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'center', backgroundSize: '72% auto', opacity: 0.55,
+                        transform: 'rotate(-18deg)' }} />
+                    )}
                     {l.price_cents > 0 && !l.offert && (
                       <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.65)', color: 'var(--text-1)' }}>
                         🔍 Preview · full quality after purchase

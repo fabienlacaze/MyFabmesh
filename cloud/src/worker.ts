@@ -4292,10 +4292,10 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     if (prixPubli > 0) await addCredits(env, user.id, prixPubli);
     return err(500, 'publish failed (credits refunded)');
   }
-  // Fiche payante : copie filigranee creee maintenant, couverte par le credit de
-  // publication. Un echec ne bloque pas la publication : elle sera regeneree a
-  // la premiere ouverture.
-  if (price_cents > 0) await _genererApercu(env, listing);
+  // Fiche payante : la copie filigranee est fabriquee par le NAVIGATEUR du
+  // vendeur juste apres (gratuit, voir /api/market/preview-upload). Plus d'appel
+  // Modal ici : il butait sur le plafond mensuel et retardait la publication.
+  // Si le depot n'arrive pas, /api/market/preview la fabrique a la 1re ouverture.
   return json({ ok: true, success: true, id, status: 'pending', charged: prixPubli });
 }
 
@@ -6127,6 +6127,27 @@ async function handleMarketDownload(req: Request, env: Env, listingId: string): 
   await bumpListingDownloads(env, listingId);
 
   return new Response(flux.body, { status: 200, headers });
+}
+
+/** POST /api/market/preview-upload/<id> — le VENDEUR depose la copie filigranee
+ *  fabriquee par son navigateur a la publication (2026-09-28 : gratuit, sans
+ *  Modal). Type verifie par les octets : GLB pour une fiche 3D, image sinon. */
+async function handleMarketPreviewUpload(req: Request, env: Env, id: string): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MESHES) return err(500, 'storage not configured');
+  const txt = await r2GetText(env, `_market/listings/${id}.json`);
+  if (!txt) return err(404, 'listing not found');
+  let l: MarketListing;
+  try { l = JSON.parse(txt); } catch { return err(500, 'listing parse failed'); }
+  if (l.user_id !== user.id) return err(403, 'not your listing');
+  const octets = new Uint8Array(await req.arrayBuffer());
+  if (octets.length < 16 || octets.length > 80 * 1024 * 1024) return err(413, 'preview size out of range');
+  const type = _typeOctets(octets);
+  const attendu = l.asset_kind === 'image' ? type.startsWith('image/') : type === 'model/gltf-binary';
+  if (!attendu) return err(400, 'preview type does not match the listing');
+  await env.MESHES.put(APERCU_PREFIXE + id, octets, { httpMetadata: { contentType: type } });
+  return json({ ok: true, bytes: octets.length });
 }
 
 /** GET /api/market/preview/<id> — PUBLIC, fiches approuvees. Gratuite : le fichier.
@@ -20088,6 +20109,10 @@ export default {
         {
           const m = pathname.match(/^\/api\/market\/preview\/([A-Za-z0-9_]+)$/);
           if (m && method === 'GET') return await handleMarketPreview(env, m[1]);
+        }
+        {
+          const m = pathname.match(/^\/api\/market\/preview-upload\/([A-Za-z0-9_]+)$/);
+          if (m && method === 'POST') return await handleMarketPreviewUpload(req, env, m[1]);
         }
         {
           const m = pathname.match(/^\/api\/market\/([A-Za-z0-9_]+)\/claim$/);

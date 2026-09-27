@@ -2589,6 +2589,136 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     }
   }
 
+  /* APERCU FILIGRANE FABRIQUE DANS LE NAVIGATEUR (2026-09-28, user : « gratuit
+   * pour moi »). Le calcul Modal butait sur le plafond mensuel : aucune copie
+   * n'etait creee, la vitrine retombait sur la miniature nue. Le navigateur du
+   * vendeur a deja le fichier : il reduit les textures (512 px, images 1024),
+   * pose le logo + nom en diagonale sur la texture de COULEUR et reecrit le GLB
+   * sans toucher a la geometrie, a la peau ni aux animations — meme recette que
+   * _mesh_op.apercu cote Modal, qui reste le secours a la premiere ouverture. */
+  let _logoFiligrane = null;
+  async function _filigraneImage() {
+    if (_logoFiligrane) return _logoFiligrane;
+    const im = new Image();
+    im.src = '/filigrane.png';
+    await im.decode();
+    _logoFiligrane = im;
+    return im;
+  }
+  function _poserFiligrane(ctx, W, H, logo) {
+    const lw = Math.max(96, W * 0.5);
+    const lh = logo.naturalHeight * lw / logo.naturalWidth;
+    const ang = -25 * Math.PI / 180;
+    const bw = Math.abs(lw * Math.cos(ang)) + Math.abs(lh * Math.sin(ang));
+    const bh = Math.abs(lw * Math.sin(ang)) + Math.abs(lh * Math.cos(ang));
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    for (let rang = 0, y = -bh / 2; y < H + bh; rang++, y += bh * 1.05) {
+      const decal = rang % 2 ? bw / 2 : 0;
+      for (let x = -bw / 2 + decal; x < W + bw; x += bw) {
+        ctx.save();
+        ctx.translate(x + bw / 2, y + bh / 2);
+        ctx.rotate(ang);
+        ctx.drawImage(logo, -lw / 2, -lh / 2, lw, lh);
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+  async function _imageReduite(blob, maxPx, logo, typeSortie) {
+    const bmp = await createImageBitmap(blob);
+    const k = Math.min(1, maxPx / Math.max(bmp.width, bmp.height));
+    const W = Math.max(1, Math.round(bmp.width * k));
+    const H = Math.max(1, Math.round(bmp.height * k));
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(bmp, 0, 0, W, H);
+    if (bmp.close) bmp.close();
+    if (logo) _poserFiligrane(ctx, W, H, logo);
+    const out = await new Promise((res) => c.toBlob(res, typeSortie, 0.82));
+    // Navigateur sans encodeur WebP (Safari) : PNG, que les lecteurs glTF lisent aussi.
+    return out || await new Promise((res) => c.toBlob(res, 'image/png'));
+  }
+  async function _glbApercu(buf, logo) {
+    const dv = new DataView(buf);
+    if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a GLB file');
+    let off = 12, doc = null, bin = new Uint8Array(0);
+    while (off + 8 <= buf.byteLength) {
+      const len = dv.getUint32(off, true), type = dv.getUint32(off + 4, true);
+      off += 8;
+      if (type === 0x4E4F534A) doc = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, off, len)));
+      else if (type === 0x004E4942) bin = new Uint8Array(buf, off, len);
+      off += len;
+    }
+    if (!doc) throw new Error('GLB without JSON');
+    const vues = doc.bufferViews || [], textures = doc.textures || [], images = doc.images || [];
+    const couleur = new Set();
+    for (const m of doc.materials || []) {
+      const i = ((m.pbrMetallicRoughness || {}).baseColorTexture || {}).index;
+      if (i == null || !textures[i]) continue;
+      const t = textures[i];
+      [t.source].concat(Object.values(t.extensions || {}).map((e) => e && e.source))
+        .forEach((s) => { if (s != null) couleur.add(s); });
+    }
+    const nouvelles = new Map();
+    for (let ii = 0; ii < images.length; ii++) {
+      const im = images[ii];
+      const v = im.bufferView != null ? vues[im.bufferView] : null;
+      if (!v) continue;
+      const debut = v.byteOffset || 0;
+      const mime = im.mimeType || 'image/png';
+      try {
+        const b = await _imageReduite(new Blob([bin.subarray(debut, debut + v.byteLength)], { type: mime }),
+                                      512, couleur.has(ii) ? logo : null, mime);
+        nouvelles.set(im.bufferView, new Uint8Array(await b.arrayBuffer()));
+        if (b.type && b.type !== mime) im.mimeType = b.type;
+      } catch (_) { /* format illisible : image laissee telle quelle */ }
+    }
+    // BIN reconstruit : chaque vue recopiee dans l'ordre, alignee sur 4 octets.
+    const morceaux = [];
+    let pos = 0;
+    vues.forEach((v, i) => {
+      if ((v.buffer || 0) !== 0) return;
+      const debut = v.byteOffset || 0;
+      const d = nouvelles.get(i) || bin.subarray(debut, debut + v.byteLength);
+      const bourre = (4 - (pos % 4)) % 4;
+      if (bourre) { morceaux.push(new Uint8Array(bourre)); pos += bourre; }
+      v.byteOffset = pos;
+      v.byteLength = d.byteLength;
+      morceaux.push(d);
+      pos += d.byteLength;
+    });
+    const finBin = (4 - (pos % 4)) % 4;
+    if (finBin) { morceaux.push(new Uint8Array(finBin)); pos += finBin; }
+    if (doc.buffers && doc.buffers[0]) doc.buffers[0].byteLength = pos;
+    let js = new TextEncoder().encode(JSON.stringify(doc));
+    const finJs = (4 - (js.byteLength % 4)) % 4;
+    if (finJs) { const t = new Uint8Array(js.byteLength + finJs); t.set(js); t.fill(0x20, js.byteLength); js = t; }
+    const tete = new DataView(new ArrayBuffer(20));
+    tete.setUint32(0, 0x46546C67, true); tete.setUint32(4, 2, true);
+    tete.setUint32(8, 12 + 8 + js.byteLength + 8 + pos, true);
+    tete.setUint32(12, js.byteLength, true); tete.setUint32(16, 0x4E4F534A, true);
+    const teteBin = new DataView(new ArrayBuffer(8));
+    teteBin.setUint32(0, pos, true); teteBin.setUint32(4, 0x004E4942, true);
+    return new Blob([tete.buffer, js, teteBin.buffer].concat(morceaux), { type: 'model/gltf-binary' });
+  }
+  async function _apercuNavigateur(id, kind, url) {
+    const logo = await _filigraneImage();
+    const src = await fetch(url, { credentials: 'include' });
+    if (!src.ok) throw new Error('source HTTP ' + src.status);
+    const brut = await src.blob();
+    const sortie = kind === 'image'
+      ? await _imageReduite(brut, 1024, logo, brut.type === 'image/png' ? 'image/png' : 'image/jpeg')
+      : await _glbApercu(await brut.arrayBuffer(), logo);
+    const r = await fetch('/api/market/preview-upload/' + encodeURIComponent(id), {
+      method: 'POST', credentials: 'include',
+      headers: { 'content-type': sortie.type || 'application/octet-stream' },
+      body: sortie,
+    });
+    if (!r.ok) throw new Error('upload HTTP ' + r.status);
+  }
+
   function installMarketplacePublish() {
     const modal = document.getElementById('modal-publish-asset');
     if (!modal) return;
@@ -2840,8 +2970,17 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           try { errBody = await r.text(); } catch {}
           throw new Error('HTTP ' + r.status + (errBody ? ' — ' + errBody.slice(0, 200) : ''));
         }
+        const rep = await r.json().catch(() => ({}));
         close();
         notify('✓ Submitted for review — an admin will approve it shortly.', 'success');
+        // Fiche payante : la copie filigranee de la vitrine est fabriquee ici,
+        // gratuitement. En cas d'echec, le serveur la fabrique a la premiere ouverture.
+        const srcApercu = kind === 'image' ? payload.imageUrl : (payload.assetUrl || '');
+        if (priceUSD > 0 && rep && rep.id && srcApercu) {
+          _apercuNavigateur(rep.id, kind, srcApercu)
+            .then(() => console.log('[market.apercu] copie filigranee deposee', rep.id))
+            .catch((e) => console.warn('[market.apercu] echec (repli serveur a la premiere ouverture) :', e?.message || e));
+        }
         // Refresh the published-assets index so the 🛒 badge appears
         // immediately on the card we just published.
         if (typeof window.__publishedRefresh === 'function') {
