@@ -2572,6 +2572,20 @@
             </select>
           </div>
         </div>
+        <!-- Bascule credits / argent + lien Stripe (2026-09-27, demande user) -->
+        <style>
+          .pub-pay-btn { background: var(--bg-2); color: var(--text-1); border: 0; padding: 5px 14px; font-size: 12px; cursor: pointer; }
+          .pub-pay-btn.actif { background: var(--accent); color: #fff; font-weight: 700; }
+          .pub-pay-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+        </style>
+        <div id="pub-payout-box" style="display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:8px;">
+          <span style="font-size:12px; color:var(--text-2);">Get paid in</span>
+          <div role="radiogroup" aria-label="Get paid in" style="display:inline-flex; border:1px solid var(--border); border-radius:999px; overflow:hidden;">
+            <button type="button" id="pub-pay-credits" class="pub-pay-btn" role="radio">&#128142; Credits</button>
+            <button type="button" id="pub-pay-money" class="pub-pay-btn" role="radio">&#128182; Money</button>
+          </div>
+          <a id="pub-stripe-link" href="#" hidden style="font-size:12px; color:var(--accent); font-weight:600;">&#128179; Set up Stripe payouts</a>
+        </div>
         <div id="pub-payout-method" style="font-size:11px; color:var(--text-2); line-height:1.5; margin-top:6px;"></div>
         <div style="font-size:11px; color:var(--text-2); line-height:1.5;" id="pub-price-hint">
           ⚠ Free listings (price = 0) are immediately downloadable by anyone after approval. Paid listings show the price but the buy flow is coming soon (Stripe).

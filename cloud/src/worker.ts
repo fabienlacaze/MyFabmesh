@@ -5206,7 +5206,9 @@ async function handleSellerPayoutPref(req: Request, env: Env): Promise<Response>
     try { body = await req.json() as typeof body; } catch { body = {}; }
     const mode = body.mode === 'cash' ? 'cash' : body.mode === 'credits' ? 'credits' : null;
     if (!mode) return err(400, "mode: 'credits' or 'cash' expected");
-    if (mode === 'cash' && !stripeActif) return err(400, 'Set up Stripe payouts first to receive money.');
+    // « cash » est accepte AVANT l'inscription Stripe (bascule de la fenetre de
+    // publication, 2026-09-27) : c'est une intention. Les ventes restent payees
+    // en credits tant que Stripe n'est pas actif — _versementEnArgent le verifie.
     await env.MESHES.put(`_market/payout_pref/${user.id}.json`, JSON.stringify({ mode, maj: _isoNow() }),
                          { httpMetadata: { contentType: 'application/json' } });
   }

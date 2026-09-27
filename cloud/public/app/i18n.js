@@ -21,6 +21,14 @@
   const I18N = {
     fr: {
       // ---- Libelles du 27/09/2026 (audit 1.0.36 : sans traduction ecrite) ----
+      "Get paid in": "Être payé en",
+      "Money": "Argent",
+      "Set up Stripe payouts": "S'inscrire aux versements Stripe",
+      "Finish Stripe payouts setup": "Terminer l'inscription Stripe",
+      "Added to your credit balance after each sale.": "Ajouté à votre solde de crédits après chaque vente.",
+      "Paid to your bank account through Stripe.": "Versé sur votre compte bancaire via Stripe.",
+      "To receive money, set up Stripe payouts. Until then, sales are paid in credits.": "Pour recevoir de l'argent, inscrivez-vous aux versements Stripe. En attendant, les ventes sont payées en crédits.",
+      "Stripe is still verifying your account: sales are paid in credits until it is active.": "Stripe vérifie encore votre compte : les ventes sont payées en crédits jusqu'à son activation.",
       "Outfits": "Tenues",
       "Recolor": "Recolorer",
       "Extracts each piece of clothing on a transparent background (characters)": "Extrait chaque vêtement sur fond transparent (personnages)",

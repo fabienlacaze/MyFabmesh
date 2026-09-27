@@ -2540,37 +2540,52 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   let __sellerStatus = null;
   let __sellerStatusFetched = false;
 
-  // Render the "Payout method" indicator at the bottom of the publish
-  // modal based on (a) the listing price and (b) the cached seller
-  // Connect status. Read-only — purely informational.
-  function renderPayoutMethod(priceUSD, status) {
+  // Choix du createur (2026-09-27, user : « un switch credits avec la quantite
+  // ou argent avec le prix, et le lien vers Stripe si besoin de s'inscrire »).
+  // Enregistre par /api/market/seller/payout-pref, qui accepte « cash » avant
+  // l'inscription : les ventes restent payees en credits tant que Stripe n'est
+  // pas actif (_versementEnArgent cote serveur).
+  let __payoutChoice = 'credits';
+
+  // Gain par vente (credits OU euros selon la bascule), etat Stripe et lien
+  // d'inscription. Formules : part du createur = 70 % du prix ; en credits,
+  // 7 credits par euro + 20 % (= prix x 5,88), comme _sellerPayoutCredits.
+  function renderPayoutMethod() {
+    const price = Math.max(0, Number(document.getElementById('pub-price')?.value) || 0);
+    const status = __sellerStatus;
+    const stripeActif = !!(status && status.charges_enabled);
+    const argent = __payoutChoice === 'cash';
+    const hint = document.getElementById('pub-payout-hint');
+    if (hint) {
+      hint.textContent = price === 0 ? 'Free listing — no payout.'
+        : argent ? 'You’ll earn ~' + (price * 0.70).toFixed(2) + ' € per sale.'
+        : 'You’ll earn ~' + Math.round(price * 5.88) + ' credits per sale.';
+    }
+    const box = document.getElementById('pub-payout-box');
+    // style.display et non hidden : le display:flex en ligne l'emporterait
+    if (box) box.style.display = price === 0 ? 'none' : 'flex';
+    [['pub-pay-credits', !argent], ['pub-pay-money', argent]].forEach(([id, on]) => {
+      const b = document.getElementById(id);
+      if (!b) return;
+      b.classList.toggle('actif', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    const besoinStripe = argent && !stripeActif;
+    const lien = document.getElementById('pub-stripe-link');
+    if (lien) {
+      lien.hidden = price === 0 || !besoinStripe;
+      lien.textContent = (status && status.has_account) ? '💳 Finish Stripe payouts setup' : '💳 Set up Stripe payouts';
+    }
     const el = document.getElementById('pub-payout-method');
-    if (!el) return;
-    const price = Math.max(0, Number(priceUSD) || 0);
-    if (price === 0) {
-      el.textContent = 'Payout: free download (no payout).';
-      el.style.color = 'var(--text-2)';
-      return;
+    if (el) {
+      el.style.color = besoinStripe ? '#d4a017' : 'var(--text-2)';
+      el.textContent = price === 0 ? ''
+        : !argent ? 'Added to your credit balance after each sale.'
+        : stripeActif ? 'Paid to your bank account through Stripe.'
+        : (status && status.has_account)
+          ? 'Stripe is still verifying your account: sales are paid in credits until it is active.'
+          : 'To receive money, set up Stripe payouts. Until then, sales are paid in credits.';
     }
-    if (!status || !status.has_account) {
-      el.textContent = 'Payout: platform credits (set up Stripe payouts in /account to receive cash instead).';
-      el.style.color = 'var(--text-2)';
-      return;
-    }
-    if (!status.charges_enabled) {
-      el.textContent = 'Payout: credits (Stripe verification pending — switches to cash once active).';
-      el.style.color = '#d4a017';
-      return;
-    }
-    // choix du createur dans /account : credits ou argent (2026-09-27)
-    if (status.payout_mode === 'credits') {
-      el.textContent = 'Payout: credits (your choice, change it in /account to receive money).';
-      el.style.color = 'var(--text-2)';
-      return;
-    }
-    const cash = (price * 0.70).toFixed(2);
-    el.textContent = 'Payout: money via Stripe (~' + cash + ' € to your bank).';
-    el.style.color = '#3fb950';
   }
 
   function installMarketplacePublish() {
@@ -2583,6 +2598,38 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const animBtn  = document.getElementById('ws-anim-publish-btn');
     const cancel = document.getElementById('pub-cancel');
     const go     = document.getElementById('pub-go');
+    const enregistrerChoix = async (mode) => {
+      __payoutChoice = mode;
+      renderPayoutMethod();
+      try {
+        const r = await fetch('/api/market/seller/payout-pref', {
+          method: 'POST', credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+      } catch (e) {
+        if (typeof window.showToast === 'function') window.showToast('Payout choice not saved: ' + (e?.message || e), 'error', 5000);
+      }
+    };
+    document.getElementById('pub-pay-credits')?.addEventListener('click', () => enregistrerChoix('credits'));
+    document.getElementById('pub-pay-money')?.addEventListener('click', () => enregistrerChoix('cash'));
+    document.getElementById('pub-stripe-link')?.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      // Onglet ouvert AVANT l'appel : ouvert apres un await, il serait bloque
+      // comme fenetre surgissante.
+      const w = window.open('', '_blank');
+      try {
+        const r = await fetch('/api/market/seller/onboard', { method: 'POST', credentials: 'include' });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.url) throw new Error(j.error || ('HTTP ' + r.status));
+        if (w) w.location.href = j.url; else window.location.href = j.url;
+        __sellerStatusFetched = false;   // etat Stripe relu a la prochaine ouverture
+      } catch (e) {
+        if (w) w.close();
+        if (typeof window.showToast === 'function') window.showToast('Stripe setup failed: ' + (e?.message || e), 'error', 6000);
+      }
+    });
     const close = () => modal.classList.add('hidden');
     cancel?.addEventListener('click', close);
     modal.addEventListener('click', (ev) => { if (ev.target === modal) close(); });
@@ -2681,30 +2728,16 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       //                   = priceUSD * 5.88
       // Guard against double-wiring across openFor() invocations.
       const priceInput = document.getElementById('pub-price');
-      const hint = document.getElementById('pub-payout-hint');
-      if (priceInput && hint) {
-        const syncPayoutHint = () => {
-          const p = Math.max(0, Number(priceInput.value) || 0);
-          const credits = Math.round(p * 5.88);
-          if (p === 0) {
-            hint.textContent = 'Free listing — no credit payout.';
-          } else {
-            hint.textContent = 'You’ll earn ~' + credits +
-              ' credits per sale.';
-          }
-          renderPayoutMethod(p, __sellerStatus);
-        };
-        if (priceInput.dataset.payoutWired !== '1') {
-          priceInput.addEventListener('input', syncPayoutHint);
-          priceInput.dataset.payoutWired = '1';
-        }
-        syncPayoutHint();
+      if (priceInput && priceInput.dataset.payoutWired !== '1') {
+        priceInput.addEventListener('input', renderPayoutMethod);
+        priceInput.dataset.payoutWired = '1';
       }
+      renderPayoutMethod();
       // Fetch Stripe Connect status once per session and re-render the
       // payout indicator with the live answer. Network failure is silent
       // — we just leave the "credits" default in place.
       const showModal = () => {
-        renderPayoutMethod(Number(priceInput?.value) || 0, __sellerStatus);
+        renderPayoutMethod();
         modal.classList.remove('hidden');
       };
       if (__sellerStatusFetched) {
@@ -2722,6 +2755,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
                 details_submitted: !!ss.details_submitted,
                 payout_mode: ss.payout_mode === 'cash' ? 'cash' : 'credits',
               };
+              // choix enregistre, sinon le mode effectif
+              __payoutChoice = ss.payout_choice === 'cash' || ss.payout_choice === 'credits'
+                ? ss.payout_choice : __sellerStatus.payout_mode;
             }
           })
           .catch(() => {})
