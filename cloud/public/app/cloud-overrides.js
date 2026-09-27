@@ -1532,11 +1532,12 @@ window.__optionsMortesCloud = new Set([]);
         const brut = trisSel.value === 'custom'
           ? parseInt(document.getElementById('ws-trellis2-tris-custom')?.value || '500000', 10)
           : parseInt(trisSel.value, 10);
-        const tris = Math.max(5000, Math.min(3_000_000, brut || 500000));
+        const tris = Math.max(5000, Math.min(10_000_000, brut || 500000));
         const sup = tris > 500000 ? Math.ceil((tris - 500000) / 500000) * (window.__prixTris500k ?? 1) : 0;
         total += sup;
         const hint = document.getElementById('ws-trellis2-tris-cost');
-        if (hint) hint.textContent = sup ? `+${sup} cr` : '';
+        // Plafond, pas une promesse : les tranches non livrees sont rendues.
+        if (hint) hint.textContent = sup ? `+${sup} cr max (refunded if fewer)` : '';
       }
       const valueEl = document.getElementById('ws-mesh-cost-value');
       if (valueEl) valueEl.textContent = String(total);

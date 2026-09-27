@@ -2443,6 +2443,16 @@ class MyFabmeshMesh:
 
             with open(out_path, "wb") as f:
                 f.write(glb_bytes)
+            # Faces reellement livrees, lues par /mesh_status : le worker
+            # rembourse les tranches « Max triangles » non atteintes.
+            try:
+                import json as _json
+                import modal_app._mesh as _m
+                if _m.DERNIER_NB_FACES:
+                    with open(f"/data/{job_id}.meta.json", "w") as f:
+                        _json.dump({"faces": int(_m.DERNIER_NB_FACES)}, f)
+            except Exception as _e:
+                print(f"[mesh] meta faces non ecrite : {_e}", flush=True)
             mesh_output_volume.commit()
             print(f"[mesh] DONE job={job_id} dt={time.time() - t0:.1f}s "
                   f"bytes={len(glb_bytes)}", flush=True)
@@ -2728,8 +2738,15 @@ def mesh_router():
             # obtient `ready` et la taille, puis va chercher les octets. Un
             # worker plus ancien qui n'envoie pas le drapeau recoit le base64
             # comme avant.
+            faces = None
+            try:
+                import json as _json
+                with open(f"/data/{job_id}.meta.json") as f:
+                    faces = int(_json.load(f).get("faces") or 0) or None
+            except Exception:
+                pass
             if bool(payload.get("metadata_only")):
-                return {"ready": True, "bytes": taille}
+                return {"ready": True, "bytes": taille, "faces": faces}
             with open(out_path, "rb") as f:
                 glb = f.read()
             return {

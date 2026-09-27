@@ -17,6 +17,10 @@ import io
 import os
 import time
 
+# Nombre de faces du DERNIER maillage produit par generate() (2026-09-27) :
+# le worker rembourse les tranches « Max triangles » non livrees.
+DERNIER_NB_FACES = None
+
 import numpy as np
 from PIL import Image, ImageEnhance
 
@@ -505,6 +509,13 @@ def generate(
 
     # Serialize to bytes in-memory (trimesh's .export needs a path OR
     # a writeable file-like; BytesIO works).
+    global DERNIER_NB_FACES
+    try:
+        _g = list(glb_obj.geometry.values()) if hasattr(glb_obj, 'geometry') else [glb_obj]
+        DERNIER_NB_FACES = int(sum(len(getattr(x, 'faces', [])) for x in _g))
+        print(f'[mesh] faces livrees : {DERNIER_NB_FACES} (cible {decimation_target})', flush=True)
+    except Exception:
+        DERNIER_NB_FACES = None
     buf = io.BytesIO()
     glb_obj.export(buf, file_type='glb', extension_webp=True)
     glb_bytes = buf.getvalue()

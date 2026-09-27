@@ -2496,9 +2496,16 @@ function _neutraliserOptionsSansEffet(i: GenerateInput): GenerateInput {
   return i;
 }
 
-/** Plafond du choix « Max triangles ». Au-dela, le maillage brut du moteur
- *  (grille de voxels) est de toute facon atteint : aucun detail en plus. */
-const MAX_TRIS_GENERATION = 3_000_000;
+/** Plafond du choix « Max triangles » (« Max » = le maillage brut du moteur).
+ *  Mesure du 2026-09-27 : 7,6 M faces brutes en mode 1024 (GLB 324 Mo) ;
+ *  10 M laisse passer le mode 1536. Les tranches NON livrees sont rendues a
+ *  la fin du travail (_rembourserTrianglesNonLivres). */
+const MAX_TRIS_GENERATION = 10_000_000;
+
+/** Supplement « Max triangles » en credits pour `tris` triangles. */
+function _supplementTriangles(tris: number, prixTranche: number): number {
+  return tris > 500_000 ? Math.ceil((tris - 500_000) / 500_000) * prixTranche : 0;
+}
 
 async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   _neutraliserOptionsSansEffet(i);
@@ -2524,9 +2531,7 @@ async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   if (i.ultra_hd && i.preset !== 'ultra_8k') n += p.mesh_ultra_hd ?? 3;
   if (i.face_fix)     n += p.mesh_face_fix     ?? 2;
   if (i.smooth)       n += p.mesh_smooth       ?? 1;
-  if (i.max_tris && i.max_tris > 500_000) {
-    n += Math.ceil((i.max_tris - 500_000) / 500_000) * (p.mesh_tris_500k ?? 1);
-  }
+  if (i.max_tris) n += _supplementTriangles(i.max_tris, p.mesh_tris_500k ?? 1);
 
   // Legacy: old clients still send mode=full without preset.
   if (i.mode === 'full' && !i.preset) {
@@ -7147,6 +7152,13 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         // C est exactement ce qui a bloque le diagnostic d une hutte a la
         // paille fragmentee le 2026-09-24. `refine` manquait aussi.
         refine: input.refine, quality_plus: input.quality_plus, ultra_q: input.ultra_q,
+        // « Max triangles » : ce qui a ete facture, pour rendre les tranches
+        // non livrees a la fin (_rembourserTrianglesNonLivres).
+        ...(input.max_tris ? {
+          max_tris: input.max_tris,
+          tris_prix_tranche: (await _getPricing(env)).mesh_tris_500k ?? 1,
+          tris_supplement: _supplementTriangles(input.max_tris, (await _getPricing(env)).mesh_tris_500k ?? 1),
+        } : {}),
         backend: 'modal',
         operation_type: 'mesh',
         // Same value the budget guard just charged (preset-aware).
@@ -7394,6 +7406,7 @@ async function handleJob(req: Request, env: Env, id: string): Promise<Response> 
         console.warn(`[modal] ${id} termine mais la ligne est en ${etat} — maillage NON livre`);
         return json({ status: etat, error: (apres?.error as string) || 'cancelled' });
       }
+      await _rembourserTrianglesNonLivres(env, job as Record<string, unknown>, status.faces);
       const start = job.created_at ? new Date(job.created_at as string).getTime() : Date.now();
       return json({ status: 'succeeded', url: stableUrl,
                     duration_s: (Date.now() - start) / 1000 });
@@ -9825,6 +9838,32 @@ interface ModalMeshStatusResp {
   glb_base64?: string;
   bytes?: number;
   error?: string;
+  /** Faces reellement livrees (remboursement « Max triangles »). */
+  faces?: number | null;
+}
+
+/** Rend les tranches « Max triangles » payees mais non livrees : le client
+ *  choisit un plafond, le moteur livre au plus son maillage brut (qui depend
+ *  de l'objet). Idempotent : ne s'applique qu'une fois (options.tris_rendu). */
+async function _rembourserTrianglesNonLivres(env: Env, job: Record<string, unknown>, faces: number | null | undefined): Promise<void> {
+  try {
+    const opts = (job.options && typeof job.options === 'object') ? job.options as Record<string, unknown> : {};
+    const demande = Number(opts.max_tris || 0);
+    const paye = Number(opts.tris_supplement || 0);
+    const prix = Number(opts.tris_prix_tranche || 0);
+    if (!faces || !demande || !paye || !prix || opts.tris_rendu) return;
+    const du = _supplementTriangles(Math.min(demande, faces), prix);
+    const aRendre = Math.max(0, paye - du);
+    if (!aRendre) return;
+    await addCredits(env, String(job.user_id), aRendre);
+    await supabaseAdmin(env).from('jobs').update({
+      credit_cost: Math.max(0, Number(job.credit_cost || 0) - aRendre),
+      options: { ...opts, tris_rendu: aRendre, tris_livres: faces },
+    }).eq('id', String(job.id));
+    console.log(`[tris] ${job.id} : ${faces} faces livrees pour ${demande} demandees -> ${aRendre} credit(s) rendu(s)`);
+  } catch (e) {
+    console.warn('[tris] remboursement impossible :', e instanceof Error ? e.message : String(e));
+  }
 }
 
 async function callModalMeshStatus(env: Env, jobId: string): Promise<ModalMeshStatusResp> {

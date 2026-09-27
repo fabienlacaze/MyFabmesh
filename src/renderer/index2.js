@@ -10195,9 +10195,9 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   if (buildStages) expectedMs *= 2.5;
   // TRELLIS-2 texture options.
   const trellis2Preset = document.getElementById('ws-trellis2-preset')?.value || 'fast';
-  // Triangles max : valeur du menu, ou saisie « Custom » bornee 5 000 - 3 000 000.
+  // Triangles max : valeur du menu, ou saisie « Custom » bornee 5 000 - 10 000 000.
   const _trisSel = document.getElementById('ws-trellis2-tris')?.value || '500000';
-  const trellis2MaxTris = Math.max(5000, Math.min(3_000_000, parseInt(_trisSel === 'custom'
+  const trellis2MaxTris = Math.max(5000, Math.min(10_000_000, parseInt(_trisSel === 'custom'
     ? (document.getElementById('ws-trellis2-tris-custom')?.value || '500000') : _trisSel, 10) || 500000));
   const trellis2MultiRef = document.getElementById('ws-trellis2-multiref')?.checked || false;
   const trellis2Refine = document.getElementById('ws-trellis2-refine')?.checked || false;
