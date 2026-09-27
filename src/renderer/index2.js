@@ -17805,6 +17805,21 @@ state.jobsTermines = (() => {
 })();
 state.jobsOnglet = 'encours';
 
+/* Icones des etapes (meme dessin que les en-tetes d'etape du HTML). */
+const _ICONES_ETAPES = {
+  1: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.7"/><path d="M4.5 17.5l5-5 3.5 3.5 2.5-2.5 4 4"/></svg>',
+  2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l8.2 4.6v9.2L12 21.2l-8.2-4.6V7.4z"/><path d="M12 12l8.2-4.6M12 12v9.2M12 12L3.8 7.4"/><path d="M8 5.1l8.1 4.6M16 5.1L7.9 9.7" stroke-opacity="0.45"/></svg>',
+  3: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.3" r="2.1"/><path d="M12 6.4v7.2M12 8.8l-4.3 3.1M12 8.8l4.3 3.1M12 13.6l-3.2 6.4M12 13.6l3.2 6.4"/><g fill="currentColor" stroke="none"><circle cx="7.7" cy="11.9" r="1.3"/><circle cx="16.3" cy="11.9" r="1.3"/><circle cx="12" cy="13.6" r="1.3"/><circle cx="8.8" cy="20" r="1.2"/><circle cx="15.2" cy="20" r="1.2"/></g></svg>',
+  4: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="4.3" r="2.1"/><path d="M14 7.2l-2.3 5.2 3.2 3-1.3 5.6M11.7 12.4l-3.4 1.2M14 7.9l4.1 2.4M14.9 15.4l4.3 1.4"/><path d="M2.8 8.5h4.4M2 12.2h4.3M3.4 16h3.4" stroke-opacity="0.55"/></svg>',
+};
+/** Anneau de categorie d'une tuile de travail : autour de la miniature, ou icone de l'etape. */
+function _iconeCategorieHtml(etape, vignetteHtml) {
+  const n = (etape >= 1 && etape <= 4) ? etape : 0;
+  const dedans = vignetteHtml || (n ? _ICONES_ETAPES[n] : '');
+  if (!dedans) return '';
+  return `<span class="job-cat" data-cat="${n}">${dedans}</span>`;
+}
+
 /* VIGNETTE D'UN TRAVAIL (2026-09-27, user : « certaines generations n'ont pas
  * d'image »). Trois trous : un rig repris passait l'URL du GLB comme image
  * (image cassee), le rig et la reprise d'une generation n'en passaient
@@ -17908,7 +17923,7 @@ function renderJobsTermines() {
       <div class="job-fini-2 ${escapeHtml(e.statut)}" data-fini-id="${escapeHtml(e.finiId)}">
         <div class="job-fini-2-ligne">
           <span class="job-fini-2-icone" aria-hidden="true">${icone}</span>
-          ${vign}
+          ${_iconeCategorieHtml(_jobStepIndex(e), vign)}
           <span class="job-fini-2-nom">${escapeHtml(_displayJobName(e.name))}</span>
           ${aller ? `<button type="button" class="job-goto-btn" data-fini-goto="${escapeHtml(e.finiId)}">Go to</button>` : ''}
         </div>
@@ -18254,7 +18269,7 @@ function renderStepProgressWidgets() {
       return `
         <div class="step-progress-item${statusClass}" data-job-id="${j.id}">
           <div class="step-progress-item-header">
-            ${thumbHtml}
+            ${_iconeCategorieHtml(_jobStepIndex(j), thumbHtml)}
             <div class="step-progress-item-name">${escapeHtml(_displayJobName(j.name))}</div>
             ${canCancel ? `<button class="step-progress-cancel-btn" onclick="event.stopPropagation(); window._cancelJob(${j.id})" title="Cancel job">&#10005;</button>` : ''}
           </div>
@@ -18391,7 +18406,7 @@ function renderJobs() {
     return `
       <div class="job-item-2 ${j.status}" data-job-id="${j.id}">
         <div class="job-item-2-header">
-          ${sbThumbHtml}
+          ${_iconeCategorieHtml(_jobStepIndex(j), sbThumbHtml)}
           <div class="job-item-2-name">${escapeHtml(_displayJobName(j.name))}</div>
           ${hasStep ? `<button class="job-goto-btn" onclick="event.stopPropagation(); window._navigateToJobStep(${j.id})" title="Jump to this step">Go to</button>` : ''}
           ${canCancel ? `<button class="job-cancel-btn" onclick="event.stopPropagation(); window._cancelJob(${j.id})" title="Cancel job">&#10005;</button>` : ''}

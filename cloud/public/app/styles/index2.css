@@ -4374,3 +4374,70 @@ details.stage-generating > summary .stage-icon-gear {
 .anim-timeline input[type=range] { flex: 1; min-width: 60px; accent-color: var(--accent); cursor: pointer; }
 .anim-frame { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; min-width: 54px; text-align: right; }
 #step4-preview .mesh-toolbar { bottom: 46px; }
+
+/* ICONES DES ETAPES (2026-09-27, user : « des icones stylisees a gauche,
+   entourees de la couleur de la categorie »). La pastille numerotee devient
+   un anneau de la couleur de l'etape, icone au centre, numero en coin. */
+#step-card-image     { --cat: #4a90e2; }
+#step-card-mesh      { --cat: #c35ce0; }
+#step-card-rig       { --cat: #f08a24; }
+#step-card-animation { --cat: #22c55e; }
+#step-card-image .step-badge.avec-icone,
+#step-card-mesh .step-badge.avec-icone,
+#step-card-rig .step-badge.avec-icone,
+#step-card-animation .step-badge.avec-icone {
+  width: 34px;
+  height: 34px;
+  background: color-mix(in srgb, var(--cat) 12%, var(--bg-1));
+  border: 2px solid var(--cat);
+  color: var(--cat);
+}
+.step-badge.avec-icone svg { width: 19px; height: 19px; }
+.step-badge.avec-icone .step-num {
+  position: absolute;
+  right: -6px;
+  bottom: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+  color: #fff;
+  background: var(--cat);
+  box-shadow: 0 0 0 2px var(--bg-2);
+}
+.step-card.active .step-badge.avec-icone,
+.step-card.done .step-badge.avec-icone {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--cat) 28%, transparent);
+}
+/* Panneau Jobs : meme anneau a gauche de chaque tuile, autour de la
+   miniature s'il y en a une, sinon avec l'icone de l'etape. */
+.job-cat {
+  --cat: #8b8fa3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--cat);
+  color: var(--cat);
+  background: color-mix(in srgb, var(--cat) 12%, var(--bg-1));
+  overflow: hidden;
+}
+.job-cat[data-cat="1"] { --cat: #4a90e2; }
+.job-cat[data-cat="2"] { --cat: #c35ce0; }
+.job-cat[data-cat="3"] { --cat: #f08a24; }
+.job-cat[data-cat="4"] { --cat: #22c55e; }
+.job-cat svg { width: 16px; height: 16px; }
+.job-cat .step-progress-item-thumb {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 50%;
+  object-fit: cover;
+}
