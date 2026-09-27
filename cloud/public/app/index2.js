@@ -17549,6 +17549,7 @@ async function lancerRigIA(options = {}) {
         meshPath: meshPathToUse,
         engine: rigEngine,
         ...(points ? { points } : {}),
+        ...(points && Array.isArray(options.liens) ? { liens: options.liens } : {}),
         ...(Number.isInteger(options.graine) ? { graine: options.graine } : {}),
         ...(Number.isInteger(options.tirage) ? { tirage: options.tirage } : {}),
         ...(options.squelette ? { squelette: options.squelette } : {}),
@@ -25135,7 +25136,8 @@ async function _ptsInstaller(gltf, jeton) {
     const lm = (sauve && sauve.landmarks) || sauve;
     if (Array.isArray(lm?.fabmesh_points) && lm.fabmesh_points.length && lm.fabmesh_points.every(_ptsValide)) {
       depart = { pts: lm.fabmesh_points,
-                 os: Array.isArray(lm.fabmesh_os) && lm.fabmesh_os.every(_ptsValide) ? lm.fabmesh_os : null };
+                 os: Array.isArray(lm.fabmesh_os) && lm.fabmesh_os.every(_ptsValide) ? lm.fabmesh_os : null,
+                 liens: Array.isArray(lm.fabmesh_liens) ? lm.fabmesh_liens : null };
     }
   } catch (_) { /* pas de retouche enregistree */ }
   if (jeton !== _pts.jeton) return;
@@ -25201,6 +25203,7 @@ function _ptsBougerOs(i, local) {
   _ptsDessinerOs(i);
   _pts.os.forEach((o, j) => { if (o.parent === i) _ptsDessinerOs(j); });
   _pts.osModifies = _pts.os.some((o, j) => o.p.distanceTo(_pts.osOrigine[j]) > 1e-7);
+  if (_pts.points.some(q => q.lien && q.lien.os === i)) _ptsDessinerLiens();
 }
 
 function _ptsVider() {
@@ -25250,6 +25253,14 @@ function _ptsAppliquer(x) {
   _pts.marqueurs.clear();
   _pts.points = [];
   for (const v of liste) _ptsCreer(new THREE.Vector3(v[0], v[1], v[2]));
+  const liensX = !Array.isArray(x) && Array.isArray(x.liens) ? x.liens : null;
+  _pts.points.forEach((pt, i) => {
+    const l = liensX ? liensX[i] : null;
+    pt.lien = !l ? null
+      : Number.isInteger(l.os) && _pts.os[l.os] ? { os: l.os }
+      : Number.isInteger(l.point) && l.point !== i && _pts.points[l.point] ? { point: _pts.points[l.point].id }
+      : null;
+  });
   if (!_pts.points.some(pt => pt.id === _pts.selection)) _pts.selection = null;
   _ptsListe();
   _ptsMajBoutons();
@@ -25295,6 +25306,7 @@ function _ptsPlacer(pt) {
   m.boule.material.color.setHex(PTS_COULEURS[_ptsStatut(pt)]);
   const k = pt.id === _pts.selection ? 1.55 : pt.id === _pts.survol ? 1.3 : 1;
   m.boule.scale.setScalar(k);
+  if (pt.lien || _pts.points.some(q => q.lien && q.lien.point === pt.id)) _ptsDessinerLiens();
 }
 
 function _ptsListe() {
@@ -25313,13 +25325,43 @@ function _ptsListe() {
         + `<span class="pts-nom">${_i18nT('Point')} ${i + 1}</span>`
         + `<span class="pts-statut">${_i18nT(st === 'atteint' ? 'reached' : 'not reached')}</span>`
         + `<button class="pts-suppr" type="button" title="${_i18nT('Remove this point')}" aria-label="${_i18nT('Remove this point')}">&times;</button>`;
-      ligne.addEventListener('click', (e) => { if (!e.target.closest('.pts-suppr')) _ptsSelectionner(pt.id); });
+      // LIENS IMPOSES (user : « point 15 = apres joint 5, avant point 16 »)
+      const liens = document.createElement('div');
+      liens.className = 'pts-liens';
+      const valA = !pt.lien ? '' : Number.isInteger(pt.lien.os) ? `os:${pt.lien.os}` : `pt:${pt.lien.point}`;
+      const suivant = _pts.points.find(q => q.lien && q.lien.point === pt.id);
+      const autres = _pts.points.map((q, k) => q.id === pt.id ? ''
+        : `<option value="pt:${q.id}">${_i18nT('Point')} ${k + 1}</option>`).join('');
+      liens.innerHTML = `<label title="${_i18nT('What this point hangs from. Auto lets the app decide.')}">${_i18nT('after')}`
+        + `<select class="pts-lien-apres"><option value="">${_i18nT('auto')}</option>`
+        + _pts.os.map((o, j) => `<option value="os:${j}">${_i18nT('Joint')} ${j + 1}</option>`).join('')
+        + autres + `</select></label>`
+        + `<label title="${_i18nT('The next point in the chain, if any.')}">${_i18nT('before')}`
+        + `<select class="pts-lien-avant"><option value="">—</option>` + autres + `</select></label>`;
+      const selA = liens.querySelector('.pts-lien-apres'), selB = liens.querySelector('.pts-lien-avant');
+      selA.value = valA; selB.value = suivant ? `pt:${suivant.id}` : '';
+      selA.addEventListener('change', () => {
+        _ptsMemoriser();
+        const v = selA.value;
+        pt.lien = !v ? null : v.startsWith('os:') ? { os: +v.slice(3) } : { point: +v.slice(3) };
+        _ptsListe(); _ptsSauver();
+      });
+      selB.addEventListener('change', () => {
+        _ptsMemoriser();
+        _pts.points.forEach(q => { if (q.lien && q.lien.point === pt.id) q.lien = null; });
+        const q = selB.value ? _pts.points.find(x => x.id === +selB.value.slice(3)) : null;
+        if (q) q.lien = { point: pt.id };
+        _ptsListe(); _ptsSauver();
+      });
+      ligne.appendChild(liens);
+      ligne.addEventListener('click', (e) => { if (!e.target.closest('.pts-suppr') && !e.target.closest('.pts-liens')) _ptsSelectionner(pt.id); });
       ligne.querySelector('.pts-suppr').addEventListener('click', () => _ptsSupprimer(pt.id));
       ligne.addEventListener('mouseenter', () => _ptsSurvoler(pt.id));
       ligne.addEventListener('mouseleave', () => _ptsSurvoler(null));
       liste.appendChild(ligne);
     });
   }
+  _ptsDessinerLiens();
   // ARTICULATIONS DANS LA LISTE (2026-09-27, user : « les joints doivent aussi
   // apparaitre dans le listing »). Survol = mise en evidence dans la vue ;
   // une articulation deplacee peut etre remise a sa place d'origine.
@@ -25382,7 +25424,41 @@ function _ptsSurvoler(id) {
 
 function _ptsInstantane() {
   return { pts: _pts.points.map(pt => [pt.p.x, pt.p.y, pt.p.z]),
-           os: _pts.os.map(o => [o.p.x, o.p.y, o.p.z]) };
+           os: _pts.os.map(o => [o.p.x, o.p.y, o.p.z]),
+           liens: _ptsLiensIndex() };
+}
+/** Liens imposes, alignes sur les points : { os: indice } | { point: indice } | null. */
+function _ptsLiensIndex() {
+  return _pts.points.map((pt) => {
+    const l = pt.lien;
+    if (!l) return null;
+    if (Number.isInteger(l.os) && _pts.os[l.os]) return { os: l.os };
+    const k = _pts.points.findIndex(q => q.id === l.point);
+    return k >= 0 ? { point: k } : null;
+  });
+}
+/** Trait jaune pour chaque lien impose : de l'articulation (ou du point) « avant » au point. */
+function _ptsDessinerLiens() {
+  if (!_pts.groupe || !lmFsModel) return;
+  const seg = [];
+  for (const pt of _pts.points) {
+    const l = pt.lien;
+    if (!l) continue;
+    let a = null;
+    if (Number.isInteger(l.os) && _pts.os[l.os]) a = _pts.os[l.os].p;
+    else { const q = _pts.points.find(x => x.id === l.point); if (q) a = q.p; }
+    if (!a) continue;
+    const wa = _ptsVersMonde(a), wb = _ptsVersMonde(pt.p);
+    seg.push(wa.x, wa.y, wa.z, wb.x, wb.y, wb.z);
+  }
+  if (!_pts.lignesLiens) {
+    _pts.lignesLiens = new THREE.LineSegments(new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({ color: 0xfacc15, depthTest: false, transparent: true, opacity: 0.95 }));
+    _pts.lignesLiens.renderOrder = 999;
+  }
+  if (_pts.lignesLiens.parent !== _pts.groupe) _pts.groupe.add(_pts.lignesLiens);
+  _pts.lignesLiens.geometry.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+  _pts.lignesLiens.geometry.computeBoundingSphere();
 }
 function _ptsMemoriser() {
   _pts.passe.push(_ptsInstantane());
@@ -25428,6 +25504,7 @@ function _ptsSupprimer(id) {
     _pts.marqueurs.delete(id);
   }
   _pts.points.splice(i, 1);
+  _pts.points.forEach(q => { if (q.lien && q.lien.point === id) q.lien = null; });
   if (_pts.selection === id) _pts.selection = null;
   if (_pts.survol === id) _pts.survol = null;
   _ptsRenumeroter();
@@ -25443,7 +25520,8 @@ function _ptsSauver(immediat) {
   const rig = _pts.rig;
   const inst = _ptsInstantane();
   const r5 = v => v.map(c => Math.round(c * 1e5) / 1e5);
-  const donnees = { fabmesh_points: inst.pts.map(r5), ...(_pts.osModifies ? { fabmesh_os: inst.os.map(r5) } : {}) };
+  const donnees = { fabmesh_points: inst.pts.map(r5), ...(_pts.osModifies ? { fabmesh_os: inst.os.map(r5) } : {}),
+                    ...(inst.liens.some(Boolean) ? { fabmesh_liens: inst.liens } : {}) };
   const ecrire = () => { try { API.saveLandmarks?.({ meshPath: rig, landmarks: donnees }); } catch (_) {} };
   if (immediat) ecrire(); else _pts.minuterie = setTimeout(ecrire, 600);
 }
@@ -25644,6 +25722,12 @@ async function ptsRegenerer() {
   const inst = _ptsInstantane();
   const r5 = v => v.map(c => Math.round(c * 1e5) / 1e5);
   const options = { meshPath: source, points: inst.pts.map(r5), graine: _pts.graine, tirage: _pts.tirage };
+  // liens imposes : une articulation voyage par sa POSITION (le generateur
+  // reconstruit son squelette, ses indices ne sont pas ceux de cet editeur)
+  const liens = inst.liens.map(l => !l ? null
+    : Number.isInteger(l.os) ? { os: r5([_pts.os[l.os].p.x, _pts.os[l.os].p.y, _pts.os[l.os].p.z]) }
+    : { point: l.point });
+  if (liens.some(Boolean)) options.liens = liens;
   // articulations deplacees : ce squelette-la est impose (plus de tirage de l'IA)
   if (_pts.osModifies) options.squelette = { joints: inst.os.map(r5), parents: _pts.os.map(o => o.parent) };
   closeLandmarksFullscreen();

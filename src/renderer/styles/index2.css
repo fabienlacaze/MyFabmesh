@@ -3733,6 +3733,35 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   text-transform: uppercase;
   color: var(--text-2);
 }
+.pts-liens {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.pts-liens label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pts-liens select {
+  max-width: 120px;
+  font-size: 11px;
+  padding: 2px 4px;
+  color: var(--text-1);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.pts-trait-lien {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  background: #facc15;
+  vertical-align: middle;
+}
 .pts-vide {
   padding: 10px 2px;
   font-size: 12px;

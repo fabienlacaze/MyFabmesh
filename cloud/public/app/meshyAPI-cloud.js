@@ -2434,7 +2434,7 @@
     //   { success, ok, glb_url, path, error? }
     // so callers can hot-swap the mesh in the viewer without knowing
     // anything changed under the hood.
-    autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress, points, graine, tirage, squelette } = {}) => {
+    autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress, points, liens, graine, tirage, squelette } = {}) => {
       const _projetLancement = _projetAuLancement(null);   // voir _projetAuLancement
       const url = meshUrl || meshPath;
       if (!url) return { success: false, ok: false, error: 'meshPath or meshUrl required' };
@@ -2447,6 +2447,8 @@
           // editeur de points : ce que le squelette doit atteindre + graine
           // et tirage du rig edite (l'IA rejoue le meme squelette de base)
           ...(Array.isArray(points) && points.length ? { points } : {}),
+          // liens imposes entre points / articulations (alignes sur points)
+          ...(Array.isArray(points) && points.length && Array.isArray(liens) && liens.some(Boolean) ? { liens } : {}),
           ...(Number.isInteger(graine) ? { graine } : {}),
           ...(Number.isInteger(tirage) ? { tirage } : {}),
           // squelette IMPOSE : peau seule, ou articulations deplacees

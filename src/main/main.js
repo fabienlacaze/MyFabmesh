@@ -4020,7 +4020,7 @@ function _moteurRigLocal() {
   return null;
 }
 
-ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points, graine, tirage, squelette }) => {
+ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points, liens, graine, tirage, squelette }) => {
   const _t0 = Date.now();
   // Editeur des points du squelette (2026-09-26) : ce que le squelette doit
   // atteindre (repere du maillage) + graine et tirage du rig edite. Valides
@@ -4040,6 +4040,9 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points
   const optsSquelette = {
     ...(squeletteOk ? { squelette: { joints: squelette.joints, parents: squelette.parents } } : {}),
     ...(pointsOk ? { points } : {}),
+    // liens imposes entre points / articulations (editeur) : filtres par le
+    // pilote (rig_complet.lire_liens) et par le worker en mode cloud
+    ...(pointsOk && Array.isArray(liens) && liens.length <= 64 && liens.some(Boolean) ? { liens } : {}),
     ...(entier(graine, 2 ** 31) !== null ? { graine } : {}),
     ...(entier(tirage, 16) !== null ? { tirage } : {}),
   };
@@ -4248,6 +4251,11 @@ ipcMain.handle('auto-rig-ai', async (event, { meshPath, engine, skeleton, points
         const fichierPoints = path.join(_tmpWorkDir(), `_points_squelette_${Date.now()}.json`);
         fs.writeFileSync(fichierPoints, JSON.stringify(optsSquelette.points));
         argsSquelette.push('--points', fichierPoints);
+        if (optsSquelette.liens) {
+          const fichierLiens = path.join(_tmpWorkDir(), `_liens_squelette_${Date.now()}.json`);
+          fs.writeFileSync(fichierLiens, JSON.stringify(optsSquelette.liens));
+          argsSquelette.push('--liens', fichierLiens);
+        }
       }
       if (optsSquelette.squelette) {
         const fichierSquelette = path.join(_tmpWorkDir(), `_squelette_impose_${Date.now()}.json`);

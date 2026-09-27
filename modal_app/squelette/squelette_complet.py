@@ -372,7 +372,7 @@ def cle_de_note(n):
 
 
 # ============================================================== completion
-def completer(vol, lignes, J, parents, noms, influence=None, pointes=None):
+def completer(vol, lignes, J, parents, noms, influence=None, pointes=None, liens=None):
     """Complete le squelette de l'IA. Rend (J, parents, noms, rapport) ; les
     len(J_ia) premiers joints sont ceux de l'IA, inchanges. `influence` =
     influence_du_rig(rig de l'IA) : les nouvelles chaines se rattachent a l'os
@@ -386,7 +386,14 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None):
 
     `pointes` (editeur de points) : les points de l'utilisateur, alignes sur
     `lignes` (lignes_vers_points). Un point sans ligne (tronc) est relie en
-    droite a l'os qui fait bouger sa zone."""
+    droite a l'os qui fait bouger sa zone.
+
+    `liens` (editeur de points, 2026-09-27, user : « point 15 = apres joint 5,
+    avant point 16 ») : aligne sur `pointes`, None = automatique, sinon
+    {'os': [x, y, z]} (l'articulation la plus proche de cette position) ou
+    {'point': k} (le bout de la chaine du point k). Un point lie n'est PAS
+    traite par la completion automatique : sa chaine part EXACTEMENT de ce
+    qu'a choisi l'utilisateur, en droite, a l'espacement median des os."""
     from scipy import ndimage
     J = [np.asarray(p, dtype=np.float64) for p in J]
     parents, noms = list(parents), list(noms)
@@ -423,7 +430,8 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None):
 
     rapport = []
     nouvelles = []
-    avec_ligne = [(a_i, P) for a_i, P in enumerate(lignes) if P is not None]
+    manuels = {a_i for a_i, l in enumerate(liens or []) if l and pointes is not None and a_i < len(pointes)}
+    avec_ligne = [(a_i, P) for a_i, P in enumerate(lignes) if P is not None and a_i not in manuels]
     for a_i, P in sorted(avec_ligne, key=lambda t: -_abscisse(t[1])[-1]):
         s = _abscisse(P); L = float(s[-1])
         d = np.linalg.norm(np.array(J)[:, None, :] - P[None, :, :], axis=2)
@@ -490,7 +498,7 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None):
     # aucun sommet trouve et repli sur l'os le plus proche (le cou).
     if pointes is not None:
         for a_i, (P, pt) in enumerate(zip(lignes, pointes)):
-            if P is not None:
+            if P is not None or a_i in manuels:
                 continue
             pt = np.asarray(pt, dtype=np.float64)
             # deja un os sur le point (ex. bout de tete pose par l'IA)
@@ -515,6 +523,56 @@ def completer(vol, lignes, J, parents, noms, influence=None, pointes=None):
                 J.append(depart + (pt - depart) * q / n_new); parents.append(p); noms.append(f'point_{a_i}_{q}')
                 p = len(J) - 1
             rapport.append({'point': a_i, 'action': 'relie', 'os': n_new})
+
+    # LIENS IMPOSES par l'utilisateur, dans l'ordre de dependance (un point lie
+    # a un autre point attend que la chaine de celui-ci existe). Un cycle ou un
+    # lien vers un point inconnu retombe sur l'articulation la plus proche.
+    if manuels:
+        liens = [dict(l) if isinstance(l, dict) else l for l in liens]   # copie : on peut la corriger
+        bouts = {}
+
+        def plus_proche(pos):
+            return int(np.argmin(np.linalg.norm(np.array(J) - np.asarray(pos, dtype=np.float64), axis=1)))
+
+        restants = sorted(manuels)
+        for _passe in range(len(restants) + 1):
+            if not restants:
+                break
+            suivants = []
+            for a_i in restants:
+                lien = liens[a_i]
+                depart = None
+                if isinstance(lien, dict) and lien.get('os') is not None:
+                    depart = plus_proche(lien['os'])
+                elif isinstance(lien, dict) and lien.get('point') is not None:
+                    k = int(lien['point'])
+                    if k in bouts:
+                        depart = bouts[k]
+                    elif k in manuels and k in restants and _passe < len(restants):
+                        suivants.append(a_i)
+                        continue
+                    elif 0 <= k < len(pointes):
+                        depart = plus_proche(pointes[k])
+                if depart is None:                       # lien illisible ou cycle
+                    depart = plus_proche(pointes[a_i])
+                pt = np.asarray(pointes[a_i], dtype=np.float64)
+                origine = np.array(J[depart])
+                L = float(np.linalg.norm(pt - origine))
+                if L <= 0.5 * pas_global:
+                    bouts[a_i] = depart
+                    rapport.append({'point': a_i, 'action': 'lien', 'os': 0})
+                    continue
+                n_new = max(1, int(round(L / pas_global)))
+                p = depart
+                for q in range(1, n_new + 1):
+                    J.append(origine + (pt - origine) * q / n_new); parents.append(p); noms.append(f'lien_{a_i}_{q}')
+                    p = len(J) - 1
+                bouts[a_i] = p
+                rapport.append({'point': a_i, 'action': 'lien', 'os': n_new, 'depuis': depart})
+            if len(suivants) == len(restants):          # plus aucun progres : cycle
+                for a_i in suivants:
+                    liens[a_i] = None if not isinstance(liens[a_i], dict) else {'os': list(map(float, pointes[a_i]))}
+            restants = suivants
 
     # TRONC SANS OS : un bloc du coeur a plus de 1,2 x l'epaisseur de tout os
     # (a 0,5 x, le ventre d'une vache — a ~1 rayon de sa colonne qui longe le

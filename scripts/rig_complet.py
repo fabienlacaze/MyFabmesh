@@ -82,12 +82,29 @@ def lire_points(chemin):
     return [[float(c) for c in p][:3] for p in points]
 
 
+def lire_liens(chemin, n_points):
+    """Liens imposes de l'editeur de points, alignes sur les points : None
+    (automatique), {'os': [x, y, z]} ou {'point': k}. Tout le reste est ignore."""
+    brut = json.load(open(chemin, encoding='utf-8'))
+    liens = []
+    for i in range(n_points):
+        l = brut[i] if isinstance(brut, list) and i < len(brut) else None
+        if isinstance(l, dict) and isinstance(l.get('os'), list) and len(l['os']) == 3:
+            liens.append({'os': [float(c) for c in l['os']]})
+        elif isinstance(l, dict) and isinstance(l.get('point'), int) and 0 <= l['point'] < n_points and l['point'] != i:
+            liens.append({'point': int(l['point'])})
+        else:
+            liens.append(None)
+    return liens if any(liens) else None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('entree')
     ap.add_argument('sortie')
     ap.add_argument('--tirages', type=int, default=3)
     ap.add_argument('--points', help='JSON : liste de [x, y, z] (editeur de points)')
+    ap.add_argument('--liens', help='JSON : liens imposes, alignes sur --points')
     ap.add_argument('--graine', type=int, default=None)
     ap.add_argument('--tirage', type=int, default=None,
                     help='rejouer d\'abord ce tirage (graine + tirage) : celui du rig edite')
@@ -97,6 +114,7 @@ def main():
     entree = Path(a.entree).resolve()
     sortie = Path(a.sortie).resolve()
     points = lire_points(a.points) if a.points else None
+    liens = lire_liens(a.liens, len(points)) if (a.liens and points) else None
     graine = a.graine if a.graine is not None else int.from_bytes(os.urandom(4), 'little') & 0x7fffffff
     sys.path.insert(0, os.getcwd())                                  # demo.py du rigger
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # squelette_complet
@@ -114,7 +132,7 @@ def main():
         return Path(dest).is_file() and Path(dest).stat().st_size > 0
 
     if a.squelette:
-        rig_impose(sq, entree, sortie, lire_squelette(a.squelette), points, graine, rigger, tmp, t0)
+        rig_impose(sq, entree, sortie, lire_squelette(a.squelette), points, graine, rigger, tmp, t0, liens)
         return
 
     def tirer(i):
@@ -191,7 +209,7 @@ def main():
             journal(f'peau du tirage illisible, rattachement au plus proche : {e}')
             influence = None
         J2, parents2, noms2, rapport = sq.completer(vol, lignes, J, parents, noms, influence,
-                                                    pointes=points)
+                                                    pointes=points, liens=liens)
         compte_rendu['completion'] = rapport
         if len(J2) > len(J):
             journal(f'completion : {len(J)} -> {len(J2)} os')
@@ -232,7 +250,7 @@ def main():
     journal(f'TERMINE en {time.time() - t0:.0f} s ({"complete" if final != meilleur else "IA seule"})')
 
 
-def rig_impose(sq, entree, sortie, squelette, points, graine, rigger, tmp, t0):
+def rig_impose(sq, entree, sortie, squelette, points, graine, rigger, tmp, t0, liens=None):
     """Squelette IMPOSE : pas de tirage de l'IA ; greffe (+ points), peau par l'IA."""
     import numpy as np
     J, parents = squelette
@@ -244,7 +262,8 @@ def rig_impose(sq, entree, sortie, squelette, points, graine, rigger, tmp, t0):
         vol = sq.volume(str(entree))
         if points:
             lignes = sq.lignes_vers_points(vol, points)
-            J2, parents2, noms2, rapport = sq.completer(vol, lignes, J, parents, noms, None, pointes=points)
+            J2, parents2, noms2, rapport = sq.completer(vol, lignes, J, parents, noms, None, pointes=points,
+                                                        liens=liens)
             compte_rendu.update({'completion': rapport, 'points_utilisateur': True,
                                  'extremites': [[round(float(x), 5) for x in p] for p in points]})
         else:

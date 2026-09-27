@@ -12701,6 +12701,27 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
     }
     points = (body.points as number[][]).map(p => p.map(c => Math.round(c * 1e5) / 1e5));
   }
+  /* LIENS IMPOSES (2026-09-27, user : « point 15 = apres joint 5, avant point
+   * 16 ») : alignes sur `points`, null = automatique, { os: [x,y,z] } ou
+   * { point: k }. Filtres ici (Modal refiltre) : ce qui n'est pas propre est
+   * ignore, pas refuse — le rig reste faisable. */
+  let liens: ({ os: number[] } | { point: number } | null)[] | undefined;
+  if (points && Array.isArray(body.liens)) {
+    const brut = body.liens as unknown[];
+    liens = points.map((_, i) => {
+      const l = brut[i] as { os?: unknown; point?: unknown } | null | undefined;
+      if (l && Array.isArray(l.os) && l.os.length === 3
+          && l.os.every(c => typeof c === 'number' && Number.isFinite(c) && Math.abs(c) < 1e4)) {
+        return { os: (l.os as number[]).map(c => Math.round(c * 1e5) / 1e5) };
+      }
+      if (l && Number.isInteger(l.point) && (l.point as number) >= 0
+          && (l.point as number) < points!.length && l.point !== i) {
+        return { point: l.point as number };
+      }
+      return null;
+    });
+    if (!liens.some(Boolean)) liens = undefined;
+  }
   const entierBorne = (v: unknown, borne: number): number | undefined | null =>
     v === undefined || v === null ? undefined
       : (Number.isInteger(v) && (v as number) >= 0 && (v as number) < borne ? v as number : null);
@@ -12772,6 +12793,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
         mesh_url: meshUrl,
         ...(skeleton ? { skeleton } : {}),
         ...(points ? { points } : {}),
+        ...(liens ? { liens } : {}),
         ...(graine !== undefined ? { graine } : {}),
         ...(tirage !== undefined ? { tirage } : {}),
         ...(squelette ? { squelette } : {}),

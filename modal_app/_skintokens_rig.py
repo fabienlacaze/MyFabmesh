@@ -283,6 +283,12 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
                 with open(chemin_points, "w", encoding="utf-8") as f:
                     json.dump(points, f)
                 cmd += ["--points", chemin_points]
+                # liens imposes entre points / articulations (editeur, 2026-09-27)
+                if options.get("liens"):
+                    chemin_liens = os.path.join(tmp, "liens.json")
+                    with open(chemin_liens, "w", encoding="utf-8") as f:
+                        json.dump(options["liens"], f)
+                    cmd += ["--liens", chemin_liens]
             if squelette:
                 chemin_squelette = os.path.join(tmp, "squelette.json")
                 with open(chemin_squelette, "w", encoding="utf-8") as f:
@@ -468,6 +474,25 @@ def rig_router():
                     len(p) != 3 or not all(math.isfinite(c) and abs(c) < 1e4 for c in p) for p in points):
                 raise HTTPException(status_code=400, detail="points: 1 to 64 finite [x, y, z]")
             options["points"] = points
+            # Liens imposes (editeur de points) : alignes sur les points ; None =
+            # automatique, {"os": [x, y, z]} ou {"point": k}. Le reste est ignore.
+            liens = payload.get("liens")
+            if isinstance(liens, list):
+                propres = []
+                for i in range(len(points)):
+                    l = liens[i] if i < len(liens) else None
+                    if isinstance(l, dict) and isinstance(l.get("os"), list) and len(l["os"]) == 3:
+                        try:
+                            v = [float(c) for c in l["os"]]
+                        except (TypeError, ValueError):
+                            v = None
+                        propres.append({"os": v} if v and all(math.isfinite(c) and abs(c) < 1e4 for c in v) else None)
+                    elif isinstance(l, dict) and isinstance(l.get("point"), int) and 0 <= l["point"] < len(points) and l["point"] != i:
+                        propres.append({"point": int(l["point"])})
+                    else:
+                        propres.append(None)
+                if any(propres):
+                    options["liens"] = propres
         squelette = payload.get("squelette")
         if squelette is not None:
             try:

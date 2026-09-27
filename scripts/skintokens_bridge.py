@@ -55,6 +55,7 @@ def main():
     ap.add_argument("output_glb", nargs="?")
     # Editeur des points du squelette : transmis tels quels au pilote
     ap.add_argument("--points")
+    ap.add_argument("--liens")       # liens imposes entre points / articulations
     ap.add_argument("--graine", type=int)
     ap.add_argument("--tirage", type=int)
     ap.add_argument("--squelette")   # squelette IMPOSE : peau seule / articulations editees
@@ -132,6 +133,8 @@ def main():
         options += ["--tirage", str(a.tirage)]
     if a.squelette:
         options += ["--squelette", os.path.abspath(a.squelette)]
+    if a.liens and a.points:
+        options += ["--liens", os.path.abspath(a.liens)]
     if a.points or a.squelette:
         # Points ou squelette de l'utilisateur : PAS de repli sur l'ancien chemin,
         # il rendrait un rig qui ignore ce qu'il a demande. Echec explicite.
