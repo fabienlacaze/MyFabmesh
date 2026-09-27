@@ -1931,11 +1931,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     btn.href = '/market';
     btn.target = '_self';
     btn.title = 'Browse the marketplace';
-    // logo a gauche du libelle (demande du user, 27/09) a la place de l'emoji
-    const logo = document.createElement('img');
-    logo.src = '/logo-symbole.png'; logo.alt = ''; logo.width = 18; logo.height = 18;
-    logo.style.cssText = 'width:18px;height:18px;border-radius:5px;flex:none';
-    btn.append(logo, document.createTextNode('Marketplace'));
+    btn.textContent = '🛒 Marketplace';
     const baseShadow = '0 2px 6px rgba(90,79,207,0.5)';
     const hoverShadow = '0 3px 10px rgba(139,92,246,0.7)';
     const baseBg = 'linear-gradient(135deg, #5a4fcf, #8b5cf6)';
@@ -1974,6 +1970,37 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     if (anchor) right.insertBefore(btn, anchor);
     else        right.appendChild(btn);
     _marketplaceBtnEl = btn;
+
+    // MARQUE (demande du user, 27/09) : le logo et « MyFabmesh.AI » ne sont plus a
+    // gauche de la barre mais dans une pastille, a gauche de Marketplace. Elle
+    // ouvre le site vitrine dans un nouvel onglet.
+    if (!document.getElementById('cloud-brand-btn')) {
+      const marque = document.createElement('a');
+      marque.id = 'cloud-brand-btn';
+      marque.href = 'https://fabienlacaze.github.io/MyFabmesh/';
+      marque.target = '_blank'; marque.rel = 'noopener';
+      marque.title = 'MyFabmesh.AI website';
+      const logo = document.createElement('img');
+      logo.src = '/logo-symbole.png'; logo.alt = ''; logo.width = 22; logo.height = 22;
+      logo.style.cssText = 'width:22px;height:22px;border-radius:6px;flex:none';
+      const ai = document.createElement('span');
+      ai.textContent = '.AI';
+      ai.style.cssText = 'background:linear-gradient(135deg,#e94560,#a855f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent';
+      const nom = document.createElement('span');
+      nom.append('MyFabmesh', ai);
+      marque.append(logo, nom);
+      marque.style.cssText = [
+        'display:inline-flex', 'align-items:center', 'gap:7px',
+        'padding:3px 12px 3px 4px', 'font-size:12px', 'font-weight:800',
+        'color:#f5f5fa', 'text-decoration:none', 'border-radius:999px',
+        'background:#1b1b29', 'border:1px solid #2a2a40',
+        'margin-right:8px', 'white-space:nowrap',
+        'transition:border-color 0.15s ease',
+      ].join(';');
+      marque.addEventListener('mouseenter', () => { marque.style.borderColor = '#a855f7'; });
+      marque.addEventListener('mouseleave', () => { marque.style.borderColor = '#2a2a40'; });
+      right.insertBefore(marque, btn);
+    }
   }
 
   /* ────────────────────────── Logout button ──────────────────────────

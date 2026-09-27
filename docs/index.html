@@ -21,7 +21,8 @@
     --radius: 14px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
+  /* les liens du menu s'arretent sous l'en-tete fixe (72 px) au lieu de cacher le titre */
+  html { scroll-behavior: smooth; scroll-padding-top: 88px; }
   body {
     background: var(--bg-0); color: var(--text-0);
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -312,8 +313,8 @@
 
   <section id="tools" class="bandeau">
     <div class="wrap">
-      <h2>Edit anything you generate</h2>
-      <p class="intro">Not happy with a detail? Change it in a few clicks, right where it is: the picture, the 3D model, the skeleton or the animation. No need to generate again or to open another app. Two kinds of tools do it, directly in the 2D and 3D viewers: automatic AI tools, and semi-manual tools you control by hand.</p>
+      <h2>Tools</h2>
+      <p class="intro"><strong>Edit anything you generate.</strong> Not happy with a detail? Change it in a few clicks, right where it is: the picture, the 3D model, the skeleton or the animation. No need to generate again or to open another app. Two kinds of tools do it, directly in the 2D and 3D viewers: automatic AI tools, and semi-manual tools you control by hand.</p>
       <p class="legende-outils"><span class="puce-ia">AI</span> automatic AI tool <span class="puce-main">Manual</span> semi-manual tool</p>
       <div class="carrousel" id="carrousel" aria-roledescription="carousel" aria-label="The editing tools">
         <figure class="diapo active" aria-roledescription="slide" aria-label="1 / 6">
@@ -504,7 +505,7 @@
 
 <aside id="essayer" class="cache" aria-label="Try MyFabmesh">
   <button type="button" class="fermer" aria-label="Close">×</button>
-  <p class="titre">Try MyFabmesh</p>
+  <p class="titre" style="display:flex;align-items:center;gap:8px"><img src="logo-symbole.png" alt="" width="96" height="96" style="width:26px;height:26px;border-radius:6px;flex:none">Try MyFabmesh</p>
   <div class="choix">
     <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Web app</a>
     <a class="btn" href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener">Windows app</a>
