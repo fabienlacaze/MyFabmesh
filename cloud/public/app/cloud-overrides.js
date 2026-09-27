@@ -1853,9 +1853,10 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     ].join(';');
     compte.addEventListener('mouseenter', () => { compte.style.opacity = '1'; compte.style.textDecoration = 'underline'; });
     compte.addEventListener('mouseleave', () => { compte.style.opacity = '.72'; compte.style.textDecoration = 'none'; });
-    right.insertBefore(compte, pill.nextSibling);
+    // Plus affiche dans la barre (2026-09-28, user : « garde seulement la boite
+    // aux lettres ») : l'element garde l'e-mail pour pre-remplir « Contact us ».
+    // L'e-mail reste visible dans Parametres → Compte.
     _compteChipEl = compte;
-    _grouperCompte();
 
     // First fetch + polling
     refreshCreditsPill();
@@ -1999,9 +2000,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // le demarrage (marque, Marketplace, deconnexion, style du solde, sections
     // Compte des parametres) — « tout a disparu », 2026-09-28.
     const enfant = (el) => (el && el.parentNode === right ? el : null);
-    const anchor = enfant(right.querySelector('#cloud-credits-pill'))
-      || enfant(document.getElementById('cloud-compte-groupe'))
-      || enfant(right.querySelector('#cloud-inbox-btn'))
+    const anchor = enfant(right.querySelector('#cloud-inbox-btn'))
+      || enfant(right.querySelector('#cloud-credits-pill'))
       || right.firstChild;
     if (anchor) right.insertBefore(btn, anchor);
     else        right.appendChild(btn);
@@ -2190,6 +2190,13 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         font-size: 10px; font-weight: 700;
         padding: 2px 6px; border-radius: 4px;
       }
+      .cloud-inbox-onglets { display: flex; gap: 6px; margin: 0 0 12px; }
+      .cloud-inbox-onglets button {
+        flex: 1; padding: 7px 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;
+        border: 1px solid var(--border, #333); background: transparent; color: var(--text-1, #ccc);
+      }
+      .cloud-inbox-onglets button.actif { background: var(--accent, #a855f7); color: #fff; border-color: transparent; }
+      .cloud-inbox-contact p { font-size: 13px; color: var(--text-2, #999); margin: 0 0 10px; }
       .cloud-inbox-empty {
         text-align: center; color: #888; padding: 32px 16px;
       }
@@ -2219,7 +2226,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const btn = document.createElement('button');
     btn.id = 'cloud-inbox-btn';
     btn.type = 'button';
-    btn.title = 'Inbox';
+    btn.title = 'Inbox & contact us';
     btn.innerHTML = '📬<span id="cloud-inbox-badge">0</span>';
     // Place BEFORE the credits pill (which itself sits at firstChild
     // thanks to installCreditsPill's insertBefore).
@@ -2230,7 +2237,6 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     btn.addEventListener('click', openInboxPopup);
     _inboxBtnEl = btn;
     _inboxBadgeEl = btn.querySelector('#cloud-inbox-badge');
-    _grouperCompte();
 
     refreshInbox();
     if (_inboxPollTimer) clearInterval(_inboxPollTimer);
@@ -2298,10 +2304,18 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     } catch { return ''; }
   }
 
-  function openInboxPopup() {
+  // PANNEAU A DEUX ONGLETS (2026-09-28, user : « fais un panneau avec deux
+  // onglets pour le cote messagerie ») : « Inbox » (messages recus) et
+  // « Contact us ». Le formulaire de contact est EMPRUNTE a sa fenetre
+  // (#contact-modal : memes gestionnaires, pieces jointes comprises) et lui est
+  // RENDU a la fermeture, pour que « About → Contact us » marche toujours.
+  function openInboxPopup(onglet) {
     _ensureInboxStyle();
     // Close any existing instance first.
     document.querySelectorAll('.cloud-inbox-overlay').forEach((n) => n.remove());
+    const formContact = document.getElementById('contact-form');
+    const retourContact = document.getElementById('contact-feedback');
+    const origineContact = formContact ? formContact.parentNode : null;
 
     const overlay = document.createElement('div');
     overlay.className = 'cloud-inbox-overlay';
@@ -2311,10 +2325,22 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const header = document.createElement('div');
     header.className = 'cloud-inbox-header';
     header.innerHTML = `
-      <h2>📬 Inbox</h2>
+      <h2>📬 Messages</h2>
       <button class="cloud-inbox-close" type="button" aria-label="Close">×</button>
     `;
     card.appendChild(header);
+    const fermer = () => {
+      if (formContact && origineContact && !origineContact.contains(formContact)) {
+        origineContact.appendChild(formContact);
+        if (retourContact) origineContact.appendChild(retourContact);
+      }
+      overlay.remove();
+    };
+    const onglets = document.createElement('div');
+    onglets.className = 'cloud-inbox-onglets';
+    onglets.innerHTML = '<button type="button" data-onglet="boite" class="actif">📬 Inbox</button>'
+      + '<button type="button" data-onglet="contact">✉ Contact us</button>';
+    card.appendChild(onglets);
 
     const list = document.createElement('div');
     list.className = 'cloud-inbox-list';
@@ -2373,7 +2399,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           const a = row.querySelector('a[data-inbox-nav="1"]');
           if (a) a.addEventListener('click', (ev) => {
             ev.preventDefault();
-            try { overlay.remove(); } catch {}
+            try { fermer(); } catch {}
             const fn = window.__navigateToInboxAsset;
             if (typeof fn === 'function') fn(it.job_id, it.asset_kind);
           });
@@ -2382,12 +2408,39 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       });
     }
     card.appendChild(list);
+    const contact = document.createElement('div');
+    contact.className = 'cloud-inbox-contact';
+    contact.hidden = true;
+    contact.innerHTML = '<p>Bug reports, feature requests, billing questions or anything else: we read every message and usually reply within 48 h, here in your inbox.</p>';
+    card.appendChild(contact);
+    const montrer = (quoi) => {
+      list.hidden = quoi !== 'boite';
+      contact.hidden = quoi !== 'contact';
+      onglets.querySelectorAll('button').forEach((b) => b.classList.toggle('actif', b.dataset.onglet === quoi));
+      if (quoi === 'contact' && formContact && !contact.contains(formContact)) {
+        contact.appendChild(formContact);
+        if (retourContact) contact.appendChild(retourContact);
+        const mail = _compteChipEl?.dataset.email || '';
+        const nom = document.getElementById('contact-name');
+        const courriel = document.getElementById('contact-email');
+        if (nom && !nom.value.trim() && mail) nom.value = mail.split('@')[0];
+        if (courriel && !courriel.value.trim() && mail) courriel.value = mail;
+        [nom, courriel].forEach((el) => el && el.dispatchEvent(new Event('input', { bubbles: true })));
+        setTimeout(() => document.getElementById('contact-subject')?.focus(), 50);
+      }
+    };
+    onglets.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-onglet]');
+      if (b) montrer(b.dataset.onglet);
+    });
+    // « Cancel » du formulaire : ferme le panneau (sa fenetre d'origine est cachee)
+    contact.addEventListener('click', (e) => { if (e.target.closest('#contact-cancel')) { e.preventDefault(); fermer(); } });
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+    if (onglet === 'contact') montrer('contact');
 
-    const close = () => overlay.remove();
-    header.querySelector('.cloud-inbox-close').addEventListener('click', close);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    header.querySelector('.cloud-inbox-close').addEventListener('click', fermer);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) fermer(); });
 
     // Mark all currently-visible unread items as read.
     const unreadIds = _inboxItems.filter((it) => !it.read && it.id != null).map((it) => it.id);
