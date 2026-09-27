@@ -3401,7 +3401,10 @@
 
   <!-- Mesh Edit modal (Sculpt / Paint / Select) -->
   <div id="modal-mesh-edit" class="modal hidden">
-    <div class="modal-content" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
+    <!-- Taille FIXE (2026-09-27, user : « la page doit etre plus grande, on ne voit
+         rien ») : sans largeur ni hauteur, la fenetre se reduisait a son contenu.
+         Meme gabarit que le bureau (92 vw x 92 vh). -->
+    <div class="modal-content" style="width:94vw; height:92vh; max-width:1700px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
         <h3 style="margin:0;" id="mesh-edit-title">Mesh Edit</h3>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
@@ -3412,7 +3415,7 @@
       </div>
       <div style="display:flex; flex:1 1 0; gap:12px; min-height:500px;">
         <!-- Left panel: tools — scrolls vertically when controls (incl. Tolerance) overflow. -->
-        <div style="display:flex; flex-direction:column; gap:10px; width:130px; flex-shrink:0; padding:8px 4px 8px 0; overflow-y:auto;">
+        <div style="display:flex; flex-direction:column; gap:10px; width:200px; flex-shrink:0; padding:8px 4px 8px 0; overflow-y:auto; overflow-x:hidden;">
           <div style="display:flex; flex-direction:column; gap:4px;">
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Mode</span>
             <button id="me-tool-sculpt" class="secondary-btn tool-btn tool-active" style="padding:5px 10px; font-size:11px; text-align:left; width:100%;">&#9997; Sculpt</button>
