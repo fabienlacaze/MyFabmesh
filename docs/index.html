@@ -520,7 +520,18 @@ const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 function monter(hote) {
   const mode = hote.dataset.mode;
   const aide = hote.querySelector('.aide3d');
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
+  catch (e) { if (aide) aide.textContent = '3D not supported by this browser'; return; }
+  // contexte graphique perdu (carte tres sollicitee, pilote) : on le signale et
+  // on laisse le navigateur le rendre, three.js recharge alors la scene
+  renderer.domElement.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault(); hote.classList.remove('pret');
+    if (aide) aide.textContent = 'Graphics paused by the browser';
+  });
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    hote.classList.add('pret'); if (aide) aide.textContent = 'Drag to rotate';
+  });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -541,7 +552,11 @@ function monter(hote) {
 
   loader.load(hote.dataset.glb, (gltf) => {
     const m = gltf.scene;
-    const boite = new THREE.Box3().setFromObject(m);
+    // boite exacte, sommets deformes par le squelette compris : les matrices des
+    // os ne sont calculees qu'au premier rendu, on les calcule donc avant
+    m.updateMatrixWorld(true);
+    m.traverse((o) => { if (o.isSkinnedMesh) o.skeleton.update(); });
+    const boite = new THREE.Box3().setFromObject(m, true);
     const centre = boite.getCenter(new THREE.Vector3()), dim = boite.getSize(new THREE.Vector3());
     m.position.sub(centre);
     scene.add(m);
@@ -564,12 +579,14 @@ function monter(hote) {
   }, undefined, () => { if (aide) aide.textContent = '3D preview unavailable'; });
 
   new IntersectionObserver((e) => { visible = e[0].isIntersecting; }).observe(hote);
+  let erreurVue = false;
   renderer.setAnimationLoop(() => {
-    if (!visible) return;
+    if (!visible || erreurVue) return;
     const dt = horloge.getDelta();
     if (mixer) mixer.update(dt);
     controls.update();
-    renderer.render(scene, camera);
+    try { renderer.render(scene, camera); }
+    catch (e) { erreurVue = true; hote.classList.remove('pret'); if (aide) aide.textContent = '3D error: ' + String(e.message || e).slice(0, 60); console.error(e); }
   });
 }
 
