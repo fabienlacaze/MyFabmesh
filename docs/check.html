@@ -3,118 +3,120 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Compatibility check — MyFabmesh.AI</title>
+<title>Will it run on my PC? — MyFabmesh.AI</title>
+<meta name="description" content="Check in a few seconds whether the MyFabmesh.AI Windows app can run the AI on your graphics card, or will use cloud mode.">
 <link rel="icon" href="favicon.png">
-<link rel="stylesheet" href="styles.css">
 <style>
-  .check-shell {
-    max-width: 720px;
-    margin: 40px auto;
-    padding: 0 24px;
+  :root {
+    --bg-0: #0b0b14; --bg-1: #13131d; --bg-2: #1b1b29; --border: #2a2a40;
+    --text-0: #f5f5fa; --text-1: #c2c2d4; --text-2: #8a8aa3;
+    --accent: #a855f7; --accent-2: #e94560; --ok: #4ade80; --warn: #fbbf24;
+    --grad: linear-gradient(135deg, #e94560, #a855f7);
+    --radius: 14px;
   }
-  .check-card {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 32px;
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-0); color: var(--text-0);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased;
   }
-  .check-rows { margin: 24px 0; }
-  .check-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 14px;
-  }
-  .check-row:last-child { border-bottom: none; }
-  .check-lbl { color: var(--text-2); }
-  .check-val { color: var(--text-0); font-weight: 600; }
-  .check-val.ok { color: var(--success); }
-  .check-val.warn { color: var(--warning); }
-  .check-val.bad { color: var(--accent-2); }
-  .check-verdict {
-    text-align: center;
-    padding: 24px;
-    border-radius: var(--radius-sm);
-    margin: 20px 0;
-    font-size: 18px;
-    font-weight: 700;
-  }
-  .verdict-full { background: rgba(74, 222, 128, 0.15); color: var(--success); }
-  .verdict-std { background: rgba(168, 85, 247, 0.15); color: var(--accent); }
-  .verdict-lite { background: rgba(251, 191, 36, 0.15); color: var(--warning); }
-  .verdict-cloud { background: rgba(233, 69, 96, 0.12); color: var(--accent-2); }
-  .check-cta {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin-top: 24px;
-  }
-  .check-note {
-    font-size: 12px;
-    color: var(--text-2);
-    text-align: center;
-    margin-top: 18px;
-  }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; }
+  h1 { line-height: 1.2; text-wrap: balance; }
+
+  .top { position: sticky; top: 0; z-index: 10; background: rgba(11, 11, 20, 0.88);
+         backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+  .brand { font-weight: 800; font-size: 19px; text-decoration: none; }
+  .brand b { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .top nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
+  .top nav a { color: var(--text-1); text-decoration: none; }
+  .top nav a:hover { color: var(--text-0); }
+  @media (max-width: 640px) { .top nav .opt { display: none; } }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px;
+         border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none;
+         border: 1px solid var(--border); background: var(--bg-2); color: var(--text-0); }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primaire { background: var(--grad); border-color: transparent; }
+  .btn:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  main { padding-block: 56px 72px; }
+  .entete { text-align: center; max-width: 640px; margin: 0 auto 32px; }
+  .entete h1 { font-size: clamp(28px, 4.5vw, 40px); font-weight: 800; letter-spacing: -0.02em; }
+  .entete p { margin-top: 12px; color: var(--text-1); }
+
+  .carte { max-width: 680px; margin: 0 auto; background: var(--bg-1); border: 1px solid var(--border);
+           border-radius: var(--radius); padding: 28px; }
+  .lignes { display: grid; }
+  .ligne { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0;
+           border-bottom: 1px solid var(--border); font-size: 15px; }
+  .ligne:last-child { border-bottom: 0; }
+  .lbl { color: var(--text-2); flex: none; }
+  .val { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  .val.ok { color: var(--ok); } .val.warn { color: var(--warn); } .val.bad { color: var(--accent-2); }
+
+  .verdict { margin-top: 20px; padding: 20px 22px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-2); }
+  .verdict strong { display: block; font-size: 19px; }
+  .verdict p { margin-top: 6px; color: var(--text-1); font-size: 15px; }
+  .verdict.local { border-color: rgba(74, 222, 128, 0.45); background: rgba(74, 222, 128, 0.08); }
+  .verdict.local strong { color: var(--ok); }
+  .verdict.cloud strong, .verdict.doute strong { color: var(--accent); }
+  .verdict.web strong { color: var(--warn); }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+  .note { margin-top: 20px; font-size: 13px; color: var(--text-2); }
+
+  footer { border-top: 1px solid var(--border); padding-block: 28px; font-size: 14px; color: var(--text-2); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+  footer nav { display: flex; gap: 18px; margin-left: auto; }
+  footer a { text-decoration: none; }
+  footer a:hover { color: var(--text-0); }
 </style>
 </head>
 <body>
-
-<header class="site-header">
-  <a href="index.html" class="brand">MyFabmesh<span class="brand-ai">.AI</span></a>
-  <nav class="nav">
-    <a href="index.html">Home</a>
-    <a href="index.html#products">Products</a>
-    <a href="index.html#faq">FAQ</a>
-  </nav>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html">MyFabmesh<b>.AI</b></a>
+    <nav>
+      <a class="opt" href="index.html#how">How it works</a>
+      <a class="opt" href="index.html#tools">Tools</a>
+      <a href="index.html#editions">Web or Windows</a>
+      <a href="index.html#faq">FAQ</a>
+    </nav>
+  </div>
 </header>
 
-<main class="check-shell">
-
-  <h1 style="text-align:center; margin-bottom: 10px; font-size: 32px;">Will MyFabmesh.AI Desktop work on my PC?</h1>
-  <p style="text-align:center; color: var(--text-1); margin-bottom: 30px;">
-    Quick browser-based check. No download, no install — takes 5 seconds.
-  </p>
-
-  <div class="check-card">
-    <div class="check-rows">
-      <div class="check-row">
-        <span class="check-lbl">Operating system</span>
-        <span class="check-val" id="r-os">checking…</span>
-      </div>
-      <div class="check-row">
-        <span class="check-lbl">Graphics chip</span>
-        <span class="check-val" id="r-gpu">checking…</span>
-      </div>
-      <div class="check-row">
-        <span class="check-lbl">Estimated VRAM</span>
-        <span class="check-val" id="r-vram">checking…</span>
-      </div>
-      <div class="check-row">
-        <span class="check-lbl">CPU cores</span>
-        <span class="check-val" id="r-cores">checking…</span>
-      </div>
-      <div class="check-row">
-        <span class="check-lbl">WebGPU support</span>
-        <span class="check-val" id="r-webgpu">checking…</span>
-      </div>
+<main>
+  <div class="wrap">
+    <div class="entete">
+      <h1>Will it run on my PC?</h1>
+      <p>A quick check in your browser: nothing to download, nothing to install.</p>
     </div>
 
-    <div id="verdict" class="check-verdict verdict-std">Analyzing your machine…</div>
+    <div class="carte">
+      <div class="lignes">
+        <div class="ligne"><span class="lbl">Operating system</span><span class="val" id="r-os">checking…</span></div>
+        <div class="ligne"><span class="lbl">Graphics card</span><span class="val" id="r-gpu">checking…</span></div>
+        <div class="ligne"><span class="lbl">Video memory</span><span class="val" id="r-vram">checking…</span></div>
+        <div class="ligne"><span class="lbl">Processor threads</span><span class="val" id="r-cores">checking…</span></div>
+      </div>
 
-    <div id="check-cta-row" class="check-cta"></div>
+      <div id="verdict" class="verdict" aria-live="polite"><strong>Checking your machine…</strong></div>
+      <div id="check-cta-row" class="actions"></div>
 
-    <p class="check-note">
-      This browser check uses what the browser exposes (~95% accurate). For a 100% verification, the optional full diagnostic .exe will be available soon — runs 30 s, reads real GPU info, sends the result back to this page.
-    </p>
+      <p class="note">Your browser tells us the model of your graphics card and your processor; the video memory is looked up from the card model. The Windows app checks your card itself at first launch: with an NVIDIA card of 12 GB or more it runs the AI on your PC, otherwise it switches to cloud mode.</p>
+    </div>
   </div>
-
 </main>
 
-<footer class="site-footer">
-  <div class="footer-bottom" style="margin: 0;">
-    © 2026 MyFabmesh.AI
+<footer>
+  <div class="wrap">
+    <span>© 2026 MyFabmesh.AI</span>
+    <nav>
+      <a href="terms.html">Terms</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/fabienlacaze/MyFabmesh">GitHub</a>
+    </nav>
   </div>
 </footer>
 
