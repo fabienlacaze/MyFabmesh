@@ -1063,6 +1063,43 @@ async function listLibrary() {
   return { success: true, projects, meshes: Array.isArray(meshes) ? meshes : [] };
 }
 
+// HISTORIQUE D'UTILISATION — parite web (2026-09-27). Le site a « My usage
+// history » (/api/history.json, /api/history/:id, /api/history.xlsx) ; le
+// renderer ne peut pas appeler le worker (cookie de session + CORS), donc le
+// main relaie, comme listLibrary().
+async function historyList() {
+  const a = await _authedFetch('/api/history.json');
+  if (a.needsCloudLogin) return { needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
+  if (!a.resp.ok) return { success: false, error: 'HTTP ' + a.resp.status };
+  const j = await a.resp.json().catch(() => ({}));
+  return { success: true, rows: Array.isArray(j.rows) ? j.rows : [] };
+}
+
+async function historyDetail(id) {
+  const a = await _authedFetch('/api/history/' + encodeURIComponent(String(id || '')));
+  if (a.needsCloudLogin) return { needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
+  if (!a.resp.ok) return { success: false, error: 'HTTP ' + a.resp.status };
+  const j = await a.resp.json().catch(() => ({}));
+  return { success: true, job: j.job || null, assets: Array.isArray(j.assets) ? j.assets : [] };
+}
+
+async function historyExport() {
+  const a = await _authedFetch('/api/history.xlsx');
+  if (a.needsCloudLogin) return { needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
+  if (!a.resp.ok) return { success: false, error: 'HTTP ' + a.resp.status };
+  const buf = Buffer.from(await a.resp.arrayBuffer());
+  const { dialog, BrowserWindow } = require('electron');
+  const win = BrowserWindow.getFocusedWindow() || undefined;
+  const choix = await dialog.showSaveDialog(win, {
+    title: 'Export usage history',
+    defaultPath: 'myfabmesh_history_' + new Date().toISOString().slice(0, 10) + '.xlsx',
+    filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+  });
+  if (choix.canceled || !choix.filePath) return { success: false, canceled: true };
+  fs.writeFileSync(choix.filePath, buf);
+  return { success: true, path: choix.filePath };
+}
+
 async function listMarket() {
   const r = await fetch(`${WORKER_URL}/api/market/list`);      // public
   const j = await r.json().catch(() => ({}));
@@ -1336,6 +1373,18 @@ function register(deps) {
   });
   ipcMain.handle('cloud-list-library', async () => {
     try { return await listLibrary(); }
+    catch (e) { return { success: false, error: String(e.message || e) }; }
+  });
+  ipcMain.handle('cloud-history-list', async () => {
+    try { return await historyList(); }
+    catch (e) { return { success: false, error: String(e.message || e) }; }
+  });
+  ipcMain.handle('cloud-history-detail', async (_e, id) => {
+    try { return await historyDetail(id); }
+    catch (e) { return { success: false, error: String(e.message || e) }; }
+  });
+  ipcMain.handle('cloud-history-export', async () => {
+    try { return await historyExport(); }
     catch (e) { return { success: false, error: String(e.message || e) }; }
   });
   ipcMain.handle('cloud-list-market', async () => {

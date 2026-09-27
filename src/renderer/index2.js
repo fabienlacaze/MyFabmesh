@@ -26718,3 +26718,150 @@ window._applyRigAnimPills();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', lancer);
   else lancer();
 })();
+
+// ============================================================
+// HISTORIQUE D'UTILISATION — PARITE WEB (2026-09-27). Meme fenetre que le
+// site (« My usage history »). Deux sources :
+//   - les travaux CLOUD du compte (/api/history.json, relaye par le main
+//     car le renderer n'a ni le cookie de session ni l'acces CORS) ;
+//   - les travaux LOCAUX termines (state.jobsTermines), sans credits.
+// Un travail cloud lance depuis le bureau figure dans les deux : la ligne
+// locale est ecartee quand une ligne cloud du meme projet tombe a moins de
+// 2 minutes.
+// ============================================================
+(function historiqueBureau() {
+  const btn   = document.getElementById('btn-history');
+  const modal = document.getElementById('history-modal');
+  const close = document.getElementById('history-close-btn');
+  const tbody = document.getElementById('history-tbody');
+  const errEl = document.getElementById('history-error');
+  const exportBtn = document.getElementById('history-export-btn');
+  if (!btn || !modal || !tbody) return;
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let lignesLocales = new Map();
+
+  const shut = () => { modal.style.display = 'none'; };
+  btn.addEventListener('click', () => { modal.style.display = 'flex'; charger(); });
+  close?.addEventListener('click', shut);
+  modal.addEventListener('click', (e) => { if (e.target === modal) shut(); });
+
+  exportBtn?.addEventListener('click', async () => {
+    if (!window.meshyAPI?.cloudHistoryExport) return;
+    const r = await window.meshyAPI.cloudHistoryExport();
+    if (r?.needsCloudLogin) showToast(_i18nT('Sign in to your MyFabmesh account to export the cloud history.'), 'info', 5000);
+    else if (r?.success) showToast(_i18nT('History exported') + ' ✓', 'success', 3000);
+    else if (!r?.canceled) showToast(_i18nT('Export failed') + ': ' + (r?.error || '?'), 'error', 5000);
+  });
+
+  function locales() {
+    const STATUT = { ok: 'succeeded', echec: 'failed', annule: 'cancelled' };
+    return (state.jobsTermines || []).map((j) => ({
+      id: 'local:' + j.finiId,
+      date: new Date(j.finiLe || j.startedAt || Date.now()).toISOString(),
+      type: (typeof _displayJobName === 'function' ? _displayJobName(j.name) : j.name) || '—',
+      status: STATUT[j.statut] || 'succeeded',
+      duration_s: Math.max(0, ((j.finiLe || 0) - (j.startedAt || 0)) / 1000) || 0,
+      credits: '—',
+      project: j.projectName || '',
+      _local: j,
+    }));
+  }
+
+  async function charger() {
+    errEl.style.display = 'none';
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:16px; color:var(--text-2);">' + esc(_i18nT('Loading…')) + '</td></tr>';
+    let cloud = [], note = '';
+    try {
+      const r = window.meshyAPI?.cloudHistoryList ? await window.meshyAPI.cloudHistoryList() : null;
+      if (r?.success) cloud = r.rows || [];
+      else if (r?.needsCloudLogin) note = _i18nT('Sign in to your MyFabmesh account to see your cloud usage too.');
+      else if (r) note = _i18nT('Cloud history unavailable') + (r.error ? ' (' + r.error + ')' : '');
+    } catch (e) { note = _i18nT('Cloud history unavailable'); }
+    const tCloud = cloud.map((c) => ({ t: new Date(c.date).getTime(), p: c.project || '' }));
+    const loc = locales().filter((l) => {
+      const t = new Date(l.date).getTime();
+      return !tCloud.some((c) => c.p === l.project && Math.abs(c.t - t) < 120000);
+    });
+    lignesLocales = new Map(loc.map((l) => [l.id, l._local]));
+    const lignes = [...cloud, ...loc].sort((a, b) => new Date(b.date) - new Date(a.date));
+    if (note) { errEl.textContent = note; errEl.style.display = 'block'; }
+    rendu(lignes);
+  }
+
+  function rendu(rows) {
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:24px; color:var(--text-2); text-align:center;">' + esc(_i18nT('No generations yet.')) + '</td></tr>';
+      return;
+    }
+    const couleur = (s) => s === 'succeeded' ? '#4cd964' : (s === 'failed' ? '#ff5252' : '#ffaa33');
+    const cel = 'padding:6px 10px; border-bottom:1px solid var(--border);';
+    tbody.innerHTML = rows.map((r) => `
+      <tr data-job-id="${esc(r.id)}" style="cursor:pointer;" title="${esc(String(r.id).startsWith('local:') ? _i18nT('Local job — click to open it') : _i18nT('Click for full details'))}">
+        <td style="${cel} white-space:nowrap;">${esc(new Date(r.date).toLocaleString('fr', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</td>
+        <td style="${cel}">${esc(r.type)}${String(r.id).startsWith('local:') ? ' <span style="font-size:10px; color:var(--text-2); border:1px solid var(--border); border-radius:8px; padding:0 6px; margin-left:4px;">' + esc(_i18nT('local')) + '</span>' : ''}</td>
+        <td style="${cel}"><span style="background:${couleur(r.status)}22; color:${couleur(r.status)}; padding:2px 8px; border-radius:10px; font-size:11px;">${esc(r.status)}</span></td>
+        <td style="${cel} text-align:right; font-variant-numeric:tabular-nums;">${Number(r.duration_s || 0).toFixed(1)}s</td>
+        <td style="${cel} text-align:right; font-variant-numeric:tabular-nums;">${esc(r.credits)}</td>
+        <td style="${cel} color:var(--text-2);">${esc(r.project || '—')}</td>
+      </tr>`).join('');
+    tbody.querySelectorAll('tr[data-job-id]').forEach((tr) => {
+      tr.addEventListener('mouseenter', () => { tr.style.background = 'rgba(168,85,247,0.06)'; });
+      tr.addEventListener('mouseleave', () => { tr.style.background = ''; });
+      tr.addEventListener('click', () => {
+        const id = tr.dataset.jobId;
+        if (id.startsWith('local:')) {
+          const entree = lignesLocales.get(id);
+          shut();
+          if (entree && typeof window._navigateToJobStep === 'function') window._navigateToJobStep(null, entree);
+        } else detail(id);
+      });
+    });
+  }
+
+  // Detail d'un travail cloud (fenetre au-dessus de l'historique).
+  const wrap = document.getElementById('history-detail');
+  const titre = document.getElementById('history-detail-title');
+  const corps = document.getElementById('history-detail-body');
+  document.getElementById('history-detail-close')?.addEventListener('click', () => { wrap.style.display = 'none'; });
+  wrap?.addEventListener('click', (e) => { if (e.target === wrap) wrap.style.display = 'none'; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && wrap?.style.display === 'flex') wrap.style.display = 'none'; });
+  const ligne = (label, val) => (val == null || val === '') ? '' :
+    `<div style="display:grid; grid-template-columns:140px 1fr; gap:12px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:var(--text-2); font-size:11px; text-transform:uppercase;">${esc(label)}</span><span>${val}</span></div>`;
+  const nomFichier = (u) => String(u || '').split('?')[0].split('/').pop();
+  corps?.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-projet]');
+    if (!a) return;
+    e.preventDefault();
+    wrap.style.display = 'none'; shut();
+    window.openProjectByName && window.openProjectByName(a.dataset.projet);
+  });
+  const lienProjet = (n) => n ? `<a href="#" data-projet="${esc(n)}" style="color:var(--accent); text-decoration:underline;">${esc(n)}</a>` : '—';
+  async function detail(id) {
+    wrap.style.display = 'flex';
+    titre.textContent = _i18nT('Event') + ' ' + id;
+    corps.textContent = _i18nT('Loading…');
+    try {
+      const r = await window.meshyAPI.cloudHistoryDetail(id);
+      if (!r?.success || !r.job) { corps.textContent = (r && r.error) || 'Error'; return; }
+      const job = r.job, opt = job.options || {};
+      const durMs = opt.duration_ms != null ? Number(opt.duration_ms)
+                  : (job.finished_at ? new Date(job.finished_at) - new Date(job.created_at) : 0);
+      const coul = job.status === 'succeeded' ? '#4cd964' : (job.status === 'failed' ? '#ff5252' : '#ffaa33');
+      let html = '';
+      html += ligne('Job ID', `<code>${esc(job.id)}</code>`);
+      html += ligne('Type', esc(job.asset_type));
+      html += ligne('Status', `<span style="color:${coul}; font-weight:600;">${esc(job.status)}</span>`);
+      html += ligne('Created', esc(new Date(job.created_at).toLocaleString('fr')));
+      if (job.finished_at) html += ligne('Finished', esc(new Date(job.finished_at).toLocaleString('fr')));
+      html += ligne('Duration', (durMs / 1000).toFixed(1) + ' s');
+      html += ligne('Credits', esc(job.credit_cost));
+      html += ligne('Project', lienProjet(job.project_name));
+      if (job.error) html += `<div style="margin-top:10px; padding:8px 10px; background:rgba(255,82,82,0.1); border:1px solid #ff5252; border-radius:6px; color:#ff5252; word-break:break-word;"><strong>Error:</strong> ${esc(job.error)}</div>`;
+      if (job.mesh_url) html += ligne('Output', esc(nomFichier(job.mesh_url)));
+      for (const a of (r.assets || [])) html += ligne(a.kind, esc(nomFichier(a.url)));
+      if (opt.prompt) html += ligne('Prompt', esc(opt.prompt));
+      if (opt.preset) html += ligne('Preset', esc(opt.preset));
+      corps.innerHTML = html;
+    } catch (e) { corps.textContent = 'Fetch failed: ' + (e?.message || e); }
+  }
+})();

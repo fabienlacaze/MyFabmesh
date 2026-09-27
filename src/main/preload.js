@@ -142,6 +142,10 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   cloudReportContent: (opts) => ipcRenderer.invoke('cloud-report-content', opts),
   cloudListLibrary: () => ipcRenderer.invoke('cloud-list-library'),
   cloudListMarket: () => ipcRenderer.invoke('cloud-list-market'),
+  // Historique d'utilisation cloud (parite web « My usage history »).
+  cloudHistoryList: () => ipcRenderer.invoke('cloud-history-list'),
+  cloudHistoryDetail: (id) => ipcRenderer.invoke('cloud-history-detail', id),
+  cloudHistoryExport: () => ipcRenderer.invoke('cloud-history-export'),
   cloudDownloadItem: (opts) => ipcRenderer.invoke('cloud-download-item', opts),
   hidreamAvailable: () => ipcRenderer.invoke('hidream-available'),
   translatePrompt: (opts) => ipcRenderer.invoke('translate-prompt', opts),
