@@ -41,6 +41,15 @@ export default function BuyPage() {
   }, []);
   // Tant que la grille n'est pas chargee on n'affiche AUCUN chiffre : mieux
   // vaut un tiret qu'un prix errone.
+  // Vente fermee tant que les mentions legales manquent : annoncee AVANT le
+  // clic (le bouton finissait sur une erreur 503).
+  const [ventesOuvertes, setVentesOuvertes] = useState<boolean | null>(null);
+  // Supplement « nombre de triangles » : meme formule que _supplementTriangles.
+  const supTris = (tris: number) => {
+    const tranche = prix?.mesh_tris_500k, socle = prix?.mesh_tris_base ?? 0, pct = prix?.mesh_tris_courbe_pct ?? 100;
+    if (typeof tranche !== 'number') return '—';
+    return String(Math.max(socle, Math.ceil(tranche * Math.pow(tris / 500_000, Math.max(1, pct / 100)) - 1e-9)));
+  };
   const cr = (cle: string) => {
     const v = prix?.[cle];
     return typeof v === 'number' ? `${v} crédit${v > 1 ? 's' : ''}` : '—';
@@ -52,6 +61,7 @@ export default function BuyPage() {
       .then(j => {
         if (j && j.available) setAvailability(j.available);
         else setAvailability({}); // fail-open: missing keys default to true below
+        if (j && typeof j.ventes_ouvertes === 'boolean') setVentesOuvertes(j.ventes_ouvertes);
       })
       .catch(() => setAvailability({}));
   }, []);
@@ -107,6 +117,11 @@ export default function BuyPage() {
         </span>
       </p>
 
+      {ventesOuvertes === false && (
+        <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(168,85,247,0.45)', background: 'rgba(168,85,247,0.10)', fontSize: 14 }}>
+          <strong>Les achats de crédits ouvrent bientôt.</strong> En attendant, vous créez avec les 50 crédits offerts à l&apos;inscription.
+        </div>
+      )}
       <h3 style={{ marginTop: 24, marginBottom: 12, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-2)' }}>Recharges ponctuelles</h3>
       <div className="pricing-grid" style={{ padding: 0 }}>
         {Object.values(PACKS).filter(p => p.mode === 'payment' && (availability?.[p.id] ?? true)).map((p) => (
@@ -118,7 +133,9 @@ export default function BuyPage() {
             <div className="amount">{p.euros} € <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-2)' }}>TTC</span></div>
             <div className="unit">{p.credits} crédits</div>
             <div className="per-mesh">≈ {(p.euros / p.credits).toFixed(2)} € / crédit</div>
-            <BuyButton packId={p.id} loggedIn={!!user} />
+            {ventesOuvertes === false
+              ? <button className="primary-btn" disabled style={{ width: '100%', opacity: 0.55, cursor: 'not-allowed' }}>Bientôt disponible</button>
+              : <BuyButton packId={p.id} loggedIn={!!user} />}
           </div>
         ))}
       </div>
@@ -158,22 +175,29 @@ export default function BuyPage() {
       )}
 
       <div className="card" style={{ marginTop: 32 }}>
-        <h3 style={{ marginBottom: 12 }}>Comment les crédits se convertissent en meshes</h3>
+        <h3 style={{ marginBottom: 12 }}>Ce que coûtent les crédits</h3>
         <table className="history">
           <thead>
-            <tr><th>Option de mesh</th><th>Coût</th><th>Détails</th></tr>
+            <tr><th>Action</th><th>Coût</th><th>Détails</th></tr>
           </thead>
           <tbody>
-            <tr><td>Mesh <strong>Fast</strong></td><td>{cr('mesh_fast')}</td><td>~50 s · brouillon rapide</td></tr>
-            <tr><td>Mesh <strong>Balanced</strong></td><td>{cr('mesh_balanced')}</td><td>~90 s · recommandé</td></tr>
-            <tr><td>Mesh <strong>Quality</strong></td><td>{cr('mesh_quality')}</td><td>~180 s · haut niveau de détail</td></tr>
-            <tr><td>Mesh <strong>Ultra 8K</strong></td><td>{cr('mesh_ultra_8k')}</td><td>détail + texture maximum</td></tr>
-            <tr><td>Texte → image (avant le mesh)</td><td>{cr('text2image')}</td><td>uniquement si vous partez d&apos;une description textuelle, pas d&apos;une image</td></tr>
-            <tr><td>Texture 8K · Correction du visage · Affiner</td><td>+{prix?.mesh_ultra_hd ?? '—'} / +{prix?.mesh_face_fix ?? '—'} / +{prix?.mesh_refine ?? '—'} crédits</td><td>options facultatives</td></tr>
+            <tr><td>Image depuis une idée</td><td>{cr('text2image')}</td><td>30 étapes ; le prix suit le nombre d&apos;étapes</td></tr>
+            <tr><td>Retouche IA d&apos;une image</td><td>{prix ? `${prix.modify ?? '—'} à ${prix.auto_inpaint ?? '—'} crédits` : '—'}</td><td>modifier, réparer, recolorier, vieillir…</td></tr>
+            <tr><td>Modèle 3D <strong>Fast</strong></td><td>{cr('mesh_fast')}</td><td>brouillon</td></tr>
+            <tr><td>Modèle 3D <strong>Balanced</strong></td><td>{cr('mesh_balanced')}</td><td>recommandé</td></tr>
+            <tr><td>Modèle 3D <strong>Quality</strong></td><td>{cr('mesh_quality')}</td><td>haut niveau de détail</td></tr>
+            <tr><td>Modèle 3D <strong>Ultra 8K</strong></td><td>{cr('mesh_ultra_8k')}</td><td>détail et texture maximum</td></tr>
+            <tr><td>Nombre de triangles</td><td>+{supTris(500_000)} · +{supTris(1_000_000)} · +{supTris(10_000_000)}</td><td>jusqu&apos;à 500 000 · 1 million · 10 millions</td></tr>
+            <tr><td>Options 3D : texture 8K · visage · affinage</td><td>+{prix?.mesh_ultra_hd ?? '—'} / +{prix?.mesh_face_fix ?? '—'} / +{prix?.mesh_refine ?? '—'}</td><td>facultatives</td></tr>
+            <tr><td>Squelette automatique (rig)</td><td>{cr('rig')}</td><td>tout corps : humain, animal, insecte, créature</td></tr>
+            <tr><td>Animation</td><td>{cr('anim')}</td><td>par clip</td></tr>
+            <tr><td>Outils 3D simples</td><td>{cr('mesh_op_simple')}</td><td>lisser, boucher les trous, redimensionner…</td></tr>
+            <tr><td>Découpe en pièces</td><td>{cr('mesh_segment')}</td><td>tête, bras, roues…</td></tr>
+            <tr><td>Export · publication sur la Marketplace</td><td>{prix ? `${prix.export ?? '—'} · ${prix.market_publish ?? '—'}` : '—'}</td><td>par fichier</td></tr>
           </tbody>
         </table>
         <p style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 8 }}>
-          Tarifs standard. Votre solde restant est toujours affiché avant chaque génération.
+          Une génération 3D prend environ 6 à 9 minutes, quel que soit le préréglage. Le prix exact s&apos;affiche toujours sur le bouton avant de lancer.
         </p>
       </div>
     </div>

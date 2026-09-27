@@ -1796,7 +1796,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     if (!email) { _compteChipEl.style.display = 'none'; _compteChipEl.textContent = ''; return; }
     const local = String(email).split('@')[0];
     _compteChipEl.textContent = local.length > 18 ? local.slice(0, 17) + '…' : local;
-    _compteChipEl.title = 'Signed in as ' + email + ' — open your account';
+    _compteChipEl.title = 'Signed in as ' + email + ' — contact us';
+    _compteChipEl.dataset.email = email;
     _compteChipEl.style.display = 'inline-flex';
   }
 
@@ -1822,12 +1823,25 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // en silence a fait depenser des credits a un proprietaire qui se croyait
     // deconnecte (2026-08-19). Le solde seul ne dit pas a QUI il appartient ;
     // le web affiche donc la meme mention, par parite.
-    // Lien vers la page du compte (2026-09-28, user : « ca sert a rien ») :
-    // le nom seul informait sans mener nulle part ; il ouvre maintenant le
-    // compte (credits, versements, historique).
+    // Clic : ouvre « Nous contacter », nom et e-mail pre-remplis (2026-09-28,
+    // user : « ce bouton doit plutot ouvrir ca »). Le nom seul informait sans
+    // mener nulle part.
     const compte = document.createElement('a');
     compte.id = 'cloud-account-chip';
-    compte.href = '/account';
+    compte.href = '#';
+    compte.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const cm = document.getElementById('contact-modal');
+      if (!cm) return;
+      const mail = compte.dataset.email || '';
+      const nom = document.getElementById('contact-name');
+      const courriel = document.getElementById('contact-email');
+      if (nom && !nom.value.trim() && mail) nom.value = mail.split('@')[0];
+      if (courriel && !courriel.value.trim() && mail) courriel.value = mail;
+      [nom, courriel].forEach((el) => el && el.dispatchEvent(new Event('input', { bubbles: true })));
+      cm.classList.remove('hidden');
+      document.getElementById('contact-subject')?.focus();
+    });
     compte.style.cssText = [
       'display:none', 'align-items:center', 'font-size:11px', 'opacity:.72',
       'margin-left:8px', 'max-width:150px', 'overflow:hidden',

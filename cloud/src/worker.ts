@@ -6358,7 +6358,10 @@ async function handlePricingAvailability(_req: Request, env: Env): Promise<Respo
       available[pack.id] = true;
     }
   }
-  return json({ ok: true, available, fonctions });
+  // Vente ouverte ? Meme regle que _venteBloqueeParMentions, sans journaliser :
+  // /buy l'annonce AVANT le clic au lieu d'un 503 apres (2026-09-28).
+  const ventes_ouvertes = env.ALLOW_UNFILLED_LEGAL === '1' || legalIdentityUnfilledFields().length === 0;
+  return json({ ok: true, available, fonctions, ventes_ouvertes });
 }
 
 /** Refuse d'OUVRIR UNE VENTE tant que les mentions legales obligatoires sont
