@@ -7011,6 +7011,18 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
           }, 'rectify'), req, projectName ?? undefined);
         console.log(`[wave2.1] rectified front → ${rectifyMode} (asset=${input.asset_type})`);
         frontUrl = rectifiedUrl;
+        /* L'IMAGE RECTIFIEE DEVIENT UNE VERSION DU PROJET (2026-09-27, user :
+         * « pourquoi l'image du rectify n'apparait pas comme nouvelle version ? »).
+         * Parite bureau (main.js : ecrite dans le dossier d'images du projet, choix
+         * du user) : c'est l'entree REELLE du maillage, elle doit etre visible et
+         * servir de source (« Go to source »). Elle n'etait rattachee a rien. */
+        const cleRectif = r2PathFromPublicUrl(env, rectifiedUrl);
+        if (cleRectif && projectName) {
+          const cleParent = (sourceImageStore && !/^https?:/i.test(sourceImageStore)) ? sourceImageStore : null;
+          await insertUserAsset(env, user.id, projectName, 'image-rectified', cleRectif, cleParent,
+                                { origin: 'auto-rectify', mode: rectifyMode });
+          sourceImageStore = cleRectif;
+        }
       } catch (e: unknown) {
         console.warn(`[wave2.1] rectify failed, using original front: ${e instanceof Error ? e.message : String(e)}`);
         /* L'OPTION ECHOUEE EST REMBOURSEE (2026-09-27).
