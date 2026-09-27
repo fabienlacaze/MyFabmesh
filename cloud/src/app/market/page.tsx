@@ -806,11 +806,11 @@ function MarketPageInner() {
                         backgroundPosition: 'center', backgroundSize: '72% auto', opacity: 0.55,
                         transform: 'rotate(-18deg)' }} />
                     )}
-                    {l.price_cents > 0 && !l.offert && (
-                      <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.65)', color: 'var(--text-1)' }}>
-                        🔍 Preview · full quality after purchase
-                      </div>
-                    )}
+                    {/* Toutes les cartes 3D (gratuites comme payantes) : la vignette est une
+                        image, la 3D s'ouvre au clic (libelle demande par le user, 2026-09-28). */}
+                    <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.65)', color: 'var(--text-1)' }}>
+                      🔍 3D viewer on click
+                    </div>
                     {l.offert && (
                       <div style={{ position: 'absolute', left: 8, top: 8, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: 'var(--ok)', color: '#06140a' }}>
                         🎁 Free this month
