@@ -418,6 +418,25 @@ downloaded at runtime and not redistributed by FabMesh. Full license:
 https://huggingface.co/Falconsai/nsfw_image_detection
 
 --------------------------------------------------------------------------------
+ 39. BLIP image captioning (Salesforce/blip-image-captioning-large)
+--------------------------------------------------------------------------------
+License: BSD-3-Clause
+URL:     https://huggingface.co/Salesforce/blip-image-captioning-large
+Used by the desktop app to write a short caption of the reference image when it
+straightens a view (front rectification). Weights are downloaded on first run and
+not redistributed by FabMesh. BSD-3-Clause — commercial use permitted with
+attribution.
+
+--------------------------------------------------------------------------------
+ 40. CuMesh (JeffreyXiang/CuMesh)
+--------------------------------------------------------------------------------
+License: MIT
+URL:     https://github.com/JeffreyXiang/CuMesh
+GPU mesh processing library used by the local 3D pipeline.
+Installed with the local AI environment, not redistributed inside the app package.
+MIT License — commercial use permitted.
+
+--------------------------------------------------------------------------------
  Bundled rig templates
 --------------------------------------------------------------------------------
 All files under `scripts/rig_templates/skm/*.bones.json`,

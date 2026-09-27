@@ -19807,6 +19807,10 @@ function _jobStepIndex(j) {
   if (/^(generate 3d|mesh op|fill[- ]?holes|smooth|material[- ]?adjust|generate mesh|texture|pbr|enhance texture)/i.test(n)) return 2;
   // Mesh texture ops can carry a prefix (e.g. "trellis2 retex: …", "Region re-texture: …")
   // so the anchored test above misses them — match the texture keywords anywhere.
+  // Etapes de construction 2D (« Construction stages: <projet> ») : etape
+  // image. Sans cette regle, le motif « construction stages » ci-dessous les
+  // rangeait en 3D (audit 1.0.36) ; « 3D construction stages » y reste.
+  if (/^(construction stages|étapes de construction)/i.test(n)) return 1;
   if (/(retex|re-?texture|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth|refine mesh|explosion 3d|explode|\bresize\b|construction stages|export to unreal|^export )/i.test(n)) return 2;
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated

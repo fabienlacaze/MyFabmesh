@@ -4155,7 +4155,9 @@ document.getElementById('bs-start')?.addEventListener('click', async () => {
 // Per-stage progress → nudge the running job's progress bar.
 try {
   window.meshyAPI?.onConstructionStageProgress?.(({ stage, total }) => {
-    const j = (state.jobs || []).find(x => x.status === 'running' && /Étapes de construction/.test(x.title || ''));
+    // le nom est dans `name` (pas `title`) et il est en anglais : l'ancien filtre
+    // (/Étapes de construction/ sur x.title) ne trouvait jamais la tache.
+    const j = (state.jobs || []).find(x => x.status === 'running' && /^(Construction stages|Étapes de construction)/i.test(x.name || x.title || ''));
     if (j && total) { j.progress = Math.min(99, Math.round((stage / total) * 100)); try { renderJobs(); } catch (_) {} }
   });
 } catch (_) {}
@@ -18131,6 +18133,10 @@ function _jobStepIndex(j) {
   if (/^(generate 3d|mesh op|fill[- ]?holes|smooth|material[- ]?adjust|generate mesh|texture|pbr|enhance texture)/i.test(n)) return 2;
   // Mesh texture ops can carry a prefix (e.g. "trellis2 retex: …", "Region re-texture: …")
   // so the anchored test above misses them — match the texture keywords anywhere.
+  // Etapes de construction 2D (« Construction stages: <projet> ») : etape
+  // image. Sans cette regle, le motif « construction stages » ci-dessous les
+  // rangeait en 3D (audit 1.0.36) ; « 3D construction stages » y reste.
+  if (/^(construction stages|étapes de construction)/i.test(n)) return 1;
   if (/(retex|re-?texture|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth|refine mesh|explosion 3d|explode|\bresize\b|construction stages|export to unreal|^export )/i.test(n)) return 2;
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated
