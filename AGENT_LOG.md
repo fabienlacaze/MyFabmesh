@@ -1,5 +1,6 @@
 # FabMesh Agent Log
 
+- 2026-09-27 (site vitrine, NON publie) - Versions : « as a new version within the project ». Export : « The files are yours » retire (l'export est payant). Projects : intro sur deux lignes, tout l'asset dans son projet + reprendre la ou on s'est arrete (valide par le user). Publication sur master/docs seulement quand le user le dit.
 - 2026-09-27 (site vitrine) - Intro Tools sur deux lignes ; intro et liste de Projects reecrites (jugees pas claires) : « Each asset has its own project... », etapes cote a cote avec leurs versions, barre de progression = etapes faites, filtre de la bibliotheque.
 - 2026-09-27 (site vitrine) - Note sous les quatre etapes (visionneuses 3D, 400 000 triangles) centree et en italique, a la demande du user.
 - 2026-09-27 (site vitrine) - Intro « How it works » : « 2D or 3D viewer » remis (le user l'aime) ; etape Animation sans « exported to FBX » (l'export a sa rubrique).
