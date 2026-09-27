@@ -3863,7 +3863,13 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       st.textContent = `
         .reg-ligne { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0; }
         .reg-choix { display:flex; align-items:center; gap:6px; flex:1 1 220px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; cursor:pointer; font-size:13px; }
-        .reg-choix small { color:var(--text-2); font-size:11px; margin-left:auto; }`;
+        .reg-choix small { color:var(--text-2); font-size:11px; margin-left:auto; }
+        /* le style des etiquettes du panneau (MAJUSCULES) ne s'applique pas aux choix */
+        #modal-settings .reg-choix { text-transform:none; letter-spacing:normal; font-weight:500; color:var(--text-0); }
+        #modal-settings .reg-choix small { text-transform:none; letter-spacing:normal; }
+        /* boutons a leur taille, pas etires sur toute la largeur */
+        #reg-compte .primary-btn, #reg-compte .ghost-btn, #reg-gains .primary-btn, #reg-gains .ghost-btn,
+        #reg-2fa .primary-btn, #reg-donnees .ghost-btn { width:auto; flex:0 0 auto; }`;
       document.head.appendChild(st);
     }
     entete.insertAdjacentHTML('afterend', _REG_HTML);

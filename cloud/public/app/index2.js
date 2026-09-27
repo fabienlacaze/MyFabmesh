@@ -22946,6 +22946,9 @@ document.getElementById('set-uninstall')?.addEventListener('click', async () => 
   }
 
   async function poll() {
+    // Web : l'API de controle n'existe que dans l'appli de bureau (127.0.0.1:7331) ;
+    // l'interroger ne produisait que des refus CSP dans la console.
+    if (document.body.classList.contains('cloud-mode')) return;
     const t = await fetchToken();
     if (!t) {
       dot.style.background = '#666';
