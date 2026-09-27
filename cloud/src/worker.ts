@@ -12036,38 +12036,37 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
     const ms = new Date(t).getTime();
     if (Number.isFinite(ms) && (lastByContainer[key] ?? 0) < ms) lastByContainer[key] = ms;
   }
-  for (const j of ((recentJobs ?? []) as Array<{
-    asset_type: string;
-    options: Record<string, unknown> | null;
-    finished_at: string | null;
-  }>)) {
+  type LigneJob = { asset_type: string; options: Record<string, unknown> | null; finished_at?: string | null; type?: string | null };
+  /** Conteneur Modal qui execute une ligne `jobs`. */
+  function conteneurDe(j: LigneJob): string {
     const opType = String(j.type ?? j.options?.operation_type ?? '');
     const at = String(j.asset_type ?? '');
-    if (opType === 'text2image' || opType === 'tpose') {
-      bump(opType === 'tpose' ? 'tpose' : 'text2image', j.finished_at);
-    } else if (opType === 'mesh') {
-      bump('mesh', j.finished_at);
-    } else if (opType === 'back_view' || opType === 'back-view') {
-      bump('back_view', j.finished_at);
-    } else if (['modify','auto_inpaint','mask_inpaint','face_fix_image','remove_background','upscale','recolor','tex_variant','outfit','segment'].includes(opType)) {
-      bump('image_op', j.finished_at);
-    } else if (opType === 'auto_rig' || opType === 'rig' || at === 'rig') {
-      bump('rig', j.finished_at);
-    } else if (opType === 'animate' || opType === 'animation' || at === 'animation') {
-      bump('anim', j.finished_at);
-    } else if (opType === 'multiview' || opType === 'mvadapter') {
-      bump('mvadapter', j.finished_at);
-    } else if (opType === 'segment' || opType === 'mesh_segment' || opType === 'partsam') {
-      bump('mesh_segment', j.finished_at);
-    } else if (opType === 'fbx_retarget' || opType === 'animate_fbx') {
-      bump('fbx_retarget', j.finished_at);
-    } else if (at === 'text2image') {
-      bump('text2image', j.finished_at);
-    } else {
-      // asset_type like 'character'/'animal'/'creature' → mesh
-      bump('mesh', j.finished_at);
-    }
+    if (opType === 'text2image') return 'text2image';
+    if (opType === 'tpose' || opType === 'rectify') return 'tpose';    // rectification : etait comptee « 3D mesh »
+    if (opType === 'mesh' || opType === 'retexture') return 'mesh';
+    if (opType === 'back_view' || opType === 'back-view') return 'back_view';
+    if (['modify','auto_inpaint','mask_inpaint','face_fix_image','remove_background','upscale','recolor','tex_variant','outfit','segment'].includes(opType)) return 'image_op';
+    if (opType === 'auto_rig' || opType === 'rig' || at === 'rig') return 'rig';
+    if (opType === 'animate' || opType === 'animation' || at === 'animation') return 'anim';
+    if (opType === 'multiview' || opType === 'mvadapter') return 'mvadapter';
+    if (opType === 'mesh_segment' || opType === 'partsam') return 'mesh_segment';
+    if (opType === 'fbx_retarget' || opType === 'animate_fbx') return 'fbx_retarget';
+    if (at === 'text2image') return 'text2image';
+    return 'mesh';   // asset_type 'character' / 'animal'… -> maillage
   }
+  for (const j of ((recentJobs ?? []) as LigneJob[])) bump(conteneurDe(j), j.finished_at ?? null);
+  /* EN COURS (2026-09-27) : un conteneur qui execute un travail est ALLUME,
+   * quel que soit le compte qui l'a lance. Le panneau le disait « cold »
+   * pendant toute une generation, l'etat chaud n'etant ecrit qu'a la fin. */
+  const occupes = new Set<string>();
+  try {
+    const { data: actifs } = await sb.from('jobs')
+      .select('asset_type, options, type')
+      .in('status', ['queued', 'processing', 'running', 'starting'])
+      .gte('created_at', new Date(now - 30 * 60 * 1000).toISOString())
+      .limit(100);
+    for (const j of ((actifs ?? []) as LigneJob[])) occupes.add(conteneurDe(j));
+  } catch { /* l'etat chaud/froid reste utile sans cela */ }
   // 2026-06-02: added rig (Puppeteer), anim (AnyTop), mvadapter
   // (multi-view generator) so the "Server warming up (N services)"
   // popover lists every Modal container the user can actually trigger
@@ -12088,9 +12087,12 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
     status('_meta/last_warm_mesh_segment.txt', 60, 240, lastByContainer.mesh_segment ?? null),
     status('_meta/last_warm_fbx_retarget.txt', 45, 180, lastByContainer.fbx_retarget ?? null),
   ]);
+  const etats: Record<string, { warm: boolean; busy?: boolean }> = {
+    image_op, text2image, back_view, tpose, mesh, rig, anim, mvadapter, mesh_segment, fbx_retarget,
+  };
+  for (const k of occupes) if (etats[k]) { etats[k].warm = true; etats[k].busy = true; }
   return json({
-    image_op, text2image, back_view, tpose, mesh, rig, anim, mvadapter,
-    mesh_segment, fbx_retarget,
+    ...etats,
     cold_threshold_seconds: Math.floor(COLD_THRESHOLD_MS / 1000),
   });
 }

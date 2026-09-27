@@ -527,11 +527,11 @@ window.__optionsMortesCloud = new Set([]);
           const SERVICES = [
             { key: 'text2image',   label: 'Image generation', desc: 'Generate image from prompt' },
             { key: 'image_op',     label: 'Image edit',       desc: 'Modify, Inpaint, Upscale, Face Fix, Remove BG, Recolor, Age, Outfit' },
-            { key: 'mvadapter',    label: 'Multi-view',       desc: '6 orthographic views (creature, animal)' },
+            { key: 'mvadapter',    label: 'Multi-view',       desc: 'Extra views of the subject (creature, animal)' },
             { key: 'back_view',    label: 'Back view',        desc: '2-view back photo generation' },
             { key: 'tpose',        label: 'T-pose rectify',   desc: 'Strict T-pose front rectifier' },
             { key: 'mesh',         label: '3D mesh',          desc: 'Generate 3D from image' },
-            { key: 'mesh_segment', label: 'Part segmentation', desc: 'PartSAM — split a mesh into parts' },
+            { key: 'mesh_segment', label: 'Part segmentation', desc: 'Split a mesh into parts' },
             { key: 'rig',          label: 'Rig',              desc: 'Automatic skeleton rigging' },
             { key: 'anim',         label: 'Animation',        desc: 'Generative motion + retargeting' },
             { key: 'fbx_retarget', label: 'FBX retarget',     desc: 'Import an animation onto your rig' },
@@ -543,7 +543,11 @@ window.__optionsMortesCloud = new Set([]);
             const warm = c?.warm;
             if (warm === true || warm === false) allUnknown = false;
             let dot, color, statusText;
-            if (warm === true) {
+            if (c?.busy) {
+              // Un travail y tourne en ce moment (tous comptes confondus).
+              dot = '#5ac8fa'; color = '#5ac8fa';
+              statusText = 'running';
+            } else if (warm === true) {
               dot = '#4cd964'; color = '#4cd964';
               statusText = 'warm';
             } else if (warm === false) {
