@@ -4070,7 +4070,7 @@ async function _genererApercu(env: Env, l: MarketListing): Promise<boolean> {
         _auth: env.MODAL_SHARED_SECRET ?? '',
         op_type: 'apercu',
         mesh_url: url,
-        params: { max_px: l.asset_kind === 'image' ? 1024 : 512,
+        params: { max_px: 1024,
                   faces: l.asset_kind === 'mesh' ? 100_000 : 0, filigrane: true },
       }),
     });

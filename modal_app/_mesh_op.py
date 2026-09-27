@@ -986,29 +986,33 @@ def _logo_filigrane():
     return Image.open(io.BytesIO(base64.b64decode(''.join(FILIGRANE_PNG_B64)))).convert('RGBA')
 
 
-def _filigraner(img):
-    """Logo + nom repetes en diagonale sur toute la texture, a 60 % d'opacite.
+def _filigraner(img, echelle: float = 0.2):
+    """Logo + nom repetes sur toute l'image, en quinconce, a 55 % d'opacite.
     Une texture est un atlas UV decoupe : un filigrane unique tomberait sur un
-    seul ilot, ou dans le vide. Repete, il marque toute la surface — coupe ou
-    deforme par endroits sur le modele, ce qui le rend dur a effacer."""
+    seul ilot, ou dans le vide. Repete, il marque toute la surface.
+
+    PETIT ET HORIZONTAL (2026-09-28, user : « trop grand et trop flou, on croit
+    que c'est le mesh qui a un probleme ») : a une demi-largeur de texture, le
+    logo se retrouvait en fragments deformes sur le modele, pris pour un defaut ;
+    la rotation a 25° adoucissait encore les lettres. `echelle` = largeur du
+    logo rapportee a celle de l'image : 0,2 sur une texture, plus sur une image
+    vendue, ou il doit rester franc."""
     from PIL import Image
     avait_alpha = img.mode in ('RGBA', 'LA') or 'transparency' in img.info
     base = img.convert('RGBA')
     W, H = base.size
     logo = _logo_filigrane()
-    # Grand et franc (user : « ca ne pourra pas se rater ») : une demi-largeur
-    # de texture, 60 % d'opacite. Plus petit, le nom devenait illisible.
-    lw = max(96, int(W * 0.5))
+    lw = max(64, int(W * echelle))
     lh = max(1, int(logo.height * lw / logo.width))
-    tampon = logo.resize((lw, lh), Image.LANCZOS).rotate(25, expand=True, resample=Image.BICUBIC)
-    tampon.putalpha(tampon.getchannel('A').point(lambda v: int(v * 0.6)))
+    tampon = logo.resize((lw, lh), Image.LANCZOS)
+    tampon.putalpha(tampon.getchannel('A').point(lambda v: int(v * 0.55)))
     # alpha_composite et non paste(masque) : paste sur un calque vide mettait
     # l'opacite au carre (0,6 x 0,6) et assombrissait les lettres blanches.
     # Le calque deborde d'un tampon de chaque cote (alpha_composite refuse les
     # positions negatives), puis il est recadre.
     px, py = tampon.width, tampon.height
     calque = Image.new('RGBA', (W + 2 * px, H + 2 * py), (0, 0, 0, 0))
-    pas_x, pas_y = int(tampon.width * 1.0), int(tampon.height * 1.05)
+    pas_x, pas_y = int(tampon.width * 1.6), int(tampon.height * 3.2)
     for rang, y in enumerate(range(-pas_y // 2, H, pas_y)):
         decal = pas_x // 2 if rang % 2 else 0
         for x in range(-pas_x // 2 + decal, W, pas_x):
@@ -1117,7 +1121,7 @@ def _image_apercu(data: bytes, max_px: int, filigrane: bool) -> bytes:
     img = img.convert('RGBA' if alpha else 'RGB')
     img.thumbnail((max_px, max_px), Image.LANCZOS)
     if filigrane:
-        img = _filigraner(img)
+        img = _filigraner(img, echelle=0.35)
     sortie = io.BytesIO()
     if alpha:
         img.save(sortie, 'PNG', optimize=True)
@@ -1126,7 +1130,7 @@ def _image_apercu(data: bytes, max_px: int, filigrane: bool) -> bytes:
     return sortie.getvalue()
 
 
-def apercu(glb_bytes: bytes, max_px: int = 512, faces: int = 0, filigrane: bool = True) -> bytes:
+def apercu(glb_bytes: bytes, max_px: int = 1024, faces: int = 0, filigrane: bool = True) -> bytes:
     """COPIE DE DEMONSTRATION d'une fiche payante de la Marketplace (2026-09-27,
     user : « que les gens puissent voir avant d'acheter », principe de
     Sketchfab : la vraie 3D, mais pas le fichier vendu). Textures reduites a
@@ -1199,7 +1203,7 @@ def run(op_type: str, glb_bytes: bytes, params: dict | None = None):
     if op_type == 'explode':
         return explode(glb_bytes, fragments=int(p.get('fragments', 24))), None
     if op_type == 'apercu':
-        return apercu(glb_bytes, max_px=int(p.get('max_px', 512)),
+        return apercu(glb_bytes, max_px=int(p.get('max_px', 1024)),
                       faces=int(p.get('faces', 0)),
                       filigrane=bool(p.get('filigrane', True))), None
     if op_type == 'fill_holes':

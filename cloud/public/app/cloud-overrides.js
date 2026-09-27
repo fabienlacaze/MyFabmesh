@@ -2592,7 +2592,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   /* APERCU FILIGRANE FABRIQUE DANS LE NAVIGATEUR (2026-09-28, user : « gratuit
    * pour moi »). Le calcul Modal butait sur le plafond mensuel : aucune copie
    * n'etait creee, la vitrine retombait sur la miniature nue. Le navigateur du
-   * vendeur a deja le fichier : il reduit les textures (512 px, images 1024),
+   * vendeur a deja le fichier : il reduit les textures (1024 px, images aussi),
    * pose le logo + nom en diagonale sur la texture de COULEUR et reecrit le GLB
    * sans toucher a la geometrie, a la peau ni aux animations — meme recette que
    * _mesh_op.apercu cote Modal, qui reste le secours a la premiere ouverture. */
@@ -2605,27 +2605,23 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     _logoFiligrane = im;
     return im;
   }
-  function _poserFiligrane(ctx, W, H, logo) {
-    const lw = Math.max(96, W * 0.5);
+  // Petit, horizontal, en quinconce (2026-09-28, user : « trop grand et trop flou,
+  // on croit que c'est le mesh qui a un probleme ») — meme reglage que
+  // _mesh_op._filigraner : 20 % de la largeur sur une texture, 35 % sur une image.
+  function _poserFiligrane(ctx, W, H, logo, echelle) {
+    const lw = Math.max(64, W * (echelle || 0.2));
     const lh = logo.naturalHeight * lw / logo.naturalWidth;
-    const ang = -25 * Math.PI / 180;
-    const bw = Math.abs(lw * Math.cos(ang)) + Math.abs(lh * Math.sin(ang));
-    const bh = Math.abs(lw * Math.sin(ang)) + Math.abs(lh * Math.cos(ang));
+    const px = lw * 1.6, py = lh * 3.2;
     ctx.save();
-    ctx.globalAlpha = 0.6;
-    for (let rang = 0, y = -bh / 2; y < H + bh; rang++, y += bh * 1.05) {
-      const decal = rang % 2 ? bw / 2 : 0;
-      for (let x = -bw / 2 + decal; x < W + bw; x += bw) {
-        ctx.save();
-        ctx.translate(x + bw / 2, y + bh / 2);
-        ctx.rotate(ang);
-        ctx.drawImage(logo, -lw / 2, -lh / 2, lw, lh);
-        ctx.restore();
-      }
+    ctx.globalAlpha = 0.55;
+    ctx.imageSmoothingQuality = 'high';
+    for (let rang = 0, y = -py / 2; y < H; rang++, y += py) {
+      const decal = rang % 2 ? px / 2 : 0;
+      for (let x = -px / 2 + decal; x < W; x += px) ctx.drawImage(logo, x, y, lw, lh);
     }
     ctx.restore();
   }
-  async function _imageReduite(blob, maxPx, logo, typeSortie) {
+  async function _imageReduite(blob, maxPx, logo, typeSortie, echelle) {
     const bmp = await createImageBitmap(blob);
     const k = Math.min(1, maxPx / Math.max(bmp.width, bmp.height));
     const W = Math.max(1, Math.round(bmp.width * k));
@@ -2635,7 +2631,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const ctx = c.getContext('2d');
     ctx.drawImage(bmp, 0, 0, W, H);
     if (bmp.close) bmp.close();
-    if (logo) _poserFiligrane(ctx, W, H, logo);
+    if (logo) _poserFiligrane(ctx, W, H, logo, echelle);
     const out = await new Promise((res) => c.toBlob(res, typeSortie, 0.82));
     // Navigateur sans encodeur WebP (Safari) : PNG, que les lecteurs glTF lisent aussi.
     return out || await new Promise((res) => c.toBlob(res, 'image/png'));
@@ -2670,7 +2666,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const mime = im.mimeType || 'image/png';
       try {
         const b = await _imageReduite(new Blob([bin.subarray(debut, debut + v.byteLength)], { type: mime }),
-                                      512, couleur.has(ii) ? logo : null, mime);
+                                      1024, couleur.has(ii) ? logo : null, mime, 0.2);
         nouvelles.set(im.bufferView, new Uint8Array(await b.arrayBuffer()));
         if (b.type && b.type !== mime) im.mimeType = b.type;
       } catch (_) { /* format illisible : image laissee telle quelle */ }
@@ -2709,7 +2705,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     if (!src.ok) throw new Error('source HTTP ' + src.status);
     const brut = await src.blob();
     const sortie = kind === 'image'
-      ? await _imageReduite(brut, 1024, logo, brut.type === 'image/png' ? 'image/png' : 'image/jpeg')
+      ? await _imageReduite(brut, 1024, logo, brut.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.35)
       : await _glbApercu(await brut.arrayBuffer(), logo);
     const r = await fetch('/api/market/preview-upload/' + encodeURIComponent(id), {
       method: 'POST', credentials: 'include',
