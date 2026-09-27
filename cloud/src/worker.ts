@@ -10287,6 +10287,16 @@ async function callMyfabmeshCog(env: Env, userId: string, input: CogInput, folde
   return outputUrl;
 }
 
+/** PRIX D'UNE IMAGE SELON LA QUALITE (2026-09-27, user : « il faut que ca
+ *  coute des credits en fonction du choix »). Le tarif `text2image` est celui
+ *  de 30 pas, le reglage par defaut ; le temps de calcul suit le nombre de
+ *  pas, le prix aussi, au prorata et arrondi, jamais moins d'un credit.
+ *  Tarif 3 : 10 pas = 1, 20 = 2, 30 = 3, 40 = 4, 60 = 6. Meme formule dans
+ *  cloud-overrides.js (pastille du bouton). */
+function _prixImageSelonPas(prix30: number, pas: number): number {
+  return Math.max(1, Math.round(prix30 * pas / 30));
+}
+
 async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
@@ -10336,7 +10346,9 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     }
   }
   const n = Math.max(1, Math.min(4, numImages ?? 1));
-  const COST_PER_IMAGE = await getPrice(env, 'text2image');
+  // borne aussi ce qui part au calcul : 500 pas se payaient au prix de 30
+  const pas = turbo ? 4 : Math.max(10, Math.min(60, Math.round(Number(steps) || 30)));
+  const COST_PER_IMAGE = _prixImageSelonPas(await getPrice(env, 'text2image'), pas);
   const cost = n * COST_PER_IMAGE;
 
   // Pick the backend BEFORE the budget check — the budget cap is
@@ -10421,7 +10433,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           seed: seedBase + i,
           cn_scale,
           ip_scale,
-          steps: steps || 30,
+          steps: pas,
         }, 'front'));
       } else {
         paths.push(await callBackend(env, user.id, {
@@ -10431,7 +10443,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           asset_style: asset_style || 'realistic',
           unrestricted, // per-user parental state, forwarded to Modal
           seed: seedBase + i,
-          steps: steps || 30,
+          steps: pas,
           turbo: !!turbo,  // SDXL-Lightning 4-step (Modal only; Cog ignores it)
         }, 'front'));
       }

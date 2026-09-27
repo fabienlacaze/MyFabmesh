@@ -801,7 +801,14 @@
 
         log(`generateImages via /api/generate-image (Cog myfabmesh-cloud) — ${numImages}× "${(userPrompt || prompt || '').slice(0, 60)}…"`);
         window.__meshyEmit('image-progress', { jobId, index: 0, total: numImages, status: 'fetching' });
-        const paths = await _genOnce(prompt, userPrompt, numImages);
+        // Count = 6 (2026-09-27) : le serveur plafonne a 4 images par appel,
+        // 6 demandees en donnaient 4. Appels successifs de 4 au plus ; si un
+        // appel suivant echoue, on garde les images deja faites.
+        const paths = [];
+        for (let reste = Math.max(1, Number(numImages) || 1); reste > 0; reste -= 4) {
+          try { paths.push(...await _genOnce(prompt, userPrompt, Math.min(4, reste))); }
+          catch (e) { if (!paths.length) throw e; log('generateImages batch failed:', e instanceof Error ? e.message : String(e)); break; }
+        }
         window.__meshyEmit('image-progress', { jobId, index: numImages, total: numImages, status: 'done' });
         // C1: persist generated URLs in localStorage so listImageFolders
         // returns them on the next refresh (the Worker doesn't store rows

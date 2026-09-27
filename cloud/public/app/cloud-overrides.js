@@ -1333,23 +1333,40 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const recalcImage = () => {
         const n = Math.max(1, parseInt(
           document.getElementById('ws-count')?.value, 10) || 1);
+        // PRIX SELON LA QUALITE (2026-09-27, user : « il faut que ca coute
+        // des credits en fonction du choix ») : meme formule que
+        // _prixImageSelonPas() du worker — le tarif vaut pour 30 pas.
+        const pas = Math.max(10, Math.min(60, parseInt(
+          document.getElementById('ws-quality')?.value, 10) || 30));
+        const pImg = Math.max(1, Math.round(prices.text2image * pas / 30));
+        // Construction stages : 3 images, quel que soit Count
+        const etapes = !!document.getElementById('ws-img-buildstages')?.checked;
+        const nImg = etapes ? 3 : n;
+        // meme regle que le clic (index2.js) : en « auto », la vue arriere
+        // ne part que pour les personnages, creatures et animaux
         const scope = document.getElementById('ws-mv-scope')?.value || 'auto';
-        const avecDos = scope !== 'front_only';
+        const type = document.getElementById('ws-asset-type')?.value || 'character';
+        const avecDos = scope === 'auto'
+          ? (type === 'character' || type === 'creature' || type === 'animal')
+          : scope !== 'front_only';
         const pBack = typeof prices.back_view === 'number' ? prices.back_view : 0;
-        const total = n * prices.text2image + (avecDos ? n * pBack : 0);
+        const total = nImg * pImg + (avecDos ? nImg * pBack : 0);
         imgVal.textContent = String(total);
         // Le detail evite la question « pourquoi 16 alors que l'image
         // est a 2 ? » : on montre la composition.
         const pill = imgVal.closest('[class*="cost"]') || imgVal.parentElement;
         if (pill) {
           pill.title = avecDos
-            ? `${n} image(s) x ${prices.text2image} + ${n} vue(s) arriere x ${pBack} = ${total} credits`
-            : `${n} image(s) x ${prices.text2image} = ${total} credits`;
+            ? `${nImg} image(s) x ${pImg} (${pas} steps) + ${nImg} back view(s) x ${pBack} = ${total} credits`
+            : `${nImg} image(s) x ${pImg} (${pas} steps) = ${total} credits`;
         }
       };
       recalcImage();
       document.getElementById('ws-count')?.addEventListener('change', recalcImage);
       document.getElementById('ws-count')?.addEventListener('input', recalcImage);
+      document.getElementById('ws-quality')?.addEventListener('input', recalcImage);
+      document.getElementById('ws-img-buildstages')?.addEventListener('change', recalcImage);
+      document.getElementById('ws-asset-type')?.addEventListener('change', recalcImage);
       document.getElementById('ws-mv-scope')?.addEventListener('change', recalcImage);
     }
   }

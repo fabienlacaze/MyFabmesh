@@ -23707,3 +23707,14 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Finished (fusion serveur) : seulement mesh / rig / anim / images d'un projet ;
   plus d'entree « op_xxx » sans projet (Go to -> « Project not found ») ; un meme
   travail suivi deux fois (tuile + reprise) n'est archive qu'une fois.
+
+## 2026-09-27 — Prix des images selon la qualite ; Count 6 livre vraiment 6 images
+
+- `_prixImageSelonPas()` (worker) : le tarif `text2image` vaut pour 30 pas ; prix par
+  image = tarif x pas / 30, arrondi, au moins 1 (tarif 3 : 10 pas = 1, 20 = 2, 30 = 3,
+  60 = 6). Les pas envoyes au calcul sont bornes 10-60 (500 pas se payaient au prix de 30).
+- Pastille du bouton Generate : meme formule, suit Count, Quality, Construction stages
+  (3 images) et la vraie regle de la vue arriere en « auto » (personnage / creature /
+  animal seulement ; elle la comptait aussi pour un batiment).
+- Count 6 : le serveur plafonne a 4 images par appel, 6 demandees en donnaient 4. Le
+  shim web fait des appels de 4 au plus.
