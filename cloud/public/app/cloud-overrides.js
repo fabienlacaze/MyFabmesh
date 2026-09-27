@@ -1331,6 +1331,12 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const imgVal = document.getElementById('ws-image-cost-value');
     if (imgVal && typeof prices.text2image === 'number') {
       const recalcImage = () => {
+        // RELU A CHAQUE FOIS (2026-09-27, user : « ca ne change pas le prix ») :
+        // index2.js reecrit le bouton Generate (refreshButtonLabelsAndHiding)
+        // et recree cette pastille ; l'ancienne reference visait un element
+        // detache, le prix ne bougeait plus a l'ecran.
+        const cible = document.getElementById('ws-image-cost-value');
+        if (!cible) return;
         const n = Math.max(1, parseInt(
           document.getElementById('ws-count')?.value, 10) || 1);
         // PRIX SELON LA QUALITE (2026-09-27, user : « il faut que ca coute
@@ -1351,10 +1357,10 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           : scope !== 'front_only';
         const pBack = typeof prices.back_view === 'number' ? prices.back_view : 0;
         const total = nImg * pImg + (avecDos ? nImg * pBack : 0);
-        imgVal.textContent = String(total);
+        cible.textContent = String(total);
         // Le detail evite la question « pourquoi 16 alors que l'image
         // est a 2 ? » : on montre la composition.
-        const pill = imgVal.closest('[class*="cost"]') || imgVal.parentElement;
+        const pill = cible.closest('[class*="cost"]') || cible.parentElement;
         if (pill) {
           pill.title = avecDos
             ? `${nImg} image(s) x ${pImg} (${pas} steps) + ${nImg} back view(s) x ${pBack} = ${total} credits`
