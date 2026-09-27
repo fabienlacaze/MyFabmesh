@@ -3974,6 +3974,7 @@ type MarketListing = {
   thumbnail_url: string | null;
   status: 'pending' | 'approved' | 'rejected';
   rejection_reason?: string;
+  apercu_maj?: number;      // horodatage de la copie filigranee (version de son URL)
   created_at: string;
   approved_at: string | null;
   downloads: number;
@@ -4046,6 +4047,18 @@ function _typeOctets(b: Uint8Array): string {
   return 'application/octet-stream';
 }
 
+/** Date la copie filigranee dans la fiche : elle versionne l'URL de l'apercu. */
+async function _marquerApercu(env: Env, id: string): Promise<void> {
+  try {
+    const cle = `_market/listings/${id}.json`;
+    const txt = await r2GetText(env, cle);
+    if (!txt) return;
+    const l = JSON.parse(txt) as MarketListing;
+    l.apercu_maj = Date.now();
+    await env.MESHES!.put(cle, JSON.stringify(l), { httpMetadata: { contentType: 'application/json' } });
+  } catch { /* sans version, l'ETag suffit a la revalidation */ }
+}
+
 async function _genererApercu(env: Env, l: MarketListing): Promise<boolean> {
   if (!env.MESHES || !env.MODAL_MESH_START_URL) return false;
   const cleApercu = APERCU_PREFIXE + l.id;
@@ -4088,6 +4101,7 @@ async function _genererApercu(env: Env, l: MarketListing): Promise<boolean> {
     const octets = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
     await env.MESHES.put(cleApercu, octets, { httpMetadata: { contentType: _typeOctets(octets) } });
+    await _marquerApercu(env, l.id);
     return true;
   } catch (e) {
     if (reserve) await refundModalSpend(env, estime);
@@ -4449,7 +4463,9 @@ function _ficheVitrine(l: Record<string, unknown>, env: Env): Record<string, unk
   };
   const apercuPublic = `${siteUrl(env, 'http://localhost:3030').replace(/\/+$/, '')}/api/market/preview/${encodeURIComponent(String(l.id))}`;
   if (prix > 0) {                                  // payante : pas d'URL du fichier,
-    base.preview_url = apercuPublic;               // seulement la copie filigranee
+    // seulement la copie filigranee ; ?v= change a chaque regeneration, pour
+    // qu'aucun cache de navigateur ne remontre une ancienne copie
+    base.preview_url = apercuPublic + (l.apercu_maj ? `?v=${encodeURIComponent(String(l.apercu_maj))}` : '');
     return base;
   }
   // Gratuite : servie par /api/market/preview/<id>, qui lit R2. La valeur
@@ -6147,6 +6163,7 @@ async function handleMarketPreviewUpload(req: Request, env: Env, id: string): Pr
   const attendu = l.asset_kind === 'image' ? type.startsWith('image/') : type === 'model/gltf-binary';
   if (!attendu) return err(400, 'preview type does not match the listing');
   await env.MESHES.put(APERCU_PREFIXE + id, octets, { httpMetadata: { contentType: type } });
+  await _marquerApercu(env, id);
   return json({ ok: true, bytes: octets.length });
 }
 

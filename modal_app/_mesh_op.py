@@ -1191,7 +1191,7 @@ def _carte_positions(doc, bin_, image_idx, W, H):
     return pos_map, axe_map
 
 
-def _filigraner_3d(img, pos_map, axe_map, taille=0.3, opacite=0.72):
+def _filigraner_3d(img, pos_map, axe_map, taille=0.3, opacite=0.8):
     """Projette le logo + nom sur la texture de couleur d'apres la position 3D
     de chaque texel. `taille` = largeur du logo rapportee a la plus grande
     dimension du modele. None si la carte couvre trop peu de texels."""
@@ -1233,7 +1233,14 @@ def _filigraner_3d(img, pos_map, axe_map, taille=0.3, opacite=0.72):
            + logo[y0 + 1, x0] * (1 - ax) * ay + logo[y0 + 1, x0 + 1] * ax * ay)
     alpha = ech[:, 3:4] * opacite
     r, c = lignes[dans], cols[dans]
-    base[r, c, :3] = base[r, c, :3] * (1 - alpha) + ech[:, :3] * 255.0 * alpha
+    # CONTRASTE (2026-09-28 : sur une maison en pierre blanche, le nom blanc
+    # etait invisible, seul le « .AI » rose ressortait) : sur une surface
+    # claire, le blanc des lettres devient gris tres fonce ; le rose reste.
+    couleur = ech[:, :3] * 255.0
+    lum = base[r, c, :3] @ np.array([0.299, 0.587, 0.114], np.float32) / 255.0
+    inverser = (ech[:, :3].min(1) > 0.75) & (lum > 0.55)
+    couleur[inverser] = (26.0, 26.0, 36.0)
+    base[r, c, :3] = base[r, c, :3] * (1 - alpha) + couleur * alpha
     out = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8), 'RGBA')
     return out if avait_alpha else out.convert('RGB')
 

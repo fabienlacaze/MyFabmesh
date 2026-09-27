@@ -2785,7 +2785,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     if (n < 500) return false;
     const S = Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) || 1;
     const c0 = (mn[0] + mx[0]) / 2, c1 = (mn[1] + mx[1]) / 2, c2 = (mn[2] + mx[2]) / 2;
-    const tw = 0.3, th = tw * texte.h / texte.w, pasX = tw * 1.45, pasY = th * 3.0, opacite = 0.72;
+    const tw = 0.3, th = tw * texte.h / texte.w, pasX = tw * 1.45, pasY = th * 3.0, opacite = 0.8;
     const LW = texte.w, LH = texte.h, L = texte.data;
     const img = ctx.getImageData(0, 0, W, H), d = img.data;
     for (let k = 0; k < W * H; k++) {
@@ -2811,7 +2811,13 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const ech = (o) => L[i00 + o] * (1 - wx) * (1 - wy) + L[i10 + o] * wx * (1 - wy) + L[i01 + o] * (1 - wx) * wy + L[i11 + o] * wx * wy;
       const alpha = ech(3) / 255 * opacite;
       if (alpha <= 0) continue;
-      for (let o = 0; o < 3; o++) d[k * 4 + o] = d[k * 4 + o] * (1 - alpha) + ech(o) * alpha;
+      // contraste : sur une surface claire, le blanc des lettres passe en gris
+      // tres fonce (nom invisible sur de la pierre blanche) ; le rose reste
+      const r0 = ech(0), g0 = ech(1), b0 = ech(2);
+      const lum = (0.299 * d[k * 4] + 0.587 * d[k * 4 + 1] + 0.114 * d[k * 4 + 2]) / 255;
+      const inverser = Math.min(r0, g0, b0) > 191 && lum > 0.55;
+      const col = inverser ? [26, 26, 36] : [r0, g0, b0];
+      for (let o = 0; o < 3; o++) d[k * 4 + o] = d[k * 4 + o] * (1 - alpha) + col[o] * alpha;
     }
     ctx.putImageData(img, 0, 0);
     return true;
