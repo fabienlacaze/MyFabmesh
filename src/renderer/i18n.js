@@ -21,6 +21,11 @@
   const I18N = {
     fr: {
       // ---- Libelles du 27/09/2026 (audit 1.0.36 : sans traduction ecrite) ----
+      "Usage history": "Historique",
+      "Every job, its cost and its result": "Chaque tâche, son coût et son résultat",
+      "+ Top up": "+ Recharger",
+      "Marketplace earnings, support replies, two-factor authentication and your data": "Gains Marketplace, réponses du support, double authentification et vos données",
+      "Manage my account online": "Gérer mon compte en ligne",
       "Construction stages": "Étapes de construction",
       "Builds a construction timeline (scaffolding → finished building) from the final image, shown like the multi-views": "Génère une timeline de chantier (échafaudages → bâtiment fini) à partir de l'image finale, affichée comme les multi-vues",
       "Builds a construction timeline from the final image (scaffolding, structural work…). The final image stays untouched and becomes the last stage.": "Génère une timeline de chantier à partir de l'image finale (échafaudages, gros œuvre…). L'image finale reste intacte et sert de dernière étape.",

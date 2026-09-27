@@ -25543,14 +25543,17 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     if (note) note.textContent = (mode === 'cloud') ? '' : (gpu.name || '');
     try {
       const s = await API.cloudStatus?.();
+      const actions = document.getElementById('set-account-actions');
       if (s?.loggedIn) {
         if (acct) acct.textContent = s.email + (s.credits != null ? ' · ' + _i18nTf('{x} credits', s.credits) : '');
         if (bLogin) bLogin.style.display = 'none';
         if (bLogout) bLogout.style.display = '';
+        if (actions) actions.style.display = 'flex';
       } else {
         if (acct) acct.textContent = (typeof _i18nT === 'function') ? _i18nT('Not signed in') : 'Not signed in';
         if (bLogin) bLogin.style.display = '';
         if (bLogout) bLogout.style.display = 'none';
+        if (actions) actions.style.display = 'none';
       }
     } catch (_) {}
     try { await window._syncComputeRow?.(); } catch (_) {}
@@ -25568,6 +25571,16 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     localStorage.setItem('fab-compute-mode', 'local');
     refresh();
   });
+  // Section Compte (2026-09-28, alignee sur le web)
+  document.getElementById('set-account-topup')?.addEventListener('click', () => _openCloudSite('/buy'));
+  document.getElementById('set-account-manage')?.addEventListener('click', () => _openCloudSite('/app/?reglages=compte'));
+  document.getElementById('set-account-history')?.addEventListener('click', () => {
+    document.getElementById('modal-settings')?.classList.add('hidden');
+    document.getElementById('btn-history')?.click();
+  });
+  // L'historique est dans les parametres : l'icone de la barre faisait doublon.
+  const histoBarre = document.getElementById('btn-history');
+  if (histoBarre) histoBarre.style.display = 'none';
   bc.addEventListener('click', () => {
     localStorage.setItem('fab-compute-mode', 'cloud');
     refresh();

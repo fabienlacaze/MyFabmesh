@@ -2174,6 +2174,30 @@
           <button class="settings-close-x" id="set-close-x" title="Close">&#10005;</button>
         </div>
 
+        <!-- ═══ ACCOUNT (2026-09-28, alignee sur le web) ═══
+             Compte cloud : connexion, solde, recharge, historique. Gains
+             Marketplace, reponses du support, double authentification et
+             donnees personnelles se gerent dans le compte en ligne. -->
+        <div class="settings-section-header">Account</div>
+        <div class="settings-box" id="set-account-box">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <span id="set-cloud-account" style="font-size:13px; font-weight:600; flex:1;">Not signed in</span>
+            <button id="set-cloud-login" class="ghost-btn" style="padding:4px 10px; font-size:11px;">Sign in</button>
+            <button id="set-cloud-logout" class="ghost-btn danger" style="padding:4px 10px; font-size:11px; display:none;">Sign out</button>
+          </div>
+          <div id="set-account-actions" style="display:none; flex-direction:column; gap:8px; margin-top:10px;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <span style="font-size:11px; color:var(--text-2); flex:1;">Every job, its cost and its result</span>
+              <button id="set-account-history" class="ghost-btn" style="padding:4px 10px; font-size:11px;">&#128229; Usage history</button>
+              <button id="set-account-topup" class="primary-btn" style="padding:4px 12px; font-size:11px; width:auto; flex:0 0 auto;">+ Top up</button>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <span style="font-size:11px; color:var(--text-2); flex:1;">Marketplace earnings, support replies, two-factor authentication and your data</span>
+              <button id="set-account-manage" class="ghost-btn" style="padding:4px 10px; font-size:11px;">Manage my account online</button>
+            </div>
+          </div>
+        </div>
+
         <!-- ═══ LANGUAGE ═══ -->
         <div class="settings-section-header">Language</div>
         <div class="settings-box">
@@ -2207,11 +2231,6 @@
               <button type="button" id="set-compute-cloud" class="ct-btn" data-mode="cloud">Cloud (credits)</button>
             </div>
             <span id="set-compute-note" style="font-size:11px; color:var(--text-2);"></span>
-          </div>
-          <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-            <span id="set-cloud-account" style="font-size:11px; color:var(--text-2); flex:1;">Not signed in</span>
-            <button id="set-cloud-login" class="ghost-btn" style="padding:4px 10px; font-size:11px;">Sign in</button>
-            <button id="set-cloud-logout" class="ghost-btn danger" style="padding:4px 10px; font-size:11px; display:none;">Sign out</button>
           </div>
         </div>
 
