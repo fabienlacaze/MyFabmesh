@@ -133,7 +133,7 @@ Minimum hardware:
 ```
 Windows 10 or 11, 64-bit
 Any graphics card: without a compatible NVIDIA card, the app runs in cloud mode (internet connection required)
-8 GB of RAM
+16 GB of RAM
 1 GB of free disk space
 ```
 
@@ -268,7 +268,7 @@ Matériel minimal :
 ```
 Windows 10 ou 11, 64 bits
 Toute carte graphique : sans carte NVIDIA compatible, l'application passe en mode cloud (connexion Internet requise)
-8 Go de RAM
+16 Go de RAM
 1 Go d'espace disque libre
 ```
 
@@ -297,5 +297,5 @@ impression 3D
 
 Les cases « System requirements » affichent aujourd'hui 12 Go de RAM minimum et 6 Go
 de mémoire vidéo, ce qui contredit le mode cloud. À régler :
-- Memory : minimum 8 GB, recommandé 32 GB ;
+- Memory : minimum 16 GB, recommandé 32 GB (8 GB non mesure et trop juste : Windows ~4 Go + textures 8K ~270 Mo chacune + maillages jusqu'a 10 M) ;
 - Video memory : aucun minimum (le mode cloud n'en a pas besoin), recommandé 12 GB.
