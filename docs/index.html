@@ -168,8 +168,9 @@
                   border-bottom: 1px solid var(--border); }
   .etape .media img { width: 100%; height: 100%; object-fit: cover; border: 0; aspect-ratio: auto;
                       transition: transform 0.35s ease; }
-  .media.zoom { cursor: zoom-in; }
-  .media.zoom:hover img, .diapo-img.zoom:hover img { transform: scale(1.8); }
+  .zoom { cursor: zoom-in; }
+  .zoom:hover img { transform: scale(1.8); }
+  .zoom img { transition: transform 0.35s ease; }
   .diapo-img.zoom { cursor: zoom-in; }
   .diapo-img.zoom img { transition: transform 0.35s ease; }
   .vue3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
@@ -193,6 +194,12 @@
   #info-outil .nom { display: block; font-weight: 700; font-size: 14px; margin-bottom: 2px; }
   #info-outil .desc { display: block; font-size: 13px; color: var(--text-1); line-height: 1.45; }
   @media (prefers-reduced-motion: reduce) { #info-outil { transition: none; } }
+  /* machine a sous : deux sujets par etape, le suivant descend du haut */
+  .bobine > .panneau { position: absolute; inset: 0; transition: transform 0.9s cubic-bezier(0.25, 0.9, 0.3, 1.12); }
+  .bobine > .panneau.cache-haut { transform: translateY(-100%); }
+  .bobine > .panneau.cache-bas { transform: translateY(100%); }
+  .bobine > .panneau.sans-transition { transition: none; }
+  @media (prefers-reduced-motion: reduce) { .bobine > .panneau { transition: none; } }
   @media (max-width: 860px) {
     .etapes { grid-template-columns: 1fr 1fr; }
     .editions { grid-template-columns: 1fr; }
@@ -242,28 +249,28 @@
       <p class="intro">The same four steps as in the app. Each step opens in its own 2D or 3D viewer, where you edit the result directly, then redo only what you want.</p>
       <div class="etapes">
         <article class="etape" style="--cat:#4a90e2">
-          <div class="media zoom"><img src="screenshots/v2/etape1-image.jpg" alt="A generated spider image" loading="lazy"></div>
+          <div class="media bobine"><div class="panneau zoom"><img src="screenshots/v2/etape1-image.jpg" alt="A generated spider image" loading="lazy"></div><div class="panneau zoom cache-haut"><img src="screenshots/v2/guerrier-image.jpg" alt="A generated warrior image" loading="lazy"></div></div>
           <div>
             <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.7"/><path d="M4.5 17.5l5-5 3.5 3.5 2.5-2.5 4 4"/></svg><b>1</b></span>Image</h3>
             <p>Write a prompt or import a picture, then perfect it with the image tools.</p>
           </div>
         </article>
         <article class="etape" style="--cat:#c35ce0">
-          <div class="media vue3d" data-glb="modeles/araignee-maillage.glb" data-mode="mesh"><img src="screenshots/v2/etape2-3d.jpg" alt="The spider as a textured 3D model" loading="lazy"><span class="aide3d">Loading 3D…</span></div>
+          <div class="media bobine"><div class="panneau vue3d" data-glb="modeles/araignee-maillage.glb" data-mode="mesh"><img src="screenshots/v2/etape2-3d.jpg" alt="The spider as a textured 3D model" loading="lazy"><span class="aide3d">Loading 3D…</span></div><div class="panneau vue3d cache-haut" data-glb="modeles/guerrier-maillage.glb" data-mode="mesh"><img src="screenshots/v2/etape-3d.jpg" alt="The warrior as a textured 3D model" loading="lazy"><span class="aide3d">Loading 3D…</span></div></div>
           <div>
             <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l8.2 4.6v9.2L12 21.2l-8.2-4.6V7.4z"/><path d="M12 12l8.2-4.6M12 12v9.2M12 12L3.8 7.4"/><path d="M8 5.1l8.1 4.6M16 5.1L7.9 9.7" stroke-opacity="0.45"/></svg><b>2</b></span>3D Mesh</h3>
             <p>One click turns the image into a textured model: up to 8K textures and 10 million triangles.</p>
           </div>
         </article>
         <article class="etape" style="--cat:#f08a24">
-          <div class="media vue3d" data-glb="modeles/araignee-rig.glb" data-mode="rig"><img src="screenshots/v2/etape3-rig.jpg" alt="The spider with its automatic skeleton" loading="lazy"><span class="aide3d">Loading 3D…</span></div>
+          <div class="media bobine"><div class="panneau vue3d" data-glb="modeles/araignee-rig.glb" data-mode="rig"><img src="screenshots/v2/etape3-rig.jpg" alt="The spider with its automatic skeleton" loading="lazy"><span class="aide3d">Loading 3D…</span></div><div class="panneau vue3d cache-haut" data-glb="modeles/guerrier-rig.glb" data-mode="rig"><img src="screenshots/v2/etape-rig.jpg" alt="The warrior with its automatic skeleton" loading="lazy"><span class="aide3d">Loading 3D…</span></div></div>
           <div>
             <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.3" r="2.1"/><path d="M12 6.4v7.2M12 8.8l-4.3 3.1M12 8.8l4.3 3.1M12 13.6l-3.2 6.4M12 13.6l3.2 6.4"/><g fill="currentColor" stroke="none"><circle cx="7.7" cy="11.9" r="1.3"/><circle cx="16.3" cy="11.9" r="1.3"/><circle cx="12" cy="13.6" r="1.3"/><circle cx="8.8" cy="20" r="1.2"/><circle cx="15.2" cy="20" r="1.2"/></g></svg><b>3</b></span>Rig</h3>
             <p>An automatic skeleton for any body, which you can adjust point by point.</p>
           </div>
         </article>
         <article class="etape" style="--cat:#22c55e">
-          <div class="media vue3d" data-glb="modeles/araignee-animation.glb" data-mode="anim"><img src="screenshots/v2/etape4-animation.jpg" alt="The spider playing an idle animation" loading="lazy"><span class="aide3d">Loading 3D…</span></div>
+          <div class="media bobine"><div class="panneau vue3d" data-glb="modeles/araignee-animation.glb" data-mode="anim"><img src="screenshots/v2/etape4-animation.jpg" alt="The spider playing an idle animation" loading="lazy"><span class="aide3d">Loading 3D…</span></div><div class="panneau vue3d cache-haut" data-glb="modeles/guerrier-animation.glb" data-mode="anim"><img src="screenshots/v2/etape-3d.jpg" alt="The warrior playing an idle animation" loading="lazy"><span class="aide3d">Loading 3D…</span></div></div>
           <div>
             <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="4.3" r="2.1"/><path d="M14 7.2l-2.3 5.2 3.2 3-1.3 5.6M11.7 12.4l-3.4 1.2M14 7.9l4.1 2.4M14.9 15.4l4.3 1.4"/><path d="M2.8 8.5h4.4M2 12.2h4.3M3.4 16h3.4" stroke-opacity="0.55"/></svg><b>4</b></span>Animation</h3>
             <p>Add idle, walk, run or attack clips, then export to FBX or Unreal. In beta.</p>
@@ -295,7 +302,7 @@
             <span class="lieu">3D viewer</span>
             <h3>3D tools</h3>
             <p>Work on the model in the 3D viewer: AI re-texturing and part detection, automatic repairs, and hands-on sculpting, painting and cloning on the surface.</p>
-            <ul class="puces"><li class="ia">Texture variants</li><li class="ia">Sharpen texture</li><li class="ia">Re-texture</li><li class="ia">Re-texture a region</li><li class="ia">Segment parts</li><li>Smooth</li><li>Triangle count</li><li>Subdivide</li><li>Fix normals</li><li>Fill holes</li><li>Watertight</li><li>Pivot</li><li>Sculpt</li><li>Paint</li><li>3D clone stamp</li><li>Explode</li><li>Resize</li><li>Material adjust</li></ul>
+            <ul class="puces"><li class="ia">Texture variants</li><li class="ia">Sharpen texture</li><li class="ia">Re-texture</li><li class="ia">Re-texture a region</li><li class="ia">Segment parts</li><li>Smooth</li><li>Triangle count</li><li>Subdivide</li><li>Fix normals</li><li>Fill holes</li><li>Watertight</li><li>Pivot</li><li>Sculpt</li><li>Paint</li><li data-outil="clone-texture">Clone stamp</li><li>Explode</li><li>Resize</li><li>Material adjust</li></ul>
           </figcaption>
         </figure>
         <figure class="diapo" aria-roledescription="slide" aria-label="3 / 6">
@@ -345,8 +352,14 @@
 
   <section class="galerie">
     <div class="wrap">
-      <h2>All your projects in one place</h2>
-      <p class="intro">Characters, animals, buildings, vehicles: each project keeps every version of its images, models and rigs.</p>
+      <h2>Everything about an asset, in one project</h2>
+      <p class="intro" style="margin-bottom:16px">Each project gathers all the work on one asset, laid out on a single page, step by step. Open it and you see at a glance where it stands and everything it contains.</p>
+      <ul class="liste-ok" style="margin-bottom:24px">
+        <li>Images, 3D models, rigs and animations of the same asset, together</li>
+        <li>The four steps on one page, each with all its versions</li>
+        <li>A progress bar on every project shows how far it went</li>
+        <li>Browse your whole library by images, 3D models or rigs</li>
+      </ul>
       <img src="screenshots/v2/projets.jpg" width="1280" height="680" alt="Project gallery with characters, animals and buildings" loading="lazy">
     </div>
   </section>
@@ -463,12 +476,12 @@
 // Infobulle des outils : categorie (3D, AI...) puis description, au survol,
 // au focus clavier et au toucher.
 (function () {
-  var OUTILS = {"Modify": ["Image · AI", "Change the picture from a short instruction: colours, clothes, details."], "Auto inpaint": ["Image · AI", "Finds the flawed areas and repaints them automatically."], "Remove background": ["Image · AI", "Cuts the subject out cleanly, even hair and fur."], "Upscale": ["Image · AI", "Raises the resolution and sharpens the details."], "Style": ["Image · AI", "Redraws the picture in another art style: painted, anime, low poly…"], "Face fix": ["Image · AI", "Repaints the face with more detail."], "Outfits": ["Image · AI", "Changes the clothes while keeping the same character."], "Recolor": ["Image · AI", "Recolours one element, described in a few words."], "Age": ["Image · AI", "Makes a character or an object look older or younger."], "Multi-views": ["Image · AI", "Generates the back and side views of the subject."], "Variants": ["Image · AI", "Creates variations of the picture, with or without keeping its shape."], "Auto symmetry": ["Image · Automatic", "Mirrors the best half of the subject onto the other."], "Clone stamp": ["Image · Manual", "Copies one area of the picture onto another."], "Mask": ["Image · Manual", "Paint the exact zone the AI tools are allowed to change."], "Crop": ["Image · Manual", "Crops the picture to the part you keep."], "Texture variants": ["3D · AI", "New texture variations on the same geometry."], "Sharpen texture": ["3D · AI", "Doubles the texture resolution and sharpens it."], "Re-texture": ["3D · AI", "Repaints the whole texture from the reference image."], "Re-texture a region": ["3D · AI", "Repaints only the part of the model you select."], "Segment parts": ["3D · AI", "Splits the model into separate parts: head, arms, wheels…"], "Smooth": ["3D · Automatic", "Smooths the surface and removes small bumps."], "Triangle count": ["3D · Automatic", "Reduces the model to the number of triangles you choose."], "Subdivide": ["3D · Automatic", "Adds triangles for rounder, smoother shapes."], "Fix normals": ["3D · Automatic", "Repairs faces that point the wrong way."], "Fill holes": ["3D · Automatic", "Closes the holes in the surface."], "Watertight": ["3D · Automatic", "Rebuilds a fully closed shell, ready for 3D printing."], "Pivot": ["3D · Manual", "Places the origin point of the model where you want it."], "Sculpt": ["3D · Manual", "Push, pull and smooth the surface with a brush."], "Paint": ["3D · Manual", "Paint directly on the model."], "3D clone stamp": ["3D · Manual", "Copies the texture of one area of the model onto another."], "Explode": ["3D · Manual", "Breaks the model into pieces for destruction effects."], "Resize": ["3D · Manual", "Sets the exact size of the model, axis by axis."], "Material adjust": ["3D · Manual", "Tunes brightness, colour, roughness and metal."], "Auto settings": ["3D · AI", "Picks the best options for your subject before generating."], "Quality preset": ["3D · Setting", "From a fast draft to 8K textures."], "Max triangles": ["3D · Setting", "From 50,000 to 10 million triangles."], "Fine geometry": ["3D · Setting", "Finer shapes for thin parts: hair, straw, beams, legs."], "Texture smooth": ["3D · Setting", "Softens noise in the texture."], "Automatic skeleton": ["Rig · AI", "Builds a skeleton that fits the body, whatever the species."], "Move points": ["Rig · Manual", "Drag any skeleton point in the front and side views."], "Add or remove points": ["Rig · Manual", "Add a point where a limb is missing, remove the extra ones."], "Relink bones": ["Rig · Manual", "Choose which point each bone hangs from."], "Undo / redo": ["Rig · Manual", "Every change to the skeleton can be undone."], "Export to Unreal": ["Rig · Export", "Exports with the scale and axes Unreal Engine expects."], "Humans": ["Rig", "Characters on two legs, with arms and head."], "Animals": ["Rig", "Four legs, a tail, a long neck: the skeleton follows the body."], "Insects": ["Rig", "Six or eight legs, antennae and segmented bodies."], "Creatures": ["Rig", "Dragons, monsters, wings and tails."], "Clip generation": ["Animation · AI", "Generates animation clips for your rigged model."], "Idle": ["Animation", "Standing still, breathing, looking around."], "Walk": ["Animation", "A walking cycle that loops."], "Run": ["Animation", "A running cycle that loops."], "Attack": ["Animation", "An attack move."], "Death": ["Animation", "A falling and dying move."], "Fly": ["Animation", "A flying cycle, for winged creatures."], "FBX export": ["Animation · Export", "Exports the animated model as FBX for your game engine."]};
+  var OUTILS = {"Modify": ["Image · AI", "Change the picture from a short instruction: colours, clothes, details."], "Auto inpaint": ["Image · AI", "Finds the flawed areas and repaints them automatically."], "Remove background": ["Image · AI", "Cuts the subject out cleanly, even hair and fur."], "Upscale": ["Image · AI", "Raises the resolution and sharpens the details."], "Style": ["Image · AI", "Redraws the picture in another art style: painted, anime, low poly…"], "Face fix": ["Image · AI", "Repaints the face with more detail."], "Outfits": ["Image · AI", "Changes the clothes while keeping the same character."], "Recolor": ["Image · AI", "Recolours one element, described in a few words."], "Age": ["Image · AI", "Makes a character or an object look older or younger."], "Multi-views": ["Image · AI", "Generates the back and side views of the subject."], "Variants": ["Image · AI", "Creates variations of the picture, with or without keeping its shape."], "Auto symmetry": ["Image · Automatic", "Mirrors the best half of the subject onto the other."], "Clone stamp": ["Image · Manual", "Copies one area of the picture onto another."], "Mask": ["Image · Manual", "Paint the exact zone the AI tools are allowed to change."], "Crop": ["Image · Manual", "Crops the picture to the part you keep."], "Texture variants": ["3D · AI", "New texture variations on the same geometry."], "Sharpen texture": ["3D · AI", "Doubles the texture resolution and sharpens it."], "Re-texture": ["3D · AI", "Repaints the whole texture from the reference image."], "Re-texture a region": ["3D · AI", "Repaints only the part of the model you select."], "Segment parts": ["3D · AI", "Splits the model into separate parts: head, arms, wheels…"], "Smooth": ["3D · Automatic", "Smooths the surface and removes small bumps."], "Triangle count": ["3D · Automatic", "Reduces the model to the number of triangles you choose."], "Subdivide": ["3D · Automatic", "Adds triangles for rounder, smoother shapes."], "Fix normals": ["3D · Automatic", "Repairs faces that point the wrong way."], "Fill holes": ["3D · Automatic", "Closes the holes in the surface."], "Watertight": ["3D · Automatic", "Rebuilds a fully closed shell, ready for 3D printing."], "Pivot": ["3D · Manual", "Places the origin point of the model where you want it."], "Sculpt": ["3D · Manual", "Push, pull and smooth the surface with a brush."], "Paint": ["3D · Manual", "Paint directly on the model."], "clone-texture": ["3D · Manual", "Copies the texture of one area of the model onto another, directly on the surface."], "Explode": ["3D · Manual", "Breaks the model into pieces for destruction effects."], "Resize": ["3D · Manual", "Sets the exact size of the model, axis by axis."], "Material adjust": ["3D · Manual", "Tunes brightness, colour, roughness and metal."], "Auto settings": ["3D · AI", "Picks the best options for your subject before generating."], "Quality preset": ["3D · Setting", "From a fast draft to 8K textures."], "Max triangles": ["3D · Setting", "From 50,000 to 10 million triangles."], "Fine geometry": ["3D · Setting", "Finer shapes for thin parts: hair, straw, beams, legs."], "Texture smooth": ["3D · Setting", "Softens noise in the texture."], "Automatic skeleton": ["Rig · AI", "Builds a skeleton that fits the body, whatever the species."], "Move points": ["Rig · Manual", "Drag any skeleton point in the front and side views."], "Add or remove points": ["Rig · Manual", "Add a point where a limb is missing, remove the extra ones."], "Relink bones": ["Rig · Manual", "Choose which point each bone hangs from."], "Undo / redo": ["Rig · Manual", "Every change to the skeleton can be undone."], "Export to Unreal": ["Rig · Export", "Exports with the scale and axes Unreal Engine expects."], "Humans": ["Rig", "Characters on two legs, with arms and head."], "Animals": ["Rig", "Four legs, a tail, a long neck: the skeleton follows the body."], "Insects": ["Rig", "Six or eight legs, antennae and segmented bodies."], "Creatures": ["Rig", "Dragons, monsters, wings and tails."], "Clip generation": ["Animation · AI", "Generates animation clips for your rigged model."], "Idle": ["Animation", "Standing still, breathing, looking around."], "Walk": ["Animation", "A walking cycle that loops."], "Run": ["Animation", "A running cycle that loops."], "Attack": ["Animation", "An attack move."], "Death": ["Animation", "A falling and dying move."], "Fly": ["Animation", "A flying cycle, for winged creatures."], "FBX export": ["Animation · Export", "Exports the animated model as FBX for your game engine."]};
   var bulle = document.getElementById('info-outil');
   var cat = bulle.querySelector('.cat'), nom = bulle.querySelector('.nom'), desc = bulle.querySelector('.desc');
   var actif = null;
   function montrer(li) {
-    var t = li.textContent.trim(), info = OUTILS[t];
+    var t = li.textContent.trim(), info = OUTILS[li.dataset.outil || t];
     if (!info) return;
     actif = li;
     cat.textContent = info[0]; nom.textContent = t; desc.textContent = info[1];
@@ -481,7 +494,7 @@
   }
   function cacher() { actif = null; bulle.classList.remove('visible'); }
   document.querySelectorAll('.puces li').forEach(function (li) {
-    if (!OUTILS[li.textContent.trim()]) return;
+    if (!OUTILS[li.dataset.outil || li.textContent.trim()]) return;
     li.tabIndex = 0;
     li.addEventListener('mouseenter', function () { montrer(li); });
     li.addEventListener('mouseleave', cacher);
@@ -494,8 +507,36 @@
 })();
 </script>
 <script>
+// MACHINE A SOUS des etapes : toutes les 15 s, chaque vignette fait descendre
+// le sujet suivant (araignee <-> guerrier), avec un leger decalage de l'une a
+// l'autre. Le sujet suivant est charge 5 s avant.
+(function () {
+  var bobines = [].slice.call(document.querySelectorAll('.bobine'));
+  if (!bobines.length || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  function tourner() {
+    bobines.forEach(function (b, k) {
+      setTimeout(function () {
+        var panneaux = [].slice.call(b.querySelectorAll(':scope > .panneau'));
+        var actuel = panneaux.find(function (x) { return !x.classList.contains('cache-haut'); });
+        var suivant = panneaux[(panneaux.indexOf(actuel) + 1) % panneaux.length];
+        suivant.classList.add('sans-transition', 'cache-haut');
+        void suivant.offsetHeight;
+        suivant.classList.remove('sans-transition', 'cache-haut');
+        actuel.classList.add('cache-bas');
+        setTimeout(function () {
+          actuel.classList.add('sans-transition'); actuel.classList.remove('cache-bas'); actuel.classList.add('cache-haut');
+          void actuel.offsetHeight; actuel.classList.remove('sans-transition');
+        }, 1000);
+      }, k * 220);
+    });
+  }
+  setTimeout(function () { if (window.__prechargerVues) window.__prechargerVues(); }, 10000);
+  setInterval(tourner, 15000);
+})();
+</script>
+<script>
 // Zoom qui suit le curseur (photo d'etape, pages du carrousel).
-document.querySelectorAll('.media.zoom, .diapo-img.zoom').forEach(function (z) {
+document.querySelectorAll('.zoom').forEach(function (z) {
   z.addEventListener('mousemove', function (e) {
     var r = z.getBoundingClientRect(), img = z.querySelector('img');
     if (img) img.style.transformOrigin = ((e.clientX - r.left) / r.width * 100) + '% ' + ((e.clientY - r.top) / r.height * 100) + '%';
@@ -518,6 +559,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 
 function monter(hote) {
+  if (hote.dataset.monte) return;
+  hote.dataset.monte = '1';
   const mode = hote.dataset.mode;
   const aide = hote.querySelector('.aide3d');
   let renderer;
@@ -561,7 +604,11 @@ function monter(hote) {
     m.position.sub(centre);
     scene.add(m);
     const rayon = Math.max(dim.x, dim.y, dim.z);
-    camera.position.set(rayon * 0.9, rayon * 0.55, rayon * 1.1);
+    // recul qui fait tenir le modele en hauteur ET en largeur (un personnage
+    // debout depassait en haut de la vignette)
+    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const recul = 1.25 * Math.max(dim.y / 2 / t, Math.max(dim.x, dim.z) / 2 / (t * camera.aspect)) + Math.max(dim.x, dim.z) / 2;
+    camera.position.set(0.9, 0.45, 1.1).normalize().multiplyScalar(recul);
     camera.near = rayon / 100; camera.far = rayon * 20; camera.updateProjectionMatrix();
     controls.target.set(0, 0, 0); controls.update();
     if (mode === 'rig') {
@@ -594,6 +641,9 @@ const obs = new IntersectionObserver((entrees) => {
   entrees.forEach((e) => { if (e.isIntersecting) { obs.unobserve(e.target); monter(e.target); } });
 }, { rootMargin: '200px' });
 document.querySelectorAll('.vue3d').forEach((h) => obs.observe(h));
+// le sujet suivant est prepare quelques secondes avant de descendre
+window.__prechargerVues = () => document.querySelectorAll('.vue3d:not([data-monte])')
+  .forEach((h) => { obs.unobserve(h); monter(h); });
 </script>
 <script>
 // Visionneuse des outils : defile seule en boucle (6 s), pause au survol ou au
