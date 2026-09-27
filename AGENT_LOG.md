@@ -1,5 +1,6 @@
 # FabMesh Agent Log
 
+- 2026-09-27 (site vitrine) - Intro Tools sur deux lignes ; intro et liste de Projects reecrites (jugees pas claires) : « Each asset has its own project... », etapes cote a cote avec leurs versions, barre de progression = etapes faites, filtre de la bibliotheque.
 - 2026-09-27 (site vitrine) - Note sous les quatre etapes (visionneuses 3D, 400 000 triangles) centree et en italique, a la demande du user.
 - 2026-09-27 (site vitrine) - Intro « How it works » : « 2D or 3D viewer » remis (le user l'aime) ; etape Animation sans « exported to FBX » (l'export a sa rubrique).
 - 2026-09-27 (site vitrine) - Intro « How it works » reformulee en anglais plus naturel (user : « Four steps, each in its own 2D or 3D viewer » sonnait faux).
