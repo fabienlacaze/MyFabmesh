@@ -88,7 +88,9 @@ racine_r2 = os.path.join(dest, 'r2')
 
 
 def copier(o):
-    cible = os.path.join(racine_r2, *o['Key'].split('/'))
+    # « : » est interdit dans un nom de fichier Windows (cles avec une adresse IPv6) :
+    # remplace par « %3A » ; la cle d'origine reste dans r2_inventaire.json
+    cible = os.path.join(racine_r2, *[x.replace(':', '%3A') for x in o['Key'].split('/')])
     if os.path.exists(cible) and os.path.getsize(cible) == o['Size']:
         return o['Size'], 'deja'
     os.makedirs(os.path.dirname(cible), exist_ok=True)
