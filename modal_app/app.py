@@ -391,20 +391,41 @@ image = (
         "snapshot_download('SG161222/RealVisXL_V4.0', "
         "allow_patterns=['*.json', '*.txt', '*.fp16.safetensors'])\"",
     )
-    .add_local_python_source("modal_app")
-    .add_local_file(
-        "modal_app/back_tpose_skeleton.png",
-        remote_path="/opt/back_tpose_skeleton.png",
+)
+
+
+def _avec_sources(img):
+    # Modal : les add_local_* doivent venir EN DERNIER.
+    return (
+        img.add_local_python_source("modal_app")
+        .add_local_file(
+            "modal_app/back_tpose_skeleton.png",
+            remote_path="/opt/back_tpose_skeleton.png",
+        )
+        .add_local_file(
+            "modal_app/front_tpose_skeleton.png",
+            remote_path="/opt/front_tpose_skeleton.png",
+        )
     )
-    # FRONT T-pose skeleton — used by the `tpose` endpoint on
-    # MyFabmeshBackview (the back-view class already has all the
-    # RealVisXL + ControlNet OpenPose + IPAdapter weights we need,
-    # so we just need the additional front skeleton PNG here).
-    .add_local_file(
-        "modal_app/front_tpose_skeleton.png",
-        remote_path="/opt/front_tpose_skeleton.png",
+
+
+# ACCELERATEUR 4 PAS (« Fast (Turbo) ») — 2026-09-27. Il ne s'est jamais
+# charge : a chaque demarrage « lightning adapter skipped: PEFT backend is
+# required for this method ». peft n'est ajoute QU'A l'image du generateur
+# d'images (MyFabmeshPredictor) : avec peft installe, diffusers bascule tout
+# son chargement de LoRA / adaptateurs sur ce moteur, et le Backview (IP-Adapter,
+# ControlNet, instantane memoire) n'a pas a changer de comportement pour ca.
+# peft 0.13.2 : compatible diffusers 0.31 / transformers 4.45 / torch 2.4 ; numpy
+# re-epingle en dernier (piege n°2 ci-dessus). Le LoRA (~390 Mo) est integre a
+# l'image : sinon chaque demarrage a froid le retelechargeait.
+predictor_image = _avec_sources(
+    image.pip_install("peft==0.13.2", "numpy>=1.26,<2.0")
+    .run_commands(
+        "python -c \"from huggingface_hub import hf_hub_download; "
+        "hf_hub_download('ByteDance/SDXL-Lightning', 'sdxl_lightning_4step_lora.safetensors')\"",
     )
 )
+image = _avec_sources(image)
 
 # Blender image — export format conversion (GLB -> FBX/OBJ/STL/...).
 # Deliberately built on debian_slim and NOT on _base_image: bpy is a
@@ -689,6 +710,7 @@ mesh_image = (
 #        equivalent workload)
 # ---------------------------------------------------------------------------
 @app.cls(
+    image=predictor_image,   # + peft : accelerateur 4 pas (voir predictor_image)
     gpu="L40S",
     timeout=600,
     # 30 s is aggressive: a container is killed 30 s after its last
@@ -783,7 +805,9 @@ class MyFabmeshPredictor:
             _lora = hf_hub_download("ByteDance/SDXL-Lightning",
                                     "sdxl_lightning_4step_lora.safetensors")
             self.pipe.load_lora_weights(_lora, adapter_name="lightning")
-            self.pipe.set_adapters([])  # disabled -> normal RealVis by default
+            # coupe par defaut : RealVis normal. disable_lora / enable_lora
+            # plutot que set_adapters([]) (liste vide non prevue par diffusers).
+            self.pipe.disable_lora()
             self._default_scheduler = self.pipe.scheduler
             self._euler_trailing = EulerDiscreteScheduler.from_config(
                 self.pipe.scheduler.config, timestep_spacing="trailing")
@@ -819,14 +843,14 @@ class MyFabmeshPredictor:
         )
         _use_turbo = turbo and getattr(self, "_has_lightning", False)
         if _use_turbo:
-            self.pipe.set_adapters(["lightning"])
+            self.pipe.enable_lora()
             self.pipe.scheduler = self._euler_trailing
         try:
             img = generate(self.pipe, enriched, seed=seed, steps=steps,
                            asset_type=asset_type, turbo=_use_turbo)
         finally:
             if _use_turbo:
-                self.pipe.set_adapters([])
+                self.pipe.disable_lora()
                 self.pipe.scheduler = self._default_scheduler
 
         # Parental control. Two bypass paths:

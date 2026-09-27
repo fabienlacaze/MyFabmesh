@@ -23793,3 +23793,16 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   la lisait apres la generation, elle ne faisait qu'allonger l'estimation x2,5). Elle lance
   maintenant l'outil 3D construction stages (3 etapes, materiaux auto) sur le maillage livre,
   a son tarif (construction3d), affiche en pastille et dans le total. Web + bureau.
+
+## 2026-09-27 — Turbo reactive (peft dans l'image du generateur) ; reglages d'un maillage repris
+
+- `predictor_image` = `image` + peft 0.13.2 + LoRA SDXL-Lightning integre (etait telecharge
+  a chaque demarrage a froid). SEUL MyFabmeshPredictor la porte : le Backview (IP-Adapter,
+  ControlNet, instantane) garde son image. `image` est desormais `_avec_sources(image)`,
+  memes etapes. Adaptateur coupe / active par `disable_lora()` / `enable_lora()` au lieu de
+  `set_adapters([])`.
+- Worker : Turbo facture au prix de 4 pas (1 credit) mais envoie les pas du curseur ; Modal
+  passe a 4 pas seulement si l'accelerateur est charge (sinon image normale, jamais ratee).
+  Web : l'option revient, la pastille la compte a 4 pas.
+- Fiche d'un maillage REPRIS apres rechargement : Quality (preset, desormais enregistre dans
+  options), Max triangles, options cochees.

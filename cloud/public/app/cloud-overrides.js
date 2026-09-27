@@ -21,14 +21,9 @@
 // texture a plat -> plaques aux bords droits ; voir OPTIONS_SANS_EFFET_CLOUD
 // dans le worker, qui les ignore et ne les facture plus).
 window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-fix']);
-/* « Fast (Turbo) » RETIRE DU WEB (2026-09-27, user : « c'est fonctionnel ca ? »).
- * Non : l'accelerateur 4 pas ne se charge pas sur Modal (« PEFT backend is
- * required », a chaque demarrage) ; le choix donnait une generation normale,
- * ou une image ratee a 4 pas. Il reviendra quand il fonctionnera. */
-(function _retirerTurbo() {
-  const f = () => document.querySelector('#ws-engine option[value="local-lightning"]')?.remove();
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f); else f();
-})();
+/* « Fast (Turbo) » : l'accelerateur 4 pas ne se chargeait pas sur Modal (peft
+ * absent) ; retire un moment le 2026-09-27, REMIS le meme jour avec peft dans
+ * l'image du generateur d'images. */
 
 /**
  * Cloud-only overrides for the desktop renderer UI.
@@ -1350,7 +1345,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         // PRIX SELON LA QUALITE (2026-09-27, user : « il faut que ca coute
         // des credits en fonction du choix ») : meme formule que
         // _prixImageSelonPas() du worker — le tarif vaut pour 30 pas.
-        const pas = Math.max(10, Math.min(60, parseInt(
+        // Turbo = 4 pas, quel que soit le curseur (meme regle que le worker)
+        const turbo = document.getElementById('ws-engine')?.value === 'local-lightning';
+        const pas = turbo ? 4 : Math.max(10, Math.min(60, parseInt(
           document.getElementById('ws-quality')?.value, 10) || 30));
         const pImg = Math.max(1, Math.round(prices.text2image * pas / 30));
         // Construction stages : 3 images, quel que soit Count
@@ -1415,6 +1412,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       document.getElementById('ws-count')?.addEventListener('change', recalcImage);
       document.getElementById('ws-count')?.addEventListener('input', recalcImage);
       document.getElementById('ws-quality')?.addEventListener('input', recalcImage);
+      document.getElementById('ws-engine')?.addEventListener('change', recalcImage);
       document.getElementById('ws-img-buildstages')?.addEventListener('change', recalcImage);
       document.getElementById('ws-asset-type')?.addEventListener('change', recalcImage);
       document.getElementById('ws-mv-scope')?.addEventListener('change', recalcImage);

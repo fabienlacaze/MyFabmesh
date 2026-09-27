@@ -16514,6 +16514,20 @@ document.addEventListener('DOMContentLoaded', () => {
         Type: row.asset_type || '—',
         Resumed: 'yes',
       };
+      // REGLAGES D'UN MAILLAGE REPRIS (2026-09-27, user : « il manque le nombre
+      // de triangles, et les settings utilises ») : lus dans les options que
+      // le serveur a enregistrees au lancement.
+      if (String(row.type || '') === 'mesh' && row.options && typeof row.options === 'object') {
+        const o = row.options;
+        const lib = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality', ultra_8k: 'Ultra 8K' };
+        if (o.preset) params.Quality = lib[o.preset] || String(o.preset);
+        const t = Number(o.max_tris) || 0;
+        if (t) params['Max triangles'] = t >= 1e6 ? `${+(t / 1e6).toFixed(1)}M` : `${Math.round(t / 1000)}K`;
+        const choisies = [o.back_view && 'Multi-reference', o.rectify && 'Auto-rectify',
+          o.smooth && 'Texture smooth', o.quality_plus && !o.ultra_q && 'Sharp edges',
+          o.ultra_q && 'Fine geometry', o.ultra_hd && 'Ultra HD 8K'].filter(Boolean);
+        params.Options = choisies.join(', ') || 'None';
+      }
       const opts = { projectName: project || null };
       /* RATTACHEMENT EN SOUS-TACHE (2026-09-25).
        *

@@ -7244,6 +7244,9 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         // C est exactement ce qui a bloque le diagnostic d une hutte a la
         // paille fragmentee le 2026-09-24. `refine` manquait aussi.
         refine: input.refine, quality_plus: input.quality_plus, ultra_q: input.ultra_q,
+        // preset de qualite : affiche dans la fiche d'un travail repris apres
+        // un rechargement (2026-09-27, user : « il manque les settings »)
+        ...(input.preset ? { preset: input.preset } : {}),
         // « Max triangles » : ce qui a ete facture, pour rendre les tranches
         // non livrees a la fin (_rembourserTrianglesNonLivres).
         ...(input.max_tris ? {
@@ -10358,7 +10361,10 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // (PEFT absent) et 4 pas SANS lui donnent une image ratee. Modal passe
   // lui-meme a 4 pas le jour ou l'accelerateur est reellement charge.
   const pas = Math.max(10, Math.min(60, Math.round(Number(steps) || 30)));
-  const COST_PER_IMAGE = _prixImageSelonPas(await getPrice(env, 'text2image'), pas);
+  // Turbo (accelerateur 4 pas, 2026-09-27) : facture au prix de 4 pas. Si
+  // l'accelerateur manquait, Modal ferait une image normale : le client paie
+  // alors moins, jamais une image ratee.
+  const COST_PER_IMAGE = _prixImageSelonPas(await getPrice(env, 'text2image'), turbo ? 4 : pas);
   const cost = n * COST_PER_IMAGE;
 
   // Pick the backend BEFORE the budget check — the budget cap is
