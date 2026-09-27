@@ -21748,11 +21748,12 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
     if (window.wizardAPI?.openExternal) window.wizardAPI.openExternal(url);
     else window.open(url, '_blank');
   };
+  // « Website » = le site vitrine, dans un nouvel onglet. L'ancien code
+  // appelait wizardAPI.openExternal, qui n'existe pas sur le web (stub) :
+  // le lien ne faisait rien.
   linkSite?.addEventListener('click', (e) => {
-    // On cloud we ARE on the site already; keep default behaviour (load /).
-    if (!window.wizardAPI?.openExternal) return;
     e.preventDefault();
-    openExt('https://fabienlacaze.github.io/MyFabmesh/');
+    window.open('https://fabienlacaze.github.io/MyFabmesh/', '_blank', 'noopener');
   });
   // Privacy / Terms — let the browser follow the in-app href.
   // (No extra wiring; they're real anchors to /legal/* pages.)
@@ -21854,6 +21855,28 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
     bodyEl.addEventListener(ev, refreshSubmitState);
   });
   refreshSubmitState();
+
+  // PREREMPLISSAGE (2026-09-27, user : « your email, your name ») : l'e-mail
+  // du compte connecte ; le nom = le dernier nom envoye, sinon la partie
+  // avant « @ » (celle que la Marketplace affiche deja). Tout reste
+  // modifiable. Declenche a CHAQUE ouverture, quel que soit le bouton.
+  async function preremplir() {
+    if (!nameEl.value.trim()) {
+      try { nameEl.value = localStorage.getItem('mfm-contact-name') || ''; } catch (_) {}
+    }
+    if (!emailEl.value.trim() || !nameEl.value.trim()) {
+      try {
+        const r = await fetch('/api/me', { credentials: 'include' });
+        const mail = (r.ok ? (await r.json())?.user?.email : '') || '';
+        if (mail && !emailEl.value.trim()) emailEl.value = mail;
+        if (mail && !nameEl.value.trim()) nameEl.value = mail.split('@')[0];
+      } catch (_) {}
+    }
+    refreshSubmitState();
+    if (nameEl.value.trim() && emailEl.value.trim() && !subjectEl.value.trim()) subjectEl.focus();
+  }
+  new MutationObserver(() => { if (!modal.classList.contains('hidden')) preremplir(); })
+    .observe(modal, { attributes: true, attributeFilter: ['class'] });
 
   function renderPreviews() {
     previewBox.innerHTML = '';
@@ -21957,6 +21980,7 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
       feedback.style.color = '#4ade80';
       feedback.textContent = '✓ Message sent. Thanks — we read everything that lands in the inbox.';
       feedback.style.display = 'block';
+      try { localStorage.setItem('mfm-contact-name', name); } catch (_) {}
       form.reset();
       selectedFiles = [];
       renderPreviews();

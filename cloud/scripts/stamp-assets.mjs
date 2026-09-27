@@ -56,6 +56,12 @@ html = html.replace(
   },
 );
 
+// Date de construction, lue par la fenetre « About » (2026-09-27) : la
+// version affichee etait une constante figee, « cloud-1.0.0-beta ».
+html = html.replace(/[ \t]*<meta name="mfm-build"[^>]*>\r?\n?/g, '');
+html = html.replace(/<meta charset="UTF-8">/i,
+  (m) => `${m}\n  <meta name="mfm-build" content="${new Date().toISOString()}">`);
+
 fs.writeFileSync(HTML, html);
 console.log(`[stamp-assets] ${n} reference(s) empreintee(s) dans out/app/index.html`);
 for (const v of vus) console.log('   ', v);

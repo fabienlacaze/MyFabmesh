@@ -19,6 +19,14 @@
 
   const log = (...args) => console.log('[meshyAPI-cloud]', ...args);
 
+  // Version affichee (About, journaux) : date de construction posee dans
+  // index.html par scripts/stamp-assets.mjs (2026-09-27). Remplace la
+  // constante figee « cloud-1.0.0-beta », jamais mise a jour.
+  const _versionWeb = () => {
+    const d = (document.querySelector('meta[name="mfm-build"]') || {}).content || '';
+    return d ? d.slice(0, 10).replace(/-/g, '.') + ' (web)' : 'web';
+  };
+
   // Construction-stage prompt modifiers — kept byte-identical to desktop
   // main.js _BUILD_STAGE_MODIFIERS (foundation → half-built → finished).
   const _CLOUD_BUILD_STAGE_MODIFIERS = [
@@ -572,7 +580,7 @@
       try { Object.assign(local, JSON.parse(localStorage.getItem('fabmesh_config') || '{}')); } catch (_) {}
       return {
         mode: 'cloud',
-        version: 'cloud-1.0.0-beta',
+        version: _versionWeb(),
         cloud: true,
         user: me?.user || null,
         credits: me?.user?.credits ?? 0,
@@ -2252,7 +2260,7 @@
       // callers that just want "what version is this?" still get an
       // answer.
       return {
-        app: 'cloud-1.0.0-beta', git: 'cloud',
+        app: _versionWeb(), git: 'cloud',
         // Shape compatible with renderer's mesh-history viewer:
         versions: [], currentVersion: -1,
       };
@@ -3372,7 +3380,7 @@
   const wizardAPI = new Proxy({}, {
     get(_t, name) {
       if (name === 'getMode') return async () => 'cloud';
-      if (name === 'getVersion') return async () => 'cloud-1.0.0-beta';
+      if (name === 'getVersion') return async () => _versionWeb();
       return NOT_AVAIL(`wizardAPI.${String(name)}`);
     },
   });
