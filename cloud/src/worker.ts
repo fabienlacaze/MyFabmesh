@@ -12701,7 +12701,8 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
 
-  const { base64, filename, tool } = await req.json() as { base64?: string; filename?: string; tool?: string };
+  const { base64, filename, tool, projectName } = await req.json() as {
+    base64?: string; filename?: string; tool?: string; projectName?: string };
   if (!base64 || !filename) return err(400, 'base64 and filename required');
   // Sculpt / Paint / Select enregistrent ici : factures (manual_tool).
   const outilMesh = typeof tool === 'string' && /^[a-z_]{2,24}$/.test(tool) ? tool : null;
@@ -12763,7 +12764,17 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
   // rather than the flat `mesh/` namespace used by Modal outputs.
   const base = safe.replace(/\.(glb|gltf)$/i, '');
   const ext = safe.toLowerCase().endsWith('.gltf') ? 'gltf' : 'glb';
-  const key = `${user.id}/edited/${base}_${Date.now()}.${ext}`;
+  // PERSISTANCE (2026-09-27) : un maillage sculpte / peint, ou un rig ajuste,
+  // allait dans <uid>/edited/, que handleListMeshes ne relit JAMAIS : il
+  // disparaissait au rechargement de la page. Avec le projet, il est range
+  // sous mesh-op/<projet>/ (meme regle de slug que /api/mesh-op), donc relu
+  // comme une version du projet ; un nom contenant « _rigged_ » y est classe
+  // parmi les rigs par l'interface.
+  const slugProjet = typeof projectName === 'string' && projectName
+    ? projectName.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) : '';
+  const key = slugProjet
+    ? `${user.id}/mesh-op/${slugProjet}/${base}_${Date.now()}.${ext}`
+    : `${user.id}/edited/${base}_${Date.now()}.${ext}`;
   const tOutil = Date.now();
   let prixOutil = 0;
   if (outilMesh) {

@@ -4458,3 +4458,19 @@ details.stage-generating > summary .stage-icon-gear {
   border-radius: 50%;
   object-fit: cover;
 }
+
+/* Reglage manuel des os sous la liste des points (parite bureau, 2026-09-27) */
+.pts-os-manuels {
+  border-top: 1px solid var(--border);
+  padding: 10px 18px 14px;
+  background: var(--bg-2);
+}
+.pts-os-manuels summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.pts-os-manuels[open] summary {
+  margin-bottom: 8px;
+}

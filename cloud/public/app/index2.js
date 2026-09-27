@@ -6382,6 +6382,13 @@ document.getElementById('sym-redo')?.addEventListener('click', () => {
     _symDrawPreview();
   }
 });
+// « Recenter view » — parite bureau (2026-09-27) : retour au cadrage d'origine.
+document.getElementById('sym-recenter')?.addEventListener('click', () => {
+  symState.zoom = 1;
+  symState.panX = 0;
+  symState.panY = 0;
+  _symApplyView();
+});
 document.getElementById('sym-reset')?.addEventListener('click', () => {
   symState.maskData = new Uint8Array(symState.w * symState.h);
   symState.axisX = 0.5;
@@ -24240,6 +24247,103 @@ async function extractLandmarksFromRig() {
     customError('Failed to read the rig: ' + (e?.message || e), 'From rig');
   }
 }
+
+// ============================================================
+// REGLAGE MANUEL DES OS — PARITE BUREAU (2026-09-27). Portage de
+// _lmPlaceAllBoneMarkers / _lmSaveAdjustedRig : un marqueur par os, deplacable
+// (« Freeze mesh » : l'os se realigne sans deformer le maillage), puis
+// enregistrement du rig corrige comme nouvelle version. Sur le web le fichier
+// est envoye dans le dossier du projet (voir saveBuffer / /api/upload-mesh) et
+// son nom garde « _rigged_ » : c'est ce qui le range dans les rigs au rechargement.
+// ============================================================
+function _lmModelBones() {
+  const bones = [];
+  const m = (typeof lmFsModel !== 'undefined' && lmFsModel) ? lmFsModel : (rigSrcModel || null);
+  if (!m) return { model: null, bones };
+  m.traverse((c) => {
+    if (c.isBone) { if (!bones.includes(c)) bones.push(c); }
+    else if (c.isSkinnedMesh && c.skeleton) { for (const b of c.skeleton.bones) if (!bones.includes(b)) bones.push(b); }
+  });
+  return { model: m, bones };
+}
+function _lmPlaceAllBoneMarkers() {
+  const { model, bones } = _lmModelBones();
+  if (!model || !bones.length) {
+    if (typeof customError === 'function') customError('Open this on a RIG (generate a rig first) — no bones found.', 'Bones');
+    return;
+  }
+  lmPushHistory();
+  for (const id in lmMarkers) {
+    const mk = lmMarkers[id];
+    if (mk) { try { mk.parent && mk.parent.remove(mk); mk.geometry.dispose(); mk.material.dispose(); } catch (e) {} }
+  }
+  lmMarkers = {};
+  document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('placed', 'armed'));
+  const wp = new THREE.Vector3();
+  const PALETTE = [0x22d3ee, 0xffcc00, 0xff6688, 0x66ff99, 0xcc88ff, 0xff9944, 0x44aaff, 0xffffff];
+  bones.forEach((b, i) => {
+    b.getWorldPosition(wp);
+    const id = 'bone__' + (b.name || ('b' + i)) + '__' + i;
+    placeLandmarkMarker(id, wp.clone(), PALETTE[i % PALETTE.length]);
+    if (lmMarkers[id]) {
+      lmMarkers[id].userData._linkedBone = b;
+      lmMarkers[id].userData._boneName = b.name || ('bone_' + i);
+    }
+  });
+  try { refreshLmFsSilhouetteDots && refreshLmFsSilhouetteDots(); } catch (e) {}
+  if (typeof showToast === 'function') {
+    showToast(_i18nTf('{x} bones shown — drag a marker to move the joint (Freeze mesh kept), then "Save rig".', bones.length), 'success', 6000);
+  }
+}
+async function _lmSaveAdjustedRig() {
+  const model = (typeof lmFsModel !== 'undefined' && lmFsModel) || null;
+  if (!model) { if (typeof customError === 'function') customError('No rig loaded.', 'Save rig'); return; }
+  const p = state.currentProject;
+  const rigPath = p?.selectedRigPath || (p?.rigs && (p.rigs[0]?.path || p.rigs[0]?.url));
+  if (!rigPath) { if (typeof customError === 'function') customError('No rig to overwrite — generate a rig first.', 'Save rig'); return; }
+  const job = pushJob(`Save adjusted rig: ${p?.name || ''}`, null, null, 8000, { projectName: p?.name });
+  try {
+    const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+    const exporter = new GLTFExporter();
+    exporter.parse(model, async (result) => {
+      try {
+        const bytes = new Uint8Array(result);
+        // URL signee : on retire la requete avant d'en tirer un nom de fichier
+        const clean = String(rigPath).split('?')[0].replace(/\\/g, '/');
+        const nameNoExt = (clean.split('/').pop() || 'rig').replace(/\.[^.]+$/, '');
+        const base = /_rigged_/i.test(nameNoExt) ? nameNoExt : nameNoExt + '_rigged_manual';
+        const newPath = base + '_adjusted_' + Date.now() + '.glb';
+        let binary = '';
+        const chunk = 8192;
+        for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        const r = await API.saveBuffer({ path: newPath, base64: btoa(binary), projectName: p?.name });
+        if (r && r.success) {
+          const actualPath = r.url || r.path || newPath;
+          const filename = String(r.path || actualPath).split('?')[0].split('/').pop();
+          if (p) {
+            p.rigs = p.rigs || [];
+            p.rigs.unshift({ path: actualPath, url: actualPath, filename, size: bytes.length, mtime: Date.now(), asset_type: 'rig' });
+            p.selectedRigPath = actualPath;
+          }
+          completeJob(job.id, true);
+          showToast(_i18nT('Adjusted rig saved') + ' ✓', 'success', 2500);
+          try { populateWorkspace(state.currentProject); } catch (e) {}
+        } else {
+          completeJob(job.id, false, (r && r.error) || 'unknown');
+          customError('Save failed: ' + ((r && r.error) || 'unknown'), 'Save rig');
+        }
+      } catch (err) {
+        completeJob(job.id, false, err.message);
+        customError('Save error: ' + err.message, 'Save rig');
+      }
+    }, (err) => { completeJob(job.id, false, String(err)); customError('Export error: ' + err, 'Save rig'); }, { binary: true, animations: model.animations || [] });
+  } catch (e) {
+    completeJob(job.id, false, e.message);
+    customError('Export failed: ' + e.message, 'Save rig');
+  }
+}
+document.getElementById('lm-fs-all-bones')?.addEventListener('click', () => _lmPlaceAllBoneMarkers());
+document.getElementById('lm-fs-save-rig')?.addEventListener('click', () => _lmSaveAdjustedRig());
 
 function autoDetectLandmarks() {
   const ctx = getActiveLandmarkModel();

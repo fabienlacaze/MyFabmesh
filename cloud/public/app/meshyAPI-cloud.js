@@ -1002,7 +1002,11 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ base64: arg.base64, filename, ...(arg.tool ? { tool: arg.tool } : {}) })
+            // projectName : sans lui le fichier partait dans <uid>/edited/, que
+            // la liste des maillages ne relit jamais -> perdu au rechargement.
+            body: JSON.stringify({ base64: arg.base64, filename,
+                                   projectName: _projetAuLancement(arg.projectName),
+                                   ...(arg.tool ? { tool: arg.tool } : {}) })
           });
           const r = await resp.json().catch(() => ({}));
           if (!r || !r.success) {

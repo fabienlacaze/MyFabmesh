@@ -1398,6 +1398,19 @@
           </div>
         </div>
         <div id="pts-liste" class="pts-liste" aria-live="polite"></div>
+        <!-- PARITE BUREAU (2026-09-27) : reglage manuel des os, absent du web. -->
+        <details class="pts-os-manuels">
+          <summary>Manual bone adjustment</summary>
+          <p class="pts-aide">Move the joints themselves, without the AI: show every bone, drag its marker, then save the corrected rig.</p>
+          <div class="lm-fs-actions">
+            <button id="lm-fs-all-bones" class="ghost-btn" title="Place one draggable marker on EVERY bone of the rig (any shape — tank, creature, humanoid). Drag to adjust each joint.">&#129460; All bones</button>
+          </div>
+          <label style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12px; color:var(--text-2); cursor:pointer;">
+            <input type="checkbox" id="lm-fs-freeze-mesh" checked />
+            <span>&#128274; Freeze mesh while dragging (align bone, don't deform)</span>
+          </label>
+          <button id="lm-fs-save-rig" class="primary-btn lm-fs-regen-btn" title="Save the adjusted skeleton as a new rig version (keeps the mesh; only the bones are corrected)">&#128190; Save adjusted rig</button>
+        </details>
       </div>
     </div>
 
@@ -3290,6 +3303,7 @@
         <span style="flex:1;"></span>
         <div style="display:flex; gap:4px; flex-shrink:0;">
           <button id="sym-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+          <button id="sym-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter view (fit)">&#9678;</button>
           <button id="sym-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="sym-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
           <button id="sym-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
