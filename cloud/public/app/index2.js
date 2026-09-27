@@ -16519,6 +16519,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const rows = await _fetchActive();
       if (!Array.isArray(rows)) return;
       rows.forEach(_resumeOne);
+      // TRAVAUX FINIS HORS DE LA PAGE (2026-09-27, user : « ils ne sont pas dans
+      // les Finished »). L'historique n'etait tenu que par ce navigateur, pour ce
+      // qu'il avait vu finir : une generation livree pendant que la page etait
+      // fermee ou rechargee n'y apparaissait jamais. On le complete avec ce que
+      // le serveur a termine depuis 24 h (hors sous-taches internes).
+      try {
+        const rr = await fetch('/api/me/active-jobs?recent=1', { credentials: 'same-origin' });
+        const jj = rr.ok ? await rr.json() : null;
+        const recents = Array.isArray(jj && jj.recent) ? jj.recent : [];
+        const liste = (state.jobsTermines || []).slice();
+        let ajout = 0;
+        for (const row of recents) {
+          if (_estOperationInterne(row)) continue;
+          const nom = _displayName(row);
+          const fin = Date.parse(row.finished_at || row.created_at) || Date.now();
+          const proj = row.project_name || (row.options && row.options.project_name) || null;
+          if (liste.some(e => e.serverId === row.id
+              || (e.projectName === proj && e.name === nom && Math.abs((e.finiLe || 0) - fin) < 5 * 60 * 1000))) continue;
+          liste.push({
+            finiId: 's_' + row.id, serverId: row.id, name: nom,
+            statut: row.status === 'succeeded' ? 'ok' : (row.status === 'canceled' ? 'annule' : 'echec'),
+            startedAt: Date.parse(row.created_at) || null, finiLe: fin,
+            projectName: proj, sourceImageUrl: null,
+            errorMessage: row.error ? String(row.error).slice(0, 300) : null,
+          });
+          ajout++;
+        }
+        if (ajout) {
+          liste.sort((a, b) => (b.finiLe || 0) - (a.finiLe || 0));
+          state.jobsTermines = liste.slice(0, 50);
+          _sauverJobsTermines();
+          renderJobsTermines();
+        }
+      } catch (_) { /* historique local inchange */ }
       // Subsequent ticks: if any tracked server id disappears, mark the
       // local job done (success — without a status endpoint per-kind we
       // can't tell error vs done here, so we assume success and let the

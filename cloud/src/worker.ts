@@ -8468,7 +8468,24 @@ async function handleMeActiveJobs(req: Request, env: Env): Promise<Response> {
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) return err(500, error.message);
-  return new Response(JSON.stringify({ jobs: data || [] }), {
+  /* ?recent=1 (2026-09-27, user : « ils ne sont pas dans les Finished ») : les
+   * travaux TERMINES depuis 24 h. L'historique « Finished » n'est tenu que par
+   * le navigateur, pour ce qu'il a vu finir : une generation livree pendant
+   * que la page etait fermee ou rechargee n'y apparaissait jamais. */
+  let recent: unknown[] | undefined;
+  if (new URL(req.url).searchParams.get('recent') === '1') {
+    const depuis = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const r = await supabaseAdmin(env)
+      .from('jobs')
+      .select('id, asset_type, mode, status, created_at, finished_at, options, project_name, type, error')
+      .eq('user_id', user.id)
+      .in('status', ['succeeded', 'failed', 'canceled'])
+      .gte('created_at', depuis)
+      .order('created_at', { ascending: false })
+      .limit(60);
+    recent = r.data || [];
+  }
+  return new Response(JSON.stringify({ jobs: data || [], ...(recent ? { recent } : {}) }), {
     status: 200,
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
   });
