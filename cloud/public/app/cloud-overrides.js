@@ -276,10 +276,13 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     tryPatchThree();
   })();
 
-  function hideSectionByHeader(headerText) {
+  // Par marqueur data-section d'abord : la traduction passe AVANT ce code
+  // (« Matériel » ne valait jamais « Hardware », la section restait visible en
+  // francais), et « AI Assistant » ne correspondait a aucun titre (2026-09-28).
+  function hideSectionByHeader(headerText, cle) {
     const norm = headerText.trim().toLowerCase();
     document.querySelectorAll('.settings-section-header').forEach((h) => {
-      if (h.textContent.trim().toLowerCase() !== norm) return;
+      if (!((cle && h.dataset.section === cle) || h.textContent.trim().toLowerCase() === norm)) return;
       h.style.display = 'none';
       // Hide every immediate sibling until the next section header
       let sib = h.nextElementSibling;
@@ -302,11 +305,11 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     document.body.classList.add('cloud-mode');
 
     // Whole sections (header + all its boxes)
-    hideSectionByHeader('AI Assistant');     // Claude Desktop + Control API
-    hideSectionByHeader('Hardware');         // GPU info + sliders
-    hideSectionByHeader('System');           // Kill processes
-    hideSectionByHeader('Installation');     // Reconfigure / Uninstall
-    hideSectionByHeader('Calibration');      // Pipeline test (needs local GPU)
+    hideSectionByHeader('Assistant', 'assistant');       // Claude Desktop + Control API
+    hideSectionByHeader('Hardware', 'hardware');         // GPU info + sliders
+    hideSectionByHeader('System', 'system');             // Kill processes
+    hideSectionByHeader('Installation', 'installation'); // Reconfigure / Uninstall
+    hideSectionByHeader('Calibration', 'calibration');   // Pipeline test (needs local GPU)
 
     // Standalone Settings buttons not under a header
     hideById('set-open-logs');
@@ -1990,9 +1993,16 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // Slot to the LEFT of the inbox button so order is:
     // Marketplace · Inbox · Credits. Fall back to before the credits
     // pill, then to firstChild if neither sibling exists yet.
-    const inbox = right.querySelector('#cloud-inbox-btn');
-    const credits = right.querySelector('#cloud-credits-pill');
-    const anchor = inbox || credits || right.firstChild;
+    // L'ANCRE DOIT ETRE UN ENFANT DIRECT de la barre : depuis que la messagerie
+    // est rangee dans la pastille du compte (#cloud-compte-groupe),
+    // insertBefore(btn, messagerie) levait une exception qui interrompait TOUT
+    // le demarrage (marque, Marketplace, deconnexion, style du solde, sections
+    // Compte des parametres) — « tout a disparu », 2026-09-28.
+    const enfant = (el) => (el && el.parentNode === right ? el : null);
+    const anchor = enfant(right.querySelector('#cloud-credits-pill'))
+      || enfant(document.getElementById('cloud-compte-groupe'))
+      || enfant(right.querySelector('#cloud-inbox-btn'))
+      || right.firstChild;
     if (anchor) right.insertBefore(btn, anchor);
     else        right.appendChild(btn);
     _marketplaceBtnEl = btn;
@@ -2448,7 +2458,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   }
 
   function installLogoutButton() {
-    if (document.querySelector('#cloud-account-section')) return;
+    if (document.querySelector('#cloud-account-section') || document.getElementById('cloud-logout-btn')) return;
 
     // The settings panel doesn't have a stable wrapper ID, but every
     // section is a `.settings-section-header` sibling of the boxes.
@@ -2491,6 +2501,28 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
 
     firstHeader.parentNode.insertBefore(header, firstHeader);
     firstHeader.parentNode.insertBefore(box, firstHeader);
+    _rangerDeconnexion();
+  }
+
+  // UNE seule section « Account » (2026-09-28) : la deconnexion rejoint la
+  // section du compte, en derniere ligne, et l'ancienne section « Account /
+  // Session » disparait. Appele par les deux installateurs, dans n'importe
+  // quel ordre.
+  function _rangerDeconnexion() {
+    const compte = document.getElementById('reg-compte');
+    const btn = document.getElementById('cloud-logout-btn');
+    if (!compte || !btn || compte.contains(btn)) return;
+    const ancienTitre = document.getElementById('cloud-account-section');
+    const ancienneBoite = btn.closest('.settings-box');
+    const ligne = document.createElement('div');
+    ligne.className = 'reg-ligne';
+    ligne.innerHTML = '<span style="font-size:12px; color:var(--text-2);">Sign out of MyFabmesh.AI Cloud on this device.</span>';
+    btn.style.marginTop = '0';
+    btn.style.marginLeft = 'auto';
+    ligne.appendChild(btn);
+    compte.appendChild(ligne);
+    if (ancienneBoite && ancienneBoite !== compte) ancienneBoite.remove();
+    if (ancienTitre) ancienTitre.remove();
   }
 
   /* ──────────────────────────────────────────────────────────────────
@@ -3635,8 +3667,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   const _REG_HTML = `
     <div class="settings-section-header" id="reg-titre-compte">Account</div>
     <div class="settings-box" id="reg-compte">
-      <div class="reg-ligne"><span id="reg-email" style="font-weight:600;">…</span>
-        <button type="button" class="ghost-btn" id="reg-deconnexion" style="margin-left:auto;">Log out</button></div>
+      <div class="reg-ligne"><span id="reg-email" style="font-weight:600;">…</span></div>
       <div class="reg-ligne"><span class="credit-badge" id="reg-solde">…</span><span style="font-size:12px; color:var(--text-2);">credits</span>
         <a href="/buy" class="primary-btn" style="margin-left:auto; text-decoration:none;">+ Top up</a></div>
       <div class="reg-ligne"><span style="font-size:12px; color:var(--text-2);">Every job, its cost and its result</span>
@@ -3695,7 +3726,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         : `<span style="font-size:12px; color:#4ade80; font-weight:600;">&#10003; Stripe payouts active</span>
            <button type="button" class="ghost-btn" data-stripe="dashboard" style="margin-left:auto;">Open Stripe dashboard</button>`;
     box.innerHTML = `
-      <div class="reg-ligne" style="gap:22px;">
+      <div class="reg-ligne" style="gap:22px; justify-content:center;">
         <span><strong style="font-size:18px;">${ventes}</strong> <span style="font-size:12px; color:var(--text-2);">items sold</span></span>
         <span><span class="credit-badge">${gagnes}</span> <span style="font-size:12px; color:var(--text-2);">credits earned</span></span>
         ${argent ? `<span style="font-size:13px; font-weight:600;">${_escReg(argent)}</span>` : ''}
@@ -3841,12 +3872,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // « Usage history » le declenche.
     const histoBarre = document.getElementById('btn-history');
     if (histoBarre) histoBarre.style.display = 'none';
-    document.getElementById('reg-deconnexion').addEventListener('click', async () => {
-      const bouton = document.getElementById('cloud-logout-btn');
-      if (bouton) { bouton.click(); return; }
-      await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' }).catch(() => {});
-      window.location.href = '/login';
-    });
+    _rangerDeconnexion();
     document.getElementById('reg-historique').addEventListener('click', () => {
       modal.classList.add('hidden');
       document.getElementById('btn-history')?.click();
