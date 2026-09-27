@@ -5,7 +5,8 @@ nomme encore les moteurs, décrit 3 modes de qualité disparus et une carte de 8
 
 Partner Center → MyFabmesh.AI → nouvelle soumission → **Store listings** →
 English (United States), puis Français (France). Les captures et leurs légendes
-sont dans `store-screenshots/2026-09-27/` (voir `LEGENDES.md`).
+sont dans `store-screenshots/2026-09-27-site/` (images du site vitrine, 9 captures,
+voir `LEGENDES.md`) ; l'ancien jeu `2026-09-27/` est remplacé.
 
 **Paquet visé : 1.0.37** (27/09 : tout le travail du jour — réglages automatiques, 10 M de triangles,
 ajout / suppression / rattachement des points du squelette, annuler / rétablir — plus l'historique d'utilisation).
