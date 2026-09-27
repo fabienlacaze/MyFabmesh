@@ -1276,6 +1276,7 @@ window.__optionsMortesCloud = new Set([]);
       ACTION_COSTS[btnId] = v;
       if (typeof prices.mesh_tris_500k === 'number') window.__prixTris500k = prices.mesh_tris_500k;
       if (typeof prices.mesh_tris_base === 'number') window.__prixTrisSocle = prices.mesh_tris_base;
+      if (typeof prices.mesh_tris_courbe_pct === 'number') window.__prixTrisCourbe = prices.mesh_tris_courbe_pct;
       if (btnId === 'of-go') {
         _prixOutfit = { avec: v, sans: typeof prices.outfit === 'number' ? prices.outfit : _prixOutfit.sans };
         _majPrixOutfit();
@@ -1544,9 +1545,11 @@ window.__optionsMortesCloud = new Set([]);
           ? parseInt(document.getElementById('ws-trellis2-tris-custom')?.value || '500000', 10)
           : parseInt(trisSel.value, 10);
         const tris = Math.max(5000, Math.min(10_000_000, brut || 500000));
-        // Socle (tout choix coute, meme 50 K) + une tranche par 500 K au-dela de 500 K.
-        const sup = (window.__prixTrisSocle ?? 1)
-                  + (tris > 500000 ? Math.ceil((tris - 500000) / 500000) * (window.__prixTris500k ?? 1) : 0);
+        // Courbe (meme regle que _supplementTriangles, worker) : socle minimum,
+        // puis prix x (triangles / 500 K) ^ (courbure / 100), arrondi au-dessus.
+        const _e = Math.max(1, (window.__prixTrisCourbe ?? 130) / 100);
+        const sup = Math.max(window.__prixTrisSocle ?? 1,
+                             Math.ceil((window.__prixTris500k ?? 1) * Math.pow(tris / 500000, _e) - 1e-9));
         total += sup;
         const hint = document.getElementById('ws-trellis2-tris-cost');
         if (hint) { hint.textContent = String(sup); hint.style.display = sup ? '' : 'none'; }

@@ -1709,10 +1709,14 @@ const PRICING_DEFAULTS = {
   // cuisson de texture plus longue et fichier plus lourd.
   mesh_tris_500k:   1,
   // Socle « Max triangles » (2026-09-27, user : « 50 K = 1 credit, 100 K =
-  // 1 credit… ») : TOUT choix coute au moins ce socle, les tranches de 500 K
-  // s'y ajoutent. Bareme par defaut : 50 K a 500 K = 1, 1 M = 2, 2 M = 4,
-  // 3 M = 6, 10 M = 20.
+  // 1 credit… ») : TOUT choix coute au moins ce socle.
   mesh_tris_base:   1,
+  // Courbure du bareme en % (user : « un peu plus exponentiel au final »).
+  // Supplement = max(socle, arrondi superieur de mesh_tris_500k x
+  // (triangles / 500 K) ^ (courbure / 100)). 100 = lineaire. A 130 :
+  // 50 K-500 K = 1, 1 M = 3, 2 M = 7, 3 M = 11, 10 M = 50. Entier : la grille
+  // Pricing arrondit toute valeur a l'unite.
+  mesh_tris_courbe_pct: 130,
   // face_fix_mesh RETIRE le 2026-09-27 : aucune route ne le facturait, il
   // n'apparaissait dans l'onglet Pricing que pour semer le doute.
   //
@@ -2545,10 +2549,12 @@ function _delaiMaxGenerationS(input: GenerateInput, mode1536: boolean): number {
  *  la fin du travail (_rembourserTrianglesNonLivres). */
 const MAX_TRIS_GENERATION = 10_000_000;
 
-/** Supplement « Max triangles » en credits pour `tris` triangles : le socle,
- *  plus une tranche par 500 K au-dela de 500 K. */
-function _supplementTriangles(tris: number, prixTranche: number, socle = 0): number {
-  return socle + (tris > 500_000 ? Math.ceil((tris - 500_000) / 500_000) * prixTranche : 0);
+/** Supplement « Max triangles » en credits pour `tris` triangles : courbe
+ *  prixTranche x (tris / 500 K) ^ (courbePct / 100), arrondie au-dessus,
+ *  jamais sous le socle. */
+function _supplementTriangles(tris: number, prixTranche: number, socle = 0, courbePct = 100): number {
+  const e = Math.max(1, courbePct / 100);
+  return Math.max(socle, Math.ceil(prixTranche * Math.pow(tris / 500_000, e) - 1e-9));
 }
 
 async function creditCost(env: Env, i: GenerateInput): Promise<number> {
@@ -2577,7 +2583,8 @@ async function creditCost(env: Env, i: GenerateInput): Promise<number> {
   if (i.smooth)       n += p.mesh_smooth       ?? 1;
   // Sans choix explicite (anciens clients), le maillage par defaut est 500 K :
   // le socle s'applique aussi.
-  n += _supplementTriangles(i.max_tris ?? 500_000, p.mesh_tris_500k ?? 1, p.mesh_tris_base ?? 1);
+  n += _supplementTriangles(i.max_tris ?? 500_000, p.mesh_tris_500k ?? 1, p.mesh_tris_base ?? 1,
+                            p.mesh_tris_courbe_pct ?? 130);
 
   // Legacy: old clients still send mode=full without preset.
   if (i.mode === 'full' && !i.preset) {
@@ -7221,8 +7228,10 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
           max_tris: input.max_tris,
           tris_prix_tranche: (await _getPricing(env)).mesh_tris_500k ?? 1,
           tris_prix_socle: (await _getPricing(env)).mesh_tris_base ?? 1,
+          tris_courbe_pct: (await _getPricing(env)).mesh_tris_courbe_pct ?? 130,
           tris_supplement: _supplementTriangles(input.max_tris, (await _getPricing(env)).mesh_tris_500k ?? 1,
-                                                (await _getPricing(env)).mesh_tris_base ?? 1),
+                                                (await _getPricing(env)).mesh_tris_base ?? 1,
+                                                (await _getPricing(env)).mesh_tris_courbe_pct ?? 130),
         } : {}),
         backend: 'modal',
         operation_type: 'mesh',
@@ -9942,7 +9951,8 @@ async function _rembourserTrianglesNonLivres(env: Env, job: Record<string, unkno
     const paye = Number(opts.tris_supplement || 0);
     const prix = Number(opts.tris_prix_tranche || 0);
     if (!faces || !demande || !paye || !prix || opts.tris_rendu) return;
-    const du = _supplementTriangles(Math.min(demande, faces), prix, Number(opts.tris_prix_socle || 0));
+    const du = _supplementTriangles(Math.min(demande, faces), prix, Number(opts.tris_prix_socle || 0),
+                                    Number(opts.tris_courbe_pct || 100));
     const aRendre = Math.max(0, paye - du);
     if (!aRendre) return;
     await addCredits(env, String(job.user_id), aRendre);
