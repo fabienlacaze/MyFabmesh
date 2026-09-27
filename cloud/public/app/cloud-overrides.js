@@ -2621,7 +2621,202 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     }
     ctx.restore();
   }
-  async function _imageReduite(blob, maxPx, logo, typeSortie, echelle) {
+  /* FILIGRANE PROJETE SUR LE MODELE (2026-09-28) — meme algorithme que
+   * _mesh_op._filigraner_3d. Pose a plat sur l'atlas UV, le logo tombait en
+   * fragments deformes (« on croit que c'est le mesh qui a un probleme ») :
+   * chaque texel retrouve ici sa position 3D (triangles rasterises dans l'espace
+   * UV) et le sens de sa face, et le NOM est projete depuis les 6 directions,
+   * a l'endroit. Le symbole est ecarte sur un modele : son carre sombre y
+   * faisait des taches prises pour un defaut. */
+  let _texteFiligrane = null;
+  async function _filigraneTexte() {
+    if (_texteFiligrane) return _texteFiligrane;
+    const logo = await _filigraneImage();
+    const w = logo.naturalWidth, h = logo.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(logo, 0, 0);
+    const brut = ctx.getImageData(0, 0, w, h).data;
+    // le nom commence apres le symbole (carre de cote h) ; recadrage sur l'opaque
+    let x0 = w, x1 = -1, y0 = h, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = Math.round(h * 1.17); x < w; x++) {
+      if (brut[(y * w + x) * 4 + 3] > 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    const tw = x1 - x0 + 1, th = y1 - y0 + 1;
+    _texteFiligrane = { w: tw, h: th, data: ctx.getImageData(x0, y0, tw, th).data };
+    return _texteFiligrane;
+  }
+  function _lireAccesseur(doc, bin, idx) {
+    const a = (doc.accessors || [])[idx];
+    if (!a || a.bufferView == null || a.sparse) return null;
+    const v = doc.bufferViews[a.bufferView];
+    if (!v || (v.buffer || 0) !== 0) return null;
+    const TAILLES = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
+    const LIRE = { 5120: 'getInt8', 5121: 'getUint8', 5122: 'getInt16', 5123: 'getUint16', 5125: 'getUint32', 5126: 'getFloat32' };
+    const MAXI = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535, 5125: 4294967295 };
+    const n = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[a.type];
+    const tc = TAILLES[a.componentType];
+    if (!n || !tc) return null;
+    const pas = v.byteStride || tc * n;
+    const debut = bin.byteOffset + (v.byteOffset || 0) + (a.byteOffset || 0);
+    const dv = new DataView(bin.buffer);
+    const lire = LIRE[a.componentType];
+    const div = (a.normalized && a.componentType !== 5126) ? MAXI[a.componentType] : 1;
+    const out = new Float64Array(a.count * n);
+    for (let i = 0; i < a.count; i++) {
+      for (let k = 0; k < n; k++) out[i * n + k] = dv[lire](debut + i * pas + k * tc, true) / div;
+    }
+    return out;
+  }
+  function _mat4Locale(nd) {
+    if (nd.matrix) return Float64Array.from(nd.matrix);
+    const [tx, ty, tz] = nd.translation || [0, 0, 0];
+    const [x, y, z, w] = nd.rotation || [0, 0, 0, 1];
+    const [sx, sy, sz] = nd.scale || [1, 1, 1];
+    return Float64Array.from([
+      (1 - 2 * (y * y + z * z)) * sx, (2 * (x * y + z * w)) * sx, (2 * (x * z - y * w)) * sx, 0,
+      (2 * (x * y - z * w)) * sy, (1 - 2 * (x * x + z * z)) * sy, (2 * (y * z + x * w)) * sy, 0,
+      (2 * (x * z + y * w)) * sz, (2 * (y * z - x * w)) * sz, (1 - 2 * (x * x + y * y)) * sz, 0,
+      tx, ty, tz, 1]);
+  }
+  function _mat4Mul(a, b) {
+    const r = new Float64Array(16);
+    for (let c = 0; c < 4; c++) for (let l = 0; l < 4; l++) {
+      let som = 0;
+      for (let k = 0; k < 4; k++) som += a[k * 4 + l] * b[c * 4 + k];
+      r[c * 4 + l] = som;
+    }
+    return r;
+  }
+  function _matricesMonde(doc) {
+    const noeuds = doc.nodes || [];
+    const scenes = doc.scenes || [{ nodes: noeuds.map((_, i) => i) }];
+    const racines = (scenes[doc.scene || 0] || {}).nodes || [];
+    const res = new Map();
+    const ident = Float64Array.from([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    const pile = racines.map((i) => [i, ident]);
+    while (pile.length) {
+      const [i, parent] = pile.pop();
+      const M = _mat4Mul(parent, _mat4Locale(noeuds[i] || {}));
+      res.set(i, M);
+      for (const c of (noeuds[i] || {}).children || []) pile.push([c, M]);
+    }
+    return res;
+  }
+  function _rasteriserUV(P, UV, I, W, H, pos, axe) {
+    for (let t = 0; t + 2 < I.length; t += 3) {
+      const i0 = I[t], i1 = I[t + 1], i2 = I[t + 2];
+      const ax = P[i0 * 3], ay = P[i0 * 3 + 1], az = P[i0 * 3 + 2];
+      const bx = P[i1 * 3], by = P[i1 * 3 + 1], bz = P[i1 * 3 + 2];
+      const cx = P[i2 * 3], cy = P[i2 * 3 + 1], cz = P[i2 * 3 + 2];
+      const ex = bx - ax, ey = by - ay, ez = bz - az, fx = cx - ax, fy = cy - ay, fz = cz - az;
+      const nx = ey * fz - ez * fy, ny = ez * fx - ex * fz, nz = ex * fy - ey * fx;
+      const anx = Math.abs(nx), any = Math.abs(ny), anz = Math.abs(nz);
+      const code = (anx >= any && anx >= anz) ? (nx < 0 ? 1 : 0) : (any >= anz ? (ny < 0 ? 3 : 2) : (nz < 0 ? 5 : 4));
+      const x0 = UV[i0 * 2] * W, y0 = UV[i0 * 2 + 1] * H;
+      const x1 = UV[i1 * 2] * W, y1 = UV[i1 * 2 + 1] * H;
+      const x2 = UV[i2 * 2] * W, y2 = UV[i2 * 2 + 1] * H;
+      const den = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+      if (Math.abs(den) < 1e-12) continue;
+      const mnx = Math.max(0, Math.floor(Math.min(x0, x1, x2) - 0.5));
+      const mxx = Math.min(W - 1, Math.ceil(Math.max(x0, x1, x2) - 0.5));
+      const mny = Math.max(0, Math.floor(Math.min(y0, y1, y2) - 0.5));
+      const mxy = Math.min(H - 1, Math.ceil(Math.max(y0, y1, y2) - 0.5));
+      if (mxx - mnx > 2048 || mxy - mny > 2048) continue;
+      for (let py = mny; py <= mxy; py++) {
+        for (let px = mnx; px <= mxx; px++) {
+          const qx = px + 0.5, qy = py + 0.5;
+          const l0 = ((y1 - y2) * (qx - x2) + (x2 - x1) * (qy - y2)) / den;
+          const l1 = ((y2 - y0) * (qx - x2) + (x0 - x2) * (qy - y2)) / den;
+          const l2 = 1 - l0 - l1;
+          if (l0 < -1e-4 || l1 < -1e-4 || l2 < -1e-4) continue;
+          const k = py * W + px;
+          pos[k * 3] = l0 * ax + l1 * bx + l2 * cx;
+          pos[k * 3 + 1] = l0 * ay + l1 * by + l2 * cy;
+          pos[k * 3 + 2] = l0 * az + l1 * bz + l2 * cz;
+          axe[k] = code;
+        }
+      }
+    }
+  }
+  function _cartePositions(doc, bin, imageIdx, W, H) {
+    const pos = new Float32Array(W * H * 3);
+    const axe = new Int8Array(W * H).fill(-1);
+    const textures = doc.textures || [], mats = doc.materials || [];
+    for (const [ni, M] of _matricesMonde(doc)) {
+      const nd = doc.nodes[ni];
+      if (nd.mesh == null) continue;
+      for (const prim of (doc.meshes[nd.mesh] || {}).primitives || []) {
+        if ((prim.mode == null ? 4 : prim.mode) !== 4 || prim.material == null) continue;
+        const bct = ((mats[prim.material] || {}).pbrMetallicRoughness || {}).baseColorTexture || {};
+        const t = textures[bct.index];
+        if (!t) continue;
+        const sources = [t.source].concat(Object.values(t.extensions || {}).map((e) => e && e.source));
+        const att = prim.attributes || {};
+        const uvk = 'TEXCOORD_' + (bct.texCoord || 0);
+        if (!sources.includes(imageIdx) || att.POSITION == null || att[uvk] == null) continue;
+        const P0 = _lireAccesseur(doc, bin, att.POSITION), UV = _lireAccesseur(doc, bin, att[uvk]);
+        if (!P0 || !UV) continue;
+        const nv = P0.length / 3, P = new Float64Array(P0.length);
+        for (let i = 0; i < nv; i++) {
+          const x = P0[i * 3], y = P0[i * 3 + 1], z = P0[i * 3 + 2];
+          P[i * 3] = M[0] * x + M[4] * y + M[8] * z + M[12];
+          P[i * 3 + 1] = M[1] * x + M[5] * y + M[9] * z + M[13];
+          P[i * 3 + 2] = M[2] * x + M[6] * y + M[10] * z + M[14];
+        }
+        let I;
+        if (prim.indices != null) { I = _lireAccesseur(doc, bin, prim.indices); if (!I) continue; }
+        else { I = new Float64Array(nv - (nv % 3)); for (let i = 0; i < I.length; i++) I[i] = i; }
+        _rasteriserUV(P, UV, I, W, H, pos, axe);
+      }
+    }
+    return { pos, axe };
+  }
+  function _filigranerProjete(ctx, W, H, carte, texte) {
+    const { pos, axe } = carte;
+    let n = 0;
+    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+    for (let k = 0; k < W * H; k++) {
+      if (axe[k] < 0) continue;
+      n++;
+      for (let j = 0; j < 3; j++) { const q = pos[k * 3 + j]; if (q < mn[j]) mn[j] = q; if (q > mx[j]) mx[j] = q; }
+    }
+    if (n < 500) return false;
+    const S = Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) || 1;
+    const c0 = (mn[0] + mx[0]) / 2, c1 = (mn[1] + mx[1]) / 2, c2 = (mn[2] + mx[2]) / 2;
+    const tw = 0.3, th = tw * texte.h / texte.w, pasX = tw * 1.45, pasY = th * 3.0, opacite = 0.72;
+    const LW = texte.w, LH = texte.h, L = texte.data;
+    const img = ctx.getImageData(0, 0, W, H), d = img.data;
+    for (let k = 0; k < W * H; k++) {
+      const code = axe[k];
+      if (code < 0) continue;
+      const x = (pos[k * 3] - c0) / S, y = (pos[k * 3 + 1] - c1) / S, z = (pos[k * 3 + 2] - c2) / S;
+      let u, v;
+      switch (code) {
+        case 0: u = -z; v = -y; break;
+        case 1: u = z; v = -y; break;
+        case 2: u = x; v = z; break;
+        case 3: u = x; v = -z; break;
+        case 4: u = x; v = -y; break;
+        default: u = -x; v = -y;
+      }
+      const vv = v + th / 2, rang = Math.floor(vv / pasY);
+      const uu = u + tw / 2 + (((rang % 2) + 2) % 2) * pasX / 2;
+      const lx = ((uu % pasX) + pasX) % pasX, ly = vv - rang * pasY;
+      if (lx >= tw || ly >= th) continue;
+      const fx = Math.min(lx / tw * (LW - 1), LW - 1.001), fy = Math.min(ly / th * (LH - 1), LH - 1.001);
+      const px = fx | 0, py = fy | 0, wx = fx - px, wy = fy - py;
+      const i00 = (py * LW + px) * 4, i10 = i00 + 4, i01 = i00 + LW * 4, i11 = i01 + 4;
+      const ech = (o) => L[i00 + o] * (1 - wx) * (1 - wy) + L[i10 + o] * wx * (1 - wy) + L[i01 + o] * (1 - wx) * wy + L[i11 + o] * wx * wy;
+      const alpha = ech(3) / 255 * opacite;
+      if (alpha <= 0) continue;
+      for (let o = 0; o < 3; o++) d[k * 4 + o] = d[k * 4 + o] * (1 - alpha) + ech(o) * alpha;
+    }
+    ctx.putImageData(img, 0, 0);
+    return true;
+  }
+  async function _imageReduite(blob, maxPx, logo, typeSortie, echelle, projeter) {
     const bmp = await createImageBitmap(blob);
     const k = Math.min(1, maxPx / Math.max(bmp.width, bmp.height));
     const W = Math.max(1, Math.round(bmp.width * k));
@@ -2631,12 +2826,13 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const ctx = c.getContext('2d');
     ctx.drawImage(bmp, 0, 0, W, H);
     if (bmp.close) bmp.close();
-    if (logo) _poserFiligrane(ctx, W, H, logo, echelle);
+    // projection sur le modele d'abord ; a plat si elle echoue (image, modele sans UV)
+    if (logo && !(projeter && projeter(ctx, W, H))) _poserFiligrane(ctx, W, H, logo, echelle);
     const out = await new Promise((res) => c.toBlob(res, typeSortie, 0.82));
     // Navigateur sans encodeur WebP (Safari) : PNG, que les lecteurs glTF lisent aussi.
     return out || await new Promise((res) => c.toBlob(res, 'image/png'));
   }
-  async function _glbApercu(buf, logo) {
+  async function _glbApercu(buf, logo, texte) {
     const dv = new DataView(buf);
     if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('not a GLB file');
     let off = 12, doc = null, bin = new Uint8Array(0);
@@ -2665,8 +2861,14 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const debut = v.byteOffset || 0;
       const mime = im.mimeType || 'image/png';
       try {
+        // couleur a 2048 (le filigrane projete y reste net), autres cartes a 1024
+        const estCouleur = couleur.has(ii);
+        const projeter = estCouleur && texte ? (ctx, W, H) => {
+          try { return _filigranerProjete(ctx, W, H, _cartePositions(doc, bin, ii, W, H), texte); }
+          catch (e) { console.warn('[market.apercu] projection impossible :', e?.message || e); return false; }
+        } : null;
         const b = await _imageReduite(new Blob([bin.subarray(debut, debut + v.byteLength)], { type: mime }),
-                                      1024, couleur.has(ii) ? logo : null, mime, 0.2);
+                                      estCouleur ? 2048 : 1024, estCouleur ? logo : null, mime, 0.2, projeter);
         nouvelles.set(im.bufferView, new Uint8Array(await b.arrayBuffer()));
         if (b.type && b.type !== mime) im.mimeType = b.type;
       } catch (_) { /* format illisible : image laissee telle quelle */ }
@@ -2706,7 +2908,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const brut = await src.blob();
     const sortie = kind === 'image'
       ? await _imageReduite(brut, 1024, logo, brut.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.35)
-      : await _glbApercu(await brut.arrayBuffer(), logo);
+      : await _glbApercu(await brut.arrayBuffer(), logo, await _filigraneTexte());
     const r = await fetch('/api/market/preview-upload/' + encodeURIComponent(id), {
       method: 'POST', credentials: 'include',
       headers: { 'content-type': sortie.type || 'application/octet-stream' },

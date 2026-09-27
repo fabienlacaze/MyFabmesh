@@ -6156,7 +6156,7 @@ async function handleMarketPreviewUpload(req: Request, env: Env, id: string): Pr
  *  nue ou une URL signee perimee (24 h pour une image) ne s'affichait pas. Cette
  *  route sert le fichier depuis R2, sans compter de telechargement. Les fiches
  *  payantes restent derriere l'achat (/api/market/download). */
-async function handleMarketPreview(env: Env, id: string): Promise<Response> {
+async function handleMarketPreview(req: Request, env: Env, id: string): Promise<Response> {
   if (!env.MESHES) return err(404, 'not found');
   const txt = await r2GetText(env, `_market/listings/${id}.json`);
   if (!txt) return err(404, 'not found');
@@ -6165,13 +6165,24 @@ async function handleMarketPreview(env: Env, id: string): Promise<Response> {
   if (l.status !== 'approved') return err(404, 'not found');
   if (Number(l.price_cents) > 0) {
     // Payante : la copie filigranee, JAMAIS le fichier vendu.
-    let o = await env.MESHES.get(APERCU_PREFIXE + l.id);
-    if (!o && await _genererApercu(env, l)) o = await env.MESHES.get(APERCU_PREFIXE + l.id);
+    // ETag + revalidation (et non « max-age=3600 ») : une copie regeneree
+    // (nouveau filigrane, nouveau depot du vendeur) s'affiche a l'ouverture
+    // suivante au lieu de rester masquee une heure par le cache du navigateur.
+    const cle = APERCU_PREFIXE + l.id;
+    let tete = await env.MESHES.head(cle);
+    if (!tete && await _genererApercu(env, l)) tete = await env.MESHES.head(cle);
+    if (!tete) return err(503, 'preview not ready');
+    const etag = tete.httpEtag;
+    if (req.headers.get('if-none-match') === etag) {
+      return new Response(null, { status: 304, headers: { etag, 'cache-control': 'no-cache' } });
+    }
+    const o = await env.MESHES.get(cle);
     if (!o) return err(503, 'preview not ready');
     return new Response(o.body, { headers: {
       'content-type': o.httpMetadata?.contentType || 'application/octet-stream',
       'content-length': String(o.size),
-      'cache-control': 'public, max-age=3600',
+      'cache-control': 'no-cache',
+      etag,
     } });
   }
   const flux = await _fluxActifFiche(env, l.asset_url || l.mesh_url);
@@ -20108,7 +20119,7 @@ export default {
         }
         {
           const m = pathname.match(/^\/api\/market\/preview\/([A-Za-z0-9_]+)$/);
-          if (m && method === 'GET') return await handleMarketPreview(env, m[1]);
+          if (m && method === 'GET') return await handleMarketPreview(req, env, m[1]);
         }
         {
           const m = pathname.match(/^\/api\/market\/preview-upload\/([A-Za-z0-9_]+)$/);

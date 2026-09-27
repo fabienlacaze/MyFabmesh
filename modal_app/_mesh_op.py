@@ -978,12 +978,18 @@ def explode(glb_bytes: bytes, fragments: int = 24) -> bytes:
     return _export(out)
 
 
-def _logo_filigrane():
-    """Logo + nom MyFabmesh.AI (RGBA), embarque en base64 (voir _filigrane.py)."""
+def _logo_filigrane(texte_seul: bool = False):
+    """Logo + nom MyFabmesh.AI (RGBA), embarque en base64 (voir _filigrane.py).
+    texte_seul : le nom sans le symbole — sur un modele 3D, le carre sombre du
+    symbole faisait des taches prises pour un defaut (rendu du 2026-09-28)."""
     import base64
     from PIL import Image
     from modal_app._filigrane import FILIGRANE_PNG_B64
-    return Image.open(io.BytesIO(base64.b64decode(''.join(FILIGRANE_PNG_B64)))).convert('RGBA')
+    im = Image.open(io.BytesIO(base64.b64decode(''.join(FILIGRANE_PNG_B64)))).convert('RGBA')
+    if texte_seul:
+        im = im.crop((int(im.height * 1.17), 0, im.width, im.height))
+        im = im.crop(im.getbbox())
+    return im
 
 
 def _filigraner(img, echelle: float = 0.2):
@@ -1021,7 +1027,218 @@ def _filigraner(img, echelle: float = 0.2):
     return out if avait_alpha else out.convert('RGB')
 
 
-def _textures_apercu(glb_bytes: bytes, max_px: int, filigrane: bool) -> bytes:
+# ─── FILIGRANE PROJETE SUR LE MODELE (2026-09-28) ────────────────────────────
+# User : « trop grand et trop flou, on croit que c'est le mesh qui a un
+# probleme », puis « il n'est pas sur le mesh » (filigrane pose a l'ecran).
+# Pose a plat sur l'atlas UV, le logo tombait en fragments deformes : l'atlas
+# est un patron decoupe. Ici chaque texel de la texture de couleur retrouve sa
+# POSITION 3D (triangles rasterises dans l'espace UV) et le sens de sa face ;
+# le logo + nom est projete depuis les 6 directions (projection « en boite »),
+# toujours a l'endroit vu de sa direction : sur le modele il se lit comme un
+# tampon applique, jamais comme un defaut.
+
+def _lire_accesseur(doc, bin_, idx):
+    """Accesseur glTF -> tableau numpy (count, n). None si non lisible (sparse,
+    tampon externe)."""
+    import numpy as np
+    a = doc['accessors'][idx]
+    if 'bufferView' not in a or a.get('sparse'):
+        return None
+    v = doc['bufferViews'][a['bufferView']]
+    if v.get('buffer', 0) != 0:
+        return None
+    comp = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16,
+            5125: np.uint32, 5126: np.float32}[a['componentType']]
+    n = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4}.get(a['type'])
+    if n is None:
+        return None
+    cnt = a['count']
+    taille = np.dtype(comp).itemsize * n
+    pas = v.get('byteStride') or taille
+    debut = v.get('byteOffset', 0) + a.get('byteOffset', 0)
+    if pas == taille:
+        arr = np.frombuffer(bin_, dtype=comp, count=cnt * n, offset=debut).reshape(cnt, n)
+    else:
+        brut = np.frombuffer(bin_, dtype=np.uint8, count=(cnt - 1) * pas + taille, offset=debut)
+        sel = np.arange(cnt)[:, None] * pas + np.arange(taille)[None, :]
+        arr = brut[sel].copy().view(comp).reshape(cnt, n)
+    if a.get('normalized') and comp != np.float32:
+        arr = arr.astype(np.float64) / float(np.iinfo(comp).max)
+    return arr
+
+
+def _matrices_monde(doc):
+    """Matrice monde de chaque noeud de la scene (TRS ou matrix)."""
+    import numpy as np
+
+    def locale(n):
+        if 'matrix' in n:
+            return np.array(n['matrix'], dtype=np.float64).reshape(4, 4).T
+        tx, ty, tz = n.get('translation', [0, 0, 0])
+        x, y, z, w = n.get('rotation', [0, 0, 0, 1])
+        s = np.array(n.get('scale', [1, 1, 1]), dtype=np.float64)
+        R = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                      [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                      [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+        M = np.eye(4)
+        M[:3, :3] = R * s[None, :]
+        M[:3, 3] = (tx, ty, tz)
+        return M
+
+    noeuds = doc.get('nodes', [])
+    scenes = doc.get('scenes') or [{'nodes': list(range(len(noeuds)))}]
+    racines = scenes[doc.get('scene', 0)].get('nodes', [])
+    res, pile = {}, [(i, np.eye(4)) for i in racines]
+    while pile:
+        i, parent = pile.pop()
+        M = parent @ locale(noeuds[i])
+        res[i] = M
+        pile.extend((c, M) for c in noeuds[i].get('children', []))
+    return res
+
+
+def _rasteriser_uv(P, UV, I, pos_map, axe_map):
+    """Rasterise les triangles I dans l'espace UV : pour chaque texel dont le
+    centre tombe dans un triangle, sa position 3D (interpolee) et le code de la
+    direction dominante de la face (0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z).
+    Vectorise par paquets de triangles de taille comparable."""
+    import numpy as np
+    H, W = axe_map.shape
+    A, B, C = P[I[:, 0]], P[I[:, 1]], P[I[:, 2]]
+    nrm = np.cross(B - A, C - A)
+    axe = np.abs(nrm).argmax(1)
+    neg = np.take_along_axis(nrm, axe[:, None], 1)[:, 0] < 0
+    code = (axe * 2 + neg).astype(np.int8)
+    tx, ty = UV[:, 0] * W, UV[:, 1] * H
+    x0, x1, x2 = tx[I[:, 0]], tx[I[:, 1]], tx[I[:, 2]]
+    y0, y1, y2 = ty[I[:, 0]], ty[I[:, 1]], ty[I[:, 2]]
+    minx = np.floor(np.minimum(np.minimum(x0, x1), x2) - 0.5).astype(np.int64)
+    maxx = np.ceil(np.maximum(np.maximum(x0, x1), x2) - 0.5).astype(np.int64)
+    miny = np.floor(np.minimum(np.minimum(y0, y1), y2) - 0.5).astype(np.int64)
+    maxy = np.ceil(np.maximum(np.maximum(y0, y1), y2) - 0.5).astype(np.int64)
+    cote = np.maximum(maxx - minx, maxy - miny) + 1
+    den = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+    valide = np.abs(den) > 1e-12
+    bas = 0
+    for K in (2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048):
+        sel = np.nonzero(valide & (cote > bas) & (cote <= K))[0]
+        bas = K
+        if not len(sel):
+            continue
+        dx, dy = np.meshgrid(np.arange(K), np.arange(K))
+        dx, dy = dx.ravel(), dy.ravel()
+        for paquet in np.array_split(sel, len(sel) * K * K // 2_000_000 + 1):
+            if not len(paquet):
+                continue
+            px = minx[paquet, None] + dx[None, :]
+            py = miny[paquet, None] + dy[None, :]
+            cx, cy = px + 0.5, py + 0.5
+            X0, X1, X2 = x0[paquet, None], x1[paquet, None], x2[paquet, None]
+            Y0, Y1, Y2 = y0[paquet, None], y1[paquet, None], y2[paquet, None]
+            d = den[paquet, None]
+            l0 = ((Y1 - Y2) * (cx - X2) + (X2 - X1) * (cy - Y2)) / d
+            l1 = ((Y2 - Y0) * (cx - X2) + (X0 - X2) * (cy - Y2)) / d
+            l2 = 1.0 - l0 - l1
+            dedans = ((l0 >= -1e-4) & (l1 >= -1e-4) & (l2 >= -1e-4)
+                      & (px >= 0) & (px < W) & (py >= 0) & (py < H)
+                      & (px <= maxx[paquet, None]) & (py <= maxy[paquet, None]))
+            ti, ki = np.nonzero(dedans)
+            if not len(ti):
+                continue
+            tri = paquet[ti]
+            pos = (l0[ti, ki, None] * A[tri] + l1[ti, ki, None] * B[tri] + l2[ti, ki, None] * C[tri])
+            pos_map[py[ti, ki], px[ti, ki]] = pos
+            axe_map[py[ti, ki], px[ti, ki]] = code[tri]
+
+
+def _carte_positions(doc, bin_, image_idx, W, H):
+    """Position 3D (monde) et direction de face de chaque texel de l'image de
+    couleur `image_idx`, a la resolution W x H."""
+    import numpy as np
+    pos_map = np.zeros((H, W, 3), np.float64)
+    axe_map = np.full((H, W), -1, np.int8)
+    textures, mats = doc.get('textures', []), doc.get('materials', [])
+    for ni, M in _matrices_monde(doc).items():
+        noeud = doc['nodes'][ni]
+        if 'mesh' not in noeud:
+            continue
+        for prim in doc['meshes'][noeud['mesh']].get('primitives', []):
+            if prim.get('mode', 4) != 4 or prim.get('material') is None:
+                continue
+            bct = ((mats[prim['material']].get('pbrMetallicRoughness') or {}).get('baseColorTexture') or {})
+            ti = bct.get('index')
+            if ti is None or ti >= len(textures):
+                continue
+            t = textures[ti]
+            sources = {t.get('source')} | {e.get('source') for e in (t.get('extensions') or {}).values() if isinstance(e, dict)}
+            att = prim.get('attributes', {})
+            uvk = 'TEXCOORD_%d' % bct.get('texCoord', 0)
+            if image_idx not in sources or 'POSITION' not in att or uvk not in att:
+                continue
+            P = _lire_accesseur(doc, bin_, att['POSITION'])
+            UV = _lire_accesseur(doc, bin_, att[uvk])
+            if P is None or UV is None:
+                continue
+            P = (np.c_[P.astype(np.float64), np.ones(len(P))] @ M.T)[:, :3]
+            if 'indices' in prim:
+                I = _lire_accesseur(doc, bin_, prim['indices'])
+                if I is None:
+                    continue
+                I = I.reshape(-1, 3).astype(np.int64)
+            else:
+                I = np.arange(len(P) - len(P) % 3).reshape(-1, 3)
+            _rasteriser_uv(P, UV[:, :2].astype(np.float64), I, pos_map, axe_map)
+    return pos_map, axe_map
+
+
+def _filigraner_3d(img, pos_map, axe_map, taille=0.3, opacite=0.72):
+    """Projette le logo + nom sur la texture de couleur d'apres la position 3D
+    de chaque texel. `taille` = largeur du logo rapportee a la plus grande
+    dimension du modele. None si la carte couvre trop peu de texels."""
+    import numpy as np
+    from PIL import Image
+    couvert = axe_map >= 0
+    if couvert.sum() < 500:
+        return None
+    avait_alpha = img.mode in ('RGBA', 'LA') or 'transparency' in img.info
+    base = np.asarray(img.convert('RGBA'), np.float32).copy()
+    lignes, cols = np.nonzero(couvert)
+    P, code = pos_map[couvert], axe_map[couvert]
+    mn, mx = P.min(0), P.max(0)
+    S = float((mx - mn).max()) or 1.0
+    x, y, z = ((P - (mn + mx) / 2) / S).T
+    # (u, v) dans le plan de projection, lu a l'endroit depuis la direction :
+    # +X, -X, +Y (vu du dessus), -Y, +Z (devant), -Z (derriere)
+    u = np.select([code == 0, code == 1, code == 2, code == 3, code == 4], [-z, z, x, x, x], -x)
+    v = np.select([code == 2, code == 3], [z, -z], -y)
+    logo = np.asarray(_logo_filigrane(texte_seul=True), np.float32) / 255.0
+    LH, LW = logo.shape[:2]
+    tw = taille
+    th = tw * LH / LW
+    pas_x, pas_y = tw * 1.45, th * 3.0
+    # un logo centre sur le milieu de chaque face, rangs en quinconce
+    vv = v + th / 2
+    rang = np.floor(vv / pas_y)
+    uu = u + tw / 2 + np.mod(rang, 2) * pas_x / 2
+    lx = np.mod(uu, pas_x)
+    ly = vv - rang * pas_y
+    dans = (lx < tw) & (ly < th)
+    if not dans.any():
+        return None
+    fx = np.clip(lx[dans] / tw * (LW - 1), 0, LW - 1.001)
+    fy = np.clip(ly[dans] / th * (LH - 1), 0, LH - 1.001)
+    x0, y0 = fx.astype(np.int64), fy.astype(np.int64)
+    ax, ay = (fx - x0)[:, None], (fy - y0)[:, None]
+    ech = (logo[y0, x0] * (1 - ax) * (1 - ay) + logo[y0, x0 + 1] * ax * (1 - ay)
+           + logo[y0 + 1, x0] * (1 - ax) * ay + logo[y0 + 1, x0 + 1] * ax * ay)
+    alpha = ech[:, 3:4] * opacite
+    r, c = lignes[dans], cols[dans]
+    base[r, c, :3] = base[r, c, :3] * (1 - alpha) + ech[:, :3] * 255.0 * alpha
+    out = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8), 'RGBA')
+    return out if avait_alpha else out.convert('RGB')
+
+
+def _textures_apercu(glb_bytes: bytes, max_px: int, filigrane: bool, couleur_px: int = 2048) -> bytes:
     """Reduit TOUTES les images embarquees a max_px et filigrane les textures de
     couleur, en reecrivant le GLB a la main : ni la geometrie, ni la peau, ni
     les animations ne passent par un reexport (trimesh les perdrait). Chaque
@@ -1070,9 +1287,17 @@ def _textures_apercu(glb_bytes: bytes, max_px: int, filigrane: bool) -> bytes:
         except Exception:
             continue                      # format non lisible (KTX2…) : laisse tel quel
         fmt = (img.format or 'PNG').upper()
-        img.thumbnail((max_px, max_px), Image.LANCZOS)
+        # Couleur a 2048 (le filigrane projete y reste net), autres cartes a max_px.
+        cible = couleur_px if ii in couleur else max_px
+        img.thumbnail((cible, cible), Image.LANCZOS)
         if filigrane and ii in couleur:
-            img = _filigraner(img)
+            projete = None
+            try:
+                pos_map, axe_map = _carte_positions(doc, bin_, ii, img.size[0], img.size[1])
+                projete = _filigraner_3d(img, pos_map, axe_map)
+            except Exception as e:
+                print(f'[apercu] projection impossible ({e}) — filigrane a plat', flush=True)
+            img = projete if projete is not None else _filigraner(img)
         sortie = io.BytesIO()
         if fmt == 'JPEG':
             img.convert('RGB').save(sortie, 'JPEG', quality=82)

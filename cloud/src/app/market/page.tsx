@@ -989,15 +989,6 @@ function MarketPageInner() {
                 <div style={{ position: 'relative' }}>
                   {/* @ts-expect-error model-viewer is a custom element */}
                   <model-viewer src={url} poster={`/api/market/poster/${selected.id}`} autoplay={kind === 'animation' ? true : undefined} camera-controls auto-rotate shadow-intensity="1" exposure="1" style={{ width: '100%', height: 420, background: '#0a0a0e', borderRadius: 8 }} />
-                  {/* FILIGRANE A L'ECRAN sur l'apercu d'une fiche payante (2026-09-28, user :
-                   * sur la texture, « trop grand et trop flou, on croit que c'est le mesh qui
-                   * a un probleme »). Net et lisible comme filigrane ; celui de la texture,
-                   * petit et discret, ne sert plus qu'a marquer une copie recuperee. */}
-                  {!selected.asset_url && selected.preview_url && (
-                    <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 8,
-                      backgroundImage: 'url(/filigrane.png)', backgroundRepeat: 'space', backgroundSize: '210px auto',
-                      opacity: 0.3 }} />
-                  )}
                 </div>
               );
             })()}
