@@ -23696,7 +23696,8 @@ async function _ptsInstaller(gltf, jeton) {
     sphere.renderOrder = 998;
     _pts.groupe.add(sphere);
     return { parent: b.parent && index.has(b.parent) ? index.get(b.parent) : -1,
-             p: _ptsVersLocal(b.getWorldPosition(new THREE.Vector3())), sphere, cyl: null };
+             p: _ptsVersLocal(b.getWorldPosition(new THREE.Vector3())), sphere, cyl: null,
+             nom: b.name || '' };
   });
   _pts.osOrigine = _pts.os.map(o => o.p.clone());
   _pts.osModifies = false;
@@ -23910,6 +23911,36 @@ function _ptsListe() {
       liste.appendChild(ligne);
     });
   }
+  // ARTICULATIONS DANS LA LISTE (2026-09-27, user : « les joints doivent aussi
+  // apparaitre dans le listing »). Survol = mise en evidence dans la vue ;
+  // une articulation deplacee peut etre remise a sa place d'origine.
+  if (_pts.os.length) {
+    const titre = document.createElement('div');
+    titre.className = 'pts-titre-os';
+    titre.textContent = `${_i18nT('Joints')} (${_pts.os.length})`;
+    liste.appendChild(titre);
+    _pts.os.forEach((o, i) => {
+      const bouge = !!_pts.osOrigine[i] && o.p.distanceTo(_pts.osOrigine[i]) > 1e-7;
+      const ligne = document.createElement('div');
+      ligne.className = 'pts-ligne pts-ligne-os' + (i === _pts.osSurvol ? ' survol' : '');
+      ligne.dataset.os = String(i);
+      if (o.nom) ligne.title = o.nom;
+      const lien = o.parent >= 0 ? `${_i18nT('after joint')} ${o.parent + 1}` : _i18nT('root');
+      ligne.innerHTML = `<i class="pts-pastille os"></i>`
+        + `<span class="pts-nom">${_i18nT('Joint')} ${i + 1}</span>`
+        + `<span class="pts-statut">${bouge ? _i18nT('moved') : lien}</span>`
+        + (bouge ? `<button class="pts-suppr pts-reinit-os" type="button" title="${_i18nT('Put this joint back')}" aria-label="${_i18nT('Put this joint back')}">&#8634;</button>` : '<span></span>');
+      ligne.addEventListener('mouseenter', () => _ptsSurvolerOsListe(i));
+      ligne.addEventListener('mouseleave', () => _ptsSurvolerOsListe(null));
+      ligne.querySelector('.pts-reinit-os')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _ptsMemoriser();
+        _ptsBougerOs(i, _pts.osOrigine[i].clone());
+        _ptsListe(); _ptsMajBoutons(); _ptsSauver();
+      });
+      liste.appendChild(ligne);
+    });
+  }
   const atteints = _pts.points.filter(pt => _ptsStatut(pt) === 'atteint').length;
   const info = document.getElementById('lm-fs-info');
   if (info && lmFsModel && _pts.rig) {
@@ -24069,12 +24100,18 @@ function _ptsSousCurseur(canevas, cam, e) {
 
 function _ptsSurvolerCible(c) {
   _ptsSurvoler(c && c.type === 'point' ? c.id : null);
+  _ptsSurvolerOsListe(c && c.type === 'os' ? c.id : null);
+}
+
+/** Met en evidence l'articulation i dans la vue ET dans la liste (null = aucune). */
+function _ptsSurvolerOsListe(i) {
   const avant = _pts.osSurvol;
-  _pts.osSurvol = c && c.type === 'os' ? c.id : null;
+  _pts.osSurvol = (i == null) ? null : i;
   if (avant !== _pts.osSurvol) {
     if (avant != null) _ptsDessinerOs(avant);
     if (_pts.osSurvol != null) _ptsDessinerOs(_pts.osSurvol);
   }
+  document.querySelectorAll('#pts-liste .pts-ligne-os').forEach(l => l.classList.toggle('survol', l.dataset.os === String(i)));
 }
 
 function _ptsLierCanevas(canevas, camera) {
