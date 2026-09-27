@@ -3,463 +3,814 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MyFabmesh.AI — image to 3D mesh in seconds</title>
-<meta name="description" content="MyFabmesh.AI — turn any reference image into a textured 3D mesh ready for Unreal, Blender, Unity. Desktop (local NVIDIA) or Cloud (any device).">
-
-<!-- Open Graph / Twitter cards: previews when the link is shared on
-     Twitter, Discord, LinkedIn, iMessage, etc. -->
+<title>MyFabmesh.AI — image to game-ready 3D</title>
+<meta name="description" content="Type a prompt or drop an image, get a textured 3D model, rig it and export it to Unreal, Blender or Unity. Windows app or web app.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="MyFabmesh.AI — Image to 3D mesh, edit every step">
-<meta property="og:description" content="Generate textured 3D meshes from a photo on your NVIDIA GPU. Edit photo, mesh, and textures end-to-end. MCP server for Claude Code + Unreal pairing. Free during public beta.">
+<meta property="og:title" content="MyFabmesh.AI — image to game-ready 3D">
+<meta property="og:description" content="Textured 3D models from an image or a prompt, automatic rigging, export to Unreal, Blender and Unity.">
 <meta property="og:url" content="https://fabienlacaze.github.io/MyFabmesh/">
 <meta property="og:image" content="https://fabienlacaze.github.io/MyFabmesh/og-image.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="MyFabmesh.AI — Image to 3D mesh, edit every step">
-<meta name="twitter:description" content="Generate textured 3D meshes from a photo on your NVIDIA GPU. Edit photo + mesh in-app. MCP for Claude Code. Free beta.">
-<meta name="twitter:image" content="https://fabienlacaze.github.io/MyFabmesh/og-image.png">
-
 <link rel="icon" href="favicon.png">
-<link rel="stylesheet" href="styles.css?v=3">
+<style>
+  :root {
+    --bg-0: #0b0b14; --bg-1: #13131d; --bg-2: #1b1b29; --border: #2a2a40;
+    --text-0: #f5f5fa; --text-1: #c2c2d4; --text-2: #8a8aa3;
+    --accent: #a855f7; --accent-2: #e94560;
+    --grad: linear-gradient(135deg, #e94560, #a855f7);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-0); color: var(--text-0);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  img { max-width: 100%; display: block; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; }
+  h1, h2, h3 { line-height: 1.2; text-wrap: balance; }
+
+  /* en-tete */
+  .top { position: sticky; top: 0; z-index: 10; background: rgba(11, 11, 20, 0.88);
+         backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+  .brand { font-weight: 800; font-size: 19px; text-decoration: none; }
+  .brand b { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .top nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
+  .top nav a { color: var(--text-1); text-decoration: none; }
+  .top nav a:hover { color: var(--text-0); }
+
+  /* boutons */
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px;
+         border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none;
+         border: 1px solid var(--border); background: var(--bg-2); color: var(--text-0); }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primaire { background: var(--grad); border-color: transparent; }
+  .btn:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .note { font-size: 13px; color: var(--text-2); }
+
+  /* hero */
+  .hero { padding-block: 64px 40px; text-align: center; }
+  .hero h1 { font-size: clamp(32px, 5vw, 52px); font-weight: 800; letter-spacing: -0.02em; }
+  .hero h1 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.sous { margin: 16px auto 0; max-width: 58ch; color: var(--text-1); font-size: 18px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 28px; }
+  .hero figure { margin-top: 40px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+                 box-shadow: 0 30px 80px -30px rgba(168, 85, 247, 0.45); }
+
+  section { padding-block: 56px; }
+  section > .wrap > h2 { font-size: clamp(24px, 3vw, 32px); margin-bottom: 8px; }
+  section > .wrap > p.intro { color: var(--text-1); margin-bottom: 32px; max-width: 62ch; }
+
+  /* etapes */
+  .etapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; counter-reset: e; }
+  .etape { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+           display: flex; flex-direction: column; }
+  .etape img { aspect-ratio: 4 / 3; object-fit: cover; width: 100%; border-bottom: 1px solid var(--border); }
+  .etape div { padding: 16px; }
+  .etape h3 { font-size: 17px; margin-bottom: 6px; }
+  .etape h3 { display: flex; align-items: center; gap: 10px; }
+  .icone-etape { position: relative; flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px;
+                 border-radius: 50%; border: 2px solid var(--cat); color: var(--cat);
+                 background: color-mix(in srgb, var(--cat) 14%, var(--bg-1)); }
+  .icone-etape svg { width: 18px; height: 18px; }
+  .icone-etape b { position: absolute; right: -6px; bottom: -5px; min-width: 15px; height: 15px; padding: 0 3px;
+                   border-radius: 8px; font-size: 9px; line-height: 15px; text-align: center; color: #fff;
+                   background: var(--cat); box-shadow: 0 0 0 2px var(--bg-1); }
+  .etape { border-top: 3px solid var(--cat, var(--border)); }
+  .etape p { font-size: 14px; color: var(--text-1); }
+
+  /* editions */
+  .editions { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .edition { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px;
+             display: flex; flex-direction: column; gap: 14px; }
+  .edition .etiquette { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+  .edition h3 { font-size: 22px; }
+  .edition .prix { font-size: 28px; font-weight: 800; }
+  .edition .prix small { font-size: 14px; font-weight: 500; color: var(--text-2); display: block; }
+  .edition ul { list-style: none; display: grid; gap: 8px; font-size: 15px; color: var(--text-1); }
+  .edition li { padding-left: 22px; position: relative; }
+  .edition li::before { content: '✓'; position: absolute; left: 0; color: #4ade80; font-weight: 700; }
+  .edition .btn { margin-top: auto; justify-content: center; }
+
+  /* galerie */
+  .galerie img { border: 1px solid var(--border); border-radius: var(--radius); }
+
+  /* faq */
+  .faq details { border-bottom: 1px solid var(--border); padding-block: 16px; }
+  .faq summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  .faq summary::after { content: '+'; color: var(--text-2); font-weight: 400; }
+  .faq details[open] summary::after { content: '−'; }
+  .faq p { margin-top: 10px; color: var(--text-1); max-width: 70ch; }
+
+  footer { border-top: 1px solid var(--border); padding-block: 28px; font-size: 14px; color: var(--text-2); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+  footer nav { display: flex; gap: 18px; margin-left: auto; }
+  footer a { text-decoration: none; }
+  footer a:hover { color: var(--text-0); }
+
+  /* outils : lignes image + texte, puces des noms d'outils */
+  .ligne { display: grid; grid-template-columns: 1.25fr 1fr; gap: 32px; align-items: center; margin-top: 36px; }
+  .ligne.inverse { grid-template-columns: 1fr 1.25fr; }
+  .ligne.inverse figure { order: 2; }
+  .ligne figure img, .duo img { border: 1px solid var(--border); border-radius: var(--radius); width: 100%; }
+  .ligne h3 { font-size: 22px; margin-bottom: 8px; }
+  .ligne p { color: var(--text-1); margin-bottom: 14px; }
+  .puces { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; }
+  .puces li { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--bg-2);
+              border: 1px solid var(--border); color: var(--text-1); }
+  .puces li.ia { color: var(--text-0); border-color: transparent;
+                 background: linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--grad) border-box; }
+  .puces li.ia::before { content: 'AI'; font-size: 10px; font-weight: 800; margin-right: 6px;
+                         background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .legende-outils { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px;
+                    color: var(--text-2); margin: -18px 0 8px; }
+  .puce-ia, .puce-main { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+  .puce-ia { border: 1px solid transparent; color: var(--text-0);
+             background: linear-gradient(var(--bg-2), var(--bg-2)) padding-box, var(--grad) border-box; }
+  .puce-main { border: 1px solid var(--border); background: var(--bg-2); color: var(--text-1); }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .duo figcaption { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+  .badge-beta { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; vertical-align: 6px;
+                padding: 2px 8px; border-radius: 999px; background: var(--grad); }
+  .bandeau { background: var(--bg-1); border-block: 1px solid var(--border); }
+  @media (max-width: 860px) {
+    .ligne, .ligne.inverse { grid-template-columns: 1fr; }
+    .ligne.inverse figure { order: 0; }
+    .duo { grid-template-columns: 1fr; }
+  }
+  /* visionneuse unique des outils : une page a la fois, en boucle */
+  .carrousel { position: relative; background: var(--bg-2); border: 1px solid var(--border);
+               border-radius: var(--radius); overflow: hidden; }
+  .diapo { display: none; grid-template-columns: 1.4fr 1fr; gap: 28px; align-items: center; padding: 22px; }
+  .diapo.active { display: grid; animation: fondu 0.5s ease; }
+  @keyframes fondu { from { opacity: 0.2; } to { opacity: 1; } }
+  .diapo-img { aspect-ratio: 16 / 11; display: grid; place-items: center; background: var(--bg-0);
+               border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .diapo-img img { width: 100%; height: 100%; object-fit: contain; }
+  .diapo .lieu { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+  .diapo h3 { font-size: 24px; margin: 4px 0 8px; }
+  .diapo p { color: var(--text-1); margin-bottom: 14px; }
+  .carrousel-nav { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 0 18px; }
+  .fleche { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-1);
+            color: var(--text-0); font-size: 22px; line-height: 1; cursor: pointer; }
+  .fleche:hover { border-color: var(--accent); }
+  .points { display: flex; gap: 8px; }
+  .points button { width: 9px; height: 9px; border-radius: 50%; border: 0; padding: 0; background: var(--border); cursor: pointer; }
+  .points button.actif { background: var(--accent); width: 22px; border-radius: 5px; }
+  .fleche:focus-visible, .points button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 860px) { .diapo.active { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { .diapo.active { animation: none; } }
+  /* etapes : photo zoomable, visionneuses 3D */
+  .etape .media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: #1c1c28;
+                  border-bottom: 1px solid var(--border); }
+  .etape .media img { width: 100%; height: 100%; object-fit: cover; border: 0; aspect-ratio: auto;
+                      transition: transform 0.35s ease; }
+  .zoom { cursor: zoom-in; }
+  .zoom:hover img { transform: scale(1.8); }
+  .zoom img { transition: transform 0.35s ease; }
+  .diapo-img.zoom { cursor: zoom-in; }
+  .diapo-img.zoom img { transition: transform 0.35s ease; }
+  .vue3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  .vue3d.pret img { visibility: hidden; }
+  .aide3d { position: absolute; right: 8px; bottom: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+            background: rgba(11, 11, 20, 0.75); color: var(--text-1); pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .media.zoom:hover img, .diapo-img.zoom:hover img { transform: none; } }
+  .liste-ok { list-style: none; display: grid; gap: 8px; color: var(--text-1); }
+  .liste-ok li { padding-left: 22px; position: relative; }
+  .liste-ok li::before { content: '✓'; position: absolute; left: 0; color: #4ade80; font-weight: 700; }
+  #versions .ligne { margin-top: 0; }
+  /* infobulle des outils */
+  .puces li { cursor: help; }
+  .puces li:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #info-outil { position: fixed; z-index: 50; max-width: 340px; padding: 10px 12px; border-radius: 10px;
+                display: flex; gap: 12px; align-items: flex-start;
+                border: 1.5px solid transparent; box-shadow: 0 12px 30px rgba(0,0,0,0.55), 0 0 0 4px rgba(168,85,247,0.12);
+                background: linear-gradient(#0f0f1a, #0f0f1a) padding-box, var(--grad) border-box;
+                pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity 0.15s, transform 0.15s; }
+  #info-outil.visible { opacity: 1; transform: none; }
+  #info-outil img { width: 72px; height: 72px; flex: none; object-fit: cover; border-radius: 8px;
+                    border: 1px solid var(--border); background: #1c1c28; }
+  #info-outil .texte { min-width: 0; }
+  #info-outil .cat { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+                     background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 3px; }
+  #info-outil .nom { display: block; font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+  #info-outil .desc { display: block; font-size: 13px; color: var(--text-1); line-height: 1.45; }
+  @media (prefers-reduced-motion: reduce) { #info-outil { transition: none; } }
+  /* minuteur vertical : se remplit jusqu'au prochain changement de sujet */
+  .minuteur { position: absolute; z-index: 3; right: 6px; top: 10px; bottom: 10px; width: 4px; border-radius: 2px;
+              background: rgba(255, 255, 255, 0.12); overflow: hidden; pointer-events: none; }
+  .minuteur i { position: absolute; inset: 0; border-radius: 2px; background: var(--cat, var(--accent));
+                transform: scaleY(0); transform-origin: bottom; }
+  .minuteur.court i { animation: minuteur linear forwards; }
+  @keyframes minuteur { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  .bobine .aide3d { right: 18px; }
+  /* mini fenetre flottante : web ou Windows, toujours a portee de clic */
+  #essayer { position: fixed; z-index: 40; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+             width: 270px; max-width: calc(100vw - 32px); padding: 10px 12px 12px; border-radius: 12px;
+             border: 1.5px solid transparent;
+             background: linear-gradient(var(--bg-1), var(--bg-1)) padding-box, var(--grad) border-box;
+             box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+             transition: opacity 0.25s, transform 0.25s; }
+  #essayer.cache { opacity: 0; transform: translateY(12px); pointer-events: none; }
+  #essayer .titre { font-weight: 700; font-size: 14px; margin: 0 22px 8px 0; }
+  #essayer .choix { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  #essayer .btn { justify-content: center; padding: 7px 8px; font-size: 13px; }
+  #essayer .fermer { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; border-radius: 6px;
+                     background: transparent; color: var(--text-2); font-size: 16px; line-height: 1; cursor: pointer; }
+  #essayer .fermer:hover { color: var(--text-0); background: var(--bg-2); }
+  #essayer .fermer:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  @media (prefers-reduced-motion: reduce) { #essayer { transition: none; } }
+  /* machine a sous : deux sujets par etape, le suivant descend du haut */
+  .bobine > .panneau { position: absolute; inset: 0; transition: transform 0.9s cubic-bezier(0.25, 0.9, 0.3, 1.12); }
+  .bobine > .panneau.cache-haut { transform: translateY(-100%); }
+  .bobine > .panneau.cache-bas { transform: translateY(100%); }
+  .bobine > .panneau.sans-transition { transition: none; }
+  @media (prefers-reduced-motion: reduce) { .bobine > .panneau { transition: none; } }
+  @media (max-width: 860px) {
+    .etapes { grid-template-columns: 1fr 1fr; }
+    .editions { grid-template-columns: 1fr; }
+    .top nav a.opt { display: none; }
+  }
+  @media (max-width: 480px) {
+    .etapes { grid-template-columns: 1fr; }
+    .top nav { gap: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
 </head>
 <body>
 
-<header class="site-header">
-  <a href="/" class="brand"><img src="logo.png" alt="MyFabmesh.AI" style="height:26px; width:26px; vertical-align:middle; margin-right:9px; border-radius:6px;">MyFabmesh<span class="brand-ai">.AI</span><span class="beta-badge" id="version-badge">BETA</span></a>
-  <nav class="nav">
-    <a href="#products">Products</a>
-    <a href="#how">How it works</a>
-    <a href="#faq">FAQ</a>
-    <a href="/market">Marketplace</a>
-  </nav>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#">MyFabmesh<b>.AI</b></a>
+    <nav>
+      <a class="opt" href="#how">How it works</a>
+      <a href="#tools">Tools</a>
+      <a class="opt" href="#marketplace">Marketplace</a>
+      <a href="#editions">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </div>
 </header>
 
 <main>
-
   <section class="hero">
-    <h1>From a photo to a 3D mesh.<br><span class="gradient">Edit every step.</span></h1>
-    <p class="lead">
-      Generate textured, game-ready 3D meshes from any reference image —
-      then refine <b>the photo, the mesh, and the textures</b> directly
-      inside the app.
-    </p>
+    <div class="wrap">
+      <h1>From an image to a <span>game-ready 3D model</span></h1>
+      <p class="sous">Type a prompt or drop a picture: get a textured 3D model, rig it and animate it. <strong>Everything you generate stays easy to edit</strong>: fix a detail in a few clicks instead of starting over.</p>
+      <div class="actions">
+        <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Try it in your browser</a>
+        <a class="btn" href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener">Get the Windows app</a>
+      </div>
+      <p class="note" style="margin-top:12px">50 free credits on sign-up · <span id="note-desktop">Windows app free during the beta</span></p>
+      <figure>
+        <img src="screenshots/v2/hero.jpg" width="1280" height="720" alt="A red spider generated as a textured 3D model, shown in the MyFabmesh 3D viewer">
+      </figure>
+    </div>
+  </section>
 
-    <!-- Auto-playing screenshot slideshow (centered, between the two
-         lead paragraphs). Drop real PNGs into docs/screenshots/01..05.png
-         to replace the placeholder mockups. -->
-    <div class="hero-viewer">
-      <div class="ss-frame">
-          <div class="ss-track" id="ss-track">
-            <figure class="ss-slide active" data-caption="Setup wizard — auto-detect your PC, pick install mode" data-img="screenshots/01-wizard.png">
-              <div class="ss-mock ss-mock-wizard">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body">
-                  <div class="ss-mock-card"></div>
-                  <div class="ss-mock-row"></div>
-                  <div class="ss-mock-row"></div>
-                </div>
-              </div>
-            </figure>
-            <figure class="ss-slide" data-caption="Your projects, organized in one place." data-img="screenshots/02-gallery.png">
-              <div class="ss-mock ss-mock-generate">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body ss-mock-split">
-                  <div class="ss-mock-image"></div>
-                  <div class="ss-mock-3d"></div>
-                </div>
-              </div>
-            </figure>
-            <figure class="ss-slide" data-caption="From image to a textured 3D mesh — edit every stage." data-img="screenshots/03-pipeline.png">
-              <div class="ss-mock ss-mock-photo">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body ss-mock-toolbar">
-                  <div class="ss-mock-tools"></div>
-                  <div class="ss-mock-image"></div>
-                </div>
-              </div>
-            </figure>
-            <figure class="ss-slide" data-caption="Polish the mesh: paint &amp; retexture on the 3D model." data-img="screenshots/04-editor3d.png">
-              <div class="ss-mock ss-mock-mesh">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body ss-mock-toolbar">
-                  <div class="ss-mock-tools"></div>
-                  <div class="ss-mock-3d"></div>
-                </div>
-              </div>
-            </figure>
-            <figure class="ss-slide" data-caption="Auto-rig, animate &amp; export to Unreal, Blender, FBX." data-img="screenshots/05-rig-anim.png">
-              <div class="ss-mock ss-mock-export">
-                <div class="ss-mock-bar"></div>
-                <div class="ss-mock-body ss-mock-grid">
-                  <div class="ss-mock-thumb"></div>
-                  <div class="ss-mock-thumb"></div>
-                  <div class="ss-mock-thumb"></div>
-                  <div class="ss-mock-thumb"></div>
-                </div>
-              </div>
-            </figure>
+  <section id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="intro">The same four steps as in the app. Each step opens in its own 2D or 3D viewer, where you edit the result directly, then redo only what you want.</p>
+      <div class="etapes">
+        <article class="etape" style="--cat:#4a90e2">
+          <div class="media bobine"><div class="panneau zoom"><img src="screenshots/v2/etape1-image.jpg" alt="A generated spider image" loading="lazy"></div><div class="panneau zoom cache-haut"><img src="screenshots/v2/guerrier-image.jpg" alt="A generated warrior image" loading="lazy"></div></div>
+          <div>
+            <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.7"/><path d="M4.5 17.5l5-5 3.5 3.5 2.5-2.5 4 4"/></svg><b>1</b></span>Image</h3>
+            <p>Write a prompt or import a picture, then perfect it with the image tools.</p>
           </div>
-          <div class="ss-caption" id="ss-caption">Setup wizard — auto-detect your PC, pick install mode</div>
-        </div>
-      <div class="ss-dots" id="ss-dots">
-        <button class="ss-dot active" data-i="0" aria-label="slide 1"></button>
-        <button class="ss-dot" data-i="1" aria-label="slide 2"></button>
-        <button class="ss-dot" data-i="2" aria-label="slide 3"></button>
-        <button class="ss-dot" data-i="3" aria-label="slide 4"></button>
-        <button class="ss-dot" data-i="4" aria-label="slide 5"></button>
+        </article>
+        <article class="etape" style="--cat:#c35ce0">
+          <div class="media bobine"><div class="panneau vue3d" data-glb="modeles/araignee-maillage.glb" data-mode="mesh"><img src="screenshots/v2/etape2-3d.jpg" alt="The spider as a textured 3D model" loading="lazy"><span class="aide3d">Loading 3D…</span></div><div class="panneau vue3d cache-haut" data-glb="modeles/guerrier-maillage.glb" data-mode="mesh"><img src="screenshots/v2/etape-3d.jpg" alt="The warrior as a textured 3D model" loading="lazy"><span class="aide3d">Loading 3D…</span></div></div>
+          <div>
+            <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l8.2 4.6v9.2L12 21.2l-8.2-4.6V7.4z"/><path d="M12 12l8.2-4.6M12 12v9.2M12 12L3.8 7.4"/><path d="M8 5.1l8.1 4.6M16 5.1L7.9 9.7" stroke-opacity="0.45"/></svg><b>2</b></span>3D Mesh</h3>
+            <p>One click turns the image into a textured model: up to 8K textures and 10 million triangles.</p>
+          </div>
+        </article>
+        <article class="etape" style="--cat:#f08a24">
+          <div class="media bobine"><div class="panneau vue3d" data-glb="modeles/araignee-rig.glb" data-mode="rig"><img src="screenshots/v2/etape3-rig.jpg" alt="The spider with its automatic skeleton" loading="lazy"><span class="aide3d">Loading 3D…</span></div><div class="panneau vue3d cache-haut" data-glb="modeles/guerrier-rig.glb" data-mode="rig"><img src="screenshots/v2/etape-rig.jpg" alt="The warrior with its automatic skeleton" loading="lazy"><span class="aide3d">Loading 3D…</span></div></div>
+          <div>
+            <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.3" r="2.1"/><path d="M12 6.4v7.2M12 8.8l-4.3 3.1M12 8.8l4.3 3.1M12 13.6l-3.2 6.4M12 13.6l3.2 6.4"/><g fill="currentColor" stroke="none"><circle cx="7.7" cy="11.9" r="1.3"/><circle cx="16.3" cy="11.9" r="1.3"/><circle cx="12" cy="13.6" r="1.3"/><circle cx="8.8" cy="20" r="1.2"/><circle cx="15.2" cy="20" r="1.2"/></g></svg><b>3</b></span>Rig</h3>
+            <p>An automatic skeleton for any body, which you can adjust point by point.</p>
+          </div>
+        </article>
+        <article class="etape" style="--cat:#22c55e">
+          <div class="media bobine"><div class="panneau vue3d" data-glb="modeles/araignee-animation.glb" data-mode="anim"><img src="screenshots/v2/etape4-animation.jpg" alt="The spider playing an idle animation" loading="lazy"><span class="aide3d">Loading 3D…</span></div><div class="panneau vue3d cache-haut" data-glb="modeles/guerrier-animation.glb" data-mode="anim"><img src="screenshots/v2/etape-3d.jpg" alt="The warrior playing an idle animation" loading="lazy"><span class="aide3d">Loading 3D…</span></div></div>
+          <div>
+            <h3><span class="icone-etape" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="4.3" r="2.1"/><path d="M14 7.2l-2.3 5.2 3.2 3-1.3 5.6M11.7 12.4l-3.4 1.2M14 7.9l4.1 2.4M14.9 15.4l4.3 1.4"/><path d="M2.8 8.5h4.4M2 12.2h4.3M3.4 16h3.4" stroke-opacity="0.55"/></svg><b>4</b></span>Animation</h3>
+            <p>Add idle, walk, run or attack clips, then export to FBX or Unreal. In beta.</p>
+          </div>
+        </article>
       </div>
+      <p class="note" style="margin-top:12px">Steps 2 to 4 are live 3D viewers: drag to rotate, scroll to zoom. The models are reduced to about 400,000 triangles here for smooth display; the app keeps and exports the full model.</p>
     </div>
-
-    <p class="lead">
-      Paint, mask, inpaint, retouch geometry.
-      End-to-end, no round-trips to other software.
-    </p>
-    <div class="hero-cta">
-      <a href="#products" class="btn-primary">Choose your plan</a>
-    </div>
-    <p class="hero-trust">
-      All AI models are commercial-safe (MIT / Apache / BSD / OpenRAIL++-M).
-      Your generated meshes are 100% yours to sell.
-    </p>
   </section>
 
-  <section id="products" class="products">
-    <h2>One pipeline, two ways to run it.</h2>
-    <div class="cards">
-
-      <!-- DESKTOP CARD -->
-      <article class="card" id="desktop-card">
-        <div class="card-tag">Desktop</div>
-        <h3>MyFabmesh.AI <span class="card-edition">Desktop</span></h3>
-        <div id="desktop-gpu-warn" style="display:none; margin:10px 0 2px; padding:8px 10px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.5); border-radius:6px; font-size:12px; color:#f5b53b; line-height:1.4;">&#9888; Your GPU doesn't look like NVIDIA. The Desktop app needs an NVIDIA GPU — the <b>Cloud</b> version runs on any device (AMD, Intel, Mac, phone). &#8594;</div>
-        <div class="card-price">
-          <span class="price">Free</span>
-          <span class="price-note">during public beta · 49,99 € TTC</span>
+  <section id="tools" class="bandeau">
+    <div class="wrap">
+      <h2>Edit anything you generate</h2>
+      <p class="intro">Not happy with a detail? Change it in a few clicks, right where it is: the picture, the 3D model, the skeleton or the animation. No need to generate again or to open another app. Two kinds of tools do it, directly in the 2D and 3D viewers: automatic AI tools, and semi-manual tools you control by hand.</p>
+      <p class="legende-outils"><span class="puce-ia">AI</span> automatic AI tool <span class="puce-main">Manual</span> semi-manual tool</p>
+      <div class="carrousel" id="carrousel" aria-roledescription="carousel" aria-label="The editing tools">
+        <figure class="diapo active" aria-roledescription="slide" aria-label="1 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/outils-image.jpg" alt="Image generated from a prompt, with the image tools next to it"></div>
+          <figcaption>
+            <span class="lieu">2D viewer</span>
+            <h3>Image tools</h3>
+            <p>Edit the picture right in the viewer: let the AI repaint, restyle or clean it, or retouch it yourself with the brush, mask and clone tools.</p>
+            <ul class="puces"><li class="ia">Modify</li><li class="ia">Auto inpaint</li><li class="ia">Remove background</li><li class="ia">Upscale</li><li class="ia">Style</li><li class="ia">Face fix</li><li class="ia">Outfits</li><li class="ia">Recolor</li><li class="ia">Age</li><li class="ia">Multi-views</li><li class="ia">Variants</li><li>Auto symmetry</li><li>Clone stamp</li><li>Mask</li><li>Crop</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="2 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/outils-3d.jpg" alt="Textured 3D spider with the 3D tools next to it" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">3D viewer</span>
+            <h3>3D tools</h3>
+            <p>Work on the model in the 3D viewer: AI re-texturing and part detection, automatic repairs, and hands-on sculpting, painting and cloning on the surface.</p>
+            <ul class="puces"><li class="ia">Texture variants</li><li class="ia">Sharpen texture</li><li class="ia">Re-texture</li><li class="ia">Re-texture a region</li><li class="ia">Segment parts</li><li>Smooth</li><li>Triangle count</li><li>Subdivide</li><li>Fix normals</li><li>Fill holes</li><li>Watertight</li><li>Pivot</li><li>Sculpt</li><li>Paint</li><li data-outil="clone-texture">Clone stamp</li><li>Explode</li><li>Resize</li><li>Material adjust</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="3 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/reglages-3d.jpg" alt="3D creation settings with Auto settings enabled" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">Before generating</span>
+            <h3>Smart settings</h3>
+            <p>Auto settings picks the right quality, detail and triangle count for your subject. Prefer to decide? Every option stays available, with its price shown next to it.</p>
+            <ul class="puces"><li class="ia">Auto settings</li><li>Quality preset</li><li>Max triangles</li><li>Fine geometry</li><li>Texture smooth</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="4 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/etape-rig.jpg" alt="Skeleton editor on a warrior, front and side views" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">3D viewer</span>
+            <h3>Rig a character</h3>
+            <p>The skeleton is built automatically. Move any point in the front and side views, add or remove points, then rebuild the rig around your changes.</p>
+            <ul class="puces"><li class="ia">Automatic skeleton</li><li>Move points</li><li>Add or remove points</li><li>Relink bones</li><li>Undo / redo</li><li>Export to Unreal</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="5 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/rig-araignee.jpg" alt="Skeleton editor on an eight-legged spider" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">3D viewer</span>
+            <h3>Rig any creature</h3>
+            <p>Two legs, four, six or eight: the skeleton adapts to the body. Every point stays editable, whatever the species.</p>
+            <ul class="puces"><li>Humans</li><li>Animals</li><li>Insects</li><li>Creatures</li><li class="ia">Automatic skeleton</li><li>Relink bones</li></ul>
+          </figcaption>
+        </figure>
+        <figure class="diapo" aria-roledescription="slide" aria-label="6 / 6">
+          <div class="diapo-img zoom"><img src="screenshots/v2/anim-lecture.jpg" alt="An idle animation playing on a spider" loading="lazy"></div>
+          <figcaption>
+            <span class="lieu">3D viewer · beta</span>
+            <h3>Animation</h3>
+            <p>Pick the clips you need and the rig comes to life. Each clip becomes a new version you can preview and export.</p>
+            <ul class="puces"><li class="ia">Clip generation</li><li>Idle</li><li>Walk</li><li>Run</li><li>Attack</li><li>Death</li><li>Fly</li><li>FBX export</li></ul>
+          </figcaption>
+        </figure>
+        <div class="carrousel-nav">
+          <button type="button" class="fleche" id="car-prec" aria-label="Previous">&#8249;</button>
+          <div class="points" id="car-points"></div>
+          <button type="button" class="fleche" id="car-suiv" aria-label="Next">&#8250;</button>
         </div>
-        <ul class="card-features">
-          <li>✓ Runs locally on your NVIDIA GPU — <b>unlimited generations</b></li>
-          <li>✓ Full pipeline: image → 3D → auto-rig → animation</li>
-          <li>✓ Built-in photo editor + mesh editor (paint, sculpt, inpaint)</li>
-          <li>✓ 32 art styles, from realistic to lowpoly &amp; anime</li>
-          <li>✓ Export GLB for Unreal, Blender, Unity, Godot</li>
-          <li>✓ Works offline after install · free lifetime updates</li>
-          <li>✓ <b>Scriptable from Claude Code / VS Code</b> (MCP)</li>
-        </ul>
-        <div class="card-reqs">
-          <div class="reqs-title">Requirements</div>
-          <ul>
-            <li>NVIDIA GPU with <b>8 GB VRAM</b> or more</li>
-            <li>Windows 10 / 11 (64-bit)</li>
-            <li>16 GB RAM, 30 GB free disk</li>
-            <li>Internet (first run only, ~15 GB models)</li>
+      </div>
+    </div>
+  </section>
+
+  <section class="galerie">
+    <div class="wrap">
+      <h2>Everything about an asset, in one project</h2>
+      <p class="intro" style="margin-bottom:16px">Each project gathers all the work on one asset, laid out on a single page, step by step. Open it and you see at a glance where it stands and everything it contains.</p>
+      <ul class="liste-ok" style="margin-bottom:24px">
+        <li>Images, 3D models, rigs and animations of the same asset, together</li>
+        <li>The four steps on one page, each with all its versions</li>
+        <li>A progress bar on every project shows how far it went</li>
+        <li>Browse your whole library by images, 3D models or rigs</li>
+      </ul>
+      <img src="screenshots/v2/projets.jpg" width="1280" height="680" alt="Project gallery with characters, animals and buildings" loading="lazy">
+    </div>
+  </section>
+
+  <section id="versions" class="bandeau">
+    <div class="wrap">
+      <div class="ligne">
+        <div>
+          <h2>Nothing is ever lost</h2>
+          <p class="intro" style="margin-bottom:16px">Every generation and every edit becomes a new version. The original is never overwritten.</p>
+          <ul class="liste-ok">
+            <li>Go back to any version in one click and continue from there</li>
+            <li>See which image a model came from, and which model a rig came from</li>
+            <li>Each version keeps its generation history</li>
+            <li>Nothing is deleted unless you choose to</li>
           </ul>
         </div>
-        <a href="check.html" class="btn-ghost-full">Check my PC first</a>
-        <a href="ms-windows-store://pdp/?productid=9PH6GT8XKQDW"
-           class="btn-primary-full" id="desktop-store-cta">
-          Get from Microsoft Store
-        </a>
-        <p style="font-size:11px;color:var(--text-2);text-align:center;margin-top:8px;">
-          1-click install · auto-update · works on every Windows 10/11 PC
-        </p>
-        <details style="margin-top:14px;font-size:12px;color:var(--text-2);">
-          <summary style="cursor:pointer;text-align:center;">Direct download (advanced users)</summary>
-          <p style="margin-top:8px;text-align:center;">
-            <a href="https://github.com/fabienlacaze/MyFabmesh/releases/latest/download/MyFabmesh.AI-Setup-1.0.0.exe" download>
-              MyFabmesh.AI-Setup-1.0.0.exe
-            </a><br>
-            <span style="font-size:11px;">~142 MB · standalone NSIS installer · may be blocked by Windows Smart App Control</span>
-          </p>
-        </details>
-      </article>
+        <figure><img src="screenshots/v2/versions.jpg" width="482" height="162" alt="Seven saved versions of a warrior image, from v0 to v6" loading="lazy"></figure>
+      </div>
+    </div>
+  </section>
 
-      <!-- CLOUD CARD -->
-      <article class="card">
-        <div class="card-tag card-tag-cloud">Cloud</div>
-        <h3>MyFabmesh.AI <span class="card-edition">Cloud</span></h3>
-        <div class="card-price">
-          <span class="price">0,20 € <span class="price-unit">/ mesh</span></span>
-          <span class="price-note">pay as you go · no subscription</span>
-        </div>
-        <ul class="card-features">
-          <li>✓ Runs in your browser — <b>no install, no GPU required</b></li>
-          <li>✓ Works on any PC, Mac, tablet or phone</li>
-          <li>✓ Same pipeline &amp; quality: image, 3D, rig, animation</li>
-          <li>✓ Photo &amp; mesh editing online, 32 art styles</li>
-          <li>✓ Pay only for what you generate — no subscription</li>
-          <li>✓ 50 free credits to start</li>
-        </ul>
-        <div class="card-reqs">
-          <div class="reqs-title">Requirements</div>
+  <section id="marketplace">
+    <div class="wrap">
+      <h2>Marketplace</h2>
+      <p class="intro">Publish your images and models on the built-in marketplace, for free or at your own price, and browse what other creators made. Every month, five paid items are free to claim and keep, and their creators are still paid. Paid sales open soon.</p>
+      <a class="btn" href="https://myfabmesh-cloud.fabien65400.workers.dev/market">Visit the marketplace</a>
+    </div>
+  </section>
+
+  <section id="editions" class="bandeau">
+    <div class="wrap">
+      <h2>Two ways to use it</h2>
+      <p class="intro">Same tools, same projects. Pick the one that fits your computer.</p>
+      <div class="editions">
+        <article class="edition">
+          <span class="etiquette">Web app</span>
+          <h3>In your browser</h3>
+          <div class="prix">50 free credits<small>then pay only for what you make, no subscription</small></div>
           <ul>
-            <li>A web browser (Chrome / Edge / Firefox / Safari)</li>
-            <li>Internet connection</li>
-            <li>Nothing else</li>
+            <li>Nothing to install, works on any PC, Mac or tablet</li>
+            <li>No graphics card needed</li>
+            <li>Includes animation (beta)</li>
+            <li>The price of every action is shown before you click</li>
           </ul>
-        </div>
-        <a href="https://myfabmesh-cloud.fabien65400.workers.dev/" class="btn-ghost-full">Try free (50 credits)</a>
-        <a href="https://myfabmesh-cloud.fabien65400.workers.dev/" class="btn-primary-full">Open Cloud</a>
-      </article>
-
+          <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Open the web app</a>
+        </article>
+        <article class="edition">
+          <span class="etiquette">Windows app</span>
+          <h3>On your own PC</h3>
+          <div class="prix" id="prix-desktop">Free during the beta<small>then €89.99 one-time, no subscription</small></div>
+          <ul>
+            <li>Runs on your graphics card: unlimited generations</li>
+            <li>Works offline once the models are downloaded</li>
+            <li>Needs Windows 10/11 and an NVIDIA card with 12 GB of memory</li>
+            <li>Installed and updated through the Microsoft Store</li>
+            <li>Connects to Claude Desktop: generate batches of assets from text commands</li>
+          </ul>
+          <a class="btn" href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener">Get it on Microsoft Store</a>
+        </article>
+      </div>
+      <p class="note" style="margin-top:14px">All payments go through Stripe: buying credits, buying on the marketplace and paying creators. Your card details never reach us.</p>
+      <p class="note" style="margin-top:6px">Not sure your PC is powerful enough? <a href="check.html">Check it in 5 seconds</a>.</p>
     </div>
-
-    <p class="products-note">
-      Not sure which one? <a href="check.html">Run the 5-second compatibility check</a>
-      — we'll tell you which one matches your machine.
-    </p>
-  </section>
-
-  <section id="how" class="how">
-    <h2>How it works</h2>
-    <ol class="how-steps">
-      <li>
-        <div class="how-num">1</div>
-        <h4>Drop a reference image</h4>
-        <p>A photo, a sketch, a screenshot — any single image of what you want to model.</p>
-      </li>
-      <li>
-        <div class="how-num">2</div>
-        <h4>Refine the photo if needed</h4>
-        <p>Built-in editor: remove background, inpaint a missing part, paint over an unwanted element, clone-stamp a detail. Get a clean reference before generation.</p>
-      </li>
-      <li>
-        <div class="how-num">3</div>
-        <h4>AI engine generates the mesh</h4>
-        <p>The pipeline produces geometry, unwraps UVs and paints PBR textures in one pass. A few minutes of GPU time.</p>
-      </li>
-      <li>
-        <div class="how-num">4</div>
-        <h4>Polish the mesh</h4>
-        <p>Retouch the texture directly on the 3D model, fix face artefacts, re-paint zones, regenerate parts. All in the same app — no Blender round-trip required.</p>
-      </li>
-      <li>
-        <div class="how-num">5</div>
-        <h4>Export ready-to-use GLB</h4>
-        <p>Import straight into Unreal, Blender, Unity, Godot. Yours to use, sell, or remix.</p>
-      </li>
-    </ol>
-  </section>
-
-  <!-- DIFFERENTIATOR — the editing flow is the core value prop -->
-  <section id="edit" class="how" style="background: var(--bg-1); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 60px 24px; margin-top: 40px;">
-    <h2 style="text-align:center; font-size:32px; margin-bottom:14px;">Generation is half the work. <span class="gradient">Editing is the other half.</span></h2>
-    <p style="text-align:center; color: var(--text-1); max-width: 720px; margin: 0 auto 36px;">
-      Most tools stop at generation and leave you to fix things in
-      another app. MyFabmesh.AI puts the editor inside — for both the
-      photo you start from and the mesh you end up with.
-    </p>
-    <div style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px;">
-      <div style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px;">
-        <h4 style="font-size: 16px; margin-bottom: 10px;">📷 Photo editor</h4>
-        <p style="color: var(--text-1); font-size: 14px;">Remove background · paint over · inpaint missing parts · clone stamp · mask zones · blur · crop. Get a clean front-view before you generate.</p>
-      </div>
-      <div style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px;">
-        <h4 style="font-size: 16px; margin-bottom: 10px;">🪞 Mesh editor</h4>
-        <p style="color: var(--text-1); font-size: 14px;">Paint textures directly on the 3D model · regenerate broken zones · fix face artefacts · refine UV islands · 4K then 8K upscale · re-texture from a new reference.</p>
-      </div>
-      <div style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px;">
-        <h4 style="font-size: 16px; margin-bottom: 10px;">🔁 Iterative loop</h4>
-        <p style="color: var(--text-1); font-size: 14px;">Generate · spot the issue · fix it · regenerate just that part. No round-trips to Photoshop and Blender between every iteration.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Developer differentiator — scriptable end-to-end via MCP -->
-  <section id="for-devs" class="devs-section">
-    <h2 class="devs-h2">
-      For developers: <span class="gradient">one prompt, image to engine.</span>
-    </h2>
-    <p class="devs-lead">
-      Open MyFabmesh.AI next to your IDE. Claude reads your intent,
-      MyFabmesh.AI builds the mesh, Unreal drops it in your scene — all
-      through MCP, no glue code, no API keys.
-    </p>
-
-    <div class="devs-chain">
-      <div class="devs-card">
-        <div class="devs-icon">💬</div>
-        <div class="devs-card-title">Claude Code</div>
-        <div class="devs-card-text">You tell Claude what to build.</div>
-      </div>
-      <div class="devs-arrow">→</div>
-      <div class="devs-card devs-card-accent">
-        <div class="devs-icon">🪞</div>
-        <div class="devs-card-title">MyFabmesh.AI</div>
-        <div class="devs-card-text">Generates the textured mesh from a reference image.</div>
-      </div>
-      <div class="devs-arrow">→</div>
-      <div class="devs-card">
-        <div class="devs-icon">🎮</div>
-        <div class="devs-card-title">Unreal Engine</div>
-        <div class="devs-card-text">Imports the GLB and spawns it in your level.</div>
-      </div>
-    </div>
-
-    <p class="devs-note">
-      Works with any MCP-compatible client (Claude Desktop, Claude Code, VS Code Continue) and any tool with an MCP server — Unreal, Blender, Unity.
-    </p>
   </section>
 
   <section id="faq" class="faq">
-    <h2>FAQ</h2>
-
-    <details>
-      <summary>Can I use AMD or Intel GPU for Desktop?</summary>
-      <p>No, Desktop requires NVIDIA. AMD Radeon, Intel Arc, and integrated graphics are not supported locally. <b>Use Cloud instead</b> — it runs from any browser and works on any GPU.</p>
-    </details>
-
-    <details>
-      <summary>Will it work on my MacBook?</summary>
-      <p>The Desktop app is Windows only. On Mac, use the <b>Cloud</b> version directly from Safari.</p>
-    </details>
-
-    <details>
-      <summary>Why 8 GB of VRAM?</summary>
-      <p>The AI engine needs to load several large neural networks at once (mesh generation + texture synthesis + back-view + face refinement). Below 8 GB the app would crash. With 12 GB or more, you unlock the "Full" mode with face refinement and 8K textures.</p>
-    </details>
-
-    <details>
-      <summary>Are the generated meshes mine to sell?</summary>
-      <p>Yes, 100%. We use only AI models with commercial-safe licenses (MIT, Apache 2.0, BSD, OpenRAIL++-M). You own your output and can sell it on Fab, Sketchfab, Unity Asset Store, or anywhere.</p>
-    </details>
-
-    <details>
-      <summary>Can I drive the app from VS Code or Claude Code?</summary>
-      <p>Yes. The desktop app exposes an MCP (Model Context Protocol) server on first launch. Any MCP-compatible client — Claude Desktop, Claude Code in VS Code, Continue, etc. — can connect locally and issue commands: generate from an image, batch-process a folder, edit a texture, export a GLB. No API keys, no subscription, no cloud round-trip — everything runs on your machine through the same engine the GUI uses.</p>
-    </details>
-
-    <details>
-      <summary>Can it pipe assets directly into Unreal Engine?</summary>
-      <p>Yes — if you also install the Unreal Engine MCP plugin (community-maintained, free). Then a single Claude prompt can: (1) ask MyFabmesh.AI to generate or refine a mesh, (2) ask Unreal to import the resulting GLB at a chosen path, (3) spawn it as an actor in your level. The whole loop — image → mesh → engine → in-scene — runs without leaving the chat. Same trick works for Blender, Unity (if you wire their MCP bridges) or any tool with an MCP server.</p>
-    </details>
-
-    <details>
-      <summary>Why does Windows say "Unknown publisher" when installing?</summary>
-      <p>We're a young indie studio and the beta is unsigned. The installer is safe — you can verify the source on our GitHub. Click <b>"More info → Run anyway"</b> on the SmartScreen warning. The signed v1.1 (Azure Trusted Signing) ships as soon as we hit the milestone for the certificate.</p>
-    </details>
-
-    <details>
-      <summary>I get a DLL load error blocked by "Application Control"</summary>
-      <p>Windows 11's <b>Smart App Control</b> (a stricter policy than SmartScreen) blocks unsigned native libraries on first launch. This will be fixed for everyone in v1.1 once we sign every binary with <a href="https://learn.microsoft.com/azure/trusted-signing/overview">Azure Trusted Signing</a>. In the meantime: <b>v1.1 is the right fix</b>, we don't recommend disabling Smart App Control (it's permanent and weakens your PC). If you can't wait for v1.1, your safest option is to use the <b>Cloud version</b> instead — no install, no DLL, no policy issue.</p>
-    </details>
-
-    <details>
-      <summary>Can I refund?</summary>
-      <p>Yes. If you ran the compatibility checker and your PC was marked compatible but the app doesn't work, we refund 100%. If you skipped the check and bought anyway, we still try to help case by case.</p>
-    </details>
-  </section>
-
-  <!-- Latest release block, populated from the GitHub API at page load.
-       Hidden gracefully if the network call fails. -->
-  <section id="latest-release" class="latest-release hidden">
-    <div class="latest-release-inner">
-      <div class="latest-release-tag" id="latest-tag">Latest release</div>
-      <h3 id="latest-title">—</h3>
-      <p id="latest-date" class="latest-date">—</p>
-      <pre id="latest-notes" class="latest-notes">—</pre>
-      <div class="latest-actions">
-        <a id="latest-download" href="https://github.com/fabienlacaze/MyFabmesh/releases/latest/download/MyFabmesh.AI-Setup-1.0.0.exe" class="btn-primary">Download installer</a>
-        <a id="latest-release-link" href="https://github.com/fabienlacaze/MyFabmesh/releases" class="btn-ghost">All releases</a>
-      </div>
+    <div class="wrap">
+      <h2>FAQ</h2>
+      <details>
+        <summary>Web app or Windows app?</summary>
+        <p>If you have a Windows PC with an NVIDIA card of 12 GB or more, the Windows app gives you unlimited generations. Otherwise, use the web app: it runs on our servers and works on any device, Mac included.</p>
+      </details>
+      <details>
+        <summary>How much does a model cost on the web app?</summary>
+        <p>It depends on the quality you choose. An image costs 1 to 6 credits, a 3D model a few credits in draft quality and around 20 at the highest quality, a rig 10 credits. The exact price is always shown on the button before you start.</p>
+      </details>
+      <details>
+        <summary>Can I use what I create in my games?</summary>
+        <p>Yes. The images and models you create are yours to use in your own projects, including commercial ones.</p>
+      </details>
+      <details>
+        <summary>Which formats can I export?</summary>
+        <p>GLB, FBX, OBJ and STL. The Unreal export sets the right scale and axes, so the model lands in your level at the correct size.</p>
+      </details>
+      <details>
+        <summary>What happens to my data?</summary>
+        <p>Your account and projects are stored in the European Union (Frankfurt). Temporary working files are deleted after 30 days, error logs too. You can delete your account at any time: everything is erased within 30 days. Details in the <a href="privacy.html">privacy policy</a>.</p>
+      </details>
+      <details>
+        <summary>Is it safe for young users?</summary>
+        <p>A content filter is on by default: it blocks inappropriate requests before anything is generated, and checks every image produced. Only an adult can lift it, with a PIN code, and lock it again at any time. Every creation also has a Report button.</p>
+      </details>
+      <details>
+        <summary>Does it work with AMD or Intel graphics?</summary>
+        <p>The Windows app needs an NVIDIA card. With AMD, Intel or a Mac, use the web app: it does not use your graphics card.</p>
+      </details>
     </div>
   </section>
-
-  <section class="cta-bottom">
-    <h2>Ready to start?</h2>
-    <a href="check.html" class="btn-primary">Check my PC (5 sec)</a>
-  </section>
-
 </main>
 
-<footer class="site-footer">
-  <div class="footer-cols">
-    <div>
-      <div class="footer-brand">MyFabmesh<span class="brand-ai">.AI</span></div>
-      <p>Image to 3D mesh, in seconds.</p>
-    </div>
-    <div>
-      <h5>Product</h5>
-      <a href="#products">Desktop</a>
-      <a href="cloud.html">Cloud</a>
-      <a href="check.html">Compatibility</a>
-    </div>
-    <div>
-      <h5>Resources</h5>
-      <a href="#faq">FAQ</a>
-      <a href="https://github.com/fabienlacaze/MyFabmesh">GitHub</a>
-    </div>
-    <div>
-      <h5>Legal</h5>
+<aside id="essayer" class="cache" aria-label="Try MyFabmesh">
+  <button type="button" class="fermer" aria-label="Close">×</button>
+  <p class="titre">Try MyFabmesh</p>
+  <div class="choix">
+    <a class="btn primaire" href="https://myfabmesh-cloud.fabien65400.workers.dev/">Web app</a>
+    <a class="btn" href="https://apps.microsoft.com/detail/9PH6GT8XKQDW" target="_blank" rel="noopener">Windows app</a>
+  </div>
+</aside>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 MyFabmesh.AI</span>
+    <nav>
       <a href="terms.html">Terms</a>
       <a href="privacy.html">Privacy</a>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    © 2026 MyFabmesh.AI · An Ayros Studio production
+      <a href="https://github.com/fabienlacaze/MyFabmesh">GitHub</a>
+    </nav>
   </div>
 </footer>
 
-<script src="slideshow.js"></script>
+<div id="info-outil" role="tooltip"><img alt="" src="screenshots/v2/etape1-image.jpg"><div class="texte"><span class="cat"></span><span class="nom"></span><span class="desc"></span></div></div>
 <script>
-// GPU routing: if the visitor's GPU isn't NVIDIA, the Desktop app won't run
-// locally — surface a notice and steer them to the Cloud version (which works
-// on any device). Soft by design: hybrid NVIDIA laptops often report their
-// Intel iGPU in WebGL, so we de-emphasize rather than hide the Desktop CTA.
-(function _gpuRouting() {
-  function vendor() {
-    try {
-      const c = document.createElement('canvas');
-      const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-      if (!gl) return '';
-      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-      return String(dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : (gl.getParameter(gl.RENDERER) || ''));
-    } catch (_) { return ''; }
-  }
-  const g = vendor().toLowerCase();
-  if (!g) return;  // masked / undetectable → don't assume, leave the page as-is
-  if (/(nvidia|geforce|\brtx\b|\bgtx\b|quadro|tesla)/.test(g)) return;  // NVIDIA → Desktop is fine
-  // Non-NVIDIA (AMD / Intel / Apple / mobile) → steer to Cloud.
-  const warn = document.getElementById('desktop-gpu-warn');
-  if (warn) warn.style.display = 'block';
-  const card = document.getElementById('desktop-card');
-  if (card) card.style.opacity = '0.6';
-  const cta = document.getElementById('desktop-store-cta');
-  if (cta) { cta.style.filter = 'grayscale(0.6)'; cta.style.opacity = '0.85'; }
-}());
-
-// Pull the latest release info from GitHub on page load. Falls back
-// silently if rate-limited or offline — the static download link in
-// the cards still points to /releases/latest/download/, which always
-// resolves.
+// Infobulle des outils : categorie (3D, AI...) puis description, au survol,
+// au focus clavier et au toucher.
 (function () {
-  fetch('https://api.github.com/repos/fabienlacaze/MyFabmesh/releases/latest', {
-    headers: { 'Accept': 'application/vnd.github+json' }
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(rel => {
-      if (!rel) return;
-      var tag = (rel.tag_name || '').replace(/^v/, '');
-      var badge = document.getElementById('version-badge');
-      if (badge && tag) badge.textContent = 'BETA ' + tag;
+  var OUTILS = {"Modify": ["Image · AI", "Change the picture from a short instruction: colours, clothes, details."], "Auto inpaint": ["Image · AI", "Finds the flawed areas and repaints them automatically."], "Remove background": ["Image · AI", "Cuts the subject out cleanly, even hair and fur."], "Upscale": ["Image · AI", "Raises the resolution and sharpens the details."], "Style": ["Image · AI", "Redraws the picture in another art style: painted, anime, low poly…"], "Face fix": ["Image · AI", "Repaints the face with more detail."], "Outfits": ["Image · AI", "Changes the clothes while keeping the same character."], "Recolor": ["Image · AI", "Recolours one element, described in a few words."], "Age": ["Image · AI", "Makes a character or an object look older or younger."], "Multi-views": ["Image · AI", "Generates the back and side views of the subject."], "Variants": ["Image · AI", "Creates variations of the picture, with or without keeping its shape."], "Auto symmetry": ["Image · Automatic", "Mirrors the best half of the subject onto the other."], "Clone stamp": ["Image · Manual", "Copies one area of the picture onto another."], "Mask": ["Image · Manual", "Paint the exact zone the AI tools are allowed to change."], "Crop": ["Image · Manual", "Crops the picture to the part you keep."], "Texture variants": ["3D · AI", "New texture variations on the same geometry."], "Sharpen texture": ["3D · AI", "Doubles the texture resolution and sharpens it."], "Re-texture": ["3D · AI", "Repaints the whole texture from the reference image."], "Re-texture a region": ["3D · AI", "Repaints only the part of the model you select."], "Segment parts": ["3D · AI", "Splits the model into separate parts: head, arms, wheels…"], "Smooth": ["3D · Automatic", "Smooths the surface and removes small bumps."], "Triangle count": ["3D · Automatic", "Reduces the model to the number of triangles you choose."], "Subdivide": ["3D · Automatic", "Adds triangles for rounder, smoother shapes."], "Fix normals": ["3D · Automatic", "Repairs faces that point the wrong way."], "Fill holes": ["3D · Automatic", "Closes the holes in the surface."], "Watertight": ["3D · Automatic", "Rebuilds a fully closed shell, ready for 3D printing."], "Pivot": ["3D · Manual", "Places the origin point of the model where you want it."], "Sculpt": ["3D · Manual", "Push, pull and smooth the surface with a brush."], "Paint": ["3D · Manual", "Paint directly on the model."], "clone-texture": ["3D · Manual", "Copies the texture of one area of the model onto another, directly on the surface."], "Explode": ["3D · Manual", "Breaks the model into pieces for destruction effects."], "Resize": ["3D · Manual", "Sets the exact size of the model, axis by axis."], "Material adjust": ["3D · Manual", "Tunes brightness, colour, roughness and metal."], "Auto settings": ["3D · AI", "Picks the best options for your subject before generating."], "Quality preset": ["3D · Setting", "From a fast draft to 8K textures."], "Max triangles": ["3D · Setting", "From 50,000 to 10 million triangles."], "Fine geometry": ["3D · Setting", "Finer shapes for thin parts: hair, straw, beams, legs."], "Texture smooth": ["3D · Setting", "Softens noise in the texture."], "Automatic skeleton": ["Rig · AI", "Builds a skeleton that fits the body, whatever the species."], "Move points": ["Rig · Manual", "Drag any skeleton point in the front and side views."], "Add or remove points": ["Rig · Manual", "Add a point where a limb is missing, remove the extra ones."], "Relink bones": ["Rig · Manual", "Choose which point each bone hangs from."], "Undo / redo": ["Rig · Manual", "Every change to the skeleton can be undone."], "Export to Unreal": ["Rig · Export", "Exports with the scale and axes Unreal Engine expects."], "Humans": ["Rig", "Characters on two legs, with arms and head."], "Animals": ["Rig", "Four legs, a tail, a long neck: the skeleton follows the body."], "Insects": ["Rig", "Six or eight legs, antennae and segmented bodies."], "Creatures": ["Rig", "Dragons, monsters, wings and tails."], "Clip generation": ["Animation · AI", "Generates animation clips for your rigged model."], "Idle": ["Animation", "Standing still, breathing, looking around."], "Walk": ["Animation", "A walking cycle that loops."], "Run": ["Animation", "A running cycle that loops."], "Attack": ["Animation", "An attack move."], "Death": ["Animation", "A falling and dying move."], "Fly": ["Animation", "A flying cycle, for winged creatures."], "FBX export": ["Animation · Export", "Exports the animated model as FBX for your game engine."]};
+  var bulle = document.getElementById('info-outil');
+  var cat = bulle.querySelector('.cat'), nom = bulle.querySelector('.nom'), desc = bulle.querySelector('.desc');
+  var vignette = bulle.querySelector('img');
+  // image d'un resultat : celle de l'outil si on en a une, sinon celle de son etape
+  var IMAGES_OUTIL = { 'Remove background': 'guerrier-image.jpg', 'Automatic skeleton': 'etape3-rig.jpg' };
+  var IMAGES_CATEGORIE = { 'Image': 'etape1-image.jpg', '3D': 'etape2-3d.jpg', 'Rig': 'etape3-rig.jpg', 'Animation': 'etape4-animation.jpg' };
+  function imagePour(t, categorie) {
+    var f = IMAGES_OUTIL[t] || IMAGES_CATEGORIE[String(categorie).split(' ')[0]] || 'etape2-3d.jpg';
+    return 'screenshots/v2/' + f;
+  }
+  var actif = null;
+  function montrer(li) {
+    var t = li.textContent.trim(), info = OUTILS[li.dataset.outil || t];
+    if (!info) return;
+    actif = li;
+    cat.textContent = info[0]; nom.textContent = t; desc.textContent = info[1];
+    vignette.src = imagePour(li.dataset.outil || t, info[0]);
+    bulle.classList.add('visible');
+    var r = li.getBoundingClientRect(), b = bulle.getBoundingClientRect();
+    var x = Math.max(8, Math.min(window.innerWidth - b.width - 8, r.left + r.width / 2 - b.width / 2));
+    var y = r.top - b.height - 10;
+    if (y < 8) y = r.bottom + 10;
+    bulle.style.left = x + 'px'; bulle.style.top = y + 'px';
+  }
+  function cacher() { actif = null; bulle.classList.remove('visible'); }
+  document.querySelectorAll('.puces li').forEach(function (li) {
+    if (!OUTILS[li.dataset.outil || li.textContent.trim()]) return;
+    li.tabIndex = 0;
+    li.addEventListener('mouseenter', function () { montrer(li); });
+    li.addEventListener('mouseleave', cacher);
+    li.addEventListener('focus', function () { montrer(li); });
+    li.addEventListener('blur', cacher);
+    li.addEventListener('click', function (e) { e.stopPropagation(); actif === li ? cacher() : montrer(li); });
+  });
+  document.addEventListener('click', cacher);
+  window.addEventListener('scroll', cacher, { passive: true });
+})();
+</script>
+<script>
+// MACHINE A SOUS des etapes : toutes les 15 s, chaque vignette fait descendre
+// le sujet suivant (araignee <-> guerrier), avec un leger decalage de l'une a
+// l'autre. Le sujet suivant est charge 5 s avant. Le compte a rebours ne
+// commence que lorsque les etapes sont a l'ecran (sinon le visiteur arrivait
+// en cours de route) et s'arrete quand elles en sortent.
+(function () {
+  var bobines = [].slice.call(document.querySelectorAll('.bobine'));
+  if (!bobines.length || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  var PERIODE = 15000, DECALAGE = 220;
+  // barre verticale a droite de chaque vignette : pleine au moment ou le
+  // sujet suivant descend, puis repart de zero
+  var minuteurs = bobines.map(function (b) {
+    var m = document.createElement('span'); m.className = 'minuteur'; m.setAttribute('aria-hidden', 'true');
+    m.appendChild(document.createElement('i')); b.appendChild(m); return m;
+  });
+  function relancer(m, delai) {
+    m.classList.remove('court'); void m.offsetHeight;
+    m.firstChild.style.animationDuration = PERIODE + 'ms';
+    m.firstChild.style.animationDelay = (delai || 0) + 'ms';
+    m.classList.add('court');
+  }
+  function tourner() {
+    bobines.forEach(function (b, k) {
+      setTimeout(function () {
+        relancer(minuteurs[k], 0);
+        var panneaux = [].slice.call(b.querySelectorAll(':scope > .panneau'));
+        var actuel = panneaux.find(function (x) { return !x.classList.contains('cache-haut'); });
+        var suivant = panneaux[(panneaux.indexOf(actuel) + 1) % panneaux.length];
+        suivant.classList.add('sans-transition', 'cache-haut');
+        void suivant.offsetHeight;
+        suivant.classList.remove('sans-transition', 'cache-haut');
+        actuel.classList.add('cache-bas');
+        setTimeout(function () {
+          actuel.classList.add('sans-transition'); actuel.classList.remove('cache-bas'); actuel.classList.add('cache-haut');
+          void actuel.offsetHeight; actuel.classList.remove('sans-transition');
+        }, 1000);
+      }, k * DECALAGE);
+    });
+  }
+  var cycle = null, prechargement = null;
+  function demarrer() {
+    if (cycle) return;
+    minuteurs.forEach(function (m, k) { relancer(m, k * DECALAGE); });
+    cycle = setInterval(tourner, PERIODE);
+    if (!prechargement) prechargement = setTimeout(function () { if (window.__prechargerVues) window.__prechargerVues(); }, PERIODE - 5000);
+  }
+  function arreter() {
+    clearInterval(cycle); cycle = null;
+    minuteurs.forEach(function (m) { m.classList.remove('court'); });
+  }
+  var zone = bobines[0].closest('.etapes') || bobines[0];
+  new IntersectionObserver(function (e) { if (e[0].isIntersecting) demarrer(); else arreter(); },
+                           { threshold: 0.5 }).observe(zone);
+})();
+</script>
+<script>
+// Mini fenetre « web ou Windows » en bas a droite : apparait une fois le haut
+// de page passe (ses boutons y sont deja), s'efface sur la section des offres
+// (qui propose les memes), et reste fermee si le visiteur l'a fermee.
+(function () {
+  var f = document.getElementById('essayer'); if (!f) return;
+  var ferme = false;
+  try { ferme = sessionStorage.getItem('essayer-ferme') === '1'; } catch (e) {}
+  if (ferme) { f.remove(); return; }
+  var heroVisible = true, offresVisibles = false;
+  function maj() { f.classList.toggle('cache', heroVisible || offresVisibles); }
+  var hero = document.querySelector('.hero'), offres = document.getElementById('editions');
+  if (hero) new IntersectionObserver(function (e) { heroVisible = e[0].isIntersecting; maj(); }).observe(hero);
+  else heroVisible = false;
+  if (offres) new IntersectionObserver(function (e) { offresVisibles = e[0].isIntersecting; maj(); }, { threshold: 0.2 }).observe(offres);
+  maj();
+  f.querySelector('.fermer').addEventListener('click', function () {
+    f.classList.add('cache');
+    try { sessionStorage.setItem('essayer-ferme', '1'); } catch (e) {}
+    setTimeout(function () { f.remove(); }, 300);
+  });
+})();
+</script>
+<script>
+// Zoom qui suit le curseur (photo d'etape, pages du carrousel).
+document.querySelectorAll('.zoom').forEach(function (z) {
+  z.addEventListener('mousemove', function (e) {
+    var r = z.getBoundingClientRect(), img = z.querySelector('img');
+    if (img) img.style.transformOrigin = ((e.clientX - r.left) / r.width * 100) + '% ' + ((e.clientY - r.top) / r.height * 100) + '%';
+  });
+});
+</script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+// Visionneuses 3D des etapes : maillage, rig (os visibles), animation.
+// Chargees seulement quand elles arrivent a l'ecran ; rendu arrete hors ecran.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
-      var box = document.getElementById('latest-release');
-      if (!box) return;
-      document.getElementById('latest-title').textContent = rel.name || rel.tag_name || 'Latest';
-      var d = rel.published_at ? new Date(rel.published_at) : null;
-      document.getElementById('latest-date').textContent = d
-        ? 'Published ' + d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        : '';
-      // Truncate the release notes to ~6 lines so we don't overrun.
-      var notes = (rel.body || '').split('\n').slice(0, 8).join('\n');
-      document.getElementById('latest-notes').textContent = notes || 'No notes for this release.';
-      document.getElementById('latest-release-link').href = rel.html_url;
-      // Find the .exe asset and point Download at it.
-      var exeAsset = (rel.assets || []).find(a => /\.exe$/i.test(a.name));
-      if (exeAsset) document.getElementById('latest-download').href = exeAsset.browser_download_url;
-      box.classList.remove('hidden');
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+
+function monter(hote) {
+  if (hote.dataset.monte) return;
+  hote.dataset.monte = '1';
+  const mode = hote.dataset.mode;
+  const aide = hote.querySelector('.aide3d');
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
+  catch (e) { if (aide) aide.textContent = '3D not supported by this browser'; return; }
+  // contexte graphique perdu (carte tres sollicitee, pilote) : on le signale et
+  // on laisse le navigateur le rendre, three.js recharge alors la scene
+  renderer.domElement.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault(); hote.classList.remove('pret');
+    if (aide) aide.textContent = 'Graphics paused by the browser';
+  });
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    hote.classList.add('pret'); if (aide) aide.textContent = 'Drag to rotate';
+  });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  hote.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 1.2;
+  controls.addEventListener('start', () => { controls.autoRotate = false; });
+  let mixer = null; const horloge = new THREE.Clock(); let visible = true;
+
+  function taille() {
+    const w = hote.clientWidth, h = hote.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(taille).observe(hote); taille();
+
+  loader.load(hote.dataset.glb, (gltf) => {
+    const m = gltf.scene;
+    // boite exacte, sommets deformes par le squelette compris : les matrices des
+    // os ne sont calculees qu'au premier rendu, on les calcule donc avant
+    m.updateMatrixWorld(true);
+    m.traverse((o) => { if (o.isSkinnedMesh) o.skeleton.update(); });
+    const boite = new THREE.Box3().setFromObject(m, true);
+    const centre = boite.getCenter(new THREE.Vector3()), dim = boite.getSize(new THREE.Vector3());
+    m.position.sub(centre);
+    scene.add(m);
+    const rayon = Math.max(dim.x, dim.y, dim.z);
+    // recul qui fait tenir le modele en hauteur ET en largeur (un personnage
+    // debout depassait en haut de la vignette)
+    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const recul = 1.25 * Math.max(dim.y / 2 / t, Math.max(dim.x, dim.z) / 2 / (t * camera.aspect)) + Math.max(dim.x, dim.z) / 2;
+    camera.position.set(0.9, 0.45, 1.1).normalize().multiplyScalar(recul);
+    camera.near = rayon / 100; camera.far = rayon * 20; camera.updateProjectionMatrix();
+    controls.target.set(0, 0, 0); controls.update();
+    if (mode === 'rig') {
+      m.traverse((o) => { if (o.isMesh) { o.material.transparent = true; o.material.opacity = 0.45; o.material.depthWrite = false; } });
+      // Os TOUJOURS visibles, quel que soit l'angle : le maillage transparent
+      // etait dessine APRES eux et les recouvrait (plusieurs epaisseurs de
+      // pattes les effacaient), et three.js ecartait parfois l'aide hors de
+      // sa boite de depart. Donc : passe transparente, ordre de rendu apres
+      // le maillage, jamais ecartee.
+      const os = new THREE.SkeletonHelper(m);
+      Object.assign(os.material, { linewidth: 2, depthTest: false, depthWrite: false, transparent: true });
+      os.material.color = new THREE.Color('#5eead4');
+      os.renderOrder = 10; os.frustumCulled = false;
+      scene.add(os);
+    }
+    if (mode === 'anim' && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(m);
+      mixer.clipAction(gltf.animations[0]).play();
+    }
+    hote.classList.add('pret');
+    if (aide) aide.textContent = 'Drag to rotate';
+  }, undefined, () => { if (aide) aide.textContent = '3D preview unavailable'; });
+
+  new IntersectionObserver((e) => { visible = e[0].isIntersecting; }).observe(hote);
+  let erreurVue = false;
+  renderer.setAnimationLoop(() => {
+    if (!visible || erreurVue) return;
+    const dt = horloge.getDelta();
+    if (mixer) mixer.update(dt);
+    controls.update();
+    try { renderer.render(scene, camera); }
+    catch (e) { erreurVue = true; hote.classList.remove('pret'); if (aide) aide.textContent = '3D error: ' + String(e.message || e).slice(0, 60); console.error(e); }
+  });
+}
+
+const obs = new IntersectionObserver((entrees) => {
+  entrees.forEach((e) => { if (e.isIntersecting) { obs.unobserve(e.target); monter(e.target); } });
+}, { rootMargin: '200px' });
+document.querySelectorAll('.vue3d').forEach((h) => obs.observe(h));
+// le sujet suivant est prepare quelques secondes avant de descendre
+window.__prechargerVues = () => document.querySelectorAll('.vue3d:not([data-monte])')
+  .forEach((h) => { obs.unobserve(h); monter(h); });
+</script>
+<script>
+// Visionneuse des outils : defile seule en boucle (6 s), pause au survol ou au
+// focus, fleches et points ; immobile si l'utilisateur prefere moins d'animations.
+(function () {
+  var c = document.getElementById('carrousel'); if (!c) return;
+  var diapos = [].slice.call(c.querySelectorAll('.diapo'));
+  var points = document.getElementById('car-points');
+  var i = 0, minuterie = null, pause = false, horsVue = true, dejaVu = false;
+  diapos.forEach(function (_, k) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('aria-label', 'Show slide ' + (k + 1));
+    b.addEventListener('click', function () { montrer(k); relancer(); });
+    points.appendChild(b);
+  });
+  function montrer(k) {
+    i = (k + diapos.length) % diapos.length;
+    diapos.forEach(function (d, j) { d.classList.toggle('active', j === i); });
+    [].forEach.call(points.children, function (b, j) { b.classList.toggle('actif', j === i); });
+    var img = diapos[i].querySelector('img'); if (img) img.loading = 'eager';
+  }
+  var calme = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function relancer() {
+    clearInterval(minuterie);
+    if (!calme && !horsVue) minuterie = setInterval(function () { if (!pause) montrer(i + 1); }, 6000);
+  }
+  // ne defile que lorsqu'elle est a l'ecran : le visiteur la voit depuis la
+  // premiere page au lieu d'arriver en cours de route
+  new IntersectionObserver(function (e) {
+    horsVue = !e[0].isIntersecting;
+    if (!horsVue && !dejaVu) { dejaVu = true; montrer(0); }
+    relancer();
+  }, { threshold: 0.5 }).observe(c);
+  document.getElementById('car-prec').addEventListener('click', function () { montrer(i - 1); relancer(); });
+  document.getElementById('car-suiv').addEventListener('click', function () { montrer(i + 1); relancer(); });
+  c.addEventListener('mouseenter', function () { pause = true; });
+  c.addEventListener('mouseleave', function () { pause = false; });
+  c.addEventListener('focusin', function () { pause = true; });
+  c.addEventListener('focusout', function () { pause = false; });
+  montrer(0); relancer();
+})();
+</script>
+<script>
+// Prix de l'appli Windows : regle dans l'admin (Pricing), lu en direct.
+// En cas d'echec, le texte ecrit dans la page reste affiche.
+(function () {
+  fetch('https://myfabmesh-cloud.fabien65400.workers.dev/api/pricing')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var p = d && d.prices; if (!p) return;
+      var prix = (Number(p.desktop_prix_centimes) || 8999) / 100;
+      var txt = prix.toLocaleString('en-IE', { style: 'currency', currency: 'EUR' });
+      var gratuit = Number(p.desktop_gratuit) !== 0;
+      var bloc = document.getElementById('prix-desktop');
+      var note = document.getElementById('note-desktop');
+      if (bloc) bloc.innerHTML = gratuit
+        ? 'Free during the beta<small>then ' + txt + ' one-time, no subscription</small>'
+        : txt + '<small>one-time purchase, no subscription</small>';
+      if (note) note.textContent = gratuit ? 'Windows app free during the beta' : 'Windows app ' + txt + ' one-time';
     })
-    .catch(function () { /* silent */ });
+    .catch(function () {});
 })();
 </script>
 </body>
