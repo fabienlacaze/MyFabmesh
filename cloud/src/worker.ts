@@ -9993,6 +9993,45 @@ async function _rembourserTrianglesNonLivres(env: Env, job: Record<string, unkno
   }
 }
 
+/** POST /api/internal/mesh-done — LIVRAISON IMMEDIATE (2026-09-27). Modal
+ *  l'appelle a la fin d'une generation (reussie ou en echec) : on livre ou on
+ *  echoue + rembourse TOUT DE SUITE, sans attendre le sondage du navigateur
+ *  (onglet en arriere-plan, page rechargee) ni la ronde du faucheur. Meme
+ *  garde de statut que le sondage et le faucheur : idempotente, n'ecrase
+ *  jamais une annulation. Protegee par le secret partage avec Modal. */
+async function handleInternalMeshDone(req: Request, env: Env): Promise<Response> {
+  let body: { _auth?: unknown; job_id?: unknown } = {};
+  try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
+  if (!env.MODAL_SHARED_SECRET || body._auth !== env.MODAL_SHARED_SECRET) return err(401, 'unauthorized');
+  const id = String(body.job_id ?? '');
+  if (!/^modal_[A-Za-z0-9]{8,64}$/.test(id)) return err(400, 'bad job_id');
+  const sb = supabaseAdmin(env);
+  const { data: job } = await sb.from('jobs')
+    .select('id, user_id, credit_cost, created_at, status, options, asset_type, type, cost_usd, mode')
+    .eq('id', id).maybeSingle();
+  if (!job) return json({ ok: false, reason: 'unknown job' }, { status: 404 });
+  if (!(NON_TERMINAL_JOB_STATUSES as readonly string[]).includes(String(job.status))) {
+    return json({ ok: true, deja: job.status });
+  }
+  const status = await callModalMeshStatus(env, id);
+  if (status.error) {
+    await _failAndRefundJob(env, job as Record<string, unknown>, status.error);
+    return json({ ok: true, echec: true });
+  }
+  if (!status.ready) return json({ ok: false, reason: 'not ready' }, { status: 409 });
+  await persistModalGlb(env, id, status.glb_base64 ?? '');
+  const { data: maj } = await sb.from('jobs')
+    .update({ status: 'succeeded', mesh_url: `mesh/${id}.glb`, finished_at: new Date().toISOString() })
+    .eq('id', id)
+    .in('status', NON_TERMINAL_JOB_STATUSES as unknown as string[])
+    .select('id');
+  if (maj && maj.length) {
+    await _rembourserTrianglesNonLivres(env, job as Record<string, unknown>, status.faces);
+    console.log(`[livraison] ${id} livre des la fin du calcul`);
+  }
+  return json({ ok: true, livre: !!(maj && maj.length) });
+}
+
 /** Arrete le calcul Modal d'un maillage (meme appel que l'annulation par
  *  l'utilisateur). Au mieux : une erreur n'empeche pas l'echec cote base. */
 async function _annulerCalculMaillage(env: Env, jobId: string): Promise<void> {
@@ -19487,6 +19526,7 @@ export default {
         if (pathname === '/api/admin/modal-credits'         && method === 'GET')  return await handleAdminModalCredits(req, env);
         if (pathname === '/api/admin/modal-credits/total'   && method === 'POST') return await handleAdminModalSetBudget(req, env);
         if (pathname === '/api/admin/modal-usage'           && method === 'POST') return await handleAdminModalUsageIngest(req, env);
+        if (pathname === '/api/internal/mesh-done'          && method === 'POST') return await handleInternalMeshDone(req, env);
         // ── Marketplace ──
         if (pathname === '/api/market/list'                 && method === 'GET')  return await handleMarketList(req, env);
         if (pathname === '/api/market/publish'              && method === 'POST') return await handleMarketPublish(req, env);

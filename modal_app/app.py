@@ -113,6 +113,30 @@ def _prompt_hard_floor(prompt: str):
 # start). Only `mesh_start` keeps `.spawn()` because it really crosses a
 # container boundary (CPU front-end → separate GPU MyFabmeshMesh class).
 # ---------------------------------------------------------------------------
+def _prevenir_worker(job_id: str) -> None:
+    """LIVRAISON IMMEDIATE (2026-09-27). Previent le worker qu'une generation
+    est finie (ou en echec) : il la livre dans le projet tout de suite, au lieu
+    d'attendre le sondage du navigateur (onglet en arriere-plan, page
+    rechargee) ou la ronde du faucheur (15 min, travaux de plus de 15 min).
+    Constat du jour : deux maillages finis a 14:39 et 14:42 attendaient encore
+    a 14:55. Au mieux : un echec ici laisse les chemins habituels faire."""
+    if not str(job_id).startswith("modal_"):
+        return
+    import json as _json
+    import urllib.request
+    url = os.environ.get("FABMESH_WORKER_URL",
+                         "https://myfabmesh-cloud.fabien65400.workers.dev").rstrip("/") + "/api/internal/mesh-done"
+    try:
+        req = urllib.request.Request(
+            url, data=_json.dumps({"_auth": os.environ.get("SHARED_SECRET", ""), "job_id": job_id}).encode(),
+            headers={"content-type": "application/json",
+                     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"}, method="POST")
+        with urllib.request.urlopen(req, timeout=180) as r:
+            print(f"[livraison] {job_id} : worker {r.status} {r.read()[:200]!r}", flush=True)
+    except Exception as e:
+        print(f"[livraison] {job_id} : worker injoignable ({e}) — le sondage prendra le relais", flush=True)
+
+
 def _check_auth(payload: dict) -> None:
     """401 immediately if the shared secret is missing/wrong.
 
@@ -2538,6 +2562,7 @@ class MyFabmeshMesh:
             mesh_output_volume.commit()
             print(f"[mesh] DONE job={job_id} dt={time.time() - t0:.1f}s "
                   f"bytes={len(glb_bytes)}", flush=True)
+            _prevenir_worker(job_id)
         except Exception as e:
             err_msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
             try:
@@ -2547,6 +2572,7 @@ class MyFabmeshMesh:
             except Exception:
                 pass
             print(f"[mesh] FAILED job={job_id}: {err_msg}", flush=True)
+            _prevenir_worker(job_id)
             raise
 
     # NOTE: mesh_start / mesh_status are NOT on this class. They live
