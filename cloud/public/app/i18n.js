@@ -21,6 +21,7 @@
   const I18N = {
     fr: {
       // ---- Libelles du 27/09/2026 (audit 1.0.36 : sans traduction ecrite) ----
+      "Each container warms up on its own. A cold one takes a few minutes on the first call, then stays warm for a few minutes after each use. When many people use MyFabmesh, the containers are called all the time and stay warm: no waiting.": "Chaque conteneur démarre séparément. Un conteneur froid met quelques minutes au premier appel, puis reste chaud quelques minutes après chaque utilisation. Quand beaucoup de monde utilise MyFabmesh, les conteneurs sont appelés en permanence et restent chauds : plus d'attente.",
       "Get paid in": "Être payé en",
       "Money": "Argent",
       "Set up Stripe payouts": "S'inscrire aux versements Stripe",
