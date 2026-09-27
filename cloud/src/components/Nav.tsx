@@ -27,10 +27,11 @@ export function Nav() {
     <header className="topbar">
       <div className="topbar-left">
         <Link href="/" className="brand" title="MyFabmesh.AI" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          {/* le symbole remplace le nom (demande du user, 27/09) */}
+          {/* logo + nom (demande du user, 27/09) */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-symbole.png" alt="MyFabmesh.AI" width={96} height={96}
+          <img src="/logo-symbole.png" alt="" width={96} height={96}
                style={{ width: 36, height: 36, borderRadius: '22%', display: 'block' }} />
+          <span>MyFabmesh<span className="brand-ai">.AI</span></span>
           <span className="brand-cloud">CLOUD</span>
         </Link>
         {MOCK && <span className="pill warn" style={{ marginLeft: 6 }}>DEV MODE</span>}

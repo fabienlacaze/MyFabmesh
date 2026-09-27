@@ -1931,7 +1931,11 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     btn.href = '/market';
     btn.target = '_self';
     btn.title = 'Browse the marketplace';
-    btn.textContent = '🛒 Marketplace';
+    // logo a gauche du libelle (demande du user, 27/09) a la place de l'emoji
+    const logo = document.createElement('img');
+    logo.src = '/logo-symbole.png'; logo.alt = ''; logo.width = 18; logo.height = 18;
+    logo.style.cssText = 'width:18px;height:18px;border-radius:5px;flex:none';
+    btn.append(logo, document.createTextNode('Marketplace'));
     const baseShadow = '0 2px 6px rgba(90,79,207,0.5)';
     const hoverShadow = '0 3px 10px rgba(139,92,246,0.7)';
     const baseBg = 'linear-gradient(135deg, #5a4fcf, #8b5cf6)';

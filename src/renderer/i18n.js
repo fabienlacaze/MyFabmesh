@@ -21,6 +21,10 @@
   const I18N = {
     fr: {
       // ---- Libelles du 27/09/2026 (audit 1.0.36 : sans traduction ecrite) ----
+      "Outfits": "Tenues",
+      "Recolor": "Recolorer",
+      "Extracts each piece of clothing on a transparent background (characters)": "Extrait chaque vêtement sur fond transparent (personnages)",
+      "Finds a part automatically and recolours it, keeping its shape (e.g. a red cape)": "Détecte une partie et la recolore en gardant sa forme (ex. : une cape rouge)",
       "Max triangles": "Triangles max",
       "Auto settings": "Réglages automatiques",
       "Picks the best settings for this image and asset type. Changing an option yourself turns it off.": "Choisit les meilleurs réglages pour cette image et ce type d'asset. Modifier une option vous-même le désactive.",
