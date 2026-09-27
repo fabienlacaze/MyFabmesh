@@ -25865,10 +25865,28 @@ window._applyMeshCostPill = function (btn) {
     let cost = base;
     plus('ws-trellis2-multiref', 'mesh_multiref');
     plus('ws-trellis2-rectify', 'mesh_rectify');
-    plus('ws-trellis2-quality-plus', 'mesh_quality_plus');
+    // Ultra Q l'emporte sur Quality+ : le worker ne facture pas les deux.
+    if (!on('ws-trellis2-ultra-q')) plus('ws-trellis2-quality-plus', 'mesh_quality_plus');
     plus('ws-trellis2-ultra-q', 'mesh_ultra_q');
     // ultra_hd est ignoré par le worker quand le preset est déjà ultra_8k.
     if (preset !== 'ultra_8k') plus('ws-trellis2-ultra-hd', 'mesh_ultra_hd');
+    // Etapes de construction 3D lancees juste apres le maillage (tarif a part).
+    const chantier = document.getElementById('ws-3d-buildstages');
+    if (chantier?.checked && chantier.closest('.form-row')?.style.display !== 'none') {
+      const pc = window._prixDe('construction3d'); if (pc != null) cost += pc;
+    }
+    // SUPPLEMENT « MAX TRIANGLES » (audit release 1.0.36, BLOQUANT) : le worker
+    // l'ajoute toujours (creditCost -> _supplementTriangles), la pastille
+    // l'oubliait : a 10 M elle annoncait ~18 credits pour ~68 debites.
+    // Meme formule que le worker et que le site.
+    const trisSel = document.getElementById('ws-trellis2-tris');
+    const brut = !trisSel ? 500000 : trisSel.value === 'custom'
+      ? parseInt(document.getElementById('ws-trellis2-tris-custom')?.value || '500000', 10)
+      : parseInt(trisSel.value, 10);
+    const tris = Math.max(5000, Math.min(10000000, brut || 500000));
+    const courbe = Math.max(1, (window._prixDe('mesh_tris_courbe_pct') ?? 130) / 100);
+    cost += Math.max(window._prixDe('mesh_tris_base') ?? 1,
+                     Math.ceil((window._prixDe('mesh_tris_500k') ?? 1) * Math.pow(tris / 500000, courbe) - 1e-9));
     // NE SONT PAS COMPTÉS, et c'est volontaire : refine, face_fix et smooth
     // figurent dans OPTIONS_SANS_EFFET_CLOUD (worker.ts:1746) et sont
     // neutralisés AVANT le calcul du prix. Les facturer à l'écran faisait
@@ -25891,7 +25909,12 @@ window._applyMeshCostPill = function (btn) {
   'ws-trellis2-preset', 'ws-trellis2-multiref', 'ws-trellis2-refine',
   'ws-trellis2-rectify', 'ws-trellis2-quality-plus', 'ws-trellis2-ultra-q',
   'ws-trellis2-ultra-hd', 'ws-trellis2-face-fix',
-].forEach(id => document.getElementById(id)?.addEventListener('change', () => window._applyMeshCostPill()));
+  'ws-trellis2-tris', 'ws-trellis2-tris-custom', 'ws-3d-buildstages',
+].forEach(id => {
+  const el = document.getElementById(id);
+  el?.addEventListener('change', () => window._applyMeshCostPill());
+  if (id === 'ws-trellis2-tris-custom') el?.addEventListener('input', () => window._applyMeshCostPill());
+});
 window._applyMeshCostPill();
 
 /* ═══════════════════════════════════════════════════════════════════
