@@ -562,6 +562,7 @@ function showToast(message, type = 'info', durationMs = 3000) {
 }
 // expose for cloud-overrides.js (classic script, no module scope)
 window.showToast = showToast;
+window.customError = customError;   // pour index2-edit-tools.js (script classique)
 
 function customConfirm(message, title = 'Confirm', okLabel = 'Delete') {
   return new Promise((resolve) => {

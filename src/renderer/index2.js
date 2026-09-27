@@ -357,6 +357,7 @@ function customError(message, title = 'Error') {
 // in addition to the standard OK dismiss. Returns true if the user clicked the
 // action button, false on OK/overlay/Escape. The caller is responsible for
 // performing the action after awaiting the promise.
+window.customError = customError;   // pour index2-edit-tools.js (script classique)
 function customErrorWithAction(message, title, actionLabel) {
   const safe = String(message || 'Unknown error');
   const modal = document.getElementById('modal-confirm');

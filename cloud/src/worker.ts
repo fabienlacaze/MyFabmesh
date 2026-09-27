@@ -9654,7 +9654,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
     if (r.status === 524) {
       // Still cold after retry — surface the friendly hint.
       throw new Error(
-        `the AI model is taking longer than usual to warm up. ` +
+        `the service is taking longer than usual to start. ` +
         `Please retry in 1-2 minutes — your credits were refunded.`
       );
     }
@@ -9741,7 +9741,7 @@ async function callModalOutfit(env: Env, userId: string, input: {
   }
   if (!r.ok) {
     if (r.status === 524) {
-      throw new Error('the AI model is taking longer than usual to warm up. '
+      throw new Error('the service is taking longer than usual to start. '
         + 'Please retry in 1-2 minutes — your credits were refunded.');
     }
     throw new Error(`Service outfit HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);

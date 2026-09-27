@@ -46,10 +46,16 @@
       window.fabmeshJobs.render();
     }
   }
+  // Messages dans la fenetre d'erreur de l'appli, plus dans la boite du
+  // navigateur (« myfabmesh-cloud.workers.dev says ») — 2026-09-27.
+  function _alerte(msg) {
+    try { if (typeof window.customError === 'function') { window.customError(String(msg), 'Error'); return; } } catch (e) {}
+    try { window.alert(msg); } catch (e) {}
+  }
   function showLog(msg, level) {
     console.log('[edit-tools][' + (level || 'info') + ']', msg);
     if (level === 'error') {
-      try { alert(msg); } catch (e) {}
+      try { _alerte(msg); } catch (e) {}
     }
   }
   function refreshActiveGallery() { /* no-op (handled by onSuccess) */ }
@@ -557,23 +563,23 @@
 
       var imgPath = maskCtx.imagePath;
       if (!imgPath) {
-        alert('No image selected for inpaint — maskCtx.imagePath is null. Reopen the mask tool from the project workspace.');
+        _alerte('No image selected for inpaint — maskCtx.imagePath is null. Reopen the mask tool from the project workspace.');
         return;
       }
 
       // Read overlay WHILE modal is still visible (canvas loses backing store when hidden)
       var w = maskOverlayCanvas.width, h = maskOverlayCanvas.height;
-      if (!w || !h) { alert('Mask canvas has no size.'); return; }
+      if (!w || !h) { _alerte('Mask canvas has no size.'); return; }
       var overlayData;
       try { overlayData = maskOverlayCtx.getImageData(0, 0, w, h); }
-      catch (readErr) { alert('Could not read mask: ' + (readErr && readErr.message || readErr)); return; }
+      catch (readErr) { _alerte('Could not read mask: ' + (readErr && readErr.message || readErr)); return; }
 
       var painted = 0;
       for (var i = 3; i < overlayData.data.length; i += 4) {
         if (overlayData.data[i] > 30) painted++;
       }
       if (painted < 50) {
-        alert('Paint a mask first — nothing to inpaint.');
+        _alerte('Paint a mask first — nothing to inpaint.');
         return;
       }
 
@@ -601,14 +607,14 @@
       function runInpaint() {
         var job;
         try { job = addJob('Manual mask inpaint', 'inpaint', imgPath); }
-        catch (jobErr) { alert('Internal error: could not create job. ' + (jobErr && jobErr.message || jobErr)); return; }
+        catch (jobErr) { _alerte('Internal error: could not create job. ' + (jobErr && jobErr.message || jobErr)); return; }
         if (!job || typeof job !== 'object' || job.id == null) {
-          alert('Internal error: addJob returned nothing.');
+          _alerte('Internal error: addJob returned nothing.');
           return;
         }
         if (!window.meshyAPI || !window.meshyAPI.maskInpaint) {
           try { completeJob(job.id, false, 'maskInpaint API not available'); } catch (_) {}
-          alert('maskInpaint API not available.');
+          _alerte('maskInpaint API not available.');
           return;
         }
         window.meshyAPI.maskInpaint({ imagePath: imgPath, maskDataUrl: maskDataUrl, prompt: promptText })
@@ -620,13 +626,13 @@
           } else {
             var errMsg = (r && r.error) || 'unknown error';
             try { completeJob(job.id, false, errMsg); } catch (_) {}
-            alert('Inpaint failed: ' + errMsg);
+            _alerte('Inpaint failed: ' + errMsg);
           }
         })
         .catch(function (e) {
           var errMsg2 = (e && e.message) || String(e);
           try { completeJob(job.id, false, errMsg2); } catch (_) {}
-          alert('Inpaint error: ' + errMsg2);
+          _alerte('Inpaint error: ' + errMsg2);
         });
       }
 

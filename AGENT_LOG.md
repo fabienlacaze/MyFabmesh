@@ -23816,3 +23816,13 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Curseur 48-512 -> 48-400 : `_mesh_op.watertight` ramenait en silence a 400.
 - Fill holes : aucun appel serveur aujourd'hui (ni job, ni journal Modal) — le probleme
   signale vient de l'apercu ou de l'application dans le navigateur ; en attente de precision.
+
+## 2026-09-27 — Erreurs de l'inpaint dans la fenetre de l'appli ; message de demarrage sans « AI model »
+
+- index2-edit-tools.js (web + bureau) : 10 `alert()` natifs (« myfabmesh-cloud.workers.dev
+  says ») remplaces par `_alerte()` -> `window.customError` (exporte par index2.js).
+- Worker : « the AI model is taking longer than usual to warm up » -> « the service is taking
+  longer than usual to start » (image_op et outfit).
+- Cause de l'echec signale (mask inpaint) : mise en memoire du conteneur refaite apres mon
+  deploiement de 16h13 (279 s) > fenetre de reprise du worker. Rembourse. D'ou le point C
+  (grouper les deploiements Modal).
