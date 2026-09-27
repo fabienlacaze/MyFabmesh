@@ -7032,7 +7032,25 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     // Toggled off by `rectify: false` in the request (default ON).
     // Failure is non-fatal — we fall back to the un-rectified image so
     // a transient rectify outage doesn't tank the whole mesh.
-    if (env.MODAL_RECTIFY_URL && input.rectify !== false) {
+    //
+    // UNE IMAGE DEJA RECTIFIEE N'EST PAS RETRAVAILLEE (2026-09-27). Le user a
+    // relance une generation depuis la version rectifiee de la veille, option
+    // cochee : la seconde passe a produit un AUTRE personnage, appauvri
+    // (fourrure des genoux perdue, jupe simplifiee), que le maillage a
+    // fidelement reproduit — et l'option etait facturee. On garde l'image,
+    // on rend le supplement.
+    const dejaRectifiee = [sourceImageStore, frontUrl, (input.image as File | undefined)?.name]
+      .some(s => typeof s === 'string' && /(^|\/)(rectify\/[^/?#]*_rectified|fabmesh_rectified_)[^/?#]*\.(png|jpe?g|webp)/i.test(s));
+    if (dejaRectifiee && input.rectify !== false) {
+      console.log('[wave2.1] source deja rectifiee : rectification sautee');
+      if (input.rectify) {
+        const prixRectif = (await _getPricing(env)).mesh_rectify ?? PRICING_DEFAULTS.mesh_rectify;
+        if (prixRectif > 0 && (await addCredits(env, user.id, prixRectif)) != null) {
+          cost = Math.max(0, cost - prixRectif);
+        }
+      }
+    }
+    if (env.MODAL_RECTIFY_URL && input.rectify !== false && !dejaRectifiee) {
       // FACE STRICTE pour les seuls humanoides — parite bureau (main.js :
       // 'front' pour character, 'iso' pour tout le reste). Le web mettait
       // aussi creature et animal de face : MESURE DU 2026-09-26 sur une

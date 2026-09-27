@@ -161,6 +161,33 @@ def _masque_couverture_uv(geom, largeur, hauteur):
     return m.astype(bool)
 
 
+def _courbe_luminance(im, masque, cible):
+    """Courbe v -> v**g par canal (LUT) telle que la luminance mediane des
+    pixels couverts vaille `cible`. Ne sature jamais : 1 reste 1."""
+    import numpy as np
+    arr = np.asarray(im).astype(np.float32) / 255.0
+    px = arr[masque] if masque is not None else arr.reshape(-1, 3)
+    px = px[px.max(axis=1) > 0.04]
+    if len(px) > 200_000:
+        px = px[np.random.default_rng(0).choice(len(px), 200_000, replace=False)]
+    if len(px) < 500:
+        return im
+
+    def mediane(g):
+        q = px ** g
+        return float(np.median(0.2126 * q[:, 0] + 0.7152 * q[:, 1] + 0.0722 * q[:, 2]))
+    lo, hi = 0.25, 4.0                  # la mediane DECROIT quand g croit
+    for _ in range(30):
+        mil = (lo * hi) ** 0.5
+        if mediane(mil) > cible:
+            lo = mil
+        else:
+            hi = mil
+    g = (lo * hi) ** 0.5
+    lut = [int(round(255.0 * (i / 255.0) ** g)) for i in range(256)]
+    return im.point(lut * len(im.getbands()))
+
+
 def _accorder_couleurs_source(glb_obj, image_ref, log=print):
     """Accorde luminance mediane et saturation moyenne de l'atlas baseColor sur
     celles du sujet de `image_ref`. Rend True si au moins un atlas a ete traite."""
@@ -196,7 +223,11 @@ def _accorder_couleurs_source(glb_obj, image_ref, log=print):
         if lum_a is None:
             continue
         g_l = min(hi_l, max(lo_l, lum_ref / max(lum_a, 1e-3)))
-        rgb = ImageEnhance.Brightness(rgb).enhance(g_l)
+        # COURBE et non gain lineaire (2026-09-27) : un gain x1,46 avait brule
+        # 5,4 % de l'atlas au blanc (poitrine et casque delaves ; 0,5 % sans
+        # gain). Une puissance par canal envoie 0 sur 0 et 1 sur 1 : la mediane
+        # atteint la meme cible, les clairs sont comprimes au lieu d'etre ecretes.
+        rgb = _courbe_luminance(rgb, masque, lum_a * g_l)
         _, sat_a = mesurer(rgb)
         g_s = min(1.5, max(0.8, sat_ref / max(sat_a, 1e-3)))
         rgb = ImageEnhance.Color(rgb).enhance(g_s)

@@ -7700,8 +7700,12 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
   //   proportions for vehicles / objects / non-bipedal creatures).
   // Pre-process gates: only run for TRELLIS-2-based engines — other
   // engines have their own opinions about the source view.
+  // Une image DEJA rectifiee (version fabmesh_rectified_* d'une generation
+  // precedente) n'est pas retravaillee : une seconde passe produit un autre
+  // personnage, appauvri (constate le 2026-09-27 sur le web).
   if (trellis2RectifySource && imagePath && fs.existsSync(imagePath)
-      && engine === 'trellis2_native') {
+      && engine === 'trellis2_native'
+      && !/^fabmesh_rectified_/i.test(path.basename(imagePath))) {
     const rectifyScript = path.join(SCRIPTS_DIR, 'generate_front_strict.py');
     // Write the rectified image INTO the project image folder so it becomes a
     // real gallery VERSION: it is the actual input that generated the mesh, so
