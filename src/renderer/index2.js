@@ -24106,7 +24106,7 @@ function _ptsListe() {
     titre(`${_i18nT('Skeleton')} (${_pts.os.length})`);
     _pts.os.forEach((o, i) => {
       const k = o.orig ?? i;
-      const bouge = !!_pts.osOrigine[k] && o.p.distanceTo(_pts.osOrigine[k]) > 1e-7;
+      const bouge = !!_pts.osOrigine[k] && o.p.distanceTo(_pts.osOrigine[k]) > _ptsSeuilBouge();
       const relie = Array.isArray(_pts.osParentsOrigine) && _ptsParentOrig(o) !== _pts.osParentsOrigine[k];
       const ligne = document.createElement('div');
       ligne.className = 'pts-ligne pts-ligne-os' + (i === _pts.osSurvol ? ' survol' : '')
@@ -24273,10 +24273,14 @@ function _ptsOsModifie() {
   if (_pts.os.length !== (_pts.osOrigine || []).length) return true;   // point supprime
   return _pts.os.some((o, j) => {
     const k = o.orig ?? j;
-    return (_pts.osOrigine[k] && o.p.distanceTo(_pts.osOrigine[k]) > 1e-7)
+    return (_pts.osOrigine[k] && o.p.distanceTo(_pts.osOrigine[k]) > _ptsSeuilBouge())
       || (Array.isArray(_pts.osParentsOrigine) && _ptsParentOrig(o) !== _pts.osParentsOrigine[k]);
   });
 }
+/** Seuil « deplace » (2026-09-27) : la sauvegarde arrondit les positions au
+ *  1/100 000 ; avec l'ancien seuil (1e-7), TOUT le squelette recharge etait
+ *  « moved », le rig passait au tarif et au chemin « squelette impose ». */
+function _ptsSeuilBouge() { return Math.max(2e-5, 1e-4 * (_pts.diag || 1)); }
 /** Parent d'un point du squelette, exprime en indice du squelette D'ORIGINE. */
 function _ptsParentOrig(o) {
   return o.parent >= 0 && _pts.os[o.parent] ? (_pts.os[o.parent].orig ?? o.parent) : -1;
