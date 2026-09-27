@@ -2557,9 +2557,10 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const argent = __payoutChoice === 'cash';
     const hint = document.getElementById('pub-payout-hint');
     if (hint) {
-      hint.textContent = price === 0 ? 'Free listing — no payout.'
-        : argent ? 'You’ll earn ~' + (price * 0.70).toFixed(2) + ' € per sale.'
-        : 'You’ll earn ~' + Math.round(price * 5.88) + ' credits per sale.';
+      // Credits : la pastille jaune ⚡ de l'appli (demande user), pas le mot.
+      if (price === 0) hint.textContent = 'Free listing — no payout.';
+      else if (argent) hint.textContent = 'You’ll earn ~' + (price * 0.70).toFixed(2) + ' € per sale.';
+      else hint.innerHTML = 'You’ll earn ~<span class="credit-badge">' + Math.round(price * 5.88) + '</span> per sale.';
     }
     const box = document.getElementById('pub-payout-box');
     // style.display et non hidden : le display:flex en ligne l'emporterait
