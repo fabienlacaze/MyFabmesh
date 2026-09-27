@@ -132,16 +132,16 @@ Secure payments through Stripe for credits, purchases and creator payouts
 Minimum hardware:
 ```
 Windows 10 or 11, 64-bit
-Any graphics card: without a compatible NVIDIA card, the app runs in cloud mode (internet connection required)
+NVIDIA graphics card with 12 GB of video memory (RTX 3060 12 GB, RTX 4070 or better)
 16 GB of RAM
-1 GB of free disk space
+30 GB of free disk space for the AI models, downloaded on first launch
 ```
 
-Recommended hardware (local mode):
+Recommended hardware:
 ```
-NVIDIA graphics card with 12 GB of video memory or more (for example RTX 3060 12 GB, RTX 4070, RTX 5070 or newer)
+NVIDIA graphics card with 16 GB of video memory or more (RTX 4080, RTX 5080 or better)
 32 GB of RAM
-30 GB of free disk space for the AI models, downloaded on first launch
+SSD with 30 GB free
 ```
 
 ### Search terms (7 max, 30 characters each)
@@ -267,16 +267,16 @@ Paiements sécurisés par Stripe pour les crédits, les achats et la rémunérat
 Matériel minimal :
 ```
 Windows 10 ou 11, 64 bits
-Toute carte graphique : sans carte NVIDIA compatible, l'application passe en mode cloud (connexion Internet requise)
+Carte graphique NVIDIA avec 12 Go de mémoire vidéo (RTX 3060 12 Go, RTX 4070 ou mieux)
 16 Go de RAM
-1 Go d'espace disque libre
+30 Go d'espace disque libre pour les modèles d'IA, téléchargés au premier lancement
 ```
 
-Matériel recommandé (mode local) :
+Matériel recommandé :
 ```
-Carte graphique NVIDIA avec 12 Go de mémoire vidéo ou plus (par exemple RTX 3060 12 Go, RTX 4070, RTX 5070 ou plus récente)
+Carte graphique NVIDIA avec 16 Go de mémoire vidéo ou plus (RTX 4080, RTX 5080 ou mieux)
 32 Go de RAM
-30 Go d'espace disque libre pour les modèles d'IA, téléchargés au premier lancement
+SSD avec 30 Go libres
 ```
 
 ### Termes de recherche
@@ -297,5 +297,6 @@ impression 3D
 
 Les cases « System requirements » affichent aujourd'hui 12 Go de RAM minimum et 6 Go
 de mémoire vidéo, ce qui contredit le mode cloud. À régler :
-- Memory : minimum 16 GB, recommandé 32 GB (8 GB non mesure et trop juste : Windows ~4 Go + textures 8K ~270 Mo chacune + maillages jusqu'a 10 M) ;
-- Video memory : aucun minimum (le mode cloud n'en a pas besoin), recommandé 12 GB.
+- Memory : minimum 16 GB, recommandé 20 GB (maximum de la liste ; 32 Go ecrits dans « Recommended hardware ») ;
+- Video memory : 6 GB des deux cotes (maximum de la liste ; 12 / 16 Go ecrits dans « Graphics ») ;
+- Processor / Graphics : textes en anglais, exigences du calcul LOCAL (decision du user : pas de mode cloud dans cette section).
