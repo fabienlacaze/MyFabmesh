@@ -116,7 +116,7 @@ export default function ResetPasswordPage() {
         }).catch(() => {});
       }
       setInfo('Password updated — redirecting…');
-      setTimeout(() => { window.location.replace('/account'); }, 700);
+      setTimeout(() => { window.location.replace('/app/'); }, 700);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally { setBusy(false); }

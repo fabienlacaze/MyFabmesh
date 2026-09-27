@@ -6,6 +6,7 @@
 //
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { T } from '@/lib/langue';
 
 const MOCK = process.env.NEXT_PUBLIC_MOCK === '1';
 
@@ -39,20 +40,21 @@ export function Nav() {
       <div className="topbar-right">
         {user ? (
           <>
-            <a href="/app/" className="nav-link">Nouveau maillage</a>
-            <a href="/app/" className="nav-link">Mes projets</a>
-            <Link href="/buy" className="nav-link">Crédits</Link>
-            <Link href="/account" className="nav-link" title={user.email ?? ''}>
+            <a href="/app/" className="nav-link"><T fr="Ouvrir l'appli" en="Open the app" /></a>
+            <Link href="/market" className="nav-link">Marketplace</Link>
+            <Link href="/buy" className="nav-link"><T fr="Crédits" en="Credits" /></Link>
+            {/* le compte vit dans les parametres de l'appli (/account supprimee, 2026-09-28) */}
+            <a href="/app/?reglages=compte" className="nav-link" title={user.email ?? ''}>
               {user.email?.split('@')[0]}
-            </Link>
+            </a>
             <span className="credits-pill">{user.credits}</span>
           </>
         ) : (
           <>
-            <Link href="/buy" className="nav-link">Tarifs</Link>
-            <Link href="https://fabienlacaze.github.io/MyFabmesh" target="_blank" className="nav-link">Application bureau</Link>
+            <Link href="/buy" className="nav-link"><T fr="Tarifs" en="Pricing" /></Link>
+            <Link href="https://fabienlacaze.github.io/MyFabmesh" target="_blank" className="nav-link"><T fr="Application bureau" en="Desktop app" /></Link>
             <Link href="/login" className="primary-btn" style={{ height: 32, padding: '6px 16px', fontSize: 12 }}>
-              Se connecter
+              <T fr="Se connecter" en="Sign in" />
             </Link>
           </>
         )}

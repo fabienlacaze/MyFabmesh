@@ -3588,10 +3588,296 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     }, true);
   }
 
+  /* ═══ LE COMPTE DANS LES PARAMETRES (2026-09-28) ═══════════════════════
+   * La page /account (Next.js) est supprimee — user : « cette page est trop
+   * bizarre », « supprime-la et reintegre ces elements dans les bons endroits
+   * de l'appli ». Tout ce qu'elle portait vit desormais dans ⚙ Parametres :
+   * compte (solde, historique, deconnexion), gains Marketplace et versements
+   * Stripe, reponses du support, double authentification, donnees personnelles
+   * (export, suppression). Les retours de Stripe arrivent sur
+   * /app/?paid=1&session_id=… et /app/?reglages=paiements&stripe_return=1. */
+  function _escReg(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function _toastReg(msg, type) {
+    setTimeout(() => { if (typeof window.showToast === 'function') window.showToast(msg, type || 'success', 6000); }, 400);
+  }
+  const _REG_ROUGE = 'color:#e94560; border-color:#e94560;';
+  const _REG_HTML = `
+    <div class="settings-section-header" id="reg-titre-compte">Account</div>
+    <div class="settings-box" id="reg-compte">
+      <div class="reg-ligne"><span id="reg-email" style="font-weight:600;">…</span>
+        <button type="button" class="ghost-btn" id="reg-deconnexion" style="margin-left:auto;">Log out</button></div>
+      <div class="reg-ligne"><span class="credit-badge" id="reg-solde">…</span><span style="font-size:12px; color:var(--text-2);">credits</span>
+        <a href="/buy" class="primary-btn" style="margin-left:auto; text-decoration:none;">+ Top up</a></div>
+      <div class="reg-ligne"><span style="font-size:12px; color:var(--text-2);">Every job, its cost and its result</span>
+        <button type="button" class="ghost-btn" id="reg-historique" style="margin-left:auto;">Usage history</button></div>
+    </div>
+    <div class="settings-section-header" id="reg-titre-paiements">Marketplace earnings</div>
+    <div class="settings-box" id="reg-gains"><span style="font-size:12px; color:var(--text-2);">Loading…</span></div>
+    <div class="settings-section-header">Replies from support</div>
+    <div class="settings-box" id="reg-reponses"><span style="font-size:12px; color:var(--text-2);">Loading…</span></div>
+    <div class="settings-section-header">Two-factor authentication</div>
+    <div class="settings-box" id="reg-2fa"><span style="font-size:12px; color:var(--text-2);">Loading…</span></div>
+    <div class="settings-section-header">Privacy &amp; data</div>
+    <div class="settings-box" id="reg-donnees">
+      <p style="margin:0 0 8px; font-size:12px; color:var(--text-2);">Download every piece of data we hold about you, or permanently delete your account and all of its data.</p>
+      <div class="reg-ligne">
+        <a href="/api/me/export" download class="ghost-btn" style="text-decoration:none;">Download my data (JSON)</a>
+        <button type="button" class="ghost-btn" id="reg-supprimer" style="${_REG_ROUGE}">Delete my account</button>
+      </div>
+      <div id="reg-supprimer-confirm" hidden style="margin-top:8px;">
+        <p style="margin:0 0 6px; font-size:12px;">This erases your account, every project, image and 3D model, and your payment history. It cannot be undone. Type <strong>DELETE</strong> to confirm.</p>
+        <div class="reg-ligne">
+          <input type="text" id="reg-supprimer-mot" autocomplete="off" spellcheck="false" style="flex:1; min-width:120px; padding:6px 10px; background:var(--bg-2); color:var(--text-0); border:1px solid var(--border); border-radius:6px;" />
+          <button type="button" class="ghost-btn" id="reg-supprimer-go" disabled style="${_REG_ROUGE}">Delete forever</button>
+        </div>
+      </div>
+    </div>`;
+
+  async function _jsonReg(url, init) {
+    try {
+      const r = await fetch(url, Object.assign({ credentials: 'include' }, init || {}));
+      const j = await r.json().catch(() => ({}));
+      return r.ok ? j : Object.assign({ __erreur: j.error || ('HTTP ' + r.status) }, j);
+    } catch (e) { return { __erreur: e?.message || String(e) }; }
+  }
+
+  function _rendreGains(er, ss, pref) {
+    const box = document.getElementById('reg-gains');
+    if (!box) return;
+    const ok = (x) => x && !x.__erreur;
+    const actif = ok(ss) && !!ss.charges_enabled;
+    const compte = ok(ss) && !!ss.has_account;
+    const choix = ok(ss) && (ss.payout_choice === 'cash' || ss.payout_choice === 'credits')
+      ? ss.payout_choice : (ok(ss) && ss.payout_mode === 'cash' ? 'cash' : 'credits');
+    const cpe = ok(pref) && pref.credits_par_euro ? pref.credits_par_euro : 8;
+    const ventes = ok(er) ? (er.sales_count || 0) : 0;
+    const gagnes = ok(er) ? (er.total_credits_paid || 0) : 0;
+    const argent = (ok(er) && Array.isArray(er.cash) ? er.cash : [])
+      .map((b) => (b.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: String(b.currency || 'eur').toUpperCase() }))
+      .join(' · ');
+    const stripe = !compte
+      ? `<span style="font-size:12px; color:var(--text-2);">To receive money, set up Stripe payouts. Until then, sales are paid in credits.</span>
+         <button type="button" class="primary-btn" data-stripe="onboard" style="margin-left:auto;">&#128179; Set up Stripe payouts</button>`
+      : !actif
+        ? `<span style="font-size:12px; color:#d4a017;">Stripe is still verifying your account: sales are paid in credits until it is active.</span>
+           <button type="button" class="ghost-btn" data-stripe="onboard" style="margin-left:auto;">Resume Stripe setup</button>`
+        : `<span style="font-size:12px; color:#4ade80; font-weight:600;">&#10003; Stripe payouts active</span>
+           <button type="button" class="ghost-btn" data-stripe="dashboard" style="margin-left:auto;">Open Stripe dashboard</button>`;
+    box.innerHTML = `
+      <div class="reg-ligne" style="gap:22px;">
+        <span><strong style="font-size:18px;">${ventes}</strong> <span style="font-size:12px; color:var(--text-2);">items sold</span></span>
+        <span><span class="credit-badge">${gagnes}</span> <span style="font-size:12px; color:var(--text-2);">credits earned</span></span>
+        ${argent ? `<span style="font-size:13px; font-weight:600;">${_escReg(argent)}</span>` : ''}
+      </div>
+      <div style="font-size:11px; color:var(--text-2); margin:10px 0 2px; text-transform:uppercase; letter-spacing:.5px;">Receive my earnings as</div>
+      <div class="reg-ligne">
+        <label class="reg-choix"><input type="radio" name="reg-versement" value="credits" ${choix !== 'cash' ? 'checked' : ''} />
+          <span class="credit-badge icon-only" aria-hidden="true"></span> Credits <small>1 € earned = ${cpe} credits, added right away</small></label>
+        <label class="reg-choix"><input type="radio" name="reg-versement" value="cash" ${choix === 'cash' ? 'checked' : ''} />
+          &#128182; Money <small>paid to your bank through Stripe</small></label>
+      </div>
+      <div class="reg-ligne">${stripe}</div>`;
+    box.querySelectorAll('input[name="reg-versement"]').forEach((r) => r.addEventListener('change', async () => {
+      const res = await _jsonReg('/api/market/seller/payout-pref', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: r.value }),
+      });
+      if (res.__erreur) _toastReg('Choice not saved: ' + res.__erreur, 'error');
+    }));
+    box.querySelectorAll('[data-stripe]').forEach((b) => b.addEventListener('click', async () => {
+      const tableau = b.dataset.stripe === 'dashboard';
+      // Onglet ouvert AVANT l'appel pour le tableau de bord (sinon bloque) ;
+      // l'inscription se fait dans cet onglet et revient dans l'appli.
+      const w = tableau ? window.open('', '_blank') : null;
+      b.disabled = true;
+      const res = await _jsonReg(tableau ? '/api/market/seller/dashboard' : '/api/market/seller/onboard', { method: 'POST' });
+      b.disabled = false;
+      if (res.__erreur || !res.url) { if (w) w.close(); _toastReg('Stripe: ' + (res.__erreur || 'no link'), 'error'); return; }
+      if (w) w.location.href = res.url; else window.location.href = res.url;
+    }));
+  }
+
+  function _rendreReponses(rp) {
+    const box = document.getElementById('reg-reponses');
+    if (!box) return;
+    const liste = rp && !rp.__erreur && Array.isArray(rp.replies) ? rp.replies : [];
+    if (!liste.length) {
+      box.innerHTML = '<span style="font-size:12px; color:var(--text-2);">No replies yet. When we answer a message you sent with Contact us, the reply appears here.</span>';
+      return;
+    }
+    box.innerHTML = liste.map((r) => `
+      <div style="border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin:6px 0;">
+        <div style="font-weight:600; font-size:13px;">${_escReg(r.subject)}</div>
+        <div style="font-size:11px; color:var(--text-2); margin:2px 0 6px;">Replied ${_escReg(new Date(r.replied_at).toLocaleString())}</div>
+        <details><summary style="cursor:pointer; font-size:12px; color:var(--text-2);">Your message</summary>
+          <div style="white-space:pre-wrap; font-size:12px; margin-top:6px;">${_escReg(r.message)}</div></details>
+        <div style="white-space:pre-wrap; font-size:13px; margin-top:8px; padding:8px 10px; border-left:3px solid #4ade80; background:rgba(74,222,128,0.08);">${_escReg(r.reply_body)}</div>
+      </div>`).join('');
+  }
+
+  function _rendre2fa(m) {
+    const box = document.getElementById('reg-2fa');
+    if (!box) return;
+    if (!m || m.__erreur) {
+      box.innerHTML = '<span style="font-size:12px; color:var(--text-2);">Sign in to manage two-factor authentication.</span>';
+      return;
+    }
+    const verifie = (m.factors || []).find((f) => f.status === 'verified');
+    const intro = '<p style="margin:0 0 8px; font-size:12px; color:var(--text-2);">A 6-digit code from your phone (Microsoft Authenticator, Google Authenticator, Authy…) on top of your password. Strongly recommended.</p>';
+    if (verifie) {
+      box.innerHTML = intro + `<div class="reg-ligne"><span style="color:#4ade80; font-weight:600; font-size:13px;">&#10003; Enabled</span>
+        <span style="font-size:12px; color:var(--text-2);">since ${_escReg(new Date(verifie.created_at).toLocaleDateString())}</span>
+        <button type="button" class="ghost-btn" id="reg-2fa-off" style="margin-left:auto; ${_REG_ROUGE}">Disable</button></div>`;
+      const off = document.getElementById('reg-2fa-off');
+      off.addEventListener('click', async () => {
+        // deux clics : le premier arme, le second retire
+        if (off.dataset.arme !== '1') { off.dataset.arme = '1'; off.textContent = 'Click again to disable'; return; }
+        off.disabled = true;
+        const res = await _jsonReg('/api/me/mfa/disable', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ factor_id: verifie.id }) });
+        if (res.__erreur) { _toastReg('2FA: ' + res.__erreur, 'error'); off.disabled = false; return; }
+        _toastReg('Two-factor authentication disabled.');
+        _rendre2fa(await _jsonReg('/api/me/mfa'));
+      });
+      return;
+    }
+    box.innerHTML = intro + '<div class="reg-ligne"><button type="button" class="primary-btn" id="reg-2fa-on">Enable two-factor authentication</button></div><div id="reg-2fa-etape"></div>';
+    document.getElementById('reg-2fa-on').addEventListener('click', async (ev) => {
+      const bouton = ev.currentTarget;   // currentTarget vaut null apres un await
+      bouton.disabled = true;
+      const res = await _jsonReg('/api/me/mfa/enroll', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const etape = document.getElementById('reg-2fa-etape');
+      if (res.__erreur) { _toastReg('2FA: ' + res.__erreur, 'error'); bouton.disabled = false; return; }
+      const qr = String(res.qr_code || '');
+      const src = qr.startsWith('data:') ? qr : 'data:image/svg+xml;utf-8,' + encodeURIComponent(qr);
+      etape.innerHTML = `
+        <p style="margin:10px 0 6px; font-size:12px;">1. Scan this code with your authenticator app (or enter the key below).</p>
+        <img alt="2FA QR code" src="${_escReg(src)}" style="width:170px; height:170px; background:#fff; border-radius:8px; padding:6px;" />
+        <div style="font-family:monospace; font-size:12px; margin:6px 0 10px; word-break:break-all;">${_escReg(res.secret)}</div>
+        <p style="margin:0 0 6px; font-size:12px;">2. Enter the 6-digit code it shows.</p>
+        <div class="reg-ligne">
+          <input type="text" id="reg-2fa-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="width:120px; padding:6px 10px; background:var(--bg-2); color:var(--text-0); border:1px solid var(--border); border-radius:6px; letter-spacing:3px;" />
+          <button type="button" class="primary-btn" id="reg-2fa-ok">Confirm</button>
+        </div>`;
+      document.getElementById('reg-2fa-ok').addEventListener('click', async () => {
+        const code = document.getElementById('reg-2fa-code').value;
+        const v = await _jsonReg('/api/me/mfa/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ factor_id: res.factor_id, code }) });
+        if (v.__erreur) { _toastReg('2FA: ' + v.__erreur, 'error'); return; }
+        _toastReg('Two-factor authentication enabled. Future sign-ins will ask for a code.');
+        _rendre2fa(await _jsonReg('/api/me/mfa'));
+      });
+    });
+  }
+
+  async function _chargerReglagesCompte() {
+    const [me, er, ss, pref, rp, mfa] = await Promise.all([
+      _jsonReg('/api/me'), _jsonReg('/api/me/earnings'), _jsonReg('/api/market/seller/status'),
+      _jsonReg('/api/market/seller/payout-pref'), _jsonReg('/api/me/replies'), _jsonReg('/api/me/mfa'),
+    ]);
+    const u = me && !me.__erreur ? me.user : null;
+    const email = document.getElementById('reg-email');
+    if (email) email.textContent = u ? (u.email || '') : 'Not signed in';
+    const solde = document.getElementById('reg-solde');
+    if (solde) solde.textContent = u ? String(u.credits) : '—';
+    _rendreGains(er, ss, pref);
+    _rendreReponses(rp);
+    _rendre2fa(mfa);
+  }
+
+  function _ouvrirReglagesCompte(section) {
+    document.getElementById('btn-settings')?.click();
+    setTimeout(() => {
+      document.getElementById(section === 'paiements' ? 'reg-titre-paiements' : 'reg-titre-compte')
+        ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }, 400);
+  }
+
+  function installReglagesCompte() {
+    const modal = document.getElementById('modal-settings');
+    const carte = modal?.querySelector('.settings-card');
+    const entete = carte?.querySelector('.settings-header');
+    if (!modal || !entete || document.getElementById('reg-compte')) return;
+    if (!document.getElementById('reg-compte-style')) {
+      const st = document.createElement('style');
+      st.id = 'reg-compte-style';
+      st.textContent = `
+        .reg-ligne { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0; }
+        .reg-choix { display:flex; align-items:center; gap:6px; flex:1 1 220px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; cursor:pointer; font-size:13px; }
+        .reg-choix small { color:var(--text-2); font-size:11px; margin-left:auto; }`;
+      document.head.appendChild(st);
+    }
+    entete.insertAdjacentHTML('afterend', _REG_HTML);
+    document.getElementById('reg-deconnexion').addEventListener('click', async () => {
+      const bouton = document.getElementById('cloud-logout-btn');
+      if (bouton) { bouton.click(); return; }
+      await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' }).catch(() => {});
+      window.location.href = '/login';
+    });
+    document.getElementById('reg-historique').addEventListener('click', () => {
+      modal.classList.add('hidden');
+      document.getElementById('btn-history')?.click();
+    });
+    const mot = document.getElementById('reg-supprimer-mot');
+    const go = document.getElementById('reg-supprimer-go');
+    document.getElementById('reg-supprimer').addEventListener('click', () => {
+      document.getElementById('reg-supprimer-confirm').hidden = false;
+      mot.focus();
+    });
+    mot.addEventListener('input', () => { go.disabled = mot.value.trim() !== 'DELETE'; });
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      const res = await _jsonReg('/api/me/delete', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: 'DELETE' }),
+      });
+      if (res.__erreur) { _toastReg('Delete failed: ' + res.__erreur, 'error'); go.disabled = false; return; }
+      await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' }).catch(() => {});
+      if (res.auth_user_deleted === false) {
+        alert('Your projects, images, 3D models and payment history were deleted, but the login record could not be removed. Please try again in a minute or contact us.');
+      }
+      window.location.href = '/login';
+    });
+    // donnees rechargees a chaque ouverture des parametres
+    new MutationObserver(() => {
+      if (!modal.classList.contains('hidden')) _chargerReglagesCompte();
+    }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // Retours de Stripe et liens vers les parametres (/account supprimee).
+  function _gererRetoursCompte() {
+    const qs = new URLSearchParams(window.location.search);
+    const reglages = qs.get('reglages');
+    const paye = qs.get('paid') === '1';
+    const session = qs.get('session_id');
+    const retour = qs.get('stripe_return') === '1';
+    const relance = qs.get('stripe_refresh') === '1';
+    if (!reglages && !paye && !retour && !relance) return;
+    ['reglages', 'paid', 'session_id', 'stripe_return', 'stripe_refresh'].forEach((k) => qs.delete(k));
+    history.replaceState(null, '', window.location.pathname + (qs.toString() ? '?' + qs.toString() : '') + window.location.hash);
+    if (paye) {
+      _toastReg('✓ Payment received — your credits are arriving.');
+      // Rattrapage d'un webhook perdu : meme route idempotente que l'ancienne page
+      if (session) {
+        _jsonReg('/api/checkout/reconcile', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session_id: session }) })
+          .finally(() => { try { refreshCreditsPill(); } catch (_) {} });
+      }
+      let n = 0;
+      const iv = setInterval(() => { try { refreshCreditsPill(); } catch (_) {} if (++n >= 10) clearInterval(iv); }, 3000);
+    }
+    if (relance) {
+      // lien d'inscription Stripe expire : on en redemande un
+      _jsonReg('/api/market/seller/onboard', { method: 'POST' }).then((j) => { if (j && j.url) window.location.href = j.url; });
+      return;
+    }
+    if (retour) _toastReg('✓ Stripe setup completed — your payout status will update in a moment.');
+    if (reglages) setTimeout(() => _ouvrirReglagesCompte(reglages), 700);
+  }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       applyOverrides();
       installMarketplacePublish();
+      installReglagesCompte();
+      _gererRetoursCompte();
       _fetchPublishedIndex();
       _installPublishedBadgeWatcher();
       _startPublishedIndexPolling();
@@ -3600,6 +3886,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   } else {
     applyOverrides();
     installMarketplacePublish();
+    installReglagesCompte();
+    _gererRetoursCompte();
     _fetchPublishedIndex();
     _installPublishedBadgeWatcher();
     _startPublishedIndexPolling();

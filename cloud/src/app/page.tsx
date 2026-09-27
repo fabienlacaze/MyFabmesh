@@ -33,7 +33,7 @@ export default function HomePage() {
           if (cancelled) return;
           // Strip the hash so a reload doesn't loop here.
           window.history.replaceState(null, '', window.location.pathname);
-          window.location.replace('/account');
+          window.location.replace('/app/');
           return;
         }
 

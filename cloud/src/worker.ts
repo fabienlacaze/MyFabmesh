@@ -1307,6 +1307,75 @@ interface SessionUser {
 const MFM_SESSION_COOKIE = 'mfm-session';
 const MFM_REFRESH_COOKIE = 'mfm-refresh';
 
+/* ═══ DOUBLE AUTHENTIFICATION DEPUIS L'APPLI (2026-09-28) ═══
+ * La page /account (Next.js) gerait la 2FA avec le client Supabase du
+ * navigateur. Elle est supprimee (user : « reintegre ces elements dans
+ * l'appli ») et l'appli web n'embarque pas ce client : le worker appelle donc
+ * l'API d'authentification Supabase AU NOM de l'utilisateur, avec le jeton de
+ * sa session (cookie). Aucune configuration d'auth n'est modifiee. */
+async function handleMeMfa(req: Request, env: Env, action: string): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  const token = readSupabaseAccessToken(req);
+  const base = (env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/+$/, '');
+  const anon = env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  if (!token || !base || !anon) return err(503, 'authentication service unavailable');
+  const h = { authorization: `Bearer ${token}`, apikey: anon, 'content-type': 'application/json' };
+  const auth = async (chemin: string, init: RequestInit = {}) => {
+    const r = await fetch(`${base}/auth/v1${chemin}`, { ...init, headers: h });
+    const txt = await r.text();
+    let data: Record<string, unknown> = {};
+    try { data = txt ? JSON.parse(txt) : {}; } catch { data = { message: txt.slice(0, 200) }; }
+    return { ok: r.ok, status: r.status, data };
+  };
+  type Facteur = { id: string; status: string; factor_type: string; created_at: string };
+  const facteurs = async (): Promise<Facteur[]> => {
+    const r = await auth('/user');
+    const f = (r.data.factors as Facteur[] | undefined) ?? [];
+    return f.filter((x) => x.factor_type === 'totp');
+  };
+  const message = (d: Record<string, unknown>) => String(d.msg || d.message || d.error_description || d.error || 'request failed');
+  let body: { factor_id?: string; code?: string } = {};
+  if (req.method === 'POST') { try { body = await req.json() as typeof body; } catch { body = {}; } }
+
+  if (action === 'list') {
+    return json({ ok: true, factors: (await facteurs()).map((f) => ({ id: f.id, status: f.status, created_at: f.created_at })) });
+  }
+  if (action === 'enroll') {
+    // un enrolement commence mais jamais confirme bloque le suivant
+    for (const f of await facteurs()) {
+      if (f.status !== 'verified') await auth(`/factors/${f.id}`, { method: 'DELETE' });
+    }
+    const r = await auth('/factors', { method: 'POST', body: JSON.stringify({ factor_type: 'totp' }) });
+    if (!r.ok) return err(r.status === 422 ? 400 : 502, message(r.data));
+    const totp = (r.data.totp ?? {}) as { qr_code?: string; secret?: string };
+    return json({ ok: true, factor_id: r.data.id, qr_code: totp.qr_code ?? '', secret: totp.secret ?? '' });
+  }
+  const id = String(body.factor_id ?? '').trim();
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(id)) return err(400, 'factor_id required');
+  if (action === 'verify') {
+    const code = String(body.code ?? '').replace(/\s+/g, '');
+    if (!/^\d{6}$/.test(code)) return err(400, 'enter the 6-digit code from your authenticator app');
+    const ch = await auth(`/factors/${id}/challenge`, { method: 'POST', body: '{}' });
+    if (!ch.ok) return err(502, message(ch.data));
+    const v = await auth(`/factors/${id}/verify`, { method: 'POST', body: JSON.stringify({ challenge_id: ch.data.id, code }) });
+    if (!v.ok) return err(400, 'wrong code — check the time on your phone and try again');
+    return json({ ok: true });
+  }
+  if (action === 'disable') {
+    const r = await auth(`/factors/${id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      // Supabase exige une session validee par la 2FA pour la retirer
+      return err(r.status === 403 || r.status === 401 ? 403 : 502,
+        r.status === 403 || r.status === 401
+          ? 'sign out, sign back in with your 2FA code, then disable it'
+          : message(r.data));
+    }
+    return json({ ok: true });
+  }
+  return err(404, 'not found');
+}
+
 function readSupabaseAccessToken(req: Request): string | null {
   const cookies = parseCookies(req);
   // 1. Prefer the new HttpOnly cookie — XSS-safe.
@@ -5662,8 +5731,9 @@ async function handleMarketSellerOnboard(req: Request, env: Env): Promise<Respon
   const SITE = siteUrl(env, 'http://localhost:3030');
   const link = await _stripeRest(env, 'https://api.stripe.com/v1/account_links', {
     account: seller.stripe_account_id,
-    refresh_url: `${SITE}/account?stripe_refresh=1`,
-    return_url: `${SITE}/account?stripe_return=1`,
+    // /account supprimee (2026-09-28) : retour dans l'appli, parametres ouverts
+    refresh_url: `${SITE}/app/?reglages=paiements&stripe_refresh=1`,
+    return_url: `${SITE}/app/?reglages=paiements&stripe_return=1`,
     type: 'account_onboarding',
   });
   if (!link.ok) return err(502, 'stripe account_links failed: ' + link.raw.slice(0, 200));
@@ -6527,7 +6597,7 @@ async function handleCheckout(req: Request, env: Env): Promise<Response> {
        * plus haut porte deja les metadonnees, dont la renonciation
        * horodatee. L'obligation de confirmation sur support durable est
        * donc tenue par la facture de cycle. */
-      success_url: `${SITE}/account?paid=1&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${SITE}/app/?paid=1&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE}/buy?canceled=1`,
     });
     return json({ url: session.url });
@@ -6592,7 +6662,7 @@ async function handleCheckout(req: Request, env: Env): Promise<Response> {
      * meme de savoir qu'une vente avait eu lieu. La page /account
      * renvoie desormais cet identifiant a /api/checkout/reconcile, qui
      * credite par le meme chemin idempotent que le webhook. */
-    success_url: `${SITE}/account?paid=1&session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${SITE}/app/?paid=1&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${SITE}/buy?canceled=1`,
   });
   return json({ url: session.url });
@@ -8269,7 +8339,7 @@ async function handleMockCheckout(req: Request, env: Env): Promise<Response> {
     user_id: user.id, pack_id: pack.id, credits: pack.credits,
     amount_eur: pack.euros, created_at: new Date().toISOString(),
   });
-  return json({ url: `${siteUrl(env, 'http://localhost:3030')}/account?paid=1` });
+  return json({ url: `${siteUrl(env, 'http://localhost:3030')}/app/?paid=1` });
 }
 
 async function handleMockLogin(req: Request, env: Env): Promise<Response> {
@@ -20235,6 +20305,11 @@ export default {
         if (pathname === '/api/auth/refresh'          && method === 'POST') return await handleAuthRefresh(req, env);
         if (pathname === '/api/auth/signout'          && method === 'POST') return await handleAuthSignout(req, env);
         if (pathname === '/api/me/export'             && method === 'GET')  return await handleMeExport(req, env);
+        if (pathname === '/api/me/mfa'                && method === 'GET')  return await handleMeMfa(req, env, 'list');
+        {
+          const m = pathname.match(/^\/api\/me\/mfa\/(enroll|verify|disable)$/);
+          if (m && method === 'POST') return await handleMeMfa(req, env, m[1]);
+        }
         if (pathname === '/api/parental/status'       && method === 'GET')  return await handleParentalStatus(req, env);
         if (pathname === '/api/parental/toggle'       && method === 'POST') return await handleParentalToggle(req, env);
         if (pathname === '/api/client-log'            && method === 'POST') return await handleClientLog(req, env);

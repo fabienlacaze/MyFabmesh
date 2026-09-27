@@ -31,7 +31,7 @@ export default function AuthCallbackPage() {
 
         const url = new URL(window.location.href);
         const code = url.searchParams.get('code');
-        const next = url.searchParams.get('next') || '/account';
+        const next = url.searchParams.get('next') || '/app/';
         const hasHashToken =
           typeof window !== 'undefined'
           && window.location.hash.includes('access_token');
