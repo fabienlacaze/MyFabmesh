@@ -1795,6 +1795,7 @@
       document.getElementById('cards-traffic').innerHTML = [
         card('Signups (total)',        _signups == null ? '—' : _signups, 'registered profiles', 'accent'),
         card('Users with ops',         _withOps,                          'ran ≥1 operation'),
+        card('Active users (now)',     _u.online_now == null ? '—' : _u.online_now, 'app open in the last 5 min', 'ok'),
         card('Active users (7d)',      _act7 == null ? '—' : _act7,       'distinct users, last 7 days', 'ok'),
         card('Desktop downloads',      d.desktop_downloads_total,         `${totalDownloadsLast30} in last 30d`),
         card('Last 7d ops',            d.last_7d.ops),

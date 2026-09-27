@@ -2381,6 +2381,8 @@ class MyFabmeshMesh:
                 # d'environnement, donc comportement inchange si le
                 # worker ne le transmet pas.
                 tex_steps=int(payload.get("tex_steps") or 0),
+                # « Max triangles » choisi : nombre tenu a +/- 5 %.
+                tris_exact=bool(payload.get("tris_exact")),
                 # Case « Texture smooth » : filtre bilateral sur l atlas.
                 # Le drapeau etait transmis depuis toujours et n avait aucun
                 # lecteur — la case etait donc desactivee cote web.

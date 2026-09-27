@@ -7205,7 +7205,9 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         quality: { pas: 32, atlas: 4096 }, ultra_8k: { pas: 32, atlas: 4096 },
       };
       const palier = input.preset ? PALIERS[input.preset] : undefined;
-      const trellisMode = input.ultra_q     ? '1536_cascade'
+      // Au-dela de 5 M triangles, la grille 1024 ne fournit pas assez de
+      // matiere (7,6 M brut mesure sur un personnage) : grille 1536.
+      const trellisMode = (input.ultra_q || (input.max_tris ?? 0) > 5_000_000) ? '1536_cascade'
                         : input.quality_plus ? '1024_cascade'
                         : input.mode === 'full' ? '1024_cascade'
                         : input.mode === 'lite' ? '512'
@@ -7232,6 +7234,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         // quatre paliers, factures 3/4/6/8 credits, produisaient le meme
         // travail GPU. Borne a [8, 48] pour qu'un client trafique ne
         // puisse pas commander une generation interminable.
+        tris_exact: !!input.max_tris,
         tex_steps: palier ? palier.pas : Math.max(0, Math.min(48,
           parseInt(String((input as unknown as Record<string, unknown>).trellis2Steps ?? 0), 10) || 0)),
         rectify: input.rectify,
@@ -9782,6 +9785,7 @@ async function callModalMeshStart(env: Env, input: {
   decimation_target?: number;
   texture_size?: number;
   tex_steps?: number;
+  tris_exact?: boolean;
   rectify?: boolean;
   face_fix?: boolean;
   refine?: boolean;
@@ -9812,6 +9816,7 @@ async function callModalMeshStart(env: Env, input: {
       // travail GPU a quatre prix differents. 0 = defaut d'environnement,
       // donc comportement inchange si le client ne precise rien.
       tex_steps: input.tex_steps ?? 0,
+      tris_exact: !!input.tris_exact,
       rectify: !!input.rectify,
       face_fix: !!input.face_fix,
       refine:   !!input.refine,
@@ -16597,6 +16602,8 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       signups_total: signupsTotal,
       active_7d: active7.size,
       active_30d: active30.size,
+      // En ce moment : comptes dont l'appli a battu dans les 5 dernieres min.
+      online_now: await _comptesEnLigne(env),
     },
     // The 20 000-row cap orders by created_at DESC, so the OLDEST jobs are the
     // ones dropped: every all-time total below silently understates once the
@@ -18307,9 +18314,23 @@ async function handleDownloadTrack(_req: Request, env: Env): Promise<Response> {
 const HEARTBEAT_KEY = '_meta/last_user_heartbeat';
 const HEARTBEAT_WINDOW_MS = 5 * 60 * 1000;
 
-async function markHeartbeat(env: Env): Promise<void> {
+async function markHeartbeat(env: Env, userId?: string): Promise<void> {
   if (!env.MESHES) return;
   await env.MESHES.put(HEARTBEAT_KEY, String(Date.now()));
+  // PRESENCE PAR COMPTE (2026-09-27) : « utilisateurs actifs en ce moment »
+  // dans l'admin. Un objet par compte, ecrase a chaque battement (2 min) :
+  // rien ne s'accumule, seule la date du dernier battement est gardee.
+  if (userId) await env.MESHES.put(`_meta/presence/${userId}`, String(Date.now()));
+}
+
+/** Comptes vus dans les HEARTBEAT_WINDOW_MS dernieres minutes. */
+async function _comptesEnLigne(env: Env): Promise<number | null> {
+  if (!env.MESHES) return null;
+  try {
+    const l = await env.MESHES.list({ prefix: '_meta/presence/', limit: 1000 });
+    const seuil = Date.now() - HEARTBEAT_WINDOW_MS;
+    return (l.objects || []).filter((o) => o.uploaded && o.uploaded.getTime() >= seuil).length;
+  } catch { return null; }
 }
 
 async function isUserOnline(env: Env): Promise<boolean> {
@@ -18526,7 +18547,7 @@ async function handleHeartbeat(req: Request, env: Env): Promise<Response> {
   // quelqu'un qui ne peut rien lancer n'a aucun sens.
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
-  await markHeartbeat(env);
+  await markHeartbeat(env, user.id);
   return json({ ok: true });
 }
 

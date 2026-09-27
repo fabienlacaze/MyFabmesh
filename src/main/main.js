@@ -7895,7 +7895,11 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
       // « Max triangles » choisi par l'utilisateur : l'emporte sur les valeurs
       // ci-dessus (borne 5 000 - 3 000 000, meme regle que le web).
       ...(engine === 'trellis2_native' && Number(trellis2MaxTris) > 0
-        ? { FABMESH_TRELLIS2_NATIVE_DECIM: String(Math.max(5000, Math.min(10000000, Math.round(Number(trellis2MaxTris))))) }
+        ? {
+            FABMESH_TRELLIS2_NATIVE_DECIM: String(Math.max(5000, Math.min(10000000, Math.round(Number(trellis2MaxTris))))),
+            FABMESH_TRELLIS2_TRIS_EXACT: '1',   // nombre tenu a +/- 5 %
+            ...(Number(trellis2MaxTris) > 5000000 ? { FABMESH_TRELLIS2_NATIVE_MODE: '1536_cascade', FABMESH_TRELLIS2_MAX_TOKENS: '32768' } : {}),
+          }
         : {}),
       // TRELLIS-2 native: auto-feed extra views to the mesh
       // pipeline when the user generated them. DISABLED BY DEFAULT since

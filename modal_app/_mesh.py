@@ -210,6 +210,61 @@ def _accorder_couleurs_source(glb_obj, image_ref, log=print):
             f'(image {sat_ref:.3f}, gain x{g_s:.2f})')
     return fait
 
+# Triangles EXACTS (2026-09-27, user : « s'il choisit 10 M il en faut 10 M
+# +/- 5 % »). Le moteur livre TOUJOURS moins que sa cible : mesure sur 40
+# maillages a 500 K, 92,6 % a 99,9 % (mediane 95,7 %). On vise donc la cible
+# divisee par 0,9625 (resultat attendu -3,8 % / +3,8 %). Si l'objet est trop
+# simple pour atteindre la cible (maillage brut trop petit), le maillage brut
+# est subdivise (milieux des aretes, sans T-jonction) puis reduit a la cible
+# AVANT le depliage UV et la cuisson : la texture reste juste.
+TRIS_FACTEUR = 0.9625
+TRIS_TOLERANCE = 0.05
+
+
+def cible_compensee(cible):
+    return int(round(cible / TRIS_FACTEUR))
+
+
+def compter_faces(glb_obj):
+    geoms = list(glb_obj.geometry.values()) if hasattr(glb_obj, 'geometry') else [glb_obj]
+    return int(sum(len(getattr(g, 'faces', [])) for g in geoms))
+
+
+def subdiviser_milieux(vertices, faces):
+    """Subdivision au milieu des aretes (1 triangle -> 4), tenseurs torch."""
+    import torch
+    m = faces.shape[0]
+    e = torch.cat([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]], 0)
+    e = torch.sort(e, dim=1).values
+    uniq, inv = torch.unique(e, dim=0, return_inverse=True)
+    n = vertices.shape[0]
+    v2 = torch.cat([vertices, (vertices[uniq[:, 0]] + vertices[uniq[:, 1]]) * 0.5], 0)
+    a, b, c = n + inv[:m], n + inv[m:2 * m], n + inv[2 * m:]
+    f0, f1, f2 = faces[:, 0], faces[:, 1], faces[:, 2]
+    f = torch.cat([torch.stack([f0, a, c], 1), torch.stack([a, f1, b], 1),
+                   torch.stack([c, b, f2], 1), torch.stack([a, b, c], 1)], 0)
+    return v2, f.to(faces.dtype)
+
+
+def exporter_exact(exporter, vertices, faces, cible, log=print):
+    """exporter(vertices, faces, decimation_target, remesh) -> glb_obj.
+    1) export normal (remesh) a la cible compensee ; 2) s'il manque plus de
+    5 %, maillage brut subdivise puis reduit (remesh=False) ; on garde le plus
+    proche de la cible."""
+    glb = exporter(vertices, faces, cible_compensee(cible), True)
+    n = compter_faces(glb)
+    log(f'[tris] cible {cible} -> {n} faces ({n / cible - 1:+.1%})')
+    if n >= cible * (1 - TRIS_TOLERANCE):
+        return glb
+    v, f = vertices, faces
+    while f.shape[0] < cible_compensee(cible) * 1.3 and f.shape[0] < 60_000_000:
+        v, f = subdiviser_milieux(v, f)
+    log(f'[tris] maillage brut insuffisant : subdivise a {f.shape[0]} faces, second export')
+    glb2 = exporter(v, f, cible_compensee(cible), False)
+    n2 = compter_faces(glb2)
+    log(f'[tris] second export : {n2} faces ({n2 / cible - 1:+.1%})')
+    return glb2 if abs(n2 - cible) < abs(n - cible) else glb
+
 # --- NOYAU PARTAGE : FIN ---
 
 
@@ -344,6 +399,7 @@ def generate(
     decimation_target: int = 500_000,
     texture_size: int = 2048,
     tex_steps: int = 0,           # 0 = garder le defaut d'environnement
+    tris_exact: bool = False,     # « Max triangles » : nombre tenu a +/- 5 %
     smooth: bool = False,         # filtre bilateral sur l'atlas (case « Texture smooth »)
 ) -> bytes:
     """Run TRELLIS-2 inference + GLB export. Returns the GLB bytes
@@ -461,19 +517,25 @@ def generate(
           f'mode={mode} views={vues_utilisees}', flush=True)
 
     t_glb = time.time()
-    glb_obj = o_voxel_module.postprocess.to_glb(
-        vertices=o_voxel_obj.vertices,
-        faces=o_voxel_obj.faces,
-        attr_volume=o_voxel_obj.attrs,
-        coords=o_voxel_obj.coords,
-        attr_layout=o_voxel_obj.layout,
-        voxel_size=o_voxel_obj.voxel_size,
-        aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
-        decimation_target=decimation_target,
-        texture_size=texture_size,
-        remesh=True,
-        verbose=False,
-    )
+    def _exporter(v, f, cible, remesh):
+        return o_voxel_module.postprocess.to_glb(
+            vertices=v,
+            faces=f,
+            attr_volume=o_voxel_obj.attrs,
+            coords=o_voxel_obj.coords,
+            attr_layout=o_voxel_obj.layout,
+            voxel_size=o_voxel_obj.voxel_size,
+            aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
+            decimation_target=cible,
+            texture_size=texture_size,
+            remesh=remesh,
+            verbose=False,
+        )
+    if tris_exact:
+        glb_obj = exporter_exact(_exporter, o_voxel_obj.vertices, o_voxel_obj.faces,
+                                 decimation_target, log=lambda m: print(m, flush=True))
+    else:
+        glb_obj = _exporter(o_voxel_obj.vertices, o_voxel_obj.faces, decimation_target, True)
     print(f'[mesh] GLB export dt={time.time()-t_glb:.1f}s', flush=True)
 
     # Couleurs accordees sur l'IMAGE SOURCE (noyau partage) plutot qu'un

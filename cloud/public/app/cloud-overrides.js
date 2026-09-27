@@ -823,6 +823,8 @@ window.__optionsMortesCloud = new Set([]);
         line-height: 1;
       }
       .generate-cost-pill { margin-left: 8px; }
+      /* Vignette de prix en bout de ligne d'option (options 3D). */
+      .cloud-cost-badge.opt-cost { height: 20px; min-width: 26px; font-size: 12px; margin-left: auto; }
       /* Topbar balance pill — larger so the balance is the first thing
          the user sees. */
       .credit-badge.lg {
@@ -1249,10 +1251,10 @@ window.__optionsMortesCloud = new Set([]);
           if (opt.dataset.labelBase === undefined) {
             opt.dataset.labelBase = opt.textContent.replace(/\s*[·)]?\s*\d+\s*cr\s*\)?\s*$/, '').replace(/\s*\)\s*$/, '');
           }
+          // Le prix n'est plus dans le texte : il est dans la vignette ⚡ en
+          // bout de ligne (_majVignettesOptions3D), demande du user 2026-09-27.
           const base = opt.dataset.labelBase;
-          opt.textContent = base.includes('(') && !base.endsWith(')')
-            ? `${base} · ${v} cr)`
-            : `${base} · ${v} cr`;
+          opt.textContent = base.includes('(') && !base.endsWith(')') ? `${base})` : base;
         }
       } else {
         const el = document.getElementById(target);
@@ -1536,11 +1538,48 @@ window.__optionsMortesCloud = new Set([]);
         const sup = tris > 500000 ? Math.ceil((tris - 500000) / 500000) * (window.__prixTris500k ?? 1) : 0;
         total += sup;
         const hint = document.getElementById('ws-trellis2-tris-cost');
-        // Plafond, pas une promesse : les tranches non livrees sont rendues.
-        if (hint) hint.textContent = sup ? `+${sup} cr max (refunded if fewer)` : '';
+        if (hint) { hint.textContent = String(sup); hint.style.display = sup ? '' : 'none'; }
       }
       const valueEl = document.getElementById('ws-mesh-cost-value');
       if (valueEl) valueEl.textContent = String(total);
+      _majVignettesOptions3D();
+    }
+
+    /* VIGNETTES ⚡ EN BOUT DE LIGNE (2026-09-27, demande du user) : le prix
+     * n'est plus ecrit dans le libelle (« +2 cr · ... ») mais affiche dans la
+     * meme vignette que les outils, a droite de chaque ligne. Valeur lue sur
+     * `data-credits`, que syncLivePricing tient a jour depuis la grille. */
+    function _majVignettesOptions3D() {
+      for (const id of [...optionIds, 'ws-trellis2-multiref', 'ws-trellis2-ultra-hd']) {
+        const cb = document.getElementById(id);
+        const lab = cb && cb.closest('label');
+        if (!lab) continue;
+        let v = lab.querySelector(':scope > .opt-cost');
+        if (!v) {
+          v = document.createElement('span');
+          v.className = 'cloud-cost-badge opt-cost';
+          lab.appendChild(v);
+          lab.style.display = 'flex';
+          lab.style.alignItems = 'center';
+          lab.style.gap = '6px';
+          lab.style.width = '100%';
+        }
+        const n = parseInt(cb.dataset.credits || '0', 10) || 0;
+        v.textContent = String(n);
+        v.style.display = (n > 0 && cb.dataset.morte !== '1') ? '' : 'none';
+      }
+      // Menu Quality : vignette du palier choisi, en bout de ligne.
+      let vp = document.getElementById('ws-trellis2-preset-cost');
+      if (!vp && preset.parentElement) {
+        vp = document.createElement('span');
+        vp.id = 'ws-trellis2-preset-cost';
+        vp.className = 'cloud-cost-badge opt-cost';
+        preset.insertAdjacentElement('afterend', vp);
+      }
+      if (vp) vp.textContent = String(parseInt(preset.selectedOptions[0]?.dataset?.credits || '1', 10));
+      for (const row of [preset.closest('.form-row'), document.getElementById('ws-trellis2-tris-row')]) {
+        if (row) { row.style.display = row.style.display === 'none' ? 'none' : 'flex'; row.style.alignItems = 'center'; row.style.gap = '6px'; }
+      }
     }
 
     preset.addEventListener('change', recompute);

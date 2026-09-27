@@ -673,10 +673,10 @@
                     <div class="form-row" style="margin-top:6px;">
                       <label style="font-size:11px;">Quality preset</label>
                       <select id="ws-trellis2-preset" data-cost-base="1">
-                        <option value="fast" selected data-credits="1">Fast (12 steps · 2048px · 1 cr)</option>
-                        <option value="balanced" data-credits="2">Balanced (24 steps · 2048px · 2 cr)</option>
-                        <option value="quality" data-credits="4">Quality (32 steps · 4096px · 4 cr)</option>
-                        <option value="ultra_8k" data-credits="8">Ultra 8K (32 steps · 4096→8192px · 8 cr)</option>
+                        <option value="fast" selected data-credits="1">Fast (12 steps · 2048px)</option>
+                        <option value="balanced" data-credits="2">Balanced (24 steps · 2048px)</option>
+                        <option value="quality" data-credits="4">Quality (32 steps · 4096px)</option>
+                        <option value="ultra_8k" data-credits="8">Ultra 8K (32 steps · 4096→8192px)</option>
                       </select>
                     </div>
                     <!-- TRIANGLES MAX (2026-09-27) : plafond applique par le moteur a la
@@ -692,59 +692,59 @@
                         <option value="1000000">1 M</option>
                         <option value="2000000">2 M</option>
                         <option value="3000000">3 M (ultra detailed)</option>
-                        <option value="10000000">Max (full detail, up to ~7.5 M · very large file)</option>
+                        <option value="10000000">10 M (maximum · very large file, ~400 MB)</option>
                         <option value="custom">Custom…</option>
                       </select>
                       <input type="number" id="ws-trellis2-tris-custom" min="5000" max="10000000" step="1000" value="750000"
                              style="display:none; width:110px; margin-left:6px;" title="5 000 to 10 000 000 triangles — unused credits are refunded if the mesh has fewer" />
-                      <span id="ws-trellis2-tris-cost" class="form-hint" style="margin-left:6px;"></span>
+                      <span id="ws-trellis2-tris-cost" class="cloud-cost-badge opt-cost" style="display:none;"></span>
                     </div>
                     <div class="form-row check-row" id="ws-trellis2-multiref-row" style="margin-top:6px; display:none;">
-                      <label class="inline-check" style="font-size:11px;">
+                      <label class="inline-check" style="font-size:11px;" title="Uses the front AND back photos together, so the back of the mesh matches your back view.">
                         <input type="checkbox" id="ws-trellis2-multiref" data-credits="1" />
-                        Multi-reference (use front + back photo · +1 cr)
+                        Multi-reference
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:6px;">
                       <label class="inline-check" style="font-size:11px;" title="Tile-by-tile detail refinement that adds micro-details (skin pores, fabric weave, scales, fur). Works best on objects/animals/creatures; less effective on human faces.">
                         <input type="checkbox" id="ws-trellis2-refine" data-credits="2" />
-                        Detail refine (+2 cr · sharper micro-details)
+                        Detail refine
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Pre-process: rectify source image to a canonical view (strict front for characters, 3/4 ISO for vehicles / objects / creatures). Dramatically improves mesh proportions. Sampled over 3 seeds with auto-scoring.">
                         <input type="checkbox" id="ws-trellis2-rectify" data-credits="3" checked />
-                        Auto-rectify source view (+3 cr · better mesh proportions)
+                        Auto-rectify
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Edge-preserving bilateral filter on the baseColor atlas. Cleans speckled grain on smooth surfaces (paint, chrome, glass) while keeping panel-gap edges sharp. Best for vehicles / objects / hard surfaces.">
                         <input type="checkbox" id="ws-trellis2-smooth" data-credits="1" checked />
-                        Texture smooth (+1 cr · cleaner smooth surfaces)
+                        Texture smooth
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Sharper geometry on edges (panel gaps, grilles).">
                         <input type="checkbox" id="ws-trellis2-quality-plus" data-credits="1" checked />
-                        Sharp edges, geometry (+1 cr)
+                        Sharp edges
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Higher voxel resolution for finer geometric detail on faces and small features. Strongly recommended for character/creature assets where facial fidelity matters. Adds ~30MB to the GLB. Overrides Quality+ mode setting.">
                         <input type="checkbox" id="ws-trellis2-ultra-q" data-credits="2" />
-                        Fine geometry, voxels (+2 cr · thin parts: thatch, beams, fur, faces)
+                        Fine geometry
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Upscale the baseColor atlas to 8192² (no hallucination, lossless detail recovery). Final GLB ~120 MB.">
                         <input type="checkbox" id="ws-trellis2-ultra-hd" data-credits="3" checked />
-                        Ultra HD 8K texture (+3 cr)
+                        Ultra HD 8K
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Post-process the baseColor atlas to refine the face zone. Fixes blurry or distorted faces on characters. Strength 0.45.">
                         <input type="checkbox" id="ws-trellis2-face-fix" data-credits="2" />
-                        Face fix (+2 cr)
+                        Face fix
                       </label>
                     </div>
                     <div class="form-hint" style="font-size:10px;">PBR baseColor + roughness + metallic exported in the GLB automatically.</div>
