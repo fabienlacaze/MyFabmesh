@@ -1524,8 +1524,12 @@ window.__optionsMortesCloud = new Set([]);
 
     function recompute() {
       let total = parseInt(preset.selectedOptions[0]?.dataset?.credits || '1', 10);
+      // « Sharp edges » n'est pas facture quand « Fine geometry » (qui l'emporte)
+      // est coche : meme regle que creditCost (worker). Le compteur affichait 1 de trop.
+      const _ultraQ = !!document.getElementById('ws-trellis2-ultra-q')?.checked;
       for (const id of optionIds) {
         const el = document.getElementById(id);
+        if (id === 'ws-trellis2-quality-plus' && _ultraQ) continue;
         if (el?.checked) total += parseInt(el.dataset.credits || '0', 10);
       }
       // Supplement « Max triangles » : meme regle que creditCost (worker).
