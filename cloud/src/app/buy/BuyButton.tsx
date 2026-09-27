@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PACKS } from '@/lib/packs';
+import { T, langueAffichee } from '@/lib/langue';
 
 const MOCK = process.env.NEXT_PUBLIC_MOCK === '1';
 
@@ -52,17 +53,17 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
       const j = await res.json();
       if (j.url) { window.location.href = j.url; return; }
       setBusy(false);
-      setErreur(j.error || 'Erreur lors du paiement.');
+      setErreur(j.error || (langueAffichee() === 'fr' ? 'Erreur lors du paiement.' : 'Checkout error.'));
     } catch (e) {
       setBusy(false);
-      setErreur(e instanceof Error ? e.message : 'Erreur réseau.');
+      setErreur(e instanceof Error ? e.message : (langueAffichee() === 'fr' ? 'Erreur réseau.' : 'Network error.'));
     }
   }
 
   return (
     <>
       <button onClick={demander} disabled={busy} className="primary-btn" style={{ width: '100%' }}>
-        {busy ? '…' : MOCK ? 'Ajouter des crédits (DEV)' : 'Acheter'}
+        {busy ? '…' : MOCK ? <T fr="Ajouter des crédits (DEV)" en="Add credits (DEV)" /> : <T fr="Acheter" en="Buy" />}
       </button>
 
       {ouvert && (
@@ -85,7 +86,7 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
             }}
           >
             <h3 id={`consent-titre-${packId}`} style={{ margin: '0 0 6px', fontSize: 19 }}>
-              Confirmez votre achat
+              <T fr="Confirmez votre achat" en="Confirm your purchase" />
             </h3>
 
             {pack && (
@@ -97,7 +98,7 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
                 }}
               >
                 <span style={{ fontWeight: 600 }}>{pack.name}</span>
-                <span style={{ color: 'var(--text-2)' }}>{pack.credits} crédits</span>
+                <span style={{ color: 'var(--text-2)' }}>{pack.credits} <T fr="crédits" en="credits" /></span>
                 <span style={{ fontWeight: 700, fontSize: 18 }}>{pack.euros} € TTC</span>
               </div>
             )}
@@ -119,7 +120,10 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
                 onChange={(e) => setAccepte(e.target.checked)}
                 style={{ marginTop: 3, width: 17, height: 17, flexShrink: 0, cursor: 'pointer' }}
               />
-              <span>
+              {/* Le texte du consentement dans la langue affichee (2026-09-28) ; la
+                  version francaise est celle de 2b2bc56, l'anglaise celle qui la
+                  precedait. */}
+              <span className="lang-fr">
                 Je demande expressément que mes crédits soient mis à ma disposition
                 immédiatement, et je reconnais que dès que je commence à consommer un
                 crédit ou que je génère un asset, je{' '}
@@ -127,10 +131,17 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
                 contenu numérique (art. L. 221-28 13° du code de la consommation).
                 Voir les <a href="/legal/terms" target="_blank" rel="noreferrer">conditions générales de vente</a>.
               </span>
+              <span className="lang-en">
+                I expressly request that my credits be made available immediately,
+                and I acknowledge that once I start consuming a credit or generate
+                an asset I <strong>lose my 14-day right of withdrawal</strong> for
+                that digital content (Art. L221-28 13° of the French Consumer Code).
+                See the <a href="/legal/terms" target="_blank" rel="noreferrer">Terms of Service</a>.
+              </span>
             </label>
 
             <p style={{ fontSize: 12, color: 'var(--text-2)', margin: '12px 0 0' }}>
-              Les crédits non consommés restent remboursables pendant 14 jours.
+              <T fr="Les crédits non consommés restent remboursables pendant 14 jours." en="Unspent credits stay refundable for 14 days." />
             </p>
 
             {erreur && (
@@ -139,15 +150,15 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
               <button className="ghost-btn" onClick={() => setOuvert(false)} disabled={busy}>
-                Annuler
+                <T fr="Annuler" en="Cancel" />
               </button>
               <button
                 className="primary-btn"
                 onClick={payer}
                 disabled={!accepte || busy}
-                title={accepte ? '' : 'Cochez la case ci-dessus pour continuer'}
+                title={accepte ? '' : (langueAffichee() === 'fr' ? 'Cochez la case ci-dessus pour continuer' : 'Tick the box above to continue')}
               >
-                {busy ? '…' : `Confirmer et payer${pack ? ` ${pack.euros} €` : ''}`}
+                {busy ? '…' : <><T fr="Confirmer et payer" en="Confirm and pay" />{pack ? ` ${pack.euros} €` : ''}</>}
               </button>
             </div>
           </div>

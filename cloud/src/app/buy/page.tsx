@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { PACKS } from '@/lib/packs';
 import { BuyButton } from './BuyButton';
+import { T } from '@/lib/langue';
 
 interface User { id: string; email: string | null; credits: number; }
 
@@ -52,7 +53,9 @@ export default function BuyPage() {
   };
   const cr = (cle: string) => {
     const v = prix?.[cle];
-    return typeof v === 'number' ? `${v} crédit${v > 1 ? 's' : ''}` : '—';
+    return typeof v === 'number'
+      ? <>{v} <T fr={v > 1 ? 'crédits' : 'crédit'} en={v > 1 ? 'credits' : 'credit'} /></>
+      : '—';
   };
 
   useEffect(() => {
@@ -81,15 +84,19 @@ export default function BuyPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Acheter des crédits</h2>
-        {user && <span className="credits-pill">{user.credits} crédits</span>}
+        <h2><T fr="Acheter des crédits" en="Buy credits" /></h2>
+        {user && <span className="credits-pill">{user.credits} <T fr="crédits" en="credits" /></span>}
       </div>
       <p style={{ color: 'var(--text-2)', marginBottom: 8 }}>
-        Sans abonnement. Les crédits n&apos;expirent jamais.
+        <T fr="Sans abonnement. Les crédits n'expirent jamais." en="No subscription. Credits never expire." />
       </p>
-      <p style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 24 }}>
+      <p className="lang-fr" style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 24 }}>
         Tous les prix affichés sont <strong>TTC (TVA incluse)</strong> — la TVA est
         calculée selon votre pays au moment du paiement.
+      </p>
+      <p className="lang-en" style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 24 }}>
+        All prices shown are <strong>TTC (VAT included)</strong> — VAT is calculated
+        according to your country at checkout.
       </p>
 
       {/* La case de renonciation vivait ICI, au-dessus des cartes. Le
@@ -106,7 +113,7 @@ export default function BuyPage() {
         }}
       >
         <span aria-hidden="true">&#9432;</span>
-        <span>
+        <span className="lang-fr">
           Les crédits sont un contenu numérique fourni immédiatement. Avant de
           payer, il vous sera demandé de confirmer que vous{' '}
           <strong>renoncez à votre droit de rétractation de 14 jours</strong> pour
@@ -115,26 +122,35 @@ export default function BuyPage() {
           14 jours. Voir les{' '}
           <a href="/legal/terms">conditions générales de vente</a>.
         </span>
+        <span className="lang-en">
+          Credits are digital content delivered immediately. Before paying you
+          will be asked to confirm that you{' '}
+          <strong>waive your 14-day right of withdrawal</strong> for the credits
+          you consume (Art. L221-28 13&deg; of the French Consumer Code). Unspent
+          credits stay refundable for 14 days. See the{' '}
+          <a href="/legal/terms">Terms of Service</a>.
+        </span>
       </p>
 
       {ventesOuvertes === false && (
         <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(168,85,247,0.45)', background: 'rgba(168,85,247,0.10)', fontSize: 14 }}>
-          <strong>Les achats de crédits ouvrent bientôt.</strong> En attendant, vous créez avec les 50 crédits offerts à l&apos;inscription.
+          <span className="lang-fr"><strong>Les achats de crédits ouvrent bientôt.</strong> En attendant, vous créez avec les 50 crédits offerts à l&apos;inscription.</span>
+          <span className="lang-en"><strong>Credit purchases open soon.</strong> Meanwhile, you create with the 50 credits offered at sign-up.</span>
         </div>
       )}
-      <h3 style={{ marginTop: 24, marginBottom: 12, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-2)' }}>Recharges ponctuelles</h3>
+      <h3 style={{ marginTop: 24, marginBottom: 12, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-2)' }}><T fr="Recharges ponctuelles" en="One-shot top-ups" /></h3>
       <div className="pricing-grid" style={{ padding: 0 }}>
         {Object.values(PACKS).filter(p => p.mode === 'payment' && (availability?.[p.id] ?? true)).map((p) => (
           <div key={p.id} className={`price-card ${p.id === 'pro' ? 'featured' : ''}`}>
             <div className="name">
               {p.name}
-              {p.id === 'pro' && <span className="feat-tag">populaire</span>}
+              {p.id === 'pro' && <span className="feat-tag"><T fr="populaire" en="popular" /></span>}
             </div>
             <div className="amount">{p.euros} € <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-2)' }}>TTC</span></div>
-            <div className="unit">{p.credits} crédits</div>
-            <div className="per-mesh">≈ {(p.euros / p.credits).toFixed(2)} € / crédit</div>
+            <div className="unit">{p.credits} <T fr="crédits" en="credits" /></div>
+            <div className="per-mesh">≈ {(p.euros / p.credits).toFixed(2)} € / <T fr="crédit" en="credit" /></div>
             {ventesOuvertes === false
-              ? <button className="primary-btn" disabled style={{ width: '100%', opacity: 0.55, cursor: 'not-allowed' }}>Bientôt disponible</button>
+              ? <button className="primary-btn" disabled style={{ width: '100%', opacity: 0.55, cursor: 'not-allowed' }}><T fr="Bientôt disponible" en="Coming soon" /></button>
               : <BuyButton packId={p.id} loggedIn={!!user} />}
           </div>
         ))}
@@ -150,23 +166,22 @@ export default function BuyPage() {
           fausse. */}
       {visibleSubs.length > 0 && (
         <>
-        <h3 style={{ marginTop: 36, marginBottom: 4, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-2)' }}>Abonnements mensuels</h3>
+        <h3 style={{ marginTop: 36, marginBottom: 4, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-2)' }}><T fr="Abonnements mensuels" en="Monthly subscriptions" /></h3>
         <p style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 16 }}>
-          Les crédits sont versés automatiquement chaque mois. Pour résilier,
-          écrivez-nous à{' '}
+          <T fr="Les crédits sont versés automatiquement chaque mois. Pour résilier, écrivez-nous à" en="Credits drop in automatically every month. To cancel, e-mail us at" />{' '}
           <a href="mailto:myfabmesh.contact@gmail.com">myfabmesh.contact@gmail.com</a>{' '}
-          — nous arrêtons la reconduction sous un jour ouvré, et vous conservez les crédits déjà livrés.
+          — <T fr="nous arrêtons la reconduction sous un jour ouvré, et vous conservez les crédits déjà livrés." en="we stop the renewal within one business day, and you keep the credits already delivered." />
         </p>
         <div className="pricing-grid" style={{ padding: 0 }}>
           {visibleSubs.map((p) => (
             <div key={p.id} className={`price-card ${p.id === 'sub_pro' ? 'featured' : ''}`}>
               <div className="name">
                 {p.name}
-                {p.id === 'sub_pro' && <span className="feat-tag">le plus avantageux</span>}
+                {p.id === 'sub_pro' && <span className="feat-tag"><T fr="le plus avantageux" en="best value" /></span>}
               </div>
-              <div className="amount">{p.euros} € <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text-2)' }}>TTC / mois</span></div>
-              <div className="unit">{p.credits} crédits / mois</div>
-              <div className="per-mesh">≈ {(p.euros / p.credits).toFixed(2)} € / crédit</div>
+              <div className="amount">{p.euros} € <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text-2)' }}>TTC / <T fr="mois" en="month" /></span></div>
+              <div className="unit">{p.credits} <T fr="crédits / mois" en="credits / month" /></div>
+              <div className="per-mesh">≈ {(p.euros / p.credits).toFixed(2)} € / <T fr="crédit" en="credit" /></div>
               <BuyButton packId={p.id} loggedIn={!!user} />
             </div>
           ))}
@@ -175,29 +190,29 @@ export default function BuyPage() {
       )}
 
       <div className="card" style={{ marginTop: 32 }}>
-        <h3 style={{ marginBottom: 12 }}>Ce que coûtent les crédits</h3>
+        <h3 style={{ marginBottom: 12 }}><T fr="Ce que coûtent les crédits" en="What credits cost" /></h3>
         <table className="history">
           <thead>
-            <tr><th>Action</th><th>Coût</th><th>Détails</th></tr>
+            <tr><th>Action</th><th><T fr="Coût" en="Cost" /></th><th><T fr="Détails" en="Details" /></th></tr>
           </thead>
           <tbody>
-            <tr><td>Image depuis une idée</td><td>{cr('text2image')}</td><td>30 étapes ; le prix suit le nombre d&apos;étapes</td></tr>
-            <tr><td>Retouche IA d&apos;une image</td><td>{prix ? `${prix.modify ?? '—'} à ${prix.auto_inpaint ?? '—'} crédits` : '—'}</td><td>modifier, réparer, recolorier, vieillir…</td></tr>
-            <tr><td>Modèle 3D <strong>Fast</strong></td><td>{cr('mesh_fast')}</td><td>brouillon</td></tr>
-            <tr><td>Modèle 3D <strong>Balanced</strong></td><td>{cr('mesh_balanced')}</td><td>recommandé</td></tr>
-            <tr><td>Modèle 3D <strong>Quality</strong></td><td>{cr('mesh_quality')}</td><td>haut niveau de détail</td></tr>
-            <tr><td>Modèle 3D <strong>Ultra 8K</strong></td><td>{cr('mesh_ultra_8k')}</td><td>détail et texture maximum</td></tr>
-            <tr><td>Nombre de triangles</td><td>+{supTris(500_000)} · +{supTris(1_000_000)} · +{supTris(10_000_000)}</td><td>jusqu&apos;à 500 000 · 1 million · 10 millions</td></tr>
-            <tr><td>Options 3D : texture 8K · visage · affinage</td><td>+{prix?.mesh_ultra_hd ?? '—'} / +{prix?.mesh_face_fix ?? '—'} / +{prix?.mesh_refine ?? '—'}</td><td>facultatives</td></tr>
-            <tr><td>Squelette automatique (rig)</td><td>{cr('rig')}</td><td>tout corps : humain, animal, insecte, créature</td></tr>
-            <tr><td>Animation</td><td>{cr('anim')}</td><td>par clip</td></tr>
-            <tr><td>Outils 3D simples</td><td>{cr('mesh_op_simple')}</td><td>lisser, boucher les trous, redimensionner…</td></tr>
-            <tr><td>Découpe en pièces</td><td>{cr('mesh_segment')}</td><td>tête, bras, roues…</td></tr>
-            <tr><td>Export · publication sur la Marketplace</td><td>{prix ? `${prix.export ?? '—'} · ${prix.market_publish ?? '—'}` : '—'}</td><td>par fichier</td></tr>
+            <tr><td><T fr="Image depuis une idée" en="Image from an idea" /></td><td>{cr('text2image')}</td><td><T fr="30 étapes ; le prix suit le nombre d'étapes" en="30 steps; the price follows the number of steps" /></td></tr>
+            <tr><td><T fr="Retouche IA d'une image" en="AI image edit" /></td><td>{prix ? <>{prix.modify ?? '—'} <T fr="à" en="to" /> {prix.auto_inpaint ?? '—'} <T fr="crédits" en="credits" /></> : '—'}</td><td><T fr="modifier, réparer, recolorier, vieillir…" en="modify, repair, recolor, age…" /></td></tr>
+            <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Fast</strong></td><td>{cr('mesh_fast')}</td><td><T fr="brouillon" en="draft" /></td></tr>
+            <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Balanced</strong></td><td>{cr('mesh_balanced')}</td><td><T fr="recommandé" en="recommended" /></td></tr>
+            <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Quality</strong></td><td>{cr('mesh_quality')}</td><td><T fr="haut niveau de détail" en="high detail" /></td></tr>
+            <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Ultra 8K</strong></td><td>{cr('mesh_ultra_8k')}</td><td><T fr="détail et texture maximum" en="maximum detail and texture" /></td></tr>
+            <tr><td><T fr="Nombre de triangles" en="Triangle count" /></td><td>+{supTris(500_000)} · +{supTris(1_000_000)} · +{supTris(10_000_000)}</td><td><T fr="jusqu'à 500 000 · 1 million · 10 millions" en="up to 500,000 · 1 million · 10 million" /></td></tr>
+            <tr><td><T fr="Options 3D : texture 8K · visage · affinage" en="3D options: 8K texture · face · refine" /></td><td>+{prix?.mesh_ultra_hd ?? '—'} / +{prix?.mesh_face_fix ?? '—'} / +{prix?.mesh_refine ?? '—'}</td><td><T fr="facultatives" en="optional" /></td></tr>
+            <tr><td><T fr="Squelette automatique (rig)" en="Automatic skeleton (rig)" /></td><td>{cr('rig')}</td><td><T fr="tout corps : humain, animal, insecte, créature" en="any body: human, animal, insect, creature" /></td></tr>
+            <tr><td>Animation</td><td>{cr('anim')}</td><td><T fr="par clip" en="per clip" /></td></tr>
+            <tr><td><T fr="Outils 3D simples" en="Simple 3D tools" /></td><td>{cr('mesh_op_simple')}</td><td><T fr="lisser, boucher les trous, redimensionner…" en="smooth, fill holes, resize…" /></td></tr>
+            <tr><td><T fr="Découpe en pièces" en="Split into parts" /></td><td>{cr('mesh_segment')}</td><td><T fr="tête, bras, roues…" en="head, arms, wheels…" /></td></tr>
+            <tr><td><T fr="Export · publication sur la Marketplace" en="Export · Marketplace publishing" /></td><td>{prix ? `${prix.export ?? '—'} · ${prix.market_publish ?? '—'}` : '—'}</td><td><T fr="par fichier" en="per file" /></td></tr>
           </tbody>
         </table>
         <p style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 8 }}>
-          Une génération 3D prend environ 6 à 9 minutes, quel que soit le préréglage. Le prix exact s&apos;affiche toujours sur le bouton avant de lancer.
+          <T fr="Une génération 3D prend environ 6 à 9 minutes, quel que soit le préréglage. Le prix exact s'affiche toujours sur le bouton avant de lancer." en="A 3D generation takes about 6 to 9 minutes, whatever the preset. The exact price is always shown on the button before you start." />
         </p>
       </div>
     </div>
