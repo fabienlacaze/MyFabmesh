@@ -16526,6 +16526,23 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         const stillActive = new Set(cur.map(r => r.id));
+        // RELANCE DE LIVRAISON (2026-09-27). Ce suivi ne lit que la BASE : un
+        // maillage fini sur Modal n'etait livre que par /api/jobs/:id (l'onglet
+        // d'origine) ou par le faucheur (15 min). Apres un rechargement, plus
+        // personne ne l'appelait : tuiles figees a 90 % (constate par le user).
+        // On le sollicite, au plus une fois par 30 s et par travail. Filet
+        // de la livraison immediate (Modal previent le worker lui-meme).
+        try {
+          const t0 = Date.now();
+          window.__relancesLivraison = window.__relancesLivraison || new Map();
+          for (const r of cur) {
+            const rid = String(r.id || '');
+            if (!rid.startsWith('modal_')) continue;
+            if ((window.__relancesLivraison.get(rid) || 0) > t0 - 30000) continue;
+            window.__relancesLivraison.set(rid, t0);
+            fetch(`/api/jobs/${encodeURIComponent(rid)}`, { credentials: 'same-origin' }).catch(() => {});
+          }
+        } catch (_) {}
         // Un travail serveur disparu de la liste active est termine : on
         // l'oublie du registre de suivi, sinon il y resterait indefiniment
         // (fuite memoire sur une longue session, et un travail legitime
