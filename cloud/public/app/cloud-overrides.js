@@ -1796,7 +1796,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     if (!email) { _compteChipEl.style.display = 'none'; _compteChipEl.textContent = ''; return; }
     const local = String(email).split('@')[0];
     _compteChipEl.textContent = local.length > 18 ? local.slice(0, 17) + '…' : local;
-    _compteChipEl.title = 'Signed in as ' + email;
+    _compteChipEl.title = 'Signed in as ' + email + ' — open your account';
     _compteChipEl.style.display = 'inline-flex';
   }
 
@@ -1822,13 +1822,20 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // en silence a fait depenser des credits a un proprietaire qui se croyait
     // deconnecte (2026-08-19). Le solde seul ne dit pas a QUI il appartient ;
     // le web affiche donc la meme mention, par parite.
-    const compte = document.createElement('span');
+    // Lien vers la page du compte (2026-09-28, user : « ca sert a rien ») :
+    // le nom seul informait sans mener nulle part ; il ouvre maintenant le
+    // compte (credits, versements, historique).
+    const compte = document.createElement('a');
     compte.id = 'cloud-account-chip';
+    compte.href = '/account';
     compte.style.cssText = [
       'display:none', 'align-items:center', 'font-size:11px', 'opacity:.72',
       'margin-left:8px', 'max-width:150px', 'overflow:hidden',
-      'text-overflow:ellipsis', 'white-space:nowrap',
+      'text-overflow:ellipsis', 'white-space:nowrap', 'color:inherit',
+      'text-decoration:none', 'cursor:pointer',
     ].join(';');
+    compte.addEventListener('mouseenter', () => { compte.style.opacity = '1'; compte.style.textDecoration = 'underline'; });
+    compte.addEventListener('mouseleave', () => { compte.style.opacity = '.72'; compte.style.textDecoration = 'none'; });
     right.insertBefore(compte, pill.nextSibling);
     _compteChipEl = compte;
 
