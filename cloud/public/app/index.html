@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.png" type="image/png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Cloud-relaxed CSP: needs to fetch /api/* on origin + connect to external CDNs -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' blob: https://replicate.delivery https://*.r2.cloudflarestorage.com https://*.r2.dev https://unpkg.com https://image.pollinations.ai https://text.pollinations.ai https://*.supabase.co; media-src 'self' blob: https:; frame-src 'self' blob:">
@@ -172,7 +173,7 @@
     <header id="topbar">
       <div class="topbar-left">
         <button id="back-to-projects" class="icon-btn" title="Back to projects">&#8592;</button>
-        <h1 class="brand">MyFabmesh<span class="brand-ai">.AI</span></h1>
+        <h1 class="brand" title="MyFabmesh.AI"><img src="/logo-symbole.png" alt="MyFabmesh.AI" width="96" height="96" style="width:36px;height:36px;border-radius:22%;display:block"></h1>
         <span id="breadcrumb"></span>
       </div>
       <div class="topbar-right">
@@ -3557,7 +3558,7 @@
     <div class="about-backdrop" id="about-backdrop"></div>
     <div class="about-card">
       <button class="about-close" id="about-close" aria-label="Close">&times;</button>
-      <h2 class="about-title">MyFabmesh<span class="brand-ai">.AI</span></h2>
+      <h2 class="about-title"><img src="/logo-symbole.png" alt="" width="96" height="96" style="width:1.3em;height:1.3em;border-radius:22%;vertical-align:-0.28em;margin-right:0.4em">MyFabmesh<span class="brand-ai">.AI</span></h2>
       <div class="about-version">Version <span id="about-version-num">…</span> · public beta</div>
 
       <div class="about-section">
