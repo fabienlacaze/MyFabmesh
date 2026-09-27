@@ -217,7 +217,7 @@ function MarketPageInner() {
   const [myListings, setMyListings] = useState<MineItem[]>([]);
   const [filtered, setFiltered] = useState<Listing[]>([]);
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState<'all' | 'free' | 'paid' | 'owned' | 'mine'>('all');
+  const [tab, setTab] = useState<'all' | 'offerts' | 'free' | 'paid' | 'owned' | 'mine'>('all');
   const [kindFilter, setKindFilter] = useState<'all' | 'mesh' | 'image' | 'rig'>('all');
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Listing | null>(null);
@@ -272,6 +272,7 @@ function MarketPageInner() {
         setTab('owned');
       }
       deepLinkItem = q.get('item');
+      if (q.get('tab') === 'free-this-month') setTab('offerts');   // lien partageable
     }
     (async () => {
       try {
@@ -345,6 +346,7 @@ function MarketPageInner() {
   useEffect(() => {
     const q = search.trim().toLowerCase();
     setFiltered(listings.filter((l) => {
+      if (tab === 'offerts' && !l.offert) return false;
       if (tab === 'free' && l.price_cents !== 0 && !l.offert) return false;
       if (tab === 'paid' && l.price_cents === 0) return false;
       const kind = l.asset_kind || (l.mesh_url ? 'mesh' : 'image');
@@ -692,18 +694,24 @@ function MarketPageInner() {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-        {(['all', 'free', 'paid', 'owned', 'mine'] as const).map((p) => (
+        {(['all', 'offerts', 'free', 'paid', 'owned', 'mine'] as const).map((p) => (
           <button
             key={p}
             onClick={() => setTab(p)}
             className={tab === p ? 'primary-btn' : 'ghost-btn'}
-            style={{ padding: '6px 16px', fontSize: 13, textTransform: 'capitalize', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            style={{ padding: '6px 16px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
             {p === 'all' ? 'All'
+              : p === 'offerts' ? '🎁 Free this month'
               : p === 'free' ? 'Free'
               : p === 'paid' ? 'Paid'
               : p === 'owned' ? '✓ Owned'
               : '📝 Mine'}
+            {p === 'offerts' && listings.some((l) => l.offert) && (
+              <span style={{ background: 'var(--ok)', color: '#fff', borderRadius: 999, padding: '0 7px', fontSize: 11, fontWeight: 700 }}>
+                {listings.filter((l) => l.offert).length}
+              </span>
+            )}
             {p === 'owned' && owned.length > 0 && (
               <span style={{ background: 'var(--ok)', color: '#fff', borderRadius: 999, padding: '0 7px', fontSize: 11, fontWeight: 700 }}>
                 {owned.length}
@@ -721,7 +729,7 @@ function MarketPageInner() {
         </div>
       </div>
 
-      {(tab === 'all' || tab === 'free') && (() => {
+      {(tab === 'all' || tab === 'free' || tab === 'offerts') && (() => {
         const offerts = listings.filter((l) => l.offert);
         if (!offerts.length) return null;
         const fin = offerts[0].offert_fin ? new Date(offerts[0].offert_fin).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : '';
@@ -737,6 +745,8 @@ function MarketPageInner() {
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-2)' }}>
           {tab === 'owned'
             ? <>No purchases yet. Browse <a onClick={() => setTab('all')} style={{ color: 'var(--accent)', cursor: 'pointer' }}>All listings →</a></>
+            : tab === 'offerts'
+            ? <>No free items this month yet. Come back soon: five paid items are offered every month.</>
             : tab === 'mine'
             ? <>You haven&apos;t published anything yet. <a href="/app/" style={{ color: 'var(--accent)' }}>Open the app to publish a mesh →</a></>
             : <>No listings match your filters yet. <a href="/app/" style={{ color: 'var(--accent)' }}>Publish your first mesh →</a></>}
