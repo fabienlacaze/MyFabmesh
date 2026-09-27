@@ -1,3 +1,5 @@
+> **OBSOLETE (27/09/2026)** — remplacé par `MS_STORE_LISTING_2026-09-27.md`.
+
 # MS Store Listing — anonymized version (to apply post-cert)
 
 The submission currently in certification has the previous description
