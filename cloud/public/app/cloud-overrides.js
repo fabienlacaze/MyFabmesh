@@ -1852,6 +1852,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     compte.addEventListener('mouseleave', () => { compte.style.opacity = '.72'; compte.style.textDecoration = 'none'; });
     right.insertBefore(compte, pill.nextSibling);
     _compteChipEl = compte;
+    _grouperCompte();
 
     // First fetch + polling
     refreshCreditsPill();
@@ -2095,6 +2096,20 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         margin-right: 8px;
       }
       #cloud-inbox-btn:hover { background: rgba(255,255,255,0.12); }
+      /* Messagerie + nom du compte en UNE pastille (2026-09-28, gain de place) */
+      #cloud-compte-groupe {
+        display: inline-flex; align-items: center; gap: 0; height: 32px;
+        padding: 0 10px 0 2px; margin-left: 8px;
+        border: 1px solid rgba(255,255,255,0.15); border-radius: 999px;
+        background: rgba(255,255,255,0.05);
+      }
+      #cloud-compte-groupe #cloud-inbox-btn {
+        border: 0; background: transparent; margin-right: 0; width: 28px; height: 28px;
+      }
+      #cloud-compte-groupe #cloud-account-chip {
+        margin-left: 2px !important; padding-left: 8px;
+        border-left: 1px solid rgba(255,255,255,0.18);
+      }
       #cloud-inbox-badge {
         position: absolute; top: -4px; right: -4px;
         min-width: 16px; height: 16px; padding: 0 4px;
@@ -2172,6 +2187,19 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     document.head.appendChild(s);
   }
 
+  // Messagerie + nom du compte REGROUPES en une pastille (2026-09-28, user :
+  // « on pourrait les grouper pour gagner de la place »). Chacun garde son
+  // action : l'icone ouvre la messagerie, le nom « Nous contacter ». Appele par
+  // les deux installateurs : le second arrive complete le groupe.
+  function _grouperCompte() {
+    if (!_inboxBtnEl || !_compteChipEl || document.getElementById('cloud-compte-groupe')) return;
+    const g = document.createElement('span');
+    g.id = 'cloud-compte-groupe';
+    _compteChipEl.parentNode.insertBefore(g, _compteChipEl);
+    g.appendChild(_inboxBtnEl);
+    g.appendChild(_compteChipEl);
+  }
+
   function installInboxButton() {
     if (_inboxBtnEl) return;
     const right = document.querySelector('#topbar .topbar-right');
@@ -2192,6 +2220,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     btn.addEventListener('click', openInboxPopup);
     _inboxBtnEl = btn;
     _inboxBadgeEl = btn.querySelector('#cloud-inbox-badge');
+    _grouperCompte();
 
     refreshInbox();
     if (_inboxPollTimer) clearInterval(_inboxPollTimer);
