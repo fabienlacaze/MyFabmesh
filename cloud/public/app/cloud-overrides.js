@@ -2650,7 +2650,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           if (typeof window.showToast === 'function') window.showToast('This mesh has no job ID — cannot publish.', 'error', 4000);
           return;
         }
-        payload = { kind: 'mesh', jobId };
+        // assetUrl : une version retouchee n'a pas de ligne `jobs`, le serveur
+        // la retrouve alors par son fichier (2026-09-27)
+        payload = { kind: 'mesh', jobId, assetUrl: m.path || m.url || '' };
         previewUrl = m.path || m.url || '';
       } else if (kind === 'rig' || kind === 'animation') {
         // Le fichier affiche : son URL signee suffit, le serveur en retrouve
@@ -2822,7 +2824,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           currency: 'EUR', licence,   // le serveur n'accepte que l'euro (2026-09-27)
           asset_kind: kind,
         };
-        if (kind === 'mesh')  body.jobId    = payload.jobId;
+        if (kind === 'mesh')  { body.jobId = payload.jobId; body.assetUrl = payload.assetUrl; }
         if (kind === 'image') body.imageUrl = payload.imageUrl;
         if (kind === 'rig' || kind === 'animation') body.assetUrl = payload.assetUrl;
         console.log('[market.publish] POST body=', body);

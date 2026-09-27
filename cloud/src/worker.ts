@@ -4107,16 +4107,28 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
 
   if (kind === 'mesh') {
     jobId = String(body.jobId ?? '').trim();
-    if (!jobId) return err(400, 'jobId required for mesh listings');
     const sb = supabaseAdmin(env);
-    const { data: job } = await sb.from('jobs')
-      .select('id, user_id, mesh_url, project_name, asset_type, status')
-      .eq('id', jobId).eq('user_id', user.id).maybeSingle();
-    if (!job)                       return err(404, 'mesh not found');
-    if (job.status !== 'succeeded') return err(400, 'mesh not ready');
-    if (!job.mesh_url)              return err(400, 'mesh has no URL');
-    assetUrl = job.mesh_url;
-    assetType = (job.asset_type as string | null) ?? null;
+    const { data: job } = jobId
+      ? await sb.from('jobs')
+          .select('id, user_id, mesh_url, project_name, asset_type, status')
+          .eq('id', jobId).eq('user_id', user.id).maybeSingle()
+      : { data: null };
+    if (job) {
+      if (job.status !== 'succeeded') return err(400, 'mesh not ready');
+      if (!job.mesh_url)              return err(400, 'mesh has no URL');
+      assetUrl = job.mesh_url;
+      assetType = (job.asset_type as string | null) ?? null;
+    } else {
+      /* VERSION RETOUCHEE (2026-09-27, « mesh not found » en production) :
+       * une operation, un import ou un reglage de materiau donne un fichier
+       * <uid>/mesh-op/<projet>/…glb SANS ligne `jobs`. On l'accepte sur son
+       * emplacement, comme les rigs, s'il est bien dans l'espace de l'auteur. */
+      const cle = _cleR2DepuisUrl(env, String(body.assetUrl ?? '').trim());
+      if (!cle || !cle.startsWith(`${user.id}/mesh-op/`) || !/\.glb$/i.test(cle)) return err(404, 'mesh not found');
+      if (!(await env.MESHES.head(cle))) return err(404, 'mesh not found');
+      assetUrl = cle;
+      jobId = null;
+    }
   } else if (kind === 'rig' || kind === 'animation') {
     /* RIGS ET ANIMATIONS (2026-09-27, user : « doivent pouvoir etre publies »).
      * Ils n'ont pas de ligne `jobs` fiable : ce sont des fichiers R2 que
@@ -4380,17 +4392,26 @@ async function handleMarketPoster(env: Env, id: string): Promise<Response> {
   // (modal_<hex>_rigged_…glb, …_walk_<lot>_<ts>.glb) — on reprend SA miniature.
   // Le prefixe « modal_ » manque sur certains rigs (<hex>_rigged_…glb).
   const hex = (String(l.mesh_url || '').match(/(?:^|[/_])(?:modal_)?([a-f0-9]{32})(?=[._])/i) || [])[1];
-  const maillage = l.job_id
-    || (hex ? `modal_${hex.toLowerCase()}` : '')
-    || (String(l.mesh_url || '').match(/(modal_[A-Za-z0-9]+)\.glb/) || [])[1] || '';
-  if (!/^modal_[A-Za-z0-9]+$/.test(maillage)) return err(404, 'no thumbnail');
-  for (const ext of ['png', 'webp', 'jpg']) {
-    const o = await env.MESHES.get(`${l.user_id}/thumb/${maillage}.${ext}`);
-    if (o) {
-      return new Response(o.body, { headers: {
-        'content-type': o.httpMetadata?.contentType || (ext === 'jpg' ? 'image/jpeg' : `image/${ext}`),
-        'cache-control': 'public, max-age=3600',
-      } });
+  // Une version retouchee (<uid>/mesh-op/<projet>/<ts>_<op>.glb) a SA miniature,
+  // nommee comme /api/thumbs/upload la range : nom du fichier sans extension,
+  // assaini. On l'essaie apres le maillage source.
+  const cle = _cleR2DepuisUrl(env, String(l.asset_url || l.mesh_url || '')) || '';
+  const nom = (cle.split('/').pop() || '').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
+  const candidats = [
+    l.job_id || '',
+    hex ? `modal_${hex.toLowerCase()}` : '',
+    (String(l.mesh_url || '').match(/(modal_[A-Za-z0-9]+)\.glb/) || [])[1] || '',
+    nom,
+  ].filter((c, i, t) => c && /^[A-Za-z0-9_-]+$/.test(c) && t.indexOf(c) === i);
+  for (const maillage of candidats) {
+    for (const ext of ['png', 'webp', 'jpg']) {
+      const o = await env.MESHES.get(`${l.user_id}/thumb/${maillage}.${ext}`);
+      if (o) {
+        return new Response(o.body, { headers: {
+          'content-type': o.httpMetadata?.contentType || (ext === 'jpg' ? 'image/jpeg' : `image/${ext}`),
+          'cache-control': 'public, max-age=3600',
+        } });
+      }
     }
   }
   return err(404, 'no thumbnail');
