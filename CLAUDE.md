@@ -391,6 +391,13 @@ gatedRun(kind, nom, fn)      ← file d'attente (VRAM ; rend ok() en cloud)
   aucun ne complète le squelette, `repetition_penalty` 1,2 fait planter le
   décodage. Banc d'essai : `rig_mesh_essai` (aucune route de production).
 
+**GPU en production (décision de l'exploitant, 2026-09-28).** Aujourd'hui L40S (images, maillage, T-pose)
+et A10G (rig). Quand le site aura assez d'utilisateurs pour un trafic continu, **basculer en H100** pour
+aller plus vite : ~2× plus rapide pour ~2× le prix, donc un calcul au même coût. Pas avant : Modal
+facture à la seconde, et le démarrage à froid et le maintien à chaud (`scaledown_window`) durent pareil
+sur toute carte — avec peu d'utilisateurs, ces temps morts dominent la facture et coûteraient le double.
+Mesurer d'abord (même maillage L40S puis H100), commencer par le maillage TRELLIS.
+
 **Démarrage à froid — le piège récurrent.** Cloudflare coupe chaque
 sous-requête à 100 s avec un **524**. Toute route synchrone DOIT donc rejouer :
 
