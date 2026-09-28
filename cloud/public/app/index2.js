@@ -18196,10 +18196,10 @@ var TYPES_ANIM = [
   { v: 'turn_left', libelle: '↰ Turn left' }, { v: 'turn_right', libelle: '↱ Turn right' },
   { v: 'attack', libelle: '⚔️ Attack' }, { v: 'death', libelle: '💀 Death' }, { v: 'fly', libelle: '✈️ Fly' },
 ];
-var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide' };
+var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', crawl: 'Crawl', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide' };
 var DESCRIPTIONS_ANIM = {
   idle: 'Standing still, calm breathing.', idle__alert: 'On guard: head up, looks around.', idle__tired: 'Heavy breathing, head low.',
-  walk: 'Regular walk.', walk__slow: 'Slow, heavy steps.', walk__brisk: 'Quick, lively pace.', walk__sneak: 'Low body, slow and careful steps.', walk__proud: 'Head high, high steps.',
+  walk: 'Regular walk.', walk__slow: 'Slow, heavy steps.', walk__brisk: 'Quick, lively pace.', walk__sneak: 'Low body, slow and careful steps.', walk__proud: 'Head high, high steps.', walk__crawl: 'Very low body; a legless creature crawls in vertical waves.',
   run: 'Regular run.', run__jog: 'Easy jog, short strides.', run__sprint: 'Full speed, long strides.',
   turn_left: 'Walks while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
   turn_right: 'Walks while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',

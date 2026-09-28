@@ -96,11 +96,15 @@ export function creerApercu(canvas) {
       const o = noeuds.get(noeud);
       if (o) pistes.push(new THREE.QuaternionKeyframeTrack(o.uuid + '.quaternion', c.temps, q));
     }
-    const racine = noeuds.get(c.translation.noeud);
-    if (racine) {
-      const v = c.translation.v.slice();
-      for (let i = 3; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; }   // sur place (le cap tourne encore)
-      pistes.push(new THREE.VectorKeyframeTrack(racine.uuid + '.position', c.temps, v));
+    // racine principale puis racines SECONDAIRES (arme, accessoire séparé du corps) : sur place
+    // toutes les deux, au même décalage, pour qu'elles ne se séparent pas
+    const dx = c.translation.v[0], dz = c.translation.v[2];
+    for (const tr_ of [c.translation, ...(c.translationsSec || [])]) {
+      const o = noeuds.get(tr_.noeud);
+      if (!o) continue;
+      const v = tr_.v.slice();
+      for (let i = 3; i < v.length; i += 3) { v[i] -= c.translation.v[i] - dx; v[i + 2] -= c.translation.v[i + 2] - dz; }   // sur place (le cap tourne encore)
+      pistes.push(new THREE.VectorKeyframeTrack(o.uuid + '.position', c.temps, v));
     }
     melangeur.stopAllAction();
     melangeur.uncacheRoot(modele);
