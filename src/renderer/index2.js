@@ -24391,16 +24391,42 @@ function _ptsCentrerCoupe(p, regard) {
   return q;
 }
 
+/** Vrai si p est ENFERME dans le modele : un rayon dans chacune de 14
+ *  directions touche une paroi. Dans une coque ou son vide interieur, tout
+ *  touche ; dans l'air entre deux pattes, des directions s'echappent. */
+function _ptsEnferme(p) {
+  if (!_pts.dirsEnferme) {
+    _pts.dirsEnferme = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+      [1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1], [-1, 1, 1], [-1, 1, -1], [-1, -1, 1], [-1, -1, -1]]
+      .map(v => new THREE.Vector3(v[0], v[1], v[2]).normalize());
+  }
+  return _pts.dirsEnferme.every(d => _ptsParoi(p, d) != null);
+}
+
 function _ptsCentreSous(canevas, cam, e, centrer = true) {
   const rc = _ptsRayon(canevas, cam, e);
   const hits = rc.intersectObjects(_ptsCibles(), false);
   if (!hits.length) return null;
   const entree = hits[0];
   if (!centrer) return entree.point.clone();
-  const sortie = hits.find(h => h.distance > entree.distance + 1e-4 * _pts.diag);
-  if (!sortie || sortie.distance - entree.distance > 0.35 * _pts.diag) return entree.point.clone();
+  // COQUES CREUSES (mesure du 2026-09-28 sur la fourmi du user : paroi de 2 a
+  // 8 mm autour d'un VIDE). L'impact suivant n'est que la face interieure de
+  // la paroi : le point restait colle a la surface (« centre in the thickness
+  // ne marche pas »). La sortie du membre est le dernier impact avant l'AIR
+  // LIBRE : on avance tant que l'intervalle entre deux impacts est enferme
+  // (paroi ou vide interieur), on s'arrete au premier qui ne l'est pas.
+  const dir = rc.ray.direction.clone().normalize();
+  const eps = 1e-4 * _pts.diag;
+  let sortie = null;
+  for (let i = 0; i + 1 < hits.length; i++) {
+    const a = hits[i].distance, b = hits[i + 1].distance;
+    if (b - a < eps) { if (sortie) sortie = hits[i + 1]; continue; }   // faces confondues
+    if (!_ptsEnferme(rc.ray.origin.clone().addScaledVector(dir, (a + b) / 2))) break;
+    sortie = hits[i + 1];
+  }
+  if (!sortie) return entree.point.clone();
   const milieu = entree.point.clone().add(sortie.point).multiplyScalar(0.5);
-  return _ptsCentrerCoupe(milieu, rc.ray.direction.clone().normalize());
+  return _ptsCentrerCoupe(milieu, dir);
 }
 
 /** Cible sous le curseur : un POINT en priorite (plus gros), sinon une
@@ -24647,11 +24673,11 @@ async function _ptsEnregistrerSansIA() {
   // la peau devrait etre recalculee, ce que seule la regeneration IA sait faire.
   if (_pts.os.length !== _pts.osOrigine.length
       || _pts.os.some((o, i) => _ptsParentOrig(o) !== _pts.osParentsOrigine[o.orig ?? i])) {
-    customError(_i18nT('You changed how the joints are linked: only "Re-generate rig with these points" can apply that.'), titre);
+    customError(_i18nT('You changed which joints are linked. Use "Re-generate rig with these points" instead.'), titre);
     return;
   }
   if (!_ptsOsModifie()) {
-    showToast(_i18nT('No pink joint moved yet. To reach the yellow points, use "Re-generate rig".'), 'info', 5000);
+    showToast(_i18nT('Move a pink joint first.'), 'info', 4000);
     // montre OU aller : le bouton de regeneration clignote
     const regen = document.getElementById('pts-regenerer');
     if (regen) { regen.classList.remove('pts-montrer'); void regen.offsetWidth; regen.classList.add('pts-montrer'); }

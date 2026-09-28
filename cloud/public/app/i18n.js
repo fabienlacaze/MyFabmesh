@@ -461,7 +461,7 @@
       'Show skeleton': 'Afficher le squelette',
       "Save moved joints (no AI)": "Enregistrer les articulations déplacées (sans IA)",
       "Save the rig with the joints where you dragged them. The mesh and its skinning stay exactly as they are — no AI.": "Enregistre le rig avec les articulations là où vous les avez placées. Le maillage et sa peau restent exactement en place — sans IA.",
-      "Save moved joints": "Enregistrer les articulations",
+      "Save moved joints": "Enregistrer les articulations déplacées",
       "You changed how the joints are linked: only \"Re-generate rig with these points\" can apply that.": "Vous avez modifié les liens entre articulations : seule la régénération du rig peut en tenir compte.",
       "Nothing to save yet: drag a pink skeleton point (a joint). Green and orange points are targets for the AI.": "Rien à enregistrer : déplacez un point rose du squelette (une articulation). Les points verts et orange sont des cibles pour l'IA.",
       "Yellow and green points are targets: only \"Re-generate rig with these points\" can make the skeleton reach them. This button saves the pink joints you moved by hand.": "Les points jaunes et verts sont des cibles : seul « Régénérer le rig avec ces points » peut faire que le squelette les atteigne. Ce bouton enregistre les articulations roses que vous avez déplacées à la main.",
