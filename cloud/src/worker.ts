@@ -1802,6 +1802,7 @@ const PRICING_DEFAULTS = {
   // travail GPU qu'un mask_inpaint (6). Pose a 2 comme les autres outils
   // portes, sur demande explicite du user (« 1 ou 2 credits »).
   region_retex:     3,          // releve 2026-09-27 (voir tex_variant)
+  reshape:          10,         // « Reshape a region » : repeinte SDXL + piece en 3D (TRELLIS), 2026-09-28
   // Mesh generation ladder repriced 2026-07-28 from MEASURED Modal cost,
   // not from the (wrong) _meshCostUsd estimate. 30 days of succeeded
   // jobs: median 373s for the 1-credit preset, 420s for the 8-credit one
@@ -2504,6 +2505,7 @@ const MODAL_COST_USD: Record<string, number> = {
   'mesh':        0.370,   // MESURE (n=17, 373 s) + traine scaledown 300 s
   'mesh-face':   0.420,   // 'mesh' + le delta face_fix de l'ancienne table
   'retexture':   0.150,   // voir handleMeshRetexture (estimation, non mesuree)
+  'reshape':     0.200,   // voir handleMeshReshape (SDXL inpaint + piece TRELLIS, estimation)
   'remove-bg':   0.005,   // non mesure
   // 2026-07-26 — the four async Modal op types had NO entry here AND no
   // cost_usd on their jobs row, so the admin dashboard reported a 100%
@@ -12496,6 +12498,109 @@ async function handleMeshRetexture(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, success: true, jobId, creditsRemaining: remaining });
 }
 
+/** POST /api/mesh-reshape — « Reshape a region » (auto inpaint 3D), portage du bureau (2026-09-28).
+ *  Le NAVIGATEUR rend la vue de face a plat (meme projection que mesh_inpaint.rendre) et l'envoie
+ *  en R2 (vueUrl) ; le masque vient de la fenetre a plat (maskDataUrl) ou de la peinture 3D
+ *  (uvMaskDataUrl, masque dans la texture). Modal enchaine repeinte, detourage, piece en 3D et
+ *  recalage (MyFabmeshMesh.reshape_to_volume) ; le travail est suivi comme un re-texture (ligne
+ *  jobs de type mesh, /api/jobs/:id, rangement dans R2), remboursement sur chaque echec. */
+const ESTIMATED_USD_RESHAPE = 0.2;
+async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MODAL_MESH_START_URL || !env.MODAL_MESH_STATUS_URL || !env.MODAL_SHARED_SECRET) {
+    return err(503, 'reshape backend unavailable (not configured)');
+  }
+  const { meshUrl, vueUrl, maskDataUrl, uvMaskDataUrl, prompt, projectName, assetType } = await req.json() as {
+    meshUrl?: string; vueUrl?: string; maskDataUrl?: string; uvMaskDataUrl?: string;
+    prompt?: string; projectName?: string; assetType?: string;
+  };
+  if (!meshUrl || !vueUrl) return err(400, 'meshUrl and vueUrl required');
+  if (!isTrustedAssetHost(env, meshUrl) || !isTrustedAssetHost(env, vueUrl)) return err(400, 'url host not allowed');
+  const texte = String(prompt || '').trim().slice(0, 500);
+  if (!texte) return err(400, 'prompt required (what should replace the part)');
+  const masqueDataUrl = String(uvMaskDataUrl || maskDataUrl || '');
+  const m = masqueDataUrl.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) return err(400, 'mask required (PNG data URL)');
+  if (m[1].length > 24_000_000) return err(413, 'mask too large');
+  const cost = await getPrice(env, 'reshape');
+
+  const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_RESHAPE, user.id);
+  if (remainingBudget == null) return err(429, await _spendRefusalMessage(env, user.id));
+  const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
+  if (remainingUserCalls == null) {
+    await refundModalSpend(env, ESTIMATED_USD_RESHAPE, user.id);
+    return err(429, 'you have reached the per-user daily generation limit.');
+  }
+  const remaining = await spendCredits(env, user.id, cost);
+  if (remaining == null) {
+    await refundModalSpend(env, ESTIMATED_USD_RESHAPE, user.id);
+    return err(402, `insufficient credits — reshape costs ${cost}`);
+  }
+  const rembourser = async (motif: string, jobId?: string) => {
+    await addCredits(env, user.id, cost);
+    await refundModalSpend(env, ESTIMATED_USD_RESHAPE, user.id);
+    if (jobId) {
+      await supabaseAdmin(env).from('jobs').update({
+        status: 'failed', error: motif.slice(0, 500), finished_at: new Date().toISOString(),
+      }).eq('id', jobId);
+    }
+  };
+  // masque range dans R2 (prefixe du compte) : Modal le telecharge par URL signee
+  let maskUrl: string;
+  try {
+    const bin = atob(m[1]);
+    const octets = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
+    const cle = `${user.id}/reshape/${Date.now()}_${uvMaskDataUrl ? 'uvmask' : 'mask'}.png`;
+    await env.MESHES.put(cle, octets, { httpMetadata: { contentType: 'image/png' } });
+    maskUrl = await signedR2Url(env, cle, 'image');
+  } catch (e) {
+    await rembourser(e instanceof Error ? e.message : String(e));
+    return err(502, 'mask upload failed (credits refunded)');
+  }
+  const at = String(assetType || 'other').replace(/[^a-z_]/gi, '').slice(0, 20) || 'other';
+  const jobId = 'modal_' + crypto.randomUUID().replace(/-/g, '');
+  const jobIns = await supabaseAdmin(env).from('jobs').insert({
+    id: jobId, user_id: user.id,
+    asset_type: at, mode: 'reshape', seed: 42,
+    credit_cost: cost, status: 'queued',
+    type: 'mesh',
+    cost_usd: ESTIMATED_USD_RESHAPE,
+    project_name: projectName || null,
+    options: {
+      backend: 'modal', operation_type: 'reshape', prompt: texte,
+      cost_usd: ESTIMATED_USD_RESHAPE, mesh_url_in: meshUrl, masque_3d: !!uvMaskDataUrl,
+      provenance: _provenance(req), pays: _paysRequete(req),
+    },
+    created_at: new Date().toISOString(),
+  });
+  if (jobIns.error) {
+    await rembourser(jobIns.error.message);
+    console.error('[reshape] jobs.insert', jobIns.error.message);
+    return err(500, 'job creation failed (credits refunded)');
+  }
+  try {
+    const r = await fetch(env.MODAL_MESH_START_URL, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        _auth: env.MODAL_SHARED_SECRET, op_type: 'reshape', job_id: jobId,
+        mesh_url: meshUrl, vue_url: vueUrl, prompt: texte,
+        ...(uvMaskDataUrl ? { uv_mask_url: maskUrl } : { mask_url: maskUrl }),
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (!r.ok) throw new Error(`mesh_start HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    await supabaseAdmin(env).from('jobs').update({ status: 'processing' }).eq('id', jobId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await rembourser(msg, jobId);
+    console.error('[reshape] mesh_start', msg);
+    return err(502, 'reshape could not start (credits refunded)');
+  }
+  return json({ ok: true, success: true, jobId, creditsRemaining: remaining });
+}
+
 /** POST /api/mesh-texvar — « Texture variants », portage de
  *  mesh_tools.texture_var : SDXL + ControlNet-Tile sur l'atlas. */
 function handleMeshTexVar(req: Request, env: Env): Promise<Response> {
@@ -20538,7 +20643,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         '/api/rectify-image', '/api/modify-image', '/api/auto-inpaint', '/api/outfit', '/api/recolor', '/api/tex-variant',
         '/api/segment-preview',
         '/api/mask-inpaint', '/api/face-fix-image', '/api/upscale-image',
-        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/mesh-retexture', '/api/mesh-enhance-tex', '/api/mesh-name-parts', '/api/mesh-region-retex', '/api/text2image-tpose',
+        '/api/face-fix-mesh', '/api/mesh-op', '/api/mesh-texvar', '/api/mesh-retexture', '/api/mesh-reshape', '/api/mesh-enhance-tex', '/api/mesh-name-parts', '/api/mesh-region-retex', '/api/text2image-tpose',
         // Boots a Blender container on Modal -> same kill switch.
         '/api/mesh-convert',
         '/api/auto-rig', '/api/auto-rig-status',
@@ -20709,6 +20814,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         // memoire du navigateur et disparait au rechargement.
         if (pathname === '/api/projects/create'       && method === 'POST') return await handleProjectCreate(req, env);
         if (pathname === '/api/projects/shells'       && method === 'GET')  return await handleProjectShells(req, env);
+        if (pathname === '/api/mesh-reshape'          && method === 'POST') return await handleMeshReshape(req, env);
         if (pathname === '/api/api-keys'              && method === 'GET')  return await handleApiKeysList(req, env);
         if (pathname === '/api/api-keys'              && method === 'POST') return await handleApiKeysCreate(req, env);
         if (pathname === '/api/api-keys/revoke'       && method === 'POST') return await handleApiKeysRevoke(req, env);

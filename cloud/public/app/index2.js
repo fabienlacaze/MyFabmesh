@@ -13325,6 +13325,21 @@ function _peConfigureModeUI() {
   document.querySelectorAll('#modal-paint-emissive .pe-emissive-only')
     .forEach((el) => { el.style.display = special ? 'none' : ''; });
   const maskPanel = $('pe-mask-panel'); if (maskPanel) maskPanel.style.display = maskMode ? 'flex' : 'none';
+  if (maskPanel) {
+    // textes du panneau : re-texture (d'origine) ou forme (Reshape draw, portage du bureau 2026-09-28)
+    const titre = maskPanel.children[0], libelle = maskPanel.querySelector('label'), champ = $('pe-mask-prompt');
+    const force = $('pe-mask-strength'), forceLib = force?.previousElementSibling;
+    if (!maskPanel.dataset.origine) {
+      maskPanel.dataset.origine = JSON.stringify([titre?.textContent, libelle?.textContent, champ?.placeholder]);
+    }
+    const [t0, l0, p0] = JSON.parse(maskPanel.dataset.origine);
+    const forme = maskMode && peState.reshape;
+    if (titre) titre.textContent = forme ? _i18nT('Part to rebuild') : t0;
+    if (libelle) libelle.textContent = forme ? _i18nT('What should replace it?') : l0;
+    if (champ) champ.placeholder = forme ? _i18nT('e.g. a crystal skull with two horns') : p0;
+    if (force) force.style.display = forme ? 'none' : '';
+    if (forceLib) forceLib.style.display = forme ? 'none' : '';
+  }
   const clonePanel = $('pe-clone-panel'); if (clonePanel) clonePanel.style.display = cloneMode ? 'flex' : 'none';
   const h2 = document.querySelector('#modal-paint-emissive h2');
   const sub = document.querySelector('#modal-paint-emissive .modal-subtitle');
@@ -13341,6 +13356,11 @@ function _peConfigureModeUI() {
     if (sub) sub.textContent = _i18nT('Clone one area of the texture onto another. Ctrl+click = set the source, then left-click and drag = clone. Orbit (right-click), zoom, magnifier, undo/redo.');
     if (apply) apply.textContent = '💾 ' + _i18nT('Save new version');
     if (status) status.textContent = _i18nT('Ctrl+click = source · left-click + drag = clone · right-click = orbit · wheel = zoom');
+  } else if (maskMode && peState.reshape) {
+    if (h2) h2.textContent = '🖌 ' + _i18nT('Reshape a region (draw)');
+    if (sub) sub.textContent = _i18nT('Paint the part to rebuild straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe what should replace it.');
+    if (apply) apply.textContent = '🧬 ' + _i18nT('Rebuild this part');
+    if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-click = orbit. Wheel = zoom.');
   } else if (maskMode) {
     if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area');
     if (sub) sub.textContent = _i18nT('Paint the area to re-texture straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe the new look and apply.');
@@ -13364,6 +13384,8 @@ function openPaintEmissive(opts = {}) {
   if (!modal) return;
   peState.maskMode = maskMode;
   peState.cloneMode = cloneMode;
+  // Reshape (draw) : meme peinture de zone, mais la zone est RECONSTRUITE en 3D (2026-09-28)
+  peState.reshape = maskMode && !!opts.reshape;
   peState.retexMeshPath = meshPath;
   peState.cloneSource = null; peState.cloneSource3D = null; peState.cloneSourceScreen = null;
   peState.cloneOffsetScreen = null; peState.cloneSrcSnaps = null;
@@ -13549,9 +13571,11 @@ function openPaintEmissive(opts = {}) {
     const btn = $('pe-apply-device');
     const orig = btn.textContent;
     btn.disabled = true;
-    btn.textContent = peState.maskMode ? 'Re-texture…' : 'Saving…';
+    btn.textContent = peState.maskMode ? (peState.reshape ? 'Rebuilding…' : 'Re-texture…') : 'Saving…';
     try {
-      if (peState.maskMode) {
+      if (peState.maskMode && peState.reshape) {
+        await _peApplyReshape();
+      } else if (peState.maskMode) {
         await _peApplyMaskRetex();
       } else {
         await _peApplyOnDevice();
@@ -13689,6 +13713,207 @@ async function _peApplyOnDevice() {
 function _peMeshCourant() {
   const p = state.currentProject;
   return p && (p.previewMeshPath || p.selectedMeshPath);
+}
+
+// ============================================================
+// « RESHAPE A REGION » (auto inpaint 3D) — portage web du 2026-09-28 (bureau : _initRegionRetex,
+// mode « shape »). La vue de face A PLAT est rendue ICI : orthographique, camera sur +Z, demi-largeur
+// 0,6, couleurs de la texture sans eclairage, fond blanc — exactement la projection de
+// scripts/mesh_inpaint.py (rendre), dont le recalage cote serveur depend pixel pour pixel.
+// ============================================================
+window.__rendreFaceAPlat = async function (url, taille = 1024) {
+  const gltf = await new Promise((ok, ko) => new GLTFLoader().load(url, ok, undefined, ko));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xffffff);
+  const modele = gltf.scene;
+  const jetables = [];
+  modele.traverse((o) => {
+    if (!o.isMesh) return;
+    const m = Array.isArray(o.material) ? o.material[0] : o.material;
+    const plat = new THREE.MeshBasicMaterial({
+      map: m?.map || null, color: m?.map ? 0xffffff : (m?.color || new THREE.Color(0xcccccc)),
+      vertexColors: !!o.geometry?.attributes?.color, side: m?.side ?? THREE.FrontSide,
+      transparent: false, toneMapped: false,
+    });
+    jetables.push(plat);
+    o.material = plat;
+  });
+  scene.add(modele);
+  const cam = new THREE.OrthographicCamera(-0.6, 0.6, 0.6, -0.6, 0.01, 100);
+  cam.position.set(0, 0, 2);
+  cam.lookAt(0, 0, 0);
+  const rendu = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
+  rendu.setPixelRatio(1);
+  rendu.setSize(taille, taille, false);
+  rendu.outputColorSpace = THREE.SRGBColorSpace;
+  rendu.toneMapping = THREE.NoToneMapping;
+  rendu.render(scene, cam);
+  const dataUrl = rendu.domElement.toDataURL('image/png');
+  rendu.dispose();
+  jetables.forEach((m) => m.dispose());
+  modele.traverse((o) => { if (o.isMesh) { o.geometry?.dispose?.(); } });
+  return dataUrl;
+};
+
+(function _initReshapeWeb() {
+  const $ = (id) => document.getElementById(id);
+  const modal = $('modal-region-retex');
+  const canvas = $('rrx-canvas');
+  const ctx = canvas && canvas.getContext('2d');
+  if (!modal || !ctx) return;
+  canvas.style.opacity = '0.5';        // transparence du calque entier (voir bureau, _dab)
+  let peint = false, aPeint = false, vueUrl = null;
+  // fenetre partagee avec le bureau : ici seulement le mode « forme »
+  const h3 = modal.querySelector('h3');
+  if (h3) h3.innerHTML = '&#129516; ' + _i18nT('Reshape a region');
+  const aide = modal.querySelector('p');
+  if (aide) aide.textContent = _i18nT('Name the part (the AI finds it, or paint it), then describe what should replace it. The AI rebuilds that part in 3D and blends it into the model.');
+  const libelle = $('rrx-prompt')?.closest('.form-row')?.querySelector('label');
+  if (libelle) libelle.textContent = _i18nT('What should replace it?');
+  if ($('rrx-prompt')) $('rrx-prompt').placeholder = _i18nT('e.g. a crystal skull with two horns');
+  const force = $('rrx-strength')?.closest('label');
+  if (force) force.style.display = 'none';
+
+  const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * canvas.width, y: (e.clientY - r.top) / r.height * canvas.height }; };
+  const touche = (p) => {
+    const br = parseInt($('rrx-brush').value) || 32;
+    ctx.fillStyle = 'rgb(255,60,60)';
+    ctx.beginPath(); ctx.arc(p.x, p.y, br / 2, 0, Math.PI * 2); ctx.fill();
+    aPeint = true;
+  };
+  canvas.addEventListener('pointerdown', (e) => { peint = true; canvas.setPointerCapture?.(e.pointerId); touche(pos(e)); });
+  canvas.addEventListener('pointermove', (e) => { if (peint) touche(pos(e)); });
+  window.addEventListener('pointerup', () => { peint = false; });
+  $('rrx-clear')?.addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; });
+  const fermer = () => modal.classList.add('hidden');
+  $('rrx-cancel')?.addEventListener('click', fermer);
+  $('rrx-close-x')?.addEventListener('click', fermer);
+  const chargement = (t) => { const l = $('rrx-loading'); if (!l) return; l.textContent = t || ''; l.style.display = t ? 'flex' : 'none'; };
+
+  async function ouvrir() {
+    const mp = _peMeshCourant();
+    if (!mp) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
+    ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; vueUrl = null;
+    $('rrx-prompt').value = ''; if ($('rrx-part')) $('rrx-part').value = ''; $('rrx-img').src = '';
+    modal.classList.remove('hidden');
+    chargement(_i18nT('Rendering mesh…'));
+    const r = await API.renderMeshFront({ meshPath: mp });
+    chargement('');
+    if (!r?.ok) { showToast(_i18nT('Could not render the mesh front.') + ' ' + (r?.error || ''), 'error'); fermer(); return; }
+    $('rrx-img').src = r.dataUrl;
+    vueUrl = r.frontPath;
+  }
+  async function detecter() {
+    const part = ($('rrx-part')?.value || '').trim();
+    if (!part) { showToast(_i18nT('Type which part to detect (or paint it).'), 'error'); return false; }
+    if (!vueUrl) { showToast(_i18nT('The mesh render is not ready yet.'), 'error'); return false; }
+    chargement(_i18nT('Detecting the part…'));
+    try {
+      const r = await API.segmentMask({ imagePath: vueUrl, targetText: await translateUserPrompt(part), dilate: 8 });
+      if (!(r?.success && r.maskUrl)) { showToast(_i18nT('Could not detect this part. Try another word, or paint it.'), 'error'); return false; }
+      await new Promise((ok) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const off = document.createElement('canvas'); off.width = canvas.width; off.height = canvas.height;
+          const octx = off.getContext('2d');
+          octx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const md = octx.getImageData(0, 0, canvas.width, canvas.height).data;
+          const cd = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          for (let i = 0; i < md.length; i += 4) {
+            if (md[i] > 128) { cd.data[i] = 255; cd.data[i + 1] = 60; cd.data[i + 2] = 60; cd.data[i + 3] = 255; }
+          }
+          ctx.putImageData(cd, 0, 0);
+          aPeint = true;
+          ok();
+        };
+        img.onerror = () => ok();
+        img.src = r.maskUrl;
+      });
+      return aPeint;
+    } catch (e) {
+      showToast(_i18nT('Detection error.'), 'error');
+      return false;
+    } finally { chargement(''); }
+  }
+  $('rrx-detect')?.addEventListener('click', detecter);
+  $('rrx-apply')?.addEventListener('click', async () => {
+    const mp = _peMeshCourant();
+    const brut = ($('rrx-prompt').value || '').trim();
+    if (!mp) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
+    if (!brut) { showToast(_i18nT('Describe what should replace the part.'), 'error'); return; }
+    if (!aPeint && !(await detecter())) return;
+    const mc = document.createElement('canvas'); mc.width = canvas.width; mc.height = canvas.height;
+    const mctx = mc.getContext('2d');
+    mctx.fillStyle = 'black'; mctx.fillRect(0, 0, mc.width, mc.height);
+    const src = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const out = mctx.getImageData(0, 0, mc.width, mc.height);
+    for (let i = 0; i < src.length; i += 4) {
+      if (src[i + 3] > 20) { out.data[i] = 255; out.data[i + 1] = 255; out.data[i + 2] = 255; out.data[i + 3] = 255; }
+    }
+    mctx.putImageData(out, 0, 0);
+    const maskDataUrl = mc.toDataURL('image/png');
+    const prompt = await translateUserPrompt(brut);
+    const p = state.currentProject;
+    const vue = vueUrl;
+    fermer();
+    _lancerReshape({ meshPath: mp, frontPath: vue, maskDataUrl, prompt, brut, projet: p });
+  });
+  document.getElementById('ws-mesh-reshape-btn')?.addEventListener('click', ouvrir);
+  document.getElementById('ws-mesh-reshape-draw-btn')?.addEventListener('click', () => {
+    const mp = _peMeshCourant();
+    if (!mp) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
+    openPaintEmissive({ maskMode: true, reshape: true, meshPath: mp });
+  });
+})();
+
+/** Lance le travail (plusieurs minutes) en tache de fond : tuile « Reshape region », nouvelle version. */
+function _lancerReshape({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, brut, projet }) {
+  const job = (typeof pushJob === 'function')
+    ? pushJob(`Reshape region: ${projet?.name || ''}`, null,
+        { 'Source mesh': _nomLisible(meshPath), Prompt: brut }, 300000, { projectName: projet?.name })
+    : null;
+  API.reshapeRegion({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName: projet?.name }).then(async (r) => {
+    if (r?.ok && r.path) {
+      if (job) completeJob(job.id, true);
+      showToast(_i18nT('Region rebuilt: new 3D version added.'), 'success');
+      try { await reloadCurrentProject(); } catch (_) {}
+    } else {
+      const msg = (r && r.error) || 'unknown';
+      if (job) completeJob(job.id, false, msg);
+      reportPipelineError(msg, 'Reshape a region failed');
+    }
+  }).catch((e) => {
+    if (job) completeJob(job.id, false, String(e?.message || e));
+    reportPipelineError(String(e?.message || e), 'Reshape a region failed');
+  });
+}
+
+// Reshape (draw) : la zone peinte en 3D (masque dans la texture) part vers la meme chaine.
+async function _peApplyReshape() {
+  const meshPath = peState.retexMeshPath;
+  if (!meshPath) throw new Error('no mesh');
+  const brut = (document.getElementById('pe-mask-prompt')?.value || '').trim();
+  if (!brut) { showToast(_i18nT('Describe what should replace the part.'), 'error'); throw new Error('no prompt'); }
+  let best = null, bestScore = -1;
+  peState.canvases?.forEach((entry) => {
+    const d = entry.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE).data;
+    let s = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i] > 40 || d[i + 1] > 40 || d[i + 2] > 40) s++; }
+    if (s > bestScore) { bestScore = s; best = entry; }
+  });
+  if (!best || bestScore <= 0) { showToast(_i18nT('Paint the part to rebuild first (in white).'), 'error'); throw new Error('empty mask'); }
+  const mc = document.createElement('canvas'); mc.width = PE_TEX_SIZE; mc.height = PE_TEX_SIZE;
+  const mctx = mc.getContext('2d');
+  mctx.fillStyle = '#000000'; mctx.fillRect(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
+  const src = best.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE).data;
+  const out = mctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
+  for (let i = 0; i < src.length; i += 4) {
+    if (src[i] > 40 || src[i + 1] > 40 || src[i + 2] > 40) { out.data[i] = out.data[i + 1] = out.data[i + 2] = out.data[i + 3] = 255; }
+  }
+  mctx.putImageData(out, 0, 0);
+  const prompt = await translateUserPrompt(brut);
+  _lancerReshape({ meshPath, uvMaskDataUrl: mc.toDataURL('image/png'), prompt, brut, projet: state.currentProject });
 }
 document.getElementById('ws-mesh-region-retex-btn')?.addEventListener('click', () => {
   const mp = _peMeshCourant();
@@ -20305,7 +20530,7 @@ function _jobStepIndex(j) {
   // image. Sans cette regle, le motif « construction stages » ci-dessous les
   // rangeait en 3D (audit 1.0.36) ; « 3D construction stages » y reste.
   if (/^(construction stages|étapes de construction)/i.test(n)) return 1;
-  if (/(retex|re-?texture|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth|refine mesh|explosion 3d|explode|\bresize\b|construction stages|export to unreal|^export )/i.test(n)) return 2;
+  if (/(retex|re-?texture|reshape|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth|refine mesh|explosion 3d|explode|\bresize\b|construction stages|export to unreal|^export )/i.test(n)) return 2;
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated
   // item" button must appear and jump to the mesh step.

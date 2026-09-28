@@ -887,6 +887,7 @@
                         <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin)">&#9986; Segment parts</button>
                         <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head). Requires a segmented mesh.">&#127991; Name the zones</button>
                         <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part: paint it on the 3D mesh, describe the new look — geometry stays intact">&#127912; Re-texture a region</button>
+                        <button id="ws-mesh-reshape-btn" class="ghost-btn tool-btn" title="Rebuild ONE part of the model in 3D from a prompt (for example, replace the head). Runs on your graphics card.">&#129516; Reshape a region</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -900,6 +901,7 @@
                         <button id="ws-mesh-paintvert-btn" class="ghost-btn tool-btn" title="Vertex paint — brush colours straight onto the vertices (works even with no UVs / no texture). For pixel-precise painting on the texture itself, use Paint Mesh.">&#127912; Paint</button>
                         <button id="ws-mesh-selectface-btn" class="ghost-btn tool-btn" title="Select faces to isolate, hide or work on them.">&#9634; Select</button>
                         <button id="ws-mesh-clone3d-btn" class="ghost-btn tool-btn" title="Clone one area of the texture onto another, directly on the model">&#129657; Clone stamp</button>
+                        <button id="ws-mesh-reshape-draw-btn" class="ghost-btn tool-btn" title="Paint the part to rebuild straight on the 3D model, then describe what should replace it. Runs on your graphics card.">&#128396; Reshape (draw)</button>
                         <button id="ws-mesh-explode-btn" class="ghost-btn tool-btn" title="Fracture the mesh into shards and blast them outward with the viewer explode slider (explosion / destruction). Texture preserved, exportable.">&#128165; Explode / destroy</button>
                         <button id="ws-mesh-stages3d-btn" class="ghost-btn tool-btn" title="Fabricate the 3D meshes of the construction stages (sliced building + frame + scaffolding), navigable and exportable">&#127959;&#65039; 3D construction stages</button>
                         <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize, dimension or re-orient the mesh with a gizmo and on-screen rulers. Bakes a new version.">&#128207; Resize / dimension</button>
@@ -1969,6 +1971,49 @@
          emissiveIntensity slider. Saves the emissive map embedded
          in the new GLB on Apply.
          ============================================================ -->
+    <!-- « Reshape a region » (portage web du 2026-09-28) : vue de face A PLAT rendue par le
+         navigateur, zone nommee (CLIPSeg) ou peinte, prompt -> /api/mesh-reshape. -->
+    <div id="modal-region-retex" class="modal hidden">
+      <div class="modal-content" style="width:88vw; height:86vh; max-width:1500px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+          <h3 style="margin:0;">&#127912; Re-texture a region</h3>
+          <button id="rrx-close-x" class="settings-close-x">&#10005;</button>
+        </div>
+        <p style="margin:0; font-size:12px; color:var(--text-muted);">Name the part — the AI detects it — and type what it should look like, then Apply. (Optional: paint to refine.) Geometry stays intact.</p>
+        <div style="display:flex; flex:1 1 0; gap:12px; min-height:400px;">
+          <!-- Left: controls -->
+          <div style="display:flex; flex-direction:column; gap:14px; width:280px; flex-shrink:0; padding:8px 0; overflow-y:auto;">
+            <div class="form-row">
+              <label>Which part? (the AI detects it — no painting needed)</label>
+              <input id="rrx-part" type="text" placeholder="e.g. helmet, cape, shoulder pads" style="width:100%;" />
+            </div>
+            <button id="rrx-detect" class="secondary-btn" style="align-self:flex-start;">&#129668; Detect (AI)</button>
+            <div class="form-row">
+              <label>What should this area look like?</label>
+              <input id="rrx-prompt" type="text" placeholder="e.g. golden polished metal armor" style="width:100%;" />
+            </div>
+            <div style="display:flex; flex-direction:column; gap:12px; font-size:12px; color:var(--text-2);">
+              <label style="display:flex; flex-direction:column; gap:4px;">Brush<input id="rrx-brush" type="range" min="8" max="90" value="32"></label>
+              <label style="display:flex; flex-direction:column; gap:4px;">Strength<input id="rrx-strength" type="range" min="0.3" max="0.95" step="0.05" value="0.8"></label>
+              <button id="rrx-clear" class="ghost-btn" style="font-size:11px; padding:4px 8px; align-self:flex-start;">Clear paint</button>
+            </div>
+          </div>
+          <!-- Right: viewer (static front render — CLIPSeg + UV projection need a fixed view) -->
+          <div style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; display:flex; align-items:center; justify-content:center;">
+            <div id="rrx-stage" style="position:relative; width:min(100%, 84vh); aspect-ratio:1; background:#111; border-radius:4px; overflow:hidden;">
+              <img id="rrx-img" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; pointer-events:none;" />
+              <canvas id="rrx-canvas" width="512" height="512" style="position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; touch-action:none;"></canvas>
+              <div id="rrx-loading" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.62); color:#ddd; font-size:13px;"></div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button id="rrx-cancel" class="secondary-btn">Cancel</button>
+          <button id="rrx-apply" class="refine-btn" style="margin:0; padding:8px 24px; width:auto;">Apply</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-paint-emissive" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
         <h2>💡 Paint Emissive</h2>

@@ -2386,6 +2386,94 @@ class MyFabmeshMesh:
             print(f"[retexture] FAILED job={job_id}: {err_msg}", flush=True)
             raise
 
+    @modal.method()
+    def reshape_to_volume(self, job_id: str, payload: dict):
+        """« Reshape a region » (auto inpaint 3D), portage du bureau (main.js mesh:reshape-region).
+        Regenere la FORME d'une zone d'apres un prompt, en quatre temps dans CE conteneur (TRELLIS
+        et SDXL inpaint y sont deja) :
+          1. masque de la vue de face (dessine a plat, ou zone peinte en 3D -> masque_uv) ;
+          2. la zone est repeinte avec le prompt (SDXL inpaint) sur la vue de face A PLAT
+             rendue par le navigateur (meme projection que mesh_inpaint.rendre : ortho, demi-largeur 0,6) ;
+          3. la nouvelle piece est isolee et detouree (mesh_inpaint.preparer), puis image -> 3D ;
+          4. coupe, recalage, melange geometrie + texture (mesh_inpaint.assembler).
+        Meme contrat que generate_to_volume : /data/<job_id>.glb ou /data/<job_id>.err."""
+        import shutil
+        import tempfile
+        import traceback
+        import urllib.request
+        from PIL import Image as _PImg
+        from modal_app._mask_inpaint import generate as mask_generate
+        from modal_app._mesh import generate
+        from modal_app.reshape import mesh_inpaint as mi
+
+        t0 = time.time()
+        out_path = f"/data/{job_id}.glb"
+        err_path = f"/data/{job_id}.err"
+        dossier = tempfile.mkdtemp(prefix="reshape_")
+        try:
+            def _telecharger(url: str, chemin: str):
+                req = urllib.request.Request(url, headers={
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
+                with urllib.request.urlopen(req, timeout=180) as r, open(chemin, "wb") as f:
+                    f.write(r.read())
+
+            prompt = (payload.get("prompt") or "").strip()
+            if not prompt:
+                raise ValueError("prompt required")
+            maillage = os.path.join(dossier, "maillage.glb")
+            vue = os.path.join(dossier, "vue.png")
+            masque = os.path.join(dossier, "masque.png")
+            _telecharger(payload["mesh_url"], maillage)
+            _telecharger(payload["vue_url"], vue)
+            taille = _PImg.open(vue).size[0]
+            faces = None
+            if payload.get("uv_mask_url"):
+                # zone peinte EN 3D : faces peintes etendues a l'epaisseur, masque = leur projection
+                uv = os.path.join(dossier, "masque_uv.png")
+                _telecharger(payload["uv_mask_url"], uv)
+                faces = os.path.join(dossier, "faces.npy")
+                mi.masque_uv(maillage, uv, masque, faces, taille)
+            else:
+                brut = os.path.join(dossier, "masque_brut.png")
+                _telecharger(payload["mask_url"], brut)
+                _PImg.open(brut).convert("L").resize((taille, taille), _PImg.NEAREST).save(masque)
+            print(f"[reshape] 1/4 repeinte de la zone : {prompt[:80]}", flush=True)
+            repeint = os.path.join(dossier, "repeint.png")
+            img = mask_generate(self._get_inpaint_pipe(), _PImg.open(vue).convert("RGB"),
+                                _PImg.open(masque).convert("L"), prompt)
+            img.save(repeint)
+            print("[reshape] 2/4 piece isolee", flush=True)
+            piece_png = os.path.join(dossier, "piece.png")
+            cadre = os.path.join(dossier, "cadre.json")
+            mi.preparer(repeint, masque, piece_png, cadre)
+            print("[reshape] 3/4 piece en 3D", flush=True)
+            piece_glb = os.path.join(dossier, "piece.glb")
+            glb = generate(self.pipeline, self.o_voxel, _PImg.open(piece_png),
+                           mode="1024", seed=int(payload.get("seed") or 42),
+                           decimation_target=300_000, texture_size=1024)
+            with open(piece_glb, "wb") as f:
+                f.write(glb)
+            print("[reshape] 4/4 recalage et melange", flush=True)
+            sortie = os.path.join(dossier, "sortie.glb")
+            mi.assembler(maillage, masque, cadre, piece_glb, sortie, faces)
+            shutil.copyfile(sortie, out_path)
+            mesh_output_volume.commit()
+            print(f"[reshape] DONE job={job_id} dt={time.time() - t0:.1f}s bytes={os.path.getsize(out_path)}", flush=True)
+        except BaseException as e:            # mesh_inpaint signale ses echecs par SystemExit
+            if isinstance(e, KeyboardInterrupt):
+                raise
+            err_msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+            try:
+                with open(err_path, "w") as f:
+                    f.write(err_msg)
+                mesh_output_volume.commit()
+            except Exception:
+                pass
+            print(f"[reshape] FAILED job={job_id}: {err_msg}", flush=True)
+            raise RuntimeError(str(e)[:500])
+        finally:
+            shutil.rmtree(dossier, ignore_errors=True)
+
     def _get_inpaint_pipe(self):
         """Lazy-load SDXL inpaint (RealVisXL_V4.0 weights). Cached on the
         instance so subsequent face_fix calls don't reload."""
@@ -2750,6 +2838,21 @@ def mesh_router():
         # (~90 s + chargement a froid) : bien au-dela des 100 s d'une requete
         # synchrone. Meme mecanique que 'generate' : spawn, identifiant
         # d'appel persiste pour l'annulation, suivi par /mesh_status.
+        # « Reshape a region » (auto inpaint 3D, 2026-09-28) : plusieurs minutes (SDXL + TRELLIS),
+        # meme mecanique asynchrone que le re-texture ci-dessous.
+        if op_type == "reshape":
+            if not payload.get("mesh_url") or not payload.get("vue_url") \
+                    or not (payload.get("mask_url") or payload.get("uv_mask_url")) or not payload.get("prompt"):
+                raise HTTPException(status_code=400, detail="mesh_url, vue_url, mask_url or uv_mask_url, prompt required")
+            job_id = payload.get("job_id") or uuid.uuid4().hex
+            call = MyFabmeshMesh().reshape_to_volume.spawn(job_id, payload)
+            try:
+                with open(f"/data/{job_id}.call_id", "w") as f:
+                    f.write(call.object_id)
+                mesh_output_volume.commit()
+            except Exception as e:
+                print(f"[mesh_start] WARN call_id non persiste pour {job_id}: {e}", flush=True)
+            return {"job_id": job_id, "status": "queued"}
         if op_type == "retexture":
             if not payload.get("mesh_url") or not payload.get("front_image_url"):
                 raise HTTPException(status_code=400, detail="mesh_url and front_image_url required")

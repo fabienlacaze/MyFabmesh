@@ -3137,6 +3137,43 @@
     // Meme forme de retour : { success, parts, source, assetType }.
     // « Re-texture a region (AI) » — port cloud de l'IPC bureau
     // 'mesh:region-retex'. Meme contrat de retour que le bureau : { ok, path }.
+    // « Reshape a region » (auto inpaint 3D, 2026-09-28). La vue de face A PLAT est rendue par le
+    // NAVIGATEUR (window.__rendreFaceAPlat, index2.js : meme projection que mesh_inpaint.rendre),
+    // puis rangee en R2 (upload-image, gratuit, hors projet) : la detection CLIPSeg et Modal la lisent.
+    renderMeshFront: async ({ meshPath, meshUrl } = {}) => {
+      const url = meshUrl || meshPath;
+      if (!url || typeof window.__rendreFaceAPlat !== 'function') return { ok: false, error: 'front render unavailable' };
+      try {
+        const dataUrl = await window.__rendreFaceAPlat(url);
+        const r = await postJSON('/api/upload-image', { dataUrl, suffix: 'reshape_vue' });
+        if (!r?.success || !r.path) return { ok: false, error: r?.error || 'upload failed' };
+        return { ok: true, dataUrl, frontPath: r.path };
+      } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+    },
+    // Travail de plusieurs minutes (SDXL + piece en 3D) : suivi comme un re-texture.
+    reshapeRegion: async ({ meshPath, meshUrl, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName } = {}) => {
+      const url = meshUrl || meshPath;
+      if (!url) return { ok: false, error: 'meshPath or meshUrl required' };
+      if (!maskDataUrl && !uvMaskDataUrl) return { ok: false, error: 'mask required' };
+      try {
+        let vueUrl = frontPath;
+        if (!vueUrl) {
+          const v = await window.meshyAPI.renderMeshFront({ meshPath: url });
+          if (!v?.ok) return { ok: false, error: v?.error || 'front render failed' };
+          vueUrl = v.frontPath;
+        }
+        const p = window.state?.currentProject || null;
+        const r = await postJSON('/api/mesh-reshape', {
+          meshUrl: url, vueUrl, maskDataUrl: maskDataUrl || undefined, uvMaskDataUrl: uvMaskDataUrl || undefined,
+          prompt: prompt || '', projectName: projectName || p?.name || null, assetType: p?.assetType || null,
+        });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (!r?.jobId) return { ok: false, error: r?.error || 'unknown' };
+        try { window.fabmeshJobs?.declareServerJob?.(r.jobId); } catch (_) {}
+        const fin = await pollPrediction(r.jobId, { channel: null });
+        return { ok: true, path: fin.url };
+      } catch (e) { return { ok: false, error: e?.message || String(e) }; }
+    },
     regionRetex: async ({ meshPath, meshUrl, maskDataUrl, prompt, strength } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { ok: false, error: 'meshPath or meshUrl required' };

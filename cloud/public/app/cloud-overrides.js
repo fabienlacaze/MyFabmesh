@@ -703,6 +703,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-enhance-tex-btn':  3,   // Real-ESRGAN sur l'atlas (/api/mesh-enhance-tex)
     'ws-mesh-name-btn':         3,   // rendu isole + CLIP-L (/api/mesh-name-parts)
     'ws-mesh-region-retex-btn': 3,   // SDXL Inpaint de l'atlas sous masque UV (/api/mesh-region-retex)
+    'ws-mesh-reshape-btn':      10,  // reshape (2026-09-28)
+    'ws-mesh-reshape-draw-btn': 10,
     'ws-mesh-segment-btn':      15,  // SAMPart3D part-seg — A100 ~8 min/mesh
     // Payants mais sans pastille jusqu'au 2026-09-27 :
     'ws-mesh-stages3d-btn':     2,   // etapes de construction 3D (/api/construction-stages-3d)
@@ -1239,6 +1241,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',
+    'ws-mesh-reshape-btn':      'reshape',
+    'ws-mesh-reshape-draw-btn': 'reshape',
     'ws-resolution-btn':   'upscale',
   };
   async function syncLivePricing() {
