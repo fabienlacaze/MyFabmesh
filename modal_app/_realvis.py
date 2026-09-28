@@ -46,7 +46,7 @@ _ANATOMY_NEG = {
     # 2026-09-28 : serpent / ver (gabarit sans_pattes) et poisson — choisis dans build_prompts
     # d'apres le gabarit present dans le prompt. L'anti-enroulement « animal » (1,5) ne suffisait pas.
     'sans_pattes': "(coiled:1.8), (spiral:1.7), (curled up:1.7), (knotted:1.5), "
-                   "(wrapped around itself:1.6), (legs:1.5), (feet:1.4)",
+                   "(wrapped around itself:1.6), (legs:1.7), (lizard:1.6), (two heads:1.6)",
     'poisson':   "(legs:1.7), (feet:1.6), (curled up:1.5), (bent body:1.3), (two heads:1.5)",
     'animal':    "(curled up:1.5), (coiled:1.5), (lying down:1.4), "
                  "(five legs:1.6), (six legs:1.6), (extra leg:1.6), "
@@ -276,12 +276,34 @@ def generate(pipe, prompt: str, seed: int, steps: int = 30,
     # silently truncated past position 77 and the load-bearing tokens
     # never reach the U-Net. Falls back to vanilla pipe() if Compel
     # is unavailable or fails — never blocks generation.
+    # SERPENT / VER (gabarit « sans_pattes ») : depart d'une silhouette deja ETIREE, debruitee a 70 %.
+    # Du texte seul, le modele sort un serpent enroule (0/36 au banc) ; ainsi 24/24 etires
+    # (modal_app/serpent_etire.py). Memes poids, aucun modele de plus.
+    appel = pipe
+    from modal_app.serpent_etire import FORCE_SERPENT, est_serpent, silhouette
+    if est_serpent(prompt, asset_type) and not turbo:
+        appel = _img2img_de(pipe)
+        base_kwargs.pop("height", None)
+        base_kwargs.pop("width", None)
+        base_kwargs.update(image=silhouette(graine=int(seed)), strength=FORCE_SERPENT)
+        print(f"[_realvis] serpent : silhouette etiree, force {FORCE_SERPENT}", flush=True)
     try:
         from modal_app._sdxl_prompt_utils import encode_sdxl_long_prompt
         embeds = encode_sdxl_long_prompt(pipe, optimized, negative)
-        result = pipe(**embeds, **base_kwargs)
+        result = appel(**embeds, **base_kwargs)
     except Exception as _ce:
         print(f"[_realvis] Compel fallback ({_ce}); using truncated prompts",
               flush=True)
-        result = pipe(prompt=optimized, negative_prompt=negative, **base_kwargs)
+        result = appel(prompt=optimized, negative_prompt=negative, **base_kwargs)
     return result.images[0]
+
+
+_IMG2IMG = {}
+
+
+def _img2img_de(pipe):
+    """Pipeline image-vers-image SDXL sur les MEMES composants (aucun chargement), en cache."""
+    if id(pipe) not in _IMG2IMG:
+        from diffusers import StableDiffusionXLImg2ImgPipeline
+        _IMG2IMG[id(pipe)] = StableDiffusionXLImg2ImgPipeline(**pipe.components)
+    return _IMG2IMG[id(pipe)]

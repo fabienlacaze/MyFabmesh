@@ -138,6 +138,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
         _is_tpose = False
 
     _ctrl_pipe = None
+    _img2img = None                     # serpent : pipeline image-vers-image, cree a la demande
     _tpose_skeleton = None
     if _is_tpose:
         # T-pose mode: DreamShaper XL Lightning (CreativeML OpenRAIL++-M,
@@ -361,7 +362,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             )
             # 2026-09-28 : serpent / ver et poisson (gabarits sans_pattes / poisson de buildFullPrompt)
             if 'body stretched out straight' in _p_low:
-                _anatomy = "coiled, spiral, curled up, knotted, wrapped around itself, legs, feet, "
+                _anatomy = "coiled, spiral, curled up, knotted, wrapped around itself, legs, lizard, two heads, "
             elif 'full body fish' in _p_low:
                 _anatomy = "legs, feet, curled up, bent body, two heads, "
             negative_prompt = (
@@ -477,18 +478,36 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             _pipe_kwargs['image'] = _tpose_skeleton
             _pipe_kwargs['controlnet_conditioning_scale'] = 0.85
             _pipe_kwargs['guidance_scale'] = 2.0
+        # SERPENT / VER (gabarit « sans_pattes ») : depart d'une silhouette deja ETIREE (serpent_etire.py,
+        # meme fichier que Modal) — du texte seul, le modele sort un serpent enroule (0/36 au banc).
+        _appel = pipe
+        try:
+            from serpent_etire import FORCE_SERPENT, est_serpent, silhouette
+            if est_serpent(optimized_prompt, _asset_type) and not _is_tpose and not _lightning_on:
+                from diffusers import StableDiffusionXLImg2ImgPipeline
+                if _img2img is None:
+                    _img2img = StableDiffusionXLImg2ImgPipeline(**pipe.components)
+                _pipe_kwargs.pop('height', None)
+                _pipe_kwargs.pop('width', None)
+                _pipe_kwargs['image'] = silhouette(graine=int(_pipe_kwargs['generator'].initial_seed()))
+                _pipe_kwargs['strength'] = FORCE_SERPENT
+                _appel = _img2img
+                print(f"LOCAL_REALVIS: serpent — silhouette etiree, force {FORCE_SERPENT}", flush=True)
+        except Exception as _se:
+            print(f"LOCAL_REALVIS: silhouette serpent ignoree ({_se})", flush=True)
+            _appel = pipe
         if _throttle_cb is not None:
             # Diffusers >= 0.25 uses callback_on_step_end; older versions use callback
             try:
                 _pipe_kwargs['callback_on_step_end'] = _throttle_cb
-                result = pipe(**_pipe_kwargs)
+                result = _appel(**_pipe_kwargs)
             except TypeError:
                 _pipe_kwargs.pop('callback_on_step_end', None)
                 _pipe_kwargs['callback'] = _throttle_cb
                 _pipe_kwargs['callback_steps'] = 1
-                result = pipe(**_pipe_kwargs)
+                result = _appel(**_pipe_kwargs)
         else:
-            result = pipe(**_pipe_kwargs)
+            result = _appel(**_pipe_kwargs)
 
         img_path = os.path.join(output_dir, f"ref_{_start_idx + i}.png")
         gen_img = result.images[0]
