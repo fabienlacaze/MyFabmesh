@@ -30,11 +30,11 @@ import _unimate_moteur as M  # noqa: E402  (lecture GLB, matrices monde)
 ALLURES = {
     # appui : part du cycle au sol ; T : periode (<= 4 pattes, 6 et plus) ; h : hauteur de pas ;
     # bob : balancement vertical ; foulee : longueur relative ; lacet : rad/s (+ = vers la gauche)
-    'walk': dict(beta=0.65, T=(1.1, 0.7), h=0.22, bob=0.025, foulee=1.0, lacet=0.0, tendu=0.92, pas=True),
-    'run': dict(beta=0.38, T=(0.62, 0.42), h=0.22, bob=0.035, foulee=1.8, lacet=0.0, tendu=0.87, pas=True),
-    'turn_left': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=0.55, tendu=0.92, pas=True),
-    'turn_right': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=-0.55, tendu=0.92, pas=True),
-    'idle': dict(beta=1.0, T=(4.0, 4.0), h=0.0, bob=0.008, foulee=0.0, lacet=0.0, tendu=0.95, pas=False),
+    'walk': dict(beta=0.65, T=(1.1, 0.7), h=0.22, bob=0.025, foulee=1.0, lacet=0.0, tendu=0.94, talon=0.5, pas=True),
+    'run': dict(beta=0.38, T=(0.62, 0.42), h=0.22, bob=0.035, foulee=1.8, lacet=0.0, tendu=0.87, talon=0.7, pas=True),
+    'turn_left': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=0.55, tendu=0.92, talon=0.35, pas=True),
+    'turn_right': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=-0.55, tendu=0.92, talon=0.35, pas=True),
+    'idle': dict(beta=1.0, T=(4.0, 4.0), h=0.0, bob=0.008, foulee=0.0, lacet=0.0, tendu=0.95, talon=0.0, pas=False),
 }
 
 
@@ -244,6 +244,12 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
     racine, pattes, queues, tetes, sol = detecter_pattes(par, P0)
     if not pattes:
         raise SystemExit('aucune patte detectee')
+    palpes = []
+    if len(pattes) >= 6:
+        lg = [float(np.linalg.norm(np.diff(P0[q['chaine']], axis=0), axis=1).sum()) for q in pattes]
+        med = float(np.median(lg))
+        palpes = [q for q, l_ in zip(pattes, lg) if l_ < 0.65 * med]
+        pattes = [q for q, l_ in zip(pattes, lg) if l_ >= 0.65 * med]
     phases(pattes, P0, allure)
     A = ALLURES[allure]
     nombreux = len(pattes) >= 6
@@ -260,6 +266,16 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         seg = np.linalg.norm(np.diff(P0[ch], axis=0), axis=1)
         p['ik'] = ch[:-1] if len(ch) >= 4 and seg[-1] < 0.5 * seg[:-1].mean() else ch
         p['pied_off'] = P0[p['bout']] - P0[p['ik'][-1]]
+        Eb = enfants_de(par)
+        sous = [k for k in sous_arbre(Eb, p['bout']) if not Eb[k] and k != p['bout']]
+        p['pivot_off'] = None
+        if p['ik'] is not ch:
+            p['pivot_off'] = np.zeros(3)                   # la patte pivote sur son bout
+        elif sous:
+            orteil = max(sous, key=lambda k: P0[k, 2])
+            off = P0[orteil] - P0[p['bout']]
+            if off[2] > 0.05 * float(np.linalg.norm(np.diff(P0[ch], axis=0), axis=1).sum()):
+                p['pivot_off'] = off
         haut = P0[ch[0]]
         N = P0[p['bout']].copy()
         d = N - haut
@@ -269,7 +285,12 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         if abs(d[1]) > 1.5 * np.hypot(d[0], d[2]):
             N[2] = haut[2] + p['pied_off'][2]
         # pied pose au sol, y compris une patte levee au repos (pattes arriere de l'araignee)
-        N[1] = min(N[1], sol + 0.02 * H)
+        # le point le plus BAS du pied (orteil sous la cheville chez l'humain) touche le sol ;
+        # abaisser la cheville elle-meme au sol enfoncait les orteils de 6 % de la hauteur
+        Eb_ = enfants_de(par)
+        contact = min(P0[k, 1] for k in sous_arbre(Eb_, p['bout']))
+        if contact - sol > 0.02 * H:
+            N[1] -= contact - sol
         p['neutre'] = N
     portee = np.mean([np.linalg.norm(p['neutre'] - P0[p['chaine'][0]]) for p in pattes])
     hanche = np.mean([P0[p['chaine'][0], 1] - sol for p in pattes])
@@ -354,6 +375,8 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
     for p in pattes:
         ch = p['ik']
         Qprec = None
+        Fpied = np.tile(np.eye(3), (nT, 1, 1))
+        u = 0.0
         for i in range(nT):
             if not A['pas']:
                 cible = p['neutre'].copy()
@@ -368,10 +391,22 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
                     X0, X1 = appui(p, k), appui(p, k + 1)
                     cible = X0 + (X1 - X0) * (1 - np.cos(np.pi * u)) / 2
                     cible[1] += h * np.sin(np.pi * u) ** 2
+            theta = 0.0
+            if A['pas'] and p['pivot_off'] is not None:
+                if phi < b_:
+                    s_ = np.clip((phi / b_ - 0.55) / 0.45, 0, 1)
+                else:
+                    s_ = 1 - np.clip(u / 0.45, 0, 1)
+                theta = A['talon'] * s_ * s_ * (3 - 2 * s_)
+            F = Rcap[i] @ Rotation.from_euler('x', theta).as_matrix()
+            Fpied[i] = F
+            if p['pivot_off'] is not None and theta > 0:
+                orteil_w = cible + Rcap[i] @ p['pivot_off']   # orteil (ou bout de patte) au sol (PAS « pivot » : centre du corps)
+                cible = orteil_w - F @ p['pivot_off']
             Q = np.array([monde(i, P0[k_]) for k_ in ch])
             if Qprec is not None:                            # continuite : meme sens de pliure
                 Q = Qprec + (Q[0] - Qprec[0])
-            cib = cible - Rcap[i] @ p['pied_off']              # cible de la cheville
+            cib = cible - F @ p['pied_off']                    # cible de la cheville
             # portee bornee a 97 % : au-dela, le pied glisse un peu plutot que la patte se bloque
             # droite et se retourne (pedipalpes de l'araignee a la course : 160 deg d'un coup)
             Lik = float(np.linalg.norm(np.diff(P0[ch], axis=0), axis=1).sum())
@@ -385,8 +420,8 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
                 D[i, ch[a]] = aligner(repos, Q[a + 1] - Q[a]) @ Rb[i]
         for k_ in ch[:-1]:
             fixes[k_] = D[:, k_].copy()
-        fixes[ch[-1]] = Rcap                                 # pied rigide (cap seul), orteils solidaires
-        fixes[p['bout']] = Rcap
+        fixes[ch[-1]] = Fpied                                # pied rigide (cap + deroule), orteils solidaires
+        fixes[p['bout']] = Fpied
     # --- queue : ondulation qui se propage vers le bout ; tete : stabilisee, hoche, regarde autour a l'arret
     balance = {}
     amp_q = {'run': 0.16, 'idle': 0.08}.get(allure, 0.10)
@@ -394,6 +429,12 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         for a, j in enumerate(cq[:-1]):
             ang = amp_q * (a + 1) / len(cq) * np.sin(2 * np.pi * t / T * (1 if A['pas'] else 2) - 0.7 * a)
             balance[j] = Ry(ang)
+    for q_, cp in enumerate(palpes):
+        cc = cp['chaine']
+        vit = 1 if A['pas'] else 0.5
+        balance[cc[0]] = Rotation.from_euler('x', (-0.07 * (0.5 + 0.5 * np.sin(2 * np.pi * vit * t / T + 1.7 * q_)))[:, None]).as_matrix()  # leve seulement
+        if len(cc) > 2:
+            balance[cc[1]] = Rotation.from_euler('x', (-0.05 * np.sin(2 * np.pi * vit * t / T + 1.7 * q_ + 0.8))[:, None]).as_matrix()
     for ct in tetes:
         for a, j in enumerate(ct[:-1]):
             hoche = (0.03 if A['pas'] else 0.04) * np.sin(2 * np.pi * t / T * 2 + 0.5 + 0.3 * a)
