@@ -13331,6 +13331,14 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
     image_op, text2image, back_view, tpose, mesh, rig, anim, mvadapter, mesh_segment, fbx_retarget,
   };
   for (const k of occupes) if (etats[k]) { etats[k].warm = true; etats[k].busy = true; }
+  // MEME CONTENEUR (MyFabmeshBackview) pour Image edit, Back view et T-pose / rectification :
+  // l'un chaud, les trois le sont. Suivis a part, le panneau affichait les deux autres « cold »
+  // et laissait croire qu'il fallait les chauffer un par un (user, 29/09).
+  const memeServeur = ['image_op', 'back_view', 'tpose'] as const;
+  if (memeServeur.some((k) => etats[k]?.warm)) {
+    const occupe = memeServeur.some((k) => etats[k]?.busy);
+    for (const k of memeServeur) { etats[k].warm = true; if (occupe) etats[k].busy = true; }
+  }
   return json({
     ...etats,
     cold_threshold_seconds: Math.floor(COLD_THRESHOLD_MS / 1000),
