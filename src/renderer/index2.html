@@ -799,7 +799,7 @@
                         <button id="ws-mesh-selectface-btn" class="ghost-btn tool-btn" title="Select faces to isolate, hide or work on them.">&#9634; Select</button>
                         <button id="ws-mesh-clone3d-btn" class="ghost-btn tool-btn" title="Clone one area of the texture onto another, directly on the model">&#129657; Clone stamp</button>
                         <button id="ws-mesh-stages3d-btn" class="ghost-btn tool-btn" title="Fabricate the 3D meshes of the construction stages (sliced building + frame + scaffolding), navigable and exportable">&#127959;&#65039; 3D construction stages</button>
-                        <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize / dimension the mesh with a scale gizmo and on-screen rulers (uniform or per-axis). Bakes a new scaled version.">&#128207; Resize / dimension</button>
+                        <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize, dimension or re-orient the mesh with a gizmo and on-screen rulers. Bakes a new version.">&#128207; Resize / dimension</button>
                         <button id="ws-mesh-aligntex-btn" class="ghost-btn tool-btn" title="Manually align source photos onto mesh">&#127919; Align Texture</button>
                         <button id="ws-mesh-material-btn" class="ghost-btn tool-btn" title="Adjust material brightness, saturation, contrast, emissive, metallic, roughness">&#10024; Material adjust</button>
                       </div>
@@ -1781,7 +1781,7 @@
       <div class="modal-card" style="max-width:1100px; width:94vw;">
         <button class="about-close" id="rz-close" aria-label="Close" style="position:absolute; top:12px; right:14px;">&times;</button>
         <h2>&#128207; Resize / dimension</h2>
-        <p class="modal-subtitle">Drag the gizmo to scale (uniform, or one axis at a time), or type target dimensions. The rulers show the live size. Apply bakes a new scaled version — texture preserved.</p>
+        <p class="modal-subtitle">Drag the gizmo to scale or rotate the mesh, or type target dimensions and angles. The rulers show the live size. Apply bakes a new version — texture preserved, the mesh stays on the ground.</p>
         <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
           <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:56vh; background:#0b0b14; border-radius:10px; overflow:hidden;">
             <canvas id="rz-canvas" style="width:100%; height:100%; display:block;"></canvas>
@@ -1813,6 +1813,24 @@
               <button class="ghost-btn" id="rz-reset" style="flex:1;">Reset</button>
               <button class="ghost-btn" id="rz-x2" style="flex:1;" title="Double uniform size">×2</button>
               <button class="ghost-btn" id="rz-half" style="flex:1;" title="Halve uniform size">÷2</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;">
+              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Orientation</label>
+              <div style="display:flex; gap:8px;">
+                <button class="ghost-btn" id="rz-mode-scale" style="flex:1;" title="Gizmo: resize" aria-pressed="true">Scale</button>
+                <button class="ghost-btn" id="rz-mode-rotate" style="flex:1;" title="Gizmo: rotate (5° steps)" aria-pressed="false">Rotate</button>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; align-items:center;">
+                <label for="rz-rot-x" style="font:600 11px monospace; color:#ff8a8a; text-align:center;">X°</label>
+                <label for="rz-rot-y" style="font:600 11px monospace; color:#8ae0a2; text-align:center;">Y°</label>
+                <label for="rz-rot-z" style="font:600 11px monospace; color:#9ac2ff; text-align:center;">Z°</label>
+                <input type="number" id="rz-rot-x" class="modal-select" step="1" style="width:100%; min-width:0;" title="Angle around X (°)" />
+                <input type="number" id="rz-rot-y" class="modal-select" step="1" style="width:100%; min-width:0;" title="Angle around Y (°)" />
+                <input type="number" id="rz-rot-z" class="modal-select" step="1" style="width:100%; min-width:0;" title="Angle around Z (°)" />
+                <button class="ghost-btn" id="rz-rx90" style="padding-left:0; padding-right:0;" title="Turn 90° around X">+90°</button>
+                <button class="ghost-btn" id="rz-ry90" style="padding-left:0; padding-right:0;" title="Turn 90° around Y">+90°</button>
+                <button class="ghost-btn" id="rz-rz90" style="padding-left:0; padding-right:0;" title="Turn 90° around Z">+90°</button>
+              </div>
             </div>
             <small class="modal-subtitle" style="font-size:12px;">Dimensions are in the mesh's own units. Scaling stays proportional when Uniform is on.</small>
           </div>

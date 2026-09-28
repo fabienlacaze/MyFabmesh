@@ -1,21 +1,52 @@
-"""Apply a per-axis scale to a mesh, baking it into a new GLB. Texture/UVs are
-preserved (only the geometry is scaled). Args: <src.glb> <out.glb> <sx> <sy> <sz>.
+"""Apply an orientation (rotation) and a per-axis scale to a mesh, baking them into a new
+GLB. Texture/UVs are preserved (only the geometry moves). Args:
+<src.glb> <out.glb> <sx> <sy> <sz> [<qx> <qy> <qz> <qw>]  (quaternion = three.js order).
 Pure trimesh, no GPU."""
 import sys
-import numpy as np
 import trimesh
 
-SRC, OUT = sys.argv[1], sys.argv[2]
-sx = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0
-sy = float(sys.argv[4]) if len(sys.argv) > 4 else 1.0
-sz = float(sys.argv[5]) if len(sys.argv) > 5 else 1.0
-# guard against degenerate scales
-sx = max(1e-3, min(sx, 1000.0))
-sy = max(1e-3, min(sy, 1000.0))
-sz = max(1e-3, min(sz, 1000.0))
 
-obj = trimesh.load(SRC)
-M = np.diag([sx, sy, sz, 1.0])
-obj.apply_transform(M)                     # scene or mesh: scales geometry, keeps UVs
-obj.export(OUT)
-print(f"DONE scale=({sx:.4f},{sy:.4f},{sz:.4f}) -> {OUT}", flush=True)
+# --- NOYAU PARTAGE : DEBUT (redimensionner / orienter) ---
+def redimensionner_orienter(obj, sx=1.0, sy=1.0, sz=1.0, q=None):
+    """Outil « Resize / dimension » : ROTATION puis ECHELLE, cuites dans la geometrie (UV et
+    texture intactes). q = quaternion three.js [x, y, z, w] ; la rotation se fait autour du
+    CENTRE de la boite, puis le maillage est repose a la hauteur de son point le plus bas
+    d'origine (un crabe couche reste au sol). L'echelle par axe suit, autour de l'origine
+    comme avant, sur les axes du MONDE : apres rotation, « Hauteur (Y) » est la hauteur vue
+    a l'ecran. obj : trimesh.Scene ou trimesh.Trimesh. Renvoie True si une rotation a eu lieu."""
+    import numpy as np
+    sx, sy, sz = (max(1e-3, min(float(v), 1000.0)) for v in (sx, sy, sz))
+    tourne = False
+    if q is not None:
+        x, y, z, w = (float(v) for v in q)
+        n = (x * x + y * y + z * z + w * w) ** 0.5
+        if n > 1e-9 and np.isfinite(n) and 1.0 - abs(w / n) > 1e-7:
+            x, y, z, w = x / n, y / n, z / n, w / n
+            rot = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+            lo, hi = np.asarray(obj.bounds, dtype=float)
+            c = (lo + hi) / 2.0
+            M = np.eye(4)
+            M[:3, :3] = rot
+            M[:3, 3] = c - rot @ c                          # rotation autour du centre
+            obj.apply_transform(M)
+            T = np.eye(4)
+            T[1, 3] = lo[1] - float(obj.bounds[0][1])       # reste pose au sol
+            obj.apply_transform(T)
+            tourne = True
+    obj.apply_transform(np.diag([sx, sy, sz, 1.0]))
+    return tourne
+# --- NOYAU PARTAGE : FIN ---
+
+
+if __name__ == '__main__':
+    SRC, OUT = sys.argv[1], sys.argv[2]
+    sx = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0
+    sy = float(sys.argv[4]) if len(sys.argv) > 4 else 1.0
+    sz = float(sys.argv[5]) if len(sys.argv) > 5 else 1.0
+    q = [float(v) for v in sys.argv[6:10]] if len(sys.argv) > 9 else None
+    obj = trimesh.load(SRC)
+    tourne = redimensionner_orienter(obj, sx, sy, sz, q)
+    obj.export(OUT)
+    print(f"DONE scale=({sx:.4f},{sy:.4f},{sz:.4f}) rotation={'oui' if tourne else 'non'} -> {OUT}", flush=True)

@@ -3076,13 +3076,16 @@
     // Resize / dimension tool (per-axis scale) — cloud port of the desktop
     // scripts/scale_mesh.py via /api/mesh-op op_type='resize'. meshPath on cloud
     // IS a URL. Returns { success, newPath } like the desktop mesh-resize handler.
-    resizeMesh: async ({ meshPath, meshUrl, sx, sy, sz, projectName } = {}) => {
+    resizeMesh: async ({ meshPath, meshUrl, sx, sy, sz, qx, qy, qz, qw, projectName } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { success: false, error: 'meshPath or meshUrl required' };
       try {
         const r = await postJSON('/api/mesh-op', {
           meshUrl: url, opType: 'resize',
-          params: { sx: Number(sx) || 1, sy: Number(sy) || 1, sz: Number(sz) || 1 },
+          params: { sx: Number(sx) || 1, sy: Number(sy) || 1, sz: Number(sz) || 1,
+                    // orientation (quaternion three.js), seulement si elle existe
+                    ...([qx, qy, qz, qw].every((v) => Number.isFinite(Number(v)) && v !== null && v !== undefined)
+                      ? { qx: Number(qx), qy: Number(qy), qz: Number(qz), qw: Number(qw) } : {}) },
           projectName: projectName || window.state?.currentProject?.name || null,
         });
         if (r?.success || r?.ok) {

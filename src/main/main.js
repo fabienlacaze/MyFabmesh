@@ -5888,38 +5888,42 @@ ipcMain.handle('check-stages3d-dir', async (_event, meshPath) => {
   } catch (_) { return { exists: false }; }
 });
 
-// RESIZE / DIMENSION — bake a per-axis scale into a new mesh version (texture
-// preserved). Driven by the interactive gizmo/ruler tool in the renderer.
-ipcMain.handle('mesh-resize', async (_event, { meshPath, sx, sy, sz } = {}) => {
+// RESIZE / DIMENSION — bake an orientation (quaternion, optional, 2026-09-28) and a
+// per-axis scale into a new mesh version (texture preserved). Driven by the
+// interactive gizmo/ruler tool in the renderer.
+ipcMain.handle('mesh-resize', async (_event, { meshPath, sx, sy, sz, qx, qy, qz, qw } = {}) => {
   try {
     if (!meshPath || !fs.existsSync(meshPath)) return { success: false, error: 'Mesh not found' };
     if (!isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
     const cl = (v) => Math.max(0.001, Math.min(1000, Number(v) || 1));
     const [ax, ay, az] = [cl(sx), cl(sy), cl(sz)];
+    const q = [qx, qy, qz, qw].map(Number);
+    const rot = q.every(Number.isFinite) && 1 - Math.abs(q[3]) > 1e-7 ? { qx: q[0], qy: q[1], qz: q[2], qw: q[3] } : {};
     const stem = path.basename(meshPath, path.extname(meshPath)).replace(/_resize_\d+$/i, '');
     const outPath = path.join(MESHES_DIR, `${stem}_resize_${Date.now()}.glb`);
     // ── Mode Cloud : /api/mesh-op opType='resize' {sx,sy,sz} (1 crédit) —
     // même clamp local 0.001..1000 qu'en local.
     if (isCloudMode()) {
-      const r = await cloudFallback.meshOp({ meshPath, opType: 'resize', params: { sx: ax, sy: ay, sz: az }, outPath, projectName: stem });
+      const r = await cloudFallback.meshOp({ meshPath, opType: 'resize', params: { sx: ax, sy: ay, sz: az, ...rot }, outPath, projectName: stem });
       if (!r.success) {
         return { success: false, error: r.error || 'cloud resize failed',
                  ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
       }
       try {
         writeMeta(outPath, { kind: 'op', op: 'resize', parent: meshPath,
-          params: { sx: ax, sy: ay, sz: az, cloud: true, r2_url: r.resultUrl } });
+          params: { sx: ax, sy: ay, sz: az, ...rot, cloud: true, r2_url: r.resultUrl } });
       } catch (_) {}
       return { success: true, newPath: outPath, filename: path.basename(outPath) };
     }
     const script = path.join(SCRIPTS_DIR, 'scale_mesh.py');
     if (!fs.existsSync(script)) return { success: false, error: 'scale_mesh.py not found' };
     const ok = await new Promise((resolve) => {
-      execFile(_aiPython(), [script, meshPath, outPath, String(ax), String(ay), String(az)],
+      execFile(_aiPython(), [script, meshPath, outPath, String(ax), String(ay), String(az),
+        ...(rot.qw !== undefined ? [rot.qx, rot.qy, rot.qz, rot.qw].map(String) : [])],
         { timeout: 300000, maxBuffer: 64 * 1024 * 1024 }, (error) => resolve(!error));
     });
     if (!ok || !fs.existsSync(outPath)) return { success: false, error: 'Resize worker failed' };
-    try { writeMeta(outPath, { kind: 'op', op: 'resize', parent: meshPath, params: { sx: ax, sy: ay, sz: az } }); } catch (_) {}
+    try { writeMeta(outPath, { kind: 'op', op: 'resize', parent: meshPath, params: { sx: ax, sy: ay, sz: az, ...rot } }); } catch (_) {}
     return { success: true, newPath: outPath, filename: path.basename(outPath) };
   } catch (e) {
     return { success: false, error: e.message };

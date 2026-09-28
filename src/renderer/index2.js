@@ -4354,7 +4354,7 @@ document.getElementById('ex3d-start')?.addEventListener('click', () => {
 const rzState = {
   renderer: null, scene: null, camera: null, controls: null, gizmo: null,
   model: null, orig: null, rulers: null, labels: {}, raf: null, meshPath: null,
-  ro: null, editing: false,
+  ro: null, editing: false, rot: null, centre: null, mode: 'scale',
 };
 
 function _rzDims() {
@@ -4371,6 +4371,58 @@ const RZ_UNITS = {
   m: { f: 1, s: 'm', d: 3 }, in: { f: 39.3701, s: 'in', d: 2 },
 };
 function _rzUnit() { return RZ_UNITS[document.getElementById('rz-unit')?.value] || RZ_UNITS.cm; }
+
+// ORIENTATION (2026-09-28, demande user). Le maillage est dans un groupe ROTATION (rzState.rot),
+// lui-meme dans le groupe d'ECHELLE (rzState.model). L'echelle agit donc sur les axes du MONDE
+// apres rotation : « Hauteur (Y) » reste la hauteur a l'ecran quand le mesh est couche.
+// rzState.orig = boite du mesh TOURNE, sans echelle ; rzState.centre = son centre.
+function _rzMesurer(precis) {
+  const piv = rzState.model, rot = rzState.rot;
+  if (!piv || !rot) return;
+  const s = piv.scale.clone();
+  piv.scale.set(1, 1, 1); piv.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(rot, !!precis);   // precis : sommet par sommet (fin de geste)
+  piv.scale.copy(s); piv.updateMatrixWorld(true);
+  if (b.isEmpty()) return;
+  rzState.orig = b.getSize(new THREE.Vector3());
+  rzState.centre = b.getCenter(new THREE.Vector3());
+}
+function _rzMajAngles() {
+  if (!rzState.rot || rzState.editAngle) return;   // champ d'angle en cours de saisie
+  const e = rzState.rot.rotation;
+  for (const a of ['x', 'y', 'z']) {
+    const el = document.getElementById('rz-rot-' + a);
+    if (el) el.value = String(Math.round(THREE.MathUtils.radToDeg(e[a]) * 10) / 10 + 0);
+  }
+}
+function _rzOnRotChange(precis) {
+  _rzMesurer(precis); _rzBuildRulers(); _rzUpdateReadout(); _rzMajAngles();
+}
+function _rzSetMode(mode) {
+  const g = rzState.gizmo;
+  if (!g || !rzState.model || !rzState.rot) return;
+  rzState.mode = mode === 'rotate' ? 'rotate' : 'scale';
+  if (rzState.mode === 'rotate') {
+    g.setMode('rotate'); g.setSpace('world'); g.setRotationSnap(THREE.MathUtils.degToRad(5)); g.attach(rzState.rot);
+  } else {
+    g.setMode('scale'); g.setSpace('local'); g.setRotationSnap(null); g.attach(rzState.model);
+  }
+  for (const [id, m] of [['rz-mode-scale', 'scale'], ['rz-mode-rotate', 'rotate']]) {
+    const b = document.getElementById(id);
+    if (!b) continue;
+    const on = m === rzState.mode;
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.style.borderColor = on ? '#7aa2ff' : '';
+    b.style.background = on ? 'rgba(122,162,255,0.18)' : '';
+  }
+}
+/** Quart de tour autour d'un axe du MONDE (le groupe d'echelle n'a pas de rotation). */
+function _rzTourner(axe) {
+  if (!rzState.rot) return;
+  const v = new THREE.Vector3(axe === 'x' ? 1 : 0, axe === 'y' ? 1 : 0, axe === 'z' ? 1 : 0);
+  rzState.rot.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(v, Math.PI / 2));
+  _rzOnRotChange(true);
+}
 
 function _rzBuildRulers() {
   if (!rzState.scene) return;
@@ -4408,6 +4460,8 @@ function _rzBuildRulers() {
   g._mid = {
     x: new THREE.Vector3(0, y0, z0), y: new THREE.Vector3(x0, 0, z0), z: new THREE.Vector3(x1, y0, 0),
   };
+  const s_ = rzState.model.scale, c_ = rzState.centre;
+  if (c_) g.position.set(c_.x * s_.x, c_.y * s_.y, c_.z * s_.z);
   rzState.rulers = g;
   rzState.scene.add(g);
 }
@@ -4475,7 +4529,7 @@ function _rzLabelsTick() {
       el.style.cssText = 'position:absolute; transform:translate(-50%,-50%); font:600 12px monospace; padding:1px 5px; border-radius:5px; background:rgba(0,0,0,0.6); pointer-events:none; white-space:nowrap;';
       vp.appendChild(el); rzState.labels[key] = el;
     }
-    const p = rzState.rulers._mid[key].clone().project(rzState.camera);
+    const p = rzState.rulers._mid[key].clone().add(rzState.rulers.position).project(rzState.camera);
     el.style.left = ((p.x * 0.5 + 0.5) * w) + 'px';
     el.style.top = ((-p.y * 0.5 + 0.5) * h) + 'px';
     el.style.color = color; el.textContent = (val * u.f).toFixed(u.d) + ' ' + u.s;
@@ -4493,6 +4547,7 @@ function _rzCleanup() {
   rzState.labels = {};
   if (rzState.scene) { try { rzState.scene.traverse(n => { n.geometry?.dispose?.(); if (n.material) { (Array.isArray(n.material) ? n.material : [n.material]).forEach(m => m.dispose?.()); } }); } catch (_) {} }
   rzState.renderer = rzState.scene = rzState.camera = rzState.controls = rzState.gizmo = rzState.model = rzState.rulers = null;
+  rzState.rot = rzState.centre = null; rzState.mode = 'scale';
 }
 
 function openResizeTool() {
@@ -4534,9 +4589,9 @@ function openResizeTool() {
     // origin. Scaling the GROUP then scales around the mesh centre → the mesh
     // never drifts and the origin-centred rulers stay aligned at any scale.
     model.position.sub(center);
-    const pivot = new THREE.Group();
-    pivot.add(model);
-    rzState.model = pivot; rzState.orig = size.clone();
+    const pivot = new THREE.Group(), rot = new THREE.Group();   // echelle(monde) > rotation > mesh
+    rot.add(model); pivot.add(rot);
+    rzState.model = pivot; rzState.rot = rot; rzState.orig = size.clone(); rzState.centre = new THREE.Vector3();
     rzState.lastScale = { x: 1, y: 1, z: 1 };
     scene.add(pivot);
     const diag = size.length() || 1;
@@ -4551,12 +4606,13 @@ function openResizeTool() {
       if (e.value) {                                  // drag START: snapshot scale
         const s = pivot.scale; rzState.lastScale = { x: s.x, y: s.y, z: s.z };
       } else {                                        // drag END: apply uniform lock cleanly
-        _rzEnforceUniform();
+        if (rzState.mode === 'rotate') _rzOnRotChange(true); else _rzEnforceUniform();
       }
     });
-    gizmo.addEventListener('objectChange', _rzOnScaleChange);
+    gizmo.addEventListener('objectChange', () => (rzState.mode === 'rotate' ? _rzOnRotChange(false) : _rzOnScaleChange()));
     scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
     rzState.gizmo = gizmo;
+    _rzSetMode('scale'); _rzMajAngles();
     _rzSetUniform(document.getElementById('rz-uniform')?.checked);
     _rzBuildRulers(); _rzUpdateReadout();
   }, undefined, (err) => {
@@ -4580,9 +4636,23 @@ document.getElementById('rz-unit')?.addEventListener('change', () => { if (rzSta
   el?.addEventListener('blur', () => { rzState.editing = false; });
   el?.addEventListener('change', (e) => { _rzApplyDimInput(ax, e.target.value); });
 });
-document.getElementById('rz-reset')?.addEventListener('click', () => { if (rzState.model) { rzState.model.scale.set(1, 1, 1); _rzOnScaleChange(); } });
+document.getElementById('rz-reset')?.addEventListener('click', () => { if (rzState.model) { rzState.model.scale.set(1, 1, 1); rzState.rot?.quaternion.identity(); _rzOnRotChange(true); } });
 document.getElementById('rz-x2')?.addEventListener('click', () => { if (rzState.model) { rzState.model.scale.multiplyScalar(2); _rzOnScaleChange(); } });
 document.getElementById('rz-half')?.addEventListener('click', () => { if (rzState.model) { rzState.model.scale.multiplyScalar(0.5); _rzOnScaleChange(); } });
+document.getElementById('rz-mode-scale')?.addEventListener('click', () => _rzSetMode('scale'));
+document.getElementById('rz-mode-rotate')?.addEventListener('click', () => _rzSetMode('rotate'));
+['x', 'y', 'z'].forEach((ax) => {
+  document.getElementById('rz-r' + ax + '90')?.addEventListener('click', () => _rzTourner(ax));
+  const el = document.getElementById('rz-rot-' + ax);
+  el?.addEventListener('focus', () => { rzState.editAngle = true; });
+  el?.addEventListener('blur', () => { rzState.editAngle = false; _rzMajAngles(); });
+  el?.addEventListener('change', (e) => {
+    const v = Number(e.target.value);
+    if (!rzState.rot || !isFinite(v)) return;
+    rzState.rot.rotation[ax] = THREE.MathUtils.degToRad(v);
+    _rzOnRotChange(true);
+  });
+});
 function _rzCloseModal() { document.getElementById('modal-resize')?.classList.add('hidden'); _rzCleanup(); }
 document.getElementById('rz-cancel')?.addEventListener('click', _rzCloseModal);
 document.getElementById('rz-close')?.addEventListener('click', _rzCloseModal);
@@ -4590,16 +4660,20 @@ document.getElementById('rz-apply')?.addEventListener('click', () => {
   if (!rzState.model || !rzState.meshPath) return;
   const s = rzState.model.scale;
   const sx = s.x, sy = s.y, sz = s.z;
-  if (Math.abs(sx - 1) < 1e-4 && Math.abs(sy - 1) < 1e-4 && Math.abs(sz - 1) < 1e-4) {
-    showToast('Aucun changement de taille.', 'info'); return;
+  const q_ = rzState.rot ? rzState.rot.quaternion : null;
+  const tourne = !!q_ && 1 - Math.abs(q_.w) > 1e-7;
+  const rot = tourne ? { qx: q_.x, qy: q_.y, qz: q_.z, qw: q_.w } : {};
+  const angles = tourne ? ['x', 'y', 'z'].map((a) => Math.round(THREE.MathUtils.radToDeg(rzState.rot.rotation[a]))).join(' / ') + '°' : '';
+  if (!tourne && Math.abs(sx - 1) < 1e-4 && Math.abs(sy - 1) < 1e-4 && Math.abs(sz - 1) < 1e-4) {
+    showToast(_i18nT('No change to apply.'), 'info'); return;
   }
   const mp = rzState.meshPath;
   _rzCloseModal();
   const p = state.currentProject;
-  const job = pushJob(`${_i18nT('Resize')}: ${p?.name || ''}`, null, { [_i18nT('Scale')]: `${sx.toFixed(2)}×${sy.toFixed(2)}×${sz.toFixed(2)}` }, 4000, { projectName: p?.name });
+  const job = pushJob(`${_i18nT('Resize')}: ${p?.name || ''}`, null, { [_i18nT('Scale')]: `${sx.toFixed(2)}×${sy.toFixed(2)}×${sz.toFixed(2)}`, ...(tourne ? { [_i18nT('Rotation')]: angles } : {}) }, 4000, { projectName: p?.name });
   (async () => {
     try {
-      const r = await API.resizeMesh({ meshPath: mp, sx, sy, sz });
+      const r = await API.resizeMesh({ meshPath: mp, sx, sy, sz, ...rot });
       if (r && r.success && r.newPath) {
         completeJob(job.id, true);
         await reloadCurrentProject();

@@ -33,6 +33,7 @@ const PAIRES = [
   { nom: 'recolorier', source: 'scripts/recolor_core.py',  copie: 'modal_app/_recolor.py' },
   { nom: 'image TRELLIS-2', source: 'scripts/trellis2_native_full_pipeline.py', copie: 'modal_app/_mesh.py' },
   { nom: 're-texture (finitions)', source: 'scripts/trellis2_texturing_bridge.py', copie: 'modal_app/_retexture.py' },
+  { nom: 'redimensionner / orienter', source: 'scripts/scale_mesh.py', copie: 'modal_app/_mesh_op.py' },
 ];
 
 function noyau(chemin) {

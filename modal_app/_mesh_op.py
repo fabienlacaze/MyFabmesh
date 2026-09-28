@@ -891,17 +891,45 @@ def watertight(glb_bytes: bytes, resolution: int = 128) -> bytes:
     return _export(trimesh.Scene(wt))
 
 
-def resize(glb_bytes: bytes, sx: float = 1.0, sy: float = 1.0, sz: float = 1.0) -> bytes:
-    """Per-axis scale baked into the geometry (texture/UVs preserved). Mirror of
-    the desktop scripts/scale_mesh.py — the manual Resize / dimension tool."""
+# --- NOYAU PARTAGE : DEBUT (redimensionner / orienter) ---
+def redimensionner_orienter(obj, sx=1.0, sy=1.0, sz=1.0, q=None):
+    """Outil « Resize / dimension » : ROTATION puis ECHELLE, cuites dans la geometrie (UV et
+    texture intactes). q = quaternion three.js [x, y, z, w] ; la rotation se fait autour du
+    CENTRE de la boite, puis le maillage est repose a la hauteur de son point le plus bas
+    d'origine (un crabe couche reste au sol). L'echelle par axe suit, autour de l'origine
+    comme avant, sur les axes du MONDE : apres rotation, « Hauteur (Y) » est la hauteur vue
+    a l'ecran. obj : trimesh.Scene ou trimesh.Trimesh. Renvoie True si une rotation a eu lieu."""
     import numpy as np
-    # guard against degenerate scales
-    sx = max(1e-3, min(float(sx), 1000.0))
-    sy = max(1e-3, min(float(sy), 1000.0))
-    sz = max(1e-3, min(float(sz), 1000.0))
+    sx, sy, sz = (max(1e-3, min(float(v), 1000.0)) for v in (sx, sy, sz))
+    tourne = False
+    if q is not None:
+        x, y, z, w = (float(v) for v in q)
+        n = (x * x + y * y + z * z + w * w) ** 0.5
+        if n > 1e-9 and np.isfinite(n) and 1.0 - abs(w / n) > 1e-7:
+            x, y, z, w = x / n, y / n, z / n, w / n
+            rot = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+            lo, hi = np.asarray(obj.bounds, dtype=float)
+            c = (lo + hi) / 2.0
+            M = np.eye(4)
+            M[:3, :3] = rot
+            M[:3, 3] = c - rot @ c                          # rotation autour du centre
+            obj.apply_transform(M)
+            T = np.eye(4)
+            T[1, 3] = lo[1] - float(obj.bounds[0][1])       # reste pose au sol
+            obj.apply_transform(T)
+            tourne = True
+    obj.apply_transform(np.diag([sx, sy, sz, 1.0]))
+    return tourne
+# --- NOYAU PARTAGE : FIN ---
+
+
+def resize(glb_bytes: bytes, sx: float = 1.0, sy: float = 1.0, sz: float = 1.0, q=None) -> bytes:
+    """Orientation (quaternion three.js, optionnel) + echelle par axe, cuites dans la geometrie
+    (texture/UV preservees). Miroir de scripts/scale_mesh.py — l'outil Resize / dimension."""
     scene = _load_scene(glb_bytes)
-    M = np.diag([sx, sy, sz, 1.0])
-    scene.apply_transform(M)   # scene or mesh: scales geometry, keeps UVs
+    redimensionner_orienter(scene, sx, sy, sz, q)
     return _export(scene)
 
 
@@ -1392,7 +1420,7 @@ OPS = {
     'material':        normalize_material,
     'material_adjust': material_adjust,  # 6-slider PBR tweak (mirror of scripts/mesh_material_adjust.py)
     'retex_swap':      retex_swap_atlas,
-    'resize':          resize,     # per-axis scale (manual Resize/dimension tool)
+    'resize':          resize,     # orientation + per-axis scale (manual Resize/dimension tool)
     'explode':         explode,    # Voronoi fracture -> part_XX submeshes (explode slider)
     'apercu':          apercu,     # copie de demonstration filigranee (Marketplace, fiches payantes)
 }
@@ -1428,10 +1456,12 @@ def run(op_type: str, glb_bytes: bytes, params: dict | None = None):
             roughness=float(p.get('roughness', 0.7)),
             hue_shift=float(p.get('hue_shift', 0.0))), None
     if op_type == 'resize':
+        q = [p.get(k) for k in ('qx', 'qy', 'qz', 'qw')]
         return resize(glb_bytes,
                       sx=float(p.get('sx', 1.0)),
                       sy=float(p.get('sy', 1.0)),
-                      sz=float(p.get('sz', 1.0))), None
+                      sz=float(p.get('sz', 1.0)),
+                      q=[float(v) for v in q] if all(v is not None for v in q) else None), None
     if op_type == 'explode':
         return explode(glb_bytes, fragments=int(p.get('fragments', 24))), None
     if op_type == 'apercu':

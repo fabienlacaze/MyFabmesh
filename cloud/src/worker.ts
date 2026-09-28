@@ -11926,7 +11926,7 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
     'smooth', 'decimate', 'center', 'fix_normals', 'fill_holes',
     'subdivide', 'material', 'material_adjust', 'retex_swap',
     'watertight',  // 'align_texture' removed: it was a paid no-op on cloud (no real reprojection)
-    'resize',      // per-axis scale (manual Resize/dimension tool) — params: {sx,sy,sz}
+    'resize',      // orientation + per-axis scale (manual Resize/dimension tool) — params: {sx,sy,sz, qx,qy,qz,qw optional}
     'explode',     // Voronoi fracture -> part_XX submeshes (explode slider) — params: {fragments}
   ]);
   const op = (opType ?? '').toLowerCase();
