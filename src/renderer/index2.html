@@ -1003,8 +1003,8 @@
                        clips) ne sont plus proposes. -->
                   <div class="form-row">
                     <label>Animations <span style="color:var(--text-2); font-weight:normal; font-size:11px;">(the preview plays your choice — add it to the list, the list becomes one version)</span></label>
-                    <div id="ws-anim-types" class="anim-types-picker" style="display:grid; grid-template-columns:150px minmax(0,1fr); gap:10px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px;">
-                      <div style="position:relative; width:150px; height:150px; border-radius:8px; overflow:hidden; background:#0e0e14; border:1px solid var(--border);">
+                    <div id="ws-anim-types" class="anim-types-picker" style="display:grid; grid-template-columns:minmax(0,1fr) 220px; gap:10px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px;">
+                      <div class="anim-apercu-cadre" style="position:relative; width:100%; height:260px; border-radius:8px; overflow:hidden; background:#0e0e14; border:1px solid var(--border);">
                         <canvas id="ws-anim-apercu" style="width:100%; height:100%; display:block;"></canvas>
                         <div id="ws-anim-apercu-msg" style="position:absolute; inset:0; background:rgba(14,14,20,0.82); display:flex; align-items:center; justify-content:center; text-align:center; padding:10px; font-size:11px; line-height:1.35; color:var(--text-2); pointer-events:none;">Preview</div>
                       </div>

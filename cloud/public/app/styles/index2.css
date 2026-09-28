@@ -4505,3 +4505,17 @@ details.stage-generating > summary .stage-icon-gear {
 .pts-os-manuels[open] summary {
   margin-bottom: 8px;
 }
+
+/* Etape Animation (2026-09-28, user) : le squelette source garde la hauteur du
+   maillage source de l'etape Rig (240 px) au lieu de s'etirer sur toute la
+   colonne ; l'apercu de l'animation occupe la largeur du formulaire, les menus
+   passent en colonne a droite — et dessous sur un ecran etroit. */
+#ws-anim-source-preview {
+  flex: 0 0 auto;
+  height: 240px;
+}
+#ws-anim-types select { flex: 0 0 auto; height: 34px; }   /* sinon etires sur la hauteur de l'apercu */
+@media (max-width: 760px) {
+  #ws-anim-types { grid-template-columns: minmax(0, 1fr) !important; }
+  #ws-anim-types .anim-apercu-cadre { height: 220px !important; }
+}
