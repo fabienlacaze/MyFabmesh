@@ -21057,6 +21057,39 @@ function _renderSousTaches(parentId, cls) {
   }).join('');
 }
 
+// Tuiles EN COURS triees par AVANCEMENT, la plus avancee en haut (user 28/09 : « faire evoluer leur
+// position en fonction de leur pourcentage »). On DEPLACE les noeuds existants (jamais de
+// reconstruction : le bouton sous le curseur serait detruit) avec un glissement anime (FLIP).
+// Hysteresis de 3 points : deux travaux au coude a coude ne s'echangent pas sans cesse. Rien ne
+// bouge tant que la souris est sur la liste (le clic sur « Go to » ou « x » ne doit pas rater).
+function _trierJobsParAvancement(list, anime = true) {
+  if (!list || list.matches(':hover')) return;
+  const cartes = [...list.children].filter((el) => el.matches('.job-item-2[data-job-id]'));
+  if (cartes.length < 2) return;
+  const pct = (el) => { const j = state.jobs.find((x) => String(x.id) === el.dataset.jobId); return j ? (Number(j.progress) || 0) : 0; };
+  const ordre = cartes.slice();
+  for (let i = 1; i < ordre.length; i++) {                  // tri par insertion stable, avec hysteresis
+    const c = ordre[i];
+    let k = i;
+    while (k > 0 && pct(c) > pct(ordre[k - 1]) + 3) k--;
+    if (k !== i) { ordre.splice(i, 1); ordre.splice(k, 0, c); }
+  }
+  if (ordre.every((c, i) => c === cartes[i])) return;
+  const avant = new Map(cartes.map((c) => [c, c.getBoundingClientRect().top]));
+  const ancre = cartes[cartes.length - 1].nextSibling;      // les travaux en attente restent en bas
+  for (const c of ordre) list.insertBefore(c, ancre);
+  if (!anime || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  for (const c of ordre) {
+    const dy = avant.get(c) - c.getBoundingClientRect().top;
+    if (!dy) continue;
+    c.style.transition = 'none';
+    c.style.transform = `translateY(${dy}px)`;
+    c.getBoundingClientRect();                              // position de depart prise en compte
+    c.style.transition = 'transform 0.45s cubic-bezier(.2,.8,.2,1)';
+    c.style.transform = '';
+  }
+}
+
 function renderJobs() {
   const bubble = document.getElementById('jobs-bubble-2');
   const panel = document.getElementById('jobs-panel-2');
@@ -21187,10 +21220,12 @@ function renderJobs() {
       }
     });
     if (state._jobDetailsOpenId) refreshJobDetailsModal(state._jobDetailsOpenId);
+    _trierJobsParAvancement(list);
     return;
   }
   list.innerHTML = html;
   list.dataset.sigJobs = _sigJobs;
+  _trierJobsParAvancement(list, false);                 // rendu neuf : directement dans l'ordre
   // Bind click on each active job item to open the details modal
   list.querySelectorAll('.job-item-2[data-job-id]').forEach(el => {
     el.addEventListener('click', () => {
