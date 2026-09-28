@@ -4599,7 +4599,8 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   flex: 0 0 auto;
   height: 240px;
 }
-#ws-anim-types select { flex: 0 0 auto; height: 34px; }   /* sinon etires sur la hauteur de l'apercu */
+#ws-anim-types select { flex: 0 0 auto; height: 34px; }
+#ws-anim-types #ws-anim-mode { height: 30px; }   /* sinon etires sur la hauteur de l'apercu */
 @media (max-width: 760px) {
   #ws-anim-types { grid-template-columns: minmax(0, 1fr) !important; }
   #ws-anim-types .anim-apercu-cadre { height: 220px !important; }

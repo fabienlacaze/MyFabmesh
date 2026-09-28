@@ -14,7 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
-import { animerGLB, VARIANTES } from './lib/locomotion-procedurale.js';
+import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
@@ -16963,6 +16963,73 @@ var DESCRIPTIONS_ANIM = {
 };
 var _animSelection = [{ type: 'idle', variante: 'normal' }];
 var _apercuAnim = null;
+// TYPE DE DEPLACEMENT (2026-09-28, user : « j'ai teste poisson mais ca m'a propose Run »).
+// Pattes / nage / reptation. Le squelette seul ne distingue pas un thon (nageoires) d'un
+// crocodile (pattes courtes) : on lit d'abord les MOTS du projet (nom, prompt), puis le
+// squelette (sans pattes -> reptation) ; le menu « Type » permet d'imposer le mode (memorise
+// par projet). Le moteur nomme alors les clips en consequence (swim, slither…).
+var LIBELLES_MODE = {
+  nage: { idle: '🐟 Idle (hover)', walk: '🐟 Swim', run: '🐟 Swim fast', turn_left: '↰ Swim left', turn_right: '↱ Swim right' },
+  reptation: { idle: '🐍 Idle', walk: '🐍 Slither', run: '🐍 Slither fast', turn_left: '↰ Slither left', turn_right: '↱ Slither right' },
+};
+var VARIANTES_MODE = {
+  nage: { idle: ['normal'], walk: ['normal', 'slow', 'brisk', 'crawl'], run: ['normal', 'sprint'], turn_left: ['normal', 'tight', 'wide'], turn_right: ['normal', 'tight', 'wide'] },
+  reptation: { idle: ['normal'], walk: ['normal', 'slow', 'brisk', 'crawl'], run: ['normal', 'sprint'], turn_left: ['normal', 'tight', 'wide'], turn_right: ['normal', 'tight', 'wide'] },
+};
+var NOMS_VARIANTES_MODE = { nage: { crawl: 'Vertical (dolphin)' }, reptation: { crawl: 'Caterpillar' } };
+var DESCRIPTIONS_MODE = {
+  nage: {
+    idle: 'Hovers in place, slow tail beat.', walk: 'Swims forward, the tail sweeping side to side.', walk__slow: 'Slow, lazy swim.',
+    walk__brisk: 'Lively swim.', walk__crawl: 'Swims with an up-and-down wave, like a dolphin or a whale.',
+    run: 'Fast swim, strong tail beats.', run__sprint: 'Burst of speed.',
+    turn_left: 'Swims while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
+    turn_right: 'Swims while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
+  },
+  reptation: {
+    idle: 'Rests, the head gently swaying.', walk: 'Slithers forward in side waves.', walk__slow: 'Slow slither.', walk__brisk: 'Quick slither.',
+    walk__crawl: 'Crawls in up-and-down waves, like a caterpillar or a worm.', run: 'Fast slither.', run__sprint: 'Very fast slither.',
+    turn_left: 'Slithers while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
+    turn_right: 'Slithers while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
+  },
+};
+Object.assign(NOMS_ALLURES, { swim: 'Swim', swim_fast: 'Swim fast', swim_left: 'Swim left', swim_right: 'Swim right',
+  slither: 'Slither', slither_fast: 'Slither fast', slither_left: 'Slither left', slither_right: 'Slither right' });
+var _modeMenus = null;                         // mode avec lequel les menus ont ete construits
+function _cleModeAnim() { return 'fabmesh.modeAnim.' + (state.currentProject?.name || ''); }
+function _modeImpose() { try { return localStorage.getItem(_cleModeAnim()) || 'auto'; } catch (_) { return 'auto'; } }
+/** Mode detecte : mots du projet d'abord, puis squelette du rig charge dans l'apercu. */
+function _modeDetecte() {
+  const p = state.currentProject || {};
+  const parMots = modeDepuisTexte([p.name, p.prompt, p.assetType].filter(Boolean).join(' '));
+  if (parMots) return parMots;
+  const parSquelette = _apercuAnim?.modeSquelette?.();
+  return parSquelette || 'pattes';
+}
+function _modeAnim() { const m = _modeImpose(); return m !== 'auto' ? m : _modeDetecte(); }
+/** Libelle (avec icone) d'une allure dans le mode courant. */
+function _libelleType(t) {
+  const m = _modeAnim();
+  return (LIBELLES_MODE[m] && LIBELLES_MODE[m][t]) || (TYPES_ANIM.find((x) => x.v === t)?.libelle) || t;
+}
+/** (Re)construit le menu des animations et le menu « Type » pour le mode courant. */
+function _remplirMenuTypes() {
+  const choix = document.getElementById('ws-anim-choix');
+  const selMode = document.getElementById('ws-anim-mode');
+  const m = _modeAnim();
+  if (selMode) {
+    const icone = { pattes: '🐾', nage: '🐟', reptation: '🐍' }[_modeDetecte()] || '';
+    const auto = selMode.querySelector('option[value="auto"]');
+    if (auto) auto.textContent = _i18nT('Auto') + ' (' + icone + ' ' + _i18nT({ pattes: 'Walks on legs', nage: 'Swims', reptation: 'Slithers' }[_modeDetecte()]) + ')';
+    selMode.value = _modeImpose();
+  }
+  if (!choix) return;
+  const avant = choix.value;
+  const types = TYPES_ANIM.filter((x) => m === 'pattes' || x.v !== 'fly');     // un poisson ou un serpent ne vole pas
+  choix.innerHTML = types.map((x) => `<option value="${x.v}">${_escapeHtml(_i18nT(_libelleType(x.v)))}</option>`).join('');
+  choix.value = types.some((x) => x.v === avant) ? avant : 'walk';
+  _modeMenus = m;
+  if (document.getElementById('ws-anim-liste')) _rendreSelectionAnim();   // etiquettes « a generer » : libelles du mode
+}
 /** Nom de clip du moteur : « walk » ou « walk__sneak » ; pour l'IA : le type seul. */
 function _nomClipSelection(e) {
   return ALLURES_PROCEDURALES.includes(e.type) && e.variante && e.variante !== 'normal' ? `${e.type}__${e.variante}` : e.type;
@@ -16970,7 +17037,11 @@ function _nomClipSelection(e) {
 /** « walk__sneak » -> « Walk · Sneaky » (traduit). */
 function _libelleClip(nom) {
   const [a, v] = String(nom).split('__');
-  return _i18nT(NOMS_ALLURES[a] || a) + (v && v !== 'normal' ? ' · ' + _i18nT(NOMS_VARIANTES[v] || v) : '');
+  const m = _modeAnim();
+  const base = NOMS_ALLURES[a] ? a : (ALLURES_PROCEDURALES.includes(a) && LIBELLES_MODE[m] ? null : a);
+  const lib = base ? _i18nT(NOMS_ALLURES[base] || base) : _i18nT(_libelleType(a).replace(/^\S+\s/, ''));
+  const nomV = (NOMS_VARIANTES_MODE[m] && NOMS_VARIANTES_MODE[m][v]) || NOMS_VARIANTES[v] || v;
+  return lib + (v && v !== 'normal' ? ' · ' + _i18nT(nomV) : '');
 }
 /** Rig du projet pour l'aperçu : { cle, lire() -> ArrayBuffer } ou null. */
 function _rigPourApercu() {
@@ -16985,11 +17056,13 @@ async function _majApercuAnim() {
   const desc = document.getElementById('ws-anim-desc');
   const canvas = document.getElementById('ws-anim-apercu');
   if (!t || !canvas) return;
+  if (_modeMenus !== _modeAnim()) { _remplirMenuTypes(); _majMenuVariantes(); return; }   // projet ou rig change
   const procedural = ALLURES_PROCEDURALES.includes(t);
   const nom = procedural ? _nomClipSelection({ type: t, variante: v === '*' ? 'normal' : v }) : t;
   if (desc) {
     desc.textContent = !procedural ? _i18nT('AI animation (5 credits), work in progress.')
-      : v === '*' ? _i18nT('All the variants of this animation.') : _i18nT(DESCRIPTIONS_ANIM[nom] || '');
+      : v === '*' ? _i18nT('All the variants of this animation.')
+      : _i18nT((DESCRIPTIONS_MODE[_modeAnim()] || {})[nom] || DESCRIPTIONS_ANIM[nom] || '');
   }
   const montrer = (texte) => { if (msg) { msg.textContent = texte || ''; msg.style.display = texte ? '' : 'none'; } };
   if (!procedural) { _apercuAnim?.arreter(); montrer(_i18nT('AI animation: no preview, it is generated when you click Generate.')); return; }
@@ -17000,10 +17073,12 @@ async function _majApercuAnim() {
     if (!_apercuAnim.pret() || _apercuAnim.cleChargee() !== rig.cle) montrer(_i18nT('Loading preview…'));
     const ok = await _apercuAnim.chargerRig(rig.cle, rig.lire);
     if (!ok) { montrer(_i18nT('Preview unavailable.')); return; }
+    // le squelette vient d'etre lu : il peut changer le mode detecte (sans pattes -> reptation)
+    if (_modeMenus !== _modeAnim()) { _remplirMenuTypes(); _majMenuVariantes(); return; }
     // la selection a pu changer pendant le chargement : on rejoue la courante
     const t2 = document.getElementById('ws-anim-choix')?.value, v2 = document.getElementById('ws-anim-variante')?.value || 'normal';
     if (!ALLURES_PROCEDURALES.includes(t2)) return;
-    _apercuAnim.jouer(_nomClipSelection({ type: t2, variante: v2 === '*' ? 'normal' : v2 }));
+    _apercuAnim.jouer(_nomClipSelection({ type: t2, variante: v2 === '*' ? 'normal' : v2 }), _modeAnim());
     montrer('');
   } catch (e) {
     console.warn('[apercu-anim]', e);
@@ -17014,9 +17089,10 @@ function _majMenuVariantes() {
   const t = document.getElementById('ws-anim-choix')?.value;
   const sel = document.getElementById('ws-anim-variante');
   if (!sel) return;
-  const vs = VARIANTES[t] ? Object.keys(VARIANTES[t]) : null;
+  const vm = VARIANTES_MODE[_modeAnim()];
+  const vs = VARIANTES[t] ? (vm && vm[t] ? vm[t].filter((x) => VARIANTES[t][x]) : Object.keys(VARIANTES[t])) : null;
   sel.innerHTML = vs
-    ? vs.map((v) => `<option value="${v}">${_escapeHtml(_i18nT(NOMS_VARIANTES[v] || v))}</option>`).join('')
+    ? vs.map((v) => `<option value="${v}">${_escapeHtml(_i18nT((NOMS_VARIANTES_MODE[_modeAnim()] || {})[v] || NOMS_VARIANTES[v] || v))}</option>`).join('')
       + `<option value="*">${_escapeHtml(_i18nT('All variants'))}</option>`
     : `<option value="normal">${_escapeHtml(_i18nT('Standard (AI)'))}</option>`;
   sel.disabled = !vs;
@@ -17027,7 +17103,7 @@ function _rendreSelectionAnim() {
   if (!box) return;
   const titre = document.getElementById('ws-anim-liste-titre');
   if (titre) titre.textContent = `${_i18nT('To generate')} (${_animSelection.length})`;
-  const icone = (t) => (TYPES_ANIM.find((x) => x.v === t)?.libelle || '🎬').split(' ')[0];
+  const icone = (t) => (_libelleType(t) || '🎬').split(' ')[0];
   box.innerHTML = _animSelection.length
     ? _animSelection.map((e, i) => `<span class="anim-chip" data-i="${i}" title="${_escapeHtml(_i18nT('Click to preview'))}" style="display:inline-flex; align-items:center; gap:5px; padding:4px 4px 4px 9px; border:1px solid var(--border); border-radius:14px; background:rgba(255,255,255,0.04); font-size:12px; cursor:pointer;">${icone(e.type)} ${_escapeHtml(_libelleClip(_nomClipSelection(e)))}<button type="button" data-i="${i}" title="${_escapeHtml(_i18nT('Remove'))}" style="border:none; background:transparent; color:var(--text-2); cursor:pointer; font-size:13px; padding:0 5px;">&#10005;</button></span>`).join('')
     : `<span style="color:var(--text-2); font-size:12px;">${_escapeHtml(_i18nT('Nothing selected: choose an animation and a variant, then click Add.'))}</span>`;
@@ -17051,14 +17127,19 @@ function _rendreSelectionAnim() {
 (function _initSelecteurAnim() {
   const choix = document.getElementById('ws-anim-choix');
   if (!choix) return;
-  choix.innerHTML = TYPES_ANIM.map((x) => `<option value="${x.v}">${_escapeHtml(_i18nT(x.libelle))}</option>`).join('');
-  choix.value = 'walk';
+  _remplirMenuTypes();
   choix.addEventListener('change', _majMenuVariantes);
+  document.getElementById('ws-anim-mode')?.addEventListener('change', (ev) => {
+    try { localStorage.setItem(_cleModeAnim(), ev.target.value); } catch (_) {}
+    _remplirMenuTypes(); _majMenuVariantes(); _rendreSelectionAnim();
+  });
   document.getElementById('ws-anim-variante')?.addEventListener('change', _majApercuAnim);
   _majMenuVariantes();
   document.getElementById('ws-anim-ajouter')?.addEventListener('click', () => {
     const t = choix.value, v = document.getElementById('ws-anim-variante')?.value || 'normal';
-    const aAjouter = v === '*' ? Object.keys(VARIANTES[t] || { normal: {} }).map((x) => ({ type: t, variante: x })) : [{ type: t, variante: v }];
+    const aAjouter = v === '*'
+      ? [...document.querySelectorAll('#ws-anim-variante option')].map((o) => o.value).filter((x) => x !== '*').map((x) => ({ type: t, variante: x }))
+      : [{ type: t, variante: v }];
     for (const e of aAjouter) {
       // une allure procedurale n'est calculee qu'une fois (identique) ; l'IA peut etre retiree
       const deja = ALLURES_PROCEDURALES.includes(e.type) && _animSelection.some((x) => x.type === e.type && x.variante === e.variante);
@@ -17088,7 +17169,8 @@ let _selectedBatch = null;
 let _selectedGait = null;                 // allure choisie dans un fichier « locomotion »
 let _clipsDuLot = [];                     // clips (fichiers) de la version affichee
 const _alluresParFichier = new Map();     // url d'un fichier locomotion -> noms de ses allures
-const _ICONES_ANIM = { idle: '😴', walk: '🚶', run: '🏃', attack: '⚔️', death: '💀', fly: '✈️', locomotion: '🐾', turn_left: '↰', turn_right: '↱' };
+const _ICONES_ANIM = { idle: '😴', walk: '🚶', run: '🏃', attack: '⚔️', death: '💀', fly: '✈️', locomotion: '🐾', turn_left: '↰', turn_right: '↱',
+  swim: '🐟', swim_fast: '🐟', swim_left: '↰', swim_right: '↱', slither: '🐍', slither_fast: '🐍', slither_left: '↰', slither_right: '↱' };
 const _iconeAnim = (t) => _ICONES_ANIM[t] || '🎬';
 
 function renderAnimVersions(p) {
@@ -17343,7 +17425,7 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       if (pickIdx < 0) pickIdx = clips.length - 1;
       clipsCharges = clips;
       // Fichier du moteur procedural : plusieurs allures -> un bouton par allure sous le lecteur
-      const procedural = clips.length >= 1 && clips.every(a => ALLURES_PROCEDURALES.includes(String(a.name).split('__')[0]));
+      const procedural = clips.length >= 1 && clips.every(a => ALLURES_PROCEDURALES.includes(allureDeClip(a.name)));
       if (procedural) {
         _alluresParFichier.set(anim.url, clips.map(a => a.name));
         let k = clips.findIndex(a => a.name === _selectedGait);
@@ -17690,7 +17772,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       const brut = await API.readMeshFile(rigPath);
       if (!brut) throw new Error(_i18nT('Rig file not found.'));
       const t0 = performance.now();
-      const { glb, infos } = animerGLB(brut, { allures });
+      const { glb, infos } = animerGLB(brut, { allures, mode: _modeAnim() });
       console.log('[locomotion] ' + allures.join('+') + ' en ' + Math.round(performance.now() - t0) + ' ms', infos);
       const rigStem = rigPath.split(/[\\/]/).pop().replace(/\.glb$/i, '');
       const filename = `locomotion_${lot}_${Date.now()}__${rigStem}.glb`;

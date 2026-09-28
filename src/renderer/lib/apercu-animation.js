@@ -6,11 +6,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { animerPistes } from './locomotion-procedurale.js';
+import { animerPistes, modeDuSquelette } from './locomotion-procedurale.js';
 
 export function creerApercu(canvas) {
   let rendu = null, scene = null, camera = null, melangeur = null, modele = null;
-  let cle = null, tampon = null, noeuds = null, raf = 0, detruit = false, enCours = null, controles = null;
+  let cle = null, tampon = null, noeuds = null, raf = 0, detruit = false, enCours = null, controles = null, modeSq = null;
   const horloge = new THREE.Clock();
 
   function initRendu() {
@@ -92,6 +92,7 @@ export function creerApercu(canvas) {
       noeuds = new Map();
       for (const [obj, a] of g.parser.associations) if (a && a.nodes !== undefined && obj.isObject3D) noeuds.set(a.nodes, obj);
       tampon = buf;
+      modeSq = null;                                         // nouveau rig : mode a recalculer
       cle = nouvelleCle;
       melangeur = new THREE.AnimationMixer(modele);
       cadrer();
@@ -102,9 +103,15 @@ export function creerApercu(canvas) {
   }
 
   /** Joue en boucle une allure (« walk », « walk__sneak »…), sur place. */
-  function jouer(nomClip) {
+  /** Mode deduit du SQUELETTE seul (pattes detectees ou non), calcule une fois par rig. */
+  function modeSquelette() {
+    if (!tampon) return null;
+    if (!modeSq) { try { modeSq = modeDuSquelette(tampon); } catch (_) { modeSq = 'pattes'; } }
+    return modeSq;
+  }
+  function jouer(nomClip, mode = 'auto') {
     if (!modele || !tampon) return false;
-    const { clips } = animerPistes(tampon, { allures: [nomClip], cycles: 2 });
+    const { clips } = animerPistes(tampon, { allures: [nomClip], cycles: 2, mode });
     const c = clips[0];
     const pistes = [];
     for (const { noeud, q } of c.rotations) {
@@ -135,5 +142,5 @@ export function creerApercu(canvas) {
     controles?.dispose();
     rendu?.dispose();
   }
-  return { chargerRig, jouer, arreter, detruire, pret: () => !!modele, cleChargee: () => cle };
+  return { chargerRig, jouer, arreter, detruire, modeSquelette, pret: () => !!modele, cleChargee: () => cle };
 }

@@ -48,8 +48,54 @@ export const VARIANTES = {
 };
 /** « walk__sneak » -> { allure: 'walk', variante: 'sneak' } */
 export function lireClip(nom) {
-  const [allure, variante = 'normal'] = String(nom).split('__');
-  return { allure, variante };
+  const [a, variante = 'normal'] = String(nom).split('__');
+  return { allure: ALIAS_ALLURES[a] || a, variante };
+}
+
+// ------------------------------------------------------------------ MODE DE DEPLACEMENT (2026-09-28)
+// User : « j'ai teste poisson mais ca m'a propose Run ». Le squelette seul ne distingue pas un thon
+// (nageoires) d'un crocodile (pattes courtes) : l'interface lit d'abord les MOTS du projet
+// (modeDepuisTexte), puis le squelette (modeDuSquelette), et l'utilisateur peut imposer le mode.
+//   pattes    : marche / course (detection des pattes)
+//   nage      : onde laterale le long de la colonne, a la hauteur du corps (poisson, cetace)
+//   reptation : meme onde, au sol (serpent, ver)
+// Les clips portent alors un nom qui dit ce qu'ils sont : swim, slither… (walk pour les pattes).
+export const MODES = ['auto', 'pattes', 'nage', 'reptation'];
+const NOMS_PAR_MODE = {
+  nage: { walk: 'swim', run: 'swim_fast', turn_left: 'swim_left', turn_right: 'swim_right' },
+  reptation: { walk: 'slither', run: 'slither_fast', turn_left: 'slither_left', turn_right: 'slither_right' },
+};
+/** Nom de clip -> allure du moteur (« swim » -> « walk »). */
+export const ALIAS_ALLURES = Object.fromEntries(Object.values(NOMS_PAR_MODE).flatMap((t) => Object.entries(t).map(([a, n]) => [n, a])));
+export function allureDeClip(nom) { const a = String(nom).split('__')[0]; return ALIAS_ALLURES[a] || a; }
+// Mots (anglais, francais, espagnol, allemand, italien, portugais), sans accents, en minuscules.
+const MOTS_NAGE = new Set(('fish fishes tuna shark sharks whale whales dolphin dolphins orca salmon trout carp cod eel '
+  + 'ray manta stingray piranha goldfish koi marlin swordfish sardine herring mackerel pike perch catfish barracuda '
+  + 'seahorse narwhal beluga porpoise bass tilapia sturgeon '
+  + 'poisson poissons thon requin requins baleine baleines dauphin dauphins saumon truite carpe morue anguille raie '
+  + 'espadon hareng maquereau brochet perche silure hippocampe narval marsouin esturgeon '
+  + 'pez peces atun tiburon ballena delfin salmon trucha anguila '
+  + 'fisch thunfisch hai wal delfin lachs forelle karpfen aal '
+  + 'pesce tonno squalo balena delfino salmone trota '
+  + 'peixe atum tubarao baleia golfinho').split(' '));
+const MOTS_REPTATION = new Set(('snake snakes serpent serpents python cobra viper boa anaconda mamba rattlesnake adder '
+  + 'worm worms earthworm larva larvae maggot caterpillar slug leech '
+  + 'couleuvre vipere ver vers lombric chenille limace sangsue asticot larve '
+  + 'serpiente culebra gusano oruga babosa '
+  + 'schlange wurm raupe schnecke '
+  + 'serpente verme bruco lumaca '
+  + 'cobra minhoca lagarta lesma').split(' '));
+/** Mode d'apres les mots d'un texte (nom du projet, prompt…) : 'nage', 'reptation' ou null. */
+export function modeDepuisTexte(texte) {
+  const mots = String(texte || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/);
+  if (mots.some((m) => MOTS_NAGE.has(m))) return 'nage';
+  if (mots.some((m) => MOTS_REPTATION.has(m))) return 'reptation';
+  return null;
+}
+/** Mode d'apres le SQUELETTE : 'pattes' si des pattes sont detectees, sinon 'reptation'. */
+export function modeDuSquelette(glb) {
+  const sq = charger(glb);
+  return detecterPattes(sq.par, sq.P0, sq.racine).pattes.length ? 'pattes' : 'reptation';
 }
 
 // ------------------------------------------------------------------ vecteurs et matrices 3x3
@@ -803,7 +849,7 @@ function colonneAxiale(par, P0, racine) {
   return chemin;
 }
 
-function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'reptation') {
+function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'reptation', nage = false) {
   const { par, P0 } = sq, J = par.length, E = enfantsDe(par);
   const racine = det.racine, sol = det.sol, H = Math.max(ptpAxe(P0, 1), 1e-6), ext = Math.max(etendue(P0), 1e-6);
   const B = ALLURES[allure], V = (VARIANTES[allure] || {})[variante] || {};
@@ -812,7 +858,8 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
   const Ltot = longueurChaine(chemin.map((k) => P0[k]));
   const mode = raison === 'reptation' && chemin.length >= 4 && Ltot > 0.05 * ext ? 'reptation' : 'rigide';
   const vertical = variante === 'crawl';
-  const T = (allure === 'idle' ? 4.0 : allure === 'run' ? 0.8 : 1.3) * (V.T || 1);
+  // poisson a l'arret : battement de queue lent (sur place), pas la tete seule
+  const T = (allure === 'idle' ? (nage ? 1.8 : 4.0) : allure === 'run' ? 0.8 : 1.3) * (V.T || 1);
   const nT = Math.max(2, Math.round((allure === 'idle' ? 1 : cycles) * T * fps));
   const t = Array.from({ length: nT }, (_, i) => i / fps);
   const L = mode === 'reptation' ? Ltot : ext;
@@ -841,7 +888,7 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
       for (let k = 0; k < chemin.length - 1; k++) {
         const repos = sub(P0[chemin[k + 1]], P0[chemin[k]]);
         const sm = 0.5 * (s[k] + s[k + 1]), phi = 2 * Math.PI * (sm / lambda - t[i] / T);
-        const env = allure === 'idle' ? Math.max(0, 1 - sm / (0.35 * Ltot)) : 0.4 + 0.6 * sm / Ltot;
+        const env = allure === 'idle' && !nage ? Math.max(0, 1 - sm / (0.35 * Ltot)) : 0.4 + 0.6 * sm / Ltot;
         let R_;
         if (vertical) {
           const pente = Math.atan(amp * env * Math.PI / lambda * Math.sin(phi));
@@ -930,11 +977,20 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
 }
 
 /** Calcul protégé : une allure qui échoue ou rend une valeur invalide donne un mouvement minimal. */
-function animerAllureSure(sq, allure, cycles, fps, variante) {
+function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto') {
   const fini = (c) => c.R.every((Ri) => Ri.every((m) => m.every(Number.isFinite))) && c.racineMonde.every((p) => p.every(Number.isFinite));
+  // nom du clip selon ce qu'il est vraiment : « swim » pour un poisson, « slither » pour un serpent
+  const nommer = (c) => {
+    const table = NOMS_PAR_MODE[mode === 'nage' ? 'nage' : c.infos.mode === 'reptation' ? 'reptation' : ''];
+    if (table && table[allure]) c.nom = table[allure] + (variante === 'normal' ? '' : '__' + variante);
+    c.infos.deplacement = mode === 'nage' ? 'nage' : c.infos.mode === 'reptation' ? 'reptation' : 'pattes';
+    return c;
+  };
   try {
-    const c = animerAllure(sq, allure, cycles, fps, variante);
-    if (fini(c)) return c;
+    const c = mode === 'nage' || mode === 'reptation'
+      ? animerSansPattes(sq, allure, cycles, fps, variante, detecterPattes(sq.par, sq.P0, sq.racine), 'reptation', mode === 'nage')
+      : animerAllure(sq, allure, cycles, fps, variante);
+    if (fini(c)) return nommer(c);
     throw new Error('valeur invalide dans le calcul');
   } catch (e) {
     const det = detecterPattes(sq.par, sq.P0, sq.racine);
@@ -1034,14 +1090,14 @@ function ecrireGLB(sq, clips, fps) {
  * @param {{allures?: string[], cycles?: number, fps?: number}} options  allures : « walk » ou « walk__sneak » (variante)
  * @returns {{glb: ArrayBuffer, infos: Object<string, object>}}  GLB d'origine + une animation par allure
  */
-export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps = 30 } = {}) {
+export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps = 30, mode = 'auto' } = {}) {
   const sq = charger(glb);
   const clips = [], infos = {};
   for (const nom of allures) {
     const { allure: a, variante } = lireClip(nom);
     if (!ALLURES[a]) throw new Error('allure inconnue : ' + a);
     if (!(VARIANTES[a] || {})[variante]) throw new Error('variante inconnue : ' + nom);
-    const clip_ = animerAllureSure(sq, a, a === 'idle' ? 1 : cycles, fps, variante);
+    const clip_ = animerAllureSure(sq, a, a === 'idle' ? 1 : cycles, fps, variante, mode);
     clips.push(clip_);
     infos[clip_.nom] = clip_.infos;
   }
@@ -1053,14 +1109,14 @@ const _cacheSquelettes = new WeakMap();
  * Pistes d'animation SEULES (sans réécrire le GLB), pour un aperçu : même calcul qu'animerGLB.
  * @returns {{clips: Array<{nom, duree, temps, rotations: Array<{noeud, q}>, translation: {noeud, v}}>, infos}}
  */
-export function animerPistes(glb, { allures = ['walk'], cycles = 2, fps = 30 } = {}) {
+export function animerPistes(glb, { allures = ['walk'], cycles = 2, fps = 30, mode = 'auto' } = {}) {
   let sq = _cacheSquelettes.get(glb);
   if (!sq) { sq = charger(glb); _cacheSquelettes.set(glb, sq); }
   const clips = [], infos = {};
   for (const nom of allures) {
     const { allure: a, variante } = lireClip(nom);
     if (!ALLURES[a] || !(VARIANTES[a] || {})[variante]) throw new Error('allure inconnue : ' + nom);
-    const c = animerAllureSure(sq, a, a === 'idle' ? 1 : cycles, fps, variante);
+    const c = animerAllureSure(sq, a, a === 'idle' ? 1 : cycles, fps, variante, mode);
     clips.push(pistesLocales(sq, c, fps));
     infos[c.nom] = c.infos;
   }
