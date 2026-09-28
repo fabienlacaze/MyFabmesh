@@ -832,13 +832,17 @@ class MoteurUniMate:
             out[n] = p
         return out
 
-    def animer(self, rig_octets, prompt, famille='bipeds', stats=None, graine=0, cfg_scale=3.0,
+    def animer(self, rig_octets, prompt, famille='bipeds', stats=None, graine=0, cfg_scale=6.0,
                nom_clip=None, tirages=3, boucle=False, raccord=8, pieds=True):
         """Rend (octets du GLB anime, infos). `famille` gouverne les noms des
         membres (bras/ailes) ; `stats` la normalisation (par defaut celle du
         jeu dont vient le sujet de la legende) ; `tirages` candidats generes en
         UN lot, le meilleur selon `score_mouvement` est garde ; `boucle` rend
-        le clip bouclable (`raccord` images figees de part et d'autre)."""
+        le clip bouclable (`raccord` images figees de part et d'autre) ;
+        `pieds` plante les appuis au sol (`planter_pieds`). CFG 6 par defaut
+        (3 dans le depot) : mesure visuelle du 28/09 sur le quadrupede, corps
+        plus stable et pattes alternees ; un testeur de la communaute (ticket
+        #2 du depot) rapporte aussi ses meilleurs resultats animaux a 6."""
         torch = self.torch
         from scipy.spatial.transform import Rotation
         from unimate.models.flow.transport import Sampler
