@@ -144,7 +144,10 @@ def animer_unimate(rig_octets: bytes, anim_type: str, prompt: str, asset_type: s
         # graine tiree du job : un meme job rejoue donne le meme clip
         graine = int(hashlib.sha256(job_id.encode()).hexdigest()[:8], 16) % 100000
         nom = texte[:48] if (anim_type or "").lower() == "custom" else (anim_type or "clip")
-        glb, infos = m.animer(rig_octets, texte, famille=famille, graine=graine, nom_clip=nom)
+        # cycles (attente, marche, course, vol) rendus bouclables ; meilleur
+        # de 3 tirages dans tous les cas (voir MoteurUniMate.animer)
+        glb, infos = m.animer(rig_octets, texte, famille=famille, graine=graine, nom_clip=nom,
+                              boucle=(anim_type or "").lower() in um.CYCLIQUES)
         with open(sortie + ".part", "wb") as f:
             f.write(glb)
         os.replace(sortie + ".part", sortie)

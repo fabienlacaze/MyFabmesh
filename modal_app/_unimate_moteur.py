@@ -27,24 +27,32 @@ aux comptes autorises (cote worker).
 import ast
 import json
 import os
+import re
 import struct
 import sys
 
 import numpy as np
 
-# Prompt par type d'animation (menu de l'etape Animation). Le sujet depend de
-# la famille : UniMate a appris « A person… », « An animal… », « An object… ».
+# Prompt par type d'animation (menu de l'etape Animation), au style des
+# legendes d'entrainement (`data_process/vlm_caption/prompts.py` @9f3076e) :
+# une phrase au present, < 12 mots, une action ou « X and then Y », action
+# secondaire par « while », « forward » seulement s'il y a deplacement, sinon
+# « in place » ; ni adverbe, ni espece, ni accessoire. Le sujet est ajoute
+# par `prompt_pour` (A person / An animal / An object).
 _VERBES = {
-    'idle': 'stands idle and breathes',
+    'idle': 'stands in place while shifting its weight',
     'walk': 'walks forward',
     'run': 'runs forward',
-    'attack': 'attacks forward',
-    'jump': 'jumps up in place',
-    'death': 'falls down and dies',
-    'fly': 'flies flapping its wings',
-    'hit': 'gets hit and staggers back',
+    'attack': 'lunges forward and strikes',
+    'jump': 'crouches and then jumps up',
+    'death': 'staggers and then collapses to the ground',
+    'fly': 'flaps its wings and flies forward',
+    'hit': 'flinches and steps backward',
     'dance': 'dances in place',
 }
+
+# Types cycliques : le clip est rendu bouclable (voir MoteurUniMate.animer).
+CYCLIQUES = ('idle', 'walk', 'run', 'fly')
 
 
 def famille_pour(asset_type):
@@ -75,24 +83,33 @@ _SUJET_PAR_TYPE = {'character': 'A person', 'other_living': 'A person', 'humanoi
                    'vehicle': 'An object', 'object': 'An object', 'prop': 'An object'}
 
 
-_SUJETS = ('a ', 'an ', 'the ', 'he ', 'she ', 'it ', 'they ', 'someone', 'somebody', 'person', 'man ',
-           'woman ', 'character', 'creature', 'animal')
+# Sujet d'une description libre (« A dragon breathes fire », « the knight
+# walks », « he jumps ») : remplace par le sujet canonique, comme le fait le
+# depot (`patch_annotations.py` : ^(?:An?|The) [A-Za-z-]+).
+_SUJET_LIBRE = re.compile(r"^(?:(?:an?|the)\s+[a-z-]+|he|she|it|they|someone|somebody)\s+", re.I)
+
+# Statistiques de normalisation : celles du jeu dont le sujet est tire
+# (`conditioning.py` normalise chaque clip avec les stats de SON jeu).
+STATS_PAR_SUJET = {'A person': 'mixamo', 'An animal': 'truebones', 'An object': 'objaverse'}
+
+
+def sujet_pour(famille, asset_type=''):
+    return _SUJET_PAR_TYPE.get((asset_type or '').lower()) or {
+        'bipeds': 'A person', 'quadropeds': 'An animal', 'flying': 'An animal',
+        'millipeds_snakes': 'An animal'}.get(famille, 'An object')
 
 
 def prompt_pour(anim_type, famille, prompt_utilisateur='', asset_type=''):
     """Legende au format appris par le modele : « A person walks forward. ».
-    Le sujet suit le type d'asset quand il est connu (« An insect... »),
-    sinon la famille. Une description libre sans sujet en recoit un."""
-    sujet = _SUJET_PAR_TYPE.get((asset_type or '').lower()) or {
-        'bipeds': 'A person', 'quadropeds': 'An animal', 'flying': 'An animal',
-        'millipeds_snakes': 'An animal'}.get(famille, 'An object')
-    libre = (prompt_utilisateur or '').strip().rstrip('.')
+    Le sujet suit le type d'asset quand il est connu, sinon la famille ; le
+    sujet d'une description libre est remplace par le sujet canonique."""
+    sujet = sujet_pour(famille, asset_type)
+    libre = (prompt_utilisateur or '').strip().rstrip('.').strip()
     if libre:
-        if libre.lower().startswith(_SUJETS):
-            return libre[0].upper() + libre[1:] + '.'
+        libre = _SUJET_LIBRE.sub('', libre, count=1) or libre
         return f"{sujet} {libre[0].lower() + libre[1:]}."
     # point final : toutes les legendes d'entrainement en ont un
-    return f"{sujet} {_VERBES.get((anim_type or 'idle').lower(), 'moves naturally')}."
+    return f"{sujet} {_VERBES.get((anim_type or 'idle').lower(), 'moves in place')}."
 
 
 # ============================================================ GLB
@@ -194,12 +211,13 @@ def charger_classifieur():
 
 def _seq_jambe(n):
     """Segments d'une patte, comme les pattes d'arthropodes de Truebones
-    (`patch_annotations.CHAIN_RIGS` : Thigh, Shin, Foot, Toe…). Le bout d'une
-    chaine d'au moins 4 os est un « Toe End », comme dans les rigs Mixamo et
-    Truebones (un os feuille n'a pas de rotation propre dans UniMate : c'est
-    un point, exactement comme leurs os « End »)."""
-    if n <= 3:
-        return [['Thigh'], ['Thigh', 'Foot'], ['Thigh', 'Shin', 'Foot']][max(n, 1) - 1]
+    (`patch_annotations.CHAIN_RIGS` : Thigh, Shin, Foot, Toe…). Quatre os =
+    la jambe du noyau Mixamo (Thigh, Shin, Foot, Toe) ; au-dela, le bout est un
+    « Toe End », comme dans Truebones (un os feuille n'a pas de rotation propre
+    dans UniMate : c'est un point, exactement comme leurs os « End »)."""
+    if n <= 4:
+        return [['Thigh'], ['Thigh', 'Foot'], ['Thigh', 'Shin', 'Foot'],
+                ['Thigh', 'Shin', 'Foot', 'Toe']][max(n, 1) - 1]
     return ['Thigh', 'Shin', 'Foot'] + ['Toe'] * (n - 4) + ['Toe End']
 
 
@@ -325,33 +343,49 @@ def noms_unimate(roles, parents=None, positions=None):
                 for (_, k), nom in zip(sorted(os_), _seq_jambe(len(os_))):
                     out[k] = ('Left ' if c == 'l' else 'Right ') + nom
 
+    def famille(j):
+        # famille d'un os d'apres son NOM deja calcule (les chaines sont
+        # traitees parents d'abord) ; le role du classifieur ne sert que de
+        # repli : sur un humanoide du 2026-09-28, ses « queue » portaient les
+        # jambes et son « cou » etait l'epaule gauche
+        nom = out.get(j, '').split(' ', 1)[-1] if out.get(j, '').startswith(('Left ', 'Right ')) else out.get(j, '')
+        for f, mots in (('leg', ('Thigh', 'Shin', 'Foot', 'Toe')), ('arm', ('Shoulder', 'Arm', 'Forearm', 'Hand', 'Finger')),
+                        ('wing', ('Wing',)), ('tail', ('Tail',)), ('head', ('Head', 'Neck', 'Jaw', 'Antenna', 'Mandible'))):
+            if nom.startswith(mots):
+                return f
+        return base[j][0]
+
     for ch in chaines:
         s = cote(ch)
         pere = parents.get(ch[0])
-        t_pere = base[pere][0] if pere is not None else ''
+        t_pere = famille(pere) if pere is not None else ''
         n = len(ch)
+        debut = P[pere] if pere is not None else P[ch[0]]
+        v = P[ch[-1]] - debut
         if t_pere == 'leg':
             noms = ['Toe'] * n
         elif t_pere == 'arm':
             noms = ['Finger'] * n
         elif t_pere == 'wing':
             noms = ['Wing'] * n
-        elif t_pere == 'tail':
-            noms = ['Tail'] * n
         elif s and patte(ch):
             noms = _seq_jambe(n)
+        elif t_pere == 'tail':
+            noms = ['Tail'] * n
+        elif not s and float(v[1]) > 0.5 * float(np.linalg.norm(v)) and 'Head' not in out.values() and n >= 1:
+            # chaine centrale qui MONTE au-dessus de son attache : cou + tete
+            noms = ['Neck'] * (n - 1) + ['Head']
         elif t_pere in ('head', 'neck'):
             if not s:
                 noms = ['Jaw'] * n
             else:
                 noms = ['Antenna' if float(P[ch[-1]][1]) > float(P[ch[0]][1]) else 'Mandible'] * n
         elif s:
-            noms = _seq_bras(n)
+            # un os feuille isole est un point du tronc, pas un bras
+            noms = ['Bone'] if (n == 1 and not enfants[ch[0]]) else _seq_bras(n)
         else:
             # os central : vers l'arriere = queue, vers l'avant = machoire
             # (cheliceres de l'araignee), os de longueur nulle = « Bone »
-            debut = P[pere] if pere is not None else P[ch[0]]
-            v = P[ch[-1]] - debut
             if float(np.linalg.norm(v)) < 0.02 * ext or (n == 1 and not enfants[ch[0]]):
                 # un os feuille isole est un point du tronc, pas un appendice
                 noms = ['Bone'] * n
@@ -364,6 +398,16 @@ def noms_unimate(roles, parents=None, positions=None):
     # cheliceres ou la machoire (araignee du 2026-09-28 : pointe a z = +0,14,
     # hanche a z = -0,03). Nommee « Tail », elle serait agitee comme une queue.
     queue = [j for j, (t, _, _) in base.items() if t == 'tail']
+    # « queue » qui porte des pattes = moyeu du bassin, pas une queue
+    for j in list(queue):
+        pile, porte = list(enfants[j]), False
+        while pile and not porte:
+            k = pile.pop()
+            porte = out.get(k, '').endswith(('Thigh', 'Shin', 'Foot'))
+            pile.extend(enfants[k])
+        if porte:
+            out[j] = 'Bone'
+            queue.remove(j)
     if queue:
         bout = max(queue, key=lambda k: base[k][2] if base[k][2] else int(roles[k].split('__j')[0].split('_')[1]))
         if float(P[bout][2]) > float(P[racine][2]) + 0.05 * ext:
@@ -421,6 +465,116 @@ def diametre(parents, pos):
         return k, dist[k]
     u, _ = plus_loin(0)
     return plus_loin(u)[1]
+
+
+def score_mouvement(m, parents):
+    """Note un clip (60, J, 12) denormalise, pour garder le meilleur de
+    plusieurs tirages. Mesure du 2026-09-28 (course de l'araignee, 5 graines) :
+    d'un tirage a l'autre, 2 a 9 pattes sur 10 bougent — l'ecart entre
+    graines pese bien plus que tout reglage. Les scripts officiels tirent
+    d'ailleurs 3 echantillons par defaut (`REPLICATE=3`).
+
+    Score = part des bouts de chaine (feuilles a profondeur >= 2) dont la
+    position RELATIVE AU CORPS (canaux RIFKE 0:3, echelle diametre 2) parcourt
+    plus de 5 % de la taille (0,1), moins une penalite d'a-coups (derivee
+    seconde moyenne de ces positions).
+
+    Les positions RIFKE ne retirent que le XZ de la racine et le cap : un
+    candidat qui sautille ou bascule en bloc y parait « tres actif » (mesure :
+    le score 0,998 d'un tirage a 6 pattes battait le 0,774 d'un tirage a 9).
+    On les ramene donc dans le repere du CORPS : relatif a la racine, puis
+    rotation de la racine retiree (lue, comme au decodage, dans le slot d'un
+    enfant de la racine ; le slot 0 porte le cap)."""
+    from unimate.utils.rotation_conversions import rotation_6d_to_matrix_np
+    J = m.shape[1]
+    enfants = np.zeros(J, dtype=int)
+    prof = np.zeros(J, dtype=int)
+    for j in range(1, J):
+        enfants[parents[j]] += 1
+        prof[j] = prof[parents[j]] + 1
+    bouts = [j for j in range(1, J) if enfants[j] == 0 and prof[j] >= 2]
+    fils = [j for j in range(1, J) if parents[j] == 0]
+    if not bouts or not fils:
+        return 0.0
+    M6 = rotation_6d_to_matrix_np(m[:, :, 3:9])
+    F, R0 = M6[:, 0], M6[:, fils[-1]]
+    rel = m[:, bouts, :3] - m[:, :1, :3]
+    corps = np.einsum('tab,tca,tjc->tjb', R0, F, rel)       # R0^T . F^T . rel
+    course = np.linalg.norm(corps.max(0) - corps.min(0), axis=-1)
+    acoups = float(np.abs(np.diff(corps, n=2, axis=0)).mean())
+    return float(np.mean(course > 0.1)) - 2.0 * acoups
+
+
+def os_ponderes(js, bn, skin=0, seuil=1e-3):
+    """Noeuds des os qui portent un poids de peau (None si illisible). Le
+    depot elague a l'export les os sans poids (`blender_export.py`) : le
+    modele n'a jamais vu d'os de controle ni de bout vide."""
+    try:
+        joints = js['skins'][skin]['joints']
+        acc, vues = js['accessors'], js.get('bufferViews', [])
+
+        def lire(i):
+            a = acc[i]
+            v = vues[a['bufferView']]
+            dt, n = np.dtype(_TYPES[a['componentType']]), _NCOMP[a['type']]
+            off, pas = v.get('byteOffset', 0) + a.get('byteOffset', 0), v.get('byteStride') or dt.itemsize * n
+            brut = np.frombuffer(bn, np.uint8, count=pas * (a['count'] - 1) + dt.itemsize * n, offset=off)
+            idx = (np.arange(a['count'])[:, None] * pas + np.arange(dt.itemsize * n)[None]).ravel()
+            x = brut[idx].view(dt).reshape(a['count'], n)
+            if a.get('normalized') and dt.kind == 'u':
+                x = x.astype(np.float32) / np.iinfo(dt).max
+            return x
+        utiles = set()
+        for nd in js['nodes']:
+            if nd.get('skin') != skin or 'mesh' not in nd:
+                continue
+            for prim in js['meshes'][nd['mesh']]['primitives']:
+                at = prim['attributes']
+                for k in (0, 1):
+                    if f'JOINTS_{k}' in at and f'WEIGHTS_{k}' in at:
+                        jj = lire(at[f'JOINTS_{k}']).astype(np.int64)
+                        utiles.update(np.unique(jj[lire(at[f'WEIGHTS_{k}']) > seuil]).tolist())
+        return {joints[u] for u in utiles if u < len(joints)} or None
+    except Exception:
+        return None
+
+
+def noyau_mixamo(noms, parents):
+    """Os du noyau Mixamo de 22 os, seul squelette vu pour « A person »
+    (`metadata.py`, `--mixamo_core_joints` actif par defaut) : Hips, 3 Spine,
+    Neck, Head et, par cote, Shoulder / Upper Arm / Forearm / Hand et Thigh /
+    Shin / Foot / Toe. Ni doigts, ni accessoires. Choisi d'apres les NOMS
+    (`noms_unimate`, geometriques), plus fiables que les roles du
+    classifieur. None s'il manque bras ou jambes d'un cote."""
+    prof = {}
+
+    def profondeur(j):
+        if j not in prof:
+            prof[j] = 0 if parents.get(j) is None else 1 + profondeur(parents[j])
+        return prof[j]
+    par_nom = {}
+    for j in sorted(noms, key=profondeur):
+        par_nom.setdefault(noms[j], []).append(j)
+    garde = {j for j in noms if parents.get(j) is None}
+    colonne = par_nom.get('Spine', [])
+    if len(colonne) > 3:
+        colonne = [colonne[i] for i in np.linspace(0, len(colonne) - 1, 3).round().astype(int)]
+    garde.update(colonne)
+    tete = par_nom.get('Head', [])[:1]
+    garde.update(tete)
+    if tete:
+        k = parents.get(tete[0])
+        while k is not None and noms.get(k) != 'Neck':
+            k = parents.get(k)
+        if k is not None:
+            garde.add(k)
+    for cote in ('Left ', 'Right '):
+        for membre, obligatoires in ((('Shoulder', 'Upper Arm', 'Forearm', 'Hand'), ('Upper Arm', 'Hand')),
+                                     (('Thigh', 'Shin', 'Foot', 'Toe'), ('Thigh', 'Foot'))):
+            if not all(par_nom.get(cote + o) for o in obligatoires):
+                return None
+            garde.update(par_nom[cote + m][0] for m in membre if par_nom.get(cote + m))
+    return garde
 
 
 # ======================================================================= moteur
@@ -490,10 +644,12 @@ class MoteurUniMate:
         return out
 
     def animer(self, rig_octets, prompt, famille='bipeds', stats=None, graine=0, cfg_scale=3.0,
-               nom_clip=None):
+               nom_clip=None, tirages=3, boucle=False, raccord=8):
         """Rend (octets du GLB anime, infos). `famille` gouverne les noms des
-        membres (bras/ailes) ; `stats` la normalisation (mixamo, truebones,
-        objaverse)."""
+        membres (bras/ailes) ; `stats` la normalisation (par defaut celle du
+        jeu dont vient le sujet de la legende) ; `tirages` candidats generes en
+        UN lot, le meilleur selon `score_mouvement` est garde ; `boucle` rend
+        le clip bouclable (`raccord` images figees de part et d'autre)."""
         torch = self.torch
         from scipy.spatial.transform import Rotation
         from unimate.models.flow.transport import Sampler
@@ -521,20 +677,50 @@ class MoteurUniMate:
             famille = self.classifieur['_detect_topology_family'](joints, par_idx, pos_monde)
         roles = self.classifieur['_anatomical_names'](joints, par_idx, pos_monde, famille)
         noms = noms_unimate(roles, parents=par_noeud, positions=pos_monde)
+        # statistiques = celles du jeu dont vient le sujet (A person -> mixamo,
+        # An animal -> truebones, An object -> objaverse) : l'entrainement
+        # normalise chaque clip avec les stats de SON jeu
+        sujet = next((x for x in STATS_PAR_SUJET if prompt.startswith(x + ' ')), None)
         if not stats or stats == 'auto':
-            stats = ('mixamo' if famille in ('bipeds', 'biped')
-                     else ('objaverse' if famille == 'all' else 'truebones'))
+            stats = STATS_PAR_SUJET.get(sujet) or (
+                'mixamo' if famille in ('bipeds', 'biped') else ('objaverse' if famille == 'all' else 'truebones'))
 
-        idx_de = {n: k for k, n in enumerate(joints)}
-        par_k = [idx_de[par_noeud[n]] if par_noeud[n] is not None else -1 for n in joints]
-        ordre_k = ordre_bfs(par_k, np.array([pos_monde[n] for n in joints]))
-        # Au-dela de la capacite du modele (61 os : insectes, mille-pattes,
-        # creatures ailees), on anime les os les PLUS PROCHES DU TRONC. L'ordre
-        # BFS range chaque parent avant ses enfants : le prefixe est donc un
-        # sous-arbre connexe ; les extremites ecartees n'ont pas de piste et
-        # suivent leur parent dans sa pose de repos. Mieux qu'un refus.
-        os_total = len(ordre_k)
-        ordre_k = ordre_k[:getattr(self, 'max_os', None) or self.cfg.dataset.max_joints]
+        # Os pilotes par le modele ; les autres suivent leur parent dans leur
+        # pose de repos (le decodage le gere : Cp est la rotation de repos du
+        # parent DIRECT du noeud, pilote ou non).
+        os_total = len(joints)
+        actifs = set(joints)
+        ponderes = os_ponderes(js, bn)
+        elagues = 0
+        if ponderes:
+            # bouts sans poids de peau (os de controle, extremites vides)
+            while True:
+                nb = {n: 0 for n in actifs}
+                for n in actifs:
+                    if par_noeud[n] in nb:
+                        nb[par_noeud[n]] += 1
+                vides = {n for n in actifs if not nb[n] and n not in ponderes and par_noeud[n] is not None}
+                if not vides:
+                    break
+                actifs -= vides
+                elagues += len(vides)
+        noyau = noyau_mixamo(noms, par_noeud) if sujet == 'A person' else None
+        if noyau:
+            actifs &= noyau
+        joints_m = [n for n in joints if n in actifs]
+        par_m = self._parents_joints(joints_m, parent_noeud)
+
+        idx_de = {n: k for k, n in enumerate(joints_m)}
+        par_k = [idx_de[par_m[n]] if par_m[n] is not None else -1 for n in joints_m]
+        ordre_k = ordre_bfs(par_k, np.array([pos_monde[n] for n in joints_m]))
+        # Au-dela de la capacite du modele, on anime les os les PLUS PROCHES DU
+        # TRONC. L'ordre BFS range chaque parent avant ses enfants : le prefixe
+        # est donc un sous-arbre connexe ; les extremites ecartees suivent leur
+        # parent. Capacite = 60 os REELS : `max_joints` (61) compte l'os que
+        # l'augmentation d'ajout insere a l'entrainement (`dataset.py`).
+        limite = self.cfg.dataset.max_joints - (1 if getattr(self.cfg.dataset, 'use_addition_aug', False) else 0)
+        ordre_k = ordre_k[:getattr(self, 'max_os', None) or limite]
+        joints = joints_m
         noeud_de = [joints[k] for k in ordre_k]
         u_de_k = {k: u for u, k in enumerate(ordre_k)}
         parents = np.array([u_de_k[par_k[k]] if par_k[k] >= 0 else -1 for k in ordre_k], dtype=np.int64)
@@ -584,24 +770,54 @@ class MoteurUniMate:
             'object_type': 'fabmesh', 'start_idx': 0, 'mean': mean, 'std': std,
             'split_tag': 'eval', 'caption': prompt, 'caption_emb': cap_emb, 'caption_tokens': cap_tok,
         }
-        _, cond = mixture_batch_collate([lot])
+        B = max(1, int(tirages))
+        _, cond = mixture_batch_collate([lot] * B)
         cond = {k: v.to(self.dev) if torch.is_tensor(v) else v for k, v in cond.items()}
         torch.manual_seed(int(graine))
         with torch.no_grad():
             ech = generate_samples(model=self.modele, cond=cond,
-                                   motion_shape=(1, self.cfg.dataset.max_joints, 12, 60),
+                                   motion_shape=(B, self.cfg.dataset.max_joints, 12, 60),
                                    diff_model='flow', diffusion=self.transport,
                                    gen_diffusion=Sampler(self.transport), device=self.dev,
                                    cfg_scale=cfg_scale)
-        m = ech[0][:J].detach().cpu().permute(2, 0, 1).numpy() * std[None] + mean[None]
+        candidats = [ech[b][:J].detach().cpu().permute(2, 0, 1).numpy() * std[None] + mean[None]
+                     for b in range(B)]
+        scores = [score_mouvement(c, parents) for c in candidats]
+        meilleur = int(np.argmax(scores))
+        m = candidats[meilleur]
+
+        T = 60
+        k = int(raccord) if boucle else 0
+        if boucle and 0 < k < 30:
+            # BOUCLE (recette du depot, `motion_inbetweening.py` : Euler 50 pas
+            # avec images figees) : seconde passe ou les k premieres images
+            # sont gardees et les k DERNIERES figees sur ces memes k premieres.
+            # Le cycle dure 60 - k images ; on ecrit l'image 60 - k (egale a
+            # l'image 0) pour que le lecteur reboucle sans saut.
+            A = ech[meilleur:meilleur + 1].detach().clone()
+            x1 = A.clone()
+            x1[..., 60 - k:] = A[..., :k]
+            fige = torch.zeros((1, 1, 1, 60), dtype=torch.bool, device=self.dev)
+            fige[..., :k] = True
+            fige[..., 60 - k:] = True
+            _, cond1 = mixture_batch_collate([lot])
+            cond1 = {c: v.to(self.dev) if torch.is_tensor(v) else v for c, v in cond1.items()}
+            with torch.no_grad():
+                ech2 = generate_samples(model=self.modele, cond=cond1,
+                                        motion_shape=(1, self.cfg.dataset.max_joints, 12, 60),
+                                        diff_model='flow', diffusion=self.transport,
+                                        gen_diffusion=Sampler(self.transport), device=self.dev,
+                                        cfg_scale=cfg_scale, x1_known=x1, keep_mask=fige)
+            T = 60 - k + 1
+            m = (ech2[0][:J].detach().cpu().permute(2, 0, 1).numpy() * std[None] + mean[None])[:T]
 
         # decodage : chaque os lit sa rotation dans le slot de son enfant
         # (feuilles : identite) ; trajectoire de la racine par integration
         M6 = rotation_6d_to_matrix_np(m[:, :, 3:9])
-        R = np.tile(np.eye(3), (60, J, 1, 1))
+        R = np.tile(np.eye(3), (T, J, 1, 1))
         for j in range(1, J):
             R[:, parents[j]] = M6[:, j]
-        rp = np.zeros((60, 3))
+        rp = np.zeros((T, 3))
         rp[1:, [0, 2]] = m[:-1, 0, [9, 11]]
         rp = np.cumsum(np.einsum('tji,tj->ti', M6[:, 0], rp), axis=0)
         rp[:, 1] = m[:, 0, 1]
@@ -609,6 +825,8 @@ class MoteurUniMate:
         glb = self._ecrire(js, bn, noeud_de, R, rp, X, s, W, parent_noeud, rot_monde, pos_monde,
                            nom_clip or prompt[:60])
         return glb, {'os': J, 'os_total': os_total, 'famille': famille, 'stats': stats, 'prompt': prompt,
+                     'tirages': B, 'scores': [round(x, 3) for x in scores], 'boucle': k, 'images': T,
+                     'os_elagues': elagues, 'noyau_mixamo': bool(noyau),
                      'deplacement_racine': float(np.linalg.norm((rp[-1] - rp[0])[[0, 2]]) / s)}
 
     @staticmethod
@@ -634,14 +852,15 @@ class MoteurUniMate:
             js.setdefault('accessors', []).append(a)
             return len(js['accessors']) - 1
 
-        temps = ajouter(np.arange(60, dtype=np.float32) / 30.0, 'SCALAR', True)
+        T = R.shape[0]
+        temps = ajouter(np.arange(T, dtype=np.float32) / 30.0, 'SCALAR', True)
         samplers, canaux = [], []
         for u, n in enumerate(noeud_de):
             pn = parent_noeud.get(n)
             Cp = orthonormer(W[pn][:3, :3]) if pn is not None else np.eye(3)
             L = np.einsum('ab,tbc,cd->tad', Cp.T, R[:, u], rot_monde[n])
             q = Rotation.from_matrix(L).as_quat()
-            for t in range(1, 60):
+            for t in range(1, T):
                 if np.dot(q[t], q[t - 1]) < 0:
                     q[t] = -q[t]
             samplers.append({'input': temps, 'output': ajouter(q, 'VEC4'), 'interpolation': 'LINEAR'})

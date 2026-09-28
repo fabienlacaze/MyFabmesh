@@ -216,3 +216,22 @@ Web (API.autoAnimAI)       ─┴─> worker POST /api/animate
    La licence reste à trancher.
 5. **P4 puis P9** : clips longs, enchaînements, édition d'articulations. Ce
    sont les briques de la génération par lot pour Apovivor.
+
+## 6. Résultats du 28/09 (fin de nuit, carte locale RTX 5080)
+
+Mesure : part des bouts de pattes qui bougent (> 5 % de la taille) dans le repère
+du corps, et amplitude moyenne. Araignée de 62 os, course, poids de production
+sauf mention.
+
+| Version | Pattes actives | Amplitude | Raccord de boucle |
+|---|---|---|---|
+| Production (anciens noms, 1 tirage) | 4,0 / 10 | 11 % | 4,1° |
+| Noms et légendes corrigés, 1 tirage | 5,2 / 10 | 10,5 % | — |
+| Moteur corrigé (meilleur de 3, boucle) | 8,6 / 11 | 15 % | 0,0° |
+| Moteur corrigé + poids officiels, « An animal » | 11 / 11 | 34 % | 0,0° |
+| Moteur corrigé + poids officiels, « An object » | 11 / 11 | 38 % | 0,0° |
+
+- Les poids officiels sont le levier principal. Leur fiche ne déclare aucune
+  licence : à trancher avant tout usage commercial.
+- Avec ces poids, le sujet unique « An object » du dépôt fait légèrement mieux.
+- Rien n'est déployé : budget Modal coupé jusqu'au 1er octobre.
