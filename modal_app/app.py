@@ -1527,6 +1527,7 @@ class MyFabmeshBackview:
                 seed=int(payload.get("seed") or 0),
                 cn_scale=float(payload.get("cn_scale") or 0.45),
                 neg_prompt=payload.get("neg_prompt") or None,
+                gris=float(payload.get("gris") or 0),
             )
             tag = "tex_variant"
 

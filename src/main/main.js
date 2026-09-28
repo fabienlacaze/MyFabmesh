@@ -5261,7 +5261,7 @@ ipcMain.handle('detail-synth', async (event, { meshPath, jobId, strength, prompt
   }
 });
 
-ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed, cnScale, negPrompt }) => {
+ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed, cnScale, negPrompt, gris }) => {
   try {
     const dir = path.dirname(imagePath);
     const ext = path.extname(imagePath);
@@ -5277,6 +5277,7 @@ ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed,
       input: imagePath, prompt: prompt || '', output: newImagePath,
       strength: (strength != null ? strength : 0.45), seed: parseInt(_uniq),
       cn_scale: (cnScale != null ? cnScale : 0.45), neg_prompt: negPrompt || null,
+      gris: Math.max(0, Math.min(1, Number(gris) || 0)),
     });
     if (r.ok) {
       _handleMultiviewInheritance(newImagePath).catch(() => {});

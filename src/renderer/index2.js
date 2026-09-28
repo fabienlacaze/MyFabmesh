@@ -16940,6 +16940,22 @@ function _rigLePlusRecent(proj) {
   return pool.slice().sort((x, y) => date(y) - date(x))[0].path;
 }
 
+// VARIANTE « GARDER LA FORME » (2026-09-28, user : « variant ne change pas assez la texture quand
+// c'est a fond ») : trois leviers suivent le curseur — le controle Tile est DESATURE (il recopiait
+// les couleurs), son poids baisse un peu, et sans guide chaque variante recoit une teinte tiree de la
+// graine (le prompt par defaut ne demandait aucun changement).
+var PALETTES_VARIANTE = ['jet black', 'snow white', 'golden brown', 'silver grey', 'deep red', 'sandy tan',
+  'dark chocolate brown', 'white with black spots', 'cream with brown patches', 'grey and white', 'reddish orange',
+  'blue-grey', 'black and tan', 'dappled grey', 'pale beige', 'brindle striped', 'olive green', 'copper and bronze'];
+function _reglagesVarianteForme(force, graine, guide) {
+  const f = Math.max(0, Math.min(1, force));
+  const teinte = PALETTES_VARIANTE[Math.abs(graine | 0) % PALETTES_VARIANTE.length];
+  return {
+    gris: Math.max(0, Math.min(1, (f - 0.3) / 0.6)),
+    cnScale: 0.5 - 0.25 * f,
+    prompt: guide || (f >= 0.35 ? `${teinte} coloring, new color scheme, natural realistic texture, high quality, detailed` : ''),
+  };
+}
 // Allures du moteur procedural (lib/locomotion-procedurale.js) : gratuites, calculees ici.
 const ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right'];
 const NOMS_ALLURES = { idle: 'Idle', walk: 'Walk', run: 'Run', turn_left: 'Turn left', turn_right: 'Turn right' };
@@ -19487,8 +19503,9 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
         texMode ? 60000 : 30000,
         { sourceImageUrl: target, projectName: p.name });
       try {
+        const rv = _reglagesVarianteForme(strength, seed, guidePrompt);
         const r = texMode
-          ? await API.texVariant({ imagePath: target, prompt: guidePrompt, strength, seed })
+          ? await API.texVariant({ imagePath: target, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris })
           : await API.img2img({ imagePath: target, prompt: (guidePrompt || prompt), strength, engine: 'local-sdxl', seed });
         if (r?.success) { completeJob(job.id, true); await reloadCurrentProject(); }
         else { completeJob(job.id, false, r?.error); showToast('Variant failed: ' + (r?.error || 'unknown'), 'error'); }

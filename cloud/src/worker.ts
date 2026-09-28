@@ -10412,6 +10412,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
   refineStrength?: number;    // upscale only
   recolorAll?: boolean;       // recolor only
   cnScale?: number;           // tex_variant only — bas = les proportions peuvent bouger
+  gris?: number;              // tex_variant only — desature le controle (0..1) : les couleurs peuvent changer
   negPrompt?: string;         // tex_variant only
 }, folder: string): Promise<{ url: string } | { maskEmpty: true; error: string }> {
   const url = env.MODAL_IMAGE_OP_URL;
@@ -10439,6 +10440,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
     body.seed = input.seed ?? 0;
     body.cn_scale = input.cnScale ?? 0.45;
     body.neg_prompt = input.negPrompt;
+    body.gris = input.gris ?? 0;
   } else if (input.op === 'recolor') {
     body.strength = input.strength ?? 1.0;
     body.dilate = input.dilate ?? 15;
@@ -11705,9 +11707,9 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'tex-variant backend unavailable');
 
-  const { imagePath, imageUrl, prompt, strength, seed, cnScale, negPrompt, projectName } =
+  const { imagePath, imageUrl, prompt, strength, seed, cnScale, negPrompt, projectName, gris } =
     await req.json() as {
-      projectName?: string;
+      projectName?: string; gris?: number;
       imagePath?: string; imageUrl?: string; prompt?: string;
       strength?: number; seed?: number; cnScale?: number; negPrompt?: string;
     };
@@ -11753,6 +11755,7 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
     const result = await callModalImageOp(env, user.id, {
       op: 'tex_variant', imageUrl: src, prompt: rawPrompt,
       strength, seed, cnScale, negPrompt,
+      gris: Math.max(0, Math.min(1, Number(gris) || 0)),
     }, 'texvar');
     if ('maskEmpty' in result) {
       await addCredits(env, user.id, cost);

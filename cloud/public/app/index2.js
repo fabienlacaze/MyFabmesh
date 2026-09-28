@@ -3523,8 +3523,9 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
           { sourceImageUrl: variantSource, projectName: p.name })
       : null;
     try {
+      const rv = _reglagesVarianteForme(strength, seed, guide);
       const r = texMode
-        ? await window.meshyAPI?.texVariant({ imagePath: variantSource, prompt: guide, strength, seed })
+        ? await window.meshyAPI?.texVariant({ imagePath: variantSource, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris })
         : await window.meshyAPI?.img2img({ imagePath: variantSource, prompt: (guide || prompt), strength, seed });
       if (!r?.success) throw new Error(r?.error || 'variant failed');
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
@@ -18280,6 +18281,22 @@ function _disposeAnimModel() {
 
 // Allures du moteur procedural (lib/locomotion-procedurale.js) : gratuites, calculees ICI.
 // `var` : renderAnimVersions (plus haut) peut tourner pendant l'evaluation du module (zone morte d'un let/const)
+// VARIANTE « GARDER LA FORME » (2026-09-28, user : « variant ne change pas assez la texture quand
+// c'est a fond ») : trois leviers suivent le curseur — le controle Tile est DESATURE (il recopiait
+// les couleurs), son poids baisse un peu, et sans guide chaque variante recoit une teinte tiree de la
+// graine (le prompt par defaut ne demandait aucun changement).
+var PALETTES_VARIANTE = ['jet black', 'snow white', 'golden brown', 'silver grey', 'deep red', 'sandy tan',
+  'dark chocolate brown', 'white with black spots', 'cream with brown patches', 'grey and white', 'reddish orange',
+  'blue-grey', 'black and tan', 'dappled grey', 'pale beige', 'brindle striped', 'olive green', 'copper and bronze'];
+function _reglagesVarianteForme(force, graine, guide) {
+  const f = Math.max(0, Math.min(1, force));
+  const teinte = PALETTES_VARIANTE[Math.abs(graine | 0) % PALETTES_VARIANTE.length];
+  return {
+    gris: Math.max(0, Math.min(1, (f - 0.3) / 0.6)),
+    cnScale: 0.5 - 0.25 * f,
+    prompt: guide || (f >= 0.35 ? `${teinte} coloring, new color scheme, natural realistic texture, high quality, detailed` : ''),
+  };
+}
 var ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right'];
 var NOMS_ALLURES = { idle: 'Idle', walk: 'Walk', run: 'Run', turn_left: 'Turn left', turn_right: 'Turn right' };
 var _ICONES_ANIM = { idle: '😴', walk: '🚶', run: '🏃', attack: '⚔️', death: '💀', fly: '✈️', locomotion: '🐾', turn_left: '↰', turn_right: '↱',

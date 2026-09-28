@@ -1309,7 +1309,40 @@ def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0
             return {"ok": False, "error": str(e)}
 
 
-def do_tex_variant(input_path, prompt, output_path, strength=0.45, seed=0, cn_scale=0.45, neg_prompt=None):
+def _masque_fond(img):
+    """(Parite modal_app/_tex_variant.py.) Fond d'un asset : zone CLAIRE et NEUTRE reliee aux bords de l'image (blanc ou gris de studio,
+    degrade compris). None si l'image n'a pas un tel fond (scene, paysage)."""
+    import numpy as np
+    try:
+        from scipy import ndimage
+    except Exception:
+        return None
+    a = np.asarray(img.convert('RGB'), dtype=np.float32)
+    neutre = (a.mean(axis=2) > 150) & ((a.max(axis=2) - a.min(axis=2)) < 15)
+    lab, n = ndimage.label(neutre)
+    if not n:
+        return None
+    bords = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+    fond = np.isin(lab, bords[bords > 0])
+    if fond.mean() < 0.15:                      # pas un fond d'asset
+        return None
+    fond = ndimage.binary_erosion(fond, iterations=2)
+    return ndimage.gaussian_filter(fond.astype(np.float32), 1.5)[..., None]
+
+
+def _garder_fond(source, sortie):
+    """Recolle le fond de la source sur la variante (meme taille) : la teinte demandee ne colore
+    plus le fond (beige pour « golden brown », taches semees autour du modele — mesure au banc)."""
+    import numpy as np
+    m = _masque_fond(source)
+    if m is None:
+        return sortie
+    a = np.asarray(source.convert('RGB'), dtype=np.float32)
+    o = np.asarray(sortie.convert('RGB'), dtype=np.float32)
+    return Image.fromarray(np.clip(o * (1 - m) + a * m, 0, 255).astype(np.uint8))
+
+
+def do_tex_variant(input_path, prompt, output_path, strength=0.45, seed=0, cn_scale=0.45, neg_prompt=None, gris=0.0):
     """Structure-locked TEXTURE variant: ControlNet-Tile keeps the shape/geometry
     (the original image is the control) while regenerating the surface/texture.
     The generated element does NOT move — only the texture/colours vary per seed."""
@@ -1324,6 +1357,11 @@ def do_tex_variant(input_path, prompt, output_path, strength=0.45, seed=0, cn_sc
             img = Image.open(input_path).convert("RGB")
             orig_size = img.size
             img_work, (work_w, work_h) = resize_for_sdxl(img, max_dim=1024)
+            # GRIS (2026-09-28, parite modal_app/_tex_variant.py) : Tile recopie aussi les
+            # COULEURS du controle ; a forte variation, controle et depart sont desatures.
+            source_work = img_work
+            if gris and float(gris) > 0:
+                img_work = Image.blend(img_work, img_work.convert("L").convert("RGB"), float(min(1.0, gris)))
             t0 = time.time()
             p = (prompt or "").strip() or "high quality, detailed, sharp focus, intricate textures, game asset"
             with torch.inference_mode():
@@ -1341,6 +1379,8 @@ def do_tex_variant(input_path, prompt, output_path, strength=0.45, seed=0, cn_sc
                     controlnet_conditioning_scale=float(max(0.1, min(0.95, cn_scale))),
                     generator=torch.Generator("cuda").manual_seed(int(seed)),
                 ).images[0]
+            if gris and float(gris) > 0:
+                result = _garder_fond(source_work, result)   # forme verrouillee : le fond de la source
             if result.size != orig_size:
                 result = result.resize(orig_size, Image.LANCZOS)
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -1899,6 +1939,7 @@ class Handler(BaseHTTPRequestHandler):
                     data.get('seed', 0),
                     data.get('cn_scale', 0.45),
                     data.get('neg_prompt'),
+                    float(data.get('gris', 0) or 0),
                 )
                 self._json_response(200 if result.get('ok') else 500, result)
 
