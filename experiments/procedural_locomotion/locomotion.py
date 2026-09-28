@@ -28,9 +28,13 @@ sys.path.insert(0, r'C:\Users\Utilisateur\Desktop\FabWare\MeshyMyself\modal_app'
 import _unimate_moteur as M  # noqa: E402  (lecture GLB, matrices monde)
 
 ALLURES = {
-    #          appui  periode 2-4 pattes / 6+   hauteur de pas  bob
-    'walk': dict(beta=0.65, T=(1.1, 0.7), h=0.22, bob=0.025, foulee=1.0),
-    'run': dict(beta=0.40, T=(0.62, 0.42), h=0.30, bob=0.05, foulee=1.6),
+    # appui : part du cycle au sol ; T : periode (<= 4 pattes, 6 et plus) ; h : hauteur de pas ;
+    # bob : balancement vertical ; foulee : longueur relative ; lacet : rad/s (+ = vers la gauche)
+    'walk': dict(beta=0.65, T=(1.1, 0.7), h=0.22, bob=0.025, foulee=1.0, lacet=0.0, pas=True),
+    'run': dict(beta=0.38, T=(0.62, 0.42), h=0.32, bob=0.06, foulee=1.8, lacet=0.0, pas=True),
+    'turn_left': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=0.55, pas=True),
+    'turn_right': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=-0.55, pas=True),
+    'idle': dict(beta=1.0, T=(4.0, 4.0), h=0.0, bob=0.008, foulee=0.0, lacet=0.0, pas=False),
 }
 
 
@@ -164,8 +168,10 @@ def detecter_pattes(par, P0):
     return racine, pattes, queues, tetes, sol
 
 
-def phases(pattes, P0):
-    """Decalage de phase de chaque patte (0..1)."""
+def phases(pattes, P0, allure='walk'):
+    """Decalage de phase de chaque patte (0..1). Marche a 4 pattes : pas lateral ;
+    course a 4 pattes : trot (diagonales ensemble) ; 6 et plus : tetrapode / trepied
+    alterne, avec une onde de l'arriere vers l'avant a la marche."""
     for cote in (1, -1):
         cc = sorted([p for p in pattes if p['cote'] == cote], key=lambda p: -P0[p['bout'], 2])
         for k, p in enumerate(cc):
@@ -176,12 +182,12 @@ def phases(pattes, P0):
         s = 0 if p['cote'] == 1 else 1
         if n <= 2:
             p['phase'] = 0.5 * s
-        elif n <= 4 and p['nb_cote'] == 2:
+        elif n <= 4 and p['nb_cote'] == 2 and allure != 'run':
             # pas lateral : AR gauche 0, AV gauche 0,25, AR droit 0,5, AV droit 0,75
             p['phase'] = 0.5 * s + (0.25 if p['rang'] == 0 else 0.0)
         else:
-            # trepied / tetrapode alterne + onde metachronale (de l'arriere vers l'avant)
-            p['phase'] = (0.5 * ((p['rang'] + s) % 2) + 0.06 * (p['nb_cote'] - 1 - p['rang'])) % 1.0
+            onde = 0.06 if allure != 'run' else 0.0
+            p['phase'] = (0.5 * ((p['rang'] + s) % 2) + onde * (p['nb_cote'] - 1 - p['rang'])) % 1.0
 
 
 # ---------------------------------------------------------------- cinematique
@@ -218,68 +224,111 @@ def fabrik(Q, cible, iterations=20):
     return Q
 
 
+def Ry(a):
+    return Rotation.from_euler('y', np.atleast_1d(a)[:, None]).as_matrix()
+
+
 def animer(chemin, allure='walk', cycles=3, fps=30):
     js, bn, joints, par, P0, W, parent_noeud = charger(chemin)
     racine, pattes, queues, tetes, sol = detecter_pattes(par, P0)
     if not pattes:
         raise SystemExit('aucune patte detectee')
-    phases(pattes, P0)
+    phases(pattes, P0, allure)
     A = ALLURES[allure]
     nombreux = len(pattes) >= 6
+    bipede = len(pattes) <= 2
     T = A['T'][1 if nombreux else 0]
-    beta = A['beta'] if not (nombreux and allure == 'walk') else 0.55
+    beta = 0.55 if (nombreux and allure != 'run' and A['pas']) else A['beta']
     portee = np.mean([np.linalg.norm(P0[p['bout']] - P0[p['chaine'][0]]) for p in pattes])
     hanche = np.mean([P0[p['chaine'][0], 1] - sol for p in pattes])
     S = A['foulee'] * (0.6 * portee + 0.8 * hanche)         # foulee par cycle
     h = A['h'] * (0.5 * portee + 0.5 * hanche)               # hauteur du pas
-    v = S / T
+    v, w = S / T, A['lacet']
     nT = int(round(cycles * T * fps))
     t = np.arange(nT) / fps
     J = len(joints)
-
-    D = np.tile(np.eye(3), (nT, J, 1, 1))                    # rotation monde (delta sur le repos)
-    corps = np.zeros((nT, 3))
-    corps[:, 2] = v * t
-    corps[:, 1] = -A['bob'] * hanche * np.cos(2 * np.pi * t / T * 2)
-    # tangage leger, synchrone du bob
-    tangage = 0.02 * np.sin(2 * np.pi * t / T * 2)
-    Rb = np.array([Rotation.from_euler('x', a).as_matrix() for a in tangage])
     pivot = P0[racine]
 
-    def monde(i, p):                                         # point de repos -> monde a l'image i
-        return pivot + corps[i] + Rb[i] @ (p - pivot)
+    # --- trajectoire du corps (sans balancement) : position au sol et cap, a tout instant
+    def chemin_corps(tt):
+        tt = np.atleast_1d(tt).astype(float)
+        cap = w * tt
+        if abs(w) < 1e-9:
+            c = np.stack([0 * tt, 0 * tt, v * tt], -1)
+        else:
+            c = np.stack([(v / w) * (1 - np.cos(cap)), 0 * tt, (v / w) * np.sin(cap)], -1)
+        return c, cap
 
-    fixes = {}                                               # os pilotes directement (rotation monde)
+    c, cap = chemin_corps(t)
+    Rcap = Ry(cap)
+    # --- balancement : haut au milieu de l'appui a la marche, bas a la course ; respiration a l'arret
+    p0 = pattes[0]['phase']
+    onde2 = np.cos(4 * np.pi * (t / T - (beta / 2 - p0)))
+    if not A['pas']:
+        bob = A['bob'] * hanche * np.sin(2 * np.pi * 2 * t / T)
+        tangage = 0.01 * np.sin(2 * np.pi * t / T)
+        roulis = 0.012 * np.sin(2 * np.pi * t / T + 1.0)
+        lateral = 0.015 * hanche * np.sin(2 * np.pi * t / T + 1.0)
+    else:
+        bob = A['bob'] * hanche * (onde2 if allure != 'run' else -onde2)
+        tangage = (0.05 if allure == 'run' and bipede else 0.0) + 0.02 * np.sin(4 * np.pi * t / T)
+        roulis = (0.035 if bipede else 0.012) * np.sin(2 * np.pi * (t / T + p0 - beta / 2))
+        lateral = (0.04 * hanche if bipede else 0.0) * np.sin(2 * np.pi * (t / T + p0 - beta / 2))
+    Rb = np.einsum('tab,tbc,tcd->tad', Rcap, Rotation.from_euler('x', tangage[:, None]).as_matrix(),
+                   Rotation.from_euler('z', roulis[:, None]).as_matrix())
+    decal = c + np.stack([0 * t, bob, 0 * t], -1) + np.einsum('tab,tb->ta', Rcap, np.stack([lateral, 0 * t, 0 * t], -1))
+
+    def monde(i, p):                                         # point de repos -> monde a l'image i
+        return pivot + decal[i] + Rb[i] @ (p - pivot)
+
+    def appui(p_, k):
+        """Point d'appui du cycle k : pied neutre sous le corps au MILIEU de l'appui."""
+        tm = (k - p_['phase']) * T + beta * T / 2
+        cm, capm = chemin_corps(tm)
+        N = P0[p_['bout']]
+        X = pivot + cm[0] + Ry(capm)[0] @ (N - pivot)
+        X[1] = N[1]
+        return X
+
+    D = np.tile(np.eye(3), (nT, J, 1, 1))                    # rotation monde (delta sur le repos)
+    fixes = {}
     for p in pattes:
         ch = p['chaine']
         for i in range(nT):
-            phi = (t[i] / T + p['phase']) % 1.0
-            if phi < beta:
-                rel_z, y = beta * S / 2 - phi * S, 0.0
+            if not A['pas']:
+                cible = P0[p['bout']].copy()
             else:
-                u = (phi - beta) / (1 - beta)
-                rel_z = -beta * S / 2 + beta * S * (1 - np.cos(np.pi * u)) / 2
-                y = h * np.sin(np.pi * u)
-            neutre = P0[p['bout']]
-            cible = np.array([neutre[0], neutre[1] + y, neutre[2] + rel_z]) + np.array([0, 0, corps[i, 2]])
-            Q = np.array([monde(i, P0[k]) for k in ch])
+                x = t[i] / T + p['phase']
+                k, phi = int(np.floor(x)), x % 1.0
+                if phi < beta:
+                    cible = appui(p, k)
+                else:
+                    u = (phi - beta) / (1 - beta)
+                    X0, X1 = appui(p, k), appui(p, k + 1)
+                    cible = X0 + (X1 - X0) * (1 - np.cos(np.pi * u)) / 2
+                    cible[1] += h * np.sin(np.pi * u)
+            Q = np.array([monde(i, P0[k_]) for k_ in ch])
             Q = fabrik(Q, cible)
             for a in range(len(ch) - 1):
                 repos = Rb[i] @ (P0[ch[a + 1]] - P0[ch[a]])
                 D[i, ch[a]] = aligner(repos, Q[a + 1] - Q[a]) @ Rb[i]
-        for k in ch[:-1]:
-            fixes[k] = D[:, k].copy()
-        fixes[ch[-1]] = Rb                                   # pied a plat, orteils solidaires
-    # queue : ondulation laterale qui se propage vers le bout ; tete : hochement
+        for k_ in ch[:-1]:
+            fixes[k_] = D[:, k_].copy()
+        fixes[ch[-1]] = Rcap                                 # pied a plat (cap seul), orteils solidaires
+    # --- queue : ondulation qui se propage vers le bout ; tete : stabilisee, hoche, regarde autour a l'arret
     balance = {}
-    for c in queues:
-        for a, j in enumerate(c[:-1]):
-            ang = 0.10 * (a + 1) / len(c) * np.sin(2 * np.pi * t / T - 0.7 * a)
-            balance[j] = Rotation.from_euler('y', ang[:, None]).as_matrix()
-    for c in tetes:
-        for a, j in enumerate(c[:-1]):
-            balance[j] = Rotation.from_euler('x', 0.03 * np.sin(2 * np.pi * t / T * 2 + 0.5 + 0.3 * a)[:, None]).as_matrix()
-    # parcours parents d'abord : un os non pilote suit son parent (solidaire)
+    amp_q = {'run': 0.16, 'idle': 0.08}.get(allure, 0.10)
+    for cq in queues:
+        for a, j in enumerate(cq[:-1]):
+            ang = amp_q * (a + 1) / len(cq) * np.sin(2 * np.pi * t / T * (1 if A['pas'] else 2) - 0.7 * a)
+            balance[j] = Ry(ang)
+    for ct in tetes:
+        for a, j in enumerate(ct[:-1]):
+            hoche = (0.03 if A['pas'] else 0.04) * np.sin(2 * np.pi * t / T * 2 + 0.5 + 0.3 * a)
+            m = Rotation.from_euler('x', (hoche - (tangage if a == 0 else 0))[:, None]).as_matrix()
+            if not A['pas'] and a == 0:
+                m = np.einsum('tab,tbc->tac', Ry(0.22 * np.sin(2 * np.pi * t / T)), m)
+            balance[j] = m
     ordre, file = [], [racine]
     E = enfants_de(par)
     while file:
@@ -301,9 +350,26 @@ def animer(chemin, allure='walk', cycles=3, fps=30):
         p = par[j]
         R[:, j] = D[:, j] if p < 0 else np.einsum('tba,tbc->tac', D[:, p], D[:, j])
     racine_monde = np.array([monde(i, P0[racine]) for i in range(nT)])
+    # --- controles : positions monde reconstruites (FK), os sous le sol, glissement des pieds en appui
+    Pw = np.zeros((nT, J, 3))
+    for j in ordre:
+        Pw[:, j] = racine_monde if j == racine else Pw[:, par[j]] + np.einsum('tab,b->ta', D[:, par[j]], P0[j] - P0[par[j]])
+    H = np.ptp(P0[:, 1])
+    pire = np.unravel_index(np.argmin(Pw[..., 1]), Pw.shape[:2])
+    gl = []
+    for p in pattes:
+        if not A['pas']:
+            continue
+        ph = (t / T + p['phase']) % 1.0
+        au_sol = ph[1:] < beta
+        au_sol &= ph[:-1] < ph[1:]
+        dep = np.linalg.norm(np.diff(Pw[:, p['bout']], axis=0), axis=1)[au_sol]
+        gl.append(float(dep.mean()) if len(dep) else 0.0)
     infos = dict(pattes=len(pattes), queues=len(queues), tetes=len(tetes), periode=T, foulee=round(float(S), 3),
                  appui=beta, phases=[round(p['phase'], 2) for p in pattes],
-                 os_par_patte=[len(p['chaine']) for p in pattes])
+                 os_par_patte=[len(p['chaine']) for p in pattes],
+                 sous_sol_pct=round(float(100 * (sol - Pw[..., 1].min()) / H), 1), pire_os=int(pire[1]), pire_image=int(pire[0]),
+                 glissement_appui_pct=round(100 * max(gl) / H, 2) if gl else 0.0)
     return ecrire(js, bn, joints, R, racine_monde, W, parent_noeud, f'{allure} (procedural)', fps), infos
 
 
