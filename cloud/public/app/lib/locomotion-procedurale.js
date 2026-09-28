@@ -245,6 +245,10 @@ function detecterPattes(par, P0) {
     if (chaine.length < 2) return;
     const toutesLevees = g.every((f) => levees.has(f));
     if (toutesLevees && (chaine.length < 3 || P0[bout][1] >= P0[chaine[1]][1])) return;
+    // une patte levée part du CORPS (niveau du bassin), jamais des épaules : les bras d'un
+    // guerrier accroupi tenant une hache basse (mains à 40 % de la hauteur) passaient pour des
+    // pattes et le faisaient marcher à quatre pattes (28/09)
+    if (toutesLevees && P0[chaine[0]][1] > P0[racine][1] + 0.15 * H) return;
     pattes.push({ chaine, bout, levee: toutesLevees, dx: (P0[bout][0] + P0[chaine[0]][0]) / 2 - x0 });
   });
   const longueur = (q) => longueurChaine(q.chaine.map((k) => P0[k]));
@@ -659,6 +663,34 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
   return { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, infos };
 }
 
+// ------------------------------------------------------------------ pistes locales d'un clip
+// Rotations LOCALES de chaque nœud (quaternions x, y, z, w) et translation de la racine dans le
+// repère de son parent : ce qu'écrit le GLB, et ce que joue directement le mini-lecteur.
+function pistesLocales(sq, { nom, R, racineMonde }, fps) {
+  const nT = R.length;
+  const temps = Float32Array.from({ length: nT }, (_, i) => i / fps);
+  const rotations = sq.joints.map((n, u) => {
+    const pn = sq.parent.get(n);
+    const Cp = pn !== undefined ? orthonormer(rot4(sq.W.get(pn))) : I3(), C = orthonormer(rot4(sq.W.get(n)));
+    const q = new Float32Array(4 * nT);
+    let prec = null;
+    for (let i = 0; i < nT; i++) {
+      let qq = quatDeMatrice(mm(mm(tr(Cp), R[i][u]), C));
+      if (prec && qq[0] * prec[0] + qq[1] * prec[1] + qq[2] * prec[2] + qq[3] * prec[3] < 0) qq = qq.map((x) => -x);
+      q.set(qq, 4 * i);
+      prec = qq;
+    }
+    return { noeud: n, q };
+  });
+  const ens = new Set(sq.joints);
+  const racineNoeud = sq.joints.find((n) => !ens.has(sq.parent.get(n)));
+  const pn = sq.parent.get(racineNoeud);
+  const inv = pn !== undefined ? inv4(sq.W.get(pn)) : [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  const v = new Float32Array(3 * nT);
+  racineMonde.forEach((p, i) => v.set(add(mv(rot4(inv), p), pos4(inv)), 3 * i));
+  return { nom, duree: (nT - 1) / fps, temps, rotations, translation: { noeud: racineNoeud, v } };
+}
+
 // ------------------------------------------------------------------ écriture du GLB (une animation par allure)
 function ecrireGLB(sq, clips, fps) {
   const json = JSON.parse(JSON.stringify(sq.json));
@@ -677,34 +709,18 @@ function ecrireGLB(sq, clips, fps) {
     (json.accessors = json.accessors || []).push(acc);
     return json.accessors.length - 1;
   };
-  const ens = new Set(sq.joints);
-  const racineNoeud = sq.joints.find((n) => !ens.has(sq.parent.get(n)));
   json.animations = [];
-  for (const { nom, R, racineMonde } of clips) {
-    const nT = R.length;
-    const temps = ajouter(Float32Array.from({ length: nT }, (_, i) => i / fps), 'SCALAR', true);
+  for (const clip of clips) {
+    const P = pistesLocales(sq, clip, fps);
+    const temps = ajouter(P.temps, 'SCALAR', true);
     const samplers = [], channels = [];
-    sq.joints.forEach((n, u) => {
-      const pn = sq.parent.get(n);
-      const Cp = pn !== undefined ? orthonormer(rot4(sq.W.get(pn))) : I3(), C = orthonormer(rot4(sq.W.get(n)));
-      const q = new Float32Array(4 * nT);
-      let prec = null;
-      for (let i = 0; i < nT; i++) {
-        let qq = quatDeMatrice(mm(mm(tr(Cp), R[i][u]), C));
-        if (prec && qq[0] * prec[0] + qq[1] * prec[1] + qq[2] * prec[2] + qq[3] * prec[3] < 0) qq = qq.map((x) => -x);
-        q.set(qq, 4 * i);
-        prec = qq;
-      }
+    for (const { noeud, q } of P.rotations) {
       samplers.push({ input: temps, output: ajouter(q, 'VEC4'), interpolation: 'LINEAR' });
-      channels.push({ sampler: samplers.length - 1, target: { node: n, path: 'rotation' } });
-    });
-    const pn = sq.parent.get(racineNoeud);
-    const inv = pn !== undefined ? inv4(sq.W.get(pn)) : [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-    const loc = new Float32Array(3 * nT);
-    racineMonde.forEach((p, i) => loc.set(add(mv(rot4(inv), p), pos4(inv)), 3 * i));
-    samplers.push({ input: temps, output: ajouter(loc, 'VEC3'), interpolation: 'LINEAR' });
-    channels.push({ sampler: samplers.length - 1, target: { node: racineNoeud, path: 'translation' } });
-    json.animations.push({ name: nom, samplers, channels });
+      channels.push({ sampler: samplers.length - 1, target: { node: noeud, path: 'rotation' } });
+    }
+    samplers.push({ input: temps, output: ajouter(P.translation.v, 'VEC3'), interpolation: 'LINEAR' });
+    channels.push({ sampler: samplers.length - 1, target: { node: P.translation.noeud, path: 'translation' } });
+    json.animations.push({ name: P.nom, samplers, channels });
   }
   const bourrage = (4 - (taille % 4)) % 4;
   if (bourrage) { morceaux.push(new Uint8Array(bourrage)); taille += bourrage; }
@@ -741,3 +757,25 @@ export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps
   }
   return { glb: ecrireGLB(sq, clips, fps), infos };
 }
+
+const _cacheSquelettes = new WeakMap();
+/**
+ * Pistes d'animation SEULES (sans réécrire le GLB), pour un aperçu : même calcul qu'animerGLB.
+ * @returns {{clips: Array<{nom, duree, temps, rotations: Array<{noeud, q}>, translation: {noeud, v}}>, infos}}
+ */
+export function animerPistes(glb, { allures = ['walk'], cycles = 2, fps = 30 } = {}) {
+  let sq = _cacheSquelettes.get(glb);
+  if (!sq) { sq = charger(glb); _cacheSquelettes.set(glb, sq); }
+  const clips = [], infos = {};
+  for (const nom of allures) {
+    const { allure: a, variante } = lireClip(nom);
+    if (!ALLURES[a] || !(VARIANTES[a] || {})[variante]) throw new Error('allure inconnue : ' + nom);
+    const c = animerAllure(sq, a, a === 'idle' ? 1 : cycles, fps, variante);
+    clips.push(pistesLocales(sq, c, fps));
+    infos[c.nom] = c.infos;
+  }
+  return { clips, infos };
+}
+
+// diagnostic (tests hors appli)
+export const __interne = { charger, detecterPattes };
