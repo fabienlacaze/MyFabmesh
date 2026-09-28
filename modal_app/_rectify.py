@@ -130,6 +130,7 @@ def generate(
     guidance: float = 7.0,
     size: int = 1024,
     ip_scale: float = 0.7,
+    lot: bool = True,
 ) -> Image.Image:
     """Multi-seed RealVisXL rectify with symmetry scoring. Returns the
     best candidate, post-processed (rembg + center @ ~92% canvas height).
@@ -173,8 +174,42 @@ def generate(
               flush=True)
 
     candidates = []
+    graines = [1000 + i * 137 for i in range(seeds)]  # same reproducible spread as desktop
+    # LES GRAINES EN UN SEUL PASSAGE (2026-09-29) : un generateur par image, donc les memes
+    # candidats qu'un par un, calcules ensemble. Repli un par un si le lot echoue (memoire).
+    images_lot = None
+    if lot and seeds > 1:
+        try:
+            kw_lot = dict(
+                image=blank_skel, controlnet_conditioning_scale=0.0,
+                num_inference_steps=steps, guidance_scale=guidance,
+                height=size, width=size, num_images_per_prompt=seeds,
+                generator=[torch.Generator('cuda').manual_seed(g) for g in graines],
+            )
+            if ref_img is not None:
+                kw_lot['ip_adapter_image'] = ref_img
+            if embeds is not None:
+                images_lot = pipe(**embeds, **kw_lot).images
+            else:
+                images_lot = pipe(prompt=full_prompt, negative_prompt=neg, **kw_lot).images
+            if len(images_lot) != seeds:
+                raise RuntimeError(f'{len(images_lot)} images pour {seeds} graines')
+        except Exception as _le:
+            print(f'[rectify] lot de {seeds} impossible ({type(_le).__name__}: {str(_le)[:160]}) : un par un',
+                  flush=True)
+            images_lot = None
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
     for i in range(seeds):
-        seed = 1000 + i * 137  # same reproducible spread as desktop
+        seed = graines[i]
+        if images_lot is not None:
+            img = images_lot[i]
+            sym = symmetry_score(img)
+            score = ((1.0 - sym) if sym < 0.85 else 0.0) if mode == 'iso' else sym
+            candidates.append((score, img, seed))
+            continue
         gen = torch.Generator('cuda').manual_seed(seed)
         base_kwargs = dict(
             image=blank_skel,

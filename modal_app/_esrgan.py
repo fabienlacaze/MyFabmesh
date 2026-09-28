@@ -169,8 +169,10 @@ def affuter_atlas(img, echelle_sortie=2):
                     tuile[:, :, oy:oy + (y1 - y0) * ECHELLE_RESEAU,
                           ox:ox + (x1 - x0) * ECHELLE_RESEAU]
 
-    out = sortie.squeeze(0).float().cpu().clamp_(0, 1).numpy()
-    out = (np.transpose(out, (1, 2, 0)) * 255.0).round().astype(np.uint8)
+    # conversion en octets SUR LA CARTE, puis transfert (2026-09-29) : memes pixels (verifie par
+    # modal_app/test_esrgan.py), 0,3 s au lieu de 3,8 s — l'image x4 d'un atlas 4096 fait 16 384 px,
+    # soit 3,2 Go en float32 a rapatrier et convertir sur le processeur.
+    out = (sortie.squeeze(0).float().clamp_(0, 1) * 255.0).round().to(torch.uint8)         .permute(1, 2, 0).contiguous().cpu().numpy()
     if echelle_sortie != ECHELLE_RESEAU:
         out = cv2.resize(out, (int(w * echelle_sortie), int(h * echelle_sortie)),
                          interpolation=cv2.INTER_LANCZOS4)

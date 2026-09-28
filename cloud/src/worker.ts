@@ -7915,6 +7915,9 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
       // maillage le reconstruit en disque plat (ressemblance a l'angle optimal
       // 0,41 contre 0,60 depuis l'image d'origine).
       const rectifyMode: 'front' | 'iso' = input.asset_type === 'character' ? 'front' : 'iso';
+      // le conteneur 3D demarre PENDANT la rectification (le maillage suit toujours) :
+      // sa mise en route (17 s a plusieurs minutes) ne s'ajoute plus a l'attente
+      preWarmModal(env, { cible: 'mesh' }).catch(() => {});
       try {
         const rectifiedUrl = await _journaliserAppelAux(env, user.id, 'rectify',
           () => callModalRectify(env, user.id, {
@@ -19852,7 +19855,23 @@ function _healthzUrl(fullUrl: string): string {
  *  container boots regardless of whether Cloudflare kept the connection.
  *  Never throws. */
 async function preWarmModal(env: Env,
-                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' } = {}): Promise<void> {
+                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' | 'mesh' } = {}): Promise<void> {
+  /* CONTENEUR 3D (2026-09-29) : demarre PENDANT la rectification qui precede un maillage,
+   * au lieu d'apres. Sa traine n'est que de 90 s : fraicheur de 60 s, pas PREWARM_FRESH_MS. */
+  if (opts.cible === 'mesh') {
+    const url = env.MODAL_MESH_START_URL;
+    if (!url) return;
+    const last = await _readLastWarmMs(env, '_meta/last_warm_mesh.txt').catch(() => null);
+    if (last != null && Date.now() - last < 60_000) return;
+    await fetch(url.replace(/\/[^/]*$/, '/mesh_warm'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '' }),
+      signal: AbortSignal.timeout(30_000),
+    }).then((r) => console.log(`[pre-warm] mesh /mesh_warm -> ${r.status}`))
+      .catch((e) => console.warn('[pre-warm] mesh failed:', e instanceof Error ? e.message : String(e)));
+    return;
+  }
   // `cible` (2026-09-27) : ne reveiller QUE le conteneur utile a l'intention
   // montree. Sans elle, comportement historique (text2image, + image_op si
   // imageOp) — c'est ce qu'envoie encore l'application de bureau.

@@ -1434,6 +1434,7 @@ class MyFabmeshBackview:
             steps=int(payload.get("steps") or 30),
             guidance=float(payload.get("guidance") or 7.0),
             ip_scale=float(payload.get("ip_scale") or 0.7),
+            lot=payload.get("_lot") is not False,          # banc : False = un par un (comparaison)
         )
 
         buf = io.BytesIO()
@@ -2117,13 +2118,13 @@ class MyFabmeshBackview:
         return Response(content=png, media_type="image/png")
 
     @modal.method()
-    def rectifier_banc(self, ref_image_url: str, mode: str = "front", seeds: int = 3) -> bytes:
+    def rectifier_banc(self, ref_image_url: str, mode: str = "front", seeds: int = 3, lot: bool = True) -> bytes:
         """BANC (2026-09-27) : la MEME rectification que la route /rectify,
         appelee par le SDK Modal (authentifie par le jeton du compte Modal, pas
         de route publique). Sert a valider un correctif sur UNE image avant de
         payer un maillage. Rend le PNG."""
         payload = {"_auth": os.environ.get("SHARED_SECRET", ""),
-                   "ref_image_url": ref_image_url, "mode": mode, "seeds": seeds}
+                   "ref_image_url": ref_image_url, "mode": mode, "seeds": seeds, "_lot": lot}
         return bytes(self._route_rectify(payload).body)
 
     @modal.asgi_app()
@@ -2434,6 +2435,9 @@ class MyFabmeshMesh:
         self.inpaint_pipe = None
         print(f"[mesh/ready] full load + GPU move done in {time.time() - t0:.1f}s",
               flush=True)
+        # PAS de rodage GPU dans l'instantane : mesure du 2026-09-29, une generation factice avant la
+        # photo ne gagnait que 9 s par conteneur neuf (inference 51,5 -> 42,3 s ; 31,1 s a chaud) et
+        # ajoutait 152 s a CHAQUE creation d'instantane (2-3 par deploiement). Voir AGENT_LOG.
 
     @modal.enter(snap=False)
     def brancher_caches_gpu(self):
@@ -2881,6 +2885,13 @@ class MyFabmeshMesh:
     # HTTP timeout even for "instant" enqueue calls).
 
     @modal.method()
+    def rechauffer(self) -> bool:
+        """Ne fait rien : l'appeler DEMARRE un conteneur (restauration + caches GPU). Le worker
+        l'appelle au debut d'une rectification suivie d'un maillage (2026-09-29) : le conteneur
+        demarre pendant la rectification au lieu d'apres."""
+        return True
+
+    @modal.method()
     def inference_bytes(
         self,
         image_bytes: bytes,
@@ -3130,6 +3141,14 @@ def mesh_router():
             print(f"[mesh_start] WARN could not persist call_id for {job_id}: {e}", flush=True)
         return {"job_id": job_id, "status": "queued"}
 
+    @api.post("/mesh_warm")
+    async def mesh_warm(request: Request):
+        """Demarre un conteneur 3D sans attendre (voir MyFabmeshMesh.rechauffer)."""
+        payload = await _read_json(request)
+        _check_auth(payload)
+        await MyFabmeshMesh().rechauffer.spawn.aio()
+        return {"ok": True}
+
     @api.post("/mesh_status")
     async def mesh_status(request: Request):
         """Worker polls this endpoint to know whether a mesh job is ready.
@@ -3144,7 +3163,9 @@ def mesh_router():
             raise HTTPException(status_code=400, detail="job_id required")
 
         # Reload so we see the latest commits from the GPU worker container.
-        mesh_output_volume.reload()
+        # .aio : les versions bloquantes figeaient la boucle du routeur (1 159 avertissements
+        # AsyncUsageWarning en 30 h, 2026-09-29)
+        await mesh_output_volume.reload.aio()
         out_path = f"/data/{job_id}.glb"
         err_path = f"/data/{job_id}.err"
         if os.path.isfile(err_path):
@@ -3159,7 +3180,7 @@ def mesh_router():
                     _cid = f.read().strip()
                 if _cid:
                     try:
-                        modal.FunctionCall.from_id(_cid).get(timeout=0)
+                        await modal.FunctionCall.from_id(_cid).get.aio(timeout=0)
                     except TimeoutError:
                         pass                                  # toujours en cours
                     except Exception as _e:
@@ -3218,7 +3239,7 @@ def mesh_router():
             raise HTTPException(status_code=400, detail="job_id and index required")
         if not str(job_id).isalnum():
             raise HTTPException(status_code=400, detail="bad job_id")
-        mesh_output_volume.reload()
+        await mesh_output_volume.reload.aio()
         out_path = f"/data/{job_id}_c3d_{int(index)}.glb"
         if not os.path.isfile(out_path):
             return {"ready": False}
@@ -3253,7 +3274,7 @@ def mesh_router():
         job_id = (payload.get("job_id") or "").strip()
         if not job_id:
             raise HTTPException(status_code=400, detail="job_id required")
-        mesh_output_volume.reload()
+        await mesh_output_volume.reload.aio()
         if os.path.isfile(f"/data/{job_id}.err"):
             raise HTTPException(status_code=410, detail="mesh failed")
         chemin = f"/data/{job_id}.glb"
