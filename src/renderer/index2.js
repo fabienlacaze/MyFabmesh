@@ -3687,84 +3687,26 @@ document.getElementById('ws-trellis2-preset')?.addEventListener('change', _wsTre
 _wsTrellis2UltraHdSync();
 // ----------------------------------------------------------------
 
-// 2026-06-14: show an option-aware time estimate inside every pink
-// Generate button (image / mesh / rig / anim), the same way the cloud
-// build shows credit cost. The numbers mirror the expectedMs each
-// click handler already computes from the selected options.
-function _fmtEta(ms) {
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `~${s}s`;
-  const m = Math.floor(s / 60), r = s % 60;
-  return r ? `~${m}m${String(r).padStart(2, '0')}s` : `~${m}m`;
-}
-function _estimateImageMs() {
-  const engine = document.getElementById('ws-engine')?.value || 'local-flux';
-  const count = parseInt(document.getElementById('ws-count')?.value) || 4;
-  const steps = parseInt(document.getElementById('ws-quality')?.value) || 30;
-  let mvScope = document.getElementById('ws-mv-scope')?.value || 'auto';
-  if (mvScope === 'auto') {
-    const at = document.getElementById('ws-asset-type')?.value || 'character';
-    mvScope = (at === 'character' || at === 'creature' || at === 'animal') ? 'front_back' : 'front_only';
-  }
-  const multiView = mvScope !== 'front_only';
-  const buildStages = document.getElementById('ws-img-buildstages')?.checked || false;
-  let perImage;
-  if (engine === 'pollinations') perImage = 5000;
-  else if (engine === 'local-sd') perImage = steps * 200 + 1500;
-  else if (engine === 'local-lightning') perImage = 6000; // 4-step turbo (load-dominated per spawn)
-  // HiDream-O1 FP8: the 8.8 GB model load dominates the first run (cold ~3 min),
-  // ~1.5 s/step @ 2048 once warm. A flat ~1m45s estimate avoids the "stuck at
-  // 90%" look the old SDXL-tuned estimate (~23s) caused.
-  else if (engine === 'hidream') perImage = steps * 1500 + 60000;
-  else perImage = steps * 600 + 5000;
-  let total = count;
-  if (multiView) total *= 3;
-  if (buildStages) total *= 3;
-  return total * perImage + 3000;
-}
-function _estimateMeshMs() {
-  const engine = document.getElementById('ws-3d-engine')?.value || 'trellis2_native';
-  const quality = document.getElementById('ws-3d-quality')?.value || 'standard';
-  const triLevel = document.getElementById('ws-3d-triangles')?.value || '0';
-  const preset = (typeof MESH_QUALITY_PRESETS !== 'undefined' && MESH_QUALITY_PRESETS[quality]) || { expectedMs: 130000 };
-  const triPreset = (typeof MESH_TRI_PRESETS !== 'undefined' && MESH_TRI_PRESETS[triLevel]) || { extraMs: 0 };
-  const buildStages = document.getElementById('ws-3d-buildstages')?.checked || false;
-  let ms;
-  if (engine === 'sf3d') ms = (preset.expectedMs || 130000) + (triPreset.extraMs || 0);
-  else if (engine === 'trellis2_native') ms = 110000;
-  else ms = 60000;
-  if (buildStages) ms *= 2.5;
-  if (document.getElementById('ws-trellis2-refine')?.checked) ms += 90000;
-  if (document.getElementById('ws-trellis2-rectify')?.checked) ms += 36000;
-  if (document.getElementById('ws-trellis2-smooth')?.checked) ms += 12000;
-  // Cascade geometry passes are the real time sinks (the multi-minute SLat
-  // sampling), and on a 16-24 GB box they saturate RAM and swap — the old
-  // +30s/+50s were wildly optimistic vs the observed ~2 min / ~5-6 min.
-  if (document.getElementById('ws-trellis2-quality-plus')?.checked) ms += 120000;  // 1024_cascade ~2min
-  if (document.getElementById('ws-trellis2-ultra-q')?.checked) ms += 360000;       // 1536_cascade ~6min (RAM-heavy)
-  if (document.getElementById('ws-trellis2-face-fix')?.checked) ms += 60000;
-  const t2preset = document.getElementById('ws-trellis2-preset')?.value || 'fast';
-  if (document.getElementById('ws-trellis2-ultra-hd')?.checked || t2preset === 'ultra_8k') ms += 280000;
-  return ms;
-}
+// Libelles des boutons Generate. Plus de temps estime (demande user,
+// 2026-09-28) : « Generate 3D : ~3m50s » variait fortement selon la machine
+// et la charge, et n'etait qu'une promesse approximative. Le panneau des
+// travaux montre le temps ECOULE, qui lui est exact.
 function _updateGenButtonsEstimate() {
   const p = state.currentProject;
   const bm = document.getElementById('ws-generate-mesh');
   if (bm) {
-    const base = (p && p.meshes && p.meshes.length > 0) ? 'Generate new 3D version' : 'Generate 3D';
-    bm.textContent = bm.disabled ? base : `${base} : ${_fmtEta(_estimateMeshMs())}`;
+    bm.textContent = (p && p.meshes && p.meshes.length > 0) ? 'Generate new 3D version' : 'Generate 3D';
     if (typeof window._applyMeshCostPill === 'function') window._applyMeshCostPill(bm);
   }
   const bi = document.getElementById('ws-generate-image');
   if (bi) {
-    const base = (p && p.images && p.images.length > 0) ? 'Generate new version' : 'Generate';
-    bi.textContent = bi.disabled ? base : `${base} : ${_fmtEta(_estimateImageMs())}`;
+    bi.textContent = (p && p.images && p.images.length > 0) ? 'Generate new version' : 'Generate';
     if (typeof window._applyCloudCostPill === 'function') window._applyCloudCostPill(bi);
   }
   const br = document.getElementById('ws-generate-rig-ai');
-  if (br) br.textContent = br.disabled ? 'Generate Rig' : `Generate Rig : ${_fmtEta(90000)}`;
+  if (br) br.textContent = 'Generate Rig';
   const ba = document.getElementById('ws-generate-anim');
-  if (ba) ba.textContent = ba.disabled ? 'Generate Animation' : `Generate Animation : ${_fmtEta(20000)}`;
+  if (ba) ba.textContent = 'Generate Animation';
   // Les réécritures textContent ci-dessus détruisent les pastilles ⚡ — re-poser.
   if (typeof window._applyRigAnimPills === 'function') window._applyRigAnimPills();
 }
