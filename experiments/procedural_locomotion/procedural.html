@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Moteur procédural</title>
+<style>
+  body { margin: 0; background: #0b0b12; color: #e8e6f0; font: 14px system-ui, sans-serif; }
+  header { padding: 10px 16px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 16px; margin: 0; }
+  select { font: inherit; padding: 4px 8px; background: #1d1d2b; color: inherit; border: 1px solid #3a3a52; border-radius: 4px; }
+  .grille { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 8px 8px; }
+  @media (max-width: 900px) { .grille { grid-template-columns: 1fr; } }
+  .vue { position: relative; background: #14141f; border-radius: 6px; overflow: hidden; }
+  .vue canvas { display: block; width: 100%; height: 72vh; }
+  .etiquette { position: absolute; top: 8px; left: 10px; font-weight: 600; background: #0008; padding: 4px 8px; border-radius: 4px; }
+  label { cursor: pointer; user-select: none; }
+  #etat { opacity: .7; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<header>
+  <h1>Moteur procédural</h1>
+  <label>Animation
+    <select id="anim">
+      <option value="walk">Marche</option>
+      <option value="run">Course</option>
+      <option value="idle">Attente</option>
+      <option value="turn_left">Virage à gauche</option>
+      <option value="turn_right">Virage à droite</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="os" checked> Afficher les os (maillage semi-transparent)</label>
+  <label><input type="checkbox" id="surplace" checked> Sur place</label>
+  <label><input type="checkbox" id="lent"> Ralenti ×0,5</label>
+  <span id="etat">chargement…</span>
+</header>
+<div class="grille" id="grille"></div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const P = new URLSearchParams(location.search);
+const FICHIERS = (P.get('f') || 'proc_lion_toutes.glb,proc_araignee_toutes.glb,proc_humain_toutes.glb').split(',');
+const NOMS = (P.get('l') || 'Lion|Araignée|Humain').split('|');
+const grille = document.getElementById('grille');
+grille.innerHTML = FICHIERS.map((f, k) => `<div class="vue"><canvas id="c${k}"></canvas><div class="etiquette">${NOMS[k] || f}</div></div>`).join('');
+const selAnim = document.getElementById('anim');
+if (P.get('a')) selAnim.value = P.get('a');
+const vues = [];
+const horloge = new THREE.Clock();
+let charges = 0;
+
+function surPlace(clip, actif) {
+  for (const t of clip.tracks) {
+    if (!t.name.endsWith('.position')) continue;
+    if (!t._orig) t._orig = t.values.slice();
+    const v = t.values;
+    for (let i = 0; i < v.length; i += 3) {
+      v[i] = actif ? t._orig[0] : t._orig[i];
+      v[i + 2] = actif ? t._orig[2] : t._orig[i + 2];
+    }
+  }
+}
+
+function montrerOs(vue, actif) {
+  if (vue.aide) vue.aide.visible = actif;
+  for (const mat of vue.materiaux) { mat.transparent = actif; mat.opacity = actif ? 0.25 : 1; mat.depthWrite = !actif; mat.needsUpdate = true; }
+}
+
+function jouer(vue, nom) {
+  const clip = vue.clips.find(c => c.name === nom) || vue.clips[0];
+  surPlace(clip, document.getElementById('surplace').checked);
+  vue.mixer.stopAllAction();
+  vue.clip = clip;
+  vue.mixer.clipAction(clip).reset().play();
+  vue.mixer.setTime(0);
+}
+
+FICHIERS.forEach((f, k) => {
+  const canvas = document.getElementById('c' + k);
+  const rendu = new THREE.WebGLRenderer({ canvas, antialias: true });
+  rendu.setPixelRatio(window.devicePixelRatio);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x14141f);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x333344, 2.2));
+  const soleil = new THREE.DirectionalLight(0xffffff, 1.6); soleil.position.set(2, 4, 3); scene.add(soleil);
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
+  const ctrl = new OrbitControls(camera, canvas);
+  const vue = { rendu, scene, camera, ctrl, canvas, mixer: null, clips: [], clip: null, aide: null, materiaux: [] };
+  vues.push(vue);
+  new GLTFLoader().load(f, (g) => {
+    const m = g.scene;
+    scene.add(m);
+    // cadrage sur les OS : la boite d'un maillage skinne est celle de sa geometrie brute,
+    // fausse quand le maillage et le squelette ne sont pas dans le meme repere (lion)
+    m.updateMatrixWorld(true);
+    const boite = new THREE.Box3();
+    m.traverse(o => { if (o.isBone) boite.expandByPoint(o.getWorldPosition(new THREE.Vector3())); });
+    if (boite.isEmpty()) boite.setFromObject(m);
+    const taille = boite.getSize(new THREE.Vector3()).length() * 1.25;
+    const centre = boite.getCenter(new THREE.Vector3());
+    const cote = P.get('vue') === 'cote';
+    camera.position.copy(centre).add(cote ? new THREE.Vector3(taille * 2.2, taille * 0.25, 0.001)
+                                          : new THREE.Vector3(taille * 1.2, taille * 0.7, taille * 1.45));
+    ctrl.target.copy(centre); ctrl.update();
+    const sol = new THREE.GridHelper(taille * 4, 20, 0x444466, 0x262636); sol.position.y = boite.min.y; scene.add(sol);
+    vue.aide = new THREE.SkeletonHelper(m); vue.aide.material.depthTest = false; scene.add(vue.aide);
+    m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); vue.materiaux.push(o.material); } });
+    montrerOs(vue, document.getElementById('os').checked);
+    vue.clips = g.animations;
+    vue.mixer = new THREE.AnimationMixer(m);
+    jouer(vue, selAnim.value);
+    charges++;
+    if (charges === FICHIERS.length) {
+      document.getElementById('etat').textContent = 'lecture synchronisée — glisser pour tourner, molette pour zoomer';
+      vues.forEach(v => v.mixer.setTime(0));
+      if (P.get('t') !== null) setTimeout(() => { window.poser(parseFloat(P.get('t'))); document.body.dataset.pret = '1'; }, 200);
+    }
+  }, undefined, (e) => { document.getElementById('etat').textContent = 'erreur de chargement : ' + f; console.error(e); });
+});
+
+selAnim.addEventListener('change', () => { vues.forEach(v => { if (v.mixer) jouer(v, selAnim.value); }); });
+document.getElementById('os').addEventListener('change', (e) => vues.forEach(v => montrerOs(v, e.target.checked)));
+document.getElementById('surplace').addEventListener('change', (e) => {
+  const t = vues[0]?.mixer?.time || 0;
+  vues.forEach(v => { if (v.clip) { surPlace(v.clip, e.target.checked); v.mixer.stopAllAction(); v.mixer.clipAction(v.clip).reset().play(); v.mixer.setTime(t); } });
+});
+
+window.poser = (t) => { window.__fige = true; vues.forEach(v => { v.mixer.setTime(t); v.rendu.render(v.scene, v.camera); }); };
+function boucle() {
+  requestAnimationFrame(boucle);
+  let dt = horloge.getDelta();
+  if (document.getElementById('lent').checked) dt *= 0.5;
+  for (const v of vues) {
+    const w = v.canvas.clientWidth, h = v.canvas.clientHeight;
+    if (v.canvas.width !== Math.floor(w * devicePixelRatio)) { v.rendu.setSize(w, h, false); v.camera.aspect = w / h; v.camera.updateProjectionMatrix(); }
+    if (!window.__fige && v.mixer && charges === FICHIERS.length) v.mixer.update(dt);
+    v.rendu.render(v.scene, v.camera);
+  }
+}
+boucle();
+</script>
+</body>
+</html>

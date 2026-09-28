@@ -228,7 +228,7 @@ def Ry(a):
     return Rotation.from_euler('y', np.atleast_1d(a)[:, None]).as_matrix()
 
 
-def animer(chemin, allure='walk', cycles=3, fps=30):
+def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
     js, bn, joints, par, P0, W, parent_noeud = charger(chemin)
     racine, pattes, queues, tetes, sol = detecter_pattes(par, P0)
     if not pattes:
@@ -370,11 +370,15 @@ def animer(chemin, allure='walk', cycles=3, fps=30):
                  os_par_patte=[len(p['chaine']) for p in pattes],
                  sous_sol_pct=round(float(100 * (sol - Pw[..., 1].min()) / H), 1), pire_os=int(pire[1]), pire_image=int(pire[0]),
                  glissement_appui_pct=round(100 * max(gl) / H, 2) if gl else 0.0)
-    return ecrire(js, bn, joints, R, racine_monde, W, parent_noeud, f'{allure} (procedural)', fps), infos
+    ctx = (js, bn, joints, W, parent_noeud, fps)
+    if brut:
+        return (allure, R, racine_monde), infos, ctx
+    return ecrire(js, bn, joints, [(allure, R, racine_monde)], W, parent_noeud, fps), infos
 
 
 # ---------------------------------------------------------------- ecriture glTF
-def ecrire(js, bn, joints, R, racine_monde, W, parent_noeud, nom, fps):
+def ecrire(js, bn, joints, clips, W, parent_noeud, fps):
+    """clips : [(nom, R (T,J,3,3), racine_monde (T,3))] -> un GLB avec une animation par clip."""
     js = json.loads(json.dumps(js))
     blob = bytearray(bn)
 
@@ -391,27 +395,29 @@ def ecrire(js, bn, joints, R, racine_monde, W, parent_noeud, nom, fps):
             a['max'] = [float(arr.max())]
         js.setdefault('accessors', []).append(a)
         return len(js['accessors']) - 1
-    nT = R.shape[0]
-    temps = ajouter(np.arange(nT, dtype=np.float32) / fps, 'SCALAR', True)
-    samplers, canaux = [], []
-    for u, n in enumerate(joints):
-        pn = parent_noeud.get(n)
-        Cp = M.orthonormer(W[pn][:3, :3]) if pn is not None else np.eye(3)
-        C = M.orthonormer(W[n][:3, :3])
-        L = np.einsum('ab,tbc,cd->tad', Cp.T, R[:, u], C)
-        qq = Rotation.from_matrix(L).as_quat()
-        for i in range(1, nT):
-            if np.dot(qq[i], qq[i - 1]) < 0:
-                qq[i] = -qq[i]
-        samplers.append({'input': temps, 'output': ajouter(qq, 'VEC4'), 'interpolation': 'LINEAR'})
-        canaux.append({'sampler': len(samplers) - 1, 'target': {'node': n, 'path': 'rotation'}})
-    racine = next(n for n in joints if parent_noeud.get(n) not in set(joints))
-    pn = parent_noeud.get(racine)
-    inv = np.linalg.inv(W[pn]) if pn is not None else np.eye(4)
-    loc = (inv[:3, :3] @ racine_monde.T).T + inv[:3, 3]
-    samplers.append({'input': temps, 'output': ajouter(loc, 'VEC3'), 'interpolation': 'LINEAR'})
-    canaux.append({'sampler': len(samplers) - 1, 'target': {'node': racine, 'path': 'translation'}})
-    js['animations'] = [{'name': nom, 'samplers': samplers, 'channels': canaux}]
+    js['animations'] = []
+    for nom, R, racine_monde in clips:
+        nT = R.shape[0]
+        temps = ajouter(np.arange(nT, dtype=np.float32) / fps, 'SCALAR', True)
+        samplers, canaux = [], []
+        for u, n in enumerate(joints):
+            pn = parent_noeud.get(n)
+            Cp = M.orthonormer(W[pn][:3, :3]) if pn is not None else np.eye(3)
+            C = M.orthonormer(W[n][:3, :3])
+            L = np.einsum('ab,tbc,cd->tad', Cp.T, R[:, u], C)
+            qq = Rotation.from_matrix(L).as_quat()
+            for i in range(1, nT):
+                if np.dot(qq[i], qq[i - 1]) < 0:
+                    qq[i] = -qq[i]
+            samplers.append({'input': temps, 'output': ajouter(qq, 'VEC4'), 'interpolation': 'LINEAR'})
+            canaux.append({'sampler': len(samplers) - 1, 'target': {'node': n, 'path': 'rotation'}})
+        racine = next(n for n in joints if parent_noeud.get(n) not in set(joints))
+        pn = parent_noeud.get(racine)
+        inv = np.linalg.inv(W[pn]) if pn is not None else np.eye(4)
+        loc = (inv[:3, :3] @ racine_monde.T).T + inv[:3, 3]
+        samplers.append({'input': temps, 'output': ajouter(loc, 'VEC3'), 'interpolation': 'LINEAR'})
+        canaux.append({'sampler': len(samplers) - 1, 'target': {'node': racine, 'path': 'translation'}})
+        js['animations'].append({'name': nom, 'samplers': samplers, 'channels': canaux})
     while len(blob) % 4:
         blob.append(0)
     js['buffers'][0]['byteLength'] = len(blob)
@@ -423,9 +429,16 @@ def ecrire(js, bn, joints, R, racine_monde, W, parent_noeud, nom, fps):
 
 
 if __name__ == '__main__':
+    # python locomotion.py <rig.glb> <sortie.glb> [allure|toutes] [cycles]
     rig, sortie = sys.argv[1], sys.argv[2]
     allure = sys.argv[3] if len(sys.argv) > 3 else 'walk'
     cycles = int(sys.argv[4]) if len(sys.argv) > 4 else 3
-    glb, infos = animer(rig, allure, cycles)
-    open(sortie, 'wb').write(glb)
-    print(os.path.basename(sortie), infos)
+    liste = list(ALLURES) if allure == 'toutes' else [allure]
+    clips, ctx = [], None
+    for a in liste:
+        clip, infos, ctx = animer(rig, a, 1 if a == 'idle' else cycles, brut=True)
+        clips.append(clip)
+        print(a, {k: infos[k] for k in ('pattes', 'periode', 'foulee', 'sous_sol_pct', 'glissement_appui_pct')})
+    js, bn, joints, W, parent_noeud, fps = ctx
+    open(sortie, 'wb').write(ecrire(js, bn, joints, clips, W, parent_noeud, fps))
+    print('GLB', os.path.basename(sortie), len(clips), 'animations')
