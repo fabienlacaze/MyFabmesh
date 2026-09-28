@@ -16967,7 +16967,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return /^(text2image|text-to-image|text_to_image|image|img2img)$/.test(at) && !!t;
     };
     const _serverPolledIds = new Set();  // local job.id we created → server job.id
-    const _OP_ORPHELINE_MS = 5 * 60 * 1000;   // voir le filet des operations orphelines
+    // 12 min (et non 5) : une rectification a FROID dure jusqu'a ~8,5 min (509 s mesures apres un
+    // deploiement) ; a 5 min, la sous-tache passait au rouge alors que le serveur travaillait encore (28/09).
+    const _OP_ORPHELINE_MS = 12 * 60 * 1000;  // voir le filet des operations orphelines
     window.__opsOrphelines = window.__opsOrphelines || new Set();
     const _jobByServerId = new Map();     // server job.id → local job
 
