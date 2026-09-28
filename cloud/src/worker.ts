@@ -2112,6 +2112,21 @@ const _CLE_API_INTERDIT = [
   /^\/api\/api-keys/, /^\/api\/account/, /^\/api\/auth\//, /^\/api\/checkout/, /^\/api\/stripe/,
   /^\/api\/admin\//, /^\/api\/market\/checkout/, /^\/api\/market\/seller\//, /^\/api\/me\/delete/,
 ];
+// TRAVAUX VISIBLES (2026-09-28, user : « il faut que la generation en cours soit affichee
+// dans les taches en cours, il faut creer un projet aussi, comme si c'etait moi ») : une
+// operation d'image est SYNCHRONE et n'ecrivait sa ligne `jobs` qu'a la fin — lancee par
+// un programme, rien n'apparaissait dans le site pendant le calcul. Pour ces routes, la
+// garde ouvre une ligne « processing » (celle des operations internes, que le sondage
+// /api/me/active-jobs du site affiche en tuile) et la RETIRE a la fin : la comptabilite
+// reste celle des lignes ecrites par la route. Les maillages, rigs et animations ecrivent
+// deja leur propre ligne « processing ».
+const _OPS_API_VISIBLES: Record<string, string> = {
+  '/api/generate-image': 'text2image', '/api/text2image-tpose': 'text2image',
+  '/api/generate-back-view': 'back-view', '/api/rectify-image': 'rectify',
+  '/api/modify-image': 'modify', '/api/auto-inpaint': 'auto-inpaint', '/api/mask-inpaint': 'inpaint',
+  '/api/face-fix-image': 'face-fix', '/api/upscale-image': 'upscale', '/api/outfit': 'outfit',
+  '/api/recolor': 'recolor', '/api/tex-variant': 'tex-variant',
+};
 async function _creditsDe(env: Env, uid: string): Promise<number> {
   const { data } = await supabaseAdmin(env).from('profiles').select('credits').eq('id', uid).maybeSingle();
   return Number((data as { credits?: number } | null)?.credits ?? 0);
@@ -2137,8 +2152,37 @@ async function _avecCleApi(req: Request, env: Env, suite: () => Promise<Response
   if (rec.plafond > 0 && deja >= rec.plafond) {
     return err(429, `API key daily credit cap reached (${deja}/${rec.plafond} credits today)`);
   }
+  // Projet nomme dans la requete : il est cree s'il n'existe pas (comme le fait le site au
+  // clic « New project »), pour que le travail apparaisse DANS un projet de la liste.
+  let corps: Record<string, unknown> | null = null;
+  if ((req.headers.get('content-type') || '').includes('application/json')) {
+    try { corps = await req.clone().json() as Record<string, unknown>; } catch { corps = null; }
+  }
+  const projet = corps && typeof corps.projectName === 'string' ? corps.projectName.trim().slice(0, 128) : '';
+  if (projet && pathname !== '/api/projects/create') {
+    const auth = req.headers.get('authorization');
+    try {
+      await handleProjectCreate(new Request(new URL('/api/projects/create', req.url), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json',
+                   ...(auth ? { authorization: auth } : { 'x-api-key': req.headers.get('x-api-key') || '' }) },
+        body: JSON.stringify({ projectName: projet,
+                               assetType: corps?.asset_type ?? corps?.assetType, assetStyle: corps?.asset_style ?? corps?.assetStyle,
+                               prompt: corps?.userPrompt ?? corps?.prompt }),
+      }), env);
+    } catch (e) { console.warn('[cle api] projet non cree :', e instanceof Error ? e.message : String(e)); }
+  }
+  const opVisible = _OPS_API_VISIBLES[pathname];
+  const marqueur = opVisible ? await _debuterOperation(env, rec.uid, opVisible, Date.now(), req, projet || undefined) : null;
   const avant = await _creditsDe(env, rec.uid);
-  const res = await suite();
+  let res: Response;
+  try {
+    res = await suite();
+  } finally {
+    if (marqueur) {
+      try { await supabaseAdmin(env).from('jobs').delete().eq('id', marqueur); } catch { /* le faucheur la fermera */ }
+    }
+  }
   const apres = await _creditsDe(env, rec.uid);
   if (avant > apres) await env.MESHES.put(cleJour, String(deja + (avant - apres)));
   return res;

@@ -631,6 +631,12 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
 // ============================================================
 // PAGE 1: PROJECTS HOME
 // ============================================================
+/** Rafraichit la liste des projets, au plus une fois toutes les 2 s (travaux lances ailleurs). */
+var _rafraichirListeMinuteur = null;
+function _rafraichirListeProjets() {
+  clearTimeout(_rafraichirListeMinuteur);
+  _rafraichirListeMinuteur = setTimeout(() => { try { refreshProjectsPage(); } catch (_) {} }, 2000);
+}
 async function refreshProjectsPage() {
   const folders = (await API.listImageFolders()) || [];
   const meshes  = (await API.listMeshes()) || [];
@@ -16764,6 +16770,9 @@ document.addEventListener('DOMContentLoaded', () => {
       );
       _jobByServerId.set(row.id, local);
       _serverPolledIds.add(local.id);
+      // Travail lance HORS de cette page (API, autre onglet, bureau) sur un projet que la liste
+      // ne connait pas encore : la liste est rafraichie pour qu'il y apparaisse (2026-09-28).
+      try { if (project && !(state.projects || []).some((p) => p.name === project)) _rafraichirListeProjets(); } catch (_) {}
       // ANNULER UN TRAVAIL REPRIS (2026-09-27, user : « le but d'annuler c'est de
       // ne pas aller au bout »). Sans identifiant serveur, Annuler ne faisait que
       // retirer la tuile : le calcul continuait, facture.
@@ -16870,6 +16879,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 reloadCurrentProject();
               }
             } catch (_) {}
+            _rafraichirListeProjets();                // miniature et compteurs de la liste
           }
         }
         // Also pick up jobs we didn't know about yet (e.g. spawned in
