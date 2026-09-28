@@ -4520,3 +4520,17 @@ details.stage-generating > summary .stage-icon-gear {
   #ws-anim-types { grid-template-columns: minmax(0, 1fr) !important; }
   #ws-anim-types .anim-apercu-cadre { height: 220px !important; }
 }
+
+/* Loupe de l editeur de maillage (portee du bureau, 2026-09-28) */
+#me-loupe {
+  position: fixed;
+  pointer-events: none;
+  display: none;
+  z-index: 99999;
+  width: 150px;
+  height: 150px;
+  border: 3px solid #f59e0b;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}

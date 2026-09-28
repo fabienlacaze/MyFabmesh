@@ -3524,6 +3524,7 @@
       <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
         <h3 style="margin:0;" id="mesh-edit-title">Mesh Edit</h3>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
+          <button id="me-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier: show a zoomed loupe under the cursor (toggle)">&#128269;</button>
           <button id="me-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="me-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
           <button id="me-close-x" class="settings-close-x" style="margin-left:4px;">&#10005;</button>
@@ -3640,6 +3641,7 @@
                here in 2D so it never disturbs the WebGL canvas. -->
           <canvas id="me-lasso-canvas" style="position:absolute; left:0; top:0; width:100%; height:100%; display:none; pointer-events:none; z-index:900;"></canvas>
           <div id="me-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid rgba(255,200,50,0.8); border-radius:50%; display:none; z-index:1000;"></div>
+          <div id="me-loupe"><canvas id="me-loupe-canvas" width="150" height="150" style="width:150px; height:150px;"></canvas></div>
         </div>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">

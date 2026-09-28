@@ -14947,6 +14947,7 @@ const meState = {
   undoStack: [],
   redoStack: [],
   symmetryAxes: { x: false, y: false, z: false },
+  loupeOn: false,        // magnifier loupe follows the cursor (porte du bureau)
   grabAnchor: null,      // mesh-local anchor point captured on pointerdown
   grabScreen: null,      // {x,y} screen coords captured on pointerdown
   grabMesh: null,        // mesh object the grab stroke is acting on
@@ -15025,7 +15026,7 @@ async function _meInitViewport() {
   const w = container.clientWidth || 800;
   const h = container.clientHeight || 600;
 
-  meState.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false  /* canvas OPAQUE : la scene peint deja son fond, rien ne doit transparaitre de la page. Avec alpha:true, un materiau pourtant declare OPAQUE dont la texture baseColor porte un canal alpha (WebP TRELLIS-2) ecrit cet alpha dans le framebuffer, et le navigateur compositait le maillage en semi-transparent par-dessus la page. */ });
+  meState.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true /* loupe (relit l'image hors rendu, comme le bureau) */, alpha: false  /* canvas OPAQUE : la scene peint deja son fond, rien ne doit transparaitre de la page. Avec alpha:true, un materiau pourtant declare OPAQUE dont la texture baseColor porte un canal alpha (WebP TRELLIS-2) ecrit cet alpha dans le framebuffer, et le navigateur compositait le maillage en semi-transparent par-dessus la page. */ });
   meState.renderer.setSize(w, h, false);
   meState.renderer.setPixelRatio(window.devicePixelRatio);
   meState.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -15303,8 +15304,46 @@ function _meMouseDown(e) {
   _meApplyBrush(hit);
 }
 
+// Loupe portee du bureau (parite, 2026-09-28).
+// Magnifier loupe: draw a magnified crop of the rendered WebGL canvas
+// (preserveDrawingBuffer) around the cursor into #me-loupe-canvas.
+function _meUpdateLoupe(e) {
+  const box = document.getElementById('me-loupe');
+  if (!box) return;
+  if (!meState.loupeOn) { box.style.display = 'none'; return; }
+  const src = meState.renderer && meState.renderer.domElement;
+  const loupeCv = document.getElementById('me-loupe-canvas');
+  if (!src || !loupeCv) return;
+  const rect = src.getBoundingClientRect();
+  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+    box.style.display = 'none'; return;
+  }
+  const ix = (e.clientX - rect.left) * (src.width / rect.width);   // intrinsic px
+  const iy = (e.clientY - rect.top) * (src.height / rect.height);
+  const L = loupeCv.width;      // 150
+  const MAG = 3.2;
+  const crop = L / MAG;
+  const lctx = loupeCv.getContext('2d');
+  lctx.imageSmoothingEnabled = false;
+  lctx.clearRect(0, 0, L, L);
+  try { lctx.drawImage(src, ix - crop / 2, iy - crop / 2, crop, crop, 0, 0, L, L); } catch (_) {}
+  // center crosshair
+  lctx.strokeStyle = 'rgba(245,158,11,0.9)'; lctx.lineWidth = 1;
+  lctx.beginPath();
+  lctx.moveTo(L / 2 - 8, L / 2); lctx.lineTo(L / 2 + 8, L / 2);
+  lctx.moveTo(L / 2, L / 2 - 8); lctx.lineTo(L / 2, L / 2 + 8);
+  lctx.stroke();
+  const off = 26, size = 150;
+  let px = e.clientX + off, py = e.clientY - size - off;
+  if (px + size > window.innerWidth) px = e.clientX - size - off;
+  if (py < 0) py = e.clientY + off;
+  box.style.left = px + 'px'; box.style.top = py + 'px';
+  box.style.display = 'block';
+}
+
 let _meLastBrushTime = 0;
 function _meMouseMove(e) {
+  _meUpdateLoupe(e);   // magnifier tracks the cursor regardless of tool
   // Move gizmo active: let TransformControls handle everything.
   if (meState.moveActive) return;
   // Lasso stroke in progress: append points, don't touch brush/orbit.
@@ -15659,6 +15698,7 @@ function _meApplyBrush(hit) {
 
 // Close mesh edit
 function _closeMeshEdit() {
+  const _lp = document.getElementById('me-loupe'); if (_lp) _lp.style.display = 'none';
   // Tear the Move gizmo down first: leaving a TransformControls attached to a
   // proxy that stays in the scene leaks listeners and re-opens with a stale
   // snapshot.
@@ -16429,6 +16469,11 @@ function _meEndMove() {
   const modeRow = document.getElementById('me-move-mode-row'); if (modeRow) modeRow.style.display = 'none';
 }
 document.getElementById('me-sel-move')?.addEventListener('click', () => _meStartMove());
+document.getElementById('me-loupe-toggle')?.addEventListener('click', () => {
+  meState.loupeOn = !meState.loupeOn;
+  document.getElementById('me-loupe-toggle')?.classList.toggle('tool-active', meState.loupeOn);
+  if (!meState.loupeOn) { const b = document.getElementById('me-loupe'); if (b) b.style.display = 'none'; }
+});
 document.getElementById('me-move-translate')?.addEventListener('click', () => _meSetMoveMode('translate'));
 document.getElementById('me-move-rotate')?.addEventListener('click', () => _meSetMoveMode('rotate'));
 document.getElementById('me-move-scale')?.addEventListener('click', () => _meSetMoveMode('scale'));
