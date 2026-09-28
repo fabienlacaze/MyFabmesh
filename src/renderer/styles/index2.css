@@ -3786,14 +3786,26 @@ details.stage-generating > summary .stage-gear .gear-glyph {
 }
 .pts-ajout-ligne {
   margin-top: 6px;
-  align-items: center;
 }
-.pts-ajout-ligne .pts-ajout-options {
-  flex: 1;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+/* Bulle des options de placement, en bas de la vue (au-dessus des boutons de vue). */
+.pts-options-bulle[hidden] { display: none; }
+.pts-options-bulle {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 6;
   margin-top: 0;
+  padding: 8px 16px;
+  gap: 8px 18px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  border-radius: 12px;
+  background: rgba(20, 20, 36, 0.92);
+  border: 1px solid var(--border-strong, var(--border));
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  color: var(--text-1, #ddd);
 }
 .pts-ajout-options label {
   display: inline-flex;

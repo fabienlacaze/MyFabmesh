@@ -544,6 +544,7 @@
       "Yellow and green points are targets: only \"Re-generate rig with these points\" can make the skeleton reach them. This button saves the pink joints you moved by hand.": "Les points jaunes et verts sont des cibles : seul « Régénérer le rig avec ces points » peut faire que le squelette les atteigne. Ce bouton enregistre les articulations roses que vous avez déplacées à la main.",
       "On: a point you add or drag lands on the mesh under the cursor. Off: it goes where you point, even outside the mesh.": "Coché : un point ajouté ou glissé se pose sur le maillage sous le curseur. Décoché : il va là où vous pointez, même hors du maillage.",
       "On: a point you add or drag goes to the middle of the mesh under the cursor. Off: it stays on the surface.": "Coché : un point ajouté ou glissé va au milieu du maillage sous le curseur. Décoché : il reste à la surface.",
+      "No pink joint moved yet. To reach the yellow points, use \"Re-generate rig\".": "Aucune articulation rose déplacée. Pour atteindre les points jaunes, utilisez « Régénérer le rig ».",
       "Drag a skeleton point first.": "Déplacez d'abord un point du squelette.",
       "Could not save the rig:": "Impossible d'enregistrer le rig :",
       "Rig saved with the moved joints": "Rig enregistré avec les articulations déplacées",

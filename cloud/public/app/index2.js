@@ -26032,8 +26032,17 @@ function _ptsLiensOs(i) {
   return liens;
 }
 
+/** Bulle des options de placement (user, 2026-09-28 : « ces deux cases
+ *  devraient apparaitre dans une popup en bas de la page quand je selectionne
+ *  un point ») : visible si un point ou une articulation est selectionne, ou
+ *  pendant l'ajout d'un point. */
+function _ptsMajOptions() {
+  const bulle = document.getElementById('pts-ajout-options');
+  if (bulle) bulle.hidden = !(_pts.actif && (_pts.ajout || _pts.selection != null || _pts.osSelection != null));
+}
 function _ptsSelectionner(id) {
   _pts.selection = id;
+  _ptsMajOptions();
   if (_pts.osSelection != null) {
     const avant = _pts.osSelection;
     _pts.osSelection = null;
@@ -26110,6 +26119,7 @@ function _ptsMemoriser() {
   _ptsMajBoutons();
 }
 function _ptsMajBoutons() {
+  _ptsMajOptions();
   const annuler = document.getElementById('lm-fs-undo');
   const refaire = document.getElementById('lm-fs-redo');
   if (annuler) annuler.disabled = _pts.passe.length === 0 && (typeof lmHistoryPast === 'undefined' || lmHistoryPast.length === 0);
@@ -26181,7 +26191,7 @@ function _ptsSauver(immediat) {
 
 function _ptsModeAjout(actif) {
   _pts.ajout = !!actif;
-  // options de placement : visibles seulement pendant l'ajout (user)
+  _ptsMajOptions();
   document.getElementById('pts-ajouter')?.classList.toggle('active', _pts.ajout);
   document.getElementById('lm-fullscreen')?.classList.toggle('pts-ajout', _pts.ajout);
   const consigne = document.getElementById('lm-fs-instruction');
@@ -26320,6 +26330,7 @@ function _ptsSelectionnerOsListe(i) {
   // Selection d'un point du squelette : la touche Suppr s'y applique
   const avant = _pts.osSelection;
   _pts.osSelection = i;
+  _ptsMajOptions();
   if (avant != null && avant !== i) _ptsDessinerOs(avant);
   _ptsDessinerOs(i);
   if (_pts.selection != null) {
@@ -26388,11 +26399,8 @@ function _ptsLierCanevas(canevas, camera) {
     const g = _pts.glisse;
     if (g && g.canevas === canevas) {
       // « Coller au maillage » / « Centrer dans l'epaisseur » valent aussi pour le
-      // GLISSER (user, 2026-09-28 : « ca ne fait rien du tout » — elles ne
-      // servaient qu'a l'ajout). Hors du maillage, ou case decochee : plan de
-      // la vue, profondeur figee, comme avant.
-      // Colle : hors du maillage le point NE BOUGE PAS (il sortait du maillage,
-      // user 2026-09-28). Decoche : plan de la vue, profondeur figee.
+      // GLISSER (user, 2026-09-28). Colle : hors du maillage le point NE BOUGE
+      // PAS (il en sortait). Decoche : plan de la vue, profondeur figee.
       const coller = document.getElementById('pts-ajout-coller')?.checked !== false;
       const w = coller
         ? _ptsCentreSous(canevas, g.cam, e, document.getElementById('pts-ajout-centrer')?.checked !== false)
@@ -26541,7 +26549,7 @@ async function _ptsEnregistrerSansIA() {
     return;
   }
   if (!_ptsOsModifie()) {
-    showToast(_i18nT('Yellow and green points are targets: only "Re-generate rig with these points" can make the skeleton reach them. This button saves the pink joints you moved by hand.'), 'info', 8000);
+    showToast(_i18nT('No pink joint moved yet. To reach the yellow points, use "Re-generate rig".'), 'info', 5000);
     // montre OU aller : le bouton de regeneration clignote
     const regen = document.getElementById('pts-regenerer');
     if (regen) { regen.classList.remove('pts-montrer'); void regen.offsetWidth; regen.classList.add('pts-montrer'); }
