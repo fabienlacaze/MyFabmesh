@@ -1167,7 +1167,13 @@ async function signedR2Url(env: Env, key: string, kind: R2UrlKind = 'image'): Pr
       'or set R2_ALLOW_UNSIGNED="1" to opt into the public-URL fallback for local dev only.'
     );
   }
-  const exp = Math.floor(Date.now() / 1000) + r2TtlFor(kind);
+  // Echeance ARRONDIE a l'heure superieure (2026-09-28) : « maintenant + duree » changeait a chaque
+  // seconde, donc l'URL de chaque vignette aussi. Au retour a la liste des projets, le navigateur
+  // rechargeait TOUTES les images : cartes noires ~1 s (signale deux fois par le user). Arrondie,
+  // l'URL est stable pendant une heure et le cache du navigateur sert (max-age = exp - maintenant).
+  // Validite : entre la duree prevue et la duree + 1 h.
+  const PAS_EXP = 3600;
+  const exp = Math.ceil((Math.floor(Date.now() / 1000) + r2TtlFor(kind)) / PAS_EXP) * PAS_EXP;
   const sig = await r2SignHex(env.R2_URL_SIGNING_SECRET, `v1:${clean}\n${exp}`);
   const encodedPath = clean.split('/').map(encodeURIComponent).join('/');
   return `${base}/r2/${encodedPath}?exp=${exp}&sig=${sig}`;
