@@ -27551,3 +27551,80 @@ showPage('projects');
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', lancer);
   else lancer();
 })();
+
+// ============================================================
+// CLES API (2026-09-28) — reglages : creer, lister, revoquer. Une cle permet a un
+// programme (build/fab.mjs, script, assistant) d'utiliser le compte sans le mot de
+// passe ; elle n'est montree qu'UNE fois. Garde et plafond : cloud/src/worker.ts.
+// ============================================================
+var _clesApiEnCours = false;
+async function _majClesApi() {
+  const zone = document.getElementById('set-apikey-list');
+  if (!zone || !API.apiKeysList) return;
+  const cles = await API.apiKeysList();
+  zone.textContent = '';
+  if (!cles.length) {
+    const vide = document.createElement('div');
+    vide.style.color = 'var(--text-2)';
+    vide.textContent = _i18nT('No API key yet.');
+    zone.appendChild(vide);
+    return;
+  }
+  for (const c of cles) {
+    const ligne = document.createElement('div');
+    ligne.style.cssText = 'display:flex; gap:8px; align-items:center; padding:4px 0; border-top:1px solid var(--border);' + (c.revoquee ? ' opacity:0.5;' : '');
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1; min-width:0;';
+    const nom = document.createElement('div');
+    nom.textContent = c.nom + '  ·  ' + c.prefixe + '…';
+    nom.style.cssText = 'font-family:monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+    const det = document.createElement('div');
+    det.style.cssText = 'color:var(--text-2); font-size:11px;';
+    const d = (x) => (x ? new Date(x).toLocaleDateString() : '—');
+    det.textContent = _i18nT('Daily cap') + ' ' + c.plafond + ' · ' + _i18nT('created') + ' ' + d(c.cree) + ' · '
+      + (c.revoquee ? _i18nT('revoked') + ' ' + d(c.revoquee) : _i18nT('last used') + ' ' + d(c.vue));
+    info.append(nom, det);
+    ligne.appendChild(info);
+    if (!c.revoquee) {
+      const b = document.createElement('button');
+      b.className = 'ghost-btn danger';
+      b.style.cssText = 'padding:3px 8px; font-size:11px;';
+      b.textContent = _i18nT('Revoke');
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        const r = await API.apiKeysRevoke(c.id);
+        if (r && r.ok) showToast(_i18nT('API key revoked.'), 'success');
+        else showToast((r && r.error) || 'revoke failed', 'error');
+        _majClesApi();
+      });
+      ligne.appendChild(b);
+    }
+    zone.appendChild(ligne);
+  }
+}
+document.getElementById('set-apikey-create')?.addEventListener('click', async () => {
+  if (_clesApiEnCours) return;
+  _clesApiEnCours = true;
+  try {
+    const nom = document.getElementById('set-apikey-name')?.value.trim() || 'API key';
+    const plafond = Number(document.getElementById('set-apikey-cap')?.value) || 0;
+    const r = await API.apiKeysCreate({ nom, plafond });
+    if (!r || !r.cle) { showToast((r && r.error) || 'API key creation failed', 'error'); return; }
+    const boite = document.getElementById('set-apikey-new');
+    const champ = document.getElementById('set-apikey-value');
+    if (champ) champ.value = r.cle;
+    if (boite) boite.hidden = false;
+    const n = document.getElementById('set-apikey-name');
+    if (n) n.value = '';
+    _majClesApi();
+  } finally { _clesApiEnCours = false; }
+});
+document.getElementById('set-apikey-copy')?.addEventListener('click', () => {
+  const v = document.getElementById('set-apikey-value')?.value;
+  if (v) navigator.clipboard?.writeText(v).then(() => showToast(_i18nT('Copied.'), 'success'), () => {});
+});
+document.getElementById('btn-settings')?.addEventListener('click', () => {
+  const boite = document.getElementById('set-apikey-new');
+  if (boite) boite.hidden = true;                  // une cle ne se remontre jamais
+  setTimeout(_majClesApi, 50);
+});

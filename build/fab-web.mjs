@@ -5,8 +5,9 @@
  * le fait la page. Listing complet : docs/pilotage_web.md (genere par
  * build/lister-routes-web.mjs).
  *
- *   node build/fab-web.mjs login <email>      mot de passe saisi MASQUE (a lancer soi-meme
- *                                             dans un terminal) ou FABWEB_PASSWORD
+ *   node build/fab-web.mjs cle                colle la CLE API creee dans les reglages du site
+ *                                             (saisie masquee) : recommande, pas de mot de passe
+ *   node build/fab-web.mjs login <email>      alternative : mot de passe saisi MASQUE ou FABWEB_PASSWORD
  *   node build/fab-web.mjs moi                compte connecte + credits
  *   node build/fab-web.mjs tarifs             grille vivante (GET /api/pricing)
  *   node build/fab-web.mjs routes [mot]       routes connues (docs/pilotage_web.md), filtrees
@@ -17,8 +18,9 @@
  *   node build/fab-web.mjs telecharger <url> <fichier>
  *   node build/fab-web.mjs logout
  *
- * Session : ~/.fabmesh/web_session.json (HORS du depot, qui est public), jeton
- * rafraichi automatiquement. Base : FABWEB_URL ou le site de production.
+ * Authentification, dans l'ordre : FABWEB_API_KEY, ~/.fabmesh/cloud_api_key (commande `cle`),
+ * puis la session ~/.fabmesh/web_session.json (commande `login`). Tout reste HORS du depot, qui
+ * est public. Base : FABWEB_URL ou le site de production.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, createWriteStream } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -32,6 +34,11 @@ import { pipeline } from 'node:stream/promises';
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = (process.env.FABWEB_URL || 'https://myfabmesh-cloud.fabien65400.workers.dev').replace(/\/$/, '');
 const SESSION = join(homedir(), '.fabmesh', 'web_session.json');
+const FICHIER_CLE = join(homedir(), '.fabmesh', 'cloud_api_key');
+function cleApi() {
+  const k = (process.env.FABWEB_API_KEY || (existsSync(FICHIER_CLE) ? readFileSync(FICHIER_CLE, 'utf-8') : '')).trim();
+  return /^mfm_[A-Za-z0-9]{40}$/.test(k) ? k : null;
+}
 
 // Valeurs PUBLIQUES (deja servies au navigateur), lues dans cloud/wrangler.toml [vars]
 function configSupabase() {
@@ -109,7 +116,8 @@ async function appel(methode, chemin, corps, { payer = false } = {}) {
     const corpsTxt = methode === 'GET' || methode === 'HEAD' ? null : JSON.stringify(corps ?? {});
     const req = (u.protocol === 'http:' ? http : https).request(u, {
       method: methode,
-      headers: { cookie: `mfm-session=${s.access_token}`, 'content-type': 'application/json', accept: 'application/json',
+      headers: { ...(s.cle ? { authorization: `Bearer ${s.cle}` } : { cookie: `mfm-session=${s.access_token}` }),
+                 'content-type': 'application/json', accept: 'application/json',
                  ...(corpsTxt ? { 'content-length': Buffer.byteLength(corpsTxt) } : {}) },
       timeout: 20 * 60_000,
     }, (r) => {
@@ -122,10 +130,11 @@ async function appel(methode, chemin, corps, { payer = false } = {}) {
     if (corpsTxt) req.write(corpsTxt);
     req.end();
   });
+  const cle = cleApi();
   // route publique sans session : appel anonyme (tarifs, catalogue public…)
-  const anonyme = !lireSession() && r0 && r0.acces === 'public';
-  let r = await envoyer(anonyme ? { access_token: '' } : await session(false));
-  if (r.status === 401 && !anonyme) r = await envoyer(await session(true));
+  const anonyme = !cle && !lireSession() && r0 && r0.acces === 'public';
+  let r = await envoyer(cle ? { cle } : anonyme ? { access_token: '' } : await session(false));
+  if (r.status === 401 && !anonyme && !cle) r = await envoyer(await session(true));
   const type = String(r.headers['content-type'] || '');
   let data;
   if (type.includes('json')) { try { data = JSON.parse(r.corps.toString('utf-8')); } catch (_) { data = r.corps.toString('utf-8').slice(0, 2000); } }
@@ -152,6 +161,19 @@ try {
       res = { connecte: s.email, session: SESSION };
       break;
     }
+    case 'cle': {
+      const k = (a[0] || await motDePasseMasque('Cle API (mfm_…) : ')).trim();
+      if (!/^mfm_[A-Za-z0-9]{40}$/.test(k)) throw new Error('cle invalide : attendu « mfm_ » suivi de 40 caracteres');
+      mkdirSync(dirname(FICHIER_CLE), { recursive: true });
+      writeFileSync(FICHIER_CLE, k, { mode: 0o600 });
+      res = await appel('GET', '/api/me');
+      res = { cle: k.slice(0, 12) + '…', fichier: FICHIER_CLE, compte: res.data };
+      break;
+    }
+    case 'oublier-cle':
+      rmSync(FICHIER_CLE, { force: true });
+      res = { cleRetiree: true };
+      break;
     case 'logout':
       try { await appel('POST', '/api/auth/signout', {}); } catch (_) {}
       rmSync(SESSION, { force: true });
@@ -184,8 +206,9 @@ try {
     case 'telecharger': {
       const [url, fichier] = a;
       if (!url || !fichier) throw new Error('usage : telecharger <url> <fichier>');
-      const s = await session(false);
-      const r = await fetch(url.startsWith('http') ? url : BASE + chemin(url), { headers: { cookie: `mfm-session=${s.access_token}` } });
+      const k = cleApi();
+      const auth = k ? { authorization: `Bearer ${k}` } : { cookie: `mfm-session=${(await session(false)).access_token}` };
+      const r = await fetch(url.startsWith('http') ? url : BASE + chemin(url), { headers: auth });
       if (!r.ok) throw new Error(`telechargement refuse (${r.status})`);
       await pipeline(Readable.fromWeb(r.body), createWriteStream(resolve(fichier)));
       res = { fichier: resolve(fichier), octets: Number(r.headers.get('content-length')) || null };

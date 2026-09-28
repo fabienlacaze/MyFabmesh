@@ -609,6 +609,10 @@
     },
     // Projets VIDES (2026-09-28) : leur coquille (ligne `jobs` de type 'project', posee a la
     // creation) n'etait relue par AUCUNE liste -> le projet disparaissait au rechargement.
+    // Cles API personnelles (2026-09-28) : un programme utilise le compte sans le mot de passe.
+    apiKeysList: async () => { try { return (await getJSON('/api/api-keys'))?.cles || []; } catch (_) { return []; } },
+    apiKeysCreate: async ({ nom, plafond } = {}) => postJSON('/api/api-keys', { nom, plafond }),
+    apiKeysRevoke: async (id) => postJSON('/api/api-keys/revoke', { id }),
     listProjectShells: async () => {
       try { const j = await getJSON('/api/projects/shells'); return j?.projets || []; } catch (_) { return []; }
     },

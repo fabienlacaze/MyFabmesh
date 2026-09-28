@@ -2073,6 +2073,26 @@
         </div>
 
         <!-- ═══ AI ASSISTANT ═══ -->
+        <!-- ═══ CLES API (2026-09-28) : piloter le compte depuis un programme (build/fab.mjs) ═══ -->
+        <div class="settings-section-header">API keys</div>
+        <div class="settings-box" id="set-apikeys-box">
+          <div class="settings-box-desc" style="font-size:12px; color:var(--text-2); line-height:1.4;">Let a program (script, assistant) use your account without your password. A key spends YOUR credits, up to its daily cap, and cannot change your account, keys or payments.</div>
+          <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+            <input id="set-apikey-name" type="text" maxlength="60" placeholder="Key name" style="flex:1 1 140px; min-width:0; background:var(--bg-0); border:1px solid var(--border); color:var(--text-1); border-radius:4px; padding:4px 6px; font-size:12px;">
+            <label for="set-apikey-cap" style="font-size:12px; color:var(--text-2);">Daily cap (credits)</label>
+            <input id="set-apikey-cap" type="number" min="0" max="100000" step="1" value="50" style="width:72px; background:var(--bg-0); border:1px solid var(--border); color:var(--text-1); border-radius:4px; padding:4px 6px; font-size:12px;">
+            <button id="set-apikey-create" class="ghost-btn" style="padding:4px 10px; font-size:12px;">&#65291; Create key</button>
+          </div>
+          <div id="set-apikey-new" hidden style="margin-top:8px; padding:8px; border:1px solid rgba(92,200,140,0.5); background:rgba(92,200,140,0.08); border-radius:6px;">
+            <div style="font-size:12px; color:#6fd49b;">Copy this key now: it will not be shown again.</div>
+            <div style="display:flex; gap:6px; margin-top:4px;">
+              <input id="set-apikey-value" type="text" readonly style="flex:1; min-width:0; background:var(--bg-0); border:1px solid var(--border); color:var(--text-1); border-radius:4px; padding:4px 6px; font-size:11px; font-family:monospace;">
+              <button id="set-apikey-copy" class="ghost-btn" style="padding:4px 8px; font-size:11px;">&#128203; Copy</button>
+            </div>
+          </div>
+          <div id="set-apikey-list" style="margin-top:8px; font-size:12px;"></div>
+        </div>
+
         <div class="settings-section-header" data-section="assistant">Assistant</div>
         <div class="settings-box">
           <div class="settings-box-title">Claude Desktop</div>

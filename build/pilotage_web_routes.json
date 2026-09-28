@@ -527,6 +527,39 @@
   "motif": false
  },
  {
+  "chemin": "/api/api-keys",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleApiKeysList",
+  "motif": false
+ },
+ {
+  "chemin": "/api/api-keys",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleApiKeysCreate",
+  "motif": false
+ },
+ {
+  "chemin": "/api/api-keys/revoke",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleApiKeysRevoke",
+  "motif": false
+ },
+ {
   "chemin": "/api/auth/install-session",
   "methodes": [
    "POST"

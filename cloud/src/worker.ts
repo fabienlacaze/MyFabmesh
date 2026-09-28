@@ -2076,11 +2076,151 @@ async function _getAdminTotpSecret(env: Env): Promise<string | null> {
   } catch { return null; }
 }
 
+// ============================================================
+// CLES API PERSONNELLES (2026-09-28)
+// ============================================================
+// Une cle « mfm_<40 caracteres> » remplace le mot de passe pour un PROGRAMME
+// (outil build/fab.mjs, script, session Claude Code). Creee dans le compte web
+// (cookie de session obligatoire), montree UNE seule fois ; seule son empreinte
+// SHA-256 est gardee, dans R2 (bucket PRIVE — jamais r2.dev) :
+//   _meta/api_keys/<empreinte>.json           { uid, email, nom, plafond, cree, prefixe, revoquee?, vue? }
+//   _meta/api_keys_user/<uid>/<empreinte>     (liste par compte)
+//   _meta/api_keys_spend/<empreinte>/<jour>   credits debites ce jour par cette cle
+// Une cle agit comme son compte, SAUF : gestion des cles, du compte, paiements,
+// admin (_CLE_API_INTERDIT) ; et chaque cle a son propre plafond de credits par
+// jour, verifie AVANT l'appel et compte APRES (difference de solde).
+const _CLE_API_RE = /^mfm_[A-Za-z0-9]{40}$/;
+function _lireCleApi(req: Request): string | null {
+  const a = req.headers.get('authorization') || '';
+  const k = a.startsWith('Bearer ') ? a.slice(7).trim() : (req.headers.get('x-api-key') || '').trim();
+  return _CLE_API_RE.test(k) ? k : null;
+}
+async function _empreinteCle(txt: string): Promise<string> {
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+interface CleApi {
+  uid: string; email: string | null; nom: string; plafond: number; cree: string; prefixe: string;
+  revoquee?: string | null; vue?: string | null;
+}
+async function _lireCle(env: Env, empreinte: string): Promise<CleApi | null> {
+  const o = await env.MESHES.get(`_meta/api_keys/${empreinte}.json`);
+  if (!o) return null;
+  try { return await o.json() as CleApi; } catch { return null; }
+}
+const _CLE_API_INTERDIT = [
+  /^\/api\/api-keys/, /^\/api\/account/, /^\/api\/auth\//, /^\/api\/checkout/, /^\/api\/stripe/,
+  /^\/api\/admin\//, /^\/api\/market\/checkout/, /^\/api\/market\/seller\//, /^\/api\/me\/delete/,
+];
+async function _creditsDe(env: Env, uid: string): Promise<number> {
+  const { data } = await supabaseAdmin(env).from('profiles').select('credits').eq('id', uid).maybeSingle();
+  return Number((data as { credits?: number } | null)?.credits ?? 0);
+}
+/** Garde autour du routeur pour toute requete portant une cle API. */
+async function _avecCleApi(req: Request, env: Env, suite: () => Promise<Response>): Promise<Response> {
+  const { pathname } = new URL(req.url);
+  if (!pathname.startsWith('/api/') || isMock(env)) return suite();
+  if (_CLE_API_INTERDIT.some((re) => re.test(pathname))) {
+    return err(403, 'not allowed with an API key — use the web app for account, keys and payments');
+  }
+  const emp = await _empreinteCle(_lireCleApi(req) as string);
+  const rec = await _lireCle(env, emp);
+  if (!rec || rec.revoquee) return err(401, 'invalid or revoked API key');
+  const maintenant = new Date();
+  if (!rec.vue || maintenant.getTime() - Date.parse(rec.vue) > 10 * 60_000) {   // derniere utilisation, 1 ecriture / 10 min
+    rec.vue = maintenant.toISOString();
+    await env.MESHES.put(`_meta/api_keys/${emp}.json`, JSON.stringify(rec), { httpMetadata: { contentType: 'application/json' } });
+  }
+  if (req.method === 'GET' || req.method === 'HEAD') return suite();
+  const cleJour = `_meta/api_keys_spend/${emp}/${maintenant.toISOString().slice(0, 10)}`;
+  const deja = Number(await (await env.MESHES.get(cleJour))?.text() ?? 0) || 0;
+  if (rec.plafond > 0 && deja >= rec.plafond) {
+    return err(429, `API key daily credit cap reached (${deja}/${rec.plafond} credits today)`);
+  }
+  const avant = await _creditsDe(env, rec.uid);
+  const res = await suite();
+  const apres = await _creditsDe(env, rec.uid);
+  if (avant > apres) await env.MESHES.put(cleJour, String(deja + (avant - apres)));
+  return res;
+}
+function _cleAleatoire(): string {
+  const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let out = '';
+  while (out.length < 40) {
+    for (const b of crypto.getRandomValues(new Uint8Array(48))) {
+      if (b < 248 && out.length < 40) out += A[b % 62];      // rejet : pas de biais modulo
+    }
+  }
+  return 'mfm_' + out;
+}
+async function _clesDuCompte(env: Env, uid: string): Promise<Array<[string, CleApi]>> {
+  const liste = await env.MESHES.list({ prefix: `_meta/api_keys_user/${uid}/` });
+  const out: Array<[string, CleApi]> = [];
+  for (const o of liste.objects) {
+    const emp = o.key.split('/').pop() as string;
+    const rec = await _lireCle(env, emp);
+    if (rec && rec.uid === uid) out.push([emp, rec]);
+  }
+  return out;
+}
+/** GET /api/api-keys — cles du compte (jamais la cle : prefixe, nom, plafond, dates). Cookie seulement. */
+async function handleApiKeysList(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  const cles = (await _clesDuCompte(env, user.id)).map(([emp, r]) => ({
+    id: emp.slice(0, 16), nom: r.nom, prefixe: r.prefixe, plafond: r.plafond,
+    cree: r.cree, vue: r.vue ?? null, revoquee: r.revoquee ?? null,
+  })).sort((a, b) => b.cree.localeCompare(a.cree));
+  return json({ cles });
+}
+/** POST /api/api-keys {nom, plafond} — cree une cle ; elle n'est renvoyee qu'UNE fois. Cookie seulement. */
+async function handleApiKeysCreate(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  let body: { nom?: string; plafond?: number } = {};
+  try { body = await req.json() as typeof body; } catch { /* corps vide accepte */ }
+  const actives = (await _clesDuCompte(env, user.id)).filter(([, r]) => !r.revoquee);
+  if (actives.length >= 10) return err(400, 'at most 10 active API keys — revoke one first');
+  const cle = _cleAleatoire();
+  const emp = await _empreinteCle(cle);
+  const plafond = Math.max(0, Math.min(Math.round(Number(body.plafond ?? 50)) || 0, 100000));
+  const rec: CleApi = {
+    uid: user.id, email: user.email, nom: String(body.nom || 'API key').replace(/[<>]/g, '').slice(0, 60),
+    plafond, cree: new Date().toISOString(), prefixe: cle.slice(0, 12),
+  };
+  await env.MESHES.put(`_meta/api_keys/${emp}.json`, JSON.stringify(rec), { httpMetadata: { contentType: 'application/json' } });
+  await env.MESHES.put(`_meta/api_keys_user/${user.id}/${emp}`, '1');
+  return json({ cle, id: emp.slice(0, 16), nom: rec.nom, prefixe: rec.prefixe, plafond: rec.plafond, cree: rec.cree });
+}
+/** POST /api/api-keys/revoke {id} — revoque une cle du compte (effet immediat). Cookie seulement. */
+async function handleApiKeysRevoke(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  let body: { id?: string } = {};
+  try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
+  const id = String(body.id || '');
+  if (!/^[0-9a-f]{16}$/.test(id)) return err(400, 'id required');
+  const trouve = (await _clesDuCompte(env, user.id)).find(([emp]) => emp.startsWith(id));
+  if (!trouve) return err(404, 'no such key');
+  const [emp, rec] = trouve;
+  rec.revoquee = new Date().toISOString();
+  await env.MESHES.put(`_meta/api_keys/${emp}.json`, JSON.stringify(rec), { httpMetadata: { contentType: 'application/json' } });
+  return json({ ok: true, id, revoquee: rec.revoquee });
+}
+
 async function getSessionUser(req: Request, env: Env): Promise<SessionUser | null> {
   if (isMock(env)) {
     const c = parseCookies(req);
     const u = mock.getUserBySession(c[MOCK_COOKIE]);
     return u ? { id: u.id, email: u.email, credits: u.credits } : null;
+  }
+  // Cle API (programme) : le compte de la cle, s'il n'est ni revoque ni banni
+  const cleApi = _lireCleApi(req);
+  if (cleApi) {
+    const rec = await _lireCle(env, await _empreinteCle(cleApi));
+    if (!rec || rec.revoquee) return null;
+    if ((await _getBannedUserIds(env)).has(rec.uid)) return null;
+    return { id: rec.uid, email: rec.email ?? null, credits: await _creditsDe(env, rec.uid) };
   }
   const token = readSupabaseAccessToken(req);
   if (!token) return null;
@@ -20272,7 +20412,15 @@ export default {
     }
   },
 
-  async fetch(req: Request, envBrut: Env, _ctx: unknown): Promise<Response> {
+  async fetch(req: Request, envBrut: Env, ctx: unknown): Promise<Response> {
+    // CLE API (2026-09-28) : une requete signee par une cle personnelle passe par la
+    // garde (routes interdites, plafond de credits par jour et par cle) AUTOUR du routeur.
+    if (_lireCleApi(req)) return await _avecCleApi(req, _envAvecReprises(envBrut), () => _routeur(req, envBrut, ctx));
+    return await _routeur(req, envBrut, ctx);
+  },
+};
+
+async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Response> {
     const env = _envAvecReprises(envBrut);
     const url = new URL(req.url);
     const { pathname } = url;
@@ -20480,6 +20628,9 @@ export default {
         // memoire du navigateur et disparait au rechargement.
         if (pathname === '/api/projects/create'       && method === 'POST') return await handleProjectCreate(req, env);
         if (pathname === '/api/projects/shells'       && method === 'GET')  return await handleProjectShells(req, env);
+        if (pathname === '/api/api-keys'              && method === 'GET')  return await handleApiKeysList(req, env);
+        if (pathname === '/api/api-keys'              && method === 'POST') return await handleApiKeysCreate(req, env);
+        if (pathname === '/api/api-keys/revoke'       && method === 'POST') return await handleApiKeysRevoke(req, env);
         if (pathname === '/api/user-assets/delete'    && method === 'POST') return await handleUserAssetsDelete(req, env);
         if (pathname === '/api/user-assets/migrate-from-jobs' && method === 'POST') return await handleUserAssetsMigrateFromJobs(req, env);
         if (pathname === '/api/user-assets/reassign-orphans'  && method === 'POST') return await handleUserAssetsReassignOrphans(req, env);
@@ -20690,5 +20841,4 @@ export default {
       console.error('Worker error:', msg, e);
       return err(500, `internal: ${msg}`);
     }
-  },
-};
+}
