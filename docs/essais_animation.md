@@ -17,7 +17,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 - **UniMate** reste le moteur branché (web et bureau). Le chantier est arrêté ; la mention
   « Work in progress — results are poor for now. » est affichée.
 - **Essai en cours :** MoCapAnything V2 sur vidéo **de profil**, orientation du corps figée : meilleur
-  résultat à ce jour. Prochaine étape : clip de ~10 s (trois plans Wan enchaînés).
+  résultat à ce jour. Clip de 10 s obtenu (trois plans Wan enchaînés).
 - **Leçon :** filmer **de profil**. De face, les pattes ne se voient pas et le modèle ne prédit
   presque aucun mouvement.
 
@@ -40,6 +40,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | 28/09 | MoCapAnything V2 (vidéo + notre squelette, code et poids MIT) | vidéo Wan 2.2 **de face**, lion 36 os, détourage RMBG-1.4 (test seulement) | lion entier mais quasi figé : os à 2,8° d'amplitude médiane, articulations à 6 % de la taille | « ne marche pas du tout » : de face, les pattes ne se voient pas |
 | 28/09 | MoCapAnything V2, vidéo **de profil** | même rig, vidéo Wan de profil | mouvement 4× plus ample (24 %) ; bons pas en 1re moitié, puis le corps pivote et se dresse (rotation de racine fausse, 77°) | orientation à corriger |
 | 28/09 | MoCapAnything V2 de profil + **orientation du corps figée** | idem, rotation de racine gelée à l'image 0, marche sur place | lion de profil tout le clip, pattes qui font des pas | **meilleur résultat à ce jour** ; vidéo jugée « très bon début » |
+| 28/09 | **Clip de 10 s** : 3 plans Wan enchaînés (chaque plan part de la dernière image du précédent) + MoCapAnything, racine figée | 241 images à 24 i/s | l'animation tient sur les 10 s (lion de profil, pattes qui alternent) ; la **vidéo dérive en aspect** (couleurs saturées, crinière qui pousse), sans gêner l'extraction du mouvement | durée atteinte |
 
 ## À ne pas retenter
 
@@ -67,6 +68,9 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 - Python + Kaspersky : fenêtres d'alerte sur huggingface.co. Télécharger avec `curl`.
 - Chemins Windows mélangeant `/` et `\` : certains scripts comparent des chaînes de chemin.
 - Les générateurs vidéo imposent des longueurs de la forme 8k+1 (LTX) ou 4k+1 (Wan) images.
+- Une vidéo écrite par OpenCV (`mp4v`) ne se lit pas dans Chrome : réencoder en H.264.
+- MoCapAnything sort une image de BVH par image de vidéo : caler le clip sur la cadence de la
+  vidéo (24 i/s pour Wan), pas sur les 30 i/s écrits dans le BVH.
 
 ## MoCapAnything V2 : mode d'emploi local (28/09)
 
