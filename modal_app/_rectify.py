@@ -57,8 +57,8 @@ NEG_ISO = (
 def symmetry_score(img: Image.Image) -> float:
     """Return [0,1] horizontal-symmetry IoU of the rembg silhouette.
     Verbatim port of generate_front_strict.py:symmetry_score."""
-    from rembg import remove
-    rgba = remove(img.convert('RGBA'))
+    from modal_app._detourage import detourer   # = rembg.remove, sans ses 88 s d'import
+    rgba = detourer(img.convert('RGBA'))
     arr = np.array(rgba)
     alpha = arr[..., 3].astype(np.float32) / 255.0
     if alpha.sum() < 100:

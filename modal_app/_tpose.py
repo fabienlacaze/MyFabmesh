@@ -57,8 +57,8 @@ def remove_bg_and_center(img: Image.Image, size: int = 1024,
     """Verbatim port of generate_front_tpose.py:remove_bg_and_center.
     Crops subject via rembg alpha, scales to ~92% canvas height, pastes
     on a white canvas with feet near bottom (~2% bottom margin)."""
-    from rembg import remove
-    rgba = remove(img.convert('RGBA'))
+    from modal_app._detourage import detourer   # = rembg.remove, sans ses 88 s d'import
+    rgba = detourer(img.convert('RGBA'))
     arr = np.array(rgba)
     alpha = arr[..., 3] > 10
     if not alpha.any():

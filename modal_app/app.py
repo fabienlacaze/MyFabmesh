@@ -231,6 +231,21 @@ def _fetch_image(url: str, mode: str = "RGB"):
 # means re-checking xformers/transformers/diffusers compat (we already
 # fought this fight in cog/cog.yaml, no need to re-fight it).
 # ---------------------------------------------------------------------------
+# Modele de detourage u2net (rembg, Apache 2.0), 176 Mo, integre aux DEUX images
+# (2026-09-28). rembg le telechargeait depuis GitHub dans /root/.u2net a chaque
+# conteneur neuf : 14 telechargements en 4 jours, 70 a 83 s chacun, GPU paye a
+# attendre — « image prepared in 82.9s » au lieu de 0,1 s pour un maillage fait
+# depuis l'image rectifiee (sans canal alpha), et le premier appel de rectify /
+# T-pose d'un conteneur (74-92 s contre 23 s ensuite). Meme fichier que celui que
+# rembg telecharge (md5 60024c5c… verifie par rembg) : resultat identique.
+_U2NET_DANS_L_IMAGE = (
+    "mkdir -p /root/.u2net && python -c \"import urllib.request; "
+    "urllib.request.urlretrieve('https://github.com/danielgatis/rembg/releases/"
+    "download/v0.0.0/u2net.onnx', '/root/.u2net/u2net.onnx')\"",
+    "echo '8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491  "
+    "/root/.u2net/u2net.onnx' | sha256sum -c -",
+)
+
 # Base image — CUDA + Python + the heavy pip deps shared by every
 # pipeline (torch, diffusers, fastapi). Both `image` (text2image +
 # back-view) and `mesh_image` (TRELLIS-2) extend from here.
@@ -391,6 +406,7 @@ image = (
         "snapshot_download('SG161222/RealVisXL_V4.0', "
         "allow_patterns=['*.json', '*.txt', '*.fp16.safetensors'])\"",
     )
+    .run_commands(*_U2NET_DANS_L_IMAGE)
 )
 
 
@@ -688,6 +704,7 @@ mesh_image = (
         "echo '4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1  "
         "/opt/esrgan/RealESRGAN_x4plus.pth' | sha256sum -c -",
     )
+    .run_commands(*_U2NET_DANS_L_IMAGE)
     .add_local_python_source("modal_app")
 )
 

@@ -447,10 +447,9 @@ def prep_image(image: Image.Image) -> Image.Image:
         if not (a == 255).all():
             needs_rembg = False
     if needs_rembg:
-        import rembg
-        image = rembg.remove(
-            image.convert('RGBA'),
-            session=rembg.new_session('u2net'))
+        # meme u2net que rembg, sans son import de 88 s (voir modal_app/_detourage.py)
+        from modal_app._detourage import detourer
+        image = detourer(image.convert('RGBA'))
     if os.environ.get('FABMESH_TEX_SKIP_CROP') != '1':
         try:
             _avant = image.size

@@ -43,8 +43,8 @@ def prep_reference(image: Image.Image, label: str = 'image') -> Image.Image:
     image = image.convert('RGBA')
     if np.asarray(image)[:, :, 3].min() == 255:
         log(f'{label} sans alpha — detourage')
-        import rembg
-        image = rembg.remove(image)
+        from modal_app._detourage import detourer   # = rembg.remove, sans ses 88 s d'import
+        image = detourer(image)
     log(f'{label}: {image.size}')
     return image
 
