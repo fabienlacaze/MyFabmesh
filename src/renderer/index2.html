@@ -1084,6 +1084,9 @@
                   </div>
                   <div id="ws-anim-filename" class="viewer-filename"></div>
                   <div id="ws-anim-stats" class="viewer-stats"></div>
+                  <!-- Un bouton par clip de la version choisie (parite web, 2026-09-28) ;
+                       un fichier « locomotion » donne un bouton par allure. -->
+                  <div id="ws-anim-type-buttons" class="anim-type-buttons" style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;"></div>
                 </div>
                 <div class="stage-edit-side">
                   <div id="ws-anim-versions" class="versions-strip"></div>
@@ -1102,7 +1105,6 @@
                         <button id="ws-anim-loop-btn" class="ghost-btn tool-btn" title="Loop playback.">&#128257; Loop</button>
                         <button id="ws-anim-inplace-btn" class="ghost-btn tool-btn" title="In place: the animation stays on the spot (no travel). The exported file follows this setting.">&#128204; In place</button>
                         <button id="ws-anim-bones-btn" class="ghost-btn tool-btn" title="Show skeleton">&#129460; Bones</button>
-                        <select id="ws-anim-clip" class="hidden" title="Choose the animation to play" style="grid-column: 1 / -1; padding:4px 6px; background:var(--bg-2); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:12px;"></select>
                       </div>
                     </div>
                   </div>

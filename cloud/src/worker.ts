@@ -8760,10 +8760,10 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
       //   <baseName>_<animType>_<timestamp>.glb             (legacy)
       // Extract batchId if present so the client can group clips of
       // the same Generate click into one version.
-      const batchMatch = filename.match(/_(idle|walk|run|attack|death|fly|jump|custom|clip)_([A-Za-z0-9_-]{4,32})_\d{10,}\.glb$/i);
+      const batchMatch = filename.match(/_(locomotion|idle|walk|run|attack|death|fly|jump|custom|clip)_([A-Za-z0-9_-]{4,32})_\d{10,}\.glb$/i);
       const animType = batchMatch ? batchMatch[1].toLowerCase() : 'clip';
       const batchId = batchMatch ? batchMatch[2] : '';
-      const beforeAnim = filename.replace(/_(idle|walk|run|attack|death|fly|jump|custom|clip)_(?:[A-Za-z0-9_-]{4,32}_)?\d{10,}\.glb$/i, '');
+      const beforeAnim = filename.replace(/_(locomotion|idle|walk|run|attack|death|fly|jump|custom|clip)_(?:[A-Za-z0-9_-]{4,32}_)?\d{10,}\.glb$/i, '');
       const beforeRigged = beforeAnim.replace(/_rigged_.*$/i, '');
       const cleanSlug = beforeRigged.replace(/^modal_/i, '').toLowerCase();
       const source = meshes.find(m => {
@@ -15101,6 +15101,51 @@ async function handleClientLogList(req: Request, env: Env): Promise<Response> {
  *  version under <user.id>/animations/<projectSlug>/<base>_manual_<type>_<batchId>_<ts>.glb
  *  so it shows up in the version strip alongside generated ones. The
  *  GLB must start with 'glTF' magic; size cap 50 MB. */
+/** Moteur de marche procedural (2026-09-28) : le GLB « locomotion » (plusieurs allures) est
+ *  calcule dans le NAVIGATEUR ; on le range tel quel, en flux (un rig pese 60-70 Mo, au-dela
+ *  des 50 Mo de /api/animations/upload qui lit tout en memoire). GRATUIT : aucun GPU, aucun
+ *  credit. Nom <rig>_locomotion_<lot>_<ts>.glb : handleListMeshes le rattache au projet. */
+async function handleLocomotionUpload(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MESHES) return err(500, 'R2 binding required');
+  if (!req.body) return err(400, 'empty body');
+  const url = new URL(req.url);
+  const taille = Number(req.headers.get('content-length') || 0);
+  const MAX_BYTES = 95 * 1024 * 1024;
+  if (!(taille > 12)) return err(411, 'content-length required');
+  if (taille > MAX_BYTES) return err(413, 'animation too large (95 MB max)');
+  const base = String(url.searchParams.get('base') || 'anim').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'anim';
+  const lot = String(url.searchParams.get('batchId') || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
+  const batchId = lot.length >= 4 ? lot : `l${Date.now().toString(36)}`;
+  const key = `${user.id}/animations/${base}_locomotion_${batchId}_${Date.now()}.glb`;
+  // meme quota journalier que les autres envois de maillages
+  try {
+    const cntKey = `_meta/mesh_uploads_count/${user.id}/${new Date().toISOString().slice(0, 10)}.txt`;
+    const obj = await env.MESHES.get(cntKey);
+    const cur = obj ? parseInt(await obj.text(), 10) || 0 : 0;
+    if (cur >= 500) return err(429, 'daily mesh upload quota reached');
+    await env.MESHES.put(cntKey, String(cur + 1));
+  } catch {}
+  try {
+    const { readable, writable } = new FixedLengthStream(taille);
+    const copie = req.body.pipeTo(writable);
+    await env.MESHES.put(key, readable, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    await copie;
+    const tete = await env.MESHES.get(key, { range: { offset: 0, length: 4 } });
+    const o = tete ? new Uint8Array(await tete.arrayBuffer()) : new Uint8Array(0);
+    if (!(o.length === 4 && o[0] === 0x67 && o[1] === 0x6C && o[2] === 0x54 && o[3] === 0x46)) {
+      await env.MESHES.delete(key).catch(() => {});
+      return err(400, 'not a valid GLB (missing glTF magic)');
+    }
+  } catch (e) {
+    console.error('[upload-locomotion]', e instanceof Error ? e.message : String(e));
+    await env.MESHES.delete(key).catch(() => {});
+    return err(500, 'R2 upload failed');
+  }
+  return json({ success: true, key, url: await signedR2Url(env, key, 'mesh') });
+}
+
 async function handleAnimUpload(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
@@ -20470,6 +20515,7 @@ export default {
         if (pathname === '/api/animate-from-reference-status' && (method === 'GET' || method === 'POST')) return await handleAnimateFromReferenceStatus(req, env);
         if (pathname === '/api/animations/delete'     && method === 'POST') return await handleAnimDelete(req, env);
         if (pathname === '/api/animations/upload'     && method === 'POST') return await handleAnimUpload(req, env);
+        if (pathname === '/api/animations/upload-locomotion' && method === 'POST') return await handleLocomotionUpload(req, env);
         if (pathname === '/api/animations/copy'       && method === 'POST') return await handleAnimCopy(req, env);
         if (pathname === '/api/landmarks'             && method === 'POST') return await handleLandmarks(req, env);
         if (pathname === '/api/modal-status'          && method === 'GET')  return await handleModalStatus(req, env);

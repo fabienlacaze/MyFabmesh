@@ -10800,7 +10800,16 @@ ipcMain.handle('list-animations', async () => {
     const KNOWN = ['locomotion', 'idle', 'walk', 'run', 'attack', 'death', 'fly',
                    'jump', 'dance', 'bite', 'hit', 'sit', 'crawl'];
     const type = KNOWN.find(t => lc.includes(t)) || 'clip';
+    // Lot : les clips generes ENSEMBLE forment une version (parite web). Fichier du moteur
+    // procedural : « locomotion_<lot>_<ts> » ; clip IA : params.batchId de son .meta.json.
+    let batchId = null;
+    const mLoco = motionStem.match(/^locomotion_([A-Za-z0-9-]{4,32})_\d{10,}$/);
+    if (mLoco) batchId = mLoco[1];
+    else {
+      try { batchId = JSON.parse(await fsp.readFile(fullPath + '.meta.json', 'utf-8'))?.params?.batchId || null; } catch (_) {}
+    }
     return {
+      batchId,
       filename: f,
       path: fullPath,
       size: stats.size,

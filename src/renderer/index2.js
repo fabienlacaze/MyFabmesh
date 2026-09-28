@@ -900,7 +900,7 @@ async function refreshProjectsPage() {
       if (rig) {
         p.animations.push({
           id: a.filename,
-          batchId: a.filename,  // each on-disk file is its own batch
+          batchId: a.batchId || a.filename,  // clips generes ensemble = une version
           type: a.type,
           filename: a.filename,
           path: a.path,
@@ -16856,15 +16856,29 @@ let _selectedAnim = null;
 let _animPlaying = true;
 let _animLoop = true;
 
+// Versions d'animation (parite web, 2026-09-28) : UNE version = les clips generes ENSEMBLE
+// (meme lot). La bande de droite liste les versions ; sous le lecteur, un bouton par clip.
+// Un fichier « locomotion » (moteur procedural) contient plusieurs allures : il donne un
+// bouton par allure (Idle, Walk…), qui change de clip sans recharger le fichier.
+let _selectedBatch = null;
+let _selectedGait = null;                 // allure choisie dans un fichier « locomotion »
+let _clipsDuLot = [];                     // clips (fichiers) de la version affichee
+const _alluresParFichier = new Map();     // url d'un fichier locomotion -> noms de ses allures
+const _ICONES_ANIM = { idle: '😴', walk: '🚶', run: '🏃', attack: '⚔️', death: '💀', fly: '✈️', locomotion: '🐾', turn_left: '↰', turn_right: '↱' };
+const _iconeAnim = (t) => _ICONES_ANIM[t] || '🎬';
+
 function renderAnimVersions(p) {
   const strip = document.getElementById('ws-anim-versions');
+  const typeBtns = document.getElementById('ws-anim-type-buttons');
   if (!strip) return;
-  // Defensive newest-first sort by real timestamp (same as the other strips).
   const _ts = (m) => { if (!m) return 0; const t = new Date(m.created || m.mtime || 0).getTime(); return Number.isFinite(t) ? t : 0; };
-  const anims = (p?.animations || []).slice().sort((a, b) => _ts(b) - _ts(a));
+  const anims = (p?.animations || []).slice();
   if (!anims.length) {
     strip.innerHTML = '<div style="color:var(--text-2); font-size:12px; padding:4px;">' + _escapeHtml(_i18nT('No animations yet. Check the clips and click Generate Animation.')) + '</div>';
+    if (typeBtns) typeBtns.innerHTML = '';
     _selectedAnim = null;  // sinon la sélection pointe sur un clip supprimé
+    _selectedBatch = null;
+    _clipsDuLot = [];
     // Vide aussi l'aperçu ÉDITER LA SÉLECTION : sans ça le viewer garde le
     // dernier clip (canvas + nom de fichier) après suppression du dernier.
     if (_animViewer) {
@@ -16886,25 +16900,39 @@ function renderAnimVersions(p) {
     if (document.fullscreenElement?.id === 'ws-anim-preview') { document.exitFullscreen().catch(() => {}); }
     return;
   }
-  const iconFor = (t) => t === 'idle' ? '😴' : t === 'walk' ? '🚶'
-    : t === 'run' ? '🏃' : t === 'attack' ? '⚔️'
-    : t === 'death' ? '💀' : t === 'fly' ? '✈️'
-    : t === 'locomotion' ? '🐾' : '🎬';
-  const selectedIdx = anims.findIndex(a => _selectedAnim && a.id === _selectedAnim.id);
-  const activeIdx = selectedIdx >= 0 ? selectedIdx : 0;
-  strip.innerHTML = anims.map((a, i) => {
+  // Regroupement par lot (les anciens fichiers sans lot restent seuls)
+  const parLot = new Map();
+  for (const a of anims) {
+    const cle = a.batchId || a.filename || a.path;
+    if (!parLot.has(cle)) parLot.set(cle, []);
+    parLot.get(cle).push(a);
+  }
+  const lots = [...parLot.entries()].map(([id, clips]) => ({
+    id, clips: clips.sort((x, y) => _ts(x) - _ts(y)), recent: Math.max(...clips.map(_ts)),
+  })).sort((a, b) => b.recent - a.recent);
+  if (_selectedAnim && !anims.includes(_selectedAnim)) _selectedAnim = anims.find(a => a.id === _selectedAnim.id) || null;
+  if (_selectedAnim) _selectedBatch = _selectedAnim.batchId || _selectedAnim.filename || _selectedAnim.path;
+  if (!_selectedBatch || !parLot.has(_selectedBatch)) { _selectedBatch = lots[0].id; _selectedAnim = null; }
+  const lot = lots.find(b => b.id === _selectedBatch);
+  _clipsDuLot = lot ? lot.clips : [];
+  if (!_selectedAnim || !_clipsDuLot.includes(_selectedAnim)) { _selectedAnim = null; _selectedGait = null; }
+
+  strip.innerHTML = lots.map((b, i) => {
+    const a = b.clips[0];
     // Lineage jump buttons (hover-only): image / mesh / rig the clip came from.
     const rig = (p.rigs || []).find(r => r.path === a.rigPath);
     const animMeshPath = rig ? _resolveParentMeshPath(rig, p) : null;
     const imgBtn = a.sourceImage ? '<button class="version-source-btn anim-jump" data-jump="img" title="View source image">&#128247;</button>' : '';
     const meshBtn = animMeshPath ? '<button class="version-mesh-btn anim-jump" data-jump="mesh" title="View source mesh">&#129482;</button>' : '';
     const rigBtn = a.rigPath ? '<button class="version-rig-btn anim-jump" data-jump="rig" title="View source rig">&#129460;</button>' : '';
+    const types = [...new Set(b.clips.map(c => c.type || 'clip'))];
+    const actif = b.id === _selectedBatch;
     return `
-    <div class="version-thumb${i === activeIdx ? ' selected' : ''}" data-anim-idx="${i}" style="position:relative; width:80px; height:80px; background:#1a1a24; border-radius:6px; padding:6px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:2px solid ${i === activeIdx ? 'var(--accent)' : 'transparent'};" title="${_maskAiNames(a.motionLabel || a.filename || '').replace(/"/g, '&quot;')}">
-      <span style="font-size:18px;">${iconFor(a.type)}</span>
-      <span style="font-size:11px; font-weight:600;">${a.type || 'clip'}</span>
-      <span style="font-size:9px; color:var(--text-2);">v${anims.length - 1 - i}</span>
-      <button class="version-delete-btn" title="Delete this animation">&#10005;</button>
+    <div class="version-thumb${actif ? ' selected' : ''}" data-lot-idx="${i}" style="position:relative; width:80px; height:80px; background:#1a1a24; border-radius:6px; padding:6px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:2px solid ${actif ? 'var(--accent)' : 'transparent'};" title="${_maskAiNames(types.join(' + ')).replace(/"/g, '&quot;')}">
+      <span style="font-size:16px; letter-spacing:1px;">${types.map(_iconeAnim).join('')}</span>
+      <span style="font-size:11px; font-weight:600;">v${lots.length - 1 - i}</span>
+      <span style="font-size:9px; color:var(--text-2);">${b.clips.length > 1 ? b.clips.length + ' clips' : _escapeHtml(types[0])}</span>
+      <button class="version-delete-btn" title="Delete this version">&#10005;</button>
       <div class="v-rail-mid">${imgBtn}${meshBtn}${rigBtn}</div>
       <div class="v-rail-bot">
         <button class="version-history-btn" title="${_escapeHtml(_i18nT('View generation history'))}">&#9201;</button>
@@ -16912,34 +16940,27 @@ function renderAnimVersions(p) {
     </div>
   `;
   }).join('');
-  // Wire clicks: select on thumb + lineage jump buttons (image / mesh / rig).
   strip.querySelectorAll('.version-thumb').forEach((el) => {
+    const b = lots[parseInt(el.dataset.lotIdx, 10)];
+    if (!b) return;
     el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.animIdx, 10);
-      if (Number.isFinite(idx) && anims[idx]) _selectAnim(anims[idx]);
-      // Le surlignage suit la selection : il restait sur la vignette choisie
-      // au rendu (la plus recente) quel que soit le clip affiche.
-      strip.querySelectorAll('.version-thumb').forEach((t) => {
-        const actif = t === el;
-        t.classList.toggle('selected', actif);
-        t.style.borderColor = actif ? 'var(--accent)' : 'transparent';
-      });
+      _selectedBatch = b.id;
+      _selectedAnim = null;
+      _selectedGait = null;
+      renderAnimVersions(p);
     });
     el.querySelector('.version-delete-btn')?.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const idx = parseInt(el.dataset.animIdx, 10);
-      const a = anims[idx];
-      if (!a) return;
-      if (!await customConfirm(`Delete animation "${a.motionLabel || a.filename || ''}"? This cannot be undone.`, 'Delete animation')) return;
-      try { await API.deleteFile(a.path); } catch (_) {}
+      const n = b.clips.length;
+      if (!await customConfirm(`Delete this version (${n} clip${n > 1 ? 's' : ''})? This cannot be undone.`, 'Delete animation')) return;
+      for (const c of b.clips) { try { await API.deleteFile(c.path); } catch (_) {} }
+      if (_selectedBatch === b.id) { _selectedBatch = null; _selectedAnim = null; }
       await reloadCurrentProject();
     });
     el.querySelectorAll('.anim-jump').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const idx = parseInt(el.dataset.animIdx, 10);
-        const a = anims[idx];
-        if (!a) return;
+        const a = b.clips[0];
         const kind = btn.dataset.jump;
         if (kind === 'img' && a.sourceImage) jumpToSourceImage(a.sourceImage);
         else if (kind === 'rig' && a.rigPath) jumpToRig(a.rigPath);
@@ -16952,13 +16973,46 @@ function renderAnimVersions(p) {
     });
     el.querySelector('.version-history-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      const idx = parseInt(el.dataset.animIdx, 10);
-      const a = anims[idx];
+      const a = b.clips[0];
       if (a) showGenerationHistory(a.path);
     });
   });
-  // Auto-select first if nothing selected yet
-  if (!_selectedAnim && anims[0]) _selectAnim(anims[0]);
+  if (!_selectedAnim && _clipsDuLot[0]) _selectAnim(_clipsDuLot[0]);
+  else _rendreBoutonsClips();
+}
+
+// Boutons SOUS le lecteur : un par clip de la version ; un par allure pour un fichier locomotion.
+function _rendreBoutonsClips() {
+  const typeBtns = document.getElementById('ws-anim-type-buttons');
+  if (!typeBtns) return;
+  const boutons = [];
+  for (const c of _clipsDuLot) {
+    const noms = c.type === 'locomotion' ? _alluresParFichier.get(c.url) : null;
+    if (noms && noms.length) noms.forEach((n) => boutons.push({ c, allure: n, type: n }));
+    else boutons.push({ c, allure: null, type: c.type || 'clip' });
+  }
+  typeBtns.innerHTML = boutons.map((b, i) => {
+    const sel = b.c === _selectedAnim && (!b.allure || b.allure === _selectedGait);
+    const nom = b.allure ? _i18nT(NOMS_ALLURES[b.allure] || b.allure) : (b.type || 'clip');
+    return `<button class="anim-type-btn${sel ? ' selected' : ''}" data-i="${i}" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; min-width:64px; background:${sel ? 'var(--bg-2)' : 'transparent'}; border:2px solid ${sel ? 'var(--accent)' : 'var(--border)'}; border-radius:6px; cursor:pointer; color:var(--text-0, var(--text)); font-size:11px;">
+      <span style="font-size:18px;">${_iconeAnim(b.type)}</span>
+      <span style="text-transform:uppercase; font-weight:600;">${_escapeHtml(nom)}</span>
+    </button>`;
+  }).join('');
+  typeBtns.querySelectorAll('.anim-type-btn').forEach((el) => {
+    el.addEventListener('click', () => {
+      const b = boutons[parseInt(el.dataset.i, 10)];
+      if (!b) return;
+      if (b.c === _selectedAnim && b.allure && _animViewer?.choisirAllure) {
+        _selectedGait = b.allure;               // meme fichier : on change de clip sans recharger
+        _animViewer.choisirAllure(b.allure);
+        _rendreBoutonsClips();
+      } else {
+        _selectedGait = b.allure;
+        _selectAnim(b.c);
+      }
+    });
+  });
 }
 
 // Renders the animated GLB in the EDIT SELECTED preview area using
@@ -16968,6 +17022,7 @@ function renderAnimVersions(p) {
 function _selectAnim(anim) {
   if (!anim) return;
   _selectedAnim = anim;
+  try { _rendreBoutonsClips(); } catch (_) {}
   // The HTML now mirrors Step 2: .step-card-preview wraps a <canvas>
   // (full-bleed via CSS) + a placeholder overlay. Hide the placeholder
   // and let Three.js paint on the canvas.
@@ -17045,6 +17100,7 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
     let mixer = null, action = null, raf = 0, disposed = false;
     let clipOriginal = null, racineAnim = null;   // pour basculer « In place »
     let aideSquelette = null;                      // bouton « Bones »
+    let clipsCharges = [];                         // clips du GLB (allures d'un fichier locomotion)
     const url = anim.url || ('file:///' + (anim.path || '').replace(/\\/g, '/'));
     console.log('[anim-result] loading', url);
     new GLTFLoader().load(url, (g) => {
@@ -17061,18 +17117,16 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       const clips = g.animations || [];
       let pickIdx = clips.findIndex(a => /retarget/i.test(a.name || ''));
       if (pickIdx < 0) pickIdx = clips.length - 1;
-      // Fichier du moteur procedural : plusieurs allures dans un GLB -> menu de choix
-      const menuClips = document.getElementById('ws-anim-clip');
+      clipsCharges = clips;
+      // Fichier du moteur procedural : plusieurs allures -> un bouton par allure sous le lecteur
       const procedural = clips.length > 1 && clips.every(a => ALLURES_PROCEDURALES.includes(a.name));
-      if (menuClips) {
-        menuClips.classList.toggle('hidden', !procedural);
-        if (procedural) {
-          menuClips.innerHTML = clips.map((a, i) => `<option value="${i}">${_escapeHtml(_i18nT(NOMS_ALLURES[a.name] || a.name))}</option>`).join('');
-          const prefere = clips.findIndex(a => a.name === 'walk');
-          pickIdx = prefere >= 0 ? prefere : 0;
-          menuClips.value = String(pickIdx);
-          menuClips.onchange = () => _animViewer?.choisirClip?.(clips[parseInt(menuClips.value, 10)]);
-        }
+      if (procedural) {
+        _alluresParFichier.set(anim.url, clips.map(a => a.name));
+        let k = clips.findIndex(a => a.name === _selectedGait);
+        if (k < 0) k = clips.findIndex(a => a.name === 'walk');
+        pickIdx = k >= 0 ? k : 0;
+        _selectedGait = clips[pickIdx].name;
+        try { _rendreBoutonsClips(); } catch (_) {}
       }
       console.log('[anim-result] mesh+skin loaded, clips=' + clips.length + ' pick=' + pickIdx);
       if (clips[pickIdx]) {
@@ -17166,6 +17220,10 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       _animPlaying = true;
       _animFrisePreparer(clip);
       _animMajBoutonsLecture();
+    },
+    choisirAllure(nom) {
+      const c = clipsCharges.find((x) => x.name === nom);
+      if (c) this.choisirClip(c);
     },
     // Rejoue le clip (fige ou non) au MEME instant.
     enPlace(actif) {
@@ -17399,6 +17457,8 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   // fraction de seconde, gratuitement, dans UN fichier « locomotion » (menu de choix au
   // lecteur). Seuls attack / death / fly passent encore par l'IA en ligne.
   const allures = types.filter((t) => ALLURES_PROCEDURALES.includes(t));
+  // Lot commun a TOUT le clic (allures + clips IA) : une seule version, comme sur le web
+  const lot = `d${Date.now().toString(36)}`;
   if (allures.length) {
     btn.disabled = true;
     try {
@@ -17409,20 +17469,22 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       const { glb, infos } = animerGLB(brut, { allures });
       console.log('[locomotion] ' + allures.join('+') + ' en ' + Math.round(performance.now() - t0) + ' ms', infos);
       const rigStem = rigPath.split(/[\\/]/).pop().replace(/\.glb$/i, '');
-      const filename = `locomotion_${Date.now()}__${rigStem}.glb`;
+      const filename = `locomotion_${lot}_${Date.now()}__${rigStem}.glb`;
       const glbPath = await API.getMeshPath('animated/' + filename);
       const w = await API.saveBuffer({ path: glbPath, buffer: glb });
       if (!w?.success) throw new Error(w?.error || 'write failed');
       const rigL = (proj.rigs || []).find((r) => r.path === rigPath);
       proj.animations = proj.animations || [];
       proj.animations.unshift({
-        id: filename, batchId: filename, type: 'locomotion', filename, path: glbPath,
+        id: filename, batchId: lot, type: 'locomotion', filename, path: glbPath,
         url: 'file:///' + glbPath.replace(/\\/g, '/'),
         motionLabel: 'Locomotion: ' + allures.map((a) => _i18nT(NOMS_ALLURES[a] || a)).join(', '),
         created: new Date().toISOString(), mtime: Date.now(),
         rigPath, rigFilename: rigL?.filename, sourceImage: rigL?.sourceImage,
       });
       _selectedAnim = null;
+      _selectedBatch = lot;
+      _selectedGait = null;
       try { renderAnimVersions(proj); } catch (_) {}
       setStatus(`${_i18nT('Done')} — ${allures.length} ${_i18nT('animations')}`);
       const carte = document.getElementById('step-card-animation');
@@ -17441,7 +17503,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   }
   // Le type d'asset du projet choisit le squelette de reference du modele.
   const assetType = proj.assetType || document.getElementById('ws-asset-type')?.value || '';
-  const batchId = `d${Date.now().toString(36)}`;
+  const batchId = lot;
   const icones = { pending: '◻', running: '⏳', done: '✓', failed: '✗' };
   const etat = types.map(() => 'pending');
   const liste = () => types.map((t, i) => `${icones[etat[i]]} ${t}`).join('\n');
@@ -17487,7 +17549,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       proj.animations = proj.animations || [];
       proj.animations.unshift({
         id: filename,
-        batchId: filename,
+        batchId,
         type,
         filename,
         path: r.glbPath,

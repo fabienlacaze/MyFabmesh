@@ -1050,6 +1050,27 @@
         return { success: false, error: String(e?.message || e) };
       }
     },
+    // Moteur de marche procedural (2026-09-28) : le GLB « locomotion » est calcule DANS le
+    // navigateur puis envoye BRUT, en flux (un rig pese 60-70 Mo, au-dela des 50 Mo de
+    // /api/animations/upload). GRATUIT. Nom <rig>_locomotion_<lot>_<ts>.glb : c'est lui qui
+    // rattache l'animation au projet au rechargement.
+    uploadLocomotion: async ({ bytes, rigUrl, batchId } = {}) => {
+      try {
+        let base = 'anim';
+        try { base = new URL(rigUrl, location.href).pathname.split('/').pop().replace(/\.(glb|gltf)$/i, '') || 'anim'; } catch (_) {}
+        const q = new URLSearchParams({ base, batchId: batchId || ('b' + Date.now().toString(36)) });
+        const resp = await fetch('/api/animations/upload-locomotion?' + q.toString(), {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'model/gltf-binary' },
+          body: bytes,
+        });
+        const r = await resp.json().catch(() => ({}));
+        if (!resp.ok || !r?.success) return { success: false, error: r?.error || `upload failed (HTTP ${resp.status})` };
+        return { success: true, key: r.key, url: r.url };
+      } catch (e) {
+        return { success: false, error: String(e?.message || e) };
+      }
+    },
     // Debit d'un outil manuel qui n'enregistre rien (Color Pick).
     chargeTool: async ({ tool, prix } = {}) => {
       try {

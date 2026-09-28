@@ -15,6 +15,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
+import { animerGLB } from './lib/locomotion-procedurale.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
 // tampon de clonage 3D, qui lance des centaines de raycasts par coup de
@@ -745,7 +746,7 @@ async function refreshProjectsPage() {
       let animType = (m.anim_type || '').toLowerCase();
       let batchId = m.batch_id || '';
       if (!animType) {
-        const m1 = m.filename.match(/_(idle|walk|run|attack|death|fly|jump|custom|clip)_(?:[A-Za-z0-9_-]{4,32}_)?\d{10,}\.glb$/i);
+        const m1 = m.filename.match(/_(locomotion|idle|walk|run|attack|death|fly|jump|custom|clip)_(?:[A-Za-z0-9_-]{4,32}_)?\d{10,}\.glb$/i);
         animType = (m1 ? m1[1] : 'clip').toLowerCase();
       }
       p.animations = p.animations || [];
@@ -2646,7 +2647,7 @@ function _resolveParentRig(clip, p) {
   // Strip the animation tail to recover the rig stem.
   const beforeAnim = String(fn)
     .replace(/\.[^.]+$/, '')
-    .replace(/_(idle|walk|run|attack|death|fly|jump|custom|clip)_(?:[A-Za-z0-9_-]{4,32}_)?\d{6,}$/i, '')
+    .replace(/_(locomotion|idle|walk|run|attack|death|fly|jump|custom|clip)_(?:[A-Za-z0-9_-]{4,32}_)?\d{6,}$/i, '')
     .replace(/_(anim|animation)_.*$/i, '');
   const stem = (s) => String(s || '').replace(/\.[^.]+$/, '');
   const cands = p.rigs.filter((r) => {
@@ -17871,9 +17872,7 @@ function renderAnimVersions(p) {
     try { if (_step4ActiveAnim) showStep4AnimPreview(null); } catch (_) {}
     return;
   }
-  const iconFor = (t) => t === 'idle' ? '😴' : t === 'walk' ? '🚶'
-    : t === 'run' ? '🏃' : t === 'attack' ? '⚔️'
-    : t === 'death' ? '💀' : t === 'fly' ? '✈️' : '🎬';
+  const iconFor = _iconeAnim;
   // Group by batchId. Animations without one (legacy keys) each
   // become their own batch — keyed by filename so they stay distinct.
   const byBatch = new Map();
@@ -18025,25 +18024,11 @@ function renderAnimVersions(p) {
   });
 
   // BOTTOM = the clips contained in the selected version (1 button
-  // per type — clicking one swaps the viewer to that clip).
-  typeBtns.innerHTML = clipsInBatch.map(c => {
-    const isSel = c === _step4SelectedClipInBatch;
-    return `
-      <button class="anim-type-btn${isSel ? ' selected' : ''}" data-clip-id="${c.id}"
-              style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; min-width:64px;
-                     background:${isSel ? 'var(--bg-2)' : 'transparent'};
-                     border:2px solid ${isSel ? 'var(--accent)' : 'var(--border)'};
-                     border-radius:6px; cursor:pointer; color:var(--text-0); font-size:11px;">
-        <span style="font-size:18px;">${iconFor(c.type)}</span>
-        <span style="text-transform:uppercase; font-weight:600;">${c.type || 'clip'}</span>
-      </button>`;
-  }).join('');
-  typeBtns.querySelectorAll('.anim-type-btn').forEach(b => {
-    b.addEventListener('click', () => {
-      _step4SelectedClipInBatch = clipsInBatch.find(c => c.id === b.dataset.clipId) || clipsInBatch[0];
-      renderAnimVersions(p);
-    });
-  });
+  // per type — clicking one swaps the viewer to that clip). Un fichier
+  // « locomotion » (moteur procedural) donne un bouton par allure.
+  _step4ClipsDuLot = clipsInBatch;
+  _step4ProjetBoutons = p;
+  _rendreBoutonsClipsWeb();
 
   if (_step4SelectedClipInBatch) showStep4AnimPreview(_step4SelectedClipInBatch);
 }
@@ -18169,6 +18154,71 @@ function _disposeAnimModel() {
   }
 }
 
+// Allures du moteur procedural (lib/locomotion-procedurale.js) : gratuites, calculees ICI.
+// `var` : renderAnimVersions (plus haut) peut tourner pendant l'evaluation du module (zone morte d'un let/const)
+var ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right'];
+var NOMS_ALLURES = { idle: 'Idle', walk: 'Walk', run: 'Run', turn_left: 'Turn left', turn_right: 'Turn right' };
+var _ICONES_ANIM = { idle: '😴', walk: '🚶', run: '🏃', attack: '⚔️', death: '💀', fly: '✈️', locomotion: '🐾', turn_left: '↰', turn_right: '↱' };
+function _iconeAnim(t) { return (_ICONES_ANIM || {})[t] || '🎬'; }
+var _step4SelectedGait = null;              // allure choisie dans un fichier « locomotion »
+var _step4ClipsDuLot = [];                  // clips (fichiers) de la version affichee
+var _step4ProjetBoutons = null;
+var _animClipsCharges = [];                 // clips du GLB affiche
+var _alluresParFichierWeb = new Map();    // url d'un fichier locomotion -> noms de ses allures
+// Change de clip (bouton d'allure), depuis le debut, sans recharger le fichier.
+function _choisirClipAnim(clip) {
+  if (!_animMixer || !clip) return;
+  if (_animAction) { _animAction.stop(); _animMixer.uncacheClip(_animAction.getClip()); }
+  _animClipOriginal = clip;
+  _animAction = _animMixer.clipAction(_animEnPlace ? _clipEnPlace(clip, _animModel) : clip);
+  _animAction.setLoop(_animLooping ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+  _animAction.clampWhenFinished = !_animLooping;
+  _animAction.enabled = true;
+  _animAction.reset();
+  _animAction.play();
+  _animLastTime = 0;
+  _animApresChargement(clip);
+}
+// Boutons SOUS le lecteur : un par clip de la version ; un par allure pour un fichier locomotion.
+function _rendreBoutonsClipsWeb() {
+  const typeBtns = document.getElementById('ws-anim-type-buttons');
+  if (!typeBtns) return;
+  const boutons = [];
+  for (const c of (_step4ClipsDuLot || [])) {
+    const noms = c.type === 'locomotion' && _alluresParFichierWeb ? _alluresParFichierWeb.get(c.url || c.path) : null;
+    if (noms && noms.length) noms.forEach(n => boutons.push({ c, allure: n, type: n }));
+    else boutons.push({ c, allure: null, type: c.type || 'clip' });
+  }
+  typeBtns.innerHTML = boutons.map((b, i) => {
+    const isSel = b.c === _step4SelectedClipInBatch && (!b.allure || b.allure === _step4SelectedGait);
+    const nom = b.allure ? _i18nT(NOMS_ALLURES[b.allure] || b.allure) : (b.type || 'clip');
+    return `
+      <button class="anim-type-btn${isSel ? ' selected' : ''}" data-i="${i}"
+              style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; min-width:64px;
+                     background:${isSel ? 'var(--bg-2)' : 'transparent'};
+                     border:2px solid ${isSel ? 'var(--accent)' : 'var(--border)'};
+                     border-radius:6px; cursor:pointer; color:var(--text-0); font-size:11px;">
+        <span style="font-size:18px;">${_iconeAnim(b.type)}</span>
+        <span style="text-transform:uppercase; font-weight:600;">${escapeHtml(nom)}</span>
+      </button>`;
+  }).join('');
+  typeBtns.querySelectorAll('.anim-type-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      const b = boutons[parseInt(el.dataset.i, 10)];
+      if (!b) return;
+      if (b.c === _step4SelectedClipInBatch && b.allure && _step4ActiveAnim === b.c) {
+        _step4SelectedGait = b.allure;            // meme fichier : on change de clip sans recharger
+        _choisirClipAnim(_animClipsCharges.find(x => x.name === b.allure));
+        _rendreBoutonsClipsWeb();
+      } else {
+        _step4SelectedClipInBatch = b.c;
+        _step4SelectedGait = b.allure;
+        if (_step4ProjetBoutons) renderAnimVersions(_step4ProjetBoutons);
+      }
+    });
+  });
+}
+
 function showStep4AnimPreview(anim) {
   _step4ActiveAnim = anim || null;
   const card = document.getElementById('step4-preview');
@@ -18287,6 +18337,16 @@ function showStep4AnimPreview(anim) {
       let pickIdx = gltf.animations.length - 1;
       for (let i = gltf.animations.length - 1; i >= 0; i--) {
         if (!PROC_NAMES.has(gltf.animations[i].name || '')) { pickIdx = i; break; }
+      }
+      // Fichier du moteur procedural : plusieurs allures -> un bouton par allure sous le lecteur
+      _animClipsCharges = gltf.animations;
+      if (gltf.animations.length > 1 && gltf.animations.every(a => ALLURES_PROCEDURALES.includes(a.name))) {
+        _alluresParFichierWeb.set(anim.url || anim.path, gltf.animations.map(a => a.name));
+        let k = gltf.animations.findIndex(a => a.name === _step4SelectedGait);
+        if (k < 0) k = gltf.animations.findIndex(a => a.name === 'walk');
+        pickIdx = k >= 0 ? k : 0;
+        _step4SelectedGait = gltf.animations[pickIdx].name;
+        try { _rendreBoutonsClipsWeb(); } catch (_) {}
       }
       const clip = gltf.animations[pickIdx];
       console.log('[anim-vw] picked clip', pickIdx, 'of', gltf.animations.length,
@@ -19009,11 +19069,47 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
     showToast('Check at least one type to generate.', 'info', 4000);
     return;
   }
+  // batchId shared across all freshly-generated clips so the server
+  // groups them into ONE new version (v(N+1)) — allures procedurales comprises.
+  const batchId = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  // Moteur procedural (2026-09-28) : idle / walk / run / virages calcules DANS le navigateur
+  // en une fraction de seconde, GRATUITEMENT, dans UN fichier « locomotion » (un bouton par
+  // allure sous le lecteur), envoye tel quel vers R2. Seuls attack / death / fly passent par l'IA.
+  const allures = animTypes.filter(t => ALLURES_PROCEDURALES.includes(t));
+  if (allures.length) {
+    const btnG = document.getElementById('ws-generate-anim');
+    if (btnG) btnG.disabled = true;
+    try {
+      showToast(_i18nT('Generating…'), 'info', 3000);
+      const brut = await API.readMeshFile(rig.url);
+      if (!brut) throw new Error(_i18nT('Rig file not found.'));
+      const t0 = performance.now();
+      const { glb, infos } = animerGLB(brut, { allures });
+      console.log('[locomotion] ' + allures.join('+') + ' en ' + Math.round(performance.now() - t0) + ' ms', infos);
+      const r = await API.uploadLocomotion({ bytes: glb, rigUrl: rig.url, batchId });
+      if (!r?.success) throw new Error(r?.error || 'upload failed');
+      _step4SelectedBatch = batchId;
+      _step4SelectedClipInBatch = null;
+      _step4SelectedGait = null;
+      await reloadCurrentProject();
+      const animCard = document.getElementById('step-card-animation');
+      if (animCard) {
+        animCard.classList.remove('collapsed', 'disabled');
+        const editStage = animCard.querySelector('.stage-edit');
+        if (editStage) editStage.open = true;
+      }
+      showToast(`${_i18nT('Done')} — ${allures.length} ${_i18nT('animations')}`, 'success', 4000);
+    } catch (e) {
+      customError(String(e?.message || e), _i18nT('Animation failed'));
+      return;
+    } finally {
+      if (btnG) btnG.disabled = false;
+    }
+    animTypes.splice(0, animTypes.length, ...animTypes.filter(t => !ALLURES_PROCEDURALES.includes(t)));
+    if (!animTypes.length) return;
+  }
   const toCopy = [];          // intentionally empty — no copy path anymore
   const toRun = animTypes.slice();
-  // batchId shared across all freshly-generated clips so the server
-  // groups them into ONE new version (v(N+1)).
-  const batchId = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   // STEP B — generate every checked type via Modal. ONE master batch
   // job (instead of per-type popups) — the user sees a single Running
   // task that walks through 1/N → N/N. No copy path: every checked
