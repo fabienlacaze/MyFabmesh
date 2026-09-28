@@ -386,8 +386,11 @@ function detecterPattes(par, P0, racinePrincipale = null) {
   const grappes = [];
   for (const j of [...bas].sort((a, b) => P0[a][1] - P0[b][1])) {
     // + PROCHES dans l'espace : 4 pieds courts d'une table (ancetre commun a 2 os) formaient un seul pied
+    // + ORTEILS LONGS (poule du user, 28/09 : 7 a 9 os par orteil, poses a plat) : un ancetre commun
+    // lui-meme AU SOL est une cheville — deux pattes differentes ne se rejoignent jamais au ras du sol
     const g = grappes.find((g_) => {
       const a = ancetre(j, g_[0]);
+      if (P0[a][1] - sol < 0.2 * H && norm(sub(P0[j], P0[g_[0]])) < 0.4 * ext) return true;   // meme seuil que « au sol »
       return prof[j] - prof[a] <= 2 && prof[g_[0]] - prof[a] <= 2 && norm(sub(P0[j], P0[g_[0]])) < 0.12 * ext;
     });
     if (g) g.push(j); else grappes.push([j]);
@@ -425,6 +428,11 @@ function detecterPattes(par, P0, racinePrincipale = null) {
   const longueur = (q) => longueurChaine(q.chaine.map((k) => P0[k]));
   const ref = pattes.filter((q) => !q.levee).map(longueur);
   if (ref.length) { const m = median(ref); pattes = pattes.filter((q) => !q.levee || longueur(q) >= 0.6 * m); }
+  // une patte LEVEE sans jumelle de l'autre cote n'en est pas une (aile pendante de la poule, 28/09) :
+  // les pattes levees d'une araignee vont par paires symetriques
+  const leveesP = pattes.filter((q) => q.levee);
+  pattes = pattes.filter((q) => !q.levee || leveesP.some((r) => r !== q && Math.sign(r.dx) !== Math.sign(q.dx)
+    && Math.abs(Math.abs(r.dx) - Math.abs(q.dx)) < 0.15 * ext));
   // côté (+X = gauche) ; patte presque centrale (lion étroit) : l'opposé de sa voisine en Z
   for (const p of pattes) p.cote = Math.abs(p.dx) > 0.01 * ext ? Math.sign(p.dx) : 0;
   for (const p of pattes) {
