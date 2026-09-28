@@ -30,11 +30,11 @@ import _unimate_moteur as M  # noqa: E402  (lecture GLB, matrices monde)
 ALLURES = {
     # appui : part du cycle au sol ; T : periode (<= 4 pattes, 6 et plus) ; h : hauteur de pas ;
     # bob : balancement vertical ; foulee : longueur relative ; lacet : rad/s (+ = vers la gauche)
-    'walk': dict(beta=0.65, T=(1.1, 0.7), h=0.22, bob=0.025, foulee=1.0, lacet=0.0, pas=True),
-    'run': dict(beta=0.38, T=(0.62, 0.42), h=0.32, bob=0.06, foulee=1.8, lacet=0.0, pas=True),
-    'turn_left': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=0.55, pas=True),
-    'turn_right': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=-0.55, pas=True),
-    'idle': dict(beta=1.0, T=(4.0, 4.0), h=0.0, bob=0.008, foulee=0.0, lacet=0.0, pas=False),
+    'walk': dict(beta=0.65, T=(1.1, 0.7), h=0.22, bob=0.025, foulee=1.0, lacet=0.0, tendu=0.92, pas=True),
+    'run': dict(beta=0.38, T=(0.62, 0.42), h=0.22, bob=0.035, foulee=1.8, lacet=0.0, tendu=0.87, pas=True),
+    'turn_left': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=0.55, tendu=0.92, pas=True),
+    'turn_right': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=-0.55, tendu=0.92, pas=True),
+    'idle': dict(beta=1.0, T=(4.0, 4.0), h=0.0, bob=0.008, foulee=0.0, lacet=0.0, tendu=0.95, pas=False),
 }
 
 
@@ -101,6 +101,10 @@ def detecter_pattes(par, P0):
         return ca[k - 1]
 
     bas = [j for j in feuilles if P0[j, 1] - sol < 0.2 * H]
+    # patte LEVEE au repos (pattes arriere de l'araignee a 26-28 % de la hauteur) : bout
+    # lateral dans le bas du corps ; validee plus loin si sa chaine redescend au bout
+    levees = {j for j in feuilles if 0.2 * H <= P0[j, 1] - sol < 0.45 * H and abs(P0[j, 0] - x0) > 0.1 * ext}
+    bas += sorted(levees)
     # une queue posee au sol : bout central ET derriere la hanche -> pas une patte
     bas = [j for j in bas if not (abs(P0[j, 0] - x0) < 0.01 * ext and P0[j, 2] < P0[racine, 2] - 0.1 * ext)]
     # pieds : feuilles au sol dont l'ancetre commun est a 2 os au plus (orteils d'un meme pied)
@@ -135,7 +139,14 @@ def detecter_pattes(par, P0):
         chaine = chaine[::-1]
         if len(chaine) < 2:
             continue
-        pattes.append(dict(chaine=chaine, bout=bout, dx=float(P0[bout, 0] + P0[chaine[0], 0]) / 2 - x0))
+        if all(f in levees for f in g) and (len(chaine) < 3 or P0[bout, 1] >= P0[chaine[1], 1]):
+            continue
+        p_levee = all(f in levees for f in g)
+        pattes.append(dict(chaine=chaine, bout=bout, levee=p_levee, dx=float(P0[bout, 0] + P0[chaine[0], 0]) / 2 - x0))
+    longueur = lambda q: float(np.linalg.norm(np.diff(P0[q['chaine']], axis=0), axis=1).sum())
+    ref = [longueur(q) for q in pattes if not q['levee']]
+    if ref:
+        pattes = [q for q in pattes if not q['levee'] or longueur(q) >= 0.6 * float(np.median(ref))]
     # cote (+X = gauche) : moyenne pied/attache par rapport a l'axe ; pour une patte
     # presque centrale (lion etroit), l'oppose de sa voisine la plus proche en Z
     for p in pattes:
@@ -239,10 +250,58 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
     bipede = len(pattes) <= 2
     T = A['T'][1 if nombreux else 0]
     beta = 0.55 if (nombreux and allure != 'run' and A['pas']) else A['beta']
-    portee = np.mean([np.linalg.norm(P0[p['bout']] - P0[p['chaine'][0]]) for p in pattes])
+    H = float(np.ptp(P0[:, 1]))
+    # --- geometrie de chaque patte : chaine de cinematique inverse, pied rigide, point neutre
+    for p in pattes:
+        ch = p['chaine']
+        # Patte de 3 os ou plus : son dernier os (la patte proprement dite, court) reste RIGIDE,
+        # oriente comme au repos, et la cinematique inverse s'arrete a la cheville. Sinon FABRIK
+        # retourne ce petit os en plein vol (a-coups de 90 a 150 deg sur les pattes avant du lion).
+        seg = np.linalg.norm(np.diff(P0[ch], axis=0), axis=1)
+        p['ik'] = ch[:-1] if len(ch) >= 4 and seg[-1] < 0.5 * seg[:-1].mean() else ch
+        p['pied_off'] = P0[p['bout']] - P0[p['ik'][-1]]
+        haut = P0[ch[0]]
+        N = P0[p['bout']].copy()
+        d = N - haut
+        # Patte « debout » (plus haute que large) : cheville a l'aplomb de la hanche. Au repos, les
+        # pattes arriere du lion sont en pleine foulee (pied 9 cm devant, l'autre 10 cm derriere).
+        # Patte etalee (araignee) : direction de repos gardee.
+        if abs(d[1]) > 1.5 * np.hypot(d[0], d[2]):
+            N[2] = haut[2] + p['pied_off'][2]
+        # pied pose au sol, y compris une patte levee au repos (pattes arriere de l'araignee)
+        N[1] = min(N[1], sol + 0.02 * H)
+        p['neutre'] = N
+    portee = np.mean([np.linalg.norm(p['neutre'] - P0[p['chaine'][0]]) for p in pattes])
     hanche = np.mean([P0[p['chaine'][0], 1] - sol for p in pattes])
     S = A['foulee'] * (0.6 * portee + 0.8 * hanche)         # foulee par cycle
     h = A['h'] * (0.5 * portee + 0.5 * hanche)               # hauteur du pas
+    # Patte trop tendue en fin de poussee = pied hors de portee : la patte se bloque droite
+    # puis « claque » (a-coups vus sur le lion et l'humain le 28/09 ; jambes de l'humain a 99 %
+    # de leur longueur au repos, pied demande a 110 % en fin d'appui).
+    # (a) bassin abaisse : chaque patte, pied au neutre, a <= A['tendu'] de sa longueur ;
+    # (b) demi-pas en appui limite pour rester a <= 98 % de la longueur aux extremites.
+    TENDU_MAX = 0.98
+    geo = []
+    for p in pattes:
+        ik = p['ik']
+        Lc = float(np.linalg.norm(np.diff(P0[ik], axis=0), axis=1).sum())
+        d = (p['neutre'] - p['pied_off']) - P0[ik[0]]
+        geo.append((Lc, abs(d[0]), -d[1], abs(d[2])))
+    abaisse = 0.0
+    for Lc, dx, dy, dz in geo:
+        r2 = (A['tendu'] * Lc) ** 2 - dx ** 2 - dz ** 2
+        if r2 > 0:
+            abaisse = max(abaisse, dy - np.sqrt(r2))
+    marge_bob = A['bob'] * hanche * (2 if allure == 'run' else 0)
+    if A['pas']:
+        demis = [max(np.sqrt(max((TENDU_MAX * Lc) ** 2 - dx ** 2 - (dy - abaisse + marge_bob) ** 2, 0)) - dz, 0.03 * portee)
+                 for Lc, dx, dy, dz in geo]
+        S = min(S, float(np.median([2 * d_ / beta for d_ in demis])))
+        for p, d_ in zip(pattes, demis):
+            p['beta'] = float(np.clip(2 * d_ / S, 0.25, beta))
+    else:
+        for p in pattes:
+            p['beta'] = beta
     v, w = S / T, A['lacet']
     nT = int(round(cycles * T * fps))
     t = np.arange(nT) / fps
@@ -276,16 +335,16 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         lateral = (0.04 * hanche if bipede else 0.0) * np.sin(2 * np.pi * (t / T + p0 - beta / 2))
     Rb = np.einsum('tab,tbc,tcd->tad', Rcap, Rotation.from_euler('x', tangage[:, None]).as_matrix(),
                    Rotation.from_euler('z', roulis[:, None]).as_matrix())
-    decal = c + np.stack([0 * t, bob, 0 * t], -1) + np.einsum('tab,tb->ta', Rcap, np.stack([lateral, 0 * t, 0 * t], -1))
+    decal = c + np.stack([0 * t, bob - abaisse, 0 * t], -1) + np.einsum('tab,tb->ta', Rcap, np.stack([lateral, 0 * t, 0 * t], -1))
 
     def monde(i, p):                                         # point de repos -> monde a l'image i
         return pivot + decal[i] + Rb[i] @ (p - pivot)
 
     def appui(p_, k):
         """Point d'appui du cycle k : pied neutre sous le corps au MILIEU de l'appui."""
-        tm = (k - p_['phase']) * T + beta * T / 2
+        tm = (k - p_['phase']) * T + p_['beta'] * T / 2
         cm, capm = chemin_corps(tm)
-        N = P0[p_['bout']]
+        N = p_['neutre']
         X = pivot + cm[0] + Ry(capm)[0] @ (N - pivot)
         X[1] = N[1]
         return X
@@ -293,28 +352,41 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
     D = np.tile(np.eye(3), (nT, J, 1, 1))                    # rotation monde (delta sur le repos)
     fixes = {}
     for p in pattes:
-        ch = p['chaine']
+        ch = p['ik']
+        Qprec = None
         for i in range(nT):
             if not A['pas']:
-                cible = P0[p['bout']].copy()
+                cible = p['neutre'].copy()
             else:
                 x = t[i] / T + p['phase']
                 k, phi = int(np.floor(x)), x % 1.0
-                if phi < beta:
+                b_ = p['beta']
+                if phi < b_:
                     cible = appui(p, k)
                 else:
-                    u = (phi - beta) / (1 - beta)
+                    u = (phi - b_) / (1 - b_)
                     X0, X1 = appui(p, k), appui(p, k + 1)
                     cible = X0 + (X1 - X0) * (1 - np.cos(np.pi * u)) / 2
-                    cible[1] += h * np.sin(np.pi * u)
+                    cible[1] += h * np.sin(np.pi * u) ** 2
             Q = np.array([monde(i, P0[k_]) for k_ in ch])
-            Q = fabrik(Q, cible)
+            if Qprec is not None:                            # continuite : meme sens de pliure
+                Q = Qprec + (Q[0] - Qprec[0])
+            cib = cible - Rcap[i] @ p['pied_off']              # cible de la cheville
+            # portee bornee a 97 % : au-dela, le pied glisse un peu plutot que la patte se bloque
+            # droite et se retourne (pedipalpes de l'araignee a la course : 160 deg d'un coup)
+            Lik = float(np.linalg.norm(np.diff(P0[ch], axis=0), axis=1).sum())
+            dd = cib - Q[0]
+            if np.linalg.norm(dd) > 0.97 * Lik:
+                cib = Q[0] + dd / np.linalg.norm(dd) * 0.97 * Lik
+            Q = fabrik(Q, cib)
+            Qprec = Q
             for a in range(len(ch) - 1):
                 repos = Rb[i] @ (P0[ch[a + 1]] - P0[ch[a]])
                 D[i, ch[a]] = aligner(repos, Q[a + 1] - Q[a]) @ Rb[i]
         for k_ in ch[:-1]:
             fixes[k_] = D[:, k_].copy()
-        fixes[ch[-1]] = Rcap                                 # pied a plat (cap seul), orteils solidaires
+        fixes[ch[-1]] = Rcap                                 # pied rigide (cap seul), orteils solidaires
+        fixes[p['bout']] = Rcap
     # --- queue : ondulation qui se propage vers le bout ; tete : stabilisee, hoche, regarde autour a l'arret
     balance = {}
     amp_q = {'run': 0.16, 'idle': 0.08}.get(allure, 0.10)
@@ -361,11 +433,27 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         if not A['pas']:
             continue
         ph = (t / T + p['phase']) % 1.0
-        au_sol = ph[1:] < beta
+        au_sol = ph[1:] < p['beta']
         au_sol &= ph[:-1] < ph[1:]
         dep = np.linalg.norm(np.diff(Pw[:, p['bout']], axis=0), axis=1)[au_sol]
         gl.append(float(dep.mean()) if len(dep) else 0.0)
-    infos = dict(pattes=len(pattes), queues=len(queues), tetes=len(tetes), periode=T, foulee=round(float(S), 3),
+    ext_max = 0.0
+    acc = []
+    for p in pattes:
+        ch = p['chaine']
+        Lc = float(np.linalg.norm(np.diff(P0[ch], axis=0), axis=1).sum())
+        ext_max = max(ext_max, float((np.linalg.norm(Pw[:, p['bout']] - Pw[:, ch[0]], axis=1) / Lc).max()))
+        for j in ch[:-1]:
+            rel = np.einsum('tba,tbc->tac', D[:-1, j], D[1:, j])
+            om = Rotation.from_matrix(rel).as_rotvec()
+            acc.append(np.linalg.norm(np.diff(om, axis=0), axis=1))
+    global _ACC
+    _ACC = acc
+    acc = np.concatenate(acc) if acc else np.zeros(1)
+    infos = dict(extension_max_pct=round(100 * ext_max, 1), acoups_max_deg=round(float(np.degrees(acc.max())), 2),
+                 acoups_p99_deg=round(float(np.degrees(np.percentile(acc, 99))), 2),
+                 abaisse_pct=round(100 * float(locals().get('abaisse', 0.0)) / H, 1),
+                 pattes=len(pattes), queues=len(queues), tetes=len(tetes), periode=T, foulee=round(float(S), 3),
                  appui=beta, phases=[round(p['phase'], 2) for p in pattes],
                  os_par_patte=[len(p['chaine']) for p in pattes],
                  sous_sol_pct=round(float(100 * (sol - Pw[..., 1].min()) / H), 1), pire_os=int(pire[1]), pire_image=int(pire[0]),
