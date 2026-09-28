@@ -19,8 +19,9 @@ pyrender) est orthographique, camera sur +Z, demi-largeur XMAG = 0,6 : le pixel
 
 Usage :
   python mesh_inpaint.py rendre <maillage.glb> <vue.png> [taille]
+  python mesh_inpaint.py masque-uv <maillage.glb> <masque_uv.png> <masque_face.png> <faces.npy> [taille]
   python mesh_inpaint.py preparer <rendu_repeint.png> <masque.png> <piece.png> <cadre.json>
-  python mesh_inpaint.py assembler <maillage.glb> <masque.png> <cadre.json> <piece.glb> <sortie.glb>
+  python mesh_inpaint.py assembler <maillage.glb> <masque.png> <cadre.json> <piece.glb> <sortie.glb> [faces.npy]
 """
 import json
 import os
@@ -68,6 +69,56 @@ def rendre(maillage, sortie, taille=1024):
         r.delete()
     Image.fromarray(col).save(sortie)
     log(f'vue de face a plat : {sortie}')
+
+
+# -------------------------------------------------------------------- masque-uv
+def masque_uv(maillage, uv_png, sortie_masque, sortie_faces, taille=1024):
+    """Variante MANUELLE (« comme Draw mask », 2026-09-28) : la zone est peinte
+    sur le modele 3D, dans la texture (visionneuse 3D). On en tire :
+      - les faces PEINTES (centre UV dans le blanc) ;
+      - leur extension a TOUTE L'EPAISSEUR de la partie : faces dont la
+        projection de face tombe sous la zone peinte ET reliees a elle (on ne
+        coupe pas un autre membre situe derriere) ;
+      - le masque de face (projection de la selection) pour la retouche IA."""
+    import trimesh
+    from PIL import ImageDraw
+    base = _charger(maillage)
+    uv = base.visual.uv
+    m = np.asarray(Image.open(uv_png).convert('L'))
+    H, W = m.shape
+    cuv = uv[base.faces].mean(axis=1)
+    x = np.clip((cuv[:, 0] % 1.0) * (W - 1), 0, W - 1).astype(int)
+    y = np.clip((1 - (cuv[:, 1] % 1.0)) * (H - 1), 0, H - 1).astype(int)
+    peintes = m[y, x] > 127
+    if not peintes.any():
+        raise SystemExit('rien de peint sur le modele')
+    S = int(taille)
+    tri = base.triangles[:, :, :2]
+    px = (tri[:, :, 0] + XMAG) / (2 * XMAG) * S
+    py = (XMAG - tri[:, :, 1]) / (2 * XMAG) * S
+
+    def raster(sel):
+        img = Image.new('L', (S, S), 0)
+        d = ImageDraw.Draw(img)
+        for i in np.where(sel)[0]:
+            d.polygon([(px[i, k], py[i, k]) for k in range(3)], fill=255)
+        return np.asarray(img) > 127
+
+    zone = raster(peintes)
+    c = base.triangles_center
+    cx = np.clip(((c[:, 0] + XMAG) / (2 * XMAG) * S).astype(int), 0, S - 1)
+    cy = np.clip(((XMAG - c[:, 1]) / (2 * XMAG) * S).astype(int), 0, S - 1)
+    candidates = zone[cy, cx] | peintes
+    # extension par voisinage, limitee aux candidates (pas de saut vers un autre membre)
+    w = _soude(base)
+    adj = w.face_adjacency
+    garde = adj[candidates[adj[:, 0]] & candidates[adj[:, 1]]]
+    lab = trimesh.graph.connected_component_labels(garde, node_count=len(base.faces))
+    retenues = np.isin(lab, np.unique(lab[peintes])) & candidates
+    np.save(sortie_faces, np.where(retenues)[0])
+    masque = Image.fromarray((raster(retenues) * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(9))
+    masque.save(sortie_masque)
+    log(f'zone peinte : {int(peintes.sum())} faces, etendue a {int(retenues.sum())} (toute l epaisseur)')
 
 
 # --------------------------------------------------------------------- preparer
@@ -150,7 +201,7 @@ def _echantillonner(tex, uv):
     return tex[y, x]
 
 
-def assembler(maillage, masque, cadre_json, piece_glb, sortie):
+def assembler(maillage, masque, cadre_json, piece_glb, sortie, faces_npy=None):
     import trimesh
     from scipy.spatial import cKDTree
     t0 = time.time()
@@ -164,6 +215,9 @@ def assembler(maillage, masque, cadre_json, piece_glb, sortie):
     px = np.clip(((c[:, 0] + XMAG) / (2 * XMAG) * S).astype(int), 0, S - 1)
     py = np.clip(((XMAG - c[:, 1]) / (2 * XMAG) * S).astype(int), 0, S - 1)
     dedans = m[py, px]
+    if faces_npy:                           # zone peinte en 3D (variante manuelle)
+        dedans = np.zeros(len(base.faces), bool)
+        dedans[np.load(faces_npy)] = True
     if not dedans.any():
         raise SystemExit('aucune face sous le masque')
     retiree = base.submesh([np.where(dedans)[0]], append=True)
@@ -281,12 +335,14 @@ def assembler(maillage, masque, cadre_json, piece_glb, sortie):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2 or sys.argv[1] not in ('rendre', 'preparer', 'assembler'):
+    if len(sys.argv) < 2 or sys.argv[1] not in ('rendre', 'masque-uv', 'preparer', 'assembler'):
         print(__doc__)
         sys.exit(2)
     if sys.argv[1] == 'rendre':
         rendre(*sys.argv[2:5])
+    elif sys.argv[1] == 'masque-uv':
+        masque_uv(*sys.argv[2:7])
     elif sys.argv[1] == 'preparer':
         preparer(*sys.argv[2:6])
     else:
-        assembler(*sys.argv[2:7])
+        assembler(*sys.argv[2:8])

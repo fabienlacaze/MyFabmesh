@@ -8640,23 +8640,40 @@ function _lancerPy(exe, args, { timeout = 600000, env, etiquette = 'reshape' } =
     proc.stderr?.on('data', (d) => safeSend('ai3d-progress', `[${etiquette}] ${d}`));
   });
 }
-ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskDataUrl, prompt } = {}) => {
+ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt } = {}) => {
   if (isCloudMode()) {
     return { ok: false, error: 'Reshape a region runs on the local AI engine for now. Switch to Local mode (NVIDIA GPU).' };
   }
   if (!meshPath || !fs.existsSync(meshPath) || !isPathAllowed(meshPath)) return { ok: false, error: 'Mesh not found' };
-  if (!frontPath || !fs.existsSync(frontPath)) return { ok: false, error: 'The front view of the mesh is missing — reopen the tool.' };
+  // Deux entrees : masque de la vue de face (fenetre a plat) OU zone peinte
+  // sur le modele 3D (uvMaskDataUrl, variante « comme Draw mask »).
+  if (!uvMaskDataUrl && (!frontPath || !fs.existsSync(frontPath))) {
+    return { ok: false, error: 'The front view of the mesh is missing — reopen the tool.' };
+  }
   if (!String(prompt || '').trim()) return { ok: false, error: 'Describe what should replace the part.' };
   const dir = path.join(os.tmpdir(), `fabmesh_reshape_${Date.now()}`);
   fs.mkdirSync(dir, { recursive: true });
   const script = path.join(SCRIPTS_DIR, 'mesh_inpaint.py');
   const etape = (m) => safeSend('ai3d-progress', `[reshape] ${m}\n`);
   try {
-    // masque a la taille du rendu (la fenetre peint en 512)
-    const taille = nativeImage.createFromPath(frontPath).getSize();
+    const taille = { width: 1024, height: 1024 };
     const masque = path.join(dir, 'masque.png');
-    const brut = nativeImage.createFromBuffer(Buffer.from(String(maskDataUrl || '').replace(/^data:image\/\w+;base64,/, ''), 'base64'));
-    fs.writeFileSync(masque, brut.resize({ width: taille.width, height: taille.height }).toPNG());
+    let facesNpy = null;
+    if (uvMaskDataUrl) {
+      // zone peinte en 3D : faces peintes, etendues a toute l'epaisseur, et
+      // masque de face = leur projection
+      const uvPng = path.join(dir, 'masque_uv.png');
+      fs.writeFileSync(uvPng, Buffer.from(String(uvMaskDataUrl).replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+      facesNpy = path.join(dir, 'faces.npy');
+      const rz = await _lancerPy(_aiPython(), [script, 'masque-uv', meshPath, uvPng, masque, facesNpy, '1024']);
+      if (!rz.ok || !fs.existsSync(masque)) return { ok: false, error: 'Reading the painted area failed: ' + (rz.error || 'unknown') };
+    } else {
+      // masque a la taille du rendu (la fenetre peint en 512)
+      const t = nativeImage.createFromPath(frontPath).getSize();
+      if (t.width) { taille.width = t.width; taille.height = t.height; }
+      const brut = nativeImage.createFromBuffer(Buffer.from(String(maskDataUrl || '').replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+      fs.writeFileSync(masque, brut.resize({ width: taille.width, height: taille.height }).toPNG());
+    }
 
     // vue a plat (vraies couleurs, fond blanc), meme projection que la fenetre
     const vue = path.join(dir, 'vue.png');
@@ -8694,7 +8711,7 @@ ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskData
     etape('4/4 fitting and blending the part…');
     const base = path.basename(meshPath, path.extname(meshPath));
     const sortie = path.join(path.dirname(meshPath), `${base}_edited_${Date.now()}.glb`);
-    const r4 = await _lancerPy(_aiPython(), [script, 'assembler', meshPath, masque, cadre, pieceGlb, sortie]);
+    const r4 = await _lancerPy(_aiPython(), [script, 'assembler', meshPath, masque, cadre, pieceGlb, sortie, ...(facesNpy ? [facesNpy] : [])]);
     if (!r4.ok || !fs.existsSync(sortie)) return { ok: false, error: 'Fitting the part failed: ' + (r4.error || 'unknown') };
     writeMeta(sortie, { kind: 'op', op: 'reshape', parent: meshPath, params: { prompt: String(prompt) } });
     // la source de la version d'origine reste la source de celle-ci

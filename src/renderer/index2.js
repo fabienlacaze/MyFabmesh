@@ -2630,6 +2630,12 @@ bindStepCardCollapse();
     if (!_curMeshPath()) { showToast('Pick a mesh first.', 'error'); return; }
     open('shape');
   });
+  // Variante MANUELLE (« comme Draw mask ») : la zone se peint sur le modele 3D.
+  $('ws-mesh-reshape-draw-btn')?.addEventListener('click', () => {
+    const mp = _curMeshPath();
+    if (!mp) { showToast('Pick a mesh first.', 'error'); return; }
+    if (typeof openPaintEmissive === 'function') openPaintEmissive({ maskMode: true, reshape: true, meshPath: mp });
+  });
   // 3D clone-stamp: clone a texture region onto another, directly on the mesh.
   $('ws-mesh-clone3d-btn')?.addEventListener('click', () => {
     const mp = _curMeshPath();
@@ -13377,6 +13383,21 @@ function _peConfigureModeUI() {
   document.querySelectorAll('#modal-paint-emissive .pe-emissive-only')
     .forEach((el) => { el.style.display = special ? 'none' : ''; });
   const maskPanel = $('pe-mask-panel'); if (maskPanel) maskPanel.style.display = maskMode ? 'flex' : 'none';
+  if (maskPanel) {
+    // textes du panneau : re-texture (d'origine) ou forme (Reshape draw)
+    const titre = maskPanel.children[0], libelle = maskPanel.querySelector('label'), champ = $('pe-mask-prompt');
+    const force = $('pe-mask-strength'), forceLib = force?.previousElementSibling;
+    if (!maskPanel.dataset.origine) {
+      maskPanel.dataset.origine = JSON.stringify([titre?.textContent, libelle?.textContent, champ?.placeholder]);
+    }
+    const [t0, l0, p0] = JSON.parse(maskPanel.dataset.origine);
+    const forme = maskMode && peState.reshape;
+    if (titre) titre.textContent = forme ? _i18nT('Part to rebuild') : t0;
+    if (libelle) libelle.textContent = forme ? _i18nT('What should replace it?') : l0;
+    if (champ) champ.placeholder = forme ? _i18nT('e.g. a crystal skull with two horns') : p0;
+    if (force) force.style.display = forme ? 'none' : '';
+    if (forceLib) forceLib.style.display = forme ? 'none' : '';
+  }
   const clonePanel = $('pe-clone-panel'); if (clonePanel) clonePanel.style.display = cloneMode ? 'flex' : 'none';
   const h2 = document.querySelector('#modal-paint-emissive h2');
   const sub = document.querySelector('#modal-paint-emissive .modal-subtitle');
@@ -13393,6 +13414,11 @@ function _peConfigureModeUI() {
     if (sub) sub.textContent = _i18nT('Clone one area of the texture onto another. Ctrl+click = set the source, then left-click and drag = clone. Orbit (right-click), zoom, magnifier, undo/redo.');
     if (apply) apply.textContent = '💾 ' + _i18nT('Save new version');
     if (status) status.textContent = _i18nT('Ctrl+click = source · left-click + drag = clone · right-click = orbit · wheel = zoom');
+  } else if (maskMode && peState.reshape) {
+    if (h2) h2.textContent = '🖌 ' + _i18nT('Reshape a region (draw)');
+    if (sub) sub.textContent = _i18nT('Paint the part to rebuild straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe what should replace it.');
+    if (apply) apply.textContent = '🧬 ' + _i18nT('Rebuild this part');
+    if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-click = orbit. Wheel = zoom.');
   } else if (maskMode) {
     if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area');
     if (sub) sub.textContent = _i18nT('Paint the area to re-texture straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe the new look and apply.');
@@ -13416,6 +13442,9 @@ function openPaintEmissive(opts = {}) {
   if (!modal) return;
   peState.maskMode = maskMode;
   peState.cloneMode = cloneMode;
+  // Reshape (draw) : meme peinture de zone, mais la zone est RECONSTRUITE en 3D
+  // (auto inpaint 3D) au lieu d'etre re-texturee (2026-09-28).
+  peState.reshape = maskMode && !!opts.reshape;
   peState.retexMeshPath = meshPath;
   peState.cloneSource = null; peState.cloneSource3D = null; peState.cloneSourceScreen = null;
   peState.cloneOffsetScreen = null; peState.cloneSrcSnaps = null;
@@ -13601,9 +13630,11 @@ function openPaintEmissive(opts = {}) {
     const btn = $('pe-apply-device');
     const orig = btn.textContent;
     btn.disabled = true;
-    btn.textContent = peState.maskMode ? 'Re-texture…' : 'Saving…';
+    btn.textContent = peState.maskMode ? (peState.reshape ? 'Rebuilding…' : 'Re-texture…') : 'Saving…';
     try {
-      if (peState.maskMode) {
+      if (peState.maskMode && peState.reshape) {
+        await _peApplyReshape();
+      } else if (peState.maskMode) {
         await _peApplyMaskRetex();
       } else {
         await _peApplyOnDevice();
@@ -13615,6 +13646,54 @@ function openPaintEmissive(opts = {}) {
       btn.disabled = false;
     }
   };
+}
+
+// Reshape (draw) : la zone peinte (masque dans la texture) part vers la meme
+// chaine que « Reshape a region ». Le calcul dure plusieurs minutes : il tourne
+// en tache de fond (panneau des travaux) et la fenetre se ferme tout de suite.
+async function _peApplyReshape() {
+  const meshPath = peState.retexMeshPath;
+  if (!meshPath) throw new Error('no mesh');
+  const rawPrompt = (document.getElementById('pe-mask-prompt')?.value || '').trim();
+  if (!rawPrompt) { showToast(_i18nT('Describe what should replace the part.'), 'error'); throw new Error('no prompt'); }
+  let best = null, bestScore = -1;
+  peState.canvases?.forEach((entry) => {
+    const d = entry.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE).data;
+    let s = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i] > 40 || d[i + 1] > 40 || d[i + 2] > 40) s++; }
+    if (s > bestScore) { bestScore = s; best = entry; }
+  });
+  if (!best || bestScore <= 0) { showToast(_i18nT('Paint the part to rebuild first (in white).'), 'error'); throw new Error('empty mask'); }
+  const mc = document.createElement('canvas'); mc.width = PE_TEX_SIZE; mc.height = PE_TEX_SIZE;
+  const mctx = mc.getContext('2d');
+  mctx.fillStyle = '#000000'; mctx.fillRect(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
+  const src = best.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE).data;
+  const out = mctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
+  for (let i = 0; i < src.length; i += 4) {
+    if (src[i] > 40 || src[i + 1] > 40 || src[i + 2] > 40) { out.data[i] = out.data[i + 1] = out.data[i + 2] = out.data[i + 3] = 255; }
+  }
+  mctx.putImageData(out, 0, 0);
+  const uvMaskDataUrl = mc.toDataURL('image/png');
+  const prompt = await translateUserPrompt(rawPrompt);
+  const p = state.currentProject;
+  const job = (typeof pushJob === 'function')
+    ? pushJob(`Reshape region: ${p?.name || ''}`, null,
+        { 'Source mesh': _nomLisible(meshPath), Prompt: rawPrompt }, 300000, { projectName: p?.name })
+    : null;
+  API.reshapeRegion?.({ meshPath, uvMaskDataUrl, prompt }).then(async (r) => {
+    if (r && r.ok && r.path) {
+      if (job) completeJob(job.id, true);
+      showToast(_i18nT('Region rebuilt: new 3D version added.'), 'success');
+      try { await reloadCurrentProject(); } catch (_) {}
+    } else {
+      const msg = (r && r.error) || 'unknown';
+      if (job) completeJob(job.id, false, msg);
+      reportPipelineError(msg, 'Reshape a region failed');
+    }
+  }).catch((e) => {
+    if (job) completeJob(job.id, false, String(e?.message || e));
+    reportPipelineError(String(e?.message || e), 'Reshape a region failed');
+  });
 }
 
 // Region-retex apply: the painted white-on-black canvas IS the UV/atlas mask.
@@ -26229,6 +26308,7 @@ const _CLOUD_HIDDEN_MESH_TOOLS = [
   'ws-mesh-detail-synth-btn',  // detail_synth.py SDXL local
   'ws-mesh-region-retex-btn',  // SDXL inpaint atlas local
   'ws-mesh-reshape-btn',       // auto inpaint 3D : SDXL + moteur 3D locaux
+  'ws-mesh-reshape-draw-btn',  // idem, zone peinte en 3D
   'ws-mesh-texvar-btn',        // texture_var absent de la whitelist /api/mesh-op
   'ws-mesh-trellis2-btn',      // trellis2_retex absent de la whitelist /api/mesh-op
   'ws-mesh-name-btn',          // part namer local (Modal _partnamer non déployé)
