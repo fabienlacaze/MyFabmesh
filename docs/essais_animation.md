@@ -16,7 +16,10 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 
 - **UniMate** reste le moteur branché (web et bureau). Le chantier est arrêté ; la mention
   « Work in progress — results are poor for now. » est affichée.
-- **Essai en cours :** MoCapAnything V2, premier résultat crédible (lion entier qui marche), à confirmer à l'œil.
+- **Essai en cours :** MoCapAnything V2 sur vidéo **de profil**, orientation du corps figée : meilleur
+  résultat à ce jour. Prochaine étape : clip de ~10 s (trois plans Wan enchaînés).
+- **Leçon :** filmer **de profil**. De face, les pattes ne se voient pas et le modèle ne prédit
+  presque aucun mouvement.
 
 ## Essais menés
 
@@ -34,7 +37,9 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | 28/09 | **SkelMo** (vidéo + notre squelette) | vidéo Wan de profil, puis de face | animal tordu, qui flotte | échec |
 | 28/09 | SkelMo, test de contrôle | mouvement connu filmé exactement comme ses données d'entraînement | toujours tordu et renversé | **écarté** (modèle non fonctionnel sur un squelette extérieur ; poids et bibliothèque « Motion » sans licence) |
 | 28/09 | recalage maison (vidéo → os par optimisation) | projection validée, non lancé | — | refusé par l'exploitant (trop long, trop incertain) |
-| 28/09 | **MoCapAnything V2** (vidéo + notre squelette, code et poids MIT) | vidéo Wan 2.2 de face, lion 36 os, détourage RMBG-1.4 (test seulement) | lion **entier, debout, pattes qui alternent** : premier résultat crédible | **prometteur**, verdict à l'œil en attente |
+| 28/09 | MoCapAnything V2 (vidéo + notre squelette, code et poids MIT) | vidéo Wan 2.2 **de face**, lion 36 os, détourage RMBG-1.4 (test seulement) | lion entier mais quasi figé : os à 2,8° d'amplitude médiane, articulations à 6 % de la taille | « ne marche pas du tout » : de face, les pattes ne se voient pas |
+| 28/09 | MoCapAnything V2, vidéo **de profil** | même rig, vidéo Wan de profil | mouvement 4× plus ample (24 %) ; bons pas en 1re moitié, puis le corps pivote et se dresse (rotation de racine fausse, 77°) | orientation à corriger |
+| 28/09 | MoCapAnything V2 de profil + **orientation du corps figée** | idem, rotation de racine gelée à l'image 0, marche sur place | lion de profil tout le clip, pattes qui font des pas | **meilleur résultat à ce jour** ; vidéo jugée « très bon début » |
 
 ## À ne pas retenter
 
