@@ -333,4 +333,11 @@
   window.FabI18n.register('zh', {"Save moved joints": "保存移动后的关节", "Saves a new version of the rig with the pink joints where you put them. The mesh does not change.": "以你放置的粉色关节位置保存绑定的新版本。网格不会改变。", "Move a pink joint first.": "请先移动一个粉色关节。", "You changed which joints are linked. Use \"Re-generate rig with these points\" instead.": "你更改了关节之间的连接。请改用“用这些点重新生成绑定”。"});
   window.FabI18n.register('hi', {"Save moved joints": "हिलाए गए जोड़ सहेजें", "Saves a new version of the rig with the pink joints where you put them. The mesh does not change.": "गुलाबी जोड़ों को वहीं रखकर रिग का नया संस्करण सहेजता है जहाँ आपने उन्हें रखा। मेश नहीं बदलता।", "Move a pink joint first.": "पहले कोई गुलाबी जोड़ हिलाएँ।", "You changed which joints are linked. Use \"Re-generate rig with these points\" instead.": "आपने जोड़ों के आपसी संबंध बदल दिए हैं। इसके बजाय \"इन बिंदुओं से रिग फिर से बनाएँ\" का उपयोग करें।"});
   window.FabI18n.register('ar', {"Save moved joints": "حفظ المفاصل المنقولة", "Saves a new version of the rig with the pink joints where you put them. The mesh does not change.": "يحفظ إصدارًا جديدًا من الهيكل مع المفاصل الوردية حيث وضعتها. المجسم لا يتغير.", "Move a pink joint first.": "حرّك مفصلًا ورديًا أولًا.", "You changed which joints are linked. Use \"Re-generate rig with these points\" instead.": "لقد غيّرت الروابط بين المفاصل. استخدم بدلًا من ذلك «إعادة إنشاء الهيكل بهذه النقاط»."});
+  // Noms lisibles des versions (2026-09-28). Seul « 3D model » est nouveau :
+  // « Rig », « Image », « Animation » ont deja leurs traductions (ne pas ecraser).
+  window.FabI18n.register('fr', {"3D model": "Modèle 3D"});
+  window.FabI18n.register('es', {"3D model": "Modelo 3D"});
+  window.FabI18n.register('zh', {"3D model": "3D 模型"});
+  window.FabI18n.register('hi', {"3D model": "3D मॉडल"});
+  window.FabI18n.register('ar', {"3D model": "نموذج ثلاثي الأبعاد"});
 })();

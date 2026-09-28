@@ -3146,12 +3146,48 @@ async function showRigSourceMesh(meshPath) {
 function basename(p) {
   return (p || '').split(/[/\\]/).pop() || '';
 }
+// NOMS LISIBLES (2026-09-28, user : « des noms incomprehensibles et a rallonge,
+// avec meme des mots a ne pas mettre genre modal »). Les FICHIERS gardent leur
+// nom technique : le rattachement au projet, au rig et aux animations en
+// depend. L'interface montre « projet · Rig v2 · 28/09 03:07 » (meme
+// numerotation que la liste des versions) ; l'info-bulle, le nom de fichier
+// debarrasse des noms de moteurs, de « modal » et de la signature d'URL.
+function _cleAsset(x) {
+  return String(x || '').split('?')[0].replace(/\\/g, '/').replace(/^file:\/\/\//i, '').toLowerCase();
+}
+function _nomFichierPropre(chemin) {
+  return _maskAiNames(basename(String(chemin || '').split('?')[0])).replace(/modal_?/gi, '');
+}
+function _nomLisible(chemin) {
+  if (!chemin) return '';
+  const p = state.currentProject;
+  const cle = _cleAsset(chemin);
+  const _ts = (m) => { const t = new Date(m?.created || m?.mtime || 0).getTime(); return Number.isFinite(t) ? t : 0; };
+  const cleDe = (a) => _cleAsset(typeof a === 'string' ? a : (a?.path || a?.url || a?.filename));
+  // [liste du projet, libelle, trier comme la liste des versions, numeroter]
+  const familles = [['images', 'Image', false, true], ['meshes', '3D model', false, true],
+                    ['rigs', 'Rig', false, true], ['animations', 'Animation', true, false]];
+  for (const [champ, genre, trier, numeroter] of familles) {
+    let liste = Array.isArray(p?.[champ]) ? p[champ] : [];
+    if (trier) liste = liste.slice().sort((a, b) => _ts(b) - _ts(a));
+    const i = liste.findIndex(a => cleDe(a) === cle);
+    if (i < 0) continue;
+    const a = liste[i];
+    let t = typeof a === 'string' ? 0 : _ts(a);
+    if (!t) { const m = basename(cle).match(/1[6-9]\d{11}/g); t = m ? Number(m[m.length - 1]) : 0; }
+    const date = t ? new Date(t).toLocaleString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const quoi = _i18nT(genre) + (numeroter ? ` v${liste.length - 1 - i}` : '') + (a?.type ? ` (${a.type})` : '');
+    return [p?.name, quoi, date].filter(Boolean).join(' · ');
+  }
+  return _nomFichierPropre(chemin);   // hors projet : au moins sans nom de moteur
+}
+
 function setViewerFilename(elId, p) {
   const el = document.getElementById(elId);
   if (!el) return;
   // Masque les noms d'IA internes (exigence produit) — miroir desktop.
-  el.textContent = p ? _maskAiNames(basename(p)) : '';
-  el.title = p ? _maskAiNames(p) : '';
+  el.textContent = p ? _nomLisible(p) : '';
+  el.title = p ? _nomFichierPropre(p) : '';
 }
 
 function showStep1Preview(imgPath) {
@@ -4412,7 +4448,7 @@ async function renderViewerInfo(targetEl, filePath, extras) {
         }
       }
     }
-    targetEl.innerHTML = `<span class="vi-title">${_maskAiNames(info.filename)}</span>` + rows.join('');
+    targetEl.innerHTML = `<span class="vi-title" title="${escapeHtml(_nomFichierPropre(info.filename))}">${escapeHtml(_nomLisible(filePath) || _nomFichierPropre(info.filename))}</span>` + rows.join('');
   } catch (e) {
     console.warn('renderViewerInfo failed', e);
     targetEl.innerHTML = '';
@@ -4519,7 +4555,7 @@ async function _lb3dLoadAt(meshPath) {
   requestAnimationFrame(() => resize3DLightbox());
   // Update the bottom bar (filename + Use button label)
   const fnEl = document.getElementById('lightbox-3d-filename');
-  if (fnEl) fnEl.textContent = (basename(meshPath) || '') + (_lb3dPaths.length > 1 ? `  ·  ${_lb3dIndex + 1} / ${_lb3dPaths.length}` : '');
+  if (fnEl) fnEl.textContent = _nomLisible(meshPath) + (_lb3dPaths.length > 1 ? `  ·  ${_lb3dIndex + 1} / ${_lb3dPaths.length}` : '');
   const useBtn = document.getElementById('lightbox-3d-use');
   if (useBtn) {
     useBtn.textContent = _lb3dKind === 'rig'
@@ -4888,7 +4924,7 @@ function lightboxShowAt(idx) {
 }
 function updateLightboxBottom(imgPath) {
   const fn = document.getElementById('lightbox-2-filename');
-  if (fn) fn.textContent = (imgPath.split(/[/\\]/).pop() || '') + `  ·  ${_lightboxIndex + 1} / ${_lightboxImages.length}`;
+  if (fn) fn.textContent = _nomLisible(imgPath) + `  ·  ${_lightboxIndex + 1} / ${_lightboxImages.length}`;
   // Update the "Use for 3D" button label/state
   const useBtn = document.getElementById('lightbox-2-use-3d');
   if (useBtn) {
@@ -8421,7 +8457,7 @@ const _OP_LABEL = {
 };
 const _OP_RE = /_(cntile|retexture|trellis2_retex|retex|decimate|subdivide|smooth|fill_holes|fix_normals|center|set_pivot|watertight|texture_var|edited|upscale|refine|augment|vc|segment)(?:_\d{6,})?$/i;
 // MASQUAGE des noms d'IA internes à l'affichage (exigence produit) — miroir desktop.
-const _AI_NAME_RE = /(native_3d|trellis2|trellis|sf3d|hunyuan|triposg|hi3dgen|sampart3d|partsam|puppeteer|unirig|rokoko|anytop|realvisxl|realvis|hidream|dreamshaper|sdxl|esrgan|meshy)/gi;
+const _AI_NAME_RE = /(native_3d|trellis2_native|trellis2|trellis|sf3d|hunyuan|triposg|hi3dgen|sampart3d|partsam|skintokens|tokenrig|puppeteer|unirig|rokoko|anytop|realvisxl|realvis|hidream|dreamshaper|sdxl|esrgan|meshy)/gi;
 function _maskAiNames(s) {
   if (!s) return s;
   return String(s)
