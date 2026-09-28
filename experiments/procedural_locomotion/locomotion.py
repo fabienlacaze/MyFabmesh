@@ -395,7 +395,20 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         tangage = (0.05 if allure == 'run' and bipede else 0.0) + 0.02 * np.sin(4 * np.pi * t / T)
         roulis = (0.035 if bipede else 0.012) * np.sin(2 * np.pi * (t / T + p0 - beta / 2))
         lateral = (0.04 * hanche if bipede else 0.0) * np.sin(2 * np.pi * (t / T + p0 - beta / 2))
-    Rb = np.einsum('tab,tbc,tcd->tad', Rcap, Rotation.from_euler('x', tangage[:, None]).as_matrix(),
+    # Bipede « coince » (retour du 28/09) : dans une vraie marche le bassin TOURNE (hanche de la
+    # jambe avant en avant) et BASCULE (cote de la jambe en vol qui descend), les epaules
+    # contre-tournent et les bras balancent a l'opposé des jambes.
+    lacet_bassin = np.zeros_like(t)
+    s_g = np.zeros_like(t)                                   # +1 quand le pied gauche se pose (jambe gauche devant)
+    if bipede:
+        gauche = next((q for q in pattes if q['cote'] == 1), pattes[0])
+        s_g = np.cos(2 * np.pi * (t / T + gauche['phase']))
+        if A['pas']:
+            amp = {'run': (0.12, 0.05)}.get(allure, (0.08, 0.06))
+            lacet_bassin = -amp[0] * s_g
+            roulis = amp[1] * np.cos(2 * np.pi * (t / T + gauche['phase'] - beta / 2))
+            lateral = 0.035 * hanche * np.cos(2 * np.pi * (t / T + gauche['phase'] - beta / 2))
+    Rb = np.einsum('tab,tbc,tcd,tde->tae', Rcap, Ry(lacet_bassin), Rotation.from_euler('x', tangage[:, None]).as_matrix(),
                    Rotation.from_euler('z', roulis[:, None]).as_matrix())
     decal = c + np.stack([0 * t, bob - abaisse, 0 * t], -1) + np.einsum('tab,tb->ta', Rcap, np.stack([lateral, 0 * t, 0 * t], -1))
 
@@ -481,12 +494,62 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         balance[cc[0]] = Rotation.from_euler('x', (-0.07 * (0.5 + 0.5 * np.sin(2 * np.pi * vit * t / T + 1.7 * q_)))[:, None]).as_matrix()  # leve seulement
         if len(cc) > 2:
             balance[cc[1]] = Rotation.from_euler('x', (-0.05 * np.sin(2 * np.pi * vit * t / T + 1.7 * q_ + 0.8))[:, None]).as_matrix()
+    if bipede:
+        E_ = enfants_de(par)
+        x_mid = float(np.median(P0[:, 0]))
+        ext_ = float(np.ptp(P0, axis=0).max())
+        pris = {j for q in pattes for j in sous_arbre(E_, q['chaine'][0])} | {j for ct in tetes for j in ct}
+        bras = []
+        for f in range(len(par)):
+            if E_[f] or f in pris or abs(P0[f, 0] - x_mid) < 0.1 * ext_:
+                continue
+            ch_, k_ = [f], f
+            while par[k_] >= 0 and len(E_[par[k_]]) == 1:
+                k_ = par[k_]
+                ch_.append(k_)
+            ch_ = ch_[::-1]
+            if len(ch_) < 3 or par[ch_[0]] < 0:
+                continue
+            # epaule = premier os qui descend (apres la clavicule) ; coude = le suivant
+            ep = next((a_ for a_ in range(len(ch_) - 1)
+                       if (P0[ch_[a_ + 1], 1] - P0[ch_[a_], 1]) < -0.5 * np.linalg.norm(P0[ch_[a_ + 1]] - P0[ch_[a_]])), 0)
+            bras.append(dict(chaine=ch_, epaule=ch_[ep], coude=ch_[min(ep + 1, len(ch_) - 2)],
+                             cote=1 if P0[f, 0] > x_mid else -1, moyeu=int(par[ch_[0]])))
+        # colonne : de la racine au moyeu des bras (poitrine), qui contre-tourne le bassin
+        colonne = []
+        if bras:
+            k_ = bras[0]['moyeu']
+            while k_ >= 0 and k_ != racine:
+                colonne.append(k_)
+                k_ = par[k_]
+            colonne = colonne[::-1]
+        infos_bras = (len(bras), len(colonne))
+        n_c = max(len(colonne), 1)
+        for j in colonne:
+            balance[j] = np.einsum('tab,tbc->tac', Ry(-1.6 * lacet_bassin / n_c),
+                                   Rotation.from_euler('z', (-roulis / n_c)[:, None]).as_matrix())
+        amp_b, flex = {'run': (0.5, 1.1), 'idle': (0.03, 0.12)}.get(allure, (0.3, 0.15))
+        for b in bras:
+            d_ = P0[b['coude']] - P0[b['epaule']]
+            axe = np.cross(d_ / (np.linalg.norm(d_) + 1e-12), [0.0, 0.0, 1.0])
+            if np.linalg.norm(axe) < 1e-6:
+                continue
+            axe /= np.linalg.norm(axe)
+            if A['pas']:
+                avant = -b['cote'] * amp_b * s_g               # bras gauche devant quand la jambe gauche est derriere
+            else:
+                avant = amp_b * np.sin(2 * np.pi * t / T + (0 if b['cote'] == 1 else 1.3))
+            balance[b['epaule']] = Rotation.from_rotvec(axe[None] * avant[:, None]).as_matrix()
+            coude = flex + (0.15 if allure != 'run' else 0.2) * np.clip(avant / max(amp_b, 1e-6), 0, 1)
+            balance[b['coude']] = Rotation.from_rotvec(axe[None] * coude[:, None]).as_matrix()
     for ct in tetes:
         for a, j in enumerate(ct[:-1]):
             hoche = (0.03 if A['pas'] else 0.04) * np.sin(2 * np.pi * t / T * 2 + 0.5 + 0.3 * a)
             m = Rotation.from_euler('x', (hoche - (tangage if a == 0 else 0))[:, None]).as_matrix()
             if not A['pas'] and a == 0:
                 m = np.einsum('tab,tbc->tac', Ry(0.22 * np.sin(2 * np.pi * t / T)), m)
+            if bipede and a == 0:
+                m = np.einsum('tab,tbc->tac', Ry(0.6 * lacet_bassin), m)
             balance[j] = m
     ordre, file = [], [racine]
     E = enfants_de(par)
