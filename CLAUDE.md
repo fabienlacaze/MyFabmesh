@@ -472,11 +472,13 @@ si une case est cochée, décochée ou masquée :
 - **Outils mesh encore absents du web** : `detail-synth` (Détail++ ; rien ne
   bloque : il rend DÉJÀ avec kaolin, Apache 2.0, depuis le 2026-07-26 — la
   mention « nvdiffrast à remplacer » écrite ici le 2026-09-26 était FAUSSE, tirée
-  d'une ligne d'index de mémoire périmée) et « Re-texture
-  all (AI) » (`trellis2_retex`, visible sur le web mais qui n'y renvoie
-  qu'une erreur ; demande le pipeline de texturation TRELLIS-2 en
-  asynchrone). Portés le 2026-09-26 : `texvar`, `enhance-tex`, `name`,
-  `clone3d`, `region-retex` ; les Étapes de construction 3D l'étaient déjà.
+  d'une ligne d'index de mémoire périmée ; il demande pourtant du travail
+  réel : rendu kaolin, SDXL ControlNet-Union normal + IP-Adapter, et la
+  reprojection `texture_project.py`, absents de Modal) et les Étapes de
+  construction 2D. « Re-texture all (AI) » est porté depuis le 2026-09-27
+  (`/api/mesh-retexture`, asynchrone). Portés le 2026-09-26 : `texvar`,
+  `enhance-tex`, `name`, `clone3d`, `region-retex` ; les Étapes de
+  construction 3D l'étaient déjà.
 - **Rectification à froid** : 509 s au premier appel après un déploiement
   (mesuré le 2026-09-26), au-delà de la reprise du worker (~450 s). Les
   appels suivants : 24 s.
