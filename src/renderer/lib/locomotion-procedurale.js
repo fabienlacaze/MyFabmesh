@@ -616,7 +616,7 @@ function phases(pattes, P0, allure) {
 // La patte garde la FORME de sa pose de repos (zigzag, sens de pliure) : toutes ses pliures sont
 // multipliées par un même facteur k pour atteindre la cible, puis la patte entière est orientée.
 // FABRIK (sans contrainte) faisait dériver la pliure : genoux de côté, pattes retournées de 138°.
-function preparerForme(P, pole) {
+function preparerForme(P, pole, droite = false) {
   const a = P[0], b = P[P.length - 1];
   const e1 = mulS(sub(b, a), 1 / (norm(sub(b, a)) + 1e-12));
   let e2 = sub(pole, mulS(e1, dot(pole, e1)));
@@ -628,7 +628,9 @@ function preparerForme(P, pole) {
     const v = sub(P[k], P[k - 1]), x = dot(v, e1), y = dot(v, e2);
     l.push(Math.hypot(x, y)); phi.push(Math.atan2(y, x)); z.push(dot(v, e3));
   }
-  if (Math.max(...phi.map(Math.abs)) < 0.05 && phi.length >= 2) {
+  // jambe droite au repos (ou jugee telle : bipede en T-pose, voir la geometrie des pattes) : pliure
+  // conventionnelle. Sans « droite », un genou 1 cm en arriere (0,058 rad) gardait ce recul, amplifie.
+  if ((droite || Math.max(...phi.map(Math.abs)) < 0.05) && phi.length >= 2) {
     const m = (phi.length - 1) / 2;                           // premiere moitie vers le pole, seconde en retour
     phi = phi.map((_, k) => (k < m ? 0.08 : k > m ? -0.08 : 0));
   }
@@ -687,6 +689,17 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   if (ALLURES[allure].action === 'death') return animerChute(sq, det, fps, variante);
   let pattes = det.pattes.map((p) => ({ ...p }));
   if (!pattes.length) return animerSansPattes(sq, allure, cycles, fps, variante, det);
+  // Bipede dont une jambe a ete detectee SOUS une hanche qui se ramifie (os de pagne, de jupe : orc du
+  // 28/09) : elle commencait au GENOU, la cuisse n'etait pas animee et le « genou » pliait a l'envers.
+  // Chaque jambe part de sa hanche : on remonte jusqu'au bassin commun aux deux jambes.
+  if (pattes.length === 2) {
+    const ancetres = (j) => { const s_ = new Set(); for (let k = par[j]; k >= 0; k = par[k]) s_.add(k); return s_; };
+    for (const [p, q] of [[pattes[0], pattes[1]], [pattes[1], pattes[0]]]) {
+      const bassin = ancetres(q.chaine[0]), ajout = [];
+      for (let r = p.chaine[0]; par[r] >= 0 && !bassin.has(par[r]) && par[r] !== racine; r = par[r]) ajout.unshift(par[r]);
+      if (ajout.length) p.chaine = [...ajout, ...p.chaine];
+    }
+  }
   let palpes = [];
   if (pattes.length >= 6) {                                   // pédipalpes : « pattes » bien plus courtes
     const lg = pattes.map((q) => longueurChaine(q.chaine.map((k) => P0[k]))), med = median(lg);
@@ -749,6 +762,19 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     const debout = Math.abs(d0[1]) > 1.5 * Math.hypot(d0[0], d0[2]);
     let piedCourt = ch.length >= 4 && seg[seg.length - 1] < 0.5 * moyenne(seg.slice(0, -1));
     p.ik = piedCourt ? ch.slice(0, -1) : ch;
+    // Jambe DEBOUT : la chaine qui plie s'arrete a la CHEVILLE, premiere articulation suivie d'un
+    // segment plutot horizontal (le pied). Sans ca, un rig avec un os d'orteil de plus d'un cote
+    // (guerrier du 28/09 : 4 os a gauche, 5 a droite) pliait le pied droit comme une articulation
+    // de plus, le gauche restant rigide. BIPEDES seulement : sur les quadrupedes (phacochere, tortue)
+    // le banc montrait plus d'a-coups (12 -> 28°).
+    if (debout && bipede) {
+      const k = p.ik.findIndex((j, a) => {
+        if (a < 2 || a >= p.ik.length - 1) return false;
+        const s_ = sub(P0[p.ik[a + 1]], P0[j]);
+        return Math.abs(s_[1]) < Math.hypot(s_[0], s_[2]);
+      });
+      if (k >= 2) { p.ik = p.ik.slice(0, k + 1); piedCourt = true; }
+    }
     // Patte ÉTALÉE (araignée, insecte) : son premier os part du CENTRE du corps jusqu'à la base
     // de la patte (la coxa, dans le corps). Le faire pivoter faisait glisser la base de la patte
     // le long du corps et déchirait la peau autour (plaques étirées, 28/09) : il reste rigide.
@@ -785,12 +811,28 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     p.neutre = N;
     const a_ = P0[p.ik[0]], b_ = P0[p.ik[p.ik.length - 1]];
     const u_ = mulS(sub(b_, a_), 1 / (norm(sub(b_, a_)) + 1e-12));
-    let pole = [0, 0, 0];
-    for (const k of p.ik.slice(1, -1)) { const o = sub(P0[k], a_); pole = add(pole, sub(o, mulS(u_, dot(o, u_)))); }
+    let pole = [0, 0, 0], ecartMax = 0;
+    for (const k of p.ik.slice(1, -1)) {
+      const o = sub(P0[k], a_), perp = sub(o, mulS(u_, dot(o, u_)));
+      pole = add(pole, perp);
+      ecartMax = Math.max(ecartMax, norm(perp));
+    }
     if (debout) pole[0] = 0;
+    // Bipede dont la jambe est presque DROITE au repos (T-pose) : l'ecart du genou n'est que du bruit
+    // du rig (guerrier du 28/09 : genou 1 cm en ARRIERE -> genoux plies a l'envers dans 100 % des
+    // images de marche). Un genou se plie vers l'avant, du cote des orteils. Jugee sur le PLUS GRAND
+    // ecart, pas sur leur somme : la patte d'une poule, en zigzag (genou en avant, cheville en
+    // arriere), a une somme presque nulle et doit garder sa forme.
+    const Lik = longueurChaine(p.ik.map((k) => P0[k]));
+    let droite = false;
+    if (debout && bipede && ecartMax < 0.06 * Lik) {
+      droite = true;
+      const orteils = [0, 0, P0[p.bout][2] - P0[p.ik[p.ik.length - 1]][2]];
+      pole = Math.abs(orteils[2]) > 0.02 * Lik ? orteils : [0, 0, 1];
+    }
     if (norm(pole) < 1e-4) pole = debout ? [0, 0, 1] : [0, 1, 0];
     p.pole = mulS(pole, 1 / norm(pole));
-    p.forme = preparerForme(p.ik.map((k) => P0[k]), p.pole);
+    p.forme = preparerForme(p.ik.map((k) => P0[k]), p.pole, droite);
     // Patte étalée dont le genou est SOUS la corde (tentacule de pieuvre qui s'affaisse) : en se
     // repliant elle enfonçait le genou dans le sol (8 % sous le sol, 28/09). Elle se replie en
     // MIROIR, genou vers le haut, comme une vraie patte qui se lève.
@@ -1075,21 +1117,36 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   if (bipede) {
     const xMid = median(P0.map((p) => p[0])), ext = etendue(P0);
     const pris = new Set([...pattes.flatMap((q) => sousArbre(E, q.chaine[0])), ...tetes.flat()]);
-    const bras = [];
+    // MAIN a plusieurs doigts : os lateral dont tous les enfants partent du meme cote. On la traverse
+    // pour remonter jusqu'a l'epaule. Sans ca (guerrier du 28/09), chaque DOIGT etait pris pour un
+    // bras (10 « bras ») et les vrais bras restaient figes en T.
+    const cote_ = (j) => Math.sign(P0[j][0] - xMid);
+    const estMain = (j) => E[j].length >= 2 && !pris.has(j) && Math.abs(P0[j][0] - xMid) >= 0.15 * ext
+      && E[j].every((e) => cote_(e) === cote_(j));
+    const parEpaule = new Map();
     for (let f = 0; f < J; f++) {
       if (E[f].length || pris.has(f) || Math.abs(P0[f][0] - xMid) < 0.1 * ext) continue;
       const c = [f];
-      let k = f;
-      while (par[k] >= 0 && E[par[k]].length === 1) { k = par[k]; c.push(k); }
+      let k = f, main = false;
+      for (;;) {
+        while (par[k] >= 0 && E[par[k]].length === 1) { k = par[k]; c.push(k); }
+        if (par[k] >= 0 && estMain(par[k])) { k = par[k]; c.push(k); main = true; continue; }
+        break;
+      }
       c.reverse();
       if (c.length < 3 || par[c[0]] < 0) continue;
-      let ep = 0;                                             // épaule = premier os qui descend
+      let ep = -1;                                            // épaule = premier os qui descend
       for (let a = 0; a < c.length - 1; a++) {
         const b = sub(P0[c[a + 1]], P0[c[a]]);
         if (b[1] < -0.5 * norm(b)) { ep = a; break; }
       }
-      bras.push({ epaule: c[ep], coude: c[Math.min(ep + 1, c.length - 2)], cote: P0[f][0] > xMid ? 1 : -1, moyeu: par[c[0]] });
+      // bras en T : aucun os ne descend ; la clavicule (1er os, plus court que le suivant) ne pivote pas
+      if (ep < 0) ep = c.length >= 4 && norm(sub(P0[c[1]], P0[c[0]])) < 0.7 * norm(sub(P0[c[2]], P0[c[1]])) ? 1 : 0;
+      const portee = Math.abs(P0[f][0] - xMid), deja = parEpaule.get(c[0]);
+      if (deja && deja.portee >= portee) continue;           // un bras par epaule : le doigt le plus long
+      parEpaule.set(c[0], { epaule: c[ep], coude: c[Math.min(ep + 1, c.length - 2)], cote: P0[f][0] > xMid ? 1 : -1, moyeu: par[c[0]], main, portee });
     }
+    const bras = [...parEpaule.values()];
     nbBras = bras.length;
     const colonne = [];
     if (bras.length) { for (let k = bras[0].moyeu; k >= 0 && k !== racine; k = par[k]) colonne.push(k); colonne.reverse(); }
@@ -1102,11 +1159,17 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       let axe = cross(mulS(d_, 1 / (norm(d_) + 1e-12)), [0, 0, 1]);
       if (norm(axe) < 1e-6) continue;
       axe = mulS(axe, 1 / norm(axe));
-      const ampL = Math.abs(d_[1]) < 0.5 * norm(d_) ? 0.35 * ampB : ampB;   // bras en T / aile : balancement reduit
+      const enT = Math.abs(d_[1]) < 0.5 * norm(d_);
+      // Bras en T d'un humain, d'un primate ou d'un bipede a mains : ABAISSES de ~70° a l'epaule, puis
+      // balances d'avant en arriere (marcher bras tendus a l'horizontale « faisait casse », 28/09).
+      // Une aile (oiseau) reste etendue.
+      const baisse = enT && (famille === 'humain' || famille === 'primate' || (famille === 'generique' && b.main)) ? 1.2 : 0;
+      const Rbaisse = baisse ? rotvec([0, 0, 1], -b.cote * baisse) : null;
+      const ampL = enT && !baisse ? 0.35 * ampB : ampB;   // bras en T / aile : balancement reduit
       const avant = t.map((tt, i) => (C && C.bras ? brasT[i] * (b.cote === -1 ? 1 : 0.25)   // action : bras droit qui frappe
         : SAUT ? -ampL * Math.cos(2 * Math.PI * tt / T)           // saut : les deux bras ensemble (elan)
         : A.pas ? -b.cote * ampL * sG[i] : ampL * Math.sin(2 * Math.PI * tt / T + (b.cote === 1 ? 0 : 1.3))));
-      balance.set(b.epaule, avant.map((a) => rotvec(axe, a)));
+      balance.set(b.epaule, avant.map((a) => (Rbaisse ? mm(Rbaisse, rotvec(axe, a)) : rotvec(axe, a))));
       balance.set(b.coude, avant.map((a) => rotvec(axe, flex + (genre !== 'run' ? 0.15 : 0.2) * clip(a / Math.max(ampB, 1e-6), 0, 1))));
     }
   }
