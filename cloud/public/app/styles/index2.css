@@ -3552,21 +3552,19 @@ details.stage-generating > summary .stage-icon-gear {
   color: var(--text-1, #ddd);
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
 }
-.pts-version:hover { border-color: var(--accent); }
 .pts-version.actif {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
-  cursor: default;
 }
 .pts-version.nouveau { animation: pts-version-nouveau 1.2s ease-out 2; }
+#pts-regenerer.pts-montrer { animation: pts-version-nouveau 1.2s ease-out 3; }
 @keyframes pts-version-nouveau {
   0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.9); }
   100% { box-shadow: 0 0 0 10px rgba(168, 85, 247, 0); }
 }
-@media (prefers-reduced-motion: reduce) { .pts-version.nouveau { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .pts-version.nouveau, #pts-regenerer.pts-montrer { animation: none; } }
 .pts-legende {
   display: flex;
   flex-wrap: wrap;

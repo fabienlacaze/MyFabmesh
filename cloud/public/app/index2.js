@@ -25406,19 +25406,13 @@ function _ptsVersions(nouvelle) {
   const rigs = (p?.rigs || []).slice().sort((a, b) => _ts(b) - _ts(a));
   if (rigs.length < 2 && !nouvelle) { box.innerHTML = ''; return; }
   const actuel = _ptsCleRig(_pts.rig);
-  const pastilles = rigs.map((r, i) => {
-    const cle = _ptsCleRig(r.path || r.url);
-    const nom = String(r.filename || r.path || r.url || '').split('?')[0].replace(/\\/g, '/').split('/').pop();
-    return `<button type="button" class="pts-version${cle === actuel ? ' actif' : ''}${cle === actuel && nouvelle ? ' nouveau' : ''}"`
-      + ` data-i="${i}" title="${escapeHtml(nom)}">v${rigs.length - 1 - i}</button>`;
-  }).reverse();
-  box.innerHTML = `<span class="pts-versions-titre">${escapeHtml(_i18nT('Rig version'))}</span>` + pastilles.join('');
-  box.querySelectorAll('.pts-version').forEach((b) => b.addEventListener('click', () => {
-    const r = rigs[+b.dataset.i];
-    if (!r || _ptsCleRig(r.path || r.url) === actuel) return;
-    p.selectedRigPath = r.url || r.path;
-    ptsOuvrir();
-  }));
+  // LECTURE SEULE (user, 2026-09-28 : « les versions ne doivent pas etre
+  // selectionnables ici, on a deja les versions dans la page projet ») : on
+  // montre seulement la version editee ; la nouvelle clignote.
+  const i = rigs.findIndex(r => _ptsCleRig(r.path || r.url) === actuel);
+  if (i < 0) { box.innerHTML = ''; return; }
+  box.innerHTML = `<span class="pts-versions-titre">${escapeHtml(_i18nT('Rig version'))}</span>`
+    + `<span class="pts-version actif${nouvelle ? ' nouveau' : ''}">v${rigs.length - 1 - i}</span>`;
 }
 
 async function ptsOuvrir() {
@@ -26214,7 +26208,6 @@ function _ptsSauver(immediat) {
 function _ptsModeAjout(actif) {
   _pts.ajout = !!actif;
   // options de placement : visibles seulement pendant l'ajout (user)
-  document.getElementById('pts-ajout-options')?.classList.toggle('hidden', !_pts.ajout);
   document.getElementById('pts-ajouter')?.classList.toggle('active', _pts.ajout);
   document.getElementById('lm-fullscreen')?.classList.toggle('pts-ajout', _pts.ajout);
   const consigne = document.getElementById('lm-fs-instruction');
@@ -26365,7 +26358,14 @@ function _ptsLierCanevas(canevas, camera) {
     if (!_pts.actif) return;
     const g = _pts.glisse;
     if (g && g.canevas === canevas) {
-      const w = _ptsRayon(canevas, g.cam, e).ray.intersectPlane(g.plan, new THREE.Vector3());
+      // « Coller au maillage » / « Centrer dans l'epaisseur » valent aussi pour le
+      // GLISSER (user, 2026-09-28 : « ca ne fait rien du tout » — elles ne
+      // servaient qu'a l'ajout). Hors du maillage, ou case decochee : plan de
+      // la vue, profondeur figee, comme avant.
+      const coller = document.getElementById('pts-ajout-coller')?.checked !== false;
+      const w = (coller && _ptsCentreSous(canevas, g.cam, e,
+                   document.getElementById('pts-ajout-centrer')?.checked !== false))
+        || _ptsRayon(canevas, g.cam, e).ray.intersectPlane(g.plan, new THREE.Vector3());
       if (w && g.type === 'os') {
         if (!g.bouge) { _ptsMemoriser(); g.bouge = true; }
         _ptsBougerOs(g.id, _ptsVersLocal(w));
@@ -26510,7 +26510,10 @@ async function _ptsEnregistrerSansIA() {
     return;
   }
   if (!_ptsOsModifie()) {
-    showToast(_i18nT('Nothing to save yet: drag a pink skeleton point (a joint). Green and orange points are targets for the AI.'), 'info', 6000);
+    showToast(_i18nT('Yellow and green points are targets: only "Re-generate rig with these points" can make the skeleton reach them. This button saves the pink joints you moved by hand.'), 'info', 8000);
+    // montre OU aller : le bouton de regeneration clignote
+    const regen = document.getElementById('pts-regenerer');
+    if (regen) { regen.classList.remove('pts-montrer'); void regen.offsetWidth; regen.classList.add('pts-montrer'); }
     return;
   }
   const job = pushJob(`Save adjusted rig: ${p?.name || ''}`, null, null, 8000, { projectName: p?.name });
