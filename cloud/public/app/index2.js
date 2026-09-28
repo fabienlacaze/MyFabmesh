@@ -16658,6 +16658,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return /^(text2image|text-to-image|text_to_image|image|img2img)$/.test(at) && !!t;
     };
     const _serverPolledIds = new Set();  // local job.id we created → server job.id
+    const _OP_ORPHELINE_MS = 5 * 60 * 1000;   // voir le filet des operations orphelines
+    window.__opsOrphelines = window.__opsOrphelines || new Set();
     const _jobByServerId = new Map();     // server job.id → local job
 
     const _fetchActive = async () => {
@@ -16683,10 +16685,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const kind = _kindFromAssetType(row.asset_type, '');
       const project = row.project_name || (row.options && row.options.project_name) || null;
       const startedAt = row.created_at ? Date.parse(row.created_at) : Date.now();
-      // Filet : une operation interne « en cours » depuis plus de 15 min est
-      // une ligne orpheline (worker coupe) que le faucheur n'a pas encore
-      // close. L'afficher ferait une sous-tache eternelle.
-      if (_estOperationInterne(row) && Date.now() - startedAt > 15 * 60 * 1000) return;
+      // Filet : une operation interne « en cours » depuis plus de 5 min est une
+      // ligne orpheline (worker coupe, programme interrompu) que le faucheur n'a
+      // pas encore close — une image prend ~10-60 s. L'afficher ferait une
+      // tuile eternelle (« Generate images: ModernHouse » figee a 90 %, 2026-09-28).
+      if (_estOperationInterne(row) && Date.now() - startedAt > _OP_ORPHELINE_MS) return;
+      if (window.__opsOrphelines && window.__opsOrphelines.has(String(row.id))) return;
       // Prevention (voir window.__lancementsEnCours) : la tuile du clic suit
       // deja ce travail, son identifiant arrive dans quelques secondes. Les
       // operations internes ne sont PAS concernees : elles deviennent des
@@ -16866,6 +16870,20 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const sid of Array.from(window.__fabmeshJobsServeurSuivis || [])) {
           if (!stillActive.has(sid)) {
             try { window.fabmeshJobs?.oublierServerJob?.(sid); } catch (_) {}
+          }
+        }
+        // FILET (2026-09-28) : une operation interne suivie ici qui reste « processing »
+        // au-dela de 5 min est orpheline (le serveur ne la cloturera qu'au passage du
+        // faucheur) : la tuile est close comme interrompue au lieu de rester figee.
+        for (const r of cur) {
+          const local = _jobByServerId.get(r.id);
+          if (!local || !_estOperationInterne(r)) continue;
+          const debut = Date.parse(r.created_at || '') || 0;
+          if (debut && Date.now() - debut > _OP_ORPHELINE_MS) {
+            try { completeJob(local.id, false, _i18nT('Interrupted: no news from the server.')); } catch (_) {}
+            _jobByServerId.delete(r.id);
+            window.__opsOrphelines.add(String(r.id));
+            stillActive.delete(r.id);
           }
         }
         for (const [sid, local] of Array.from(_jobByServerId.entries())) {

@@ -2132,7 +2132,7 @@ async function _creditsDe(env: Env, uid: string): Promise<number> {
   return Number((data as { credits?: number } | null)?.credits ?? 0);
 }
 /** Garde autour du routeur pour toute requete portant une cle API. */
-async function _avecCleApi(req: Request, env: Env, suite: () => Promise<Response>): Promise<Response> {
+async function _avecCleApi(req: Request, env: Env, suite: () => Promise<Response>, ctx?: unknown): Promise<Response> {
   const { pathname } = new URL(req.url);
   if (!pathname.startsWith('/api/') || isMock(env)) return suite();
   if (_CLE_API_INTERDIT.some((re) => re.test(pathname))) {
@@ -2175,17 +2175,26 @@ async function _avecCleApi(req: Request, env: Env, suite: () => Promise<Response
   const opVisible = _OPS_API_VISIBLES[pathname];
   const marqueur = opVisible ? await _debuterOperation(env, rec.uid, opVisible, Date.now(), req, projet || undefined) : null;
   const avant = await _creditsDe(env, rec.uid);
-  let res: Response;
-  try {
-    res = await suite();
-  } finally {
-    if (marqueur) {
-      try { await supabaseAdmin(env).from('jobs').delete().eq('id', marqueur); } catch { /* le faucheur la fermera */ }
+  // PROGRAMME COUPE EN ROUTE (2026-09-28) : le user a arrete une serie d'images ; la requete
+  // coupee a annule le traitement AVANT le retrait de la ligne « processing », et la tuile
+  // « Generate images: ModernHouse » est restee figee a 90 % dans le site. Le travail ENTIER
+  // (appel, retrait de la ligne, compte du plafond) est confie a waitUntil : le runtime le
+  // mene au bout meme si le client se deconnecte.
+  const travail = (async () => {
+    let res: Response;
+    try {
+      res = await suite();
+    } finally {
+      if (marqueur) {
+        try { await supabaseAdmin(env).from('jobs').delete().eq('id', marqueur); } catch { /* le faucheur la fermera */ }
+      }
     }
-  }
-  const apres = await _creditsDe(env, rec.uid);
-  if (avant > apres) await env.MESHES.put(cleJour, String(deja + (avant - apres)));
-  return res;
+    const apres = await _creditsDe(env, rec.uid);
+    if (avant > apres) await env.MESHES.put(cleJour, String(deja + (avant - apres)));
+    return res;
+  })();
+  try { (ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined)?.waitUntil?.(travail.catch(() => undefined)); } catch { /* hors runtime */ }
+  return travail;
 }
 function _cleAleatoire(): string {
   const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -20459,7 +20468,7 @@ export default {
   async fetch(req: Request, envBrut: Env, ctx: unknown): Promise<Response> {
     // CLE API (2026-09-28) : une requete signee par une cle personnelle passe par la
     // garde (routes interdites, plafond de credits par jour et par cle) AUTOUR du routeur.
-    if (_lireCleApi(req)) return await _avecCleApi(req, _envAvecReprises(envBrut), () => _routeur(req, envBrut, ctx));
+    if (_lireCleApi(req)) return await _avecCleApi(req, _envAvecReprises(envBrut), () => _routeur(req, envBrut, ctx), ctx);
     return await _routeur(req, envBrut, ctx);
   },
 };
