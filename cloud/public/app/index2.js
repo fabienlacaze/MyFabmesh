@@ -1150,7 +1150,10 @@ async function renderProjectsGrid() {
   const myGen = ++_renderProjectsGen;
   const grid = document.getElementById('projects-grid');
   const empty = document.getElementById('projects-empty');
-  grid.innerHTML = '';
+  // Les cartes sont construites HORS ECRAN puis echangees d'un coup (2026-09-28) : la grille
+  // etait videe ICI, avant les attentes (controle parental, filtre NSFW ~1 s sur le web) —
+  // au retour d'un projet on voyait les projets, puis une page NOIRE, puis les projets.
+  const cartes = document.createDocumentFragment();
   // Check parental status
   let restricted = true;
   try {
@@ -1247,8 +1250,9 @@ async function renderProjectsGrid() {
       }
       openProject(p);
     });
-    grid.appendChild(card);
+    cartes.appendChild(card);
   }
+  grid.replaceChildren(cartes);
   renderProjectsBulkBar();
   _syncSelectAllBtn();
   _updateHomeViewCounts();
