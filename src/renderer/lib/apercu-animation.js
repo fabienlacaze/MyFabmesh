@@ -5,11 +5,12 @@
 // (THREE importé par « three » : un chemin relatif chargerait un second THREE sur le web).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { animerPistes } from './locomotion-procedurale.js';
 
 export function creerApercu(canvas) {
   let rendu = null, scene = null, camera = null, melangeur = null, modele = null;
-  let cle = null, tampon = null, noeuds = null, raf = 0, detruit = false, enCours = null;
+  let cle = null, tampon = null, noeuds = null, raf = 0, detruit = false, enCours = null, controles = null;
   const horloge = new THREE.Clock();
 
   function initRendu() {
@@ -22,6 +23,13 @@ export function creerApercu(canvas) {
     soleil.position.set(2, 4, 3);
     scene.add(soleil);
     camera = new THREE.PerspectiveCamera(30, 1, 0.01, 1000);
+    // Tourner autour du rig (glisser) et zoomer (molette) — demande user du 2026-09-28.
+    // Pas de deplacement lateral : le rig reste au centre, il marche sur place.
+    controles = new OrbitControls(camera, canvas);
+    controles.enableDamping = true;
+    controles.dampingFactor = 0.12;
+    controles.enablePan = false;
+    canvas.style.cursor = 'grab';
     boucle();
   }
   function boucle() {
@@ -37,6 +45,7 @@ export function creerApercu(canvas) {
       camera.updateProjectionMatrix();
     }
     if (melangeur) melangeur.update(dt);
+    controles?.update();
     rendu.render(scene, camera);
   }
   function liberer(obj) {
@@ -58,6 +67,12 @@ export function creerApercu(canvas) {
     camera.far = t * 50;
     camera.lookAt(c);
     camera.updateProjectionMatrix();
+    if (controles) {                                         // nouveau rig : l'orbite repart de ce cadrage
+      controles.target.copy(c);
+      controles.minDistance = t * 0.25;
+      controles.maxDistance = t * 6;
+      controles.update();
+    }
   }
 
   /** Charge le rig (une fois par clé). `lireTampon` rend un ArrayBuffer du GLB riggé. */
@@ -117,6 +132,7 @@ export function creerApercu(canvas) {
     detruit = true;
     cancelAnimationFrame(raf);
     if (modele) liberer(modele);
+    controles?.dispose();
     rendu?.dispose();
   }
   return { chargerRig, jouer, arreter, detruire, pret: () => !!modele, cleChargee: () => cle };
