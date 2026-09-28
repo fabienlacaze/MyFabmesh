@@ -288,6 +288,8 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             # et le maillage ressort tache. Ce bloc etait place plus bas et se
             # faisait jeter par la limite CLIP de 77 jetons.
             "cast shadow, soft shadow, ambient occlusion, "
+            # 2026-09-28 : bras et mains loin du corps (peau du rig : main liee a la jambe)
+            "arms at sides, hands touching body, hands on hips, "
             + _armes_neg +
             "dynamic pose, action pose, combat stance, fighting, running, "
             "jumping, crouching, bent arms, bent legs, tilted head, "

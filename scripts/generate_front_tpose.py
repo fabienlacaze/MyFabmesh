@@ -118,10 +118,16 @@ FRONT_PROMPT_TAIL = (
     'facing camera directly, symmetric T-pose, standing upright, '
     'legs apart shoulder-width, feet visible on the ground, '
     'plain white background, studio lighting, sharp focus, 8k, '
-    'masterpiece, orthographic-like flat view'
+    'masterpiece, orthographic-like flat view, '
+    # 2026-09-28 : bras et mains LOIN du corps. Une main contre la hanche se retrouve liee
+    # a la jambe par la peau du rig (pied du gladiateur lie a 50 % a la main) -> lanieres.
+    'open hands held away from the body, clear gap between the arms and the torso, '
+    'clear gap between the legs'
 )
 NEG = (
     'arms down, arms by side, arms at side, hands on hips, '
+    'hands touching body, arms touching torso, hands on thighs, hands in pockets, '
+    'crossed arms, holding objects, hands together, '
     'side view, profile view, three quarter view, back view, '
     'perspective distortion, cropped, blurry, deformed, '
     'extra limbs, bad anatomy, multiple people, watermark, '

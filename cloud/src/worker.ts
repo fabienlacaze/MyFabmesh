@@ -11290,7 +11290,8 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
       if (useTpose) {
         // Strict T-pose front — verbatim port of desktop generate_front_tpose.py.
         paths.push(await callModalTpose(env, user.id, {
-          prompt: rawPrompt,
+          // prompt ENRICHI (style + gabarit) : le texte brut perdait le style choisi (cartoon…)
+          prompt: (prompt ?? rawPrompt).toString().trim() || rawPrompt,
           refImageUrl,
           seed: seedBase + i,
           cn_scale,

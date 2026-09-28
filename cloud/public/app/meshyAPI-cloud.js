@@ -767,6 +767,12 @@
       // exact tables from index2.js (cloud output matches desktop).
       const asset_type = document.getElementById('ws-asset-type')?.value || 'character';
       const asset_style = document.getElementById('ws-asset-style')?.value || 'realistic';
+      // T-pose GARANTI (squelette de pose ControlNet OpenPose), meme regle que le bureau
+      // (local_juggernaut_bridge._is_tpose) : le gabarit « personnage » le demande, mais le chemin
+      // simple l'ignorait souvent — gladiateur genere bras le long du corps, mains contre les
+      // hanches, peau du rig ensuite liee aux jambes (28/09). Jamais pour un animal ou une creature.
+      const _tposeDemande = (p) => !['animal', 'creature'].includes(asset_type)
+        && /t-pose|t pose|tpose|arms extended horizontally|rts unit|neutral stance/i.test(String(p || ''));
 
       // One /api/generate-image call → returns { paths } or throws.
       const _genOnce = async (promptArg, userPromptArg, n) => {
@@ -777,6 +783,7 @@
             prompt: promptArg,        // already-enriched fallback
             userPrompt: userPromptArg, // raw user text (Worker re-enriches)
             numImages: n, asset_type, asset_style, steps,
+            tpose: _tposeDemande(promptArg),     // personnage : pose imposee par squelette
             turbo: engine === 'local-lightning',  // SDXL-Lightning 4-step (Modal text2image)
             projectName,         // for user_assets row insertion
           }),
