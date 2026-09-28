@@ -1,0 +1,1791 @@
+[
+ {
+  "chemin": "/api/admin/audience.json",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminAudience",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/audit",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminAuditLog",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/badges",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminBadges",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/contact-messages",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminContactList",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/force-logout-all",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminForceLogoutAll",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/history.csv",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminHistoryCsv",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/history.xlsx",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminHistoryXls",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/jobs/active",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminActiveJobs",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/jobs/cancel",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminCancelJob",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/login",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminLogin",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/logout",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminLogout",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/logs/get",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminLogsGet",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/logs/list",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminLogsList",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/market/killswitch",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminMarketKillSwitchGet",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/market/killswitch",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminMarketKillSwitchSet",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/market/list",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminMarketList",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/modal-credits",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminModalCredits",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/modal-credits/total",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminModalSetBudget",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/modal-usage",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminModalUsageIngest",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/payments",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminPayments",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/payments/reconcile",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminReconcilePayment",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/payments/unreconciled",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminUnreconciledPayments",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/pricing",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminGetPricing",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/pricing",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminSetPricing",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/reset-password",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminResetPassword",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/reset-request",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminResetRequest",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/reset-verify",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminResetVerify",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/sante.json",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminSante",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/services",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminServices",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/services",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminServicesToggle",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/stats.json",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminStats",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/totp/confirm",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminTotpConfirm",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/totp/disable",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminTotpDisable",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/totp/setup",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminTotpSetup",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/totp/status",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminTotpStatus",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/traces",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminTraces",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/users",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminListUsers",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/users/ban",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminBanUser",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/users/credits",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": true,
+  "tarifs": [
+   "variable (voir le handler)"
+  ],
+  "handler": "handleAdminAdjustCredits",
+  "motif": false
+ },
+ {
+  "chemin": "/api/animate",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "anim"
+  ],
+  "handler": "handleAutoAnim",
+  "motif": false
+ },
+ {
+  "chemin": "/api/animate-from-reference",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "anim"
+  ],
+  "handler": "handleAnimateFromReference",
+  "motif": false
+ },
+ {
+  "chemin": "/api/animate-from-reference-status",
+  "methodes": [
+   "GET",
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAnimateFromReferenceStatus",
+  "motif": false
+ },
+ {
+  "chemin": "/api/animate-status",
+  "methodes": [
+   "GET",
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAutoAnimStatus",
+  "motif": false
+ },
+ {
+  "chemin": "/api/animations/copy",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAnimCopy",
+  "motif": false
+ },
+ {
+  "chemin": "/api/animations/delete",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAnimDelete",
+  "motif": false
+ },
+ {
+  "chemin": "/api/animations/upload",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "manual_tool"
+  ],
+  "handler": "handleAnimUpload",
+  "motif": false
+ },
+ {
+  "chemin": "/api/animations/upload-locomotion",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleLocomotionUpload",
+  "motif": false
+ },
+ {
+  "chemin": "/api/auth/install-session",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAuthInstallSession",
+  "motif": false
+ },
+ {
+  "chemin": "/api/auth/refresh",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAuthRefresh",
+  "motif": false
+ },
+ {
+  "chemin": "/api/auth/signout",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAuthSignout",
+  "motif": false
+ },
+ {
+  "chemin": "/api/auto-inpaint",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "auto_inpaint"
+  ],
+  "handler": "handleAutoInpaint",
+  "motif": false
+ },
+ {
+  "chemin": "/api/auto-rig",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "reskin",
+   "rig"
+  ],
+  "handler": "handleAutoRig",
+  "motif": false
+ },
+ {
+  "chemin": "/api/auto-rig-status",
+  "methodes": [
+   "GET",
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAutoRigStatus",
+  "motif": false
+ },
+ {
+  "chemin": "/api/checkout",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleCheckout",
+  "motif": false
+ },
+ {
+  "chemin": "/api/checkout/reconcile",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleCheckoutReconcile",
+  "motif": false
+ },
+ {
+  "chemin": "/api/client-log",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleClientLog",
+  "motif": false
+ },
+ {
+  "chemin": "/api/client-log/list",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleClientLogList",
+  "motif": false
+ },
+ {
+  "chemin": "/api/cloud-projects",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleCloudProjects",
+  "motif": false
+ },
+ {
+  "chemin": "/api/cloud-projects/delete",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleCloudProjectsDelete",
+  "motif": false
+ },
+ {
+  "chemin": "/api/construction-stages-3d",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "construction3d"
+  ],
+  "handler": "handleConstructionStages3d",
+  "motif": false
+ },
+ {
+  "chemin": "/api/contact",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleContactSubmit",
+  "motif": false
+ },
+ {
+  "chemin": "/api/copy-mesh-to-project",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleCopyMeshToProject",
+  "motif": false
+ },
+ {
+  "chemin": "/api/debug-auth",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleDebugAuth",
+  "motif": false
+ },
+ {
+  "chemin": "/api/face-fix-image",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "face_fix_image"
+  ],
+  "handler": "handleFaceFixImage",
+  "motif": false
+ },
+ {
+  "chemin": "/api/generate",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "calcule par creditCost()"
+  ],
+  "handler": "handleGenerate",
+  "motif": false
+ },
+ {
+  "chemin": "/api/generate-back-view",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "back_view"
+  ],
+  "handler": "handleGenerateBackView",
+  "motif": false
+ },
+ {
+  "chemin": "/api/generate-image",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "text2image"
+  ],
+  "handler": "handleGenerateImage",
+  "motif": false
+ },
+ {
+  "chemin": "/api/heartbeat",
+  "methodes": [
+   "POST",
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleHeartbeat",
+  "motif": false
+ },
+ {
+  "chemin": "/api/history.csv",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleHistoryCsv",
+  "motif": false
+ },
+ {
+  "chemin": "/api/history.json",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleHistoryJson",
+  "motif": false
+ },
+ {
+  "chemin": "/api/history.xlsx",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleHistoryXls",
+  "motif": false
+ },
+ {
+  "chemin": "/api/internal/mesh-done",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleInternalMeshDone",
+  "motif": false
+ },
+ {
+  "chemin": "/api/jobs/cancel",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleJobCancel",
+  "motif": false
+ },
+ {
+  "chemin": "/api/landmarks",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleLandmarks",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/:param",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketGet",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/:param/claim",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketClaim",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/author/:param",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketAuthorPage",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/checkout",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketCheckout",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/download/:param",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketDownload",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/list",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketList",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/listing/:param",
+  "methodes": [
+   "PATCH"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketUpdate",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/listing/:param",
+  "methodes": [
+   "PATCH"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketListingUpdate",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/listing/:param/rate",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketRate",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/owned",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketOwned",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/poster-upload/:param",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketPosterUpload",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/poster/:param",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketPoster",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/preview-upload/:param",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketPreviewUpload",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/preview/:param",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketPreview",
+  "motif": true
+ },
+ {
+  "chemin": "/api/market/publish",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "market_publish"
+  ],
+  "handler": "handleMarketPublish",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/report",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketReport",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/seller/dashboard",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketSellerDashboard",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/seller/earnings",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketSellerEarnings",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/seller/onboard",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketSellerOnboard",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/seller/payout-pref",
+  "methodes": [
+   "GET",
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleSellerPayoutPref",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/seller/status",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketSellerStatus",
+  "motif": false
+ },
+ {
+  "chemin": "/api/market/unpublish/:param",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMarketUnpublish",
+  "motif": true
+ },
+ {
+  "chemin": "/api/mask-inpaint",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "mask_inpaint"
+  ],
+  "handler": "handleMaskInpaint",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMe",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/active-jobs",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeActiveJobs",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/delete",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeDelete",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/earnings",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeEarnings",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/export",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeExport",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/inbox",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeInbox",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/inbox/read",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeInboxRead",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/mfa",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeMfa",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/mfa/:param",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeMfa",
+  "motif": true
+ },
+ {
+  "chemin": "/api/me/published-assets",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMePublishedAssets",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/replies",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeReplies",
+  "motif": false
+ },
+ {
+  "chemin": "/api/me/wipe-all-projects",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeWipeAllProjects",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-convert",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "export"
+  ],
+  "handler": "handleMeshConvert",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-enhance-tex",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeshEnhanceTex",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-name-parts",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "name_parts"
+  ],
+  "handler": "handleMeshNameParts",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-op",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "watertight_hd",
+   "mesh_op_simple"
+  ],
+  "handler": "handleMeshOp",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-op/client-result",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "paint_emissive",
+   "paint_mesh",
+   "clone3d"
+  ],
+  "handler": "handleMeshOpClientResult",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-region-retex",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeshRegionRetex",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-retexture",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "retex_*"
+  ],
+  "handler": "handleMeshRetexture",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-segment",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "mesh_segment"
+  ],
+  "handler": "handleMeshSegment",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-segment-status",
+  "methodes": [
+   "GET",
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeshSegmentStatus",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-texvar",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeshTexVar",
+  "motif": false
+ },
+ {
+  "chemin": "/api/meshes",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleListMeshes",
+  "motif": false
+ },
+ {
+  "chemin": "/api/meshes/delete",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeshesDelete",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mock-checkout",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMockCheckout",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mock-login",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMockLogin",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mock-logout",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMockLogout",
+  "motif": false
+ },
+ {
+  "chemin": "/api/modal-status",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleModalStatus",
+  "motif": false
+ },
+ {
+  "chemin": "/api/modify-image",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "modify"
+  ],
+  "handler": "handleModifyImage",
+  "motif": false
+ },
+ {
+  "chemin": "/api/outfit",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "outfit_complete",
+   "outfit"
+  ],
+  "handler": "handleOutfit",
+  "motif": false
+ },
+ {
+  "chemin": "/api/parental/status",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleParentalStatus",
+  "motif": false
+ },
+ {
+  "chemin": "/api/parental/toggle",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleParentalToggle",
+  "motif": false
+ },
+ {
+  "chemin": "/api/prewarm",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handlePrewarm",
+  "motif": false
+ },
+ {
+  "chemin": "/api/pricing",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handlePublicPricing",
+  "motif": false
+ },
+ {
+  "chemin": "/api/pricing/availability",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handlePricingAvailability",
+  "motif": false
+ },
+ {
+  "chemin": "/api/projects",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleProjects",
+  "motif": false
+ },
+ {
+  "chemin": "/api/projects/create",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleProjectCreate",
+  "motif": false
+ },
+ {
+  "chemin": "/api/projects/delete",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleProjectsDelete",
+  "motif": false
+ },
+ {
+  "chemin": "/api/projects/shells",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleProjectShells",
+  "motif": false
+ },
+ {
+  "chemin": "/api/proxy-image",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleProxyImage",
+  "motif": false
+ },
+ {
+  "chemin": "/api/recolor",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "recolor"
+  ],
+  "handler": "handleRecolor",
+  "motif": false
+ },
+ {
+  "chemin": "/api/rectify-image",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "rectify"
+  ],
+  "handler": "handleRectifyImage",
+  "motif": false
+ },
+ {
+  "chemin": "/api/remove-background",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "remove_background"
+  ],
+  "handler": "handleRemoveBackground",
+  "motif": false
+ },
+ {
+  "chemin": "/api/report-content",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleReportContent",
+  "motif": false
+ },
+ {
+  "chemin": "/api/segment-preview",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "segment"
+  ],
+  "handler": "handleSegmentPreview",
+  "motif": false
+ },
+ {
+  "chemin": "/api/stages3d-list",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleStages3dList",
+  "motif": false
+ },
+ {
+  "chemin": "/api/stripe-webhook",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleStripeWebhook",
+  "motif": false
+ },
+ {
+  "chemin": "/api/tex-variant",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "tex_variant"
+  ],
+  "handler": "handleTexVariant",
+  "motif": false
+ },
+ {
+  "chemin": "/api/thumbs/upload",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleThumbsUpload",
+  "motif": false
+ },
+ {
+  "chemin": "/api/tool-charge",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "variable (voir le handler)"
+  ],
+  "handler": "handleToolCharge",
+  "motif": false
+ },
+ {
+  "chemin": "/api/upload-image",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "manual_tool"
+  ],
+  "handler": "handleUploadImage",
+  "motif": false
+ },
+ {
+  "chemin": "/api/upload-mesh",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "manual_tool"
+  ],
+  "handler": "handleUploadMesh",
+  "motif": false
+ },
+ {
+  "chemin": "/api/upload-rig",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "manual_tool"
+  ],
+  "handler": "handleUploadRig",
+  "motif": false
+ },
+ {
+  "chemin": "/api/upscale-image",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "upscale"
+  ],
+  "handler": "handleUpscaleImage",
+  "motif": false
+ },
+ {
+  "chemin": "/api/user-assets/delete",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleUserAssetsDelete",
+  "motif": false
+ },
+ {
+  "chemin": "/api/user-assets/migrate-from-jobs",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleUserAssetsMigrateFromJobs",
+  "motif": false
+ },
+ {
+  "chemin": "/api/user-assets/reassign-orphans",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleUserAssetsReassignOrphans",
+  "motif": false
+ },
+ {
+  "chemin": "/api/user-assets/record",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleUserAssetsRecord",
+  "motif": false
+ },
+ {
+  "chemin": "/download/track",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleDownloadTrack",
+  "motif": false
+ }
+]

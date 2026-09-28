@@ -548,3 +548,28 @@ node build/fab.mjs capture C:/tmp/vue.png <id-du-canvas>
 - Un import / export ouvre un dialogue Windows : `POST /dialog/next` AVANT le
   clic, sinon il attend un humain.
 - Sous Git Bash, `fab.mjs` défait la conversion des chemins (`/ui/...`).
+
+## 18. Piloter le SITE WEB depuis la session (API du worker)
+
+`build/fab-web.mjs` appelle les routes de `cloud/src/worker.ts` connecté à un
+compte, exactement comme la page (cookie `mfm-session`). Les travaux lancés
+apparaissent dans le site de ce compte et **ses crédits sont débités**.
+
+```bash
+node build/fab-web.mjs login <email>     # PAR L'UTILISATEUR, dans un terminal (mot de passe masqué,
+                                         # jamais transmis à la session) ; session dans ~/.fabmesh/
+node build/fab-web.mjs moi | tarifs | travaux
+node build/fab-web.mjs routes <mot>      # route, accès, PAYANT + clé de tarif
+node build/fab-web.mjs POST /api/<route> '<json>' --payer    # --payer obligatoire si la route débite
+node build/fab-web.mjs attendre [jobId]
+```
+
+- **Listing complet** (156 routes : accès, tarif par défaut, méthode de
+  `meshyAPI-cloud.js` qui l'appelle — son corps donne le JSON exact) :
+  `docs/pilotage_web.md`, **généré** par `node build/lister-routes-web.mjs`
+  (+ `build/pilotage_web_routes.json`, lu par la garde `--payer`). Le relancer
+  après tout ajout de route.
+- Les calculs GPU passent par Modal : refusés tant que le budget du jour ou le
+  plafond du compte est atteint.
+- Ne jamais se connecter à un compte à la place de l'utilisateur : c'est lui
+  qui lance `login`.
