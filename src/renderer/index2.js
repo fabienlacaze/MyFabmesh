@@ -2545,6 +2545,7 @@ bindStepCardCollapse();
   const canvas = $('rrx-canvas');
   const ctx = canvas && canvas.getContext('2d');
   if (!modal || !ctx) return;
+  canvas.style.opacity = '0.5';   // voir _dab : la transparence est celle du calque
   let painting = false, hasPaint = false, _rrxFrontPath = null;
   // Deux modes pour une meme fenetre (2026-09-28) : « texture » (Re-texture a
   // region, historique) et « forme » (Reshape a region = auto inpaint 3D : la
@@ -2586,7 +2587,10 @@ bindStepCardCollapse();
   }
   function _dab(p) {
     const br = parseInt($('rrx-brush').value) || 32;
-    ctx.fillStyle = 'rgba(255,60,60,0.55)';
+    // Rouge PLEIN sur le calque, transparence portee par le calque entier (CSS) :
+    // en rgba 0,55, chaque passage s'ajoutait au precedent et la zone devenait
+    // opaque (user, 2026-09-28).
+    ctx.fillStyle = 'rgb(255,60,60)';
     ctx.beginPath(); ctx.arc(p.x, p.y, br / 2, 0, Math.PI * 2); ctx.fill();
     hasPaint = true;
   }
@@ -2668,7 +2672,7 @@ bindStepCardCollapse();
           const md = octx.getImageData(0, 0, canvas.width, canvas.height).data;
           const cd = ctx.getImageData(0, 0, canvas.width, canvas.height);
           for (let i = 0; i < md.length; i += 4) {
-            if (md[i] > 128) { cd.data[i] = 255; cd.data[i + 1] = 60; cd.data[i + 2] = 60; cd.data[i + 3] = 140; }
+            if (md[i] > 128) { cd.data[i] = 255; cd.data[i + 1] = 60; cd.data[i + 2] = 60; cd.data[i + 3] = 255; }
           }
           ctx.putImageData(cd, 0, 0);
           hasPaint = true;
