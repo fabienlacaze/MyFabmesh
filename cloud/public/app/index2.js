@@ -17773,6 +17773,7 @@ async function lancerRigIA(options = {}) {
       });
       if (r?.success) {
         completeJob(job.id, true);
+        try { options.apresSucces?.(); } catch (_) {}
         await reloadCurrentProject();
         const rigCard = document.getElementById('step-card-rig');
         if (rigCard) {
@@ -25389,6 +25390,37 @@ async function _ptsLireSquelette(rig) {
   };
 }
 
+// VERSIONS DU RIG DANS L'EDITEUR (2026-09-28, user : « pas de nouvelle version
+// du rig visible »). L'editeur couvre tout l'ecran : la liste des versions de
+// l'etape Rig restait cachee derriere, et une version creee par « Save moved
+// joints » semblait ne pas exister. Pastilles v0..vN (meme numerotation que
+// l'etape Rig), celle qu'on edite en surbrillance ; un clic ouvre cette version.
+function _ptsCleRig(x) {
+  return String(x || '').split('?')[0].replace(/\\/g, '/').replace(/^file:\/\/\//i, '').toLowerCase();
+}
+function _ptsVersions(nouvelle) {
+  const box = document.getElementById('pts-versions');
+  if (!box) return;
+  const p = state.currentProject;
+  const _ts = (m) => { const t = new Date(m?.created || m?.mtime || 0).getTime(); return Number.isFinite(t) ? t : 0; };
+  const rigs = (p?.rigs || []).slice().sort((a, b) => _ts(b) - _ts(a));
+  if (rigs.length < 2 && !nouvelle) { box.innerHTML = ''; return; }
+  const actuel = _ptsCleRig(_pts.rig);
+  const pastilles = rigs.map((r, i) => {
+    const cle = _ptsCleRig(r.path || r.url);
+    const nom = String(r.filename || r.path || r.url || '').split('?')[0].replace(/\\/g, '/').split('/').pop();
+    return `<button type="button" class="pts-version${cle === actuel ? ' actif' : ''}${cle === actuel && nouvelle ? ' nouveau' : ''}"`
+      + ` data-i="${i}" title="${escapeHtml(nom)}">v${rigs.length - 1 - i}</button>`;
+  }).reverse();
+  box.innerHTML = `<span class="pts-versions-titre">${escapeHtml(_i18nT('Rig version'))}</span>` + pastilles.join('');
+  box.querySelectorAll('.pts-version').forEach((b) => b.addEventListener('click', () => {
+    const r = rigs[+b.dataset.i];
+    if (!r || _ptsCleRig(r.path || r.url) === actuel) return;
+    p.selectedRigPath = r.url || r.path;
+    ptsOuvrir();
+  }));
+}
+
 async function ptsOuvrir() {
   const p = state.currentProject;
   const rig = p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
@@ -25404,6 +25436,7 @@ async function ptsOuvrir() {
   _pts.actif = true;
   window.__ptsEditeurActif = true;
   Object.assign(_pts, { rig, ajout: false, selection: null, survol: null, passe: [], futur: [], glisse: null });
+  _ptsVersions();
   _ptsVider();
   if (lmFsModel) { lmFsScene.remove(lmFsModel); lmFsModel = null; }
   const liste = document.getElementById('pts-liste');
@@ -26115,8 +26148,11 @@ function _ptsMajBoutons() {
   if (refaire) refaire.disabled = _pts.futur.length === 0 && (typeof lmHistoryFuture === 'undefined' || lmHistoryFuture.length === 0);
   const regen = document.getElementById('pts-regenerer');
   if (regen) regen.disabled = !_pts.actif || !lmFsModel || !_pts.points.length;
+  // Toujours cliquable des que le rig est charge (user, 2026-09-28 : « impossible
+  // de choisir le bouton sans IA ») : grise, il ne disait pas pourquoi. Sans
+  // articulation deplacee, le clic explique quoi faire.
   const sansIA = document.getElementById('pts-enregistrer-sans-ia');
-  if (sansIA) sansIA.disabled = !_pts.actif || !lmFsModel || !_pts.osModifies;
+  if (sansIA) sansIA.disabled = !_pts.actif || !lmFsModel;
   // prix affiche : squelette impose (articulation deplacee) = RESKIN_COST (6)
   // du worker, sinon RIG_COST (10)
   const prix = document.querySelector('#pts-regenerer .cloud-cost-badge, #pts-regenerer .gcp-val');
@@ -26423,6 +26459,13 @@ async function ptsRegenerer() {
   if (liens.some(Boolean)) options.liens = liens;
   // articulations deplacees : ce squelette-la est impose (plus de tirage de l'IA)
   if (_pts.osModifies) options.squelette = { joints: inst.os.map(r5), parents: _pts.os.map(o => o.parent) };
+  // Une fois le nouveau rig produit, la version de depart retrouve ses vraies
+  // articulations : son brouillon (fabmesh_os) est devenu la nouvelle version.
+  if (_pts.osModifies) {
+    const brouillon = { meshPath: _pts.rig, landmarks: { fabmesh_points: inst.pts.map(r5),
+      ...(inst.liens.some(Boolean) ? { fabmesh_liens: inst.liens } : {}) } };
+    options.apresSucces = () => { try { API.saveLandmarks?.(brouillon); } catch (_) {} };
+  }
   closeLandmarksFullscreen();
   lancerRigIA(options);
 }
@@ -26467,7 +26510,7 @@ async function _ptsEnregistrerSansIA() {
     return;
   }
   if (!_ptsOsModifie()) {
-    showToast(_i18nT('Drag a skeleton point first.'), 'info', 3500);
+    showToast(_i18nT('Nothing to save yet: drag a pink skeleton point (a joint). Green and orange points are targets for the AI.'), 'info', 6000);
     return;
   }
   const job = pushJob(`Save adjusted rig: ${p?.name || ''}`, null, null, 8000, { projectName: p?.name });
@@ -26518,6 +26561,13 @@ async function _ptsEnregistrerSansIA() {
       size: bytes.length, mtime: Date.now(), asset_type: 'rig' });
     p.selectedRigPath = chemin;
     completeJob(job.id, true);
+    // L'ANCIENNE version retrouve ses vraies articulations (user, 2026-09-28 :
+    // « quand j'ouvre les versions de rig, j'ai toujours la derniere ») : le
+    // glisser ecrit les articulations deplacees comme BROUILLON (fabmesh_os)
+    // dans le fichier de points de la version ouverte ; ce brouillon est
+    // desormais la nouvelle version, on l'efface de l'ancienne.
+    _pts.osModifies = false;
+    _ptsSauver(true);                              // _pts.rig = encore l'ancienne
     // L'editeur suit la NOUVELLE version : ses articulations sont la reference,
     // et les points a atteindre sont rattaches a ce fichier.
     _pts.os.forEach((o, i) => { _pts.osOrigine[o.orig ?? i] = o.p.clone(); });
@@ -26527,6 +26577,7 @@ async function _ptsEnregistrerSansIA() {
     _ptsMajBoutons();
     showToast(_i18nT('Rig saved with the moved joints') + ' ✓', 'success', 3000);
     try { populateWorkspace(state.currentProject); } catch (_) {}
+    _ptsVersions(true);   // la nouvelle version apparait, en surbrillance
   } catch (e) {
     completeJob(job.id, false, e.message);
     customError(_i18nT('Could not save the rig:') + ' ' + e.message, titre);

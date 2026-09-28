@@ -3530,6 +3530,43 @@ details.stage-generating > summary .stage-icon-gear {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.pts-versions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+.pts-versions:empty { display: none; }
+.pts-versions-titre {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-right: 2px;
+}
+.pts-version {
+  min-width: 34px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-1, #ddd);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pts-version:hover { border-color: var(--accent); }
+.pts-version.actif {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  cursor: default;
+}
+.pts-version.nouveau { animation: pts-version-nouveau 1.2s ease-out 2; }
+@keyframes pts-version-nouveau {
+  0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.9); }
+  100% { box-shadow: 0 0 0 10px rgba(168, 85, 247, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .pts-version.nouveau { animation: none; } }
 .pts-legende {
   display: flex;
   flex-wrap: wrap;
