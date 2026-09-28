@@ -3170,7 +3170,10 @@ function _nomLisible(chemin) {
   for (const [champ, genre, trier, numeroter] of familles) {
     let liste = Array.isArray(p?.[champ]) ? p[champ] : [];
     if (trier) liste = liste.slice().sort((a, b) => _ts(b) - _ts(a));
-    const i = liste.findIndex(a => cleDe(a) === cle);
+    let i = liste.findIndex(a => cleDe(a) === cle);
+    // appel avec le seul NOM du fichier (le web le fait pour les animations) :
+    // repli sur le nom, apres la correspondance exacte
+    if (i < 0) i = liste.findIndex(a => basename(cleDe(a)) === basename(cle));
     if (i < 0) continue;
     const a = liste[i];
     let t = typeof a === 'string' ? 0 : _ts(a);
@@ -18207,7 +18210,7 @@ function showStep4AnimPreview(anim) {
   // « No animation selected » restait affiche, coupe, a droite du viewer
   // pendant que le clip jouait (capture user du 2026-09-26).
   if (placeholder) placeholder.style.display = 'none';
-  setViewerFilename('ws-anim-filename', anim.filename || anim.path || anim.url || '');
+  setViewerFilename('ws-anim-filename', anim.url || anim.path || anim.filename || '');
   _initAnimViewer();
   _disposeAnimModel();
   const myId = ++_animLoadId;

@@ -3482,7 +3482,10 @@ function _nomLisible(chemin) {
   for (const [champ, genre, trier, numeroter] of familles) {
     let liste = Array.isArray(p?.[champ]) ? p[champ] : [];
     if (trier) liste = liste.slice().sort((a, b) => _ts(b) - _ts(a));
-    const i = liste.findIndex(a => cleDe(a) === cle);
+    let i = liste.findIndex(a => cleDe(a) === cle);
+    // appel avec le seul NOM du fichier (le web le fait pour les animations) :
+    // repli sur le nom, apres la correspondance exacte
+    if (i < 0) i = liste.findIndex(a => basename(cleDe(a)) === basename(cle));
     if (i < 0) continue;
     const a = liste[i];
     let t = typeof a === 'string' ? 0 : _ts(a);
