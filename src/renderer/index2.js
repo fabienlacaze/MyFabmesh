@@ -17411,9 +17411,10 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
     renderer.setPixelRatio(devicePixelRatio);
     renderer.setSize(w, h, false);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0e);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    scene.background = new THREE.Color(_ANIM_FONDS[_animFondB] ?? 0x0a0a0e);
+    const amb = new THREE.AmbientLight(0xffffff, 0.9 * _animExpo);
+    scene.add(amb);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6 * _animExpo);
     sun.position.set(2, 3, 2); scene.add(sun);
     const cam = new THREE.PerspectiveCamera(35, w / h, 0.001, 1000);
     cam.position.set(2, 1, 2);
@@ -17423,6 +17424,41 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
     let clipOriginal = null, racineAnim = null;   // pour basculer « In place »
     let aideSquelette = null;                      // bouton « Bones »
     let clipsCharges = [];                         // clips du GLB (allures d'un fichier locomotion)
+    // Barre du visualiseur (parite web, 2026-09-28) : fil de fer, grille au sol, camera qui suit l'os racine.
+    let modele = null, grille = null, osSuivi = null, suiviPrec = null;
+    function appliquerFilDeFer() {
+      modele?.traverse((o) => {
+        if (!o.isMesh) return;
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m) m.wireframe = _animFilDeFerB; });
+      });
+    }
+    function construireGrille() {
+      if (!modele) return;
+      if (grille) { scene.remove(grille); grille.geometry?.dispose?.(); grille.material?.dispose?.(); }
+      const b = new THREE.Box3().setFromObject(modele);
+      const t = (b.getSize(new THREE.Vector3()).length() || 1) * 3;
+      grille = new THREE.GridHelper(t, 30, 0x55557a, 0x2c2c40);
+      const c = b.getCenter(new THREE.Vector3());
+      grille.position.set(c.x, b.min.y, c.z);
+      grille.visible = _animGrilleB;
+      scene.add(grille);
+    }
+    // Vues camera reelles (l'avant des assets FabMesh regarde +Z) — memes directions que le web.
+    function cadrer(vue) {
+      if (!modele) return;
+      const b = new THREE.Box3().setFromObject(modele);
+      const c = b.getCenter(new THREE.Vector3());
+      const r = b.getSize(new THREE.Vector3()).length() || 1;
+      const dirs = {
+        iso: [0.9, 0.5, 0.9], front: [0, 0.12, 1.3], back: [0, 0.12, -1.3],
+        left: [-1.3, 0.12, 0], right: [1.3, 0.12, 0], top: [0, 1.3, 0.001], bottom: [0, -1.3, 0.001],
+      };
+      const d = dirs[vue] || dirs.iso;
+      cam.position.set(c.x + d[0] * r, c.y + d[1] * r, c.z + d[2] * r);
+      ctl.target.copy(c);
+      ctl.update();
+      suiviPrec = null;
+    }
     const url = anim.url || ('file:///' + (anim.path || '').replace(/\\/g, '/'));
     console.log('[anim-result] loading', url);
     new GLTFLoader().load(url, (g) => {
@@ -17494,17 +17530,37 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
         aideSquelette = helper;
         scene.add(helper);
       }
+      modele = root;
+      let prof = Infinity;
+      root.traverse((o) => {
+        if (!o.isBone) return;
+        let n = 0;
+        for (let x = o; x && x !== root; x = x.parent) n++;
+        if (n < prof) { prof = n; osSuivi = o; }
+      });
+      appliquerFilDeFer();
+      construireGrille();
     }, undefined, (err) => console.error('[anim-result] GLTFLoader failed:', err));
     const clk = new THREE.Clock();
     (function tick() {
       if (disposed) return;
       raf = requestAnimationFrame(tick);
       const dtImage = clk.getDelta();
-      if (mixer && _animPlaying) mixer.update(dtImage);
+      if (mixer && _animPlaying) mixer.update(dtImage * _animVitesse);
       if (action) {
         _animFriseMaj(action);
         // clip sans boucle arrive au bout : le bouton repasse sur « Play »
         if (_animPlaying && _animFinie(action)) { _animPlaying = false; _animMajBoutonsLecture(); }
+      }
+      if (_animSuiviB && osSuivi) {
+        const p = new THREE.Vector3();
+        osSuivi.getWorldPosition(p);
+        if (suiviPrec) {
+          const d = p.clone().sub(suiviPrec);
+          cam.position.add(d);
+          ctl.target.add(d);
+        }
+        suiviPrec = p;
       }
       ctl.update();
       renderer.render(scene, cam);
@@ -17567,6 +17623,13 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
     },
     estFini() { return !!action && _animFinie(action); },
     squelette(visible) { if (aideSquelette) aideSquelette.visible = visible; },
+    // barre du visualiseur (parite web)
+    cadrer,
+    filDeFer() { appliquerFilDeFer(); },
+    grille() { if (grille) grille.visible = _animGrilleB; },
+    suivi() { suiviPrec = null; },
+    fond() { scene.background = new THREE.Color(_ANIM_FONDS[_animFondB] ?? 0x0a0a0e); },
+    exposition() { amb.intensity = 0.9 * _animExpo; sun.intensity = 1.6 * _animExpo; },
     // Lecture : un clip fini (sans boucle) repart du debut.
     relancerSiFini() {
       if (action && _animFinie(action)) { action.enabled = true; action.reset(); action.play(); }
@@ -17621,7 +17684,10 @@ function _animMajBoutonsLecture() {
   }
   const bf = document.querySelector('#ws-anim-timeline [data-t="play"]');
   if (bf) bf.innerHTML = _animPlaying ? '&#10074;&#10074;' : '&#9654;';
+  const bt = document.querySelector('#ws-anim-toolbar [data-act="play"]');
+  if (bt) bt.innerHTML = _animPlaying ? '&#10074;&#10074;' : '&#9654;';
   document.getElementById('ws-anim-loop-btn')?.classList.toggle('active', _animLoop);
+  document.querySelector('#ws-anim-toolbar [data-act="loop"]')?.classList.toggle('active', _animLoop);
 }
 function _animBasculerLectureBureau() {
   if (!_animViewer) return;
@@ -17671,33 +17737,77 @@ function _clipEnPlace(clip, racine) {
   piste.values = v;
   return copie;
 }
-document.getElementById('ws-anim-inplace-btn')?.addEventListener('click', (e) => {
+function _animBasculerEnPlaceBureau() {
   _animEnPlace = !_animEnPlace;
   try { localStorage.setItem('fabmesh_anim_en_place', _animEnPlace ? '1' : '0'); } catch (_) {}
-  e.currentTarget.classList.toggle('active', _animEnPlace);
   _animViewer?.enPlace?.(_animEnPlace);
-});
-document.getElementById('ws-anim-inplace-btn')?.classList.toggle('active', _animEnPlace);
+  _animMajBarre();
+}
 
 // « Bones » : affiche / masque le squelette de l'apercu (parite web). Visible
 // par defaut, comme avant ; le choix est retenu.
 let _animBones = true;
 try { _animBones = localStorage.getItem('fabmesh_anim_bones') !== '0'; } catch (_) {}
-document.getElementById('ws-anim-bones-btn')?.addEventListener('click', (e) => {
+function _animBasculerBonesBureau() {
   _animBones = !_animBones;
   try { localStorage.setItem('fabmesh_anim_bones', _animBones ? '1' : '0'); } catch (_) {}
-  e.currentTarget.classList.toggle('active', _animBones);
   _animViewer?.squelette?.(_animBones);
-});
-document.getElementById('ws-anim-bones-btn')?.classList.toggle('active', _animBones);
-
-// Wire EDIT SELECTED toolbar buttons (Play / Loop / Export FBX / Show in folder)
-document.getElementById('ws-anim-play-btn')?.addEventListener('click', _animBasculerLectureBureau);
-document.getElementById('ws-anim-loop-btn')?.addEventListener('click', () => {
+  _animMajBarre();
+}
+function _animBasculerBoucleBureau() {
   _animLoop = !_animLoop;
   _animViewer?.boucle?.(_animLoop);   // la boucle est maintenant APPLIQUEE au clip
   _animMajBoutonsLecture();
+}
+
+// Barre du visualiseur d'animation — memes commandes que le web (parite, 2026-09-28). Les reglages
+// sont gardes d'un clip a l'autre ; l'exposition agit sur les lumieres (pas de tone mapping ici).
+let _animFilDeFerB = false, _animGrilleB = false, _animSuiviB = false;
+let _animVitesse = 1, _animFondB = 'dark', _animExpo = 1;
+const _ANIM_FONDS = { dark: 0x0a0a0e, studio: 0x222233, black: 0x000000, gray: 0x444444 };
+function _animMajBarre() {
+  const q = (a) => document.querySelector(`#ws-anim-toolbar [data-act="${a}"]`);
+  q('inplace')?.classList.toggle('active', _animEnPlace);
+  q('bones')?.classList.toggle('active', _animBones);
+  q('wire')?.classList.toggle('active', _animFilDeFerB);
+  q('grid')?.classList.toggle('active', _animGrilleB);
+  q('follow')?.classList.toggle('active', _animSuiviB);
+  q('loop')?.classList.toggle('active', _animLoop);
+}
+document.querySelectorAll('#ws-anim-toolbar button[data-act]').forEach((el) => {
+  el.addEventListener('click', () => {
+    const act = el.dataset.act;
+    if (act === 'play') _animBasculerLectureBureau();
+    else if (act === 'loop') _animBasculerBoucleBureau();
+    else if (act === 'inplace') _animBasculerEnPlaceBureau();
+    else if (act === 'bones') _animBasculerBonesBureau();
+    else if (act === 'wire') { _animFilDeFerB = !_animFilDeFerB; _animViewer?.filDeFer?.(); }
+    else if (act === 'grid') { _animGrilleB = !_animGrilleB; _animViewer?.grille?.(); }
+    else if (act === 'follow') { _animSuiviB = !_animSuiviB; _animViewer?.suivi?.(); }
+    else if (act === 'reset') {
+      _animViewer?.cadrer?.('iso');
+      const v = document.querySelector('#ws-anim-toolbar [data-act="view"]');
+      if (v) v.value = 'iso';
+    }
+    _animMajBarre();
+  });
 });
+document.querySelector('#ws-anim-toolbar [data-act="view"]')?.addEventListener('change', (e) => {
+  _animViewer?.cadrer?.(e.target.value);
+});
+document.querySelector('#ws-anim-toolbar [data-act="speed"]')?.addEventListener('change', (e) => {
+  const s = parseFloat(e.target.value);
+  if (Number.isFinite(s) && s > 0) _animVitesse = s;
+});
+document.querySelector('#ws-anim-toolbar [data-act="bg"]')?.addEventListener('change', (e) => {
+  _animFondB = e.target.value;
+  _animViewer?.fond?.();
+});
+document.querySelector('#ws-anim-toolbar [data-act="light"]')?.addEventListener('input', (e) => {
+  _animExpo = (parseFloat(e.target.value) / 100) || 0;
+  _animViewer?.exposition?.();
+});
+_animMajBarre();
 _animMajBoutonsLecture();
 document.getElementById('ws-anim-folder-btn')?.addEventListener('click', async () => {
   if (!_selectedAnim?.path) return;

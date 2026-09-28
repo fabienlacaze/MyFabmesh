@@ -341,7 +341,7 @@ les elements dynamiques (vignettes, cartes) avec une reference `@rN` valable jus
 | `#btn-import-image` | button | 📦 Import |
 | `#btn-cloud-library` | button | ☁ Cloud library |
 
-### etape:step-card-animation (15)
+### etape:step-card-animation (11)
 
 | cible | type | libelle / info-bulle |
 |---|---|---|
@@ -356,10 +356,6 @@ les elements dynamiques (vignettes, cartes) avec une reference `@rN` valable jus
 | `#ws-anim-scrub` | input:range | Scrub frame by frame |
 | `#ws-anim-export-btn` | button | 📥 Export FBX |
 | `#ws-anim-folder-btn` | button | 📁 Show in folder — Show this file in the file explorer. |
-| `#ws-anim-play-btn` | button | ❚❚ Pause — Play the animation. |
-| `#ws-anim-loop-btn` | button | 🔁 Loop — Loop playback. |
-| `#ws-anim-inplace-btn` | button | 📌 In place — In place: the animation stays on the spot (no travel). The exported file follows this setting. |
-| `#ws-anim-bones-btn` | button | 🦴 Bones — Show skeleton |
 
 ### etape:step-card-image (47)
 

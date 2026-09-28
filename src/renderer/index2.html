@@ -1064,6 +1064,41 @@
                     <!-- Plein ecran NATIF de cette carte (la visionneuse 3D
                          commune n'a pas de mixer : l'animation s'y figerait). -->
                     <button id="ws-anim-expand-btn" class="preview-expand-btn hidden" title="View animation fullscreen">&#x26F6;</button>
+                    <!-- Barre du visualiseur, copiee du web (parite, 2026-09-28). -->
+                    <div id="ws-anim-toolbar" class="mesh-toolbar">
+                      <button data-act="reset" title="Reset camera">&#10227;</button>
+                      <select data-act="view" title="Camera view">
+                        <option value="iso" selected>Iso</option>
+                        <option value="front">Front</option>
+                        <option value="back">Back</option>
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                        <option value="top">Top</option>
+                        <option value="bottom">Bottom</option>
+                      </select>
+                      <button data-act="play" title="Play / Pause">&#9654;</button>
+                      <button data-act="loop" class="active" title="Loop">&#128257;</button>
+                      <button data-act="inplace" title="In place: the animation stays on the spot (no travel)">&#128204;</button>
+                      <button data-act="bones" title="Show skeleton">Bones</button>
+                      <button data-act="wire" title="Wireframe">Wire</button>
+                      <button data-act="grid" title="Ground grid">Grid</button>
+                      <button data-act="follow" title="Camera follows the character">Follow</button>
+                      <select data-act="speed" title="Playback speed">
+                        <option value="0.25">0.25x</option>
+                        <option value="0.5">0.5x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2x</option>
+                      </select>
+                      <select data-act="bg" title="Background">
+                        <option value="dark" selected>Dark</option>
+                        <option value="studio">Studio</option>
+                        <option value="black">Black</option>
+                        <option value="gray">Gray</option>
+                      </select>
+                      <span class="light-label" title="Exposure">&#9728;</span>
+                      <input type="range" data-act="light" min="0" max="300" value="100" title="Exposure" />
+                    </div>
                     <!-- Frise de lecture image par image (parite web). -->
                     <div id="ws-anim-timeline" class="anim-timeline hidden">
                       <button type="button" data-t="play" title="Play / Pause">&#9654;</button>
@@ -1089,15 +1124,8 @@
                         <button id="ws-anim-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
                       </div>
                     </div>
-                    <div class="step-tools-group">
-                      <div class="step-tools-label">Playback</div>
-                      <div class="step-tools-grid">
-                        <button id="ws-anim-play-btn" class="ghost-btn tool-btn" title="Play the animation.">&#9654; Play</button>
-                        <button id="ws-anim-loop-btn" class="ghost-btn tool-btn" title="Loop playback.">&#128257; Loop</button>
-                        <button id="ws-anim-inplace-btn" class="ghost-btn tool-btn" title="In place: the animation stays on the spot (no travel). The exported file follows this setting.">&#128204; In place</button>
-                        <button id="ws-anim-bones-btn" class="ghost-btn tool-btn" title="Show skeleton">&#129460; Bones</button>
-                      </div>
-                    </div>
+                    <!-- Bloc « Playback » (Play / Loop / In place / Bones) RETIRE le 2026-09-28, comme sur le web
+                         le 2026-09-27 (demande du user) : doublon de la barre du visualiseur (#ws-anim-toolbar). -->
                   </div>
                 </div>
               </div>
