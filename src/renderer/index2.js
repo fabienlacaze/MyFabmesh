@@ -16788,6 +16788,13 @@ function renderAnimVersions(p) {
     el.addEventListener('click', () => {
       const idx = parseInt(el.dataset.animIdx, 10);
       if (Number.isFinite(idx) && anims[idx]) _selectAnim(anims[idx]);
+      // Le surlignage suit la selection : il restait sur la vignette choisie
+      // au rendu (la plus recente) quel que soit le clip affiche.
+      strip.querySelectorAll('.version-thumb').forEach((t) => {
+        const actif = t === el;
+        t.classList.toggle('selected', actif);
+        t.style.borderColor = actif ? 'var(--accent)' : 'transparent';
+      });
     });
     el.querySelector('.version-delete-btn')?.addEventListener('click', async (e) => {
       e.stopPropagation();
