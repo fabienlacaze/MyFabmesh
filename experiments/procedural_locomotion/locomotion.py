@@ -26,11 +26,12 @@ from scipy.spatial.transform import Rotation
 
 sys.path.insert(0, r'C:\Users\Utilisateur\Desktop\FabWare\MeshyMyself\modal_app')
 import _unimate_moteur as M  # noqa: E402  (lecture GLB, matrices monde)
+import ik_forme  # noqa: E402  (cinematique inverse a forme gardee)
 
 ALLURES = {
     # appui : part du cycle au sol ; T : periode (<= 4 pattes, 6 et plus) ; h : hauteur de pas ;
     # bob : balancement vertical ; foulee : longueur relative ; lacet : rad/s (+ = vers la gauche)
-    'walk': dict(beta=0.65, T=(1.1, 0.7), h=0.22, bob=0.025, foulee=1.0, lacet=0.0, tendu=0.94, talon=0.5, pas=True),
+    'walk': dict(beta=0.65, T=(1.1, 0.7), h=0.22, bob=0.035, foulee=1.0, lacet=0.0, tendu=0.965, talon=0.5, pas=True),
     'run': dict(beta=0.38, T=(0.62, 0.42), h=0.22, bob=0.035, foulee=1.8, lacet=0.0, tendu=0.87, talon=0.7, pas=True),
     'turn_left': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=0.55, tendu=0.92, talon=0.35, pas=True),
     'turn_right': dict(beta=0.65, T=(1.1, 0.7), h=0.2, bob=0.02, foulee=0.55, lacet=-0.55, tendu=0.92, talon=0.35, pas=True),
@@ -214,9 +215,24 @@ def aligner(a, b):
     return np.eye(3) + K + K @ K / (1 + c)
 
 
-def fabrik(Q, cible, iterations=20):
+def fabrik(Q, cible, iterations=20, n=None, sol_min=None, pole=None):
     L = np.linalg.norm(np.diff(Q, axis=0), axis=1)
     base = Q[0].copy()
+    Q = Q.copy()
+    # chaine presque ALIGNEE : FABRIK ne sait pas de quel cote plier et la garde droite (la
+    # jambe de l'humain au repos, 99 % de sa longueur, poussait le pied sous le sol) -> on la
+    # pre-plie dans son sens naturel
+    if pole is not None and len(Q) > 2:
+        u0 = (cible - base) / (np.linalg.norm(cible - base) + 1e-12)
+        ecart = max(np.linalg.norm((Q[k] - base) - np.dot(Q[k] - base, u0) * u0) for k in range(1, len(Q) - 1))
+        if ecart < 0.03 * L.sum():
+            Q[1:-1] += 0.08 * L.sum() * pole
+
+    def plan(Q_):
+        if n is None:
+            return Q_
+        return Q_ - np.outer((Q_ - base) @ n, n)
+    Q = plan(Q)
     if np.linalg.norm(cible - base) >= L.sum():
         d = (cible - base) / np.linalg.norm(cible - base)
         return np.vstack([base, base + np.cumsum(L)[:, None] * d])
@@ -228,6 +244,12 @@ def fabrik(Q, cible, iterations=20):
             Q[i] = Q[i + 1] + d / (np.linalg.norm(d) + 1e-12) * L[i]
         Q[0] = base
         for i in range(1, len(Q)):
+            d = Q[i] - Q[i - 1]
+            Q[i] = Q[i - 1] + d / (np.linalg.norm(d) + 1e-12) * L[i - 1]
+        Q = plan(Q)
+        if sol_min is not None:                              # aucune articulation sous le sol
+            Q[1:-1, 1] = np.maximum(Q[1:-1, 1], sol_min)
+        for i in range(1, len(Q)):                           # longueurs exactes apres projection
             d = Q[i] - Q[i - 1]
             Q[i] = Q[i - 1] + d / (np.linalg.norm(d) + 1e-12) * L[i - 1]
         if np.linalg.norm(Q[-1] - cible) < 1e-5:
@@ -256,6 +278,8 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
     bipede = len(pattes) <= 2
     T = A['T'][1 if nombreux else 0]
     beta = 0.55 if (nombreux and allure != 'run' and A['pas']) else A['beta']
+    if bipede and A['pas'] and allure != 'run':
+        beta = 0.6
     H = float(np.ptp(P0[:, 1]))
     # --- geometrie de chaque patte : chaine de cinematique inverse, pied rigide, point neutre
     for p in pattes:
@@ -292,6 +316,22 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         if contact - sol > 0.02 * H:
             N[1] -= contact - sol
         p['neutre'] = N
+        # sens de pliure : ecart des articulations a la droite hanche-cheville, au repos ;
+        # patte « debout » : ramene dans le plan avant-arriere (genou vers l'avant par defaut)
+        ik_ = p['ik']
+        a_, b_ = P0[ik_[0]], P0[ik_[-1]]
+        u_ = (b_ - a_) / (np.linalg.norm(b_ - a_) + 1e-12)
+        pole = np.zeros(3)
+        for k_ in ik_[1:-1]:
+            o_ = P0[k_] - a_
+            pole += o_ - np.dot(o_, u_) * u_
+        debout = abs(d[1]) > 1.5 * np.hypot(d[0], d[2])
+        if debout:
+            pole[0] = 0.0
+        if np.linalg.norm(pole) < 1e-4:
+            pole = np.array([0.0, 0.0, 1.0]) if debout else np.array([0.0, 1.0, 0.0])
+        p['pole'] = pole / np.linalg.norm(pole)
+        p['forme'] = ik_forme.preparer(P0[ik_], p['pole'])
     portee = np.mean([np.linalg.norm(p['neutre'] - P0[p['chaine'][0]]) for p in pattes])
     hanche = np.mean([P0[p['chaine'][0], 1] - sol for p in pattes])
     S = A['foulee'] * (0.6 * portee + 0.8 * hanche)         # foulee par cycle
@@ -313,7 +353,8 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         r2 = (A['tendu'] * Lc) ** 2 - dx ** 2 - dz ** 2
         if r2 > 0:
             abaisse = max(abaisse, dy - np.sqrt(r2))
-    marge_bob = A['bob'] * hanche * (2 if allure == 'run' else 0)
+    # course : corps haut aux extremites de l'appui ; marche : corps BAS au double appui (gain de portee)
+    marge_bob = A['bob'] * hanche * (2 if allure == 'run' else -1)
     if A['pas']:
         demis = [max(np.sqrt(max((TENDU_MAX * Lc) ** 2 - dx ** 2 - (dy - abaisse + marge_bob) ** 2, 0)) - dz, 0.03 * portee)
                  for Lc, dx, dy, dz in geo]
@@ -377,6 +418,7 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
         Qprec = None
         Fpied = np.tile(np.eye(3), (nT, 1, 1))
         u = 0.0
+        nplan = None
         for i in range(nT):
             if not A['pas']:
                 cible = p['neutre'].copy()
@@ -413,7 +455,11 @@ def animer(chemin, allure='walk', cycles=3, fps=30, brut=False):
             dd = cib - Q[0]
             if np.linalg.norm(dd) > 0.97 * Lik:
                 cib = Q[0] + dd / np.linalg.norm(dd) * 0.97 * Lik
-            Q = fabrik(Q, cib)
+            axe = cib - Q[0]
+            nrm = np.cross(axe, Rb[i] @ p['pole'])
+            if np.linalg.norm(nrm) > 1e-6 * (np.linalg.norm(axe) + 1e-12):
+                nplan = nrm / np.linalg.norm(nrm)
+            Q = ik_forme.resoudre(p['forme'], Q[0], cib, Rb[i] @ p['pole'])
             Qprec = Q
             for a in range(len(ch) - 1):
                 repos = Rb[i] @ (P0[ch[a + 1]] - P0[ch[a]])

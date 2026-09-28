@@ -107,7 +107,8 @@ FICHIERS.forEach((f, k) => {
     const taille = boite.getSize(new THREE.Vector3()).length() * 1.25;
     const centre = boite.getCenter(new THREE.Vector3());
     const cote = P.get('vue') === 'cote';
-    camera.position.copy(centre).add(cote ? new THREE.Vector3(taille * 2.2, taille * 0.25, 0.001)
+    const face = P.get('vue') === 'face';
+    camera.position.copy(centre).add(face ? new THREE.Vector3(0.001, taille * 0.3, taille * 2.2) : cote ? new THREE.Vector3(taille * 2.2, taille * 0.25, 0.001)
                                           : new THREE.Vector3(taille * 1.2, taille * 0.7, taille * 1.45));
     ctrl.target.copy(centre); ctrl.update();
     const sol = new THREE.GridHelper(taille * 4, 20, 0x444466, 0x262636); sol.position.y = boite.min.y; scene.add(sol);
