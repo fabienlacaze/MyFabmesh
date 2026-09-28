@@ -347,8 +347,17 @@ function animerAllure(sq, allure, cycles, fps) {
     const ch = p.chaine;
     const seg = [];
     for (let k = 1; k < ch.length; k++) seg.push(norm(sub(P0[ch[k]], P0[ch[k - 1]])));
-    const piedCourt = ch.length >= 4 && seg[seg.length - 1] < 0.5 * moyenne(seg.slice(0, -1));
+    const d0 = sub(P0[p.bout], P0[ch[0]]);
+    const debout = Math.abs(d0[1]) > 1.5 * Math.hypot(d0[0], d0[2]);
+    let piedCourt = ch.length >= 4 && seg[seg.length - 1] < 0.5 * moyenne(seg.slice(0, -1));
     p.ik = piedCourt ? ch.slice(0, -1) : ch;
+    // Patte ÉTALÉE (araignée, insecte) : son premier os part du CENTRE du corps jusqu'à la base
+    // de la patte (la coxa, dans le corps). Le faire pivoter faisait glisser la base de la patte
+    // le long du corps et déchirait la peau autour (plaques étirées, 28/09) : il reste rigide.
+    if (!debout && ch.length >= 4) {
+      p.ik = p.ik.slice(1);
+      if (p.ik.length < 3) { p.ik = ch.slice(1); piedCourt = false; }   // garder 2 os qui plient
+    }
     p.piedOff = sub(P0[p.bout], P0[p.ik[p.ik.length - 1]]);
     const sous = sousArbre(E, p.bout).filter((k) => !E[k].length && k !== p.bout);
     p.pivotOff = null;
@@ -360,11 +369,21 @@ function animerAllure(sq, allure, cycles, fps) {
     }
     const haut = P0[ch[0]];
     const N = P0[p.bout].slice();
-    const d = sub(N, haut);
-    const debout = Math.abs(d[1]) > 1.5 * Math.hypot(d[0], d[2]);
     if (debout) N[2] = haut[2] + p.piedOff[2];               // cheville à l'aplomb de la hanche
     const contact = Math.min(...sousArbre(E, p.bout).map((k) => P0[k][1]));
     if (contact - sol > 0.02 * H) N[1] -= contact - sol;     // le point le plus BAS du pied touche le sol
+    // Patte étalée presque tendue au repos (araignée : 96 % depuis sa base) : on ramène le pied
+    // vers le corps plutôt que d'abaisser le corps (qui écrasait l'araignée au sol, 28/09).
+    p.debout = debout;
+    if (!debout) {
+      const base = P0[p.ik[0]], Lc = longueurChaine(p.ik.map((k) => P0[k]));
+      const v = sub(sub(N, p.piedOff), base), hz = Math.hypot(v[0], v[2]), lim = Math.min(A.tendu, 0.85) * Lc;
+      if (norm(v) > lim && hz > 1e-9) {
+        const k = Math.sqrt(Math.max(lim * lim - v[1] * v[1], 0)) / hz;
+        N[0] = base[0] + k * v[0] + p.piedOff[0];
+        N[2] = base[2] + k * v[2] + p.piedOff[2];
+      }
+    }
     p.neutre = N;
     const a_ = P0[p.ik[0]], b_ = P0[p.ik[p.ik.length - 1]];
     const u_ = mulS(sub(b_, a_), 1 / (norm(sub(b_, a_)) + 1e-12));
@@ -384,10 +403,10 @@ function animerAllure(sq, allure, cycles, fps) {
   const geo = pattes.map((p) => {
     const Lc = longueurChaine(p.ik.map((k) => P0[k]));
     const d = sub(sub(p.neutre, p.piedOff), P0[p.ik[0]]);
-    return [Lc, Math.abs(d[0]), -d[1], Math.abs(d[2])];
+    return [Lc, Math.abs(d[0]), -d[1], Math.abs(d[2]), p.debout];
   });
   let abaisse = 0;
-  for (const [Lc, dx, dy, dz] of geo) { const r2 = (A.tendu * Lc) ** 2 - dx * dx - dz * dz; if (r2 > 0) abaisse = Math.max(abaisse, dy - Math.sqrt(r2)); }
+  for (const [Lc, dx, dy, dz, deb] of geo) { if (!deb) continue; const r2 = (A.tendu * Lc) ** 2 - dx * dx - dz * dz; if (r2 > 0) abaisse = Math.max(abaisse, dy - Math.sqrt(r2)); }
   const margeBob = A.bob * hanche * (allure === 'run' ? 2 : -1);
   if (A.pas) {
     const demis = geo.map(([Lc, dx, dy, dz]) => Math.max(Math.sqrt(Math.max((TENDU_MAX * Lc) ** 2 - dx * dx - (dy - abaisse + margeBob) ** 2, 0)) - dz, 0.03 * portee));
@@ -506,8 +525,10 @@ function animerAllure(sq, allure, cycles, fps) {
   }
   palpes.forEach((cp, q) => {
     const c = cp.chaine, vit = A.pas ? 1 : 0.5;
-    balance.set(c[0], t.map((tt) => Rx(-0.07 * (0.5 + 0.5 * Math.sin(2 * Math.PI * vit * tt / T + 1.7 * q)))));
-    if (c.length > 2) balance.set(c[1], t.map((tt) => Rx(-0.05 * Math.sin(2 * Math.PI * vit * tt / T + 1.7 * q + 0.8))));
+    // le premier os part du centre du corps (dans le corps) : on anime les suivants
+    const o = c.length >= 4 ? 1 : 0;
+    balance.set(c[o], t.map((tt) => Rx(-0.07 * (0.5 + 0.5 * Math.sin(2 * Math.PI * vit * tt / T + 1.7 * q)))));
+    if (c.length > o + 2) balance.set(c[o + 1], t.map((tt) => Rx(-0.05 * Math.sin(2 * Math.PI * vit * tt / T + 1.7 * q + 0.8))));
   });
   let nbBras = 0;
   if (bipede) {
@@ -573,7 +594,8 @@ function animerAllure(sq, allure, cycles, fps) {
   let sousSol = 0, glisse = 0, acoups = 0;
   const Pw = D.map(() => new Array(J));
   for (let i = 0; i < nT; i++) for (const j of ordre) Pw[i][j] = j === racine ? racineMonde[i] : add(Pw[i][par[j]], mv(D[i][par[j]], sub(P0[j], P0[par[j]])));
-  for (let i = 0; i < nT; i++) for (let j = 0; j < J; j++) sousSol = Math.max(sousSol, sol - Pw[i][j][1]);
+  let pireOs = -1;
+  for (let i = 0; i < nT; i++) for (let j = 0; j < J; j++) if (sol - Pw[i][j][1] > sousSol) { sousSol = sol - Pw[i][j][1]; pireOs = j; }
   for (const p of pattes) {
     if (!A.pas) continue;
     let s = 0, n = 0;
@@ -594,7 +616,7 @@ function animerAllure(sq, allure, cycles, fps) {
   const infos = {
     pattes: pattes.length, pedipalpes: palpes.length, queues: queues.length, tetes: tetes.length, bras: nbBras,
     periode: T, foulee: +S.toFixed(3), images: nT,
-    sous_sol_pct: +(100 * sousSol / H).toFixed(1), glissement_appui_pct: +(100 * glisse / H).toFixed(2), acoups_max_deg: +(acoups * 180 / Math.PI).toFixed(1),
+    sous_sol_pct: +(100 * sousSol / H).toFixed(1), pire_os: pireOs, glissement_appui_pct: +(100 * glisse / H).toFixed(2), acoups_max_deg: +(acoups * 180 / Math.PI).toFixed(1),
   };
   return { nom: allure, R, racineMonde, infos };
 }
