@@ -67,25 +67,38 @@ Web (API.autoAnimAI)       ─┴─> worker POST /api/animate
     qu'**un** bras par côté. Les autres pattes deviennent `limb_NN`, que
     `noms_unimate` traduit en « End ».
   - Or l'entraînement conditionne le modèle sur un vocabulaire anatomique
-    commun (`data_process/joint_annotation/vocab.py`) : « Left Front Leg »,
-    « Middle Leg », « Hind Leg », « Left Front Shoulder », « Tail »,
-    « Antenna », « Mandible »…
-- **Correctif (sans GPU) :** un nommeur dédié, écrit dans ce vocabulaire exact.
-  - Toutes les chaînes latérales qui descendent vers le sol sont des pattes.
-  - Elles sont rangées par côté (signe de X), puis de l'avant vers l'arrière
-    (Z) : « Front », « Middle », « Hind ».
-  - Les segments suivent l'ordre de la chaîne ; les bouts de chaîne
-    deviennent « … End ».
-  - Les chaînes montantes ou vers l'avant au niveau de la tête deviennent
-    « Antenna » ou « Mandible ».
+    commun (`data_process/joint_annotation/vocab.py`), au format
+    « [Left |Right ]<partie>[ End] », avec « Bone » pour un os inconnu.
+    **« End » seul n'y apparaît jamais** (0 sur 300 000 noms publiés).
+  - *Corrigé le 28/09 après lecture des noms réels :* les pattes d'arthropodes
+    ne sont PAS nommées « Front/Middle/Hind Leg ». `patch_annotations.py`
+    (`CHAIN_RIGS`) renomme chaque patte d'araignée, de crabe ou de scorpion
+    « Thigh, Shin, Foot, Toe », répété pour chaque patte ; le côté vient du
+    signe de X (+X = gauche).
+- **Correctif (fait le 28/09, `noms_unimate`) :** un nommeur géométrique dans
+  ce vocabulaire exact.
+  - Toute chaîne latérale qui touche le sol, ou redescend nettement sous son
+    attache, est une patte : « Thigh, Shin, Foot, Toe…, Toe End ».
+  - Au-delà de deux pattes au sol par côté (arthropode), la paire que le
+    classifieur appelle « bras » devient aussi une patte, comme dans
+    Truebones.
+  - Branches d'un membre : « Toe » / « Finger » ; appendices de tête :
+    « Antenna » (montant) ou « Mandible » ; os central vers l'avant :
+    « Jaw », vers l'arrière : « Tail » ; os isolé : « Bone ».
+  - Araignée : 27 « End » avant, 0 après ; 8 pattes complètes, 3 paires de
+    crochets en « Jaw » ; tous les noms existent dans le vocabulaire
+    d'entraînement.
 - Les quadrupèdes (deux paires de pattes) sont touchés de la même façon.
 
 ### P2. Sujets de légende jamais vus à l'entraînement
 
 - **Constat :**
-  - L'entraînement n'a vu que trois sujets : « A person » (Mixamo),
-    « An animal » (Truebones, qui comprend insectes, oiseaux, poissons et
-    dragons) et « An object » (Objaverse).
+  - Les poids en production (tiers, entraînés vers le 19/09) n'ont vu que
+    trois sujets : « A person » (Mixamo), « An animal » (Truebones, qui
+    comprend insectes, oiseaux, poissons et dragons) et « An object »
+    (Objaverse). *Précision du 28/09 :* depuis le 27/09, le dépôt force
+    « An object » pour TOUTES les légendes (3 414 sur 3 414 dans le jeu
+    publié). À reprendre si l'on passe aux poids officiels.
   - Nous envoyons aussi « An insect … » et « A creature … ».
   - Nos légendes n'ont pas de point final, alors que toutes celles
     d'entraînement en ont un.

@@ -63,8 +63,16 @@ def famille_pour(asset_type):
     return 'auto'
 
 
+# Sujets des legendes d'entrainement des poids en production (tarn59 v2,
+# entraines vers le 19/09/2026) : « A person » (Mixamo), « An animal »
+# (Truebones, qui contient insectes, araignees, oiseaux, dragons), « An object »
+# (Objaverse) — `patch_annotations.SUBJECT` a la revision 9f3076e ; la fiche des
+# poids en donne des exemples. « An insect » / « A creature » n'ont JAMAIS ete
+# vus. NB : depuis le 27/09 le depot force « An object » partout (legendes
+# publiees : 3 414 sur 3 414) — a reprendre si l'on passe aux poids officiels.
 _SUJET_PAR_TYPE = {'character': 'A person', 'other_living': 'A person', 'humanoid': 'A person',
-                   'animal': 'An animal', 'insect': 'An insect', 'creature': 'A creature'}
+                   'animal': 'An animal', 'insect': 'An animal', 'creature': 'An animal',
+                   'vehicle': 'An object', 'object': 'An object', 'prop': 'An object'}
 
 
 _SUJETS = ('a ', 'an ', 'the ', 'he ', 'she ', 'it ', 'they ', 'someone', 'somebody', 'person', 'man ',
@@ -72,18 +80,19 @@ _SUJETS = ('a ', 'an ', 'the ', 'he ', 'she ', 'it ', 'they ', 'someone', 'someb
 
 
 def prompt_pour(anim_type, famille, prompt_utilisateur='', asset_type=''):
-    """Legende au format appris par le modele : « A person walks forward ».
+    """Legende au format appris par le modele : « A person walks forward. ».
     Le sujet suit le type d'asset quand il est connu (« An insect... »),
     sinon la famille. Une description libre sans sujet en recoit un."""
     sujet = _SUJET_PAR_TYPE.get((asset_type or '').lower()) or {
-        'bipeds': 'A person', 'quadropeds': 'An animal', 'flying': 'A bird',
-        'millipeds_snakes': 'A creature'}.get(famille, 'A creature')
+        'bipeds': 'A person', 'quadropeds': 'An animal', 'flying': 'An animal',
+        'millipeds_snakes': 'An animal'}.get(famille, 'An object')
     libre = (prompt_utilisateur or '').strip().rstrip('.')
     if libre:
         if libre.lower().startswith(_SUJETS):
-            return libre[0].upper() + libre[1:]
-        return f"{sujet} {libre[0].lower() + libre[1:]}"
-    return f"{sujet} {_VERBES.get((anim_type or 'idle').lower(), 'moves naturally')}"
+            return libre[0].upper() + libre[1:] + '.'
+        return f"{sujet} {libre[0].lower() + libre[1:]}."
+    # point final : toutes les legendes d'entrainement en ont un
+    return f"{sujet} {_VERBES.get((anim_type or 'idle').lower(), 'moves naturally')}."
 
 
 # ============================================================ GLB
@@ -183,38 +192,183 @@ def charger_classifieur():
     return espace
 
 
-def noms_unimate(roles):
+def _seq_jambe(n):
+    """Segments d'une patte, comme les pattes d'arthropodes de Truebones
+    (`patch_annotations.CHAIN_RIGS` : Thigh, Shin, Foot, Toe…). Le bout d'une
+    chaine d'au moins 4 os est un « Toe End », comme dans les rigs Mixamo et
+    Truebones (un os feuille n'a pas de rotation propre dans UniMate : c'est
+    un point, exactement comme leurs os « End »)."""
+    if n <= 3:
+        return [['Thigh'], ['Thigh', 'Foot'], ['Thigh', 'Shin', 'Foot']][max(n, 1) - 1]
+    return ['Thigh', 'Shin', 'Foot'] + ['Toe'] * (n - 4) + ['Toe End']
+
+
+def _seq_bras(n):
+    """Segments d'un bras : noyau Mixamo (Shoulder, Upper Arm, Forearm,
+    Hand), qui est aussi le nommage des pattes avant des quadrupedes
+    Truebones ; doigts au-dela."""
+    if n <= 3:
+        return [['Upper Arm'], ['Upper Arm', 'Hand'], ['Upper Arm', 'Forearm', 'Hand']][max(n, 1) - 1]
+    return ['Shoulder', 'Upper Arm', 'Forearm', 'Hand'] + ['Finger'] * (n - 4)
+
+
+def _role(r):
+    """'leg_l_03' -> ('leg', 'l', 3) ; 'spine_02' -> ('spine', None, 0)."""
+    p = r.split('__j')[0].split('_')
+    if p[0] in ('arm', 'leg', 'wing') and len(p) >= 3:
+        return p[0], p[1], int(p[2])
+    return p[0], None, 0
+
+
+def noms_unimate(roles, parents=None, positions=None):
     """Roles FabMesh (hip, spine_01, arm_l_02, leg_r_03, wing_l_01, tail_02,
-    neck_01, head, limb_04) -> vocabulaire anatomique d'UniMate."""
+    neck_01, head, limb_04) -> vocabulaire anatomique d'UniMate.
+
+    Le modele encode le NOM de chaque os (T5), appris sur `clean_joint_names`
+    d'UniML3D, au format « [Left |Right ]<partie>[ End] », avec « Bone » pour
+    un os sans anatomie reconnue (`data_process/joint_annotation/vocab.py`).
+    Mesure du 2026-09-28 sur les noms publies : « End » seul n'y apparait
+    JAMAIS (0 sur 300 000), alors que l'ancien code le donnait a toute chaine
+    hors des deux bras et deux jambes retenus par le classifieur — 27 os sur
+    42 pour l'araignee, dont ses six autres pattes.
+
+    Avec `parents` ({os: parent ou None}) et `positions` ({os: xyz, face +Z,
+    Y en haut}), chaque chaine `limb_NN` est nommee d'apres sa geometrie :
+    patte si elle touche le sol, orteil / doigt si elle part d'un membre,
+    appendice si elle part de la tete ; cote par le signe de X (+X = gauche,
+    convention d'UniML3D : `patch_annotations.side_from_x`)."""
+    base = {j: _role(r) for j, r in roles.items()}
     longueurs = {}
-    for r in roles.values():
-        parts = r.split('_')
-        if parts[0] in ('arm', 'leg', 'wing') and len(parts) >= 3:
-            cle = parts[0] + '_' + parts[1]
-            longueurs[cle] = max(longueurs.get(cle, 0), int(parts[2]))
-    bras = {1: ['Upper Arm'], 2: ['Upper Arm', 'Hand'], 3: ['Upper Arm', 'Forearm', 'Hand']}
-    jambe = {1: ['Thigh'], 2: ['Thigh', 'Foot'], 3: ['Thigh', 'Shin', 'Foot']}
+    for t, c, i in base.values():
+        if c:
+            longueurs[(t, c)] = max(longueurs.get((t, c), 0), i)
     simples = {'hip': 'Hips', 'spine': 'Spine', 'neck': 'Neck', 'head': 'Head', 'tail': 'Tail'}
     out = {}
-    for j, r in roles.items():
-        parts = r.split('_')
-        tete = parts[0]
-        if tete in simples:
-            out[j] = simples[tete]
-        elif tete in ('arm', 'leg', 'wing') and len(parts) >= 3:
-            cote = 'Left' if parts[1] == 'l' else 'Right'
-            i, n = int(parts[2]), longueurs[tete + '_' + parts[1]]
-            if tete == 'wing':
-                base = 'Wing'
-            elif tete == 'arm':
-                seq = bras.get(n) or (['Shoulder', 'Upper Arm', 'Forearm', 'Hand'] + ['Finger'] * (n - 4))
-                base = seq[min(i, len(seq)) - 1]
-            else:
-                seq = jambe.get(n) or (['Thigh', 'Shin', 'Foot', 'Toe'] + ['Toe'] * (n - 4))
-                base = seq[min(i, len(seq)) - 1]
-            out[j] = f'{cote} {base}'
+    for j, (t, c, i) in base.items():
+        if t in simples:
+            out[j] = simples[t]
+        elif c:
+            n = longueurs[(t, c)]
+            seq = ['Wing'] * n if t == 'wing' else (_seq_bras(n) if t == 'arm' else _seq_jambe(n))
+            out[j] = ('Left ' if c == 'l' else 'Right ') + seq[min(i, len(seq)) - 1]
         else:
-            out[j] = 'End'
+            out[j] = 'Bone'
+    if parents is None or positions is None:
+        return out
+
+    # ---- chaines restees « limb_NN » : nommage d'apres la geometrie
+    P = {j: np.asarray(positions[j], dtype=np.float64) for j in base}
+    tout = np.array(list(P.values()))
+    sol, H = float(tout[:, 1].min()), max(float(np.ptp(tout[:, 1])), 1e-6)
+    ext = max(float(np.ptp(tout, axis=0).max()), 1e-6)
+    racine = next(j for j in base if parents.get(j) is None)
+    x0 = float(P[racine][0])
+    enfants = {j: [] for j in base}
+    for j in base:
+        if parents.get(j) is not None:
+            enfants[parents[j]].append(j)
+    taille = {}
+
+    def sous_arbre(j):
+        if j not in taille:
+            taille[j] = 1 + sum(sous_arbre(k) for k in enfants[j])
+        return taille[j]
+
+    def au_sol(j):
+        return float(P[j][1]) - sol < 0.25 * H
+
+    def patte(ch):
+        # touche le sol, ou redescend nettement sous son attache (patte avant
+        # d'araignee levee au repos : 0,07 au-dessus du sol pour H = 0,16)
+        pere = parents.get(ch[0])
+        haut = float(P[pere][1]) if pere is not None else float(P[ch[0]][1])
+        return au_sol(ch[-1]) or float(P[ch[-1]][1]) < haut - 0.3 * H
+
+    def cote(os_):
+        dx = max((float(P[k][0]) - x0 for k in os_), key=abs)
+        return '' if abs(dx) < 0.03 * ext else ('Left ' if dx > 0 else 'Right ')
+
+    # chaines : un os libre dont le parent n'est pas dans une chaine deja
+    # construite en ouvre une, puis on suit l'enfant libre au plus grand
+    # sous-arbre ; les branches laterales ouvrent leur propre chaine
+    libres = {j for j, (t, _, _) in base.items() if t == 'limb'}
+    pris, chaines = set(), []
+    for j in sorted(libres, key=lambda k: -sous_arbre(k)):
+        if j in pris:
+            continue
+        ch = [j]
+        while True:
+            suite = [k for k in enfants[ch[-1]] if k in libres and k not in pris]
+            if not suite:
+                break
+            ch.append(max(suite, key=sous_arbre))
+        pris.update(ch)
+        chaines.append(ch)
+
+    # Plus de deux pattes au sol d'un meme cote = arthropode : Truebones
+    # nomme alors TOUTES ses pattes Thigh/Shin/Foot/Toe (araignee, crabe,
+    # scorpion), y compris la paire que le classifieur appelle « bras ».
+    pattes = {'Left ': 0, 'Right ': 0}
+    for ch in chaines:
+        if patte(ch) and cote(ch):
+            pattes[cote(ch)] += 1
+    membres = {}
+    for j, (t, c, i) in base.items():
+        if t in ('arm', 'leg'):
+            membres.setdefault((t, c), []).append((i, j))
+    for (t, c), os_ in membres.items():
+        if au_sol(max(os_)[1]):
+            pattes['Left ' if c == 'l' else 'Right '] += 1
+    if max(pattes.values()) >= 3:
+        for (t, c), os_ in membres.items():
+            if t == 'arm' and au_sol(max(os_)[1]):
+                for (_, k), nom in zip(sorted(os_), _seq_jambe(len(os_))):
+                    out[k] = ('Left ' if c == 'l' else 'Right ') + nom
+
+    for ch in chaines:
+        s = cote(ch)
+        pere = parents.get(ch[0])
+        t_pere = base[pere][0] if pere is not None else ''
+        n = len(ch)
+        if t_pere == 'leg':
+            noms = ['Toe'] * n
+        elif t_pere == 'arm':
+            noms = ['Finger'] * n
+        elif t_pere == 'wing':
+            noms = ['Wing'] * n
+        elif t_pere == 'tail':
+            noms = ['Tail'] * n
+        elif s and patte(ch):
+            noms = _seq_jambe(n)
+        elif t_pere in ('head', 'neck'):
+            if not s:
+                noms = ['Jaw'] * n
+            else:
+                noms = ['Antenna' if float(P[ch[-1]][1]) > float(P[ch[0]][1]) else 'Mandible'] * n
+        elif s:
+            noms = _seq_bras(n)
+        else:
+            # os central : vers l'arriere = queue, vers l'avant = machoire
+            # (cheliceres de l'araignee), os de longueur nulle = « Bone »
+            debut = P[pere] if pere is not None else P[ch[0]]
+            v = P[ch[-1]] - debut
+            if float(np.linalg.norm(v)) < 0.02 * ext or (n == 1 and not enfants[ch[0]]):
+                # un os feuille isole est un point du tronc, pas un appendice
+                noms = ['Bone'] * n
+            else:
+                noms = ['Jaw' if float(v[2]) > 0 else 'Tail'] * n
+        for k, nom in zip(ch, noms):
+            out[k] = nom if nom in ('Tail', 'Jaw') else s + nom
+
+    # « Queue » du classifieur qui pointe vers l'AVANT (face +Z) : ce sont les
+    # cheliceres ou la machoire (araignee du 2026-09-28 : pointe a z = +0,14,
+    # hanche a z = -0,03). Nommee « Tail », elle serait agitee comme une queue.
+    queue = [j for j, (t, _, _) in base.items() if t == 'tail']
+    if queue:
+        bout = max(queue, key=lambda k: base[k][2] if base[k][2] else int(roles[k].split('__j')[0].split('_')[1]))
+        if float(P[bout][2]) > float(P[racine][2]) + 0.05 * ext:
+            for k in queue:
+                out[k] = 'Jaw'
     return out
 
 
@@ -366,7 +520,7 @@ class MoteurUniMate:
             # la deduire du type d'asset ; ce n'est qu'un repli
             famille = self.classifieur['_detect_topology_family'](joints, par_idx, pos_monde)
         roles = self.classifieur['_anatomical_names'](joints, par_idx, pos_monde, famille)
-        noms = noms_unimate({n: r.split('__j')[0] for n, r in roles.items()})
+        noms = noms_unimate(roles, parents=par_noeud, positions=pos_monde)
         if not stats or stats == 'auto':
             stats = ('mixamo' if famille in ('bipeds', 'biped')
                      else ('objaverse' if famille == 'all' else 'truebones'))
