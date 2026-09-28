@@ -1169,7 +1169,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       const avant = t.map((tt, i) => (C && C.bras ? brasT[i] * (b.cote === -1 ? 1 : 0.25)   // action : bras droit qui frappe
         : SAUT ? -ampL * Math.cos(2 * Math.PI * tt / T)           // saut : les deux bras ensemble (elan)
         : A.pas ? -b.cote * ampL * sG[i] : ampL * Math.sin(2 * Math.PI * tt / T + (b.cote === 1 ? 0 : 1.3))));
-      balance.set(b.epaule, avant.map((a) => (Rbaisse ? mm(Rbaisse, rotvec(axe, a)) : rotvec(axe, a))));
+      // bras abaisse : balancement d'avant en arriere (autour de l'axe lateral) APRES l'abaissement. Fait
+      // avant, en course le balancier + le coude remontaient la main a hauteur d'epaule (« bras de zombie »).
+      balance.set(b.epaule, avant.map((a) => (Rbaisse ? mm(rotvec([1, 0, 0], -a), Rbaisse) : rotvec(axe, a))));
       balance.set(b.coude, avant.map((a) => rotvec(axe, flex + (genre !== 'run' ? 0.15 : 0.2) * clip(a / Math.max(ampB, 1e-6), 0, 1))));
     }
   }
