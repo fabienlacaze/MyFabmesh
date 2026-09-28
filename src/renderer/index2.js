@@ -6449,6 +6449,11 @@ const ASSET_TYPE_PROMPTS = {
   bateau: 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
   animal: 'full body animal, lateral profile, whole animal nose to tail, body stretched out, all four feet on ground, fills 60 percent of frame, plain white background, centered',
   insect: 'full body insect, exactly six legs, segmented head thorax abdomen, antennae, 3/4 isometric view from above, all six legs visible, fills 60 percent of frame, plain white background, centered',
+  // 2026-09-28 : choisis AUTOMATIQUEMENT pour un animal / une creature d'apres les mots du prompt
+  // (buildFullPrompt) : le gabarit « animal » (« all four feet on ground ») faisait dessiner un
+  // serpent ENROULE sur lui-meme, inanimable.
+  sans_pattes: 'full body, head to tail tip, body stretched out straight, gentle S-curve, seen from above at an angle, fills 60 percent of frame, plain white background, centered',
+  poisson: 'full body fish, lateral profile, body straight from head to tail fin, fins spread, fills 60 percent of frame, plain white background, centered',
   // Per-category "Other …" presets: keep the category's framing/staging but
   // drop the SPECIFIC-object bias, so e.g. a catapult under "Other vehicle"
   // stays a vehicle (not a car) instead of a random studio object. A fully
@@ -6778,7 +6783,14 @@ function _epoqueUnite(texte) {
 
 function buildFullPrompt(userPrompt, assetType, assetStyle) {
   const typePrefix = ASSET_TYPE_PREFIXES[assetType] || '';
-  const typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
+  let typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
+  // Animal SANS PATTES (serpent, ver) ou POISSON : gabarit dedie (corps etire / de profil), d'apres les
+  // memes mots que le moteur de marche (modeDepuisTexte). Meme regle cote Modal (_prompts.py).
+  if (assetType === 'animal' || assetType === 'creature') {
+    const m = modeDepuisTexte(userPrompt);
+    if (m === 'reptation') typeSuffix = ASSET_TYPE_PROMPTS.sans_pattes || typeSuffix;
+    else if (m === 'nage') typeSuffix = ASSET_TYPE_PROMPTS.poisson || typeSuffix;
+  }
   const stylePrefix = ASSET_STYLE_PROMPTS[assetStyle] || '';
   const parts = _TYPES_UNITE.includes(assetType)
     ? [typePrefix, ..._epoqueUnite(userPrompt), stylePrefix, typeSuffix]
@@ -19851,6 +19863,9 @@ function renderJobs() {
       const pct = Math.round(j.progress);
       const fill = el.querySelector('.job-item-2-bar-fill');
       if (fill) fill.style.width = pct + '%';
+      // le NOM aussi (« Generate images » -> « Generate back views » quand l'image est prete, 28/09)
+      const nomEl = el.querySelector(':scope > .job-item-2-header > .job-item-2-name');
+      if (nomEl && nomEl.textContent !== _displayJobName(j.name)) nomEl.textContent = _displayJobName(j.name);
       const pctEl = el.querySelector('.job-item-2-pct');
       if (pctEl) {
         const elapsed = j.startedAt ? fmtDuration(Date.now() - j.startedAt) : '';
@@ -19940,6 +19955,9 @@ function renderJobs() {
         // ceux d'une sous-tache imbriquee dessous.
         const fill = el.querySelector(':scope > .job-item-2-bar > .job-item-2-bar-fill');
         if (fill) fill.style.width = pct + '%';
+        // le NOM aussi (« Generate images » -> « Generate back views » quand l'image est prete, 28/09)
+        const nomEl = el.querySelector(':scope > .job-item-2-header > .job-item-2-name');
+        if (nomEl && nomEl.textContent !== _displayJobName(j.name)) nomEl.textContent = _displayJobName(j.name);
         const pctEl = el.querySelector(':scope > .job-item-2-pct');
         if (pctEl) {
           pctEl.innerHTML = (elapsed

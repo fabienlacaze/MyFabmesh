@@ -5091,6 +5091,11 @@ const ASSET_TYPE_PROMPTS = {
   bateau: 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
   animal: 'full body animal, lateral profile, whole animal nose to tail, body stretched out, all four feet on ground, fills 60 percent of frame, plain white background, centered',
   insect: 'full body insect, exactly six legs, segmented head thorax abdomen, antennae, 3/4 isometric view from above, all six legs visible, fills 60 percent of frame, plain white background, centered',
+  // 2026-09-28 : choisis AUTOMATIQUEMENT pour un animal / une creature d'apres les mots du prompt
+  // (buildFullPrompt) : le gabarit « animal » (« all four feet on ground ») faisait dessiner un
+  // serpent ENROULE sur lui-meme, inanimable.
+  sans_pattes: 'full body, head to tail tip, body stretched out straight, gentle S-curve, seen from above at an angle, fills 60 percent of frame, plain white background, centered',
+  poisson: 'full body fish, lateral profile, body straight from head to tail fin, fins spread, fills 60 percent of frame, plain white background, centered',
   custom: '',
   other_living:  'full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
   other_vehicle: 'complete vehicle, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
@@ -5202,7 +5207,14 @@ function _epoqueUnite(texte) {
 
 function buildFullPrompt(userPrompt, assetType, assetStyle) {
   const typePrefix = ASSET_TYPE_PREFIXES[assetType] || '';
-  const typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
+  let typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
+  // Animal SANS PATTES (serpent, ver) ou POISSON : gabarit dedie (corps etire / de profil), d'apres les
+  // memes mots que le moteur de marche (modeDepuisTexte). Meme regle cote Modal (_prompts.py).
+  if (assetType === 'animal' || assetType === 'creature') {
+    const m = modeDepuisTexte(userPrompt);
+    if (m === 'reptation') typeSuffix = ASSET_TYPE_PROMPTS.sans_pattes || typeSuffix;
+    else if (m === 'nage') typeSuffix = ASSET_TYPE_PROMPTS.poisson || typeSuffix;
+  }
   const stylePrefix = ASSET_STYLE_PROMPTS[assetStyle] || '';
   const parts = _TYPES_UNITE.includes(assetType)
     ? [typePrefix, ..._epoqueUnite(userPrompt), stylePrefix, typeSuffix]
@@ -5518,6 +5530,9 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
           job.progress = Math.max(job.progress, 60);
           job.name = `Generate back views: ${p.name}`;
           renderJobs();
+          // les images de face sont PRETES : on les montre tout de suite, sans attendre la vue de dos
+          // (user 28/09 : « l'image est toujours en generation alors que si j'actualise je la vois »)
+          try { reloadCurrentProject(); } catch (_) {}
           // Start a new smooth-climb timer for Phase 2 (60->92%) so the
           // progress bar keeps moving while back-view IPAdapter runs without
           // emitting progress markers. ~30s per image is a typical RealVis
@@ -21197,6 +21212,9 @@ function renderJobs() {
         // ceux d'une sous-tache imbriquee dessous.
         const fill = el.querySelector(':scope > .job-item-2-bar > .job-item-2-bar-fill');
         if (fill) fill.style.width = pct + '%';
+        // le NOM aussi (« Generate images » -> « Generate back views » quand l'image est prete, 28/09)
+        const nomEl = el.querySelector(':scope > .job-item-2-header > .job-item-2-name');
+        if (nomEl && nomEl.textContent !== _displayJobName(j.name)) nomEl.textContent = _displayJobName(j.name);
         const pctEl = el.querySelector(':scope > .job-item-2-pct');
         if (pctEl) {
           pctEl.innerHTML = (elapsed

@@ -359,6 +359,11 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
                    if _asset_type == 'animal'
                    else "extra wings, missing wing, five legs, three legs, two heads, ")
             )
+            # 2026-09-28 : serpent / ver et poisson (gabarits sans_pattes / poisson de buildFullPrompt)
+            if 'body stretched out straight' in _p_low:
+                _anatomy = "coiled, spiral, curled up, knotted, wrapped around itself, legs, feet, "
+            elif 'full body fish' in _p_low:
+                _anatomy = "legs, feet, curled up, bent body, two heads, "
             negative_prompt = (
                 # 2026-09-25 — ombres EN TETE, avant l'anatomie : placees
                 # apres, elles tombaient derriere la limite de 77 jetons.

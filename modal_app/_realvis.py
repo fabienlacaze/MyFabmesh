@@ -43,6 +43,11 @@ def _angle_token(prompt: str) -> str:
 # s'anime pas — les membres et la colonne sont colles au corps, le rig ne les separe pas.
 # Pose en tete de l'anatomie : la negation dans le positif ne marche pas (voir plus bas).
 _ANATOMY_NEG = {
+    # 2026-09-28 : serpent / ver (gabarit sans_pattes) et poisson — choisis dans build_prompts
+    # d'apres le gabarit present dans le prompt. L'anti-enroulement « animal » (1,5) ne suffisait pas.
+    'sans_pattes': "(coiled:1.8), (spiral:1.7), (curled up:1.7), (knotted:1.5), "
+                   "(wrapped around itself:1.6), (legs:1.5), (feet:1.4)",
+    'poisson':   "(legs:1.7), (feet:1.6), (curled up:1.5), (bent body:1.3), (two heads:1.5)",
     'animal':    "(curled up:1.5), (coiled:1.5), (lying down:1.4), "
                  "(five legs:1.6), (six legs:1.6), (extra leg:1.6), "
                  "(polydactyly:1.5), (three legs:1.4), (two heads:1.5), "
@@ -161,6 +166,12 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
     # repetition does NOT brute-force weighting at guidance_scale 9.5).
     # Total budget: <=77 CLIP tokens (verified by tests).
     anatomy = _ANATOMY_NEG.get(asset_type or "") if asset_type else ""
+    if asset_type in ('animal', 'creature'):                  # gabarit sans_pattes / poisson present ?
+        _pl = (prompt or '').lower()
+        if 'body stretched out straight' in _pl:
+            anatomy = _ANATOMY_NEG['sans_pattes']
+        elif 'full body fish' in _pl:
+            anatomy = _ANATOMY_NEG['poisson']
     if anatomy:
         anatomy = anatomy + ", "
     # NEGATIF CONSTRUIT SOUS BUDGET, par ordre d'importance.

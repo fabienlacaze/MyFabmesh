@@ -34,6 +34,8 @@ ASSET_TYPE_PROMPTS = {
     'bateau'            : 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
     'animal'            : 'full body animal, lateral profile, whole animal nose to tail, body stretched out, all four feet on ground, fills 60 percent of frame, plain white background, centered',
     'insect'            : 'full body insect, exactly six legs, segmented head thorax abdomen, antennae, 3/4 isometric view from above, all six legs visible, fills 60 percent of frame, plain white background, centered',
+    'sans_pattes'       : 'full body, head to tail tip, body stretched out straight, gentle S-curve, seen from above at an angle, fills 60 percent of frame, plain white background, centered',
+    'poisson'           : 'full body fish, lateral profile, body straight from head to tail fin, fins spread, fills 60 percent of frame, plain white background, centered',
     'other_living'      : 'full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
     'other_vehicle'     : 'complete vehicle, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
     'other_built'       : 'full structure, isolated, plain white background, even studio lighting, centered, strict front view, clean silhouette',
@@ -88,6 +90,27 @@ ASSET_STYLE_PROMPTS = {
 }
 
 
+# Animal SANS PATTES (serpent, ver) ou POISSON (28/09/2026) : le gabarit « animal » (« all four feet on
+# ground ») faisait dessiner un serpent ENROULE sur lui-meme, inanimable. Mots = copie EXACTE de
+# MOTS_NAGE / MOTS_REPTATION du moteur de marche (src/renderer/lib/locomotion-procedurale.js).
+_MOTS_NAGE = set('fish fishes tuna shark sharks whale whales dolphin dolphins orca salmon trout carp cod eel ray manta stingray piranha goldfish koi marlin swordfish sardine herring mackerel pike perch catfish barracuda seahorse narwhal beluga porpoise bass tilapia sturgeon poisson poissons thon requin requins baleine baleines dauphin dauphins saumon truite carpe morue anguille raie espadon hareng maquereau brochet perche silure hippocampe narval marsouin esturgeon pez peces atun tiburon ballena delfin salmon trucha anguila fisch thunfisch hai wal delfin lachs forelle karpfen aal pesce tonno squalo balena delfino salmone trota peixe atum tubarao baleia golfinho'.split())
+_MOTS_REPTATION = set('snake snakes serpent serpents python cobra viper boa anaconda mamba rattlesnake adder worm worms earthworm larva larvae maggot caterpillar slug leech couleuvre vipere ver vers lombric chenille limace sangsue asticot larve serpiente culebra gusano oruga babosa schlange wurm raupe schnecke serpente verme bruco lumaca cobra minhoca lagarta lesma'.split())
+
+
+def mode_depuis_texte(texte: str):
+    """'nage', 'reptation' ou None, d'apres les mots d'un texte (sans accents, minuscules)."""
+    import re as _re
+    import unicodedata as _ud
+    t = _ud.normalize('NFD', str(texte or '').lower().replace('œ', 'oe').replace('æ', 'ae'))
+    t = ''.join(c for c in t if _ud.category(c) != 'Mn')
+    m = set(_re.split(r'[^a-z0-9]+', t))
+    if m & _MOTS_NAGE:
+        return 'nage'
+    if m & _MOTS_REPTATION:
+        return 'reptation'
+    return None
+
+
 def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -> str:
     """Ajoute style + gabarit autour du texte de l'utilisateur, SANS doublon.
 
@@ -104,6 +127,13 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
     """
     style_prefix = ASSET_STYLE_PROMPTS.get(asset_style, '')
     type_suffix = ASSET_TYPE_PROMPTS.get(asset_type, '')
+    # Animal SANS PATTES ou POISSON : gabarit dedie (meme regle que buildFullPrompt du client)
+    if asset_type in ('animal', 'creature'):
+        m = mode_depuis_texte(user_prompt)
+        if m == 'reptation':
+            type_suffix = ASSET_TYPE_PROMPTS.get('sans_pattes', type_suffix)
+        elif m == 'nage':
+            type_suffix = ASSET_TYPE_PROMPTS.get('poisson', type_suffix)
     deja = (user_prompt or '').lower()
 
     def _absent(bloc: str) -> bool:
