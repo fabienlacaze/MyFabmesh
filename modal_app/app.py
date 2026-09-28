@@ -165,6 +165,63 @@ async def _read_json(request) -> dict:
         raise HTTPException(status_code=400, detail="invalid json body")
 
 
+# CALCUL GPU HORS DE LA BOUCLE D'EVENEMENTS, RATTACHABLE PAR LE REJEU (2026-09-29).
+#
+# Mesure sur 7 jours : 25 rectify sur 52 et 9 vues arriere sur 18 en echec, 5
+# text2image perdus apres 526 s. Mecanique prouvee sur Modal
+# (modal_app/test_annulation.py) : quand Cloudflare coupe a 100 s (524), Modal
+# N'ANNULE PAS le calcul — il va au bout et sa reponse part dans le vide. Le rejeu
+# du worker (60 s plus tard) attendait derriere lui (un seul conteneur, une requete
+# a la fois) puis RECALCULAIRE TOUT : chaque essai doublait le travail et
+# redepassait 100 s, jusqu'a l'abandon — GPU paye pour rien.
+#
+# Desormais :
+#   - le worker envoie `_cle_rejeu`, la MEME pour tous les essais d'un appel ;
+#   - un essai dont la cle est connue se RATTACHE au calcul deja lance (en cours,
+#     ou fini depuis moins de 10 min) au lieu d'en lancer un autre ;
+#   - le calcul tourne dans un fil : la boucle reste libre (healthz, rejeu qui
+#     arrive pendant le calcul grace a @modal.concurrent) ; le verrou garde le
+#     GPU a un calcul a la fois, comme avant.
+# Sans cle (appel ancien ou direct), aucun resultat n'est reutilise.
+_CALCULS: dict = {}
+_VERROU_GPU = None
+
+
+async def _calcul_protege(nom: str, payload: dict, fn):
+    import asyncio
+    import threading
+    global _VERROU_GPU
+    if _VERROU_GPU is None:
+        _VERROU_GPU = threading.Lock()
+    maintenant = time.time()
+    for k, ent in list(_CALCULS.items()):
+        if ent[1] is not None and maintenant - ent[1] > 600:
+            del _CALCULS[k]
+
+    def _lancer():
+        def _executer():
+            with _VERROU_GPU:
+                return fn(payload)
+        return asyncio.ensure_future(asyncio.to_thread(_executer))
+
+    cle = str(payload.get("_cle_rejeu") or "").strip() if isinstance(payload, dict) else ""
+    if not cle:
+        return await asyncio.shield(_lancer())
+    ent = _CALCULS.get(cle)
+    if ent and ent[0].done() and (ent[0].cancelled() or ent[0].exception() is not None):
+        ent = None                                     # le calcul precedent a echoue : on refait
+    if ent:
+        etat = "termine" if ent[0].done() else "en cours"
+        print(f"[rejeu] {nom} : rattache au calcul deja lance ({etat})", flush=True)
+        tache = ent[0]
+    else:
+        tache = _lancer()
+        ent = [tache, None]
+        _CALCULS[cle] = ent
+        tache.add_done_callback(lambda _t, e=ent: e.__setitem__(1, time.time()))
+    return await asyncio.shield(tache)
+
+
 def _ai_pnginfo():
     """PNG metadata marking the image as AI-generated — EU AI Act Art. 50(2)
     transparency + IPTC DigitalSourceType=trainedAlgorithmicMedia (machine-
@@ -753,6 +810,10 @@ mesh_image = (
         #   modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"]),
     ],
 )
+# Plusieurs requetes par conteneur : un rejeu apres un 524 se RATTACHE au calcul en
+# cours (_calcul_protege) ; le verrou GPU garde un seul calcul a la fois. target_inputs=1 :
+# l'autoscaler continue de viser une requete par conteneur.
+@modal.concurrent(max_inputs=4, target_inputs=1)
 class MyFabmeshPredictor:
     @modal.enter(snap=True)
     def load_to_cpu(self):
@@ -930,15 +991,18 @@ class MyFabmeshPredictor:
             _hf = _prompt_hard_floor(prompt)
             if _hf:
                 raise HTTPException(status_code=403, detail=_hf)
-            png = self._generate_png(
-                prompt=prompt,
-                asset_type=payload.get("asset_type") or "character",
-                asset_style=payload.get("asset_style") or "realistic",
-                seed=int(payload.get("seed") or 0),
-                steps=int(payload.get("steps") or 30),
-                unrestricted=bool(payload.get("unrestricted")),
-                turbo=bool(payload.get("turbo")),
-            )
+            def _generer(payload):
+                return self._generate_png(
+                    prompt=prompt,
+                    asset_type=payload.get("asset_type") or "character",
+                    asset_style=payload.get("asset_style") or "realistic",
+                    seed=int(payload.get("seed") or 0),
+                    steps=int(payload.get("steps") or 30),
+                    unrestricted=bool(payload.get("unrestricted")),
+                    turbo=bool(payload.get("turbo")),
+                )
+            # hors de la boucle, a l'abri de l'annulation (voir _calcul_protege)
+            png = await _calcul_protege("text2image", payload, _generer)
             return Response(content=png, media_type="image/png")
 
         @api.get("/healthz")
@@ -1064,6 +1128,10 @@ def _charger_pipe_tile(decharger_cpu):
         modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"]),
     ],
 )
+# Plusieurs requetes par conteneur : un rejeu apres un 524 se RATTACHE au calcul en
+# cours (_calcul_protege) ; le verrou GPU garde un seul calcul a la fois. target_inputs=1 :
+# l'autoscaler continue de viser une requete par conteneur.
+@modal.concurrent(max_inputs=4, target_inputs=1)
 class MyFabmeshBackview:
     @modal.enter(snap=True)
     def load_to_cpu(self):
@@ -2077,43 +2145,43 @@ class MyFabmeshBackview:
 
         @api.post("/back_view")
         async def back_view(request: Request):
-            return self._route_back_view(await _read_json(request))
+            return await _calcul_protege("back_view", await _read_json(request), self._route_back_view)
 
         @api.post("/tpose")
         async def tpose(request: Request):
-            return self._route_tpose(await _read_json(request))
+            return await _calcul_protege("tpose", await _read_json(request), self._route_tpose)
 
         @api.post("/rectify")
         async def rectify(request: Request):
-            return self._route_rectify(await _read_json(request))
+            return await _calcul_protege("rectify", await _read_json(request), self._route_rectify)
 
         @api.post("/image_op")
         async def image_op(request: Request):
-            return self._route_image_op(await _read_json(request))
+            return await _calcul_protege("image_op", await _read_json(request), self._route_image_op)
 
         @api.post("/sheet")
         async def sheet(request: Request):
-            return self._route_sheet(await _read_json(request))
+            return await _calcul_protege("sheet", await _read_json(request), self._route_sheet)
 
         @api.post("/outfit")
         async def outfit(request: Request):
-            return self._route_outfit(await _read_json(request))
+            return await _calcul_protege("outfit", await _read_json(request), self._route_outfit)
 
         @api.post("/mesh_texvar")
         async def mesh_texvar(request: Request):
-            return self._route_mesh_texvar(await _read_json(request))
+            return await _calcul_protege("mesh_texvar", await _read_json(request), self._route_mesh_texvar)
 
         @api.post("/mesh_enhance_tex")
         async def mesh_enhance_tex(request: Request):
-            return self._route_mesh_enhance_tex(await _read_json(request))
+            return await _calcul_protege("mesh_enhance_tex", await _read_json(request), self._route_mesh_enhance_tex)
 
         @api.post("/mesh_name_parts")
         async def mesh_name_parts(request: Request):
-            return self._route_mesh_name_parts(await _read_json(request))
+            return await _calcul_protege("mesh_name_parts", await _read_json(request), self._route_mesh_name_parts)
 
         @api.post("/mesh_region_retex")
         async def mesh_region_retex(request: Request):
-            return self._route_mesh_region_retex(await _read_json(request))
+            return await _calcul_protege("mesh_region_retex", await _read_json(request), self._route_mesh_region_retex)
 
         @api.post("/warm")
         async def warm(request: Request):
@@ -2133,17 +2201,21 @@ class MyFabmeshBackview:
             """
             payload = await _read_json(request)
             _check_auth(payload)
-            quoi = (payload.get("quoi") or "inpaint").strip()
-            t0 = time.time()
-            charges = []
-            if quoi in ("inpaint", "tout"):
-                self._get_auto_inpaint_models()
-                charges.append("clipseg+inpaint")
-            if quoi in ("tile", "tout"):
-                self._get_tile_pipe()
-                charges.append("controlnet-tile")
-            print(f"[warm] {'+'.join(charges)} prets en {time.time() - t0:.1f}s", flush=True)
-            return {"ok": True, "charges": charges, "secondes": round(time.time() - t0, 1)}
+
+            def _charger(payload):
+                quoi = (payload.get("quoi") or "inpaint").strip()
+                t0 = time.time()
+                charges = []
+                if quoi in ("inpaint", "tout"):
+                    self._get_auto_inpaint_models()
+                    charges.append("clipseg+inpaint")
+                if quoi in ("tile", "tout"):
+                    self._get_tile_pipe()
+                    charges.append("controlnet-tile")
+                print(f"[warm] {'+'.join(charges)} prets en {time.time() - t0:.1f}s", flush=True)
+                return {"ok": True, "charges": charges, "secondes": round(time.time() - t0, 1)}
+            # hors de la boucle : sans ca, la coupure a 100 s TUAIT le conteneur qu'on prechauffait
+            return await _calcul_protege("warm", payload, _charger)
 
         @api.get("/healthz")
         async def healthz():

@@ -9906,11 +9906,15 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
 
   const t0 = Date.now();
+  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
+  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
+  const cleRejeu = crypto.randomUUID();
   const doFetch = () => fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       _auth: secret,
+      _cle_rejeu: cleRejeu,
       prompt: input.prompt,
       asset_type: input.asset_type,
       asset_style: input.asset_style,
@@ -10223,11 +10227,15 @@ async function callModalBackView(env: Env, userId: string, input: {
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
 
   const t0 = Date.now();
-  const r = await fetch(url, {
+  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
+  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
+  const cleRejeu = crypto.randomUUID();
+  const doFetch = () => fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       _auth: secret,
+      _cle_rejeu: cleRejeu,
       front_image_url: input.frontImageUrl,
       prompt_hint: input.promptHint ?? '',
       seed: input.seed,
@@ -10239,7 +10247,24 @@ async function callModalBackView(env: Env, userId: string, input: {
     // multi-seed scoring) so we give it 5 min before timeout.
     signal: AbortSignal.timeout(300_000),
   });
+  // 2026-09-29 : AUCUN rejeu ici jusqu'alors — 9 vues arriere sur 18 echouaient
+  // a 126 s sur un 524 de Cloudflare (conteneur froid). Meme escalade que tpose ;
+  // le rejeu (meme corps) recupere le calcul que Modal a poursuivi
+  // (_calcul_protege dans modal_app/app.py).
+  let r = await doFetch();
+  for (const delay of [60_000, 90_000]) {
+    if (r.status !== 524) break;
+    console.log(`[modal] back-view 524 — cold start retry after ${delay / 1000}s`);
+    await new Promise((res) => setTimeout(res, delay));
+    r = await doFetch();
+  }
   if (!r.ok) {
+    if (r.status === 524) {
+      throw new Error(
+        'the service took too long to start. '
+        + 'Please try again in a minute — your credits were refunded.'
+      );
+    }
     throw new Error(`Service back-view HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   const buf = await r.arrayBuffer();
@@ -10352,11 +10377,15 @@ async function callModalTpose(env: Env, userId: string, input: {
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
 
   const t0 = Date.now();
+  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
+  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
+  const cleRejeu = crypto.randomUUID();
   const doFetch = () => fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       _auth: secret,
+      _cle_rejeu: cleRejeu,
       prompt: input.prompt ?? '',
       ref_image_url: input.refImageUrl ?? '',
       seed: input.seed,
@@ -10371,8 +10400,9 @@ async function callModalTpose(env: Env, userId: string, input: {
   });
   // Same 524 cold-start retry as callModalText2Image / callModalImageOp —
   // the tpose branch of /api/generate-image shares the failure mode.
-  // Delays >= 60 s for the same reason (a 524 does not cancel the Modal
-  // request; retrying too early autoscales a second cold container).
+  // Delays >= 60 s. NB 2026-09-29 (mesure, modal_app/test_annulation.py) : un 524
+  // n'annule PAS le calcul Modal, il va au bout ; ce rejeu (meme _cle_rejeu) s'y
+  // RATTACHE au lieu de le recommencer (_calcul_protege, modal_app/app.py).
   let r = await doFetch();
   for (const delay of [60_000, 90_000]) {
     if (r.status !== 524) break;
@@ -10429,8 +10459,12 @@ async function callModalImageOp(env: Env, userId: string, input: {
   if (!url) throw new Error('MODAL_IMAGE_OP_URL not set');
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
 
+  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
+  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
+  const cleRejeu = crypto.randomUUID();
   const body: Record<string, unknown> = {
     _auth: secret,
+    _cle_rejeu: cleRejeu,
     op: input.op,
     image_url: input.imageUrl,
     prompt: input.prompt ?? '',
@@ -10552,8 +10586,12 @@ async function callModalOutfit(env: Env, userId: string, input: {
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
   const url = base.replace(/\/[^/]*$/, '/outfit');
 
+  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
+  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
+  const cleRejeu = crypto.randomUUID();
   const body = {
     _auth: secret,
+    _cle_rejeu: cleRejeu,
     image_url: input.imageUrl,
     pieces: input.pieces,
     ensemble: input.ensemble ?? true,
@@ -10635,11 +10673,15 @@ async function callModalSheet(env: Env, userId: string, input: {
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
 
   const t0 = Date.now();
-  const r = await fetch(url, {
+  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
+  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
+  const cleRejeu = crypto.randomUUID();
+  const doFetch = () => fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       _auth: secret,
+      _cle_rejeu: cleRejeu,
       front_image_url: input.frontImageUrl,
       prompt_hint: input.promptHint ?? '',
       seed: input.seed,
@@ -10650,7 +10692,21 @@ async function callModalSheet(env: Env, userId: string, input: {
     // ~2× the GPU time. 5 min budget covers cold start + render.
     signal: AbortSignal.timeout(300_000),
   });
+  // 2026-09-29 : rejeu apres 524, comme back-view / tpose (voir callModalBackView).
+  let r = await doFetch();
+  for (const delay of [60_000, 90_000]) {
+    if (r.status !== 524) break;
+    console.log(`[modal] sheet 524 — cold start retry after ${delay / 1000}s`);
+    await new Promise((res) => setTimeout(res, delay));
+    r = await doFetch();
+  }
   if (!r.ok) {
+    if (r.status === 524) {
+      throw new Error(
+        'the service took too long to start. '
+        + 'Please try again in a minute — your credits were refunded.'
+      );
+    }
     throw new Error(`Service sheet HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
   const buf = await r.arrayBuffer();
@@ -10686,8 +10742,12 @@ async function callModalRectify(env: Env, userId: string, input: {
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
 
   const t0 = Date.now();
+  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
+  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
+  const cleRejeu = crypto.randomUUID();
   const corps = JSON.stringify({
     _auth: secret,
+    _cle_rejeu: cleRejeu,
     prompt: input.prompt ?? '',
     ref_image_url: input.refImageUrl ?? '',
     mode: input.mode ?? 'front',
