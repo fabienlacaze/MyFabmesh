@@ -59,7 +59,10 @@ def build_tpose_skeleton(size: int = 1024) -> Image.Image:
         'r_ear':      (0.45, 0.20),
         'l_ear':      (0.55, 0.20),
     }
-    kpts = {k: (int(x * W), int(y * H)) for k, (x, y) in kpts_norm.items()}
+    # 2026-09-28 : squelette reduit a 85 % autour de son centre — les poignets a 8 % du bord ne
+    # laissaient pas la place des mains, que le modele coupait au bord de l'image.
+    REDUC, CY = 0.85, 0.55
+    kpts = {k: (int((0.5 + (x - 0.5) * REDUC) * W), int((CY + (y - CY) * REDUC) * H)) for k, (x, y) in kpts_norm.items()}
 
     # Bones — (from, to, color) in OpenPose standard RGB palette
     # (colors from openpose's renderPoseKeypointsCpu defaults)
