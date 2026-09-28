@@ -195,7 +195,8 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
     rig edite. Avec des points, PAS de repli sur l'ancien chemin : il rendrait
     un rig qui ignore ce que l'utilisateur a demande.
     """
-    options = options or {}
+    options = dict(options or {})
+    mesh_url = options.pop("mesh_url", None)
     points = options.get("points") or None
     # squelette IMPOSE {joints, parents} : peau seule, ou articulations
     # deplacees dans l'editeur — aucun tirage de l'IA, pas de repli non plus
@@ -215,6 +216,21 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
                 json.dump({"error": msg[:500]}, f)
             rig_output_volume.commit()
         raise RuntimeError(msg)
+
+    # TELECHARGEMENT ICI, plus dans le routeur (2026-09-28). /rig-start telechargeait le maillage
+    # (jusqu'a 90 s pour un Ultra 8K) AVANT de repondre ; le worker abandonnait a 30 s, remboursait
+    # et affichait « aborted due to timeout »… pendant que le routeur, lui, finissait et LANCAIT
+    # quand meme le calcul : rig paye, jamais livre (constate dans les journaux a 18:28 UTC).
+    if not glb_bytes and mesh_url:
+        import urllib.request
+        try:
+            req = urllib.request.Request(mesh_url, headers={"User-Agent": "myfabmesh"})
+            with urllib.request.urlopen(req, timeout=300) as r:
+                glb_bytes = r.read()
+        except Exception as e:
+            _echec(f"mesh download failed: {e}")
+        with open(src, "wb") as f:
+            f.write(glb_bytes)
 
     # `--use_transfer` ACTIVE (2026-09-26). Sans lui, SkinTokens exporte SON
     # maillage normalise (hauteur 2) SANS UV ni materiau : le rig sortait
@@ -451,15 +467,10 @@ def rig_router():
         if not mesh_url:
             raise HTTPException(status_code=400, detail="mesh_url required")
 
-        import urllib.request
         import uuid
         job_id = (payload.get("job_id") or "").strip() or uuid.uuid4().hex
-        try:
-            req = urllib.request.Request(mesh_url, headers={"User-Agent": "myfabmesh"})
-            with urllib.request.urlopen(req, timeout=90) as r:
-                glb = r.read()
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"mesh download failed: {e}")
+        # Le maillage n'est PLUS telecharge ici : le calcul GPU le telecharge lui-meme (voir
+        # rig_mesh). Cette route doit repondre en quelques secondes, sous le delai du worker.
 
         # Editeur de points : valide ICI (le worker valide aussi) — ces
         # valeurs finissent en arguments d'un processus.
@@ -524,7 +535,8 @@ def rig_router():
                 raise HTTPException(status_code=400, detail=f"{cle}: integer in [0, {borne})")
             options[cle] = v
 
-        appel = rig_mesh.spawn(glb, job_id, None, options or None)
+        options["mesh_url"] = mesh_url
+        appel = rig_mesh.spawn(b"", job_id, None, options)
         try:
             with open(f"/rig_data/{job_id}.call_id", "w") as f:
                 f.write(appel.object_id)

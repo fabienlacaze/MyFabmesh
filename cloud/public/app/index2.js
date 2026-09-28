@@ -25994,18 +25994,31 @@ function _ptsCadrer(taille) {
   }, 100);
 }
 
+/** Bout de chaine qui COINCIDE avec un point a atteindre : apres « Re-generate rig with these
+ *  points », le rig ajoute un os jusqu'a chaque point, et l'articulation rose du bout tombait
+ *  exactement sur le point vert (user, 2026-09-28 : « ca m'a rajoute plein de nouveaux points en
+ *  bout de rig alors qu'il y en avait deja »). Le point vert la represente : elle n'est pas dessinee
+ *  (l'os qui l'atteint, si), et reapparait des qu'on eloigne le point. */
+function _ptsBoutConfondu(i) {
+  const o = _pts.os[i];
+  if (!o || !_pts.points.length || _pts.os.some(q => q.parent === i)) return false;
+  const lim = Math.max(_pts.seuil > 0 ? 0.35 * _pts.seuil : 0, (_pts.diag || 1) * 0.006);
+  return _pts.points.some(pt => pt.p.distanceTo(o.p) < lim);
+}
+
 /** Place l'articulation i et l'os qui la relie a son parent. */
 function _ptsDessinerOs(i) {
   const o = _pts.os[i];
   if (!o || !lmFsModel) return;
   const w = _ptsVersMonde(o.p);
   const voir = _pts.voirOs !== false;
-  o.sphere.visible = voir;
+  const confondu = _ptsBoutConfondu(i);
+  o.sphere.visible = voir && !confondu;
   o.sphere.position.copy(w);
   o.sphere.scale.setScalar(i === _pts.osSurvol || i === _pts.osSelection
     || (_pts.glisse && _pts.glisse.type === 'os' && _pts.glisse.id === i) ? 1.9 : 1);
   if (o.etiquette) {
-    o.etiquette.visible = voir;
+    o.etiquette.visible = voir && !confondu;
     o.etiquette.position.copy(w).add(new THREE.Vector3(0, _pts.rayonOs * 3.2, 0));
   }
   if (o.parent < 0) { if (o.cyl) o.cyl.visible = false; return; }
@@ -26811,7 +26824,7 @@ function _ptsSousCurseur(canevas, cam, e) {
   }
   if (meilleur) return meilleur;
   _pts.os.forEach((o, i) => {
-    if (_pts.voirOs === false) return;
+    if (_pts.voirOs === false || !o.sphere.visible) return;      // masquee : sous un point vert
     const d = rayon.distanceToPoint(o.sphere.position);
     if (d < Math.max(2.6 * _pts.rayonOs, 1.1 * _pts.rayon) && d < dMin) { dMin = d; meilleur = { type: 'os', id: i }; }
   });
