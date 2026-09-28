@@ -15,7 +15,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
-import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip } from './lib/locomotion-procedurale.js';
+import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
@@ -18645,6 +18645,33 @@ function _modeDetecte() {
   return parSquelette || 'pattes';
 }
 function _modeAnim() { const m = _modeImpose(); return m !== 'auto' ? m : _modeDetecte(); }
+// ESPECE (2026-09-28, user : « courir pour un cheval n'est pas pareil que pour un lion ») : profil de
+// demarche du moteur (ordre de pose des pieds, dos souple, port de tete). Deduite des mots du projet,
+// imposable par le menu (memorisee par projet) ; seulement pour une creature a pattes.
+var LIBELLES_ESPECE = {
+  generique: ['🐾', 'Generic'], equide: ['🐎', 'Horse, deer'], felin: ['🐈', 'Cat, big cat'], canide: ['🐕', 'Dog, wolf'],
+  bovin: ['🐄', 'Cattle, goat, pig'], bondissant: ['🐇', 'Rabbit, rodent'], ours: ['🐻', 'Bear'],
+  pachyderme: ['🐘', 'Elephant, rhino'], camelide: ['🐪', 'Camel, giraffe'], reptile: ['🦎', 'Lizard, crocodile'],
+  tortue: ['🐢', 'Tortoise'], oiseau: ['🐦', 'Bird'],
+};
+function _cleEspeceAnim() { return 'fabmesh.especeAnim.' + (state.currentProject?.name || ''); }
+function _especeImposee() { try { return localStorage.getItem(_cleEspeceAnim()) || 'auto'; } catch (_) { return 'auto'; } }
+function _especeDetectee() {
+  const p = state.currentProject || {};
+  return especeDepuisTexte([p.name, p.prompt, p.assetType].filter(Boolean).join(' '));
+}
+function _especeAnim() { const e = _especeImposee(); return e !== 'auto' ? e : _especeDetectee(); }
+function _libelleEspece(e) { const l = LIBELLES_ESPECE[e] || ['', e]; return (l[0] ? l[0] + ' ' : '') + _i18nT(l[1]); }
+function _remplirMenuEspece() {
+  const sel = document.getElementById('ws-anim-espece');
+  if (!sel) return;
+  if (!sel.options.length) sel.innerHTML = ['auto', ...ESPECES_LISTE].map((e) => `<option value="${e}"></option>`).join('');
+  for (const o of sel.options) {
+    o.textContent = o.value === 'auto' ? _i18nT('Auto') + ' (' + _libelleEspece(_especeDetectee()) + ')' : _libelleEspece(o.value);
+  }
+  sel.value = _especeImposee();
+  sel.hidden = _modeAnim() !== 'pattes';                     // un poisson ou un serpent n'a pas d'allure d'espece
+}
 /** Libelle (avec icone) d'une allure dans le mode courant. */
 function _libelleType(t) {
   const m = _modeAnim();
@@ -18667,6 +18694,7 @@ function _remplirMenuTypes() {
   choix.innerHTML = types.map((x) => `<option value="${x.v}">${escapeHtml(_i18nT(_libelleType(x.v)))}</option>`).join('');
   choix.value = types.some((x) => x.v === avant) ? avant : 'walk';
   _modeMenus = m;
+  _remplirMenuEspece();
   if (document.getElementById('ws-anim-liste')) _rendreSelectionAnim();   // etiquettes « a generer » : libelles du mode
 }
 /** Nom de clip du moteur : « walk » ou « walk__sneak » ; pour l'IA : le type seul. */
@@ -18720,7 +18748,7 @@ async function _majApercuAnim() {
     // la selection a pu changer pendant le chargement : on rejoue la courante
     const t2 = document.getElementById('ws-anim-choix')?.value, v2 = document.getElementById('ws-anim-variante')?.value || 'normal';
     if (!ALLURES_PROCEDURALES.includes(t2)) return;
-    _apercuAnim.jouer(_nomClipSelection({ type: t2, variante: v2 === '*' ? 'normal' : v2 }), _modeAnim());
+    _apercuAnim.jouer(_nomClipSelection({ type: t2, variante: v2 === '*' ? 'normal' : v2 }), _modeAnim(), _especeAnim());
     montrer('');
   } catch (e) {
     console.warn('[apercu-anim]', e);
@@ -18775,6 +18803,10 @@ function _rendreSelectionAnim() {
     _remplirMenuTypes(); _majMenuVariantes(); _rendreSelectionAnim();
   });
   document.getElementById('ws-anim-variante')?.addEventListener('change', _majApercuAnim);
+  document.getElementById('ws-anim-espece')?.addEventListener('change', (ev) => {
+    try { localStorage.setItem(_cleEspeceAnim(), ev.target.value); } catch (_) {}
+    _remplirMenuEspece(); _majApercuAnim();
+  });
   _majMenuVariantes();
   document.getElementById('ws-anim-ajouter')?.addEventListener('click', () => {
     const t = choix.value, v = document.getElementById('ws-anim-variante')?.value || 'normal';
@@ -19714,7 +19746,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       const brut = await API.readMeshFile(rig.url);
       if (!brut) throw new Error(_i18nT('Rig file not found.'));
       const t0 = performance.now();
-      const { glb, infos } = animerGLB(brut, { allures, mode: _modeAnim() });
+      const { glb, infos } = animerGLB(brut, { allures, mode: _modeAnim(), espece: _especeAnim() });
       console.log('[locomotion] ' + allures.join('+') + ' en ' + Math.round(performance.now() - t0) + ' ms', infos);
       const r = await API.uploadLocomotion({ bytes: glb, rigUrl: rig.url, batchId });
       if (!r?.success) throw new Error(r?.error || 'upload failed');

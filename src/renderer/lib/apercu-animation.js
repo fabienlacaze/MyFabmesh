@@ -109,9 +109,9 @@ export function creerApercu(canvas) {
     if (!modeSq) { try { modeSq = modeDuSquelette(tampon); } catch (_) { modeSq = 'pattes'; } }
     return modeSq;
   }
-  function jouer(nomClip, mode = 'auto') {
+  function jouer(nomClip, mode = 'auto', espece = 'generique') {
     if (!modele || !tampon) return false;
-    const { clips } = animerPistes(tampon, { allures: [nomClip], cycles: 2, mode });
+    const { clips } = animerPistes(tampon, { allures: [nomClip], cycles: 2, mode, espece });
     const c = clips[0];
     const pistes = [];
     for (const { noeud, q } of c.rotations) {

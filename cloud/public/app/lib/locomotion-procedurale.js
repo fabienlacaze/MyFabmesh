@@ -46,6 +46,108 @@ export const VARIANTES = {
   turn_left: TOURNANTS,
   turn_right: TOURNANTS,
 };
+// PROFILS D'ESPECE (2026-09-28) : le meme squelette ne court pas pareil selon l'animal (un cheval
+// galope, un lion bondit en pliant le dos, un lapin sautille, un lezard ondule). Par allure :
+//   motif      : ordre de pose des pieds d'un quadrupede (voir MOTIFS) ;
+//   T, foulee, h, bob : multiplicateurs (comme les variantes) ; beta, tendu, tete, talon : valeurs ;
+//   flexion    : flexion/extension du dos (rad), pliee quand les pattes AVANT portent ;
+//   ondulation : flexion laterale du dos (rad, lezard) ; tangage : bascule avant/arriere du corps ;
+//   hoche      : hochement de tete cale sur les appuis ; roulis : balancement gauche/droite (amble).
+// Les virages reprennent le profil de la marche. « generique » = moteur d'origine, inchange.
+export const ESPECES = {
+  generique: {},
+  equide: {        // cheval, ane, zebre, cerf… : pattes droites, dos raide, tete qui balance
+    walk: { motif: 'lateral', T: 1.0, h: 0.9, hoche: 0.08, tendu: 0.975 },
+    run: { motif: 'transverse', beta: 0.33, T: 0.95, foulee: 1.15, bob: 1.6, tangage: 0.08, hoche: 0.12, flexion: 0.04, tendu: 0.92 },
+  },
+  felin: {         // lion, tigre, chat : marche basse et souple, galop bondissant (dos plie/deplie)
+    walk: { motif: 'lateral', T: 1.1, h: 0.75, bob: 0.6, tendu: 0.93, tete: 0.1, hoche: 0.015, flexion: 0.03 },
+    run: { motif: 'rotatif', beta: 0.26, T: 0.85, foulee: 1.3, bob: 1.3, tangage: 0.05, hoche: 0.02, tete: 0.06, flexion: 0.26, tendu: 0.86 },
+  },
+  canide: {        // chien, loup, renard
+    walk: { motif: 'lateral', hoche: 0.03 },
+    run: { motif: 'rotatif', beta: 0.3, T: 0.9, foulee: 1.2, bob: 1.3, tangage: 0.05, hoche: 0.04, flexion: 0.18 },
+  },
+  bovin: {         // vache, boeuf, chevre, cochon : pas lourd, tete basse, galop pataud
+    walk: { motif: 'lateral', T: 1.2, h: 0.75, bob: 1.3, hoche: 0.05, tete: 0.08 },
+    run: { motif: 'transverse', beta: 0.38, T: 1.1, foulee: 0.85, bob: 1.8, tangage: 0.07, hoche: 0.07, flexion: 0.04, tete: 0.1 },
+  },
+  bondissant: {    // lapin, lievre, ecureuil, rat : pattes arriere ensemble, dos qui se plie
+    walk: { motif: 'demi_bond', beta: 0.45, T: 0.75, foulee: 0.7, h: 1.2, bob: 1.5, tangage: 0.06, flexion: 0.12 },
+    run: { motif: 'demi_bond', beta: 0.28, T: 0.8, foulee: 1.3, bob: 2.0, tangage: 0.1, flexion: 0.3 },
+  },
+  ours: {          // ours, panda, blaireau : amble qui roule, galop lourd
+    walk: { motif: 'amble', T: 1.15, h: 0.8, bob: 1.2, tete: 0.1, hoche: 0.04, roulis: 0.05 },
+    run: { motif: 'rotatif', beta: 0.36, T: 1.0, bob: 1.6, tangage: 0.06, flexion: 0.12, hoche: 0.05 },
+  },
+  pachyderme: {    // elephant, rhinoceros, hippopotame : jamais de phase aerienne
+    walk: { motif: 'lateral', beta: 0.72, T: 1.35, h: 0.55, foulee: 0.9, bob: 0.8, hoche: 0.03, tendu: 0.975 },
+    run: { motif: 'amble', beta: 0.52, T: 1.3, foulee: 0.8, bob: 0.9, hoche: 0.04, tendu: 0.95 },
+  },
+  camelide: {      // chameau, lama, girafe : l'amble (les deux pattes d'un meme cote ensemble)
+    walk: { motif: 'amble_pur', beta: 0.62, T: 1.1, hoche: 0.05, roulis: 0.06 },
+    run: { motif: 'amble_pur', beta: 0.4, T: 1.0, bob: 1.3, hoche: 0.06, roulis: 0.05 },
+  },
+  reptile: {       // lezard, crocodile, salamandre : trot etale, le dos ondule de cote
+    walk: { motif: 'trot', beta: 0.55, T: 1.1, h: 0.8, bob: 0.4, tendu: 0.9, ondulation: 0.2 },
+    run: { motif: 'trot', beta: 0.42, T: 0.9, bob: 0.5, ondulation: 0.28 },
+  },
+  tortue: {        // tortue : lente, toujours trois pattes au sol
+    walk: { motif: 'lateral', beta: 0.8, T: 1.9, foulee: 0.5, h: 0.6, bob: 0.4 },
+    run: { motif: 'lateral', beta: 0.7, T: 1.8, foulee: 0.6, h: 0.7, bob: 0.5 },
+  },
+  oiseau: {        // bipede a plumes : pas vif et haut, tete qui hoche a chaque pas
+    walk: { T: 0.7, h: 1.3, hoche: 0.07, tete: -0.04 },
+    run: { T: 0.8, hoche: 0.05 },
+  },
+};
+// Instant de POSE de chaque pied, en fraction du cycle (diagrammes de Hildebrand) :
+// PG/PD = arriere gauche/droit, AG/AD = avant gauche/droit.
+const MOTIFS = {
+  lateral:    { PG: 0, AG: 0.25, PD: 0.5, AD: 0.75 },    // marche des mammiferes
+  amble:      { PG: 0, AG: 0.15, PD: 0.5, AD: 0.65 },    // marche rapide sans phase aerienne
+  amble_pur:  { PG: 0, AG: 0, PD: 0.5, AD: 0.5 },        // chameau, girafe
+  trot:       { PG: 0, AD: 0, AG: 0.5, PD: 0.5 },
+  transverse: { PG: 0, PD: 0.1, AG: 0.32, AD: 0.44 },    // galop du cheval (suspension « rassemblee »)
+  rotatif:    { PG: 0, PD: 0.1, AD: 0.45, AG: 0.55 },    // galop du felin, du chien (deux suspensions)
+  demi_bond:  { PG: 0, PD: 0.04, AG: 0.45, AD: 0.55 },   // lapin : les pattes arriere ensemble
+};
+export const ESPECES_LISTE = Object.keys(ESPECES);
+const MOTS_ESPECES = {
+  equide: 'horse horses pony stallion mare foal donkey mule zebra deer stag doe elk moose reindeer caribou antelope gazelle '
+    + 'cheval chevaux poney etalon jument poulain ane anes mulet zebre cerf biche daim elan orignal renne antilope '
+    + 'caballo burro mula cebra ciervo reno pferd esel maultier hirsch elch cavallo asino mulo cervo renna cavalo',
+  felin: 'lion lions lioness tiger tigers cat cats kitten leopard panther jaguar cheetah lynx puma cougar '
+    + 'lionne tigre chat chats chaton panthere guepard leon gato pantera guepardo lowe katze gepard luchs leone gatto leao onca',
+  canide: 'dog dogs puppy wolf wolves fox husky coyote jackal hyena chien chiens chiot loup loups renard chacal hyene '
+    + 'perro lobo zorro hund fuchs cane lupo volpe cachorro cao raposa',
+  bovin: 'cow cows cattle ox oxen bull bison buffalo yak goat goats sheep ram lamb pig pigs boar hog '
+    + 'vache vaches boeuf boeufs taureau buffle yack chevre mouton belier agneau cochon porc sanglier '
+    + 'vaca buey toro cabra oveja cerdo jabali kuh ochse stier ziege schaf schwein wildschwein '
+    + 'mucca bue capra pecora maiale cinghiale boi touro ovelha porco javali',
+  bondissant: 'rabbit rabbits bunny hare squirrel rat rats mouse mice hamster lapin lapins lievre ecureuil souris '
+    + 'conejo liebre ardilla raton hase kaninchen ratte maus coniglio lepre scoiattolo ratto topo coelho lebre esquilo rato',
+  ours: 'bear bears panda badger wolverine raccoon ours blaireau glouton oso orso urso dachs',
+  pachyderme: 'elephant elephants mammoth rhino rhinoceros hippo hippopotamus mammouth hippopotame elefante elefant nashorn nilpferd',
+  camelide: 'camel camels dromedary llama alpaca giraffe chameau dromadaire lama alpaga girafe camello jirafa kamel cammello giraffa camelo girafa',
+  reptile: 'lizard lizards gecko iguana crocodile alligator caiman komodo salamander newt monitor '
+    + 'lezard iguane salamandre triton varan lagarto cocodrilo eidechse krokodil lucertola coccodrillo crocodilo',
+  tortue: 'turtle turtles tortoise terrapin tortue tortues tortuga schildkrote tartaruga',
+  oiseau: 'bird birds chicken hen rooster chick duck goose geese ostrich emu turkey pigeon crow vulture eagle hawk penguin '
+    + 'oiseau oiseaux poule coq poussin canard oie autruche emeu dinde corbeau vautour aigle manchot pingouin '
+    + 'pajaro ave gallina gallo pato ganso avestruz pavo vogel huhn hahn ente gans uccello anatra oca struzzo passaro galinha galo',
+};
+const INDEX_ESPECES = new Map();
+for (const [e, t] of Object.entries(MOTS_ESPECES)) for (const m of t.split(' ')) if (m) INDEX_ESPECES.set(m, e);
+/** Profil d'espece d'apres les mots d'un texte (nom du projet, prompt…) ; 'generique' sinon. */
+export function especeDepuisTexte(texte) {
+  // \u00ab \u0153 \u00bb et \u00ab \u00e6 \u00bb sont des ligatures, que NFD ne decompose pas : \u00ab B\u0153uf \u00bb donnait \u00ab b \u00bb + \u00ab uf \u00bb
+  const mots = String(texte || '').toLowerCase().replace(/\u0153/g, 'oe').replace(/\u00e6/g, 'ae')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/);
+  for (const m of mots) if (INDEX_ESPECES.has(m)) return INDEX_ESPECES.get(m);
+  return 'generique';
+}
+
 /** « walk__sneak » -> { allure: 'walk', variante: 'sneak' } */
 export function lireClip(nom) {
   const [a, variante = 'normal'] = String(nom).split('__');
@@ -434,7 +536,7 @@ function resoudreForme(F, base, cible, poleMonde) {
 }
 
 // ------------------------------------------------------------------ animation d'une allure
-function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
+function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'generique') {
   const { joints, par, P0 } = sq;
   const det = detecterPattes(par, P0, sq.racine);
   const { racine, queues, tetes, sol } = det;
@@ -447,17 +549,34 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
     pattes = pattes.filter((_, i) => lg[i] >= 0.65 * med);
   }
   phases(pattes, P0, allure);
+  // profil d'espece : un quadrupede (2 pattes de chaque cote) ou, pour l'oiseau, un bipede
+  const quadrupede = pattes.length === 4 && pattes.every((p) => p.nbCote === 2);
+  const famille = ESPECES[espece] ? espece : 'generique';
+  const pourQui = famille === 'oiseau' ? pattes.length === 2 : quadrupede;
+  const Pr = pourQui ? ((ESPECES[famille] || {})[allure === 'turn_left' || allure === 'turn_right' ? 'walk' : allure] || {}) : {};
+  if (Pr.motif && quadrupede && ALLURES[allure].pas) {
+    const pose = MOTIFS[Pr.motif];
+    for (const p of pattes) {
+      const cle = (p.rang === 0 ? 'A' : 'P') + (p.cote === 1 ? 'G' : 'D');
+      p.phase = ((1 - pose[cle]) % 1 + 1) % 1;              // pose a l'instant t : phase = -t
+    }
+  }
   const B = ALLURES[allure], V = (VARIANTES[allure] || {})[variante] || {};
+  const tourne = allure === 'turn_left' || allure === 'turn_right';
   const A = {
-    ...B, T: B.T.map((x) => x * (V.T || 1)), foulee: B.foulee * (V.foulee || 1), h: B.h * (V.h || 1),
-    bob: B.bob * (V.bob || 1), lacet: B.lacet * (V.lacet || 1), tendu: V.tendu ?? B.tendu,
-    tete: V.tete || 0, regard: V.regard ?? 1, queue: V.queue ?? 1, bras: V.bras ?? 1,
+    ...B, T: B.T.map((x) => x * (Pr.T || 1) * (V.T || 1)), foulee: B.foulee * (tourne ? 1 : Pr.foulee || 1) * (V.foulee || 1),
+    h: B.h * (Pr.h || 1) * (V.h || 1), bob: B.bob * (Pr.bob || 1) * (V.bob || 1), lacet: B.lacet * (V.lacet || 1),
+    beta: Pr.beta ?? B.beta, tendu: V.tendu ?? Pr.tendu ?? B.tendu,
+    tete: V.tete ?? Pr.tete ?? 0, regard: V.regard ?? 1, queue: V.queue ?? 1, bras: V.bras ?? 1,
+    motif: B.pas && quadrupede ? Pr.motif || null : null, flexion: tourne ? 0 : Pr.flexion || 0, ondulation: Pr.ondulation || 0,
+    tangage: Pr.tangage || 0, hoche: Pr.hoche ?? null, roulis: Pr.roulis || 0,
   };
   const nombreux = pattes.length >= 6, bipede = pattes.length <= 2;
   const T = A.T[nombreux ? 1 : 0];
   let beta = nombreux && allure !== 'run' && A.pas ? 0.55 : A.beta;
   if (pattes.length >= 10 && allure !== 'run' && A.pas) beta = 0.7;      // mille-pattes : plus de pieds au sol
   if (bipede && A.pas && allure !== 'run') beta = 0.6;
+  if (Pr.beta != null && A.pas) beta = Pr.beta;             // profil d'espece
   const H = ptpAxe(P0, 1), E = enfantsDe(par);
 
   // --- géométrie de chaque patte : chaîne IK, pied rigide, point neutre, sens de pliure
@@ -534,7 +653,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
   if (A.pas) {
     demis = geo.map(([Lc, dx, dy, dz]) => Math.max(Math.sqrt(Math.max((TENDU_MAX * Lc) ** 2 - dx * dx - (dy - abaisse + margeBob) ** 2, 0)) - dz, 0.03 * portee));
     S = Math.min(S, median(demis.map((d_) => 2 * d_ / beta)));
-    pattes.forEach((p, i) => { p.beta = clip(2 * demis[i] / S, 0.25, beta); });
+    pattes.forEach((p, i) => { p.beta = clip(2 * demis[i] / S, Math.min(0.25, beta), beta); });
   } else pattes.forEach((p) => { p.beta = beta; });
   // pivot du corps : le CENTRE des attaches de pattes (et non l'os racine, qui peut etre la tete :
   // un mille-pattes tournait autour de sa tete et balayait ses pattes arriere)
@@ -597,13 +716,88 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
       }
     }
   }
+  // --- profil d'espece : le corps suit les APPUIS reels (poids de chaque pied au sol, 0 -> 1 -> 0).
+  // Galop : le corps monte pendant les suspensions et bascule (avant porte = nez bas) ; le dos se
+  // plie quand les pattes avant portent (felin) ; le lezard ondule de cote ; l'amble roule.
+  const appuiDe = (p, x) => { const f = ((x + p.phase) % 1 + 1) % 1; return f < p.beta ? Math.sin(Math.PI * f / p.beta) : 0; };
+  const avantP = pattes.filter((p) => p.rang === 0), arriereP = pattes.filter((p) => p.rang === p.nbCote - 1);
+  const flex = new Array(nT).fill(0), ondu = new Array(nT).fill(0), nodP = new Array(nT).fill(0);
+  if (A.motif || A.hoche != null) {
+    const sA = [], sP = [], sT = [], sG_ = [], sD_ = [];
+    for (let i = 0; i < nT; i++) {
+      const x = t[i] / T;
+      sT.push(moyenne(pattes.map((p) => appuiDe(p, x))));
+      sA.push(quadrupede ? moyenne(avantP.map((p) => appuiDe(p, x))) : sT[i]);
+      sP.push(quadrupede ? moyenne(arriereP.map((p) => appuiDe(p, x))) : sT[i]);
+      sG_.push(moyenne(pattes.filter((p) => p.cote === 1).map((p) => appuiDe(p, x))));
+      sD_.push(moyenne(pattes.filter((p) => p.cote !== 1).map((p) => appuiDe(p, x))));
+    }
+    const mT = moyenne(sT), lo = Math.min(...sA), hi = Math.max(...sA), mid = (lo + hi) / 2, dem = Math.max((hi - lo) / 2, 1e-6);
+    for (let i = 0; i < nT; i++) {
+      nodP[i] = (sA[i] - mid) / dem;                         // -1..1 : tete basse quand l'avant porte
+      if (!A.motif) continue;
+      bob[i] = A.bob * hanche * 2 * (mT - sT[i]);             // moins de pieds au sol = corps plus haut
+      tangage[i] = A.tangage * (sA[i] - sP[i]);
+      flex[i] = A.flexion * (sA[i] - sP[i]);
+      if (quadrupede) {
+        const diag = (q) => q.rang === 0 ? (q.cote === 1 ? 1 : -1) : (q.cote === 1 ? -1 : 1);
+        ondu[i] = A.ondulation * moyenne(pattes.map((q) => diag(q) * appuiDe(q, t[i] / T)));
+      }
+      if (A.roulis) roulis[i] = A.roulis * (sG_[i] - sD_[i]);
+    }
+  }
   if (pattes.every((p) => p.ik.length < 3)) for (let i = 0; i < nT; i++) bob[i] = 0;   // pieds rigides : pas de bob
+  // --- colonne souple : les os entre la ceinture ARRIERE et la ceinture AVANT se plient ensemble.
+  // Cote avant : +angle/n (le devant plonge = dos voute) ; cote arriere : -angle/n (l'arriere aussi).
+  // Le bassin compense la moitie du desequilibre pour que la voute reste symetrique.
+  let colonne = null;
+  if (quadrupede && (A.flexion || A.ondulation)) {
+    const ancetres = (j) => { const c = []; for (; j >= 0; j = par[j]) c.push(j); return c; };
+    const commun = (a, b) => { const sa = new Set(ancetres(a)); return ancetres(b).find((k) => sa.has(k)) ?? -1; };
+    const ceinture = (l) => commun(par[l[0].chaine[0]], par[l[1].chaine[0]]);
+    const cA = ceinture(avantP), cP = ceinture(arriereP);
+    if (cA >= 0 && cP >= 0 && cA !== cP) {
+      const L = commun(cA, cP);
+      const cote = (c) => { const a = ancetres(c); return a.slice(0, a.indexOf(L)).reverse(); };   // de L (exclu) vers c
+      const avantC = cote(cA), arriereC = cote(cP), n = avantC.length + arriereC.length;
+      const libre = (j) => !pattes.some((p) => p.chaine.includes(j));
+      if (n && L >= 0 && [...avantC, ...arriereC].every(libre)) {
+        colonne = { L, avantC, arriereC, n };
+        for (let i = 0; i < nT; i++) {
+          tangage[i] -= flex[i] * (avantC.length - arriereC.length) / (2 * n);
+          lacetBassin[i] -= ondu[i] * (avantC.length - arriereC.length) / (2 * n);
+        }
+      }
+    }
+  }
   const Rb = [], decal = [];
   for (let i = 0; i < nT; i++) {
     Rb.push(mm(mm(mm(Rcap[i], Ry(lacetBassin[i])), Rx(tangage[i])), Rz(roulis[i])));
     decal.push(add(add(cc[i], [0, bob[i] - abaisse, 0]), mv(Rcap[i], [lateral[i], 0, 0])));
   }
   const monde = (i, p) => add(add(centre, decal[i]), mv(Rb[i], sub(p, centre)));
+  // colonne pliee : rotation locale de chaque os, puis position/rotation MONDE de chacun (pour que
+  // les pattes partent de leurs vraies hanches, sinon les pieds glissent)
+  const colM = new Map(), colPos = [], colRot = [];
+  if (colonne) {
+    const { L, avantC, arriereC, n } = colonne;
+    const locale = (i, sg) => mm(Rx(sg * flex[i] / n), Ry(sg * ondu[i] / n));
+    for (const j of avantC) colM.set(j, t.map((_, i) => locale(i, 1)));
+    for (const j of arriereC) colM.set(j, t.map((_, i) => locale(i, -1)));
+    for (let i = 0; i < nT; i++) {
+      const pos = new Map([[L, monde(i, P0[L])]]), rot = new Map([[L, Rb[i]]]);
+      for (const c of [avantC, arriereC]) {
+        let prec = L;
+        for (const j of c) {
+          pos.set(j, add(pos.get(prec), mv(rot.get(prec), sub(P0[j], P0[prec]))));
+          rot.set(j, mm(rot.get(prec), colM.get(j)[i]));
+          prec = j;
+        }
+      }
+      colPos.push(pos); colRot.push(rot);
+    }
+  }
+  const porteur = (j) => { if (!colonne) return -1; for (let k = par[j]; k >= 0; k = par[k]) if (colPos[0].has(k)) return k; return -1; };
   const appui = (p, k) => {                                   // pied neutre sous le corps au MILIEU de l'appui
     const tm = (k - p.phase) * T + p.beta * T / 2;
     const { c, cap } = cheminCorps(tm);
@@ -618,6 +812,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
   for (const p of pattes) {
     const ch = p.ik;
     const Fpied = new Array(nT), Dch = ch.slice(0, -1).map(() => new Array(nT));
+    const porte = porteur(ch[0]);                           // os de la colonne qui porte cette patte
     const Lik = longueurChaine(ch.map((k) => P0[k]));
     let u = 0;
     for (let i = 0; i < nT; i++) {
@@ -645,11 +840,13 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
         const orteil = add(cible, mv(Rcap[i], p.pivotOff));
         cible = sub(orteil, mv(F, p.pivotOff));
       }
-      const hanche_i = monde(i, P0[ch[0]]);
+      const hanche_i = porte >= 0
+        ? add(colPos[i].get(porte), mv(colRot[i].get(porte), sub(P0[ch[0]], P0[porte])))
+        : monde(i, P0[ch[0]]);
       let cib = sub(cible, mv(F, p.piedOff));                // cible de la cheville
       const dd = sub(cib, hanche_i);
       if (norm(dd) > 0.97 * Lik) cib = add(hanche_i, mulS(dd, 0.97 * Lik / norm(dd)));   // portée bornée
-      const Q = resoudreForme(p.forme, hanche_i, cib, mv(Rb[i], p.poleIK));
+      const Q = resoudreForme(p.forme, hanche_i, cib, mv(porte >= 0 ? colRot[i].get(porte) : Rb[i], p.poleIK));
       for (let a = 0; a < ch.length - 1; a++) {
         const repos = mv(Rb[i], sub(P0[ch[a + 1]], P0[ch[a]]));
         Dch[a][i] = mm(aligner(repos, sub(Q[a + 1], Q[a])), Rb[i]);
@@ -660,7 +857,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
     fixes.set(p.bout, Fpied);
   }
   // --- queue, pédipalpes, colonne, bras, tête : rotations locales « balance »
-  const balance = new Map();
+  const balance = new Map(colM);
   const ampQ = (allure === 'run' ? 0.16 : allure === 'idle' ? 0.08 : 0.10) * A.queue;
   for (const cq of queues) {
     cq.slice(0, -1).forEach((j, a) => {
@@ -732,7 +929,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
   for (const ct of tetes) {
     ct.slice(0, -1).forEach((j, a) => {
       balance.set(j, t.map((tt, i) => {
-        const hoche = (A.pas ? 0.03 : 0.04) * Math.sin(4 * Math.PI * tt / T + 0.5 + 0.3 * a);
+        const hoche = A.hoche != null && A.pas
+          ? A.hoche * nodP[i] / Math.max(ct.length - 1, 1)     // profil : tete basse quand l'avant porte
+          : (A.pas ? 0.03 : 0.04) * Math.sin(4 * Math.PI * tt / T + 0.5 + 0.3 * a);
         let m = Rx(hoche - (a === 0 ? tangage[i] - A.tete : 0));
         if (!A.pas && a === 0) m = mm(Ry(0.22 * A.regard * Math.sin(2 * Math.PI * tt / T)), m);
         if (bipede && a === 0) m = mm(Ry(0.6 * lacetBassin[i]), m);
@@ -782,7 +981,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
     }
   }
   const infos = {
-    mode: 'pattes', ailes: nbAiles,
+    mode: 'pattes', ailes: nbAiles, espece: Object.keys(Pr).length ? famille : 'generique', motif: A.motif || null,
+    colonne: colonne ? colonne.n : 0,
     pattes: pattes.length, pedipalpes: palpes.length, queues: queues.length, tetes: tetes.length, bras: nbBras,
     periode: T, foulee: +S.toFixed(3), images: nT,
     sous_sol_pct: +(100 * sousSol / H).toFixed(1), pire_os: pireOs, glissement_appui_pct: +(100 * glisse / H).toFixed(2), acoups_max_deg: +(acoups * 180 / Math.PI).toFixed(1),
@@ -977,7 +1177,7 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
 }
 
 /** Calcul protégé : une allure qui échoue ou rend une valeur invalide donne un mouvement minimal. */
-function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto') {
+function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto', espece = 'generique') {
   const fini = (c) => c.R.every((Ri) => Ri.every((m) => m.every(Number.isFinite))) && c.racineMonde.every((p) => p.every(Number.isFinite));
   // nom du clip selon ce qu'il est vraiment : « swim » pour un poisson, « slither » pour un serpent
   const nommer = (c) => {
@@ -989,7 +1189,7 @@ function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto') {
   try {
     const c = mode === 'nage' || mode === 'reptation'
       ? animerSansPattes(sq, allure, cycles, fps, variante, detecterPattes(sq.par, sq.P0, sq.racine), 'reptation', mode === 'nage')
-      : animerAllure(sq, allure, cycles, fps, variante);
+      : animerAllure(sq, allure, cycles, fps, variante, espece);
     if (fini(c)) return nommer(c);
     throw new Error('valeur invalide dans le calcul');
   } catch (e) {
@@ -1090,14 +1290,14 @@ function ecrireGLB(sq, clips, fps) {
  * @param {{allures?: string[], cycles?: number, fps?: number}} options  allures : « walk » ou « walk__sneak » (variante)
  * @returns {{glb: ArrayBuffer, infos: Object<string, object>}}  GLB d'origine + une animation par allure
  */
-export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps = 30, mode = 'auto' } = {}) {
+export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps = 30, mode = 'auto', espece = 'generique' } = {}) {
   const sq = charger(glb);
   const clips = [], infos = {};
   for (const nom of allures) {
     const { allure: a, variante } = lireClip(nom);
     if (!ALLURES[a]) throw new Error('allure inconnue : ' + a);
     if (!(VARIANTES[a] || {})[variante]) throw new Error('variante inconnue : ' + nom);
-    const clip_ = animerAllureSure(sq, a, a === 'idle' ? 1 : cycles, fps, variante, mode);
+    const clip_ = animerAllureSure(sq, a, a === 'idle' ? 1 : cycles, fps, variante, mode, espece);
     clips.push(clip_);
     infos[clip_.nom] = clip_.infos;
   }
@@ -1109,14 +1309,14 @@ const _cacheSquelettes = new WeakMap();
  * Pistes d'animation SEULES (sans réécrire le GLB), pour un aperçu : même calcul qu'animerGLB.
  * @returns {{clips: Array<{nom, duree, temps, rotations: Array<{noeud, q}>, translation: {noeud, v}}>, infos}}
  */
-export function animerPistes(glb, { allures = ['walk'], cycles = 2, fps = 30, mode = 'auto' } = {}) {
+export function animerPistes(glb, { allures = ['walk'], cycles = 2, fps = 30, mode = 'auto', espece = 'generique' } = {}) {
   let sq = _cacheSquelettes.get(glb);
   if (!sq) { sq = charger(glb); _cacheSquelettes.set(glb, sq); }
   const clips = [], infos = {};
   for (const nom of allures) {
     const { allure: a, variante } = lireClip(nom);
     if (!ALLURES[a] || !(VARIANTES[a] || {})[variante]) throw new Error('allure inconnue : ' + nom);
-    const c = animerAllureSure(sq, a, a === 'idle' ? 1 : cycles, fps, variante, mode);
+    const c = animerAllureSure(sq, a, a === 'idle' ? 1 : cycles, fps, variante, mode, espece);
     clips.push(pistesLocales(sq, c, fps));
     infos[c.nom] = c.infos;
   }
