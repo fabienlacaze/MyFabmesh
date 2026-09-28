@@ -286,6 +286,46 @@ const spawn    = (...a) => _cp.spawn(...a);
   }
 })();
 
+// CERTIFICATS DE WINDOWS POUR PYTHON (2026-09-28). Un antivirus qui inspecte
+// le HTTPS (Kaspersky chez le user ; ESET, Avast, proxys d'entreprise font
+// pareil) presente son propre certificat, installe dans le magasin de
+// Windows : le navigateur l'accepte, Python NON — il ne lit que son paquet
+// certifi. Mesure sur la machine du user : toute requete Python vers
+// huggingface.co finissait en SSLError, ce qui cassait la generation 3D, le
+// VAE et les ControlNet des images, BLIP, le mode rapide… et, chez un client
+// equipe ainsi, le TELECHARGEMENT des modeles a l'installation.
+// On exporte les racines de Windows, plus celles de Mozilla (les memes que
+// certifi), dans un fichier PEM que chaque Python lance par l'appli recoit via
+// REQUESTS_CA_BUNDLE / SSL_CERT_FILE (herites de process.env). Le fichier de
+// la session precedente sert tout de suite ; il est rafraichi en tache de fond
+// (~0,3 s). Une variable deja posee par l'utilisateur n'est jamais ecrasee.
+(function _certificatsWindowsPourPython() {
+  if (process.platform !== 'win32') return;
+  if (process.env.REQUESTS_CA_BUNDLE || process.env.SSL_CERT_FILE) return;
+  let fichier;
+  try { fichier = path.join(app.getPath('userData'), 'certificats-systeme.pem'); } catch (_) { return; }
+  const poser = () => { process.env.REQUESTS_CA_BUNDLE = fichier; process.env.SSL_CERT_FILE = fichier; };
+  try { if (fs.statSync(fichier).size > 10000) poser(); } catch (_) {}
+  const ps = "Get-ChildItem Cert:/LocalMachine/Root, Cert:/CurrentUser/Root | ForEach-Object { "
+    + "'-----BEGIN CERTIFICATE-----'; [Convert]::ToBase64String($_.RawData, 'InsertLineBreaks'); "
+    + "'-----END CERTIFICATE-----' }";
+  _cp.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps],
+    { timeout: 30000, maxBuffer: 32 * 1024 * 1024, windowsHide: true }, (err, out) => {
+      const systeme = String(out || '').replace(/\r\n/g, '\n');
+      if (err || !systeme.includes('BEGIN CERTIFICATE')) {
+        console.warn('[certificats] export du magasin Windows impossible :', err ? err.message : 'sortie vide');
+        return;
+      }
+      try {
+        const tmp = fichier + '.tmp';
+        fs.writeFileSync(tmp, require('tls').rootCertificates.join('\n') + '\n' + systeme);
+        fs.renameSync(tmp, fichier);
+        poser();
+        console.log('[certificats] magasin Windows exporte pour Python :', fichier);
+      } catch (e) { console.warn('[certificats] ecriture impossible :', e.message); }
+    });
+})();
+
 // Catch uncaught errors so the app doesn't show the fatal dialog
 process.on('uncaughtException', (err) => {
   console.error('[main.js uncaughtException]', err);
