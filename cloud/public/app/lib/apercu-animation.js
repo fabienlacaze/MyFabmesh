@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { animerPistes, modeDuSquelette } from './locomotion-procedurale.js';
+import { animerPistes, modeDuSquelette, pattesDuSquelette } from './locomotion-procedurale.js';
 
 export function creerApercu(canvas) {
   let rendu = null, scene = null, camera = null, melangeur = null, modele = null;
@@ -142,5 +142,12 @@ export function creerApercu(canvas) {
     controles?.dispose();
     rendu?.dispose();
   }
-  return { chargerRig, jouer, arreter, detruire, modeSquelette, pret: () => !!modele, cleChargee: () => cle };
+  /** Nombre de pattes du rig charge (filtre des animations d'une espece generique), calcule une fois. */
+  let nbP = null;
+  function nbPattes() {
+    if (!tampon) return null;
+    if (nbP === null) { try { nbP = pattesDuSquelette(tampon); } catch (_) { nbP = 4; } }
+    return nbP;
+  }
+  return { chargerRig, jouer, arreter, detruire, modeSquelette, nbPattes, pret: () => !!modele, cleChargee: () => cle };
 }

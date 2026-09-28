@@ -155,7 +155,67 @@ export const ESPECES = {
     walk: { T: 0.7, h: 1.3, hoche: 0.07, tete: -0.04 },
     run: { T: 0.8, hoche: 0.05 },
   },
+  // --- ajoutes le 2026-09-28 (user : « il manque humain et d'autres choix »)
+  humain: {        // bipede : pas deroule, bras qui balancent
+    walk: { T: 1.0, bras: 1.0 },
+    run: { T: 0.95, bras: 1.15 },
+  },
+  primate: {       // singe, gorille : genoux plies, gros balancement des bras, roule des epaules
+    walk: { T: 0.85, h: 0.9, tendu: 0.9, bras: 1.6, tete: 0.1, roulis: 0.08 },
+    run: { T: 0.9, tendu: 0.85, bras: 1.4 },
+  },
+  dinosaure: {     // T-rex, raptor : pas lourd, tete qui balance, queue en balancier, petits bras immobiles
+    walk: { T: 1.25, h: 0.9, bob: 1.3, hoche: 0.06, bras: 0.2, queue: 1.8, tendu: 0.93 },
+    run: { T: 1.0, bras: 0.15, queue: 1.5, hoche: 0.08 },
+  },
+  kangourou: {     // bipede qui avance par BONDS, les deux pattes ensemble
+    walk: { saut: true, T: 1.1, h: 0.8, foulee: 0.7 },
+    run: { saut: true, T: 1.0, h: 1.2, foulee: 1.2 },
+  },
+  manchot: {       // se dandine : petits pas, gros roulis, ailerons presque immobiles
+    walk: { T: 0.6, foulee: 0.45, h: 0.45, roulis: 0.14, bras: 0.35, tete: -0.05 },
+    run: { T: 0.55, foulee: 0.6, roulis: 0.12, bras: 0.4 },
+  },
+  grenouille: {    // quadrupede qui avance par BONDS
+    walk: { saut: true, T: 1.1, foulee: 0.8, h: 1.0 },
+    run: { saut: true, T: 0.9, foulee: 1.2, h: 1.3 },
+  },
+  dragon: {        // quadrupede reptilien et lourd, le dos ondule
+    walk: { motif: 'lateral', T: 1.2, h: 0.85, bob: 1.1, tendu: 0.92, ondulation: 0.12, hoche: 0.05 },
+    run: { motif: 'rotatif', beta: 0.32, T: 1.0, foulee: 1.2, bob: 1.4, tangage: 0.06, flexion: 0.12, hoche: 0.06 },
+  },
+  insecte: {       // 6 pattes et plus : pas rapide en trepied
+    walk: { T: 0.75, h: 0.9 },
+    run: { T: 0.8, foulee: 1.2 },
+  },
+  araignee: {      // araignee, scorpion : pattes hautes, marche posee
+    walk: { T: 1.15, h: 1.25, bob: 0.6 },
+    run: { T: 0.9, h: 1.2 },
+  },
+  crabe: {         // marche DE COTE
+    walk: { deCote: true, T: 1.0, foulee: 0.55, h: 0.9, talon: 0 },
+    run: { deCote: true, T: 0.8, foulee: 0.7, talon: 0 },
+  },
 };
+// A quel corps s'applique chaque profil ; « quadrupede » par defaut.
+const POUR_ESPECE = { oiseau: 'bipede', humain: 'bipede', primate: 'bipede', dinosaure: 'bipede', kangourou: 'bipede', manchot: 'bipede',
+  insecte: 'multi', araignee: 'multi', crabe: 'multi' };
+// Types d'animation PERTINENTS par espece : le menu n'affiche que ceux-la (un cheval ne vole pas,
+// un humain ne trotte pas). Espece generique : selon le nombre de pattes du squelette.
+export const TYPES_ANIMATION = ['idle', 'walk', 'trot', 'run', 'jump', 'walk_back', 'turn_left', 'turn_right',
+  'eat', 'lie_down', 'attack', 'hit', 'death', 'fly'];
+const RETIRES_ESPECE = {
+  humain: ['trot', 'eat', 'fly'], primate: ['trot', 'fly'], dinosaure: ['trot', 'jump', 'fly'], kangourou: ['trot', 'fly'],
+  manchot: ['trot', 'fly'], oiseau: ['trot'], equide: ['fly'], felin: ['fly'], canide: ['fly'], bovin: ['fly'],
+  bondissant: ['trot', 'fly'], ours: ['fly'], pachyderme: ['trot', 'jump', 'fly'], camelide: ['jump', 'fly'],
+  reptile: ['trot', 'jump', 'fly'], dragon: ['trot'], tortue: ['trot', 'jump', 'fly'], grenouille: ['trot', 'fly'],
+  insecte: ['trot'], araignee: ['trot', 'eat', 'fly'], crabe: ['trot', 'jump', 'eat', 'fly'],
+};
+/** Types d'animation proposes pour une espece (et, en generique, un squelette de nbPattes pattes). */
+export function animationsPour(espece, nbPattes = null) {
+  const sans = RETIRES_ESPECE[espece] || (nbPattes === 4 || nbPattes == null ? ['fly'] : ['trot', 'fly']);
+  return TYPES_ANIMATION.filter((t) => !sans.includes(t));
+}
 // Instant de POSE de chaque pied, en fraction du cycle (diagrammes de Hildebrand) :
 // PG/PD = arriere gauche/droit, AG/AD = avant gauche/droit.
 const MOTIFS = {
@@ -167,7 +227,10 @@ const MOTIFS = {
   rotatif:    { PG: 0, PD: 0.1, AD: 0.45, AG: 0.55 },    // galop du felin, du chien (deux suspensions)
   demi_bond:  { PG: 0, PD: 0.04, AG: 0.45, AD: 0.55 },   // lapin : les pattes arriere ensemble
 };
-export const ESPECES_LISTE = Object.keys(ESPECES);
+// ordre du menu : generique, bipedes, quadrupedes, sauteurs, 6 pattes et plus
+export const ESPECES_LISTE = ['generique', 'humain', 'primate', 'oiseau', 'manchot', 'dinosaure', 'kangourou',
+  'equide', 'felin', 'canide', 'bovin', 'ours', 'pachyderme', 'camelide', 'bondissant', 'grenouille',
+  'reptile', 'dragon', 'tortue', 'insecte', 'araignee', 'crabe'];
 const MOTS_ESPECES = {
   equide: 'horse horses pony stallion mare foal donkey mule zebra deer stag doe elk moose reindeer caribou antelope gazelle '
     + 'cheval chevaux poney etalon jument poulain ane anes mulet zebre cerf biche daim elan orignal renne antilope '
@@ -188,9 +251,24 @@ const MOTS_ESPECES = {
   reptile: 'lizard lizards gecko iguana crocodile alligator caiman komodo salamander newt monitor '
     + 'lezard iguane salamandre triton varan lagarto cocodrilo eidechse krokodil lucertola coccodrillo crocodilo',
   tortue: 'turtle turtles tortoise terrapin tortue tortues tortuga schildkrote tartaruga',
-  oiseau: 'bird birds chicken hen rooster chick duck goose geese ostrich emu turkey pigeon crow vulture eagle hawk penguin '
-    + 'oiseau oiseaux poule coq poussin canard oie autruche emeu dinde corbeau vautour aigle manchot pingouin '
+  oiseau: 'bird birds chicken hen rooster chick duck goose geese ostrich emu turkey pigeon crow vulture eagle hawk '
+    + 'oiseau oiseaux poule coq poussin canard oie autruche emeu dinde corbeau vautour aigle '
     + 'pajaro ave gallina gallo pato ganso avestruz pavo vogel huhn hahn ente gans uccello anatra oca struzzo passaro galinha galo',
+  humain: 'human humans man men woman women boy girl person people character warrior knight soldier guard orc orcs goblin troll '
+    + 'elf dwarf zombie wizard mage witch ninja samurai pirate viking king queen prince princess hero villain '
+    + 'humain homme femme garcon fille personnage guerrier chevalier soldat garde gobelin elfe nain sorcier sorciere '
+    + 'hombre mujer guerrero caballero mensch mann frau krieger ritter uomo donna guerriero cavaliere homem mulher guerreiro',
+  primate: 'monkey monkeys ape apes gorilla chimp chimpanzee orangutan baboon singe singes gorille chimpanze orang babouin '
+    + 'mono gorila affe gorilla scimmia macaco',
+  dinosaure: 'dinosaur dinosaurs trex rex tyrannosaurus raptor velociraptor allosaurus dinosaure dinosaures tyrannosaure dinosaurio',
+  kangourou: 'kangaroo kangaroos wallaby kangourou canguro kanguru',
+  manchot: 'penguin penguins manchot manchots pingouin pingouins pinguino pinguin',
+  grenouille: 'frog frogs toad toads grenouille grenouilles crapaud rana sapo frosch krote',
+  dragon: 'dragon dragons wyvern drake drache drago dragao',
+  insecte: 'insect insects ant ants beetle bug bugs cockroach mantis wasp bee fly flies grasshopper cricket '
+    + 'insecte insectes fourmi fourmis scarabee cafard mante guepe abeille sauterelle criquet hormiga escarabajo ameise kafer formica',
+  araignee: 'spider spiders tarantula scorpion scorpions araignee araignees tarentule arana spinne ragno aranha',
+  crabe: 'crab crabs lobster crayfish crabe crabes homard ecrevisse cangrejo krabbe granchio caranguejo',
 };
 const INDEX_ESPECES = new Map();
 for (const [e, t] of Object.entries(MOTS_ESPECES)) for (const m of t.split(' ')) if (m) INDEX_ESPECES.set(m, e);
@@ -619,7 +697,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   // profil d'espece : un quadrupede (2 pattes de chaque cote) ou, pour l'oiseau, un bipede
   const quadrupede = pattes.length === 4 && pattes.every((p) => p.nbCote === 2);
   const famille = ESPECES[espece] ? espece : 'generique';
-  const pourQui = famille === 'oiseau' ? pattes.length === 2 : quadrupede;
+  const corps = POUR_ESPECE[famille] || 'quadrupede';
+  const pourQui = corps === 'bipede' ? pattes.length === 2 : corps === 'multi' ? pattes.length >= 6 : quadrupede;
   const Pr = pourQui ? ((ESPECES[famille] || {})[allure === 'turn_left' || allure === 'turn_right' || allure === 'walk_back' ? 'walk' : allure] || {}) : {};
   const motifNom = Pr.motif || ALLURES[allure].motif;
   if (motifNom && quadrupede && ALLURES[allure].pas) {
@@ -629,7 +708,11 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       p.phase = ((1 - pose[cle]) % 1 + 1) % 1;              // pose a l'instant t : phase = -t
     }
   }
-  if (ALLURES[allure].saut) pattes.forEach((p) => { p.phase = 0; });   // saut : toutes les pattes ensemble
+  // saut : allure « jump », ou espece qui avance par bonds (kangourou, grenouille)
+  const SAUT = !!(ALLURES[allure].saut || (Pr.saut && ALLURES[allure].pas));
+  // crabe : marche DE COTE (le corps avance vers +X) ; les virages restent normaux
+  const DECOTE = !!(Pr.deCote && ALLURES[allure].pas && allure !== 'turn_left' && allure !== 'turn_right');
+  if (SAUT) pattes.forEach((p) => { p.phase = 0; });   // saut : toutes les pattes ensemble
   // Tete qui se RAMIFIE (oreilles, machoire : rig de la Mule, 28/09) : aucune chaine « tete » n'est
   // reconnue, donc pas de balancier du cou. Avec un profil : encolure = chemin de la ceinture avant
   // vers la feuille la plus en avant (hors pattes et queues).
@@ -644,7 +727,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     ...B, T: B.T.map((x) => x * (Pr.T || 1) * (V.T || 1)), foulee: B.foulee * (tourne ? 1 : Pr.foulee || 1) * (V.foulee || 1),
     h: B.h * (Pr.h || 1) * (V.h || 1), bob: B.bob * (Pr.bob || 1) * (V.bob || 1), lacet: B.lacet * (V.lacet || 1),
     beta: Pr.beta ?? B.beta, tendu: V.tendu ?? Pr.tendu ?? B.tendu,
-    tete: V.tete ?? Pr.tete ?? 0, regard: V.regard ?? B.regard ?? 1, queue: V.queue ?? B.queue ?? 1, bras: V.bras ?? 1,
+    tete: V.tete ?? Pr.tete ?? 0, regard: V.regard ?? B.regard ?? 1, queue: V.queue ?? Pr.queue ?? B.queue ?? 1, bras: V.bras ?? Pr.bras ?? 1,
+    talon: Pr.talon ?? B.talon,
     motif: B.pas && quadrupede ? motifNom || null : null, flexion: tourne ? 0 : Pr.flexion || 0, ondulation: Pr.ondulation || 0,
     tangage: Pr.tangage || 0, hoche: Pr.hoche ?? null, roulis: Pr.roulis || 0,
   };
@@ -735,13 +819,15 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     for (let k = 0; k < 200; k++) mNom += sNom(k / 200) / 200;
     marges = pattes.map((p) => Math.max(...[-p.phase, beta - p.phase].map((x) => A.bob * hanche * 2 * (mNom - sNom(x)))));
   }
-  if (B.saut) marges = pattes.map(() => 0);               // saut : corps a sa hauteur de repos au decollage
+  if (SAUT) marges = pattes.map(() => 0);               // saut : corps a sa hauteur de repos au decollage
   let demis = null;
   if (A.pas) {
-    demis = geo.map(([Lc, dx, dy, dz], i) => Math.max(Math.sqrt(Math.max((TENDU_MAX * Lc) ** 2 - dx * dx - (dy - abaisse + (marges ? marges[i] : margeBob)) ** 2, 0)) - dz, 0.03 * portee));
+    // portee dans le sens de la marche : vers l'avant (dz), ou de cote pour le crabe (dx)
+    demis = geo.map(([Lc, dx, dy, dz], i) => Math.max(Math.sqrt(Math.max((TENDU_MAX * Lc) ** 2 - (DECOTE ? dz * dz : dx * dx)
+      - (dy - abaisse + (marges ? marges[i] : margeBob)) ** 2, 0)) - (DECOTE ? dx : dz), 0.03 * portee));
     S = Math.min(S, median(demis.map((d_) => 2 * d_ / beta)));
     pattes.forEach((p, i) => { p.beta = clip(2 * demis[i] / S, Math.min(0.25, beta), beta); });
-    if (B.saut) { const bm = Math.min(...pattes.map((p) => p.beta)); pattes.forEach((p) => { p.beta = bm; }); }
+    if (SAUT) { const bm = Math.min(...pattes.map((p) => p.beta)); pattes.forEach((p) => { p.beta = bm; }); }
   } else pattes.forEach((p) => { p.beta = beta; });
   // pivot du corps : le CENTRE des attaches de pattes (et non l'os racine, qui peut etre la tete :
   // un mille-pattes tournait autour de sa tete et balayait ses pattes arriere)
@@ -770,7 +856,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
 
   const cheminCorps = (tt) => {
     const cap = w * tt;
-    const c = Math.abs(w) < 1e-9 ? [0, 0, v * tt] : [(v / w) * (1 - Math.cos(cap)), 0, (v / w) * Math.sin(cap)];
+    const c = Math.abs(w) < 1e-9 ? (DECOTE ? [v * tt, 0, 0] : [0, 0, v * tt]) : [(v / w) * (1 - Math.cos(cap)), 0, (v / w) * Math.sin(cap)];
     return { c, cap };
   };
   const Rcap = [], cc = [];
@@ -794,10 +880,11 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   if (bipede) {
     const gauche = pattes.find((q) => q.cote === 1) || pattes[0];
     const amp = genre === 'run' ? [0.12, 0.05] : [0.08, 0.06];
+    if (Pr.roulis) amp[1] = Pr.roulis;                      // manchot qui se dandine, primate
     for (let i = 0; i < nT; i++) {
       const x = t[i] / T;
       sG[i] = Math.cos(2 * Math.PI * (x + gauche.phase));
-      if (A.pas && !B.saut) {                                 // saut : les deux jambes poussent ENSEMBLE, bassin droit
+      if (A.pas && !SAUT) {                                 // saut : les deux jambes poussent ENSEMBLE, bassin droit
         lacetBassin[i] = -amp[0] * sG[i];
         roulis[i] = amp[1] * Math.cos(2 * Math.PI * (x + gauche.phase - beta / 2));
         lateral[i] = 0.035 * hanche * Math.cos(2 * Math.PI * (x + gauche.phase - beta / 2));
@@ -836,7 +923,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   }
   if (pattes.every((p) => p.ik.length < 3)) for (let i = 0; i < nT; i++) bob[i] = 0;   // pieds rigides : pas de bob
   // --- saut : accroupi pendant l'appui, parabole en l'air (toutes les pattes ensemble)
-  if (B.saut) {
+  if (SAUT) {
     for (let i = 0; i < nT; i++) {
       const b0 = pattes[0].beta, f = ((t[i] / T + pattes[0].phase) % 1 + 1) % 1;
       bob[i] = f < b0 ? -0.12 * hanche * Math.sin(Math.PI * f / b0) : 0.3 * hanche * (V.h || 1) * Math.sin(Math.PI * (f - b0) / (1 - b0));
@@ -1017,7 +1104,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       axe = mulS(axe, 1 / norm(axe));
       const ampL = Math.abs(d_[1]) < 0.5 * norm(d_) ? 0.35 * ampB : ampB;   // bras en T / aile : balancement reduit
       const avant = t.map((tt, i) => (C && C.bras ? brasT[i] * (b.cote === -1 ? 1 : 0.25)   // action : bras droit qui frappe
-        : B.saut ? -ampL * Math.cos(2 * Math.PI * tt / T)           // saut : les deux bras ensemble (elan)
+        : SAUT ? -ampL * Math.cos(2 * Math.PI * tt / T)           // saut : les deux bras ensemble (elan)
         : A.pas ? -b.cote * ampL * sG[i] : ampL * Math.sin(2 * Math.PI * tt / T + (b.cote === 1 ? 0 : 1.3))));
       balance.set(b.epaule, avant.map((a) => rotvec(axe, a)));
       balance.set(b.coude, avant.map((a) => rotvec(axe, flex + (genre !== 'run' ? 0.15 : 0.2) * clip(a / Math.max(ampB, 1e-6), 0, 1))));
@@ -1536,6 +1623,12 @@ export function animerPistes(glb, { allures = ['walk'], cycles = 2, fps = 30, mo
     infos[c.nom] = c.infos;
   }
   return { clips, infos };
+}
+
+/** Nombre de pattes detectees (0 = sans pattes) : filtre des animations d'une espece generique. */
+export function pattesDuSquelette(glb) {
+  const sq = charger(glb);
+  return detecterPattes(sq.par, sq.P0, sq.racine).pattes.length;
 }
 
 // diagnostic (tests hors appli)

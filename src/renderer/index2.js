@@ -14,7 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
-import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE } from './lib/locomotion-procedurale.js';
+import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
@@ -305,6 +305,11 @@ window.humanizeErrorMessage = humanizeErrorMessage;
 
 // Show a long error message in a styled modal instead of native alert()
 function customError(message, title = 'Error') {
+  // Service GPU cloud COUPE par le fournisseur (budget du mois atteint, 28/09) : le message brut
+  // « modal-http: workspace ac-… is disabled » etait illisible (et montrait un identifiant interne).
+  if (/workspace \S+ is disabled/i.test(String(message || ''))) {
+    message = _i18nT("The cloud GPU service is paused: this month's compute budget is used up. Your credits were refunded. Please try again later.");
+  }
   // Traduit les erreurs OOM (VRAM/RAM) en message FR actionnable avant affichage.
   const mapped = humanizeErrorMessage(message);
   const isOom = mapped !== String(message || '');
@@ -17676,6 +17681,9 @@ var LIBELLES_ESPECE = {
   bovin: ['🐄', 'Cattle, goat, pig'], bondissant: ['🐇', 'Rabbit, rodent'], ours: ['🐻', 'Bear'],
   pachyderme: ['🐘', 'Elephant, rhino'], camelide: ['🐪', 'Camel, giraffe'], reptile: ['🦎', 'Lizard, crocodile'],
   tortue: ['🐢', 'Tortoise'], oiseau: ['🐦', 'Bird'],
+  humain: ['🧍', 'Human'], primate: ['🦍', 'Ape, monkey'], dinosaure: ['🦖', 'Dinosaur (two legs)'], kangourou: ['🦘', 'Kangaroo'],
+  manchot: ['🐧', 'Penguin'], grenouille: ['🐸', 'Frog, toad'], dragon: ['🐉', 'Dragon'], insecte: ['🐜', 'Insect'],
+  araignee: ['🕷️', 'Spider, scorpion'], crabe: ['🦀', 'Crab (walks sideways)'],
 };
 function _cleEspeceAnim() { return 'fabmesh.especeAnim.' + (state.currentProject?.name || ''); }
 function _especeImposee() { try { return localStorage.getItem(_cleEspeceAnim()) || 'auto'; } catch (_) { return 'auto'; } }
@@ -17684,6 +17692,9 @@ function _especeDetectee() {
   return especeDepuisTexte([p.name, p.prompt, p.assetType].filter(Boolean).join(' '));
 }
 function _especeAnim() { const e = _especeImposee(); return e !== 'auto' ? e : _especeDetectee(); }
+/** Types d'animation proposes : ceux de l'espece ; en generique, selon le nombre de pattes du rig. */
+function _animsPermises() { return animationsPour(_especeAnim(), _apercuAnim?.nbPattes?.() ?? null); }
+function _cleMenusAnim() { return _modeAnim() + '|' + _especeAnim() + '|' + (_apercuAnim?.nbPattes?.() ?? ''); }
 function _libelleEspece(e) { const l = LIBELLES_ESPECE[e] || ['', e]; return (l[0] ? l[0] + ' ' : '') + _i18nT(l[1]); }
 function _remplirMenuEspece() {
   const sel = document.getElementById('ws-anim-espece');
@@ -17713,11 +17724,17 @@ function _remplirMenuTypes() {
   }
   if (!choix) return;
   const avant = choix.value;
-  // un poisson ou un serpent ne vole pas, ne trotte pas, ne se couche pas : ses 5 allures seulement
-  const types = TYPES_ANIM.filter((x) => m === 'pattes' || ['idle', 'walk', 'run', 'turn_left', 'turn_right'].includes(x.v));
+  // un poisson ou un serpent ne vole pas, ne trotte pas, ne se couche pas : ses 5 allures seulement ;
+  // une creature a pattes : les animations de SON espece (user 28/09 : « il faut trier en fonction de l'espece »)
+  const permis = _animsPermises();
+  const types = TYPES_ANIM.filter((x) => (m === 'pattes' ? permis.includes(x.v) : ['idle', 'walk', 'run', 'turn_left', 'turn_right'].includes(x.v)));
+  // la liste « a generer » perd ce que cette espece ne sait pas faire
+  const avantSel = _animSelection.length;
+  _animSelection = _animSelection.filter((e) => types.some((x) => x.v === e.type));
+  if (!_animSelection.length && avantSel) _animSelection = [{ type: 'idle', variante: 'normal' }];
   choix.innerHTML = types.map((x) => `<option value="${x.v}">${_escapeHtml(_i18nT(_libelleType(x.v)))}</option>`).join('');
   choix.value = types.some((x) => x.v === avant) ? avant : 'walk';
-  _modeMenus = m;
+  _modeMenus = _cleMenusAnim();
   _remplirMenuEspece();
   if (document.getElementById('ws-anim-liste')) _rendreSelectionAnim();   // etiquettes « a generer » : libelles du mode
 }
@@ -17747,7 +17764,7 @@ async function _majApercuAnim() {
   const desc = document.getElementById('ws-anim-desc');
   const canvas = document.getElementById('ws-anim-apercu');
   if (!t || !canvas) return;
-  if (_modeMenus !== _modeAnim()) { _remplirMenuTypes(); _majMenuVariantes(); return; }   // projet ou rig change
+  if (_modeMenus !== _cleMenusAnim()) { _remplirMenuTypes(); _majMenuVariantes(); return; }   // projet, rig ou espece change
   const procedural = ALLURES_PROCEDURALES.includes(t);
   const nom = procedural ? _nomClipSelection({ type: t, variante: v === '*' ? 'normal' : v }) : t;
   if (desc) {
@@ -17765,7 +17782,7 @@ async function _majApercuAnim() {
     const ok = await _apercuAnim.chargerRig(rig.cle, rig.lire);
     if (!ok) { montrer(_i18nT('Preview unavailable.')); return; }
     // le squelette vient d'etre lu : il peut changer le mode detecte (sans pattes -> reptation)
-    if (_modeMenus !== _modeAnim()) { _remplirMenuTypes(); _majMenuVariantes(); return; }
+    if (_modeMenus !== _cleMenusAnim()) { _remplirMenuTypes(); _majMenuVariantes(); return; }
     // la selection a pu changer pendant le chargement : on rejoue la courante
     const t2 = document.getElementById('ws-anim-choix')?.value, v2 = document.getElementById('ws-anim-variante')?.value || 'normal';
     if (!ALLURES_PROCEDURALES.includes(t2)) return;
@@ -17827,7 +17844,7 @@ function _rendreSelectionAnim() {
   document.getElementById('ws-anim-variante')?.addEventListener('change', _majApercuAnim);
   document.getElementById('ws-anim-espece')?.addEventListener('change', (ev) => {
     try { localStorage.setItem(_cleEspeceAnim(), ev.target.value); } catch (_) {}
-    _remplirMenuEspece(); _majApercuAnim();
+    _remplirMenuTypes(); _majMenuVariantes(); _rendreSelectionAnim();   // les animations de CETTE espece
   });
   _majMenuVariantes();
   document.getElementById('ws-anim-ajouter')?.addEventListener('click', () => {
@@ -17886,7 +17903,12 @@ document.getElementById('ws-anim-gen-more-btn')?.addEventListener('click', () =>
   });
   const modal = document.getElementById('modal-anim-gen');
   if (!modal) return;
-  const cases = modal.querySelectorAll('input[name="modal-anim-type"]');
+  const permisAdd = _animsPermises();                    // seulement les animations de l'espece
+  modal.querySelectorAll('input[name="modal-anim-type"]').forEach((cb) => {
+    const l = cb.closest('label'); if (l) l.hidden = !permisAdd.includes(cb.value);
+    if (!permisAdd.includes(cb.value)) cb.checked = false;
+  });
+  const cases = [...modal.querySelectorAll('input[name="modal-anim-type"]')].filter((cb) => permisAdd.includes(cb.value));
   cases.forEach((cb) => {
     cb.checked = existants.has(cb.value);
     const label = cb.closest('label');
