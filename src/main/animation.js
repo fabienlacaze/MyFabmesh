@@ -559,6 +559,68 @@ function register(deps) {
   });
 
   // ---------------------------------------------------------------------------
+  // anim:motion — clips du moteur d'animation EN LIGNE (parite web, 2026-09-28)
+  // POST /api/animate + sondage /api/animate-status, QUEL QUE SOIT le mode de
+  // calcul : les poids ne sont pas livres dans l'appli (licence, CLAUDE.md
+  // §16). 5 credits par clip, rembourses par le worker en cas d'echec.
+  // Un fichier PAR generation (horodatage en chiffres seuls : list-animations
+  // devine le type par sous-chaine) : chaque clip devient une nouvelle version.
+  // ---------------------------------------------------------------------------
+  ipcMain.handle('anim:motion', async (_e, opts = {}) => {
+    const { meshPath, animType, assetType, projectName, batchId } = opts;
+    if (!meshPath || !fs.existsSync(meshPath)) {
+      return { success: false, error: 'Rig not found' };
+    }
+    if (typeof isPathAllowed === 'function' && !isPathAllowed(meshPath)) {
+      return { success: false, error: 'Rig path not allowed' };
+    }
+    const type = String(animType || 'idle').toLowerCase().replace(/[^a-z]/g, '').slice(0, 16) || 'idle';
+    const jobId = _safeId();
+    const outDir = path.join(MESHES_DIR || os.tmpdir(), 'animated');
+    _ensureDir(outDir);
+    const rigStem = path.basename(meshPath, path.extname(meshPath));
+    const outGlb = path.join(outDir, `motion_${type}_${Date.now()}__${rigStem}.glb`);
+    const progres = (pct, msg) => _sendToAllWindows(BrowserWindow, 'anim:progress',
+      { jobId, source: 'motion', phase: 'progress', pct, msg });
+    progres(3, 'Sending the rig…');
+    try {
+      const cloudFallback = require('./cloud_fallback');
+      const start = await cloudFallback.startMeshJob({
+        meshPath, startPath: '/api/animate',
+        bodyFor: (u) => ({
+          rig_url: u, anim_type: type, prompt: '', engine: 'motionplus',
+          asset_type: String(assetType || '').replace(/[^a-z_]/gi, '').slice(0, 32),
+          batch_id: String(batchId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32) || null,
+          projectName: projectName || null,
+        }),
+      });
+      // Session absente AU LANCEMENT : rien n'a ete facture, le renderer
+      // ouvre la connexion et relance. (Pendant le sondage, on ne renvoie
+      // PAS needsCloudLogin : la relance demarrerait un second travail paye.)
+      if (!start.success && start.needsCloudLogin) {
+        return { success: false, needsCloudLogin: true, error: start.error };
+      }
+      if (!start.success) throw new Error(start.error || 'cloud animate start failed');
+      progres(8, 'Queued');
+      const done = await cloudFallback.pollJob({
+        statusPath: '/api/animate-status', jobId: start.jobId, outPath: outGlb,
+        urlKeys: ['anim_url', 'url'], intervalMs: 5000, capMs: 15 * 60 * 1000, minBytes: 1000,
+        onTick: (st, polls) => progres(Math.min(90, 10 + polls * 2), String(st || 'running')),
+      });
+      if (!done.success) throw new Error(done.error || 'cloud animation failed');
+      writeMeta(outGlb, {
+        kind: 'anim', engine: 'motion_cloud', parent: meshPath,
+        params: { animType: type, mode: 'cloud', r2_url: done.resultUrl, batchId: batchId || null },
+      });
+      progres(100, 'Done');
+      return { success: true, jobId, glbPath: outGlb };
+    } catch (err) {
+      try { if (fs.existsSync(outGlb)) fs.unlinkSync(outGlb); } catch (_) {}
+      return { success: false, jobId, error: String(err.message || err) };
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // anim:kimodo — generative motion AI (text -> motion), humanoid rigs only
   // ---------------------------------------------------------------------------
   ipcMain.handle('anim:kimodo', async (_e, opts = {}) => {

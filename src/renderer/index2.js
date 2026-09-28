@@ -78,7 +78,7 @@ const _CLOUD_LOGIN_METHODS = [
   'removeBackground', 'img2img', 'maskInpaint', 'autoInpaint', 'imageQuickEdit',
   'meshTool', 'meshSegment', 'materialAdjust', 'resizeMesh',
   'generateExplode3d', 'generateConstructionStages3d',
-  'autoRigAI', 'animKimodo', 'animateAI',
+  'autoRigAI', 'animKimodo', 'animateAI', 'animMotion',
 ];
 const API = (() => {
   const raw = window.meshyAPI;
@@ -10222,11 +10222,6 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
       genBtn.disabled = false;
       genBtn.title = '';
     }
-    const engineSel = document.getElementById('ws-anim-engine');
-    if (engineSel && !engineSel.value) {
-      engineSel.value = 'rokoko_library';
-      engineSel.dispatchEvent(new Event('change'));
-    }
   } catch (e) { console.warn('[anim-source] preview populate failed:', e); }
   // Activate Step 4 (Animation) card and scroll to it.
   const step4Card = document.getElementById('step-card-animation');
@@ -16723,53 +16718,10 @@ function _rigLePlusRecent(proj) {
   return pool.slice().sort((x, y) => date(y) - date(x))[0].path;
 }
 
-function _wsAnimEngineSync() {
-  const engine = document.getElementById('ws-anim-engine')?.value || 'anytop';
-  const animType = document.getElementById('ws-anim-type')?.value || 'idle';
-  const promptRow = document.getElementById('ws-anim-prompt-row');
-  const videoRow = document.getElementById('ws-anim-video-row');
-  // Prompt only when animType === 'custom'. AnyTop itself ignores
-  // free-text prompts at inference (T5 is for joint-name embedding only).
-  const showPrompt = (animType === 'custom');
-  const showVideo = false && (engine === 'seed3d_puppeteer');
-  if (promptRow) promptRow.style.display = showPrompt ? '' : 'none';
-  if (videoRow) videoRow.style.display = showVideo ? '' : 'none';
-  // Banque de clips : l'utilisateur choisit une ACTION dans le menu ANIMATION
-  // habituel, l'application choisit le clip (_choisirClip cote main). La
-  // rangee CLIP reste dans le DOM pour un futur mode avance, mais masquee :
-  // « celtic_wolfhound_idleB_anim » ne veut rien dire pour un utilisateur.
-  const banqueRow = document.getElementById('ws-banque-row');
-  if (banqueRow) banqueRow.style.display = 'none';
-  // MODE (Local / Cloud) : masque tant que le cloud n'a pas ce moteur — un
-  // menu dont une seule entree est selectionnable n'est pas un choix.
-  const modeRow = document.getElementById('ws-anim-mode')?.closest('.form-row');
-  if (modeRow) modeRow.style.display = 'none';
-}
-
-// Remplit une seule fois la liste des clips (CC0 livres + perso apovivor).
-let _banqueClipsRemplie = false;
-async function _remplirBanqueClips() {
-  if (_banqueClipsRemplie) return;
-  const sel = document.getElementById('ws-banque-clip');
-  if (!sel || !window.meshyAPI?.animBanqueListe) return;
-  try {
-    const l = await window.meshyAPI.animBanqueListe();
-    if (!l?.success) return;
-    sel.innerHTML = '';
-    for (const c of (l.apovivor || [])) {
-      sel.add(new Option('PERSO · ' + c.clip,
-        JSON.stringify({ source: 'apovivor', clip: c.clip, clipPath: c.path })));
-    }
-    for (const c of (l.m2m || [])) {
-      sel.add(new Option('CC0 · ' + c.creature + ' · ' + c.clip,
-        JSON.stringify({ source: 'm2m', creature: c.creature, clip: c.clip })));
-    }
-    _banqueClipsRemplie = sel.options.length > 0;
-  } catch (_) {}
-}
-document.getElementById('ws-anim-engine')?.addEventListener('change', _wsAnimEngineSync);
-document.getElementById('ws-anim-type')?.addEventListener('change', _wsAnimEngineSync);
-_wsAnimEngineSync();
+// Cases du formulaire : la pastille ⚡ suit le nombre de clips coches.
+document.querySelectorAll('#ws-anim-types input[name="anim-type"]').forEach((cb) => {
+  cb.addEventListener('change', () => window._applyRigAnimPills?.());
+});
 
 // 2026-06-13: animation selection state + Three.js animated viewer
 let _selectedAnim = null;
@@ -16783,7 +16735,7 @@ function renderAnimVersions(p) {
   const _ts = (m) => { if (!m) return 0; const t = new Date(m.created || m.mtime || 0).getTime(); return Number.isFinite(t) ? t : 0; };
   const anims = (p?.animations || []).slice().sort((a, b) => _ts(b) - _ts(a));
   if (!anims.length) {
-    strip.innerHTML = '<div style="color:var(--text-2); font-size:12px; padding:4px;">No animations yet. Pick an engine and click Generate Animation.</div>';
+    strip.innerHTML = '<div style="color:var(--text-2); font-size:12px; padding:4px;">' + _escapeHtml(_i18nT('No animations yet. Check the clips and click Generate Animation.')) + '</div>';
     _selectedAnim = null;  // sinon la sélection pointe sur un clip supprimé
     // Vide aussi l'aperçu ÉDITER LA SÉLECTION : sans ça le viewer garde le
     // dernier clip (canvas + nom de fichier) après suppression du dernier.
@@ -16956,6 +16908,7 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
     ctl.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
     let mixer = null, action = null, raf = 0, disposed = false;
     let clipOriginal = null, racineAnim = null;   // pour basculer « In place »
+    let aideSquelette = null;                      // bouton « Bones »
     const url = anim.url || ('file:///' + (anim.path || '').replace(/\\/g, '/'));
     console.log('[anim-result] loading', url);
     new GLTFLoader().load(url, (g) => {
@@ -17012,6 +16965,8 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
         const helper = new THREE.SkeletonHelper(root);
         helper.material.linewidth = 2;
         helper.material.color = new THREE.Color(0xff8800);
+        helper.visible = _animBones;
+        aideSquelette = helper;
         scene.add(helper);
       }
     }, undefined, (err) => console.error('[anim-result] GLTFLoader failed:', err));
@@ -17068,6 +17023,7 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       if (actif && finie) { action.enabled = true; action.reset(); action.play(); }
     },
     estFini() { return !!action && _animFinie(action); },
+    squelette(visible) { if (aideSquelette) aideSquelette.visible = visible; },
     // Lecture : un clip fini (sans boucle) repart du debut.
     relancerSiFini() {
       if (action && _animFinie(action)) { action.enabled = true; action.reset(); action.play(); }
@@ -17180,6 +17136,18 @@ document.getElementById('ws-anim-inplace-btn')?.addEventListener('click', (e) =>
 });
 document.getElementById('ws-anim-inplace-btn')?.classList.toggle('active', _animEnPlace);
 
+// « Bones » : affiche / masque le squelette de l'apercu (parite web). Visible
+// par defaut, comme avant ; le choix est retenu.
+let _animBones = true;
+try { _animBones = localStorage.getItem('fabmesh_anim_bones') !== '0'; } catch (_) {}
+document.getElementById('ws-anim-bones-btn')?.addEventListener('click', (e) => {
+  _animBones = !_animBones;
+  try { localStorage.setItem('fabmesh_anim_bones', _animBones ? '1' : '0'); } catch (_) {}
+  e.currentTarget.classList.toggle('active', _animBones);
+  _animViewer?.squelette?.(_animBones);
+});
+document.getElementById('ws-anim-bones-btn')?.classList.toggle('active', _animBones);
+
 // Wire EDIT SELECTED toolbar buttons (Play / Loop / Export FBX / Show in folder)
 document.getElementById('ws-anim-play-btn')?.addEventListener('click', _animBasculerLectureBureau);
 document.getElementById('ws-anim-loop-btn')?.addEventListener('click', () => {
@@ -17209,6 +17177,13 @@ document.getElementById('ws-anim-export-btn')?.addEventListener('click', async (
 let _activeAnimJob = null;
 if (window.meshyAPI?.onAnimProgress) {
   window.meshyAPI.onAnimProgress((data) => {
+    if (_lotAnim && data?.source === 'motion') {
+      const tranche = 100 / _lotAnim.total;
+      const dedans = Math.min(0.95, Math.max(0, (data.pct || 0) / 100));
+      _progresLot(_lotAnim.jobId, _lotAnim.index * tranche + dedans * tranche,
+        `${_lotAnim.type} (${_lotAnim.index + 1}/${_lotAnim.total}) — ${data.msg || ''}`);
+      return;
+    }
     if (!_activeAnimJob || typeof updateJobProgress !== 'function') return;
     // Drive the progress bar by phase (no real % from the backend yet).
     const phaseToPct = { start: 5, search: 15, match: 25, retarget: 60, bake: 85, judge: 95, done: 100 };
@@ -17220,10 +17195,20 @@ if (window.meshyAPI?.onAnimProgress) {
   });
 }
 
+// Generate Animation — PARITE WEB (2026-09-28) : les clips coches sont
+// calcules EN LIGNE par le moteur de production (5 credits par clip), un
+// travail unique qui passe de 1/N a N/N. Les anciens moteurs locaux ne sont
+// plus proposes : leurs gestionnaires restent dans le main, sans bouton.
+let _lotAnim = null;   // { jobId, index, total, type } pendant un lot
+function _progresLot(jobId, pct, sousTitre) {
+  const j = state.jobs?.find((x) => x.id === jobId);
+  if (!j || j.status !== 'running') return;
+  j.bridgeReporting = true;
+  if (pct > (j.progress || 0)) j.progress = Math.min(99, pct);
+  if (sousTitre) j.subtitle = String(sousTitre).slice(0, 130);
+  try { renderJobs(); } catch (_) {}
+}
 document.getElementById('ws-generate-anim')?.addEventListener('click', async () => {
-  const engine = document.getElementById('ws-anim-engine')?.value || 'rokoko_library';
-  const animType = document.getElementById('ws-anim-type')?.value || 'walk';
-  const mode = document.getElementById('ws-anim-mode')?.value || 'local';
   const status = document.getElementById('ws-anim-status');
   const btn = document.getElementById('ws-generate-anim');
   const setStatus = (msg, isErr = false) => {
@@ -17232,236 +17217,99 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       status.style.color = isErr ? 'var(--danger, #f55)' : 'var(--text-2)';
     }
   };
-
-  if (engine !== 'rokoko_library' && engine !== 'kimodo_ai' && engine !== 'banque_clips') {
-    customError(`${engine} not wired yet.`, 'Engine not ready');
-    return;
-  }
-  // Garde Cloud : anim:retarget (Motion Library Blender/Rokoko) n'a AUCUN
-  // équivalent worker — le main renverrait une erreur brute. L'option est déjà
-  // masquée par _applyRigAnimPills ; ceinture-bretelles si le select est forcé.
-  if ((engine === 'rokoko_library' || engine === 'banque_clips') && _isCloudMode()) {
-    _cloudToolUnavailable(_i18nT('Motion Library'));
-    return;
-  }
-  // Resolve the current rigged GLB from the active project state
   const proj = state.currentProject;
-  // Le rig utilise doit etre CELUI QUE L'UTILISATEUR VOIT dans l'apercu
-  // « squelette source » — c'est `selectedRigPath`, ecrit par le bouton
-  // « Used for Animation ». `activeRigPath` n'est ecrite nulle part (verifie
-  // par recherche globale) : s'y fier faisait retomber sur le DERNIER element
-  // du tableau, souvent un vieux rig Puppeteer.
-  const rigPath = proj?.selectedRigPath || proj?.activeRigPath || _rigLePlusRecent(proj);
+  if (!proj) return;
+  // Le rig utilise est CELUI QUE L'UTILISATEUR VOIT dans l'apercu « squelette
+  // source » (`selectedRigPath`, ecrit par « Used for Animation »).
+  const rigPath = proj.selectedRigPath || proj.activeRigPath || _rigLePlusRecent(proj);
   if (!rigPath) {
-    setStatus('No rigged mesh on this project. Run Step 3 first.', true);
+    customError(_i18nT('You need a rigged mesh first. Generate a Rig in Step 3, then come back.'), _i18nT('No rig available'));
     return;
   }
-  // Detect class from rig filename: looks for "quadruped" / "winged" / etc.
-  const lower = rigPath.toLowerCase();
-  let detectedClass = 'humanoid';
-  if (lower.includes('quadruped') || lower.includes('quadrup')) detectedClass = 'quadruped';
-  else if (lower.includes('winged') || lower.includes('dragon')) detectedClass = 'winged_biped';
-
-  btn.disabled = true;
-  // Open the standard "Running task" modal so the user sees the same UX
-  // as the other steps (image-to-3D, rig, refine, etc.).
-  const meshNameDisplay = (rigPath || '').split(/[\\/]/).pop();
-  _activeAnimJob = (typeof pushJob === 'function')
-    ? pushJob(`Animate: ${animType}`, null, {
-        Engine: 'MyFabmesh.AI Anim (local)',
-        'Source mesh': meshNameDisplay,
-        Class: detectedClass,
-        Animation: animType,
-        Mode: mode,
-      }, 20000, { sourceImageUrl: rigPath, projectName: proj?.name })
+  const types = Array.from(document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked'))
+    .map((cb) => cb.value);
+  if (!types.length) {
+    showToast(_i18nT('Check at least one type to generate.'), 'info', 4000);
+    return;
+  }
+  // Le type d'asset du projet choisit le squelette de reference du modele.
+  const assetType = proj.assetType || document.getElementById('ws-asset-type')?.value || '';
+  const batchId = `d${Date.now().toString(36)}`;
+  const icones = { pending: '◻', running: '⏳', done: '✓', failed: '✗' };
+  const etat = types.map(() => 'pending');
+  const liste = () => types.map((t, i) => `${icones[etat[i]]} ${t}`).join('\n');
+  const job = (typeof pushJob === 'function')
+    ? pushJob(`Animate ${types.join('+')}: ${proj.name}`, null, {
+        Engine: 'MyFabmesh.AI Motion',
+        Animations: liste(),
+        'Source rig': (rigPath || '').split(/[\\/]/).pop(),
+        Batch: `0/${types.length}`,
+      }, 180000 * types.length, { sourceImageUrl: rigPath, projectName: proj.name })
     : null;
+  const majJob = () => {
+    const j = job && state.jobs?.find((x) => x.id === job.id);
+    if (!j) return;
+    j.params = j.params || {};
+    j.params.Animations = liste();
+    j.params.Batch = `${etat.filter((e) => e === 'done').length}/${types.length}`;
+  };
+  const rig = (proj.rigs || []).find((r) => r.path === rigPath);
+  btn.disabled = true;
+  let faits = 0;
   try {
-    // ---- Banque de clips (Mesh2Motion CC0 + perso apovivor) ----
-    // Retargeting local d'un clip tout fait sur le squelette SkinTokens.
-    if (engine === 'banque_clips') {
-      setStatus(`Recherche d'un mouvement « ${animType} » adapté…`);
-      const result = await API.animBanque({
-        meshPath: rigPath, action: animType, classe: detectedClass,
-      });
-      if (!result?.success) {
-        setStatus(`Echec : ${result?.error || 'unknown'}`, true);
-        if (_activeAnimJob && typeof completeJob === 'function') {
-          try { completeJob(_activeAnimJob.id, false, result?.error || 'unknown'); } catch (_) {}
-          _activeAnimJob = null;
-        }
-        btn.disabled = false;
+    for (const [i, type] of types.entries()) {
+      etat[i] = 'running';
+      majJob();
+      _lotAnim = job ? { jobId: job.id, index: i, total: types.length, type } : null;
+      setStatus(`${type} (${i + 1}/${types.length})…`);
+      if (job) _progresLot(job.id, (i / types.length) * 100 + 2, `${type} (${i + 1}/${types.length})`);
+      const r = await API.animMotion({ meshPath: rigPath, animType: type, assetType, projectName: proj.name, batchId });
+      if (!r?.success) {
+        etat[i] = 'failed';
+        majJob();
+        const msg = r?.error || 'unknown';
+        setStatus(`${type} : ${msg}`, true);
+        if (job) { try { completeJob(job.id, false, msg); } catch (_) {} }
+        if (!job?.cancelled) reportPipelineError(msg, `Animate failed (${type})`);
         return;
       }
-      setStatus(`Terminé — ${result.clipUtilise || animType} (${result.origine || 'banque'})`);
-      const projB = state.currentProject;
-      if (projB) {
-        projB.animations = projB.animations || [];
-        projB.animations.unshift({
-          id: result.jobId || `${Date.now()}`,
-          batchId: `banque_${Date.now()}`,
-          type: animType,
-          filename: result.glbPath.split(/[\\/]/).pop(),
-          path: result.glbPath,
-          url: 'file:///' + result.glbPath.replace(/\\/g, '/'),
-          engine: 'banque_clips',
-          mode: 'local',
-          verdict: 'n/a',
-          created: new Date().toISOString(),
-        });
-        try { renderAnimVersions(projB); } catch (_) {}
-        try { _selectAnim?.(projB.animations[0]); } catch (_) {}
-        try { window.dispatchEvent(new CustomEvent('anim:new', { detail: projB.animations[0] })); } catch (_) {}
-      }
-      if (_activeAnimJob && typeof completeJob === 'function') {
-        try { completeJob(_activeAnimJob.id, true); } catch (_) {}
-        _activeAnimJob = null;
-      }
-      btn.disabled = false;
-      return;
-    }
-
-    // ---- Generative motion AI (text->motion diffusion, local GPU) ----
-    if (engine === 'kimodo_ai') {
-      // Garde humanoid-only : moteur LOCAL uniquement. En mode Cloud le
-      // backend est AnyTop (skeleton-agnostic) et la Motion Library est
-      // masquée — bloquer ici laisserait les créatures sans aucun moteur.
-      const _animCloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-      if (!_animCloud && detectedClass !== 'humanoid') {
-        setStatus('Generative motion AI is humanoid-only for now — use Motion Library for creatures.', true);
-        if (_activeAnimJob && typeof completeJob === 'function') {
-          try { completeJob(_activeAnimJob.id, false, 'humanoid-only'); } catch (_) {}
-          _activeAnimJob = null;
-        }
-        btn.disabled = false;
-        return;
-      }
-      setStatus(`Generating "${animType}" with generative AI (local GPU)…`);
-      // Passe par la copie `API` (et non window.meshyAPI brut) pour bénéficier
-      // de l'interception needsCloudLogin → modale de connexion + retry.
-      const result = await API.animKimodo({ meshPath: rigPath, animType });
-      if (!result?.success) {
-        setStatus(`Generation failed: ${result?.error || 'unknown'}`, true);
-        if (_activeAnimJob && typeof completeJob === 'function') {
-          try { completeJob(_activeAnimJob.id, false, result?.error || 'unknown'); } catch (_) {}
-          _activeAnimJob = null;
-        }
-        btn.disabled = false;
-        return;
-      }
-      let verdictAI = 'n/a';
-      try {
-        const judged = await window.meshyAPI.animJudge({ glbPath: result.glbPath });
-        verdictAI = judged?.verdict || 'n/a';
-      } catch (_) {}
-      setStatus(`Done — ${result.glbPath?.split(/[\\/]/).pop()} (judge: ${verdictAI})`);
-      const projAI = state.currentProject;
-      if (projAI) {
-        projAI.animations = projAI.animations || [];
-        projAI.animations.unshift({
-          id: result.jobId || `${Date.now()}`,
-          batchId: `local_${Date.now()}`,
-          type: animType,
-          filename: result.glbPath.split(/[\\/]/).pop(),
-          path: result.glbPath,
-          url: 'file:///' + result.glbPath.replace(/\\/g, '/'),
-          engine: 'kimodo_ai',
-          mode: 'local',
-          verdict: verdictAI,
-          created: new Date().toISOString(),
-        });
-        try { renderAnimVersions(projAI); } catch (_) {}
-        try { _selectAnim?.(projAI.animations[0]); } catch (_) {}
-        try { window.dispatchEvent(new CustomEvent('anim:new', { detail: projAI.animations[0] })); } catch (_) {}
-      }
-      if (_activeAnimJob && typeof completeJob === 'function') {
-        try { completeJob(_activeAnimJob.id, true); } catch (_) {}
-        _activeAnimJob = null;
-      }
-      return;
-    }
-
-    setStatus(`Listing ${animType} motions for ${detectedClass}…`);
-    const list = await window.meshyAPI.animListMotions({ class: detectedClass });
-    const target = animType.toLowerCase();
-    // Match against id (= filename) and label (= human-readable tokens)
-    const matching = (list.motions || []).filter(m => {
-      const id = (m.id || '').toLowerCase();
-      const label = (m.label || '').toLowerCase();
-      return id.includes(target) || label.includes(target);
-    });
-    if (!matching.length) {
-      // Fallback: any class (motion library may be sparse for non-humanoid)
-      const allList = await window.meshyAPI.animListMotions({});
-      const anyMatch = (allList.motions || []).filter(m =>
-        ((m.id || '') + (m.label || '')).toLowerCase().includes(target)
-      );
-      if (!anyMatch.length) {
-        setStatus(`No "${animType}" motion found in library (${list.total || 0} for ${detectedClass}, ${allList.total || 0} total).`, true);
-        btn.disabled = false;
-        return;
-      }
-      matching.push(...anyMatch);
-    }
-    const motion = matching[0];
-    setStatus(`Picked "${motion.label || motion.id}" (${matching.length} candidates), starting…`);
-    console.log('[anim] rigPath:', rigPath, 'motion:', motion);
-    setStatus(`Retargeting "${motion.name}" (${mode})…`);
-    const result = await window.meshyAPI.animRetarget({
-      meshPath: rigPath,
-      motionId: motion.id,
-      mode,
-    });
-    if (!result?.success) {
-      setStatus(`Retarget failed: ${result?.error || 'unknown'}`, true);
-      btn.disabled = false;
-      return;
-    }
-    // Run the auto-judge for a quick verdict
-    let verdict = 'n/a';
-    try {
-      const judged = await window.meshyAPI.animJudge({ glbPath: result.glbPath });
-      verdict = judged?.verdict || 'n/a';
-    } catch (_) {}
-    setStatus(`Done — ${result.glbPath?.split(/[\\/]/).pop()} (judge: ${verdict})`);
-
-    // 2026-06-13: push the new animation into the project model so the
-    // version strip + EDIT SELECTED viewer pick it up, matching the
-    // cloud renderer pattern in cloud/public/app/index2.js:653.
-    const proj2 = state.currentProject;
-    if (proj2) {
-      proj2.animations = proj2.animations || [];
-      const filename = result.glbPath.split(/[\\/]/).pop();
-      proj2.animations.unshift({
-        id: result.jobId || `${Date.now()}`,
-        batchId: `local_${Date.now()}`,
-        type: animType,
+      faits++;
+      etat[i] = 'done';
+      majJob();
+      const filename = r.glbPath.split(/[\\/]/).pop();
+      proj.animations = proj.animations || [];
+      proj.animations.unshift({
+        id: filename,
+        batchId: filename,
+        type,
         filename,
-        path: result.glbPath,
-        url: 'file:///' + result.glbPath.replace(/\\/g, '/'),
-        engine: 'rokoko_library',
-        mode,
-        motionId: motion.id,
-        motionLabel: motion.label,
-        verdict,
+        path: r.glbPath,
+        url: 'file:///' + r.glbPath.replace(/\\/g, '/'),
+        motionLabel: type,
         created: new Date().toISOString(),
+        mtime: Date.now(),
+        rigPath,
+        rigFilename: rig?.filename,
+        sourceImage: rig?.sourceImage,
       });
-      // Refresh the version strip + EDIT SELECTED viewer.
-      try { renderAnimVersions(proj2); } catch (_) {}
-      try { _selectAnim?.(proj2.animations[0]); } catch (_) {}
-      try { window.dispatchEvent(new CustomEvent('anim:new', { detail: proj2.animations[0] })); } catch (_) {}
+      try { renderAnimVersions(proj); } catch (_) {}
+      try { _selectAnim?.(proj.animations[0]); } catch (_) {}
+      try { window.dispatchEvent(new CustomEvent('anim:new', { detail: proj.animations[0] })); } catch (_) {}
+      if (job) _progresLot(job.id, (faits / types.length) * 100, `${faits}/${types.length} done`);
     }
-    if (_activeAnimJob && typeof completeJob === 'function') {
-      try { completeJob(_activeAnimJob.id, true); } catch (_) {}
-      _activeAnimJob = null;
-    }
+    setStatus(`${_i18nT('Done')} — ${faits}/${types.length}`);
+    if (job) { try { completeJob(job.id, true); } catch (_) {} }
+    const carte = document.getElementById('step-card-animation');
+    const edition = carte?.querySelector('.stage-edit');
+    if (edition) edition.open = true;
   } catch (err) {
-    setStatus(`Error: ${err.message || err}`, true);
-    if (_activeAnimJob && typeof completeJob === 'function') {
-      try { completeJob(_activeAnimJob.id, false, String(err.message || err)); } catch (_) {}
-      _activeAnimJob = null;
-    }
+    const msg = String(err?.message || err);
+    setStatus(`Error: ${msg}`, true);
+    if (job) { try { completeJob(job.id, false, msg); } catch (_) {} }
   } finally {
+    _lotAnim = null;
     btn.disabled = false;
+    try { window._refreshTopbarCredits?.(); } catch (_) {}
   }
 });
 
@@ -26250,10 +26098,6 @@ window._applyCloudFeatureMask = function () {
       const el = document.getElementById(id);
       if (el) el.style.display = cloud ? 'none' : '';
     }
-    // Ligne « Mode » du panneau Animation : le select Local / « Cloud
-    // coming soon » est trompeur quand le switch global est déjà Cloud.
-    const animRow = document.getElementById('ws-anim-mode')?.closest('.form-row');
-    if (animRow) animRow.style.display = cloud ? 'none' : '';
     // Case « Garder la forme (varier la texture) » du modal Variante : le mode
     // texture appelle tex-variant, local uniquement → masqué en Cloud (la
     // variante normale, elle, passe par /api/modify-image).
@@ -26317,10 +26161,10 @@ window._applyCloudFeatureMask();
 window._applyRigAnimPills = function () {
   try {
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    const setPill = (btn, price) => {
+    const setPill = (btn, price, toujours = false) => {
       if (!btn) return;
       let pill = btn.querySelector('.generate-cost-pill');
-      if (!cloud) { if (pill) pill.remove(); return; }
+      if (!cloud && !toujours) { if (pill) pill.remove(); return; }
       if (!pill) {
         pill = document.createElement('span');
         pill.className = 'generate-cost-pill';
@@ -26336,18 +26180,10 @@ window._applyRigAnimPills = function () {
     setPill(document.getElementById('ws-generate-rig-ai'), 10);
     setPill(document.getElementById('ws-rig-reskin-btn'), 6);    // RESKIN_COST
     setPill(document.getElementById('pts-regenerer'), 10);
-    setPill(document.getElementById('ws-generate-anim'), 5);
-    const sel = document.getElementById('ws-anim-engine');
-    const opt = sel?.querySelector('option[value="rokoko_library"]');
-    if (opt) {
-      opt.disabled = cloud;
-      opt.hidden = cloud;
-      opt.style.display = cloud ? 'none' : '';
-    }
-    if (cloud && sel && sel.value === 'rokoko_library') {
-      sel.value = 'kimodo_ai';
-      sel.dispatchEvent(new Event('change'));
-    }
+    // Animation : TOUJOURS en ligne (parite web, 2026-09-28), quel que soit
+    // le mode de calcul — 5 credits (ANIM_COST) par clip coche.
+    const nbClips = document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked').length || 1;
+    setPill(document.getElementById('ws-generate-anim'), 5 * nbClips, true);
   } catch (_) {}
 };
 window._applyRigAnimPills();
