@@ -8626,7 +8626,11 @@ async function handleCloudProjects(req: Request, env: Env): Promise<Response> {
       name, path: `cloud://${name}`,
       images: [], imagesData: [],
       count: 0,
-      created: new Date().toISOString(), prompt: '',
+      // DATE DE DERNIERE ACTIVITE, partie de RIEN (2026-09-28) : elle partait de « maintenant »,
+      // et `if (x.created_at > p.created)` ne la remplacait donc JAMAIS — tous les projets avaient
+      // la meme date et la grille du site les rangeait au hasard (le plus recent n'etait pas en
+      // haut a gauche, constate par le user). Une chaine vide est inferieure a toute date ISO.
+      created: '', prompt: '',
       backPhotos: {}, meshes: [],
     };
   }
@@ -8716,7 +8720,9 @@ async function handleCloudProjects(req: Request, env: Env): Promise<Response> {
     created_at: string;
   }>;
   for (const a of assets) {
-    if (!a.project) continue;
+    // '_thumbs' : projet SYNTHETIQUE des miniatures de maillages (voir insertUserAsset '_thumbs'), pas un
+    // projet de l'utilisateur — il formait une carte vide dans la grille (2026-09-28).
+    if (!a.project || a.project === '_thumbs') continue;
     if (!map.has(a.project)) map.set(a.project, emptyProj(a.project));
     const p = map.get(a.project)!;
     // Re-sign on read from the stored r2_path KEY (legacy full URL → passthrough).

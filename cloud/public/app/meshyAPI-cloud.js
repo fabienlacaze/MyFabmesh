@@ -1734,7 +1734,7 @@
           // float to the left. Picks the max(mtime) over every cached
           // local image, falling back to the server-side timestamp or
           // "now" for projects that have no local trace yet.
-          created: p.created || new Date().toISOString(),
+          created: p.created || null,   // sans date : en fin de grille (« maintenant » le remontait en tete)
           // Prefer server-side prompt (from a mesh job's options); fall
           // back to the localStorage cache populated by generateImages.
           // Either source feeds the "Copy prompt" button in the UI.
