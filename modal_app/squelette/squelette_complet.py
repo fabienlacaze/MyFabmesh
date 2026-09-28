@@ -702,14 +702,41 @@ def greffer(chemin_maillage, J, parents, noms, sortie):
     maillages = [i for i, n in enumerate(js['nodes']) if 'mesh' in n]
     if len(js.get('meshes', [])) != 1 or len(js['meshes'][0]['primitives']) != 1 or len(maillages) != 1:
         raise ValueError('greffe : un seul maillage a une seule primitive attendu')
-    for i, n in enumerate(js['nodes']):
-        if any(k in n for k in ('matrix', 'translation', 'rotation', 'scale')):
-            raise ValueError(f'greffe : noeud {i} transforme, non gere')
     prim = js['meshes'][0]['primitives'][0]
-    acc = js['accessors'][prim['attributes']['POSITION']]
-    bv = js['bufferViews'][acc['bufferView']]
-    V = np.frombuffer(bn, np.float32, acc['count'] * 3,
-                      bv.get('byteOffset', 0) + acc.get('byteOffset', 0)).reshape(-1, 3).astype(np.float64)
+
+    def lire_acc(idx, n_comp):
+        a = js['accessors'][idx]
+        v = js['bufferViews'][a['bufferView']]
+        return np.frombuffer(bn, np.float32, a['count'] * n_comp,
+                             v.get('byteOffset', 0) + a.get('byteOffset', 0)).reshape(-1, n_comp).astype(np.float64)
+
+    V = lire_acc(prim['attributes']['POSITION'], 3)
+    # NOEUD TRANSFORME (2026-09-28) : un maillage tourne ou redimensionne ailleurs (outil
+    # Resize, autre logiciel) porte sa transformation sur le NOEUD. La greffe le refusait
+    # (« noeud 1 transforme, non gere ») : rig avec points impossible. Le squelette et les
+    # points etant en coordonnees MONDE, on cuit la transformation monde du noeud dans les
+    # sommets, normales et tangentes, puis tous les noeuds repassent a l'identite.
+    M = _matrice_monde(js, maillages[0])
+    if not np.allclose(M, np.eye(4), atol=1e-9):
+        L = M[:3, :3]
+        V = V @ L.T + M[:3, 3]
+        a_pos = pousser(V.astype(np.float32), 5126, 'VEC3', 34962)
+        js['accessors'][a_pos]['min'] = [float(x) for x in V.min(axis=0)]
+        js['accessors'][a_pos]['max'] = [float(x) for x in V.max(axis=0)]
+        prim['attributes']['POSITION'] = a_pos
+        if 'NORMAL' in prim['attributes']:
+            N = lire_acc(prim['attributes']['NORMAL'], 3) @ np.linalg.inv(L)       # (L^-1)^T appliquee aux lignes
+            N /= np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-12)
+            prim['attributes']['NORMAL'] = pousser(N.astype(np.float32), 5126, 'VEC3', 34962)
+        if 'TANGENT' in prim['attributes']:
+            T4 = lire_acc(prim['attributes']['TANGENT'], 4)
+            t = T4[:, :3] @ L.T
+            t /= np.maximum(np.linalg.norm(t, axis=1, keepdims=True), 1e-12)
+            T4 = np.concatenate([t, T4[:, 3:4] * np.sign(np.linalg.det(L) or 1.0)], axis=1)
+            prim['attributes']['TANGENT'] = pousser(T4.astype(np.float32), 5126, 'VEC4', 34962)
+    for n in js['nodes']:
+        for k in ('matrix', 'translation', 'rotation', 'scale'):
+            n.pop(k, None)
     _, proche = cKDTree(J).query(V, k=1)
     J4 = np.zeros((len(V), 4), np.uint16); J4[:, 0] = proche
     occ = collections.Counter(proche.tolist())
@@ -745,6 +772,33 @@ def greffer(chemin_maillage, J, parents, noms, sortie):
     js['nodes'][maillages[0]]['skin'] = 0
     with open(sortie, 'wb') as f:
         f.write(ecrire_glb(js, blob))
+
+
+def _matrice_noeud(n):
+    """Matrice 4x4 locale d'un noeud glTF (matrix, ou translation / rotation / scale)."""
+    if 'matrix' in n:
+        return np.array(n['matrix'], dtype=np.float64).reshape(4, 4).T      # glTF : colonnes d'abord
+    x, y, z, w = (float(c) for c in n.get('rotation', (0.0, 0.0, 0.0, 1.0)))
+    R = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                  [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                  [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+    M = np.eye(4)
+    M[:3, :3] = R @ np.diag([float(c) for c in n.get('scale', (1.0, 1.0, 1.0))])
+    M[:3, 3] = [float(c) for c in n.get('translation', (0.0, 0.0, 0.0))]
+    return M
+
+
+def _matrice_monde(js, i):
+    """Transformation monde du noeud i (produit des noeuds, de la racine jusqu'a lui)."""
+    parent = {c: k for k, n in enumerate(js['nodes']) for c in n.get('children', [])}
+    chaine = []
+    while i is not None:
+        chaine.append(i)
+        i = parent.get(i)
+    M = np.eye(4)
+    for k in reversed(chaine):
+        M = M @ _matrice_noeud(js['nodes'][k])
+    return M
 
 
 def ajouter_extras(chemin_glb, donnees):
