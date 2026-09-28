@@ -123,6 +123,12 @@ def generate(
             pipe.set_ip_adapter_scale(0.0)
         except Exception:
             pass
+        # Le pipeline est PARTAGE avec la vue de dos, qui charge l'IP-Adapter : l'UNet exige alors
+        # une image de reference (« encoder_hid_dim_type ip_image_proj requires image_embeds »),
+        # meme a l'echelle 0. Sans reference, image neutre a influence nulle (28/09/2026 : la route
+        # text2image T-pose repondait 500 a chaque appel des que le web a commence a l'utiliser).
+        if getattr(pipe.unet.config, 'encoder_hid_dim_type', None) == 'ip_image_proj':
+            base_kwargs['ip_adapter_image'] = Image.new('RGB', (224, 224), (255, 255, 255))
 
     # Compel long-prompt encoding — bypasses the 77-token CLIP cap. The
     # FRONT_PROMPT_TAIL alone is ~75 tokens, so any user prompt overflows
