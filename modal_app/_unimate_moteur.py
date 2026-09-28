@@ -577,6 +577,189 @@ def noyau_mixamo(noms, parents):
     return garde
 
 
+def _fk(R, rp, X, parents):
+    """Cinematique directe dans l'espace canonique : G = rotations monde
+    (relatives a la T-pose), P = positions. R[:, j] = rotation locale de j
+    (deja « de-HML-isee »), rp = trajectoire de la racine."""
+    T, J = R.shape[:2]
+    G = np.empty_like(R)
+    P = np.empty((T, J, 3))
+    for j in range(J):
+        p = parents[j]
+        if p < 0:
+            G[:, j] = R[:, j]
+            P[:, j] = rp
+        else:
+            G[:, j] = G[:, p] @ R[:, j]
+            P[:, j] = P[:, p] + G[:, p] @ (X[j] - X[p])
+    return G, P
+
+
+def _plages(masque, cyclique):
+    """Plages [a, b] (inclus) ou masque est vrai ; en cyclique, une plage
+    qui touche les deux bords est recousue a travers le raccord."""
+    T = len(masque)
+    plages, a = [], None
+    for t in range(T):
+        if masque[t] and a is None:
+            a = t
+        if not masque[t] and a is not None:
+            plages.append([a, t - 1])
+            a = None
+    if a is not None:
+        plages.append([a, T - 1])
+    if cyclique and len(plages) > 1 and plages[0][0] == 0 and plages[-1][1] == T - 1:
+        fin = plages.pop()
+        plages[0] = [fin[0] - T, plages[0][1]]          # debut negatif = avant le raccord
+    return plages
+
+
+def planter_pieds(R, rp, X, parents, boucle=False, iterations=10, noms=None):
+    """Pieds plantes au sol : le defaut le plus visible des clips du
+    2026-09-28. Mesure sur la marche du quadrupede, dans les positions que
+    sort le MODELE lui-meme (canaux RIFKE + trajectoire) : les pieds « au
+    sol » avancent de 0,03 a 0,075 par image quand le corps avance de 0,049
+    — les pattes s'animent presque sur place pendant que le corps glisse
+    (« foot sliding », limite citee par l'article d'UniMate). Correctif
+    classique, en trois temps :
+
+    1. Sol : la creature est posee pour que ses appuis touchent le sol
+       (20e centile de l'extremite la plus basse, par image).
+    2. Allure : un pied est en appui dans la bande basse de SA trajectoire
+       (la vitesse ne peut pas servir : le modele fait glisser les appuis).
+       Le glissement moyen des pieds en appui est RETIRE de la trajectoire
+       du corps : la creature avance au rythme reel de ses foulees.
+    3. Verrou : pendant chaque appui, le bout est ramene a sa position
+       moyenne posee au sol, par CCD sur les os de la patte au-dessous du
+       dernier embranchement ; entree et sortie fondues sur 3 images.
+
+    Unites canoniques (diametre 2, sol a 0, face +Z). En boucle, la derniere
+    image (copie de la premiere, deplacement compris) est recopiee apres
+    traitement : le raccord reste exact."""
+    from scipy.spatial.transform import Rotation
+    R = R.copy()
+    rp = rp.copy()
+    T, J = R.shape[:2]
+    enfants = [[] for _ in range(J)]
+    for j in range(1, J):
+        enfants[parents[j]].append(j)
+    # Pied = bout d'une PATTE (par son nom) proche du sol au repos. La hauteur
+    # seule ne suffit pas : sur l'araignee de 62 os (plafonnee a 60), les
+    # bouts de pattes les plus profonds sont ecartes et ce sont les bouts des
+    # CROCHETS, au ras du sol, qui passaient pour des pieds — les poser
+    # soulevait tout le corps.
+    def est_pied(j):
+        if noms is None:
+            return True
+        base = noms[j].split(' ', 1)[-1] if noms[j].startswith(('Left ', 'Right ')) else noms[j]
+        return base in ('Toe', 'Toe End', 'Foot', 'Foot End', 'Hand', 'Finger')
+    pieds = [j for j in range(1, J) if not enfants[j] and X[j, 1] < 0.15 and est_pied(j)]
+    if not pieds:
+        return R, rp, {'pieds': 0}
+    Tu = T - 1 if boucle else T
+    G, P = _fk(R, rp, X, parents)
+    # 1. sol
+    decalage = float(np.percentile(P[:Tu, pieds, 1].min(axis=1), 20))
+    rp[:, 1] -= decalage
+    P[:, :, 1] -= decalage
+
+    # 2. appuis par la hauteur, puis allure
+    appuis = {}
+    for f in pieds:
+        y = P[:Tu, f, 1]
+        bas = y < y.min() + max(0.03, 0.25 * float(np.ptp(y)))
+        garde = np.zeros(Tu, dtype=bool)
+        for a, b in _plages(bas, False):
+            if b - a + 1 >= 3:
+                garde[a:b + 1] = True
+        appuis[f] = garde
+
+    def glissement(P):
+        v = np.diff(P[:Tu][:, pieds][..., [0, 2]], axis=0)                 # (Tu-1, F, 2)
+        g = np.zeros((Tu - 1, 2))
+        n = []
+        for t in range(Tu - 1):
+            sel = [i for i, f in enumerate(pieds) if appuis[f][t] and appuis[f][t + 1]]
+            if sel:
+                g[t] = v[t, sel].mean(axis=0)
+                n.extend(np.linalg.norm(v[t, sel], axis=-1).tolist())
+        return g, (float(np.mean(n)) if n else 0.0)
+    g, avant = glissement(P)
+    noyau = np.ones(5) / 5.0
+    g = np.stack([np.convolve(g[:, d], noyau, mode='same') for d in range(2)], axis=1)
+    corr = np.zeros((T, 2))
+    corr[1:Tu] = np.cumsum(g, axis=0)
+    if boucle:
+        corr[T - 1] = corr[Tu - 1] + g[-1]
+    rp[:, [0, 2]] -= corr
+    P[:, :, [0, 2]] -= corr[:, None, :]
+    apres_allure = glissement(P)[1]
+
+    # 3. verrous
+    poses = 0
+    for f in pieds:
+        chaine, k = [], parents[f]
+        while k > 0 and len(chaine) < 4:
+            chaine.append(k)
+            if len(enfants[parents[k]]) > 1 or parents[k] == 0:
+                break
+            k = parents[k]
+        if not chaine:
+            continue
+        cible = np.zeros((Tu, 3))
+        poids = np.zeros(Tu)
+        for a, b in _plages(appuis[f], False):
+            c = np.array([P[a:b + 1, f, 0].mean(), X[f, 1], P[a:b + 1, f, 2].mean()])
+            for t in range(max(0, a - 3), min(Tu, b + 4)):
+                w = 1.0 if a <= t <= b else max(0.0, 1.0 - (a - t if t < a else t - b) / 4.0)
+                if w > poids[t]:
+                    poids[t], cible[t] = w, c
+            poses += 1
+        for t in range(Tu):
+            if poids[t] <= 0:
+                continue
+            but = (1 - poids[t]) * P[t, f] + poids[t] * cible[t]
+            for _ in range(iterations):
+                for k in chaine:
+                    Gk, Pk = _fk_ligne(R[t], rp[t], X, parents, k, f)
+                    v1, v2 = Pk[f] - Pk[k], but - Pk[k]
+                    axe = np.cross(v1, v2)
+                    sn = np.linalg.norm(axe)
+                    if sn < 1e-8 or np.linalg.norm(v1) < 1e-6:
+                        continue
+                    angle = np.arctan2(sn, float(np.dot(v1, v2)))
+                    if angle < 1e-4:
+                        continue
+                    D = Rotation.from_rotvec(axe / sn * min(angle, 0.35)).as_matrix()
+                    R[t, k] = Gk[parents[k]].T @ D @ Gk[k]
+        G, P = _fk(R, rp, X, parents)
+    if boucle:
+        R[T - 1] = R[0]
+        rp[T - 1, 1] = rp[0, 1]
+        G, P = _fk(R, rp, X, parents)
+    return R, rp, {'pieds': len(pieds), 'appuis': poses, 'sol_decale': round(decalage, 4),
+                   'glissement_avant': round(avant, 4), 'glissement_apres_allure': round(apres_allure, 4),
+                   'glissement_apres': round(glissement(P)[1], 4),
+                   'enfoncement_apres': round(float(np.clip(-P[:Tu, pieds, 1], 0, None).mean()), 5)}
+
+
+def _fk_ligne(Rt, rpt, X, parents, k, f):
+    """FK d'UNE image, limitee a la lignee racine -> f (assez pour la CCD)."""
+    lignee = [f]
+    while parents[lignee[-1]] >= 0:
+        lignee.append(parents[lignee[-1]])
+    lignee.reverse()
+    G, P = {}, {}
+    for j in lignee:
+        p = parents[j]
+        if p < 0:
+            G[j], P[j] = Rt[j], rpt
+        else:
+            G[j] = G[p] @ Rt[j]
+            P[j] = P[p] + G[p] @ (X[j] - X[p])
+    return G, P
+
+
 # ======================================================================= moteur
 class MoteurUniMate:
     """Charge le modele et l'encodeur UNE fois (conteneur Modal), puis anime
@@ -650,7 +833,7 @@ class MoteurUniMate:
         return out
 
     def animer(self, rig_octets, prompt, famille='bipeds', stats=None, graine=0, cfg_scale=3.0,
-               nom_clip=None, tirages=3, boucle=False, raccord=8):
+               nom_clip=None, tirages=3, boucle=False, raccord=8, pieds=True):
         """Rend (octets du GLB anime, infos). `famille` gouverne les noms des
         membres (bras/ailes) ; `stats` la normalisation (par defaut celle du
         jeu dont vient le sujet de la legende) ; `tirages` candidats generes en
@@ -830,11 +1013,14 @@ class MoteurUniMate:
         rp = np.cumsum(np.einsum('tji,tj->ti', M6[:, 0], rp), axis=0)
         rp[:, 1] = m[:, 0, 1]
 
+        infos_pieds = {}
+        if pieds:
+            R, rp, infos_pieds = planter_pieds(R, rp, X, parents, boucle=bool(k), noms=noms_u)
         glb = self._ecrire(js, bn, noeud_de, R, rp, X, s, W, parent_noeud, rot_monde, pos_monde,
                            nom_clip or prompt[:60])
         return glb, {'os': J, 'os_total': os_total, 'famille': famille, 'stats': stats, 'prompt': prompt,
                      'tirages': B, 'scores': [round(x, 3) for x in scores], 'boucle': k, 'images': T,
-                     'os_elagues': elagues, 'noyau_mixamo': bool(noyau),
+                     'os_elagues': elagues, 'noyau_mixamo': bool(noyau), 'pieds': infos_pieds,
                      'deplacement_racine': float(np.linalg.norm((rp[-1] - rp[0])[[0, 2]]) / s)}
 
     @staticmethod
