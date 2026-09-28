@@ -18227,8 +18227,12 @@ function renderJobs() {
   const runningCount = state.jobs.filter(j => j.status === 'running').length;
   const queuedCount = queuedJobs.length;
   const totalCount = state.jobs.length + queuedCount;
-  const badgeText = queuedCount > 0 ? `${runningCount}+${queuedCount}` : String(runningCount);
-  document.getElementById('jobs-bubble-count-2').textContent = badgeText;
+  // Un seul nombre (demande user, 2026-09-28 : « 1+1, ca fait 2 ») : les
+  // travaux en cours et en attente, sans les sous-taches — le meme compte que
+  // l'onglet « En cours ». Le detail reste dans l'info-bulle.
+  const nbBulle = state.jobs.filter(j => j.status === 'running' && !_estSousTache(j)).length + queuedCount;
+  document.getElementById('jobs-bubble-count-2').textContent = String(nbBulle);
+  if (bubble) bubble.title = queuedCount > 0 ? `${nbBulle - queuedCount} running, ${queuedCount} waiting` : `${nbBulle} running`;
   // Per-step widgets piggy-back on the same refresh tick.
   try { renderStepProgressWidgets(); } catch (_) {}
   // Onglets : compteurs. Tant qu'il reste des travaux finis, la bulle reste
