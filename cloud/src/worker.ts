@@ -587,7 +587,21 @@ async function _isPaidAccount(env: Env, userId: string): Promise<boolean> {
  *  for. Read-only (no CAS, no increment) so it cannot disturb the
  *  counters it inspects; called only on the refusal path. */
 async function _spendRefusalMessage(env: Env, userId?: string): Promise<string> {
-  const GENERIC = 'The service is temporarily at capacity — your credits are safe and you were not charged. Please try again shortly.';
+  /* TROIS CAUSES, TROIS DUREES (2026-09-28). Quatorze routes affichaient en
+   * dur « Try again after midnight UTC » : faux quand l'arret dur sur la
+   * facture reelle est actif (usage 91,95 $ pour 90 $ ce jour-la) — rien ne
+   * repart a minuit, il faut que l'exploitant releve le budget. Le client
+   * reessayait donc le lendemain pour rien. Toutes les routes passent
+   * maintenant par ici, et chaque cause donne sa vraie echeance. */
+  const QUOTIDIEN = 'The service has reached its daily capacity — your credits are safe and you were not charged. '
+                  + 'It resets at midnight UTC.';
+  try {
+    if (await _limiteCalculAtteinte(env)) {
+      return 'Cloud generation is paused for now — your credits are safe and you were not charged. '
+           + 'Please try again later.';
+    }
+  } catch { /* lecture impossible : on retombe sur les plafonds du jour */ }
+  const GENERIC = QUOTIDIEN;
   if (!userId || !env.MESHES) return GENERIC;
   try {
     const maxUser = _plafond(env.MAX_USER_DAILY_SPEND_USD, DEFAULT_MAX_USER_DAILY_SPEND_USD);
@@ -11264,7 +11278,7 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: `Daily service capacity reached. Try again after midnight UTC.` }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11331,7 +11345,7 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'Daily service capacity reached. Try again after midnight UTC.' }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11422,7 +11436,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'Daily service capacity reached. Try again after midnight UTC.' }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11670,7 +11684,7 @@ async function handleOutfit(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'Daily service capacity reached. Try again after midnight UTC.' }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11787,7 +11801,7 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'Daily service capacity reached. Try again after midnight UTC.' }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11847,7 +11861,7 @@ async function handleFaceFixImage(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'Daily service capacity reached.' }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -11974,7 +11988,7 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   const estimatedTotal = 0.005;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
-    return json({ ok: false, success: false, error: 'Daily service capacity reached.' }, { status: 429 });
+    return json({ ok: false, success: false, error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -12452,7 +12466,7 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
   const estimatedTotal = 0.01;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
-    return json({ ok: false, success: false, error: 'Daily service capacity reached.' }, { status: 429 });
+    return json({ ok: false, success: false, error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -13470,7 +13484,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
   const estime = squelette ? ESTIMATED_USD_RESKIN : ESTIMATED_USD_RIG;
   const remainingBudget = await checkAndIncrementModalSpend(env, estime, user.id);
   if (remainingBudget == null) {
-    return err(429, 'Daily service capacity reached. Try again after midnight UTC.');
+    return err(429, await _spendRefusalMessage(env, user.id));
   }
   const refundRigSpend = async () => {
     await refundModalSpend(env, estime, user.id);
@@ -13868,7 +13882,7 @@ async function handleMeshSegment(req: Request, env: Env): Promise<Response> {
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_SEGMENT, user.id);
   if (remainingBudget == null) {
-    return err(429, 'Daily service capacity reached. Try again after midnight UTC.');
+    return err(429, await _spendRefusalMessage(env, user.id));
   }
   const refundSegmentSpend = async () => {
     await refundModalSpend(env, ESTIMATED_USD_SEGMENT, user.id);
@@ -15277,7 +15291,7 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
   }
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_ANIM, user.id);
-  if (remainingBudget == null) return err(429, 'Daily service capacity reached. Try again after midnight UTC.');
+  if (remainingBudget == null) return err(429, await _spendRefusalMessage(env, user.id));
   const refundAnimSpend = async () => { await refundModalSpend(env, ESTIMATED_USD_ANIM, user.id); };
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -15589,7 +15603,7 @@ async function handleAnimateFromReference(req: Request, env: Env): Promise<Respo
   const projectName = typeof body.projectName === 'string' ? body.projectName : '';
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_ANIM, user.id);
-  if (remainingBudget == null) return err(429, 'Daily service capacity reached. Try again after midnight UTC.');
+  if (remainingBudget == null) return err(429, await _spendRefusalMessage(env, user.id));
   const refundSpend = async () => { await refundModalSpend(env, ESTIMATED_USD_ANIM, user.id); };
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -15943,7 +15957,7 @@ async function handleUpscaleImage(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: 'Daily service capacity reached.' }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
@@ -16080,7 +16094,7 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false,
-      error: `Daily service capacity reached. Try again after midnight UTC.` }, { status: 429 });
+      error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
   }
   const remainingUserCalls = await checkAndIncrementUserCalls(env, user.id);
   if (remainingUserCalls == null) {
