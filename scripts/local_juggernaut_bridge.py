@@ -347,10 +347,15 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             # truncated. Anti-anatomy + anti-doubling were past pos 77
             # = INVISIBLE to U-Net. Mirror of modal_app/_realvis.py
             # build_prompts() rewrite.
+            # 2026-09-28 (user) : un animal ENROULE (serpent en spirale) ou couche
+            # ne s'anime pas. Consigne en tete de l'anatomie ; pour tenir le budget,
+            # « animal pair, twin » (= duplicate) et « body cut off, out of frame »
+            # (= cropped) sont retires plus bas — aucun sens perdu.
             _anatomy = (
-                "five legs, six legs, three legs, polydactyly, two heads, "
-                if _asset_type == 'animal'
-                else "extra wings, missing wing, five legs, three legs, two heads, "
+                "curled up, coiled, lying down, "
+                + ("five legs, six legs, three legs, polydactyly, two heads, "
+                   if _asset_type == 'animal'
+                   else "extra wings, missing wing, five legs, three legs, two heads, ")
             )
             negative_prompt = (
                 # 2026-09-25 — ombres EN TETE, avant l'anatomie : placees
@@ -358,10 +363,10 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
                 "cast shadow, soft shadow, ambient occlusion, "
                 + _armes_neg
                 + _anatomy
-                + "two animals, animal pair, duplicate, twin, "
+                + "two animals, duplicate, "
                 "split image, collage, side by side, "
                 "headshot, portrait, close-up, head only, partial body, "
-                "body cut off, cropped, out of frame, "
+                "cropped, "
                 "blurry, deformed, bad anatomy"
             )
         elif _asset_type in ('building', 'environment'):

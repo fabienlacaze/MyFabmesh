@@ -39,11 +39,16 @@ def _angle_token(prompt: str) -> str:
 # enough on RealVis V4.0 (still ~10% failure on quadrupeds); weighting
 # to 1.6 makes the anti-anatomy clause dominate CFG. Verified
 # empirically on training_data_gen batch.
+# 2026-09-28 (user) : un animal ENROULE sur lui-meme (serpent en spirale) ou couche ne
+# s'anime pas — les membres et la colonne sont colles au corps, le rig ne les separe pas.
+# Pose en tete de l'anatomie : la negation dans le positif ne marche pas (voir plus bas).
 _ANATOMY_NEG = {
-    'animal':    "(five legs:1.6), (six legs:1.6), (extra leg:1.6), "
+    'animal':    "(curled up:1.5), (coiled:1.5), (lying down:1.4), "
+                 "(five legs:1.6), (six legs:1.6), (extra leg:1.6), "
                  "(polydactyly:1.5), (three legs:1.4), (two heads:1.5), "
                  "(deformed legs:1.4)",
-    'creature':  "(extra wings:1.6), (missing wing:1.6), (single wing:1.6), "
+    'creature':  "(curled up:1.5), (coiled:1.5), (lying down:1.4), "
+                 "(extra wings:1.6), (missing wing:1.6), (single wing:1.6), "
                  "(five legs:1.6), (three legs:1.4), (two heads:1.5), "
                  "(fused wings:1.4), "
                  "(bust shot:1.6), (cropped body:1.6), (feet not visible:1.4), "
