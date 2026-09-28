@@ -25390,31 +25390,6 @@ async function _ptsLireSquelette(rig) {
   };
 }
 
-// VERSIONS DU RIG DANS L'EDITEUR (2026-09-28, user : « pas de nouvelle version
-// du rig visible »). L'editeur couvre tout l'ecran : la liste des versions de
-// l'etape Rig restait cachee derriere, et une version creee par « Save moved
-// joints » semblait ne pas exister. Pastilles v0..vN (meme numerotation que
-// l'etape Rig), celle qu'on edite en surbrillance ; un clic ouvre cette version.
-function _ptsCleRig(x) {
-  return String(x || '').split('?')[0].replace(/\\/g, '/').replace(/^file:\/\/\//i, '').toLowerCase();
-}
-function _ptsVersions(nouvelle) {
-  const box = document.getElementById('pts-versions');
-  if (!box) return;
-  const p = state.currentProject;
-  const _ts = (m) => { const t = new Date(m?.created || m?.mtime || 0).getTime(); return Number.isFinite(t) ? t : 0; };
-  const rigs = (p?.rigs || []).slice().sort((a, b) => _ts(b) - _ts(a));
-  if (rigs.length < 2 && !nouvelle) { box.innerHTML = ''; return; }
-  const actuel = _ptsCleRig(_pts.rig);
-  // LECTURE SEULE (user, 2026-09-28 : « les versions ne doivent pas etre
-  // selectionnables ici, on a deja les versions dans la page projet ») : on
-  // montre seulement la version editee ; la nouvelle clignote.
-  const i = rigs.findIndex(r => _ptsCleRig(r.path || r.url) === actuel);
-  if (i < 0) { box.innerHTML = ''; return; }
-  box.innerHTML = `<span class="pts-versions-titre">${escapeHtml(_i18nT('Rig version'))}</span>`
-    + `<span class="pts-version actif${nouvelle ? ' nouveau' : ''}">v${rigs.length - 1 - i}</span>`;
-}
-
 async function ptsOuvrir() {
   const p = state.currentProject;
   const rig = p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
@@ -25430,7 +25405,6 @@ async function ptsOuvrir() {
   _pts.actif = true;
   window.__ptsEditeurActif = true;
   Object.assign(_pts, { rig, ajout: false, selection: null, survol: null, passe: [], futur: [], glisse: null });
-  _ptsVersions();
   _ptsVider();
   if (lmFsModel) { lmFsScene.remove(lmFsModel); lmFsModel = null; }
   const liste = document.getElementById('pts-liste');
@@ -26580,7 +26554,6 @@ async function _ptsEnregistrerSansIA() {
     _ptsMajBoutons();
     showToast(_i18nT('Rig saved with the moved joints') + ' ✓', 'success', 3000);
     try { populateWorkspace(state.currentProject); } catch (_) {}
-    _ptsVersions(true);   // la nouvelle version apparait, en surbrillance
   } catch (e) {
     completeJob(job.id, false, e.message);
     customError(_i18nT('Could not save the rig:') + ' ' + e.message, titre);

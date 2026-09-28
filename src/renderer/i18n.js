@@ -536,7 +536,6 @@
       'No rig yet': 'Aucun squelette pour le moment',
       'View rig fullscreen': 'Voir le squelette en plein écran',
       'Show skeleton': 'Afficher le squelette',
-      "Rig version": "Version du rig",
       "Save moved joints (no AI)": "Enregistrer les articulations déplacées (sans IA)",
       "Save the rig with the joints where you dragged them. The mesh and its skinning stay exactly as they are — no AI.": "Enregistre le rig avec les articulations là où vous les avez placées. Le maillage et sa peau restent exactement en place — sans IA.",
       "Save moved joints": "Enregistrer les articulations",
