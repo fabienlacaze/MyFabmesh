@@ -582,7 +582,7 @@ class MoteurUniMate:
     """Charge le modele et l'encodeur UNE fois (conteneur Modal), puis anime
     autant de rigs que demande."""
 
-    def __init__(self, dossier_unimate, dossier_poids, appareil='cuda'):
+    def __init__(self, dossier_unimate, dossier_poids, appareil='cuda', sujet_unique=None):
         if dossier_unimate not in sys.path:
             sys.path.insert(0, dossier_unimate)
         import torch
@@ -604,6 +604,12 @@ class MoteurUniMate:
                                        device=str(self.dev), pool=False)
         self.classifieur = charger_classifieur()
         self._noms = {}
+        # Poids officiels (preversion Linzhan, 27/09) : entraines avec « An object »
+        # comme sujet de TOUTES les legendes (`prompts.CORPUS_SUBJECT`). Le sujet
+        # canonique continue de choisir les stats et le noyau Mixamo ; seul le
+        # texte envoye au modele change. Mesure du 28/09 (araignee) : « An
+        # object » 38 % d'amplitude contre 34 % pour « An animal ».
+        self.sujet_unique = sujet_unique
 
     def traduire(self, texte):
         """Description libre -> anglais (le modele n'a appris que l'anglais).
@@ -684,6 +690,8 @@ class MoteurUniMate:
         if not stats or stats == 'auto':
             stats = STATS_PAR_SUJET.get(sujet) or (
                 'mixamo' if famille in ('bipeds', 'biped') else ('objaverse' if famille == 'all' else 'truebones'))
+        if self.sujet_unique and sujet:
+            prompt = self.sujet_unique + prompt[len(sujet):]
 
         # Os pilotes par le modele ; les autres suivent leur parent dans leur
         # pose de repos (le decodage le gere : Cp est la rotation de repos du

@@ -40,6 +40,20 @@ TRAD_EMPREINTES = {
     "target.spm": "173e9f493a668fe396d599e28d414a201193094e6ffd7a4678e5aab0f6d3d838",
     "vocab.json": "945c604346ce15ce4aff9001001e7f925e336d942c4087017f191871162cbdc4",
 }
+# Jeu de poids servi. « tiers » = tarn59 (ci-dessus, etiquette MIT d'un tiers).
+# « officiels » = preversion des auteurs (Linzhan/UniMate, 27/09/2026), nettement
+# meilleure (mesure locale du 28/09, araignee : 11/11 pattes actives et 34-38 %
+# d'amplitude contre 8,6/11 et 15 %) mais SANS licence declaree : ne passer a
+# « officiels » qu'apres decision de l'exploitant sur la licence.
+JEU_POIDS = "tiers"
+OFFICIEL_REPO = "Linzhan/UniMate"
+OFFICIEL_REVISION = "7f4fa3ed3aeafb7eec420346c18e89e725ee23a1"
+OFFICIEL_DOSSIER = "unimate_uniml3d_f60_preview"
+OFFICIEL_EMPREINTES = {
+    "config.json": "000215c32bd8901229f9e924cf0aaf4d95b6e135e68704f03a05a8fd5964c512",
+    "dataset_stats.npy": "f449bd747ec65eeedc5e1723790dc988792c1875ec355af770b1c669b45f9b54",
+    "checkpoints/checkpoint_step_120000.pt": "3392a650bcb96d591c19d6e574d8cbfcf95e01dddeba0c826c69b8c5c19e44ac",
+}
 POIDS_DIR = "/poids"
 UNIMATE_DIR = "/UniMate"
 
@@ -65,9 +79,43 @@ def _telecharger_poids():
             raise RuntimeError(f"empreinte inattendue pour {nom} : {h.hexdigest()}")
 
     os.makedirs(POIDS_DIR, exist_ok=True)
-    for nom, attendu in EMPREINTES.items():
-        verifier(hf_hub_download(POIDS_REPO, nom, revision=POIDS_REVISION, local_dir=POIDS_DIR),
-                 attendu, nom)
+    if JEU_POIDS == "officiels":
+        import shutil
+        import sys
+        import torch
+        fichiers = {}
+        for nom, attendu in OFFICIEL_EMPREINTES.items():
+            chemin = hf_hub_download(OFFICIEL_REPO, f"{OFFICIEL_DOSSIER}/{nom}", revision=OFFICIEL_REVISION)
+            verifier(chemin, attendu, nom)
+            fichiers[nom] = chemin
+        shutil.copy(fichiers["config.json"], os.path.join(POIDS_DIR, "config.json"))
+        shutil.copy(fichiers["dataset_stats.npy"], os.path.join(POIDS_DIR, "dataset_stats.npy"))
+        # le .pt est un pickle : lecture SURE (weights_only), puis poids EMA
+        # recopies dans le modele, comme `sample._load_checkpoint`
+        sys.path.insert(0, UNIMATE_DIR)
+        from safetensors.torch import save_model
+        from unimate.configs.schema import MainConfig
+        from unimate.models.factory import create_model
+        from unimate.training.ema import EMAModel
+        cfg = MainConfig.from_json(fichiers["config.json"])
+        modele = create_model(cfg.dataset, cfg.model)
+        etat = torch.load(fichiers["checkpoints/checkpoint_step_120000.pt"], map_location="cpu", weights_only=True)
+        modele.load_state_dict(etat["model_state_dict"])
+        ema = EMAModel(parameters=modele.parameters(), decay=cfg.training.ema_decay, use_ema_warmup=True)
+        ema.load_state_dict(etat["ema_state_dict"])
+        ema.copy_to(modele.parameters())
+        save_model(modele, os.path.join(POIDS_DIR, "model_ema.safetensors"))
+        # 1,2 Go d'etat d'optimiseur, inutile : le cache HF est un LIEN vers
+        # un blob, supprimer le lien seul ne libere rien
+        lien = fichiers["checkpoints/checkpoint_step_120000.pt"]
+        blob = os.path.realpath(lien)
+        os.remove(lien)
+        if os.path.exists(blob):
+            os.remove(blob)
+    else:
+        for nom, attendu in EMPREINTES.items():
+            verifier(hf_hub_download(POIDS_REPO, nom, revision=POIDS_REVISION, local_dir=POIDS_DIR),
+                     attendu, nom)
     for repo, rev, motifs in (
         (T5_REPO, T5_REVISION, ["config.json", "generation_config.json", "model.safetensors",
                                 "special_tokens_map.json", "spiece.model", "tokenizer.json",
@@ -124,7 +172,9 @@ def _moteur():
         if "/root" not in sys.path:
             sys.path.insert(0, "/root")
         import _unimate_moteur as um
-        _MOTEUR = um.MoteurUniMate(UNIMATE_DIR, POIDS_DIR)
+        # poids officiels : entraines avec « An object » comme sujet unique
+        _MOTEUR = um.MoteurUniMate(UNIMATE_DIR, POIDS_DIR,
+                                   sujet_unique="An object" if JEU_POIDS == "officiels" else None)
     return _MOTEUR
 
 
