@@ -38,6 +38,7 @@ const LIVRES = [
   'src/renderer/index2-edit-tools.js',
   'src/renderer/canvas-utils.js',
   'src/renderer/lib/Viewer3D.js',
+  'src/renderer/lib/locomotion-procedurale.js',
   'src/main/main.js',
   'src/main/preload.js',
   'src/main/cloud_fallback.js',
@@ -47,6 +48,7 @@ const LIVRES = [
   'cloud/public/app/cloud-overrides.js',
   'cloud/public/app/canvas-utils.js',
   'cloud/public/app/lib/Viewer3D.js',
+  'cloud/public/app/lib/locomotion-procedurale.js',
 ];
 
 /** Les pages HTML embarquent des <script> EN LIGNE. Ils ne sont dans aucun

@@ -14,6 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
+import { animerGLB } from './lib/locomotion-procedurale.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
 // hundreds of raycasts per stamp; native three.js raycast is O(triangles) and
@@ -16841,6 +16842,10 @@ function _rigLePlusRecent(proj) {
   return pool.slice().sort((x, y) => date(y) - date(x))[0].path;
 }
 
+// Allures du moteur procedural (lib/locomotion-procedurale.js) : gratuites, calculees ici.
+const ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right'];
+const NOMS_ALLURES = { idle: 'Idle', walk: 'Walk', run: 'Run', turn_left: 'Turn left', turn_right: 'Turn right' };
+
 // Cases du formulaire : la pastille ⚡ suit le nombre de clips coches.
 document.querySelectorAll('#ws-anim-types input[name="anim-type"]').forEach((cb) => {
   cb.addEventListener('change', () => window._applyRigAnimPills?.());
@@ -16883,7 +16888,8 @@ function renderAnimVersions(p) {
   }
   const iconFor = (t) => t === 'idle' ? '😴' : t === 'walk' ? '🚶'
     : t === 'run' ? '🏃' : t === 'attack' ? '⚔️'
-    : t === 'death' ? '💀' : t === 'fly' ? '✈️' : '🎬';
+    : t === 'death' ? '💀' : t === 'fly' ? '✈️'
+    : t === 'locomotion' ? '🐾' : '🎬';
   const selectedIdx = anims.findIndex(a => _selectedAnim && a.id === _selectedAnim.id);
   const activeIdx = selectedIdx >= 0 ? selectedIdx : 0;
   strip.innerHTML = anims.map((a, i) => {
@@ -17055,6 +17061,19 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       const clips = g.animations || [];
       let pickIdx = clips.findIndex(a => /retarget/i.test(a.name || ''));
       if (pickIdx < 0) pickIdx = clips.length - 1;
+      // Fichier du moteur procedural : plusieurs allures dans un GLB -> menu de choix
+      const menuClips = document.getElementById('ws-anim-clip');
+      const procedural = clips.length > 1 && clips.every(a => ALLURES_PROCEDURALES.includes(a.name));
+      if (menuClips) {
+        menuClips.classList.toggle('hidden', !procedural);
+        if (procedural) {
+          menuClips.innerHTML = clips.map((a, i) => `<option value="${i}">${_escapeHtml(_i18nT(NOMS_ALLURES[a.name] || a.name))}</option>`).join('');
+          const prefere = clips.findIndex(a => a.name === 'walk');
+          pickIdx = prefere >= 0 ? prefere : 0;
+          menuClips.value = String(pickIdx);
+          menuClips.onchange = () => _animViewer?.choisirClip?.(clips[parseInt(menuClips.value, 10)]);
+        }
+      }
       console.log('[anim-result] mesh+skin loaded, clips=' + clips.length + ' pick=' + pickIdx);
       if (clips[pickIdx]) {
         const clip = clips[pickIdx];
@@ -17133,6 +17152,20 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       cancelAnimationFrame(raf);
       try { _suiviTaille?.disconnect(); } catch (_) {}
       try { renderer.dispose(); } catch (_) {}
+    },
+    // Change de clip (menu des allures du moteur procedural), depuis le debut.
+    choisirClip(clip) {
+      if (!mixer || !clip) return;
+      if (action) { action.stop(); mixer.uncacheClip(action.getClip()); }
+      clipOriginal = clip;
+      action = mixer.clipAction(_animEnPlace ? _clipEnPlace(clip, racineAnim) : clip);
+      action.setLoop(_animLoop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+      action.clampWhenFinished = true;
+      action.reset();
+      action.play();
+      _animPlaying = true;
+      _animFrisePreparer(clip);
+      _animMajBoutonsLecture();
     },
     // Rejoue le clip (fige ou non) au MEME instant.
     enPlace(actif) {
@@ -17361,6 +17394,50 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   if (!types.length) {
     showToast(_i18nT('Check at least one type to generate.'), 'info', 4000);
     return;
+  }
+  // Moteur procedural (2026-09-28) : idle / walk / run / virages calcules ICI, en une
+  // fraction de seconde, gratuitement, dans UN fichier « locomotion » (menu de choix au
+  // lecteur). Seuls attack / death / fly passent encore par l'IA en ligne.
+  const allures = types.filter((t) => ALLURES_PROCEDURALES.includes(t));
+  if (allures.length) {
+    btn.disabled = true;
+    try {
+      setStatus(_i18nT('Generating…'));
+      const brut = await API.readMeshFile(rigPath);
+      if (!brut) throw new Error(_i18nT('Rig file not found.'));
+      const t0 = performance.now();
+      const { glb, infos } = animerGLB(brut, { allures });
+      console.log('[locomotion] ' + allures.join('+') + ' en ' + Math.round(performance.now() - t0) + ' ms', infos);
+      const rigStem = rigPath.split(/[\\/]/).pop().replace(/\.glb$/i, '');
+      const filename = `locomotion_${Date.now()}__${rigStem}.glb`;
+      const glbPath = await API.getMeshPath('animated/' + filename);
+      const w = await API.saveBuffer({ path: glbPath, buffer: glb });
+      if (!w?.success) throw new Error(w?.error || 'write failed');
+      const rigL = (proj.rigs || []).find((r) => r.path === rigPath);
+      proj.animations = proj.animations || [];
+      proj.animations.unshift({
+        id: filename, batchId: filename, type: 'locomotion', filename, path: glbPath,
+        url: 'file:///' + glbPath.replace(/\\/g, '/'),
+        motionLabel: 'Locomotion: ' + allures.map((a) => _i18nT(NOMS_ALLURES[a] || a)).join(', '),
+        created: new Date().toISOString(), mtime: Date.now(),
+        rigPath, rigFilename: rigL?.filename, sourceImage: rigL?.sourceImage,
+      });
+      _selectedAnim = null;
+      try { renderAnimVersions(proj); } catch (_) {}
+      setStatus(`${_i18nT('Done')} — ${allures.length} ${_i18nT('animations')}`);
+      const carte = document.getElementById('step-card-animation');
+      const edition = carte?.querySelector('.stage-edit');
+      if (edition) edition.open = true;
+    } catch (err) {
+      setStatus(`Error: ${err?.message || err}`, true);
+      customError(String(err?.message || err), _i18nT('Animation failed'));
+      btn.disabled = false;
+      return;
+    } finally {
+      btn.disabled = false;
+    }
+    types.splice(0, types.length, ...types.filter((t) => !ALLURES_PROCEDURALES.includes(t)));
+    if (!types.length) return;
   }
   // Le type d'asset du projet choisit le squelette de reference du modele.
   const assetType = proj.assetType || document.getElementById('ws-asset-type')?.value || '';
@@ -26434,8 +26511,13 @@ window._applyRigAnimPills = function () {
     setPill(document.getElementById('pts-regenerer'), 10);
     // Animation : TOUJOURS en ligne (parite web, 2026-09-28), quel que soit
     // le mode de calcul — 5 credits (ANIM_COST) par clip coche.
-    const nbClips = document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked').length || 1;
-    setPill(document.getElementById('ws-generate-anim'), 5 * nbClips, true);
+    // Moteur procedural (2026-09-28) : idle / walk / run / virages GRATUITS ; seuls les
+    // clips IA (attack, death, fly) coutent 5 credits.
+    const nbClips = Array.from(document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked'))
+      .filter((cb) => !ALLURES_PROCEDURALES.includes(cb.value)).length;
+    const btnAnim = document.getElementById('ws-generate-anim');
+    if (nbClips) setPill(btnAnim, 5 * nbClips, true);
+    else btnAnim?.querySelector('.generate-cost-pill')?.remove();
   } catch (_) {}
 };
 window._applyRigAnimPills();

@@ -129,6 +129,8 @@ const FICHIERS = [
   { nom: 'alignement du transfert SkinTokens', source: 'scripts/patch_skintokens_transfert.py', copie: 'modal_app/patch_skintokens_transfert.py' },
   { nom: 'squelette complet (module)', source: 'scripts/squelette_complet.py', copie: 'modal_app/squelette/squelette_complet.py' },
   { nom: 'squelette complet (pilote)', source: 'scripts/rig_complet.py', copie: 'modal_app/squelette/rig_complet.py' },
+  // moteur de marche procedural (2026-09-28) : MEME fichier sur le bureau et le web
+  { nom: 'moteur de marche procedural', source: 'src/renderer/lib/locomotion-procedurale.js', copie: 'cloud/public/app/lib/locomotion-procedurale.js' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));

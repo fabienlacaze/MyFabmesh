@@ -1014,6 +1014,12 @@
                         <input type="checkbox" name="anim-type" value="run"> <span>🏃 Run</span>
                       </label>
                       <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+                        <input type="checkbox" name="anim-type" value="turn_left"> <span>↰ Turn left</span>
+                      </label>
+                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+                        <input type="checkbox" name="anim-type" value="turn_right"> <span>↱ Turn right</span>
+                      </label>
+                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
                         <input type="checkbox" name="anim-type" value="attack"> <span>⚔️ Attack</span>
                       </label>
                       <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
@@ -1026,7 +1032,9 @@
                   </div>
                   <!-- Animation IA : resultats juges insuffisants par l'exploitant le
                        2026-09-28 (chantier arrete) — mention visible, bureau ET web. -->
-                  <div class="anim-wip" role="note" style="margin:6px 0; padding:6px 8px; border:1px solid rgba(224,182,74,0.55); background:rgba(224,182,74,0.12); color:#e0b64a; border-radius:6px; font-size:12px; line-height:1.35;"><span aria-hidden="true">&#9888;</span> <span>Work in progress — results are poor for now.</span></div>
+                  <!-- Moteur procedural (2026-09-28) : allures calculees sur l'ordinateur, gratuites. -->
+                  <div class="anim-libre" role="note" style="margin:6px 0 0; padding:6px 8px; border:1px solid rgba(92,200,140,0.5); background:rgba(92,200,140,0.10); color:#6fd49b; border-radius:6px; font-size:12px; line-height:1.35;"><span aria-hidden="true">&#10003;</span> <span>Idle, Walk, Run and Turns: generated instantly on your computer, free.</span></div>
+                  <div class="anim-wip" role="note" style="margin:6px 0; padding:6px 8px; border:1px solid rgba(224,182,74,0.55); background:rgba(224,182,74,0.12); color:#e0b64a; border-radius:6px; font-size:12px; line-height:1.35;"><span aria-hidden="true">&#9888;</span> <span>Attack, Death, Fly:</span> <span>Work in progress — results are poor for now.</span></div>
                   <button id="ws-generate-anim" class="primary-btn">Generate Animation</button>
                   <div id="ws-anim-status" style="margin-top:6px; font-size:11px; color:var(--text-2); min-height:14px;"></div>
                 </div>
@@ -1094,6 +1102,7 @@
                         <button id="ws-anim-loop-btn" class="ghost-btn tool-btn" title="Loop playback.">&#128257; Loop</button>
                         <button id="ws-anim-inplace-btn" class="ghost-btn tool-btn" title="In place: the animation stays on the spot (no travel). The exported file follows this setting.">&#128204; In place</button>
                         <button id="ws-anim-bones-btn" class="ghost-btn tool-btn" title="Show skeleton">&#129460; Bones</button>
+                        <select id="ws-anim-clip" class="hidden" title="Choose the animation to play" style="grid-column: 1 / -1; padding:4px 6px; background:var(--bg-2); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:12px;"></select>
                       </div>
                     </div>
                   </div>

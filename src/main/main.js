@@ -8564,6 +8564,8 @@ ipcMain.on('wizard-journal', (_event, evt) => {
 // --- Save Buffer IPC (for GLTFExporter output) ---
 ipcMain.handle('save-buffer', async (_event, { path: filePath, buffer, base64 }) => {
   try {
+    // dossier cree au besoin (animations procedurales : meshes/animated/ peut ne pas exister)
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
     if (base64) {
       fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
     } else {
@@ -10794,7 +10796,8 @@ ipcMain.handle('list-animations', async () => {
     const rigStem    = sep > 0 ? base.slice(sep + 2) : '';
     // Pull a friendly animation type out of the motion stem when present.
     const lc = motionStem.toLowerCase();
-    const KNOWN = ['idle', 'walk', 'run', 'attack', 'death', 'fly',
+    // « locomotion » EN PREMIER : fichier du moteur procedural (plusieurs allures dans un GLB)
+    const KNOWN = ['locomotion', 'idle', 'walk', 'run', 'attack', 'death', 'fly',
                    'jump', 'dance', 'bite', 'hit', 'sit', 'crawl'];
     const type = KNOWN.find(t => lc.includes(t)) || 'clip';
     return {
