@@ -1125,6 +1125,20 @@
                         <button id="ws-anim-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
                       </div>
                     </div>
+                    <!-- « Add Animation » et « Import GLB », portes du web (parite, 2026-09-28). -->
+                    <div class="step-tools-group">
+                      <div class="step-tools-label">Smart tools</div>
+                      <div class="step-tools-grid">
+                        <button id="ws-anim-gen-more-btn" class="ghost-btn tool-btn" title="Generate an animation batch (= new version)">&#10024; Add Animation</button>
+                      </div>
+                    </div>
+                    <div class="step-tools-group">
+                      <div class="step-tools-label">Manual tools</div>
+                      <div class="step-tools-grid">
+                        <button id="ws-anim-import-btn" class="ghost-btn tool-btn" title="Import an animated GLB as a new version">&#128228; Import GLB</button>
+                      </div>
+                      <input type="file" id="ws-anim-import-file" accept=".glb,model/gltf-binary" style="display:none;" />
+                    </div>
                     <!-- Bloc « Playback » (Play / Loop / In place / Bones) RETIRE le 2026-09-28, comme sur le web
                          le 2026-09-27 (demande du user) : doublon de la barre du visualiseur (#ws-anim-toolbar). -->
                   </div>
@@ -2521,6 +2535,49 @@
           <button class="settings-close-x" id="calib-report-close" title="Close">&#10005;</button>
         </div>
         <div id="calib-report-body" style="padding:16px; overflow:auto; flex:1;"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         GENERATE ANYTOP AI MODAL — multi-checkbox picker. Opens from
+         the Step 4 AI tools 'Generate Generative motion AI' button. Pre-checks
+         the types that already have versions, generates a new batch
+         (= new version) without leaving the Edit selected stage.
+         ============================================================ -->
+    <div id="modal-anim-gen" class="modal-overlay hidden">
+      <div class="modal-card" style="width:440px; max-width:92vw;">
+        <h2>Generate Animation</h2>
+        <p class="modal-subtitle">Each click creates ONE new version. Check the types you want in this batch.</p>
+        <div id="modal-anim-types" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px; margin:12px 0;">
+          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="modal-anim-type" value="idle"> <span>😴 Idle</span>
+          </label>
+          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="modal-anim-type" value="walk"> <span>🚶 Walk</span>
+          </label>
+          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="modal-anim-type" value="run"> <span>🏃 Run</span>
+          </label>
+          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="modal-anim-type" value="turn_left"> <span>↰ Turn left</span>
+          </label>
+          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="modal-anim-type" value="turn_right"> <span>↱ Turn right</span>
+          </label>
+          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="modal-anim-type" value="attack"> <span>⚔️ Attack</span>
+          </label>
+          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="modal-anim-type" value="death"> <span>💀 Death</span>
+          </label>
+          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="checkbox" name="modal-anim-type" value="fly"> <span>✈️ Fly</span>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="modal-anim-cancel">Cancel</button>
+          <button class="primary-btn" id="modal-anim-go">Generate</button>
+        </div>
       </div>
     </div>
 

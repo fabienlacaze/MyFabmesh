@@ -17802,6 +17802,101 @@ let _selectedBatch = null;
 let _selectedGait = null;                 // allure choisie dans un fichier « locomotion »
 let _clipsDuLot = [];                     // clips (fichiers) de la version affichee
 const _alluresParFichier = new Map();     // url d'un fichier locomotion -> noms de ses allures
+
+// ============================================================
+// « Add Animation » et « Import GLB » (Edit selected), portes du web (parite, 2026-09-28).
+// Add Animation : fenetre de choix, recopiee dans la liste « A generer » de Create new, puis le
+// bouton Generate existant (source unique de la generation). Les types deja presents dans la
+// version affichee sont pre-coches ; un fichier « locomotion » compte pour ses allures.
+// ============================================================
+document.getElementById('ws-anim-gen-more-btn')?.addEventListener('click', () => {
+  const p = state.currentProject;
+  if (!p) { showToast(_i18nT('Open a project first'), 'error'); return; }
+  if (!p.rigs || p.rigs.length === 0) {
+    customError(_i18nT('You need a rigged mesh first. Generate a Rig in Step 3, then come back.'), _i18nT('No rig available'));
+    return;
+  }
+  const existants = new Set();
+  (p.animations || []).filter((a) => a.batchId === _selectedBatch).forEach((a) => {
+    const t = String(a.type || '').toLowerCase();
+    if (t === 'locomotion') (_alluresParFichier.get(a.url) || []).forEach((n) => existants.add(allureDeClip(n)));
+    else if (t) existants.add(t);
+  });
+  const modal = document.getElementById('modal-anim-gen');
+  if (!modal) return;
+  const cases = modal.querySelectorAll('input[name="modal-anim-type"]');
+  cases.forEach((cb) => {
+    cb.checked = existants.has(cb.value);
+    const label = cb.closest('label');
+    if (!label) return;
+    label.querySelector('.anim-existing-tag')?.remove();
+    if (existants.has(cb.value)) {
+      const tag = document.createElement('span');
+      tag.className = 'anim-existing-tag';
+      tag.style.cssText = 'margin-left:auto; font-size:10px; color:var(--accent); font-weight:600; letter-spacing:0.4px;';
+      tag.textContent = '• ' + _i18nT('EXISTING');
+      label.appendChild(tag);
+    }
+  });
+  const depart = [...cases].map((cb) => `${cb.value}=${cb.checked}`).join('|');
+  const go = document.getElementById('modal-anim-go');
+  const majGo = () => {
+    const courant = [...cases].map((cb) => `${cb.value}=${cb.checked}`).join('|');
+    const un = [...cases].some((cb) => cb.checked);
+    if (go) {
+      go.disabled = !(un && courant !== depart);
+      go.title = !un ? _i18nT('Pick at least one animation type')
+        : courant === depart ? _i18nT('Add or remove a type to enable Generate') : '';
+    }
+  };
+  cases.forEach((cb) => { cb.onchange = majGo; });
+  majGo();
+  modal.classList.remove('hidden');
+});
+document.getElementById('modal-anim-cancel')?.addEventListener('click', () => {
+  document.getElementById('modal-anim-gen')?.classList.add('hidden');
+});
+document.getElementById('modal-anim-go')?.addEventListener('click', () => {
+  const modal = document.getElementById('modal-anim-gen');
+  const choix = [...modal.querySelectorAll('input[name="modal-anim-type"]:checked')].map((cb) => cb.value);
+  if (!choix.length) { showToast(_i18nT('Pick at least one animation type'), 'error'); return; }
+  _animSelection = choix.map((t) => ({ type: t, variante: 'normal' }));
+  _rendreSelectionAnim();
+  modal.classList.add('hidden');
+  const gen = document.getElementById('ws-generate-anim');
+  if (gen) { gen.disabled = false; gen.click(); }
+});
+
+// Import GLB : le fichier est copie dans meshes/animated/ sous le nom « <type>_imported_<ts>__<rig> »
+// (le « __<rig> » le rattache au projet, comme le glisser-deposer). Le type est deduit du nom du
+// fichier (idle, walk, run…), « clip » sinon — Electron ne connait pas prompt(). Gratuit ici.
+document.getElementById('ws-anim-import-btn')?.addEventListener('click', () => {
+  document.getElementById('ws-anim-import-file')?.click();
+});
+document.getElementById('ws-anim-import-file')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  const p = state.currentProject;
+  if (!p) { showToast(_i18nT('Open a project first'), 'error'); return; }
+  if (!/\.glb$/i.test(file.name)) { showToast(_i18nT('Pick a .glb file'), 'error'); return; }
+  const rigPath = p.selectedRigPath || p.activeRigPath || _rigLePlusRecent(p);
+  const rigStem = rigPath ? rigPath.split(/[\\/]/).pop().replace(/\.glb$/i, '') : (p.name || 'imported');
+  const lc = file.name.toLowerCase();
+  const type = ['idle', 'walk', 'run', 'attack', 'death', 'fly', 'jump', 'dance', 'bite', 'hit', 'sit', 'crawl']
+    .find((t) => lc.includes(t)) || 'clip';
+  try {
+    const filename = `${type}_imported_${Date.now()}__${rigStem}.glb`;
+    const glbPath = await API.getMeshPath('animated/' + filename);
+    const w = await API.saveBuffer({ path: glbPath, buffer: await file.arrayBuffer() });
+    if (!w?.success) throw new Error(w?.error || 'write failed');
+    showToast(_i18nT('Imported as new version'), 'success', 3000);
+    await reloadCurrentProject();
+  } catch (err) {
+    customError(String(err?.message || err), _i18nT('Import failed'));
+  }
+});
+
 const _ICONES_ANIM = { idle: '😴', walk: '🚶', run: '🏃', attack: '⚔️', death: '💀', fly: '✈️', locomotion: '🐾', turn_left: '↰', turn_right: '↱',
   swim: '🐟', swim_fast: '🐟', swim_left: '↰', swim_right: '↱', slither: '🐍', slither_fast: '🐍', slither_left: '↰', slither_right: '↱' };
 const _iconeAnim = (t) => _ICONES_ANIM[t] || '🎬';
