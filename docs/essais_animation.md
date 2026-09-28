@@ -59,6 +59,13 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | AnimaX | image/texte + squelette | non publié | non publié | Apache-2.0 annoncée | veille |
 | UniMate complet | texte + squelette | oui | annoncés « dans les prochaines semaines » | code MIT, poids à préciser | veille |
 | SAMoR, génération animale « topology-agnostic » | texte + squelette | pas de dépôt trouvé | — | — | veille |
+| SATA (ICML 2026) | texte → mouvement, puis décodage sur un squelette quelconque | oui (partiel) | oui (Hugging Face) | code Apache-2.0 ; poids entraînés sur HumanML3D (AMASS, **non commercial**) et AniMo4D | hors règle licence (vérifié le 28/09) |
+| NECromancer (Huawei) | texte + squelette quelconque (BVH) | non publié | non publié | données HumanML3D (NC) + Objaverse + Truebones | hors règle, rien à tester |
+| OmniZoo | texte + squelette quelconque | non publié | non publié | — | veille |
+| UniMoGen (Autodesk) | squelette quelconque (style, trajectoire) | non publié | non publié | — | veille |
+| SkelGen4D | texte → maillage animé + pseudo-squelette **inventé** | non publié | non publié | — | ne garde pas notre squelette |
+| Two2Four | mouvement humain → quadrupède | non publié | non publié | — | veille (quadrupèdes seulement) |
+| AnimaX | (voir plus haut) | toujours « Stay tuned! » au 28/09 | — | Apache-2.0 | veille |
 
 ## Pièges techniques rencontrés
 
