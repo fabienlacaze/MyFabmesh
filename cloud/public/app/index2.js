@@ -24263,102 +24263,6 @@ async function extractLandmarksFromRig() {
   }
 }
 
-// ============================================================
-// REGLAGE MANUEL DES OS — PARITE BUREAU (2026-09-27). Portage de
-// _lmPlaceAllBoneMarkers / _lmSaveAdjustedRig : un marqueur par os, deplacable
-// (« Freeze mesh » : l'os se realigne sans deformer le maillage), puis
-// enregistrement du rig corrige comme nouvelle version. Sur le web le fichier
-// est envoye dans le dossier du projet (voir saveBuffer / /api/upload-mesh) et
-// son nom garde « _rigged_ » : c'est ce qui le range dans les rigs au rechargement.
-// ============================================================
-function _lmModelBones() {
-  const bones = [];
-  const m = (typeof lmFsModel !== 'undefined' && lmFsModel) ? lmFsModel : (rigSrcModel || null);
-  if (!m) return { model: null, bones };
-  m.traverse((c) => {
-    if (c.isBone) { if (!bones.includes(c)) bones.push(c); }
-    else if (c.isSkinnedMesh && c.skeleton) { for (const b of c.skeleton.bones) if (!bones.includes(b)) bones.push(b); }
-  });
-  return { model: m, bones };
-}
-function _lmPlaceAllBoneMarkers() {
-  const { model, bones } = _lmModelBones();
-  if (!model || !bones.length) {
-    if (typeof customError === 'function') customError('Open this on a RIG (generate a rig first) — no bones found.', 'Bones');
-    return;
-  }
-  lmPushHistory();
-  for (const id in lmMarkers) {
-    const mk = lmMarkers[id];
-    if (mk) { try { mk.parent && mk.parent.remove(mk); mk.geometry.dispose(); mk.material.dispose(); } catch (e) {} }
-  }
-  lmMarkers = {};
-  document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('placed', 'armed'));
-  const wp = new THREE.Vector3();
-  const PALETTE = [0x22d3ee, 0xffcc00, 0xff6688, 0x66ff99, 0xcc88ff, 0xff9944, 0x44aaff, 0xffffff];
-  bones.forEach((b, i) => {
-    b.getWorldPosition(wp);
-    const id = 'bone__' + (b.name || ('b' + i)) + '__' + i;
-    placeLandmarkMarker(id, wp.clone(), PALETTE[i % PALETTE.length]);
-    if (lmMarkers[id]) {
-      lmMarkers[id].userData._linkedBone = b;
-      lmMarkers[id].userData._boneName = b.name || ('bone_' + i);
-    }
-  });
-  try { refreshLmFsSilhouetteDots && refreshLmFsSilhouetteDots(); } catch (e) {}
-  if (typeof showToast === 'function') {
-    showToast(_i18nTf('{x} bones shown — drag a marker to move the joint (Freeze mesh kept), then "Save rig".', bones.length), 'success', 6000);
-  }
-}
-async function _lmSaveAdjustedRig() {
-  const model = (typeof lmFsModel !== 'undefined' && lmFsModel) || null;
-  if (!model) { if (typeof customError === 'function') customError('No rig loaded.', 'Save rig'); return; }
-  const p = state.currentProject;
-  const rigPath = p?.selectedRigPath || (p?.rigs && (p.rigs[0]?.path || p.rigs[0]?.url));
-  if (!rigPath) { if (typeof customError === 'function') customError('No rig to overwrite — generate a rig first.', 'Save rig'); return; }
-  const job = pushJob(`Save adjusted rig: ${p?.name || ''}`, null, null, 8000, { projectName: p?.name });
-  try {
-    const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
-    const exporter = new GLTFExporter();
-    exporter.parse(model, async (result) => {
-      try {
-        const bytes = new Uint8Array(result);
-        // URL signee : on retire la requete avant d'en tirer un nom de fichier
-        const clean = String(rigPath).split('?')[0].replace(/\\/g, '/');
-        const nameNoExt = (clean.split('/').pop() || 'rig').replace(/\.[^.]+$/, '');
-        const base = /_rigged_/i.test(nameNoExt) ? nameNoExt : nameNoExt + '_rigged_manual';
-        const newPath = base + '_adjusted_' + Date.now() + '.glb';
-        let binary = '';
-        const chunk = 8192;
-        for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-        const r = await API.saveBuffer({ path: newPath, base64: btoa(binary), projectName: p?.name });
-        if (r && r.success) {
-          const actualPath = r.url || r.path || newPath;
-          const filename = String(r.path || actualPath).split('?')[0].split('/').pop();
-          if (p) {
-            p.rigs = p.rigs || [];
-            p.rigs.unshift({ path: actualPath, url: actualPath, filename, size: bytes.length, mtime: Date.now(), asset_type: 'rig' });
-            p.selectedRigPath = actualPath;
-          }
-          completeJob(job.id, true);
-          showToast(_i18nT('Adjusted rig saved') + ' ✓', 'success', 2500);
-          try { populateWorkspace(state.currentProject); } catch (e) {}
-        } else {
-          completeJob(job.id, false, (r && r.error) || 'unknown');
-          customError('Save failed: ' + ((r && r.error) || 'unknown'), 'Save rig');
-        }
-      } catch (err) {
-        completeJob(job.id, false, err.message);
-        customError('Save error: ' + err.message, 'Save rig');
-      }
-    }, (err) => { completeJob(job.id, false, String(err)); customError('Export error: ' + err, 'Save rig'); }, { binary: true, animations: model.animations || [] });
-  } catch (e) {
-    completeJob(job.id, false, e.message);
-    customError('Export failed: ' + e.message, 'Save rig');
-  }
-}
-document.getElementById('lm-fs-all-bones')?.addEventListener('click', () => _lmPlaceAllBoneMarkers());
-document.getElementById('lm-fs-save-rig')?.addEventListener('click', () => _lmSaveAdjustedRig());
 
 function autoDetectLandmarks() {
   const ctx = getActiveLandmarkModel();
@@ -26211,6 +26115,8 @@ function _ptsMajBoutons() {
   if (refaire) refaire.disabled = _pts.futur.length === 0 && (typeof lmHistoryFuture === 'undefined' || lmHistoryFuture.length === 0);
   const regen = document.getElementById('pts-regenerer');
   if (regen) regen.disabled = !_pts.actif || !lmFsModel || !_pts.points.length;
+  const sansIA = document.getElementById('pts-enregistrer-sans-ia');
+  if (sansIA) sansIA.disabled = !_pts.actif || !lmFsModel || !_pts.osModifies;
   // prix affiche : squelette impose (articulation deplacee) = RESKIN_COST (6)
   // du worker, sinon RIG_COST (10)
   const prix = document.querySelector('#pts-regenerer .cloud-cost-badge, #pts-regenerer .gcp-val');
@@ -26531,7 +26437,90 @@ document.getElementById('pts-reinit')?.addEventListener('click', () => {
                   osOrig: _pts.osOrigine.map((_, i) => i) });
   _ptsSauver();
 });
+// ENREGISTRER LES ARTICULATIONS DEPLACEES, SANS IA (2026-09-28). Remplace
+// l'ancien « Manual bone adjustment » (« All bones » + « Freeze mesh »), dont
+// le user disait « pas l'impression que ca marche, pas du tout visible » :
+//  - il posait un SECOND jeu de reperes exactement sur les points roses de cet
+//    editeur (mesure : 1 % des pixels de la vue changeaient au clic) ;
+//  - son gel etait incomplet : deplacer un coude emportait l'avant-bras et la
+//    main, dont les matrices de liaison n'etaient pas recalculees — le
+//    maillage se deformait quand meme ;
+//  - il tenait replie tout en bas, sous la liste des articulations.
+// Ici : les points roses deplaces (repere du GLB) sont appliques aux os d'une
+// copie FRAICHE du rig, parents d'abord, rotations inchangees ; chaque matrice
+// de liaison est recalculee pour que le produit os x liaison reste IDENTIQUE :
+// le maillage et sa peau ne bougent pas, seules les articulations changent de
+// place. Aucun appel a l'IA (« Re-generate rig » reste la pour recalculer la peau).
+async function _ptsEnregistrerSansIA() {
+  const p = state.currentProject;
+  const rig = p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
+  if (!rig || !lmFsModel || !_pts.os.length) return;
+  const titre = _i18nT('Save moved joints');
+  if (_pts.os.some((o, i) => o.parent !== _pts.osParentsOrigine[i])) {
+    customError(_i18nT('You changed how the joints are linked: only "Re-generate rig with these points" can apply that.'), titre);
+    return;
+  }
+  if (!_pts.os.some((o, i) => !o.p.equals(_pts.osOrigine[i]))) {
+    showToast(_i18nT('Drag a skeleton point first.'), 'info', 3500);
+    return;
+  }
+  const job = pushJob(`Save adjusted rig: ${p?.name || ''}`, null, null, 8000, { projectName: p?.name });
+  try {
+    const tampon = await API.readMeshFile(rig);
+    if (!tampon) throw new Error('rig unreadable');
+    const gltf = await new Promise((ok, ko) => new GLTFLoader().parse(tampon, '', ok, ko));
+    const scene = gltf.scene;
+    scene.updateMatrixWorld(true);
+    const os = _ptsOsDuModele(scene);
+    if (os.length !== _pts.os.length) throw new Error('the skeleton changed since the editor opened');
+    const peaux = [];
+    scene.traverse(c => { if (c.isSkinnedMesh && c.skeleton) peaux.push(c); });
+    // produit os x liaison AVANT : c'est lui qui place chaque sommet
+    const avant = peaux.map(m => m.skeleton.bones.map((b, k) =>
+      new THREE.Matrix4().multiplyMatrices(b.matrixWorld, m.skeleton.boneInverses[k])));
+    const profondeur = (b) => { let d = 0; for (let x = b.parent; x; x = x.parent) d++; return d; };
+    os.map((_, i) => i).sort((a, c) => profondeur(os[a]) - profondeur(os[c])).forEach((i) => {
+      const b = os[i];
+      b.parent.updateMatrixWorld(true);
+      b.position.copy(b.parent.worldToLocal(_pts.os[i].p.clone()));
+      b.updateMatrixWorld(true);
+    });
+    scene.updateMatrixWorld(true);
+    peaux.forEach((m, j) => m.skeleton.bones.forEach((b, k) => {
+      m.skeleton.boneInverses[k].copy(b.matrixWorld).invert().multiply(avant[j][k]);
+    }));
+    const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+    const result = await new Promise((ok, ko) => new GLTFExporter().parse(scene, ok, ko,
+      { binary: true, animations: gltf.animations || [] }));
+    const bytes = new Uint8Array(result);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    // URL signee : on retire la requete avant d'en tirer un nom ; « _rigged_ »
+    // garde le fichier range dans les rigs au rechargement.
+    const propre = String(rig).split('?')[0].replace(/\\/g, '/');
+    const nom = (propre.split('/').pop() || 'rig').replace(/\.[^.]+$/, '');
+    const base = /_rigged_/i.test(nom) ? nom : nom + '_rigged_manual';
+    const cible = base + '_adjusted_' + Date.now() + '.glb';
+    const r = await API.saveBuffer({ path: cible, base64: btoa(binary), projectName: p?.name });
+    if (!r?.success) throw new Error(r?.error || 'save failed');
+    const chemin = r.url || r.path || cible;
+    p.rigs = p.rigs || [];
+    p.rigs.unshift({ path: chemin, url: chemin, filename: String(r.path || chemin).split('?')[0].split('/').pop(),
+      size: bytes.length, mtime: Date.now(), asset_type: 'rig' });
+    p.selectedRigPath = chemin;
+    completeJob(job.id, true);
+    _pts.osOrigine = _pts.os.map(o => o.p.clone());
+    _pts.osModifies = _ptsOsModifie();
+    _ptsMajBoutons();
+    showToast(_i18nT('Rig saved with the moved joints') + ' ✓', 'success', 3000);
+    try { populateWorkspace(state.currentProject); } catch (_) {}
+  } catch (e) {
+    completeJob(job.id, false, e.message);
+    customError(_i18nT('Could not save the rig:') + ' ' + e.message, titre);
+  }
+}
 document.getElementById('pts-regenerer')?.addEventListener('click', ptsRegenerer);
+document.getElementById('pts-enregistrer-sans-ia')?.addEventListener('click', _ptsEnregistrerSansIA);
 // Case « Show bones » (user, 2026-09-27 : « il faut pouvoir montrer les bones »)
 document.getElementById('pts-voir-os')?.addEventListener('change', (e) => _ptsVoirOs(e.target.checked));
 

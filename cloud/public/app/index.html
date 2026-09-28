@@ -1391,6 +1391,7 @@
             <label title="On: the point goes to the middle of the mesh under the cursor. Off: it stays on the surface."><input type="checkbox" id="pts-ajout-centrer" checked /> Centre in the thickness</label>
           </div>
           <button id="pts-regenerer" class="primary-btn lm-fs-regen-btn" title="Rig the mesh again: the skeleton will reach every point">&#10227; Re-generate rig with these points</button>
+          <button id="pts-enregistrer-sans-ia" class="ghost-btn lm-fs-regen-btn" disabled title="Save the rig with the joints where you dragged them. The mesh and its skinning stay exactly as they are — no AI.">&#128190; Save moved joints (no AI)</button>
           <div class="pts-legende">
             <span><i class="pts-pastille atteint"></i>Reached by a bone</span>
             <span><i class="pts-pastille manque"></i>Not reached yet</span>
@@ -1400,19 +1401,6 @@
           </div>
         </div>
         <div id="pts-liste" class="pts-liste" aria-live="polite"></div>
-        <!-- PARITE BUREAU (2026-09-27) : reglage manuel des os, absent du web. -->
-        <details class="pts-os-manuels">
-          <summary>Manual bone adjustment</summary>
-          <p class="pts-aide">Move the joints themselves, without the AI: show every bone, drag its marker, then save the corrected rig.</p>
-          <div class="lm-fs-actions">
-            <button id="lm-fs-all-bones" class="ghost-btn" title="Place one draggable marker on EVERY bone of the rig (any shape — tank, creature, humanoid). Drag to adjust each joint.">&#129460; All bones</button>
-          </div>
-          <label style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12px; color:var(--text-2); cursor:pointer;">
-            <input type="checkbox" id="lm-fs-freeze-mesh" checked />
-            <span>&#128274; Freeze mesh while dragging (align bone, don't deform)</span>
-          </label>
-          <button id="lm-fs-save-rig" class="primary-btn lm-fs-regen-btn" title="Save the adjusted skeleton as a new rig version (keeps the mesh; only the bones are corrected)">&#128190; Save adjusted rig</button>
-        </details>
       </div>
     </div>
 
