@@ -340,4 +340,10 @@
   window.FabI18n.register('zh', {"3D model": "3D 模型"});
   window.FabI18n.register('hi', {"3D model": "3D मॉडल"});
   window.FabI18n.register('ar', {"3D model": "نموذج ثلاثي الأبعاد"});
+  // Animation IA en chantier (2026-09-28).
+  window.FabI18n.register('fr', {"Work in progress — results are poor for now.": "Travail en cours — les résultats sont encore médiocres."});
+  window.FabI18n.register('es', {"Work in progress — results are poor for now.": "En desarrollo — por ahora los resultados son pobres."});
+  window.FabI18n.register('zh', {"Work in progress — results are poor for now.": "开发中——目前效果较差。"});
+  window.FabI18n.register('hi', {"Work in progress — results are poor for now.": "काम जारी है — अभी नतीजे अच्छे नहीं हैं।"});
+  window.FabI18n.register('ar', {"Work in progress — results are poor for now.": "قيد التطوير — النتائج ضعيفة حاليًا."});
 })();
