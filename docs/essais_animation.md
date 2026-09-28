@@ -41,6 +41,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | 28/09 | MoCapAnything V2, vidéo **de profil** | même rig, vidéo Wan de profil | mouvement 4× plus ample (24 %) ; bons pas en 1re moitié, puis le corps pivote et se dresse (rotation de racine fausse, 77°) | orientation à corriger |
 | 28/09 | MoCapAnything V2 de profil + **orientation du corps figée** | idem, rotation de racine gelée à l'image 0, marche sur place | lion de profil tout le clip, pattes qui font des pas | **meilleur résultat à ce jour** ; vidéo jugée « très bon début » |
 | 28/09 | **Clip de 10 s** : 3 plans Wan enchaînés (chaque plan part de la dernière image du précédent) + MoCapAnything, racine figée | 241 images à 24 i/s | l'animation tient sur les 10 s (lion de profil, pattes qui alternent) ; la **vidéo dérive en aspect** (couleurs saturées, crinière qui pousse), sans gêner l'extraction du mouvement | durée atteinte |
+| 28/09 | Anti « 5e patte » : 3 tirages Wan (graines 11-13), prompt négatif renforcé, 50 étapes + contrôle automatique des pieds (détourage + comptage en bas de silhouette) | vidéo de profil | graine 11 propre (4 pattes, marche lente) ; 12 pattes qui se mélangent ; 13 rejetée (5 pieds sur 12 images) | plusieurs tirages + contrôle = parade efficace ; le contrôle rate encore une patte qui flotte sans toucher le sol |
 
 ## À ne pas retenter
 
@@ -68,6 +69,9 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 - Python + Kaspersky : fenêtres d'alerte sur huggingface.co. Télécharger avec `curl`.
 - Chemins Windows mélangeant `/` et `\` : certains scripts comparent des chaînes de chemin.
 - Les générateurs vidéo imposent des longueurs de la forme 8k+1 (LTX) ou 4k+1 (Wan) images.
+- **Le PC a planté** (32 Go de RAM saturés) avec Wan + détourage GPU + Chrome 3D en parallèle.
+  Un seul calcul lourd à la fois ; `gen_wan_tirages.py` encode le prompt puis décharge
+  l'encodeur de texte (~11 Go) : environ 15 Go de pic, 3 min par tirage.
 - Une vidéo écrite par OpenCV (`mp4v`) ne se lit pas dans Chrome : réencoder en H.264.
 - MoCapAnything sort une image de BVH par image de vidéo : caler le clip sur la cadence de la
   vidéo (24 i/s pour Wan), pas sur les 30 i/s écrits dans le BVH.
