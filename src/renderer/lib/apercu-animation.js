@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { animerPistes, modeDuSquelette, pattesDuSquelette } from './locomotion-procedurale.js';
+import { animerPistes, modeDuSquelette, pattesDuSquelette, squeletteDe, corrigerPoidsPeau } from './locomotion-procedurale.js';
 
 export function creerApercu(canvas) {
   let rendu = null, scene = null, camera = null, melangeur = null, modele = null;
@@ -88,11 +88,21 @@ export function creerApercu(canvas) {
       if (modele) { scene.remove(modele); liberer(modele); }
       modele = g.scene;
       modele.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+      // peau abimee par le rig (pieds lies a la main, 28/09) : meme reparation que le GLB anime
+      try {
+        const sqP = squeletteDe(buf);
+        modele.traverse((o) => {
+          if (!o.isSkinnedMesh) return;
+          const a = o.geometry.attributes;
+          if (!a.position || !a.skinIndex || !a.skinWeight || a.position.isInterleavedBufferAttribute || a.skinWeight.isInterleavedBufferAttribute) return;
+          if (corrigerPoidsPeau(sqP, a.position.array, a.skinIndex.array, a.skinWeight.array)) a.skinWeight.needsUpdate = true;
+        });
+      } catch (_) {}
       scene.add(modele);
       noeuds = new Map();
       for (const [obj, a] of g.parser.associations) if (a && a.nodes !== undefined && obj.isObject3D) noeuds.set(a.nodes, obj);
       tampon = buf;
-      modeSq = null;                                         // nouveau rig : mode a recalculer
+      modeSq = null; nbP = null;                             // nouveau rig : mode et pattes a recalculer
       cle = nouvelleCle;
       melangeur = new THREE.AnimationMixer(modele);
       cadrer();

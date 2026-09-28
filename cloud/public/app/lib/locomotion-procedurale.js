@@ -1586,6 +1586,107 @@ function ecrireGLB(sq, clips, fps) {
   return out.buffer;
 }
 
+// ------------------------------------------------------------------ reparation de la PEAU
+// Rig dont la peau lie des points a un membre LOINTAIN (28/09 : pieds du gladiateur lies a 50 % a la
+// MAIN, poule, phacochere…) : la jambe bouge, la moitie de sa peau reste accrochee au membre
+// immobile -> longues lanieres. L'os « maison » d'un point = l'os lie le plus PROCHE de lui ; un
+// poids vers un os LOINTAIN a la fois dans le squelette (>= 5 os d'ecart : la main et le pied du
+// gladiateur en ont 12) et dans l'espace (> 2,5 x la maison et > 5 % de la taille) lui est rendu.
+// Le melange naturel (colonne contre cuisse, base de la queue, 2 a 3 os d'ecart) n'est pas touche.
+const ECART_OS_PEAU = 5;
+function preparerPeau(sq) {
+  const { par, P0 } = sq, J = par.length;
+  if (!detecterPattes(par, P0, sq.racine).pattes.length) return null;
+  const prof = par.map((_, j) => { let n = 0; for (let k = j; par[k] >= 0; k = par[k]) n++; return n; });
+  const ecart = (a, b) => {                                  // nombre d'os entre a et b dans l'arbre
+    let x = a, y = b, n = 0;
+    while (x !== y) { if (prof[x] >= prof[y]) x = par[x]; else y = par[y]; n++; if (x < 0 || y < 0) return 99; }
+    return n;
+  };
+  return { E: enfantsDe(par), ecart, ext: etendue(P0) };
+}
+// SEULEMENT si le rig porte la signature du defaut : plus de 8 % du poids total a deplacer (rigs casses
+// mesures : 11,5 a 25 % ; rigs sains : 0 a 3,6 %). Sur un rig sain, la regle pourrait se tromper (une
+// main qui pend contre la cuisse serait rattachee a la cuisse) : on n'y touche pas.
+const SEUIL_PEAU_ABIMEE = 0.08;
+/** Corrige en place les poids (joints / weights : 4 par point, dans l'ordre de skin.joints) si la peau est
+ *  abimee (signature ci-dessus). Rend le nombre de points corriges (0 = peau saine, rien n'est modifie). */
+export function corrigerPoidsPeau(sq, pos, jts, wts, prep = preparerPeau(sq)) {
+  if (!prep) return 0;
+  const essai = Float64Array.from(wts);
+  const n = corrigerPoidsBrut(sq, pos, jts, essai, prep);
+  let total = 0, deplace = 0;
+  for (let i = 0; i < wts.length; i++) { total += wts[i]; deplace += Math.max(0, wts[i] - essai[i]); }
+  if (!n || deplace < SEUIL_PEAU_ABIMEE * total) return 0;
+  for (let i = 0; i < wts.length; i++) wts[i] = essai[i];
+  return n;
+}
+function corrigerPoidsBrut(sq, pos, jts, wts, prep) {
+  const { E, ecart, ext } = prep, P0 = sq.P0, J = P0.length;
+  const dOs = (x, y, z, j) => {
+    const a = P0[j];
+    let d = Math.hypot(x - a[0], y - a[1], z - a[2]);
+    for (const c of E[j]) {
+      const b = P0[c], ab0 = b[0] - a[0], ab1 = b[1] - a[1], ab2 = b[2] - a[2], l2 = ab0 * ab0 + ab1 * ab1 + ab2 * ab2 || 1e-12;
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * ab0 + (y - a[1]) * ab1 + (z - a[2]) * ab2) / l2));
+      d = Math.min(d, Math.hypot(x - a[0] - t * ab0, y - a[1] - t * ab1, z - a[2] - t * ab2));
+    }
+    return d;
+  };
+  const nV = Math.min(pos.length / 3, jts.length / 4, wts.length / 4), dist = [0, 0, 0, 0];
+  let n = 0;
+  for (let v = 0; v < nV; v++) {
+    const x = pos[v * 3], y = pos[v * 3 + 1], z = pos[v * 3 + 2];
+    let maison = -1, dm = Infinity;
+    for (let c = 0; c < 4; c++) {
+      const j = jts[v * 4 + c], w = wts[v * 4 + c];
+      if (w <= 0.05 || j >= J) { dist[c] = Infinity; continue; }
+      dist[c] = dOs(x, y, z, j);
+      if (dist[c] < dm) { dm = dist[c]; maison = c; }
+    }
+    if (maison < 0) continue;
+    const jm = jts[v * 4 + maison];
+    let modif = false;
+    for (let c = 0; c < 4; c++) {
+      const j = jts[v * 4 + c], w = wts[v * 4 + c];
+      if (c === maison || w <= 0 || j >= J || j === jm) continue;
+      if (dist[c] === Infinity) dist[c] = dOs(x, y, z, j);
+      if (dist[c] < 0.05 * ext || dist[c] < 2.5 * dm || ecart(j, jm) < ECART_OS_PEAU) continue;
+      wts[v * 4 + maison] += w; wts[v * 4 + c] = 0; modif = true;
+    }
+    if (modif) n++;
+  }
+  return n;
+}
+/** Repare la peau DANS le binaire du GLB (poids flottants), avant l'ecriture des animations. */
+function reparerPeauGLB(sq) {
+  const { json, bin } = sq, prep = preparerPeau(sq);
+  if (!prep || !json.meshes) return 0;
+  const dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
+  const lire = (i, nc) => {
+    const a = json.accessors[i], bv = json.bufferViews[a.bufferView], sz = { 5126: 4, 5121: 1, 5123: 2 }[a.componentType];
+    const off = (bv.byteOffset || 0) + (a.byteOffset || 0), st = bv.byteStride || nc * sz, out = new Float64Array(a.count * nc);
+    const r = { 5126: (o) => dv.getFloat32(o, true), 5121: (o) => dv.getUint8(o), 5123: (o) => dv.getUint16(o, true) }[a.componentType];
+    for (let k = 0; k < a.count; k++) for (let c = 0; c < nc; c++) out[k * nc + c] = r(off + k * st + c * sz);
+    return { out, off, st, a };
+  };
+  let n = 0;
+  for (const m of json.meshes) for (const pr of m.primitives || []) {
+    const at = pr.attributes || {};
+    if (at.JOINTS_0 == null || at.WEIGHTS_0 == null || at.POSITION == null) continue;
+    const W = json.accessors[at.WEIGHTS_0], Pa = json.accessors[at.POSITION];
+    if (W.componentType !== 5126 || Pa.componentType !== 5126 || W.sparse || Pa.sparse) continue;   // poids quantifies : on n'y touche pas
+    const p = lire(at.POSITION, 3), j = lire(at.JOINTS_0, 4), w = lire(at.WEIGHTS_0, 4);
+    const k = corrigerPoidsPeau(sq, p.out, j.out, w.out, prep);
+    if (!k) continue;
+    n += k;
+    for (let v = 0; v < w.a.count; v++) for (let c = 0; c < 4; c++) dv.setFloat32(w.off + v * w.st + c * 4, w.out[v * 4 + c], true);
+  }
+  return n;
+}
+/** Squelette d'un GLB, pour reparer la peau d'un modele deja charge (apercu three.js). */
+export function squeletteDe(glb) { return charger(glb); }
+
 // ------------------------------------------------------------------ point d'entrée
 /**
  * @param {ArrayBuffer} glb  GLB riggé (un skin)
@@ -1595,6 +1696,8 @@ function ecrireGLB(sq, clips, fps) {
 export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps = 30, mode = 'auto', espece = 'generique' } = {}) {
   const sq = charger(glb);
   const clips = [], infos = {};
+  let peau = 0;
+  try { peau = reparerPeauGLB(sq); } catch (_) { peau = 0; }   // peau abimee par le rig : lanieres (voir plus haut)
   for (const nom of allures) {
     const { allure: a, variante } = lireClip(nom);
     if (!ALLURES[a]) throw new Error('allure inconnue : ' + a);
@@ -1603,6 +1706,7 @@ export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps
     clips.push(clip_);
     infos[clip_.nom] = clip_.infos;
   }
+  for (const k of Object.keys(infos)) infos[k].peau_corrigee = peau;
   return { glb: ecrireGLB(sq, clips, fps), infos };
 }
 
