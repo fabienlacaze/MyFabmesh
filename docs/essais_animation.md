@@ -16,8 +16,10 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 
 - **UniMate** reste le moteur branché (web et bureau). Le chantier est arrêté ; la mention
   « Work in progress — results are poor for now. » est affichée.
-- **Essai en cours :** MoCapAnything V2 sur vidéo **de profil**, orientation du corps figée : meilleur
-  résultat à ce jour. Clip de 10 s obtenu (trois plans Wan enchaînés).
+- **MoCapAnything V2 jugé insuffisant** (28/09, verdict de l'exploitant) : la qualité de la marche
+  ne suffit pas et le mouvement de la vidéo n'est pas fidèlement retranscrit sur le rig.
+- **Aucune IA publiée, sous licence propre, ne donne aujourd'hui une animation de qualité sur un
+  squelette quelconque** (veille du 28/09 ci-dessous).
 - **Leçon :** filmer **de profil**. De face, les pattes ne se voient pas et le modèle ne prédit
   presque aucun mouvement.
 
@@ -42,6 +44,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | 28/09 | MoCapAnything V2 de profil + **orientation du corps figée** | idem, rotation de racine gelée à l'image 0, marche sur place | lion de profil tout le clip, pattes qui font des pas | **meilleur résultat à ce jour** ; vidéo jugée « très bon début » |
 | 28/09 | **Clip de 10 s** : 3 plans Wan enchaînés (chaque plan part de la dernière image du précédent) + MoCapAnything, racine figée | 241 images à 24 i/s | l'animation tient sur les 10 s (lion de profil, pattes qui alternent) ; la **vidéo dérive en aspect** (couleurs saturées, crinière qui pousse), sans gêner l'extraction du mouvement | durée atteinte |
 | 28/09 | Anti « 5e patte » : 3 tirages Wan (graines 11-13), prompt négatif renforcé, 50 étapes + contrôle automatique des pieds (détourage + comptage en bas de silhouette) | vidéo de profil | graine 11 propre (4 pattes, marche lente) ; 12 pattes qui se mélangent ; 13 rejetée (5 pieds sur 12 images) | plusieurs tirages + contrôle = parade efficace ; le contrôle rate encore une patte qui flotte sans toucher le sol |
+| 28/09 | **Verdict** MoCapAnything V2 | toutes les sorties ci-dessus | qualité de marche insuffisante, mouvement de la vidéo mal retranscrit sur le rig | **écarté** par l'exploitant |
 
 ## À ne pas retenter
 
@@ -50,12 +53,13 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 - **SkelMo** : il échoue même dans ses propres conditions d'entraînement.
 - **LTX-Video 2B** pour la vidéo : Wan 2.2 est nettement meilleur.
 - **Le recalage maison** : refusé par l'exploitant.
+- **MoCapAnything V2** : profil, racine figée, 10 s, anti « 5e patte » déjà faits ; résultat jugé insuffisant.
 
 ## Candidats et veille
 
 | Outil | Entrées | Code | Poids | Licence | Statut |
 |---|---|---|---|---|---|
-| **MoCapAnything V2** (SIGGRAPH Asia 2026) | vidéo + squelette de référence | oui | oui (Hugging Face) | **MIT (code et poids)** ; détourage RMBG-1.4 non commercial, à remplacer par Lucida | **testé : prometteur** |
+| **MoCapAnything V2** (SIGGRAPH Asia 2026) | vidéo + squelette de référence | oui | oui (Hugging Face) | **MIT (code et poids)** ; détourage RMBG-1.4 non commercial, à remplacer par Lucida | testé : **insuffisant** (marche, fidélité) |
 | AnimaX | image/texte + squelette | non publié | non publié | Apache-2.0 annoncée | veille |
 | UniMate complet | texte + squelette | oui | annoncés « dans les prochaines semaines » | code MIT, poids à préciser | veille |
 | SAMoR, génération animale « topology-agnostic » | texte + squelette | pas de dépôt trouvé | — | — | veille |
