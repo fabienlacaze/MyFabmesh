@@ -28,6 +28,21 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRELLIS2_SRC = os.path.join(ROOT, 'external', 'TRELLIS2_win', 'src')
 sys.path.insert(0, TRELLIS2_SRC)
 
+# Aucun appel reseau quand les modeles sont deja sur le disque (2026-09-28),
+# AVANT tout import HF. Voir scripts/hf_hors_ligne.py. La config (--config)
+# est lue ici dans argv : argparse ne tourne que plus bas.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import hf_hors_ligne
+    _cfg = 'texturing_pipeline.json'
+    if '--config' in sys.argv[:-1]:
+        _cfg = sys.argv[sys.argv.index('--config') + 1]
+    hf_hors_ligne.hors_ligne_si_complet(
+        hf_hors_ligne.manquants_trellis2(_cfg),
+        log=lambda m: print(f'[trellis2_tex] {m}', flush=True))
+except Exception as _e:
+    print(f'[trellis2_tex] verification du cache HF impossible : {_e}', flush=True)
+
 
 def log(msg):
     print(f'[trellis2_tex] {msg}', flush=True)

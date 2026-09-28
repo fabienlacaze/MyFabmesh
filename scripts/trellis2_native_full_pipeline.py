@@ -94,6 +94,17 @@ TRELLIS2_SRC = os.environ.get('FABMESH_TRELLIS2_SRC') or os.path.abspath(
 sys.path.insert(0, TRELLIS2_SRC)
 sys.path.insert(0, SCRIPTS)  # for add_ai_metadata
 
+# Aucun appel reseau quand les modeles sont deja sur le disque (2026-09-28) :
+# sinon chaque generation interroge huggingface.co, et un antivirus qui
+# inspecte le HTTPS la fait echouer. AVANT tout import HF. Voir hf_hors_ligne.
+try:
+    import hf_hors_ligne
+    hf_hors_ligne.hors_ligne_si_complet(
+        hf_hors_ligne.manquants_trellis2(),
+        log=lambda m: print(f'[t2_native] {m}', flush=True))
+except Exception as _e:
+    print(f'[t2_native] verification du cache HF impossible : {_e}', flush=True)
+
 
 def log(msg):
     print(f'[t2_native] {msg}', flush=True)
