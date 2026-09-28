@@ -801,6 +801,128 @@ def _matrice_monde(js, i):
     return M
 
 
+# ============================================================ reparation de la peau
+# Peau calculee par l'IA sur un squelette COMPLETE (28/09/2026, gladiateur « prehistoric warrior
+# male », poule, phacochere) : l'IA n'avait pas mis de jambes, la completion en a ajoute, et la peau
+# recalculee lie chaque jambe MOITIE a la nouvelle chaine, MOITIE au bras qui la « remplacait »
+# (18-55 % des points a exactement 0,50). A l'animation : longues lanieres, bras colles aux jambes.
+# Regle (identique au moteur de marche JS, corrigerPoidsPeau) : l'os « maison » d'un point = l'os lie
+# le plus PROCHE ; un poids vers un os lointain a la fois dans l'arbre (>= 5 os d'ecart) et dans
+# l'espace (> 2,5 x la maison et > 5 % de la taille) lui est rendu. Seulement si plus de 8 % du
+# poids total est a deplacer : rigs casses mesures 11-25 %, rigs sains 0-3,6 % (sur un rig sain la
+# regle pourrait rattacher une main pendante a la cuisse : on n'y touche pas).
+ECART_OS_PEAU = 5
+SEUIL_PEAU_ABIMEE = 0.08
+
+
+def reparer_peau(chemin):
+    """Repare en place la peau du GLB si elle porte la signature du defaut.
+    Rend (points modifies, part du poids deplacee)."""
+    js, bn = lire_glb(open(chemin, 'rb').read())
+    if not js.get('skins'):
+        return 0, 0.0
+    joints = list(js['skins'][0]['joints'])
+    W, parent_noeud = matrices_monde(js)
+    ens, idx = set(joints), {n: i for i, n in enumerate(joints)}
+    par = []
+    for n in joints:
+        p = parent_noeud.get(n)
+        while p is not None and p not in ens:
+            p = parent_noeud.get(p)
+        par.append(idx[p] if p is not None else -1)
+    nJ = len(joints)
+    J = np.array([W[n][:3, 3] for n in joints], dtype=np.float64)
+    enfants = [[] for _ in range(nJ)]
+    for j, p in enumerate(par):
+        if p >= 0:
+            enfants[p].append(j)
+    anc = []
+    for j in range(nJ):
+        c, k = [], j
+        while k >= 0:
+            c.append(k)
+            k = par[k]
+        anc.append(c)
+    ecart = np.full((nJ, nJ), 99, dtype=np.int64)          # os d'ecart dans l'arbre
+    for a in range(nJ):
+        pa = {k: i for i, k in enumerate(anc[a])}
+        for b in range(nJ):
+            for i, k in enumerate(anc[b]):
+                if k in pa:
+                    ecart[a, b] = pa[k] + i
+                    break
+    ext = float(np.ptp(J, axis=0).max()) or 1.0
+
+    def dist_os(V, j):
+        d = np.linalg.norm(V - J[j], axis=1)
+        for c in enfants[j]:
+            ab = J[c] - J[j]
+            l2 = float(ab @ ab) or 1e-12
+            t = np.clip(((V - J[j]) @ ab) / l2, 0.0, 1.0)
+            d = np.minimum(d, np.linalg.norm(V - J[j] - t[:, None] * ab, axis=1))
+        return d
+
+    blob = bytearray(bn)
+    travaux, total, deplace, points = [], 0.0, 0.0, 0
+    for i, n in enumerate(js['nodes']):
+        if 'mesh' not in n or 'skin' not in n:
+            continue
+        for prim in js['meshes'][n['mesh']]['primitives']:
+            at = prim.get('attributes', {})
+            if not all(k in at for k in ('POSITION', 'JOINTS_0', 'WEIGHTS_0')):
+                continue
+            aw = js['accessors'][at['WEIGHTS_0']]
+            if aw.get('componentType') != 5126 or 'sparse' in aw:
+                continue                                    # poids quantifies : on n'y touche pas
+            V = _accesseur(js, bn, at['POSITION']).astype(np.float64)
+            V = (W[i][:3, :3] @ V.T).T + W[i][:3, 3]
+            J4 = _accesseur(js, bn, at['JOINTS_0']).astype(np.int64)
+            W4 = _accesseur(js, bn, at['WEIGHTS_0']).astype(np.float64)
+            nv = len(W4)
+            D = np.full((nv, 4), np.inf)
+            for c in range(4):
+                for j in np.unique(J4[:, c]):
+                    if j < 0 or j >= nJ:
+                        continue
+                    m = (J4[:, c] == j) & (W4[:, c] > 0)
+                    if m.any():
+                        D[m, c] = dist_os(V[m], int(j))
+            Dh = np.where(W4 > 0.05, D, np.inf)
+            h = Dh.argmin(axis=1)
+            dm = Dh[np.arange(nv), h]
+            ok = np.isfinite(dm)
+            jm = J4[np.arange(nv), h].clip(0, nJ - 1)
+            W5 = W4.copy()
+            for c in range(4):
+                j = J4[:, c].clip(0, nJ - 1)
+                cond = (ok & (h != c) & (W4[:, c] > 0) & (J4[:, c] != J4[np.arange(nv), h])
+                        & (J4[:, c] < nJ) & (D[:, c] >= 0.05 * ext) & (D[:, c] >= 2.5 * dm)
+                        & (ecart[j, jm] >= ECART_OS_PEAU))
+                pris = np.where(cond, W4[:, c], 0.0)
+                W5[:, c] -= pris
+                W5[np.arange(nv), h] += pris
+            total += float(W4.sum())
+            deplace += float(np.clip(W4 - W5, 0, None).sum())
+            points += int((np.abs(W5 - W4).sum(axis=1) > 1e-6).sum())
+            travaux.append((aw, W5))
+    part = deplace / total if total else 0.0
+    if not travaux or part < SEUIL_PEAU_ABIMEE:
+        return 0, part
+    for aw, W5 in travaux:
+        bv = js['bufferViews'][aw['bufferView']]
+        o = bv.get('byteOffset', 0) + aw.get('byteOffset', 0)
+        st = bv.get('byteStride', 0) or 16
+        f32 = W5.astype(np.float32)
+        if st == 16:
+            blob[o:o + f32.nbytes] = f32.tobytes()
+        else:
+            for k in range(len(f32)):
+                blob[o + k * st:o + k * st + 16] = f32[k].tobytes()
+    with open(chemin, 'wb') as f:
+        f.write(ecrire_glb(js, blob))
+    return points, part
+
+
 def ajouter_extras(chemin_glb, donnees):
     """Range le compte rendu (extremites, notes) dans extras.fabmesh_squelette
     du GLB final : l'editeur de points pourra les relire."""

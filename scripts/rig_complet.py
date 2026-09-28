@@ -198,6 +198,7 @@ def main():
             sys.exit(4)
         journal(f'analyse du maillage impossible, meilleur = premier tirage : {type(e).__name__}: {e}')
         shutil.copyfile(meilleur, sortie)
+        peau_reparee(sq, sortie, {})
         return
     compte_rendu['tirage_retenu'] = retenu
 
@@ -245,11 +246,24 @@ def main():
         journal(f'completion abandonnee, on garde le meilleur tirage : {type(e).__name__}: {str(e)[:300]}')
 
     shutil.copyfile(final, sortie)
+    peau_reparee(sq, sortie, compte_rendu)
     try:
         sq.ajouter_extras(str(sortie), compte_rendu)
     except Exception as e:
         journal(f'compte rendu non ecrit dans le GLB : {e}')
     journal(f'TERMINE en {time.time() - t0:.0f} s ({"complete" if final != meilleur else "IA seule"})')
+
+
+def peau_reparee(sq, sortie, compte_rendu):
+    """Peau de l'IA qui lie des points a un membre LOINTAIN (pied lie a la main : lanieres a
+    l'animation, 28/09) : reparee sur le GLB final (squelette_complet.reparer_peau). Jamais bloquant."""
+    try:
+        n, part = sq.reparer_peau(str(sortie))
+        compte_rendu['peau'] = {'points_repares': int(n), 'part_abimee': round(float(part), 4)}
+        journal(f'peau : {n} points repares ({100 * part:.1f} % du poids mal place)' if n
+                else f'peau saine ({100 * part:.1f} % du poids a deplacer, sous le seuil)')
+    except Exception as e:
+        journal(f'reparation de la peau impossible (sans consequence) : {type(e).__name__}: {e}')
 
 
 def rig_impose(sq, entree, sortie, squelette, points, graine, rigger, tmp, t0, liens=None):
@@ -284,6 +298,7 @@ def rig_impose(sq, entree, sortie, squelette, points, graine, rigger, tmp, t0, l
         journal('ECHEC : peau IA sans resultat sur le squelette impose')
         sys.exit(4)
     shutil.copyfile(dest, sortie)
+    peau_reparee(sq, sortie, compte_rendu)
     try:
         sq.ajouter_extras(str(sortie), compte_rendu)
     except Exception as e:
