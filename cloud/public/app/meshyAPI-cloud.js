@@ -607,6 +607,11 @@
       const j = await getJSON('/api/projects');
       return Array.isArray(j) ? j : (j.projects || []);
     },
+    // Projets VIDES (2026-09-28) : leur coquille (ligne `jobs` de type 'project', posee a la
+    // creation) n'etait relue par AUCUNE liste -> le projet disparaissait au rechargement.
+    listProjectShells: async () => {
+      try { const j = await getJSON('/api/projects/shells'); return j?.projets || []; } catch (_) { return []; }
+    },
     deleteProject: async ({ projectName, id } = {}) => {
       // Cloud projects are virtual — they're just a group of jobs sharing
       // a `project_name`. The Worker exposes /api/cloud-projects/delete

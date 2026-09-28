@@ -152,3 +152,5 @@ scratch_*.err
 
 # Sysinternals (Microsoft, redistribution interdite) : jamais dans le depot PUBLIC
 outils/sysinternals/
+# marqueurs des projets vides (donnees locales, 2026-09-28)
+projets_vides/

@@ -14887,6 +14887,32 @@ async function handleProjectCreate(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, projectName: name, jobId: id });
 }
 
+/** GET /api/projects/shells — noms des projets crees VIDES (coquilles `jobs` de type 'project').
+ *  Aucune liste ne les relisait (handleListMeshes exige un mesh_url) : un projet vide disparaissait
+ *  au rechargement (2026-09-28). Un projet supprime a son project_name remis a null ou '_deleted'. */
+async function handleProjectShells(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (isMock(env)) return json({ projets: [] });
+  const { data, error } = await supabaseAdmin(env).from('jobs')
+    .select('project_name, created_at, asset_type, options')
+    .eq('user_id', user.id).eq('type', 'project').not('project_name', 'is', null)
+    .order('created_at', { ascending: false }).limit(500);
+  if (error) return err(500, error.message);
+  const vus = new Set<string>();
+  const projets: Array<{ name: string; created: string; assetType: string | null; assetStyle: string | null; prompt: string | null }> = [];
+  for (const r of (data ?? []) as Array<{ project_name: string | null; created_at: string; asset_type: string | null; options: Record<string, unknown> | null }>) {
+    const n = r.project_name;
+    if (!n || n === '_deleted' || n === '_orphans' || vus.has(n)) continue;
+    vus.add(n);
+    projets.push({
+      name: n, created: r.created_at, assetType: r.asset_type ?? null,
+      assetStyle: (r.options?.asset_style as string) || null, prompt: (r.options?.prompt as string) || null,
+    });
+  }
+  return json({ projets });
+}
+
 /** GET /api/admin/logs/list — lists client logs in R2, optionally
  *  filtered by ?uid=<userId> or ?email=<email>. ADMIN-only.
  *  Returns up to ?limit=N (default 50, max 200) most-recent log keys
@@ -20453,6 +20479,7 @@ export default {
         // Sans cette route, un projet cree dans l'interface n'existe qu'en
         // memoire du navigateur et disparait au rechargement.
         if (pathname === '/api/projects/create'       && method === 'POST') return await handleProjectCreate(req, env);
+        if (pathname === '/api/projects/shells'       && method === 'GET')  return await handleProjectShells(req, env);
         if (pathname === '/api/user-assets/delete'    && method === 'POST') return await handleUserAssetsDelete(req, env);
         if (pathname === '/api/user-assets/migrate-from-jobs' && method === 'POST') return await handleUserAssetsMigrateFromJobs(req, env);
         if (pathname === '/api/user-assets/reassign-orphans'  && method === 'POST') return await handleUserAssetsReassignOrphans(req, env);

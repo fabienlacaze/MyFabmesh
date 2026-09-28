@@ -634,6 +634,7 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
 async function refreshProjectsPage() {
   const folders = (await API.listImageFolders()) || [];
   const meshes  = (await API.listMeshes()) || [];
+  const projetsVides = (await API.listProjectShells?.()) || [];
 
   // Group by project name (folder = base name without trailing _NNN)
   const projectsMap = new Map();
@@ -650,6 +651,16 @@ async function refreshProjectsPage() {
       });
     }
     return projectsMap.get(name);
+  }
+  // projets projetsVides enregistres : ils survivent au redemarrage (2026-09-28)
+  for (const v of projetsVides) {
+    if (!v || !v.name) continue;
+    const p = ensure(v.name);
+    const ts = typeof v.created === 'number' ? v.created : new Date(v.created || 0).getTime();
+    if (!p.latestTimestamp && Number.isFinite(ts)) p.latestTimestamp = ts;
+    if (!p.assetType && v.assetType) p.assetType = v.assetType;
+    if (!p.assetStyle && v.assetStyle) p.assetStyle = v.assetStyle;
+    if (!p.prompt && v.prompt) p.prompt = v.prompt;
   }
   for (const f of folders) {
     if (!f.count) continue;
@@ -1465,6 +1476,12 @@ document.getElementById('np-create').addEventListener('click', async () => {
   } catch (_) {}
   showPage('workspace');
   populateWorkspace(proj);
+  // Projet NEUF : il n'est pas ouvert par openProject, les cartes gardaient donc
+  // l'etat du projet precedent (Rig et Animation ouverts, Image repliee — capture
+  // user du 2026-09-28). Seule l'etape Image est ouverte, les autres repliees.
+  document.getElementById('step-card-image')?.classList.remove('collapsed', 'disabled');
+  ['step-card-mesh', 'step-card-rig', 'step-card-animation'].forEach((id) => document.getElementById(id)?.classList.add('collapsed'));
+  window.scrollTo?.({ top: 0 });
   if (prompt) {
     document.getElementById('ws-prompt').value = prompt;
   }
@@ -1934,6 +1951,10 @@ async function openProject(p) {
         // carte »). Seule exception : un projet entierement vide garde
         // l'etape Image ouverte, c'est par la qu'on commence.
         card.classList.add('collapsed');
+      } else {
+        // projet entierement vide : l'etape Image est OUVERTE (elle restait
+        // repliee si le projet precedent l'avait repliee, 2026-09-28)
+        card.classList.remove('collapsed', 'disabled');
       }
     }
     if (!scrollTargetId) return;

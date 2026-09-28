@@ -221,6 +221,8 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   importImage: () => ipcRenderer.invoke('import-image'),
   deleteFile: (filePath) => ipcRenderer.invoke('delete-file', filePath),
   deleteProject: (opts) => ipcRenderer.invoke('delete-project', opts),
+  creerProjetVide: (opts) => ipcRenderer.invoke('projet-vide:creer', opts),
+  listerProjetsVides: () => ipcRenderer.invoke('projet-vide:lister'),
   onAppCloseRequested: (cb) => ipcRenderer.on('app-close-requested', () => cb()),
   confirmAppClose: (opts) => ipcRenderer.send('app-close-confirmed', opts || {}),
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),

@@ -10933,8 +10933,36 @@ try {
 
 // Delete an entire project: image folders matching the name, all meshes
 // derived from it, and the version history folder.
+// Projets VIDES (2026-09-28) : un projet cree sans rien dedans ne laissait AUCUNE trace sur le
+// disque (les projets se reconstruisent a partir des fichiers) et disparaissait au redemarrage.
+// Un petit marqueur par projet vide, relu par la liste des projets, supprime avec le projet.
+const PROJETS_VIDES_DIR = path.join(DATA_BASE, 'projets_vides');
+function _cheminProjetVide(nom) {
+  return path.join(PROJETS_VIDES_DIR, String(nom).replace(/[^A-Za-z0-9 ._-]/g, '_').slice(0, 120) + '.json');
+}
+ipcMain.handle('projet-vide:creer', (_e, { name, assetType, assetStyle, prompt } = {}) => {
+  if (!name) return { ok: false, error: 'name required' };
+  try {
+    fs.mkdirSync(PROJETS_VIDES_DIR, { recursive: true });
+    fs.writeFileSync(_cheminProjetVide(name), JSON.stringify({
+      name: String(name), assetType: assetType || null, assetStyle: assetStyle || null,
+      prompt: String(prompt || '').slice(0, 500), created: Date.now(),
+    }));
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('projet-vide:lister', () => {
+  try {
+    if (!fs.existsSync(PROJETS_VIDES_DIR)) return [];
+    return fs.readdirSync(PROJETS_VIDES_DIR).filter((f) => f.endsWith('.json'))
+      .map((f) => { try { return JSON.parse(fs.readFileSync(path.join(PROJETS_VIDES_DIR, f), 'utf-8')); } catch (_) { return null; } })
+      .filter((x) => x && x.name);
+  } catch (_) { return []; }
+});
+
 ipcMain.handle('delete-project', (event, { projectName }) => {
   if (!projectName) return { ok: false, error: 'projectName required' };
+  try { fs.rmSync(_cheminProjetVide(projectName), { force: true }); } catch (_) {}   // marqueur de projet vide
   let removed = { folders: 0, meshes: 0, history: 0 };
   // 1) Image folders: any folder under IMAGES_DIR named exactly projectName or projectName_<digits>
   try {
