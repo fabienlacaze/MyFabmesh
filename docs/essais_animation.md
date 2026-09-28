@@ -50,7 +50,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | 28/09 | **Verdict** MoCapAnything V2 | toutes les sorties ci-dessus | qualité de marche insuffisante, mouvement de la vidéo mal retranscrit sur le rig | **écarté** par l'exploitant |
 | 28/09 soir | **SkelMo, lecture complète du dépôt** (agent) | code relu intégralement | 4 erreurs de NOTRE côté : BVH écrit Y en haut alors que `process_anim` attend Z en haut (lion debout sur sa queue) ; bouts d'os factices de 0,01 ; squelette 2× trop grand et racine du jeton de repos non nulle (hors des statistiques du modèle) ; guidage 2,0 sur une branche « sans condition » jamais entraînée | cause de l'échec : notre usage |
 | 28/09 soir | SkelMo corrigé (axes Blender, bouts réels, échelle ×0,46, racine à 0, **guidage 1,0**) | vidéo de contrôle | os à 97 % de leur longueur (46 % avant), variation dans le temps 12 % (38 %), lion debout qui refait les pas de la vidéo | **fonctionne** ; le guidage est la clé principale |
-| 28/09 soir | SkelMo corrigé sur vidéo Wan | de face, détourée (Lucida, fond noir, cadrage fixe) | lion cohérent (os à 100 %, variation 5 %) mais pas trop courts : 14-32 % du corps, pieds levés de 5-7 % ; brute (fond gris) : 11-15 % ; de profil : quasi figé et tourné de 33° | mouvement insuffisant ; clips limités à 40 images (2 s) |
+| 28/09 soir | SkelMo corrigé sur vidéo Wan | de face, détourée (Lucida, fond noir, cadrage fixe) | lion cohérent (os à 100 %, variation 5 %) mais pas trop courts : 14-32 % du corps, pieds levés de 5-7 % ; brute (fond gris) : 11-15 % ; de profil : quasi figé et tourné de 33° | « pas ouf » (exploitant) ; clips limités à 40 images (2 s) ; sans licence => **non retenu** |
 
 ## À ne pas retenter
 
