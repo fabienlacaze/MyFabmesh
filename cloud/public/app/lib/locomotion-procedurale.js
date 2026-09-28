@@ -57,8 +57,8 @@ export const VARIANTES = {
 export const ESPECES = {
   generique: {},
   equide: {        // cheval, ane, zebre, cerf… : pattes droites, dos raide, tete qui balance
-    walk: { motif: 'lateral', T: 1.0, h: 0.9, hoche: 0.08, tendu: 0.975 },
-    run: { motif: 'transverse', beta: 0.33, T: 0.95, foulee: 1.15, bob: 1.6, tangage: 0.08, hoche: 0.12, flexion: 0.04, tendu: 0.92 },
+    walk: { motif: 'lateral', T: 1.0, h: 0.9, hoche: 0.1 },
+    run: { motif: 'transverse', beta: 0.33, T: 0.95, foulee: 1.3, h: 1.2, bob: 1.2, tangage: 0.12, hoche: 0.22, flexion: 0.05, tendu: 0.9 },
   },
   felin: {         // lion, tigre, chat : marche basse et souple, galop bondissant (dos plie/deplie)
     walk: { motif: 'lateral', T: 1.1, h: 0.75, bob: 0.6, tendu: 0.93, tete: 0.1, hoche: 0.015, flexion: 0.03 },
@@ -561,6 +561,27 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       p.phase = ((1 - pose[cle]) % 1 + 1) % 1;              // pose a l'instant t : phase = -t
     }
   }
+  // Tete qui se RAMIFIE (oreilles, machoire : rig de la Mule, 28/09) : aucune chaine « tete » n'est
+  // reconnue, donc pas de balancier du cou. Avec un profil : encolure = chemin de la ceinture avant
+  // vers la feuille la plus en avant (hors pattes et queues).
+  let tetesA = tetes;
+  if (!tetes.length && quadrupede && Object.keys(Pr).length) {
+    const anc = (j) => { const c = []; for (; j >= 0; j = par[j]) c.push(j); return c; };
+    const av = pattes.filter((p) => p.rang === 0).map((p) => par[p.chaine[0]]);
+    const sa = new Set(anc(av[0]));
+    const hubA = anc(av[1]).find((k) => sa.has(k)) ?? -1;
+    const exclus = new Set([...pattes.flatMap((p) => p.chaine), ...queues.flat()]);
+    const En = enfantsDe(par);
+    let bout = -1;
+    for (let j = 0; j < par.length; j++) {
+      if (En[j].length || exclus.has(j) || !anc(j).includes(hubA) || j === hubA) continue;
+      if (bout < 0 || P0[j][2] > P0[bout][2]) bout = j;
+    }
+    if (hubA >= 0 && bout >= 0) {
+      const a_ = anc(bout), cou = a_.slice(0, a_.indexOf(hubA)).reverse();   // de l'enfant de la ceinture au bout
+      if (cou.length >= 3 && cou.every((k) => !exclus.has(k))) tetesA = [cou];
+    }
+  }
   const B = ALLURES[allure], V = (VARIANTES[allure] || {})[variante] || {};
   const tourne = allure === 'turn_left' || allure === 'turn_right';
   const A = {
@@ -649,9 +670,18 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   let abaisse = 0;
   for (const [Lc, dx, dy, dz, deb] of geo) { if (!deb) continue; const r2 = (A.tendu * Lc) ** 2 - dx * dx - dz * dz; if (r2 > 0) abaisse = Math.max(abaisse, dy - Math.sqrt(r2)); }
   const margeBob = A.bob * hanche * (allure === 'run' ? 2 : -1);
+  // profil d'espece : le corps suit les appuis ; sa hauteur quand CE pied se pose ou se leve (et non le
+  // pire cas, la suspension) borne la foulee. La marge du pire cas ecrasait le galop (Mule : foulee 0,1).
+  let marges = null;
+  if (A.motif && allure === 'run') {                      // marche : pas de suspension, marge d'origine
+    const sNom = (x) => moyenne(pattes.map((q) => { const f = ((x + q.phase) % 1 + 1) % 1; return f < beta ? Math.sin(Math.PI * f / beta) : 0; }));
+    let mNom = 0;
+    for (let k = 0; k < 200; k++) mNom += sNom(k / 200) / 200;
+    marges = pattes.map((p) => Math.max(...[-p.phase, beta - p.phase].map((x) => A.bob * hanche * 2 * (mNom - sNom(x)))));
+  }
   let demis = null;
   if (A.pas) {
-    demis = geo.map(([Lc, dx, dy, dz]) => Math.max(Math.sqrt(Math.max((TENDU_MAX * Lc) ** 2 - dx * dx - (dy - abaisse + margeBob) ** 2, 0)) - dz, 0.03 * portee));
+    demis = geo.map(([Lc, dx, dy, dz], i) => Math.max(Math.sqrt(Math.max((TENDU_MAX * Lc) ** 2 - dx * dx - (dy - abaisse + (marges ? marges[i] : margeBob)) ** 2, 0)) - dz, 0.03 * portee));
     S = Math.min(S, median(demis.map((d_) => 2 * d_ / beta)));
     pattes.forEach((p, i) => { p.beta = clip(2 * demis[i] / S, Math.min(0.25, beta), beta); });
   } else pattes.forEach((p) => { p.beta = beta; });
@@ -736,7 +766,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     for (let i = 0; i < nT; i++) {
       nodP[i] = (sA[i] - mid) / dem;                         // -1..1 : tete basse quand l'avant porte
       if (!A.motif) continue;
-      bob[i] = A.bob * hanche * 2 * (mT - sT[i]);             // moins de pieds au sol = corps plus haut
+      if (allure === 'run') bob[i] = A.bob * hanche * 2 * (mT - sT[i]);   // moins de pieds au sol = corps plus haut
       tangage[i] = A.tangage * (sA[i] - sP[i]);
       flex[i] = A.flexion * (sA[i] - sP[i]);
       if (quadrupede) {
@@ -926,7 +956,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       nbAiles++;
     }
   }
-  for (const ct of tetes) {
+  for (const ct of tetesA) {
     ct.slice(0, -1).forEach((j, a) => {
       balance.set(j, t.map((tt, i) => {
         const hoche = A.hoche != null && A.pas
@@ -983,7 +1013,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   const infos = {
     mode: 'pattes', ailes: nbAiles, espece: Object.keys(Pr).length ? famille : 'generique', motif: A.motif || null,
     colonne: colonne ? colonne.n : 0,
-    pattes: pattes.length, pedipalpes: palpes.length, queues: queues.length, tetes: tetes.length, bras: nbBras,
+    pattes: pattes.length, pedipalpes: palpes.length, queues: queues.length, tetes: tetesA.length, bras: nbBras,
     periode: T, foulee: +S.toFixed(3), images: nT,
     sous_sol_pct: +(100 * sousSol / H).toFixed(1), pire_os: pireOs, glissement_appui_pct: +(100 * glisse / H).toFixed(2), acoups_max_deg: +(acoups * 180 / Math.PI).toFixed(1),
     acoup_os: pireAcoup[0], acoup_image: pireAcoup[1],
