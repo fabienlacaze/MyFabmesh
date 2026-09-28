@@ -20,6 +20,9 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
   ne suffit pas et le mouvement de la vidéo n'est pas fidèlement retranscrit sur le rig.
 - **Aucune IA publiée, sous licence propre, ne donne aujourd'hui une animation de qualité sur un
   squelette quelconque** (veille du 28/09 ci-dessous).
+- **SkelMo réhabilité (28/09, soir)** : ses échecs venaient de NOTRE usage (axes, bouts d'os, échelle,
+  guidage). Corrigé, il reproduit fidèlement la vidéo de contrôle. Sur une vidéo Wan, le mouvement reste
+  faible (voir le tableau). Licence toujours bloquante (poids et bibliothèque « Motion » sans licence).
 - **Leçon :** filmer **de profil**. De face, les pattes ne se voient pas et le modèle ne prédit
   presque aucun mouvement.
 
@@ -45,12 +48,17 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | 28/09 | **Clip de 10 s** : 3 plans Wan enchaînés (chaque plan part de la dernière image du précédent) + MoCapAnything, racine figée | 241 images à 24 i/s | l'animation tient sur les 10 s (lion de profil, pattes qui alternent) ; la **vidéo dérive en aspect** (couleurs saturées, crinière qui pousse), sans gêner l'extraction du mouvement | durée atteinte |
 | 28/09 | Anti « 5e patte » : 3 tirages Wan (graines 11-13), prompt négatif renforcé, 50 étapes + contrôle automatique des pieds (détourage + comptage en bas de silhouette) | vidéo de profil | graine 11 propre (4 pattes, marche lente) ; 12 pattes qui se mélangent ; 13 rejetée (5 pieds sur 12 images) | plusieurs tirages + contrôle = parade efficace ; le contrôle rate encore une patte qui flotte sans toucher le sol |
 | 28/09 | **Verdict** MoCapAnything V2 | toutes les sorties ci-dessus | qualité de marche insuffisante, mouvement de la vidéo mal retranscrit sur le rig | **écarté** par l'exploitant |
+| 28/09 soir | **SkelMo, lecture complète du dépôt** (agent) | code relu intégralement | 4 erreurs de NOTRE côté : BVH écrit Y en haut alors que `process_anim` attend Z en haut (lion debout sur sa queue) ; bouts d'os factices de 0,01 ; squelette 2× trop grand et racine du jeton de repos non nulle (hors des statistiques du modèle) ; guidage 2,0 sur une branche « sans condition » jamais entraînée | cause de l'échec : notre usage |
+| 28/09 soir | SkelMo corrigé (axes Blender, bouts réels, échelle ×0,46, racine à 0, **guidage 1,0**) | vidéo de contrôle | os à 97 % de leur longueur (46 % avant), variation dans le temps 12 % (38 %), lion debout qui refait les pas de la vidéo | **fonctionne** ; le guidage est la clé principale |
+| 28/09 soir | SkelMo corrigé sur vidéo Wan | de face, détourée (Lucida, fond noir, cadrage fixe) | lion cohérent (os à 100 %, variation 5 %) mais pas trop courts : 14-32 % du corps, pieds levés de 5-7 % ; brute (fond gris) : 11-15 % ; de profil : quasi figé et tourné de 33° | mouvement insuffisant ; clips limités à 40 images (2 s) |
 
 ## À ne pas retenter
 
 - **Retoucher UniMate avec les poids tiers** : noms, légendes, tirages, boucles, CFG et pieds
   sont déjà faits. Le plafond vient du modèle.
-- **SkelMo** : il échoue même dans ses propres conditions d'entraînement.
+- **SkelMo avec nos anciens scripts** : ils étaient faux (axes, bouts d'os, échelle, guidage). Utiliser
+  `glb_vers_bvh.py` (axes Blender), `variantes_cond.py` (k 0,46, racine 0), `sample/generate_essai.py`
+  avec `SKELMO_CFG=1.0`, `preparer_video.py` (Lucida, fond noir), `skelmo_vers_glb.py` (racine depuis l'image 0).
 - **LTX-Video 2B** pour la vidéo : Wan 2.2 est nettement meilleur.
 - **Le recalage maison** : refusé par l'exploitant.
 - **MoCapAnything V2** : profil, racine figée, 10 s, anti « 5e patte » déjà faits ; résultat jugé insuffisant.
