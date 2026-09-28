@@ -1775,6 +1775,7 @@ const PRICING_DEFAULTS = {
   outfit_complete:  6,
   // Mesh ops
   mesh_op_simple:   1,
+  align_texture:    2,          // « Align Texture » : vraie reprojection (texture_project.py), 2026-09-28
   watertight_hd:    2,          // Watertight au-dela de 256 (grille de voxels 3 a 8 x plus grande)
   // « Texture variants » : l'atlas repasse en SDXL + ControlNet-Tile par
   // tuiles (4 tuiles de 1024 pour un atlas 2K). Meme moteur et meme
@@ -12145,7 +12146,8 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   const allowed = new Set([
     'smooth', 'decimate', 'center', 'fix_normals', 'fill_holes',
     'subdivide', 'material', 'material_adjust', 'retex_swap',
-    'watertight',  // 'align_texture' removed: it was a paid no-op on cloud (no real reprojection)
+    'watertight',
+    'align_texture',  // vraie reprojection depuis le 2026-09-28 (texture_project.py) — params: {image_url, translate_x/y/z, mesh_scale, rot_y, vis_thresh, frame_fix, skip_vflip}
     'resize',      // orientation + per-axis scale (manual Resize/dimension tool) — params: {sx,sy,sz, qx,qy,qz,qw optional}
     'explode',     // Voronoi fracture -> part_XX submeshes (explode slider) — params: {fragments}
   ]);
@@ -12155,8 +12157,8 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   }
   // retex_swap reads payload.params.image_url — surface a clearer
   // 400 if it's missing instead of letting Modal noop the op.
-  if (op === 'retex_swap' && !(params && (params as Record<string, unknown>).image_url)) {
-    return err(400, 'retex_swap needs params.image_url');
+  if ((op === 'retex_swap' || op === 'align_texture') && !(params && (params as Record<string, unknown>).image_url)) {
+    return err(400, `${op} needs params.image_url`);
   }
   // target_resolution / tex_res guard — the Modal retex_swap path runs
   // on the source mesh's existing UV unwrap (currently baked at 2K).
@@ -12190,7 +12192,7 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   // Only allow trusted upstreams so we don't make Modal fetch arbitrary hosts.
   if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed');
   // retex_swap also takes a user-supplied params.image_url — same SSRF risk.
-  if (op === 'retex_swap' && params && typeof params === 'object') {
+  if ((op === 'retex_swap' || op === 'align_texture') && params && typeof params === 'object') {
     const imgU = String((params as Record<string, unknown>).image_url ?? '');
     if (imgU && !isTrustedAssetHost(env, imgU)) {
       return err(400, 'params.image_url host not allowed');
@@ -12204,7 +12206,8 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   // 64 M (mesure : ~24 s a la resolution maximale). Au-dela de 256, tarif
   // `watertight_hd`.
   const resoWt = op === 'watertight' ? Number((params as Record<string, unknown> | undefined)?.resolution) || 128 : 0;
-  const COST_PER = await getPrice(env, resoWt > 256 ? 'watertight_hd' : 'mesh_op_simple');
+  const COST_PER = await getPrice(env, op === 'align_texture' ? 'align_texture'
+    : resoWt > 256 ? 'watertight_hd' : 'mesh_op_simple');
   const estimatedTotal = 0.005;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {

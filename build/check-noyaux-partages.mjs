@@ -132,6 +132,8 @@ const FICHIERS = [
   { nom: 'squelette complet (pilote)', source: 'scripts/rig_complet.py', copie: 'modal_app/squelette/rig_complet.py' },
   // Reshape a region (auto inpaint 3D) : rendu, masque 3D, decoupe, recalage — portage web du 2026-09-28
   { nom: 'reshape (auto inpaint 3D)', source: 'scripts/mesh_inpaint.py', copie: 'modal_app/reshape/mesh_inpaint.py' },
+  { nom: 'align texture (reprojection)', source: 'scripts/texture_project.py', copie: 'modal_app/texproj/texture_project.py' },
+  { nom: 'align texture (pre-transformation)', source: 'scripts/mesh_pre_transform.py', copie: 'modal_app/texproj/mesh_pre_transform.py' },
   // moteur de marche procedural (2026-09-28) : MEME fichier sur le bureau et le web
   { nom: 'moteur de marche procedural', source: 'src/renderer/lib/locomotion-procedurale.js', copie: 'cloud/public/app/lib/locomotion-procedurale.js' },
   { nom: 'apercu des allures', source: 'src/renderer/lib/apercu-animation.js', copie: 'cloud/public/app/lib/apercu-animation.js' },

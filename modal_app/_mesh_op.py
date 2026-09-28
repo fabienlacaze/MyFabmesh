@@ -738,15 +738,54 @@ def subdivide(glb_bytes: bytes, iterations: int = 1) -> bytes:
     return _export(scene)
 
 
-def align_texture(glb_bytes: bytes) -> bytes:
-    """Atlas alignment — rotates UVs so the dominant feature in the
-    texture aligns with the world up axis. Best-effort port of the
-    desktop alignTexture; implementation is a no-op that re-exports
-    so the user sees a "new version" anyway (cloud doesn't have the
-    full Blender-based alignment pipeline yet). Kept here so the
-    button isn't a stub; future Wave can plug a real algo in."""
-    scene = _load_scene(glb_bytes)
-    return _export(scene)
+def align_texture(glb_bytes: bytes, image_url: str, translate_x: float = 0.0,
+                  translate_y: float = 0.0, translate_z: float = 0.0, mesh_scale: float = 1.0,
+                  rot_y: float = 0.0, vis_thresh: float = 0.5, frame_fix: bool = True,
+                  skip_vflip: bool = True) -> bytes:
+    """« Align Texture » — la VRAIE reprojection du bureau (2026-09-28), a la place de
+    l'ancien re-export a l'identique facture un credit. Meme chaine que main.js
+    mesh:align-texture : pre-transformation facultative (mesh_pre_transform.py), puis
+    reprojection de l'image source sur le maillage (texture_project.py, 1024), avec les
+    memes variables d'environnement. Les deux scripts sont des COPIES CONFORMES de
+    scripts/ (modal_app/texproj/, surveillees par check-noyaux-partages). Le noyau
+    numba de texture_project est present dans l'image (dependance de rembg -> pymatting)."""
+    import os
+    import subprocess
+    import sys
+    import tempfile
+    import urllib.request
+    if not image_url:
+        raise ValueError('align_texture needs params.image_url')
+    ici = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'texproj')
+    with tempfile.TemporaryDirectory(prefix='aligntex_') as dossier:
+        maillage = os.path.join(dossier, 'maillage.glb')
+        image = os.path.join(dossier, 'source.png')
+        with open(maillage, 'wb') as f:
+            f.write(glb_bytes)
+        req = urllib.request.Request(image_url, headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
+        with urllib.request.urlopen(req, timeout=60) as r, open(image, 'wb') as f:
+            f.write(r.read())
+        travail = maillage
+        if (abs(translate_x) > 0.001 or abs(translate_y) > 0.001 or abs(translate_z) > 0.001
+                or abs(mesh_scale - 1) > 0.001):
+            travail = os.path.join(dossier, 'maillage.aligntemp.glb')
+            subprocess.run([sys.executable, os.path.join(ici, 'mesh_pre_transform.py'), maillage, travail,
+                            str(translate_x), str(translate_y), str(mesh_scale), str(translate_z)],
+                           check=True, timeout=60)
+        args = [sys.executable, os.path.join(ici, 'texture_project.py'), travail, image, travail, '1024']
+        if abs(rot_y) > 0.01:
+            args += ['--rotation-offset', str(rot_y)]
+        env = dict(os.environ,
+                   FABMESH_TEXPROJ_FRAME_FIX='1' if frame_fix else '0',
+                   FABMESH_TEXPROJ_SKIP_BACK_VFLIP='1' if skip_vflip else '0',
+                   FABMESH_TEXPROJ_VIS_THRESH=str(vis_thresh))
+        r = subprocess.run(args, env=env, timeout=110, capture_output=True, text=True)
+        print('[mesh-op] align_texture', (r.stdout or '')[-1500:], flush=True)
+        if r.returncode != 0:
+            raise RuntimeError(f'texture_project: {(r.stderr or r.stdout or "").strip()[-400:]}')
+        with open(travail, 'rb') as f:
+            return f.read()
 
 
 def retex_swap_atlas(glb_bytes: bytes, image_url: str) -> bytes:
@@ -1467,6 +1506,16 @@ def run(op_type: str, glb_bytes: bytes, params: dict | None = None):
         return watertight(glb_bytes, resolution=int(p.get('resolution', 128))), None
     if op_type == 'retex_swap':
         return retex_swap_atlas(glb_bytes, str(p.get('image_url') or '')), None
+    if op_type == 'align_texture':
+        return align_texture(glb_bytes, str(p.get('image_url') or ''),
+                             translate_x=float(p.get('translate_x', 0) or 0),
+                             translate_y=float(p.get('translate_y', 0) or 0),
+                             translate_z=float(p.get('translate_z', 0) or 0),
+                             mesh_scale=float(p.get('mesh_scale', 1) or 1),
+                             rot_y=float(p.get('rot_y', 0) or 0),
+                             vis_thresh=float(p.get('vis_thresh', 0.5) or 0.5),
+                             frame_fix=bool(p.get('frame_fix', True)),
+                             skip_vflip=bool(p.get('skip_vflip', True))), None
     if op_type == 'material_adjust':
         return material_adjust(glb_bytes,
             brightness=float(p.get('brightness', 1.0)),

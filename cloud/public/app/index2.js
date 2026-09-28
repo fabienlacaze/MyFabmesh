@@ -14909,9 +14909,11 @@ document.getElementById('at-reproject')?.addEventListener('click', async () => {
     const res = await API.alignTexture(params);
     if (res?.ok) {
       showToast('Texture re-projected', 'success');
-      // Reload mesh in viewer
+      // web : le resultat est une NOUVELLE version (le bureau reecrit le fichier en place)
+      try { await reloadCurrentProject(); } catch (_) {}
+      const neuf = res.newPath || p.selectedMeshPath;
       if (typeof showStep2Preview === 'function') {
-        showStep2Preview({ path: p.selectedMeshPath });
+        showStep2Preview({ path: neuf });
       }
     } else {
       showToast(`Re-project failed: ${res?.error || 'unknown'}`, 'error');

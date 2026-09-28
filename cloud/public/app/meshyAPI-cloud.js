@@ -3393,6 +3393,34 @@
         return { ok: false, landmarks: {}, error: r?.error || 'not found' };
       } catch (e) { return { ok: false, landmarks: {}, error: String(e) }; }
     },
+    // « Align Texture » (2026-09-28) : la vraie reprojection du bureau (texture_project.py
+    // sur Modal, op mesh-op align_texture). Le resultat est une NOUVELLE version du maillage
+    // (le bureau reecrit le fichier en place, avec une copie dans .history).
+    alignTexture: async ({ meshPath, meshUrl, imagePath, translateX = 0, translateY = 0, translateZ = 0,
+                           meshScale = 1, rotY = 0, visThresh = 0.5, frameFix = true, skipVflip = true,
+                           projectName } = {}) => {
+      const url = meshUrl || meshPath;
+      if (!url || !imagePath) return { ok: false, error: 'mesh and source image required' };
+      try {
+        const r = await postJSON('/api/mesh-op', {
+          meshUrl: url, opType: 'align_texture',
+          projectName: projectName || window.state?.currentProject?.name || null,
+          params: {
+            image_url: imagePath,
+            translate_x: Number(translateX) || 0, translate_y: Number(translateY) || 0,
+            translate_z: Number(translateZ) || 0, mesh_scale: Number(meshScale) || 1,
+            rot_y: Number(rotY) || 0, vis_thresh: Number(visThresh) || 0.5,
+            frame_fix: !!frameFix, skip_vflip: !!skipVflip,
+          },
+        });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (r?.success) {
+          const newPath = r.path || r.newPath || r.mesh_url || r.url;
+          return { ok: true, success: true, newPath, path: newPath };
+        }
+        return { ok: false, error: r?.error || 'align_texture failed' };
+      } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+    },
     // Material Adjust — applies 6 PBR sliders to the GLB via Modal
     // mesh-op (trimesh + PIL, no bpy needed). Mirrors the desktop
     // scripts/mesh_material_adjust.py output. Returns { success, filename }
@@ -3448,11 +3476,8 @@
     'getControlApiToken',
     // Blender pipeline (no Blender in cloud)
     'setBlenderPath', 'runBlenderScript', 'openInBlender',
-    // materialAdjust has a REAL implementation below (Modal mesh-op trimesh+PIL).
-    // alignTexture does NOT — calling it threw "API.alignTexture is not a
-    // function", and the Modal align_texture op just re-exports the GLB unchanged
-    // while still charging a credit. Stub it gracefully (NOT_AVAIL) on cloud.
-    'alignTexture',
+    // materialAdjust et alignTexture (vraie reprojection depuis le 2026-09-28) ont
+    // une implementation reelle plus haut (Modal mesh-op).
     // Calibration (Desktop diagnostics tool)
     'calibRun', 'calibLastReport', 'calibOpenReport', 'calibListReports',
     'calibDiagnose', 'calibTiered', 'calibV3', 'calibCancel',
