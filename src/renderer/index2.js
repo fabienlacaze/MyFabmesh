@@ -24882,7 +24882,11 @@ function _ptsMajBoutons() {
   if (annuler) annuler.disabled = _pts.passe.length === 0 && (typeof lmHistoryPast === 'undefined' || lmHistoryPast.length === 0);
   if (refaire) refaire.disabled = _pts.futur.length === 0 && (typeof lmHistoryFuture === 'undefined' || lmHistoryFuture.length === 0);
   const regen = document.getElementById('pts-regenerer');
-  if (regen) regen.disabled = !_pts.actif || !lmFsModel || !_pts.points.length;
+  // Regeneration possible avec des points a atteindre OU un squelette retouche (articulations
+  // deplacees, re-reliees, supprimees) : la tortue du user (2026-09-28) n'avait que des
+  // articulations deplacees ET re-reliees — « Re-generate » grise, « Save moved joints » refuse
+  // un lien change : aucune sortie. Le moteur recalcule la peau sur le squelette impose.
+  if (regen) regen.disabled = !_pts.actif || !lmFsModel || !(_pts.points.length || _pts.osModifies);
   // Toujours cliquable des que le rig est charge (user, 2026-09-28 : « impossible
   // de choisir le bouton sans IA ») : grise, il ne disait pas pourquoi. Sans
   // articulation deplacee, le clic explique quoi faire.
@@ -25259,7 +25263,7 @@ function ptsFermer() {
 }
 
 async function ptsRegenerer() {
-  if (!_pts.actif || !_pts.points.length) return;
+  if (!_pts.actif || !(_pts.points.length || _pts.osModifies)) return;
   const p = state.currentProject;
   const source = _ptsSourceDuRig(p, _pts.rig);
   if (!source) {
@@ -25268,7 +25272,8 @@ async function ptsRegenerer() {
   }
   const inst = _ptsInstantane();
   const r5 = v => v.map(c => Math.round(c * 1e5) / 1e5);
-  const options = { meshPath: source, points: inst.pts.map(r5), graine: _pts.graine, tirage: _pts.tirage };
+  // sans point a atteindre : squelette impose seul (le serveur refuse une liste de points vide)
+  const options = { meshPath: source, ...(inst.pts.length ? { points: inst.pts.map(r5) } : {}), graine: _pts.graine, tirage: _pts.tirage };
   // liens imposes : une articulation voyage par sa POSITION (le generateur
   // reconstruit son squelette, ses indices ne sont pas ceux de cet editeur)
   const posOs = (j) => r5([_pts.os[j].p.x, _pts.os[j].p.y, _pts.os[j].p.z]);
