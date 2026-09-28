@@ -16,7 +16,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 
 - **UniMate** reste le moteur branché (web et bureau). Le chantier est arrêté ; la mention
   « Work in progress — results are poor for now. » est affichée.
-- **Prochain essai :** MoCapAnything V2 (voir le tableau des candidats).
+- **Essai en cours :** MoCapAnything V2, premier résultat crédible (lion entier qui marche), à confirmer à l'œil.
 
 ## Essais menés
 
@@ -34,6 +34,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | 28/09 | **SkelMo** (vidéo + notre squelette) | vidéo Wan de profil, puis de face | animal tordu, qui flotte | échec |
 | 28/09 | SkelMo, test de contrôle | mouvement connu filmé exactement comme ses données d'entraînement | toujours tordu et renversé | **écarté** (modèle non fonctionnel sur un squelette extérieur ; poids et bibliothèque « Motion » sans licence) |
 | 28/09 | recalage maison (vidéo → os par optimisation) | projection validée, non lancé | — | refusé par l'exploitant (trop long, trop incertain) |
+| 28/09 | **MoCapAnything V2** (vidéo + notre squelette, code et poids MIT) | vidéo Wan 2.2 de face, lion 36 os, détourage RMBG-1.4 (test seulement) | lion **entier, debout, pattes qui alternent** : premier résultat crédible | **prometteur**, verdict à l'œil en attente |
 
 ## À ne pas retenter
 
@@ -47,7 +48,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 
 | Outil | Entrées | Code | Poids | Licence | Statut |
 |---|---|---|---|---|---|
-| **MoCapAnything V2** (SIGGRAPH Asia 2026) | vidéo + squelette de référence | oui | oui (Hugging Face) | **MIT (code et poids)** ; détourage RMBG-1.4 non commercial, à remplacer par Lucida | **à tester** |
+| **MoCapAnything V2** (SIGGRAPH Asia 2026) | vidéo + squelette de référence | oui | oui (Hugging Face) | **MIT (code et poids)** ; détourage RMBG-1.4 non commercial, à remplacer par Lucida | **testé : prometteur** |
 | AnimaX | image/texte + squelette | non publié | non publié | Apache-2.0 annoncée | veille |
 | UniMate complet | texte + squelette | oui | annoncés « dans les prochaines semaines » | code MIT, poids à préciser | veille |
 | SAMoR, génération animale « topology-agnostic » | texte + squelette | pas de dépôt trouvé | — | — | veille |
@@ -61,3 +62,24 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 - Python + Kaspersky : fenêtres d'alerte sur huggingface.co. Télécharger avec `curl`.
 - Chemins Windows mélangeant `/` et `\` : certains scripts comparent des chaînes de chemin.
 - Les générateurs vidéo imposent des longueurs de la forme 8k+1 (LTX) ou 4k+1 (Wan) images.
+
+## MoCapAnything V2 : mode d'emploi local (28/09)
+
+Dossier de test : `C:	mp\mocapanything_test\MocapAnything` (hors appli).
+
+1. Rig et mouvement en FBX, **chacun avec maillage et action** (le pipeline l'exige) :
+   `glb_vers_fbx.py` (Blender). Maillage allégé (25 000 sommets). Une action de repos pour le
+   fichier de base.
+2. Vidéo nommée `videos/Lion#<clip>.mp4`.
+3. `bash examples/custom_rig/run.sh Lion`, en passant `BLENDER` et `PYTHON` (environ 15 min).
+4. `python -m inference.video2pose2rot --config examples/custom_rig/inference.yaml` : BVH sur
+   notre squelette (30 images/s), puis `skelmo_vers_glb.py` pour le poser sur le rig.
+
+Correctifs Windows nécessaires :
+- l'étape 6 écrit en dur dans `zoo` (ignore `ZOO_ROOT`) ;
+- l'étape 9 exige des chemins absolus, sinon Blender écrit dans `C:\zoo` ;
+- `ffmpeg -pattern_type glob` n'existe pas sous Windows : passer à une séquence `%05d.png`
+  (`utils/visualization.py`) ;
+- `ffmpeg` doit être dans le PATH (copie d'imageio-ffmpeg) ;
+- le rendu final passe par un script `.sh` : il est ignoré, on fait notre propre rendu.
+
