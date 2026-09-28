@@ -18585,8 +18585,11 @@ function _reglagesVarianteForme(force, graine, guide) {
     prompt: guide || (f >= 0.35 ? `${teinte} coloring, new color scheme, natural realistic texture, high quality, detailed` : ''),
   };
 }
-var ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right'];
-var NOMS_ALLURES = { idle: 'Idle', walk: 'Walk', run: 'Run', turn_left: 'Turn left', turn_right: 'Turn right' };
+var ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right',
+  // ajoutes le 2026-09-28 : calcules par le moteur, gratuits (attaque et mort etaient de l'IA, en chantier)
+  'trot', 'walk_back', 'jump', 'eat', 'lie_down', 'attack', 'hit', 'death'];
+var NOMS_ALLURES = { idle: 'Idle', walk: 'Walk', run: 'Run', turn_left: 'Turn left', turn_right: 'Turn right',
+  trot: 'Trot', walk_back: 'Walk back', jump: 'Jump', eat: 'Eat', lie_down: 'Lie down', attack: 'Attack', hit: 'Hit', death: 'Death' };
 var _ICONES_ANIM = { idle: '😴', walk: '🚶', run: '🏃', attack: '⚔️', death: '💀', fly: '✈️', locomotion: '🐾', turn_left: '↰', turn_right: '↱',
   swim: '🐟', swim_fast: '🐟', swim_left: '↰', swim_right: '↱', slither: '🐍', slither_fast: '🐍', slither_left: '↰', slither_right: '↱' };
 function _iconeAnim(t) { return (_ICONES_ANIM || {})[t] || '🎬'; }
@@ -18600,17 +18603,27 @@ var _alluresParFichierWeb = new Map();    // url d'un fichier locomotion -> noms
 // Une allure procedurale a des variantes (styles : VARIANTES du moteur) ; ajouter plusieurs fois
 // une animation IA = plusieurs tirages.
 var TYPES_ANIM = [
-  { v: 'idle', libelle: '😴 Idle' }, { v: 'walk', libelle: '🚶 Walk' }, { v: 'run', libelle: '🏃 Run' },
+  { v: 'idle', libelle: '😴 Idle' }, { v: 'walk', libelle: '🚶 Walk' }, { v: 'trot', libelle: '🐎 Trot' }, { v: 'run', libelle: '🏃 Run' },
+  { v: 'jump', libelle: '🦘 Jump' }, { v: 'walk_back', libelle: '↩ Walk back' },
   { v: 'turn_left', libelle: '↰ Turn left' }, { v: 'turn_right', libelle: '↱ Turn right' },
-  { v: 'attack', libelle: '⚔️ Attack' }, { v: 'death', libelle: '💀 Death' }, { v: 'fly', libelle: '✈️ Fly' },
+  { v: 'eat', libelle: '🌿 Eat' }, { v: 'lie_down', libelle: '🛌 Lie down' },
+  { v: 'attack', libelle: '⚔️ Attack' }, { v: 'hit', libelle: '💥 Hit' }, { v: 'death', libelle: '💀 Death' }, { v: 'fly', libelle: '✈️ Fly' },
 ];
-var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', crawl: 'Crawl', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide' };
+var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', crawl: 'Crawl', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide',
+  extended: 'Extended', big: 'Big', small: 'Small', strong: 'Strong', quick: 'Quick', left: 'Left side' };
 var DESCRIPTIONS_ANIM = {
   idle: 'Standing still, calm breathing.', idle__alert: 'On guard: head up, looks around.', idle__tired: 'Heavy breathing, head low.',
   walk: 'Regular walk.', walk__slow: 'Slow, heavy steps.', walk__brisk: 'Quick, lively pace.', walk__sneak: 'Low body, slow and careful steps.', walk__proud: 'Head high, high steps.', walk__crawl: 'Very low body; a legless creature crawls in vertical waves.',
   run: 'Regular run.', run__jog: 'Easy jog, short strides.', run__sprint: 'Full speed, long strides.',
   turn_left: 'Walks while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
   turn_right: 'Walks while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
+  trot: 'Trot: diagonal legs together, springy.', trot__slow: 'Easy trot.', trot__extended: 'Long, fast trot.',
+  walk_back: 'Steps backwards.', walk_back__slow: 'Slow, careful steps backwards.',
+  jump: 'Hops forward, all legs together.', jump__big: 'Big leaps.', jump__small: 'Small hops.',
+  eat: 'Lowers the head to the ground, chews, looks up.', lie_down: 'Lies down and rests.',
+  attack: 'Crouches, then lunges forward (head or arm first).', attack__strong: 'Wider, heavier strike.', attack__quick: 'Fast strike.',
+  hit: 'Recoils from a blow, then recovers.', hit__strong: 'Hard blow, big recoil.',
+  death: 'Collapses onto its right side.', death__left: 'Collapses onto its left side.',
 };
 var _animSelection = [{ type: 'idle', variante: 'normal' }];
 var _apercuAnim = null;
@@ -18702,7 +18715,8 @@ function _remplirMenuTypes() {
   }
   if (!choix) return;
   const avant = choix.value;
-  const types = TYPES_ANIM.filter((x) => m === 'pattes' || x.v !== 'fly');     // un poisson ou un serpent ne vole pas
+  // un poisson ou un serpent ne vole pas, ne trotte pas, ne se couche pas : ses 5 allures seulement
+  const types = TYPES_ANIM.filter((x) => m === 'pattes' || ['idle', 'walk', 'run', 'turn_left', 'turn_right'].includes(x.v));
   choix.innerHTML = types.map((x) => `<option value="${x.v}">${escapeHtml(_i18nT(_libelleType(x.v)))}</option>`).join('');
   choix.value = types.some((x) => x.v === avant) ? avant : 'walk';
   _modeMenus = m;
