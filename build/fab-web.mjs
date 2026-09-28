@@ -25,6 +25,8 @@ import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
+import https from 'node:https';
+import http from 'node:http';
 import { pipeline } from 'node:stream/promises';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -100,18 +102,35 @@ async function appel(methode, chemin, corps, { payer = false } = {}) {
   if (r0 && r0.payant && !payer) {
     throw new Error(`route PAYANTE (${r0.tarifs.join(', ')}) : relancer avec --payer pour debiter les credits du compte`);
   }
-  const envoyer = async (s) => fetch(BASE + chemin, {
-    method: methode,
-    headers: { cookie: `mfm-session=${s.access_token}`, 'content-type': 'application/json', accept: 'application/json' },
-    body: methode === 'GET' || methode === 'HEAD' ? undefined : JSON.stringify(corps ?? {}),
+  // node:https et non fetch : le fetch de Node abandonne apres 300 s sans en-tetes, or une
+  // generation sur un conteneur GPU froid peut durer plus longtemps (le worker rejoue les 524).
+  const envoyer = (s) => new Promise((res, rej) => {
+    const u = new URL(BASE + chemin);
+    const corpsTxt = methode === 'GET' || methode === 'HEAD' ? null : JSON.stringify(corps ?? {});
+    const req = (u.protocol === 'http:' ? http : https).request(u, {
+      method: methode,
+      headers: { cookie: `mfm-session=${s.access_token}`, 'content-type': 'application/json', accept: 'application/json',
+                 ...(corpsTxt ? { 'content-length': Buffer.byteLength(corpsTxt) } : {}) },
+      timeout: 20 * 60_000,
+    }, (r) => {
+      const morceaux = [];
+      r.on('data', (c) => morceaux.push(c));
+      r.on('end', () => res({ status: r.statusCode, headers: r.headers, corps: Buffer.concat(morceaux) }));
+    });
+    req.on('timeout', () => req.destroy(new Error('delai de 20 min depasse')));
+    req.on('error', rej);
+    if (corpsTxt) req.write(corpsTxt);
+    req.end();
   });
   // route publique sans session : appel anonyme (tarifs, catalogue public…)
   const anonyme = !lireSession() && r0 && r0.acces === 'public';
   let r = await envoyer(anonyme ? { access_token: '' } : await session(false));
   if (r.status === 401 && !anonyme) r = await envoyer(await session(true));
-  const type = r.headers.get('content-type') || '';
-  const data = type.includes('json') ? await r.json().catch(() => null) : `[${type || 'sans type'} ${r.headers.get('content-length') || '?'} octets]`;
-  return { status: r.status, ok: r.ok, data };
+  const type = String(r.headers['content-type'] || '');
+  let data;
+  if (type.includes('json')) { try { data = JSON.parse(r.corps.toString('utf-8')); } catch (_) { data = r.corps.toString('utf-8').slice(0, 2000); } }
+  else data = `[${type || 'sans type'} ${r.corps.length} octets]`;
+  return { status: r.status, ok: r.status >= 200 && r.status < 300, data };
 }
 
 const pause = (ms) => new Promise((res) => setTimeout(res, ms));
