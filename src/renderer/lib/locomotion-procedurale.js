@@ -19,6 +19,38 @@ export const ALLURES = {
   idle: { beta: 1.0, T: [4.0, 4.0], h: 0.0, bob: 0.008, foulee: 0.0, lacet: 0.0, tendu: 0.95, talon: 0.0, pas: false },
 };
 
+// VARIANTES (2026-09-28) : styles d'une même allure, pour varier les personnages.
+// Multiplicateurs : T (période), foulee, h (hauteur de pas), bob, lacet ; valeurs : tendu
+// (bassin), tete (inclinaison, rad, + = tête basse), regard (amplitude du regard à l'arrêt),
+// queue et bras (amplitude). Nom du clip : « walk » (normal) ou « walk__sneak ».
+const TOURNANTS = { normal: {}, tight: { lacet: 1.6, foulee: 0.6 }, wide: { lacet: 0.6, foulee: 1.2 } };
+export const VARIANTES = {
+  idle: {
+    normal: {},
+    alert: { T: 0.75, regard: 2.2, tete: -0.08, queue: 1.4, bob: 0.8 },
+    tired: { T: 1.3, bob: 2.2, tendu: 0.9, tete: 0.18, regard: 0.4, queue: 0.5 },
+  },
+  walk: {
+    normal: {},
+    slow: { T: 1.35, foulee: 0.8, h: 0.8, bob: 1.3, tendu: 0.945, tete: 0.10, queue: 0.7, bras: 0.7 },
+    brisk: { T: 0.8, foulee: 1.15, h: 1.1, bob: 0.8, bras: 1.3 },
+    sneak: { T: 1.55, foulee: 0.7, h: 1.35, bob: 0.35, tendu: 0.86, tete: 0.14, queue: 0.4, bras: 0.4 },
+    proud: { T: 1.1, h: 1.45, bob: 0.8, tete: -0.12, queue: 1.3, bras: 1.2 },
+  },
+  run: {
+    normal: {},
+    jog: { T: 1.25, foulee: 0.7, h: 0.8, bob: 0.8, bras: 0.8 },
+    sprint: { T: 0.85, foulee: 1.25, h: 1.15, tendu: 0.84, tete: 0.06, bras: 1.3 },
+  },
+  turn_left: TOURNANTS,
+  turn_right: TOURNANTS,
+};
+/** « walk__sneak » -> { allure: 'walk', variante: 'sneak' } */
+export function lireClip(nom) {
+  const [allure, variante = 'normal'] = String(nom).split('__');
+  return { allure, variante };
+}
+
 // ------------------------------------------------------------------ vecteurs et matrices 3x3
 // vecteur = [x, y, z] ; matrice = 9 nombres, lignes d'abord
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -322,7 +354,7 @@ function resoudreForme(F, base, cible, poleMonde) {
 }
 
 // ------------------------------------------------------------------ animation d'une allure
-function animerAllure(sq, allure, cycles, fps) {
+function animerAllure(sq, allure, cycles, fps, variante = 'normal') {
   const { joints, par, P0 } = sq;
   const det = detecterPattes(par, P0);
   const { racine, queues, tetes, sol } = det;
@@ -335,7 +367,12 @@ function animerAllure(sq, allure, cycles, fps) {
     pattes = pattes.filter((_, i) => lg[i] >= 0.65 * med);
   }
   phases(pattes, P0, allure);
-  const A = ALLURES[allure];
+  const B = ALLURES[allure], V = (VARIANTES[allure] || {})[variante] || {};
+  const A = {
+    ...B, T: B.T.map((x) => x * (V.T || 1)), foulee: B.foulee * (V.foulee || 1), h: B.h * (V.h || 1),
+    bob: B.bob * (V.bob || 1), lacet: B.lacet * (V.lacet || 1), tendu: V.tendu ?? B.tendu,
+    tete: V.tete || 0, regard: V.regard ?? 1, queue: V.queue ?? 1, bras: V.bras ?? 1,
+  };
   const nombreux = pattes.length >= 6, bipede = pattes.length <= 2;
   const T = A.T[nombreux ? 1 : 0];
   let beta = nombreux && allure !== 'run' && A.pas ? 0.55 : A.beta;
@@ -517,7 +554,7 @@ function animerAllure(sq, allure, cycles, fps) {
   }
   // --- queue, pédipalpes, colonne, bras, tête : rotations locales « balance »
   const balance = new Map();
-  const ampQ = allure === 'run' ? 0.16 : allure === 'idle' ? 0.08 : 0.10;
+  const ampQ = (allure === 'run' ? 0.16 : allure === 'idle' ? 0.08 : 0.10) * A.queue;
   for (const cq of queues) {
     cq.slice(0, -1).forEach((j, a) => {
       balance.set(j, t.map((tt) => Ry(ampQ * (a + 1) / cq.length * Math.sin(2 * Math.PI * tt / T * (A.pas ? 1 : 2) - 0.7 * a))));
@@ -554,7 +591,8 @@ function animerAllure(sq, allure, cycles, fps) {
     if (bras.length) { for (let k = bras[0].moyeu; k >= 0 && k !== racine; k = par[k]) colonne.push(k); colonne.reverse(); }
     const nC = Math.max(colonne.length, 1);
     for (const j of colonne) balance.set(j, t.map((_, i) => mm(Ry(-1.6 * lacetBassin[i] / nC), Rz(-roulis[i] / nC))));
-    const [ampB, flex] = allure === 'run' ? [0.5, 1.1] : allure === 'idle' ? [0.03, 0.12] : [0.3, 0.15];
+    const [ampB0, flex] = allure === 'run' ? [0.5, 1.1] : allure === 'idle' ? [0.03, 0.12] : [0.3, 0.15];
+    const ampB = ampB0 * A.bras;
     for (const b of bras) {
       const d_ = sub(P0[b.coude], P0[b.epaule]);
       let axe = cross(mulS(d_, 1 / (norm(d_) + 1e-12)), [0, 0, 1]);
@@ -569,8 +607,8 @@ function animerAllure(sq, allure, cycles, fps) {
     ct.slice(0, -1).forEach((j, a) => {
       balance.set(j, t.map((tt, i) => {
         const hoche = (A.pas ? 0.03 : 0.04) * Math.sin(4 * Math.PI * tt / T + 0.5 + 0.3 * a);
-        let m = Rx(hoche - (a === 0 ? tangage[i] : 0));
-        if (!A.pas && a === 0) m = mm(Ry(0.22 * Math.sin(2 * Math.PI * tt / T)), m);
+        let m = Rx(hoche - (a === 0 ? tangage[i] - A.tete : 0));
+        if (!A.pas && a === 0) m = mm(Ry(0.22 * A.regard * Math.sin(2 * Math.PI * tt / T)), m);
         if (bipede && a === 0) m = mm(Ry(0.6 * lacetBassin[i]), m);
         return m;
       }));
@@ -618,7 +656,7 @@ function animerAllure(sq, allure, cycles, fps) {
     periode: T, foulee: +S.toFixed(3), images: nT,
     sous_sol_pct: +(100 * sousSol / H).toFixed(1), pire_os: pireOs, glissement_appui_pct: +(100 * glisse / H).toFixed(2), acoups_max_deg: +(acoups * 180 / Math.PI).toFixed(1),
   };
-  return { nom: allure, R, racineMonde, infos };
+  return { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, infos };
 }
 
 // ------------------------------------------------------------------ écriture du GLB (une animation par allure)
@@ -687,17 +725,19 @@ function ecrireGLB(sq, clips, fps) {
 // ------------------------------------------------------------------ point d'entrée
 /**
  * @param {ArrayBuffer} glb  GLB riggé (un skin)
- * @param {{allures?: string[], cycles?: number, fps?: number}} options
+ * @param {{allures?: string[], cycles?: number, fps?: number}} options  allures : « walk » ou « walk__sneak » (variante)
  * @returns {{glb: ArrayBuffer, infos: Object<string, object>}}  GLB d'origine + une animation par allure
  */
 export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps = 30 } = {}) {
   const sq = charger(glb);
   const clips = [], infos = {};
-  for (const a of allures) {
+  for (const nom of allures) {
+    const { allure: a, variante } = lireClip(nom);
     if (!ALLURES[a]) throw new Error('allure inconnue : ' + a);
-    const clip_ = animerAllure(sq, a, a === 'idle' ? 1 : cycles, fps);
+    if (!(VARIANTES[a] || {})[variante]) throw new Error('variante inconnue : ' + nom);
+    const clip_ = animerAllure(sq, a, a === 'idle' ? 1 : cycles, fps, variante);
     clips.push(clip_);
-    infos[a] = clip_.infos;
+    infos[clip_.nom] = clip_.infos;
   }
   return { glb: ecrireGLB(sq, clips, fps), infos };
 }

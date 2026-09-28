@@ -14,7 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
-import { animerGLB } from './lib/locomotion-procedurale.js';
+import { animerGLB, VARIANTES } from './lib/locomotion-procedurale.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
 // hundreds of raycasts per stamp; native three.js raycast is O(triangles) and
@@ -16846,10 +16846,68 @@ function _rigLePlusRecent(proj) {
 const ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right'];
 const NOMS_ALLURES = { idle: 'Idle', walk: 'Walk', run: 'Run', turn_left: 'Turn left', turn_right: 'Turn right' };
 
-// Cases du formulaire : la pastille ⚡ suit le nombre de clips coches.
-document.querySelectorAll('#ws-anim-types input[name="anim-type"]').forEach((cb) => {
-  cb.addEventListener('change', () => window._applyRigAnimPills?.());
-});
+// Choix des animations (2026-09-28) : menu ANIMATION (avec icone) + menu VARIANTE + « + Add »
+// -> liste de ce qui sera genere (UNE version). Une allure procedurale a des variantes (styles :
+// VARIANTES du moteur) ; ajouter plusieurs fois une animation IA = plusieurs tirages.
+var TYPES_ANIM = [
+  { v: 'idle', libelle: '😴 Idle' }, { v: 'walk', libelle: '🚶 Walk' }, { v: 'run', libelle: '🏃 Run' },
+  { v: 'turn_left', libelle: '↰ Turn left' }, { v: 'turn_right', libelle: '↱ Turn right' },
+  { v: 'attack', libelle: '⚔️ Attack' }, { v: 'death', libelle: '💀 Death' }, { v: 'fly', libelle: '✈️ Fly' },
+];
+var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide' };
+var _animSelection = [{ type: 'idle', variante: 'normal' }];
+/** Nom de clip du moteur : « walk » ou « walk__sneak » ; pour l'IA : le type seul. */
+function _nomClipSelection(e) {
+  return ALLURES_PROCEDURALES.includes(e.type) && e.variante && e.variante !== 'normal' ? `${e.type}__${e.variante}` : e.type;
+}
+/** « walk__sneak » -> « Walk · Sneaky » (traduit). */
+function _libelleClip(nom) {
+  const [a, v] = String(nom).split('__');
+  return _i18nT(NOMS_ALLURES[a] || a) + (v && v !== 'normal' ? ' · ' + _i18nT(NOMS_VARIANTES[v] || v) : '');
+}
+function _majMenuVariantes() {
+  const t = document.getElementById('ws-anim-choix')?.value;
+  const sel = document.getElementById('ws-anim-variante');
+  if (!sel) return;
+  const vs = VARIANTES[t] ? Object.keys(VARIANTES[t]) : null;
+  sel.innerHTML = vs
+    ? vs.map((v) => `<option value="${v}">${_escapeHtml(_i18nT(NOMS_VARIANTES[v] || v))}</option>`).join('')
+      + `<option value="*">${_escapeHtml(_i18nT('All variants'))}</option>`
+    : `<option value="normal">${_escapeHtml(_i18nT('Standard (AI)'))}</option>`;
+  sel.disabled = !vs;
+}
+function _rendreSelectionAnim() {
+  const box = document.getElementById('ws-anim-liste');
+  if (!box) return;
+  const icone = (t) => (TYPES_ANIM.find((x) => x.v === t)?.libelle || '🎬').split(' ')[0];
+  box.innerHTML = _animSelection.length
+    ? _animSelection.map((e, i) => `<span class="anim-chip" style="display:inline-flex; align-items:center; gap:4px; padding:3px 4px 3px 8px; border:1px solid var(--border); border-radius:12px; background:var(--bg-1, rgba(255,255,255,0.04)); font-size:12px;">${icone(e.type)} ${_escapeHtml(_libelleClip(_nomClipSelection(e)))}<button type="button" data-i="${i}" title="${_escapeHtml(_i18nT('Remove'))}" style="border:none; background:transparent; color:var(--text-2); cursor:pointer; font-size:13px; padding:0 4px;">&#10005;</button></span>`).join('')
+    : `<span style="color:var(--text-2); font-size:12px;">${_escapeHtml(_i18nT('Nothing selected: choose an animation and a variant, then click Add.'))}</span>`;
+  box.querySelectorAll('button[data-i]').forEach((b) => b.addEventListener('click', () => {
+    _animSelection.splice(parseInt(b.dataset.i, 10), 1);
+    _rendreSelectionAnim();
+  }));
+  window._applyRigAnimPills?.();
+}
+(function _initSelecteurAnim() {
+  const choix = document.getElementById('ws-anim-choix');
+  if (!choix) return;
+  choix.innerHTML = TYPES_ANIM.map((x) => `<option value="${x.v}">${_escapeHtml(_i18nT(x.libelle))}</option>`).join('');
+  choix.value = 'walk';
+  choix.addEventListener('change', _majMenuVariantes);
+  _majMenuVariantes();
+  document.getElementById('ws-anim-ajouter')?.addEventListener('click', () => {
+    const t = choix.value, v = document.getElementById('ws-anim-variante')?.value || 'normal';
+    const aAjouter = v === '*' ? Object.keys(VARIANTES[t] || { normal: {} }).map((x) => ({ type: t, variante: x })) : [{ type: t, variante: v }];
+    for (const e of aAjouter) {
+      // une allure procedurale n'est calculee qu'une fois (identique) ; l'IA peut etre retiree
+      const deja = ALLURES_PROCEDURALES.includes(e.type) && _animSelection.some((x) => x.type === e.type && x.variante === e.variante);
+      if (!deja) _animSelection.push(e);
+    }
+    _rendreSelectionAnim();
+  });
+  _rendreSelectionAnim();
+})();
 
 // 2026-06-13: animation selection state + Three.js animated viewer
 let _selectedAnim = null;
@@ -16988,12 +17046,12 @@ function _rendreBoutonsClips() {
   const boutons = [];
   for (const c of _clipsDuLot) {
     const noms = c.type === 'locomotion' ? _alluresParFichier.get(c.url) : null;
-    if (noms && noms.length) noms.forEach((n) => boutons.push({ c, allure: n, type: n }));
+    if (noms && noms.length) noms.forEach((n) => boutons.push({ c, allure: n, type: n.split('__')[0] }));
     else boutons.push({ c, allure: null, type: c.type || 'clip' });
   }
   typeBtns.innerHTML = boutons.map((b, i) => {
     const sel = b.c === _selectedAnim && (!b.allure || b.allure === _selectedGait);
-    const nom = b.allure ? _i18nT(NOMS_ALLURES[b.allure] || b.allure) : (b.type || 'clip');
+    const nom = b.allure ? _libelleClip(b.allure) : (b.type || 'clip');
     return `<button class="anim-type-btn${sel ? ' selected' : ''}" data-i="${i}" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; min-width:64px; background:${sel ? 'var(--bg-2)' : 'transparent'}; border:2px solid ${sel ? 'var(--accent)' : 'var(--border)'}; border-radius:6px; cursor:pointer; color:var(--text-0, var(--text)); font-size:11px;">
       <span style="font-size:18px;">${_iconeAnim(b.type)}</span>
       <span style="text-transform:uppercase; font-weight:600;">${_escapeHtml(nom)}</span>
@@ -17119,7 +17177,7 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
       if (pickIdx < 0) pickIdx = clips.length - 1;
       clipsCharges = clips;
       // Fichier du moteur procedural : plusieurs allures -> un bouton par allure sous le lecteur
-      const procedural = clips.length > 1 && clips.every(a => ALLURES_PROCEDURALES.includes(a.name));
+      const procedural = clips.length >= 1 && clips.every(a => ALLURES_PROCEDURALES.includes(String(a.name).split('__')[0]));
       if (procedural) {
         _alluresParFichier.set(anim.url, clips.map(a => a.name));
         let k = clips.findIndex(a => a.name === _selectedGait);
@@ -17447,16 +17505,16 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
     customError(_i18nT('You need a rigged mesh first. Generate a Rig in Step 3, then come back.'), _i18nT('No rig available'));
     return;
   }
-  const types = Array.from(document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked'))
-    .map((cb) => cb.value);
+  // liste du selecteur : « walk », « walk__sneak » (variante), « attack »…
+  const types = _animSelection.map(_nomClipSelection);
   if (!types.length) {
-    showToast(_i18nT('Check at least one type to generate.'), 'info', 4000);
+    showToast(_i18nT('Nothing selected: choose an animation and a variant, then click Add.'), 'info', 4000);
     return;
   }
   // Moteur procedural (2026-09-28) : idle / walk / run / virages calcules ICI, en une
   // fraction de seconde, gratuitement, dans UN fichier « locomotion » (menu de choix au
   // lecteur). Seuls attack / death / fly passent encore par l'IA en ligne.
-  const allures = types.filter((t) => ALLURES_PROCEDURALES.includes(t));
+  const allures = types.filter((t) => ALLURES_PROCEDURALES.includes(t.split('__')[0]));
   // Lot commun a TOUT le clic (allures + clips IA) : une seule version, comme sur le web
   const lot = `d${Date.now().toString(36)}`;
   if (allures.length) {
@@ -17478,7 +17536,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       proj.animations.unshift({
         id: filename, batchId: lot, type: 'locomotion', filename, path: glbPath,
         url: 'file:///' + glbPath.replace(/\\/g, '/'),
-        motionLabel: 'Locomotion: ' + allures.map((a) => _i18nT(NOMS_ALLURES[a] || a)).join(', '),
+        motionLabel: 'Locomotion: ' + allures.map(_libelleClip).join(', '),
         created: new Date().toISOString(), mtime: Date.now(),
         rigPath, rigFilename: rigL?.filename, sourceImage: rigL?.sourceImage,
       });
@@ -17498,7 +17556,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
     } finally {
       btn.disabled = false;
     }
-    types.splice(0, types.length, ...types.filter((t) => !ALLURES_PROCEDURALES.includes(t)));
+    types.splice(0, types.length, ...types.filter((t) => !ALLURES_PROCEDURALES.includes(t.split('__')[0])));
     if (!types.length) return;
   }
   // Le type d'asset du projet choisit le squelette de reference du modele.
@@ -26575,8 +26633,8 @@ window._applyRigAnimPills = function () {
     // le mode de calcul — 5 credits (ANIM_COST) par clip coche.
     // Moteur procedural (2026-09-28) : idle / walk / run / virages GRATUITS ; seuls les
     // clips IA (attack, death, fly) coutent 5 credits.
-    const nbClips = Array.from(document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked'))
-      .filter((cb) => !ALLURES_PROCEDURALES.includes(cb.value)).length;
+    const nbClips = (typeof _animSelection !== 'undefined' ? _animSelection : [])
+      .filter((e) => !ALLURES_PROCEDURALES.includes(e.type)).length;
     const btnAnim = document.getElementById('ws-generate-anim');
     if (nbClips) setPill(btnAnim, 5 * nbClips, true);
     else btnAnim?.querySelector('.generate-cost-pill')?.remove();

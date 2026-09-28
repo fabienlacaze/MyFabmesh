@@ -15,7 +15,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
-import { animerGLB } from './lib/locomotion-procedurale.js';
+import { animerGLB, VARIANTES } from './lib/locomotion-procedurale.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
 // tampon de clonage 3D, qui lance des centaines de raycasts par coup de
@@ -18165,6 +18165,67 @@ var _step4ClipsDuLot = [];                  // clips (fichiers) de la version af
 var _step4ProjetBoutons = null;
 var _animClipsCharges = [];                 // clips du GLB affiche
 var _alluresParFichierWeb = new Map();    // url d'un fichier locomotion -> noms de ses allures
+// Choix des animations (2026-09-28) : menu ANIMATION (avec icone) + menu VARIANTE + « + Add »
+// -> liste de ce qui sera genere (UNE version). Une allure procedurale a des variantes (styles :
+// VARIANTES du moteur) ; ajouter plusieurs fois une animation IA = plusieurs tirages.
+var TYPES_ANIM = [
+  { v: 'idle', libelle: '😴 Idle' }, { v: 'walk', libelle: '🚶 Walk' }, { v: 'run', libelle: '🏃 Run' },
+  { v: 'turn_left', libelle: '↰ Turn left' }, { v: 'turn_right', libelle: '↱ Turn right' },
+  { v: 'attack', libelle: '⚔️ Attack' }, { v: 'death', libelle: '💀 Death' }, { v: 'fly', libelle: '✈️ Fly' },
+];
+var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide' };
+var _animSelection = [{ type: 'idle', variante: 'normal' }];
+/** Nom de clip du moteur : « walk » ou « walk__sneak » ; pour l'IA : le type seul. */
+function _nomClipSelection(e) {
+  return ALLURES_PROCEDURALES.includes(e.type) && e.variante && e.variante !== 'normal' ? `${e.type}__${e.variante}` : e.type;
+}
+/** « walk__sneak » -> « Walk · Sneaky » (traduit). */
+function _libelleClip(nom) {
+  const [a, v] = String(nom).split('__');
+  return _i18nT(NOMS_ALLURES[a] || a) + (v && v !== 'normal' ? ' · ' + _i18nT(NOMS_VARIANTES[v] || v) : '');
+}
+function _majMenuVariantes() {
+  const t = document.getElementById('ws-anim-choix')?.value;
+  const sel = document.getElementById('ws-anim-variante');
+  if (!sel) return;
+  const vs = VARIANTES[t] ? Object.keys(VARIANTES[t]) : null;
+  sel.innerHTML = vs
+    ? vs.map((v) => `<option value="${v}">${escapeHtml(_i18nT(NOMS_VARIANTES[v] || v))}</option>`).join('')
+      + `<option value="*">${escapeHtml(_i18nT('All variants'))}</option>`
+    : `<option value="normal">${escapeHtml(_i18nT('Standard (AI)'))}</option>`;
+  sel.disabled = !vs;
+}
+function _rendreSelectionAnim() {
+  const box = document.getElementById('ws-anim-liste');
+  if (!box) return;
+  const icone = (t) => (TYPES_ANIM.find((x) => x.v === t)?.libelle || '🎬').split(' ')[0];
+  box.innerHTML = _animSelection.length
+    ? _animSelection.map((e, i) => `<span class="anim-chip" style="display:inline-flex; align-items:center; gap:4px; padding:3px 4px 3px 8px; border:1px solid var(--border); border-radius:12px; background:var(--bg-1, rgba(255,255,255,0.04)); font-size:12px;">${icone(e.type)} ${escapeHtml(_libelleClip(_nomClipSelection(e)))}<button type="button" data-i="${i}" title="${escapeHtml(_i18nT('Remove'))}" style="border:none; background:transparent; color:var(--text-2); cursor:pointer; font-size:13px; padding:0 4px;">&#10005;</button></span>`).join('')
+    : `<span style="color:var(--text-2); font-size:12px;">${escapeHtml(_i18nT('Nothing selected: choose an animation and a variant, then click Add.'))}</span>`;
+  box.querySelectorAll('button[data-i]').forEach((b) => b.addEventListener('click', () => {
+    _animSelection.splice(parseInt(b.dataset.i, 10), 1);
+    _rendreSelectionAnim();
+  }));
+}
+(function _initSelecteurAnim() {
+  const choix = document.getElementById('ws-anim-choix');
+  if (!choix) return;
+  choix.innerHTML = TYPES_ANIM.map((x) => `<option value="${x.v}">${escapeHtml(_i18nT(x.libelle))}</option>`).join('');
+  choix.value = 'walk';
+  choix.addEventListener('change', _majMenuVariantes);
+  _majMenuVariantes();
+  document.getElementById('ws-anim-ajouter')?.addEventListener('click', () => {
+    const t = choix.value, v = document.getElementById('ws-anim-variante')?.value || 'normal';
+    const aAjouter = v === '*' ? Object.keys(VARIANTES[t] || { normal: {} }).map((x) => ({ type: t, variante: x })) : [{ type: t, variante: v }];
+    for (const e of aAjouter) {
+      // une allure procedurale n'est calculee qu'une fois (identique) ; l'IA peut etre retiree
+      const deja = ALLURES_PROCEDURALES.includes(e.type) && _animSelection.some((x) => x.type === e.type && x.variante === e.variante);
+      if (!deja) _animSelection.push(e);
+    }
+    _rendreSelectionAnim();
+  });
+  _rendreSelectionAnim();
+})();
 // Change de clip (bouton d'allure), depuis le debut, sans recharger le fichier.
 function _choisirClipAnim(clip) {
   if (!_animMixer || !clip) return;
@@ -18186,12 +18247,12 @@ function _rendreBoutonsClipsWeb() {
   const boutons = [];
   for (const c of (_step4ClipsDuLot || [])) {
     const noms = c.type === 'locomotion' && _alluresParFichierWeb ? _alluresParFichierWeb.get(c.url || c.path) : null;
-    if (noms && noms.length) noms.forEach(n => boutons.push({ c, allure: n, type: n }));
+    if (noms && noms.length) noms.forEach(n => boutons.push({ c, allure: n, type: n.split('__')[0] }));
     else boutons.push({ c, allure: null, type: c.type || 'clip' });
   }
   typeBtns.innerHTML = boutons.map((b, i) => {
     const isSel = b.c === _step4SelectedClipInBatch && (!b.allure || b.allure === _step4SelectedGait);
-    const nom = b.allure ? _i18nT(NOMS_ALLURES[b.allure] || b.allure) : (b.type || 'clip');
+    const nom = b.allure ? _libelleClip(b.allure) : (b.type || 'clip');
     return `
       <button class="anim-type-btn${isSel ? ' selected' : ''}" data-i="${i}"
               style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; min-width:64px;
@@ -18340,7 +18401,7 @@ function showStep4AnimPreview(anim) {
       }
       // Fichier du moteur procedural : plusieurs allures -> un bouton par allure sous le lecteur
       _animClipsCharges = gltf.animations;
-      if (gltf.animations.length > 1 && gltf.animations.every(a => ALLURES_PROCEDURALES.includes(a.name))) {
+      if (gltf.animations.length >= 1 && gltf.animations.every(a => ALLURES_PROCEDURALES.includes(String(a.name).split('__')[0]))) {
         _alluresParFichierWeb.set(anim.url || anim.path, gltf.animations.map(a => a.name));
         let k = gltf.animations.findIndex(a => a.name === _step4SelectedGait);
         if (k < 0) k = gltf.animations.findIndex(a => a.name === 'walk');
@@ -18955,9 +19016,8 @@ document.getElementById('modal-anim-go')?.addEventListener('click', () => {
   const modal = document.getElementById('modal-anim-gen');
   const picked = [...modal.querySelectorAll('input[name="modal-anim-type"]:checked')].map(cb => cb.value);
   if (!picked.length) { showToast('Pick at least one animation type', 'error'); return; }
-  document.querySelectorAll('#ws-anim-types input[name="anim-type"]').forEach(cb => {
-    cb.checked = picked.includes(cb.value);
-  });
+  _animSelection = picked.map(t => ({ type: t, variante: 'normal' }));
+  _rendreSelectionAnim();
   modal.classList.add('hidden');
   // The Create-new Generate button starts disabled (HTML default until
   // a rig is detected). We've already gated on p.rigs at the opener,
@@ -19049,8 +19109,8 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   // l'impose de toute facon ; on l'envoie pour que la requete soit lisible.
   const engine = 'motionplus';
   // Seules les cases cochees : le formulaire n'a plus de champ libre.
-  const animTypes = Array.from(document.querySelectorAll('#ws-anim-types input[name="anim-type"]:checked'))
-    .map(cb => cb.value);
+  // liste du selecteur : « walk », « walk__sneak » (variante), « attack »…
+  const animTypes = _animSelection.map(_nomClipSelection);
   const prompt = '';
   // Le type d'asset du projet choisit le squelette de reference du modele
   // (humain / animal) — la detection automatique se trompe sur nos rigs.
@@ -19066,7 +19126,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   // batch — which surprised the user (2s "New version with 1 clip" toast
   // and no Modal call). Now every checked type is regenerated.
   if (!animTypes.length) {
-    showToast('Check at least one type to generate.', 'info', 4000);
+    showToast(_i18nT('Nothing selected: choose an animation and a variant, then click Add.'), 'info', 4000);
     return;
   }
   // batchId shared across all freshly-generated clips so the server
@@ -19075,7 +19135,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
   // Moteur procedural (2026-09-28) : idle / walk / run / virages calcules DANS le navigateur
   // en une fraction de seconde, GRATUITEMENT, dans UN fichier « locomotion » (un bouton par
   // allure sous le lecteur), envoye tel quel vers R2. Seuls attack / death / fly passent par l'IA.
-  const allures = animTypes.filter(t => ALLURES_PROCEDURALES.includes(t));
+  const allures = animTypes.filter(t => ALLURES_PROCEDURALES.includes(t.split('__')[0]));
   if (allures.length) {
     const btnG = document.getElementById('ws-generate-anim');
     if (btnG) btnG.disabled = true;
@@ -19105,7 +19165,7 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
     } finally {
       if (btnG) btnG.disabled = false;
     }
-    animTypes.splice(0, animTypes.length, ...animTypes.filter(t => !ALLURES_PROCEDURALES.includes(t)));
+    animTypes.splice(0, animTypes.length, ...animTypes.filter(t => !ALLURES_PROCEDURALES.includes(t.split('__')[0])));
     if (!animTypes.length) return;
   }
   const toCopy = [];          // intentionally empty — no copy path anymore

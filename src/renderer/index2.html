@@ -1002,32 +1002,14 @@
                        locaux (bibliotheque de mouvements, IA locale, banque de
                        clips) ne sont plus proposes. -->
                   <div class="form-row">
-                    <label>Animations <span style="color:var(--text-2); font-weight:normal; font-size:11px;">(check 1+ types — each becomes a new version)</span></label>
-                    <div id="ws-anim-types" class="anim-types-checklist" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px; padding:8px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px;">
-                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" name="anim-type" value="idle" checked> <span>😴 Idle</span>
-                      </label>
-                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" name="anim-type" value="walk"> <span>🚶 Walk</span>
-                      </label>
-                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" name="anim-type" value="run"> <span>🏃 Run</span>
-                      </label>
-                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" name="anim-type" value="turn_left"> <span>↰ Turn left</span>
-                      </label>
-                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" name="anim-type" value="turn_right"> <span>↱ Turn right</span>
-                      </label>
-                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" name="anim-type" value="attack"> <span>⚔️ Attack</span>
-                      </label>
-                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" name="anim-type" value="death"> <span>💀 Death</span>
-                      </label>
-                      <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" name="anim-type" value="fly"> <span>✈️ Fly</span>
-                      </label>
+                    <label>Animations <span style="color:var(--text-2); font-weight:normal; font-size:11px;">(pick an animation and a variant, then Add — the list becomes one version)</span></label>
+                    <div id="ws-anim-types" class="anim-types-picker" style="display:flex; flex-direction:column; gap:8px; padding:8px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px;">
+                      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                        <select id="ws-anim-choix" title="Animation" style="flex:1 1 130px; min-width:0; padding:5px 6px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:13px;"></select>
+                        <select id="ws-anim-variante" title="Variant" style="flex:1 1 110px; min-width:0; padding:5px 6px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:13px;"></select>
+                        <button id="ws-anim-ajouter" type="button" class="ghost-btn" title="Add to the list" style="padding:5px 10px;">&#65291; Add</button>
+                      </div>
+                      <div id="ws-anim-liste" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
                     </div>
                   </div>
                   <!-- Animation IA : resultats juges insuffisants par l'exploitant le
