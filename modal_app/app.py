@@ -2251,6 +2251,71 @@ mesh_output_volume = modal.Volume.from_name(
 )
 
 
+# CACHES GPU PERMANENTS DU MAILLAGE (2026-09-29).
+#
+# Mesure (journaux Modal, meme conteneur) : inference 1536_cascade 146,5 s a la
+# 1re generation d'un conteneur, 25,4 s a la 2e ; toutes les autres, faites sur un
+# conteneur neuf, 137-203 s. Les etapes de diffusion n'en font que 20-66 s. Le reste :
+# les noyaux Triton de flex_gemm (convolutions creuses) sont COMPILES puis REGLES
+# (autotune, cle = log2 du nombre de voxels, Ci, Co…) a leur premier usage, et les
+# deux caches (~/.triton/cache, ~/.flex_gemm/autotune_cache.json) vivaient sur le
+# disque ephemere du conteneur. Avec une traine de 90 s, presque chaque generation
+# repayait ces 2-3 min. Ils vivent desormais sur le volume : chaque generation
+# enrichit le reglage, chaque conteneur neuf en herite.
+_CACHE_GPU = "/data/_cache_gpu"
+_REGLAGE_LOCAL = os.path.expanduser("~/.flex_gemm/autotune_cache.json")
+
+
+def _lire_json(chemin: str) -> dict:
+    import json
+    try:
+        with open(chemin, "r", encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _ecrire_json(chemin: str, donnees: dict) -> None:
+    import json
+    tmp = chemin + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(donnees, f)
+    os.replace(tmp, chemin)
+
+
+def _fusionner_reglages(a: dict, b: dict) -> dict:
+    """{carte: {noyau: {cle: reglage}}} : ajoute b dans a, noyau par noyau."""
+    for carte, noyaux in (b or {}).items():
+        cible = a.setdefault(carte, {})
+        for noyau, entrees in (noyaux or {}).items():
+            if isinstance(entrees, dict) and isinstance(cible.get(noyau), dict):
+                cible[noyau].update(entrees)
+            else:
+                cible[noyau] = entrees
+    return a
+
+
+def _sauver_reglages_gpu() -> None:
+    """Verse le reglage flex_gemm du conteneur dans celui du volume (avant commit)."""
+    import json
+    try:
+        local = _lire_json(_REGLAGE_LOCAL)
+        if not local:
+            return
+        chemin = f"{_CACHE_GPU}/flex_gemm_autotune.json"
+        vol = _lire_json(chemin)
+        avant = json.dumps(vol, sort_keys=True)
+        _fusionner_reglages(vol, local)
+        if json.dumps(vol, sort_keys=True) != avant:
+            os.makedirs(_CACHE_GPU, exist_ok=True)
+            _ecrire_json(chemin, vol)
+            print(f"[caches-gpu] reglage flex_gemm enrichi "
+                  f"({sum(len(n) for n in vol.values())} noyaux)", flush=True)
+    except Exception as e:
+        print(f"[caches-gpu] reglage non sauve : {type(e).__name__}: {e}", flush=True)
+
+
 @app.cls(
     image=mesh_image,
     gpu="L40S",
@@ -2369,6 +2434,37 @@ class MyFabmeshMesh:
         self.inpaint_pipe = None
         print(f"[mesh/ready] full load + GPU move done in {time.time() - t0:.1f}s",
               flush=True)
+
+    @modal.enter(snap=False)
+    def brancher_caches_gpu(self):
+        """Apres restauration : noyaux Triton compiles et reglage flex_gemm pris sur le
+        volume (voir _CACHE_GPU). Tout echec laisse les caches locaux : jamais bloquant."""
+        t0 = time.time()
+        try:
+            mesh_output_volume.reload()
+        except Exception as e:
+            print(f"[caches-gpu] reload du volume ignore : {e}", flush=True)
+        try:
+            os.makedirs(f"{_CACHE_GPU}/triton", exist_ok=True)
+            sonde = f"{_CACHE_GPU}/triton/.sonde"      # ecriture + renommage, comme Triton
+            with open(sonde + ".tmp", "w") as f:
+                f.write("ok")
+            os.replace(sonde + ".tmp", sonde)
+            os.environ["TRITON_CACHE_DIR"] = f"{_CACHE_GPU}/triton"
+        except Exception as e:
+            print(f"[caches-gpu] volume non inscriptible, noyaux Triton en local : {e}", flush=True)
+        try:
+            vol = _lire_json(f"{_CACHE_GPU}/flex_gemm_autotune.json")
+            if vol:
+                os.makedirs(os.path.dirname(_REGLAGE_LOCAL), exist_ok=True)
+                _ecrire_json(_REGLAGE_LOCAL, _fusionner_reglages(_lire_json(_REGLAGE_LOCAL), vol))
+                import flex_gemm
+                flex_gemm.utils.load_autotune_cache(_REGLAGE_LOCAL)
+            print(f"[caches-gpu] reglage flex_gemm : {sum(len(n) for n in vol.values())} noyaux "
+                  f"repris du volume, Triton -> {os.environ.get('TRITON_CACHE_DIR', 'local')} "
+                  f"({time.time() - t0:.1f}s)", flush=True)
+        except Exception as e:
+            print(f"[caches-gpu] reglage flex_gemm non repris : {type(e).__name__}: {e}", flush=True)
 
     def _get_tile_pipe(self):
         """ControlNet-Tile pour l'affinage d'atlas — voir _charger_pipe_tile.
@@ -2761,6 +2857,7 @@ class MyFabmeshMesh:
                         _json.dump({"faces": int(_m.DERNIER_NB_FACES)}, f)
             except Exception as _e:
                 print(f"[mesh] meta faces non ecrite : {_e}", flush=True)
+            _sauver_reglages_gpu()          # meme commit : noyaux Triton + reglage flex_gemm
             mesh_output_volume.commit()
             print(f"[mesh] DONE job={job_id} dt={time.time() - t0:.1f}s "
                   f"bytes={len(glb_bytes)}", flush=True)
@@ -2819,6 +2916,11 @@ class MyFabmeshMesh:
             # levait NameError a CHAQUE appel du lot d'entrainement.
             smooth=bool(smooth),
         )
+        _sauver_reglages_gpu()              # les lots enrichissent aussi les caches GPU
+        try:
+            mesh_output_volume.commit()
+        except Exception as e:
+            print(f"[caches-gpu] commit ignore : {e}", flush=True)
         return glb_bytes
 
 
