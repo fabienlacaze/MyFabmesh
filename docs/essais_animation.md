@@ -65,7 +65,7 @@ Tenu à jour à chaque essai, pour ne pas tourner en rond. Détail des mesures :
 | UniMoGen (Autodesk) | squelette quelconque (style, trajectoire) | non publié | non publié | — | veille |
 | SkelGen4D | texte → maillage animé + pseudo-squelette **inventé** | non publié | non publié | — | ne garde pas notre squelette |
 | Two2Four | mouvement humain → quadrupède | non publié | non publié | — | veille (quadrupèdes seulement) |
-| AnimaX | (voir plus haut) | toujours « Stay tuned! » au 28/09 | — | Apache-2.0 | veille |
+| AnimaX (détail, lu le 28/09) | maillage + **notre squelette** + texte → Wan 2.1 1,3B affiné produit 4 vues vidéo + cartes de pose de nos os → triangulation → IK sur notre rig | dépôt vide depuis juin 2025, 4 tickets « quand ? » sans réponse | — | code Apache annoncé ; données Mixamo (55 k), VRoid (58 k), Objaverse (48 k) : même doute que les poids UniMate | 81 images max, caméras fixes (grands déplacements difficiles), ~6 min par clip ; veille |
 
 ## Pièges techniques rencontrés
 
