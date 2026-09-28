@@ -672,6 +672,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // meme prix que le rig (RIG_COST du worker, absent de /api/pricing :
     // a changer avec lui).
     'pts-regenerer':       10,
+    // Articulations deplacees, sans IA : aucun calcul serveur, seulement le
+    // stockage du nouveau rig -> outil manuel (manual_tool, /api/upload-rig).
+    'pts-enregistrer-sans-ia': 1,
     // Bouton principal du rig : aucune pastille jusqu'au 2026-09-27.
     'ws-generate-rig-ai':  10,
     // Peau seule (squelette du rig garde tel quel) : RESKIN_COST du worker.
@@ -1189,6 +1192,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-trellis2-btn': 'retex_fast',
     'ws-generate-rig-ai':  'rig',
     'pts-regenerer':       'rig',
+    'pts-enregistrer-sans-ia': 'manual_tool',
     'ws-rig-reskin-btn':   'reskin',
     'ws-mesh-segment-btn': 'mesh_segment',
     'ws-mesh-stages3d-btn': 'construction3d',

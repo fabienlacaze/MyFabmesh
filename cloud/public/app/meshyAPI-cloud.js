@@ -1028,6 +1028,28 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       return { success: true, ok: true, path: filename, downloaded: true };
     },
+    // Rig corrige a la main (« Save moved joints ») : le GLB part BRUT, en
+    // flux, vers /api/upload-rig — un rig pese souvent 60-70 Mo, au-dela du
+    // plafond de 50 Mo de /api/upload-mesh (base64). Facture 1 credit.
+    uploadRig: async ({ bytes, filename, projectName: _projetDemande, tool } = {}) => {
+      try {
+        const q = new URLSearchParams({ filename: filename || 'rig.glb' });
+        const projet = _projetAuLancement(_projetDemande);
+        if (projet) q.set('projectName', projet);
+        if (tool) q.set('tool', tool);
+        const resp = await fetch('/api/upload-rig?' + q.toString(), {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'model/gltf-binary' },
+          body: bytes,
+        });
+        const r = await resp.json().catch(() => ({}));
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (!resp.ok || !r?.success) return { success: false, error: r?.error || `upload failed (HTTP ${resp.status})` };
+        return { success: true, path: r.path, url: r.url };
+      } catch (e) {
+        return { success: false, error: String(e?.message || e) };
+      }
+    },
     // Debit d'un outil manuel qui n'enregistre rien (Color Pick).
     chargeTool: async ({ tool, prix } = {}) => {
       try {

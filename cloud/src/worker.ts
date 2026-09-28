@@ -13170,6 +13170,78 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
   return json({ success: true, path: key, url: await signedR2Url(env, key, 'mesh') });
 }
 
+/** POST /api/upload-rig?filename=&projectName=&tool= — corps = le GLB BRUT.
+ *
+ *  POURQUOI UNE SECONDE ROUTE (2026-09-28). /api/upload-mesh recoit du base64
+ *  dans du JSON et le decode en memoire, plafonne a 50 Mo — or 82 des 106
+ *  rigs presents dans R2 pesaient plus (mediane 67,9 Mo, maximum 72,3 Mo) :
+ *  « Save moved joints » aurait echoue sur presque tous. Ici le fichier va
+ *  en FLUX de la requete vers R2, sans jamais etre charge en memoire (un
+ *  Worker a 128 Mo ; base64 + octets d'un rig de 70 Mo les depasseraient).
+ *  Limite : celle du corps de requete Cloudflare (100 Mo).
+ *  Facture manual_tool (1 credit) : aucun calcul serveur, seulement du
+ *  stockage — et rendu si l'ecriture echoue ou si le fichier n'est pas un GLB. */
+async function handleUploadRig(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
+  if (!req.body) return err(400, 'empty body');
+  const url = new URL(req.url);
+  const taille = Number(req.headers.get('content-length') || 0);
+  const MAX_RIG_BYTES = 95 * 1024 * 1024;
+  if (!(taille > 12)) return err(411, 'content-length required');
+  if (taille > MAX_RIG_BYTES) return err(413, 'rig too large (95 MB max)');
+  const outil = (url.searchParams.get('tool') || '').match(/^[a-z_]{2,24}$/) ? url.searchParams.get('tool') : null;
+  let nom = String(url.searchParams.get('filename') || 'rig').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 200)
+    .replace(/\.(glb|gltf)$/i, '') || 'rig';
+  // « _rigged_ » : c'est lui qui range le fichier parmi les rigs au rechargement
+  if (!/_rigged_/i.test(nom)) nom += '_rigged_manual';
+  const projet = String(url.searchParams.get('projectName') || '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+  const key = projet
+    ? `${user.id}/mesh-op/${projet}/${nom}_${Date.now()}.glb`
+    : `${user.id}/edited/${nom}_${Date.now()}.glb`;
+
+  // meme quota journalier que /api/upload-mesh
+  try {
+    const cntKey = `_meta/mesh_uploads_count/${user.id}/${new Date().toISOString().slice(0, 10)}.txt`;
+    const obj = await env.MESHES.get(cntKey);
+    const cur = obj ? parseInt(await obj.text(), 10) || 0 : 0;
+    if (cur >= 500) return err(429, 'daily mesh upload quota reached');
+    await env.MESHES.put(cntKey, String(cur + 1));
+  } catch {}
+
+  const t0 = Date.now();
+  let prix = 0;
+  if (outil) {
+    prix = await getPrice(env, 'manual_tool');
+    if (prix > 0 && (await spendCredits(env, user.id, prix)) == null) {
+      return err(402, `insufficient credits — this tool costs ${prix} credit${prix === 1 ? '' : 's'}`);
+    }
+  }
+  const rendre = async () => { if (prix > 0) await addCredits(env, user.id, prix); };
+  try {
+    const { readable, writable } = new FixedLengthStream(taille);
+    const copie = req.body.pipeTo(writable);
+    await env.MESHES.put(key, readable, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    await copie;
+    // En-tete verifie APRES coup (le flux n'est pas relu) : « glTF »
+    const tete = await env.MESHES.get(key, { range: { offset: 0, length: 4 } });
+    const o = tete ? new Uint8Array(await tete.arrayBuffer()) : new Uint8Array(0);
+    if (!(o.length === 4 && o[0] === 0x67 && o[1] === 0x6C && o[2] === 0x54 && o[3] === 0x46)) {
+      await env.MESHES.delete(key).catch(() => {});
+      await rendre();
+      return err(400, 'not a valid GLB (missing glTF magic)');
+    }
+  } catch (e) {
+    console.error('[upload-rig]', e instanceof Error ? e.message : String(e));
+    await env.MESHES.delete(key).catch(() => {});
+    await rendre();
+    return err(500, 'R2 upload failed');
+  }
+  if (outil) await logOperation(env, user.id, 'manual-tool', prix, t0, Date.now(), 'succeeded', { req, op_type: outil });
+  return json({ success: true, path: key, url: await signedR2Url(env, key, 'mesh') });
+}
+
 /** Flat per-rig cost. Refunded if the spawn fails OR rig-status surfaces an
  *  error so a transient Modal outage never burns the user's balance.
  *  10 credits depuis le 2026-09-26 (decision user) : le squelette complet
@@ -20387,6 +20459,7 @@ export default {
         if (pathname === '/api/upload-image'          && method === 'POST') return await handleUploadImage(req, env);
         if (pathname === '/api/tool-charge'           && method === 'POST') return await handleToolCharge(req, env);
         if (pathname === '/api/upload-mesh'           && method === 'POST') return await handleUploadMesh(req, env);
+        if (pathname === '/api/upload-rig'            && method === 'POST') return await handleUploadRig(req, env);
         if (pathname === '/api/auto-rig'              && method === 'POST') return await handleAutoRig(req, env);
         if (pathname === '/api/auto-rig-status'       && (method === 'GET' || method === 'POST')) return await handleAutoRigStatus(req, env);
         if (pathname === '/api/mesh-segment'          && method === 'POST') return await handleMeshSegment(req, env);

@@ -24263,6 +24263,9 @@ function _ptsSupprimer(id) {
  *  onglet ferme par megarde ne les perd pas. */
 function _ptsSauver(immediat) {
   clearTimeout(_pts.minuterie);
+  // Tout changement passe par ici : les boutons suivent (sans cet appel, le
+  // glisser d'un point laissait « Save moved joints » grise).
+  _ptsMajBoutons();
   const rig = _pts.rig;
   const inst = _ptsInstantane();
   const r5 = v => v.map(c => Math.round(c * 1e5) / 1e5);
@@ -24558,11 +24561,14 @@ async function _ptsEnregistrerSansIA() {
   const rig = p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
   if (!rig || !lmFsModel || !_pts.os.length) return;
   const titre = _i18nT('Save moved joints');
-  if (_pts.os.some((o, i) => o.parent !== _pts.osParentsOrigine[i])) {
+  // Supprimer un point ou changer ses liens change la structure du squelette :
+  // la peau devrait etre recalculee, ce que seule la regeneration IA sait faire.
+  if (_pts.os.length !== _pts.osOrigine.length
+      || _pts.os.some((o, i) => _ptsParentOrig(o) !== _pts.osParentsOrigine[o.orig ?? i])) {
     customError(_i18nT('You changed how the joints are linked: only "Re-generate rig with these points" can apply that.'), titre);
     return;
   }
-  if (!_pts.os.some((o, i) => !o.p.equals(_pts.osOrigine[i]))) {
+  if (!_ptsOsModifie()) {
     showToast(_i18nT('Drag a skeleton point first.'), 'info', 3500);
     return;
   }
@@ -24574,7 +24580,10 @@ async function _ptsEnregistrerSansIA() {
     const scene = gltf.scene;
     scene.updateMatrixWorld(true);
     const os = _ptsOsDuModele(scene);
-    if (os.length !== _pts.os.length) throw new Error('the skeleton changed since the editor opened');
+    if (os.length !== _pts.osOrigine.length) throw new Error('the skeleton changed since the editor opened');
+    // position voulue de chaque os du fichier (indice d'origine -> point rose)
+    const cibles = new Array(os.length).fill(null);
+    _pts.os.forEach((o, i) => { cibles[o.orig ?? i] = o.p; });
     const peaux = [];
     scene.traverse(c => { if (c.isSkinnedMesh && c.skeleton) peaux.push(c); });
     // produit os x liaison AVANT : c'est lui qui place chaque sommet
@@ -24583,8 +24592,9 @@ async function _ptsEnregistrerSansIA() {
     const profondeur = (b) => { let d = 0; for (let x = b.parent; x; x = x.parent) d++; return d; };
     os.map((_, i) => i).sort((a, c) => profondeur(os[a]) - profondeur(os[c])).forEach((i) => {
       const b = os[i];
+      if (!cibles[i]) return;
       b.parent.updateMatrixWorld(true);
-      b.position.copy(b.parent.worldToLocal(_pts.os[i].p.clone()));
+      b.position.copy(b.parent.worldToLocal(cibles[i].clone()));
       b.updateMatrixWorld(true);
     });
     scene.updateMatrixWorld(true);
@@ -24610,8 +24620,12 @@ async function _ptsEnregistrerSansIA() {
       filename: chemin.replace(/\\/g, '/').split('/').pop(), size: info?.size || bytes.length, mtime: Date.now() });
     p.selectedRigPath = chemin;
     completeJob(job.id, true);
-    _pts.osOrigine = _pts.os.map(o => o.p.clone());
+    // L'editeur suit la NOUVELLE version : ses articulations sont la reference,
+    // et les points a atteindre sont rattaches a ce fichier.
+    _pts.os.forEach((o, i) => { _pts.osOrigine[o.orig ?? i] = o.p.clone(); });
+    _pts.rig = chemin;
     _pts.osModifies = _ptsOsModifie();
+    _ptsSauver(true);
     _ptsMajBoutons();
     showToast(_i18nT('Rig saved with the moved joints') + ' ✓', 'success', 3000);
     try { populateWorkspace(state.currentProject); } catch (_) {}
