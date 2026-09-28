@@ -1083,14 +1083,22 @@
               <div class="stage-body stage-create-with-source">
                 <div class="stage-create-form">
                   <div class="form-row">
-                    <label>Animations <span style="color:var(--text-2); font-weight:normal; font-size:11px;">(pick an animation and a variant, then Add — the list becomes one version)</span></label>
-                    <div id="ws-anim-types" class="anim-types-picker" style="display:flex; flex-direction:column; gap:8px; padding:8px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px;">
-                      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-                        <select id="ws-anim-choix" title="Animation" style="flex:1 1 130px; min-width:0; padding:5px 6px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:13px;"></select>
-                        <select id="ws-anim-variante" title="Variant" style="flex:1 1 110px; min-width:0; padding:5px 6px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:13px;"></select>
-                        <button id="ws-anim-ajouter" type="button" class="ghost-btn" title="Add to the list" style="padding:5px 10px;">&#65291; Add</button>
+                    <label>Animations <span style="color:var(--text-2); font-weight:normal; font-size:11px;">(the preview plays your choice — add it to the list, the list becomes one version)</span></label>
+                    <div id="ws-anim-types" class="anim-types-picker" style="display:grid; grid-template-columns:150px minmax(0,1fr); gap:10px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px;">
+                      <div style="position:relative; width:150px; height:150px; border-radius:8px; overflow:hidden; background:#0e0e14; border:1px solid var(--border);">
+                        <canvas id="ws-anim-apercu" style="width:100%; height:100%; display:block;"></canvas>
+                        <div id="ws-anim-apercu-msg" style="position:absolute; inset:0; background:rgba(14,14,20,0.82); display:flex; align-items:center; justify-content:center; text-align:center; padding:10px; font-size:11px; line-height:1.35; color:var(--text-2); pointer-events:none;">Preview</div>
                       </div>
-                      <div id="ws-anim-liste" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+                      <div style="display:flex; flex-direction:column; gap:6px; min-width:0;">
+                        <select id="ws-anim-choix" title="Animation" style="padding:6px 8px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:13px;"></select>
+                        <select id="ws-anim-variante" title="Variant" style="padding:6px 8px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:13px;"></select>
+                        <div id="ws-anim-desc" style="font-size:12px; line-height:1.35; color:var(--text-2); min-height:32px;"></div>
+                        <button id="ws-anim-ajouter" type="button" class="ghost-btn" title="Add to the list" style="margin-top:auto; padding:7px 10px; border:1px solid var(--accent); color:var(--text); border-radius:6px; font-size:12px; font-weight:600;">&#65291; Add to the list</button>
+                      </div>
+                      <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--border); padding-top:8px;">
+                        <div id="ws-anim-liste-titre" style="font-size:11px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-2);">To generate</div>
+                        <div id="ws-anim-liste" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+                      </div>
                     </div>
                   </div>
                   <!-- Formulaire reduit a sa demande (2026-09-26) : les cases

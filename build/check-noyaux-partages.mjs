@@ -131,6 +131,7 @@ const FICHIERS = [
   { nom: 'squelette complet (pilote)', source: 'scripts/rig_complet.py', copie: 'modal_app/squelette/rig_complet.py' },
   // moteur de marche procedural (2026-09-28) : MEME fichier sur le bureau et le web
   { nom: 'moteur de marche procedural', source: 'src/renderer/lib/locomotion-procedurale.js', copie: 'cloud/public/app/lib/locomotion-procedurale.js' },
+  { nom: 'apercu des allures', source: 'src/renderer/lib/apercu-animation.js', copie: 'cloud/public/app/lib/apercu-animation.js' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));

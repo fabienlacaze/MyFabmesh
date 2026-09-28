@@ -16,6 +16,7 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
 import { animerGLB, VARIANTES } from './lib/locomotion-procedurale.js';
+import { creerApercu } from './lib/apercu-animation.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
 // tampon de clonage 3D, qui lance des centaines de raycasts par coup de
@@ -18165,16 +18166,25 @@ var _step4ClipsDuLot = [];                  // clips (fichiers) de la version af
 var _step4ProjetBoutons = null;
 var _animClipsCharges = [];                 // clips du GLB affiche
 var _alluresParFichierWeb = new Map();    // url d'un fichier locomotion -> noms de ses allures
-// Choix des animations (2026-09-28) : menu ANIMATION (avec icone) + menu VARIANTE + « + Add »
-// -> liste de ce qui sera genere (UNE version). Une allure procedurale a des variantes (styles :
-// VARIANTES du moteur) ; ajouter plusieurs fois une animation IA = plusieurs tirages.
+// Choix des animations (2026-09-28) : MINI-LECTEUR (l'allure choisie joue en boucle sur le rig) +
+// menu ANIMATION + menu VARIANTE + description + « Ajouter » -> liste « À générer » (UNE version).
+// Une allure procedurale a des variantes (styles : VARIANTES du moteur) ; ajouter plusieurs fois
+// une animation IA = plusieurs tirages.
 var TYPES_ANIM = [
   { v: 'idle', libelle: '😴 Idle' }, { v: 'walk', libelle: '🚶 Walk' }, { v: 'run', libelle: '🏃 Run' },
   { v: 'turn_left', libelle: '↰ Turn left' }, { v: 'turn_right', libelle: '↱ Turn right' },
   { v: 'attack', libelle: '⚔️ Attack' }, { v: 'death', libelle: '💀 Death' }, { v: 'fly', libelle: '✈️ Fly' },
 ];
 var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide' };
+var DESCRIPTIONS_ANIM = {
+  idle: 'Standing still, calm breathing.', idle__alert: 'On guard: head up, looks around.', idle__tired: 'Heavy breathing, head low.',
+  walk: 'Regular walk.', walk__slow: 'Slow, heavy steps.', walk__brisk: 'Quick, lively pace.', walk__sneak: 'Low body, slow and careful steps.', walk__proud: 'Head high, high steps.',
+  run: 'Regular run.', run__jog: 'Easy jog, short strides.', run__sprint: 'Full speed, long strides.',
+  turn_left: 'Walks while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
+  turn_right: 'Walks while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
+};
 var _animSelection = [{ type: 'idle', variante: 'normal' }];
+var _apercuAnim = null;
 /** Nom de clip du moteur : « walk » ou « walk__sneak » ; pour l'IA : le type seul. */
 function _nomClipSelection(e) {
   return ALLURES_PROCEDURALES.includes(e.type) && e.variante && e.variante !== 'normal' ? `${e.type}__${e.variante}` : e.type;
@@ -18183,6 +18193,47 @@ function _nomClipSelection(e) {
 function _libelleClip(nom) {
   const [a, v] = String(nom).split('__');
   return _i18nT(NOMS_ALLURES[a] || a) + (v && v !== 'normal' ? ' · ' + _i18nT(NOMS_VARIANTES[v] || v) : '');
+}
+/** Rig du projet pour l'aperçu : { cle, lire() -> ArrayBuffer } ou null. */
+function _rigPourApercu() {
+  const p = state.currentProject;
+  if (!p || !p.rigs || !p.rigs.length) return null;
+  const sel = p.selectedRigUrl || p.selectedRigPath || '';
+  const rig = p.rigs.find((r) => r.url === sel || r.path === sel) || p.rigs[0];
+  if (!rig?.url) return null;
+  return { cle: String(rig.url).split('?')[0], lire: () => API.readMeshFile(rig.url) };
+}
+async function _majApercuAnim() {
+  const t = document.getElementById('ws-anim-choix')?.value;
+  const v = document.getElementById('ws-anim-variante')?.value || 'normal';
+  const msg = document.getElementById('ws-anim-apercu-msg');
+  const desc = document.getElementById('ws-anim-desc');
+  const canvas = document.getElementById('ws-anim-apercu');
+  if (!t || !canvas) return;
+  const procedural = ALLURES_PROCEDURALES.includes(t);
+  const nom = procedural ? _nomClipSelection({ type: t, variante: v === '*' ? 'normal' : v }) : t;
+  if (desc) {
+    desc.textContent = !procedural ? _i18nT('AI animation (5 credits), work in progress.')
+      : v === '*' ? _i18nT('All the variants of this animation.') : _i18nT(DESCRIPTIONS_ANIM[nom] || '');
+  }
+  const montrer = (texte) => { if (msg) { msg.textContent = texte || ''; msg.style.display = texte ? '' : 'none'; } };
+  if (!procedural) { _apercuAnim?.arreter(); montrer(_i18nT('AI animation: no preview, it is generated when you click Generate.')); return; }
+  const rig = _rigPourApercu();
+  if (!rig) { montrer(_i18nT('Choose a rig in step 3 to see the preview.')); return; }
+  try {
+    if (!_apercuAnim) _apercuAnim = creerApercu(canvas);
+    if (!_apercuAnim.pret() || _apercuAnim.cleChargee() !== rig.cle) montrer(_i18nT('Loading preview…'));
+    const ok = await _apercuAnim.chargerRig(rig.cle, rig.lire);
+    if (!ok) { montrer(_i18nT('Preview unavailable.')); return; }
+    // la selection a pu changer pendant le chargement : on rejoue la courante
+    const t2 = document.getElementById('ws-anim-choix')?.value, v2 = document.getElementById('ws-anim-variante')?.value || 'normal';
+    if (!ALLURES_PROCEDURALES.includes(t2)) return;
+    _apercuAnim.jouer(_nomClipSelection({ type: t2, variante: v2 === '*' ? 'normal' : v2 }));
+    montrer('');
+  } catch (e) {
+    console.warn('[apercu-anim]', e);
+    montrer(_i18nT('Preview unavailable.'));
+  }
 }
 function _majMenuVariantes() {
   const t = document.getElementById('ws-anim-choix')?.value;
@@ -18194,17 +18245,31 @@ function _majMenuVariantes() {
       + `<option value="*">${escapeHtml(_i18nT('All variants'))}</option>`
     : `<option value="normal">${escapeHtml(_i18nT('Standard (AI)'))}</option>`;
   sel.disabled = !vs;
+  _majApercuAnim();
 }
 function _rendreSelectionAnim() {
   const box = document.getElementById('ws-anim-liste');
   if (!box) return;
+  const titre = document.getElementById('ws-anim-liste-titre');
+  if (titre) titre.textContent = `${_i18nT('To generate')} (${_animSelection.length})`;
   const icone = (t) => (TYPES_ANIM.find((x) => x.v === t)?.libelle || '🎬').split(' ')[0];
   box.innerHTML = _animSelection.length
-    ? _animSelection.map((e, i) => `<span class="anim-chip" style="display:inline-flex; align-items:center; gap:4px; padding:3px 4px 3px 8px; border:1px solid var(--border); border-radius:12px; background:var(--bg-1, rgba(255,255,255,0.04)); font-size:12px;">${icone(e.type)} ${escapeHtml(_libelleClip(_nomClipSelection(e)))}<button type="button" data-i="${i}" title="${escapeHtml(_i18nT('Remove'))}" style="border:none; background:transparent; color:var(--text-2); cursor:pointer; font-size:13px; padding:0 4px;">&#10005;</button></span>`).join('')
+    ? _animSelection.map((e, i) => `<span class="anim-chip" data-i="${i}" title="${escapeHtml(_i18nT('Click to preview'))}" style="display:inline-flex; align-items:center; gap:5px; padding:4px 4px 4px 9px; border:1px solid var(--border); border-radius:14px; background:rgba(255,255,255,0.04); font-size:12px; cursor:pointer;">${icone(e.type)} ${escapeHtml(_libelleClip(_nomClipSelection(e)))}<button type="button" data-i="${i}" title="${escapeHtml(_i18nT('Remove'))}" style="border:none; background:transparent; color:var(--text-2); cursor:pointer; font-size:13px; padding:0 5px;">&#10005;</button></span>`).join('')
     : `<span style="color:var(--text-2); font-size:12px;">${escapeHtml(_i18nT('Nothing selected: choose an animation and a variant, then click Add.'))}</span>`;
-  box.querySelectorAll('button[data-i]').forEach((b) => b.addEventListener('click', () => {
+  box.querySelectorAll('button[data-i]').forEach((b) => b.addEventListener('click', (ev) => {
+    ev.stopPropagation();
     _animSelection.splice(parseInt(b.dataset.i, 10), 1);
     _rendreSelectionAnim();
+  }));
+  // clic sur une etiquette : les menus reprennent ce choix et l'apercu le joue
+  box.querySelectorAll('.anim-chip').forEach((c) => c.addEventListener('click', () => {
+    const e = _animSelection[parseInt(c.dataset.i, 10)];
+    const choix = document.getElementById('ws-anim-choix');
+    if (!e || !choix) return;
+    choix.value = e.type;
+    _majMenuVariantes();
+    const sel = document.getElementById('ws-anim-variante');
+    if (sel && !sel.disabled) { sel.value = e.variante || 'normal'; _majApercuAnim(); }
   }));
 }
 (function _initSelecteurAnim() {
@@ -18213,6 +18278,7 @@ function _rendreSelectionAnim() {
   choix.innerHTML = TYPES_ANIM.map((x) => `<option value="${x.v}">${escapeHtml(_i18nT(x.libelle))}</option>`).join('');
   choix.value = 'walk';
   choix.addEventListener('change', _majMenuVariantes);
+  document.getElementById('ws-anim-variante')?.addEventListener('change', _majApercuAnim);
   _majMenuVariantes();
   document.getElementById('ws-anim-ajouter')?.addEventListener('click', () => {
     const t = choix.value, v = document.getElementById('ws-anim-variante')?.value || 'normal';
@@ -18225,6 +18291,12 @@ function _rendreSelectionAnim() {
     _rendreSelectionAnim();
   });
   _rendreSelectionAnim();
+  // l'apercu se (re)charge quand le selecteur devient visible (carte ouverte, rig choisi)
+  const canvas = document.getElementById('ws-anim-apercu');
+  if (canvas && typeof IntersectionObserver !== 'undefined') {
+    new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) _majApercuAnim(); }).observe(canvas);
+  }
+  document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => setTimeout(_majApercuAnim, 600));
 })();
 // Change de clip (bouton d'allure), depuis le debut, sans recharger le fichier.
 function _choisirClipAnim(clip) {

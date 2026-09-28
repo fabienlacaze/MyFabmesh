@@ -39,6 +39,7 @@ const LIVRES = [
   'src/renderer/canvas-utils.js',
   'src/renderer/lib/Viewer3D.js',
   'src/renderer/lib/locomotion-procedurale.js',
+  'src/renderer/lib/apercu-animation.js',
   'src/main/main.js',
   'src/main/preload.js',
   'src/main/cloud_fallback.js',
@@ -49,6 +50,7 @@ const LIVRES = [
   'cloud/public/app/canvas-utils.js',
   'cloud/public/app/lib/Viewer3D.js',
   'cloud/public/app/lib/locomotion-procedurale.js',
+  'cloud/public/app/lib/apercu-animation.js',
 ];
 
 /** Les pages HTML embarquent des <script> EN LIGNE. Ils ne sont dans aucun
