@@ -645,6 +645,22 @@ async function _spendRefusalMessage(env: Env, userId?: string): Promise<string> 
  *
  *  Desormais : pas de `MODAL_RIG_URL`, pas de rig. Une panne franche vaut
  *  mieux qu'une infraction discrete. */
+/** Reveille le routeur du rig AVANT /rig-start (2026-09-28). Apres un deploiement, son conteneur
+ *  (image SkinTokens, lourde) met plus de 30 s a demarrer : /rig-start echouait sur « The operation
+ *  was aborted due to timeout » a chaque essai (constate par le user). /healthz ne fait RIEN, on peut
+ *  donc le relancer sans risque — contrairement a /rig-start : un essai parti en retard lancerait
+ *  quand meme un calcul GPU, facture deux fois. */
+async function _reveillerRouteurRig(baseUrl: string): Promise<boolean> {
+  for (let essai = 0; essai < 3; essai++) {
+    try {
+      const r = await fetch(`${baseUrl}/healthz`, { signal: AbortSignal.timeout(60_000) });
+      if (r.ok) return true;
+      if (r.status !== 524 && r.status !== 502 && r.status !== 503) return false;
+    } catch { /* conteneur encore froid : on insiste */ }
+  }
+  return false;
+}
+
 function _rigBaseUrl(env: Env): string | undefined {
   return env.MODAL_RIG_URL;
 }
@@ -13774,6 +13790,9 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
   let jobId: string;
   try {
     const t0 = Date.now();
+    if (!(await _reveillerRouteurRig(baseUrl))) {
+      throw new Error('rig service is starting up and did not answer in time — please retry in a minute');
+    }
     const r = await fetch(startUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
