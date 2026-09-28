@@ -518,3 +518,33 @@ si une case est cochée, décochée ou masquée :
   L'étiquette MIT du dépôt tiers ne couvre pas ces données. Le bureau n'est
   volontairement PAS porté : livrer les poids dans l'appli du Store serait la
   vraie exposition.
+
+## 17. Piloter l'appli de BUREAU depuis la session (Control API)
+
+L'appli de bureau lancée en développement écoute sur `127.0.0.1:7331`
+(`src/main/control_api.js`, jeton réécrit à chaque démarrage dans
+`.test_api_token`). Elle permet d'exécuter **100 % des fonctions** depuis une
+session : clic sur n'importe quel contrôle (même dans une carte repliée),
+saisie, lecture des modales, **souris et clavier réels** (peindre un masque,
+tirer un gizmo, tourner la caméra), réponses aux **dialogues natifs** (fichier
+à importer, chemin d'export), captures d'un élément, et les 176 fonctions
+`meshyAPI` par `POST /ipc`.
+
+```bash
+node build/fab.mjs etat                      # projet ouvert, travaux, modales
+node build/fab.mjs catalogue <mot>           # contrôles visibles (id ou @ref, libellé, zone)
+node build/fab.mjs clic <id | @ref | texte:Apply>
+node build/fab.mjs remplir <id> <valeur>
+node build/fab.mjs attendre '{"jobsDone":true,"timeout":900000}'
+node build/fab.mjs capture C:/tmp/vue.png <id-du-canvas>
+```
+
+- **Listing complet** (routes, fonctions IPC, contrôles par fenêtre, recettes) :
+  `docs/pilotage_bureau.md`, **généré** par
+  `node build/lister-commandes-bureau.mjs` — le relancer (appli ouverte) après
+  tout ajout d'outil ; ne jamais l'éditer à la main.
+- Préférer `/ui/*` à `/ipc` pour lancer un outil : le clic passe par la file
+  d'attente, les tuiles de travaux et l'enregistrement dans le projet.
+- Un import / export ouvre un dialogue Windows : `POST /dialog/next` AVANT le
+  clic, sinon il attend un humain.
+- Sous Git Bash, `fab.mjs` défait la conversion des chemins (`/ui/...`).

@@ -23,7 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, dialog } = require('electron');
 
 const PORT = 7331;
 const HOST = '127.0.0.1';
@@ -161,6 +161,113 @@ function _installIpcHandlers() {
 }
 
 // Read JSON body from an HTTP request (safe, capped).
+// ============================================================
+// PILOTAGE COMPLET (2026-09-28) — souris / clavier REELS, dialogues natifs.
+// Une session (Claude Code, script) doit pouvoir faire TOUT ce qu'un
+// utilisateur fait : peindre un masque, tirer un gizmo, tourner la camera,
+// choisir un fichier a importer, un chemin d'export. Listing complet et
+// exemples : docs/pilotage_bureau.md (genere par build/lister-commandes-bureau.mjs).
+// ============================================================
+const _pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Reponses en file d'attente pour les PROCHAINES boites de dialogue natives :
+// sans elles, un import ou un export attend un clic humain dans une fenetre
+// Windows qu'aucune commande ne peut atteindre.
+const _dialogues = { open: [], save: [], message: [], vus: [] };
+function _installerDialogues() {
+  if (!dialog || dialog.__fabPilote) return;
+  dialog.__fabPilote = true;
+  const noter = (type, a) => {
+    const o = a.find((x) => x && typeof x === 'object' && !x.webContents && (x.title || x.filters || x.defaultPath || x.message || x.properties)) || {};
+    _dialogues.vus.push({ ts: Date.now(), type, titre: o.title || o.message || null, defaut: o.defaultPath || null,
+      filtres: (o.filters || []).map((f) => f.name + ' (' + (f.extensions || []).join(',') + ')'),
+      reponse: null });
+    while (_dialogues.vus.length > 30) _dialogues.vus.shift();
+    return _dialogues.vus[_dialogues.vus.length - 1];
+  };
+  const origOpen = dialog.showOpenDialog.bind(dialog);
+  const origSave = dialog.showSaveDialog.bind(dialog);
+  const origMsg = dialog.showMessageBox.bind(dialog);
+  dialog.showOpenDialog = async (...a) => {
+    const v = noter('open', a);
+    if (_dialogues.open.length) { const fp = _dialogues.open.shift(); v.reponse = fp; return { canceled: !fp.length, filePaths: fp }; }
+    v.reponse = 'utilisateur'; return origOpen(...a);
+  };
+  dialog.showSaveDialog = async (...a) => {
+    const v = noter('save', a);
+    if (_dialogues.save.length) { const fp = _dialogues.save.shift(); v.reponse = fp; return { canceled: !fp, filePath: fp || undefined }; }
+    v.reponse = 'utilisateur'; return origSave(...a);
+  };
+  dialog.showMessageBox = async (...a) => {
+    const v = noter('message', a);
+    if (_dialogues.message.length) { const r = _dialogues.message.shift(); v.reponse = r; return { response: r, checkboxChecked: false }; }
+    v.reponse = 'utilisateur'; return origMsg(...a);
+  };
+}
+
+/** Position ecran (DIP de la page) d'un point d'un element : fractions 0..1 de sa boite, ou pixels. */
+async function _pointsDe(mainWindow, body) {
+  const r = await rendererCall(mainWindow, 'ui-rect', { target: body.target, scroll: body.scroll }, 15000);
+  if (!r.ok) throw new Error(r.error);
+  const { x, y, w, h } = r.data;
+  const z = mainWindow.webContents.getZoomFactor ? mainWindow.webContents.getZoomFactor() : 1;
+  const chemin = Array.isArray(body.path) && body.path.length ? body.path : [[0.5, 0.5]];
+  return { rect: r.data, pts: chemin.map(([a, b]) => (body.pixels ? [x + a, y + b] : [x + a * w, y + b * h]))
+    .map(([a, b]) => [Math.round(a * z), Math.round(b * z)]) };
+}
+
+/** Souris REELLE (evenements d'entree Chromium) : clic, double-clic, glisser le long d'un chemin. */
+async function _souris(mainWindow, body) {
+  const { pts, rect } = await _pointsDe(mainWindow, body);
+  const wc = mainWindow.webContents;
+  const bouton = ['left', 'right', 'middle'].includes(body.button) ? body.button : 'left';
+  const mods = Array.isArray(body.modifiers) ? body.modifiers : [];
+  const enfonce = mods.concat([bouton + 'ButtonDown']);
+  const ev = (type, [px, py], m, extra) => wc.sendInputEvent(Object.assign({ type, x: px, y: py, button: bouton, modifiers: m }, extra || {}));
+  const pas = Math.max(1, Math.min(Number(body.steps) || 8, 200));
+  const delai = Math.max(0, Math.min(Number(body.delay) || 12, 500));
+  ev('mouseMove', pts[0], mods); await _pause(30);
+  if (body.move) {                                            // survol seul, sans bouton
+    for (let k = 1; k < pts.length; k++) { ev('mouseMove', pts[k], mods); await _pause(delai); }
+    return { survol: pts.length, rect };
+  }
+  const clics = body.double ? 2 : 1;
+  for (let c = 1; c <= clics; c++) {
+    ev('mouseDown', pts[0], mods, { clickCount: c }); await _pause(30);
+    for (let k = 1; k < pts.length; k++) {
+      for (let st = 1; st <= pas; st++) {
+        const t = st / pas, a = pts[k - 1], b = pts[k];
+        ev('mouseMove', [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t)], enfonce);
+        await _pause(delai);
+      }
+    }
+    if (body.hold) await _pause(Math.min(Number(body.hold) || 0, 5000));
+    ev('mouseUp', pts[pts.length - 1], mods, { clickCount: c }); await _pause(30);
+  }
+  return { points: pts.length, bouton, double: !!body.double, rect };
+}
+
+// Nom de touche -> keyCode Electron (accelerateur) : 'Enter', 'Escape', 'Delete', 'z', 'F5'...
+async function _clavier(mainWindow, body) {
+  const wc = mainWindow.webContents;
+  const mods = Array.isArray(body.modifiers) ? body.modifiers : [];
+  if (typeof body.text === 'string') {                       // saisie de texte caractere par caractere
+    for (const ch of body.text) { wc.sendInputEvent({ type: 'char', keyCode: ch }); await _pause(8); }
+    return { tape: body.text.length };
+  }
+  const touches = Array.isArray(body.keys) ? body.keys : [body.key];
+  for (const k of touches) {
+    if (!k) continue;
+    wc.sendInputEvent({ type: 'keyDown', keyCode: String(k), modifiers: mods });
+    if (String(k).length === 1 && !mods.some((m) => /control|ctrl|meta|command|alt/i.test(m))) wc.sendInputEvent({ type: 'char', keyCode: String(k), modifiers: mods });
+    await _pause(20);
+    wc.sendInputEvent({ type: 'keyUp', keyCode: String(k), modifiers: mods });
+    await _pause(20);
+  }
+  return { touches: touches.length, modifiers: mods };
+}
+
+// Read JSON body from an HTTP request (safe, capped).
 function readBody(req) {
   return new Promise((resolve) => {
     const chunks = [];
@@ -236,6 +343,7 @@ function startControlApi(mainWindow, opts = {}) {
 
   _initAuthToken();
   _installIpcHandlers();
+  _installerDialogues();
 
   const rootDir = path.join(__dirname, '..', '..');
   const LOG_FILE      = path.join(rootDir, 'logs', 'fabmesh.log');
@@ -249,6 +357,7 @@ function startControlApi(mainWindow, opts = {}) {
         endpoints: [
           'GET  /',
           'GET  /state',
+          'GET  /status                     (vivant ? + dernieres requetes recues)',
           'GET  /screenshot                 (full Electron window PNG)',
           'GET  /screenshot-file?path=      (stream any PNG/JPG inside project root)',
           'GET  /thumbs?project=&kind=      (list image|mesh versions + paths)',
@@ -263,7 +372,20 @@ function startControlApi(mainWindow, opts = {}) {
           'GET  /ipc/methods                   (list every window.meshyAPI.* method)',
           'POST /ipc                {method, args?: [...] | arg?: ...}  generic IPC dispatch',
           'POST /click              {selector}',
-          'POST /eval               {code}',
+          'POST /eval               {code}  (JS dans la page ; window.state, window.meshyAPI)',
+          'GET  /ui/catalog?q=&zone=&all=1&limit=   catalogue des controles (ref, label, zone, valeur, options)',
+          'POST /ui/click           {target, wait?}  target = id | #id | @ref | selecteur | {text, within?} ; deplie la carte',
+          'POST /ui/fill            {fields: {cible: valeur, ...}}  champs, cases, listes (valeur ou libelle)',
+          'GET  /ui/modal                    modales ouvertes : titre, texte, champs, boutons',
+          'POST /ui/wait            {target?, gone?, enabled?, modal?, noModal?, toast?, since?, text?, jobsDone?, timeout?}',
+          'GET  /ui/toasts?since=            notifications affichees (type, texte)',
+          'POST /ui/mouse           {target, path?: [[fx,fy],...], pixels?, button?, double?, move?, modifiers?, steps?, delay?, hold?}',
+          'POST /ui/wheel           {target, deltaY, fx?, fy?}  molette (zoom des vues 3D)',
+          'POST /ui/key             {key | keys: [...] | text, modifiers?: [control, shift, alt]}',
+          'GET  /ui/shot?target=&file=       capture PNG d un element (ou de la fenetre) vers un fichier',
+          'POST /dialog/next        {open?: [chemins], save?: chemin, message?: indexBouton}  reponses aux prochains dialogues natifs',
+          'GET  /dialog/state                file d attente + derniers dialogues ouverts (et qui y a repondu)',
+          'POST /dialog/clear',
           'POST /set                {selector, value}',
           'POST /select-project     {name}',
           'POST /generate-image     {prompt, engine, count, steps}',
@@ -656,6 +778,109 @@ function startControlApi(mainWindow, opts = {}) {
         );
         sendOk(res, result && result.data);
       } catch (e) { sendErr(res, e); }
+    },
+
+    // ---------------- PILOTAGE COMPLET (2026-09-28) ----------------
+    'GET /ui/catalog': async (req, res, url) => {
+      const q = Object.fromEntries(url.searchParams.entries());
+      const r = await rendererCall(mainWindow, 'ui-catalog', q, 30000);
+      if (!r.ok) return sendErr(res, r.error);
+      sendOk(res, r.data);
+    },
+    'POST /ui/click': async (req, res) => {
+      const body = await readBody(req);
+      if (body.target === undefined) return sendErr(res, 'missing target', 400);
+      const r = await rendererCall(mainWindow, 'ui-click', body, 30000);
+      if (!r.ok) return sendErr(res, r.error);
+      sendOk(res, r.data);
+    },
+    'POST /ui/fill': async (req, res) => {
+      const body = await readBody(req);
+      if (!body.fields || typeof body.fields !== 'object') return sendErr(res, 'missing fields {cible: valeur}', 400);
+      const r = await rendererCall(mainWindow, 'ui-fill', body, 30000);
+      if (!r.ok) return sendErr(res, r.error);
+      sendOk(res, r.data);
+    },
+    'GET /ui/modal': async (req, res) => {
+      const r = await rendererCall(mainWindow, 'ui-modal', {}, 15000);
+      if (!r.ok) return sendErr(res, r.error);
+      sendOk(res, r.data);
+    },
+    'POST /ui/wait': async (req, res) => {
+      const body = await readBody(req);
+      const t = Math.min(Number(body.timeout) || 30000, 600000);
+      const r = await rendererCall(mainWindow, 'ui-wait', body, t + 5000);
+      if (!r.ok) return sendErr(res, r.error);
+      sendOk(res, r.data);
+    },
+    'GET /ui/toasts': async (req, res, url) => {
+      const r = await rendererCall(mainWindow, 'ui-toasts', { since: url.searchParams.get('since') }, 10000);
+      if (!r.ok) return sendErr(res, r.error);
+      sendOk(res, r.data);
+    },
+    'POST /ui/mouse': async (req, res) => {
+      const body = await readBody(req);
+      if (body.target === undefined) return sendErr(res, 'missing target', 400);
+      try { sendOk(res, await _souris(mainWindow, body)); } catch (e) { sendErr(res, e); }
+    },
+    'POST /ui/wheel': async (req, res) => {
+      const body = await readBody(req);
+      if (body.target === undefined) return sendErr(res, 'missing target', 400);
+      try {
+        const { pts } = await _pointsDe(mainWindow, { target: body.target, path: [[body.fx ?? 0.5, body.fy ?? 0.5]] });
+        const n = Math.max(1, Math.min(Math.abs(Number(body.deltaY) || 0) / 120 || 1, 40));
+        for (let i = 0; i < n; i++) {
+          mainWindow.webContents.sendInputEvent({ type: 'mouseWheel', x: pts[0][0], y: pts[0][1],
+            deltaX: 0, deltaY: Math.sign(Number(body.deltaY) || 1) * 120, canScroll: true });
+          await _pause(20);
+        }
+        sendOk(res, { crans: n });
+      } catch (e) { sendErr(res, e); }
+    },
+    'POST /ui/key': async (req, res) => {
+      const body = await readBody(req);
+      if (body.target !== undefined) {                      // focus d'abord (clic reel au centre)
+        try { await _souris(mainWindow, { target: body.target }); } catch (e) { return sendErr(res, e); }
+      }
+      try { sendOk(res, await _clavier(mainWindow, body)); } catch (e) { sendErr(res, e); }
+    },
+    'GET /ui/shot': async (req, res, url) => {
+      try {
+        const cible = url.searchParams.get('target');
+        const fichier = url.searchParams.get('file');
+        let rect;
+        if (cible) {
+          const { rect: r } = await _pointsDe(mainWindow, { target: cible });
+          const z = mainWindow.webContents.getZoomFactor ? mainWindow.webContents.getZoomFactor() : 1;
+          rect = { x: Math.max(0, Math.floor(r.x * z)), y: Math.max(0, Math.floor(r.y * z)), width: Math.max(1, Math.ceil(r.w * z)), height: Math.max(1, Math.ceil(r.h * z)) };
+        }
+        const img = await mainWindow.webContents.capturePage(rect);
+        const png = img.toPNG();
+        if (fichier) {
+          if (!/\.png$/i.test(fichier) || !path.isAbsolute(fichier)) return sendErr(res, 'file doit etre un chemin ABSOLU en .png', 400);
+          fs.mkdirSync(path.dirname(fichier), { recursive: true });
+          fs.writeFileSync(fichier, png);
+          const t = img.getSize();
+          return sendOk(res, { file: fichier, w: t.width, h: t.height });
+        }
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': png.length });
+        res.end(png);
+      } catch (e) { sendErr(res, e); }
+    },
+    'POST /dialog/next': async (req, res) => {
+      const body = await readBody(req);
+      if (Array.isArray(body.open)) _dialogues.open.push(body.open.map(String));
+      else if (typeof body.open === 'string') _dialogues.open.push([body.open]);
+      if (body.save !== undefined) _dialogues.save.push(body.save ? String(body.save) : '');
+      if (body.message !== undefined) _dialogues.message.push(Number(body.message) || 0);
+      sendOk(res, { enAttente: { open: _dialogues.open.length, save: _dialogues.save.length, message: _dialogues.message.length } });
+    },
+    'GET /dialog/state': async (req, res) => {
+      sendOk(res, { enAttente: { open: _dialogues.open, save: _dialogues.save, message: _dialogues.message }, derniers: _dialogues.vus.slice(-10) });
+    },
+    'POST /dialog/clear': async (req, res) => {
+      _dialogues.open.length = 0; _dialogues.save.length = 0; _dialogues.message.length = 0;
+      sendOk(res, { vide: true });
     },
 
     'POST /set': async (req, res) => {
