@@ -2546,6 +2546,31 @@ bindStepCardCollapse();
   const ctx = canvas && canvas.getContext('2d');
   if (!modal || !ctx) return;
   let painting = false, hasPaint = false, _rrxFrontPath = null;
+  // Deux modes pour une meme fenetre (2026-09-28) : « texture » (Re-texture a
+  // region, historique) et « forme » (Reshape a region = auto inpaint 3D : la
+  // zone est reconstruite en 3D d'apres le prompt, puis fondue dans le modele).
+  let mode = 'texture';
+  const _rrxTextes = {
+    titre: modal.querySelector('h3')?.innerHTML,
+    aide: modal.querySelector('p')?.textContent,
+    libelle: $('rrx-prompt')?.closest('.form-row')?.querySelector('label')?.textContent,
+    exemple: $('rrx-prompt')?.placeholder,
+  };
+  function _rrxMode(m) {
+    mode = m;
+    const forme = m === 'shape';
+    const h3 = modal.querySelector('h3');
+    if (h3) h3.innerHTML = forme ? '&#129516; ' + _i18nT('Reshape a region') : _rrxTextes.titre;
+    const aide = modal.querySelector('p');
+    if (aide) aide.textContent = forme
+      ? _i18nT('Name the part (the AI finds it, or paint it), then describe what should replace it. The AI rebuilds that part in 3D and blends it into the model.')
+      : _rrxTextes.aide;
+    const libelle = $('rrx-prompt')?.closest('.form-row')?.querySelector('label');
+    if (libelle) libelle.textContent = forme ? _i18nT('What should replace it?') : _rrxTextes.libelle;
+    if ($('rrx-prompt')) $('rrx-prompt').placeholder = forme ? _i18nT('e.g. a crystal skull with two horns') : _rrxTextes.exemple;
+    const force = $('rrx-strength')?.closest('label');
+    if (force) force.style.display = forme ? 'none' : '';
+  }
 
   function _curMeshPath() {
     const p = state.currentProject;
@@ -2574,7 +2599,8 @@ bindStepCardCollapse();
   $('rrx-cancel')?.addEventListener('click', close);
   $('rrx-close-x')?.addEventListener('click', close);
 
-  async function open() {
+  async function open(m) {
+    _rrxMode(m === 'shape' ? 'shape' : 'texture');
     const meshPath = _curMeshPath();
     if (!meshPath) { showToast('Pick a mesh first.', 'error'); return; }
     ctx.clearRect(0, 0, canvas.width, canvas.height); hasPaint = false; _rrxFrontPath = null;
@@ -2597,6 +2623,12 @@ bindStepCardCollapse();
     if (!mp) { showToast('Pick a mesh first.', 'error'); return; }
     if (typeof openPaintEmissive === 'function') openPaintEmissive({ maskMode: true, meshPath: mp });
     else open();
+  });
+  // Reshape a region : fenetre a plat (vue de face figee) — la correspondance
+  // pixels <-> maillage du rendu orthographique est ce qui permet la coupe.
+  $('ws-mesh-reshape-btn')?.addEventListener('click', () => {
+    if (!_curMeshPath()) { showToast('Pick a mesh first.', 'error'); return; }
+    open('shape');
   });
   // 3D clone-stamp: clone a texture region onto another, directly on the mesh.
   $('ws-mesh-clone3d-btn')?.addEventListener('click', () => {
@@ -2668,6 +2700,31 @@ bindStepCardCollapse();
     }
     mctx.putImageData(out, 0, 0);
     const maskDataUrl = mc.toDataURL('image/png');
+    if (mode === 'shape') {
+      const p = state.currentProject;
+      const frontPath = _rrxFrontPath;
+      close();
+      const job = (typeof pushJob === 'function')
+        ? pushJob(`Reshape region: ${p?.name || ''}`, null,
+            { 'Source mesh': _nomLisible(meshPath), Prompt: rawPrompt }, 300000, { projectName: p?.name })
+        : null;
+      try {
+        const r = await API.reshapeRegion?.({ meshPath, frontPath, maskDataUrl, prompt });
+        if (r && r.ok && r.path) {
+          if (job) completeJob(job.id, true);
+          showToast(_i18nT('Region rebuilt: new 3D version added.'), 'success');
+          try { await reloadCurrentProject(); } catch (_) {}
+        } else {
+          const msg = (r && r.error) || 'unknown';
+          if (job) completeJob(job.id, false, msg);
+          reportPipelineError(msg, 'Reshape a region failed');
+        }
+      } catch (e) {
+        if (job) completeJob(job.id, false, String(e?.message || e));
+        reportPipelineError(String(e?.message || e), 'Reshape a region failed');
+      }
+      return;
+    }
     const strength = parseFloat($('rrx-strength').value) || 0.8;
     $('rrx-loading').textContent = 'Re-texturing… (~30-60s)';
     $('rrx-loading').style.display = 'flex';
@@ -17975,7 +18032,7 @@ function _jobStepIndex(j) {
   // image. Sans cette regle, le motif « construction stages » ci-dessous les
   // rangeait en 3D (audit 1.0.36) ; « 3D construction stages » y reste.
   if (/^(construction stages|étapes de construction)/i.test(n)) return 1;
-  if (/(retex|re-?texture|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth|refine mesh|explosion 3d|explode|\bresize\b|construction stages|export to unreal|^export )/i.test(n)) return 2;
+  if (/(retex|re-?texture|reshape|texture variation|enhance texture|détail\+\+|detail\+\+|detail synth|refine mesh|explosion 3d|explode|\bresize\b|construction stages|export to unreal|^export )/i.test(n)) return 2;
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated
   // item" button must appear and jump to the mesh step.
@@ -26171,6 +26228,7 @@ const _CLOUD_HIDDEN_MESH_TOOLS = [
   'ws-mesh-enhance-tex-btn',   // Real-ESRGAN local, pas d'endpoint worker
   'ws-mesh-detail-synth-btn',  // detail_synth.py SDXL local
   'ws-mesh-region-retex-btn',  // SDXL inpaint atlas local
+  'ws-mesh-reshape-btn',       // auto inpaint 3D : SDXL + moteur 3D locaux
   'ws-mesh-texvar-btn',        // texture_var absent de la whitelist /api/mesh-op
   'ws-mesh-trellis2-btn',      // trellis2_retex absent de la whitelist /api/mesh-op
   'ws-mesh-name-btn',          // part namer local (Modal _partnamer non déployé)

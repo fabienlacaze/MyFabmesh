@@ -631,6 +631,7 @@ const _POIGNEES_MOTEUR_LOCAL = new Set([
   'mesh:align-texture',
   'mesh:region-retex',
   'mesh:render-front',
+  'mesh:reshape-region',
   'remove-background',
 ]);
 const _ipcHandleOriginal = ipcMain.handle.bind(ipcMain);
@@ -8592,6 +8593,90 @@ ipcMain.handle('mesh:region-retex', async (_e, { meshPath, maskDataUrl, prompt, 
         resolve({ ok: true, path: out });
       });
   });
+});
+
+// AUTO INPAINT 3D — « Reshape a region » (2026-09-28, user : « un outil comme
+// auto inpaint mais pour les mesh »). Regenere la FORME d'une zone :
+//   1. la fenetre fournit la vue de face (mesh:render-front) et le masque ;
+//   2. la zone est repeinte avec le prompt (serveur SDXL, /mask_inpaint) ;
+//   3. mesh_inpaint.py preparer : la nouvelle piece est isolee et detouree ;
+//   4. image -> 3D (moteur habituel) sur cette piece ;
+//   5. mesh_inpaint.py assembler : coupe, recalage, melange geometrie + texture.
+// Moteur LOCAL uniquement pour l'instant (la version en ligne demande une
+// chaine Modal). Nouvelle version du maillage : <base>_edited_<ts>.glb.
+function _lancerPy(exe, args, { timeout = 600000, env, etiquette = 'reshape' } = {}) {
+  return new Promise((resolve) => {
+    const proc = execFile(exe, args, { timeout, maxBuffer: 50 * 1024 * 1024, env: env || process.env },
+      (error, stdout, stderr) => resolve({ ok: !error, error: error && (String(stderr || '').trim().split('\n').pop() || error.message), stdout }));
+    proc.stdout?.on('data', (d) => safeSend('ai3d-progress', `[${etiquette}] ${d}`));
+    proc.stderr?.on('data', (d) => safeSend('ai3d-progress', `[${etiquette}] ${d}`));
+  });
+}
+ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskDataUrl, prompt } = {}) => {
+  if (isCloudMode()) {
+    return { ok: false, error: 'Reshape a region runs on the local AI engine for now. Switch to Local mode (NVIDIA GPU).' };
+  }
+  if (!meshPath || !fs.existsSync(meshPath) || !isPathAllowed(meshPath)) return { ok: false, error: 'Mesh not found' };
+  if (!frontPath || !fs.existsSync(frontPath)) return { ok: false, error: 'The front view of the mesh is missing — reopen the tool.' };
+  if (!String(prompt || '').trim()) return { ok: false, error: 'Describe what should replace the part.' };
+  const dir = path.join(os.tmpdir(), `fabmesh_reshape_${Date.now()}`);
+  fs.mkdirSync(dir, { recursive: true });
+  const script = path.join(SCRIPTS_DIR, 'mesh_inpaint.py');
+  const etape = (m) => safeSend('ai3d-progress', `[reshape] ${m}\n`);
+  try {
+    // masque a la taille du rendu (la fenetre peint en 512)
+    const taille = nativeImage.createFromPath(frontPath).getSize();
+    const masque = path.join(dir, 'masque.png');
+    const brut = nativeImage.createFromBuffer(Buffer.from(String(maskDataUrl || '').replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+    fs.writeFileSync(masque, brut.resize({ width: taille.width, height: taille.height }).toPNG());
+
+    // vue a plat (vraies couleurs, fond blanc), meme projection que la fenetre
+    const vue = path.join(dir, 'vue.png');
+    const r0 = await _lancerPy(_aiPython(), [script, 'rendre', meshPath, vue, String(taille.width || 1024)]);
+    if (!r0.ok || !fs.existsSync(vue)) return { ok: false, error: 'Rendering the mesh failed: ' + (r0.error || 'unknown') };
+
+    etape('1/4 painting the new part…');
+    await ensureSdxlServer();
+    if (!sdxlReady) return { ok: false, error: 'The local image engine is not ready.' };
+    const repeint = path.join(dir, 'repeint.png');
+    const r1 = await sdxlServerCall('/mask_inpaint', { input: vue, mask: masque, prompt: String(prompt), output: repeint });
+    if (!r1.ok || !fs.existsSync(repeint)) return { ok: false, error: 'Painting the new part failed: ' + (r1.error || 'unknown') };
+
+    etape('2/4 isolating the new part…');
+    const piecePng = path.join(dir, 'piece.png');
+    const cadre = path.join(dir, 'cadre.json');
+    const r2 = await _lancerPy(_aiPython(), [script, 'preparer', repeint, masque, piecePng, cadre]);
+    if (!r2.ok || !fs.existsSync(piecePng)) return { ok: false, error: 'Isolating the new part failed: ' + (r2.error || 'unknown') };
+
+    etape('3/4 building the part in 3D…');
+    try { stopSdxlServer(); } catch (_) {}          // la VRAM passe au moteur 3D
+    const pieceGlb = path.join(dir, 'piece.glb');
+    const py3d = app.isPackaged ? _aiPython()
+      : path.join(__dirname, '..', '..', 'external', 'TRELLIS2_win', '.venv', 'Scripts', 'python.exe');
+    const env3d = {
+      ...process.env, PYTHONUNBUFFERED: '1',
+      ATTN_BACKEND: 'sdpa', SPARSE_ATTN_BACKEND: 'sdpa', TORCHDYNAMO_DISABLE: '1',
+      TORCHINDUCTOR_USE_TRITON: '0', TRANSFORMERS_ATTN_IMPLEMENTATION: 'eager', TRELLIS2_USE_KAOLIN_RASTER: '1',
+      ...(app.isPackaged ? { FABMESH_TRELLIS2_SRC: path.join(process.resourcesPath, 'TRELLIS2_win', 'src') } : {}),
+    };
+    const r3 = await _lancerPy(py3d, [path.join(SCRIPTS_DIR, 'trellis2_native_full_pipeline.py'), piecePng, pieceGlb, '1024'],
+                               { timeout: 1800000, env: env3d });
+    if (!r3.ok || !fs.existsSync(pieceGlb)) return { ok: false, error: 'Building the part in 3D failed: ' + (r3.error || 'unknown') };
+
+    etape('4/4 fitting and blending the part…');
+    const base = path.basename(meshPath, path.extname(meshPath));
+    const sortie = path.join(path.dirname(meshPath), `${base}_edited_${Date.now()}.glb`);
+    const r4 = await _lancerPy(_aiPython(), [script, 'assembler', meshPath, masque, cadre, pieceGlb, sortie]);
+    if (!r4.ok || !fs.existsSync(sortie)) return { ok: false, error: 'Fitting the part failed: ' + (r4.error || 'unknown') };
+    writeMeta(sortie, { kind: 'op', op: 'reshape', parent: meshPath, params: { prompt: String(prompt) } });
+    // la source de la version d'origine reste la source de celle-ci
+    try { const src = meshPath + '.source'; if (fs.existsSync(src)) fs.copyFileSync(src, sortie + '.source'); } catch (_) {}
+    return { ok: true, path: sortie };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  } finally {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  }
 });
 
 ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedParams }) => {
