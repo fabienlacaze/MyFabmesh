@@ -1252,6 +1252,18 @@ async function renderProjectsGrid() {
     });
     cartes.appendChild(card);
   }
+  // Vignettes deja chargees REUTILISEES (2026-09-28, user : « j'aimerais plus d'ecran noir ») : une
+  // carte neuve dont l'image est le MEME fichier qu'une carte affichee reprend cette <img> deja
+  // decodee au lieu de la retelecharger (l'adresse signee du web change toutes les heures).
+  const _cleImg = (u) => String(u || '').split('?')[0];
+  const _dejaVues = new Map();
+  grid.querySelectorAll('.project-card-thumb img').forEach((im) => {
+    if (im.complete && im.naturalWidth) _dejaVues.set(_cleImg(im.getAttribute('src')), im);
+  });
+  cartes.querySelectorAll('.project-card-thumb img').forEach((im) => {
+    const k = _cleImg(im.getAttribute('src')), ancienne = _dejaVues.get(k);
+    if (ancienne) { ancienne.alt = im.alt; im.replaceWith(ancienne); _dejaVues.delete(k); }
+  });
   grid.replaceChildren(cartes);
   renderProjectsBulkBar();
   _syncSelectAllBtn();
