@@ -1382,13 +1382,18 @@
         <div class="lm-fs-side-header">
           <div class="lm-fs-title">Skeleton points</div>
           <p class="pts-aide">Each point marks a place the skeleton must reach: foot tips, jaw, ears, tail. Drag a point onto the right spot, add one where the rig stops short, remove the ones you don't need, then re-generate the rig.</p>
+          <!-- Disposition demandee par le user (2026-09-28) : Reset seul en
+               premier ; dessous, Add point avec a sa droite les deux options
+               empilees (elles valent pour l'ajout ET le glisser). -->
           <div class="lm-fs-actions">
-            <button id="pts-ajouter" class="ghost-btn" title="Then click the mesh where the new point goes">&#65291; Add point</button>
             <button id="pts-reinit" class="ghost-btn" title="Back to the points of this rig">&#8634; Reset</button>
           </div>
-          <div id="pts-ajout-options" class="pts-ajout-options">
-            <label title="On: a point you add or drag lands on the mesh under the cursor. Off: it goes where you point, even outside the mesh."><input type="checkbox" id="pts-ajout-coller" checked /> Stick to the mesh</label>
-            <label title="On: a point you add or drag goes to the middle of the mesh under the cursor. Off: it stays on the surface."><input type="checkbox" id="pts-ajout-centrer" checked /> Centre in the thickness</label>
+          <div class="lm-fs-actions pts-ajout-ligne">
+            <button id="pts-ajouter" class="ghost-btn" title="Then click the mesh where the new point goes">&#65291; Add point</button>
+            <div id="pts-ajout-options" class="pts-ajout-options">
+              <label title="On: a point you add or drag lands on the mesh under the cursor. Off: it goes where you point, even outside the mesh."><input type="checkbox" id="pts-ajout-coller" checked /> Stick to the mesh</label>
+              <label title="On: a point you add or drag goes to the middle of the mesh under the cursor. Off: it stays on the surface."><input type="checkbox" id="pts-ajout-centrer" checked /> Centre in the thickness</label>
+            </div>
           </div>
           <button id="pts-regenerer" class="primary-btn lm-fs-regen-btn" title="Rig the mesh again: the skeleton will reach every point">&#10227; Re-generate rig with these points</button>
           <button id="pts-enregistrer-sans-ia" class="ghost-btn lm-fs-regen-btn" disabled title="Save the rig with the joints where you dragged them. The mesh and its skinning stay exactly as they are — no AI.">&#128190; Save moved joints (no AI)</button>

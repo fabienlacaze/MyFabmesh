@@ -24319,23 +24319,78 @@ function _ptsPositionAjout(canevas, cam, e) {
   return _ptsCentreSous(canevas, cam, e, document.getElementById('pts-ajout-centrer')?.checked !== false);
 }
 
+// RAYONS SUR LE MODELE (2026-09-28, user : « ca fait laguer »). Le rig est un
+// SkinnedMesh : three.js le lance triangle par triangle en recalculant la
+// peau (plus d'un million de triangles a chaque mouvement de souris), sans
+// l'index BVH. Dans cet editeur le maillage n'est JAMAIS deforme (on deplace
+// des reperes, pas les os) : une copie statique, meme geometrie + BVH, meme
+// matrice, donne exactement les memes impacts. DoubleSide : la face de SORTIE,
+// vue de l'interieur, doit compter.
+function _ptsCibles() {
+  if (!lmFsModel) return [];
+  if (_pts.cibles && _pts.ciblesModele === lmFsModel) return _pts.cibles;
+  _pts.ciblesModele = lmFsModel;
+  _pts.matCible = _pts.matCible || new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const cibles = [];
+  lmFsModel.updateMatrixWorld(true);
+  lmFsModel.traverse((c) => {
+    if (!c.isMesh || !c.visible || !c.geometry) return;
+    try { if (!c.geometry.boundsTree) c.geometry.computeBoundsTree?.(); } catch (_) {}
+    const copie = new THREE.Mesh(c.geometry, _pts.matCible);
+    copie.matrixAutoUpdate = false;
+    copie.matrixWorld = c.matrixWorld;             // partage : suit le modele
+    cibles.push(copie);
+  });
+  _pts.cibles = cibles;
+  return cibles;
+}
+/** Distance de o a la premiere paroi dans la direction d (null : aucune). */
+function _ptsParoi(o, d) {
+  const rc = _pts.rcCoupe || (_pts.rcCoupe = new THREE.Raycaster());
+  const eps = 1e-4 * (_pts.diag || 1);
+  rc.set(o, d); rc.near = eps; rc.far = Infinity;
+  const h = rc.intersectObjects(_ptsCibles(), false).find(x => x.distance > eps);
+  return h ? h.distance : null;
+}
+/** CENTRE DANS LA COUPE (user, 2026-09-28 : « ne centre pas le point dans la
+ *  coupe du mesh ») : le milieu de l'epaisseur le long du regard ne suffit pas,
+ *  le point restait colle au bord du membre en travers. Deux passes : milieu
+ *  en profondeur, puis milieu de la corde la PLUS COURTE parmi 8 directions de
+ *  l'ecran (celle qui traverse le membre, pas celle qui le longe). */
+function _ptsCentrerCoupe(p, regard) {
+  const u = new THREE.Vector3().crossVectors(regard, Math.abs(regard.y) < 0.9
+    ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
+  const v = new THREE.Vector3().crossVectors(regard, u).normalize();
+  const q = p.clone();
+  const centrer = (d) => {
+    const a = _ptsParoi(q, d), b = _ptsParoi(q, d.clone().negate());
+    return (a == null || b == null) ? null : { corde: a + b, decale: (a - b) / 2 };
+  };
+  for (let passe = 0; passe < 2; passe++) {
+    const z = centrer(regard);
+    if (z) q.addScaledVector(regard, z.decale);
+    let mieux = null;
+    for (let k = 0; k < 8; k++) {
+      const ang = k * Math.PI / 8;
+      const d = u.clone().multiplyScalar(Math.cos(ang)).addScaledVector(v, Math.sin(ang));
+      const c = centrer(d);
+      if (c && (!mieux || c.corde < mieux.corde)) mieux = { ...c, d };
+    }
+    if (mieux) q.addScaledVector(mieux.d, mieux.decale);
+  }
+  return q;
+}
+
 function _ptsCentreSous(canevas, cam, e, centrer = true) {
   const rc = _ptsRayon(canevas, cam, e);
-  const maillages = [];
-  lmFsModel.traverse(c => { if (c.isMesh && c.visible) maillages.push(c); });
-  // DoubleSide le temps du lancer : sinon la face de SORTIE, vue de
-  // l'interieur, est ignoree
-  const cotes = [];
-  for (const m of maillages) for (const mat of [].concat(m.material || [])) { cotes.push([mat, mat.side]); mat.side = THREE.DoubleSide; }
-  let hits = [];
-  try { hits = rc.intersectObjects(maillages, false); }
-  finally { for (const [mat, s] of cotes) mat.side = s; }
+  const hits = rc.intersectObjects(_ptsCibles(), false);
   if (!hits.length) return null;
   const entree = hits[0];
   if (!centrer) return entree.point.clone();
   const sortie = hits.find(h => h.distance > entree.distance + 1e-4 * _pts.diag);
   if (!sortie || sortie.distance - entree.distance > 0.35 * _pts.diag) return entree.point.clone();
-  return entree.point.clone().add(sortie.point).multiplyScalar(0.5);
+  const milieu = entree.point.clone().add(sortie.point).multiplyScalar(0.5);
+  return _ptsCentrerCoupe(milieu, rc.ray.direction.clone().normalize());
 }
 
 /** Cible sous le curseur : un POINT en priorite (plus gros), sinon une
@@ -24438,10 +24493,12 @@ function _ptsLierCanevas(canevas, camera) {
       // GLISSER (user, 2026-09-28 : « ca ne fait rien du tout » — elles ne
       // servaient qu'a l'ajout). Hors du maillage, ou case decochee : plan de
       // la vue, profondeur figee, comme avant.
+      // Colle : hors du maillage le point NE BOUGE PAS (il sortait du maillage,
+      // user 2026-09-28). Decoche : plan de la vue, profondeur figee.
       const coller = document.getElementById('pts-ajout-coller')?.checked !== false;
-      const w = (coller && _ptsCentreSous(canevas, g.cam, e,
-                   document.getElementById('pts-ajout-centrer')?.checked !== false))
-        || _ptsRayon(canevas, g.cam, e).ray.intersectPlane(g.plan, new THREE.Vector3());
+      const w = coller
+        ? _ptsCentreSous(canevas, g.cam, e, document.getElementById('pts-ajout-centrer')?.checked !== false)
+        : _ptsRayon(canevas, g.cam, e).ray.intersectPlane(g.plan, new THREE.Vector3());
       if (w && g.type === 'os') {
         if (!g.bouge) { _ptsMemoriser(); g.bouge = true; }
         _ptsBougerOs(g.id, _ptsVersLocal(w));
