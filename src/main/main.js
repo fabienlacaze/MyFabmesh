@@ -1166,6 +1166,9 @@ let mainWindow;
 // to avoid 5-10s reload per img2img/inpaint call
 let sdxlProc = null;
 let sdxlReady = false;
+// Detecteur (CLIPSeg) pret : charge en ~7 s, bien avant les modeles SDXL
+// (108 s mesures avec Unreal ouvert). La detection de zone n'attend que lui.
+let sdxlSegPret = false;
 const SDXL_PORT = 5555;
 // Auto-shutdown: kill the SDXL server after this many ms of inactivity to
 // free ~13 GB VRAM. 90s is a compromise: long enough to chain 2-3 tool
@@ -1259,12 +1262,14 @@ function startSdxlServer() {
         sdxlReady = true;
         markSdxlUsed(); // Start the idle timer from this point
       }
+      if (msg.includes('CLIPSeg loaded')) sdxlSegPret = true;
     });
     sdxlProc.stderr.on('data', d => console.error('[SDXL stderr]', d.toString().trim()));
     sdxlProc.on('exit', (code) => {
       console.log('[SDXL] server exited with code', code);
       sdxlProc = null;
       sdxlReady = false;
+      sdxlSegPret = false;
     });
   } catch (e) {
     console.error('[SDXL] failed to spawn:', e);
@@ -1297,9 +1302,10 @@ function stopSdxlServer() {
 }
 
 // Helper: HTTP POST to SDXL server, returns { ok, output, error }
-function sdxlServerCall(endpoint, payload) {
+function sdxlServerCall(endpoint, payload, { detection = false } = {}) {
   return new Promise((resolve) => {
-    if (!sdxlReady) {
+    // detection : le serveur ecoute et CLIPSeg est charge, meme si SDXL charge encore
+    if (!sdxlReady && !(detection && sdxlSegPret)) {
       resolve({ ok: false, error: 'sdxl_server_not_ready' });
       return;
     }
@@ -2408,6 +2414,23 @@ app.whenReady().then(() => {
 
 // Ensure the SDXL server is running. Returns a promise that resolves when the
 // server reports "MODELS READY" (or after a short timeout fallback).
+/* DETECTION DE ZONE SANS ATTENDRE SDXL (2026-09-28, user : « detecting part ne
+ * detecte jamais rien »). segment-mask attendait « MODELS READY », donc aussi
+ * le prechargement de SDXL img2img (7,1 Go) : 108 s mesurees avec Unreal
+ * ouvert, et l'attente s'arretait avant (120 s en tout). La detection n'a
+ * besoin que de CLIPSeg, pret en ~7 s. */
+function ensureSdxlDetection() {
+  return new Promise((resolve) => {
+    if (sdxlReady || sdxlSegPret) return resolve(true);
+    if (!sdxlProc) startSdxlServer();
+    if (!sdxlProc) return resolve(false);
+    const start = Date.now();
+    const poll = setInterval(() => {
+      if (sdxlReady || sdxlSegPret) { clearInterval(poll); resolve(true); }
+      else if (Date.now() - start > 120000 || !sdxlProc) { clearInterval(poll); resolve(false); }
+    }, 300);
+  });
+}
 function ensureSdxlServer() {
   return new Promise((resolve) => {
     if (sdxlReady) return resolve(true);
@@ -2415,13 +2438,17 @@ function ensureSdxlServer() {
       startSdxlServer();
     }
     if (!sdxlProc) return resolve(false);
-    // Poll sdxlReady for up to 120s
+    // Attente jusqu'a 6 min tant que le serveur vit (2026-09-28). 120 s ne
+    // suffisaient pas : 108 s mesurees pour le seul prechargement img2img avec
+    // Unreal ouvert. Passe ce delai, 7 outils echouaient (« SDXL server failed
+    // to start ») ou relancaient un SECOND chargement complet en parallele
+    // (VRAM doublee). Si le processus meurt, on sort aussitot.
     const start = Date.now();
     const poll = setInterval(() => {
       if (sdxlReady) {
         clearInterval(poll);
         resolve(true);
-      } else if (Date.now() - start > 120000 || !sdxlProc) {
+      } else if (Date.now() - start > 360000 || !sdxlProc) {
         clearInterval(poll);
         resolve(sdxlReady);
       }
@@ -5129,15 +5156,14 @@ ipcMain.handle('segment-mask', async (event, { imagePath, targetText, dilate, re
       return { success: false, cloudUnavailable: true,
                error: 'Mask preview needs the local AI engine. Type what to replace and click Apply — the change itself is computed in the cloud.' };
     }
-    await ensureSdxlServer();
-    if (!sdxlReady) return { success: false, error: 'engine not ready' };
+    if (!await ensureSdxlDetection()) return { success: false, error: 'engine not ready' };
     // binary mode (AI region re-texture) -> white/black mask in a distinct file so it
     // doesn't clobber the red preview overlay used by Recolor/Auto-inpaint.
     const outPath = path.join(require('os').tmpdir(), binary ? 'fabmesh_mask_bin.png' : 'fabmesh_mask_preview.png');
     const r = await sdxlServerCall('/segment', {
       input: imagePath, target: targetText, output: outPath, dilate: dilate || 15,
       rel: (rel != null ? rel : 0.5), binary: !!binary,
-    });
+    }, { detection: true });
     if (r && r.ok && fs.existsSync(outPath)) {
       return { success: true, overlayPath: outPath, coverage: r.coverage };
     }
@@ -8554,12 +8580,14 @@ ipcMain.handle('save-buffer', async (_event, { path: filePath, buffer, base64 })
 // draw a mask aligned to face_inpaint_atlas.py's projection, then re-texture the
 // painted region with a prompt (generalises face inpaint beyond the face).
 ipcMain.handle('mesh:render-front', async (_e, { meshPath } = {}) => {
-  const script = path.join(SCRIPTS_DIR, 'face_inpaint_atlas.py');
+  // Vue A PLAT sur fond BLANC (mesh_inpaint.py rendre, 2026-09-28) : meme
+  // camera orthographique que face_inpaint_atlas (le masque se projette pareil),
+  // mais les vraies couleurs de la texture. L'ancien rendu eclaire etait tres
+  // sombre sur fond noir (moyenne 51/36/28 sur la fourmi) : difficile a peindre.
+  const script = path.join(SCRIPTS_DIR, 'mesh_inpaint.py');
   const out = path.join(os.tmpdir(), `fabmesh_front_${Date.now()}.png`);
   return new Promise((resolve) => {
-    // Distinct dummy output so the script's in==out guard passes; --render-only
-    // exits before any GLB is written.
-    execFile(_aiPython(), [script, meshPath, meshPath + '.ignore', '--render-only', out],
+    execFile(_aiPython(), [script, 'rendre', meshPath, out, '1024'],
       { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (error) => {
         if (error || !fs.existsSync(out)) { resolve({ ok: false, error: (error && error.message) || 'render failed' }); return; }
         try {
