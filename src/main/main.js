@@ -7783,9 +7783,21 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
   // DEJA RECTIFIEE (2026-09-29, meme regle que le worker) : une image issue de la rectification
   // n'est pas re-rectifiee. La rectification REDESSINE le sujet ; repassee sur son propre
   // resultat, elle degradait l'anatomie (chevre : 4 pattes sur l'image rectifiee, 6 apres).
-  const _dejaRectifiee = !!imagePath && /^fabmesh_rectified_/i.test(path.basename(imagePath));
+  // T-POSE SOUS SQUELETTE (2026-09-29) : deja de face sur fond blanc ; la rectification la
+  // redessinait (web : visage change, plumes et bracelets inventes). Marqueur PNG « FabMeshPose »
+  // pose par local_juggernaut_bridge.py, lu dans les premiers Ko (les tEXt precedent l'image).
+  let _dejaRectifiee = !!imagePath && /^fabmesh_rectified_/i.test(path.basename(imagePath));
+  if (!_dejaRectifiee && imagePath && /\.png$/i.test(imagePath)) {
+    try {
+      const fd = fs.openSync(imagePath, 'r');
+      const tete = Buffer.alloc(65536);
+      const n = fs.readSync(fd, tete, 0, tete.length, 0);
+      fs.closeSync(fd);
+      _dejaRectifiee = tete.subarray(0, n).includes(Buffer.from('FabMeshPose\0tpose', 'latin1'));
+    } catch (_) { /* illisible : on rectifie comme avant */ }
+  }
   if (_dejaRectifiee && trellis2RectifySource) {
-    log.info('main', `auto-rectify skipped: source already rectified (${path.basename(imagePath)})`);
+    log.info('main', `auto-rectify skipped: source already front-facing (${path.basename(imagePath)})`);
   }
   if (trellis2RectifySource && !_dejaRectifiee && imagePath && fs.existsSync(imagePath)
       && engine === 'trellis2_native') {

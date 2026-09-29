@@ -7800,10 +7800,15 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
   /* DEJA RECTIFIEE (2026-09-29) : une image issue de la rectification n'est pas re-rectifiee. La
    * rectification REDESSINE le sujet ; repassee sur son propre resultat, elle degradait l'anatomie
    * (chevre du user : 4 pattes sur l'image v1 rectifiee, 6 apres la seconde passe), pour 3 credits et
-   * ~20 s de plus. Case « Auto-rectify » laissee cochee par defaut : c'est le cas le plus courant. */
-  if (input.rectify && imageHttpsUrl && /\/rectify\/[^/?#]*_rectified\.(png|webp|jpe?g)/i.test(imageHttpsUrl)) {
+   * ~20 s de plus. Case « Auto-rectify » laissee cochee par defaut : c'est le cas le plus courant.
+   * IMAGE T-POSE aussi (`front/<ts>_<graine>_tpose.png`, meme jour) : generee de face, sur fond
+   * blanc, sous squelette impose — deja ce que la rectification produit. Le guerrier du user
+   * rectifie sur une telle image : legende automatique fausse (« tenue amerindienne »), autre
+   * visage, plumes et bracelets inventes. */
+  if (input.rectify && imageHttpsUrl
+      && /\/rectify\/[^/?#]*_rectified\.(png|webp|jpe?g)|\/front\/[^/?#]*_tpose\.(png|webp|jpe?g)/i.test(imageHttpsUrl)) {
     input.rectify = false;
-    console.log('[generate] image deja rectifiee : rectification sautee (ni calcul ni credits)');
+    console.log('[generate] image deja de face (rectifiee ou T-pose) : rectification sautee (ni calcul ni credits)');
   }
   let cost = await creditCost(env, input);
   // Decide backend FIRST so we hit the right budget counter. Mesh

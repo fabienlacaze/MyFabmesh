@@ -593,6 +593,11 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             _info.add_text("Software", "FabMesh")
             _info.add_text("DigitalSourceType", "trainedAlgorithmicMedia")
             _info.add_text("Comment", "AI-generated image. Created with FabMesh. EU AI Act Art. 50 / IPTC disclosure.")
+            # T-POSE SOUS SQUELETTE (2026-09-29) : deja de face sur fond blanc ; main.js lit ce
+            # marqueur et saute l'auto-rectification, qui redessinait le personnage (web : visage
+            # change, accessoires inventes). Equivalent web : suffixe « _tpose » du fichier.
+            if _is_tpose and _ctrl_pipe is not None and _tpose_skeleton is not None:
+                _info.add_text("FabMeshPose", "tpose")
             gen_img.save(img_path, pnginfo=_info)
         except Exception:
             gen_img.save(img_path)

@@ -1590,7 +1590,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     const sourceDejaRectifiee = () => {
       const p = window.state?.currentProject;
       const src = String(p?.selectedImagePath || p?.previewImagePath || '');
-      return /\/rectify\/[^/?#]*_rectified\./i.test(src);
+      return /\/rectify\/[^/?#]*_rectified\.|\/front\/[^/?#]*_tpose\./i.test(src);   // meme regle que le worker
     };
     const armerRectif = () => {
       if ((!caseRectif || caseRectif.checked) && !sourceDejaRectifiee()) prewarmGpu('rectify');
