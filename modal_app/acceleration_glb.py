@@ -133,7 +133,12 @@ def _reduire_sans_plis(mesh, cible, verbose=False, log=print):
         vn, inv = np.unique(v.detach().cpu().numpy().astype(np.float32), axis=0, return_inverse=True)
         fn = inv.reshape(-1)[f.detach().cpu().numpy().astype(np.int64)]
         fn = fn[(fn[:, 0] != fn[:, 1]) & (fn[:, 1] != fn[:, 2]) & (fn[:, 0] != fn[:, 2])]
-        v2, f2 = fast_simplification.simplify(vn, fn, target_reduction=1.0 - cible / len(fn), agg=AGRESSIVITE)
+        moteur = 'meshoptimizer'
+        try:
+            v2, f2 = _reduire_meshopt(vn, fn, cible)
+        except ImportError:
+            moteur = 'fast_simplification'
+            v2, f2 = fast_simplification.simplify(vn, fn, target_reduction=1.0 - cible / len(fn), agg=AGRESSIVITE)
     except Exception as e:
         log(f"[tris] reduction sans plis impossible ({type(e).__name__}: {e}) : reduction d'origine")
         return mesh.simplify(cible, verbose=verbose)
@@ -141,9 +146,31 @@ def _reduire_sans_plis(mesh, cible, verbose=False, log=print):
               torch.from_numpy(np.ascontiguousarray(f2)).to(device=f.device, dtype=f.dtype))
     if NETTOYAGE_AVANT_REDUCTION:
         _nettoyer(mesh, log, orienter=True)
-    log(f'[tris] reduction sans plis : {n0} -> {int(f2.shape[0])} faces (cible {cible})'
+    log(f'[tris] reduction sans plis ({moteur}) : {n0} -> {int(f2.shape[0])} faces (cible {cible})'
         + (' (nettoye avant et apres)' if NETTOYAGE_AVANT_REDUCTION else ''))
 
+
+def _reduire_meshopt(vn, fn, cible):
+    """REDUCTION PAR MESHOPTIMIZER (MIT, 2026-09-29). Juge par le user sur des modeles reels (ane, cabane,
+    brut 10 M -> 50 K / 5 K / 1 K) : « ca marche super bien, on remplace ». fast_simplification fragmentait
+    aux petites cibles (camion 5 K : 1 470 morceaux, la moitie des triangles en miettes). Forme SEULE ici :
+    to_glb deplie et cuit la texture ensuite. Comme gltfpack -si puis -sa : qualite d'abord (erreur 1 %),
+    puis sans limite d'erreur, puis « sloppy » si la cible reste hors d'atteinte. ImportError si absent
+    (bureau pour l'instant) : l'appelant revient a fast_simplification."""
+    import numpy as np
+    import meshoptimizer as mo
+    idx = np.ascontiguousarray(fn.reshape(-1), dtype=np.uint32)
+    pos = np.ascontiguousarray(vn, dtype=np.float32)
+    dest = np.zeros_like(idx)
+    cible_idx = int(cible) * 3
+    n = mo.simplify(dest, idx, pos, target_index_count=cible_idx, target_error=0.01)
+    if n > cible_idx * 1.1:
+        n = mo.simplify(dest, idx, pos, target_index_count=cible_idx, target_error=1.0)
+    if n > cible_idx * 1.3:
+        n = mo.simplify_sloppy(dest, idx, pos, target_index_count=cible_idx, target_error=1.0)
+    f = dest[:n].reshape(-1, 3).astype(np.int64)
+    utiles, inv = np.unique(f.reshape(-1), return_inverse=True)
+    return pos[utiles], inv.reshape(-1, 3)
 
 def _nettoyer(mesh, log=print, orienter=False):
     """Doublons, aretes non-manifold, miettes, petits trous (+ orientation) — operations cumesh."""

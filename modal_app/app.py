@@ -832,6 +832,9 @@ mesh_image = (
     # Reduction SANS PLIS aux petites cibles de triangles (acceleration_glb.py, 2026-09-29) :
     # sans lui, un modele a 1 000 triangles sortait crible de trous. MIT, roues binaires.
     .pip_install("fast_simplification==0.1.13")
+    # REDUCTION PAR MESHOPTIMIZER (MIT, 2026-09-29) : remplace fast_simplification aux petites cibles
+    # (acceleration_glb._reduire_meshopt). Sources seules sur PyPI : compilees ici (build-essential).
+    .pip_install("meshoptimizer==0.2.30a0")
     # POIDS DU MAILLAGE DANS L'IMAGE (2026-09-29). Sans eux, chaque conteneur qui CREE son instantane
     # (Modal en cree un par machine : 18 chargements complets pour 27 demarrages du conteneur 3D
     # entre le 29/09 00:42 et 11:46) telechargeait ~17 Go depuis HuggingFace — 150 a 230 s d'attente
