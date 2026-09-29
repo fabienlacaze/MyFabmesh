@@ -610,6 +610,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           // Reconstruite seulement si elle change : sinon, toutes les 5 s, le fondu des points
           // repartait de zero (saccade).
           if (list && list.__rendu !== rows) { list.innerHTML = rows; list.__rendu = rows; }
+          // Etat frais : on rend la liste lisible (elle est grisee a l'ouverture si l'etat date).
+          window.__modalEtatDate = Date.now();
+          if (list) { list.style.opacity = ''; list.title = ''; }
           window.__modalServicesDemarrage = startingCount;
           // Hide pill when all warm OR all unknown (don't surface noise
           // before we have any data).
@@ -652,7 +655,17 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     };
     if (_modalStatusTimer) clearTimeout(_modalStatusTimer);
     boucle();
-    document.getElementById('gpu-warmup-wrap')?.addEventListener('mouseenter', () => window.__sonderEtatModal(0));
+    // A l'ouverture, l'etat affiche peut dater de la derniere lecture (jusqu'a 60 s) : on le GRISE
+    // le temps de la relecture (~1 s) au lieu de le montrer comme actuel (retour user, 2026-09-29).
+    document.getElementById('gpu-warmup-wrap')?.addEventListener('mouseenter', () => {
+      const list = document.getElementById('gpu-warmup-list');
+      if (list && Date.now() - (window.__modalEtatDate || 0) > 5_000) {
+        list.style.opacity = '0.45';
+        list.style.transition = 'opacity .2s';
+        list.title = 'Updating…';
+      }
+      window.__sonderEtatModal(0);
+    });
     // Force-refresh after a click on an AI tool button — the click
     // is about to fire an op so we want the freshest answer for the
     // ETA. Throttled to once per 5 s so a furious clicker doesn't
