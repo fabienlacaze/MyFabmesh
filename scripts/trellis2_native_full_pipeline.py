@@ -881,6 +881,11 @@ def main():
     log('exporting GLB via o_voxel.postprocess.to_glb (Kaolin)...')
     print('LOCAL_TRELLIS2_PROGRESS: 85 export_start', flush=True)
     t_exp = time.time()
+    # memes accelerations que le cloud (scripts/acceleration_glb.py = modal_app/acceleration_glb.py) :
+    # retouches d'atlas fusionnees, AVANT l'import du nom `to_glb` (sinon il garde l'ancienne fonction)
+    import o_voxel
+    from acceleration_glb import accelerer_to_glb, preencoder_couleur
+    accelerer_to_glb(o_voxel, log)
     from o_voxel.postprocess import to_glb
 
     def _exporter(v, f, cible, remesh):
@@ -932,6 +937,9 @@ def main():
 
     use_webp = os.environ.get('FABMESH_TRELLIS2_EXPORT_WEBP', '1') == '1'
     if use_webp:
+        _t_webp = preencoder_couleur(glb, log)       # texture couleur encodee 8x plus vite, meme qualite
+        if _t_webp:
+            log(f'texture couleur encodee en {_t_webp:.1f}s (WebP method 2, qualite 90)')
         glb.export(out_glb, extension_webp=True)
     else:
         glb.export(out_glb)

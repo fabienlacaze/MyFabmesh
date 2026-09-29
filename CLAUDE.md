@@ -557,6 +557,9 @@ préchauffe doit appeler **`/warm`**, pas `/healthz`, sinon un service annoncé
   (qualité 80, method 4 : 18,7 s en 8K). Encodée en method 2 / qualité 90 :
   2,2 s, qualité égale ou supérieure (44,34 contre 44,02 dB), fichier +12 %.
   trimesh reprend ces octets (`_append_image` enveloppé, garde de signature).
+- Ces deux accélérations vivent dans le module PARTAGÉ `scripts/acceleration_glb.py`
+  = `modal_app/acceleration_glb.py` (bureau ET cloud, garde `check-noyaux-partages`).
+  Le rig allégé tourne aussi sur le bureau (`skintokens_bridge.py --allege 100000`).
 - **Pas plus rapide en changeant de carte** : voir « GPU en production » —
   H100 mesuré sans intérêt, B200 incompatible avec l'image (CUDA 12.4).
 - Diagnostiquer un mesh : télécharger le GLB depuis R2 et mesurer

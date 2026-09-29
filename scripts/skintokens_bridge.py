@@ -141,7 +141,7 @@ def main():
         if not transfert or not os.path.exists(pilote):
             print("AUTORIG_ERROR: skeleton points need the up-to-date rig engine.")
             sys.exit(1)
-        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2"]
+        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2", "--allege", "100000"]
                           + (["--points", os.path.abspath(a.points)] if a.points else []) + options)
         if not produit():
             print(f"AUTORIG_ERROR: rig with the skeleton points failed (rc={rc}).")
@@ -149,7 +149,7 @@ def main():
         print(f"AUTORIG_SUCCESS: {output_glb} ({os.path.getsize(output_glb)} bytes)")
         sys.exit(0)
     if transfert and os.environ.get("FABMESH_RIG_COMPLET", "1") != "0" and os.path.exists(pilote):
-        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2"] + options)
+        rc, refuse = _run([venv_py, pilote, mesh_path, output_glb, "--tirages", "2", "--allege", "100000"] + options)
         if not produit():
             log(f"squelette complet sans resultat (rc={rc}) - ancien chemin")
     if not produit():

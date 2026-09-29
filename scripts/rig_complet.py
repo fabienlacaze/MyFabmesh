@@ -62,17 +62,23 @@ def copie_allegee(entree, dest, faces):
     """Copie sans texture a ~`faces` faces (quadrique d'open3d), en coordonnees monde. None si le
     maillage est deja assez leger."""
     import numpy as np
-    import open3d as o3d
     import trimesh
     sc = trimesh.load(str(entree))
     m = sc.to_geometry() if hasattr(sc, 'to_geometry') else (sc.dump(concatenate=True) if hasattr(sc, 'dump') else sc)
     m = trimesh.Trimesh(np.asarray(m.vertices), np.asarray(m.faces), process=True)   # coutures UV soudees
     if len(m.faces) <= 1.2 * faces:
         return None
-    om = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(np.asarray(m.vertices, dtype=np.float64)),
-                                   o3d.utility.Vector3iVector(np.asarray(m.faces, dtype=np.int32)))
-    om = om.simplify_quadric_decimation(target_number_of_triangles=int(faces))
-    trimesh.Trimesh(np.asarray(om.vertices), np.asarray(om.triangles), process=False).export(str(dest))
+    try:
+        import open3d as o3d
+        om = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(np.asarray(m.vertices, dtype=np.float64)),
+                                       o3d.utility.Vector3iVector(np.asarray(m.faces, dtype=np.int32)))
+        om = om.simplify_quadric_decimation(target_number_of_triangles=int(faces))
+        V, F = np.asarray(om.vertices), np.asarray(om.triangles)
+    except ImportError:                           # installation sans open3d : meme quadrique, autre bibliotheque
+        import fast_simplification
+        V, F = fast_simplification.simplify(np.asarray(m.vertices, dtype=np.float32), np.asarray(m.faces, dtype=np.int64),
+                                            target_reduction=1 - faces / len(m.faces))
+    trimesh.Trimesh(np.asarray(V), np.asarray(F), process=False).export(str(dest))
     return Path(dest)
 
 
