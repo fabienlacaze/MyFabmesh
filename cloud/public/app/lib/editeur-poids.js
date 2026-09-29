@@ -252,14 +252,16 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   let pinceau = 'ajouter', modifie = false, trait = null, dernier = null, altActif = false;
   // Alt maintenu = le pinceau bascule en RETIRER (le cercle devient rouge) ; relache = retour au pinceau choisi
   const pinceauEffectif = () => (altActif ? 'retirer' : pinceau);
+  // le bouton en surbrillance est le pinceau EFFECTIF : Alt maintenu -> Remove
+  function majBoutonsPinceau() { fen.querySelectorAll('#pp-pinceaux .choix-btn').forEach((x) => x.classList.toggle('actif', x.dataset.p === pinceauEffectif())); }
   const touchesAlt = (ev) => {
     if (ev.key !== 'Alt' || fen.classList.contains('hidden')) return;
     ev.preventDefault();                                          // evite le menu du navigateur
     altActif = ev.type === 'keydown';
-    majAide();
+    majAide(); majBoutonsPinceau();
   };
   document.addEventListener('keydown', touchesAlt); document.addEventListener('keyup', touchesAlt);
-  const alt0 = () => { altActif = false; majAide(); };
+  const alt0 = () => { altActif = false; majAide(); majBoutonsPinceau(); };
   window.addEventListener('blur', alt0);
   const pile = [];
   const rayon = () => ext * (+$('pp-taille').value / 100);
