@@ -86,6 +86,12 @@ function construireFenetre() {
           <div class="pp-curseur"><span>${esc(T('Strength'))}</span><input type="range" id="pp-force" min="5" max="500" value="50"><span class="fen-valeur" id="pp-force-v">50 %</span></div>
         </div>
         <details class="pp-sect pp-plie">
+          <summary>${esc(T('Auto-skin'))}</summary>
+          <span class="fen-note">${esc(T('Recomputes, for every bone, the part of the mesh that makes sense to move (nearest bone, its neighbours in the skeleton only).'))}</span>
+          <div class="pp-curseur"><span>${esc(T('Blend'))}</span><input type="range" id="pp-auto-l" min="0.2" max="8" step="0.1" value="1.5"><span class="fen-valeur" id="pp-auto-lv">1.5 %</span></div>
+          <button type="button" class="ghost-btn fen-petit" id="pp-auto-ok">${esc(T('Recalculate all bones'))}</button>
+        </details>
+        <details class="pp-sect pp-plie">
           <summary>${esc(T('Spread / shrink the zone'))}</summary>
           <div class="pp-2">
             <button type="button" class="ghost-btn" id="pp-contracter">&#8722; ${esc(T('Shrink'))}</button>
@@ -250,6 +256,12 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   // --- envoi au GPU : UNE fois par image, et seulement la plage touchee
   function envoyer() {
     for (const d of donnees) {
+      if (d.plein) {                                               // poids entierement remplaces (auto-skin, annuler / refaire de l'auto-skin)
+        d.plein = false; d.sale = []; d.min = Infinity; d.max = -1; d.dsSale = true;
+        colorer(d);
+        for (const att of [d.idx, d.wts, d.couleurs]) { if (att.clearUpdateRanges) att.clearUpdateRanges(); att.needsUpdate = true; }
+        continue;
+      }
       if (!d.sale.length) continue;
       colorer(d, d.sale);
       const plage = (att, k) => { if (att.addUpdateRange) { att.clearUpdateRanges(); att.addUpdateRange(d.min * k, (d.max - d.min + 1) * k); } att.needsUpdate = true; };
@@ -335,6 +347,25 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
       }
     }
   }
+
+  // --- auto-skin : recalcule TOUS les poids d'apres la geometrie (poidsAutomatiques), annulable d'un bloc
+  $('pp-auto-l').oninput = () => { $('pp-auto-lv').textContent = (+$('pp-auto-l').value).toFixed(1) + ' %'; };
+  $('pp-auto-ok').onclick = () => {
+    etat.textContent = T('Computing…');
+    setTimeout(() => {                                             // laisse d'abord afficher le message
+      const osDonnees = os.map((b, i) => ({ parent: b.parent && b.parent.isBone ? os.indexOf(b.parent) : -1, tete: [reposOs[i].x, reposOs[i].y, reposOs[i].z], segs: segsOs[i] }));
+      const t0 = performance.now(), av = new Map();
+      for (const d of donnees) {
+        if (!d.graphe) d.graphe = construireGraphe(d.pos, d.g.index ? d.g.index.array : null, d.n, ext * 1e-5);
+        const r = poidsAutomatiques(d.graphe, d.pos, d.n, osDonnees, ext * (+$('pp-auto-l').value / 100));
+        av.set(d, { plein: true, I: d.idx.array.slice(), W: d.wts.array.slice() });
+        d.idx.array.set(r.I); d.wts.array.set(r.W); d.plein = true; d.dsSale = true;
+      }
+      modifie = true; $('pp-save').disabled = false;
+      empiler(av);
+      etat.textContent = `${T('Weights recomputed')} (${Math.round(performance.now() - t0)} ms)`;
+    }, 40);
+  };
 
   // --- propager / contracter la zone de l'os choisi : un PAS par clic (taille du pas = curseur, 0,5 % de l'etendue par cran),
   // valide tout de suite et annulable. Zone = sommets lies a l'os a 35 % ou plus.
@@ -511,6 +542,11 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   function echanger(av) {
     const inverse = new Map();
     for (const [d, m] of av) {
+      if (m.plein) {                                                // instantane integral : on echange les tableaux entiers
+        inverse.set(d, { plein: true, I: d.idx.array.slice(), W: d.wts.array.slice() });
+        d.idx.array.set(m.I); d.wts.array.set(m.W); d.plein = true; modifie = true; $('pp-save').disabled = false;
+        continue;
+      }
       const I = d.idx.array, W = d.wts.array, mi = new Map();
       for (const [i, v] of m) {
         const o = 4 * i;
@@ -774,4 +810,80 @@ export function distanceFrontiere(g, dansC, etendre, D) {
     }
   }
   return dist;
+}
+
+/** POIDS AUTOMATIQUES (2026-09-30, user : « un bouton pour recalculer automatiquement, pour chaque os, la partie qui parait
+ *  logique de bouger »). Recalcule les poids de peau d'apres la GEOMETRIE seule :
+ *   1. chaque point de la surface va a l'os le plus proche (distance au segment os -> enfants, os terminaux prolonges) ;
+ *   2. les ilots (morceaux detaches d'un meme os, ex. un bout de corps plus proche d'une patte) sont rendus a l'os voisin ;
+ *   3. le poids est reparti entre l'os retenu et SES VOISINS DANS LE SQUELETTE (parent, enfants) selon leur distance
+ *      (exp(-ecart / largeur)) : une patte n'influence jamais l'autre patte, et la transition reste douce aux articulations.
+ *  os : [{ parent, tete: [x,y,z], segs: Float64Array(6 par segment) }] en pose de repos. Rend { I: Uint16Array, W: Float32Array }
+ *  (4 emplacements par sommet). */
+export function poidsAutomatiques(g, P, n, os, largeur) {
+  const nb = os.length, m = g.m, canon = g.canon;
+  const rep = new Int32Array(m).fill(-1);
+  for (let i = 0; i < n; i++) if (rep[canon[i]] < 0) rep[canon[i]] = i;
+  const dist = (b, x, y, z) => {
+    const o = os[b], A = o.tete, sg = o.segs;
+    let m2 = (x - A[0]) ** 2 + (y - A[1]) ** 2 + (z - A[2]) ** 2;
+    for (let k = 0; k < sg.length; k += 6) {
+      const bx = sg[k + 3] - sg[k], by = sg[k + 4] - sg[k + 1], bz = sg[k + 5] - sg[k + 2], l2 = bx * bx + by * by + bz * bz || 1e-12;
+      let t = ((x - sg[k]) * bx + (y - sg[k + 1]) * by + (z - sg[k + 2]) * bz) / l2; t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const q2 = (x - sg[k] - t * bx) ** 2 + (y - sg[k + 1] - t * by) ** 2 + (z - sg[k + 2] - t * bz) ** 2;
+      if (q2 < m2) m2 = q2;
+    }
+    return Math.sqrt(m2);
+  };
+  // 1. os le plus proche, par noeud du graphe
+  const lab = new Int16Array(m);
+  for (let c = 0; c < m; c++) {
+    const i = rep[c], x = P[3 * i], y = P[3 * i + 1], z = P[3 * i + 2];
+    let best = Infinity, bb = 0;
+    for (let b = 0; b < nb; b++) { const d = dist(b, x, y, z); if (d < best) { best = d; bb = b; } }
+    lab[c] = bb;
+  }
+  // 2. ilots : les morceaux d'un meme os qui ne sont pas son plus gros morceau, et petits, passent a l'os voisin dominant
+  const { debut, voisin } = g;
+  for (let passe = 0; passe < 2; passe++) {
+    const comp = new Int32Array(m).fill(-1), tailles = [], noeuds = [], labs = [];
+    for (let s = 0; s < m; s++) {
+      if (comp[s] >= 0) continue;
+      const id = tailles.length, pile = [s], liste = []; comp[s] = id;
+      while (pile.length) {
+        const u = pile.pop(); liste.push(u);
+        for (let e = debut[u]; e < debut[u + 1]; e++) { const v = voisin[e]; if (comp[v] < 0 && lab[v] === lab[s]) { comp[v] = id; pile.push(v); } }
+      }
+      tailles.push(liste.length); noeuds.push(liste); labs.push(lab[s]);
+    }
+    const total = new Int32Array(nb), gros = new Int32Array(nb).fill(-1);
+    tailles.forEach((t, id) => { total[labs[id]] += t; if (gros[labs[id]] < 0 || t > tailles[gros[labs[id]]]) gros[labs[id]] = id; });
+    let change = 0;
+    tailles.forEach((t, id) => {
+      const b = labs[id];
+      if (id === gros[b] || t >= Math.max(40, 0.15 * total[b])) return;
+      const votes = new Map();
+      for (const u of noeuds[id]) for (let e = debut[u]; e < debut[u + 1]; e++) { const l = lab[voisin[e]]; if (l !== b) votes.set(l, (votes.get(l) || 0) + 1); }
+      let meilleur = -1, nv = 0; for (const [l, k] of votes) if (k > nv) { nv = k; meilleur = l; }
+      if (meilleur >= 0) { for (const u of noeuds[id]) lab[u] = meilleur; change += t; }
+    });
+    if (!change) break;
+  }
+  // 3. poids : l'os retenu et ses voisins du squelette
+  const voisinsOs = os.map((o, b) => { const l = [b]; if (o.parent >= 0) l.push(o.parent); os.forEach((q, j) => { if (q.parent === b) l.push(j); }); return l; });
+  const Ic = new Uint16Array(m * 4), Wc = new Float32Array(m * 4), cand = [], dd = [];
+  const tau = Math.max(1e-9, largeur);
+  for (let c = 0; c < m; c++) {
+    const i = rep[c], x = P[3 * i], y = P[3 * i + 1], z = P[3 * i + 2], L = voisinsOs[lab[c]];
+    let dmin = Infinity; dd.length = 0;
+    for (const b of L) { const d = dist(b, x, y, z); dd.push(d); if (d < dmin) dmin = d; }
+    cand.length = 0;
+    L.forEach((b, k) => { const w = Math.exp(-(dd[k] - dmin) / tau); if (w > 0.03) cand.push([b, w]); });
+    cand.sort((a, b) => b[1] - a[1]);
+    const gardes = cand.slice(0, 4), s = gardes.reduce((t, q) => t + q[1], 0) || 1;
+    gardes.forEach(([b, w], k) => { Ic[4 * c + k] = b; Wc[4 * c + k] = w / s; });
+  }
+  const I = new Uint16Array(n * 4), W = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) { const c = canon[i]; for (let k = 0; k < 4; k++) { I[4 * i + k] = Ic[4 * c + k]; W[4 * i + k] = Wc[4 * c + k]; } }
+  return { I, W, etiquettes: lab };
 }
