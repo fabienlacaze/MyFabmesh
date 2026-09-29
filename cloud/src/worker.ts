@@ -9212,7 +9212,9 @@ async function handleMeshesDelete(req: Request, env: Env): Promise<Response> {
   // || m.path-stem) still resolve a row instead of silently 404ing.
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   let job: { id: string; user_id: string; mesh_url: string | null } | null = null;
-  if (isUuid) {
+  // `modal_<32 hex>` EST l'identifiant du travail (2026-09-29) : la reconstruction en UUID (d) ne le
+  // retrouvait pas -> « mesh not found » a la suppression d'une generation normale.
+  if (isUuid || /^modal_[0-9a-f]{32}$/i.test(id)) {
     const { data } = await sb.from('jobs').select('id, user_id, mesh_url')
       .eq('id', id).eq('user_id', user.id).maybeSingle();
     job = data ?? null;

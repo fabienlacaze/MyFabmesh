@@ -386,8 +386,6 @@ _base_image = (
 # Modal rule: add_local_* must come LAST.
 image = (
     _base_image
-    # Triangle count (2026-09-29) : reduction meshoptimizer + depliage xatlas + recuisson (acceleration_glb).
-    .pip_install("xatlas", "meshoptimizer==0.2.30a0")
     # opencv-python-headless ships the Haar Cascade XMLs we need for
     # face detection in image_op face_fix_image. Pure CPU (~50ms per
     # image). Kept here (NOT in _base_image) so adding it doesn't
@@ -533,6 +531,11 @@ image = (
         "d('Falconsai/nsfw_image_detection', allow_patterns=['*.json', '*.txt', '*.safetensors', '*.bin']); "
         "d('AdamCodd/vit-base-nsfw-detector', allow_patterns=['*.json', '*.txt', '*.safetensors', '*.bin'])\"",
     )
+    # EN FIN de chaine : les couches precedentes (gros telechargements) restent en cache
+    # Triangle count (2026-09-29) : reduction meshoptimizer + depliage xatlas + recuisson (acceleration_glb).
+    # meshoptimizer se compile avec clang++ par defaut, absent ici : g++ (present dans l'image CUDA devel)
+    .env({"CC": "gcc", "CXX": "g++"})
+    .pip_install("xatlas", "meshoptimizer==0.2.30a0")
 )
 
 
