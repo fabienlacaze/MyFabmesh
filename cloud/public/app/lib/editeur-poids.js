@@ -12,6 +12,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 
+
 const T = (s) => (typeof window !== 'undefined' && typeof window._i18nT === 'function' ? window._i18nT(s) : s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -273,7 +274,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     let av = trait.avant.get(d); if (!av) trait.avant.set(d, (av = new Map()));
     if (!av.has(i)) { const o = i * 4, I = d.idx.array, W = d.wts.array; av.set(i, [I[o], I[o + 1], I[o + 2], I[o + 3], W[o], W[o + 1], W[o + 2], W[o + 3]]); }
   }
-  function salir(d, i) { d.sale.push(i); if (i < d.min) d.min = i; if (i > d.max) d.max = i; modifie = true; $('pp-save').disabled = false; }
+  function salir(d, i) { d.dsSale = true; d.sale.push(i); if (i < d.min) d.min = i; if (i > d.max) d.max = i; modifie = true; $('pp-save').disabled = false; }
   function viser(d, i, b, cible, f) {
     // cible = part voulue pour l'os b (1 = le suit entierement, 0 = plus du tout)
     const I = d.idx.array, W = d.wts.array, o = i * 4;
@@ -317,32 +318,23 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   // valide tout de suite et annulable. Zone = sommets lies a l'os a 35 % ou plus.
   $('pp-pas').oninput = () => { $('pp-pas-v').textContent = (+$('pp-pas').value * 0.5) + ' %'; };
   function pas(etendre) {
-    const dist = +$('pp-pas').value * ext * 0.005, D2 = dist * dist;
+    const dist = +$('pp-pas').value * ext * 0.005;
     trait = { avant: new Map() };
     let nb = 0;
     for (const d of donnees) {
-      const I = d.idx.array, W = d.wts.array, P = d.pos, dans = new Uint8Array(d.n);
-      for (let i = 0; i < d.n; i++) { let w = 0; for (let c = 0; c < 4; c++) if (I[4 * i + c] === osChoisi) w += W[4 * i + c]; dans[i] = w >= 0.35 ? 1 : 0; }
-      const source = etendre ? 1 : 0;                       // etendre : on cherche la zone ; contracter : ce qui est HORS zone
-      const g = new Map();
-      for (let i = 0; i < d.n; i++) if (dans[i] === source) {
-        const k = cleGrille(Math.floor(P[3 * i] / dist), Math.floor(P[3 * i + 1] / dist), Math.floor(P[3 * i + 2] / dist));
-        let l = g.get(k); if (!l) g.set(k, (l = [])); l.push(i);
-      }
+      const I = d.idx.array, W = d.wts.array;
+      if (!d.graphe) d.graphe = construireGraphe(d.pos, d.g.index ? d.g.index.array : null, d.n, ext * 1e-5);
+      const gr = d.graphe, dansC = new Uint8Array(gr.m);
       for (let i = 0; i < d.n; i++) {
-        if (dans[i] === source) continue;
-        const x = P[3 * i], y = P[3 * i + 1], z = P[3 * i + 2], cx = Math.floor(x / dist), cy = Math.floor(y / dist), cz = Math.floor(z / dist);
-        let best = D2 + 1;
-        for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
-          const l = g.get(cleGrille(cx + a, cy + b, cz + c)); if (!l) continue;
-          for (let k = 0; k < l.length; k++) {
-            const j = l[k], dx = P[3 * j] - x, dy = P[3 * j + 1] - y, dz = P[3 * j + 2] - z, q = dx * dx + dy * dy + dz * dz;
-            if (q < best) best = q;
-          }
-        }
-        if (best > D2) continue;
+        let w = 0; for (let c = 0; c < 4; c++) if (I[4 * i + c] === osChoisi) w += W[4 * i + c];
+        if (w >= 0.35) dansC[gr.canon[i]] = 1;
+      }
+      const dc = distanceFrontiere(gr, dansC, etendre, dist), source = etendre ? 1 : 0;
+      for (let i = 0; i < d.n; i++) {
+        const c = gr.canon[i];
+        if (dansC[c] === source || dc[c] > dist) continue;
         noter(d, i);
-        if (viser(d, i, osChoisi, etendre ? 1 : 0, 1 - 0.7 * Math.sqrt(best / D2))) { salir(d, i); nb++; }
+        if (viser(d, i, osChoisi, etendre ? 1 : 0, 1 - 0.7 * dc[c] / dist)) { salir(d, i); nb++; }
       }
     }
     if (trait.avant.size) empiler(trait.avant);
@@ -355,19 +347,30 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   // --- nettoyage automatique : retire l'os des sommets trop loin de lui (distance au segment os -> enfants,
   // en pose de repos, en % de l'etendue). Meme mecanique que le pinceau : le poids retire va aux autres os.
   const reposOs = os.map((b) => b.getWorldPosition(new THREE.Vector3()));
-  const segsOs = os.map((b, i) => {
-    const l = []; b.children.forEach((c) => { if (c.isBone) l.push([reposOs[i], reposOs[os.indexOf(c)]]); });
-    return l;
+  const segsOs = os.map((b) => {                                  // segments os -> enfants, a plat (aucune allocation par appel)
+    const l = []; b.children.forEach((c) => { if (c.isBone) { const q = reposOs[os.indexOf(c)], a = reposOs[os.indexOf(b)]; l.push(a.x, a.y, a.z, q.x, q.y, q.z); } });
+    return Float64Array.from(l);
   });
   function distOs(b, x, y, z) {
-    const A = reposOs[b], segs = segsOs[b];
-    let m = Math.hypot(x - A.x, y - A.y, z - A.z);
-    for (const [a, c] of segs) {
-      const bx = c.x - a.x, by = c.y - a.y, bz = c.z - a.z, l2 = bx * bx + by * by + bz * bz || 1e-12;
-      const t = Math.max(0, Math.min(1, ((x - a.x) * bx + (y - a.y) * by + (z - a.z) * bz) / l2));
-      const q = Math.hypot(x - a.x - t * bx, y - a.y - t * by, z - a.z - t * bz); if (q < m) m = q;
+    const A = reposOs[b], sg = segsOs[b];
+    let m2 = (x - A.x) ** 2 + (y - A.y) ** 2 + (z - A.z) ** 2;
+    for (let k = 0; k < sg.length; k += 6) {
+      const bx = sg[k + 3] - sg[k], by = sg[k + 4] - sg[k + 1], bz = sg[k + 5] - sg[k + 2], l2 = bx * bx + by * by + bz * bz || 1e-12;
+      let t = ((x - sg[k]) * bx + (y - sg[k + 1]) * by + (z - sg[k + 2]) * bz) / l2; t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const q2 = (x - sg[k] - t * bx) ** 2 + (y - sg[k + 1] - t * by) ** 2 + (z - sg[k + 2] - t * bz) ** 2;
+      if (q2 < m2) m2 = q2;
     }
-    return m;
+    return Math.sqrt(m2);
+  }
+  // distance de chaque sommet a l'os de chacun de ses 4 emplacements, en cache (recalculee si les poids ont change)
+  function assurerDistances(d) {
+    if (d.ds && !d.dsSale) return;
+    const I = d.idx.array, W = d.wts.array, P = d.pos, ds = d.ds || (d.ds = new Float32Array(d.n * 4));
+    for (let i = 0; i < d.n; i++) for (let c = 0; c < 4; c++) {
+      const o = 4 * i + c;
+      ds[o] = W[o] > 0.001 ? distOs(I[o], P[3 * i], P[3 * i + 1], P[3 * i + 2]) : -1;
+    }
+    d.dsSale = false;
   }
   // sommets qui perdraient un os avec le reglage actuel (memes criteres que le bouton)
   function calculerMarque() {
@@ -375,22 +378,27 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     let nb = 0;
     for (const d of donnees) {
       if (!d.marque) d.marque = new Uint8Array(d.n);
-      const I = d.idx.array, W = d.wts.array, P = d.pos;
+      d.chg = [];
+      assurerDistances(d);
+      const I = d.idx.array, ds = d.ds, mq = d.marque;
       for (let i = 0; i < d.n; i++) {
         let m = 0;
-        for (let c = 0; c < 4; c++) {
-          const b = I[4 * i + c];
-          if (W[4 * i + c] > 0.001 && (tous || b === osChoisi) && distOs(b, P[3 * i], P[3 * i + 1], P[3 * i + 2]) > dmax) { m = 1; break; }
-        }
-        d.marque[i] = m; nb += m;
+        for (let c = 0; c < 4; c++) if (ds[4 * i + c] > dmax && (tous || I[4 * i + c] === osChoisi)) { m = 1; break; }
+        if (mq[i] !== m) { mq[i] = m; d.chg.push(i); }
+        nb += m;
       }
     }
     etat.textContent = `${nb.toLocaleString()} ${T('vertices would change')}`;
   }
-  let apercuPlanifie = false;
+  let apercuPlanifie = false, pleinApercu = false;
   function montrerApercu() {
     if (apercuPlanifie) return; apercuPlanifie = true;
-    requestAnimationFrame(() => { apercuPlanifie = false; toutColorer(); });
+    requestAnimationFrame(() => {
+      apercuPlanifie = false;
+      if (pleinApercu) { pleinApercu = false; toutColorer(); return; }         // premiere image : tout recolorer
+      calculerMarque();
+      for (const d of donnees) if (d.chg.length) colorer(d, d.chg);              // ensuite : seulement ce qui a change
+    });
   }
   const sectionDist = $('pp-dist').closest('details');
   sectionDist.addEventListener('toggle', () => { apercuDist = sectionDist.open; toutColorer(); });
@@ -398,7 +406,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     $('pp-dist-ok').textContent = `${T('Remove zones farther than this')} (${vue === 'tous' ? T('all bones') : T('this bone')})`;
   }
   majLibelleNettoyage();
-  $('pp-dist').oninput = () => { $('pp-dist-v').textContent = $('pp-dist').value + ' %'; apercuDist = true; montrerApercu(); };
+  $('pp-dist').oninput = () => { $('pp-dist-v').textContent = $('pp-dist').value + ' %'; if (!apercuDist) { apercuDist = true; pleinApercu = true; } montrerApercu(); };
   $('pp-dist-ok').onclick = () => {
     const dmax = ext * (+$('pp-dist').value / 100), tous = vue === 'tous';        // suit la Vue : cet os / tous les os
     trait = { avant: new Map() };
@@ -645,4 +653,57 @@ export function reecrirePoids(buffer, gltf, donnees) {
     ecrire(pr.attributes.WEIGHTS_0, d.wts, true);
   }
   return out;
+}
+
+/** GRAPHE DU MAILLAGE (soude par position : les coutures d'UV dupliquent les sommets). Rend
+ *  { m, canon (sommet -> noeud), debut, voisin, longueur } au format CSR. */
+export function construireGraphe(pos, index, n, eps) {
+  const canon = new Int32Array(n), cles = new Map(), rep = [];
+  for (let i = 0; i < n; i++) {
+    const k = Math.round(pos[3 * i] / eps) + ',' + Math.round(pos[3 * i + 1] / eps) + ',' + Math.round(pos[3 * i + 2] / eps);
+    let c = cles.get(k);
+    if (c === undefined) { c = rep.length; cles.set(k, c); rep.push(i); }
+    canon[i] = c;
+  }
+  const m = rep.length, nT = (index ? index.length : n) / 3, deg = new Int32Array(m + 1);
+  const at = (t, j) => canon[index ? index[3 * t + j] : 3 * t + j];
+  for (let t = 0; t < nT; t++) for (let j = 0; j < 3; j++) { deg[at(t, j)]++; deg[at(t, (j + 1) % 3)]++; }
+  const debut = new Int32Array(m + 1);
+  for (let c = 0; c < m; c++) debut[c + 1] = debut[c] + deg[c];
+  const remp = debut.slice(0, m), voisin = new Int32Array(debut[m]), longueur = new Float32Array(debut[m]);
+  const rp = (c) => rep[c] * 3;
+  for (let t = 0; t < nT; t++) for (let j = 0; j < 3; j++) {
+    const a = at(t, j), b = at(t, (j + 1) % 3); if (a === b) continue;
+    const A = rp(a), B = rp(b), L = Math.hypot(pos[A] - pos[B], pos[A + 1] - pos[B + 1], pos[A + 2] - pos[B + 2]);
+    voisin[remp[a]] = b; longueur[remp[a]++] = L; voisin[remp[b]] = a; longueur[remp[b]++] = L;
+  }
+  return { m, canon, debut, voisin, longueur };
+}
+
+/** Distance (le long de la surface) jusqu'a la frontiere de la zone, bornee a D. dansC[noeud] = 1 si dans la zone.
+ *  etendre : on part de la zone et on cherche ce qui est HORS zone ; contracter : l'inverse. Dijkstra a tas binaire,
+ *  seulement la bande utile est parcourue. */
+export function distanceFrontiere(g, dansC, etendre, D) {
+  const { m, debut, voisin, longueur } = g, src = etendre ? 1 : 0, dist = new Float64Array(m).fill(Infinity);   // Float64 : en Float32 l arrondi faisait boucler le tas
+  const tk = [], tn = [];
+  const push = (k, n) => { let i = tk.length; tk.push(k); tn.push(n); while (i > 0) { const p = (i - 1) >> 1; if (tk[p] <= tk[i]) break; [tk[p], tk[i]] = [tk[i], tk[p]]; [tn[p], tn[i]] = [tn[i], tn[p]]; i = p; } };
+  const pop = () => {
+    const k = tk[0], n = tn[0], lk = tk.pop(), ln = tn.pop();
+    if (tk.length) { tk[0] = lk; tn[0] = ln; let i = 0; for (;;) { const a = 2 * i + 1, b = a + 1; let s = i;
+      if (a < tk.length && tk[a] < tk[s]) s = a; if (b < tk.length && tk[b] < tk[s]) s = b; if (s === i) break;
+      [tk[s], tk[i]] = [tk[i], tk[s]]; [tn[s], tn[i]] = [tn[i], tn[s]]; i = s; } }
+    return [k, n];
+  };
+  for (let u = 0; u < m; u++) {
+    if (dansC[u] !== src) continue;
+    for (let e = debut[u]; e < debut[u + 1]; e++) if (dansC[voisin[e]] !== src) { dist[u] = 0; push(0, u); break; }
+  }
+  while (tk.length) {
+    const [d0, u] = pop(); if (d0 > dist[u]) continue;
+    for (let e = debut[u]; e < debut[u + 1]; e++) {
+      const w = d0 + longueur[e], v = voisin[e];
+      if (w <= D && w < dist[v]) { dist[v] = w; push(w, v); }
+    }
+  }
+  return dist;
 }
