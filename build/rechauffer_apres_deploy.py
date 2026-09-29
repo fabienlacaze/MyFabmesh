@@ -87,5 +87,14 @@ if __name__ == "__main__":
             etat = f"ECHEC {err}" if err else ("instantane CREE" if dt > 60 else "restaure")
             print(f"manche {m}  {nom:20s} {dt:5.0f} s  {etat}", flush=True)
         if m < a.manches:
+            # CONTROLE AVANT CHAQUE ARRET (2026-09-29) : le script ne verifiait qu'au depart. Un user
+            # a lance un ane PENDANT la 1re manche ; l'arret de fin de manche a tue le conteneur qui le
+            # calculait (reprise sur un conteneur neuf, ~3 min perdues). Travail en cours = on s'arrete
+            # la, sans rien couper.
+            en_cours = travaux_en_cours()
+            if en_cours:
+                print(f"manche {m} : {len(en_cours)} travail(aux) en cours, manches suivantes annulees "
+                      "(aucun conteneur arrete)", flush=True)
+                break
             print(f"manche {m} : {arreter_conteneurs()} conteneur(s) arrete(s)", flush=True)
             time.sleep(15)
