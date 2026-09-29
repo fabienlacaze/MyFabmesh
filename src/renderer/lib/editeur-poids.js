@@ -79,7 +79,6 @@ function construireFenetre() {
         <details class="pp-sect pp-plie">
           <summary>${esc(T('Spread / shrink the zone'))}</summary>
           <div class="pp-curseur"><span>${esc(T('Shrink'))}</span><input type="range" id="pp-prop" min="-20" max="20" value="0" step="1"><span class="fen-valeur" id="pp-prop-v">0</span></div>
-          <button type="button" class="ghost-btn fen-petit" id="pp-prop-ok" disabled>${esc(T('Apply to this bone'))}</button>
         </details>
         <details class="pp-sect pp-plie">
           <summary>${esc(T('Clean far zones'))}</summary>
@@ -305,24 +304,26 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     }
   }
 
-  // --- propager / contracter la zone de l'os choisi (distance = 0,5 % de l'etendue par cran)
-  const surCran = () => +$('pp-prop').value;
-  $('pp-prop').oninput = () => { const v = surCran(); $('pp-prop-v').textContent = (v > 0 ? '+' : '') + v; $('pp-prop-ok').disabled = v === 0; };
-  $('pp-prop-ok').onclick = () => {
-    const v = surCran(); if (!v) return;
-    const dist = Math.abs(v) * ext * 0.005, etendre = v > 0;
-    trait = { avant: new Map() };
+  // --- propager / contracter la zone de l'os choisi, EN DIRECT : le curseur montre le resultat pendant qu'on le bouge
+  // (distance = 0,5 % de l'etendue par cran) ; il est valide au relachement (annulable). Un instantane de depart est
+  // pris au premier mouvement ; chaque valeur repart de lui.
+  let base = null, enCalcul = false, attendu = null;
+  function calculerProp(v) {
+    const dist = Math.abs(v) * ext * 0.005, etendre = v > 0, D2 = dist * dist;
     let nb = 0;
     for (const d of donnees) {
-      const I = d.idx.array, W = d.wts.array, P = d.pos, dans = new Uint8Array(d.n);
-      for (let i = 0; i < d.n; i++) { let w = 0; for (let c = 0; c < 4; c++) if (I[4 * i + c] === osChoisi) w += W[4 * i + c]; dans[i] = w >= 0.5 ? 1 : 0; }
+      const I = d.idx.array, W = d.wts.array, P = d.pos, snap = base.get(d);
+      for (const i of d.tp) salir(d, i);                    // les sommets du dernier apercu seront recolores
+      I.set(snap.I); W.set(snap.W); d.tp = [];
+      if (!v) continue;
+      const dans = new Uint8Array(d.n);
+      for (let i = 0; i < d.n; i++) { let w = 0; for (let c = 0; c < 4; c++) if (I[4 * i + c] === osChoisi) w += W[4 * i + c]; dans[i] = w >= 0.35 ? 1 : 0; }
       const source = etendre ? 1 : 0;                       // etendre : on cherche la zone ; contracter : ce qui est HORS zone
       const g = new Map();
       for (let i = 0; i < d.n; i++) if (dans[i] === source) {
         const k = cleGrille(Math.floor(P[3 * i] / dist), Math.floor(P[3 * i + 1] / dist), Math.floor(P[3 * i + 2] / dist));
         let l = g.get(k); if (!l) g.set(k, (l = [])); l.push(i);
       }
-      const D2 = dist * dist;
       for (let i = 0; i < d.n; i++) {
         if (dans[i] === source) continue;
         const x = P[3 * i], y = P[3 * i + 1], z = P[3 * i + 2], cx = Math.floor(x / dist), cy = Math.floor(y / dist), cz = Math.floor(z / dist);
@@ -335,15 +336,40 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
           }
         }
         if (best > D2) continue;
-        const f = 1 - 0.7 * Math.sqrt(best / D2);
-        noter(d, i);
-        if (viser(d, i, osChoisi, etendre ? 1 : 0, f)) { salir(d, i); nb++; }
+        if (viser(d, i, osChoisi, etendre ? 1 : 0, 1 - 0.7 * Math.sqrt(best / D2))) { d.tp.push(i); salir(d, i); nb++; }
       }
     }
-    if (trait.avant.size) { pile.push(trait.avant); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
-    trait = null;
-    $('pp-prop').value = 0; $('pp-prop-v').textContent = '0'; $('pp-prop-ok').disabled = true;
-    etat.textContent = `${nb.toLocaleString()} ${T('vertices changed')}`;
+    etat.textContent = v ? `${nb.toLocaleString()} ${T('vertices changed')}` : '';
+  }
+  function planifierProp() {
+    if (enCalcul || attendu === null) return;
+    enCalcul = true;
+    requestAnimationFrame(() => {                            // laisse la barre bouger, calcule ensuite
+      const v = attendu; attendu = null;
+      try { calculerProp(v); } finally { enCalcul = false; }
+      if (attendu !== null) planifierProp();
+    });
+  }
+  $('pp-prop').oninput = () => {
+    const v = +$('pp-prop').value;
+    $('pp-prop-v').textContent = (v > 0 ? '+' : '') + v;
+    if (!base) {
+      base = new Map(); donnees.forEach((d) => { base.set(d, { I: d.idx.array.slice(), W: d.wts.array.slice() }); d.tp = []; });
+    }
+    attendu = v; planifierProp();
+  };
+  $('pp-prop').onchange = () => {                            // relachement : on valide
+    if (!base) return;
+    const av = new Map();
+    for (const d of donnees) {
+      if (!d.tp.length) continue;
+      const snap = base.get(d), m = new Map();
+      for (const i of d.tp) m.set(i, [snap.I[4 * i], snap.I[4 * i + 1], snap.I[4 * i + 2], snap.I[4 * i + 3], snap.W[4 * i], snap.W[4 * i + 1], snap.W[4 * i + 2], snap.W[4 * i + 3]]);
+      av.set(d, m); d.tp = [];
+    }
+    if (av.size) { pile.push(av); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
+    base = null;
+    $('pp-prop').value = 0; $('pp-prop-v').textContent = '0';
   };
 
   // --- nettoyage automatique : retire l'os des sommets trop loin de lui (distance au segment os -> enfants,
