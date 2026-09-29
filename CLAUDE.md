@@ -293,7 +293,8 @@ Chacun vient d'un défaut livré en production :
 - `modal_app/app.py` — les classes GPU et leurs routes ASGI.
 - `modal_app/_*.py` — un module par traitement (`_mesh`, `_mesh_op`,
   `_realvis`, `_prompts`, `_auto_inpaint`, `_face_fix`, `_recolor`,
-  `_tex_variant`, `_texture_refine`, `_outfit_cutout`…).
+  `_tex_variant`, `_texture_refine`, `_outfit_cutout`, `_detourage`…).
+- `modal_app/test_*.py` — bancs de mesure (voir section 12, « Bancs »).
 - `scripts/*.py` — les équivalents bureau, exécutés par `sdxl_server.py`
   (serveur HTTP local persistant, port 5555) ou en sous-processus.
 
@@ -390,6 +391,21 @@ gatedRun(kind, nom, fn)      ← file d'attente (VRAM ; rend ok() en cloud)
   modèle (classes `rignet`/`vroid`, pénalité de répétition) ont été mesurés :
   aucun ne complète le squelette, `repetition_penalty` 1,2 fait planter le
   décodage. Banc d'essai : `rig_mesh_essai` (aucune route de production).
+- **Tirages sur une copie ALLÉGÉE** (2026-09-29, `rig_complet.py --allege N`,
+  Modal : `ALLEGE_FACES = 100 000`, réglable par `options.allege_faces`). Le
+  rigger ne regarde que ~54 000 points de surface et 16 384 sommets ; Blender
+  chargeait, transférait et réexportait le maillage de 500 K faces à CHAQUE
+  tirage. Les deux tirages et le choix du meilleur se font sur une copie sans
+  texture (trimesh + quadrique d'open3d) ; la peau finale est **toujours**
+  calculée une fois sur le maillage complet (la copie n'est jamais livrée,
+  arrêt code 3 sinon). Un tirage allégé est rangé sous `i + 8`
+  (`DECALAGE_ALLEGE`) : l'éditeur de points renvoie cet indice et le rejeu se
+  refait sur la même copie ; les anciens rigs (< 8) se rejouent sur le complet.
+  Le bureau ne passe pas `--allege` (inchangé). Mesuré : orc à chaud 263 s ->
+  189 s ; qualité égale sur araignée, guerrier, potamochère ; **l'orc a raté
+  une extrémité 2 fois sur 4** (4/5 contre 5/5) : si ça se confirme, passer
+  `ALLEGE_FACES` à 200 000. Tirages PARALLÈLES essayés et écartés : plus lents
+  (276 s contre 231 s), Blender traite les requêtes une par une.
 
 **GPU en production (décision de l'exploitant, 2026-09-28).** Aujourd'hui L40S (images, maillage, T-pose)
 et A10G (rig). Quand le site aura assez d'utilisateurs pour un trafic continu, **basculer en H100** pour
@@ -419,6 +435,84 @@ for (const attente of [60_000, 90_000]) {
 Une route sans cette escalade échoue à **chaque** conteneur froid. C'est ce
 qui rendait `rectify` systématiquement inopérant.
 
+**Un 524 N'ANNULE PAS le calcul Modal** (prouvé le 2026-09-29,
+`modal_app/test_annulation.py`) : il va au bout et sa réponse part dans le
+vide. Avant, le rejeu attendait derrière lui puis RECALCULAIT tout (48 % des
+rectify et 50 % des vues arrière en échec). Désormais :
+- le worker envoie `_cle_rejeu` (`crypto.randomUUID()`), la MÊME pour tous
+  les essais d'un appel synchrone (text2image, tpose, image_op, outfit, sheet,
+  rectify, back-view) ;
+- côté Modal, `_calcul_protege()` (`app.py`) fait tourner le calcul dans un
+  fil (la boucle reste libre, `/healthz` répond), garde un verrou GPU (un
+  calcul à la fois) et **rattache** un essai de même clé au calcul déjà lancé
+  (en cours ou fini depuis moins de 10 min) ;
+- `@modal.concurrent(max_inputs=4, target_inputs=1)` sur `MyFabmeshBackview`
+  et `MyFabmeshPredictor`, pour que le rejeu entre PENDANT le calcul.
+
+**Instantanés (snapshots).** `MyFabmeshMesh` : instantané GPU
+(`enable_gpu_snapshot`) ; `MyFabmeshPredictor` et `MyFabmeshBackview` :
+instantanés mémoire CPU. Restauration : ~5-25 s. Création : chargement complet
+(maillage 150-230 s) + ~60 s de prise. **Un instantané est propre au type de
+machine** : Modal en crée 2-3 par type de GPU après CHAQUE déploiement, et en
+reprend de lui-même de temps en temps. Tant qu'ils ne sont pas créés, la
+génération qui tombe dessus paie ces 3-4 min. D'où : **grouper les
+`modal deploy`**, vérifier les travaux en cours (Supabase, `jobs` en
+processing) avant, et ne jamais déployer pendant un essai du user. Un
+« rodage » GPU dans l'instantané a été mesuré et écarté (9 s gagnées, +152 s
+par création).
+
+**Caches GPU permanents du maillage** (`/data/_cache_gpu` sur le volume
+`myfabmesh-mesh-output`). Les noyaux Triton de flex_gemm (convolutions
+creuses) sont compilés puis réglés (autotune) à leur premier usage, par
+TRANCHE de taille : clé `LOGN = int(log2(N voxels))`, constante de
+compilation. Sans cache, chaque conteneur neuf repayait 2-3 min. Désormais :
+`brancher_caches_gpu()` (`@modal.enter(snap=False)`) pointe `TRITON_CACHE_DIR`
+sur le volume et recharge le réglage flex_gemm ; `_sauver_reglages_gpu()`
+fusionne le réglage du conteneur dans celui du volume avant chaque commit.
+Une tranche encore jamais vue coûte 2-4 min UNE fois (compilation + réglage),
+ensuite 30-50 s d'inférence. Cache pré-rempli le 2026-09-29 (15 générations
+de tailles variées). Rien n'est écrit sur le volume pendant la prise d'un
+instantané.
+
+**Préchauffe.** `POST /api/prewarm` (session requise) avec une `cible` :
+`text2image` (focus/clic du prompt), `image_op` (options 3D, route `/warm` qui
+charge vraiment les modèles), et `mesh` : lancée par le worker lui-même au
+DÉBUT de la rectification qui précède un maillage (`handleGenerate`) ->
+route Modal `/mesh_warm` -> `MyFabmeshMesh.rechauffer.spawn()` (méthode vide).
+Fraîcheur 60 s pour `mesh` (sa traîne n'est que de 90 s). Le user a refusé
+toute préchauffe spéculative supplémentaire (au survol, maintien à chaud).
+
+**Détourage.** `modal_app/_detourage.py` refait à l'identique
+`rembg.remove(u2net)` avec onnxruntime seul : `import rembg` tirait pymatting,
+qui compile ses noyaux numba à l'import (**88 s** par conteneur neuf).
+`u2net.onnx` est intégré aux deux images (SHA-256 vérifié). Utilisé par
+`_mesh.prep_image`, `_rectify`, `_tpose`, `_retexture` ; rembg reste pour
+`reshape/mesh_inpaint.py` et `_mvadapter.py`.
+
+**Panneau « Cloud services ».** `warm`/`cold` y est ESTIMÉ (travaux récents
+de l'utilisateur, `_meta/last_warm_*`), pas lu sur les conteneurs. Image edit,
+Back view et T-pose partagent le conteneur `MyFabmeshBackview` : un seul état
+pour les trois. Lire l'état réel : `get_current_stats().num_total_runners`
+fonctionne pour une fonction (`mesh_router`, `rig_mesh`) ; pour une classe,
+`modal.Function.from_name` refuse `Classe.*` — piste non aboutie.
+
+**Lire les journaux Modal.**
+```bash
+PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -m modal app logs myfabmesh-cloud -f --timestamps
+# --since 2h / --tail 5000 / --source stdout|stderr|system / --show-container-id / --search "<texte>"
+```
+`--source system` montre la vie des conteneurs (« Creating GPU memory
+snapshot », « Restoring Function… », « Runner terminated »). Lignes utiles du
+maillage : `image prepared`, `TRELLIS-2 inference dt=`, `GLB export dt=`,
+`ultra 8K`, `DONE`. Tableau de bord : modal.com -> apps -> myfabmesh-cloud.
+
+**Bancs Modal** (hors production, quelques centimes chacun) :
+`test_rembg_import.py` (détourage), `test_annulation.py` (coupure à 100 s),
+`test_cpu_gpu.py` (CPU d'un conteneur GPU), `test_esrgan.py` (Ultra 8K). Pour
+mesurer une classe déployée sous une autre carte :
+`modal.Cls.from_name('myfabmesh-cloud', 'MyFabmeshMesh').with_options(gpu='H100', cpu=8.0)`.
+Pour tester du code NON déployé : `with app.run(): ...` (exécution éphémère).
+
 **`/healthz` ne charge RIEN.** Les gros modèles (CLIPSeg + SDXL Inpaint ≈ 6 Go,
 ControlNet-Tile) sont chargés paresseusement au premier vrai appel. La
 préchauffe doit appeler **`/warm`**, pas `/healthz`, sinon un service annoncé
@@ -440,6 +534,23 @@ préchauffe doit appeler **`/warm`**, pas `/healthz`, sinon un service annoncé
   composante diffuse, il rend NOIR quel que soit l'éclairage. La règle exige
   métal élevé **et** rugosité élevée simultanément (physiquement dégénéré),
   ce qui épargne les objets réellement métalliques, lisses eux.
+- **Durées mesurées** (2026-09-29, 500 K faces, texture 4K, 1536_cascade) :
+  préparation de l'image ~1-2 s ; inférence 31 s à chaud, ~50 s sur un
+  conteneur neuf, 2-4 min si une tranche de taille est nouvelle (voir
+  section 12) ; construction du modèle final (« GLB export » : remaillage,
+  dépliage UV, cuisson, retouches d'atlas, WebP) ~36 s à chaud, 70-90 s au
+  premier passage d'un conteneur ; Ultra 8K ~18-25 s. Avant le 29/09 : médiane
+  de 8-10 min par génération.
+- **Retouches d'atlas accélérées** (`_mesh.accelerer_to_glb`) : dans
+  `o_voxel.postprocess.to_glb`, les 3 `cv2.inpaint` de rayon 1 (métal,
+  rugosité, alpha) sont faits en une fois sur une image à 3 canaux (mêmes
+  octets) et en parallèle de celui de la couleur : 44 -> 36 s. Le texte de la
+  fonction est remplacé à l'import ; texte inattendu -> version d'origine.
+- **Ultra 8K** (`_esrgan.affuter_atlas`) : conversion en octets sur la carte
+  avant transfert (mêmes pixels) : 23 -> 18 s. Tuiles de 512 (1024 est plus
+  lent).
+- **Pas plus rapide en changeant de carte** : voir « GPU en production » —
+  H100 mesuré sans intérêt, B200 incompatible avec l'image (CUDA 12.4).
 - Diagnostiquer un mesh : télécharger le GLB depuis R2 et mesurer
   `metallicFactor`, le canal B de la carte metal/rugosité, la luminance de
   l'atlas sur la zone couverte, puis la topologie (arêtes de bord =
@@ -480,7 +591,7 @@ si une case est cochée, décochée ou masquée :
   et ne ressuscite pas ces options. Sans ce mécanisme, une option masquée
   était recochée par le profil et **facturée pour un traitement absent**.
 
-## 16. État au 2026-09-24 — ce qui reste ouvert
+## 16. État au 2026-09-29 — ce qui reste ouvert
 
 - **Outils mesh encore absents du web** : `detail-synth` (Détail++ ; rien ne
   bloque : il rend DÉJÀ avec kaolin, Apache 2.0, depuis le 2026-07-26 — la
@@ -492,9 +603,21 @@ si une case est cochée, décochée ou masquée :
   (`/api/mesh-retexture`, asynchrone). Portés le 2026-09-26 : `texvar`,
   `enhance-tex`, `name`, `clone3d`, `region-retex` ; les Étapes de
   construction 3D l'étaient déjà.
-- **Rectification à froid** : 509 s au premier appel après un déploiement
-  (mesuré le 2026-09-26), au-delà de la reprise du worker (~450 s). Les
-  appels suivants : 24 s.
+- **Rectification** : ~21-23 s à chaud (3 graines, désormais en un seul
+  passage : ~1 s gagnée seulement, un SDXL 1024 sature déjà le L40S). À
+  froid, l'import de rembg (88 s) et le rejeu qui recalculait tout la
+  faisaient échouer une fois sur deux : corrigé le 2026-09-29 (section 12).
+- **Vue de dos automatique** : le champ caché `ws-mv-scope` vaut
+  `front_only` des deux côtés (le web était resté sur `auto` et générait ET
+  facturait une vue de dos après chaque personnage / animal, jamais utilisée
+  par la 3D, `views=1`). Corrigé le 2026-09-29.
+- **Moteur d'animation procédural** (`locomotion-procedurale.js`, fichier
+  commun) : bipèdes corrigés le 2026-09-29 — genoux pliés à l'envers
+  (jambe presque droite en T-pose : sens vers les orteils), doigts pris pour
+  des bras, os d'orteil en plus d'un seul côté, jambe partant du genou (pagne),
+  bras en T abaissés de ~70° et balancés d'avant en arrière. Piège : les
+  rotations `R` rendues par `animerAllure` sont LOCALES (`D_j = D_parent · R_j`).
+  Bancs : `C:/tmp/procedural_test/js/banc_bipedes.mjs`, `trace_squelette.mjs`.
 - **Banc GPU** : `modal_app/test_atlas_ops.py` exécute les ops d'atlas et le
   nommage sur la VRAIE image Modal (~0,15 $). Un déploiement qui passe ne
   prouve pas qu'une inférence passe : c'est ce banc qui a trouvé le
