@@ -20309,12 +20309,23 @@ async function handleLineageMeta(req: Request, env: Env): Promise<Response> {
   const fin = job.finished_at ? new Date(String(job.finished_at)).getTime() : 0;
   if (debut && fin && !('duration_ms' in params)) params.duration_ms = fin - debut;
   const type = String(job.type || '');
+  // CHAINE COMPLETE (2026-09-29, user : « la suite logique : images, 3D, rig, anim ») : l'animation pointe
+  // son rig (sourceRig), le rig son maillage (sourceMesh), le maillage son image (sourceImage). Adresses
+  // re-signees : celles enregistrees ont expire, ou ne sont que des cles R2.
+  const resigner = async (v: unknown): Promise<string | undefined> => {
+    if (typeof v !== 'string' || !v) return undefined;
+    let cle = v.replace(/^https?:\/\/[^/]+\/r2\//, '').replace(/[?#].*$/, '');
+    try { cle = decodeURIComponent(cle); } catch { /* cle telle quelle */ }
+    if (!(cle.startsWith(`${user.id}/`) || cle.startsWith('mesh/'))) return undefined;
+    try { return await signedR2Url(env, cle, /\.glb$/i.test(cle) ? 'mesh' : 'image'); } catch { return undefined; }
+  };
   return json({ meta: {
     kind: /op|variant|retex|reshape/i.test(type) && type !== 'mesh' ? 'op' : undefined,
     op: typeof options.op === 'string' ? options.op : undefined,
     ts: debut || undefined,
     params,
-    source: typeof options.sourceImage === 'string' ? options.sourceImage : undefined,
+    parent: await resigner(options.sourceRig) || await resigner(options.sourceMesh),
+    source: await resigner(options.sourceImage),
   } });
 }
 
