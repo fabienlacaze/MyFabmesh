@@ -595,8 +595,8 @@ async function _spendRefusalMessage(env: Env, userId?: string): Promise<string> 
    * repart a minuit, il faut que l'exploitant releve le budget. Le client
    * reessayait donc le lendemain pour rien. Toutes les routes passent
    * maintenant par ici, et chaque cause donne sa vraie echeance. */
-  const QUOTIDIEN = 'The service has reached its daily capacity — your credits are safe and you were not charged. '
-                  + 'It resets at midnight UTC.';
+  const QUOTIDIEN = 'The service has reached its daily capacity. It resets at midnight UTC. '
+                  + 'Your credits are safe and you were not charged.';
   try {
     if (await _limiteCalculAtteinte(env)) {
       return 'Cloud generation is paused for now — your credits are safe and you were not charged. '
@@ -613,8 +613,17 @@ async function _spendRefusalMessage(env: Env, userId?: string): Promise<string> 
     // that refused. Below that, the global cap is the culprit and the
     // generic wording is the honest one.
     if (cur >= maxUser * 0.8) {
-      return 'You have reached your daily generation limit for this account. '
-           + 'Your credits are safe and you were not charged — the limit resets at midnight UTC.';
+      // Ce plafond ne s'applique qu'aux comptes GRATUITS (checkAndIncrementModalSpend).
+      return "You have reached today's generation limit for free accounts. It resets at midnight UTC. "
+           + 'Your credits are safe and you were not charged.';
+    }
+    /* PLAFOND DU JOUR DES COMPTES GRATUITS (2026-09-29, demande user). Le plafond global
+     * (MAX_DAILY_MODAL_SPEND_USD) ne refuse que les comptes sans achat : le dire, au lieu d'un
+     * « service a pleine capacite » qui laissait croire a une panne. La page remplace
+     * « midnight UTC » par l'heure LOCALE et le temps restant (_refusCapacite). */
+    if (!(await _isPaidAccount(env, userId))) {
+      return 'Free accounts share a daily cloud capacity, which has been used up for today. '
+           + 'It reopens at midnight UTC. Your credits are safe and you were not charged.';
     }
   } catch { /* counter unreadable -> fall back to the generic wording */ }
   return GENERIC;

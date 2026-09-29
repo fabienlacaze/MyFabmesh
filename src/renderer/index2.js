@@ -305,6 +305,7 @@ window.humanizeErrorMessage = humanizeErrorMessage;
 
 // Show a long error message in a styled modal instead of native alert()
 function customError(message, title = 'Error') {
+  { const refus = _refusCapacite(message); if (refus) { message = refus.texte; title = refus.titre; } }
   // Service GPU cloud COUPE par le fournisseur (budget du mois atteint, 28/09) : le message brut
   // « modal-http: workspace ac-… is disabled » etait illisible (et montrait un identifiant interne).
   if (/workspace \S+ is disabled/i.test(String(message || ''))) {
@@ -425,8 +426,55 @@ function customErrorWithAction(message, title, actionLabel) {
 // shortcut button to Settings) or a plain customError. This is used by the
 // 3 Meshy-aware handlers (image gen, mesh gen, rig gen) so any of them can
 // surface the "API key not configured" error the same way.
+/* REFUS DE CAPACITE DU JOUR (2026-09-29, demande user). Le serveur dit « at midnight UTC » :
+ * on affiche l'heure LOCALE de reprise et le temps restant, dans la langue du user, avec un
+ * titre qui dit la vraie cause (compte gratuit) au lieu de « Image generation failed ». Le
+ * bouton d'achat n'apparait que si la vente est ouverte (/api/pricing/availability) : un
+ * compte qui a achete des credits n'est jamais limite. */
+function _repriseLocale() {
+  const now = new Date();
+  const r = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const heure = r.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const min = Math.max(1, Math.ceil((r - now) / 60000));
+  const duree = min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
+  return { heure, duree };
+}
+function _refusCapacite(message) {
+  const s = String(message || '');
+  if (!/midnight UTC/i.test(s) || /Cloud generation is paused/i.test(s)) return null;
+  const { heure, duree } = _repriseLocale();
+  if (/^Free accounts share a daily cloud capacity/i.test(s)) {
+    return { titre: _i18nT('Free daily capacity reached'), achat: true,
+             texte: _i18nTf('Free accounts share a daily cloud capacity, which has been used up for today. It reopens at {x} (your time), in {y}. Your credits are safe and you were not charged.', heure, duree) };
+  }
+  if (/generation limit for free accounts|daily generation limit/i.test(s)) {
+    return { titre: _i18nT('Free daily limit reached'), achat: true,
+             texte: _i18nTf("You have reached today's generation limit for free accounts. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged.", heure, duree) };
+  }
+  return { titre: _i18nT('Daily capacity reached'), achat: false,
+           texte: _i18nTf('The service has reached its daily capacity. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged.', heure, duree) };
+}
+let _ventesOuvertes = null;
+async function _afficherRefusCapacite(refus) {
+  if (refus.achat && _ventesOuvertes === null) {
+    try {
+      const r = await fetch('/api/pricing/availability', { credentials: 'include' });
+      _ventesOuvertes = r.ok ? !!(await r.json()).ventes_ouvertes : false;
+    } catch (_) { _ventesOuvertes = false; }
+  }
+  if (refus.achat && _ventesOuvertes) {
+    const texte = refus.texte + ' ' + _i18nT('Accounts that have bought credits are never limited.');
+    customErrorWithAction(texte, refus.titre, '⚡ Buy credits')
+      .then((buy) => { if (buy) window.open('/buy', '_blank', 'noopener'); });
+    return;
+  }
+  customError(refus.texte, refus.titre);
+}
+
 function reportPipelineError(errMsg, title) {
   const raw = String(errMsg || '').trim();
+  const refus = _refusCapacite(raw);
+  if (refus) { _afficherRefusCapacite(refus); return; }
   // Content-filter block → offer a direct "Unlock" shortcut straight to the
   // parental-control disable flow (legal warning popup + PIN) instead of making
   // the user hunt through Settings. The action button reuses customErrorWithAction.
@@ -490,6 +538,7 @@ function promptBuyCredits(message) {
 }
 
 function showToast(message, type = 'info', durationMs = 3000) {
+  { const refus = _refusCapacite(message); if (refus) message = refus.texte; }
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');

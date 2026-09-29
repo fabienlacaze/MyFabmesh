@@ -339,6 +339,13 @@
       'Parental control': 'Contrôle parental',
       'About MyFabmesh.AI': 'À propos de MyFabmesh.AI',
       'Server warming up': 'Serveur en préchauffage',
+      "Free daily capacity reached": "Capacité gratuite du jour atteinte",
+      "Free daily limit reached": "Limite gratuite du jour atteinte",
+      "Daily capacity reached": "Capacité du jour atteinte",
+      "Free accounts share a daily cloud capacity, which has been used up for today. It reopens at {x} (your time), in {y}. Your credits are safe and you were not charged.": "Les comptes gratuits partagent une capacité cloud quotidienne, épuisée pour aujourd'hui. Elle revient à {x} (heure locale), dans {y}. Vos crédits sont intacts et rien ne vous a été facturé.",
+      "You have reached today's generation limit for free accounts. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged.": "Vous avez atteint la limite de génération du jour des comptes gratuits. Elle se réinitialise à {x} (heure locale), dans {y}. Vos crédits sont intacts et rien ne vous a été facturé.",
+      "The service has reached its daily capacity. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged.": "Le service a atteint sa capacité du jour. Elle revient à {x} (heure locale), dans {y}. Vos crédits sont intacts et rien ne vous a été facturé.",
+      "Accounts that have bought credits are never limited.": "Les comptes qui ont acheté des crédits ne sont jamais limités.",
       'Modal containers': 'Conteneurs Modal',
       'Each container has its own warm-up. Cold = first call takes ~2 min, then warm for ~9 min idle.':
         'Chaque conteneur a son propre préchauffage. À froid = le premier appel prend ~2 min, puis reste chaud ~9 min en veille.',
