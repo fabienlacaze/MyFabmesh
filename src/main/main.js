@@ -7780,7 +7780,14 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
   //   proportions for vehicles / objects / non-bipedal creatures).
   // Pre-process gates: only run for TRELLIS-2-based engines — other
   // engines have their own opinions about the source view.
-  if (trellis2RectifySource && imagePath && fs.existsSync(imagePath)
+  // DEJA RECTIFIEE (2026-09-29, meme regle que le worker) : une image issue de la rectification
+  // n'est pas re-rectifiee. La rectification REDESSINE le sujet ; repassee sur son propre
+  // resultat, elle degradait l'anatomie (chevre : 4 pattes sur l'image rectifiee, 6 apres).
+  const _dejaRectifiee = !!imagePath && /^fabmesh_rectified_/i.test(path.basename(imagePath));
+  if (_dejaRectifiee && trellis2RectifySource) {
+    log.info('main', `auto-rectify skipped: source already rectified (${path.basename(imagePath)})`);
+  }
+  if (trellis2RectifySource && !_dejaRectifiee && imagePath && fs.existsSync(imagePath)
       && engine === 'trellis2_native') {
     const rectifyScript = path.join(SCRIPTS_DIR, 'generate_front_strict.py');
     // Write the rectified image INTO the project image folder so it becomes a

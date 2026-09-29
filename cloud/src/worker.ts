@@ -7792,6 +7792,14 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     })(),
   };
 
+  /* DEJA RECTIFIEE (2026-09-29) : une image issue de la rectification n'est pas re-rectifiee. La
+   * rectification REDESSINE le sujet ; repassee sur son propre resultat, elle degradait l'anatomie
+   * (chevre du user : 4 pattes sur l'image v1 rectifiee, 6 apres la seconde passe), pour 3 credits et
+   * ~20 s de plus. Case « Auto-rectify » laissee cochee par defaut : c'est le cas le plus courant. */
+  if (input.rectify && imageHttpsUrl && /\/rectify\/[^/?#]*_rectified\.(png|webp|jpe?g)/i.test(imageHttpsUrl)) {
+    input.rectify = false;
+    console.log('[generate] image deja rectifiee : rectification sautee (ni calcul ni credits)');
+  }
   let cost = await creditCost(env, input);
   // Decide backend FIRST so we hit the right budget counter. Mesh
   // routes to Modal when both MODAL_MESH_* URLs are set; otherwise
