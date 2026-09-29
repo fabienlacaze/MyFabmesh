@@ -326,10 +326,13 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     for (const d of donnees) {
       const I = d.idx.array, W = d.wts.array, P = d.pos;
       if (!d.graphe) d.graphe = construireGraphe(P, d.g.index ? d.g.index.array : null, d.n, ext * 1e-5);
-      const gr = d.graphe, dansC = new Uint8Array(gr.m), zone = [], dz = [];
+      const gr = d.graphe, dansC = new Uint8Array(gr.m), zone = [], dz = [], part = [], dp = [];
       for (let i = 0; i < d.n; i++) {
         let w = 0; for (let c = 0; c < 4; c++) if (I[4 * i + c] === osChoisi) w += W[4 * i + c];
-        if (w >= 0.35) { dansC[gr.canon[i]] = 1; zone.push(i); dz.push(distOs(osChoisi, P[3 * i], P[3 * i + 1], P[3 * i + 2])); }
+        if (w <= 0.001) continue;
+        const db = distOs(osChoisi, P[3 * i], P[3 * i + 1], P[3 * i + 2]);
+        part.push(i); dp.push(db);                                 // tout ce que l'os touche, meme faiblement
+        if (w >= 0.35) { dansC[gr.canon[i]] = 1; zone.push(i); dz.push(db); }   // la « zone » : lie a l'os a 35 % ou plus
       }
       if (!zone.length) continue;
       const tri = Float32Array.from(dz).sort(), R0 = tri[Math.min(tri.length - 1, Math.floor(tri.length * 0.98))], R1 = etendre ? R0 + dist : Math.max(0, R0 - dist);
@@ -340,15 +343,21 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
           if (dansC[c] || dc[c] > 2 * dist) continue;
           const db = distOs(osChoisi, P[3 * i], P[3 * i + 1], P[3 * i + 2]);
           if (db > R1) continue;
+          // poids vise : 100 % au bord de la zone, 50 % a la nouvelle limite — TOUJOURS >= 50 %, donc dans la zone :
+          // un « contracter » ensuite retrouve tout ce que « propager » a ajoute (plus de restes)
+          let w = 0; for (let k = 0; k < 4; k++) if (I[4 * i + k] === osChoisi) w += W[4 * i + k];
+          const cible = 1 - 0.5 * Math.min(1, Math.max(0, db - R0) / dist);
+          if (w >= cible) continue;
           noter(d, i);
-          if (viser(d, i, osChoisi, 1, Math.max(0.3, 1 - 0.6 * Math.max(0, db - R0) / dist))) { salir(d, i); nb++; }
+          if (viser(d, i, osChoisi, 1, (cible - w) / (1 - w))) { salir(d, i); nb++; }
         }
       } else {
-        for (let k = 0; k < zone.length; k++) {
-          const db = dz[k]; if (db <= R1) continue;
-          const i = zone[k];
+        // contracter : TOUT le poids de l'os au-dela du nouveau rayon est retire, y compris les poids faibles
+        for (let k = 0; k < part.length; k++) {
+          if (dp[k] <= R1) continue;
+          const i = part[k];
           noter(d, i);
-          if (viser(d, i, osChoisi, 0, 0.4 + 0.6 * Math.min(1, (db - R1) / dist))) { salir(d, i); nb++; }
+          if (viser(d, i, osChoisi, 0, 1)) { salir(d, i); nb++; }
         }
       }
     }
