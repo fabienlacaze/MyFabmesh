@@ -1,0 +1,9 @@
+# Moteurs de recherche (2026-09-29) : tout le site public est indexable ; l'espace admin et les
+# pages de compte ne le sont pas.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /account
+
+Sitemap: https://myfabmesh-cloud.fabien65400.workers.dev/sitemap.xml
