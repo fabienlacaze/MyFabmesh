@@ -8777,13 +8777,30 @@ async function buildLineageTimeline(startPath, p) {
   const srcImg = (steps.find((s) => s.sourceImage) || {}).sourceImage;
   if (srcImg) {
     const projPrompt = (p && typeof p.prompt === 'string' && p.prompt.trim()) ? p.prompt.trim() : null;
-    steps.unshift({
-      kind: 'image', path: srcImg,
-      filename: String(srcImg).split(/[\\/]/).pop(),
-      thumb: srcImg,
-      ts: 0, engine: undefined,
-      params: projPrompt ? { prompt: projPrompt } : null,
-      derived: true,
+    // CHAINE DE L'IMAGE (2026-09-29, user : « on a plus de parametres pour les images que ce qu'il y a dans
+    // l'historique ») : rectifiee <- modifiee <- generee, chacune avec les reglages enregistres (user_assets).
+    const chaine = [];
+    let chemin = srcImg;
+    for (let k = 0; chemin && k < 6; k++) {
+      let meta = null;
+      try { meta = API.getLineageMeta ? await API.getLineageMeta(chemin) : null; } catch (_) { meta = null; }
+      chaine.unshift({ chemin, meta });
+      chemin = meta && meta.parent ? meta.parent : null;
+    }
+    chaine.reverse().forEach(({ chemin: c, meta }, k) => {
+      const derniere = k === chaine.length - 1;          // la plus ancienne = l'image generee
+      const origine = meta && meta.origin;
+      const params = (meta && meta.params && Object.keys(meta.params).length) ? meta.params
+        : (derniere && projPrompt ? { prompt: projPrompt } : null);
+      steps.unshift({
+        kind: (origine && !derniere) ? 'op' : 'image', path: c,
+        filename: String(c).replace(/[?#].*$/, '').split(/[\\/]/).pop(),
+        thumb: c,
+        ts: (meta && meta.ts) || 0, engine: undefined,
+        opLabel: (origine && !derniere) ? origine : null,
+        params,
+        derived: !meta,
+      });
     });
   }
   return steps;
@@ -8811,7 +8828,7 @@ async function showGenerationHistory(startPath) {
     smooth: 'Texture smooth', back_view: 'Back view', fast: 'Fast mode', seed: 'Seed', steps: 'Steps',
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
     texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
-    prompt: 'Prompt',
+    prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode',
   };
   const fmtVal = (k, v) => {
     if (v === true) return '✓';

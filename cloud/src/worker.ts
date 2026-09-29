@@ -11533,7 +11533,10 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
       const r2_path = r2PathFromPublicUrl(env, url);
       if (r2_path) {
         await insertUserAsset(env, user.id, projectName, kind, r2_path, null,
-          { asset_type, asset_style, prompt: rawPrompt.slice(0, 512), seed: seedBase });
+          { asset_type, asset_style, prompt: rawPrompt.slice(0, 512), seed: seedBase,
+            // reglages complets pour l'historique des generations (2026-09-29)
+            steps: turbo ? 4 : (steps || 30), count: n, turbo: !!turbo || undefined, tpose: useTpose || undefined,
+            full_prompt: String(prompt || '').slice(0, 1500) });
       }
     }
   }
@@ -20253,6 +20256,25 @@ async function handleLineageMeta(req: Request, env: Env): Promise<Response> {
   const nom = (chemin.replace(/[?#].*$/, '').split('/').pop() || '').slice(0, 200);
   if (!nom) return json({ meta: null });
   const sb = supabaseAdmin(env);
+  // IMAGES : user_assets garde leurs reglages (meta) et leur parent (modifiee <- generee...)
+  if (/\.(png|jpe?g|webp)$/i.test(nom)) {
+    const motifImg = '%/' + nom.replace(/[\\%_]/g, (c) => '\\' + c);
+    const r = await sb.from('user_assets').select('kind,r2_path,parent_path,meta,created_at')
+      .eq('user_id', user.id).like('r2_path', motifImg).limit(1);
+    const a = ((r.data as Record<string, unknown>[] | null) || [])[0];
+    if (!a) return json({ meta: null });
+    const cle = String(a.r2_path || '');
+    const origine = /\/rectify\//.test(cle) ? 'Auto-rectify' : /\/modified\//.test(cle) ? 'Modification'
+      : /\/removebg\//.test(cle) ? 'Remove background' : /\/outfit\//.test(cle) ? 'Outfit' : null;
+    const params = (a.meta && typeof a.meta === 'object') ? { ...(a.meta as Record<string, unknown>) } : {};
+    delete params.origin; delete params.mime;
+    let parent: string | undefined;
+    if (a.parent_path && String(a.parent_path).startsWith(`${user.id}/`)) {
+      try { parent = await signedR2Url(env, String(a.parent_path)); } catch { parent = undefined; }
+    }
+    return json({ meta: { kind: 'image', origin: origine, params, parent,
+      ts: a.created_at ? new Date(String(a.created_at)).getTime() : undefined } });
+  }
   const m = nom.match(/^(modal_[0-9a-f]{32})\.glb$/i);
   let job: Record<string, unknown> | null = null;
   if (m) {
