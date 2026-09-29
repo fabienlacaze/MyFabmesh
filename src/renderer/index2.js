@@ -26000,6 +26000,7 @@ function _ptsSupprimerOs(i) {
   _pts.os.forEach((_, j) => _ptsDessinerOs(j));
   _ptsRenumeroter();                       // les points a atteindre suivent le squelette
   _pts.osModifies = _ptsOsModifie();
+  _ptsDessinerLiens();                     // les liens vers l'ancien point n'y restent pas accroches (2026-09-29)
   _ptsListe(); _ptsMajBoutons(); _ptsSauver();
 }
 /** AFTER / BEFORE D'UN POINT DU SQUELETTE (2026-09-27, user : « on peut
@@ -26194,6 +26195,7 @@ function _ptsSupprimer(id) {
   if (_pts.selection === id) _pts.selection = null;
   if (_pts.survol === id) _pts.survol = null;
   _ptsRenumeroter();
+  _ptsDessinerLiens();                       // les traits jaunes vers le point supprime disparaissent aussi (2026-09-29)
   _ptsListe();
   _ptsMajBoutons();
   _ptsSauver();
@@ -29129,4 +29131,31 @@ document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () 
   el.textContent = `v${b.version} · build ${b.build}${b.sale ? '*' : ''}`;
   el.title = `${b.date} · ${b.hash}${b.sale ? ' · unsaved changes' : ''}`;
   document.body.appendChild(el);
+})();
+
+// ══ JOURNAL DES MODIFICATIONS (2026-09-29, user : « si je clique sur la version, une popup avec les derniers changements ») :
+// clic sur le numero de version = liste des derniers commits (build-info.js, ecrit par build/ecrire-version.mjs).
+function ouvrirJournalVersion() {
+  const b = window.__BUILD__; if (!b) return;
+  const t = (s) => ((typeof _i18nT === 'function') ? _i18nT(s) : s);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  document.getElementById('modal-journal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'modal-journal'; m.className = 'modal-overlay'; m.setAttribute('data-i18n-skip', '');
+  const lignes = (b.journal || []).map((j) => `<li><span class="mj-date">${esc(j.d)}</span> ${esc(j.t)}</li>`).join('');
+  m.innerHTML = `<div class="modal-card" style="max-width:680px;width:92vw;">
+    <div class="fen-tete"><h2>${esc(t('Latest changes'))}</h2><button type="button" class="settings-close-x" id="mj-close" title="Close">&#10005;</button></div>
+    <p class="modal-subtitle">v${esc(b.version)} · build ${esc(b.build)}${b.sale ? ' *' : ''} · ${esc(b.date)} · ${esc(b.hash)}${b.sale ? ' — ' + esc(t('changes in progress, not yet saved')) : ''}</p>
+    <ul class="mj-liste">${lignes || '<li>—</li>'}</ul>
+    <div class="modal-actions"><button class="primary-btn" id="mj-ok">${esc(t('Close'))}</button></div></div>`;
+  document.body.appendChild(m);
+  const fermer = () => { m.remove(); document.removeEventListener('keydown', echap); };
+  const echap = (e) => { if (e.key === 'Escape') fermer(); };
+  document.addEventListener('keydown', echap);
+  m.addEventListener('click', (e) => { if (e.target === m) fermer(); });
+  m.querySelector('#mj-close').onclick = fermer; m.querySelector('#mj-ok').onclick = fermer;
+}
+(function activerJournalVersion() {
+  const el = document.getElementById('version-logiciel');
+  if (el) { el.style.cursor = 'pointer'; el.style.pointerEvents = 'auto'; el.onclick = ouvrirJournalVersion; }
 })();
