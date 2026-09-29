@@ -3042,10 +3042,7 @@
          ============================================================ -->
     <div id="mask-modal" class="modal hidden">
       <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0;">Draw Mask (paint to remove)</h3>
-          <button id="mask-modal-close" class="settings-close-x">&#10005;</button>
-        </div>
+        <div class="fen-tete"><h2>Draw Mask (paint to remove)</h2><button id="mask-modal-close" class="settings-close-x">&#10005;</button></div>
         <div style="font-size: 11px; color: var(--text-muted);">
           <strong>Click & drag</strong> to paint &nbsp;|&nbsp;
           <strong>E</strong> / eraser button to erase &nbsp;|&nbsp;
@@ -3080,9 +3077,9 @@
           <label for="mask-prompt" style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Replace with:</label>
           <input type="text" id="mask-prompt" placeholder="Describe replacement (empty = just remove)" style="flex: 1; padding: 10px 12px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px;" />
         </div>
-        <div style="display:flex; justify-content:flex-end; gap:8px;">
-          <button id="mask-cancel" class="secondary-btn">Cancel</button>
-          <button id="mask-apply" class="refine-btn" style="margin: 0; padding: 8px 24px; width: auto;">Apply Inpaint</button>
+        <div class="modal-actions fen-pied-editeur">
+          <button id="mask-cancel" class="ghost-btn">Cancel</button>
+          <button id="mask-apply" class="primary-btn">Apply Inpaint</button>
         </div>
       </div>
     </div>
@@ -3092,10 +3089,7 @@
          ============================================================ -->
     <div id="clone-modal" class="modal hidden">
       <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0;">Clone Stamp</h3>
-          <button id="clone-modal-close" class="settings-close-x">&#10005;</button>
-        </div>
+        <div class="fen-tete"><h2>Clone Stamp</h2><button id="clone-modal-close" class="settings-close-x">&#10005;</button></div>
         <div style="font-size: 11px; color: var(--text-muted);">
           <strong>Ctrl+Click</strong> to set source point &nbsp;|&nbsp;
           <strong>Click & drag</strong> to clone &nbsp;|&nbsp;
@@ -3133,9 +3127,9 @@
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <span id="clone-status" style="font-size:11px; color:var(--text-muted);">No source point set</span>
-          <div style="display:flex; gap:8px;">
-            <button id="clone-cancel" class="secondary-btn">Cancel</button>
-            <button id="clone-save" class="refine-btn" style="margin: 0; padding: 8px 24px; width: auto;">Save as new version</button>
+          <div class="modal-actions fen-pied-editeur">
+            <button id="clone-cancel" class="ghost-btn">Cancel</button>
+            <button id="clone-save" class="primary-btn">Save as new version</button>
           </div>
         </div>
         <div id="clone-error" style="display:none; padding: 8px 12px; background: rgba(255,68,68,0.15); border: 1px solid var(--error); border-radius: 4px; color: var(--error); font-size: 12px; font-weight: 600;"></div>
@@ -3145,10 +3139,7 @@
     <!-- Selection / Cut-Paste modal (manual: rectangle select → cut/copy → move → drop) -->
     <div id="select-modal" class="modal hidden">
       <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 style="margin:0;">Selection — Cut / Copy / Paste</h3>
-          <button id="select-modal-close" class="settings-close-x">&#10005;</button>
-        </div>
+        <div class="fen-tete"><h2>Selection — Cut / Copy / Paste</h2><button id="select-modal-close" class="settings-close-x">&#10005;</button></div>
         <div style="font-size: 11px; color: var(--text-muted);">
           <strong>Rect</strong> or <strong>Lasso</strong>, then drag around the zone &nbsp;|&nbsp; <strong>Cut</strong> (leaves a transparent hole) or <strong>Copy</strong> &nbsp;|&nbsp;
           drag the piece to move it &nbsp;|&nbsp; <strong>Drop</strong> (or Enter) to place &nbsp;|&nbsp; right-drag to pan, wheel to zoom
@@ -3172,9 +3163,9 @@
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <span id="select-status" style="font-size:11px; color:var(--text-muted);">Drag to select a rectangle.</span>
-          <div style="display:flex; gap:8px;">
-            <button id="select-cancel" class="secondary-btn">Cancel</button>
-            <button id="select-save" class="refine-btn" style="margin: 0; padding: 8px 24px; width: auto;">Save as new version</button>
+          <div class="modal-actions fen-pied-editeur">
+            <button id="select-cancel" class="ghost-btn">Cancel</button>
+            <button id="select-save" class="primary-btn">Save as new version</button>
           </div>
         </div>
       </div>
@@ -3331,11 +3322,8 @@
 
   <!-- Blur Brush modal -->
   <div id="modal-blur" class="modal hidden">
-    <div class="modal-content" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0;">Blur / Sharpen Brush</h3>
-        <button id="blur-close-x" class="settings-close-x">&#10005;</button>
-      </div>
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+      <div class="fen-tete"><h2>Blur / Sharpen Brush</h2><button id="blur-close-x" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <label style="display:flex; align-items:center; gap:4px; flex:1 1 140px;">
           <span style="font-size:11px;">Brush:</span>
@@ -3362,20 +3350,17 @@
           <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%);"></div>
         </div>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button id="blur-cancel" class="secondary-btn">Cancel</button>
-        <button id="blur-save" class="refine-btn" style="margin:0; padding:8px 24px; width:auto;">Save as new version</button>
+      <div class="modal-actions fen-pied-editeur">
+        <button id="blur-cancel" class="ghost-btn">Cancel</button>
+        <button id="blur-save" class="primary-btn">Save as new version</button>
       </div>
     </div>
   </div>
 
   <!-- Crop modal -->
   <div id="modal-crop" class="modal hidden">
-    <div class="modal-content" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0;">Crop</h3>
-        <button id="crop-close-x" class="settings-close-x">&#10005;</button>
-      </div>
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+      <div class="fen-tete"><h2>Crop</h2><button id="crop-close-x" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <button id="crop-preset-free" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px;">Free</button>
         <button id="crop-preset-1-1" class="secondary-btn" style="padding:4px 10px; font-size:11px;">1:1</button>
@@ -3390,20 +3375,17 @@
         <canvas id="crop-canvas" style="position:absolute; left:0; top:0;"></canvas>
         <canvas id="crop-overlay" style="position:absolute; left:0; top:0;"></canvas>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button id="crop-cancel" class="secondary-btn">Cancel</button>
-        <button id="crop-apply" class="refine-btn" style="margin:0; padding:8px 24px; width:auto;">Apply Crop</button>
+      <div class="modal-actions fen-pied-editeur">
+        <button id="crop-cancel" class="ghost-btn">Cancel</button>
+        <button id="crop-apply" class="primary-btn">Apply Crop</button>
       </div>
     </div>
   </div>
 
   <!-- Symmetrize modal -->
   <div id="modal-symmetrize" class="modal hidden">
-    <div class="modal-content" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0;">Symmetrize</h3>
-        <button id="sym-close" class="settings-close-x">&#10005;</button>
-      </div>
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+      <div class="fen-tete"><h2>Symmetrize</h2><button id="sym-close" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <label style="font-size:11px; display:flex; align-items:center; gap:4px;">
           Direction:
@@ -3441,9 +3423,9 @@
           <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:rgba(255,60,60,0.9); border-radius:50%; transform:translate(-50%,-50%);"></div>
         </div>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button id="sym-cancel" class="secondary-btn">Cancel</button>
-        <button id="sym-apply" class="refine-btn" style="margin:0; padding:8px 24px; width:auto;">Apply Symmetrize</button>
+      <div class="modal-actions fen-pied-editeur">
+        <button id="sym-cancel" class="ghost-btn">Cancel</button>
+        <button id="sym-apply" class="primary-btn">Apply Symmetrize</button>
       </div>
     </div>
   </div>
@@ -3528,9 +3510,9 @@
           </div>
         </div>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button id="paint-cancel" class="secondary-btn">Cancel</button>
-        <button id="paint-save" class="refine-btn" style="margin:0; padding:8px 24px; width:auto;">Save as new version</button>
+      <div class="modal-actions fen-pied-editeur">
+        <button id="paint-cancel" class="ghost-btn">Cancel</button>
+        <button id="paint-save" class="primary-btn">Save as new version</button>
       </div>
     </div>
   </div>
@@ -3664,9 +3646,9 @@
           <div id="me-loupe"><canvas id="me-loupe-canvas" width="150" height="150" style="width:150px; height:150px;"></canvas></div>
         </div>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button id="me-cancel" class="secondary-btn">Cancel</button>
-        <button id="me-save" class="refine-btn" style="margin:0; padding:8px 24px; width:auto;">Save as new version</button>
+      <div class="modal-actions fen-pied-editeur">
+        <button id="me-cancel" class="ghost-btn">Cancel</button>
+        <button id="me-save" class="primary-btn">Save as new version</button>
       </div>
     </div>
   </div>

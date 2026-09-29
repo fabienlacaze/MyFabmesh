@@ -4716,3 +4716,7 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 .modal-form-side { justify-content: flex-start; }
 .modal-form-side > input, .modal-form-side > select, .modal-form-side > textarea { flex: 0 0 auto; }
 .modal-actions button { white-space: nowrap; }
+
+/* ══ KIT DES FENETRES, lot 4 (2026-09-29) : editeurs plein ecran — meme pied que les autres fenetres
+   (Annuler discret + action principale), le texte d'etat eventuel reste a gauche. ══ */
+.modal-actions.fen-pied-editeur { margin-top: 0; }
