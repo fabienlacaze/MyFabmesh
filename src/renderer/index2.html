@@ -1487,8 +1487,8 @@
          ============================================================ -->
     <div id="modal-auto-inpaint" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
-        <h2>Auto Inpaint</h2>
-        <p class="modal-subtitle">Describe what to replace — it is found and repainted automatically.</p>
+        <div class="fen-tete"><h2>Auto Inpaint</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <p class="modal-subtitle">Name what to replace &mdash; it is found and repainted.</p>
         <div class="modal-with-image">
           <div class="modal-image-side" style="position:relative;">
             <img id="ai-source-img" alt="" />
@@ -1498,15 +1498,16 @@
             </div>
           </div>
           <div class="modal-form-side">
-            <label>Target (what to find)</label>
+            <label>Find</label>
             <input type="text" id="ai-target" placeholder="hat, shirt, background, sword..." />
-            <label>Replace with (leave empty = remove)</label>
+            <label>Replace with <span class="fen-facultatif">(empty = remove)</span></label>
             <input type="text" id="ai-replace" placeholder="leather helmet, plain background..." />
             <label>Detection precision <span id="ai-precision-val" class="slider-val">65%</span></label>
             <input type="range" id="ai-precision" min="0" max="100" value="65" />
-            <label>Detection padding <span id="ai-dilate-val" class="slider-val">15px</span></label>
+            <label>Padding <span id="ai-dilate-val" class="slider-val">15px</span></label>
             <input type="range" id="ai-dilate" min="0" max="40" value="15" />
-            <small id="ai-dilate-hint" class="modal-subtitle" style="display:block; margin-top:5px; font-size:11px; line-height:1.3;">How far to expand the detected mask around the target. 0px = tight to the object; higher widens it to cover edges, shadows or halos. ~15px recommended.</small>
+            <div class="fen-echelle"><span>Tight</span><span>Wide</span></div>
+            <small id="ai-dilate-hint" hidden></small>
           </div>
         </div>
         <div class="modal-actions">
@@ -1628,8 +1629,8 @@
 
     <div id="modal-age" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
-        <h2>Age</h2>
-        <p class="modal-subtitle">Make the subject younger or older — the shape and pose are kept, only the apparent age changes.</p>
+        <div class="fen-tete"><h2>Age</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <p class="modal-subtitle">Younger or older &mdash; the shape and pose are kept.</p>
         <div class="modal-with-image">
           <div class="modal-image-side" style="position:relative;">
             <img id="age-source-img" alt="" />
@@ -1637,12 +1638,9 @@
           <div class="modal-form-side">
             <label>Age <span id="age-val" class="slider-val">Neutral</span></label>
             <input type="range" id="age-slider" min="-100" max="100" value="0" />
-            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-top:2px;">
-              <span>&#128118; Younger</span><span>Older &#128116;</span>
-            </div>
-            <label style="margin-top:14px;">Optional guide</label>
-            <input type="text" id="age-guide" placeholder="e.g. grey beard, smooth skin... (optional)" />
-            <small class="modal-subtitle" style="display:block; margin-top:8px; font-size:11px; line-height:1.3;">Keeps the silhouette/pose and re-renders the surface toward the chosen age (skin, wrinkles, hair). Works best on characters; for objects it reads as wear/patina.</small>
+            <div class="fen-echelle"><span>&#128118; Younger</span><span>Older &#128116;</span></div>
+            <label>Guide <span class="fen-facultatif">(optional)</span></label>
+            <input type="text" id="age-guide" placeholder="e.g. grey beard, smooth skin" />
           </div>
         </div>
         <div class="modal-actions">
@@ -2909,23 +2907,20 @@
          ============================================================ -->
     <div id="modal-modify-image" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
-        <h2>Modify image</h2>
-        <p class="modal-subtitle">Describe the changes you want. The composition is kept.</p>
+        <div class="fen-tete"><h2>Modify image</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <p class="modal-subtitle">Describe the changes. The composition is kept.</p>
         <div class="modal-with-image">
           <div class="modal-image-side">
             <img id="mod-source-img" alt="" />
           </div>
           <div class="modal-form-side">
-            <label>Modification prompt</label>
-            <textarea id="mod-prompt" rows="3" placeholder="make it red, add more details, anime style..."></textarea>
-            <label>Engine</label>
-            <div class="engine-static" style="padding:8px 10px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; font-size:13px; color:var(--text-1);">MyFabmesh.AI Image Engine (local)</div>
-            <select id="mod-engine" style="display:none">
-              <option value="local-sdxl" selected>MyFabmesh.AI Image Engine (local)</option>
-            </select>
+            <label>What to change</label>
+            <textarea id="mod-prompt" rows="3" placeholder="make it red, add details, anime style..."></textarea>
+            <select id="mod-engine" style="display:none;"><option value="local-sdxl" selected>MyFabmesh.AI</option></select>
             <label>Strength <span id="mod-strength-val" class="slider-val">55%</span></label>
             <input type="range" id="mod-strength" min="30" max="95" value="55" />
-            <small id="mod-strength-hint" class="modal-subtitle" style="display:block; margin-top:5px; font-size:11px; line-height:1.3;"></small>
+            <div class="fen-echelle"><span>Keeps the original</span><span>Redraws more</span></div>
+            <small id="mod-strength-hint" hidden></small>
           </div>
         </div>
         <div class="modal-actions">
@@ -3160,20 +3155,34 @@
   <script type="module" src="index2.js"></script>
   <!-- Resolution modal -->
   <div id="modal-resolution" class="modal-overlay hidden">
-    <div class="modal-card" style="max-width:400px; text-align:center;">
-      <h2>Resolution</h2>
-      <img id="res-preview" alt="" style="max-width:300px; max-height:300px; border-radius:8px; margin:12px auto; display:block; border:1px solid var(--border);" />
-      <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin:8px 0 12px 0;">
-        <span id="res-current" style="font-size:16px; font-weight:700; color:var(--text-0);"></span>
-        <span id="res-arrow" style="font-size:16px; display:none;">→</span>
-        <span id="res-target" style="font-size:16px; font-weight:700; display:none;"></span>
+    <div class="modal-card modal-card-wide">
+      <div class="fen-tete"><h2>Resolution</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+      <div class="modal-with-image">
+        <div class="modal-image-side">
+          <img id="res-preview" alt="" />
+        </div>
+        <div class="modal-form-side">
+          <label>Size</label>
+          <div class="res-tailles"><span id="res-current"></span><span id="res-arrow" style="display:none;">&rarr;</span><span id="res-target" style="display:none;"></span></div>
+          <label>Change</label>
+          <select id="res-mode" style="display:none;">
+            <option value="up" selected>Upscale 2x</option>
+            <option value="down">Downscale 0.5x</option>
+          </select>
+          <div class="choix" data-pour="res-mode">
+            <button type="button" class="choix-btn" data-valeur="up"><b>&#8593; Upscale 2x</b><small>Sharper (AI)</small></button>
+            <button type="button" class="choix-btn" data-valeur="down"><b>&#8595; Downscale 0.5x</b><small>Lighter file</small></button>
+          </div>
+          <!-- boutons d'origine, CACHES : « Apply » leur relaie le clic (gestionnaires inchanges) -->
+          <div hidden>
+            <button id="res-downscale" class="ghost-btn">&#8595; Downscale 0.5x</button>
+            <button id="res-upscale" class="primary-btn">&#8593; Upscale 2x</button>
+          </div>
+        </div>
       </div>
-      <div style="display:flex; gap:10px; justify-content:center; margin:12px 0;">
-        <button id="res-downscale" class="ghost-btn" style="padding:8px 0; flex:1;">&#8595; Downscale 0.5x</button>
-        <button id="res-upscale" class="primary-btn" style="padding:8px 0; flex:1;">&#8593; Upscale 2x</button>
-      </div>
-      <div class="modal-actions" style="justify-content:center;">
-        <button class="ghost-btn" id="res-close">Close</button>
+      <div class="modal-actions">
+        <button class="ghost-btn" id="res-close">Cancel</button>
+        <button class="primary-btn" id="res-apply">Apply</button>
       </div>
     </div>
   </div>
@@ -3188,42 +3197,27 @@
                           preserveAlpha="true" />
       </filter>
     </svg>
-    <div class="modal-card" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0;">Brightness / Contrast</h3>
-        <button class="settings-close-x" id="bright-close-x">&#10005;</button>
-      </div>
-      <div style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; display:flex; align-items:center; justify-content:center;">
-        <img id="bright-preview" alt="" style="max-width:100%; max-height:100%; border-radius:4px; object-fit:contain;" />
-      </div>
-      <div style="display:flex; flex-direction:column; gap:10px; margin:12px 0;">
-        <label style="display:flex; align-items:center; gap:8px; font-size:12px;">
-          <span style="min-width:70px;">Brightness</span>
-          <input type="range" id="bright-brightness" min="50" max="200" value="100" style="flex:1;" />
-          <span id="bright-brightness-val" style="min-width:35px; text-align:right; font-size:11px;">100%</span>
-        </label>
-        <label style="display:flex; align-items:center; gap:8px; font-size:12px;">
-          <span style="min-width:70px;">Contrast</span>
-          <input type="range" id="bright-contrast" min="50" max="200" value="100" style="flex:1;" />
-          <span id="bright-contrast-val" style="min-width:35px; text-align:right; font-size:11px;">100%</span>
-        </label>
-        <label style="display:flex; align-items:center; gap:8px; font-size:12px;">
-          <span style="min-width:70px;">Saturation</span>
-          <input type="range" id="bright-saturation" min="0" max="200" value="100" style="flex:1;" />
-          <span id="bright-saturation-val" style="min-width:35px; text-align:right; font-size:11px;">100%</span>
-        </label>
-        <label style="display:flex; align-items:center; gap:8px; font-size:12px;">
-          <span style="min-width:70px;">Sharpness</span>
-          <input type="range" id="bright-sharpness" min="0" max="300" value="100" style="flex:1;" />
-          <span id="bright-sharpness-val" style="min-width:35px; text-align:right; font-size:11px;">100%</span>
-        </label>
-      </div>
-      <div style="display:flex; justify-content:space-between;">
-        <button id="bright-reset" class="ghost-btn" style="padding:6px 16px;">Reset</button>
-        <div style="display:flex; gap:8px;">
-          <button id="bright-cancel" class="ghost-btn" style="padding:6px 16px;">Cancel</button>
-          <button id="bright-apply" class="primary-btn" style="padding:6px 16px;">Apply</button>
+    <div class="modal-card modal-card-wide">
+      <div class="fen-tete"><h2>Brightness / Contrast</h2><button class="settings-close-x" id="bright-close-x">&#10005;</button></div>
+      <div class="modal-with-image">
+        <div class="modal-image-side">
+          <img id="bright-preview" alt="" />
         </div>
+        <div class="modal-form-side">
+          <label>Brightness <span id="bright-brightness-val" class="slider-val">100%</span></label>
+          <input type="range" id="bright-brightness" min="50" max="200" value="100" />
+          <label>Contrast <span id="bright-contrast-val" class="slider-val">100%</span></label>
+          <input type="range" id="bright-contrast" min="50" max="200" value="100" />
+          <label>Saturation <span id="bright-saturation-val" class="slider-val">100%</span></label>
+          <input type="range" id="bright-saturation" min="0" max="200" value="100" />
+          <label>Sharpness <span id="bright-sharpness-val" class="slider-val">100%</span></label>
+          <input type="range" id="bright-sharpness" min="0" max="300" value="100" />
+          <button id="bright-reset" class="ghost-btn fen-petit" type="button">&#8634; Reset</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="bright-cancel" class="ghost-btn">Cancel</button>
+        <button id="bright-apply" class="primary-btn">Apply</button>
       </div>
     </div>
   </div>

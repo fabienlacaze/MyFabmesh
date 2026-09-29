@@ -20,6 +20,31 @@
 
   const I18N = {
     fr: {
+      // ---- Fenetres Age, Modify, Auto Inpaint, Resolution, Brightness (2026-09-29) ----
+      'Younger or older — the shape and pose are kept.': "Plus jeune ou plus âgé — la forme et la pose sont conservées.",
+      'Younger': 'Plus jeune',
+      'Older': 'Plus âgé',
+      'e.g. grey beard, smooth skin': 'ex. barbe grise, peau lisse',
+      'Describe the changes. The composition is kept.': 'Décrivez les changements. La composition est conservée.',
+      'What to change': 'Que changer',
+      'Keeps the original': "Garde l'original",
+      'Redraws more': 'Redessine davantage',
+      'Name what to replace — it is found and repainted.': 'Nommez ce qu’il faut remplacer — c’est trouvé et repeint.',
+      'Find': 'Trouver',
+      'Replace with': 'Remplacer par',
+      '(empty = remove)': '(vide = supprimer)',
+      'Padding': 'Marge',
+      'Tight': 'Serré',
+      'Wide': 'Large',
+      'Size': 'Taille',
+      'Change': 'Changer',
+      'Upscale 2x': 'Agrandir x2',
+      'Downscale 0.5x': 'Réduire x0,5',
+      'Sharper (AI)': 'Plus net (IA)',
+      'Lighter file': 'Fichier plus léger',
+      'Brightness / Contrast': 'Luminosité / Contraste',
+      'Reset': 'Réinitialiser',
+      'Close': 'Fermer',
       // ---- Fenetre de lancement (2026-09-29) ----
       'A new version is created — the original is kept.': "Une nouvelle version est créée — l'original est conservé.",
       'Remove background': "Retirer l'arrière-plan",

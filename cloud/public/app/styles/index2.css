@@ -4635,3 +4635,17 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 #lct-image { max-width: 100%; max-height: 52vh; object-fit: contain; }
 .lct-texte { margin: 0; font-size: 14px; line-height: 1.45; }
 #modal-lancement .fen-form { justify-content: center; }
+
+/* ══ KIT DES FENETRES, lot 2b (2026-09-29) : MEME taille d'apercu pour tous les outils image (celle de
+   Recolorier, 280 px auparavant), echelle nommee sous un curseur, mention « facultatif ». ══ */
+.modal-card.modal-card-wide { width: 880px; }
+.modal-with-image { grid-template-columns: minmax(300px, 1.15fr) minmax(260px, 1fr); }
+.modal-image-side { min-height: 380px; }
+.fen-echelle { display: flex; justify-content: space-between; margin-top: 3px; font-size: 11px; color: var(--text-muted); }
+.fen-facultatif { font-weight: 400; font-size: 11px; color: var(--text-muted); margin-left: 4px; text-transform: none; letter-spacing: normal; }
+.res-tailles { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; }
+/* champs du formulaire a leur hauteur naturelle : la regle globale « input[type=text], select { flex: 1 } »
+   (main.css) les etirait sur toute la hauteur de l'apercu (guide d'Age, champs d'Auto Inpaint) */
+.modal-form-side { justify-content: flex-start; }
+.modal-form-side > input, .modal-form-side > select, .modal-form-side > textarea { flex: 0 0 auto; }
+.modal-actions button { white-space: nowrap; }

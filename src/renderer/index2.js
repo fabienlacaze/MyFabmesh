@@ -7441,15 +7441,13 @@ const modStrengthVal = document.getElementById('mod-strength-val');
 // Explain how Strength behaves — high values regenerate so much that the
 // original subject (e.g. a catapult) can drift into something else (a car).
 function _updateModStrengthHint() {
-  const el = document.getElementById('mod-strength-hint');
-  if (!el) return;
+  // Un MOT dans l'etiquette (fenetres simplifiees, 2026-09-29), comme Variant ; % en infobulle.
+  const el = document.getElementById('mod-strength-val');
+  if (!el || !modStrength) return;
   const v = parseInt(modStrength.value);
-  let t;
-  if (v <= 45) t = 'Low (30–45%) — keeps the subject & composition, only adds/edits fine detail.';
-  else if (v <= 65) t = 'Medium (46–65%) — clear changes while keeping the same subject (recommended for "add X").';
-  else if (v <= 80) t = 'High (66–80%) — strong transformation; the subject may start to drift.';
-  else t = '⚠ Very high (81–95%) — near full re-generation. The original subject can be lost (a catapult can turn into a car). Lower it to keep the shape.';
-  el.textContent = t;
+  const mot = v <= 45 ? 'Subtle' : v <= 65 ? 'Moderate' : v <= 80 ? 'Strong' : 'Very strong';
+  el.textContent = (typeof _i18nT === 'function') ? _i18nT(mot) : mot;
+  el.title = v + '%';
 }
 modStrength.addEventListener('input', () => {
   modStrengthVal.textContent = modStrength.value + '%';
@@ -28765,3 +28763,42 @@ document.addEventListener('click', (e) => {
     try { cible.click(); } finally { cible.__lctValide = false; }
   });
 }, true);
+
+// ══ KIT DES FENETRES, lot 2b (2026-09-29) ══
+// ✕ generique (.fen-fermer) : declenche l'Annuler de la fenetre (meme nettoyage), sinon la masque.
+document.addEventListener('click', (e) => {
+  const x = e.target && e.target.closest ? e.target.closest('.fen-fermer') : null;
+  if (!x) return;
+  const m = x.closest('.modal-overlay, .modal');
+  const annuler = m && m.querySelector('.modal-actions .ghost-btn');
+  if (annuler) annuler.click(); else if (m) m.classList.add('hidden');
+});
+// RESOLUTION : un choix puis « Apply », qui relaie le clic au bouton d'origine (cache). Avant, les deux
+// boutons lancaient l'operation des le clic. La taille visee et le prix suivent le choix.
+(function () {
+  const fen = document.getElementById('modal-resolution');
+  const sel = document.getElementById('res-mode');
+  const appliquer = document.getElementById('res-apply');
+  if (!fen || !sel || !appliquer) return;
+  const cible = () => document.getElementById(sel.value === 'down' ? 'res-downscale' : 'res-upscale');
+  const maj = () => {
+    const c = cible();
+    if (!c) return;
+    c.dispatchEvent(new Event('mouseenter'));          // affiche « actuelle -> visee » (gestionnaire existant)
+    appliquer.querySelector('.credit-badge')?.remove();
+    const p = c.querySelector('.cloud-cost-badge, .credit-badge');
+    if (p && p.textContent.trim()) {
+      const b = document.createElement('span');
+      b.className = 'credit-badge';
+      b.style.marginLeft = '8px';
+      b.textContent = p.textContent.trim();
+      appliquer.appendChild(b);
+    }
+  };
+  sel.addEventListener('change', maj);
+  appliquer.addEventListener('click', () => cible()?.click());
+  try {
+    new MutationObserver(() => { if (!fen.classList.contains('hidden')) setTimeout(maj, 0); })
+      .observe(fen, { attributes: true, attributeFilter: ['class'] });
+  } catch (_) {}
+})();
