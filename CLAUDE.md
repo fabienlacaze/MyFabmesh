@@ -548,7 +548,11 @@ préchauffe doit appeler **`/warm`**, pas `/healthz`, sinon un service annoncé
   fonction est remplacé à l'import ; texte inattendu -> version d'origine.
 - **Ultra 8K** (`_esrgan.affuter_atlas`) : conversion en octets sur la carte
   avant transfert (mêmes pixels) : 23 -> 18 s. Tuiles de 512 (1024 est plus
-  lent).
+  lent). Appliqué dans `generate(ultra_hd=True)` AVANT l'enregistrement du GLB
+  (un seul enregistrement au lieu de enregistrer / recharger / réenregistrer),
+  sauf si refine ou face fix passent après. Journal : `finitions : couleurs
+  ~7 s, serialisation ~17 s` en 8K — l'encodage WebP de l'atlas 8192 est le
+  dernier gisement. Une 3D 500 K / Ultra 8K à chaud : ~113 s de calcul.
 - **Pas plus rapide en changeant de carte** : voir « GPU en production » —
   H100 mesuré sans intérêt, B200 incompatible avec l'image (CUDA 12.4).
 - Diagnostiquer un mesh : télécharger le GLB depuis R2 et mesurer
