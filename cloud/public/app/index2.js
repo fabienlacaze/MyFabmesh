@@ -8394,6 +8394,7 @@ async function showStep2Preview(mesh) {
   setViewerLoading('step2-preview', true, 'Loading mesh…');
   console.log('[mesh-viewer] fetching mesh:', mesh.path);
   const buffer = await API.readMeshFile(mesh.path);
+  if (buffer) _cacheMaillage = { chemin: mesh.path, buffer };   // repris par les outils de maillage
   if (!buffer) {
     setViewerLoading('step2-preview', false);
     console.error('[mesh-viewer] readMeshFile returned null for', mesh.path);
@@ -10900,6 +10901,16 @@ async function _mtInitViewport() {
 // rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
 // chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
 let _mtJeton = 0;
+// DERNIER MAILLAGE TELECHARGE (2026-09-29, user : « dans le viewer 3D le mesh met parfois super longtemps a
+// paraitre ») : chaque outil de maillage re-telechargeait le fichier deja affiche a l'etape Maillage (334 Mo
+// pour 10 M de faces). Le visualiseur principal le garde ici ; la fenetre d'outil le reprend (copie).
+let _cacheMaillage = null;
+function _mtStatut(texte) {
+  const st = document.getElementById('mt-preview-status');
+  if (!st) return;
+  if (texte) { if (!st.dataset.normal) st.dataset.normal = st.textContent; st.textContent = texte; }
+  else if (st.dataset.normal) { st.textContent = st.dataset.normal; delete st.dataset.normal; }
+}
 function _mtLoadMesh(meshPath) {
   const jeton = ++_mtJeton;
   if (mtState.origModel && mtState.scene) {
@@ -10916,15 +10927,19 @@ function _mtLoadMesh(meshPath) {
   const url = /^(?:https?|blob|data|file):/i.test(meshPath)
     ? meshPath
     : _toFileUrl(meshPath);
-  fetch(url, { credentials: 'omit' })
-    .then((r) => {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.arrayBuffer();
-    })
+  _mtStatut(_i18nT('Loading mesh…'));
+  (_cacheMaillage && _cacheMaillage.chemin === meshPath && _cacheMaillage.buffer.byteLength > 0
+    ? Promise.resolve(_cacheMaillage.buffer.slice(0))   // deja telecharge par l'etape Maillage
+    : fetch(url, { credentials: 'omit' })
+      .then((r) => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.arrayBuffer();
+      }))
     .then((buffer) => {
       const loader = new GLTFLoader();
       loader.parse(buffer, '', (gltf) => {
         if (jeton !== _mtJeton) return;   // un chargement plus recent a ete demande
+        _mtStatut(null);
         mtState.origModel = gltf.scene;
         mtState.scene.add(mtState.origModel);
         const box = new THREE.Box3().setFromObject(mtState.origModel);

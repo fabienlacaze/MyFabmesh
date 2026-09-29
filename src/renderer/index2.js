@@ -9727,6 +9727,7 @@ async function showStep2Preview(mesh) {
   _clearWsMeshes();
   // Load the GLB
   const buffer = await API.readMeshFile(mesh.path);
+  if (buffer) _cacheMaillage = { chemin: mesh.path, buffer };   // repris par les outils de maillage
   if (!buffer) return;
   // Stale-request guard: if the user switched to another mesh while this one
   // was loading, drop this result.
@@ -12034,6 +12035,16 @@ async function _mtInitViewport() {
 // rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
 // chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
 let _mtJeton = 0;
+// DERNIER MAILLAGE TELECHARGE (2026-09-29, user : « dans le viewer 3D le mesh met parfois super longtemps a
+// paraitre ») : chaque outil de maillage re-telechargeait le fichier deja affiche a l'etape Maillage (334 Mo
+// pour 10 M de faces). Le visualiseur principal le garde ici ; la fenetre d'outil le reprend (copie).
+let _cacheMaillage = null;
+function _mtStatut(texte) {
+  const st = document.getElementById('mt-preview-status');
+  if (!st) return;
+  if (texte) { if (!st.dataset.normal) st.dataset.normal = st.textContent; st.textContent = texte; }
+  else if (st.dataset.normal) { st.textContent = st.dataset.normal; delete st.dataset.normal; }
+}
 function _mtLoadMesh(meshPath) {
   const jeton = ++_mtJeton;
   if (!mtState.renderer || !mtState.scene) return;   // WebGL indisponible
@@ -12043,10 +12054,14 @@ function _mtLoadMesh(meshPath) {
   mtState.origModel = null;
   mtState.origGeoms = [];
   const url = 'file:///' + meshPath.replace(/\\/g, '/');
-  fetch(url).then(r => r.arrayBuffer()).then(buffer => {
+  _mtStatut(_i18nT('Loading mesh…'));
+  (_cacheMaillage && _cacheMaillage.chemin === meshPath && _cacheMaillage.buffer.byteLength > 0
+    ? Promise.resolve(_cacheMaillage.buffer.slice(0))   // deja lu par l'etape Maillage
+    : fetch(url).then(r => r.arrayBuffer())).then(buffer => {
     const loader = new GLTFLoader();
     loader.parse(buffer, '', (gltf) => {
       if (jeton !== _mtJeton) return;   // un chargement plus recent a ete demande
+      _mtStatut(null);
       mtState.origModel = gltf.scene;
       mtState.scene.add(mtState.origModel);
       const box = new THREE.Box3().setFromObject(mtState.origModel);

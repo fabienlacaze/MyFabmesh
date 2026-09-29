@@ -83,6 +83,7 @@
       'Add detail': 'Ajouter du détail',
       'Repaints the image in this style.': "Repeint l'image dans ce style.",
       'Apply the style': 'Appliquer le style',
+      'Loading mesh…': 'Chargement du maillage…',
       'Current': 'Actuel',
       'Mesh not loaded yet': 'Maillage pas encore chargé',
       'New variation': 'Nouvelle variation',

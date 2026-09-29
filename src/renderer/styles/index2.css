@@ -4728,3 +4728,6 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 
 /* Face Fix masque pour les objets sans tete (batiment, vehicule, environnement) */
 #ws-facefix-btn[hidden], [data-lb-tool="facefix"][hidden] { display: none !important; }
+
+/* Mesh tool : les groupes de choix passent a la ligne (Pivot preset coupait la colonne) */
+#mt-body .choix { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
