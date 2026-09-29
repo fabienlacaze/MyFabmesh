@@ -3593,9 +3593,10 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
           { sourceImageUrl: variantSource, projectName: p.name })
       : null;
     try {
-      const rv = _reglagesVarianteForme(strength, seed, guide);
+      const rv = _reglagesVarianteForme(strength, seed, guide,
+        p.assetType || document.getElementById('ws-asset-type')?.value, p.prompt || p.initialPrompt);
       const r = texMode
-        ? await window.meshyAPI?.texVariant({ imagePath: variantSource, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris })
+        ? await window.meshyAPI?.texVariant({ imagePath: variantSource, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg })
         : await window.meshyAPI?.img2img({ imagePath: variantSource, prompt: (guide || prompt), strength, seed });
       if (!r?.success) throw new Error(r?.error || 'variant failed');
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
@@ -18665,16 +18666,60 @@ function _disposeAnimModel() {
 // c'est a fond ») : trois leviers suivent le curseur — le controle Tile est DESATURE (il recopiait
 // les couleurs), son poids baisse un peu, et sans guide chaque variante recoit une teinte tiree de la
 // graine (le prompt par defaut ne demandait aucun changement).
-var PALETTES_VARIANTE = ['jet black', 'snow white', 'golden brown', 'silver grey', 'deep red', 'sandy tan',
-  'dark chocolate brown', 'white with black spots', 'cream with brown patches', 'grey and white', 'reddish orange',
-  'blue-grey', 'black and tan', 'dappled grey', 'pale beige', 'brindle striped', 'olive green', 'copper and bronze'];
-function _reglagesVarianteForme(force, graine, guide) {
+// PALETTES PAR TYPE D'OBJET (2026-09-29). User, sur son guerrier : « nouvelles textures = des
+// couleurs et des matieres differentes, pas une teinte verte degueulasse ». Une seule liste de ROBES
+// D'ANIMAUX servait a tout : « olive green coloring » a 85 % teignait le personnage entier, peau
+// comprise. Banc modal_app/test_variante.py sur la vraie image, 85 % :
+//  - personnage : TENUES (matiere + couleur) ; le SUJET du projet en tete du prompt (sans lui, un
+//    guerrier devenait une femme sur 3 tirages sur 8, « wolf fur » un loup-garou : aucun nom
+//    d'animal dans la liste) ; gris a moitie ; negatif peau coloree / autre personne / nudite.
+//    Resultat : 8/8 meme guerrier, peau naturelle, tenues vraiment differentes ;
+//  - animaux : robes, inchange (valide le 2026-09-28) ;
+//  - vehicules, batiments, objets : MATIERES (« white with black spots » sur une maison...).
+var PALETTES_VARIANTE = {
+  animal: ['jet black', 'snow white', 'golden brown', 'silver grey', 'deep red', 'sandy tan',
+    'dark chocolate brown', 'white with black spots', 'cream with brown patches', 'grey and white', 'reddish orange',
+    'blue-grey', 'black and tan', 'dappled grey', 'pale beige', 'brindle striped', 'olive green', 'copper and bronze'],
+  personnage: ['grey fur and bone', 'dark brown leather and bronze', 'red wool cloth and iron',
+    'deep blue dyed cloth and silver', 'black fur and gold', 'white linen and tan leather', 'charcoal wool and copper',
+    'crimson cloth and black leather', 'beige hide and turquoise beads', 'undyed wool and rope',
+    'green dyed linen and dark leather', 'ochre cloth and bronze'],
+  objet: ['weathered oak wood and wrought iron', 'polished steel and brass', 'red painted metal',
+    'white marble and gold trim', 'dark slate stone', 'rusty iron', 'pale birch wood', 'black lacquer and silver',
+    'terracotta and cream plaster', 'copper with green patina', 'navy blue paint and chrome', 'sandstone'],
+};
+var NEG_VARIANTE_PERSONNAGE = 'deformed, distorted, changed shape, different pose, extra parts, missing parts, '
+  + 'blurry, low quality, different person, different face, animal head, werewolf, nude, nsfw, green skin, '
+  + 'blue skin, grey skin, colored skin, body paint, monochrome, color tint';
+function _familleVariante(typeObjet) {
+  const t = String(typeObjet || '').toLowerCase();
+  if (t === 'character') return 'personnage';
+  if (['animal', 'creature', 'insect', 'other_living'].includes(t)) return 'animal';
+  return 'objet';
+}
+function _reglagesVarianteForme(force, graine, guide, typeObjet, sujetProjet) {
   const f = Math.max(0, Math.min(1, force));
-  const teinte = PALETTES_VARIANTE[Math.abs(graine | 0) % PALETTES_VARIANTE.length];
+  const famille = _familleVariante(typeObjet);
+  const liste = PALETTES_VARIANTE[famille];
+  const teinte = liste[Math.abs(graine | 0) % liste.length];
+  // Sujet = debut du prompt du projet (12 mots : le tout reste sous les 77 jetons de CLIP).
+  const sujet = String(sujetProjet || '').trim().split(/\s+/).slice(0, 12).join(' ');
+  let prompt = guide || '';
+  if (!guide && f >= 0.35) {
+    prompt = famille === 'animal'
+      ? `${teinte} coloring, new color scheme, natural realistic texture, high quality, detailed`
+      : famille === 'personnage'
+        ? `${sujet || 'same person'}, same face, wearing ${teinte} clothing, different clothing materials and colors, `
+          + 'natural realistic skin tone, photorealistic, high quality, detailed'
+        : `${sujet ? sujet + ', ' : ''}${teinte}, new materials and colors, realistic texture, high quality, detailed`;
+  }
+  // Un guide ecrit par l'utilisateur (« peau d'orc verte ») n'est jamais contredit.
+  const perso = famille === 'personnage' && !guide;
   return {
-    gris: Math.max(0, Math.min(1, (f - 0.3) / 0.6)),
+    gris: Math.max(0, Math.min(1, (f - 0.3) / 0.6)) * (perso ? 0.5 : 1),
     cnScale: 0.5 - 0.25 * f,
-    prompt: guide || (f >= 0.35 ? `${teinte} coloring, new color scheme, natural realistic texture, high quality, detailed` : ''),
+    prompt,
+    neg: perso ? NEG_VARIANTE_PERSONNAGE : undefined,
   };
 }
 var ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right',
