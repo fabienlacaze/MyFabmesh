@@ -37,6 +37,7 @@
       'Auto-skin': 'Peau automatique', 'Blend': 'Transition', 'Recalculate all bones': 'Recalculer tous les os',
       'Computing…': 'Calcul…', 'Weights recomputed': 'Poids recalculés',
       'Recomputes, for every bone, the part of the mesh that makes sense to move (nearest bone, its neighbours in the skeleton only).': "Recalcule, pour chaque os, la partie du maillage qui est logique de bouger (os le plus proche, et seulement ses voisins dans le squelette).",
+      'Front': 'Face', 'Right': 'Droite', 'Back': 'Dos', 'Left': 'Gauche', 'Top': 'Dessus', 'Bottom': 'Dessous',
       'Apply to this bone': 'Appliquer à cet os', 'vertices changed': 'sommets modifiés',
       'Center the view on the bone': "Centrer la vue sur l'os",
       'Left drag = paint · right drag = rotate · middle drag or Shift + right drag = move · wheel = zoom': 'Clic gauche = peindre · clic droit = tourner · clic milieu ou Maj + clic droit = déplacer · molette = zoom',
