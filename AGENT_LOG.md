@@ -24164,3 +24164,9 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Calcul commun `lib/editeur-decals.js` (cadreDecal / cuireDecals / lireImage), garde check-noyaux-partages.
 - Banc Node (sphere synthetique) : pastille 0,6 sur le pole +x -> boite UV 0,45-0,55 x 0,41-0,59, aucune fuite de l'autre cote.
 - Bouton ws-mesh-aligntex-btn renomme « Decals » -> openPaintMesh({decal:true}) ; tarif = manual_tool (client). Non verifie visuellement.
+
+## 2026-09-30 — Rig : garde de marge (mesh trop lourd refuse, budget de temps dur)
+- Constat (Supabase + journaux Modal) : centipede Ultra 8K (10 M faces) -> rig > 14 min : la greffe sur le maillage complet plante
+  (OverflowError pickle > 4 GiB), Blender recharge les 10 M, l'ancien chemin repart de zero. Marge des utilisateurs en danger.
+- `_skintokens_rig.py` : RIG_MAX_FACES = 1 M (lu dans l'en-tete GLB, refus immediat avec message « reduisez avec Triangle count »,
+  remboursement par le worker), RIG_BUDGET_S = 480 s (arret du sous-processus + pas de repli qui recommence), timeout Modal 900 -> 600.

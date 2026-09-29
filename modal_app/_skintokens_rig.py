@@ -174,12 +174,40 @@ CKPT = "experiments/articulation_xl_quantization_256_token_4/grpo_1400.ckpt"
 # peau finale reste calculee sur le maillage complet. Voir scripts/rig_complet.py (DECALAGE_ALLEGE).
 ALLEGE_FACES = 100_000
 
+# GARDE DE MARGE (2026-09-30). Un centipede Ultra 8K (10 M de faces) a fait tourner le rig plus de 14 min sur
+# une A10G : la greffe sur le maillage complet plante (« serializing a string larger than 4 GiB »), Blender
+# recharge les 10 M, et l'ancien chemin repart de zero. Deux plafonds : un maillage trop lourd est REFUSE tout
+# de suite (l'utilisateur le reduit avec Triangle count), et le calcul a un budget de temps dur.
+RIG_MAX_FACES = 1_000_000
+RIG_BUDGET_S = 480
+
+
+def _faces_glb(data: bytes) -> int:
+    """Nombre de triangles d'un GLB, lu dans l'en-tete JSON (sans charger la geometrie) ; -1 si illisible."""
+    try:
+        import struct
+        if data[:4] != b"glTF":
+            return -1
+        n = struct.unpack("<I", data[12:16])[0]
+        g = json.loads(data[20:20 + n])
+        total = 0
+        for m in g.get("meshes", []):
+            for pr in m.get("primitives", []):
+                if pr.get("mode", 4) != 4:
+                    continue
+                a = pr.get("indices")
+                a = g["accessors"][a]["count"] if a is not None else g["accessors"][pr["attributes"]["POSITION"]]["count"]
+                total += a // 3
+        return total
+    except Exception:
+        return -1
+
 # ---------------------------------------------------------------------------
 # Rigging (GPU)
 # ---------------------------------------------------------------------------
 @app.function(
     gpu="A10G",
-    timeout=900,
+    timeout=600,
     # ~22 s/maillage sur RTX 5080 ; l'A10G est plus lente, on garde de la
     # marge pour le chargement du modele au premier appel du conteneur.
     scaledown_window=300,
@@ -236,6 +264,12 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
         with open(src, "wb") as f:
             f.write(glb_bytes)
 
+    n_faces = _faces_glb(glb_bytes)
+    print(f"[skintokens] maillage : {n_faces} faces", flush=True)
+    if n_faces > RIG_MAX_FACES:
+        _echec(f"Mesh too heavy to rig ({n_faces:,} triangles, limit {RIG_MAX_FACES:,}). "
+               f"Reduce it with Triangle count, then rig again. Your credits were refunded.")
+
     # `--use_transfer` ACTIVE (2026-09-26). Sans lui, SkinTokens exporte SON
     # maillage normalise (hauteur 2) SANS UV ni materiau : le rig sortait
     # BLANC. Le transfert remet squelette et peau sur le maillage SOURCE (UV,
@@ -247,6 +281,8 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
     # maillage, meme decalage relatif que l'export normalise, Monde x IBM =
     # identite, peau identique (memes faces, plus proche voisin a distance 0).
     def _lancer(cmd):
+        if time.time() - t0 > RIG_BUDGET_S:
+            _echec("rig trop long : budget de temps depasse. Reduisez le maillage (Triangle count) puis relancez.")
         print(f"[skintokens] {' '.join(cmd)}", flush=True)
         proc = subprocess.Popen(
             cmd, cwd=SKINTOKENS_DIR,
@@ -260,6 +296,15 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
         # probleme coute un aller-retour de diagnostic complet.
         dernieres = []
         refuse = False
+        import threading
+        def _garde():
+            reste = RIG_BUDGET_S - (time.time() - t0)
+            if reste > 0:
+                time.sleep(reste)
+            if proc.poll() is None:
+                print(f"[skintokens] budget de {RIG_BUDGET_S} s depasse — arret du calcul", flush=True)
+                proc.kill()
+        threading.Thread(target=_garde, daemon=True).start()
         for line in iter(proc.stdout.readline, ""):
             if line.strip():
                 print(line.rstrip(), flush=True)
@@ -348,6 +393,8 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
               "normalise, sans texture", flush=True)
         rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out])
 
+    if time.time() - t0 > RIG_BUDGET_S and not produit():
+        _echec("rig trop long : budget de temps depasse. Reduisez le maillage (Triangle count) puis relancez.")
     if not os.path.isfile(out) or os.path.getsize(out) == 0:
         queue = " | ".join(dernieres[-4:])[:300]
         _echec(
