@@ -83,7 +83,6 @@ function construireFenetre() {
         <details class="pp-sect pp-plie">
           <summary>${esc(T('Clean far zones'))}</summary>
           <div class="pp-curseur"><span>${esc(T('close'))}</span><input type="range" id="pp-dist" min="1" max="40" value="8"><span class="fen-valeur" id="pp-dist-v">8 %</span></div>
-          <label class="pp-case"><input type="checkbox" id="pp-dist-tous"> <span>${esc(T('All bones'))}</span></label>
           <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button>
         </details>
         <div class="pp-actions">
@@ -389,9 +388,13 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     }
     return m;
   }
+  function majLibelleNettoyage() {
+    $('pp-dist-ok').textContent = `${T('Remove zones farther than this')} (${vue === 'tous' ? T('all bones') : T('this bone')})`;
+  }
+  majLibelleNettoyage();
   $('pp-dist').oninput = () => { $('pp-dist-v').textContent = $('pp-dist').value + ' %'; };
   $('pp-dist-ok').onclick = () => {
-    const dmax = ext * (+$('pp-dist').value / 100), tous = $('pp-dist-tous').checked;
+    const dmax = ext * (+$('pp-dist').value / 100), tous = vue === 'tous';        // suit la Vue : cet os / tous les os
     trait = { avant: new Map() };
     let nb = 0;
     for (const d of donnees) {
@@ -471,7 +474,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   // --- choix
   fen.querySelectorAll('#pp-vues .choix-btn').forEach((b) => b.onclick = () => {
     fen.querySelectorAll('#pp-vues .choix-btn').forEach((x) => x.classList.toggle('actif', x === b));
-    vue = b.dataset.v; toutColorer();
+    vue = b.dataset.v; toutColorer(); majLibelleNettoyage();
   });
   fen.querySelectorAll('#pp-pinceaux .choix-btn').forEach((b) => b.onclick = () => {
     fen.querySelectorAll('#pp-pinceaux .choix-btn').forEach((x) => x.classList.toggle('actif', x === b));
