@@ -2420,6 +2420,19 @@ function populateWorkspace(p) {
   // Restore Asset type + Style from the project's first generation so a
   // creature-project doesn't default back to character on follow-up gens.
   _restoreProjectMeta(p);
+  // PRE-REMPLI ENRICHI (2026-09-29, user : « pre-remplis avec le nom du projet + le contenu d'Enhance, c'est
+  // ce que je fais a la main a chaque fois ») : le texte du projet (ou son NOM s'il est vide) passe par le meme
+  // gabarit qu'Enhance, une fois le type et le style restaures ci-dessus. Gratuit : gabarit local, aucune IA.
+  try {
+    const ta = document.getElementById('ws-prompt');
+    const brut = ((ta && ta.value) || '').trim() || String(p.name || '').trim();
+    if (ta && brut && typeof buildFullPrompt === 'function'
+        && !/single isolated 3D|plain white background|sharp details|photorealistic/i.test(brut)) {
+      ta.dataset.rawPrompt = brut;
+      ta.value = buildFullPrompt(brut, document.getElementById('ws-asset-type')?.value || 'character',
+        document.getElementById('ws-asset-style')?.value || 'realistic');
+    }
+  } catch (_) { /* champ laisse tel quel */ }
 
   // Reset image / mesh paths — they belonged to the previous project.
   // The renderXxxVersions() functions will then auto-select the latest item
