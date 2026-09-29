@@ -87,11 +87,11 @@ function construireFenetre() {
             <button type="button" class="ghost-btn" id="pp-contracter">&#8722; ${esc(T('Shrink'))}</button>
             <button type="button" class="ghost-btn" id="pp-etendre">+ ${esc(T('Spread'))}</button>
           </div>
-          <div class="pp-curseur"><span>${esc(T('Step'))}</span><input type="range" id="pp-pas" min="1" max="20" value="4"><span class="fen-valeur" id="pp-pas-v">2 %</span></div>
+          <div class="pp-curseur"><span>${esc(T('Step'))}</span><input type="range" id="pp-pas" min="0.1" max="8" step="0.1" value="1"><span class="fen-valeur" id="pp-pas-v">1.0 %</span></div>
         </details>
         <details class="pp-sect pp-plie">
           <summary>${esc(T('Clean far zones'))}</summary>
-          <div class="pp-curseur"><span>${esc(T('close'))}</span><input type="range" id="pp-dist" min="1" max="40" value="8"><span class="fen-valeur" id="pp-dist-v">8 %</span></div>
+          <div class="pp-curseur"><span>${esc(T('close'))}</span><input type="range" id="pp-dist" min="0.5" max="30" step="0.1" value="8"><span class="fen-valeur" id="pp-dist-v">8.0 %</span></div>
           <span class="fen-note" style="color:#ff5fd8;">&#9632; ${esc(T('Magenta zones would be removed'))}</span>
           <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button>
         </details>
@@ -315,12 +315,12 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
 
   // --- propager / contracter la zone de l'os choisi : un PAS par clic (taille du pas = curseur, 0,5 % de l'etendue par cran),
   // valide tout de suite et annulable. Zone = sommets lies a l'os a 35 % ou plus.
-  $('pp-pas').oninput = () => { $('pp-pas-v').textContent = (+$('pp-pas').value * 0.5) + ' %'; };
+  $('pp-pas').oninput = () => { $('pp-pas-v').textContent = (+$('pp-pas').value).toFixed(1) + ' %'; };
   // Le pas part de l'OS : la zone est vue comme un rayon autour de lui (98e centile des distances os-sommet de la zone).
   // Propager : rayon + pas, mais seulement pour ce qui touche deja la zone (distance le long de la surface <= 2 pas, donc
   // rien ne saute vers un autre membre). Contracter : rayon - pas, on retire la couche la plus eloignee de l'os.
   function pas(etendre) {
-    const dist = +$('pp-pas').value * ext * 0.005;
+    const dist = +$('pp-pas').value * ext * 0.01;                 // % de l'etendue du modele
     trait = { avant: new Map() };
     let nb = 0;
     for (const d of donnees) {
@@ -421,7 +421,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     $('pp-dist-ok').textContent = `${T('Remove zones farther than this')} (${vue === 'tous' ? T('all bones') : T('this bone')})`;
   }
   majLibelleNettoyage();
-  $('pp-dist').oninput = () => { $('pp-dist-v').textContent = $('pp-dist').value + ' %'; if (!apercuDist) { apercuDist = true; pleinApercu = true; } montrerApercu(); };
+  $('pp-dist').oninput = () => { $('pp-dist-v').textContent = (+$('pp-dist').value).toFixed(1) + ' %'; if (!apercuDist) { apercuDist = true; pleinApercu = true; } montrerApercu(); };
   $('pp-dist-ok').onclick = () => {
     const dmax = ext * (+$('pp-dist').value / 100), tous = vue === 'tous';        // suit la Vue : cet os / tous les os
     trait = { avant: new Map() };
