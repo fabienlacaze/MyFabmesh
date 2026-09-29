@@ -53,6 +53,16 @@ _SIMPLIFY_AVANT = 'mesh.simplify(decimation_target'
 _SIMPLIFY_APRES = '_reduire_sans_plis(mesh, decimation_target'
 SEUIL_SANS_PLIS = 50_000      # faces : au-dessus, la reduction GPU d'origine ne plie pas (0,7 % a 50 000)
 PALIER_GPU = 300_000          # jusque-la, reduction GPU (ratio doux) ; fast_simplification ensuite
+# NETTOYAGE AVANT REDUCTION (2026-09-29) : le maillage brut du remaillage arrive avec des aretes
+# non-manifold (1 012 sur la chevre du user, 5 K faces : 15 % de surface repliee malgre la reduction
+# sans plis). Memes operations que la branche sans remaillage de to_glb avant sa reduction.
+# MESURE (banc test_reduction.py, chevre 5 K, meme graine) : surface repliee 14,1 % -> 5,4 %, mais 1 290
+# aretes de BORD (vrais trous) au lieu de 0 : repair_non_manifold_edges ouvre le maillage. Visuellement
+# pas mieux -> DESACTIVE ; la parade retenue est le materiau DOUBLE FACE sous le seuil (voir plus bas).
+NETTOYAGE_AVANT_REDUCTION = False
+AGRESSIVITE = 7               # fast_simplification `agg` (4 : a peine mieux ; 2 : rate la cible)
+_DOUBLE_FACE_AVANT = "doubleSided=True if not remesh else False"
+_DOUBLE_FACE_APRES = "doubleSided=True if (not remesh or decimation_target <= SEUIL_SANS_PLIS) else False"
 _TO_GLB_ACCELERE = False
 
 WEBP_COULEUR = {'method': 2, 'quality': 90}
@@ -77,12 +87,20 @@ def accelerer_to_glb(o_voxel_module, log=print) -> None:
         if src.count(_SIMPLIFY_AVANT) >= 1:
             src = src.replace(_SIMPLIFY_AVANT, _SIMPLIFY_APRES)
             faits.append(f'reduction sans plis sous {SEUIL_SANS_PLIS} faces')
+        # MATERIAU DOUBLE FACE sous le seuil (2026-09-29) : a quelques milliers de faces, une partie
+        # fine (patte, corne, barbe) garde des triangles retournes ; en simple face ce sont des TROUS
+        # au rendu. to_glb met deja double face quand il ne remaille pas. Chevre 5 K du user : aucune
+        # arete de bord, les « trous » disparaissent en double face (rendu compare).
+        if src.count(_DOUBLE_FACE_AVANT) == 1:
+            src = src.replace(_DOUBLE_FACE_AVANT, _DOUBLE_FACE_APRES)
+            faits.append(f'double face sous {SEUIL_SANS_PLIS} faces')
         else:
             log("[mesh] reduction sans plis : texte de to_glb inattendu, reduction d'origine")
         if not faits:
             return
         espace = dict(pp.__dict__)
         espace['_reduire_sans_plis'] = lambda m, cible, verbose=False: _reduire_sans_plis(m, cible, verbose, log)
+        espace['SEUIL_SANS_PLIS'] = SEUIL_SANS_PLIS
         exec(compile(src, inspect.getsourcefile(pp.to_glb), 'exec'), espace)
         pp.to_glb = espace['to_glb']
         log('[mesh] ' + ' ; '.join(faits))
@@ -103,6 +121,8 @@ def _reduire_sans_plis(mesh, cible, verbose=False, log=print):
         return mesh.simplify(cible, verbose=verbose)
     if mesh.num_faces > PALIER_GPU:
         mesh.simplify(PALIER_GPU, verbose=verbose)
+    if NETTOYAGE_AVANT_REDUCTION:
+        _nettoyer(mesh, log)
     v, f = mesh.read()
     n0 = int(f.shape[0])
     if n0 <= cible:
@@ -113,13 +133,29 @@ def _reduire_sans_plis(mesh, cible, verbose=False, log=print):
         vn, inv = np.unique(v.detach().cpu().numpy().astype(np.float32), axis=0, return_inverse=True)
         fn = inv.reshape(-1)[f.detach().cpu().numpy().astype(np.int64)]
         fn = fn[(fn[:, 0] != fn[:, 1]) & (fn[:, 1] != fn[:, 2]) & (fn[:, 0] != fn[:, 2])]
-        v2, f2 = fast_simplification.simplify(vn, fn, target_reduction=1.0 - cible / len(fn))
+        v2, f2 = fast_simplification.simplify(vn, fn, target_reduction=1.0 - cible / len(fn), agg=AGRESSIVITE)
     except Exception as e:
         log(f"[tris] reduction sans plis impossible ({type(e).__name__}: {e}) : reduction d'origine")
         return mesh.simplify(cible, verbose=verbose)
     mesh.init(torch.from_numpy(np.ascontiguousarray(v2, dtype=np.float32)).to(v.device),
               torch.from_numpy(np.ascontiguousarray(f2)).to(device=f.device, dtype=f.dtype))
-    log(f'[tris] reduction sans plis : {n0} -> {int(f2.shape[0])} faces (cible {cible})')
+    if NETTOYAGE_AVANT_REDUCTION:
+        _nettoyer(mesh, log, orienter=True)
+    log(f'[tris] reduction sans plis : {n0} -> {int(f2.shape[0])} faces (cible {cible})'
+        + (' (nettoye avant et apres)' if NETTOYAGE_AVANT_REDUCTION else ''))
+
+
+def _nettoyer(mesh, log=print, orienter=False):
+    """Doublons, aretes non-manifold, miettes, petits trous (+ orientation) — operations cumesh."""
+    try:
+        mesh.remove_duplicate_faces()
+        mesh.repair_non_manifold_edges()
+        mesh.remove_small_connected_components(1e-5)
+        mesh.fill_holes(max_hole_perimeter=3e-2)
+        if orienter:
+            mesh.unify_face_orientations()
+    except Exception as e:
+        log(f'[tris] nettoyage ignore ({type(e).__name__}: {e})')
 
 
 def _envelopper_append_image(log=print) -> bool:

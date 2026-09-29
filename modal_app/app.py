@@ -3089,6 +3089,48 @@ class MyFabmeshMesh:
         return True
 
     @modal.method()
+    def reduction_banc(self, image_url: str, decimation: int = 5000, variantes: list | None = None,
+                       mode: str = "1024", seed: int = 42) -> list:
+        """BANC (2026-09-29) : MEME generation (image, graine) exportee avec plusieurs reglages de la
+        reduction sans plis (modal_app/acceleration_glb : NETTOYAGE_AVANT_REDUCTION, AGRESSIVITE).
+        Mesure pour chacun : faces, aretes de bord, non-manifold, % de surface repliee. SDK seul."""
+        import io as _io
+        import numpy as np
+        import trimesh
+        import modal_app.acceleration_glb as AG
+        from modal_app._mesh import generate
+        img = _fetch_image(image_url)
+        sortie = []
+        for v in (variantes or [{"nettoyage": False, "agg": 7}, {"nettoyage": True, "agg": 7}]):
+            AG.NETTOYAGE_AVANT_REDUCTION = bool(v.get("nettoyage"))
+            AG.AGRESSIVITE = int(v.get("agg", 7))
+            glb = generate(self.pipeline, self.o_voxel, img, mode=mode, seed=seed,
+                           decimation_target=int(decimation), tris_exact=True)
+            m = trimesh.load(_io.BytesIO(glb), file_type="glb").to_geometry()
+            V = np.asarray(m.vertices)
+            F = np.asarray(m.faces)
+            q = np.round(V / (np.ptp(V, axis=0).max() * 1e-5)).astype(np.int64)
+            _, inv = np.unique(q, axis=0, return_inverse=True)
+            inv = inv.ravel()
+            Fw = inv[F]
+            Fw = Fw[(Fw[:, 0] != Fw[:, 1]) & (Fw[:, 1] != Fw[:, 2]) & (Fw[:, 0] != Fw[:, 2])]
+            Vw = np.zeros((inv.max() + 1, 3))
+            Vw[inv] = V
+            t = trimesh.Trimesh(Vw, Fw, process=False)
+            e = np.sort(np.concatenate([Fw[:, [0, 1]], Fw[:, [1, 2]], Fw[:, [2, 0]]]), axis=1)
+            _, c = np.unique(e, axis=0, return_counts=True)
+            n = t.face_normals
+            A = t.area_faces
+            fa = t.face_adjacency
+            d = (n[fa[:, 0]] * n[fa[:, 1]]).sum(1)
+            fp = np.unique(fa[d < -0.5].ravel())
+            sortie.append({**v, "faces": int(len(F)), "bords": int((c == 1).sum()),
+                           "non_manifold": int((c > 2).sum()),
+                           "replie_pct": round(float(A[fp].sum() / A.sum() * 100), 2), "glb": glb})
+        AG.NETTOYAGE_AVANT_REDUCTION, AG.AGRESSIVITE = True, 7
+        return sortie
+
+    @modal.method()
     def inference_bytes(
         self,
         image_bytes: bytes,
