@@ -2834,7 +2834,7 @@ class MyFabmeshMesh:
             print("[reshape] 2/4 piece isolee", flush=True)
             piece_png = os.path.join(dossier, "piece.png")
             cadre = os.path.join(dossier, "cadre.json")
-            mi.preparer(repeint, masque, piece_png, cadre)
+            mi.preparer(repeint, masque, piece_png, cadre, vue)   # vue d'origine : seule la partie modifiee est isolee
             print("[reshape] 3/4 piece en 3D", flush=True)
             piece_glb = os.path.join(dossier, "piece.glb")
             glb = generate(self.pipeline, self.o_voxel, _PImg.open(piece_png),

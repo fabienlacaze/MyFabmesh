@@ -122,12 +122,28 @@ def masque_uv(maillage, uv_png, sortie_masque, sortie_faces, taille=1024):
 
 
 # --------------------------------------------------------------------- preparer
-def preparer(repeint, masque, sortie_piece, sortie_cadre):
+def preparer(repeint, masque, sortie_piece, sortie_cadre, origine=None):
     img = Image.open(repeint).convert('RGB')
     S = img.size[0]
     m = _masque(masque, S)
     if not m.any():
         raise SystemExit('masque vide : aucune zone a regenerer')
+    # SEULEMENT CE QUI A CHANGE (2026-09-29, Renne + « glass of wine » : zone peinte de presque tout le poitrail,
+    # le detourage gardait le CORPS repeint avec le verre -> morceaux flottants en 3D). Avec la vue d'origine,
+    # la piece = pixels nettement modifies dans la zone, soudes par une dilatation ; sinon comportement d'avant.
+    if origine and os.path.exists(origine):
+        o = np.asarray(Image.open(origine).convert('RGB').resize(img.size)).astype(np.int16)
+        ecart = np.abs(np.asarray(img).astype(np.int16) - o).max(2) > 45
+        change = ecart & m
+        if change.sum() > 0.01 * m.sum():
+            change = np.asarray(Image.fromarray((change * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(3))
+                                .filter(ImageFilter.MaxFilter(15))) > 127
+            m = change & np.asarray(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(9))) > 0
+            log(f'piece = zone modifiee : {int(m.sum())} pixels sur {int(_masque(masque, S).sum())} peints')
+        else:
+            log('zone presque inchangee par la repeinte : zone peinte entiere gardee')
+    if m.mean() > 0.35:
+        log(f'ATTENTION : zone de {m.mean():.0%} de la vue — une grande zone donne une piece mal isolee')
     ys, xs = np.where(m)
     marge = int(0.04 * S)
     x0, x1 = max(0, xs.min() - marge), min(S, xs.max() + marge + 1)
@@ -347,6 +363,6 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'masque-uv':
         masque_uv(*sys.argv[2:7])
     elif sys.argv[1] == 'preparer':
-        preparer(*sys.argv[2:6])
+        preparer(*sys.argv[2:7])
     else:
         assembler(*sys.argv[2:8])

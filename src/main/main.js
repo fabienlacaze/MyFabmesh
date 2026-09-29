@@ -8745,7 +8745,7 @@ ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskData
     etape('2/4 isolating the new part…');
     const piecePng = path.join(dir, 'piece.png');
     const cadre = path.join(dir, 'cadre.json');
-    const r2 = await _lancerPy(_aiPython(), [script, 'preparer', repeint, masque, piecePng, cadre]);
+    const r2 = await _lancerPy(_aiPython(), [script, 'preparer', repeint, masque, piecePng, cadre, vue]);
     if (!r2.ok || !fs.existsSync(piecePng)) return { ok: false, error: 'Isolating the new part failed: ' + (r2.error || 'unknown') };
 
     etape('3/4 building the part in 3D…');
