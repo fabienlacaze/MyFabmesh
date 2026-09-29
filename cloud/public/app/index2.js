@@ -688,7 +688,21 @@ function showPage(name) {
 }
 
 document.getElementById('back-to-projects').addEventListener('click', () => showPage('projects'));
-document.getElementById('btn-refresh').addEventListener('click', async () => {
+/* RECHARGEMENT COMPLET (2026-09-29, user : « automatiser Ctrl+Maj+R via ce bouton ») : Maj + clic (ou Ctrl + clic)
+ * re-telecharge tous les fichiers charges par la page (scripts, modules, feuilles de style) en ignorant le cache
+ * HTTP, puis recharge. Un simple clic garde son role : rafraichir les donnees. */
+async function rechargementComplet() {
+  try {
+    const memes = performance.getEntriesByType('resource').map((r) => r.name)
+      .filter((u) => u.startsWith(location.origin) && /\.(m?js|css)(\?|$)/i.test(u));
+    await Promise.all([...new Set(memes.concat(location.href))].map((u) => fetch(u, { cache: 'reload' }).catch(() => {})));
+    if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+  } catch (_) { /* on recharge quand meme */ }
+  location.reload();
+}
+document.getElementById('btn-refresh').title = 'Refresh (Shift + click = full reload)';
+document.getElementById('btn-refresh').addEventListener('click', async (ev) => {
+  if (ev.shiftKey || ev.ctrlKey || ev.metaKey) { await rechargementComplet(); return; }
   if (state.page === 'projects') await refreshProjectsPage();
   else if (state.currentProject) await reloadCurrentProject();
 });
