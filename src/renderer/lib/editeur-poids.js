@@ -571,28 +571,8 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   geoSq.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nSeg * 6), 3));
   const lignesSq = new THREE.LineSegments(geoSq, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true }));
   lignesSq.renderOrder = 999; lignesSq.frustumCulled = false;
-  // l'os choisi (rouge) et l'os survole (orange) sont dessines en barres fines par-dessus le maillage : PAS de boule
+  // l'os choisi (trait ROUGE) et l'os survole (trait ORANGE) : seulement la couleur du trait du squelette, rien d'autre
   const groupeSq = new THREE.Group(); groupeSq.add(lignesSq); scene.add(groupeSq);
-  const geoBarre = new THREE.CylinderGeometry(1, 1, 1, 8), barres = [], yAxe = new THREE.Vector3(0, 1, 0), dirB = new THREE.Vector3();
-  let nbBarres = 0;
-  function poserBarre(a, b, hex) {
-    let m = barres[nbBarres];
-    if (!m) { m = new THREE.Mesh(geoBarre, new THREE.MeshBasicMaterial({ depthTest: false })); m.renderOrder = 1000; groupeSq.add(m); barres[nbBarres] = m; }
-    nbBarres++;
-    m.material.color.setHex(hex); m.visible = true;
-    dirB.subVectors(b, a); const L = dirB.length() || 1e-6;
-    m.position.copy(a).addScaledVector(dirB, 0.5);
-    m.quaternion.setFromUnitVectors(yAxe, dirB.multiplyScalar(1 / L));
-    m.scale.set(ext * 0.004, L, ext * 0.004);
-  }
-  const pA = new THREE.Vector3(), pB = new THREE.Vector3();
-  function barresDeLOs(i, hex) {                                       // segments de l'os vers ses enfants ; os terminal : prolonge dans l'axe du parent
-    const b = os[i]; if (!b) return;
-    b.getWorldPosition(pA);
-    let vu = false;
-    for (const c of b.children) if (c.isBone) { c.getWorldPosition(pB); poserBarre(pA, pB, hex); vu = true; }
-    if (!vu && b.parent && b.parent.isBone) { b.parent.getWorldPosition(pB); pB.copy(pA).addScaledVector(pB.sub(pA).multiplyScalar(-1), 0.6); poserBarre(pA, pB, hex); }
-  }
   const va = new THREE.Vector3(), vb = new THREE.Vector3();
   function majSquelette() {
     if (!groupeSq.visible) return;
@@ -611,10 +591,6 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
       }
     });
     geoSq.attributes.position.needsUpdate = true; geoSq.attributes.color.needsUpdate = true;
-    nbBarres = 0;
-    barresDeLOs(osChoisi, 0xff2a2a);
-    if (survol >= 0 && survol !== osChoisi) barresDeLOs(survol, 0xff9a1a);
-    for (let k = nbBarres; k < barres.length; k++) barres[k].visible = false;
   }
   $('pp-squelette').onclick = () => {
     groupeSq.visible = !groupeSq.visible;
@@ -644,7 +620,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   const fermer = () => {
     vivant = false; document.removeEventListener('keydown', touches); ro.disconnect(); ctrl.dispose(); renderer.dispose();
     donnees.forEach((d) => { d.pointage.geometry.dispose(); });
-    geoSq.dispose(); geoBarre.dispose(); barres.forEach((m) => m.material.dispose()); anneau.geometry.dispose();
+    geoSq.dispose(); anneau.geometry.dispose();
     fen.classList.add('hidden');
   };
   $('pp-cancel').onclick = fermer;
