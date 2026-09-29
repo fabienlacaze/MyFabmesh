@@ -8813,11 +8813,12 @@ async function showGenerationHistory(startPath) {
   try { steps = await buildLineageTimeline(startPath, p); } catch (e) { console.error('[gen-history]', e); }
   if (!steps.length) { showToast(_i18nT('No history available for this item.'), 'info', 2200); return; }
   const KIND_META = {
-    image: { ico: '🖼', title: 'Source image' },
-    mesh:  { ico: '🧊', title: 'Mesh generated' },
-    op:    { ico: '🛠', title: 'Modification' },
-    rig:   { ico: '🦴', title: 'Rig' },
-    anim:  { ico: '🎬', title: 'Animation' },
+    // memes icones et couleurs que les etapes Image / 3D Mesh / Rig / Animation (2026-09-29)
+    image: { ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.7"/><path d="M4.5 17.5l5-5 3.5 3.5 2.5-2.5 4 4"/></svg>', title: 'Source image' },
+    mesh:  { ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8l8.2 4.6v9.2L12 21.2l-8.2-4.6V7.4z"/><path d="M12 12l8.2-4.6M12 12v9.2M12 12L3.8 7.4"/><path d="M8 5.1l8.1 4.6M16 5.1L7.9 9.7" stroke-opacity="0.45"/></svg>', title: 'Mesh generated' },
+    op:    { ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5l3 3 5.8-5.8a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.6-.6-.6-2.6z"/></svg>', title: 'Modification' },
+    rig:   { ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.3" r="2.1"/><path d="M12 6.4v7.2M12 8.8l-4.3 3.1M12 8.8l4.3 3.1M12 13.6l-3.2 6.4M12 13.6l3.2 6.4"/><g fill="currentColor" stroke="none"><circle cx="7.7" cy="11.9" r="1.3"/><circle cx="16.3" cy="11.9" r="1.3"/><circle cx="12" cy="13.6" r="1.3"/><circle cx="8.8" cy="20" r="1.2"/><circle cx="15.2" cy="20" r="1.2"/></g></svg>', title: 'Rig' },
+    anim:  { ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="4.3" r="2.1"/><path d="M14 7.2l-2.3 5.2 3.2 3-1.3 5.6M11.7 12.4l-3.4 1.2M14 7.9l4.1 2.4M14.9 15.4l4.3 1.4"/><path d="M2.8 8.5h4.4M2 12.2h4.3M3.4 16h3.4" stroke-opacity="0.55"/></svg>', title: 'Animation' },
   };
   // LISTE EXACTE ET DEPLIABLE (2026-09-29, user : « pouvoir deplier chaque generation et avoir le listing exact
   // des parametres ») : plus de limite a 10 lignes ni de valeur tronquee ; « non » et les listes s'affichent aussi.
@@ -8878,7 +8879,9 @@ async function showGenerationHistory(startPath) {
     const legacy = (!prows && s.derived)
       ? `<div class="gh-legacy">${_i18nT('Parameters not tracked (generated before history tracing)')}</div>`
       : '';
-    return `<div class="gh-step" data-kind="${s.kind}">
+    // categorie = etape d'origine (une retouche d'image est bleue, une retouche de maillage violette)
+    const cat = s.kind === 'op' ? (/\.(png|jpe?g|webp)(?:[?#]|$)/i.test(String(s.path || '')) ? 'image' : 'mesh') : s.kind;
+    return `<div class="gh-step" data-kind="${s.kind}" data-cat="${cat}">
       <div class="gh-dot">${km.ico}</div>
       <div class="gh-card">
         ${thumb}

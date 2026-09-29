@@ -4687,3 +4687,16 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 .gh-details { margin-top: 6px; }
 .gh-details > summary { cursor: pointer; font-size: 12px; color: var(--accent, #a78bfa); user-select: none; }
 .gh-details[open] > summary { margin-bottom: 4px; }
+
+/* Historique : icones et couleurs des etapes (Image bleu, 3D violet, Rig orange, Animation vert) */
+.gh-step[data-cat="image"] { --cat: #4a90e2; }
+.gh-step[data-cat="mesh"]  { --cat: #c35ce0; }
+.gh-step[data-cat="rig"]   { --cat: #f08a24; }
+.gh-step[data-cat="anim"]  { --cat: #22c55e; }
+.gh-step .gh-dot { color: var(--cat, #8b5cf6); border: 2px solid var(--cat, #3a3a4a);
+  background: color-mix(in srgb, var(--cat, #1a1a24) 18%, var(--bg-2, #1a1a24)); }
+.gh-dot svg { width: 16px; height: 16px; }
+.gh-step .gh-card { border-left: 3px solid var(--cat, #3a3a4a); }
+.gh-step .gh-step-title { color: var(--cat, inherit); }
+.gh-thumb-empty { color: var(--cat, inherit); }
+.gh-thumb-empty svg { width: 30px; height: 30px; }
