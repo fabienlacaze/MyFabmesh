@@ -134,6 +134,8 @@ const FICHIERS = [
   { nom: 'reshape (auto inpaint 3D)', source: 'scripts/mesh_inpaint.py', copie: 'modal_app/reshape/mesh_inpaint.py' },
   { nom: 'serpent etire (silhouette)', source: 'scripts/serpent_etire.py', copie: 'modal_app/serpent_etire.py' },
   { nom: 'acceleration du GLB (atlas, WebP)', source: 'scripts/acceleration_glb.py', copie: 'modal_app/acceleration_glb.py' },
+  // Face Fix image (2026-09-29) : visage humain ou TETE d'animal + retouche SDXL, bureau (serveur local) et web
+  { nom: 'face fix image (visage / tete d animal)', source: 'scripts/face_fix_image.py', copie: 'modal_app/_face_fix_image.py' },
   { nom: 'align texture (reprojection)', source: 'scripts/texture_project.py', copie: 'modal_app/texproj/texture_project.py' },
   { nom: 'align texture (pre-transformation)', source: 'scripts/mesh_pre_transform.py', copie: 'modal_app/texproj/mesh_pre_transform.py' },
   // moteur de marche procedural (2026-09-28) : MEME fichier sur le bureau et le web

@@ -1619,6 +1619,35 @@ def _mask_bbox(msk, threshold: int = 30):
             int(xs.max()) + 1, int(ys.max()) + 1)
 
 
+def do_face_fix_image(input_path, output_path, strength=0.45, asset_type=''):
+    """FACE FIX IA (2026-09-29, parite web) : visage humain (Haar) ou TETE d'animal (CLIPSeg) + retouche
+    SDXL Inpainting de ce cadre seul. Module PARTAGE scripts/face_fix_image.py = modal_app/_face_fix_image.py
+    (garde check-noyaux-partages). Aucun visage / tete : ok False + no_face (l'appelant le dit a l'user)."""
+    if not os.path.exists(input_path):
+        return {"ok": False, "error": f"Input not found: {input_path}"}
+    import face_fix_image as ffi
+    load_inpaint()                    # charge aussi CLIPSeg
+    state.last_use['inpaint'] = time.time()
+    with state.inference_lock:
+        try:
+            t0 = time.time()
+            img = Image.open(input_path).convert("RGB")
+            try:
+                out = ffi.generate(state.inpaint_pipe, img, strength=float(strength or 0.45),
+                                   seg_processor=state.clipseg_processor, seg_model=state.clipseg_model,
+                                   asset_type=str(asset_type or ''))
+            except ValueError as e:
+                return {"ok": False, "error": str(e), "no_face": True}
+            os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
+            out.save(output_path)
+            log(f"face_fix_image type={asset_type or '?'} in {time.time() - t0:.1f}s -> {output_path}")
+            return {"ok": True, "output": output_path, "time": time.time() - t0}
+        except Exception as e:
+            import traceback
+            log(f"face_fix_image ERROR: {e} | {traceback.format_exc()}")
+            return {"ok": False, "error": str(e)}
+
+
 def do_mask_inpaint(input_path, mask_path, prompt, output_path, seed=None):
     """Inpaint using a user-provided mask (white = inpaint, black = keep).
 
@@ -1987,6 +2016,16 @@ class Handler(BaseHTTPRequestHandler):
                     float(data.get('motifs', 0) or 0),
                 )
                 self._json_response(200 if result.get('ok') else 500, result)
+
+            elif self.path == '/face_fix_image':
+                if 'input' not in data or 'output' not in data:
+                    self._json_response(400, {"ok": False, "error": "missing input/output"})
+                    return
+                result = do_face_fix_image(data['input'], data['output'],
+                                           float(data.get('strength', 0.45) or 0.45),
+                                           str(data.get('asset_type', '') or ''))
+                # pas de visage = reponse normale (l'appelant l'affiche), pas une erreur serveur
+                self._json_response(200 if (result.get('ok') or result.get('no_face')) else 500, result)
 
             elif self.path == '/mask_inpaint':
                 if 'input' not in data or 'output' not in data or 'mask' not in data:

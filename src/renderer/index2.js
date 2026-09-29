@@ -8236,7 +8236,10 @@ document.getElementById('bright-apply')?.addEventListener('click', async () => {
   const sh = document.getElementById('bright-sharpness').value / 100;
   await runQuickEdit('brightness', { brightness: b, contrast: c, saturation: s, sharpness: sh });
 });
-document.getElementById('ws-facefix-btn')?.addEventListener('click', () => runQuickEdit('facefix'));
+// type d'objet : un animal a une TETE, pas un visage humain (Face Fix IA, scripts/face_fix_image.py)
+document.getElementById('ws-facefix-btn')?.addEventListener('click', () => runQuickEdit('facefix', {
+  assetType: state.currentProject?.assetType || document.getElementById('ws-asset-type')?.value || '',
+}));
 document.getElementById('ws-extend-btn')?.addEventListener('click', () => runQuickEdit('extend', { padding: 0.15 }));
 // ============================================================
 // CROP TOOL — interactive modal with drag selection + presets

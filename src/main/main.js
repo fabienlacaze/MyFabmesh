@@ -6167,7 +6167,8 @@ ipcMain.handle('image-quick-edit', async (event, { imagePath, operation, params 
         srcPath: imagePath, outPath,
         extraBody: operation === 'upscale'
           ? { scale: (p.scale === 4 ? 4 : 2) }
-          : (typeof p.strength === 'number' ? { strength: p.strength } : {}),
+          : { ...(typeof p.strength === 'number' ? { strength: p.strength } : {}),
+              assetType: String(p.assetType || '') },   // animal : tete trouvee par CLIPSeg (Modal)
       });
       if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
       return r.success ? { success: true, newPath: r.newPath } : r;
@@ -6186,6 +6187,30 @@ ipcMain.handle('image-quick-edit', async (event, { imagePath, operation, params 
       } catch (e) {
         log.warn('main', `image-quick-edit native (${operation}) failed: ${e.message}`);
         return { success: false, error: 'Image edit failed on this device: ' + e.message };
+      }
+    }
+
+    // FACE FIX IA (2026-09-29, parite web) : visage humain ou TETE d'animal + retouche SDXL par le
+    // serveur local, meme module que Modal (scripts/face_fix_image.py). Avant, le bureau ne faisait
+    // qu'un renforcement de nettete sur le haut de l'image. Serveur indisponible : ce renforcement.
+    if (operation === 'facefix') {
+      try {
+        await ensureSdxlServer();
+        if (sdxlReady) {
+          const r = await sdxlServerCall('/face_fix_image', {
+            input: imagePath, output: outPath,
+            strength: (typeof p.strength === 'number' ? p.strength : 0.45),
+            asset_type: String(p.assetType || ''),
+          });
+          if (r && r.ok && fs.existsSync(outPath)) {
+            _handleMultiviewInheritance(outPath).catch(() => {});
+            return { success: true, newPath: outPath };
+          }
+          if (r && r.no_face) return { success: false, error: 'no face detected in image' };
+          log.warn('main', `face fix IA indisponible (${r && r.error}) : nettete simple`);
+        }
+      } catch (e) {
+        log.warn('main', `face fix IA : ${e.message} — nettete simple`);
       }
     }
 
