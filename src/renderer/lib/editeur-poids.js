@@ -57,6 +57,7 @@ function construireFenetre() {
   <div class="modal-card fen-3d">
     <div class="fen-tete"><h2>&#127912; ${esc(T('Skin weights'))}</h2>
       <div style="display:flex;gap:6px;align-items:center;margin-left:auto;margin-right:12px;">
+        <button type="button" class="ghost-btn fen-petit" id="pp-tester">&#9654; ${esc(T('Test the bone'))}</button>
         <button type="button" class="ghost-btn fen-petit active" id="pp-squelette">&#129460; ${esc(T('Skeleton'))}</button>
         <button type="button" class="ghost-btn fen-petit" id="pp-annuler" disabled title="${esc(T('Undo'))} (Ctrl+Z)">&#8630; ${esc(T('Undo'))}</button>
         <button type="button" class="ghost-btn fen-petit" id="pp-refaire" disabled title="${esc(T('Redo'))} (Ctrl+Y)">&#8631; ${esc(T('Redo'))}</button>
@@ -112,9 +113,6 @@ function construireFenetre() {
           <span class="fen-note" style="color:#ff5fd8;">&#9632; ${esc(T('Magenta zones would be removed'))}</span>
           <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button>
         </details>
-        <div class="pp-actions">
-          <button type="button" class="ghost-btn fen-petit" id="pp-tester">&#9654; ${esc(T('Test the bone'))}</button>
-        </div>
         <span class="fen-note">${esc(T('Left drag = paint · right drag = rotate · middle drag or Shift + right drag = move · wheel = zoom'))}</span>
       </div>
     </div>
