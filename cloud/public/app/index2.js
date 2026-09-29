@@ -11059,7 +11059,8 @@ function _mtLoadMesh(meshPath) {
     ? meshPath
     : _toFileUrl(meshPath);
   _mtStatut(_i18nT('Loading mesh…'));
-  (_cacheMaillage && _cacheMaillage.chemin === meshPath && _cacheMaillage.buffer.byteLength > 0
+  (_etapeAffiche(meshPath) ? Promise.resolve(new ArrayBuffer(8))
+    : _cacheMaillage && _cacheMaillage.chemin === meshPath && _cacheMaillage.buffer.byteLength > 0
     ? Promise.resolve(_cacheMaillage.buffer.slice(0))   // deja telecharge par l'etape Maillage
     : fetch(url, { credentials: 'omit' })
       .then((r) => {
@@ -11067,7 +11068,7 @@ function _mtLoadMesh(meshPath) {
         return r.arrayBuffer();
       }))
     .then((buffer) => {
-      const loader = new GLTFLoader();
+      const loader = _fauxChargeur(meshPath, { geometrie: true });
       loader.parse(buffer, '', (gltf) => {
         if (jeton !== _mtJeton) return;   // un chargement plus recent a ete demande
         _mtStatut(null);
@@ -12663,7 +12664,7 @@ function openResizeTool() {
 
   // Cloud: meshPath IS a URL (R2) — load it directly (no file:/// prefix).
   const url = String(rzState.meshPath);
-  new GLTFLoader().load(url, (gltf) => {
+  _fauxChargeur(rzState.meshPath).load(url, (gltf) => {
     const model = gltf.scene || gltf.scenes[0];
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
@@ -13297,9 +13298,12 @@ async function _peLoadMesh(meshPath) {
   try {
     const url = (typeof meshPath === 'string' && /^[a-z]+:/i.test(meshPath))
       ? meshPath : _toFileUrl(meshPath);
+    if (_etapeAffiche(meshPath)) buffer = new ArrayBuffer(8);
+    else {
     const r = await fetch(url, { credentials: 'omit' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     buffer = await r.arrayBuffer();
+    }
   } catch (e) {
     console.error('[paint-emissive] load failed:', e);
     showToast('Mesh load failed: ' + (e?.message || e), 'error', 5000);
@@ -13309,7 +13313,7 @@ async function _peLoadMesh(meshPath) {
     showToast('Mesh load returned empty buffer.', 'error', 5000);
     return;
   }
-  const loader = new GLTFLoader();
+  const loader = _fauxChargeur(meshPath);
   loader.parse(buffer, '', (gltf) => {
     if (jeton !== _peJeton) return;   // un chargement plus recent a ete demande
     peState.origModel = gltf.scene;
@@ -14456,6 +14460,47 @@ function _pmRestoreMaterials() {
 // rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
 // chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
 let _pmJeton = 0;
+// MAILLAGE DEJA AFFICHE (2026-09-30, user : « fais pareil avec les autres tools ») : si le viewer de l'etape Mesh montre deja le
+// maillage demande, les outils en prennent une COPIE (materiaux clones ; geometrie clonee si l'outil la modifie) au lieu de le
+// retelecharger et de le reanalyser (WebP 4K/8K = plusieurs secondes). Repli : chargement normal.
+function _etapeAffiche(chemin) {
+  try {
+    const p = state.currentProject;
+    if (typeof wsModel === 'undefined' || !wsModel || !wsModel.userData?.__wsMesh || !wsScene || wsModel.parent !== wsScene) return false;
+    if (!p || !chemin || p.previewMeshPath !== chemin) return false;
+    let skinne = false; wsModel.traverse((c) => { if (c.isSkinnedMesh) skinne = true; });
+    return !skinne;
+  } catch (_) { return false; }
+}
+function _modeleDeLetape(chemin, opts = {}) {
+  if (!_etapeAffiche(chemin)) return null;
+  try {
+    const c = wsModel.clone(true);
+    c.position.set(0, 0, 0);
+    c.traverse((o) => {
+      if (!o.isMesh) return;
+      if (o.material) o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone();
+      if (opts.geometrie && o.geometry) o.geometry = o.geometry.clone();
+    });
+    return c;
+  } catch (_) { return null; }
+}
+// Meme interface que GLTFLoader (parse / load) : copie de l'etape si disponible, sinon lecture normale.
+function _fauxChargeur(chemin, opts) {
+  const enrober = (c) => ({ scene: c, scenes: [c] });
+  return {
+    parse(buf, base, ok, ko) {
+      const c = _modeleDeLetape(chemin, opts);
+      if (c) Promise.resolve().then(() => ok(enrober(c)));
+      else new GLTFLoader().parse(buf, base, ok, ko);
+    },
+    load(url, ok, prog, ko) {
+      const c = _modeleDeLetape(chemin, opts);
+      if (c) Promise.resolve().then(() => ok(enrober(c)));
+      else new GLTFLoader().load(url, ok, prog, ko);
+    },
+  };
+}
 function _pmModeleDejaCharge(chemin) {
   try {
     const p = state.currentProject;
@@ -15080,12 +15125,12 @@ async function openMaterialAdjust() {
 
   // Load the selected mesh into the viewer scene.
   if (_matModel) { _matViewer.scene.remove(_matModel); _matModel = null; }
-  const buffer = await API.readMeshFile(p.selectedMeshPath);
+  const buffer = _etapeAffiche(p.selectedMeshPath) ? new ArrayBuffer(8) : await API.readMeshFile(p.selectedMeshPath);
   if (!buffer) {
     showToast('Failed to read mesh file', 'error');
     return;
   }
-  const loader = new GLTFLoader();
+  const loader = _fauxChargeur(p.selectedMeshPath);
   loader.parse(buffer, '', (gltf) => {
     if (jeton !== _matJeton) return;   // un chargement plus recent a ete demande
     _matModel = gltf.scene;
@@ -15571,7 +15616,7 @@ function _meLoadMesh(meshPath) {
   meState.redoStack = [];
   _meUpdateUndoBtns();
 
-  const loader = new GLTFLoader();
+  const loader = _fauxChargeur(meshPath, { geometrie: true });
   let url;
   if (/^(?:blob|data):/i.test(meshPath)) {
     url = meshPath; // already a usable resource URL
@@ -15583,7 +15628,7 @@ function _meLoadMesh(meshPath) {
     url = "file:///" + String(meshPath).replace(/\\/g, "/");
   }
   console.log('[mesh-edit] loading', url);
-  fetch(url).then(r => {
+  (_etapeAffiche(meshPath) ? Promise.resolve(new Response(new ArrayBuffer(8))) : fetch(url)).then(r => {
     if (!r.ok) throw new Error('fetch failed: ' + r.status);
     return r.arrayBuffer();
   }).then(buffer => {

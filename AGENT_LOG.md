@@ -24189,3 +24189,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Cause du decal sombre et brillant : TRELLIS-2 met un metal fort sur la carte metal/rugosite ; la couleur diffuse d'un metal ne se voit pas.
   Paint Mesh garde maintenant une copie modifiable de cette carte (annulable, restauree par Annuler / Reset) ; le decalque y remet
   « non metallique, rugosite 0,8 » sous son empreinte. Fantome : opacite = 25 % + 70 % de l'opacite reglee.
+
+## 2026-09-30 — Tous les outils de maillage reprennent le maillage deja affiche
+- Helpers `_etapeAffiche / _modeleDeLetape / _fauxChargeur` (index2.js bureau + web) : copie du wsModel (materiaux clones, geometrie
+  clonee pour les outils qui la modifient) au lieu de retelecharger / reanalyser. Branche sur : Triangle count & outils de maillage
+  (_mtLoadMesh), Paint Emissive, Mesh Edit, Material Adjust, Reshape, Paint Mesh. Repli automatique sur le chargement normal.
