@@ -412,17 +412,17 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-export-img-btn" class="ghost-btn tool-btn" title="Save this image to disk.">&#128190; Export image</button>
-                        <button id="ws-cloud-share-img-btn" class="ghost-btn tool-btn" title="Send this image to your MyFabmesh web library">&#9729; Send to cloud</button>
+                        <button id="ws-export-img-btn" class="ghost-btn tool-btn" title="Save this image to disk.">&#128190;&nbsp;Export image</button>
+                        <button id="ws-cloud-share-img-btn" class="ghost-btn tool-btn" title="Send this image to your MyFabmesh web library">&#9729;&nbsp;Send to cloud</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Smart tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-modify-btn" class="ghost-btn tool-btn" title="Rewrite the whole image from a prompt. Shape and framing may change.">&#9998; Modify</button>
-                        <button id="ws-autoinpaint-btn" class="ghost-btn tool-btn" title="Describe a zone in words; only that zone is found and repainted.">&#129668; Auto Inpaint</button>
-                        <button id="ws-removebg-btn" class="ghost-btn tool-btn" title="Cut the subject out and make the background transparent.">&#9986; Remove BG</button>
-                        <button id="ws-resolution-btn" class="ghost-btn tool-btn" title="Enlarge the image. Recovers detail, invents nothing.">&#128300; Resolution</button>
+                        <button id="ws-modify-btn" class="ghost-btn tool-btn" title="Rewrite the whole image from a prompt. Shape and framing may change.">&#9998;&nbsp;Modify</button>
+                        <button id="ws-autoinpaint-btn" class="ghost-btn tool-btn" title="Describe a zone in words; only that zone is found and repainted.">&#129668;&nbsp;Auto Inpaint</button>
+                        <button id="ws-removebg-btn" class="ghost-btn tool-btn" title="Cut the subject out and make the background transparent.">&#9986;&nbsp;Remove BG</button>
+                        <button id="ws-resolution-btn" class="ghost-btn tool-btn" title="Enlarge the image. Recovers detail, invents nothing.">&#128300;&nbsp;Resolution</button>
                         <div class="style-dropdown" style="position:relative;">
                           <button id="ws-style-btn" type="button" class="ghost-btn tool-btn" style="width:100%; text-align:left; display:flex; align-items:center; justify-content:space-between;" title="Repaint the image in a chosen style, keeping the subject.">
                             <span id="ws-style-label">&#127912; Style...</span>
@@ -463,29 +463,29 @@
                             <div class="style-option" data-value="art deco, geometric gold ornament, elegant symmetrical 1920s luxury">Art deco</div>
                           </div>
                         </div>
-                        <button id="ws-facefix-btn" class="ghost-btn tool-btn" title="Detect the face and repaint it sharper. Best on portraits.">&#128566; Face Fix</button>
-                        <button id="ws-outfit-btn" class="ghost-btn tool-btn" title="Extracts each piece of clothing on a transparent background (characters)">&#128087; Outfits</button>
-                        <button id="ws-symmetrize-auto-btn" class="ghost-btn tool-btn" title="Mirror the left half onto the right half, to make the subject symmetrical.">&#8651; Sym. Auto</button>
-                        <button id="ws-multiview-btn" class="ghost-btn tool-btn" title="Generate 6 orthographic views from this image.">&#128065; Multi-Views</button>
-                        <button id="ws-buildstages-btn" class="ghost-btn tool-btn" title="Builds a construction timeline (scaffolding → finished building) from the final image, shown like the multi-views">&#127959;&#65039; Construction stages</button>
-                        <button id="ws-variant-btn" class="ghost-btn tool-btn" title="Create variants of the current image — re-roll seed or img2img with controlled strength">&#10024; Variant</button>
-                        <button id="ws-recolor-btn" class="ghost-btn tool-btn" title="Finds a part automatically and recolours it, keeping its shape (e.g. a red cape)">&#127912; Recolor</button>
-                        <button id="ws-age-btn" class="ghost-btn tool-btn" title="Make the subject younger or older — keeps the shape, changes the apparent age">&#9203; Age</button>
+                        <button id="ws-facefix-btn" class="ghost-btn tool-btn" title="Detect the face and repaint it sharper. Best on portraits.">&#128566;&nbsp;Face Fix</button>
+                        <button id="ws-outfit-btn" class="ghost-btn tool-btn" title="Extracts each piece of clothing on a transparent background (characters)">&#128087;&nbsp;Outfits</button>
+                        <button id="ws-symmetrize-auto-btn" class="ghost-btn tool-btn" title="Mirror the left half onto the right half, to make the subject symmetrical.">&#8651;&nbsp;Sym. Auto</button>
+                        <button id="ws-multiview-btn" class="ghost-btn tool-btn" title="Generate 6 orthographic views from this image.">&#128065;&nbsp;Multi-Views</button>
+                        <button id="ws-buildstages-btn" class="ghost-btn tool-btn" title="Builds a construction timeline (scaffolding → finished building) from the final image, shown like the multi-views">&#127959;&#65039;&nbsp;Construction stages</button>
+                        <button id="ws-variant-btn" class="ghost-btn tool-btn" title="Create variants of the current image — re-roll seed or img2img with controlled strength">&#10024;&nbsp;Variant</button>
+                        <button id="ws-recolor-btn" class="ghost-btn tool-btn" title="Finds a part automatically and recolours it, keeping its shape (e.g. a red cape)">&#127912;&nbsp;Recolor</button>
+                        <button id="ws-age-btn" class="ghost-btn tool-btn" title="Make the subject younger or older — keeps the shape, changes the apparent age">&#9203;&nbsp;Age</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-clone-btn" class="ghost-btn tool-btn" title="Copy pixels from one area onto another with a brush.">&#128203; Clone Stamp</button>
-                        <button id="ws-mask-btn" class="ghost-btn tool-btn" title="Paint a zone by hand, then have just that zone repainted.">&#9999; Draw Mask</button>
-                        <button id="ws-crop-btn" class="ghost-btn tool-btn" title="Trim the image. Removes pixels, adds none.">&#9986; Crop</button>
-                        <button id="ws-select-btn" class="ghost-btn tool-btn" title="Cut / copy a rectangular zone and move it elsewhere on the image">&#9635; Cut/Paste</button>
-                        <button id="ws-extend-btn" class="ghost-btn tool-btn" title="Extend / outpaint — add margin around the image and fill it">&#10696; Extend</button>
-                        <button id="ws-brightness-btn" class="ghost-btn tool-btn" title="Adjust brightness, contrast, saturation and sharpness.">&#9728; Brightness</button>
-                        <button id="ws-picker-btn" class="ghost-btn tool-btn" title="Pick a colour from the image.">&#128167; Color Pick</button>
-                        <button id="ws-blur-btn" class="ghost-btn tool-btn" title="Blur or sharpen locally with a brush.">&#128168; Blur Brush</button>
-                        <button id="ws-symmetrize-btn" class="ghost-btn tool-btn" title="Mirror one half of the image onto the other, axis chosen by hand.">&#8651; Symmetrize</button>
-                        <button id="ws-paint-btn" class="ghost-btn tool-btn" title="Paint directly on the image with a brush.">&#127912; Paint</button>
+                        <button id="ws-clone-btn" class="ghost-btn tool-btn" title="Copy pixels from one area onto another with a brush.">&#128203;&nbsp;Clone Stamp</button>
+                        <button id="ws-mask-btn" class="ghost-btn tool-btn" title="Paint a zone by hand, then have just that zone repainted.">&#9999;&nbsp;Draw Mask</button>
+                        <button id="ws-crop-btn" class="ghost-btn tool-btn" title="Trim the image. Removes pixels, adds none.">&#9986;&nbsp;Crop</button>
+                        <button id="ws-select-btn" class="ghost-btn tool-btn" title="Cut / copy a rectangular zone and move it elsewhere on the image">&#9635;&nbsp;Cut/Paste</button>
+                        <button id="ws-extend-btn" class="ghost-btn tool-btn" title="Extend / outpaint — add margin around the image and fill it">&#10696;&nbsp;Extend</button>
+                        <button id="ws-brightness-btn" class="ghost-btn tool-btn" title="Adjust brightness, contrast, saturation and sharpness.">&#9728;&nbsp;Brightness</button>
+                        <button id="ws-picker-btn" class="ghost-btn tool-btn" title="Pick a colour from the image.">&#128167;&nbsp;Color Pick</button>
+                        <button id="ws-blur-btn" class="ghost-btn tool-btn" title="Blur or sharpen locally with a brush.">&#128168;&nbsp;Blur Brush</button>
+                        <button id="ws-symmetrize-btn" class="ghost-btn tool-btn" title="Mirror one half of the image onto the other, axis chosen by hand.">&#8651;&nbsp;Symmetrize</button>
+                        <button id="ws-paint-btn" class="ghost-btn tool-btn" title="Paint directly on the image with a brush.">&#127912;&nbsp;Paint</button>
                       </div>
                     </div>
                   </div>
@@ -767,47 +767,47 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-mesh-export-btn" class="ghost-btn tool-btn" title="Export the mesh (GLB, FBX, OBJ...). The original version is kept.">&#128190; Export...</button>
-                        <button id="ws-mesh-blender-btn" class="ghost-btn tool-btn" title="Open this mesh in Blender.">&#129704; Open in Blender</button>
-                        <button id="ws-mesh-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
-                        <button id="ws-cloud-share-mesh-btn" class="ghost-btn tool-btn" title="Send this mesh (GLB ≤50 MB) to your MyFabmesh web library">&#9729; Send to cloud</button>
+                        <button id="ws-mesh-export-btn" class="ghost-btn tool-btn" title="Export the mesh (GLB, FBX, OBJ...). The original version is kept.">&#128190;&nbsp;Export...</button>
+                        <button id="ws-mesh-blender-btn" class="ghost-btn tool-btn" title="Open this mesh in Blender.">&#129704;&nbsp;Open in Blender</button>
+                        <button id="ws-mesh-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193;&nbsp;Show in folder</button>
+                        <button id="ws-cloud-share-mesh-btn" class="ghost-btn tool-btn" title="Send this mesh (GLB ≤50 MB) to your MyFabmesh web library">&#9729;&nbsp;Send to cloud</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Smart tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-mesh-smooth-btn" class="ghost-btn tool-btn" title="Soften the surface. Removes faceting, also removes fine detail.">&#10024; Smooth</button>
-                        <button id="ws-mesh-decimate-btn" class="ghost-btn tool-btn" title="Reduce the mesh triangle count">&#9660; Triangle count</button>
-                        <button id="ws-mesh-subdivide-btn" class="ghost-btn tool-btn" title="Split each triangle to gain definition. The shape does not change.">&#9650; Subdivide</button>
-                        <button id="ws-mesh-fixnormals-btn" class="ghost-btn tool-btn" title="Re-orient the faces. Fixes surfaces that look black or see-through.">&#8634; Fix Normals</button>
-                        <button id="ws-mesh-fillholes-btn" class="ghost-btn tool-btn" title="Stitch open boundary loops shut (texture-aware)">&#9673; Fill Holes</button>
-                        <button id="ws-mesh-watertight-btn" class="ghost-btn tool-btn" title="Rebuild a closed watertight shell (voxel remesh) — fuses all parts, removes texture (re-texture after)">&#128167; Watertight</button>
-                        <button id="ws-mesh-center-btn" class="ghost-btn tool-btn" title="Move the pivot point. Nothing else changes.">&#9678; Set Pivot</button>
-                        <button id="ws-mesh-retexture-btn" class="ghost-btn tool-btn" title="Re-bake the WHOLE texture from the source photo at a chosen resolution (reprojects the photo onto the UVs)">&#128300; Re-bake from photo (HD)</button>
-                        <button id="ws-mesh-texvar-btn" class="ghost-btn tool-btn" title="Generate DIFFERENT texture looks (geometry untouched) — change the seed for a new variant">&#127912; Texture variants</button>
-                        <button id="ws-mesh-enhance-tex-btn" class="ghost-btn tool-btn" title="Sharpen / upscale the EXISTING baked texture (x2, no hallucination) — no re-generation">&#10024; Sharpen texture (x2)</button>
-                        <button id="ws-mesh-detail-synth-btn" class="ghost-btn tool-btn" title="Adds real detail to the texture">&#10024; Detail++</button>
-                        <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint the WHOLE texture with the 3D Native PBR engine (best quality)">&#11088; Re-texture all</button>
-                        <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part (detected automatically) with a prompt — geometry stays intact">&#127912; Re-texture a region</button>
-                        <button id="ws-mesh-reshape-btn" class="ghost-btn tool-btn" title="Rebuild ONE part of the model in 3D from a prompt (for example, replace the head). Runs on your graphics card.">&#129516; Reshape a region</button>
-                        <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin). Runs locally, ~6-10 min. Adds a colored, separable parts version.">&#9986; Segment parts</button>
-                        <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head). Requires a segmented mesh.">&#127991; Name the zones</button>
-                        <button id="ws-mesh-explode-btn" class="ghost-btn tool-btn" title="Fracture the mesh into shards and blast them outward over navigable stages (explosion / destruction). Texture preserved, exportable.">&#128165; Explode / destroy</button>
+                        <button id="ws-mesh-smooth-btn" class="ghost-btn tool-btn" title="Soften the surface. Removes faceting, also removes fine detail.">&#10024;&nbsp;Smooth</button>
+                        <button id="ws-mesh-decimate-btn" class="ghost-btn tool-btn" title="Reduce the mesh triangle count">&#9660;&nbsp;Triangle count</button>
+                        <button id="ws-mesh-subdivide-btn" class="ghost-btn tool-btn" title="Split each triangle to gain definition. The shape does not change.">&#9650;&nbsp;Subdivide</button>
+                        <button id="ws-mesh-fixnormals-btn" class="ghost-btn tool-btn" title="Re-orient the faces. Fixes surfaces that look black or see-through.">&#8634;&nbsp;Fix Normals</button>
+                        <button id="ws-mesh-fillholes-btn" class="ghost-btn tool-btn" title="Stitch open boundary loops shut (texture-aware)">&#9673;&nbsp;Fill Holes</button>
+                        <button id="ws-mesh-watertight-btn" class="ghost-btn tool-btn" title="Rebuild a closed watertight shell (voxel remesh) — fuses all parts, removes texture (re-texture after)">&#128167;&nbsp;Watertight</button>
+                        <button id="ws-mesh-center-btn" class="ghost-btn tool-btn" title="Move the pivot point. Nothing else changes.">&#9678;&nbsp;Set Pivot</button>
+                        <button id="ws-mesh-retexture-btn" class="ghost-btn tool-btn" title="Re-bake the WHOLE texture from the source photo at a chosen resolution (reprojects the photo onto the UVs)">&#128300;&nbsp;Re-bake from photo (HD)</button>
+                        <button id="ws-mesh-texvar-btn" class="ghost-btn tool-btn" title="Generate DIFFERENT texture looks (geometry untouched) — change the seed for a new variant">&#127912;&nbsp;Texture variants</button>
+                        <button id="ws-mesh-enhance-tex-btn" class="ghost-btn tool-btn" title="Sharpen / upscale the EXISTING baked texture (x2, no hallucination) — no re-generation">&#10024;&nbsp;Sharpen texture (x2)</button>
+                        <button id="ws-mesh-detail-synth-btn" class="ghost-btn tool-btn" title="Adds real detail to the texture">&#10024;&nbsp;Detail++</button>
+                        <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint the WHOLE texture with the 3D Native PBR engine (best quality)">&#11088;&nbsp;Re-texture all</button>
+                        <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part (detected automatically) with a prompt — geometry stays intact">&#127912;&nbsp;Re-texture a region</button>
+                        <button id="ws-mesh-reshape-btn" class="ghost-btn tool-btn" title="Rebuild ONE part of the model in 3D from a prompt (for example, replace the head). Runs on your graphics card.">&#129516;&nbsp;Reshape a region</button>
+                        <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin). Runs locally, ~6-10 min. Adds a colored, separable parts version.">&#9986;&nbsp;Segment parts</button>
+                        <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head). Requires a segmented mesh.">&#127991;&nbsp;Name the zones</button>
+                        <button id="ws-mesh-explode-btn" class="ghost-btn tool-btn" title="Fracture the mesh into shards and blast them outward over navigable stages (explosion / destruction). Texture preserved, exportable.">&#128165;&nbsp;Explode / destroy</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-mesh-sculpt-btn" class="ghost-btn tool-btn" title="Reshape the surface by hand with a brush.">&#9997; Sculpt</button>
-                        <button id="ws-mesh-paintvert-btn" class="ghost-btn tool-btn" title="Paint directly on the mesh.">&#127912; Paint</button>
-                        <button id="ws-mesh-selectface-btn" class="ghost-btn tool-btn" title="Select faces to isolate, hide or work on them.">&#9634; Select</button>
-                        <button id="ws-mesh-clone3d-btn" class="ghost-btn tool-btn" title="Clone one area of the texture onto another, directly on the model">&#129657; Clone stamp</button>
-                        <button id="ws-mesh-reshape-draw-btn" class="ghost-btn tool-btn" title="Paint the part to rebuild straight on the 3D model, then describe what should replace it. Runs on your graphics card.">&#128396; Reshape (draw)</button>
+                        <button id="ws-mesh-sculpt-btn" class="ghost-btn tool-btn" title="Reshape the surface by hand with a brush.">&#9997;&nbsp;Sculpt</button>
+                        <button id="ws-mesh-paintvert-btn" class="ghost-btn tool-btn" title="Paint directly on the mesh.">&#127912;&nbsp;Paint</button>
+                        <button id="ws-mesh-selectface-btn" class="ghost-btn tool-btn" title="Select faces to isolate, hide or work on them.">&#9634;&nbsp;Select</button>
+                        <button id="ws-mesh-clone3d-btn" class="ghost-btn tool-btn" title="Clone one area of the texture onto another, directly on the model">&#129657;&nbsp;Clone stamp</button>
+                        <button id="ws-mesh-reshape-draw-btn" class="ghost-btn tool-btn" title="Paint the part to rebuild straight on the 3D model, then describe what should replace it. Runs on your graphics card.">&#128396;&nbsp;Reshape (draw)</button>
                         <button id="ws-mesh-stages3d-btn" class="ghost-btn tool-btn" title="Fabricate the 3D meshes of the construction stages (sliced building + frame + scaffolding), navigable and exportable">&#127959;&#65039; 3D construction stages</button>
-                        <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize, dimension or re-orient the mesh with a gizmo and on-screen rulers. Bakes a new version.">&#128207; Resize / dimension</button>
-                        <button id="ws-mesh-aligntex-btn" class="ghost-btn tool-btn" title="Manually align source photos onto mesh">&#127919; Align Texture</button>
-                        <button id="ws-mesh-paint-mesh-btn" class="ghost-btn tool-btn" title="Paint directly on the mesh — toggle 💡 Emissive inside for the glow layer">&#127912; Paint Mesh</button>
-                        <button id="ws-mesh-material-btn" class="ghost-btn tool-btn" title="Adjust material brightness, saturation, contrast, emissive, metallic, roughness">&#10024; Material adjust</button>
+                        <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize, dimension or re-orient the mesh with a gizmo and on-screen rulers. Bakes a new version.">&#128207;&nbsp;Resize / dimension</button>
+                        <button id="ws-mesh-aligntex-btn" class="ghost-btn tool-btn" title="Manually align source photos onto mesh">&#127919;&nbsp;Align Texture</button>
+                        <button id="ws-mesh-paint-mesh-btn" class="ghost-btn tool-btn" title="Paint directly on the mesh — toggle 💡 Emissive inside for the glow layer">&#127912;&nbsp;Paint Mesh</button>
+                        <button id="ws-mesh-material-btn" class="ghost-btn tool-btn" title="Adjust material brightness, saturation, contrast, emissive, metallic, roughness">&#10024;&nbsp;Material adjust</button>
                       </div>
                     </div>
                   </div>
@@ -954,25 +954,25 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-rig-unreal-btn" class="ghost-btn tool-btn rig-tool-btn" title="Export the rig in a layout Unreal Engine understands.">&#127918; Export to Unreal</button>
-                        <button id="ws-rig-blender-btn" class="ghost-btn tool-btn rig-tool-btn" title="Open the rig in Blender.">&#129704; Edit in Blender</button>
-                        <button id="ws-rig-folder-btn" class="ghost-btn tool-btn rig-tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
+                        <button id="ws-rig-unreal-btn" class="ghost-btn tool-btn rig-tool-btn" title="Export the rig in a layout Unreal Engine understands.">&#127918;&nbsp;Export to Unreal</button>
+                        <button id="ws-rig-blender-btn" class="ghost-btn tool-btn rig-tool-btn" title="Open the rig in Blender.">&#129704;&nbsp;Edit in Blender</button>
+                        <button id="ws-rig-folder-btn" class="ghost-btn tool-btn rig-tool-btn" title="Show this file in the file explorer.">&#128193;&nbsp;Show in folder</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Smart tools</div>
                       <div class="step-tools-grid">
                         <!-- Re-skin only : masque le 2026-08-28, echouait a 100 % (voir index2.js) -->
-                        <button id="ws-rig-reskin-btn" class="ghost-btn tool-btn rig-tool-btn" title="Recompute the skin weights only. The skeleton is kept.">&#127814; Re-skin only</button>
+                        <button id="ws-rig-reskin-btn" class="ghost-btn tool-btn rig-tool-btn" title="Recompute the skin weights only. The skeleton is kept.">&#127814;&nbsp;Re-skin only</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-lm-manual" class="ghost-btn tool-btn rig-tool-btn" title="Move the points the skeleton must reach (foot tips, jaw, ears, tail), then re-generate the rig.">&#9999; Skeleton points</button>
+                        <button id="ws-lm-manual" class="ghost-btn tool-btn rig-tool-btn" title="Move the points the skeleton must reach (foot tips, jaw, ears, tail), then re-generate the rig.">&#9999;&nbsp;Skeleton points</button>
                         <!-- Test animation removed: Step 4 Animation now
                              handles playback / generation natively. -->
-                        <button id="ws-rig-test-btn" class="ghost-btn tool-btn rig-tool-btn" style="display:none;" title="Play a test motion to check the rig holds up.">&#9654; Test animation</button>
+                        <button id="ws-rig-test-btn" class="ghost-btn tool-btn rig-tool-btn" style="display:none;" title="Play a test motion to check the rig holds up.">&#9654;&nbsp;Test animation</button>
                       </div>
                     </div>
                   </div>
@@ -1127,21 +1127,21 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-anim-export-btn" class="ghost-btn tool-btn" title="Export the animation as FBX.">&#128229; Export FBX</button>
-                        <button id="ws-anim-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193; Show in folder</button>
+                        <button id="ws-anim-export-btn" class="ghost-btn tool-btn" title="Export the animation as FBX.">&#128229;&nbsp;Export FBX</button>
+                        <button id="ws-anim-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193;&nbsp;Show in folder</button>
                       </div>
                     </div>
                     <!-- « Add Animation » et « Import GLB », portes du web (parite, 2026-09-28). -->
                     <div class="step-tools-group">
                       <div class="step-tools-label">Smart tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-anim-gen-more-btn" class="ghost-btn tool-btn" title="Generate an animation batch (= new version)">&#10024; Add Animation</button>
+                        <button id="ws-anim-gen-more-btn" class="ghost-btn tool-btn" title="Generate an animation batch (= new version)">&#10024;&nbsp;Add Animation</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
                       <div class="step-tools-label">Manual tools</div>
                       <div class="step-tools-grid">
-                        <button id="ws-anim-import-btn" class="ghost-btn tool-btn" title="Import an animated GLB as a new version">&#128228; Import GLB</button>
+                        <button id="ws-anim-import-btn" class="ghost-btn tool-btn" title="Import an animated GLB as a new version">&#128228;&nbsp;Import GLB</button>
                       </div>
                       <input type="file" id="ws-anim-import-file" accept=".glb,model/gltf-binary" style="display:none;" />
                     </div>
@@ -1361,28 +1361,28 @@
            workspace mesh handler so it operates on the current mesh. -->
       <div id="lb3d-toolbox" class="lb-toolbox">
         <div class="lb-toolbox-group-label">GEOMETRY</div>
-        <button class="lb-tool-btn" data-lb3d-tool="smooth" title="Smooth">&#10024; Smooth</button>
-        <button class="lb-tool-btn" data-lb3d-tool="decimate" title="Reduce triangle count">&#9660; Triangle count</button>
-        <button class="lb-tool-btn" data-lb3d-tool="subdivide" title="Subdivide">&#9650; Subdivide</button>
-        <button class="lb-tool-btn" data-lb3d-tool="fixnormals" title="Fix normals">&#8634; Fix Normals</button>
-        <button class="lb-tool-btn" data-lb3d-tool="fillholes" title="Fill holes">&#9673; Fill Holes</button>
-        <button class="lb-tool-btn" data-lb3d-tool="watertight" title="Watertight remesh">&#128167; Watertight</button>
-        <button class="lb-tool-btn" data-lb3d-tool="center" title="Set pivot">&#9678; Set Pivot</button>
+        <button class="lb-tool-btn" data-lb3d-tool="smooth" title="Smooth">&#10024;&nbsp;Smooth</button>
+        <button class="lb-tool-btn" data-lb3d-tool="decimate" title="Reduce triangle count">&#9660;&nbsp;Triangle count</button>
+        <button class="lb-tool-btn" data-lb3d-tool="subdivide" title="Subdivide">&#9650;&nbsp;Subdivide</button>
+        <button class="lb-tool-btn" data-lb3d-tool="fixnormals" title="Fix normals">&#8634;&nbsp;Fix Normals</button>
+        <button class="lb-tool-btn" data-lb3d-tool="fillholes" title="Fill holes">&#9673;&nbsp;Fill Holes</button>
+        <button class="lb-tool-btn" data-lb3d-tool="watertight" title="Watertight remesh">&#128167;&nbsp;Watertight</button>
+        <button class="lb-tool-btn" data-lb3d-tool="center" title="Set pivot">&#9678;&nbsp;Set Pivot</button>
         <div class="lb-toolbox-group-label">TEXTURE</div>
-        <button class="lb-tool-btn" data-lb3d-tool="retexture" title="Re-bake the whole texture from the source photo (HD)">&#128300; Re-bake from photo (HD)</button>
-        <button class="lb-tool-btn" data-lb3d-tool="texvar" title="Generate different texture looks">&#127912; Texture variants</button>
-        <button class="lb-tool-btn" data-lb3d-tool="regionretex" title="Re-texture only one part (detected automatically)">&#127912; Re-texture a region</button>
-        <button class="lb-tool-btn" data-lb3d-tool="aligntex" title="Align texture">&#127919; Align Texture</button>
-        <button class="lb-tool-btn" data-lb3d-tool="material" title="Material adjust">&#10024; Material adjust</button>
-        <button class="lb-tool-btn" data-lb3d-tool="enhancetex" title="Sharpen/upscale the existing texture (x2)">&#10024; Sharpen texture (x2)</button>
+        <button class="lb-tool-btn" data-lb3d-tool="retexture" title="Re-bake the whole texture from the source photo (HD)">&#128300;&nbsp;Re-bake from photo (HD)</button>
+        <button class="lb-tool-btn" data-lb3d-tool="texvar" title="Generate different texture looks">&#127912;&nbsp;Texture variants</button>
+        <button class="lb-tool-btn" data-lb3d-tool="regionretex" title="Re-texture only one part (detected automatically)">&#127912;&nbsp;Re-texture a region</button>
+        <button class="lb-tool-btn" data-lb3d-tool="aligntex" title="Align texture">&#127919;&nbsp;Align Texture</button>
+        <button class="lb-tool-btn" data-lb3d-tool="material" title="Material adjust">&#10024;&nbsp;Material adjust</button>
+        <button class="lb-tool-btn" data-lb3d-tool="enhancetex" title="Sharpen/upscale the existing texture (x2)">&#10024;&nbsp;Sharpen texture (x2)</button>
         <div class="lb-toolbox-group-label">EDIT</div>
-        <button class="lb-tool-btn" data-lb3d-tool="sculpt" title="Sculpt">&#9997; Sculpt</button>
-        <button class="lb-tool-btn" data-lb3d-tool="paintvert" title="Paint">&#127912; Paint</button>
-        <button class="lb-tool-btn" data-lb3d-tool="selectface" title="Select faces">&#9634; Select</button>
+        <button class="lb-tool-btn" data-lb3d-tool="sculpt" title="Sculpt">&#9997;&nbsp;Sculpt</button>
+        <button class="lb-tool-btn" data-lb3d-tool="paintvert" title="Paint">&#127912;&nbsp;Paint</button>
+        <button class="lb-tool-btn" data-lb3d-tool="selectface" title="Select faces">&#9634;&nbsp;Select</button>
         <div class="lb-toolbox-group-label">EXPORT</div>
-        <button class="lb-tool-btn" data-lb3d-tool="export" title="Export">&#128190; Export&hellip;</button>
-        <button class="lb-tool-btn" data-lb3d-tool="blender" title="Open in Blender">&#129704; Open in Blender</button>
-        <button class="lb-tool-btn" data-lb3d-tool="folder" title="Show in folder">&#128193; Show in folder</button>
+        <button class="lb-tool-btn" data-lb3d-tool="export" title="Export">&#128190;&nbsp;Export&hellip;</button>
+        <button class="lb-tool-btn" data-lb3d-tool="blender" title="Open in Blender">&#129704;&nbsp;Open in Blender</button>
+        <button class="lb-tool-btn" data-lb3d-tool="folder" title="Show in folder">&#128193;&nbsp;Show in folder</button>
       </div>
       <div id="lightbox-3d-bottom">
         <div id="lightbox-3d-filename"></div>
@@ -1442,29 +1442,29 @@
            _activeMultiview which stays in sync with the lightbox). -->
       <div id="lb-toolbox" class="lb-toolbox">
         <div class="lb-toolbox-group-label">SMART TOOLS</div>
-        <button class="lb-tool-btn" data-lb-tool="modify" title="Modify">&#128736;&#65039; Modify</button>
-        <button class="lb-tool-btn" data-lb-tool="autoinpaint" title="Auto Inpaint">&#129668; Auto Inpaint</button>
-        <button class="lb-tool-btn" data-lb-tool="removebg" title="Remove background">&#9986;&#65039; Remove BG</button>
-        <button class="lb-tool-btn" data-lb-tool="resolution" title="Change resolution">&#127906; Resolution</button>
-        <button class="lb-tool-btn" data-lb-tool="style" title="Apply a style preset">&#127912; Style&hellip;</button>
-        <button class="lb-tool-btn" data-lb-tool="facefix" title="Fix face details">&#128578; Face Fix</button>
-        <button class="lb-tool-btn" data-lb-tool="outfit" title="Habits seuls">&#128087; Habits</button>
-        <button class="lb-tool-btn" data-lb-tool="symmetry" title="Auto symmetry">&#8646; Sym. Auto</button>
-        <button class="lb-tool-btn" data-lb-tool="multiview" title="Generate multi-views">&#128065; Multi-Views</button>
-        <button class="lb-tool-btn" data-lb-tool="variant" title="Create variants of the current image">&#10024; Variant</button>
-        <button class="lb-tool-btn" data-lb-tool="recolor" title="Recolor a part, keeping the shape">&#127912; Recolor</button>
-        <button class="lb-tool-btn" data-lb-tool="age" title="Make the subject younger or older">&#9203; Age</button>
+        <button class="lb-tool-btn" data-lb-tool="modify" title="Modify">&#128736;&#65039;&nbsp;Modify</button>
+        <button class="lb-tool-btn" data-lb-tool="autoinpaint" title="Auto Inpaint">&#129668;&nbsp;Auto Inpaint</button>
+        <button class="lb-tool-btn" data-lb-tool="removebg" title="Remove background">&#9986;&#65039;&nbsp;Remove BG</button>
+        <button class="lb-tool-btn" data-lb-tool="resolution" title="Change resolution">&#127906;&nbsp;Resolution</button>
+        <button class="lb-tool-btn" data-lb-tool="style" title="Apply a style preset">&#127912;&nbsp;Style&hellip;</button>
+        <button class="lb-tool-btn" data-lb-tool="facefix" title="Fix face details">&#128578;&nbsp;Face Fix</button>
+        <button class="lb-tool-btn" data-lb-tool="outfit" title="Habits seuls">&#128087;&nbsp;Habits</button>
+        <button class="lb-tool-btn" data-lb-tool="symmetry" title="Auto symmetry">&#8646;&nbsp;Sym. Auto</button>
+        <button class="lb-tool-btn" data-lb-tool="multiview" title="Generate multi-views">&#128065;&nbsp;Multi-Views</button>
+        <button class="lb-tool-btn" data-lb-tool="variant" title="Create variants of the current image">&#10024;&nbsp;Variant</button>
+        <button class="lb-tool-btn" data-lb-tool="recolor" title="Recolor a part, keeping the shape">&#127912;&nbsp;Recolor</button>
+        <button class="lb-tool-btn" data-lb-tool="age" title="Make the subject younger or older">&#9203;&nbsp;Age</button>
         <div class="lb-toolbox-group-label">MANUAL</div>
-        <button class="lb-tool-btn" data-lb-tool="mask" title="Draw Mask">&#9999;&#65039; Draw Mask</button>
-        <button class="lb-tool-btn" data-lb-tool="clone" title="Clone Stamp">&#128203; Clone Stamp</button>
-        <button class="lb-tool-btn" data-lb-tool="paint" title="Paint">&#127912; Paint</button>
-        <button class="lb-tool-btn" data-lb-tool="crop" title="Crop">&#9986;&#65039; Crop</button>
-        <button class="lb-tool-btn" data-lb-tool="select" title="Cut / copy a zone and move it">&#9635; Cut/Paste</button>
-        <button class="lb-tool-btn" data-lb-tool="extend" title="Extend / outpaint">&#10696; Extend</button>
-        <button class="lb-tool-btn" data-lb-tool="brightness" title="Brightness">&#9728;&#65039; Brightness</button>
-        <button class="lb-tool-btn" data-lb-tool="picker" title="Color pick">&#128167; Color Pick</button>
-        <button class="lb-tool-btn" data-lb-tool="blur" title="Blur brush">&#128168; Blur Brush</button>
-        <button class="lb-tool-btn" data-lb-tool="symmetrize" title="Symmetrize">&#8651; Symmetrize</button>
+        <button class="lb-tool-btn" data-lb-tool="mask" title="Draw Mask">&#9999;&#65039;&nbsp;Draw Mask</button>
+        <button class="lb-tool-btn" data-lb-tool="clone" title="Clone Stamp">&#128203;&nbsp;Clone Stamp</button>
+        <button class="lb-tool-btn" data-lb-tool="paint" title="Paint">&#127912;&nbsp;Paint</button>
+        <button class="lb-tool-btn" data-lb-tool="crop" title="Crop">&#9986;&#65039;&nbsp;Crop</button>
+        <button class="lb-tool-btn" data-lb-tool="select" title="Cut / copy a zone and move it">&#9635;&nbsp;Cut/Paste</button>
+        <button class="lb-tool-btn" data-lb-tool="extend" title="Extend / outpaint">&#10696;&nbsp;Extend</button>
+        <button class="lb-tool-btn" data-lb-tool="brightness" title="Brightness">&#9728;&#65039;&nbsp;Brightness</button>
+        <button class="lb-tool-btn" data-lb-tool="picker" title="Color pick">&#128167;&nbsp;Color Pick</button>
+        <button class="lb-tool-btn" data-lb-tool="blur" title="Blur brush">&#128168;&nbsp;Blur Brush</button>
+        <button class="lb-tool-btn" data-lb-tool="symmetrize" title="Symmetrize">&#8651;&nbsp;Symmetrize</button>
       </div>
       <!-- Multi-view face selector in lightbox -->
       <div id="lb-multiview-bar" class="multiview-bar hidden" style="bottom:60px;">
@@ -3027,7 +3027,7 @@
             <button id="clone-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
             <button id="clone-undo" class="secondary-btn tool-btn" disabled title="Undo (Z)">&#8630;</button>
             <button id="clone-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-            <button id="clone-reset" class="secondary-btn tool-btn" title="Clear all paint">&#129529; Clear</button>
+            <button id="clone-reset" class="secondary-btn tool-btn" title="Clear all paint">&#129529;&nbsp;Clear</button>
           </div>
         </div>
         <div id="clone-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px; max-width: 100%;">
@@ -3062,14 +3062,14 @@
           drag the piece to move it &nbsp;|&nbsp; <strong>Drop</strong> (or Enter) to place &nbsp;|&nbsp; right-drag to pan, wheel to zoom
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-          <button id="select-cut" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Cut the selection (transparent hole left behind)" disabled>&#9986; Cut</button>
-          <button id="select-copy" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Copy the selection" disabled>&#128203; Copy</button>
-          <button id="select-delete" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465; Delete</button>
-          <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Drop the floating piece here (Enter)" disabled>&#128204; Drop</button>
-          <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Deselect / cancel move (Esc)" disabled>&#10006; Deselect</button>
+          <button id="select-cut" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Cut the selection (transparent hole left behind)" disabled>&#9986;&nbsp;Cut</button>
+          <button id="select-copy" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Copy the selection" disabled>&#128203;&nbsp;Copy</button>
+          <button id="select-delete" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465;&nbsp;Delete</button>
+          <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
+          <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
           <span style="flex:1;"></span>
-          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:12px;" title="Selection rectangulaire">&#9647; Rect</button>
-          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Selection libre au lasso">&#10227; Lasso</button>
+          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:12px;" title="Selection rectangulaire">&#9647;&nbsp;Rect</button>
+          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Selection libre au lasso">&#10227;&nbsp;Lasso</button>
           <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
           <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
           <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)">&#8631;</button>
@@ -3361,7 +3361,7 @@
         <h3 style="margin:0; white-space:nowrap;">Paint Tools</h3>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
           <button id="paint-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-          <button id="paint-emissive-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint on a separate emissive layer (stored as T_emissive on the generated mesh)">&#128161; Emissive</button>
+          <button id="paint-emissive-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint on a separate emissive layer (stored as T_emissive on the generated mesh)">&#128161;&nbsp;Emissive</button>
           <button id="paint-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
           <button id="paint-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="paint-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
@@ -3375,9 +3375,9 @@
           <!-- Tool buttons -->
           <div style="display:flex; flex-direction:column; gap:4px;">
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Select</span>
-            <button id="paint-tool-sel-rect" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9634; Rect</button>
-            <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#10038; Lasso</button>
-            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Select an area of similar colour in one click.">&#10022; Wand</button>
+            <button id="paint-tool-sel-rect" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9634;&nbsp;Rect</button>
+            <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#10038;&nbsp;Lasso</button>
+            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Select an area of similar colour in one click.">&#10022;&nbsp;Wand</button>
             <div style="display:flex; gap:4px;">
               <button id="paint-sel-invert" class="secondary-btn" style="padding:4px 4px; font-size:10px; flex:1;" title="Invert selection">&#8646; Invert</button>
               <button id="paint-sel-none" class="secondary-btn" style="padding:4px 4px; font-size:10px; flex:1;" title="Deselect (edit everywhere)">&#10005; None</button>
@@ -3385,13 +3385,13 @@
           </div>
           <div style="display:flex; flex-direction:column; gap:4px;">
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
-            <button id="paint-tool-pen" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9998; Pen</button>
-            <button id="paint-tool-spray" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128168; Spray</button>
-            <button id="paint-tool-ink" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128396; Ink</button>
-            <button id="paint-tool-line" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9585; Line</button>
-            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Drag colour around as if with a finger.">&#9775; Smudge</button>
-            <button id="paint-tool-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9781; Fill</button>
-            <button id="paint-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9003; Eraser</button>
+            <button id="paint-tool-pen" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9998;&nbsp;Pen</button>
+            <button id="paint-tool-spray" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128168;&nbsp;Spray</button>
+            <button id="paint-tool-ink" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128396;&nbsp;Ink</button>
+            <button id="paint-tool-line" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9585;&nbsp;Line</button>
+            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Drag colour around as if with a finger.">&#9775;&nbsp;Smudge</button>
+            <button id="paint-tool-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9781;&nbsp;Fill</button>
+            <button id="paint-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9003;&nbsp;Eraser</button>
           </div>
           <!-- Color -->
           <div style="display:flex; flex-direction:column; gap:4px;">
@@ -3446,9 +3446,9 @@
         <h3 style="margin:0; flex-shrink:0;" id="mesh-edit-title">Mesh Edit</h3>
         <!-- Main tools: mode selector (top, centered) -->
         <div style="display:flex; gap:6px;">
-          <button id="me-tool-sculpt" class="secondary-btn tool-btn tool-active" style="padding:6px 18px; font-size:12px;">&#9997; Sculpt</button>
-          <button id="me-tool-paint" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:12px;">&#127912; Paint</button>
-          <button id="me-tool-select" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:12px;">&#9634; Select</button>
+          <button id="me-tool-sculpt" class="secondary-btn tool-btn tool-active" style="padding:6px 18px; font-size:12px;">&#9997;&nbsp;Sculpt</button>
+          <button id="me-tool-paint" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:12px;">&#127912;&nbsp;Paint</button>
+          <button id="me-tool-select" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:12px;">&#9634;&nbsp;Select</button>
         </div>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
           <button id="me-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier: show a zoomed loupe under the cursor (toggle)">&#128269;</button>
@@ -3480,24 +3480,24 @@
           <!-- Sculpt options -->
           <div id="me-sculpt-opts" style="display:flex; flex-direction:column; gap:4px;">
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Sculpt</span>
-            <button id="me-sculpt-push" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; width:100%;" title="Push the surface inwards.">&#9650; Push</button>
-            <button id="me-sculpt-pull" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Pull the surface outwards.">&#9660; Pull</button>
-            <button id="me-sculpt-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Even out the surface under the brush.">&#10024; Smooth</button>
-            <button id="me-sculpt-flatten" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Flatten the surface under the brush.">&#9644; Flatten</button>
-            <button id="me-sculpt-grab" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Drag a whole region without deforming its detail.">&#9995; Grab</button>
-            <button id="me-sculpt-inflate" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Swell the surface along its normals.">&#8853; Inflate</button>
+            <button id="me-sculpt-push" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; width:100%;" title="Push the surface inwards.">&#9650;&nbsp;Push</button>
+            <button id="me-sculpt-pull" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Pull the surface outwards.">&#9660;&nbsp;Pull</button>
+            <button id="me-sculpt-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Even out the surface under the brush.">&#10024;&nbsp;Smooth</button>
+            <button id="me-sculpt-flatten" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Flatten the surface under the brush.">&#9644;&nbsp;Flatten</button>
+            <button id="me-sculpt-grab" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Drag a whole region without deforming its detail.">&#9995;&nbsp;Grab</button>
+            <button id="me-sculpt-inflate" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Swell the surface along its normals.">&#8853;&nbsp;Inflate</button>
           </div>
           <!-- Select options -->
           <div id="me-select-opts" class="me-sel-panel" style="display:none; flex-direction:column; gap:4px;">
             <!-- ── 1. Selection tool (how you pick faces) ── -->
             <span class="me-sec-hdr me-sec-hdr--first">1 · Selection tool</span>
             <div style="display:flex; gap:5px;">
-              <button id="me-sel-add" class="secondary-btn tool-btn tool-active" style="flex:1;" title="Brush: paint faces to select (drag).">&#9998; Add</button>
-              <button id="me-sel-erase" class="secondary-btn tool-btn" style="flex:1;" title="Brush: paint to deselect faces (drag).">&#129529; Erase</button>
+              <button id="me-sel-add" class="secondary-btn tool-btn tool-active" style="flex:1;" title="Brush: paint faces to select (drag).">&#9998;&nbsp;Add</button>
+              <button id="me-sel-erase" class="secondary-btn tool-btn" style="flex:1;" title="Brush: paint to deselect faces (drag).">&#129529;&nbsp;Erase</button>
             </div>
             <div style="display:flex; gap:5px;">
-              <button id="me-sel-wand" class="secondary-btn tool-btn" style="flex:1;" title="Magic wand: click a face to select the whole connected flat region (within the Angle below). Ctrl = add.">&#10024; Wand</button>
-              <button id="me-sel-lasso" class="secondary-btn tool-btn" style="flex:1;" title="Lasso: draw a freehand loop; every face inside is selected. Ctrl = add.">&#10057; Lasso</button>
+              <button id="me-sel-wand" class="secondary-btn tool-btn" style="flex:1;" title="Magic wand: click a face to select the whole connected flat region (within the Angle below). Ctrl = add.">&#10024;&nbsp;Wand</button>
+              <button id="me-sel-lasso" class="secondary-btn tool-btn" style="flex:1;" title="Lasso: draw a freehand loop; every face inside is selected. Ctrl = add.">&#10057;&nbsp;Lasso</button>
             </div>
             <label id="me-sel-wand-angle-row" style="display:none; align-items:center; gap:6px; font-size:10px; color:var(--text-muted); padding:1px 2px;">
               <span style="white-space:nowrap;">Wand angle</span>
@@ -3509,51 +3509,51 @@
             <!-- ── 2. Modify the current selection ── -->
             <span class="me-sec-hdr">2 · Modify selection</span>
             <div style="display:flex; gap:5px;">
-              <button id="me-sel-grow" class="secondary-btn tool-btn" style="flex:1;" title="Expand the selection by one ring of faces">&#10133; Grow</button>
-              <button id="me-sel-shrink" class="secondary-btn tool-btn" style="flex:1;" title="Contract the selection by one ring of faces">&#10134; Shrink</button>
+              <button id="me-sel-grow" class="secondary-btn tool-btn" style="flex:1;" title="Expand the selection by one ring of faces">&#10133;&nbsp;Grow</button>
+              <button id="me-sel-shrink" class="secondary-btn tool-btn" style="flex:1;" title="Contract the selection by one ring of faces">&#10134;&nbsp;Shrink</button>
             </div>
             <div style="display:flex; gap:5px;">
-              <button id="me-sel-all" class="secondary-btn tool-btn" style="flex:1;" title="Select every face">&#9635; All</button>
-              <button id="me-sel-invert" class="secondary-btn tool-btn" style="flex:1;" title="Invert the selection">&#8634; Invert</button>
-              <button id="me-sel-clear" class="secondary-btn tool-btn" style="flex:1;" title="Deselect everything">&#10005; Clear</button>
+              <button id="me-sel-all" class="secondary-btn tool-btn" style="flex:1;" title="Select every face">&#9635;&nbsp;All</button>
+              <button id="me-sel-invert" class="secondary-btn tool-btn" style="flex:1;" title="Invert the selection">&#8634;&nbsp;Invert</button>
+              <button id="me-sel-clear" class="secondary-btn tool-btn" style="flex:1;" title="Deselect everything">&#10005;&nbsp;Clear</button>
             </div>
 
             <!-- ── 3. View ── -->
             <span class="me-sec-hdr">3 · View</span>
             <div style="display:flex; gap:5px;">
-              <button id="me-sel-isolate" class="secondary-btn tool-btn" style="flex:1;" title="Show only the selected faces (toggle)">&#9673; Isolate</button>
-              <button id="me-sel-hide" class="secondary-btn tool-btn" style="flex:1;" title="Hide the selected faces (toggle)">&#128065; Hide</button>
+              <button id="me-sel-isolate" class="secondary-btn tool-btn" style="flex:1;" title="Show only the selected faces (toggle)">&#9673;&nbsp;Isolate</button>
+              <button id="me-sel-hide" class="secondary-btn tool-btn" style="flex:1;" title="Hide the selected faces (toggle)">&#128065;&nbsp;Hide</button>
             </div>
 
             <!-- ── 4. Edit the selected faces ── -->
             <span class="me-sec-hdr">4 · Edit selection</span>
-            <button id="me-sel-move" class="secondary-btn tool-btn" style="width:100%;" title="Show a gizmo to move / rotate / scale the selected faces. Click again to finish. (T=move, R=rotate, Y=scale)">&#10021; Move (gizmo)</button>
+            <button id="me-sel-move" class="secondary-btn tool-btn" style="width:100%;" title="Show a gizmo to move / rotate / scale the selected faces. Click again to finish. (T=move, R=rotate, Y=scale)">&#10021;&nbsp;Move (gizmo)</button>
             <div id="me-move-mode-row" style="display:none; gap:5px;">
-              <button id="me-move-translate" class="secondary-btn tool-btn" style="flex:1;" title="Translate (T)">&#10021; Move</button>
-              <button id="me-move-rotate" class="secondary-btn tool-btn" style="flex:1;" title="Rotate (R)">&#8635; Rotate</button>
-              <button id="me-move-scale" class="secondary-btn tool-btn" style="flex:1;" title="Scale (Y)">&#8690; Scale</button>
+              <button id="me-move-translate" class="secondary-btn tool-btn" style="flex:1;" title="Translate (T)">&#10021;&nbsp;Move</button>
+              <button id="me-move-rotate" class="secondary-btn tool-btn" style="flex:1;" title="Rotate (R)">&#8635;&nbsp;Rotate</button>
+              <button id="me-move-scale" class="secondary-btn tool-btn" style="flex:1;" title="Scale (Y)">&#8690;&nbsp;Scale</button>
             </div>
             <div style="display:flex; gap:5px;">
-              <button id="me-sel-duplicate" class="secondary-btn tool-btn" style="flex:1;" title="Duplicate the selected faces into a new layer">&#10697; Duplicate</button>
-              <button id="me-sel-crop" class="secondary-btn tool-btn" style="flex:1;" title="Keep only the selection (delete the rest), or the opposite if 'Keep the rest' is on">&#9986; Crop</button>
+              <button id="me-sel-duplicate" class="secondary-btn tool-btn" style="flex:1;" title="Duplicate the selected faces into a new layer">&#10697;&nbsp;Duplicate</button>
+              <button id="me-sel-crop" class="secondary-btn tool-btn" style="flex:1;" title="Keep only the selection (delete the rest), or the opposite if 'Keep the rest' is on">&#9986;&nbsp;Crop</button>
             </div>
             <label id="me-sel-crop-keeprest-row" style="display:none; align-items:center; gap:7px; font-size:12px; color:var(--text-2, #aab); padding:3px 4px 4px 6px; cursor:pointer;" title="When on, Crop keeps the REST and deletes the selection instead">
               <input type="checkbox" id="me-sel-crop-keeprest" style="margin:0; cursor:pointer; width:15px; height:15px; flex-shrink:0;"> Garder le reste
             </label>
             <div style="display:flex; gap:5px;">
-              <button id="me-sel-flip" class="secondary-btn tool-btn" style="flex:1;" title="Flip the normals / winding of the selected faces (fix inside-out patches)">&#8644; Flip norm.</button>
-              <button id="me-sel-smooth" class="secondary-btn tool-btn" style="flex:1;" title="Laplacian-smooth only the selected vertices">&#8767; Smooth</button>
+              <button id="me-sel-flip" class="secondary-btn tool-btn" style="flex:1;" title="Flip the normals / winding of the selected faces (fix inside-out patches)">&#8644;&nbsp;Flip norm.</button>
+              <button id="me-sel-smooth" class="secondary-btn tool-btn" style="flex:1;" title="Laplacian-smooth only the selected vertices">&#8767;&nbsp;Smooth</button>
             </div>
-            <button id="me-sel-delete" class="secondary-btn tool-btn" style="width:100%; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selected faces (Del)">&#128465; Delete</button>
+            <button id="me-sel-delete" class="secondary-btn tool-btn" style="width:100%; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selected faces (Del)">&#128465;&nbsp;Delete</button>
           </div>
           <!-- Paint options -->
           <div id="me-paint-opts" style="display:none; flex-direction:column; gap:4px;">
             <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
             <input type="color" id="me-paint-color" value="#ff0000" style="width:36px; height:36px; border:none; cursor:pointer; border-radius:6px;" />
             <button id="me-paint-pick" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle; margin-right:5px;"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42l-2.34-2.34c-.2-.19-.45-.29-.71-.29z"/></svg>Pick color</button>
-            <button id="me-paint-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#129529; Fill all</button>
-            <button id="me-paint-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#10024; Smooth</button>
-            <button id="me-paint-reset" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#8634; Reset paint</button>
+            <button id="me-paint-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#129529;&nbsp;Fill all</button>
+            <button id="me-paint-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#10024;&nbsp;Smooth</button>
+            <button id="me-paint-reset" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#8634;&nbsp;Reset paint</button>
           </div>
         </div>
         <!-- Right: 3D viewport -->
