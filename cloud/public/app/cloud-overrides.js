@@ -1666,7 +1666,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         const brut = trisSel.value === 'custom'
           ? parseInt(document.getElementById('ws-trellis2-tris-custom')?.value || '500000', 10)
           : parseInt(trisSel.value, 10);
-        const tris = Math.max(5000, Math.min(10_000_000, brut || 500000));
+        const tris = Math.max(500, Math.min(10_000_000, brut || 500000));
         // Courbe (meme regle que _supplementTriangles, worker) : socle minimum,
         // puis prix x (triangles / 500 K) ^ (courbure / 100), arrondi au-dessus.
         const _e = Math.max(1, (window.__prixTrisCourbe ?? 130) / 100);

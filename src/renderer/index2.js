@@ -10556,9 +10556,9 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   // generation elle-meme ne dure pas plus longtemps)
   // TRELLIS-2 texture options.
   const trellis2Preset = document.getElementById('ws-trellis2-preset')?.value || 'fast';
-  // Triangles max : valeur du menu, ou saisie « Custom » bornee 5 000 - 10 000 000.
+  // Triangles max : valeur du menu, ou saisie « Custom » bornee 500 - 10 000 000 (5 000 jusqu'au 2026-09-29 : bas polygone impossible).
   const _trisSel = document.getElementById('ws-trellis2-tris')?.value || '500000';
-  const trellis2MaxTris = Math.max(5000, Math.min(10_000_000, parseInt(_trisSel === 'custom'
+  const trellis2MaxTris = Math.max(500, Math.min(10_000_000, parseInt(_trisSel === 'custom'
     ? (document.getElementById('ws-trellis2-tris-custom')?.value || '500000') : _trisSel, 10) || 500000));
   const trellis2MultiRef = document.getElementById('ws-trellis2-multiref')?.checked || false;
   const trellis2Refine = document.getElementById('ws-trellis2-refine')?.checked || false;
@@ -27449,7 +27449,7 @@ window._applyMeshCostPill = function (btn) {
     const brut = !trisSel ? 500000 : trisSel.value === 'custom'
       ? parseInt(document.getElementById('ws-trellis2-tris-custom')?.value || '500000', 10)
       : parseInt(trisSel.value, 10);
-    const tris = Math.max(5000, Math.min(10000000, brut || 500000));
+    const tris = Math.max(500, Math.min(10000000, brut || 500000));
     const courbe = Math.max(1, (window._prixDe('mesh_tris_courbe_pct') ?? 130) / 100);
     cost += Math.max(window._prixDe('mesh_tris_base') ?? 1,
                      Math.ceil((window._prixDe('mesh_tris_500k') ?? 1) * Math.pow(tris / 500000, courbe) - 1e-9));

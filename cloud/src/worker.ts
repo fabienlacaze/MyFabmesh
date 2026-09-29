@@ -7777,7 +7777,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     preset: (form.get('preset') as GenerateInput['preset']) || undefined,
     max_tris: (() => {
       const n = parseInt(String(form.get('max_tris') ?? ''), 10);
-      return Number.isFinite(n) && n > 0 ? Math.max(5000, Math.min(MAX_TRIS_GENERATION, n)) : undefined;
+      return Number.isFinite(n) && n > 0 ? Math.max(500, Math.min(MAX_TRIS_GENERATION, n)) : undefined;
     })(),
   };
 
