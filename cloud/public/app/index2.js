@@ -8828,7 +8828,8 @@ async function showGenerationHistory(startPath) {
     const rows = [];
     for (const k of Object.keys(params)) {
       const v = params[k];
-      if (v === undefined || v === null || v === '') continue;
+      // seulement les choix UTILISES (user 29/09) : un reglage desactive n'est pas liste
+      if (v === undefined || v === null || v === '' || v === false || v === 0) continue;
       const lib = GH_LIBELLES[k] ? _i18nT(GH_LIBELLES[k]) : k;
       rows.push(`<div class="gh-row"><span class="gh-k" title="${escapeHtml(k)}">${escapeHtml(lib)}</span><span class="gh-v">${escapeHtml(_maskAiNames(fmtVal(k, v)))}</span></div>`);
     }
