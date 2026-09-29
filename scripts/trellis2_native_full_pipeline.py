@@ -258,6 +258,9 @@ def _pixels_sujet(image):
     return px[px.max(axis=1) > 0.04]
 
 
+MAX_TRIANGLES_MASQUE = 1_000_000
+
+
 def _masque_couverture_uv(geom, largeur, hauteur):
     """Texels REELLEMENT couverts par les triangles UV : le vide de l'atlas est
     noir et ecraserait toute mediane (piege mesure, voir CLAUDE.md)."""
@@ -270,7 +273,14 @@ def _masque_couverture_uv(geom, largeur, hauteur):
     if uv is None or len(uv) == 0:
         return None
     pts = np.stack([uv[:, 0] * (largeur - 1), (1.0 - uv[:, 1]) * (hauteur - 1)], axis=1)
-    tri = np.round(pts[np.asarray(geom.faces)]).astype(np.int32)
+    faces = np.asarray(geom.faces)
+    # ECHANTILLON AU-DELA D'1 M DE TRIANGLES (2026-09-29). Le masque ne sert qu'a des statistiques
+    # (mediane, moyenne, deja tirees sur 200 000 pixels) ; a 10 M de faces, tracer chaque triangle
+    # coutait ~15 s. Tirage fixe (graine 0), couverture proportionnelle a l'aire comme le masque
+    # complet. Rien ne change sous 1 M de faces.
+    if len(faces) > MAX_TRIANGLES_MASQUE:
+        faces = faces[np.random.default_rng(0).choice(len(faces), MAX_TRIANGLES_MASQUE, replace=False)]
+    tri = np.round(pts[faces]).astype(np.int32)
     m = np.zeros((hauteur, largeur), np.uint8)
     cv2.drawContours(m, list(tri), -1, 1, thickness=-1)   # chaque triangle rempli, union
     return m.astype(bool)

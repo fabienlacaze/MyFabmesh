@@ -197,6 +197,11 @@ export interface Env {
    * se rabattait sur un joker `*.r2.cloudflarestorage.com` acceptant
    * le compte de n'importe qui (voir isTrustedAssetHost). */
   R2_ACCOUNT_ID?: string;
+  /* Cles S3 de R2 (secrets deployes) : signent l'URL PUT qui laisse le conteneur 3D televerser
+   * son GLB directement (_urlPutR2Signee). Absentes = chemin d'origine par /mesh_fetch. */
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
+  R2_BUCKET?: string;
   /** '1' laisse ouvrir une vente malgre des mentions legales vides.
    *  A poser DELIBEREMENT, pour des essais uniquement — voir
    *  _venteBloqueeParMentions. */
@@ -8362,7 +8367,7 @@ async function handleJob(req: Request, env: Env, id: string): Promise<Response> 
       if (!status.ready) {
         return json({ status: 'processing', delai_max_s: delaiMaxS });
       }
-      const stableUrl = await persistModalGlb(env, id, status.glb_base64 ?? '');
+      const stableUrl = await persistModalGlb(env, id, status.glb_base64 ?? '', status.bytes);
       /* COURSE AVEC L'ANNULATION — la garde de statut est indispensable.
        *
        * La ligne etait lue au debut de la requete, puis Modal interroge et le
@@ -10873,6 +10878,10 @@ async function callModalMeshStart(env: Env, input: {
   const secret = env.MODAL_SHARED_SECRET;
   if (!url) throw new Error('MODAL_MESH_START_URL not set');
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
+  // TELEVERSEMENT DIRECT (2026-09-29) : le conteneur 3D ecrit lui-meme `mesh/<job>.glb` par cette
+  // URL (valable pour cette seule cle). Sans elle, recopie par /mesh_fetch comme avant.
+  let r2PutUrl: string | null = null;
+  try { r2PutUrl = await _urlPutR2Signee(env, `mesh/${input.jobId}.glb`, 3 * 3600); } catch { /* repli */ }
 
   const r = await fetch(url, {
     method: 'POST',
@@ -10880,6 +10889,7 @@ async function callModalMeshStart(env: Env, input: {
     body: JSON.stringify({
       _auth: secret,
       job_id: input.jobId,
+      r2_put_url: r2PutUrl,
       front_image_url: input.frontImageUrl,
       back_image_url: input.backImageUrl ?? null,
       mode: input.mode ?? '1024',
@@ -10918,6 +10928,8 @@ interface ModalMeshStatusResp {
   ready: boolean;
   glb_base64?: string;
   bytes?: number;
+  /** GLB deja televerse dans R2 par le conteneur 3D (URL PUT signee). */
+  dans_r2?: boolean;
   error?: string;
   /** Faces reellement livrees (remboursement « Max triangles »). */
   faces?: number | null;
@@ -10974,7 +10986,7 @@ async function handleInternalMeshDone(req: Request, env: Env): Promise<Response>
     return json({ ok: true, echec: true });
   }
   if (!status.ready) return json({ ok: false, reason: 'not ready' }, { status: 409 });
-  await persistModalGlb(env, id, status.glb_base64 ?? '');
+  await persistModalGlb(env, id, status.glb_base64 ?? '', status.bytes);
   const { data: maj } = await sb.from('jobs')
     .update({ status: 'succeeded', mesh_url: `mesh/${id}.glb`, finished_at: new Date().toISOString() })
     .eq('id', id)
@@ -11083,10 +11095,58 @@ async function _persistDepuisMeshFetch(env: Env, jobId: string): Promise<string 
   }
 }
 
-async function persistModalGlb(env: Env, jobId: string, glbBase64: string): Promise<string> {
+/** URL PUT pre-signee (SigV4 en requete, charge non signee) pour UNE cle du bucket. Le conteneur
+ *  3D y televerse son GLB sans detenir d'identifiants R2 : une autre cle est refusee (403, verifie
+ *  le 2026-09-29). Rend null si les cles S3 ne sont pas configurees. */
+async function _urlPutR2Signee(env: Env, key: string, expireS: number): Promise<string | null> {
+  const ak = env.R2_ACCESS_KEY_ID, sk = env.R2_SECRET_ACCESS_KEY, compte = env.R2_ACCOUNT_ID;
+  if (!ak || !sk || !compte) return null;
+  const bucket = env.R2_BUCKET || 'myfabmesh-meshes';
+  const hote = `${compte}.r2.cloudflarestorage.com`;
+  const enc = (s: string) => encodeURIComponent(s)
+    .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  const chemin = '/' + [bucket, ...key.split('/')].map(enc).join('/');
+  const amz = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const jour = amz.slice(0, 8);
+  const portee = `${jour}/auto/s3/aws4_request`;
+  const params: Record<string, string> = {
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Credential': `${ak}/${portee}`,
+    'X-Amz-Date': amz,
+    'X-Amz-Expires': String(expireS),
+    'X-Amz-SignedHeaders': 'host',
+  };
+  const requete = Object.keys(params).sort().map(k => `${enc(k)}=${enc(params[k])}`).join('&');
+  const canon = `PUT\n${chemin}\n${requete}\nhost:${hote}\n\nhost\nUNSIGNED-PAYLOAD`;
+  const te = new TextEncoder();
+  const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+  const hmac = async (cle: ArrayBuffer | Uint8Array, txt: string) => crypto.subtle.sign('HMAC',
+    await crypto.subtle.importKey('raw', cle, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']),
+    te.encode(txt));
+  const aSigner = `AWS4-HMAC-SHA256\n${amz}\n${portee}\n`
+    + hex(await crypto.subtle.digest('SHA-256', te.encode(canon)));
+  let k = await hmac(te.encode('AWS4' + sk), jour);
+  k = await hmac(k, 'auto');
+  k = await hmac(k, 's3');
+  k = await hmac(k, 'aws4_request');
+  return `https://${hote}${chemin}?${requete}&X-Amz-Signature=${hex(await hmac(k, aSigner))}`;
+}
+
+async function persistModalGlb(env: Env, jobId: string, glbBase64: string,
+                               tailleAttendue?: number): Promise<string> {
   if (!env.MESHES || !env.R2_PUBLIC_URL) {
     throw new Error('R2 bucket unavailable; cannot persist Modal mesh');
   }
+  // DEJA DANS R2 : le conteneur 3D l'a televerse lui-meme (URL PUT signee, 2026-09-29). On
+  // verifie la taille annoncee par le volume ; sinon, recopie par /mesh_fetch comme avant.
+  const key = `mesh/${jobId}.glb`;
+  try {
+    const obj = await env.MESHES.head(key);
+    if (obj && (!tailleAttendue || obj.size === tailleAttendue)) {
+      _writeLastWarmMs(env, '_meta/last_warm_mesh.txt').catch(() => {});
+      return await signedR2Url(env, key, 'mesh');
+    }
+  } catch { /* on retombe sur la recopie */ }
   const parFlux = await _persistDepuisMeshFetch(env, jobId);
   if (parFlux) return parFlux;
   // Repli : decodage base64 en memoire (voir l'avertissement ci-dessus).
@@ -20488,7 +20548,7 @@ async function reapStuckJobs(env: Env): Promise<ReapResult> {
            * que le sondage client (`.in(...)`) pour ne pas ecraser une
            * annulation gagnee entre-temps. */
           try {
-            await persistModalGlb(env, id, status.glb_base64 ?? '');
+            await persistModalGlb(env, id, status.glb_base64 ?? '', status.bytes);
             const { data: maj } = await sb.from('jobs')
               .update({ status: 'succeeded', mesh_url: `mesh/${id}.glb`,
                         finished_at: new Date().toISOString() })

@@ -3046,8 +3046,34 @@ class MyFabmeshMesh:
                 except Exception as _e:
                     print(f"[mesh] ultra 8K ignore : {_e}", flush=True)
 
-            with open(out_path, "wb") as f:
-                f.write(glb_bytes)
+            # TELEVERSEMENT DIRECT DANS R2 (2026-09-29). Avant : GLB ecrit sur le volume, commit, puis
+            # le worker le relisait par /mesh_fetch et le recopiait dans R2 — 327 Mo (10 M de faces)
+            # livres 25 s apres la fin du calcul. Le worker fournit une URL PUT signee pour la SEULE
+            # cle `mesh/<job>.glb` (pas d'identifiants R2 dans ce conteneur) ; le volume ne recoit
+            # alors qu'un marqueur. Echec du PUT = chemin d'origine, rien ne change.
+            direct = False
+            put_url = str(payload.get("r2_put_url") or "")
+            if put_url.startswith("https://"):
+                _t = time.time()
+                try:
+                    req = urllib.request.Request(
+                        put_url, data=glb_bytes, method="PUT",
+                        headers={"content-type": "model/gltf-binary",
+                                 "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
+                    with urllib.request.urlopen(req, timeout=300) as r:
+                        direct = 200 <= r.status < 300
+                    print(f"[mesh] televersement direct R2 : {len(glb_bytes) / 1e6:.0f} Mo en "
+                          f"{time.time() - _t:.1f}s", flush=True)
+                except Exception as _e:
+                    print(f"[mesh] televersement direct R2 ECHOUE ({type(_e).__name__}: {_e}) : "
+                          "repli sur le volume", flush=True)
+            if direct:
+                import json as _json
+                with open(f"/data/{job_id}.r2.json", "w") as f:
+                    _json.dump({"bytes": len(glb_bytes)}, f)
+            else:
+                with open(out_path, "wb") as f:
+                    f.write(glb_bytes)
             # Faces reellement livrees, lues par /mesh_status : le worker
             # rembourse les tranches « Max triangles » non atteintes.
             try:
@@ -3436,7 +3462,9 @@ def mesh_router():
         # EXECUTION COUPEE PAR MODAL (delai depasse, conteneur tue) : ni .glb ni
         # .err ne sont ecrits, et le travail restait « processing » jusqu'au
         # faucheur. On interroge l'appel lui-meme (2026-09-27).
-        if not os.path.isfile(f"/data/{job_id}.glb"):
+        # Televerse directement dans R2 par le conteneur 3D : seul un marqueur est sur le volume.
+        marque_r2 = f"/data/{job_id}.r2.json"
+        if not os.path.isfile(out_path) and not os.path.isfile(marque_r2):
             try:
                 with open(f"/data/{job_id}.call_id") as f:
                     _cid = f.read().strip()
@@ -3453,6 +3481,18 @@ def mesh_router():
                         return {"ready": False, "error": _msg}
             except FileNotFoundError:
                 pass
+        if not os.path.isfile(out_path) and os.path.isfile(marque_r2):
+            import json as _json
+            faces = None
+            try:
+                with open(f"/data/{job_id}.meta.json") as f:
+                    faces = int(_json.load(f).get("faces") or 0) or None
+            except Exception:
+                pass
+            with open(marque_r2) as f:
+                taille = int(_json.load(f).get("bytes") or 0)
+            # `dans_r2` : le worker n'a rien a recopier (il verifie tout de meme la taille)
+            return {"ready": True, "bytes": taille, "faces": faces, "dans_r2": True}
         if os.path.isfile(out_path):
             taille = os.path.getsize(out_path)
             # SANS BASE64 QUAND LE WORKER LE DEMANDE.
