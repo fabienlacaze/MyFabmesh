@@ -21,6 +21,7 @@
   const I18N = {
     fr: {
       'Skin weights': 'Poids de peau',
+      'Skeleton': 'Squelette',
       'Colors show what each bone moves. Paint to change it.': 'Les couleurs montrent ce que bouge chaque os. Peignez pour le changer.',
       'Bone': 'Os', 'This bone': 'Cet os', 'All bones': 'Tous les os', 'Brush': 'Pinceau',
       'Add': 'Ajouter', 'Remove': 'Retirer', 'Static': 'Statique', 'Pick': 'Choisir',

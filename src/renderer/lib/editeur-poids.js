@@ -50,6 +50,7 @@ function construireFenetre() {
           <input type="range" id="pp-force" min="5" max="100" value="50"></div>
         <div class="opt-ligne" style="gap:8px;display:flex;flex-wrap:wrap;">
           <button type="button" class="ghost-btn fen-petit" id="pp-tester">&#9654; ${esc(T('Test the bone'))}</button>
+          <button type="button" class="ghost-btn fen-petit active" id="pp-squelette">&#129460; ${esc(T('Skeleton'))}</button>
           <button type="button" class="ghost-btn fen-petit" id="pp-annuler" disabled>&#8630; ${esc(T('Undo'))}</button>
         </div>
         <span class="fen-note">${esc(T('Left drag = paint · right drag = rotate · wheel = zoom'))}</span>
@@ -274,9 +275,46 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     $('pp-tester').classList.add('active');
   };
 
+  // --- squelette : segments os -> enfants (blanc), os choisi en ROUGE (segments vers ses enfants + articulation),
+  // dessine par-dessus le maillage ; suit l'os pendant « Tester l'os »
+  const nSeg = os.reduce((t, b) => t + b.children.filter((c) => c.isBone).length, 0);
+  const geoSq = new THREE.BufferGeometry();
+  geoSq.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nSeg * 6), 3));
+  geoSq.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nSeg * 6), 3));
+  const lignesSq = new THREE.LineSegments(geoSq, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true }));
+  lignesSq.renderOrder = 999; lignesSq.frustumCulled = false;
+  const articulation = new THREE.Mesh(new THREE.SphereGeometry(ext * 0.012, 16, 12),
+    new THREE.MeshBasicMaterial({ color: 0xff2a2a, depthTest: false }));
+  articulation.renderOrder = 1000;
+  const groupeSq = new THREE.Group(); groupeSq.add(lignesSq, articulation); scene.add(groupeSq);
+  const va = new THREE.Vector3(), vb = new THREE.Vector3();
+  function majSquelette() {
+    if (!groupeSq.visible) return;
+    const P = geoSq.attributes.position.array, C = geoSq.attributes.color.array;
+    let k = 0;
+    os.forEach((b, i) => {
+      b.getWorldPosition(va);
+      for (const c of b.children) {
+        if (!c.isBone) continue;
+        c.getWorldPosition(vb);
+        va.toArray(P, k * 6); vb.toArray(P, k * 6 + 3);
+        const rouge = i === osChoisi;
+        for (let e = 0; e < 2; e++) { C[k * 6 + e * 3] = rouge ? 1 : 0.85; C[k * 6 + e * 3 + 1] = rouge ? 0.1 : 0.9; C[k * 6 + e * 3 + 2] = rouge ? 0.1 : 1; }
+        k++;
+      }
+    });
+    geoSq.attributes.position.needsUpdate = true; geoSq.attributes.color.needsUpdate = true;
+    os[osChoisi]?.getWorldPosition(articulation.position);
+  }
+  $('pp-squelette').onclick = () => {
+    groupeSq.visible = !groupeSq.visible;
+    $('pp-squelette').classList.toggle('active', groupeSq.visible);
+  };
+
   // --- boucle
   const tourner = () => {
     if (!vivant) return;
+    majSquelette();
     if (essai) {
       const a = 0.6 * Math.sin((performance.now() - essai.t0) / 350);
       essai.b.quaternion.copy(essai.q0).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(a, 0, a * 0.5)));
@@ -290,6 +328,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   const fermer = () => {
     vivant = false; ro.disconnect(); ctrl.dispose(); renderer.dispose();
     donnees.forEach((d) => { d.pointage.geometry.dispose(); });
+    geoSq.dispose(); articulation.geometry.dispose();
     fen.classList.add('hidden');
   };
   $('pp-cancel').onclick = fermer;
