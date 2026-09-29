@@ -515,6 +515,22 @@ image = (
         "snapshot_download('CIDAS/clipseg-rd64-refined', "
         "allow_patterns=['*.json', '*.txt', '*.safetensors'])\"",
     )
+    # MODELES DU CONTENEUR IMAGE DANS L'IMAGE (2026-09-29). Comme pour le 3D : a chaque CREATION
+    # d'instantane (2-3 par machine apres un deploiement), load_to_cpu les TELECHARGEAIT depuis
+    # HuggingFace — chargement CPU mesure a 196 et 314 s le 29/09, soit 4 a 8 min d'attente pour une
+    # rectification. Encodeur d'image + IP-Adapter (h94), ControlNet openpose, Florence-2 a la
+    # revision epinglee de _backview.py, et les deux classifieurs NSFW (aussi charges par la classe
+    # text2image, dont l'image derive de celle-ci).
+    .run_commands(
+        "python -c \"from huggingface_hub import snapshot_download as d; "
+        "d('h94/IP-Adapter', allow_patterns=['models/image_encoder/*', "
+        "'sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors']); "
+        "d('xinsir/controlnet-openpose-sdxl-1.0', allow_patterns=['*.json', '*.safetensors']); "
+        "d('microsoft/Florence-2-large', revision='21a599d414c4d928c9032694c424fb94458e3594', "
+        "allow_patterns=['*.json', '*.py', '*.txt', '*.bin', '*.safetensors']); "
+        "d('Falconsai/nsfw_image_detection', allow_patterns=['*.json', '*.txt', '*.safetensors', '*.bin']); "
+        "d('AdamCodd/vit-base-nsfw-detector', allow_patterns=['*.json', '*.txt', '*.safetensors', '*.bin'])\"",
+    )
 )
 
 

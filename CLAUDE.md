@@ -474,7 +474,8 @@ est propre au TYPE DE MACHINE, 2-3 par type de GPU, créés aux premiers démarr
 déploiement (et repris de temps en temps). Une création = chargement complet + PRISE : conteneur image
 196 s + 50 s, conteneur 3D 207 s + 163 s. Une génération à froid a pris 12 min 36 (deux créations
 d'affilée) contre 2 min 06 à chaud. Parades en place : poids du maillage DANS l'image (chargement complet
-100 s au lieu de 150-230 s, banc `test_chargement_3d.py`), BiRefNet plus chargé au démarrage,
+100 s au lieu de 150-230 s, banc `test_chargement_3d.py`), modèles du conteneur IMAGE aussi (IP-Adapter,
+ControlNet openpose, Florence-2, NSFW : prêt en 31 s au lieu de 4-8 min), BiRefNet plus chargé au démarrage,
 `rechauffer_apres_deploy.py` par manches, `/mesh_start` qui attend (45 s max) un conteneur 3D déjà en
 démarrage (`_attendre_conteneur_3d_en_demarrage`). MESURER toujours à froid PUIS à chaud (mémoire
 `feedback_protocole_mesure_generation`).
