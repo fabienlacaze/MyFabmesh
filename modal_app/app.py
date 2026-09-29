@@ -823,6 +823,10 @@ mesh_image = (
     # iterates on 3-5 gens in a row, then is idle for minutes).
     scaledown_window=300,  # keep warm 5 min after last call so back-to-back gens stay fast
     enable_memory_snapshot=True,
+    # INSTANTANE GPU (2026-09-29), comme MyFabmeshBackview et MyFabmeshMesh : le pipeline est
+    # deplace sur la carte et l'accelerateur SDXL-Lightning charge (et TELECHARGE) pendant la
+    # prise de l'instantane. Avant, chaque demarrage a froid refaisait ~8 s de « GPU move ».
+    experimental_options={"enable_gpu_snapshot": True},
     # Surface the HF token + R2 creds so the predictor can pull
     # private/gated weights and (optionally) upload directly to R2.
     secrets=[
@@ -884,11 +888,26 @@ class MyFabmeshPredictor:
             device="cpu",
         )
         print(f"[snap] CPU load done in {time.time() - t0:.1f}s", flush=True)
+        # instantane GPU : la carte est attachee pendant la prise, on y met tout maintenant
+        self._sur_gpu = False
+        try:
+            import torch as _torch
+            if _torch.cuda.is_available():
+                self._vers_gpu()
+        except Exception as _e:
+            print(f"[snap] passage sur la carte differe au demarrage ({_e})", flush=True)
 
     @modal.enter(snap=False)
     def move_to_gpu(self):
-        """Runs AFTER snapshot restore + GPU attach. Moves the pipe to
-        CUDA. Should be ~2-3 s on a warm-restore container."""
+        """Apres restauration : rien a faire si l'instantane GPU contient deja tout (cas normal
+        depuis le 2026-09-29) ; sinon (instantane CPU seul), deplacement comme avant."""
+        if getattr(self, "_sur_gpu", False):
+            print("[ready] pipeline deja sur la carte (instantane GPU)", flush=True)
+            return
+        self._vers_gpu()
+
+    def _vers_gpu(self):
+        """Moves the pipe to CUDA, xformers, SDXL-Lightning adapter (disabled)."""
         t0 = time.time()
         print("[ready] moving pipe → CUDA…", flush=True)
         self.pipe.to("cuda")
@@ -918,6 +937,7 @@ class MyFabmeshPredictor:
             print("[ready] SDXL-Lightning adapter loaded (disabled)", flush=True)
         except Exception as e:
             print(f"[ready] lightning adapter skipped: {e}", flush=True)
+        self._sur_gpu = True
         print(f"[ready] GPU move done in {time.time() - t0:.1f}s", flush=True)
 
     def _generate_png(
@@ -978,6 +998,13 @@ class MyFabmeshPredictor:
             flush=True,
         )
         return png
+
+    @modal.method()
+    def generer_banc(self, prompt: str, seed: int = 424242, steps: int = 30) -> bytes:
+        """BANC (2026-09-29) : la MEME generation que la route /text2image, appelee par le SDK
+        Modal (jeton du compte Modal, aucune route publique) pour verifier un changement du
+        conteneur sans passer par un compte du site. Rend le PNG."""
+        return self._generate_png(prompt, "character", "realistic", int(seed), int(steps))
 
     @modal.method()
     def rechauffer(self) -> bool:
@@ -1819,6 +1846,7 @@ class MyFabmeshBackview:
             raise HTTPException(status_code=422,
                 detail="this mesh has no baked texture to vary")
         buf = io.BytesIO()
+        from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
         scene.export(buf, file_type="glb", extension_webp=True)
         out = buf.getvalue()
         print(f"[texvar] {faits} atlas, force={force} graine={graine} "
@@ -1875,6 +1903,7 @@ class MyFabmeshBackview:
             raise HTTPException(status_code=422,
                 detail="no baked texture to sharpen (or already at 8192)")
         buf = io.BytesIO()
+        from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
         scene.export(buf, file_type="glb", extension_webp=True)
         out = buf.getvalue()
         print(f"[enhance-tex] {faits} atlas ({', '.join(tailles)}) "
@@ -2047,6 +2076,7 @@ class MyFabmeshBackview:
         cible.baseColorTexture = inpaint_atlas(
             self._get_realvis_inpaint_pipe(), tex, masque, prompt, force)
         buf = io.BytesIO()
+        from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
         scene.export(buf, file_type="glb", extension_webp=True)
         out = buf.getvalue()
         print(f"[region-retex] zone {couverture * 100:.1f}% de l'atlas, force={force} "
@@ -2869,6 +2899,7 @@ class MyFabmeshMesh:
                         _fait = True
                     if _fait:
                         _buf = io.BytesIO()
+                        from modal_app.acceleration_glb import webp_rapide; webp_rapide(_scene)
                         _scene.export(_buf, file_type="glb", extension_webp=True)
                         glb_bytes = _buf.getvalue()
                         print(f"[refine] atlas affine en {time.time()-_t:.1f}s",
@@ -2922,6 +2953,7 @@ class MyFabmeshMesh:
                         _tailles.append(f"{_tex.size[0]}->{_mat.baseColorTexture.size[0]}")
                     if _tailles:
                         _buf = io.BytesIO()
+                        from modal_app.acceleration_glb import webp_rapide; webp_rapide(_scene)
                         _scene.export(_buf, file_type="glb", extension_webp=True)
                         glb_bytes = _buf.getvalue()
                         print(f"[mesh] ultra 8K : atlas {', '.join(_tailles)} en "

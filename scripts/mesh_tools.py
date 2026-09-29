@@ -783,6 +783,13 @@ def _export(scene, geoms, output_path):
         kwargs.setdefault('file_type', 'glb')
     _sanitize_for_export(geoms)
 
+    if kwargs.get('extension_webp'):
+        try:   # texture couleur 8x plus vite, meme qualite (module partage avec le cloud)
+            from acceleration_glb import webp_rapide
+            webp_rapide(geoms[0] if len(geoms) == 1 else scene)
+        except ImportError:
+            pass
+
     def _do():
         if len(geoms) == 1:
             geoms[0].export(output_path, **kwargs)

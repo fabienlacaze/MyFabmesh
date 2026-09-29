@@ -146,8 +146,12 @@ def preparer(repeint, masque, sortie_piece, sortie_cadre):
         lucida_matte.matte(tmp, sortie_piece)
     except Exception as e:                      # repli : detourage classique
         log(f'Lucida indisponible ({e}), repli u2net')
-        from rembg import remove, new_session
-        Image.fromarray(np.array(remove(crop.convert('RGBA'), session=new_session('u2net')))).save(sortie_piece)
+        try:   # cloud : meme u2net par onnxruntime, sans les 88 s d'import de rembg (2026-09-29)
+            from modal_app._detourage import detourer
+            detourer(crop.convert('RGBA')).save(sortie_piece)
+        except ImportError:
+            from rembg import remove, new_session
+            Image.fromarray(np.array(remove(crop.convert('RGBA'), session=new_session('u2net')))).save(sortie_piece)
     alpha = np.asarray(Image.open(sortie_piece).convert('RGBA'))[:, :, 3] > 127
     if not alpha.any():
         raise SystemExit('detourage vide : la zone repeinte ne contient pas de sujet')

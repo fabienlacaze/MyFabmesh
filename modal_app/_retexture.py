@@ -194,6 +194,7 @@ def retexturer(pipeline, mesh_bytes: bytes, images: list, preset: str = 'fast',
         log(f'alignement du metal ignore : {type(e).__name__}: {e}')
     buf = io.BytesIO()
     if hasattr(output, 'export'):
+        from modal_app.acceleration_glb import webp_rapide; webp_rapide(output)   # texture couleur 8x plus vite, meme qualite
         output.export(buf, file_type='glb', extension_webp=True)
     else:
         raise RuntimeError('le pipeline de texturation n a rendu aucun maillage exportable')

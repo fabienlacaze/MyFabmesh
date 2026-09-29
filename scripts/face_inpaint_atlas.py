@@ -391,6 +391,10 @@ def main():
     log(f'export {args.output}')
     use_webp = os.environ.get('FABMESH_TRELLIS2_EXPORT_WEBP', '1') == '1'
     if use_webp:
+        try:
+            from acceleration_glb import webp_rapide; webp_rapide(scene)   # meme acceleration que le cloud
+        except ImportError:
+            pass
         scene.export(args.output, extension_webp=True)
     else:
         scene.export(args.output)

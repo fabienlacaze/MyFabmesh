@@ -217,5 +217,6 @@ def apply_face_fix(
     mesh.visual.material.baseColorTexture = new_tex
 
     out_buf = io.BytesIO()
+    from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
     scene.export(out_buf, file_type='glb', extension_webp=True)
     return out_buf.getvalue()

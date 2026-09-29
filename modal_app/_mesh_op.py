@@ -28,6 +28,7 @@ def _load_scene(glb_bytes: bytes):
 def _export(scene) -> bytes:
     """Serialize scene back to GLB bytes, preserving WebP textures."""
     buf = io.BytesIO()
+    from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
     scene.export(buf, file_type='glb', extension_webp=True)
     return buf.getvalue()
 

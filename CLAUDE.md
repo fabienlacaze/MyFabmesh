@@ -454,7 +454,7 @@ rectify et 50 % des vues arrière en échec). Désormais :
 **Instantanés (snapshots).** `MyFabmeshMesh` et (depuis le 2026-09-29)
 `MyFabmeshBackview` : instantané GPU (`enable_gpu_snapshot` ; pour Backview,
 pipelines sur la carte + IP-Adapter chargés PENDANT la prise, `move_to_gpu` ne
-refait rien) ; `MyFabmeshPredictor` : instantané mémoire CPU. Restauration : ~5-25 s. Création : chargement complet
+refait rien) ; `MyFabmeshPredictor` aussi depuis le 2026-09-29 (pipeline + adaptateur SDXL-Lightning dans l'instantané ; banc SDK `generer_banc`). Restauration : ~5-25 s. Création : chargement complet
 (maillage 150-230 s) + ~60 s de prise. **Un instantané est propre au type de
 machine** : Modal en crée 2-3 par type de GPU après CHAQUE déploiement, et en
 reprend de lui-même de temps en temps. Tant qu'ils ne sont pas créés, la
@@ -586,6 +586,9 @@ rectification attendait la fin du chargement.
   (qualité 80, method 4 : 18,7 s en 8K). Encodée en method 2 / qualité 90 :
   2,2 s, qualité égale ou supérieure (44,34 contre 44,02 dB), fichier +12 %.
   trimesh reprend ces octets (`_append_image` enveloppé, garde de signature).
+- **Outils aussi** (2026-09-29) : `webp_rapide(scene)` juste avant chaque `export(..., extension_webp=True)` —
+  face fix, re-texture, ops de maillage, variantes, affinage, bureau compris. Les octets pré-encodés
+  portent une empreinte de l'image (repris seulement si elle n'a pas changé). Banc : `test_webp_outils.py`.
 - Ces deux accélérations vivent dans le module PARTAGÉ `scripts/acceleration_glb.py`
   = `modal_app/acceleration_glb.py` (bureau ET cloud, garde `check-noyaux-partages`).
   Le rig allégé tourne aussi sur le bureau (`skintokens_bridge.py --allege 100000`).

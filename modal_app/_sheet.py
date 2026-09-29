@@ -128,9 +128,17 @@ def generate(
 
     prompt = _build_prompt(prompt_hint, layout)
     gen = torch.Generator('cuda').manual_seed(int(seed))
+    # SANS CONTROLNET (2026-09-29), comme _rectify.py : a force nulle, il calculait quand meme a
+    # chaque pas (~1/4 de la diffusion) pour des residus multiplies par 0. Memes composants,
+    # meme IP-Adapter : meme image. Repli sur le ControlNet a 0 si l'assemblage echoue.
+    appel, cn_kw = pipe, dict(image=blank_skel, controlnet_conditioning_scale=0.0)
+    try:
+        from modal_app._rectify import _pipe_sans_controlnet
+        appel, cn_kw = _pipe_sans_controlnet(pipe), {}
+    except Exception as _pe:
+        print(f'[_sheet] pipeline sans ControlNet impossible ({_pe}) : ControlNet a 0', flush=True)
     base_kwargs = dict(
-        image=blank_skel,
-        controlnet_conditioning_scale=0.0,
+        **cn_kw,
         ip_adapter_image=front_img,
         width=sheet_w,
         height=sheet_h,
@@ -147,11 +155,11 @@ def generate(
     try:
         from modal_app._sdxl_prompt_utils import encode_sdxl_long_prompt
         embeds = encode_sdxl_long_prompt(pipe, prompt, NEG_PROMPT)
-        sheet = pipe(**embeds, **base_kwargs).images[0]
+        sheet = appel(**embeds, **base_kwargs).images[0]
     except Exception as _ce:
         print(f"[_sheet] Compel fallback ({_ce}); cell hints will be "
               f"truncated past pos 77", flush=True)
-        sheet = pipe(
+        sheet = appel(
             prompt=prompt, negative_prompt=NEG_PROMPT, **base_kwargs
         ).images[0]
     return _split_sheet(sheet, layout)

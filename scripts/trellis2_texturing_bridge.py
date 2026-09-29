@@ -289,6 +289,10 @@ def main():
 
     log(f'exporting to {args.out}')
     if hasattr(output, 'export'):
+        try:
+            from acceleration_glb import webp_rapide; webp_rapide(output)   # meme acceleration que le cloud
+        except ImportError:
+            pass
         output.export(args.out, extension_webp=True)
     else:
         output.export(args.out)

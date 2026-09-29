@@ -23,7 +23,9 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    La texture couleur est encodee ici et trimesh reprend ces octets tels quels (son
    _append_image est enveloppe, garde de signature) ; metal/rugosite garde le
    reglage d'origine (petite et deja rapide). A appeler juste avant
-   `glb.export(..., extension_webp=True)`.
+   `glb.export(..., extension_webp=True)`. Etendu le 2026-09-29 aux OUTILS (face fix, re-texture,
+   operations de maillage, variantes, affinage...) par `webp_rapide`, qui ne leve jamais. Les
+   octets pre-encodes portent une empreinte de l'image : repris seulement si elle n'a pas change.
 
 3. REDUCTION SANS PLIS (dans accelerer_to_glb). La reduction de to_glb
    (cumesh.simplify, approximation GPU par lots) ne verifie pas qu'un triangle se
@@ -132,8 +134,11 @@ def _envelopper_append_image(log=print) -> bool:
             return False
 
         def _append_image(img, tree, buffer_items, extension_webp):
-            octets = getattr(img, '_fabmesh_webp', None)
-            if extension_webp and octets:
+            marque = getattr(img, '_fabmesh_webp', None)
+            # octets repris SEULEMENT si l'image n'a pas change depuis (empreinte) : un outil qui
+            # modifierait la texture sur place apres un pre-encodage exporterait sinon l'ancienne
+            octets = marque[1] if (extension_webp and marque and _empreinte(img) == marque[0]) else None
+            if octets:
                 index = G._buffer_append(buffer_items, octets)
                 tree['images'].append({'bufferView': index, 'mimeType': 'image/webp'})
                 return len(tree['images']) - 1
@@ -144,6 +149,11 @@ def _envelopper_append_image(log=print) -> bool:
     except Exception as e:
         log(f'[mesh] webp : enveloppe ignoree ({type(e).__name__}: {e})')
         return False
+
+
+def _empreinte(img) -> int:
+    import zlib
+    return zlib.crc32(img.tobytes()) ^ hash((img.mode, img.size))
 
 
 def preencoder_couleur(glb_obj, log=print) -> float:
@@ -160,5 +170,15 @@ def preencoder_couleur(glb_obj, log=print) -> float:
             continue
         f = io.BytesIO()
         tex.save(f, format='WEBP', **WEBP_COULEUR)
-        tex._fabmesh_webp = f.getvalue()
+        tex._fabmesh_webp = (_empreinte(tex), f.getvalue())
     return time.time() - t
+
+
+def webp_rapide(glb_obj, log=None) -> float:
+    """preencoder_couleur SANS jamais lever : a appeler juste avant tout `export(...,
+    extension_webp=True)` (outils d'edition, bureau et cloud, 2026-09-29). Au pire, rien n'est
+    pre-encode et trimesh encode comme avant."""
+    try:
+        return preencoder_couleur(glb_obj, log=log or (lambda *_: None))
+    except Exception:
+        return 0.0
