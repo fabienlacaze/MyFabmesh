@@ -22,6 +22,8 @@
     fr: {
       'Skin weights': 'Poids de peau',
       'Skeleton': 'Squelette',
+      'Spread / shrink the zone': 'Propager / contracter la zone', 'Shrink': 'Contracter', 'Spread': 'Propager',
+      'Apply to this bone': 'Appliquer à cet os', 'vertices changed': 'sommets modifiés',
       'Center the view on the bone': "Centrer la vue sur l'os",
       'Left drag = paint · right drag = rotate · middle drag or Shift + right drag = move · wheel = zoom': 'Clic gauche = peindre · clic droit = tourner · clic milieu ou Maj + clic droit = déplacer · molette = zoom',
       'Colors show what each bone moves. Paint to change it.': 'Les couleurs montrent ce que bouge chaque os. Peignez pour le changer.',
