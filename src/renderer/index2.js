@@ -25375,9 +25375,21 @@ async function _ptsLireSquelette(rig) {
   };
 }
 
+/* RIG AFFICHE (2026-09-29, user : « ca ouvre toujours cette version alors que j'en prends une autre ») : la version
+ * SELECTIONNEE dans la bande du rig, pas celle « utilisee pour l'animation » (selectedRigPath). Meme lecture que
+ * « Use this rig for Animation ». Rend le rig ({path, url, ...}) ou null. */
+function _rigAffiche() {
+  const p = state.currentProject;
+  if (!p || !p.rigs || !p.rigs.length) return null;
+  const sel = document.querySelector('#ws-rig-versions .version-thumb.selected');
+  const idx = sel ? Array.from(sel.parentElement.children).indexOf(sel) : 0;
+  return p.rigs[idx] || p.rigs[0];
+}
+
 async function ptsOuvrir() {
   const p = state.currentProject;
-  const rig = p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
+  const _r = _rigAffiche();
+  const rig = (_r && (_r.url || _r.path)) || p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
   if (!rig) {
     customError(_i18nT('Generate a rig first, then adjust its skeleton points here.'), _i18nT('Skeleton points'));
     return;
@@ -29071,7 +29083,8 @@ document.addEventListener('change', (e) => { if (e.target && e.target.id === 'ws
 // version du rig (…_rigged_skinpaint_<ts>.glb a cote du rig d'origine), gratuit sur le bureau.
 document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () => {
   const p = state.currentProject;
-  const rig = p?.selectedRigPath || p?.rigs?.[0]?.path;
+  const _r = _rigAffiche();
+  const rig = (_r && _r.path) || p?.selectedRigPath || p?.rigs?.[0]?.path;
   if (!rig) { customError(_i18nT('Generate a rig first.'), _i18nT('Skin weights')); return; }
   const buffer = await API.readMeshFile(rig);
   if (!buffer) { showToast(_i18nT('Could not read the rig file.'), 'error'); return; }
