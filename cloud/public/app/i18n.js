@@ -31,7 +31,7 @@
       'Paints the zone: it will move with the chosen bone.': "Peint la zone : elle bougera avec l'os choisi.",
       'Erases the zone: it stops following the chosen bone.': "Efface la zone : elle ne suit plus l'os choisi.",
       'Makes the zone fixed: it only follows the body, not the limbs.': 'Rend la zone fixe : elle ne suit que le corps, pas les membres.',
-      'vertices would change': 'sommets seraient modifiés', 'Magenta zones would be removed': 'Les zones magenta seraient retirées',
+      'vertices would change': 'sommets seraient modifiés', 'White zones would be removed': 'Les zones blanches seraient retirées',
       'Apply to this bone': 'Appliquer à cet os', 'vertices changed': 'sommets modifiés',
       'Center the view on the bone': "Centrer la vue sur l'os",
       'Left drag = paint · right drag = rotate · middle drag or Shift + right drag = move · wheel = zoom': 'Clic gauche = peindre · clic droit = tourner · clic milieu ou Maj + clic droit = déplacer · molette = zoom',

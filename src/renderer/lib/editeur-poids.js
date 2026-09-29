@@ -92,7 +92,7 @@ function construireFenetre() {
         <details class="pp-sect pp-plie">
           <summary>${esc(T('Clean far zones'))}</summary>
           <div class="pp-curseur"><span>${esc(T('close'))}</span><input type="range" id="pp-dist" min="1" max="40" value="8"><span class="fen-valeur" id="pp-dist-v">8 %</span></div>
-          <span class="fen-note" style="color:#ff5fd8;">&#9632; ${esc(T('Magenta zones would be removed'))}</span>
+          <span class="fen-note" style="color:#fff;">&#9632; ${esc(T('White zones would be removed'))}</span>
           <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button>
         </details>
         <div class="pp-actions">
@@ -200,7 +200,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
       sale: [], min: Infinity, max: -1 };
   });
 
-  let vue = 'os', apercuDist = false;                      // apercu du nettoyage : sommets qui seraient retires en magenta
+  let vue = 'os', apercuDist = false;                      // apercu du nettoyage : sommets qui seraient retires en blanc
   const tmp = [0, 0, 0], palette = os.map((_, i) => { const c = couleurOs(i); return [c.r, c.g, c.b]; });
   const teinte = new THREE.Color();
   function colorer(d, liste2 = null) {
@@ -217,7 +217,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
         for (let c = 0; c < 4; c++) { const w = W[o + c]; if (w > 0) { const q = palette[I[o + c]] || palette[0]; r += w * q[0]; g += w * q[1]; b += w * q[2]; } }
         a[3 * i] = r; a[3 * i + 1] = g; a[3 * i + 2] = b;
       }
-      if (apercuDist && d.marque && d.marque[i]) { a[3 * i] = 1; a[3 * i + 1] = 0.1; a[3 * i + 2] = 0.85; }
+      if (apercuDist && d.marque && d.marque[i]) { a[3 * i] = 1; a[3 * i + 1] = 1; a[3 * i + 2] = 1; }
     };
     if (liste2) for (let k = 0; k < liste2.length; k++) faire(liste2[k]); else for (let i = 0; i < d.n; i++) faire(i);
     d.couleurs.needsUpdate = true;
