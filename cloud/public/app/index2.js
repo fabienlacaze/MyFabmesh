@@ -8527,8 +8527,11 @@ async function showStep2Preview(mesh) {
   // Load the GLB
   setViewerLoading('step2-preview', true, 'Loading mesh…');
   console.log('[mesh-viewer] fetching mesh:', mesh.path);
-  const buffer = await API.readMeshFile(mesh.path);
-  if (buffer) _cacheMaillage = { chemin: mesh.path, buffer };   // repris par les outils de maillage
+  // GROS MAILLAGE : si sa version legere (~500 K, memes textures) existe, on charge celle-ci a la place (40 Mo au lieu de 466 Mo)
+  let _leger = null;
+  try { _leger = API.findLight ? await API.findLight(mesh.path) : null; } catch (_) { _leger = null; }
+  const buffer = await API.readMeshFile(_leger || mesh.path);
+  if (buffer && !_leger) _cacheMaillage = { chemin: mesh.path, buffer };   // repris par les outils de maillage
   if (!buffer) {
     setViewerLoading('step2-preview', false);
     console.error('[mesh-viewer] readMeshFile returned null for', mesh.path);
@@ -8546,6 +8549,8 @@ async function showStep2Preview(mesh) {
     console.log('[mesh-viewer] parse OK, scene children:', gltf.scene.children.length);
     wsModel = gltf.scene;
     wsModel.userData.__wsMesh = true;
+    if (_leger) { wsModel.userData.__light = true; try { _signalerApercuLeger('ws-mesh-filename'); } catch (_) {} }
+    else { try { _proposerLegere(wsModel, mesh.path); } catch (_) {} }
     wsModel.userData.parts = mesh.parts || null;   // zones nommees (fichier annexe .parts.json)
     if (typeof renderPartLegend === 'function') renderPartLegend(mesh.parts || null);
     wsScene.add(wsModel);
@@ -14509,11 +14514,26 @@ let _pmJeton = 0;
 // MAILLAGE DEJA AFFICHE (2026-09-30, user : « fais pareil avec les autres tools ») : si le viewer de l'etape Mesh montre deja le
 // maillage demande, les outils en prennent une COPIE (materiaux clones ; geometrie clonee si l'outil la modifie) au lieu de le
 // retelecharger et de le reanalyser (WebP 4K/8K = plusieurs secondes). Repli : chargement normal.
+// Gros maillage : petite mention sous le nom du fichier quand on regarde la version legere, et creation de celle-ci sinon.
+function _signalerApercuLeger(idNom) {
+  const el = document.getElementById(idNom); if (!el) return;
+  let b = el.parentElement && el.parentElement.querySelector('.apercu-leger');
+  if (!b) { b = document.createElement('span'); b.className = 'apercu-leger'; b.style.cssText = 'margin-left:8px;font-size:11px;color:#8bd;'; el.insertAdjacentElement('afterend', b); }
+  b.textContent = _i18nT('Light preview (~500 000 triangles) — full detail kept for export');
+}
+const _legeresDemandees = new Set();
+function _proposerLegere(racine, chemin) {
+  if (!API.demanderLight || !/\/r2\//.test(String(chemin)) || _legeresDemandees.has(chemin)) return;
+  let tris = 0; racine.traverse((o) => { if (o.isMesh && o.geometry) tris += o.geometry.index ? o.geometry.index.count / 3 : (o.geometry.attributes.position?.count || 0) / 3; });
+  if (tris < 1500000) return;
+  _legeresDemandees.add(chemin);
+  API.demanderLight(chemin).then((u) => { if (u) showToast(_i18nT('A light version of this heavy mesh is ready. Reopen it to work faster.'), 'success', 6000); }).catch(() => {});
+}
 function _etapeAffiche(chemin) {
   try {
     const p = state.currentProject;
     if (typeof wsModel === 'undefined' || !wsModel || !wsModel.userData?.__wsMesh || !wsScene || wsModel.parent !== wsScene) return false;
-    if (!p || !chemin || p.previewMeshPath !== chemin) return false;
+    if (!p || !chemin || p.previewMeshPath !== chemin || wsModel.userData.__light) return false;
     let skinne = false; wsModel.traverse((c) => { if (c.isSkinnedMesh) skinne = true; });
     return !skinne;
   } catch (_) { return false; }
@@ -18204,7 +18224,9 @@ async function showStep3Preview(rig) {
         }
       });
     } else if (ext === 'glb' || ext === 'gltf') {
-      const buffer = await API.readMeshFile(rig.path);
+      let _legerRig = null;
+      try { _legerRig = API.findLight ? await API.findLight(rig.path) : null; } catch (_) { _legerRig = null; }
+      const buffer = await API.readMeshFile(_legerRig || rig.path);
       if (jeton !== _rigVwJeton) return;     // un affichage plus recent a ete demande
       if (!buffer) { setViewerLoading('step3-preview', false); return; }
       const loader = new GLTFLoader();
@@ -18212,6 +18234,8 @@ async function showStep3Preview(rig) {
         if (jeton !== _rigVwJeton) return;   // un affichage plus recent a ete demande
         setViewerLoading('step3-preview', false);
         rigVwModel = gltf.scene;
+        if (_legerRig) { rigVwModel.userData.__light = true; try { _signalerApercuLeger('ws-rig-filename'); } catch (_) {} }
+        else { try { _proposerLegere(rigVwModel, rig.path); } catch (_) {} }
         _applyMeshTextureFilter(rigVwModel);
         try { window.__rvV3D?.attacherLOD(rigVwModel, rig.path || rig.url || ''); } catch (_) {}
         let skinnedCount = 0;
@@ -29198,8 +29222,11 @@ document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () 
   const _r = _rigAffiche();
   const rig = (_r && (_r.url || _r.path)) || p?.selectedRigUrl || p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
   if (!rig) { customError(_i18nT('Generate a rig first.'), _i18nT('Skin weights')); return; }
-  const buffer = await API.readMeshFile(rig);
+  let _legerP = null;
+  try { _legerP = API.findLight ? await API.findLight(rig) : null; } catch (_) { _legerP = null; }
+  const buffer = await API.readMeshFile(_legerP || rig);
   if (!buffer) { showToast(_i18nT('Could not read the rig file.'), 'error'); return; }
+  if (_legerP) showToast(_i18nT('Editing the light version of this rig (about 500 000 triangles, same look).'), 'info', 5000);
   const { ouvrirEditeurPoids } = await import('./lib/editeur-poids.js');
   await ouvrirEditeurPoids({
     buffer,

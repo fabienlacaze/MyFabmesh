@@ -13267,6 +13267,93 @@ async function handleMeshConvert(req: Request, env: Env): Promise<Response> {
  *    POST /api/mesh-op/client-multi?action=complete  (JSON { key, uploadId, parts, project })  -> facture 1 credit, rend l'URL
  *    POST /api/mesh-op/client-multi?action=abort     (JSON { key, uploadId }) */
 const MULTI_PART_OCTETS = 32 * 1024 * 1024;
+/** VERSION LEGERE DES GROS MAILLAGES (2026-09-30, user : « une version 500 K pour le rig, sans perdre les details »).
+ *  Un maillage de plus de 1,5 M de triangles est reduit a ~500 K (textures, UV, os et poids conserves) par l'application Modal
+ *  `myfabmesh-lod` (CPU seulement) et range a cote, sous `<compte>/light/<nom>_light.glb`. Le viewer, le rig et l'editeur de
+ *  poids la chargent a la place du fichier complet (40 Mo au lieu de 466 Mo). Le fichier complet reste pour l'export.
+ *    POST /api/mesh-light/find   { url }             -> { found, url }
+ *    POST /api/mesh-light/start  { url }             -> { found | job_id, key | skipped }
+ *    POST /api/mesh-light/status { job_id, key }     -> { ready, url } | { ready:false } | { skipped }
+ *  `url` = URL signee du maillage (la signature FAIT foi : on ne lit jamais la cle d'un autre compte). */
+function _lodBaseUrl(env: Env): string | undefined {
+  const rig = env.MODAL_RIG_URL;
+  return rig ? rig.replace('myfabmesh-skintokens-rig-router', 'myfabmesh-lod-lod-router') : undefined;
+}
+async function _cleDepuisUrlSignee(env: Env, rawUrl: string): Promise<string | null> {
+  try {
+    const u = new URL(rawUrl);
+    if (!u.pathname.startsWith('/r2/')) return null;
+    const r = await assetFetch(env, rawUrl);
+    if (!r.ok) return null;
+    try { await r.body?.cancel(); } catch { /* corps non lu */ }
+    return u.pathname.slice('/r2/'.length).split('/').map(decodeURIComponent).join('/');
+  } catch { return null; }
+}
+function _cleLegere(userId: string, cle: string): string | null {
+  const nom = (cle.split('/').pop() || '').replace(/\.glb$/i, '').replace(/_light$/i, '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 200);
+  return nom ? `${userId}/light/${nom}_light.glb` : null;
+}
+async function handleMeshLight(req: Request, env: Env, action: string): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MESHES) return err(500, 'R2 binding required');
+  if (!['find', 'start', 'status'].includes(action)) return err(404, 'not found');
+  const b = await req.json().catch(() => ({})) as { url?: string; job_id?: string; key?: string };
+
+  if (action === 'status') {
+    const key = String(b.key || ''), job = String(b.job_id || '');
+    const base = _lodBaseUrl(env);
+    if (!base || !job || !key.startsWith(`${user.id}/light/`) || key.includes('..')) return err(400, 'bad request');
+    const post = (path: string, extra: Record<string, unknown> = {}) => fetch(`${base}${path}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, job_id: job, ...extra }), signal: AbortSignal.timeout(60_000) });
+    let st: { ready?: boolean; skipped?: boolean; error?: string };
+    try { st = await (await post('/lod-status')).json() as typeof st; }
+    catch { return json({ ready: false, pending: true }); }
+    if (st.skipped) return json({ ready: false, skipped: true });
+    if (st.error) return json({ ready: false, error: st.error });
+    if (!st.ready) return json({ ready: false });
+    const f = await post('/lod-fetch');
+    if (!f.ok || !f.body) return json({ ready: false, pending: true });
+    await env.MESHES.put(key, f.body, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    return json({ ready: true, url: await signedR2Url(env, key, 'mesh') });
+  }
+
+  const cle = await _cleDepuisUrlSignee(env, String(b.url || ''));
+  if (!cle) return err(403, 'forbidden');
+  const legere = _cleLegere(user.id, cle);
+  if (!legere) return err(400, 'bad key');
+  const existe = await env.MESHES.head(legere);
+  if (existe) return json({ found: true, url: await signedR2Url(env, legere, 'mesh') });
+  if (action === 'find') return json({ found: false });
+
+  // start
+  const base = _lodBaseUrl(env);
+  if (!base) return json({ skipped: true, reason: 'not configured' });
+  if (await _limiteCalculAtteinte(env)) return json({ skipped: true, reason: 'paused' });
+  const restants = await checkAndIncrementUserCalls(env, user.id);
+  if (restants == null) return json({ skipped: true, reason: 'user limit' });
+  const jobId = crypto.randomUUID();
+  try {
+    const r = await fetch(`${base}/lod-start`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, job_id: jobId, mesh_url: await signedR2Url(env, cle, 'mesh'), cible: 500000 }),
+      signal: AbortSignal.timeout(60_000) });
+    if (!r.ok) return json({ skipped: true, reason: `modal HTTP ${r.status}` });
+  } catch (e) { return json({ skipped: true, reason: e instanceof Error ? e.message : String(e) }); }
+  return json({ found: false, job_id: jobId, key: legere });
+}
+
+/** Rig : quand une version legere existe, le rig se fait dessus (plus rapide, fichier de 40 Mo, meme apparence). */
+async function _urlPourRig(env: Env, userId: string, meshUrl: string): Promise<string> {
+  try {
+    const cle = await _cleDepuisUrlSignee(env, meshUrl);
+    const legere = cle && _cleLegere(userId, cle);
+    if (legere && await env.MESHES?.head(legere)) return await signedR2Url(env, legere, 'mesh');
+  } catch { /* on garde le maillage complet */ }
+  return meshUrl;
+}
+
 async function handleMeshOpClientMulti(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
@@ -14270,7 +14357,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         _auth: env.MODAL_SHARED_SECRET,
-        mesh_url: meshUrl,
+        mesh_url: await _urlPourRig(env, user.id, meshUrl),   // version legere si elle existe (gros maillage)
         ...(skeleton ? { skeleton } : {}),
         ...(points ? { points } : {}),
         ...(liens ? { liens } : {}),
@@ -21418,6 +21505,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/stages3d-list'         && method === 'GET')  return await handleStages3dList(req, env);
         if (pathname === '/api/mesh-op/client-result' && method === 'POST') return await handleMeshOpClientResult(req, env);
         if (pathname === '/api/mesh-op/client-multi' && method === 'POST') return await handleMeshOpClientMulti(req, env);
+        if (pathname.startsWith('/api/mesh-light/') && method === 'POST') return await handleMeshLight(req, env, pathname.slice('/api/mesh-light/'.length));
         if (pathname === '/api/history.csv'           && method === 'GET')  return await handleHistoryCsv(req, env);
         if (pathname.startsWith('/api/history/')      && method === 'GET') {
           const id = pathname.slice('/api/history/'.length);

@@ -570,6 +570,7 @@
   /* ──────────────────────────────────────────────────────────────────
    * IMPLEMENTED — these are the calls the cloud actually services.
    * ────────────────────────────────────────────────────────────────── */
+  const _lumieresCache = new Map();      // url du maillage -> url de sa version legere (findLight)
   const _tamponsMaillage = new Map();      // voir readMeshFile
   const impl = {
     /* config / session */
@@ -1145,6 +1146,40 @@
     /* parental / NSFW (passthrough lenient defaults) */
     // Desktop contract is `unrestricted`, not `unlocked`. Cloud beta has
     // no PIN flow yet, so we report no restrictions by default.
+    /* VERSION LEGERE des gros maillages (2026-09-30) : findLight rend l'URL de la copie ~500 K si elle existe (sinon null) ;
+     * demanderLight la fait creer (Modal, CPU) et rend son URL quand elle est prete (sinon null). Jamais bloquant. */
+    findLight: async (url) => {
+      const cle = String(url || '').split('#')[0].split('?')[0];
+      if (!cle || !/\/r2\//.test(String(url))) return null;
+      if (_lumieresCache.has(cle)) return _lumieresCache.get(cle);
+      let res = null;
+      try {
+        const r = await fetch('/api/mesh-light/find', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }) });
+        if (r.ok) { const d = await r.json(); res = d && d.found ? d.url : null; }
+      } catch (_) { res = null; }
+      if (res) _lumieresCache.set(cle, res);
+      return res;
+    },
+    demanderLight: async (url) => {
+      const post = async (chemin, corps) => {
+        const r = await fetch('/api/mesh-light/' + chemin, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corps) });
+        return r.ok ? await r.json() : null;
+      };
+      try {
+        const d = await post('start', { url });
+        if (!d) return null;
+        if (d.found) return d.url;
+        if (!d.job_id) return null;
+        for (let i = 0; i < 90; i++) {                       // 90 x 4 s = 6 min au plus
+          await new Promise((ok) => setTimeout(ok, 4000));
+          const s = await post('status', { job_id: d.job_id, key: d.key });
+          if (!s) continue;
+          if (s.skipped || s.error) return null;
+          if (s.ready) { _lumieresCache.set(String(url).split('#')[0].split('?')[0], s.url); return s.url; }
+        }
+      } catch (_) { /* facultatif */ }
+      return null;
+    },
     getParentalStatus: async () => {
       // Garde 60 s (2026-09-29) : chaque rendu de la bande des versions l'attendait sur le reseau, bande vide
       // pendant ce temps. toggleUnrestricted l'efface : un deverrouillage est pris en compte tout de suite.

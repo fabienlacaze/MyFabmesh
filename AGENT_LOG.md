@@ -24253,3 +24253,15 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Viewer3D : leger pendant les mouvements, COMPLET a l'arret (700 ms) ou en zoom serre (< 1,3 rayon) ; rendu econome inchange (signature sur le maillage plein
   pour ne pas boucler). Les outils / clones (`_modeleDeLetape`, Paint Mesh) remettent toujours la geometrie COMPLETE. CSP bureau : 'wasm-unsafe-eval'.
 - NON verifie visuellement (pas de WebGL cote test). A confirmer par le user sur le rig du centipede.
+
+## 2026-09-30 — Version legere (~500 K) des gros maillages : generation serveur + viewers / rig / editeur la chargent
+- `build/gen_light_glb.mjs` (Node + meshoptimizer WASM, UV dans le calcul, compactage des sommets, tous attributs / textures / squelette conserves).
+  Mesure : rig centipede 466 -> 40,5 Mo, mesh 323 -> 29,4 Mo, 10 346 880 -> 499 982 triangles, ~29 s, sans GPU.
+- `modal_app/_lod.py` : application Modal SEPAREE, CPU seulement (Node dans l'image) : /lod-start, /lod-status, /lod-fetch. Seuil 1,5 M triangles.
+- worker.ts : /api/mesh-light/{find,start,status} (URL signee = autorisation), version rangee `<compte>/light/<nom>_light.glb` ; le rig utilise la
+  version legere quand elle existe (`_urlPourRig`). Respecte l'arret dur budget (`skipped: paused`).
+- Web : `API.findLight / demanderLight` ; viewers mesh et rig et editeur de poids chargent la version legere ; sinon, si > 1,5 M triangles, ils la demandent
+  au serveur ; mention « Light preview » ; les outils (copie du viewer) ne reprennent pas la version legere.
+- Test : versions legeres du centipede (mesh, rig, rig retouche) generees en local et deposees dans `<compte>/light/` pour essayer le flux cote client.
+  Le serveur (Modal) n'est PAS teste : budget coupe jusqu'au 1er octobre.
+- `_skintokens_rig.py` : retrait du code « version legere » par rebake (xatlas), remplace par cette voie.
