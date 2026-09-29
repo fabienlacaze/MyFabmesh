@@ -11032,17 +11032,17 @@ function openMeshToolModal(toolName) {
 
   if (schema.params.length === 0) {
     const note = document.createElement('div');
-    note.style.cssText = 'color: var(--text-muted); font-size:12px;';
+    note.className = 'fen-note';
     note.textContent = 'No parameters — click Apply to run.';
     body.appendChild(note);
   } else {
     schema.params.forEach((spec) => {
       const wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+      wrap.className = 'fen-champ';
       const lab = document.createElement('div');
-      lab.style.cssText = 'display:flex; justify-content:space-between; font-size:11px;';
+      lab.className = 'fen-champ-tete';
       const labText = document.createElement('span');
-      labText.style.cssText = 'color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;';
+      labText.className = 'fen-label';
       labText.textContent = spec.label;
       // Pour un curseur, la valeur devient une ZONE DE SAISIE : sur une plage
       // de 200 a 1 000 000 (compte de triangles), viser une valeur precise au
@@ -11056,14 +11056,11 @@ function openMeshToolModal(toolName) {
         if (spec.max !== undefined) labVal.max = String(spec.max);
         if (spec.step !== undefined) labVal.step = String(spec.step);
         labVal.value = String(spec.default);
-        labVal.style.cssText = 'color:var(--text-1); background:var(--bg-2,#15151f);'
-          + ' border:1px solid var(--border,#33334a); border-radius:4px;'
-          + ' padding:1px 6px; width:11ch; text-align:right; font-size:11px;'
-          + ' font-family:inherit;';
+        labVal.className = 'fen-valeur';
         labVal.title = 'Saisir la valeur exacte';
       } else {
         labVal = document.createElement('span');
-        labVal.style.cssText = 'color:var(--text-1);';
+        labVal.className = 'fen-valeur';
         labVal.textContent = String(spec.default);
       }
       lab.appendChild(labText); lab.appendChild(labVal);
@@ -11088,24 +11085,22 @@ function openMeshToolModal(toolName) {
         // Row of buttons, one active at a time. Selection is stored on
         // `input.dataset.value` and read back by _mtCollectVals.
         input = document.createElement('div');
-        input.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px;';
+        input.className = 'choix';
         const setActive = (val) => {
           input.dataset.value = String(val);
           input.querySelectorAll('button').forEach((b) => {
             const on = b.dataset.value === String(val);
             b.classList.toggle('selected', on);
-            b.style.background = on ? 'var(--accent, #5a4fcf)' : '';
-            b.style.color = on ? '#fff' : '';
-            b.style.borderColor = on ? 'var(--accent, #5a4fcf)' : '';
+            b.classList.toggle('actif', on);
           });
         };
         spec.options.forEach(([val, lbl]) => {
           const btn = document.createElement('button');
           btn.type = 'button';
-          btn.className = 'ghost-btn';
-          btn.textContent = lbl;
+          btn.className = 'choix-btn';
+          btn.innerHTML = '<b></b>';
+          btn.firstChild.textContent = lbl;
           btn.dataset.value = String(val);
-          btn.style.cssText = 'padding:6px 12px; font-size:12px; margin:0;';
           btn.addEventListener('click', () => {
             setActive(val);
             _mtSchedulePreview();
@@ -11135,6 +11130,7 @@ function openMeshToolModal(toolName) {
       }
       input.dataset.paramId = spec.id;
       input.dataset.paramType = spec.type || 'number';
+      _mtHabiller(wrap, lab, input, spec);
       if (spec.type === 'range') {
         // curseur -> zone de saisie
         input.addEventListener('input', () => {
@@ -11171,7 +11167,7 @@ function openMeshToolModal(toolName) {
         });
       }
       input.addEventListener('change', () => _mtSchedulePreview());
-      wrap.appendChild(input);
+      if (!input.__dejaPlace) wrap.appendChild(input);
       // Graine aleatoire a l'ouverture + bouton « nouvelle variation », comme
       // sur le bureau : sans lui, deux ouvertures donnaient la MEME variante.
       if (spec.randomize) {
@@ -11181,8 +11177,7 @@ function openMeshToolModal(toolName) {
         _mtSetLabVal(labVal, input.value);
         const db = document.createElement('button');
         db.type = 'button';
-        db.className = 'secondary-btn';
-        db.style.cssText = 'margin-top:4px; padding:4px 8px; font-size:11px; width:100%;';
+        db.className = 'ghost-btn fen-petit';
         db.textContent = '🎲 ' + _i18nT('New variation');
         db.onclick = () => {
           input.value = String(roll());
@@ -11203,7 +11198,7 @@ function openMeshToolModal(toolName) {
     resetBtn.type = 'button';
     resetBtn.className = 'ghost-btn';
     resetBtn.textContent = '↺ ' + schema.resetButton;
-    resetBtn.style.cssText = 'padding:6px 12px; font-size:11px; margin-top:6px; width:auto; align-self:flex-start;';
+    resetBtn.className = 'ghost-btn fen-petit';
     resetBtn.addEventListener('click', () => {
       schema.params.forEach((spec) => {
         if (spec.type !== 'range' && spec.type !== 'number') return;
@@ -11235,7 +11230,7 @@ function openMeshToolModal(toolName) {
     deviceBtn = document.createElement('button');
     deviceBtn.id = 'mt-apply-device';
     deviceBtn.className = 'secondary-btn';
-    deviceBtn.style.cssText = 'margin:0; padding:8px 18px; width:auto;';
+    // taille : .modal-actions .secondary-btn (kit des fenetres)
     // Free icon (💻) reserved for "runs on user hardware". The ⚡
     // emoji is reserved for the credit badge so the two are never
     // confused in the UI.
@@ -11314,6 +11309,7 @@ function openMeshToolModal(toolName) {
     };
   }
   modal.classList.remove('hidden');
+  if (typeof _synchroChoix === 'function') _synchroChoix(modal);
 
   // Init viewport then load mesh; preview kicks off once geoms are cached.
   requestAnimationFrame(async () => {
@@ -28391,3 +28387,40 @@ try {
   }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 } catch (_) { /* pas d'observateur : les boutons se synchronisent au premier clic */ }
 _synchroChoix();
+
+// KIT DES FENETRES (2026-09-29) — habille un reglage de « Mesh tool » comme les autres fenetres :
+// case a cocher = option d'une ligne (.opt-ligne) ; liste de 2 a 4 choix = boutons (.choix) qui
+// pilotent la liste, cachee (le code lit toujours sa valeur). Identique bureau / web.
+function _mtHabiller(wrap, lab, input, spec) {
+  if (spec.type === 'checkbox') {
+    const ligne = document.createElement('label');
+    ligne.className = 'opt-ligne';
+    const texte = document.createElement('span');
+    const titre = document.createElement('b');
+    titre.textContent = spec.label;
+    texte.appendChild(titre);
+    if (spec.hint) { const s = document.createElement('small'); s.textContent = spec.hint; texte.appendChild(s); }
+    lab.style.display = 'none';
+    ligne.appendChild(input);
+    ligne.appendChild(texte);
+    wrap.appendChild(ligne);
+    input.__dejaPlace = true;
+  } else if (spec.type === 'select' && spec.options && spec.options.length >= 2 && spec.options.length <= 4) {
+    if (!input.id) input.id = 'mt-p-' + spec.id;
+    input.style.display = 'none';
+    const groupe = document.createElement('div');
+    groupe.className = 'choix';
+    groupe.dataset.pour = input.id;
+    spec.options.forEach(([val, lbl]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'choix-btn';
+      b.dataset.valeur = String(val);
+      const t = document.createElement('b');
+      t.textContent = lbl;
+      b.appendChild(t);
+      groupe.appendChild(b);
+    });
+    wrap.appendChild(groupe);
+  }
+}

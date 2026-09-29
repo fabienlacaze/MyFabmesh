@@ -4594,3 +4594,35 @@ details.stage-generating > summary .stage-icon-gear {
 #modal-recolor .modal-with-image { grid-template-columns: minmax(360px, 1.2fr) 1fr; }
 #modal-recolor .modal-image-side { min-height: 440px; }
 #modal-recolor .modal-form-side { justify-content: flex-start; min-width: 0; }
+
+/* ══ KIT DES FENETRES (2026-09-29, harmonisation demandee par le user : « trop de dispositions et de mises
+   en page differentes ») — MEME bloc sur le bureau et le web. Gabarit « outil avec apercu » : en-tete
+   (titre + fermeture), apercu a GAUCHE, reglages a DROITE, pied .modal-actions (Annuler, action + prix).
+   Complete .choix / .opt-ligne (plus haut). Lot 1 : fenetre « Mesh tool » (tous les Smart tools). ══ */
+.fen-tete { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fen-tete h2, .fen-tete h3 { margin: 0; }
+.fen-corps { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(260px, 1fr); gap: 20px;
+  margin-top: 12px; min-height: 0; }
+.fen-apercu { position: relative; overflow: hidden; min-height: 360px; background: var(--bg-0, #0b0b12);
+  border: 2px solid var(--accent); border-radius: var(--radius-sm, 10px); }
+.fen-apercu-etat { position: absolute; left: 8px; right: 8px; bottom: 6px; padding: 4px 8px; border-radius: 4px;
+  font-size: 11px; color: #ccc; background: rgba(0, 0, 0, 0.7); pointer-events: none; }
+.fen-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; overflow-y: auto; }
+.fen-champ { display: flex; flex-direction: column; gap: 6px; }
+.fen-champ-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fen-label { font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-2); }
+.fen-valeur { font-size: 12px; font-weight: 600; color: var(--accent); }
+input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inherit; font-size: 12px; color: inherit;
+  background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 6px; }
+.fen-note { font-size: 11.5px; color: var(--text-muted); }
+.fen-petit { align-self: flex-start; margin: 0; padding: 5px 12px; font-size: 12px; width: auto; }
+.modal-actions .secondary-btn { height: 42px; padding: 0 18px; margin: 0; width: auto; }
+/* fenetre 3D (apercu en direct) : grande carte, l'apercu prend toute la hauteur */
+.modal-card.fen-3d { width: min(1400px, 92vw); max-width: 92vw; height: min(88vh, 920px);
+  display: flex; flex-direction: column; box-sizing: border-box; }
+.modal-card.fen-3d .fen-corps { flex: 1 1 0; grid-template-columns: minmax(0, 1fr) 300px; }
+.modal-card.fen-3d .modal-actions { margin-top: 16px; }
+@media (max-width: 760px) {
+  .fen-corps, .modal-card.fen-3d .fen-corps { grid-template-columns: 1fr; }
+  .modal-card.fen-3d { height: auto; max-height: 94vh; overflow-y: auto; }
+}
