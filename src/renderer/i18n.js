@@ -20,6 +20,24 @@
 
   const I18N = {
     fr: {
+      // ---- Fenetre de lancement (2026-09-29) ----
+      'A new version is created — the original is kept.': "Une nouvelle version est créée — l'original est conservé.",
+      'Remove background': "Retirer l'arrière-plan",
+      'Cuts the subject out, on a transparent background.': 'Détoure le sujet, sur fond transparent.',
+      "Sharpens the face, or an animal's head.": "Affine le visage, ou la tête d'un animal.",
+      'Fix the face': 'Retoucher le visage',
+      'Auto symmetry': 'Symétrie auto',
+      'Mirrors the left half of the image onto the right half.': "Reproduit la moitié gauche de l'image sur la moitié droite.",
+      'Symmetrize': 'Symétriser',
+      'Adds a margin around the image (15 % on each side).': "Ajoute une marge autour de l'image (15 % de chaque côté).",
+      'Add a margin around the image (15 % on each side)': "Ajouter une marge autour de l'image (15 % de chaque côté)",
+      'Sharpen texture (x2)': 'Texture plus nette (x2)',
+      'Doubles the texture resolution, without inventing detail.': 'Double la résolution de la texture, sans inventer de détail.',
+      'Sharpen': 'Affiner',
+      'Adds fine AI detail to the texture.': 'Ajoute des détails fins à la texture (IA).',
+      'Add detail': 'Ajouter du détail',
+      'Repaints the image in this style.': "Repeint l'image dans ce style.",
+      'Apply the style': 'Appliquer le style',
       // ---- Multi-vues, Habits seuls, Recolorier simplifies (2026-09-29) ----
       'Multi-views': 'Multi-vues',
       'Your image is copied first: the original stays untouched.': "Votre image est d'abord copiée : l'original reste intact.",

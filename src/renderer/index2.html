@@ -480,7 +480,7 @@
                         <button id="ws-mask-btn" class="ghost-btn tool-btn" title="Paint a zone by hand, then have just that zone repainted.">&#9999;&nbsp;Draw Mask</button>
                         <button id="ws-crop-btn" class="ghost-btn tool-btn" title="Trim the image. Removes pixels, adds none.">&#9986;&nbsp;Crop</button>
                         <button id="ws-select-btn" class="ghost-btn tool-btn" title="Cut / copy a rectangular zone and move it elsewhere on the image">&#9635;&nbsp;Cut/Paste</button>
-                        <button id="ws-extend-btn" class="ghost-btn tool-btn" title="Extend / outpaint — add margin around the image and fill it">&#10696;&nbsp;Extend</button>
+                        <button id="ws-extend-btn" class="ghost-btn tool-btn" title="Add a margin around the image (15 % on each side)">&#10696;&nbsp;Extend</button>
                         <button id="ws-brightness-btn" class="ghost-btn tool-btn" title="Adjust brightness, contrast, saturation and sharpness.">&#9728;&nbsp;Brightness</button>
                         <button id="ws-picker-btn" class="ghost-btn tool-btn" title="Pick a colour from the image.">&#128167;&nbsp;Color Pick</button>
                         <button id="ws-blur-btn" class="ghost-btn tool-btn" title="Blur or sharpen locally with a brush.">&#128168;&nbsp;Blur Brush</button>
@@ -1657,6 +1657,29 @@
          Picks post-gen refinements before launching 6-view generation.
          A new image version is created so the original stays untouched.
          ============================================================ -->
+    <!-- FENETRE DE LANCEMENT (2026-09-29) : les outils qui partaient en UN CLIC (Remove BG, Face Fix,
+         Sym. Auto, Extend, Sharpen texture, Detail++, menu Style) ouvrent d'abord cette fenetre ; l'operation
+         ne part qu'a la validation. Remplie par _ouvrirLancement (index2.js). Meme fenetre bureau / web. -->
+    <div id="modal-lancement" class="modal-overlay hidden">
+      <div class="modal-card lct-carte">
+        <div class="fen-tete">
+          <h2 id="lct-titre">Tool</h2>
+          <button id="lct-fermer" class="settings-close-x">&#10005;</button>
+        </div>
+        <div class="fen-corps" id="lct-corps">
+          <div class="fen-apercu" id="lct-apercu"><img id="lct-image" alt="" /></div>
+          <div class="fen-form">
+            <p id="lct-texte" class="lct-texte"></p>
+            <p class="fen-note">A new version is created &mdash; the original is kept.</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="lct-annuler">Cancel</button>
+          <button class="primary-btn" id="lct-lancer">Start</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-multiview-options" class="modal-overlay hidden">
       <div class="modal-card">
         <h2>Multi-views</h2>

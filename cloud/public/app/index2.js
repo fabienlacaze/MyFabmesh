@@ -28424,3 +28424,82 @@ function _mtHabiller(wrap, lab, input, spec) {
     wrap.appendChild(groupe);
   }
 }
+
+// ══ FENETRE DE LANCEMENT (2026-09-29, user : « pas fan des outils qui se lancent juste en un clic : le
+// bouton ouvre une fenetre et la on valide le lancement ») ══ Un ecouteur en CAPTURE intercepte le clic
+// de ces outils (et d'un choix du menu Style), ouvre #modal-lancement, puis rejoue le clic valide : les
+// gestionnaires d'origine ne changent pas, et les clics simules par la visionneuse plein ecran passent
+// aussi par la fenetre. Le prix affiche est celui de la pastille du bouton (absente = gratuit).
+// Identique bureau / web.
+const _OUTILS_A_VALIDER = {
+  'ws-removebg-btn': { titre: 'Remove background', texte: 'Cuts the subject out, on a transparent background.', action: 'Remove background', apercu: 'image' },
+  'ws-facefix-btn': { titre: 'Face Fix', texte: "Sharpens the face, or an animal's head.", action: 'Fix the face', apercu: 'image' },
+  'ws-symmetrize-auto-btn': { titre: 'Auto symmetry', texte: 'Mirrors the left half of the image onto the right half.', action: 'Symmetrize', apercu: 'image' },
+  'ws-extend-btn': { titre: 'Extend', texte: 'Adds a margin around the image (15 % on each side).', action: 'Extend', apercu: 'image' },
+  'ws-mesh-enhance-tex-btn': { titre: 'Sharpen texture (x2)', texte: 'Doubles the texture resolution, without inventing detail.', action: 'Sharpen', apercu: null },
+  'ws-mesh-detail-synth-btn': { titre: 'Detail++', texte: 'Adds fine AI detail to the texture.', action: 'Add detail', apercu: null },
+};
+function _lctImageCourante() {
+  const p = state.currentProject;
+  let chemin = null;
+  try { chemin = (typeof editTarget === 'function') ? editTarget(p) : null; } catch (_) {}
+  chemin = chemin || p?.previewImagePath || p?.selectedImagePath;
+  return chemin ? _toFileUrl(chemin) : '';
+}
+function _ouvrirLancement(def, boutonPrix) {
+  return new Promise((resoudre) => {
+    const m = document.getElementById('modal-lancement');
+    if (!m) { resoudre(true); return; }
+    const t = (s) => ((typeof _i18nT === 'function') ? _i18nT(s) : s);
+    document.getElementById('lct-titre').textContent = def.titreBrut || t(def.titre);
+    document.getElementById('lct-texte').textContent = t(def.texte);
+    const src = def.apercu === 'image' ? _lctImageCourante() : '';
+    document.getElementById('lct-corps').classList.toggle('sans-apercu', !src);
+    document.getElementById('lct-apercu').hidden = !src;
+    if (src) document.getElementById('lct-image').src = src;
+    const lancer = document.getElementById('lct-lancer');
+    const annuler = document.getElementById('lct-annuler');
+    const fermer = document.getElementById('lct-fermer');
+    lancer.textContent = t(def.action);
+    const pastille = boutonPrix && boutonPrix.querySelector('.cloud-cost-badge, .credit-badge');
+    const prix = pastille ? pastille.textContent.trim() : '';
+    if (prix) {
+      const b = document.createElement('span');
+      b.className = 'credit-badge';
+      b.style.marginLeft = '8px';
+      b.textContent = prix;
+      lancer.appendChild(b);
+    }
+    const fin = (ok) => {
+      m.classList.add('hidden');
+      lancer.onclick = annuler.onclick = fermer.onclick = null;
+      resoudre(ok);
+    };
+    lancer.onclick = () => fin(true);
+    annuler.onclick = () => fin(false);
+    fermer.onclick = () => fin(false);
+    m.classList.remove('hidden');
+  });
+}
+document.addEventListener('click', (e) => {
+  const cible = e.target && e.target.closest
+    ? e.target.closest(Object.keys(_OUTILS_A_VALIDER).map(i => '#' + i).join(',') + ', .style-option')
+    : null;
+  if (!cible || cible.__lctValide || cible.disabled) return;
+  let def = _OUTILS_A_VALIDER[cible.id];
+  let boutonPrix = cible;
+  if (cible.classList.contains('style-option')) {
+    const nom = (cible.textContent || '').trim();
+    const t = (s) => ((typeof _i18nT === 'function') ? _i18nT(s) : s);
+    def = { titreBrut: t('Style') + ' : ' + nom, texte: 'Repaints the image in this style.', action: 'Apply the style', apercu: 'image' };
+    boutonPrix = document.getElementById('ws-style-btn');
+  }
+  if (!def) return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  _ouvrirLancement(def, boutonPrix).then((ok) => {
+    if (!ok) return;
+    cible.__lctValide = true;
+    try { cible.click(); } finally { cible.__lctValide = false; }
+  });
+}, true);

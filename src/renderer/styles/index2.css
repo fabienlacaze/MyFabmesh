@@ -4693,3 +4693,12 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
   .fen-corps, .modal-card.fen-3d .fen-corps { grid-template-columns: 1fr; }
   .modal-card.fen-3d { height: auto; max-height: 94vh; overflow-y: auto; }
 }
+
+/* FENETRE DE LANCEMENT (2026-09-29) — kit des fenetres : apercu a gauche, une phrase, Annuler / action + prix */
+.modal-card.lct-carte { width: 720px; max-width: 92vw; }
+.modal-card.lct-carte:has(.fen-corps.sans-apercu) { width: 460px; }
+#modal-lancement .fen-corps.sans-apercu { grid-template-columns: 1fr; }
+#modal-lancement .fen-apercu { min-height: 300px; display: flex; align-items: center; justify-content: center; }
+#lct-image { max-width: 100%; max-height: 52vh; object-fit: contain; }
+.lct-texte { margin: 0; font-size: 14px; line-height: 1.45; }
+#modal-lancement .fen-form { justify-content: center; }
