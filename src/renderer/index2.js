@@ -20568,16 +20568,14 @@ setTimeout(() => { try { renderJobsTermines(); renderJobs(); } catch (_) {} }, 0
 // Variant: open a modal to choose the variation AMOUNT (img2img strength) and
 // the number of variants, then re-roll via img2img (a fresh random seed each).
 function _updateVarStrengthHint() {
-  const el = document.getElementById('var-strength-hint');
+  // Un MOT dans l'etiquette plutot qu'un pourcentage et une phrase (fenetre simplifiee, 2026-09-29).
+  const el = document.getElementById('var-strength-val');
   const slider = document.getElementById('var-strength');
   if (!el || !slider) return;
   const v = parseInt(slider.value);
-  let t;
-  if (v <= 40) t = 'Subtle — small tweaks, stays very close to the original.';
-  else if (v <= 60) t = 'Moderate — clear variation, same subject & composition.';
-  else if (v <= 75) t = 'Strong — noticeable changes; the subject may shift a little.';
-  else t = '⚠ Very strong — big re-interpretation; can drift away from the original.';
-  el.textContent = t;
+  const mot = v <= 40 ? 'Subtle' : v <= 60 ? 'Moderate' : v <= 75 ? 'Strong' : 'Very strong';
+  el.textContent = (typeof _i18nT === 'function') ? _i18nT(mot) : mot;
+  el.title = v + '%';
 }
 document.getElementById('ws-variant-btn')?.addEventListener('click', () => {
   const p = state.currentProject;
@@ -20591,12 +20589,8 @@ document.getElementById('ws-variant-btn')?.addEventListener('click', () => {
   _updateVarStrengthHint();
   modal.classList.remove('hidden');
 });
-document.getElementById('var-strength')?.addEventListener('input', (e) => {
-  document.getElementById('var-strength-val').textContent = e.target.value + '%';
+document.getElementById('var-strength')?.addEventListener('input', () => {
   _updateVarStrengthHint();
-});
-document.getElementById('var-count')?.addEventListener('input', (e) => {
-  document.getElementById('var-count-val').textContent = e.target.value;
 });
 document.getElementById('var-tex-mode')?.addEventListener('change', (e) => {
   // Texture/material changes need more denoise than a subtle img2img re-roll —
@@ -20620,7 +20614,8 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   const target = (modal && modal.dataset.targetPath) || editTarget(p);
   if (!target) return;
   const strength = (parseInt(document.getElementById('var-strength').value) || 50) / 100;
-  const count = parseInt(document.getElementById('var-count').value) || 1;
+  // champ numerique : borne 1..8 (une saisie « 100 » facturerait 100 variantes)
+  const count = Math.max(1, Math.min(8, parseInt(document.getElementById('var-count').value) || 1));
   const texMode = !!document.getElementById('var-tex-mode')?.checked;
   const rawTexPrompt = (document.getElementById('var-tex-prompt')?.value || '').trim();
   if (modal) modal.classList.add('hidden');
@@ -27977,11 +27972,12 @@ window._applyCloudFeatureMask = function () {
     // variante normale, elle, passe par /api/modify-image).
     const texModeEl = document.getElementById('var-tex-mode');
     if (texModeEl) {
-      if (cloud) texModeEl.checked = false;
-      const row = texModeEl.closest('label');
-      if (row) row.style.display = cloud ? 'none' : '';
-      const hint = document.getElementById('var-tex-hint');
-      if (hint) hint.style.display = cloud ? 'none' : '';
+      const libre = document.getElementById('var-free-mode');
+      if (cloud && libre) libre.checked = true;
+      const groupe = document.getElementById('var-mode-group');
+      if (groupe) groupe.style.display = cloud ? 'none' : '';
+      const titre = groupe && groupe.previousElementSibling;
+      if (titre && titre.tagName === 'LABEL') titre.style.display = cloud ? 'none' : '';
     }
     // Formats d'export : la conversion GLTF/OBJ/STL/PLY passe par trimesh
     // (Python) et le FBX par Blender — indisponibles en mode Cloud. Le GLB est

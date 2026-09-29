@@ -20,6 +20,21 @@
 
   const I18N = {
     fr: {
+      // ---- Fenetre Variant simplifiee (2026-09-29) ----
+      'What should change?': 'Que faut-il changer ?',
+      'Colours & materials': 'Couleurs et matières',
+      'Same shape': 'Même forme',
+      'Everything': 'Tout',
+      'The shape can change too': 'La forme peut aussi changer',
+      'How different?': 'À quel point différent ?',
+      'Close to the original': "Proche de l'original",
+      'Very different': 'Très différent',
+      '(optional)': '(facultatif)',
+      'e.g. golden armor, spotted coat': 'ex. armure dorée, pelage tacheté',
+      'Subtle': 'Léger',
+      'Moderate': 'Net',
+      'Strong': 'Fort',
+      'Very strong': 'Très fort',
       // ---- Libelles du 27/09/2026 (audit 1.0.36 : sans traduction ecrite) ----
       "Log out": "Se déconnecter",
       "+ Top up": "+ Recharger",

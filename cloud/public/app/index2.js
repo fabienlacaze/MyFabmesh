@@ -3486,16 +3486,14 @@ _ws3dEngineSync();
 // loop img2img (a fresh seed per call) so you get distinct takes.
 // ============================================================
 function _updateVarStrengthHint() {
-  const el = document.getElementById('var-strength-hint');
+  // Un MOT dans l'etiquette plutot qu'un pourcentage et une phrase (fenetre simplifiee, 2026-09-29).
+  const el = document.getElementById('var-strength-val');
   const slider = document.getElementById('var-strength');
   if (!el || !slider) return;
   const v = parseInt(slider.value);
-  let t;
-  if (v <= 40) t = 'Subtle — small tweaks, stays very close to the original.';
-  else if (v <= 60) t = 'Moderate — clear variation, same subject & composition.';
-  else if (v <= 75) t = 'Strong — noticeable changes; the subject may shift a little.';
-  else t = '⚠ Very strong — big re-interpretation; can drift away from the original.';
-  el.textContent = t;
+  const mot = v <= 40 ? 'Subtle' : v <= 60 ? 'Moderate' : v <= 75 ? 'Strong' : 'Very strong';
+  el.textContent = (typeof _i18nT === 'function') ? _i18nT(mot) : mot;
+  el.title = v + '%';
 }
 /* Cout REEL des variantes : prix unitaire de `modify` x nombre demande.
  * Le prix unitaire vient de la grille vivante (window.__LIVE_PRICES, remplie
@@ -3545,19 +3543,17 @@ document.getElementById('ws-variant-btn')?.addEventListener('click', () => {
   _updateVarStrengthHint();
   modal.classList.remove('hidden');
 });
-document.getElementById('var-strength')?.addEventListener('input', (e) => {
-  document.getElementById('var-strength-val').textContent = e.target.value + '%';
+document.getElementById('var-strength')?.addEventListener('input', () => {
   _updateVarStrengthHint();
 });
-document.getElementById('var-count')?.addEventListener('input', (e) => {
-  document.getElementById('var-count-val').textContent = e.target.value;
+document.getElementById('var-count')?.addEventListener('input', () => {
   window._majCoutVariantes();
 });
 // Cocher « garder la forme » change de moteur, donc de tarif : le badge doit
 // suivre immediatement, sinon il annonce le prix de l'autre operation.
-document.getElementById('var-tex-mode')?.addEventListener('change', () => {
+document.querySelectorAll('input[name="var-mode"]').forEach(el => el.addEventListener('change', () => {
   window._majCoutVariantes();
-});
+}));
 const _varClose = () => document.getElementById('variant-modal')?.classList.add('hidden');
 document.getElementById('var-cancel')?.addEventListener('click', _varClose);
 document.getElementById('var-close-x')?.addEventListener('click', _varClose);
@@ -3565,7 +3561,8 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   const p = state.currentProject;
   if (!p || !p.selectedImagePath) { showToast('Pick an image first.', 'error'); return; }
   const strength = (parseInt(document.getElementById('var-strength').value) || 50) / 100;
-  const count = parseInt(document.getElementById('var-count').value) || 1;
+  // champ numerique : borne 1..8 (une saisie « 100 » facturerait 100 variantes)
+  const count = Math.max(1, Math.min(8, parseInt(document.getElementById('var-count').value) || 1));
   // DEUX REGLAGES QUI N'EXISTAIENT QUE SUR LE BUREAU (parite du 2026-09-26).
   //
   // « Guide » oriente la variation dans les DEUX modes ; « garder la forme »
