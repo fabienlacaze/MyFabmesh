@@ -24184,3 +24184,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Paint Mesh / Decals : reprise du maillage deja affiche (plus de rechargement)
 - `_pmModeleDejaCharge` : si le viewer de l'etape Mesh montre deja le maillage (wsModel, meme chemin, non skinne), Paint Mesh en prend
   une copie (geometrie partagee, materiaux clones) au lieu de retelecharger + reanalyser le GLB. Repli : chargement normal.
+
+## 2026-09-30 — Decals : remplace vraiment la matiere (metal / rugosite) + fantome suit l'opacite
+- Cause du decal sombre et brillant : TRELLIS-2 met un metal fort sur la carte metal/rugosite ; la couleur diffuse d'un metal ne se voit pas.
+  Paint Mesh garde maintenant une copie modifiable de cette carte (annulable, restauree par Annuler / Reset) ; le decalque y remet
+  « non metallique, rugosite 0,8 » sous son empreinte. Fantome : opacite = 25 % + 70 % de l'opacite reglee.

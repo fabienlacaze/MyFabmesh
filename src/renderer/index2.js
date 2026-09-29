@@ -14203,7 +14203,7 @@ function _pmSnapshotAll() {
   pmState.canvases.forEach((entry, mesh) => {
     const L = _pmActiveLayer(entry);
     if (!L) return;
-    snap.set(mesh, { mode: pmState.emissiveMode, img: L.ctx.getImageData(0, 0, L.w, L.h) });
+    snap.set(mesh, { mode: pmState.emissiveMode, img: L.ctx.getImageData(0, 0, L.w, L.h), m: entry.metal ? entry.metal.ctx.getImageData(0, 0, entry.metal.w, entry.metal.h) : null });
   });
   return snap;
 }
@@ -14216,6 +14216,7 @@ function _pmApplySnapshot(snap) {
     if (!L) return;
     L.ctx.putImageData(s.img, 0, 0);
     L.texture.needsUpdate = true;
+    if (entry.metal && s.m) { entry.metal.ctx.putImageData(s.m, 0, 0); entry.metal.texture.needsUpdate = true; }
   });
 }
 function _pmHistoryPush() {
@@ -14309,6 +14310,8 @@ async function _pmSetupCanvasAndBind() {
       emissiveMapWas: mat.emissiveMap,
       emissiveWas: mat.emissive?.clone(),
       emissiveIntensityWas: mat.emissiveIntensity,
+      metalMapWas: mat.metalnessMap,
+      roughMapWas: mat.roughnessMap,
     }));
     // Diffuse canvas: starts from current map content.
     const baseTex = mats[0]?.map;
@@ -14350,12 +14353,29 @@ async function _pmSetupCanvasAndBind() {
     // a plain fill handles cheaper than a putImageData.
     let dBaseline = null;
     try { dBaseline = dCtx.getImageData(0, 0, w, h); } catch {}
+    // Carte metal / rugosite (canal G = rugosite, B = metal en glTF) : TRELLIS-2 met souvent un metal fort sur toute la surface ;
+    // un decalque colle sur cette matiere sortait sombre et brillant (le metal n'a pas de couleur diffuse). On garde une copie
+    // modifiable de la carte : le decalque y remet « non metallique, rugosite 0,8 » la ou il est pose.
+    let mLayer = null;
+    try {
+      const mt = mats[0]?.metalnessMap || mats[0]?.roughnessMap, mimg = mt?.image;
+      if (mt && mimg && mimg.width && (!mats[0].metalnessMap || !mats[0].roughnessMap || mats[0].metalnessMap === mats[0].roughnessMap)) {
+        const mw = Math.min(2048, mimg.width), mh = Math.min(2048, mimg.height);
+        const mc = document.createElement('canvas'); mc.width = mw; mc.height = mh;
+        const mx = mc.getContext('2d', { willReadFrequently: true }); mx.drawImage(mimg, 0, 0, mw, mh);
+        const mTex = new THREE.CanvasTexture(mc);
+        mTex.flipY = mt.flipY; mTex.wrapS = mt.wrapS; mTex.wrapT = mt.wrapT; mTex.name = mt.name || 'T_metal_rough';
+        mLayer = { canvas: mc, ctx: mx, texture: mTex, w: mw, h: mh, baseline: mx.getImageData(0, 0, mw, mh) };
+      }
+    } catch (_) { mLayer = null; }
     pmState.canvases.set(entry.mesh, {
       diffuse:  { canvas: dCanvas, ctx: dCtx, texture: dTex, w, h, baseline: dBaseline },
       emissive: { canvas: eCanvas, ctx: eCtx, texture: eTex, w, h },
+      metal: mLayer,
     });
     mats.forEach((mat) => {
       mat.map = dTex;
+      if (mLayer) { mat.metalnessMap = mLayer.texture; mat.roughnessMap = mLayer.texture; }
       mat.emissiveMap = eTex;
       mat.emissive = new THREE.Color(0xffffff);
       mat.emissiveIntensity = 1.0;
@@ -14370,8 +14390,9 @@ async function _pmSetupCanvasAndBind() {
 function _pmRestoreMaterials() {
   pmState.meshes.forEach((entry) => {
     if (!entry.prev) return;
-    entry.prev.forEach(({ mat, mapWas, emissiveMapWas, emissiveWas, emissiveIntensityWas }) => {
+    entry.prev.forEach(({ mat, mapWas, emissiveMapWas, emissiveWas, emissiveIntensityWas, metalMapWas, roughMapWas }) => {
       mat.map = mapWas;
+      mat.metalnessMap = metalMapWas; mat.roughnessMap = roughMapWas;
       mat.emissiveMap = emissiveMapWas;
       if (emissiveWas) mat.emissive = emissiveWas;
       if (typeof emissiveIntensityWas === 'number') mat.emissiveIntensity = emissiveIntensityWas;
@@ -14679,7 +14700,7 @@ function _pmDecalApercu(clientX, clientY) {
     }
     const ap = _pmDecalApercuMesh;
     if (ap.parent !== pmState.scene) pmState.scene.add(ap);
-    ap.material.map = pmState.decal.tex;
+    ap.material.map = pmState.decal.tex; ap.material.opacity = 0.25 + 0.7 * pmState.opacity;
     ap.matrix.makeBasis(c.r.clone().multiplyScalar(c.w), c.u.clone().multiplyScalar(c.h), c.n);
     ap.matrix.setPosition(c.p.clone().addScaledVector(c.n, c.w * 0.003));
     ap.matrixAutoUpdate = false; ap.matrixWorldNeedsUpdate = true; ap.visible = true;
@@ -14708,7 +14729,20 @@ async function _pmDecalPoser(clientX, clientY) {
     else decal.faceAvant = false;
     const im = L.ctx.getImageData(0, 0, L.w, L.h);
     const m = cuireDecals({ pos, nor, uv: g.attributes.uv.array, index: g.index ? g.index.array : null, atlas: { data: im.data, w: L.w, h: L.h, flipY: L.texture.flipY } }, [decal]);
-    if (m) { L.ctx.putImageData(im, 0, 0); L.texture.needsUpdate = true; total += m; }
+    if (m) {
+      L.ctx.putImageData(im, 0, 0); L.texture.needsUpdate = true; total += m;
+      if (ent.metal && !pmState.emissiveMode) {
+        if (!pmState.decal.imgMetal) {
+          const src = pmState.decal.img.data, d2 = new Uint8ClampedArray(src.length);
+          for (let q = 0; q < src.length; q += 4) { d2[q] = 0; d2[q + 1] = 205; d2[q + 2] = 0; d2[q + 3] = src[q + 3]; }
+          pmState.decal.imgMetal = { data: d2, w: pmState.decal.img.w, h: pmState.decal.img.h };
+        }
+        const M = ent.metal, mi = M.ctx.getImageData(0, 0, M.w, M.h);
+        cuireDecals({ pos, nor, uv: g.attributes.uv.array, index: g.index ? g.index.array : null, atlas: { data: mi.data, w: M.w, h: M.h, flipY: M.texture.flipY } },
+          [{ ...decal, img: pmState.decal.imgMetal }]);
+        M.ctx.putImageData(mi, 0, 0); M.texture.needsUpdate = true;
+      }
+    }
   }
   if (total) { _pmHistoryPush(); if (st) st.textContent = 'Decal placed. Ctrl+Z to undo.'; }
   else showToast('Decal: nothing to paint here (try a larger size or untick "Facing only").', 'info', 3500);
@@ -14787,6 +14821,7 @@ function openPaintMesh(opts = {}) {
         L.ctx.fillRect(0, 0, L.w, L.h);
         L.texture.needsUpdate = true;
       } else {
+        if (entryAll.metal) { entryAll.metal.ctx.putImageData(entryAll.metal.baseline, 0, 0); entryAll.metal.texture.needsUpdate = true; }
         const L = entryAll.diffuse;
         const orig = entryAll.diffuse && pmState.meshes.find((e) => e.mesh === mesh)?.prev?.[0]?.mapWas?.image;
         L.ctx.clearRect(0, 0, L.w, L.h);
