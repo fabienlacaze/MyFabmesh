@@ -12076,7 +12076,7 @@ function _mtRefreshResetBtn() {
   const btn = document.getElementById('mt-reset-current');
   if (!btn) return;
   const n = _mtCurrentTriCount();
-  btn.textContent = n ? `↺ Actuel : ${n.toLocaleString('fr-FR')}` : '↺ Actuel';
+  btn.textContent = n ? `↺ ${_i18nT('Current')} : ${n.toLocaleString()}` : '↺ ' + _i18nT('Current');
   btn.disabled = !n;
 }
 // Center any "pivot" slider (Triangle count) on the mesh's current count and
@@ -12320,7 +12320,9 @@ document.getElementById('ws-mesh-smooth-btn')?.addEventListener('click', () => o
 document.getElementById('ws-mesh-decimate-btn')?.addEventListener('click', () => openMeshToolModal('triangle_count'));
 // Subdivide is merged into Triangle count (drag above the current count) —
 // hide the standalone button.
-(() => { const b = document.getElementById('ws-mesh-subdivide-btn'); if (b) b.style.display = 'none'; })();
+// SUBDIVIDE rendu (2026-09-29, parite web) : il etait masque ici (Triangle count sait aussi augmenter),
+// et le bouton Subdivide de la visionneuse 3D, qui le declenche, ne faisait donc RIEN.
+document.getElementById('ws-mesh-subdivide-btn')?.addEventListener('click', () => openMeshToolModal('subdivide'));
 document.getElementById('ws-mesh-fixnormals-btn')?.addEventListener('click', () => openMeshToolModal('fix_normals'));
 document.getElementById('ws-mesh-fillholes-btn')?.addEventListener('click', () => openMeshToolModal('fill_holes'));
 document.getElementById('ws-mesh-center-btn')?.addEventListener('click', () => openMeshToolModal('set_pivot'));

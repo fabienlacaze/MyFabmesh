@@ -10273,7 +10273,7 @@ const MESH_TOOL_SCHEMAS = {
     supportsClientApply: true,
     fitSliderToMeshTris: 'target_faces',
     params: [
-      { id: 'target_faces', label: 'Target triangles', type: 'range', min: 200, max: 1_000_000, step: 100, default: 15000 },
+      { id: 'target_faces', label: 'Target triangles', type: 'range', min: 200, max: 1_000_000, step: 100, default: 15000, resetToCurrent: true },
     ],
     build: (vals) => [String(vals.target_faces)],
     preview: (geom, vals) => _jsDecimate(geom, Math.max(200, vals.target_faces | 0)),
@@ -10954,6 +10954,7 @@ function _mtLoadMesh(meshPath) {
         // If the schema asked the slider to fit the mesh, rewrite its
         // max + value (capped to the schema's hard max) so the user
         // opens on a no-op decimation rather than 15K-tris.
+        _mtRefreshResetBtn();
         const fitId = mtState.schema?.fitSliderToMeshTris;
         if (fitId) {
           const input = document.querySelector(`#mt-body [data-param-id="${fitId}"]`);
@@ -11168,6 +11169,23 @@ function openMeshToolModal(toolName) {
       }
       input.addEventListener('change', () => _mtSchedulePreview());
       if (!input.__dejaPlace) wrap.appendChild(input);
+      // « ↺ Current » : revenir au nombre de triangles du maillage (parite bureau, 2026-09-29)
+      if (spec.resetToCurrent) {
+        const rb = document.createElement('button');
+        rb.id = 'mt-reset-current';
+        rb.type = 'button';
+        rb.className = 'ghost-btn fen-petit';
+        rb.textContent = '↺ ' + _i18nT('Current');
+        rb.onclick = () => {
+          const n = _mtCurrentTriCount();
+          if (!n) { showToast(_i18nT('Mesh not loaded yet'), 'info', 1200); return; }
+          if (n > Number(input.max)) input.max = String(n);
+          input.value = String(n);
+          _mtSetLabVal(labVal, n);
+          _mtSchedulePreview();
+        };
+        wrap.appendChild(rb);
+      }
       // Graine aleatoire a l'ouverture + bouton « nouvelle variation », comme
       // sur le bureau : sans lui, deux ouvertures donnaient la MEME variante.
       if (spec.randomize) {
@@ -28391,6 +28409,24 @@ _synchroChoix();
 // KIT DES FENETRES (2026-09-29) — habille un reglage de « Mesh tool » comme les autres fenetres :
 // case a cocher = option d'une ligne (.opt-ligne) ; liste de 2 a 4 choix = boutons (.choix) qui
 // pilotent la liste, cachee (le code lit toujours sa valeur). Identique bureau / web.
+// « ↺ Current » de Triangle count (2026-09-29, parite bureau) : nombre de triangles du maillage charge.
+function _mtCurrentTriCount() {
+  let n = 0;
+  for (const e of (mtState.origGeoms || [])) {
+    const g = e.originalGeom;
+    if (!g) continue;
+    n += g.index ? g.index.count / 3 : (g.attributes?.position ? g.attributes.position.count / 3 : 0);
+  }
+  return Math.round(n);
+}
+function _mtRefreshResetBtn() {
+  const btn = document.getElementById('mt-reset-current');
+  if (!btn) return;
+  const n = _mtCurrentTriCount();
+  btn.textContent = n ? `↺ ${_i18nT('Current')} : ${n.toLocaleString()}` : '↺ ' + _i18nT('Current');
+  btn.disabled = !n;
+}
+
 function _mtHabiller(wrap, lab, input, spec) {
   if (spec.type === 'checkbox') {
     const ligne = document.createElement('label');
