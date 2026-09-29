@@ -451,6 +451,8 @@ _INPAINT_APRES = """    from concurrent.futures import ThreadPoolExecutor as _Fi
         _mra = cv2.inpaint(np.ascontiguousarray(np.dstack([metallic, roughness, alpha])), mask_inv, 1, cv2.INPAINT_TELEA)
         base_color = _couleur.result()
     metallic, roughness, alpha = _mra[..., 0:1], _mra[..., 1:2], _mra[..., 2:3]"""
+# (2026-09-29) Limiter TELEA a une bande de 32 px autour des ilots a ete essaye : sur de vrais
+# atlas 4K, 100 % des texels vides sont a moins de 32 px d'un ilot (ilots serres) : aucun gain.
 _TO_GLB_ACCELERE = False
 
 
@@ -607,6 +609,7 @@ def generate(
     tex_steps: int = 0,           # 0 = garder le defaut d'environnement
     tris_exact: bool = False,     # « Max triangles » : nombre tenu a +/- 5 %
     smooth: bool = False,         # filtre bilateral sur l'atlas (case « Texture smooth »)
+    ultra_hd: bool = False,       # Ultra 8K : atlas couleur x2 AVANT la serialisation (voir plus bas)
 ) -> bytes:
     """Run TRELLIS-2 inference + GLB export. Returns the GLB bytes
     (caller pushes to R2). When `back_img` is provided, runs the
@@ -744,6 +747,7 @@ def generate(
     else:
         glb_obj = _exporter(o_voxel_obj.vertices, o_voxel_obj.faces, decimation_target, True)
     print(f'[mesh] GLB export dt={time.time()-t_glb:.1f}s', flush=True)
+    t_fin = time.time()
 
     # Couleurs accordees sur l'IMAGE SOURCE (noyau partage) plutot qu'un
     # eclaircissement fixe ; repli sur l'eclaircissement adouci si rien n'a
@@ -785,9 +789,35 @@ def generate(
         print(f'[mesh] faces livrees : {DERNIER_NB_FACES} (cible {decimation_target})', flush=True)
     except Exception:
         DERNIER_NB_FACES = None
+    t_couleurs = time.time() - t_fin
+
+    # ULTRA 8K AVANT LA SERIALISATION (2026-09-29). Avant, l'atlas etait agrandi APRES : le GLB
+    # (500 K faces, textures WebP) etait serialise, recharge par trimesh, puis reserialise en
+    # entier (8K : 39 s dont ~20 s de ce double passage). Meme agrandissement, fait une fois.
+    t_8k = 0.0
+    if ultra_hd:
+        try:
+            from modal_app._esrgan import affuter_atlas
+            _t = time.time()
+            _tailles = []
+            for _g in (list(glb_obj.geometry.values()) if hasattr(glb_obj, 'geometry') else [glb_obj]):
+                _mat = getattr(getattr(_g, 'visual', None), 'material', None)
+                _tex = getattr(_mat, 'baseColorTexture', None) if _mat else None
+                if _tex is None or max(_tex.size) * 2 > 8192:
+                    continue
+                _mat.baseColorTexture = affuter_atlas(_tex, echelle_sortie=2)
+                _tailles.append(f"{_tex.size[0]}->{_mat.baseColorTexture.size[0]}")
+            t_8k = time.time() - _t
+            if _tailles:
+                print(f"[mesh] ultra 8K : atlas {', '.join(_tailles)} en {t_8k:.1f}s (avant serialisation)", flush=True)
+        except Exception as _e:
+            print(f'[mesh] ultra 8K ignore : {_e}', flush=True)
+
+    _t = time.time()
     buf = io.BytesIO()
     glb_obj.export(buf, file_type='glb', extension_webp=True)
     glb_bytes = buf.getvalue()
+    print(f'[mesh] finitions : couleurs/metal/alpha {t_couleurs:.1f}s, serialisation {time.time() - _t:.1f}s', flush=True)
 
     # EU AI Act art. 50 metadata — required by EU Regulation 2024/1689,
     # applicable from 2026-08-02. Marks the GLB as AI-generated. Same

@@ -2743,6 +2743,10 @@ class MyFabmeshMesh:
                     print(f"[mesh] back image fetch failed ({e}) — "
                           f"falling back to single-view", flush=True)
 
+            # Ultra 8K fait DANS generate (avant la serialisation) sauf si une etape retouche
+            # la texture apres (refine, face fix) : elle doit alors passer avant l'agrandissement.
+            ultra_dans_generate = bool(payload.get("ultra_hd")) and not payload.get("refine") \
+                and not payload.get("face_fix")
             glb_bytes = generate(
                 self.pipeline,
                 self.o_voxel,
@@ -2762,6 +2766,9 @@ class MyFabmeshMesh:
                 # Le drapeau etait transmis depuis toujours et n avait aucun
                 # lecteur — la case etait donc desactivee cote web.
                 smooth=bool(payload.get("smooth")),
+                # Ultra 8K fait AVANT la serialisation (une seule ecriture du GLB) quand
+                # aucune etape ne retouche la texture ensuite (refine, face fix).
+                ultra_hd=ultra_dans_generate,
             )
 
             # AFFINAGE DE L ATLAS (case « Detail refine »). Il exige le
@@ -2824,7 +2831,7 @@ class MyFabmeshMesh:
             # le user). Fait ICI plutot que par /mesh_enhance_tex : cette route
             # renvoie le GLB en base64 dans du JSON, que le worker ne peut pas
             # decoder au-dela de ~30 Mo (limite memoire de 128 Mo). Plafond 8192.
-            if payload.get("ultra_hd"):
+            if payload.get("ultra_hd") and not ultra_dans_generate:
                 try:
                     import trimesh as _tm
                     from modal_app._esrgan import affuter_atlas
@@ -2900,6 +2907,7 @@ class MyFabmeshMesh:
         decimation: int = 500_000,
         texture_size: int = 1024,
         smooth: bool = False,
+        ultra_hd: bool = False,
     ) -> bytes:
         """Batch-friendly TRELLIS-2 inference: image bytes in, GLB bytes out.
 
@@ -2926,6 +2934,7 @@ class MyFabmeshMesh:
             # branchant « Texture smooth » sur les deux appels de generate(),
             # levait NameError a CHAQUE appel du lot d'entrainement.
             smooth=bool(smooth),
+            ultra_hd=bool(ultra_hd),
         )
         _sauver_reglages_gpu()              # les lots enrichissent aussi les caches GPU
         try:
