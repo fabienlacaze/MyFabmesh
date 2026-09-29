@@ -24199,3 +24199,9 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - build/ecrire-version.mjs : 400 derniers commits, chacun avec la version package.json en vigueur a son commit ; popup « Latest changes »
   groupee par version (repliable, la plus recente ouverte) puis par jour. CSS bureau + web.
 - Decals : le selecteur de fichier ne s'ouvre plus tout seul (ni au choix de l'outil, ni au clic sans image : message a la place).
+
+## 2026-09-30 — Numero de build a gauche de chaque ligne du journal ; transfert de peau (gros rigs) teste en local
+- Journal : « #2852 » (nombre de commits jusqu'a celui-ci) a gauche de chaque ligne, bureau + web.
+- modal_app/transfert_peau.py (NON branche au rig) : banc local sur build/_sk_test_rigged.glb -> copie reduite 20 K, transfert de peau vers un
+  maillage 4x plus dense, GLB relu par three.js : meme boite, 140 os, rotation d'un os deplace la meme proportion de sommets (48 %),
+  binaire compacte (orphelins retires).

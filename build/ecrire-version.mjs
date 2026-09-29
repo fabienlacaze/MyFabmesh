@@ -12,6 +12,7 @@ const version = JSON.parse(readFileSync(join(racine, 'package.json'), 'utf8')).v
 const commits = parseInt(sh('git rev-list --count HEAD'), 10) || 0;
 const sale = !!sh('git status --porcelain -- src cloud/public cloud/src modal_app scripts docs');
 // Journal groupe par version : chaque commit porte le numero de version (package.json) en vigueur A CE MOMENT.
+const commits_total = parseInt(sh('git rev-list --count HEAD'), 10) || 0;
 const journal = (() => {
   try {
     const git = (args) => execFileSync('git', args, { cwd: racine, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
@@ -26,7 +27,8 @@ const journal = (() => {
       commits[i].v = courante;
     }
     commits[0].v = version;    // le plus recent : version actuelle du fichier de travail
-    return commits.map((c) => ({ d: c.d, t: c.t, v: c.v }));
+    // numero de build d'un commit = nombre de commits jusqu'a lui (le plus recent = `commits` de l'en-tete)
+    return commits.map((c, i) => ({ n: commits_total - i, d: c.d, t: c.t, v: c.v }));
   } catch (_) { return []; }
 })();
 const info = { version, build: commits + (sale ? 1 : 0), hash: sh('git rev-parse --short HEAD'), sale, date: new Date().toISOString().slice(0, 16).replace('T', ' '), journal };
