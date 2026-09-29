@@ -47,7 +47,12 @@ function construireFenetre() {
     #modal-poids-peau .pp-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   </style>
   <div class="modal-card fen-3d">
-    <div class="fen-tete"><h2>&#127912; ${esc(T('Skin weights'))}</h2><button type="button" class="settings-close-x" id="pp-close" title="Close">&#10005;</button></div>
+    <div class="fen-tete"><h2>&#127912; ${esc(T('Skin weights'))}</h2>
+      <div style="display:flex;gap:6px;align-items:center;margin-left:auto;margin-right:12px;">
+        <button type="button" class="ghost-btn fen-petit" id="pp-annuler" disabled title="${esc(T('Undo'))} (Ctrl+Z)">&#8630; ${esc(T('Undo'))}</button>
+        <button type="button" class="ghost-btn fen-petit" id="pp-refaire" disabled title="${esc(T('Redo'))} (Ctrl+Y)">&#8631; ${esc(T('Redo'))}</button>
+      </div>
+      <button type="button" class="settings-close-x" id="pp-close" title="Close">&#10005;</button></div>
     <p class="modal-subtitle">${esc(T('Colors show what each bone moves. Paint to change it.'))}</p>
     <div class="fen-corps">
       <div class="fen-apercu" id="pp-vue"><canvas id="pp-canvas" style="width:100%;height:100%;display:block;"></canvas>
@@ -92,7 +97,6 @@ function construireFenetre() {
         <div class="pp-actions">
           <button type="button" class="ghost-btn fen-petit" id="pp-tester">&#9654; ${esc(T('Test the bone'))}</button>
           <button type="button" class="ghost-btn fen-petit active" id="pp-squelette">&#129460; ${esc(T('Skeleton'))}</button>
-          <button type="button" class="ghost-btn fen-petit" id="pp-annuler" disabled>&#8630; ${esc(T('Undo'))}</button>
         </div>
         <span class="fen-note">${esc(T('Left drag = paint · right drag = rotate · middle drag or Shift + right drag = move · wheel = zoom'))}</span>
       </div>
@@ -339,7 +343,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
         if (viser(d, i, osChoisi, etendre ? 1 : 0, 1 - 0.7 * Math.sqrt(best / D2))) { salir(d, i); nb++; }
       }
     }
-    if (trait.avant.size) { pile.push(trait.avant); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
+    if (trait.avant.size) empiler(trait.avant);
     trait = null;
     etat.textContent = `${nb.toLocaleString()} ${T('vertices changed')}`;
   }
@@ -386,7 +390,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
         if (change) { salir(d, i); nb++; }
       }
     }
-    if (trait.avant.size) { pile.push(trait.avant); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
+    if (trait.avant.size) empiler(trait.avant);
     trait = null;
     etat.textContent = `${nb.toLocaleString()} ${T('vertices changed')}`;
   };
@@ -408,18 +412,39 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   canvas.addEventListener('pointerleave', () => { dernier = null; anneau.visible = false; });
   const finTrait = () => {
     if (!trait) return;
-    if (trait.avant.size) { pile.push(trait.avant); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
+    if (trait.avant.size) empiler(trait.avant);
     trait = null;
   };
   canvas.addEventListener('pointerup', finTrait); canvas.addEventListener('pointercancel', finTrait);
-  $('pp-annuler').onclick = () => {
-    const av = pile.pop(); if (!av) return;
+  // annuler / refaire : « echanger » applique un etat et rend l'etat inverse (Ctrl+Z, Ctrl+Y ou Ctrl+Maj+Z)
+  const refaire = [];
+  function majHistorique() { $('pp-annuler').disabled = !pile.length; $('pp-refaire').disabled = !refaire.length; }
+  function empiler(av) { pile.push(av); refaire.length = 0; if (pile.length > 40) pile.shift(); majHistorique(); }
+  function echanger(av) {
+    const inverse = new Map();
     for (const [d, m] of av) {
-      const I = d.idx.array, W = d.wts.array;
-      for (const [i, v] of m) { for (let c = 0; c < 4; c++) { I[4 * i + c] = v[c]; W[4 * i + c] = v[4 + c]; } salir(d, i); }
+      const I = d.idx.array, W = d.wts.array, mi = new Map();
+      for (const [i, v] of m) {
+        const o = 4 * i;
+        mi.set(i, [I[o], I[o + 1], I[o + 2], I[o + 3], W[o], W[o + 1], W[o + 2], W[o + 3]]);
+        for (let c = 0; c < 4; c++) { I[o + c] = v[c]; W[o + c] = v[4 + c]; }
+        salir(d, i);
+      }
+      inverse.set(d, mi);
     }
-    $('pp-annuler').disabled = !pile.length;
+    return inverse;
+  }
+  const annuler = () => { const av = pile.pop(); if (!av) return; refaire.push(echanger(av)); majHistorique(); };
+  const rejouer = () => { const av = refaire.pop(); if (!av) return; pile.push(echanger(av)); majHistorique(); };
+  $('pp-annuler').onclick = annuler;
+  $('pp-refaire').onclick = rejouer;
+  const touches = (ev) => {
+    if (fen.classList.contains('hidden') || !(ev.ctrlKey || ev.metaKey)) return;
+    const k = ev.key.toLowerCase();
+    if (k === 'z' && !ev.shiftKey) { ev.preventDefault(); annuler(); }
+    else if (k === 'y' || (k === 'z' && ev.shiftKey)) { ev.preventDefault(); rejouer(); }
   };
+  document.addEventListener('keydown', touches);
 
   // --- cercle du pinceau : suit le curseur sur la surface, a la taille reelle du pinceau
   const pts = []; for (let k = 0; k < 64; k++) pts.push(new THREE.Vector3(Math.cos(k / 64 * 2 * Math.PI), Math.sin(k / 64 * 2 * Math.PI), 0));
@@ -530,7 +555,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
 
   // --- fermeture / enregistrement
   const fermer = () => {
-    vivant = false; ro.disconnect(); ctrl.dispose(); renderer.dispose();
+    vivant = false; document.removeEventListener('keydown', touches); ro.disconnect(); ctrl.dispose(); renderer.dispose();
     donnees.forEach((d) => { d.pointage.geometry.dispose(); });
     geoSq.dispose(); articulation.geometry.dispose(); articulationSurvol.geometry.dispose(); anneau.geometry.dispose();
     fen.classList.add('hidden');
