@@ -14384,6 +14384,19 @@ function _pmRestoreMaterials() {
 // rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
 // chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
 let _pmJeton = 0;
+function _pmModeleDejaCharge(chemin) {
+  try {
+    const p = state.currentProject;
+    if (typeof wsModel === 'undefined' || !wsModel || !wsModel.userData?.__wsMesh || !wsScene || wsModel.parent !== wsScene) return null;
+    if (!p || !chemin || p.previewMeshPath !== chemin) return null;
+    let skinne = false; wsModel.traverse((c) => { if (c.isSkinnedMesh) skinne = true; });
+    if (skinne) return null;
+    const c = wsModel.clone(true);
+    c.position.set(0, 0, 0);
+    c.traverse((o) => { if (o.isMesh && o.material) o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone(); });
+    return c;
+  } catch (_) { return null; }
+}
 async function _pmLoadMesh(meshPath) {
   const jeton = ++_pmJeton;
   if (pmState.origModel) {
@@ -14397,11 +14410,7 @@ async function _pmLoadMesh(meshPath) {
     ? meshPath
     : _toFileUrl(meshPath);
   try {
-    const r = await fetch(url, { credentials: 'omit' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const buf = await r.arrayBuffer();
-    const loader = new GLTFLoader();
-    loader.parse(buf, '', async (gltf) => {
+    const surCharge = async (gltf) => {
       if (jeton !== _pmJeton) return;   // un chargement plus recent a ete demande
       pmState.origModel = gltf.scene;
       pmState.scene.add(pmState.origModel);
@@ -14424,7 +14433,15 @@ async function _pmLoadMesh(meshPath) {
       const status = document.getElementById('pm-status');
       if (status) status.textContent = 'Ready — left-click to paint, right-click to orbit.';
       try { setViewerLoading('pm-viewport-wrap', false); } catch (_) {}
-    });
+    };
+    // Maillage DEJA affiche dans le viewer de l'etape Mesh : on en prend une copie au lieu de le retelecharger et de le
+    // reanalyser (WebP 4K/8K = plusieurs secondes). Geometrie partagee, materiaux clones : Annuler ne touche pas l'original.
+    const dejaLa = _pmModeleDejaCharge(meshPath);
+    if (dejaLa) { await surCharge({ scene: dejaLa }); return; }
+    const r = await fetch(url, { credentials: 'omit' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const buf = await r.arrayBuffer();
+    new GLTFLoader().parse(buf, '', surCharge);
   } catch (e) {
     try { setViewerLoading('pm-viewport-wrap', false); } catch (_) {}
     console.error('[paint-mesh] load failed:', e);

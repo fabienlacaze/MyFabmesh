@@ -24180,3 +24180,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Decals : fantome plus opaque, prix, ecran de chargement
 - Fantome d'apercu 40 % -> 85 % (« beaucoup trop transparent »). Prix en credits sur « Save new version » (pastille via ACTION_COSTS
   'pm-save', manual_tool). Chargement du maillage : setViewerLoading('pm-viewport-wrap') comme les viewers mesh / rig.
+
+## 2026-09-30 — Paint Mesh / Decals : reprise du maillage deja affiche (plus de rechargement)
+- `_pmModeleDejaCharge` : si le viewer de l'etape Mesh montre deja le maillage (wsModel, meme chemin, non skinne), Paint Mesh en prend
+  une copie (geometrie partagee, materiaux clones) au lieu de retelecharger + reanalyser le GLB. Repli : chargement normal.
