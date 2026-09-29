@@ -499,12 +499,20 @@ qui compile ses noyaux numba à l'import (**88 s** par conteneur neuf).
 `_mesh.prep_image`, `_rectify`, `_tpose`, `_retexture` ; rembg reste pour
 `reshape/mesh_inpaint.py` et `_mvadapter.py`.
 
-**Panneau « Cloud services ».** `warm`/`cold` y est ESTIMÉ (travaux récents
-de l'utilisateur, `_meta/last_warm_*`), pas lu sur les conteneurs. Image edit,
-Back view et T-pose partagent le conteneur `MyFabmeshBackview` : un seul état
-pour les trois. Lire l'état réel : `get_current_stats().num_total_runners`
-fonctionne pour une fonction (`mesh_router`, `rig_mesh`) ; pour une classe,
-`modal.Function.from_name` refuse `Classe.*` — piste non aboutie.
+**Panneau « Cloud services » : ÉTAT RÉEL** (depuis le 2026-09-29, exigence
+user). `/api/modal-status` interroge la petite application À PART
+`myfabmesh-etat` (`modal_app/etat_services.py`, CPU, clé partagée), qui lit les
+compteurs de Modal : `get_current_stats()` (conteneurs, en cours, en attente,
+place libre). Pour une classe : `modal.Cls.from_name(app, Classe)().<méthode>
+.get_current_stats()` (`Function.from_name('Classe.*')` est refusé). États :
+`busy` (calcul en cours), `warm` (conteneur prêt, place libre), `starting`
+(conteneur ou requête mais rien de prêt), `cold`, `absent` (application non
+déployée, ex. multi-vues). Mesuré : pendant le boot attente=1 / place=0. Image
+edit, Back view et T-pose = un seul conteneur `MyFabmeshBackview`. L'ancienne
+estimation (`_meta/last_warm_*`) ne sert plus que de repli (`reel` absent).
+Déployer cette application ne touche pas les instantanés de `myfabmesh-cloud` :
+`python -m modal deploy modal_app/etat_services.py`. URL déduite de
+`MODAL_MESH_START_URL` (ou `MODAL_ETAT_URL`).
 
 **Lire les journaux Modal.**
 ```bash

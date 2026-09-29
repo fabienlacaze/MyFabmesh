@@ -93,6 +93,8 @@ export interface Env {
   // Setting BOTH activates Modal-for-mesh; leaving either unset falls back
   // to the Replicate Cog.
   MODAL_MESH_START_URL?: string;
+  /** Etat REEL des conteneurs (application myfabmesh-etat, modal_app/etat_services.py). Par defaut deduite de MODAL_MESH_START_URL. */
+  MODAL_ETAT_URL?: string;
   MODAL_MESH_STATUS_URL?: string;
   MODAL_MESH_URL?: string;  // legacy sync url — kept so old deploys don't break
   // Puppeteer auto-rigging on uploaded GLB. Sync endpoint: takes a mesh
@@ -13330,7 +13332,7 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
     status('_meta/last_warm_mesh_segment.txt', 60, 240, lastByContainer.mesh_segment ?? null),
     status('_meta/last_warm_fbx_retarget.txt', 45, 180, lastByContainer.fbx_retarget ?? null),
   ]);
-  const etats: Record<string, { warm: boolean; busy?: boolean }> = {
+  const etats: Record<string, { warm: boolean; busy?: boolean; starting?: boolean; etat?: string; reel?: boolean }> = {
     image_op, text2image, back_view, tpose, mesh, rig, anim, mvadapter, mesh_segment, fbx_retarget,
   };
   for (const k of occupes) if (etats[k]) { etats[k].warm = true; etats[k].busy = true; }
@@ -13342,10 +13344,49 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
     const occupe = memeServeur.some((k) => etats[k]?.busy);
     for (const k of memeServeur) { etats[k].warm = true; if (occupe) etats[k].busy = true; }
   }
+  /* ETAT REEL (2026-09-29, demande du user). Tout ce qui precede est une ESTIMATION (heure du
+   * dernier appel) : le panneau annoncait « warm » un conteneur qui mettait encore 3 min a
+   * demarrer. On lit maintenant les compteurs de Modal (modal_app/etat_services.py) ; l'estimation
+   * ne sert plus que si Modal ne repond pas (reel absent ou false). */
+  const reel = await _etatReelModal(env);
+  if (reel) {
+    const source: Record<string, string> = {
+      text2image: 'text2image', image_op: 'image', back_view: 'image', tpose: 'image', mesh: 'mesh',
+      mvadapter: 'mvadapter', mesh_segment: 'mesh_segment', rig: 'rig', anim: 'anim', fbx_retarget: 'fbx_retarget',
+    };
+    for (const [k, src] of Object.entries(source)) {
+      const e = reel[src]?.etat;
+      if (!etats[k] || !e || !['cold', 'starting', 'warm', 'busy', 'absent'].includes(e)) continue;
+      etats[k] = { ...etats[k], warm: e === 'warm' || e === 'busy', busy: e === 'busy',
+                   starting: e === 'starting', etat: e, reel: true };
+    }
+  }
   return json({
     ...etats,
     cold_threshold_seconds: Math.floor(COLD_THRESHOLD_MS / 1000),
   });
+}
+
+/** Compteurs REELS des conteneurs Modal (application myfabmesh-etat, modal_app/etat_services.py) ;
+ *  null si indisponible. URL : MODAL_ETAT_URL, sinon deduite de celle du routeur maillage (meme
+ *  espace Modal) : …--myfabmesh-cloud-mesh-router.modal.run -> …--myfabmesh-etat-etat-services.modal.run */
+async function _etatReelModal(env: Env): Promise<Record<string, { etat?: string }> | null> {
+  const url = env.MODAL_ETAT_URL
+    ?? env.MODAL_MESH_START_URL?.replace(/^(https:\/\/[^/]*?--)myfabmesh-cloud-mesh-router(\.modal\.run).*$/,
+                                         '$1myfabmesh-etat-etat-services$2');
+  if (!url || url === env.MODAL_MESH_START_URL) return null;
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '' }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!r.ok) return null;
+    return await r.json() as Record<string, { etat?: string }>;
+  } catch {
+    return null;
+  }
 }
 
 /** POST /api/upload-image — body: { dataUrl, suffix? }. Decodes a

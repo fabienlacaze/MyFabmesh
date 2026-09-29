@@ -560,16 +560,27 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
             { key: 'fbx_retarget', label: 'FBX retarget',     desc: 'Import an animation onto your rig' },
           ];
           let coldCount = 0;
+          let startingCount = 0;
           let allUnknown = true;
           const rows = SERVICES.map(s => {
             const c = C[s.key];
             const warm = c?.warm;
             if (warm === true || warm === false) allUnknown = false;
             let dot, color, statusText;
-            if (c?.busy) {
+            if (c?.etat === 'absent') {
+              // Service non deploye sur le cloud (multi-vues au 2026-09-29) : ni froid ni chaud.
+              dot = '#555'; color = 'var(--text-2)';
+              statusText = 'unavailable';
+            } else if (c?.busy) {
               // Un travail y tourne en ce moment (tous comptes confondus).
               dot = '#5ac8fa'; color = '#5ac8fa';
               statusText = 'running';
+            } else if (c?.starting) {
+              // ETAT REEL (2026-09-29) : un conteneur demarre mais n'est pas encore pret.
+              // Avant, le panneau le disait deja « warm » des l'envoi du reveil.
+              dot = '#ffd60a'; color = '#ffd60a';
+              startingCount++;
+              statusText = 'starting';
             } else if (warm === true) {
               dot = '#4cd964'; color = '#4cd964';
               statusText = 'warm';
@@ -589,12 +600,15 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
               </div>`;
           }).join('');
           if (list) list.innerHTML = rows;
+          window.__modalServicesDemarrage = startingCount;
           // Hide pill when all warm OR all unknown (don't surface noise
           // before we have any data).
-          if (coldCount === 0) {
+          if (coldCount === 0 && startingCount === 0) {
             wrap.style.display = 'none';
           } else {
-            if (txt) txt.textContent = `Server warming up${coldCount > 1 ? ` (${coldCount} services)` : ''}`;
+            if (txt) txt.textContent = startingCount > 0
+              ? `Server starting${startingCount > 1 ? ` (${startingCount} services)` : ''}`
+              : `Server warming up${coldCount > 1 ? ` (${coldCount} services)` : ''}`;
             wrap.style.display = 'inline-flex';
           }
         }
@@ -613,12 +627,22 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   }
 
   function installModalStatusPoll() {
-    _pollModalStatus();
-    if (_modalStatusTimer) clearInterval(_modalStatusTimer);
-    // Poll every 60s — warm/cold state only flips every ~9 min so the
-    // pill stays accurate within ±1 min, and it halves R2 read load
-    // vs the previous 30s.
-    _modalStatusTimer = setInterval(_pollModalStatus, 60_000);
+    // ETAT REEL (2026-09-29) : le worker lit les compteurs de Modal. On sonde toutes les 60 s au
+    // repos, toutes les 5 s pendant qu'un service DEMARRE ou que le panneau est ouvert (pour le
+    // voir passer de « starting » a « warm »), et 2,5 s apres chaque reveil envoye.
+    const boucle = async () => {
+      await _pollModalStatus();
+      const pop = document.getElementById('gpu-warmup-popover');
+      const rapide = window.__modalServicesDemarrage > 0 || (pop && pop.style.display === 'block');
+      _modalStatusTimer = setTimeout(boucle, rapide ? 5_000 : 60_000);
+    };
+    window.__sonderEtatModal = (delai = 2_500) => {
+      if (_modalStatusTimer) clearTimeout(_modalStatusTimer);
+      _modalStatusTimer = setTimeout(boucle, delai);
+    };
+    if (_modalStatusTimer) clearTimeout(_modalStatusTimer);
+    boucle();
+    document.getElementById('gpu-warmup-wrap')?.addEventListener('mouseenter', () => window.__sonderEtatModal(0));
     // Force-refresh after a click on an AI tool button — the click
     // is about to fire an op so we want the freshest answer for the
     // ETA. Throttled to once per 5 s so a furious clicker doesn't
@@ -1493,6 +1517,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         body: JSON.stringify({ cible }),
       });
     } catch (_) { /* best-effort */ }
+    try { window.__sonderEtatModal?.(); } catch (_) { /* panneau absent */ }
   }
 
   function installPrewarm() {

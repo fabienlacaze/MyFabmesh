@@ -262,6 +262,9 @@
       'Parental control': 'Contrôle parental',
       'About MyFabmesh.AI': 'À propos de MyFabmesh.AI',
       'Server warming up': 'Serveur en préchauffage',
+      'Server starting': 'Serveur en démarrage',
+      'starting': 'démarrage',
+      'unavailable': 'indisponible',
       'Cloud GPU services': 'Services GPU cloud',
       'Each container has its own warm-up. Cold = first call takes ~2 min, then warm for ~9 min idle.':
         'Chaque conteneur a son propre préchauffage. À froid = le premier appel prend ~2 min, puis reste chaud ~9 min en veille.',
@@ -872,6 +875,7 @@
       'No images yet.': 'Aucune image pour le moment.',
       'Create a new project': 'Créer un nouveau projet',
       'Server warming up ({n} services)': 'Serveur en préchauffage ({n} services)',
+      'Server starting ({n} services)': 'Serveur en démarrage ({n} services)',
       'No generation in progress': 'Aucune génération en cours',
       // ---- Desktop Settings (Claude / control-plane / hardware / system / calibration) ----
       'Claude Desktop': 'Claude Desktop',
