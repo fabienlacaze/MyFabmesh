@@ -28770,7 +28770,9 @@ document.addEventListener('click', (e) => {
   const x = e.target && e.target.closest ? e.target.closest('.fen-fermer') : null;
   if (!x) return;
   const m = x.closest('.modal-overlay, .modal');
-  const annuler = m && m.querySelector('.modal-actions .ghost-btn');
+  // un vrai Annuler / Fermer d'abord (meme nettoyage que ce bouton), sinon le premier bouton discret du pied
+  const annuler = m && (m.querySelector('[id$="-cancel"]') || m.querySelector('[id$="-close"]')
+    || m.querySelector('.modal-actions .ghost-btn'));
   if (annuler) annuler.click(); else if (m) m.classList.add('hidden');
 });
 // RESOLUTION : un choix puis « Apply », qui relaie le clic au bouton d'origine (cache). Avant, les deux

@@ -1252,7 +1252,7 @@
          ============================================================ -->
     <div id="modal-new-project" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>New project</h2>
+        <div class="fen-tete"><h2>New project</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Give your project a name and describe what you want to create.</p>
         <label>Project name</label>
         <input type="text" id="np-name" placeholder="orc_warrior" />
@@ -1561,7 +1561,7 @@
          ============================================================ -->
     <div id="modal-recolor" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
-        <h2>Recolor</h2>
+        <div class="fen-tete"><h2>Recolor</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <div class="modal-with-image">
           <div class="modal-image-side" style="position:relative;">
             <img id="rc-source-img" alt="" />
@@ -1642,7 +1642,7 @@
          ============================================================ -->
     <div id="modal-outfit" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
-        <h2>Outfit only</h2>
+        <div class="fen-tete"><h2>Outfit only</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">The character&rsquo;s clothes alone, on a transparent background.</p>
         <div class="modal-with-image">
           <div class="modal-image-side" style="position:relative;">
@@ -1719,7 +1719,7 @@
 
     <div id="modal-multiview-options" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>Multi-views</h2>
+        <div class="fen-tete"><h2>Multi-views</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Your image is copied first: the original stays untouched.</p>
         <div style="display:flex; flex-direction:column; gap:12px; margin:14px 0;">
           <select id="mv-opt-mode" style="display:none;">
@@ -1776,7 +1776,7 @@
          ============================================================ -->
     <div id="modal-material-adjust" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide" style="max-width:1100px; width:92vw;">
-        <h2>Material Adjust</h2>
+        <div class="fen-tete"><h2>Material Adjust</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle" style="margin-bottom:10px;">All 6 sliders preview live. Save creates a new mesh version with these settings baked into the GLB.</p>
         <div style="display:flex; gap:14px;">
           <!-- Live preview viewer (Three.js canvas) -->
@@ -1847,7 +1847,7 @@
          ============================================================ -->
     <div id="modal-align-texture" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
-        <h2>Align Texture</h2>
+        <div class="fen-tete"><h2>Align Texture</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle" style="margin-bottom:8px;">Drag sliders to align the source photo overlay on the mesh, then click Re-project.</p>
         <div style="display:flex; gap:12px;">
           <!-- Left: large viewer -->
@@ -1931,7 +1931,7 @@
     <div id="modal-paint-mesh" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <h2 id="pm-title" style="margin:0;">🎨 Paint Mesh</h2>
+          <div class="fen-tete"><h2 id="pm-title">🎨 Paint Mesh</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
           <div style="display:flex; gap:6px; align-items:center;">
             <button id="pm-toggle-emissive" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:11px;" title="Toggle the emissive layer (paint glow on top of the diffuse)">💡 Emissive</button>
             <button id="pm-close-x" class="small-btn" style="font-size:18px;">✕</button>
@@ -1997,10 +1997,7 @@
          navigateur, zone nommee (CLIPSeg) ou peinte, prompt -> /api/mesh-reshape. -->
     <div id="modal-region-retex" class="modal hidden">
       <div class="modal-content" style="width:88vw; height:86vh; max-width:1500px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-          <h3 style="margin:0;">&#127912; Re-texture a region</h3>
-          <button id="rrx-close-x" class="settings-close-x">&#10005;</button>
-        </div>
+        <div class="fen-tete"><h2>&#127912; Re-texture a region</h2><button id="rrx-close-x" class="settings-close-x">&#10005;</button></div>
         <p style="margin:0; font-size:12px; color:var(--text-muted);">Name the part — the AI detects it — and type what it should look like, then Apply. (Optional: paint to refine.) Geometry stays intact.</p>
         <div style="display:flex; flex:1 1 0; gap:12px; min-height:400px;">
           <!-- Left: controls -->
@@ -2038,7 +2035,7 @@
 
     <div id="modal-paint-emissive" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
-        <h2>💡 Paint Emissive</h2>
+        <div class="fen-tete"><h2>💡 Paint Emissive</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle" style="margin-bottom:8px;">Paint glow areas (lamps, windows, runes). The painted areas become a separate <code>T_emissive</code> texture wired to <code>emissiveMap</code> on the material.</p>
         <div style="display:flex; gap:12px;">
           <!-- Left: 3D viewer where the user paints -->
@@ -2352,7 +2349,7 @@
          ============================================================ -->
     <div id="modal-anim-gen" class="modal-overlay hidden">
       <div class="modal-card" style="width:440px; max-width:92vw;">
-        <h2>Generate Animation</h2>
+        <div class="fen-tete"><h2>Generate Animation</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Each click creates ONE new version. Check the types you want in this batch.</p>
         <div id="modal-anim-types" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px; margin:12px 0;">
           <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
@@ -2525,7 +2522,7 @@
          ============================================================ -->
     <div id="modal-refine-mesh" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>Refine mesh</h2>
+        <div class="fen-tete"><h2>Refine mesh</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Describe what to change. The mesh is rebuilt from a new script.</p>
         <label>Modification</label>
         <textarea id="rfn-prompt" rows="3" placeholder="add wheels, make it taller, smoother surface..."></textarea>
@@ -2554,7 +2551,7 @@
          ============================================================ -->
     <div id="modal-export-mesh" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>Export 3D mesh</h2>
+        <div class="fen-tete"><h2>Export 3D mesh</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Pick a format and where to save the file.</p>
         <label>Format</label>
         <select id="exp-format">
@@ -2603,7 +2600,7 @@
          ============================================================ -->
     <div id="modal-export-image" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>Export image</h2>
+        <div class="fen-tete"><h2>Export image</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Pick a format and where to save the file.</p>
         <label>Format</label>
         <select id="expimg-format">
@@ -2648,7 +2645,7 @@
              on narrower modals). -->
         <div style="display:flex; gap:14px; align-items:flex-start; margin-bottom:6px;">
           <div style="flex:1; min-width:0;">
-            <h2 id="pub-title-h2" style="margin:0 0 4px;">&#128722; Publish to marketplace</h2>
+            <div class="fen-tete"><h2 id="pub-title-h2" style="margin:0 0 4px;">&#128722; Publish to marketplace</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
             <p class="modal-subtitle" style="margin:0;">Share this asset with the community. Free or with a price tag — your choice. An admin will review your listing before it goes live.</p>
           </div>
           <!-- Thumbnail of the asset being published — populated by
@@ -2710,7 +2707,7 @@
          ============================================================ -->
     <div id="modal-test-anim" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>Test rig animation</h2>
+        <div class="fen-tete"><h2>Test rig animation</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Apply a built-in animation to the rig and open it in Blender.</p>
         <label>Animation</label>
         <select id="anim-select">
@@ -2819,7 +2816,7 @@
          ============================================================ -->
     <div id="modal-explode-options" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>&#128165; Explode / destroy</h2>
+        <div class="fen-tete"><h2>&#128165; Explode / destroy</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Fracture the mesh into shards. This creates a new version whose viewer has a live explode slider (the same control as segmented meshes) — drag it to blast the shards apart continuously. Texture preserved.</p>
         <div style="display:flex; flex-direction:column; gap:8px; margin:16px 0;">
           <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
@@ -2841,8 +2838,7 @@
          fonctionner meme hors connexion — d'ou le repli par courriel. -->
     <div id="modal-report" class="modal-overlay hidden">
       <div class="modal-card" style="max-width:560px; width:92vw;">
-        <button class="about-close" id="rp-close" aria-label="Close" style="position:absolute; top:12px; right:14px;">&times;</button>
-        <h2>&#9873; Report content</h2>
+        <div class="fen-tete"><h2>&#9873; Report content</h2><button type="button" class="settings-close-x" id="rp-close" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Tell us what is wrong with this AI-generated result. Reports are reviewed by an admin. You do not need an account to report.</p>
         <div style="display:flex; flex-direction:column; gap:14px; margin-top:14px;">
           <div>
@@ -2880,8 +2876,7 @@
 
     <div id="modal-resize" class="modal-overlay hidden">
       <div class="modal-card" style="max-width:1100px; width:94vw;">
-        <button class="about-close" id="rz-close" aria-label="Close" style="position:absolute; top:12px; right:14px;">&times;</button>
-        <h2>&#128207; Resize / dimension</h2>
+        <div class="fen-tete"><h2>&#128207; Resize / dimension</h2><button type="button" class="settings-close-x" id="rz-close" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Drag the gizmo to scale or rotate the mesh, or type target dimensions and angles. The rulers show the live size. Apply bakes a new version — texture preserved, the mesh stays on the ground.</p>
         <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
           <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:56vh; background:#0b0b14; border-radius:10px; overflow:hidden;">
@@ -2944,7 +2939,7 @@
     </div>
     <div id="modal-stages3d-options" class="modal-overlay hidden">
       <div class="modal-card">
-        <h2>&#127959;&#65039; 3D construction study</h2>
+        <div class="fen-tete"><h2>&#127959;&#65039; 3D construction study</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Fabricate the 3D meshes of the construction stages (sliced building + timber frame + scaffolding), navigable and exportable. The final mesh stays intact as the last stage.</p>
         <div style="display:flex; flex-direction:column; gap:8px; margin:16px 0;">
           <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
@@ -3014,10 +3009,7 @@
     </div>
     <div id="variant-modal" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h2 style="margin:0;">✨ Create variant</h2>
-          <button id="var-close-x" class="settings-close-x">&#10005;</button>
-        </div>
+        <div class="fen-tete"><h2>✨ Create variant</h2><button id="var-close-x" class="settings-close-x">&#10005;</button></div>
         <div class="modal-with-image">
           <div class="modal-image-side">
             <img id="var-source-img" alt="" />
@@ -3314,10 +3306,7 @@
   <!-- Color Picker modal -->
   <div id="modal-colorpick" class="modal-overlay hidden">
     <div class="modal-card" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0;">Color Picker</h3>
-        <button class="settings-close-x" id="cpick-close-x">&#10005;</button>
-      </div>
+      <div class="fen-tete"><h2>Color Picker</h2><button class="settings-close-x" id="cpick-close-x">&#10005;</button></div>
       <div style="font-size:11px; color:var(--text-muted);">Click anywhere on the image to pick a color.</div>
       <div id="cpick-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; cursor:crosshair;">
         <canvas id="cpick-canvas" style="position:absolute; left:0; top:0;"></canvas>
