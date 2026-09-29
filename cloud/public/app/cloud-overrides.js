@@ -592,14 +592,21 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
               dot = '#777'; color = 'var(--text-2)';
               statusText = 'unknown';
             }
+            // Points en fondu (demande user, 2026-09-29) : plus rapide quand ca bouge (demarrage,
+            // calcul), lent au repos, fixe pour un service indisponible.
+            const rythme = statusText === 'starting' ? '0.9s' : statusText === 'running' ? '1.2s'
+                         : statusText === 'unavailable' ? '' : '2.4s';
+            const anim = rythme ? ` animation:pulse ${rythme} ease-in-out infinite;` : '';
             return `<div style="display:grid; grid-template-columns:10px 1fr auto; gap:8px; align-items:center;">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${dot};"></span>
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${dot};${anim}"></span>
                 <span><strong style="color:var(--text-1);">${s.label}</strong><br>
                   <span style="color:var(--text-2); font-size:10px;">${s.desc}</span></span>
                 <span style="color:${color}; font-size:10px; white-space:nowrap;">${statusText}</span>
               </div>`;
           }).join('');
-          if (list) list.innerHTML = rows;
+          // Reconstruite seulement si elle change : sinon, toutes les 5 s, le fondu des points
+          // repartait de zero (saccade).
+          if (list && list.__rendu !== rows) { list.innerHTML = rows; list.__rendu = rows; }
           window.__modalServicesDemarrage = startingCount;
           // Hide pill when all warm OR all unknown (don't surface noise
           // before we have any data).
