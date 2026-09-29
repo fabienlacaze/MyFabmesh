@@ -4767,3 +4767,6 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 .gh-step .gh-step-title { color: var(--cat, inherit); }
 .gh-thumb-empty { color: var(--cat, inherit); }
 .gh-thumb-empty svg { width: 30px; height: 30px; }
+
+/* Fenetre de lancement sans image (Skeleton points...) : « display:flex » l'emportait sur l'attribut hidden -> cadre vide */
+#modal-lancement .fen-apercu[hidden] { display: none; }
