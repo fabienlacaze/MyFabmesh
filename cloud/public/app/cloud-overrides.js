@@ -1572,7 +1572,16 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // l'inpainting et le Tile (~6 Go) : inutiles a la 3D, et la rectification attendait
     // derriere ce chargement (mesure : ~3 min sur un Husky).
     const caseRectif = document.getElementById('ws-trellis2-rectify');
-    const armerRectif = () => { if (!caseRectif || caseRectif.checked) prewarmGpu('rectify'); };
+    // Source DEJA rectifiee : le worker saute la rectification (2026-09-29), inutile de reveiller
+    // son conteneur (un demarrage paye pour rien, parfois une creation d'instantane).
+    const sourceDejaRectifiee = () => {
+      const p = window.state?.currentProject;
+      const src = String(p?.selectedImagePath || p?.previewImagePath || '');
+      return /\/rectify\/[^/?#]*_rectified\./i.test(src);
+    };
+    const armerRectif = () => {
+      if ((!caseRectif || caseRectif.checked) && !sourceDejaRectifiee()) prewarmGpu('rectify');
+    };
     const menuPreset = document.getElementById('ws-trellis2-preset');
     if (menuPreset) {
       menuPreset.addEventListener('focus', armerRectif, { passive: true });
