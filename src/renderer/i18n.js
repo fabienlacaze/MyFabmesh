@@ -38,6 +38,9 @@
       'Add detail': 'Ajouter du détail',
       'Repaints the image in this style.': "Repeint l'image dans ce style.",
       'Apply the style': 'Appliquer le style',
+      'Opens the colour picker on the image.': "Ouvre la pipette de couleur sur l'image.",
+      'Opens the skeleton points editor.': "Ouvre l'éditeur des points du squelette.",
+      'Open': 'Ouvrir',
       // ---- Multi-vues, Habits seuls, Recolorier simplifies (2026-09-29) ----
       'Multi-views': 'Multi-vues',
       'Your image is copied first: the original stays untouched.': "Votre image est d'abord copiée : l'original reste intact.",

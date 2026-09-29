@@ -28694,6 +28694,9 @@ const _OUTILS_A_VALIDER = {
   'ws-extend-btn': { titre: 'Extend', texte: 'Adds a margin around the image (15 % on each side).', action: 'Extend', apercu: 'image' },
   'ws-mesh-enhance-tex-btn': { titre: 'Sharpen texture (x2)', texte: 'Doubles the texture resolution, without inventing detail.', action: 'Sharpen', apercu: null },
   'ws-mesh-detail-synth-btn': { titre: 'Detail++', texte: 'Adds fine AI detail to the texture.', action: 'Add detail', apercu: null },
+  // outils manuels PAYANTS sur le web (1 credit a l'ouverture) : validation seulement s'il y a un prix
+  'ws-picker-btn': { titre: 'Color Pick', texte: 'Opens the colour picker on the image.', action: 'Open', apercu: 'image', siPayant: true },
+  'ws-lm-manual': { titre: 'Skeleton points', texte: 'Opens the skeleton points editor.', action: 'Open', apercu: null, siPayant: true },
 };
 function _lctImageCourante() {
   const p = state.currentProject;
@@ -28751,6 +28754,7 @@ document.addEventListener('click', (e) => {
     boutonPrix = document.getElementById('ws-style-btn');
   }
   if (!def) return;
+  if (def.siPayant && !(boutonPrix && boutonPrix.querySelector('.cloud-cost-badge, .credit-badge'))) return;
   e.stopImmediatePropagation();
   e.preventDefault();
   _ouvrirLancement(def, boutonPrix).then((ok) => {
