@@ -4669,3 +4669,6 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 .rrx-apercu { display: flex; align-items: center; justify-content: center; }
 .rrx-form .form-row { display: flex; flex-direction: column; }
 .modal-card label.rrx-curseur { display: flex; flex-direction: column; gap: 6px; }
+
+/* Verification finale (2026-09-29) : pied de Report sur une ligne (Supprimer a gauche s'il existe) */
+#modal-report .modal-actions { flex-wrap: nowrap; }

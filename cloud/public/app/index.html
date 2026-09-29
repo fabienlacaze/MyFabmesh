@@ -1795,68 +1795,50 @@
          Live sliders, applies via scripts/mesh_material_adjust.py
          ============================================================ -->
     <div id="modal-material-adjust" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide" style="max-width:1100px; width:92vw;">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Material Adjust</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle" style="margin-bottom:10px;">Live preview. Save creates a new version of the mesh.</p>
-        <div style="display:flex; gap:14px;">
-          <!-- Live preview viewer (Three.js canvas) -->
-          <div style="flex:1; min-width:0;">
-            <div style="width:100%; height:520px; background:#1b1b1b; border-radius:6px; position:relative;">
-              <canvas id="mat-canvas" style="width:100%; height:100%; display:block; border-radius:6px;"></canvas>
-              <div id="mat-preview-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Drag to rotate · wheel to zoom</div>
-            </div>
+        <p class="modal-subtitle">Live preview. Save creates a new version of the mesh.</p>
+        <div class="fen-corps">
+          <!-- apercu 3D a GAUCHE, reglages a DROITE (gabarit commun des fenetres d'outils) -->
+          <div class="fen-apercu">
+            <canvas id="mat-canvas" style="width:100%; height:100%; display:block;"></canvas>
+            <div id="mat-preview-status" class="fen-apercu-etat">Drag to rotate · wheel to zoom</div>
           </div>
-          <!-- Sliders -->
-          <div style="width:330px; display:flex; flex-direction:column; gap:12px;">
-            <div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                <span>Brightness</span><span id="mat-brightness-val">1.00</span>
-              </div>
-              <input id="mat-brightness" type="range" min="0.3" max="3.0" step="0.05" value="1.0" style="width:100%;">
+          <div class="fen-form">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Brightness</span><span id="mat-brightness-val" class="fen-valeur">1.00</span></div>
+              <input id="mat-brightness" type="range" min="0.3" max="3.0" step="0.05" value="1.0">
             </div>
-            <div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                <span>Saturation</span><span id="mat-saturation-val">1.00</span>
-              </div>
-              <input id="mat-saturation" type="range" min="0.0" max="3.0" step="0.05" value="1.0" style="width:100%;">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Saturation</span><span id="mat-saturation-val" class="fen-valeur">1.00</span></div>
+              <input id="mat-saturation" type="range" min="0.0" max="3.0" step="0.05" value="1.0">
             </div>
-            <div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                <span>Contrast</span><span id="mat-contrast-val">1.00</span>
-              </div>
-              <input id="mat-contrast" type="range" min="0.3" max="3.0" step="0.05" value="1.0" style="width:100%;">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Contrast</span><span id="mat-contrast-val" class="fen-valeur">1.00</span></div>
+              <input id="mat-contrast" type="range" min="0.3" max="3.0" step="0.05" value="1.0">
             </div>
-            <hr style="border:none; border-top:1px solid rgba(255,255,255,0.1); margin:4px 0;">
-            <div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                <span>Emissive</span><span id="mat-emissive-val">0.00</span>
-              </div>
-              <input id="mat-emissive" type="range" min="0.0" max="2.0" step="0.05" value="0.0" style="width:100%;">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Emissive</span><span id="mat-emissive-val" class="fen-valeur">0.00</span></div>
+              <input id="mat-emissive" type="range" min="0.0" max="2.0" step="0.05" value="0.0">
             </div>
-            <div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                <span>Metallic</span><span id="mat-metallic-val">0.00</span>
-              </div>
-              <input id="mat-metallic" type="range" min="0.0" max="1.0" step="0.05" value="0.0" style="width:100%;">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Metallic</span><span id="mat-metallic-val" class="fen-valeur">0.00</span></div>
+              <input id="mat-metallic" type="range" min="0.0" max="1.0" step="0.05" value="0.0">
             </div>
-            <div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                <span>Roughness</span><span id="mat-roughness-val">0.70</span>
-              </div>
-              <input id="mat-roughness" type="range" min="0.0" max="1.0" step="0.05" value="0.7" style="width:100%;">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Roughness</span><span id="mat-roughness-val" class="fen-valeur">0.70</span></div>
+              <input id="mat-roughness" type="range" min="0.0" max="1.0" step="0.05" value="0.7">
             </div>
-            <div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                <span>Tint (hue °)</span><span id="mat-hue_shift-val">0</span>
-              </div>
-              <input id="mat-hue_shift" type="range" min="-180" max="180" step="5" value="0" style="width:100%;">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Tint (hue °)</span><span id="mat-hue_shift-val" class="fen-valeur">0</span></div>
+              <input id="mat-hue_shift" type="range" min="-180" max="180" step="5" value="0">
             </div>
-            <button id="mat-reset-btn" class="ghost-btn" style="padding:6px 12px; font-size:11px; margin-top:6px; width:auto; align-self:flex-start;">↺ Reset</button>
-            <div class="modal-actions" style="margin-top:auto;">
-              <button id="mat-cancel-btn" class="ghost-btn">Cancel</button>
-              <button id="mat-apply-btn" class="primary-btn">Save as new version</button>
-            </div>
+            <button id="mat-reset-btn" class="ghost-btn fen-petit">↺ Reset</button>
           </div>
+        </div>
+        <div class="modal-actions">
+          <button id="mat-cancel-btn" class="ghost-btn">Cancel</button>
+          <button id="mat-apply-btn" class="primary-btn">Save as new version</button>
         </div>
       </div>
     </div>
@@ -1951,10 +1933,10 @@
     <div id="modal-paint-mesh" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <div class="fen-tete"><h2 id="pm-title">🎨 Paint Mesh</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+          <div class="fen-tete"><h2 id="pm-title">🎨 Paint Mesh</h2></div>
           <div style="display:flex; gap:6px; align-items:center;">
             <button id="pm-toggle-emissive" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:11px;" title="Toggle the emissive layer (paint glow on top of the diffuse)">💡 Emissive</button>
-            <button id="pm-close-x" class="small-btn" style="font-size:18px;">✕</button>
+            <button id="pm-close-x" class="settings-close-x" title="Close">&#10005;</button>
           </div>
         </div>
         <p id="pm-subtitle" class="modal-subtitle" style="margin-bottom:8px;">Paint on the mesh. Left-drag to paint, right-drag to orbit.</p>
@@ -2121,9 +2103,9 @@
             </div>
           </div>
         </div>
-        <div class="modal-actions" style="margin-top:10px;">
+        <div class="modal-actions">
           <button class="ghost-btn" id="pe-cancel">Cancel</button>
-          <button class="primary-btn" id="pe-apply-device" style="margin:0; padding:8px 24px; width:auto;">💾 Save new version</button>
+          <button class="primary-btn" id="pe-apply-device">💾 Save new version</button>
         </div>
       </div>
     </div>
@@ -2881,7 +2863,7 @@
           </p>
           <div id="rp-status" style="font-size:12px; min-height:16px;"></div>
         </div>
-        <div class="modal-actions" style="flex-wrap:wrap;">
+        <div class="modal-actions">
           <!-- Propose apres l'envoi seulement : offrir la suppression AVANT
                inciterait a effacer la preuve au lieu de la signaler. -->
           <button id="rp-delete" class="ghost-btn" style="display:none; margin-right:auto; color:#ff8b8b; border-color:#5a2a2a;">&#128465; Delete this content</button>
@@ -3045,9 +3027,9 @@
             <div class="var-count-row"><span>Number of variants</span><input type="number" id="var-count" min="1" max="8" value="1" /></div>
           </div>
         </div>
-        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+        <div class="modal-actions">
           <button class="ghost-btn" id="var-cancel">Cancel</button>
-          <button class="primary-btn" id="var-apply" style="margin:0; padding:8px 22px; width:auto; display:inline-flex; align-items:center; gap:8px;">
+          <button class="primary-btn" id="var-apply">
             Generate variant <span class="credit-badge" id="var-apply-cost-badge">1</span>
           </button>
         </div>
@@ -3322,17 +3304,17 @@
           <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%);"></div>
         </div>
       </div>
-      <div style="display:flex; align-items:center; gap:12px; margin:12px 0;">
+      <div style="display:flex; align-items:center; gap:12px;">
         <div id="cpick-swatch" style="width:48px; height:48px; border-radius:8px; border:2px solid var(--border);"></div>
         <div>
           <div id="cpick-hex" style="font-size:18px; font-weight:700; font-family:monospace;"></div>
           <div id="cpick-rgb" style="font-size:11px; color:var(--text-2); white-space:nowrap;"></div>
         </div>
         <span style="flex:1;"></span>
-        <button id="cpick-copy" class="primary-btn" style="padding:6px 16px;">Copy HEX</button>
       </div>
-      <div style="display:flex; justify-content:flex-end;">
-        <button id="cpick-close" class="ghost-btn" style="padding:6px 16px;">Close</button>
+      <div class="modal-actions">
+        <button id="cpick-close" class="ghost-btn">Close</button>
+        <button id="cpick-copy" class="primary-btn">Copy HEX</button>
       </div>
     </div>
   </div>
@@ -3450,8 +3432,8 @@
   <!-- Paint Tools modal -->
   <div id="modal-paint" class="modal hidden">
     <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-        <h3 style="margin:0; white-space:nowrap;">Paint Tools</h3>
+      <div class="fen-tete">
+        <h2>Paint Tools</h2>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
           <button id="paint-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
           <button id="paint-emissive-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint on a separate emissive layer (stored as T_emissive on the generated mesh)">&#128161;&nbsp;Emissive</button>
@@ -3540,8 +3522,8 @@
          rien ») : sans largeur ni hauteur, la fenetre se reduisait a son contenu.
          Meme gabarit que le bureau (92 vw x 92 vh). -->
     <div class="modal-content" style="width:94vw; height:92vh; max-width:1700px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-        <h3 style="margin:0;" id="mesh-edit-title">Mesh Edit</h3>
+      <div class="fen-tete">
+        <h2 id="mesh-edit-title">Mesh Edit</h2>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
           <button id="me-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier: show a zoomed loupe under the cursor (toggle)">&#128269;</button>
           <button id="me-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
