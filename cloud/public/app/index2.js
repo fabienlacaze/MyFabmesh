@@ -14752,8 +14752,7 @@ async function _pmDecalCharger(fichier) {
 function _pmDecalOnTool(t) {
   const panneau = document.getElementById('pm-decal-panel');
   if (panneau) panneau.style.display = t === 'decal' ? 'flex' : 'none';
-  if (t !== 'decal') _pmDecalCacher();
-  else if (!pmState.decal) document.getElementById('pm-decal-file')?.click();
+  if (t !== 'decal') _pmDecalCacher();   // le selecteur de fichier ne s'ouvre JAMAIS tout seul : bouton « Choose image… »
 }
 function _pmDecalCacher() { if (_pmDecalApercuMesh) _pmDecalApercuMesh.visible = false; }
 function _pmDecalParams() {
@@ -14802,7 +14801,7 @@ function _pmDecalApercu(clientX, clientY) {
   });
 }
 async function _pmDecalPoser(clientX, clientY) {
-  if (!pmState.decal) { document.getElementById('pm-decal-file')?.click(); return; }
+  if (!pmState.decal) { showToast('Choose an image first (Choose image…).', 'info', 3000); return; }
   const hit = _pmRaycast(clientX, clientY);
   if (!hit) return;
   if (_pmDecalOccupe) return;
@@ -29196,11 +29195,13 @@ function ouvrirJournalVersion() {
   document.getElementById('modal-journal')?.remove();
   const m = document.createElement('div');
   m.id = 'modal-journal'; m.className = 'modal-overlay'; m.setAttribute('data-i18n-skip', '');
-  const lignes = (b.journal || []).map((j) => `<li><span class="mj-date">${esc(j.d)}</span><span class="mj-txt">${esc(j.t)}</span></li>`).join('');
+  // groupe par version (titre), puis par jour ; les versions anciennes sont repliees
+  const groupes = []; (b.journal || []).forEach((j) => { const v = j.v || b.version; let g = groupes[groupes.length - 1]; if (!g || g.v !== v) { g = { v, jours: [] }; groupes.push(g); } let jr = g.jours[g.jours.length - 1]; if (!jr || jr.d !== j.d) { jr = { d: j.d, l: [] }; g.jours.push(jr); } jr.l.push(j.t); });
+  const lignes = groupes.map((g, gi) => `<details class="mj-version"${gi === 0 ? ' open' : ''}><summary>v${esc(g.v)} <span class="mj-n">${g.jours.reduce((n, x) => n + x.l.length, 0)}</span></summary>${g.jours.map((jr) => `<div class="mj-jour">${esc(jr.d)}</div><ul class="mj-liste">${jr.l.map((x) => `<li><span class="mj-txt">${esc(x)}</span></li>`).join('')}</ul>`).join('')}</details>`).join('');
   m.innerHTML = `<div class="modal-card" style="max-width:680px;width:92vw;">
     <div class="fen-tete"><h2>${esc(t('Latest changes'))}</h2><button type="button" class="settings-close-x" id="mj-close" title="Close">&#10005;</button></div>
     <p class="modal-subtitle">v${esc(b.version)} · build ${esc(b.build)}${b.sale ? ' *' : ''} · ${esc(b.date)} · ${esc(b.hash)}${b.sale ? ' — ' + esc(t('changes in progress, not yet saved')) : ''}</p>
-    <ul class="mj-liste">${lignes || '<li>—</li>'}</ul>
+    <div class="mj-corps">${lignes || '—'}</div>
     <div class="modal-actions"><button class="primary-btn" id="mj-ok">${esc(t('Close'))}</button></div></div>`;
   document.body.appendChild(m);
   const fermer = () => { m.remove(); document.removeEventListener('keydown', echap); };

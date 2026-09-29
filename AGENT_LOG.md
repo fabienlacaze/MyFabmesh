@@ -24194,3 +24194,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Helpers `_etapeAffiche / _modeleDeLetape / _fauxChargeur` (index2.js bureau + web) : copie du wsModel (materiaux clones, geometrie
   clonee pour les outils qui la modifient) au lieu de retelecharger / reanalyser. Branche sur : Triangle count & outils de maillage
   (_mtLoadMesh), Paint Emissive, Mesh Edit, Material Adjust, Reshape, Paint Mesh. Repli automatique sur le chargement normal.
+
+## 2026-09-30 — Journal des versions groupe + selecteur de decal jamais automatique
+- build/ecrire-version.mjs : 400 derniers commits, chacun avec la version package.json en vigueur a son commit ; popup « Latest changes »
+  groupee par version (repliable, la plus recente ouverte) puis par jour. CSS bureau + web.
+- Decals : le selecteur de fichier ne s'ouvre plus tout seul (ni au choix de l'outil, ni au clic sans image : message a la place).
