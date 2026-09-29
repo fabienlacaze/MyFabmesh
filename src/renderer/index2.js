@@ -14391,6 +14391,7 @@ async function _pmLoadMesh(meshPath) {
     pmState.origModel = null;
   }
   pmState.meshes = [];
+  try { setViewerLoading('pm-viewport-wrap', true, 'Loading mesh…'); } catch (_) {}
   // schema d'au moins 2 lettres : un chemin Windows « C:\… » n'est PAS une URL (bureau)
   const url = (typeof meshPath === 'string' && /^[a-z][a-z0-9+.-]+:/i.test(meshPath))
     ? meshPath
@@ -14422,8 +14423,10 @@ async function _pmLoadMesh(meshPath) {
       await _pmSetupCanvasAndBind();
       const status = document.getElementById('pm-status');
       if (status) status.textContent = 'Ready — left-click to paint, right-click to orbit.';
+      try { setViewerLoading('pm-viewport-wrap', false); } catch (_) {}
     });
   } catch (e) {
+    try { setViewerLoading('pm-viewport-wrap', false); } catch (_) {}
     console.error('[paint-mesh] load failed:', e);
     if (typeof showToast === 'function') showToast('Mesh load failed: ' + (e?.message || e), 'error', 5000);
   }
@@ -14652,7 +14655,7 @@ function _pmDecalApercu(clientX, clientY) {
     if (!_pmDecalApercuMesh) {
       const plan = new THREE.PlaneGeometry(1, 1);
       _pmDecalApercuMesh = new THREE.Mesh(plan,
-        new THREE.MeshBasicMaterial({ map: pmState.decal.tex, transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 }));
+        new THREE.MeshBasicMaterial({ map: pmState.decal.tex, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 }));
       _pmDecalApercuMesh.renderOrder = 10;
       const cadre = new THREE.LineSegments(new THREE.EdgesGeometry(plan), new THREE.LineBasicMaterial({ color: 0xffc400, depthTest: false }));
       cadre.renderOrder = 11; _pmDecalApercuMesh.add(cadre);
@@ -14824,12 +14827,12 @@ function openPaintMesh(opts = {}) {
   $('pm-cancel').onclick = () => close(true);
   $('pm-close-x').onclick = () => close(true);
   $('pm-save').onclick = async () => {
-    const btn = $('pm-save'); const orig = btn.textContent;
+    const btn = $('pm-save'); const orig = btn.innerHTML;
     btn.disabled = true; btn.textContent = 'Saving…';
     try { await _pmApplyOnDevice(); close(false); }
     catch (e) {
       showToast('Paint Mesh failed: ' + (e?.message || e), 'error', 5000);
-      btn.textContent = orig; btn.disabled = false;
+      btn.innerHTML = orig; btn.disabled = false;
     }
   };
 }

@@ -793,6 +793,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-selectface-btn':   1,
     'ws-mesh-clone3d-btn':      1,
     'ws-mesh-paint-mesh-btn':   1,
+    'pm-save':                  1,   // enregistrement de Paint Mesh / Decals
     'ws-mesh-explode-btn':      1,
     'ws-mesh-resize-btn':       1,
     // EXPORTS, PUBLICATION, IMPORT (2026-09-27, « rends-les payants »).
@@ -1280,6 +1281,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-selectface-btn': 'manual_tool',
     'ws-mesh-clone3d-btn': 'manual_tool',
     'ws-mesh-paint-mesh-btn': 'manual_tool',
+    'pm-save': 'manual_tool',
     'ws-mesh-explode-btn': 'mesh_op_simple',
     'ws-mesh-resize-btn':  'mesh_op_simple',
     'ws-export-img-btn':   'export',

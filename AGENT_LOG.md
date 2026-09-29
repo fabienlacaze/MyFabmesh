@@ -24176,3 +24176,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   (computeBoundsTree au chargement de Paint Mesh), un raycast par image (rAF), module et mesures en cache.
 - « Reste accroche » : l'apercu suivait toujours la souris apres le clic. Il est masque pendant la pose (verrou anti-double clic,
   message « Placing decal… »), et devient un fantome a 40 % avec cadre jaune, distinct du decal cuit.
+
+## 2026-09-30 — Decals : fantome plus opaque, prix, ecran de chargement
+- Fantome d'apercu 40 % -> 85 % (« beaucoup trop transparent »). Prix en credits sur « Save new version » (pastille via ACTION_COSTS
+  'pm-save', manual_tool). Chargement du maillage : setViewerLoading('pm-viewport-wrap') comme les viewers mesh / rig.
