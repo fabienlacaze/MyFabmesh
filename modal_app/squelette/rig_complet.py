@@ -82,6 +82,16 @@ def copie_allegee(entree, dest, faces):
     return Path(dest)
 
 
+_T_ETAPE = [time.time()]
+
+
+def etape(nom):
+    """Chronometre par etape (2026-09-29) : ou passent les minutes d'un rig."""
+    maintenant = time.time()
+    journal(f'chrono : {nom} {maintenant - _T_ETAPE[0]:.1f} s')
+    _T_ETAPE[0] = maintenant
+
+
 def journal(msg):
     print(f'[rig-complet] {msg}', flush=True)
 
@@ -158,8 +168,10 @@ def main():
     import demo
     import squelette_complet as sq
 
+    etape('imports')
     demo.start_bpy_server()
     demo.wait_for_bpy_server()
+    etape('serveur Blender')
     ckpt = demo.MODEL_CKPTS[0]
     tmp = Path(tempfile.mkdtemp(prefix='rig_complet_'))
 
@@ -182,6 +194,7 @@ def main():
             if c is not None:
                 source_tirages, allege = c, True
                 journal(f'tirages sur une copie allegee ({a.allege or 100_000} faces) en {time.time() - t_a:.0f} s')
+                etape('copie allegee')
         except Exception as e:
             journal(f'copie allegee impossible, tirages sur le maillage complet : {type(e).__name__}: {e}')
     if a.tirage is not None and a.tirage >= DECALAGE_ALLEGE:
@@ -191,7 +204,9 @@ def main():
         dest = tmp / f'tirage_{i}.glb'
         try:
             semer(graine + i)
-            if rigger(source_tirages, dest, False):
+            ok = rigger(source_tirages, dest, False)
+            etape(f'tirage {i + 1}' + (' (dont chargement du modele)' if i == 0 else ''))
+            if ok:
                 return dest
             journal(f'tirage {i + 1} : aucun fichier')
         except Exception as e:
@@ -230,6 +245,7 @@ def main():
             notes.append((sq.noter(vol, lignes, J), i, f))
         notes.sort(key=lambda t: sq.cle_de_note(t[0]), reverse=True)
         note_ia, retenu, meilleur = notes[0]
+        etape('analyse et choix du tirage')
         if points:
             journal(f'{len(points)} point(s) de l\'utilisateur, dont '
                     f'{sum(P is None for P in lignes)} dans le tronc')
@@ -268,11 +284,15 @@ def main():
         compte_rendu['completion'] = rapport
         if len(J2) > len(J):
             journal(f'completion : {len(J)} -> {len(J2)} os')
+            etape('completion du squelette')
             arm = tmp / 'armature.glb'
             sq.greffer(str(entree), J2, parents2, noms2, str(arm))
+            etape('greffe sur le maillage complet')
             dest = tmp / 'complet.glb'
             semer(graine + 1000)
-            if rigger(arm, dest, True):
+            ok_peau = rigger(arm, dest, True)
+            etape('peau IA sur le maillage complet')
+            if ok_peau:
                 J3, _, _ = sq.squelette_du_glb(str(dest))
                 note_c = sq.noter(vol, lignes, J3)
                 journal(f'peau IA sur le squelette complete : {len(J3)} os, portee {note_c["portee_moy"]:.2f}, '
@@ -302,12 +322,14 @@ def main():
         final = peau_sur_complet(sq, entree, meilleur, graine, rigger, tmp)
     shutil.copyfile(final, sortie)
     peau_reparee(sq, sortie, compte_rendu)
+    etape('reparation de la peau')
     compte_rendu['duree_s'] = round(time.time() - t0)
     compte_rendu['tirages_alleges'] = allege
     try:
         sq.ajouter_extras(str(sortie), compte_rendu)
     except Exception as e:
         journal(f'compte rendu non ecrit dans le GLB : {e}')
+    etape('compte rendu dans le GLB')
     journal(f'TERMINE en {time.time() - t0:.0f} s ({"complete" if final != meilleur else "IA seule"})')
 
 
@@ -318,9 +340,12 @@ def peau_sur_complet(sq, entree, tirage, graine, rigger, tmp):
     J, parents, noms = sq.squelette_du_glb(str(tirage))
     arm = tmp / 'armature_tirage.glb'
     sq.greffer(str(entree), J, parents, noms, str(arm))
+    etape('greffe du tirage sur le maillage complet')
     dest = tmp / 'tirage_complet.glb'
     semer(graine + 1000)
-    if not rigger(arm, dest, True):
+    ok = rigger(arm, dest, True)
+    etape('peau IA sur le maillage complet')
+    if not ok:
         journal('ECHEC : peau du tirage allege sur le maillage complet sans resultat')
         sys.exit(3)
     journal(f'peau du tirage (copie allegee) calculee sur le maillage complet : {len(J)} os')
