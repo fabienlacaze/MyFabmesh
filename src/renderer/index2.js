@@ -29065,3 +29065,27 @@ document.addEventListener('change', (e) => { if (e.target && e.target.id === 'ws
   caler();
   rendre();
 })();
+
+// ══ POIDS DE PEAU (2026-09-29, user : « un outil qui colore les parties bougees par chaque os, qu'on puisse
+// peindre, et peindre des parties statiques ») : editeur commun lib/editeur-poids.js. Enregistre une NOUVELLE
+// version du rig (…_rigged_skinpaint_<ts>.glb a cote du rig d'origine), gratuit sur le bureau.
+document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () => {
+  const p = state.currentProject;
+  const rig = p?.selectedRigPath || p?.rigs?.[0]?.path;
+  if (!rig) { customError(_i18nT('Generate a rig first.'), _i18nT('Skin weights')); return; }
+  const buffer = await API.readMeshFile(rig);
+  if (!buffer) { showToast(_i18nT('Could not read the rig file.'), 'error'); return; }
+  const { ouvrirEditeurPoids } = await import('./lib/editeur-poids.js');
+  await ouvrirEditeurPoids({
+    buffer,
+    enregistrer: async (glb) => {
+      const src = String(rig).replace(/^file:\/\/\/?/i, '').replace(/[?#].*$/, '');
+      const base = src.replace(/\.glb$/i, '').replace(/_rigged_[a-z0-9]+_\d+$/i, '');
+      const sortie = `${base}_rigged_skinpaint_${Date.now()}.glb`;
+      const r = await API.saveBuffer({ path: sortie, buffer: glb });
+      if (!r || !r.success) throw new Error((r && r.error) || 'save failed');
+      showToast(_i18nT('Skin weights saved as a new rig version.'), 'success');
+      await reloadCurrentProject();
+    },
+  });
+});

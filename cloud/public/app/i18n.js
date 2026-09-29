@@ -20,6 +20,17 @@
 
   const I18N = {
     fr: {
+      'Skin weights': 'Poids de peau',
+      'Colors show what each bone moves. Paint to change it.': 'Les couleurs montrent ce que bouge chaque os. Peignez pour le changer.',
+      'Bone': 'Os', 'This bone': 'Cet os', 'All bones': 'Tous les os', 'Brush': 'Pinceau',
+      'Add': 'Ajouter', 'Remove': 'Retirer', 'Static': 'Statique', 'Pick': 'Choisir',
+      'moves with this bone': 'bouge avec cet os', 'stops following it': 'ne le suit plus',
+      'follows the body only': 'suit seulement le corps', 'click = choose the bone': "clic = choisir l'os",
+      'Or pick it with the Pick brush, by clicking the mesh.': 'Ou choisissez-le avec le pinceau Choisir, en cliquant sur le maillage.',
+      'Test the bone': "Tester l'os", 'Save as new rig version': 'Enregistrer comme nouvelle version du rig',
+      'Left drag = paint · right drag = rotate · wheel = zoom': 'Clic gauche = peindre · clic droit = tourner · molette = zoom',
+      'Skin weights saved as a new rig version.': 'Poids de peau enregistrés comme nouvelle version du rig.',
+      'Generate a rig first.': "Générez d'abord un rig.", 'This file has no skin weights.': "Ce fichier n'a pas de poids de peau.",
       'Parameters': 'Paramètres',
       'Generation prompt': 'Prompt de génération',
       'Which part?': 'Quelle partie ?',

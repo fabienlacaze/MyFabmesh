@@ -807,6 +807,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-anim-publish-btn':      1,
     'ws-anim-import-btn':       1,
     'ws-lm-manual':             1,   // Skeleton points
+    'ws-rig-poids-btn':         1,   // Skin weights (a l'enregistrement)
   };
 
   // Buttons we hide on cloud. Note: `ws-mesh-sculpt-btn` is now ENABLED
@@ -1292,6 +1293,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-anim-publish-btn': 'market_publish',
     'ws-anim-import-btn':  'manual_tool',
     'ws-lm-manual':        'manual_tool',
+    'ws-rig-poids-btn':    'manual_tool',
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',

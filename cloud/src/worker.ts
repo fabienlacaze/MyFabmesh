@@ -13291,7 +13291,7 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
     // nom 'center' (« purely to store the modified GLB ») : la version
     // s'appelait donc « …_center_client.glb », sans rapport avec ce qu'elle
     // contient.
-    'paint_emissive', 'paint_mesh', 'clone3d',
+    'paint_emissive', 'paint_mesh', 'clone3d', 'skin_paint',
   ]);
   const op = (opType ?? '').toLowerCase();
   if (!CLIENT_OPS.has(op)) {
@@ -13318,7 +13318,7 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
    * (mesh_op_simple) ; peintures et tampon 3D = outil manuel (manual_tool).
    * Rendu si l'enregistrement echoue. */
   const prixClient = await getPrice(env,
-    (op === 'paint_emissive' || op === 'paint_mesh' || op === 'clone3d') ? 'manual_tool' : 'mesh_op_simple');
+    (op === 'paint_emissive' || op === 'paint_mesh' || op === 'clone3d' || op === 'skin_paint') ? 'manual_tool' : 'mesh_op_simple');
   if (prixClient > 0 && (await spendCredits(env, user.id, prixClient)) == null) {
     return err(402, `insufficient credits — this tool costs ${prixClient} credit${prixClient === 1 ? '' : 's'}`);
   }
@@ -13352,7 +13352,13 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
      * /api/mesh-op, pour que le listing la rattache au bon projet. */
     const projectSlug = ((projectName || 'untitled').toString()
       .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled');
-    const key = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}_client.glb`;
+    // Poids de peau repeints (2026-09-29) : une nouvelle version du RIG, rangee avec les rigs et rattachee au
+    // projet par le nom du maillage source (handleListMeshes : ce qui precede « _rigged_ »).
+    const sourceRig = String(new URL(req.url).searchParams.get('source') || '')
+      .replace(/\.glb$/i, '').replace(/_rigged_.*$/i, '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 160);
+    const key = op === 'skin_paint' && sourceRig
+      ? `${user.id}/rigged/${sourceRig}_rigged_skinpaint_${Date.now()}.glb`
+      : `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}_client.glb`;
     await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
     const url = await signedR2Url(env, key, 'mesh');
     // Zero GPU (cout 0 dans MODAL_COST_USD), mais facture depuis le 2026-09-27.

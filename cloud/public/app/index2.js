@@ -28879,3 +28879,28 @@ document.addEventListener('change', (e) => { if (e.target && e.target.id === 'ws
   caler();
   rendre();
 })();
+
+// ══ POIDS DE PEAU (2026-09-29, user : « un outil qui colore les parties bougees par chaque os, qu'on puisse
+// peindre, et peindre des parties statiques ») : editeur commun lib/editeur-poids.js. Enregistre une NOUVELLE
+// version du rig (<compte>/rigged/…_rigged_skinpaint_<ts>.glb), facturee comme un outil manuel.
+document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () => {
+  const p = state.currentProject;
+  const rig = p?.selectedRigUrl || p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
+  if (!rig) { customError(_i18nT('Generate a rig first.'), _i18nT('Skin weights')); return; }
+  const buffer = await API.readMeshFile(rig);
+  if (!buffer) { showToast(_i18nT('Could not read the rig file.'), 'error'); return; }
+  const { ouvrirEditeurPoids } = await import('./lib/editeur-poids.js');
+  await ouvrirEditeurPoids({
+    buffer,
+    enregistrer: async (glb) => {
+      const source = String(rig).replace(/[?#].*$/, '').split('/').pop() || 'rig.glb';
+      const qs = new URLSearchParams({ op: 'skin_paint', project: p?.name || '', source });
+      const r = await fetch('/api/mesh-op/client-result?' + qs.toString(), {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'model/gltf-binary' }, body: new Uint8Array(glb) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data?.success) throw new Error(data?.error || `HTTP ${r.status}`);
+      showToast(_i18nT('Skin weights saved as a new rig version.'), 'success');
+      await reloadCurrentProject();
+    },
+  });
+});

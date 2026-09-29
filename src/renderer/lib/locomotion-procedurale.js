@@ -158,7 +158,8 @@ export const ESPECES = {
   // --- ajoutes le 2026-09-28 (user : « il manque humain et d'autres choix »)
   humain: {        // bipede : pas deroule, bras qui balancent
     walk: { T: 1.0, bras: 1.0 },
-    run: { T: 0.95, bras: 1.15 },
+    // course (29/09, « pas realiste ») : talon qui remonte haut derriere, rebond et phase en l'air marques
+    run: { T: 0.95, bras: 1.15, h: 1.6, bob: 1.6, beta: 0.33 },
   },
   primate: {       // singe, gorille : genoux plies, gros balancement des bras, roule des epaules
     walk: { T: 0.85, h: 0.9, tendu: 0.9, bras: 1.6, tete: 0.1, roulis: 0.08 },
@@ -913,7 +914,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       roulis.push(0.012 * Math.sin(2 * Math.PI * x + 1.0)); lateral.push(0.015 * hanche * Math.sin(2 * Math.PI * x + 1.0));
     } else {
       bob.push(A.bob * hanche * (genre !== 'run' ? onde2 : -onde2));
-      tangage.push((genre === 'run' && bipede ? 0.05 : 0.0) + 0.02 * Math.sin(4 * Math.PI * x));
+      // course bipede : buste penche vers l'avant (~8 degres ; 3 avant, user 29/09 « pas realiste »)
+      tangage.push((genre === 'run' && bipede ? 0.14 : 0.0) + 0.02 * Math.sin(4 * Math.PI * x));
       roulis.push((bipede ? 0.035 : 0.012) * Math.sin(2 * Math.PI * (x + p0 - beta / 2)));
       lateral.push((bipede ? 0.04 * hanche : 0.0) * Math.sin(2 * Math.PI * (x + p0 - beta / 2)));
     }
@@ -1152,7 +1154,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     if (bras.length) { for (let k = bras[0].moyeu; k >= 0 && k !== racine; k = par[k]) colonne.push(k); colonne.reverse(); }
     const nC = Math.max(colonne.length, 1);
     for (const j of colonne) balance.set(j, t.map((_, i) => mm(Ry(-1.6 * lacetBassin[i] / nC), Rz(-roulis[i] / nC))));
-    const [ampB0, flex] = genre === 'run' ? [0.5, 1.1] : genre === 'idle' ? [0.03, 0.12] : [0.3, 0.15];
+    const [ampB0, flex] = genre === 'run' ? [0.5, 1.45] : genre === 'idle' ? [0.03, 0.12] : [0.3, 0.15];   // course : coude ~85 deg
     const ampB = ampB0 * A.bras;
     for (const b of bras) {
       const d_ = sub(P0[b.coude], P0[b.epaule]);
@@ -1176,7 +1178,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     }
   }
   let nbAiles = 0;
-  if (!bipede) {
+  // araignee, crabe : pas d'ailes — des chaines laterales y battaient (vitrine, 2026-09-29)
+  if (!bipede && famille !== 'araignee' && famille !== 'crabe') {
     // ailes et autres appendices lateraux (dragon, oiseau a 4 pattes…) : leger battement symetrique
     const xMid = median(P0.map((p) => p[0])), ext = etendue(P0);
     const pris = new Set([...pattes, ...palpes].flatMap((q) => sousArbre(E, q.chaine[0])));
@@ -1682,9 +1685,57 @@ export function corrigerPoidsPeau(sq, pos, jts, wts, prep = preparerPeau(sq)) {
   const n = corrigerPoidsBrut(sq, pos, jts, essai, prep);
   let total = 0, deplace = 0;
   for (let i = 0; i < wts.length; i++) { total += wts[i]; deplace += Math.max(0, wts[i] - essai[i]); }
-  if (!n || deplace < SEUIL_PEAU_ABIMEE * total) return 0;
-  for (let i = 0; i < wts.length; i++) wts[i] = essai[i];
-  return n;
+  let r = 0;
+  if (n && deplace >= SEUIL_PEAU_ABIMEE * total) {
+    for (let i = 0; i < wts.length; i++) wts[i] = essai[i];
+    r = n;
+  }
+  return r + reaffecterPeauLointaine(sq, pos, jts, wts, prep);
+}
+/* SOMMETS LIES UNIQUEMENT A DES OS LOINTAINS (2026-09-29, araignee de la vitrine : des morceaux du corps
+ * suivaient les pattes). La regle ci-dessus ne corrige qu'un sommet lie a la fois a un os proche et a un os
+ * lointain ; ici TOUS ses os sont loin (18,4 % des sommets de l'araignee : distance ponderee > 12 % de
+ * l'etendue ET > 4 x l'os le plus proche). Ces sommets sont relies aux os les plus proches (1/d^2, os a moins
+ * de 1,5 x le plus proche). Seulement si au moins 2 % des sommets sont touches : un rig sain n'est pas modifie. */
+const SEUIL_PEAU_LOINTAINE = 0.02;
+function reaffecterPeauLointaine(sq, pos, jts, wts, prep) {
+  const { E, ext } = prep, P0 = sq.P0, J = P0.length;
+  const dOs = (x, y, z, a) => {
+    const A = P0[a];
+    let d = Math.hypot(x - A[0], y - A[1], z - A[2]);
+    for (const c of E[a]) {
+      const B = P0[c], b0 = B[0] - A[0], b1 = B[1] - A[1], b2 = B[2] - A[2], l2 = b0 * b0 + b1 * b1 + b2 * b2 || 1e-12;
+      const t = Math.max(0, Math.min(1, ((x - A[0]) * b0 + (y - A[1]) * b1 + (z - A[2]) * b2) / l2));
+      d = Math.min(d, Math.hypot(x - A[0] - t * b0, y - A[1] - t * b1, z - A[2] - t * b2));
+    }
+    return d;
+  };
+  const nV = Math.min(pos.length / 3, jts.length / 4, wts.length / 4), dd = new Float64Array(J);
+  const a_corriger = [];
+  for (let v = 0; v < nV; v++) {
+    const x = pos[v * 3], y = pos[v * 3 + 1], z = pos[v * 3 + 2];
+    let dPond = 0, s = 0;
+    for (let c = 0; c < 4; c++) { const w = wts[v * 4 + c], j = jts[v * 4 + c]; if (w > 0 && j < J) { dPond += w * dOs(x, y, z, j); s += w; } }
+    if (!s) continue;
+    dPond /= s;
+    if (dPond <= 0.12 * ext) continue;
+    let dmin = Infinity;
+    for (let a = 0; a < J; a++) { dd[a] = dOs(x, y, z, a); if (dd[a] < dmin) dmin = dd[a]; }
+    if (dPond <= 4 * dmin) continue;
+    const proches = [];
+    for (let a = 0; a < J; a++) if (dd[a] <= 1.5 * dmin + 1e-9) proches.push([a, 1 / Math.max(dd[a], 1e-4 * ext) ** 2]);
+    proches.sort((u, q) => q[1] - u[1]);
+    a_corriger.push([v, proches.slice(0, 4)]);
+  }
+  if (a_corriger.length < SEUIL_PEAU_LOINTAINE * nV) return 0;
+  for (const [v, proches] of a_corriger) {
+    const somme = proches.reduce((t, q) => t + q[1], 0);
+    for (let c = 0; c < 4; c++) {
+      jts[v * 4 + c] = c < proches.length ? proches[c][0] : 0;
+      wts[v * 4 + c] = c < proches.length ? proches[c][1] / somme : 0;
+    }
+  }
+  return a_corriger.length;
 }
 function corrigerPoidsBrut(sq, pos, jts, wts, prep) {
   const { E, ecart, ext } = prep, P0 = sq.P0, J = P0.length;
@@ -1746,6 +1797,12 @@ function reparerPeauGLB(sq) {
     if (!k) continue;
     n += k;
     for (let v = 0; v < w.a.count; v++) for (let c = 0; c < 4; c++) dv.setFloat32(w.off + v * w.st + c * 4, w.out[v * 4 + c], true);
+    // os aussi : la reaffectation des sommets lointains change les os, pas seulement les poids
+    const tj = j.a.componentType, szj = tj === 5121 ? 1 : 2;
+    for (let v = 0; v < j.a.count; v++) for (let c = 0; c < 4; c++) {
+      const val = j.out[v * 4 + c], o = j.off + v * j.st + c * szj;
+      if (tj === 5121) dv.setUint8(o, val); else dv.setUint16(o, val, true);
+    }
   }
   return n;
 }
