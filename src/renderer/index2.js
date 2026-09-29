@@ -28804,3 +28804,72 @@ document.addEventListener('click', (e) => {
       .observe(fen, { attributes: true, attributeFilter: ['class'] });
   } catch (_) {}
 })();
+
+// ══ FENETRE STYLE (2026-09-29, user : « cree un viewer pour Style aussi ») ══ Le bouton Style ouvrait un menu
+// deroulant ; il ouvre maintenant une fenetre au gabarit commun. Les styles viennent des .style-option du menu
+// (cache, inchange) et « Apply » clique l'option choisie, en sautant la fenetre de lancement (deja validee ici).
+// Identique bureau / web.
+document.addEventListener('click', (e) => {
+  const b = e.target && e.target.closest ? e.target.closest('#ws-style-btn') : null;
+  if (!b || b.disabled) return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  const m = document.getElementById('modal-style');
+  const liste = document.getElementById('sty-liste');
+  if (!m || !liste) return;
+  const options = Array.from(document.querySelectorAll('.style-option'));
+  let choisie = null;
+  liste.innerHTML = '';
+  options.forEach((opt) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'choix-btn';
+    const t = document.createElement('b');
+    t.textContent = (opt.textContent || '').trim();
+    btn.appendChild(t);
+    btn.onclick = () => {
+      choisie = opt;
+      liste.querySelectorAll('.choix-btn').forEach(x => x.classList.toggle('actif', x === btn));
+      document.getElementById('sty-apply').disabled = false;
+    };
+    liste.appendChild(btn);
+  });
+  const src = (typeof _lctImageCourante === 'function') ? _lctImageCourante() : '';
+  const img = document.getElementById('sty-image');
+  if (img && src) img.src = src;
+  const appliquer = document.getElementById('sty-apply');
+  appliquer.disabled = true;                       // un style a choisir d'abord
+  appliquer.querySelector('.credit-badge')?.remove();
+  const p = b.querySelector('.cloud-cost-badge, .credit-badge');
+  if (p && p.textContent.trim()) {
+    const badge = document.createElement('span');
+    badge.className = 'credit-badge';
+    badge.style.marginLeft = '8px';
+    badge.textContent = p.textContent.trim();
+    appliquer.appendChild(badge);
+  }
+  const fermer = () => { m.classList.add('hidden'); appliquer.onclick = null; };
+  document.getElementById('sty-cancel').onclick = fermer;
+  appliquer.onclick = () => {
+    if (!choisie) return;
+    fermer();
+    choisie.__lctValide = true;
+    try { choisie.click(); } finally { choisie.__lctValide = false; }
+  };
+  m.classList.remove('hidden');
+}, true);
+
+// FACE FIX selon le type d'objet (2026-09-29, user : « ne doit pas etre visible pour les projets de type
+// batiment ») : seulement pour ce qui a un visage ou une tete. Bouton du panneau ET entree de la visionneuse.
+// Type inconnu : visible. Verifie chaque seconde (le type change a l'ouverture d'un projet ou au menu).
+const _TYPES_AVEC_TETE = new Set(['character', 'creature', 'animal', 'insect', 'other_living']);
+function _majFaceFixVisible() {
+  const t = String(state.currentProject?.assetType || document.getElementById('ws-asset-type')?.value || '').toLowerCase();
+  const visible = !t || _TYPES_AVEC_TETE.has(t);
+  document.querySelectorAll('#ws-facefix-btn, [data-lb-tool="facefix"]').forEach((b) => {
+    if (b.hidden === !visible) return;
+    b.hidden = !visible;
+  });
+}
+setInterval(_majFaceFixVisible, 1000);
+document.addEventListener('change', (e) => { if (e.target && e.target.id === 'ws-asset-type') _majFaceFixVisible(); });

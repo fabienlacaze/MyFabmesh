@@ -4720,3 +4720,11 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 /* ══ KIT DES FENETRES, lot 4 (2026-09-29) : editeurs plein ecran — meme pied que les autres fenetres
    (Annuler discret + action principale), le texte d'etat eventuel reste a gauche. ══ */
 .modal-actions.fen-pied-editeur { margin-top: 0; }
+
+/* FENETRE STYLE (2026-09-29) : les styles en boutons, liste qui defile */
+.sty-liste { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 440px; overflow-y: auto; padding-right: 4px; }
+.sty-liste .choix-btn { padding: 8px 10px; }
+.sty-liste .choix-btn b { font-size: 12.5px; }
+
+/* Face Fix masque pour les objets sans tete (batiment, vehicule, environnement) */
+#ws-facefix-btn[hidden], [data-lb-tool="facefix"][hidden] { display: none !important; }

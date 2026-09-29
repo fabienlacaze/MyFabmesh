@@ -1717,6 +1717,26 @@
       </div>
     </div>
 
+    <!-- FENETRE STYLE (2026-09-29, user : « cree un viewer pour Style aussi ») : remplace le menu deroulant.
+         Les styles sont lus dans les .style-option du menu (inchange, cache) ; « Apply » declenche l'option choisie. -->
+    <div id="modal-style" class="modal-overlay hidden">
+      <div class="modal-card modal-card-wide">
+        <div class="fen-tete"><h2>Style</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <p class="modal-subtitle">Repaints the image in this style.</p>
+        <div class="modal-with-image">
+          <div class="modal-image-side"><img id="sty-image" alt="" /></div>
+          <div class="modal-form-side">
+            <label>Style</label>
+            <div id="sty-liste" class="sty-liste"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="sty-cancel">Cancel</button>
+          <button class="primary-btn" id="sty-apply">Apply the style</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-multiview-options" class="modal-overlay hidden">
       <div class="modal-card">
         <div class="fen-tete"><h2>Multi-views</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
