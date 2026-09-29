@@ -5699,7 +5699,12 @@ async function openMeshLightbox(meshPath, kind) {
   await _lb3dLoadAt(meshPath);
 }
 
+// JETON DE CHARGEMENT (2026-09-29) : la scene est videe AVANT la lecture ; deux ouvertures
+// rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
+// chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
+let _lb3dJeton = 0;
 async function _lb3dLoadAt(meshPath) {
+  const jeton = ++_lb3dJeton;
   console.log('[lb3d] _lb3dLoadAt', meshPath);
   init3DLightbox();
   ensureLb3dControlsBinding();
@@ -5737,6 +5742,7 @@ async function _lb3dLoadAt(meshPath) {
   document.getElementById('lb3d-loading')?.classList.remove('hidden');  // spinner while the mesh (re)loads into the fullscreen scene
   const ext = (meshPath.split('.').pop() || '').toLowerCase();
   function fitAndApply(obj) {
+    if (jeton !== _lb3dJeton) return;   // un chargement plus recent a ete demande
     console.log('[lb3d] fitAndApply, model:', obj);
     lb3dModel = obj;
     lb3dModel.userData._isSegmented = /_segment_/i.test(meshPath || '');
@@ -12010,7 +12016,12 @@ async function _mtInitViewport() {
   _mtCreateWireButton();
 }
 
+// JETON DE CHARGEMENT (2026-09-29) : la scene est videe AVANT la lecture ; deux ouvertures
+// rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
+// chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
+let _mtJeton = 0;
 function _mtLoadMesh(meshPath) {
+  const jeton = ++_mtJeton;
   if (!mtState.renderer || !mtState.scene) return;   // WebGL indisponible
   if (mtState.origModel && mtState.scene) {
     mtState.scene.remove(mtState.origModel);
@@ -12021,6 +12032,7 @@ function _mtLoadMesh(meshPath) {
   fetch(url).then(r => r.arrayBuffer()).then(buffer => {
     const loader = new GLTFLoader();
     loader.parse(buffer, '', (gltf) => {
+      if (jeton !== _mtJeton) return;   // un chargement plus recent a ete demande
       mtState.origModel = gltf.scene;
       mtState.scene.add(mtState.origModel);
       const box = new THREE.Box3().setFromObject(mtState.origModel);
@@ -12403,7 +12415,12 @@ async function _atInitViewport() {
   }
 }
 
+// JETON DE CHARGEMENT (2026-09-29) : la scene est videe AVANT la lecture ; deux ouvertures
+// rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
+// chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
+let _atJeton = 0;
 async function _atLoadMesh(meshPath) {
+  const jeton = ++_atJeton;
   if (!atState.scene) return;
   if (atState.mesh) {
     atState.scene.remove(atState.mesh);
@@ -12444,6 +12461,7 @@ async function _atLoadMesh(meshPath) {
     const cacheBuster = '?t=' + Date.now();
     console.log('[align-tex] loading mesh from', url + cacheBuster);
     loader.load(url + cacheBuster, (gltf) => {
+      if (jeton !== _atJeton) return;   // un chargement plus recent a ete demande
       console.log('[align-tex] mesh loaded', gltf);
       const obj = gltf.scene || gltf.scenes[0];
       // Center + frame mesh
@@ -13253,7 +13271,12 @@ function _pcStampClone(clientX, clientY, isStart) {
   touched.forEach((e) => _peMarkDirty(e));
 }
 
+// JETON DE CHARGEMENT (2026-09-29) : la scene est videe AVANT la lecture ; deux ouvertures
+// rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
+// chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
+let _peJeton = 0;
 async function _peLoadMesh(meshPath) {
+  const jeton = ++_peJeton;
   if (!peState.renderer || !peState.scene) return;   // WebGL indisponible
   if (peState.origModel) {
     peState.scene.remove(peState.origModel);
@@ -13275,6 +13298,7 @@ async function _peLoadMesh(meshPath) {
   }
   const loader = new GLTFLoader();
   loader.parse(buffer, '', (gltf) => {
+    if (jeton !== _peJeton) return;   // un chargement plus recent a ete demande
     peState.origModel = gltf.scene;
     peState.scene.add(peState.origModel);
     const box = new THREE.Box3().setFromObject(peState.origModel);
@@ -14237,7 +14261,12 @@ function _pmRestoreMaterials() {
   });
 }
 
+// JETON DE CHARGEMENT (2026-09-29) : la scene est videe AVANT la lecture ; deux ouvertures
+// rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
+// chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
+let _pmJeton = 0;
 async function _pmLoadMesh(meshPath) {
+  const jeton = ++_pmJeton;
   if (pmState.origModel) {
     pmState.scene.remove(pmState.origModel);
     pmState.origModel = null;
@@ -14253,6 +14282,7 @@ async function _pmLoadMesh(meshPath) {
     const buf = await r.arrayBuffer();
     const loader = new GLTFLoader();
     loader.parse(buf, '', async (gltf) => {
+      if (jeton !== _pmJeton) return;   // un chargement plus recent a ete demande
       pmState.origModel = gltf.scene;
       pmState.scene.add(pmState.origModel);
       const box = new THREE.Box3().setFromObject(pmState.origModel);
@@ -14684,7 +14714,12 @@ function _matWriteSliders(p) {
 let _matViewer = null;
 let _matModel = null;
 
+// JETON DE CHARGEMENT (2026-09-29) : la scene est videe AVANT la lecture ; deux ouvertures
+// rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
+// chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
+let _matJeton = 0;
 async function openMaterialAdjust() {
+  const jeton = ++_matJeton;
   const p = state.currentProject;
   if (!p || !p.selectedMeshPath) {
     showToast('Pick a mesh first.', 'error'); return;
@@ -14717,6 +14752,7 @@ async function openMaterialAdjust() {
   }
   const loader = new GLTFLoader();
   loader.parse(buffer, '', (gltf) => {
+    if (jeton !== _matJeton) return;   // un chargement plus recent a ete demande
     _matModel = gltf.scene;
     _matViewer.scene.add(_matModel);
     // Patch every material with brightness/sat/contrast shader uniforms.
@@ -15141,7 +15177,12 @@ async function _meInitViewport() {
   window.addEventListener('mouseup', () => { if (meState.lassoing) _meLassoFinish(); });
 }
 
+// JETON DE CHARGEMENT (2026-09-29) : la scene est videe AVANT la lecture ; deux ouvertures
+// rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
+// chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
+let _meJeton = 0;
 function _meLoadMesh(meshPath) {
+  const jeton = ++_meJeton;
   if (!meState.renderer || !meState.scene) return;   // WebGL indisponible
   // Remove old mesh
   if (meState.mesh && meState.scene) {
@@ -15169,6 +15210,7 @@ function _meLoadMesh(meshPath) {
   }).then(buffer => {
     console.log('[mesh-edit] buffer size:', buffer.byteLength);
     loader.parse(buffer, '', (gltf) => {
+      if (jeton !== _meJeton) return;   // un chargement plus recent a ete demande
       console.log('[mesh-edit] GLTF parsed, children:', gltf.scene.children.length);
       meState.mesh = gltf.scene;
       _applyMeshTextureFilter(meState.mesh);
@@ -24705,7 +24747,12 @@ function resizeLmFullscreen() {
   }
 }
 
+// JETON DE CHARGEMENT (2026-09-29) : la scene est videe AVANT la lecture ; deux ouvertures
+// rapprochees ajoutaient chacune leur modele (deux maillages superposes). Seul le dernier
+// chargement demande s'affiche — meme correctif que l'etape Rig (_rigVwJeton).
+let _lmFsJeton = 0;
 async function openLandmarksFullscreen() {
+  const jeton = ++_lmFsJeton;
   // 2026-06-01: prefer the currently-selected RIG so the user can see
   // the AI-generated bones and drag the landmark markers exactly onto
   // them. Fall back to the source mesh if no rig exists yet.
@@ -24738,6 +24785,7 @@ async function openLandmarksFullscreen() {
   if (lmFsModel && lmFsScene) { lmFsScene.remove(lmFsModel); lmFsModel = null; }
   const ext = sourcePath.split('.').pop().toLowerCase();
   function fitFs(obj) {
+    if (jeton !== _lmFsJeton) return;   // un chargement plus recent a ete demande
     lmFsModel = obj;
     lmFsScene.add(lmFsModel);
     const box = new THREE.Box3().setFromObject(lmFsModel);
