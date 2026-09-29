@@ -10166,7 +10166,7 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
  *     50 KB is almost certainly a placeholder, not a real generation.
  *  3. PNG IHDR width check (when PNG) — placeholders are often 256x or
  *     512x; real outputs are always 1024x or 1024+. Reject < 768. */
-function _assertImageBytes(buf: ArrayBuffer, source: string): void {
+function _assertImageBytes(buf: ArrayBuffer, source: string, masque = false): void {
   if (buf.byteLength < 256) {
     throw new Error(`${source} returned ${buf.byteLength} bytes — too small to be a real image (likely content-filtered placeholder).`);
   }
@@ -10182,6 +10182,7 @@ function _assertImageBytes(buf: ArrayBuffer, source: string): void {
   }
   // Size floor — 50 KB. A real 1024² PNG never falls under 100 KB even
   // at the highest compression. Placeholders top out around 30 KB.
+  if (masque) return;
   if (buf.byteLength < 50_000) {
     const preview = new TextDecoder('utf-8', { fatal: false }).decode(buf.slice(0, 256));
     console.warn(`[${source}] suspiciously small image (${buf.byteLength} bytes): "${preview.slice(0, 100)}"`);
@@ -10633,7 +10634,10 @@ async function callModalImageOp(env: Env, userId: string, input: {
   // the warmth hint for one cycle.
   _writeLastWarmMs(env, '_meta/last_warm_image_op.txt').catch(() => {});
 
-  _assertImageBytes(buf, `Modal image_op (${input.op})`);
+  // Un MASQUE (segment : Detect, apercu du masque) est noir et blanc, donc leger (6 a 31 Ko mesures) : le plancher
+  // de taille des vraies images le prenait pour un placeholder du filtre de contenu (2026-09-29, Detect « head » en
+  // echec deux fois). On ne garde que le controle des octets d'image.
+  _assertImageBytes(buf, `Modal image_op (${input.op})`, input.op === 'segment');
   if (env.MESHES && env.R2_PUBLIC_URL) {
     const tag = input.op === 'modify' ? 'modified'
       : input.op === 'recolor' ? 'recolor'
