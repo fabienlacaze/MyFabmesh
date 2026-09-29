@@ -193,6 +193,39 @@ window.openProjectByName = async function (projectName, focusAssetUrl) {
 // to get the GLB stored, hence the `opType` parameter the caller
 // supplies (no hardcoded value here).
 // ────────────────────────────────────────────────────────────────
+/** Envoi d'un GLB de plus de 100 Mo (poids de peau d'un gros rig) : morceaux de 32 Mio assembles par le serveur. */
+async function uploadGlbParMorceaux(bytes, { source, project }, onProgress) {
+  const base = '/api/mesh-op/client-multi';
+  const post = async (qs, body, json) => {
+    const r = await fetch(base + '?' + new URLSearchParams(qs).toString(), {
+      method: 'POST', credentials: 'include',
+      headers: json ? { 'content-type': 'application/json' } : { 'content-type': 'application/octet-stream' },
+      body: json ? JSON.stringify(json) : body,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d?.success === false) throw new Error(d?.error || `HTTP ${r.status}`);
+    return d;
+  };
+  const init = await post({ action: 'init', project: project || '', source: source || '' });
+  const taille = init.partSize || 32 * 1024 * 1024, total = Math.ceil(bytes.byteLength / taille), parts = [];
+  try {
+    for (let i = 0; i < total; i++) {
+      const morceau = bytes.subarray(i * taille, Math.min(bytes.byteLength, (i + 1) * taille));
+      let derniere;
+      for (let essai = 0; essai < 3; essai++) {
+        try { parts.push(await post({ action: 'part', key: init.key, uploadId: init.uploadId, n: String(i + 1) }, morceau)); derniere = null; break; }
+        catch (e) { derniere = e; }
+      }
+      if (derniere) throw derniere;
+      if (onProgress) onProgress(i + 1, total);
+    }
+    return await post({ action: 'complete' }, null, { key: init.key, uploadId: init.uploadId, parts: parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })), project });
+  } catch (e) {
+    try { await post({ action: 'abort' }, null, { key: init.key, uploadId: init.uploadId }); } catch (_) {}
+    throw e;
+  }
+}
+
 async function uploadClientMeshResult(bytes, opType, extra = {}) {
   // Le serveur refuse tout corps de plus de 100 Mo : on le dit tout de suite, sans envoyer 466 Mo pour rien.
   if (bytes && bytes.byteLength > 100_000_000) {
@@ -29169,11 +29202,18 @@ document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () 
     buffer,
     enregistrer: async (glb) => {
       const source = String(rig).replace(/[?#].*$/, '').split('/').pop() || 'rig.glb';
-      const qs = new URLSearchParams({ op: 'skin_paint', project: p?.name || '', source });
-      const r = await fetch('/api/mesh-op/client-result?' + qs.toString(), {
-        method: 'POST', credentials: 'include', headers: { 'content-type': 'model/gltf-binary' }, body: new Uint8Array(glb) });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok || !data?.success) throw new Error(data?.error || `HTTP ${r.status}`);
+      let data;
+      if (glb.byteLength > 90 * 1024 * 1024) {
+        // fichier trop gros pour un seul envoi (limite 100 Mo) : morceaux de 32 Mio
+        data = await uploadGlbParMorceaux(new Uint8Array(glb), { source, project: p?.name || '' },
+          (i, n) => showToast(_i18nT('Uploading') + ' ' + i + ' / ' + n + '…', 'info', 2500));
+      } else {
+        const qs = new URLSearchParams({ op: 'skin_paint', project: p?.name || '', source });
+        const r = await fetch('/api/mesh-op/client-result?' + qs.toString(), {
+          method: 'POST', credentials: 'include', headers: { 'content-type': 'model/gltf-binary' }, body: new Uint8Array(glb) });
+        data = await r.json().catch(() => ({}));
+        if (!r.ok || !data?.success) throw new Error(data?.error || `HTTP ${r.status}`);
+      }
       showToast(_i18nT('Skin weights saved as a new rig version.'), 'success');
       await reloadCurrentProject();
     },

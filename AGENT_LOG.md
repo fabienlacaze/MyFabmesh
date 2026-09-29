@@ -24228,3 +24228,11 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - uploadClientMeshResult : au-dela de 100 Mo (limite Cloudflare) message immediat au lieu d'un envoi de 466 Mo qui echoue.
 
 ## 2026-09-30 — Editeur de poids : « Test the bone » deplace a gauche de « Skeleton » (barre du haut), bureau + web
+
+## 2026-09-30 — Enregistrer les poids d'un GROS rig (> 100 Mo) : envoi par morceaux (multipart R2)
+- Demande user : solution de contournement sans perdre les details du mesh (rig du centipede : 466 Mo, limite Cloudflare 100 Mo par requete).
+- worker.ts : `/api/mesh-op/client-multi` (init / part / complete / abort). Morceaux de 32 Mio assembles dans R2 (multipart natif), un seul
+  morceau en memoire ; cle limitee a `<compte>/rigged/*_rigged_skinpaint_<ts>.glb` ; controle « glTF » a la fin ; 1 credit facture a la FIN
+  (objet supprime si credits insuffisants) ; abort sur echec cote client.
+- index2.js (web) : `uploadGlbParMorceaux`, utilise par « Save as new rig version » au-dela de 90 Mo, avec progression « Uploading i / n ».
+- NON TESTE en conditions reelles (session utilisateur requise) : a essayer sur le rig du centipede.

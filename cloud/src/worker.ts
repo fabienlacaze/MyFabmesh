@@ -13258,6 +13258,78 @@ async function handleMeshConvert(req: Request, env: Env): Promise<Response> {
   }
 }
 
+/** ENVOI PAR MORCEAUX d'un GLB de plus de 100 Mo (2026-09-30, user : « une solution de contournement sans perdre les details »).
+ *  Cloudflare refuse tout corps > 100 Mo : un rig de 10 M de faces (466 Mo) ne pouvait pas etre enregistre apres retouche des
+ *  poids de peau. Le navigateur decoupe le fichier en morceaux de 32 Mio et les envoie un par un ; le worker les assemble dans
+ *  R2 (envoi multipart natif) sans jamais tenir plus d'un morceau en memoire. Reserve aux poids de peau (skin_paint).
+ *    POST /api/mesh-op/client-multi?action=init&project=&source=          -> { key, uploadId, partSize }
+ *    POST /api/mesh-op/client-multi?action=part&key=&uploadId=&n=  (corps = morceau) -> { partNumber, etag }
+ *    POST /api/mesh-op/client-multi?action=complete  (JSON { key, uploadId, parts, project })  -> facture 1 credit, rend l'URL
+ *    POST /api/mesh-op/client-multi?action=abort     (JSON { key, uploadId }) */
+const MULTI_PART_OCTETS = 32 * 1024 * 1024;
+async function handleMeshOpClientMulti(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
+  const q = new URL(req.url).searchParams;
+  const action = q.get('action') || '';
+  const cleOk = (k: string) => k.startsWith(`${user.id}/rigged/`) && /_rigged_skinpaint_\d+\.glb$/.test(k) && !k.includes('..');
+
+  if (action === 'init') {
+    const restants = await checkAndIncrementUserCalls(env, user.id);
+    if (restants == null) return json({ ok: false, success: false, error: 'user limit reached.' }, { status: 429 });
+    const source = String(q.get('source') || '').replace(/\.glb$/i, '').replace(/_rigged_.*$/i, '')
+      .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 160);
+    if (!source) return err(400, 'source required');
+    const key = `${user.id}/rigged/${source}_rigged_skinpaint_${Date.now()}.glb`;
+    const mp = await env.MESHES.createMultipartUpload(key, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    return json({ ok: true, success: true, key, uploadId: mp.uploadId, partSize: MULTI_PART_OCTETS });
+  }
+  if (action === 'part') {
+    const key = q.get('key') || '', uploadId = q.get('uploadId') || '', n = parseInt(q.get('n') || '0', 10);
+    if (!cleOk(key) || !uploadId || !(n >= 1 && n <= 10000)) return err(400, 'bad part request');
+    const annonce = Number(req.headers.get('content-length') ?? '0');
+    if (annonce > MULTI_PART_OCTETS + 1024) return err(413, 'part too large');
+    const corps = await req.arrayBuffer();
+    if (corps.byteLength > MULTI_PART_OCTETS + 1024) return err(413, 'part too large');
+    const part = await env.MESHES.resumeMultipartUpload(key, uploadId).uploadPart(n, corps);
+    return json({ ok: true, success: true, partNumber: part.partNumber, etag: part.etag });
+  }
+  const b = await req.json().catch(() => ({})) as { key?: string; uploadId?: string; parts?: { partNumber: number; etag: string }[]; project?: string };
+  const key = String(b.key || ''), uploadId = String(b.uploadId || '');
+  if (!cleOk(key) || !uploadId) return err(400, 'bad request');
+  if (action === 'abort') {
+    try { await env.MESHES.resumeMultipartUpload(key, uploadId).abort(); } catch { /* deja termine */ }
+    return json({ ok: true, success: true });
+  }
+  if (action === 'complete') {
+    const opStart = Date.now();
+    const prix = await getPrice(env, 'manual_tool');
+    if (!Array.isArray(b.parts) || !b.parts.length) return err(400, 'parts required');
+    try {
+      await env.MESHES.resumeMultipartUpload(key, uploadId).complete(b.parts);
+    } catch (e) {
+      return err(502, `assembly failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    // meme controle que la route directe : un GLB commence par « glTF »
+    const tete = await env.MESHES.get(key, { range: { offset: 0, length: 12 } });
+    const o = tete ? new Uint8Array(await tete.arrayBuffer()) : new Uint8Array(0);
+    if (o.length < 12 || o[0] !== 0x67 || o[1] !== 0x6C || o[2] !== 0x54 || o[3] !== 0x46) {
+      await env.MESHES.delete(key).catch(() => {});
+      return err(400, 'payload is not a valid GLB (magic bytes missing)');
+    }
+    if (prix > 0 && (await spendCredits(env, user.id, prix)) == null) {
+      await env.MESHES.delete(key).catch(() => {});
+      return err(402, `insufficient credits — this tool costs ${prix} credit${prix === 1 ? '' : 's'}`);
+    }
+    const url = await signedR2Url(env, key, 'mesh');
+    await logOperation(env, user.id, 'mesh-op-client', prix, opStart, Date.now(), 'succeeded',
+                       { req, projectName: b.project, op_type: 'skin_paint', client_side: true, multipart: true });
+    return json({ ok: true, success: true, path: url, newPath: url, mesh_url: url });
+  }
+  return err(400, 'unknown action');
+}
+
 async function handleMeshOpClientResult(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
@@ -21345,6 +21417,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/construction-stages-3d' && method === 'POST') return await handleConstructionStages3d(req, env);
         if (pathname === '/api/stages3d-list'         && method === 'GET')  return await handleStages3dList(req, env);
         if (pathname === '/api/mesh-op/client-result' && method === 'POST') return await handleMeshOpClientResult(req, env);
+        if (pathname === '/api/mesh-op/client-multi' && method === 'POST') return await handleMeshOpClientMulti(req, env);
         if (pathname === '/api/history.csv'           && method === 'GET')  return await handleHistoryCsv(req, env);
         if (pathname.startsWith('/api/history/')      && method === 'GET') {
           const id = pathname.slice('/api/history/'.length);
