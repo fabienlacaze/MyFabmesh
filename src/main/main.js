@@ -893,6 +893,9 @@ const HF_CACHE_DIR  = path.join(HEAVY_DIR, 'hf_cache');
 // SCRIPTS_DIR is READ-ONLY: in prod the .py files are copied to
 // process.resourcesPath/scripts by electron-builder extraResources.
 // In dev they live at repo-root/scripts. Never mkdir this one.
+// Reduction meshoptimizer du bureau (scripts/meshopt, 2026-09-29) : les scripts Python lancent la version
+// WebAssembly avec CET executable (signe) en mode Node — voir acceleration_glb._reduire_meshopt_wasm.
+process.env.FABMESH_NODE = process.execPath;
 const SCRIPTS_DIR = app.isPackaged
   ? path.join(process.resourcesPath, 'scripts')
   : path.join(__dirname, '..', '..', 'scripts');

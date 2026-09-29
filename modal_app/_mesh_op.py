@@ -107,6 +107,20 @@ def decimate(glb_bytes: bytes, target_faces: int = 50_000) -> bytes:
 
             new_uv = None
             points = faces_out = None
+            # 2026-09-29 : FORME SEULE par meshoptimizer + depliage + texture RECUITE (acceleration_glb,
+            # valide par le user). L'ancienne methode (reduction du maillage texture + UV du plus proche
+            # sommet) reste le repli.
+            if old_uv is not None:
+                try:
+                    from modal_app.acceleration_glb import reduire_et_recuire
+                    r_new = reduire_et_recuire(m, n, 2048, log=lambda t: print(t, flush=True))
+                    m.vertices = r_new.vertices
+                    m.faces = r_new.faces
+                    m.visual = r_new.visual
+                    reduits += 1
+                    continue
+                except Exception as e:
+                    print(f'[mesh-op] reduction + recuisson impossible ({type(e).__name__}: {e}) : ancienne methode', flush=True)
             if old_uv is not None:
                 verts = np.asarray(m.vertices, dtype=np.float32)
                 faces = np.asarray(m.faces, dtype=np.int32)

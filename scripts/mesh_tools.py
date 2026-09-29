@@ -148,6 +148,19 @@ def decimate(input_path, output_path, target_faces=None):
             old_uv = (np.asarray(g.visual.uv, dtype=np.float32).copy()
                       if (is_tex and getattr(g.visual, 'uv', None) is not None) else None)
             old_mat = getattr(g.visual, 'material', None) if is_tex else None
+            # 2026-09-29 : FORME SEULE par meshoptimizer + depliage + texture RECUITE (module partage
+            # acceleration_glb, valide par le user). Ancienne methode = repli.
+            if old_uv is not None:
+                try:
+                    from acceleration_glb import reduire_et_recuire
+                    g_new = reduire_et_recuire(g, max(50, int(len(g.faces) * ratio)), 2048, log=log)
+                    geoms[gi] = g_new
+                    if geom_names[gi] is not None:
+                        scene.geometry[geom_names[gi]] = g_new
+                    log(f'decimated to {len(g_new.faces)} faces (target: {target_faces}, meshoptimizer + recuisson)')
+                    continue
+                except Exception as e:
+                    log(f'reduction + recuisson impossible ({type(e).__name__}: {e}) - ancienne methode')
             verts = np.asarray(g.vertices, dtype=np.float32)
             faces = np.asarray(g.faces, dtype=np.int32)
             try:

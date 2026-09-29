@@ -158,7 +158,10 @@ def _reduire_meshopt(vn, fn, cible):
     puis sans limite d'erreur, puis « sloppy » si la cible reste hors d'atteinte. ImportError si absent
     (bureau pour l'instant) : l'appelant revient a fast_simplification."""
     import numpy as np
-    import meshoptimizer as mo
+    try:
+        import meshoptimizer as mo
+    except ImportError:
+        return _reduire_meshopt_wasm(vn, fn, cible)
     idx = np.ascontiguousarray(fn.reshape(-1), dtype=np.uint32)
     pos = np.ascontiguousarray(vn, dtype=np.float32)
     dest = np.zeros_like(idx)
@@ -171,6 +174,121 @@ def _reduire_meshopt(vn, fn, cible):
     f = dest[:n].reshape(-1, 3).astype(np.int64)
     utiles, inv = np.unique(f.reshape(-1), return_inverse=True)
     return pos[utiles], inv.reshape(-1, 3)
+
+def _reduire_meshopt_wasm(vn, fn, cible):
+    """BUREAU (2026-09-29) : meme reduction par la version WebAssembly de meshoptimizer (scripts/meshopt/),
+    executee par l'executable Electron deja signe (FABMESH_NODE, pose par main.js) en mode Node — une
+    bibliotheque compilee non signee serait bloquee par Smart App Control. A defaut, `node` du PATH (dev).
+    ImportError si rien n'est disponible : l'appelant revient a fast_simplification."""
+    import os
+    import struct
+    import subprocess
+    import tempfile
+    import numpy as np
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'meshopt', 'meshopt_reduire.mjs')
+    if not os.path.exists(script):
+        raise ImportError('meshopt_reduire.mjs absent')
+    exe = os.environ.get('FABMESH_NODE') or 'node'
+    env = dict(os.environ, ELECTRON_RUN_AS_NODE='1')
+    pos = np.ascontiguousarray(vn, dtype=np.float32)
+    idx = np.ascontiguousarray(fn, dtype=np.uint32)
+    with tempfile.TemporaryDirectory(prefix='meshopt_') as d:
+        e, s = os.path.join(d, 'in.bin'), os.path.join(d, 'out.bin')
+        with open(e, 'wb') as fh:
+            fh.write(struct.pack('<ii', len(pos), len(idx)) + pos.tobytes() + idx.tobytes())
+        try:
+            subprocess.run([exe, script, e, s, str(int(cible))], env=env, check=True, capture_output=True,
+                           timeout=600, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        except (OSError, subprocess.SubprocessError) as err:
+            raise ImportError(f'meshoptimizer wasm indisponible : {err}')
+        b = open(s, 'rb').read()
+    n = struct.unpack('<i', b[:4])[0]
+    f = np.frombuffer(b[4:4 + n * 12], dtype=np.uint32).reshape(-1, 3).astype(np.int64)
+    utiles, inv = np.unique(f.reshape(-1), return_inverse=True)
+    return pos[utiles], inv.reshape(-1, 3)
+
+def reduire_et_recuire(m, cible, taille=2048, log=print):
+    """TRIANGLE COUNT (2026-09-29, user : « l'outil Triangle count doit aussi l'utiliser ») : reduit la FORME
+    SEULE par meshoptimizer (forme tres bien conservee, jugee sur ane et cabane 10 M -> 1 K), redeplie (xatlas)
+    et RECUIT la couleur depuis le maillage texture d'origine (couleur du point de surface le plus proche).
+    Reduire le maillage texture tel quel deplace les coutures d'UV : texture dechiree (essai du jour).
+    Rend un trimesh.Trimesh texture ; ImportError si xatlas / scipy / cv2 manquent (l'appelant garde
+    l'ancienne methode). Identique bureau / serveur."""
+    import numpy as np
+    import trimesh
+    import xatlas
+    import cv2
+    from PIL import Image
+    from scipy.spatial import cKDTree
+    import time
+    t0 = time.time()
+    tex = m.visual.material.baseColorTexture
+    if tex is None:
+        raise ImportError('pas de texture de couleur')
+    A = np.asarray(tex.convert('RGB'), np.float32)
+    H, W = A.shape[:2]
+    uv = np.asarray(m.visual.uv, np.float64)
+    vn, inv = np.unique(np.asarray(m.vertices, np.float32), axis=0, return_inverse=True)
+    fn = inv.reshape(-1)[np.asarray(m.faces)]
+    fn = fn[(fn[:, 0] != fn[:, 1]) & (fn[:, 1] != fn[:, 2]) & (fn[:, 0] != fn[:, 2])]
+    v2, f2 = _reduire_meshopt(vn, fn, int(cible))
+    vmap, idx, uv2 = xatlas.parametrize(np.asarray(v2, np.float32), np.asarray(f2, np.uint32))
+    V2 = np.asarray(v2, np.float64)[vmap]
+    # nuage colore dense sur la surface d'origine
+    n_pts = int(min(3_000_000, max(400_000, taille * taille * 0.6)))
+    pts, fi = trimesh.sample.sample_surface(m, n_pts)
+    bary = trimesh.triangles.points_to_barycentric(m.triangles[fi], pts)
+    uvp = np.einsum('ij,ijk->ik', bary, uv[np.asarray(m.faces)[fi]])
+    px = np.clip((uvp[:, 0] % 1.0) * (W - 1), 0, W - 1).astype(np.int64)
+    py = np.clip((1.0 - uvp[:, 1] % 1.0) * (H - 1), 0, H - 1).astype(np.int64)
+    col = A[py, px]
+    arbre = cKDTree(pts)
+    # rasterisation vectorisee des triangles dans le nouvel atlas -> position 3D de chaque texel
+    T = int(taille)
+    tri = uv2[idx] * (T - 1)                                   # (F, 3, 2)
+    lo = np.floor(tri.min(1)).astype(np.int64)
+    hi = np.ceil(tri.max(1)).astype(np.int64)
+    taille_bb = (hi - lo + 1).max(1)
+    P, Q = [], []
+    for K in (4, 8, 16, 32, 64, 128, 256, 512, 4096):
+        sel = np.nonzero((taille_bb <= K) & (taille_bb > (K // 2 if K > 4 else 0)))[0]
+        for d in range(0, len(sel), max(1, 2_000_000 // (K * K))):
+            s_ = sel[d:d + max(1, 2_000_000 // (K * K))]
+            gx, gy = np.meshgrid(np.arange(K), np.arange(K))
+            X = lo[s_, 0][:, None] + gx.ravel()[None, :] + 0.5
+            Y = lo[s_, 1][:, None] + gy.ravel()[None, :] + 0.5
+            a, b, c = tri[s_, 0], tri[s_, 1], tri[s_, 2]
+            den = (b[:, 1] - c[:, 1]) * (a[:, 0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (a[:, 1] - c[:, 1])
+            den = np.where(np.abs(den) < 1e-12, 1e-12, den)[:, None]
+            l1 = ((b[:, 1] - c[:, 1])[:, None] * (X - c[:, 0][:, None]) + (c[:, 0] - b[:, 0])[:, None] * (Y - c[:, 1][:, None])) / den
+            l2 = ((c[:, 1] - a[:, 1])[:, None] * (X - c[:, 0][:, None]) + (a[:, 0] - c[:, 0])[:, None] * (Y - c[:, 1][:, None])) / den
+            l3 = 1.0 - l1 - l2
+            ok = (l1 >= -0.02) & (l2 >= -0.02) & (l3 >= -0.02)
+            ti, pi = np.nonzero(ok)
+            if not len(ti):
+                continue
+            fa = idx[s_[ti]]
+            L = np.stack([l1[ti, pi], l2[ti, pi], l3[ti, pi]], 1)
+            P.append(np.einsum('ij,ijk->ik', L, V2[fa]))
+            Q.append(np.stack([X[ti, pi], Y[ti, pi]], 1).astype(np.int64))
+    P = np.concatenate(P)
+    Q = np.clip(np.concatenate(Q), 0, T - 1)
+    _, k = arbre.query(P, k=4, workers=-1)
+    out = np.zeros((T, T, 3), np.float32)
+    rempli = np.zeros((T, T), np.uint8)
+    out[Q[:, 1], Q[:, 0]] = col[k].mean(1)
+    rempli[Q[:, 1], Q[:, 0]] = 1
+    img = cv2.inpaint(out.clip(0, 255).astype(np.uint8), (1 - rempli) * 255, 3, cv2.INPAINT_TELEA)
+    img = np.ascontiguousarray(np.flipud(img))
+    ancien = m.visual.material
+    mat = trimesh.visual.material.PBRMaterial(
+        baseColorTexture=Image.fromarray(img),
+        metallicFactor=getattr(ancien, 'metallicFactor', 0.0) or 0.0,
+        roughnessFactor=getattr(ancien, 'roughnessFactor', 0.8) or 0.8,
+        doubleSided=True)
+    r = trimesh.Trimesh(V2, idx, visual=trimesh.visual.TextureVisuals(uv=uv2, material=mat), process=False)
+    log(f'[tris] reduction + recuisson : {len(m.faces)} -> {len(idx)} faces, atlas {T} ({time.time() - t0:.1f} s)')
+    return r
 
 def _nettoyer(mesh, log=print, orienter=False):
     """Doublons, aretes non-manifold, miettes, petits trous (+ orientation) — operations cumesh."""

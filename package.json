@@ -80,6 +80,8 @@
           "**/*.json",
           "**/*.npy",
           "**/*.png",
+          "meshopt/*.mjs",
+          "meshopt/*.md",
           "!**/.venv/**",
           "!**/__pycache__/**",
           "!**/*.backup_*",

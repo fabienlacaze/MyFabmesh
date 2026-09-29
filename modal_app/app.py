@@ -386,6 +386,8 @@ _base_image = (
 # Modal rule: add_local_* must come LAST.
 image = (
     _base_image
+    # Triangle count (2026-09-29) : reduction meshoptimizer + depliage xatlas + recuisson (acceleration_glb).
+    .pip_install("xatlas", "meshoptimizer==0.2.30a0")
     # opencv-python-headless ships the Haar Cascade XMLs we need for
     # face detection in image_op face_fix_image. Pure CPU (~50ms per
     # image). Kept here (NOT in _base_image) so adding it doesn't
