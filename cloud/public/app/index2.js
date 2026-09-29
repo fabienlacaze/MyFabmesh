@@ -17538,6 +17538,11 @@ async function loadRigTemplatesIntoSelect() {
 
 // ----- Step 3 viewer (rigged FBX) -----
 let rigVwRenderer, rigVwScene, rigVwCamera, rigVwControls, rigVwModel;
+// JETON DE CHARGEMENT (2026-09-29). La scene est purgee AVANT la lecture du fichier ; deux
+// affichages rapproches (autre version cliquee, rafraichissement du projet) finissaient donc
+// chacun par ajouter LEUR modele : meme maillage, deux squelettes superposes (capture user,
+// guerrier Rig v4). Seul le dernier chargement demande s'affiche.
+let _rigVwJeton = 0;
 let rigVwMixer = null;
 let rigVwClips = [];
 let rigVwActiveAction = null;
@@ -17566,6 +17571,7 @@ function initRigViewer() {
 }
 
 async function showStep3Preview(rig) {
+  const jeton = ++_rigVwJeton;
   const placeholder = document.getElementById('step3-placeholder');
   setViewerFilename('ws-rig-filename', rig?.path || rig?.filename);
   // Toggle the "Use this rig for Animation -> " bar based on rig presence.
@@ -17636,6 +17642,7 @@ async function showStep3Preview(rig) {
       const url = _toFileUrl(rig.path);
       const loader = new FBXLoader();
       loader.load(url, async (obj) => {
+        if (jeton !== _rigVwJeton) return;   // un affichage plus recent a ete demande
         setViewerLoading('step3-preview', false);
         rigVwModel = obj;
         rigVwScene.add(rigVwModel);
@@ -17732,9 +17739,11 @@ async function showStep3Preview(rig) {
       });
     } else if (ext === 'glb' || ext === 'gltf') {
       const buffer = await API.readMeshFile(rig.path);
+      if (jeton !== _rigVwJeton) return;     // un affichage plus recent a ete demande
       if (!buffer) { setViewerLoading('step3-preview', false); return; }
       const loader = new GLTFLoader();
       loader.parse(buffer, '', (gltf) => {
+        if (jeton !== _rigVwJeton) return;   // un affichage plus recent a ete demande
         setViewerLoading('step3-preview', false);
         rigVwModel = gltf.scene;
         _applyMeshTextureFilter(rigVwModel);
