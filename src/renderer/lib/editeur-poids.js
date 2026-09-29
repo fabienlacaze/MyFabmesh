@@ -55,7 +55,7 @@ function construireFenetre() {
         <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">${esc(T('Size'))}</span><span class="fen-valeur" id="pp-taille-v">6 %</span></div>
           <input type="range" id="pp-taille" min="1" max="25" value="6"></div>
         <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">${esc(T('Strength'))}</span><span class="fen-valeur" id="pp-force-v">50 %</span></div>
-          <input type="range" id="pp-force" min="5" max="100" value="50"></div>
+          <input type="range" id="pp-force" min="5" max="500" value="50"></div>
         <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">${esc(T('Spread / shrink the zone'))}</span><span class="fen-valeur" id="pp-prop-v">0</span></div>
           <input type="range" id="pp-prop" min="-20" max="20" value="0" step="1">
           <div class="fen-echelle"><span>${esc(T('Shrink'))}</span><span>${esc(T('Spread'))}</span></div>
@@ -274,7 +274,8 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
       for (let k = 0; k < l.length; k++) {
         const i = l[k], dx = P[3 * i] - p.x, dy = P[3 * i + 1] - p.y, dz = P[3 * i + 2] - p.z, d2 = dx * dx + dy * dy + dz * dz;
         if (d2 > R2) continue;
-        const t = 1 - Math.sqrt(d2) / R, f = f0 * t * t;
+        // au-dela de 100 % : plus fort ET plus dur (bord moins doux : exposant 2 -> 0,4 a 500 %), plafonne a 1
+        const t = 1 - Math.sqrt(d2) / R, f = Math.min(1, f0 * Math.pow(t, force() > 1 ? 2 / force() : 2));
         noter(d, i);
         const b = pinceau === 'statique' ? racine : osChoisi, cible = pinceau === 'retirer' ? 0 : 1;
         if (viser(d, i, b, cible, f)) salir(d, i);
