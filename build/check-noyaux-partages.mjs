@@ -142,6 +142,9 @@ const FICHIERS = [
   { nom: 'moteur de marche procedural', source: 'src/renderer/lib/locomotion-procedurale.js', copie: 'cloud/public/app/lib/locomotion-procedurale.js' },
   { nom: 'editeur des poids de peau', source: 'src/renderer/lib/editeur-poids.js', copie: 'cloud/public/app/lib/editeur-poids.js' },
   { nom: 'decalques (Paint Mesh)', source: 'src/renderer/lib/editeur-decals.js', copie: 'cloud/public/app/lib/editeur-decals.js' },
+  { nom: 'niveaux de detail (LOD)', source: 'src/renderer/lib/lod-maillage.js', copie: 'cloud/public/app/lib/lod-maillage.js' },
+  { nom: 'worker LOD', source: 'src/renderer/lib/lod-worker.js', copie: 'cloud/public/app/lib/lod-worker.js' },
+  { nom: 'meshoptimizer simplifier', source: 'src/renderer/lib/meshopt-simplifier.js', copie: 'cloud/public/app/lib/meshopt-simplifier.js' },
   { nom: 'apercu des allures', source: 'src/renderer/lib/apercu-animation.js', copie: 'cloud/public/app/lib/apercu-animation.js' },
 ];
 for (const p of FICHIERS) {

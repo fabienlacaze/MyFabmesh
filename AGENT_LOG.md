@@ -24243,3 +24243,13 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   dans la derniere seconde et demie, ou quand la scene change ; pixel ratio 1. Viewer du rig : `gateHeavy` + `animating` (le mixer continue
   de tourner tant qu'une animation joue). Paint Mesh : meme regle. Aucun detail retire.
 - A faire (GPU, octobre) : maillage proxy ~500 K pour l'affichage pendant la rotation (LOD), texture pleine resolution conservee.
+
+## 2026-09-30 — Niveaux de detail (LOD) pour les gros maillages : viewers mesh et rig (bureau + web)
+- `lib/lod-maillage.js` + `lod-worker.js` + `meshopt-simplifier.js` (meshoptimizer 1.3.0 WASM, MIT), fichiers communs. Un Worker reduit le maillage a
+  400 K triangles (avec les UV dans le calcul) ; la reduction ne cree AUCUN sommet : la geometrie legere PARTAGE tous les attributs (positions,
+  UV, normales, os et poids) avec l'originale et n'a qu'un autre tampon d'indices. Resultat cache dans IndexedDB.
+- MESURE (rig du centipede, 10 346 880 triangles) : 399 990 triangles en 23,5 s ; seuls 6,6 % des sommets restent references -> ~15x moins
+  de sommets/peau a traiter par image. Test de logique en Node (sphere 2,16 M) : partage des attributs, bascule leger/complet, retour au complet a l'arret.
+- Viewer3D : leger pendant les mouvements, COMPLET a l'arret (700 ms) ou en zoom serre (< 1,3 rayon) ; rendu econome inchange (signature sur le maillage plein
+  pour ne pas boucler). Les outils / clones (`_modeleDeLetape`, Paint Mesh) remettent toujours la geometrie COMPLETE. CSP bureau : 'wasm-unsafe-eval'.
+- NON verifie visuellement (pas de WebGL cote test). A confirmer par le user sur le rig du centipede.

@@ -19,6 +19,7 @@
  *   viewer.startTickLoop();
  *   viewer.dispose(); // when unmounting
  */
+import { majLOD, preparerLOD, geometriePleine } from './lod-maillage.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -41,7 +42,7 @@ function _signatureScene(scene) {
   scene.traverse((o) => {
     if (!o.isMesh || !o.geometry || o.visible === false) return;
     meshes++;
-    const g = o.geometry;
+    const g = geometriePleine(o);
     tris += g.index ? g.index.count / 3 : (g.attributes.position ? g.attributes.position.count / 3 : 0);
   });
   return { meshes, tris };
@@ -232,6 +233,13 @@ export class Viewer3D {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Gros maillage : prepare (Worker) puis active les niveaux de detail sur `root`. `cle` = chemin du fichier (cache). */
+  attacherLOD(root, cle) {
+    this._lodRoot = null;
+    preparerLOD(root, { cle: String(cle || '').split('?')[0], surPret: () => { if (root.parent) { this._lodRoot = root; this._forceRendu = true; } } })
+      .catch((e) => console.warn('[lod]', e && e.message ? e.message : e));
+  }
+
   /** Start a render-on-visible tick loop. Idempotent. */
   startTickLoop() {
     if (this._ticking) return;
@@ -243,6 +251,14 @@ export class Viewer3D {
         && document.visibilityState !== 'hidden';
       if (!visible) return;
       const changed = this.controls.update();
+      // NIVEAUX DE DETAIL (lib/lod-maillage.js) : leger pendant les mouvements, complet a l'arret ou en zoom serre
+      if (this._lodRoot) {
+        if (!this._lodRoot.parent) this._lodRoot = null;
+        else {
+          const arret = !changed && performance.now() - _activiteViewer > 700;
+          if (majLOD(this._lodRoot, this.camera, arret)) this._forceRendu = true;
+        }
+      }
       if (this._onBeforeRender) {
         try { this._onBeforeRender(this); } catch (e) { /* swallow */ }
       }
@@ -263,11 +279,12 @@ export class Viewer3D {
         }
         let anime = false;
         if (this._animating) { try { anime = !!this._animating(); } catch (_) { anime = false; } }
-        if (this._lourd && !changed && !anime) {
+        if (this._lourd && !changed && !anime && !this._forceRendu) {
           const t = performance.now();
           if (t - Math.max(_activiteViewer, this._activite || 0) > 1500) return;
         }
       }
+      this._forceRendu = false;
       this.renderer.render(this.scene, this.camera);
     };
     tick();

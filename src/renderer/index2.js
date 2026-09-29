@@ -14,6 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
+import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 
@@ -9708,6 +9709,7 @@ function initWsThree() {
   wsCamera = _wsV.camera;
   wsControls = _wsV.controls;
   _wsV.startTickLoop();
+  window.__wsV3D = _wsV;   // niveaux de detail (lib/lod-maillage.js)
   wsRafId = -1;  // (Viewer3D owns the RAF; kept for legacy shutdown code)
 }
 
@@ -9816,6 +9818,7 @@ async function showStep2Preview(mesh) {
     wsModel.userData.parts = mesh.parts || null;   // zones nommées (sidecar .parts.json)
     if (typeof renderPartLegend === 'function') renderPartLegend(mesh.parts || null);
     wsScene.add(wsModel);
+    try { window.__wsV3D?.attacherLOD(wsModel, mesh.path); } catch (_) {}   // gros maillage : version legere pendant les mouvements
     _applyMeshTextureFilter(wsModel);
     fitWsCamera(wsModel);
     // Count verts/triangles and display under the filename
@@ -14428,6 +14431,9 @@ function _modeleDeLetape(chemin, opts = {}) {
   try {
     const c = wsModel.clone(true);
     c.position.set(0, 0, 0);
+    // la copie garde la geometrie LEGERE du viewer : on remet la complete (les outils lisent et modifient le vrai maillage)
+    const _orig = []; wsModel.traverse((o) => { if (o.isMesh) _orig.push(o); });
+    let _k = 0; c.traverse((o) => { if (o.isMesh) { const w = _orig[_k++]; if (w) o.geometry = geometriePleine(w); } });
     c.traverse((o) => {
       if (!o.isMesh) return;
       if (o.material) o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone();
@@ -14452,19 +14458,7 @@ function _fauxChargeur(chemin, opts) {
     },
   };
 }
-function _pmModeleDejaCharge(chemin) {
-  try {
-    const p = state.currentProject;
-    if (typeof wsModel === 'undefined' || !wsModel || !wsModel.userData?.__wsMesh || !wsScene || wsModel.parent !== wsScene) return null;
-    if (!p || !chemin || p.previewMeshPath !== chemin) return null;
-    let skinne = false; wsModel.traverse((c) => { if (c.isSkinnedMesh) skinne = true; });
-    if (skinne) return null;
-    const c = wsModel.clone(true);
-    c.position.set(0, 0, 0);
-    c.traverse((o) => { if (o.isMesh && o.material) o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone(); });
-    return c;
-  } catch (_) { return null; }
-}
+function _pmModeleDejaCharge(chemin) { return _modeleDeLetape(chemin); }
 async function _pmLoadMesh(meshPath) {
   const jeton = ++_pmJeton;
   if (pmState.origModel) {
@@ -17316,6 +17310,7 @@ function initRigViewer() {
   rigVwCamera = _rvV.camera;
   rigVwControls = _rvV.controls;
   _rvV.startTickLoop();
+  window.__rvV3D = _rvV;
 }
 
 async function showStep3Preview(rig) {
@@ -17469,6 +17464,7 @@ async function showStep3Preview(rig) {
         if (jeton !== _rigVwJeton) return;   // un affichage plus recent a ete demande
         rigVwModel = gltf.scene;
         _applyMeshTextureFilter(rigVwModel);
+        try { window.__rvV3D?.attacherLOD(rigVwModel, rig.path || rig.url || ''); } catch (_) {}
         let skinnedCount = 0;
         // Add model to scene FIRST (like the FBX path) so that
         // updateMatrixWorld propagates correct bone world matrices.
