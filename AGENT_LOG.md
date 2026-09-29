@@ -24170,3 +24170,9 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   (OverflowError pickle > 4 GiB), Blender recharge les 10 M, l'ancien chemin repart de zero. Marge des utilisateurs en danger.
 - `_skintokens_rig.py` : RIG_MAX_FACES = 1 M (lu dans l'en-tete GLB, refus immediat avec message « reduisez avec Triangle count »,
   remboursement par le worker), RIG_BUDGET_S = 480 s (arret du sous-processus + pas de repli qui recommence), timeout Modal 900 -> 600.
+
+## 2026-09-30 — Decals : lag de l'apercu et decal « colle a la souris »
+- Cause du lag : raycast SANS BVH sur ~500 K faces a chaque evenement souris + import dynamique + Box3 recalcules. Corrige : BVH
+  (computeBoundsTree au chargement de Paint Mesh), un raycast par image (rAF), module et mesures en cache.
+- « Reste accroche » : l'apercu suivait toujours la souris apres le clic. Il est masque pendant la pose (verrou anti-double clic,
+  message « Placing decal… »), et devient un fantome a 40 % avec cadre jaune, distinct du decal cuit.

@@ -14415,6 +14415,7 @@ async function _pmLoadMesh(meshPath) {
       pmState.controls?.update();
       pmState.origModel.traverse((child) => {
         if (child.isMesh && child.geometry && child.material) {
+          try { if (!child.geometry.boundsTree) child.geometry.computeBoundsTree(); } catch {}   // raycast BVH : sans lui l'apercu gele sur 500 K faces
           pmState.meshes.push({ mesh: child });
         }
       });
@@ -14621,7 +14622,8 @@ function _pmDecalOnTool(t) {
 function _pmDecalCacher() { if (_pmDecalApercuMesh) _pmDecalApercuMesh.visible = false; }
 function _pmDecalParams() {
   const v = (id, d) => { const e = document.getElementById(id); return e ? Number(e.value) : d; };
-  const diag = pmState.origModel ? new THREE.Box3().setFromObject(pmState.origModel).getSize(new THREE.Vector3()).length() : 2;
+  if (!pmState._decalDiag || pmState._decalDiag.m !== pmState.origModel) pmState._decalDiag = { m: pmState.origModel, d: pmState.origModel ? new THREE.Box3().setFromObject(pmState.origModel).getSize(new THREE.Vector3()).length() : 2 };
+  const diag = pmState._decalDiag.d;
   const largeur = Math.max(1e-4, diag * 0.5 * v('pm-decal-taille', 25) / 100);
   return {
     largeur, rot: v('pm-decal-rot', 0), flip: !!document.getElementById('pm-decal-flip')?.checked,
@@ -14633,29 +14635,46 @@ function _pmDecalCadre(hit) {
   const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
   return { k, cadreArgs: { p: hit.point.toArray(), n: n.toArray(), rot: k.rot, flip: k.flip, largeur: k.largeur, ratio: img.h / img.w } };
 }
-async function _pmDecalApercu(clientX, clientY) {
-  if (!pmState.decal) return;
-  const hit = _pmRaycast(clientX, clientY);
-  if (!hit) { _pmDecalCacher(); return; }
-  const { cadreDecal } = await import('./lib/editeur-decals.js');
-  const { cadreArgs } = _pmDecalCadre(hit), c = cadreDecal(cadreArgs);
-  if (!_pmDecalApercuMesh) {
-    _pmDecalApercuMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ map: pmState.decal.tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 }));
-    _pmDecalApercuMesh.renderOrder = 10;
-  }
-  const ap = _pmDecalApercuMesh;
-  if (ap.parent !== pmState.scene) pmState.scene.add(ap);
-  ap.material.map = pmState.decal.tex; ap.material.opacity = 0.35 + 0.5 * pmState.opacity;
-  ap.matrix.makeBasis(c.r.clone().multiplyScalar(c.w), c.u.clone().multiplyScalar(c.h), c.n);
-  ap.matrix.setPosition(c.p.clone().addScaledVector(c.n, c.w * 0.003));
-  ap.matrixAutoUpdate = false; ap.matrixWorldNeedsUpdate = true; ap.visible = true;
+let _pmDecalMod = null, _pmDecalPtr = null, _pmDecalRaf = 0, _pmDecalOccupe = false;
+async function _pmDecalModule() { return _pmDecalMod || (_pmDecalMod = await import('./lib/editeur-decals.js')); }
+// Apercu : UN raycast par image affichee (pas un par evenement souris), module deja charge, mesures en cache.
+function _pmDecalApercu(clientX, clientY) {
+  if (!pmState.decal || _pmDecalOccupe) return;
+  _pmDecalPtr = [clientX, clientY];
+  if (_pmDecalRaf) return;
+  _pmDecalRaf = requestAnimationFrame(async () => {
+    _pmDecalRaf = 0;
+    const pt = _pmDecalPtr; if (!pt || _pmDecalOccupe || pmState.tool !== 'decal') return;
+    const hit = _pmRaycast(pt[0], pt[1]);
+    if (!hit) { _pmDecalCacher(); return; }
+    const { cadreDecal } = await _pmDecalModule();
+    const { cadreArgs } = _pmDecalCadre(hit), c = cadreDecal(cadreArgs);
+    if (!_pmDecalApercuMesh) {
+      const plan = new THREE.PlaneGeometry(1, 1);
+      _pmDecalApercuMesh = new THREE.Mesh(plan,
+        new THREE.MeshBasicMaterial({ map: pmState.decal.tex, transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 }));
+      _pmDecalApercuMesh.renderOrder = 10;
+      const cadre = new THREE.LineSegments(new THREE.EdgesGeometry(plan), new THREE.LineBasicMaterial({ color: 0xffc400, depthTest: false }));
+      cadre.renderOrder = 11; _pmDecalApercuMesh.add(cadre);
+    }
+    const ap = _pmDecalApercuMesh;
+    if (ap.parent !== pmState.scene) pmState.scene.add(ap);
+    ap.material.map = pmState.decal.tex;
+    ap.matrix.makeBasis(c.r.clone().multiplyScalar(c.w), c.u.clone().multiplyScalar(c.h), c.n);
+    ap.matrix.setPosition(c.p.clone().addScaledVector(c.n, c.w * 0.003));
+    ap.matrixAutoUpdate = false; ap.matrixWorldNeedsUpdate = true; ap.visible = true;
+  });
 }
 async function _pmDecalPoser(clientX, clientY) {
   if (!pmState.decal) { document.getElementById('pm-decal-file')?.click(); return; }
   const hit = _pmRaycast(clientX, clientY);
   if (!hit) return;
-  const { cadreDecal, cuireDecals } = await import('./lib/editeur-decals.js');
+  if (_pmDecalOccupe) return;
+  _pmDecalOccupe = true; _pmDecalCacher();
+  const st = document.getElementById('pm-status'); if (st) st.textContent = 'Placing decal…';
+  await new Promise((ok) => requestAnimationFrame(ok));   // laisse l'ecran afficher le message avant le calcul
+  try {
+  const { cadreDecal, cuireDecals } = await _pmDecalModule();
   const { k, cadreArgs } = _pmDecalCadre(hit);
   const decal = { cadre: cadreDecal(cadreArgs), opacite: pmState.opacity, profondeur: k.largeur * 0.6, faceAvant: k.faceAvant, img: pmState.decal.img };
   let total = 0;
@@ -14671,7 +14690,9 @@ async function _pmDecalPoser(clientX, clientY) {
     const m = cuireDecals({ pos, nor, uv: g.attributes.uv.array, index: g.index ? g.index.array : null, atlas: { data: im.data, w: L.w, h: L.h, flipY: L.texture.flipY } }, [decal]);
     if (m) { L.ctx.putImageData(im, 0, 0); L.texture.needsUpdate = true; total += m; }
   }
-  if (total) _pmHistoryPush(); else showToast('Decal: nothing to paint here (try a larger size or untick "Facing only").', 'info', 3500);
+  if (total) { _pmHistoryPush(); if (st) st.textContent = 'Decal placed. Ctrl+Z to undo.'; }
+  else showToast('Decal: nothing to paint here (try a larger size or untick "Facing only").', 'info', 3500);
+  } finally { _pmDecalOccupe = false; }
 }
 
 function openPaintMesh(opts = {}) {
