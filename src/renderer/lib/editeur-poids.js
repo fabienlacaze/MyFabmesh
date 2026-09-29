@@ -36,7 +36,7 @@ function construireFenetre() {
     #modal-poids-peau .pp-case { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 0; cursor: pointer; }
     #modal-poids-peau .pp-liste { max-height: 132px; }
     #modal-poids-peau .pp-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-    #modal-poids-peau .pp-4 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    #modal-poids-peau .pp-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
     #modal-poids-peau .choix-btn { padding: 6px 4px; text-align: center; }
     #modal-poids-peau .choix-btn b { font-size: 12.5px; }
     #modal-poids-peau .pp-curseur { display: grid; grid-template-columns: 62px 1fr 44px; align-items: center; gap: 8px; font-size: 12px; }
@@ -76,7 +76,6 @@ function construireFenetre() {
           <div class="choix pp-4" id="pp-pinceaux">
             <button type="button" class="choix-btn actif" data-p="ajouter" title="${esc(T('moves with this bone'))}"><b>${esc(T('Add'))}</b></button>
             <button type="button" class="choix-btn" data-p="retirer" title="${esc(T('stops following it'))}"><b>${esc(T('Remove'))}</b></button>
-            <button type="button" class="choix-btn" data-p="statique"><b>${esc(T('Fixed'))}</b></button>
           </div>
           <span class="fen-note" id="pp-aide"></span>
           <div class="pp-curseur"><span>${esc(T('Size'))}</span><input type="range" id="pp-taille" min="1" max="25" value="6"><span class="fen-valeur" id="pp-taille-v">6 %</span></div>
@@ -519,7 +518,6 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   const AIDE = {
     ajouter: 'Paints the zone: it will move with the chosen bone.',
     retirer: 'Erases the zone: it stops following the chosen bone.',
-    statique: 'Makes the zone fixed: it only follows the body, not the limbs.',
   };
   function majAide() { $('pp-aide').textContent = T(AIDE[pinceau] || ''); }
   majAide();
