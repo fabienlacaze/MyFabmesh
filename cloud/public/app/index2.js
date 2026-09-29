@@ -28647,7 +28647,8 @@ const _OUTILS_A_VALIDER = {
   'ws-mesh-detail-synth-btn': { titre: 'Detail++', texte: 'Adds fine AI detail to the texture.', action: 'Add detail', apercu: null },
   // outils manuels PAYANTS sur le web (1 credit a l'ouverture) : validation seulement s'il y a un prix
   'ws-picker-btn': { titre: 'Color Pick', texte: 'Opens the colour picker on the image.', action: 'Open', apercu: 'image', siPayant: true },
-  'ws-lm-manual': { titre: 'Skeleton points', texte: 'Opens the skeleton points editor.', action: 'Open', apercu: null, siPayant: true },
+  // 'ws-lm-manual' (Skeleton points) RETIRE de la liste (2026-09-29, user : « il faut direct ouvrir la page ») : le bouton ouvre
+  // lui-meme un editeur, une fenetre de validation avant serait un doublon.
 };
 function _lctImageCourante() {
   const p = state.currentProject;
