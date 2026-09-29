@@ -20,6 +20,26 @@
 
   const I18N = {
     fr: {
+      // ---- Textes d'aide raccourcis (2026-09-29) ----
+      'Live preview. Save creates a new version of the mesh.': 'Aperçu en direct. Enregistrer crée une nouvelle version du maillage.',
+      'Drag to rotate · wheel to zoom': 'Glisser pour tourner · molette pour zoomer',
+      'Align the photo on the mesh, then Re-project.': 'Alignez la photo sur le maillage, puis Reprojeter.',
+      'Paint on the mesh. Left-drag to paint, right-drag to orbit.': 'Peignez sur le maillage. Clic gauche pour peindre, clic droit pour tourner.',
+      'Name the part and describe its new look. The shape is kept.': 'Nommez la partie et décrivez son nouvel aspect. La forme est conservée.',
+      'Paint on the texture. The shape is kept.': 'Peignez sur la texture. La forme est conservée.',
+      'Pick the animations to add. One new version per click.': 'Choisissez les animations à ajouter. Une nouvelle version par clic.',
+      'Share with the community, free or paid. An admin reviews it before it goes live.': 'Partagez avec la communauté, gratuit ou payant. Un admin le vérifie avant la mise en ligne.',
+      '⚠ Free items can be downloaded by anyone once approved. Buying paid items is coming soon.': "⚠ Un article gratuit est téléchargeable par tous une fois validé. L'achat des articles payants arrive bientôt.",
+      'Breaks the mesh into shards. The new version has a slider to blow them apart.': 'Brise le maillage en éclats. La nouvelle version a un curseur pour les écarter.',
+      'About 5 s. More fragments = finer pieces. Fill interior = solid shards.': "Environ 5 s. Plus de fragments = morceaux plus fins. Remplir l'intérieur = éclats pleins.",
+      'Tell us what is wrong with this result. An admin reviews every report.': 'Dites-nous ce qui ne va pas. Un admin examine chaque signalement.',
+      'The prompt and a link to the file are attached.': 'Le prompt et un lien vers le fichier sont joints.',
+      'Drag the gizmo or type sizes and angles. Apply creates a new version.': 'Tirez le gizmo ou saisissez tailles et angles. Appliquer crée une nouvelle version.',
+      "In the mesh's own units.": 'Dans les unités du maillage.',
+      'Builds the 3D construction stages (frame, scaffolding…). The final mesh stays the last stage.': 'Construit les étapes 3D du chantier (charpente, échafaudage…). Le maillage final reste la dernière étape.',
+      'Flat material colours on the web (textured in the desktop app).': "Couleurs de matériau unies sur le web (texturées dans l'application de bureau).",
+      'Builds a construction timeline from the image. The image stays the last stage.': "Construit une chronologie de chantier à partir de l'image. L'image reste la dernière étape.",
+      '2 to 20 stages, about 5–15 s each.': '2 à 20 étapes, environ 5 à 15 s chacune.',
       // ---- Fenetres Age, Modify, Auto Inpaint, Resolution, Brightness (2026-09-29) ----
       'Younger or older — the shape and pose are kept.': "Plus jeune ou plus âgé — la forme et la pose sont conservées.",
       'Younger': 'Plus jeune',

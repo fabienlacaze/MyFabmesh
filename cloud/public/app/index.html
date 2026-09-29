@@ -1777,13 +1777,13 @@
     <div id="modal-material-adjust" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide" style="max-width:1100px; width:92vw;">
         <div class="fen-tete"><h2>Material Adjust</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle" style="margin-bottom:10px;">All 6 sliders preview live. Save creates a new mesh version with these settings baked into the GLB.</p>
+        <p class="modal-subtitle" style="margin-bottom:10px;">Live preview. Save creates a new version of the mesh.</p>
         <div style="display:flex; gap:14px;">
           <!-- Live preview viewer (Three.js canvas) -->
           <div style="flex:1; min-width:0;">
             <div style="width:100%; height:520px; background:#1b1b1b; border-radius:6px; position:relative;">
               <canvas id="mat-canvas" style="width:100%; height:100%; display:block; border-radius:6px;"></canvas>
-              <div id="mat-preview-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Live preview: drag to rotate · wheel to zoom · PBR live · brightness/sat/contrast on Save</div>
+              <div id="mat-preview-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Drag to rotate · wheel to zoom</div>
             </div>
           </div>
           <!-- Sliders -->
@@ -1848,7 +1848,7 @@
     <div id="modal-align-texture" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
         <div class="fen-tete"><h2>Align Texture</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle" style="margin-bottom:8px;">Drag sliders to align the source photo overlay on the mesh, then click Re-project.</p>
+        <p class="modal-subtitle" style="margin-bottom:8px;">Align the photo on the mesh, then Re-project.</p>
         <div style="display:flex; gap:12px;">
           <!-- Left: large viewer -->
           <div style="flex:1; min-width:0;">
@@ -1937,7 +1937,7 @@
             <button id="pm-close-x" class="small-btn" style="font-size:18px;">✕</button>
           </div>
         </div>
-        <p id="pm-subtitle" class="modal-subtitle" style="margin-bottom:8px;">Paint directly on the mesh's diffuse texture. Left-click + drag to paint, right-click to orbit.</p>
+        <p id="pm-subtitle" class="modal-subtitle" style="margin-bottom:8px;">Paint on the mesh. Left-drag to paint, right-drag to orbit.</p>
         <div style="display:flex; flex:1 1 0; gap:12px; min-height:560px;">
           <!-- Left: brush tools (Paint Tools-style sidebar) -->
           <div style="display:flex; flex-direction:column; gap:10px; width:140px; flex-shrink:0; padding:8px 0;">
@@ -1998,7 +1998,7 @@
     <div id="modal-region-retex" class="modal hidden">
       <div class="modal-content" style="width:88vw; height:86vh; max-width:1500px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
         <div class="fen-tete"><h2>&#127912; Re-texture a region</h2><button id="rrx-close-x" class="settings-close-x">&#10005;</button></div>
-        <p style="margin:0; font-size:12px; color:var(--text-muted);">Name the part — the AI detects it — and type what it should look like, then Apply. (Optional: paint to refine.) Geometry stays intact.</p>
+        <p style="margin:0; font-size:12px; color:var(--text-muted);">Name the part and describe its new look. The shape is kept.</p>
         <div style="display:flex; flex:1 1 0; gap:12px; min-height:400px;">
           <!-- Left: controls -->
           <div style="display:flex; flex-direction:column; gap:14px; width:280px; flex-shrink:0; padding:8px 0; overflow-y:auto;">
@@ -2063,7 +2063,7 @@
             <div id="pe-clone-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#0f1e2e; border:1px solid #2a7fb8; border-radius:6px;">
               <div style="font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Clone stamp</div>
               <div style="font-size:11px; line-height:1.5;"><b>Ctrl+click</b> on the mesh = set the <b>source</b>.<br><b>Left-click + drag</b> = clone onto the destination.</div>
-              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Adjust the brush below. The base-color texture is edited in place; the geometry is untouched.</div>
+              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Paint on the texture. The shape is kept.</div>
             </div>
             <div class="pe-emissive-only">
               <label style="display:block; font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Emissive color</label>
@@ -2350,7 +2350,7 @@
     <div id="modal-anim-gen" class="modal-overlay hidden">
       <div class="modal-card" style="width:440px; max-width:92vw;">
         <div class="fen-tete"><h2>Generate Animation</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle">Each click creates ONE new version. Check the types you want in this batch.</p>
+        <p class="modal-subtitle">Pick the animations to add. One new version per click.</p>
         <div id="modal-anim-types" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px; margin:12px 0;">
           <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
             <input type="checkbox" name="modal-anim-type" value="idle"> <span>😴 Idle</span>
@@ -2646,7 +2646,7 @@
         <div style="display:flex; gap:14px; align-items:flex-start; margin-bottom:6px;">
           <div style="flex:1; min-width:0;">
             <div class="fen-tete"><h2 id="pub-title-h2" style="margin:0 0 4px;">&#128722; Publish to marketplace</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-            <p class="modal-subtitle" style="margin:0;">Share this asset with the community. Free or with a price tag — your choice. An admin will review your listing before it goes live.</p>
+            <p class="modal-subtitle" style="margin:0;">Share with the community, free or paid. An admin reviews it before it goes live.</p>
           </div>
           <!-- Thumbnail of the asset being published — populated by
                openFor() in cloud-overrides.js: <img> for images,
@@ -2693,7 +2693,7 @@
         </div>
         <div id="pub-payout-method" style="font-size:11px; color:var(--text-2); line-height:1.5; margin-top:6px;"></div>
         <div style="font-size:11px; color:var(--text-2); line-height:1.5;" id="pub-price-hint">
-          ⚠ Free listings (price = 0) are immediately downloadable by anyone after approval. Paid listings show the price but the buy flow is coming soon (Stripe).
+          ⚠ Free items can be downloaded by anyone once approved. Buying paid items is coming soon.
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="pub-cancel">Cancel</button>
@@ -2817,7 +2817,7 @@
     <div id="modal-explode-options" class="modal-overlay hidden">
       <div class="modal-card">
         <div class="fen-tete"><h2>&#128165; Explode / destroy</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle">Fracture the mesh into shards. This creates a new version whose viewer has a live explode slider (the same control as segmented meshes) — drag it to blast the shards apart continuously. Texture preserved.</p>
+        <p class="modal-subtitle">Breaks the mesh into shards. The new version has a slider to blow them apart.</p>
         <div style="display:flex; flex-direction:column; gap:8px; margin:16px 0;">
           <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
             Fragments <span id="ex3d-frags-val" class="slider-val">24</span>
@@ -2839,7 +2839,7 @@
     <div id="modal-report" class="modal-overlay hidden">
       <div class="modal-card" style="max-width:560px; width:92vw;">
         <div class="fen-tete"><h2>&#9873; Report content</h2><button type="button" class="settings-close-x" id="rp-close" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle">Tell us what is wrong with this AI-generated result. Reports are reviewed by an admin. You do not need an account to report.</p>
+        <p class="modal-subtitle">Tell us what is wrong with this result. An admin reviews every report.</p>
         <div style="display:flex; flex-direction:column; gap:14px; margin-top:14px;">
           <div>
             <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; display:block; margin-bottom:6px;">Reason</label>
@@ -2860,7 +2860,7 @@
             <textarea id="rp-details" rows="4" class="modal-select" style="width:100%; resize:vertical;" placeholder="What is wrong with this result?"></textarea>
           </div>
           <p id="rp-note" style="font-size:11px; color:var(--text-2); margin:0;">
-            The prompt used and a link to the generated file are attached so we can review the report.
+            The prompt and a link to the file are attached.
           </p>
           <div id="rp-status" style="font-size:12px; min-height:16px;"></div>
         </div>
@@ -2877,7 +2877,7 @@
     <div id="modal-resize" class="modal-overlay hidden">
       <div class="modal-card" style="max-width:1100px; width:94vw;">
         <div class="fen-tete"><h2>&#128207; Resize / dimension</h2><button type="button" class="settings-close-x" id="rz-close" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle">Drag the gizmo to scale or rotate the mesh, or type target dimensions and angles. The rulers show the live size. Apply bakes a new version — texture preserved, the mesh stays on the ground.</p>
+        <p class="modal-subtitle">Drag the gizmo or type sizes and angles. Apply creates a new version.</p>
         <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
           <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:56vh; background:#0b0b14; border-radius:10px; overflow:hidden;">
             <canvas id="rz-canvas" style="width:100%; height:100%; display:block;"></canvas>
@@ -2928,7 +2928,7 @@
                 <button class="ghost-btn" id="rz-rz90" style="padding-left:0; padding-right:0;" title="Turn 90° around Z">+90°</button>
               </div>
             </div>
-            <small class="modal-subtitle" style="font-size:12px;">Dimensions are in the mesh's own units. Scaling stays proportional when Uniform is on.</small>
+            <small class="modal-subtitle" style="font-size:12px;">In the mesh's own units.</small>
           </div>
         </div>
         <div class="modal-actions" style="margin-top:14px;">
@@ -2940,7 +2940,7 @@
     <div id="modal-stages3d-options" class="modal-overlay hidden">
       <div class="modal-card">
         <div class="fen-tete"><h2>&#127959;&#65039; 3D construction study</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle">Fabricate the 3D meshes of the construction stages (sliced building + timber frame + scaffolding), navigable and exportable. The final mesh stays intact as the last stage.</p>
+        <p class="modal-subtitle">Builds the 3D construction stages (frame, scaffolding…). The final mesh stays the last stage.</p>
         <div style="display:flex; flex-direction:column; gap:8px; margin:16px 0;">
           <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
             Number of stages <span id="bs3d-count-val" class="slider-val">5</span>
@@ -2999,7 +2999,7 @@
               </select>
             </div>
           </div>
-          <small class="modal-subtitle" style="font-size:12px; margin-top:2px;">Cloud version uses flat material colours (style-matched textures are Desktop).</small>
+          <small class="modal-subtitle" style="font-size:12px; margin-top:2px;">Flat material colours on the web (textured in the desktop app).</small>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="bs3d-cancel">Cancel</button>
