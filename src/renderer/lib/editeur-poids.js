@@ -372,7 +372,12 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   // en pose de repos, en % de l'etendue). Meme mecanique que le pinceau : le poids retire va aux autres os.
   const reposOs = os.map((b) => b.getWorldPosition(new THREE.Vector3()));
   const segsOs = os.map((b) => {                                  // segments os -> enfants, a plat (aucune allocation par appel)
-    const l = []; b.children.forEach((c) => { if (c.isBone) { const q = reposOs[os.indexOf(c)], a = reposOs[os.indexOf(b)]; l.push(a.x, a.y, a.z, q.x, q.y, q.z); } });
+    const l = [], a = reposOs[os.indexOf(b)];
+    b.children.forEach((c) => { if (c.isBone) { const q = reposOs[os.indexOf(c)]; l.push(a.x, a.y, a.z, q.x, q.y, q.z); } });
+    if (!l.length && b.parent && b.parent.isBone) {                // os terminal : prolonge dans l'axe de son parent (0,6 x sa longueur)
+      const pp = reposOs[os.indexOf(b.parent)];
+      l.push(a.x, a.y, a.z, a.x + 0.6 * (a.x - pp.x), a.y + 0.6 * (a.y - pp.y), a.z + 0.6 * (a.z - pp.z));
+    }
     return Float64Array.from(l);
   });
   function distOs(b, x, y, z) {
@@ -566,13 +571,28 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   geoSq.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nSeg * 6), 3));
   const lignesSq = new THREE.LineSegments(geoSq, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true }));
   lignesSq.renderOrder = 999; lignesSq.frustumCulled = false;
-  const articulation = new THREE.Mesh(new THREE.SphereGeometry(ext * 0.012, 16, 12),
-    new THREE.MeshBasicMaterial({ color: 0xff2a2a, depthTest: false }));
-  articulation.renderOrder = 1000;
-  const articulationSurvol = new THREE.Mesh(new THREE.SphereGeometry(ext * 0.014, 16, 12),
-    new THREE.MeshBasicMaterial({ color: 0xff9a1a, depthTest: false }));
-  articulationSurvol.renderOrder = 1002; articulationSurvol.visible = false;
-  const groupeSq = new THREE.Group(); groupeSq.add(lignesSq, articulation, articulationSurvol); scene.add(groupeSq);
+  // l'os choisi (rouge) et l'os survole (orange) sont dessines en barres fines par-dessus le maillage : PAS de boule
+  const groupeSq = new THREE.Group(); groupeSq.add(lignesSq); scene.add(groupeSq);
+  const geoBarre = new THREE.CylinderGeometry(1, 1, 1, 8), barres = [], yAxe = new THREE.Vector3(0, 1, 0), dirB = new THREE.Vector3();
+  let nbBarres = 0;
+  function poserBarre(a, b, hex) {
+    let m = barres[nbBarres];
+    if (!m) { m = new THREE.Mesh(geoBarre, new THREE.MeshBasicMaterial({ depthTest: false })); m.renderOrder = 1000; groupeSq.add(m); barres[nbBarres] = m; }
+    nbBarres++;
+    m.material.color.setHex(hex); m.visible = true;
+    dirB.subVectors(b, a); const L = dirB.length() || 1e-6;
+    m.position.copy(a).addScaledVector(dirB, 0.5);
+    m.quaternion.setFromUnitVectors(yAxe, dirB.multiplyScalar(1 / L));
+    m.scale.set(ext * 0.004, L, ext * 0.004);
+  }
+  const pA = new THREE.Vector3(), pB = new THREE.Vector3();
+  function barresDeLOs(i, hex) {                                       // segments de l'os vers ses enfants ; os terminal : prolonge dans l'axe du parent
+    const b = os[i]; if (!b) return;
+    b.getWorldPosition(pA);
+    let vu = false;
+    for (const c of b.children) if (c.isBone) { c.getWorldPosition(pB); poserBarre(pA, pB, hex); vu = true; }
+    if (!vu && b.parent && b.parent.isBone) { b.parent.getWorldPosition(pB); pB.copy(pA).addScaledVector(pB.sub(pA).multiplyScalar(-1), 0.6); poserBarre(pA, pB, hex); }
+  }
   const va = new THREE.Vector3(), vb = new THREE.Vector3();
   function majSquelette() {
     if (!groupeSq.visible) return;
@@ -591,9 +611,10 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
       }
     });
     geoSq.attributes.position.needsUpdate = true; geoSq.attributes.color.needsUpdate = true;
-    os[osChoisi]?.getWorldPosition(articulation.position);
-    articulationSurvol.visible = survol >= 0;
-    if (survol >= 0) os[survol]?.getWorldPosition(articulationSurvol.position);
+    nbBarres = 0;
+    barresDeLOs(osChoisi, 0xff2a2a);
+    if (survol >= 0 && survol !== osChoisi) barresDeLOs(survol, 0xff9a1a);
+    for (let k = nbBarres; k < barres.length; k++) barres[k].visible = false;
   }
   $('pp-squelette').onclick = () => {
     groupeSq.visible = !groupeSq.visible;
@@ -623,7 +644,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   const fermer = () => {
     vivant = false; document.removeEventListener('keydown', touches); ro.disconnect(); ctrl.dispose(); renderer.dispose();
     donnees.forEach((d) => { d.pointage.geometry.dispose(); });
-    geoSq.dispose(); articulation.geometry.dispose(); articulationSurvol.geometry.dispose(); anneau.geometry.dispose();
+    geoSq.dispose(); geoBarre.dispose(); barres.forEach((m) => m.material.dispose()); anneau.geometry.dispose();
     fen.classList.add('hidden');
   };
   $('pp-cancel').onclick = fermer;
