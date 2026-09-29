@@ -20,6 +20,9 @@
 
   const I18N = {
     fr: {
+      'Which part?': 'Quelle partie ?',
+      '(the AI finds it)': "(l'IA la trouve)",
+      '(optional: paint to refine)': '(facultatif : peindre pour affiner)',
       // ---- Textes d'aide raccourcis (2026-09-29) ----
       'Live preview. Save creates a new version of the mesh.': 'Aperçu en direct. Enregistrer crée une nouvelle version du maillage.',
       'Drag to rotate · wheel to zoom': 'Glisser pour tourner · molette pour zoomer',

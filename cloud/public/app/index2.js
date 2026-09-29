@@ -13913,7 +13913,7 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
   canvas.style.opacity = '0.5';        // transparence du calque entier (voir bureau, _dab)
   let peint = false, aPeint = false, vueUrl = null;
   // fenetre partagee avec le bureau : ici seulement le mode « forme »
-  const h3 = modal.querySelector('h3');
+  const h3 = modal.querySelector('h2, h3');
   if (h3) h3.innerHTML = '&#129516; ' + _i18nT('Reshape a region');
   const aide = modal.querySelector('p');
   if (aide) aide.textContent = _i18nT('Name the part (the AI finds it, or paint it), then describe what should replace it. The AI rebuilds that part in 3D and blends it into the model.');

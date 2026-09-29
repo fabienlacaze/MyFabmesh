@@ -2647,7 +2647,7 @@ bindStepCardCollapse();
   // zone est reconstruite en 3D d'apres le prompt, puis fondue dans le modele).
   let mode = 'texture';
   const _rrxTextes = {
-    titre: modal.querySelector('h3')?.innerHTML,
+    titre: modal.querySelector('h2, h3')?.innerHTML,
     aide: modal.querySelector('p')?.textContent,
     libelle: $('rrx-prompt')?.closest('.form-row')?.querySelector('label')?.textContent,
     exemple: $('rrx-prompt')?.placeholder,
@@ -2655,7 +2655,7 @@ bindStepCardCollapse();
   function _rrxMode(m) {
     mode = m;
     const forme = m === 'shape';
-    const h3 = modal.querySelector('h3');
+    const h3 = modal.querySelector('h2, h3');
     if (h3) h3.innerHTML = forme ? '&#129516; ' + _i18nT('Reshape a region') : _rrxTextes.titre;
     const aide = modal.querySelector('p');
     if (aide) aide.textContent = forme
