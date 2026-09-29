@@ -324,7 +324,10 @@ Chacun vient d'un défaut livré en production :
    rafraîchissement depuis `/api/pricing`). En oublier une laisse une
    pastille figée.
 6. **Vérifier** — `node build/check-js-syntax.mjs`, croisement des `id` HTML
-   ↔ `getElementById` du JS, `npx tsc --noEmit`, et les gardes de parité.
+   ↔ `getElementById` du JS, `npx tsc -p tsconfig.worker.json --noEmit` (dans `cloud/` ; le
+   `tsconfig.json` par défaut EXCLUT `worker.ts` : `npx tsc --noEmit` y passe sans rien voir,
+   une double déclaration n'est apparue qu'à la construction — 31 erreurs anciennes connues,
+   comparer le nombre avant/après), et les gardes de parité.
 
 ## 10. Cycle de vie d'un travail (le panneau « Running jobs »)
 

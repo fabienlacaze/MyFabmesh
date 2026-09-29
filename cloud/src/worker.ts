@@ -11160,7 +11160,6 @@ async function persistModalGlb(env: Env, jobId: string, glbBase64: string,
   const bin = atob(glbBase64);
   const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-  const key = `mesh/${jobId}.glb`;
   await env.MESHES.put(key, buf.buffer, {
     httpMetadata: { contentType: 'model/gltf-binary' },
   });
