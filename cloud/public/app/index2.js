@@ -22008,12 +22008,11 @@ function _rcApplyMode() {
   show('.rc-f-color', mode === 'general' || mode === 'zone');   // colour swatches
   show('.rc-f-style', mode === 'whole-style');                  // style prompt field
   const hint = document.getElementById('rc-mode-hint');
-  if (hint) hint.textContent =
-    mode === 'zone'
-      ? 'The AI detects the named part and only changes its colour — shape, folds and shadows are preserved.'
-    : mode === 'whole-style'
-      ? 'The whole image is repainted following your style prompt, with a coherent, realistic palette (shapes and shading kept).'
-      : 'The whole image is re-tinted with the chosen colour while keeping the original lighting and shading.';
+  // une ligne courte (fenetres simplifiees, 2026-09-29)
+  const _ind = mode === 'zone' ? 'Only the named part changes colour.'
+    : mode === 'whole-style' ? 'The whole image is repainted from your prompt.'
+    : 'The whole image is tinted, lighting kept.';
+  if (hint) hint.textContent = (typeof _i18nT === 'function') ? _i18nT(_ind) : _ind;
   const srcImg = document.getElementById('rc-source-img');
   if (mode === 'zone') {
     _rcSchedulePreview();                       // live mask overlay
@@ -28352,3 +28351,43 @@ document.getElementById('btn-settings')?.addEventListener('click', () => {
   if (boite) boite.hidden = true;                  // une cle ne se remontre jamais
   setTimeout(_majClesApi, 50);
 });
+
+// CHOIX EN BOUTONS (2026-09-29, fenetres simplifiees ; styles .choix dans index2.css). Chaque
+// <div class="choix" data-pour="<id>"> pilote une <select> CACHEE du meme formulaire : le code des
+// outils lit toujours sa valeur et ecoute son « change ». Les boutons se resynchronisent a chaque
+// ouverture de fenetre (une valeur posee par le code, sans evenement, reste affichee juste) et une
+// option desactivee desactive son bouton. Identique bureau / web.
+function _synchroChoix(racine) {
+  (racine || document).querySelectorAll('.choix[data-pour]').forEach(g => {
+    const sel = document.getElementById(g.dataset.pour);
+    if (!sel) return;
+    g.querySelectorAll('.choix-btn').forEach(b => {
+      const opt = Array.from(sel.options).find(o => o.value === b.dataset.valeur);
+      const actif = sel.value === b.dataset.valeur;
+      b.disabled = !opt || opt.disabled;
+      b.classList.toggle('actif', actif);
+      b.setAttribute('aria-pressed', actif ? 'true' : 'false');
+    });
+  });
+}
+document.addEventListener('click', (e) => {
+  const b = e.target && e.target.closest ? e.target.closest('.choix[data-pour] .choix-btn') : null;
+  if (!b || b.disabled) return;
+  const sel = document.getElementById(b.closest('.choix').dataset.pour);
+  if (!sel) return;
+  if (sel.value !== b.dataset.valeur) {
+    sel.value = b.dataset.valeur;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  _synchroChoix();
+});
+document.addEventListener('change', (e) => { if (e.target && e.target.tagName === 'SELECT') _synchroChoix(); });
+try {
+  new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      const el = m.target;
+      if (el.classList && el.classList.contains('modal-overlay') && !el.classList.contains('hidden')) _synchroChoix(el);
+    }
+  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+} catch (_) { /* pas d'observateur : les boutons se synchronisent au premier clic */ }
+_synchroChoix();
