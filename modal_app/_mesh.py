@@ -435,6 +435,46 @@ def _exporter_cible(exporter, vertices, faces, cible, log=print):
 # --- NOYAU PARTAGE : FIN ---
 
 
+# RETOUCHES D'ATLAS ACCELEREES (2026-09-29). o_voxel.postprocess.to_glb comble les texels vides de
+# l'atlas avec 4 cv2.inpaint successifs : couleur (rayon 3) puis metal, rugosite, alpha (rayon 1),
+# un par un. Mesure en 4096 : 7,0 s + 3 x ~2,9 s. Les trois canaux de rayon 1 traites EN UNE FOIS
+# (image a 3 canaux) rendent les MEMES octets (verifie) en 3,7 s au lieu de 8,7 s, et tournent en
+# meme temps que la couleur (cv2 libere le GIL). Le texte de la fonction est remplace a l'import ;
+# s'il a change dans la bibliotheque, rien n'est touche.
+_INPAINT_AVANT = """    base_color = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_TELEA)
+    metallic = cv2.inpaint(metallic, mask_inv, 1, cv2.INPAINT_TELEA)[..., None]
+    roughness = cv2.inpaint(roughness, mask_inv, 1, cv2.INPAINT_TELEA)[..., None]
+    alpha = cv2.inpaint(alpha, mask_inv, 1, cv2.INPAINT_TELEA)[..., None]"""
+_INPAINT_APRES = """    from concurrent.futures import ThreadPoolExecutor as _Fils
+    with _Fils(max_workers=2) as _fils:
+        _couleur = _fils.submit(cv2.inpaint, base_color, mask_inv, 3, cv2.INPAINT_TELEA)
+        _mra = cv2.inpaint(np.ascontiguousarray(np.dstack([metallic, roughness, alpha])), mask_inv, 1, cv2.INPAINT_TELEA)
+        base_color = _couleur.result()
+    metallic, roughness, alpha = _mra[..., 0:1], _mra[..., 1:2], _mra[..., 2:3]"""
+_TO_GLB_ACCELERE = False
+
+
+def accelerer_to_glb(o_voxel_module) -> None:
+    global _TO_GLB_ACCELERE
+    if _TO_GLB_ACCELERE:
+        return
+    _TO_GLB_ACCELERE = True
+    try:
+        import inspect
+        import textwrap
+        pp = o_voxel_module.postprocess
+        src = textwrap.dedent(inspect.getsource(pp.to_glb))
+        if _INPAINT_AVANT not in src:
+            print("[mesh] retouches d'atlas : texte de to_glb inattendu, version d'origine gardee", flush=True)
+            return
+        espace = dict(pp.__dict__)
+        exec(compile(src.replace(_INPAINT_AVANT, _INPAINT_APRES), inspect.getsourcefile(pp.to_glb), 'exec'), espace)
+        pp.to_glb = espace['to_glb']
+        print("[mesh] retouches d'atlas accelerees (canaux fusionnes, en parallele)", flush=True)
+    except Exception as e:
+        print(f"[mesh] retouches d'atlas : acceleration ignoree ({type(e).__name__}: {e})", flush=True)
+
+
 def prep_image(image: Image.Image) -> Image.Image:
     """Background removal via rembg u2net (Apache 2.0) — same as
     desktop pipeline. Skip if image already has a non-trivial alpha.
@@ -683,6 +723,7 @@ def generate(
           f'mode={mode} views={vues_utilisees}', flush=True)
 
     t_glb = time.time()
+    accelerer_to_glb(o_voxel_module)
     def _exporter(v, f, cible, remesh):
         return o_voxel_module.postprocess.to_glb(
             vertices=v,

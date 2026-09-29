@@ -397,6 +397,12 @@ aller plus vite : ~2× plus rapide pour ~2× le prix, donc un calcul au même co
 facture à la seconde, et le démarrage à froid et le maintien à chaud (`scaledown_window`) durent pareil
 sur toute carte — avec peu d'utilisateurs, ces temps morts dominent la facture et coûteraient le double.
 Mesurer d'abord (même maillage L40S puis H100), commencer par le maillage TRELLIS.
+**MESURÉ le 2026-09-29 — H100 SANS INTÉRÊT tant que la construction du modèle reste sur le CPU.**
+Même image, 500 K faces, texture 4K, à chaud : L40S 31,3 s d'inférence + 44,2 s de construction
+(dépliage UV, cuisson, retouches d'atlas) = 85,8 s ; H100 20,4 s + 53,1 s = 82,9 s. L'inférence
+gagne 35 % mais la construction, surtout mono-fil, est PLUS lente sur ces machines : 3 s gagnées
+pour 2× le prix. Réserver des cœurs CPU (cpu=8) ne change rien non plus (bruit). Ne rebasculer
+que si la construction du modèle passe sur le GPU.
 
 **Démarrage à froid — le piège récurrent.** Cloudflare coupe chaque
 sous-requête à 100 s avec un **524**. Toute route synchrone DOIT donc rejouer :
