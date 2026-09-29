@@ -3060,8 +3060,9 @@ function populateWorkspace(p) {
   try {
     const ta = document.getElementById('ws-prompt');
     const saisi = ((ta && ta.value) || '').trim();
-    // texte deja retouche par le user (champ memorise, derniere generation) : tel quel ; sinon nom + description
-    const brut = (savedLocal || p.prompt) ? saisi : _sujetDuProjet(p.name, saisi);
+    // texte retouche par le user (champ memorise) : tel quel ; sinon nom + description. La description enregistree
+    // (p.prompt) n'en fait pas partie : au rechargement qui suit une generation, le nom disparaissait du champ.
+    const brut = savedLocal ? saisi : _sujetDuProjet(p.name, saisi);
     // gabarit du TYPE DU PROJET (les listes gardent celui du projet precedent tant qu'il n'a rien genere)
     const meta = (typeof _getProjectMeta === 'function' && _getProjectMeta(p.name)) || {};
     if (ta && brut && typeof buildFullPrompt === 'function'
