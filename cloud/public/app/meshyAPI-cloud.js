@@ -2464,6 +2464,14 @@
         return { success: false, error: r?.error || 'unknown', needsModify: !!r?.needsModify };
       } catch (e) { return { success: false, error: String(e) }; }
     },
+    // Traduction du prompt depuis la langue de l'interface (meme contrat que l'IPC du bureau : { text }).
+    // Confort : en cas d'echec, le texte d'origine.
+    translatePrompt: async ({ text, from } = {}) => {
+      try {
+        const r = await postJSON('/api/translate', { text: text || '', from: from || 'en' });
+        return { text: (r && typeof r.text === 'string' && r.text) ? r.text : (text || '') };
+      } catch (_) { return { text: text || '' }; }
+    },
     segmentMask: async ({ imagePath, targetText, dilate } = {}) => {
       // Detect-only CLIPSeg mask for the Auto Inpaint "Preview mask" button.
       // ONE GPU call on demand (not live-on-keystroke); returns { success,

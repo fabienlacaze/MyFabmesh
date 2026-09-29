@@ -1308,6 +1308,7 @@
   "acces": "compte",
   "payant": true,
   "tarifs": [
+   "align_texture",
    "watertight_hd",
    "mesh_op_simple"
   ],
@@ -1338,6 +1339,19 @@
   "payant": false,
   "tarifs": [],
   "handler": "handleMeshRegionRetex",
+  "motif": false
+ },
+ {
+  "chemin": "/api/mesh-reshape",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "reshape"
+  ],
+  "handler": "handleMeshReshape",
   "motif": false
  },
  {
@@ -1712,6 +1726,17 @@
    "variable (voir le handler)"
   ],
   "handler": "handleToolCharge",
+  "motif": false
+ },
+ {
+  "chemin": "/api/translate",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleTranslate",
   "motif": false
  },
  {

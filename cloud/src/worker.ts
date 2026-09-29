@@ -28,6 +28,9 @@ export interface Env {
   // R2 bucket for generated GLBs (write-through cache for Replicate URLs).
   MESHES: R2Bucket;
 
+  // Workers AI (traduction des prompts, /api/translate). Absent en local : le texte repart tel quel.
+  AI?: { run: (model: string, input: Record<string, unknown>) => Promise<unknown> };
+
   // Public (also baked at build time so the client can read them).
   NEXT_PUBLIC_MOCK?: string;
   NEXT_PUBLIC_SITE_URL?: string;
@@ -20235,6 +20238,30 @@ async function handlePrewarm(req: Request, env: Env,
   return json({ ok: true, warming: true });
 }
 
+/* TRADUCTION DES PROMPTS (2026-09-29, user : « on doit taper dans la langue de l'appli »). Le bureau traduit la
+ * description depuis la langue de l'INTERFACE vers l'anglais (Argos, en local) avant d'appliquer les gabarits
+ * anglais ; le web l'envoyait telle quelle (« avion » : le moteur d'image comprend mal le francais). Workers AI
+ * (m2m100) : ni GPU Modal ni credit facture. C'est un confort : toute erreur rend le texte d'origine. */
+const LANGUES_TRADUITES = new Set(['fr', 'es', 'zh', 'hi', 'ar']);
+async function handleTranslate(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  const b = await req.json().catch(() => ({})) as { text?: unknown; from?: unknown };
+  const texte = typeof b.text === 'string' ? b.text : '';
+  const de = typeof b.from === 'string' ? b.from.toLowerCase().slice(0, 5) : 'en';
+  if (!texte.trim() || !LANGUES_TRADUITES.has(de) || !env.AI) return json({ text: texte, translated: false });
+  if (texte.length > 1000) return err(400, 'text too long (1000 characters max)');
+  try {
+    const r = await env.AI.run('@cf/meta/m2m100-1.2b',
+      { text: texte, source_lang: de, target_lang: 'en' }) as { translated_text?: unknown };
+    const t = (r && typeof r.translated_text === 'string') ? r.translated_text.trim() : '';
+    return json({ text: t || texte, translated: !!t });
+  } catch (e) {
+    console.log('[translate] echec', de, String((e as Error)?.message || e).slice(0, 200));
+    return json({ text: texte, translated: false });
+  }
+}
+
 /* ────────────────────────── main fetch handler ─────────────────────── */
 
 // GDPR storage-limitation (Art. 5(1)(e)): transient user inputs — drawn masks
@@ -21190,6 +21217,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         //     on demand (desktop entering Cloud mode / image panel opened).
         if (pathname === '/api/heartbeat'             && (method === 'POST' || method === 'GET')) return await handleHeartbeat(req, env);
         if (pathname === '/api/prewarm'               && method === 'POST') return await handlePrewarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
+        if (pathname === '/api/translate'             && method === 'POST') return await handleTranslate(req, env);
         if (pathname === '/api/mesh-op'               && method === 'POST') return await handleMeshOp(req, env);
         if (pathname === '/api/mesh-convert'          && method === 'POST') return await handleMeshConvert(req, env);
         if (pathname === '/api/construction-stages-3d' && method === 'POST') return await handleConstructionStages3d(req, env);

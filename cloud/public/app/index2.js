@@ -561,16 +561,27 @@ function promptBuyCredits(message) {
  * Les deux outils venaient d'etre portes sur le web ; ils n'y ont jamais
  * fonctionne.
  *
- * Le bureau traduit via Argos en local (IPC `translatePrompt`). Le web n'a
- * aucun service equivalent — ni cote worker, ni cote Modal. On rend donc le
- * texte TEL QUEL plutot que d'inventer un appel : un prompt en francais est
- * moins bien compris par SDXL qu'un prompt en anglais, mais il fonctionne,
- * la ou l'absence de fonction ne fonctionnait pas du tout.
+ * Le bureau traduit via Argos en local (IPC `translatePrompt`). Le web rendait
+ * le texte TEL QUEL jusqu'au 2026-09-29 ; il passe desormais par /api/translate
+ * (Workers AI, voir le corps).
  *
  * La signature reste identique au bureau (async, meme nom, meme retour) :
  * le jour ou une route de traduction existe, seul ce corps change. */
 async function translateUserPrompt(text) {
-  return (text && String(text)) || '';
+  // 2026-09-29 (user : « on doit taper dans la langue de l'appli ») : meme regle que le bureau — la langue de
+  // l'INTERFACE est la langue source, traduite en anglais par /api/translate (Workers AI). en / echec : inchange.
+  // Plafond dur de 8 s : une traduction lente ne doit jamais figer l'interface.
+  if (!text || !String(text).trim()) return (text && String(text)) || '';
+  let lang = 'en';
+  try { lang = (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase(); } catch (_) {}
+  if (lang === 'en') return String(text);
+  try {
+    const r = await Promise.race([
+      API.translatePrompt({ text: String(text), from: lang }),
+      new Promise((res) => setTimeout(() => res(null), 8000)),
+    ]);
+    return (r && r.text) ? r.text : String(text);
+  } catch (_) { return String(text); }
 }
 
 function showToast(message, type = 'info', durationMs = 3000) {
@@ -1568,10 +1579,7 @@ document.getElementById('np-create').addEventListener('click', async () => {
   {
     const ta = document.getElementById('ws-prompt');
     const brut = _sujetDuProjet(name, stripKnownPromptSuffixes(prompt));
-    if (ta && brut) {
-      ta.dataset.rawPrompt = brut;
-      ta.value = buildFullPrompt(brut, assetType, assetStyle);
-    }
+    if (ta && brut) _preremplirPrompt(brut, assetType, assetStyle);
   }
 
   // If the modal was opened by a drag&drop, attach the dropped file to
@@ -2421,6 +2429,23 @@ function _sujetDuProjet(nom, description) {
   return apporte ? n + ', ' + desc : desc;
 }
 
+/* Pre-remplit « Describe your asset » (2026-09-29, user : « on doit taper dans la langue de l'appli ») : le sujet
+ * est TRADUIT depuis la langue de l'interface (les gabarits et le moteur d'image sont en anglais), puis enrichi
+ * comme par Enhance. Sans cette traduction, la generation — qui ne retraduit pas un texte deja enrichi —
+ * envoyait la description telle quelle. Le texte d'origine s'affiche aussitot ; un autre projet ouvert
+ * entre-temps, ou une saisie du user, annule le remplacement. Identique bureau / web. */
+async function _preremplirPrompt(brut, assetType, assetStyle) {
+  const ta = document.getElementById('ws-prompt');
+  if (!ta || !brut) return;
+  const jeton = (_preremplirPrompt._n = (_preremplirPrompt._n || 0) + 1);
+  ta.dataset.rawPrompt = brut;
+  ta.value = brut;
+  let anglais = brut;
+  try { anglais = (await translateUserPrompt(brut)) || brut; } catch (_) { /* texte d'origine */ }
+  if (jeton !== _preremplirPrompt._n || ta.value !== brut) return;
+  ta.value = buildFullPrompt(anglais, assetType, assetStyle);
+}
+
 function populateWorkspace(p) {
   // Reset UI first so stale previews/versions from a previous project are wiped
   resetWorkspaceUI();
@@ -2459,8 +2484,7 @@ function populateWorkspace(p) {
     const meta = (typeof _getProjectMeta === 'function' && _getProjectMeta(p.name)) || {};
     if (ta && brut && typeof buildFullPrompt === 'function'
         && !/single isolated 3D|plain white background|sharp details|photorealistic/i.test(brut)) {
-      ta.dataset.rawPrompt = brut;
-      ta.value = buildFullPrompt(brut,
+      _preremplirPrompt(brut,
         meta.assetType || p.assetType || document.getElementById('ws-asset-type')?.value || 'character',
         meta.assetStyle || p.assetStyle || document.getElementById('ws-asset-style')?.value || 'realistic');
     }
@@ -5474,7 +5498,7 @@ document.getElementById('ws-copy-prompt')?.addEventListener('click', () => {
 
 // Enhance prompt in the "New project" modal (same logic as the one in the
 // workspace, using np-* inputs instead of ws-* inputs).
-document.getElementById('np-enhance-prompt')?.addEventListener('click', () => {
+document.getElementById('np-enhance-prompt')?.addEventListener('click', async () => {
   const textarea = document.getElementById('np-prompt');
   const raw = textarea.value.trim();
   if (!raw) { showToast('Type a description first.', 'error'); return; }
@@ -5485,7 +5509,8 @@ document.getElementById('np-enhance-prompt')?.addEventListener('click', () => {
     showToast('Prompt already enhanced. Edit manually or clear it.', 'info');
     return;
   }
-  textarea.value = buildFullPrompt(raw, assetType, assetStyle);
+  // traduit depuis la langue de l'interface avant les gabarits anglais (comme le bureau)
+  textarea.value = buildFullPrompt(await translateUserPrompt(raw), assetType, assetStyle);
   const btn = document.getElementById('np-enhance-prompt');
   if (btn) {
     const orig = btn.innerHTML;
@@ -5495,7 +5520,7 @@ document.getElementById('np-enhance-prompt')?.addEventListener('click', () => {
   }
 });
 
-document.getElementById('ws-enhance-prompt')?.addEventListener('click', () => {
+document.getElementById('ws-enhance-prompt')?.addEventListener('click', async () => {
   const textarea = document.getElementById('ws-prompt');
   const raw = textarea.value.trim();
   if (!raw) { showToast('Type a description first.', 'error'); return; }
@@ -5510,7 +5535,8 @@ document.getElementById('ws-enhance-prompt')?.addEventListener('click', () => {
   // Stash the original raw prompt so the back-view generator can use it
   // (clean subject description, no asset-style pollution).
   textarea.dataset.rawPrompt = raw;
-  const enhanced = buildFullPrompt(raw, assetType, assetStyle);
+  // traduit depuis la langue de l'interface avant les gabarits anglais (comme le bureau)
+  const enhanced = buildFullPrompt(await translateUserPrompt(raw), assetType, assetStyle);
   textarea.value = enhanced;
   // Persist to localStorage
   if (state.currentProject) {
@@ -5537,7 +5563,11 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   // "angled side view" from an earlier session — without this strip,
   // the next gen would receive both that AND the new "strict front
   // view", triggering RealVis's 2-cars hallucination).
-  const userPrompt = stripKnownPromptSuffixes(rawTextarea);
+  // Texte deja enrichi = deja en anglais (Enhance et le pre-rempli traduisent) ; sinon traduit depuis la
+  // langue de l'interface, comme le bureau.
+  const _dejaEnrichi = /single isolated 3D|plain white background|sharp details|photorealistic/i.test(rawTextarea);
+  const userPrompt = _dejaEnrichi ? stripKnownPromptSuffixes(rawTextarea)
+    : await translateUserPrompt(stripKnownPromptSuffixes(rawTextarea));
   const assetType = document.getElementById('ws-asset-type')?.value || 'character';
   const assetStyle = document.getElementById('ws-asset-style')?.value || 'realistic';
   // Persist per-project so the next visit to this project pre-fills the

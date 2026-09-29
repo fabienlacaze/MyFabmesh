@@ -1915,10 +1915,7 @@ document.getElementById('np-create').addEventListener('click', async () => {
   {
     const ta = document.getElementById('ws-prompt');
     const brut = _sujetDuProjet(name, stripKnownPromptSuffixes(prompt));
-    if (ta && brut) {
-      ta.dataset.rawPrompt = brut;
-      ta.value = buildFullPrompt(brut, assetType, assetStyle);
-    }
+    if (ta && brut) _preremplirPrompt(brut, assetType, assetStyle);
   }
 });
 
@@ -2997,6 +2994,23 @@ function _sujetDuProjet(nom, description) {
   return apporte ? n + ', ' + desc : desc;
 }
 
+/* Pre-remplit « Describe your asset » (2026-09-29, user : « on doit taper dans la langue de l'appli ») : le sujet
+ * est TRADUIT depuis la langue de l'interface (les gabarits et le moteur d'image sont en anglais), puis enrichi
+ * comme par Enhance. Sans cette traduction, la generation — qui ne retraduit pas un texte deja enrichi —
+ * envoyait la description telle quelle. Le texte d'origine s'affiche aussitot ; un autre projet ouvert
+ * entre-temps, ou une saisie du user, annule le remplacement. Identique bureau / web. */
+async function _preremplirPrompt(brut, assetType, assetStyle) {
+  const ta = document.getElementById('ws-prompt');
+  if (!ta || !brut) return;
+  const jeton = (_preremplirPrompt._n = (_preremplirPrompt._n || 0) + 1);
+  ta.dataset.rawPrompt = brut;
+  ta.value = brut;
+  let anglais = brut;
+  try { anglais = (await translateUserPrompt(brut)) || brut; } catch (_) { /* texte d'origine */ }
+  if (jeton !== _preremplirPrompt._n || ta.value !== brut) return;
+  ta.value = buildFullPrompt(anglais, assetType, assetStyle);
+}
+
 function populateWorkspace(p) {
   // 2026-06-13: populate Step 4 EDIT SELECTED with the project's
   // on-disk animations (from listAnimations -> p.animations in
@@ -3052,8 +3066,7 @@ function populateWorkspace(p) {
     const meta = (typeof _getProjectMeta === 'function' && _getProjectMeta(p.name)) || {};
     if (ta && brut && typeof buildFullPrompt === 'function'
         && !/single isolated 3D|plain white background|sharp details|photorealistic/i.test(brut)) {
-      ta.dataset.rawPrompt = brut;
-      ta.value = buildFullPrompt(brut,
+      _preremplirPrompt(brut,
         meta.assetType || p.assetType || document.getElementById('ws-asset-type')?.value || 'character',
         meta.assetStyle || p.assetStyle || document.getElementById('ws-asset-style')?.value || 'realistic');
     }

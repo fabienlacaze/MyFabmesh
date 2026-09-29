@@ -45,6 +45,11 @@ binding = "ASSETS"
 binding = "MESHES"
 bucket_name = "myfabmesh-meshes"
 
+# TRADUCTION DES PROMPTS (2026-09-29, user : « on tape dans la langue de l'appli ») : Workers AI, modele
+# m2m100 (langue de l'interface -> anglais), route /api/translate. Le bureau traduit en local (Argos).
+[ai]
+binding = "AI"
+
 # Public (non-secret) runtime vars. The Worker accesses these via
 # env.<NAME>; they're also baked into the frontend at build time
 # (cloud-deploy.yml). Keeping them in wrangler.toml means they
