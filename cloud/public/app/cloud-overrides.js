@@ -596,8 +596,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
             }
             // Points en fondu (demande user, 2026-09-29) : plus rapide quand ca bouge (demarrage,
             // calcul), lent au repos, fixe pour un service indisponible.
+            // Fixe pour un service froid ou indisponible (demande user : pas de fondu sur « cold »).
             const rythme = statusText === 'starting' ? '0.9s' : statusText === 'running' ? '1.2s'
-                         : statusText === 'unavailable' ? '' : '2.4s';
+                         : statusText === 'warm' ? '2.4s' : '';
             const anim = rythme ? ` animation:pulse ${rythme} ease-in-out infinite;` : '';
             return `<div style="display:grid; grid-template-columns:10px 1fr auto; gap:8px; align-items:center;">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${dot};${anim}"></span>
