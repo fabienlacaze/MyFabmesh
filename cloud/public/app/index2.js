@@ -28743,3 +28743,90 @@ function _majFaceFixVisible() {
 }
 setInterval(_majFaceFixVisible, 1000);
 document.addEventListener('change', (e) => { if (e.target && e.target.id === 'ws-asset-type') _majFaceFixVisible(); });
+
+/* PROMPT DE GENERATION : la description du user en ROUGE (2026-09-29, user : « il faut mettre en rouge ma
+ * description dans le prompt »). Un calque miroir (<pre>, jamais auto-traduit) derriere le champ repete son
+ * texte, la partie du user en rouge ; le champ reste editable (texte transparent, curseur visible) et les
+ * couleurs suivent la saisie. La partie du user = ce que la GENERATION garde apres stripKnownPromptSuffixes :
+ * tout ce qui n'est pas du gabarit. Remplace l'apercu « cliquer pour editer » du bureau apres Enhance.
+ * Identique bureau / web. */
+(function _promptMiroir() {
+  const ta = document.getElementById('ws-prompt');
+  if (!ta || ta.__miroir) return;
+  ta.__miroir = true;
+  let wrap = ta.parentElement;
+  if (!wrap.classList.contains('prompt-wrap')) {
+    wrap = document.createElement('div');
+    ta.parentElement.insertBefore(wrap, ta);
+    wrap.appendChild(ta);
+  }
+  wrap.classList.add('prompt-miroir-wrap');
+  const miroir = document.createElement('pre');
+  miroir.className = 'prompt-miroir';
+  miroir.setAttribute('aria-hidden', 'true');
+  miroir.setAttribute('translate', 'no');
+  miroir.setAttribute('data-i18n-skip', '');
+  wrap.insertBefore(miroir, ta);
+  const PROPS = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'wordSpacing',
+    'textTransform', 'textIndent', 'tabSize', 'paddingTop', 'paddingBottom', 'paddingLeft',
+    'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+    'borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius'];
+  // couleurs lues AVANT que le champ devienne transparent
+  const cs0 = getComputedStyle(ta);
+  miroir.style.color = cs0.color;
+  miroir.style.backgroundColor = cs0.backgroundColor;
+  ta.style.caretColor = cs0.color;
+  ta.classList.add('prompt-avec-miroir');
+  function caler() {
+    const cs = getComputedStyle(ta);
+    for (const k of PROPS) miroir.style[k] = cs[k];
+    // la barre de defilement du champ reduit sa largeur de texte : meme retrait a droite dans le miroir
+    const barre = Math.max(0, ta.offsetWidth - ta.clientWidth
+      - (parseFloat(cs.borderLeftWidth) || 0) - (parseFloat(cs.borderRightWidth) || 0));
+    miroir.style.paddingRight = ((parseFloat(cs.paddingRight) || 0) + barre) + 'px';
+    miroir.style.left = ta.offsetLeft + 'px';
+    miroir.style.top = ta.offsetTop + 'px';
+    miroir.style.width = ta.offsetWidth + 'px';
+    miroir.style.height = ta.offsetHeight + 'px';
+    miroir.scrollTop = ta.scrollTop;
+  }
+  const echap = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const estMot = (c) => !!c && /[\p{L}\p{N}_]/u.test(c);
+  // premiere occurrence de m a partir de pos, bornee par des non-lettres (« car » ne colore pas « carved »)
+  function trouver(bas, m, pos) {
+    for (let i = bas.indexOf(m, pos); i >= 0; i = bas.indexOf(m, i + 1)) {
+      if (!estMot(bas[i - 1]) && !estMot(bas[i + m.length])) return i;
+    }
+    return -1;
+  }
+  function rendre() {
+    const v = ta.value || '';
+    let user = '';
+    try { user = (typeof stripKnownPromptSuffixes === 'function' ? stripKnownPromptSuffixes(v) : v) || ''; } catch (_) {}
+    const bas = v.toLowerCase();
+    let html = '';
+    let pos = 0;
+    for (const m of user.split(',').map((x) => x.trim()).filter((x) => x.length > 1)) {
+      const i = trouver(bas, m.toLowerCase(), pos);
+      if (i < 0) continue;
+      html += echap(v.slice(pos, i)) + '<code class="prompt-user">' + echap(v.slice(i, i + m.length)) + '</code>';
+      pos = i + m.length;
+    }
+    html += echap(v.slice(pos));
+    miroir.innerHTML = html + (v.endsWith('\n') ? ' ' : '');
+    miroir.scrollTop = ta.scrollTop;
+  }
+  // toute ecriture du champ par le code (pre-rempli, Enhance, projet ouvert) recolore aussi
+  const d = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+  Object.defineProperty(ta, 'value', {
+    configurable: true,
+    get() { return d.get.call(this); },
+    set(x) { d.set.call(this, x); rendre(); },
+  });
+  ta.addEventListener('input', rendre);
+  ta.addEventListener('scroll', () => { miroir.scrollTop = ta.scrollTop; });
+  try { new ResizeObserver(() => { caler(); rendre(); }).observe(ta); } catch (_) {}
+  window.addEventListener('resize', caler);
+  caler();
+  rendre();
+})();

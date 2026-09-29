@@ -4739,3 +4739,13 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 
 /* Verification finale (2026-09-29) : pied de Report sur une ligne (Supprimer a gauche s'il existe) */
 #modal-report .modal-actions { flex-wrap: nowrap; }
+
+/* PROMPT DE GENERATION (2026-09-29) : la description du user en rouge — calque miroir derriere le champ */
+.prompt-miroir-wrap { position: relative; }
+.prompt-miroir { position: absolute; z-index: 0; margin: 0; pointer-events: none; overflow: hidden;
+  box-sizing: border-box; border-style: solid; border-color: transparent;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
+.prompt-miroir code.prompt-user { font: inherit; padding: 0; margin: 0; background: none; border: 0; color: #ff5b5b; }
+textarea.prompt-avec-miroir { position: relative; z-index: 1; color: transparent !important; background: transparent !important; }
+textarea.prompt-avec-miroir::placeholder { color: var(--text-2, #8a8aa0); }
+textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(124, 58, 237, 0.35); }
