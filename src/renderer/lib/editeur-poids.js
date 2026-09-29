@@ -32,6 +32,7 @@ function construireFenetre() {
         <div class="fen-champ"><span class="fen-label">${esc(T('Bone'))}</span>
           <select id="pp-os"></select>
           <span class="fen-note">${esc(T('Or pick it with the Pick brush, by clicking the mesh.'))}</span></div>
+        <label class="opt-ligne"><input type="checkbox" id="pp-centrer"> <span>${esc(T('Center the view on the bone'))}</span></label>
         <div class="fen-champ"><span class="fen-label">${esc(T('View'))}</span>
           <div class="choix" id="pp-vues">
             <button type="button" class="choix-btn actif" data-v="os"><b>${esc(T('This bone'))}</b></button>
@@ -53,7 +54,7 @@ function construireFenetre() {
           <button type="button" class="ghost-btn fen-petit active" id="pp-squelette">&#129460; ${esc(T('Skeleton'))}</button>
           <button type="button" class="ghost-btn fen-petit" id="pp-annuler" disabled>&#8630; ${esc(T('Undo'))}</button>
         </div>
-        <span class="fen-note">${esc(T('Left drag = paint · right drag = rotate · wheel = zoom'))}</span>
+        <span class="fen-note">${esc(T('Left drag = paint · right drag = rotate · middle drag or Shift + right drag = move · wheel = zoom'))}</span>
       </div>
     </div>
     <div class="modal-actions">
@@ -91,7 +92,9 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   const soleil = new THREE.DirectionalLight(0xffffff, 1.4); soleil.position.set(1, 2, 1.5); scene.add(soleil);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 1000);
   const ctrl = new OrbitControls(camera, canvas);
-  ctrl.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+  // clic gauche = pinceau ; molette = zoom ; clic du milieu (ou Maj + clic droit) = TRANSLATER la vue ; clic droit = tourner
+  ctrl.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+  ctrl.screenSpacePanning = true;
   let vivant = true;
   const taille = () => {
     const r = $('pp-vue').getBoundingClientRect();
@@ -315,6 +318,11 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   const tourner = () => {
     if (!vivant) return;
     majSquelette();
+    if ($('pp-centrer').checked && os[osChoisi]) {            // la vue suit l'os choisi, en douceur
+      os[osChoisi].getWorldPosition(va);
+      vb.copy(va).sub(ctrl.target).multiplyScalar(0.2);
+      ctrl.target.add(vb); camera.position.add(vb);
+    }
     if (essai) {
       const a = 0.6 * Math.sin((performance.now() - essai.t0) / 350);
       essai.b.quaternion.copy(essai.q0).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(a, 0, a * 0.5)));
