@@ -184,6 +184,35 @@ async def _read_json(request) -> dict:
 #     GPU a un calcul a la fois, comme avant.
 # Sans cle (appel ancien ou direct), aucun resultat n'est reutilise.
 _CALCULS: dict = {}
+
+
+async def _attendre_conteneur_3d_en_demarrage(max_s: float = 45.0) -> None:
+    """UN SEUL CONTENEUR PAR GENERATION (2026-09-29, accord du user).
+
+    La prechauffe (/mesh_warm, lancee au debut de la rectification) demarre un conteneur 3D. S'il
+    n'etait pas encore pret quand la generation partait, Modal en demarrait un SECOND pour elle :
+    mesure du 29/09, deux conteneurs pour une generation (le premier restait inutilise ~110 s, ou
+    les deux rechargeaient tout, 168 et 209 s — cout double). On attend donc, au plus `max_s`,
+    qu'un conteneur DEJA en demarrage soit pret (compteurs Modal : un conteneur ni pret ni occupe).
+    Aucun en demarrage (tous froids, ou tous occupes par d'autres) : depart immediat, comme avant.
+    Contrepartie acceptee : si ce conteneur recharge tout (~3 min), le pire cas prend 45 s de plus."""
+    import asyncio
+    t0 = time.time()
+    attendu = False
+    try:
+        fn = MyFabmeshMesh().rechauffer              # meme classe : memes compteurs
+        while time.time() - t0 < max_s:
+            s = await asyncio.to_thread(fn.get_current_stats)
+            if not (s.num_total_runners > s.num_running_inputs and s.input_headroom == 0):
+                break
+            attendu = True
+            await asyncio.sleep(1.0)
+    except Exception as e:
+        print(f"[mesh_start] etat des conteneurs 3D illisible ({type(e).__name__}) : depart direct", flush=True)
+        return
+    if attendu:
+        print(f"[mesh_start] conteneur 3D deja en demarrage : attendu {time.time() - t0:.0f} s "
+              f"au lieu d'en lancer un second", flush=True)
 _VERROU_GPU = None
 _VERROUS_CHARGEMENT: dict = {}
 
@@ -787,6 +816,21 @@ mesh_image = (
     # Reduction SANS PLIS aux petites cibles de triangles (acceleration_glb.py, 2026-09-29) :
     # sans lui, un modele a 1 000 triangles sortait crible de trous. MIT, roues binaires.
     .pip_install("fast_simplification==0.1.13")
+    # POIDS DU MAILLAGE DANS L'IMAGE (2026-09-29). Sans eux, chaque conteneur qui CREE son instantane
+    # (Modal en cree un par machine : 18 chargements complets pour 27 demarrages du conteneur 3D
+    # entre le 29/09 00:42 et 11:46) telechargeait ~17 Go depuis HuggingFace — 150 a 230 s d'attente
+    # avant la moindre generation, mesures en direct le 29/09 (deux conteneurs a 168 et 209 s pour
+    # UNE generation). Memes depots que from_pretrained : TRELLIS.2-4B (+ encodeurs du texturage),
+    # le decodeur de structure de TRELLIS-image-large, DINOv3 (acces restreint : jeton HF a la
+    # construction) et BiRefNet (utilise par « Re-texture »).
+    .run_commands(
+        "python -c \"from huggingface_hub import snapshot_download as d; "
+        "d('microsoft/TRELLIS.2-4B'); "
+        "d('microsoft/TRELLIS-image-large', allow_patterns=['ckpts/ss_dec_conv3d_16l8_fp16*']); "
+        "d('facebook/dinov3-vitl16-pretrain-lvd1689m', allow_patterns=['*.json', '*.safetensors', '*.txt']); "
+        "d('ZhengPeng7/BiRefNet', allow_patterns=['*.json', '*.safetensors', '*.py'])\"",
+        secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
+    )
     .add_local_python_source("modal_app")
 )
 
@@ -2526,8 +2570,21 @@ class MyFabmeshMesh:
             print(f"[mesh/ready] rmbg patch skipped: {e}", flush=True)
 
         from trellis2.pipelines import Trellis2ImageTo3DPipeline
-        self.pipeline = Trellis2ImageTo3DPipeline.from_pretrained(
-            "microsoft/TRELLIS.2-4B")
+        # DETOURAGE NON CHARGE (2026-09-29) : le pipeline chargeait BiRefNet (~0,9 Go + son code
+        # telecharge a chaque fois) pour qu'on le jette aussitot (rembg_model = None) — le detourage
+        # se fait avant, par _detourage. Classe factice le temps du chargement, puis la vraie.
+        from trellis2.pipelines import rembg as _rembg_mod
+        _birefnet = _rembg_mod.BiRefNet
+
+        class _SansDetourage:
+            def __init__(self, *a, **k):
+                pass
+        _rembg_mod.BiRefNet = _SansDetourage
+        try:
+            self.pipeline = Trellis2ImageTo3DPipeline.from_pretrained(
+                "microsoft/TRELLIS.2-4B")
+        finally:
+            _rembg_mod.BiRefNet = _birefnet
         self.pipeline.rembg_model = None
         self.pipeline.cuda()
         import o_voxel
@@ -3246,6 +3303,7 @@ def mesh_router():
         # NOTE: this is the ONLY true cross-container .remote()-style call
         # in the file. It STAYS because mesh_start runs in a CPU container
         # and MyFabmeshMesh truly is a separate GPU container.
+        await _attendre_conteneur_3d_en_demarrage()
         call = MyFabmeshMesh().generate_to_volume.spawn(job_id, payload)
         try:
             with open(f"/data/{job_id}.call_id", "w") as f:

@@ -196,8 +196,9 @@ cd cloud && ALLOW_UNFILLED_LEGAL=1 npm run build && ALLOW_UNFILLED_LEGAL=1 npm r
 
 # MODAL — variables UTF-8 obligatoires sous Windows
 PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -m modal deploy modal_app/app.py
-# ... et AUSSITOT APRES : cree les instantanes avant le premier user (voir section 12)
-PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python build/rechauffer_apres_deploy.py
+# ... et AUSSITOT APRES : cree 2-3 instantanes par classe avant le premier user (section 12 ;
+# ~10-15 min, ~1 $ ; refuse si un travail est en cours)
+PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python build/rechauffer_apres_deploy.py --manches 3
 ```
 
 - `npm run deploy`, **jamais** `npx wrangler deploy` : les garde-fous sont sur
@@ -467,6 +468,16 @@ vide `rechauffer` sur les 3 classes : l'instantané est créé tout de suite). L
 plus pour cette seule raison. Un
 « rodage » GPU dans l'instantané a été mesuré et écarté (9 s gagnées, +152 s
 par création).
+
+**Créations d'instantané = LE goulot du pire cas** (mesuré le 2026-09-29). Doc Modal : un instantané
+est propre au TYPE DE MACHINE, 2-3 par type de GPU, créés aux premiers démarrages après chaque
+déploiement (et repris de temps en temps). Une création = chargement complet + PRISE : conteneur image
+196 s + 50 s, conteneur 3D 207 s + 163 s. Une génération à froid a pris 12 min 36 (deux créations
+d'affilée) contre 2 min 06 à chaud. Parades en place : poids du maillage DANS l'image (chargement complet
+100 s au lieu de 150-230 s, banc `test_chargement_3d.py`), BiRefNet plus chargé au démarrage,
+`rechauffer_apres_deploy.py` par manches, `/mesh_start` qui attend (45 s max) un conteneur 3D déjà en
+démarrage (`_attendre_conteneur_3d_en_demarrage`). MESURER toujours à froid PUIS à chaud (mémoire
+`feedback_protocole_mesure_generation`).
 
 **Caches GPU permanents du maillage** (`/data/_cache_gpu` sur le volume
 `myfabmesh-mesh-output`). Les noyaux Triton de flex_gemm (convolutions
