@@ -614,8 +614,11 @@ si une case est cochée, décochée ou masquée :
   (`/api/mesh-retexture`, asynchrone). Portés le 2026-09-26 : `texvar`,
   `enhance-tex`, `name`, `clone3d`, `region-retex` ; les Étapes de
   construction 3D l'étaient déjà.
-- **Rectification** : ~21-23 s à chaud (3 graines, désormais en un seul
-  passage : ~1 s gagnée seulement, un SDXL 1024 sature déjà le L40S). À
+- **Rectification** : ~25 s à chaud de bout en bout (3 graines en un seul
+  passage ; diffusion ~14 s). Depuis le 2026-09-29 elle tourne SANS le
+  ControlNet (il recevait une image noire à force nulle mais calculait à
+  chaque pas) : diffusion 18,5 -> 14 s, images identiques au pixel près. Le
+  bureau (`generate_front_strict.py`) n'a jamais eu ce ControlNet. À
   froid, l'import de rembg (88 s) et le rejeu qui recalculait tout la
   faisaient échouer une fois sur deux : corrigé le 2026-09-29 (section 12).
 - **Vue de dos automatique** : le champ caché `ws-mv-scope` vaut

@@ -131,6 +131,7 @@ def generate(
     size: int = 1024,
     ip_scale: float = 0.7,
     lot: bool = True,
+    sans_controlnet: bool = True,
 ) -> Image.Image:
     """Multi-seed RealVisXL rectify with symmetry scoring. Returns the
     best candidate, post-processed (rembg + center @ ~92% canvas height).
@@ -173,6 +174,17 @@ def generate(
         print(f'[rectify] Compel fallback ({_ce}); using truncated prompts',
               flush=True)
 
+    # SANS CONTROLNET (2026-09-29) : ici le ControlNet recoit une image noire et une force nulle —
+    # ses residus sont multiplies par 0, mais il tournait quand meme a CHAQUE pas de CHAQUE graine
+    # (~1/3 du calcul). Meme UNet, memes encodeurs, meme IP-Adapter, sans lui : meme image.
+    appel, cn_kw = pipe, dict(image=blank_skel, controlnet_conditioning_scale=0.0)
+    if sans_controlnet:
+        try:
+            appel, cn_kw = _pipe_sans_controlnet(pipe), {}
+        except Exception as _pe:
+            print(f'[rectify] pipeline sans ControlNet impossible ({_pe}) : ControlNet a 0', flush=True)
+    import time as _time
+    _t_diff = _time.time()
     candidates = []
     graines = [1000 + i * 137 for i in range(seeds)]  # same reproducible spread as desktop
     # LES GRAINES EN UN SEUL PASSAGE (2026-09-29) : un generateur par image, donc les memes
@@ -181,7 +193,7 @@ def generate(
     if lot and seeds > 1:
         try:
             kw_lot = dict(
-                image=blank_skel, controlnet_conditioning_scale=0.0,
+                **cn_kw,
                 num_inference_steps=steps, guidance_scale=guidance,
                 height=size, width=size, num_images_per_prompt=seeds,
                 generator=[torch.Generator('cuda').manual_seed(g) for g in graines],
@@ -189,9 +201,9 @@ def generate(
             if ref_img is not None:
                 kw_lot['ip_adapter_image'] = ref_img
             if embeds is not None:
-                images_lot = pipe(**embeds, **kw_lot).images
+                images_lot = appel(**embeds, **kw_lot).images
             else:
-                images_lot = pipe(prompt=full_prompt, negative_prompt=neg, **kw_lot).images
+                images_lot = appel(prompt=full_prompt, negative_prompt=neg, **kw_lot).images
             if len(images_lot) != seeds:
                 raise RuntimeError(f'{len(images_lot)} images pour {seeds} graines')
         except Exception as _le:
@@ -212,8 +224,7 @@ def generate(
             continue
         gen = torch.Generator('cuda').manual_seed(seed)
         base_kwargs = dict(
-            image=blank_skel,
-            controlnet_conditioning_scale=0.0,
+            **cn_kw,
             num_inference_steps=steps,
             guidance_scale=guidance,
             height=size,
@@ -224,16 +235,16 @@ def generate(
             base_kwargs['ip_adapter_image'] = ref_img
         if embeds is not None:
             try:
-                img = pipe(**embeds, **base_kwargs).images[0]
+                img = appel(**embeds, **base_kwargs).images[0]
             except Exception as _pe:
                 print(f'[rectify] embeds call failed ({_pe}); '
                       f'falling back to prompt= path', flush=True)
                 embeds = None
-                img = pipe(
+                img = appel(
                     prompt=full_prompt, negative_prompt=neg, **base_kwargs,
                 ).images[0]
         else:
-            img = pipe(
+            img = appel(
                 prompt=full_prompt, negative_prompt=neg, **base_kwargs,
             ).images[0]
         sym = symmetry_score(img)
@@ -246,6 +257,7 @@ def generate(
             score = sym
         candidates.append((score, img, seed))
 
+    _t_note = _time.time()
     sims = ressemblance(pipe, ref_img, [c[1] for c in candidates]) if ref_img is not None else None
     for k, (sc, _, sd) in enumerate(candidates):
         print(f'[rectify]   seed={sd} score={sc:.3f}'
@@ -255,4 +267,24 @@ def generate(
     print(f'[rectify] mode={mode} best seed={best_seed} score={best_score:.3f} '
           + (f'ressemblance={sims[k]:.3f} ' if sims else '')
           + f'(over {seeds} seeds)', flush=True)
-    return remove_bg_and_center(best_img, size=size)
+    _t_fond = _time.time()
+    sortie = remove_bg_and_center(best_img, size=size)
+    print(f'[rectify] chrono : diffusion+symetrie {_t_note - _t_diff:.1f}s, ressemblance {_t_fond - _t_note:.1f}s, '
+          f'detourage final {_time.time() - _t_fond:.1f}s ({"sans" if appel is not pipe else "avec"} ControlNet)', flush=True)
+    return sortie
+
+
+_SANS_CN = {}
+
+
+def _pipe_sans_controlnet(pipe):
+    """SDXL (+ IP-Adapter) sur les MEMES composants que le pipeline ControlNet, sans lui. En cache."""
+    if id(pipe) not in _SANS_CN:
+        from diffusers import StableDiffusionXLPipeline
+        comp = {k: v for k, v in pipe.components.items() if k != 'controlnet'}
+        p = StableDiffusionXLPipeline(
+            **comp,
+            force_zeros_for_empty_prompt=bool(getattr(pipe.config, 'force_zeros_for_empty_prompt', True)),
+            add_watermarker=getattr(pipe, 'watermark', None) is not None)
+        _SANS_CN[id(pipe)] = p
+    return _SANS_CN[id(pipe)]

@@ -1435,6 +1435,7 @@ class MyFabmeshBackview:
             guidance=float(payload.get("guidance") or 7.0),
             ip_scale=float(payload.get("ip_scale") or 0.7),
             lot=payload.get("_lot") is not False,          # banc : False = un par un (comparaison)
+            sans_controlnet=payload.get("_sans_cn") is not False,   # banc : False = ControlNet a 0 (avant)
         )
 
         buf = io.BytesIO()
@@ -2118,13 +2119,15 @@ class MyFabmeshBackview:
         return Response(content=png, media_type="image/png")
 
     @modal.method()
-    def rectifier_banc(self, ref_image_url: str, mode: str = "front", seeds: int = 3, lot: bool = True) -> bytes:
+    def rectifier_banc(self, ref_image_url: str, mode: str = "front", seeds: int = 3, lot: bool = True,
+                       sans_cn: bool = True) -> bytes:
         """BANC (2026-09-27) : la MEME rectification que la route /rectify,
         appelee par le SDK Modal (authentifie par le jeton du compte Modal, pas
         de route publique). Sert a valider un correctif sur UNE image avant de
         payer un maillage. Rend le PNG."""
         payload = {"_auth": os.environ.get("SHARED_SECRET", ""),
-                   "ref_image_url": ref_image_url, "mode": mode, "seeds": seeds, "_lot": lot}
+                   "ref_image_url": ref_image_url, "mode": mode, "seeds": seeds, "_lot": lot,
+                   "_sans_cn": sans_cn}
         return bytes(self._route_rectify(payload).body)
 
     @modal.asgi_app()
