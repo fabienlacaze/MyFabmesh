@@ -24222,3 +24222,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - worker.ts (handleAutoRigStatus) : range `<compte>/rigged/<base>_rigged_light_<ts>.glb` a cote du rig complet.
 - UI (bureau + web) : etiquette « Light · 1M triangles · for animation » + infobulle dans l'historique.
 - NON TESTE sur Modal (budget coupe jusqu'au 1er octobre) et NON deploye : a deployer + tester sur le centipede des la reprise.
+
+## 2026-09-30 — Prix sur « Save as new rig version » (editeur de poids) + refus clair au-dela de 100 Mo
+- cloud-overrides.js : pastille de prix posee des que #pp-save apparait (bouton cree a l'ouverture de la fenetre) ; 1 credit (manual_tool).
+- uploadClientMeshResult : au-dela de 100 Mo (limite Cloudflare) message immediat au lieu d'un envoi de 466 Mo qui echoue.

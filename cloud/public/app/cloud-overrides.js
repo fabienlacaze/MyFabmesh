@@ -794,6 +794,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-clone3d-btn':      1,
     'ws-mesh-paint-mesh-btn':   1,
     'pm-save':                  1,   // enregistrement de Paint Mesh / Decals
+    'pp-save':                  1,   // enregistrement de l'editeur de poids de peau (cree a l'ouverture)
     'ws-mesh-explode-btn':      1,
     'ws-mesh-resize-btn':       1,
     // EXPORTS, PUBLICATION, IMPORT (2026-09-27, « rends-les payants »).
@@ -984,6 +985,18 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
 
   function installActionCostBadges() {
     _ensureCostBadgeStyle();
+    /* Boutons crees A L'OUVERTURE d'une fenetre (editeur de poids : #pp-save) : absents au demarrage, la pastille est posee
+     * des que le bouton apparait dans la page. */
+    if (!window.__coutDynamique) {
+      window.__coutDynamique = true;
+      const DYN = ['pp-save'];
+      new MutationObserver(() => {
+        for (const id of DYN) {
+          const b = document.getElementById(id);
+          if (b && !b.querySelector('.cloud-cost-badge') && ACTION_COSTS[id] != null) _attachCostBadge(b, ACTION_COSTS[id]);
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    }
     for (const [id, cost] of Object.entries(ACTION_COSTS)) {
       const btn = document.getElementById(id);
       _attachCostBadge(btn, cost);
@@ -1282,6 +1295,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-clone3d-btn': 'manual_tool',
     'ws-mesh-paint-mesh-btn': 'manual_tool',
     'pm-save': 'manual_tool',
+    'pp-save': 'manual_tool',
     'ws-mesh-explode-btn': 'mesh_op_simple',
     'ws-mesh-resize-btn':  'mesh_op_simple',
     'ws-export-img-btn':   'export',

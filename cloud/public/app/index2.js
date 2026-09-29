@@ -194,6 +194,10 @@ window.openProjectByName = async function (projectName, focusAssetUrl) {
 // supplies (no hardcoded value here).
 // ────────────────────────────────────────────────────────────────
 async function uploadClientMeshResult(bytes, opType, extra = {}) {
+  // Le serveur refuse tout corps de plus de 100 Mo : on le dit tout de suite, sans envoyer 466 Mo pour rien.
+  if (bytes && bytes.byteLength > 100_000_000) {
+    throw new Error(_i18nT('This file is too big to save online (over 100 MB). Use the light version of the rig, or reduce the mesh with Triangle count first.'));
+  }
   /* OCTETS BRUTS, PLUS DE BASE64 DANS DU JSON (2026-09-26).
    *
    * Mesure en navigateur sur un orc TRELLIS-2 (atlas 4K) : le GLB re-exporte
