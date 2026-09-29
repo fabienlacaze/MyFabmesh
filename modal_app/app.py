@@ -847,6 +847,16 @@ mesh_image = (
         "d('ZhengPeng7/BiRefNet', allow_patterns=['*.json', '*.safetensors', '*.py'])\"",
         secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
     )
+    # RealVisXL (fp16) + ControlNet-Tile + VAE fp16 : charges a la DEMANDE par ce conteneur (Reshape a
+    # region / dessin, Face fix, Detail refine). Absents de cette image (ils ne sont que dans celle du
+    # conteneur image), ils se telechargeaient depuis HuggingFace au premier usage de chaque conteneur
+    # (~7-10 Go, 1-2 min). Memes fichiers que l'image du conteneur image (2026-09-29).
+    .run_commands(
+        "python -c \"from huggingface_hub import snapshot_download as d; "
+        "d('SG161222/RealVisXL_V4.0', allow_patterns=['*.json', '*.txt', '*.fp16.safetensors']); "
+        "d('xinsir/controlnet-tile-sdxl-1.0', allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors']); "
+        "d('madebyollin/sdxl-vae-fp16-fix', allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors'])\"",
+    )
     .add_local_python_source("modal_app")
 )
 
@@ -3331,11 +3341,26 @@ def mesh_router():
 
     @api.post("/mesh_warm")
     async def mesh_warm(request: Request):
-        """Demarre un conteneur 3D sans attendre (voir MyFabmeshMesh.rechauffer)."""
+        """Demarre un conteneur 3D sans attendre (voir MyFabmeshMesh.rechauffer).
+
+        GENERATIONS SIMULTANEES (2026-09-29). Le worker sautait ce reveil s'il datait de moins de
+        60 s : la 2e generation lancee en meme temps n'avait donc AUCUN conteneur a elle et attendait
+        ~47 s que celui de la 1re se libere (mesure du 29/09). On decide desormais sur les compteurs
+        de Modal : conteneurs sans calcul en cours (libres ou en demarrage) moins les appels en
+        attente. S'il en reste un de disponible, rien ; sinon, un conteneur de plus."""
+        import asyncio
         payload = await _read_json(request)
         _check_auth(payload)
-        await MyFabmeshMesh().rechauffer.spawn.aio()
-        return {"ok": True}
+        fn = MyFabmeshMesh().rechauffer
+        try:
+            s = await asyncio.to_thread(fn.get_current_stats)
+            disponibles = (s.num_total_runners - s.num_running_inputs) - s.backlog
+            if disponibles > 0:
+                return {"ok": True, "reveil": False, "disponibles": disponibles}
+        except Exception as e:
+            print(f"[mesh_warm] compteurs illisibles ({type(e).__name__}) : reveil", flush=True)
+        await fn.spawn.aio()
+        return {"ok": True, "reveil": True}
 
     @api.post("/mesh_status")
     async def mesh_status(request: Request):

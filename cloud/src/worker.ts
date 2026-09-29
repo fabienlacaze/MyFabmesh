@@ -9962,7 +9962,7 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
   //   wait 90 s
   //   t=350  3rd request → last chance
   let r = await doFetch();
-  for (const delay of [60_000, 90_000]) {
+  for (const delay of RAPPELS_524) {
     if (r.status !== 524) break;
     console.log(`[modal] text2image 524 — cold start retry after ${delay / 1000}s`);
     await new Promise((res) => setTimeout(res, delay));
@@ -10266,7 +10266,7 @@ async function callModalBackView(env: Env, userId: string, input: {
   // le rejeu (meme corps) recupere le calcul que Modal a poursuivi
   // (_calcul_protege dans modal_app/app.py).
   let r = await doFetch();
-  for (const delay of [60_000, 90_000]) {
+  for (const delay of RAPPELS_524) {
     if (r.status !== 524) break;
     console.log(`[modal] back-view 524 — cold start retry after ${delay / 1000}s`);
     await new Promise((res) => setTimeout(res, delay));
@@ -10418,7 +10418,7 @@ async function callModalTpose(env: Env, userId: string, input: {
   // n'annule PAS le calcul Modal, il va au bout ; ce rejeu (meme _cle_rejeu) s'y
   // RATTACHE au lieu de le recommencer (_calcul_protege, modal_app/app.py).
   let r = await doFetch();
-  for (const delay of [60_000, 90_000]) {
+  for (const delay of RAPPELS_524) {
     if (r.status !== 524) break;
     console.log(`[modal] tpose 524 — cold start retry after ${delay / 1000}s`);
     await new Promise((res) => setTimeout(res, delay));
@@ -10533,7 +10533,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
   });
   let r = await doFetch();
   let waitedMs = 0;
-  for (const delay of [60_000, 90_000]) {
+  for (const delay of RAPPELS_524) {
     if (r.status !== 524) break;
     waitedMs += delay;
     console.log(`[modal] image_op 524 — cold start retry after ${delay/1000}s (total wait so far: ${waitedMs/1000}s)`);
@@ -10625,7 +10625,7 @@ async function callModalOutfit(env: Env, userId: string, input: {
     signal: AbortSignal.timeout(300_000),
   });
   let r = await doFetch();
-  for (const delay of [60_000, 90_000]) {
+  for (const delay of RAPPELS_524) {
     if (r.status !== 524) break;
     console.log(`[modal] outfit 524 — cold start retry after ${delay / 1000}s`);
     await new Promise(res => setTimeout(res, delay));
@@ -10708,7 +10708,7 @@ async function callModalSheet(env: Env, userId: string, input: {
   });
   // 2026-09-29 : rejeu apres 524, comme back-view / tpose (voir callModalBackView).
   let r = await doFetch();
-  for (const delay of [60_000, 90_000]) {
+  for (const delay of RAPPELS_524) {
     if (r.status !== 524) break;
     console.log(`[modal] sheet 524 — cold start retry after ${delay / 1000}s`);
     await new Promise((res) => setTimeout(res, delay));
@@ -10797,7 +10797,7 @@ async function callModalRectify(env: Env, userId: string, input: {
    * Le temps passe sous la limite de 15 min de wallclock des Workers payants. */
   let r = await envoyer();
   let attenteCumulee = 0;
-  for (const attente of [60_000, 90_000]) {
+  for (const attente of RAPPELS_524) {
     if (r.status !== 524) break;
     attenteCumulee += attente;
     console.log(`[modal] rectify 524 — reprise apres demarrage a froid ${attente / 1000}s ` +
@@ -19897,6 +19897,14 @@ async function preWarmCog(env: Env): Promise<void> {
  *  with a margin, so we never pay for a boot we do not need. */
 const PREWARM_FRESH_MS = 4 * 60 * 1000;
 
+/** REJEUX APRES UN 524 des appels Modal synchrones PORTANT `_cle_rejeu` (2026-09-29). Le 524 est la
+ *  coupure de Cloudflare a 100 s ; le calcul Modal, lui, continue, et un nouvel essai avec la meme cle
+ *  s'y RATTACHE (_calcul_protege, modal_app/app.py) au lieu de le recommencer. Attendre 60 puis 90 s
+ *  n'avait donc plus de sens : mesure du 29/09, deux rectifications finies a 12:51:42 et 12:51:59
+ *  n'ont ete recuperees qu'a 12:52:44. Cinq essais de ~100 s couvrent toujours ~8 min de demarrage.
+ *  Les appels SANS cle (apercu marketplace, ops d'atlas, nommage) gardent leurs attentes longues. */
+const RAPPELS_524 = [2_000, 2_000, 2_000, 2_000];
+
 function _healthzUrl(fullUrl: string): string {
   // …/myfabmeshpredictor-router.modal.run/text2image → …/healthz
   return fullUrl.replace(/\/[^/]*$/, '/healthz');
@@ -19922,12 +19930,12 @@ async function preWarmModal(env: Env,
     return;
   }
   /* CONTENEUR 3D (2026-09-29) : demarre PENDANT la rectification qui precede un maillage,
-   * au lieu d'apres. Sa traine n'est que de 90 s : fraicheur de 60 s, pas PREWARM_FRESH_MS. */
+   * au lieu d'apres. PAS de garde de fraicheur ici : /mesh_warm decide sur les compteurs de Modal
+   * (un conteneur libre ou en demarrage suffit). La garde de 60 s privait la 2e generation
+   * simultanee de son conteneur : elle attendait ~47 s celui de la 1re (mesure du 29/09). */
   if (opts.cible === 'mesh') {
     const url = env.MODAL_MESH_START_URL;
     if (!url) return;
-    const last = await _readLastWarmMs(env, '_meta/last_warm_mesh.txt').catch(() => null);
-    if (last != null && Date.now() - last < 60_000) return;
     await fetch(url.replace(/\/[^/]*$/, '/mesh_warm'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
