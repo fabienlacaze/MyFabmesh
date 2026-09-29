@@ -17296,17 +17296,25 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (_) { /* never block app boot on resume */ }
 });
 
+// NOM D'EXPORT PRE-REMPLI (2026-09-29, demande user) : « <nom du projet>_3D ». Accents retires,
+// puis tout caractere hors [A-Za-z0-9_-] devient « _ » (meme regle que le bureau : Unreal et les
+// outils 3D digerent mal espaces et accents). Identique sur le bureau.
+function _nomExport3D(m) {
+  const proj = String(state.currentProject?.name || '').trim();
+  const base = proj || String(m?.filename || 'mesh').replace(/\.[^.]+$/, '')
+    .replace(/_(trellis2_native|trellis2|trellis|native_3d|sf3d|hunyuan|puppeteer|unirig)(?=_|$)/gi, '');
+  const propre = base.normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 76);
+  return (propre || 'mesh') + '_3D';
+}
 document.getElementById('ws-mesh-export-btn')?.addEventListener('click', () => {
   const m = getCurrentMeshObj();
   if (!m) { showToast('Pick a mesh first.', 'error'); return; }
   const modal = document.getElementById('modal-export-mesh');
-  // nom sans moteur (secret technique : le fichier portait « _trellis2_ »)
-  const baseName = _maskAiNames(m.filename.replace(/\.[^.]+$/, ''));
-  // Output path defaults to the OS Downloads folder. On cloud the
-  // browser writes there by default for any <a download>; on
-  // desktop the IPC handler resolves "Downloads/" via app.getPath.
-  document.getElementById('exp-path').value = '';
-  document.getElementById('exp-path').placeholder = `Downloads/${baseName}.<ext>`;
+  // Le navigateur range le fichier dans ses telechargements ; seul Browse... choisit le dossier.
+  const nom = _nomExport3D(m);
+  document.getElementById('exp-path').value = nom;
+  document.getElementById('exp-path').placeholder = `Downloads/${nom}.<ext>`;
   modal.classList.remove('hidden');
 });
 document.getElementById('exp-cancel')?.addEventListener('click', () => {
@@ -17316,7 +17324,9 @@ document.getElementById('exp-browse')?.addEventListener('click', async () => {
   const m = getCurrentMeshObj();
   if (!m) return;
   const format = document.getElementById('exp-format').value;
-  const defaultName = _maskAiNames(m.filename.replace(/\.[^.]+$/, ''));
+  const saisie = document.getElementById('exp-path').value.trim()
+    .replace(/\.(glb|gltf|obj|fbx|stl|ply|zip)$/i, '');
+  const defaultName = saisie || _nomExport3D(m);
   if (!API.pickExportPath) return;
   const picked = await API.pickExportPath({ defaultName, format });
   // Desktop returns a plain string ("C:\Users\…"), cloud returns an
@@ -17375,7 +17385,8 @@ document.getElementById('exp-go')?.addEventListener('click', async () => {
   const m = getCurrentMeshObj();
   if (!m) return;
   const format = document.getElementById('exp-format').value;
-  const outputPath = document.getElementById('exp-path').value.trim() || null;
+  // champ vide = nom par defaut « <projet>_3D » (avant : le nom interne du fichier stocke)
+  const outputPath = document.getElementById('exp-path').value.trim() || _nomExport3D(m);
   const licenceKey = document.getElementById('exp-licence')?.value || 'personal';
   document.getElementById('modal-export-mesh').classList.add('hidden');
   // Prefer the original GLB as the source whenever possible. If the user
@@ -17428,7 +17439,8 @@ document.getElementById('exp-go')?.addEventListener('click', async () => {
       // browser download; on desktop the IPC handler writes it on
       // disk via fs.writeFile.
       try {
-        const baseName = String(m.filename || 'mesh').replace(/\.[^.]+$/, '');
+        // meme nom que le maillage livre (« <projet>_3D_LICENSE.txt »)
+        const baseName = String(outPath || m.filename || 'mesh').replace(/\.[^.]+$/, '');
         const txt = `${licence.label}\n\n${licence.body}\n\nExported ${new Date().toISOString()} via MyFabmesh.AI.`;
         if (API.writeLicenceFile) {
           await API.writeLicenceFile({ outputPath: outPath, content: txt });

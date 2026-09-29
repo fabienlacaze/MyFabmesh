@@ -2012,7 +2012,10 @@
         const ext = main.ext;
         // nom du fichier telecharge sans nom de moteur (secret technique) :
         // le maillage stocke s'appelle « <projet>_trellis2_<id>.glb »
-        const baseName = _stripExt(_basename(outputPath || sourcePath || 'mesh'))
+        // Seules les extensions connues sont retirees : un nom saisi « v1.2_3D » n'est plus coupe
+        // en « v1 » (le champ est pre-rempli d'un NOM, plus d'un chemin, depuis le 2026-09-29).
+        const baseName = _basename(outputPath || sourcePath || 'mesh')
+          .replace(/\.(glb|gltf|obj|fbx|stl|ply|zip|usd|usdz|abc|dae)$/i, '')
           .replace(/_(trellis2_native|trellis2|trellis|native_3d|sf3d|hunyuan|puppeteer|unirig)(?=_|$)/gi, '');
 
         // ETAPES DE CONSTRUCTION : meme resultat que le desktop, traduit pour un

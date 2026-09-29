@@ -16709,12 +16709,30 @@ function _cleanExportBase(m) {
         .replace(/_\d{10,}$/, '');
   return base.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'mesh';
 }
+// NOM D'EXPORT PRE-REMPLI (2026-09-29, demande user) : « <nom du projet>_3D ». Accents retires,
+// puis tout caractere hors [A-Za-z0-9_-] devient « _ » (meme regle que main.js : Unreal et les
+// outils 3D digerent mal espaces et accents). Identique sur le web.
+function _nomExport3D(m) {
+  const proj = String(state.currentProject?.name || '').trim();
+  const base = proj || String(m?.filename || 'mesh').replace(/\.[^.]+$/, '')
+    .replace(/_(trellis2_native|trellis2|trellis|native_3d|sf3d|hunyuan|puppeteer|unirig)(?=_|$)/gi, '');
+  const propre = base.normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 76);
+  return (propre || 'mesh') + '_3D';
+}
+// Nom saisi SANS dossier (pas de « / » ni d'antislash) : c'est un nom de fichier, pas un chemin.
+function _nomSaisiExport() {
+  const v = String(document.getElementById('exp-path')?.value || '').trim();
+  if (!v || v.includes('/') || v.includes(String.fromCharCode(92))) return '';
+  return v.replace(/\.(glb|gltf|obj|fbx|stl|ply)$/i, '');
+}
 document.getElementById('ws-mesh-export-btn')?.addEventListener('click', () => {
   const m = getCurrentMeshObj();
   if (!m) { showToast('Pick a mesh first.', 'error'); return; }
   const modal = document.getElementById('modal-export-mesh');
-  document.getElementById('exp-path').value = '';
-  document.getElementById('exp-path').placeholder = '(default: meshes/' + _cleanExportBase(m) + '.<ext>)';
+  const nom = _nomExport3D(m);
+  document.getElementById('exp-path').value = nom;
+  document.getElementById('exp-path').placeholder = '(default: meshes/' + nom + '.<ext>)';
   modal.classList.remove('hidden');
 });
 document.getElementById('exp-cancel')?.addEventListener('click', () => {
@@ -16724,7 +16742,7 @@ document.getElementById('exp-browse')?.addEventListener('click', async () => {
   const m = getCurrentMeshObj();
   if (!m) return;
   const format = document.getElementById('exp-format').value;
-  const defaultName = _cleanExportBase(m);
+  const defaultName = _nomSaisiExport() || _nomExport3D(m);
   if (!API.pickExportPath) return;
   const picked = await API.pickExportPath({ defaultName, format });
   if (picked) document.getElementById('exp-path').value = picked;
@@ -16733,7 +16751,12 @@ document.getElementById('exp-go')?.addEventListener('click', async () => {
   const m = getCurrentMeshObj();
   if (!m) return;
   const format = document.getElementById('exp-format').value;
-  const outputPath = document.getElementById('exp-path').value.trim() || null;
+  // Un simple NOM (le pre-remplissage « <projet>_3D ») part en customName, dans meshes/ ; seul un
+  // chemin complet (Browse...) est une destination. Avant, un nom nu etait pris pour un chemin
+  // relatif au dossier de l'appli, sans extension.
+  const nomSaisi = _nomSaisiExport();
+  const saisie = document.getElementById('exp-path').value.trim();
+  const outputPath = (saisie && !nomSaisi) ? saisie : null;
   document.getElementById('modal-export-mesh').classList.add('hidden');
   // Prefer the original GLB as the source whenever possible. If the user
   // selected a previously-exported FBX version (which may have broken texture
@@ -16765,7 +16788,7 @@ document.getElementById('exp-go')?.addEventListener('click', async () => {
     // When the user didn't type an explicit path, pass a CLEAN customName
     // (project name, engine-stripped) so the delivered file isn't named after
     // the internal engine. main.js sanitizes + uses it as the output basename.
-    const customName = outputPath ? undefined : _cleanExportBase(m);
+    const customName = outputPath ? undefined : (nomSaisi || _nomExport3D(m));
     const r = await API.exportMesh({ sourcePath, targetFormat: format, outputPath, customName });
     const outPath = r?.outputPath || r?.path;
     if (outPath) {
