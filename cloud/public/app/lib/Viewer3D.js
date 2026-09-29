@@ -22,6 +22,31 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+// RENDU ECONOME POUR LES GROS MAILLAGES (2026-09-30, user : « ca fait laguer mon PC »). Un maillage de plusieurs millions de
+// triangles redessine toute la scene 60 fois par seconde meme quand rien ne bouge. Au-dela de 2 M de triangles, le viewer ne
+// redessine plus que s'il y a de l'ACTIVITE (souris, clavier, molette, redimensionnement, camera en mouvement) dans la
+// derniere seconde et demie, ou si le contenu de la scene change (chargement d'une autre version). Aucun detail retire :
+// c'est le meme maillage, simplement dessine quand il faut. Les viewers d'animation (onBeforeRender) ne sont pas concernes.
+const SEUIL_MAILLAGE_LOURD = 2_000_000;
+let _activiteViewer = 0;
+if (typeof window !== 'undefined' && !window.__activiteViewerBranchee) {
+  window.__activiteViewerBranchee = true;
+  const marquer = () => { _activiteViewer = performance.now(); };
+  window.__activiteViewerT = () => _activiteViewer;   // repris par les autres boucles de rendu (Paint Mesh...)
+  ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown', 'keyup', 'touchstart', 'touchmove', 'resize', 'input', 'change', 'click']
+    .forEach((n) => window.addEventListener(n, marquer, { passive: true, capture: true }));
+}
+function _signatureScene(scene) {
+  let meshes = 0, tris = 0;
+  scene.traverse((o) => {
+    if (!o.isMesh || !o.geometry || o.visible === false) return;
+    meshes++;
+    const g = o.geometry;
+    tris += g.index ? g.index.count / 3 : (g.attributes.position ? g.attributes.position.count / 3 : 0);
+  });
+  return { meshes, tris };
+}
+
 export class Viewer3D {
   /**
    * @param {Object} opts
@@ -87,6 +112,8 @@ export class Viewer3D {
     this._rafId = null;
     this._ticking = false;
     this._onBeforeRender = opts.onBeforeRender || null;
+    this._gateHeavy = !!opts.gateHeavy;          // viewer a hook : rendu econome des gros maillages quand rien ne bouge
+    this._animating = opts.animating || null;    // () => true tant qu'une animation joue
 
     // Resize
     this._resizeObserver = null;
@@ -215,9 +242,31 @@ export class Viewer3D {
       const visible = this.canvas.offsetParent !== null
         && document.visibilityState !== 'hidden';
       if (!visible) return;
-      this.controls.update();
+      const changed = this.controls.update();
       if (this._onBeforeRender) {
         try { this._onBeforeRender(this); } catch (e) { /* swallow */ }
+      }
+      if (!this._onBeforeRender || this._gateHeavy) {
+        // gros maillage : rendu seulement sur activite ou changement de scene (voir SEUIL_MAILLAGE_LOURD)
+        this._nImg = (this._nImg || 0) + 1;
+        if (!this._sig || this._nImg % 10 === 0) {
+          const s = _signatureScene(this.scene);
+          if (this._sig && (s.meshes !== this._sig.meshes || s.tris !== this._sig.tris)) this._activite = performance.now();
+          this._sig = s;
+          if (s.tris > SEUIL_MAILLAGE_LOURD && !this._lourd) {
+            this._lourd = true;
+            try { this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1)); } catch (_) {}
+          } else if (s.tris <= SEUIL_MAILLAGE_LOURD && this._lourd) {
+            this._lourd = false;
+            try { this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); } catch (_) {}
+          }
+        }
+        let anime = false;
+        if (this._animating) { try { anime = !!this._animating(); } catch (_) { anime = false; } }
+        if (this._lourd && !changed && !anime) {
+          const t = performance.now();
+          if (t - Math.max(_activiteViewer, this._activite || 0) > 1500) return;
+        }
       }
       this.renderer.render(this.scene, this.camera);
     };

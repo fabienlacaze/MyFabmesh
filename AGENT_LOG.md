@@ -24236,3 +24236,10 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   (objet supprime si credits insuffisants) ; abort sur echec cote client.
 - index2.js (web) : `uploadGlbParMorceaux`, utilise par « Save as new rig version » au-dela de 90 Mo, avec progression « Uploading i / n ».
 - NON TESTE en conditions reelles (session utilisateur requise) : a essayer sur le rig du centipede.
+
+## 2026-09-30 — Gros maillages : rendu econome dans les viewers (le PC lague)
+- Cause : Viewer3D redessinait 60 fois/s un maillage de plusieurs millions de triangles meme immobile (viewer mesh, rig, Paint Mesh).
+- Viewer3D (bureau + web) : au-dela de 2 M de triangles -> rendu seulement sur activite (souris, clavier, molette, camera en mouvement)
+  dans la derniere seconde et demie, ou quand la scene change ; pixel ratio 1. Viewer du rig : `gateHeavy` + `animating` (le mixer continue
+  de tourner tant qu'une animation joue). Paint Mesh : meme regle. Aucun detail retire.
+- A faire (GPU, octobre) : maillage proxy ~500 K pour l'affichage pendant la rotation (LOD), texture pleine resolution conservee.

@@ -14374,8 +14374,11 @@ async function _pmInitViewport() {
   pmState.pointer = new THREE.Vector2();
   const tick = () => {
     if (!document.getElementById('modal-paint-mesh')?.classList.contains('hidden')) {
-      pmState.controls?.update();
-      pmState.renderer.render(pmState.scene, pmState.camera);
+      const _ch = pmState.controls?.update();
+      // gros maillage (> 2 M triangles) : on ne redessine que sur activite (souris / clavier) dans la derniere seconde et demie
+      if (!(pmState.tris > 2000000 && !_ch && performance.now() - (window.__activiteViewerT ? window.__activiteViewerT() : 1e12) > 1500)) {
+        pmState.renderer.render(pmState.scene, pmState.camera);
+      }
     }
     pmState.rafId = requestAnimationFrame(tick);
   };
@@ -14585,6 +14588,8 @@ async function _pmLoadMesh(meshPath) {
           pmState.meshes.push({ mesh: child });
         }
       });
+      pmState.tris = 0;
+      pmState.origModel.traverse((o) => { if (o.isMesh && o.geometry) pmState.tris += o.geometry.index ? o.geometry.index.count / 3 : (o.geometry.attributes.position?.count || 0) / 3; });
       await _pmSetupCanvasAndBind();
       const status = document.getElementById('pm-status');
       if (status) status.textContent = 'Ready — left-click to paint, right-click to orbit.';
@@ -18026,6 +18031,8 @@ function initRigViewer() {
       rigVwLastTime = now;
       if (rigVwMixer) rigVwMixer.update(dt);
     },
+    gateHeavy: true,
+    animating: () => !!(rigVwMixer && rigVwMixer._actions && rigVwMixer._actions.some((x) => x.isRunning())),
   });
   rigVwRenderer = _rvV.renderer;
   rigVwScene = _rvV.scene;
