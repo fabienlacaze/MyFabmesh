@@ -14384,7 +14384,7 @@ async function handleAutoRigStatus(req: Request, env: Env): Promise<Response> {
   const baseUrl = (_rigBaseUrl(env) as string).replace(/\/$/, '');
   const statusUrl = `${baseUrl}/rig-status`;
   const fetchUrl = `${baseUrl}/rig-fetch`;
-  let modalResp: { ready?: boolean; error?: string; bytes?: number; fetch_endpoint?: string; glb_base64?: string };
+  let modalResp: { ready?: boolean; error?: string; bytes?: number; fetch_endpoint?: string; glb_base64?: string; light?: boolean };
   try {
     const r = await fetch(statusUrl, {
       method: 'POST',
@@ -14482,6 +14482,24 @@ async function handleAutoRigStatus(req: Request, env: Env): Promise<Response> {
       await refundOnFailure();
       console.error('[auto-rig-status.r2]', e instanceof Error ? e.message : String(e), e);
       return json({ status: 'failed', error: 'auto-rig storage failed (credits refunded)' });
+    }
+
+    /* VERSION LEGERE d'un gros rig (2026-09-30) : quand le maillage depasse 1 M de triangles, Modal produit aussi une copie
+     * texturee a ~1 M (formes conservees), assez petite pour le viewer et l'animation. Stockee a cote, nom `_rigged_light_`.
+     * Jamais bloquant : le rig complet est deja enregistre. */
+    if (modalResp?.light === true) {
+      try {
+        const lr = await fetch(fetchUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, job_id: jobId, variant: 'light' }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (lr.ok && lr.body) {
+          await env.MESHES.put(`${user.id}/rigged/${baseName}_rigged_light_${Date.now()}.glb`, lr.body,
+            { httpMetadata: { contentType: 'model/gltf-binary' } });
+        }
+      } catch (e) { console.warn('[auto-rig-status] light version skipped', e instanceof Error ? e.message : String(e)); }
     }
 
     await deleteRigJobRecord(env, jobId).catch(() => {});

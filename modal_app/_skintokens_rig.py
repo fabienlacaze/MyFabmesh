@@ -151,6 +151,8 @@ image = (
     .run_commands(f"python /tmp/patch_skintokens_transfert.py {SKINTOKENS_DIR}")
     # scipy : squelette complet (modal_app/squelette/). Couche APRES les poids.
     .pip_install("scipy>=1.11,<1.18")
+    # version legere d'un gros rig (redepliage xatlas + recuisson de la couleur, modal_app/acceleration_glb.py)
+    .pip_install("xatlas", "opencv-python-headless", "pillow")
     .add_local_python_source("modal_app")
 )
 
@@ -183,6 +185,31 @@ RIG_GROS_MAX_FACES = 12_000_000  # au-dela : refuse
 RIG_COPIE_FACES = 400_000
 RIG_BUDGET_S = 480
 RIG_BUDGET_GROS_S = 780
+RIG_LEGER_FACES = 1_000_000      # version legere d'un gros rig : assez pour garder les formes, sous la limite de l'animation (95 Mo)
+RIG_LEGER_ATLAS = 4096
+
+
+def _version_legere(glb_original: bytes, glb_rigge_reduit: bytes, log=print) -> bytes:
+    """Copie TEXTUREE a ~1 M de triangles du maillage d'origine (forme reduite, UV redeployes, couleur recuite depuis
+    l'original), puis peau reportee depuis le rig de la copie reduite. Leve une exception au moindre souci : l'appelant
+    ignore alors la version legere sans toucher au rig complet."""
+    import io as _io
+    import numpy as np
+    import trimesh
+    from modal_app import acceleration_glb as ag
+    from modal_app import transfert_peau as tp
+
+    def _forme(vn, fn, cible):                       # meshoptimizer n'est pas dans cette image : quadrique
+        import fast_simplification
+        v2, f2 = fast_simplification.simplify(np.asarray(vn, np.float32), np.asarray(fn, np.int64),
+                                              target_reduction=1.0 - cible / len(fn))
+        return np.asarray(v2, np.float32), np.asarray(f2, np.int64)
+    ag._reduire_meshopt = _forme
+    m = trimesh.load(_io.BytesIO(glb_original), file_type="glb", force="mesh", process=False)
+    leger = ag.reduire_et_recuire(m, RIG_LEGER_FACES, taille=RIG_LEGER_ATLAS, log=log)
+    del m
+    buf = leger.export(file_type="glb")
+    return tp.transferer_peau(glb_rigge_reduit, buf, log=log)
 
 
 def _faces_glb(data: bytes) -> int:
@@ -429,13 +456,27 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
         # peau de la copie -> maillage d'origine
         from modal_app import transfert_peau as tp
         t_t = time.time()
+        rigge_reduit = open(out, "rb").read()
         try:
-            final = tp.transferer_peau(open(out, "rb").read(), glb_original, log=lambda m: print(m, flush=True))
+            final = tp.transferer_peau(rigge_reduit, glb_original, log=lambda m: print(m, flush=True))
         except Exception as e:
             _echec(f"skin transfer to the full mesh failed: {type(e).__name__}: {e}")
         with open(out, "wb") as f:
             f.write(final)
+        del final
         print(f"[skintokens] peau reportee sur l'original en {time.time() - t_t:.0f} s", flush=True)
+        # VERSION LEGERE (2026-09-30, user : « pas trop legere pour ne pas perdre les formes ») : ~1 M de triangles, texturee.
+        # Jamais bloquante : en cas d'echec le rig complet est livre seul.
+        if job_id:
+            t_l = time.time()
+            try:
+                legere = _version_legere(glb_original, rigge_reduit, log=lambda m: print(m, flush=True))
+                with open(f"/rig_data/{job_id}.light.glb", "wb") as f:
+                    f.write(legere)
+                print(f"[skintokens] version legere : {len(legere)} octets en {time.time() - t_l:.0f} s", flush=True)
+                del legere
+            except Exception as e:
+                print(f"[skintokens] version legere impossible : {type(e).__name__}: {e}", flush=True)
     data = open(out, "rb").read()
     print(f"[skintokens] TERMINE en {time.time()-t0:.1f}s — {len(data)} octets", flush=True)
 
@@ -657,10 +698,13 @@ def rig_router():
                 pass
             return JSONResponse({"ready": False, "error": msg[:500]})
         if os.path.isfile(glb):
+            leger = f"/rig_data/{job_id}.light.glb"
             return JSONResponse({
                 "ready": True,
                 "bytes": os.path.getsize(glb),
                 "fetch_endpoint": "/rig-fetch",
+                "light": os.path.isfile(leger),
+                "light_bytes": os.path.getsize(leger) if os.path.isfile(leger) else 0,
             })
         return JSONResponse({"ready": False})
 
@@ -677,7 +721,7 @@ def rig_router():
         rig_output_volume.reload()
         if os.path.isfile(f"/rig_data/{job_id}.err"):
             raise HTTPException(status_code=410, detail="rig failed")
-        chemin = f"/rig_data/{job_id}.glb"
+        chemin = f"/rig_data/{job_id}.light.glb" if payload.get("variant") == "light" else f"/rig_data/{job_id}.glb"
         if not os.path.isfile(chemin):
             raise HTTPException(status_code=404, detail="not ready")
         return Response(content=open(chemin, "rb").read(),

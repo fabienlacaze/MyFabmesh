@@ -326,6 +326,7 @@ const ENGINE_LABELS = {
   'trellis':        'MyFabmesh.AI 3D Engine',
 };
 function engineLabel(v) {
+  if (v === 'light') return 'Light version';
   return ENGINE_LABELS[v] || v;
 }
 
@@ -8889,7 +8890,9 @@ async function showGenerationHistory(startPath) {
     if (s.kind === 'op' && s.opLabel) title = `${_i18nT('Modification')}: ${escapeHtml(_i18nT(s.opLabel))}`;
     if (s.kind === 'anim' && s.motionLabel) title = `${_i18nT('Animation')}: ${escapeHtml(s.motionLabel)}`;
     // Badge générique « AI » — jamais le nom du moteur interne (exigence produit).
-    const engineTag = s.engine ? ` <span class="gh-engine">${escapeHtml(_i18nT('AI'))}</span>` : '';
+    const engineTag = s.engine === 'light'
+      ? ` <span class="gh-engine" title="${escapeHtml(_i18nT('About 1 million triangles, same shape and texture as the full rig, but light enough for the viewer and for animation. The full-resolution rig stays available for export.'))}">${escapeHtml(_i18nT('Light · 1M triangles · for animation'))}</span>`
+      : (s.engine ? ` <span class="gh-engine">${escapeHtml(_i18nT('AI'))}</span>` : '');
     const when = s.ts ? new Date(s.ts).toLocaleString() : '';
     const thumbSrc = s.thumb || '';
     const thumb = thumbSrc

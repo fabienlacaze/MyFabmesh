@@ -24213,3 +24213,12 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   transfert), 76 os, poids somme = 1, 75 os utilises. Avant : > 14 min puis echec. Sortie : 466 Mo (10 M sommets x joints/poids).
 - Reserve : un rig de 466 Mo est lourd pour le viewer et l'animation (limite 95 Mo cote worker pour l'animation) : conseiller un
   Triangle count a ~1 M avant de riguer pour animer.
+
+## 2026-09-30 — Rig des gros maillages : VERSION LEGERE (~1 M triangles, texturee) livree a cote
+- Demande user : version legere, avec un texte d'explication, pas trop legere (formes conservees) -> 1 M de triangles, atlas 4096.
+- `_skintokens_rig.py` : apres le rig complet d'un maillage > 1 M, `_version_legere` (trimesh + acceleration_glb.reduire_et_recuire
+  avec quadrique fast_simplification, xatlas + opencv ajoutes a l'image) puis `transferer_peau` -> `/rig_data/<job>.light.glb`.
+  Jamais bloquant (try/except). `/rig-status` renvoie light / light_bytes, `/rig-fetch` accepte variant:"light".
+- worker.ts (handleAutoRigStatus) : range `<compte>/rigged/<base>_rigged_light_<ts>.glb` a cote du rig complet.
+- UI (bureau + web) : etiquette « Light · 1M triangles · for animation » + infobulle dans l'historique.
+- NON TESTE sur Modal (budget coupe jusqu'au 1er octobre) et NON deploye : a deployer + tester sur le centipede des la reprise.
