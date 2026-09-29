@@ -316,24 +316,40 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   // --- propager / contracter la zone de l'os choisi : un PAS par clic (taille du pas = curseur, 0,5 % de l'etendue par cran),
   // valide tout de suite et annulable. Zone = sommets lies a l'os a 35 % ou plus.
   $('pp-pas').oninput = () => { $('pp-pas-v').textContent = (+$('pp-pas').value * 0.5) + ' %'; };
+  // Le pas part de l'OS : la zone est vue comme un rayon autour de lui (98e centile des distances os-sommet de la zone).
+  // Propager : rayon + pas, mais seulement pour ce qui touche deja la zone (distance le long de la surface <= 2 pas, donc
+  // rien ne saute vers un autre membre). Contracter : rayon - pas, on retire la couche la plus eloignee de l'os.
   function pas(etendre) {
     const dist = +$('pp-pas').value * ext * 0.005;
     trait = { avant: new Map() };
     let nb = 0;
     for (const d of donnees) {
-      const I = d.idx.array, W = d.wts.array;
-      if (!d.graphe) d.graphe = construireGraphe(d.pos, d.g.index ? d.g.index.array : null, d.n, ext * 1e-5);
-      const gr = d.graphe, dansC = new Uint8Array(gr.m);
+      const I = d.idx.array, W = d.wts.array, P = d.pos;
+      if (!d.graphe) d.graphe = construireGraphe(P, d.g.index ? d.g.index.array : null, d.n, ext * 1e-5);
+      const gr = d.graphe, dansC = new Uint8Array(gr.m), zone = [], dz = [];
       for (let i = 0; i < d.n; i++) {
         let w = 0; for (let c = 0; c < 4; c++) if (I[4 * i + c] === osChoisi) w += W[4 * i + c];
-        if (w >= 0.35) dansC[gr.canon[i]] = 1;
+        if (w >= 0.35) { dansC[gr.canon[i]] = 1; zone.push(i); dz.push(distOs(osChoisi, P[3 * i], P[3 * i + 1], P[3 * i + 2])); }
       }
-      const dc = distanceFrontiere(gr, dansC, etendre, dist), source = etendre ? 1 : 0;
-      for (let i = 0; i < d.n; i++) {
-        const c = gr.canon[i];
-        if (dansC[c] === source || dc[c] > dist) continue;
-        noter(d, i);
-        if (viser(d, i, osChoisi, etendre ? 1 : 0, 1 - 0.7 * dc[c] / dist)) { salir(d, i); nb++; }
+      if (!zone.length) continue;
+      const tri = Float32Array.from(dz).sort(), R0 = tri[Math.min(tri.length - 1, Math.floor(tri.length * 0.98))], R1 = etendre ? R0 + dist : Math.max(0, R0 - dist);
+      if (etendre) {
+        const dc = distanceFrontiere(gr, dansC, true, 2 * dist);
+        for (let i = 0; i < d.n; i++) {
+          const c = gr.canon[i];
+          if (dansC[c] || dc[c] > 2 * dist) continue;
+          const db = distOs(osChoisi, P[3 * i], P[3 * i + 1], P[3 * i + 2]);
+          if (db > R1) continue;
+          noter(d, i);
+          if (viser(d, i, osChoisi, 1, Math.max(0.3, 1 - 0.6 * Math.max(0, db - R0) / dist))) { salir(d, i); nb++; }
+        }
+      } else {
+        for (let k = 0; k < zone.length; k++) {
+          const db = dz[k]; if (db <= R1) continue;
+          const i = zone[k];
+          noter(d, i);
+          if (viser(d, i, osChoisi, 0, 0.4 + 0.6 * Math.min(1, (db - R1) / dist))) { salir(d, i); nb++; }
+        }
       }
     }
     if (trait.avant.size) empiler(trait.avant);
