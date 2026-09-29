@@ -2447,8 +2447,15 @@ async function _preremplirPrompt(brut, assetType, assetStyle) {
 }
 
 function populateWorkspace(p) {
+  // MEME projet (rechargement apres une suppression, une generation...) : la bande des versions d'images garde
+  // ses vignettes jusqu'a ce que renderImageVersions les remplace. Sinon elle restait VIDE le temps des appels
+  // reseau du rendu (user 29/09 : « j'ai supprime une version, les autres ont disparu ~5 s puis sont reapparues »).
+  const _bandeImg = document.getElementById('ws-image-versions');
+  const _vignettesGardees = (_bandeImg && p && _bandeImg.dataset.projet === String(p.name))
+    ? Array.from(_bandeImg.childNodes) : null;
   // Reset UI first so stale previews/versions from a previous project are wiped
   resetWorkspaceUI();
+  if (_vignettesGardees) _vignettesGardees.forEach((n) => _bandeImg.appendChild(n));
   // Make sure no landmark markers leak into the 3D Mesh main viewer
   // from a prior session — they belong only in the rig source viewer
   // and the fullscreen landmarks modal.
@@ -2634,7 +2641,7 @@ let _renderImageVersionsSeq = 0;
 async function renderImageVersions(p) {
   const mySeq = ++_renderImageVersionsSeq;
   const strip = document.getElementById('ws-image-versions');
-  strip.innerHTML = '';
+  // la bande n'est videe qu'APRES les appels reseau ci-dessous, juste avant d'y poser les nouvelles vignettes
   console.log('[renderImageVersions] seq=', mySeq, 'project=', p?.name, 'images_count=', p?.images?.length,
               'first_path=', p?.images?.[0]?.path || p?.images?.[0]);
 
@@ -2670,6 +2677,8 @@ async function renderImageVersions(p) {
     } catch(_) {}
   }
 
+  strip.innerHTML = '';
+  strip.dataset.projet = String(p && p.name);
   // Default: latest version is both previewed AND selected for 3D
   if (images.length > 0) {
     if (!p.previewImagePath || !images.find(i => (i.path||i) === p.previewImagePath)) {
@@ -2733,7 +2742,9 @@ async function renderImageVersions(p) {
       e.stopPropagation();
       if (!await customConfirm(`Delete version v${p.images.length - 1 - i}? This cannot be undone.`, 'Delete image version')) return;
       const ok = await API.deleteFile(img.path);
-      if (ok) {
+      // le web rend { ok:false } en cas d'echec (objet, donc « vrai ») : un echec passait pour un succes
+      if (ok && ok.ok !== false && ok.success !== false) {
+        t.remove();                      // retour immediat ; le rechargement redessine la bande sans la vider
         await reloadCurrentProject();
       } else {
         alert('Could not delete this version.');

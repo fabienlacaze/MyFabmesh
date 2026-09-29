@@ -1145,20 +1145,26 @@
     // Desktop contract is `unrestricted`, not `unlocked`. Cloud beta has
     // no PIN flow yet, so we report no restrictions by default.
     getParentalStatus: async () => {
+      // Garde 60 s (2026-09-29) : chaque rendu de la bande des versions l'attendait sur le reseau, bande vide
+      // pendant ce temps. toggleUnrestricted l'efface : un deverrouillage est pris en compte tout de suite.
+      if (impl.__parental && Date.now() - impl.__parental.t < 60_000) return { ...impl.__parental.v };
       try {
         const r = await fetch('/api/parental/status', { credentials: 'same-origin' });
         const data = await r.json();
-        return {
+        const v = {
           enabled: !data.unrestricted,
           unrestricted: !!data.unrestricted,
           unlocked: !!data.unrestricted,
           hasPin: !!data.hasPin,
         };
+        if (r.ok) impl.__parental = { t: Date.now(), v };
+        return v;
       } catch (e) {
         return { enabled: true, unrestricted: false, unlocked: false, hasPin: false };
       }
     },
     toggleUnrestricted: async ({ pin, enable } = {}) => {
+      impl.__parental = null;
       try {
         const r = await fetch('/api/parental/toggle', {
           method: 'POST',
