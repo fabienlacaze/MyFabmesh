@@ -92,6 +92,7 @@ function construireFenetre() {
         <details class="pp-sect pp-plie">
           <summary>${esc(T('Clean far zones'))}</summary>
           <div class="pp-curseur"><span>${esc(T('close'))}</span><input type="range" id="pp-dist" min="1" max="40" value="8"><span class="fen-valeur" id="pp-dist-v">8 %</span></div>
+          <span class="fen-note" style="color:#ff5fd8;">&#9632; ${esc(T('Magenta zones would be removed'))}</span>
           <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button>
         </details>
         <div class="pp-actions">
@@ -199,7 +200,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
       sale: [], min: Infinity, max: -1 };
   });
 
-  let vue = 'os';
+  let vue = 'os', apercuDist = false;                      // apercu du nettoyage : sommets qui seraient retires en magenta
   const tmp = [0, 0, 0], palette = os.map((_, i) => { const c = couleurOs(i); return [c.r, c.g, c.b]; });
   const teinte = new THREE.Color();
   function colorer(d, liste2 = null) {
@@ -216,11 +217,12 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
         for (let c = 0; c < 4; c++) { const w = W[o + c]; if (w > 0) { const q = palette[I[o + c]] || palette[0]; r += w * q[0]; g += w * q[1]; b += w * q[2]; } }
         a[3 * i] = r; a[3 * i + 1] = g; a[3 * i + 2] = b;
       }
+      if (apercuDist && d.marque && d.marque[i]) { a[3 * i] = 1; a[3 * i + 1] = 0.1; a[3 * i + 2] = 0.85; }
     };
     if (liste2) for (let k = 0; k < liste2.length; k++) faire(liste2[k]); else for (let i = 0; i < d.n; i++) faire(i);
     d.couleurs.needsUpdate = true;
   }
-  const toutColorer = () => donnees.forEach((d) => colorer(d));
+  const toutColorer = () => { if (apercuDist) calculerMarque(); donnees.forEach((d) => colorer(d)); };
   toutColorer();
   etat.textContent = `${os.length} ${T('bones')} · ${donnees.reduce((t, d) => t + d.n, 0).toLocaleString()} ${T('vertices')}`;
   function choisirOs(i, defiler = true) {
@@ -367,11 +369,36 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     }
     return m;
   }
+  // sommets qui perdraient un os avec le reglage actuel (memes criteres que le bouton)
+  function calculerMarque() {
+    const dmax = ext * (+$('pp-dist').value / 100), tous = vue === 'tous';
+    let nb = 0;
+    for (const d of donnees) {
+      if (!d.marque) d.marque = new Uint8Array(d.n);
+      const I = d.idx.array, W = d.wts.array, P = d.pos;
+      for (let i = 0; i < d.n; i++) {
+        let m = 0;
+        for (let c = 0; c < 4; c++) {
+          const b = I[4 * i + c];
+          if (W[4 * i + c] > 0.001 && (tous || b === osChoisi) && distOs(b, P[3 * i], P[3 * i + 1], P[3 * i + 2]) > dmax) { m = 1; break; }
+        }
+        d.marque[i] = m; nb += m;
+      }
+    }
+    etat.textContent = `${nb.toLocaleString()} ${T('vertices would change')}`;
+  }
+  let apercuPlanifie = false;
+  function montrerApercu() {
+    if (apercuPlanifie) return; apercuPlanifie = true;
+    requestAnimationFrame(() => { apercuPlanifie = false; toutColorer(); });
+  }
+  const sectionDist = $('pp-dist').closest('details');
+  sectionDist.addEventListener('toggle', () => { apercuDist = sectionDist.open; toutColorer(); });
   function majLibelleNettoyage() {
     $('pp-dist-ok').textContent = `${T('Remove zones farther than this')} (${vue === 'tous' ? T('all bones') : T('this bone')})`;
   }
   majLibelleNettoyage();
-  $('pp-dist').oninput = () => { $('pp-dist-v').textContent = $('pp-dist').value + ' %'; };
+  $('pp-dist').oninput = () => { $('pp-dist-v').textContent = $('pp-dist').value + ' %'; apercuDist = true; montrerApercu(); };
   $('pp-dist-ok').onclick = () => {
     const dmax = ext * (+$('pp-dist').value / 100), tous = vue === 'tous';        // suit la Vue : cet os / tous les os
     trait = { avant: new Map() };
@@ -392,6 +419,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     }
     if (trait.avant.size) empiler(trait.avant);
     trait = null;
+    apercuDist = false; toutColorer();
     etat.textContent = `${nb.toLocaleString()} ${T('vertices changed')}`;
   };
 
