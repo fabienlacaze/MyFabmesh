@@ -178,8 +178,11 @@ ALLEGE_FACES = 100_000
 # une A10G : la greffe sur le maillage complet plante (« serializing a string larger than 4 GiB »), Blender
 # recharge les 10 M, et l'ancien chemin repart de zero. Deux plafonds : un maillage trop lourd est REFUSE tout
 # de suite (l'utilisateur le reduit avec Triangle count), et le calcul a un budget de temps dur.
-RIG_MAX_FACES = 1_000_000
+RIG_MAX_FACES = 1_000_000        # au-dela : le rig se fait sur une COPIE reduite, la peau est reportee sur l'original
+RIG_GROS_MAX_FACES = 12_000_000  # au-dela : refuse
+RIG_COPIE_FACES = 400_000
 RIG_BUDGET_S = 480
+RIG_BUDGET_GROS_S = 780
 
 
 def _faces_glb(data: bytes) -> int:
@@ -207,7 +210,7 @@ def _faces_glb(data: bytes) -> int:
 # ---------------------------------------------------------------------------
 @app.function(
     gpu="A10G",
-    timeout=600,
+    timeout=900,
     # ~22 s/maillage sur RTX 5080 ; l'A10G est plus lente, on garde de la
     # marge pour le chargement du modele au premier appel du conteneur.
     scaledown_window=300,
@@ -266,9 +269,29 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
 
     n_faces = _faces_glb(glb_bytes)
     print(f"[skintokens] maillage : {n_faces} faces", flush=True)
-    if n_faces > RIG_MAX_FACES:
-        _echec(f"Mesh too heavy to rig ({n_faces:,} triangles, limit {RIG_MAX_FACES:,}). "
+    budget_s = RIG_BUDGET_S
+    glb_original = None
+    if n_faces > RIG_GROS_MAX_FACES:
+        _echec(f"Mesh too heavy to rig ({n_faces:,} triangles, limit {RIG_GROS_MAX_FACES:,}). "
                f"Reduce it with Triangle count, then rig again. Your credits were refunded.")
+    if n_faces > RIG_MAX_FACES:
+        # GROS MAILLAGE (2026-09-30) : rig d'une copie soudee et reduite (meme enveloppe), puis peau reportee sur l'original
+        # (texture, UV, materiaux intacts) sans Blender. Voir modal_app/transfert_peau.py.
+        if explicite:
+            _echec(f"Mesh too heavy for the skeleton editor ({n_faces:,} triangles, limit {RIG_MAX_FACES:,}). "
+                   f"Reduce it with Triangle count first. Your credits were refunded.")
+        from modal_app import transfert_peau as tp
+        t_g = time.time()
+        jg, bg = tp.lire_glb(glb_bytes)
+        Pg, Fg = tp.extraire_geometrie(jg, bg)
+        Vr, Fr = tp.copie_reduite(Pg, Fg, RIG_COPIE_FACES, log=lambda m: print(m, flush=True))
+        del Pg, Fg, jg, bg
+        src = os.path.join(tmp, "in_reduit.glb")
+        with open(src, "wb") as f:
+            f.write(tp.ecrire_maillage_simple(Vr, Fr))
+        glb_original = glb_bytes
+        budget_s = RIG_BUDGET_GROS_S
+        print(f"[skintokens] gros maillage : copie de {len(Fr)} triangles en {time.time() - t_g:.0f} s", flush=True)
 
     # `--use_transfer` ACTIVE (2026-09-26). Sans lui, SkinTokens exporte SON
     # maillage normalise (hauteur 2) SANS UV ni materiau : le rig sortait
@@ -281,7 +304,7 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
     # maillage, meme decalage relatif que l'export normalise, Monde x IBM =
     # identite, peau identique (memes faces, plus proche voisin a distance 0).
     def _lancer(cmd):
-        if time.time() - t0 > RIG_BUDGET_S:
+        if time.time() - t0 > budget_s:
             _echec("rig trop long : budget de temps depasse. Reduisez le maillage (Triangle count) puis relancez.")
         print(f"[skintokens] {' '.join(cmd)}", flush=True)
         proc = subprocess.Popen(
@@ -298,11 +321,11 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
         refuse = False
         import threading
         def _garde():
-            reste = RIG_BUDGET_S - (time.time() - t0)
+            reste = budget_s - (time.time() - t0)
             if reste > 0:
                 time.sleep(reste)
             if proc.poll() is None:
-                print(f"[skintokens] budget de {RIG_BUDGET_S} s depasse — arret du calcul", flush=True)
+                print(f"[skintokens] budget de {budget_s} s depasse — arret du calcul", flush=True)
                 proc.kill()
         threading.Thread(target=_garde, daemon=True).start()
         for line in iter(proc.stdout.readline, ""):
@@ -393,7 +416,7 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
               "normalise, sans texture", flush=True)
         rc, dernieres, refuse = _lancer(["python", "demo.py", "--input", src, "--output", out])
 
-    if time.time() - t0 > RIG_BUDGET_S and not produit():
+    if time.time() - t0 > budget_s and not produit():
         _echec("rig trop long : budget de temps depasse. Reduisez le maillage (Triangle count) puis relancez.")
     if not os.path.isfile(out) or os.path.getsize(out) == 0:
         queue = " | ".join(dernieres[-4:])[:300]
@@ -402,6 +425,17 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
             f"Derniere sortie : {queue}"
         )
 
+    if glb_original is not None:
+        # peau de la copie -> maillage d'origine
+        from modal_app import transfert_peau as tp
+        t_t = time.time()
+        try:
+            final = tp.transferer_peau(open(out, "rb").read(), glb_original, log=lambda m: print(m, flush=True))
+        except Exception as e:
+            _echec(f"skin transfer to the full mesh failed: {type(e).__name__}: {e}")
+        with open(out, "wb") as f:
+            f.write(final)
+        print(f"[skintokens] peau reportee sur l'original en {time.time() - t_t:.0f} s", flush=True)
     data = open(out, "rb").read()
     print(f"[skintokens] TERMINE en {time.time()-t0:.1f}s — {len(data)} octets", flush=True)
 

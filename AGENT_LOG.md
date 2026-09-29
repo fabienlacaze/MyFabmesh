@@ -24205,3 +24205,11 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - modal_app/transfert_peau.py (NON branche au rig) : banc local sur build/_sk_test_rigged.glb -> copie reduite 20 K, transfert de peau vers un
   maillage 4x plus dense, GLB relu par three.js : meme boite, 140 os, rotation d'un os deplace la meme proportion de sommets (48 %),
   binaire compacte (orphelins retires).
+
+## 2026-09-30 — Rig des gros maillages : copie reduite + peau reportee sur l'original (EN PROD)
+- `_skintokens_rig.py` : 1 M < faces <= 12 M -> copie soudee reduite a 400 K (numpy + quadrique), rig sur la copie, puis
+  `transfert_peau.transferer_peau` (plus proche sommet, sans Blender). Points/squelette imposes : refuses au-dela de 1 M. Budget 780 s.
+- MESURE sur le centipede du user (mesh/modal_e926a89c..., 10 346 880 faces, 323 Mo) : 233 s de bout en bout (copie 25 s, rig 170 s,
+  transfert), 76 os, poids somme = 1, 75 os utilises. Avant : > 14 min puis echec. Sortie : 466 Mo (10 M sommets x joints/poids).
+- Reserve : un rig de 466 Mo est lourd pour le viewer et l'animation (limite 95 Mo cote worker pour l'animation) : conseiller un
+  Triangle count a ~1 M avant de riguer pour animer.
