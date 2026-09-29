@@ -623,6 +623,18 @@ rectification attendait la fin du chargement.
 - **Limite CLIP : 77 jetons.** Au-delà, SDXL jette la fin **sans rien dire**.
   Un prompt de 193 jetons faisait disparaître les consignes de cadrage et
   sortait des bâtiments coupés.
+  **MAIS la génération d'image n'est PAS tronquée** (vérifié le 2026-09-29) :
+  `_sdxl_prompt_utils.encode_sdxl_long_prompt` (bureau `scripts/` = Modal)
+  découpe en blocs de 75 jetons et les met bout à bout, depuis juin 2026, pour
+  text2image (`_realvis`), rectify, T-pose, sheet, vue de dos, et le bureau
+  (`local_juggernaut_bridge.py`, `generate_back_view.py`). Journaux Modal sur
+  48 h : une seule retombée sur la version tronquée (`Compel fallback`), T-pose
+  le 28/09 à 23:06, corrigée à 23:07. La limite vaut encore pour les outils qui
+  appellent `pipe(prompt=...)` directement (`_modify`, `_tex_variant`,
+  `_auto_inpaint`, `_mask_inpaint`, `_face_fix*`, `_texture_refine`,
+  `_outfit_cutout`…), dont les textes sont courts. Le bornage du NÉGATIF à 77
+  dans `_realvis.build_prompts` n'est donc plus nécessaire (il écarte « blurry,
+  deformed, bad anatomy » pour rien) — non modifié, décision du user.
 - **Une négation dans le prompt POSITIF ne fonctionne pas** : SDXL ne
   comprend pas « no shadows », il voit « shadows » et en dessine. Tout « no X »
   doit aller dans le prompt NÉGATIF (`modal_app/_realvis.py`).
