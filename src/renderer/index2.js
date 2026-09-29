@@ -29142,7 +29142,7 @@ function ouvrirJournalVersion() {
   document.getElementById('modal-journal')?.remove();
   const m = document.createElement('div');
   m.id = 'modal-journal'; m.className = 'modal-overlay'; m.setAttribute('data-i18n-skip', '');
-  const lignes = (b.journal || []).map((j) => `<li><span class="mj-date">${esc(j.d)}</span> ${esc(j.t)}</li>`).join('');
+  const lignes = (b.journal || []).map((j) => `<li><span class="mj-date">${esc(j.d)}</span><span class="mj-txt">${esc(j.t)}</span></li>`).join('');
   m.innerHTML = `<div class="modal-card" style="max-width:680px;width:92vw;">
     <div class="fen-tete"><h2>${esc(t('Latest changes'))}</h2><button type="button" class="settings-close-x" id="mj-close" title="Close">&#10005;</button></div>
     <p class="modal-subtitle">v${esc(b.version)} · build ${esc(b.build)}${b.sale ? ' *' : ''} · ${esc(b.date)} · ${esc(b.hash)}${b.sale ? ' — ' + esc(t('changes in progress, not yet saved')) : ''}</p>

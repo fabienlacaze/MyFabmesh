@@ -11,6 +11,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 
 const T = (s) => (typeof window !== 'undefined' && typeof window._i18nT === 'function' ? window._i18nT(s) : s);
@@ -141,9 +144,11 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   ctrl.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
   ctrl.screenSpacePanning = true;
   let vivant = true;
+  const matsEpais = [];                                   // materiaux des traits epais (resolution a jour a chaque redimensionnement)
   const taille = () => {
     const r = $('pp-vue').getBoundingClientRect();
     renderer.setSize(Math.max(1, r.width), Math.max(1, r.height), false);
+    matsEpais.forEach((m) => m.resolution.set(Math.max(1, r.width), Math.max(1, r.height)));
     camera.aspect = Math.max(1, r.width) / Math.max(1, r.height); camera.updateProjectionMatrix();
   };
   const ro = new ResizeObserver(taille); ro.observe($('pp-vue'));
@@ -586,9 +591,34 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   lignesSq.renderOrder = 999; lignesSq.frustumCulled = false;
   // l'os choisi (trait ROUGE) et l'os survole (trait ORANGE) : seulement la couleur du trait du squelette, rien d'autre
   const groupeSq = new THREE.Group(); groupeSq.add(lignesSq); scene.add(groupeSq);
+  // traits EPAIS pour l'os choisi (rouge) et l'os survole (orange) : 4 px au lieu de 1, par-dessus le maillage
+  function traitEpais(hex) {
+    const mat = new LineMaterial({ color: hex, linewidth: 4, depthTest: false, transparent: true });
+    matsEpais.push(mat);
+    const geo = new LineSegmentsGeometry(), obj = new LineSegments2(geo, mat);
+    obj.renderOrder = 1000; obj.frustumCulled = false; obj.visible = false; groupeSq.add(obj);
+    return { obj, geo, mat };
+  }
+  const epaisRouge = traitEpais(0xff2a2a), epaisOrange = traitEpais(0xff9a1a);
+  const pE = new THREE.Vector3(), pF = new THREE.Vector3();
+  function segmentsOs(i, out) {                                  // os -> enfants ; os terminal : prolonge dans l'axe du parent
+    const b = os[i]; if (!b) return;
+    b.getWorldPosition(pE);
+    let vu = false;
+    for (const c of b.children) if (c.isBone) { c.getWorldPosition(pF); out.push(pE.x, pE.y, pE.z, pF.x, pF.y, pF.z); vu = true; }
+    if (!vu && b.parent && b.parent.isBone) { b.parent.getWorldPosition(pF); out.push(pE.x, pE.y, pE.z, pE.x + 0.6 * (pE.x - pF.x), pE.y + 0.6 * (pE.y - pF.y), pE.z + 0.6 * (pE.z - pF.z)); }
+  }
+  function majEpais() {
+    for (const [ep, i] of [[epaisRouge, osChoisi], [epaisOrange, survol >= 0 && survol !== osChoisi ? survol : -1]]) {
+      const seg = []; if (i >= 0) segmentsOs(i, seg);
+      ep.obj.visible = seg.length > 0;
+      if (seg.length) ep.geo.setPositions(seg);
+    }
+  }
   const va = new THREE.Vector3(), vb = new THREE.Vector3();
   function majSquelette() {
     if (!groupeSq.visible) return;
+    majEpais();
     const P = geoSq.attributes.position.array, C = geoSq.attributes.color.array;
     let k = 0;
     os.forEach((b, i) => {
@@ -633,7 +663,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   const fermer = () => {
     vivant = false; document.removeEventListener('keydown', touches); document.removeEventListener('keydown', touchesAlt); document.removeEventListener('keyup', touchesAlt); window.removeEventListener('blur', alt0); ro.disconnect(); ctrl.dispose(); renderer.dispose();
     donnees.forEach((d) => { d.pointage.geometry.dispose(); });
-    geoSq.dispose(); anneau.geometry.dispose();
+    geoSq.dispose(); anneau.geometry.dispose(); [epaisRouge, epaisOrange].forEach((e) => { e.geo.dispose(); e.mat.dispose(); });
     fen.classList.add('hidden');
   };
   $('pp-cancel').onclick = fermer;

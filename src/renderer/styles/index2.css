@@ -4780,3 +4780,6 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 #modal-journal .mj-liste { list-style: none; margin: 8px 0 0; padding: 0; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.4; }
 #modal-journal .mj-liste li { padding: 6px 10px; border-left: 3px solid var(--accent, #8b5cf6); background: rgba(255, 255, 255, 0.04); border-radius: 4px; }
 #modal-journal .mj-date { display: inline-block; margin-right: 8px; font-size: 11px; color: var(--text-2, #9aa3b5); }
+#modal-journal .mj-liste li { display: grid; grid-template-columns: 78px 1fr; column-gap: 10px; align-items: baseline; }
+#modal-journal .mj-date { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#modal-journal .mj-txt { min-width: 0; overflow-wrap: anywhere; }
