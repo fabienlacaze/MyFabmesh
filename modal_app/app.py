@@ -185,9 +185,18 @@ async def _read_json(request) -> dict:
 # Sans cle (appel ancien ou direct), aucun resultat n'est reutilise.
 _CALCULS: dict = {}
 _VERROU_GPU = None
+_VERROUS_CHARGEMENT: dict = {}
 
 
-async def _calcul_protege(nom: str, payload: dict, fn):
+def _verrou_chargement(nom: str):
+    import threading
+    return _VERROUS_CHARGEMENT.setdefault(nom, threading.Lock())
+
+
+async def _calcul_protege(nom: str, payload: dict, fn, verrou: bool = True):
+    """verrou=False : CHARGEMENT de modeles (prechauffe), pas un calcul. Le 2026-09-29,
+    la prechauffe /warm chargeait l'inpainting (minutes) SOUS le verrou GPU : la
+    rectification d'un user attendait derriere, sans rien calculer."""
     import asyncio
     import threading
     global _VERROU_GPU
@@ -200,6 +209,8 @@ async def _calcul_protege(nom: str, payload: dict, fn):
 
     def _lancer():
         def _executer():
+            if not verrou:
+                return fn(payload)
             with _VERROU_GPU:
                 return fn(payload)
         return asyncio.ensure_future(asyncio.to_thread(_executer))
@@ -464,6 +475,17 @@ image = (
         "allow_patterns=['*.json', '*.txt', '*.fp16.safetensors'])\"",
     )
     .run_commands(*_U2NET_DANS_L_IMAGE)
+    # SDXL Inpainting 0.1 (variante fp16) + CLIPSeg, charges par _get_auto_inpaint_models
+    # (auto-inpaint, prechauffe /warm). MESURE DU 2026-09-29 : absents de l'image, un
+    # conteneur froid les TELECHARGEAIT depuis HuggingFace (« Fetching 18 files », jusqu'a
+    # 10 s par fichier, plusieurs minutes) — la meme lenteur que le pipe Tile ci-dessus.
+    .run_commands(
+        "python -c \"from huggingface_hub import snapshot_download; "
+        "snapshot_download('diffusers/stable-diffusion-xl-1.0-inpainting-0.1', "
+        "allow_patterns=['*.json', '*.txt', '*.fp16.safetensors']); "
+        "snapshot_download('CIDAS/clipseg-rd64-refined', "
+        "allow_patterns=['*.json', '*.txt', '*.safetensors'])\"",
+    )
 )
 
 
@@ -762,6 +784,9 @@ mesh_image = (
         "/opt/esrgan/RealESRGAN_x4plus.pth' | sha256sum -c -",
     )
     .run_commands(*_U2NET_DANS_L_IMAGE)
+    # Reduction SANS PLIS aux petites cibles de triangles (acceleration_glb.py, 2026-09-29) :
+    # sans lui, un modele a 1 000 triangles sortait crible de trous. MIT, roues binaires.
+    .pip_install("fast_simplification==0.1.13")
     .add_local_python_source("modal_app")
 )
 
@@ -954,6 +979,14 @@ class MyFabmeshPredictor:
         )
         return png
 
+    @modal.method()
+    def rechauffer(self) -> bool:
+        """Ne fait rien : l'appeler DEMARRE un conteneur, donc cree l'instantane apres un
+        deploiement. Appele par build/rechauffer_apres_deploy.py (2026-09-29) : sans lui, la
+        premiere generation apres chaque `modal deploy` payait la reconstruction (mesure :
+        3 a 5 min d'attente sur 4 Husky lances 3 min apres un deploiement)."""
+        return True
+
     @modal.asgi_app()
     def router(self):
         """ASGI router consolidating MyFabmeshPredictor routes under a
@@ -1116,6 +1149,11 @@ def _charger_pipe_tile(decharger_cpu):
     # vrai motif d'origine et restent valables.
     scaledown_window=300,
     enable_memory_snapshot=True,
+    # INSTANTANE GPU (2026-09-29), comme MyFabmeshMesh : les pipelines sont deplaces sur la carte
+    # et l'IP-Adapter charge PENDANT la prise de l'instantane (load_to_cpu). Avant, chaque
+    # demarrage a froid refaisait ce deplacement (« GPU move done in 16-42 s ») avant la moindre
+    # rectification / vue arriere / T-pose.
+    experimental_options={"enable_gpu_snapshot": True},
     # UN SEUL CONTENEUR (2026-09-27). Sans plafond, chaque requete arrivee
     # pendant qu'un conteneur froid charge ses ~6 Go en demarrait un AUTRE :
     # pour UNE rectification du user, 4 L40S allumes (le rejeu apres un 524
@@ -1213,11 +1251,26 @@ class MyFabmeshBackview:
         self.skel_front = Image.open("/opt/front_tpose_skeleton.png").convert("RGB")
 
         print(f"[backview/snap] CPU load done in {time.time() - t0:.1f}s", flush=True)
+        # instantane GPU : la carte est attachee pendant la prise, on y met tout maintenant
+        self._sur_gpu = False
+        try:
+            import torch as _torch
+            if _torch.cuda.is_available():
+                self._vers_gpu()
+        except Exception as _e:
+            print(f"[backview/snap] passage sur la carte differe au demarrage ({_e})", flush=True)
 
     @modal.enter(snap=False)
     def move_to_gpu(self):
-        """After snapshot restore + GPU attach: move everything to CUDA
-        and load IP-Adapter (it MUST come after .to('cuda')).
+        """Apres restauration : rien a faire si l'instantane GPU contient deja tout (cas normal
+        depuis le 2026-09-29) ; sinon (instantane CPU seul), deplacement comme avant."""
+        if getattr(self, "_sur_gpu", False):
+            print("[backview/ready] pipelines deja sur la carte (instantane GPU)", flush=True)
+            return
+        self._vers_gpu()
+
+    def _vers_gpu(self):
+        """Move everything to CUDA and load IP-Adapter (it MUST come after .to('cuda')).
         Expected ~25-35 s on L40S — the ControlNet + IP-Adapter make
         this heavier than the text2image path's ~18 s GPU move."""
         t0 = time.time()
@@ -1254,6 +1307,7 @@ class MyFabmeshBackview:
             weight_name="ip-adapter-plus_sdxl_vit-h.safetensors",
         )
         # IP-Adapter scale set per-call (default 0.65 in _backview.generate).
+        self._sur_gpu = True
         print(f"[backview/ready] GPU move done in {time.time() - t0:.1f}s", flush=True)
 
     def _route_back_view(self, payload: dict):
@@ -1452,6 +1506,12 @@ class MyFabmeshBackview:
         Cached on self so subsequent calls reuse."""
         if getattr(self, '_ai_loaded', False):
             return self._ai_seg_processor, self._ai_seg_model, self._ai_inpaint_pipe
+        with _verrou_chargement('inpaint'):     # prechauffe hors verrou GPU : pas de double chargement
+            if getattr(self, '_ai_loaded', False):
+                return self._ai_seg_processor, self._ai_seg_model, self._ai_inpaint_pipe
+            return self._charger_auto_inpaint()
+
+    def _charger_auto_inpaint(self):
         t0 = time.time()
         print('[auto-inpaint] lazy-loading CLIPSeg + SDXL Inpainting...', flush=True)
         import torch
@@ -1494,8 +1554,10 @@ class MyFabmeshBackview:
         """
         if getattr(self, '_tile_loaded', False):
             return self._tile_pipe
-        self._tile_pipe = _charger_pipe_tile(decharger_cpu=False)
-        self._tile_loaded = True
+        with _verrou_chargement('tile'):
+            if not getattr(self, '_tile_loaded', False):
+                self._tile_pipe = _charger_pipe_tile(decharger_cpu=False)
+                self._tile_loaded = True
         return self._tile_pipe
 
     def _route_image_op(self, payload: dict):
@@ -2119,6 +2181,14 @@ class MyFabmeshBackview:
         return Response(content=png, media_type="image/png")
 
     @modal.method()
+    def rechauffer(self) -> bool:
+        """Ne fait rien : l'appeler DEMARRE un conteneur, donc cree l'instantane apres un
+        deploiement. Appele par build/rechauffer_apres_deploy.py (2026-09-29) : sans lui, la
+        premiere generation apres chaque `modal deploy` payait la reconstruction (mesure :
+        3 a 5 min d'attente sur 4 Husky lances 3 min apres un deploiement)."""
+        return True
+
+    @modal.method()
     def rectifier_banc(self, ref_image_url: str, mode: str = "front", seeds: int = 3, lot: bool = True,
                        sans_cn: bool = True) -> bytes:
         """BANC (2026-09-27) : la MEME rectification que la route /rectify,
@@ -2219,7 +2289,7 @@ class MyFabmeshBackview:
                 print(f"[warm] {'+'.join(charges)} prets en {time.time() - t0:.1f}s", flush=True)
                 return {"ok": True, "charges": charges, "secondes": round(time.time() - t0, 1)}
             # hors de la boucle : sans ca, la coupure a 100 s TUAIT le conteneur qu'on prechauffait
-            return await _calcul_protege("warm", payload, _charger)
+            return await _calcul_protege("warm", payload, _charger, verrou=False)
 
         @api.get("/healthz")
         async def healthz():

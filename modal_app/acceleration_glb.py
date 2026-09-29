@@ -24,6 +24,17 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    _append_image est enveloppe, garde de signature) ; metal/rugosite garde le
    reglage d'origine (petite et deja rapide). A appeler juste avant
    `glb.export(..., extension_webp=True)`.
+
+3. REDUCTION SANS PLIS (dans accelerer_to_glb). La reduction de to_glb
+   (cumesh.simplify, approximation GPU par lots) ne verifie pas qu'un triangle se
+   retourne. Aux petites cibles, le maillage se replie sur lui-meme : mesure sur un
+   husky a 1 000 triangles, 30 % de la surface en triangles retournes — le materiau
+   n'etant pas double face, ce sont autant de TROUS au rendu (8 % en qualite ultra,
+   2,4 % a 5 000, 0,7 % a 50 000). Sous SEUIL_SANS_PLIS, la fin de la reduction passe
+   par fast_simplification (quadriques, MIT) qui REFUSE une contraction qui retourne
+   un triangle : 4,2 % a 1 000 (des aretes vives de parties fines, pas des trous),
+   rendu sans trou, 0,03 s. Au-dessus, rien ne change. Absent de l'environnement :
+   reduction d'origine.
 """
 
 _INPAINT_AVANT = """    base_color = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_TELEA)
@@ -36,6 +47,10 @@ _INPAINT_APRES = """    from concurrent.futures import ThreadPoolExecutor as _Fi
         _mra = cv2.inpaint(np.ascontiguousarray(np.dstack([metallic, roughness, alpha])), mask_inv, 1, cv2.INPAINT_TELEA)
         base_color = _couleur.result()
     metallic, roughness, alpha = _mra[..., 0:1], _mra[..., 1:2], _mra[..., 2:3]"""
+_SIMPLIFY_AVANT = 'mesh.simplify(decimation_target'
+_SIMPLIFY_APRES = '_reduire_sans_plis(mesh, decimation_target'
+SEUIL_SANS_PLIS = 50_000      # faces : au-dessus, la reduction GPU d'origine ne plie pas (0,7 % a 50 000)
+PALIER_GPU = 300_000          # jusque-la, reduction GPU (ratio doux) ; fast_simplification ensuite
 _TO_GLB_ACCELERE = False
 
 WEBP_COULEUR = {'method': 2, 'quality': 90}
@@ -51,15 +66,58 @@ def accelerer_to_glb(o_voxel_module, log=print) -> None:
         import textwrap
         pp = o_voxel_module.postprocess
         src = textwrap.dedent(inspect.getsource(pp.to_glb))
-        if _INPAINT_AVANT not in src:
-            log("[mesh] retouches d'atlas : texte de to_glb inattendu, version d'origine gardee")
+        faits = []
+        if _INPAINT_AVANT in src:
+            src = src.replace(_INPAINT_AVANT, _INPAINT_APRES)
+            faits.append("retouches d'atlas accelerees (canaux fusionnes, en parallele)")
+        else:
+            log("[mesh] retouches d'atlas : texte de to_glb inattendu, version d'origine")
+        if src.count(_SIMPLIFY_AVANT) >= 1:
+            src = src.replace(_SIMPLIFY_AVANT, _SIMPLIFY_APRES)
+            faits.append(f'reduction sans plis sous {SEUIL_SANS_PLIS} faces')
+        else:
+            log("[mesh] reduction sans plis : texte de to_glb inattendu, reduction d'origine")
+        if not faits:
             return
         espace = dict(pp.__dict__)
-        exec(compile(src.replace(_INPAINT_AVANT, _INPAINT_APRES), inspect.getsourcefile(pp.to_glb), 'exec'), espace)
+        espace['_reduire_sans_plis'] = lambda m, cible, verbose=False: _reduire_sans_plis(m, cible, verbose, log)
+        exec(compile(src, inspect.getsourcefile(pp.to_glb), 'exec'), espace)
         pp.to_glb = espace['to_glb']
-        log("[mesh] retouches d'atlas accelerees (canaux fusionnes, en parallele)")
+        log('[mesh] ' + ' ; '.join(faits))
     except Exception as e:
-        log(f"[mesh] retouches d'atlas : acceleration ignoree ({type(e).__name__}: {e})")
+        log(f"[mesh] to_glb : accelerations ignorees ({type(e).__name__}: {e})")
+
+
+def _reduire_sans_plis(mesh, cible, verbose=False, log=print):
+    """Remplace mesh.simplify(cible) dans to_glb (voir 3. en tete du fichier)."""
+    cible = int(cible)
+    if cible > SEUIL_SANS_PLIS:
+        return mesh.simplify(cible, verbose=verbose)
+    try:
+        import numpy as np
+        import torch
+        import fast_simplification
+    except ImportError:
+        return mesh.simplify(cible, verbose=verbose)
+    if mesh.num_faces > PALIER_GPU:
+        mesh.simplify(PALIER_GPU, verbose=verbose)
+    v, f = mesh.read()
+    n0 = int(f.shape[0])
+    if n0 <= cible:
+        return
+    try:
+        # sommets confondus soudes (coutures) : sinon chaque couture est un bord que
+        # fast_simplification ne contracte pas, et la cible n'est pas atteinte
+        vn, inv = np.unique(v.detach().cpu().numpy().astype(np.float32), axis=0, return_inverse=True)
+        fn = inv.reshape(-1)[f.detach().cpu().numpy().astype(np.int64)]
+        fn = fn[(fn[:, 0] != fn[:, 1]) & (fn[:, 1] != fn[:, 2]) & (fn[:, 0] != fn[:, 2])]
+        v2, f2 = fast_simplification.simplify(vn, fn, target_reduction=1.0 - cible / len(fn))
+    except Exception as e:
+        log(f"[tris] reduction sans plis impossible ({type(e).__name__}: {e}) : reduction d'origine")
+        return mesh.simplify(cible, verbose=verbose)
+    mesh.init(torch.from_numpy(np.ascontiguousarray(v2, dtype=np.float32)).to(v.device),
+              torch.from_numpy(np.ascontiguousarray(f2)).to(device=f.device, dtype=f.dtype))
+    log(f'[tris] reduction sans plis : {n0} -> {int(f2.shape[0])} faces (cible {cible})')
 
 
 def _envelopper_append_image(log=print) -> bool:

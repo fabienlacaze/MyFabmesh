@@ -19855,7 +19855,20 @@ function _healthzUrl(fullUrl: string): string {
  *  container boots regardless of whether Cloudflare kept the connection.
  *  Never throws. */
 async function preWarmModal(env: Env,
-                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' | 'mesh' } = {}): Promise<void> {
+                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' | 'mesh' | 'rectify' } = {}): Promise<void> {
+  /* RECTIFICATION (2026-09-29) : case « Auto-rectify » cochee = rectification au prochain « Generate
+   * 3D ». On reveille le conteneur (instantane GPU : modeles deja sur la carte) par /healthz, SANS
+   * /warm qui chargerait en plus CLIPSeg + SDXL Inpaint + ControlNet-Tile, inutiles ici. */
+  if (opts.cible === 'rectify') {
+    const url = env.MODAL_RECTIFY_URL;
+    if (!url) return;
+    const last = await _readLastWarmMs(env, '_meta/last_warm_tpose.txt').catch(() => null);
+    if (last != null && Date.now() - last < PREWARM_FRESH_MS) return;
+    await _writeLastWarmMs(env, '_meta/last_warm_tpose.txt').catch(() => {});
+    await fetch(_healthzUrl(url), { method: 'GET', signal: AbortSignal.timeout(120_000) }).catch(() => null);
+    console.log('[pre-warm] rectify healthz pinged');
+    return;
+  }
   /* CONTENEUR 3D (2026-09-29) : demarre PENDANT la rectification qui precede un maillage,
    * au lieu d'apres. Sa traine n'est que de 90 s : fraicheur de 60 s, pas PREWARM_FRESH_MS. */
   if (opts.cible === 'mesh') {
@@ -20022,6 +20035,12 @@ async function handlePrewarm(req: Request, env: Env,
     const b = await req.json().catch(() => ({})) as { imageOp?: boolean; cible?: string };
     imageOp = !!b.imageOp;
     if (b.cible === 'text2image' || b.cible === 'image_op') cible = b.cible;
+    // conteneur de rectification : reveil seul, voir preWarmModal
+    if (b.cible === 'rectify') {
+      const p = preWarmModal(env, { cible: 'rectify' });
+      if (ctx?.waitUntil) ctx.waitUntil(p); else p.catch(() => {});
+      return json({ ok: true, warming: true });
+    }
   } catch { /* body optional */ }
   const cleChaud = cible === 'image_op' ? '_meta/last_warm_image_op.txt' : '_meta/last_warm_text2image.txt';
   const last = await _readLastWarmMs(env, cleChaud).catch(() => null);

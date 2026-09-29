@@ -1531,7 +1531,19 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     armer('ws-prompt', 'text2image');
     armer('np-prompt', 'text2image');
     armer('ws-asset-type', 'text2image');
-    armer('ws-trellis2-preset', 'image_op');
+    // Options 3D : seule la RECTIFICATION (case « Auto-rectify », cochee par defaut) passe par le
+    // conteneur image avant le maillage. On le demarre SANS ses modeles d'edition (cible
+    // 'rectify'). Jusqu'au 2026-09-29, ce menu declenchait 'image_op', qui chargeait en plus
+    // l'inpainting et le Tile (~6 Go) : inutiles a la 3D, et la rectification attendait
+    // derriere ce chargement (mesure : ~3 min sur un Husky).
+    const caseRectif = document.getElementById('ws-trellis2-rectify');
+    const armerRectif = () => { if (!caseRectif || caseRectif.checked) prewarmGpu('rectify'); };
+    const menuPreset = document.getElementById('ws-trellis2-preset');
+    if (menuPreset) {
+      menuPreset.addEventListener('focus', armerRectif, { passive: true });
+      menuPreset.addEventListener('click', armerRectif, { passive: true });
+    }
+    if (caseRectif) caseRectif.addEventListener('change', armerRectif);
   }
 
   function installMeshCostMeter() {

@@ -196,6 +196,8 @@ cd cloud && ALLOW_UNFILLED_LEGAL=1 npm run build && ALLOW_UNFILLED_LEGAL=1 npm r
 
 # MODAL — variables UTF-8 obligatoires sous Windows
 PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -m modal deploy modal_app/app.py
+# ... et AUSSITOT APRES : cree les instantanes avant le premier user (voir section 12)
+PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python build/rechauffer_apres_deploy.py
 ```
 
 - `npm run deploy`, **jamais** `npx wrangler deploy` : les garde-fous sont sur
@@ -449,15 +451,20 @@ rectify et 50 % des vues arrière en échec). Désormais :
 - `@modal.concurrent(max_inputs=4, target_inputs=1)` sur `MyFabmeshBackview`
   et `MyFabmeshPredictor`, pour que le rejeu entre PENDANT le calcul.
 
-**Instantanés (snapshots).** `MyFabmeshMesh` : instantané GPU
-(`enable_gpu_snapshot`) ; `MyFabmeshPredictor` et `MyFabmeshBackview` :
-instantanés mémoire CPU. Restauration : ~5-25 s. Création : chargement complet
+**Instantanés (snapshots).** `MyFabmeshMesh` et (depuis le 2026-09-29)
+`MyFabmeshBackview` : instantané GPU (`enable_gpu_snapshot` ; pour Backview,
+pipelines sur la carte + IP-Adapter chargés PENDANT la prise, `move_to_gpu` ne
+refait rien) ; `MyFabmeshPredictor` : instantané mémoire CPU. Restauration : ~5-25 s. Création : chargement complet
 (maillage 150-230 s) + ~60 s de prise. **Un instantané est propre au type de
 machine** : Modal en crée 2-3 par type de GPU après CHAQUE déploiement, et en
 reprend de lui-même de temps en temps. Tant qu'ils ne sont pas créés, la
 génération qui tombe dessus paie ces 3-4 min. D'où : **grouper les
 `modal deploy`**, vérifier les travaux en cours (Supabase, `jobs` en
-processing) avant, et ne jamais déployer pendant un essai du user. Un
+processing) avant, ne jamais déployer pendant un essai du user, et lancer
+**`build/rechauffer_apres_deploy.py` juste après chaque `modal deploy`** (méthode
+vide `rechauffer` sur les 3 classes : l'instantané est créé tout de suite). Le
+2026-09-29, 4 Husky lancés 3 min après un déploiement ont attendu 3 à 9 min de
+plus pour cette seule raison. Un
 « rodage » GPU dans l'instantané a été mesuré et écarté (9 s gagnées, +152 s
 par création).
 
@@ -475,8 +482,11 @@ de tailles variées). Rien n'est écrit sur le volume pendant la prise d'un
 instantané.
 
 **Préchauffe.** `POST /api/prewarm` (session requise) avec une `cible` :
-`text2image` (focus/clic du prompt), `image_op` (options 3D, route `/warm` qui
-charge vraiment les modèles), et `mesh` : lancée par le worker lui-même au
+`text2image` (focus/clic du prompt), `rectify` (menu des options 3D, ou case
+Auto-rectify cochée : réveil du conteneur image par `/healthz`, SANS ses modèles
+d'édition), `image_op` (route `/warm` qui charge l'inpainting et le Tile — plus
+déclenchée par la page 3D depuis le 2026-09-29 : 6 Go inutiles à la 3D, et la
+rectification attendait derrière), et `mesh` : lancée par le worker lui-même au
 DÉBUT de la rectification qui précède un maillage (`handleGenerate`) ->
 route Modal `/mesh_warm` -> `MyFabmeshMesh.rechauffer.spawn()` (méthode vide).
 Fraîcheur 60 s pour `mesh` (sa traîne n'est que de 90 s). Le user a refusé
@@ -515,8 +525,13 @@ Pour tester du code NON déployé : `with app.run(): ...` (exécution éphémèr
 
 **`/healthz` ne charge RIEN.** Les gros modèles (CLIPSeg + SDXL Inpaint ≈ 6 Go,
 ControlNet-Tile) sont chargés paresseusement au premier vrai appel. La
-préchauffe doit appeler **`/warm`**, pas `/healthz`, sinon un service annoncé
-« chaud » fait quand même payer 6 Go de chargement au premier clic.
+préchauffe des outils d'édition doit appeler **`/warm`**, pas `/healthz`, sinon
+un service annoncé « chaud » fait quand même payer 6 Go de chargement au premier
+clic. Tous ces poids sont DANS l'image (inpainting + CLIPSeg depuis le
+2026-09-29 : avant, chaque conteneur froid les téléchargeait, jusqu'à 10 s par
+fichier). `/warm` tourne HORS du verrou GPU (`_calcul_protege(..., verrou=False)`,
+chargements protégés par `_verrou_chargement`) : sous le verrou, une
+rectification attendait la fin du chargement.
 
 ## 13. Pipeline mesh (TRELLIS-2)
 
@@ -524,6 +539,12 @@ préchauffe doit appeler **`/warm`**, pas `/healthz`, sinon un service annoncé
   `quality_plus → 1024_cascade`, sinon `1024` (ou `512` en mode « lite »).
   **C'est le seul levier pour les structures fines** : paille, poutres,
   fourrure, feuillage.
+- **Petites cibles de triangles** (sous 50 000) : la réduction d'origine de
+  `to_glb` (approximation GPU) retourne des triangles — 30 % de la surface d'un
+  husky à 1 000, donc des TROUS (matériau simple face). Le module partagé
+  `acceleration_glb` finit la réduction avec `fast_simplification`, qui refuse
+  les retournements (2026-09-29, bureau + cloud). Mesurer : normales de faces
+  adjacentes opposées (produit scalaire < -0,5), en % d'aire.
 - Étapes appliquées après la génération, dans `modal_app/_mesh.py` :
   `brighten_baseColor` (+50 % luminosité, +30 % saturation — **cuit dans
   l'atlas exporté**, donc visible aussi dans Blender et Unreal),
