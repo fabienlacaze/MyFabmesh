@@ -19305,6 +19305,25 @@ if (!window.__fabmesh_ai3d_listener_installed && window.meshyAPI && window.meshy
 // can push/complete jobs in the same queue the rest of the app uses.
 // Because index2.js is an ES module, plain `function foo()` declarations
 // don't land on `window`; we wire them up explicitly below after definition.
+/* VIGNETTE DES TRAVAUX = L'ELEMENT DE L'ETAPE D'AVANT (2026-09-30, user : « l'icone de la vignette doit correspondre a l'image de
+ * l'item utilise dans l'etape d'avant »). Un travail qui n'a pas fourni sa propre image prend celle de ce qu'il transforme :
+ * animation -> le rig utilise (sa vignette), rig ou operation de maillage -> le maillage affiche. Les travaux d'image gardent
+ * leur logique (image source passee a pushJob). Rend une adresse ou null. */
+function _vignetteAmont(kind) {
+  try {
+    const p = state.currentProject; if (!p) return null;
+    if (kind === 'anim') {
+      const r = _rigAffiche(); if (!r) return null;
+      if (typeof _vignetteDuRig === 'function') return _vignetteDuRig(r, p) || null;
+      const t = r.thumb || r.sourceImage; return t ? _toFileUrl(t) : null;
+    }
+    if (kind === 'rig' || kind === 'mesh') {
+      const m = p.previewMeshPath || p.selectedMeshPath;
+      return m ? _meshJobThumb(m) : null;
+    }
+  } catch (_) { /* pas de vignette */ }
+  return null;
+}
 function pushJob(name, onCancel, params, expectedMsOverride, opts, _cloudOpts) {
   // INSTRUMENTATION (2026-09-24). L'utilisateur voit une generation d'image
   // se lancer seule a chaque mesh. Trois hypotheses ecartees par la mesure :
@@ -19359,7 +19378,7 @@ function pushJob(name, onCancel, params, expectedMsOverride, opts, _cloudOpts) {
     onCancel: onCancel || null,
     tickTimer: null,
     params: params || null,
-    sourceImageUrl: o.sourceImageUrl || null,
+    sourceImageUrl: o.sourceImageUrl || _vignetteAmont(kind),
     projectName,
     // 2026-06-02 — mirror cloud's `sourceProject` field so _jobProjectName
     // (the cross-project navigation helper used by the running-job tile click)
