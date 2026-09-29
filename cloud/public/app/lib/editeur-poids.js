@@ -60,9 +60,9 @@ function construireFenetre() {
         <div class="fen-apercu-etat" id="pp-etat">${esc(T('Loading…'))}</div></div>
       <div class="fen-form pp-form">
         <div class="pp-sect">
-          <div class="pp-tete"><span class="fen-label">${esc(T('Bone'))}</span>
-            <label class="pp-case"><input type="checkbox" id="pp-centrer"> <span>${esc(T('Center the view on the bone'))}</span></label></div>
+          <span class="fen-label">${esc(T('Bone'))}</span>
           <div id="pp-liste" class="pp-liste"></div>
+          <label class="pp-case"><input type="checkbox" id="pp-centrer"> <span>${esc(T('Center the view on the bone'))}</span></label>
         </div>
         <div class="pp-sect">
           <span class="fen-label">${esc(T('View'))}</span>
@@ -249,7 +249,18 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   }
 
   // --- pinceau
-  let pinceau = 'ajouter', modifie = false, trait = null, dernier = null;
+  let pinceau = 'ajouter', modifie = false, trait = null, dernier = null, altActif = false;
+  // Alt maintenu = le pinceau bascule en RETIRER (le cercle devient rouge) ; relache = retour au pinceau choisi
+  const pinceauEffectif = () => (altActif ? 'retirer' : pinceau);
+  const touchesAlt = (ev) => {
+    if (ev.key !== 'Alt' || fen.classList.contains('hidden')) return;
+    ev.preventDefault();                                          // evite le menu du navigateur
+    altActif = ev.type === 'keydown';
+    majAide();
+  };
+  document.addEventListener('keydown', touchesAlt); document.addEventListener('keyup', touchesAlt);
+  const alt0 = () => { altActif = false; majAide(); };
+  window.addEventListener('blur', alt0);
   const pile = [];
   const rayon = () => ext * (+$('pp-taille').value / 100);
   const force = () => +$('pp-force').value / 100;
@@ -307,7 +318,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
         // au-dela de 100 % : plus fort ET plus dur (bord moins doux : exposant 2 -> 0,4 a 500 %), plafonne a 1
         const t = 1 - Math.sqrt(d2) / R, f = Math.min(1, f0 * Math.pow(t, force() > 1 ? 2 / force() : 2));
         noter(d, i);
-        const b = pinceau === 'statique' ? racine : osChoisi, cible = pinceau === 'retirer' ? 0 : 1;
+        const b = osChoisi, cible = pinceauEffectif() === 'retirer' ? 0 : 1;
         if (viser(d, i, b, cible, f)) salir(d, i);
       }
     }
@@ -526,7 +537,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
         anneau.position.copy(b.h.point).addScaledVector(nrm, ext * 0.002);
         anneau.quaternion.setFromUnitVectors(zAxe, nrm);
         anneau.scale.setScalar(pinceau === 'choisir' ? ext * 0.008 : rayon());
-        anneau.material.color.setHex(COULEUR_PINCEAU[pinceau] || 0xffffff);
+        anneau.material.color.setHex(COULEUR_PINCEAU[pinceauEffectif()] || 0xffffff);
         anneau.visible = true;
         if (trait) peindre(b);
       } else anneau.visible = false;
@@ -549,7 +560,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     ajouter: 'Paints the zone: it will move with the chosen bone.',
     retirer: 'Erases the zone: it stops following the chosen bone.',
   };
-  function majAide() { $('pp-aide').textContent = T(AIDE[pinceau] || ''); }
+  function majAide() { $('pp-aide').textContent = T(AIDE[pinceauEffectif()] || '') + (altActif ? '' : ' ' + T('(hold Alt = Remove)')); }
   majAide();
   $('pp-taille').oninput = () => { $('pp-taille-v').textContent = $('pp-taille').value + ' %'; };
   $('pp-force').oninput = () => { $('pp-force-v').textContent = $('pp-force').value + ' %'; };
@@ -618,7 +629,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
 
   // --- fermeture / enregistrement
   const fermer = () => {
-    vivant = false; document.removeEventListener('keydown', touches); ro.disconnect(); ctrl.dispose(); renderer.dispose();
+    vivant = false; document.removeEventListener('keydown', touches); document.removeEventListener('keydown', touchesAlt); document.removeEventListener('keyup', touchesAlt); window.removeEventListener('blur', alt0); ro.disconnect(); ctrl.dispose(); renderer.dispose();
     donnees.forEach((d) => { d.pointage.geometry.dispose(); });
     geoSq.dispose(); anneau.geometry.dispose();
     fen.classList.add('hidden');
