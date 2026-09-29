@@ -805,7 +805,7 @@
                         <button id="ws-mesh-reshape-draw-btn" class="ghost-btn tool-btn" title="Paint the part to rebuild straight on the 3D model, then describe what should replace it. Runs on your graphics card.">&#128396;&nbsp;Reshape (draw)</button>
                         <button id="ws-mesh-stages3d-btn" class="ghost-btn tool-btn" title="Fabricate the 3D meshes of the construction stages (sliced building + frame + scaffolding), navigable and exportable">&#127959;&#65039; 3D construction stages</button>
                         <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize, dimension or re-orient the mesh with a gizmo and on-screen rulers. Bakes a new version.">&#128207;&nbsp;Resize / dimension</button>
-                        <button id="ws-mesh-aligntex-btn" class="ghost-btn tool-btn" title="Manually align source photos onto mesh">&#127919;&nbsp;Align Texture</button>
+                        <button id="ws-mesh-aligntex-btn" class="ghost-btn tool-btn" title="Stick images (logos, patches, labels) onto the mesh">&#127919;&nbsp;Decals</button>
                         <button id="ws-mesh-paint-mesh-btn" class="ghost-btn tool-btn" title="Paint directly on the mesh — toggle 💡 Emissive inside for the glow layer">&#127912;&nbsp;Paint Mesh</button>
                         <button id="ws-mesh-material-btn" class="ghost-btn tool-btn" title="Adjust material brightness, saturation, contrast, emissive, metallic, roughness">&#10024;&nbsp;Material adjust</button>
                       </div>
@@ -1372,7 +1372,7 @@
         <button class="lb-tool-btn" data-lb3d-tool="retexture" title="Re-bake the whole texture from the source photo (HD)">&#128300;&nbsp;Re-bake from photo (HD)</button>
         <button class="lb-tool-btn" data-lb3d-tool="texvar" title="Generate different texture looks">&#127912;&nbsp;Texture variants</button>
         <button class="lb-tool-btn" data-lb3d-tool="regionretex" title="Re-texture only one part (detected automatically)">&#127912;&nbsp;Re-texture a region</button>
-        <button class="lb-tool-btn" data-lb3d-tool="aligntex" title="Align texture">&#127919;&nbsp;Align Texture</button>
+        <button class="lb-tool-btn" data-lb3d-tool="aligntex" title="Decals">&#127919;&nbsp;Decals</button>
         <button class="lb-tool-btn" data-lb3d-tool="material" title="Material adjust">&#10024;&nbsp;Material adjust</button>
         <button class="lb-tool-btn" data-lb3d-tool="enhancetex" title="Sharpen/upscale the existing texture (x2)">&#10024;&nbsp;Sharpen texture (x2)</button>
         <div class="lb-toolbox-group-label">EDIT</div>
@@ -2169,6 +2169,7 @@
               <button id="pm-tool-ink"    class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">🖋 Ink</button>
               <button id="pm-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">⌫ Eraser</button>
               <button id="pm-tool-pipette" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Click anywhere on the mesh to pick its colour">💧 Pipette</button>
+              <button id="pm-tool-decal" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Stick an image on the mesh (logo, tattoo, patch, label)">&#127919; Decal</button>
             </div>
             <div style="display:flex; flex-direction:column; gap:4px;">
               <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
@@ -2185,6 +2186,23 @@
             <div>
               <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;"><span>Falloff</span><span id="pm-falloff-val">30%</span></div>
               <input type="range" id="pm-falloff" min="0" max="100" value="30" style="width:100%;" />
+            </div>
+            <div id="pm-decal-panel" style="display:none; flex-direction:column; gap:6px;">
+              <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Decal</span>
+              <input type="file" id="pm-decal-file" accept="image/*" style="display:none;" />
+              <button id="pm-decal-choisir" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px;">Choose image&hellip;</button>
+              <div id="pm-decal-nom" style="font-size:10px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">No image</div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;"><span>Size</span><span id="pm-decal-taille-val">25</span></div>
+                <input type="range" id="pm-decal-taille" min="2" max="100" value="25" style="width:100%;" />
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;"><span>Rotation</span><span id="pm-decal-rot-val">0&deg;</span></div>
+                <input type="range" id="pm-decal-rot" min="-180" max="180" value="0" style="width:100%;" />
+              </div>
+              <label style="font-size:11px; display:flex; gap:6px; align-items:center;"><input type="checkbox" id="pm-decal-flip" /> Mirror</label>
+              <label style="font-size:11px; display:flex; gap:6px; align-items:center;" title="Skip the faces turned away from the click, so the image does not show through the other side"><input type="checkbox" id="pm-decal-face" checked /> Facing only</label>
+              <div style="font-size:10px; color:var(--text-2);">Click on the mesh to stick it. Opacity applies. Ctrl+Z undoes.</div>
             </div>
             <div style="display:flex; gap:6px;">
               <button id="pm-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)" style="flex:1; padding:4px;">↶</button>

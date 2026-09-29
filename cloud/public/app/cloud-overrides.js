@@ -749,7 +749,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-fillholes-btn':    1,
     'ws-mesh-watertight-btn':   1,   // voxel remesh on Modal
     'ws-mesh-subdivide-btn':    1,   // Wave 4.2
-    'ws-mesh-aligntex-btn':     2,   // vraie reprojection (texture_project.py sur Modal), 2026-09-28
+    'ws-mesh-aligntex-btn':     1,   // Decals = outil de Paint Mesh (calcul dans le navigateur), meme tarif
     'ws-mesh-material-btn':     1,   // Wave 4.2 (PBR normalize)
     'ws-mesh-retexture-btn':    1,   // Wave 4.2 (atlas swap)
     'ws-mesh-texvar-btn':       3,
@@ -1297,7 +1297,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-enhance-tex-btn': 'enhance_tex',
     'ws-mesh-name-btn':    'name_parts',
     'ws-mesh-region-retex-btn': 'region_retex',
-    'ws-mesh-aligntex-btn':     'align_texture',
+    'ws-mesh-aligntex-btn':     'manual_tool',
     'ws-mesh-reshape-btn':      'reshape',
     'ws-mesh-reshape-draw-btn': 'reshape',
     'ws-resolution-btn':   'upscale',

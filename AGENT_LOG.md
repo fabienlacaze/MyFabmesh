@@ -24156,3 +24156,11 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Appli (web + bureau) : « 3D clone stamp » -> « Clone stamp » (c'est un tampon de TEXTURE).
 - Site : bascule machine a sous araignee/guerrier, projets mis en avant, infobulles avec
   contour et image d'exemple (image de l'etape, specifique quand on en a une).
+
+## 2026-09-30 — Decals (remplace Align Texture) : outil de Paint Mesh
+- User : Align Texture pas pratique / ne marche pas -> superposer des textures (decals) sur le mesh ; reutiliser Paint Mesh.
+- Nouvel outil « Decal » dans Paint Mesh (bureau + web) : image choisie, apercu au survol (quad projete), clic = cuisson dans
+  l'atlas de la couche active (getImageData/putImageData) puis _pmHistoryPush (Ctrl+Z), enregistrement = celui de Paint Mesh.
+- Calcul commun `lib/editeur-decals.js` (cadreDecal / cuireDecals / lireImage), garde check-noyaux-partages.
+- Banc Node (sphere synthetique) : pastille 0,6 sur le pole +x -> boite UV 0,45-0,55 x 0,41-0,59, aucune fuite de l'autre cote.
+- Bouton ws-mesh-aligntex-btn renomme « Decals » -> openPaintMesh({decal:true}) ; tarif = manual_tool (client). Non verifie visuellement.

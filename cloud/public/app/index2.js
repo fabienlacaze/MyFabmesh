@@ -12287,7 +12287,7 @@ function _atSetCameraView(view) {
   atState.controls.target.set(0, 0, 0);
   atState.controls.update();
 }
-document.getElementById('ws-mesh-aligntex-btn')?.addEventListener('click', openAlignTexture);
+document.getElementById('ws-mesh-aligntex-btn')?.addEventListener('click', () => openPaintMesh({ decal: true }));
 
 // ============================================================
 // 3D CONSTRUCTION STAGES (chantier 3D) — cloud port of the desktop
@@ -14642,6 +14642,88 @@ function _pmStampAtPointer(clientX, clientY) {
   entry.texture.needsUpdate = true;
 }
 
+// ============================================================
+// DECALQUES (2026-09-30) : outil de Paint Mesh. Une image est posee sur le maillage a l'endroit clique (apercu au survol),
+// puis cuite dans l'atlas de couleur de la couche active (lib/editeur-decals.js). Fenetre, couches, annulation
+// (Ctrl+Z) et enregistrement sont ceux de Paint Mesh : rien de plus a maintenir.
+// ============================================================
+pmState.decal = null;   // { img: {canvas,data,w,h}, tex }
+let _pmDecalApercuMesh = null;
+async function _pmDecalCharger(fichier) {
+  if (!fichier) return;
+  try {
+    const { lireImage } = await import('./lib/editeur-decals.js');
+    const img = await lireImage(fichier);
+    pmState.decal?.tex?.dispose?.();
+    const tex = new THREE.CanvasTexture(img.canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    pmState.decal = { img, tex };
+    const nom = document.getElementById('pm-decal-nom'); if (nom) nom.textContent = fichier.name || 'image';
+    if (_pmDecalApercuMesh) { _pmDecalApercuMesh.material.map = tex; _pmDecalApercuMesh.material.needsUpdate = true; }
+  } catch (e) { showToast('Decal image: ' + (e?.message || e), 'error'); }
+}
+function _pmDecalOnTool(t) {
+  const panneau = document.getElementById('pm-decal-panel');
+  if (panneau) panneau.style.display = t === 'decal' ? 'flex' : 'none';
+  if (t !== 'decal') _pmDecalCacher();
+  else if (!pmState.decal) document.getElementById('pm-decal-file')?.click();
+}
+function _pmDecalCacher() { if (_pmDecalApercuMesh) _pmDecalApercuMesh.visible = false; }
+function _pmDecalParams() {
+  const v = (id, d) => { const e = document.getElementById(id); return e ? Number(e.value) : d; };
+  const diag = pmState.origModel ? new THREE.Box3().setFromObject(pmState.origModel).getSize(new THREE.Vector3()).length() : 2;
+  const largeur = Math.max(1e-4, diag * 0.5 * v('pm-decal-taille', 25) / 100);
+  return {
+    largeur, rot: v('pm-decal-rot', 0), flip: !!document.getElementById('pm-decal-flip')?.checked,
+    faceAvant: document.getElementById('pm-decal-face')?.checked !== false,
+  };
+}
+function _pmDecalCadre(hit) {
+  const k = _pmDecalParams(), img = pmState.decal.img;
+  const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+  return { k, cadreArgs: { p: hit.point.toArray(), n: n.toArray(), rot: k.rot, flip: k.flip, largeur: k.largeur, ratio: img.h / img.w } };
+}
+async function _pmDecalApercu(clientX, clientY) {
+  if (!pmState.decal) return;
+  const hit = _pmRaycast(clientX, clientY);
+  if (!hit) { _pmDecalCacher(); return; }
+  const { cadreDecal } = await import('./lib/editeur-decals.js');
+  const { cadreArgs } = _pmDecalCadre(hit), c = cadreDecal(cadreArgs);
+  if (!_pmDecalApercuMesh) {
+    _pmDecalApercuMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ map: pmState.decal.tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 }));
+    _pmDecalApercuMesh.renderOrder = 10;
+  }
+  const ap = _pmDecalApercuMesh;
+  if (ap.parent !== pmState.scene) pmState.scene.add(ap);
+  ap.material.map = pmState.decal.tex; ap.material.opacity = 0.35 + 0.5 * pmState.opacity;
+  ap.matrix.makeBasis(c.r.clone().multiplyScalar(c.w), c.u.clone().multiplyScalar(c.h), c.n);
+  ap.matrix.setPosition(c.p.clone().addScaledVector(c.n, c.w * 0.003));
+  ap.matrixAutoUpdate = false; ap.matrixWorldNeedsUpdate = true; ap.visible = true;
+}
+async function _pmDecalPoser(clientX, clientY) {
+  if (!pmState.decal) { document.getElementById('pm-decal-file')?.click(); return; }
+  const hit = _pmRaycast(clientX, clientY);
+  if (!hit) return;
+  const { cadreDecal, cuireDecals } = await import('./lib/editeur-decals.js');
+  const { k, cadreArgs } = _pmDecalCadre(hit);
+  const decal = { cadre: cadreDecal(cadreArgs), opacite: pmState.opacity, profondeur: k.largeur * 0.6, faceAvant: k.faceAvant, img: pmState.decal.img };
+  let total = 0;
+  for (const e of pmState.meshes) {
+    const mesh = e.mesh, ent = pmState.canvases?.get(mesh), L = ent && _pmActiveLayer(ent), g = mesh.geometry;
+    if (!L || !g.attributes.uv || !g.attributes.position) continue;
+    mesh.updateWorldMatrix(true, false);
+    const P = g.attributes.position, N = g.attributes.normal, n = P.count, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), v = new THREE.Vector3();
+    for (let i = 0; i < n; i++) { v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld).toArray(pos, i * 3); }
+    if (N) for (let i = 0; i < n; i++) { v.fromBufferAttribute(N, i).transformDirection(mesh.matrixWorld).toArray(nor, i * 3); }
+    else decal.faceAvant = false;
+    const im = L.ctx.getImageData(0, 0, L.w, L.h);
+    const m = cuireDecals({ pos, nor, uv: g.attributes.uv.array, index: g.index ? g.index.array : null, atlas: { data: im.data, w: L.w, h: L.h, flipY: L.texture.flipY } }, [decal]);
+    if (m) { L.ctx.putImageData(im, 0, 0); L.texture.needsUpdate = true; total += m; }
+  }
+  if (total) _pmHistoryPush(); else showToast('Decal: nothing to paint here (try a larger size or untick "Facing only").', 'info', 3500);
+}
+
 function openPaintMesh(opts = {}) {
   const p = state.currentProject;
   if (!p || !p.selectedMeshPath) { showToast('Pick a mesh first.', 'error'); return; }
@@ -14653,15 +14735,20 @@ function openPaintMesh(opts = {}) {
   pmState.emissiveMode = !!opts.emissiveMode;
   const $ = (id) => document.getElementById(id);
   // Wire tool selection.
-  const toolBtns = ['pen', 'spray', 'ink', 'eraser', 'pipette'];
+  const toolBtns = ['pen', 'spray', 'ink', 'eraser', 'pipette', 'decal'];
   const setTool = (t) => {
     pmState.tool = t;
     toolBtns.forEach((nm) => {
       $('pm-tool-' + nm)?.classList.toggle('tool-active', nm === t);
     });
+    _pmDecalOnTool(t);
   };
   toolBtns.forEach((nm) => { $('pm-tool-' + nm).onclick = () => setTool(nm); });
   setTool('pen');
+  $('pm-decal-file').onchange = (e) => { _pmDecalCharger(e.target.files?.[0]); e.target.value = ''; if (pmState.tool !== 'decal') setTool('decal'); };
+  $('pm-decal-choisir').onclick = () => $('pm-decal-file').click();
+  ['taille', 'rot'].forEach((k) => { const el = $('pm-decal-' + k); if (el) el.oninput = () => { $('pm-decal-' + k + '-val').textContent = el.value + (k === 'rot' ? '°' : ''); }; });
+  if (opts.decal) setTool('decal');
   $('pm-color').oninput = (e) => { pmState.color = e.target.value; };
   pmState.color = $('pm-color').value;
   $('pm-brush-size').oninput = (e) => {
@@ -14738,11 +14825,14 @@ function openPaintMesh(opts = {}) {
     const cv = pmState.renderer.domElement;
     cv.onpointerdown = (e) => {
       if (e.button !== 0) return;
+      if (pmState.tool === 'decal') { _pmDecalPoser(e.clientX, e.clientY); return; }
       pmState.isPainting = true;
       cv.setPointerCapture(e.pointerId);
       _pmStampAtPointer(e.clientX, e.clientY);
     };
+    cv.onpointerleave = () => _pmDecalCacher();
     cv.onpointermove = (e) => {
+      if (pmState.tool === 'decal') { _pmDecalApercu(e.clientX, e.clientY); return; }
       if (!pmState.isPainting) return;
       _pmStampAtPointer(e.clientX, e.clientY);
     };
@@ -14757,6 +14847,7 @@ function openPaintMesh(opts = {}) {
 
   const close = (restore) => {
     modal.classList.add('hidden');
+    _pmDecalCacher();
     if (restore) _pmRestoreMaterials();
   };
   $('pm-cancel').onclick = () => close(true);
