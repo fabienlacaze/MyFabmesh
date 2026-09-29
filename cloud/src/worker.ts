@@ -13361,7 +13361,9 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
   if (reel) {
     const source: Record<string, string> = {
       text2image: 'text2image', image_op: 'image', back_view: 'image', tpose: 'image', mesh: 'mesh',
-      mvadapter: 'mvadapter', mesh_segment: 'mesh_segment', rig: 'rig', anim: 'anim', fbx_retarget: 'fbx_retarget',
+      // Multi-vues du SITE = vues de dos (mode « Auto 2-view ») sur le conteneur image ; le moteur
+      // 6 vues (myfabmesh-mvadapter) n'est pas deploye : il n'existe que sur le bureau.
+      mvadapter: 'image', mesh_segment: 'mesh_segment', rig: 'rig', anim: 'anim', fbx_retarget: 'fbx_retarget',
     };
     for (const [k, src] of Object.entries(source)) {
       const e = reel[src]?.etat;

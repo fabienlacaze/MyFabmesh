@@ -550,7 +550,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           const SERVICES = [
             { key: 'text2image',   label: 'Image generation', desc: 'Generate image from prompt' },
             { key: 'image_op',     label: 'Image edit',       desc: 'Modify, Inpaint, Upscale, Face Fix, Remove BG, Recolor, Age, Outfit' },
-            { key: 'mvadapter',    label: 'Multi-view',       desc: 'Extra views of the subject (creature, animal)' },
+            // Le bouton Multi-Views du site fait des vues de dos (mode « Auto 2-view », par defaut) sur le
+            // conteneur image ; les 6 vues n'existent que dans l'application de bureau (2026-09-29).
+            { key: 'mvadapter',    label: 'Multi-view',       desc: 'Back views of the subject (6 views: desktop app)' },
             { key: 'back_view',    label: 'Back view',        desc: '2-view back photo generation' },
             { key: 'tpose',        label: 'T-pose rectify',   desc: 'Strict T-pose front rectifier' },
             { key: 'mesh',         label: '3D mesh',          desc: 'Generate 3D from image' },

@@ -262,6 +262,7 @@
       'Parental control': 'Contrôle parental',
       'About MyFabmesh.AI': 'À propos de MyFabmesh.AI',
       'Server warming up': 'Serveur en préchauffage',
+      'Back views of the subject (6 views: desktop app)': "Vues de dos du sujet (6 vues : application de bureau)",
       "Free daily capacity reached": "Capacité gratuite du jour atteinte",
       "Free daily limit reached": "Limite gratuite du jour atteinte",
       "Daily capacity reached": "Capacité du jour atteinte",
