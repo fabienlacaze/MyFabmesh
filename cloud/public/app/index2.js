@@ -8828,6 +8828,7 @@ async function showGenerationHistory(startPath) {
     smooth: 'Texture smooth', back_view: 'Back view', fast: 'Fast mode', seed: 'Seed', steps: 'Steps',
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
     texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
+    skeleton: 'Skeleton', anim_type: 'Animation', voxel_grid: 'Voxel grid', tex_steps: 'Texture steps', op_type: 'Operation',
     prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode',
   };
   const fmtVal = (k, v) => {

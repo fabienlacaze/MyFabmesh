@@ -8256,7 +8256,21 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         trellis_mode: trellisMode,
       });
       // Modal accepted the spawn — flip queued -> processing.
-      await supabaseAdmin(env).from('jobs').update({ status: 'processing' }).eq('id', jobId);
+      // + les reglages REELLEMENT envoyes (historique des generations, 2026-09-29) : ceux calcules ici
+      // (grille, atlas, triangles, pas, graine) ne figuraient pas dans les options enregistrees.
+      {
+        const sbj = supabaseAdmin(env);
+        const { data: jo } = await sbj.from('jobs').select('options').eq('id', jobId).maybeSingle();
+        const avant = (jo && jo.options && typeof jo.options === 'object') ? jo.options as Record<string, unknown> : {};
+        await sbj.from('jobs').update({ status: 'processing', options: { ...avant,
+          voxel_grid: trellisMode,
+          texture_size: input.ultra_hd ? 4096 : palier ? palier.atlas : input.mode === 'full' ? 2048 : 1024,
+          decimation_target: input.max_tris ? input.max_tris
+            : input.mode === 'lite' ? 100_000 : input.mode === 'full' ? 1_500_000 : 500_000,
+          tex_steps: palier ? palier.pas : undefined,
+          seed: input.seed ?? 42,
+        } }).eq('id', jobId);
+      }
     } catch (e: unknown) {
       await addCredits(env, user.id, cost);
       await refundMeshSpend();
@@ -20247,7 +20261,8 @@ async function handlePrewarm(req: Request, env: Env,
  * un autre fichier (operation, rig), on cherche le travail dont mesh_url se termine par ce nom. Proprietaire
  * seulement ; les champs internes (prix, pays, provenance) ne sortent pas. */
 const _CHAMPS_INTERNES = new Set(['cost_usd', 'pays', 'provenance', 'tris_prix_socle', 'tris_prix_tranche',
-  'tris_supplement', 'tris_courbe_pct', 'delai_max_s', 'backend', 'operation_type', 'projectName', 'sourceImage']);
+  'tris_supplement', 'tris_courbe_pct', 'delai_max_s', 'backend', 'operation_type', 'projectName', 'sourceImage',
+  'engine', 'batch_id', 'sourceMesh', 'sourceRig', 'coquille', 'error']);
 async function handleLineageMeta(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
