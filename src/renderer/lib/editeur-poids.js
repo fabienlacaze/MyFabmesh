@@ -60,6 +60,11 @@ function construireFenetre() {
           <input type="range" id="pp-prop" min="-20" max="20" value="0" step="1">
           <div class="fen-echelle"><span>${esc(T('Shrink'))}</span><span>${esc(T('Spread'))}</span></div>
           <button type="button" class="ghost-btn fen-petit" id="pp-prop-ok" disabled>${esc(T('Apply to this bone'))}</button></div>
+        <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">${esc(T('Clean far zones'))}</span><span class="fen-valeur" id="pp-dist-v">8 %</span></div>
+          <input type="range" id="pp-dist" min="1" max="40" value="8">
+          <div class="fen-echelle"><span>${esc(T('close'))}</span><span>${esc(T('far'))}</span></div>
+          <label class="opt-ligne"><input type="checkbox" id="pp-dist-tous"> <span>${esc(T('All bones'))}</span></label>
+          <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button></div>
         <div class="opt-ligne" style="gap:8px;display:flex;flex-wrap:wrap;">
           <button type="button" class="ghost-btn fen-petit" id="pp-tester">&#9654; ${esc(T('Test the bone'))}</button>
           <button type="button" class="ghost-btn fen-petit active" id="pp-squelette">&#129460; ${esc(T('Skeleton'))}</button>
@@ -315,6 +320,47 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     if (trait.avant.size) { pile.push(trait.avant); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
     trait = null;
     $('pp-prop').value = 0; $('pp-prop-v').textContent = '0'; $('pp-prop-ok').disabled = true;
+    etat.textContent = `${nb.toLocaleString()} ${T('vertices changed')}`;
+  };
+
+  // --- nettoyage automatique : retire l'os des sommets trop loin de lui (distance au segment os -> enfants,
+  // en pose de repos, en % de l'etendue). Meme mecanique que le pinceau : le poids retire va aux autres os.
+  const reposOs = os.map((b) => b.getWorldPosition(new THREE.Vector3()));
+  const segsOs = os.map((b, i) => {
+    const l = []; b.children.forEach((c) => { if (c.isBone) l.push([reposOs[i], reposOs[os.indexOf(c)]]); });
+    return l;
+  });
+  function distOs(b, x, y, z) {
+    const A = reposOs[b], segs = segsOs[b];
+    let m = Math.hypot(x - A.x, y - A.y, z - A.z);
+    for (const [a, c] of segs) {
+      const bx = c.x - a.x, by = c.y - a.y, bz = c.z - a.z, l2 = bx * bx + by * by + bz * bz || 1e-12;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * bx + (y - a.y) * by + (z - a.z) * bz) / l2));
+      const q = Math.hypot(x - a.x - t * bx, y - a.y - t * by, z - a.z - t * bz); if (q < m) m = q;
+    }
+    return m;
+  }
+  $('pp-dist').oninput = () => { $('pp-dist-v').textContent = $('pp-dist').value + ' %'; };
+  $('pp-dist-ok').onclick = () => {
+    const dmax = ext * (+$('pp-dist').value / 100), tous = $('pp-dist-tous').checked;
+    trait = { avant: new Map() };
+    let nb = 0;
+    for (const d of donnees) {
+      const I = d.idx.array, W = d.wts.array, P = d.pos;
+      for (let i = 0; i < d.n; i++) {
+        let change = false;
+        for (let c = 0; c < 4; c++) {
+          const b = I[4 * i + c];
+          if (W[4 * i + c] <= 0.001 || (!tous && b !== osChoisi)) continue;
+          if (distOs(b, P[3 * i], P[3 * i + 1], P[3 * i + 2]) <= dmax) continue;
+          noter(d, i);
+          if (viser(d, i, b, 0, 1)) change = true;
+        }
+        if (change) { salir(d, i); nb++; }
+      }
+    }
+    if (trait.avant.size) { pile.push(trait.avant); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
+    trait = null;
     etat.textContent = `${nb.toLocaleString()} ${T('vertices changed')}`;
   };
 

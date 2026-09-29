@@ -23,6 +23,8 @@
       'Skin weights': 'Poids de peau',
       'Skeleton': 'Squelette',
       'Spread / shrink the zone': 'Propager / contracter la zone', 'Shrink': 'Contracter', 'Spread': 'Propager',
+      'Clean far zones': 'Nettoyer les zones lointaines', 'close': 'près', 'far': 'loin',
+      'Remove zones farther than this': 'Retirer les zones plus loin que ça',
       'Apply to this bone': 'Appliquer à cet os', 'vertices changed': 'sommets modifiés',
       'Center the view on the bone': "Centrer la vue sur l'os",
       'Left drag = paint · right drag = rotate · middle drag or Shift + right drag = move · wheel = zoom': 'Clic gauche = peindre · clic droit = tourner · clic milieu ou Maj + clic droit = déplacer · molette = zoom',
