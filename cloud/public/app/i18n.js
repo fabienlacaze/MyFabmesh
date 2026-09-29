@@ -20,6 +20,7 @@
 
   const I18N = {
     fr: {
+      'Parameters': 'Paramètres',
       'Generation prompt': 'Prompt de génération',
       'Which part?': 'Quelle partie ?',
       '(the AI finds it)': "(l'IA la trouve)",

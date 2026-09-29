@@ -32,7 +32,7 @@ Pour **lancer un outil** : trouver sa route ci-dessous (colonne « appelee par �
 `cloud/public/app/meshyAPI-cloud.js`, dont le corps montre le JSON exact que le site envoie), puis
 `POST` avec le meme JSON. Les tarifs indiques sont les valeurs PAR DEFAUT ; `_meta/pricing.json` les surcharge.
 
-**161 routes** — 18 publiques, 103 avec compte, 40 admin, 32 payantes.
+**162 routes** — 18 publiques, 104 avec compte, 40 admin, 32 payantes.
 
 ## Compte, session, credits, achats (20)
 
@@ -145,7 +145,7 @@ Pour **lancer un outil** : trouver sa route ci-dessous (colonne « appelee par �
 | `POST /api/recolor` | compte | recolor = 3 | `recolor` | Recolorier — detecte la partie nommee (CLIPSeg) et ne change QUE sa teinte, en preservant la luminance : les plis et les ombres restent. L'outil n'existait que sur le bureau. Deux chemins existaient la-bas ; seul celui du virage HSV est portable, l'autre deman [worker.ts:11982] |
 | `POST /api/rectify-image` | compte | rectify = 3 | — | Auto-rectify endpoint — re-generate an orthographic FRONT (or 3/4 ISO) view from a prompt and/or a reference image, using multi-seed silhouette symmetry scoring. Verbatim feature port of `generate_front_strict.py`. Requires Modal (no Replicate fallback). [worker.ts:16780] |
 | `POST /api/segment-preview` | compte | segment = 3 | `segmentMask` | Mask preview — detect-only CLIPSeg for the Auto Inpaint "Preview mask" button. ONE GPU call on demand (not live-on-keystroke, which would be cost-prohibitive on serverless). Returns the soft mask as an R2 image URL the renderer overlays on the source. Cheap (1 [worker.ts:11740] |
-| `POST /api/translate` | compte | — | `translatePrompt` | — [worker.ts:20246] |
+| `POST /api/translate` | compte | — | `translatePrompt` | — [worker.ts:20289] |
 | `POST /api/upscale-image` | compte | upscale = 3 | `imageQuickEdit` | AI upscale endpoint — LANCZOS x2/x4 + SDXL refine pass. Way nicer output than the desktop's pure-LANCZOS quick edit. Costs 2 credits. [worker.ts:16665] |
 
 ## Mesh 3D et textures (15)
@@ -197,7 +197,7 @@ Pour **lancer un outil** : trouver sa route ci-dessous (colonne « appelee par �
 | `POST /api/upload-mesh` | compte | manual_tool = 1 | `saveBuffer` | POST /api/upload-mesh — accept a client-side sculpted/edited GLB and persist it to R2 under a per-user prefix so the mesh strip can pick it up. Mirrors handleUploadImage (auth, R2 binding, quota counter, filename sanitisation) but tuned for binary glTF: 50 MB [worker.ts:13647] |
 | `POST /api/upload-rig` | compte | manual_tool = 1 | `uploadRig` | POST /api/upload-rig?filename=&projectName=&tool= — corps = le GLB BRUT. POURQUOI UNE SECONDE ROUTE (2026-09-28). /api/upload-mesh recoit du base64 dans du JSON et le decode en memoire, plafonne a 50 Mo — or 82 des 106 rigs presents dans R2 pesaient plus (medi [worker.ts:13764] |
 
-## Divers (33)
+## Divers (34)
 
 | route | acces | tarif (credits) | appelee par | description |
 |---|---|---|---|---|
@@ -217,6 +217,7 @@ Pour **lancer un outil** : trouver sa route ci-dessous (colonne « appelee par �
 | `POST/GET /api/heartbeat` | compte | — | — | — [worker.ts:20187] |
 | `POST /api/internal/mesh-done` | public | — | — | POST /api/internal/mesh-done — LIVRAISON IMMEDIATE (2026-09-27). Modal l'appelle a la fin d'une generation (reussie ou en echec) : on livre ou on echoue + rembourse TOUT DE SUITE, sans attendre le sondage du navigateur (onglet en arriere-plan, page rechargee) [worker.ts:11012] |
 | `POST /api/landmarks` | compte | — | `loadLandmarks`, `saveLandmarks` | POST /api/landmarks — JSON-only landmarks persistence keyed by mesh slug. Body: { mesh_url, landmarks?, op: 'save' \| 'load' } Stored under R2 at `<user.id>/landmarks/<slug>.json`. Slug = the mesh URL's basename minus extension, sanitised. Bounded to 64 KB per [worker.ts:19634] |
+| `POST /api/lineage-meta` | compte | — | `getLineageMeta` | — [worker.ts:20248] |
 | `POST /api/mock-checkout` | compte | — | — | — [worker.ts:8627] |
 | `POST /api/mock-login` | public | — | — | — [worker.ts:8643] |
 | `POST /api/mock-logout` | public | — | — | — [worker.ts:8654] |

@@ -20238,6 +20238,49 @@ async function handlePrewarm(req: Request, env: Env,
   return json({ ok: true, warming: true });
 }
 
+/* HISTORIQUE DES GENERATIONS (2026-09-29, user : « le listing exact des parametres ») : le bureau lit un
+ * fichier .meta.json a cote de chaque modele ; le web n'avait rien (« Parameters not tracked »). Les reglages
+ * sont pourtant enregistres dans jobs.options : le GLB d'une generation s'appelle modal_<id du travail>. Pour
+ * un autre fichier (operation, rig), on cherche le travail dont mesh_url se termine par ce nom. Proprietaire
+ * seulement ; les champs internes (prix, pays, provenance) ne sortent pas. */
+const _CHAMPS_INTERNES = new Set(['cost_usd', 'pays', 'provenance', 'tris_prix_socle', 'tris_prix_tranche',
+  'tris_supplement', 'tris_courbe_pct', 'delai_max_s', 'backend', 'operation_type', 'projectName', 'sourceImage']);
+async function handleLineageMeta(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  const b = await req.json().catch(() => ({})) as { path?: unknown };
+  const chemin = typeof b.path === 'string' ? b.path : '';
+  const nom = (chemin.replace(/[?#].*$/, '').split('/').pop() || '').slice(0, 200);
+  if (!nom) return json({ meta: null });
+  const sb = supabaseAdmin(env);
+  const m = nom.match(/^(modal_[0-9a-f]{32})\.glb$/i);
+  let job: Record<string, unknown> | null = null;
+  if (m) {
+    const r = await sb.from('jobs').select('*').eq('id', m[1]).maybeSingle();
+    job = (r.data as Record<string, unknown> | null) || null;
+  } else {
+    const motif = '%' + nom.replace(/[\\%_]/g, (c) => '\\' + c);
+    const r = await sb.from('jobs').select('*').eq('user_id', user.id).like('mesh_url', motif)
+      .order('created_at', { ascending: false }).limit(1);
+    job = ((r.data as Record<string, unknown>[] | null) || [])[0] || null;
+  }
+  if (!job || job.user_id !== user.id) return json({ meta: null });
+  const options = (job.options && typeof job.options === 'object') ? job.options as Record<string, unknown> : {};
+  const params: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(options)) if (!_CHAMPS_INTERNES.has(k)) params[k] = v;
+  const debut = job.created_at ? new Date(String(job.created_at)).getTime() : 0;
+  const fin = job.finished_at ? new Date(String(job.finished_at)).getTime() : 0;
+  if (debut && fin && !('duration_ms' in params)) params.duration_ms = fin - debut;
+  const type = String(job.type || '');
+  return json({ meta: {
+    kind: /op|variant|retex|reshape/i.test(type) && type !== 'mesh' ? 'op' : undefined,
+    op: typeof options.op === 'string' ? options.op : undefined,
+    ts: debut || undefined,
+    params,
+    source: typeof options.sourceImage === 'string' ? options.sourceImage : undefined,
+  } });
+}
+
 /* TRADUCTION DES PROMPTS (2026-09-29, user : « on doit taper dans la langue de l'appli »). Le bureau traduit la
  * description depuis la langue de l'INTERFACE vers l'anglais (Argos, en local) avant d'appliquer les gabarits
  * anglais ; le web l'envoyait telle quelle (« avion » : le moteur d'image comprend mal le francais). Workers AI
@@ -21218,6 +21261,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/heartbeat'             && (method === 'POST' || method === 'GET')) return await handleHeartbeat(req, env);
         if (pathname === '/api/prewarm'               && method === 'POST') return await handlePrewarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/translate'             && method === 'POST') return await handleTranslate(req, env);
+        if (pathname === '/api/lineage-meta'          && method === 'POST') return await handleLineageMeta(req, env);
         if (pathname === '/api/mesh-op'               && method === 'POST') return await handleMeshOp(req, env);
         if (pathname === '/api/mesh-convert'          && method === 'POST') return await handleMeshConvert(req, env);
         if (pathname === '/api/construction-stages-3d' && method === 'POST') return await handleConstructionStages3d(req, env);

@@ -4682,3 +4682,8 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 textarea.prompt-avec-miroir { position: relative; z-index: 1; color: transparent !important; background: transparent !important; }
 textarea.prompt-avec-miroir::placeholder { color: var(--text-2, #8a8aa0); }
 textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(124, 58, 237, 0.35); }
+
+/* Historique des generations (2026-09-29) : parametres depliables, liste complete */
+.gh-details { margin-top: 6px; }
+.gh-details > summary { cursor: pointer; font-size: 12px; color: var(--accent, #a78bfa); user-select: none; }
+.gh-details[open] > summary { margin-bottom: 4px; }

@@ -874,6 +874,17 @@
   "motif": false
  },
  {
+  "chemin": "/api/lineage-meta",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleLineageMeta",
+  "motif": false
+ },
+ {
   "chemin": "/api/market/:param",
   "methodes": [
    "GET"

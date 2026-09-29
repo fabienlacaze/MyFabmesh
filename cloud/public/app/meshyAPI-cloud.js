@@ -2472,6 +2472,13 @@
     },
     // Traduction du prompt depuis la langue de l'interface (meme contrat que l'IPC du bureau : { text }).
     // Confort : en cas d'echec, le texte d'origine.
+    // Reglages d'une generation (historique), relus dans la table jobs. null si inconnus.
+    getLineageMeta: async (filePath) => {
+      try {
+        const r = await postJSON('/api/lineage-meta', { path: String(filePath || '') });
+        return (r && r.meta) || null;
+      } catch (_) { return null; }
+    },
     translatePrompt: async ({ text, from } = {}) => {
       try {
         const r = await postJSON('/api/translate', { text: text || '', from: from || 'en' });

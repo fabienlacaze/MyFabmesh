@@ -8802,23 +8802,38 @@ async function showGenerationHistory(startPath) {
     rig:   { ico: '🦴', title: 'Rig' },
     anim:  { ico: '🎬', title: 'Animation' },
   };
-  const fmtVal = (v) => {
+  // LISTE EXACTE ET DEPLIABLE (2026-09-29, user : « pouvoir deplier chaque generation et avoir le listing exact
+  // des parametres ») : plus de limite a 10 lignes ni de valeur tronquee ; « non » et les listes s'affichent aussi.
+  // Libelle lisible, cle brute en infobulle ; jamais le nom d'un moteur (_maskAiNames).
+  const GH_LIBELLES = {
+    preset: 'Quality', max_tris: 'Max triangles', ultra_hd: 'Ultra HD 8K', ultra_q: 'Ultra quality',
+    quality_plus: 'Quality+', rectify: 'Auto-rectify', face_fix: 'Face fix', refine: 'Detail refine',
+    smooth: 'Texture smooth', back_view: 'Back view', fast: 'Fast mode', seed: 'Seed', steps: 'Steps',
+    asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
+    texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
+    prompt: 'Prompt',
+  };
+  const fmtVal = (k, v) => {
     if (v === true) return '✓';
-    if (typeof v === 'number') return String(Math.round(v * 1000) / 1000);
-    const s = String(v);
-    return s.length > 90 ? s.slice(0, 87) + '…' : s;
+    if (v === false) return '✗';
+    if (typeof v === 'number') {
+      if (k === 'duration_ms') return (Math.round(v / 100) / 10) + ' s';
+      return String(Math.round(v * 1000) / 1000);
+    }
+    if (typeof v === 'object') { try { return JSON.stringify(v); } catch (_) { return String(v); } }
+    return String(v);
   };
   const paramRows = (params) => {
     if (!params || typeof params !== 'object') return '';
     const rows = [];
     for (const k of Object.keys(params)) {
       const v = params[k];
-      if (v === undefined || v === null || v === '' || v === false) continue;
-      if (typeof v === 'object') continue;
-      rows.push(`<div class="gh-row"><span class="gh-k">${escapeHtml(k)}</span><span class="gh-v">${escapeHtml(fmtVal(v))}</span></div>`);
-      if (rows.length >= 10) break;
+      if (v === undefined || v === null || v === '') continue;
+      const lib = GH_LIBELLES[k] ? _i18nT(GH_LIBELLES[k]) : k;
+      rows.push(`<div class="gh-row"><span class="gh-k" title="${escapeHtml(k)}">${escapeHtml(lib)}</span><span class="gh-v">${escapeHtml(_maskAiNames(fmtVal(k, v)))}</span></div>`);
     }
-    return rows.join('');
+    if (!rows.length) return '';
+    return `<details class="gh-details"><summary>${escapeHtml(_i18nT('Parameters'))} (${rows.length})</summary><div class="gh-params">${rows.join('')}</div></details>`;
   };
   // Racine commune remplacée par « … » sur les dérivés (nom complet en tooltip).
   const _rootStep = steps.find((s) => s.kind === 'mesh');
@@ -8851,7 +8866,7 @@ async function showGenerationHistory(startPath) {
         <div class="gh-info">
           <div class="gh-step-title">${title}${engineTag}</div>
           <div class="gh-file" title="${escapeHtml(_maskAiNames(s.filename))}">${escapeHtml(_shortName(s))}</div>
-          ${prows ? `<div class="gh-params">${prows}</div>` : legacy}
+          ${prows || legacy}
           ${when ? `<div class="gh-ts">${escapeHtml(when)}</div>` : ''}
         </div>
       </div>
