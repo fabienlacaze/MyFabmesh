@@ -28,6 +28,23 @@ function construireFenetre() {
       background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
     #modal-poids-peau .pp-os-btn:hover { background: rgba(255, 150, 30, 0.28); }
     #modal-poids-peau .pp-os-btn.actif { background: rgba(255, 60, 60, 0.35); font-weight: 600; }
+    #modal-poids-peau .modal-card.fen-3d .fen-corps { grid-template-columns: minmax(0, 1fr) 350px; }
+    #modal-poids-peau .pp-form { gap: 10px; }
+    #modal-poids-peau .pp-sect { display: flex; flex-direction: column; gap: 6px; }
+    #modal-poids-peau .pp-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #modal-poids-peau .pp-case { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 0; cursor: pointer; }
+    #modal-poids-peau .pp-liste { max-height: 132px; }
+    #modal-poids-peau .pp-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    #modal-poids-peau .pp-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    #modal-poids-peau .choix-btn { padding: 6px 4px; text-align: center; }
+    #modal-poids-peau .choix-btn b { font-size: 12.5px; }
+    #modal-poids-peau .pp-curseur { display: grid; grid-template-columns: 62px 1fr 44px; align-items: center; gap: 8px; font-size: 12px; }
+    #modal-poids-peau .pp-curseur input[type=range] { width: 100%; }
+    #modal-poids-peau .pp-curseur .fen-valeur { text-align: right; }
+    #modal-poids-peau .pp-plie { border: 1px solid var(--border, #3a3a4a); border-radius: 8px; padding: 6px 8px; }
+    #modal-poids-peau .pp-plie > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-2); user-select: none; }
+    #modal-poids-peau .pp-plie[open] > summary { margin-bottom: 6px; }
+    #modal-poids-peau .pp-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   </style>
   <div class="modal-card fen-3d">
     <div class="fen-tete"><h2>&#127912; ${esc(T('Skin weights'))}</h2><button type="button" class="settings-close-x" id="pp-close" title="Close">&#10005;</button></div>
@@ -35,37 +52,42 @@ function construireFenetre() {
     <div class="fen-corps">
       <div class="fen-apercu" id="pp-vue"><canvas id="pp-canvas" style="width:100%;height:100%;display:block;"></canvas>
         <div class="fen-apercu-etat" id="pp-etat">${esc(T('Loading…'))}</div></div>
-      <div class="fen-form">
-        <div class="fen-champ"><span class="fen-label">${esc(T('Bone'))}</span>
+      <div class="fen-form pp-form">
+        <div class="pp-sect">
+          <div class="pp-tete"><span class="fen-label">${esc(T('Bone'))}</span>
+            <label class="pp-case"><input type="checkbox" id="pp-centrer"> <span>${esc(T('Center the view on the bone'))}</span></label></div>
           <div id="pp-liste" class="pp-liste"></div>
-          <span class="fen-note">${esc(T('Or pick it with the Pick brush, by clicking the mesh.'))}</span></div>
-        <label class="opt-ligne"><input type="checkbox" id="pp-centrer"> <span>${esc(T('Center the view on the bone'))}</span></label>
-        <div class="fen-champ"><span class="fen-label">${esc(T('View'))}</span>
-          <div class="choix" id="pp-vues">
+        </div>
+        <div class="pp-sect">
+          <span class="fen-label">${esc(T('View'))}</span>
+          <div class="choix pp-2" id="pp-vues">
             <button type="button" class="choix-btn actif" data-v="os"><b>${esc(T('This bone'))}</b></button>
             <button type="button" class="choix-btn" data-v="tous"><b>${esc(T('All bones'))}</b></button>
-          </div></div>
-        <div class="fen-champ"><span class="fen-label">${esc(T('Brush'))}</span>
-          <div class="choix" id="pp-pinceaux" style="grid-template-columns:1fr 1fr;">
-            <button type="button" class="choix-btn actif" data-p="ajouter"><b>${esc(T('Add'))}</b><small>${esc(T('moves with this bone'))}</small></button>
-            <button type="button" class="choix-btn" data-p="retirer"><b>${esc(T('Remove'))}</b><small>${esc(T('stops following it'))}</small></button>
-            <button type="button" class="choix-btn" data-p="statique"><b>${esc(T('Static'))}</b><small>${esc(T('follows the body only'))}</small></button>
-            <button type="button" class="choix-btn" data-p="choisir"><b>${esc(T('Pick'))}</b><small>${esc(T('click = choose the bone'))}</small></button>
-          </div></div>
-        <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">${esc(T('Size'))}</span><span class="fen-valeur" id="pp-taille-v">6 %</span></div>
-          <input type="range" id="pp-taille" min="1" max="25" value="6"></div>
-        <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">${esc(T('Strength'))}</span><span class="fen-valeur" id="pp-force-v">50 %</span></div>
-          <input type="range" id="pp-force" min="5" max="500" value="50"></div>
-        <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">${esc(T('Spread / shrink the zone'))}</span><span class="fen-valeur" id="pp-prop-v">0</span></div>
-          <input type="range" id="pp-prop" min="-20" max="20" value="0" step="1">
-          <div class="fen-echelle"><span>${esc(T('Shrink'))}</span><span>${esc(T('Spread'))}</span></div>
-          <button type="button" class="ghost-btn fen-petit" id="pp-prop-ok" disabled>${esc(T('Apply to this bone'))}</button></div>
-        <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">${esc(T('Clean far zones'))}</span><span class="fen-valeur" id="pp-dist-v">8 %</span></div>
-          <input type="range" id="pp-dist" min="1" max="40" value="8">
-          <div class="fen-echelle"><span>${esc(T('close'))}</span><span>${esc(T('far'))}</span></div>
-          <label class="opt-ligne"><input type="checkbox" id="pp-dist-tous"> <span>${esc(T('All bones'))}</span></label>
-          <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button></div>
-        <div class="opt-ligne" style="gap:8px;display:flex;flex-wrap:wrap;">
+          </div>
+        </div>
+        <div class="pp-sect">
+          <span class="fen-label">${esc(T('Brush'))}</span>
+          <div class="choix pp-4" id="pp-pinceaux">
+            <button type="button" class="choix-btn actif" data-p="ajouter" title="${esc(T('moves with this bone'))}"><b>${esc(T('Add'))}</b></button>
+            <button type="button" class="choix-btn" data-p="retirer" title="${esc(T('stops following it'))}"><b>${esc(T('Remove'))}</b></button>
+            <button type="button" class="choix-btn" data-p="statique" title="${esc(T('follows the body only'))}"><b>${esc(T('Static'))}</b></button>
+            <button type="button" class="choix-btn" data-p="choisir" title="${esc(T('click = choose the bone'))}"><b>${esc(T('Pick'))}</b></button>
+          </div>
+          <div class="pp-curseur"><span>${esc(T('Size'))}</span><input type="range" id="pp-taille" min="1" max="25" value="6"><span class="fen-valeur" id="pp-taille-v">6 %</span></div>
+          <div class="pp-curseur"><span>${esc(T('Strength'))}</span><input type="range" id="pp-force" min="5" max="500" value="50"><span class="fen-valeur" id="pp-force-v">50 %</span></div>
+        </div>
+        <details class="pp-sect pp-plie">
+          <summary>${esc(T('Spread / shrink the zone'))}</summary>
+          <div class="pp-curseur"><span>${esc(T('Shrink'))}</span><input type="range" id="pp-prop" min="-20" max="20" value="0" step="1"><span class="fen-valeur" id="pp-prop-v">0</span></div>
+          <button type="button" class="ghost-btn fen-petit" id="pp-prop-ok" disabled>${esc(T('Apply to this bone'))}</button>
+        </details>
+        <details class="pp-sect pp-plie">
+          <summary>${esc(T('Clean far zones'))}</summary>
+          <div class="pp-curseur"><span>${esc(T('close'))}</span><input type="range" id="pp-dist" min="1" max="40" value="8"><span class="fen-valeur" id="pp-dist-v">8 %</span></div>
+          <label class="pp-case"><input type="checkbox" id="pp-dist-tous"> <span>${esc(T('All bones'))}</span></label>
+          <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button>
+        </details>
+        <div class="pp-actions">
           <button type="button" class="ghost-btn fen-petit" id="pp-tester">&#9654; ${esc(T('Test the bone'))}</button>
           <button type="button" class="ghost-btn fen-petit active" id="pp-squelette">&#129460; ${esc(T('Skeleton'))}</button>
           <button type="button" class="ghost-btn fen-petit" id="pp-annuler" disabled>&#8630; ${esc(T('Undo'))}</button>
