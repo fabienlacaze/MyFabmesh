@@ -427,7 +427,10 @@
                      - vehicle / building / weapon / prop / env -> front only
                      The old <select id="ws-mv-scope"> was removed 2026-05-20;
                      a hidden input keeps backend compat. -->
-                <input type="hidden" id="ws-mv-scope" value="auto" />
+                <!-- 2026-09-29 : "front_only", comme le bureau depuis le 2026-06-15. Reste sur "auto", le web generait ET
+                     FACTURAIT une vue de dos apres chaque image de personnage / animal / creature (+3 credits,
+                     jusqu'a plusieurs minutes a froid), jamais demandee et jamais utilisee par la 3D (views=1). -->
+                <input type="hidden" id="ws-mv-scope" value="front_only" />
                 <!-- Hidden compat: existing back-photo pipeline reuses these
                      elements. We force 2view mode and hide the 6-view opts. -->
                 <div id="ws-mv-mode-row" class="form-row hidden" style="display:none;">
