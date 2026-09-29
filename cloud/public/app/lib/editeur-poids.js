@@ -35,7 +35,7 @@ function construireFenetre() {
     #modal-poids-peau .pp-case { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 0; cursor: pointer; }
     #modal-poids-peau .pp-liste { max-height: 132px; }
     #modal-poids-peau .pp-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-    #modal-poids-peau .pp-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    #modal-poids-peau .pp-4 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
     #modal-poids-peau .choix-btn { padding: 6px 4px; text-align: center; }
     #modal-poids-peau .choix-btn b { font-size: 12.5px; }
     #modal-poids-peau .pp-curseur { display: grid; grid-template-columns: 62px 1fr 44px; align-items: center; gap: 8px; font-size: 12px; }
@@ -75,9 +75,9 @@ function construireFenetre() {
           <div class="choix pp-4" id="pp-pinceaux">
             <button type="button" class="choix-btn actif" data-p="ajouter" title="${esc(T('moves with this bone'))}"><b>${esc(T('Add'))}</b></button>
             <button type="button" class="choix-btn" data-p="retirer" title="${esc(T('stops following it'))}"><b>${esc(T('Remove'))}</b></button>
-            <button type="button" class="choix-btn" data-p="statique" title="${esc(T('follows the body only'))}"><b>${esc(T('Static'))}</b></button>
-            <button type="button" class="choix-btn" data-p="choisir" title="${esc(T('click = choose the bone'))}"><b>${esc(T('Pick'))}</b></button>
+            <button type="button" class="choix-btn" data-p="statique"><b>${esc(T('Fixed'))}</b></button>
           </div>
+          <span class="fen-note" id="pp-aide"></span>
           <div class="pp-curseur"><span>${esc(T('Size'))}</span><input type="range" id="pp-taille" min="1" max="25" value="6"><span class="fen-valeur" id="pp-taille-v">6 %</span></div>
           <div class="pp-curseur"><span>${esc(T('Strength'))}</span><input type="range" id="pp-force" min="5" max="500" value="50"><span class="fen-valeur" id="pp-force-v">50 %</span></div>
         </div>
@@ -478,8 +478,15 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   });
   fen.querySelectorAll('#pp-pinceaux .choix-btn').forEach((b) => b.onclick = () => {
     fen.querySelectorAll('#pp-pinceaux .choix-btn').forEach((x) => x.classList.toggle('actif', x === b));
-    pinceau = b.dataset.p;
+    pinceau = b.dataset.p; majAide();
   });
+  const AIDE = {
+    ajouter: 'Paints the zone: it will move with the chosen bone.',
+    retirer: 'Erases the zone: it stops following the chosen bone.',
+    statique: 'Makes the zone fixed: it only follows the body, not the limbs.',
+  };
+  function majAide() { $('pp-aide').textContent = T(AIDE[pinceau] || ''); }
+  majAide();
   $('pp-taille').oninput = () => { $('pp-taille-v').textContent = $('pp-taille').value + ' %'; };
   $('pp-force').oninput = () => { $('pp-force-v').textContent = $('pp-force').value + ' %'; };
 
