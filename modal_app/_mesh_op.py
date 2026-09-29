@@ -404,6 +404,32 @@ def fill_holes(glb_bytes: bytes, min_edges: int = 3, max_edges: int = 1_000_000)
     scene = _load_scene(glb_bytes)
     per_mesh = []
     total_dfaces = 0
+
+    # GARDE 1 — DES VRAIS TROUS D'ABORD (2026-09-29). Sur un maillage texture, chaque couture d'UV
+    # duplique ses sommets : vue par trimesh, c'est une arete de BORD. La suite du pipeline prenait
+    # ces coutures pour des trous et SUPPRIMAIT les faces qui les bordent (« broken faces ») :
+    # chevre du user, 5 194 faces, 9 204 « bords » (des coutures), 3 448 faces supprimees, maillage
+    # detruit. On compte donc les bords sur une copie SOUDEE PAR POSITION : zero = maillage ferme,
+    # rien a boucher -> inchange et non facture (meme politique que le filtre min/max ci-dessous).
+    maillages = [m for m in _meshes(scene) if hasattr(m, 'faces') and len(m.faces)]
+    faces_avant_total = sum(int(len(m.faces)) for m in maillages)
+    vrais_bords = 0
+    for m in maillages:
+        V = np.asarray(m.vertices, dtype=np.float64)
+        F = np.asarray(m.faces, dtype=np.int64)
+        pas = max(float(np.ptp(V, axis=0).max()) * 1e-5, 1e-12)
+        _, inv = np.unique(np.round(V / pas).astype(np.int64), axis=0, return_inverse=True)
+        Fw = inv.reshape(-1)[F]
+        Fw = Fw[(Fw[:, 0] != Fw[:, 1]) & (Fw[:, 1] != Fw[:, 2]) & (Fw[:, 0] != Fw[:, 2])]
+        aretes = np.sort(np.concatenate([Fw[:, [0, 1]], Fw[:, [1, 2]], Fw[:, [2, 0]]]), axis=1)
+        _, n = np.unique(aretes, axis=0, return_counts=True)
+        vrais_bords += int((n == 1).sum())
+    if maillages and vrais_bords == 0:
+        print('[mesh-op] fill_holes: maillage ferme (0 bord une fois soude), rien a boucher', flush=True)
+        raise RuntimeError(
+            'aucun trou a boucher : le maillage est ferme. Les zones qui paraissent percees sont des '
+            'triangles retournes (parties fines) — le maillage est inchange.')
+
     for m in _meshes(scene):
         if not hasattr(m, 'faces'):
             continue
@@ -608,6 +634,17 @@ def fill_holes(glb_bytes: bytes, min_edges: int = 3, max_edges: int = 1_000_000)
         'holes_filled_delta_faces': total_dfaces,
         'meshes': per_mesh,
     }
+
+    # GARDE 2 — BOUCHER N'ENLEVE PAS DE MATIERE (2026-09-29). Le nettoyage non-manifold supprime des
+    # faces avant de boucher ; s'il en retire plus de 5 %, le resultat est abime (chevre : 5 194 ->
+    # ~1 750 faces). Annule : maillage inchange, non facture.
+    faces_apres_total = sum(int(len(m.faces)) for m in _meshes(scene) if hasattr(m, 'faces'))
+    if faces_avant_total and faces_apres_total < 0.95 * faces_avant_total:
+        perte = 100 * (1 - faces_apres_total / faces_avant_total)
+        print(f'[mesh-op] fill_holes: {perte:.0f} % des faces perdues, resultat refuse', flush=True)
+        raise RuntimeError(
+            f'le bouchage aurait supprime {perte:.0f} % des faces du maillage : annule, le maillage '
+            'est inchange.')
 
     # GARANTIE : SI RIEN N'A ETE BOUCHE, RIEN NE CHANGE.
     #

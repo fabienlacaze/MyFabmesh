@@ -12327,6 +12327,14 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
       }),
       signal: AbortSignal.timeout(120_000),
     });
+    if (r.status === 422) {
+      // Refus EXPLIQUE par l'op (ex. fill_holes : maillage ferme, ou bouchage destructeur refuse) :
+      // le message est pour l'utilisateur (2026-09-29).
+      const d = await r.json().catch(() => null) as { detail?: string } | null;
+      const e = new Error(String(d?.detail || 'operation refused').slice(0, 300));
+      (e as Error & { pourUtilisateur?: boolean }).pourUtilisateur = true;
+      throw e;
+    }
     if (!r.ok) throw new Error(`Service mesh_op HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const data = await r.json() as { glb_base64?: string; stats?: Record<string, unknown> };
     if (!data.glb_base64) throw new Error('Modal mesh_op missing glb_base64');
@@ -12375,7 +12383,10 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
                        0, opStart, Date.now(), 'failed',
                        { req, projectName, op_type: op, error: errMsg });
     console.error('[mesh-op]', op, errMsg, e);
-    // Don't leak upstream stack/URLs to the client.
+    // Don't leak upstream stack/URLs to the client — sauf un refus explique par l'op (422).
+    if ((e as Error & { pourUtilisateur?: boolean })?.pourUtilisateur) {
+      return err(422, `${errMsg} (credits refunded)`);
+    }
     return err(502, `mesh ${op} failed (credits refunded)`);
   }
 }

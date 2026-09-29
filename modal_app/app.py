@@ -3330,6 +3330,11 @@ def mesh_router():
                 out, stats = run_mesh_op(op_type, src, payload.get("params") or {})
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
+            except RuntimeError as e:
+                # REFUS EXPLIQUE (2026-09-29) : une op qui ne changerait rien ou abimerait le maillage
+                # (fill_holes : « aucun trou », « aurait supprime X % des faces ») leve RuntimeError.
+                # Sans ce 422, FastAPI rendait un 500 muet et l'utilisateur ne lisait qu'un echec generique.
+                raise HTTPException(status_code=422, detail=str(e))
             resp = {
                 "ok": True,
                 "op_type": op_type,
