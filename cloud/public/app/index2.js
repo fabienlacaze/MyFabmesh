@@ -11270,7 +11270,10 @@ function openMeshToolModal(toolName) {
   // mobile, so we don't punish mobile users with "no Apply button"
   // on tools that would never crash them.
   const deviceCapable = !!schema.clientApplyOnly || _deviceCanRunMeshClient();
-  if (schema.supportsClientApply && deviceCapable && applyParent) {
+  // « APPLY ON DEVICE (FREE) » RETIRE (2026-09-29, user : « on ne le propose plus ; sur le cloud c'est credit +
+  // Modal, pas le processeur de l'ordi »). Seul Set pivot point (une translation, pas d'op serveur a ses
+  // prereglages) garde ce chemin, sous un simple « Apply ».
+  if (schema.clientApplyOnly && applyParent) {
     deviceBtn = document.createElement('button');
     deviceBtn.id = 'mt-apply-device';
     deviceBtn.className = 'secondary-btn';
@@ -11293,15 +11296,14 @@ function openMeshToolModal(toolName) {
   // Apply-on-cloud label with a real .credit-badge instead of the
   // text "(1 cr)" — keeps the credit indicator consistent with every
   // other place in the app.
-  const cloudApplyHTML = 'Apply on cloud <span class="credit-badge" style="margin-left:6px;">1</span>';
+  const cloudApplyHTML = _i18nT('Apply') + ' <span class="credit-badge" style="margin-left:6px;">1</span>';
   if (cloudHidden) {
     applyBtn.style.display = 'none';
-    if (deviceBtn) deviceBtn.textContent = '💻 Apply';
+    if (deviceBtn) deviceBtn.textContent = _i18nT('Apply');
   } else if (schema.supportsClientApply && deviceCapable) {
     applyBtn.innerHTML = cloudApplyHTML;
   } else if (schema.supportsClientApply && !deviceCapable) {
     applyBtn.innerHTML = cloudApplyHTML;
-    applyBtn.title = 'This device is mobile/low-spec — only the cloud path is available.';
   } else {
     applyBtn.textContent = originalApplyLabel || 'Apply';
   }
