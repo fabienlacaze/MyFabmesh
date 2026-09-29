@@ -170,6 +170,10 @@ rig_output_volume = modal.Volume.from_name(
 CKPT = "experiments/articulation_xl_quantization_256_token_4/grpo_1400.ckpt"
 
 
+# Tirages du rig sur une copie de 100 000 faces (le rigger ne regarde que ~54 000 points) ; la
+# peau finale reste calculee sur le maillage complet. Voir scripts/rig_complet.py (DECALAGE_ALLEGE).
+ALLEGE_FACES = 100_000
+
 # ---------------------------------------------------------------------------
 # Rigging (GPU)
 # ---------------------------------------------------------------------------
@@ -290,6 +294,10 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
         pilote = os.path.join(os.path.dirname(modal_app.__file__), "squelette", "rig_complet.py")
         if os.path.isfile(pilote):
             cmd = ["python", pilote, src, out, "--tirages", str(TIRAGES_IA)]
+            # tirages sur une copie allegee (2026-09-29, rig_complet.py --allege) ; 0 = maillage complet
+            allege = int(options.get("allege_faces", ALLEGE_FACES))
+            if allege > 0:
+                cmd += ["--allege", str(allege)]
             if options.get("graine") is not None:
                 cmd += ["--graine", str(int(options["graine"]))]
             if options.get("tirage") is not None:

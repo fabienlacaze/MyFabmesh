@@ -49,6 +49,33 @@ import time
 from pathlib import Path
 
 
+# TIRAGES SUR UNE COPIE ALLEGEE (--allege N, 2026-09-29). Le rigger ne regarde que ~54 000 points
+# de surface et 16 384 sommets ; le maillage livre en a 500 000. Chaque tirage faisait charger,
+# transferer et reexporter ce maillage complet par Blender (~52 s). Les tirages se font sur une copie
+# sans texture de N faces ; la peau finale est TOUJOURS calculee une fois sur le maillage complet.
+# Un tirage allege est range sous l'indice i + DECALAGE_ALLEGE : l'editeur de points renvoie cet
+# indice, le rejeu se refait donc sur la meme copie (les anciens rigs, < DECALAGE, sur le complet).
+DECALAGE_ALLEGE = 8
+
+
+def copie_allegee(entree, dest, faces):
+    """Copie sans texture a ~`faces` faces (quadrique d'open3d), en coordonnees monde. None si le
+    maillage est deja assez leger."""
+    import numpy as np
+    import open3d as o3d
+    import trimesh
+    sc = trimesh.load(str(entree))
+    m = sc.to_geometry() if hasattr(sc, 'to_geometry') else (sc.dump(concatenate=True) if hasattr(sc, 'dump') else sc)
+    m = trimesh.Trimesh(np.asarray(m.vertices), np.asarray(m.faces), process=True)   # coutures UV soudees
+    if len(m.faces) <= 1.2 * faces:
+        return None
+    om = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(np.asarray(m.vertices, dtype=np.float64)),
+                                   o3d.utility.Vector3iVector(np.asarray(m.faces, dtype=np.int32)))
+    om = om.simplify_quadric_decimation(target_number_of_triangles=int(faces))
+    trimesh.Trimesh(np.asarray(om.vertices), np.asarray(om.triangles), process=False).export(str(dest))
+    return Path(dest)
+
+
 def journal(msg):
     print(f'[rig-complet] {msg}', flush=True)
 
@@ -111,6 +138,8 @@ def main():
     ap.add_argument('--tirage', type=int, default=None,
                     help='rejouer d\'abord ce tirage (graine + tirage) : celui du rig edite')
     ap.add_argument('--squelette', help='JSON {joints, parents} : squelette IMPOSE (peau seule)')
+    ap.add_argument('--allege', type=int, default=0,
+                    help='tirages sur une copie allegee a N faces (Modal) ; peau finale sur le maillage complet')
     a = ap.parse_args()
     t0 = time.time()
     entree = Path(a.entree).resolve()
@@ -137,11 +166,26 @@ def main():
         rig_impose(sq, entree, sortie, lire_squelette(a.squelette), points, graine, rigger, tmp, t0, liens)
         return
 
+    # copie allegee : pour les nouveaux tirages si --allege, et pour REJOUER un tirage allege
+    rejoue_allege = a.tirage is not None and a.tirage >= DECALAGE_ALLEGE
+    source_tirages, allege = entree, False
+    if a.allege > 0 or rejoue_allege:
+        try:
+            t_a = time.time()
+            c = copie_allegee(entree, tmp / 'allege.glb', a.allege if a.allege > 0 else 100_000)
+            if c is not None:
+                source_tirages, allege = c, True
+                journal(f'tirages sur une copie allegee ({a.allege or 100_000} faces) en {time.time() - t_a:.0f} s')
+        except Exception as e:
+            journal(f'copie allegee impossible, tirages sur le maillage complet : {type(e).__name__}: {e}')
+    if a.tirage is not None and a.tirage >= DECALAGE_ALLEGE:
+        a.tirage -= DECALAGE_ALLEGE                 # indice reel du tirage (graine + indice)
+
     def tirer(i):
         dest = tmp / f'tirage_{i}.glb'
         try:
             semer(graine + i)
-            if rigger(entree, dest, False):
+            if rigger(source_tirages, dest, False):
                 return dest
             journal(f'tirage {i + 1} : aucun fichier')
         except Exception as e:
@@ -197,10 +241,12 @@ def main():
             journal(f'ECHEC : analyse du maillage impossible, points non appliques : {type(e).__name__}: {e}')
             sys.exit(4)
         journal(f'analyse du maillage impossible, meilleur = premier tirage : {type(e).__name__}: {e}')
+        if allege:
+            meilleur = peau_sur_complet(sq, entree, meilleur, graine, rigger, tmp)
         shutil.copyfile(meilleur, sortie)
         peau_reparee(sq, sortie, {})
         return
-    compte_rendu['tirage_retenu'] = retenu
+    compte_rendu['tirage_retenu'] = retenu + (DECALAGE_ALLEGE if allege else 0)
 
     # 3 + 4. completion puis peau par l'IA
     final = meilleur
@@ -245,13 +291,34 @@ def main():
             sys.exit(4)
         journal(f'completion abandonnee, on garde le meilleur tirage : {type(e).__name__}: {str(e)[:300]}')
 
+    if allege and final == meilleur:
+        # le tirage retenu vient de la copie allegee : sa peau est calculee sur le maillage COMPLET
+        final = peau_sur_complet(sq, entree, meilleur, graine, rigger, tmp)
     shutil.copyfile(final, sortie)
     peau_reparee(sq, sortie, compte_rendu)
+    compte_rendu['duree_s'] = round(time.time() - t0)
+    compte_rendu['tirages_alleges'] = allege
     try:
         sq.ajouter_extras(str(sortie), compte_rendu)
     except Exception as e:
         journal(f'compte rendu non ecrit dans le GLB : {e}')
     journal(f'TERMINE en {time.time() - t0:.0f} s ({"complete" if final != meilleur else "IA seule"})')
+
+
+def peau_sur_complet(sq, entree, tirage, graine, rigger, tmp):
+    """Squelette d'un tirage fait sur la copie allegee, greffe sur le maillage COMPLET (texture,
+    UV), peau calculee par l'IA. Sans resultat : arret (code 3), l'appelant rejoue l'ancien
+    chemin — on ne livre jamais la copie allegee."""
+    J, parents, noms = sq.squelette_du_glb(str(tirage))
+    arm = tmp / 'armature_tirage.glb'
+    sq.greffer(str(entree), J, parents, noms, str(arm))
+    dest = tmp / 'tirage_complet.glb'
+    semer(graine + 1000)
+    if not rigger(arm, dest, True):
+        journal('ECHEC : peau du tirage allege sur le maillage complet sans resultat')
+        sys.exit(3)
+    journal(f'peau du tirage (copie allegee) calculee sur le maillage complet : {len(J)} os')
+    return dest
 
 
 def peau_reparee(sq, sortie, compte_rendu):
