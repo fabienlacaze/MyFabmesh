@@ -477,6 +477,57 @@ def accelerer_to_glb(o_voxel_module) -> None:
         print(f"[mesh] retouches d'atlas : acceleration ignoree ({type(e).__name__}: {e})", flush=True)
 
 
+# TEXTURE COULEUR ENCODEE PLUS VITE (2026-09-29). trimesh encode les textures en WebP avec les
+# reglages par defaut de Pillow (qualite 80, method 4) : 95 % de la serialisation du GLB. Mesure
+# sur l'atlas 8K d'un vrai maillage : 18,7 s, 3,5 Mo, 44,02 dB. method=2 + qualite 90 : 2,2 s,
+# 6,0 Mo, 44,34 dB — meme qualite (un peu meilleure), 8x plus vite, fichier plus lourd. La
+# texture couleur est encodee ici et trimesh reprend ces octets tels quels (son _append_image
+# est enveloppe) ; metal/rugosite garde le reglage d'origine (petite et deja rapide).
+WEBP_COULEUR = {'method': 2, 'quality': 90}
+
+
+def _envelopper_append_image() -> bool:
+    try:
+        import inspect
+        import trimesh.exchange.gltf as G
+        if getattr(G, '_fabmesh_webp', False):
+            return True
+        orig = G._append_image
+        if list(inspect.signature(orig).parameters) != ['img', 'tree', 'buffer_items', 'extension_webp']:
+            print('[mesh] webp : trimesh inattendu, encodage d’origine', flush=True)
+            return False
+
+        def _append_image(img, tree, buffer_items, extension_webp):
+            octets = getattr(img, '_fabmesh_webp', None)
+            if extension_webp and octets:
+                index = G._buffer_append(buffer_items, octets)
+                tree['images'].append({'bufferView': index, 'mimeType': 'image/webp'})
+                return len(tree['images']) - 1
+            return orig(img, tree, buffer_items, extension_webp)
+        G._append_image = _append_image
+        G._fabmesh_webp = True
+        return True
+    except Exception as e:
+        print(f'[mesh] webp : enveloppe ignoree ({type(e).__name__}: {e})', flush=True)
+        return False
+
+
+def preencoder_couleur(glb_obj) -> float:
+    """Encode la texture couleur (WEBP_COULEUR) et la marque pour trimesh. Rend la duree."""
+    if not _envelopper_append_image():
+        return 0.0
+    t = time.time()
+    for g in (list(glb_obj.geometry.values()) if hasattr(glb_obj, 'geometry') else [glb_obj]):
+        mat = getattr(getattr(g, 'visual', None), 'material', None)
+        tex = getattr(mat, 'baseColorTexture', None) if mat else None
+        if tex is None:
+            continue
+        f = io.BytesIO()
+        tex.save(f, format='WEBP', **WEBP_COULEUR)
+        tex._fabmesh_webp = f.getvalue()
+    return time.time() - t
+
+
 def prep_image(image: Image.Image) -> Image.Image:
     """Background removal via rembg u2net (Apache 2.0) — same as
     desktop pipeline. Skip if image already has a non-trivial alpha.
@@ -814,10 +865,12 @@ def generate(
             print(f'[mesh] ultra 8K ignore : {_e}', flush=True)
 
     _t = time.time()
+    t_webp = preencoder_couleur(glb_obj)
     buf = io.BytesIO()
     glb_obj.export(buf, file_type='glb', extension_webp=True)
     glb_bytes = buf.getvalue()
-    print(f'[mesh] finitions : couleurs/metal/alpha {t_couleurs:.1f}s, serialisation {time.time() - _t:.1f}s', flush=True)
+    print(f'[mesh] finitions : couleurs/metal/alpha {t_couleurs:.1f}s, serialisation {time.time() - _t:.1f}s '
+          f'(dont texture couleur {t_webp:.1f}s)', flush=True)
 
     # EU AI Act art. 50 metadata — required by EU Regulation 2024/1689,
     # applicable from 2026-08-02. Marks the GLB as AI-generated. Same

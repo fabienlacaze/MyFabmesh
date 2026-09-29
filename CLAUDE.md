@@ -551,8 +551,12 @@ préchauffe doit appeler **`/warm`**, pas `/healthz`, sinon un service annoncé
   lent). Appliqué dans `generate(ultra_hd=True)` AVANT l'enregistrement du GLB
   (un seul enregistrement au lieu de enregistrer / recharger / réenregistrer),
   sauf si refine ou face fix passent après. Journal : `finitions : couleurs
-  ~7 s, serialisation ~17 s` en 8K — l'encodage WebP de l'atlas 8192 est le
-  dernier gisement. Une 3D 500 K / Ultra 8K à chaud : ~113 s de calcul.
+  ~7 s, serialisation ~17 s` en 8K avant l'encodage rapide ci-dessous.
+- **Texture couleur encodée plus vite** (`_mesh.preencoder_couleur`, 2026-09-29) :
+  95 % de l'enregistrement du GLB était l'encodage WebP par défaut de trimesh
+  (qualité 80, method 4 : 18,7 s en 8K). Encodée en method 2 / qualité 90 :
+  2,2 s, qualité égale ou supérieure (44,34 contre 44,02 dB), fichier +12 %.
+  trimesh reprend ces octets (`_append_image` enveloppé, garde de signature).
 - **Pas plus rapide en changeant de carte** : voir « GPU en production » —
   H100 mesuré sans intérêt, B200 incompatible avec l'image (CUDA 12.4).
 - Diagnostiquer un mesh : télécharger le GLB depuis R2 et mesurer
