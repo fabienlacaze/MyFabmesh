@@ -2301,6 +2301,13 @@ async function handleApiKeysRevoke(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, id, revoquee: rec.revoquee });
 }
 
+/** Service d'authentification ou base INJOIGNABLE (5xx, 429, delai, reseau) — a ne pas confondre
+ *  avec une session invalide. Le routeur repond 503 : la page reessaie et NE DECONNECTE PAS.
+ *  (2026-09-29 : pendant quelques minutes de « Gateway Timeout » de Supabase, getSessionUser rendait
+ *  null -> 401 -> la page tentait un rafraichissement, qui echouait aussi et EFFACAIT les cookies :
+ *  user deconnecte, 0 projet, credits affiches a 0.) */
+class ServiceIndisponible extends Error {}
+
 async function getSessionUser(req: Request, env: Env): Promise<SessionUser | null> {
   if (isMock(env)) {
     const c = parseCookies(req);
@@ -2322,10 +2329,20 @@ async function getSessionUser(req: Request, env: Env): Promise<SessionUser | nul
   const anon = env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   if (!url || !anon) return null;
 
-  const meRes = await fetch(`${url}/auth/v1/user`, {
-    headers: { 'authorization': `Bearer ${token}`, 'apikey': anon },
-  });
-  if (!meRes.ok) return null;
+  let meRes: Response;
+  try {
+    meRes = await fetch(`${url}/auth/v1/user`, {
+      headers: { 'authorization': `Bearer ${token}`, 'apikey': anon },
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (e) {
+    throw new ServiceIndisponible('auth injoignable : ' + (e instanceof Error ? e.message : String(e)));
+  }
+  if (!meRes.ok) {
+    // 5xx / 429 : le service est en panne, la session n'est PAS jugee (voir ServiceIndisponible)
+    if (meRes.status >= 500 || meRes.status === 429) throw new ServiceIndisponible(`auth HTTP ${meRes.status}`);
+    return null;
+  }
   const me = await meRes.json() as { id?: string; email?: string };
   if (!me.id) return null;
 
@@ -2352,11 +2369,13 @@ async function getSessionUser(req: Request, env: Env): Promise<SessionUser | nul
   if (banned.has(me.id)) return null;
 
   const sb = supabaseAdmin(env);
-  const { data: profile } = await sb
+  const { data: profile, error: errProfil } = await sb
     .from('profiles')
     .select('credits')
     .eq('id', me.id)
     .maybeSingle();
+  // base en panne : ne pas afficher 0 credit (constate le 2026-09-29) — 503, la page reessaie
+  if (errProfil) throw new ServiceIndisponible('profil illisible : ' + errProfil.message);
   return { id: me.id, email: me.email ?? null, credits: (profile?.credits as number) ?? 0 };
 }
 
@@ -3533,11 +3552,23 @@ async function handleAuthRefresh(req: Request, env: Env): Promise<Response> {
   const anon = env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   if (!supabaseUrl || !anon) return err(500, 'supabase not configured');
 
-  const r = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'apikey': anon },
-    body: JSON.stringify({ refresh_token: rt }),
-  });
+  let r: Response;
+  try {
+    r = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'apikey': anon },
+      body: JSON.stringify({ refresh_token: rt }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    return err(503, 'auth service unavailable, retry');   // cookies GARDES
+  }
+  // PANNE DU SERVICE != JETON REFUSE (2026-09-29). Tout echec effacait les cookies : quelques
+  // minutes de « Gateway Timeout » de Supabase ont deconnecte le user. Seul un refus (400
+  // invalid_grant, 401, 403) efface la session ; 5xx / 429 rendent 503 et la page reessaie.
+  if (!r.ok && (r.status >= 500 || r.status === 429)) {
+    return err(503, 'auth service unavailable, retry');
+  }
   if (!r.ok) {
     // Refresh failed (revoked, expired, user deleted) — wipe cookies
     // so the next /api/me cleanly returns 401 and the renderer can
@@ -14877,7 +14908,8 @@ const DIAG_LOG_RETENTION_DAYS = 30;
  *  Logs are deleted after DIAG_LOG_RETENTION_DAYS. */
 async function handleClientLog(req: Request, env: Env): Promise<Response> {
   if (!env.MESHES) return err(500, 'R2 binding required');
-  const user = await getSessionUser(req, env).catch(() => null);
+  // base en panne -> 503 (routeur), pas 401 : un 401 declencherait le rafraichissement de session
+  const user = await getSessionUser(req, env).catch((e) => { if (e instanceof ServiceIndisponible) throw e; return null; });
   if (!user) return err(401, 'unauthorized');
   let body: any;
   try {
@@ -21284,6 +21316,11 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
+      if (e instanceof ServiceIndisponible) {
+        // la page reessaie ; surtout pas de 401, qui declencherait la deconnexion
+        console.warn('Service indisponible :', msg);
+        return err(503, 'service temporarily unavailable, please retry');
+      }
       console.error('Worker error:', msg, e);
       return err(500, `internal: ${msg}`);
     }

@@ -74,8 +74,10 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   let _refreshInFlight = null;     // shared Promise so concurrent 401s share one refresh
   const _origFetch = window.fetch.bind(window);
 
-  // Run the refresh AT MOST once at a time. Returns true if a refresh
-  // round-trip succeeded (cookies were rotated), false otherwise.
+  // Run the refresh AT MOST once at a time. Rend le CODE HTTP du rafraichissement (0 = reseau) :
+  // 200 = cookies renouveles ; 400/401/403 = session refusee ; 503 et autres = service en panne,
+  // la session n'est PAS jugee (2026-09-29 : une panne de quelques minutes de la base
+  // deconnectait le user).
   async function _tryRefresh() {
     if (!_refreshInFlight) {
       _refreshInFlight = (async () => {
@@ -83,9 +85,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           const r = await _origFetch('/api/auth/refresh', {
             method: 'POST', credentials: 'include',
           });
-          return r.ok;
+          return r.status;
         } catch {
-          return false;
+          return 0;
         } finally {
           // Clear right after so the NEXT 401 (later in the session)
           // can start a fresh refresh attempt.
@@ -109,11 +111,16 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         // Try to refresh the session ONCE; if it works, replay the
         // original request with the new cookies (browser attaches them
         // automatically). Only redirect if refresh + retry both fail.
-        const refreshed = await _tryRefresh();
-        if (refreshed) {
+        const etat = await _tryRefresh();
+        if (etat >= 200 && etat < 300) {
           res = await _origFetch(input, init);
         }
-        if (res.status === 401) {
+        // Renvoi a la connexion SEULEMENT si la session est vraiment refusee : rafraichissement
+        // refuse (400/401/403), ou accepte mais la requete rejouee toujours en 401. Service en
+        // panne (503, reseau) : on reste sur la page, les appels suivants passeront.
+        const refusee = (etat >= 200 && etat < 300) ? res.status === 401
+                      : (etat === 400 || etat === 401 || etat === 403);
+        if (refusee) {
           _redirectedFor401 = true;
           const next = encodeURIComponent(window.location.pathname + window.location.search);
           window.location.replace(`/login?next=${next}`);
