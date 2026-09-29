@@ -37,7 +37,7 @@ function construireFenetre() {
     #modal-poids-peau .pp-sect { display: flex; flex-direction: column; gap: 6px; }
     #modal-poids-peau .pp-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     #modal-poids-peau .pp-case { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 0; cursor: pointer; }
-    #modal-poids-peau .pp-liste { max-height: 132px; }
+    #modal-poids-peau .pp-liste { height: 132px; min-height: 60px; max-height: 75vh; resize: vertical; overflow-y: auto; }   /* poignee en bas a droite : la liste s'agrandit */
     #modal-poids-peau .pp-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
     #modal-poids-peau .pp-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
     #modal-poids-peau .choix-btn { padding: 6px 4px; text-align: center; }
@@ -172,6 +172,11 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   let osChoisi = Math.min(os.length - 1, Math.max(0, racine + 1)), survol = -1;
   liste.innerHTML = os.map((b, i) => `<button type="button" class="pp-os-btn" data-i="${i}">${esc(b.name || 'bone ' + i)}</button>`).join('');
   const boutonsOs = Array.from(liste.children);
+  // hauteur de la liste : agrandissable a la souris (poignee en bas a droite), retenue d'une ouverture a l'autre
+  try { const h = parseInt(localStorage.getItem('pp-liste-h'), 10); if (h >= 60) liste.style.height = h + 'px'; } catch (_) {}
+  let minH = null;
+  const roListe = new ResizeObserver(() => { clearTimeout(minH); minH = setTimeout(() => { try { localStorage.setItem('pp-liste-h', String(Math.round(liste.getBoundingClientRect().height))); } catch (_) {} }, 300); });
+  roListe.observe(liste);
   if (boutonsOs[osChoisi]) boutonsOs[osChoisi].classList.add('actif');
 
   // --- par maillage : positions de repos (monde), couleurs, BVH de pointage, grille pour le pinceau.
@@ -661,7 +666,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
 
   // --- fermeture / enregistrement
   const fermer = () => {
-    vivant = false; document.removeEventListener('keydown', touches); document.removeEventListener('keydown', touchesAlt); document.removeEventListener('keyup', touchesAlt); window.removeEventListener('blur', alt0); ro.disconnect(); ctrl.dispose(); renderer.dispose();
+    vivant = false; roListe.disconnect(); document.removeEventListener('keydown', touches); document.removeEventListener('keydown', touchesAlt); document.removeEventListener('keyup', touchesAlt); window.removeEventListener('blur', alt0); ro.disconnect(); ctrl.dispose(); renderer.dispose();
     donnees.forEach((d) => { d.pointage.geometry.dispose(); });
     geoSq.dispose(); anneau.geometry.dispose(); [epaisRouge, epaisOrange].forEach((e) => { e.geo.dispose(); e.mat.dispose(); });
     fen.classList.add('hidden');
