@@ -25682,6 +25682,7 @@ function _ptsAppliquer(x) {
     pt.avantOs = l && Number.isInteger(l.avantOs) && _pts.os[l.avantOs] ? l.avantOs : null;
   });
   if (!_pts.points.some(pt => pt.id === _pts.selection)) _pts.selection = null;
+  _pts.os.forEach((_, j) => _ptsDessinerOs(j));   // annuler / refaire / reset : les articulations cachees sous un point vert suivent
   _ptsListe();
   _ptsMajBoutons();
 }
@@ -26196,6 +26197,7 @@ function _ptsSupprimer(id) {
   if (_pts.survol === id) _pts.survol = null;
   _ptsRenumeroter();
   _ptsDessinerLiens();                       // les traits jaunes vers le point supprime disparaissent aussi (2026-09-29)
+  _pts.os.forEach((_, j) => _ptsDessinerOs(j));   // l'articulation rose cachee sous ce point vert doit reapparaitre (2026-09-29)
   _ptsListe();
   _ptsMajBoutons();
   _ptsSauver();
