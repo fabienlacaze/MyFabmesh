@@ -28931,3 +28931,16 @@ document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () 
     },
   });
 });
+
+// ══ NUMERO DE VERSION (2026-09-29) : petit repere en bas a droite ; le build monte a chaque modification
+// (build/ecrire-version.mjs ecrit build-info.js). Survol = date et commit. Identique bureau / web.
+(function afficherVersion() {
+  const b = window.__BUILD__;
+  if (!b || document.getElementById('version-logiciel')) return;
+  const el = document.createElement('div');
+  el.id = 'version-logiciel';
+  el.setAttribute('data-i18n-skip', ''); el.setAttribute('translate', 'no');
+  el.textContent = `v${b.version} · build ${b.build}${b.sale ? '*' : ''}`;
+  el.title = `${b.date} · ${b.hash}${b.sale ? ' · unsaved changes' : ''}`;
+  document.body.appendChild(el);
+})();

@@ -4770,3 +4770,8 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 
 /* Fenetre de lancement sans image (Skeleton points...) : « display:flex » l'emportait sur l'attribut hidden -> cadre vide */
 #modal-lancement .fen-apercu[hidden] { display: none; }
+
+/* Numero de version (bas droite) */
+#version-logiciel { position: fixed; right: 10px; bottom: 6px; z-index: 9990; font-size: 10.5px; letter-spacing: .3px;
+  color: var(--text-2, #9aa3b5); opacity: .55; user-select: none; }
+#version-logiciel:hover { opacity: 1; }
