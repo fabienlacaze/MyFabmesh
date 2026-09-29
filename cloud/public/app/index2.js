@@ -2464,6 +2464,12 @@ function populateWorkspace(p) {
   // MEME projet (rechargement apres une suppression, une generation...) : la bande des versions d'images garde
   // ses vignettes jusqu'a ce que renderImageVersions les remplace. Sinon elle restait VIDE le temps des appels
   // reseau du rendu (user 29/09 : « j'ai supprime une version, les autres ont disparu ~5 s puis sont reapparues »).
+  // PRECHARGEMENT du rig en arriere-plan (2026-09-29) : l'ouvrir ensuite (viewer Rig, Animation, poids de peau) ne
+  // retelecharge plus rien (cache de readMeshFile). Apres 2 s, une seule fois par projet ouvert.
+  clearTimeout(window.__prechargeRig);
+  window.__prechargeRig = setTimeout(() => {
+    try { const r = (typeof _rigAffiche === 'function') ? _rigAffiche() : null; if (r && (r.url || r.path)) API.readMeshFile(r.url || r.path).catch(() => {}); } catch (_) {}
+  }, 2000);
   const _bandeImg = document.getElementById('ws-image-versions');
   const _vignettesGardees = (_bandeImg && p && _bandeImg.dataset.projet === String(p.name))
     ? Array.from(_bandeImg.childNodes) : null;

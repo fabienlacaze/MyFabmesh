@@ -570,6 +570,7 @@
   /* ──────────────────────────────────────────────────────────────────
    * IMPLEMENTED — these are the calls the cloud actually services.
    * ────────────────────────────────────────────────────────────────── */
+  const _tamponsMaillage = new Map();      // voir readMeshFile
   const impl = {
     /* config / session */
     getConfig: async () => {
@@ -1779,14 +1780,38 @@
       if (/^https?:|^blob:/i.test(filePath)) return filePath;
       return await impl.getMeshPath(filePath);
     },
+    /* LECTURE D'UN MAILLAGE / RIG AVEC CACHE MEMOIRE (2026-09-29, user : « viewer long a charger, rig et anim »). Un rig
+     * texture pese 30 a 70 Mo et etait retelecharge a CHAQUE ouverture, par chaque outil (viewer Rig, apercu Animation,
+     * points du squelette, poids de peau). Cache LRU (4 fichiers, 320 Mo) cle par l'adresse SANS signature ; les lectures
+     * simultanees du meme fichier partagent le meme telechargement ; chaque appelant recoit sa COPIE. */
     readMeshFile: async (filePath) => {
-      const url = await impl.getMeshLocalUrl(filePath);
-      if (!url) return null;
-      try {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return await r.arrayBuffer();
-      } catch (e) { log('readMeshFile failed:', e); return null; }
+      const cle = String(filePath || '').split('#')[0].split('?')[0];
+      let e = _tamponsMaillage.get(cle);
+      if (e) { _tamponsMaillage.delete(cle); _tamponsMaillage.set(cle, e); }          // le plus recent en dernier
+      else {
+        e = { n: 0, p: (async () => {
+          const url = await impl.getMeshLocalUrl(filePath);
+          if (!url) return null;
+          try {
+            const r = await fetch(url);
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return await r.arrayBuffer();
+          } catch (err) { log('readMeshFile failed:', err); return null; }
+        })() };
+        _tamponsMaillage.set(cle, e);
+        e.p.then((b) => {
+          if (!b) { if (_tamponsMaillage.get(cle) === e) _tamponsMaillage.delete(cle); return; }
+          e.n = b.byteLength;
+          let total = 0; for (const x of _tamponsMaillage.values()) total += x.n;
+          while (_tamponsMaillage.size > 1 && (_tamponsMaillage.size > 4 || total > 320e6)) {
+            const [k0, x0] = _tamponsMaillage.entries().next().value;
+            if (x0 === e) break;
+            _tamponsMaillage.delete(k0); total -= x0.n;
+          }
+        });
+      }
+      const b = await e.p;
+      return b ? b.slice(0) : null;
     },
     deleteMesh: async (filenameOrId) => {
       // Resolve to a job id. The Worker accepts uuid, "<safe>_trellis2_<tail>"
