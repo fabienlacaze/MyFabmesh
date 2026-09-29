@@ -78,7 +78,11 @@ function construireFenetre() {
         </div>
         <details class="pp-sect pp-plie">
           <summary>${esc(T('Spread / shrink the zone'))}</summary>
-          <div class="pp-curseur"><span>${esc(T('Shrink'))}</span><input type="range" id="pp-prop" min="-20" max="20" value="0" step="1"><span class="fen-valeur" id="pp-prop-v">0</span></div>
+          <div class="pp-2">
+            <button type="button" class="ghost-btn" id="pp-contracter">&#8722; ${esc(T('Shrink'))}</button>
+            <button type="button" class="ghost-btn" id="pp-etendre">+ ${esc(T('Spread'))}</button>
+          </div>
+          <div class="pp-curseur"><span>${esc(T('Step'))}</span><input type="range" id="pp-pas" min="1" max="20" value="4"><span class="fen-valeur" id="pp-pas-v">2 %</span></div>
         </details>
         <details class="pp-sect pp-plie">
           <summary>${esc(T('Clean far zones'))}</summary>
@@ -303,19 +307,15 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     }
   }
 
-  // --- propager / contracter la zone de l'os choisi, EN DIRECT : le curseur montre le resultat pendant qu'on le bouge
-  // (distance = 0,5 % de l'etendue par cran) ; il est valide au relachement (annulable). Un instantane de depart est
-  // pris au premier mouvement ; chaque valeur repart de lui.
-  let base = null, enCalcul = false, attendu = null;
-  function calculerProp(v) {
-    const dist = Math.abs(v) * ext * 0.005, etendre = v > 0, D2 = dist * dist;
+  // --- propager / contracter la zone de l'os choisi : un PAS par clic (taille du pas = curseur, 0,5 % de l'etendue par cran),
+  // valide tout de suite et annulable. Zone = sommets lies a l'os a 35 % ou plus.
+  $('pp-pas').oninput = () => { $('pp-pas-v').textContent = (+$('pp-pas').value * 0.5) + ' %'; };
+  function pas(etendre) {
+    const dist = +$('pp-pas').value * ext * 0.005, D2 = dist * dist;
+    trait = { avant: new Map() };
     let nb = 0;
     for (const d of donnees) {
-      const I = d.idx.array, W = d.wts.array, P = d.pos, snap = base.get(d);
-      for (const i of d.tp) salir(d, i);                    // les sommets du dernier apercu seront recolores
-      I.set(snap.I); W.set(snap.W); d.tp = [];
-      if (!v) continue;
-      const dans = new Uint8Array(d.n);
+      const I = d.idx.array, W = d.wts.array, P = d.pos, dans = new Uint8Array(d.n);
       for (let i = 0; i < d.n; i++) { let w = 0; for (let c = 0; c < 4; c++) if (I[4 * i + c] === osChoisi) w += W[4 * i + c]; dans[i] = w >= 0.35 ? 1 : 0; }
       const source = etendre ? 1 : 0;                       // etendre : on cherche la zone ; contracter : ce qui est HORS zone
       const g = new Map();
@@ -335,41 +335,16 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
           }
         }
         if (best > D2) continue;
-        if (viser(d, i, osChoisi, etendre ? 1 : 0, 1 - 0.7 * Math.sqrt(best / D2))) { d.tp.push(i); salir(d, i); nb++; }
+        noter(d, i);
+        if (viser(d, i, osChoisi, etendre ? 1 : 0, 1 - 0.7 * Math.sqrt(best / D2))) { salir(d, i); nb++; }
       }
     }
-    etat.textContent = v ? `${nb.toLocaleString()} ${T('vertices changed')}` : '';
+    if (trait.avant.size) { pile.push(trait.avant); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
+    trait = null;
+    etat.textContent = `${nb.toLocaleString()} ${T('vertices changed')}`;
   }
-  function planifierProp() {
-    if (enCalcul || attendu === null) return;
-    enCalcul = true;
-    requestAnimationFrame(() => {                            // laisse la barre bouger, calcule ensuite
-      const v = attendu; attendu = null;
-      try { calculerProp(v); } finally { enCalcul = false; }
-      if (attendu !== null) planifierProp();
-    });
-  }
-  $('pp-prop').oninput = () => {
-    const v = +$('pp-prop').value;
-    $('pp-prop-v').textContent = (v > 0 ? '+' : '') + v;
-    if (!base) {
-      base = new Map(); donnees.forEach((d) => { base.set(d, { I: d.idx.array.slice(), W: d.wts.array.slice() }); d.tp = []; });
-    }
-    attendu = v; planifierProp();
-  };
-  $('pp-prop').onchange = () => {                            // relachement : on valide
-    if (!base) return;
-    const av = new Map();
-    for (const d of donnees) {
-      if (!d.tp.length) continue;
-      const snap = base.get(d), m = new Map();
-      for (const i of d.tp) m.set(i, [snap.I[4 * i], snap.I[4 * i + 1], snap.I[4 * i + 2], snap.I[4 * i + 3], snap.W[4 * i], snap.W[4 * i + 1], snap.W[4 * i + 2], snap.W[4 * i + 3]]);
-      av.set(d, m); d.tp = [];
-    }
-    if (av.size) { pile.push(av); $('pp-annuler').disabled = false; if (pile.length > 30) pile.shift(); }
-    base = null;
-    $('pp-prop').value = 0; $('pp-prop-v').textContent = '0';
-  };
+  $('pp-etendre').onclick = () => pas(true);
+  $('pp-contracter').onclick = () => pas(false);
 
   // --- nettoyage automatique : retire l'os des sommets trop loin de lui (distance au segment os -> enfants,
   // en pose de repos, en % de l'etendue). Meme mecanique que le pinceau : le poids retire va aux autres os.
