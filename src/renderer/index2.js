@@ -1905,14 +1905,21 @@ document.getElementById('np-create').addEventListener('click', async () => {
   document.getElementById('step-card-image')?.classList.remove('collapsed', 'disabled');
   ['step-card-mesh', 'step-card-rig', 'step-card-animation'].forEach((id) => document.getElementById(id)?.classList.add('collapsed'));
   window.scrollTo?.({ top: 0 });
-  if (prompt) {
-    document.getElementById('ws-prompt').value = prompt;
-  }
   // Pre-fill the "Create new image" form with the project's choices
   const atSel = document.getElementById('ws-asset-type');
   if (atSel) { atSel.value = assetType; atSel.dispatchEvent(new Event('change')); }
   const asSel = document.getElementById('ws-asset-style');
   if (asSel) asSel.value = assetStyle;
+  // Prompt de la creation d'image = nom + description (mot pour mot), passes par Enhance avec le type et le
+  // style choisis ici. Remplace la description brute qu'on recopiait (elle ecrasait le pre-rempli enrichi).
+  {
+    const ta = document.getElementById('ws-prompt');
+    const brut = _sujetDuProjet(name, stripKnownPromptSuffixes(prompt));
+    if (ta && brut) {
+      ta.dataset.rawPrompt = brut;
+      ta.value = buildFullPrompt(brut, assetType, assetStyle);
+    }
+  }
 });
 
 // ===========================================================
@@ -2970,6 +2977,26 @@ function _viderSourceAnimation() {
   } catch (_) { /* purement visuel */ }
 }
 
+/* SUJET D'UN PROJET (2026-09-29, user : « a la creation on donne un nom et une description ; recupere les deux
+ * et Enhance pour en faire le prompt de la creation d'image »). Le texte du user est garde MOT POUR MOT ; le nom
+ * passe EN TETE (le sujet d'abord : SDXL pese davantage les premiers mots) seulement s'il apporte un mot absent
+ * de la description. Nom nettoye : « wooden_CrafterHut » -> « wooden Crafter Hut », numeros de version et mots
+ * vides retires (« orc W1 », « maison v2 », « project » par defaut). Identique bureau / web. */
+function _sujetDuProjet(nom, description) {
+  const desc = String(description || '').trim();
+  const n = String(nom || '')
+    .replace(/_+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .split(/\s+/)
+    .filter((m) => m && !/^(?:[vw]?\d+|copy|copie|new|nouveau|project|projet)$/i.test(m))
+    .join(' ').trim();
+  if (!n) return desc;
+  if (!desc) return n;
+  const d = desc.toLowerCase();
+  const apporte = n.toLowerCase().split(/\s+/).some((m) => m.length > 2 && !d.includes(m));
+  return apporte ? n + ', ' + desc : desc;
+}
+
 function populateWorkspace(p) {
   // 2026-06-13: populate Step 4 EDIT SELECTED with the project's
   // on-disk animations (from listAnimations -> p.animations in
@@ -3018,12 +3045,17 @@ function populateWorkspace(p) {
   // gabarit qu'Enhance, une fois le type et le style restaures ci-dessus. Gratuit : gabarit local, aucune IA.
   try {
     const ta = document.getElementById('ws-prompt');
-    const brut = ((ta && ta.value) || '').trim() || String(p.name || '').trim();
+    const saisi = ((ta && ta.value) || '').trim();
+    // texte deja retouche par le user (champ memorise, derniere generation) : tel quel ; sinon nom + description
+    const brut = (savedLocal || p.prompt) ? saisi : _sujetDuProjet(p.name, saisi);
+    // gabarit du TYPE DU PROJET (les listes gardent celui du projet precedent tant qu'il n'a rien genere)
+    const meta = (typeof _getProjectMeta === 'function' && _getProjectMeta(p.name)) || {};
     if (ta && brut && typeof buildFullPrompt === 'function'
         && !/single isolated 3D|plain white background|sharp details|photorealistic/i.test(brut)) {
       ta.dataset.rawPrompt = brut;
-      ta.value = buildFullPrompt(brut, document.getElementById('ws-asset-type')?.value || 'character',
-        document.getElementById('ws-asset-style')?.value || 'realistic');
+      ta.value = buildFullPrompt(brut,
+        meta.assetType || p.assetType || document.getElementById('ws-asset-type')?.value || 'character',
+        meta.assetStyle || p.assetStyle || document.getElementById('ws-asset-style')?.value || 'realistic');
     }
   } catch (_) { /* champ laisse tel quel */ }
   // Auto-correct the asset type from the prompt when it's still the raw default
