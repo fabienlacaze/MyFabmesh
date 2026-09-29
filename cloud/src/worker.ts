@@ -10505,6 +10505,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
   imageUrl: string;
   prompt?: string;
   strength?: number;          // modify + face_fix_image
+  assetType?: string;         // face_fix_image — animal : tete trouvee par CLIPSeg, prompt d'animal
   seed?: number;
   steps?: number;
   targetText?: string;        // auto_inpaint only
@@ -10555,6 +10556,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
     body.recolor_all = input.recolorAll ?? false;
   } else if (input.op === 'face_fix_image') {
     body.strength = input.strength ?? 0.45;
+    body.asset_type = input.assetType ?? '';
   } else if (input.op === 'upscale') {
     body.scale = input.scale ?? 2;
     body.refine_strength = input.refineStrength ?? 0.15;
@@ -12255,10 +12257,11 @@ async function handleFaceFixImage(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'face-fix backend unavailable');
 
-  const { imagePath, imageUrl, strength, projectName } = await req.json() as {
+  const { imagePath, imageUrl, strength, projectName, assetType } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string; imageUrl?: string; strength?: number;
+    assetType?: string;   // type d'objet du projet (animal, character...) — voir _face_fix_image.py
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
@@ -12288,6 +12291,7 @@ async function handleFaceFixImage(req: Request, env: Env): Promise<Response> {
       op: 'face_fix_image',
       imageUrl: src,
       strength: strength ?? 0.45,
+      assetType: String(assetType ?? '').slice(0, 40),
     }, 'facefix');
     if ('maskEmpty' in result) {
       // No face detected — refund.

@@ -2507,7 +2507,10 @@
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       if (!imagePath) return { success: false, error: 'imagePath required' };
       try {
-        const r = await postJSON('/api/face-fix-image', { imageUrl: imagePath, strength });
+        // type d'objet : un animal a une TETE (pas un visage humain) — voir _face_fix_image.py
+        const assetType = window.state?.currentProject?.assetType
+          || document.getElementById('ws-asset-type')?.value || '';
+        const r = await postJSON('/api/face-fix-image', { imageUrl: imagePath, strength, assetType });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
           await _attachToProject(_projetLancement, newPath, 'front');

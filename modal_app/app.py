@@ -1749,11 +1749,14 @@ class MyFabmeshBackview:
             # detected bbox. Mirrors the mesh-level face_fix but applied
             # to a flat 2D image (no GLB atlas).
             from modal_app._face_fix_image import generate as ffi_generate
-            _, _, inpaint_pipe = self._get_auto_inpaint_models()
+            seg_proc, seg_model, inpaint_pipe = self._get_auto_inpaint_models()
             try:
                 img = ffi_generate(
                     inpaint_pipe, src_img,
                     strength=float(payload.get("strength") or 0.45),
+                    # animaux : tete trouvee par CLIPSeg (le detecteur Haar ne voit que les humains)
+                    seg_processor=seg_proc, seg_model=seg_model,
+                    asset_type=str(payload.get("asset_type") or ""),
                 )
             except ValueError as e:
                 # No face detected — caller refunds credits.
