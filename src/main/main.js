@@ -5261,7 +5261,7 @@ ipcMain.handle('detail-synth', async (event, { meshPath, jobId, strength, prompt
   }
 });
 
-ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed, cnScale, negPrompt, gris }) => {
+ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed, cnScale, negPrompt, gris, motifs }) => {
   try {
     const dir = path.dirname(imagePath);
     const ext = path.extname(imagePath);
@@ -5278,6 +5278,7 @@ ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed,
       strength: (strength != null ? strength : 0.45), seed: parseInt(_uniq),
       cn_scale: (cnScale != null ? cnScale : 0.45), neg_prompt: negPrompt || null,
       gris: Math.max(0, Math.min(1, Number(gris) || 0)),
+      motifs: Math.max(0, Math.min(1, Number(motifs) || 0)),   // efface le dessin (robe)
     });
     if (r.ok) {
       _handleMultiviewInheritance(newImagePath).catch(() => {});

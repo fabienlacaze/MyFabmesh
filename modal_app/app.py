@@ -1776,6 +1776,7 @@ class MyFabmeshBackview:
                 cn_scale=float(payload.get("cn_scale") or 0.45),
                 neg_prompt=payload.get("neg_prompt") or None,
                 gris=float(payload.get("gris") or 0),
+                motifs=float(payload.get("motifs") or 0),   # efface le dessin (robe) : 0 = inchange
             )
             tag = "tex_variant"
 

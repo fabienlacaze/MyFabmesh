@@ -2414,7 +2414,7 @@
         return { success: true, pieces: sorties, absentes: r.absentes || [] };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    texVariant: async ({ imagePath, prompt, strength, seed, cnScale, negPrompt, gris, projectName: _projetDemande } = {}) => {
+    texVariant: async ({ imagePath, prompt, strength, seed, cnScale, negPrompt, gris, motifs, projectName: _projetDemande } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Variante de texture a structure verrouillee (ControlNet-Tile) — c'est
       // aussi le moteur de l'outil « Age ». cnScale bas = les proportions
@@ -2428,6 +2428,7 @@
           cnScale: cnScale != null ? cnScale : 0.45,
           negPrompt: negPrompt || undefined,
           gris: gris || 0,
+          motifs: motifs || 0,
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (r?.success && (r.newPath || r.path)) {

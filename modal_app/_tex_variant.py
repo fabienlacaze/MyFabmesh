@@ -74,6 +74,49 @@ def _garder_fond(source, sortie):
     return Image.fromarray(np.clip(o * (1 - m) + a * m, 0, 255).astype(np.uint8))
 
 
+def _aplatir_motifs(img, force):
+    """Efface le DESSIN du sujet (grandes plages claires / sombres : robe, taches, masque) en gardant
+    le detail fin (poils, contours) : luminance moins son flou large, recentree sur la luminance
+    moyenne du sujet. Le fond n'est pas touche. `force` 0..1 : attenuation du dessin (0 = rien).
+
+    POURQUOI (2026-09-29, user sur un husky : « ca a juste change la couleur, pas le dessin »).
+    ControlNet-Tile et le depart de l'image-vers-image portent la LUMINOSITE de la source : la
+    desaturation (`gris`) liberait la teinte mais le dos sombre et les pattes blanches restaient."""
+    import numpy as np
+    try:
+        from scipy import ndimage
+    except Exception:
+        return img
+    if force <= 0:
+        return img
+    a = np.asarray(img.convert('RGB'), dtype=np.float32)
+    lum = a.mean(axis=2)
+    fond = _masque_fond(img)
+    sujet = (1.0 - fond[..., 0]) if fond is not None else np.ones(lum.shape, np.float32)
+    # Le masque de fond est erode AUSSI depuis le bord de l'image : ce liseré passait pour du sujet
+    # et devenait un cadre gris sur les variantes (banc). Le bord de l'image est du fond.
+    sujet = sujet.copy()
+    sujet[:4, :] = 0
+    sujet[-4:, :] = 0
+    sujet[:, :4] = 0
+    sujet[:, -4:] = 0
+    poids = sujet > 0.5
+    if poids.sum() < 100:
+        return img
+    moyenne = float(lum[poids].mean())
+    # Flou NORMALISE sur le sujet (le fond clair ne deborde pas sur ses bords). Mesure sur le husky :
+    # un flou large (3 %) laissait le dessin (les bords nets entre plages restent du « detail ») ;
+    # flou etroit (1 %) + detail attenue a 35 % l'efface, poil et silhouette gardes (le fond, intact,
+    # tient la silhouette).
+    sigma = max(img.size) * 0.01
+    flou = ndimage.gaussian_filter(lum * sujet, sigma) / np.maximum(ndimage.gaussian_filter(sujet, sigma), 1e-3)
+    gain = 1.0 - 0.65 * float(min(1.0, force))
+    plat = np.clip(moyenne + (lum - flou) * gain, 0, 255)
+    m = sujet[..., None]
+    out = a * (1 - m) + plat[..., None] * m
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+
+
 def _desaturer(img, gris):
     """Melange l'image avec sa version en niveaux de gris (gris = 0 : intacte, 1 : grise)."""
     if gris <= 0:
@@ -82,7 +125,7 @@ def _desaturer(img, gris):
 
 
 def generate(pipe, source_img, prompt='', strength=0.45, seed=0,
-             cn_scale=0.45, neg_prompt=None, max_dim=1024, gris=0.0):
+             cn_scale=0.45, neg_prompt=None, max_dim=1024, gris=0.0, motifs=0.0):
     """Retourne une image PIL a la taille de la source.
 
     `cn_scale` est le levier important : HAUT tient la silhouette (variante de
@@ -100,6 +143,7 @@ def generate(pipe, source_img, prompt='', strength=0.45, seed=0,
     # sont desatures — forme et details tenus, couleurs liberees. 0 = comportement d'origine
     # (Age, Recolorier ne le passent pas).
     source_travail = travail
+    travail = _aplatir_motifs(travail, float(motifs or 0))   # 0 = comportement d'origine
     travail = _desaturer(travail, float(gris or 0))
 
     p = (prompt or '').strip() or PROMPT_DEFAUT

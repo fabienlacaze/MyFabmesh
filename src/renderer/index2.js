@@ -17755,10 +17755,17 @@ function _reglagesVarianteForme(force, graine, guide, typeObjet, sujetProjet) {
   const teinte = liste[Math.abs(graine | 0) % liste.length];
   // Sujet = debut du prompt du projet (12 mots : le tout reste sous les 77 jetons de CLIP).
   const sujet = String(sujetProjet || '').trim().split(/\s+/).slice(0, 12).join(' ');
+  // ANIMAUX : a forte variation, le DESSIN de la robe est efface avant la diffusion (_aplatir_motifs,
+  // Modal et bureau). Sans cela seule la teinte changeait (husky du user : dos noir et pattes blanches
+  // gardes sous une robe « deep red »). Banc a 85 % : tachete, bringe, pommele, taches brunes.
+  // 50 % -> 0 (variante de couleur douce), 85 % et plus -> 1.
+  const motifs = famille === 'animal' ? Math.max(0, Math.min(1, (f - 0.5) / 0.35)) : 0;
   let prompt = guide || '';
   if (!guide && f >= 0.35) {
     prompt = famille === 'animal'
-      ? `${teinte} coloring, new color scheme, natural realistic texture, high quality, detailed`
+      ? (motifs > 0
+        ? `${teinte} coat, new fur markings and coat pattern, natural realistic fur texture, high quality, detailed`
+        : `${teinte} coloring, new color scheme, natural realistic texture, high quality, detailed`)
       : famille === 'personnage'
         ? `${sujet || 'same person'}, same face, wearing ${teinte} clothing, different clothing materials and colors, `
           + 'natural realistic skin tone, photorealistic, high quality, detailed'
@@ -17771,6 +17778,7 @@ function _reglagesVarianteForme(force, graine, guide, typeObjet, sujetProjet) {
     cnScale: 0.5 - 0.25 * f,
     prompt,
     neg: perso ? NEG_VARIANTE_PERSONNAGE : undefined,
+    motifs,
   };
 }
 // Allures du moteur procedural (lib/locomotion-procedurale.js) : gratuites, calculees ici.
@@ -20633,7 +20641,7 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
         const rv = _reglagesVarianteForme(strength, seed, guidePrompt,
           p.assetType || document.getElementById('ws-asset-type')?.value, p.prompt || p.initialPrompt);
         const r = texMode
-          ? await API.texVariant({ imagePath: target, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg })
+          ? await API.texVariant({ imagePath: target, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg, motifs: rv.motifs })
           : await API.img2img({ imagePath: target, prompt: (guidePrompt || prompt), strength, engine: 'local-sdxl', seed });
         if (r?.success) { completeJob(job.id, true); await reloadCurrentProject(); }
         else { completeJob(job.id, false, r?.error); showToast('Variant failed: ' + (r?.error || 'unknown'), 'error'); }

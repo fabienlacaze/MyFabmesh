@@ -35,7 +35,7 @@ def variantes(url: str, cas: list) -> list:
         f = c.get('force', 0.5)
         gris = max(0.0, min(1.0, (f - 0.3) / 0.6)) * c.get('facteur_gris', 1.0)
         out = generate(pipe, src, prompt=c['prompt'], strength=f, seed=c['seed'],
-                       cn_scale=0.5 - 0.25 * f, neg_prompt=c['neg'], gris=gris)
+                       cn_scale=0.5 - 0.25 * f, neg_prompt=c['neg'], gris=gris, motifs=c.get('motifs', 0.0))
         b = io.BytesIO()
         out.save(b, 'JPEG', quality=88)
         sorties.append({'nom': c['nom'], 'dt': round(time.time() - t, 1), 'jpg': b.getvalue()})
@@ -69,6 +69,16 @@ if __name__ == "__main__":
                                'charcoal wool and copper', 'crimson cloth and black leather']):
             cas.append({'nom': f'{i}_{t.replace(" ", "_")}', 'prompt': tenue(t), 'neg': NEG_PEAU,
                         'force': force, 'facteur_gris': 0.5, 'seed': 11 + i})
+    elif famille == 'animal':   # robe : prompt actuel sans aplatissement, contre dessin efface
+        for i, t in enumerate(['white with black spots', 'brindle striped', 'reddish orange']):
+            cas.append({'nom': f'a{i}_actuel_{t.replace(" ", "_")}', 'force': force, 'seed': 41 + i, 'neg': NEG,
+                        'prompt': f'{t} coloring, new color scheme, natural realistic texture, high quality, detailed'})
+        for i, t in enumerate(['white with black spots', 'brindle striped', 'reddish orange',
+                               'cream with brown patches', 'dappled grey']):
+            cas.append({'nom': f'{i}_motifs_{t.replace(" ", "_")}', 'force': force, 'seed': 41 + i, 'neg': NEG,
+                        'motifs': 1.0,
+                        'prompt': f'{t} coat, new fur markings and coat pattern, natural realistic fur texture, '
+                                  'high quality, detailed'})
     else:   # objets, vehicules, batiments : ancienne palette (robes d'animaux) contre MATIERES
         for i, t in enumerate(['white with black spots', 'brindle striped']):
             cas.append({'nom': f'a{i}_ancien_{t.replace(" ", "_")}', 'force': force, 'seed': 21 + i, 'neg': NEG,
