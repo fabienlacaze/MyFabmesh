@@ -2706,7 +2706,11 @@ function _ajusterAuto3D() {
     if (cb3d && !montrer && cb3d.checked) { cb3d.checked = false; cb3d.dispatchEvent(new Event('change')); }
     for (const id of ['ws-mesh-stages3d-btn', 'ws-buildstages-btn']) {
       const b = document.getElementById(id);
-      if (b) b.style.display = montrer ? '' : 'none';
+      // Etapes 2D (ws-buildstages-btn) : outil LOCAL, absent du site et sans
+      // route cloud -> masque en mode Cloud (_CLOUD_HIDDEN_TOOLS). Sans cette
+      // garde, un changement de type d'asset le faisait reapparaitre.
+      const cloudSansOutil = id === 'ws-buildstages-btn' && _isCloudMode();
+      if (b) b.style.display = (montrer && !cloudSansOutil) ? '' : 'none';
     }
   };
   const sel = document.getElementById('ws-asset-type');
