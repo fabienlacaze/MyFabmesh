@@ -24715,3 +24715,9 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - Essai du maximum STRICT (QUOTA_LIMITS_HARDWS_MAX_ENABLE) sur le serveur d images de Detail++ : working set monte a 11 818 Mo pour un plafond de 8 444, puis la carte refuse une allocation alors que PyTorch n a rien reserve (pic_vram_reserve 2 Mo) : pages que le pilote doit verrouiller. Meme panne que le plafond d engagement.
 - cloisonnement_memoire : limites SOUPLES (HARDWS_MAX_DISABLE) au niveau du budget + delestage K32EmptyWorkingSet quand la RAM du PC depasse la limite de l utilisateur et que le calcul depasse son budget de 10 %. Aucune allocation refusee ; Windows retire d abord les pages de ce processus. Mesure : 3 Go alloues sous 1 Go, 3 delestages, 1,5 s. 14 tests OK.
 - Detail++ sur ce PC : ControlNet-Union (2 512 Mo) telecharge a la main dans le cache (absent de l installation ; ajout a l assistant confie au chantier wf5-bureau-fiabilite).
+
+## 2026-09-30 (soir) — Detail++ : serveur d images arrete en plein travail par le minuteur d inactivite
+- MESURE : serveur pret 21:31:11 (plafond souple, 7,6 Go VRAM), rendus de Detail++ finis 21:31:35, puis /refine_geo (chargement de ControlNet-Union) ; le serveur disparait sans trace vers 21:32:41 = 90 s (SDXL_IDLE_TIMEOUT_MS) apres son dernier usage vu par main. detail_synth.py, texture_refine.py et outfit_repaint.py POSTent DIRECTEMENT sur le port 5555 : main ne les voyait pas.
+- main.js : le minuteur d inactivite considere le serveur occupe tant qu un de ces trois scripts tourne (_clientSdxlDirectActif, via allActiveProcs).
+- main.js detail-synth : la fenetre d erreur montre la vraie cause (lignes ERROR du stdout du script) au lieu de la fin de stderr (un avertissement expandable_segments).
+- set-gpu-limits : option noRestart ; le retour a la limite VRAM apres « Start now » ne coupe plus le serveur en plein travail.

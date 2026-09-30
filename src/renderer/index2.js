@@ -22625,7 +22625,7 @@ async function processQueue() {
     }
     try { next.run(); } catch (e) { console.error('queued job failed', e); }
     if (_vramRemise != null) {
-      setTimeout(() => { try { API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: _vramRemise }); } catch (_) {} }, 8000);
+      setTimeout(() => { try { API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: _vramRemise, noRestart: true }); } catch (_) {} }, 8000);
     }
     // Give the started job a moment to allocate VRAM before checking the next one
     await new Promise(r => setTimeout(r, 5000));

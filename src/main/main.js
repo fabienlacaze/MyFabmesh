@@ -1253,6 +1253,15 @@ let sdxlIdleTimer = null;
 // mid-inference when a slow first-time model load blocks the response.
 let sdxlInflightRequests = 0;
 
+function _clientSdxlDirectActif() {
+  try {
+    for (const p of allActiveProcs) {
+      if (!p || p.exitCode !== null || p.killed) continue;
+      if (/detail_synth\.py|texture_refine\.py|outfit_repaint\.py/i.test((p.spawnargs || []).join(' '))) return true;
+    }
+  } catch (_) {}
+  return false;
+}
 function markSdxlUsed() {
   sdxlLastUsedAt = Date.now();
   if (sdxlIdleTimer) clearInterval(sdxlIdleTimer);
@@ -1262,6 +1271,10 @@ function markSdxlUsed() {
     // Never kill while a request is in flight (could be a first-time
     // model load that legitimately takes > idle timeout).
     if (sdxlInflightRequests > 0) { sdxlLastUsedAt = Date.now(); return; }
+    // CLIENTS DIRECTS (2026-09-30) : detail_synth.py (Detail++), texture_refine.py (affinage apres la 3D) et outfit_repaint.py
+    // POSTent eux-memes sur le port 5555, sans passer par main : le serveur paraissait inactif et etait arrete au bout de 90 s,
+    // en plein chargement de ControlNet-Union (« Detail++ failed », mesure du 30/09 : pret 21:31:11, arrete ~21:32:41).
+    if (_clientSdxlDirectActif()) { sdxlLastUsedAt = Date.now(); return; }
     const idleMs = Date.now() - sdxlLastUsedAt;
     if (idleMs >= SDXL_IDLE_TIMEOUT_MS) {
       console.log(`[SDXL] Idle for ${Math.round(idleMs/1000)}s, shutting down to free VRAM`);
@@ -5521,9 +5534,15 @@ ipcMain.handle('detail-synth', async (event, { meshPath, jobId, strength, prompt
         '--texture-size', String(textureSize != null ? textureSize : 4096),
         '--prompt', effPrompt,
         '--workdir', workdir,
-      ], { timeout: 600000, maxBuffer: 50 * 1024 * 1024, env }, (error) => {
-        if (!error && fs.existsSync(outPath)) resolve({ success: true, newPath: outPath });
-        else resolve({ success: false, error: (error?.message || 'detail synth failed').slice(-300) });
+      ], { timeout: 600000, maxBuffer: 50 * 1024 * 1024, env }, (error, stdout) => {
+        if (!error && fs.existsSync(outPath)) return resolve({ success: true, newPath: outPath });
+        // detail_synth.py ecrit son erreur sur STDOUT (« [detail_synth] ERROR: ... ») ; l'erreur d'execFile ne porte que stderr,
+        // souvent un simple avertissement (2026-09-30 : la fenetre montrait « expandable_segments not supported » au lieu de la cause).
+        const lignes = String(stdout || '').split(/\r?\n/).filter((l) => /ERROR|Traceback|Error:/i.test(l));
+        const cause = lignes.length ? lignes.slice(-3).join('\n').replace(/\[detail_synth\]\s*/g, '')
+          : (error?.killed ? 'stopped (time limit reached)' : (error?.message || 'detail synth failed'));
+        try { log.warn('main', `detail-synth failed: ${String(cause).slice(-600)}`); } catch (_) {}
+        resolve({ success: false, error: String(cause).slice(-600) });
       });
       proc.stdout?.on('data', d => safeSend('ai3d-progress', d.toString()));
       proc.stderr?.on('data', d => safeSend('ai3d-progress', '[stderr] ' + d.toString()));
@@ -7241,7 +7260,7 @@ ipcMain.handle('set-gpu-limits', (event, limits) => {
   // inpaint call respawns it with the new PyTorch memory cap. The idle timer
   // would eventually do this anyway after 5 min, but an explicit stop here
   // guarantees the new limit takes effect right now.
-  if (vramChanged && sdxlProc) {
+  if (vramChanged && sdxlProc && !l.noRestart) {
     console.log('[SDXL] VRAM slider changed to', process.env.FABMESH_VRAM_FRACTION, '- stopping server so it respawns with the new cap');
     try { stopSdxlServer(); } catch (e) { console.error('[SDXL] stop on slider change failed:', e.message); }
   }
