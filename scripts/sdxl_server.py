@@ -136,6 +136,57 @@ PRESERVE_IDENTITY_ENABLED = os.environ.get('FABMESH_MODIFY_PRESERVE', '1') != '0
 _cm.plafonner_vram(torch)
 _cm.mesurer('initialisation')
 
+
+# REPLI MEMOIRE GRAPHIQUE (2026-09-30, user : « mettre les limites ne doit pas casser les generations »). Detail++ a echoue
+# pour 0,2 Go : le pipeline d'affinage (modele d'image + ControlNet + IP-Adapter) demandait 8,9 Go sous un plafond de 8,7.
+# Plutot que d'echouer, un pipeline qui manque de VRAM est recharge en mode econome :
+#   - au placement sur la carte : dechargement par modele (seul le composant qui travaille est sur la carte) ;
+#   - a l'execution : dechargement SEQUENTIEL (couche par couche, 2-3 Go ; nettement plus lent) puis nouvel essai.
+# Le plafond fixe par l'utilisateur est respecte ; le calcul ralentit au lieu d'echouer.
+def _vider_cache_cuda():
+    try:
+        torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def _placer(pipe, nom):
+    """pipe.to('cuda'), ou dechargement par modele si la carte n'a pas la place sous la limite."""
+    try:
+        pipe.to("cuda")
+        return pipe
+    except Exception as e:
+        if _cm.type_manque(e) != 'vram':
+            raise
+        log(f"{nom}: not enough VRAM to keep the whole pipeline on the card -> low-VRAM mode (slower)", 'warn')
+        try:
+            pipe.to("cpu")
+        except Exception:
+            pass
+        _vider_cache_cuda()
+        pipe.enable_model_cpu_offload()
+        pipe._fabmesh_econome = True
+        return pipe
+
+
+def _executer(pipe, **kwargs):
+    """pipe(**kwargs), avec un nouvel essai en dechargement sequentiel sur un manque de VRAM."""
+    try:
+        return pipe(**kwargs)
+    except Exception as e:
+        if _cm.type_manque(e) != 'vram' or getattr(pipe, '_fabmesh_sequentiel', False):
+            raise
+        log(f"VRAM short during generation ({str(e)[:160]}) -> retrying in sequential low-VRAM mode (slower)", 'warn')
+        _vider_cache_cuda()
+        try:
+            pipe.enable_sequential_cpu_offload()
+        except Exception as oe:
+            log(f"sequential low-VRAM mode unavailable: {oe}", 'warn')
+            raise e
+        pipe._fabmesh_sequentiel = True
+        _vider_cache_cuda()
+        return pipe(**kwargs)
+
 # ========== STATE ==========
 class ModelState:
     """Holds all loaded models and their locks."""
@@ -252,7 +303,7 @@ def load_img2img():
                 pipe.vae.config.force_upcast = True
             except Exception:
                 pass
-        pipe.to("cuda")
+        pipe = _placer(pipe, "img2img")
         # Force every sub-module to fp16 — diffusers 0.34 on torch
         # 2.7.1+cu128 leaves some buffers fp32 after from_pretrained,
         # causing "mat1/mat2 dtype mismatch" errors at inference.
@@ -335,7 +386,7 @@ def load_inpaint():
                     pipe.vae.config.force_upcast = True
                 except Exception:
                     pass
-            pipe.to("cuda")
+            pipe = _placer(pipe, "inpaint")
             # Same fp16 force-cast as img2img (diffusers 0.34 / torch 2.7.1)
             try:
                 pipe.unet.to(torch.float16)
@@ -524,10 +575,10 @@ def load_controlnet_geo():
                 pipe.enable_model_cpu_offload()
             except Exception as _oe:
                 log(f"geo enable_model_cpu_offload failed ({_oe}); pipe.to(cuda)", 'warn')
-                pipe.to("cuda")
+                pipe = _placer(pipe, "refine_geo")
         else:
             # Controlnet-only pipe (~9.5 GB) fits VRAM directly -> no swap, fast.
-            pipe.to("cuda")
+            pipe = _placer(pipe, "refine_geo")
         pipe.enable_vae_tiling()
         if os.environ.get('FABMESH_UNRESTRICTED') == '1':
             if hasattr(pipe, 'safety_checker'):
@@ -667,7 +718,7 @@ def do_img2img(input_path, prompt, output_path, strength=0.55,
 
             t0 = time.time()
             with torch.inference_mode():
-                result = pipe(
+                result = _executer(pipe, 
                     prompt=final_prompt,
                     negative_prompt=final_neg,
                     image=img,
@@ -748,7 +799,7 @@ def do_img2img_tile(input_path, prompt, output_path, strength=0.55,
 
             t0 = time.time()
             with torch.inference_mode():
-                result = pipe(
+                result = _executer(pipe, 
                     prompt=enhanced,
                     # None by default -> identical to the ORIGINAL tile behaviour
                     # (don't change the existing "Sharpen/Refine texture" tool).
@@ -890,7 +941,7 @@ def do_refine_geo(input_path, control_path, ref_path, prompt, output_path,
 
             t0 = time.time()
             with torch.inference_mode():
-                result = pipe(**call_kwargs).images[0]
+                result = _executer(pipe, **call_kwargs).images[0]
 
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             result.save(output_path)
@@ -980,7 +1031,7 @@ def do_inpaint(input_path, target_text, prompt, output_path, dilate=15, rel=0.5)
             _inpaint_strength = 0.85 if is_removal else 0.99
 
             with torch.inference_mode():
-                result = pipe(
+                result = _executer(pipe, 
                     prompt=inpaint_prompt,
                     negative_prompt=negative_prompt,
                     image=img_work,
@@ -1256,7 +1307,7 @@ def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0
             # Reglages (denoise, ControlNet, pas, guidance, prompts) : noyau commun avec Modal, scripts/recolor_core.py
             _p = recolor_tile_params(noun, full_prompt, recolor_all, strength)
             with torch.inference_mode():
-                result = pipe(
+                result = _executer(pipe, 
                     prompt=_p['prompt'],
                     negative_prompt=_p['negative'],
                     image=img_work,
@@ -1386,7 +1437,7 @@ def do_tex_variant(input_path, prompt, output_path, strength=0.45, seed=0, cn_sc
             t0 = time.time()
             p = (prompt or "").strip() or "high quality, detailed, sharp focus, intricate textures, game asset"
             with torch.inference_mode():
-                result = pipe(
+                result = _executer(pipe, 
                     prompt=p,
                     negative_prompt=neg_prompt or "deformed, distorted, changed shape, different pose, extra parts, missing parts, blurry, low quality",
                     image=img_work,
@@ -1715,7 +1766,7 @@ def do_mask_inpaint(input_path, mask_path, prompt, output_path, seed=None):
                                      .filter(ImageFilter.GaussianBlur(2))
 
                 with torch.inference_mode():
-                    result_w = pipe(
+                    result_w = _executer(pipe, 
                         prompt=pos_prompt,
                         negative_prompt=neg_prompt,
                         image=crop_img_w,
@@ -1757,7 +1808,7 @@ def do_mask_inpaint(input_path, mask_path, prompt, output_path, seed=None):
                 msk_work_soft = msk_work.filter(ImageFilter.GaussianBlur(3))
 
                 with torch.inference_mode():
-                    result = pipe(
+                    result = _executer(pipe, 
                         prompt=pos_prompt,
                         negative_prompt=neg_prompt,
                         image=img_work,

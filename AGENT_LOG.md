@@ -24721,3 +24721,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - main.js : le minuteur d inactivite considere le serveur occupe tant qu un de ces trois scripts tourne (_clientSdxlDirectActif, via allActiveProcs).
 - main.js detail-synth : la fenetre d erreur montre la vraie cause (lignes ERROR du stdout du script) au lieu de la fin de stderr (un avertissement expandable_segments).
 - set-gpu-limits : option noRestart ; le retour a la limite VRAM apres « Start now » ne coupe plus le serveur en plein travail.
+
+## 2026-09-30 (soir) — serveur d images : repli econome au lieu d echouer sur un manque de VRAM
+- Detail++ echouait pour 0,2 Go (affinage : 8,9 Go demandes sous un plafond de 8,7). scripts/sdxl_server.py : _placer() (pipe.to(cuda) -> dechargement par modele si la VRAM manque sous la limite) aux 4 chargements, et _executer() autour des 10 appels de pipelines (nouvel essai en dechargement SEQUENTIEL, plus lent, sur un manque de VRAM). Le plafond de l utilisateur est respecte ; le calcul ralentit au lieu d echouer. A mesurer sur le vrai PC (Detail++ relance).
