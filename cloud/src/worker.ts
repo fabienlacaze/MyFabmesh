@@ -18,6 +18,10 @@ import Replicate from 'replicate';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { checkPromptSafety } from './nsfw_filter';
 import { legalIdentityUnfilledFields } from './config/legal-identity';
+import {
+  calculerPrevisionModal, alerteEmailModal, regrouperPostes, moisUtc, SEUIL_ARRETE_H,
+  type PrevisionModal, type LimiteModal,
+} from './prevision_modal';
 
 /* ──────────────────────────── env binding ──────────────────────────── */
 
@@ -708,20 +712,25 @@ async function _alerteUsageReelMuet(env: Env, raison: string): Promise<void> {
     if (await r2GetText(env, cle)) return;             // deja alerte aujourd'hui
     await env.MESHES.put(cle, new Date().toISOString());
     console.error(`[budget] ARRET DUR INACTIF — usage reel ${raison}`);
+    /* Texte revu le 2026-09-30 : l'ancien disait « planifier le script »,
+     * alors que la tache existe depuis le 03/08. La cause reelle du jour
+     * etait un secret efface par un nettoyage de disque : dire comment
+     * REPARER, pas comment installer. */
     await _sendAdminAlertEmail(
       env,
-      'MyFabmesh — le plafond adosse a la facture Modal est INACTIF',
+      '⚠️ MyFabmesh — le relevé de la facture Modal est arrêté',
       [
-        `Le fichier _meta/modal_real_usage.json est ${raison}.`,
+        `Le site n'a plus de relevé récent de la facture Modal (${raison}).`,
+        "Tant qu'il manque, l'arrêt automatique à 100 % de la limite ne protège plus :",
+        "seul reste le compteur d'estimations du site, souvent 2 à 5 fois trop bas.",
         '',
-        "Tant qu'il n'est pas rafraichi, la seule limite restante est le compteur",
-        "d'ESTIMATIONS du worker, qui sous-evalue la depense reelle d'un facteur",
-        "d'environ 4,6 (mesure du 2026-08-04 : 2,50 $ annonces pour 11,59 $",
-        'factures). Le plafond journalier affiche autorise donc en pratique',
-        'plusieurs fois son montant.',
+        'Que faire, sur le PC qui fait le relevé :',
+        '  1. PC allumé et session ouverte ? Le relevé passe chaque heure à hh:01.',
+        '  2. Lire le journal : %LOCALAPPDATA%\\FabWare\\Exploitation\\releve_modal.log',
+        '  3. Si le journal dit « secret introuvable » ou « clé refusée » :',
+        '     powershell -ExecutionPolicy Bypass -File scripts\\reinitialiser_releve_modal.ps1',
         '',
-        'A faire : planifier scripts/modal_usage_push.py, toutes les heures.',
-        'Cette alerte ne se repete qu une fois par jour.',
+        'Cette alerte se répète une fois par jour tant que le relevé manque.',
       ].join(String.fromCharCode(10)));
   } catch (_) { /* best-effort */ }
 }
@@ -798,10 +807,10 @@ async function _budgetReelEpuise(env: Env): Promise<boolean> {
       await _alerteUsageReelMuet(env, 'jamais publie');
       return false;                                    // pas de donnee : on laisse passer
     }
-    const real = JSON.parse(txt) as { usage?: number; ts?: string };
+    const real = JSON.parse(txt) as { usage?: number; ts?: string; mois?: string };
     if (typeof real.usage !== 'number' || !real.ts) return false;
     const ageMs = Date.now() - Date.parse(real.ts);
-    if (!(ageMs < 26 * 3600 * 1000)) {
+    if (!(ageMs < SEUIL_ARRETE_H * 3600 * 1000)) {
       /* L'ALERTE PROMISE PLUS HAUT N'EXISTAIT PAS.
        *
        * Le commentaire de cette fonction annonce « si le poller tombe, on
@@ -814,6 +823,18 @@ async function _budgetReelEpuise(env: Env): Promise<boolean> {
        * plafond credible, et rien ne le signalait. */
       await _alerteUsageReelMuet(env, `perime de ${Math.round(ageMs / 3600000)} h`);
       return false;                                    // perimee : on laisse passer
+    }
+    /* REMISE A ZERO MENSUELLE (2026-09-30). Modal remet son compteur a zero le
+     * 1er du mois (00:00 UTC). Un releve de FIN DE MOIS au-dessus de la limite
+     * continuait de tout refuser apres cette remise a zero, jusqu'au premier
+     * releve du nouveau mois — des heures si le PC du releve est eteint. Un
+     * releve d'un autre mois ne dit rien de la depense du mois en cours :
+     * mode ouvert, comme un releve absent (la carte admin l'affiche). */
+    const moisReleve = (typeof real.mois === 'string' && /^\d{4}-\d{2}$/.test(real.mois))
+      ? real.mois : moisUtc(Date.parse(real.ts));
+    if (moisReleve < moisUtc(Date.now())) {
+      console.warn(`[budget] releve du mois ${moisReleve} : en attente du premier releve du mois, arret dur en mode ouvert`);
+      return false;
     }
     if (real.usage >= budget) {
       console.error(`[budget] ARRET DUR : usage reel ${real.usage.toFixed(2)} $ >= budget ${budget.toFixed(2)} $`);
@@ -859,7 +880,10 @@ async function checkAndIncrementModalSpend(env: Env, estimatedUsd: number, userI
       if (userId) {
         await _incrementAtomique(env, _cleSpendUser(userId), estimatedUsd);
       }
-      await _maybeAlertModalBudget(env);
+      /* Plus d'evaluation de l'alerte ici (2026-09-30) : elle ne depend que du
+       * releve horaire, de la limite et de l'heure (_previsionModal), pas de
+       * cette estimation. Le releve, l'enregistrement de la limite et le cron
+       * de 15 min la recalculent. */
     } catch { /* accounting only — never block a paid call on it */ }
     return maxUsd;
   }
@@ -876,13 +900,14 @@ async function checkAndIncrementModalSpend(env: Env, estimatedUsd: number, userI
     await refundModalSpend(env, estimatedUsd);
     return null;
   }
-  // Running cumulative spend since the last budget top-up (for the admin budget
-  // gauge + the low-budget alert). Best-effort — never blocks a paid call.
+  // Cumul d'estimations depuis toujours. Plus lu par la carte ni par l'alerte
+  // (2026-09-30 : 118,88 $ « depuis la creation du site » allaient s'afficher
+  // sous « Depense ce mois ») ; l'estimation du mois vient de
+  // _meta/modal_spend/<AAAA-MM-JJ> (_estimationDuMois). Best-effort.
   try {
     const tk = '_meta/modal_spend_total.txt';
     const total = (parseFloat((await r2GetText(env, tk)) || '0') || 0) + estimatedUsd;
     await env.MESHES.put(tk, String(total));
-    await _maybeAlertModalBudget(env);
   } catch (_) {}
   return maxUsd - next;
 }
@@ -919,73 +944,133 @@ async function refundModalSpend(env: Env, refundUsd: number, userId?: string): P
   }
 }
 
-/** Fire an admin alert (banner via _meta/modal_alert.json + email) when the Modal
- *  workspace budget runs low (<=15%) or is exhausted. Debounced: only re-alerts
- *  when severity worsens; cleared when the admin tops up (handleAdminModalSetBudget). */
-async function _maybeAlertModalBudget(env: Env): Promise<void> {
-  if (!env.MESHES) return;
-  // ALARME DESARMEE EN SILENCE — corrigee le 2026-08-03.
-  //
-  // Le budget etait lu UNIQUEMENT depuis R2. Le fichier n'ayant jamais
-  // ete ecrit, budget valait 0 et la fonction sortait ici : l'alerte
-  // « budget Modal bientot epuise » ne pouvait STRUCTURELLEMENT jamais
-  // se declencher. Une sécurité desactivee par un fichier absent est
-  // pire qu'une securite absente : on croit etre couvert.
-  //
-  // Repli sur MODAL_BUDGET_USD (wrangler.toml) pour qu'un fichier
-  // manquant ne desarme plus rien, et trace explicite si les deux
-  // sources sont vides.
-  const budgetR2Alerte = await _budgetR2(env);
-  let budget = budgetR2Alerte ?? 0;
-  // Meme distinction que ci-dessus : zero est une consigne, pas une absence.
-  if (budgetR2Alerte == null) {
-    budget = parseFloat(env.MODAL_BUDGET_USD ?? '') || 0;
+/* ─── PREVISION DE COUPURE MODAL (2026-09-30) ───────────────────────────────
+ * Un seul calcul (src/prevision_modal.ts) pour la carte admin, le bandeau
+ * fixe, l'e-mail d'alerte et le cron. Ici : les lectures R2 et l'envoi.
+ *
+ * Remplace _maybeAlertModalBudget, qui (1) ne supprimait JAMAIS
+ * _meta/modal_alert.json quand le niveau redevenait normal — le bandeau
+ * « budget faible — restant 9,52 $ » serait reste tout octobre —, (2)
+ * retombait sur _meta/modal_spend_total.txt, un cumul d'estimations jamais
+ * remis a zero, des que le releve avait 26 h, et (3) ecrivait en anglais. */
+const CLE_RELEVE_MODAL = '_meta/modal_real_usage.json';
+const CLE_LIMITE_META = '_meta/modal_budget_meta.json';
+const CLE_ALERTE_MODAL = '_meta/modal_alert.json';
+const CLE_RELEVE_ERREUR = '_meta/modal_releve_erreur.json';
+const CLE_RELEVE_REFUS = '_meta/modal_releve_refus.json';
+
+/** La limite mensuelle, en distinguant ENREGISTREE ici, SECOURS du serveur et
+ *  AUCUNE. La carte confondait « fichier absent » et « 0 » (les deux
+ *  affichaient « aucune limite ») alors que le serveur applique
+ *  MODAL_BUDGET_USD dans le premier cas et REFUSE TOUT dans le second — meme
+ *  regle que _budgetReelEpuise. */
+async function _limiteModal(env: Env): Promise<LimiteModal> {
+  const r2 = await _budgetR2(env);
+  let meta: { enregistree_le?: unknown; precedente_usd?: unknown } = {};
+  try { meta = JSON.parse(await r2GetText(env, CLE_LIMITE_META) || '{}') || {}; } catch { meta = {}; }
+  const enregistree_le = typeof meta.enregistree_le === 'string' ? meta.enregistree_le : null;
+  const precedente_usd = typeof meta.precedente_usd === 'number' ? meta.precedente_usd : null;
+  if (r2 != null) return { usd: r2, source: 'admin', enregistree_le, precedente_usd };
+  const brut = env.MODAL_BUDGET_USD;
+  if (brut != null && String(brut).trim() !== '' && Number.isFinite(Number(brut))) {
+    return { usd: Math.max(0, Number(brut)), source: 'secours_serveur', enregistree_le: null, precedente_usd: null };
   }
-  if (budget <= 0) {
-    // Deux causes tres differentes, deux messages : un fichier VALANT zero
-    // est une consigne d'arret (l'arret dur refuse deja tout, il n'y a rien
-    // a alerter) ; un fichier ABSENT est un trou de configuration.
-    if (budgetR2Alerte === 0) {
-      console.log('[budget] budget pose a 0 — arret dur actif, aucune alerte necessaire');
-    } else {
-      console.warn('[budget] ALARME INACTIVE : ni _meta/modal_budget_total.txt '
-                 + 'ni MODAL_BUDGET_USD ne sont definis — aucune alerte ne sera envoyee');
+  return { usd: null, source: 'aucune', enregistree_le: null, precedente_usd: null };
+}
+
+/** Estimation du site pour UN mois : somme des compteurs du jour
+ *  `_meta/modal_spend/<AAAA-MM-JJ>`. Remplace le cumul
+ *  _meta/modal_spend_total.txt (jamais remis a zero : 118,88 $ « depuis
+ *  toujours » allaient s'afficher le 1er octobre sous « Depense ce mois »).
+ *  Au plus 31 lectures, et seulement quand le releve manque. */
+async function _estimationDuMois(env: Env, mois: string): Promise<number | null> {
+  if (!env.MESHES) return null;
+  try {
+    let total = 0;
+    let curseur: string | undefined;
+    do {
+      const l = await env.MESHES.list({ prefix: `_meta/modal_spend/${mois}-`, cursor: curseur });
+      for (const o of l.objects) total += parseFloat(await r2GetText(env, o.key) || '0') || 0;
+      curseur = l.truncated ? l.cursor : undefined;
+    } while (curseur);
+    return total;
+  } catch { return null; }
+}
+
+async function _lireReleveModal(env: Env): Promise<Record<string, unknown> | null> {
+  try {
+    const t = await r2GetText(env, CLE_RELEVE_MODAL);
+    const j = t ? JSON.parse(t) : null;
+    return j && typeof j === 'object' ? j as Record<string, unknown> : null;
+  } catch { return null; }
+}
+
+/** Le bloc `prevision`. `limiteUsd` simule une autre limite (apercu de la
+ *  fenetre « Changer la limite », rien n'est ecrit). `details` ajoute ce que
+ *  seule la carte affiche : derniere erreur du releve, dernier envoi refuse,
+ *  estimation du mois quand le releve manque. */
+async function _previsionModal(
+  env: Env,
+  opts: { limiteUsd?: number; details?: boolean; releve?: Record<string, unknown> | null } = {},
+): Promise<PrevisionModal> {
+  const releve = opts.releve !== undefined ? opts.releve : await _lireReleveModal(env);
+  let limite = await _limiteModal(env);
+  if (typeof opts.limiteUsd === 'number') limite = { ...limite, usd: opts.limiteUsd, source: 'admin' };
+  let erreur: { ts?: unknown; message?: unknown } | null = null;
+  let refus_ts: string | null = null;
+  if (opts.details) {
+    try { erreur = JSON.parse(await r2GetText(env, CLE_RELEVE_ERREUR) || 'null'); } catch { erreur = null; }
+    try {
+      const r = JSON.parse(await r2GetText(env, CLE_RELEVE_REFUS) || 'null') as { ts?: unknown } | null;
+      refus_ts = r && typeof r.ts === 'string' ? r.ts : null;
+    } catch { refus_ts = null; }
+  }
+  const maintenant = Date.now();
+  let p = calculerPrevisionModal({ maintenant, releve, limite, erreur, refus_ts });
+  if (opts.details && (p.releve.etat === 'absent' || p.releve.etat === 'arrete')) {
+    const estimation = await _estimationDuMois(env, p.cycle);
+    if (estimation != null) {
+      p = calculerPrevisionModal({ maintenant, releve, limite, erreur, refus_ts, estimation_mois_usd: estimation });
+    }
+  }
+  return p;
+}
+
+/** E-mail d'alerte, tire de la prevision :
+ *  - coupure prevue / limite atteinte : un e-mail par niveau et par mois,
+ *    renvoye si la situation EMPIRE, rearme quand elle redevient normale ou au
+ *    changement de mois ;
+ *  - releve arrete ou absent : l'alerte quotidienne _alerteUsageReelMuet ;
+ *  - le bandeau de l'admin ne lit plus _meta/modal_alert.json : il est calcule
+ *    en direct (prevision.bandeau) et tombe tout seul au 1er du mois.
+ *  Appelee par le releve, l'enregistrement de la limite et le cron (15 min). */
+async function _synchroniserAlerteModal(env: Env, prevision?: PrevisionModal): Promise<void> {
+  if (!env.MESHES) return;
+  const p = prevision ?? await _previsionModal(env);
+  if ((p.releve.etat === 'arrete' || p.releve.etat === 'absent') && p.limite.usd != null && p.limite.usd > 0) {
+    await _alerteUsageReelMuet(env, p.releve.etat === 'absent'
+      ? 'aucun relevé reçu'
+      : `dernier relevé il y a ${Math.round((p.releve.age_min ?? 0) / 60)} h`);
+  }
+  let ancien: { niveau?: unknown; cycle?: unknown; gravite?: unknown } = {};
+  try { ancien = JSON.parse(await r2GetText(env, CLE_ALERTE_MODAL) || '{}') || {}; } catch { ancien = {}; }
+  const existe = Object.keys(ancien).length > 0;
+  const memeCycle = ancien.cycle === p.cycle;
+  const mail = alerteEmailModal(p);
+  if (!mail) {
+    const normal = p.niveau === 'ok' || p.niveau === 'serre' || p.niveau === 'debut_de_mois'
+      || p.niveau === 'sans_limite' || p.niveau === 'limite_zero';
+    if (existe && (!memeCycle || normal)) {
+      try { await env.MESHES.delete(CLE_ALERTE_MODAL); } catch { /* best-effort */ }
     }
     return;
   }
-  // Prefer the REAL Modal workspace usage pushed by the billing poller (fresh
-  // < 26h); otherwise fall back to the worker's own cost estimate.
-  let usage = 0; let source: 'real' | 'estimate' = 'estimate';
-  try {
-    const realTxt = await r2GetText(env, '_meta/modal_real_usage.json');
-    const real = realTxt ? JSON.parse(realTxt) : null;
-    const ageMs = real && real.ts ? (Date.now() - Date.parse(real.ts)) : Infinity;
-    if (real && typeof real.usage === 'number' && ageMs < 26 * 3600 * 1000) { usage = real.usage; source = 'real'; }
-    else usage = parseFloat(await r2GetText(env, '_meta/modal_spend_total.txt') || '0') || 0;
-  } catch (_) { usage = parseFloat(await r2GetText(env, '_meta/modal_spend_total.txt') || '0') || 0; }
-  const remaining = budget - usage;
-  const pct = remaining / budget;
-  let level: 'low' | 'empty' | null = null;
-  if (remaining <= 0) level = 'empty';
-  else if (pct <= 0.15) level = 'low';
-  if (!level) return;
-  let prevLevel: string | null = null;
-  try { prevLevel = JSON.parse(await r2GetText(env, '_meta/modal_alert.json') || '{}').level || null; } catch (_) {}
-  if (prevLevel === level) return;
-  if (prevLevel === 'empty' && level === 'low') return;
-  const round = (n: number) => Math.round(n * 100) / 100;
-  await env.MESHES.put('_meta/modal_alert.json', JSON.stringify({
-    level, source, usage: round(usage), remaining: round(remaining), budget: round(budget), ts: new Date().toISOString(),
+  const graviteAvant = memeCycle && typeof ancien.gravite === 'number' ? ancien.gravite : 0;
+  if (mail.gravite <= graviteAvant) return;          // deja prevenu, rien n'a empire
+  await env.MESHES.put(CLE_ALERTE_MODAL, JSON.stringify({
+    niveau: p.niveau, gravite: mail.gravite, cycle: p.cycle, ts: new Date().toISOString(),
   }));
-  const subject = level === 'empty'
-    ? '\u{1F6A8} MyFabmesh — Modal budget EXHAUSTED'
-    : '⚠️ MyFabmesh — Modal budget low';
-  const text = (level === 'empty'
-      ? 'Your Modal GPU workspace budget is EXHAUSTED — Modal will stop running apps.'
-      : 'Your Modal GPU workspace budget is running low.')
-    + `\n\nUsage (${source}): $${round(usage).toFixed(2)} of $${round(budget).toFixed(2)} budget — remaining $${round(remaining).toFixed(2)} (${Math.round(pct * 100)}%)`
-    + '\n\nTop up / raise your Modal workspace budget, then update the limit in the admin Finance tab to re-arm the alert.';
-  await _sendAdminAlertEmail(env, subject, text);
+  await _sendAdminAlertEmail(env, mail.sujet, mail.texte);
 }
 
 /** Plain-text alert email to ADMIN_EMAILS via Resend. No-op if RESEND_API_KEY unset. Never throws. */
@@ -4138,125 +4223,170 @@ async function handleAdminContactReply(req: Request, env: Env, id: string): Prom
   }
 }
 
-/** GET /api/admin/modal-credits — sums every `_meta/modal_spend/<day>`
- *  entry to compute the cumulative Modal spend, reads the admin-set
- *  budget total, and returns { total, spent, remaining, today }. */
+/** GET /api/admin/modal-credits — la carte « Coût GPU (Modal) » de l'admin.
+ *
+ *  Reecrite le 2026-09-30 (« Prevision de coupure ») : le user ne comprenait
+ *  pas « relevee il y a 774 min » ni « environ 0 jour(s) ». La reponse porte :
+ *   - `prevision` : le calcul UNIQUE (src/prevision_modal.ts) — verdict,
+ *     fraicheur du releve, jauge, reperes, bandeau. Le meme sert a l'e-mail ;
+ *   - `postes` : ou part l'argent, par poste NOMME (jamais un nom d'appli) ;
+ *   - `repartition` : ton compte / les clients / le reste de la facture ;
+ *   - `protections` : arret a 100 %, e-mail, interrupteur, plafond du jour.
+ *  `?legere=1` (bandeau fixe, toutes les 5 min, sur tous les onglets) : la
+ *  prevision seule, sans Supabase ni liste R2. */
 async function handleAdminModalCredits(req: Request, env: Env): Promise<Response> {
   const adminCheck = await _requireAdmin(req, env);
   if (adminCheck instanceof Response) return adminCheck;
   if (!env.MESHES) return err(500, 'storage not configured');
   try {
-    const estSpent = parseFloat(await r2GetText(env, '_meta/modal_spend_total.txt') || '0') || 0;
-    const todaySpent = parseFloat(await r2GetText(env, `_meta/modal_spend/${todayUTC()}`) || '0') || 0;
-    const budget = parseFloat(await r2GetText(env, '_meta/modal_budget_total.txt') || '0') || 0;
-    let realUsage: number | null = null, realTs: string | null = null, realByApp: Record<string, number> | null = null;
-    let realByDay: Record<string, number> | null = null;
-    try { const rt = await r2GetText(env, '_meta/modal_real_usage.json'); const r = rt ? JSON.parse(rt) : null; if (r && typeof r.usage === 'number') { realUsage = r.usage; realTs = r.ts || null; realByApp = (r.by_app && typeof r.by_app === 'object') ? r.by_app : null; realByDay = (r.by_day && typeof r.by_day === 'object') ? r.by_day : null; } } catch {}
-    const fresh = realTs ? (Date.now() - Date.parse(realTs)) < 26 * 3600 * 1000 : false;
-    const usage = (fresh && realUsage != null) ? realUsage : estSpent;
-    let alert: unknown = null;
-    try { const a = await r2GetText(env, '_meta/modal_alert.json'); alert = a ? JSON.parse(a) : null; } catch {}
-    const round = (n: number) => Math.round(n * 10000) / 10000;
+    const legere = new URL(req.url).searchParams.get('legere') === '1';
+    const releve = await _lireReleveModal(env);
+    const prevision = await _previsionModal(env, { details: !legere, releve });
+    if (legere) return json({ ok: true, prevision });
+    const r4 = (n: number) => Math.round(n * 10000) / 10000;
 
-    // RÉCONCILIATION : ce que la facture dit, contre ce que le système sait
-    // rattacher à une opération.
-    //
-    // Un commentaire de ce fichier promettait depuis longtemps que « l'écart
-    // est exposé explicitement (voir `unattributed_usd`) ». Ce champ n'a
-    // JAMAIS existé : ni calculé, ni affiché. Une garantie écrite mais
-    // absente est pire qu'une absence de garantie, parce qu'on croit être
-    // couvert.
-    //
-    // Mesuré le 2026-08-04 : 11,79 $ facturés pour 3,68 $ rattachés — 69 %
-    // dans le vide. L'essentiel venait du développement (constructions
-    // d'images, snapshots recréés, préchauffages), mais rien ne permettait
-    // de le SAVOIR depuis le tableau de bord. Désormais si.
-    let attribue = 0;
-    let nbOps = 0;
+    // OU PART L'ARGENT — mois DU RELEVE (septembre tant que le premier releve
+    // d'octobre n'est pas arrive : le titre le dit).
+    const postes = regrouperPostes(releve ? releve.by_app : null);
+
+    /* QUI A COUTE QUOI. « 518 operations lancees par les comptes » : 515
+     * etaient les essais de l'exploitant (compte admin), 3 venaient de
+     * clients (0,74 $). Les comptes de ADMIN_EMAILS ne sont jamais comptes
+     * comme clients. Les estimations par operation sont comparees a la
+     * facture du MEME mois, arretee a l'heure du releve. */
+    let repartition: {
+      mois: string; admin_usd: number; admin_ops: number; clients_usd: number; clients_ops: number;
+      clients_comptes: number; technique_usd: number | null; tronque: boolean;
+    } | null = null;
     try {
-      const debutMois = new Date();
-      debutMois.setUTCDate(1);
-      debutMois.setUTCHours(0, 0, 0, 0);
-      const { data } = await supabaseAdmin(env)
-        .from('jobs')
-        .select('cost_usd')
-        .gte('created_at', debutMois.toISOString())
-        .limit(5000);
-      for (const r of (data ?? []) as Array<{ cost_usd: number | null }>) {
-        if (typeof r.cost_usd === 'number') { attribue += r.cost_usd; nbOps++; }
+      const moisRef = prevision.releve.mois ?? prevision.cycle;
+      const [an, mo] = moisRef.split('-').map(Number);
+      const debut = new Date(Date.UTC(an, mo - 1, 1)).toISOString();
+      const fin = prevision.releve.ts ?? new Date().toISOString();
+      const sb = supabaseAdmin(env);
+      const { data: admins } = await sb.from('profiles').select('id').in('email', [...ADMIN_EMAILS]);
+      const idsAdmin = new Set(((admins ?? []) as Array<{ id: string }>).map((x) => x.id));
+      let adminUsd = 0, adminOps = 0, clientsUsd = 0, clientsOps = 0;
+      const comptes = new Set<string>();
+      const PAGE = 1000;
+      let tronque = false;
+      for (let page = 0; ; page++) {
+        const { data, error } = await sb.from('jobs').select('cost_usd, user_id')
+          .gte('created_at', debut).lte('created_at', fin).gt('cost_usd', 0)
+          .order('created_at', { ascending: true }).range(page * PAGE, page * PAGE + PAGE - 1);
+        if (error) throw new Error(error.message);
+        const rows = (data ?? []) as Array<{ cost_usd: number | null; user_id: string | null }>;
+        for (const r of rows) {
+          const c = Number(r.cost_usd) || 0;
+          if (r.user_id && idsAdmin.has(r.user_id)) { adminUsd += c; adminOps++; }
+          else { clientsUsd += c; clientsOps++; if (r.user_id) comptes.add(r.user_id); }
+        }
+        if (rows.length < PAGE) break;
+        if (page >= 19) { tronque = true; break; }       // 20 000 lignes : on le dit
       }
+      const facture = prevision.releve.usage_usd;
+      repartition = {
+        mois: moisRef,
+        admin_usd: r4(adminUsd), admin_ops: adminOps,
+        clients_usd: r4(clientsUsd), clients_ops: clientsOps, clients_comptes: comptes.size,
+        technique_usd: facture == null ? null : r4(Math.max(0, facture - adminUsd - clientsUsd)),
+        tronque,
+      };
     } catch (e) {
-      console.warn('[recon] somme des couts attribues indisponible:', (e as Error).message);
+      console.warn('[modal-credits] repartition indisponible:', (e as Error).message);
     }
-    // La réconciliation n'a de sens que face à la facture RÉELLE : la
-    // comparer à une estimation reviendrait à comparer une estimation à
-    // elle-même.
-    const factureReelle = (fresh && realUsage != null) ? realUsage : null;
-    const nonAttribue = factureReelle == null ? null : Math.max(0, factureReelle - attribue);
+
+    // CE QUI PROTEGE LE BUDGET — l'etat REEL, pas une promesse.
+    const flags = await _getServiceFlags(env);
+    const capUsd = _plafond(env.MAX_DAILY_MODAL_SPEND_USD, DEFAULT_MAX_MODAL_SPEND_USD);
+    const estimeJour = parseFloat(await r2GetText(env, `_meta/modal_spend/${todayUTC()}`) || '0') || 0;
+    const minuitUtc = new Date();
+    minuitUtc.setUTCHours(24, 0, 0, 0);
+    const protections = {
+      arret_auto: prevision.arret_auto,
+      email_alerte: { configure: !!env.RESEND_API_KEY, destinataires: [...ADMIN_EMAILS] },
+      interrupteur_modal: { actif: flags.modal_enabled },
+      plafond_quotidien: { usd: capUsd, depense_estimee_usd: r4(estimeJour), remise_ts: minuitUtc.toISOString() },
+    };
 
     return json({
       ok: true,
-      total_budget: round(budget),
-      total_spent: round(usage),
-      // Réconciliation du mois en cours.
-      attributed_usd: round(attribue),
-      attributed_ops: nbOps,
-      unattributed_usd: nonAttribue == null ? null : round(nonAttribue),
-      unattributed_pct: (factureReelle && factureReelle > 0 && nonAttribue != null)
-        ? Math.round((nonAttribue / factureReelle) * 100) : null,
-      usage_source: (fresh && realUsage != null) ? 'real' : 'estimate',
-      real_usage: realUsage == null ? null : round(realUsage),
-      real_usage_ts: realTs,
-      real_usage_fresh: fresh,
-      real_usage_by_app: realByApp,
-      // Facture reelle jour par jour (30 j) : « aujourd'hui », moyenne par
-      // jour et jours restants se lisent sur la FACTURE, pas sur l'estimation.
-      real_by_day: realByDay,
-      // Plafond quotidien des comptes gratuits : il s'applique au compteur
-      // d'ESTIMATION du jour (`today_spent`), pas a la facture.
-      daily_cap_usd: _plafond(env.MAX_DAILY_MODAL_SPEND_USD, DEFAULT_MAX_MODAL_SPEND_USD),
-      estimate_spent: round(estSpent),
-      today_spent: round(todaySpent),
-      remaining: Math.max(0, round(budget - usage)),
-      alert,
+      prevision,
+      postes,
+      postes_mois: prevision.releve.mois,
+      repartition,
+      protections,
     });
   } catch (e) {
     return err(500, 'modal credits failed: ' + (e instanceof Error ? e.message : String(e)));
   }
 }
 
-/** POST /api/admin/modal-credits/total  body { total: number } — set
- *  the workspace budget (USD). Admin updates this manually from the
- *  Modal dashboard when they top up. */
+/** POST /api/admin/modal-credits/total  body { total: number, apercu?: boolean }
+ *  — la limite mensuelle, reglee depuis la fenetre « Changer la limite » de la
+ *  carte (a recopier depuis « Usage limit » sur modal.com : aucune API ne
+ *  permet de la lire). `apercu: true` rend la prevision SIMULEE avec ce
+ *  montant, sans rien ecrire : la fenetre montre la consequence AVANT.
+ *  0 est refuse : taper 0 coupait tout en silence ; pour tout arreter,
+ *  l'interrupteur Modal (onglet Services) existe. */
 async function handleAdminModalSetBudget(req: Request, env: Env): Promise<Response> {
   const adminCheck = await _requireAdmin(req, env);
   if (adminCheck instanceof Response) return adminCheck;
   if (!env.MESHES) return err(500, 'storage not configured');
-  let body: { total?: number };
-  try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
-  const n = Number(body?.total);
-  if (!Number.isFinite(n) || n < 0) return err(400, 'total must be a non-negative number');
+  let body: { total?: unknown; apercu?: unknown };
+  try { body = await req.json() as typeof body; } catch { return err(400, 'Requête illisible.'); }
+  const n = Math.round(Number(body?.total) * 100) / 100;
+  if (!Number.isFinite(n) || n < 1) {
+    return err(400, "Montant invalide : 1 $ au minimum. Pour tout couper, utilise l'interrupteur Modal (onglet Services).");
+  }
+  if (n > 100_000) return err(400, 'Montant invalide : 100 000 $ au maximum.');
+  if (body?.apercu === true) {
+    const prevision = await _previsionModal(env, { limiteUsd: n });
+    return json({ ok: true, apercu: true, total: n, prevision });
+  }
+  const avant = await _budgetR2(env);
   await env.MESHES.put('_meta/modal_budget_total.txt', String(n));
-  // Setting the Modal usage limit clears any active alert, then re-evaluates it
-  // immediately against the latest usage (real if fresh, else estimate) so the
-  // banner/email reflect the new limit right away instead of waiting for the
-  // next generation / poller push.
-  try { await env.MESHES.delete('_meta/modal_alert.json'); } catch {}
-  await _maybeAlertModalBudget(env);
-  return json({ ok: true, success: true, total: n });
+  await env.MESHES.put(CLE_LIMITE_META, JSON.stringify({ enregistree_le: new Date().toISOString(), precedente_usd: avant }));
+  _limiteMemo = null;                                  // l'arret a 100 % relit la limite tout de suite
+  const prevision = await _previsionModal(env, { details: true });
+  await _synchroniserAlerteModal(env, prevision);
+  return json({ ok: true, success: true, total: n, prevision });
 }
 
-/** POST /api/admin/modal-usage  body { usage, cycle? } — the modal-billing
- *  poller pushes the REAL workspace usage (sum of `modal billing report`).
- *  Auth via x-ingest-secret == MODAL_USAGE_SECRET (the Worker can't run the
- *  Modal CLI itself, so a small external poller feeds it the real number). */
+/** POST /api/admin/modal-usage — le RELEVE HORAIRE de la facture Modal
+ *  (scripts/modal_usage_push.py, tache planifiee du PC ou GitHub Action).
+ *  Auth : x-ingest-secret == MODAL_USAGE_SECRET (le worker ne peut pas lancer
+ *  la CLI Modal lui-meme).
+ *  Corps : { usage, mois?, by_app?, by_day?, by_day_app?, cycle? }, ou, quand
+ *  le releve n'a pas pu lire la facture, { erreur } — affichee sur la carte.
+ *  Un envoi REFUSE (cle differente) est note, pour que la carte distingue
+ *  « PC eteint » de « cle refusee » : ils ne se reparent pas pareil. */
+let _dernierRefusReleve = 0;
 async function handleAdminModalUsageIngest(req: Request, env: Env): Promise<Response> {
   const secret = (env.MODAL_USAGE_SECRET || '').trim();
   const provided = (req.headers.get('x-ingest-secret') || '').trim();
-  if (!secret || provided !== secret) return err(401, 'unauthorized');
+  if (!secret || provided !== secret) {
+    // Au plus une ecriture toutes les 10 min par isolat, et seulement pour le
+    // client du releve (pas pour n'importe quelle sonde).
+    const ua = req.headers.get('user-agent') || '';
+    if (env.MESHES && provided && ua.startsWith('MyFabmesh-ModalPoller') && Date.now() - _dernierRefusReleve > 600_000) {
+      _dernierRefusReleve = Date.now();
+      try { await env.MESHES.put(CLE_RELEVE_REFUS, JSON.stringify({ ts: new Date().toISOString() })); } catch { /* best-effort */ }
+    }
+    return err(401, 'unauthorized');
+  }
   if (!env.MESHES) return err(500, 'storage not configured');
-  let body: { usage?: number; cycle?: string; by_app?: Record<string, number>; by_day?: Record<string, number>; by_day_app?: Record<string, Record<string, number>> };
+  let body: {
+    usage?: number; cycle?: string; mois?: string; erreur?: string;
+    by_app?: Record<string, number>; by_day?: Record<string, number>; by_day_app?: Record<string, Record<string, number>>;
+  };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
+  if (typeof body?.erreur === 'string' && body.usage == null) {
+    await env.MESHES.put(CLE_RELEVE_ERREUR, JSON.stringify({
+      ts: new Date().toISOString(), message: body.erreur.slice(0, 300),
+    }));
+    return json({ ok: true, success: true, erreur_notee: true });
+  }
   const usage = Number(body?.usage);
   if (!Number.isFinite(usage) || usage < 0) return err(400, 'usage must be a non-negative number');
   const byApp = (body?.by_app && typeof body.by_app === 'object') ? body.by_app : null;
@@ -4284,10 +4414,17 @@ async function handleAdminModalUsageIngest(req: Request, env: Env): Promise<Resp
       byDayApp[jour] = propre;
     }
   }
-  await env.MESHES.put('_meta/modal_real_usage.json', JSON.stringify({
-    usage: Math.round(usage * 10000) / 10000, by_app: byApp, by_day: byDay, by_day_app: byDayApp, cycle: String(body?.cycle || ''), ts: new Date().toISOString(),
+  /* MOIS DU RELEVE, donne par le releve lui-meme (le mois UTC de son « this
+   * month ») : un releve lance a 23:59:50 UTC et recu a 00:00:10 porte la
+   * facture du mois qui se termine, pas celle du nouveau. */
+  const mois = (typeof body?.mois === 'string' && /^\d{4}-\d{2}$/.test(body.mois)) ? body.mois : moisUtc(Date.now());
+  await env.MESHES.put(CLE_RELEVE_MODAL, JSON.stringify({
+    usage: Math.round(usage * 10000) / 10000, by_app: byApp, by_day: byDay, by_day_app: byDayApp,
+    cycle: String(body?.cycle || ''), mois, ts: new Date().toISOString(),
   }));
-  await _maybeAlertModalBudget(env);
+  try { await env.MESHES.delete(CLE_RELEVE_ERREUR); } catch { /* best-effort */ }
+  _limiteMemo = null;
+  await _synchroniserAlerteModal(env);
   return json({ ok: true, success: true });
 }
 
@@ -18109,8 +18246,8 @@ async function handleAdminSante(req: Request, env: Env): Promise<Response> {
           + "d'estimations, qui sous-evalue d'un facteur ~4,6."
         : null,
       action: (ageUsageH == null || ageUsageH >= 26)
-        ? 'Declarer MODAL_TOKEN_ID / MODAL_TOKEN_SECRET / MODAL_USAGE_SECRET dans les '
-          + 'secrets GitHub Actions (workflow modal-usage-push.yml)' : null,
+        ? 'Sur le PC du releve : lire %LOCALAPPDATA%\\FabWare\\Exploitation\\releve_modal.log ; '
+          + 'si « secret introuvable » ou « cle refusee » : scripts\\reinitialiser_releve_modal.ps1' : null,
     },
   ];
 
@@ -18326,6 +18463,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   let realByApp: Record<string, number> | null = null;
   let realByDay: Record<string, number> | null = null;
   let realByDayApp: Record<string, Record<string, number>> | null = null;
+  let realUsageMois: string | null = null;
   try {
     const rt = await r2GetText(env, '_meta/modal_real_usage.json');
     const r = rt ? JSON.parse(rt) : null;
@@ -18334,9 +18472,15 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       realByApp = (r.by_app && typeof r.by_app === 'object') ? r.by_app : null;
       realByDay = (r.by_day && typeof r.by_day === 'object') ? r.by_day : null;
       realByDayApp = (r.by_day_app && typeof r.by_day_app === 'object') ? r.by_day_app : null;
+      realUsageMois = (typeof r.mois === 'string' && /^\d{4}-\d{2}$/.test(r.mois)) ? r.mois
+        : (typeof r.ts === 'string' ? r.ts.slice(0, 7) : null);
     }
   } catch {}
-  const realCostEur = realUsageUsd == null ? null : +(realUsageUsd * USD_TO_EUR).toFixed(2);
+  /* COUT REEL « DU MOIS » : seulement si le releve EST du mois en cours
+   * (2026-09-30). Un releve de fin septembre lu le 1er octobre donnait une
+   * marge d'octobre calculee sur la facture de septembre. */
+  const releveDuMois = realUsageMois != null && realUsageMois >= moisUtc(Date.now());
+  const realCostEur = (realUsageUsd == null || !releveDuMois) ? null : +(realUsageUsd * USD_TO_EUR).toFixed(2);
 
   /* COUT REEL PAR JOUR dans la serie de 30 jours.
    *
@@ -18356,8 +18500,6 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     p.real_cost_eur = reel;
     p.real_margin_eur = reel == null ? null : +(p.revenue_eur - reel).toFixed(2);
   }
-  const coutJour = (p: typeof series30[number]) => p.real_cost_eur ?? p.cost_eur;
-  const serieReelle = !!realByDay && series30.some(p => p.real_cost_eur != null);
 
   /* « PAR TYPE » SUR 30 JOURS, AU COUT REEL.
    *
@@ -18379,7 +18521,8 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   // tourne dans son app a part ; reparti sur tout le jour, son cout retombait
   // sur les maillages). Sans detail par app, repli sur la facture du jour.
   const posteApp = (app: string): string | null => {
-    if (app === 'myfabmesh-cloud') return 'cloud';
+    // Versions legeres des gros maillages (appli a part depuis le 30/09) : poste 3D.
+    if (app === 'myfabmesh-cloud' || app === 'myfabmesh-lod') return 'cloud';
     if (/skintokens|-rig$/.test(app)) return 'rig';
     if (/unimate|-anim$|fbx-retarget/.test(app)) return 'anim';
     if (/partsam|sampart/.test(app)) return 'segment';
@@ -18484,46 +18627,11 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     cron = ct ? JSON.parse(ct) : null;
   } catch { /* never ran yet, or malformed — the UI shows 'unknown' */ }
 
-  // ── GPU burn rate (item 8b): €/day over 7d and 30d, today's spend vs the
-  // daily cap, and how long the prepaid Modal budget lasts at the current rate.
-  // Derived from series_30d (already computed) + the three tiny budget counters.
-  let budgetTotalUsd = 0, budgetSpentUsd = 0, todaySpendUsd = 0;
-  try { budgetTotalUsd = parseFloat(await r2GetText(env, '_meta/modal_budget_total.txt') || '0') || 0; } catch {}
-  try { budgetSpentUsd = parseFloat(await r2GetText(env, '_meta/modal_spend_total.txt') || '0') || 0; } catch {}
-  try { todaySpendUsd  = parseFloat(await r2GetText(env, `_meta/modal_spend/${todayUTC()}`) || '0') || 0; } catch {}
-  const dailyCapUsd = _plafond(env.MAX_DAILY_MODAL_SPEND_USD, DEFAULT_MAX_MODAL_SPEND_USD);
-  // Prefer the REAL Modal usage when it is fresh (<26h), same rule as
-  // handleAdminModalCredits, so the runway isn't computed off a stale estimate.
-  const realFresh = realUsageTs ? (Date.now() - Date.parse(realUsageTs)) < 26 * 3600 * 1000 : false;
-  const usedUsd = (realFresh && realUsageUsd != null) ? realUsageUsd : budgetSpentUsd;
-  const budgetRemainingUsd = budgetTotalUsd > 0 ? Math.max(0, budgetTotalUsd - usedUsd) : 0;
-  const cost7 = last7.reduce((a, b) => a + coutJour(b), 0);
-  const cost30 = series30.reduce((a, b) => a + coutJour(b), 0);
-  const eurPerDay7  = +(cost7 / 7).toFixed(3);
-  const eurPerDay30 = +(cost30 / 30).toFixed(3);
-  // Runway uses the 7-day rate (most representative of current traffic) and
-  // falls back to the 30-day rate when the last week was idle.
-  const rateEurPerDay = eurPerDay7 > 0 ? eurPerDay7 : eurPerDay30;
-  const remainingEur = budgetRemainingUsd * USD_TO_EUR;
-  const daysLeft = (budgetTotalUsd > 0 && rateEurPerDay > 0)
-    ? Math.floor(remainingEur / rateEurPerDay) : null;
-  const burn = {
-    eur_per_day_7d: eurPerDay7,
-    eur_per_day_30d: eurPerDay30,
-    cost_7d_eur: +cost7.toFixed(2),
-    cost_30d_eur: +cost30.toFixed(2),
-    today_spend_usd: +todaySpendUsd.toFixed(4),
-    daily_cap_usd: dailyCapUsd,
-    daily_cap_pct: dailyCapUsd > 0 ? +Math.min(100, (todaySpendUsd / dailyCapUsd) * 100).toFixed(1) : 0,
-    budget_total_usd: +budgetTotalUsd.toFixed(2),
-    budget_remaining_usd: +budgetRemainingUsd.toFixed(2),
-    budget_source: (realFresh && realUsageUsd != null) ? 'real' : 'estimate',
-    // D'ou viennent les couts journaliers du rythme de depense.
-    rate_source: serieReelle ? 'real' : 'estimate',
-    days_left: daysLeft,
-    depletion_date: daysLeft == null ? null
-      : new Date(now + daysLeft * DAY).toISOString().slice(0, 10),
-  };
+  /* PLUS DE BLOC `burn` (2026-09-30). Il recalculait une autonomie en jours
+   * (Math.floor, sur le cumul d'estimations jamais remis a zero) que la page
+   * n'affichait plus (renderBurn n'etait appele nulle part) : un second calcul
+   * qui pouvait diverger de la carte. La prevision de coupure est desormais
+   * calculee UNE fois, dans src/prevision_modal.ts (GET /api/admin/modal-credits). */
 
   return json({
     generated_at: new Date().toISOString(),
@@ -18544,7 +18652,6 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     jobs_scanned: (jobs ?? []).length,
     jobs_truncated: (jobs ?? []).length >= 20000,
     cron,
-    burn,
     operations: ops,
     by_type: byType,
     by_type_30d: {
@@ -18588,6 +18695,9 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       // Age de la facture Modal, en heures. Au-dela de ~48 h le poller
       // ne tourne plus et le chiffre ne doit PAS etre presente comme frais.
       real_usage_age_h: realUsageAgeH,
+      // Mois (UTC) de la facture relevee : real_cost_eur est null s'il n'est
+      // pas le mois en cours (debut de mois, releve pas encore passe).
+      real_usage_mois:  realUsageMois,
       real_usage_usd:   realUsageUsd,
       real_usage_ts:    realUsageTs,
       real_usage_by_app: realByApp,
@@ -21365,6 +21475,10 @@ export default {
           rec.delivered = r.delivered ?? 0;
           rec.errors.push(...r.errors.map((m) => 'reaper: ' + m));
         } catch (e) { rec.errors.push('reaper: ' + emsg(e)); }
+        // Alerte du budget Modal (2026-09-30) : recalculee meme sans trafic, pour
+        // que l'alerte d'un mois fini tombe au 1er et qu'un releve arrete soit
+        // signale (4 petites lectures R2 par passage).
+        try { await _synchroniserAlerteModal(env); } catch (e) { rec.errors.push('alerte modal: ' + emsg(e)); }
         rec.duration_ms = Date.now() - t0;
         try {
           if (env.MESHES) {

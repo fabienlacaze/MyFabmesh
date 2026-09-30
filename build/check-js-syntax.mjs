@@ -60,8 +60,11 @@ const LIVRES = [
  *  nettoyage trop large y a transforme `(function () {` en `(function {` et
  *  `, () => {` en `, => {`. Huit lignes cassees, LIVREES en production : le
  *  panneau de prechauffage ne se depliait plus au survol, et rien ne l'a
- *  signale. Ils sont analyses comme le reste, maintenant. */
-const PAGES = ['src/renderer/index2.html', 'cloud/public/app/index.html'];
+ *  signale. Ils sont analyses comme le reste, maintenant.
+ *  admin.html ajoutee le 2026-09-30 : tout son code (~4 000 lignes, dont la
+ *  carte « Cout GPU » et le bandeau du budget) est un <script> en ligne, et
+ *  aucun garde ne le lisait. */
+const PAGES = ['src/renderer/index2.html', 'cloud/public/app/index.html', 'cloud/public/admin.html'];
 
 function scriptsEnLigne(chemin) {
   const brut = readFileSync(join(RACINE, chemin), 'utf-8');
