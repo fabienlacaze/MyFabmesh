@@ -24783,3 +24783,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) File d'attente 3D : le besoin de VRAM d'une 3D est le PLUS PETIT mesure (lirePics), les echecs sont ignores. Le message « needs 12.4 GB ... 9.8 free » (user : « c'est faux ») venait du DERNIER passage (portail 11,3 x 1,1) qui retenait une voiture passant a 8,2 ; la 3D recommence de toute facon dans un mode plus leger sur manque de VRAM.
 
 - (suite) Barre partagee : fine bande a degrade dans le violet = consommation reelle de MyFabmesh (rouge a droite) ; GPU / temperature / processeur : zone gauche violet clair, droite gris, bande reelle depuis la droite.
+
+- (suite) GPU / temperature / processeur : partie fixe minimum en violet fonce (GPU_LIMITS_MIN) a gauche, comme les barres memoire.

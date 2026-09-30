@@ -22200,6 +22200,7 @@ function paintGpuDisabledZones() {
       zone.className = 'gpu-bar-disabled-zone';
       bar.insertBefore(zone, bar.firstChild);
     }
+    bar.style.setProperty('--min', (GPU_LIMITS_MIN[stat] || 0) + '%');     // partie fixe minimum (violet fonce), comme les barres memoire
     zone.classList.add('droite');
     const v = Math.max(0, Math.min(100, Number(gpuLimits[stat]) || 0));
     zone.style.left = v + '%';
