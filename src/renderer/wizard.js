@@ -348,7 +348,7 @@ document.getElementById('btn-detect-retry')?.addEventListener('click', () => {
 // than a strict 16384 that would lock them out for ~80 MB of fluff.
 // La carte « cloud » n'a AUCUNE exigence VRAM : elle reste toujours activable,
 // pour qu'aucune machine ne puisse se retrouver avec toutes les cartes grisées.
-const MODE_VRAM_REQ = { full: 15 * 1024, standard: 11 * 1024, lite: 6 * 1024, cloud: 0 };
+const MODE_VRAM_REQ = { full: 15 * 1024, standard: 11 * 1024, lite: 11 * 1024, cloud: 0 };   // le moteur 3D fait OOM sous 12 Go : meme plancher que _recommendMode
 
 function renderModeCards() {
   const reco = hwReport.recommended_mode;
@@ -546,10 +546,10 @@ async function _startDownloadInterne() {
   list.innerHTML = `
     <div class="wiz-dl-row in-progress" data-id="__aienv">
       <span class="name" id="aienv-name">Installing the AI engine…</span>
-      <span class="size">~5 GB</span>
+      <span class="size">~8.5 GB</span>
       <div class="bar"><div class="bar-fill"></div></div>
     </div>
-    <div class="wiz-dl-row"><span class="name" style="opacity:.65" id="aienv-note">One-time setup, about 5 GB in total. Your PC may feel slow while it downloads. You can leave it running; just keep this window open.</span></div>`;
+    <div class="wiz-dl-row"><span class="name" style="opacity:.65" id="aienv-note">One-time setup: the AI engine is about 8.5 GB, then the models download. Your PC may feel slow while it downloads. You can leave it running; just keep this window open.</span></div>`;
   // The byte/speed/ETA counters are for the MODEL download, not this pip
   // install (which reports by step, not by bytes) — show "—" meanwhile so
   // they don't read as "frozen at 0".
@@ -558,7 +558,7 @@ async function _startDownloadInterne() {
   }
   // PROGRESSION EN OCTETS (2026-09-30) : le script d'installation mesure ce que pip telecharge (bytes_done, speed_mbps) ; la barre et le
   // compteur du bas (Mo, Mo/s, temps restant) les utilisent. Le total (~5 Go) est une ESTIMATION affichee comme telle.
-  const AIENV_TOTAL_MO = 5000;
+  const AIENV_TOTAL_MO = 8500;
   let barreMax = 3;
   window.wizardAPI.onInstallProgress((p) => {
     const fill = document.querySelector('.wiz-dl-row[data-id="__aienv"] .bar-fill');

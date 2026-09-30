@@ -24386,3 +24386,11 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Constat (analyse binaire des roues livrees) : spconv core_cc contient sm_75 + sm_120 (pas de noyau 8.x) ; cumesh / o_voxel / flex_gemm sm_86. Sur RTX 30 / 40 (capacite 8.6 / 8.9) le maillage local echouerait a la premiere generation.
 - `src/main/main.js` : `_nvidiaGpuInfo` lit aussi `compute_cap` (repli sans le champ sur les anciens pilotes) ; `_recommendMode` -> cloud si capacite < 12.0 (inconnue : pas de blocage) ; avertissement affiche ; les modes locaux restent choisissables.
   Banc de la logique : RTX 5080 -> standard ; RTX 4090 / 3080 -> cloud ; ancien pilote (inconnue) -> standard ; AMD / aucun GPU -> cloud.
+
+## 2026-09-30 — Assistant : tailles REELLES des telechargements (etaient fausses d'un facteur 2 a 5) + exclusion des fichiers inutiles
+- Constat (user : « ca s'adapte au PC ? les tailles sont a jour ? ») : l'assistant annoncait Lite ~7 / Standard ~15 / Full ~22 Go ; le plan interne 4,1 Go pour TRELLIS-2 (depot : 16,2 Go), 6,5 pour RealVis (27,8), 0,7 pour IP-Adapter (19,8)... `snapshot_download` prenait TOUT le depot
+  (formats en double, fp32 alors que le code charge `variant='fp16'`, modeles SD 1.5). Reel : ~77 Go pour Standard. La barre de progression, calculee sur ces tailles, etait fausse aussi.
+- `wizard_download.py` : IGNORE_PATTERNS (fp32 SDXL, .bin / .h5 / .ckpt en double, fichier unique RealVis, modeles SD 1.5 d'IP-Adapter, jumeau ControlNet), verifies contre le code ; tailles mesurees sur l'API du Hub apres exclusion :
+  TRELLIS-2 16,24 Go, RealVis 27,75 -> 6,94, SDXL-inpaint 20,82 -> 6,94, IP-Adapter 19,82 -> 9,31, BLIP 5,64 -> 1,88, openpose 5,01 -> 2,51, Florence 3,12. Totaux : lite 19,4 / standard 38,6 / full 48,7 Go (+ ~8,5 Go de moteur d'IA).
+- `main.js` : WIZARD_MODELS aligne (dinov3 ajoute), seuils de disque de la recommandation 40 / 60 / 75 Go (avant 20 / 25 / 30) ; `wizard.html` : cartes ~28 / ~47 / ~57 Go, Lite « 12+ Go de VRAM » (le moteur 3D fait OOM sous 12 Go) ; `wizard.js` : moteur d'IA ~8,5 Go, plancher VRAM Lite 11 Go.
+- NON verifie en telechargement reel (a confirmer par l'installation de zero en cours) : que les modeles sans les fichiers exclus se chargent (les exclusions suivent le code : variant fp16 + safetensors).

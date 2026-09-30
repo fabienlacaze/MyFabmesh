@@ -9571,9 +9571,10 @@ function _recommendMode(gpu, ramMb, diskGb) {
   if (typeof gpu.compute_cap === 'number' && gpu.compute_cap < LOCAL_CAP_MIN) return 'cloud';
   const vram = gpu.vram_mb || 0;
   const FLOOR = 12 * 1024;
-  if (vram >= 16 * 1024 && ramMb >= 16 * 1024 && diskGb >= 30) return 'full';
-  if (vram >= FLOOR && ramMb >= 16 * 1024 && diskGb >= 25) return 'standard';
-  if (vram >= FLOOR && ramMb >= 8 * 1024 && diskGb >= 20) return 'lite';
+  // Seuils de disque = tailles REELLES sur disque (moteur d'IA ~8,5 Go + modeles : lite ~28 Go, standard ~47 Go, full ~57 Go) + ~30 % de marge.
+  if (vram >= 16 * 1024 && ramMb >= 16 * 1024 && diskGb >= 75) return 'full';
+  if (vram >= FLOOR && ramMb >= 16 * 1024 && diskGb >= 60) return 'standard';
+  if (vram >= FLOOR && ramMb >= 8 * 1024 && diskGb >= 40) return 'lite';
   return 'cloud';
 }
 
@@ -9602,7 +9603,7 @@ async function _detectHardwareNative() {
     warnings.push(`Your GPU has ${Math.round((gpu.vram_mb || 0) / 1024)} GB VRAM — the local 3D engine needs at least 12 GB. Cloud mode will be used instead.`);
   }
   if (ram_mb && ram_mb < 8 * 1024) warnings.push(`Low system RAM (${Math.round(ram_mb / 1024)} GB). 16 GB is recommended.`);
-  if (recommended_mode !== 'cloud' && disk_free_gb < 15) warnings.push(`Low disk space (${disk_free_gb} GB free).`);
+  if (recommended_mode !== 'cloud' && disk_free_gb < 40) warnings.push(`Low disk space (${disk_free_gb} GB free).`);
 
   return {
     os: `${os.type()} ${os.release()}`,
@@ -9663,27 +9664,30 @@ ipcMain.handle('wizard:detect-hardware', async () => {
 // download/test scripts know what they're pulling.
 const WIZARD_MODELS = {
   lite:     [
-    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 4100 },
-    { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 990 },
+    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
+    { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
+    { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
   ],
   standard: [
-    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 4100 },
-    { id: 'realvis',   label: 'Texture engine',                           repo: 'SG161222/RealVisXL_V4.0',                        size_mb: 6500 },
-    { id: 'lightning', label: 'Turbo engine (Lightning)',                 repo: 'ByteDance/SDXL-Lightning',                       size_mb: 400  },
-    { id: 'cn_pose',   label: 'Back-view module',                         repo: 'xinsir/controlnet-openpose-sdxl-1.0',            size_mb: 2400 },
-    { id: 'ipadapter', label: 'Reference module',                         repo: 'h94/IP-Adapter',                                 size_mb: 700  },
-    { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 990  },
+    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
+    { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
+    { id: 'realvis',   label: 'Texture engine',                           repo: 'SG161222/RealVisXL_V4.0',                        size_mb: 6940 },
+    { id: 'lightning', label: 'Turbo engine (Lightning)',                 repo: 'ByteDance/SDXL-Lightning',                       size_mb: 390  },
+    { id: 'cn_pose',   label: 'Back-view module',                         repo: 'xinsir/controlnet-openpose-sdxl-1.0',            size_mb: 2510 },
+    { id: 'ipadapter', label: 'Reference module',                         repo: 'h94/IP-Adapter',                                 size_mb: 9310 },
+    { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
     { id: 'esrgan',    label: 'Upscale engine',                           repo: 'github://RealESRGAN_x4plus',                      size_mb: 70   },
   ],
   full:     [
-    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core (Ultra)',                  repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 4100 },
-    { id: 'realvis',   label: 'Texture engine',                           repo: 'SG161222/RealVisXL_V4.0',                        size_mb: 6500 },
-    { id: 'lightning', label: 'Turbo engine (Lightning)',                 repo: 'ByteDance/SDXL-Lightning',                       size_mb: 400  },
-    { id: 'sdxl_inp',  label: 'Face refiner',                             repo: 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', size_mb: 6500 },
-    { id: 'cn_pose',   label: 'Back-view module',                         repo: 'xinsir/controlnet-openpose-sdxl-1.0',            size_mb: 2400 },
-    { id: 'ipadapter', label: 'Reference module',                         repo: 'h94/IP-Adapter',                                 size_mb: 700  },
-    { id: 'florence2', label: 'Advanced vision analyzer',                 repo: 'microsoft/Florence-2-large',                     size_mb: 1700 },
-    { id: 'blip1',     label: 'Basic vision analyzer',                    repo: 'Salesforce/blip-image-captioning-large',         size_mb: 990  },
+    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core (Ultra)',                  repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
+    { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
+    { id: 'realvis',   label: 'Texture engine',                           repo: 'SG161222/RealVisXL_V4.0',                        size_mb: 6940 },
+    { id: 'lightning', label: 'Turbo engine (Lightning)',                 repo: 'ByteDance/SDXL-Lightning',                       size_mb: 390  },
+    { id: 'sdxl_inp',  label: 'Face refiner',                             repo: 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', size_mb: 6940 },
+    { id: 'cn_pose',   label: 'Back-view module',                         repo: 'xinsir/controlnet-openpose-sdxl-1.0',            size_mb: 2510 },
+    { id: 'ipadapter', label: 'Reference module',                         repo: 'h94/IP-Adapter',                                 size_mb: 9310 },
+    { id: 'florence2', label: 'Advanced vision analyzer',                 repo: 'microsoft/Florence-2-large',                     size_mb: 3120 },
+    { id: 'blip1',     label: 'Basic vision analyzer',                    repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
     { id: 'esrgan',    label: 'Upscale engine',                           repo: 'github://RealESRGAN_x4plus',                      size_mb: 70   },
   ],
 };

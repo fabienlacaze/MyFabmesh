@@ -96,32 +96,35 @@ DINOV3_MIRROR_REPO = 'camenduru/dinov3-vitl16-pretrain-lvd1689m'
 DINOV3_FILES = ['config.json', 'model.safetensors', 'preprocessor_config.json']
 
 
+# TAILLES REELLES (2026-09-30, mesurees sur l'API du Hub apres exclusion des fichiers inutiles ci-dessous). Avant : 4,1 / 6,5 / 6,5 / 2,4 / 0,7 / 1,7 / 0,99 Go
+# annonces pour des depots qui en pesaient 16,2 / 27,8 / 20,8 / 5,0 / 19,8 / 3,1 / 5,6 Go : « ~15 Go » affiches pour ~77 Go telecharges, et une barre de progression
+# (calculee sur ces tailles) fausse. Totaux : lite ~19,4 Go, standard ~38,6 Go, full ~48,7 Go (+ ~8,5 Go de moteur d'IA installe avant).
 MODELS = {
     'lite': [
-        ('trellis2', 'microsoft/TRELLIS.2-4B', 4100),
+        ('trellis2', 'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',   DINOV3_CANONICAL_REPO, 1250),
-        ('blip1',    'Salesforce/blip-image-captioning-large', 990),
+        ('blip1',    'Salesforce/blip-image-captioning-large', 1880),
     ],
     'standard': [
-        ('trellis2',  'microsoft/TRELLIS.2-4B', 4100),
+        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
-        ('realvis',   'SG161222/RealVisXL_V4.0', 6500),
-        ('lightning', 'ByteDance/SDXL-Lightning', 400),
-        ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2400),
-        ('ipadapter', 'h94/IP-Adapter', 700),
-        ('blip1',     'Salesforce/blip-image-captioning-large', 990),
+        ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
+        ('lightning', 'ByteDance/SDXL-Lightning', 390),
+        ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2510),
+        ('ipadapter', 'h94/IP-Adapter', 9310),
+        ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
         ('esrgan',    'RealESRGAN_x4plus', 70),
     ],
     'full': [
-        ('trellis2',  'microsoft/TRELLIS.2-4B', 4100),
+        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
-        ('realvis',   'SG161222/RealVisXL_V4.0', 6500),
-        ('lightning', 'ByteDance/SDXL-Lightning', 400),
-        ('sdxl_inp',  'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', 6500),
-        ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2400),
-        ('ipadapter', 'h94/IP-Adapter', 700),
-        ('florence2', 'microsoft/Florence-2-large', 1700),
-        ('blip1',     'Salesforce/blip-image-captioning-large', 990),
+        ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
+        ('lightning', 'ByteDance/SDXL-Lightning', 390),
+        ('sdxl_inp',  'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', 6940),
+        ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2510),
+        ('ipadapter', 'h94/IP-Adapter', 9310),
+        ('florence2', 'microsoft/Florence-2-large', 3120),
+        ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
         ('esrgan',    'RealESRGAN_x4plus', 70),
     ],
 }
@@ -132,6 +135,19 @@ MODELS = {
 # we only use the 4-step SDXL LoRA (~400 MB).
 ALLOW_PATTERNS = {
     'ByteDance/SDXL-Lightning': ['sdxl_lightning_4step_lora.safetensors'],
+}
+# FICHIERS INUTILES EXCLUS (2026-09-30). snapshot_download prenait TOUT le depot : formats en double (.bin / .h5 a cote de .safetensors), poids fp32 alors que le code
+# charge `variant='fp16'` partout, le fichier unique de RealVis en plus de ses composants, les modeles SD 1.5 d'IP-Adapter... Chaque exclusion a ete verifiee contre le code
+# (variant='fp16' + use_safetensors ; IP-Adapter en .safetensors ; ControlNet openpose = diffusion_pytorch_model.safetensors ; BLIP en safetensors).
+_FORMATS_INUTILES = ['*.ckpt', '*.bin', '*.h5', '*.onnx', '*.msgpack', '*.pb', '*.ot', '*.mlmodel', '*.tflite']
+_FP32_SDXL = ['unet/diffusion_pytorch_model.safetensors', 'text_encoder/model.safetensors',
+              'text_encoder_2/model.safetensors', 'vae/diffusion_pytorch_model.safetensors']
+IGNORE_PATTERNS = {
+    'SG161222/RealVisXL_V4.0': _FORMATS_INUTILES + ['RealVisXL_V4.0.safetensors'] + _FP32_SDXL,
+    'diffusers/stable-diffusion-xl-1.0-inpainting-0.1': _FORMATS_INUTILES + _FP32_SDXL,
+    'h94/IP-Adapter': ['*.bin', '*sd15*', '*.h5'],
+    'Salesforce/blip-image-captioning-large': ['*.bin', '*.h5', '*.msgpack'],
+    'xinsir/controlnet-openpose-sdxl-1.0': ['*twins*', '*.bin', '*.ckpt'],
 }
 
 
@@ -363,7 +379,8 @@ def download_hf(item_id, repo, expected_mb, total_done_mb_ref):
     def _dl(tok):
         return snapshot_download(repo_id=repo, resume_download=True,
                                  max_workers=4, token=tok,
-                                 allow_patterns=ALLOW_PATTERNS.get(repo))
+                                 allow_patterns=ALLOW_PATTERNS.get(repo),
+                                 ignore_patterns=IGNORE_PATTERNS.get(repo))
     try:
         token = _hf_token()
         try:
