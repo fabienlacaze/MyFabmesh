@@ -24647,3 +24647,7 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — page de verification : barre a 0 des l arrivee (plus de barre pleine 1 s)
 - wizard.html/js : t-fill 0%, _tPct=0, suppression du flash 100 % + jalons faits avant le zoom.
+
+## 2026-09-30 — fuites de noms de moteurs (user : « ca montre trellis »)
+- wizard.js : masquerMoteurs() sur « Technical details » (TRELLIS, DINOv3, Qwen, SkinTokens...).
+- index2.js (bureau + web) : _masquerMoteursErr() applique dans customError / customErrorWithAction (chemins de scripts et noms de moteurs des sorties brutes). Libelles directs verifies propres ; reste « Built with DINOv3 (Meta Platforms) » = attribution de licence Meta, conservee.

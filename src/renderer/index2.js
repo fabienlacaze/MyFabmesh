@@ -318,7 +318,15 @@ function humanizeErrorMessage(raw) {
 window.humanizeErrorMessage = humanizeErrorMessage;
 
 // Show a long error message in a styled modal instead of native alert()
+// NOMS DE MOTEURS ET DE SCRIPTS MASQUES dans toute fenetre d'erreur (secret industriel, user 2026-09-30 : « verifie que l'on n'ait pas d'autres fuites »).
+// Affichage seulement : les journaux gardent les vrais noms.
+const _MOTEURS_MASQUES_ERR = [[/[A-Za-z]:[^"'\s]*[\/](?:scripts|modal_app)[\/][\w.-]+/g, '[engine]'], [/[\w.-]*(?:juggernaut|realvis|trellis|unirig|puppeteer|skintokens)[\w.-]*/gi, '[engine]'],
+  [/TRELLIS[-.\s]?2(?:-4B)?|TRELLIS/gi, '3D core'], [/DINOv?3/gi, 'image analyzer'], [/Florence[-\s]?2/gi, 'advanced vision analyzer'], [/Qwen3?(?:-4B)?/gi, 'writing assistant'],
+  [/RealVis\w*/gi, 'texture engine'], [/SDXL[-\w]*/gi, 'image engine'], [/BiRefNet|Lucida|rembg|u2net/gi, 'background remover'], [/Real-?ESRGAN\w*|ESRGAN/gi, 'upscale engine'],
+  [/SkinTokens|UniRig|Puppeteer/gi, 'rig engine'], [/CLIPSeg/gi, 'mask engine'], [/IP-?Adapter/gi, 'reference engine'], [/ControlNet\w*/gi, 'pose engine'], [/UniMate/gi, 'animation engine']];
+function _masquerMoteursErr(t) { let r = String(t == null ? '' : t); for (const [re, sub] of _MOTEURS_MASQUES_ERR) r = r.replace(re, sub); return r; }
 function customError(message, title = 'Error') {
+  message = _masquerMoteursErr(message);
   { const refus = _refusCapacite(message); if (refus) { message = refus.texte; title = refus.titre; } }
   // Service GPU cloud COUPE par le fournisseur (budget du mois atteint, 28/09) : le message brut
   // « modal-http: workspace ac-… is disabled » etait illisible (et montrait un identifiant interne).
@@ -381,6 +389,7 @@ function customError(message, title = 'Error') {
 // performing the action after awaiting the promise.
 window.customError = customError;   // pour index2-edit-tools.js (script classique)
 function customErrorWithAction(message, title, actionLabel) {
+  message = _masquerMoteursErr(message);
   const safe = String(message || 'Unknown error');
   const modal = document.getElementById('modal-confirm');
   const titleEl = document.getElementById('confirm-title');

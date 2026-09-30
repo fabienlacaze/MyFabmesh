@@ -1050,6 +1050,12 @@ const T_LIBELLES = [
 const T_POS = { engine: 17, models: 34, img: 50, '3d': 67, rig: 83, anim: 100 };
 const T_COULEUR = { engine: '#e84d7a', models: '#14b8a6', img: '#4a90e2', '3d': '#c35ce0', rig: '#f08a24', anim: '#22c55e' };
 const _attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+// NOMS DE MOTEURS MASQUES dans « Technical details » (secret industriel, user 2026-09-30 : « ca montre trellis ») : affichage seulement.
+const _MOTEURS_MASQUES = [[/TRELLIS[-.\s]?2(?:-4B)?|TRELLIS/gi, '3D core'], [/DINOv?3/gi, 'image analyzer'], [/Florence[-\s]?2/gi, 'advanced vision analyzer'],
+  [/BLIP/gi, 'vision analyzer'], [/Qwen3?(?:-4B)?/gi, 'writing assistant'], [/RealVis\w*|Juggernaut\w*/gi, 'texture engine'], [/SDXL[-\w]*/gi, 'image engine'],
+  [/BiRefNet|Lucida|rembg|u2net/gi, 'background remover'], [/Real-?ESRGAN\w*|ESRGAN/gi, 'upscale engine'], [/SkinTokens|UniRig|Puppeteer/gi, 'rig engine'],
+  [/CLIPSeg/gi, 'mask engine'], [/IP-?Adapter/gi, 'reference engine'], [/ControlNet\w*/gi, 'pose engine']];
+function masquerMoteurs(t) { let r = String(t); for (const [re, sub] of _MOTEURS_MASQUES) r = r.replace(re, sub); return r; }
 let _tPct = 0, _tChronoDebut = 0, _tChronoMinuteur = null;
 function tBarre(v, sansAnim) {
   const f = document.getElementById('t-fill'), t = document.getElementById('t-pct');
@@ -1134,7 +1140,7 @@ async function runFinalTest() {
     if (groupe) tBarre(depart + (T_POS[groupe] - depart) * Math.min(1, faits / (attendus[groupe] || 1)));
   };
   window.wizardAPI.onTestLog((line) => {
-    log.textContent += line + '\n';
+    log.textContent += masquerMoteurs(line) + '\n';
     log.scrollTop = log.scrollHeight;
     const m = /checking (.+?)(?:\.\.\.|…)\s*$/i.exec(line);
     if (m) {
@@ -1188,7 +1194,7 @@ async function runFinalTest() {
   else if (rigOk) finir(liRig, true);
   else {
     finir(liRig, false, 'Auto-rigging will run online instead');
-    log.textContent += '[rig] ' + String((rig && rig.error) || '').slice(-600) + '\n';
+    log.textContent += '[rig] ' + masquerMoteurs(String((rig && rig.error) || '').slice(-600)) + '\n';
   }
   tJalon('rig', rigOk ? 'fait' : 'echec');
   tBarre(T_POS.rig);
