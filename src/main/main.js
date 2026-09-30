@@ -10093,8 +10093,8 @@ const WIZARD_MODELS = {
   lite:     [
     { id: 'writer',    label: 'Writing assistant',                        repo: 'onnx-community/Qwen3-4B-ONNX',                   size_mb: 2897 },
     { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
-    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
     { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
+    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
   ],
   standard: [
     { id: 'writer',    label: 'Writing assistant',                        repo: 'onnx-community/Qwen3-4B-ONNX',                   size_mb: 2897 },
@@ -10104,8 +10104,8 @@ const WIZARD_MODELS = {
     { id: 'ipadapter', label: 'Reference module',                         repo: 'h94/IP-Adapter',                                 size_mb: 9310 },
     { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
     { id: 'esrgan',    label: 'Upscale engine',                           repo: 'github://RealESRGAN_x4plus',                      size_mb: 70   },
-    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
     { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
+    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
   ],
   full:     [
     { id: 'writer',    label: 'Writing assistant',                        repo: 'onnx-community/Qwen3-4B-ONNX',                   size_mb: 2897 },
@@ -10117,8 +10117,8 @@ const WIZARD_MODELS = {
     { id: 'florence2', label: 'Advanced vision analyzer',                 repo: 'microsoft/Florence-2-large',                     size_mb: 3120 },
     { id: 'blip1',     label: 'Basic vision analyzer',                    repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
     { id: 'esrgan',    label: 'Upscale engine',                           repo: 'github://RealESRGAN_x4plus',                      size_mb: 70   },
-    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core (Ultra)',                  repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
     { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
+    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core (Ultra)',                  repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
   ],
 };
 

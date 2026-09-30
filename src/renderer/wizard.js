@@ -74,11 +74,11 @@ function majJalons() {
     if (!fait) actifPose = true;
   }
 }
-// Position de chaque jalon = FIN de sa phase sur l'echelle ci-dessus (3D = moteur 3D + analyseur d'image ; images = tous les autres modeles).
+// Position de chaque jalon = FIN de sa phase sur l'echelle ci-dessus (3D = moteur 3D seul ; images = tous les autres modeles, analyseur d image compris).
 // Ecart minimal : les pictogrammes et leurs libelles ne doivent pas se chevaucher.
 function placerJalons(plan) {
   const tot = plan.total_mb || 0;
-  const g3d = (plan.items || []).filter((i) => /^(trellis|dinov3)/.test(i.id)).reduce((a, i) => a + i.size_mb, 0);
+  const g3d = (plan.items || []).filter((i) => /^trellis/.test(i.id)).reduce((a, i) => a + i.size_mb, 0);
   const gImg = tot - g3d;
   const ECART = 8;
   const poser = (cle, pos, visible = true) => {
@@ -987,7 +987,7 @@ const T_LIBELLES = [
   [/mesh tools/i, 'Mesh tools', 'Simplifies and unwraps 3D models', '3d'],
   [/texture upscaler/i, 'Texture enhancer', 'Sharpens textures (Enhance texture, Ultra 8K)', '3d'],
   [/3d core|trellis/i, '3D generation engine', 'Turns an image into a 3D model', '3d'],
-  [/dino/i, 'Image analyzer', 'Understands your reference image', '3d'],
+  [/dino/i, 'Image analyzer', 'Understands your reference image', 'img'],
 ];
 const T_POS = { engine: 20, img: 40, '3d': 60, rig: 80, anim: 100 };
 const T_COULEUR = { engine: '#e84d7a', img: '#4a90e2', '3d': '#c35ce0', rig: '#f08a24', anim: '#22c55e' };

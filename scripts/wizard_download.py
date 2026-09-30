@@ -105,8 +105,8 @@ MODELS = {
     'lite': [
         ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
         ('blip1',    'Salesforce/blip-image-captioning-large', 1880),
-        ('trellis2', 'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',   DINOV3_CANONICAL_REPO, 1250),
+        ('trellis2', 'microsoft/TRELLIS.2-4B', 16240),
     ],
     'standard': [
         ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
@@ -116,8 +116,8 @@ MODELS = {
         ('ipadapter', 'h94/IP-Adapter', 9310),
         ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
         ('esrgan',    'RealESRGAN_x4plus', 70),
-        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
+        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
     ],
     'full': [
         ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
@@ -129,8 +129,8 @@ MODELS = {
         ('florence2', 'microsoft/Florence-2-large', 3120),
         ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
         ('esrgan',    'RealESRGAN_x4plus', 70),
-        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
+        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
     ],
 }
 

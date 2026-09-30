@@ -271,11 +271,11 @@ def main():
         if args.mode in ('standard', 'full', 'lite'):
             check_writer()
             check_blip_loadable()
+        check_dinov3_loadable()
         check_cuda_wheels()
         check_mesh_tools()
         check_texture_upscaler()
         check_trellis_loadable()
-        check_dinov3_loadable()
         report_prompt_translator()
         log(f'[smoke] all checks passed in {time.time() - t0:.1f}s')
         sys.exit(0)
