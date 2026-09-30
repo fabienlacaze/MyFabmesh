@@ -24750,3 +24750,4 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - scripts/push_modal_usage.cmd : journal %LOCALAPPDATA%\FabWare\Exploitation\releve_modal.log, python absent = code 9 écrit.
 - scripts/reinitialiser_releve_modal.ps1 (NON exécuté) : nouveau secret -> `npx wrangler secret put MODAL_USAGE_SECRET` (stdin) -> registre -> tâche « MyFabmesh - Modal usage » ré-enregistrée (hh:01, rattrapage au démarrage, sur batterie, 15 min) -> relevé immédiat. Refuse de tourner depuis .claude\worktrees.
 - Mesures : banc hors ligne (faux Modal, faux registre, serveur local) : 6 cas, codes 0/2/3/4/5 + BOM, tous OK ; XML de la tâche validé hors ligne ; script PowerShell analysé sans exécution (0 erreur).
+- (suite, prévision de coupure) jour ET heure de la coupure pris sur l'instant arrondi à l'heure : 23:40 à Paris donnait « vendredi … vers 00 h » au lieu de « samedi … vers 00 h ». Banc TS : 17 cas OK.

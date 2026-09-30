@@ -134,12 +134,14 @@ function jourParis(ms: number): string {
 
 /** « aujourd'hui vers 18 h », « demain vers 03 h », « le samedi 10 octobre vers 02 h ». */
 export function quandParis(ms: number, maintenant: number): string {
-  const arrondi = Math.round(ms / 3_600_000) * 3_600_000;   // Paris est a une heure pleine d'UTC
+  // Heure ET jour pris sur l'instant arrondi : 23:40 donne « samedi vers 00 h »,
+  // pas « vendredi vers 00 h ». (Paris est a une heure pleine d'UTC.)
+  const arrondi = Math.round(ms / 3_600_000) * 3_600_000;
   const h = morceaux(arrondi, { hour: '2-digit', hourCycle: 'h23' }).hour;
-  const j = jourParis(ms);
+  const j = jourParis(arrondi);
   if (j === jourParis(maintenant)) return `aujourd'hui vers ${h} h`;
   if (j === jourParis(maintenant + JOUR)) return `demain vers ${h} h`;
-  return `le ${dateParis(ms, true)} vers ${h} h`;
+  return `le ${dateParis(arrondi, true)} vers ${h} h`;
 }
 
 /** Duree lisible : « 17 min », « 12 h 54 », « 3 jours ». Jamais « jour(s) ». */
