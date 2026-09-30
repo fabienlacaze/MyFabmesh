@@ -24767,3 +24767,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee : textes remis dans l'ordre de la barre (MyFabmesh a gauche, Autres a droite), total MyFabmesh = violet fonce + clair, une seule phrase d'alerte, indice de glissement corrige.
 
 - (suite) Reglages > Materiel : ligne « Ready: Image / 3D / Detail++ » masquee (user : pas besoin).
+
+- (suite) Barre partagee : suivi instantane du separateur (plus de transition de largeur) ; valeur « X of Y GB used » retiree (user : fausse et inutile).
