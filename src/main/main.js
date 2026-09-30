@@ -6752,9 +6752,9 @@ function redacteurArreter(raison) {
     try { log.info('main', `redacteur arrete (${raison || '?'})`); } catch (_) {}
   }
 }
-function _redacteurRelancerMinuteur() {
+function _redacteurRelancerMinuteur(ms) {
   if (redacteurMinuteur) clearTimeout(redacteurMinuteur);
-  redacteurMinuteur = setTimeout(() => redacteurArreter('inactif'), REDACTEUR_INACTIF_MS);
+  redacteurMinuteur = setTimeout(() => redacteurArreter('inactif'), ms || REDACTEUR_INACTIF_MS);
 }
 function redacteurDemarrer() {
   if (redacteurProc && redacteurPret) return redacteurPret;
@@ -10271,6 +10271,8 @@ ipcMain.handle('wizard:final-test', async (event, mode) => {
         }
         return resolve({ success: false, duration_s, error: err.message });
       }
+      // user 2026-09-30 : redacteur (Qwen) chaud des l'arrivee sur la page principale ; delai d'inactivite allonge (8 min) pour le premier projet
+      try { redacteurDemarrer().then((r) => { if (r && r.ok) _redacteurRelancerMinuteur(8 * 60 * 1000); }).catch(() => {}); } catch (_) {}
       resolve({ success: true, duration_s });
     });
     proc.stdout?.on('data', d => {

@@ -1736,6 +1736,20 @@ async function _npRediger() {
   _npAutoSync();
 })();
 
+// VERROU VISIBLE des etapes Rig / Animation (user, 2026-09-30 : « Animation toujours debloque alors que j'ai meme pas d'image ») : la carte etait
+// seulement repliee, donc d'aspect normal. Classe .etape-verrouillee (grisee + cadenas) recalculee chaque seconde depuis le projet ouvert.
+function _majVerrousEtapes() {
+  const p = state.currentProject;
+  const n = (k) => (p && Array.isArray(p[k]) ? p[k].length : 0);
+  const regles = { 'step-card-rig': !(n('meshes') || n('rigs') || n('animations')), 'step-card-animation': !(n('rigs') || n('animations')) };
+  for (const id of Object.keys(regles)) {
+    const c = document.getElementById(id);
+    if (!c) continue;
+    c.classList.toggle('etape-verrouillee', regles[id]);
+    if (regles[id]) c.classList.add('collapsed');
+  }
+}
+setInterval(_majVerrousEtapes, 1000);
 function openNewProjectModal() {
   document.getElementById('np-name').value = '';
   const _npd = document.getElementById('np-prompt');

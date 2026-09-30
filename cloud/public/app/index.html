@@ -26,6 +26,10 @@
        (✂ segmenté, 💡 émissif, ✓ coche, vN, pastille marketplace) restent
        visibles sur la vignette. -->
   <style>
+    .etape-verrouillee{opacity:.45;filter:grayscale(.6)}
+    .etape-verrouillee .step-header,.etape-verrouillee [class*="header"]{cursor:not-allowed}
+    .etape-verrouillee .step-title::after,.etape-verrouillee h2::after{content:" F512";font-size:.85em}
+    
     /* SÉCURITÉ (ajout vérif 2026-07-27) : tout le masquage ci-dessous est
        conditionné à [data-vkm], l'attribut que l'IIFE kebab pose sur une
        vignette APRÈS y avoir installé le ⋮ (index2.js, enhanceThumb).

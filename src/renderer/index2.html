@@ -2689,6 +2689,10 @@
     </div>
 
     <style>
+    .etape-verrouillee{opacity:.45;filter:grayscale(.6)}
+    .etape-verrouillee .step-header,.etape-verrouillee [class*="header"]{cursor:not-allowed}
+    .etape-verrouillee .step-title::after,.etape-verrouillee h2::after{content:" F512";font-size:.85em}
+    
       .tier-spinner {
         display: inline-block;
         width: 22px;

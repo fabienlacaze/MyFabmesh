@@ -1224,6 +1224,8 @@ async function runFinalTest() {
 
 document.getElementById('btn-launch').addEventListener('click', async () => {
   journal('fin', { sortie: 'lancement', mode: chosenMode });
+  // user 2026-09-30 : a la fin de l'installation, ouvrir directement « New project » (drapeau lu par index2.js au premier affichage)
+  try { localStorage.setItem('fab_ouvrir_nouveau_projet', '1'); } catch (_) {}
   await window.wizardAPI.completeSetup({ mode: chosenMode, hw: hwReport });
 });
 

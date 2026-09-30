@@ -24633,3 +24633,8 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — Assistant : etape Animation REELLE (user : « il ne faut pas que ca fasse 0 MB, laisse-le cogiter 15 s »)
 - IPC wizard:check-anim : controle des 8 modeles d'animation livres (m2m_clips, 5,2 Mo : presents, en-tete glTF valide) ; la ligne Animation affiche « Preparing the animation engine… » avec une barre animee sur au moins 15 s, puis « N animation models checked » et la vraie taille.
+
+## 2026-09-30 — fin d installation : New project direct, Rig/Animation verrouilles visuellement, Qwen prechauffe
+- wizard.js pose fab_ouvrir_nouveau_projet ; index2.js ouvre New project au 1er affichage.
+- Classe .etape-verrouillee (bureau+web) sur Rig/Animation tant que le projet n a ni maillage ni rig (cadenas, grise).
+- main.js : wizard:final-test reussi => redacteurDemarrer() en arriere-plan, inactivite 8 min.
