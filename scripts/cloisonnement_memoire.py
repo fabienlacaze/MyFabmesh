@@ -91,6 +91,11 @@ MARQUEUR_MANQUE = 'FABMESH_MEMOIRE_INSUFFISANTE'
 MARGE_DEMARRAGE_MO = 4096
 # Au-dessus de ce qui est deja engage : de quoi lever et formuler l'erreur.
 MARGE_MIN_MO = 256
+RATIO_ENGAGEMENT = 2.0
+# RATIO ENGAGEMENT / RESIDENT (mesure 2026-09-30, generation d'image locale : engagement final 12 855 Mo pour 8 664 Mo residents = 1,48, mais PIC TRANSITOIRE 15 241 Mo = 1,75 ; un plafond de 15 863 Mo a encore tue le processus, 20 657 Mo non => ratio 2,0). Le « decalage » mesure a l'initialisation
+# (2 089 Mo) sous-estimait l'engagement non resident atteint au chargement du pipeline (4 191 Mo) : le plafond tombait a 11 234 Mo < 12 855 Mo, et le processus MOURAIT
+# (violation d'acces native, sans message) alors que le PC avait la place. Le plafond d'engagement suit donc le budget RESIDENT x ce ratio : la reserve laissee au PC
+# (limite RAM = total - reserve) est tenue en memoire RESIDENTE, sans bloquer la generation.
 # Periode du suivi du budget (plafond RAM dynamique).
 PERIODE_SUIVI_S = 2.0
 # Un nouveau plafond n'est pose que s'il differe d'au moins ceci (evite de
@@ -150,7 +155,7 @@ def plafond_engagement_mo(budget_mo, decalage_mo, engage_mo, marge_mo=MARGE_MIN_
     """Plafond d'ENGAGEMENT a poser : le budget (resident) plus l'engagement non
     resident mesure a l'initialisation ; jamais sous l'engagement actuel + marge
     (sinon la moindre allocation, meme celle du message d'erreur, echouerait)."""
-    return max(float(budget_mo) + max(0.0, float(decalage_mo)), float(engage_mo) + float(marge_mo))
+    return max(float(budget_mo) * RATIO_ENGAGEMENT, float(budget_mo) + max(0.0, float(decalage_mo)), float(engage_mo) + float(marge_mo))
 
 
 def budget_vram_mo(limite_mo, utilisee_autres_mo):

@@ -68,10 +68,10 @@ class CalculsPurs(unittest.TestCase):
         self.assertEqual(cm.budget_ram_mo(10000, 20000, 0), 0.0)
 
     def test_plafond_engagement(self):
-        self.assertEqual(cm.plafond_engagement_mo(8000, 1500, 3000), 9500)
+        self.assertEqual(cm.plafond_engagement_mo(8000, 1500, 3000), 16000)   # budget resident x 2
         # jamais sous l'engagement + marge : l'erreur doit pouvoir s'ecrire
         self.assertEqual(cm.plafond_engagement_mo(1000, 0, 3000), 3000 + cm.MARGE_MIN_MO)
-        self.assertEqual(cm.plafond_engagement_mo(1000, -50, 0), 1000)
+        self.assertEqual(cm.plafond_engagement_mo(1000, -50, 0), 2000)
 
     def test_vram(self):
         self.assertEqual(cm.budget_vram_mo(14672, 5000), 9672)
@@ -194,7 +194,7 @@ class PlafondReel(unittest.TestCase):
         self.assertEqual(info['dispo_go'], 1.0)
         # MemoryError sans taille : le pic d'engagement de Windows compte les 2 Go refuses
         self.assertGreaterEqual(info['besoin_go'], 2.2)        # 256 Mo gardes + 2 Go demandes
-        self.assertLess(regime['ram_plafond_mo'], 1024 + 512)  # plafond ~ budget (+ decalage d'un Python nu)
+        self.assertLessEqual(regime['ram_plafond_mo'], 1024 * cm.RATIO_ENGAGEMENT + cm.MARGE_MIN_MO)  # plafond ~ budget x 2 ; les 2 Go demandes (> 2 Go de plafond + pile) restent refuses
         with open(self.journal, encoding='utf-8') as f:
             lignes = [json.loads(l) for l in f if l.strip()]
         self.assertEqual(lignes[-1]['cle'], 'test_ram')

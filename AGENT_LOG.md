@@ -24664,3 +24664,8 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - REPRODUIT : local_juggernaut_bridge.py sous plafond RAM (budget 9,1 Go = 27 Go - 18 Go occupes par les autres) plante au chargement du pipeline (exit -1073741819) ; avec FABMESH_CLOISONNEMENT=0 : OK en 66 s, pic engage 12 855 Mo. Aucune mesure au 1er lancement, donc le travail partait sans garde.
 - main.js memory-budget : besoin RAM par defaut 12 900 Mo pour image (mesure) : refus propre avec chiffres avant lancement.
 - index2.js (bureau+web) : customError a un bouton Copy error (copie le texte affiche, sans fermer).
+
+## 2026-09-30 — plafond RAM qui ne bloque plus la generation (user : « garder 3 Go pour le PC »)
+- cloisonnement_memoire.plafond_engagement_mo : plafond = budget RESIDENT x RATIO_ENGAGEMENT (2,0), plus le decalage. Mesure : budget 9-11 Go, pic transitoire d engagement 15,2 Go ; plafond 15,9 Go => plantage 0xC0000005, 20,6 Go et 22,1 Go => OK (28 s). Valide en vrai avec FABMESH_RAM_LIMIT_MB=29500 (32,5 Go - 3 Go de reserve), Unreal ouvert.
+- Retrait du besoin par defaut 12 900 Mo (main.js) : il refusait a tort des generations qui tiennent. Tests build/test_cloisonnement_memoire.py mis a jour (14 OK).
+- Hot-patch de l installation en cours : cloisonnement_memoire.py copie dans resources/scripts.
