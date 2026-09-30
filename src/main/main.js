@@ -9500,19 +9500,21 @@ function _nvidiaGpuInfo() {
   // certification (machine sans GPU) depuis la machine de dev.
   if (process.env.FABMESH_FORCE_NO_GPU === '1') return Promise.resolve(null);
   return new Promise((resolve) => {
+    // `compute_cap` (architecture CUDA) : absent des anciens pilotes -> on retente sans (le champ reste null = inconnu, aucun blocage).
+    const interroger = (champs, cb) => execFile('nvidia-smi', ['--query-gpu=' + champs, '--format=csv,noheader,nounits'], { timeout: 8000 }, cb);
+    const lire = (err, stdout, avecCap) => {
+      if (err || !stdout || !String(stdout).trim()) return null;
+      const parts = String(stdout).trim().split(/\r?\n/)[0].split(',').map((x) => x.trim());
+      if (!parts[0]) return null;
+      const cap = avecCap ? parseFloat(parts[3]) : NaN;
+      return { vendor: 'NVIDIA', model: parts[0], vram_mb: parseInt(parts[1], 10) || 0, driver: parts[2] || null, compute_cap: Number.isFinite(cap) ? cap : null };
+    };
     try {
-      execFile('nvidia-smi', ['--query-gpu=name,memory.total,driver_version', '--format=csv,noheader,nounits'],
-        { timeout: 8000 }, (err, stdout) => {
-          if (err || !stdout || !String(stdout).trim()) return resolve(null);
-          const line = String(stdout).trim().split(/\r?\n/)[0];
-          const parts = line.split(',').map((s) => s.trim());
-          if (!parts[0]) return resolve(null);
-          resolve({
-            vendor: 'NVIDIA', model: parts[0],
-            vram_mb: parseInt(parts[1], 10) || 0,
-            driver: parts[2] || null,
-          });
-        });
+      interroger('name,memory.total,driver_version,compute_cap', (err, stdout) => {
+        const g = lire(err, stdout, true);
+        if (g) return resolve(g);
+        interroger('name,memory.total,driver_version', (err2, stdout2) => resolve(lire(err2, stdout2, false)));
+      });
     } catch (_) { resolve(null); }
   });
 }
@@ -9560,8 +9562,13 @@ function _diskFreeGb() {
 
 // Même logique que hw_detect.recommend_mode() : TRELLIS-2 a besoin de ~15 Go de
 // VRAM et OOM sous 12 Go → aucun mode local viable en dessous, on route Cloud.
+// MOTEUR LOCAL VALIDE SUR BLACKWELL (RTX 50, capacite CUDA 12.0) SEULEMENT (2026-09-30) : les extensions CUDA du maillage (spconv / cumm) sont compilees pour
+// sm_75 + sm_120 ; sur RTX 30 / 40 (8.x) elles n'ont pas de noyau -> echec a la premiere generation. En dessous de 12.0 on recommande le Cloud ; les modes
+// locaux restent CHOISISSABLES (a leurs risques, avertissement affiche). Capacite inconnue (ancien pilote) : on ne bloque pas.
+const LOCAL_CAP_MIN = 12.0;
 function _recommendMode(gpu, ramMb, diskGb) {
   if (!gpu || gpu.vendor !== 'NVIDIA') return 'cloud';
+  if (typeof gpu.compute_cap === 'number' && gpu.compute_cap < LOCAL_CAP_MIN) return 'cloud';
   const vram = gpu.vram_mb || 0;
   const FLOOR = 12 * 1024;
   if (vram >= 16 * 1024 && ramMb >= 16 * 1024 && diskGb >= 30) return 'full';
@@ -9587,6 +9594,9 @@ async function _detectHardwareNative() {
     warnings.push(`${gpu.vendor} graphics detected (${gpu.model}) — the local AI engine needs an NVIDIA GPU. Cloud mode will be used instead.`);
   } else if (!driver_ok && gpu.driver) {
     warnings.push(`NVIDIA driver ${gpu.driver} is older than 550 — update it via GeForce Experience or nvidia.com/drivers.`);
+  }
+  if (gpu && gpu.vendor === 'NVIDIA' && typeof gpu.compute_cap === 'number' && gpu.compute_cap < LOCAL_CAP_MIN) {
+    warnings.push(`${gpu.model} (CUDA ${gpu.compute_cap.toFixed(1)}): the local 3D engine is validated on RTX 50 series GPUs only, so Cloud mode is recommended. You can still choose a local mode at your own risk.`);
   }
   if (gpu && gpu.vendor === 'NVIDIA' && (gpu.vram_mb || 0) < 12 * 1024) {
     warnings.push(`Your GPU has ${Math.round((gpu.vram_mb || 0) / 1024)} GB VRAM — the local 3D engine needs at least 12 GB. Cloud mode will be used instead.`);

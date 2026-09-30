@@ -24381,3 +24381,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Preparation d'un installateur local (1.0.40) pour retester l'installation de zero
 - Version 1.0.40. `external/TRELLIS2_win/src/trellis2` (supprime lors du nettoyage) restaure depuis les ressources de l'appli Store installee (94 fichiers, code livre en 1.0.39). Autres ressources (python-embed, wheels, m2m, sentry) intactes.
 - Construction NSIS locale (`npm run build:installer`) pour test sur ce PC (installation sans droits administrateur, hors du conteneur Store).
+
+## 2026-09-30 — Detection de l'architecture GPU : moteur local recommande seulement sur Blackwell (RTX 50)
+- Constat (analyse binaire des roues livrees) : spconv core_cc contient sm_75 + sm_120 (pas de noyau 8.x) ; cumesh / o_voxel / flex_gemm sm_86. Sur RTX 30 / 40 (capacite 8.6 / 8.9) le maillage local echouerait a la premiere generation.
+- `src/main/main.js` : `_nvidiaGpuInfo` lit aussi `compute_cap` (repli sans le champ sur les anciens pilotes) ; `_recommendMode` -> cloud si capacite < 12.0 (inconnue : pas de blocage) ; avertissement affiche ; les modes locaux restent choisissables.
+  Banc de la logique : RTX 5080 -> standard ; RTX 4090 / 3080 -> cloud ; ancien pilote (inconnue) -> standard ; AMD / aucun GPU -> cloud.
