@@ -779,7 +779,10 @@
       'Filter disabled — re-running the action…': 'Filtro desactivado — reejecutando la acción…',
       'The job will start automatically once the limits are met.': 'La tarea se iniciará automáticamente cuando se cumplan los límites.',
       'You can adjust the sliders in Settings.': 'Puedes ajustar los controles en Ajustes.',
-      'Job queued': 'Tarea en cola'
+      'Job queued': 'Tarea en cola',
+      // Interrupteur Local / Cloud (2026-09-30) : noms de mode, jamais traduits par le repli automatique
+      'Local': 'Local',
+      'Cloud': 'Cloud'
   };
   if (window.FabI18n) {
     window.FabI18n.register('es', dict);

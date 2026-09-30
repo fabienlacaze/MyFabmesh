@@ -779,7 +779,9 @@
     'Filter disabled — re-running the action…': 'फ़िल्टर अक्षम — कार्रवाई फिर से चलाई जा रही है…',
     'The job will start automatically once the limits are met.': 'सीमाएँ पूरी होने पर कार्य स्वतः शुरू हो जाएगा।',
     'You can adjust the sliders in Settings.': 'आप सेटिंग्स में स्लाइडर समायोजित कर सकते हैं।',
-    'Job queued': 'कार्य कतार में'
+    'Job queued': 'कार्य कतार में',
+    // Interrupteur Local / Cloud (2026-09-30) — « Local » est deja traduit (लोकल, _additions2.js)
+    'Cloud': 'क्लाउड'
   };
   if (window.FabI18n) {
     window.FabI18n.register('hi', dict);

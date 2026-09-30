@@ -778,7 +778,9 @@
       'Filter disabled — re-running the action…': 'تم تعطيل المرشّح — جارٍ إعادة تنفيذ الإجراء…',
       'The job will start automatically once the limits are met.': 'ستبدأ المهمة تلقائياً عند استيفاء الحدود.',
       'You can adjust the sliders in Settings.': 'يمكنك ضبط أشرطة التمرير في الإعدادات.',
-      'Job queued': 'المهمة في الطابور'
+      'Job queued': 'المهمة في الطابور',
+      // Interrupteur Local / Cloud (2026-09-30) — « Local » est deja traduit (محلي, _additions2.js)
+      'Cloud': 'السحابة'
   };
   if (window.FabI18n) {
     window.FabI18n.register('ar', dict);

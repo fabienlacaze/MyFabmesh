@@ -778,7 +778,9 @@
       'Filter disabled — re-running the action…': '过滤器已禁用——正在重新执行操作…',
       'The job will start automatically once the limits are met.': '满足上限后任务将自动开始。',
       'You can adjust the sliders in Settings.': '你可以在设置中调整滑块。',
-      'Job queued': '任务已排队'
+      'Job queued': '任务已排队',
+      // Interrupteur Local / Cloud (2026-09-30) — « Local » est deja traduit (本地, _additions2.js)
+      'Cloud': '云端'
   };
   if (window.FabI18n) {
     window.FabI18n.register('zh', dict);

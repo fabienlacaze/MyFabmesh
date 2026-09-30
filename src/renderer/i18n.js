@@ -1367,6 +1367,9 @@
       'You can adjust the sliders in Settings.': 'Vous pouvez ajuster les sliders dans Settings.',
       'Job queued': 'Job mis en file d\'attente',
       // ---- Interrupteur unique Local / Cloud pour TOUTES les generations (2026-09-30) ----
+      // Noms de mode : fixes, sinon le repli automatique traduit « Cloud » en « Nuage ».
+      'Local': 'Local',
+      'Cloud': 'Cloud',
       'Where everything runs: on this PC or on the MyFabmesh cloud': 'Où tout est calculé : sur ce PC ou sur le cloud MyFabmesh',
       'Everything runs on this PC — free': 'Tout est calculé sur ce PC — gratuit',
       'Everything runs on the MyFabmesh cloud — uses credits': 'Tout est calculé sur le cloud MyFabmesh — utilise des crédits',

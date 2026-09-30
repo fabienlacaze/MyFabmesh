@@ -24772,3 +24772,7 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - Au demarrage, plusieurs lectures de l etat du compte partent ensemble (barre du haut, Reglages, et desormais le bouton « Sign in » du mode Local) ; chacune echangeait le MEME jeton de rafraichissement Supabase. Un echange refuse vidait la session (_saveSession) : deconnexion sans rien avoir fait.
 - cloud_fallback.getAccessToken : les appels simultanes attendent le meme echange (_rafraichissementEnCours).
 - Banc node (faux Supabase a rotation stricte, C:/tmp/wf5_cloud_compte/banc_jeton.cjs) : 4 lectures simultanees — AVANT 4 echanges, 3 refus, 3 lectures « non connecte » ; APRES 1 echange, 4 lectures connectees, session gardee. (Supabase tolere la reutilisation ~10 s : en production l effet etait plus rare, jamais nul.)
+
+## 2026-09-30 (nuit) — i18n : noms de mode « Local » / « Cloud » fixes
+- Sans entree, le repli automatique (traducteur local) pouvait rendre « Cloud » par « Nuage » sur l interrupteur et les badges ; « Cloud » n avait aucune traduction, « Local » seulement en zh/hi/ar.
+- i18n.js (fr) et lang/es.js : Local / Cloud identiques ; zh/hi/ar : « Cloud » = 云端 / क्लाउड / السحابة (memes mots que « Cloud (coming soon) » deja traduit). Banc : barre du haut en zh « 本地 | 云端 | 登录 », en fr « Local | Cloud ».
