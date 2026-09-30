@@ -24785,3 +24785,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee : fine bande a degrade dans le violet = consommation reelle de MyFabmesh (rouge a droite) ; GPU / temperature / processeur : zone gauche violet clair, droite gris, bande reelle depuis la droite.
 
 - (suite) GPU / temperature / processeur : partie fixe minimum en violet fonce (GPU_LIMITS_MIN) a gauche, comme les barres memoire.
+
+- (suite) Temperature : style d'origine (degrade plein + zone hachuree), a part, sous GPU / processeur.
