@@ -24366,3 +24366,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   Correctif 2 : `_poser_nvrtc13` installe `nvidia-cuda-nvrtc>=13,<14` (45 Mo, PyPI) et copie `nvrtc64_130_0.dll` dans `torch/lib`. Verifie sur la vraie install Store : cumm 0.8.2 + spconv 2.3.8 + torch cuda=True (RTX 5080) ; o_voxel, cumesh, flex_gemm, kaolin importent.
   A terme : recompiler cumm contre NVRTC 12.8 et retirer cette etape.
 - L'env de test du user a ete repare A LA MAIN avec les memes commandes (le Store installe l'ancien script) pour qu'il puisse poursuivre ; le correctif sera valide avec le prochain paquet.
+
+## 2026-09-30 — Assistant : message d'echec de l'installation du moteur lisible (retour a la ligne, lien Retry visible)
+- Le message brut (« Error invoking remote method … Command failed: <chemins> ») etait sur UNE ligne avec defilement horizontal : le lien Retry n'etait pas visible. Cause extraite (ERROR / pip exited / Not enough…), retour a la ligne, renvoi vers « Export logs ».

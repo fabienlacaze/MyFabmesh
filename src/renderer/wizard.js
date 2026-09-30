@@ -615,7 +615,13 @@ async function _startDownloadInterne() {
         if (nom) nom.style.color = 'var(--error)';
       }
     } catch (_) {}
-    list.innerHTML += `<div class="wiz-dl-row"><span class="name" style="color:var(--error)">AI engine install failed: ${e.message}. <a href="#" id="retry-dl">Retry</a></span></div>`;
+    // message lisible (2026-09-30) : la ligne brute (« Error invoking remote method … Command failed: <chemins> ») debordait sur une seule ligne, sans le lien Retry visible
+    let brut = String((e && e.message) || e).replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '');
+    const lignes = brut.split('
+').map((x) => x.trim()).filter(Boolean);
+    const cause = lignes.find((x) => /^(ERROR|Could not|Not enough|pip exited|Last error)/i.test(x)) || lignes[0] || 'unknown error';
+    const court = /^Command failed:/i.test(cause) ? 'the installer stopped unexpectedly' : cause.slice(0, 220);
+    list.innerHTML += `<div class="wiz-dl-row"><span class="name" style="color:var(--error); white-space:normal; word-break:break-word; display:block;">AI engine install failed: ${court.replace(/</g, '&lt;')}. <a href="#" id="retry-dl">Retry</a> · <span style="opacity:.75">details: “Export logs” (top right)</span></span></div>`;
     document.getElementById('retry-dl')?.addEventListener('click', () => {
       // NE PAS faire `initialized.delete('download')` : cela re-arme aussi
       // `goto()` pour le reste de la session, si bien que revenir en arriere
