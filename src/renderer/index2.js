@@ -22081,7 +22081,7 @@ function majLignesLimites() {
     // MyFabmesh en plus (violet clair, variable). Deplacer la limite vers la gauche reduit le gris et agrandit le violet clair.
     const minGB = Math.min(need, Math.max(0, totalGB - plancher));
     const extraTotGB = Math.max(0, totalGB - plancher - minGB);          // = reserve maximale
-    const tropVisGB = Math.max(0, Math.min(tropGB, extraTotGB - Math.min(reserveGB, extraTotGB)));
+    const tropVisGB = 0;      // la bande orange ne servait a rien (user) : le depassement n'est dit que par la phrase sous la barre
     const addGB = Math.max(0, extraTotGB - Math.min(reserveGB, extraTotGB) - tropVisGB);
     const larg = (gb) => Math.max(0, Math.min(100, gb / totalGB * 100)) + '%';
     const el = (suffixe) => document.getElementById(`set-${px}-${suffixe}`);
@@ -22101,7 +22101,7 @@ function majLignesLimites() {
     poser('besoin', 'display', 'none');                 // le minimum est desormais la part violet fonce
     { const e = el('besoin-lbl'); if (e) e.textContent = need > 0 ? `${outil} ${go(need)}` : ''; }
     const poignee = document.getElementById(`${idp}-limit`);
-    if (poignee && !_draggingGpuLimit) poignee.style.left = larg(plancher + minGB + Math.min(reserveGB, extraTotGB));
+    if (poignee && !_draggingGpuLimit) poignee.style.left = larg(plancher + minGB + (extraTotGB - Math.min(reserveGB, extraTotGB)));
     const lim = document.getElementById(`${idp}-limtxt`);
     if (lim) lim.innerHTML = `${escapeHtml(_i18nT('Other apps:'))} <b>${escapeHtml(_i18nTf('{x} GB kept', go(reserveGB)))}</b>`;
     const mt = document.getElementById(`${idp}-mfmtxt`);
@@ -22250,8 +22250,11 @@ function setupGpuLimitDragging() {
           // barre partagee : le separateur part apres la part de Windows et s'arrete au minimum de MyFabmesh
           const g = _geoPartage[stat];
           if (!g) return;                    // totaux pas encore connus
-          const reservePct = Math.max(0, Math.min(g.maxPct, pct - g.plancherGB / g.totalGB * 100));
-          handle.style.left = (g.plancherGB / g.totalGB * 100 + reservePct) + '%';
+          // ordre : Windows | MyFabmesh minimum | MyFabmesh en plus | autres : le separateur agrandit le violet clair, le gris diminue
+          const extraPct = g.reserveMaxGB / g.totalGB * 100;
+          const ajoutPct = Math.max(0, Math.min(extraPct, pct - g.plancherGB / g.totalGB * 100));
+          const reservePct = Math.max(0, Math.min(g.maxPct, extraPct - ajoutPct));
+          handle.style.left = (g.plancherGB / g.totalGB * 100 + ajoutPct) + '%';
           gpuLimits[stat] = reservePct;
           tip.textContent = formatValue(stat, reservePct);
           try { majLignesLimites(); } catch (_) {}
