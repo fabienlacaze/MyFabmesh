@@ -2487,6 +2487,9 @@ app.whenReady().then(() => {
 
   // 2026-06-13: resume any jobs the user paused on the last quit.
   try { resumePausedJobs(); } catch (e) { log.warn('main', `resumePausedJobs failed: ${e.message}`); }
+  // Calculs orphelins d'une session precedente (plantage / arret force) : arretes apres verification, une fois la fenetre
+  // affichee (requete Windows ~1 s, jamais sur le chemin du demarrage). Les travaux gardes ou en pause ne sont pas touches.
+  setTimeout(() => { _arreterCalculsOrphelins().catch((e) => { try { log.warn('main', `calculs orphelins : ${e.message}`); } catch (_) {} }); }, 4000);
 
   // Dossiers de donnees deplaces (actuel + anciens) : liste dans config.json, temoin et registre pour que
   // la desinstallation les retrouve (2026-09-30, voir _memoriserDossierDonnees). Les installations
@@ -2943,8 +2946,10 @@ function fullCleanup() {
     try { stopNsfwServer(); } catch (_) {}
     // WSL shutdown also kills any WSL-side work — skip when keeping jobs.
     try { execFile('wsl', ['--shutdown'], { timeout: 10000 }, () => {}); } catch(e) {}
+    try { _registreCalculs && _registreCalculs.vider(); } catch (_) {}      // tout vient d'etre arrete : rien a reprendre
   } else {
     log.info('main', 'fullCleanup: keeping jobs running per user choice (subprocesses left alive)');
+    try { _registreCalculs && _registreCalculs.ecrireMaintenant(); } catch (_) {}   // gardes : inscrits, le drapeau les protege
   }
 }
 
@@ -3166,6 +3171,56 @@ async function uploadToCatbox(imagePath) {
   });
 }
 
+// REGISTRE DES CALCULS LANCES (2026-09-30) — voir src/main/registre_processus.js. Chaque Python / Blender lance est inscrit dans
+// userData/calculs_lances.json ; au demarrage suivant, les survivants d'une session qui a plante ou ete tuee sont arretes
+// (_arreterCalculsOrphelins), sauf « keep jobs » (drapeau) et pause (manifestes). Lu ICI, avant tout lancement de cette session,
+// avant que le drapeau soit efface (20 s) et que resumePausedJobs consomme les manifestes.
+const registreProcessus = require('./registre_processus');
+const FICHIER_CALCULS = path.join(app.getPath('userData'), 'calculs_lances.json');
+let _registreCalculs = null;
+let _sessionPrecedente = null;
+function _pidsEnPause() {
+  const pids = new Set();
+  try {
+    for (const f of fs.readdirSync(PAUSED_JOBS_DIR).filter((x) => x.endsWith('.json'))) {
+      try {
+        const m = JSON.parse(fs.readFileSync(path.join(PAUSED_JOBS_DIR, f), 'utf-8'));
+        for (const p of [m.rootPid, ...(Array.isArray(m.treePids) ? m.treePids : [])]) if (Number.isInteger(p)) pids.add(p);
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return pids;
+}
+if (IS_PRIMARY_INSTANCE) {     // une seconde instance (qui rend la main) ne doit ni lire, ni ecraser, ni arreter quoi que ce soit
+  try {
+    const prec = registreProcessus.lire(FICHIER_CALCULS);
+    _sessionPrecedente = { ...prec, pidsPause: _pidsEnPause(),
+      drapeauGarde: !!(process.env.FABMESH_KEEP_FLAG && fs.existsSync(process.env.FABMESH_KEEP_FLAG)) };
+    _registreCalculs = registreProcessus.creer({ fichier: FICHIER_CALCULS, heritage: prec.processus });
+  } catch (e) { try { log.warn('main', `registre des calculs indisponible : ${e.message}`); } catch (_) {} }
+}
+// Arrete les calculs survivants d'une session precedente (plantage, arret force de l'appli), apres verification de chacun.
+async function _arreterCalculsOrphelins() {
+  const prec = _sessionPrecedente;
+  _sessionPrecedente = null;
+  if (!_registreCalculs || !prec) return;
+  if (!prec.processus.length || process.platform !== 'win32') { _registreCalculs.finHeritage([]); return; }
+  const vivants = await registreProcessus.interrogerWindows(prec.processus.map((e) => e.pid));
+  const p = registreProcessus.plan({ entrees: prec.processus, vivants, pidsPause: prec.pidsPause, drapeauGarde: prec.drapeauGarde });
+  for (const e of p.arreter) {
+    await new Promise((fin) => {
+      try {
+        _cp.execFile('taskkill', ['/PID', String(e.pid), '/T', '/F'], { windowsHide: true, timeout: 10000 }, (err) => {
+          log.info('main', `calcul orphelin d'une session precedente ${err ? 'NON arrete' : 'arrete'} : pid ${e.pid} ${path.basename(e.script)}`);
+          fin();
+        });
+      } catch (_) { fin(); }
+    });
+  }
+  if (p.garder.length) log.info('main', `calculs d'une session precedente gardes : ${p.garder.map((e) => `${e.pid} ${path.basename(e.script)} (${e.raison})`).join(', ')}`);
+  _registreCalculs.finHeritage(p.reporter);
+}
+
 // Track active Python processes for cancellation
 const activeProcs = new Map(); // jobId -> proc
 // Track ALL spawned subprocesses (not just those with a jobId), so cancel-job
@@ -3176,6 +3231,9 @@ function trackProc(proc) {
   proc.__startedAt = Date.now();   // 2026-06-14: powers the per-process elapsed column
   allActiveProcs.add(proc);
   proc.on('exit', () => allActiveProcs.delete(proc));
+  try {
+    if (_registreCalculs && _registreCalculs.ajouter(proc)) proc.on('exit', () => { try { _registreCalculs.retirer(proc.pid); } catch (_) {} });
+  } catch (_) { /* le registre ne doit jamais empecher un lancement */ }
   return proc;
 }
 
