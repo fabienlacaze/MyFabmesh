@@ -24753,3 +24753,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - MESURE (a traiter, pas encore corrige) : `expandable_segments` n'est PAS supporte sous Windows (avertissement de PyTorch, verifie : allocations identiques avec et sans) -> allocateur classique, fragmentation. 3D star_portail : 6,8 Go reellement alloues, 11,3 Go reserves au pic ; echec sous un plafond de 10,1 Go. Le besoin VRAM de la 3D est donc ~1,5 x son vrai usage. Pistes a mesurer (une 3D chacune, quand le PC est libre) : PYTORCH_CUDA_ALLOC_CONF max_split_size_mb / roundup_power2_divisions / garbage_collection_threshold ; et, plus sur, jetons HR bornes par la part VRAM (la cascade 1024 ne reduit jamais sous 1024 : patch de la boucle de sample_shape_slat_cascade).
 
 - (suite) Barre partagee : ordre Windows | autres | MyFabmesh | depassement orange (demande du user).
+
+- (suite) Barre partagee : MyFabmesh (partie reglee) de nouveau tout a droite ; depassement des autres logiciels en bleu/orange fondu a leur suite.
