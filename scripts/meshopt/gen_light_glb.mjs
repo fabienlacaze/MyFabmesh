@@ -1,14 +1,17 @@
 // VERSION LEGERE D'UN GLB (2026-09-30, user : « ca suffit pas », rig du centipede de 466 Mo inutilisable dans le viewer).
-//   node build/gen_light_glb.mjs entree.glb sortie.glb [triangles=400000]
+//   node src/main/gen_light_glb.mjs entree.glb sortie.glb [triangles=400000]     (bureau : ELECTRON_RUN_AS_NODE=1 avec l'executable Electron)
 // Reduit chaque primitive par meshoptimizer (WASM, MIT, avec les UV dans le calcul : la texture reste calee) puis COMPACTE : seuls
 // les sommets encore references sont gardes, avec TOUS leurs attributs (positions, normales, UV, os et poids de peau...), et les
 // tampons devenus inutiles sont retires. Textures, materiaux, squelette et animations sont recopies tels quels : le fichier
 // leger est un vrai GLB autonome, meme apparence, meme rig, 10 a 20 fois moins de triangles. Aucun nouveau sommet, aucune cuisson.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const ici = dirname(fileURLToPath(import.meta.url));
-const { MeshoptSimplifier: S } = await import('file:///' + join(ici, '..', 'src', 'renderer', 'lib', 'meshopt-simplifier.js').replace(/\\/g, '/'));
+const _chemins = [join(ici, 'meshopt_simplifier.mjs'), join(ici, '..', 'renderer', 'lib', 'meshopt-simplifier.js'), join(ici, '..', 'src', 'renderer', 'lib', 'meshopt-simplifier.js')];
+const _simplifier = _chemins.find((c) => existsSync(c)) || _chemins[0];
+// import par data: URL : le simplificateur est un module ES dont l'extension peut etre .js (Node prendrait alors du CommonJS)
+const { MeshoptSimplifier: S } = await import('data:text/javascript;base64,' + Buffer.from(readFileSync(_simplifier, 'utf8')).toString('base64'));
 
 export const ERREUR_MAX = parseFloat(process.env.ERREUR_MAX_LEGER || '0.0015');   // 0,15 % de la taille du maillage
 const TYPES = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };

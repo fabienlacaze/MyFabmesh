@@ -4735,7 +4735,7 @@ function openResizeTool() {
   rzState.ro = new ResizeObserver(resize); rzState.ro.observe(vp);
 
   const url = 'file:///' + rzState.meshPath.replace(/\\/g, '/') + '?t=' + Date.now();
-  _fauxChargeur(rzState.meshPath).load(url, (gltf) => {
+  _fauxChargeur(rzState.meshPath, { leger: true }).load(url, (gltf) => {
     const model = gltf.scene || gltf.scenes[0];
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
@@ -9801,8 +9801,11 @@ async function showStep2Preview(mesh) {
   // leaves an orphan behind.
   _clearWsMeshes();
   // Load the GLB
-  const buffer = await API.readMeshFile(mesh.path);
-  if (buffer) _cacheMaillage = { chemin: mesh.path, buffer };   // repris par les outils de maillage
+  // GROS MAILLAGE : si sa version legere (~500 K, memes textures) existe a cote du fichier, on charge celle-ci
+  let _leger = null;
+  try { _leger = API.findLight ? await API.findLight(mesh.path) : null; } catch (_) { _leger = null; }
+  const buffer = await API.readMeshFile(mesh.path);   // (le processus principal lit deja la version legere quand elle existe)
+  if (buffer && !_leger) _cacheMaillage = { chemin: mesh.path, buffer };   // repris par les outils de maillage
   if (!buffer) return;
   // Stale-request guard: if the user switched to another mesh while this one
   // was loading, drop this result.
@@ -9814,6 +9817,8 @@ async function showStep2Preview(mesh) {
     _clearWsMeshes();   // last-moment cleanup for out-of-order parse callbacks
     wsModel = gltf.scene;
     wsModel.userData.__wsMesh = true;
+    if (_leger) { wsModel.userData.__light = true; try { _signalerApercuLeger('ws-mesh-filename'); } catch (_) {} }
+    else { try { _proposerLegere(wsModel, mesh.path); } catch (_) {} }
     wsModel.userData._isSegmented = /_segment_/i.test(mesh.path || '');
     wsModel.userData.parts = mesh.parts || null;   // zones nommées (sidecar .parts.json)
     if (typeof renderPartLegend === 'function') renderPartLegend(mesh.parts || null);
@@ -12151,11 +12156,11 @@ function _mtLoadMesh(meshPath) {
   mtState.origGeoms = [];
   const url = 'file:///' + meshPath.replace(/\\/g, '/');
   _mtStatut(_i18nT('Loading mesh…'));
-  (_etapeAffiche(meshPath) ? Promise.resolve(new ArrayBuffer(8))
+  (_etapeAffiche(meshPath, true) ? Promise.resolve(new ArrayBuffer(8))
     : _cacheMaillage && _cacheMaillage.chemin === meshPath && _cacheMaillage.buffer.byteLength > 0
     ? Promise.resolve(_cacheMaillage.buffer.slice(0))   // deja lu par l'etape Maillage
     : fetch(url).then(r => r.arrayBuffer())).then(buffer => {
-    const loader = _fauxChargeur(meshPath, { geometrie: true });
+    const loader = _fauxChargeur(meshPath, { geometrie: true, leger: true });
     loader.parse(buffer, '', (gltf) => {
       if (jeton !== _mtJeton) return;   // un chargement plus recent a ete demande
       _mtStatut(null);
@@ -13421,7 +13426,7 @@ async function _peLoadMesh(meshPath) {
     showToast('Mesh load returned empty buffer.', 'error', 5000);
     return;
   }
-  const loader = _fauxChargeur(meshPath);
+  const loader = _fauxChargeur(meshPath, { leger: true });
   loader.parse(buffer, '', (gltf) => {
     if (jeton !== _peJeton) return;   // un chargement plus recent a ete demande
     peState.origModel = gltf.scene;
@@ -14417,17 +14422,32 @@ let _pmJeton = 0;
 // MAILLAGE DEJA AFFICHE (2026-09-30, user : « fais pareil avec les autres tools ») : si le viewer de l'etape Mesh montre deja le
 // maillage demande, les outils en prennent une COPIE (materiaux clones ; geometrie clonee si l'outil la modifie) au lieu de le
 // retelecharger et de le reanalyser (WebP 4K/8K = plusieurs secondes). Repli : chargement normal.
-function _etapeAffiche(chemin) {
+// Gros maillage : mention sous le nom du fichier quand on regarde la version legere, et creation de celle-ci sinon (processus principal).
+function _signalerApercuLeger(idNom) {
+  const el = document.getElementById(idNom); if (!el) return;
+  let b = el.parentElement && el.parentElement.querySelector('.apercu-leger');
+  if (!b) { b = document.createElement('span'); b.className = 'apercu-leger'; b.style.cssText = 'margin-left:8px;font-size:11px;color:#8bd;'; el.insertAdjacentElement('afterend', b); }
+  b.textContent = _i18nT('Light preview (~500 000 triangles) — full detail kept for export');
+}
+const _legeresDemandees = new Set();
+function _proposerLegere(racine, chemin) {
+  if (!API.makeLight || _legeresDemandees.has(chemin)) return;
+  let tris = 0; racine.traverse((o) => { if (o.isMesh && o.geometry) tris += o.geometry.index ? o.geometry.index.count / 3 : (o.geometry.attributes.position?.count || 0) / 3; });
+  if (tris < 1000000) return;
+  _legeresDemandees.add(chemin);
+  API.makeLight(chemin).then((ok) => { if (ok) showToast(_i18nT('A light version of this heavy mesh is ready. Reopen it to work faster.'), 'success', 6000); }).catch(() => {});
+}
+function _etapeAffiche(chemin, accepteLeger) {
   try {
     const p = state.currentProject;
     if (typeof wsModel === 'undefined' || !wsModel || !wsModel.userData?.__wsMesh || !wsScene || wsModel.parent !== wsScene) return false;
-    if (!p || !chemin || p.previewMeshPath !== chemin) return false;
+    if (!p || !chemin || p.previewMeshPath !== chemin || wsModel.userData.__light) return false;   // bureau : les outils qui ENREGISTRENT restent sur le maillage complet (pas de report vers le complet)
     let skinne = false; wsModel.traverse((c) => { if (c.isSkinnedMesh) skinne = true; });
     return !skinne;
   } catch (_) { return false; }
 }
 function _modeleDeLetape(chemin, opts = {}) {
-  if (!_etapeAffiche(chemin)) return null;
+  if (!_etapeAffiche(chemin, opts.leger)) return null;
   try {
     const c = wsModel.clone(true);
     c.position.set(0, 0, 0);
@@ -14441,6 +14461,11 @@ function _modeleDeLetape(chemin, opts = {}) {
     });
     return c;
   } catch (_) { return null; }
+}
+let _derniereLegere = null;
+async function _fetchMaillageOutil(url) {
+  _derniereLegere = null;   // bureau : les outils lisent toujours le fichier complet (leur resultat est enregistre)
+  return fetch(url, { credentials: 'omit' });
 }
 // Meme interface que GLTFLoader (parse / load) : copie de l'etape si disponible, sinon lecture normale.
 function _fauxChargeur(chemin, opts) {
@@ -14458,7 +14483,7 @@ function _fauxChargeur(chemin, opts) {
     },
   };
 }
-function _pmModeleDejaCharge(chemin) { return _modeleDeLetape(chemin); }
+function _pmModeleDejaCharge(chemin) { return _modeleDeLetape(chemin, { leger: true }); }
 async function _pmLoadMesh(meshPath) {
   const jeton = ++_pmJeton;
   if (pmState.origModel) {
@@ -14502,7 +14527,7 @@ async function _pmLoadMesh(meshPath) {
     // reanalyser (WebP 4K/8K = plusieurs secondes). Geometrie partagee, materiaux clones : Annuler ne touche pas l'original.
     const dejaLa = _pmModeleDejaCharge(meshPath);
     if (dejaLa) { await surCharge({ scene: dejaLa }); return; }
-    const r = await fetch(url, { credentials: 'omit' });
+    const r = await _fetchMaillageOutil(url);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const buf = await r.arrayBuffer();
     new GLTFLoader().parse(buf, '', surCharge);
@@ -15073,12 +15098,12 @@ async function openMaterialAdjust() {
 
   // Load the selected mesh into the viewer scene.
   if (_matModel) { _matViewer.scene.remove(_matModel); _matModel = null; }
-  const buffer = _etapeAffiche(p.selectedMeshPath) ? new ArrayBuffer(8) : await API.readMeshFile(p.selectedMeshPath);
+  const buffer = _etapeAffiche(p.selectedMeshPath, true) ? new ArrayBuffer(8) : await API.readMeshFile(p.selectedMeshPath);
   if (!buffer) {
     showToast('Failed to read mesh file', 'error');
     return;
   }
-  const loader = _fauxChargeur(p.selectedMeshPath);
+  const loader = _fauxChargeur(p.selectedMeshPath, { leger: true });
   loader.parse(buffer, '', (gltf) => {
     if (jeton !== _matJeton) return;   // un chargement plus recent a ete demande
     _matModel = gltf.scene;
@@ -17456,6 +17481,8 @@ async function showStep3Preview(rig) {
         }
       });
     } else if (ext === 'glb' || ext === 'gltf') {
+      let _legerRig = null;
+      try { _legerRig = API.findLight ? await API.findLight(rig.path) : null; } catch (_) { _legerRig = null; }
       const buffer = await API.readMeshFile(rig.path);
       if (jeton !== _rigVwJeton) return;     // un affichage plus recent a ete demande
       if (!buffer) return;
@@ -17463,6 +17490,8 @@ async function showStep3Preview(rig) {
       loader.parse(buffer, '', (gltf) => {
         if (jeton !== _rigVwJeton) return;   // un affichage plus recent a ete demande
         rigVwModel = gltf.scene;
+        if (_legerRig) { rigVwModel.userData.__light = true; try { _signalerApercuLeger('ws-rig-filename'); } catch (_) {} }
+        else { try { _proposerLegere(rigVwModel, rig.path); } catch (_) {} }
         _applyMeshTextureFilter(rigVwModel);
         try { window.__rvV3D?.attacherLOD(rigVwModel, rig.path || rig.url || ''); } catch (_) {}
         let skinnedCount = 0;
@@ -24509,7 +24538,7 @@ async function extractLandmarksFromRig() {
   }
   try {
     lmPushHistory();
-    const buffer = await API.readMeshFile(rigPath);
+    const buffer = await API.readMeshFile(rigPath, { complet: true });
     if (!buffer) {
       if (typeof customError === 'function') customError('Could not load rig file.', 'From rig');
       return;
@@ -26848,7 +26877,7 @@ async function _ptsEnregistrerSansIA() {
   }
   const job = pushJob(`Save adjusted rig: ${p?.name || ''}`, null, null, 8000, { projectName: p?.name });
   try {
-    const tampon = await API.readMeshFile(rig);
+    const tampon = await API.readMeshFile(rig, { complet: true });
     if (!tampon) throw new Error('rig unreadable');
     const gltf = await new Promise((ok, ko) => new GLTFLoader().parse(tampon, '', ok, ko));
     const scene = gltf.scene;
@@ -29336,7 +29365,7 @@ document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () 
   const _r = _rigAffiche();
   const rig = (_r && _r.path) || p?.selectedRigPath || p?.rigs?.[0]?.path;
   if (!rig) { customError(_i18nT('Generate a rig first.'), _i18nT('Skin weights')); return; }
-  const buffer = await API.readMeshFile(rig);
+  const buffer = await API.readMeshFile(rig, { complet: true });   // enregistre une version : maillage complet
   if (!buffer) { showToast(_i18nT('Could not read the rig file.'), 'error'); return; }
   const { ouvrirEditeurPoids } = await import('./lib/editeur-poids.js');
   await ouvrirEditeurPoids({

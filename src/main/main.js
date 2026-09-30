@@ -11202,8 +11202,67 @@ ipcMain.handle('get-mesh-local-url', (event, filePath) => {
   return 'file:///' + filePath.replace(/\\/g, '/');
 });
 
-ipcMain.handle('read-mesh-file', (event, filePath) => {
+// ── VERSION LEGERE DES GROS MAILLAGES (2026-09-30) ─────────────────────────────────────────────────────────────────────────────
+// `<dossier>/.light/<nom>_light.glb` : copie ~500 K triangles (memes textures, UV, os et poids), produite par src/main/gen_light_glb.mjs
+// (meshoptimizer WebAssembly, lance avec l'executable Electron deja signe : ELECTRON_RUN_AS_NODE). Lue a la place du fichier complet par
+// les viewers ; l'export, lui, prend toujours le fichier de la version (chemin inchange). Rien n'est envoye sur un serveur.
+function _cheminLegere(p) {
+  return path.join(path.dirname(p), '.light', path.basename(p).replace(/\.glb$/i, '') + '_light.glb');
+}
+function _legereValide(p) {
+  try {
+    const l = _cheminLegere(p);
+    return fs.existsSync(l) && fs.statSync(l).mtimeMs >= fs.statSync(p).mtimeMs && fs.statSync(l).size > 1000 ? l : null;
+  } catch (_) { return null; }
+}
+function _facesGlb(p) {
+  try {
+    const fd = fs.openSync(p, 'r');
+    try {
+      const h = Buffer.alloc(20); fs.readSync(fd, h, 0, 20, 0);
+      if (h.toString('latin1', 0, 4) !== 'glTF') return -1;
+      const n = h.readUInt32LE(12); const j = Buffer.alloc(n); fs.readSync(fd, j, 0, n, 20);
+      const g = JSON.parse(j.toString('utf8')); let t = 0;
+      for (const m of g.meshes || []) for (const pr of m.primitives || []) {
+        if ((pr.mode ?? 4) !== 4) continue;
+        t += (pr.indices != null ? g.accessors[pr.indices].count : g.accessors[pr.attributes.POSITION].count) / 3;
+      }
+      return t;
+    } finally { fs.closeSync(fd); }
+  } catch (_) { return -1; }
+}
+ipcMain.handle('find-light', (event, filePath) => {
+  const p = String(filePath || '').replace(/^file:\/\/\//, '');
+  const l = _legereValide(p);
+  return l ? 'file:///' + l.replaceAll('\\', '/') : null;
+});
+const _legeresEnCours = new Map();
+ipcMain.handle('make-light', (event, filePath) => {
+  const p = String(filePath || '').replace(/^file:\/\/\//, '');
+  if (_legeresEnCours.has(p)) return _legeresEnCours.get(p);
+  const tache = new Promise((ok) => {
+    try {
+      if (!fs.existsSync(p) || _legereValide(p)) return ok(!!_legereValide(p));
+      if (_facesGlb(p) <= 1000000) return ok(false);                                    // seuil : 1 M de triangles
+      const script = app.isPackaged ? path.join(process.resourcesPath, 'scripts', 'meshopt', 'gen_light_glb.mjs') : path.join(__dirname, 'gen_light_glb.mjs');
+      const sortie = _cheminLegere(p); fs.mkdirSync(path.dirname(sortie), { recursive: true });
+      const tmp = sortie + '.tmp';
+      const proc = require('child_process').spawn(process.execPath, [script, p, tmp, '500000'],
+        { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true, stdio: 'ignore' });
+      proc.on('error', () => ok(false));
+      proc.on('close', (code) => {
+        try { if (code === 0 && fs.existsSync(tmp)) { fs.renameSync(tmp, sortie); return ok(true); } fs.rmSync(tmp, { force: true }); } catch (_) {}
+        ok(false);
+      });
+    } catch (_) { ok(false); }
+  }).finally(() => _legeresEnCours.delete(p));
+  _legeresEnCours.set(p, tache);
+  return tache;
+});
+
+ipcMain.handle('read-mesh-file', (event, filePath, opts) => {
   if (!fs.existsSync(filePath)) return null;
+  if (!(opts && opts.complet)) { const l = _legereValide(filePath); if (l) filePath = l; }     // gros maillage : version legere si elle existe
   const buffer = fs.readFileSync(filePath);
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 });

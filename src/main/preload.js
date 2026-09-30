@@ -179,7 +179,9 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   openMeshesFolder: () => ipcRenderer.invoke('open-meshes-folder'),
   openImagesFolder: () => ipcRenderer.invoke('open-images-folder'),
   listImageFolders: () => ipcRenderer.invoke('list-image-folders'),
-  readMeshFile: (filePath) => ipcRenderer.invoke('read-mesh-file', filePath),
+  readMeshFile: (filePath, opts) => ipcRenderer.invoke('read-mesh-file', filePath, opts),
+  findLight: (filePath) => ipcRenderer.invoke('find-light', filePath),      // version legere ~500 K d'un gros maillage (URL file:///) ou null
+  makeLight: (filePath) => ipcRenderer.invoke('make-light', filePath),     // la fabrique en arriere-plan (true si prete)
   getMeshLocalUrl: (filePath) => ipcRenderer.invoke('get-mesh-local-url', filePath),
   exportMesh: (opts) => ipcRenderer.invoke('export-mesh', opts),
   exportImage: (opts) => ipcRenderer.invoke('export-image', opts),

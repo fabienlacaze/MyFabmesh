@@ -24309,3 +24309,12 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - `build/gen_light_glb.mjs` : meshoptimizer rend l'erreur geometrique reelle ; si elle depasse 0,15 % de la taille du maillage (ERREUR_MAX, reglable ERREUR_MAX_LEGER),
   la cible de triangles est doublee (jusqu'a 3 essais, 2 M au plus). Centipede : 500 K -> erreur 0,028 % (coherent avec l'ecart mesure independamment : moyenne 0,024 %, p99 0,054 %).
   Banc du mecanisme avec un seuil force a 0,02 % : 400 K -> 800 K -> 1,6 M, erreur 0,033 -> 0,021 -> 0,015 %.
+
+## 2026-09-30 — Version legere sur le BUREAU (parite) + generateur deplace dans src/main
+- `build/gen_light_glb.mjs` -> `src/main/gen_light_glb.mjs` (copie `scripts/meshopt/` pour l'appli packagee, gardee par check-noyaux) ; simplificateur charge par data: URL
+  (le .js ne serait pas lu comme module ES par Node/Electron). Modal (`_lod.py`) suit le nouveau chemin.
+- main.js : `find-light`, `make-light` (spawn de l'executable Electron en ELECTRON_RUN_AS_NODE, seuil 1 M triangles, `<dossier>/.light/<nom>_light.glb`, ecriture atomique),
+  `read-mesh-file` lit la version legere par defaut (`{ complet: true }` pour le complet). preload : readMeshFile(opts), findLight, makeLight.
+- index2.js bureau : viewers mesh / rig + mention « Light preview » + fabrication en arriere-plan. Les outils qui ENREGISTRENT (Paint Mesh, Paint Emissive, editeur de poids, points du
+  squelette « Save adjusted rig ») restent sur le maillage COMPLET : le bureau n'a pas (encore) de report vers le complet.
+- BANC : Electron en mode Node sur le mesh du centipede (323 Mo, 10 346 880 triangles) -> 29,4 Mo en 24 s, 499 982 triangles, erreur 0,028 % ; `_legereValide` la reconnait.

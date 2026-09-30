@@ -3,7 +3,7 @@ rig, sans perdre les details »).
 
 Application Modal SEPAREE, sans GPU : un maillage de plus de 1,5 M de triangles est reduit a ~500 K par meshoptimizer (WASM,
 UV dans le calcul), les sommets non references sont retires et tous les attributs (positions, normales, UV, os, poids) sont
-gardes ; textures, materiaux, squelette et animations sont recopies tels quels. C'est le script build/gen_light_glb.mjs
+gardes ; textures, materiaux, squelette et animations sont recopies tels quels. C'est le script src/main/gen_light_glb.mjs
 (teste sur le rig du centipede : 10 346 880 -> 499 982 triangles, 466 -> 40,5 Mo, 29 s), execute par Node dans le conteneur.
 
 Meme contrat que le routeur de rig : /healthz, /lod-start, /lod-status, /lod-fetch (cle partagee, resultat sur un volume).
@@ -29,8 +29,8 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("nodejs")
     .pip_install("fastapi[standard]", "requests", "numpy>=1.26,<2", "scipy>=1.11,<1.18", "pillow")
-    .run_commands("mkdir -p /opt/lod/build /opt/lod/src/renderer/lib && echo '{\"type\":\"module\"}' > /opt/lod/package.json")
-    .add_local_file("build/gen_light_glb.mjs", remote_path="/opt/lod/build/gen_light_glb.mjs", copy=True)
+    .run_commands("mkdir -p /opt/lod/src/main /opt/lod/src/renderer/lib && echo '{\"type\":\"module\"}' > /opt/lod/package.json")
+    .add_local_file("src/main/gen_light_glb.mjs", remote_path="/opt/lod/src/main/gen_light_glb.mjs", copy=True)
     .add_local_file("src/renderer/lib/meshopt-simplifier.js", remote_path="/opt/lod/src/renderer/lib/meshopt-simplifier.js", copy=True)
     .add_local_python_source("modal_app")
 )
@@ -97,7 +97,7 @@ def faire_leger(job_id: str, mesh_url: str, cible: int = CIBLE_FACES):
         if 0 <= n <= SEUIL_FACES:
             _fin("skip", json.dumps({"faces": n}))
             return
-        p = subprocess.run(["node", "--max-old-space-size=8192", "/opt/lod/build/gen_light_glb.mjs", src, dst, str(int(cible))],
+        p = subprocess.run(["node", "--max-old-space-size=8192", "/opt/lod/src/main/gen_light_glb.mjs", src, dst, str(int(cible))],
                            capture_output=True, text=True, timeout=540)
         print(p.stdout[-800:], flush=True)
         if p.returncode != 0 or not os.path.isfile(dst):
