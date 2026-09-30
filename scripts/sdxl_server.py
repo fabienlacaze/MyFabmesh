@@ -2066,9 +2066,12 @@ def preload_models():
         load_img2img()
         log("MODELS READY - img2img + CLIPSeg loaded (inpaint on first use)")
         _cm.mesurer('modeles_prets')
+        _cm.noter_pic()     # serveur persistant, arrete de force : son pic va au journal des maintenant
     except Exception as e:
         log(f"Preload failed: {_cm.texte_erreur(e)}", 'err')
         traceback.print_exc()
+        if _cm.type_manque(e):
+            _cm.noter_pic('memoire')   # la file d'attente saura qu'il faut plus de place
 
 
 def main():

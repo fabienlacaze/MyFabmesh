@@ -647,6 +647,7 @@ def signaler(info):
     """Ecrit le marqueur (lu par main.js) puis la phrase, sur stdout ET stderr."""
     with _verrou:
         _etat['issue'] = 'memoire'
+        _etat['refus'] = True
         _etat['besoin_mo'] = info['besoin_mo']
     marque = f'{MARQUEUR_MANQUE} ' + json.dumps({
         'type': info['type'], 'besoin_go': en_go(info['besoin_mo']),
@@ -677,10 +678,13 @@ def texte_erreur(exc):
     """Texte d'erreur a renvoyer a l'interface : la phrase claire pour un manque
     de memoire, sinon le message d'origine (serveur SDXL)."""
     try:
+        if type_manque(exc):
+            _secours()
         info = diagnostiquer(exc)
         if info:
             with _verrou:
-                _etat['issue'] = 'memoire'
+                _etat['refus'] = True          # le serveur continue : pas d'issue « memoire » definitive
+                _etat['besoin_mo'] = max(_etat.get('besoin_mo') or 0.0, info['besoin_mo'])
             return info['phrase']
     except Exception:
         pass
@@ -723,23 +727,36 @@ def terminer(issue='ok'):
         mesurer('fin')
     except Exception:
         pass
+    _ecrire_journal(_etat.get('issue'))
+
+
+def noter_pic(issue='ok'):
+    """Processus PERSISTANT (serveur d'images) : ecrit son pic courant au journal
+    sans se terminer — il est d'ordinaire arrete de force, sans passer par atexit.
+    issue='memoire' : un chargement a ete refuse (besoin_mo note par texte_erreur)."""
+    if _etat.get('actif'):
+        _ecrire_journal(issue)
+
+
+def _ecrire_journal(issue):
     chemin = os.environ.get('FABMESH_MEMOIRE_JOURNAL')
     if not chemin:
         return
     proc = memoire_processus() or {}
     decalage = _etat.get('decalage_mo') or 0.0
     ligne = {'date': time.strftime('%Y-%m-%dT%H:%M:%S'), 'cle': _etat.get('cle'), 'nom': _etat.get('nom'),
-             'issue': _etat.get('issue'), 'duree_s': round(time.time() - (_etat.get('debut') or time.time()), 1),
+             'issue': issue, 'duree_s': round(time.time() - (_etat.get('debut') or time.time()), 1),
              'pic_ws_mo': round(proc.get('pic_ws_mo', 0.0)),
              'pic_engage_mo': round(_etat.get('pic_engage_mo') or 0.0),
              'pic_engage_os_mo': round(proc.get('pic_engage_os_mo', 0.0)),
              'decalage_mo': round(decalage)}
-    if _etat.get('issue') == 'ok':
+    if issue == 'ok':
         # BESOIN mesure, dans l'unite du plafond : pic d'engagement exact (Windows)
         # moins les reservations d'initialisation. Le travail tient sous le plafond
-        # si et seulement si ce nombre tient dans le budget RAM. (Apres un refus, le
-        # pic de Windows compte la demande refusee : on garde alors besoin_mo.)
-        ligne['pic_prive_mo'] = round(max(0.0, proc.get('pic_engage_os_mo', 0.0) - decalage))
+        # si et seulement si ce nombre tient dans le budget RAM. Apres un refus, le pic
+        # de Windows compte la demande refusee : on prend alors le pic echantillonne.
+        pic = (_etat.get('pic_engage_mo') or 0.0) if _etat.get('refus') else proc.get('pic_engage_os_mo', 0.0)
+        ligne['pic_prive_mo'] = round(max(0.0, pic - decalage))
     for k in ('ram_limite_mo', 'ram_budget_mo', 'ram_plafond_mo', 'vram_budget_mo',
               'vram_contexte_mo', 'pic_vram_reserve_mo', 'besoin_mo'):
         if _etat.get(k) is not None:
