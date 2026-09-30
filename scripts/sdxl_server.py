@@ -139,10 +139,12 @@ _cm.mesurer('initialisation')
 
 # REPLI MEMOIRE GRAPHIQUE (2026-09-30, user : « mettre les limites ne doit pas casser les generations »). Detail++ a echoue
 # pour 0,2 Go : le pipeline d'affinage (modele d'image + ControlNet + IP-Adapter) demandait 8,9 Go sous un plafond de 8,7.
-# Plutot que d'echouer, un pipeline qui manque de VRAM est recharge en mode econome :
-#   - au placement sur la carte : dechargement par modele (seul le composant qui travaille est sur la carte) ;
-#   - a l'execution : dechargement SEQUENTIEL (couche par couche, 2-3 Go ; nettement plus lent) puis nouvel essai.
-# Le plafond fixe par l'utilisateur est respecte ; le calcul ralentit au lieu d'echouer.
+# Plutot que d'echouer, un appel qui manque de VRAM est refait :
+#   1. si le pipeline est entier sur la carte : en dechargement par modele (seul le composant qui travaille y reste) ;
+#   2. sinon, en resolution reduite (87,5 % puis 75 %, multiples de 64), le resultat etant ramene a la taille demandee ;
+#      l'echelle qui a marche est retenue pour les appels suivants du meme pipeline (les autres vues de Detail++).
+# Le dechargement SEQUENTIEL (couche par couche) a ete essaye le 30/09 et ECARTE : sur le pipeline ControlNet-Union +
+# IP-Adapter il laisse des poids sur le peripherique « meta » (« Tensor on device meta is not on the expected device »).
 def _vider_cache_cuda():
     try:
         torch.cuda.empty_cache()
@@ -169,23 +171,90 @@ def _placer(pipe, nom):
         return pipe
 
 
+def _pipe_decharge(pipe):
+    return bool(getattr(pipe, '_fabmesh_econome', False) or getattr(pipe, '_all_hooks', None))
+
+
+def _reduire(kwargs, echelle):
+    """Copie des arguments avec les images d'entree (et la taille demandee) reduites a `echelle`, en multiples de 64.
+    Rend (kwargs, taille_d_origine) ; taille_d_origine None s'il n'y a rien a reduire."""
+    from PIL import Image as _I
+    kw = dict(kwargs)
+    taille = None
+    cote = lambda v: max(512, int(v * echelle) // 64 * 64)
+    for cle in ('image', 'control_image', 'mask_image'):
+        v = kw.get(cle)
+        lot = v if isinstance(v, list) else [v]
+        imgs = [x for x in lot if isinstance(x, _I.Image)]
+        if not imgs:
+            continue
+        w, h = imgs[0].size
+        taille = taille or (w, h)
+        nw, nh = cote(w), cote(h)
+        red = [x.resize((nw, nh), _I.LANCZOS) if isinstance(x, _I.Image) else x for x in lot]
+        kw[cle] = red if isinstance(v, list) else red[0]
+        if kw.get('width'):
+            kw['width'] = nw
+        if kw.get('height'):
+            kw['height'] = nh
+    if taille is None and kw.get('width') and kw.get('height'):
+        taille = (int(kw['width']), int(kw['height']))
+        kw['width'], kw['height'] = cote(taille[0]), cote(taille[1])
+    return kw, taille
+
+
 def _executer(pipe, **kwargs):
-    """pipe(**kwargs), avec un nouvel essai en dechargement sequentiel sur un manque de VRAM."""
-    try:
-        return pipe(**kwargs)
-    except Exception as e:
-        if _cm.type_manque(e) != 'vram' or getattr(pipe, '_fabmesh_sequentiel', False):
-            raise
-        log(f"VRAM short during generation ({str(e)[:160]}) -> retrying in sequential low-VRAM mode (slower)", 'warn')
-        _vider_cache_cuda()
+    """pipe(**kwargs) qui ne casse pas sur un manque de VRAM (voir plus haut)."""
+    from PIL import Image as _I
+    echelle_retenue = getattr(pipe, '_fabmesh_echelle', None)
+    if echelle_retenue is None:
         try:
-            pipe.enable_sequential_cpu_offload()
-        except Exception as oe:
-            log(f"sequential low-VRAM mode unavailable: {oe}", 'warn')
-            raise e
-        pipe._fabmesh_sequentiel = True
+            return pipe(**kwargs)
+        except Exception as e:
+            if _cm.type_manque(e) != 'vram':
+                raise
+            derniere = e
         _vider_cache_cuda()
+        if not _pipe_decharge(pipe):
+            log("VRAM short: retrying with the pipeline in low-VRAM mode (slower)", 'warn')
+            try:
+                pipe.to("cpu")
+                _vider_cache_cuda()
+                pipe.enable_model_cpu_offload()
+                pipe._fabmesh_econome = True
+                return pipe(**kwargs)
+            except Exception as e2:
+                if _cm.type_manque(e2) != 'vram':
+                    raise
+                derniere = e2
+                _vider_cache_cuda()
+        echelles = (0.875, 0.75)
+    else:
+        derniere = None
+        echelles = tuple(x for x in (0.875, 0.75) if x <= echelle_retenue)
+    for echelle in echelles:
+        kw, taille = _reduire(kwargs, echelle)
+        if taille is None:
+            break
+        log(f"VRAM short: generating at {int(echelle * 100)} % resolution, result resized to {taille[0]}x{taille[1]}", 'warn')
+        try:
+            out = pipe(**kw)
+        except Exception as e3:
+            if _cm.type_manque(e3) != 'vram':
+                raise
+            derniere = e3
+            _vider_cache_cuda()
+            continue
+        pipe._fabmesh_echelle = echelle
+        try:
+            out.images = [im.resize(taille, _I.LANCZOS) if tuple(im.size) != tuple(taille) else im for im in out.images]
+        except Exception:
+            pass
+        return out
+    if derniere is None:
         return pipe(**kwargs)
+    raise derniere
+
 
 # ========== STATE ==========
 class ModelState:

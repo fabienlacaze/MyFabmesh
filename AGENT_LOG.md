@@ -24724,3 +24724,9 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 (soir) — serveur d images : repli econome au lieu d echouer sur un manque de VRAM
 - Detail++ echouait pour 0,2 Go (affinage : 8,9 Go demandes sous un plafond de 8,7). scripts/sdxl_server.py : _placer() (pipe.to(cuda) -> dechargement par modele si la VRAM manque sous la limite) aux 4 chargements, et _executer() autour des 10 appels de pipelines (nouvel essai en dechargement SEQUENTIEL, plus lent, sur un manque de VRAM). Le plafond de l utilisateur est respecte ; le calcul ralentit au lieu d echouer. A mesurer sur le vrai PC (Detail++ relance).
+
+## 2026-09-30 (soir) — serveur d images : repli par resolution (le dechargement sequentiel cassait le pipeline)
+- Le repli « dechargement SEQUENTIEL » sur manque de VRAM a casse le pipeline ControlNet-Union + IP-Adapter de Detail++ : « Tensor on device meta is not on the expected device cuda:0 » (poids laisses sur le peripherique meta). Retire.
+- _executer : 1) pipeline entier sur la carte -> dechargement par modele ; 2) sinon resolution reduite (87,5 % puis 75 %, multiples de 64), resultat ramene a la taille demandee ; l echelle qui marche est retenue pour les appels suivants. Test sans GPU (faux pipeline) : 1024 echoue, 896 passe, vue suivante directement en 896, erreur remontee si 768 echoue aussi.
+- Detail++ affiche desormais la vraie erreur du script (correctif precedent) : c est ce qui a permis de voir la cause.
+- A signaler : l installateur ne telecharge ni ControlNet-Union (Detail++), ni ControlNet-Tile (Detail refine, outils tile), ni le VAE fp16-fix ; Union et Tile sont confies au chantier wf5-bureau-fiabilite, le VAE a ajouter a la fusion.
