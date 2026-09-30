@@ -24755,3 +24755,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee : ordre Windows | autres | MyFabmesh | depassement orange (demande du user).
 
 - (suite) Barre partagee : MyFabmesh (partie reglee) de nouveau tout a droite ; depassement des autres logiciels en bleu/orange fondu a leur suite.
+
+- (suite) Barre partagee : usage REEL de MyFabmesh en violet clair dans sa part (violet fixe = part allouee), libelle lisible (ombre).
