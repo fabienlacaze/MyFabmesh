@@ -24402,3 +24402,10 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Constat sur l'installation reelle (NSIS 1.0.40) : compteur « 3,498 / ~8,500 Mo » fige puis « 0.1 MB/s · ETA 1191 min ». Cause : le total (8,5 Go) etait la taille SUR DISQUE, alors que les octets mesures sont ceux des roues telechargees (~4,3 Go) ;
   apres le telechargement pip decompresse et installe torch (plusieurs minutes sans octets nouveaux) -> debit ~0 et temps restant absurde.
 - `wizard.js` : total 4 300 Mo (telecharge), barre plafonnee a 92 % pendant le telechargement, debit < 0,5 Mo/s apres 50 Mo -> « installing… » et libelle « Installing PyTorch (unpacking files…) ». Le journal montre l'installation en cours (dossier python 6,2 Go et croissant).
+
+## 2026-09-30 — Assistant : progression des modeles (unites, temps restant global) ; installation de zero du moteur REUSSIE
+- RESULTAT de l'installation de zero (NSIS 1.0.40, Windows, RTX 5080) : moteur d'IA installe sans erreur (`install-deps: process exited 0 — torchReady=true`, 12:15:41) : roues TRELLIS-2 en `--no-deps`, dependances a part, NVRTC 13 copie
+  dans torch/lib -> les deux correctifs fonctionnent en conditions reelles. Telechargement des modeles (mode Full) : TRELLIS-2 2 min 26, ~100 Mo/s, puis dinov3, RealVis, Lightning, SDXL-inpainting... ; l'ecran affiche des lignes vertes puis « 30096 / 48650 Mo ».
+- Deux defauts de progression corriges dans `wizard_download.py` : (1) tailles du plan en Mo DECIMAUX (API du Hub) mais cache mesure en Mio -> un depot de 16 240 Mo plafonnait a ~95 % ;
+  (2) temps restant calcule sur le seul modele en cours (« ETA 16s » avec 18 Go a telecharger) -> maintenant total du mode - fait, debit lisse. Banc sur un vrai depot (390 Mo) : pct 17 -> 51 -> 100, ETA 20 s -> 12 s.
+- A noter (non corrige) : dinov3 est range en double dans le cache (miroir + id canonique, 1,2 Go chacun).

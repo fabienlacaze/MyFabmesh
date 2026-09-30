@@ -186,7 +186,12 @@ def _hf_cache_size_mb(repo):
                 total += os.path.getsize(os.path.join(root, fn))
             except OSError:
                 pass
-    return total // (1024 * 1024)
+    # Mo DECIMAUX (1e6 octets) : les tailles du plan viennent de l'API du Hub (octets / 1e6). Avec des Mio (1024 * 1024) un depot de 16 240 Mo n'atteignait que 95 % (15 485 Mio)
+    # et la barre restait bloquee a ~95 % puis sautait a 100 % (constate le 2026-09-30).
+    return total // 1_000_000
+
+
+_GRAND_TOTAL_MB = [0]      # total du mode choisi (renseigne par main()) : sert au temps restant GLOBAL
 
 
 def _heartbeat(item_id, repo, expected_mb, total_done_mb_ref, stop, t0):
@@ -196,6 +201,7 @@ def _heartbeat(item_id, repo, expected_mb, total_done_mb_ref, stop, t0):
     start_size = _hf_cache_size_mb(repo)
     last_size = start_size
     last_t = time.time()
+    vitesse_lissee = 0.0
     while not stop.wait(1.0):
         cur_size = _hf_cache_size_mb(repo)
         elapsed = time.time() - t0
@@ -204,16 +210,20 @@ def _heartbeat(item_id, repo, expected_mb, total_done_mb_ref, stop, t0):
         now = time.time()
         speed_mbps = max(0, (cur_size - last_size) / max(now - last_t, 0.001))
         last_size = cur_size; last_t = now
+        vitesse_lissee = speed_mbps if vitesse_lissee == 0.0 else 0.7 * vitesse_lissee + 0.3 * speed_mbps
         pct = min(99.0, round(delta_mb * 100.0 / max(expected_mb, 1), 1))
+        fait_total = total_done_mb_ref[0] + delta_mb
+        # TEMPS RESTANT GLOBAL (avant : celui du seul modele en cours -> « ETA 16s » avec 18 Go a telecharger)
+        reste = (_GRAND_TOTAL_MB[0] - fait_total) if _GRAND_TOTAL_MB[0] else max(0, expected_mb - delta_mb)
         emit({
             'id': item_id,
             'pct': pct,
             'done': False,
             'in_progress': True,
             'elapsed_s': round(elapsed, 1),
-            'speed_mbps': round(speed_mbps, 2),
-            'eta': _eta_str(max(0, expected_mb - delta_mb), speed_mbps),
-            'total_done_mb': total_done_mb_ref[0] + delta_mb,
+            'speed_mbps': round(vitesse_lissee, 2),
+            'eta': _eta_str(max(0, reste), vitesse_lissee),
+            'total_done_mb': fait_total,
         })
 
 
@@ -639,6 +649,7 @@ def main():
     args = ap.parse_args()
 
     items = MODELS[args.mode]
+    _GRAND_TOTAL_MB[0] = sum(size for _i, _r, size in items)
     total_done = [0]
     failures = []
     for item_id, repo, size in items:
