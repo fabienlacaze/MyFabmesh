@@ -244,6 +244,7 @@ async function uploadClientMeshResult(bytes, opType, extra = {}) {
   const projectName = (extra && extra.projectName)
     || (window.state && window.state.currentProject && window.state.currentProject.name) || '';
   const qs = new URLSearchParams({ op: String(opType || ''), project: projectName });
+  if (extra && extra.light && extra.full) { qs.set('light', '1'); qs.set('full', extra.full); }
   const r = await fetch('/api/mesh-op/client-result?' + qs.toString(), {
     method: 'POST',
     credentials: 'include',
@@ -14555,9 +14556,10 @@ function _modeleDeLetape(chemin, opts = {}) {
   } catch (_) { return null; }
 }
 /** Lecture reseau d'un maillage pour un OUTIL qui accepte la version legere (gros maillage) : rend la Response. */
+let _derniereLegere = null;   // url de la version legere lue par le dernier outil (null = fichier complet)
 async function _fetchMaillageOutil(url) {
-  let u = url;
-  try { const lu = API.findLight ? await API.findLight(url) : null; if (lu) u = lu; } catch (_) { /* complet */ }
+  let u = url; _derniereLegere = null;
+  try { const lu = API.findLight ? await API.findLight(url) : null; if (lu) { u = lu; _derniereLegere = lu; } } catch (_) { /* complet */ }
   return fetch(u, { credentials: 'omit' });
 }
 // Meme interface que GLTFLoader (parse / load) : copie de l'etape si disponible, sinon lecture normale.
@@ -14618,9 +14620,12 @@ async function _pmLoadMesh(meshPath) {
     };
     // Maillage DEJA affiche dans le viewer de l'etape Mesh : on en prend une copie au lieu de le retelecharger et de le
     // reanalyser (WebP 4K/8K = plusieurs secondes). Geometrie partagee, materiaux clones : Annuler ne touche pas l'original.
+    pmState.cheminSource = meshPath;
     const dejaLa = _pmModeleDejaCharge(meshPath);
+    pmState.viaLight = !!(dejaLa && wsModel && wsModel.userData && wsModel.userData.__light);
     if (dejaLa) { await surCharge({ scene: dejaLa }); return; }
     const r = await _fetchMaillageOutil(url);
+    pmState.viaLight = !!_derniereLegere;
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const buf = await r.arrayBuffer();
     new GLTFLoader().parse(buf, '', surCharge);
@@ -15049,8 +15054,21 @@ function openPaintMesh(opts = {}) {
   };
 }
 
+// Peinture sur la VERSION LEGERE : chaque pixel modifie recoit un alpha de 254 (les autres 255) avant l'export. Le serveur s'en sert pour reporter
+// ces seuls pixels sur la texture d'origine du maillage complet. Invisible (materiau opaque).
+function _pmMarquerPeint() {
+  pmState.canvases?.forEach((ent) => {
+    for (const nom of ['diffuse', 'metal']) {
+      const L = ent[nom]; if (!L || !L.baseline) continue;
+      const im = L.ctx.getImageData(0, 0, L.w, L.h), d = im.data, b = L.baseline.data;
+      for (let i = 0; i < d.length; i += 4) d[i + 3] = (d[i] !== b[i] || d[i + 1] !== b[i + 1] || d[i + 2] !== b[i + 2]) ? 254 : 255;
+      L.ctx.putImageData(im, 0, 0); L.texture.needsUpdate = true;
+    }
+  });
+}
 async function _pmApplyOnDevice() {
   if (!pmState.origModel) throw new Error('no model loaded');
+  if (pmState.viaLight) { try { _pmMarquerPeint(); } catch (_) { /* export sans marquage */ } }
   const savedPos = pmState.origModel.position.clone();
   pmState.origModel.position.set(0, 0, 0);
   try {
@@ -15066,7 +15084,8 @@ async function _pmApplyOnDevice() {
     const bytes = new Uint8Array(buf);
     // Paint Mesh a son propre nom sur la route gratuite (il passait pour
     // 'center', faute d'etre dans la liste blanche du serveur).
-    const data = await uploadClientMeshResult(bytes, 'paint_mesh');
+    const _full = pmState.viaLight && pmState.cheminSource ? await API.getMeshLocalUrl(pmState.cheminSource).catch(() => null) : null;
+    const data = await uploadClientMeshResult(bytes, 'paint_mesh', _full ? { light: true, full: _full } : {});
     const newUrl = data.path || data.newPath || data.mesh_url;
     showToast('Paint Mesh saved!', 'success');
     const p = state.currentProject;

@@ -13297,8 +13297,34 @@ async function handleMeshLight(req: Request, env: Env, action: string): Promise<
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MESHES) return err(500, 'R2 binding required');
-  if (!['find', 'start', 'status', 'full'].includes(action)) return err(404, 'not found');
+  if (!['find', 'start', 'status', 'full', 'fulltex'].includes(action)) return err(404, 'not found');
   const b = await req.json().catch(() => ({})) as { url?: string; job_id?: string; key?: string; mesh_url?: string };
+
+  // TEXTURES PEINTES A L'EXPORT : { url = version legere peinte } ; le maillage complet d'origine est lu dans ses metadonnees (fullsource)
+  if (action === 'fulltex') {
+    const base = _lodBaseUrl(env);
+    const clePeint = await _cleDepuisUrlSignee(env, String(b.url || ''));
+    if (!clePeint || !clePeint.startsWith(`${user.id}/`)) return err(403, 'forbidden');
+    if (!base) return json({ skipped: true, reason: 'not configured' });
+    const tete = await env.MESHES.head(clePeint);
+    const cleMesh = tete?.customMetadata?.fullsource;
+    if (!cleMesh) return json({ skipped: true, reason: 'no full source recorded' });
+    const nom = (clePeint.split('/').pop() || '').replace(/\.glb$/i, '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 200);
+    const clePleine = `${user.id}/full/${nom}_fulltex.glb`;
+    if (await env.MESHES.head(clePleine)) return json({ found: true, key: clePleine, url: await signedR2Url(env, clePleine, 'mesh') });
+    if (await _limiteCalculAtteinte(env)) return json({ skipped: true, reason: 'paused' });
+    const restants = await checkAndIncrementUserCalls(env, user.id);
+    if (restants == null) return json({ skipped: true, reason: 'user limit' });
+    const jobId = crypto.randomUUID();
+    try {
+      const r = await fetch(`${base}/lod-tex-start`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, job_id: jobId, peint_url: await signedR2Url(env, clePeint, 'mesh'), mesh_url: await signedR2Url(env, cleMesh, 'mesh') }),
+        signal: AbortSignal.timeout(60_000) });
+      if (!r.ok) return json({ skipped: true, reason: `modal HTTP ${r.status}` });
+    } catch (e) { return json({ skipped: true, reason: e instanceof Error ? e.message : String(e) }); }
+    return json({ found: false, job_id: jobId, key: clePleine });
+  }
 
   // PLEINE RESOLUTION A L'EXPORT : { url = rig retouche sur la version legere, mesh_url = maillage complet d'origine }
   if (action === 'full') {
@@ -13541,10 +13567,17 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
     const sourceRig = String(new URL(req.url).searchParams.get('source') || '')
       .replace(/\.glb$/i, '').replace(/_rigged_.*$/i, '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 160);
     const moteurPeau = new URL(req.url).searchParams.get('light') === '1' ? 'skinlight' : 'skinpaint';
+    // Peinture faite sur la VERSION LEGERE : nom marque + maillage complet d'origine note dans les metadonnees (export pleine resolution)
+    const peintLegere = op === 'paint_mesh' && new URL(req.url).searchParams.get('light') === '1';
+    let fullSource: string | null = null;
+    if (peintLegere) fullSource = await _cleDepuisUrlSignee(env, String(new URL(req.url).searchParams.get('full') || ''));
     const key = op === 'skin_paint' && sourceRig
       ? `${user.id}/rigged/${sourceRig}_rigged_${moteurPeau}_${Date.now()}.glb`
-      : `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}_client.glb`;
-    await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
+      : `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}${peintLegere && fullSource ? '_light' : ''}_client.glb`;
+    await env.MESHES.put(key, bytes, {
+      httpMetadata: { contentType: 'model/gltf-binary' },
+      ...(peintLegere && fullSource ? { customMetadata: { fullsource: fullSource } } : {}),
+    });
     const url = await signedR2Url(env, key, 'mesh');
     // Zero GPU (cout 0 dans MODAL_COST_USD), mais facture depuis le 2026-09-27.
     await logOperation(env, user.id, 'mesh-op-client',

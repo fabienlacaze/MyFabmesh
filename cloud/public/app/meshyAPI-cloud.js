@@ -1185,13 +1185,13 @@
     },
     /* PLEINE RESOLUTION A L'EXPORT (2026-09-30) : un rig retouche sur la version legere (`_rigged_skinlight_`) est reporte sur le
      * maillage complet d'origine (Modal, CPU, quelques secondes) avant d'etre exporte. Rend l'URL du rig complet, ou null. */
-    pleineResolution: async (rigUrl, meshUrl) => {
+    pleineResolution: async (rigUrl, meshUrl, action = 'full') => {
       const post = async (chemin, corps) => {
         const r = await fetch('/api/mesh-light/' + chemin, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corps) });
         return r.ok ? await r.json() : null;
       };
       try {
-        const d = await post('full', { url: rigUrl, mesh_url: meshUrl });
+        const d = await post(action, action === 'fulltex' ? { url: rigUrl } : { url: rigUrl, mesh_url: meshUrl });
         if (!d) return null;
         if (d.found) return d.url;
         if (!d.job_id) return null;
@@ -2065,6 +2065,15 @@
         const fmt = targetFormat || 'glb';
         let url = await impl.getMeshLocalUrl(sourcePath);
         if (!url) return { ok: false, error: 'mesh not found' };
+        // texture peinte sur la version legere (`_paint_mesh_light_client`) : pixels peints reportes sur la texture ORIGINALE du complet
+        if (/_paint_mesh_light_client/i.test(String(sourcePath))) {
+          try {
+            if (window.showToast) window.showToast('Preparing the full-resolution texture for export…', 'info', 6000);
+            const fu = await impl.pleineResolution(url, null, 'fulltex');
+            if (fu) url = fu;
+            else if (window.showToast) window.showToast('Full resolution unavailable: exporting the light version instead.', 'warning', 8000);
+          } catch (_) { /* version legere telle quelle */ }
+        }
         // rig retouche sur la version legere : on l'exporte en PLEINE resolution (peau reportee sur le maillage complet)
         if (/_rigged_skinlight_\d+/i.test(String(sourcePath)) && window.__maillageParentUrl) {
           try {

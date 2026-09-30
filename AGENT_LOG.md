@@ -24296,3 +24296,11 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Test navigateur reel (harness C:/tmp/harness, Chromium swiftshader) : version legere du rig charge en 0,8 s (499 982 triangles) ; mesh complet 10 346 880 triangles :
   LOD actif apres 25,6 s (Worker), 399 990 triangles en mouvement, 10 346 880 a l'arret, captures quasi identiques, 0 erreur console.
 - A tester a la reprise Modal (1er octobre) : app myfabmesh-lod, demande auto depuis le viewer, export pleine resolution (skinlight), outils sur la version legere.
+
+## 2026-09-30 — Textures peintes sur la version legere -> reportees sur la texture ORIGINALE du maillage complet a l'export
+- Paint Mesh / Decals sur la version legere : chaque pixel modifie recoit un alpha de 254 avant l'export (`_pmMarquerPeint`, comparaison au baseline exact du canvas,
+  couleur ET metal/rugosite) ; enregistrement `..._paint_mesh_light_client.glb` + metadonnee R2 `fullsource` (maillage complet d'origine, cle verifiee par signature).
+- Export : `/api/mesh-light/fulltex` -> Modal `reporter_texture` (`transfert_peau.fusionner_textures`, Pillow) : seuls les pixels marques sont reportes sur la texture
+  d'origine (4K / 8K, webp) ; couche emissive ajoutee si peinte. Repli : export de la version legere avec un message.
+- TESTS : (1) local, mesh complet du centipede (8192 x 8192 + 4096 x 4096) + version legere « peinte » : 8192 conserve, patch rouge reporte (moyenne 255,1,0), 3 636 pixels
+  modifies hors patch sur 67 M (bruit webp), ~46 s ; (2) navigateur reel : l'alpha 254 survit a GLTFExporter (4096 px a 254, couleurs intactes). Serveur non teste (budget).

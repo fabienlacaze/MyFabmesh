@@ -28,7 +28,7 @@ CIBLE_FACES = 500_000
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("nodejs")
-    .pip_install("fastapi[standard]", "requests", "numpy>=1.26,<2", "scipy>=1.11,<1.18")
+    .pip_install("fastapi[standard]", "requests", "numpy>=1.26,<2", "scipy>=1.11,<1.18", "pillow")
     .run_commands("mkdir -p /opt/lod/build /opt/lod/src/renderer/lib && echo '{\"type\":\"module\"}' > /opt/lod/package.json")
     .add_local_file("build/gen_light_glb.mjs", remote_path="/opt/lod/build/gen_light_glb.mjs", copy=True)
     .add_local_file("src/renderer/lib/meshopt-simplifier.js", remote_path="/opt/lod/src/renderer/lib/meshopt-simplifier.js", copy=True)
@@ -150,6 +150,40 @@ def reporter_peau(job_id: str, rig_leger_url: str, maillage_url: str):
 
 @app.function(
     image=image,
+    cpu=4.0,
+    memory=24576,
+    timeout=600,
+    volumes={"/lod_data": volume},
+)
+def reporter_texture(job_id: str, peint_url: str, maillage_url: str):
+    """TEXTURES PEINTES A L'EXPORT (2026-09-30) : Paint Mesh / Decals ont peint la version legere (texture 2048, pixels peints marques par un
+    alpha de 254). On reporte ces pixels sur la texture ORIGINALE du maillage complet (4K / 8K) : le reste de la texture n'est pas touche.
+    Teste en local : 8192 x 8192 conserve, ~46 s. Ecrit /lod_data/<job>.glb (ou .err)."""
+    import urllib.request
+
+    def _fin(nom: str, contenu):
+        with open(f"/lod_data/{job_id}.{nom}", "wb" if isinstance(contenu, bytes) else "w") as f:
+            f.write(contenu)
+        volume.commit()
+
+    def _lire(url: str) -> bytes:
+        req = urllib.request.Request(url, headers={"User-Agent": "myfabmesh"})
+        with urllib.request.urlopen(req, timeout=300) as r:
+            return r.read()
+
+    try:
+        from modal_app import transfert_peau as tp
+        t0 = time.time()
+        out = tp.fusionner_textures(_lire(maillage_url), _lire(peint_url), log=lambda m: print(m, flush=True))
+        _fin("glb", out)
+        print(f"[texture] fichier complet mis a jour : {len(out) / 1e6:.0f} Mo en {time.time() - t0:.0f} s", flush=True)
+    except Exception as e:
+        print(f"[texture] ECHEC : {e}", flush=True)
+        _fin("err", json.dumps({"error": str(e)[:400]}))
+
+
+@app.function(
+    image=image,
     timeout=120,
     volumes={"/lod_data": volume},
     secrets=[modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"])],
@@ -203,6 +237,17 @@ def lod_router():
             raise HTTPException(status_code=400, detail="rig_url and mesh_url required")
         job = _job(p)
         reporter_peau.spawn(job, rig, mesh)
+        return JSONResponse({"job_id": job, "status": "queued"})
+
+    @api.post("/lod-tex-start")
+    async def lod_tex_start(request: Request):
+        p = await _json(request)
+        _auth(p)
+        peint, mesh = (p.get("peint_url") or "").strip(), (p.get("mesh_url") or "").strip()
+        if not (peint.startswith("https://") and mesh.startswith("https://")):
+            raise HTTPException(status_code=400, detail="peint_url and mesh_url required")
+        job = _job(p)
+        reporter_texture.spawn(job, peint, mesh)
         return JSONResponse({"job_id": job, "status": "queued"})
 
     @api.post("/lod-status")

@@ -349,3 +349,112 @@ def compacter(j, binaire):
             i["bufferView"] = vue_map[i["bufferView"]]
     j["bufferViews"], j["accessors"] = nouvelles, accs
     return nb
+
+
+# ── TEXTURES PEINTES SUR LA VERSION LEGERE -> MAILLAGE COMPLET (2026-09-30) ──────────────────────────────────────────
+# Paint Mesh / Decals travaillent sur la version legere (~500 K) et sa texture plafonnee a 2048 : ce que l'utilisateur a peint est
+# donc en 2048. La version legere partage les UV du maillage complet : on reporte SEULEMENT les pixels peints (marques par le
+# navigateur avec un alpha de 254 dans l'image enregistree) sur la texture ORIGINALE du complet (4K / 8K), sans rien perdre ailleurs.
+ALPHA_PEINT = 254
+
+
+def _index_image(j, tex):
+    if tex is None or tex.get("index") is None:
+        return None
+    t = j["textures"][tex["index"]]
+    if t.get("source") is not None:
+        return t["source"]
+    for ext in (t.get("extensions") or {}).values():
+        if isinstance(ext, dict) and ext.get("source") is not None:
+            return ext["source"]
+    return None
+
+
+def _champs_images(j, mat=0):
+    m = j["materials"][mat]
+    pbr = m.get("pbrMetallicRoughness", {})
+    return {"base": pbr.get("baseColorTexture"), "metal": pbr.get("metallicRoughnessTexture"), "emissif": m.get("emissiveTexture")}
+
+
+def _octets_image(j, b, ii):
+    bv = j["bufferViews"][j["images"][ii]["bufferView"]]
+    o = bv.get("byteOffset", 0)
+    return bytes(b[o:o + bv["byteLength"]])
+
+
+def _poser_image(j, b, ii, octets, mime):
+    while len(b) % 4:
+        b.append(0)
+    j["bufferViews"].append({"buffer": 0, "byteOffset": len(b), "byteLength": len(octets)})
+    b += octets
+    j["images"][ii]["bufferView"] = len(j["bufferViews"]) - 1
+    j["images"][ii]["mimeType"] = mime
+
+
+def _fusion_pixels(plein_img, peint_img):
+    """plein_img : PIL (RGB ou RGBA, grande) ; peint_img : PIL RGBA (2048). Rend (PIL fusionne, nb de pixels peints)."""
+    import numpy as np
+    from PIL import Image, ImageFilter
+    W, H = plein_img.size
+    p = np.asarray(peint_img.convert("RGBA"))
+    masque = (p[:, :, 3] == ALPHA_PEINT)
+    n = int(masque.sum())
+    if n == 0:
+        return plein_img, 0
+    m_img = Image.fromarray((masque * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))     # 1 px de marge
+    m_up = np.asarray(m_img.resize((W, H), Image.BILINEAR), dtype=np.uint8)
+    rgb_up = np.asarray(peint_img.convert("RGB").resize((W, H), Image.LANCZOS), dtype=np.uint8)
+    base = np.asarray(plein_img.convert("RGB"), dtype=np.uint8).copy()
+    for y0 in range(0, H, 1024):
+        y1 = min(H, y0 + 1024)
+        a = m_up[y0:y1, :, None].astype(np.float32) / 255.0
+        base[y0:y1] = (base[y0:y1] * (1 - a) + rgb_up[y0:y1] * a + 0.5).astype(np.uint8)
+    return Image.fromarray(base), n
+
+
+def fusionner_textures(glb_plein, glb_peint, log=print):
+    """Reporte les pixels peints (alpha 254) de `glb_peint` (version legere peinte) sur les textures du maillage complet `glb_plein`
+    (couleur et metal / rugosite) ; ajoute la couche emissive si elle est peinte. Rend les octets du GLB complet mis a jour."""
+    import io as _io
+    from PIL import Image
+    jf, bf = lire_glb(glb_plein)
+    jp, bp = lire_glb(glb_peint)
+    cf, cp = _champs_images(jf), _champs_images(jp)
+    change = 0
+    for champ in ("base", "metal"):
+        ip, ifu = _index_image(jp, cp.get(champ)), _index_image(jf, cf.get(champ))
+        if ip is None or ifu is None:
+            continue
+        peint = Image.open(_io.BytesIO(_octets_image(jp, bp, ip)))
+        plein = Image.open(_io.BytesIO(_octets_image(jf, bf, ifu)))
+        mime = jf["images"][ifu].get("mimeType", "image/png")
+        res, n = _fusion_pixels(plein, peint)
+        log(f"[texture] {champ} : {n} pixels peints ({peint.size[0]}) reportes sur {plein.size[0]}x{plein.size[1]}")
+        if not n:
+            continue
+        buf = _io.BytesIO()
+        if mime == "image/webp":
+            res.save(buf, "WEBP", quality=92, method=4)
+        else:
+            res.save(buf, "PNG")
+        _poser_image(jf, bf, ifu, buf.getvalue(), mime)
+        change += n
+    # couche emissive peinte : recopiee telle quelle (2048)
+    ie = _index_image(jp, cp.get("emissif"))
+    if ie is not None:
+        em = Image.open(_io.BytesIO(_octets_image(jp, bp, ie))).convert("RGB")
+        if em.getextrema() != ((0, 0), (0, 0), (0, 0)):
+            buf = _io.BytesIO()
+            em.save(buf, "PNG")
+            jf.setdefault("images", []).append({"mimeType": "image/png"})
+            jf.setdefault("textures", []).append({"source": len(jf["images"]) - 1})
+            _poser_image(jf, bf, len(jf["images"]) - 1, buf.getvalue(), "image/png")
+            mat = jf["materials"][0]
+            mat["emissiveTexture"] = {"index": len(jf["textures"]) - 1}
+            mat["emissiveFactor"] = [1.0, 1.0, 1.0]
+            log("[texture] couche emissive ajoutee")
+            change += 1
+    if not change:
+        return glb_plein
+    bf = compacter(jf, bf)
+    return ecrire_glb(jf, bf)
