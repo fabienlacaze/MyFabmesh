@@ -23,6 +23,12 @@ import os
 import sys
 import time
 
+# Python EMBARQUE (fichier ._pth) : le dossier du script n'est pas dans sys.path. Les verifications importent les modules de
+# scripts/ exactement comme les outils de l'appli (texture_upscale, trellis2_sans_detourage).
+_ICI = os.path.dirname(os.path.abspath(__file__))
+if _ICI not in sys.path:
+    sys.path.insert(0, _ICI)
+
 
 def log(msg):
     print(msg, flush=True)
@@ -129,6 +135,18 @@ def check_trellis_loadable():
             f'TRELLIS-2 pipeline import failed: {type(e).__name__}: {e}. '
             'This usually means a native CUDA wheel is missing/mismatched or '
             'the TRELLIS-2 source tree is incomplete.')
+    # Detourage INTERNE du moteur 3D : sans la coquille de trellis2_sans_detourage, from_pretrained construit le modele de
+    # detourage du moteur (~1 Go, code distant exigeant timm + kornia, bloque par Smart App Control) : 3e echec de la
+    # premiere generation du 2026-09-30. On construit ici ce que le pipeline construira : instantane si le correctif est la.
+    try:
+        import trellis2_sans_detourage
+        trellis2_sans_detourage.appliquer()
+        from trellis2.pipelines import rembg as _rembg_interne
+        if not isinstance(_rembg_interne.BiRefNet(model_name='ZhengPeng7/BiRefNet'), trellis2_sans_detourage._SansDetourage):
+            raise RuntimeError('the 3D engine would still load its own background remover')
+        log('[smoke]   internal background remover of the 3D engine disabled (image already cut out)')
+    except Exception as e:
+        raise RuntimeError(f'3D engine background-remover bypass failed: {type(e).__name__}: {e}')
 
     # 3) The 4B weights must already be in the HF cache (wizard_download
     #    pulled microsoft/TRELLIS.2-4B). try_to_load_from_cache never touches
@@ -215,6 +233,29 @@ def check_mesh_tools():
     log('[smoke]   mesh tools OK')
 
 
+def check_texture_upscaler():
+    # Enhance texture et l'option Ultra 8K (texture_upscale.py) echouaient sur toute installation neuve : la bibliotheque de
+    # l'agrandisseur importe un module retire de torchvision 0.17+ (audit du 2026-09-30). Meme chargement que l'outil,
+    # sans telecharger les poids (~0,4 s).
+    log('[smoke] checking texture upscaler...')
+    import texture_upscale
+    texture_upscale.charger_esrgan()
+    log('[smoke]   texture upscaler OK')
+
+
+def report_prompt_translator():
+    """Traduction des prompts : FACULTATIVE (etape de l'assistant qui n'arrete jamais l'installation) -> simple ligne de
+    journal, jamais un echec. Import REEL des parties natives (une DLL peut s'installer puis etre bloquee par Smart App Control)."""
+    try:
+        import ctranslate2  # noqa: F401
+        import sentencepiece  # noqa: F401
+        from argostranslate import package
+        modeles = sorted(f'{p.from_code}->{p.to_code}' for p in package.get_installed_packages())
+        log(f'[smoke] prompt translator: ready (models: {", ".join(modeles) or "none yet, downloaded at first use"})')
+    except Exception as e:
+        log(f'[smoke] prompt translator: not available (optional, prompts stay in their language): {type(e).__name__}: {e}')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--mode', required=True)
@@ -232,8 +273,10 @@ def main():
             check_blip_loadable()
         check_cuda_wheels()
         check_mesh_tools()
+        check_texture_upscaler()
         check_trellis_loadable()
         check_dinov3_loadable()
+        report_prompt_translator()
         log(f'[smoke] all checks passed in {time.time() - t0:.1f}s')
         sys.exit(0)
     except Exception as e:

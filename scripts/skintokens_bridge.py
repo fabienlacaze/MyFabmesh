@@ -21,6 +21,11 @@ import sys
 import subprocess
 
 HERE = os.path.abspath(os.path.dirname(__file__))
+# Le Python EMBARQUE du rig (fichier ._pth) n'ajoute PAS le dossier du script a sys.path (2026-09-30, audit de l'installation
+# de zero) : `from patch_skintokens_transfert import ...` echouait EN SILENCE -> transfert=False -> sur chaque PC neuf, rig SANS
+# texture et sans squelette complet (rig_complet.py saute), et « skeleton points need the up-to-date rig engine ».
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
 PROJECT_ROOT = os.path.abspath(os.path.join(HERE, ".."))
 # Installe par l'assistant (appli packagee) : chemin fourni par main.js ;
 # en developpement : external/SkinTokens.

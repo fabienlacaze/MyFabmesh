@@ -24506,3 +24506,104 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Contenu : tous les prix affiches par le bureau en mode Cloud viennent de /api/pricing avec la formule du worker, aucun chiffre si la grille manque (80/80 prix conformes au banc) ; image selon pas / Turbo / nombre (6 images = appels de 4, jeton relu a chaque lot) ; Texture smooth visible et comptee (22 affiches / 23 preleves avant) ; prix sur le bouton de lancement de chaque fenetre de validation ; Recolor et Age passent par le worker en mode Cloud ; « Add Animation » affiche le prix des clips IA ; garde build/check-prix-affiches.mjs.
 - Controles apres fusion : js-syntax, fonctions-portees, check-prix-affiches, job-steps, prompts, noyaux : OK ; banc navigateur de l'assistant : 10 verifications, 0 erreur.
 - Decisions ouvertes (a poser au user) : Construction stages ignore en Cloud sur le bureau ; Variante « Colours & materials » desormais proposee en Cloud ; Recolor « Style » en cloud = couleurs seulement. Site : valeurs de prix encore ecrites en dur avant l'arrivee de la grille -> corrige juste apres (exigence user : « les prix doivent etre recuperes depuis le reseau, pas codes en dur dans cloud ou desktop »).
+
+## 2026-09-30 — FUSION des trois branches du workflow « 4 agents bureau » dans feat/r2-signed-urls (memoire, desinstallation, dependances)
+- Decision du user (question posee par AskUserQuestion) : « Fusionner, je controle seul ». Relectures adversariales des trois branches INTERROMPUES (fenetre de test ouverte sur l'ecran du user) ; controles faits a la fusion : 3 conflits resolus a la main (index2.css et i18n.js : union ; texture_upscale.py : plafond memoire + chargement corrige de l'agrandisseur ; wizard_smoke_test.py et wizard.js : on garde la page de verification, on y range les nouveaux controles « texture upscaler » et « prompt translator »), gardes OK (syntaxe, fonctions portees, prix, travaux, prompts, noyaux, imports voisins), tests memoire 8 cas + 14 Python (dont le vrai pipeline 3D), tests desinstallation 15 cas (plan falsifie refuse, mise a jour = rien supprime), relecture personnelle de src/main/desinstallation.js (listes fermees, dossier de l'appli exact, dossier deplace = nom + temoin, jamais une racine ni un dossier systeme).
+- Reste a verifier EN VRAI (rien n'a tourne sur GPU ni dans une vraie installation) : une generation 3D sous plafond, le desinstalleur NSIS reel, la traduction sur un PC neuf. Coupures d'urgence memoire : FABMESH_CLOISONNEMENT=0, FABMESH_T2_PARESSEUX=0. Decision ouverte du plafond VRAM reel : un mode lourd qui passait en debordant dans la RAM partagee s'arrete maintenant avec « needs about X GB of VRAM » puis le mode est baisse tout seul (comportement voulu : cloisonner).
+
+## 2026-09-30 — Audit des dépendances de l'installation neuve : rig sans texture (._pth), Enhance texture/8K, traduction des prompts, garde check_imports_voisins
+- Méthode : analyse ast de scripts/ (181 fichiers, imports de haut niveau ET paresseux, modules voisins suivis), sites de lancement de main.js / animation.js et routes de sdxl_server.py, puis import RÉEL de chaque module tiers avec le Python de l'installation neuve (-B, un processus par module, rien d'installé dans l'env). Constat : avec le fichier ._pth, ni le dossier du script, ni le dossier courant, ni PYTHONPATH ne sont dans sys.path (vérifié) ; PYTHONUTF8, SSL_CERT_FILE et REQUESTS_CA_BUNDLE passent.
+- Tableau (script -> module -> état sur l'env neuf -> action) :
+  * skintokens_bridge.py (rig local, env python-rig) -> patch_skintokens_transfert (voisin) -> INTROUVABLE, échec silencieux : transfert=False, donc rig sans texture et sans rig_complet sur tout PC neuf -> CORRIGÉ (sys.path), prouvé avec python-rig avant/après. rig_complet/demo : open3d, fast_simplification, bpy, torch, transformers OK dans python-rig.
+  * sdxl_server.py (img2img, inpaint, recolor, tex variant, mask inpaint, tile, Outfit, Face fix image) -> outfit_cutout, face_fix_image (voisins) -> INTROUVABLES -> CORRIGÉ. Autres modules OK.
+  * mesh_tools.py (outils de maillage) -> acceleration_glb (voisin, import protégé) -> introuvable : Decimate en ancienne méthode, WebP lent -> CORRIGÉ, Decimate réel avant/après (« ancienne methode » -> « meshoptimizer + recuisson »). Watertight n'était PAS cassé (seal pose son chemin). meshoptimizer absent (aucune roue Windows) -> repli wasm (FABMESH_NODE), OK.
+  * face_inpaint_atlas.py (region re-texture) -> acceleration_glb -> introuvable (WebP lent) -> CORRIGÉ.
+  * texture_upscale.py (Enhance texture + étape 8k de la génération 3D) -> basicsr/realesrgan -> import en ÉCHEC (torchvision 0.23 n'a plus transforms.functional_tensor) -> CORRIGÉ : charger_esrgan() pose un alias rgb_to_grayscale, 1,7 s, ne charge ni numba ni facexlib. upscale_atlas.py et multiview_* ont le même import mais aucun chemin de l'UI n'y mène.
+  * translate_server.py / translate_prompt.py (traduction des prompts + traduction auto de l'UI) -> argostranslate ABSENT, et lancés avec le python système / l'embarqué NU -> AJOUTÉ : étape FACULTATIVE de wizard_install_deps (ctranslate2 4.8.x, sentencepiece, stanza 1.10.1, sacremoses, minisbd, puis argostranslate 1.11.0 en --no-deps pour éviter spaCy et ses 8 roues natives). Prouvé sous Smart App Control avec l'interprète embarqué (pip --target dans C:\tmp). Modèles X->anglais des langues du système (FABMESH_TRANSLATE_LANGS, au plus 2) + traduction d'essai (fichiers stanza ~1,2 Mo depuis huggingface.co). Les autres langues se téléchargent en tâche de fond à la première demande (réponse pending, pas de cache). main.js utilise le moteur IA (_pythonTraduction). Tailles mesurées : fr 66,6 Mo, zh 74,5, hi 102,4, es 285,2.
+  * remove_bg.py -> Lucida (code distant BiRefNet) exige kornia (absent, DLL bloquée par SAC) -> repli u2net (scripts/rembg), prouvé en 6 s -> aucune action (qualité u2net).
+  * face_reproject.py (option Face fix de la 3D) -> kornia absent, import protégé -> repli Haar (cv2) -> aucune action.
+  * texture_project.py -> numba : JIT OK aujourd'hui sur ce PC, import protégé (sinon boucle Python) -> aucune action. numba est installé par facexlib (realesrgan/gfpgan).
+  * trellis2_native_full_pipeline.py -> o_voxel, cumesh, flex_gemm, spconv, cumm, kaolin, utils3d, trellis2 : OK ; détourage interne neutralisé -> vérifié désormais par le test final.
+  * generate_front_strict, generate_back_view (Florence-2 : check_imports OK, timm/einops présents), caption_image, local_juggernaut_bridge, local_inpaint_bridge, detail_synth, construction_stages(_3d), scale_mesh, explode_mesh_3d, mesh_material_adjust, mesh_pre_transform, nsfw_scan/nsfw_server, texture_refine, texture_smooth, mesh_inpaint (rendu pyrender testé, 4 s), wizard_* -> tout OK.
+  * multiview_mvadapter_gen.py (bouton Multi-Views, mode 6 vues) -> mvadapter (external/MV-Adapter) NON LIVRÉ -> generate-multiview rend un message clair (engineMissing) au lieu d'une trace.
+  * animation.js (Export FBX via Blender + ponts d'animation) -> scriptsDir pris DANS app.asar, illisible par Python et par Blender -> CORRIGÉ (_dossierScripts = règle de SCRIPTS_DIR). bvhsdk absent : parseur BVH d'un pont non appelé par l'UI.
+  * partsam_bridge.py / name_parts.py (Segment parts local, env python-segment) -> PartSAM n'est installé par rien : le bouton d'installation pose SAMPart3D -> DÉCISION du user (wizard_install_partsam.py existe mais n'est pas branché).
+  * subdivide.py -> pymeshlab absent : seulement pour des niveaux négatifs (pont SF3D) ; l'UI envoie 1 à 3 -> aucune action. secrets_seal/unseal -> cryptography absent : outils de dev -> aucune action. trellis_bridge/text_to_3d_bridge (gradio_client), sf3d, tsr, CRM (omegaconf), vec_frontback_to_3d (vtracer, cairosvg), anytop/kimodo (bvhio, bvhsdk) : moteurs non livrés, inaccessibles (seul trellis2_native est sélectionnable) -> aucune action.
+- Test final de l'assistant : nouvelle vérification « texture upscaler » (0,4 s ; libellé « Texture enhancer », ATTENDU 8). La coquille du détourage interne du moteur 3D est construite dans check_trellis_loadable (aurait vu le 3e échec du jour, timm + kornia). Ligne d'état du traducteur (jamais un échec). Exécuté avec le Python neuf : tout passe en 5,6 s.
+- Nouveau garde build/check_imports_voisins.py (ast, 0,8 s), branché dans prebuild:licence-check : sur le commit de départ il signale exactement les 4 scripts corrigés ; 8 exceptions justifiées.
+- NB : le worktree avait été créé depuis master ; le travail est sur la branche wf4-audit-installation-neuve, partie de b5a0d0fb.
+
+## 2026-09-30 — Plafonds RAM / VRAM RÉELS pour les générations locales (Job Object Windows, VRAM au budget, modèles TRELLIS-2 lus à la demande)
+
+Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner la VRAM et la RAM aux limites blanches… Mon ordi est au bord du crash pendant les générations. » Incident du jour : RTX 5080 16 Go, 32 Go de RAM, marqueur RAM à 27 Go, Unreal ouvert. 14,2 Go utilisés avant une génération 3D, puis 32 Go pendant `loading_pipeline` (fichier d'échange).
+
+**Causes** :
+- `Pipeline.from_pretrained` de TRELLIS-2 construit les 8 modèles EN RAM et les y garde (low_vram : `.to(cuda)` puis `.cpu()`). Poids mesurés dans le cache HF : 5 × 2,58 Go + 2 × 0,95 Go + 0,15 Go = 14,97 Go, plus DINOv3 1,21 Go.
+- Les limites n'étaient que des avertissements. La VRAM était plafonnée à une fraction de la carte ENTIÈRE, sans compter Unreal : le pilote débordait alors dans la mémoire partagée, donc dans la RAM.
+
+**1. `scripts/cloisonnement_memoire.py` (nouveau, partagé)** — importé en tête de chaque script GPU lourd, avant torch (sys.path du script ajouté, ._pth).
+- RAM : Job Object Windows, limite d'ENGAGEMENT `JOB_OBJECT_LIMIT_JOB_MEMORY` = limite du marqueur − RAM des autres. Recalculée toutes les 2 s, jamais sous l'engagé actuel. Au-delà, refus propre (MemoryError / DefaultCPUAllocator), aucune pagination.
+- Marge de démarrage : 4 Go (valeur de CONCEPTION, pour l'init torch/CUDA), puis ajout du « décalage » mesuré = engagement non résident. Mesuré : `import torch` = 1 509 Mo engagés pour 398 Mo résidents.
+- Jobs imbriqués vérifiés depuis Node (job libuv) et depuis un terminal.
+- VRAM : `set_per_process_memory_fraction((limite − VRAM des autres mesurée AVANT l'init CUDA − contexte CUDA mesuré) / total)`.
+- Manque de mémoire → phrase « This generation needs about X GB of RAM|VRAM but only Y GB are available under your limit… » + marqueur `FABMESH_MEMOIRE_INSUFFISANTE`. Passe par excepthook, `signaler_si_memoire`, et `texte_erreur` pour le serveur d'images.
+- Mesures `FABMESH_MEM_ETAPE` par étape, puis journal `logs/memoire_pics.jsonl` (pic privé = pic d'engagement Windows − décalage).
+- PIÈGE mesuré : le pic d'engagement de Windows COMPTE les allocations refusées (2 810 Mo de pic pour 758 engagés après un refus de 2 Go). Après un refus, le journal prend le pic échantillonné.
+- Intégré dans : trellis2_native_full_pipeline, trellis2_texturing_bridge, sdxl_server, local_juggernaut_bridge, local_inpaint_bridge, outfit_repaint, generate_front_strict, texture_refine, texture_upscale, local_sf3d_bridge, local_triposr_bridge.
+- texture_refine : le plafond VRAM n'est posé que si SDXL est chargé en local ; l'appliquer se fait dans `__main__`, car le module est importé ailleurs.
+- Les 7 copies de `set_per_process_memory_fraction(FABMESH_VRAM_FRACTION)` sont supprimées.
+
+**2. `scripts/trellis2_chargement_paresseux.py` (nouveau)** — correctif posé depuis scripts/, arbre vendu intact.
+- `trellis2.models.from_pretrained` rend des mandataires (sous-classe de nn.Module). À `.to(cuda)`, le modèle est construit sur la carte (usine `torch.device('cuda')`, `fork_rng`, `load_file(device='cuda')`, `load_state_dict(strict=False)`). À `.cpu()`, il est rendu.
+- DINOv3 est rendu seulement quand le modèle suivant monte, pour servir aux deux appels get_cond.
+- Repli sur le chargement classique si la construction directe échoue (le repli se fait hors du bloc except).
+- Vérifié sur CPU avec le vrai code et les vrais fichiers : from_pretrained +0 Mo engagés au lieu de ~16 Go. Toutes les clés des 8 modèles sont dans leur fichier, sauf `rope_phases` (tampon calculé, pas aléatoire).
+- `FABMESH_T2_PARESSEUX=0` = comportement amont.
+
+**3. main.js**
+- `src/main/budget_memoire.js` : mêmes calculs, testés.
+- Variables passées au 3D : `FABMESH_RAM_BUDGET_MB`, `FABMESH_VRAM_BUDGET_MB`, `FABMESH_MEMOIRE_JOURNAL`.
+- Mode 3D choisi sur le besoin MESURÉ (RAM et VRAM, journal). À défaut, estimation RAM = ancienne − 16,2 Go (1536 ≈ 10,8 Go ; 1024 ≈ 3,8 Go) ; aucune estimation VRAM sans mesure.
+- Refus avant lancement si même le mode de base ne tient pas.
+- IPC `memory-budget` pour la file d'attente.
+- Phrase claire dans les erreurs (3D, images, outils mesh), y compris un processus mort sans pile après `FABMESH_MEM_ALERTE`.
+- Serveur d'images libéré avant la re-texture 3D. Le chien de garde n'est plus qu'un observateur.
+
+**4. Renderer**
+- File d'attente sur le budget réel et le besoin mesuré du dernier travail du même type.
+- Pas de départ forcé à 10 min quand c'est la mémoire qui manque ; raison affichée et mise à jour dans la tuile « queued ».
+- `humanizeErrorMessage` traduit la phrase ; traductions fr dans i18n.js.
+
+**NON plafonné** :
+- VRAM hors allocateur PyTorch (le contexte CUDA est mesuré et déduit).
+- RAM des fichiers projetés et du cache disque (non engagée, reprise sans pagination).
+- Code natif qui ne vérifie pas malloc : il peut mourir, sans geler le PC.
+- Hors Windows : RAM non plafonnée.
+- Deux travaux simultanés peuvent dépasser brièvement, pendant la fenêtre de 2 s du suivi.
+
+**Tests (CPU seulement)** : build/test_cloisonnement_memoire.py (14 cas), build/test-budget-memoire.mjs (8 cas), gardes JS, noyaux et diff OK. Aucun calcul GPU (budget Modal épuisé, PC utilisé).
+
+**À MESURER au premier essai réel** :
+- Lignes FABMESH_MEM_ETAPE et « [paresseux] … monte … ».
+- Journal memoire_pics.jsonl.
+- Vérifier que le mode Ultra tient dans le budget VRAM avec Unreal ouvert. Il ne déborde plus en mémoire partagée : il s'arrête en disant combien il lui faut.
+
+## 2026-09-30 — Désinstallation COMPLÈTE du bureau (désinstalleur NSIS + « Remove all MyFabmesh data » + caches confinés)
+- Constat (user : « vraiment désinstaller tout MyFabmesh (modèles, appli, ...) ») : une désinstallation laissait ~65 Go. Il restait python (~9 Go) et hf_cache (~49 Go) dans %APPDATA%\myfabmesh-ai. Un dossier de données déplacé n'était jamais touché. L'ancien uninstaller.nsh ne lisait que 3 variables d'environnement et effaçait le cache Hugging Face PARTAGÉ entier.
+- build/uninstaller.nsh réécrit :
+  - Mise à jour (--updated ou /KEEP_APP_DATA, passés par uninstallOldVersion) : rien n'est supprimé.
+  - Sinon, dans l'ordre :
+    - arrêt des processus lancés depuis nos dossiers ou exécutant resources\scripts (PowerShell, chemins passés par l'environnement) ;
+    - dossiers déplacés inscrits sous HKCU\Software\MyFabmesh.AI\DataDirs (nom MyFabmesh-data + témoin .myfabmesh-data exigés ; seuls les sous-dossiers du moteur partent, puis le dossier s'il est vide) ;
+    - %APPDATA%\myfabmesh-ai et l'ancien %APPDATA%\fabmesh, en gardant images/meshes/previews/history/projets_vides/config.json(.bak) sauf demande ;
+    - myfabmesh-ai-updater, %TEMP% (préfixes de l'appli), résidus du dossier personnel (~/.u2net/u2net.onnx, ~/.cache/realesrgan_weights, ~/.flex_gemm/autotune_cache.json, ~/.fabmesh/test_api_token.txt) ;
+    - Documents\MyFabmesh\exports si projets supprimés ; clé de registre et réglages de notification.
+  - Question Oui/Non (Non par défaut, fr/en) en désinstallation normale ; /S garde les projets ; --delete-projects / --keep-projects imposés par l'appli.
+- DÉFAUT TROUVÉ par le banc : RMDir /r de NSIS 3.0.4 TRAVERSE les jonctions et vide leur cible. Remplacé par MfmSupprimerArbre, qui retire le lien sans le suivre (testé à 3 profondeurs + jonction cassée).
+- 2e défaut, à la construction : « Plugin not found StdUtils::TestParameter ». electron-builder insère notre include AVANT ses !addplugindir. Les fonctions sont donc définies dans customHeader.
+- src/main/desinstallation.js (sans Electron) : inventaire, tailles, suppression avec progression, planificateur revérifié avant chaque suppression. main.js : IPC donnees:inventaire / donnees:supprimer, app:uninstall (désinstalleur /S + choix des projets), app:ouvrir-applis-windows. Suppression désactivée depuis le code source (userData = celui de l'appli installée). Aucun serveur Python ne redémarre pendant la suppression.
+- Fenêtre « Remove all MyFabmesh data » (Réglages > Installation + À propos, kit .fen) : tailles, projets gardés par défaut, case séparée pour nos modèles du cache Hugging Face partagé (serveur d'images des anciennes versions), fin → désinstaller (NSIS) ou Paramètres > Applications (Store). Aide À propos + FAQ du site, traductions fr.
+- Confinement (appli installée) : HF_HOME/HF_HUB_CACHE globaux. Le serveur d'images tournait SANS HF_HOME et re-téléchargeait RealVis etc. dans ~/.cache/huggingface. Aussi redirigés vers <données>\ai-cache (et non « cache » : collision avec le Cache de Chromium) : TORCH_HOME, XDG_CACHE_HOME, PIP_CACHE_DIR (vidé à la fin de l'assistant), MPLCONFIGDIR, TMPDIR (ai-tmp), U2NET_HOME et FABMESH_REALESRGAN_DIR (lu par texture_upscale.py et wizard_download.py). Les anciens emplacements sont réutilisés s'ils sont déjà remplis (triton, torch_extensions, u2net, realesrgan : pas de recompilation ni de re-téléchargement).
+- Dossiers déplacés mémorisés (config.json > dossiersDonneesConnus + témoin + registre), au choix du dossier et à chaque démarrage.
+- Bancs : node build/test-desinstallation.mjs --nsis --processus (npm run test:desinstallation) 19/19. Faux arbre, parité JS/NSIS, vrai code NSIS exécuté, arrêt des processus sur des copies de PING.EXE. Navigateur : flux NSIS/Store/français, 0 erreur.
+- NON fait sur ce PC : installation ou désinstallation réelle (interdit). Smart App Control bloque le constructeur de désinstalleur d'electron-builder (Code Integrity 3077), même avec l'ancien script. Les deux scripts ont été compilés en -WX avec l'exécution substituée en mémoire, sortie effacée.

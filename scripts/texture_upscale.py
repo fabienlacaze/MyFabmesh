@@ -64,12 +64,30 @@ def _verify_weight_sha256(path, expected):
             f'expected {expected} (possible MITM on download)')
 
 
+def charger_esrgan():
+    """Rend (RRDBNet, RealESRGANer). basicsr 1.4.2 importe `torchvision.transforms.functional_tensor`, module SUPPRIME de
+    torchvision 0.17+ ; l'environnement de l'appli a torchvision 0.23. Sans cet alias, `import basicsr` echouait
+    (« No module named 'torchvision.transforms.functional_tensor' ») : Enhance texture et l'option Ultra 8K ne faisaient
+    rien sur une installation neuve (audit du 2026-09-30). Le seul symbole utilise, rgb_to_grayscale, existe toujours dans
+    torchvision.transforms.functional. Appelee aussi par le test final de l'assistant (wizard_smoke_test.py)."""
+    import types
+    try:
+        import torchvision.transforms.functional_tensor  # noqa: F401  (torchvision < 0.17)
+    except ImportError:
+        import torchvision.transforms.functional as _fonctions
+        alias = types.ModuleType('torchvision.transforms.functional_tensor')
+        alias.rgb_to_grayscale = _fonctions.rgb_to_grayscale
+        sys.modules['torchvision.transforms.functional_tensor'] = alias
+    from basicsr.archs.rrdbnet_arch import RRDBNet
+    from realesrgan import RealESRGANer
+    return RRDBNet, RealESRGANer
+
+
 def upscale_atlas(img: Image.Image, scale=2, model_name='RealESRGAN_x4plus',
                   tile=512) -> Image.Image:
     """Run Real-ESRGAN x4 (or x2) on `img`. Returns RGB PIL upscaled."""
     import torch
-    from basicsr.archs.rrdbnet_arch import RRDBNet
-    from realesrgan import RealESRGANer
+    RRDBNet, RealESRGANer = charger_esrgan()
     # VRAM : limite de l'utilisateur moins ce que les autres occupent ; RAM ramenee au budget.
     _cm.plafonner_vram(torch)
 

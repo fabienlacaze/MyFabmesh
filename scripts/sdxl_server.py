@@ -38,6 +38,13 @@ import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+# Python EMBARQUE de l'appli installee (fichier ._pth) : le dossier du script n'est PAS dans sys.path (2026-09-30, audit de
+# l'installation de zero). Sans cette ligne, `import outfit_cutout` / `import face_fix_image` (outils Outfit et Face fix)
+# echouaient sur tout PC neuf (« No module named ... ») ; en developpement le python systeme l'ajoute, d'ou l'oubli.
+_ICI = os.path.dirname(os.path.abspath(__file__))
+if _ICI not in sys.path:
+    sys.path.insert(0, _ICI)
+
 # FabMesh: cap CPU threads so a heavy phase (VAE decode, preprocessing) can't
 # monopolise every core and freeze the desktop while this server runs. Set
 # BEFORE importing torch/numpy so they pick up the limit at import. No priority

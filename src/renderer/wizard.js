@@ -629,6 +629,7 @@ async function _startDownloadInterne() {
     'pip-bootstrap': 'Setting up the installer…',
     'torch': 'Downloading PyTorch…',
     'pypi': 'Installing libraries (diffusers, transformers…)…',
+    'translation': 'Installing the prompt translator…',
     'xformers-optional': 'Installing xformers (speed boost)…',
     'flash-attn-optional': 'Finishing up…',
     'done': 'AI engine ready ✓',
@@ -968,6 +969,7 @@ const T_LIBELLES = [
   [/writing assistant/i, 'Writing assistant', 'Writes your project descriptions', 'img'],
   [/vision/i, 'Vision module', 'Checks the shapes and colors', 'img'],
   [/mesh tools/i, 'Mesh tools', 'Simplifies and unwraps 3D models', '3d'],
+  [/texture upscaler/i, 'Texture enhancer', 'Sharpens textures (Enhance texture, Ultra 8K)', '3d'],
   [/3d core|trellis/i, '3D generation engine', 'Turns an image into a 3D model', '3d'],
   [/dino/i, 'Image analyzer', 'Understands your reference image', '3d'],
 ];

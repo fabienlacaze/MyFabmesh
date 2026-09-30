@@ -19,6 +19,13 @@ import os
 import time
 import numpy as np
 
+# Python EMBARQUE de l'appli installee (fichier ._pth) : le dossier du script n'est PAS dans sys.path (2026-09-30, audit de
+# l'installation de zero). Sans cette ligne, Decimate et l'export perdaient EN SILENCE acceleration_glb : reduction + recuisson
+# de la texture validee le 2026-09-29 remplacee par l'ancienne methode, WebP lent.
+_ICI = os.path.dirname(os.path.abspath(__file__))
+if _ICI not in sys.path:
+    sys.path.insert(0, _ICI)
+
 
 # ---------------------------------------------------------------------------
 # Cloud-parity preset registry.
