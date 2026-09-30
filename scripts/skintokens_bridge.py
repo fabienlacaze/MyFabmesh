@@ -54,6 +54,10 @@ def log(msg):
 
 
 def main():
+    # L'appli disparait (plantage, arret force) -> le rig et ses sous-processus (moteur du rig, tirages, Blender) s'arretent,
+    # au lieu de tenir la carte graphique jusqu'au redemarrage (2026-09-30). « Quit and keep jobs running » : il continue.
+    import surveillance_parent
+    surveillance_parent.surveiller('skintokens_bridge', enfants=True)
     import argparse
     ap = argparse.ArgumentParser(add_help=False)
     ap.add_argument("mesh_path", nargs="?")

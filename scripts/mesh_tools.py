@@ -836,6 +836,9 @@ def _export(scene, geoms, output_path):
 
 
 if __name__ == '__main__':
+    # L'appli disparait -> l'outil et ses sous-calculs (recuisson, affinage, retexture 3D) s'arretent (2026-09-30).
+    import surveillance_parent
+    surveillance_parent.surveiller('mesh_tools', enfants=True)
     # Strip `--preset <name>` BEFORE positional parsing so `op` stays the
     # operation name. Accepts 'desktop', 'cloud_parity', or alias 'cloud'.
     if '--preset' in sys.argv:

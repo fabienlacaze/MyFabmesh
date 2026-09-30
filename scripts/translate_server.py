@@ -145,6 +145,9 @@ def main():
         sys.stderr.write("[translate-server] argostranslate is not installed - translation unavailable\n")
         sys.exit(3)
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), _Handler)
+    # Serveur d'appoint : l'appli disparait (plantage, arret force) -> il s'arrete aussi, au lieu de garder son port et sa RAM (2026-09-30).
+    import surveillance_parent
+    surveillance_parent.surveiller('translate_server')
     # main.js waits for this line before routing requests here.
     print("TRANSLATE READY", flush=True)
     srv.serve_forever()

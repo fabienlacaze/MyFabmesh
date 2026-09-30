@@ -1113,6 +1113,13 @@ def main():
 
 
 if __name__ == "__main__":
+    # L'appli disparait (plantage, arret force) -> la decoupe et son calcul (eval_everypart.py) s'arretent (2026-09-30).
+    # Python de la decoupe (._pth) : le dossier du script n'est pas dans sys.path.
+    _ici = os.path.dirname(os.path.abspath(__file__))
+    if _ici not in sys.path:
+        sys.path.insert(0, _ici)
+    import surveillance_parent
+    surveillance_parent.surveiller('partsam_bridge', enfants=True)
     try:
         sys.exit(main())
     except Exception as e:
