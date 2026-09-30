@@ -944,6 +944,7 @@ async function runFinalTest() {
       // "✓ Test passed" line.
       status.classList.remove('error');
       finir(courante, true); courante = null; barre.style.width = '100%';
+      const intro = document.querySelector('#page-test .wiz-lead'); if (intro) intro.textContent = 'Installation complete. Your PC is ready to create 3D models.';
       status.innerHTML = `
         <div class="wiz-test-success">
           <svg class="wiz-check" viewBox="0 0 52 52" aria-hidden="true">
