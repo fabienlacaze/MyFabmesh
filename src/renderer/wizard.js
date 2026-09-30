@@ -57,6 +57,29 @@ function majGlobal(pct) {
   const f = document.getElementById('dl-global-fill'), t = document.getElementById('dl-global-pct');
   if (f) f.style.width = _pctGlobal + '%';
   if (t) t.textContent = Math.floor(_pctGlobal) + ' %';
+  majJalons();
+}
+// Jalons : un moteur est « fait » quand la barre a depasse sa position ; le premier non fait est « actif ».
+function majJalons() {
+  let actifPose = false;
+  for (const j of document.querySelectorAll('.wiz-jalon')) {
+    if (j.hidden) continue;
+    const pos = parseFloat(j.style.left) || 0;
+    const fait = _pctGlobal >= pos - 0.01;
+    j.classList.toggle('fait', fait);
+    j.classList.toggle('actif', !fait && !actifPose);
+    if (!fait) actifPose = true;
+  }
+}
+// Positions des jalons selon le plan du mode choisi : 3D = TRELLIS + analyseur ; images = le reste des modeles.
+function placerJalons(plan) {
+  const tot = plan.total_mb || 0;
+  if (!tot) return;
+  const g3d = plan.items.filter((i) => /^(trellis|dinov3)/.test(i.id)).reduce((a, i) => a + i.size_mb, 0);
+  const j3d = document.querySelector('.wiz-jalon[data-j="3d"]'), jimg = document.querySelector('.wiz-jalon[data-j="img"]');
+  if (j3d) { if (g3d > 0) j3d.style.left = (8 + 80 * g3d / tot).toFixed(1) + '%'; else j3d.hidden = true; }
+  if (jimg) { if (tot - g3d > 0) jimg.style.left = '88%'; else jimg.hidden = true; }
+  majJalons();
 }
 
 function journal(type, data) {
@@ -505,6 +528,7 @@ async function _startDownloadInterne() {
   // navigate away mid-download, the next time they hit Continue the
   // huggingface_hub resume kicks in from where it left off.
   document.getElementById('btn-dl-next').disabled = true;
+  document.getElementById('dl-fini')?.remove(); document.getElementById('btn-dl-next').classList.remove('wiz-attire');
   const list = document.getElementById('dl-list');
   list.innerHTML = '<div class="wiz-dl-row"><span class="name">Preparing model list...</span></div>';
 
@@ -685,6 +709,7 @@ async function _startDownloadInterne() {
     list.appendChild(row);
   }
   document.getElementById('dl-total').textContent = plan.total_mb;
+  placerJalons(plan);
 
   window.wizardAPI.onDownloadProgress((p) => {
     // A per-model error: essential-model failures also reject the whole
@@ -834,6 +859,26 @@ async function _startDownloadInterne() {
     });
   }
   document.getElementById('btn-dl-next').disabled = false;
+  annoncerFin(!document.getElementById('retry-rig'));
+}
+
+// Message de fin (2026-09-30, user : « il faut un message quand c'est telecharge car on ne le sait pas ») : sans lui, seul le bouton Continue
+// change d'etat, ce qui passe inapercu. Bandeau vert (ou orange si le moteur de rig a echoue) + pourcentage a 100 %.
+function annoncerFin(toutOk) {
+  document.getElementById('dl-fini')?.remove();
+  if (toutOk) majGlobal(100);
+  const sp = document.getElementById('dl-speed'), et = document.getElementById('dl-eta');
+  if (sp) sp.textContent = '0.0'; if (et) et.textContent = '–';
+  const div = document.createElement('div');
+  div.id = 'dl-fini';
+  div.className = 'wiz-fini' + (toutOk ? '' : ' avert');
+  div.innerHTML = toutOk
+    ? '<b>✓ Download complete.</b> Everything is installed — click <b>Continue</b> to run a quick test.'
+    : '<b>Download finished, with a warning.</b> The rig engine could not be installed (see above). You can click <b>Continue</b> anyway.';
+  const resume = document.querySelector('.wiz-dl-summary');
+  if (resume) resume.insertAdjacentElement('afterend', div);
+  const b = document.getElementById('btn-dl-next');
+  if (b) { b.classList.add('wiz-attire'); if (b.scrollIntoView) b.scrollIntoView({ block: 'nearest' }); }
 }
 
 // ---------- STEP 5: final test ----------

@@ -24423,3 +24423,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 
 ## 2026-09-30 — Assistant : debit et octets pendant l'installation du moteur de rig
 - Constat (user) : « on n'a plus de vitesse alors que ca telecharge » — la phase 3 n'emettait aucun octet. wizard_install_rig.py : fil de mesure (pip-unpack-*, _hf_staging, poids deplaces) -> evenements rig-octets {bytes_done, speed_mbps} ; wizard.js affiche debit + temps restant (~5 Go) ; main.js ne journalise plus ces evenements.
+
+## 2026-09-30 — Assistant : barre horizontale a jalons + message de fin de telechargement
+- wizard : la barre globale devient une piste horizontale avec un jalon par moteur (AI engine / 3D / Images / Rig, memes pictogrammes que les etapes du logiciel), pourcentage au-dessus, jalons verts une fois passes.
+- Message de fin (user : « on ne sait pas quand c'est telecharge ») : bandeau vert « Download complete… click Continue » (orange si le rig a echoue), bouton Continue qui pulse. Teste en navigateur (stub API) : jalons 8/52/88/100 %, message, 0 erreur.

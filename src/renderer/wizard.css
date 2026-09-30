@@ -299,16 +299,29 @@
   animation: none;
 }
 .wiz-dl-row.done .timer { color: var(--text-2); }
-.wiz-dl-global {
-  position: relative; height: 26px; margin-top: 14px;
-  background: var(--bg-3); border-radius: 13px; overflow: hidden;
+/* Barre horizontale globale avec jalons (2026-09-30) : un jalon par grand moteur, meme pictogrammes que les etapes du logiciel. */
+.wiz-jalons { margin: 14px 18px 0; padding-bottom: 34px; }
+.wiz-jalons-pct { text-align: center; font-size: 18px; font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; margin-bottom: 26px; }
+.wiz-jalons-track { position: relative; height: 8px; background: var(--bg-3); border-radius: 4px; }
+.wiz-jalons-fill { height: 100%; width: 0%; background: var(--accent-grad); border-radius: 4px; transition: width 0.4s ease; }
+.wiz-jalon {
+  position: absolute; top: 4px; transform: translate(-50%, -50%);
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-2, #1b1b26); border: 2px solid var(--bg-3); color: var(--text-2);
+  transition: background .3s, border-color .3s, color .3s;
 }
-.wiz-dl-global-fill { height: 100%; width: 0%; background: var(--accent-grad); transition: width 0.4s ease; }
-.wiz-dl-global-pct {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6);
-  font-variant-numeric: tabular-nums;
+.wiz-jalon svg { width: 16px; height: 16px; }
+.wiz-jalon span { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); font-size: 11px; white-space: nowrap; color: var(--text-2); }
+.wiz-jalon.actif { border-color: #a855f7; color: var(--text-1); }
+.wiz-jalon.fait { background: var(--success); border-color: var(--success); color: #0b1a10; }
+.wiz-fini {
+  margin-top: 12px; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.4;
+  background: rgba(74, 222, 128, .12); border: 1px solid var(--success); color: var(--text-1);
 }
+.wiz-fini.avert { background: rgba(251, 146, 60, .12); border-color: #fb923c; }
+#btn-dl-next.wiz-attire:not(:disabled) { animation: wiz-attire 1.6s ease-in-out infinite; }
+@keyframes wiz-attire { 0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, .55); } 50% { box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); } }
 .wiz-dl-summary {
   display: flex;
   justify-content: space-between;
