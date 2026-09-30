@@ -24441,3 +24441,9 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Assistant : projet qui disparait de la liste (controle parental, faux positif « ass » dans « masse »)
 - Cause : _isProjectNSFW comparait nom + prompt aux mots interdits par SOUS-CHAINE ; « ass » est dans « m-ass-e » (« table basse coupee dans la masse ») -> projet « Mobilier design » cache de la grille (compteur Projects (2) mais aucune carte).
 - Correctif (bureau + web) : limites de mots (\b) comme le controle a la creation du projet ; « ass » seul reste bloque, « masse » passe.
+
+## 2026-09-30 — Assistant : generation 3D impossible sur une installation neuve (detourage) + audit des dependances
+- Constat (installation de zero, essai reel) : « 3D generation failed : pip install rembg[gpu] » = « No onnxruntime backend found » (rembg n'installe aucun moteur onnxruntime). En corrigeant, 2e blocage : rembg -> pymatting -> numba, dont la DLL _helperlib est BLOQUEE par Smart App Control.
+- Correctif : nouveau paquet scripts/rembg/ (u2net par onnxruntime seul, meme calcul que modal_app/_detourage.py, poids telecharges une fois avec SHA-256 verifie) qui prend la place du vrai rembg pour tous les scripts (sys.path[0] = scripts/) ; 'rembg' RETIRE de PYPI_PACKAGES, 'onnxruntime' (CPU) AJOUTE. Verifie sur l'image du user : 0,5 s, decoupe propre.
+- Audit des imports de scripts/ contre l'environnement neuf : ajoutes fast_simplification, xatlas, nvidia-ml-py. REFUSES : kornia (kornia_rs bloque par SAC), meshoptimizer (aucune roue Windows ; repli wasm deja code). Restent absents (optionnels, a traiter) : argostranslate (traduction du prompt), pymeshlab, cryptography.
+- Autres constats du meme essai, non traites : « auto-rectify failed: Cannot read properties of undefined (reading 'stdout') » ; assetType=weapon envoye a la rectification pour un projet Prop.

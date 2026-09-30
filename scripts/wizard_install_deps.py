@@ -136,7 +136,17 @@ PYPI_PACKAGES = [
     'pygltflib>=1.16,<2',
     'opencv-python>=4.9,<5',
     'pyrender>=0.1.45,<0.2',
-    'rembg>=2.0,<3',
+    # DETOURAGE (2026-09-30) : PAS de paquet `rembg` (il tire pymatting -> numba, dont la DLL est BLOQUEE par Smart App Control, et n'installe aucun moteur
+    # onnxruntime). `scripts/rembg/` le remplace (u2net par onnxruntime seul, meme resultat) ; il ne lui faut que onnxruntime (version CPU, ~1 s par image).
+    'onnxruntime>=1.18,<2',
+    # Modules importes a la demande par les scripts, absents de l'environnement neuf (audit des imports du 2026-09-30) : reduction de maillage
+    # (fast_simplification : petites cibles sans triangles retournes), depliage UV (xatlas), telemetrie GPU
+    # (pynvml). PAS kornia (detection de visage, retouche locale) : sa DLL kornia_rs est BLOQUEE par Smart App Control (« An Application Control policy has
+    # blocked this file », mesure du 2026-09-30) ; on ne desactive jamais SAC. PAS meshoptimizer : aucune roue Windows (compilation C++
+    # exigee, absente d'un PC neuf) ; acceleration_glb retombe sur `_reduire_meshopt_wasm`.
+    'fast_simplification>=0.1.7,<1',
+    'xatlas>=0.0.9,<1',
+    'nvidia-ml-py>=12,<14',
     'realesrgan>=0.3.0,<0.4',
     'basicsr>=1.4,<2',
     # TRELLIS-2 runtime deps (inference path only, no training extras):
