@@ -24644,3 +24644,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — CORRECTIF wizard_download.py (install bloquee a 7 %)
 - Mon reordonnancement des MODELS (patch du 30/09) a ecrase le bloc _OPTIONAL_MODELS + constantes DINOv3 (recherche de "MODELS = {" trouvee dans "_OPTIONAL_MODELS = {") => NameError DINOV3_CANONICAL_REPO au start-download. Fichier restaure depuis 81d93001, seul l ordre de MODELS change. Verifie par import reel du module (les tests wizard precedents moquaient l API).
+
+## 2026-09-30 — page de verification : barre a 0 des l arrivee (plus de barre pleine 1 s)
+- wizard.html/js : t-fill 0%, _tPct=0, suppression du flash 100 % + jalons faits avant le zoom.

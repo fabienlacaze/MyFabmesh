@@ -1050,7 +1050,7 @@ const T_LIBELLES = [
 const T_POS = { engine: 17, models: 34, img: 50, '3d': 67, rig: 83, anim: 100 };
 const T_COULEUR = { engine: '#e84d7a', models: '#14b8a6', img: '#4a90e2', '3d': '#c35ce0', rig: '#f08a24', anim: '#22c55e' };
 const _attendre = (ms) => new Promise((r) => setTimeout(r, ms));
-let _tPct = 100, _tChronoDebut = 0, _tChronoMinuteur = null;
+let _tPct = 0, _tChronoDebut = 0, _tChronoMinuteur = null;
 function tBarre(v, sansAnim) {
   const f = document.getElementById('t-fill'), t = document.getElementById('t-pct');
   _tPct = Math.max(0, Math.min(100, v));
@@ -1091,8 +1091,8 @@ async function runFinalTest() {
   // 1. la barre revient pleine, zoom, puis elle se vide ; jalons regulierement espaces (un par moteur verifie)
   const bloc = document.getElementById('t-jalons');
   for (const k of ORDRE) { const j = document.querySelector(`#t-jalons .wiz-jalon[data-j="${k}"]`); if (j) { j.hidden = false; j.style.left = T_POS[k] + '%'; } }
-  tBarre(100, true);
-  ORDRE.forEach((k) => tJalon(k, 'fait'));
+  // user 2026-09-30 : plus de barre pleine pendant une seconde a l'arrivee ; elle demarre a 0 (zoom conserve)
+  tBarre(0, true);
   if (bloc) { bloc.classList.remove('zoom'); void bloc.offsetWidth; bloc.classList.add('zoom'); }
   await _attendre(reduit ? 0 : 1100);
   ORDRE.forEach((k) => tJalon(k, ''));
