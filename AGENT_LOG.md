@@ -24265,3 +24265,9 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Test : versions legeres du centipede (mesh, rig, rig retouche) generees en local et deposees dans `<compte>/light/` pour essayer le flux cote client.
   Le serveur (Modal) n'est PAS teste : budget coupe jusqu'au 1er octobre.
 - `_skintokens_rig.py` : retrait du code « version legere » par rebake (xatlas), remplace par cette voie.
+
+## 2026-09-30 — Tous les viewers lisent la version legere : substitution dans API.readMeshFile (web)
+- `readMeshFile(path, { complet: true })` force le complet ; par defaut, si une version legere existe (findLight, cache positif + negatif 20 s), c'est elle
+  qui est lue : viewers mesh / rig / animation / lightbox / points du squelette / editeur de poids / prechargement, sans toucher chaque site d'appel.
+- Mesure de fidelite du centipede (10,35 M -> 0,5 M triangles, 1 400 000 points echantillonnes) : ecart moyen 0,024 % de la diagonale, p99 0,054 %,
+  max 0,58 % ; surface totale +0,08 %.

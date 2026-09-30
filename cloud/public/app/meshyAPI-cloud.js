@@ -570,6 +570,7 @@
   /* ──────────────────────────────────────────────────────────────────
    * IMPLEMENTED — these are the calls the cloud actually services.
    * ────────────────────────────────────────────────────────────────── */
+  const _lumieresAbsentes = new Map();   // url -> instant du dernier « pas de version legere » (20 s)
   const _lumieresCache = new Map();      // url du maillage -> url de sa version legere (findLight)
   const _tamponsMaillage = new Map();      // voir readMeshFile
   const impl = {
@@ -1152,12 +1153,14 @@
       const cle = String(url || '').split('#')[0].split('?')[0];
       if (!cle || !/\/r2\//.test(String(url))) return null;
       if (_lumieresCache.has(cle)) return _lumieresCache.get(cle);
+      const neg = _lumieresAbsentes.get(cle);
+      if (neg && Date.now() - neg < 20000) return null;
       let res = null;
       try {
         const r = await fetch('/api/mesh-light/find', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }) });
         if (r.ok) { const d = await r.json(); res = d && d.found ? d.url : null; }
       } catch (_) { res = null; }
-      if (res) _lumieresCache.set(cle, res);
+      if (res) _lumieresCache.set(cle, res); else _lumieresAbsentes.set(cle, Date.now());
       return res;
     },
     demanderLight: async (url) => {
@@ -1819,7 +1822,10 @@
      * texture pese 30 a 70 Mo et etait retelecharge a CHAQUE ouverture, par chaque outil (viewer Rig, apercu Animation,
      * points du squelette, poids de peau). Cache LRU (4 fichiers, 320 Mo) cle par l'adresse SANS signature ; les lectures
      * simultanees du meme fichier partagent le meme telechargement ; chaque appelant recoit sa COPIE. */
-    readMeshFile: async (filePath) => {
+    readMeshFile: async (filePath, opts) => {
+      // TOUS les viewers passent par ici : un gros maillage est lu dans sa version legere (~500 K, memes textures) quand elle existe.
+      // `{ complet: true }` force le fichier complet (export, traitements qui en ont besoin).
+      if (!(opts && opts.complet)) { try { const lu = await impl.findLight(filePath); if (lu) filePath = lu; } catch (_) { /* fichier complet */ } }
       const cle = String(filePath || '').split('#')[0].split('?')[0];
       let e = _tamponsMaillage.get(cle);
       if (e) { _tamponsMaillage.delete(cle); _tamponsMaillage.set(cle, e); }          // le plus recent en dernier
