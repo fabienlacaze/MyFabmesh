@@ -24769,3 +24769,7 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Reglages > Materiel : ligne « Ready: Image / 3D / Detail++ » masquee (user : pas besoin).
 
 - (suite) Barre partagee : suivi instantane du separateur (plus de transition de largeur) ; valeur « X of Y GB used » retiree (user : fausse et inutile).
+
+- (suite) Barre partagee : bande rouge semi-transparente dans le gris (autres logiciels), remplie depuis la droite = consommation reelle (mesuree quand MyFabmesh ne calcule pas).
+
+- (suite) Barre partagee : bande rouge = consommation reelle des autres logiciels (nvidia-smi 2,7 Go sur 2,9 gardes = 92 %, verifie) ; espace reduit entre barres et legendes ; libelle « Other apps » masque si la zone est etroite.

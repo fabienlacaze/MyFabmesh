@@ -22091,9 +22091,11 @@ function majLignesLimites() {
     poser('autres', 'width', larg(Math.min(reserveGB, extraTotGB)));
     poser('trop', 'width', larg(tropVisGB));
     poser('add', 'width', larg(addGB));
+    // bande rouge semi-transparente dans le gris, depuis la droite : ce que les autres logiciels consomment vraiment
+    poser('autres-use', 'width', reserveGB > 0 ? Math.min(100, autresGB / Math.min(reserveGB, extraTotGB || reserveGB) * 100) + '%' : (autresGB > 0 ? '100%' : '0%'));
     const libelle = (suffixe, txt, assezLarge) => { const e = el(suffixe); if (e) e.textContent = assezLarge ? txt : ''; };
     // libelle complet si la part est assez large, sinon le nom seul (jamais de texte coupe)
-    libelle('autres-lbl', reserveGB / totalGB > 0.3 ? _i18nTf('Other apps {x} GB', go(reserveGB)) : _i18nT('Other apps'), reserveGB / totalGB > 0.14);
+    libelle('autres-lbl', reserveGB / totalGB > 0.3 ? _i18nTf('Other apps {x} GB', go(reserveGB)) : _i18nT('Other apps'), reserveGB / totalGB > 0.2);
     libelle('mfm-lbl', minGB / totalGB > 0.3 ? _i18nTf('MyFabmesh {x} GB', go(minGB)) : 'MyFabmesh', minGB / totalGB > 0.14);
     libelle('trop-lbl', '+' + go(tropVisGB) + ' GB', tropVisGB / totalGB > 0.17);
     libelle('add-lbl', '+' + go(addGB) + ' GB', addGB / totalGB > 0.17);
