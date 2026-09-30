@@ -387,7 +387,35 @@ function renderModeCards() {
     journal('mode', { choisi: chosenMode, par: 'recommandation' });
     document.getElementById('btn-mode-next').disabled = false;
   }
+  syncModeUI();
 }
+
+// Carte mise en avant + menu deroulant (2026-09-30) : reflet des 4 cartes d'origine, qui restent la source de verite.
+const MODE_NOMS = { full: 'Full', standard: 'Standard', lite: 'Lite', cloud: 'Cloud' };
+function syncModeUI() {
+  const sel = document.getElementById('wiz-mode-select');
+  const carte = document.querySelector('.wiz-mode-card.selected');
+  if (!sel || !carte) return;
+  const m = carte.dataset.mode, reco = hwReport && hwReport.recommended_mode;
+  document.getElementById('wiz-mode-f-titre').textContent = MODE_NOMS[m] || m;
+  document.getElementById('wiz-mode-f-taille').textContent = (carte.querySelector('.wiz-mode-size') || {}).textContent || '';
+  document.getElementById('wiz-mode-f-desc').textContent = (carte.querySelector('.wiz-mode-desc') || {}).textContent || '';
+  document.getElementById('wiz-mode-f-badge').hidden = (m !== reco);
+  sel.innerHTML = '';
+  for (const c of document.querySelectorAll('.wiz-mode-card')) {
+    const mm = c.dataset.mode, nb = c.classList.contains('disabled');
+    const o = document.createElement('option');
+    o.value = mm;
+    o.textContent = `${MODE_NOMS[mm] || mm} — ${(c.querySelector('.wiz-mode-size') || {}).textContent || ''}${mm === reco ? ' (recommended)' : ''}${nb ? ' — not available on this PC' : ''}`;
+    o.disabled = nb;
+    o.selected = (mm === m);
+    sel.appendChild(o);
+  }
+}
+document.getElementById('wiz-mode-select')?.addEventListener('change', (e) => {
+  const c = document.querySelector(`.wiz-mode-card[data-mode="${e.target.value}"]`);
+  if (c) c.click();
+});
 
 document.querySelectorAll('.wiz-mode-card').forEach(card => {
   card.addEventListener('click', () => {
@@ -398,6 +426,7 @@ document.querySelectorAll('.wiz-mode-card').forEach(card => {
     chosenMode = card.dataset.mode;
     journal('mode', { choisi: chosenMode, par: 'utilisateur' });
     document.getElementById('btn-mode-next').disabled = false;
+    syncModeUI();
   });
 });
 

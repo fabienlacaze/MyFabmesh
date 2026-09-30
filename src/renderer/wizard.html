@@ -75,8 +75,21 @@
     <section class="wiz-page" id="page-mode">
       <div class="wiz-card">
         <h1 class="wiz-h1">Choose install mode</h1>
-        <p class="wiz-lead">Based on your hardware, we recommend the highlighted option.</p>
-        <div class="wiz-mode-grid">
+        <p class="wiz-lead">Based on your hardware, this is the option we recommend.</p>
+        <!-- 2026-09-30 (user : « pas tres lisible ») : UNE carte, celle du choix d'office, et un petit menu deroulant pour changer.
+             Les 4 cartes ci-dessous restent dans la page (masquees) : toute la logique existante les utilise. -->
+        <div class="wiz-mode-featured" id="wiz-mode-featured">
+          <div class="wiz-mode-featured-tete">
+            <span class="wiz-mode-title" id="wiz-mode-f-titre"></span>
+            <span class="wiz-mode-size" id="wiz-mode-f-taille"></span>
+            <span class="wiz-mode-badge" id="wiz-mode-f-badge" hidden>RECOMMENDED</span>
+          </div>
+          <div class="wiz-mode-desc" id="wiz-mode-f-desc"></div>
+        </div>
+        <label class="wiz-mode-autre">Other option
+          <select id="wiz-mode-select"></select>
+        </label>
+        <div class="wiz-mode-grid wiz-mode-grid-masquee">
           <label class="wiz-mode-card" data-mode="full">
             <input type="radio" name="mode" value="full">
             <div class="wiz-mode-title">Full <span class="wiz-mode-size">~22 GB</span></div>

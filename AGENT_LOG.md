@@ -24345,3 +24345,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 
 ## 2026-09-30 — Etat local pousse
 - Commit de `scripts/.gpu_limit.json` (horodatage) et `build-info.js` (regenere a chaque lancement). `.vscode/` (reglage d'editeur local) volontairement NON pousse.
+
+## 2026-09-30 — Assistant d'installation : choix d'office en carte unique + menu deroulant
+- Demande user (« pas tres lisible ») : `wizard.html / wizard.css / wizard.js` : une seule carte mise en avant (mode recommande, badge RECOMMENDED) et un petit menu « Other option »
+  (Full / Standard / Lite / Cloud, avec tailles ; modes indisponibles grises). Les 4 cartes d'origine restent dans la page (masquees) : la logique existante (VRAM, selection, journal) est inchangee.
+- Test navigateur reel (machine simulee RTX 5080) : page Mode -> « Standard ~15 GB » + badge, menu a 4 options, Continue actif ; choix « Cloud » -> carte Cloud 0 GB sans badge. La version du Store installee (1.0.39) a encore l'ancien assistant.
