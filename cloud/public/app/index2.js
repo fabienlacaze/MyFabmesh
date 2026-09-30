@@ -22810,34 +22810,19 @@ function _precisionRel(id) {
   return 0.2 + ((isNaN(pr) ? 55 : pr) / 100) * 0.7;
 }
 function _rcRel() { return _precisionRel('rc-precision'); }
+/* PAS D'APERCU AUTOMATIQUE DU MASQUE SUR LE WEB (2026-09-30). Chaque detection
+ * passe par /api/segment-preview, facturee au tarif `segment` : l'apercu « en
+ * direct » (a chaque pause de frappe, curseur ou changement de mode) prelevait
+ * ce prix plusieurs fois par Recolor, sans l'annoncer — et n'affichait rien
+ * (la route rend un masque, pas le `overlayPath` attendu). Le bureau detecte en
+ * local, gratuitement : il garde l'apercu. La zone est detectee au lancement,
+ * dans le seul prix `recolor` annonce sur le bouton. */
 async function _rcUpdateMaskPreview() {
   const srcImg = document.getElementById('rc-source-img');
   if (!srcImg || !_rcSrcPath) return;
-  const rawPrompt = (document.getElementById('rc-prompt').value || '').trim();
-  const dilate = parseInt(document.getElementById('rc-dilate').value) || 15;
-  const origUrl = _toFileUrl(_rcSrcPath);
-  const noun = _stripColorWords(rawPrompt);
-  if (!noun) { srcImg.src = origUrl; srcImg.style.opacity = ''; return; }
-  if (!API.segmentMask) return;
+  srcImg.style.opacity = '';
   const spinner = document.getElementById('rc-detect-spinner');
-  const label = document.getElementById('rc-detect-label');
-  if (label) label.textContent = _rcFirstDetectDone ? 'Detecting…' : 'Warming up the AI… first detection ~15s, then instant.';
-  if (spinner) spinner.style.display = 'flex';
-  srcImg.style.opacity = '0.6';
-  try {
-    const target = await translateUserPrompt(noun);
-    const r = await API.segmentMask({ imagePath: _rcSrcPath, targetText: target, dilate, rel: _rcRel() });
-    if (((document.getElementById('rc-prompt').value || '').trim()) !== rawPrompt) return;
-    _rcFirstDetectDone = true;
-    srcImg.style.opacity = '';
-    if (spinner) spinner.style.display = 'none';
-    srcImg.src = (r && r.success && r.overlayPath)
-      ? _bust(_toFileUrl(r.overlayPath))
-      : origUrl;
-  } catch (_) {
-    srcImg.style.opacity = '';
-    if (spinner) spinner.style.display = 'none';
-  }
+  if (spinner) spinner.style.display = 'none';
 }
 function _rcSchedulePreview() {
   if (_rcPreviewTimer) clearTimeout(_rcPreviewTimer);
