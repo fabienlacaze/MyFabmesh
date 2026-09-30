@@ -1384,6 +1384,12 @@
       'Texture variants': 'Variantes de texture',
       'Re-texture all': 'Tout re-texturer',
       'Name the zones': 'Nommer les zones',
+      // ---- Compte propose au moment utile, jamais bloquant (2026-09-30) ----
+      'Sign in with your MyFabmesh account to use the cloud (new accounts get free credits).':
+        'Connectez-vous avec votre compte MyFabmesh pour utiliser le cloud (crédits offerts aux nouveaux comptes).',
+      'Cloud mode runs everything on the MyFabmesh cloud, with your credits. Sign in or create an account (new accounts get free credits).':
+        'En mode Cloud, tout est calculé sur le cloud MyFabmesh, avec vos crédits. Connectez-vous ou créez un compte (crédits offerts aux nouveaux comptes).',
+      'Sign in or create your MyFabmesh account': 'Connectez-vous ou créez votre compte MyFabmesh',
     },
   };
 

@@ -4456,6 +4456,7 @@ details.stage-generating > summary .stage-gear .gear-glyph {
 /* Interrupteur de la barre du haut : le meme pour TOUTES les generations (2026-09-30). */
 .topbar-compute { border-radius: 999px; flex: none; }
 .topbar-compute .ct-btn { padding: 5px 11px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.topbar-signin { padding: 4px 12px !important; font-size: 12px !important; border-radius: 999px !important; white-space: nowrap; flex: none; }
 /* Outil absent du mode choisi (2026-09-30) : visible et marque, jamais mort.
    « Local only » en mode Cloud (clic = proposer le mode Local) ; « Cloud » en
    mode Local sur ce qui part quand meme sur le cloud. Sans GPU NVIDIA, un outil

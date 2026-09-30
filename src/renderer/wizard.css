@@ -598,3 +598,22 @@
 .wiz-check-list li .verdict.ko { color: var(--error); }
 .wiz-test-fin { color: var(--success); font-weight: 700; font-size: 14px; text-align: center; padding: 10px 0 12px; }
 .wiz-test-fin[hidden] { display: none; }
+
+/* Etape « Account » (facultative, 2026-09-30) : connexion ou inscription sur place. */
+#page-account [hidden] { display: none !important; }
+.wiz-compte { display: flex; flex-direction: column; gap: 10px; max-width: 420px; }
+.wiz-compte-onglets { display: flex; gap: 6px; margin-bottom: 2px; }
+.wiz-onglet {
+  flex: 1; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+  color: var(--text-2); background: var(--bg-2); border: 1px solid var(--border);
+}
+.wiz-onglet.actif { color: var(--text-0); border-color: var(--accent); background: rgba(168, 85, 247, 0.12); }
+.wiz-compte input {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; font-size: 14px;
+  border: 1px solid var(--border); background: var(--bg-2); color: var(--text-0);
+}
+.wiz-compte input#acc-code { letter-spacing: 3px; }
+.wiz-compte-msg { min-height: 18px; font-size: 12px; color: var(--error, #f87171); }
+.wiz-compte-msg.ok { color: var(--success, #4ade80); }
+.wiz-compte-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wiz-compte-actions a { font-size: 12px; color: #8ab4ff; }

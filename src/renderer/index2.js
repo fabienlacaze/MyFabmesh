@@ -27978,7 +27978,14 @@ async function _openCloudSite(pathOrUrl) {
   }
 }
 
-async function showCloudLoginModal() {
+/* opts (2026-09-30) : { mode: 'signin' | 'signup', texte: phrase d'accroche
+ * (anglais, traduite) }. Sans opts : connexion, avec un texte qui dit la VRAIE
+ * raison — l'ancien texte fixe (« No NVIDIA GPU was detected… ») s'affichait
+ * aussi sur un PC equipe d'une carte NVIDIA passe en mode Cloud. */
+async function showCloudLoginModal(opts = {}) {
+  const texteConnexion = (opts && opts.texte) || (_hasNvidia()
+    ? 'Sign in with your MyFabmesh account to use the cloud (new accounts get free credits).'
+    : 'No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).');
   return new Promise((resolve) => {
     const old = document.getElementById('cloud-login-overlay');
     if (old) old.remove();
@@ -28013,7 +28020,12 @@ async function showCloudLoginModal() {
       </div>`;
     document.body.appendChild(ov);
     try { window.FabI18n?.apply?.(ov); } catch (_) {}
-    const done = (v) => { ov.remove(); resolve(v); };
+    const done = (v) => {
+      ov.remove();
+      // Connecte : barre du haut, Reglages et interrupteurs suivent tout de suite.
+      if (v) { try { window._apresConnexionCloud?.(); } catch (_) {} }
+      resolve(v);
+    };
     ov.querySelector('#cl-cancel').onclick = () => {
       // Annuler PENDANT la confirmation laisse un compte cree mais non
       // confirme : sans un mot d'explication, l'utilisateur ne comprend pas
@@ -28094,7 +28106,7 @@ async function showCloudLoginModal() {
       const T = (s) => (typeof _i18nT === 'function' ? _i18nT(s) : s);
       if (m === 'signin') {
         els.titre.textContent = T('Sign in to MyFabmesh Cloud');
-        els.texte.textContent = T('No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).');
+        els.texte.textContent = T(texteConnexion);
         els.pass.parentElement.style.display = '';
         els.pass.setAttribute('autocomplete', 'current-password');
         els.code.style.display = 'none';
@@ -28121,6 +28133,9 @@ async function showCloudLoginModal() {
         setTimeout(() => els.code.focus(), 50);
       }
     };
+    // Etat d'ouverture : connexion (texte selon la raison) ou directement la
+    // creation de compte (bouton « Create account » des Reglages, assistant).
+    setMode(opts && opts.mode === 'signup' ? 'signup' : 'signin');
     els.lienSignup.onclick = (e) => {
       e.preventDefault();
       setMode(mode === 'signin' ? 'signup' : 'signin');
@@ -28364,6 +28379,7 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   const note = document.getElementById('set-compute-note');
   const acct = document.getElementById('set-cloud-account');
   const bLogin = document.getElementById('set-cloud-login');
+  const bSignup = document.getElementById('set-cloud-signup');
   const bLogout = document.getElementById('set-cloud-logout');
   if (!bl || !bc) return;
 
@@ -28390,11 +28406,13 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
       if (s?.loggedIn) {
         if (acct) acct.textContent = s.email + (s.credits != null ? ' · ' + _i18nTf('{x} credits', s.credits) : '');
         if (bLogin) bLogin.style.display = 'none';
+        if (bSignup) bSignup.style.display = 'none';
         if (bLogout) bLogout.style.display = '';
         if (actions) actions.style.display = 'flex';
       } else {
         if (acct) acct.textContent = (typeof _i18nT === 'function') ? _i18nT('Not signed in') : 'Not signed in';
         if (bLogin) bLogin.style.display = '';
+        if (bSignup) bSignup.style.display = '';
         if (bLogout) bLogout.style.display = 'none';
         if (actions) actions.style.display = 'none';
       }
@@ -28421,6 +28439,9 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     if (m === 'local' && bl.disabled) return;
     localStorage.setItem('fab-compute-mode', m);
     refresh();
+    // Passer en Cloud sans compte : proposer de se connecter ou d'en creer un,
+    // au moment ou ca sert (jamais bloquant : Annuler garde le mode choisi).
+    if (m === 'cloud') _proposerConnexionPourCloud();
   };
   window._rafraichirCompteReglages = refresh;
 
@@ -28445,6 +28466,10 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     const ok = await showCloudLoginModal();
     if (ok) refresh();
   });
+  bSignup?.addEventListener('click', async () => {
+    const ok = await showCloudLoginModal({ mode: 'signup' });
+    if (ok) refresh();
+  });
   bLogout?.addEventListener('click', async () => {
     try { await API.cloudLogout?.(); } catch (_) {}
     refresh();
@@ -28452,6 +28477,37 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
 
   refresh();
 })();
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMPTE : PROPOSE AU MOMENT UTILE, JAMAIS BLOQUANT (2026-09-30)
+   User : « a aucun moment on me demande de me connecter / creer un
+   compte ». Points d'entree : l'assistant (etape facultative), le passage
+   en mode Cloud sans session (une fois par lancement), toute action Cloud
+   sans session (enveloppe _CLOUD_LOGIN_METHODS), Reglages > Account
+   (« Create an account »), et un bouton « Sign in » permanent dans la
+   barre du haut en mode Local tant qu'aucun compte n'est connecte (en
+   mode Cloud, la pastille du solde l'affiche deja).
+   ═══════════════════════════════════════════════════════════════════ */
+let _connexionProposeePourCloud = false;
+async function _proposerConnexionPourCloud() {
+  if (_connexionProposeePourCloud) return;
+  let s = null;
+  try { s = await API.cloudStatus?.(); } catch (_) { return; }
+  if (!s || s.loggedIn) return;
+  _connexionProposeePourCloud = true;
+  try {
+    await showCloudLoginModal({
+      texte: 'Cloud mode runs everything on the MyFabmesh cloud, with your credits. Sign in or create an account (new accounts get free credits).',
+    });
+  } catch (_) {}
+}
+window._apresConnexionCloud = () => {
+  try { window._refreshTopbarCredits?.(); } catch (_) {}
+  try { window._rafraichirCompteReglages?.(); } catch (_) {}
+};
+document.getElementById('topbar-signin')?.addEventListener('click', async () => {
+  try { await showCloudLoginModal(); } catch (_) {}
+});
 
 // ============================================================
 // INTERRUPTEUR UNIQUE DE LA BARRE DU HAUT (2026-09-30)
@@ -29004,7 +29060,20 @@ window._refreshTopbarCredits = async function (creditsKnown) {
     const val = document.getElementById('topbar-credits-val');
     if (!el || !val) return;
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    if (!cloud) { el.style.display = 'none'; return; }
+    const signin = document.getElementById('topbar-signin');
+    if (!cloud) {
+      el.style.display = 'none';
+      // Mode Local : bouton « Sign in » tant qu'aucun compte n'est connecte
+      // (2026-09-30) — sans lui, rien dans l'appli ne proposait de compte.
+      if (signin) {
+        let connecte = false;
+        try { const s = await API.cloudStatus?.(); connecte = !!s?.loggedIn; } catch (_) {}
+        const encoreLocal = !((typeof window._computeMode === 'function') && window._computeMode() === 'cloud');
+        signin.style.display = (encoreLocal && !connecte) ? '' : 'none';
+      }
+      return;
+    }
+    if (signin) signin.style.display = 'none';
     el.style.display = 'inline-flex';
     const T = (s) => (typeof _i18nT === 'function' ? _i18nT(s) : s);
     const titreConnecte = (mail) => (mail
