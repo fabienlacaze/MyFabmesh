@@ -24377,3 +24377,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Serveur `POST /api/support-logs` (worker.ts) : 300 Ko max, en-tetes x-mfm-client=wizard + x-mfm-version, 5 envois / heure / adresse (SHA-256 tronque, IP non stockee), 300 / jour, rangement `_logs/diag/support/<jour>/<id>.txt`
   (purge automatique a 30 jours par purgeDiagLogs). main.js : `send-diagnostics` (net.fetch), `_diagnosticsTexte()` partage avec « Export logs » ; preload : `sendDiagnostics`.
 - Test navigateur (assistant + API simulee) : panne simulee -> bloc rouge, Retry pleine largeur, envoi -> « Reference: K7PQ3XM2 ».
+
+## 2026-09-30 — Preparation d'un installateur local (1.0.40) pour retester l'installation de zero
+- Version 1.0.40. `external/TRELLIS2_win/src/trellis2` (supprime lors du nettoyage) restaure depuis les ressources de l'appli Store installee (94 fichiers, code livre en 1.0.39). Autres ressources (python-embed, wheels, m2m, sentry) intactes.
+- Construction NSIS locale (`npm run build:installer`) pour test sur ce PC (installation sans droits administrateur, hors du conteneur Store).
