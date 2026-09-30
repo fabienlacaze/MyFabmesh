@@ -7952,14 +7952,52 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
         safeSend('ai3d-progress', wantCloud
           ? '[cloud] Generating via MyFabmesh cloud (user choice)…\n'
           : '[cloud] No NVIDIA GPU — generating via MyFabmesh cloud…\n');
-        const r = await cloudFallback.generateImages({
-          prompt,
-          numImages: numImages || 4,
+        const argsCloud = {
           imagesDir,
           assetType: _assetType,
           steps,
           turbo: engine === 'local-lightning',
           projectName: safeName,   // -> user_assets: visible aussi sur le site web
+        };
+        // ETAPES DE CONSTRUCTION EN CLOUD (2026-09-30). La case etait ignoree
+        // ici : Count images ordinaires. Meme regle que le site
+        // (meshyAPI-cloud.js, generateImages) et que le mode Local plus bas :
+        // UNE image par etape (chantier -> a moitie construit -> fini), donc
+        // 3 appels /api/generate-image quel que soit Count, chacun facture une
+        // image. Une etape en echec est sautee ; aucune image -> erreur.
+        if (buildStages) {
+          const staged = [];
+          let echec = null;
+          let creditsRemaining;
+          for (let s = 0; s < _BUILD_STAGE_MODIFIERS.length; s++) {
+            safeSend('ai3d-progress', `[build-stages] Stage ${s + 1}/${_BUILD_STAGE_MODIFIERS.length} (cloud)…\n`);
+            const rs = await cloudFallback.generateImages({
+              ...argsCloud,
+              prompt: `${_BUILD_STAGE_MODIFIERS[s]}, ${prompt}`,
+              numImages: 1,
+            });
+            if (rs.success) {
+              staged.push(...rs.images);
+              if (rs.creditsRemaining != null) creditsRemaining = rs.creditsRemaining;
+              continue;
+            }
+            // Sans session : rien n'est parti, le renderer ouvre la connexion puis
+            // rejoue le clic. Etapes deja faites : on les garde (les rejouer les
+            // facturerait une seconde fois).
+            if (rs.needsCloudLogin) { if (!staged.length) return rs; break; }
+            if (!echec) echec = rs;
+            safeSend('ai3d-progress', `[build-stages] Stage ${s + 1} failed: ${rs.error || 'unknown'}\n`);
+          }
+          if (!staged.length) {
+            return { success: false, error: (echec && echec.error) || 'Construction stages produced no images.' };
+          }
+          safeSend('ai3d-progress', `[cloud] ${staged.length} construction stage image(s) (cloud). Crédits restants: ${creditsRemaining ?? '?'}\n`);
+          return { success: true, images: staged, creditsRemaining };
+        }
+        const r = await cloudFallback.generateImages({
+          ...argsCloud,
+          prompt,
+          numImages: numImages || 4,
         });
         if (r.success) safeSend('ai3d-progress', `[cloud] ${r.images.length} image(s) générées (cloud). Crédits restants: ${r.creditsRemaining ?? '?'}\n`);
         return r;

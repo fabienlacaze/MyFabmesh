@@ -7557,12 +7557,13 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
     expectedMs += count * mvPerImage;
   }
   gatedRun('image', `Generate images: ${p.name}`, async () => {
-    // Le mode est résolu AVANT pushJob : multi-vues et étapes de construction
-    // sont désactivées en Cloud (pas d'endpoint worker), le détail de tâche doit
-    // donc annoncer ce qui part RÉELLEMENT, pas ce que cochent les cases.
+    // Le mode est résolu AVANT pushJob : les multi-vues sont désactivées en
+    // Cloud (pas d'endpoint worker), le détail de tâche doit donc annoncer ce
+    // qui part RÉELLEMENT, pas ce que cochent les cases. Les étapes de
+    // construction partent AUSSI en Cloud depuis le 2026-09-30 : 3 images, une
+    // par étape, quel que soit Count, comme le site (main.js generate-images).
     const _computeM = _isCloudMode() ? 'cloud' : 'local';
     const _mvSent = multiView && _computeM !== 'cloud';
-    const _stagesSent = buildStages && _computeM !== 'cloud';
     const _mv6Sent = mv6view && _computeM !== 'cloud';
     const _offCloud = _i18nT('off (Cloud mode)');
     const job = pushJob(`Generate images: ${p.name}`, null, {
@@ -7574,12 +7575,11 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
       'Multi-view': _mv6Sent ? '6 views'
         : (_mvSent ? '2 views (back)'
           : ((mv6view || multiView) && _computeM === 'cloud' ? _offCloud : 'no')),
-      'Construction stages': _stagesSent ? 'yes'
-        : (buildStages && _computeM === 'cloud' ? _offCloud : 'no'),
+      'Construction stages': buildStages ? 'yes' : 'no',
       Prompt: userPrompt,
     }, expectedMs, { projectName: p.name, assetKind: assetType });
     try {
-      const _genArgs = { prompt, userPrompt, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages: _stagesSent, jobId: job.id, vramFraction: (gpuLimits?.vram || 90) / 100, assetType, computeMode: _computeM };
+      const _genArgs = { prompt, userPrompt, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: (gpuLimits?.vram || 90) / 100, assetType, computeMode: _computeM };
       // La modale de connexion + le retry sont gérés en amont par le wrapper
       // API (voir _CLOUD_LOGIN_METHODS) — commun à TOUS les outils cloud.
       const r = await API.generateImages(_genArgs);
@@ -28704,17 +28704,20 @@ window._applyCloudCostPill = function (btn) {
     // vaut moins que pas de chiffre.
     const img = cloud ? window._prixImage() : null;
     // En mode Cloud TOUTES les images demandees partent (lots de 4 au plus,
-    // cloud_fallback.generateImages) ; vues de dos et etapes de construction ne
-    // partent pas (bouton Generate) : rien d'autre n'est facture.
-    const n = Math.max(1, parseInt(document.getElementById('ws-count')?.value, 10) || 4);
+    // cloud_fallback.generateImages) ; les vues de dos ne partent pas (bouton
+    // Generate). Etapes de construction cochees : 3 images, une par etape,
+    // quel que soit Count (main.js generate-images) — meme regle que le site
+    // (cloud-overrides.js, recalcImage).
+    const etapes = !!document.getElementById('ws-img-buildstages')?.checked;
+    const n = etapes ? 3 : Math.max(1, parseInt(document.getElementById('ws-count')?.value, 10) || 4);
     window._posePastille(btn, img ? n * img.prix : null, true);
     const pill = btn.querySelector('.generate-cost-pill');
     if (pill && img) pill.title = `${n} × ${img.prix}`;
   } catch (_) {}
 };
-// Nombre d'images, qualite et moteur changent le prix : pastille ET mention
-// « credits par image » de la ligne Compute suivent.
-['ws-count', 'ws-quality', 'ws-engine'].forEach((id) => {
+// Nombre d'images, qualite, moteur et etapes de construction changent le prix :
+// pastille ET mention « credits par image » de la ligne Compute suivent.
+['ws-count', 'ws-quality', 'ws-engine', 'ws-img-buildstages'].forEach((id) => {
   const el = document.getElementById(id);
   const maj = () => { window._applyCloudCostPill(); window._majMentionsPrixImage?.(); };
   el?.addEventListener('change', maj);
