@@ -4456,6 +4456,28 @@ details.stage-generating > summary .stage-gear .gear-glyph {
 /* Interrupteur de la barre du haut : le meme pour TOUTES les generations (2026-09-30). */
 .topbar-compute { border-radius: 999px; flex: none; }
 .topbar-compute .ct-btn { padding: 5px 11px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+/* Outil absent du mode choisi (2026-09-30) : visible et marque, jamais mort.
+   « Local only » en mode Cloud (clic = proposer le mode Local) ; « Cloud » en
+   mode Local sur ce qui part quand meme sur le cloud. Sans GPU NVIDIA, un outil
+   local-only reste masque (classe, pour ne pas ecraser les autres regles). */
+.badge-mode {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+  color: #c9ccdb;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .2);
+}
+.badge-mode.badge-cloud { color: #d9c9ff; background: rgba(138, 92, 246, .2); border-color: rgba(138, 92, 246, .5); }
+.outil-hors-mode { opacity: .62; }
+.outil-hors-mode:hover { opacity: .9; }
+.outil-masque-cloud { display: none !important; }
 
 /* Pastille coût cloud (mode Cloud) — même style que le site web */
 .generate-cost-pill {

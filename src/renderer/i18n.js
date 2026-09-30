@@ -1372,6 +1372,18 @@
       'Everything runs on the MyFabmesh cloud — uses credits': 'Tout est calculé sur le cloud MyFabmesh — utilise des crédits',
       'Local or Cloud, for everything': 'Local ou Cloud, pour tout',
       'Images, 3D, rig, animation and every AI tool follow this switch.': 'Images, 3D, rig, animation et tous les outils IA suivent cet interrupteur.',
+      // ---- Outils absents du mode choisi : signalés, jamais morts (2026-09-30) ----
+      'Local only': 'Local uniquement',
+      'This tool': 'Cet outil',
+      'This tool runs on this PC only. Switch to Local mode to use it?': 'Cet outil tourne uniquement sur ce PC. Passer en mode Local pour l’utiliser ?',
+      'Switch to Local': 'Passer en Local',
+      'Local mode: everything runs on this PC.': 'Mode Local : tout est calculé sur ce PC.',
+      'Runs on the MyFabmesh cloud, even in Local mode': 'Calculé sur le cloud MyFabmesh, même en mode Local',
+      'Re-texture a region': 'Re-texturer une zone',
+      'Reshape (draw)': 'Remodeler (dessin)',
+      'Texture variants': 'Variantes de texture',
+      'Re-texture all': 'Tout re-texturer',
+      'Name the zones': 'Nommer les zones',
     },
   };
 

@@ -29127,7 +29127,9 @@ window._prixBouton = function (id) {
   const p = typeof t === 'function' ? t() : window._prixDe(t);
   return (typeof p === 'number' && p > 0) ? p : null;
 };
-// Outils SANS équivalent cloud (gaps de parité) : masqués en mode Cloud.
+// Outils SANS équivalent cloud (gaps de parité) : en mode Cloud, marqués
+// « Local only » sur un PC à GPU NVIDIA, masqués sans GPU NVIDIA
+// (_marquerHorsMode, 2026-09-30).
 const _CLOUD_HIDDEN_TOOLS = [
   // 'ws-recolor-btn' retire le 2026-09-24 : /api/recolor existe desormais.
   // 'ws-age-btn' retire le 2026-09-24 : /api/tex-variant existe desormais.
@@ -29166,18 +29168,104 @@ window._applyToolPills = function () {
     for (const [tool, id] of Object.entries(_CLOUD_LB3D_BOUTONS)) {
       window._posePastille(document.querySelector(`[data-lb3d-tool="${tool}"]`), prix(id));
     }
-    for (const id of _CLOUD_HIDDEN_TOOLS) {
-      const b = document.getElementById(id);
-      if (b) b.style.display = cloud ? 'none' : '';
-    }
-    // Pendants lightbox des boutons masqués : la lightbox route par clic
-    // simulé vers le bouton workspace, masquer ce dernier ne suffit donc pas.
+    for (const id of _CLOUD_HIDDEN_TOOLS) _marquerHorsMode(document.getElementById(id), cloud);
+    // Pendants lightbox : la lightbox route par clic simulé vers le bouton
+    // workspace, son entrée porte donc le même marquage.
     for (const tool of ['multiview']) {
-      const b = document.querySelector(`.lb-tool-btn[data-lb-tool="${tool}"]`);
-      if (b) b.style.display = cloud ? 'none' : '';
+      _marquerHorsMode(document.querySelector(`.lb-tool-btn[data-lb-tool="${tool}"]`), cloud, 'ws-' + tool + '-btn');
     }
   } catch (_) {}
 };
+
+/* ═══════════════════════════════════════════════════════════════════
+   OUTILS ABSENTS DU MODE CHOISI — signalés, jamais morts (2026-09-30)
+
+   Avant, un outil sans route du worker DISPARAISSAIT en mode Cloud : rien
+   ne disait qu'il existait ni comment le retrouver. Désormais, sur un PC à
+   GPU NVIDIA passé en Cloud, il reste visible, marqué « Local only », et un
+   clic propose de repasser en mode Local. SANS GPU NVIDIA il ne pourra
+   jamais tourner : il reste masqué (certification Store, point A2 de
+   store-cert/STORE_RESUBMISSION.md — un testeur ne doit pas voir d'outil
+   inutilisable).
+
+   Le masquage passe par une CLASSE (et plus par style.display) : d'autres
+   règles pilotent déjà l'affichage de ces boutons (type d'asset pour les
+   étapes de construction), il ne faut pas les écraser.
+
+   Sens inverse : en mode Local, ce qui part QUAND MÊME sur le cloud (clips
+   d'animation IA, rig sans moteur local) porte un badge « Cloud »
+   (_poseBadgeCloud, _applyRigAnimPills).
+   ═══════════════════════════════════════════════════════════════════ */
+const _NOMS_OUTILS_LOCAUX = {
+  'ws-buildstages-btn': 'Construction stages',
+  'ws-multiview-btn': 'Multi-Views',
+  'ws-mesh-enhance-tex-btn': 'Sharpen texture (x2)',
+  'ws-mesh-detail-synth-btn': 'Detail++',
+  'ws-mesh-region-retex-btn': 'Re-texture a region',
+  'ws-mesh-reshape-btn': 'Reshape a region',
+  'ws-mesh-reshape-draw-btn': 'Reshape (draw)',
+  'ws-mesh-texvar-btn': 'Texture variants',
+  'ws-mesh-trellis2-btn': 'Re-texture all',
+  'ws-mesh-name-btn': 'Name the zones',
+  'ws-mesh-center-btn': 'Set Pivot',
+};
+function _marquerHorsMode(el, horsMode, idOutil) {
+  if (!el) return;
+  const masquer = !!horsMode && !_hasNvidia();
+  el.classList.toggle('outil-masque-cloud', masquer);
+  const marquer = !!horsMode && !masquer;
+  el.classList.toggle('outil-hors-mode', marquer);
+  let badge = el.querySelector(':scope > .badge-mode');
+  if (marquer) {
+    el.dataset.horsMode = idOutil || el.id || '';
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'badge-mode';
+      el.appendChild(badge);
+    }
+    badge.textContent = _i18nT('Local only');
+  } else {
+    delete el.dataset.horsMode;
+    if (badge) badge.remove();
+  }
+}
+/** Badge « Cloud » (mode Local) : cette action part sur le cloud MyFabmesh
+ *  quoi qu'il arrive. Idempotent ; rappelé après chaque réécriture du bouton. */
+function _poseBadgeCloud(btn, oui) {
+  if (!btn) return;
+  let b = btn.querySelector(':scope > .badge-mode.badge-cloud');
+  if (!oui) { if (b) b.remove(); return; }
+  if (!b) {
+    b = document.createElement('span');
+    b.className = 'badge-mode badge-cloud';
+    btn.appendChild(b);
+  }
+  b.textContent = '☁ ' + _i18nT('Cloud');
+  _poserInfobulle(b, 'Runs on the MyFabmesh cloud, even in Local mode');
+}
+async function _expliquerHorsMode(el) {
+  const id = el.dataset.horsMode || el.id;
+  const nom = _i18nT(_NOMS_OUTILS_LOCAUX[id] || 'This tool');
+  const ok = await fabConfirm({
+    title: nom,
+    message: _i18nT('This tool runs on this PC only. Switch to Local mode to use it?'),
+    okLabel: _i18nT('Switch to Local'), cancelLabel: _i18nT('Cancel'),
+    icon: '\u{1F5A5}\uFE0F', danger: false,
+  });
+  if (!ok) return;
+  window._choisirModeCalcul?.('local');
+  showToast(_i18nT('Local mode: everything runs on this PC.'), 'success', 3500);
+}
+// CAPTURE sur window : passe AVANT les écouteurs de document (fenêtre de
+// lancement, lightbox) — un outil hors mode ne doit rien ouvrir d'autre.
+window.addEventListener('click', (e) => {
+  const cible = e.target && e.target.closest ? e.target.closest('[data-hors-mode]') : null;
+  if (!cible) return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  _expliquerHorsMode(cible);
+}, true);
+
 window._applyToolPills();
 
 /* FENETRES DE VALIDATION (2026-09-30). Chaque outil ouvre une fenetre avant
@@ -29242,10 +29330,10 @@ window._applyValidationPills = function () {
 window._applyValidationPills();
 
 // ============================================================
-// MASQUAGE DES OUTILS DESKTOP-ONLY EN MODE CLOUD — ces outils
-// IA 3D/rig n'ont AUCUN équivalent côté worker (pas d'endpoint) :
-// les laisser visibles en mode Cloud = échec garanti au clic.
-// En mode Local, tout est ré-affiché.
+// OUTILS DESKTOP-ONLY EN MODE CLOUD — ces outils IA 3D n'ont AUCUN
+// équivalent côté worker (pas d'endpoint) : un clic en mode Cloud
+// échouerait. Marqués « Local only » (PC à GPU NVIDIA) ou masqués
+// (sans GPU NVIDIA) par _marquerHorsMode — voir plus haut.
 // ============================================================
 const _CLOUD_HIDDEN_MESH_TOOLS = [
   'ws-mesh-enhance-tex-btn',   // Real-ESRGAN local, pas d'endpoint worker
@@ -29260,34 +29348,37 @@ const _CLOUD_HIDDEN_MESH_TOOLS = [
   'ws-mesh-center-btn',        // set_pivot absent de la whitelist /api/mesh-op
                                // (op trimesh locale, pas de venv IA en Cloud)
 ];
-// Entrées lightbox 3D correspondantes : la lightbox route vers les boutons
-// workspace par clic simulé, masquer le bouton workspace ne suffit donc pas.
-const _CLOUD_HIDDEN_LB3D_TOOLS = ['texvar', 'regionretex', 'enhancetex', 'detailsynth', 'center',
-  'blender'];  // Open in Blender : binaire local, jamais disponible en Cloud
-// Outils qui exigent Blender installé (aucun rapport avec le cloud) : sur une
-// machine de test Store, Blender est absent → clic = « Blender path not
-// configured ». On les grise avec une explication au lieu d'une erreur.
-// En mode Cloud ils sont en plus MASQUÉS (voir _applyCloudFeatureMask) : le
-// pipeline Blender/Unreal/FBX est 100 % local, sans équivalent worker.
+// Entrées lightbox 3D correspondantes (entrée -> bouton workspace) : la
+// lightbox route vers les boutons workspace par clic simulé, leur entrée
+// porte donc le même marquage.
+const _CLOUD_HIDDEN_LB3D_TOOLS = {
+  texvar: 'ws-mesh-texvar-btn', regionretex: 'ws-mesh-region-retex-btn',
+  enhancetex: 'ws-mesh-enhance-tex-btn', detailsynth: 'ws-mesh-detail-synth-btn',
+  center: 'ws-mesh-center-btn',
+};
+// Outils qui exigent Blender installé (aucun rapport avec le mode de calcul) :
+// sur une machine de test Store, Blender est absent → clic = « Blender path
+// not configured ». On les grise avec une explication au lieu d'une erreur.
+// En mode Cloud ils sont MASQUÉS tant que Blender n'est pas configuré (le
+// testeur Store, toujours en Cloud, ne les voit pas) ; Blender configuré, ils
+// marchent dans les deux modes : c'est un logiciel du PC, pas un calcul.
 const _BLENDER_TOOLS = ['ws-mesh-blender-btn', 'ws-rig-blender-btn', 'ws-rig-unreal-btn',
   'ws-anim-export-btn'];   // Export FBX = anim:export → Blender
+window._blenderConfigure = false;
 
 window._applyCloudFeatureMask = function () {
   try {
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    for (const id of _CLOUD_HIDDEN_MESH_TOOLS) {
-      const el = document.getElementById(id);
-      if (el) el.style.display = cloud ? 'none' : '';
+    for (const id of _CLOUD_HIDDEN_MESH_TOOLS) _marquerHorsMode(document.getElementById(id), cloud);
+    for (const [t, id] of Object.entries(_CLOUD_HIDDEN_LB3D_TOOLS)) {
+      _marquerHorsMode(document.querySelector(`[data-lb3d-tool="${t}"]`), cloud, id);
     }
-    for (const t of _CLOUD_HIDDEN_LB3D_TOOLS) {
-      const el = document.querySelector(`[data-lb3d-tool="${t}"]`);
-      if (el) el.style.display = cloud ? 'none' : '';
-    }
-    // Blender / Unreal / Export FBX : chaîne 100 % locale (binaire externe).
+    // Blender / Unreal / Export FBX (+ entrée « blender » de la lightbox 3D).
     // _applyBlenderToolState ne touche QUE disabled/title → pas de conflit ici.
-    for (const id of _BLENDER_TOOLS) {
-      const el = document.getElementById(id);
-      if (el) el.style.display = cloud ? 'none' : '';
+    const sansBlender = cloud && !window._blenderConfigure;
+    for (const el of [..._BLENDER_TOOLS.map((id) => document.getElementById(id)),
+      document.querySelector('[data-lb3d-tool="blender"]')]) {
+      if (el) el.classList.toggle('outil-masque-cloud', sansBlender);
     }
     // Mode « Colours & materials » (forme gardee) de la fenetre Variant : il
     // etait masque en Cloud parce que tex-variant ne tournait qu'en local. Il
@@ -29326,6 +29417,9 @@ window._applyBlenderToolState = async function () {
       el.classList.toggle('disabled', !blender);
       if (!blender) el.title = msg; else el.removeAttribute('title');
     }
+    // Blender configure : ses outils restent visibles en mode Cloud aussi.
+    window._blenderConfigure = !!blender;
+    window._applyCloudFeatureMask?.();
   } catch (_) {}
 };
 window._applyBlenderToolState();
@@ -29374,6 +29468,14 @@ window._applyRigAnimPills = function () {
     const pAnim = window._prixDe('anim');
     window._posePastille(document.getElementById('ws-generate-anim'),
       (nbClips && pAnim != null) ? nbClips * pAnim : null);
+    // Mode LOCAL : ce qui part quand meme sur le cloud le DIT (2026-09-30) —
+    // clips d'animation IA (moteur non livre avec l'appli) et rig sans moteur
+    // local. En mode Cloud tout y part : pas de badge.
+    const rigViaCloudEnLocal = !cloud && window._rigViaCloud === true;
+    for (const id of ['ws-generate-rig-ai', 'ws-rig-reskin-btn', 'pts-regenerer']) {
+      _poseBadgeCloud(document.getElementById(id), rigViaCloudEnLocal);
+    }
+    _poseBadgeCloud(document.getElementById('ws-generate-anim'), !cloud && nbClips > 0);
   } catch (_) {}
 };
 window._applyRigAnimPills();
