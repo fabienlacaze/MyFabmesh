@@ -24291,3 +24291,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   maillage complet parent (texture / UV / materiaux d'origine) ; l'export prend ce rig complet. Repli : export de la version legere avec un message.
 - TEST LOCAL (centipede) : rig leger 40 Mo + mesh complet 323 Mo -> rig complet 466 Mo, 10 346 880 triangles, 76 os, poids somme = 1, 99,0 % des sommets gardent le
   meme os dominant que le rig complet d'origine, transfert en 2 s. Chemin serveur (Modal, worker, client) NON teste : budget coupe jusqu'au 1er octobre.
+
+## 2026-09-30 — Notes de reprise (gros maillages) + banc navigateur
+- Test navigateur reel (harness C:/tmp/harness, Chromium swiftshader) : version legere du rig charge en 0,8 s (499 982 triangles) ; mesh complet 10 346 880 triangles :
+  LOD actif apres 25,6 s (Worker), 399 990 triangles en mouvement, 10 346 880 a l'arret, captures quasi identiques, 0 erreur console.
+- A tester a la reprise Modal (1er octobre) : app myfabmesh-lod, demande auto depuis le viewer, export pleine resolution (skinlight), outils sur la version legere.
