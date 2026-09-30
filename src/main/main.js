@@ -6490,6 +6490,17 @@ const _translateCache = new Map();  // `${from}|${text}` -> translated; avoids r
 let _translateWorkingPy = null;     // remember which interpreter has argostranslate (skip the failing embedded attempt next time)
 let _translateFailures = 0;         // échecs consécutifs du chemin de traduction
 let _translateBroken = false;       // argos définitivement indisponible pour cette session
+// Reponse du serveur pendant le telechargement du modele d'une langue (premiere utilisation) : ni traduction, ni echec.
+const TRADUCTION_EN_ATTENTE = Object.freeze({ pending: true });
+
+// INTERPRETE DE LA TRADUCTION (2026-09-30, audit de l'installation de zero). argostranslate est pose dans le moteur IA
+// provisionne (etape facultative de l'assistant). Avant, le serveur partait sur le `python` du SYSTEME et le repli par appel
+// sur le Python embarque NU : sur un PC neuf ni l'un ni l'autre n'a argos, les prompts n'etaient JAMAIS traduits.
+// En developpement, le python systeme reste celui qui porte argos.
+function _pythonTraduction() {
+  try { if (app.isPackaged && _aiPythonReady()) return path.join(AI_PYTHON_DIR, 'python.exe'); } catch (_) {}
+  return 'python';
+}
 
 // Persistent translation server — loads Argos ONCE and keeps it warm, so each
 // translation is ~instant instead of re-importing argos (~5s) per spawn.
@@ -6524,7 +6535,9 @@ function startTranslateServer() {
   // de chaque session. On prend donc l'interprete dont on sait qu'il traduit
   // (_translateWorkingPy, appris par le chemin par spawn), sinon le python
   // systeme, qui est celui qui porte argos sur cette machine.
-  const pyT = _translateWorkingPy || 'python';
+  // 2026-09-30 : le moteur IA porte argos dans l'appli installee (voir _pythonTraduction) ; sans argos le serveur sort
+  // aussitot (code 3) et le garde 'exit' ci-dessous evite l'attente.
+  const pyT = _translateWorkingPy || _pythonTraduction();
   try {
     translateProc = require('child_process').spawn(pyT, [scriptT], {
       stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
@@ -6585,7 +6598,7 @@ function translateServerCall(text, from, to) {
     const body = JSON.stringify({ text, from, to: to || 'en' });
     const req = require('http').request({ host: '127.0.0.1', port: TRANSLATE_PORT, path: '/translate', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }, timeout: 30000 },
-      (res) => { let buf = ''; res.on('data', c => buf += c); res.on('end', () => { try { const j = JSON.parse(buf); resolve(typeof j.text === 'string' ? j.text : null); } catch (_) { resolve(null); } }); });
+      (res) => { let buf = ''; res.on('data', c => buf += c); res.on('end', () => { try { const j = JSON.parse(buf); resolve(j && j.pending ? TRADUCTION_EN_ATTENTE : (typeof j.text === 'string' ? j.text : null)); } catch (_) { resolve(null); } }); });
     req.on('error', () => resolve(null));
     req.on('timeout', () => { try { req.destroy(); } catch (_) {} resolve(null); });
     req.write(body); req.end();
@@ -6656,6 +6669,7 @@ ipcMain.handle('i18n-auto-translate', async (event, { texts, to } = {}) => {
       const _ck = 'en>' + to + '|' + tx;
       if (_translateCache.has(_ck)) { out[tx] = _translateCache.get(_ck); continue; }
       const tr = await translateServerCall(tx, 'en', to);
+      if (tr === TRADUCTION_EN_ATTENTE) break;   // modele en cours de telechargement : rien en cache, on reessaiera
       if (tr != null && tr !== '') {
         if (_translateCache.size > 1000) _translateCache.clear();
         _translateCache.set(_ck, tr);
@@ -6680,6 +6694,8 @@ ipcMain.handle('translate-prompt', async (event, { text, from } = {}) => {
   try {
     await ensureTranslateServer();
     const sv = await translateServerCall(text, src);
+    // Modele de cette langue en cours de telechargement (PC neuf) : texte d'origine, sans cache ni echec compte
+    if (sv === TRADUCTION_EN_ATTENTE) return { text };
     if (sv != null && sv !== '') {
       if (_translateCache.size > 500) _translateCache.clear();
       _translateCache.set(_ck, sv);
@@ -6694,6 +6710,9 @@ ipcMain.handle('translate-prompt', async (event, { text, from } = {}) => {
   const baseAttempts = embedded === 'python'
     ? [['python', false]]
     : [[embedded, true], ['python', false]];
+  // Le moteur IA provisionne EN PREMIER : c'est lui qui porte argostranslate dans l'appli installee (2026-09-30).
+  const pyIA = _pythonTraduction();
+  if (pyIA !== 'python') baseAttempts.unshift([pyIA, true]);
   // Try the known-good interpreter first (non-strict) so we don't re-pay a
   // failing embedded-python spawn on every call.
   const attempts = _translateWorkingPy
@@ -10105,6 +10124,21 @@ ipcMain.handle('pick-data-folder', async () => {
 // HEAVY_DIR is read once at boot, so a new location applies after a restart.
 ipcMain.handle('restart-app', () => { app.relaunch(); app.exit(0); });
 
+// Langues dont l'assistant pose le modele de traduction des prompts (-> anglais) : celles du SYSTEME que l'interface du
+// bureau propose (meme liste que i18n.js : fr, es, zh, hi), au plus deux (telechargement mesure le 2026-09-30 : fr 66,6 Mo,
+// zh 74,5, hi 102,4, es 285,2). Une autre langue choisie plus tard se telecharge a la premiere traduction (translate_server.py).
+function _languesTraduction() {
+  let prefs = [];
+  try { prefs = app.getPreferredSystemLanguages() || []; } catch (_) {}
+  if (!prefs.length) { try { prefs = [app.getLocale()]; } catch (_) {} }
+  const out = [];
+  for (const p of prefs) {
+    const c = String(p || '').toLowerCase().split('-')[0];
+    if (['fr', 'es', 'zh', 'hi'].includes(c) && !out.includes(c)) out.push(c);
+  }
+  return out.slice(0, 2).join(',');
+}
+
 // First-run AI env provisioning. The embedded python (resources/
 // python-embed) is read-only under MSIX and has no venv module, so we
 // COPY it to a writable per-user dir (AI_PYTHON_DIR) once, then pip-
@@ -10136,6 +10170,7 @@ ipcMain.handle('wizard:install-deps', async (event) => {
       env: {
         ...process.env, PYTHONUNBUFFERED: '1', HF_HOME: HF_CACHE_DIR,
         HUGGINGFACE_HUB_CACHE: path.join(HF_CACHE_DIR, 'hub'),
+        FABMESH_TRANSLATE_LANGS: _languesTraduction(),
         // TRELLIS-2 custom wheels (o-voxel/cumesh/flex-gemm/spconv) bundled
         // in extraResources — wizard_install_deps tries this dir before the
         // FabMesh CDN. Absent in dev (CDN fallback applies).

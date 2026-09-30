@@ -572,6 +572,7 @@ async function _startDownloadInterne() {
     'pip-bootstrap': 'Setting up the installer…',
     'torch': 'Downloading PyTorch…',
     'pypi': 'Installing libraries (diffusers, transformers…)…',
+    'translation': 'Installing the prompt translator…',
     'xformers-optional': 'Installing xformers (speed boost)…',
     'flash-attn-optional': 'Finishing up…',
     'done': 'AI engine ready ✓',

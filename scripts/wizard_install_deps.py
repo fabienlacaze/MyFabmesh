@@ -159,6 +159,24 @@ PYPI_PACKAGES = [
     UTILS3D_ZIP,
 ]
 
+# TRADUCTION DES PROMPTS (2026-09-30, audit de l'installation de zero). L'interface promet « ecris dans ta langue (traduit auto
+# en anglais) » mais argostranslate n'etait installe nulle part : sur un PC neuf, un prompt francais partait tel quel au modele.
+# argostranslate 1.11 declare spaCy (8 roues natives de plus : blis, thinc, cymem...) alors qu'il ne s'en sert que si on le
+# demande (import protege ; le modele fr->en decoupe les phrases avec stanza). On pose donc argostranslate SANS resolution et ses
+# vraies dependances a part. Verifie le 2026-09-30 avec l'interprete embarque (Smart App Control actif) : ctranslate2 4.8.2 et
+# sentencepiece 0.2.2 (DLL natives) s'importent, modele fr->en telecharge (66,6 Mo) et « fourmi geante » -> « giant ant ».
+# FACULTATIF : un echec ici n'arrete pas l'installation (le prompt reste alors dans sa langue, comme avant).
+TRANSLATION_DEPS = [
+    'ctranslate2>=4.8,<4.9',
+    'sentencepiece>=0.2.1,<0.3',
+    'stanza==1.10.1',            # version exigee par argostranslate 1.11.0
+    'sacremoses>=0.0.53,<0.2',
+    'minisbd>=0.9,<1',
+]
+TRANSLATION_PACKAGE = 'argostranslate==1.11.0'
+# Langues de l'interface du bureau (i18n.js) dont le modele X -> anglais peut etre pose par l'assistant
+LANGUES_TRADUCTION = ('fr', 'es', 'zh', 'hi')
+
 
 _EMIT_LOCK = threading.Lock()
 
@@ -320,6 +338,36 @@ def _poser_detourage(py):
     emit({'step': 'pypi', 'pct': 99, 'done': False, 'current': 'background remover installed'})
 
 
+def _poser_traduction(py):
+    """Traduction des prompts (FACULTATIVE, voir TRANSLATION_DEPS) : paquets pip, puis modeles X -> anglais des langues du
+    systeme (FABMESH_TRANSLATE_LANGS, pose par main.js) ; la premiere traduction telecharge aussi les petits fichiers de
+    decoupage en phrases (stanza), c'est fait ici plutot qu'au premier prompt. Toute erreur -> avertissement, jamais d'arret."""
+    try:
+        _run([py, '-m', 'pip', 'install', *TRANSLATION_DEPS], step='translation')
+        _run([py, '-m', 'pip', 'install', '--no-deps', TRANSLATION_PACKAGE], step='translation')
+    except Exception as e:
+        emit({'step': 'translation', 'pct': 99, 'done': False,
+              'warn': 'prompt translator not installed (prompts stay in their language): ' + str(e)[-400:]})
+        return
+    langues = [l for l in os.environ.get('FABMESH_TRANSLATE_LANGS', '').split(',') if l in LANGUES_TRADUCTION]
+    if not langues:
+        return
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'translate_prompt.py')
+    emit({'step': 'translation', 'pct': 99, 'done': False, 'current': 'translation models: ' + ','.join(langues)})
+    try:
+        r = subprocess.run([py, script, '--installer', ','.join(langues)], capture_output=True, text=True,
+                           encoding='utf-8', errors='replace', timeout=900,
+                           env=dict(os.environ, CUDA_VISIBLE_DEVICES='', CT2_FORCE_CPU='1'))
+        fin = (r.stdout or '').strip().splitlines()[-3:] + (r.stderr or '').strip().splitlines()[-3:]
+        if r.returncode == 0:
+            emit({'step': 'translation', 'pct': 99, 'done': False, 'current': ' | '.join(fin)[:300]})
+        else:
+            emit({'step': 'translation', 'pct': 99, 'done': False,
+                  'warn': f'translation models not installed (code {r.returncode}), downloaded at first use: ' + ' | '.join(fin)[:400]})
+    except Exception as e:
+        emit({'step': 'translation', 'pct': 99, 'done': False, 'warn': f'translation models not installed: {e}'})
+
+
 def _install_trellis2_wheels(py):
     """Install the custom TRELLIS-2 CUDA wheels. Tries the local bundled
     wheels dir first (FABMESH_WHEELS_DIR env, set by the Electron wizard when
@@ -392,6 +440,7 @@ def main():
         # quickly without re-downloading 2 GB of torch every time.
         _run([py, '-m', 'pip', 'install', *PYPI_PACKAGES], step='pypi')
         _poser_detourage(py)
+        _poser_traduction(py)
         emit({'step': 'done', 'pct': 100, 'done': True})
         return
 
@@ -414,6 +463,9 @@ def main():
     # Step 2d: REQUIRED — TRELLIS-2 custom CUDA wheels (o-voxel, cumesh,
     # flex-gemm, spconv). Local bundled dir first, GitHub release fallback.
     _install_trellis2_wheels(py)
+
+    # Step 2d-bis: OPTIONAL — prompt translation (argostranslate + models of the system languages). Never aborts the install.
+    _poser_traduction(py)
 
     # NOTE: NO xformers. The dev venv runs TRELLIS-2 on the SDPA backend
     # without it, and xformers wheels pin their own torch build — installing

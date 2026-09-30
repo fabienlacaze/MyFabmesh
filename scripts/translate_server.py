@@ -5,6 +5,8 @@ translations over localhost HTTP, so the desktop doesn't re-import argos
 (~150 MB RAM, no GPU). main.js spawns it and kills it on quit.
 
   POST /translate  {"text": "...", "from": "fr"}  -> {"text": "..."}
+                   (+ "pending": true quand le modele de cette langue se
+                    telecharge : texte rendu tel quel, a ne pas garder en cache)
   GET  /ping       -> {"ok": true}
   POST /shutdown   -> exits
 """
@@ -13,6 +15,12 @@ import sys
 import json
 import threading
 import time
+import importlib.util
+
+# Python EMBARQUE (fichier ._pth) : le dossier du script n'est pas dans sys.path -> `import translate_prompt` (2026-09-30).
+_ICI = os.path.dirname(os.path.abspath(__file__))
+if _ICI not in sys.path:
+    sys.path.insert(0, _ICI)
 
 # No GPU -> torch (pulled in by some Argos language packages via stanza) imports
 # fast instead of paying the ~20 s CUDA init.
@@ -29,12 +37,44 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PORT = int(os.environ.get("FABMESH_TRANSLATE_PORT", "5557"))
 _lock = threading.Lock()
 
+# MODELE ABSENT -> TELECHARGEMENT EN TACHE DE FOND (2026-09-30, audit de l'installation de zero). L'assistant ne pose que les
+# modeles des langues du systeme ; une autre langue choisie ensuite (ou un modele dont le telechargement a echoue) se
+# telecharge ici, UNE fois, sans bloquer : pendant ce temps le texte est rendu tel quel avec pending=True. Nouvel essai
+# autorise 10 min apres un echec (reseau coupe).
+_installs = {}                  # (src, dst) -> 'en_cours' | heure de l'echec
+_installs_lock = threading.Lock()
+
+
+def _installer_en_fond(src, dst):
+    with _installs_lock:
+        etat = _installs.get((src, dst))
+        if etat == 'en_cours' or (isinstance(etat, float) and time.time() - etat < 600):
+            return
+        _installs[(src, dst)] = 'en_cours'
+
+    def _travail():
+        ok = False
+        try:
+            import translate_prompt
+            ok = translate_prompt.installer_paquet(src, dst)
+        except Exception as e:
+            sys.stderr.write(f"[translate-server] model {src}->{dst} download failed: {e}\n")
+        with _installs_lock:
+            if ok:
+                _installs.pop((src, dst), None)
+            else:
+                _installs[(src, dst)] = time.time()
+        sys.stderr.write(f"[translate-server] model {src}->{dst} {'installed' if ok else 'unavailable'}\n")
+
+    threading.Thread(target=_travail, daemon=True).start()
+
 
 def _translate(text, src, dst="en"):
+    """Rend (texte, en_attente). en_attente=True : pas de modele pour cette paire, il se telecharge (texte d'origine rendu)."""
     src = (src or "en").lower()
     dst = (dst or "en").lower()
     if src == dst or not text.strip():
-        return text
+        return text, False
     # Serialize argos access (ctranslate2 model is not re-entrant) — the cost we
     # avoid is the IMPORT/LOAD, which happens once on the first call.
     with _lock:
@@ -42,7 +82,7 @@ def _translate(text, src, dst="en"):
         try:
             out = _t.translate(text, src, dst)
             if out:
-                return out
+                return out, False
         except Exception:
             pass
         langs = _t.get_installed_languages()
@@ -51,8 +91,9 @@ def _translate(text, src, dst="en"):
         if from_lang and to_lang:
             tr = from_lang.get_translation(to_lang)
             if tr:
-                return tr.translate(text) or text
-    return text  # no package for this pair -> fail open (return source)
+                return (tr.translate(text) or text), False
+    _installer_en_fond(src, dst)
+    return text, True  # no package for this pair yet -> fail open (return source)
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -88,8 +129,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/translate":
             text = req.get("text") or ""
             try:
-                self._send({"text": _translate(text, req.get("from") or "en",
-                                               req.get("to") or "en")})
+                out, attente = _translate(text, req.get("from") or "en", req.get("to") or "en")
+                self._send({"text": out, "pending": True} if attente else {"text": out})
             except Exception as e:
                 sys.stderr.write(f"[translate-server] error: {e}\n")
                 self._send({"text": text, "error": str(e)})  # fail open
@@ -98,6 +139,11 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    # Sans argostranslate (installation d'avant le 2026-09-30, ou echec de l'etape facultative de l'assistant) : sortir TOUT
+    # DE SUITE, sans « READY » — main.js voit le processus mourir et n'attend pas 12 s avant chaque traduction.
+    if importlib.util.find_spec("argostranslate") is None:
+        sys.stderr.write("[translate-server] argostranslate is not installed - translation unavailable\n")
+        sys.exit(3)
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), _Handler)
     # main.js waits for this line before routing requests here.
     print("TRANSLATE READY", flush=True)

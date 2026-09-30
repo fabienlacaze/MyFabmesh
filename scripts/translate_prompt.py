@@ -12,8 +12,12 @@ Usage:
 
 Fails OPEN: if Argos or the language package isn't available, it prints the
 input unchanged (so generation never breaks because of translation).
+
+    translate_prompt.py --installer fr,es     -> installe les modeles fr->en et
+                                                 es->en (assistant d'installation)
 """
 import argparse
+import json
 import sys
 
 # Windows console is cp1252; Arabic/Hindi/Chinese output needs UTF-8.
@@ -52,13 +56,67 @@ def translate_to_english(text, src):
     return text, False
 
 
+# MODELES DE LANGUE (2026-09-30, audit de l'installation de zero). Sur un PC neuf aucun modele Argos n'est installe : ils
+# vivent dans le dossier de l'utilisateur (~/.local/share/argos-translate/packages), on ne peut pas les livrer avec l'appli.
+# L'assistant pose ceux des langues du systeme (--installer) ; translate_server.py telecharge les autres a la premiere demande.
+# Reseau : index et modele par urllib (magasin de certificats de Windows + SSL_CERT_FILE de main.js), fichiers de decoupage
+# en phrases (stanza, ~1 Mo) par requests (REQUESTS_CA_BUNDLE de main.js) : fonctionne derriere un antivirus qui inspecte HTTPS.
+LANGUES_MODELES = ('fr', 'es', 'zh', 'hi', 'ar', 'en')     # langues d'interface (bureau + web) ; toujours avec l'anglais
+# Une phrase courte par langue : la premiere traduction charge le modele et telecharge les fichiers stanza manquants.
+_ESSAI = {'fr': 'une table en bois', 'es': 'una mesa de madera', 'zh': '一张木桌',
+          'hi': 'लकड़ी की मेज़', 'ar': 'طاولة خشبية', 'en': 'a wooden table'}
+
+
+def paquet_installe(src, dst="en"):
+    from argostranslate import package
+    return any(p.from_code == src and p.to_code == dst for p in package.get_installed_packages())
+
+
+def installer_paquet(src, dst="en"):
+    """Telecharge et installe le modele src -> dst depuis l'index Argos. Rend True s'il est installe a la fin."""
+    if src == dst or src not in LANGUES_MODELES or dst not in LANGUES_MODELES:
+        return False
+    if paquet_installe(src, dst):
+        return True
+    from argostranslate import package
+    package.update_package_index()
+    dispo = [p for p in package.get_available_packages() if p.from_code == src and p.to_code == dst]
+    if not dispo:
+        return False
+    dispo.sort(key=lambda p: [int(x) for x in str(p.package_version).split('.') if x.isdigit()])
+    dispo[-1].install()      # telechargement + installation + vidage du cache des langues d'Argos
+    return paquet_installe(src, dst)
+
+
+def installer(langues):
+    """--installer : modeles langue -> anglais + une traduction d'essai chacun. Code 0 si tout est pret, 4 sinon."""
+    tout_ok = True
+    for src in [l.strip().lower() for l in langues.split(',') if l.strip()]:
+        try:
+            ok = installer_paquet(src, "en")
+            essai, trad = _ESSAI.get(src, 'test'), None
+            if ok:
+                trad, ok = translate_to_english(essai, src)
+            print(json.dumps({"langue": src, "ok": bool(ok), "essai": trad}, ensure_ascii=True), flush=True)
+            tout_ok = tout_ok and bool(ok)
+        except Exception as e:
+            print(json.dumps({"langue": src, "ok": False, "erreur": f"{type(e).__name__}: {e}"[:300]}, ensure_ascii=True), flush=True)
+            tout_ok = False
+    return 0 if tout_ok else 4
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--text", required=True)
+    ap.add_argument("--text")
     ap.add_argument("--from", dest="src", default="en")
     ap.add_argument("--strict", action="store_true",
                     help="exit 3 if Argos is unavailable so the caller can fall back")
+    ap.add_argument("--installer", help="fr,es,... : installe les modeles langue -> anglais")
     args = ap.parse_args()
+    if args.installer:
+        sys.exit(installer(args.installer))
+    if args.text is None:
+        ap.error("--text is required")
     out, ok = translate_to_english(args.text, args.src)
     if args.strict and not ok:
         sys.exit(3)  # signal 'translation unavailable' to the caller
