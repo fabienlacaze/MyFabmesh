@@ -406,4 +406,9 @@
   // Especes ajoutees + message GPU cloud en pause (2026-09-28)
   window.FabI18n.register('fr', {"Human": "Humain", "Ape, monkey": "Singe, gorille", "Dinosaur (two legs)": "Dinosaure (bipède)", "Kangaroo": "Kangourou", "Penguin": "Manchot", "Frog, toad": "Grenouille, crapaud", "Dragon": "Dragon", "Insect": "Insecte", "Spider, scorpion": "Araignée, scorpion", "Crab (walks sideways)": "Crabe (marche de côté)", "The cloud GPU service is paused: this month's compute budget is used up. Your credits were refunded. Please try again later.": "Le service de calcul GPU du cloud est en pause : le budget de calcul du mois est épuisé. Vos crédits ont été remboursés. Réessayez plus tard."});
   window.FabI18n.register('es', {"Human": "Humano", "Ape, monkey": "Simio, mono", "Dinosaur (two legs)": "Dinosaurio (bípedo)", "Kangaroo": "Canguro", "Penguin": "Pingüino", "Frog, toad": "Rana, sapo", "Insect": "Insecto", "Spider, scorpion": "Araña, escorpión", "Crab (walks sideways)": "Cangrejo (de lado)"});
+  // Prix lus dans la grille (2026-09-30) : gabarits {x} a la place des chiffres en dur
+  window.FabI18n.register('es', {"AI animation ({x} credits), work in progress.": "Animación IA ({x} créditos), en desarrollo.", "AI animation, work in progress.": "Animación IA, en desarrollo."});
+  window.FabI18n.register('zh', {"AI animation ({x} credits), work in progress.": "AI 动画（{x} 积分），开发中。", "AI animation, work in progress.": "AI 动画，开发中。"});
+  window.FabI18n.register('hi', {"AI animation ({x} credits), work in progress.": "AI एनिमेशन ({x} क्रेडिट), काम जारी है।", "AI animation, work in progress.": "AI एनिमेशन, काम जारी है।"});
+  window.FabI18n.register('ar', {"AI animation ({x} credits), work in progress.": "حركة بالذكاء الاصطناعي ({x} أرصدة)، قيد التطوير.", "AI animation, work in progress.": "حركة بالذكاء الاصطناعي، قيد التطوير."});
 })();
