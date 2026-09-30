@@ -21984,7 +21984,21 @@ function saveGpuLimits() {
 // Push limits on startup so they're set before any job runs
 if (API.setRamLimit) API.setRamLimit(gpuLimits.ram).catch(() => {});
 if (API.setGpuLimits) API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: gpuLimits.vram }).catch(() => {});
+// LIGNES DE LIMITE sous les barres VRAM / RAM (user 2026-09-30 : « valeurs de limites et valeurs reelles melangees ») : la barre et la valeur du haut = usage REEL ;
+// la ligne violette dessous = limite posee pour les generations + ce qu'il reste de libre pour le PC. Mise a jour en direct pendant le glissement.
+let _lastVramTotalGB = null;
+function majLignesLimites() {
+  const ligne = (id, totalGB, pct, libelle) => {
+    const el = document.getElementById(id);
+    if (!el || totalGB == null) return;
+    const lim = totalGB * (pct / 100);
+    el.textContent = `Limit for generations: ${lim.toFixed(1)} GB · keeps ${(totalGB - lim).toFixed(1)} GB free for your PC`;
+  };
+  ligne('set-gpu-vram-limtxt', _lastVramTotalGB, gpuLimits.vram);
+  ligne('set-ram-limtxt', _cachedTotalRamGB, gpuLimits.ram);
+}
 function applyGpuLimitMarkers() {
+  try { majLignesLimites(); } catch (_) {}
   const v = document.getElementById('set-gpu-vram-limit');
   const u = document.getElementById('set-gpu-util-limit');
   const t = document.getElementById('set-gpu-temp-limit');
@@ -22625,7 +22639,8 @@ async function refreshGpuStats() {
     // VRAM
     const vramPct = (gpu.usedGB / gpu.totalGB) * 100;
     document.getElementById('set-gpu-vram-val').textContent =
-      `${gpu.usedGB.toFixed(1)} / ${gpu.totalGB.toFixed(1)} GB  (${vramPct.toFixed(0)}%)`;
+      `Used ${gpu.usedGB.toFixed(1)} GB of ${gpu.totalGB.toFixed(1)} GB (${vramPct.toFixed(0)}%)`;
+    _lastVramTotalGB = gpu.totalGB; try { majLignesLimites(); } catch (_) {}
     document.getElementById('set-gpu-vram-fill').style.width = vramPct + '%';
     document.querySelector('.gpu-bar[data-stat="vram"]')?.classList.toggle('over-limit', vramPct > gpuLimits.vram);
     // GPU utilization
@@ -22649,7 +22664,8 @@ async function refreshGpuStats() {
       const ramPct = (ram.usedGB / ram.totalGB) * 100;
       const ramValEl = document.getElementById('set-ram-val');
       const ramFillEl = document.getElementById('set-ram-fill');
-      if (ramValEl) ramValEl.textContent = `${ram.usedGB.toFixed(1)} / ${ram.totalGB.toFixed(1)} GB  (${ramPct.toFixed(0)}%)`;
+      if (ramValEl) ramValEl.textContent = `Used ${ram.usedGB.toFixed(1)} GB of ${ram.totalGB.toFixed(1)} GB (${ramPct.toFixed(0)}%)`;
+      _cachedTotalRamGB = ram.totalGB; try { majLignesLimites(); } catch (_) {}
       if (ramFillEl) ramFillEl.style.width = ramPct + '%';
       document.querySelector('.gpu-bar[data-stat="ram"]')?.classList.toggle('over-limit', ramPct > gpuLimits.ram);
     }

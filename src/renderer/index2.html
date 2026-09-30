@@ -2456,6 +2456,7 @@
               <div class="gpu-bar-fill" id="set-gpu-vram-fill"></div>
               <div class="gpu-bar-limit" id="set-gpu-vram-limit" style="left:90%" title="Drag to set max VRAM"></div>
             </div>
+            <div class="gpu-limit-line" id="set-gpu-vram-limtxt"></div>
           </div>
 
           <div class="gpu-stat" style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">
@@ -2467,6 +2468,7 @@
               <div class="gpu-bar-fill" id="set-ram-fill"></div>
               <div class="gpu-bar-limit" id="set-ram-limit" style="left:85%" title="Drag to set max RAM usage"></div>
             </div>
+            <div class="gpu-limit-line" id="set-ram-limtxt"></div>
           </div>
           <div class="settings-box-hint">Drag markers to set limits. Jobs queue until all limits are met.</div>
         </div>
@@ -2689,6 +2691,8 @@
     </div>
 
     <style>
+    .gpu-limit-line{margin-top:5px;font-size:11px;color:#a78bfa;text-align:left}
+    .gpu-bar-limit{background:#a78bfa !important}
     .etape-verrouillee{opacity:.45;filter:grayscale(.6)}
     .etape-verrouillee .step-header,.etape-verrouillee [class*="header"]{cursor:not-allowed}
     .etape-verrouillee .step-title::after,.etape-verrouillee h2::after{content:" F512";font-size:.85em}

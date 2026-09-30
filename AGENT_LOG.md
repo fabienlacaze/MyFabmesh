@@ -24669,3 +24669,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - cloisonnement_memoire.plafond_engagement_mo : plafond = budget RESIDENT x RATIO_ENGAGEMENT (2,0), plus le decalage. Mesure : budget 9-11 Go, pic transitoire d engagement 15,2 Go ; plafond 15,9 Go => plantage 0xC0000005, 20,6 Go et 22,1 Go => OK (28 s). Valide en vrai avec FABMESH_RAM_LIMIT_MB=29500 (32,5 Go - 3 Go de reserve), Unreal ouvert.
 - Retrait du besoin par defaut 12 900 Mo (main.js) : il refusait a tort des generations qui tiennent. Tests build/test_cloisonnement_memoire.py mis a jour (14 OK).
 - Hot-patch de l installation en cours : cloisonnement_memoire.py copie dans resources/scripts.
+
+## 2026-09-30 — Parametres > Hardware : valeurs reelles et limites separees
+- Valeur du haut = « Used X GB of Y GB (Z%) » (usage reel) ; ligne violette sous VRAM et RAM = « Limit for generations: X GB - keeps Y GB free for your PC », mise a jour en direct au glissement. Marqueur violet. Bureau seulement (la section web n existe pas de la meme facon).
