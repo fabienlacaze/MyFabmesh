@@ -24618,3 +24618,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — Assistant : moteur d'IA, avancement PAR ETAPE avec pourcentage sur la ligne
 - User : « pas de % pour cette etape, la barre reste longtemps chargee a fond ». La barre prenait le max (octets, pct d'etape) et se collait a ~92 % pendant « Installing libraries ». Maintenant chaque etape a un poids (torch 40, bibliotheques 26, roues 6+9+3...) et une fraction propre ; la barre ne recule pas, le pourcentage est ecrit sur la ligne (#aienv-pct). Teste en navigateur (API simulee).
+
+## 2026-09-30 — Assistant : chronometre a GAUCHE de la roue (user), les deux barres.

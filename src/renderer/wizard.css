@@ -321,7 +321,7 @@
 .wiz-roue.avert { background: #fb923c; }
 .wiz-roue.erreur { background: var(--error); color: #fff; }
 .wiz-roue.erreur::after { content: '!'; }
-.wiz-chrono { font-size: 13px; font-weight: 600; color: var(--text-2); min-width: 46px; text-align: left; }
+.wiz-chrono { font-size: 13px; font-weight: 600; color: var(--text-2); min-width: 46px; text-align: right; }
 .wiz-jalons-track { position: relative; height: 8px; background: var(--bg-3, #24243a); border-radius: 4px; }
 .wiz-jalons-fill { height: 100%; width: 0%; background: var(--accent-grad); border-radius: 4px; transition: width 0.4s ease; }
 .wiz-jalon {
