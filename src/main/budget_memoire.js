@@ -115,6 +115,9 @@ function verdict({ besoinRamMo, budgetRamMo: bRam, besoinVramMo, budgetVramMo: b
   if (besoinRamMo != null && bRam != null && besoinRamMo > bRam) {
     ralenti = { type: 'ram', besoinGo: versGo(besoinRamMo), dispoGo: versGo(Math.max(0, bRam), 'bas') };
   }
+  // MARGE VRAM de 10 % : le besoin varie d'une image a l'autre (3D : 8,2 Go mesures, puis 8,8 Go le 30/09 a 21:56 -> echec apres
+  // 6 minutes de calcul). Mieux vaut attendre ou prevenir au lancement que d'echouer en fin de calcul.
+  if (besoinVramMo != null) besoinVramMo = besoinVramMo * 1.1;
   if (besoinVramMo != null && bVram != null && besoinVramMo > bVram) {
     const besoinGo = versGo(besoinVramMo), dispoGo = versGo(bVram, 'bas');
     return { ok: false, type: 'vram', besoinGo, dispoGo, phrase: phraseManque('vram', besoinGo, dispoGo), ralenti };

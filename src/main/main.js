@@ -3471,8 +3471,15 @@ ipcMain.handle('memory-needs', () => {
     for (const l of fs.readFileSync(MEMOIRE_JOURNAL, 'utf-8').split(/\r?\n/)) {
       if (!l.trim()) continue;
       let j; try { j = JSON.parse(l); } catch (_) { continue; }
-      if (!j || j.issue !== 'ok' || !j.cle || j.cle === 'test_ram' || j.cle === 'test_torch' || j.cle === 'essai') continue;
+      if (!j || !j.cle || j.cle === 'test_ram' || j.cle === 'test_torch' || j.cle === 'essai') continue;
       const cle = /^trellis2/.test(j.cle) ? 'trellis2' : j.cle;
+      // echec par manque de VRAM : ce qu'il demandait est aussi un besoin (3D : 8,8 Go le 30/09 apres des reussites a 8,2)
+      if (j.issue === 'memoire' && j.manque === 'vram' && j.besoin_mo > 0 && j.date >= '2026-09-30T21:30') {
+        const p0 = vus[cle] || { ramGo: 0, vramGo: 0 };
+        vus[cle] = { ramGo: p0.ramGo, vramGo: Math.max(p0.vramGo, Math.round(j.besoin_mo / 102.4) / 10) };
+        continue;
+      }
+      if (j.issue !== 'ok') continue;
       const ram = (j.limite_atteinte && j.ram_budget_mo > 0) ? Math.min(j.pic_ws_mo || 0, j.ram_budget_mo) : (j.pic_ws_mo || 0);
       const vram = (j.pic_vram_reserve_mo || 0) + (j.vram_contexte_mo || 0);
       const p = vus[cle] || { ramGo: 0, vramGo: 0 };
@@ -3481,11 +3488,14 @@ ipcMain.handle('memory-needs', () => {
     for (const [cle, v] of Object.entries(vus)) types[cle] = { ramGo: v.ramGo || (types[cle] || {}).ramGo || 0, vramGo: v.vramGo || (types[cle] || {}).vramGo || 0 };
   } catch (_) {}
   const plusLourd = (champ) => Object.entries(types).reduce((m, [cle, v]) => (v[champ] > m.go ? { go: v[champ], outil: libelle(cle) } : m), { go: 0, outil: '' });
+  // meme marge de 10 % que le controle au lancement (budget_memoire.verdict) : la limite minimum laisse toujours partir l'outil le plus lourd
+  const vramLourd = plusLourd('vramGo');
+  vramLourd.go = Math.round(vramLourd.go * 1.1 * 10) / 10;
   // L'appli occupe-t-elle la carte / la RAM en ce moment (serveur d'images charge, calcul en cours) ? Si oui, l'usage mesure
   // n'est pas celui des AUTRES logiciels : l'interface garde alors sa derniere mesure.
   let appliActive = false;
   try { appliActive = !!(sdxlProc && sdxlProc.exitCode === null) || activeProcs.size > 0; } catch (_) {}
-  const out = { vram: plusLourd('vramGo'), ram: plusLourd('ramGo'), types: Object.fromEntries(Object.entries(types).map(([k, v]) => [libelle(k), v])), appliActive };
+  const out = { vram: vramLourd, ram: plusLourd('ramGo'), types: Object.fromEntries(Object.entries(types).map(([k, v]) => [libelle(k), v])), appliActive };
   // compatibilite (ancienne forme lue par l'interface) : image / mesh
   out.image = types.realvis; out.mesh = types.trellis2;
   return out;
