@@ -593,3 +593,6 @@
 }
 .wiz-dl-groupe svg { width: 16px; height: 16px; flex: none; }
 .wiz-dl-row[data-groupe] { border-left: 3px solid var(--cat, transparent); }
+.wiz-check-list li .verdict { margin-left: 12px; font-size: 12px; font-weight: 700; min-width: 58px; text-align: right; }
+.wiz-check-list li .verdict.ok { color: var(--success); }
+.wiz-check-list li .verdict.ko { color: var(--error); }

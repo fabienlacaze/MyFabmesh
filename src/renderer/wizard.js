@@ -1119,6 +1119,8 @@ async function runFinalTest() {
     li.classList.remove('en-cours'); li.classList.add(ok ? 'ok' : 'ko');
     li.querySelector('.ico').textContent = ok ? '✓' : '!';
     if (desc) li.querySelector('.desc').textContent = desc;
+    // TEXTE VERT « Verified » sur la ligne des que son controle est fini (user, 2026-09-30) ; rouge « Failed » sinon
+    if (!li.querySelector('.verdict')) { const v = document.createElement('span'); v.className = 'verdict ' + (ok ? 'ok' : 'ko'); v.textContent = ok ? 'Verified' : 'Failed'; li.appendChild(v); }
   };
   const fermer = (g, ok) => { if (!g) return; tJalon(g, ok ? 'fait' : 'echec'); if (ok) tBarre(T_POS[g]); };
   const ouvrir = (g) => {
