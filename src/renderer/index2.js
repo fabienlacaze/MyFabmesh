@@ -561,6 +561,7 @@ function promptBuyCredits(message) {
 }
 
 function showToast(message, type = 'info', durationMs = 3000) {
+  message = _masquerMoteursErr(message);
   { const refus = _refusCapacite(message); if (refus) message = refus.texte; }
   let container = document.getElementById('toast-container');
   if (!container) {
@@ -10283,7 +10284,7 @@ function fitWsCamera(obj) {
 // FabI18n.t (voir i18n.js). Le nom du DERNIER suffixe = la modif qui a produit
 // cette version. Aligné sur OP_SUFFIX de main.js.
 const _OP_LABEL = {
-  cntile: 'ControlNet Tile', retexture: 're-texture', trellis2_retex: 're-texture',
+  cntile: 'texture refine', retexture: 're-texture', trellis2_retex: 're-texture',
   retex: 're-texture', decimate: 'decimation', subdivide: 'subdivision', smooth: 'smoothing',
   fill_holes: 'hole filling', fix_normals: 'normals fix', center: 'recentering',
   set_pivot: 'pivot adjustment', watertight: 'watertight sealing', texture_var: 'texture variation',
@@ -11240,7 +11241,7 @@ document.getElementById('ws-mesh-detail-synth-btn')?.addEventListener('click', (
   const assetType = document.getElementById('ws-asset-type')?.value || p.assetType || 'character';
   gatedRun('rig', `${_i18nT('Detail++')}: ${p.name}`, async () => {
     const job = pushJob(`${_i18nT('Detail++')}: ${p.name}`, null, {
-      Method: 'render → SDXL tile → re-bake',
+      Method: 'render → refine → re-bake',
       'Asset type': assetType,
       'Source mesh': m.filename,
     }, 240000, { sourceImageUrl: _meshJobThumb(m.path), projectName: p.name });
@@ -12201,7 +12202,7 @@ const MESH_TOOL_SCHEMAS = {
   },
   retexture: {
     title: 'Resolution',
-    subtitle: 'Re-bake the texture by reprojecting the source photo onto a fresh xatlas UV unwrap — sharper than the generated bake. 4096 needs the mesh\'s 6-view set (view_0..5) so the back/sides have a source; without it they go black at 4K (front-only is fine at 2048).',
+    subtitle: 'Re-bake the texture by reprojecting the source photo onto a fresh UV unwrap — sharper than the generated bake. 4096 needs the mesh\'s 6-view set (view_0..5) so the back/sides have a source; without it they go black at 4K (front-only is fine at 2048).',
     needsImage: true,
     params: [
       { id: 'tex_res', label: 'Texture resolution', type: 'select', default: '2048',

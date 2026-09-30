@@ -634,6 +634,7 @@ async function translateUserPrompt(text) {
 }
 
 function showToast(message, type = 'info', durationMs = 3000) {
+  message = _masquerMoteursErr(message);
   { const refus = _refusCapacite(message); if (refus) message = refus.texte; }
   let container = document.getElementById('toast-container');
   if (!container) {
@@ -9018,7 +9019,7 @@ function fitWsCamera(obj) {
 // FabI18n.t. Nom du DERNIER suffixe = modif qui a produit cette version. Aligné
 // sur OP_SUFFIX du worker. Cf. desktop index2.js.
 const _OP_LABEL = {
-  cntile: 'ControlNet Tile', retexture: 're-texture', trellis2_retex: 're-texture',
+  cntile: 'texture refine', retexture: 're-texture', trellis2_retex: 're-texture',
   retex: 're-texture', decimate: 'decimation', subdivide: 'subdivision', smooth: 'smoothing',
   fill_holes: 'hole filling', fix_normals: 'normals fix', center: 'recentering',
   set_pivot: 'pivot adjustment', watertight: 'watertight sealing', texture_var: 'texture variation',

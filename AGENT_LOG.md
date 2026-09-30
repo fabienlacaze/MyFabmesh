@@ -24656,3 +24656,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - Le bloc « You are all set » etait dans #test-status, au-dessus de la liste (hors ecran). Ajout de #test-fin (vert) juste au-dessus du bouton Launch, affiche a la fin.
 
 ## 2026-09-30 — retrait de « Built with DINOv3 (Meta Platforms) » de la fenetre A propos (bureau + web), exigence user : aucune fuite de nom de moteur. Attribution de licence conservee uniquement dans THIRD_PARTY_LICENSES.txt.
+
+## 2026-09-30 — audit fuites de noms de moteurs (2e passe)
+- showToast masque aussi les noms (bureau + web) ; libelles en dur : ControlNet Tile -> texture refine, « SDXL tile » -> refine, xatlas -> UV unwrap (Detail++, Resolution). HTML, wizard, i18n visibles : propres ; i18n.js garde des chaines inutilisees (Modal containers, AnyTop) non affichees.
