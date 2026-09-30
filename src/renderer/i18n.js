@@ -1145,6 +1145,10 @@
       'local': 'local',
       'Temp': 'Temp.',
       'Drag markers to set limits. Jobs queue until all limits are met.': 'Glissez les marqueurs pour définir les limites. Les tâches attendent que toutes les limites soient respectées.',
+      // ---- Plafonds RAM / VRAM réels (2026-09-30, scripts/cloisonnement_memoire.py) ----
+      'This generation needs about {x} GB of RAM but only {y} GB are available under your limit. Close other apps or raise the RAM limit in Settings.': "Cette génération a besoin d'environ {x} Go de RAM, mais seulement {y} Go sont disponibles sous votre limite. Fermez d'autres applications ou relevez la limite RAM dans les Paramètres.",
+      'This generation needs about {x} GB of VRAM but only {y} GB are available under your limit. Close other apps using the graphics card or raise the VRAM limit in Settings.': "Cette génération a besoin d'environ {x} Go de VRAM, mais seulement {y} Go sont disponibles sous votre limite. Fermez les applications qui utilisent la carte graphique ou relevez la limite VRAM dans les Paramètres.",
+      'Waiting for memory: this job needs about {x} GB of RAM and {y} GB are free under your limit. It starts as soon as it fits (close other apps or raise the RAM limit in Settings).': "En attente de mémoire : ce travail a besoin d'environ {x} Go de RAM et {y} Go sont libres sous votre limite. Il démarre dès qu'il tient (fermez d'autres applications ou relevez la limite RAM dans les Paramètres).",
       'active': 'actif',
       'AI engine': 'Moteur IA',
       'running': 'en cours',
