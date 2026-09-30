@@ -2646,6 +2646,10 @@ button.tool-active {
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
+/* etape en cours d'un travail qui rend son avancement reel (Detail++, 2026-09-30) ; vide = masquee */
+.job-item-2-etape { font-size: 10.5px; color: var(--text-2); margin-top: 3px; line-height: 1.3; }
+.job-item-2-etape:empty { display: none; }
+.job-item-2:not(.running) .job-item-2-etape { display: none; }
 .job-item-2.error .job-item-2-bar-fill { background: var(--error); }
 .job-item-2.done .job-item-2-bar-fill { background: var(--success); }
 .job-item-2.done .job-item-2-pct { color: var(--success); }

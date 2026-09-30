@@ -1252,6 +1252,14 @@ let sdxlIdleTimer = null;
 // exceeds SDXL_IDLE_TIMEOUT_MS. This prevents the server from being killed
 // mid-inference when a slow first-time model load blocks the response.
 let sdxlInflightRequests = 0;
+// DEMARRAGE DU SERVEUR D'IMAGES OBSERVE (2026-09-30, Detail++ : « la tuile reste a 90 % pendant des minutes puis image engine
+// server failed to start »). Un prechargement rate (« Preload failed: <raison> » : memoire, modele introuvable...) laissait le
+// serveur vivant mais sans modele : sdxlReady ne passait jamais a vrai et chaque outil attendait 6 min pour rien. On garde la
+// raison, la phase en cours (lue dans sa sortie) et la fin du processus, pour echouer TOUT DE SUITE en disant pourquoi.
+let _sdxlEchec = null;            // raison du prechargement rate (texte du serveur)
+let _sdxlPhase = null;            // 'demarrage' | 'masques' | 'moteur' | 'pret'
+let _sdxlSortie = null;           // { code, t } : derniere fin du processus
+const _sdxlDernieresErreurs = []; // dernieres lignes d'erreur du serveur (raison d'un arret)
 
 function _clientSdxlDirectActif() {
   try {
@@ -1326,12 +1334,18 @@ function startSdxlServer() {
     return;
   }
   console.log('[SDXL] Spawning persistent server...');
+  _sdxlEchec = null; _sdxlPhase = 'demarrage'; _sdxlDernieresErreurs.length = 0;
+  const _noterErreur = (ligne) => {
+    if (!/error|erreur|traceback|memory|cuda|killed|refus/i.test(ligne)) return;
+    _sdxlDernieresErreurs.push(ligne.replace(/^\[SDXL[^\]]*\]\s*/i, '').slice(0, 300));   // prefixe interne retire (nom de moteur)
+    if (_sdxlDernieresErreurs.length > 8) _sdxlDernieresErreurs.shift();
+  };
   try {
     // Forward the VRAM fraction so the server can enforce the cap via PyTorch
     const sdxlEnv = { ...process.env };
     if (sdxlEnv.FABMESH_VRAM_FRACTION) { /* already set */ }
     else { sdxlEnv.FABMESH_VRAM_FRACTION = '0.95'; }
-    sdxlProc = require('child_process').spawn(_aiPython(), [serverScript], {
+    const proc = sdxlProc = require('child_process').spawn(_aiPython(), [serverScript], {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
       env: sdxlEnv
@@ -1342,16 +1356,35 @@ function startSdxlServer() {
       // Mark ready only when models are actually loaded in VRAM
       if (msg.includes('MODELS READY')) {
         sdxlReady = true;
+        _sdxlPhase = 'pret';
         markSdxlUsed(); // Start the idle timer from this point
       }
       if (msg.includes('CLIPSeg loaded')) sdxlSegPret = true;
+      if (/Preloading CLIPSeg/i.test(msg)) _sdxlPhase = 'masques';
+      if (/Preloading RealVis|Loading SG161222/i.test(msg)) _sdxlPhase = 'moteur';
+      for (const ligne of msg.split(/\r?\n/)) _noterErreur(ligne);
+      const rate = /Preload failed:\s*(.+)/.exec(msg);
+      if (rate && !sdxlReady) {
+        // Serveur vivant mais inutilisable (aucun modele) : on garde la raison et on l'arrete, le prochain outil en relancera un propre.
+        _sdxlEchec = rate[1].trim().slice(0, 500);
+        try { log.warn('main', `serveur d'images : prechargement rate (${_sdxlEchec.slice(0, 300)})`); } catch (_) {}
+        setTimeout(() => { if (sdxlProc === proc && !sdxlReady) stopSdxlServer(); }, 200);
+      }
     });
-    sdxlProc.stderr.on('data', d => console.error('[SDXL stderr]', d.toString().trim()));
+    sdxlProc.stderr.on('data', d => {
+      const t = d.toString().trim();
+      console.error('[SDXL stderr]', t);
+      for (const ligne of t.split(/\r?\n/)) _noterErreur(ligne);
+    });
     sdxlProc.on('exit', (code) => {
       console.log('[SDXL] server exited with code', code);
-      sdxlProc = null;
-      sdxlReady = false;
-      sdxlSegPret = false;
+      _sdxlSortie = { code, t: Date.now() };
+      if (sdxlProc === proc || sdxlProc === null) {   // un serveur arrete puis relance ne doit pas effacer le suivant
+        sdxlProc = null;
+        sdxlReady = false;
+        sdxlSegPret = false;
+        _sdxlPhase = null;
+      }
     });
   } catch (e) {
     console.error('[SDXL] failed to spawn:', e);
@@ -2557,12 +2590,50 @@ function ensureSdxlServer() {
       if (sdxlReady) {
         clearInterval(poll);
         resolve(true);
-      } else if (Date.now() - start > 360000 || !sdxlProc) {
+      } else if (Date.now() - start > 360000 || !sdxlProc || _sdxlEchec) {   // prechargement rate : inutile d'attendre 6 min
         clearInterval(poll);
         resolve(sdxlReady);
       }
     }, 500);
   });
+}
+
+// POURQUOI le serveur d'images n'est pas pret (message de produit, sans nom de moteur). null si rien de connu.
+function _raisonServeurImages(depuis) {
+  if (_sdxlEchec) return { cause: 'serveur_demarrage', raison: _sdxlEchec };
+  if (_sdxlSortie && _sdxlSortie.t >= (depuis || 0)) {
+    return { cause: 'serveur_arrete', code: _sdxlSortie.code, raison: _sdxlDernieresErreurs.slice(-1)[0] || null };
+  }
+  return null;
+}
+
+// Taille (Mo decimaux) des depots du cache Hugging Face : sert a voir qu'un serveur qui « demarre » depuis des minutes est en
+// fait en train de TELECHARGER ses fichiers. Liens symboliques ignores (chaque fichier serait compte deux fois).
+function _cacheHubModeles() {
+  return process.env.HF_HUB_CACHE || process.env.HUGGINGFACE_HUB_CACHE
+    || path.join(process.env.HF_HOME || path.join(os.homedir(), '.cache', 'huggingface'), 'hub');
+}
+function _tailleDepotsMo(depots) {
+  let total = 0;
+  const parcourir = (d, prof) => {
+    if (prof > 6) return;
+    let entrees; try { entrees = fs.readdirSync(d, { withFileTypes: true }); } catch (_) { return; }
+    for (const e of entrees) {
+      const p = path.join(d, e.name);
+      if (e.isSymbolicLink()) continue;
+      if (e.isDirectory()) parcourir(p, prof + 1);
+      else { try { total += fs.statSync(p).size; } catch (_) {} }
+    }
+  };
+  for (const r of depots) parcourir(path.join(_cacheHubModeles(), 'models--' + r.replace(/\//g, '--')), 0);
+  return total / 1e6;
+}
+// Un modele est-il DANS le cache (fichiers de l'assistant presents dans un instantane) ?
+function _modeleEnCache(repo, fichiers) {
+  const snaps = path.join(_cacheHubModeles(), 'models--' + repo.replace(/\//g, '--'), 'snapshots');
+  let revs = [];
+  try { revs = fs.readdirSync(snaps); } catch (_) { return false; }
+  return revs.some((r) => fichiers.every((f) => { try { return fs.statSync(path.join(snaps, r, f)).size > 0; } catch (_) { return false; } }));
 }
 // Kill all tracked Python subprocesses (cancel-job map) on exit
 /* TUER LES SOUS-PROCESSUS A LA FERMETURE.
@@ -5529,12 +5600,73 @@ const DETAIL_SYNTH_PROMPTS = {
 };
 const DETAIL_SYNTH_DEFAULT_PROMPT = 'sharp intricate fine surface detail, crisp high-detail texture, photoreal materials';
 
+// MODELES DE DETAIL++ (2026-09-30) : verifies AVANT de lancer quoi que ce soit. Absent, le module de detail (2,5 Go) etait
+// telecharge EN SILENCE par le serveur d'images en pleine premiere vue : tuile figee, puis echec. Memes depots et memes fichiers
+// que l'assistant (scripts/wizard_download.py, ALLOW_PATTERNS) ; le decodeur d'images a un repli, il n'est pas exige.
+const MODELES_DETAIL = [
+  { repo: 'xinsir/controlnet-union-sdxl-1.0', fichiers: ['config.json', 'diffusion_pytorch_model.safetensors'], libelle: 'Detail++ module', mo: 2512 },
+  { repo: 'SG161222/RealVisXL_V4.0', fichiers: ['model_index.json', 'unet/config.json'], libelle: 'Texture engine', mo: 6940 },
+];
+// Depots que le serveur d'images lit a son demarrage : leur croissance = il telecharge (premiere utilisation).
+const DEPOTS_SERVEUR_IMAGES = ['SG161222/RealVisXL_V4.0', 'CIDAS/clipseg-rd64-refined', 'madebyollin/sdxl-vae-fp16-fix'];
+
+// Attente du serveur d'images AVEC avancement pour la tuile (2 -> 11 %) : phase lue dans sa sortie, fichiers telecharges (cache
+// qui grossit), et sortie IMMEDIATE avec la raison sur un prechargement rate ou un processus mort.
+async function _serveurImagesAvecAvancement(progres) {
+  if (sdxlReady) return { ok: true };
+  const t0 = Date.now();
+  const cacheAvant = _tailleDepotsMo(DEPOTS_SERVEUR_IMAGES);
+  let fini = null;
+  ensureSdxlServer().then((ok) => { fini = !!ok; });
+  let telecharge = 0;
+  while (fini === null) {
+    await new Promise((r) => setTimeout(r, 1500));
+    const s = (Date.now() - t0) / 1000;
+    telecharge = Math.max(0, _tailleDepotsMo(DEPOTS_SERVEUR_IMAGES) - cacheAvant);
+    progres({ pct: 2 + Math.min(9, s / 12), etape: 'serveur', phase: _sdxlPhase || 'demarrage',
+      mo: telecharge > 20 ? Math.round(telecharge) : undefined });
+  }
+  if (fini && sdxlReady) return { ok: true };
+  const r = _raisonServeurImages(t0);
+  if (r) return { ok: false, ...r };
+  return { ok: false, cause: 'serveur_attente', minutes: Math.round((Date.now() - t0) / 60000), mo: telecharge > 20 ? Math.round(telecharge) : 0 };
+}
+
+// Phrase de repli (anglais, sans nom de moteur) pour une cause connue ; le renderer la traduit a partir de `cause`.
+function _phraseDetail(r) {
+  switch (r.cause) {
+    case 'modele_manquant': return `Detail++ needs files that are not installed: ${r.modules.join(', ')}. Open Settings > Reconfigure MyFabmesh.AI to download them.`;
+    case 'serveur_demarrage': return `The image engine could not start: ${r.raison}`;
+    case 'serveur_arrete': return `The image engine stopped (code ${r.code})${r.raison ? ': ' + r.raison : ''}.`;
+    case 'serveur_attente': return r.mo ? `The image engine is still downloading its files for its first use (${(r.mo / 1000).toFixed(1)} GB so far). Try again in a few minutes.`
+      : `The image engine did not start within ${r.minutes} minutes.`;
+    case 'etape': {
+      const quoi = { maillage: 'reading the 3D model', rendu: 'rendering the views', chargement: 'loading the detail model',
+        affinage: 'adding detail', recuisson: 'baking the new texture' }[r.etape] || r.etape;
+      return `Detail++ stopped while ${quoi}: ${r.message}`;
+    }
+    default: return r.error || 'Detail++ failed';
+  }
+}
+
 ipcMain.handle('detail-synth', async (event, { meshPath, jobId, strength, prompt, assetType, textureSize }) => {
+  // Avancement REEL de la tuile (2026-09-30) : canal 'job-progress' par identifiant de travail (plus de barre au minuteur).
+  const progres = (d) => { if (jobId != null) safeSend('job-progress', { jobId, ...d }); };
+  const refus = (r) => {
+    const sortie = { success: false, ...r, error: _phraseDetail(r) };
+    try { log.warn('main', `detail-synth failed: ${sortie.error.slice(0, 600)}`); } catch (_) {}
+    return sortie;
+  };
   try {
     if (!meshPath || !fs.existsSync(meshPath)) return { success: false, error: 'Mesh not found' };
+    progres({ pct: 1, etape: 'modeles' });
+    const manquants = MODELES_DETAIL.filter((m) => !_modeleEnCache(m.repo, m.fichiers));
+    if (manquants.length) {
+      return refus({ cause: 'modele_manquant', modules: manquants.map((m) => `${m.libelle} (${(m.mo / 1000).toFixed(1)} GB)`) });
+    }
     // Stage 2 POSTs renders to the SDXL tile server — make sure it's up first.
-    await ensureSdxlServer();
-    if (!sdxlReady) return { success: false, error: 'SDXL server failed to start. Try again in a few seconds.' };
+    const serveur = await _serveurImagesAvecAvancement(progres);
+    if (!serveur.ok) return refus(serveur);
     const dir = path.dirname(meshPath);
     const ext = path.extname(meshPath) || '.glb';
     const base = safeBase(path.basename(meshPath, ext));
@@ -5550,24 +5682,47 @@ ipcMain.handle('detail-synth', async (event, { meshPath, jobId, strength, prompt
     // detail_synth.py imports trimesh / nvdiffrast / requests — uses SYSTEM python
     // (NOT the trellis venv), same as the mesh-tool handler.
     const env = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' };
+    const debut = Date.now();
+    let erreurEtape = null;      // ligne FABMESH_DETAIL_ERREUR du script : etape + phrase
+    let tampon = '';
     return await new Promise((resolve) => {
+      // 30 min (10 avant) : en mode econome (carte trop juste), une vue prend 3 a 5 fois plus longtemps ; l'avancement montre
+      // que le calcul vit. Un vrai blocage est coupe par le delai de 20 min par vue du script.
       const proc = execFile(_aiPython(), [
         DETAIL_SCRIPT, meshPath, outPath,
         '--strength', String(strength != null ? strength : 0.5),
         '--texture-size', String(textureSize != null ? textureSize : 4096),
         '--prompt', effPrompt,
         '--workdir', workdir,
-      ], { timeout: 600000, maxBuffer: 50 * 1024 * 1024, env }, (error, stdout) => {
+      ], { timeout: 1800000, maxBuffer: 50 * 1024 * 1024, env }, (error, stdout) => {
+        if (jobId) activeProcs.delete(jobId);
         if (!error && fs.existsSync(outPath)) return resolve({ success: true, newPath: outPath });
-        // detail_synth.py ecrit son erreur sur STDOUT (« [detail_synth] ERROR: ... ») ; l'erreur d'execFile ne porte que stderr,
-        // souvent un simple avertissement (2026-09-30 : la fenetre montrait « expandable_segments not supported » au lieu de la cause).
+        if (erreurEtape) return resolve(refus({ cause: 'etape', etape: erreurEtape.etape, message: erreurEtape.message,
+          vue: erreurEtape.vue, vues: erreurEtape.vues }));
+        const serveur = _raisonServeurImages(debut);
+        if (serveur && serveur.cause === 'serveur_arrete') return resolve(refus(serveur));
+        // Repli : dernieres lignes d'erreur du script (sa sortie ; l'erreur d'execFile ne porte que stderr).
         const lignes = String(stdout || '').split(/\r?\n/).filter((l) => /ERROR|Traceback|Error:/i.test(l));
         const cause = lignes.length ? lignes.slice(-3).join('\n').replace(/\[detail_synth\]\s*/g, '')
-          : (error?.killed ? 'stopped (time limit reached)' : (error?.message || 'detail synth failed'));
-        try { log.warn('main', `detail-synth failed: ${String(cause).slice(-600)}`); } catch (_) {}
-        resolve({ success: false, error: String(cause).slice(-600) });
+          : (error?.killed ? 'stopped after 30 minutes (time limit)' : (error?.message || 'detail synth failed'));
+        resolve(refus({ cause: 'autre', error: String(cause).slice(-600) }));
       });
-      proc.stdout?.on('data', d => safeSend('ai3d-progress', d.toString()));
+      proc.stdout?.on('data', (d) => {
+        const texte = d.toString();
+        safeSend('ai3d-progress', texte);
+        tampon += texte;
+        let n;
+        while ((n = tampon.indexOf('\n')) >= 0) {
+          const ligne = tampon.slice(0, n).trim();
+          tampon = tampon.slice(n + 1);
+          const m = /^FABMESH_(PROGRES|DETAIL_ERREUR) (\{.*\})\s*$/.exec(ligne);
+          if (!m) continue;
+          try {
+            const o = JSON.parse(m[2]);
+            if (m[1] === 'PROGRES') progres(o); else erreurEtape = o;
+          } catch (_) {}
+        }
+      });
       proc.stderr?.on('data', d => safeSend('ai3d-progress', '[stderr] ' + d.toString()));
       if (jobId) activeProcs.set(jobId, proc);
     });

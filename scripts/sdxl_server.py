@@ -256,6 +256,35 @@ def _executer(pipe, **kwargs):
     raise derniere
 
 
+# AVANCEMENT DE L'AFFINAGE (2026-09-30) : lu par detail_synth.py (GET /progress) pendant qu'il attend la reponse d'une vue —
+# « chargement » du modele de detail (1re vue), puis les pas de debruitage. Sans lui, la tuile de Detail++ avancait au minuteur.
+_progression = {'etape': None, 'pas': 0, 'total': 0, 't': 0.0}
+
+
+def _progres(etape, pas=0, total=0):
+    _progression.update(etape=etape, pas=int(pas or 0), total=int(total or 0), t=time.time())
+
+
+def _rappel_progres(pipe, i, t, kwargs):
+    """callback_on_step_end des pipelines : un pas de debruitage de plus (le total tient compte de la force img2img)."""
+    try:
+        _progres('calcul', i + 1, getattr(pipe, 'num_timesteps', 0) or 0)
+    except Exception:
+        pass
+    return kwargs
+
+
+def _avec_progres(pipe, kwargs):
+    """Ajoute le rappel d'avancement si le pipeline le connait (diffusers >= 0.22) ; sans lui, l'appel reste identique."""
+    try:
+        import inspect
+        if 'callback_on_step_end' in inspect.signature(pipe.__call__).parameters:
+            kwargs = dict(kwargs, callback_on_step_end=_rappel_progres)
+    except Exception:
+        pass
+    return kwargs
+
+
 # ========== STATE ==========
 class ModelState:
     """Holds all loaded models and their locks."""
@@ -846,10 +875,12 @@ def do_img2img_tile(input_path, prompt, output_path, strength=0.55,
     if state.inpaint_pipe is not None:
         unload_model('inpaint')
 
+    _progres('chargement' if state.controlnet_tile_pipe is None else 'attente')
     pipe = load_controlnet_tile()
     state.last_use['controlnet_tile'] = time.time()
 
     with state.inference_lock:
+        _progres('calcul')
         try:
             img = Image.open(input_path).convert("RGB")
             img, (w, h) = resize_for_sdxl(img, max_dim=1024)
@@ -868,7 +899,7 @@ def do_img2img_tile(input_path, prompt, output_path, strength=0.55,
 
             t0 = time.time()
             with torch.inference_mode():
-                result = _executer(pipe, 
+                result = _executer(pipe, **_avec_progres(pipe, dict(
                     prompt=enhanced,
                     # None by default -> identical to the ORIGINAL tile behaviour
                     # (don't change the existing "Sharpen/Refine texture" tool).
@@ -886,7 +917,8 @@ def do_img2img_tile(input_path, prompt, output_path, strength=0.55,
                     # become plain img2img anchored to the init by `strength`.
                     control_guidance_end=float(control_guidance_end),
                     generator=gen,
-                ).images[0]
+                ))).images[0]
+            _progres('fini')
 
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             result.save(output_path)
@@ -945,10 +977,12 @@ def do_refine_geo(input_path, control_path, ref_path, prompt, output_path,
     if state.controlnet_tile_pipe is not None:
         unload_model('controlnet_tile')
 
+    _progres('chargement' if state.controlnet_geo_pipe is None else 'attente')
     pipe = load_controlnet_geo()
     state.last_use['controlnet_geo'] = time.time()
 
     with state.inference_lock:
+        _progres('calcul')
         try:
             img = Image.open(input_path).convert("RGB")
             img, (w, h) = resize_for_sdxl(img, max_dim=1024)
@@ -1010,7 +1044,8 @@ def do_refine_geo(input_path, control_path, ref_path, prompt, output_path,
 
             t0 = time.time()
             with torch.inference_mode():
-                result = _executer(pipe, **call_kwargs).images[0]
+                result = _executer(pipe, **_avec_progres(pipe, call_kwargs)).images[0]
+            _progres('fini')
 
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             result.save(output_path)
@@ -1022,6 +1057,7 @@ def do_refine_geo(input_path, control_path, ref_path, prompt, output_path,
                     "size": [w, h], "strength": s, "controlnet_scale": cns,
                     "ip_scale": (float(ip_scale) if (use_ip and ip_loaded) else 0.0)}
         except Exception as e:
+            _progres('erreur')
             log(f"refine_geo error: {e}", 'err')
             traceback.print_exc()
             free_vram()
@@ -1949,6 +1985,11 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 "vram_gb": round(vram_used_gb(), 2),
             })
+        elif self.path == '/progress':
+            # Avancement de l'appel en cours (detail_synth.py le lit pendant qu'il attend une vue).
+            p = dict(_progression)
+            p['depuis_s'] = round(time.time() - p['t'], 1) if p.get('t') else None
+            self._json_response(200, {"ok": True, **p})
         elif self.path == '/status':
             self._json_response(200, {
                 "ok": True,

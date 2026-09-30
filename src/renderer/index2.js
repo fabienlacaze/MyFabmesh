@@ -11252,6 +11252,35 @@ document.getElementById('ws-mesh-enhance-tex-btn')?.addEventListener('click', ()
   });
 });
 
+// ECHEC DE DETAIL++ (2026-09-30) : phrase traduite a partir de la CAUSE rendue par main.js (fichiers absents, serveur d'images qui
+// ne demarre pas ou s'arrete, etape du calcul), avec la raison technique en dessous. Cause inconnue : le texte de main.js.
+function _messageEchecDetail(r) {
+  const T = _i18nT, Tf = _i18nTf;
+  if (!r || !r.cause) return (r && r.error) || 'unknown';
+  switch (r.cause) {
+    case 'modele_manquant':
+      return Tf('Detail++ needs files that are not installed yet: {x}. Open Settings > Reconfigure MyFabmesh.AI to download them (only what is missing).', (r.modules || []).join(', '));
+    case 'serveur_demarrage':
+      return T('The image engine could not start.') + (r.raison ? '\n\n' + humanizeErrorMessage(r.raison) : '');
+    case 'serveur_arrete':
+      return Tf('The image engine stopped (code {x}).', r.code == null ? '?' : r.code) + (r.raison ? '\n\n' + r.raison : '');
+    case 'serveur_attente':
+      return r.mo
+        ? Tf('The image engine is still downloading its files for its first use ({x} GB so far). Try again in a few minutes.', (r.mo / 1000).toFixed(1))
+        : Tf('The image engine did not start within {x} minutes.', r.minutes || 6);
+    case 'etape': {
+      const titre = r.etape === 'maillage' ? T('Detail++ could not read the 3D model.')
+        : r.etape === 'rendu' ? T('Detail++ stopped while rendering the views.')
+        : r.etape === 'affinage' ? (r.vues ? Tf('Detail++ stopped while adding detail to view {x}/{y}.', r.vue || 1, r.vues)
+          : T('Detail++ stopped while adding detail.'))
+        : r.etape === 'recuisson' ? T('Detail++ stopped while baking the new texture.')
+        : T('Detail++ stopped.');
+      return titre + (r.message ? '\n\n' + humanizeErrorMessage(r.message) : '');
+    }
+    default: return r.error || 'unknown';
+  }
+}
+
 // Détail++ : render -> SDXL ControlNet-Tile refine -> reproject (detail_synth.py).
 // Adds GENUINE high-frequency surface detail and registers the result as a new
 // mesh version — same flow as Enhance texture above.
@@ -11272,8 +11301,20 @@ document.getElementById('ws-mesh-detail-synth-btn')?.addEventListener('click', (
         completeJob(job.id, true);
         await reloadCurrentProject();
       } else {
-        completeJob(job.id, false);
-        if (!job.cancelled) customError(r?.error || 'unknown', _i18nT('Detail++ failed'));
+        const msg = _masquerMoteursErr(_messageEchecDetail(r));   // aussi pour l'onglet « Travaux finis », non masque
+        completeJob(job.id, false, msg);
+        if (job.cancelled) return;
+        const manqueMemoire = /needs about [\d.]+ GB of (RAM|VRAM)/.test(String(r?.message || r?.raison || ''));
+        if (r?.cause === 'modele_manquant' || manqueMemoire) {
+          // fichiers absents -> « Reconfigure MyFabmesh.AI » (ne telecharge que ce qui manque) ; memoire -> limites de Hardware.
+          // (customErrorWithAction garde le message entier : l'etape ET la raison.)
+          if (await customErrorWithAction(msg, _i18nT('Detail++ failed'), _i18nT('Open Settings'))) {
+            await openSettings();
+            if (!manqueMemoire) document.getElementById('set-reconfigure')?.scrollIntoView({ block: 'center' });
+          }
+        } else {
+          customError(msg, _i18nT('Detail++ failed'));
+        }
       }
     } catch (e) {
       completeJob(job.id, false);
@@ -19920,6 +19961,37 @@ if (!window.__fabmesh_ai3d_listener_installed && window.meshyAPI && window.meshy
   });
 }
 
+// AVANCEMENT REEL PAR TRAVAIL (2026-09-30, user : Detail++ « reste a 90 % pendant des minutes ») : main.js relaie les etapes
+// d'un script AVEC l'identifiant du travail ({ jobId, pct, etape, ... }, canal 'job-progress'). La barre suit le calcul (plus le
+// minuteur, arrete des le premier evenement) et la tuile ecrit l'etape en cours. Libelles sans nom de moteur.
+function _libelleEtapeTravail(d) {
+  const T = _i18nT, Tf = _i18nTf;
+  switch (d && d.etape) {
+    case 'modeles': return T('Checking the models');
+    case 'serveur': return d.mo ? Tf('Starting the image engine: downloading its files ({x} GB)', (d.mo / 1000).toFixed(1))
+      : T('Starting the image engine');
+    case 'maillage': return T('Reading the 3D model');
+    case 'rendu': return d.vues ? Tf('Rendering the views ({x}/{y})', d.vue || 0, d.vues) : T('Rendering the views');
+    case 'chargement': return T('Loading the detail model');
+    case 'affinage': return d.vues ? Tf('Adding detail: view {x}/{y}', d.vue || 1, d.vues) : T('Adding detail');
+    case 'recuisson': return d.phase === 'enregistrement' ? T('Saving the model') : T('Baking the new texture');
+    default: return null;
+  }
+}
+if (window.meshyAPI?.onJobProgress) {
+  window.meshyAPI.onJobProgress((d) => {
+    try {
+      const j = state.jobs.find((x) => x.id === (d && d.jobId));
+      if (!j || j.status !== 'running') return;
+      j.bridgeReporting = true;                          // le minuteur de pushJob s'efface : l'avancement est reel
+      if (typeof d.pct === 'number') j.progress = Math.max(j.progress || 0, Math.min(99, d.pct));
+      const lib = _libelleEtapeTravail(d);
+      if (lib) { j.etape = lib; j.params = { ...(j.params || {}), 'Current step': lib }; }
+      renderJobs();
+    } catch (_) { /* un evenement mal forme ne doit rien casser */ }
+  });
+}
+
 // Expose jobs API on window so classic-script helpers (index2-edit-tools.js)
 // can push/complete jobs in the same queue the rest of the app uses.
 // Because index2.js is an ES module, plain `function foo()` declarations
@@ -20813,6 +20885,8 @@ function renderJobs() {
         const elapsed = j.startedAt ? fmtDuration(Date.now() - j.startedAt) : '';
         pctEl.innerHTML = (elapsed ? `<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">${elapsed}</span>` : '') + pct + '%';
       }
+      const etapeEl = el.querySelector(':scope > .job-item-2-etape');
+      if (etapeEl && etapeEl.textContent !== (j.etape || '')) etapeEl.textContent = j.etape || '';
     });
     if (state._jobDetailsOpenId) refreshJobDetailsModal(state._jobDetailsOpenId);
     _trierJobsParAvancement(list);
@@ -20851,6 +20925,7 @@ function renderJobs() {
         <div class="job-item-2-bar">
           <div class="job-item-2-bar-fill" style="width:${pct}%"></div>
         </div>
+        <div class="job-item-2-etape">${escapeHtml(j.etape || '')}</div>
         <div class="job-item-2-pct">${elapsed ? `<span style="color:var(--text-2); margin-right:8px; font-weight:normal;">${elapsed}</span>` : ''}${pct}%</div>
         ${_renderSousTaches(j.id, 'job-item-2-sub')}
       </div>
@@ -20909,6 +20984,9 @@ function renderJobs() {
               + escapeHtml(elapsed) + '</span>'
             : '') + pct + '%';
         }
+        // etape en cours (avancement reel, 'job-progress') : patchee EN PLACE comme le pourcentage
+        const etapeEl = el.querySelector(':scope > .job-item-2-etape');
+        if (etapeEl && etapeEl.textContent !== (j.etape || '')) etapeEl.textContent = j.etape || '';
       }
       // SOUS-TACHE (2026-09-26) : son element porte la classe job-item-2-sub,
       // PAS job-item-2. L'ancien code sortait sur `if (!el) return` juste
