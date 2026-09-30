@@ -10,36 +10,20 @@ import time
 TRIPOSR_DIR = os.path.join(os.path.dirname(__file__), '..', 'TripoSR')
 sys.path.insert(0, TRIPOSR_DIR)
 
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# (le Python embarque n'a pas le dossier du script sur sys.path : on l'ajoute)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cloisonnement_memoire as _cm
+_cm.appliquer('triposr', cle='triposr', log=lambda m: print(f'LOCAL_TRIPOSR: {m}', flush=True))
+
 def generate_3d(image_path, output_path, resolution=512):
     import torch
     from PIL import Image
     from tsr.system import TSR
 
-    # Enforce VRAM cap from FabMesh settings
-    if torch.cuda.is_available():
-        _frac = float(os.environ.get('FABMESH_VRAM_FRACTION', '0.95'))
-        if 0.1 <= _frac < 1.0:
-            try:
-                torch.cuda.set_per_process_memory_fraction(_frac)
-                print(f"LOCAL_TRIPOSR: VRAM hard cap set to {_frac*100:.0f}%", flush=True)
-            except Exception as e:
-                print(f"LOCAL_TRIPOSR: Could not set VRAM cap ({e})", flush=True)
-
-    # Enforce system RAM limit from FabMesh settings
-    _ram_limit_mb = os.environ.get('FABMESH_RAM_LIMIT_MB', '')
-    if _ram_limit_mb:
-        try:
-            import psutil, gc
-            _vm = psutil.virtual_memory()
-            print(f"LOCAL_TRIPOSR: RAM system used={(_vm.total - _vm.available) / (1024**2):.0f}MB, "
-                  f"limit={_ram_limit_mb}MB, percent={_vm.percent:.0f}%", flush=True)
-            if (_vm.total - _vm.available) / (1024**2) > int(_ram_limit_mb) * 0.9:
-                gc.collect()
-                print("LOCAL_TRIPOSR: RAM near limit, ran gc.collect()", flush=True)
-        except ImportError:
-            print("LOCAL_TRIPOSR: psutil not installed, RAM monitoring skipped", flush=True)
-        except Exception as e:
-            print(f"LOCAL_TRIPOSR: RAM check error: {e}", flush=True)
+    # Plafond VRAM = limite de l'utilisateur moins ce que les autres occupent deja
+    # (avant : une fraction de la carte entiere) ; plafond RAM ramene au budget.
+    _cm.plafonner_vram(torch)
 
     print("LOCAL_TRIPOSR: Loading model...")
     sys.stdout.flush()
@@ -282,4 +266,5 @@ if __name__ == '__main__':
     resolution = int(sys.argv[3]) if len(sys.argv) > 3 else 256
 
     success = generate_3d(image_path, output_path, resolution)
+    _cm.terminer('ok' if success else 'erreur')
     sys.exit(0 if success else 1)

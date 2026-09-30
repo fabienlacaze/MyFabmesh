@@ -910,6 +910,16 @@ const SCRIPTS_DIR = app.isPackaged
   }
 });
 
+// CLOISONNEMENT MEMOIRE (2026-09-30). Chaque script GPU lourd plafonne lui-meme sa
+// RAM (Job Object) et sa VRAM au budget = limite du marqueur - ce qu'occupe tout le
+// reste (scripts/cloisonnement_memoire.py), et ecrit en fin de travail son pic mesure
+// dans ce journal (une ligne JSON par travail). main.js le relit pour estimer le
+// besoin d'un travail AVANT de le lancer (file d'attente, choix du mode 3D). Herite
+// par tous les processus lances (ils recopient process.env).
+const MEMOIRE_JOURNAL = path.join(LOGS_DIR, 'memoire_pics.jsonl');
+process.env.FABMESH_MEMOIRE_JOURNAL = MEMOIRE_JOURNAL;
+const budgetMemoire = require('./budget_memoire');
+
 // ============================================================
 // LOGGING SYSTEM
 // ============================================================
@@ -3242,12 +3252,122 @@ ipcMain.handle('cancel-job', (event, jobId) => {
   return true;
 });
 
+// ============================================================
+// BUDGETS MEMOIRE (2026-09-30) — le VRAI plafond est pose DANS chaque processus
+// Python par scripts/cloisonnement_memoire.py : Job Object Windows qui limite la
+// memoire ENGAGEE (une allocation au-dela est refusee : MemoryError propre, rien
+// n'est pousse dans le fichier d'echange) et fraction VRAM PyTorch = budget VRAM.
+// Ici, main.js calcule les MEMES budgets avant de lancer un travail :
+//   budget RAM  = limite du marqueur RAM - RAM utilisee par tout le reste
+//   budget VRAM = limite du marqueur VRAM - VRAM deja occupee (nvidia-smi)
+// pour la file d'attente du renderer (« ce travail tient-il maintenant ? »), le
+// choix du mode 3D, et pour les transmettre au script (FABMESH_RAM_BUDGET_MB /
+// FABMESH_VRAM_BUDGET_MB : repli si le script ne peut pas mesurer lui-meme).
+// ============================================================
+const MO = 1024 * 1024;
+function _vramNvidiaSmi() {
+  return new Promise((resolve) => {
+    try {
+      execFile('nvidia-smi', ['--query-gpu=memory.total,memory.used', '--format=csv,noheader,nounits'],
+        { timeout: 3000, windowsHide: true }, (err, stdout) => {
+          if (err || !stdout) return resolve(null);
+          const cols = String(stdout).split(/\r?\n/)[0].split(',').map(s => parseFloat(s));
+          resolve(cols.length >= 2 && cols[0] > 0 ? { totalMo: cols[0], utiliseeMo: cols[1] } : null);
+        });
+    } catch (_) { resolve(null); }
+  });
+}
+async function _budgetsMemoire() {
+  const totalMo = os.totalmem() / MO;
+  const utiliseeMo = (os.totalmem() - os.freemem()) / MO;
+  const limiteMo = budgetMemoire.limiteRamMo(process.env.FABMESH_RAM_LIMIT_MB, totalMo);
+  const ram = { totalMo, utiliseeMo, limiteMo, budgetMo: budgetMemoire.budgetRamMo({ limiteMo, utiliseeMo }) };
+  let vram = null;
+  if (!isCloudMode() && !(_nvidiaGpuCache && !_nvidiaGpuCache.hasNvidia)) {
+    const g = await _vramNvidiaSmi();
+    if (g) {
+      const lim = budgetMemoire.limiteVramMo(process.env.FABMESH_VRAM_FRACTION, g.totalMo);
+      vram = { totalMo: g.totalMo, utiliseeMo: g.utiliseeMo, limiteMo: lim,
+               budgetMo: budgetMemoire.budgetVramMo({ limiteMo: lim, utiliseeMo: g.utiliseeMo }) };
+    }
+  }
+  return { ram, vram };
+}
+function _envBudgetsMemoire(b) {
+  return {
+    FABMESH_RAM_BUDGET_MB: String(Math.round(b.ram.budgetMo)),
+    ...(b.vram ? { FABMESH_VRAM_BUDGET_MB: String(Math.round(b.vram.budgetMo)) } : {}),
+  };
+}
+// Pics mesures par type de travail (journal ecrit par les scripts Python).
+function _picsMemoire() {
+  try { return budgetMemoire.lirePics(fs.readFileSync(MEMOIRE_JOURNAL, 'utf-8')); }
+  catch (_) { return new Map(); }
+}
+// Type de travail du renderer (file d'attente) -> cles du journal. Pour « mesh », le
+// mode le plus LEGER mesure : le moteur 3D choisit ensuite le mode qui tient.
+const CLES_MEMOIRE_PAR_TYPE = {
+  mesh: ['trellis2_1024', 'trellis2_1024_cascade', 'trellis2_1536_cascade'],
+  image: ['realvis'],
+  img2img: ['sdxl_server'],
+  inpaint: ['sdxl_server', 'inpaint'],
+};
+// Phrase claire quand un script a manque de memoire : marqueur explicite, sinon un
+// processus mort SANS pile Python juste apres avoir approche son plafond (code natif
+// qui ne verifie pas malloc). null si la sortie ne montre ni l'un ni l'autre.
+function _manqueMemoireDansSortie(texte) {
+  const m = budgetMemoire.manqueDansSortie(texte);
+  if (m) return m.phrase;
+  const s = String(texte || '');
+  const alertes = s.match(/FABMESH_MEM_ALERTE (\{[^\r\n]*\})/g);
+  if (alertes && !/Traceback \(most recent call last\)/.test(s)
+      && !/LOCAL_[A-Z0-9_]+_PROGRESS:\s*100\b/.test(s)) {
+    try {
+      const j = JSON.parse(alertes[alertes.length - 1].slice('FABMESH_MEM_ALERTE '.length));
+      return budgetMemoire.phraseManque('ram', budgetMemoire.versGo((j.plafond_mo || 0) + 0.1 * 1024),
+        budgetMemoire.versGo(j.budget_mo || 0, 'bas'));
+    } catch (_) {}
+  }
+  return null;
+}
+ipcMain.handle('memory-budget', async (_e, kind) => {
+  // Jamais bloquant sur une erreur de mesure : dans le doute, le travail part
+  // (son propre plafond le protege de toute facon).
+  try {
+    const b = await _budgetsMemoire();
+    const pics = _picsMemoire();
+    const mesure = budgetMemoire.besoinMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
+    const mesureVram = budgetMemoire.besoinVramMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
+    const base = {
+      budgetRamGo: budgetMemoire.versGo(b.ram.budgetMo, 'bas'),
+      limiteRamGo: budgetMemoire.versGo(b.ram.limiteMo, 'bas'),
+      totalRamGo: budgetMemoire.versGo(b.ram.totalMo, 'bas'),
+      utiliseeRamGo: budgetMemoire.versGo(b.ram.utiliseeMo),
+      budgetVramGo: b.vram ? budgetMemoire.versGo(b.vram.budgetMo, 'bas') : null,
+    };
+    if (mesure != null || mesureVram != null) {
+      const v = budgetMemoire.verdict({ besoinRamMo: mesure, budgetRamMo: b.ram.budgetMo,
+        besoinVramMo: mesureVram, budgetVramMo: b.vram ? b.vram.budgetMo : null });
+      if (!v.ok) return { ...base, ...v };
+    }
+    if (mesure == null && b.ram.budgetMo <= 0) {
+      // Pas encore de mesure pour ce type : on attend seulement que la RAM repasse sous la limite.
+      return { ...base, ok: false, type: 'ram', besoinGo: null };
+    }
+    return { ...base, ok: true };
+  } catch (e) {
+    return { ok: true };
+  }
+});
+
 // OS-level hard memory cap: applies a Windows Working Set hard limit to
 // the spawned Python process via SetProcessWorkingSetSizeEx() with
 // QUOTA_LIMITS_HARDWS_MAX_ENABLE. Once set, Windows pages the process to
 // disk (swap) instead of letting it allocate more physical RAM. The job
 // stays alive but runs slower under memory pressure — exactly what the
 // user asked for: "ça mettra plus de temps mais ne dépassera pas".
+// 2026-09-30 : REMPLACE par la limite d'ENGAGEMENT de scripts/cloisonnement_memoire.py
+// (refus propre, aucune pagination) ; celle-ci reste desactivee (voir plus bas).
 //
 // Limit source: FABMESH_RAM_LIMIT_GB (preferred, absolute GB) OR
 // FABMESH_RAM_LIMIT_PCT (% of total RAM, default 90%).
@@ -3321,6 +3441,10 @@ if ($p) {
   }, 300);
 }
 
+// 2026-09-30 : ce chien de garde n'est plus qu'un OBSERVATEUR. Les plafonds RAM et
+// VRAM sont desormais poses DANS le processus Python (scripts/cloisonnement_memoire.py :
+// Job Object + fraction PyTorch au budget), ce qu'aucune suspension depuis l'exterieur
+// ne pouvait faire (suspendre ne libere rien, voir plus bas).
 // SAFETY watchdog: monitors ALL 4 user-configured limits (RAM, VRAM,
 // GPU utilization, GPU temperature) every 1s, and kills the job if
 // ANY metric exceeds 99% of its limit for 2 consecutive readings.
@@ -3388,7 +3512,7 @@ function installAllLimitsSafetyKill(proc, jobName) {
     // slower) rather than crashing. So for RAM we ONLY warn, never suspend.
     if (_ramLimitMB > 0 && _usedMB > _ramLimitMB * SAFETY_FRACTION) {
       _breaches.ram += 1;
-      _detail = `RAM ${_usedMB.toFixed(0)} MB > ${(_ramLimitMB * SAFETY_FRACTION).toFixed(0)} MB (${(SAFETY_FRACTION*100).toFixed(0)}% of ${_ramLimitMB} MB limit) — pagefile absorbs overflow, NOT suspending`;
+      _detail = `RAM ${_usedMB.toFixed(0)} MB > ${(_ramLimitMB * SAFETY_FRACTION).toFixed(0)} MB (${(SAFETY_FRACTION*100).toFixed(0)}% of ${_ramLimitMB} MB limit) — the job's own RAM is hard-capped in its process (cloisonnement_memoire), the rest is other apps; observer only`;
       // intentionally NO `_tripped = 'ram'` — see comment above
     } else _breaches.ram = 0;
     // --- VRAM + GPU + TEMP via single nvidia-smi call ---
@@ -3422,7 +3546,7 @@ function installAllLimitsSafetyKill(proc, jobName) {
             const _vramLimitMB = vramTotal * _vramFrac;
             if (vramUsed > _vramLimitMB * SAFETY_FRACTION) {
               _breaches.vram += 1;
-              _detail = `VRAM ${vramUsed.toFixed(0)} MB > ${(_vramLimitMB * SAFETY_FRACTION).toFixed(0)} MB (${(SAFETY_FRACTION*100).toFixed(0)}% of ${(_vramFrac * 100).toFixed(0)}% cap on ${vramTotal} MB) — CUDA OOM-guards, NOT suspending`;
+              _detail = `VRAM ${vramUsed.toFixed(0)} MB > ${(_vramLimitMB * SAFETY_FRACTION).toFixed(0)} MB (${(SAFETY_FRACTION*100).toFixed(0)}% of ${(_vramFrac * 100).toFixed(0)}% cap on ${vramTotal} MB) — the job's PyTorch VRAM is capped to its budget in its process, the rest is other apps; observer only`;
               // intentionally NO `_tripped = 'vram'` — suspending can't free
               // VRAM and would deadlock the job. See comment above.
             } else _breaches.vram = 0;
@@ -7804,7 +7928,9 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
 
     return { success: images.length > 0, images };
   } catch (err) {
-    return { success: false, error: err.error || err.message };
+    // Plafond memoire atteint : la phrase exacte du script (traduite par le renderer).
+    const _manque = _manqueMemoireDansSortie(((err && err.stdout) || '') + '\n' + ((err && err.stderr) || ''));
+    return { success: false, error: _manque || err.error || err.message };
   }
 });
 
@@ -7899,62 +8025,88 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
     } catch (_) {}
   }
 
-  // RAM BUDGET guard — the RAM slider (Settings → RAM marker) is a REAL ceiling
-  // on TOTAL system RAM, enforced by picking the heaviest cascade mode whose
-  // PEAK still fits the budget HEADROOM = budget − what's ALREADY in use (OS +
-  // Electron + SDXL server + other apps). Gating on the raw budget alone (the
-  // old bug) let the total drift OVER the marker, because the worker's peak was
-  // added ON TOP of the existing baseline. We never hard-cap the process (that
-  // just OOM-crashes it); we degrade the mode so the TOTAL provably stays under
-  // the marker — at worst dropping to base mode (lower quality) on a tight box.
-  //   peak(1536_cascade Ultra)   ≈ 27 GB worker RAM
-  //   peak(1024_cascade Quality+) ≈ 20 GB worker RAM  (measured WS)
-  //   peak(base mode)             ≈ 10 GB
-  // A mode is allowed only if its peak ≤ headroom. Lower the slider → tighter
-  // ceiling → lighter mode chosen. Enforced server-side (belt + suspenders).
+  // BUDGET RAM (2026-09-30). La generation 3D est desormais PLAFONNEE pour de vrai dans
+  // son processus (scripts/cloisonnement_memoire.py) : au-dela de son budget, une
+  // allocation est REFUSEE avec une phrase claire, le PC ne pagine plus. Ici on choisit,
+  // AVANT de lancer, le mode le plus fin qui TIENT dans le budget = limite du marqueur
+  // RAM - RAM deja utilisee par tout le reste (OS, Electron, Unreal, navigateur...).
+  // Besoin d'un mode : le pic MESURE lors de la derniere generation dans ce mode (journal
+  // logs/memoire_pics.jsonl, dans l'unite meme du plafond). Sans mesure : les anciennes
+  // estimations (tous les modeles en RAM) diminuees des poids que le chargement
+  // paresseux (scripts/trellis2_chargement_paresseux.py) ne garde plus en RAM :
+  //   1536_cascade ~27 Go (audit du 2026-06-14), 1024_cascade ~20 Go (working set
+  //   mesure ; sert aussi au mode de base, faute de mieux) ; poids retires : 16,2 Go
+  //   (fichiers du cache HF mesures le 2026-09-30 : 14,97 Go de TRELLIS.2-4B + 1,21 Go
+  //   de DINOv3).
+  // Estimations grossieres : la premiere generation de chaque mode les remplace par une
+  // mesure. Trop optimistes, elles ne gelent plus rien : le travail s'arrete proprement
+  // en disant de combien de RAM il avait besoin, et ce besoin est garde pour la suite.
   const PEAK_1536_GB = 27;
   const PEAK_1024_GB = 20;
+  const POIDS_T2_EN_RAM_GB = 16.2;
+  const _paresseux = process.env.FABMESH_T2_PARESSEUX !== '0';
+  const _estimMo = (gb) => Math.max(1, _paresseux ? gb - POIDS_T2_EN_RAM_GB : gb) * 1024;
   let ultraQ      = trellis2UltraQ;
   let qualityPlus = trellis2QualityPlus;
-  let _ramHeadroomGB = null;
   try {
-    const _os = require('os');
-    const _physGB  = _os.totalmem() / (1024 ** 3);
-    const _usedGB  = (_os.totalmem() - _os.freemem()) / (1024 ** 3);
-    const _limitMB = parseFloat(process.env.FABMESH_RAM_LIMIT_MB || '');
-    const _budgetGB = (_limitMB && _limitMB > 0)
-      ? Math.min(_physGB, _limitMB / 1024)
-      : _physGB;
-    // Headroom under the budget right now. The chosen mode's peak must fit here
-    // for the TOTAL (baseline + worker) to stay under the marker.
-    const _headroomGB = _budgetGB - _usedGB;
-    _ramHeadroomGB = _headroomGB;
-    log.info('main', `image-to-3d RAM gate: budget=${_budgetGB.toFixed(1)}GB used=${_usedGB.toFixed(1)}GB headroom=${_headroomGB.toFixed(1)}GB`);
-    if (ultraQ && PEAK_1536_GB > _headroomGB) {
-      log.warn('main', `image-to-3d: Ultra (1536, ~${PEAK_1536_GB}GB) > headroom ${_headroomGB.toFixed(1)}GB — downgrading to Quality+ (1024)`);
-      try { safeSend('ai3d-progress', `[main] Ultra (1536, ~${PEAK_1536_GB} GB) dépasse le budget restant (${_headroomGB.toFixed(0)} GB libres sous le marqueur) → Quality+ (1024)\n`); } catch (_) {}
+    const _b = await _budgetsMemoire();
+    const _pics = _picsMemoire();
+    const _abortGB = parseFloat(process.env.FABMESH_RAM_ABORT_GB || '');   // ancien reglage, respecte
+    const besoin = {
+      ultra: budgetMemoire.besoinMo(_pics, 'trellis2_1536_cascade', _estimMo(PEAK_1536_GB)),
+      plus: budgetMemoire.besoinMo(_pics, 'trellis2_1024_cascade', _estimMo(PEAK_1024_GB)),
+      base: _abortGB > 0 ? _abortGB * 1024
+        : budgetMemoire.besoinMo(_pics, 'trellis2_1024', _estimMo(PEAK_1024_GB)),
+    };
+    const budgetMo = _b.ram.budgetMo;
+    const go = (mo) => (mo / 1024).toFixed(1);
+    log.info('main', `image-to-3d memory budget: RAM limit=${go(_b.ram.limiteMo)}GB used=${go(_b.ram.utiliseeMo)}GB`
+      + ` budget=${go(budgetMo)}GB` + (_b.vram ? ` | VRAM budget=${go(_b.vram.budgetMo)}GB`
+      + ` (used ${go(_b.vram.utiliseeMo)}/${go(_b.vram.totalMo)})` : '')
+      + ` | needs ultra=${go(besoin.ultra)} plus=${go(besoin.plus)} base=${go(besoin.base)}GB (lazy=${_paresseux})`);
+    if (ultraQ && besoin.ultra > budgetMo) {
+      log.warn('main', `image-to-3d: Ultra (1536) needs ~${go(besoin.ultra)}GB > budget ${go(budgetMo)}GB — Quality+ (1024)`);
+      try { safeSend('ai3d-progress', `[main] Fine geometry (1536) needs about ${go(besoin.ultra)} GB of RAM, ${go(budgetMo)} GB are free under your limit: using 1024 instead\n`); } catch (_) {}
       ultraQ = false;
     }
-    if ((ultraQ || qualityPlus) && PEAK_1024_GB > _headroomGB) {
-      log.warn('main', `image-to-3d: Quality+ (1024, ~${PEAK_1024_GB}GB) > headroom ${_headroomGB.toFixed(1)}GB — downgrading to base mode`);
-      try { safeSend('ai3d-progress', `[main] Quality+ (1024, ~${PEAK_1024_GB} GB) dépasse le budget restant (${_headroomGB.toFixed(0)} GB libres sous le marqueur) → mode de base (~10 GB)\n`); } catch (_) {}
+    if ((ultraQ || qualityPlus) && besoin.plus > budgetMo) {
+      log.warn('main', `image-to-3d: Quality+ (1024 cascade) needs ~${go(besoin.plus)}GB > budget ${go(budgetMo)}GB — base mode`);
+      try { safeSend('ai3d-progress', `[main] Sharp edges (1024 cascade) needs about ${go(besoin.plus)} GB of RAM, ${go(budgetMo)} GB are free under your limit: using the base mode\n`); } catch (_) {}
       ultraQ = false;
       qualityPlus = false;
     }
-  } catch (_) {}
-
-  // Pre-flight RAM abort: if even base mode (~10 GB peak) won't fit the current
-  // headroom, fail FAST with a clear message instead of starting a ~3-minute run
-  // that OOM-crashes at pipeline load (the case the user kept hitting). Tunable
-  // via FABMESH_RAM_ABORT_GB.
-  const _PEAK_BASE_GB = parseFloat(process.env.FABMESH_RAM_ABORT_GB || '10');
-  if (_ramHeadroomGB != null && _ramHeadroomGB < _PEAK_BASE_GB) {
-    const _msg = `Pas assez de RAM pour générer : ~${Math.max(0, _ramHeadroomGB).toFixed(0)} GB `
-      + `disponibles, ~${_PEAK_BASE_GB.toFixed(0)} GB requis (même en mode de base). Fermez des `
-      + `applications lourdes (Unreal Engine, navigateurs, autres gros logiciels) puis réessayez.`;
-    log.warn('main', `image-to-3d ABORTED pre-flight: headroom ${_ramHeadroomGB.toFixed(1)}GB < ${_PEAK_BASE_GB}GB`);
-    try { safeSend('ai3d-progress', `[main] ${_msg}\n`); } catch (_) {}
-    return { success: false, error: _msg };
+    // VRAM : le plafond PyTorch est aussi reel desormais (budget = limite VRAM - VRAM des
+    // autres ; avant, le pilote debordait en silence dans la RAM). Seuls les besoins
+    // MESURES comptent ici : aucune estimation VRAM fiable n'existe avant la premiere mesure.
+    const vramBudgetMo = _b.vram ? _b.vram.budgetMo : null;
+    const besoinVram = {
+      ultra: budgetMemoire.besoinVramMo(_pics, 'trellis2_1536_cascade', null),
+      plus: budgetMemoire.besoinVramMo(_pics, 'trellis2_1024_cascade', null),
+      base: budgetMemoire.besoinVramMo(_pics, 'trellis2_1024', null),
+    };
+    if (vramBudgetMo != null) {
+      if (ultraQ && besoinVram.ultra != null && besoinVram.ultra > vramBudgetMo) {
+        log.warn('main', `image-to-3d: Ultra (1536) needs ~${go(besoinVram.ultra)}GB VRAM > budget ${go(vramBudgetMo)}GB — Quality+ (1024)`);
+        try { safeSend('ai3d-progress', `[main] Fine geometry (1536) needs about ${go(besoinVram.ultra)} GB of VRAM, ${go(vramBudgetMo)} GB are free under your limit: using 1024 instead\n`); } catch (_) {}
+        ultraQ = false;
+      }
+      if ((ultraQ || qualityPlus) && besoinVram.plus != null && besoinVram.plus > vramBudgetMo) {
+        log.warn('main', `image-to-3d: Quality+ (1024 cascade) needs ~${go(besoinVram.plus)}GB VRAM > budget ${go(vramBudgetMo)}GB — base mode`);
+        try { safeSend('ai3d-progress', `[main] Sharp edges (1024 cascade) needs about ${go(besoinVram.plus)} GB of VRAM, ${go(vramBudgetMo)} GB are free under your limit: using the base mode\n`); } catch (_) {}
+        ultraQ = false;
+        qualityPlus = false;
+      }
+    }
+    // Meme le mode de base ne tient pas : on n'essaie pas (il serait refuse en route).
+    const v = budgetMemoire.verdict({ besoinRamMo: besoin.base, budgetRamMo: budgetMo,
+      besoinVramMo: besoinVram.base, budgetVramMo: vramBudgetMo });
+    if (!v.ok) {
+      log.warn('main', `image-to-3d ABORTED pre-flight: ${v.phrase}`);
+      try { safeSend('ai3d-progress', `[main] ${v.phrase}\n`); } catch (_) {}
+      return { success: false, error: v.phrase };
+    }
+  } catch (e) {
+    log.warn('main', `image-to-3d memory budget skipped: ${e && e.message}`);
   }
 
   // PRE-PROCESS: auto-rectify the source image to a canonical view.
@@ -8122,8 +8274,13 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
         mv2Dir = null;
       }
     }
+    // Budgets au LANCEMENT (apres la rectification, qui a rendu sa memoire) : repli
+    // pour le script si sa propre mesure echoue (voir cloisonnement_memoire).
+    let _envMemoire = {};
+    try { _envMemoire = _envBudgetsMemoire(await _budgetsMemoire()); } catch (_) {}
     const env = {
       ...process.env,
+      ..._envMemoire,
       // Unbuffered stdout so LOCAL_TRIPOSR_PROGRESS markers arrive in
       // real time (not buffered in 4 KB chunks by the Python runtime).
       PYTHONUNBUFFERED: '1',
@@ -8471,7 +8628,13 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
     // finish", and surface a clear, actionable message instead of the raw warning.
     const _oomMarker = /MemoryError|CUDA out of memory|out of memory|Killed|bad_alloc|Cannot allocate|paging file|std::bad_alloc/i.test(combined);
     const _reachedDone = /LOCAL_[A-Z0-9_]+_PROGRESS:\s*100\b/.test(combined);
-    if (_oomMarker || (!pyErrorLine && !_reachedDone)) {
+    // Plafond memoire atteint (2026-09-30) : le script a ecrit la phrase exacte
+    // (« needs about X GB ... only Y GB available under your limit ») — le renderer la
+    // traduit. Prioritaire sur le message generique ci-dessous.
+    const _manqueMemoire = _manqueMemoireDansSortie(combined);
+    if (_manqueMemoire) {
+      errMsg = _manqueMemoire;
+    } else if (_oomMarker || (!pyErrorLine && !_reachedDone)) {
       errMsg = "La génération s'est interrompue — le plus souvent un manque de mémoire "
         + "(RAM/VRAM saturée). Fermez les applications lourdes (Unreal Engine, navigateurs, "
         + "autres gros logiciels) et réessayez ; un preset plus léger (2048 px) aide si la RAM "
@@ -9015,6 +9178,10 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
 
   const args = [script, operation, meshPath, outPath, ...(params || [])];
 
+  // Re-texture par le moteur 3D : un seul gros modele a la fois (2026-09-30) — le
+  // serveur d'images rend sa RAM et sa VRAM avant (il se relance au besoin).
+  if (operation === 'trellis2_retex') await _freeSdxlForHeavyOp('re-texture 3D');
+
   return new Promise((resolve) => {
     // Force UTF-8 stdio so a non-ASCII log line (accent, arrow, …) can't
     // crash the script with a cp1252 UnicodeEncodeError on Windows.
@@ -9023,7 +9190,9 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
       if (stdout) log.info('mesh-tool', stdout.trim());
       if (error) {
         log.error('mesh-tool', error.message);
-        resolve({ success: false, error: error.message, stderr });
+        // Plafond memoire atteint : la phrase exacte du script (traduite par le renderer).
+        const _manque = _manqueMemoireDansSortie((stdout || '') + '\n' + (stderr || ''));
+        resolve({ success: false, error: _manque || error.message, stderr });
       } else if (!fs.existsSync(outPath)) {
         resolve({ success: false, error: 'Output file not created' });
       } else {

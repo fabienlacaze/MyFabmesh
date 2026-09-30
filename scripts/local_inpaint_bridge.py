@@ -11,6 +11,13 @@ Usage: python local_inpaint_bridge.py <input_image> <target_text> <prompt> <outp
 """
 import sys
 import os
+
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# (le Python embarque n'a pas le dossier du script sur sys.path : on l'ajoute)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cloisonnement_memoire as _cm
+_cm.appliquer('inpaint', cle='inpaint', log=lambda m: print(f'INPAINT: {m}', flush=True))
+
 import torch
 import numpy as np
 from PIL import Image, ImageFilter
@@ -20,15 +27,9 @@ def auto_inpaint(input_path, target_text, prompt, output_path, dilate=15):
     from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
     from diffusers import StableDiffusionXLInpaintPipeline
 
-    # Enforce VRAM cap from FabMesh settings
-    if torch.cuda.is_available():
-        _frac = float(os.environ.get('FABMESH_VRAM_FRACTION', '0.95'))
-        if 0.1 <= _frac < 1.0:
-            try:
-                torch.cuda.set_per_process_memory_fraction(_frac)
-                print(f"INPAINT: VRAM hard cap set to {_frac*100:.0f}%", flush=True)
-            except Exception as e:
-                print(f"INPAINT: Could not set VRAM cap ({e})", flush=True)
+    # Plafond VRAM = limite de l'utilisateur moins ce que les autres occupent deja
+    # (avant : une fraction de la carte entiere) ; plafond RAM ramene au budget.
+    _cm.plafonner_vram(torch)
 
     # Step 1: CLIPSeg - segment the target area
     print("INPAINT: Loading CLIPSeg...", flush=True)
@@ -161,9 +162,11 @@ if __name__ == "__main__":
 
     try:
         auto_inpaint(input_path, target_text, prompt, output_path, dilate)
+        _cm.terminer('ok')
         sys.exit(0)
     except Exception as e:
         print(f"INPAINT_ERROR: {type(e).__name__}: {e}", flush=True)
         import traceback
         traceback.print_exc()
+        _cm.signaler_si_memoire(e)      # manque de memoire : phrase claire + marqueur
         sys.exit(1)

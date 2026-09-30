@@ -28,6 +28,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRELLIS2_SRC = os.path.join(ROOT, 'external', 'TRELLIS2_win', 'src')
 sys.path.insert(0, TRELLIS2_SRC)
 
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# (le Python embarque n'a pas le dossier du script sur sys.path : on l'ajoute)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cloisonnement_memoire as _cm
+_cm.appliquer('trellis2_texturing', cle='trellis2_texturing',
+              log=lambda m: print(f'[trellis2_tex] {m}', flush=True))
+
 # Aucun appel reseau quand les modeles sont deja sur le disque (2026-09-28),
 # AVANT tout import HF. Voir scripts/hf_hors_ligne.py. La config (--config)
 # est lue ici dans argv : argparse ne tourne que plus bas.
@@ -184,6 +191,10 @@ def main():
     import trimesh
     from PIL import Image
     from trellis2.pipelines import Trellis2TexturingPipeline
+    import torch
+    # VRAM : limite de l'utilisateur moins ce que les autres occupent ; resserre le plafond RAM.
+    _cm.plafonner_vram(torch)
+    _cm.mesurer('initialisation')
 
     # Progress markers consumed by the main process stderr parser
     # so the Electron UI's progress bar moves linearly between
@@ -192,11 +203,18 @@ def main():
     log('loading Trellis2TexturingPipeline from microsoft/TRELLIS.2-4B...')
     t_load = time.time()
     import trellis2_sans_detourage; trellis2_sans_detourage.appliquer()   # detourage deja fait en amont : ne pas charger BiRefNet (timm + kornia)
+    # Modeles lus a la demande sur la carte, rendus apres leur etape (2026-09-30) :
+    # voir scripts/trellis2_chargement_paresseux.py.
+    import trellis2_chargement_paresseux
+    _paresseux = trellis2_chargement_paresseux.appliquer(log=log, mesurer=_cm.mesurer)
     pipeline = Trellis2TexturingPipeline.from_pretrained(
         'microsoft/TRELLIS.2-4B', config_file=args.config)
     pipeline.rembg_model = None  # rembg pre-process upstream
+    if _paresseux:
+        pipeline.low_vram = True   # chaque etape monte son modele puis le rend (.to / .cpu)
     pipeline.cuda()
     log(f'pipeline loaded in {time.time()-t_load:.1f}s')
+    _cm.mesurer('pipeline_ready')
     print('LOCAL_TRELLIS2_PROGRESS: 72 trellis2_ready', flush=True)
 
     mesh = trimesh.load(args.mesh, force='mesh', process=False)
@@ -276,6 +294,7 @@ def main():
         output = pipeline.run(mesh, images[0], **run_kwargs)
         print('LOCAL_TRELLIS2_PROGRESS: 88 postprocess_done', flush=True)
     log(f'texturing done in {time.time()-t_run:.1f}s')
+    _cm.mesurer('texturing_done')
     print('LOCAL_TRELLIS2_PROGRESS: 91 brightening', flush=True)
 
     # Auto-brighten the baseColor texture before export (TRELLIS-2 PBR looks
@@ -297,6 +316,7 @@ def main():
         output.export(args.out, extension_webp=True)
     else:
         output.export(args.out)
+    _cm.terminer('ok')     # pic mesure -> journal memoire
     log(f'TOTAL: {time.time()-t0:.1f}s')
 
 

@@ -25,6 +25,12 @@ import os
 import sys
 import time
 
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# (le Python embarque n'a pas le dossier du script sur sys.path : on l'ajoute)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cloisonnement_memoire as _cm
+_cm.appliquer('texture_upscale', cle='texture_upscale', log=lambda m: print(f'[tex-upscale] {m}', flush=True))
+
 import numpy as np
 from PIL import Image
 
@@ -64,6 +70,8 @@ def upscale_atlas(img: Image.Image, scale=2, model_name='RealESRGAN_x4plus',
     import torch
     from basicsr.archs.rrdbnet_arch import RRDBNet
     from realesrgan import RealESRGANer
+    # VRAM : limite de l'utilisateur moins ce que les autres occupent ; RAM ramenee au budget.
+    _cm.plafonner_vram(torch)
 
     # Auto-download weight on first run.
     model_dir = os.path.expanduser('~/.cache/realesrgan_weights')
@@ -182,6 +190,7 @@ def main():
     t0 = time.time()
     upscale_glb(args.input, args.output, scale=args.scale,
                 model=args.model, tile=args.tile)
+    _cm.terminer('ok')
     log(f'TOTAL: {time.time()-t0:.1f}s')
 
 

@@ -283,6 +283,15 @@ function engineLabel(v) {
 function humanizeErrorMessage(raw) {
   const s = String(raw || '');
   const low = s.toLowerCase();
+  // PLAFOND MEMOIRE ATTEINT (2026-09-30) : le script (scripts/cloisonnement_memoire.py)
+  // ou main.js ecrit une phrase EXACTE avec les chiffres ; on la retrouve n'importe ou
+  // dans l'erreur (sortie Python melangee) et on la rend traduite, seule.
+  const plafond = s.match(/needs about ([\d.]+) GB of (RAM|VRAM) but only ([\d.]+) GB are available under your limit/);
+  if (plafond) {
+    return plafond[2] === 'VRAM'
+      ? _i18nTf('This generation needs about {x} GB of VRAM but only {y} GB are available under your limit. Close other apps using the graphics card or raise the VRAM limit in Settings.', plafond[1], plafond[3])
+      : _i18nTf('This generation needs about {x} GB of RAM but only {y} GB are available under your limit. Close other apps or raise the RAM limit in Settings.', plafond[1], plafond[3]);
+  }
   // Saturation VRAM (GPU) — CUDA / cuBLAS / allocation carte graphique.
   const gpuOom = /cuda out of memory|outofmemoryerror|cublas_status_alloc_failed|cudaerrormemoryallocation|cuda error: out of memory|hip out of memory|torch\.cuda\.outofmemory/i.test(s);
   // Saturation RAM système (CPU) — allocateur PyTorch / bad_alloc / MemoryError.
@@ -20797,7 +20806,7 @@ function renderJobs() {
   // Queued jobs (waiting for VRAM/GPU headroom)
   if (queuedCount > 0) {
     html += queuedJobs.map((q, idx) => `
-      <div class="job-item-2 queued">
+      <div class="job-item-2 queued" data-queue-idx="${idx}">
         <div class="job-item-2-header">
           <div class="job-item-2-name">&#9202; ${escapeHtml(q.displayName || 'Queued job')}</div>
           <button class="job-cancel-btn" onclick="event.stopPropagation(); window._cancelQueuedJob(${idx})" title="Remove from queue">&#10005;</button>
@@ -20806,6 +20815,7 @@ function renderJobs() {
           <div class="job-item-2-bar-fill queued-fill" style="width:0%"></div>
         </div>
         <div class="job-item-2-pct" style="color:var(--warning, #f59e0b); font-weight:600;">queued</div>
+        <div class="job-item-2-queue-reason" style="color:var(--text-2); font-size:11px; line-height:1.35; margin-top:4px; white-space:normal;">${escapeHtml(q.reason || '')}</div>
       </div>
     `).join('');
   }
@@ -22397,9 +22407,25 @@ async function hasVramHeadroomFor(kind) {
   } catch (e) {
     return { ok: true };
   }
-  // RAM gate
+  // RAM gate (2026-09-30). Chaque generation locale est desormais PLAFONNEE pour de vrai
+  // a son budget (limite du marqueur RAM - RAM utilisee par tout le reste ; voir
+  // scripts/cloisonnement_memoire.py) : lancee sans la place, elle s'arreterait en route.
+  // main.js compare ce budget au pic MESURE lors du dernier travail du meme type ; sans
+  // mesure, on attend seulement que la RAM repasse sous la limite (regle d'avant).
+  // `memoire: true` : le travail attend (sans limite de temps) que la place se libere.
   try {
-    if (API.checkRAM) {
+    if (API.memoryBudget) {
+      const m = await API.memoryBudget(kind);
+      if (m && m.ok === false) {
+        if (m.type === 'vram' && m.besoinGo != null) {
+          return { ok: false, memoire: true, reason: _i18nTf('Waiting for graphics memory: this job needs about {x} GB of VRAM and {y} GB are free under your limit. It starts as soon as it fits (close apps using the graphics card or raise the VRAM limit in Settings).', m.besoinGo, m.dispoGo) };
+        }
+        if (m.besoinGo != null) {
+          return { ok: false, memoire: true, reason: _i18nTf('Waiting for memory: this job needs about {x} GB of RAM and {y} GB are free under your limit. It starts as soon as it fits (close other apps or raise the RAM limit in Settings).', m.besoinGo, m.dispoGo) };
+        }
+        return { ok: false, memoire: true, reason: _i18nTf('System RAM is full ({x} GB, {y}% over the limit). The job will wait.', `${m.utiliseeRamGo}/${m.totalRamGo}`, Math.round((m.utiliseeRamGo / (m.totalRamGo || 1)) * 100)) };
+      }
+    } else if (API.checkRAM) {
       const ram = await API.checkRAM();
       const ramPct = (ram.usedGB / ram.totalGB) * 100;
       if (ramPct > gpuLimits.ram) {
@@ -22436,8 +22462,8 @@ async function enqueueJob(kind, displayName, runFn) {
     return;
   }
   const reason = (r && r.reason) || _i18nT('GPU/RAM limits exceeded');
-  // No room — push to queue and surface a visible notice
-  queuedJobs.push({ kind, displayName, run: runFn, queuedAt: Date.now() });
+  // No room — push to queue and surface a visible notice (la RAISON s'affiche dans la tuile)
+  queuedJobs.push({ kind, displayName, run: runFn, queuedAt: Date.now(), reason, memoire: !!(r && r.memoire) });
   renderQueueIndicator();
   renderJobs(); // Show queued jobs in the panel immediately
   // Force the jobs panel open so the user sees the queued job
@@ -22479,16 +22505,22 @@ async function processQueue() {
     const next = queuedJobs[0];
     // Wait for GPU limits to clear (poll every 3s, with a hard 10-min cap so
     // we never spin forever if the user's sliders are misconfigured)
+    // MEMOIRE (2026-09-30) : pas de depart force quand c'est la RAM qui manque — le
+    // travail est plafonne a son budget et s'arreterait en route. Il attend, la
+    // raison a jour dans sa tuile (bouton × pour l'annuler).
     let res = await hasVramHeadroomFor(next.kind);
     const waitStart = Date.now();
     while (!(res && res.ok)) {
-      if (Date.now() - waitStart > 600000) {
+      if (queuedJobs[0] !== next) break;                 // retire de la file pendant l'attente
+      _majRaisonFile(next, res);
+      if (!res.memoire && Date.now() - waitStart > 600000) {
         console.warn('[queue] gave up waiting after 10 min, forcing run');
         break;
       }
       await new Promise(r => setTimeout(r, 3000));
       res = await hasVramHeadroomFor(next.kind);
     }
+    if (queuedJobs[0] !== next) continue;                // annule par l'utilisateur entre-temps
     queuedJobs.shift();
     renderQueueIndicator();
     try { next.run(); } catch (e) { console.error('queued job failed', e); }
@@ -22496,6 +22528,20 @@ async function processQueue() {
     await new Promise(r => setTimeout(r, 5000));
   }
   _queueProcessing = false;
+}
+
+// Raison d'attente a jour (la place libre change pendant l'attente) : tuile patchee
+// EN PLACE, sans reconstruire la liste (voir renderJobs, le survol ne clignote pas).
+function _majRaisonFile(q, res) {
+  const raison = (res && res.reason) || q.reason || '';
+  q.memoire = !!(res && res.memoire);
+  if (raison === q.reason) return;
+  q.reason = raison;
+  try {
+    const idx = queuedJobs.indexOf(q);
+    const el = document.querySelector(`#jobs-list-2 .job-item-2.queued[data-queue-idx="${idx}"] .job-item-2-queue-reason`);
+    if (el) el.textContent = raison;
+  } catch (_) {}
 }
 
 function renderQueueIndicator() {

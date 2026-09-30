@@ -115,6 +115,13 @@ def _img2img_local_fallback(tile: Image.Image, prompt: str,
     """One-shot RealVisXL img2img loaded in-process (slow first call)."""
     from diffusers import StableDiffusionXLImg2ImgPipeline
     if not hasattr(_img2img_local_fallback, '_pipe'):
+        # SDXL charge DANS ce processus : plafond VRAM au budget (2026-09-30,
+        # voir cloisonnement_memoire).
+        try:
+            import cloisonnement_memoire as _cm
+            _cm.plafonner_vram(torch)
+        except Exception as _e:
+            log(f'plafond VRAM non pose : {_e}')
         log('loading RealVisXL img2img in-process (no SDXL server)...')
         p = StableDiffusionXLImg2ImgPipeline.from_pretrained(
             'SG161222/RealVisXL_V4.0',
@@ -515,6 +522,13 @@ def refine(input_glb: str, output_glb: str, strength: float = 0.25,
 
 
 if __name__ == '__main__':
+    # Plafond RAM REEL (2026-09-30, voir scripts/cloisonnement_memoire.py). Ici et
+    # non en tete de fichier : face_reproject et outfit_repaint IMPORTENT ce module.
+    # Le travail passe d'ordinaire par le serveur SDXL : pas de contexte CUDA ici,
+    # le plafond VRAM n'est pose que si SDXL doit etre charge dans ce processus.
+    import cloisonnement_memoire as _cm
+    _cm.appliquer('texture_refine', cle='texture_refine', log=log)
+    _cm.regime()
     p = argparse.ArgumentParser()
     p.add_argument('input')
     p.add_argument('output')
@@ -540,9 +554,11 @@ if __name__ == '__main__':
                     use_controlnet_tile=args.controlnet_tile,
                     controlnet_scale=args.cn_scale, seed=args.seed,
                     protect_face=args.protect_face)
+        _cm.terminer('ok' if ok else 'erreur')
         sys.exit(0 if ok else 1)
     except Exception as e:
         import traceback
         traceback.print_exc()
         log(f'ERROR: {type(e).__name__}: {e}')
+        _cm.signaler_si_memoire(e)      # manque de memoire : phrase claire + marqueur
         sys.exit(2)
