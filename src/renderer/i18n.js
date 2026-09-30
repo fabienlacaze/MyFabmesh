@@ -1366,6 +1366,12 @@
       'The job will start automatically once the limits are met.': 'Le job sera lancé automatiquement quand les limites seront satisfaites.',
       'You can adjust the sliders in Settings.': 'Vous pouvez ajuster les sliders dans Settings.',
       'Job queued': 'Job mis en file d\'attente',
+      // ---- Interrupteur unique Local / Cloud pour TOUTES les generations (2026-09-30) ----
+      'Where everything runs: on this PC or on the MyFabmesh cloud': 'Où tout est calculé : sur ce PC ou sur le cloud MyFabmesh',
+      'Everything runs on this PC — free': 'Tout est calculé sur ce PC — gratuit',
+      'Everything runs on the MyFabmesh cloud — uses credits': 'Tout est calculé sur le cloud MyFabmesh — utilise des crédits',
+      'Local or Cloud, for everything': 'Local ou Cloud, pour tout',
+      'Images, 3D, rig, animation and every AI tool follow this switch.': 'Images, 3D, rig, animation et tous les outils IA suivent cet interrupteur.',
     },
   };
 

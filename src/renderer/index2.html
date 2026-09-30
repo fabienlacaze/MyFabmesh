@@ -84,6 +84,13 @@
         <!-- MARQUE ET MARKETPLACE en pastilles, comme sur le web (27/09) -->
         <button id="topbar-brand" type="button" title="Open the MyFabmesh website" style="padding:3px 12px 3px 4px;display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;border-radius:999px;white-space:nowrap;cursor:pointer;color:#f5f5fa;background:#1b1b29;border:1px solid #2a2a40;"><img src="logo-symbole.png" alt="" width="96" height="96" style="width:22px;height:22px;border-radius:6px;flex:none">MyFabmesh<span class="brand-ai">.AI</span></button>
         <button id="topbar-market" type="button" title="Browse the marketplace" style="padding:5px 12px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:999px;white-space:nowrap;cursor:pointer;color:#fff;border:0;background:linear-gradient(135deg,#5a4fcf,#8b5cf6);box-shadow:0 2px 6px rgba(90,79,207,0.5);">&#128722; Marketplace</button>
+        <!-- UN SEUL interrupteur Local / Cloud pour TOUTES les generations (2026-09-30, user :
+             « c'est toutes les generations qui doivent basculer, pas que les images »). Meme etat
+             que Settings > Compute (cle fab-compute-mode, window._choisirModeCalcul). -->
+        <div id="topbar-compute" class="compute-toggle topbar-compute" role="group" aria-label="Compute" title="Where everything runs: on this PC or on the MyFabmesh cloud">
+          <button type="button" id="topbar-compute-local" class="ct-btn" data-mode="local" title="Everything runs on this PC — free">Local</button>
+          <button type="button" id="topbar-compute-cloud" class="ct-btn" data-mode="cloud" title="Everything runs on the MyFabmesh cloud — uses credits">Cloud</button>
+        </div>
         <span id="topbar-credits" class="generate-cost-pill" title="MyFabmesh credits — click to top up" style="display:none; cursor:pointer; font-size:12px; padding:4px 11px;">&#9889; <span id="topbar-credits-val">…</span><span id="topbar-account" style="display:none; opacity:.72; margin-left:7px; padding-left:7px; border-left:1px solid rgba(0,0,0,.28); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;"></span></span>
         <button id="btn-refresh" class="icon-btn" title="Refresh">&#x21bb;</button>
         <button id="btn-history" class="icon-btn" title="My usage history">&#128229;</button>
@@ -165,7 +172,10 @@
                 <span class="stage-hint">Generate a new image from a text prompt</span>
               </summary>
               <div class="stage-body">
-                <div class="form-row">
+                <!-- Ligne « Compute » du panneau image : REMPLACEE par l'interrupteur de la barre du
+                     haut (2026-09-30). Placee ici, elle laissait croire que seules les images
+                     basculaient. Gardee cachee : ses boutons restent pilotables (Control API). -->
+                <div class="form-row" id="ws-compute-row" style="display:none;">
                   <label>Compute</label>
                   <div id="ws-compute-toggle" class="compute-toggle">
                     <button type="button" id="ws-compute-local" class="ct-btn active" data-mode="local" title="Generate on this PC (NVIDIA GPU required) — free and unlimited">Local (free)</button>
@@ -2368,11 +2378,15 @@
           </div>
         </div>
 
-        <!-- ═══ CLOUD SERVICES ═══ -->
-        <div class="settings-section-header">Cloud generation</div>
+        <!-- ═══ COMPUTE : Local / Cloud pour TOUT (2026-09-30) ═══
+             Le titre disait « Image generation compute » alors que le mode vaut pour
+             toutes les generations et tous les outils : le user a cru que seules les
+             images basculaient. Meme interrupteur que la barre du haut (topbar-compute). -->
+        <div class="settings-section-header">Compute</div>
         <div class="settings-box" id="set-compute-box">
-          <div class="settings-box-title">Image generation compute</div>
+          <div class="settings-box-title" id="set-compute-titre">Local or Cloud, for everything</div>
           <div class="settings-box-desc" style="display:flex; flex-direction:column; gap:4px; line-height:1.5;">
+            <div id="set-compute-portee" data-i18n>Images, 3D, rig, animation and every AI tool follow this switch.</div>
             <div>&#128421;&#65039; <b style="color:var(--text-0);">Local</b> &nbsp;·&nbsp; <span data-i18n>Free and unlimited</span> &nbsp;·&nbsp; <span data-i18n>Requires an NVIDIA GPU</span></div>
             <!-- Prix par image LU dans la grille (_majMentionsPrixImage, index2.js) : « 3 credits per image »
                  etait ecrit en dur (2026-09-30). Masque tant que la grille est inconnue. -->

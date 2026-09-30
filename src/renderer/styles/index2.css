@@ -4453,6 +4453,9 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   opacity: .45;
   cursor: not-allowed;
 }
+/* Interrupteur de la barre du haut : le meme pour TOUTES les generations (2026-09-30). */
+.topbar-compute { border-radius: 999px; flex: none; }
+.topbar-compute .ct-btn { padding: 5px 11px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
 
 /* Pastille coût cloud (mode Cloud) — même style que le site web */
 .generate-cost-pill {

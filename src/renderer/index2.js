@@ -10320,6 +10320,16 @@ function _i18nTf(s, ...a) {
   if (window.FabI18n && FabI18n.tf) return FabI18n.tf(s, ...a);
   let i = 0; return String(s).replace(/\{[xy]\}/g, () => (i < a.length ? String(a[i++]) : ''));
 }
+/** Infobulle DYNAMIQUE qui tient : i18n.js garde l'infobulle d'origine de
+ *  chaque element (__i18n_title) et la REPOSE a chaque application de la
+ *  langue — un simple `el.title = …` pose avant l'application est donc
+ *  efface (constate au banc le 2026-09-30). On remplace aussi la source
+ *  anglaise, ainsi la traduction suit un changement de langue. */
+function _poserInfobulle(el, anglais) {
+  if (!el) return;
+  el.__i18n_title = anglais;
+  el.setAttribute('title', _i18nT(anglais));
+}
 // Un mesh dérivé est nommé `${base}_${op}_${ts}.glb`. Renvoie l'op du DERNIER
 // suffixe (la modif qui a produit cette version), ou isVersion=false si le
 // fichier est un ORIGINAL (généré direct depuis une image, pas d'op).
@@ -28262,15 +28272,18 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   try { API.setComputeMode?.(gpu.hasNvidia ? 'local' : 'cloud'); } catch (_) {}
 
   if (gpu.hasNvidia) {
-    // Machine équipée : local par défaut, cloud OPT-IN via les Réglages
-    // (switch « Cloud generation »). La ligne Compute du panneau image ne
-    // s'affiche que quand le mode Cloud est actif — indicateur + retour
-    // rapide au Local, sans polluer l'UI des utilisateurs 100 % locaux.
+    // Machine équipée : local par défaut, cloud OPT-IN (interrupteur de la
+    // barre du haut ou Réglages > Compute). La ligne Compute du panneau image
+    // reste CACHEE depuis le 2026-09-30 : placee dans l'etape Image, elle
+    // laissait croire que seules les images basculaient (user : « c'est toutes
+    // les generations qui doivent basculer »). L'interrupteur unique est dans
+    // la barre du haut ; cette fonction reste le point de synchronisation.
     const row = btnL.closest('.form-row');
     const syncRow = async () => {
       const m = _computeMode();
       try { API.setComputeMode?.(m); } catch (_) {}
-      if (row) row.style.display = (m === 'cloud') ? '' : 'none';
+      if (row) row.style.display = 'none';
+      try { window._majInterrupteurCalcul?.(); } catch (_) {}
       await apply(m, gpu);
       try { window._applyCloudCostPill?.(); } catch (_) {}
       try { window._refreshTopbarCredits?.(); } catch (_) {}
@@ -28285,8 +28298,13 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
       try { window._majTousLesPrix?.(); } catch (_) {}
       try { if (m === 'cloud' && !window._prix) window._chargerPrix?.(); } catch (_) {}
     };
-    btnL.addEventListener('click', () => { localStorage.setItem('fab-compute-mode', 'local'); syncRow(); });
-    btnC.addEventListener('click', () => { localStorage.setItem('fab-compute-mode', 'cloud'); syncRow(); });
+    // Boutons caches mais pilotables : meme chemin que l'interrupteur unique.
+    const choisir = (m) => {
+      if (typeof window._choisirModeCalcul === 'function') { window._choisirModeCalcul(m); return; }
+      localStorage.setItem('fab-compute-mode', m); syncRow();
+    };
+    btnL.addEventListener('click', () => choisir('local'));
+    btnC.addEventListener('click', () => choisir('cloud'));
     window._syncComputeRow = syncRow;   // appelé par le switch des Réglages
     await syncRow();
     return;
@@ -28300,6 +28318,7 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     ? _i18nT('No NVIDIA GPU detected — local generation unavailable on this device')
     : 'No NVIDIA GPU detected — local generation unavailable on this device';
   await apply('cloud', gpu);
+  try { window._majInterrupteurCalcul?.(); } catch (_) {}
   // Le mode Cloud est connu maintenant : options ignorees par le serveur et
   // prix reposes (ils ont pu etre calcules avec le mode de la session d'avant).
   try { window._masquerOptionsSansEffetCloud?.(); } catch (_) {}
@@ -28363,6 +28382,7 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
       }
     } catch (_) {}
     try { await window._syncComputeRow?.(); } catch (_) {}
+    try { window._majInterrupteurCalcul?.(); } catch (_) {}
     try { window._applyCloudCostPill?.(); } catch (_) {}
     try { window._refreshTopbarCredits?.(); } catch (_) {}
     try { window._applyToolPills?.(); } catch (_) {}
@@ -28375,10 +28395,20 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     try { if (mode === 'cloud' && !window._prix) window._chargerPrix?.(); } catch (_) {}
   };
 
+  // CHOIX EXPLICITE du mode — UN seul chemin pour la barre du haut, les
+  // Reglages et les boutons caches du panneau image (2026-09-30) : tout est
+  // repose (prix, outils disponibles, compte, interrupteurs).
+  window._choisirModeCalcul = (mode) => {
+    const m = (mode === 'cloud') ? 'cloud' : 'local';
+    if (m === 'local' && bl.disabled) return;
+    localStorage.setItem('fab-compute-mode', m);
+    refresh();
+  };
+  window._rafraichirCompteReglages = refresh;
+
   bl.addEventListener('click', () => {
     if (bl.disabled) return;
-    localStorage.setItem('fab-compute-mode', 'local');
-    refresh();
+    window._choisirModeCalcul('local');
   });
   // Section Compte (2026-09-28, alignee sur le web)
   document.getElementById('set-account-topup')?.addEventListener('click', () => _openCloudSite('/buy'));
@@ -28391,8 +28421,7 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   const histoBarre = document.getElementById('btn-history');
   if (histoBarre) histoBarre.style.display = 'none';
   bc.addEventListener('click', () => {
-    localStorage.setItem('fab-compute-mode', 'cloud');
-    refresh();
+    window._choisirModeCalcul('cloud');
   });
   bLogin?.addEventListener('click', async () => {
     const ok = await showCloudLoginModal();
@@ -28404,6 +28433,42 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   });
 
   refresh();
+})();
+
+// ============================================================
+// INTERRUPTEUR UNIQUE DE LA BARRE DU HAUT (2026-09-30)
+// User : « c'est toutes les generations qui doivent basculer, pas
+// que les images ». Le mode valait deja pour la 3D, le rig, les
+// outils… mais son seul interrupteur visible vivait dans l'etape
+// Image et les Reglages l'appelaient « Image generation compute ».
+// Il est desormais dans la barre du haut, visible partout, et pose
+// le MEME etat que Reglages > Compute (_choisirModeCalcul).
+// ============================================================
+(async () => {
+  const bl = document.getElementById('topbar-compute-local');
+  const bc = document.getElementById('topbar-compute-cloud');
+  if (!bl || !bc) return;
+  window._majInterrupteurCalcul = () => {
+    const m = (typeof window._computeMode === 'function') ? window._computeMode() : 'local';
+    bl.classList.toggle('active', m === 'local');
+    bc.classList.toggle('active', m === 'cloud');
+    bl.setAttribute('aria-pressed', String(m === 'local'));
+    bc.setAttribute('aria-pressed', String(m === 'cloud'));
+  };
+  const choisir = (m) => {
+    if (typeof window._choisirModeCalcul === 'function') window._choisirModeCalcul(m);
+    else document.getElementById(m === 'cloud' ? 'set-compute-cloud' : 'set-compute-local')?.click();
+  };
+  bl.addEventListener('click', () => { if (!bl.disabled) choisir('local'); });
+  bc.addEventListener('click', () => choisir('cloud'));
+  window._majInterrupteurCalcul();
+  let gpu = { hasNvidia: true };
+  try { gpu = await API.gpuStatus?.() || gpu; } catch (_) {}
+  if (gpu && gpu.hasNvidia === false) {
+    bl.disabled = true;
+    _poserInfobulle(bl, 'No NVIDIA GPU detected — local generation unavailable on this device');
+  }
+  window._majInterrupteurCalcul();
 })();
 
 // ============================================================
