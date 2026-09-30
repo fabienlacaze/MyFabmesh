@@ -2406,14 +2406,16 @@ function refreshButtonLabelsAndHiding(p) {
   // The pill <span> is hardcoded in index.html and read by the live
   // meter — using textContent here wiped it (the user saw a bare
   // "Generate new version" with no ⚡ badge).
+  // Le prix courant est repris tel quel (vide tant que la grille /api/pricing
+  // n'est pas chargee : cloud-overrides.js le remplit, jamais de chiffre ici).
   const _setLabelWithImgPill = (btn, label) => {
-    const curVal = document.getElementById('ws-image-cost-value')?.textContent || '2';
+    const curVal = document.getElementById('ws-image-cost-value')?.textContent || '';
     btn.innerHTML = escapeHtml(label) +
       ` <span class="generate-cost-pill"><span class="generate-cost-bolt">⚡</span>` +
       `<span id="ws-image-cost-value">${escapeHtml(curVal)}</span></span>`;
   };
   const _setLabelWithMeshPill = (btn, label) => {
-    const curVal = document.getElementById('ws-mesh-cost-value')?.textContent || '8';
+    const curVal = document.getElementById('ws-mesh-cost-value')?.textContent || '';
     btn.innerHTML = escapeHtml(label) +
       ` <span id="ws-mesh-cost-pill" class="generate-cost-pill"><span class="generate-cost-bolt">⚡</span>` +
       `<span id="ws-mesh-cost-value">${escapeHtml(curVal)}</span></span>`;
@@ -3932,35 +3934,29 @@ function _updateVarStrengthHint() {
   el.textContent = (typeof _i18nT === 'function') ? _i18nT(mot) : mot;
   el.title = v + '%';
 }
-/* Cout REEL des variantes : prix unitaire de `modify` x nombre demande.
- * Le prix unitaire vient de la grille vivante (window.__LIVE_PRICES, remplie
- * par syncLivePricing) ; sans elle on retombe sur le defaut de la grille. */
+/* Cout REEL des variantes : prix unitaire x nombre demande. Le prix unitaire
+ * vient de la grille /api/pricing (window._prixDe, cloud-overrides.js) ;
+ * tant qu'elle n'est pas chargee, AUCUN chiffre (2026-09-30 : les valeurs de
+ * repli ecrites ici, 2 et 3, n'etaient deja plus celles de la grille). */
 function _prixVariante() {
-  const p = window.__LIVE_PRICES;
   // DEUX MOTEURS, DEUX TARIFS. Forme verrouillee = `tex_variant`
-  // (ControlNet-Tile, 2 credits) ; forme libre = `modify` (3 credits).
-  // Le badge suivait le seul tarif `modify` et annoncait donc 3 credits pour
-  // une operation facturee 2 des que la case etait cochee.
-  const verrou = !!document.getElementById('var-tex-mode')?.checked;
-  if (verrou) {
-    if (p && typeof p.tex_variant === 'number') return p.tex_variant;
-    return 2;   // valeur de PRICING_DEFAULTS.tex_variant
-  }
-  if (p && typeof p.modify === 'number') return p.modify;
-  return 3;   // valeur de PRICING_DEFAULTS.modify
+  // (ControlNet-Tile) ; forme libre = `modify`. Meme regle que le lancement.
+  const cle = document.getElementById('var-tex-mode')?.checked ? 'tex_variant' : 'modify';
+  return typeof window._prixDe === 'function' ? window._prixDe(cle) : null;
 }
 window._majCoutVariantes = function _majCoutVariantes() {
-  const n = Math.max(1, parseInt(document.getElementById('var-count')?.value, 10) || 1);
+  // meme borne 1..8 que le lancement (une saisie « 100 » n'en lance que 8)
+  const n = Math.max(1, Math.min(8, parseInt(document.getElementById('var-count')?.value, 10) || 1));
   const unite = _prixVariante();
   const badge = document.getElementById('var-apply-cost-badge');
   if (badge) {
-    badge.textContent = String(unite * n);
-    badge.title = n + ' variante(s) x ' + unite + ' credits = ' + (unite * n);
+    badge.textContent = unite == null ? '' : String(unite * n);
+    badge.title = unite == null ? '' : n + ' x ' + unite + ' = ' + (unite * n);
   }
   // La phrase « Costs N per variant » de la modale doit suivre le prix
   // unitaire, pas rester figee a 1.
   const parVariante = document.getElementById('var-unit-cost');
-  if (parVariante) parVariante.textContent = String(unite);
+  if (parVariante) parVariante.textContent = unite == null ? '' : String(unite);
 };
 
 document.getElementById('ws-variant-btn')?.addEventListener('click', () => {
@@ -10863,13 +10859,7 @@ const MESH_TOOL_SCHEMAS = {
       { id: 'resolution', label: 'Resolution', type: 'range', min: 48, max: 400, step: 8, default: 128 },
     ],
     build: (vals) => [String(vals.resolution)],
-    // prix selon la resolution (meme seuil que le worker)
-    cost: (vals) => {
-      const p = window.__LIVE_PRICES || {};
-      return (Number(vals.resolution) || 128) > 256
-        ? (typeof p.watertight_hd === 'number' ? p.watertight_hd : 2)
-        : (typeof p.mesh_op_simple === 'number' ? p.mesh_op_simple : 1);
-    },
+    // prix selon la resolution : voir _PRIX_OUTIL_MAILLAGE.watertight
   },
   center: {
     title: 'Set pivot point',
@@ -10959,6 +10949,34 @@ const MESH_TOOL_SCHEMAS = {
   },
 };
 
+/* PRIX DE CHAQUE OUTIL DE MAILLAGE (2026-09-30) — route REELLEMENT appelee
+ * (runMeshTool -> meshyAPI-cloud.js meshTool, ou _mtApplyOnDevice ->
+ * /api/mesh-op/client-result) et regle de getPrice du worker. Lu dans la grille
+ * /api/pricing (window._prixDe) : null tant qu'elle est inconnue, jamais de
+ * chiffre de repli. Le bouton Apply de la fenetre l'affiche et le suit. */
+const _prixGrille = (cle) => (typeof window._prixDe === 'function' ? window._prixDe(cle) : null);
+const _PRIX_OUTIL_MAILLAGE = {
+  smooth: () => _prixGrille('mesh_op_simple'),
+  decimate: () => _prixGrille('mesh_op_simple'),
+  subdivide: () => _prixGrille('mesh_op_simple'),
+  fix_normals: () => _prixGrille('mesh_op_simple'),
+  fill_holes: () => _prixGrille('mesh_op_simple'),
+  center: () => _prixGrille('mesh_op_simple'),            // enregistre par client-result « center »
+  retexture: () => _prixGrille('mesh_op_simple'),         // retex_swap
+  // au-dela d'une resolution de 256 : watertight_hd (meme seuil que handleMeshOp)
+  watertight: (vals) => _prixGrille((Number(vals.resolution) || 128) > 256 ? 'watertight_hd' : 'mesh_op_simple'),
+  texture_var: () => _prixGrille('texture_var'),          // /api/mesh-texvar
+  // /api/mesh-retexture au palier choisi ; Ultra 8K enchaine ensuite « Sharpen
+  // texture » (enhance_tex), facture a part : les deux sont annonces ensemble.
+  trellis2_retex: (vals) => {
+    const palier = ['fast', 'balanced', 'quality', 'ultra_8k'].includes(vals.preset) ? vals.preset : 'fast';
+    const p = _prixGrille('retex_' + palier);
+    if (p == null || palier !== 'ultra_8k') return p;
+    const e = _prixGrille('enhance_tex');
+    return e == null ? null : p + e;
+  },
+};
+
 // Persistent Three.js state for the mesh-tool modal viewer.
 const mtState = {
   renderer: null, scene: null, camera: null, controls: null,
@@ -10977,7 +10995,10 @@ const mtState = {
   transformControls: null,
   dummy: null,
   basePivot: null,        // preset-only pivot position (Vector3, local space)
+  majPrix: null,          // repose le prix du bouton Apply (fenetre ouverte)
 };
+// Grille des prix arrivee (ou relue) pendant que la fenetre est ouverte : le prix suit.
+window.addEventListener('grille-prix', () => { try { mtState.majPrix?.(); } catch (_) {} });
 
 // Device-side mesh ops are heavy (SimplifyModifier / Laplacian over
 // 100k+ verts can pin a CPU thread for 5–10 s). Mobile and low-spec
@@ -11117,7 +11138,8 @@ async function _mtApplyOnDevice(opType) {
     const bytes = new Uint8Array(arrayBuffer);
     const data = await uploadClientMeshResult(bytes, opType);
     const newUrl = data.path || data.newPath || data.mesh_url;
-    showToast(`${opType} done (free, on device)`, 'success');
+    // pas « free » : client-result facture l'enregistrement (mesh_op_simple / manual_tool)
+    showToast(`${opType} done`, 'success');
     // populateWorkspace re-renders from p.meshes — push the new URL
     // into the list (same as the cloud Apply path does) so the
     // version strip shows it instead of staying on the old mesh.
@@ -11244,7 +11266,7 @@ function _mtRunPreview() {
   if (devBtn) {
     if (allOk) {
       devBtn.disabled = false;
-      devBtn.title = 'Apply on this device — no credits used.';
+      devBtn.removeAttribute('title');   // l'enregistrement est facture : pas de « no credits used »
     } else {
       devBtn.disabled = true;
       devBtn.title = 'No local preview was computed for these settings — use “Apply on cloud” to run it on the server.';
@@ -11520,27 +11542,40 @@ function openMeshToolModal(toolName) {
   title.textContent = schema.title;
   subtitle.textContent = schema.subtitle || '';
   body.innerHTML = '';
-  // PASTILLE DE PRIX DU BOUTON APPLY quand le prix depend des reglages
-  // (2026-09-27 : Watertight selon la resolution).
+  // PASTILLE DE PRIX DU BOUTON APPLY, pour TOUS les outils (2026-09-30) : prix
+  // de la grille selon l'outil et ses reglages (_PRIX_OUTIL_MAILLAGE ;
+  // Watertight selon la resolution, Re-texture selon le palier). Vide — donc
+  // masquee — tant que la grille est inconnue.
   // Posee APRES le reetiquetage du bouton plus bas (textContent l'effacerait),
-  // et retiree a la fermeture par ce meme reetiquetage.
+  // et retiree a la fermeture par ce meme reetiquetage. Set pivot n'a que le
+  // bouton « Apply » de l'appareil : la pastille va sur lui.
   const _apply = document.getElementById('mt-apply');
   _apply?.querySelector('.mt-apply-cost')?.remove();
-  if (_apply && typeof schema.cost === 'function') {
+  const _cout = _PRIX_OUTIL_MAILLAGE[toolName] || schema.cost;
+  if (_apply && typeof _cout === 'function') {
     let pastille = null;
-    const maj = () => { try { if (pastille) pastille.textContent = String(schema.cost(_mtCollectVals(body))); } catch (_) {} };
+    const maj = () => {
+      try {
+        if (!pastille) return;
+        const v = _cout(_mtCollectVals(body));
+        pastille.textContent = (typeof v === 'number' && v > 0) ? String(v) : '';
+      } catch (_) {}
+    };
     setTimeout(() => {
+      const hote = schema.clientApplyOnly ? (document.getElementById('mt-apply-device') || _apply) : _apply;
       pastille = document.createElement('span');
       pastille.className = 'cloud-cost-badge opt-cost mt-apply-cost';
       pastille.style.marginLeft = '8px';
-      _apply.appendChild(pastille);
+      hote.appendChild(pastille);
       maj();
     }, 0);
     body.oninput = maj;
     body.onchange = maj;
+    mtState.majPrix = maj;   // grille arrivee pendant que la fenetre est ouverte
   } else {
     body.oninput = null;
     body.onchange = null;
+    mtState.majPrix = null;
   }
 
   if (schema.params.length === 0) {
@@ -11744,18 +11779,11 @@ function openMeshToolModal(toolName) {
     body.appendChild(resetBtn);
   }
 
-  // Optional second button: "Apply on this device (free)". Only added
-  // when the schema declares a pure-JS pipeline AND the device looks
-  // capable (mobile/low-RAM → cloud path only, so we don't crash the
-  // user's browser). Inserted left of the existing cloud Apply button.
+  // Second bouton « Apply » calcule dans le navigateur : seulement pour Set
+  // pivot point (clientApplyOnly), insere a gauche du bouton cloud.
   const applyParent = applyBtn.parentElement;
   let deviceBtn = document.getElementById('mt-apply-device');
   if (deviceBtn) deviceBtn.remove();
-  // Lightweight client-only ops (Set pivot point — a single translate)
-  // ignore the device capability check: any browser can do them, even
-  // mobile, so we don't punish mobile users with "no Apply button"
-  // on tools that would never crash them.
-  const deviceCapable = !!schema.clientApplyOnly || _deviceCanRunMeshClient();
   // « APPLY ON DEVICE (FREE) » RETIRE (2026-09-29, user : « on ne le propose plus ; sur le cloud c'est credit +
   // Modal, pas le processeur de l'ordi »). Seul Set pivot point (une translation, pas d'op serveur a ses
   // prereglages) garde ce chemin, sous un simple « Apply ».
@@ -11764,32 +11792,25 @@ function openMeshToolModal(toolName) {
     deviceBtn.id = 'mt-apply-device';
     deviceBtn.className = 'secondary-btn';
     // taille : .modal-actions .secondary-btn (kit des fenetres)
-    // Free icon (💻) reserved for "runs on user hardware". The ⚡
-    // emoji is reserved for the credit badge so the two are never
-    // confused in the UI.
-    deviceBtn.textContent = '💻 Apply on device (free)';
+    // PAS « (free) » : l'enregistrement passe par /api/mesh-op/client-result,
+    // facture mesh_op_simple comme la version serveur (2026-09-30). Le prix
+    // est la pastille posee plus haut.
+    deviceBtn.textContent = _i18nT('Apply');
     deviceBtn.title = 'Move a slider to compute a preview before applying on device.';
     deviceBtn.disabled = true;
     applyParent.insertBefore(deviceBtn, applyBtn);
   }
-  // Relabel the cloud Apply button to make the trade-off explicit
-  // (clear that it costs 1 credit) when both options are visible.
-  // For purely client-side ops (Set pivot point — just a translate),
-  // hide the cloud button entirely so the user isn't asked to pay 1
-  // credit for work the browser can do alone.
+  // Set pivot point (une translation) n'a que le bouton de l'appareil : le
+  // bouton cloud est masque.
   const originalApplyLabel = applyBtn.textContent;
   const cloudHidden = !!schema.clientApplyOnly;
-  // Apply-on-cloud label with a real .credit-badge instead of the
-  // text "(1 cr)" — keeps the credit indicator consistent with every
-  // other place in the app.
-  const cloudApplyHTML = _i18nT('Apply') + ' <span class="credit-badge" style="margin-left:6px;">1</span>';
+  // Libelle simple : le prix est la pastille de la grille (_PRIX_OUTIL_MAILLAGE),
+  // et non plus un « 1 » ecrit en dur dans le libelle (2026-09-30).
   if (cloudHidden) {
     applyBtn.style.display = 'none';
     if (deviceBtn) deviceBtn.textContent = _i18nT('Apply');
-  } else if (schema.supportsClientApply && deviceCapable) {
-    applyBtn.innerHTML = cloudApplyHTML;
-  } else if (schema.supportsClientApply && !deviceCapable) {
-    applyBtn.innerHTML = cloudApplyHTML;
+  } else if (schema.supportsClientApply) {
+    applyBtn.textContent = _i18nT('Apply');
   } else {
     applyBtn.textContent = originalApplyLabel || 'Apply';
   }
@@ -11827,7 +11848,11 @@ function openMeshToolModal(toolName) {
     deviceBtn.onclick = async () => {
       if (deviceBtn.disabled) return;
       if (schema.confirm && !(await customConfirm(schema.confirm, schema.title || 'Confirm', 'Continue'))) return;
-      const prevText = deviceBtn.textContent;
+      // libelle SANS la pastille de prix, remise telle quelle en cas d'echec
+      const pastilleDev = deviceBtn.querySelector('.mt-apply-cost');
+      const prevText = pastilleDev
+        ? deviceBtn.textContent.slice(0, deviceBtn.textContent.length - pastilleDev.textContent.length)
+        : deviceBtn.textContent;
       deviceBtn.disabled = true;
       deviceBtn.textContent = 'Saving…';
       try {
@@ -11836,6 +11861,7 @@ function openMeshToolModal(toolName) {
       } catch (e) {
         showToast(`${toolName} (device) failed: ${e?.message || e}`, 'error', 5000);
         deviceBtn.textContent = prevText;
+        if (pastilleDev) deviceBtn.appendChild(pastilleDev);
         deviceBtn.disabled = false;
       }
     };
@@ -12054,6 +12080,15 @@ function openSegmentModal() {
         '<button id="seg-go" class="primary-btn" style="padding:8px 16px;">' + FabI18n.t('Segment') + '</button></div>';
     overlay.appendChild(box);
     document.body.appendChild(overlay);
+    // Prix du lancement, lu dans la grille (/api/mesh-segment : mesh_segment).
+    const prixSeg = _prixGrille('mesh_segment');
+    if (typeof prixSeg === 'number' && prixSeg > 0) {
+      const b = document.createElement('span');
+      b.className = 'credit-badge';
+      b.style.marginLeft = '8px';
+      b.textContent = String(prixSeg);
+      box.querySelector('#seg-go')?.appendChild(b);
+    }
     const slider = box.querySelector('#seg-gran');
     const label = box.querySelector('#seg-gran-label');
     const names = { '0': FabI18n.t('Very fine'), '0.5': FabI18n.t('Fine'), '1': FabI18n.t('Medium'), '1.5': FabI18n.t('Coarse'), '2': FabI18n.t('Very coarse') };
@@ -14010,6 +14045,19 @@ function _peConfigureModeUI() {
     if (apply) apply.textContent = '💾 Save new version';
     if (status) status.textContent = 'Left-click + drag on the mesh to paint. Orbit with right-click.';
   }
+  // PRIX DU LANCEMENT (2026-09-30), lu dans la grille : re-texture d'une zone =
+  // region_retex, Reshape (draw) = reshape, tampon 3D et peinture = manual_tool
+  // (client-result « clone3d » / « paint_emissive »). Grille inconnue : rien.
+  if (apply) {
+    const v = _prixGrille(maskMode ? (peState.reshape ? 'reshape' : 'region_retex') : 'manual_tool');
+    if (typeof v === 'number' && v > 0) {
+      const b = document.createElement('span');
+      b.className = 'credit-badge';
+      b.style.marginLeft = '8px';
+      b.textContent = String(v);
+      apply.appendChild(b);
+    }
+  }
 }
 
 function openPaintEmissive(opts = {}) {
@@ -14207,7 +14255,9 @@ function openPaintEmissive(opts = {}) {
   $('pe-cancel').onclick = () => close(true);
   $('pe-apply-device').onclick = async () => {
     const btn = $('pe-apply-device');
-    const orig = btn.textContent;
+    // libelle SANS la pastille de prix (_peConfigureModeUI), remise en cas d'echec
+    const pastille = btn.querySelector('.credit-badge');
+    const orig = pastille ? btn.textContent.slice(0, btn.textContent.length - pastille.textContent.length) : btn.textContent;
     btn.disabled = true;
     btn.textContent = peState.maskMode ? (peState.reshape ? 'Rebuilding…' : 'Re-texture…') : 'Saving…';
     try {
@@ -14222,6 +14272,7 @@ function openPaintEmissive(opts = {}) {
     } catch (e) {
       showToast(`${peState.maskMode ? 'Re-texture' : 'Paint Emissive'} failed: ${e?.message || e}`, 'error', 5000);
       btn.textContent = orig;
+      if (pastille) btn.appendChild(pastille);
       btn.disabled = false;
     }
   };
@@ -14412,17 +14463,32 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
   const force = $('rrx-strength')?.closest('label');
   if (force) force.style.display = 'none';
 
+  /* PRIX DU LANCEMENT (2026-09-30), lu dans la grille : `reshape`, plus une
+   * detection (`segment`, /api/segment-preview) quand aucune zone n'est
+   * peinte — « Apply » la lance alors d'abord (detecter()). */
+  const majPrix = () => {
+    const btn = $('rrx-apply');
+    if (!btn) return;
+    const r = _prixGrille('reshape');
+    const s = aPeint ? 0 : _prixGrille('segment');
+    const v = (r == null || s == null) ? null : r + s;
+    let b = btn.querySelector(':scope > .credit-badge');
+    if (!(typeof v === 'number' && v > 0)) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('span'); b.className = 'credit-badge'; b.style.marginLeft = '8px'; btn.appendChild(b); }
+    b.textContent = String(v);
+  };
+  window.addEventListener('grille-prix', majPrix);
   const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * canvas.width, y: (e.clientY - r.top) / r.height * canvas.height }; };
   const touche = (p) => {
     const br = parseInt($('rrx-brush').value) || 32;
     ctx.fillStyle = 'rgb(255,60,60)';
     ctx.beginPath(); ctx.arc(p.x, p.y, br / 2, 0, Math.PI * 2); ctx.fill();
-    aPeint = true;
+    if (!aPeint) { aPeint = true; majPrix(); }
   };
   canvas.addEventListener('pointerdown', (e) => { peint = true; canvas.setPointerCapture?.(e.pointerId); touche(pos(e)); });
   canvas.addEventListener('pointermove', (e) => { if (peint) touche(pos(e)); });
   window.addEventListener('pointerup', () => { peint = false; });
-  $('rrx-clear')?.addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; });
+  $('rrx-clear')?.addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; majPrix(); });
   const fermer = () => modal.classList.add('hidden');
   $('rrx-cancel')?.addEventListener('click', fermer);
   $('rrx-close-x')?.addEventListener('click', fermer);
@@ -14433,6 +14499,7 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
     if (!mp) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
     ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; vueUrl = null;
     $('rrx-prompt').value = ''; if ($('rrx-part')) $('rrx-part').value = ''; $('rrx-img').src = '';
+    majPrix();
     modal.classList.remove('hidden');
     chargement(_i18nT('Rendering mesh…'));
     const r = await API.renderMeshFront({ meshPath: mp });
@@ -14463,6 +14530,7 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
           }
           ctx.putImageData(cd, 0, 0);
           aPeint = true;
+          majPrix();   // zone trouvee : « Apply » ne relancera pas la detection
           ok();
         };
         img.onerror = () => ok();
@@ -28055,10 +28123,16 @@ function _ptsMajBoutons() {
   // articulation deplacee, le clic explique quoi faire.
   const sansIA = document.getElementById('pts-enregistrer-sans-ia');
   if (sansIA) sansIA.disabled = !_pts.actif || !lmFsModel;
-  // prix affiche : squelette impose (articulation deplacee) = RESKIN_COST (6)
-  // du worker, sinon RIG_COST (10)
-  const prix = document.querySelector('#pts-regenerer .cloud-cost-badge, #pts-regenerer .gcp-val');
-  if (prix) prix.textContent = _pts.osModifies ? '6' : '10';
+  // prix affiche : squelette impose (articulation deplacee) = tarif `reskin`
+  // du worker, sinon `rig` — lus dans la grille (plus « 6 » / « 10 » en dur).
+  // La cle est posee sur le bouton : cloud-overrides.js (ACTION_TARIFS) la
+  // reprend quand il repose la pastille.
+  if (regen) {
+    regen.dataset.cleTarif = _pts.osModifies ? 'reskin' : 'rig';
+    const v = _prixGrille(regen.dataset.cleTarif);
+    const prix = regen.querySelector('.cloud-cost-badge, .gcp-val');
+    if (prix) prix.textContent = (typeof v === 'number' && v > 0) ? String(v) : '';
+  }
 }
 function ptsAnnuler() {
   if (!_pts.passe.length) return false;
@@ -29363,7 +29437,11 @@ document.addEventListener('click', (e) => {
     boutonPrix = document.getElementById('ws-style-btn');
   }
   if (!def) return;
-  if (def.siPayant && !(boutonPrix && boutonPrix.querySelector('.cloud-cost-badge, .credit-badge'))) return;
+  // Sans pastille = gratuit... seulement si la grille est connue : tant qu'elle
+  // ne l'est pas (aucune pastille posee), la fenetre de validation s'ouvre quand
+  // meme, sans prix, plutot que de lancer un outil payant sans rien demander.
+  if (def.siPayant && window.__LIVE_PRICES
+      && !(boutonPrix && boutonPrix.querySelector('.cloud-cost-badge, .credit-badge'))) return;
   e.stopImmediatePropagation();
   e.preventDefault();
   _ouvrirLancement(def, boutonPrix).then((ok) => {

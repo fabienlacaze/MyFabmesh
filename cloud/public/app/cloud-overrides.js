@@ -381,6 +381,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // Wire the live cost meter on the "Generate 3D" button so users
     // see the total credit cost change as they toggle options.
     installMeshCostMeter();
+    // Idem pour « Generate » (images) : nombre, qualite, moteur, etapes.
+    installImageCostMeter();
 
     // Prechauffe le GPU distant + signale la presence au worker : sans ca
     // le web payait un demarrage a froid a CHAQUE generation.
@@ -408,10 +410,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // each call attaches a new MutationObserver per modal.
     _watchModalOpens();
 
-    // Pull the live prices set by the admin via /admin > Pricing and
-    // overwrite the HTML data-credits attributes + the per-button
-    // badges. Without this the UI keeps showing the hardcoded defaults
-    // even after the admin saved new values.
+    // Charge la grille des prix (/api/pricing, reglee dans /admin > Pricing) :
+    // c'est elle SEULE qui remplit toutes les pastilles. Avant son arrivee,
+    // aucune pastille n'affiche de chiffre.
     syncLivePricing();
     // Re-sync every 5 min in case the admin changed a price mid-session.
     setInterval(syncLivePricing, 5 * 60_000);
@@ -690,127 +691,133 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   }
 
   /* ──────────────────────────────────────────────────────────────────
-   * Cost badges on action buttons.
+   * PRIX AFFICHES : LUS DANS LA GRILLE DU WORKER, JAMAIS ECRITS EN DUR.
    *
-   * The Worker is the source of truth on actual credit cost (worker.ts
-   * COST_PER_IMAGE / COST_PER_BACK / COST_PER_RECTIFY etc.). Keep this
-   * dict in lockstep with those constants when they change.
+   * Regle du user (2026-09-30) : tout prix montre vient de GET /api/pricing
+   * (PRICING_DEFAULTS du worker + surcharge R2 _meta/pricing.json), et RIEN
+   * n'est affiche tant que la grille n'est pas chargee. Avant, ACTION_COSTS et
+   * _COST_DEFAULTS portaient des chiffres de repli : ils s'affichaient au
+   * demarrage, et pour toujours quand la grille ne repondait pas — neuf outils
+   * de maillage (Smooth, Watertight…) n'etaient meme jamais resynchronises.
    *
-   * Pattern: a tiny `<span class="cloud-cost-badge">N</span>` is
-   * appended to the button label. Click handlers are untouched.
+   * Chaque bouton porte ici la CLE de grille de la route qu'il appelle
+   * reellement (getPrice dans worker.ts), ou une fonction quand le prix depend
+   * d'un reglage. Prix inconnu : aucune pastille (garde check-prix-affiches).
    * ────────────────────────────────────────────────────────────────── */
-  const ACTION_COSTS = {
-    // AI tools panel (right side of Image step) ----------------------
-    'ws-modify-btn':        2,   // /api/modify-image — SDXL img2img
-    'ws-autoinpaint-btn':   3,   // /api/auto-inpaint — CLIPSeg + SDXL inpaint
-    'ws-removebg-btn':      1,   // /api/remove-background
-    // Multi-Views : sur le web seul le mode « 2 vues » existe (vue arriere,
-    // prix back_view). La pastille disait 6 pour un mode 6 vues qui renvoie
-    // une erreur sans rien debiter (corrige le 2026-09-27).
-    'ws-multiview-btn':     3,
-    'ws-facefix-btn':       2,   // /api/face-fix-image — OpenCV + SDXL inpaint
-    // /api/outfit — CLIPSeg + une passe SDXL par piece. La pastille montre le
-    // tarif AVEC completion (le defaut) ; sans elle l'appel coute 2, ce que la
-    // modale annonce noir sur blanc.
-    'ws-outfit-btn':        6,
-    // /api/recolor — CLIPSeg + virage HSV, aucune diffusion : tres court.
-    'ws-recolor-btn':       3,
-    // /api/tex-variant — ControlNet-Tile, moteur de l'outil Age.
-    'ws-age-btn':           3,
-    'ws-resolution-btn':    2,   // /api/upscale-image — LANCZOS + SDXL refine
-    // Style: when the user picks an entry in the style dropdown,
-    // index2.js:4754 calls API.img2img with the style as prompt →
-    // /api/modify-image → Modal. 2 credits per pick.
-    'ws-style-btn':         3,   // Style = Modify (/api/modify-image), pas 2 (corrige le 2026-09-27)
-    // Rig refait depuis l'editeur des points du squelette : meme route et
-    // meme prix que le rig (RIG_COST du worker, absent de /api/pricing :
-    // a changer avec lui).
-    'pts-regenerer':       10,
-    // Articulations deplacees, sans IA : aucun calcul serveur, seulement le
-    // stockage du nouveau rig -> outil manuel (manual_tool, /api/upload-rig).
-    'pts-enregistrer-sans-ia': 1,
-    // Bouton principal du rig : aucune pastille jusqu'au 2026-09-27.
-    'ws-generate-rig-ai':  10,
-    // Peau seule (squelette du rig garde tel quel) : RESKIN_COST du worker.
-    'ws-rig-reskin-btn':   6,
-    // Manual tools — only Draw Mask actually triggers a Modal call
-    // (mask_inpaint, 3 cr) when the user clicks "Apply" inside the
-    // modal. The dance of painting the mask itself is canvas-only and
-    // free, but the end-to-end action (open → paint → apply) costs 3.
-    'ws-mask-btn':          3,   // /api/mask-inpaint — user-painted mask
-    // Other manual tools (clone, blur, picker, paint, crop, brightness,
-    // symmetrize, color pick) are pure canvas ops — no badge.
-
-    // Mesh step — CPU trimesh ops via /api/mesh-op. ~1 credit flat each.
-    'ws-mesh-smooth-btn':       1,
-    'ws-mesh-decimate-btn':     1,
-    'ws-mesh-center-btn':       1,
-    'ws-mesh-fixnormals-btn':   1,
-    'ws-mesh-fillholes-btn':    1,
-    'ws-mesh-watertight-btn':   1,   // voxel remesh on Modal
-    'ws-mesh-subdivide-btn':    1,   // Wave 4.2
-    'ws-mesh-aligntex-btn':     1,   // Decals = outil de Paint Mesh (calcul dans le navigateur), meme tarif
-    'ws-mesh-material-btn':     1,   // Wave 4.2 (PBR normalize)
-    'ws-mesh-retexture-btn':    1,   // Wave 4.2 (atlas swap)
-    'ws-mesh-texvar-btn':       3,
-    'ws-mesh-trellis2-btn':     4,   // « Re-texture all », palier Fast (/api/mesh-retexture)   // SDXL + ControlNet-Tile sur l'atlas (/api/mesh-texvar)
-    'ws-mesh-enhance-tex-btn':  3,   // Real-ESRGAN sur l'atlas (/api/mesh-enhance-tex)
-    'ws-mesh-name-btn':         3,   // rendu isole + CLIP-L (/api/mesh-name-parts)
-    'ws-mesh-region-retex-btn': 3,   // SDXL Inpaint de l'atlas sous masque UV (/api/mesh-region-retex)
-    'ws-mesh-reshape-btn':      10,  // reshape (2026-09-28)
-    'ws-mesh-reshape-draw-btn': 10,
-    'ws-mesh-segment-btn':      15,  // SAMPart3D part-seg — A100 ~8 min/mesh
-    // Payants mais sans pastille jusqu'au 2026-09-27 :
-    'ws-mesh-stages3d-btn':     2,   // etapes de construction 3D (/api/construction-stages-3d)
-    'ws-variant-btn':           3,   // Variant (tex_variant ou modify, 3 chacun), par variante
-    'ws-anim-gen-more-btn':     5,   // par animation generee
-    // Boutons de VALIDATION des fenetres, sans prix jusqu'au 2026-09-27 :
-    'age-go':                   3,   // Age (tex_variant)
-    'rc-go':                    3,   // Recolor
-    'of-go':                    6,   // Outfit : 6 avec completion (defaut), 3 sans
-    'bs3d-start':               2,   // Construction stages 3D
-    'mat-apply-btn':            1,   // Material (mesh-op)
-    'rz-apply':                 1,   // Resize (mesh-op)
-    'ex3d-start':               1,   // Explode (mesh-op)
-    // OUTILS MANUELS : 1 credit chacun (manual_tool), debite a l'enregistrement
-    // du resultat, ou a l'ouverture pour Color Pick (2026-09-27).
-    'ws-clone-btn':             1,
-    'ws-crop-btn':              1,
-    'ws-select-btn':            1,   // Cut/Paste
-    'ws-extend-btn':            1,
-    'ws-brightness-btn':        1,
-    'ws-picker-btn':            1,   // Color Pick
-    'ws-blur-btn':              1,
-    'ws-symmetrize-btn':        1,
-    'ws-symmetrize-auto-btn':   1,
-    'ws-paint-btn':             1,
-    'res-downscale':            1,   // reduction de taille (canvas) : outil manuel
-    // OUTILS MANUELS 3D (2026-09-27) : Sculpt / Paint / Select a
-    // l'enregistrement (/api/upload-mesh), tampon 3D et Paint Mesh
-    // (/api/mesh-op/client-result) ; Explode et Resize = /api/mesh-op.
-    'ws-mesh-sculpt-btn':       1,
-    'ws-mesh-paintvert-btn':    1,
-    'ws-mesh-selectface-btn':   1,
-    'ws-mesh-clone3d-btn':      1,
-    'ws-mesh-paint-mesh-btn':   1,
-    'pm-save':                  1,   // enregistrement de Paint Mesh / Decals
-    'pp-save':                  1,   // enregistrement de l'editeur de poids de peau (cree a l'ouverture)
-    'ws-mesh-explode-btn':      1,
-    'ws-mesh-resize-btn':       1,
-    // EXPORTS, PUBLICATION, IMPORT (2026-09-27, « rends-les payants »).
-    'ws-export-img-btn':        1,
-    'ws-mesh-export-btn':       1,
-    'ws-rig-unreal-btn':        1,
-    'ws-anim-export-btn':       1,
-    'ws-anim-folder-btn':       1,
-    'ws-image-publish-btn':     1,
-    'ws-mesh-publish-btn':      1,
-    'ws-rig-publish-btn':       1,
-    'ws-anim-publish-btn':      1,
-    'ws-anim-import-btn':       1,
-    'ws-lm-manual':             1,   // Skeleton points
-    'ws-rig-poids-btn':         1,   // Skin weights (a l'enregistrement)
+  /** Prix d'une cle de la grille, ou null tant qu'elle est inconnue. */
+  function _prixDe(cle) {
+    const p = window.__LIVE_PRICES;
+    const v = (p && cle) ? p[cle] : undefined;
+    return (typeof v === 'number' && Number.isFinite(v)) ? v : null;
+  }
+  window._prixDe = _prixDe;
+  // Habits : outfit_complete avec « Fill hidden areas » (cochee par defaut), outfit sans (handleOutfit).
+  const _cleHabits = () => (document.getElementById('of-completer')?.checked === false ? 'outfit' : 'outfit_complete');
+  // UNE variante : forme gardee = tex_variant, « Everything » = modify (meme regle que le lancement, index2.js).
+  const _cleVariante = () => (document.getElementById('var-tex-mode')?.checked ? 'tex_variant' : 'modify');
+  const ACTION_TARIFS = {
+    // Outils IA du panneau Image
+    'ws-modify-btn':            'modify',             // /api/modify-image
+    'ws-autoinpaint-btn':       'auto_inpaint',       // /api/auto-inpaint
+    'ws-removebg-btn':          'remove_background',  // /api/remove-background
+    'ws-multiview-btn':         'back_view',          // web : mode « 2 vues » seul (/api/back-view)
+    'ws-facefix-btn':           'face_fix_image',     // /api/face-fix-image
+    'ws-outfit-btn':            _cleHabits,           // /api/outfit
+    'ws-recolor-btn':           'recolor',            // /api/recolor
+    'ws-age-btn':               'tex_variant',        // /api/tex-variant
+    'ws-resolution-btn':        'upscale',            // /api/upscale-image x2 (seul facteur propose)
+    'ws-style-btn':             'modify',             // Style = Modify
+    'ws-variant-btn':           _cleVariante,         // prix d'UNE variante ; la fenetre annonce le total
+    'ws-mask-btn':              'mask_inpaint',       // /api/mask-inpaint
+    // Rig (/api/auto-rig) : squelette tire par l'IA = rig, squelette impose = reskin
+    'ws-generate-rig-ai':       'rig',
+    'ws-rig-reskin-btn':        'reskin',
+    'pts-regenerer':            (b) => (b && b.dataset.cleTarif) || 'rig',   // index2.js : reskin si squelette retouche
+    'pts-enregistrer-sans-ia':  'manual_tool',        // /api/upload-rig, aucun calcul
+    // Maillage : /api/mesh-op, ou /api/mesh-op/client-result au meme prix
+    'ws-mesh-smooth-btn':       'mesh_op_simple',
+    'ws-mesh-decimate-btn':     'mesh_op_simple',
+    'ws-mesh-subdivide-btn':    'mesh_op_simple',
+    'ws-mesh-center-btn':       'mesh_op_simple',     // Set pivot : client-result « center »
+    'ws-mesh-fixnormals-btn':   'mesh_op_simple',
+    'ws-mesh-fillholes-btn':    'mesh_op_simple',
+    'ws-mesh-watertight-btn':   'mesh_op_simple',     // au-dela de 256 : watertight_hd (prix exact dans sa fenetre)
+    'ws-mesh-material-btn':     'mesh_op_simple',
+    'ws-mesh-retexture-btn':    'mesh_op_simple',     // retex_swap
+    'ws-mesh-explode-btn':      'mesh_op_simple',
+    'ws-mesh-resize-btn':       'mesh_op_simple',
+    'ws-mesh-aligntex-btn':     'manual_tool',        // Decals = Paint Mesh, debite a l'enregistrement
+    'ws-mesh-texvar-btn':       'texture_var',        // /api/mesh-texvar
+    'ws-mesh-trellis2-btn':     'retex_fast',         // palier par defaut ; la fenetre annonce celui choisi
+    'ws-mesh-enhance-tex-btn':  'enhance_tex',        // /api/mesh-enhance-tex
+    'ws-mesh-name-btn':         'name_parts',         // /api/mesh-name-parts
+    'ws-mesh-region-retex-btn': 'region_retex',       // /api/mesh-region-retex
+    'ws-mesh-reshape-btn':      'reshape',            // /api/mesh-reshape
+    'ws-mesh-reshape-draw-btn': 'reshape',
+    'ws-mesh-segment-btn':      'mesh_segment',       // /api/mesh-segment
+    'ws-mesh-stages3d-btn':     'construction3d',     // /api/construction-stages-3d
+    'ws-anim-gen-more-btn':     'anim',               // par animation
+    // Boutons de validation des fenetres
+    'age-go':                   'tex_variant',
+    'rc-go':                    'recolor',
+    'of-go':                    _cleHabits,
+    'bs3d-start':               'construction3d',
+    'mat-apply-btn':            'mesh_op_simple',
+    'rz-apply':                 'mesh_op_simple',
+    'ex3d-start':               'mesh_op_simple',
+    'rrx-detect':               'segment',            // Reshape : detection de la piece (/api/segment-preview)
+    // Outils manuels : manual_tool, debite a l'enregistrement du resultat
+    // (/api/upload-image avec `tool`), ou a l'ouverture pour Color Pick.
+    'ws-clone-btn':             'manual_tool',
+    'ws-crop-btn':              'manual_tool',
+    'ws-select-btn':            'manual_tool',        // Cut/Paste
+    'ws-extend-btn':            'manual_tool',
+    'ws-brightness-btn':        'manual_tool',
+    'ws-picker-btn':            'manual_tool',        // Color Pick
+    'ws-blur-btn':              'manual_tool',
+    'ws-symmetrize-btn':        'manual_tool',
+    'ws-symmetrize-auto-btn':   'manual_tool',
+    'ws-paint-btn':             'manual_tool',
+    'res-downscale':            'manual_tool',        // reduction de taille (canvas)
+    // Outils manuels 3D : Sculpt / Paint / Select a l'enregistrement
+    // (/api/upload-mesh), tampon 3D et Paint Mesh (/api/mesh-op/client-result).
+    'ws-mesh-sculpt-btn':       'manual_tool',
+    'ws-mesh-paintvert-btn':    'manual_tool',
+    'ws-mesh-selectface-btn':   'manual_tool',
+    'ws-mesh-clone3d-btn':      'manual_tool',
+    'ws-mesh-paint-mesh-btn':   'manual_tool',
+    'pm-save':                  'manual_tool',        // enregistrement de Paint Mesh / Decals
+    'pp-save':                  'manual_tool',        // editeur de poids de peau (bouton cree a l'ouverture)
+    'ws-lm-manual':             'manual_tool',        // Skeleton points
+    'ws-rig-poids-btn':         'manual_tool',        // Skin weights (a l'enregistrement)
+    'ws-anim-import-btn':       'manual_tool',        // import d'une animation (FBX)
+    // Exports et publication
+    'ws-export-img-btn':        'export',
+    'ws-mesh-export-btn':       'export',
+    'ws-rig-unreal-btn':        'export',
+    'ws-anim-export-btn':       'export',
+    'ws-anim-folder-btn':       'export',
+    'ws-image-publish-btn':     'market_publish',
+    'ws-mesh-publish-btn':      'market_publish',
+    'ws-rig-publish-btn':       'market_publish',
+    'ws-anim-publish-btn':      'market_publish',
   };
+  /* Visionneuse plein ecran : chaque entree clique le bouton du panneau
+   * (_wireLightboxToolbox, index2.js), elle affiche donc le MEME prix que lui. */
+  const LB_BOUTONS = {
+    modify: 'ws-modify-btn', autoinpaint: 'ws-autoinpaint-btn', removebg: 'ws-removebg-btn',
+    resolution: 'ws-resolution-btn', facefix: 'ws-facefix-btn', outfit: 'ws-outfit-btn',
+    symmetry: 'ws-symmetrize-auto-btn', mask: 'ws-mask-btn', clone: 'ws-clone-btn',
+    paint: 'ws-paint-btn', crop: 'ws-crop-btn', select: 'ws-select-btn', extend: 'ws-extend-btn',
+  };
+  /** Prix du bouton `id` au reglage courant ; null si la grille est inconnue. */
+  function _prixAction(id) {
+    const t = ACTION_TARIFS[id];
+    if (!t) return null;
+    const cle = typeof t === 'function' ? t(document.getElementById(id)) : t;
+    return typeof cle === 'string' ? _prixDe(cle) : null;
+  }
+  window._prixAction = _prixAction;
 
   // Buttons we hide on cloud. Note: `ws-mesh-sculpt-btn` is now ENABLED
   // on cloud as of 2026-05-29 (ea85cad shipped a client-side Three.js
@@ -957,31 +964,52 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
          .generate-cost-pill before we moved the bolt to ::before.
          Hidden so existing HTML keeps rendering correctly. */
       .generate-cost-bolt { display: none; }
+      /* PRIX INCONNU (grille /api/pricing pas encore chargee) : une pastille
+         vide ne s'affiche pas — jamais de chiffre invente a la place. */
+      .cloud-cost-badge:empty,
+      .credit-badge:empty:not(.icon-only),
+      .generate-cost-pill:has(> #ws-image-cost-value:empty),
+      .generate-cost-pill:has(> #ws-mesh-cost-value:empty) { display: none !important; }
     `;
     document.head.appendChild(style);
   }
 
-  function _attachCostBadge(button, credits) {
+  /** Pose, met a jour ou retire la pastille ⚡ d'un bouton. Prix inconnu (grille
+   *  pas encore chargee), nul ou non numerique : AUCUNE pastille. */
+  function _poserPastille(button, prix) {
     if (!button) return;
-    // Idempotent — skip if we already pinned one (e.g. on re-init).
-    if (button.querySelector('.cloud-cost-badge')) return;
-    const badge = document.createElement('span');
-    badge.className = 'cloud-cost-badge';
-    badge.textContent = String(credits);
-    badge.title = `${credits} credit${credits === 1 ? '' : 's'}`;
-    button.appendChild(badge);
+    let badge = button.querySelector('.cloud-cost-badge');
+    if (!(typeof prix === 'number' && prix > 0)) { if (badge) badge.remove(); return; }
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'cloud-cost-badge';
+      button.appendChild(badge);
+    }
+    badge.textContent = String(prix);
+    badge.title = `${prix} credit${prix === 1 ? '' : 's'}`;
   }
 
-  // Outfit : le prix depend de la case « Completer les zones cachees ».
-  let _prixOutfit = { avec: 6, sans: 3 };
-  function _majPrixOutfit() {
-    const cb = document.getElementById('of-completer');
-    const b = document.querySelector('#of-go .cloud-cost-badge');
-    const v = cb && !cb.checked ? _prixOutfit.sans : _prixOutfit.avec;
-    ACTION_COSTS['of-go'] = v;
-    if (b) b.textContent = String(v);
+  function _majPastillesVisionneuse() {
+    for (const [outil, id] of Object.entries(LB_BOUTONS)) {
+      _poserPastille(document.querySelector(`.lb-tool-btn[data-lb-tool="${outil}"]`), _prixAction(id));
+    }
   }
-  document.addEventListener('change', (e) => { if (e.target && e.target.id === 'of-completer') _majPrixOutfit(); });
+  /** Repose la pastille de TOUS les boutons tarifes, au prix courant de la grille. */
+  function _majPastillesBoutons() {
+    for (const id of Object.keys(ACTION_TARIFS)) _poserPastille(document.getElementById(id), _prixAction(id));
+    _majPastillesVisionneuse();
+  }
+  // Le prix d'Habits suit la case « Fill hidden areas », celui de Variant le mode choisi.
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (!t) return;
+    if (t.id === 'of-completer') {
+      for (const id of ['of-go', 'ws-outfit-btn']) _poserPastille(document.getElementById(id), _prixAction(id));
+      _majPastillesVisionneuse();
+    } else if (t.name === 'var-mode') {
+      _poserPastille(document.getElementById('ws-variant-btn'), _prixAction('ws-variant-btn'));
+    }
+  });
 
   function installActionCostBadges() {
     _ensureCostBadgeStyle();
@@ -993,26 +1021,26 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       new MutationObserver(() => {
         for (const id of DYN) {
           const b = document.getElementById(id);
-          if (b && !b.querySelector('.cloud-cost-badge') && ACTION_COSTS[id] != null) _attachCostBadge(b, ACTION_COSTS[id]);
+          if (b && !b.querySelector('.cloud-cost-badge')) _poserPastille(b, _prixAction(id));
         }
       }).observe(document.body, { childList: true, subtree: true });
     }
-    for (const [id, cost] of Object.entries(ACTION_COSTS)) {
+    for (const id of Object.keys(ACTION_TARIFS)) {
       const btn = document.getElementById(id);
-      _attachCostBadge(btn, cost);
+      _poserPastille(btn, _prixAction(id));   // grille pas encore la : rien, syncLivePricing les posera
       /* PASTILLE PERSISTANTE (2026-09-27). Certains boutons reecrivent leur
        * texte selon l'etat (« Generate Rig » -> « Generate new rig
        * version ») : `textContent =` effacait la pastille posee une seule
        * fois au demarrage, et le prix disparaissait. On la repose des
-       * qu'elle manque, au dernier prix connu (ACTION_COSTS est tenu a jour
-       * par syncLivePricing). */
+       * qu'elle manque, au prix courant de la grille. */
       if (btn && !btn.__coutSurveille) {
         btn.__coutSurveille = true;
         new MutationObserver(() => {
-          if (!btn.querySelector('.cloud-cost-badge')) _attachCostBadge(btn, ACTION_COSTS[id]);
+          if (!btn.querySelector('.cloud-cost-badge')) _poserPastille(btn, _prixAction(id));
         }).observe(btn, { childList: true });
       }
     }
+    _majPastillesVisionneuse();
   }
 
   /* ──────────────────────────────────────────────────────────────────
@@ -1024,64 +1052,26 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
    *   2. A cost badge inside its primary action button so the user
    *      sees the exact price on the action they're about to click.
    *
-   * Modals already handled by their own JS (variant-modal has a
-   * dynamic per-tab cost, modal-mesh-tool is rebuilt every open) get
-   * the balance pill only — their cost badge is injected by the
-   * existing code path.
-   *
-   * Keep MODAL_CREDIT_CONFIG narrow: only modals whose action spends
-   * a fixed number of credits go here. One-off flows (Face fix,
-   * Remove BG, etc.) keep their pre-existing badge handling.
+   * La modale des variantes (prix x nombre) et celle des outils de maillage
+   * (prix selon l'outil et ses reglages) posent leur propre prix (index2.js) :
+   * elles ne recoivent ici que la pastille du solde.
    * ────────────────────────────────────────────────────────────── */
-  const MODAL_CREDIT_CONFIG = {
-    'modal-modify-image':      { cost: 'modify',       applyBtn: 'mod-apply' },
-    'modal-multiview-options': { cost: 'multi_view',   applyBtn: 'mv-opt-start' },
-    'modal-auto-inpaint':      { cost: 'auto_inpaint', applyBtn: 'ai-go',
-                                 previewBtn: 'ai-preview-btn', previewCost: 'segment' },
-    'mask-modal':              { cost: 'mask_inpaint', applyBtn: 'mask-apply' },
-    'modal-resolution':        { cost: 'upscale_image', applyBtn: 'res-upscale', extraBtns: ['res-downscale'] },
-    // variant-modal: dynamic cost handled in index2.js (var-apply-cost-badge).
-    'variant-modal':           { skipCost: true },
-    // modal-mesh-tool: cost badge injected per-tool by index2.js.
-    'modal-mesh-tool':         { skipCost: true },
-    'modal-material-adjust':   { skipCost: true },
+  const MODALES_SOLDE = [
+    'modal-modify-image', 'modal-multiview-options', 'modal-auto-inpaint', 'mask-modal',
+    'modal-resolution', 'variant-modal', 'modal-mesh-tool', 'modal-material-adjust',
+  ];
+  /* Bouton qui lance le calcul -> cle de grille de la route appelee. Audit du
+   * 2026-08-18 : ces badges affichaient des chiffres figes, tous sous le prix
+   * debite (Auto Inpaint 3 pour 6, Draw Mask 3 pour 6...). Depuis le 2026-09-30
+   * ils n'affichent que la grille, et rien tant qu'elle n'est pas chargee. */
+  const MODAL_TARIFS = {
+    'mod-apply':      'modify',        // /api/modify-image
+    'mv-opt-start':   'back_view',     // mode « 2 vues » (/api/back-view) ; les 6 vues n'existent que sur le bureau
+    'ai-go':          'auto_inpaint',  // /api/auto-inpaint
+    'ai-preview-btn': 'segment',       // apercu du masque, facture a chaque detection
+    'mask-apply':     'mask_inpaint',  // /api/mask-inpaint
+    'res-upscale':    'upscale',       // x2 ; Reduire (res-downscale) = outil manuel, voir ACTION_TARIFS
   };
-
-  // Pricing key → numeric default. Lives here so the modal balance/cost
-  // helpers don't have to wait for /api/pricing — they can render
-  // immediately with the default and syncLivePricing rewrites later.
-  const _COST_DEFAULTS = {
-    modify: 3, multi_view: 3, auto_inpaint: 6,
-    mask_inpaint: 6, upscale_image: 3, segment: 3,
-  };
-
-  /* CORRESPONDANCE AVEC LES VRAIES CLES DE LA GRILLE.
-   *
-   * Audit du 2026-08-18 : ces badges affichaient des chiffres FIGES, tous
-   * inferieurs au prix reellement debite — Auto Inpaint 3 pour 6, Draw Mask
-   * 3 pour 6, Modify 2 pour 3, Upscale 2 pour 3, apercu de masque 1 pour 3.
-   * syncLivePricing() ne les corrigeait jamais : elle ne touche que
-   * `dataset.credits` et `.cloud-cost-badge`, pas `.credit-badge`.
-   *
-   * Deux des cles utilisees ici n'existent meme pas dans la grille du worker
-   * (`multi_view`, `upscale_image`) : elles n'auraient donc pas pu etre
-   * resynchronisees telles quelles. D'ou cette table de correspondance.
-   *
-   * multi_view -> back_view : en mode 2 vues le bouton appelle /api/back-view
-   * (3 credits) ; en mode 6 vues il echoue avant tout debit. */
-  const _COST_PRICING_KEY = {
-    modify: 'modify',
-    multi_view: 'back_view',
-    auto_inpaint: 'auto_inpaint',
-    mask_inpaint: 'mask_inpaint',
-    upscale_image: 'upscale',
-    segment: 'segment',
-  };
-
-  /* Boutons exclus du badge de MODALE (prix de l'agrandissement). Depuis le
-   * 2026-09-27 `res-downscale` est un outil manuel facture 1 (manual_tool) :
-   * sa pastille vient d'ACTION_COSTS, pas du badge de la modale. */
-  const _BOUTONS_GRATUITS = new Set(['res-downscale']);
 
   function _ensureModalBalanceStyle() {
     if (document.getElementById('cloud-modal-credit-style')) return;
@@ -1131,46 +1121,35 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     card.appendChild(pill);
   }
 
-  function _injectModalCostBadge(btnId, cost, cleTarif) {
-    // Bouton purement local : pas de badge du tout.
-    if (_BOUTONS_GRATUITS.has(btnId)) return;
+  function _injectModalCostBadge(btnId, cle) {
     const btn = document.getElementById(btnId);
     if (!btn) return;
     if (btn.querySelector('.credit-badge')) return;
     const badge = document.createElement('span');
     badge.className = 'credit-badge';
-    badge.dataset.cost = String(cost);
-    // La cle de grille est portee par le badge lui-meme : syncLivePricing()
-    // peut ainsi reecrire n'importe quel badge sans connaitre la modale d'ou
-    // il vient. C'est ce chainon qui manquait.
-    if (cleTarif) badge.dataset.pricingKey = cleTarif;
-    badge.textContent = String(cost);
+    // La cle de grille est portee par le badge lui-meme : _majPastillesModales()
+    // le remplit des que la grille est la, sans connaitre sa modale. Vide
+    // jusque-la, donc masque (regle :empty de _ensureCostBadgeStyle).
+    badge.dataset.pricingKey = cle;
     btn.appendChild(document.createTextNode(' '));
     btn.appendChild(badge);
+    _majPastillesModales();
+  }
+
+  /** Remplit tous les badges de modale depuis la grille (vides si elle est inconnue). */
+  function _majPastillesModales() {
+    for (const badge of document.querySelectorAll('.credit-badge[data-pricing-key]')) {
+      if (badge.classList.contains('modal-balance-badge')) continue;   // le SOLDE, pas un prix
+      const v = _prixDe(badge.dataset.pricingKey);
+      badge.textContent = (v != null && v > 0) ? String(v) : '';
+    }
   }
 
   function installModalCreditBadges() {
     _ensureCostBadgeStyle();
     _ensureModalBalanceStyle();
-    for (const [modalId, conf] of Object.entries(MODAL_CREDIT_CONFIG)) {
-      const modal = document.getElementById(modalId);
-      if (!modal) continue;
-      _injectModalBalanceBadge(modal);
-      if (conf.skipCost) continue;
-      const cost = _COST_DEFAULTS[conf.cost] ?? 1;
-      const cle = _COST_PRICING_KEY[conf.cost];
-      if (conf.applyBtn) _injectModalCostBadge(conf.applyBtn, cost, cle);
-      (conf.extraBtns || []).forEach((id) => _injectModalCostBadge(id, cost, cle));
-      // Action secondaire au tarif different (l'apercu de masque d'Auto-Inpaint
-      // est facture au prix `segment`, distinct de l'application).
-      if (conf.previewBtn) {
-        _injectModalCostBadge(
-          conf.previewBtn,
-          _COST_DEFAULTS[conf.previewCost] ?? 1,
-          _COST_PRICING_KEY[conf.previewCost]
-        );
-      }
-    }
+    for (const modalId of MODALES_SOLDE) _injectModalBalanceBadge(document.getElementById(modalId));
+    for (const [btnId, cle] of Object.entries(MODAL_TARIFS)) _injectModalCostBadge(btnId, cle);
     // First refresh — fills the "…" with the actual balance. The
     // refresh function is exported on window so the existing topbar
     // refresh updates the modal pills too.
@@ -1210,8 +1189,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   // attribute observer per modal) and matches user expectation —
   // they see a fresh number every time they open a paid tool.
   function _watchModalOpens() {
-    const modalIds = Object.keys(MODAL_CREDIT_CONFIG);
-    modalIds.forEach((id) => {
+    MODALES_SOLDE.forEach((id) => {
       const modal = document.getElementById(id);
       if (!modal) return;
       const obs = new MutationObserver(() => {
@@ -1222,304 +1200,155 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
   }
 
   /* ──────────────────────────────────────────────────────────────────
-   * Live mesh-cost meter — sums data-credits on the active preset +
-   * every checked option, rewrites the "Generate 3D (N credits)" pill.
-   * Re-runs on any change in the advanced texture options.
+   * GRILLE DES PRIX — GET /api/pricing (publique, cache 30 s en bordure).
+   * Chargee au demarrage puis relue toutes les 5 minutes : un prix change dans
+   * /admin > Pricing suit sans redeploiement. Injoignable : AUCUN chiffre (pas
+   * de valeur de repli), et un nouvel essai toutes les 30 s (8 fois au plus)
+   * plutot que d'attendre 5 minutes.
    * ────────────────────────────────────────────────────────────────── */
-  /* Sync the static data-credits attributes + the per-button cost
-   * badges with the dynamic pricing the admin set in /admin > Pricing.
-   * Maps PRICING_DEFAULTS keys (server-side) to the HTML element ids
-   * (UI-side). Runs once on boot — admin tweaks propagate to users
-   * within 30s thanks to the public endpoint's Cache-Control + the
-   * worker's _getPricing 60s in-memory cache. */
-  const PRICING_TO_DATA_CREDITS = {
-    mesh_fast:        'ws-trellis2-preset:fast',
-    mesh_balanced:    'ws-trellis2-preset:balanced',
-    mesh_quality:     'ws-trellis2-preset:quality',
-    mesh_ultra_8k:    'ws-trellis2-preset:ultra_8k',
-    mesh_multiref:    'ws-trellis2-multiref',
-    mesh_refine:      'ws-trellis2-refine',
-    mesh_rectify:     'ws-trellis2-rectify',
-    mesh_quality_plus:'ws-trellis2-quality-plus',
-    mesh_ultra_q:     'ws-trellis2-ultra-q',
-    mesh_ultra_hd:    'ws-trellis2-ultra-hd',
-    // face_fix : de nouveau ACTIF cote cloud (2026-08-28). Il etait masque
-    // et force a false depuis le 02/08 comme « sans effet » ; le lecteur
-    // existe pourtant dans modal_app/app.py:1665 (_face_fix.py). Voir worker.ts.
-    mesh_face_fix:    'ws-trellis2-face-fix',
-    mesh_smooth:      'ws-trellis2-smooth',
-  };
-  // Tool-button badges (ACTION_COSTS keys) -> pricing keys.
-  const ACTION_COST_TO_PRICING = {
-    'ws-modify-btn':       'modify',
-    'ws-autoinpaint-btn':  'auto_inpaint',
-    'ws-mask-btn':         'mask_inpaint',
-    'ws-facefix-btn':      'face_fix_image',
-    'ws-removebg-btn':     'remove_background',
-    'ws-outfit-btn':       'outfit_complete',
-    'ws-recolor-btn':      'recolor',
-    'ws-age-btn':          'tex_variant',
-    'ws-mesh-texvar-btn':  'texture_var',
-    'ws-mesh-trellis2-btn': 'retex_fast',
-    'ws-generate-rig-ai':  'rig',
-    'pts-regenerer':       'rig',
-    'pts-enregistrer-sans-ia': 'manual_tool',
-    'ws-rig-reskin-btn':   'reskin',
-    'ws-mesh-segment-btn': 'mesh_segment',
-    'ws-mesh-stages3d-btn': 'construction3d',
-    'ws-variant-btn':      'tex_variant',
-    'ws-anim-gen-more-btn': 'anim',
-    'ws-style-btn':        'modify',
-    'ws-multiview-btn':    'back_view',
-    'age-go':              'tex_variant',
-    'rc-go':               'recolor',
-    'of-go':               'outfit_complete',
-    'bs3d-start':          'construction3d',
-    'mat-apply-btn':       'mesh_op_simple',
-    'rz-apply':            'mesh_op_simple',
-    'ex3d-start':          'mesh_op_simple',
-    'ws-clone-btn':        'manual_tool',
-    'ws-crop-btn':         'manual_tool',
-    'ws-select-btn':       'manual_tool',
-    'ws-extend-btn':       'manual_tool',
-    'ws-brightness-btn':   'manual_tool',
-    'ws-picker-btn':       'manual_tool',
-    'ws-blur-btn':         'manual_tool',
-    'ws-symmetrize-btn':   'manual_tool',
-    'ws-symmetrize-auto-btn': 'manual_tool',
-    'ws-paint-btn':        'manual_tool',
-    'res-downscale':       'manual_tool',
-    'ws-mesh-sculpt-btn':  'manual_tool',
-    'ws-mesh-paintvert-btn': 'manual_tool',
-    'ws-mesh-selectface-btn': 'manual_tool',
-    'ws-mesh-clone3d-btn': 'manual_tool',
-    'ws-mesh-paint-mesh-btn': 'manual_tool',
-    'pm-save': 'manual_tool',
-    'pp-save': 'manual_tool',
-    'ws-mesh-explode-btn': 'mesh_op_simple',
-    'ws-mesh-resize-btn':  'mesh_op_simple',
-    'ws-export-img-btn':   'export',
-    'ws-mesh-export-btn':  'export',
-    'ws-rig-unreal-btn':   'export',
-    'ws-anim-export-btn':  'export',
-    'ws-anim-folder-btn':  'export',
-    'ws-image-publish-btn': 'market_publish',
-    'ws-mesh-publish-btn': 'market_publish',
-    'ws-rig-publish-btn':  'market_publish',
-    'ws-anim-publish-btn': 'market_publish',
-    'ws-anim-import-btn':  'manual_tool',
-    'ws-lm-manual':        'manual_tool',
-    'ws-rig-poids-btn':    'manual_tool',
-    'ws-mesh-enhance-tex-btn': 'enhance_tex',
-    'ws-mesh-name-btn':    'name_parts',
-    'ws-mesh-region-retex-btn': 'region_retex',
-    'ws-mesh-aligntex-btn':     'manual_tool',
-    'ws-mesh-reshape-btn':      'reshape',
-    'ws-mesh-reshape-draw-btn': 'reshape',
-    'ws-resolution-btn':   'upscale',
-  };
+  let _essaisGrille = 0;
+  let _relanceGrille = null;
   async function syncLivePricing() {
-    let prices;
+    let j = null;
     try {
       const r = await fetch('/api/pricing');
-      if (!r.ok) return;
-      const j = await r.json();
-      prices = j.prices || {};
-      // LE SERVEUR DECLARE CE QUI EXISTE VRAIMENT.
-      //
-      // La liste CLOUD_HIDE_BUTTONS masque des boutons dont le backend n'est
-      // pas deploye — c'est correct, mais c'est une liste CODEE EN DUR : le
-      // jour ou le backend arrive, il faut penser a l'editer, sinon la
-      // fonctionnalite reste invisible alors qu'elle marche. On retablit donc
-      // le bouton des que `/api/pricing` annonce la fonction disponible, sans
-      // second deploiement a prevoir.
-      try {
-        const f = j.features || {};
-        if (f.segment) {
-          const el = document.getElementById('ws-mesh-segment-btn');
-          if (el) el.style.display = '';
-        }
-      } catch (_) { /* confort : jamais bloquant */ }
-    } catch { return; }
-    for (const [pkey, target] of Object.entries(PRICING_TO_DATA_CREDITS)) {
-      const v = prices[pkey];
-      if (typeof v !== 'number') continue;
-      if (target.includes(':')) {
-        const [selectId, optVal] = target.split(':');
-        const opt = document.querySelector(`#${selectId} option[value="${optVal}"]`);
-        if (opt) {
-          opt.dataset.credits = String(v);
-          /* LE LIBELLE PORTE LE PRIX : il doit suivre la grille lui aussi.
-           *
-           * Seul `dataset.credits` etait reecrit. Le TEXTE reste, lui, celui
-           * fige dans le HTML : « Fast … 1 cr » alors que le serveur debite 8,
-           * « Balanced … 2 cr » pour 10. Le client lisait donc un prix et s'en
-           * voyait prelever jusqu'a huit fois plus — en droit francais, une
-           * pratique commerciale trompeuse. C'est exactement le defaut deja
-           * corrige ailleurs : un chiffre duplique dans le balisage au lieu
-           * d'etre lu a la source.
-           *
-           * `labelBase` memorise la partie sans prix au premier passage, pour
-           * que les rappels (toutes les 5 minutes) restent idempotents. */
-          if (opt.dataset.labelBase === undefined) {
-            opt.dataset.labelBase = opt.textContent.replace(/\s*[·)]?\s*\d+\s*cr\s*\)?\s*$/, '').replace(/\s*\)\s*$/, '');
-          }
-          // Le prix n'est plus dans le texte : il est dans la vignette ⚡ en
-          // bout de ligne (_majVignettesOptions3D), demande du user 2026-09-27.
-          const base = opt.dataset.labelBase;
-          opt.textContent = base.includes('(') && !base.endsWith(')') ? `${base})` : base;
-        }
-      } else {
-        const el = document.getElementById(target);
-        if (el) el.dataset.credits = String(v);
+      if (r.ok) j = await r.json();
+    } catch (_) { j = null; }
+    const prices = (j && j.prices && typeof j.prices === 'object') ? j.prices : null;
+    if (!prices) {
+      if (!window.__LIVE_PRICES && !_relanceGrille && _essaisGrille < 8) {
+        _essaisGrille++;
+        _relanceGrille = setTimeout(() => { _relanceGrille = null; syncLivePricing(); }, 30_000);
       }
+      return;
     }
-    // Re-attach action cost badges using fresh prices.
-    if (typeof window.ACTION_COSTS_OVERRIDE !== 'object') {
-      window.ACTION_COSTS_OVERRIDE = {};
-    }
-    for (const [btnId, pkey] of Object.entries(ACTION_COST_TO_PRICING)) {
-      const v = prices[pkey];
-      if (typeof v !== 'number') continue;
-      // Retenu aussi pour la pastille persistante (voir installActionCostBadges).
-      ACTION_COSTS[btnId] = v;
-      if (typeof prices.mesh_tris_500k === 'number') window.__prixTris500k = prices.mesh_tris_500k;
-      if (typeof prices.mesh_tris_base === 'number') window.__prixTrisSocle = prices.mesh_tris_base;
-      if (typeof prices.mesh_tris_courbe_pct === 'number') window.__prixTrisCourbe = prices.mesh_tris_courbe_pct;
-      if (btnId === 'of-go') {
-        _prixOutfit = { avec: v, sans: typeof prices.outfit === 'number' ? prices.outfit : _prixOutfit.sans };
-        _majPrixOutfit();
-        continue;
-      }
-      const btn = document.getElementById(btnId);
-      if (!btn) continue;
-      const existing = btn.querySelector('.cloud-cost-badge');
-      if (existing) existing.textContent = String(v);
-    }
-    /* BADGES DES MODALES — le chainon qui manquait.
-     *
-     * Ces `.credit-badge` n'etaient JAMAIS reecrits : la boucle ci-dessus ne
-     * traite que `.cloud-cost-badge`. Resultat, ils gardaient a vie leur
-     * valeur d'injection, toutes inferieures au prix debite (Auto Inpaint 3
-     * pour 6, Modify 2 pour 3...). Chaque badge porte maintenant sa cle de
-     * grille, on les met donc tous a jour d'un coup.
-     *
-     * On exclut `.modal-balance-badge` : celui-la affiche le SOLDE de
-     * l'utilisateur, pas un prix. */
-    /* La grille est exposee pour que le reste de l'application puisse
-     * calculer un total sans re-interroger le reseau — la modale des
-     * variantes s'en sert (prix unitaire x nombre demande). */
-    window.__LIVE_PRICES = prices;
-    try { window._majCoutVariantes?.(); } catch (_) {}
-    for (const badge of document.querySelectorAll('.credit-badge[data-pricing-key]')) {
-      if (badge.classList.contains('modal-balance-badge')) continue;
-      const v = prices[badge.dataset.pricingKey];
-      if (typeof v !== 'number') continue;
-      badge.dataset.cost = String(v);
-      badge.textContent = String(v);
-    }
-    // Trigger mesh meter recompute (it'll read the fresh data-credits).
-    const preset = document.getElementById('ws-trellis2-preset');
-    if (preset) preset.dispatchEvent(new Event('change'));
-    // Update the image cost pill — refreshButtonLabelsAndHiding reads
-    // #ws-image-cost-value, so just bumping its text is enough.
-    // PASTILLE DE COUT DES IMAGES — corrigee le 2026-08-03.
+    // LE SERVEUR DECLARE CE QUI EXISTE VRAIMENT.
     //
-    // Elle affichait le prix UNITAIRE fige (2 credits) alors que le clic
-    // debite bien davantage :
-    //   - n * text2image  (worker.ts : `const cost = n * COST_PER_IMAGE`)
-    //   - + n * back_view : la vue arriere est generee POUR CHAQUE image
-    //     des que ws-mv-scope != 'front_only', et sa valeur par defaut
-    //     est 'auto' — elle part donc TOUJOURS.
-    // Au reglage par defaut le clic coutait 4 credits pour 2 annonces ;
-    // avec Count=4, 16 pour 2. La pastille du bouton 3D, elle, calculait
-    // deja un vrai total : c'est ce comportement qu'on aligne ici.
-    const imgVal = document.getElementById('ws-image-cost-value');
-    if (imgVal && typeof prices.text2image === 'number') {
-      const recalcImage = () => {
-        // RELU A CHAQUE FOIS (2026-09-27, user : « ca ne change pas le prix ») :
-        // index2.js reecrit le bouton Generate (refreshButtonLabelsAndHiding)
-        // et recree cette pastille ; l'ancienne reference visait un element
-        // detache, le prix ne bougeait plus a l'ecran.
-        const cible = document.getElementById('ws-image-cost-value');
-        if (!cible) return;
-        const n = Math.max(1, parseInt(
-          document.getElementById('ws-count')?.value, 10) || 1);
-        // PRIX SELON LA QUALITE (2026-09-27, user : « il faut que ca coute
-        // des credits en fonction du choix ») : meme formule que
-        // _prixImageSelonPas() du worker — le tarif vaut pour 30 pas.
-        // Turbo = 4 pas, quel que soit le curseur (meme regle que le worker)
-        const turbo = document.getElementById('ws-engine')?.value === 'local-lightning';
-        const pas = turbo ? 4 : Math.max(10, Math.min(60, parseInt(
-          document.getElementById('ws-quality')?.value, 10) || 30));
-        const pImg = Math.max(1, Math.round(prices.text2image * pas / 30));
-        // Construction stages : 3 images, quel que soit Count
-        const etapes = !!document.getElementById('ws-img-buildstages')?.checked;
-        const nImg = etapes ? 3 : n;
-        // meme regle que le clic (index2.js) : en « auto », la vue arriere
-        // ne part que pour les personnages, creatures et animaux
-        const scope = document.getElementById('ws-mv-scope')?.value || 'auto';
-        const type = document.getElementById('ws-asset-type')?.value || 'character';
-        const avecDos = scope === 'auto'
-          ? (type === 'character' || type === 'creature' || type === 'animal')
-          : scope !== 'front_only';
-        const pBack = typeof prices.back_view === 'number' ? prices.back_view : 0;
-        const total = nImg * pImg + (avecDos ? nImg * pBack : 0);
-        cible.textContent = String(total);
-        // PASTILLES PAR OPTION (2026-09-27, user : « je veux voir les
-        // pastilles de credits ») : meme vignette que les options 3D, en bout
-        // de ligne. Quality = prix d'UNE image a ce nombre de pas ; Count et
-        // Construction stages = ce que coutent les images demandees.
-        const pastille = (id, apres, valeur, aide) => {
-          let b = document.getElementById(id);
-          if (!b && apres) {
-            b = document.createElement('span');
-            b.id = id;
-            b.className = 'cloud-cost-badge opt-cost';
-            apres.insertAdjacentElement('afterend', b);
-          }
-          if (!b) return;
-          b.textContent = String(valeur);
-          b.title = aide;
-          b.style.display = valeur > 0 ? '' : 'none';
-        };
-        pastille('ws-quality-cost', document.getElementById('ws-quality-val'), pImg,
-                 `${pImg} credit(s) per image at ${pas} steps`);
-        pastille('ws-count-cost', document.getElementById('ws-count'), etapes ? 0 : n * pImg,
-                 `${n} image(s) x ${pImg}`);
-        const labEtapes = document.getElementById('ws-img-buildstages')?.closest('label');
-        if (labEtapes) {
-          labEtapes.style.display = 'flex';
-          labEtapes.style.alignItems = 'center';
-          labEtapes.style.gap = '6px';
-          labEtapes.style.width = '100%';
-          let bs = labEtapes.querySelector(':scope > .opt-cost');
-          if (!bs) {
-            bs = document.createElement('span');
-            bs.className = 'cloud-cost-badge opt-cost';
-            labEtapes.appendChild(bs);
-          }
-          bs.textContent = String(3 * pImg);
-          bs.title = `3 images x ${pImg}`;
-        }
-        // Le detail evite la question « pourquoi 16 alors que l'image
-        // est a 2 ? » : on montre la composition.
-        const pill = cible.closest('[class*="cost"]') || cible.parentElement;
-        if (pill) {
-          pill.title = avecDos
-            ? `${nImg} image(s) x ${pImg} (${pas} steps) + ${nImg} back view(s) x ${pBack} = ${total} credits`
-            : `${nImg} image(s) x ${pImg} (${pas} steps) = ${total} credits`;
-        }
-      };
-      recalcImage();
-      document.getElementById('ws-count')?.addEventListener('change', recalcImage);
-      document.getElementById('ws-count')?.addEventListener('input', recalcImage);
-      document.getElementById('ws-quality')?.addEventListener('input', recalcImage);
-      document.getElementById('ws-engine')?.addEventListener('change', recalcImage);
-      document.getElementById('ws-img-buildstages')?.addEventListener('change', recalcImage);
-      document.getElementById('ws-asset-type')?.addEventListener('change', recalcImage);
-      document.getElementById('ws-mv-scope')?.addEventListener('change', recalcImage);
+    // La liste CLOUD_HIDE_BUTTONS masque des boutons dont le backend n'est
+    // pas deploye — c'est correct, mais c'est une liste CODEE EN DUR : le
+    // jour ou le backend arrive, il faut penser a l'editer, sinon la
+    // fonctionnalite reste invisible alors qu'elle marche. On retablit donc
+    // le bouton des que `/api/pricing` annonce la fonction disponible, sans
+    // second deploiement a prevoir.
+    try {
+      const f = j.features || {};
+      if (f.segment) {
+        const el = document.getElementById('ws-mesh-segment-btn');
+        if (el) el.style.display = '';
+      }
+    } catch (_) { /* confort : jamais bloquant */ }
+    // La grille est exposee au reste de l'application (window._prixDe) :
+    // chaque pastille calcule son total sans re-interroger le reseau.
+    window.__LIVE_PRICES = prices;
+    _majTousLesPrix();
+  }
+
+  /** Repose TOUTES les pastilles et mentions de prix depuis la grille courante. */
+  function _majTousLesPrix() {
+    const etapes = [
+      _majPastillesBoutons, _majPastillesModales,
+      () => window._majCoutVariantes?.(),
+      () => window.__majPrixImage?.(),
+      () => window.__majPrixMaillage?.(),
+    ];
+    for (const f of etapes) {
+      try { f(); } catch (_) { /* une pastille en echec ne bloque pas les autres */ }
     }
+    // Les fenetres d'index2.js (outils de maillage, points du squelette,
+    // Reshape…) reposent leur prix sur cet evenement.
+    try { window.dispatchEvent(new Event('grille-prix')); } catch (_) {}
+  }
+  window._majTousLesPrix = _majTousLesPrix;
+
+  /* PASTILLE DU BOUTON « GENERATE » (images) — MEME CALCUL QUE LE CLIC ET LE
+   * WORKER (handleGenerateImage + _prixImageSelonPas) :
+   *   - UNE image : le tarif text2image vaut pour 30 pas ; au prorata des pas
+   *     du curseur Quality (bornes 10..60), arrondi, jamais moins d'1 credit ;
+   *     le moteur Turbo est facture au prix de 4 pas ;
+   *   - Count images (lots de 4 au plus, toutes facturees) ; Construction
+   *     stages = 3 images, quel que soit Count ;
+   *   - + une vue de dos par image si ws-mv-scope la demande (front_only
+   *     aujourd'hui des deux cotes : aucune).
+   * Grille inconnue : pastille vide, donc masquee. */
+  function installImageCostMeter() {
+    const $ = (id) => document.getElementById(id);
+    const pastille = (id, apres, valeur, aide) => {
+      let b = $(id);
+      if (!b && apres) {
+        b = document.createElement('span');
+        b.id = id;
+        b.className = 'cloud-cost-badge opt-cost';
+        apres.insertAdjacentElement('afterend', b);
+      }
+      if (!b) return;
+      const ok = typeof valeur === 'number' && valeur > 0;
+      b.textContent = ok ? String(valeur) : '';
+      b.title = ok ? aide : '';
+      b.style.display = ok ? '' : 'none';
+    };
+    const recalc = () => {
+      // RELU A CHAQUE FOIS (2026-09-27) : index2.js reecrit le bouton Generate
+      // (refreshButtonLabelsAndHiding) et recree la pastille.
+      const cible = $('ws-image-cost-value');
+      const tarif30 = _prixDe('text2image');
+      const n = Math.max(1, parseInt($('ws-count')?.value, 10) || 4);   // meme defaut que le clic
+      const turbo = $('ws-engine')?.value === 'local-lightning';
+      const pas = turbo ? 4 : Math.max(10, Math.min(60, Math.round(Number($('ws-quality')?.value) || 30)));
+      const pImg = tarif30 == null ? null : Math.max(1, Math.round(tarif30 * pas / 30));
+      const etapes = !!$('ws-img-buildstages')?.checked;
+      const nImg = etapes ? 3 : n;
+      // meme regle que le clic (index2.js) : en « auto », la vue arriere ne
+      // part que pour les personnages, creatures et animaux
+      const scope = $('ws-mv-scope')?.value || 'auto';
+      const type = $('ws-asset-type')?.value || 'character';
+      const avecDos = scope === 'auto'
+        ? (type === 'character' || type === 'creature' || type === 'animal')
+        : scope !== 'front_only';
+      const pBack = avecDos ? _prixDe('back_view') : 0;
+      const total = (pImg == null || pBack == null) ? null : nImg * pImg + (avecDos ? nImg * pBack : 0);
+      if (cible) {
+        cible.textContent = total == null ? '' : String(total);
+        const pill = cible.closest('.generate-cost-pill') || cible.parentElement;
+        if (pill) {
+          pill.style.display = total == null ? 'none' : '';
+          // Le detail evite la question « pourquoi 16 alors que l'image est a 2 ? ».
+          pill.title = total == null ? ''
+            : avecDos
+              ? `${nImg} image(s) x ${pImg} (${pas} steps) + ${nImg} back view(s) x ${pBack} = ${total} credits`
+              : `${nImg} image(s) x ${pImg} (${pas} steps) = ${total} credits`;
+        }
+      }
+      // PASTILLES PAR OPTION (2026-09-27) : Quality = prix d'UNE image a ce
+      // nombre de pas ; Count et Construction stages = les images demandees.
+      pastille('ws-quality-cost', $('ws-quality-val'), pImg, `${pImg} credit(s) per image at ${pas} steps`);
+      pastille('ws-count-cost', $('ws-count'), (pImg == null || etapes) ? null : n * pImg, `${n} image(s) x ${pImg}`);
+      const labEtapes = $('ws-img-buildstages')?.closest('label');
+      if (labEtapes) {
+        labEtapes.style.display = 'flex';
+        labEtapes.style.alignItems = 'center';
+        labEtapes.style.gap = '6px';
+        labEtapes.style.width = '100%';
+        let bs = labEtapes.querySelector(':scope > .opt-cost');
+        if (!bs) {
+          bs = document.createElement('span');
+          bs.className = 'cloud-cost-badge opt-cost';
+          labEtapes.appendChild(bs);
+        }
+        bs.textContent = pImg == null ? '' : String(3 * pImg);
+        bs.title = pImg == null ? '' : `3 images x ${pImg}`;
+      }
+    };
+    window.__majPrixImage = recalc;
+    for (const id of ['ws-count', 'ws-quality', 'ws-engine', 'ws-img-buildstages', 'ws-asset-type', 'ws-mv-scope']) {
+      const el = $(id);
+      el?.addEventListener('change', recalc);
+      el?.addEventListener('input', recalc);
+    }
+    // Le bouton est reecrit (libelle « Generate new version ») : la pastille
+    // recreee est remplie aussitot.
+    const btn = $('ws-generate-image');
+    if (btn) new MutationObserver(recalc).observe(btn, { childList: true });
+    recalc();
   }
 
 
@@ -1722,82 +1551,119 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       }
     })();
 
-    function recompute() {
-      let total = parseInt(preset.selectedOptions[0]?.dataset?.credits || '1', 10);
-      // « Sharp edges » n'est pas facture quand « Fine geometry » (qui l'emporte)
-      // est coche : meme regle que creditCost (worker). Le compteur affichait 1 de trop.
-      const _ultraQ = !!document.getElementById('ws-trellis2-ultra-q')?.checked;
-      for (const id of optionIds) {
-        const el = document.getElementById(id);
-        if (id === 'ws-trellis2-quality-plus' && _ultraQ) continue;
-        if (el?.checked) total += parseInt(el.dataset.credits || '0', 10);
-      }
-      // Construction stages (3 versions) : l'outil 3D construction stages part
-      // apres la generation, a son propre tarif (2026-09-27).
-      const chantier = document.getElementById('ws-3d-buildstages');
-      const prixChantier = typeof window.__LIVE_PRICES?.construction3d === 'number'
-        ? window.__LIVE_PRICES.construction3d : 2;
-      const chantierVisible = chantier && chantier.closest('.form-row')?.style.display !== 'none';
-      if (chantier?.checked && chantierVisible) total += prixChantier;
-      const labChantier = chantier?.closest('label');
-      if (labChantier) {
-        labChantier.style.display = 'flex';
-        labChantier.style.alignItems = 'center';
-        labChantier.style.gap = '6px';
-        labChantier.style.width = '100%';
-        let vc = labChantier.querySelector(':scope > .opt-cost');
-        if (!vc) {
-          vc = document.createElement('span');
-          vc.className = 'cloud-cost-badge opt-cost';
-          labChantier.appendChild(vc);
-        }
-        vc.textContent = String(prixChantier);
-        vc.title = `3D construction stages, run right after the mesh: ${prixChantier} credit(s)`;
-      }
-      // Supplement « Max triangles » : meme regle que creditCost (worker).
+    /* PRIX DE « GENERATE 3D » — MEMES REGLES QUE creditCost + handleGenerate
+     * (worker.ts), avec les prix de la grille (plus aucun data-credits fige
+     * dans le HTML : « Fast » y valait 1 pour 8 factures). */
+    const CLE_PRESET = {
+      fast: 'mesh_fast', balanced: 'mesh_balanced', quality: 'mesh_quality', ultra_8k: 'mesh_ultra_8k',
+    };
+    const CLE_OPTION = {
+      'ws-trellis2-multiref':     'mesh_multiref',
+      'ws-trellis2-refine':       'mesh_refine',
+      'ws-trellis2-rectify':      'mesh_rectify',
+      'ws-trellis2-smooth':       'mesh_smooth',
+      'ws-trellis2-quality-plus': 'mesh_quality_plus',
+      'ws-trellis2-ultra-q':      'mesh_ultra_q',
+      'ws-trellis2-ultra-hd':     'mesh_ultra_hd',
+      'ws-trellis2-face-fix':     'mesh_face_fix',
+    };
+    // Image deja de face (issue de la rectification, ou T-pose) : le worker saute
+    // la rectification, ni calcul ni credits (handleGenerate, meme motif).
+    const DEJA_DE_FACE = /\/rectify\/[^/?#]*_rectified\.(png|webp|jpe?g)|\/front\/[^/?#]*_tpose\.(png|webp|jpe?g)/i;
+    /** L'option serait-elle facturee si elle etait cochee ? */
+    const _optionPayante = (id) => {
+      const el = document.getElementById(id);
+      if (!el) return false;
+      // neutralisee par le worker (OPTIONS_SANS_EFFET_CLOUD) : ni appliquee ni facturee
+      if (el.dataset.morte === '1' || window.__optionsMortesCloud?.has(id)) return false;
+      // Ultra Q (1536) l'emporte sur Quality+ : le worker ne facture pas les deux
+      if (id === 'ws-trellis2-quality-plus' && document.getElementById('ws-trellis2-ultra-q')?.checked) return false;
+      // inclus dans le prereglage Ultra 8K
+      if (id === 'ws-trellis2-ultra-hd' && preset.value === 'ultra_8k') return false;
+      if (id === 'ws-trellis2-rectify'
+          && DEJA_DE_FACE.test(String(window.state?.currentProject?.selectedImagePath || ''))) return false;
+      return true;
+    };
+    const _trisDemandes = () => {
       const trisSel = document.getElementById('ws-trellis2-tris');
-      if (trisSel) {
-        const brut = trisSel.value === 'custom'
-          ? parseInt(document.getElementById('ws-trellis2-tris-custom')?.value || '500000', 10)
-          : parseInt(trisSel.value, 10);
-        const tris = Math.max(500, Math.min(10_000_000, brut || 500000));
-        // Courbe (meme regle que _supplementTriangles, worker) : socle minimum,
-        // puis prix x (triangles / 500 K) ^ (courbure / 100), arrondi au-dessus.
-        const _e = Math.max(1, (window.__prixTrisCourbe ?? 130) / 100);
-        const sup = Math.max(window.__prixTrisSocle ?? 1,
-                             Math.ceil((window.__prixTris500k ?? 1) * Math.pow(tris / 500000, _e) - 1e-9));
-        total += sup;
-        const hint = document.getElementById('ws-trellis2-tris-cost');
-        if (hint) { hint.textContent = String(sup); hint.style.display = sup ? '' : 'none'; }
+      const brut = !trisSel ? 500000 : trisSel.value === 'custom'
+        ? parseInt(document.getElementById('ws-trellis2-tris-custom')?.value || '500000', 10)
+        : parseInt(trisSel.value, 10);
+      return Math.max(500, Math.min(10_000_000, brut || 500000));   // memes bornes que le clic et le worker
+    };
+    /** Supplement « Max triangles » : courbe de _supplementTriangles (worker) —
+     *  socle minimum, puis tranche x (triangles / 500 K) ^ (courbure / 100). */
+    const _supplementTris = () => {
+      const tranche = _prixDe('mesh_tris_500k'), socle = _prixDe('mesh_tris_base');
+      const courbe = _prixDe('mesh_tris_courbe_pct');
+      if (tranche == null || socle == null || courbe == null) return null;
+      const e = Math.max(1, courbe / 100);
+      return Math.max(socle, Math.ceil(tranche * Math.pow(_trisDemandes() / 500000, e) - 1e-9));
+    };
+    /** Total du lancement au reglage courant ; null tant que la grille est inconnue. */
+    const _prixMaillage = () => {
+      let total = _prixDe(CLE_PRESET[preset.value] || 'mesh_fast');
+      if (total == null) return null;
+      for (const [id, cle] of Object.entries(CLE_OPTION)) {
+        if (!document.getElementById(id)?.checked || !_optionPayante(id)) continue;
+        const v = _prixDe(cle);
+        if (v == null) return null;
+        total += v;
       }
+      // Construction stages (3 versions) : l'outil 3D part juste apres la
+      // generation, a son propre tarif. La case est decochee quand elle est masquee.
+      if (document.getElementById('ws-3d-buildstages')?.checked) {
+        const v = _prixDe('construction3d');
+        if (v == null) return null;
+        total += v;
+      }
+      const sup = _supplementTris();
+      return sup == null ? null : total + sup;
+    };
+
+    function recompute() {
+      // Relu a chaque fois : refreshButtonLabelsAndHiding reecrit le bouton et
+      // recree la pastille.
+      const total = _prixMaillage();
       const valueEl = document.getElementById('ws-mesh-cost-value');
-      if (valueEl) valueEl.textContent = String(total);
+      if (valueEl) {
+        valueEl.textContent = total == null ? '' : String(total);
+        const pill = valueEl.closest('.generate-cost-pill');
+        if (pill) pill.style.display = total == null ? 'none' : '';
+      }
       _majVignettesOptions3D();
     }
+    window.__majPrixMaillage = recompute;
 
-    /* VIGNETTES ⚡ EN BOUT DE LIGNE (2026-09-27, demande du user) : le prix
-     * n'est plus ecrit dans le libelle (« +2 cr · ... ») mais affiche dans la
-     * meme vignette que les outils, a droite de chaque ligne. Valeur lue sur
-     * `data-credits`, que syncLivePricing tient a jour depuis la grille. */
+    /* VIGNETTES ⚡ EN BOUT DE LIGNE (2026-09-27, demande du user) : le prix de
+     * chaque reglage, a droite de sa ligne, lu dans la grille. Rien si la
+     * grille est inconnue ou si l'option ne serait pas facturee. */
     function _majVignettesOptions3D() {
-      for (const id of [...optionIds, 'ws-trellis2-multiref', 'ws-trellis2-ultra-hd']) {
-        const cb = document.getElementById(id);
-        const lab = cb && cb.closest('label');
-        if (!lab) continue;
-        let v = lab.querySelector(':scope > .opt-cost');
-        if (!v) {
-          v = document.createElement('span');
-          v.className = 'cloud-cost-badge opt-cost';
-          lab.appendChild(v);
-          lab.style.display = 'flex';
-          lab.style.alignItems = 'center';
-          lab.style.gap = '6px';
-          lab.style.width = '100%';
+      const vignette = (hote, v, aide) => {
+        if (!hote) return;
+        let el = hote.querySelector(':scope > .opt-cost');
+        if (!el) {
+          el = document.createElement('span');
+          el.className = 'cloud-cost-badge opt-cost';
+          hote.appendChild(el);
+          hote.style.display = 'flex';
+          hote.style.alignItems = 'center';
+          hote.style.gap = '6px';
+          hote.style.width = '100%';
         }
-        const n = parseInt(cb.dataset.credits || '0', 10) || 0;
-        v.textContent = String(n);
-        v.style.display = (n > 0 && cb.dataset.morte !== '1') ? '' : 'none';
+        const ok = typeof v === 'number' && v > 0;
+        el.textContent = ok ? String(v) : '';
+        el.title = ok && aide ? aide : '';
+        el.style.display = ok ? '' : 'none';
+      };
+      for (const [id, cle] of Object.entries(CLE_OPTION)) {
+        const cb = document.getElementById(id);
+        vignette(cb && cb.closest('label'), _optionPayante(id) ? _prixDe(cle) : null);
       }
+      const chantier = document.getElementById('ws-3d-buildstages');
+      const pc = _prixDe('construction3d');
+      vignette(chantier && chantier.closest('label'), pc,
+               pc == null ? '' : `3D construction stages, run right after the mesh: ${pc} credit(s)`);
       // Menu Quality : vignette du palier choisi, en bout de ligne.
       let vp = document.getElementById('ws-trellis2-preset-cost');
       if (!vp && preset.parentElement) {
@@ -1806,23 +1672,33 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         vp.className = 'cloud-cost-badge opt-cost';
         preset.insertAdjacentElement('afterend', vp);
       }
-      if (vp) vp.textContent = String(parseInt(preset.selectedOptions[0]?.dataset?.credits || '1', 10));
+      if (vp) vp.textContent = String(_prixDe(CLE_PRESET[preset.value] || 'mesh_fast') ?? '');
+      const hint = document.getElementById('ws-trellis2-tris-cost');
+      if (hint) {
+        const sup = _supplementTris();
+        hint.textContent = sup ? String(sup) : '';
+        hint.style.display = sup ? '' : 'none';
+      }
       for (const row of [preset.closest('.form-row'), document.getElementById('ws-trellis2-tris-row')]) {
         if (row) { row.style.display = row.style.display === 'none' ? 'none' : 'flex'; row.style.alignItems = 'center'; row.style.gap = '6px'; }
       }
     }
 
     preset.addEventListener('change', recompute);
-    document.getElementById('ws-3d-buildstages')?.addEventListener('change', recompute);
-    document.getElementById('ws-trellis2-tris')?.addEventListener('change', recompute);
-    document.getElementById('ws-trellis2-tris-custom')?.addEventListener('input', recompute);
-    for (const id of optionIds) {
+    for (const id of ['ws-3d-buildstages', 'ws-trellis2-tris', 'ws-3d-auto', 'ws-asset-type', ...optionIds]) {
       document.getElementById(id)?.addEventListener('change', recompute);
     }
+    document.getElementById('ws-trellis2-tris-custom')?.addEventListener('input', recompute);
     // Also refresh whenever the renderer swaps the Generate button label
     // (which rebuilds the pill). Watching the button itself is cheap.
     const btn = document.getElementById('ws-generate-mesh');
     if (btn) new MutationObserver(recompute).observe(btn, { childList: true });
+    // L'image source de la 3D change (regle « deja rectifiee ») : l'apercu se met a jour.
+    const source3d = document.getElementById('ws-3d-source-preview');
+    if (source3d) {
+      new MutationObserver(recompute).observe(source3d,
+        { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+    }
     recompute();
   }
 

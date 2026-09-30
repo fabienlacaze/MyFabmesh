@@ -179,6 +179,9 @@ p.muted { line-height: 1.5; }
   font-size: 13px;
   font-weight: 800;
 }
+/* Prix inconnu (grille /api/pricing pas encore chargee) : pastille masquee,
+   jamais de chiffre invente. */
+.cost:has(> span:empty) { display: none; }
 
 /* ---------------------------- CARD GRID ------------------------------------ */
 .card-grid {

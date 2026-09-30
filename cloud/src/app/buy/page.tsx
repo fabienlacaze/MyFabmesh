@@ -46,9 +46,11 @@ export default function BuyPage() {
   // clic (le bouton finissait sur une erreur 503).
   const [ventesOuvertes, setVentesOuvertes] = useState<boolean | null>(null);
   // Supplement « nombre de triangles » : meme formule que _supplementTriangles.
+  // Les trois parametres viennent de la grille ; l'un manque : un tiret, pas de
+  // valeur de repli.
   const supTris = (tris: number) => {
-    const tranche = prix?.mesh_tris_500k, socle = prix?.mesh_tris_base ?? 0, pct = prix?.mesh_tris_courbe_pct ?? 100;
-    if (typeof tranche !== 'number') return '—';
+    const tranche = prix?.mesh_tris_500k, socle = prix?.mesh_tris_base, pct = prix?.mesh_tris_courbe_pct;
+    if (typeof tranche !== 'number' || typeof socle !== 'number' || typeof pct !== 'number') return '—';
     return String(Math.max(socle, Math.ceil(tranche * Math.pow(tris / 500_000, Math.max(1, pct / 100)) - 1e-9)));
   };
   const cr = (cle: string) => {
@@ -134,8 +136,10 @@ export default function BuyPage() {
 
       {ventesOuvertes === false && (
         <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(168,85,247,0.45)', background: 'rgba(168,85,247,0.10)', fontSize: 14 }}>
-          <span className="lang-fr"><strong>Les achats de crédits ouvrent bientôt.</strong> En attendant, vous créez avec les 50 crédits offerts à l&apos;inscription.</span>
-          <span className="lang-en"><strong>Credit purchases open soon.</strong> Meanwhile, you create with the 50 credits offered at sign-up.</span>
+          {/* Pas de nombre ici : l'octroi est regle dans Supabase (15 depuis le
+              2026-08-04, a la confirmation de l'adresse) et « 50 » etait faux. */}
+          <span className="lang-fr"><strong>Les achats de crédits ouvrent bientôt.</strong> En attendant, vous créez avec les crédits offerts à l&apos;inscription.</span>
+          <span className="lang-en"><strong>Credit purchases open soon.</strong> Meanwhile, you create with the credits offered at sign-up.</span>
         </div>
       )}
       <h3 style={{ marginTop: 24, marginBottom: 12, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-2)' }}><T fr="Recharges ponctuelles" en="One-shot top-ups" /></h3>

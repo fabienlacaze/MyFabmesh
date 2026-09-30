@@ -128,18 +128,30 @@
   }
 
   /* ---------------------------------------------------------------- pricing */
-  // Best-effort: fill the ⚡ cost pills from /api/pricing. Falls back to the
-  // HTML defaults (1) if the endpoint is unavailable. Display-only — the
-  // Worker is the source of truth and enforces real costs server-side.
+  // Fill the ⚡ cost pills from /api/pricing. Pas de valeur de repli : tant que
+  // la grille n'est pas la, la pastille reste vide, donc masquee (mobile.css).
+  // Meme calcul que le worker pour ce que cette page envoie (2026-09-30) :
+  //   - image : 1 image a 30 pas, sans Turbo -> text2image (tarif de 30 pas) ;
+  //   - 3D : preset « fast », aucune option, max_tris absent (500 K pour le
+  //     worker) -> mesh_fast + supplement « Max triangles » a 500 K. La pastille
+  //     n'affichait que mesh_fast : 1 credit de moins que le debit.
   async function loadPricing() {
     try {
       const r = await apiGet('/api/pricing');
       if (!r.ok) return;
       const j = await r.json();
       const p = j?.prices || {};
-      if (typeof p.text2image === 'number') $('cost-image').textContent = String(p.text2image);
-      if (typeof p.mesh_fast === 'number') $('cost-mesh').textContent = String(p.mesh_fast);
-    } catch (_) { /* keep defaults */ }
+      const num = (k) => (typeof p[k] === 'number' ? p[k] : null);
+      const img = num('text2image');
+      if (img != null) $('cost-image').textContent = String(Math.max(1, Math.round(img * 30 / 30)));
+      const base = num('mesh_fast'), tranche = num('mesh_tris_500k'), socle = num('mesh_tris_base');
+      const courbe = num('mesh_tris_courbe_pct');
+      if (base != null && tranche != null && socle != null && courbe != null) {
+        // _supplementTriangles(500 K) : socle minimum, tranche x (1) ^ (courbe / 100)
+        const sup = Math.max(socle, Math.ceil(tranche * Math.pow(500000 / 500000, Math.max(1, courbe / 100)) - 1e-9));
+        $('cost-mesh').textContent = String(base + sup);
+      }
+    } catch (_) { /* grille injoignable : aucune pastille */ }
   }
 
   /* ---------------------------------------------------------------- home */

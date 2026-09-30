@@ -252,15 +252,6 @@
       'Construction stages (3 versions)': '构建阶段（3 个版本）',
       'Advanced texture options': '高级纹理选项',
       'Quality preset': '质量预设',
-      'Multi-reference (use front + back photo · +1 cr)': '多参考（使用正面 + 背面照片 · +1 cr）',
-      'Detail refine (+~90s · +2 cr · sharper micro-details)': '细节优化（+~90s · +2 cr · 更锐利的微细节）',
-      'Auto-rectify source view (+~36s · +1 cr · better mesh proportions)':
-        '自动校正源视图（+~36s · +1 cr · 更佳的网格比例）',
-      'Texture smooth (+~12s · free · CPU only, no AI)': '纹理平滑（+~12s · 免费 · 仅 CPU，无 AI）',
-      'Quality+ (sharper edges · +~30s · +1 cr)': '质量+（更锐利的边缘 · +~30s · +1 cr）',
-      'Ultra Quality (+~50s · +2 cr · fine face detail)': '超高质量（+~50s · +2 cr · 精细面部细节）',
-      'Ultra HD 8K texture (+~5min · +3 cr)': '超高清 8K 纹理（+~5min · +3 cr）',
-      'Face fix (+~60s · +2 cr)': '面部修复（+~60s · +2 cr）',
       'PBR baseColor + roughness + metallic exported in the GLB automatically.':
         'PBR baseColor + roughness + metallic 自动导出到 GLB 中。',
       'Generate 3D': '生成 3D',
@@ -420,7 +411,6 @@
       'leather helmet, plain background...': '皮革头盔、纯色背景...',
       'How far to expand the detected mask around the target. 0px = tight to the object; higher widens it to cover edges, shadows or halos. ~15px recommended.':
         '在目标周围扩展检测蒙版的范围。0px = 紧贴对象；数值越高越能覆盖边缘、阴影或光晕。推荐约 15px。',
-      'Detect the mask (1 credit per check)': '检测蒙版（每次检查 1 点积分）',
       // ---- Multi-view options modal ----
       'Generate Multi-Views': '生成多视图',
       'A new image version will be created so the original stays untouched.':

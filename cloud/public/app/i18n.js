@@ -574,15 +574,6 @@
       'Construction stages (3 versions)': 'Étapes de construction (3 versions)',
       'Advanced texture options': 'Options de texture avancées',
       'Quality preset': 'Préréglage de qualité',
-      'Multi-reference (use front + back photo · +1 cr)': 'Multi-référence (photo avant + arrière · +1 cr)',
-      'Detail refine (+~90s · +2 cr · sharper micro-details)': 'Affinage des détails (+~90s · +2 cr · micro-détails plus nets)',
-      'Auto-rectify source view (+~36s · +1 cr · better mesh proportions)':
-        'Rectification auto de la vue source (+~36s · +1 cr · meilleures proportions de maillage)',
-      'Texture smooth (+~12s · free · CPU only, no AI)': "Lissage de texture (+~12s · gratuit · CPU seulement, pas d'IA)",
-      'Quality+ (sharper edges · +~30s · +1 cr)': 'Qualité+ (arêtes plus nettes · +~30s · +1 cr)',
-      'Ultra Quality (+~50s · +2 cr · fine face detail)': 'Ultra qualité (+~50s · +2 cr · détail fin du visage)',
-      'Ultra HD 8K texture (+~5min · +3 cr)': 'Texture Ultra HD 8K (+~5min · +3 cr)',
-      'Face fix (+~60s · +2 cr)': 'Correction du visage (+~60s · +2 cr)',
       'PBR baseColor + roughness + metallic exported in the GLB automatically.':
         'baseColor + roughness + metallic PBR exportés automatiquement dans le GLB.',
       'Generate 3D': 'Générer la 3D',
@@ -754,7 +745,6 @@
       'leather helmet, plain background...': 'casque de cuir, fond uni...',
       'How far to expand the detected mask around the target. 0px = tight to the object; higher widens it to cover edges, shadows or halos. ~15px recommended.':
         "De combien étendre le masque détecté autour de la cible. 0px = collé à l'objet ; plus haut élargit pour couvrir bords, ombres ou halos. ~15px recommandé.",
-      'Detect the mask (1 credit per check)': 'Détecter le masque (1 crédit par vérification)',
       // ---- Multi-view options modal ----
       'Generate Multi-Views': 'Générer les multi-vues',
       'A new image version will be created so the original stays untouched.':
