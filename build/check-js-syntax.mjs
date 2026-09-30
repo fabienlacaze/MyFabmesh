@@ -36,6 +36,7 @@ const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIVRES = [
   'src/renderer/index2.js',
   'src/renderer/index2-edit-tools.js',
+  'src/renderer/wizard.js',
   'src/renderer/canvas-utils.js',
   'src/renderer/lib/Viewer3D.js',
   'src/renderer/lib/locomotion-procedurale.js',

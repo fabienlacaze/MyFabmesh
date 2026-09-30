@@ -9891,10 +9891,7 @@ function _embeddedPython() {
 // One-click diagnostics export: bundles the logs + system info into a
 // single .txt on the user's Desktop so they (or a friend testing the
 // app) can send it to support without hunting through %APPDATA%.
-ipcMain.handle('export-diagnostics', async () => {
-  try {
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19).replace('T', '_');
-    const out = path.join(app.getPath('desktop'), `MyFabmesh-diagnostics-${stamp}.txt`);
+function _diagnosticsTexte() {
     const tail = (name, max = 500 * 1024) => {
       try {
         const b = fs.readFileSync(path.join(LOGS_DIR, name));
@@ -9973,9 +9970,36 @@ ipcMain.handle('export-diagnostics', async () => {
       '', '===== fabmesh.log (journal general, tronque aux 120 derniers Ko) =====',
       tail('fabmesh.log', 120 * 1024),
     ].join('\n');
+    return body;
+}
+ipcMain.handle('export-diagnostics', async () => {
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19).replace('T', '_');
+    const out = path.join(app.getPath('desktop'), `MyFabmesh-diagnostics-${stamp}.txt`);
+    const body = _diagnosticsTexte();
     fs.writeFileSync(out, body, 'utf8');
     try { shell.showItemInFolder(out); } catch (_) {}
     return { ok: true, path: out };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+});
+
+// ENVOI DES DIAGNOSTICS AU SUPPORT (2026-09-30) : meme contenu que « Export logs », envoye a un point d'entree serveur BORNE (300 Ko, 5 envois par heure,
+// suppression apres 30 jours). Aucun compte requis. Le processus principal fait la requete (reseau Chromium = magasin de certificats de Windows).
+ipcMain.handle('send-diagnostics', async () => {
+  try {
+    let texte = _diagnosticsTexte();
+    if (Buffer.byteLength(texte, 'utf8') > 290 * 1024) texte = texte.slice(-(280 * 1024));     // on garde la fin (le plus recent)
+    const { net } = require('electron');
+    const rep = await net.fetch('https://myfabmesh-cloud.fabien65400.workers.dev/api/support-logs', {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'x-mfm-client': 'wizard', 'x-mfm-version': String(app.getVersion()) },
+      body: texte,
+    });
+    const data = await rep.json().catch(() => ({}));
+    if (!rep.ok || !data.ok) return { ok: false, error: (data && data.error) || ('HTTP ' + rep.status) };
+    return { ok: true, id: data.id };
   } catch (e) {
     return { ok: false, error: (e && e.message) || String(e) };
   }

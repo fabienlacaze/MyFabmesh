@@ -15181,6 +15181,57 @@ const DIAG_LOG_RETENTION_DAYS = 30;
  *     a client-side gate is not a guarantee.
  *
  *  Logs are deleted after DIAG_LOG_RETENTION_DAYS. */
+/** ENVOI DES JOURNAUX D'INSTALLATION AU SUPPORT (2026-09-30, user : « un bouton pour m'envoyer les logs », version BORNEE).
+ *  L'assistant d'installation (avant tout compte) peut envoyer son fichier de diagnostic. Le 2026-08-20 le depot anonyme de journaux avait ete
+ *  ferme (ecriture R2 de 1 Mo ouverte a tous) : celui-ci est volontairement BORNE :
+ *    - 300 Ko au plus (texte brut) ; en-tetes `x-mfm-client: wizard` et `x-mfm-version` obligatoires (garde-fou de forme, pas d'authentification) ;
+ *    - 5 envois par heure et par adresse (empreinte SHA-256 tronquee, l'IP n'est pas stockee) ;
+ *    - 300 envois par jour au total ;
+ *    - rangement sous `_logs/diag/support/` : balaye par purgeDiagLogs, donc SUPPRIME apres DIAG_LOG_RETENTION_DAYS (30) jours.
+ *  Reponse : { ok, id } — l'identifiant est affiche a l'utilisateur pour qu'il puisse le communiquer. */
+const SUPPORT_LOG_MAX_OCTETS = 300 * 1024;
+const SUPPORT_LOG_PAR_HEURE_ET_IP = 5;
+const SUPPORT_LOG_PAR_JOUR = 300;
+async function handleSupportLogs(req: Request, env: Env): Promise<Response> {
+  if (!env.MESHES) return err(500, 'R2 binding required');
+  if ((req.headers.get('x-mfm-client') || '') !== 'wizard') return err(400, 'client header required');
+  const version = String(req.headers.get('x-mfm-version') || '').replace(/[^0-9A-Za-z._-]/g, '').slice(0, 24);
+  if (!version) return err(400, 'version header required');
+  const annonce = Number(req.headers.get('content-length') || '0');
+  if (annonce > SUPPORT_LOG_MAX_OCTETS) return err(413, 'logs too large (max 300 KB)');
+  const texte = await req.text();
+  if (texte.length < 10) return err(400, 'empty report');
+  if (new TextEncoder().encode(texte).length > SUPPORT_LOG_MAX_OCTETS) return err(413, 'logs too large (max 300 KB)');
+
+  const maintenant = new Date();
+  const jour = maintenant.toISOString().slice(0, 10);
+  const heure = maintenant.toISOString().slice(0, 13).replace(/[-T]/g, '');
+  const ip = req.headers.get('cf-connecting-ip') || 'inconnue';
+  const brut = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('support|' + ip)));
+  const empreinte = Array.from(brut.slice(0, 8)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const compter = async (cle: string, plafond: number): Promise<boolean> => {
+    const cur = await env.MESHES!.get(cle);
+    const n = cur ? parseInt(await cur.text(), 10) || 0 : 0;
+    if (n >= plafond) return false;
+    await env.MESHES!.put(cle, String(n + 1));
+    return true;
+  };
+  if (!(await compter(`_logs/diag/_cnt/support-ip-${empreinte}-${heure}.txt`, SUPPORT_LOG_PAR_HEURE_ET_IP))) {
+    return err(429, 'too many reports from this address — please try again later');
+  }
+  if (!(await compter(`_logs/diag/_cnt/support-jour-${jour}.txt`, SUPPORT_LOG_PAR_JOUR))) {
+    return err(429, 'the support inbox is full for today — please try again tomorrow');
+  }
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const alea = crypto.getRandomValues(new Uint8Array(8));
+  const id = Array.from(alea).map((b) => alphabet[b % alphabet.length]).join('');
+  await env.MESHES.put(`_logs/diag/support/${jour}/${id}.txt`, texte, {
+    httpMetadata: { contentType: 'text/plain; charset=utf-8' },
+    customMetadata: { version, empreinte, recu: maintenant.toISOString() },
+  });
+  return json({ ok: true, id });
+}
+
 async function handleClientLog(req: Request, env: Env): Promise<Response> {
   if (!env.MESHES) return err(500, 'R2 binding required');
   // base en panne -> 503 (routeur), pas 401 : un 401 declencherait le rafraichissement de session
@@ -21467,6 +21518,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         }
         if (pathname === '/api/parental/status'       && method === 'GET')  return await handleParentalStatus(req, env);
         if (pathname === '/api/parental/toggle'       && method === 'POST') return await handleParentalToggle(req, env);
+        if (pathname === '/api/support-logs'          && method === 'POST') return await handleSupportLogs(req, env);
         if (pathname === '/api/client-log'            && method === 'POST') return await handleClientLog(req, env);
         if (pathname === '/api/client-log/list'       && method === 'GET')  return await handleClientLogList(req, env);
         if (pathname === '/api/admin/logs/list'       && method === 'GET')  return await handleAdminLogsList(req, env);

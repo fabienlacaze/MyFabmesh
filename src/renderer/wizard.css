@@ -227,6 +227,20 @@
 }
 .wiz-mode-desc { font-size: 12px; color: var(--text-1); line-height: 1.5; }
 
+/* Bloc d'echec de l'installation (Retry bien visible + envoi des journaux) ---------------- */
+.wiz-erreur {
+  margin-top: 14px; padding: 18px 20px;
+  background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: var(--radius-sm);
+}
+.wiz-erreur-titre { font-size: 15px; font-weight: 700; color: var(--error, #f87171); margin-bottom: 6px; }
+.wiz-erreur-msg { font-size: 12px; line-height: 1.5; color: var(--text-1); white-space: normal; word-break: break-word; margin-bottom: 14px; }
+.wiz-erreur-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.wiz-erreur-actions .primary-btn.wiz-erreur-retry { flex: 1 1 100%; padding: 14px 18px; font-size: 15px; font-weight: 700; }
+.wiz-erreur-actions .ghost-btn { flex: 1 1 auto; padding: 10px 14px; font-size: 12px; }
+.wiz-erreur-etat { margin-top: 10px; min-height: 16px; font-size: 12px; color: var(--text-2); }
+.wiz-erreur-etat.ok { color: #4ade80; }
+.wiz-erreur-etat.ko { color: var(--error, #f87171); }
+
 /* Download list -------------------------------------------------- */
 .wiz-dl-list {
   background: var(--bg-2);

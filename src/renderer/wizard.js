@@ -617,11 +617,33 @@ async function _startDownloadInterne() {
     } catch (_) {}
     // message lisible (2026-09-30) : la ligne brute (« Error invoking remote method … Command failed: <chemins> ») debordait sur une seule ligne, sans le lien Retry visible
     let brut = String((e && e.message) || e).replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '');
-    const lignes = brut.split('
-').map((x) => x.trim()).filter(Boolean);
+    const lignes = brut.split('\n').map((x) => x.trim()).filter(Boolean);
     const cause = lignes.find((x) => /^(ERROR|Could not|Not enough|pip exited|Last error)/i.test(x)) || lignes[0] || 'unknown error';
     const court = /^Command failed:/i.test(cause) ? 'the installer stopped unexpectedly' : cause.slice(0, 220);
-    list.innerHTML += `<div class="wiz-dl-row"><span class="name" style="color:var(--error); white-space:normal; word-break:break-word; display:block;">AI engine install failed: ${court.replace(/</g, '&lt;')}. <a href="#" id="retry-dl">Retry</a> · <span style="opacity:.75">details: “Export logs” (top right)</span></span></div>`;
+    // Bloc d'echec (2026-09-30, user : « un bouton plus joli et bien plus visible pour Retry, et un bouton pour m'envoyer les logs »)
+    list.innerHTML += `<div class="wiz-erreur">
+      <div class="wiz-erreur-titre">The AI engine installation stopped</div>
+      <div class="wiz-erreur-msg">${court.replace(/</g, '&lt;')}</div>
+      <div class="wiz-erreur-actions">
+        <button type="button" class="primary-btn wiz-erreur-retry" id="retry-dl">&#8635;&nbsp; Retry</button>
+        <button type="button" class="ghost-btn" id="send-logs">&#9993;&nbsp; Send the logs to the MyFabmesh team</button>
+        <button type="button" class="ghost-btn" id="save-logs">Save the logs on my Desktop</button>
+      </div>
+      <div class="wiz-erreur-etat" id="send-logs-etat" role="status"></div>
+    </div>`;
+    document.getElementById('send-logs')?.addEventListener('click', async (ev) => {
+      const b = ev.currentTarget, etat = document.getElementById('send-logs-etat');
+      b.disabled = true; etat.className = 'wiz-erreur-etat'; etat.textContent = 'Sending…';
+      try {
+        const r = await window.wizardAPI.sendDiagnostics();
+        if (r && r.ok) { etat.classList.add('ok'); etat.textContent = 'Sent — thank you! Reference: ' + r.id; journal('logs-envoyes', { id: r.id }); }
+        else { etat.classList.add('ko'); etat.textContent = 'Could not send the logs (' + ((r && r.error) || 'unknown error') + '). Use “Save the logs on my Desktop” and send us the file.'; b.disabled = false; }
+      } catch (err) { etat.classList.add('ko'); etat.textContent = 'Could not send the logs. Use “Save the logs on my Desktop” and send us the file.'; b.disabled = false; }
+    });
+    document.getElementById('save-logs')?.addEventListener('click', async () => {
+      const etat = document.getElementById('send-logs-etat');
+      try { const r = await window.wizardAPI.exportDiagnostics(); etat.className = 'wiz-erreur-etat ' + (r && r.ok ? 'ok' : 'ko'); etat.textContent = r && r.ok ? 'Saved on your Desktop.' : 'Could not save the logs.'; } catch (_) { etat.className = 'wiz-erreur-etat ko'; etat.textContent = 'Could not save the logs.'; }
+    });
     document.getElementById('retry-dl')?.addEventListener('click', () => {
       // NE PAS faire `initialized.delete('download')` : cela re-arme aussi
       // `goto()` pour le reste de la session, si bien que revenir en arriere

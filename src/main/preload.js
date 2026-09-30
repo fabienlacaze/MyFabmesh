@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('wizardAPI', {
   installSegment: () => ipcRenderer.invoke('wizard:install-segment'),
   onSegmentProgress: (cb) => ipcRenderer.on('wizard:segment-progress', (_e, p) => cb(p)),
   exportDiagnostics: () => ipcRenderer.invoke('export-diagnostics'),
+  sendDiagnostics: () => ipcRenderer.invoke('send-diagnostics'),
   getDataLocation: () => ipcRenderer.invoke('get-data-location'),
   pickDataFolder: () => ipcRenderer.invoke('pick-data-folder'),
   restartApp: () => ipcRenderer.invoke('restart-app'),

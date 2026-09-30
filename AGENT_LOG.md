@@ -24369,3 +24369,11 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 
 ## 2026-09-30 — Assistant : message d'echec de l'installation du moteur lisible (retour a la ligne, lien Retry visible)
 - Le message brut (« Error invoking remote method … Command failed: <chemins> ») etait sur UNE ligne avec defilement horizontal : le lien Retry n'etait pas visible. Cause extraite (ERROR / pip exited / Not enough…), retour a la ligne, renvoi vers « Export logs ».
+
+## 2026-09-30 — Assistant : Retry bien visible + envoi des journaux au support (BORNE) ; REGRESSION wizard.js corrigee + garde
+- REGRESSION (mon commit « message d'echec lisible ») : un `\n` ecrit dans un patch Python a coupe une chaine JS -> `wizard.js` ne se chargeait plus (assistant BLANC). Corrige ; `src/renderer/wizard.js` ajoute a
+  build/check-js-syntax.mjs (18 fichiers) : il n'etait couvert par aucun garde.
+- Bloc d'echec : bouton « Retry » pleine largeur (degrade), « Send the logs to the MyFabmesh team », « Save the logs on my Desktop », ligne d'etat (« Sent — thank you! Reference: XXXX »).
+- Serveur `POST /api/support-logs` (worker.ts) : 300 Ko max, en-tetes x-mfm-client=wizard + x-mfm-version, 5 envois / heure / adresse (SHA-256 tronque, IP non stockee), 300 / jour, rangement `_logs/diag/support/<jour>/<id>.txt`
+  (purge automatique a 30 jours par purgeDiagLogs). main.js : `send-diagnostics` (net.fetch), `_diagnosticsTexte()` partage avec « Export logs » ; preload : `sendDiagnostics`.
+- Test navigateur (assistant + API simulee) : panne simulee -> bloc rouge, Retry pleine largeur, envoi -> « Reference: K7PQ3XM2 ».
