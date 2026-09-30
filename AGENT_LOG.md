@@ -24437,3 +24437,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Assistant : premiere image generee invisible dans un projet dont le nom contient un espace
 - Cause (installation de zero, journaux renderer) : projet « Mobilier design » = marqueur de projet vide sous ce nom + dossier d'images « Mobilier_design » ; apres la generation, reloadCurrentProject prenait l'entree au nom exact (le marqueur, vide) -> « images: 0 », bande d'images vide malgre ref_0.png ecrit 1 s plus tot.
 - Correctif (bureau + web) : refreshProjectsPage retire le marqueur vide quand un projet reel de meme nom assaini a du contenu ; reloadCurrentProject choisit, parmi les candidats, celui qui a le plus de contenu.
+
+## 2026-09-30 — Assistant : projet qui disparait de la liste (controle parental, faux positif « ass » dans « masse »)
+- Cause : _isProjectNSFW comparait nom + prompt aux mots interdits par SOUS-CHAINE ; « ass » est dans « m-ass-e » (« table basse coupee dans la masse ») -> projet « Mobilier design » cache de la grille (compteur Projects (2) mais aucune carte).
+- Correctif (bureau + web) : limites de mots (\b) comme le controle a la creation du projet ; « ass » seul reste bloque, « masse » passe.

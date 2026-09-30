@@ -1098,7 +1098,11 @@ async function _isProjectNSFW(p) {
   // 1. Check name + prompt against keyword list (instant, no IPC)
   const keywords = await _getNsfwKeywords();
   const text = ((p.name || '') + ' ' + (p.prompt || '')).toLowerCase();
-  if (keywords.some(kw => text.includes(kw))) return true;
+  // MOTS ENTIERS (2026-09-30, test d'installation de zero : le projet « Mobilier design » disparaissait de la liste). L'ancien test par sous-chaine
+  // (`text.includes(kw)`) voyait « ass » dans « m-ass-e » (« table basse coupee dans la masse ») et cachait le projet avec le controle parental actif.
+  // Meme regle que la creation du projet (np-create) : limites de mots, expressions a plusieurs mots comprises.
+  const _echapper = (s) => String(s).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (keywords.some(kw => new RegExp('\\b' + _echapper(kw) + '\\b').test(text))) return true;
 
   // 2. Check for .nsfw tag files in the project folder (instant, 1 readdir)
   if (p.images && p.images.length > 0) {
