@@ -24327,3 +24327,9 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Le fichier sauvegarde par l'appli passe dans `fusionner_textures` avec le mesh complet : 8192x8192 conserve, 837 416 pixels reportes (~ 53 517 x 16), metal 4096 idem, 48 s.
 - Editeur de poids : s'ouvre sur le rig leger (76 os, 461 387 sommets) sans telecharger le complet ; rig viewer : mention « Light preview ».
 - NON teste : sauvegarde de l'editeur de poids (skinlight), export FBX / pleine resolution cote serveur, app Modal.
+
+## 2026-09-30 — Bug trouve par le test de l'appli : parent d'un rig `skinlight` introuvable -> export en version legere
+- `window.__maillageParentUrl` s'appuyait sur `_resolveParentMeshPath` (filename du rig commence par le nom du maillage) ; en cloud le maillage s'appelle `<projet>_trellis2_<id10>` et le rig
+  `modal_<hex>_rigged_...` : pas de correspondance -> pas de report en pleine resolution (export silencieux de la version legere). Repli ajoute : le maillage dont le chemin R2 est `<racine du rig>.glb`.
+- Test appli (API simulee) : export FBX d'un rig `skinlight` -> `/api/mesh-light/full` avec le rig ET le mesh complet, puis `/api/mesh-convert` sur le rig pleine resolution ;
+  export d'une peinture sur la legere -> `/api/mesh-light/fulltex` puis conversion ; export d'un rig normal -> aucun appel supplementaire.

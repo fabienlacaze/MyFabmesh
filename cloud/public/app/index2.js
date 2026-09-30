@@ -29283,7 +29283,13 @@ window.__maillageParentUrl = async (rigPath) => {
     const p = state.currentProject; if (!p) return null;
     const nom = String(rigPath).split('?')[0].split('/').pop();
     const rec = (p.rigs || []).find((r) => String(r.path || r.url || '').split('?')[0].split('/').pop() === nom) || { filename: nom };
-    const mp = _resolveParentMeshPath(rec, p);
+    let mp = _resolveParentMeshPath(rec, p);
+    if (!mp) {
+      // le nom du rig commence par l'identifiant du maillage source (modal_<hex>_rigged_...) : on le retrouve dans le chemin R2 du maillage
+      const racine = nom.replace(/_rigged_.*$/i, '');
+      const cand = (p.meshes || []).find((m) => !/_rigged_/i.test(m.filename || '') && String(m.path || m.url || '').split('?')[0].split('/').pop().replace(/\.glb$/i, '') === racine);
+      mp = cand ? (cand.path || cand.url) : null;
+    }
     return mp ? await API.getMeshLocalUrl(mp) : null;
   } catch (_) { return null; }
 };
