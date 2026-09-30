@@ -186,6 +186,16 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   onMcpRefresh: (cb) => ipcRenderer.on('mcp-refresh', (e, data) => cb(data)),
   getConfig: () => ipcRenderer.invoke('get-config'),
   getControlApiToken: () => ipcRenderer.invoke('get-control-api-token'),
+  // Reglages > Assistant (2026-09-30) : API locale allumee / coupee a chaud, niveau, cle, aide.
+  assistantEtat: () => ipcRenderer.invoke('assistant-api:etat'),
+  assistantActiver: (on) => ipcRenderer.invoke('assistant-api:activer', on === true),
+  assistantAccesComplet: (on) => ipcRenderer.invoke('assistant-api:acces-complet', on === true),
+  assistantCle: () => ipcRenderer.invoke('assistant-api:cle'),
+  assistantNouvelleCle: () => ipcRenderer.invoke('assistant-api:nouvelle-cle'),
+  assistantConfigClaude: () => ipcRenderer.invoke('assistant-api:config-claude'),
+  onAssistantEvenement: (cb) => ipcRenderer.on('assistant-api:evenement', (_e, evt) => cb(evt)),
+  // Visualiseur de journaux : suite d'un journal par IPC (plus par l'API locale).
+  journalSuite: (opts) => ipcRenderer.invoke('journal:suite', opts || {}),
   setConfig: (patch) => ipcRenderer.invoke('set-config', patch),
   setBlenderPath: () => ipcRenderer.invoke('set-blender-path'),
   runBlenderScript: (opts) => ipcRenderer.invoke('run-blender-script', opts),

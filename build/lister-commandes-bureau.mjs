@@ -118,7 +118,9 @@ L.push('## Principe', '');
 L.push('L\'appli de bureau (mode developpement) ecoute sur `http://127.0.0.1:7331` (Control API,');
 L.push('`src/main/control_api.js`). Chaque requete porte `Authorization: Bearer <jeton>` ; le jeton est');
 L.push('reecrit a chaque demarrage dans `.test_api_token` (racine) et `~/.fabmesh/test_api_token.txt`.');
-L.push('Desactivee dans l\'appli packagee (Store) sauf `FABMESH_CONTROL_API=1`.', '');
+L.push('Appli installee : coupee par defaut, interrupteur Reglages > Assistant (niveau standard : pas de');
+L.push('`/eval`, `/ipc` en liste blanche, interface gardee ; « Developer full access » = tout). Developpement et');
+L.push('`FABMESH_TEST_API=1` / `FABMESH_CONTROL_API=1` : allumee au lancement, acces complet.', '');
 L.push('Trois niveaux couvrent **100 % des fonctions** :', '');
 L.push('1. **Interface** (`/ui/*`) — tout ce qu\'un utilisateur fait : cliquer n\'importe quel bouton (meme dans une');
 L.push('   carte repliee), remplir les champs, lire les modales, et la **souris / clavier reels** pour ce qui se');
@@ -188,8 +190,9 @@ for (const z of zonesTriees) {
   L.push('');
 }
 
-L.push('## 4. Pont MCP (port 7555, `scripts/mcp_server.py`)', '');
-L.push('Serveur MCP separe (jeton `.mcp_bridge_token`), pour un client MCP ; la Control API couvre deja tout.');
+L.push('## 4. Pont MCP (port 7555, mode --headless seulement)', '');
+L.push('Pont historique (jeton `.mcp_bridge_token`). `scripts/mcp_server.py` (Claude Desktop / Claude Code) ne');
+L.push('l\'utilise plus : il parle a la Control API ci-dessus (cle de `~/.fabmesh`).');
 L.push('Actions : ' + actionsMcp.map((a) => '`' + a + '`').join(', '), '');
 
 writeFileSync(join(RACINE, 'docs', 'pilotage_bureau.md'), L.join('\n') + '\n');

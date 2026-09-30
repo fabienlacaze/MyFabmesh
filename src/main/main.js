@@ -1925,14 +1925,14 @@ function createWindow() {
   });
 
   // ----------------------------------------------------------
-  // Start local Test/Control HTTP API (localhost:7331).
-  // Enabled only when FABMESH_TEST_API=1 or when --dev is set.
-  // This lets external processes pilot the app: click buttons,
-  // grab screenshots, tail logs, trigger generations.
+  // API locale (Control API, 127.0.0.1:7331) : Claude Desktop (MCP),
+  // Claude Code et les scripts pilotent l'appli. Coupee par defaut dans
+  // l'appli installee (interrupteur Reglages > Assistant) ; allumee en
+  // developpement et avec FABMESH_TEST_API=1 / FABMESH_CONTROL_API=1.
+  // Voir _decisionApiAuLancement.
   // ----------------------------------------------------------
   try {
-    const { startControlApi } = require('./control_api');
-    startControlApi(mainWindow);
+    _demarrerApiAuLancement();
   } catch (e) {
     try { log.error('control_api', 'failed to start: ' + e.message); }
     catch (_) { console.error('[control_api] failed to start:', e); }
@@ -2549,7 +2549,12 @@ app.whenReady().then(() => {
    *
    * Deux echappatoires conservees : le mode --headless, ou le pont EST la
    * seule interface (opt-in par argument, jamais emprunte par un
-   * examinateur), et FABMESH_MCP_BRIDGE=1 pour le depannage. */
+   * examinateur), et FABMESH_MCP_BRIDGE=1 pour le depannage.
+   *
+   * 2026-09-30 : scripts/mcp_server.py ne passe plus par ce pont du tout. Il
+   * parle a l'API locale (control_api.js, 127.0.0.1:7331, cle de ~/.fabmesh),
+   * allumee par l'interrupteur de Reglages > Assistant : un seul interrupteur
+   * pour Claude Desktop, Claude Code et les scripts. */
   const _pontForce = process.env.FABMESH_MCP_BRIDGE === '1';
   const _pontCoupe = process.env.FABMESH_MCP_BRIDGE === '0';
   const _pontAutorise = !_pontCoupe && (_pontForce || HEADLESS || !app.isPackaged);
@@ -2923,6 +2928,8 @@ let _keepJobsOnQuit = false;
 function fullCleanup() {
   if (_isQuitting) return;
   _isQuitting = true;
+  // API locale : port ferme et cle effacee (~/.fabmesh/test_api_token.txt) a la sortie.
+  try { if (_controleApi) _controleApi.arreter(); } catch (_) {}
   if (!_keepJobsOnQuit) {
     killAllActiveProcs();
     stopSdxlServer();
@@ -11463,14 +11470,172 @@ ipcMain.handle('wizard:complete', (_e, state) => {
 
 ipcMain.handle('get-config', () => loadConfig());
 
-// Return the Control API Bearer token so the renderer's live-logs viewer
-// can open an authenticated EventSource to /logs/stream.
-ipcMain.handle('get-control-api-token', () => {
+/* ═══════════════════════════════════════════════════════════════════
+   ASSISTANT — API LOCALE (Control API) ET CLAUDE (2026-09-30)
+
+   User : « aucune explication sur comment le brancher, comment ca marche…
+   il faudrait un bouton help avec une popup qui explique tout ca ». Et dans
+   l'appli installee rien ne pouvait marcher : serveur coupe sauf variable
+   d'environnement, cle lue dans un fichier de developpement (panneau
+   toujours « Disabled (no token) »), Claude Desktop branche sur « python »
+   et un cwd dans app.asar.
+
+   Desormais : un interrupteur persistant (config.json > controlApi.enabled),
+   COUPE par defaut, demarre et arrete le serveur A CHAUD ; niveau standard
+   (surete client) ou complet (« Developer full access », controlApi.fullAccess,
+   absent de la version Store). La cle reste en memoire ici et dans
+   ~/.fabmesh/test_api_token.txt (lu par scripts/mcp_server.py).
+   ═══════════════════════════════════════════════════════════════════ */
+let _controleApi = null;
+try { _controleApi = require('./control_api'); }
+catch (e) { log.error('assistant', 'module control_api introuvable : ' + e.message); }
+// Vrai quand l'environnement ou le developpement a impose l'API au lancement
+// (outil de pilotage de l'orchestrateur) : pas de notification « Claude pilote… ».
+let _apiForcee = false;
+
+function _reglagesApi() {
+  const c = loadConfig();
+  return (c && c.controlApi && typeof c.controlApi === 'object') ? c.controlApi : {};
+}
+function _enregistrerReglagesApi(patch) {
+  const c = loadConfig();
+  c.controlApi = Object.assign({}, (c.controlApi && typeof c.controlApi === 'object') ? c.controlApi : {}, patch);
+  saveConfig(c);
+}
+/** Niveau choisi dans les Reglages. Sans choix : complet en developpement, standard installe. */
+function _niveauVouluApi() {
+  if (isStoreBuild()) return 'standard';
+  const f = _reglagesApi().fullAccess;
+  if (f === true) return 'complet';
+  if (f === false) return 'standard';
+  return app.isPackaged ? 'standard' : 'complet';
+}
+/**
+ * Demarrage au lancement :
+ *  - FABMESH_TEST_API=1 ou FABMESH_CONTROL_API=1 : allumee, acces complet, dans
+ *    toute livraison (outil de pilotage de l'orchestrateur, build/fab.mjs) — comme avant ;
+ *  - FABMESH_CONTROL_API=0 : pas de demarrage automatique ;
+ *  - developpement : allumee, acces complet (build/fab.mjs, lister-commandes-bureau.mjs) ;
+ *  - appli installee : selon l'interrupteur des Reglages (coupe par defaut).
+ */
+function _decisionApiAuLancement() {
+  const env = process.env;
+  if (env.FABMESH_TEST_API === '1' || env.FABMESH_CONTROL_API === '1') return { demarrer: true, niveau: 'complet', force: true };
+  if (env.FABMESH_CONTROL_API === '0') return { demarrer: false };
+  if (!app.isPackaged) return { demarrer: true, niveau: 'complet', force: true };
+  if (_reglagesApi().enabled === true) return { demarrer: true, niveau: _niveauVouluApi(), force: false };
+  return { demarrer: false };
+}
+function _surEvenementApi(evt) {
+  if (!evt) return;
+  // Pilotage de l'orchestrateur ou du developpeur : pas de notification a l'ecran.
+  if (_apiForcee && (evt.type === 'premiere-connexion' || evt.type === 'dialogue')) return;
+  safeSend('assistant-api:evenement', evt);
+}
+function _configurerApi() {
+  if (!_controleApi) return;
+  _controleApi.configurer({
+    fenetre: () => mainWindow,
+    dataBase: DATA_BASE,
+    logsDir: LOGS_DIR,
+    logFile: LOG_FILE,
+    rendererLog: RENDERER_LOG,
+    imagesDir: IMAGES_DIR,
+    meshesDir: MESHES_DIR,
+    previewsDir: PREVIEWS_DIR,
+    racineDepot: app.isPackaged ? null : path.join(__dirname, '..', '..'),
+    surEvenement: _surEvenementApi,
+  });
+}
+function _demarrerApiAuLancement() {
+  if (!_controleApi) return;
+  const d = _decisionApiAuLancement();
+  _apiForcee = !!d.force;
+  if (!d.demarrer) {
+    log.info('assistant', 'API locale coupee (Reglages > Assistant pour l\'allumer)');
+    return;
+  }
+  _configurerApi();
+  _controleApi.demarrer({ niveau: d.niveau }).then((e) => {
+    if (e.actif) log.info('assistant', `API locale allumee au lancement : 127.0.0.1:${e.port}, acces ${e.niveau}${d.force ? ' (impose par l\'environnement ou le developpement)' : ''}`);
+    else log.warn('assistant', `API locale : demarrage impossible (${e.erreur})`);
+  }).catch((e) => log.warn('assistant', 'API locale : ' + e.message));
+}
+function _etatAssistant() {
+  const e = _controleApi ? _controleApi.etat() : { actif: false, erreur: 'module control_api introuvable' };
+  return Object.assign({}, e, {
+    // Coupee : le niveau qu'elle prendra (la case « Developer full access » suit le reglage).
+    niveau: e.actif ? e.niveau : _niveauVouluApi(),
+    completDisponible: !isStoreBuild(),
+    force: _apiForcee,
+  });
+}
+async function _allumerApi(on) {
+  if (!_controleApi) return _etatAssistant();
+  _apiForcee = false;
+  _enregistrerReglagesApi({ enabled: !!on });
+  if (on) {
+    _configurerApi();
+    await _controleApi.demarrer({ niveau: _niveauVouluApi() });
+  } else {
+    await _controleApi.arreter();
+  }
+  const e = _etatAssistant();
+  log.info('assistant', `API locale ${on ? 'allumee' : 'coupee'} depuis les Reglages (actif=${e.actif}, acces ${e.niveau}${e.erreur ? ', erreur ' + e.erreur : ''})`);
+  return e;
+}
+// Etat de l'API locale pour Reglages > Assistant (jamais la cle).
+ipcMain.handle('assistant-api:etat', () => _etatAssistant());
+// Interrupteur « Allow Claude and scripts on this PC » : demarrage / arret a chaud, memorise.
+ipcMain.handle('assistant-api:activer', (_e, on) => _allumerApi(on === true));
+// Case « Developer full access » (/eval, /ipc sans filtre) : refusee dans la version Store.
+ipcMain.handle('assistant-api:acces-complet', (_e, on) => {
+  if (on === true && isStoreBuild()) return Object.assign(_etatAssistant(), { refus: 'store' });
+  _enregistrerReglagesApi({ fullAccess: on === true });
+  if (_controleApi && _controleApi.etat().actif) _controleApi.definirNiveau(on === true ? 'complet' : 'standard');
+  log.info('assistant', `acces complet ${on === true ? 'active' : 'desactive'} depuis les Reglages`);
+  return _etatAssistant();
+});
+// Cle d'acces (Reglages > Assistant > Advanced > Copy) : seulement quand l'API est allumee.
+ipcMain.handle('assistant-api:cle', () => (_controleApi ? _controleApi.cle() : null));
+// Nouvelle cle : l'ancienne cesse aussitot de marcher.
+ipcMain.handle('assistant-api:nouvelle-cle', () => {
+  if (_controleApi) _controleApi.nouvelleCle();
+  return _etatAssistant();
+});
+// Configuration a copier (aide « ? ») : chemins de CETTE installation.
+ipcMain.handle('assistant-api:config-claude', () => _configClaude());
+
+// Ancien canal (compatibilite) : la cle en memoire quand l'API est allumee.
+// Il lisait <depot>/.test_api_token, qui n'existe jamais dans l'appli installee.
+ipcMain.handle('get-control-api-token', () => (_controleApi ? _controleApi.cle() : null));
+
+// Visualiseur de journaux (Reglages > System > Live logs viewer) : lecture de la suite d'un journal par IPC.
+// Il passait par l'API locale (jeton + HTTP 7331) et ne marchait donc jamais dans l'appli installee.
+ipcMain.handle('journal:suite', (_e, opts = {}) => {
+  const fichiers = { fabmesh: LOG_FILE, renderer: RENDERER_LOG, error: path.join(LOGS_DIR, 'last_error.log') };
+  const f = fichiers[opts && opts.fichier] || LOG_FILE;
   try {
-    const p = path.join(__dirname, '..', '..', '.test_api_token');
-    if (fs.existsSync(p)) return fs.readFileSync(p, 'utf-8').trim();
-  } catch (_) {}
-  return null;
+    if (!fs.existsSync(f)) return { ok: true, texte: '', position: 0 };
+    const taille = fs.statSync(f).size;
+    const suite = typeof opts.position === 'number' && opts.position >= 0 && opts.position <= taille;
+    const debut = suite ? opts.position : Math.max(0, taille - 256 * 1024);   // 1er appel, ou journal recommence
+    const n = Math.min(taille - debut, 1024 * 1024);
+    if (n <= 0) return { ok: true, texte: '', position: taille };
+    const fd = fs.openSync(f, 'r');
+    const buf = Buffer.alloc(n);
+    try { fs.readSync(fd, buf, 0, n, debut); } finally { fs.closeSync(fd); }
+    let texte = buf.toString('utf8');
+    if (!suite) {
+      const lignes = texte.split(/\r?\n/);
+      const finDeLigne = lignes.length > 1 && lignes[lignes.length - 1] === '';
+      if (finDeLigne) lignes.pop();
+      texte = lignes.slice(-(Math.min(Number(opts.lignes) || 300, 5000))).join('\n') + (finDeLigne ? '\n' : '');
+    }
+    return { ok: true, texte, position: debut + n, recommence: !suite && typeof opts.position === 'number' };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 // Patch-merge into config.json. Only whitelisted fields are accepted to
@@ -11486,38 +11651,62 @@ ipcMain.handle('set-config', (_event, patch) => {
   return { success: true };
 });
 
-// Connect FabMesh to Claude Desktop by writing the MCP server config into
-// Claude Desktop's settings file (%APPDATA%\Claude\claude_desktop_config.json).
-// This is a one-click operation: the user clicks "Connect to Claude Desktop"
-// in FabMesh Settings, and Claude Desktop discovers FabMesh's MCP tools
-// (generate_image, generate_mesh, generate_rig, batch_pipeline) on next restart.
+/* CLAUDE DESKTOP (MCP) — entree de CETTE installation (2026-09-30).
+ * Elle ecrivait command « python » (absent chez un client), un cwd dans
+ * app.asar (un fichier, pas un dossier) et des barres obliques DOUBLEES a la
+ * main avant JSON.stringify. Desormais : le Python embarque de l'appli
+ * (resources\python-embed\python.exe, signe PSF, compatible Smart App Control)
+ * et le serveur livre (resources\scripts\mcp_server.py, bibliotheque standard
+ * seulement), qui parle a l'API locale avec la cle de ~/.fabmesh. */
+function _cheminConfigClaude() {
+  const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+  return path.join(appData, 'Claude', 'claude_desktop_config.json');
+}
+function _entreeMcpClaude() {
+  return { command: _embeddedPython(), args: [path.join(SCRIPTS_DIR, 'mcp_server.py')] };
+}
+function _configClaude() {
+  const entree = _entreeMcpClaude();
+  const q = (s) => (/[\\/\s]/.test(s) ? '"' + s + '"' : s);
+  return {
+    python: entree.command,
+    script: entree.args[0],
+    json: JSON.stringify({ mcpServers: { fabmesh: entree } }, null, 2),
+    commande: 'claude mcp add --scope user fabmesh -- ' + q(entree.command) + ' ' + q(entree.args[0]),
+    fichierCle: _controleApi ? _controleApi.etat().fichierCle : path.join(os.homedir(), '.fabmesh', 'test_api_token.txt'),
+    adresse: 'http://127.0.0.1:' + (_controleApi ? _controleApi.PORT : 7331),
+    fichierConfig: _cheminConfigClaude(),
+  };
+}
+const _normChemin = (s) => String(s || '').replace(/[\\/]+/g, '\\').toLowerCase();
+
+// Connect to Claude Desktop: writes the MCP entry of THIS installation into
+// %APPDATA%\Claude\claude_desktop_config.json (other servers kept), then turns
+// the local API on. Claude Desktop sees the tools after a full restart.
 ipcMain.handle('connect-claude-desktop', async () => {
   try {
-    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    const claudeDir = path.join(appData, 'Claude');
-    const configPath = path.join(claudeDir, 'claude_desktop_config.json');
-    const mcpServerScript = path.join(SCRIPTS_DIR, 'mcp_server.py').replace(/\\/g, '\\\\');
-    const projectRoot = path.join(__dirname, '..', '..').replace(/\\/g, '\\\\');
-
-    // Read existing config or start fresh
+    const configPath = _cheminConfigClaude();
     let config = {};
     if (fs.existsSync(configPath)) {
-      try { config = JSON.parse(fs.readFileSync(configPath, 'utf-8')); } catch (e) {}
+      const brut = fs.readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, '');
+      if (brut.trim()) {
+        // Illisible : on ne l'ecrase JAMAIS (il porte peut-etre d'autres serveurs du user).
+        try { config = JSON.parse(brut); }
+        catch (e) { return { success: false, error: "Claude Desktop's settings file is not valid JSON. Fix it, or use Manual setup in the ? help." }; }
+        if (!config || typeof config !== 'object' || Array.isArray(config)) {
+          return { success: false, error: "Claude Desktop's settings file has an unexpected format. Use Manual setup in the ? help." };
+        }
+      }
     }
-    if (!config.mcpServers) config.mcpServers = {};
-
-    // Add/update FabMesh MCP server entry
-    config.mcpServers.fabmesh = {
-      command: 'python',
-      args: [mcpServerScript],
-      cwd: projectRoot,
-    };
-
-    // Write back
-    fs.mkdirSync(claudeDir, { recursive: true });
+    if (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers)) config.mcpServers = {};
+    config.mcpServers.fabmesh = _entreeMcpClaude();
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
     log.info('main', `Claude Desktop config written to ${configPath}`);
-    return { success: true, configPath };
+    // Brancher Claude = l'autoriser : l'interrupteur s'allume.
+    let api = _etatAssistant();
+    if (!api.actif) api = await _allumerApi(true);
+    return { success: true, configPath, api };
   } catch (e) {
     log.error('main', `connect-claude-desktop failed: ${e.message}`);
     return { success: false, error: e.message };
@@ -11527,8 +11716,7 @@ ipcMain.handle('connect-claude-desktop', async () => {
 ipcMain.handle('disconnect-claude-desktop', async () => {
   try {
     // Remove from Claude Desktop config
-    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    const configPath = path.join(appData, 'Claude', 'claude_desktop_config.json');
+    const configPath = _cheminConfigClaude();
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       if (config.mcpServers && config.mcpServers.fabmesh) {
@@ -11558,14 +11746,19 @@ ipcMain.handle('disconnect-claude-desktop', async () => {
   }
 });
 
+// « Connected » ne veut plus dire « une entree fabmesh existe » : elle doit viser
+// le serveur de CETTE installation (sur un PC de developpement, l'entree ecrite
+// par le depot faisait croire l'appli installee branchee).
 ipcMain.handle('check-claude-desktop', async () => {
   try {
-    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    const configPath = path.join(appData, 'Claude', 'claude_desktop_config.json');
+    const configPath = _cheminConfigClaude();
     if (!fs.existsSync(configPath)) return { connected: false };
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    const hasFabmesh = !!(config.mcpServers && config.mcpServers.fabmesh);
-    return { connected: hasFabmesh };
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, ''));
+    const e = config && config.mcpServers && config.mcpServers.fabmesh;
+    if (!e) return { connected: false };
+    const script = Array.isArray(e.args) ? e.args.find((a) => /mcp_server\.py$/i.test(String(a))) : null;
+    const ici = !!script && _normChemin(script) === _normChemin(_entreeMcpClaude().args[0]);
+    return { connected: true, ici };
   } catch (e) {
     return { connected: false };
   }

@@ -2496,41 +2496,50 @@
         </div>
 
         <!-- ═══ AI ASSISTANT ═══ -->
+        <!-- CLAUDE & SCRIPTS (2026-09-30, user : « aucune explication sur comment le brancher, comment ca
+             marche… un bouton help avec une popup »). Interrupteur COUPE par defaut (config.json >
+             controlApi.enabled) qui demarre et arrete a chaud l'API locale (src/main/control_api.js) ;
+             « ? » ouvre #modal-assistant-aide ; cle, adresse, activite et acces complet sont replies dans
+             « Advanced ». Plus de lien vers FABMESH_API.md : absent du paquet, il remplacait toute
+             l'interface par une page d'erreur. Toute la carte est hors de portee de l'automatisation
+             (test_api_client.js, _ZONES_RESERVEES). Logique : index2.js, « ASSISTANT — Claude & scripts ». -->
         <div class="settings-section-header">Assistant</div>
-        <div class="settings-box">
-          <div class="settings-box-title">Claude Desktop</div>
-          <div class="settings-box-desc">Let Claude generate batches of assets for you via text commands.</div>
-          <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
-            <button id="set-claude-connect" class="ghost-btn" style="flex:1; padding:6px 12px;">&#129302; Connect to Claude Desktop</button>
-            <button id="set-claude-disconnect" class="ghost-btn danger" style="flex:1; padding:6px 12px; display:none;">Disconnect</button>
-            <span id="set-claude-status" class="settings-status-dot"></span>
+        <div class="settings-box" id="set-assistant">
+          <div class="settings-box-title-row">
+            <div class="settings-box-title">Claude &amp; scripts</div>
+            <button type="button" id="set-assistant-aide" class="asst-aide-btn" title="How it works" aria-label="How it works">?</button>
           </div>
-          <div class="settings-box-footer">
-            Free &middot; <a href="https://claude.ai/download" target="_blank" rel="noopener">claude.ai/download</a>
+          <div class="settings-box-desc">Let Claude or your own scripts use MyFabmesh.AI for you.</div>
+          <div class="np-auto-row asst-ligne" id="set-api-row">
+            <label class="np-switch" for="set-api-enabled"><input type="checkbox" id="set-api-enabled" /><span class="np-switch-track" aria-hidden="true"></span></label>
+            <div class="np-auto-texte">
+              <div class="np-auto-titre">Allow Claude and scripts on this PC</div>
+              <div class="np-auto-info" id="set-api-status" data-i18n-skip>Off</div>
+            </div>
           </div>
-        </div>
-
-        <div class="settings-box" id="set-control-api-box" style="margin-top:10px;">
-          <div class="settings-box-title">
-            <span id="set-api-dot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#666; margin-right:6px; vertical-align:middle;"></span>
-            <span id="set-api-status">Control API · checking...</span>
+          <div class="asst-claude">
+            <button id="set-claude-connect" class="ghost-btn">Connect Claude Desktop</button>
+            <button id="set-claude-disconnect" class="ghost-btn danger" style="display:none;">Disconnect</button>
+            <span id="set-claude-status" class="settings-status-dot" data-i18n-skip></span>
           </div>
-          <div class="settings-box-desc" id="set-api-detail" style="font-size:11px; color:var(--text-2);">
-            Local HTTP control plane on 127.0.0.1:7331. Drive MyFabmesh.AI from scripts (Claude Code, batch generators, CI...).
-          </div>
-          <div style="display:flex; gap:6px; align-items:center; margin-top:6px; font-size:11px;">
-            <span class="settings-field-label" style="min-width:50px;">Token</span>
-            <input id="set-api-token" type="text" readonly style="flex:1; background:var(--bg-0); border:1px solid var(--border); color:var(--text-2); border-radius:4px; padding:3px 6px; font-size:11px; font-family:monospace;">
-            <button id="set-api-copy-token" class="ghost-btn" style="padding:3px 8px; font-size:11px;">&#128203; Copy</button>
-          </div>
-          <div id="set-api-traffic" style="margin-top:8px; font-size:11px; color:var(--text-2);"></div>
-          <details style="margin-top:6px;">
-            <summary style="cursor:pointer; font-size:10px; color:var(--text-3);">Recent requests</summary>
-            <pre id="set-api-recent" style="margin:4px 0 0 0; padding:6px 8px; background:#000; border-radius:4px; font-size:10px; max-height:140px; overflow:auto; color:#9bbac8; line-height:1.35;"></pre>
+          <details class="asst-avance" id="set-api-avance">
+            <summary>Advanced</summary>
+            <div class="asst-champ">
+              <span class="settings-field-label">Access key</span>
+              <input id="set-api-token" type="password" readonly placeholder="Turn on the switch first" data-i18n-skip />
+              <button type="button" id="set-api-show-token" class="ghost-btn asst-petit">Show</button>
+              <button type="button" id="set-api-copy-token" class="ghost-btn asst-petit">Copy</button>
+              <button type="button" id="set-api-new-token" class="ghost-btn asst-petit" title="The old key stops working">New key</button>
+            </div>
+            <div class="asst-champ"><span class="settings-field-label">Address</span><code id="set-api-adresse">http://127.0.0.1:7331</code></div>
+            <div class="asst-champ"><span class="settings-field-label">Key file</span><code id="set-api-fichier"></code></div>
+            <div class="asst-sous-titre">Activity</div>
+            <pre id="set-api-recent" class="asst-activite"></pre>
+            <div id="set-api-full-bloc">
+              <label class="asst-complet"><input type="checkbox" id="set-api-full" /> Developer full access</label>
+              <div class="settings-box-hint">Lets scripts run any code in the app. Only for your own scripts.</div>
+            </div>
           </details>
-          <div class="settings-box-footer">
-            Free &middot; local &middot; <a href="FABMESH_API.md" id="set-api-docs">FABMESH_API.md</a>
-          </div>
         </div>
 
         <!-- ═══ SYSTEM ═══ -->
@@ -2801,7 +2810,6 @@
             <option value="fabmesh" selected>fabmesh (main)</option>
             <option value="renderer">renderer</option>
             <option value="error">error</option>
-            <option value="agent">agent</option>
           </select>
           <input id="ll-filter" type="text" placeholder="filter (regex)..." style="flex:1; background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:4px; padding:4px 8px; font-size:12px;">
           <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-2);">
@@ -3743,6 +3751,59 @@
       <div class="modal-actions">
         <button class="ghost-btn" id="sdd-annuler">Cancel</button>
         <button class="primary-btn danger" id="sdd-supprimer" disabled>Delete</button>
+      </div>
+    </div>
+  </div>
+  <!-- ============================================================
+       AIDE « CLAUDE & SCRIPTS » (Reglages > Assistant > ?) — 2026-09-30.
+       User : « aucune explication sur comment le brancher, comment ca marche… un bouton help avec
+       une popup ». Textes COURTS ; la configuration et la commande sont remplies par index2.js
+       (assistant-api:config-claude) avec les chemins de CETTE installation. Au-dessus des Reglages.
+       ============================================================ -->
+  <div id="modal-assistant-aide" class="modal-overlay hidden" style="z-index:10050;">
+    <div class="modal-card asst-aide-carte">
+      <div class="fen-tete">
+        <h2>Claude &amp; scripts</h2>
+        <button type="button" class="settings-close-x" id="asst-aide-fermer" title="Close">&#10005;</button>
+      </div>
+      <p class="modal-subtitle">Claude or your scripts use MyFabmesh.AI for you: projects, images, 3D, rigs. Only programs on this PC, only while the switch is on.</p>
+      <div class="asst-aide-corps">
+        <h3 class="asst-h">Claude Desktop</h3>
+        <ol class="asst-etapes">
+          <li>Install Claude Desktop: <a href="https://claude.ai/download" target="_blank" rel="noopener">claude.ai/download</a></li>
+          <li>Click Connect Claude Desktop (this also turns the switch on).</li>
+          <li>Quit Claude Desktop completely, then reopen it.</li>
+          <li>Keep MyFabmesh.AI open and ask Claude, for example: “Make 3 medieval houses in MyFabmesh”.</li>
+        </ol>
+        <details class="asst-manuel">
+          <summary>Manual setup</summary>
+          <p class="fen-note">Claude Desktop › Settings › Developer › Edit Config, then paste:</p>
+          <pre class="asst-code" id="asst-json" data-i18n-skip></pre>
+          <button type="button" class="ghost-btn asst-petit" data-asst-copier="asst-json">Copy</button>
+        </details>
+
+        <h3 class="asst-h">Claude Code</h3>
+        <p class="fen-note">Turn the switch on, then run once in a terminal:</p>
+        <pre class="asst-code" id="asst-cmd" data-i18n-skip></pre>
+        <button type="button" class="ghost-btn asst-petit" data-asst-copier="asst-cmd">Copy</button>
+        <p class="fen-note">Or paste the access key (Advanced) into Claude Code, with the address http://127.0.0.1:7331.</p>
+
+        <h3 class="asst-h">Safety</h3>
+        <ul class="asst-liste">
+          <li>Off by default. Only programs on this PC can connect, and only with the key.</li>
+          <li>Whoever has the key can use the app like you, cloud credits included.</li>
+          <li>A new key is made at each start. Turn the switch off when you are done.</li>
+        </ul>
+
+        <h3 class="asst-h">Trouble?</h3>
+        <ul class="asst-liste">
+          <li>Claude sees no MyFabmesh tools: quit Claude Desktop completely and reopen it.</li>
+          <li>“Not reachable”: open MyFabmesh.AI and turn the switch on.</li>
+          <li>“Port 7331 is busy”: another copy of MyFabmesh.AI is already running.</li>
+        </ul>
+      </div>
+      <div class="modal-actions">
+        <button class="primary-btn" id="asst-aide-ok">OK</button>
       </div>
     </div>
   </div>

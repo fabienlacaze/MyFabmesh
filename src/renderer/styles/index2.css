@@ -4849,3 +4849,41 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 .sdd-fin-texte { font-size: 13px; line-height: 1.5; color: var(--text-1); white-space: pre-line; }
 #sdd-note { color: #f0b429; white-space: pre-line; }
 #modal-suppr-donnees [hidden] { display: none !important; }   /* les .sdd-liste / .opt-ligne sont en flex */
+
+/* CLAUDE & SCRIPTS (2026-09-30) — Reglages > Assistant : interrupteur, « ? », repli Advanced ; fenetre d'aide. */
+.asst-aide-btn {
+  width: 24px; height: 24px; flex: 0 0 auto; margin: -4px 0 4px; padding: 0; border-radius: 50%;
+  border: 1.5px solid var(--accent); background: transparent; color: var(--accent);
+  font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer; transition: background .15s, color .15s;
+}
+.asst-aide-btn:hover { background: var(--accent); color: #fff; }
+.asst-ligne { margin: 10px 0 8px; }
+.asst-claude { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.asst-claude .ghost-btn { flex: 1 1 auto; height: 32px; padding: 6px 12px; font-size: 12px; }
+#set-claude-status { white-space: normal; }
+.asst-avance { margin-top: 10px; }
+.asst-avance > summary { cursor: pointer; font-size: 11px; color: var(--text-2); user-select: none; }
+.asst-avance[open] > summary { margin-bottom: 8px; }
+.asst-champ { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 11px; min-width: 0; }
+.asst-champ code { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-1); font-size: 11px; user-select: text; }
+.modal-card .asst-champ input { flex: 1; min-width: 0; height: 26px; padding: 3px 6px; font-size: 11px; font-family: monospace;
+  background: var(--bg-0); border: 1px solid var(--border); color: var(--text-1); border-radius: 4px; }
+.ghost-btn.asst-petit { height: 26px; padding: 3px 9px; font-size: 11px; }
+.asst-sous-titre { margin-top: 10px; font-size: 11px; font-weight: 600; color: var(--text-2); }
+.asst-activite { margin: 4px 0 0; padding: 6px 8px; min-height: 22px; max-height: 140px; overflow: auto; background: #000;
+  border-radius: 4px; font-size: 10px; line-height: 1.35; color: #9bbac8; white-space: pre; user-select: text; }
+.modal-card label.asst-complet { display: flex; align-items: center; gap: 7px; margin: 10px 0 0; cursor: pointer;
+  text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--text-1); }
+.modal-card.asst-aide-carte { width: 640px; max-width: 92vw; max-height: 88vh; display: flex; flex-direction: column; }
+.asst-aide-carte .modal-subtitle { margin-bottom: 8px; }
+.asst-aide-corps { overflow-y: auto; min-height: 0; padding-right: 4px; }
+.asst-h { margin: 14px 0 6px; font-size: 13px; font-weight: 700; color: var(--text-0); }
+.asst-etapes, .asst-liste { margin: 0 0 0 20px; font-size: 12.5px; line-height: 1.55; color: var(--text-1); }
+.asst-etapes li, .asst-liste li { margin: 2px 0; }
+.asst-etapes a { color: var(--accent); }
+.asst-manuel { margin: 8px 0 0; }
+.asst-manuel > summary { cursor: pointer; font-size: 12px; color: var(--text-2); }
+.asst-code { margin: 6px 0; padding: 8px 10px; background: var(--bg-0); border: 1px solid var(--border); border-radius: 6px;
+  font-family: 'Cascadia Code', Consolas, monospace; font-size: 11px; line-height: 1.4; color: var(--text-1);
+  white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.asst-aide-corps .fen-note { margin-top: 4px; }

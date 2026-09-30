@@ -23960,9 +23960,10 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
 })();
 
 // ============================================================
-// LIVE LOGS VIEWER — streams logs/fabmesh.log (or any registered file)
-// via the Control API SSE endpoint. Reuses the same token the control
-// API wrote to .fabmesh/test_api_token.txt at startup.
+// LIVE LOGS VIEWER — suit logs/fabmesh.log (ou renderer / error).
+// 2026-09-30 : lecture par IPC (journal:suite, sondage 0,7 s). Il passait par
+// l'API locale (jeton + SSE sur 127.0.0.1:7331) et n'affichait donc jamais
+// rien dans l'appli installee, ou cette API est coupee par defaut.
 // ============================================================
 (() => {
   const modal = document.getElementById('modal-live-logs');
@@ -23977,7 +23978,11 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
   const countEl = document.getElementById('ll-count');
   if (!modal || !output) return;
 
-  let eventSource = null;
+  let _minuterie = null;   // sondage du journal
+  let _position = null;    // octets deja lus (null = premiere lecture : la fin du fichier)
+  let _reste = '';         // ligne incomplete, completee au sondage suivant
+  let _fichierLu = null;
+  let _lectureEnCours = false;
   let paused = false;
   let buffered = []; // lines received while paused
   let lineCount = 0;
@@ -24004,56 +24009,47 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
     if (autoscrollCb?.checked) output.scrollTop = output.scrollHeight;
   }
 
-  async function readToken() {
-    // The main process writes the token to .fabmesh/test_api_token.txt
-    // and to <root>/.test_api_token. We can't read files from the
-    // renderer directly, but main.js exposes a read-log-tail IPC we
-    // can repurpose. Simpler: ask main via a tiny new IPC.
+  // Lit la suite du journal : la premiere fois ses 300 dernieres lignes, ensuite ce qui a ete ajoute.
+  async function lireSuite() {
+    if (_lectureEnCours || !_fichierLu) return;
+    _lectureEnCours = true;
+    const fichier = _fichierLu;
     try {
-      const r = await API.getControlApiToken?.();
-      return r || null;
-    } catch { return null; }
+      const r = await API.journalSuite({ fichier, position: _position, lignes: 300 });
+      if (fichier !== _fichierLu) return;                       // autre journal choisi entre-temps
+      if (!r || !r.ok) { setStatus('read error: ' + ((r && r.error) || '?'), '#ff6b6b'); return; }
+      if (r.recommence) { _reste = ''; appendLine('--- log restarted ---'); }
+      _position = r.position;
+      if (!r.texte) return;
+      const lignes = (_reste + r.texte).split(/\r?\n/);
+      _reste = lignes.pop();                                    // derniere ligne pas encore terminee
+      for (const line of lignes) {
+        if (!line) continue;
+        if (paused) { buffered.push(line); if (buffered.length > 1000) buffered.shift(); continue; }
+        appendLine(line);
+      }
+    } catch (e) {
+      setStatus('read error: ' + ((e && e.message) || e), '#ff6b6b');
+    } finally {
+      _lectureEnCours = false;
+    }
   }
 
   async function openStream() {
-    const file = fileSel?.value || 'fabmesh';
-    const token = await readToken();
-    if (!token) {
-      setStatus('no token — is the Control API enabled?', '#ff6b6b');
-      return;
-    }
     closeStream();
+    _fichierLu = fileSel?.value || 'fabmesh';
+    _position = null;
+    _reste = '';
+    if (!API.journalSuite) { setStatus('log reader unavailable', '#ff6b6b'); return; }
     setStatus('loading history...', '#8ecae6');
-
-    // Load the last 300 lines as initial context so the window isn't empty
-    // before the first new log event arrives.
-    try {
-      const r = await fetch(`http://127.0.0.1:7331/logs?file=${encodeURIComponent(file)}&lines=300`, {
-        headers: { 'Authorization': 'Bearer ' + token },
-      });
-      const j = await r.json();
-      const text = (j && j.data && j.data.content) || '';
-      for (const line of text.split(/\r?\n/)) {
-        if (line) appendLine(line);
-      }
-    } catch (e) {
-      appendLine('[viewer] failed to load history: ' + e.message);
-    }
-
-    setStatus('connecting to ' + file + '...', '#8ecae6');
-    // EventSource doesn't support custom headers; use ?token= fallback.
-    const url = `http://127.0.0.1:7331/logs/stream?file=${encodeURIComponent(file)}&token=${encodeURIComponent(token)}`;
-    eventSource = new EventSource(url);
-    eventSource.onopen = () => setStatus('live: ' + file, '#06d6a0');
-    eventSource.onerror = () => setStatus('disconnected — retrying...', '#ff6b6b');
-    eventSource.onmessage = (ev) => {
-      const line = (ev.data || '').replace(/\\n/g, '\n');
-      if (paused) { buffered.push(line); if (buffered.length > 1000) buffered.shift(); return; }
-      appendLine(line);
-    };
+    await lireSuite();
+    if (!_fichierLu) return;                                    // ferme pendant le chargement
+    setStatus('live: ' + _fichierLu, '#06d6a0');
+    _minuterie = setInterval(lireSuite, 700);
   }
   function closeStream() {
-    if (eventSource) { try { eventSource.close(); } catch {} eventSource = null; }
+    if (_minuterie) { clearInterval(_minuterie); _minuterie = null; }
+    _fichierLu = null;
     setStatus('disconnected');
   }
 
@@ -24134,101 +24130,185 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
 })();
 
 // ============================================================
-// CONTROL API STATUS PANEL — Settings → Control API
+// ASSISTANT — Claude & scripts (Reglages > Assistant), 2026-09-30.
+// User : « aucune explication sur comment le brancher, comment ca marche… un
+// bouton help avec une popup ». Etat lu par IPC toutes les 2 s tant que les
+// Reglages sont ouverts (plus aucune requete HTTP depuis la page : le panneau
+// se comptait lui-meme dans l'activite). L'interrupteur demarre / arrete l'API
+// locale A CHAUD et le memorise ; « ? » ouvre #modal-assistant-aide ; cle,
+// adresse, activite et acces complet sont dans le repli Advanced.
 // ============================================================
-// Polls GET /status every 2 s while the Settings modal is open and
-// fills in the Control API box with: green/red dot, full bearer
-// token (read-only + copy), traffic counters, last 10 requests.
+async function _asstCopier(texte, bouton) {
+  try { await navigator.clipboard.writeText(texte); }
+  catch (_) {
+    const ta = document.createElement('textarea');
+    ta.value = texte; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    ta.remove();
+  }
+  if (bouton) {
+    const avant = bouton.textContent;
+    bouton.textContent = '✓ ' + _i18nT('Copied');
+    setTimeout(() => { bouton.textContent = avant; }, 1400);
+  }
+}
 (() => {
-  const dot   = document.getElementById('set-api-dot');
-  const stat  = document.getElementById('set-api-status');
-  const det   = document.getElementById('set-api-detail');
-  const tok   = document.getElementById('set-api-token');
-  const cpy   = document.getElementById('set-api-copy-token');
-  const traf  = document.getElementById('set-api-traffic');
-  const recent = document.getElementById('set-api-recent');
-  const settingsModal = document.getElementById('modal-settings');
-  if (!dot || !settingsModal) return;
+  const inter = document.getElementById('set-api-enabled');
+  const ligne = document.getElementById('set-api-row');
+  const statut = document.getElementById('set-api-status');
+  const cleEl = document.getElementById('set-api-token');
+  const btnVoir = document.getElementById('set-api-show-token');
+  const btnCopier = document.getElementById('set-api-copy-token');
+  const btnNouvelle = document.getElementById('set-api-new-token');
+  const fichierEl = document.getElementById('set-api-fichier');
+  const adresseEl = document.getElementById('set-api-adresse');
+  const activite = document.getElementById('set-api-recent');
+  const complet = document.getElementById('set-api-full');
+  const completBloc = document.getElementById('set-api-full-bloc');
+  const reglages = document.getElementById('modal-settings');
+  const aide = document.getElementById('modal-assistant-aide');
+  if (!inter || !reglages || !API.assistantEtat) return;
 
   let _timer = null;
-  let _token = null;
+  let _occupe = false;        // bascule en cours : le sondage ne touche pas aux cases
+  let _cleVisible = false;
 
-  async function fetchToken() {
-    if (_token) return _token;
-    try { _token = await API.getControlApiToken?.(); } catch { _token = null; }
-    if (_token && tok) tok.value = _token;
-    return _token;
+  const ilYa = (ts) => {
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 60) return _i18nT('just now');
+    if (s < 3600) return _i18nTf('{x} min ago', Math.round(s / 60));
+    return _i18nTf('{x} h ago', Math.round(s / 3600));
+  };
+  const heure = (ts) => { try { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); } catch (_) { return ''; } };
+
+  function texteStatut(e) {
+    if (!e.actif && e.erreur === 'port-busy') return _i18nT('Could not start: port 7331 is busy (another MyFabmesh.AI is running?)');
+    if (!e.actif && e.erreur) return _i18nTf('Could not start: {x}', e.erreur);
+    if (!e.actif) return _i18nT('Off');
+    const c = (e.clients || [])[0];
+    let t = c ? _i18nTf('On · used by {x} {y}', _i18nT(c.nom), ilYa(c.derniere)) : _i18nT('On · waiting for Claude or a script');
+    if (e.niveau === 'complet') t += ' · ' + _i18nT('full access');
+    return t;
   }
 
-  function fmtTimeAgo(ms) {
-    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-    if (s < 60) return s + 's ago';
-    if (s < 3600) return Math.round(s / 60) + 'm ago';
-    return Math.round(s / 3600) + 'h ago';
-  }
-
-  async function poll() {
-    const t = await fetchToken();
-    if (!t) {
-      dot.style.background = '#666';
-      stat.textContent = 'Disabled (no token)';
-      if (det) det.textContent = 'Set FABMESH_CONTROL_API=1 (or just relaunch MyFabmesh.AI) to enable.';
-      return;
+  async function afficher(e) {
+    if (!e) return;
+    if (!_occupe) inter.checked = !!e.actif;
+    ligne?.classList.toggle('on', !!e.actif);
+    if (statut) statut.textContent = texteStatut(e);
+    if (fichierEl) fichierEl.textContent = e.fichierCle || '';
+    if (adresseEl) adresseEl.textContent = 'http://' + (e.hote || '127.0.0.1') + ':' + (e.port || 7331);
+    if (completBloc) completBloc.hidden = !e.completDisponible;
+    if (complet && !_occupe) complet.checked = e.niveau === 'complet';
+    [btnVoir, btnCopier, btnNouvelle].forEach((b) => { if (b) b.disabled = !e.actif; });
+    if (activite) {
+      const rows = (e.activite || []).map((r) => `${heure(r.ts)}  ${String(r.statut).padEnd(3)} ${String(r.methode || '').padEnd(4)} ${r.chemin}   ${_i18nT(r.client)}`);
+      activite.textContent = rows.length ? rows.join('\n') : _i18nT('(no requests yet)');
     }
-    try {
-      const r = await fetch('http://127.0.0.1:7331/status',
-        { headers: { 'Authorization': 'Bearer ' + t } });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json();
-      const d = j.data;
-      dot.style.background = '#06d6a0';
-      stat.textContent = `Listening on ${d.host}:${d.port}`;
-      if (det) det.textContent = `v${d.version} · uptime ${Math.floor((d.uptime_s||0)/60)}m${(d.uptime_s||0)%60}s`;
-      if (traf) {
-        const clients = Object.keys(d.recent_clients || {}).length;
-        traf.innerHTML = `<strong style="color:#9bbac8;">Traffic:</strong> ${d.request_count_5min} requests in last 5min, ${d.request_count_total} total · ${clients} distinct client${clients>1?'s':''}`;
-      }
-      if (recent) {
-        const rows = (d.recent_requests || []).slice().reverse().map(r =>
-          `${fmtTimeAgo(r.ts).padStart(7)}  ${String(r.status).padEnd(3)} ${r.method.padEnd(4)} ${r.path}`
-        );
-        recent.textContent = rows.length ? rows.join('\n') : '(no requests yet)';
-      }
-    } catch (e) {
-      dot.style.background = '#ef4444';
-      stat.textContent = 'Unreachable';
-      if (det) det.textContent = 'Server not responding: ' + (e.message || e);
+    if (cleEl) {
+      let k = '';
+      if (e.actif) { try { k = (await API.assistantCle()) || ''; } catch (_) {} }
+      if (cleEl.value !== k) cleEl.value = k;
     }
   }
-
-  // Poll only while Settings modal is visible
-  function startPolling() {
-    if (_timer) return;
-    poll();
-    _timer = setInterval(poll, 2000);
+  async function rafraichir() {
+    try { await afficher(await API.assistantEtat()); } catch (_) {}
   }
-  function stopPolling() {
-    if (_timer) { clearInterval(_timer); _timer = null; }
-  }
-  // MutationObserver on the modal's hidden class
-  const mo = new MutationObserver(() => {
-    if (!settingsModal.classList.contains('hidden')) startPolling();
-    else stopPolling();
-  });
-  mo.observe(settingsModal, { attributes: true, attributeFilter: ['class'] });
-  // First check at page load if modal is already open
-  if (!settingsModal.classList.contains('hidden')) startPolling();
+  window._asstRafraichir = rafraichir;
 
-  // Copy token button
-  cpy?.addEventListener('click', async () => {
-    if (!_token) return;
+  inter.addEventListener('change', async () => {
+    const on = inter.checked;
+    _occupe = true;
+    inter.disabled = true;
+    if (statut) statut.textContent = on ? _i18nT('Starting…') : _i18nT('Stopping…');
     try {
-      await navigator.clipboard.writeText(_token);
-      const prev = cpy.textContent;
-      cpy.textContent = '\u2713 Copied';
-      setTimeout(() => { cpy.textContent = prev; }, 1400);
-    } catch { /* clipboard refused */ }
+      const e = await API.assistantActiver(on);
+      _occupe = false;
+      await afficher(e);
+      if (on && e && !e.actif) showToast(texteStatut(e), 'error', 6000);
+    } catch (err) {
+      _occupe = false;
+      showToast(String((err && err.message) || err), 'error');
+      rafraichir();
+    } finally {
+      inter.disabled = false;
+    }
   });
+
+  complet?.addEventListener('change', async () => {
+    const on = complet.checked;
+    if (on) {
+      const ok = await customConfirm(
+        _i18nT('Any program that has the key could then run code inside MyFabmesh.AI, with your rights. Turn it on only for your own scripts.'),
+        _i18nT('Developer full access'), _i18nT('Turn on'));
+      if (!ok) { complet.checked = false; return; }
+    }
+    _occupe = true;
+    try {
+      const e = await API.assistantAccesComplet(on);
+      _occupe = false;
+      await afficher(e);
+    } catch (_) { _occupe = false; rafraichir(); }
+  });
+
+  btnVoir?.addEventListener('click', () => {
+    _cleVisible = !_cleVisible;
+    if (cleEl) cleEl.type = _cleVisible ? 'text' : 'password';
+    btnVoir.textContent = _cleVisible ? _i18nT('Hide') : _i18nT('Show');
+  });
+  btnCopier?.addEventListener('click', async () => {
+    let k = null;
+    try { k = await API.assistantCle(); } catch (_) {}
+    if (!k) { showToast(_i18nT('Turn on the switch first.'), 'info'); return; }
+    _asstCopier(k, btnCopier);
+  });
+  btnNouvelle?.addEventListener('click', async () => {
+    try {
+      await afficher(await API.assistantNouvelleCle());
+      showToast(_i18nT('New key made. The old one no longer works.'), 'success');
+    } catch (_) {}
+  });
+
+  // Etat a jour tant que les Reglages sont ouverts.
+  function demarrerSondage() { if (_timer) return; rafraichir(); _timer = setInterval(rafraichir, 2000); }
+  function arreterSondage() { if (_timer) { clearInterval(_timer); _timer = null; } }
+  new MutationObserver(() => {
+    if (!reglages.classList.contains('hidden')) demarrerSondage(); else arreterSondage();
+  }).observe(reglages, { attributes: true, attributeFilter: ['class'] });
+  if (!reglages.classList.contains('hidden')) demarrerSondage();
+
+  // Notifications : premiere connexion d'un programme, fenetre de fichier remplie par l'automatisation.
+  API.onAssistantEvenement?.((evt) => {
+    if (!evt) return;
+    if (evt.type === 'premiere-connexion') {
+      showToast(_i18nTf('{x} is now using MyFabmesh.AI. Turn it off in Settings › Assistant.', _i18nT(evt.client || 'Unknown program')), 'info', 6000);
+    } else if (evt.type === 'dialogue' && evt.chemin) {
+      showToast(_i18nTf('Automation picked a file: {x}', String(evt.chemin).split(/[\\/]/).pop()), 'info', 4000);
+    }
+    if (!reglages.classList.contains('hidden')) rafraichir();
+  });
+
+  // « ? » : aide dans l'appli, avec la configuration de CETTE installation.
+  async function ouvrirAide() {
+    if (!aide) return;
+    try {
+      const c = await API.assistantConfigClaude?.();
+      if (c) {
+        const j = document.getElementById('asst-json'); if (j) j.textContent = c.json || '';
+        const k = document.getElementById('asst-cmd'); if (k) k.textContent = c.commande || '';
+      }
+    } catch (_) {}
+    aide.classList.remove('hidden');
+  }
+  const fermerAide = () => aide?.classList.add('hidden');
+  document.getElementById('set-assistant-aide')?.addEventListener('click', ouvrirAide);
+  document.getElementById('asst-aide-fermer')?.addEventListener('click', fermerAide);
+  document.getElementById('asst-aide-ok')?.addEventListener('click', fermerAide);
+  aide?.addEventListener('click', (e) => { if (e.target === aide) fermerAide(); });
+  aide?.querySelectorAll('[data-asst-copier]').forEach((b) => b.addEventListener('click', () => {
+    const src = document.getElementById(b.dataset.asstCopier);
+    if (src && src.textContent) _asstCopier(src.textContent, b);
+  }));
 })();
 
 // ============================================================
@@ -24547,52 +24627,44 @@ document.getElementById('set-blender-browse')?.addEventListener('click', async (
 });
 
 // ----------- Claude Desktop: connect button + status check ----------
+// 2026-09-30 : l'entree ecrite vise CETTE installation (Python embarque + serveur livre) et
+// « Connect » allume aussi l'interrupteur de l'API locale. « Connected » verifie que l'entree
+// pointe bien ici (sinon : « Linked to another copy »).
 document.getElementById('set-claude-connect')?.addEventListener('click', async () => {
   const btn = document.getElementById('set-claude-connect');
   const status = document.getElementById('set-claude-status');
-  const orig = btn.innerHTML;
-  btn.innerHTML = 'Connecting...';
+  const orig = btn.textContent;
+  btn.textContent = _i18nT('Connecting...');
   btn.disabled = true;
+  let ok = false;
   try {
     const r = await API.connectClaudeDesktop();
     if (r && r.success) {
-      btn.innerHTML = '&#10003; Connected';
-      btn.style.borderColor = '#1f6f3a';
-      if (status) status.textContent = 'Restart Claude Desktop to activate.';
-      if (status) status.style.color = '#86efac';
-    } else {
-      btn.innerHTML = 'Failed';
-      if (status) status.textContent = r?.error || 'Unknown error';
-      if (status) status.style.color = '#fca5a5';
+      ok = true;
+      showToast(_i18nT('Connected. Quit Claude Desktop completely, then reopen it.'), 'success', 6000);
+    } else if (status) {
+      status.textContent = (r && r.error) || _i18nT('Unknown error');
+      status.style.color = '#fca5a5';
     }
   } catch (e) {
-    btn.innerHTML = 'Error';
-    if (status) status.textContent = e.message;
+    if (status) { status.textContent = String((e && e.message) || e); status.style.color = '#fca5a5'; }
   }
-  setTimeout(() => {
-    btn.innerHTML = orig; btn.disabled = false;
-    checkClaudeDesktopStatus();
-  }, 2000);
+  btn.textContent = orig;
+  btn.disabled = false;
+  window._asstRafraichir?.();
+  if (ok) checkClaudeDesktopStatus();
 });
 document.getElementById('set-claude-disconnect')?.addEventListener('click', async () => {
   const btn = document.getElementById('set-claude-disconnect');
+  const orig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Disconnecting...';
+  btn.textContent = _i18nT('Disconnecting...');
   try {
-    if (API.disconnectClaudeDesktop) {
-      const r = await API.disconnectClaudeDesktop();
-      if (r && r.success) {
-        // Immediately update UI without waiting for timer
-        btn.style.display = 'none';
-        const connectBtn = document.getElementById('set-claude-connect');
-        if (connectBtn) connectBtn.style.display = '';
-        const status = document.getElementById('set-claude-status');
-        if (status) { status.textContent = 'Disconnected'; status.style.color = 'var(--text-3)'; }
-      }
-    }
+    if (API.disconnectClaudeDesktop) await API.disconnectClaudeDesktop();
   } catch (e) {}
   btn.disabled = false;
-  btn.textContent = 'Disconnect';
+  btn.textContent = orig;
+  checkClaudeDesktopStatus();
 });
 // Check connection status and toggle Connect/Disconnect buttons
 async function checkClaudeDesktopStatus() {
@@ -24603,9 +24675,11 @@ async function checkClaudeDesktopStatus() {
   try {
     const r = await API.checkClaudeDesktop();
     const connected = !!(r && r.connected);
-    status.textContent = connected ? 'Connected' : 'Not connected';
-    status.style.color = connected ? '#86efac' : 'var(--text-2)';
-    if (connectBtn) connectBtn.style.display = connected ? 'none' : '';
+    const ici = connected && r.ici !== false;
+    status.textContent = !connected ? _i18nT('Not connected')
+      : (ici ? _i18nT('Connected') : _i18nT('Linked to another copy of MyFabmesh.AI: click Connect.'));
+    status.style.color = ici ? '#86efac' : 'var(--text-2)';
+    if (connectBtn) connectBtn.style.display = ici ? 'none' : '';
     if (disconnectBtn) disconnectBtn.style.display = connected ? '' : 'none';
   } catch (e) { /* ignore */ }
 }
