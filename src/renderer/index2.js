@@ -1796,9 +1796,113 @@ function renderProjectsBulkBar() {
 // ============================================================
 // NEW PROJECT MODAL
 // ============================================================
+// ============================================================
+// NEW PROJECT — MODE AUTO (2026-09-30, user : « choisir le plus automatiquement possible la description, le type et le style, via une checkbox »)
+// Case « Auto » (cochee par defaut) : le type d'asset et le style sont DEDUITS du nom + de la description (francais ET anglais, gratuit, instantane,
+// sans appel serveur) et mis a jour pendant la frappe ; les deux menus sont alors verrouilles et affichent la valeur detectee. Description vide :
+// le nom du projet sert de description. Decocher rend la main sur les menus.
+// ============================================================
+const _NP_TYPES = [
+  ['icon', 'icon icone icons logo bouton button widget pictogramme'],
+  ['weapon', 'sword epee axe hache bow arc gun pistol rifle fusil pistolet dagger dague spear lance shield bouclier hammer marteau crossbow arbalete katana blade lame knife couteau scythe faux'],
+  ['avion', 'plane airplane aeroplane avion jet helicopter helicoptere fighter drone biplane'],
+  ['bateau', 'boat ship bateau navire yacht sailboat voilier submarine sous-marin canoe galleon galion barque ferry paquebot'],
+  ['vehicle', 'car voiture truck camion tank moto motorcycle bike velo bus tractor tracteur van scooter train locomotive spaceship vaisseau kart jeep taxi ambulance excavator bulldozer'],
+  ['building', 'house maison castle chateau tower tour temple church eglise cathedral cathedrale building batiment hut cabane barn grange lighthouse phare bridge pont skyscraper gratte-ciel shop boutique fort ruin ruine mosque mosquee pagoda pagode manoir villa cabin windmill moulin palace palais'],
+  ['insect', 'insect insecte bug beetle scarabee spider araignee ant fourmi butterfly papillon bee abeille wasp guepe scorpion mantis mante fly mouche dragonfly libellule cricket grillon centipede'],
+  ['animal', 'dog chien cat chat horse cheval wolf loup bear ours lion tiger tigre bird oiseau fish poisson snake serpent rabbit lapin fox renard deer cerf cow vache pig cochon sheep mouton elephant monkey singe eagle aigle owl hibou chouette shark requin husky frog grenouille turtle tortue duck canard chicken poule'],
+  ['creature', 'dragon monster monstre demon beast bete creature golem ghost fantome zombie slime troll ogre alien hydra griffin griffon kraken wyvern gargoyle'],
+  ['character', 'knight chevalier warrior guerrier orc elf elfe dwarf nain wizard magicien mage witch sorciere soldier soldat girl fille boy garcon man homme woman femme hero heros princess princesse king roi queen reine robot character personnage pirate ninja samurai goblin gobelin archer paladin assassin villager villageois human humain astronaut astronaute cyborg android'],
+  ['prop', 'chair chaise table lamp lampe sofa canape bed lit desk bureau shelf etagere vase barrel tonneau baril chest coffre box boite crate caisse bottle bouteille cup tasse mug book livre clock horloge furniture meuble mobilier candle bougie lantern lanterne potion key cle coin piece helmet casque hat chapeau bag sac backpack tool outil pot jar bocal mirror miroir armchair fauteuil stool tabouret bench banc door porte'],
+  ['environment', 'rock rocher tree arbre bush buisson cliff falaise mountain montagne terrain island cave grotte forest foret plant plante flower fleur stone pierre crystal cristal landscape paysage'],
+];
+const _NP_STYLES = [
+  ['lowpoly', 'low-poly lowpoly low poly'],
+  ['pixelart', 'pixel-art pixelart pixel art'],
+  ['minecraft', 'minecraft'],
+  ['voxel', 'voxel voxels'],
+  ['anime', 'anime manga'],
+  ['ghibli', 'ghibli'],
+  ['pixar', 'pixar disney'],
+  ['cartoon', 'cartoon dessin-anime toon'],
+  ['comic', 'comic bd bande-dessinee'],
+  ['watercolor', 'watercolor aquarelle'],
+  ['sketch', 'sketch croquis'],
+  ['claymation', 'claymation plasticine pate-a-modeler clay argile'],
+  ['graffiti', 'graffiti'],
+  ['art-deco', 'art-deco deco'],
+  ['cyberpunk', 'cyberpunk cyber neon'],
+  ['steampunk', 'steampunk vapeur'],
+  ['synthwave', 'synthwave vaporwave'],
+  ['horror', 'horror horreur creepy'],
+  ['dark-fantasy', 'dark-fantasy fantasy-sombre'],
+  ['chrome', 'chrome chromed'],
+  ['marble', 'marble marbre'],
+  ['carved-wood', 'sculpte carved-wood'],
+  ['stained-glass', 'stained-glass vitrail'],
+  ['holographic', 'holographic hologramme holographique hologram'],
+  ['figurine', 'figurine miniature'],
+  ['hand-painted', 'hand-painted handpainted peint-a-la-main'],
+  ['painterly', 'painterly peinture painting'],
+  ['concept', 'concept-art conceptart'],
+  ['stylized', 'stylized stylise stylised'],
+  ['pbr', 'pbr'],
+];
+function _npNormaliser(t) {
+  return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\- ]+/g, ' ');
+}
+function _npCompter(texte, liste) {
+  const mots = texte.split(/\s+/).filter(Boolean);
+  const vus = new Set(mots.map((m) => m.replace(/(s|x)$/, '')));
+  for (const m of mots) vus.add(m);
+  let n = 0;
+  for (const cle of liste.split(' ')) if (vus.has(cle) || vus.has(cle.replace(/(s|x)$/, ''))) n++;
+  return n;
+}
+/** Deduit { type, style } (null = indetermine) d'un texte libre. */
+function detecterTypeEtStyle(texte) {
+  const t = ' ' + _npNormaliser(texte) + ' ';
+  let type = null, meilleur = 0;
+  for (const [id, liste] of _NP_TYPES) {           // ordre = priorite en cas d'egalite
+    const n = _npCompter(t.trim(), liste);
+    if (n > meilleur) { meilleur = n; type = id; }
+  }
+  let style = null;
+  for (const [id, liste] of _NP_STYLES) {
+    if (liste.split(' ').some((k) => t.includes(' ' + k + ' ') || t.includes(k.replace(/-/g, ' ')))) { style = id; break; }
+  }
+  return { type, style };
+}
+function _npAutoSync() {
+  const auto = document.getElementById('np-auto');
+  const selT = document.getElementById('np-asset-type'), selS = document.getElementById('np-asset-style');
+  const info = document.getElementById('np-auto-info');
+  if (!auto || !selT || !selS) return;
+  const actif = auto.checked;
+  selT.disabled = actif; selS.disabled = actif;
+  selT.style.opacity = selS.style.opacity = actif ? '0.6' : '';
+  if (!actif) { if (info) info.textContent = ''; return; }
+  const texte = (document.getElementById('np-prompt')?.value || '') + ' ' + (document.getElementById('np-name')?.value || '');
+  const r = detecterTypeEtStyle(texte);
+  if (r.type && [...selT.options].some((o) => o.value === r.type)) selT.value = r.type;
+  selS.value = (r.style && [...selS.options].some((o) => o.value === r.style)) ? r.style : 'realistic';
+  const nomT = selT.options[selT.selectedIndex]?.textContent || '', nomS = selS.options[selS.selectedIndex]?.textContent || '';
+  if (info) info.textContent = r.type ? ('Detected: ' + nomT + ' · ' + nomS) : 'Describe what you want and the type and style are picked for you.';
+}
+(() => {
+  const auto = document.getElementById('np-auto');
+  if (!auto) return;
+  try { const v = localStorage.getItem('fab-np-auto'); if (v === '0') auto.checked = false; } catch (_) {}
+  auto.addEventListener('change', () => { try { localStorage.setItem('fab-np-auto', auto.checked ? '1' : '0'); } catch (_) {} _npAutoSync(); });
+  document.getElementById('np-prompt')?.addEventListener('input', _npAutoSync);
+  document.getElementById('np-name')?.addEventListener('input', _npAutoSync);
+  _npAutoSync();
+})();
+
 function openNewProjectModal() {
   document.getElementById('np-name').value = '';
   document.getElementById('np-prompt').value = '';
+  _npAutoSync();
   document.getElementById('np-block-msg')?.classList.add('hidden');
   const _npu = document.getElementById('np-unlock'); if (_npu) _npu.style.display = 'none';
   // Drop-to-create: suggest a project name from the dropped filename.

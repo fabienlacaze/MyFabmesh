@@ -24430,3 +24430,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 
 ## 2026-09-30 — Assistant : etape finale de l'assistant plus conviviale
 - wizard (html/css/js) : « Final test » devient « Almost there! » ; le journal brut [smoke] est remplace par une liste de verifications lisibles (Graphics card, 3D acceleration libraries, 3D generation engine, Image analyzer, Vision module) avec spinner/coche, barre de progression, message « You are all set! » ; journal technique replie dans « Technical details » (ouvert automatiquement en cas d'echec). Teste en navigateur avec API simulee.
+
+## 2026-09-30 — Assistant : nouveau projet — mode Auto (type et style deduits de la description)
+- Fenetre « New project » (bureau + web) : case « Auto » (cochee par defaut, memorisee) ; le type d'asset et le style sont deduits du nom + description (francais/anglais, mots-cles avec score, sans serveur), menus verrouilles et affichant la valeur detectee, info « Detected: … ». Decochee = menus libres. Fonction detecterTypeEtStyle (index2.js des deux cotes). Verifie sur 8 phrases (chaise/table/lampe -> Prop, orc -> Character, husky pixar -> Animal + Pixar…).
