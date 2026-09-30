@@ -1241,8 +1241,17 @@ async function runFinalTest() {
 document.getElementById('btn-launch').addEventListener('click', () => {
   modeFinal = chosenMode;
   sortieFinale = 'lancement';
+  memoriserInstallation();
   goto('account');
 });
+
+// L'installation est FAITE a ce stade : on l'ecrit tout de suite, pour qu'une
+// fenetre fermee sur l'etape « Account » (facultative) ne fasse pas tout
+// reprendre au lancement suivant. Sans effet visible ; l'echec est sans gravite
+// (completeSetup la reecrit au lancement).
+function memoriserInstallation() {
+  try { window.wizardAPI.saveSetupState?.({ mode: modeFinal, hw: hwReport })?.catch?.(() => {}); } catch (_) {}
+}
 
 // Page « no-gpu » : lancer l'app EN MODE CLOUD (et non le site web). Sans ce
 // bouton, une machine sans GPU NVIDIA (Surface des testeurs Store, laptops)
@@ -1253,6 +1262,7 @@ document.getElementById('btn-launch-cloud')?.addEventListener('click', () => {
   try { localStorage.setItem('fab-compute-mode', 'cloud'); } catch (_) {}
   modeFinal = 'cloud';
   sortieFinale = 'lancement_cloud';
+  memoriserInstallation();
   goto('account');
 });
 

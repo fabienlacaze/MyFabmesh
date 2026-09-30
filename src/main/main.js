@@ -11481,6 +11481,28 @@ ipcMain.handle('app:open-website', async () => {
   }
 });
 
+// Etat d'installation ecrit DES l'arrivee sur l'etape « Account » de
+// l'assistant (2026-09-30) : cette etape est facultative et vient APRES le
+// test. Fermer la fenetre a ce moment ne doit pas faire reprendre toute
+// l'installation au lancement suivant (le compte se fait aussi dans l'appli).
+// Meme contenu que wizard:complete, sans quitter l'assistant ; la sauvegarde
+// d'une reconfiguration reste en place (Cancel la restaure toujours).
+ipcMain.handle('wizard:save-state', (_e, state) => {
+  try {
+    fs.mkdirSync(path.dirname(SETUP_STATE_FILE), { recursive: true });
+    fs.writeFileSync(SETUP_STATE_FILE, JSON.stringify({
+      completed_at: new Date().toISOString(),
+      mode: state?.mode || null,
+      hw: state?.hw || null,
+    }, null, 2));
+    log.info('wizard', `setup state saved before the account step (mode=${state?.mode})`);
+    return { ok: true };
+  } catch (e) {
+    log.warn('wizard', `cannot save setup_state: ${e.message}`);
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('wizard:complete', (_e, state) => {
   try {
     fs.mkdirSync(path.dirname(SETUP_STATE_FILE), { recursive: true });
