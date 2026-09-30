@@ -585,3 +585,11 @@
 }
 .wiz-check-list li { border-left: 3px solid var(--cat, var(--border)); }
 @media (prefers-reduced-motion: reduce) { .wiz-jalons-test.zoom { animation: none; } }
+
+/* CATEGORIES DE LA LISTE DETAILLEE (2026-09-30) : titre colore avec le pictogramme de la categorie, lignes marquees a sa couleur. */
+.wiz-dl-groupe {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; font-size: 11px; font-weight: 700; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--cat, var(--text-2));
+}
+.wiz-dl-groupe svg { width: 16px; height: 16px; flex: none; }
+.wiz-dl-row[data-groupe] { border-left: 3px solid var(--cat, transparent); }

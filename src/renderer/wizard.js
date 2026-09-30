@@ -591,6 +591,22 @@ async function startDownload() {
   try { return await _startDownloadInterne(); }
   finally { _telechargementEnCours = false; }
 }
+// CATEGORIES DE LA LISTE DETAILLEE (user, 2026-09-30 : « mets des categories avec la bonne couleur et les icones ») : memes couleurs et memes pictogrammes
+// que les jalons de la barre (l'icone est lue dans le jalon correspondant : une seule source).
+const GROUPES = {
+  engine: { titre: 'AI engine', couleur: '#e84d7a' }, models: { titre: 'Models', couleur: '#14b8a6' }, img: { titre: 'Images', couleur: '#4a90e2' },
+  '3d': { titre: '3D', couleur: '#c35ce0' }, rig: { titre: 'Rig', couleur: '#f08a24' }, anim: { titre: 'Animation', couleur: '#22c55e' },
+};
+function groupeDeModele(id) {
+  if (/^(writer|dinov3|blip1|florence2|esrgan)$/.test(id)) return 'models';
+  if (/^trellis/.test(id)) return '3d';
+  return 'img';
+}
+function enteteGroupe(cle) {
+  const g = GROUPES[cle];
+  const svg = document.querySelector(`.wiz-jalons:not(.wiz-jalons-test) .wiz-jalon[data-j="${cle}"] svg`);
+  return `<div class="wiz-dl-groupe" data-groupe="${cle}" style="--cat:${g.couleur}">${svg ? svg.outerHTML : ''}<span>${g.titre}</span></div>`;
+}
 // LIGNES DU MOTEUR DE RIG (module : la liste COMPLETE est dessinee des le debut).
 const RIG_LIGNES = [
   { id: '__rig_py', etapes: ['rig-copy-python', 'rig-pip-bootstrap'], nom: 'Rig engine — Python environment', taille: '', mo: 0, poids: 2 },
@@ -657,8 +673,8 @@ async function _startDownloadInterne() {
     'flash-attn-optional': 'Finishing up…',
     'done': 'AI engine ready ✓',
   };
-  list.innerHTML = `
-    <div class="wiz-dl-row in-progress" data-id="__aienv">
+  list.innerHTML = enteteGroupe('engine') + `
+    <div class="wiz-dl-row in-progress" data-groupe="engine" style="--cat:${GROUPES.engine.couleur}" data-id="__aienv">
       <span class="name" id="aienv-name">Installing the AI engine…</span>
       <span class="timer" id="aienv-pct">0 %</span>
       <span class="size">~8.5 GB</span>
@@ -668,12 +684,17 @@ async function _startDownloadInterne() {
   // LISTE COMPLETE DES LE DEBUT (user, 2026-09-30 : « mets la liste complete des le debut ») : moteur d'IA, tous les modeles du mode, les 5
   // lignes du moteur de rig et l'animation, toutes en attente ; chaque ligne s'allume a son tour.
   const planComplet = await window.wizardAPI.getDownloadPlan(chosenMode);
-  list.insertAdjacentHTML('beforeend', (planComplet.items || []).map((item) => `<div class="wiz-dl-row" data-id="${item.id}"><span class="name">${item.label}</span>`
-    + `<span class="timer"></span><span class="size">${item.size_mb} MB</span><div class="bar"><div class="bar-fill"></div></div></div>`).join('')
-    + RIG_LIGNES.map((l) => `<div class="wiz-dl-row" data-id="${l.id}"><span class="name">${l.nom}</span>`
-    + `<span class="timer"></span><span class="size">${l.taille}</span><div class="bar"><div class="bar-fill"></div></div></div>`).join('')
-    + '<div class="wiz-dl-row" data-id="__anim"><span class="name">Animation engine — built in, nothing to download</span>'
-    + '<span class="size">0 MB</span><div class="bar"><div class="bar-fill"></div></div></div>');
+  const ligneModele = (item, g) => `<div class="wiz-dl-row" data-groupe="${g}" style="--cat:${GROUPES[g].couleur}" data-id="${item.id}"><span class="name">${item.label}</span>`
+    + `<span class="timer"></span><span class="size">${item.size_mb} MB</span><div class="bar"><div class="bar-fill"></div></div></div>`;
+  const parGroupe = { models: [], img: [], '3d': [] };
+  for (const item of (planComplet.items || [])) parGroupe[groupeDeModele(item.id)].push(item);
+  let html = '';
+  for (const g of ['models', 'img', '3d']) if (parGroupe[g].length) html += enteteGroupe(g) + parGroupe[g].map((i) => ligneModele(i, g)).join('');
+  html += enteteGroupe('rig') + RIG_LIGNES.map((l) => `<div class="wiz-dl-row" data-groupe="rig" style="--cat:${GROUPES.rig.couleur}" data-id="${l.id}"><span class="name">${l.nom}</span>`
+    + `<span class="timer"></span><span class="size">${l.taille}</span><div class="bar"><div class="bar-fill"></div></div></div>`).join('');
+  html += enteteGroupe('anim') + `<div class="wiz-dl-row" data-groupe="anim" style="--cat:${GROUPES.anim.couleur}" data-id="__anim"><span class="name">Animation engine — built in, nothing to download</span>`
+    + '<span class="size">0 MB</span><div class="bar"><div class="bar-fill"></div></div></div>';
+  list.insertAdjacentHTML('beforeend', html);
   // The byte/speed/ETA counters are for the MODEL download, not this pip
   // install (which reports by step, not by bytes) — show "—" meanwhile so
   // they don't read as "frozen at 0".
@@ -935,6 +956,7 @@ async function _startDownloadInterne() {
      * disposer de l'auto-rig et ne comprendrait pas son absence ensuite. */
     if (r && r.skipped) {
       for (const x of RIG_LIGNES) rigLigne(x.id)?.remove();
+      list.querySelector('.wiz-dl-groupe[data-groupe="rig"]')?.remove();
       const texte = (r.reason === 'no-nvidia-gpu')
         ? 'No NVIDIA graphics card: auto-rigging will run in the cloud — nothing to download.'
         : 'Auto-rigging is not included in this edition — skipped.';
