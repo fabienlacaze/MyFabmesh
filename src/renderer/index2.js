@@ -14287,7 +14287,7 @@ async function _pmInitViewport() {
     if (!document.getElementById('modal-paint-mesh')?.classList.contains('hidden')) {
       const _ch = pmState.controls?.update();
       // gros maillage (> 2 M triangles) : on ne redessine que sur activite (souris / clavier) dans la derniere seconde et demie
-      if (!(pmState.tris > 2000000 && !_ch && performance.now() - (window.__activiteViewerT ? window.__activiteViewerT() : 1e12) > 1500)) {
+      if (!(pmState.tris > 1000000 && !_ch && performance.now() - (window.__activiteViewerT ? window.__activiteViewerT() : 1e12) > 1500)) {
         pmState.renderer.render(pmState.scene, pmState.camera);
       }
     }

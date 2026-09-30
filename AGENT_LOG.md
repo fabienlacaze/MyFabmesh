@@ -24277,3 +24277,10 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   version legere, ou lisent `<compte>/light/...` s'il en existe une. Mesh Edit (modifie la geometrie) reste sur le maillage COMPLET.
 - La texture et les UV sont ceux de l'original : Decals et Paint Mesh peints sur la version legere collent aussi sur le complet ; le resultat enregistre est
   une version legere (500 K).
+
+## 2026-09-30 — Seuil unique de 1 M de triangles ; le rig reste sur le maillage COMPLET (export en pleine resolution)
+- Seuils alignes sur 1 M : LOD client (lod-maillage, Viewer3D, Paint Mesh), demande de version legere (viewer), generation serveur (_lod.py), rig gros maillage.
+- Le worker ne remplace PLUS le maillage du rig par la version legere : un rig cree sur la version legere aurait ete un fichier de 500 K a l'export.
+  La version legere reste un COMPAGNON d'affichage (`<compte>/light/`) ; export = fichier de la version choisie (jamais substitue : la substitution ne
+  touche que readMeshFile, pas exportMesh / mesh-convert).
+- Reserve connue : l'edition des poids sur la version legere enregistre une version legere ; reporter la peau sur le complet reste a faire.

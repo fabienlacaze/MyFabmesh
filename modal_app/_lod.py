@@ -22,7 +22,7 @@ APP_NAME = "myfabmesh-lod"
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name("myfabmesh-lod-output", create_if_missing=True)
 
-SEUIL_FACES = 1_500_000        # en dessous : pas de version legere (le fichier est deja utilisable)
+SEUIL_FACES = 1_000_000        # en dessous : pas de version legere (le fichier est deja utilisable)
 CIBLE_FACES = 500_000
 
 image = (

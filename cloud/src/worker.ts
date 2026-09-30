@@ -14357,7 +14357,7 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         _auth: env.MODAL_SHARED_SECRET,
-        mesh_url: await _urlPourRig(env, user.id, meshUrl),   // version legere si elle existe (gros maillage)
+        mesh_url: meshUrl,   // maillage COMPLET : l'export du rig doit rester en pleine resolution (la version legere n'est qu'un compagnon d'affichage)
         ...(skeleton ? { skeleton } : {}),
         ...(points ? { points } : {}),
         ...(liens ? { liens } : {}),

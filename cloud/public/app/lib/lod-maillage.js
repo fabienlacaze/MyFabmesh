@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 
 const _etat = new WeakMap();   // mesh -> { plein, leger, actif }
-export const SEUIL_TRIANGLES = 2_000_000;
+export const SEUIL_TRIANGLES = 1_000_000;
 export const CIBLE_TRIANGLES = 400_000;
 
 export function geometriePleine(mesh) {

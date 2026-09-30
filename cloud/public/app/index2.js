@@ -14384,7 +14384,7 @@ async function _pmInitViewport() {
     if (!document.getElementById('modal-paint-mesh')?.classList.contains('hidden')) {
       const _ch = pmState.controls?.update();
       // gros maillage (> 2 M triangles) : on ne redessine que sur activite (souris / clavier) dans la derniere seconde et demie
-      if (!(pmState.tris > 2000000 && !_ch && performance.now() - (window.__activiteViewerT ? window.__activiteViewerT() : 1e12) > 1500)) {
+      if (!(pmState.tris > 1000000 && !_ch && performance.now() - (window.__activiteViewerT ? window.__activiteViewerT() : 1e12) > 1500)) {
         pmState.renderer.render(pmState.scene, pmState.camera);
       }
     }
@@ -14525,7 +14525,7 @@ const _legeresDemandees = new Set();
 function _proposerLegere(racine, chemin) {
   if (!API.demanderLight || !/\/r2\//.test(String(chemin)) || _legeresDemandees.has(chemin)) return;
   let tris = 0; racine.traverse((o) => { if (o.isMesh && o.geometry) tris += o.geometry.index ? o.geometry.index.count / 3 : (o.geometry.attributes.position?.count || 0) / 3; });
-  if (tris < 1500000) return;
+  if (tris < 1000000) return;
   _legeresDemandees.add(chemin);
   API.demanderLight(chemin).then((u) => { if (u) showToast(_i18nT('A light version of this heavy mesh is ready. Reopen it to work faster.'), 'success', 6000); }).catch(() => {});
 }

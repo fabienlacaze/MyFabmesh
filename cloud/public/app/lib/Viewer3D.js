@@ -28,7 +28,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // redessine plus que s'il y a de l'ACTIVITE (souris, clavier, molette, redimensionnement, camera en mouvement) dans la
 // derniere seconde et demie, ou si le contenu de la scene change (chargement d'une autre version). Aucun detail retire :
 // c'est le meme maillage, simplement dessine quand il faut. Les viewers d'animation (onBeforeRender) ne sont pas concernes.
-const SEUIL_MAILLAGE_LOURD = 2_000_000;
+const SEUIL_MAILLAGE_LOURD = 1_000_000;
 let _activiteViewer = 0;
 if (typeof window !== 'undefined' && !window.__activiteViewerBranchee) {
   window.__activiteViewerBranchee = true;
