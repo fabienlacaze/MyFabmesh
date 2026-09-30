@@ -24767,3 +24767,8 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - Risque de l etape ajoutee juste avant : setup_state.json n etait ecrit qu au clic final (wizard:complete). Fermer la fenetre sur « Account » aurait fait reprendre toute l installation au lancement suivant (moteur d IA reinstalle).
 - main.js : wizard:save-state ecrit le meme etat que wizard:complete, sans quitter l assistant (la sauvegarde d une reconfiguration reste : Cancel la restaure toujours) ; preload : wizardAPI.saveSetupState ; wizard.js : appele en entrant sur « Account » (parcours local et cloud).
 - Banc navigateur : saveSetupState appele a l arrivee sur l etape, completeSetup seulement au lancement.
+
+## 2026-09-30 (nuit) — session cloud du bureau : un seul echange du jeton de rafraichissement a la fois
+- Au demarrage, plusieurs lectures de l etat du compte partent ensemble (barre du haut, Reglages, et desormais le bouton « Sign in » du mode Local) ; chacune echangeait le MEME jeton de rafraichissement Supabase. Un echange refuse vidait la session (_saveSession) : deconnexion sans rien avoir fait.
+- cloud_fallback.getAccessToken : les appels simultanes attendent le meme echange (_rafraichissementEnCours).
+- Banc node (faux Supabase a rotation stricte, C:/tmp/wf5_cloud_compte/banc_jeton.cjs) : 4 lectures simultanees — AVANT 4 echanges, 3 refus, 3 lectures « non connecte » ; APRES 1 echange, 4 lectures connectees, session gardee. (Supabase tolere la reutilisation ~10 s : en production l effet etait plus rare, jamais nul.)

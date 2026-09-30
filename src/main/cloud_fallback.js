@@ -285,20 +285,32 @@ function logout() {
   return { success: true };
 }
 
+/* UN SEUL rafraichissement a la fois (2026-09-30). Au demarrage, plusieurs
+ * lectures de l'etat du compte partent ensemble (barre du haut, Reglages,
+ * bouton « Sign in » du mode Local) : chacune echangeait le MEME jeton de
+ * rafraichissement contre une session. Supabase fait tourner ce jeton ; un
+ * echange refuse vidait la session (_saveSession) — l'utilisateur se
+ * retrouvait deconnecte sans rien avoir fait. Les appels simultanes attendent
+ * desormais le meme echange. */
+let _rafraichissementEnCours = null;
 async function getAccessToken() {
   if (_mem && _mem.access_token && Date.now() < _mem.expires_at) return _mem.access_token;
-  const stored = _mem || _loadSession();
-  if (stored && stored.refresh_token) {
-    _mem = { ..._mem, ...stored };
-    try {
-      await _supabaseToken({ refresh_token: stored.refresh_token }, 'refresh_token');
-      return _mem.access_token;
-    } catch (e) {
-      _deps.log?.warn?.('cloud-fallback', `refresh failed: ${e.message}`);
-      _mem = null; _saveSession();
+  if (_rafraichissementEnCours) return _rafraichissementEnCours;
+  _rafraichissementEnCours = (async () => {
+    const stored = _mem || _loadSession();
+    if (stored && stored.refresh_token) {
+      _mem = { ..._mem, ...stored };
+      try {
+        await _supabaseToken({ refresh_token: stored.refresh_token }, 'refresh_token');
+        return _mem.access_token;
+      } catch (e) {
+        _deps.log?.warn?.('cloud-fallback', `refresh failed: ${e.message}`);
+        _mem = null; _saveSession();
+      }
     }
-  }
-  return null;
+    return null;
+  })();
+  try { return await _rafraichissementEnCours; } finally { _rafraichissementEnCours = null; }
 }
 
 async function status() {
