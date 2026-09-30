@@ -66,6 +66,15 @@ KAOLIN_PACKAGES = [
 # bundled in the installer (FABMESH_WHEELS_DIR env → resources/wheels) with
 # the GitHub prerelease as network fallback. Their pure-Python deps
 # (triton-windows, pccm, ccimport, …) resolve on PyPI.
+#
+# INSTALLATION SANS RESOLUTION (2026-09-30, echec constate a l'installation de zero de la version Store) : la roue spconv-cu128 2.3.8
+# declare `cumm-cu128<0.8.0,>=0.7.11`, or nous livrons cumm 0.8.2 (compilee sm_120 pour la RTX 50) -> pip refusait avec ResolutionImpossible, l'installation
+# du moteur echouait pour TOUS les utilisateurs. Les 5 roues sont donc posees avec --no-deps (versions choisies a la main), et leurs vraies
+# dependances (TRELLIS2_WHEELS_DEPS) sont installees a part.
+TRELLIS2_WHEELS_DEPS = [
+    'pccm>=0.4.16', 'ccimport>=0.4.4', 'pybind11>=2.6.0', 'fire', 'sympy',
+    'triton-windows>=3.2.0', 'filelock', 'easydict', 'trimesh', 'plyfile', 'tqdm', 'zstandard', 'numpy',
+]
 TRELLIS2_CUSTOM_WHEELS = [
     'spconv-cu128==2.3.8',
     'cumm-cu128==0.8.2',
@@ -262,6 +271,26 @@ def _run(args, step):
         raise RuntimeError(f'pip exited {proc.returncode} on step {step}:\n{ctx}')
 
 
+def _poser_nvrtc13(py):
+    """NVRTC 13 pour cumm (2026-09-30, echec constate apres l'installation des roues) : `core_cc.pyd` de notre roue cumm-cu128 0.8.2 (compilee sur le poste
+    de developpement, CUDA 13 installe) importe `nvrtc64_130_0.dll`. Sur un PC sans kit CUDA 13, `import cumm` echoue (« DLL load failed while importing
+    core_cc ») et spconv, donc le maillage local, avec. On installe le paquet PyPI `nvidia-cuda-nvrtc` (13.x, ~45 Mo) et on copie la DLL dans torch/lib,
+    dossier que torch ajoute deja au chemin de recherche des DLL. (A terme : recompiler cumm contre NVRTC 12.8 et supprimer cette etape.)"""
+    _run([py, '-m', 'pip', 'install', '--no-deps', 'nvidia-cuda-nvrtc>=13,<14'], step='trellis2-nvrtc')
+    code = "; ".join([
+        "import sysconfig, glob, os, shutil",
+        "sp = sysconfig.get_paths()['purelib']",
+        "cible = os.path.join(sp, 'torch', 'lib')",
+        "fichiers = glob.glob(os.path.join(sp, 'nvidia', '**', 'nvrtc*130*.dll'), recursive=True)",
+        "[shutil.copy2(f, cible) for f in fichiers]",
+        "print(len(fichiers))",
+    ])
+    r = subprocess.run([py, '-c', code], capture_output=True, text=True, timeout=120)
+    if r.returncode != 0 or r.stdout.strip() in ('', '0'):
+        raise RuntimeError('NVRTC 13 introuvable apres installation : ' + (r.stderr or r.stdout)[-300:])
+    emit({'step': 'trellis2-nvrtc', 'pct': 99, 'done': False, 'current': 'nvrtc64_130_0.dll -> torch/lib'})
+
+
 def _install_trellis2_wheels(py):
     """Install the custom TRELLIS-2 CUDA wheels. Tries the local bundled
     wheels dir first (FABMESH_WHEELS_DIR env, set by the Electron wizard when
@@ -272,17 +301,20 @@ def _install_trellis2_wheels(py):
     attempts = []
     if local_dir and os.path.isdir(local_dir):
         attempts.append(('trellis2-wheels-local',
-                         [py, '-m', 'pip', 'install',
+                         [py, '-m', 'pip', 'install', '--no-deps',
                           '--find-links', local_dir,
                           *TRELLIS2_CUSTOM_WHEELS]))
     attempts.append(('trellis2-wheels-github',
-                     [py, '-m', 'pip', 'install',
+                     [py, '-m', 'pip', 'install', '--no-deps',
                       *(TRELLIS2_WHEELS_BASE + f
                         for f in TRELLIS2_WHEEL_FILES)]))
     last_err = None
     for step, args in attempts:
         try:
             _run(args, step=step)
+            # dependances reelles des roues (posees sans resolution) : depuis PyPI
+            _run([py, '-m', 'pip', 'install', *TRELLIS2_WHEELS_DEPS], step='trellis2-deps')
+            _poser_nvrtc13(py)
             return
         except Exception as e:
             last_err = e

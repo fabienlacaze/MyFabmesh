@@ -24358,3 +24358,11 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   `{bytes_done, speed_mbps}` chaque 1,5 s ; emit protege par un verrou. Banc : roue scipy 40 Mo -> 40,1 Mo mesures, 26,5 Mo/s.
 - `wizard.js` : barre = max(paquets, octets/5 Go, jamais en arriere), compteur du bas « X / ~5,000 MB », debit, temps restant ; libelle « Downloading PyTorch… » (plus de « 2.5 GB » contradictoire) ; total « ~5 GB » affiche comme estimation.
 - NON verifie dans l'appli packagee (le Store installe est l'ancienne version) : a refaire avec la prochaine version.
+
+## 2026-09-30 — INSTALLATION DE ZERO (Store 1.0.39) ECHOUE : conflit spconv/cumm + NVRTC 13 manquant — corrige dans scripts/wizard_install_deps.py
+- Echec constate (journal `fabmesh.log`, etape `trellis2-wheels-*`) : `ResolutionImpossible` — la roue spconv-cu128 2.3.8 exige `cumm-cu128<0.8.0`, nous livrons cumm 0.8.2 (compilee sm_120). Pour TOUS les utilisateurs du Store.
+- Correctif 1 : les 5 roues TRELLIS-2 sont posees avec `--no-deps` ; leurs vraies dependances (pccm, ccimport, pybind11, fire, sympy, triton-windows, filelock, easydict, trimesh, plyfile, tqdm, zstandard, numpy) a part.
+- Constat 2 (apres pose manuelle dans l'env de l'appli) : `import cumm` echoue (« DLL load failed while importing core_cc ») : `core_cc.pyd` importe `nvrtc64_130_0.dll` (CUDA 13, present sur le poste de dev, absent d'un PC neuf).
+  Correctif 2 : `_poser_nvrtc13` installe `nvidia-cuda-nvrtc>=13,<14` (45 Mo, PyPI) et copie `nvrtc64_130_0.dll` dans `torch/lib`. Verifie sur la vraie install Store : cumm 0.8.2 + spconv 2.3.8 + torch cuda=True (RTX 5080) ; o_voxel, cumesh, flex_gemm, kaolin importent.
+  A terme : recompiler cumm contre NVRTC 12.8 et retirer cette etape.
+- L'env de test du user a ete repare A LA MAIN avec les memes commandes (le Store installe l'ancien script) pour qu'il puisse poursuivre ; le correctif sera valide avec le prochain paquet.
