@@ -24630,3 +24630,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - « En pleine installation il faut dire que ca va tout supprimer (sauf reprise) » : VERIFIE dans le code : Quit ne supprime rien, les modeles partiels reprennent (huggingface_hub), le moteur d'IA recommence depuis son debut. Fenetre « Installation in progress » qui le dit exactement, sans annoncer une suppression inexacte.
 
 ## 2026-09-30 — Assistant : liste detaillee par CATEGORIES (AI engine, Models, Images, 3D, Rig, Animation) avec titre, icone et couleur de la categorie, liseré de couleur sur chaque ligne (user). Icones lues dans les jalons de la barre (une source). Rig saute : titre retire. Teste en navigateur (API simulee), 0 erreur.
+
+## 2026-09-30 — Assistant : etape Animation REELLE (user : « il ne faut pas que ca fasse 0 MB, laisse-le cogiter 15 s »)
+- IPC wizard:check-anim : controle des 8 modeles d'animation livres (m2m_clips, 5,2 Mo : presents, en-tete glTF valide) ; la ligne Animation affiche « Preparing the animation engine… » avec une barre animee sur au moins 15 s, puis « N animation models checked » et la vraie taille.

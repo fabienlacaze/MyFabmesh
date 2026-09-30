@@ -10738,6 +10738,24 @@ ipcMain.handle('wizard:install-rig', async (event) => {
   });
 });
 
+// PREPARATION DE L'ANIMATION (2026-09-30) : controle REEL des modeles d'animation livres avec l'appli (m2m_clips : oiseau, dragon, renard...) —
+// presents, lisibles, en-tete glTF valide. Rend le nombre de fichiers et leur taille pour l'assistant.
+ipcMain.handle('wizard:check-anim', async () => {
+  try {
+    const dir = app.isPackaged ? path.join(process.resourcesPath, 'm2m_clips') : path.join(__dirname, '..', '..', 'm2m_clips');
+    if (!fs.existsSync(dir)) return { ok: true, fichiers: 0, mb: 0 };
+    let n = 0, octets = 0, mauvais = 0;
+    for (const f of fs.readdirSync(dir)) {
+      if (!/\.glb$/i.test(f)) continue;
+      const p = path.join(dir, f), st = fs.statSync(p);
+      const fd = fs.openSync(p, 'r'); const b = Buffer.alloc(4); fs.readSync(fd, b, 0, 4, 0); fs.closeSync(fd);
+      if (b.toString('latin1') !== 'glTF') mauvais++;
+      n++; octets += st.size;
+    }
+    return { ok: mauvais === 0, fichiers: n, mb: Math.round(octets / 1e5) / 10, mauvais };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
 // VERIFICATION DU MOTEUR DE RIG (2026-09-30) : faite sur la page de verification de l'assistant, avec celle des autres moteurs (elle
 // quittait la page de telechargement, a la demande du user). Memes imports qu'avant dans l'installateur ; succes -> marque .fabmesh_pret
 // (c'est elle qui rend le rig local disponible dans l'appli). Pas installe (pas de carte NVIDIA, edition sans rig) -> { skipped }.

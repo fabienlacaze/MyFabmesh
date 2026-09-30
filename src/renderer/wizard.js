@@ -981,8 +981,30 @@ async function _startDownloadInterne() {
   }
   // ANIMATION (2026-09-30, user : « il manque l'icone d'animation », ordre image > 3D > rig > anim) : rien a telecharger — les cycles de marche
   // sont integres au logiciel et les animations IA sont calculees en ligne. Ligne affichee pour que la chaine complete soit visible.
+  // ANIMATION : etape REELLE (user, 2026-09-30 : « il ne faut pas que ca fasse 0 MB, laisse-le cogiter 15 s ») : controle des modeles d'animation livres
+  // avec l'appli (nombre, taille, en-tete glTF), avec une duree d'affichage d'au moins 15 s, puis la vraie taille au lieu de « 0 MB ».
   { const la = list.querySelector('.wiz-dl-row[data-id="__anim"]');
-    if (la) { la.classList.add('done'); const n = la.querySelector('.name'); if (n) n.textContent = 'Animation engine ready — built in, nothing to download'; } }
+    if (la) {
+      const nom = la.querySelector('.name'), taille = la.querySelector('.size'), fill = la.querySelector('.bar-fill');
+      la.classList.add('in-progress'); if (nom) nom.textContent = 'Preparing the animation engine…'; if (taille) taille.textContent = 'checking…';
+      list.scrollTop = list.scrollHeight;
+      const t0 = Date.now(), DUREE = 15000;
+      const anim = setInterval(() => {
+        const f = Math.min(0.97, (Date.now() - t0) / DUREE);
+        if (fill) fill.style.width = (f * 100).toFixed(0) + '%';
+        majGlobal(FIN_RIG + (100 - FIN_RIG) * f * 0.95);
+      }, 250);
+      let res = null;
+      try { res = await window.wizardAPI.checkAnim?.(); } catch (_) { res = null; }
+      const reste = DUREE - (Date.now() - t0);
+      if (reste > 0) await new Promise((r) => setTimeout(r, reste));
+      clearInterval(anim);
+      la.classList.remove('in-progress'); la.classList.add('done');
+      if (fill) fill.style.width = '100%';
+      const ok = !res || res.ok !== false;
+      if (nom) nom.textContent = ok ? `Animation engine ready — ${res && res.fichiers ? res.fichiers + ' animation models checked' : 'built in'}` : 'Animation engine: some models look damaged — reinstall if animation fails';
+      if (taille) taille.textContent = (res && res.mb) ? res.mb + ' MB' : '—';
+    } }
   list.scrollTop = list.scrollHeight;
   document.getElementById('btn-dl-next').disabled = false;
   annoncerFin(!document.getElementById('retry-rig'));
