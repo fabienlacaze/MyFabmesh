@@ -1030,7 +1030,13 @@ async function refreshProjectsPage() {
     for (const [cle, p] of [...projectsMap.entries()]) {
       if (_plein(p)) continue;
       const jumeau = [...projectsMap.values()].find((q) => q !== p && _plein(q) && _san(q.name) === _san(p.name));
-      if (jumeau) projectsMap.delete(cle);
+      if (jumeau) {
+        // le marqueur porte le type / style choisis a la creation : on les reporte sur le projet reel
+        if (!jumeau.assetType && p.assetType) jumeau.assetType = p.assetType;
+        if (!jumeau.assetStyle && p.assetStyle) jumeau.assetStyle = p.assetStyle;
+        if (!jumeau.prompt && p.prompt) jumeau.prompt = p.prompt;
+        projectsMap.delete(cle);
+      }
     }
   }
   state.projects = Array.from(projectsMap.values()).sort((a, b) => b.latestTimestamp - a.latestTimestamp);
@@ -2332,7 +2338,7 @@ function _autoDetectAssetType(text) {
   const m = (re) => re.test(t);
   if (m(/\b(castle|ch[aâ]teau|building|b[aâ]timent|tower|tour|house|maison|temple|cathedral|cath[eé]drale|church|[eé]glise|fort|fortress|forteresse|palace|palais|mansion|manoir|villa|hut|cabin|cabane|bridge|pont|rampart|donjon|keep|monument)\b/)) return 'building';
   if (m(/\b(car|voiture|truck|camion|plane|avion|aircraft|jet|ship|bateau|boat|tank|vehicle|v[eé]hicule|motorcycle|moto|helicopter|h[eé]licopt[eè]re|bus|train)\b/)) return 'vehicle';
-  if (m(/\b(sword|[eé]p[eé]e|gun|pistol|rifle|fusil|axe|hache|dagger|dague|weapon|arme|mace|masse|spear|lance|shield|bouclier|hammer|marteau)\b/)) return 'weapon';
+  if (m(/\b(sword|[eé]p[eé]e|gun|pistol|rifle|fusil|axe|hache|dagger|dague|weapon|arme|mace|masse d'armes|spear|lance|shield|bouclier|hammer|marteau)\b/)) return 'weapon';
   if (m(/\b(dragon|monster|monstre|beast|b[eê]te|demon|d[eé]mon|creature|cr[eé]ature|golem|ogre|troll|zombie|alien)\b/)) return 'creature';
   if (m(/\b(dog|chien|cat|chat|horse|cheval|bird|oiseau|fish|poisson|lion|tiger|tigre|bear|ours|wolf|loup|elephant|[eé]l[eé]phant|animal)\b/)) return 'animal';
   if (m(/\b(chair|chaise|table|lamp|lampe|vase|bottle|bouteille|cup|tasse|barrel|tonneau|furniture|meuble|tool|outil|book|livre|potion)\b/)) return 'prop';

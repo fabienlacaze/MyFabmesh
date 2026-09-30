@@ -5189,7 +5189,7 @@ ipcMain.handle('enhance-mesh-texture', async (event, { meshPath, jobId }) => {
     const base = safeBase(path.basename(meshPath, ext));
     const newMeshPath = path.join(dir, `${base}_enhanced_${Date.now()}${ext}`);
     const venvPy = path.join(__dirname, '..', '..', 'external', 'TRELLIS2_win', '.venv', 'Scripts', 'python.exe');
-    const py = fs.existsSync(venvPy) ? venvPy : 'python';
+    const py = app.isPackaged ? _aiPython() : (fs.existsSync(venvPy) ? venvPy : 'python');
     const UPSCALE_SCRIPT = path.join(SCRIPTS_DIR, 'texture_upscale.py');
     return await new Promise((resolve) => {
       const proc = execFile(py, [UPSCALE_SCRIPT, meshPath, newMeshPath, '--scale', '2', '--tile', '512'],
@@ -7847,9 +7847,11 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
     log.info('main', `auto-rectify source: ${path.basename(imagePath)} `
       + `-> ${path.basename(rectifiedPath)} (mode=${rectifyMode}, assetType=${assetType})`);
     safeSend('ai3d-progress', `[main] auto-rectify source view (mode=${rectifyMode})...\n`);
-    const pythonExeForRectify = (engine === 'trellis2_native')
-      ? path.join(__dirname, '..', '..', 'external', 'TRELLIS2_win', '.venv', 'Scripts', 'python.exe')
-      : 'python';
+    // Installe : le moteur d'IA provisionne (_aiPython) — le .venv de developpement n'existe pas (2026-09-30 : « auto-rectify failed », installation neuve).
+    const pythonExeForRectify = app.isPackaged ? _aiPython()
+      : ((engine === 'trellis2_native')
+          ? path.join(__dirname, '..', '..', 'external', 'TRELLIS2_win', '.venv', 'Scripts', 'python.exe')
+          : 'python');
     try {
       await new Promise((resolve, reject) => {
         const proc = execFile(pythonExeForRectify, [
@@ -7860,8 +7862,8 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
         ], { timeout: 180000, maxBuffer: 10 * 1024 * 1024,
              env: { ...process.env, PYTHONUNBUFFERED: '1', HF_HOME: HF_CACHE_DIR, HUGGINGFACE_HUB_CACHE: path.join(HF_CACHE_DIR, 'hub') } },
         (err) => err ? reject(err) : resolve());
-        proc.stdout?.on('data', d => safeSend('ai3d-progress', d.toString()));
-        proc.stderr?.on('data', d => safeSend('ai3d-progress', '[stderr] ' + d.toString()));
+        proc?.stdout?.on('data', d => safeSend('ai3d-progress', d.toString()));
+        proc?.stderr?.on('data', d => safeSend('ai3d-progress', '[stderr] ' + d.toString()));
       });
       if (fs.existsSync(rectifiedPath)) {
         log.info('main', 'auto-rectify done, using rectified image for mesh');

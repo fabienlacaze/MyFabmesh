@@ -932,7 +932,13 @@ async function refreshProjectsPage() {
     for (const [cle, p] of [...projectsMap.entries()]) {
       if (_plein(p)) continue;
       const jumeau = [...projectsMap.values()].find((q) => q !== p && _plein(q) && _san(q.name) === _san(p.name));
-      if (jumeau) projectsMap.delete(cle);
+      if (jumeau) {
+        // le marqueur porte le type / style choisis a la creation : on les reporte sur le projet reel
+        if (!jumeau.assetType && p.assetType) jumeau.assetType = p.assetType;
+        if (!jumeau.assetStyle && p.assetStyle) jumeau.assetStyle = p.assetStyle;
+        if (!jumeau.prompt && p.prompt) jumeau.prompt = p.prompt;
+        projectsMap.delete(cle);
+      }
     }
   }
   state.projects = Array.from(projectsMap.values()).sort((a, b) => b.latestTimestamp - a.latestTimestamp);
