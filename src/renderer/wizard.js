@@ -1223,6 +1223,7 @@ async function runFinalTest() {
         <div class="wiz-test-success-sub">Every engine works (checked in ${duree}s). Click <b>Launch MyFabmesh.AI</b> to start creating.</div>
       </div>
     </div>`;
+  { const fin = document.getElementById('test-fin'); if (fin) { fin.hidden = false; fin.scrollIntoView({ block: 'nearest' }); } }
   const launch = document.getElementById('btn-launch');
   launch.disabled = false;
   launch.classList.add('wiz-launch-ready');

@@ -24651,3 +24651,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 ## 2026-09-30 — fuites de noms de moteurs (user : « ca montre trellis »)
 - wizard.js : masquerMoteurs() sur « Technical details » (TRELLIS, DINOv3, Qwen, SkinTokens...).
 - index2.js (bureau + web) : _masquerMoteursErr() applique dans customError / customErrorWithAction (chemins de scripts et noms de moteurs des sorties brutes). Libelles directs verifies propres ; reste « Built with DINOv3 (Meta Platforms) » = attribution de licence Meta, conservee.
+
+## 2026-09-30 — message vert de fin de verification visible
+- Le bloc « You are all set » etait dans #test-status, au-dessus de la liste (hors ecran). Ajout de #test-fin (vert) juste au-dessus du bouton Launch, affiche a la fin.

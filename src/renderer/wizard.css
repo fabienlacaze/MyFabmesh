@@ -596,3 +596,5 @@
 .wiz-check-list li .verdict { margin-left: 12px; font-size: 12px; font-weight: 700; min-width: 58px; text-align: right; }
 .wiz-check-list li .verdict.ok { color: var(--success); }
 .wiz-check-list li .verdict.ko { color: var(--error); }
+.wiz-test-fin { color: var(--success); font-weight: 700; font-size: 14px; text-align: center; padding: 10px 0 12px; }
+.wiz-test-fin[hidden] { display: none; }
