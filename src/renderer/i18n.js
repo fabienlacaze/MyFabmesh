@@ -1208,6 +1208,7 @@
       'Kept for Windows': 'Gardé pour Windows',
       'Other apps {x} GB': 'Autres {x} Go',
       'Other apps': 'Autres',
+      'Used by your other apps beyond what you keep for them': 'Utilisé par vos autres logiciels au-delà de ce que vous leur gardez',
       'MyFabmesh {x} GB': 'MyFabmesh {x} Go',
       'Other apps:': 'Autres logiciels :',
       '{x} GB kept': '{x} Go gardés',

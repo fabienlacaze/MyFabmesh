@@ -24757,3 +24757,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee : MyFabmesh (partie reglee) de nouveau tout a droite ; depassement des autres logiciels en bleu/orange fondu a leur suite.
 
 - (suite) Barre partagee : usage REEL de MyFabmesh en violet clair dans sa part (violet fixe = part allouee), libelle lisible (ombre).
+
+- (suite) Barre partagee : la bande de depassement porte un libelle « +X GB » (usage des autres logiciels au-dela de leur reserve).

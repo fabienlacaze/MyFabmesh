@@ -2436,7 +2436,7 @@
             <div class="hw-partage" data-stat="vram">
               <div class="hw-seg hw-win" id="set-vram-win" title="Kept for Windows"></div>
               <div class="hw-seg hw-autres" id="set-vram-autres"><div class="hw-use" id="set-vram-autres-use"></div><span id="set-vram-autres-lbl"></span></div>
-              <div class="hw-seg hw-trop" id="set-vram-trop"></div>
+              <div class="hw-seg hw-trop" id="set-vram-trop" title="Used by your other apps beyond what you keep for them"><span id="set-vram-trop-lbl"></span></div>
               <div class="hw-seg hw-mfm" id="set-vram-mfm"><div class="hw-use" id="set-vram-mfm-use"></div><span id="set-vram-mfm-lbl"></span></div>
               <div class="hw-besoin" id="set-vram-besoin"><i id="set-vram-besoin-lbl"></i></div>
               <div class="gpu-bar-limit hw-poignee" id="set-gpu-vram-limit" title="Drag to share the graphics memory between your other apps and MyFabmesh"></div>
@@ -2452,7 +2452,7 @@
             <div class="hw-partage" data-stat="ram">
               <div class="hw-seg hw-win" id="set-ram-win" title="Kept for Windows"></div>
               <div class="hw-seg hw-autres" id="set-ram-autres"><div class="hw-use" id="set-ram-autres-use"></div><span id="set-ram-autres-lbl"></span></div>
-              <div class="hw-seg hw-trop" id="set-ram-trop"></div>
+              <div class="hw-seg hw-trop" id="set-ram-trop" title="Used by your other apps beyond what you keep for them"><span id="set-ram-trop-lbl"></span></div>
               <div class="hw-seg hw-mfm" id="set-ram-mfm"><div class="hw-use" id="set-ram-mfm-use"></div><span id="set-ram-mfm-lbl"></span></div>
               <div class="hw-besoin" id="set-ram-besoin"><i id="set-ram-besoin-lbl"></i></div>
               <div class="gpu-bar-limit hw-poignee" id="set-ram-limit" title="Drag to share the memory between your other apps and MyFabmesh"></div>
@@ -2742,6 +2742,7 @@
     .hw-mfm{background:repeating-linear-gradient(135deg,#5b3aa8 0 6px,#51329a 6px 12px);color:#fff}
     .hw-use{position:absolute;left:0;top:0;bottom:0;background:#b79cff;opacity:.95;transition:width .3s}
     .hw-mfm .hw-use{box-shadow:1px 0 0 #fff}
+    .hw-trop span{color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
     .hw-mfm span{text-shadow:0 0 3px #2a1160,0 0 6px #2a1160}
     .hw-autres .hw-use{background:#6d93bb;opacity:.7}
     .hw-seg span{position:relative;z-index:1;padding:0 6px;overflow:hidden;text-overflow:ellipsis}

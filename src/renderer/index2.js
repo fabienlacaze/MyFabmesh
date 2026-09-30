@@ -22090,6 +22090,7 @@ function majLignesLimites() {
     // libelle complet si la part est assez large, sinon le nom seul (jamais de texte coupe)
     libelle('autres-lbl', reserveGB / totalGB > 0.3 ? _i18nTf('Other apps {x} GB', go(reserveGB)) : _i18nT('Other apps'), reserveGB / totalGB > 0.16);
     libelle('mfm-lbl', partGB / totalGB > 0.34 ? _i18nTf('MyFabmesh {x} GB', go(partGB)) : 'MyFabmesh', partGB / totalGB > 0.16);
+    libelle('trop-lbl', '+' + go(tropGB) + ' GB', tropGB / totalGB > 0.1);
     poser('besoin', 'left', larg(Math.max(plancher, totalGB - need)));
     poser('besoin', 'display', need > 0 ? '' : 'none');
     { const e = el('besoin-lbl'); if (e) e.textContent = need > 0 ? `${outil} ${go(need)}` : ''; }
