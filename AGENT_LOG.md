@@ -24413,3 +24413,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Assistant : pourcentage global au milieu de la barre de telechargement
 - Cause du « bloque a 6940 Mo » signalee par le user : cache mesure en Mio (6618) contre taille annoncee en Mo (6940) -> plafond 95 % ; corrige au commit precedent (verifie : les 10 depots du cache correspondent au Mo pres au plan).
 - Ajout d'une barre globale avec le pourcentage au milieu (`#dl-global-pct`) : moteur = 0-8 %, modeles = 8-100 %, ne recule jamais (`majGlobal`, wizard.js/html/css).
+
+## 2026-09-30 — Assistant : assistant fige apres les modeles (phase 3 moteur de rig invisible)
+- Constat (installation reelle) : apres « 48650 / 48650 MB · 0.0 MB/s · ETA – » l'ecran paraissait fige alors que la phase 3 (moteur de rig : pip, torch, dependances) tournait ; sa ligne est en bas de la liste, hors champ.
+- Correctif wizard.js : la liste defile sur la ligne du rig, le resume affiche « installing the rig engine… », pourcentage global reparti moteur 0-8 / modeles 8-88 / rig 88-100.

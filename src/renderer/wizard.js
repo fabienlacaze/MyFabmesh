@@ -715,7 +715,7 @@ async function _startDownloadInterne() {
       }
     }
     document.getElementById('dl-done').textContent = p.total_done_mb || 0;
-    if (plan.total_mb) majGlobal(8 + Math.min(92, (p.total_done_mb || 0) * 92 / plan.total_mb));
+    if (plan.total_mb) majGlobal(8 + Math.min(80, (p.total_done_mb || 0) * 80 / plan.total_mb));
     document.getElementById('dl-speed').textContent = (p.speed_mbps || 0).toFixed(1);
     document.getElementById('dl-eta').textContent = p.eta || '–';
   });
@@ -761,8 +761,14 @@ async function _startDownloadInterne() {
       <span class="size">~6 GB</span>
       <div class="bar"><div class="bar-fill"></div></div>
     </div>`;
+  // Les modeles sont finis : sans ceci l'ecran restait fige (« 48650 / 48650 MB · 0.0 MB/s ») pendant que la ligne du moteur de rig,
+  // en bas de la liste, travaillait hors champ (constate le 2026-09-30).
+  { const l = document.querySelector('.wiz-dl-row[data-id="__rigenv"]'); if (l && l.scrollIntoView) l.scrollIntoView({ block: 'end' }); }
+  { const sp = document.getElementById('dl-speed'), et = document.getElementById('dl-eta');
+    if (sp) sp.textContent = '–'; if (et) et.textContent = 'installing the rig engine…'; }
   window.wizardAPI.onRigProgress((p) => {
     const fill = document.querySelector('.wiz-dl-row[data-id="__rigenv"] .bar-fill');
+    if (typeof p.pct === 'number') majGlobal(88 + Math.min(12, p.pct * 0.12));
     if (fill && typeof p.pct === 'number') fill.style.width = Math.max(3, p.pct) + '%';
     const name = document.getElementById('rigenv-name');
     if (name && p.step) {
@@ -770,6 +776,7 @@ async function _startDownloadInterne() {
       else if (p.step.startsWith('rig-ckpt-')) name.textContent = `Downloading rig model ${p.step.slice(9)}…`;
     }
     if (p.done && !p.error) {
+      majGlobal(100);
       const row = document.querySelector('.wiz-dl-row[data-id="__rigenv"]');
       if (row) { row.classList.add('done'); row.classList.remove('in-progress'); }
     }
