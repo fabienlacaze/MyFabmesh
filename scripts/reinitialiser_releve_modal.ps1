@@ -119,8 +119,8 @@ if ($SansTache) {
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <StartWhenAvailable>true</StartWhenAvailable>
-    <ExecutionTimeLimit>PT15M</ExecutionTimeLimit>
     <Enabled>true</Enabled>
+    <ExecutionTimeLimit>PT15M</ExecutionTimeLimit>
   </Settings>
   <Triggers>
     <TimeTrigger>
