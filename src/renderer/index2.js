@@ -82,6 +82,10 @@ const _CLOUD_LOGIN_METHODS = [
   'meshTool', 'meshSegment', 'materialAdjust', 'resizeMesh',
   'generateExplode3d', 'generateConstructionStages3d',
   'autoRigAI', 'animKimodo', 'animateAI', 'animMotion',
+  // Outils cloud qui manquaient (2026-09-30) : sans session, l'erreur « Sign
+  // in… » s'affichait au lieu de la fenetre de connexion. Recolor et Age
+  // (texVariant) passent par le worker en mode Cloud depuis ce jour.
+  'outfitCutout', 'recolor', 'texVariant',
 ];
 const API = (() => {
   const raw = window.meshyAPI;
@@ -2337,6 +2341,12 @@ async function gateUltraQualityByRAM() {
   } catch (e) { console.warn('gateUltraQualityByRAM failed', e); }
 }
 
+/* Options de generation 3D que le serveur IGNORE en mode Cloud (et ne facture
+ * pas) : OPTIONS_SANS_EFFET_CLOUD du worker, `__optionsMortesCloud` du site.
+ * « Texture smooth » n'en fait plus partie : le worker l'applique ET la facture
+ * (mesh_smooth) depuis le 2026-09-24. Voir _masquerOptionsSansEffetCloud. */
+var _OPTIONS_MORTES_CLOUD = ['ws-trellis2-refine', 'ws-trellis2-face-fix'];
+
 function _applyAssetOptionsProfile(assetType) {
   // « Habits seuls » n'a de sens que sur un personnage : sur un batiment ou un
   // vehicule, CLIPSeg trouverait n'importe quoi. Le bouton est masque ailleurs,
@@ -2352,6 +2362,9 @@ function _applyAssetOptionsProfile(assetType) {
   for (const [id, state] of Object.entries(profile)) {
     const cb = document.getElementById(id);
     if (!cb) continue;
+    // Option ignoree par le serveur en mode Cloud : le profil ne la recoche
+    // pas (masquee par _masquerOptionsSansEffetCloud, meme regle que le site).
+    if (_OPTIONS_MORTES_CLOUD.includes(id) && _isCloudMode()) { cb.checked = false; continue; }
     const row = cb.closest('.form-row');
     if (state === null) {
       if (row) row.style.display = 'none';
@@ -11267,11 +11280,15 @@ function _openSegmentGranularityModal() {
     overlay.style.cssText = 'position:fixed;inset:0;z-index:10200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
     const box = document.createElement('div');
     box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:430px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
+    // Mode Cloud (2026-09-30) : la fenetre annoncait « Runs locally on your
+    // GPU » et aucun prix, alors que le calcul part sur /api/mesh-segment.
+    const segCloud = _isCloudMode();
     box.innerHTML =
       '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">&#9986; Segment parts</div>' +
       '<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:16px;">' +
         'Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / turret / barrel). ' +
-        'Runs locally on your GPU, ~1&nbsp;min. Adds a new colored, separable mesh version.</div>' +
+        (segCloud ? 'Runs in the MyFabmesh cloud. ' : 'Runs locally on your GPU, ~1&nbsp;min. ') +
+        'Adds a new colored, separable mesh version.</div>' +
       '<label style="font-size:13px;font-weight:500;">Granularity: <span id="seg-gran-label"></span></label>' +
       '<input id="seg-gran" type="range" min="0" max="1" step="0.1" value="0.2" style="width:100%;margin:8px 0 4px;">' +
       '<div style="display:flex;justify-content:space-between;font-size:11px;opacity:.65;margin-bottom:18px;">' +
@@ -11281,6 +11298,8 @@ function _openSegmentGranularityModal() {
         '<button id="seg-go" class="primary-btn" style="padding:8px 16px;">Segment</button></div>';
     overlay.appendChild(box);
     document.body.appendChild(overlay);
+    // Mode Cloud : prix du lancement (tarif `mesh_segment`, grille) sur le bouton.
+    if (segCloud) window._posePastille?.(box.querySelector('#seg-go'), window._prixDe?.('mesh_segment'));
     const slider = box.querySelector('#seg-gran');
     const label = box.querySelector('#seg-gran-label');
     const names = { '0': 'Coarse', '0.1': 'Clean', '0.2': 'Clean+', '0.3': 'Balanced', '0.4': 'Balanced', '0.5': 'Detailed', '0.6': 'Detailed', '0.7': 'Fine', '0.8': 'Fine', '0.9': 'Very fine', '1': 'Very fine' };
@@ -12394,6 +12413,20 @@ function _mtInitPivotSliders() {
   });
 }
 
+/** Prix d'un outil de la fenetre « Mesh tool » en mode Cloud, avec la regle de
+ *  handleMeshOp (worker.ts) : /api/mesh-op au tarif mesh_op_simple, sauf
+ *  Watertight au-dela d'une resolution de 256 (watertight_hd). null = outil
+ *  local et gratuit (set_pivot…) ou masque en Cloud (texture_var…). */
+const _OUTILS_MAILLAGE_CLOUD = ['smooth', 'triangle_count', 'decimate', 'subdivide',
+  'fix_normals', 'fill_holes', 'retexture', 'watertight'];
+function _prixOutilMaillage(toolName, vals) {
+  const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
+  if (!cloud || !_OUTILS_MAILLAGE_CLOUD.includes(toolName) || !window._prixDe) return null;
+  // main.js (mesh-tool) envoie `resolution: Number(p[0]) || 512`
+  if (toolName === 'watertight' && (Number(vals && vals.resolution) || 512) > 256) return window._prixDe('watertight_hd');
+  return window._prixDe('mesh_op_simple');
+}
+
 function openMeshToolModal(toolName) {
   const schema = MESH_TOOL_SCHEMAS[toolName];
   if (!schema) { showToast(`Unknown tool: ${toolName}`, 'error'); return; }
@@ -12606,6 +12639,13 @@ function openMeshToolModal(toolName) {
     close();
     runMeshTool(toolName, params, vals);
   };
+  // PRIX DU LANCEMENT sur « Apply » (mode Cloud, 2026-09-30), suivi des
+  // reglages : la resolution de Watertight change le tarif. Retire pour un
+  // outil local ou gratuit.
+  const _majPrixMt = () => window._posePastille?.(applyBtn, _prixOutilMaillage(toolName, _mtCollectVals(body)));
+  body.oninput = _majPrixMt;
+  body.onchange = _majPrixMt;
+  _majPrixMt();
   modal.classList.remove('hidden');
   if (typeof _synchroChoix === 'function') _synchroChoix(modal);
 
@@ -18488,7 +18528,13 @@ async function _majApercuAnim() {
   const procedural = ALLURES_PROCEDURALES.includes(t);
   const nom = procedural ? _nomClipSelection({ type: t, variante: v === '*' ? 'normal' : v }) : t;
   if (desc) {
-    desc.textContent = !procedural ? _i18nT('AI animation (5 credits), work in progress.')
+    // Prix du clip IA LU dans la grille (tarif `anim`), plus « 5 » en dur ;
+    // grille inconnue : pas de chiffre.
+    const prixIA = window._prixDe?.('anim');
+    desc.textContent = !procedural
+      ? ((typeof prixIA === 'number' && prixIA > 0)
+        ? _i18nTf('AI animation ({x} credits), work in progress.', prixIA)
+        : _i18nT('AI animation, work in progress.'))
       : v === '*' ? _i18nT('All the variants of this animation.')
       : _i18nT((DESCRIPTIONS_MODE[_modeAnim()] || {})[nom] || DESCRIPTIONS_ANIM[nom] || '');
   }
@@ -20163,6 +20209,16 @@ function completeJob(id, success, errorMessage) {
   // 2026-09-26). Une fiche detaillee ouverte reporte l'archivage : le bouton
   // de reprise d'une erreur (« Open Settings ») reste utilisable.
   _programmerArchivage(j, _DELAI_ARCHIVAGE_MS);
+  // SOLDE DE LA BARRE DU HAUT apres CHAQUE travail en mode Cloud — debit, ou
+  // remboursement si echec (2026-09-30). Seules la generation d'images et
+  // l'animation le relisaient : apres un Modify, un Upscale, un maillage, un
+  // rig… le solde affiche restait l'ancien.
+  try { if (_isCloudMode()) _rafraichirSoldeBientot(); } catch (_) {}
+}
+var _soldeMinuterie = null;   // var : jamais en zone morte, meme appele tot
+function _rafraichirSoldeBientot() {
+  clearTimeout(_soldeMinuterie);
+  _soldeMinuterie = setTimeout(() => { try { window._refreshTopbarCredits?.(); } catch (_) {} }, 800);
 }
 
 // Export jobs API for classic-script helpers (index2-edit-tools.js).
@@ -24185,8 +24241,14 @@ document.getElementById('ws-rig-reskin-btn')?.addEventListener('click', async ()
     customError(_i18nT('The mesh this rig was made from is no longer in the project, so the skin cannot be recomputed.'), _i18nT('Re-skin only'));
     return;
   }
-  const ok = await customConfirm(_i18nT('Recompute the skin weights of this rig? The skeleton stays exactly as it is.'),
+  const attente = customConfirm(_i18nT('Recompute the skin weights of this rig? The skeleton stays exactly as it is.'),
     _i18nT('Re-skin only'), _i18nT('Re-skin'));
+  // Fenetre de validation : prix de la peau seule (tarif `reskin`) sur le
+  // bouton, quand elle part sur le cloud. customConfirm a deja pose le libelle
+  // (synchrone) ; son prochain appel l'efface avec lui.
+  window._posePastille?.(document.getElementById('confirm-ok'),
+    (_isCloudMode() || window._rigViaCloud) ? window._prixDe?.('reskin') : null);
+  const ok = await attente;
   if (!ok) return;
   let squelette;
   try { squelette = await _ptsLireSquelette(rig); }
@@ -26596,10 +26658,9 @@ function _ptsMajBoutons() {
   // articulation deplacee, le clic explique quoi faire.
   const sansIA = document.getElementById('pts-enregistrer-sans-ia');
   if (sansIA) sansIA.disabled = !_pts.actif || !lmFsModel;
-  // prix affiche : squelette impose (articulation deplacee) = RESKIN_COST (6)
-  // du worker, sinon RIG_COST (10)
-  const prix = document.querySelector('#pts-regenerer .cloud-cost-badge, #pts-regenerer .gcp-val');
-  if (prix) prix.textContent = _pts.osModifies ? '6' : '10';
+  // prix affiche : squelette impose (articulation deplacee) = tarif `reskin`,
+  // sinon `rig` — lus dans la grille par _applyRigAnimPills (plus 6 / 10 en dur).
+  try { window._applyRigAnimPills?.(); } catch (_) {}
 }
 function ptsAnnuler() {
   if (!_pts.passe.length) return false;
@@ -27724,9 +27785,21 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   const setNote = async (mode, gpu) => {
     if (!note) return;
     if (mode === 'cloud') {
-      let who = '';
-      try { const s = await API.cloudStatus?.(); if (s?.loggedIn) who = ` — ${s.email}`; } catch (_) {}
-      note.textContent = (typeof _i18nT === 'function' ? _i18nT('3 credits per image') : '3 credits per image') + who;
+      let email = '';
+      try { const s = await API.cloudStatus?.(); if (s?.loggedIn) email = s.email || ''; } catch (_) {}
+      // Prix d'une image AU REGLAGE COURANT (qualite, Turbo), lu dans la grille
+      // et tenu a jour par _majMentionsPrixImage. « 3 credits per image »
+      // etait ecrit en dur : faux des qu'on touchait la qualite ou le moteur.
+      note.textContent = '';
+      const prix = document.createElement('span');
+      prix.id = 'ws-compute-prix';
+      prix.setAttribute('data-i18n-skip', '');     // texte deja traduit par _i18nTf
+      const qui = document.createElement('span');
+      qui.id = 'ws-compute-qui';
+      qui.setAttribute('data-i18n-skip', '');
+      qui.dataset.email = email;
+      note.append(prix, qui);
+      try { window._majMentionsPrixImage?.(); } catch (_) {}
     } else {
       note.textContent = gpu?.name ? `GPU: ${gpu.name}` : '';
     }
@@ -27766,6 +27839,11 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
       try { window._applyCloudFeatureMask?.(); } catch (_) {}
       try { window._applyRigAnimPills?.(); } catch (_) {}
       try { window._applyHardwareCardMask?.(); } catch (_) {}
+      // Options ignorees par le serveur en Cloud, prix des fenetres de
+      // validation, mention du prix par image ; grille chargee si inconnue.
+      try { window._masquerOptionsSansEffetCloud?.(); } catch (_) {}
+      try { window._majTousLesPrix?.(); } catch (_) {}
+      try { if (m === 'cloud' && !window._prix) window._chargerPrix?.(); } catch (_) {}
     };
     btnL.addEventListener('click', () => { localStorage.setItem('fab-compute-mode', 'local'); syncRow(); });
     btnC.addEventListener('click', () => { localStorage.setItem('fab-compute-mode', 'cloud'); syncRow(); });
@@ -27782,6 +27860,10 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     ? _i18nT('No NVIDIA GPU detected — local generation unavailable on this device')
     : 'No NVIDIA GPU detected — local generation unavailable on this device';
   await apply('cloud', gpu);
+  // Le mode Cloud est connu maintenant : options ignorees par le serveur et
+  // prix reposes (ils ont pu etre calcules avec le mode de la session d'avant).
+  try { window._masquerOptionsSansEffetCloud?.(); } catch (_) {}
+  try { window._majTousLesPrix?.(); } catch (_) {}
   if (note) {
     const buy = document.createElement('a');
     buy.href = '#';
@@ -27848,6 +27930,9 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     try { window._applyCloudFeatureMask?.(); } catch (_) {}
     try { window._applyRigAnimPills?.(); } catch (_) {}
     try { window._applyHardwareCardMask?.(); } catch (_) {}
+    try { window._masquerOptionsSansEffetCloud?.(); } catch (_) {}
+    try { window._majTousLesPrix?.(); } catch (_) {}
+    try { if (mode === 'cloud' && !window._prix) window._chargerPrix?.(); } catch (_) {}
   };
 
   bl.addEventListener('click', () => {
@@ -28101,6 +28186,18 @@ document.getElementById('btn-cloud-library')?.addEventListener('click', showClou
 window._prix = null;
 window._prixFeatures = null;
 
+/** Repose TOUTES les pastilles et mentions de prix (grille chargee, bascule
+ *  Local/Cloud). Chaque fonction est idempotente et retire son chiffre quand
+ *  la grille est inconnue ou que le mode est Local. */
+window._majTousLesPrix = function () {
+  try { window._applyCloudCostPill?.(); } catch (_) {}
+  try { window._applyMeshCostPill?.(); } catch (_) {}
+  try { window._applyToolPills?.(); } catch (_) {}
+  try { window._applyRigAnimPills?.(); } catch (_) {}
+  try { window._applyValidationPills?.(); } catch (_) {}
+  try { window._majMentionsPrixImage?.(); } catch (_) {}
+};
+
 window._chargerPrix = async function (opts) {
   try {
     const r = await API.cloudPricing?.(opts || {});
@@ -28108,9 +28205,7 @@ window._chargerPrix = async function (opts) {
       window._prix = r.prices;
       window._prixFeatures = r.features || null;
       // Reposer toutes les pastilles avec les vrais prix.
-      try { window._applyCloudCostPill?.(); } catch (_) {}
-      try { window._applyMeshCostPill?.(); } catch (_) {}
-      try { window._applyToolPills?.(); } catch (_) {}
+      window._majTousLesPrix();
       return true;
     }
   } catch (_) {}
@@ -28124,30 +28219,96 @@ window._prixDe = function (cle) {
   return p[cle];
 };
 
+/** Prix d'UNE image au reglage courant — MEME formule que le worker
+ *  (handleGenerateImage + _prixImageSelonPas, worker.ts) : le tarif
+ *  `text2image` vaut pour 30 pas ; au prorata des pas du curseur Quality
+ *  (bornes 10..60, comme le worker), arrondi, jamais moins d'1 credit. Le
+ *  moteur « Fast (Turbo) » est facture au prix de 4 pas, quel que soit le
+ *  curseur. Audit du 2026-09-30 : la pastille multipliait le tarif de 30 pas
+ *  par le nombre d'images sans regarder ni la qualite ni le Turbo (60 pas :
+ *  3 annonces, 6 factures ; Turbo : 3 annonces, 1 facture).
+ *  Rend { prix, pas, turbo }, ou null si la grille n'est pas connue. */
+window._prixImage = function () {
+  const tarif30 = window._prixDe('text2image');
+  if (tarif30 == null) return null;
+  const turbo = document.getElementById('ws-engine')?.value === 'local-lightning';
+  const pas = turbo ? 4
+    : Math.max(10, Math.min(60, Math.round(Number(document.getElementById('ws-quality')?.value) || 30)));
+  return { prix: Math.max(1, Math.round(tarif30 * pas / 30)), pas, turbo };
+};
+
+/** Pose, met a jour ou retire la pastille ⚡ d'un bouton. `prix` absent, nul ou
+ *  non numerique : AUCUNE pastille (grille inconnue, mode Local, outil gratuit).
+ *  `grande` : format des boutons Generate ; sinon format compact des outils. */
+window._posePastille = function (btn, prix, grande = false) {
+  if (!btn) return;
+  let pill = btn.querySelector('.generate-cost-pill');
+  if (!(typeof prix === 'number' && prix > 0)) { if (pill) pill.remove(); return; }
+  if (!pill) {
+    pill = document.createElement('span');
+    pill.className = 'generate-cost-pill';
+    if (!grande) pill.style.cssText = 'font-size:10px;padding:1px 7px;margin-left:6px;';
+    pill.innerHTML = '<span class="generate-cost-bolt">&#9889;</span><span class="gcp-val"></span>';
+    btn.appendChild(pill);
+  }
+  const v = pill.querySelector('.gcp-val');
+  if (v) v.textContent = String(prix);
+};
+
 window._applyCloudCostPill = function (btn) {
   try {
     if (!btn) btn = document.getElementById('ws-generate-image');
     if (!btn) return;
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    let pill = btn.querySelector('.generate-cost-pill');
-    if (!cloud) { if (pill) pill.remove(); return; }
-    const count = parseInt(document.getElementById('ws-count')?.value, 10) || 4;
-    const unitaire = window._prixDe('text2image');
     // Grille pas encore chargee : pas de pastille du tout. Un chiffre faux
     // vaut moins que pas de chiffre.
-    if (unitaire == null) { if (pill) pill.remove(); return; }
-    if (!pill) {
-      pill = document.createElement('span');
-      pill.className = 'generate-cost-pill';
-      pill.innerHTML = '<span class="generate-cost-bolt">&#9889;</span><span class="gcp-val"></span>';
-      btn.appendChild(pill);
-    }
-    const v = pill.querySelector('.gcp-val');
-    if (v) v.textContent = String(unitaire * count);
+    const img = cloud ? window._prixImage() : null;
+    // En mode Cloud TOUTES les images demandees partent (lots de 4 au plus,
+    // cloud_fallback.generateImages) ; vues de dos et etapes de construction ne
+    // partent pas (bouton Generate) : rien d'autre n'est facture.
+    const n = Math.max(1, parseInt(document.getElementById('ws-count')?.value, 10) || 4);
+    window._posePastille(btn, img ? n * img.prix : null, true);
+    const pill = btn.querySelector('.generate-cost-pill');
+    if (pill && img) pill.title = `${n} × ${img.prix}`;
   } catch (_) {}
 };
-document.getElementById('ws-count')?.addEventListener('change', () => window._applyCloudCostPill());
+// Nombre d'images, qualite et moteur changent le prix : pastille ET mention
+// « credits par image » de la ligne Compute suivent.
+['ws-count', 'ws-quality', 'ws-engine'].forEach((id) => {
+  const el = document.getElementById(id);
+  const maj = () => { window._applyCloudCostPill(); window._majMentionsPrixImage?.(); };
+  el?.addEventListener('change', maj);
+  el?.addEventListener('input', maj);
+});
 window._applyCloudCostPill();
+
+/** Mentions ECRITES du prix d'une image (plus « 3 credits per image » en dur) :
+ *  - Reglages > Cloud generation : prix a la qualite par defaut (30 pas) ;
+ *  - ligne Compute du panneau image (mode Cloud) : prix au reglage COURANT.
+ *  Grille inconnue : la mention disparait. */
+window._majMentionsPrixImage = function () {
+  try {
+    const tarif30 = window._prixDe('text2image');
+    const wrap = document.getElementById('set-cloud-prix-image');
+    const val = document.getElementById('set-cloud-prix-image-val');
+    if (wrap && val) {
+      const p = tarif30 == null ? null : Math.max(1, Math.round(tarif30));
+      wrap.hidden = p == null;
+      if (p != null) {
+        val.textContent = _i18nTf(p === 1 ? '{x} credit per image (default quality)'
+          : '{x} credits per image (default quality)', p);
+      }
+    }
+    const prixEl = document.getElementById('ws-compute-prix');
+    if (prixEl) {
+      const img = window._prixImage();
+      prixEl.textContent = !img ? ''
+        : _i18nTf(img.prix === 1 ? '{x} credit per image' : '{x} credits per image', img.prix);
+      const qui = document.getElementById('ws-compute-qui');
+      if (qui) qui.textContent = qui.dataset.email ? (prixEl.textContent ? ' — ' : '') + qui.dataset.email : '';
+    }
+  } catch (_) {}
+};
 
 // ============================================================
 // PASTILLE COÛT CLOUD ⚡ SUR « GÉNÉRER 3D » (mode Cloud) — prix
@@ -28182,6 +28343,11 @@ window._applyMeshCostPill = function (btn) {
     plus('ws-trellis2-ultra-q', 'mesh_ultra_q');
     // ultra_hd est ignoré par le worker quand le preset est déjà ultra_8k.
     if (preset !== 'ultra_8k') plus('ws-trellis2-ultra-hd', 'mesh_ultra_hd');
+    // TEXTURE SMOOTH : appliquee ET facturee par le worker (creditCost,
+    // mesh_smooth) depuis le 2026-09-24. La pastille l'ignorait alors que le
+    // profil d'asset la COCHE pour les objets durs (vehicule, batiment,
+    // arme…) : 1 credit preleve sans etre annonce (audit du 2026-09-30).
+    plus('ws-trellis2-smooth', 'mesh_smooth');
     // Etapes de construction 3D lancees juste apres le maillage (tarif a part).
     const chantier = document.getElementById('ws-3d-buildstages');
     if (chantier?.checked && chantier.closest('.form-row')?.style.display !== 'none') {
@@ -28199,11 +28365,11 @@ window._applyMeshCostPill = function (btn) {
     const courbe = Math.max(1, (window._prixDe('mesh_tris_courbe_pct') ?? 130) / 100);
     cost += Math.max(window._prixDe('mesh_tris_base') ?? 1,
                      Math.ceil((window._prixDe('mesh_tris_500k') ?? 1) * Math.pow(tris / 500000, courbe) - 1e-9));
-    // NE SONT PAS COMPTÉS, et c'est volontaire : refine, face_fix et smooth
-    // figurent dans OPTIONS_SANS_EFFET_CLOUD (worker.ts:1746) et sont
-    // neutralisés AVANT le calcul du prix. Les facturer à l'écran faisait
-    // croire à l'utilisateur qu'il achetait un raffinement qui n'aurait
-    // jamais lieu — le site web, lui, masque déjà ces cases en mode Cloud.
+    // NE SONT PAS COMPTÉS, et c'est volontaire : refine et face_fix figurent
+    // dans OPTIONS_SANS_EFFET_CLOUD (worker.ts) et sont neutralisés AVANT le
+    // calcul du prix. Les facturer à l'écran faisait croire à l'utilisateur
+    // qu'il achetait un raffinement qui n'aurait jamais lieu — le site web,
+    // lui, masque déjà ces cases en mode Cloud (_OPTIONS_MORTES_CLOUD ici).
     if (!pill) {
       pill = document.createElement('span');
       pill.className = 'generate-cost-pill';
@@ -28220,7 +28386,7 @@ window._applyMeshCostPill = function (btn) {
 [
   'ws-trellis2-preset', 'ws-trellis2-multiref', 'ws-trellis2-refine',
   'ws-trellis2-rectify', 'ws-trellis2-quality-plus', 'ws-trellis2-ultra-q',
-  'ws-trellis2-ultra-hd', 'ws-trellis2-face-fix',
+  'ws-trellis2-ultra-hd', 'ws-trellis2-face-fix', 'ws-trellis2-smooth',
   'ws-trellis2-tris', 'ws-trellis2-tris-custom', 'ws-3d-buildstages',
 ].forEach(id => {
   const el = document.getElementById(id);
@@ -28236,16 +28402,18 @@ window._applyMeshCostPill();
    comme le fait déjà le site web. Un prix ajusté par l'administrateur suit
    donc l'application sans re-livraison.
 
-   Et on masque en mode Cloud les trois options que le serveur neutralise
-   (`OPTIONS_SANS_EFFET_CLOUD`, worker.ts:1746). Les laisser cochables
-   revenait à vendre un raffinement qui n'a jamais lieu — le site web les
-   masque depuis longtemps (`removeUnimplementedPaidOptions`), le desktop
-   les affichait encore.
+   Et on masque en mode Cloud les options que le serveur neutralise
+   (`OPTIONS_SANS_EFFET_CLOUD`, worker.ts). Les laisser cochables revenait à
+   vendre un raffinement qui n'a jamais lieu — le site web les masque depuis
+   longtemps (`removeUnimplementedPaidOptions`), le desktop les affichait
+   encore. « Texture smooth » RETIREE de la liste le 2026-09-30 : le worker
+   l'applique et la facture depuis le 2026-09-24 ; masquee mais cochee par le
+   profil d'asset, elle etait facturee sans etre visible (_OPTIONS_MORTES_CLOUD).
    ═══════════════════════════════════════════════════════════════════ */
 window._masquerOptionsSansEffetCloud = function () {
   try {
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    for (const id of ['ws-trellis2-refine', 'ws-trellis2-face-fix', 'ws-trellis2-smooth']) {
+    for (const id of _OPTIONS_MORTES_CLOUD) {
       const el = document.getElementById(id);
       if (!el) continue;
       // On remonte au label pour masquer la ligne entière, pas seulement la
@@ -28273,10 +28441,17 @@ window._masquerOptionsSansEffetCloud = function () {
 window._masquerOptionsSansEffetCloud();
 
 (async () => {
-  await window._chargerPrix();
+  let ok = await window._chargerPrix();
   window._masquerOptionsSansEffetCloud();
   // Même cadence que le web : 5 minutes.
   setInterval(() => { window._chargerPrix(); }, 5 * 60 * 1000);
+  // Grille injoignable au demarrage (reseau pas encore pret) : aucune
+  // pastille — pas de chiffre invente — mais on reessaie toutes les 30 s
+  // plutot que de laisser l'application sans prix pendant 5 minutes.
+  for (let essai = 0; !ok && !window._prix && essai < 8; essai++) {
+    await new Promise((fin) => setTimeout(fin, 30 * 1000));
+    ok = await window._chargerPrix();
+  }
 })();
 
 
@@ -28386,44 +28561,66 @@ window._refreshTopbarCredits();
 })();
 
 // ============================================================
-// PASTILLES ⚡ SUR LES OUTILS IA (mode Cloud) — prix réels du
-// worker (PRICING_DEFAULTS). En mode Local : aucune pastille.
-// Couvre le panneau ÉDITER (ws-*-btn) et la lightbox (data-lb-tool).
+// PASTILLES ⚡ SUR LES OUTILS IA (mode Cloud) — prix LUS dans la
+// grille (window._prix), jamais ecrits en dur. En mode Local, ou
+// tant que la grille est inconnue : aucune pastille.
+// Couvre le panneau ÉDITER (ws-*-btn), la visionneuse (data-lb-tool),
+// la visionneuse 3D (data-lb3d-tool) et les fenetres de validation.
 // ============================================================
-const _CLOUD_TOOL_PRICES = {
-  // panneau ÉDITER
-  'ws-modify-btn': 2,            // modify
-  'ws-autoinpaint-btn': 3,       // auto_inpaint
-  'ws-removebg-btn': 1,          // remove_background
-  'ws-resolution-btn': 2,        // upscale x2
-  'ws-facefix-btn': 2,           // face_fix_image
-  'ws-outfit-btn': 6,            // outfit_complete (2 sans completion)
-  'ws-recolor-btn': 2,           // recolor
-  'ws-age-btn': 2,               // tex_variant (Age)
-  'ws-variant-btn': 2,           // modify (re-roll)
+/* AUDIT DU 2026-09-30 (user : « les credits affiches dans l'appli ne sont pas
+ * bons du tout ») : ces pastilles etaient des CONSTANTES restees sur une
+ * ancienne grille — Modify 2 pour 3 factures, Auto Inpaint 3 pour 6, Draw
+ * Mask 3 pour 6, Upscale 2 pour 3, Face Fix 2 pour 3, Recolor, Age, Variant et
+ * Style 2 pour 3. Chaque bouton porte desormais la CLE de grille de la route
+ * qu'il appelle REELLEMENT en mode Cloud (main.js / cloud_fallback.js), avec
+ * la regle de prix du worker (getPrice dans worker.ts). Une fonction quand le
+ * prix depend d'un reglage. */
+const _CLOUD_TOOL_TARIFS = {
+  // panneau ÉDITER — image
+  'ws-modify-btn': 'modify',                  // /api/modify-image
+  'ws-autoinpaint-btn': 'auto_inpaint',       // /api/auto-inpaint
+  'ws-removebg-btn': 'remove_background',     // /api/remove-background
+  'ws-resolution-btn': 'upscale',             // /api/upscale-image x2 (seul facteur propose ; x4 = upscale + 1)
+  'ws-facefix-btn': 'face_fix_image',         // /api/face-fix-image
+  // /api/outfit : outfit_complete avec « Fill hidden areas » (coche par defaut), outfit sans
+  'ws-outfit-btn': () => window._prixDe(document.getElementById('of-completer')?.checked === false
+    ? 'outfit' : 'outfit_complete'),
+  'ws-recolor-btn': 'recolor',                // /api/recolor (cloud depuis le 2026-09-30)
+  'ws-age-btn': 'tex_variant',                // /api/tex-variant (cloud depuis le 2026-09-30)
+  // UNE variante : tex_variant (« Colours & materials », forme gardee) ou
+  // modify (« Everything ») ; la fenetre annonce le total (x nombre).
+  'ws-variant-btn': () => window._prixDe(document.getElementById('var-tex-mode')?.checked
+    ? 'tex_variant' : 'modify'),
   // ws-buildstages-btn : PAS de pastille — generate-construction-stages est un
-  // script SDXL/PIL 100 % local, sans endpoint worker. Annoncer « ⚡6 » puis
-  // échouer au clic était le pire signal possible (feature payante annoncée et
-  // non fonctionnelle) → le bouton est masqué en mode Cloud (_CLOUD_HIDDEN_TOOLS).
-  'ws-mask-btn': 3,              // mask_inpaint
-  'ws-style-btn': 2,             // style = modify
-  // panneau ÉDITER step 2 (outils mesh → /api/mesh-op & co)
-  // NOTE: ws-mesh-subdivide-btn est masqué en dur au boot (fusionné dans
-  // « Triangle count ») → pas de pastille.
-  'ws-mesh-smooth-btn': 1,       // mesh-op smooth
-  'ws-mesh-decimate-btn': 1,     // mesh-op decimate/subdivide (Triangle count)
-  'ws-mesh-fixnormals-btn': 1,   // mesh-op fix_normals
-  'ws-mesh-fillholes-btn': 1,    // mesh-op fill_holes
-  'ws-mesh-watertight-btn': 1,   // mesh-op watertight
-  // ws-mesh-center-btn (Set Pivot) : PAS de pastille — l'op set_pivot n'est
-  // pas dans la whitelist /api/mesh-op et reste LOCALE (CPU pur, gratuite)
-  // même en mode Cloud (voir mesh-tool dans main.js).
-  'ws-mesh-retexture-btn': 1,    // mesh-op retex_swap (Re-bake from photo HD)
-  'ws-mesh-explode-btn': 1,      // mesh-op explode
-  'ws-mesh-resize-btn': 1,       // mesh-op resize
-  'ws-mesh-material-btn': 1,     // mesh-op material_adjust
-  'ws-mesh-stages3d-btn': 2,     // /api/construction-stages-3d
-  'ws-mesh-segment-btn': 15,     // /api/mesh-segment (PartSAM async)
+  // script SDXL/PIL 100 % local, sans endpoint worker → masque en mode Cloud
+  // (_CLOUD_HIDDEN_TOOLS).
+  'ws-mask-btn': 'mask_inpaint',              // /api/mask-inpaint
+  'ws-style-btn': 'modify',                   // Style = Modify (/api/modify-image)
+  // panneau ÉDITER step 2 : outils de maillage → /api/mesh-op (mesh_op_simple).
+  // Watertight passe au tarif watertight_hd au-dela d'une resolution de 256 :
+  // le prix exact est dans sa fenetre (_prixOutilMaillage).
+  'ws-mesh-smooth-btn': 'mesh_op_simple',
+  'ws-mesh-decimate-btn': 'mesh_op_simple',   // Triangle count (decimate / subdivide)
+  'ws-mesh-subdivide-btn': 'mesh_op_simple',  // visible depuis le 2026-09-29
+  'ws-mesh-fixnormals-btn': 'mesh_op_simple',
+  'ws-mesh-fillholes-btn': 'mesh_op_simple',
+  'ws-mesh-watertight-btn': 'mesh_op_simple', // resolution par defaut 192 ≤ 256
+  // ws-mesh-center-btn (Set Pivot) : PAS de pastille — set_pivot n'est pas
+  // dans la whitelist /api/mesh-op et reste LOCALE (CPU pur, gratuite).
+  'ws-mesh-retexture-btn': 'mesh_op_simple',  // retex_swap
+  'ws-mesh-explode-btn': 'mesh_op_simple',
+  'ws-mesh-resize-btn': 'mesh_op_simple',
+  'ws-mesh-material-btn': 'mesh_op_simple',   // material_adjust
+  'ws-mesh-stages3d-btn': 'construction3d',   // /api/construction-stages-3d
+  'ws-mesh-segment-btn': 'mesh_segment',      // /api/mesh-segment
+};
+/** Prix d'un outil (id de son bouton) lu dans la grille ; null si la grille
+ *  est inconnue, l'outil gratuit ou local. Ne regarde PAS le mode de calcul. */
+window._prixBouton = function (id) {
+  const t = id && _CLOUD_TOOL_TARIFS[id];
+  if (!t) return null;
+  const p = typeof t === 'function' ? t() : window._prixDe(t);
+  return (typeof p === 'number' && p > 0) ? p : null;
 };
 // Outils SANS équivalent cloud (gaps de parité) : masqués en mode Cloud.
 const _CLOUD_HIDDEN_TOOLS = [
@@ -28432,46 +28629,37 @@ const _CLOUD_HIDDEN_TOOLS = [
   'ws-buildstages-btn',  // étapes de construction 2D : SDXL local, pas d'endpoint
   'ws-multiview-btn',    // MV-Adapter / vue arrière : local uniquement
 ];
-const _CLOUD_LB_PRICES = {
-  modify: 2, autoinpaint: 3, removebg: 1, resolution: 2,
-  facefix: 2, variant: 2, mask: 3, outfit: 6,
+// Visionneuse : chaque entree clique le bouton du panneau (_wireLightboxToolbox),
+// elle affiche donc le MEME prix que lui.
+const _CLOUD_LB_BOUTONS = {
+  modify: 'ws-modify-btn', autoinpaint: 'ws-autoinpaint-btn', removebg: 'ws-removebg-btn',
+  resolution: 'ws-resolution-btn', facefix: 'ws-facefix-btn', variant: 'ws-variant-btn',
+  mask: 'ws-mask-btn', outfit: 'ws-outfit-btn', recolor: 'ws-recolor-btn',
+  age: 'ws-age-btn', style: 'ws-style-btn',
 };
-// Lightbox 3D : elle route par clic simulé vers les boutons workspace
-// (LB3D_TOOL_MAP), les pastilles workspace n'y sont donc pas visibles —
-// on pose les mêmes prix sur les entrées [data-lb3d-tool]. sculpt/paintvert/
-// selectface/export/blender/folder restent sans pastille (gratuits/locaux) ;
-// texvar/regionretex/enhancetex/detailsynth sont masquées en Cloud.
-// « center » (→ Set Pivot) volontairement ABSENT : op locale gratuite.
-const _CLOUD_LB3D_PRICES = {
-  smooth: 1, decimate: 1, fixnormals: 1, fillholes: 1,
-  watertight: 1, retexture: 1, material: 1,
+// Visionneuse 3D : route par clic simulé vers les boutons workspace
+// (LB3D_TOOL_MAP). sculpt/paintvert/selectface/export/blender/folder restent
+// sans pastille (gratuits/locaux) ; texvar/regionretex/enhancetex/detailsynth
+// sont masquées en Cloud. « center » (→ Set Pivot) volontairement ABSENT : op
+// locale gratuite.
+const _CLOUD_LB3D_BOUTONS = {
+  smooth: 'ws-mesh-smooth-btn', decimate: 'ws-mesh-decimate-btn', subdivide: 'ws-mesh-subdivide-btn',
+  fixnormals: 'ws-mesh-fixnormals-btn', fillholes: 'ws-mesh-fillholes-btn',
+  watertight: 'ws-mesh-watertight-btn', retexture: 'ws-mesh-retexture-btn', material: 'ws-mesh-material-btn',
 };
 
 window._applyToolPills = function () {
   try {
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    const setPill = (btn, price) => {
-      if (!btn) return;
-      let pill = btn.querySelector('.generate-cost-pill');
-      if (!cloud) { if (pill) pill.remove(); return; }
-      if (!pill) {
-        pill = document.createElement('span');
-        pill.className = 'generate-cost-pill';
-        pill.style.cssText = 'font-size:10px;padding:1px 7px;margin-left:6px;';
-        pill.innerHTML = '<span class="generate-cost-bolt">&#9889;</span><span class="gcp-val"></span>';
-        btn.appendChild(pill);
-      }
-      const v = pill.querySelector('.gcp-val');
-      if (v) v.textContent = String(price);
-    };
-    for (const [id, price] of Object.entries(_CLOUD_TOOL_PRICES)) {
-      setPill(document.getElementById(id), price);
+    const prix = (id) => (cloud ? window._prixBouton(id) : null);
+    for (const id of Object.keys(_CLOUD_TOOL_TARIFS)) {
+      window._posePastille(document.getElementById(id), prix(id));
     }
-    for (const [tool, price] of Object.entries(_CLOUD_LB_PRICES)) {
-      setPill(document.querySelector(`.lb-tool-btn[data-lb-tool="${tool}"]`), price);
+    for (const [tool, id] of Object.entries(_CLOUD_LB_BOUTONS)) {
+      window._posePastille(document.querySelector(`.lb-tool-btn[data-lb-tool="${tool}"]`), prix(id));
     }
-    for (const [tool, price] of Object.entries(_CLOUD_LB3D_PRICES)) {
-      setPill(document.querySelector(`[data-lb3d-tool="${tool}"]`), price);
+    for (const [tool, id] of Object.entries(_CLOUD_LB3D_BOUTONS)) {
+      window._posePastille(document.querySelector(`[data-lb3d-tool="${tool}"]`), prix(id));
     }
     for (const id of _CLOUD_HIDDEN_TOOLS) {
       const b = document.getElementById(id);
@@ -28486,6 +28674,67 @@ window._applyToolPills = function () {
   } catch (_) {}
 };
 window._applyToolPills();
+
+/* FENETRES DE VALIDATION (2026-09-30). Chaque outil ouvre une fenetre avant
+ * de lancer le calcul ; son bouton de lancement annonce le prix de CE
+ * lancement (nombre de variantes, completion des habits, agrandir ou
+ * reduire…), lu dans la grille comme les pastilles des boutons. Avant, aucune
+ * de ces fenetres n'affichait de prix sur le bureau : le code commun avec le
+ * site recopiait une pastille `.cloud-cost-badge` que le bureau ne pose pas.
+ * Mesh tool (mt-apply), Segment (seg-go) et la fenetre de lancement
+ * (lct-lancer) posent la leur a l'ouverture : leur prix depend de l'outil. */
+const _TARIFS_VALIDATION = {
+  'mod-apply': () => window._prixBouton('ws-modify-btn'),
+  'var-apply': () => {
+    // une variante = un appel facture ; meme borne 1..8 que le lancement
+    const u = window._prixBouton('ws-variant-btn');
+    const n = Math.max(1, Math.min(8, parseInt(document.getElementById('var-count')?.value, 10) || 1));
+    return u == null ? null : n * u;
+  },
+  'ai-go': () => window._prixBouton('ws-autoinpaint-btn'),
+  'mask-apply': () => window._prixBouton('ws-mask-btn'),
+  'of-go': () => window._prixBouton('ws-outfit-btn'),
+  'rc-go': () => window._prixBouton('ws-recolor-btn'),
+  'age-go': () => window._prixBouton('ws-age-btn'),
+  'sty-apply': () => window._prixBouton('ws-style-btn'),
+  // Agrandir = /api/upscale-image ; Reduire = retouche locale, gratuite
+  'res-apply': () => (document.getElementById('res-mode')?.value === 'down'
+    ? null : window._prixBouton('ws-resolution-btn')),
+  'bs3d-start': () => window._prixBouton('ws-mesh-stages3d-btn'),
+  'ex3d-start': () => window._prixBouton('ws-mesh-explode-btn'),
+  'rz-apply': () => window._prixBouton('ws-mesh-resize-btn'),
+  'mat-apply-btn': () => window._prixBouton('ws-mesh-material-btn'),
+};
+window._applyValidationPills = function () {
+  try {
+    const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
+    for (const [id, prix] of Object.entries(_TARIFS_VALIDATION)) {
+      window._posePastille(document.getElementById(id), cloud ? prix() : null);
+    }
+  } catch (_) {}
+};
+// Repose a chaque OUVERTURE de ces fenetres (la grille a pu changer depuis) et
+// a chaque reglage qui change le prix.
+(function _suivrePrixValidation() {
+  const fenetres = new Set();
+  for (const id of Object.keys(_TARIFS_VALIDATION)) {
+    const f = document.getElementById(id)?.closest('.modal-overlay, .modal');
+    if (f) fenetres.add(f);
+  }
+  try {
+    const obs = new MutationObserver(() => window._applyValidationPills());
+    fenetres.forEach((f) => obs.observe(f, { attributes: true, attributeFilter: ['class'] }));
+  } catch (_) { /* sans observateur : prix pose au chargement de la grille */ }
+  const REGLAGES = new Set(['var-count', 'var-tex-mode', 'var-free-mode', 'of-completer', 'res-mode']);
+  const maj = (e) => {
+    if (!e.target || !REGLAGES.has(e.target.id)) return;
+    window._applyValidationPills();
+    window._applyToolPills();   // Variant et Outfit : la pastille du bouton suit le reglage
+  };
+  document.addEventListener('change', maj);
+  document.addEventListener('input', maj);
+})();
+window._applyValidationPills();
 
 // ============================================================
 // MASQUAGE DES OUTILS DESKTOP-ONLY EN MODE CLOUD — ces outils
@@ -28535,18 +28784,10 @@ window._applyCloudFeatureMask = function () {
       const el = document.getElementById(id);
       if (el) el.style.display = cloud ? 'none' : '';
     }
-    // Case « Garder la forme (varier la texture) » du modal Variante : le mode
-    // texture appelle tex-variant, local uniquement → masqué en Cloud (la
-    // variante normale, elle, passe par /api/modify-image).
-    const texModeEl = document.getElementById('var-tex-mode');
-    if (texModeEl) {
-      const libre = document.getElementById('var-free-mode');
-      if (cloud && libre) libre.checked = true;
-      const groupe = document.getElementById('var-mode-group');
-      if (groupe) groupe.style.display = cloud ? 'none' : '';
-      const titre = groupe && groupe.previousElementSibling;
-      if (titre && titre.tagName === 'LABEL') titre.style.display = cloud ? 'none' : '';
-    }
+    // Mode « Colours & materials » (forme gardee) de la fenetre Variant : il
+    // etait masque en Cloud parce que tex-variant ne tournait qu'en local. Il
+    // passe par /api/tex-variant depuis le 2026-09-30 (main.js) : les deux
+    // modes restent proposes, comme sur le site et en mode Local.
     // Formats d'export : la conversion GLTF/OBJ/STL/PLY passe par trimesh
     // (Python) et le FBX par Blender — indisponibles en mode Cloud. Le GLB est
     // une copie directe du fichier : il marche partout.
@@ -28586,47 +28827,48 @@ window._applyBlenderToolState();
 window._applyCloudFeatureMask();
 
 // ============================================================
-// PASTILLES ⚡ RIG + ANIMATION (mode Cloud) + masquage Motion Library.
+// PASTILLES ⚡ RIG + ANIMATION.
 // Les deux boutons Generate voient leur textContent réécrit par
 // _updateGenButtonsEstimate ET refreshButtonLabelsAndHiding (ce qui
 // détruit la pastille enfant) → cette fonction est ré-appelée après
 // chaque réécriture, en plus des 2 sites de bascule Local/Cloud.
-// En mode Cloud : rig = /api/auto-rig 10 crédits, anim =
-// /api/animate (anytop) 5 crédits ; la Motion Library (Blender/Rokoko
-// locale) n'a pas d'équivalent worker → option masquée + défaut
-// basculé sur le moteur génératif (kimodo_ai).
+// Prix LUS dans la grille (2026-09-30) : rig, reskin et anim etaient
+// des constantes (10, 6, 5) qu'un reglage de l'onglet Pricing ne
+// suivait pas.
 // ============================================================
+/* Le rig part sur le cloud en mode Cloud, ET en mode Local quand aucun moteur
+ * de rig n'est installe (main.js, auto-rig-ai : `basculeCloud`) — il est alors
+ * facture sans qu'aucune pastille ne l'annonce. Renseigne au demarrage. */
+window._rigViaCloud = false;
+(async () => {
+  try {
+    const dispo = await window.meshyAPI?.rigLocalDisponible?.();
+    if (dispo === false) { window._rigViaCloud = true; window._applyRigAnimPills?.(); }
+  } catch (_) {}
+})();
 window._applyRigAnimPills = function () {
   try {
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    const setPill = (btn, price, toujours = false) => {
-      if (!btn) return;
-      let pill = btn.querySelector('.generate-cost-pill');
-      if (!cloud && !toujours) { if (pill) pill.remove(); return; }
-      if (!pill) {
-        pill = document.createElement('span');
-        pill.className = 'generate-cost-pill';
-        pill.style.cssText = 'font-size:10px;padding:1px 7px;margin-left:6px;';
-        pill.innerHTML = '<span class="generate-cost-bolt">&#9889;</span><span class="gcp-val"></span>';
-        btn.appendChild(pill);
-      }
-      const v = pill.querySelector('.gcp-val');
-      if (v) v.textContent = String(price);
-    };
-    // 10 depuis le 2026-09-26 (RIG_COST du worker, squelette complet) : la
-    // pastille etait restee a 5 apres la hausse — prix affiche faux.
-    setPill(document.getElementById('ws-generate-rig-ai'), 10);
-    setPill(document.getElementById('ws-rig-reskin-btn'), 6);    // RESKIN_COST
-    setPill(document.getElementById('pts-regenerer'), 10);
-    // Animation : TOUJOURS en ligne (parite web, 2026-09-28), quel que soit
-    // le mode de calcul — 5 credits (ANIM_COST) par clip coche.
-    // Moteur procedural (2026-09-28) : idle / walk / run / virages GRATUITS ; seuls les
-    // clips IA (attack, death, fly) coutent 5 credits.
+    const rigCloud = cloud || window._rigViaCloud === true;
+    const prix = (cle) => (rigCloud ? window._prixDe(cle) : null);
+    // Rig : /api/auto-rig SANS squelette impose → tarif `rig`.
+    window._posePastille(document.getElementById('ws-generate-rig-ai'), prix('rig'));
+    // Peau seule : squelette impose → tarif `reskin` (getPrice du worker).
+    window._posePastille(document.getElementById('ws-rig-reskin-btn'), prix('reskin'));
+    // Editeur des points : articulations deplacees = squelette impose (reskin),
+    // sinon nouveau tirage de l'IA (rig) — voir ptsRegenerer.
+    let osModifies = false;
+    try { osModifies = !!_pts.osModifies; } catch (_) {}
+    window._posePastille(document.getElementById('pts-regenerer'), prix(osModifies ? 'reskin' : 'rig'));
+    // Animation : TOUJOURS en ligne (parite web, 2026-09-28), quel que soit le
+    // mode de calcul. Les allures du moteur procedural sont GRATUITES
+    // (calculees ici) ; chaque clip IA restant = un appel /api/animate au
+    // tarif `anim`.
     const nbClips = (typeof _animSelection !== 'undefined' ? _animSelection : [])
       .filter((e) => !ALLURES_PROCEDURALES.includes(e.type)).length;
-    const btnAnim = document.getElementById('ws-generate-anim');
-    if (nbClips) setPill(btnAnim, 5 * nbClips, true);
-    else btnAnim?.querySelector('.generate-cost-pill')?.remove();
+    const pAnim = window._prixDe('anim');
+    window._posePastille(document.getElementById('ws-generate-anim'),
+      (nbClips && pAnim != null) ? nbClips * pAnim : null);
   } catch (_) {}
 };
 window._applyRigAnimPills();
@@ -29275,6 +29517,12 @@ function _lctImageCourante() {
   chemin = chemin || p?.previewImagePath || p?.selectedImagePath;
   return chemin ? _toFileUrl(chemin) : '';
 }
+/** Prix affiche dans la fenetre de lancement : celui du bouton de l'outil,
+ *  en mode Cloud seulement (en Local ces outils sont gratuits). */
+function _prixLancement(boutonPrix) {
+  const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
+  return (cloud && boutonPrix && window._prixBouton) ? window._prixBouton(boutonPrix.id) : null;
+}
 function _ouvrirLancement(def, boutonPrix) {
   return new Promise((resoudre) => {
     const m = document.getElementById('modal-lancement');
@@ -29290,15 +29538,10 @@ function _ouvrirLancement(def, boutonPrix) {
     const annuler = document.getElementById('lct-annuler');
     const fermer = document.getElementById('lct-fermer');
     lancer.textContent = t(def.action);
-    const pastille = boutonPrix && boutonPrix.querySelector('.cloud-cost-badge, .credit-badge');
-    const prix = pastille ? pastille.textContent.trim() : '';
-    if (prix) {
-      const b = document.createElement('span');
-      b.className = 'credit-badge';
-      b.style.marginLeft = '8px';
-      b.textContent = prix;
-      lancer.appendChild(b);
-    }
+    // Prix de l'outil LU dans la grille (_prixBouton), en mode Cloud. Le code
+    // commun avec le site recopiait une pastille `.cloud-cost-badge` que le
+    // bureau ne pose pas : la fenetre n'affichait jamais de prix ici.
+    window._posePastille?.(lancer, _prixLancement(boutonPrix));
     const fin = (ok) => {
       m.classList.add('hidden');
       lancer.onclick = annuler.onclick = fermer.onclick = null;
@@ -29324,7 +29567,7 @@ document.addEventListener('click', (e) => {
     boutonPrix = document.getElementById('ws-style-btn');
   }
   if (!def) return;
-  if (def.siPayant && !(boutonPrix && boutonPrix.querySelector('.cloud-cost-badge, .credit-badge'))) return;
+  if (def.siPayant && _prixLancement(boutonPrix) == null) return;
   e.stopImmediatePropagation();
   e.preventDefault();
   _ouvrirLancement(def, boutonPrix).then((ok) => {
@@ -29357,15 +29600,9 @@ document.addEventListener('click', (e) => {
     const c = cible();
     if (!c) return;
     c.dispatchEvent(new Event('mouseenter'));          // affiche « actuelle -> visee » (gestionnaire existant)
-    appliquer.querySelector('.credit-badge')?.remove();
-    const p = c.querySelector('.cloud-cost-badge, .credit-badge');
-    if (p && p.textContent.trim()) {
-      const b = document.createElement('span');
-      b.className = 'credit-badge';
-      b.style.marginLeft = '8px';
-      b.textContent = p.textContent.trim();
-      appliquer.appendChild(b);
-    }
+    // Prix : grille (_TARIFS_VALIDATION, 'res-apply') — le bureau ne pose pas
+    // de pastille sur les boutons caches qu'on recopiait ici.
+    window._applyValidationPills?.();
   };
   sel.addEventListener('change', maj);
   appliquer.addEventListener('click', () => cible()?.click());
@@ -29409,15 +29646,9 @@ document.addEventListener('click', (e) => {
   if (img && src) img.src = src;
   const appliquer = document.getElementById('sty-apply');
   appliquer.disabled = true;                       // un style a choisir d'abord
-  appliquer.querySelector('.credit-badge')?.remove();
-  const p = b.querySelector('.cloud-cost-badge, .credit-badge');
-  if (p && p.textContent.trim()) {
-    const badge = document.createElement('span');
-    badge.className = 'credit-badge';
-    badge.style.marginLeft = '8px';
-    badge.textContent = p.textContent.trim();
-    appliquer.appendChild(badge);
-  }
+  // Prix : grille (_TARIFS_VALIDATION, 'sty-apply' = tarif Modify) — le bureau
+  // ne pose pas la pastille `.cloud-cost-badge` qu'on recopiait ici.
+  window._applyValidationPills?.();
   const fermer = () => { m.classList.add('hidden'); appliquer.onclick = null; };
   document.getElementById('sty-cancel').onclick = fermer;
   appliquer.onclick = () => {

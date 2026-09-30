@@ -1241,6 +1241,13 @@
       'Sign in to your MyFabmesh account — new accounts get 15 free credits':
         'Connectez-vous à votre compte MyFabmesh — les nouveaux comptes reçoivent 15 crédits gratuits',
       'MyFabmesh credits — click to top up': 'Crédits MyFabmesh — cliquez pour recharger',
+      // ---- Prix lus dans la grille (2026-09-30), plus aucun chiffre en dur ----
+      '{x} credits per image': '{x} crédits par image',
+      '{x} credit per image': '{x} crédit par image',
+      '{x} credits per image (default quality)': '{x} crédits par image (qualité par défaut)',
+      '{x} credit per image (default quality)': '{x} crédit par image (qualité par défaut)',
+      'AI animation ({x} credits), work in progress.': 'Animation IA ({x} crédits), en chantier.',
+      'AI animation, work in progress.': 'Animation IA, en chantier.',
       'Your account was created but not confirmed. Sign in with the 6-digit code we emailed you.':
         'Votre compte a été créé mais reste à confirmer. Saisissez le code à 6 chiffres reçu par e-mail.',
       'This email is already registered. Enter the 6-digit code we emailed you, or go back and sign in.':

@@ -216,10 +216,29 @@ document.addEventListener('click', (e) => {
 // aucun code de l'assistant n'ouvre le navigateur. L'inscription se fait
 // depuis la modale de connexion de l'application, au moment où elle sert.
 
+// « credits / image » : prix d'une image a la qualite par defaut (30 pas), LU
+// dans la grille publique (/api/pricing, via cloudPricing) — le « 3 » etait
+// ecrit en dur dans wizard.html (2026-09-30). Grille injoignable : la case
+// reste masquee, pas de chiffre invente.
+function _majPrixImageAssistant() {
+  const bloc = document.getElementById('wiz-fact-prix-image');
+  const val = document.getElementById('wiz-fact-prix-image-val');
+  const api = window.meshyAPI;
+  if (!bloc || !val || !api || typeof api.cloudPricing !== 'function') return;
+  api.cloudPricing({}).then((r) => {
+    const t = r && r.success && r.prices ? r.prices.text2image : null;
+    if (typeof t !== 'number') return;
+    // formule du worker a 30 pas (_prixImageSelonPas) : jamais moins d'1 credit
+    val.textContent = String(Math.max(1, Math.round(t)));
+    bloc.hidden = false;
+  }).catch(() => {});
+}
+
 // Titre/texte de la page no-gpu adaptés au matériel réel : la page s'affiche
 // AUSSI pour un GPU NVIDIA à VRAM insuffisante (< 12 Go), où « No NVIDIA GPU
 // detected » serait faux.
 function renderNoGpuPage() {
+  _majPrixImageAssistant();
   const title = document.getElementById('nogpu-title');
   const lead = document.getElementById('nogpu-lead');
   if (!title || !lead) return;

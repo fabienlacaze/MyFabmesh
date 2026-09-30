@@ -175,9 +175,12 @@
                production (_meta/pricing.json, text2image = 3, identique a
                PRICING_DEFAULTS du worker). L'interface annoncait 2 partout —
                troisieme chiffre faux de la meme famille apres les credits
-               offerts (50 annonces / 15 accordes). -->
-          <div class="wiz-fact">
-            <div class="wiz-fact-val">3</div>
+               offerts (50 annonces / 15 accordes).
+               2026-09-30 : le chiffre n'est plus ecrit ici, il est LU dans la
+               grille (wizard.js, _majPrixImageAssistant) ; case masquee tant
+               que la grille est inconnue. -->
+          <div class="wiz-fact" id="wiz-fact-prix-image" hidden>
+            <div class="wiz-fact-val" id="wiz-fact-prix-image-val"></div>
             <div class="wiz-fact-lbl">credits / image</div>
             <div class="wiz-fact-sub">3D meshes, rigs and animations cost more</div>
           </div>
