@@ -91,6 +91,8 @@ Usage
 """
 import os
 import sys
+# USD bloque avant `import kaolin` : voir trellis2_native_full_pipeline.py.
+sys.modules.setdefault('pxr', None)
 import json
 import math
 import socket

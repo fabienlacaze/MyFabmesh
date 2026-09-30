@@ -457,6 +457,11 @@ def main():
     _run([py, '-m', 'pip', 'install',
           '--find-links', KAOLIN_INDEX,
           *KAOLIN_PACKAGES], step='kaolin')
+    # kaolin tire `usd-core` (sans plafond) dont l'import casse la 3D sous
+    # Windows (TypeError UsdTimeCode, voir trellis2_native_full_pipeline.py).
+    # Personne ne s'en sert : on le retire. Les scripts bloquent aussi `pxr`,
+    # pour les installations deja faites.
+    _run([py, '-m', 'pip', 'uninstall', '-y', 'usd-core'], step='kaolin')
 
     # Step 2c: REQUIRED — pure-Python / lightweight from PyPI
     _run([py, '-m', 'pip', 'install', *PYPI_PACKAGES], step='pypi')

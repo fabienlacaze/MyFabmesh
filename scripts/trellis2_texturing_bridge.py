@@ -23,6 +23,8 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 import sys
 import time
 import argparse
+# USD bloque avant `import kaolin` : voir trellis2_native_full_pipeline.py.
+sys.modules.setdefault('pxr', None)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRELLIS2_SRC = os.path.join(ROOT, 'external', 'TRELLIS2_win', 'src')

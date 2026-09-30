@@ -45,6 +45,16 @@ os.environ.setdefault('SPARSE_ATTN_BACKEND', 'sdpa')
 os.environ.setdefault('TORCHINDUCTOR_USE_TRITON', '0')
 os.environ.setdefault('TRANSFORMERS_ATTN_IMPLEMENTATION', 'eager')
 
+# USD BLOQUE (2026-09-30) : kaolin declare `usd-core` sans plafond, donc le
+# wizard installe la derniere (26.8), et `import kaolin` charge `pxr` au
+# passage (kaolin/io/usd). Sur Windows cet import leve « TypeError: No
+# to_python (by-value) converter found for C++ type: ...UsdTimeCode », que
+# kaolin n'attrape pas (il n'attend qu'un ImportError) : la 3D echouait avant
+# meme de demarrer. Aucun code du moteur n'utilise USD ; `None` dans
+# sys.modules fait lever un ImportError, que kaolin sait ignorer.
+import sys
+sys.modules.setdefault('pxr', None)
+
 # --- FabMesh graceful self-limiting ---
 # 2026-09-30 : la RAM et la VRAM de ce processus sont desormais PLAFONNEES pour
 # de vrai (scripts/cloisonnement_memoire.py, applique plus bas avant tout import

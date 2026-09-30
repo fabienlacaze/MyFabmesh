@@ -14,7 +14,10 @@ Backed by `kaolin.render.mesh.rasterize` (Apache 2.0, CUDA backend),
 NOT nvdiffrast (NVIDIA non-commercial). Validated against nvdiffrast
 output to PSNR > 35 dB / IoU > 0.99 / SSIM > 0.95 before deployment.
 """
+import sys
 import torch
+# USD bloque avant `import kaolin` : voir trellis2_native_full_pipeline.py.
+sys.modules.setdefault('pxr', None)
 from kaolin.render.mesh import rasterize as _kaolin_rasterize
 
 
