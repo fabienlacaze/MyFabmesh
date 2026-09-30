@@ -22035,18 +22035,17 @@ function majLignesLimites() {
   // mesure quand l'appli n'occupe rien. Le curseur ne descend pas dessous, et une limite trop basse remonte d'elle-meme.
   if (_besoinsGen) {
     const b = _besoinsGen;
-    // VRAM : toutes les generations (un manque casse le calcul). RAM : image et 3D seulement — les pics de CHARGEMENT du serveur
-    // d'images (14,6 Go mesures le 30/09) passent sous le plafond souple en ralentissant, sans echec (scripts/cloisonnement_memoire.py).
-    const typesPar = { vramGo: ['image', 'mesh', 'outils', 'detail'], ramGo: ['image', 'mesh'] };
     const ligneBesoin = (id, totalGB, pct, usedGB, cle, nom) => {
       const el = document.getElementById(id); if (!el || totalGB == null) return;
-      const need = Math.max(0, ...typesPar[cle].filter((t) => b[t]).map((t) => Number(b[t][cle]) || 0));
+      // besoin = l'outil le plus exigeant, TOUS outils confondus (main.js, memory-needs, journal des pics)
+      const lourd = (nom === 'vram' ? b.vram : b.ram) || { go: 0, outil: '' };
+      const need = Number(lourd.go) || 0;
       const libre = !b.appliActive && !isJobRunning();
       if (usedGB != null && libre) _autresUsageGo[nom] = usedGB;
       const autres = _autresUsageGo[nom];
       const minGB = (autres != null ? autres : 0) + need;
       const minPct = Math.min(98, Math.ceil(minGB / totalGB * 100) + 1);
-      el.textContent = `Minimum limit: ${minGB.toFixed(1)} GB (heaviest generation ${need.toFixed(1)} GB` + (autres != null ? ` + other apps ${autres.toFixed(1)} GB)` : ')');
+      el.textContent = `Minimum limit: ${minGB.toFixed(1)} GB (heaviest tool: ${lourd.outil || '?'} ${need.toFixed(1)} GB` + (autres != null ? ` + other apps ${autres.toFixed(1)} GB)` : ')');
       el.classList.toggle('short', minPct >= 98);
       if (GPU_LIMITS_MIN[nom] !== minPct) { GPU_LIMITS_MIN[nom] = minPct; try { paintGpuDisabledZones(); } catch (_) {} }
       // remontee automatique seulement quand l'appli n'occupe rien (changer la limite VRAM relance le serveur d'images)

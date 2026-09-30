@@ -3454,25 +3454,41 @@ function _manqueMemoireDansSortie(texte) {
 // MINIMUMS POUR GENERER (user 2026-09-30 : « c'est quoi le plus petit dont on a besoin pour faire tourner proprement l'appli ? il faudrait que ce soit montre dans les reglages »).
 // Valeurs MESUREES le 2026-09-30 (RAM = pic residente, VRAM = reservee par PyTorch + contexte CUDA), remplacees par le dernier pic mesure sur CE PC quand il existe.
 ipcMain.handle('memory-needs', () => {
-  // Besoins par type de generation (Go). Detail++ : 8,9 Go de VRAM MESURES le 2026-09-30 (pipeline ControlNet-Union +
-  // IP-Adapter a 1024 px, message du serveur) — pas encore journalise ; outils d'image : serveur d'images (sdxl_server).
-  const out = { image: { ramGo: 9.2, vramGo: 5.9 }, mesh: { ramGo: 5.3, vramGo: 9.1 },
-    outils: { ramGo: 9.2, vramGo: 7.8 }, detail: { ramGo: 9.2, vramGo: 8.9 } };
+  // BESOINS DE TOUS LES OUTILS (user 2026-09-30 : « il faut tout outil confondu ») : chaque type de calcul du journal des pics
+  // (memoire_pics.jsonl), sur ses travaux REUSSIS. VRAM = pic reserve par PyTorch + contexte CUDA. RAM = pic resident, sauf si le
+  // plafond souple l'a limite (limite_atteinte) : le travail a alors REUSSI avec son budget, qui est donc un besoin suffisant.
+  // Valeurs de depart tant qu'un type n'a jamais ete mesure sur ce PC ; Detail++ : 8,9 Go de VRAM mesures le 30/09 (message du
+  // serveur), son pipeline d'affinage n'est pas encore journalise a part.
+  const LIBELLES = { realvis: 'Image generation', trellis2: '3D', sdxl_server: 'Image tools', front_strict: 'Auto-rectify',
+    texture_upscale: 'Ultra 8K', texture_refine: 'Detail refine', outfit_repaint: 'Outfits', inpaint: 'Inpaint', detail: 'Detail++' };
+  const libelle = (cle) => LIBELLES[Object.keys(LIBELLES).find((k) => String(cle).startsWith(k))] || String(cle);
+  const types = {
+    realvis: { ramGo: 9.2, vramGo: 5.9 }, trellis2: { ramGo: 5.3, vramGo: 9.1 },
+    sdxl_server: { ramGo: 9.2, vramGo: 7.8 }, detail: { ramGo: 9.2, vramGo: 8.9 },
+  };
   try {
+    const vus = {};
     for (const l of fs.readFileSync(MEMOIRE_JOURNAL, 'utf-8').split(/\r?\n/)) {
       if (!l.trim()) continue;
       let j; try { j = JSON.parse(l); } catch (_) { continue; }
-      if (!j || (j.issue !== 'ok' && j.issue !== 'fin') || !(j.pic_ws_mo > 0)) continue;
-      const k = /^realvis/.test(j.cle) ? 'image' : (/^trellis2/.test(j.cle) ? 'mesh' : (j.cle === 'sdxl_server' && j.issue === 'ok' ? 'outils' : null));
-      if (!k) continue;
-      out[k] = { ramGo: Math.round(j.pic_ws_mo / 102.4) / 10, vramGo: Math.round(((j.pic_vram_reserve_mo || 0) + (j.vram_contexte_mo || 0)) / 102.4) / 10 || out[k].vramGo };
+      if (!j || j.issue !== 'ok' || !j.cle || j.cle === 'test_ram' || j.cle === 'test_torch' || j.cle === 'essai') continue;
+      const cle = /^trellis2/.test(j.cle) ? 'trellis2' : j.cle;
+      const ram = (j.limite_atteinte && j.ram_budget_mo > 0) ? Math.min(j.pic_ws_mo || 0, j.ram_budget_mo) : (j.pic_ws_mo || 0);
+      const vram = (j.pic_vram_reserve_mo || 0) + (j.vram_contexte_mo || 0);
+      const p = vus[cle] || { ramGo: 0, vramGo: 0 };
+      vus[cle] = { ramGo: Math.max(p.ramGo, Math.round(ram / 102.4) / 10), vramGo: Math.max(p.vramGo, Math.round(vram / 102.4) / 10) };
     }
+    for (const [cle, v] of Object.entries(vus)) types[cle] = { ramGo: v.ramGo || (types[cle] || {}).ramGo || 0, vramGo: v.vramGo || (types[cle] || {}).vramGo || 0 };
   } catch (_) {}
+  const plusLourd = (champ) => Object.entries(types).reduce((m, [cle, v]) => (v[champ] > m.go ? { go: v[champ], outil: libelle(cle) } : m), { go: 0, outil: '' });
   // L'appli occupe-t-elle la carte / la RAM en ce moment (serveur d'images charge, calcul en cours) ? Si oui, l'usage mesure
   // n'est pas celui des AUTRES logiciels : l'interface garde alors sa derniere mesure.
   let appliActive = false;
   try { appliActive = !!(sdxlProc && sdxlProc.exitCode === null) || activeProcs.size > 0; } catch (_) {}
-  return { ...out, appliActive };
+  const out = { vram: plusLourd('vramGo'), ram: plusLourd('ramGo'), types: Object.fromEntries(Object.entries(types).map(([k, v]) => [libelle(k), v])), appliActive };
+  // compatibilite (ancienne forme lue par l'interface) : image / mesh
+  out.image = types.realvis; out.mesh = types.trellis2;
+  return out;
 });
 ipcMain.handle('memory-budget', async (_e, kind) => {
   // Jamais bloquant sur une erreur de mesure : dans le doute, le travail part
