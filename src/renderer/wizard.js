@@ -712,6 +712,7 @@ async function _startDownloadInterne() {
       } else if (p.in_progress) {
         row.classList.add('in-progress');
         if (timer) timer.textContent = (p.elapsed_s || 0).toFixed(0) + 's';
+        if (row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });   // la liste suit le modele en cours
       }
     }
     document.getElementById('dl-done').textContent = p.total_done_mb || 0;
@@ -763,12 +764,13 @@ async function _startDownloadInterne() {
     </div>`;
   // Les modeles sont finis : sans ceci l'ecran restait fige (« 48650 / 48650 MB · 0.0 MB/s ») pendant que la ligne du moteur de rig,
   // en bas de la liste, travaillait hors champ (constate le 2026-09-30).
-  { const l = document.querySelector('.wiz-dl-row[data-id="__rigenv"]'); if (l && l.scrollIntoView) l.scrollIntoView({ block: 'end' }); }
+  list.scrollTop = list.scrollHeight;
   { const sp = document.getElementById('dl-speed'), et = document.getElementById('dl-eta');
     if (sp) sp.textContent = '–'; if (et) et.textContent = 'installing the rig engine…'; }
   window.wizardAPI.onRigProgress((p) => {
     const fill = document.querySelector('.wiz-dl-row[data-id="__rigenv"] .bar-fill');
     if (typeof p.pct === 'number') majGlobal(88 + Math.min(12, p.pct * 0.12));
+    list.scrollTop = list.scrollHeight;
     if (fill && typeof p.pct === 'number') fill.style.width = Math.max(3, p.pct) + '%';
     const name = document.getElementById('rigenv-name');
     if (name && p.step) {

@@ -24417,3 +24417,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Assistant : assistant fige apres les modeles (phase 3 moteur de rig invisible)
 - Constat (installation reelle) : apres « 48650 / 48650 MB · 0.0 MB/s · ETA – » l'ecran paraissait fige alors que la phase 3 (moteur de rig : pip, torch, dependances) tournait ; sa ligne est en bas de la liste, hors champ.
 - Correctif wizard.js : la liste defile sur la ligne du rig, le resume affiche « installing the rig engine… », pourcentage global reparti moteur 0-8 / modeles 8-88 / rig 88-100.
+
+## 2026-09-30 — Assistant : defilement automatique de la liste de telechargement
+- wizard.js : la liste suit le modele en cours (scrollIntoView nearest) et descend en bas a chaque evenement de la phase moteur de rig.
