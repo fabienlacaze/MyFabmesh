@@ -24672,3 +24672,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — Parametres > Hardware : valeurs reelles et limites separees
 - Valeur du haut = « Used X GB of Y GB (Z%) » (usage reel) ; ligne violette sous VRAM et RAM = « Limit for generations: X GB - keeps Y GB free for your PC », mise a jour en direct au glissement. Marqueur violet. Bureau seulement (la section web n existe pas de la meme facon).
+
+## 2026-09-30 — garde-fou Ctrl+R / F5 pendant un calcul (user : « ne pas perdre le fil des generations »)
+- main.js before-input-event : si activeProcs non vide, dialogue « Keep working / Reload anyway » au lieu de recharger. Restauration des tuiles apres rechargement NON faite (le resultat revient a l interface qui l a demande) : piste suivante.

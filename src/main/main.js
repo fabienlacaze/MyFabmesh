@@ -1831,6 +1831,23 @@ function createWindow() {
   }
 
   // Allow F12 / Ctrl+Shift+I to toggle DevTools
+  // GARDE-FOU DU RECHARGEMENT (user 2026-09-30 : « il ne faut pas perdre le fil des generations en cours si je fais Ctrl+R ») : recharger l'interface
+  // efface les tuiles de travaux et coupe le retour du resultat vers le projet. Tant qu'un calcul tourne, Ctrl+R / F5 demandent confirmation.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    try {
+      if (input.type !== 'keyDown') return;
+      const k = String(input.key || '').toLowerCase();
+      const recharge = k === 'f5' || ((input.control || input.meta) && k === 'r');
+      if (!recharge || activeProcs.size < 1) return;
+      event.preventDefault();
+      const r = dialog.showMessageBoxSync(mainWindow, {
+        type: 'warning', buttons: ['Keep working', 'Reload anyway'], defaultId: 0, cancelId: 0, title: 'Generation in progress',
+        message: 'A generation is still running.',
+        detail: 'Reloading the window would lose its progress tile and the result may not be added to your project. Wait for it to finish, or reload anyway.',
+      });
+      if (r === 1) mainWindow.webContents.reloadIgnoringCache();
+    } catch (_) {}
+  });
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
       mainWindow.webContents.toggleDevTools();
