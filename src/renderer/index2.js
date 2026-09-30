@@ -21986,7 +21986,8 @@ if (API.setRamLimit) API.setRamLimit(gpuLimits.ram).catch(() => {});
 if (API.setGpuLimits) API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: gpuLimits.vram }).catch(() => {});
 // LIGNES DE LIMITE sous les barres VRAM / RAM (user 2026-09-30 : « valeurs de limites et valeurs reelles melangees ») : la barre et la valeur du haut = usage REEL ;
 // la ligne violette dessous = limite posee pour les generations + ce qu'il reste de libre pour le PC. Mise a jour en direct pendant le glissement.
-let _lastVramTotalGB = null;
+let _lastVramTotalGB = null, _lastVramUsedGB = null, _lastRamUsedGB = null, _besoinsGen = null;
+async function _chargerBesoinsGen() { try { if (window.meshyAPI?.memoryNeeds) { _besoinsGen = await window.meshyAPI.memoryNeeds(); majLignesLimites(); } } catch (_) {} }
 function majLignesLimites() {
   const ligne = (id, totalGB, pct, libelle) => {
     const el = document.getElementById(id);
@@ -21999,6 +22000,22 @@ function majLignesLimites() {
   seuil('set-gpu-temp-limtxt', `Jobs wait while the GPU is hotter than ${Math.round(gpuLimits.temp)} °C`);
   ligne('set-gpu-vram-limtxt', _lastVramTotalGB, gpuLimits.vram);
   ligne('set-ram-limtxt', _cachedTotalRamGB, gpuLimits.ram);
+  // MINIMUM POUR GENERER : besoin de chaque type de travail (mesure) + place libre sous la limite maintenant ; le curseur ne descend pas sous le besoin le plus grand.
+  if (_besoinsGen) {
+    const b = _besoinsGen;
+    const ligneBesoin = (id, totalGB, pct, usedGB, cle, nom) => {
+      const el = document.getElementById(id); if (!el || totalGB == null) return;
+      const img = b.image[cle], mesh = b.mesh[cle], need = Math.max(img, mesh);
+      const libre = totalGB * (pct / 100) - (usedGB == null ? 0 : usedGB);
+      el.textContent = `Needed to generate: ${img.toFixed(1)} GB for images · ${mesh.toFixed(1)} GB for 3D` + (usedGB == null ? '' : ` · free under your limit now: ${Math.max(0, libre).toFixed(1)} GB`);
+      el.classList.toggle('short', usedGB != null && libre < need);
+      const minPct = Math.min(95, Math.ceil(need / totalGB * 100));
+      if (GPU_LIMITS_MIN[nom] !== minPct) { GPU_LIMITS_MIN[nom] = minPct; try { paintGpuDisabledZones(); } catch (_) {} }
+      if (gpuLimits[nom] < minPct) { gpuLimits[nom] = minPct; try { saveGpuLimits(); } catch (_) {} }
+    };
+    ligneBesoin('set-gpu-vram-needtxt', _lastVramTotalGB, gpuLimits.vram, _lastVramUsedGB, 'vramGo', 'vram');
+    ligneBesoin('set-ram-needtxt', _cachedTotalRamGB, gpuLimits.ram, _lastRamUsedGB, 'ramGo', 'ram');
+  }
 }
 function applyGpuLimitMarkers() {
   try { majLignesLimites(); } catch (_) {}
@@ -22643,7 +22660,7 @@ async function refreshGpuStats() {
     const vramPct = (gpu.usedGB / gpu.totalGB) * 100;
     document.getElementById('set-gpu-vram-val').textContent =
       `Used ${gpu.usedGB.toFixed(1)} GB of ${gpu.totalGB.toFixed(1)} GB (${vramPct.toFixed(0)}%)`;
-    _lastVramTotalGB = gpu.totalGB; try { majLignesLimites(); } catch (_) {}
+    _lastVramTotalGB = gpu.totalGB; _lastVramUsedGB = gpu.usedGB; if (!_besoinsGen) _chargerBesoinsGen(); try { majLignesLimites(); } catch (_) {}
     document.getElementById('set-gpu-vram-fill').style.width = vramPct + '%';
     document.querySelector('.gpu-bar[data-stat="vram"]')?.classList.toggle('over-limit', vramPct > gpuLimits.vram);
     // GPU utilization
@@ -22668,7 +22685,7 @@ async function refreshGpuStats() {
       const ramValEl = document.getElementById('set-ram-val');
       const ramFillEl = document.getElementById('set-ram-fill');
       if (ramValEl) ramValEl.textContent = `Used ${ram.usedGB.toFixed(1)} GB of ${ram.totalGB.toFixed(1)} GB (${ramPct.toFixed(0)}%)`;
-      _cachedTotalRamGB = ram.totalGB; try { majLignesLimites(); } catch (_) {}
+      _cachedTotalRamGB = ram.totalGB; _lastRamUsedGB = ram.usedGB; try { majLignesLimites(); } catch (_) {}
       if (ramFillEl) ramFillEl.style.width = ramPct + '%';
       document.querySelector('.gpu-bar[data-stat="ram"]')?.classList.toggle('over-limit', ramPct > gpuLimits.ram);
     }
