@@ -20850,6 +20850,7 @@ function renderJobs() {
       <div class="job-item-2 queued" data-queue-idx="${idx}">
         <div class="job-item-2-header">
           <div class="job-item-2-name">&#9202; ${escapeHtml(q.displayName || 'Queued job')}</div>
+          <button class="job-goto-btn" onclick="event.stopPropagation(); window._startQueuedNow(${idx})" title="${escapeHtml(_i18nT('Start now, above your limits'))}">${escapeHtml(_i18nT('Start now'))}</button>
           <button class="job-cancel-btn" onclick="event.stopPropagation(); window._cancelQueuedJob(${idx})" title="Remove from queue">&#10005;</button>
         </div>
         <div class="job-item-2-bar">
@@ -20931,6 +20932,14 @@ function renderJobs() {
   }
 }
 // Cancel a queued job (remove from the queue before it ever starts)
+window._startQueuedNow = function(idx) {
+  const q = queuedJobs[idx];
+  if (!q) return;
+  q.force = true;
+  if (idx > 0) { queuedJobs.splice(idx, 1); queuedJobs.unshift(q); renderJobs(); }
+  console.log('[queue] start now:', q.displayName);
+  try { processQueue(); } catch (_) {}
+};
 window._cancelQueuedJob = function(idx) {
   if (idx >= 0 && idx < queuedJobs.length) {
     const removed = queuedJobs.splice(idx, 1);
@@ -22467,13 +22476,25 @@ async function hasVramHeadroomFor(kind) {
       }
       if (engineLoaded) return { ok: true };
     }
+    // BESOIN MESURE SUR CE PC (journal memoire_pics.jsonl, via main.js) : s'il existe, il remplace l'estimation fixe ci-dessous
+    // (7 Go « de plus » annonces pour une 3D qui en prenait 8,4 au total, 2026-09-30). La RAM ne fait jamais attendre.
+    if (API.memoryBudget) {
+      try {
+        const m = await API.memoryBudget(kind);
+        if (m && m.ralenti && m.ralenti.type === 'ram') _annoncerRalentiRam(kind, m.ralenti);
+        if (m && m.ok === false && m.type === 'vram' && m.besoinGo != null) {
+          return { ok: false, memoire: true, vram: true, reason: _i18nTf('Waiting for graphics memory: this job needs about {x} GB of VRAM and {y} GB are free under your limit. It starts as soon as it fits (close apps using the graphics card, raise the VRAM limit in Settings, or press Start now).', m.besoinGo, m.dispoGo) };
+        }
+        if (m && m.vramMesuree) return { ok: true };
+      } catch (_) {}
+    }
     // Otherwise (engine not loaded, or a non-reusing kind): predict the VRAM the
     // job's pipeline will allocate and compare against the slider limit.
     const projectedUsedGB = gpu.usedGB + cost;
     const projectedPct = (projectedUsedGB / gpu.totalGB) * 100;
     if (projectedPct > gpuLimits.vram) {
       return {
-        ok: false,
+        ok: false, vram: true,
         reason: _i18nTf('Not enough VRAM: {x} GB used, this job needs about {y} GB more than the limit allows. It will wait until VRAM frees up.', `${gpu.usedGB.toFixed(1)}/${gpu.totalGB.toFixed(1)}`, cost)
       };
     }
@@ -22482,40 +22503,27 @@ async function hasVramHeadroomFor(kind) {
     const freeGB = gpu.totalGB - gpu.usedGB;
     if (freeGB < cost) {
       return {
-        ok: false,
-        reason: `VRAM libre insuffisante: ${freeGB.toFixed(1)} GB disponibles, ce job a besoin de ~${cost} GB. Le job attendra.`
+        ok: false, vram: true,
+        reason: _i18nTf('Not enough free graphics memory: {x} GB free, this job needs about {y} GB. It will wait.', freeGB.toFixed(1), cost)
       };
     }
   } catch (e) {
     return { ok: true };
   }
-  // RAM gate (2026-09-30). Chaque generation locale est desormais PLAFONNEE pour de vrai
-  // a son budget (limite du marqueur RAM - RAM utilisee par tout le reste ; voir
-  // scripts/cloisonnement_memoire.py) : lancee sans la place, elle s'arreterait en route.
-  // main.js compare ce budget au pic MESURE lors du dernier travail du meme type ; sans
-  // mesure, on attend seulement que la RAM repasse sous la limite (regle d'avant).
-  // `memoire: true` : le travail attend (sans limite de temps) que la place se libere.
-  try {
-    if (API.memoryBudget) {
-      const m = await API.memoryBudget(kind);
-      if (m && m.ok === false) {
-        if (m.type === 'vram' && m.besoinGo != null) {
-          return { ok: false, memoire: true, reason: _i18nTf('Waiting for graphics memory: this job needs about {x} GB of VRAM and {y} GB are free under your limit. It starts as soon as it fits (close apps using the graphics card or raise the VRAM limit in Settings).', m.besoinGo, m.dispoGo) };
-        }
-        if (m.besoinGo != null) {
-          return { ok: false, memoire: true, reason: _i18nTf('Waiting for memory: this job needs about {x} GB of RAM and {y} GB are free under your limit. It starts as soon as it fits (close other apps or raise the RAM limit in Settings).', m.besoinGo, m.dispoGo) };
-        }
-        return { ok: false, memoire: true, reason: _i18nTf('System RAM is full ({x} GB, {y}% over the limit). The job will wait.', `${m.utiliseeRamGo}/${m.totalRamGo}`, Math.round((m.utiliseeRamGo / (m.totalRamGo || 1)) * 100)) };
-      }
-    } else if (API.checkRAM) {
-      const ram = await API.checkRAM();
-      const ramPct = (ram.usedGB / ram.totalGB) * 100;
-      if (ramPct > gpuLimits.ram) {
-        return { ok: false, reason: _i18nTf('System RAM is full ({x} GB, {y}% over the limit). The job will wait.', `${ram.usedGB.toFixed(1)}/${ram.totalGB.toFixed(1)}`, ramPct.toFixed(0)) };
-      }
-    }
-  } catch (e) {}
+  // RAM : plus de mise en attente (2026-09-30, « mettre les limites ne doit pas casser les generations »). Chaque calcul local
+  // est plafonne en memoire RESIDENTE (scripts/cloisonnement_memoire.py) : au-dela de son budget il RALENTIT, il n'est ni
+  // refuse ni arrete ; on previent seulement l'utilisateur (message non bloquant).
   return { ok: true };
+}
+
+const _ralentiRamVu = {};
+function _annoncerRalentiRam(kind, r) {
+  try {
+    const t = Date.now();
+    if (_ralentiRamVu[kind] && t - _ralentiRamVu[kind] < 60000) return;
+    _ralentiRamVu[kind] = t;
+    showToast(_i18nTf('Limited by your RAM setting ({y} GB free for this job, about {x} GB useful): it may run slower.', r.besoinGo, r.dispoGo), 'info', 5000);
+  } catch (_) {}
 }
 
 // Backward-compat wrapper (some callers expect a boolean)
@@ -22594,6 +22602,7 @@ async function processQueue() {
     const waitStart = Date.now();
     while (!(res && res.ok)) {
       if (queuedJobs[0] !== next) break;                 // retire de la file pendant l'attente
+      if (next.force) break;                             // « Start now » (bouton de la tuile)
       _majRaisonFile(next, res);
       if (!res.memoire && Date.now() - waitStart > 600000) {
         console.warn('[queue] gave up waiting after 10 min, forcing run');
@@ -22605,7 +22614,19 @@ async function processQueue() {
     if (queuedJobs[0] !== next) continue;                // annule par l'utilisateur entre-temps
     queuedJobs.shift();
     renderQueueIndicator();
+    // Depart force sur un manque de VRAM : la limite VRAM est relevee le temps que le calcul demarre (il lit la sienne au
+    // lancement), puis remise.
+    let _vramRemise = null;
+    if (next.force && res && res.vram && API.setGpuLimits) {
+      try {
+        _vramRemise = gpuLimits.vram;
+        await API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: 97 });
+      } catch (_) { _vramRemise = null; }
+    }
     try { next.run(); } catch (e) { console.error('queued job failed', e); }
+    if (_vramRemise != null) {
+      setTimeout(() => { try { API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: _vramRemise }); } catch (_) {} }, 8000);
+    }
     // Give the started job a moment to allocate VRAM before checking the next one
     await new Promise(r => setTimeout(r, 5000));
   }
@@ -24651,14 +24672,32 @@ window.addEventListener('drop', async (e) => {
   let path_ = '';
   let fileName = '';
   const localFile = files[0];
+  // Octets d'une image fournie sans chemin (Gemini, ChatGPT... : fichier du navigateur ou adresse data:) -> fichier temporaire.
+  const _importerOctets = async (b64, nom, mime) => {
+    const r = await API.saveDroppedImage?.({ name: nom, base64: b64, mime });
+    if (!r || !r.success || !r.path) throw new Error((r && r.error) || 'could not save the image');
+    return r;
+  };
   if (localFile && localFile.path) {
     path_ = localFile.path;
     fileName = localFile.name || '';
+  } else if (localFile && /^image\//i.test(localFile.type || '')) {
+    try {
+      const octets = new Uint8Array(await localFile.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < octets.length; i += 0x8000) bin += String.fromCharCode.apply(null, octets.subarray(i, i + 0x8000));
+      const r = await _importerOctets(btoa(bin), localFile.name || 'dropped_image', localFile.type);
+      path_ = r.path;
+      fileName = r.filename;
+    } catch (err) {
+      showToast?.(_i18nT('Could not import the dragged image.') + ' ' + (err?.message || ''), 'error', 4500);
+      return;
+    }
   } else {
     const _extractUrl = () => {
       if (htmlData) {
         const m = htmlData.match(/<img[^>]+src=["']([^"']+)["']/i);
-        if (m && /^https?:/i.test(m[1])) return m[1];
+        if (m && /^(https?:|data:image\/)/i.test(m[1])) return m[1];
       }
       if (uriList) {
         const line = uriList.split(/\r?\n/).map(s => s.trim())
@@ -24671,9 +24710,22 @@ window.addEventListener('drop', async (e) => {
     };
     const webUrl = _extractUrl();
     if (!webUrl) {
-      showToast?.('Drop a local file, or drag an actual image from a web page.', 'error', 4500);
+      const blob = /blob:/i.test(htmlData + uriList + plainData);
+      showToast?.(_i18nT(blob ? 'This site does not share the image file. Save the image first (right-click, Save image as), then drop the saved file.' : 'Drop a local file, or drag an actual image from a web page.'), 'error', 6000);
       return;
     }
+    if (/^data:image\//i.test(webUrl)) {
+      try {
+        const m = webUrl.match(/^data:(image\/[a-z+.-]+);base64,(.*)$/i);
+        if (!m) throw new Error('unsupported image data');
+        const r = await _importerOctets(m[2], 'dropped_image', m[1]);
+        path_ = r.path;
+        fileName = r.filename;
+      } catch (err) {
+        showToast?.(_i18nT('Could not import the dragged image.') + ' ' + (err?.message || ''), 'error', 4500);
+        return;
+      }
+    } else {
     showToast?.('Downloading dragged image…', 'info', 2500);
     try {
       const dl = await API.downloadToTemp(webUrl);
@@ -24686,6 +24738,7 @@ window.addEventListener('drop', async (e) => {
     } catch (err) {
       showToast?.('Download failed: ' + err.message, 'error', 4500);
       return;
+    }
     }
   }
 

@@ -3460,10 +3460,9 @@ ipcMain.handle('memory-budget', async (_e, kind) => {
   try {
     const b = await _budgetsMemoire();
     const pics = _picsMemoire();
-    // 1er lancement sans mesure : valeur MESUREE le 2026-09-30 (generation d'image locale, engagement de pic 12 855 Mo). Sans elle, un budget trop
-    // juste (Unreal ouvert) laissait partir le travail, qui mourait en violation d'acces native (0xC0000005) au chargement, sans message.
-    const BESOIN_RAM_DEFAUT_MO = {};   // (plus de valeur par defaut pour « image » : le plafond d'engagement suit le budget resident x 1,5, il ne bloque pas)
-    const mesure = budgetMemoire.besoinMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], BESOIN_RAM_DEFAUT_MO[kind] != null ? BESOIN_RAM_DEFAUT_MO[kind] : null);
+    // RAM : ne fait jamais attendre (plafond RESIDENT : au-dela, le calcul ralentit) ; VRAM : attend si le besoin MESURE
+    // sur ce PC depasse la place libre sous la limite (sans mesure, l'interface garde son estimation).
+    const mesure = budgetMemoire.besoinMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
     const mesureVram = budgetMemoire.besoinVramMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
     const base = {
       budgetRamGo: budgetMemoire.versGo(b.ram.budgetMo, 'bas'),
@@ -3471,17 +3470,12 @@ ipcMain.handle('memory-budget', async (_e, kind) => {
       totalRamGo: budgetMemoire.versGo(b.ram.totalMo, 'bas'),
       utiliseeRamGo: budgetMemoire.versGo(b.ram.utiliseeMo),
       budgetVramGo: b.vram ? budgetMemoire.versGo(b.vram.budgetMo, 'bas') : null,
+      vramMesuree: mesureVram != null,
     };
-    if (mesure != null || mesureVram != null) {
-      const v = budgetMemoire.verdict({ besoinRamMo: mesure, budgetRamMo: b.ram.budgetMo,
-        besoinVramMo: mesureVram, budgetVramMo: b.vram ? b.vram.budgetMo : null });
-      if (!v.ok) return { ...base, ...v };
-    }
-    if (mesure == null && b.ram.budgetMo <= 0) {
-      // Pas encore de mesure pour ce type : on attend seulement que la RAM repasse sous la limite.
-      return { ...base, ok: false, type: 'ram', besoinGo: null };
-    }
-    return { ...base, ok: true };
+    const v = budgetMemoire.verdict({ besoinRamMo: mesure, budgetRamMo: b.ram.budgetMo,
+      besoinVramMo: mesureVram, budgetVramMo: b.vram ? b.vram.budgetMo : null });
+    if (!v.ok) return { ...base, ...v };
+    return { ...base, ok: true, ralenti: v.ralenti || null };
   } catch (e) {
     return { ok: true };
   }
@@ -5131,6 +5125,26 @@ ipcMain.handle('import-dropped-file', (event, arg) => {
 // Download an image dragged from a web page (no local file path) to a temp
 // file so the normal import flow can handle it. Follows redirects, picks the
 // extension from the content-type, and refuses non-image responses.
+// IMAGE GLISSEE SANS CHEMIN LOCAL (2026-09-30, user : « pourquoi je ne peux pas glisser une image de Gemini ») : le navigateur
+// fournit le fichier lui-meme (sans chemin) ou une adresse data: ; on recoit ses octets et on les ecrit dans le dossier temporaire.
+ipcMain.handle('save-dropped-image', async (_e, { name, base64, mime } = {}) => {
+  try {
+    const parMime = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif' }[String(mime || '').toLowerCase()];
+    const extNom = path.extname(String(name || '')).toLowerCase();
+    const ext = parMime || (/^\.(png|jpe?g|webp|gif)$/.test(extNom) ? extNom : '.png');
+    const base = safeBase(path.basename(String(name || 'dropped_image'), extNom)) || 'dropped_image';
+    const buf = Buffer.from(String(base64 || ''), 'base64');
+    if (!buf.length || buf.length > 64 * 1024 * 1024) return { success: false, error: 'empty or too large image' };
+    const dir = path.join(os.tmpdir(), 'fabmesh_dl');
+    fs.mkdirSync(dir, { recursive: true });
+    const p = path.join(dir, `${base}_${Date.now()}${ext}`);
+    fs.writeFileSync(p, buf);
+    return { success: true, path: p, filename: path.basename(p) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 ipcMain.handle('download-to-temp', async (event, url) => {
   return new Promise((resolve) => {
     try {

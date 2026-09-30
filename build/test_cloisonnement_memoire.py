@@ -5,12 +5,13 @@
 
 CPU SEULEMENT, petites allocations (le PC de l'exploitant tourne pendant les
 tests ; aucune carte graphique n'est sollicitee) :
-  1. calculs purs : budgets, plafond d'engagement, fraction VRAM, arrondis,
+  1. calculs purs : budgets, plafond resident, fraction VRAM, arrondis,
      reconnaissance des erreurs de memoire ;
-  2. un processus plafonne a 1 Go qui demande 2 Go leve MemoryError et le
-     SIGNALE proprement (marqueur + phrase), sans pousser le PC dans le fichier
-     d'echange — lance directement, puis depuis Node (le Job Object s'imbrique
-     dans celui de libuv, comme sous Electron) ;
+  2. un processus plafonne a 1 Go de memoire RESIDENTE qui demande 2 Go
+     REUSSIT (2026-09-30 : « mettre les limites ne doit pas casser les
+     generations ») : sa memoire residente reste sous le plafond, le surplus
+     est pagine, et le signal de limitation est emis — lance directement, puis
+     depuis Node (comme sous Electron) ;
   3. meme chose avec l'allocateur CPU de PyTorch (si torch est installe) ;
   4. le mandataire paresseux de TRELLIS-2 sur un petit modele CPU et la pose
      du correctif sur un faux paquet trellis2 (si torch et safetensors sont la).
@@ -67,11 +68,11 @@ class CalculsPurs(unittest.TestCase):
         self.assertAlmostEqual(cm.budget_ram_mo(27645, 20000, 5000), 27645 - 15000)
         self.assertEqual(cm.budget_ram_mo(10000, 20000, 0), 0.0)
 
-    def test_plafond_engagement(self):
-        self.assertEqual(cm.plafond_engagement_mo(8000, 1500, 3000), 16000)   # budget resident x 2
-        # jamais sous l'engagement + marge : l'erreur doit pouvoir s'ecrire
-        self.assertEqual(cm.plafond_engagement_mo(1000, 0, 3000), 3000 + cm.MARGE_MIN_MO)
-        self.assertEqual(cm.plafond_engagement_mo(1000, -50, 0), 2000)
+    def test_plafond_resident(self):
+        self.assertEqual(cm.plafond_resident_mo(8000), 8000)
+        # jamais sous le plancher : un calcul GPU doit pouvoir avancer
+        self.assertEqual(cm.plafond_resident_mo(100), cm.PLANCHER_RESIDENT_MO)
+        self.assertEqual(cm.plafond_resident_mo(0), cm.PLANCHER_RESIDENT_MO)
 
     def test_vram(self):
         self.assertEqual(cm.budget_vram_mo(14672, 5000), 9672)
@@ -123,10 +124,14 @@ ENFANT_RAM = textwrap.dedent(r'''
     import cloisonnement_memoire as cm
     cm.appliquer('test', cle='test_ram', budget_ram_fixe_mo=1024)
     cm.regime()
-    garde = bytearray(256 * cm.MO)        # tient sous le plafond
+    garde = bytearray(256 * cm.MO)
     print('ALLOC_256_OK', flush=True)
-    trop = bytearray(2048 * cm.MO)        # doit etre REFUSEE par Windows
-    print('INATTENDU : 2 Go alloues', flush=True)
+    gros = bytearray(2048 * cm.MO)        # au-dela du plafond : pagine, PAS refuse
+    for i in range(0, len(gros), 4096):
+        gros[i] = 1
+    cm._ajuster()                          # signal de limitation
+    p = cm.memoire_processus()
+    print('ALLOC_2G_OK ws=%d plafond=%d' % (p['ws_mo'], cm.etat()['ram_plafond_mo']), flush=True)
 ''')
 
 ENFANT_TORCH = textwrap.dedent(r'''
@@ -140,11 +145,14 @@ ENFANT_TORCH = textwrap.dedent(r'''
     a.fill_(1)
     print('ALLOC_256_OK', flush=True)
     b = torch.empty(3 * 1024 * cm.MO, dtype=torch.uint8)
-    print('INATTENDU : 3 Go alloues', flush=True)
+    b.fill_(1)                             # 3 Go touches sous un plafond de 1 Go
+    cm._ajuster()
+    p = cm.memoire_processus()
+    print('ALLOC_2G_OK ws=%d plafond=%d somme=%d' % (p['ws_mo'], cm.etat()['ram_plafond_mo'], int(b[::4096].sum())), flush=True)
 ''')
 
 
-@unittest.skipUnless(WINDOWS, 'Job Object : Windows seulement')
+@unittest.skipUnless(WINDOWS, 'plafond resident : Windows seulement')
 class PlafondReel(unittest.TestCase):
     def setUp(self):
         self.dossier = tempfile.mkdtemp(prefix='cloisonnement_')
@@ -165,54 +173,46 @@ class PlafondReel(unittest.TestCase):
             with open(lanceur, 'w', encoding='utf-8') as f:
                 f.write("const { execFile } = require('child_process');\n"
                         "const [py, ...args] = process.argv.slice(2);\n"
-                        "execFile(py, args, { windowsHide: true }, (e, out, err) => {\n"
+                        "execFile(py, args, { windowsHide: true, maxBuffer: 16 * 1024 * 1024 }, (e, out, err) => {\n"
                         "  process.stdout.write(out); process.stderr.write(err);\n"
                         "  process.exit(e ? (e.code || 1) : 0);\n"
                         "});\n")
             cmd = ['node', lanceur] + cmd
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
 
-    def _verifier_refus(self, r, type_attendu='ram'):
-        self.assertIn('ALLOC_256_OK', r.stdout, r.stdout + r.stderr)
-        self.assertNotIn('INATTENDU', r.stdout)
-        self.assertNotEqual(r.returncode, 0)
+    def _verifier_limite(self, r):
+        # Le travail VA AU BOUT : ni erreur, ni phrase de manque de memoire.
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('ALLOC_256_OK', r.stdout)
+        ligne = [l for l in r.stdout.splitlines() if l.startswith('ALLOC_2G_OK')]
+        self.assertTrue(ligne, r.stdout + r.stderr)
+        ws = int(ligne[0].split('ws=')[1].split()[0])
+        plafond = int(ligne[0].split('plafond=')[1].split()[0])
+        self.assertEqual(plafond, 1024)
+        self.assertLessEqual(ws, plafond + 16)             # memoire residente tenue sous le plafond
         for flux in (r.stdout, r.stderr):
-            info = _marqueur(flux, cm.MARQUEUR_MANQUE)
-            self.assertIsNotNone(info, flux)
-            self.assertEqual(info['type'], type_attendu)
-            self.assertIn('This generation needs about', flux)
-            self.assertIn('are available under your limit', flux)
-        plafond = [json.loads(l.split(' ', 1)[1]) for l in r.stdout.splitlines()
-                   if l.startswith(cm.MARQUEUR_PLAFOND + ' ')]
-        self.assertTrue(any(p['moment'] == 'regime' and p['ram_actif'] for p in plafond), r.stdout)
-        return info, [p for p in plafond if p['moment'] == 'regime'][0]
-
-    def test_1_go_demande_2_go_python(self):
-        r = self._lancer(ENFANT_RAM)
-        info, regime = self._verifier_refus(r)
-        self.assertIn('MemoryError', r.stderr)                 # la pile reste dans les journaux
-        self.assertEqual(info['dispo_go'], 1.0)
-        # MemoryError sans taille : le pic d'engagement de Windows compte les 2 Go refuses
-        self.assertGreaterEqual(info['besoin_go'], 2.2)        # 256 Mo gardes + 2 Go demandes
-        self.assertLessEqual(regime['ram_plafond_mo'], 1024 * cm.RATIO_ENGAGEMENT + cm.MARGE_MIN_MO)  # plafond ~ budget x 2 ; les 2 Go demandes (> 2 Go de plafond + pile) restent refuses
+            self.assertIsNone(_marqueur(flux, cm.MARQUEUR_MANQUE), flux)
+            self.assertNotIn('MemoryError', flux)
+        self.assertIsNotNone(_marqueur(r.stdout, cm.MARQUEUR_LIMITE), r.stdout)
+        plafonds = [json.loads(l.split(' ', 1)[1]) for l in r.stdout.splitlines()
+                    if l.startswith(cm.MARQUEUR_PLAFOND + ' ')]
+        self.assertTrue(any(p['moment'] == 'regime' and p['ram_actif'] for p in plafonds), r.stdout)
         with open(self.journal, encoding='utf-8') as f:
             lignes = [json.loads(l) for l in f if l.strip()]
-        self.assertEqual(lignes[-1]['cle'], 'test_ram')
-        self.assertEqual(lignes[-1]['issue'], 'memoire')
+        self.assertNotEqual(lignes[-1]['issue'], 'memoire')
+        self.assertTrue(lignes[-1].get('limite_atteinte'))
 
-    def test_1_go_demande_2_go_depuis_node(self):
+    def test_1_go_de_plafond_2_go_demandes_python(self):
+        self._verifier_limite(self._lancer(ENFANT_RAM))
+
+    def test_1_go_de_plafond_2_go_demandes_depuis_node(self):
         if shutil.which('node') is None:
             self.skipTest('node absent')
-        r = self._lancer(ENFANT_RAM, via_node=True)
-        self._verifier_refus(r)
+        self._verifier_limite(self._lancer(ENFANT_RAM, via_node=True))
 
     @unittest.skipUnless(AVEC_TORCH, 'torch absent')
     def test_allocateur_cpu_de_pytorch(self):
-        r = self._lancer(ENFANT_TORCH, timeout=300)
-        info, regime = self._verifier_refus(r)
-        self.assertIn('DefaultCPUAllocator', r.stderr)
-        # `import torch` engage ~1,5 Go sans les occuper : le decalage mesure les rend au budget.
-        self.assertGreater(regime['decalage_mo'], 300)
+        self._verifier_limite(self._lancer(ENFANT_TORCH, timeout=300))
 
 
 @unittest.skipUnless(AVEC_TORCH, 'torch / safetensors absents')

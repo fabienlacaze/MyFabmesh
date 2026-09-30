@@ -15,25 +15,32 @@ CE QUE FAIT CE MODULE. Il est importe EN TETE de chaque script GPU lourd, avant
 torch (le dossier du script n'est PAS sur sys.path dans le Python embarque, a
 cause du fichier ._pth : chaque script insere le sien avant l'import).
 
-1. RAM : plafond REEL par un « Job Object » Windows qui limite la memoire
-   ENGAGEE (commit) du processus et de ses enfants (JOB_OBJECT_LIMIT_JOB_MEMORY).
-   Budget = limite RAM de l'utilisateur - RAM occupee par tout le reste.
-   Au-dela, Windows REFUSE l'allocation : Python leve MemoryError, PyTorch
-   « DefaultCPUAllocator: not enough memory » — l'erreur est propre et rien
-   n'est pousse dans le fichier d'echange. Le plafond suit le budget toutes les
-   PERIODE_SUIVI_S secondes (un logiciel qui se libere rend de la place, un
-   qui grossit en reprend), sans jamais descendre sous ce que le processus a
-   deja engage.
-   Pourquoi PAS l'ancien plafond de working set (SetProcessWorkingSetSizeEx,
-   main.js) : il forcait Windows a sortir les pages CHAUDES vers le disque
-   (104 s par iteration au lieu de 1,4 s, AGENT_LOG 2026-06-14). Une limite
-   d'ENGAGEMENT ne pagine rien : elle refuse.
-   Engage != resident : MESURE du 2026-09-30 (Python 3.11, torch 2.7.1+cu128,
-   sans initialiser CUDA) : `import torch` engage 1 509 Mo pour 398 Mo
-   residents ; `import numpy` en engage ~750 pour ~100 residents. Ces
-   reservations ne deviennent jamais de la RAM. L'engagement non resident
-   constate a la fin de l'initialisation (« decalage ») est donc ajoute au
-   budget, sinon il amputerait le budget de ~1-2 Go pour rien.
+1. RAM : plafond de la memoire RESIDENTE (working set) de ce processus,
+   pose par SetProcessWorkingSetSizeEx(QUOTA_LIMITS_HARDWS_MAX_ENABLE).
+   Budget = limite RAM de l'utilisateur - RAM occupee par tout le reste,
+   jamais sous PLANCHER_RESIDENT_MO. Au-dela, Windows sort du processus ses
+   pages les moins utilisees (elles restent disponibles « en attente », puis
+   vont dans le fichier d'echange si la RAM manque) : le calcul RALENTIT, il
+   n'est JAMAIS arrete. Le plafond suit le budget toutes les PERIODE_SUIVI_S
+   secondes (un logiciel qui se libere rend de la place, un qui grossit en
+   reprend).
+   POURQUOI (2026-09-30, exigence de l'utilisateur : « mettre les limites ne
+   doit pas casser les generations ») : la version precedente plafonnait la
+   memoire ENGAGEE par un Job Object (JOB_OBJECT_LIMIT_JOB_MEMORY). Windows
+   REFUSAIT alors l'allocation et le code natif mourait sans message : image
+   (0xC0000005 dans c10.dll / torch_cpu.dll), rectification avant la 3D
+   (18 327 Mo pour un plafond de 18 330), serveur d'images de Detail++
+   (13 443 Mo pour 10 544) — alors que la RAM reellement occupee restait sous
+   le budget : le chargement d'un pipeline engage 1,5 a 2 fois plus qu'il
+   n'occupe. Mesure du plafond resident sur ce PC (test du 30/09) : 1 Go de
+   plafond, 3 Go alloues et relus en 2 s, aucune erreur, working set tenu a
+   1 024 Mo. Un plafond de working set par Job Object exige un droit
+   d'administrateur (erreur 1314) : il est pose sur le processus lui-meme,
+   qui n'en demande aucun. Il ne couvre pas les processus enfants.
+   L'ancien plafond de working set de main.js (104 s par iteration au lieu de
+   1,4 s, AGENT_LOG 2026-06-14) visait un pipeline dont les poids restaient
+   en RAM ; ici les poids vivent sur la carte et le plafond ne serre que le
+   chargement.
 2. VRAM : torch.cuda.set_per_process_memory_fraction((budget - contexte CUDA)
    / total), budget = limite VRAM de l'utilisateur - VRAM deja occupee par les
    AUTRES (nvidia-smi AVANT l'initialisation CUDA de ce processus) ; le
@@ -82,27 +89,23 @@ MARQUEUR_ETAPE = 'FABMESH_MEM_ETAPE'
 MARQUEUR_ALERTE = 'FABMESH_MEM_ALERTE'
 MARQUEUR_MANQUE = 'FABMESH_MEMOIRE_INSUFFISANTE'
 
-# Engagement accorde AU-DELA de l'existant pendant l'initialisation (import de
-# torch, contexte CUDA), tant que le « decalage » n'est pas mesure. VALEUR DE
-# CONCEPTION, pas une mesure : `import torch` seul engage deja 1,5 Go (mesure
-# ci-dessus) et le contexte CUDA n'a pas pu etre mesure sans GPU. Elle ne
-# joue que si le budget est plus petit ; chaque lancement journalise
-# l'engagement reel apres l'initialisation.
-MARGE_DEMARRAGE_MO = 4096
-# Au-dessus de ce qui est deja engage : de quoi lever et formuler l'erreur.
+# Plancher du plafond resident : en dessous, un calcul GPU ne peut plus avancer
+# (bibliotheques, contexte CUDA, tampons). Il ne joue que si les autres
+# logiciels occupent presque toute la limite.
+PLANCHER_RESIDENT_MO = 1024
+# Working set minimum demande a Windows avec le plafond (valeur basse, non garantie).
+MIN_RESIDENT_MO = 64
+# Au-dessus de ce qui est deja engage : de quoi lever et formuler une erreur.
 MARGE_MIN_MO = 256
-RATIO_ENGAGEMENT = 2.0
-# RATIO ENGAGEMENT / RESIDENT (mesure 2026-09-30, generation d'image locale : engagement final 12 855 Mo pour 8 664 Mo residents = 1,48, mais PIC TRANSITOIRE 15 241 Mo = 1,75 ; un plafond de 15 863 Mo a encore tue le processus, 20 657 Mo non => ratio 2,0). Le « decalage » mesure a l'initialisation
-# (2 089 Mo) sous-estimait l'engagement non resident atteint au chargement du pipeline (4 191 Mo) : le plafond tombait a 11 234 Mo < 12 855 Mo, et le processus MOURAIT
-# (violation d'acces native, sans message) alors que le PC avait la place. Le plafond d'engagement suit donc le budget RESIDENT x ce ratio : la reserve laissee au PC
-# (limite RAM = total - reserve) est tenue en memoire RESIDENTE, sans bloquer la generation.
 # Periode du suivi du budget (plafond RAM dynamique).
 PERIODE_SUIVI_S = 2.0
 # Un nouveau plafond n'est pose que s'il differe d'au moins ceci (evite de
 # rappeler Windows toutes les 2 s pour quelques Mo).
 HYSTERESIS_MO = 64
-# Alerte (une fois) quand l'engagement atteint cette part du plafond.
+# Signal (une fois) quand la memoire residente atteint cette part du plafond :
+# le calcul commence a etre limite (il ralentit, il n'est pas arrete).
 SEUIL_ALERTE = 0.9
+MARQUEUR_LIMITE = 'FABMESH_MEM_LIMITE'
 
 # Phrases montrees a l'utilisateur. ANGLAIS (langue source de l'interface),
 # ASCII (la sortie d'un sous-processus Windows n'est pas en UTF-8). Le
@@ -151,11 +154,9 @@ def budget_ram_mo(limite_mo, utilisee_systeme_mo, propre_ws_mo):
     return max(0.0, float(limite_mo) - autres)
 
 
-def plafond_engagement_mo(budget_mo, decalage_mo, engage_mo, marge_mo=MARGE_MIN_MO):
-    """Plafond d'ENGAGEMENT a poser : le budget (resident) plus l'engagement non
-    resident mesure a l'initialisation ; jamais sous l'engagement actuel + marge
-    (sinon la moindre allocation, meme celle du message d'erreur, echouerait)."""
-    return max(float(budget_mo) * RATIO_ENGAGEMENT, float(budget_mo) + max(0.0, float(decalage_mo)), float(engage_mo) + float(marge_mo))
+def plafond_resident_mo(budget_mo):
+    """Plafond de memoire residente a poser : le budget, jamais sous le plancher."""
+    return max(float(budget_mo), float(PLANCHER_RESIDENT_MO))
 
 
 def budget_vram_mo(limite_mo, utilisee_autres_mo):
@@ -280,6 +281,11 @@ if _WIN:
     _k32.SetInformationJobObject.restype = wintypes.BOOL
     _k32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
     _k32.AssignProcessToJobObject.restype = wintypes.BOOL
+    _k32.SetProcessWorkingSetSizeEx.argtypes = [wintypes.HANDLE, ctypes.c_size_t, ctypes.c_size_t, wintypes.DWORD]
+    _k32.SetProcessWorkingSetSizeEx.restype = wintypes.BOOL
+    _HARDWS_MIN_DISABLE = 0x2
+    _HARDWS_MAX_ENABLE = 0x4
+    _HARDWS_MAX_DISABLE = 0x8
 
 
 def memoire_systeme():
@@ -351,6 +357,28 @@ class _Job:
     def rattacher(self):
         if not _k32.AssignProcessToJobObject(self.h, _k32.GetCurrentProcess()):
             raise OSError(ctypes.get_last_error(), 'AssignProcessToJobObject')
+
+
+class _PlafondResident:
+    """Plafond de la memoire RESIDENTE de ce processus (voir l'en-tete, point 1) :
+    au-dela, Windows pagine le processus au lieu de refuser ses allocations."""
+
+    def __init__(self):
+        self.plafond_mo = None
+
+    def fixer(self, plafond_mo):
+        plafond_mo = plafond_resident_mo(plafond_mo)
+        if not _k32.SetProcessWorkingSetSizeEx(_k32.GetCurrentProcess(), int(MIN_RESIDENT_MO * MO),
+                                               int(plafond_mo * MO), _HARDWS_MAX_ENABLE | _HARDWS_MIN_DISABLE):
+            raise OSError(ctypes.get_last_error(), 'SetProcessWorkingSetSizeEx')
+        self.plafond_mo = float(plafond_mo)
+
+    def lever(self):
+        """Retire le plafond (tests, desactivation a chaud)."""
+        _k32.SetProcessWorkingSetSizeEx(_k32.GetCurrentProcess(), int(MIN_RESIDENT_MO * MO),
+                                        int((self.plafond_mo or PLANCHER_RESIDENT_MO) * MO),
+                                        _HARDWS_MAX_DISABLE | _HARDWS_MIN_DISABLE)
+        self.plafond_mo = None
 
 
 # ---------------------------------------------------------------------------
@@ -429,15 +457,11 @@ def appliquer(nom, cle=None, log=None, budget_ram_fixe_mo=None):
             if budget is None:
                 _log('aucune limite RAM definie (FABMESH_RAM_LIMIT_MB absent) : pas de plafond RAM')
             else:
-                # Allocation d'initialisation FIXE (au-dessus de l'engagement de depart) :
-                # elle ne suit pas la croissance du processus.
                 _etat['engage_depart_mo'] = proc['engage_mo']
-                plafond = max(budget, proc['engage_mo'] + MARGE_DEMARRAGE_MO)
                 try:
-                    job = _Job()
-                    job.fixer(plafond)
-                    job.rattacher()
-                    _etat.update(job=job, ram_actif=True, ram_budget_mo=budget, ram_plafond_mo=plafond)
+                    job = _PlafondResident()
+                    job.fixer(budget)
+                    _etat.update(job=job, ram_actif=True, ram_budget_mo=budget, ram_plafond_mo=job.plafond_mo)
                 except OSError as e:
                     _log(f'plafond RAM impossible ({e}) : avertissement seul, comme avant')
         _annoncer('demarrage')
@@ -516,10 +540,7 @@ def _ajuster(force=False):
             if not sysm or _etat.get('ram_limite_mo') is None:
                 return
             budget = budget_ram_mo(_etat['ram_limite_mo'], sysm['utilisee_mo'], proc['ws_mo'])
-        if _etat.get('phase') == 'regime':
-            plafond = plafond_engagement_mo(budget, _etat.get('decalage_mo') or 0.0, proc['engage_mo'])
-        else:
-            plafond = max(budget, (_etat.get('engage_depart_mo') or 0.0) + MARGE_DEMARRAGE_MO)
+        plafond = plafond_resident_mo(budget)
         if force or job.plafond_mo is None or abs(plafond - job.plafond_mo) >= HYSTERESIS_MO:
             try:
                 job.fixer(plafond)
@@ -527,13 +548,14 @@ def _ajuster(force=False):
                 _log(f'plafond RAM non deplace : {e}')
                 return
         _etat.update(ram_budget_mo=budget, ram_plafond_mo=job.plafond_mo)
-        if proc['engage_mo'] >= SEUIL_ALERTE * job.plafond_mo:
+        if proc['ws_mo'] >= SEUIL_ALERTE * job.plafond_mo:
             if not _etat.get('alerte'):
                 _etat['alerte'] = True
-                print(f'{MARQUEUR_ALERTE} ' + json.dumps({
-                    'engage_mo': round(proc['engage_mo']), 'plafond_mo': round(job.plafond_mo),
+                _etat['limite_atteinte'] = True
+                print(f'{MARQUEUR_LIMITE} ' + json.dumps({
+                    'ws_mo': round(proc['ws_mo']), 'plafond_mo': round(job.plafond_mo),
                     'budget_mo': round(budget)}), flush=True)
-        elif proc['engage_mo'] < 0.8 * job.plafond_mo:
+        elif proc['ws_mo'] < 0.8 * job.plafond_mo:
             _etat['alerte'] = False
 
 
@@ -562,9 +584,9 @@ def _annoncer(moment):
     if _etat.get('ram_actif'):
         origine = ('budget impose' if _etat.get('budget_fixe_mo') is not None
                    else f'limite {_etat.get("ram_limite_mo") or 0:.0f} - RAM des autres')
-        _log(f'plafond RAM ({moment}) : {_etat["ram_plafond_mo"]:.0f} Mo engages au plus '
-             f'(budget {_etat["ram_budget_mo"]:.0f} Mo = {origine} ; '
-             f'engage {d.get("engage_mo", 0)} Mo dont {d.get("ws_mo", 0)} residents)')
+        _log(f'plafond RAM ({moment}) : {_etat["ram_plafond_mo"]:.0f} Mo residents au plus, au-dela le calcul '
+             f'ralentit sans s\'arreter (budget {_etat["ram_budget_mo"]:.0f} Mo = {origine} ; '
+             f'{d.get("ws_mo", 0)} Mo residents, {d.get("engage_mo", 0)} Mo engages)')
 
 
 def mesurer(etape):
@@ -651,7 +673,7 @@ def _secours():
     actuel pour que la pile et le message puissent s'ecrire (jamais a la baisse)."""
     try:
         job, proc = _etat.get('job'), memoire_processus()
-        if job and proc and (job.plafond_mo or 0) < proc['engage_mo'] + 128:
+        if isinstance(job, _Job) and proc and (job.plafond_mo or 0) < proc['engage_mo'] + 128:
             job.fixer(proc['engage_mo'] + 128)
     except Exception:
         pass
@@ -842,6 +864,8 @@ def _ecrire_journal(issue):
               'vram_contexte_mo', 'pic_vram_reserve_mo', 'besoin_mo'):
         if _etat.get(k) is not None:
             ligne[k] = round(_etat[k])
+    if _etat.get('limite_atteinte'):
+        ligne['limite_atteinte'] = True     # le plafond resident a ralenti ce travail
     if _etat.get('manque'):
         ligne['manque'] = _etat['manque']      # unite de besoin_mo : 'ram' ou 'vram'
     try:

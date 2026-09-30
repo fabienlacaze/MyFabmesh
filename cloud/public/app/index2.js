@@ -25328,7 +25328,11 @@ window.addEventListener('drop', async (e) => {
   dropOverlay.classList.add('hidden');
   dropOverlay.classList.remove('drop-overlay-active');
   const files = Array.from(e.dataTransfer?.files || []);
-  if (files.length === 0) return;
+  if (files.length === 0) {
+    // Image glissee depuis un autre onglet (Gemini, ChatGPT...) sans le fichier : on le dit au lieu de ne rien faire (2026-09-30).
+    try { showToast(_i18nT('This site does not share the image file. Save the image first (right-click, Save image as), then drop the saved file.'), 'error', 6000); } catch (_) {}
+    return;
+  }
   const f = files[0];
   const kind = _detectDroppedKind(f);
   if (!kind) {

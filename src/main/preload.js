@@ -275,6 +275,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   importImageFile: (filePath) => ipcRenderer.invoke('import-image-file', filePath),
   importDroppedFile: (args) => ipcRenderer.invoke('import-dropped-file', args),
   downloadToTemp: (url) => ipcRenderer.invoke('download-to-temp', url),
+  saveDroppedImage: (o) => ipcRenderer.invoke('save-dropped-image', o),
   renameProject: (args) => ipcRenderer.invoke('rename-project', args),
   renameProjectFiles: (args) => ipcRenderer.invoke('rename-project-files', args),
   getProjectDisplayNames: () => ipcRenderer.invoke('get-project-display-names'),

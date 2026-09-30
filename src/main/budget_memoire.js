@@ -63,11 +63,15 @@ function lirePics(texte) {
     try { j = JSON.parse(ligne); } catch (_) { continue; }
     if (!j || !j.cle) continue;
     const prec = m.get(j.cle) || {};
-    if (j.issue === 'ok' && Number(j.pic_prive_mo) > 0) {
+    // RAM : pic de memoire RESIDENTE (pic_ws_mo), l'unite du plafond depuis le 2026-09-30 (scripts/cloisonnement_memoire.py) ;
+    // l'ancien pic d'ENGAGEMENT (pic_prive_mo) comptait les reservations jamais occupees et gonflait le besoin (13,2 Go annonces
+    // pour une 3D qui en occupe 5,1). Les refus RAM des anciennes lignes (issue 'memoire', manque 'ram') venaient du plafond
+    // d'engagement disparu : ignores.
+    if (j.issue === 'ok' && (Number(j.pic_ws_mo) > 0 || Number(j.pic_prive_mo) > 0)) {
       const vram = Number(j.pic_vram_reserve_mo) > 0
         ? Number(j.pic_vram_reserve_mo) + (Number(j.vram_contexte_mo) || 0) : null;
-      m.set(j.cle, { besoinMo: Number(j.pic_prive_mo), besoinVramMo: vram, issue: 'ok', date: j.date || null });
-    } else if (j.issue === 'memoire' && Number(j.besoin_mo) > 0) {
+      m.set(j.cle, { besoinMo: Number(j.pic_ws_mo) > 0 ? Number(j.pic_ws_mo) : Number(j.pic_prive_mo), besoinVramMo: vram, issue: 'ok', date: j.date || null });
+    } else if (j.issue === 'memoire' && Number(j.besoin_mo) > 0 && j.manque === 'vram') {
       const b = Number(j.besoin_mo);
       m.set(j.cle, j.manque === 'vram'
         ? { ...prec, besoinVramMo: Math.max(prec.besoinVramMo || 0, b), issue: 'memoire', date: j.date || null }
@@ -103,18 +107,19 @@ function phraseManque(type, besoinGo, dispoGo) {
     .replace('{x}', Number(besoinGo).toFixed(1)).replace('{y}', Number(dispoGo).toFixed(1));
 }
 
-/** Le travail tient-il ? RAM d'abord (c'est elle qui gele le PC), puis VRAM.
- *  Un budget inconnu (null) ne bloque pas. */
+/** Le travail tient-il ? Seule la VRAM peut faire ATTENDRE : un manque de RAM ne bloque plus (2026-09-30, « mettre les limites
+ *  ne doit pas casser les generations ») — le plafond RESIDENT fait ralentir le calcul au lieu de le refuser ; il est signale
+ *  par `ralenti`. Un budget inconnu (null) ne bloque pas. */
 function verdict({ besoinRamMo, budgetRamMo: bRam, besoinVramMo, budgetVramMo: bVram }) {
+  let ralenti = null;
   if (besoinRamMo != null && bRam != null && besoinRamMo > bRam) {
-    const besoinGo = versGo(besoinRamMo), dispoGo = versGo(bRam, 'bas');
-    return { ok: false, type: 'ram', besoinGo, dispoGo, phrase: phraseManque('ram', besoinGo, dispoGo) };
+    ralenti = { type: 'ram', besoinGo: versGo(besoinRamMo), dispoGo: versGo(Math.max(0, bRam), 'bas') };
   }
   if (besoinVramMo != null && bVram != null && besoinVramMo > bVram) {
     const besoinGo = versGo(besoinVramMo), dispoGo = versGo(bVram, 'bas');
-    return { ok: false, type: 'vram', besoinGo, dispoGo, phrase: phraseManque('vram', besoinGo, dispoGo) };
+    return { ok: false, type: 'vram', besoinGo, dispoGo, phrase: phraseManque('vram', besoinGo, dispoGo), ralenti };
   }
-  return { ok: true };
+  return { ok: true, ralenti };
 }
 
 /** Phrase de manque de memoire ecrite par un script (marqueur
