@@ -436,7 +436,8 @@ def download_esrgan(item_id, expected_mb, total_done_mb_ref):
     """Real-ESRGAN weights come from GitHub releases, not HF."""
     url = ('https://github.com/xinntao/Real-ESRGAN/releases/'
            'download/v0.1.0/RealESRGAN_x4plus.pth')
-    target_dir = os.path.expanduser('~/.cache/realesrgan_weights')
+    # Dossier donne par l'appli (dans son dossier de donnees, efface a la desinstallation — 2026-09-30).
+    target_dir = os.environ.get('FABMESH_REALESRGAN_DIR') or os.path.expanduser('~/.cache/realesrgan_weights')
     os.makedirs(target_dir, exist_ok=True)
     target = os.path.join(target_dir, 'RealESRGAN_x4plus.pth')
     if os.path.isfile(target) and os.path.getsize(target) > 60 * 1024 * 1024:

@@ -22790,17 +22790,17 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
     } catch (_) {}
   })();
 
-  /* Le texte de la fiche « Uninstall » depend de la livraison : seul le
-   * desinstalleur NSIS pose les trois questions (modeles, contenu genere,
-   * reglages). Sous MSIX, on renvoie vers les Parametres de Windows. */
+  /* Le texte de la fiche « Uninstall » et de l'aide « A propos » depend de la livraison
+   * (2026-09-30) : sous MSIX, Windows ne retire que l'application — les donnees se suppriment
+   * d'abord ici, puis Parametres > Applications. */
   (async () => {
     try {
-      const d = document.getElementById('set-uninstall-desc');
-      if (!d) return;
+      if (!(await window.meshyAPI?.isStoreBuild?.())) return;
       const T = (x) => (typeof _i18nT === 'function' ? _i18nT(x) : x);
-      d.textContent = (await window.meshyAPI?.isStoreBuild?.())
-        ? T('Opens Windows Settings, where you can remove MyFabmesh.AI. Downloaded AI models can be deleted first from the Storage section above. Your generated meshes folder is never touched.')
-        : T('Remove MyFabmesh.AI from your computer. You will be asked whether to also delete the AI models and your settings. Your generated meshes folder is never touched.');
+      const d = document.getElementById('set-uninstall-desc');
+      if (d) d.textContent = T('Removes the AI engine, the downloaded models, the caches and the settings (you choose whether to keep your projects). Then remove the app itself in Windows Settings > Apps.');
+      const a = document.getElementById('about-desinstaller-texte');
+      if (a) a.textContent = T('Windows Settings > Apps only removes the app itself. First use Settings > Installation > Remove all MyFabmesh data: it deletes the AI engine, the downloaded models, the caches and the settings (and, if you want, your projects), including folders on other drives.');
     } catch (_) {}
   })();
 
@@ -23004,63 +23004,179 @@ document.getElementById('set-reconfigure')?.addEventListener('click', async () =
   }
 });
 
-// Uninstall MyFabmesh.AI: ONE nice in-app popup asks everything (confirm +
-// the 3 delete choices). The Windows uninstaller is then run SILENTLY (/S) —
-// no ugly native dialogs. Choices travel to the uninstaller via env vars.
-function _openUninstallModal() {
-  const OPTS = [
-    { id: 'models', en: 'Delete the AI models (~17 GB)', sub: 'Re-downloadable — keep to reinstall without downloading again.' },
-    { id: 'generated', en: 'Delete my generated content', sub: 'Your projects, source images and 3D meshes.' },
-    { id: 'settings', en: 'Delete my settings', sub: 'Config and logs.' },
-  ];
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:10200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:440px;width:92%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
-    const rows = OPTS.map((o) =>
-      `<label style="display:flex;gap:10px;align-items:flex-start;padding:9px 10px;margin-bottom:7px;border:1px solid #33363d;border-radius:8px;cursor:pointer;">
-         <input type="checkbox" data-opt="${o.id}" checked style="margin-top:2px;width:16px;height:16px;flex:none;">
-         <span><span style="font-size:13.5px;font-weight:500;">${_escapeHtml(_i18nT(o.en))}</span><br><span style="font-size:11.5px;opacity:.65;">${_escapeHtml(_i18nT(o.sub))}</span></span>
-       </label>`).join('');
-    box.innerHTML =
-      `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#128465; ${_escapeHtml(_i18nT('Uninstall MyFabmesh.AI'))}</div>` +
-      `<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:14px;">${_escapeHtml(_i18nT('This removes the app. Optionally, also delete:'))}</div>` +
-      rows +
-      `<div style="font-size:11.5px;opacity:.6;margin:4px 0 14px;">${_escapeHtml(_i18nT('Uncheck an item to keep it after uninstalling.'))}</div>` +
-      `<div style="display:flex;gap:10px;justify-content:flex-end;">` +
-        `<button id="unins-cancel" class="ghost-btn" style="padding:8px 16px;">${_escapeHtml(_i18nT('Cancel'))}</button>` +
-        `<button id="unins-go" class="primary-btn" style="padding:8px 16px;background:#c0392b;border-color:#c0392b;">${_escapeHtml(_i18nT('Uninstall'))}</button></div>`;
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-    function cleanup(v) { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); }
-    function onKey(e) { if (e.key === 'Escape') cleanup(null); }
-    box.querySelector('#unins-cancel').addEventListener('click', () => cleanup(null));
-    box.querySelector('#unins-go').addEventListener('click', () => {
-      const pick = (id) => !!box.querySelector(`input[data-opt="${id}"]`)?.checked;
-      cleanup({ models: pick('models'), generated: pick('generated'), settings: pick('settings') });
-    });
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
-    document.addEventListener('keydown', onKey);
-  });
+/* ═══ REMOVE ALL MYFABMESH DATA (2026-09-30, user : « vraiment desinstaller tout MyFabmesh
+ * (modeles, appli, ...) ») ═══
+ * Fenetre de validation #modal-suppr-donnees : inventaire avec tailles (rien n'est supprime avant
+ * « Delete »), projets gardes par defaut, arret des moteurs, suppression avec progression, puis
+ * desinstallation de l'appli (NSIS : desinstalleur silencieux qui recoit le choix des projets) ou
+ * Parametres > Applications (Store, qui ne peut lancer aucun script de desinstallation). Remplace la
+ * petite fenetre aux trois cases (modeles / contenus / reglages) qui passait ses choix au desinstalleur
+ * par des variables d'environnement et ne touchait ni au moteur ni aux dossiers deplaces.
+ * Processus principal : donnees:inventaire / donnees:supprimer (src/main/desinstallation.js). */
+let _sddEtat = null;
+function _sddT(s) { return (typeof _i18nT === 'function') ? _i18nT(s) : s; }
+function _sddTf(s, ...a) { return (typeof _i18nTf === 'function') ? _i18nTf(s, ...a) : s; }
+// Unites de l'Explorateur Windows (1 Go = 1024^3), pour que les tailles se comparent a ce qu'il affiche.
+function _sddTaille(octets) {
+  const n = Number(octets) || 0;
+  const GO = 1024 ** 3, MO = 1024 ** 2;
+  let lang = 'en';
+  try { lang = (window.FabI18n && FabI18n.lang) || 'en'; } catch (_) {}
+  const f = (v, d) => { try { return new Intl.NumberFormat(lang, { maximumFractionDigits: d }).format(v); } catch (_) { return v.toFixed(d); } };
+  if (n >= GO) return f(n / GO, 1) + ' ' + _sddT('GB');
+  if (n >= MO) return f(n / MO, 0) + ' ' + _sddT('MB');
+  return (n > 0 ? '< 1 ' : '0 ') + _sddT('MB');
 }
-
-document.getElementById('set-uninstall')?.addEventListener('click', async () => {
-  const choices = await _openUninstallModal();
-  if (!choices) return;  // annulé
-  try {
-    const r = await window.meshyAPI.uninstallFabmesh(choices);
-    if (r && r.ok) {
-      // Le désinstalleur tourne en SILENCIEUX (/S) → sans ce toast, l'user
-      // croit qu'il ne se passe rien. En packagé l'app se ferme aussi.
-      showToast(_i18nT('Uninstalling MyFabmesh.AI… (running silently)'), 'success', 7000);
-    } else {
-      showToast((r && r.error) || 'Uninstall failed', 'warning', 8000);
-    }
-  } catch (e) {
-    showToast('Uninstall failed: ' + e.message, 'error');
+function _sddEl(id) { return document.getElementById(id); }
+function _sddTotal() {
+  const inv = _sddEtat && _sddEtat.inventaire;
+  if (!inv || !inv.resume) return 0;
+  const r = inv.resume;
+  return r.moteur.octets + r.reglages.octets
+    + (_sddEl('sdd-projets')?.checked ? r.projets.octets + r.config.octets : 0)
+    + (_sddEl('sdd-partage')?.checked && r.partage ? r.partage.octets : 0);
+}
+function _sddMajBouton() {
+  const go = _sddEl('sdd-supprimer');
+  if (!go || !_sddEtat || _sddEtat.etape !== 'choix') return;
+  go.textContent = _sddEtat.inventaire ? _sddTf('Delete {x}', _sddTaille(_sddTotal())) : _sddT('Delete');
+}
+function _sddFermer() {
+  if (_sddEtat && _sddEtat.etape === 'progression') return;      // pas d'abandon en pleine suppression
+  _sddEl('modal-suppr-donnees')?.classList.add('hidden');
+  _sddEtat = null;
+}
+function _sddEtape(etape) {
+  _sddEtat.etape = etape;
+  _sddEl('sdd-etape-choix').hidden = etape !== 'choix';
+  _sddEl('sdd-etape-progression').hidden = etape !== 'progression';
+  _sddEl('sdd-etape-fin').hidden = etape !== 'fin';
+}
+async function _sddOuvrir() {
+  const m = _sddEl('modal-suppr-donnees');
+  if (!m || !window.meshyAPI?.donneesInventaire) return;
+  _sddEtat = { etape: 'choix', inventaire: null, supprimerProjets: false };
+  _sddEtape('choix');
+  _sddEl('sdd-mesure').hidden = false;
+  _sddEl('sdd-liste').hidden = true;
+  _sddEl('sdd-note').hidden = true;
+  _sddEl('sdd-projets').checked = false;
+  _sddEl('sdd-partage').checked = false;
+  _sddEl('sdd-partage-ligne').hidden = true;
+  const annuler = _sddEl('sdd-annuler');
+  const go = _sddEl('sdd-supprimer');
+  annuler.hidden = false; annuler.disabled = false; annuler.textContent = _sddT('Cancel');
+  annuler.onclick = _sddFermer;
+  go.hidden = false; go.disabled = true; go.className = 'primary-btn danger'; go.textContent = _sddT('Delete');
+  go.onclick = _sddSupprimer;
+  m.classList.remove('hidden');
+  const etat = _sddEtat;
+  let inv;
+  try { inv = await window.meshyAPI.donneesInventaire(); } catch (e) { inv = { ok: false, error: e.message }; }
+  if (_sddEtat !== etat) return;                                   // fenetre fermee pendant la mesure
+  _sddEl('sdd-mesure').hidden = true;
+  const note = _sddEl('sdd-note');
+  if (!inv || !inv.ok) {
+    note.textContent = _sddT('Could not measure the data:') + ' ' + ((inv && inv.error) || '');
+    note.hidden = false;
+    return;
   }
+  etat.inventaire = inv;
+  const r = inv.resume;
+  _sddEl('sdd-moteur-taille').textContent = _sddTaille(r.moteur.octets);
+  _sddEl('sdd-reglages-taille').textContent = _sddTaille(r.reglages.octets);
+  _sddEl('sdd-projets-taille').textContent = _sddTaille(r.projets.octets + r.config.octets);
+  const partage = (r.partage && r.partage.octets) || 0;         // proposee seulement s'il y a quelque chose
+  _sddEl('sdd-partage-taille').textContent = _sddTaille(partage);
+  _sddEl('sdd-partage-ligne').hidden = partage <= 0;
+  const deplaces = inv.dossiersDeplaces || [];
+  _sddEl('sdd-moteur-detail').textContent = _sddT('AI engine, models and their caches.')
+    + (deplaces.length ? ' ' + _sddTf('Including {x}', deplaces.join(', ')) : '');
+  _sddEl('sdd-liste').hidden = false;
+  const notes = [];
+  if (inv.refus && inv.refus.length) {
+    notes.push(_sddT('Left in place (not recognized as a MyFabmesh folder, delete it yourself if needed):')
+      + '\n' + inv.refus.map((x) => x.chemin).join('\n'));
+  }
+  if (inv.mode === 'dev') notes.push(_sddT('Disabled when MyFabmesh.AI runs from its source code: it would delete the data of the installed app.'));
+  if (notes.length) { note.textContent = notes.join('\n\n'); note.hidden = false; }
+  _sddMajBouton();
+  go.disabled = inv.mode === 'dev';
+}
+async function _sddSupprimer() {
+  const etat = _sddEtat;
+  if (!etat || !etat.inventaire || etat.etape !== 'choix') return;
+  etat.supprimerProjets = !!_sddEl('sdd-projets')?.checked;
+  etat.supprimerPartages = !!_sddEl('sdd-partage')?.checked;
+  _sddEtape('progression');
+  _sddEl('sdd-progression-texte').textContent = _sddT('Stopping the AI engine…');
+  _sddEl('sdd-barre').style.width = '0%';
+  _sddEl('sdd-progression-octets').textContent = '';
+  const annuler = _sddEl('sdd-annuler');
+  const go = _sddEl('sdd-supprimer');
+  annuler.disabled = true; go.disabled = true;
+  let r;
+  try { r = await window.meshyAPI.donneesSupprimer({ supprimerProjets: etat.supprimerProjets, supprimerPartages: etat.supprimerPartages }); }
+  catch (e) { r = { ok: false, error: e.message }; }
+  _sddEtape('fin');
+  const titre = _sddEl('sdd-fin-titre');
+  const texte = _sddEl('sdd-fin-texte');
+  const note = _sddEl('sdd-fin-note');
+  note.hidden = true;
+  annuler.disabled = false; go.disabled = false;
+  if (!r || !r.ok) {
+    titre.textContent = _sddT('The data could not be removed.');
+    texte.textContent = (r && r.error) || '';
+    annuler.textContent = _sddT('Close'); annuler.onclick = _sddFermer;
+    go.hidden = true;
+    return;
+  }
+  titre.textContent = _sddTf('Done: {x} freed.', _sddTaille(r.liberes));
+  if (r.echecs > 0) {
+    note.textContent = _sddTf('{x} items in use were left in place: they are removed when the app is uninstalled.', r.echecs);
+    note.hidden = false;
+  }
+  annuler.textContent = _sddT('Restart the app');
+  annuler.onclick = () => { window.meshyAPI?.restartApp?.(); };
+  if (r.mode === 'nsis') {
+    texte.textContent = _sddT('Last step: uninstall the app itself. MyFabmesh.AI then closes and finishes uninstalling in the background (about a minute).');
+    go.className = 'primary-btn danger';
+    go.textContent = _sddT('Uninstall the app');
+    go.onclick = async () => {
+      go.disabled = true; annuler.disabled = true;
+      let u;
+      try { u = await window.meshyAPI.uninstallFabmesh({ supprimerProjets: etat.supprimerProjets }); }
+      catch (e) { u = { ok: false, error: e.message }; }
+      if (u && u.ok) {
+        texte.textContent = _sddT('MyFabmesh.AI is closing and finishes uninstalling in the background.');
+      } else {
+        go.disabled = false; annuler.disabled = false;
+        showToast((u && u.error) || _sddT('Uninstall failed'), 'warning', 8000);
+      }
+    };
+  } else if (r.mode === 'store') {
+    texte.textContent = _sddT('Last step: remove the app itself in Windows Settings > Apps > Installed apps > MyFabmesh.AI > Uninstall.');
+    go.className = 'primary-btn';
+    go.textContent = _sddT('Open Windows Settings');
+    go.onclick = () => { window.meshyAPI?.ouvrirApplisWindows?.(); };
+  } else {
+    texte.textContent = _sddT('MyFabmesh.AI must restart.');
+    go.hidden = true;
+  }
+}
+window.meshyAPI?.onDonneesProgression?.((p) => {
+  if (!_sddEtat || _sddEtat.etape !== 'progression' || !p) return;
+  _sddEl('sdd-progression-texte').textContent = p.etape === 'arret'
+    ? _sddT('Stopping the AI engine…') : _sddT('Deleting…');
+  const pct = p.total > 0 ? Math.min(100, Math.round((p.octets || 0) * 100 / p.total)) : 0;
+  _sddEl('sdd-barre').style.width = pct + '%';
+  _sddEl('sdd-progression-octets').textContent = _sddTf('{x} of {y}', _sddTaille(p.octets || 0), _sddTaille(p.total || 0));
 });
+_sddEl('sdd-projets')?.addEventListener('change', _sddMajBouton);
+_sddEl('sdd-partage')?.addEventListener('change', _sddMajBouton);
+_sddEl('sdd-fermer')?.addEventListener('click', _sddFermer);
+_sddEl('set-uninstall')?.addEventListener('click', () => { _sddOuvrir(); });
+_sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); });
 
 // ============================================================
 // CALIBRATION panel wiring

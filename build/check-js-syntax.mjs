@@ -44,6 +44,7 @@ const LIVRES = [
   'src/main/main.js',
   'src/main/preload.js',
   'src/main/cloud_fallback.js',
+  'src/main/desinstallation.js',
   'cloud/public/app/index2.js',
   'cloud/public/app/index2-edit-tools.js',
   'cloud/public/app/meshyAPI-cloud.js',
