@@ -678,6 +678,7 @@ function customConfirm(message, title = 'Confirm', okLabel = 'Delete') {
     titleEl.textContent = title;
     msgEl.textContent = message;
     okBtn.textContent = okLabel;
+    msgEl.style.whiteSpace = 'pre-line';     // les fenetres a plusieurs lignes (liste de projets bloques)
     // Bump above the landmarks fullscreen (9600) and 3D lightbox (9500).
     // Restored in cleanup() so we don't pollute unrelated modals.
     const _prevZ = modal.style.zIndex;
@@ -1100,49 +1101,82 @@ async function _getNsfwKeywords() {
 const _nsfwScanCache = {};
 let _nsfwScanRunning = false;
 
-async function _isProjectNSFW(p) {
-  // 1. Check name + prompt against keyword list (instant, no IPC)
+/** POURQUOI un projet est bloque par le filtre de contenu (2026-09-30, user : « il faut une popup pour prevenir quand un element genere est bloque par le
+ *  filtre NSFW, et dire pourquoi c'est bloque »). Renvoie null (non bloque) ou { type, ... } :
+ *    { type: 'mot', mot }      le NOM ou la DESCRIPTION contient un mot de la liste (mots entiers)
+ *    { type: 'image', fichier } l'analyse d'image (etiquette .nsfw ou analyse ViT) a signale une image du projet */
+async function _nsfwRaison(p) {
+  // 1. Nom + description contre la liste de mots (mots entiers : « ass » n'est pas dans « masse »)
   const keywords = await _getNsfwKeywords();
   const text = ((p.name || '') + ' ' + (p.prompt || '')).toLowerCase();
-  // MOTS ENTIERS (2026-09-30, test d'installation de zero : le projet « Mobilier design » disparaissait de la liste). L'ancien test par sous-chaine
-  // (`text.includes(kw)`) voyait « ass » dans « m-ass-e » (« table basse coupee dans la masse ») et cachait le projet avec le controle parental actif.
-  // Meme regle que la creation du projet (np-create) : limites de mots, expressions a plusieurs mots comprises.
   const _echapper = (s) => String(s).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (keywords.some(kw => new RegExp('\\b' + _echapper(kw) + '\\b').test(text))) return true;
+  const mot = keywords.find(kw => new RegExp('\\b' + _echapper(kw) + '\\b').test(text));
+  if (mot) return { type: 'mot', mot };
 
-  // 2. Check for .nsfw tag files in the project folder (instant, 1 readdir)
+  // 2. Etiquettes .nsfw posees dans le dossier du projet (un readdir)
   if (p.images && p.images.length > 0) {
     const firstImg = p.images[0].path || p.images[0];
     if (firstImg && API.checkProjectNsfw) {
       const folder = firstImg.replace(/[/\\][^/\\]+$/, '');
       try {
         const r = await API.checkProjectNsfw({ folderPath: folder });
-        if (r?.nsfw) return true;
+        if (r?.nsfw) return { type: 'image', fichier: String(firstImg).split(/[/\\]/).pop() };
       } catch (_) {}
     }
   }
 
-  // 3. Fallback: check ViT scan cache (populated by background scan)
+  // 3. Cache de l'analyse ViT (rempli par le balayage en arriere-plan)
   for (const img of (p.images || [])) {
     const imgPath = img.path || img;
     if (!imgPath) continue;
     const fname = imgPath.split(/[/\\]/).pop();
-    if (_nsfwScanCache[fname]) return true;
+    if (_nsfwScanCache[fname]) return { type: 'image', fichier: fname };
   }
-  // 4. Check the displayed THUMBNAIL too — covers mesh-only projects (0
-  //    images) whose card thumb is a NSFW source image, which the images[]
-  //    checks above would otherwise miss.
+  // 4. Miniature affichee (projets sans image, dont la vignette vient d'un maillage)
   if (p.thumb) {
     const tname = String(p.thumb).split(/[/\\]/).pop();
-    if (_nsfwScanCache[tname]) return true;
+    if (_nsfwScanCache[tname]) return { type: 'image', fichier: tname };
     if (API.checkImagesNsfwTags) {
       try {
         const tags = await API.checkImagesNsfwTags({ images: [String(p.thumb)] });
-        if (tags && tags[String(p.thumb)]) return true;
+        if (tags && tags[String(p.thumb)]) return { type: 'image', fichier: tname };
       } catch (_) {}
     }
   }
-  return false;
+  return null;
+}
+async function _isProjectNSFW(p) { return !!(await _nsfwRaison(p)); }
+
+function _nsfwPhraseRaison(r) {
+  if (!r) return '';
+  return r.type === 'mot'
+    ? `its name or description contains the word "${r.mot}"`
+    : `the image analysis flagged the image "${r.fichier}" as sensitive content`;
+}
+// Projets deja signales dans cette session (une fenetre par projet, pas a chaque redessin de la grille).
+const _nsfwAvertis = new Set();
+let _nsfwFenetreOuverte = false;
+/** Fenetre « Content blocked » (meme fenetre que celle des images importees) : dit QUELS projets sont caches et POURQUOI, propose Unlock. */
+async function _nsfwAvertirMasques(masques, reloadFn) {
+  const nouveaux = masques.filter(m => !_nsfwAvertis.has(m.p.name));
+  if (!nouveaux.length || _nsfwFenetreOuverte) return;
+  nouveaux.forEach(m => _nsfwAvertis.add(m.p.name));
+  _nsfwFenetreOuverte = true;
+  try {
+    const lignes = nouveaux.slice(0, 5).map(m => `• "${m.p.displayName || m.p.name}": ${_nsfwPhraseRaison(m.raison)}`);
+    if (nouveaux.length > 5) lignes.push(`… and ${nouveaux.length - 5} more`);
+    const message = (nouveaux.length === 1 ? 'A project is hidden by the content filter (parental control):' : nouveaux.length + ' projects are hidden by the content filter (parental control):')
+      + '\n\n' + lignes.join('\n')
+      + '\n\nUnlock the content filter to see ' + (nouveaux.length === 1 ? 'it' : 'them')
+      + ', or edit the name/description if the word is a false alarm.';
+    const ok = await customConfirm(message, 'Content blocked', 'Unlock');
+    if (!ok) return;
+    try { await toggleParentalControl(); } catch (_) {}
+    try {
+      const ps2 = API.getParentalStatus ? await API.getParentalStatus() : null;
+      if (ps2 && ps2.unrestricted && reloadFn) await reloadFn();
+    } catch (_) {}
+  } finally { _nsfwFenetreOuverte = false; }
 }
 
 // Background scan: runs once after page load, scans ALL project thumbnails
@@ -1583,9 +1617,12 @@ async function renderProjectsGrid() {
 
   let visibleProjects = state.projects;
   if (restricted) {
-    const checks = await Promise.all(state.projects.map(p => _isProjectNSFW(p)));
+    const raisons = await Promise.all(state.projects.map(p => _nsfwRaison(p)));
     if (myGen !== _renderProjectsGen) return; // superseded by a newer render
-    visibleProjects = state.projects.filter((_, i) => !checks[i]);
+    visibleProjects = state.projects.filter((_, i) => !raisons[i]);
+    // Un projet CACHE ne doit pas disparaitre en silence : fenetre « Content blocked » qui dit lequel et pourquoi (une fois par projet et par session)
+    const masques = state.projects.map((p, i) => ({ p, raison: raisons[i] })).filter(m => m.raison);
+    if (masques.length) _nsfwAvertirMasques(masques, () => refreshProjectsPage());
   }
 
   // Apply search filter
@@ -2771,6 +2808,14 @@ function bindStepCardCollapse() {
     header.addEventListener('click', (e) => {
       // Don't toggle if user clicked the status badge or any inner button
       if (e.target.closest('button')) return;
+      // ANIMATION VERROUILLEE tant qu'aucun rig n'existe (user, 2026-09-30 : « je n'ai jamais genere d'animation mais le menu est debloque »).
+      if (card.id === 'step-card-animation' && card.classList.contains('collapsed')) {
+        const _p = state.currentProject;
+        if (!_p || !((_p.rigs && _p.rigs.length) || (_p.animations && _p.animations.length))) {
+          showToast('Generate a rig first (step 3): animations need a rigged model.', 'info', 3500);
+          return;
+        }
+      }
       card.classList.toggle('collapsed');
     });
   });

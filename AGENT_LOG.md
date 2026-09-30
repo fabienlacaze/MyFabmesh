@@ -24451,3 +24451,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Assistant : rectification automatique + type d'asset faux sur une installation neuve
 - main.js : la rectification automatique (et « enhance texture ») lancait le .venv de developpement (absent installe) -> « auto-rectify failed » ; utilisent maintenant le moteur provisionne (_aiPython) quand l'appli est installee, et proc?.stdout.
 - index2.js bureau : _autoDetectAssetType prenait « masse » (« coupee dans la masse ») pour une arme (mace) -> assetType=weapon pour un projet Prop ; seul « masse d'armes » compte. Bureau + web : le type / style du marqueur de projet vide sont reportes sur le projet reel quand le doublon est retire.
+
+## 2026-09-30 — Assistant : fenetre « Content blocked » avec la raison + etape Animation verrouillee sans rig
+- Filtre de contenu : un projet cache par le controle parental disparaissait EN SILENCE. Nouveau _nsfwRaison (mot de la liste dans le nom/description, ou image signalee par l'analyse) ; renderProjectsGrid ouvre la fenetre « Content blocked » (Unlock) qui liste quels projets sont caches et POURQUOI, une fois par projet et par session. customConfirm garde les retours a la ligne. Bureau + web. Teste : mot « ass » -> raison mot ; image ref_9 -> raison image ; « masse » -> aucun blocage.
+- Etape Animation : la carte ne s'ouvre plus (toast « Generate a rig first ») tant que le projet n'a ni rig ni animation.
