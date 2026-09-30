@@ -4074,6 +4074,10 @@ ipcMain.handle('read-bones-json', async (_event, targetName) => {
 function _rigLocalDisponible() {
   try { return !!_moteurRigLocal(); } catch { return false; }
 }
+// Le renderer affiche le prix du rig quand il partira sur le cloud : mode
+// Cloud, OU mode Local sans moteur de rig (bascule `basculeCloud` de
+// auto-rig-ai ci-dessous, facturee comme en mode Cloud) — 2026-09-30.
+ipcMain.handle('rig-local-disponible', () => _rigLocalDisponible());
 
 /** Le moteur de rig local, s'il est COMPLET : { py, racine } ou null.
  *  1. installe par l'assistant (paquet) : env python-rig + SkinTokens sous
@@ -5271,6 +5275,27 @@ ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed,
     const base = safeBase(path.basename(imagePath, ext));
     const _uniq = (seed != null && seed !== '') ? seed : Math.floor(Math.random() * 1e9);
     const newImagePath = path.join(dir, `${base}_texvar_${Date.now()}_${_uniq}${ext}`);
+    // Mode Cloud : /api/tex-variant (tarif `tex_variant` de la grille), meme
+    // contrat de sortie. Ce handler restait LOCAL meme en mode Cloud : Age et
+    // la variante « forme gardee » echouaient sans moteur local (ou tournaient
+    // gratuitement en local) alors que l'interface annoncait un prix cloud.
+    // Corps identique au site (meshyAPI-cloud.js texVariant).
+    if (isCloudMode()) {
+      const r = await cloudFallback.imageOp({
+        endpoint: '/api/tex-variant', srcPath: imagePath, outPath: newImagePath,
+        extraBody: {
+          prompt: prompt || '',
+          strength: (strength != null ? strength : 0.45),
+          seed: Number.isFinite(Number(_uniq)) ? Number(_uniq) : 0,
+          cnScale: (cnScale != null ? cnScale : 0.45),
+          ...(negPrompt ? { negPrompt } : {}),
+          gris: Math.max(0, Math.min(1, Number(gris) || 0)),
+          motifs: Math.max(0, Math.min(1, Number(motifs) || 0)),
+        },
+      });
+      if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
+      return r.success ? { success: true, newPath: r.newPath } : r;
+    }
     if (!_localPyLibsUsable()) {
       return { success: false, cloudUnavailable: true, error: _localEngineMsg('Texture-only variant') };
     }
@@ -5300,6 +5325,24 @@ ipcMain.handle('recolor', async (event, { imagePath, prompt, strength, dilate, r
     const ext = path.extname(imagePath);
     const base = safeBase(path.basename(imagePath, ext));
     const newImagePath = path.join(dir, `${base}_recolor_${Date.now()}${ext}`);
+    // Mode Cloud : /api/recolor (tarif `recolor` de la grille), meme contrat de
+    // sortie — meme raison que tex-variant ci-dessus. `rel` (precision de
+    // detection) n'existe pas cote worker, comme pour auto-inpaint. Une matiere
+    // (« rusty metal ») au lieu d'une couleur : le worker rend 422, credits
+    // rembourses, et son message le dit. Corps identique au site.
+    if (isCloudMode()) {
+      const r = await cloudFallback.imageOp({
+        endpoint: '/api/recolor', srcPath: imagePath, outPath: newImagePath,
+        extraBody: {
+          prompt: prompt || '',
+          strength: (strength != null ? strength : 1.0),
+          dilate: (dilate != null ? dilate : 15),
+          recolorAll: !!recolorAll,
+        },
+      });
+      if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
+      return r.success ? { success: true, newPath: r.newPath } : r;
+    }
     await ensureSdxlServer();
     if (!sdxlReady) return { success: false, error: 'SDXL server failed to start. Try again in a few seconds.' };
     const r = await sdxlServerCall('/recolor', {

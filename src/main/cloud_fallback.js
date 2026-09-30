@@ -333,7 +333,7 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
   // deux fois (60 s + 90 s) avant de répondre, donc une tentative légitime
   // peut durer ~350 s — l'ancien AbortController de 300 s tuait une requête
   // que le worker était sur le point de satisfaire.
-  const attempt = async () => {
+  const attempt = async (n) => {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 10 * 60 * 1000);
     let resp, data;
@@ -346,7 +346,7 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
         },
         body: JSON.stringify({
           prompt,                          // prompt déjà enrichi par le desktop
-          numImages: Math.max(1, Math.min(4, Number(numImages) || 1)),
+          numImages: n,                    // 1 à 4 : plafond du worker par appel
           asset_type: assetType || 'character',
           steps: Number(steps) || 30,
           turbo: !!turbo,
@@ -380,17 +380,34 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
     return { success: true, data };
   };
 
-  const first = await _withColdRetry(attempt, { label: 'image generation' });
-  if (!first.success) return first;
-  const data = first.data;
+  // COUNT = 6 (2026-09-30) : le worker plafonne a 4 images par appel
+  // (handleGenerateImage), et on lui envoyait min(4, demande) — « 6 » donnait
+  // 4 images, facturees 4, alors que la pastille en annoncait 6 et que le mode
+  // Local en fait bien 6. Appels successifs de 4 au plus, comme le site
+  // (meshyAPI-cloud.js) : chaque appel facture ses propres images ; si un
+  // appel suivant echoue, les images deja faites sont gardees (rien d'autre
+  // n'est facture). Borne a 8 : le menu propose 6 au plus.
+  const total = Math.max(1, Math.min(8, Number(numImages) || 1));
+  const paths = [];
+  let creditsRemaining;
+  for (let reste = total; reste > 0; reste -= 4) {
+    const lot = await _withColdRetry(() => attempt(Math.min(4, reste)), { label: 'image generation' });
+    if (!lot.success) {
+      if (!paths.length) return lot;
+      _deps.log?.warn?.('cloud-fallback', `image batch failed after ${paths.length} image(s): ${lot.error}`);
+      break;
+    }
+    paths.push(...lot.data.paths);
+    if (lot.data.creditsRemaining != null) creditsRemaining = lot.data.creditsRemaining;
+  }
 
   // Télécharge les URLs R2 signées dans le dossier projet (contrat local).
   fs.mkdirSync(imagesDir, { recursive: true });
   const ts = Date.now();
   const saved = [];
-  for (let i = 0; i < data.paths.length; i++) {
+  for (let i = 0; i < paths.length; i++) {
     try {
-      const r = await fetch(data.paths[i]);
+      const r = await fetch(paths[i]);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length < 1000) throw new Error('image trop petite');
@@ -402,7 +419,7 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
     }
   }
   if (!saved.length) return { success: false, error: 'Cloud generation succeeded but image download failed.' };
-  return { success: true, images: saved, creditsRemaining: data.creditsRemaining };
+  return { success: true, images: saved, creditsRemaining };
 }
 
 // -----------------------------------------------------------------------------
