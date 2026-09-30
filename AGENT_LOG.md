@@ -24271,3 +24271,9 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   qui est lue : viewers mesh / rig / animation / lightbox / points du squelette / editeur de poids / prechargement, sans toucher chaque site d'appel.
 - Mesure de fidelite du centipede (10,35 M -> 0,5 M triangles, 1 400 000 points echantillonnes) : ecart moyen 0,024 % de la diagonale, p99 0,054 %,
   max 0,58 % ; surface totale +0,08 %.
+
+## 2026-09-30 — Outils : Paint Mesh / Decals, Paint Emissive, Triangle count, Reshape, Material ouvrent la version legere (web)
+- `_etapeAffiche(chemin, accepteLeger)` / `_fauxChargeur(..., { leger })` / `_fetchMaillageOutil(url)` : ces outils reprennent la copie du viewer meme si c'est la
+  version legere, ou lisent `<compte>/light/...` s'il en existe une. Mesh Edit (modifie la geometrie) reste sur le maillage COMPLET.
+- La texture et les UV sont ceux de l'original : Decals et Paint Mesh peints sur la version legere collent aussi sur le complet ; le resultat enregistre est
+  une version legere (500 K).

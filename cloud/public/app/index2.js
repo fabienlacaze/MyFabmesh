@@ -11107,16 +11107,16 @@ function _mtLoadMesh(meshPath) {
     ? meshPath
     : _toFileUrl(meshPath);
   _mtStatut(_i18nT('Loading mesh…'));
-  (_etapeAffiche(meshPath) ? Promise.resolve(new ArrayBuffer(8))
+  (_etapeAffiche(meshPath, true) ? Promise.resolve(new ArrayBuffer(8))
     : _cacheMaillage && _cacheMaillage.chemin === meshPath && _cacheMaillage.buffer.byteLength > 0
     ? Promise.resolve(_cacheMaillage.buffer.slice(0))   // deja telecharge par l'etape Maillage
-    : fetch(url, { credentials: 'omit' })
+    : _fetchMaillageOutil(url)
       .then((r) => {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.arrayBuffer();
       }))
     .then((buffer) => {
-      const loader = _fauxChargeur(meshPath, { geometrie: true });
+      const loader = _fauxChargeur(meshPath, { geometrie: true, leger: true });
       loader.parse(buffer, '', (gltf) => {
         if (jeton !== _mtJeton) return;   // un chargement plus recent a ete demande
         _mtStatut(null);
@@ -12712,7 +12712,7 @@ function openResizeTool() {
 
   // Cloud: meshPath IS a URL (R2) — load it directly (no file:/// prefix).
   const url = String(rzState.meshPath);
-  _fauxChargeur(rzState.meshPath).load(url, (gltf) => {
+  _fauxChargeur(rzState.meshPath, { leger: true }).load(url, (gltf) => {
     const model = gltf.scene || gltf.scenes[0];
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
@@ -13346,9 +13346,9 @@ async function _peLoadMesh(meshPath) {
   try {
     const url = (typeof meshPath === 'string' && /^[a-z]+:/i.test(meshPath))
       ? meshPath : _toFileUrl(meshPath);
-    if (_etapeAffiche(meshPath)) buffer = new ArrayBuffer(8);
+    if (_etapeAffiche(meshPath, true)) buffer = new ArrayBuffer(8);
     else {
-    const r = await fetch(url, { credentials: 'omit' });
+    const r = await _fetchMaillageOutil(url);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     buffer = await r.arrayBuffer();
     }
@@ -13361,7 +13361,7 @@ async function _peLoadMesh(meshPath) {
     showToast('Mesh load returned empty buffer.', 'error', 5000);
     return;
   }
-  const loader = _fauxChargeur(meshPath);
+  const loader = _fauxChargeur(meshPath, { leger: true });
   loader.parse(buffer, '', (gltf) => {
     if (jeton !== _peJeton) return;   // un chargement plus recent a ete demande
     peState.origModel = gltf.scene;
@@ -14529,17 +14529,17 @@ function _proposerLegere(racine, chemin) {
   _legeresDemandees.add(chemin);
   API.demanderLight(chemin).then((u) => { if (u) showToast(_i18nT('A light version of this heavy mesh is ready. Reopen it to work faster.'), 'success', 6000); }).catch(() => {});
 }
-function _etapeAffiche(chemin) {
+function _etapeAffiche(chemin, accepteLeger) {
   try {
     const p = state.currentProject;
     if (typeof wsModel === 'undefined' || !wsModel || !wsModel.userData?.__wsMesh || !wsScene || wsModel.parent !== wsScene) return false;
-    if (!p || !chemin || p.previewMeshPath !== chemin || wsModel.userData.__light) return false;
+    if (!p || !chemin || p.previewMeshPath !== chemin || (wsModel.userData.__light && !accepteLeger)) return false;
     let skinne = false; wsModel.traverse((c) => { if (c.isSkinnedMesh) skinne = true; });
     return !skinne;
   } catch (_) { return false; }
 }
 function _modeleDeLetape(chemin, opts = {}) {
-  if (!_etapeAffiche(chemin)) return null;
+  if (!_etapeAffiche(chemin, opts.leger)) return null;
   try {
     const c = wsModel.clone(true);
     c.position.set(0, 0, 0);
@@ -14554,6 +14554,12 @@ function _modeleDeLetape(chemin, opts = {}) {
     return c;
   } catch (_) { return null; }
 }
+/** Lecture reseau d'un maillage pour un OUTIL qui accepte la version legere (gros maillage) : rend la Response. */
+async function _fetchMaillageOutil(url) {
+  let u = url;
+  try { const lu = API.findLight ? await API.findLight(url) : null; if (lu) u = lu; } catch (_) { /* complet */ }
+  return fetch(u, { credentials: 'omit' });
+}
 // Meme interface que GLTFLoader (parse / load) : copie de l'etape si disponible, sinon lecture normale.
 function _fauxChargeur(chemin, opts) {
   const enrober = (c) => ({ scene: c, scenes: [c] });
@@ -14566,11 +14572,12 @@ function _fauxChargeur(chemin, opts) {
     load(url, ok, prog, ko) {
       const c = _modeleDeLetape(chemin, opts);
       if (c) Promise.resolve().then(() => ok(enrober(c)));
+      else if (opts && opts.leger && API.findLight) API.findLight(url).then((lu) => new GLTFLoader().load(lu || url, ok, prog, ko)).catch(() => new GLTFLoader().load(url, ok, prog, ko));
       else new GLTFLoader().load(url, ok, prog, ko);
     },
   };
 }
-function _pmModeleDejaCharge(chemin) { return _modeleDeLetape(chemin); }
+function _pmModeleDejaCharge(chemin) { return _modeleDeLetape(chemin, { leger: true }); }
 async function _pmLoadMesh(meshPath) {
   const jeton = ++_pmJeton;
   if (pmState.origModel) {
@@ -14613,7 +14620,7 @@ async function _pmLoadMesh(meshPath) {
     // reanalyser (WebP 4K/8K = plusieurs secondes). Geometrie partagee, materiaux clones : Annuler ne touche pas l'original.
     const dejaLa = _pmModeleDejaCharge(meshPath);
     if (dejaLa) { await surCharge({ scene: dejaLa }); return; }
-    const r = await fetch(url, { credentials: 'omit' });
+    const r = await _fetchMaillageOutil(url);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const buf = await r.arrayBuffer();
     new GLTFLoader().parse(buf, '', surCharge);
@@ -15183,12 +15190,12 @@ async function openMaterialAdjust() {
 
   // Load the selected mesh into the viewer scene.
   if (_matModel) { _matViewer.scene.remove(_matModel); _matModel = null; }
-  const buffer = _etapeAffiche(p.selectedMeshPath) ? new ArrayBuffer(8) : await API.readMeshFile(p.selectedMeshPath);
+  const buffer = _etapeAffiche(p.selectedMeshPath, true) ? new ArrayBuffer(8) : await API.readMeshFile(p.selectedMeshPath);
   if (!buffer) {
     showToast('Failed to read mesh file', 'error');
     return;
   }
-  const loader = _fauxChargeur(p.selectedMeshPath);
+  const loader = _fauxChargeur(p.selectedMeshPath, { leger: true });
   loader.parse(buffer, '', (gltf) => {
     if (jeton !== _matJeton) return;   // un chargement plus recent a ete demande
     _matModel = gltf.scene;
