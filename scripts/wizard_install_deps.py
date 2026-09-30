@@ -140,6 +140,8 @@ PYPI_PACKAGES = [
     # onnxruntime). `scripts/rembg/` le remplace (u2net par onnxruntime seul, meme resultat) ; il ne lui faut que onnxruntime (version CPU, ~1 s par image).
     'onnxruntime>=1.18,<2',
     'timm>=1.0,<2',      # code distant de Florence-2 (legende d'image) : `requires timm` sinon
+    # Redacteur local (scripts/redacteur.py) : ONNX Runtime GenAI (Microsoft, MIT), import verifie sous Smart App Control.
+    'onnxruntime-genai>=0.17,<0.18',
     # Modules importes a la demande par les scripts, absents de l'environnement neuf (audit des imports du 2026-09-30) : reduction de maillage
     # (fast_simplification : petites cibles sans triangles retournes), depliage UV (xatlas), telemetrie GPU
     # (pynvml). PAS kornia (detection de visage, retouche locale) : sa DLL kornia_rs est BLOQUEE par Smart App Control (« An Application Control policy has

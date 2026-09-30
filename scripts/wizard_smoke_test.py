@@ -188,6 +188,19 @@ def check_background_remover():
     log('[smoke]   background remover OK')
 
 
+def check_writer():
+    """Redacteur local (fenetre New project) : moteur ONNX importable ET modele present. Sans chargement du modele (quelques
+    secondes de plus) : l'import prouve que Smart App Control laisse passer la bibliotheque."""
+    log('[smoke] checking writing assistant...')
+    import onnxruntime_genai  # noqa: F401
+    from huggingface_hub import try_to_load_from_cache
+    p = try_to_load_from_cache('onnx-community/Qwen3-4B-ONNX',
+                               'onnxruntime/cpu_and_mobile/cpu-int4-kld-block-128/genai_config.json')
+    if not isinstance(p, str):
+        raise RuntimeError('writing assistant model not in cache (download incomplete?)')
+    log('[smoke]   writing assistant OK')
+
+
 def check_mesh_tools():
     log('[smoke] checking mesh tools...')
     import importlib
@@ -215,6 +228,8 @@ def main():
         check_cuda_wheels()
         check_mesh_tools()
         check_background_remover()
+        if args.mode in ('standard', 'full', 'lite'):
+            check_writer()
         check_trellis_loadable()
         check_dinov3_loadable()
         if args.mode in ('standard', 'full', 'lite'):

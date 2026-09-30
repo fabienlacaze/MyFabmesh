@@ -2737,6 +2737,7 @@ function fullCleanup() {
     killAllActiveProcs();
     stopSdxlServer();
     try { stopTranslateServer(); } catch (_) {}
+    try { redacteurArreter('fermeture'); } catch (_) {}
     try { stopNsfwServer(); } catch (_) {}
     // WSL shutdown also kills any WSL-side work — skip when keeping jobs.
     try { execFile('wsl', ['--shutdown'], { timeout: 10000 }, () => {}); } catch(e) {}
@@ -6487,6 +6488,117 @@ ipcMain.handle('hidream-available', async () => {
 // their interface language as the source. en / unknown / failure → passthrough
 // (fail open), so generation never breaks. SDXL/RealVisXL/HiDream need English.
 const _translateCache = new Map();  // `${from}|${text}` -> translated; avoids re-spawning Python on the Generate critical path
+/* REDACTEUR LOCAL (2026-09-30) — description + type d'un nouveau projet (fenetre « New project », interrupteur Auto).
+ * scripts/redacteur.py --serve : Qwen3-4B quantifie en 4 bits sur le PROCESSEUR (ONNX Runtime GenAI), aucune VRAM, ~3,5 Go de RAM.
+ * User : « il faut du local gratuit et commercialisable », « il va bouffer de la RAM » -> le processus ne vit QUE le temps de la
+ * fenetre : prechauffe a son ouverture, arrete a sa fermeture ou apres 3 min sans requete, jamais lance si la RAM libre ou la limite
+ * de RAM de l'utilisateur ne le permettent pas. Une requete par ligne sur stdin, une reponse par ligne sur stdout. */
+let redacteurProc = null;
+let redacteurPret = null;                 // Promise<{ ok, raison? }>
+const redacteurAttente = new Map();       // id -> resolve
+let redacteurNumero = 0;
+let redacteurMinuteur = null;
+const REDACTEUR_RAM_MO = 4000;            // mesure : ~3,5 Go en service
+const REDACTEUR_INACTIF_MS = 3 * 60 * 1000;
+function _redacteurModeleInstalle() {
+  return fs.existsSync(path.join(HF_CACHE_DIR, 'hub', 'models--onnx-community--Qwen3-4B-ONNX', 'snapshots'));
+}
+function redacteurArreter(raison) {
+  if (redacteurMinuteur) { clearTimeout(redacteurMinuteur); redacteurMinuteur = null; }
+  const p = redacteurProc;
+  redacteurProc = null;
+  redacteurPret = null;
+  for (const [, fin] of redacteurAttente) { try { fin({ ok: false, raison: 'stopped' }); } catch (_) {} }
+  redacteurAttente.clear();
+  if (p) {
+    try { p.stdin.end(); } catch (_) {}
+    try { killProcTree(p); } catch (_) { try { p.kill(); } catch (_) {} }
+    try { log.info('main', `redacteur arrete (${raison || '?'})`); } catch (_) {}
+  }
+}
+function _redacteurRelancerMinuteur() {
+  if (redacteurMinuteur) clearTimeout(redacteurMinuteur);
+  redacteurMinuteur = setTimeout(() => redacteurArreter('inactif'), REDACTEUR_INACTIF_MS);
+}
+function redacteurDemarrer() {
+  if (redacteurProc && redacteurPret) return redacteurPret;
+  if (!_localPyLibsUsable()) return Promise.resolve({ ok: false, raison: 'no-local-engine' });
+  if (!_redacteurModeleInstalle()) return Promise.resolve({ ok: false, raison: 'not-installed' });
+  const os_ = require('os');
+  const libreMo = os_.freemem() / 1e6;
+  const limiteMo = parseFloat(process.env.FABMESH_RAM_LIMIT_MB || '');
+  const utiliseMo = (os_.totalmem() - os_.freemem()) / 1e6;
+  if (libreMo < REDACTEUR_RAM_MO) return Promise.resolve({ ok: false, raison: 'low-memory' });
+  if (limiteMo > 0 && utiliseMo + REDACTEUR_RAM_MO > limiteMo) return Promise.resolve({ ok: false, raison: 'over-limit' });
+  const script = path.join(SCRIPTS_DIR, 'redacteur.py');
+  let proc;
+  try {
+    proc = require('child_process').spawn(_aiPython(), [script, '--serve'], {
+      stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
+      env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8', HF_HOME: HF_CACHE_DIR,
+             HUGGINGFACE_HUB_CACHE: path.join(HF_CACHE_DIR, 'hub'), HF_HUB_OFFLINE: '1' },
+    });
+  } catch (e) {
+    return Promise.resolve({ ok: false, raison: 'spawn-failed', error: e && e.message });
+  }
+  redacteurProc = proc;
+  const t0 = Date.now();
+  redacteurPret = new Promise((resolve) => {
+    let tampon = '';
+    let pret = false;
+    proc.stdout.on('data', (d) => {
+      tampon += d.toString('utf8');
+      let n;
+      while ((n = tampon.indexOf('\n')) >= 0) {
+        const ligne = tampon.slice(0, n).trim();
+        tampon = tampon.slice(n + 1);
+        if (!ligne) continue;
+        let m;
+        try { m = JSON.parse(ligne); } catch (_) { continue; }
+        if (!pret && 'ready' in m) {
+          pret = true;
+          if (m.ready) { log.info('main', `redacteur pret en ${((Date.now() - t0) / 1000).toFixed(1)} s`); resolve({ ok: true }); }
+          else { log.warn('main', 'redacteur: chargement impossible: ' + String(m.error || '').slice(0, 300)); resolve({ ok: false, raison: 'load-failed', error: m.error }); }
+          continue;
+        }
+        const fin = redacteurAttente.get(m.id);
+        if (fin) { redacteurAttente.delete(m.id); fin(m); }
+      }
+    });
+    let err = '';
+    proc.stderr.on('data', (d) => { err = (err + d.toString('utf8')).slice(-4000); });
+    proc.on('exit', (code) => {
+      if (!pret) { log.warn('main', `redacteur sorti (code ${code}) avant d'etre pret: ${err.slice(-400)}`); resolve({ ok: false, raison: 'load-failed', error: err.slice(-400) }); }
+      if (redacteurProc === proc) { redacteurProc = null; redacteurPret = null; }
+      for (const [, f] of redacteurAttente) { try { f({ ok: false, raison: 'stopped' }); } catch (_) {} }
+      redacteurAttente.clear();
+    });
+  });
+  return redacteurPret;
+}
+ipcMain.handle('redacteur:prechauffer', async () => {
+  const r = await redacteurDemarrer();
+  if (r.ok) _redacteurRelancerMinuteur();
+  return r;
+});
+ipcMain.handle('redacteur:decrire', async (_e, { name, notes, lang, type } = {}) => {
+  const r = await redacteurDemarrer();
+  if (!r.ok || !redacteurProc) return r.ok ? { ok: false, raison: 'stopped' } : r;
+  _redacteurRelancerMinuteur();
+  const id = ++redacteurNumero;
+  return new Promise((resolve) => {
+    const t = setTimeout(() => { redacteurAttente.delete(id); resolve({ ok: false, raison: 'timeout' }); }, 60000);
+    redacteurAttente.set(id, (m) => { clearTimeout(t); resolve(m); });
+    try {
+      redacteurProc.stdin.write(JSON.stringify({ id, name: String(name || '').slice(0, 80), notes: String(notes || '').slice(0, 400),
+        lang: String(lang || 'en').slice(0, 5), type: type || null }) + '\n');
+    } catch (e) {
+      clearTimeout(t); redacteurAttente.delete(id); resolve({ ok: false, raison: 'stopped' });
+    }
+  });
+});
+ipcMain.handle('redacteur:arreter', async () => { redacteurArreter('fenetre fermee'); return { ok: true }; });
+
 let _translateWorkingPy = null;     // remember which interpreter has argostranslate (skip the failing embedded attempt next time)
 let _translateFailures = 0;         // échecs consécutifs du chemin de traduction
 let _translateBroken = false;       // argos définitivement indisponible pour cette session
@@ -9669,11 +9781,13 @@ ipcMain.handle('wizard:detect-hardware', async () => {
 // ORDRE DU LOGICIEL (2026-09-30) : modeles d'image d'abord, puis la 3D — meme ordre que MODELS dans scripts/wizard_download.py.
 const WIZARD_MODELS = {
   lite:     [
+    { id: 'writer',    label: 'Writing assistant',                        repo: 'onnx-community/Qwen3-4B-ONNX',                   size_mb: 2897 },
     { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
     { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
     { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
   ],
   standard: [
+    { id: 'writer',    label: 'Writing assistant',                        repo: 'onnx-community/Qwen3-4B-ONNX',                   size_mb: 2897 },
     { id: 'realvis',   label: 'Texture engine',                           repo: 'SG161222/RealVisXL_V4.0',                        size_mb: 6940 },
     { id: 'lightning', label: 'Turbo engine (Lightning)',                 repo: 'ByteDance/SDXL-Lightning',                       size_mb: 390  },
     { id: 'cn_pose',   label: 'Back-view module',                         repo: 'xinsir/controlnet-openpose-sdxl-1.0',            size_mb: 2510 },
@@ -9684,6 +9798,7 @@ const WIZARD_MODELS = {
     { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
   ],
   full:     [
+    { id: 'writer',    label: 'Writing assistant',                        repo: 'onnx-community/Qwen3-4B-ONNX',                   size_mb: 2897 },
     { id: 'realvis',   label: 'Texture engine',                           repo: 'SG161222/RealVisXL_V4.0',                        size_mb: 6940 },
     { id: 'lightning', label: 'Turbo engine (Lightning)',                 repo: 'ByteDance/SDXL-Lightning',                       size_mb: 390  },
     { id: 'sdxl_inp',  label: 'Face refiner',                             repo: 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', size_mb: 6940 },

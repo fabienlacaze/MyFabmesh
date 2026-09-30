@@ -4795,3 +4795,38 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 
 #modal-journal .mj-liste li { display: grid; grid-template-columns: 46px 1fr; column-gap: 10px; align-items: baseline; }
 #modal-journal .mj-build { font-size: 11px; color: var(--text-2, #9aa3b5); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* INTERRUPTEUR « Auto » de la fenetre New project (2026-09-30, user : « rends la checkbox Auto plus jolie, elle est degueu »). */
+.np-auto-row {
+  display: flex; align-items: center; gap: 12px; margin: 12px 0 4px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg-2); transition: border-color .2s, background .2s;
+}
+.np-auto-row.on {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-2));
+}
+.modal-card label.np-switch {
+  position: relative; display: inline-block; flex: none; width: 40px; height: 22px; margin: 0; cursor: pointer;
+  text-transform: none; letter-spacing: 0;
+}
+.modal-card .np-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.np-switch-track {
+  position: absolute; inset: 0; border-radius: 11px; background: var(--bg-3); border: 1px solid var(--border);
+  transition: background .2s, border-color .2s; pointer-events: none;
+}
+.np-switch-track::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .45); transition: transform .2s;
+}
+.modal-card .np-switch input:checked + .np-switch-track { background: var(--accent-grad); border-color: transparent; }
+.modal-card .np-switch input:checked + .np-switch-track::after { transform: translateX(18px); }
+.modal-card .np-switch input:focus-visible + .np-switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.np-auto-texte { min-width: 0; flex: 1; }
+.np-auto-titre { font-size: 13px; font-weight: 700; color: var(--text-0); }
+.np-auto-info { font-size: 12px; color: var(--text-2); margin-top: 2px; line-height: 1.35; }
+.np-auto-row.ecrit .np-auto-info::before {
+  content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; box-sizing: border-box;
+  border: 2px solid var(--bg-3); border-top-color: var(--accent); border-radius: 50%; animation: np-tourne .8s linear infinite;
+}
+@keyframes np-tourne { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .np-auto-row.ecrit .np-auto-info::before { animation-duration: 2.4s; } }

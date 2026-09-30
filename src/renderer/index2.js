@@ -1857,10 +1857,15 @@ function renderProjectsBulkBar() {
 // NEW PROJECT MODAL
 // ============================================================
 // ============================================================
-// NEW PROJECT — MODE AUTO (2026-09-30, user : « choisir le plus automatiquement possible la description, le type et le style, via une checkbox »)
-// Case « Auto » (cochee par defaut) : le type d'asset et le style sont DEDUITS du nom + de la description (francais ET anglais, gratuit, instantane,
-// sans appel serveur) et mis a jour pendant la frappe ; les deux menus sont alors verrouilles et affichent la valeur detectee. Description vide :
-// le nom du projet sert de description. Decocher rend la main sur les menus.
+// NEW PROJECT — MODE AUTO (2026-09-30)
+// User : « choisir le plus automatiquement possible la description, le type et le style, via une checkbox », « il faut que ca
+// genere aussi la description », « il faut du LOCAL gratuit et commercialisable comme tout le reste », « rends la checkbox plus jolie ».
+// Interrupteur « Auto » (actif par defaut, memorise). Tant qu'il est actif :
+//  - TYPE et STYLE deduits du nom + description par MOTS ENTIERS (francais et anglais), menus verrouilles sur la valeur detectee ;
+//  - DESCRIPTION redigee par le REDACTEUR LOCAL (scripts/redacteur.py : petit modele de langage sur le PROCESSEUR, aucune VRAM,
+//    ~3,5 Go de RAM le temps que la fenetre est ouverte), prechauffe a l'ouverture de la fenetre, arrete a sa fermeture. S'il manque
+//    (pas installe, RAM insuffisante), les mots-cles suffisent et la description reste a taper. Une description TAPEE par
+//    l'utilisateur n'est jamais reecrite.
 // ============================================================
 const _NP_TYPES = [
   ['icon', 'icon icone icons logo bouton button widget pictogramme'],
@@ -1876,37 +1881,39 @@ const _NP_TYPES = [
   ['prop', 'chair chaise table lamp lampe sofa canape bed lit desk bureau shelf etagere vase barrel tonneau baril chest coffre box boite crate caisse bottle bouteille cup tasse mug book livre clock horloge furniture meuble mobilier candle bougie lantern lanterne potion key cle coin piece helmet casque hat chapeau bag sac backpack tool outil pot jar bocal mirror miroir armchair fauteuil stool tabouret bench banc door porte'],
   ['environment', 'rock rocher tree arbre bush buisson cliff falaise mountain montagne terrain island cave grotte forest foret plant plante flower fleur stone pierre crystal cristal landscape paysage'],
 ];
+// STYLES : EXPRESSIONS ENTIERES uniquement (plusieurs mots permis). Avant, « art » isole etait cherche PARTOUT dans le texte : « quartz »
+// le contient, d'ou « Pixel art » pour des cristaux et une planche de sprites au lieu d'un modele (constate le 2026-09-30).
 const _NP_STYLES = [
-  ['lowpoly', 'low-poly lowpoly low poly'],
-  ['pixelart', 'pixel-art pixelart pixel art'],
-  ['minecraft', 'minecraft'],
-  ['voxel', 'voxel voxels'],
-  ['anime', 'anime manga'],
-  ['ghibli', 'ghibli'],
-  ['pixar', 'pixar disney'],
-  ['cartoon', 'cartoon dessin-anime toon'],
-  ['comic', 'comic bd bande-dessinee'],
-  ['watercolor', 'watercolor aquarelle'],
-  ['sketch', 'sketch croquis'],
-  ['claymation', 'claymation plasticine pate-a-modeler clay argile'],
-  ['graffiti', 'graffiti'],
-  ['art-deco', 'art-deco deco'],
-  ['cyberpunk', 'cyberpunk cyber neon'],
-  ['steampunk', 'steampunk vapeur'],
-  ['synthwave', 'synthwave vaporwave'],
-  ['horror', 'horror horreur creepy'],
-  ['dark-fantasy', 'dark-fantasy fantasy-sombre'],
-  ['chrome', 'chrome chromed'],
-  ['marble', 'marble marbre'],
-  ['carved-wood', 'sculpte carved-wood'],
-  ['stained-glass', 'stained-glass vitrail'],
-  ['holographic', 'holographic hologramme holographique hologram'],
-  ['figurine', 'figurine miniature'],
-  ['hand-painted', 'hand-painted handpainted peint-a-la-main'],
-  ['painterly', 'painterly peinture painting'],
-  ['concept', 'concept-art conceptart'],
-  ['stylized', 'stylized stylise stylised'],
-  ['pbr', 'pbr'],
+  ['lowpoly', ['low poly', 'low-poly', 'lowpoly']],
+  ['pixelart', ['pixel art', 'pixel-art', 'pixelart', '8-bit', '8 bit', '16-bit', '16 bit']],
+  ['minecraft', ['minecraft']],
+  ['voxel', ['voxel', 'voxels']],
+  ['anime', ['anime', 'manga']],
+  ['ghibli', ['ghibli']],
+  ['pixar', ['pixar', 'disney']],
+  ['cartoon', ['cartoon', 'dessin anime', 'dessin-anime', 'toon']],
+  ['comic', ['comic', 'comics', 'bande dessinee', 'bande-dessinee']],
+  ['watercolor', ['watercolor', 'watercolour', 'aquarelle']],
+  ['sketch', ['sketch', 'croquis']],
+  ['claymation', ['claymation', 'plasticine', 'pate a modeler']],
+  ['graffiti', ['graffiti']],
+  ['art-deco', ['art deco', 'art-deco']],
+  ['cyberpunk', ['cyberpunk', 'cyber punk']],
+  ['steampunk', ['steampunk', 'steam punk']],
+  ['synthwave', ['synthwave', 'vaporwave']],
+  ['horror', ['horror', 'horreur']],
+  ['dark-fantasy', ['dark fantasy', 'dark-fantasy', 'fantasy sombre']],
+  ['chrome', ['chrome', 'chromed', 'chrome']],
+  ['marble', ['marble', 'marbre']],
+  ['carved-wood', ['carved wood', 'bois sculpte', 'wood carving']],
+  ['stained-glass', ['stained glass', 'stained-glass', 'vitrail']],
+  ['holographic', ['holographic', 'hologram', 'hologramme', 'holographique']],
+  ['figurine', ['figurine']],
+  ['hand-painted', ['hand painted', 'hand-painted', 'handpainted', 'peint a la main']],
+  ['painterly', ['painterly', 'oil painting', 'peinture a l huile']],
+  ['concept', ['concept art', 'concept-art']],
+  ['stylized', ['stylized', 'stylised', 'stylise']],
+  ['pbr', ['pbr']],
 ];
 function _npNormaliser(t) {
   return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\- ]+/g, ' ');
@@ -1919,62 +1926,130 @@ function _npCompter(texte, liste) {
   for (const cle of liste.split(' ')) if (vus.has(cle) || vus.has(cle.replace(/(s|x)$/, ''))) n++;
   return n;
 }
-/** Deduit { type, style } (null = indetermine) d'un texte libre. */
+/** Deduit { type, style } (null = indetermine) d'un texte libre, par MOTS ENTIERS. */
 function detecterTypeEtStyle(texte) {
-  const t = ' ' + _npNormaliser(texte) + ' ';
+  const t = ' ' + _npNormaliser(texte).replace(/\s+/g, ' ').trim() + ' ';
   let type = null, meilleur = 0;
   for (const [id, liste] of _NP_TYPES) {           // ordre = priorite en cas d'egalite
     const n = _npCompter(t.trim(), liste);
     if (n > meilleur) { meilleur = n; type = id; }
   }
   let style = null;
-  for (const [id, liste] of _NP_STYLES) {
-    if (liste.split(' ').some((k) => t.includes(' ' + k + ' ') || t.includes(k.replace(/-/g, ' ')))) { style = id; break; }
+  for (const [id, expressions] of _NP_STYLES) {
+    if (expressions.some((e) => t.includes(' ' + _npNormaliser(e).replace(/\s+/g, ' ').trim() + ' '))) { style = id; break; }
   }
   return { type, style };
 }
+function _npResume() {
+  const selT = document.getElementById('np-asset-type'), selS = document.getElementById('np-asset-style');
+  return _i18nTf('Detected: {x} · {y}', selT?.options[selT.selectedIndex]?.textContent || '', selS?.options[selS.selectedIndex]?.textContent || '');
+}
+function _npAutoInfo(texte, ecrit = false) {
+  const info = document.getElementById('np-auto-info');
+  if (info) info.textContent = texte;
+  document.getElementById('np-auto-row')?.classList.toggle('ecrit', !!ecrit);
+}
+let _npIaMinuteur = null, _npIaJeton = 0, _npTypeMotsCles = null, _npIaType = null;
+function _npLangue() {
+  try { return (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase().slice(0, 2); } catch (_) { return 'en'; }
+}
+function _npDescAuto(desc) { return !!desc && (desc.dataset.auto === '1' || !desc.value.trim()); }
 function _npAutoSync() {
   const auto = document.getElementById('np-auto');
   const selT = document.getElementById('np-asset-type'), selS = document.getElementById('np-asset-style');
-  const info = document.getElementById('np-auto-info');
+  const desc = document.getElementById('np-prompt');
   if (!auto || !selT || !selS) return;
   const actif = auto.checked;
+  document.getElementById('np-auto-row')?.classList.toggle('on', actif);
   selT.disabled = actif; selS.disabled = actif;
   selT.style.opacity = selS.style.opacity = actif ? '0.6' : '';
-  if (!actif) { if (info) info.textContent = ''; return; }
-  const texte = (document.getElementById('np-prompt')?.value || '') + ' ' + (document.getElementById('np-name')?.value || '');
-  const r = detecterTypeEtStyle(texte);
-  if (r.type && [...selT.options].some((o) => o.value === r.type)) selT.value = r.type;
+  if (!actif) { _npAutoInfo(_i18nT('Choose the type and style yourself')); return; }
+  const nom = document.getElementById('np-name')?.value || '';
+  const r = detecterTypeEtStyle((_npDescAuto(desc) ? '' : desc.value) + ' ' + nom);
+  _npTypeMotsCles = r.type;
+  const typeIa = (_npIaType && _npIaType.nom === nom.trim()) ? _npIaType.type : null;
+  const type = r.type || typeIa;
+  if (type && [...selT.options].some((o) => o.value === type)) selT.value = type;
   selS.value = (r.style && [...selS.options].some((o) => o.value === r.style)) ? r.style : 'realistic';
-  const nomT = selT.options[selT.selectedIndex]?.textContent || '', nomS = selS.options[selS.selectedIndex]?.textContent || '';
-  if (info) info.textContent = r.type ? ('Detected: ' + nomT + ' · ' + nomS) : 'Describe what you want and the type and style are picked for you.';
+  _npAutoInfo(nom.trim() || (desc && desc.value.trim()) ? _npResume()
+    : _i18nT('Type a name: the type, the style and the description are filled in for you'));
+}
+function _npPlanifierRedaction() {
+  clearTimeout(_npIaMinuteur);
+  _npIaMinuteur = setTimeout(_npRediger, 900);
+}
+async function _npRediger() {
+  const auto = document.getElementById('np-auto'), desc = document.getElementById('np-prompt');
+  const nom = (document.getElementById('np-name')?.value || '').trim();
+  if (!auto?.checked || !_npDescAuto(desc) || nom.length < 2 || !window.meshyAPI?.redacteurDecrire) return;
+  const jeton = ++_npIaJeton;
+  _npAutoInfo(_i18nT('Writing the description…'), true);
+  let r = null;
+  try {
+    r = await window.meshyAPI.redacteurDecrire({ name: nom, lang: _npLangue(), type: _npTypeMotsCles || undefined });
+  } catch (_) { r = null; }
+  if (jeton !== _npIaJeton) return;             // nom modifie ou fenetre fermee entre-temps
+  const nomActuel = (document.getElementById('np-name')?.value || '').trim();
+  if (!auto.checked || !_npDescAuto(desc) || nomActuel !== nom) { _npAutoSync(); return; }
+  if (r && r.ok && r.description) {
+    desc.value = r.description;
+    desc.dataset.auto = '1';
+    if (!_npTypeMotsCles && r.type) _npIaType = { nom, type: r.type };
+    _npAutoSync();
+    _npAutoInfo(_npResume() + ' — ' + _i18nT('description written by the local AI, edit it freely'));
+  } else {
+    _npAutoSync();
+    const raison = r && r.raison;
+    const pourquoi = (raison === 'low-memory' || raison === 'over-limit')
+      ? _i18nT('not enough free memory to write the description')
+      : (raison === 'not-installed' || raison === 'no-local-engine') ? _i18nT('the writing assistant is not installed') : '';
+    if (pourquoi) _npAutoInfo(_npResume() + ' — ' + pourquoi);
+  }
 }
 (() => {
   const auto = document.getElementById('np-auto');
   if (!auto) return;
   try { const v = localStorage.getItem('fab-np-auto'); if (v === '0') auto.checked = false; } catch (_) {}
-  auto.addEventListener('change', () => { try { localStorage.setItem('fab-np-auto', auto.checked ? '1' : '0'); } catch (_) {} _npAutoSync(); });
-  document.getElementById('np-prompt')?.addEventListener('input', _npAutoSync);
-  document.getElementById('np-name')?.addEventListener('input', _npAutoSync);
+  auto.addEventListener('change', () => {
+    try { localStorage.setItem('fab-np-auto', auto.checked ? '1' : '0'); } catch (_) {}
+    _npIaJeton++;
+    _npAutoSync();
+    if (auto.checked) { try { window.meshyAPI?.redacteurPrechauffer?.(); } catch (_) {} _npPlanifierRedaction(); }
+  });
+  document.getElementById('np-prompt')?.addEventListener('input', (e) => {
+    const d = e.currentTarget;
+    d.dataset.auto = d.value.trim() ? '0' : '';     // tapee par l'utilisateur : elle lui appartient
+    _npIaJeton++;
+    _npAutoSync();
+    if (!d.value.trim()) _npPlanifierRedaction();
+  });
+  document.getElementById('np-name')?.addEventListener('input', () => { _npIaType = null; _npAutoSync(); _npPlanifierRedaction(); });
   _npAutoSync();
 })();
 
 function openNewProjectModal() {
   document.getElementById('np-name').value = '';
-  document.getElementById('np-prompt').value = '';
+  const _npd = document.getElementById('np-prompt');
+  _npd.value = ''; _npd.dataset.auto = '';
+  _npIaJeton++; _npIaType = null;
   _npAutoSync();
+  // Redacteur local prechauffe pendant que l'utilisateur tape le nom (~7 s de chargement) ; arrete a la fermeture.
+  if (document.getElementById('np-auto')?.checked) { try { window.meshyAPI?.redacteurPrechauffer?.(); } catch (_) {} }
   document.getElementById('np-block-msg')?.classList.add('hidden');
   const _npu = document.getElementById('np-unlock'); if (_npu) _npu.style.display = 'none';
   // Drop-to-create: suggest a project name from the dropped filename.
   const _pf = window.__pendingDroppedFile;
   if (_pf && _pf.fileName) {
     document.getElementById('np-name').value = _pf.fileName.replace(/\.[^.]+$/, '').slice(0, 40);
+    _npAutoSync(); _npPlanifierRedaction();
   }
   document.getElementById('modal-new-project').classList.remove('hidden');
   setTimeout(() => { const el = document.getElementById('np-name'); if (el) { el.focus(); if (el.select) el.select(); } }, 50);
 }
 function closeNewProjectModal() {
   document.getElementById('modal-new-project').classList.add('hidden');
+  _npIaJeton++;
+  try { window.meshyAPI?.redacteurArreter?.(); } catch (_) {}     // libere la RAM du redacteur
 }
 document.getElementById('btn-new-project').addEventListener('click', () => { window.__pendingDroppedFile = null; openNewProjectModal(); });
 // Unlock from the New Project popup: run the legal-warning + PIN flow, then if

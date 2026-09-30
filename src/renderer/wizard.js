@@ -941,6 +941,7 @@ async function runFinalTest() {
   // ligne de la liste, avec un libelle humain ; le journal brut reste dans « Technical details ».
   const LIBELLES = [
     [/background remover/i, 'Background remover', 'Cuts your subject out of the picture'],
+    [/writing assistant/i, 'Writing assistant', 'Writes your project descriptions'],
     [/mesh tools/i, 'Mesh tools', 'Simplifies and unwraps 3D models'],
     [/native cuda wheels/i, '3D acceleration libraries', 'Speeds up mesh building'],
     [/pytorch|cuda/i, 'Graphics card', 'Your GPU is ready for AI'],
@@ -948,7 +949,7 @@ async function runFinalTest() {
     [/dino/i, 'Image analyzer', 'Understands your reference image'],
     [/vision/i, 'Vision module', 'Checks the shapes and colors'],
   ];
-  const ATTENDU = 7;
+  const ATTENDU = 8;
   let courante = null, nbOk = 0;
   const finir = (li, ok) => {
     if (!li) return;

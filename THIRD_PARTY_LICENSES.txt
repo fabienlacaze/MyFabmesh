@@ -511,5 +511,16 @@ You may use, modify, and redistribute them without restriction.
   Training data: Bones Rigplay 1 (commercially licensed motion capture).
 
 ================================================================================
+ Writing assistant — Qwen3-4B (Apache-2.0) and ONNX Runtime GenAI (MIT)
+================================================================================
+
+  Model     : Qwen/Qwen3-4B, 4-bit ONNX export onnx-community/Qwen3-4B-ONNX
+              (downloaded by the setup wizard, not bundled)
+  License   : Apache-2.0 — https://www.apache.org/licenses/LICENSE-2.0
+  Runtime   : onnxruntime-genai (Microsoft) — MIT
+              https://github.com/microsoft/onnxruntime-genai
+  Use       : writes the description of a new project, locally, on the CPU.
+
+================================================================================
  End of third-party notices
 ================================================================================

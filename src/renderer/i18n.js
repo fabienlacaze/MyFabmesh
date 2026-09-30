@@ -1241,6 +1241,15 @@
       'Sign in to your MyFabmesh account — new accounts get 15 free credits':
         'Connectez-vous à votre compte MyFabmesh — les nouveaux comptes reçoivent 15 crédits gratuits',
       'MyFabmesh credits — click to top up': 'Crédits MyFabmesh — cliquez pour recharger',
+      // Fenetre New project, interrupteur Auto (2026-09-30)
+      'Detected: {x} · {y}': 'Détecté : {x} · {y}',
+      'Choose the type and style yourself': 'Choisissez vous-même le type et le style',
+      'Type a name: the type, the style and the description are filled in for you': 'Tapez un nom : le type, le style et la description sont remplis pour vous',
+      'Type a name: the type and the style are picked for you': 'Tapez un nom : le type et le style sont choisis pour vous',
+      'Writing the description…': 'Rédaction de la description…',
+      'description written by the local AI, edit it freely': 'description rédigée par l’IA locale, modifiez-la librement',
+      'not enough free memory to write the description': 'pas assez de mémoire libre pour rédiger la description',
+      'the writing assistant is not installed': 'l’assistant de rédaction n’est pas installé',
       'Your account was created but not confirmed. Sign in with the 6-digit code we emailed you.':
         'Votre compte a été créé mais reste à confirmer. Saisissez le code à 6 chiffres reçu par e-mail.',
       'This email is already registered. Enter the 6-digit code we emailed you, or go back and sign in.':

@@ -57,7 +57,7 @@ def _lower_priority():
 # upscaler, florence2 = secondary captioner). A failure on THESE only warns;
 # a failure on any other (essential) model fails the install loudly so the
 # user never proceeds with a broken setup.
-_OPTIONAL_MODELS = {'esrgan', 'florence2'}
+_OPTIONAL_MODELS = {'esrgan', 'florence2', 'writer'}
 
 
 # ---------------------------------------------------------------------------
@@ -103,11 +103,13 @@ MODELS = {
     # ORDRE DU LOGICIEL (2026-09-30, user : « les installations dans l'ordre logique, image puis 3D puis rig puis anim ») : modeles d'image
     # d'abord, puis la 3D (moteur 3D + analyseur d'image). Meme ordre que WIZARD_MODELS dans src/main/main.js (lignes de l'assistant).
     'lite': [
+        ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
         ('blip1',    'Salesforce/blip-image-captioning-large', 1880),
         ('trellis2', 'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',   DINOV3_CANONICAL_REPO, 1250),
     ],
     'standard': [
+        ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
         ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
         ('lightning', 'ByteDance/SDXL-Lightning', 390),
         ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2510),
@@ -118,6 +120,7 @@ MODELS = {
         ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
     ],
     'full': [
+        ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
         ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
         ('lightning', 'ByteDance/SDXL-Lightning', 390),
         ('sdxl_inp',  'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', 6940),
@@ -137,6 +140,8 @@ MODELS = {
 # we only use the 4-step SDXL LoRA (~400 MB).
 ALLOW_PATTERNS = {
     'ByteDance/SDXL-Lightning': ['sdxl_lightning_4step_lora.safetensors'],
+    # Redacteur local (scripts/redacteur.py) : seule la version 4 bits pour processeur (2,9 Go sur ~15 Go de variantes).
+    'onnx-community/Qwen3-4B-ONNX': ['onnxruntime/cpu_and_mobile/cpu-int4-kld-block-128/*'],
 }
 # FICHIERS INUTILES EXCLUS (2026-09-30). snapshot_download prenait TOUT le depot : formats en double (.bin / .h5 a cote de .safetensors), poids fp32 alors que le code
 # charge `variant='fp16'` partout, le fichier unique de RealVis en plus de ses composants, les modeles SD 1.5 d'IP-Adapter... Chaque exclusion a ete verifiee contre le code

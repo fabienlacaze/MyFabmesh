@@ -20,6 +20,15 @@
 
   const I18N = {
     fr: {
+      // Fenetre New project, interrupteur Auto (2026-09-30)
+      'Detected: {x} · {y}': 'Détecté : {x} · {y}',
+      'Choose the type and style yourself': 'Choisissez vous-même le type et le style',
+      'Type a name: the type, the style and the description are filled in for you': 'Tapez un nom : le type, le style et la description sont remplis pour vous',
+      'Type a name: the type and the style are picked for you': 'Tapez un nom : le type et le style sont choisis pour vous',
+      'Writing the description…': 'Rédaction de la description…',
+      'description written by the local AI, edit it freely': 'description rédigée par l’IA locale, modifiez-la librement',
+      'not enough free memory to write the description': 'pas assez de mémoire libre pour rédiger la description',
+      'the writing assistant is not installed': 'l’assistant de rédaction n’est pas installé',
       'Skin weights': 'Poids de peau',
       'Skeleton': 'Squelette',
       'Spread / shrink the zone': 'Propager / contracter la zone', 'Shrink': 'Contracter', 'Spread': 'Propager',

@@ -150,6 +150,10 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   cloudDownloadItem: (opts) => ipcRenderer.invoke('cloud-download-item', opts),
   hidreamAvailable: () => ipcRenderer.invoke('hidream-available'),
   translatePrompt: (opts) => ipcRenderer.invoke('translate-prompt', opts),
+  // Redacteur local de la fenetre New project (2026-09-30) : description + type, sur le processeur.
+  redacteurPrechauffer: () => ipcRenderer.invoke('redacteur:prechauffer'),
+  redacteurDecrire: (opts) => ipcRenderer.invoke('redacteur:decrire', opts),
+  redacteurArreter: () => ipcRenderer.invoke('redacteur:arreter'),
   i18nAutoTranslate: (opts) => ipcRenderer.invoke('i18n-auto-translate', opts),
   setSpellcheckLang: (lang) => ipcRenderer.invoke('set-spellcheck-lang', lang),
   generateBuildStages: (opts) => ipcRenderer.invoke('generate-build-stages', opts),
