@@ -124,6 +124,8 @@ def resoudre_fichiers(chemin):
 def construire(nom_classe, args, fichier_poids, chemin, dev):
     """Construit le modele sur `dev` et y lit ses poids. Rend (modele, mode)."""
     t0 = time.time()
+    modele = etat = None
+    erreur = None
     try:
         cls = _classe(nom_classe)
         rng = [dev.index if dev.index is not None else torch.cuda.current_device()] if dev.type == 'cuda' else []
@@ -145,12 +147,16 @@ def construire(nom_classe, args, fichier_poids, chemin, dev):
             _log(f'[paresseux] {nom_classe} : cle(s) absente(s) du fichier, gardees telles que '
                  f'calculees par le constructeur (comme en amont) : {list(absentes)[:4]}')
     except Exception as e:
-        modele = None
-        _vider_cache(dev)
         if _fabrique_amont is None:
             raise
-        _log(f'[paresseux] {nom_classe} : construction directe impossible ({type(e).__name__}: '
-             f'{str(e)[:200]}) -> chargement classique (RAM puis carte)')
+        erreur = f'{type(e).__name__}: {str(e)[:200]}'
+    if erreur is not None:
+        # Repli HORS du bloc except : l'exception (et sa pile, qui retient les tenseurs
+        # a moitie construits sur la carte) est deja relachee.
+        modele = etat = None
+        _vider_cache(dev)
+        _log(f'[paresseux] {nom_classe} : construction directe impossible ({erreur}) '
+             f'-> chargement classique (RAM puis carte)')
         modele = _fabrique_amont(chemin)
         modele.to(dev)
         mode = 'RAM puis carte'

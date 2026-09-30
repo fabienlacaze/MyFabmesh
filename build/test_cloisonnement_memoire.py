@@ -107,6 +107,14 @@ class CalculsPurs(unittest.TestCase):
         self.assertEqual(cm.type_manque(RuntimeError('CUDA error: out of memory')), 'vram')
         self.assertIsNone(cm.type_manque(ValueError('shape mismatch')))
         self.assertIsNone(cm.type_manque(None))
+        # diagnostic complet : la phrase annonce au moins la demande refusee, et plus que le disponible
+        d = cm.diagnostiquer(gpu)
+        self.assertEqual(d['type'], 'vram')
+        self.assertGreaterEqual(d['besoin_mo'], 1536)
+        self.assertGreater(d['besoin_mo'], d['dispo_mo'])
+        self.assertIn('GB of VRAM', d['phrase'])
+        self.assertIsNone(cm.diagnostiquer(ValueError('shape mismatch')))
+        self.assertEqual(cm.texte_erreur(ValueError('shape mismatch')), 'shape mismatch')
 
 
 ENFANT_RAM = textwrap.dedent(r'''
@@ -284,6 +292,25 @@ class ChargementParesseux(unittest.TestCase):
         p.to('cpu')
         self.assertEqual(p.resolution, 3)                      # rendu : valeur de configuration
         self.assertTrue(torch.equal(p(x), self.ref(x)))        # un appel recharge
+
+    def test_repli_sur_le_chargement_classique(self):
+        torch, tp = self.torch, self.tp
+
+        class Casse(self.nn.Module):
+            def __init__(self, **k):
+                raise RuntimeError('CUDA out of memory. Tried to allocate 5.00 GiB')
+
+        amont = []
+        tp._classe = lambda nom: Casse
+        tp._fabrique_amont = lambda chemin: amont.append(chemin) or self.Petit()
+        try:
+            p = tp.fabrique(self.prefixe)
+            p.cuda()
+            self.assertTrue(p.est_monte)
+            self.assertEqual(amont, [self.prefixe])            # le chargement d'origine a pris le relais
+            self.assertFalse(any(q.requires_grad for q in p.parameters()))
+        finally:
+            tp._fabrique_amont = None
 
     def test_extracteur_rendu_au_modele_suivant(self):
         torch, nn, tp = self.torch, self.nn, self.tp

@@ -604,30 +604,37 @@ def diagnostiquer(exc):
     if type_ is None:
         return None
     demande = demande_mo(str(exc))
+    # Besoin = ce que le travail tient MAINTENANT + la demande refusee, et au moins le pic
+    # qu'il a deja atteint plus tot (une etape precedente en avait eu besoin).
     if type_ == 'vram':
         t = sys.modules.get('torch')
-        occupe = 0.0
+        maintenant = deja = 0.0
         try:
             if t is not None and t.cuda.is_initialized():
-                occupe = t.cuda.max_memory_reserved() / MO
+                maintenant = t.cuda.memory_reserved() / MO
+                deja = t.cuda.max_memory_reserved() / MO
         except Exception:
             pass
-        occupe += _etat.get('vram_contexte_mo') or 0.0
+        contexte = _etat.get('vram_contexte_mo') or 0.0
+        occupe = max(maintenant + demande, deja) + contexte
         dispo = _etat.get('vram_budget_mo')
         if dispo is None:
-            dispo = occupe
+            dispo = maintenant + contexte
     else:
         proc = memoire_processus() or {}
         decalage = _etat.get('decalage_mo') or 0.0
-        occupe = max(_etat.get('pic_engage_mo') or 0.0, proc.get('engage_mo', 0.0)) - decalage
-        if not demande and proc:
+        maintenant = proc.get('engage_mo', 0.0) - decalage
+        deja = (_etat.get('pic_engage_mo') or 0.0) - decalage
+        if demande:
+            occupe = max(maintenant + demande, deja)
+        else:
             # MemoryError sans taille (bytearray, objets Python) : le pic d'engagement
             # tenu par Windows COMPTE la demande refusee (mesure du 2026-09-30).
-            demande = max(0.0, proc.get('pic_engage_os_mo', 0.0) - decalage - occupe)
+            occupe = max(proc.get('pic_engage_os_mo', 0.0) - decalage, maintenant, deja)
         dispo = _etat.get('ram_budget_mo')
         if dispo is None:
-            dispo = max(0.0, occupe)
-    besoin = max(occupe + demande, dispo + 0.1 * 1024)   # jamais « besoin de 1,0 Go, 1,0 Go disponibles »
+            dispo = max(0.0, maintenant)
+    besoin = max(occupe, dispo + 0.1 * 1024)   # jamais « besoin de 1,0 Go, 1,0 Go disponibles »
     return {'type': type_, 'besoin_mo': besoin, 'dispo_mo': dispo,
             'phrase': phrase_manque(type_, en_go(besoin), en_go_bas(dispo))}
 
