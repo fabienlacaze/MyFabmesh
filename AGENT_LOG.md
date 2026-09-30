@@ -24613,3 +24613,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - CORRECTIF bureau : une couleur SEULE sur toute l'image (« vert ») partait en re-rendu lourd (le « nom » de parse_recolor_prompt retombe sur le texte entier) contre l'intention du commit 45a1e2e7 ; elle reprend le virage HSV rapide, comme sur le cloud.
 - Modal : _recolor.generate_tile + op recolor de app.py (route couleur -> HSV, matiere/style -> tuile). Worker : plus de refus « essaie Modify », estimation 0,08 $, prix inchange (grille `recolor`). tsc : 31 erreurs (inchange).
 - A FAIRE : banc GPU modal_app (cout ~0,15 $), puis modal deploy + rechauffer_apres_deploy.py, puis deploiement du site.
+
+## 2026-09-30 — Assistant : liste de telechargement COMPLETE des le debut (moteur d'IA, modeles, 5 lignes du rig, animation), lignes en attente puis allumees (user). Teste en navigateur (API simulee), 0 erreur.

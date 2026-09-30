@@ -577,6 +577,15 @@ async function startDownload() {
   try { return await _startDownloadInterne(); }
   finally { _telechargementEnCours = false; }
 }
+// LIGNES DU MOTEUR DE RIG (module : la liste COMPLETE est dessinee des le debut).
+const RIG_LIGNES = [
+  { id: '__rig_py', etapes: ['rig-copy-python', 'rig-pip-bootstrap'], nom: 'Rig engine — Python environment', taille: '', mo: 0, poids: 2 },
+  { id: '__rig_torch', etapes: ['rig-torch'], nom: 'Rig engine — PyTorch', taille: '3338 MB', mo: 3338, poids: 60 },
+  { id: '__rig_libs', etapes: ['rig-deps'], nom: 'Rig engine — libraries', taille: '~476 MB', mo: 476, poids: 9 },
+  { id: '__rig_code', etapes: ['rig-code', 'rig-patch'], nom: 'Rig engine — open-source code', taille: '', mo: 0, poids: 3 },
+  { id: '__rig_model', etapes: ['rig-weights'], nom: 'Rig engine — model', taille: '1619 MB', mo: 1619, poids: 26 },
+];
+
 async function _startDownloadInterne() {
   // Only block "Continue" until the download is done — Back stays
   // enabled so the user can never get stuck on this step. If they
@@ -641,6 +650,15 @@ async function _startDownloadInterne() {
       <div class="bar"><div class="bar-fill"></div></div>
     </div>
     <div class="wiz-dl-row"><span class="name" style="opacity:.65" id="aienv-note">One-time setup: about 4.3 GB to download for the AI engine (8.5 GB on disk once installed), then the models download. Your PC may feel slow while it downloads. You can leave it running; just keep this window open.</span></div>`;
+  // LISTE COMPLETE DES LE DEBUT (user, 2026-09-30 : « mets la liste complete des le debut ») : moteur d'IA, tous les modeles du mode, les 5
+  // lignes du moteur de rig et l'animation, toutes en attente ; chaque ligne s'allume a son tour.
+  const planComplet = await window.wizardAPI.getDownloadPlan(chosenMode);
+  list.insertAdjacentHTML('beforeend', (planComplet.items || []).map((item) => `<div class="wiz-dl-row" data-id="${item.id}"><span class="name">${item.label}</span>`
+    + `<span class="timer"></span><span class="size">${item.size_mb} MB</span><div class="bar"><div class="bar-fill"></div></div></div>`).join('')
+    + RIG_LIGNES.map((l) => `<div class="wiz-dl-row" data-id="${l.id}"><span class="name">${l.nom}</span>`
+    + `<span class="timer"></span><span class="size">${l.taille}</span><div class="bar"><div class="bar-fill"></div></div></div>`).join('')
+    + '<div class="wiz-dl-row" data-id="__anim"><span class="name">Animation engine — built in, nothing to download</span>'
+    + '<span class="size">0 MB</span><div class="bar"><div class="bar-fill"></div></div></div>');
   // The byte/speed/ETA counters are for the MODEL download, not this pip
   // install (which reports by step, not by bytes) — show "—" meanwhile so
   // they don't read as "frozen at 0".
@@ -753,20 +771,9 @@ async function _startDownloadInterne() {
   }
 
   // ---- Phase 2: download the model weights.
-  list.innerHTML = '<div class="wiz-dl-row"><span class="name">Preparing model list…</span></div>';
-  const plan = await window.wizardAPI.getDownloadPlan(chosenMode);
-  list.innerHTML = '';
-  for (const item of plan.items) {
-    const row = document.createElement('div');
-    row.className = 'wiz-dl-row';
-    row.dataset.id = item.id;
-    row.innerHTML = `
-      <span class="name">${item.label}</span>
-      <span class="timer"></span>
-      <span class="size">${item.size_mb} MB</span>
-      <div class="bar"><div class="bar-fill"></div></div>`;
-    list.appendChild(row);
-  }
+  const plan = planComplet;
+  { const ligneMoteur = list.querySelector('.wiz-dl-row[data-id="__aienv"]');
+    if (ligneMoteur) { ligneMoteur.classList.remove('in-progress'); ligneMoteur.classList.add('done'); const n = document.getElementById('aienv-name'); if (n) n.textContent = 'AI engine ready ✓'; } }
   document.getElementById('dl-total').textContent = plan.total_mb;
   placerJalons(plan);
 
@@ -833,16 +840,7 @@ async function _startDownloadInterne() {
   // MOTEUR DE RIG : UNE LIGNE PAR ETAPE (2026-09-30, user : « la ligne change plusieurs fois de terme et d'avancement, fais des lignes
   // separees »). Tailles mesurees : PyTorch 2.7 cu128 3 338 Mo, bibliotheques ~476 Mo (PyPI, sans leurs dependances), modele 1 619 Mo.
   // Chaque ligne avance avec les octets mesures pendant SON etape ; la verification du moteur est faite sur la page de verification.
-  const RIG_LIGNES = [
-    { id: '__rig_py', etapes: ['rig-copy-python', 'rig-pip-bootstrap'], nom: 'Rig engine — Python environment', taille: '', mo: 0, poids: 2 },
-    { id: '__rig_torch', etapes: ['rig-torch'], nom: 'Rig engine — PyTorch', taille: '3338 MB', mo: 3338, poids: 60 },
-    { id: '__rig_libs', etapes: ['rig-deps'], nom: 'Rig engine — libraries', taille: '~476 MB', mo: 476, poids: 9 },
-    { id: '__rig_code', etapes: ['rig-code', 'rig-patch'], nom: 'Rig engine — open-source code', taille: '', mo: 0, poids: 3 },
-    { id: '__rig_model', etapes: ['rig-weights'], nom: 'Rig engine — model', taille: '1619 MB', mo: 1619, poids: 26 },
-  ];
   const RIG_TOTAL_MO = RIG_LIGNES.reduce((t, l) => t + l.mo, 0);
-  list.insertAdjacentHTML('beforeend', RIG_LIGNES.map((l) => `<div class="wiz-dl-row" data-id="${l.id}"><span class="name">${l.nom}</span>`
-    + `<span class="timer"></span><span class="size">${l.taille}</span><div class="bar"><div class="bar-fill"></div></div></div>`).join(''));
   // Les modeles sont finis : sans ceci l'ecran restait fige (« 48650 / 48650 MB · 0.0 MB/s ») pendant que le moteur de rig, en bas de
   // la liste, travaillait hors champ (constate le 2026-09-30).
   list.scrollTop = list.scrollHeight;
@@ -929,8 +927,8 @@ async function _startDownloadInterne() {
   }
   // ANIMATION (2026-09-30, user : « il manque l'icone d'animation », ordre image > 3D > rig > anim) : rien a telecharger — les cycles de marche
   // sont integres au logiciel et les animations IA sont calculees en ligne. Ligne affichee pour que la chaine complete soit visible.
-  list.insertAdjacentHTML('beforeend', '<div class="wiz-dl-row done" data-id="__anim"><span class="name">Animation engine ready — built in, nothing to download</span>'
-    + '<span class="size">0 MB</span><div class="bar"><div class="bar-fill"></div></div></div>');
+  { const la = list.querySelector('.wiz-dl-row[data-id="__anim"]');
+    if (la) { la.classList.add('done'); const n = la.querySelector('.name'); if (n) n.textContent = 'Animation engine ready — built in, nothing to download'; } }
   list.scrollTop = list.scrollHeight;
   document.getElementById('btn-dl-next').disabled = false;
   annoncerFin(!document.getElementById('retry-rig'));
