@@ -1241,6 +1241,9 @@
       'Sign in to your MyFabmesh account — new accounts get 15 free credits':
         'Connectez-vous à votre compte MyFabmesh — les nouveaux comptes reçoivent 15 crédits gratuits',
       'MyFabmesh credits — click to top up': 'Crédits MyFabmesh — cliquez pour recharger',
+      // Etapes verrouillees (2026-09-30)
+      'Generate a 3D model first (step 2): rigging needs a 3D model.': 'Générez d’abord un modèle 3D (étape 2) : le rig a besoin d’un modèle 3D.',
+      'Generate a rig first (step 3): animations need a rigged model.': 'Générez d’abord un rig (étape 3) : les animations ont besoin d’un modèle riggé.',
       // Fenetre New project, interrupteur Auto (2026-09-30)
       'Detected: {x} · {y}': 'Détecté : {x} · {y}',
       'Choose the type and style yourself': 'Choisissez vous-même le type et le style',

@@ -24492,3 +24492,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Deploye : https://fabienlacaze--myfabmesh-redacteur-redacteur-decrire.modal.run (URL deduite par le worker). Methode rediger (SDK, identifiants Modal) pour les essais.
 - Mesures (protocole froid PUIS chaud, conteneurs arretes entre deux essais) : sans instantane, froid 35,3 s / chaud 6,6-7,0 s ; avec enable_memory_snapshot (modele charge dans enter(snap=True)) : 1er froid 40,9 s (creation de l'instantane), froids suivants 11,8 s et 15,6 s, chaud ~7 s. Qualite identique au bureau.
 - Site deploye (worker 84eae7df) : index2.js servi = cloud/out ; /api/describe-asset repond 401 sans session (route presente). Test de bout en bout avec une session : a faire par le user (pas de session de pilotage sur ce PC, et on ne se connecte jamais a sa place).
+
+## 2026-09-30 — Etape Rig verrouillee sans modele 3D (bureau + web)
+- User : « oui » a « verrouiller aussi l'etape Rig tant qu'il n'y a pas de modele 3D ? ». La carte Rig ne s'ouvre plus (message « Generate a 3D model first (step 2)… ») tant que le projet n'a ni maillage (genere OU importe par glisser-deposer), ni rig, ni animation. Messages des deux verrous traduits (i18n bureau + web).

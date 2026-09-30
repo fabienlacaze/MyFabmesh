@@ -2458,11 +2458,18 @@ function bindStepCardCollapse() {
     header.addEventListener('click', (e) => {
       // Don't toggle if user clicked the status badge or any inner button
       if (e.target.closest('button')) return;
-      // ANIMATION VERROUILLEE tant qu'aucun rig n'existe (user, 2026-09-30 : « je n'ai jamais genere d'animation mais le menu est debloque »).
-      if (card.id === 'step-card-animation' && card.classList.contains('collapsed')) {
+      // ETAPES VERROUILLEES (user, 2026-09-30) : Animation tant qu'aucun rig n'existe (« je n'ai jamais genere d'animation mais le menu
+      // est debloque »), Rig tant qu'aucun modele 3D n'existe (« oui » a « verrouiller aussi le Rig ? »). Un maillage IMPORTE (glisser-
+      // deposer d'un GLB) compte comme un modele 3D : il entre dans p.meshes.
+      if (card.classList.contains('collapsed') && (card.id === 'step-card-rig' || card.id === 'step-card-animation')) {
         const _p = state.currentProject;
-        if (!_p || !((_p.rigs && _p.rigs.length) || (_p.animations && _p.animations.length))) {
-          showToast('Generate a rig first (step 3): animations need a rigged model.', 'info', 3500);
+        const _n = (k) => (_p && Array.isArray(_p[k]) ? _p[k].length : 0);
+        if (card.id === 'step-card-rig' && !(_n('meshes') || _n('rigs') || _n('animations'))) {
+          showToast(_i18nT('Generate a 3D model first (step 2): rigging needs a 3D model.'), 'info', 3500);
+          return;
+        }
+        if (card.id === 'step-card-animation' && !(_n('rigs') || _n('animations'))) {
+          showToast(_i18nT('Generate a rig first (step 3): animations need a rigged model.'), 'info', 3500);
           return;
         }
       }
