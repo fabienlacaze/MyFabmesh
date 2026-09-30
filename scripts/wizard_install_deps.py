@@ -168,12 +168,15 @@ PYPI_PACKAGES = [
 # vraies dependances a part. Verifie le 2026-09-30 avec l'interprete embarque (Smart App Control actif) : ctranslate2 4.8.2 et
 # sentencepiece 0.2.2 (DLL natives) s'importent, modele fr->en telecharge (66,6 Mo) et « fourmi geante » -> « giant ant ».
 # FACULTATIF : un echec ici n'arrete pas l'installation (le prompt reste alors dans sa langue, comme avant).
+# PAS `minisbd` (revue de l'audit, reprise le 2026-09-30) : argostranslate 1.11 le declare et l'importe au chargement, mais ce
+# paquet est sous GNU AGPL-3.0 (verifie sur PyPI : minisbd 0.9.5) — interdit dans le produit. Le remplacant neutre
+# `scripts/minisbd` (ecrit ici, aucun code repris ; memes noms SBDetect / models) est pose a la place par _poser_minisbd_neutre.
+# Les modeles poses par l'appli decoupent leurs phrases avec stanza (Apache-2.0) : minisbd n'y est qu'importe.
 TRANSLATION_DEPS = [
     'ctranslate2>=4.8,<4.9',
     'sentencepiece>=0.2.1,<0.3',
     'stanza==1.10.1',            # version exigee par argostranslate 1.11.0
     'sacremoses>=0.0.53,<0.2',
-    'minisbd>=0.9,<1',
 ]
 TRANSLATION_PACKAGE = 'argostranslate==1.11.0'
 # Langues de l'interface du bureau (i18n.js) dont le modele X -> anglais peut etre pose par l'assistant
@@ -340,6 +343,25 @@ def _poser_detourage(py):
     emit({'step': 'pypi', 'pct': 99, 'done': False, 'current': 'background remover installed'})
 
 
+def _poser_minisbd_neutre(py):
+    """Remplacant NEUTRE de `minisbd` dans site-packages (voir TRANSLATION_DEPS et scripts/minisbd/__init__.py) : sans lui,
+    `from argostranslate import translate` echoue a l'import (« No module named 'minisbd' »). Meme mecanique que _poser_detourage
+    (fichier ._pth : le dossier des scripts n'est pas dans sys.path de tous les scripts). Un vrai minisbd (AGPL) pose par une
+    version precedente de l'assistant est d'abord desinstalle (fichiers ET metadonnees), puis remplace."""
+    import shutil
+    src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'minisbd', '__init__.py')
+    if not os.path.isfile(src):
+        raise RuntimeError('remplacant de minisbd introuvable : ' + src)
+    subprocess.run([py, '-m', 'pip', 'uninstall', '-y', 'minisbd'], capture_output=True, text=True, timeout=300)   # absent : sans effet
+    r = subprocess.run([py, '-c', "import sysconfig; print(sysconfig.get_paths()['purelib'])"], capture_output=True, text=True, timeout=60)
+    if r.returncode != 0 or not r.stdout.strip():
+        raise RuntimeError('site-packages introuvable : ' + (r.stderr or '')[-200:])
+    dest = os.path.join(r.stdout.strip(), 'minisbd')
+    shutil.rmtree(dest, ignore_errors=True)
+    os.makedirs(dest, exist_ok=True)
+    shutil.copy2(src, os.path.join(dest, '__init__.py'))
+
+
 def _poser_traduction(py):
     """Traduction des prompts (FACULTATIVE, voir TRANSLATION_DEPS) : paquets pip, puis modeles X -> anglais des langues du
     systeme (FABMESH_TRANSLATE_LANGS, pose par main.js) ; la premiere traduction telecharge aussi les petits fichiers de
@@ -347,6 +369,7 @@ def _poser_traduction(py):
     try:
         _run([py, '-m', 'pip', 'install', *TRANSLATION_DEPS], step='translation')
         _run([py, '-m', 'pip', 'install', '--no-deps', TRANSLATION_PACKAGE], step='translation')
+        _poser_minisbd_neutre(py)
     except Exception as e:
         emit({'step': 'translation', 'pct': 99, 'done': False,
               'warn': 'prompt translator not installed (prompts stay in their language): ' + str(e)[-400:]})

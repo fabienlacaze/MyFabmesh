@@ -268,11 +268,13 @@ def check_texture_upscaler():
 
 def report_prompt_translator():
     """Traduction des prompts : FACULTATIVE (etape de l'assistant qui n'arrete jamais l'installation) -> simple ligne de
-    journal, jamais un echec. Import REEL des parties natives (une DLL peut s'installer puis etre bloquee par Smart App Control)."""
+    journal, jamais un echec. Import REEL des parties natives (une DLL peut s'installer puis etre bloquee par Smart App Control)
+    et de `argostranslate.translate`, la chaine qu'utilise l'appli (stanza, remplacant neutre de minisbd) : `package` seul
+    s'importait meme quand la traduction ne pouvait pas se charger."""
     try:
         import ctranslate2  # noqa: F401
         import sentencepiece  # noqa: F401
-        from argostranslate import package
+        from argostranslate import package, translate  # noqa: F401
         modeles = sorted(f'{p.from_code}->{p.to_code}' for p in package.get_installed_packages())
         log(f'[smoke] prompt translator: ready (models: {", ".join(modeles) or "none yet, downloaded at first use"})')
     except Exception as e:

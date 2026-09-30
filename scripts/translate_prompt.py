@@ -18,7 +18,14 @@ input unchanged (so generation never breaks because of translation).
 """
 import argparse
 import json
+import os
 import sys
+
+# Python EMBARQUE (fichier ._pth) : le dossier du script n'est pas dans sys.path. Il y faut `minisbd` (remplacant neutre du
+# paquet AGPL, scripts/minisbd), qu'argostranslate importe au chargement (reprise du travail de l'audit du 2026-09-30).
+_ICI = os.path.dirname(os.path.abspath(__file__))
+if _ICI not in sys.path:
+    sys.path.insert(0, _ICI)
 
 # Windows console is cp1252; Arabic/Hindi/Chinese output needs UTF-8.
 try:
@@ -78,8 +85,17 @@ def installer_paquet(src, dst="en"):
         return False
     if paquet_installe(src, dst):
         return True
-    from argostranslate import package
+    import socket
+    from argostranslate import package, settings
+    # Argos telecharge par urllib SANS delai : une connexion bloquee (pare-feu, raw.githubusercontent.com filtre) figeait
+    # l'etape de l'assistant jusqu'a son delai de 15 min. 60 s sans aucun octet = echec, la traduction reste facultative.
+    if socket.getdefaulttimeout() is None:
+        socket.setdefaulttimeout(60)
     package.update_package_index()
+    # Index injoignable : update_package_index() avale l'erreur sans rien ecrire, et get_available_packages() se rappelle
+    # alors elle-meme (nouvel essai reseau a chaque niveau) jusqu'a la RecursionError (argostranslate 1.11.0, verifie). Stop.
+    if not os.path.isfile(str(settings.local_package_index)):
+        return False
     dispo = [p for p in package.get_available_packages() if p.from_code == src and p.to_code == dst]
     if not dispo:
         return False
