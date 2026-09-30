@@ -909,6 +909,10 @@ const AI_TMP_DIR   = path.join(HEAVY_DIR, 'ai-tmp');
 // proposes a part par « Remove all MyFabmesh data ».
 const HF_HUB_PARTAGE = process.env.HF_HUB_CACHE || process.env.HUGGINGFACE_HUB_CACHE
   || path.join(process.env.HF_HOME || path.join(os.homedir(), '.cache', 'huggingface'), 'hub');
+// SURVEILLANCE DU PARENT (voir scripts/cloisonnement_memoire.py, _surveiller_parent) : les calculs s'arretent si l'appli disparait, sauf « keep jobs » (fichier drapeau).
+process.env.FABMESH_PARENT_PID = String(process.pid);
+process.env.FABMESH_KEEP_FLAG = path.join(app.getPath('userData'), 'keep_jobs.flag');
+try { setTimeout(() => { try { fs.unlinkSync(process.env.FABMESH_KEEP_FLAG); } catch (_) {} }, 20000); } catch (_) {}   // apres que les calculs gardes ont lu le drapeau
 if (app.isPackaged) {
   const env = process.env;
   const hub = path.join(HF_CACHE_DIR, 'hub');
@@ -1816,6 +1820,9 @@ function createWindow() {
     //   { killJobs: false }  -> keep running (orphan), skip cleanup
     //   { pauseJobs: true }  -> suspend trees + persist manifests, skip cleanup
     // Both leave the subprocesses alive across the Electron exit.
+    if ((opts && opts.pauseJobs === true) || (opts && opts.killJobs === false)) {
+      try { fs.writeFileSync(process.env.FABMESH_KEEP_FLAG, String(Date.now())); } catch (_) {}   // les calculs ne doivent PAS se couper : surveillance du parent desarmee
+    }
     if (opts && opts.pauseJobs === true) {
       try { pauseAndPersistJobs(opts.jobStates); } catch (e) { log.warn('main', `pause on quit failed: ${e.message}`); }
       _keepJobsOnQuit = true;

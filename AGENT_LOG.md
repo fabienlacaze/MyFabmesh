@@ -24689,3 +24689,8 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - Test : pxr renomme => `import kaolin`, `kaolin.render.mesh`, `kaolin.ops.mesh` OK sans USD.
 - wizard_install_deps.py : `pip uninstall -y usd-core` juste apres kaolin (non bloquant). Sur le PC du user : dossier site-packages/pxr renomme en pxr_off.
 - Egalement installe a la main : python/Include (Python.h) pour que Triton compile (tcc) — a livrer avec l appli, voir docs/REPRISE_2026-09-30.md.
+
+## 2026-09-30 — surveillance du parent : les calculs s arretent si l appli disparait (user : « on est bien sur que les generations s arretent si desktop tombe ? »)
+- Constat : Node lance les Python sans Job Object ; arret force/plantage du processus principal => calcul orphelin sur le GPU, nettoye seulement a l annulation suivante.
+- scripts/cloisonnement_memoire.py : _surveiller_parent() (fil, WaitForSingleObject sur FABMESH_PARENT_PID, os._exit(3)). main.js : pose FABMESH_PARENT_PID et FABMESH_KEEP_FLAG ; ecrit le drapeau avant « keep jobs » / pause ; le supprime 20 s apres demarrage. Test reel (faux parent tue) : arret en 0,2 s sans drapeau ; continue avec drapeau. Urgence : FABMESH_PARENT_WATCH=0.
+- Couvre les scripts qui passent par cloisonnement_memoire (image, 3D...). Non teste : scripts hors module (rig, Blender), kill reel de l appli sur un vrai calcul.

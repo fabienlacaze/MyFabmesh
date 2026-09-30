@@ -398,6 +398,7 @@ def appliquer(nom, cle=None, log=None, budget_ram_fixe_mo=None):
                      vram_budget_mo=None, vram_autres_mo=None, vram_total_mo=None,
                      vram_contexte_mo=None, vram_fraction=None, besoin_mo=None)
         _installer_crochet()
+        _surveiller_parent()
         if os.environ.get('FABMESH_CLOISONNEMENT') == '0':
             _log('cloisonnement memoire DESACTIVE (FABMESH_CLOISONNEMENT=0) : aucun plafond')
             return etat()
@@ -715,6 +716,41 @@ def _crochet(type_, valeur, tb):
         (_precedent or sys.__excepthook__)(type_, valeur, tb)
     finally:
         signaler_si_memoire(valeur)
+
+
+def _surveiller_parent():
+    """SURVEILLANCE DU PARENT (user 2026-09-30 : « on est bien sur que les generations s'arretent si desktop tombe ? »). Un plantage ou un arret force de l'appli laissait
+    le calcul tourner, orphelin, sur le GPU. main.js pose FABMESH_PARENT_PID ; ce fil attend la fin de ce processus (WaitForSingleObject, sans interrogation) et arrete le
+    calcul des qu'il a disparu. EXCEPTION : « Quit and keep jobs running » / pause — main.js ecrit alors le fichier FABMESH_KEEP_FLAG AVANT de quitter, le fil s'efface.
+    Desactivation d'urgence : FABMESH_PARENT_WATCH=0."""
+    if sys.platform != 'win32' or os.environ.get('FABMESH_PARENT_WATCH') == '0':
+        return
+    try:
+        pid = int(os.environ.get('FABMESH_PARENT_PID') or 0)
+    except ValueError:
+        pid = 0
+    if pid <= 0 or pid == os.getpid():
+        return
+    drapeau = os.environ.get('FABMESH_KEEP_FLAG') or ''
+
+    def _boucle():
+        try:
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            k32.OpenProcess.restype = ctypes.c_void_p
+            h = k32.OpenProcess(0x00100000, False, pid)        # SYNCHRONIZE
+            if not h:
+                return                                          # parent introuvable : on ne tue rien
+            k32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+            while True:
+                if k32.WaitForSingleObject(h, 2000) == 0:       # 0 = le parent s'est termine
+                    if drapeau and os.path.exists(drapeau):
+                        return                                  # « keep jobs » : le calcul continue seul
+                    _log('application disparue (pid %d) : arret du calcul' % pid)
+                    os._exit(3)
+        except Exception:
+            return
+    threading.Thread(target=_boucle, name='surveillance-parent', daemon=True).start()
 
 
 def _installer_crochet():
