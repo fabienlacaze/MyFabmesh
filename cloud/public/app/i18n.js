@@ -448,6 +448,9 @@
       "You have reached today's generation limit for free accounts. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged.": "Vous avez atteint la limite de génération du jour des comptes gratuits. Elle se réinitialise à {x} (heure locale), dans {y}. Vos crédits sont intacts et rien ne vous a été facturé.",
       "The service has reached its daily capacity. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged.": "Le service a atteint sa capacité du jour. Elle revient à {x} (heure locale), dans {y}. Vos crédits sont intacts et rien ne vous a été facturé.",
       "Accounts that have bought credits are never limited.": "Les comptes qui ont acheté des crédits ne sont jamais limités.",
+      // Prix du clip IA lu dans la grille (2026-09-30), plus « 5 » en dur
+      'AI animation ({x} credits), work in progress.': 'Animation IA ({x} crédits), en chantier.',
+      'AI animation, work in progress.': 'Animation IA, en chantier.',
       'Server starting': 'Serveur en démarrage',
       'starting': 'démarrage',
       'unavailable': 'indisponible',

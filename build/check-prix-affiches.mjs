@@ -87,10 +87,25 @@ const rendu = lire('src/renderer/index2.js');
 const interdits = [
   { motif: /const BASE = \{\s*fast:\s*\d+/, quoi: 'la table de prix des presets de maillage en dur (const BASE = { fast: … })' },
   { motif: /textContent = String\(\s*\d+\s*\*\s*count\s*\)/, quoi: 'un multiplicateur de prix d\'image en dur (String(N * count))' },
+  // Audit du 2026-09-30 : pastilles d'outils, rig, peau, animation et textes
+  // « N credits » etaient encore des constantes (Modify 2 pour 3, Auto Inpaint
+  // 3 pour 6, Draw Mask 3 pour 6…).
+  { motif: /const _CLOUD_(TOOL|LB|LB3D)_PRICES\s*=\s*\{/, quoi: 'une table de prix d\'outils en dur (_CLOUD_TOOL_PRICES & co)' },
+  { motif: /AI animation \(\d+ credits?\)/, quoi: 'un prix d\'animation IA écrit dans un texte' },
+  { motif: /['"]\d+ credits? per image/, quoi: 'un prix par image écrit dans un texte' },
 ];
 for (const { motif, quoi } of interdits) {
   if (motif.test(rendu)) {
     erreurs.push(`src/renderer/index2.js réintroduit ${quoi}. Les prix doivent venir de window._prixDe().`);
+  }
+}
+// Memes textes cote HTML du bureau, de l'assistant et du web.
+for (const f of ['src/renderer/index2.html', 'src/renderer/wizard.html', 'cloud/public/app/index2.js']) {
+  const t = lire(f);
+  if (/>\s*\d+ credits? per image\s*</.test(t) || /AI animation \(\d+ credits?\)/.test(t)
+      || /wiz-fact-val"[^>]*>\s*\d+\s*<\/div>\s*<div class="wiz-fact-lbl">credits \/ image/.test(t)) {
+    erreurs.push(`${f} écrit un prix en dur (« N credits per image », « AI animation (N credits) » ou `
+      + 'la case « credits / image » de l\'assistant). Le lire dans la grille.');
   }
 }
 
@@ -98,6 +113,7 @@ const requis = [
   { motif: /window\._prixDe\s*=/, quoi: 'la fonction de lecture de grille window._prixDe' },
   { motif: /_prixDe\('text2image'\)/, quoi: 'la pastille image lisant text2image dans la grille' },
   { motif: /CLE_PRESET/, quoi: 'la correspondance preset → clé de grille pour le maillage' },
+  { motif: /window\._prixBouton\s*=/, quoi: 'la table des prix des outils lue dans la grille (window._prixBouton)' },
 ];
 for (const { motif, quoi } of requis) {
   if (!motif.test(rendu)) {

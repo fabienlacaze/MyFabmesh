@@ -132,6 +132,8 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   // ecrire en dur. Trois chiffres avaient diverge de la facturation reelle
   // sans que rien ne le detecte (audit du 2026-08-18, ecart jusqu'a x8).
   cloudPricing: (opts) => ipcRenderer.invoke('cloud-pricing', opts),
+  // Faux = le rig partira sur le cloud meme en mode Local (pastille de prix).
+  rigLocalDisponible: () => ipcRenderer.invoke('rig-local-disponible'),
   cloudSignup: (opts) => ipcRenderer.invoke('cloud-signup', opts),
   cloudVerifySignup: (opts) => ipcRenderer.invoke('cloud-verify-signup', opts),
   cloudRecover: (opts) => ipcRenderer.invoke('cloud-recover', opts),

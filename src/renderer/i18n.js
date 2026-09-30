@@ -1253,6 +1253,13 @@
       'description written by the local AI, edit it freely': 'description rédigée par l’IA locale, modifiez-la librement',
       'not enough free memory to write the description': 'pas assez de mémoire libre pour rédiger la description',
       'the writing assistant is not installed': 'l’assistant de rédaction n’est pas installé',
+      // ---- Prix lus dans la grille (2026-09-30), plus aucun chiffre en dur ----
+      '{x} credits per image': '{x} crédits par image',
+      '{x} credit per image': '{x} crédit par image',
+      '{x} credits per image (default quality)': '{x} crédits par image (qualité par défaut)',
+      '{x} credit per image (default quality)': '{x} crédit par image (qualité par défaut)',
+      'AI animation ({x} credits), work in progress.': 'Animation IA ({x} crédits), en chantier.',
+      'AI animation, work in progress.': 'Animation IA, en chantier.',
       'Your account was created but not confirmed. Sign in with the 6-digit code we emailed you.':
         'Votre compte a été créé mais reste à confirmer. Saisissez le code à 6 chiffres reçu par e-mail.',
       'This email is already registered. Enter the 6-digit code we emailed you, or go back and sign in.':
