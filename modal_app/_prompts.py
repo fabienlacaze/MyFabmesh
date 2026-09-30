@@ -43,6 +43,15 @@ ASSET_TYPE_PROMPTS = {
     'custom'            : '',
 }
 
+ASSET_TYPE_PREFIXES = {
+    # GENERE PAR build/sync_prompt_tables.py — NE PAS EDITER A LA MAIN.
+    # Source de verite : src/renderer/index2.js (ce que voit
+    # l'utilisateur dans les menus). Toute modification faite ici
+    # sera ecrasee, et `--verify` fera echouer le build.
+    'building'          : 'an architectural building, a complete standalone structure',
+    'environment'       : 'a single isolated environment prop',
+}
+
 ASSET_STYLE_PROMPTS = {
     # GENERE PAR build/sync_prompt_tables.py — NE PAS EDITER A LA MAIN.
     # Source de verite : src/renderer/index2.js (ce que voit
@@ -123,9 +132,21 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
     On teste donc la presence avant d'ajouter. Le test porte sur le PREMIER
     segment du gabarit (« architectural building exterior »), stable d'une
     version a l'autre : un client plus ancien ou plus recent que le serveur
-    ne peut plus produire de doublon.
+    ne peut plus produire de doublon. Quand ce premier segment est trop court
+    pour etre sur (« isolated », gabarits prop / vehicle / weapon /
+    environment), ce sont ses DEUX premiers segments qui servent de reperes,
+    comme le nettoyeur du client (MARQUEURS_GABARIT) : l'appli de bureau en
+    mode Cloud envoie son prompt DEJA enrichi, et ces gabarits arrivaient en
+    double.
+
+    2026-09-30 — PREFIXE de categorie (table generee ASSET_TYPE_PREFIXES,
+    « a single isolated environment prop »), place comme buildFullPrompt du
+    bureau : [style, prefixe, texte, gabarit], ou [prefixe, texte, tenue,
+    style, gabarit] pour une unite. Le site ne l'avait jamais : le worker
+    transmet le texte BRUT de l'utilisateur.
     """
     style_prefix = ASSET_STYLE_PROMPTS.get(asset_style, '')
+    type_prefix = ASSET_TYPE_PREFIXES.get(asset_type, '')
     type_suffix = ASSET_TYPE_PROMPTS.get(asset_type, '')
     # Animal SANS PATTES ou POISSON : gabarit dedie (meme regle que buildFullPrompt du client)
     if asset_type in ('animal', 'creature'):
@@ -139,10 +160,12 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
     def _absent(bloc: str) -> bool:
         if not bloc:
             return False
-        tete = bloc.split(',')[0].strip().lower()
-        return not (tete and len(tete) > 12 and tete in deja)
+        segments = [s.strip().lower() for s in bloc.split(',')]
+        reperes = (segments[0], ', '.join(segments[:2]))
+        return not any(len(r) > 12 and r in deja for r in reperes)
 
     style = style_prefix if _absent(style_prefix) else ''
+    prefixe = type_prefix if _absent(type_prefix) else ''
     gabarit = type_suffix if _absent(type_suffix) else ''
     if asset_type in _TYPES_UNITE:
         # UNITES : le SUJET EN TETE, et son EPOQUE rendue visible (2026-09-26).
@@ -156,10 +179,12 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
         #   donne 4 sur 4 en fourrures et peaux ; « medieval worker » passe de
         #   3 a 4 sur 4. Interdire les anachronismes dans le negatif (casque,
         #   gilet, jean) ne marchait pas : 3 casques sur 4.
-        texte, tenue = _epoque_unite(user_prompt)
-        parts = [p for p in (texte, tenue, style, gabarit) if p]
+        # Texte DEJA enrichi (gabarit present : appli de bureau en mode Cloud) : l'epoque y est deja rendue ; la refaire
+        # ponderait le mot dans la tenue (« (medieval:1.4) linen... ») et recollait la tenue en fin de prompt.
+        texte, tenue = (user_prompt, '') if (type_suffix and not gabarit) else _epoque_unite(user_prompt)
+        parts = [p for p in (prefixe, texte, tenue, style, gabarit) if p]
     else:
-        parts = [p for p in (style, user_prompt, gabarit) if p]
+        parts = [p for p in (style, prefixe, user_prompt, gabarit) if p]
     return ', '.join(parts)
 
 

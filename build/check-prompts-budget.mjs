@@ -113,6 +113,19 @@ for (const type of Object.keys(tables.bureau.types)) {
     if (a !== b) echecs.push(`DIVERGENCE bureau/${autre}  ${type}`);
   }
 }
+// Prefixes de categorie (2026-09-30) : Modal ne les avait pas (le worker lui envoie le texte BRUT), le site n'a donc
+// jamais eu « a single isolated environment prop ». Genere pour Modal par build/sync_prompt_tables.py, recopie a la main
+// sur le site : les trois doivent dire la meme chose.
+const clesPrefixes = new Set(['bureau', 'web', 'modal'].flatMap((s) => Object.keys(tables[s].prefixes)));
+for (const type of clesPrefixes) {
+  for (const autre of ['web', 'modal']) {
+    const a = tables.bureau.prefixes[type];
+    const b = tables[autre].prefixes[type];
+    if (a === b) continue;
+    const quoi = b === undefined ? 'absent' : (a === undefined ? 'en trop' : 'different');
+    echecs.push(`PREFIXE bureau/${autre}  ${type} : ${quoi}`);
+  }
+}
 
 // --- Rapport -----------------------------------------------------------------
 if (echecs.length) {
@@ -129,7 +142,7 @@ if (echecs.length) {
 }
 
 const dette = Object.entries(nouveaux).filter(([, n]) => n > BUDGET_GABARIT);
-console.log(`[prompts] ${Object.keys(nouveaux).length} gabarits verifies, parite bureau/web/modal OK`);
+console.log(`[prompts] ${Object.keys(nouveaux).length} gabarits et ${clesPrefixes.size} prefixes verifies, parite bureau/web/modal OK`);
 if (dette.length) {
   console.log(`[prompts] dette connue (n'augmente pas) : ${dette.map(([t, n]) => `${t} ${n}`).join(', ')}`);
 }

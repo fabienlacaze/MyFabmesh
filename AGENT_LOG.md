@@ -24746,3 +24746,12 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - Messages : plus de « CLIPSeg » au bureau (nom de moteur), Modal en anglais, le site n'affiche plus le JSON brut {"detail": ...} et dit « credits refunded ».
 - Tests : CPU (faux CLIPSeg / faux re-rendu) 29/29, noyaux identiques, tsc worker 31 erreurs (les memes).
 - A deployer : modal deploy modal_app/app.py (+ rechauffer_apres_deploy.py), puis le site (worker). Bureau : prochaine version.
+
+## 2026-09-30 (nuit) — Prefixe de categorie (« a single isolated environment prop ») aussi sur Modal, par le generateur
+- Constat : le worker envoie a Modal le texte BRUT de l'utilisateur et Modal refait le prompt depuis SES tables, sans ASSET_TYPE_PREFIXES : le site n'a JAMAIS eu de prefixe de categorie (ni l'ancien « an architectural structure », ni le nouveau, ni celui de building). Le gabarit de fin « isolated, full structure, ... » est, lui, identique sur les trois copies (le bureau fait autorite).
+- build/sync_prompt_tables.py genere aussi ASSET_TYPE_PREFIXES dans modal_app/_prompts.py ; build_enriched_prompt les place comme buildFullPrompt du bureau ([style, prefixe, texte, gabarit]).
+- Doublons (appli de bureau en mode Cloud, qui envoie son prompt DEJA enrichi) : un gabarit au 1er segment court (« isolated » : prop, vehicle, weapon, environment) n'etait pas reconnu et revenait en double -> reperes = 1er OU 2 premiers segments ; pour une unite, l'epoque n'est plus re-appliquee (« (medieval:1.4) linen... » + tenue recollee).
+- Mesure (494 cas = 19 types x 13 textes x 2 styles ; buildFullPrompt du bureau ET du site evalue dans node) : prompt final Modal identique 442/494 -> 494/494 ; prompt deja enrichi rendu tel quel 304/494 -> 494/494.
+- check-prompts-budget : parite des prefixes bureau/web/modal (refuse une divergence, essaye sur une copie modifiee).
+- A deployer : modal deploy modal_app/app.py (groupe avec le Recolor).
+- Vu, non corrige : l'appli de bureau en mode Cloud n'envoie pas asset_style -> le worker met « realistic » et Modal ajoute « realistic style, photorealistic... » devant un prompt deja en style cartoon (src/main/cloud_fallback.js, worker handleGenerateImage).
