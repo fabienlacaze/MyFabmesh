@@ -18697,6 +18697,13 @@ document.getElementById('ws-anim-gen-more-btn')?.addEventListener('click', () =>
       go.disabled = !(un && courant !== depart);
       go.title = !un ? _i18nT('Pick at least one animation type')
         : courant === depart ? _i18nT('Add or remove a type to enable Generate') : '';
+      // PRIX DE CE LANCEMENT (2026-09-30) : la fenetre lancait sans rien
+      // annoncer. Les allures procedurales sont gratuites ; chaque clip IA
+      // coche (« Fly » : oiseau, dragon, insecte) = un appel /api/animate au
+      // tarif `anim`, en mode Local aussi (animation toujours en ligne).
+      const pAnim = window._prixDe?.('anim');
+      const nbIA = cases.filter((cb) => cb.checked && !ALLURES_PROCEDURALES.includes(cb.value)).length;
+      window._posePastille?.(go, (nbIA && typeof pAnim === 'number') ? nbIA * pAnim : null);
     }
   };
   cases.forEach((cb) => { cb.onchange = majGo; });

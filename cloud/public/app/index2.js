@@ -20498,6 +20498,19 @@ document.getElementById('ws-anim-gen-more-btn')?.addEventListener('click', () =>
         : !changed
           ? 'Add or remove a type to enable Generate'
           : '';
+      // PRIX DE CE LANCEMENT (2026-09-30, identique bureau) : la fenetre lancait
+      // sans rien annoncer. Allures procedurales gratuites ; chaque clip IA coche
+      // (« Fly ») = un appel /api/animate au tarif `anim` de la grille. Grille
+      // inconnue ou rien de payant : aucun chiffre.
+      const pAnim = window.__LIVE_PRICES && window.__LIVE_PRICES.anim;
+      const nbIA = checkboxes.filter((cb) => cb.checked && !ALLURES_PROCEDURALES.includes(cb.value)).length;
+      const total = (nbIA && typeof pAnim === 'number' && pAnim > 0) ? nbIA * pAnim : 0;
+      let badge = goBtn.querySelector('.cloud-cost-badge');
+      if (!total) { if (badge) badge.remove(); }
+      else {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'cloud-cost-badge'; goBtn.appendChild(badge); }
+        badge.textContent = String(total);
+      }
     }
   };
   checkboxes.forEach(cb => cb.addEventListener('change', updateGoState));
