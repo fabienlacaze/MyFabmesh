@@ -35,6 +35,12 @@ import numpy as np
 import torch
 from PIL import Image, ImageDraw, ImageFilter
 
+# Python EMBARQUE de l'appli installee (fichier ._pth) : le dossier du script n'est PAS dans sys.path (2026-09-30, audit de
+# l'installation de zero). Sans cette ligne, l'export (outil « region re-texture ») perdait EN SILENCE acceleration_glb (WebP rapide).
+_ICI = os.path.dirname(os.path.abspath(__file__))
+if _ICI not in sys.path:
+    sys.path.insert(0, _ICI)
+
 
 def log(msg):
     print(f'[face-inpaint] {msg}', flush=True)
