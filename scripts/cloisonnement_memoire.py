@@ -15,15 +15,21 @@ CE QUE FAIT CE MODULE. Il est importe EN TETE de chaque script GPU lourd, avant
 torch (le dossier du script n'est PAS sur sys.path dans le Python embarque, a
 cause du fichier ._pth : chaque script insere le sien avant l'import).
 
-1. RAM : plafond de la memoire RESIDENTE (working set) de ce processus,
-   pose par SetProcessWorkingSetSizeEx(QUOTA_LIMITS_HARDWS_MAX_ENABLE).
-   Budget = limite RAM de l'utilisateur - RAM occupee par tout le reste,
-   jamais sous PLANCHER_RESIDENT_MO. Au-dela, Windows sort du processus ses
-   pages les moins utilisees (elles restent disponibles « en attente », puis
-   vont dans le fichier d'echange si la RAM manque) : le calcul RALENTIT, il
-   n'est JAMAIS arrete. Le plafond suit le budget toutes les PERIODE_SUIVI_S
-   secondes (un logiciel qui se libere rend de la place, un qui grossit en
-   reprend).
+1. RAM : plafond SOUPLE de la memoire RESIDENTE (working set) de ce
+   processus : SetProcessWorkingSetSizeEx avec des limites NON strictes
+   (QUOTA_LIMITS_HARDWS_MAX_DISABLE) au niveau du budget, et delestage
+   (K32EmptyWorkingSet) des que la RAM du PC depasse la limite de
+   l'utilisateur. Budget = limite RAM - RAM occupee par tout le reste, jamais
+   sous PLANCHER_RESIDENT_MO. Quand la memoire manque, Windows retire en
+   PRIORITE les pages de ce processus (il depasse son maximum) : le reste du
+   PC garde sa place, le calcul RALENTIT, il n'est JAMAIS arrete et aucune
+   allocation n'est refusee. Le budget est recalcule toutes les
+   PERIODE_SUIVI_S secondes.
+   Pourquoi pas un maximum STRICT (QUOTA_LIMITS_HARDWS_MAX_ENABLE), essaye le
+   2026-09-30 : le serveur d'images a depasse son plafond (11 818 Mo pour
+   8 444) puis la carte a refuse une allocation alors que PyTorch n'avait
+   rien reserve (pages que le pilote doit verrouiller) — la meme panne que le
+   plafond d'engagement.
    POURQUOI (2026-09-30, exigence de l'utilisateur : « mettre les limites ne
    doit pas casser les generations ») : la version precedente plafonnait la
    memoire ENGAGEE par un Job Object (JOB_OBJECT_LIMIT_JOB_MEMORY). Windows
@@ -95,6 +101,8 @@ MARQUEUR_MANQUE = 'FABMESH_MEMOIRE_INSUFFISANTE'
 PLANCHER_RESIDENT_MO = 1024
 # Working set minimum demande a Windows avec le plafond (valeur basse, non garantie).
 MIN_RESIDENT_MO = 64
+# Delestage : seulement si la memoire residente depasse le plafond de plus de cette part.
+MARGE_DELESTAGE = 0.10
 # Au-dessus de ce qui est deja engage : de quoi lever et formuler une erreur.
 MARGE_MIN_MO = 256
 # Periode du suivi du budget (plafond RAM dynamique).
@@ -286,6 +294,8 @@ if _WIN:
     _HARDWS_MIN_DISABLE = 0x2
     _HARDWS_MAX_ENABLE = 0x4
     _HARDWS_MAX_DISABLE = 0x8
+    _k32.K32EmptyWorkingSet.argtypes = [wintypes.HANDLE]
+    _k32.K32EmptyWorkingSet.restype = wintypes.BOOL
 
 
 def memoire_systeme():
@@ -360,8 +370,8 @@ class _Job:
 
 
 class _PlafondResident:
-    """Plafond de la memoire RESIDENTE de ce processus (voir l'en-tete, point 1) :
-    au-dela, Windows pagine le processus au lieu de refuser ses allocations."""
+    """Plafond SOUPLE de la memoire RESIDENTE de ce processus (voir l'en-tete, point 1) :
+    jamais d'allocation refusee ; Windows retire d'abord ses pages quand la memoire manque."""
 
     def __init__(self):
         self.plafond_mo = None
@@ -369,9 +379,14 @@ class _PlafondResident:
     def fixer(self, plafond_mo):
         plafond_mo = plafond_resident_mo(plafond_mo)
         if not _k32.SetProcessWorkingSetSizeEx(_k32.GetCurrentProcess(), int(MIN_RESIDENT_MO * MO),
-                                               int(plafond_mo * MO), _HARDWS_MAX_ENABLE | _HARDWS_MIN_DISABLE):
+                                               int(plafond_mo * MO), _HARDWS_MAX_DISABLE | _HARDWS_MIN_DISABLE):
             raise OSError(ctypes.get_last_error(), 'SetProcessWorkingSetSizeEx')
         self.plafond_mo = float(plafond_mo)
+
+    def delester(self):
+        """Sort du processus ses pages residentes (elles restent en memoire « en attente », reprises
+        au besoin par le PC ou relues aussitot par le calcul) : rien n'est refuse, rien n'est perdu."""
+        return bool(_k32.K32EmptyWorkingSet(_k32.GetCurrentProcess()))
 
     def lever(self):
         """Retire le plafond (tests, desactivation a chaud)."""
@@ -548,13 +563,23 @@ def _ajuster(force=False):
                 _log(f'plafond RAM non deplace : {e}')
                 return
         _etat.update(ram_budget_mo=budget, ram_plafond_mo=job.plafond_mo)
+        # Delestage : la RAM du PC a depasse la limite de l'utilisateur (sa reserve est entamee) et ce calcul
+        # depasse son budget -> il rend ses pages. Budget impose (tests) : des qu'il depasse.
+        if isinstance(job, _PlafondResident) and proc['ws_mo'] > job.plafond_mo * (1 + MARGE_DELESTAGE):
+            sysm = memoire_systeme()
+            pression = bool(sysm and _etat.get('ram_limite_mo') is not None
+                            and sysm['utilisee_mo'] > _etat['ram_limite_mo'])
+            if pression or _etat.get('budget_fixe_mo') is not None:
+                if job.delester():
+                    _etat['delestages'] = (_etat.get('delestages') or 0) + 1
+                    _etat['limite_atteinte'] = True
         if proc['ws_mo'] >= SEUIL_ALERTE * job.plafond_mo:
             if not _etat.get('alerte'):
                 _etat['alerte'] = True
                 _etat['limite_atteinte'] = True
                 print(f'{MARQUEUR_LIMITE} ' + json.dumps({
                     'ws_mo': round(proc['ws_mo']), 'plafond_mo': round(job.plafond_mo),
-                    'budget_mo': round(budget)}), flush=True)
+                    'budget_mo': round(budget), 'delestages': _etat.get('delestages') or 0}), flush=True)
         elif proc['ws_mo'] < 0.8 * job.plafond_mo:
             _etat['alerte'] = False
 
@@ -585,7 +610,7 @@ def _annoncer(moment):
         origine = ('budget impose' if _etat.get('budget_fixe_mo') is not None
                    else f'limite {_etat.get("ram_limite_mo") or 0:.0f} - RAM des autres')
         _log(f'plafond RAM ({moment}) : {_etat["ram_plafond_mo"]:.0f} Mo residents au plus, au-dela le calcul '
-             f'ralentit sans s\'arreter (budget {_etat["ram_budget_mo"]:.0f} Mo = {origine} ; '
+             f'ralentit sans s\'arreter, plafond souple (budget {_etat["ram_budget_mo"]:.0f} Mo = {origine} ; '
              f'{d.get("ws_mo", 0)} Mo residents, {d.get("engage_mo", 0)} Mo engages)')
 
 
@@ -866,6 +891,7 @@ def _ecrire_journal(issue):
             ligne[k] = round(_etat[k])
     if _etat.get('limite_atteinte'):
         ligne['limite_atteinte'] = True     # le plafond resident a ralenti ce travail
+        ligne['delestages'] = _etat.get('delestages') or 0
     if _etat.get('manque'):
         ligne['manque'] = _etat['manque']      # unite de besoin_mo : 'ram' ou 'vram'
     try:
