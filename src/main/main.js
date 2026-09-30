@@ -9572,7 +9572,9 @@ function _recommendMode(gpu, ramMb, diskGb) {
   const vram = gpu.vram_mb || 0;
   const FLOOR = 12 * 1024;
   // Seuils de disque = tailles REELLES sur disque (moteur d'IA ~8,5 Go + modeles : lite ~28 Go, standard ~47 Go, full ~57 Go) + ~30 % de marge.
-  if (vram >= 16 * 1024 && ramMb >= 16 * 1024 && diskGb >= 75) return 'full';
+  // Une carte « 16 Go » (RTX 4080 / 5080) annonce ~16 300 Mo apres le pilote : seuil a 15 Go, comme la carte Full de l'assistant (MODE_VRAM_REQ). Avec 16 * 1024 strict,
+  // une RTX 5080 tombait a « Standard » alors que Full est disponible pour elle.
+  if (vram >= 15 * 1024 && ramMb >= 16 * 1024 && diskGb >= 75) return 'full';
   if (vram >= FLOOR && ramMb >= 16 * 1024 && diskGb >= 60) return 'standard';
   if (vram >= FLOOR && ramMb >= 8 * 1024 && diskGb >= 40) return 'lite';
   return 'cloud';

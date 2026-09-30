@@ -161,11 +161,12 @@ def recommend_mode(gpu, ram_mb, disk_gb):
     # 16 GB is comfortable. Below 12 GB there is no local engine that runs, so
     # we route to Cloud rather than hand the user a local install that crashes.
     _LOCAL_VRAM_FLOOR = 12 * 1024
-    if vram >= 16 * 1024 and ram_mb >= 16 * 1024 and disk_gb >= 30:
+    # 15 Go et non 16 : une carte « 16 Go » annonce ~16 300 Mo apres le pilote (voir main.js _recommendMode)
+    if vram >= 15 * 1024 and ram_mb >= 16 * 1024 and disk_gb >= 75:
         return 'full'
-    if vram >= _LOCAL_VRAM_FLOOR and ram_mb >= 16 * 1024 and disk_gb >= 25:
+    if vram >= _LOCAL_VRAM_FLOOR and ram_mb >= 16 * 1024 and disk_gb >= 60:
         return 'standard'
-    if vram >= _LOCAL_VRAM_FLOOR and ram_mb >= 8 * 1024 and disk_gb >= 20:
+    if vram >= _LOCAL_VRAM_FLOOR and ram_mb >= 8 * 1024 and disk_gb >= 40:
         return 'lite'
     return 'cloud'
 

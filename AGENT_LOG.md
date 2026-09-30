@@ -24394,3 +24394,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   TRELLIS-2 16,24 Go, RealVis 27,75 -> 6,94, SDXL-inpaint 20,82 -> 6,94, IP-Adapter 19,82 -> 9,31, BLIP 5,64 -> 1,88, openpose 5,01 -> 2,51, Florence 3,12. Totaux : lite 19,4 / standard 38,6 / full 48,7 Go (+ ~8,5 Go de moteur d'IA).
 - `main.js` : WIZARD_MODELS aligne (dinov3 ajoute), seuils de disque de la recommandation 40 / 60 / 75 Go (avant 20 / 25 / 30) ; `wizard.html` : cartes ~28 / ~47 / ~57 Go, Lite « 12+ Go de VRAM » (le moteur 3D fait OOM sous 12 Go) ; `wizard.js` : moteur d'IA ~8,5 Go, plancher VRAM Lite 11 Go.
 - NON verifie en telechargement reel (a confirmer par l'installation de zero en cours) : que les modeles sans les fichiers exclus se chargent (les exclusions suivent le code : variant fp16 + safetensors).
+
+## 2026-09-30 — Recommandation « Full » : seuil VRAM 15 Go (une RTX 5080 tombait a Standard)
+- Cause : `_recommendMode` (main.js) et `hw_detect.py` exigeaient `vram >= 16 * 1024` ; une carte 16 Go annonce ~16 303 Mo -> Standard alors que la carte Full de l'assistant (MODE_VRAM_REQ) utilise deja 15 Go. Seuil unifie a 15 Go ; seuils de disque de hw_detect.py alignes sur ceux de main.js (40 / 60 / 75 Go).
