@@ -22092,11 +22092,11 @@ function majLignesLimites() {
     const outils = ['Image generation', '3D', 'Detail++'].filter((o) => b.types[o]);
     zone.innerHTML = outils.map((o) => {
       const t = b.types[o];
-      const needV = (Number(t.vramGo) || 0) * 1.1, needR = Number(t.ramGo) || 0;
+      const needV = Math.round((Number(t.vramGo) || 0) * 1.1 * 10) / 10, needR = Number(t.ramGo) || 0;   // meme arrondi que le besoin max (main)
       const pv = parts.vram, pr = parts.ram;
       let etat = 'ok', txt = '';
-      if (pv && pv.partGB < needV) { etat = 'ko'; txt = `VRAM ${(needV - pv.partGB).toFixed(1)} GB short`; }
-      else if (pr && pr.partGB < needR) { etat = 'lent'; txt = 'RAM tight: slower'; }
+      if (pv && pv.partGB + 0.05 < needV) { etat = 'ko'; txt = `VRAM ${(needV - pv.partGB).toFixed(1)} GB short`; }
+      else if (pr && pr.partGB + 0.05 < needR) { etat = 'lent'; txt = 'RAM tight: slower'; }
       const nomAff = o === 'Image generation' ? 'Image' : o;
       return `<span class="hw-voyant ${etat}" title="${escapeHtml(txt || 'Ready')}">${etat === 'ok' ? '&#10003;' : (etat === 'ko' ? '&#10007;' : '&#9888;')} ${escapeHtml(_i18nT(nomAff))}${txt ? ' <small>' + escapeHtml(_i18nT(txt.replace(/[\d.]+ GB/, '{x}')).replace('{x}', txt.match(/[\d.]+ GB/)?.[0] || '')) + '</small>' : ''}</span>`;
     }).join('');
