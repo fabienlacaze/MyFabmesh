@@ -8486,6 +8486,16 @@ ipcMain.handle('generate-multiview', async (_event, opts) => {
   // Per-call engine override: defaults to MV-Adapter (true ortho
   // azim 0/90/180/270, same SDXL base as RealVis so colours match).
   const script = _mvScriptForEngine(engineOverride);
+  // Le code de MV-Adapter n'est PAS livre avec l'appli (external/MV-Adapter absent des extraResources, et du poste de
+  // developpement depuis le nettoyage du 2026-09-30) : le script mourait sur « No module named 'mvadapter' » et le bouton
+  // Multi-Views affichait une trace Python brute (audit de l'installation de zero). Message clair a la place ; la 3D
+  // n'utilise que l'image de face, rien d'autre n'est touche.
+  if (path.basename(script) === 'multiview_mvadapter_gen.py'
+      && !fs.existsSync(path.join(path.dirname(SCRIPTS_DIR), 'external', 'MV-Adapter', 'mvadapter'))) {
+    log.warn('multiview', 'MV-Adapter absent (' + path.join(path.dirname(SCRIPTS_DIR), 'external', 'MV-Adapter') + ')');
+    return { success: false, engineMissing: true, error: 'The multi-view engine is not installed on this device. '
+      + '3D models are built from the front image, so nothing else is affected.' };
+  }
   await _freeSdxlForHeavyOp('multi-vues');
   // Multi-views are tied to the EXACT image version. Output dir derived
   // from the image file path:
