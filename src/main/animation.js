@@ -49,6 +49,17 @@ function _dataBase() {
   }
 }
 
+// Dossier des scripts Python LISIBLE par un autre programme (2026-09-30, audit de l'installation de zero) — meme regle que
+// SCRIPTS_DIR de main.js. Dans l'appli installee, __dirname est DANS app.asar, une archive (un seul fichier) : Python et
+// Blender ne peuvent pas y ouvrir un script (« can't open file ...\app.asar\scripts\mesh2motion_bridge.py », constate avec
+// le Python de l'installation). Les scripts sont livres en clair dans resources/scripts (extraResources).
+function _dossierScripts() {
+  try {
+    if (app && app.isPackaged && process.resourcesPath) return path.join(process.resourcesPath, 'scripts');
+  } catch (_) {}
+  return path.join(__dirname, '..', '..', 'scripts');
+}
+
 function _configBlenderPath() {
   try {
     const cfgPath = path.join(_dataBase(), 'config.json');
@@ -219,7 +230,7 @@ function _spawnLocalRetarget({
   jobId, meshPath, motion, outGlb, BrowserWindow, trackProc,
 }) {
   return new Promise((resolve, reject) => {
-    const scriptsDir = path.join(__dirname, '..', '..', 'scripts');
+    const scriptsDir = _dossierScripts();
     const scriptPath = path.join(scriptsDir, 'rokoko_batch_retarget.py');
     const blenderExe = _resolveBlender();
     if (!blenderExe || !fs.existsSync(blenderExe)) {
@@ -303,7 +314,7 @@ const KIMODO_PROMPTS = {
 
 function _spawnKimodo({ jobId, meshPath, prompt, animType, outGlb, BrowserWindow, trackProc }) {
   return new Promise((resolve, reject) => {
-    const scriptsDir = path.join(__dirname, '..', '..', 'scripts');
+    const scriptsDir = _dossierScripts();
     const scriptPath = path.join(scriptsDir, 'kimodo_bridge.py');
     const py = _resolveKimodoPython();
     if (!py) {
@@ -377,7 +388,7 @@ async function _runCloudRetarget({ jobId, meshPath, motion, outGlb, BrowserWindo
 // -----------------------------------------------------------------------------
 function _runJudge(glbPath) {
   return new Promise((resolve) => {
-    const scriptsDir = path.join(__dirname, '..', '..', 'scripts');
+    const scriptsDir = _dossierScripts();
     const judgeScript = path.join(scriptsDir, 'render_retarget_screenshots.py');
     if (!fs.existsSync(judgeScript)) {
       return resolve({ verdict: 'skipped', metrics: {} });
@@ -406,7 +417,7 @@ function _runExport({ glbPath, format, dest }) {
       fs.copyFileSync(glbPath, dest);
       return resolve({ path: dest });
     }
-    const scriptsDir = path.join(__dirname, '..', '..', 'scripts');
+    const scriptsDir = _dossierScripts();
     const convertScript = path.join(scriptsDir, 'convert_glb.py');
     const blenderExe = _resolveBlender();
     if (!fs.existsSync(convertScript) || !blenderExe || !fs.existsSync(blenderExe)) {
@@ -486,7 +497,7 @@ function register(deps) {
     if (fs.existsSync(m.thumb)) return { path: m.thumb };
     // Defer to a Python renderer if available; for v1 we accept a missing
     // thumbnail and let the renderer show a placeholder.
-    const scriptsDir = path.join(__dirname, '..', '..', 'scripts');
+    const scriptsDir = _dossierScripts();
     const thumbScript = path.join(scriptsDir, 'render_motion_thumb.py');
     if (!fs.existsSync(thumbScript)) return { path: null };
     await new Promise((resolve) => {
@@ -878,7 +889,7 @@ function register(deps) {
     const slug = String(clip || 'clip').toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 24);
     const outGlb = path.join(outDir, `banque_${slug}__${rigStem}.glb`);
 
-    const scriptsDir = path.join(__dirname, '..', '..', 'scripts');
+    const scriptsDir = _dossierScripts();
     // Interpreteur : variable d'environnement, puis le python IA de
     // l'application (numpy/scipy inclus). JAMAIS « python » nu — une
     // installation Store n'en a aucun, l'appel echouait alors avec une erreur
