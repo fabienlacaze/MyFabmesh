@@ -98,6 +98,8 @@ export interface Env {
   MODAL_MESH_START_URL?: string;
   /** Etat REEL des conteneurs (application myfabmesh-etat, modal_app/etat_services.py). Par defaut deduite de MODAL_MESH_START_URL. */
   MODAL_ETAT_URL?: string;
+  /** Redacteur de la fenetre New project (application myfabmesh-redacteur, modal_app/redacteur_web.py). Par defaut deduite de MODAL_MESH_START_URL. */
+  MODAL_REDACTEUR_URL?: string;
   MODAL_MESH_STATUS_URL?: string;
   MODAL_MESH_URL?: string;  // legacy sync url — kept so old deploys don't break
   // Puppeteer auto-rigging on uploaded GLB. Sync endpoint: takes a mesh
@@ -20652,6 +20654,64 @@ async function handleTranslate(req: Request, env: Env): Promise<Response> {
   }
 }
 
+/* REDACTEUR DE LA FENETRE « NEW PROJECT » (2026-09-30). User : « il faut que ca genere aussi la description quand Auto est
+ * selectionne », puis « il faut du local gratuit et commercialisable comme tout le reste ». Meme modele et meme script que le
+ * bureau (Qwen3-4B ONNX 4 bits sur PROCESSEUR, application Modal a part myfabmesh-redacteur : aucun GPU, aucun service tiers).
+ * Gratuit pour l'utilisateur (aucun credit). Borne : 40 redactions par heure et par compte, 3 000 par jour au total.
+ * { prechauffer: true } demarre le conteneur a l'ouverture de la fenetre. Toute erreur : { ok:false } — l'interface garde ses
+ * mots-cles et la description reste a taper. */
+const REDACTEUR_TYPES = new Set(['character', 'creature', 'animal', 'insect', 'other_living', 'vehicle', 'avion', 'bateau',
+  'other_vehicle', 'building', 'environment', 'other_built', 'weapon', 'prop', 'icon', 'other_item']);
+async function handleDescribeAsset(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  const url = env.MODAL_REDACTEUR_URL
+    ?? env.MODAL_MESH_START_URL?.replace(/^(https:\/\/[^/]*?--)myfabmesh-cloud-mesh-router(\.modal\.run).*$/,
+                                         '$1myfabmesh-redacteur-redacteur-decrire$2');
+  if (!url || url === env.MODAL_MESH_START_URL) return json({ ok: false, raison: 'unavailable' });
+  const b = await req.json().catch(() => ({})) as { name?: unknown; notes?: unknown; lang?: unknown; type?: unknown; prechauffer?: unknown };
+  const prechauffer = b.prechauffer === true;
+  const nom = typeof b.name === 'string' ? b.name.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 80) : '';
+  const notes = typeof b.notes === 'string' ? b.notes.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 400) : '';
+  const lang = typeof b.lang === 'string' && /^[a-z]{2}$/.test(b.lang.slice(0, 2)) ? b.lang.slice(0, 2) : 'en';
+  const type = typeof b.type === 'string' && REDACTEUR_TYPES.has(b.type) ? b.type : null;
+  if (!prechauffer) {
+    if (nom.length < 2 && notes.length < 3) return err(400, 'name required');
+    if (env.MESHES) {
+      const maintenant = new Date();
+      const heure = maintenant.toISOString().slice(0, 13).replace(/[-T]/g, '');
+      const jour = maintenant.toISOString().slice(0, 10);
+      const compter = async (cle: string, plafond: number): Promise<boolean> => {
+        const cur = await env.MESHES!.get(cle);
+        const n = cur ? parseInt(await cur.text(), 10) || 0 : 0;
+        if (n >= plafond) return false;
+        await env.MESHES!.put(cle, String(n + 1));
+        return true;
+      };
+      if (!(await compter(`_meta/redacteur/${user.id}-${heure}.txt`, 40))) return json({ ok: false, raison: 'rate-limited' });
+      if (!(await compter(`_meta/redacteur/jour-${jour}.txt`, 3000))) return json({ ok: false, raison: 'rate-limited' });
+    }
+  }
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(prechauffer ? { prechauffer: true, _auth: env.MODAL_SHARED_SECRET ?? '' }
+        : { name: nom, notes, lang, type, _auth: env.MODAL_SHARED_SECRET ?? '' }),
+      // prechauffage : on n'attend pas le demarrage (le conteneur demarre quand meme) ; redaction : 60 s max
+      signal: AbortSignal.timeout(prechauffer ? 4_000 : 60_000),
+    });
+    if (!r.ok) return json({ ok: false, raison: 'unavailable', status: r.status });
+    const d = await r.json() as { ok?: unknown; type?: unknown; description?: unknown; pret?: unknown };
+    if (prechauffer) return json({ ok: true });
+    const description = typeof d.description === 'string' ? d.description.slice(0, 300) : '';
+    if (!d.ok || !description) return json({ ok: false, raison: 'no-answer' });
+    return json({ ok: true, description, type: typeof d.type === 'string' && REDACTEUR_TYPES.has(d.type) ? d.type : null });
+  } catch {
+    return json({ ok: false, raison: prechauffer ? 'warming' : 'timeout' });
+  }
+}
+
 /* ────────────────────────── main fetch handler ─────────────────────── */
 
 // GDPR storage-limitation (Art. 5(1)(e)): transient user inputs — drawn masks
@@ -21609,6 +21669,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/heartbeat'             && (method === 'POST' || method === 'GET')) return await handleHeartbeat(req, env);
         if (pathname === '/api/prewarm'               && method === 'POST') return await handlePrewarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/translate'             && method === 'POST') return await handleTranslate(req, env);
+        if (pathname === '/api/describe-asset'        && method === 'POST') return await handleDescribeAsset(req, env);
         if (pathname === '/api/lineage-meta'          && method === 'POST') return await handleLineageMeta(req, env);
         if (pathname === '/api/mesh-op'               && method === 'POST') return await handleMeshOp(req, env);
         if (pathname === '/api/mesh-convert'          && method === 'POST') return await handleMeshConvert(req, env);

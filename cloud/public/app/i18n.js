@@ -27,6 +27,7 @@
       'Type a name: the type and the style are picked for you': 'Tapez un nom : le type et le style sont choisis pour vous',
       'Writing the description…': 'Rédaction de la description…',
       'description written by the local AI, edit it freely': 'description rédigée par l’IA locale, modifiez-la librement',
+      'description written by the AI, edit it freely': 'description rédigée par l’IA, modifiez-la librement',
       'not enough free memory to write the description': 'pas assez de mémoire libre pour rédiger la description',
       'the writing assistant is not installed': 'l’assistant de rédaction n’est pas installé',
       'Skin weights': 'Poids de peau',

@@ -1573,8 +1573,8 @@ function renderProjectsBulkBar() {
 // genere aussi la description », « il faut du LOCAL gratuit et commercialisable comme tout le reste », « rends la checkbox plus jolie ».
 // Interrupteur « Auto » (actif par defaut, memorise). Tant qu'il est actif :
 //  - TYPE et STYLE deduits du nom + description par MOTS ENTIERS (francais et anglais), menus verrouilles sur la valeur detectee ;
-//  - DESCRIPTION : redigee par le redacteur local sur le BUREAU ; sur le web, elle viendra du meme modele sur notre GPU cloud
-//    (pas encore porte). En attendant, les mots-cles choisissent type et style et la description reste a taper.
+//  - DESCRIPTION : redigee par le MEME modele que le bureau (Qwen3-4B, open source, Apache-2.0), qui tourne ici sur notre serveur
+//    Modal (processeur, route /api/describe-asset, gratuite). Indisponible : mots-cles seuls, description a taper.
 // ============================================================
 const _NP_TYPES = [
   ['icon', 'icon icone icons logo bouton button widget pictogramme'],
@@ -1658,7 +1658,18 @@ function _npAutoInfo(texte, ecrit = false) {
   if (info) info.textContent = texte;
   document.getElementById('np-auto-row')?.classList.toggle('ecrit', !!ecrit);
 }
-function _npDescAuto(desc) { return !!desc && !desc.value.trim(); }
+let _npIaMinuteur = null, _npIaJeton = 0, _npTypeMotsCles = null, _npIaType = null;
+function _npLangue() {
+  try { return (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase().slice(0, 2); } catch (_) { return 'en'; }
+}
+// Redacteur du site (2026-09-30) : meme modele que le bureau, sur notre serveur (route /api/describe-asset, gratuite).
+async function _npRedacteur(corps) {
+  const r = await fetch('/api/describe-asset', {
+    method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corps),
+  });
+  return r.ok ? r.json() : { ok: false, raison: 'http-' + r.status };
+}
+function _npDescAuto(desc) { return !!desc && (desc.dataset.auto === '1' || !desc.value.trim()); }
 function _npAutoSync() {
   const auto = document.getElementById('np-auto');
   const selT = document.getElementById('np-asset-type'), selS = document.getElementById('np-asset-style');
@@ -1670,26 +1681,69 @@ function _npAutoSync() {
   selT.style.opacity = selS.style.opacity = actif ? '0.6' : '';
   if (!actif) { _npAutoInfo(_i18nT('Choose the type and style yourself')); return; }
   const nom = document.getElementById('np-name')?.value || '';
-  const r = detecterTypeEtStyle((desc ? desc.value : '') + ' ' + nom);
-  if (r.type && [...selT.options].some((o) => o.value === r.type)) selT.value = r.type;
+  const r = detecterTypeEtStyle((_npDescAuto(desc) ? '' : desc.value) + ' ' + nom);
+  _npTypeMotsCles = r.type;
+  const typeIa = (_npIaType && _npIaType.nom === nom.trim()) ? _npIaType.type : null;
+  const type = r.type || typeIa;
+  if (type && [...selT.options].some((o) => o.value === type)) selT.value = type;
   selS.value = (r.style && [...selS.options].some((o) => o.value === r.style)) ? r.style : 'realistic';
   _npAutoInfo(nom.trim() || (desc && desc.value.trim()) ? _npResume()
-    : _i18nT('Type a name: the type and the style are picked for you'));
+    : _i18nT('Type a name: the type, the style and the description are filled in for you'));
+}
+function _npPlanifierRedaction() {
+  clearTimeout(_npIaMinuteur);
+  _npIaMinuteur = setTimeout(_npRediger, 900);
+}
+async function _npRediger() {
+  const auto = document.getElementById('np-auto'), desc = document.getElementById('np-prompt');
+  const nom = (document.getElementById('np-name')?.value || '').trim();
+  if (!auto?.checked || !_npDescAuto(desc) || nom.length < 2) return;
+  const jeton = ++_npIaJeton;
+  _npAutoInfo(_i18nT('Writing the description…'), true);
+  let r = null;
+  try { r = await _npRedacteur({ name: nom, lang: _npLangue(), type: _npTypeMotsCles || undefined }); } catch (_) { r = null; }
+  if (jeton !== _npIaJeton) return;
+  const nomActuel = (document.getElementById('np-name')?.value || '').trim();
+  if (!auto.checked || !_npDescAuto(desc) || nomActuel !== nom) { _npAutoSync(); return; }
+  if (r && r.ok && r.description) {
+    desc.value = r.description;
+    desc.dataset.auto = '1';
+    if (!_npTypeMotsCles && r.type) _npIaType = { nom, type: r.type };
+    _npAutoSync();
+    _npAutoInfo(_npResume() + ' — ' + _i18nT('description written by the AI, edit it freely'));
+  } else {
+    _npAutoSync();
+  }
 }
 (() => {
   const auto = document.getElementById('np-auto');
   if (!auto) return;
   try { const v = localStorage.getItem('fab-np-auto'); if (v === '0') auto.checked = false; } catch (_) {}
-  auto.addEventListener('change', () => { try { localStorage.setItem('fab-np-auto', auto.checked ? '1' : '0'); } catch (_) {} _npAutoSync(); });
-  document.getElementById('np-prompt')?.addEventListener('input', _npAutoSync);
-  document.getElementById('np-name')?.addEventListener('input', _npAutoSync);
+  auto.addEventListener('change', () => {
+    try { localStorage.setItem('fab-np-auto', auto.checked ? '1' : '0'); } catch (_) {}
+    _npIaJeton++;
+    _npAutoSync();
+    if (auto.checked) { _npRedacteur({ prechauffer: true }).catch(() => {}); _npPlanifierRedaction(); }
+  });
+  document.getElementById('np-prompt')?.addEventListener('input', (e) => {
+    const d = e.currentTarget;
+    d.dataset.auto = d.value.trim() ? '0' : '';
+    _npIaJeton++;
+    _npAutoSync();
+    if (!d.value.trim()) _npPlanifierRedaction();
+  });
+  document.getElementById('np-name')?.addEventListener('input', () => { _npIaType = null; _npAutoSync(); _npPlanifierRedaction(); });
   _npAutoSync();
 })();
 
 function openNewProjectModal() {
   document.getElementById('np-name').value = '';
-  document.getElementById('np-prompt').value = '';
+  const _npd = document.getElementById('np-prompt');
+  _npd.value = ''; _npd.dataset.auto = '';
+  _npIaJeton++; _npIaType = null;
   _npAutoSync();
+  // Redacteur prechauffe pendant que l'utilisateur tape le nom (le conteneur du serveur demarre).
+  if (document.getElementById('np-auto')?.checked) _npRedacteur({ prechauffer: true }).catch(() => {});
   document.getElementById('np-block-msg')?.classList.add('hidden');
   const _npu = document.getElementById('np-unlock'); if (_npu) _npu.style.display = 'none';
   document.getElementById('modal-new-project').classList.remove('hidden');
@@ -1697,6 +1751,7 @@ function openNewProjectModal() {
 }
 function closeNewProjectModal() {
   document.getElementById('modal-new-project').classList.add('hidden');
+  _npIaJeton++;
   // If the modal was opened by a file drop and the user cancels, drop the
   // pending file so a later manual "New project" click does not silently
   // pull it in.

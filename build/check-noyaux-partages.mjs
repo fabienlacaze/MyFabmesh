@@ -147,6 +147,8 @@ const FICHIERS = [
   { nom: 'worker LOD', source: 'src/renderer/lib/lod-worker.js', copie: 'cloud/public/app/lib/lod-worker.js' },
   { nom: 'meshoptimizer simplifier', source: 'src/renderer/lib/meshopt-simplifier.js', copie: 'cloud/public/app/lib/meshopt-simplifier.js' },
   { nom: 'apercu des allures', source: 'src/renderer/lib/apercu-animation.js', copie: 'cloud/public/app/lib/apercu-animation.js' },
+  // redacteur de la fenetre New project (2026-09-30) : meme script sur le bureau (local) et sur Modal (site)
+  { nom: 'redacteur (New project)', source: 'scripts/redacteur.py', copie: 'modal_app/redacteur/redacteur.py' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));
