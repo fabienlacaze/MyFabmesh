@@ -34,6 +34,8 @@ EXPECTED_SHA256 = (
     '009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b'
 )
 GETPIP_URL = 'https://bootstrap.pypa.io/get-pip.py'
+NUGET_URL = 'https://www.nuget.org/api/v2/package/python/3.11.9'
+NUGET_SHA256 = '9283876d58c017e0e846f95b490da3bca0fc0a6ee1134b2870677cfb7eec3c67'
 
 OUT_DIR = pathlib.Path(__file__).parent / 'python-embed'
 
@@ -105,6 +107,27 @@ def main():
         sys.exit('VC++ DLLs not found in System32: ' + ', '.join(missing)
                  + '\nInstall VS 2022 Build Tools or the VC++ 2022 redist, '
                    'then re-run.')
+
+    # EN-TETES C DE PYTHON (Include/, ~2 Mo). Triton (noyaux de la 3D locale) compile un petit lanceur natif au premier usage (tcc, fourni par Triton) et
+    # a besoin de Python.h : le Python embarque n'en a pas -> « returned non-zero exit status 1 » (mesure 2026-09-30, corrige en copiant Include a la main).
+    # Source : paquet NuGet officiel `python` 3.11.9 (PSF, redistribuable), dossier tools/include. Sha256 fixe.
+    include_dir = OUT_DIR / 'Include'
+    if not (include_dir / 'Python.h').exists():
+        import io as _io
+        print(f'[dl] {NUGET_URL}')
+        data = urllib.request.urlopen(NUGET_URL, timeout=180).read()
+        got = hashlib.sha256(data).hexdigest()
+        if got != NUGET_SHA256:
+            sys.exit(f'sha256 mismatch (nuget python): got {got}, expected {NUGET_SHA256}')
+        with zipfile.ZipFile(_io.BytesIO(data)) as zf:
+            n = 0
+            for name in zf.namelist():
+                if name.lower().startswith('tools/include/') and not name.endswith('/'):
+                    dest = include_dir / name[len('tools/include/'):]
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(zf.read(name))
+                    n += 1
+        print(f'[ok] Include/ : {n} fichiers')
 
     zip_path.unlink()
     print(f'\nReady: {OUT_DIR}')
