@@ -27572,6 +27572,17 @@ function customQuitChoice(runningCount) {
 // watches the PID and fires job-pid-exited when it finishes so we can
 // complete the popup. Map rootPid -> renderer jobId.
 const _resumedJobByPid = new Map();
+// INSTANTANE DES TRAVAUX EN COURS vers le processus principal (toutes les 2 s + au dechargement) : apres Ctrl+R il re-affiche les tuiles avec leur avancement.
+function _envoyerInstantaneTravaux() {
+  try {
+    if (!window.meshyAPI?.jobsSnapshot) return;
+    window.meshyAPI.jobsSnapshot(state.jobs.filter((j) => j.status === 'running').map((j) => ({
+      kind: j.kind || inferKind(j.name || ''), label: j.name || 'Background job', expectedMs: j.expectedMs || 60000,
+      progress: j.progress || 5, pausedElapsed: Math.max(0, Date.now() - (j.startedAt || Date.now())) })));
+  } catch (_) {}
+}
+setInterval(_envoyerInstantaneTravaux, 2000);
+window.addEventListener('beforeunload', _envoyerInstantaneTravaux);
 if (window.meshyAPI?.onJobsResumed) {
   window.meshyAPI.onJobsResumed(({ resumed, dropped, jobs }) => {
     if (Array.isArray(jobs)) {
@@ -27579,8 +27590,8 @@ if (window.meshyAPI?.onJobsResumed) {
         try {
           const expectedMs = job.expectedMs || 120000;
           const j = (typeof pushJob === 'function')
-            ? pushJob(`${job.label} (resumed)`, null, {
-                State: 'Resumed from a paused session',
+            ? pushJob(job.reattached ? job.label : `${job.label} (resumed)`, null, {
+                State: job.reattached ? 'Still running (window reloaded)' : 'Resumed from a paused session',
               }, expectedMs)
             : null;
           if (j) {
@@ -27599,7 +27610,9 @@ if (window.meshyAPI?.onJobsResumed) {
         } catch (_) {}
       }
     }
-    if (resumed > 0) {
+    if (resumed > 0 && Array.isArray(jobs) && jobs.every((x) => x.reattached)) {
+      showToast?.(`${resumed} running job${resumed > 1 ? 's' : ''} kept after the reload.`, 'success', 5000);
+    } else if (resumed > 0) {
       showToast?.(`Resumed ${resumed} paused job${resumed > 1 ? 's' : ''} — finishing in the background.`, 'success', 8000);
     }
     if (dropped > 0) {

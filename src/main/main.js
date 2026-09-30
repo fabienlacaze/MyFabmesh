@@ -1831,22 +1831,12 @@ function createWindow() {
   }
 
   // Allow F12 / Ctrl+Shift+I to toggle DevTools
-  // GARDE-FOU DU RECHARGEMENT (user 2026-09-30 : « il ne faut pas perdre le fil des generations en cours si je fais Ctrl+R ») : recharger l'interface
-  // efface les tuiles de travaux et coupe le retour du resultat vers le projet. Tant qu'un calcul tourne, Ctrl+R / F5 demandent confirmation.
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    try {
-      if (input.type !== 'keyDown') return;
-      const k = String(input.key || '').toLowerCase();
-      const recharge = k === 'f5' || ((input.control || input.meta) && k === 'r');
-      if (!recharge || activeProcs.size < 1) return;
-      event.preventDefault();
-      const r = dialog.showMessageBoxSync(mainWindow, {
-        type: 'warning', buttons: ['Keep working', 'Reload anyway'], defaultId: 0, cancelId: 0, title: 'Generation in progress',
-        message: 'A generation is still running.',
-        detail: 'Reloading the window would lose its progress tile and the result may not be added to your project. Wait for it to finish, or reload anyway.',
-      });
-      if (r === 1) mainWindow.webContents.reloadIgnoringCache();
-    } catch (_) {}
+  // REPRISE APRES RECHARGEMENT (user 2026-09-30 : « se souvenir de ce qui tourne et le montrer dans la popup avec l'avancement ») : recharger l'interface (Ctrl+R)
+  // ne tue pas les calculs ; au rechargement, on re-presente chaque travail en cours (tuile + avancement) via le mecanisme 'jobs-resumed' existant.
+  let _premierChargementFait = false;
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (!_premierChargementFait) { _premierChargementFait = true; return; }
+    try { _reattacherTravauxApresRechargement(); } catch (e) { log.warn('main', 'reattacher travaux: ' + e.message); }
   });
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
@@ -2743,6 +2733,31 @@ function pauseAndPersistJobs(jobStates) {
   }
   log.info('main', `pauseAndPersistJobs: suspended ${count} job tree(s)`);
   return count;
+}
+
+// Etat des travaux en cours tel que l'interface l'a envoye (toutes les 2 s) : sert a les re-afficher apres un rechargement.
+let _instantaneTravaux = { t: 0, jobs: [] };
+ipcMain.on('jobs:snapshot', (_e, jobs) => { _instantaneTravaux = { t: Date.now(), jobs: Array.isArray(jobs) ? jobs : [] }; });
+function _reattacherTravauxApresRechargement() {
+  const pool = {};
+  for (const st of _instantaneTravaux.jobs) { const k = _normalizeRendererKind(st.kind); (pool[k] = pool[k] || []).push(st); }
+  const travaux = [];
+  for (const proc of Array.from(allActiveProcs)) {
+    const pid = proc && proc.pid;
+    if (!pid) continue;
+    let vivant = false; try { process.kill(pid, 0); vivant = true; } catch (_) {}
+    if (!vivant) continue;
+    const kind = _jobKindFromArgs(proc.spawnargs);
+    if (kind === 'other') continue;                     // serveurs d'appoint : pas des travaux
+    const st = (pool[kind] && pool[kind].shift()) || null;
+    if (!st) continue;
+    travaux.push({ rootPid: pid, label: st.label, expectedMs: st.expectedMs || null, progress: st.progress || null,
+      pausedElapsed: (st.pausedElapsed || 0) + Math.max(0, Date.now() - _instantaneTravaux.t), reattached: true });
+  }
+  if (!travaux.length) return;
+  log.info('main', `rechargement : ${travaux.length} travail(aux) en cours re-affiche(s)`);
+  mainWindow.webContents.send('jobs-resumed', { resumed: travaux.length, dropped: 0, jobs: travaux });
+  for (const t of travaux) _watchResumedPid(t.rootPid, t.label);
 }
 
 // Poll a resumed (orphaned) PID until it exits, then tell the renderer
