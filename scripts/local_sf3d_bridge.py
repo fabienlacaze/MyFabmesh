@@ -34,6 +34,12 @@ import threading
 import traceback
 from contextlib import nullcontext
 
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# (le Python embarque n'a pas le dossier du script sur sys.path : on l'ajoute)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cloisonnement_memoire as _cm
+_cm.appliquer('sf3d', cle='sf3d', log=lambda m: print(f'LOCAL_SF3D: {m}', flush=True))
+
 
 # ---------------------------------------------------------------------------
 # Hard watchdog (2026-05-16). When SF3D triggers a TDR / kernel hang on
@@ -212,15 +218,9 @@ def generate_3d(
 
     print(f"LOCAL_SF3D_PROGRESS: 10 preprocess_start", flush=True)
 
-    # Enforce VRAM cap passed by FabMesh main.js (optional)
-    if torch.cuda.is_available():
-        frac = float(os.environ.get('FABMESH_VRAM_FRACTION', '0.95'))
-        if 0.1 <= frac < 1.0:
-            try:
-                torch.cuda.set_per_process_memory_fraction(frac)
-                print(f"LOCAL_SF3D: VRAM hard cap set to {frac*100:.0f}%", flush=True)
-            except Exception as e:
-                print(f"LOCAL_SF3D: could not set VRAM cap ({e})", flush=True)
+    # Plafond VRAM = limite de l'utilisateur moins ce que les autres occupent deja
+    # (avant : une fraction de la carte entiere) ; plafond RAM ramene au budget.
+    _cm.plafonner_vram(torch)
 
     device = get_device()
     if not (torch.cuda.is_available() or torch.backends.mps.is_available()):
@@ -1350,8 +1350,10 @@ if __name__ == '__main__':
             remesh_option=remesh,
             subdivide_levels=subdiv,
         )
+        _cm.terminer('ok' if ok else 'erreur')
         sys.exit(0 if ok else 1)
     except Exception as e:
         print(f"LOCAL_SF3D_ERROR: {type(e).__name__}: {e}", flush=True)
         traceback.print_exc()
+        _cm.signaler_si_memoire(e)      # manque de memoire : phrase claire + marqueur
         sys.exit(2)

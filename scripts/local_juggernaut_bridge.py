@@ -12,6 +12,13 @@ import sys
 import os
 import time
 import json
+
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# (le Python embarque n'a pas le dossier du script sur sys.path : on l'ajoute)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cloisonnement_memoire as _cm
+_cm.appliquer('realvis', cle='realvis', log=lambda m: print(f'LOCAL_REALVIS: {m}', flush=True))
+
 import torch
 
 # GPU throttle — respects FABMESH_GPU_LIMIT / FABMESH_TEMP_LIMIT env vars
@@ -76,34 +83,12 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
     _start_idx = max(_existing_idx) + 1
     print(f'LOCAL_REALVIS: starting at ref_{_start_idx} (existing highest={max(_existing_idx)})', flush=True)
 
-    # Enforce VRAM limit from FabMesh settings (FABMESH_VRAM_FRACTION env var).
-    # The fraction is (slider% / 100), e.g. 0.75 for a 75% slider.
-    if torch.cuda.is_available():
-        try:
-            free_b, total_b = torch.cuda.mem_get_info()
-            print(f"LOCAL_REALVIS: VRAM free={free_b/1e9:.1f}GB total={total_b/1e9:.1f}GB", flush=True)
-        except Exception:
-            pass
-        frac = float(os.environ.get('FABMESH_VRAM_FRACTION', '0.95'))
-        if 0.1 <= frac < 1.0:
-            try:
-                torch.cuda.set_per_process_memory_fraction(frac)
-                print(f"LOCAL_REALVIS: VRAM hard cap set to {frac*100:.0f}% of total", flush=True)
-            except Exception as e:
-                print(f"LOCAL_REALVIS: Could not set VRAM cap ({e}), continuing uncapped", flush=True)
-
-    # Enforce system RAM limit from FabMesh settings (FABMESH_RAM_LIMIT_MB env var).
-    _ram_limit_mb = os.environ.get('FABMESH_RAM_LIMIT_MB', '')
-    if _ram_limit_mb:
-        try:
-            import psutil, gc
-            rss_mb = psutil.Process().memory_info().rss / (1024 * 1024)
-            sys_used = psutil.virtual_memory().percent
-            print(f"LOCAL_REALVIS: RAM usage: process={rss_mb:.0f}MB, system={sys_used:.0f}%, limit={_ram_limit_mb}MB", flush=True)
-        except ImportError:
-            print("LOCAL_REALVIS: psutil not installed, RAM monitoring skipped", flush=True)
-        except Exception as e:
-            print(f"LOCAL_REALVIS: RAM check error: {e}", flush=True)
+    # Plafond VRAM = limite VRAM de l'utilisateur MOINS ce que les autres logiciels
+    # occupent deja (2026-09-30 ; avant : une fraction de la carte ENTIERE) ; le
+    # plafond RAM (Job Object, pose au demarrage) est ramene au budget. Voir
+    # cloisonnement_memoire.
+    _cm.plafonner_vram(torch)
+    _cm.mesurer('initialisation')
 
     # Read asset_type signal from env (set by main.js childEnv when the
     # 'generate-images' IPC is triggered). Falls back to 'character' so
@@ -653,8 +638,10 @@ if __name__ == '__main__':
         import traceback
         traceback.print_exc()
         print(f"LOCAL_REALVIS_ERROR: {e}")
+        _cm.signaler_si_memoire(e)      # manque de memoire : phrase claire + marqueur
         sys.exit(1)
 
     if images:
         print(f"RESULT: {json.dumps(images)}")
+    _cm.terminer('ok' if images else 'erreur')
     sys.exit(0 if images else 1)

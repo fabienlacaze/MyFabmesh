@@ -51,6 +51,14 @@ if os.environ.get('FABMESH_NO_WORKER_THROTTLE') != '1':
     except Exception:
         pass
 
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# Serveur persistant : son plafond RAM suit le budget en continu (un logiciel qui
+# se libere lui rend de la place). Le dossier du script n'est pas sur sys.path
+# dans le Python embarque (._pth) : on l'ajoute.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cloisonnement_memoire as _cm
+_cm.appliquer('sdxl_server', cle='sdxl_server', log=lambda m: print(f'SDXL_SERVER: {m}', flush=True))
+
 # Faster startup: only import what we need at top
 import torch
 from PIL import Image, ImageFilter
@@ -112,28 +120,13 @@ PRESERVE_NEG = (
 # globally — useful if a downstream caller is doing its own prompt scaffolding.
 PRESERVE_IDENTITY_ENABLED = os.environ.get('FABMESH_MODIFY_PRESERVE', '1') != '0'
 
-# Enforce VRAM cap from FabMesh settings (passed via FABMESH_VRAM_FRACTION env var).
-GPU_MEMORY_FRACTION = float(os.environ.get('FABMESH_VRAM_FRACTION', '0.95'))
-if torch.cuda.is_available() and 0.1 <= GPU_MEMORY_FRACTION < 1.0:
-    try:
-        torch.cuda.set_per_process_memory_fraction(GPU_MEMORY_FRACTION)
-        print(f"SDXL_SERVER: VRAM hard cap set to {GPU_MEMORY_FRACTION*100:.0f}%", flush=True)
-    except Exception as e:
-        print(f"SDXL_SERVER: Could not set VRAM cap ({e})", flush=True)
-
-
-# Enforce system RAM limit from FabMesh settings (FABMESH_RAM_LIMIT_MB env var).
-_RAM_LIMIT_MB = os.environ.get('FABMESH_RAM_LIMIT_MB', '')
-if _RAM_LIMIT_MB:
-    try:
-        import psutil
-        _vm = psutil.virtual_memory()
-        print(f"SDXL_SERVER: RAM system used={(_vm.total - _vm.available) / (1024**2):.0f}MB, "
-              f"limit={_RAM_LIMIT_MB}MB, percent={_vm.percent:.0f}%", flush=True)
-    except ImportError:
-        print("SDXL_SERVER: psutil not installed, RAM monitoring skipped", flush=True)
-    except Exception as e:
-        print(f"SDXL_SERVER: RAM check error: {e}", flush=True)
+# Plafond VRAM = limite VRAM de l'utilisateur MOINS ce que les autres logiciels
+# occupent deja (2026-09-30 ; avant : une fraction de la carte ENTIERE). Le plafond
+# RAM (Job Object) est resserre au budget a la fin de l'initialisation. Voir
+# cloisonnement_memoire : une allocation au-dela est refusee, et l'erreur renvoyee
+# a l'interface est une phrase claire (texte_erreur).
+_cm.plafonner_vram(torch)
+_cm.mesurer('initialisation')
 
 # ========== STATE ==========
 class ModelState:
@@ -180,8 +173,9 @@ def free_vram():
 
 # ========== MODEL LOADING ==========
 def _set_memory_fraction():
-    # No-op: see GPU_MEMORY_FRACTION comment above. Kept so existing call sites
-    # (load_img2img, load_inpaint) don't need to be touched.
+    # No-op: le plafond VRAM est pose une fois au demarrage (_cm.plafonner_vram,
+    # plus haut). Kept so existing call sites (load_img2img, load_inpaint) don't
+    # need to be touched.
     pass
 
 
@@ -685,7 +679,7 @@ def do_img2img(input_path, prompt, output_path, strength=0.55,
             log(f"img2img error: {e}", 'err')
             traceback.print_exc()
             free_vram()
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 # Default tile-refine negative prompt. ControlNet-Tile LOVES to hallucinate
@@ -778,7 +772,7 @@ def do_img2img_tile(input_path, prompt, output_path, strength=0.55,
             log(f"img2img_tile error: {e}", 'err')
             traceback.print_exc()
             free_vram()
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 def do_refine_geo(input_path, control_path, ref_path, prompt, output_path,
@@ -903,7 +897,7 @@ def do_refine_geo(input_path, control_path, ref_path, prompt, output_path,
             log(f"refine_geo error: {e}", 'err')
             traceback.print_exc()
             free_vram()
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 def do_inpaint(input_path, target_text, prompt, output_path, dilate=15, rel=0.5):
@@ -1009,7 +1003,7 @@ def do_inpaint(input_path, target_text, prompt, output_path, dilate=15, rel=0.5)
             log(f"inpaint error: {e}", 'err')
             traceback.print_exc()
             free_vram()
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 # ============================ RECOLOR =====================================
@@ -1149,7 +1143,7 @@ def do_outfit_cutout(input_path, output_dir, pieces=None, ensemble=True,
             return res
         except Exception as e:
             log(f"outfit_cutout failed: {e}", 'error')
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 def do_recolor(input_path, prompt, output_path, strength=1.0, dilate=15, rel=0.5, recolor_all=False):
@@ -1221,7 +1215,7 @@ def do_recolor(input_path, prompt, output_path, strength=1.0, dilate=15, rel=0.5
         except Exception as e:
             log(f"recolor error: {e}", 'err')
             traceback.print_exc()
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0.5, recolor_all=False, strength=1.0):
@@ -1306,7 +1300,7 @@ def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0
             log(f"recolor-tile error: {e}", 'err')
             traceback.print_exc()
             free_vram()
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 def _masque_fond(img):
@@ -1436,7 +1430,7 @@ def do_tex_variant(input_path, prompt, output_path, strength=0.45, seed=0, cn_sc
             log(f"tex_variant error: {e}", 'err')
             traceback.print_exc()
             free_vram()
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 def do_segment(input_path, target_text, output_path, dilate=15, rel=0.5, binary=False):
@@ -1528,7 +1522,7 @@ def do_segment(input_path, target_text, output_path, dilate=15, rel=0.5, binary=
             return {"ok": True, "output": output_path, "coverage": round(coverage, 1)}
         except Exception as e:
             log(f"segment error: {e}", 'err')
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 # ========== MASK INPAINT HELPERS (ported from cloud cat8) ==========
@@ -1645,7 +1639,7 @@ def do_face_fix_image(input_path, output_path, strength=0.45, asset_type=''):
         except Exception as e:
             import traceback
             log(f"face_fix_image ERROR: {e} | {traceback.format_exc()}")
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 def do_mask_inpaint(input_path, mask_path, prompt, output_path, seed=None):
@@ -1817,7 +1811,7 @@ def do_mask_inpaint(input_path, mask_path, prompt, output_path, seed=None):
             log(f"mask_inpaint error: {e}", 'err')
             traceback.print_exc()
             free_vram()
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
 # ========== HTTP HANDLER ==========
@@ -2059,7 +2053,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             log(f"handler error: {e}", 'err')
             traceback.print_exc()
-            self._json_response(500, {"ok": False, "error": str(e)})
+            self._json_response(500, {"ok": False, "error": _cm.texte_erreur(e)})
 
 
 # ========== STARTUP ==========
@@ -2071,8 +2065,9 @@ def preload_models():
         log("Preloading RealVis XL img2img...")
         load_img2img()
         log("MODELS READY - img2img + CLIPSeg loaded (inpaint on first use)")
+        _cm.mesurer('modeles_prets')
     except Exception as e:
-        log(f"Preload failed: {e}", 'err')
+        log(f"Preload failed: {_cm.texte_erreur(e)}", 'err')
         traceback.print_exc()
 
 

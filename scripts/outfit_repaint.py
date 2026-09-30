@@ -115,6 +115,10 @@ SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(SCRIPTS)
 sys.path.insert(0, SCRIPTS)
 
+# Plafonds RAM / VRAM REELS (2026-09-30), avant torch : voir scripts/cloisonnement_memoire.py.
+import cloisonnement_memoire as _cm
+_cm.appliquer('outfit_repaint', cle='outfit_repaint', log=lambda m: print(f'[outfit] {m}', flush=True))
+
 os.environ.setdefault('PYTHONUTF8', '1')
 
 SDXL_SERVER = 'http://127.0.0.1:5555'
@@ -945,14 +949,9 @@ def load_inpaint_pipeline():
     import torch
     from diffusers import StableDiffusionXLInpaintPipeline
 
-    if torch.cuda.is_available():
-        frac = float(os.environ.get('FABMESH_VRAM_FRACTION', '0.95'))
-        if 0.1 <= frac < 1.0:
-            try:
-                torch.cuda.set_per_process_memory_fraction(frac)
-                log(f'cap VRAM {frac*100:.0f}%')
-            except Exception as e:
-                log(f'cap VRAM impossible ({e})')
+    # Plafond VRAM = limite de l'utilisateur moins ce que les autres occupent deja
+    # (avant : une fraction de la carte entiere) ; plafond RAM ramene au budget.
+    _cm.plafonner_vram(torch)
 
     log(f'chargement SDXL inpaint ({SDXL_INPAINT_CKPT})...')
     t0 = time.time()
@@ -1381,12 +1380,14 @@ def main():
     try:
         run(args)
         log(f'termine en {time.time()-t0:.1f}s')
+        _cm.terminer('ok')
         return 0
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f'[outfit] ERREUR: {type(e).__name__}: {e}',
               file=sys.stderr, flush=True)
+        _cm.signaler_si_memoire(e)      # manque de memoire : phrase claire + marqueur
         return 1
 
 

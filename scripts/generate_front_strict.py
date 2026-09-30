@@ -32,6 +32,12 @@ import os
 import sys
 import time
 
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# (le Python embarque n'a pas le dossier du script sur sys.path : on l'ajoute)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cloisonnement_memoire as _cm
+_cm.appliquer('front_strict', cle='front_strict', log=lambda m: print(f'[front-strict] {m}', flush=True))
+
 import numpy as np
 import torch
 from PIL import Image
@@ -250,6 +256,9 @@ def main():
     ap.add_argument('--steps', type=int, default=30)
     ap.add_argument('--guidance', type=float, default=7.0)
     args = ap.parse_args()
+    # Plafond VRAM = limite de l'utilisateur moins ce que les autres occupent deja ;
+    # plafond RAM ramene au budget (voir cloisonnement_memoire).
+    _cm.plafonner_vram(torch)
 
     if args.from_image is not None:
         if not os.path.isfile(args.from_image):
@@ -280,6 +289,7 @@ def main():
         generate(args.prompt_or_first, args.output, ref_image=None,
                  seeds=args.seeds, steps=args.steps, guidance=args.guidance,
                  mode=args.mode)
+    _cm.terminer('ok')
 
 
 if __name__ == '__main__':
