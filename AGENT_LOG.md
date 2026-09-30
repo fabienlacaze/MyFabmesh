@@ -24318,3 +24318,12 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - index2.js bureau : viewers mesh / rig + mention « Light preview » + fabrication en arriere-plan. Les outils qui ENREGISTRENT (Paint Mesh, Paint Emissive, editeur de poids, points du
   squelette « Save adjusted rig ») restent sur le maillage COMPLET : le bureau n'a pas (encore) de report vers le complet.
 - BANC : Electron en mode Node sur le mesh du centipede (323 Mo, 10 346 880 triangles) -> 29,4 Mo en 24 s, 499 982 triangles, erreur 0,028 % ; `_legereValide` la reconnait.
+
+## 2026-09-30 — TEST DE L'APPLICATION COMPLETE (navigateur reel, API simulee, fichiers du centipede)
+- Projet « centipade » (mesh 323 Mo + rig 466 Mo servis en local, versions legeres declarees par /api/mesh-light/find) : ouverture du projet -> SEULES les versions legeres sont telechargees
+  (aucune requete sur les fichiers complets), mention « Light preview (~500 000 triangles) », 461 387 sommets / 499 982 triangles.
+- Paint Mesh, Material, Decals (bouton « Decals » -> Paint Mesh, outil Decal actif) s'ouvrent SANS nouvelle requete (copie du viewer) ; decal pose (« Decal placed ») ; sauvegarde :
+  `?op=paint_mesh&light=1&full=<mesh complet>`, 38,7 Mo, texture 2048 avec 53 517 pixels a l'alpha 254 (couleur) et 53 683 (metal), emissif intact.
+- Le fichier sauvegarde par l'appli passe dans `fusionner_textures` avec le mesh complet : 8192x8192 conserve, 837 416 pixels reportes (~ 53 517 x 16), metal 4096 idem, 48 s.
+- Editeur de poids : s'ouvre sur le rig leger (76 os, 461 387 sommets) sans telecharger le complet ; rig viewer : mention « Light preview ».
+- NON teste : sauvegarde de l'editeur de poids (skinlight), export FBX / pleine resolution cote serveur, app Modal.
