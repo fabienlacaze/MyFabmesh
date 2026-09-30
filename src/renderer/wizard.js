@@ -78,18 +78,25 @@ function majJalons() {
 // Ecart minimal : les pictogrammes et leurs libelles ne doivent pas se chevaucher.
 function placerJalons(plan) {
   const tot = plan.total_mb || 0;
-  const g3d = (plan.items || []).filter((i) => /^trellis/.test(i.id)).reduce((a, i) => a + i.size_mb, 0);
-  const gImg = tot - g3d;
-  const ECART = 8;
-  const poser = (cle, pos, visible = true) => {
+  const somme = (re) => (plan.items || []).filter((i) => re.test(i.id)).reduce((a, i) => a + i.size_mb, 0);
+  // groupes : Models = modeles d'analyse et d'assistance (redacteur, analyseurs d'image, agrandisseur) ; Images = modeles de GENERATION d'image ;
+  // 3D = moteur 3D seul. Positions = FIN de chaque groupe, proportionnelles aux tailles reelles (user : « garde la barre proportionnelle »).
+  const gMod = somme(/^(writer|dinov3|blip1|florence2|esrgan)$/), g3d = somme(/^trellis/);
+  const gImg = tot - gMod - g3d;
+  const ECART = 6;
+  const fin = (cumul) => (tot ? FIN_MOTEUR + (FIN_MODELES - FIN_MOTEUR) * cumul / tot : FIN_MOTEUR);
+  let pos = FIN_MOTEUR;
+  const poser = (cle, p, visible = true) => {
     const j = document.querySelector(`.wiz-jalons:not(.wiz-jalons-test) .wiz-jalon[data-j="${cle}"]`);
     if (!j) return;
     j.hidden = !visible;
-    j.style.left = pos.toFixed(1) + '%';
+    j.style.left = p.toFixed(1) + '%';
   };
   poser('engine', FIN_MOTEUR);
-  const pImg = tot ? FIN_MOTEUR + (FIN_MODELES - FIN_MOTEUR) * gImg / tot : FIN_MOTEUR + ECART;
-  poser('img', Math.max(FIN_MOTEUR + ECART, Math.min(FIN_MODELES - ECART, pImg)), gImg > 0);
+  const p1 = Math.max(pos + ECART, Math.min(FIN_MODELES - 3 * ECART, fin(gMod))); pos = p1;
+  poser('models', p1, gMod > 0);
+  const p2 = Math.max(pos + ECART, Math.min(FIN_MODELES - ECART, fin(gMod + gImg))); pos = p2;
+  poser('img', p2, gImg > 0);
   poser('3d', FIN_MODELES, g3d > 0);
   poser('rig', FIN_RIG);
   poser('anim', 100);
@@ -108,6 +115,13 @@ function _chronoAfficher() {
 }
 function etatProgression(etat) {   // 'marche' | 'fini' | 'avert' | 'erreur'
   const roue = document.getElementById('dl-roue');
+  // BOUTON BACK VERROUILLE PENDANT L'INSTALLATION (user, 2026-09-30 : « une fois lance il faut verrouiller le bouton Back ») : revenir en arriere en
+  // plein telechargement relancait une seconde chaine. Deverrouille seulement si l'installation echoue (jamais bloquer l'utilisateur).
+  const retour = document.getElementById('btn-dl-back');
+  if (retour) {
+    if (etat === 'marche') { retour.disabled = true; retour.title = 'Installation in progress — please wait'; }
+    else if (etat === 'erreur') { retour.disabled = false; retour.removeAttribute('title'); }
+  }
   if (roue) roue.className = 'wiz-roue' + (etat === 'marche' ? '' : ' ' + etat);
   if (etat === 'marche') {
     if (!_chronoDebut) _chronoDebut = Date.now();
@@ -982,15 +996,15 @@ const T_LIBELLES = [
   [/native cuda wheels/i, '3D acceleration libraries', 'Speeds up mesh building', '3d'],
   [/pytorch|cuda/i, 'Graphics card', 'Your GPU is ready for AI', 'engine'],
   [/background remover/i, 'Background remover', 'Cuts your subject out of the picture', 'img'],
-  [/writing assistant/i, 'Writing assistant', 'Writes your project descriptions', 'img'],
-  [/vision/i, 'Vision module', 'Checks the shapes and colors', 'img'],
+  [/writing assistant/i, 'Writing assistant', 'Writes your project descriptions', 'models'],
+  [/vision/i, 'Vision module', 'Checks the shapes and colors', 'models'],
   [/mesh tools/i, 'Mesh tools', 'Simplifies and unwraps 3D models', '3d'],
   [/texture upscaler/i, 'Texture enhancer', 'Sharpens textures (Enhance texture, Ultra 8K)', '3d'],
   [/3d core|trellis/i, '3D generation engine', 'Turns an image into a 3D model', '3d'],
-  [/dino/i, 'Image analyzer', 'Understands your reference image', 'img'],
+  [/dino/i, 'Image analyzer', 'Understands your reference image', 'models'],
 ];
-const T_POS = { engine: 20, img: 40, '3d': 60, rig: 80, anim: 100 };
-const T_COULEUR = { engine: '#e84d7a', img: '#4a90e2', '3d': '#c35ce0', rig: '#f08a24', anim: '#22c55e' };
+const T_POS = { engine: 17, models: 34, img: 50, '3d': 67, rig: 83, anim: 100 };
+const T_COULEUR = { engine: '#e84d7a', models: '#14b8a6', img: '#4a90e2', '3d': '#c35ce0', rig: '#f08a24', anim: '#22c55e' };
 const _attendre = (ms) => new Promise((r) => setTimeout(r, ms));
 let _tPct = 100, _tChronoDebut = 0, _tChronoMinuteur = null;
 function tBarre(v, sansAnim) {
@@ -1029,7 +1043,7 @@ async function runFinalTest() {
   log.textContent = '';
   liste.innerHTML = '';
   const reduit = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const ORDRE = ['engine', 'img', '3d', 'rig', 'anim'];
+  const ORDRE = ['engine', 'models', 'img', '3d', 'rig', 'anim'];
   // 1. la barre revient pleine, zoom, puis elle se vide ; jalons regulierement espaces (un par moteur verifie)
   const bloc = document.getElementById('t-jalons');
   for (const k of ORDRE) { const j = document.querySelector(`#t-jalons .wiz-jalon[data-j="${k}"]`); if (j) { j.hidden = false; j.style.left = T_POS[k] + '%'; } }
@@ -1267,13 +1281,19 @@ function wizConfirm({ title, body, okLabel = 'Confirm', cancelLabel = 'Cancel' }
   btn.textContent = (wizMode === 'reconfigure') ? 'Cancel' : 'Quit';
   btn.addEventListener('click', async () => {
     const isReco = wizMode === 'reconfigure';
+    // EN PLEIN TELECHARGEMENT (user, 2026-09-30 : « en pleine installation il faut dire que ca va tout supprimer, sauf si on sait reprendre »).
+    // Verifie dans le code : rien n'est SUPPRIME. Les modeles deja telecharges restent et la reprise continue les fichiers partiels
+    // (huggingface_hub) ; l'installation du moteur d'IA, elle, recommence depuis son debut (pip reutilise ce qu'il a deja telecharge).
+    const enCours = !!_telechargementEnCours;
     const ok = await wizConfirm({
-      title: isReco ? 'Cancel reconfiguration?' : 'Quit setup?',
-      body: isReco
-        ? 'Your previous install mode will be restored and you will return to MyFabmesh.AI.'
-        : 'MyFabmesh.AI will close. You can re-run the setup wizard at any time by launching MyFabmesh.AI again.',
+      title: enCours ? 'Installation in progress' : (isReco ? 'Cancel reconfiguration?' : 'Quit setup?'),
+      body: enCours
+        ? 'The installation is still running. If you quit now it stops and MyFabmesh.AI is NOT ready to use. Nothing is deleted: the models already downloaded are kept and continue where they stopped the next time you launch MyFabmesh.AI, but the AI engine setup starts again from its beginning.'
+        : (isReco
+          ? 'Your previous install mode will be restored and you will return to MyFabmesh.AI.'
+          : 'MyFabmesh.AI will close. You can re-run the setup wizard at any time by launching MyFabmesh.AI again.'),
       okLabel: isReco ? 'Cancel reconfiguration' : 'Quit MyFabmesh.AI',
-      cancelLabel: 'Keep setting up',
+      cancelLabel: enCours ? 'Keep installing' : 'Keep setting up',
     });
     if (!ok) return;
     // Un testeur qui QUITTE l'assistant, et a quelle etape, est l'information

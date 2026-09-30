@@ -267,11 +267,12 @@ def main():
     try:
         # ORDRE DU LOGICIEL (2026-09-30) : moteur d'IA, puis images, puis 3D — la page de verification remplit sa barre dans cet ordre.
         check_torch_cuda()
-        check_background_remover()
         if args.mode in ('standard', 'full', 'lite'):
             check_writer()
-            check_blip_loadable()
         check_dinov3_loadable()
+        if args.mode in ('standard', 'full', 'lite'):
+            check_blip_loadable()
+        check_background_remover()
         check_cuda_wheels()
         check_mesh_tools()
         check_texture_upscaler()

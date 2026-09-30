@@ -24623,3 +24623,8 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — Assistant : « Image analyzer core » (dinov3) range dans le groupe IMAGES (user : « les images c'est le premier installe »)
 - Ordre des telechargements (wizard_download.py MODELS + WIZARD_MODELS de main.js) : dinov3 avant le moteur 3D ; jalon 3D = moteur 3D seul ; verification (smoke test + libelles) : analyseur d'image dans le groupe images.
+
+## 2026-09-30 — Assistant : etape « Models », barre proportionnelle conservee, Back verrouille, avertissement en quittant
+- User : « garde la barre proportionnelle aux vraies quantites » (annulation des jalons espaces regulierement, revert 65855c40) + « il manque une icone Models entre AI engine et Images » : 6 jalons Moteur d'IA / Models (redacteur, analyseurs d'image, agrandisseur : icone base de donnees, teal) / Images (generation) / 3D / Rig / Animation, dans les deux barres ; ordre des telechargements (wizard_download.py, WIZARD_MODELS) et du test de fumee alignes.
+- « Une fois lance il faut verrouiller le bouton Back » : #btn-dl-back desactive des le debut de l'installation, deverrouille seulement en cas d'erreur (jamais bloquer). Teste en navigateur.
+- « En pleine installation il faut dire que ca va tout supprimer (sauf reprise) » : VERIFIE dans le code : Quit ne supprime rien, les modeles partiels reprennent (huggingface_hub), le moteur d'IA recommence depuis son debut. Fenetre « Installation in progress » qui le dit exactement, sans annoncer une suppression inexacte.

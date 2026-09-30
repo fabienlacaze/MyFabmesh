@@ -57,79 +57,37 @@ def _lower_priority():
 # upscaler, florence2 = secondary captioner). A failure on THESE only warns;
 # a failure on any other (essential) model fails the install loudly so the
 # user never proceeds with a broken setup.
-_OPTIONAL_MODELS = {'esrgan', 'florence2', 'writer'}
-
-
-# ---------------------------------------------------------------------------
-# DINOv3 — TRELLIS-2's image backbone.
-#
-# TRELLIS-2 loads facebook/dinov3-vitl16-pretrain-lvd1689m LAZILY on the first
-# generation. That repo is GATED by Meta, so a client with no Meta token hits
-# GatedRepoError mid-generation — a hard release blocker. Meta's DINOv3 license
-# DOES permit redistribution, so we pull a NON-GATED copy at install time and
-# stage it into the canonical cache folder, letting from_pretrained resolve it
-# locally with no token.
-#
-# Download-SOURCE priority (see download_dinov3):
-#   1. FABMESH_DINOV3_URL  — self-hosted BASE URL serving the weight files
-#      (…/config.json, …/model.safetensors). A copy you own can't be deleted
-#      out from under you — set this for a fully self-contained release.
-#   2. FABMESH_DINOV3_REPO — an HF repo id you point at (your own re-upload or
-#      another non-gated mirror). Becomes BOTH the download source AND the id
-#      the runtime backbone loader (DinoV3FeatureExtractor) requests, so the
-#      two stay in lock-step. Same env var the extractor reads.
-#   3. DINOV3_MIRROR_REPO  — the default non-gated community HF mirror below.
-# The mirror weights get staged into the CANONICAL id's cache folder so the
-# vendored gen configs (which reference facebook/…) resolve with no Meta token.
-DINOV3_CANONICAL_REPO = 'facebook/dinov3-vitl16-pretrain-lvd1689m'
-# Default non-gated community mirror. VERIFIED 2026-07-13 via HF web:
-#   • repo public, NOT license-gated (tree page + raw file access with no token)
-#   • config.json byte-identical to the canonical DINOv3 ViT-L/16 config
-#     (architectures=["DINOv3ViTModel"], hidden_size 1024, 24 layers, 16 heads,
-#      patch_size 16, num_register_tokens 4) → same checkpoint family
-#   • model.safetensors 1.21 GB + preprocessor_config.json present (transformers
-#     format, loadable by DINOv3ViTModel.from_pretrained)
-# This eliminates the shipper's "host DINOv3 weights" todo for the default path.
-# For maximal independence you may STILL re-host on your own R2/CDN and set
-# FABMESH_DINOV3_URL (a third-party mirror could go offline).
-DINOV3_MIRROR_REPO = 'camenduru/dinov3-vitl16-pretrain-lvd1689m'
-DINOV3_FILES = ['config.json', 'model.safetensors', 'preprocessor_config.json']
-
-
-# TAILLES REELLES (2026-09-30, mesurees sur l'API du Hub apres exclusion des fichiers inutiles ci-dessous). Avant : 4,1 / 6,5 / 6,5 / 2,4 / 0,7 / 1,7 / 0,99 Go
-# annonces pour des depots qui en pesaient 16,2 / 27,8 / 20,8 / 5,0 / 19,8 / 3,1 / 5,6 Go : « ~15 Go » affiches pour ~77 Go telecharges, et une barre de progression
-# (calculee sur ces tailles) fausse. Totaux : lite ~19,4 Go, standard ~38,6 Go, full ~48,7 Go (+ ~8,5 Go de moteur d'IA installe avant).
-MODELS = {
-    # ORDRE DU LOGICIEL (2026-09-30, user : « les installations dans l'ordre logique, image puis 3D puis rig puis anim ») : modeles d'image
-    # d'abord, puis la 3D (moteur 3D + analyseur d'image). Meme ordre que WIZARD_MODELS dans src/main/main.js (lignes de l'assistant).
+_OPTIONAL_MODELS = {
+    # ORDRE DU LOGICIEL (2026-09-30) : moteur d'IA, puis MODELES d'analyse et d'assistance (redacteur, analyseurs d'image, agrandisseur),
+    # puis modeles de GENERATION d'image, puis le moteur 3D. Meme ordre que WIZARD_MODELS dans src/main/main.js.
     'lite': [
-        ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
-        ('blip1',    'Salesforce/blip-image-captioning-large', 1880),
-        ('dinov3',   DINOV3_CANONICAL_REPO, 1250),
-        ('trellis2', 'microsoft/TRELLIS.2-4B', 16240),
+        ('writer',    'onnx-community/Qwen3-4B-ONNX', 2897),
+        ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
+        ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
+        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
     ],
     'standard': [
-        ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
+        ('writer',    'onnx-community/Qwen3-4B-ONNX', 2897),
+        ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
+        ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
+        ('esrgan',    'RealESRGAN_x4plus', 70),
         ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
         ('lightning', 'ByteDance/SDXL-Lightning', 390),
         ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2510),
         ('ipadapter', 'h94/IP-Adapter', 9310),
-        ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
-        ('esrgan',    'RealESRGAN_x4plus', 70),
-        ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
         ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
     ],
     'full': [
-        ('writer',   'onnx-community/Qwen3-4B-ONNX', 2897),
+        ('writer',    'onnx-community/Qwen3-4B-ONNX', 2897),
+        ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
+        ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
+        ('florence2', 'microsoft/Florence-2-large', 3120),
+        ('esrgan',    'RealESRGAN_x4plus', 70),
         ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
         ('lightning', 'ByteDance/SDXL-Lightning', 390),
         ('sdxl_inp',  'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', 6940),
         ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2510),
         ('ipadapter', 'h94/IP-Adapter', 9310),
-        ('florence2', 'microsoft/Florence-2-large', 3120),
-        ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
-        ('esrgan',    'RealESRGAN_x4plus', 70),
-        ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
         ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
     ],
 }
