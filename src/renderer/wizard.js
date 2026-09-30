@@ -65,7 +65,7 @@ function majGlobal(pct) {
 // Jalons : un moteur est « fait » quand la barre a depasse sa position ; le premier non fait est « actif ».
 function majJalons() {
   let actifPose = false;
-  for (const j of document.querySelectorAll('.wiz-jalon')) {
+  for (const j of document.querySelectorAll('.wiz-jalons:not(.wiz-jalons-test) .wiz-jalon')) {   // la page de verification a sa propre barre
     if (j.hidden) continue;
     const pos = parseFloat(j.style.left) || 0;
     const fait = _pctGlobal >= pos - 0.01;
@@ -82,7 +82,7 @@ function placerJalons(plan) {
   const gImg = tot - g3d;
   const ECART = 8;
   const poser = (cle, pos, visible = true) => {
-    const j = document.querySelector(`.wiz-jalon[data-j="${cle}"]`);
+    const j = document.querySelector(`.wiz-jalons:not(.wiz-jalons-test) .wiz-jalon[data-j="${cle}"]`);
     if (!j) return;
     j.hidden = !visible;
     j.style.left = pos.toFixed(1) + '%';
@@ -810,53 +810,69 @@ async function _startDownloadInterne() {
   // available with a clear warning.
   // Moteur de rig local = SkinTokens (2026-09-26) : code telecharge chez son
   // auteur (open source, en partie GPL-3.0 — voir Licenses), poids Hugging Face.
-  const _RIG_STEPS = {
-    'rig-copy-python': 'Preparing the rig Python environment…',
-    'rig-pip-bootstrap': 'Setting up the rig installer…',
-    'rig-torch': 'Downloading PyTorch for the rig engine (~3.3 GB)…',
-    'rig-deps': 'Installing rig libraries…',
-    'rig-code': 'Downloading the open-source rig engine from its authors…',
-    'rig-patch': 'Preparing the rig engine…',
-    'rig-weights': 'Downloading the rig model (1.6 GB)…',
-    'rig-check': 'Checking the rig engine…',
-    'done': 'Rig engine ready ✓',
-  };
-  list.innerHTML += `
-    <div class="wiz-dl-row in-progress" data-id="__rigenv">
-      <span class="name" id="rigenv-name">Installing the rig engine (auto-rig)…</span>
-      <span class="size">~6 GB</span>
-      <div class="bar"><div class="bar-fill"></div></div>
-    </div>`;
-  // Les modeles sont finis : sans ceci l'ecran restait fige (« 48650 / 48650 MB · 0.0 MB/s ») pendant que la ligne du moteur de rig,
-  // en bas de la liste, travaillait hors champ (constate le 2026-09-30).
+  // MOTEUR DE RIG : UNE LIGNE PAR ETAPE (2026-09-30, user : « la ligne change plusieurs fois de terme et d'avancement, fais des lignes
+  // separees »). Tailles mesurees : PyTorch 2.7 cu128 3 338 Mo, bibliotheques ~476 Mo (PyPI, sans leurs dependances), modele 1 619 Mo.
+  // Chaque ligne avance avec les octets mesures pendant SON etape ; la verification du moteur est faite sur la page de verification.
+  const RIG_LIGNES = [
+    { id: '__rig_py', etapes: ['rig-copy-python', 'rig-pip-bootstrap'], nom: 'Rig engine — Python environment', taille: '', mo: 0, poids: 2 },
+    { id: '__rig_torch', etapes: ['rig-torch'], nom: 'Rig engine — PyTorch', taille: '3338 MB', mo: 3338, poids: 60 },
+    { id: '__rig_libs', etapes: ['rig-deps'], nom: 'Rig engine — libraries', taille: '~476 MB', mo: 476, poids: 9 },
+    { id: '__rig_code', etapes: ['rig-code', 'rig-patch'], nom: 'Rig engine — open-source code', taille: '', mo: 0, poids: 3 },
+    { id: '__rig_model', etapes: ['rig-weights'], nom: 'Rig engine — model', taille: '1619 MB', mo: 1619, poids: 26 },
+  ];
+  const RIG_TOTAL_MO = RIG_LIGNES.reduce((t, l) => t + l.mo, 0);
+  list.insertAdjacentHTML('beforeend', RIG_LIGNES.map((l) => `<div class="wiz-dl-row" data-id="${l.id}"><span class="name">${l.nom}</span>`
+    + `<span class="timer"></span><span class="size">${l.taille}</span><div class="bar"><div class="bar-fill"></div></div></div>`).join(''));
+  // Les modeles sont finis : sans ceci l'ecran restait fige (« 48650 / 48650 MB · 0.0 MB/s ») pendant que le moteur de rig, en bas de
+  // la liste, travaillait hors champ (constate le 2026-09-30).
   list.scrollTop = list.scrollHeight;
   { const sp = document.getElementById('dl-speed'), et = document.getElementById('dl-eta');
     if (sp) sp.textContent = '–'; if (et) et.textContent = 'installing the rig engine…'; }
+  let rigActive = null, rigOctets = 0, rigOctetsDebut = 0, rigFraction = 0;
+  const rigLigne = (id) => list.querySelector(`.wiz-dl-row[data-id="${id}"]`);
+  const rigMarquer = (l, etat) => {
+    const row = rigLigne(l.id);
+    if (!row) return;
+    row.classList.toggle('in-progress', etat === 'in-progress');
+    row.classList.toggle('done', etat === 'done');
+    if (etat === 'done') { row.querySelector('.bar-fill').style.width = '100%'; }
+  };
+  const rigBarre = (l, frac) => {
+    rigFraction = Math.max(0, Math.min(0.99, frac));
+    const f = rigLigne(l.id)?.querySelector('.bar-fill');
+    if (f) f.style.width = Math.max(3, rigFraction * 100) + '%';
+    // pourcentage global : lignes finies + part de la ligne en cours, sur 84 -> 92
+    let fait = 0;
+    for (const x of RIG_LIGNES) { if (x === l) break; fait += x.poids; }
+    majGlobal(FIN_MODELES + (FIN_RIG - FIN_MODELES) * Math.min(1, (fait + l.poids * rigFraction) / 100));
+  };
+  const rigActiver = (l) => {
+    if (rigActive === l) return;
+    for (const x of RIG_LIGNES) { if (x === l) break; rigMarquer(x, 'done'); }
+    rigActive = l; rigOctetsDebut = rigOctets;
+    rigMarquer(l, 'in-progress');
+    rigBarre(l, l.mo ? 0 : 0.5);
+    list.scrollTop = list.scrollHeight;
+  };
   window.wizardAPI.onRigProgress((p) => {
-    const fill = document.querySelector('.wiz-dl-row[data-id="__rigenv"] .bar-fill');
     if (p.step === 'rig-octets') {
-      // Octets mesures par le script : debit reel et temps restant (total ~5 Go : torch 3,3 + poids 1,6 + bibliotheques).
-      const RIG_TOTAL_MO = 5000, mo = (p.bytes_done || 0) / 1e6, vit = Number(p.speed_mbps) || 0;
+      // Octets mesures par le script (pip + poids) : debit reel, temps restant, et barre de la ligne en cours.
+      rigOctets = (p.bytes_done || 0) / 1e6;
+      const vit = Number(p.speed_mbps) || 0;
       const sp = document.getElementById('dl-speed'), et = document.getElementById('dl-eta');
       if (sp) sp.textContent = vit.toFixed(1);
       if (et) {
-        const sec = vit > 0.5 ? Math.max(0, RIG_TOTAL_MO - mo) / vit : null;
+        const sec = vit > 0.5 ? Math.max(0, RIG_TOTAL_MO - rigOctets) / vit : null;
         et.textContent = sec == null ? 'installing…' : (sec < 90 ? Math.round(sec) + ' s' : Math.round(sec / 60) + ' min');
       }
+      if (rigActive && rigActive.mo) rigBarre(rigActive, (rigOctets - rigOctetsDebut) / rigActive.mo);
       return;
     }
-    if (typeof p.pct === 'number') majGlobal(FIN_MODELES + Math.min(FIN_RIG - FIN_MODELES, p.pct * (FIN_RIG - FIN_MODELES) / 100));
-    list.scrollTop = list.scrollHeight;
-    if (fill && typeof p.pct === 'number') fill.style.width = Math.max(3, p.pct) + '%';
-    const name = document.getElementById('rigenv-name');
-    if (name && p.step) {
-      if (_RIG_STEPS[p.step]) name.textContent = _RIG_STEPS[p.step];
-      else if (p.step.startsWith('rig-ckpt-')) name.textContent = `Downloading rig model ${p.step.slice(9)}…`;
-    }
+    const l = RIG_LIGNES.find((x) => x.etapes.includes(p.step)) || (String(p.step || '').startsWith('rig-ckpt-') ? RIG_LIGNES[4] : null);
+    if (l) rigActiver(l);
     if (p.done && !p.error) {
+      for (const x of RIG_LIGNES) rigMarquer(x, 'done');
       majGlobal(FIN_RIG);
-      const row = document.querySelector('.wiz-dl-row[data-id="__rigenv"]');
-      if (row) { row.classList.add('done'); row.classList.remove('in-progress'); }
     }
   });
   console.log('[wizard] Phase 3: installing rig engine (Puppeteer)…');
@@ -868,27 +884,20 @@ async function _startDownloadInterne() {
      * ready ✓ » sur une etape qui n'a pas eu lieu — l'utilisateur croirait
      * disposer de l'auto-rig et ne comprendrait pas son absence ensuite. */
     if (r && r.skipped) {
-      const ligne = document.querySelector('.wiz-dl-row[data-id="__rigenv"]');
-      if (ligne) {
-        ligne.classList.remove('in-progress', 'done');
-        const nom = ligne.querySelector('#rigenv-name');
-        if (nom) {
-          nom.textContent = (r.reason === 'no-nvidia-gpu')
-            ? 'No NVIDIA graphics card: auto-rigging will run in the cloud — nothing to download.'
-            : 'Auto-rigging is not included in this edition — skipped.';
-          nom.style.color = 'var(--text-2)';
-        }
-        const taille = ligne.querySelector('.size');
-        if (taille) taille.textContent = '0 GB';
-        const barre = ligne.querySelector('.bar');
-        if (barre) barre.style.display = 'none';
-      }
+      for (const x of RIG_LIGNES) rigLigne(x.id)?.remove();
+      const texte = (r.reason === 'no-nvidia-gpu')
+        ? 'No NVIDIA graphics card: auto-rigging will run in the cloud — nothing to download.'
+        : 'Auto-rigging is not included in this edition — skipped.';
+      list.insertAdjacentHTML('beforeend', `<div class="wiz-dl-row" data-id="__rig_skip"><span class="name" style="color:var(--text-2)">${texte}</span>`
+        + '<span class="size">0 MB</span></div>');
+      majGlobal(FIN_RIG);
       console.log('[wizard] Phase 3: rig engine not bundled — skipped');
     } else {
       console.log('[wizard] Phase 3: rig engine install OK');
     }
   } catch (e) {
     console.error('[wizard] Rig engine install FAILED:', (e && e.message) || e);
+    if (rigActive) { const row = rigLigne(rigActive.id); if (row) row.classList.remove('in-progress'); }
     list.innerHTML += `<div class="wiz-dl-row"><span class="name" style="color:var(--error)">Rig engine install failed: ${e.message}.<br>You can continue — 3D generation works without it, but auto-rigging will be unavailable until you re-run setup (Settings → Reconfigure). <a href="#" id="retry-rig">Retry now</a></span></div>`;
     document.getElementById('retry-rig')?.addEventListener('click', () => {
       // NE PAS faire `initialized.delete('download')` : cela re-arme aussi
@@ -928,98 +937,192 @@ function annoncerFin(toutOk) {
 }
 
 // ---------- STEP 5: final test ----------
+// PAGE DE VERIFICATION (2026-09-30, user : « le check de chaque engine doit etre fait apres les installations, dans une page specifique
+// ou on fait une animation de zoom pour focaliser sur cette barre, et on la vide pour checker un par un les moteurs »). La barre a
+// jalons de la page de telechargement revient PLEINE, zoom sur elle, elle se VIDE, puis chaque moteur est verifie dans l'ordre du
+// logiciel (moteur d'IA, images, 3D, rig, animation) : la barre avance jusqu'a son jalon, qui passe au vert, ou au rouge.
+// [motif de la ligne « [smoke] checking X... », libelle, description, jalon] — le premier motif reconnu gagne.
+const T_LIBELLES = [
+  [/native cuda wheels/i, '3D acceleration libraries', 'Speeds up mesh building', '3d'],
+  [/pytorch|cuda/i, 'Graphics card', 'Your GPU is ready for AI', 'engine'],
+  [/background remover/i, 'Background remover', 'Cuts your subject out of the picture', 'img'],
+  [/writing assistant/i, 'Writing assistant', 'Writes your project descriptions', 'img'],
+  [/vision/i, 'Vision module', 'Checks the shapes and colors', 'img'],
+  [/mesh tools/i, 'Mesh tools', 'Simplifies and unwraps 3D models', '3d'],
+  [/3d core|trellis/i, '3D generation engine', 'Turns an image into a 3D model', '3d'],
+  [/dino/i, 'Image analyzer', 'Understands your reference image', '3d'],
+];
+const T_POS = { engine: 20, img: 40, '3d': 60, rig: 80, anim: 100 };
+const T_COULEUR = { engine: '#e84d7a', img: '#4a90e2', '3d': '#c35ce0', rig: '#f08a24', anim: '#22c55e' };
+const _attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+let _tPct = 100, _tChronoDebut = 0, _tChronoMinuteur = null;
+function tBarre(v, sansAnim) {
+  const f = document.getElementById('t-fill'), t = document.getElementById('t-pct');
+  _tPct = Math.max(0, Math.min(100, v));
+  if (f) {
+    if (sansAnim) f.style.transition = 'none';
+    f.style.width = _tPct + '%';
+    if (sansAnim) { void f.offsetWidth; f.style.transition = ''; }
+  }
+  if (t) t.textContent = Math.floor(_tPct) + ' %';
+}
+function tJalon(cle, etat) {
+  const j = document.querySelector(`#t-jalons .wiz-jalon[data-j="${cle}"]`);
+  if (!j) return;
+  j.classList.toggle('actif', etat === 'actif');
+  j.classList.toggle('fait', etat === 'fait');
+  j.classList.toggle('echec', etat === 'echec');
+}
+function tEtat(etat) {   // 'marche' | 'fini' | 'avert' | 'erreur'
+  const roue = document.getElementById('t-roue');
+  if (roue) roue.className = 'wiz-roue' + (etat === 'marche' ? '' : ' ' + etat);
+  const afficher = () => { const el = document.getElementById('t-chrono'); if (el && _tChronoDebut) el.textContent = _fmtDuree(Date.now() - _tChronoDebut); };
+  if (etat === 'marche') {
+    if (!_tChronoDebut) _tChronoDebut = Date.now();
+    if (!_tChronoMinuteur) _tChronoMinuteur = setInterval(afficher, 1000);
+  } else if (_tChronoMinuteur) { clearInterval(_tChronoMinuteur); _tChronoMinuteur = null; }
+  afficher();
+}
 async function runFinalTest() {
   const status = document.getElementById('test-status');
   const log = document.getElementById('test-log');
   const liste = document.getElementById('test-list');
-  const barre = document.getElementById('test-bar-fill');
-  status.textContent = 'Checking your setup…';
+  status.classList.remove('error');
+  status.textContent = 'Checking each engine, one by one…';
   log.textContent = '';
   liste.innerHTML = '';
+  const reduit = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ORDRE = ['engine', 'img', '3d', 'rig', 'anim'];
+  // 1. la barre revient pleine, zoom, puis elle se vide ; jalons regulierement espaces (un par moteur verifie)
+  const bloc = document.getElementById('t-jalons');
+  for (const k of ORDRE) { const j = document.querySelector(`#t-jalons .wiz-jalon[data-j="${k}"]`); if (j) { j.hidden = false; j.style.left = T_POS[k] + '%'; } }
+  tBarre(100, true);
+  ORDRE.forEach((k) => tJalon(k, 'fait'));
+  if (bloc) { bloc.classList.remove('zoom'); void bloc.offsetWidth; bloc.classList.add('zoom'); }
+  await _attendre(reduit ? 0 : 1100);
+  ORDRE.forEach((k) => tJalon(k, ''));
+  tBarre(0);
+  await _attendre(reduit ? 0 : 950);
+  tEtat('marche');
 
-  // Liste de verifications lisible (2026-09-30, user : « plus joli et plus convivial ») : chaque ligne « [smoke] checking X... » du test devient une
-  // ligne de la liste, avec un libelle humain ; le journal brut reste dans « Technical details ».
-  const LIBELLES = [
-    [/background remover/i, 'Background remover', 'Cuts your subject out of the picture'],
-    [/writing assistant/i, 'Writing assistant', 'Writes your project descriptions'],
-    [/mesh tools/i, 'Mesh tools', 'Simplifies and unwraps 3D models'],
-    [/native cuda wheels/i, '3D acceleration libraries', 'Speeds up mesh building'],
-    [/pytorch|cuda/i, 'Graphics card', 'Your GPU is ready for AI'],
-    [/3d core|trellis/i, '3D generation engine', 'Turns an image into a 3D model'],
-    [/dino/i, 'Image analyzer', 'Understands your reference image'],
-    [/vision/i, 'Vision module', 'Checks the shapes and colors'],
-  ];
-  const ATTENDU = 8;
-  let courante = null, nbOk = 0;
-  const finir = (li, ok) => {
+  // 2. moteur d'IA, images, 3D : le test de fumee (ses lignes arrivent dans l'ordre du logiciel)
+  const attendus = {};
+  for (const x of T_LIBELLES) attendus[x[3]] = (attendus[x[3]] || 0) + 1;
+  let groupe = null, faits = 0, depart = 0, courante = null;
+  const ligne = (nom, desc, g) => {
+    const li = document.createElement('li');
+    li.className = 'en-cours';
+    li.style.setProperty('--cat', T_COULEUR[g] || '');
+    li.innerHTML = '<span class="ico"></span><span class="nom"></span><span class="desc"></span>';
+    li.querySelector('.nom').textContent = nom;
+    li.querySelector('.desc').textContent = desc || '';
+    liste.appendChild(li);
+    return li;
+  };
+  const finir = (li, ok, desc) => {
     if (!li) return;
     li.classList.remove('en-cours'); li.classList.add(ok ? 'ok' : 'ko');
     li.querySelector('.ico').textContent = ok ? '✓' : '!';
-    if (ok) { nbOk++; barre.style.width = Math.min(96, 8 + 88 * nbOk / ATTENDU) + '%'; }
+    if (desc) li.querySelector('.desc').textContent = desc;
+  };
+  const fermer = (g, ok) => { if (!g) return; tJalon(g, ok ? 'fait' : 'echec'); if (ok) tBarre(T_POS[g]); };
+  const ouvrir = (g) => {
+    if (groupe === g) return;
+    if (groupe) fermer(groupe, true);
+    groupe = g; faits = 0; depart = _tPct;
+    tJalon(g, 'actif');
+  };
+  const avancer = () => {
+    faits++;
+    if (groupe) tBarre(depart + (T_POS[groupe] - depart) * Math.min(1, faits / (attendus[groupe] || 1)));
   };
   window.wizardAPI.onTestLog((line) => {
     log.textContent += line + '\n';
     log.scrollTop = log.scrollHeight;
     const m = /checking (.+?)(?:\.\.\.|…)\s*$/i.exec(line);
     if (m) {
-      finir(courante, true);
+      if (courante) { finir(courante, true); avancer(); }
       const brut = m[1].trim();
-      const f = LIBELLES.find((x) => x[0].test(brut));
-      const li = document.createElement('li');
-      li.className = 'en-cours';
-      li.innerHTML = '<span class="ico"></span><span class="nom"></span><span class="desc"></span>';
-      li.querySelector('.nom').textContent = f ? f[1] : brut.charAt(0).toUpperCase() + brut.slice(1);
-      li.querySelector('.desc').textContent = f ? f[2] : '';
-      liste.appendChild(li); courante = li;
+      const f = T_LIBELLES.find((x) => x[0].test(brut));
+      const g = f ? f[3] : (groupe || '3d');
+      ouvrir(g);
+      courante = ligne(f ? f[1] : brut.charAt(0).toUpperCase() + brut.slice(1), f ? f[2] : '', g);
     } else if (/FAILED/.test(line)) {
       finir(courante, false); courante = null;
+      fermer(groupe, false);
       document.getElementById('test-tech').open = true;
     } else if (/all checks passed/i.test(line)) {
-      finir(courante, true); courante = null; barre.style.width = '100%';
+      if (courante) { finir(courante, true); avancer(); courante = null; }
+      fermer(groupe, true);
     }
   });
 
+  let result;
   try {
-    const result = await window.wizardAPI.runFinalTest(chosenMode);
-    journal('test_final', {
-      statut: result && result.success ? 'PASS' : 'REJETE',
-      mode: chosenMode,
-      duree_s: result ? result.duration_s : null,
-      erreur: result && !result.success ? String(result.error || '').slice(0, 300) : null,
-    });
-    if (result.success) {
-      // 2026-06-14: animated success — a checkmark that draws itself in
-      // a popping circle, then the text fades up. Replaces the plain
-      // "✓ Test passed" line.
-      status.classList.remove('error');
-      finir(courante, true); courante = null; barre.style.width = '100%';
-      const intro = document.querySelector('#page-test .wiz-lead'); if (intro) intro.textContent = 'Installation complete. Your PC is ready to create 3D models.';
-      status.innerHTML = `
-        <div class="wiz-test-success">
-          <svg class="wiz-check" viewBox="0 0 52 52" aria-hidden="true">
-            <circle class="wiz-check-circle" cx="26" cy="26" r="24" fill="none"/>
-            <path class="wiz-check-path" fill="none" d="M14 27 l8 8 l16 -18"/>
-          </svg>
-          <div class="wiz-test-success-text">
-            <div class="wiz-test-success-title">You are all set!</div>
-            <div class="wiz-test-success-sub">Everything works (checked in ${result.duration_s}s). Click <b>Launch MyFabmesh.AI</b> to start creating.</div>
-          </div>
-        </div>`;
-      // Trigger the launch button with a subtle highlight.
-      const launch = document.getElementById('btn-launch');
-      launch.disabled = false;
-      launch.classList.add('wiz-launch-ready');
-    } else {
-      status.textContent = '⚠ One check did not pass: ' + result.error + ' — use “Export logs” (top right) and send us the file, or try again.';
-      status.classList.add('error');
-      document.getElementById('test-tech').open = true;
-      document.getElementById('btn-launch').disabled = true;
-    }
+    result = await window.wizardAPI.runFinalTest(chosenMode);
   } catch (e) {
+    tEtat('erreur');
     status.textContent = '⚠ Test crashed: ' + e.message;
     status.classList.add('error');
     journal('test_final', { statut: 'PLANTE', mode: chosenMode, erreur: String(e && e.message).slice(0, 300) });
+    return;
   }
+  if (!result || !result.success) {
+    tEtat('erreur');
+    journal('test_final', { statut: 'REJETE', mode: chosenMode, duree_s: result ? result.duration_s : null,
+      erreur: String((result && result.error) || '').slice(0, 300) });
+    status.textContent = '⚠ One check did not pass: ' + ((result && result.error) || 'unknown error') + ' — use “Export logs” (top right) and send us the file, or try again.';
+    status.classList.add('error');
+    document.getElementById('test-tech').open = true;
+    document.getElementById('btn-launch').disabled = true;
+    return;
+  }
+  if (courante) { finir(courante, true); courante = null; }
+  fermer(groupe, true);
+  tBarre(T_POS['3d']);
+
+  // 3. moteur de rig (verification deplacee ici depuis la page de telechargement)
+  tJalon('rig', 'actif');
+  const liRig = ligne('Rig engine', 'Adds a skeleton to your models', 'rig');
+  let rig = null;
+  try { rig = await window.wizardAPI.checkRig?.(); } catch (e) { rig = { ok: false, error: e && e.message }; }
+  const rigOk = !rig || rig.ok;
+  if (rig && rig.skipped) finir(liRig, true, 'Auto-rigging runs online');
+  else if (rigOk) finir(liRig, true);
+  else {
+    finir(liRig, false, 'Auto-rigging will run online instead');
+    log.textContent += '[rig] ' + String((rig && rig.error) || '').slice(-600) + '\n';
+  }
+  tJalon('rig', rigOk ? 'fait' : 'echec');
+  tBarre(T_POS.rig);
+
+  // 4. animation : integree au logiciel (cycles de marche), animations IA en ligne — rien a installer
+  tJalon('anim', 'actif');
+  const liAnim = ligne('Animation engine', 'Walk and run cycles are built in; AI animations run online', 'anim');
+  await _attendre(reduit ? 0 : 450);
+  finir(liAnim, true);
+  tJalon('anim', 'fait');
+  tBarre(100);
+  tEtat(rigOk ? 'fini' : 'avert');
+
+  const duree = Math.round((Date.now() - (_tChronoDebut || Date.now())) / 1000);
+  journal('test_final', { statut: 'PASS', mode: chosenMode, duree_s: duree, rig: rig && rig.skipped ? 'saute' : (rigOk ? 'ok' : 'echec') });
+  const intro = document.querySelector('#page-test .wiz-lead');
+  if (intro) intro.textContent = 'Installation complete. Your PC is ready to create 3D models.';
+  status.innerHTML = `
+    <div class="wiz-test-success">
+      <svg class="wiz-check" viewBox="0 0 52 52" aria-hidden="true">
+        <circle class="wiz-check-circle" cx="26" cy="26" r="24" fill="none"/>
+        <path class="wiz-check-path" fill="none" d="M14 27 l8 8 l16 -18"/>
+      </svg>
+      <div class="wiz-test-success-text">
+        <div class="wiz-test-success-title">You are all set!</div>
+        <div class="wiz-test-success-sub">Every engine works (checked in ${duree}s). Click <b>Launch MyFabmesh.AI</b> to start creating.</div>
+      </div>
+    </div>`;
+  const launch = document.getElementById('btn-launch');
+  launch.disabled = false;
+  launch.classList.add('wiz-launch-ready');
 }
 
 document.getElementById('btn-launch').addEventListener('click', async () => {

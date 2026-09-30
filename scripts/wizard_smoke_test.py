@@ -224,16 +224,16 @@ def main():
     log(f'[smoke] mode={args.mode}')
 
     try:
+        # ORDRE DU LOGICIEL (2026-09-30) : moteur d'IA, puis images, puis 3D — la page de verification remplit sa barre dans cet ordre.
         check_torch_cuda()
-        check_cuda_wheels()
-        check_mesh_tools()
         check_background_remover()
         if args.mode in ('standard', 'full', 'lite'):
             check_writer()
+            check_blip_loadable()
+        check_cuda_wheels()
+        check_mesh_tools()
         check_trellis_loadable()
         check_dinov3_loadable()
-        if args.mode in ('standard', 'full', 'lite'):
-            check_blip_loadable()
         log(f'[smoke] all checks passed in {time.time() - t0:.1f}s')
         sys.exit(0)
     except Exception as e:

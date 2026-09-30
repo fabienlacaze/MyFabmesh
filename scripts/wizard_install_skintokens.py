@@ -39,6 +39,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import urllib.request
 import zipfile
 
@@ -79,9 +81,55 @@ QWEN_FICHIERS = ['config.json', 'generation_config.json', 'merges.txt', 'tokeniz
                  'tokenizer_config.json', 'vocab.json', 'LICENSE']
 
 
+_EMIT_LOCK = threading.Lock()
+_ETAPE = ['']              # etape en cours : jointe aux mesures de debit (une ligne par etape dans l'assistant)
+_POIDS_OCTETS = [0]        # octets des poids deja recus (compteur du telechargement)
+
+
 def emit(obj):
-    sys.stdout.write(json.dumps(obj) + '\n')
-    sys.stdout.flush()
+    with _EMIT_LOCK:
+        if obj.get('step') and obj['step'] != 'rig-octets':
+            _ETAPE[0] = obj['step']
+        sys.stdout.write(json.dumps(obj) + '\n')
+        sys.stdout.flush()
+
+
+# DEBIT REEL (2026-09-30, user : « on n'a plus de vitesse alors que ca telecharge ») : toutes les 1,5 s, octets telecharges par pip
+# (dossiers temporaires pip-unpack-* crees apres le debut, roues en cours) + octets des poids ; evenement « rig-octets » avec l'etape
+# en cours, pour que l'assistant fasse avancer la BONNE ligne. (Le correctif precedent etait parti dans wizard_install_rig.py, que
+# l'assistant n'appelle plus : c'est ce script-ci qui installe le moteur de rig.)
+def _taille_arbre(d):
+    total = 0
+    for racine, _dirs, fichiers in os.walk(d):
+        for f in fichiers:
+            try:
+                total += os.path.getsize(os.path.join(racine, f))
+            except OSError:
+                pass
+    return total
+
+
+def _surveiller_octets(stop):
+    import glob
+    motif = os.path.join(tempfile.gettempdir(), 'pip-unpack-*')
+    deja = set(glob.glob(motif))
+    maxi = {}
+    t_prev, b_prev, vitesse, plancher = time.time(), 0, 0.0, 0
+    while not stop.wait(1.5):
+        try:
+            for d in glob.glob(motif):
+                if d not in deja:
+                    maxi[d] = max(maxi.get(d, 0), _taille_arbre(d))
+            total = sum(maxi.values()) + _POIDS_OCTETS[0]
+        except Exception:
+            continue
+        total = max(total, plancher)          # jamais de recul
+        plancher = total
+        now = time.time()
+        inst = max(0.0, (total - b_prev) / max(now - t_prev, 1e-3)) / 1e6
+        vitesse = inst if vitesse == 0.0 else 0.6 * vitesse + 0.4 * inst
+        t_prev, b_prev = now, total
+        emit({'step': 'rig-octets', 'etape': _ETAPE[0], 'done': False, 'bytes_done': int(total), 'speed_mbps': round(vitesse, 2)})
 
 
 def _run(args, step, cwd=None):
@@ -183,6 +231,7 @@ def _poids(dest):
 
     def suivi(n):
         fait[0] += n
+        _POIDS_OCTETS[0] += n
         emit({'step': 'rig-weights', 'pct': 70 + round(25 * min(1.0, fait[0] / total)), 'done': False,
               'current': f'{fait[0] >> 20} / {total >> 20} MB'})
     for chemin, taille, sha in POIDS:
@@ -252,6 +301,7 @@ def main():
     ap.add_argument('--dest', required=True, help='dossier de SkinTokens (HEAVY_DIR/SkinTokens)')
     a = ap.parse_args()
     py = a.python
+    threading.Thread(target=_surveiller_octets, args=(threading.Event(),), daemon=True).start()
     if not _gpu_nvidia():
         # rien a telecharger : le rig passe par le cloud (pas de .fabmesh_pret)
         emit({'step': 'done', 'pct': 100, 'done': True, 'skipped': True, 'reason': 'no-nvidia-gpu'})
@@ -283,14 +333,10 @@ def main():
                 f.write(os.path.abspath(a.dest) + chr(10))
         emit({'step': 'rig-weights', 'pct': 70, 'done': False, 'msg': 'huggingface.co/VAST-AI/SkinTokens (1.6 GB)'})
         _poids(a.dest)
-        # verification : les imports dont le rig a besoin passent
-        emit({'step': 'rig-check', 'pct': 95, 'done': False})
-        _run([py, '-c', 'import torch, bpy, transformers, open3d, trimesh, scipy; '
-                        'from flash_attn_interface import flash_attn_func; '
-                        'print("cuda", torch.cuda.is_available())'], 'rig-check', cwd=a.dest)
-        # marque ecrite EN DERNIER : l'appli ne propose le rig local qu'une fois
-        # l'installation complete (une installation interrompue ne compte pas)
-        with open(os.path.join(a.dest, '.fabmesh_pret'), 'w') as f:
+        # VERIFICATION DEPLACEE (2026-09-30, user : « le check de chaque engine doit etre fait apres les installations, dans une page
+        # specifique ») : les imports du rig sont verifies sur la page de verification de l'assistant (IPC wizard:check-rig), qui ecrit
+        # la marque .fabmesh_pret si tout passe. Ici, seulement « installe » ; l'appli ne propose le rig local qu'avec .fabmesh_pret.
+        with open(os.path.join(a.dest, '.fabmesh_installe'), 'w') as f:
             f.write(COMMIT)
         emit({'step': 'done', 'pct': 100, 'done': True})
     except Exception as e:

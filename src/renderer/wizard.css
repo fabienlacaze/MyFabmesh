@@ -566,3 +566,22 @@
   margin-top: 6px;
   line-height: 1.45;
 }
+
+/* PAGE DE VERIFICATION (2026-09-30) : la barre a jalons revient pleine, ZOOM sur elle, elle se vide, puis se remplit moteur par
+   moteur. Jalon rouge avec « ! » si un moteur echoue. Chaque ligne de la liste porte la couleur de son moteur. */
+.wiz-jalons-test { margin: 20px 18px 8px; transform-origin: 50% 60%; }
+.wiz-jalons-test.zoom { animation: wiz-zoom-barre 1.1s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes wiz-zoom-barre {
+  0%   { transform: scale(.7); opacity: .2; filter: blur(3px); }
+  55%  { transform: scale(1.12); opacity: 1; filter: none; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.wiz-jalons-test .wiz-jalons-fill { transition: width .9s ease; }
+.wiz-jalon.echec { opacity: 1; border-color: var(--error); color: var(--error); }
+.wiz-jalon.echec::after {
+  content: '!'; position: absolute; right: -6px; bottom: -5px; width: 15px; height: 15px; border-radius: 8px;
+  font-size: 9px; font-weight: 800; line-height: 15px; text-align: center; color: #fff; background: var(--error);
+  box-shadow: 0 0 0 2px var(--bg-2, #1d1d2c);
+}
+.wiz-check-list li { border-left: 3px solid var(--cat, var(--border)); }
+@media (prefers-reduced-motion: reduce) { .wiz-jalons-test.zoom { animation: none; } }

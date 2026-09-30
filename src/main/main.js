@@ -10383,6 +10383,34 @@ ipcMain.handle('wizard:install-rig', async (event) => {
   });
 });
 
+// VERIFICATION DU MOTEUR DE RIG (2026-09-30) : faite sur la page de verification de l'assistant, avec celle des autres moteurs (elle
+// quittait la page de telechargement, a la demande du user). Memes imports qu'avant dans l'installateur ; succes -> marque .fabmesh_pret
+// (c'est elle qui rend le rig local disponible dans l'appli). Pas installe (pas de carte NVIDIA, edition sans rig) -> { skipped }.
+ipcMain.handle('wizard:check-rig', async () => {
+  const py = path.join(RIG_PYTHON_DIR, 'python.exe');
+  if (!fs.existsSync(py) || !fs.existsSync(path.join(SKINTOKENS_DIR, 'demo.py'))) return { ok: true, skipped: true };
+  const t0 = Date.now();
+  return new Promise((resolve) => {
+    execFile(py, ['-c', 'import torch, bpy, transformers, open3d, trimesh, scipy; '
+      + 'from flash_attn_interface import flash_attn_func; print("cuda", torch.cuda.is_available())'],
+    { cwd: SKINTOKENS_DIR, timeout: 240000, windowsHide: true, maxBuffer: 4 * 1024 * 1024,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' } },
+    (err, stdout, stderr) => {
+      const duree = ((Date.now() - t0) / 1000).toFixed(1);
+      if (err) {
+        log.warn('main', `check-rig: ECHEC en ${duree} s: ${String(stderr || err.message).slice(-600)}`);
+        return resolve({ ok: false, error: String(stderr || err.message).slice(-800) });
+      }
+      const cuda = /cuda True/.test(String(stdout));
+      if (cuda) {
+        try { fs.writeFileSync(path.join(SKINTOKENS_DIR, '.fabmesh_pret'), 'verifie ' + new Date().toISOString()); } catch (_) {}
+      }
+      log.info('main', `check-rig: ${cuda ? 'OK' : 'carte graphique invisible'} en ${duree} s`);
+      resolve(cuda ? { ok: true } : { ok: false, error: 'the rig engine cannot see the graphics card' });
+    });
+  });
+});
+
 // Provision the SAMPart3D part-segmentation engine (optional wizard phase):
 // copy embedded Python to a THIRD env (torch cu128 + source-built spconv/
 // pointops — incompatible with the AI + rig envs), clone+patch the repo,
