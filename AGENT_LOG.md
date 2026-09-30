@@ -24495,3 +24495,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 
 ## 2026-09-30 — Etape Rig verrouillee sans modele 3D (bureau + web)
 - User : « oui » a « verrouiller aussi l'etape Rig tant qu'il n'y a pas de modele 3D ? ». La carte Rig ne s'ouvre plus (message « Generate a 3D model first (step 2)… ») tant que le projet n'a ni maillage (genere OU importe par glisser-deposer), ni rig, ni animation. Messages des deux verrous traduits (i18n bureau + web).
+
+## 2026-09-30 — Prefixe du type « Environment piece » : plus « an architectural structure »
+- Constat sur l'essai du user « Rune Crystals » (type Environment piece) : le prompt commencait par « an architectural structure » (ASSET_TYPE_PREFIXES.environment) alors que la detection Auto range dans ce type rochers, arbres, cristaux, plantes, ruines -> le moteur d'image partait vers un batiment.
+- Nouveau prefixe « a single isolated environment prop » (bureau + web ; client seulement, rien a deployer sur Modal). L'ancien reste dans ASSET_TYPE_PREFIXES_ANCIENS : il est toujours retire des descriptions deja enrichies (projets existants), jamais ajoute. Garde des prompts : 19 gabarits, parite OK.
+- Reste a voir (groupe avec le prochain deploiement Modal) : le gabarit ASSET_TYPE_PROMPTS.environment dit encore « isolated, full structure » (copie serveur _prompts.py).

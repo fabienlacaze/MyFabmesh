@@ -7140,8 +7140,12 @@ document.addEventListener('click', (e) => {
 // then reads as a modifier ("…building…, robot house, …"). Stripped on re-edit.
 const ASSET_TYPE_PREFIXES = {
   building:    'an architectural building, a complete standalone structure',
-  environment: 'an architectural structure',
+  // « Environment piece » = rochers, arbres, cristaux, ruines, plantes (la detection Auto y range ces mots). L'ancien prefixe « an
+  // architectural structure » poussait le moteur d'image vers un BATIMENT (constate le 2026-09-30 sur « Rune Crystals »).
+  environment: 'a single isolated environment prop',
 };
+// Anciens prefixes : toujours retires d'une description deja enrichie (projets crees avant le changement), jamais ajoutes.
+const ASSET_TYPE_PREFIXES_ANCIENS = ['an architectural structure'];
 
 // UNITES (2026-09-26) — meme regle que le serveur (modal_app/_prompts.py,
 // build_enriched_prompt) : pour une unite, la description de l'utilisateur
@@ -7205,6 +7209,7 @@ function stripKnownPromptSuffixes(raw) {
   const allSuffixes = [
     ...Object.values(ASSET_TYPE_PROMPTS),
     ...Object.values(ASSET_TYPE_PREFIXES),
+    ...ASSET_TYPE_PREFIXES_ANCIENS,
     ...Object.values(ASSET_STYLE_PROMPTS),
   ].filter(s => s && s.length > 10);
   // Multi-pass removal: each suffix may appear several times in legacy data.
@@ -7304,6 +7309,7 @@ function stripKnownPromptSuffixes(raw) {
   const MARQUEURS_GABARIT = [
     ...Object.values(ASSET_TYPE_PROMPTS),
     ...Object.values(ASSET_TYPE_PREFIXES),
+    ...ASSET_TYPE_PREFIXES_ANCIENS,
   ].filter(s => s && s.length > 20)
    /* Le marqueur est le PREMIER segment, pas les deux premiers : en trimant le
     * gabarit « batiment » j'ai casse ma propre coupe, parce que le 2e segment
