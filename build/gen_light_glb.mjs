@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 const ici = dirname(fileURLToPath(import.meta.url));
 const { MeshoptSimplifier: S } = await import('file:///' + join(ici, '..', 'src', 'renderer', 'lib', 'meshopt-simplifier.js').replace(/\\/g, '/'));
 
+export const ERREUR_MAX = parseFloat(process.env.ERREUR_MAX_LEGER || '0.0015');   // 0,15 % de la taille du maillage
 const TYPES = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };
 const OCTETS = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
 const CTORS = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
@@ -39,15 +40,22 @@ export async function versionLegere(data, cible = 400000, log = console.log) {
     const I = idxA.a.componentType === 5125 ? new Uint32Array(idxA.rows.buffer, idxA.rows.byteOffset, idxA.n) : Uint32Array.from(new CTORS[idxA.a.componentType](idxA.rows.buffer, idxA.rows.byteOffset, idxA.n));
     const nTri = I.length / 3; avant += nTri;
     if (nTri <= cible * 1.05) { apres += nTri; continue; }
-    let res;
+    let res, erreur = 0, cibleP = cible;
     const t = Date.now();
-    if (p.attributes.TEXCOORD_0 != null && j.accessors[p.attributes.TEXCOORD_0].componentType === 5126) {
-      const uv = lire(p.attributes.TEXCOORD_0), U = new Float32Array(uv.rows.buffer, uv.rows.byteOffset, uv.n * 2);
-      [res] = S.simplifyWithAttributes(I, P, 3, U, 2, [1, 1], null, cible * 3, 0.02, []);
-    } else { [res] = S.simplify(I, P, 3, cible * 3, 0.02, []); }
-    if (res.length > cible * 3 * 1.5) [res] = S.simplify(I, P, 3, cible * 3, 1.0, []);
-    if (res.length > cible * 3 * 2) [res] = S.simplifySloppy(I, P, 3, null, cible * 3, 1.0);
-    log(`  primitive : ${nTri} -> ${res.length / 3} triangles en ${((Date.now() - t) / 1000).toFixed(1)} s`);
+    const U = (p.attributes.TEXCOORD_0 != null && j.accessors[p.attributes.TEXCOORD_0].componentType === 5126)
+      ? (() => { const uv = lire(p.attributes.TEXCOORD_0); return new Float32Array(uv.rows.buffer, uv.rows.byteOffset, uv.n * 2); })() : null;
+    // CONTROLE DE QUALITE AUTOMATIQUE : meshoptimizer rend l'erreur geometrique reelle (relative a la taille du maillage). Au-dela de
+    // ERREUR_MAX (0,15 % ; le centipede, 10 M -> 500 K, est a ~0,02-0,05 %), on double la cible de triangles (jusqu'a 2 M) et on recommence.
+    for (let essai = 0; essai < 3; essai++) {
+      if (U) [res, erreur] = S.simplifyWithAttributes(I, P, 3, U, 2, [1, 1], null, cibleP * 3, 0.02, []);
+      else [res, erreur] = S.simplify(I, P, 3, cibleP * 3, 0.02, []);
+      if (res.length > cibleP * 3 * 1.5) [res, erreur] = S.simplify(I, P, 3, cibleP * 3, 1.0, []);
+      if (res.length > cibleP * 3 * 2) [res, erreur] = S.simplifySloppy(I, P, 3, null, cibleP * 3, 1.0);
+      log(`  essai ${essai + 1} : cible ${cibleP} -> ${res.length / 3} triangles, erreur ${(erreur * 100).toFixed(3)} %`);
+      if (erreur <= ERREUR_MAX || cibleP * 2 > 2000000 || nTri <= cibleP * 2) break;
+      cibleP *= 2;
+    }
+    log(`  primitive : ${nTri} -> ${res.length / 3} triangles en ${((Date.now() - t) / 1000).toFixed(1)} s (erreur ${(erreur * 100).toFixed(3)} %)`);
     // sommets references -> nouvel indice
     const remap = new Int32Array(pos.n).fill(-1); let nv = 0;
     for (let i = 0; i < res.length; i++) if (remap[res[i]] < 0) remap[res[i]] = nv++;

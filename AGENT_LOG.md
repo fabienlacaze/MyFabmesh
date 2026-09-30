@@ -24304,3 +24304,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   d'origine (4K / 8K, webp) ; couche emissive ajoutee si peinte. Repli : export de la version legere avec un message.
 - TESTS : (1) local, mesh complet du centipede (8192 x 8192 + 4096 x 4096) + version legere « peinte » : 8192 conserve, patch rouge reporte (moyenne 255,1,0), 3 636 pixels
   modifies hors patch sur 67 M (bruit webp), ~46 s ; (2) navigateur reel : l'alpha 254 survit a GLTFExporter (4096 px a 254, couleurs intactes). Serveur non teste (budget).
+
+## 2026-09-30 — Controle de qualite automatique de la version legere
+- `build/gen_light_glb.mjs` : meshoptimizer rend l'erreur geometrique reelle ; si elle depasse 0,15 % de la taille du maillage (ERREUR_MAX, reglable ERREUR_MAX_LEGER),
+  la cible de triangles est doublee (jusqu'a 3 essais, 2 M au plus). Centipede : 500 K -> erreur 0,028 % (coherent avec l'ecart mesure independamment : moyenne 0,024 %, p99 0,054 %).
+  Banc du mecanisme avec un seuil force a 0,02 % : 400 K -> 800 K -> 1,6 M, erreur 0,033 -> 0,021 -> 0,015 %.
