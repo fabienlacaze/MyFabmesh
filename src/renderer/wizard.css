@@ -616,4 +616,5 @@
 .wiz-compte-msg { min-height: 18px; font-size: 12px; color: var(--error, #f87171); }
 .wiz-compte-msg.ok { color: var(--success, #4ade80); }
 .wiz-compte-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.wiz-compte-actions a { font-size: 12px; color: #8ab4ff; }
+.wiz-compte-actions a { font-size: 12px; color: #8ab4ff; white-space: nowrap; }
+.wiz-compte-actions .primary-btn { width: auto; min-width: 150px; flex: 0 0 auto; }

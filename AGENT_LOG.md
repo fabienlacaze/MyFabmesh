@@ -24776,3 +24776,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 ## 2026-09-30 (nuit) — i18n : noms de mode « Local » / « Cloud » fixes
 - Sans entree, le repli automatique (traducteur local) pouvait rendre « Cloud » par « Nuage » sur l interrupteur et les badges ; « Cloud » n avait aucune traduction, « Local » seulement en zh/hi/ar.
 - i18n.js (fr) et lang/es.js : Local / Cloud identiques ; zh/hi/ar : « Cloud » = 云端 / क्लाउड / السحابة (memes mots que « Cloud (coming soon) » deja traduit). Banc : barre du haut en zh « 本地 | 云端 | 登录 », en fr « Local | Cloud ».
+
+## 2026-09-30 (nuit) — assistant, etape « Account » : bouton d envoi a sa taille
+- Capture du banc : « Sign in » prenait toute la largeur et « Forgot password? » passait sur deux lignes. wizard.css : bouton a largeur naturelle (150 px mini), lien sur une ligne.
