@@ -86,6 +86,8 @@ const _CLOUD_LOGIN_METHODS = [
   // in… » s'affichait au lieu de la fenetre de connexion. Recolor et Age
   // (texVariant) passent par le worker en mode Cloud depuis ce jour.
   'outfitCutout', 'recolor', 'texVariant',
+  // Outils de texture du site passes par le worker en mode Cloud (2026-09-30).
+  'enhanceMeshTexture', 'nameParts', 'regionRetex',
 ];
 const API = (() => {
   const raw = window.meshyAPI;
@@ -12563,13 +12565,27 @@ function _mtInitPivotSliders() {
 
 /** Prix d'un outil de la fenetre « Mesh tool » en mode Cloud, avec la regle de
  *  handleMeshOp (worker.ts) : /api/mesh-op au tarif mesh_op_simple, sauf
- *  Watertight au-dela d'une resolution de 256 (watertight_hd). null = outil
- *  local et gratuit (set_pivot…) ou masque en Cloud (texture_var…). */
+ *  Watertight au-dela d'une resolution de 256 (watertight_hd) ; Texture
+ *  variants et Re-texture all ont leur route et leur tarif. null = outil
+ *  local et gratuit (set_pivot…). */
 const _OUTILS_MAILLAGE_CLOUD = ['smooth', 'triangle_count', 'decimate', 'subdivide',
   'fix_normals', 'fill_holes', 'retexture', 'watertight'];
 function _prixOutilMaillage(toolName, vals) {
   const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-  if (!cloud || !_OUTILS_MAILLAGE_CLOUD.includes(toolName) || !window._prixDe) return null;
+  if (!cloud || !window._prixDe) return null;
+  // Outils de texture passes par le worker en mode Cloud (2026-09-30) : leur
+  // propre tarif — getPrice de handleMeshTexVar / handleMeshRetexture.
+  if (toolName === 'texture_var') return window._prixDe('texture_var');
+  if (toolName === 'trellis2_retex') {
+    const palier = ['fast', 'balanced', 'quality', 'ultra_8k'].includes(vals && vals.preset) ? vals.preset : 'fast';
+    const base = window._prixDe('retex_' + palier);
+    // Ultra 8K : la re-texture cuit en 4096, puis runMeshTool enchaine
+    // « Sharpen texture (x2) », facture a part (/api/mesh-enhance-tex) : le
+    // prix annonce l'inclut, comme ce qui sera preleve.
+    const plus = palier === 'ultra_8k' ? window._prixDe('enhance_tex') : 0;
+    return (base == null || plus == null) ? null : base + plus;
+  }
+  if (!_OUTILS_MAILLAGE_CLOUD.includes(toolName)) return null;
   // main.js (mesh-tool) envoie `resolution: Number(p[0]) || 512`
   if (toolName === 'watertight' && (Number(vals && vals.resolution) || 512) > 256) return window._prixDe('watertight_hd');
   return window._prixDe('mesh_op_simple');
@@ -14428,7 +14444,9 @@ async function _peApplyMaskRetex() {
   const strength = parseFloat(document.getElementById('pe-mask-strength')?.value) || 0.8;
   const job = (typeof pushJob === 'function')
     ? pushJob('AI region re-texture', null, { 'Source mesh': String(meshPath).split(/[/\\]/).pop() }, 60000) : null;
-  const r = await window.meshyAPI.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true });
+  // API (et non window.meshyAPI) : en mode Cloud sans session, la fenetre de
+  // connexion s'ouvre puis l'appel est rejoue (_CLOUD_LOGIN_METHODS).
+  const r = await API.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true });
   if (r && r.ok && r.path) {
     if (job) completeJob(job.id, true);
     showToast(_i18nT('Region re-textured') + ' ✅', 'success');
@@ -29118,6 +29136,13 @@ const _CLOUD_TOOL_TARIFS = {
   'ws-mesh-material-btn': 'mesh_op_simple',   // material_adjust
   'ws-mesh-stages3d-btn': 'construction3d',   // /api/construction-stages-3d
   'ws-mesh-segment-btn': 'mesh_segment',      // /api/mesh-segment
+  // Outils de texture du site, passes par le worker en mode Cloud du bureau
+  // (main.js, 2026-09-30) — memes cles que cloud-overrides.js.
+  'ws-mesh-texvar-btn': 'texture_var',        // /api/mesh-texvar
+  'ws-mesh-trellis2-btn': 'retex_fast',       // /api/mesh-retexture, palier Fast (prix exact dans la fenetre)
+  'ws-mesh-enhance-tex-btn': 'enhance_tex',   // /api/mesh-enhance-tex
+  'ws-mesh-region-retex-btn': 'region_retex', // /api/mesh-region-retex
+  'ws-mesh-name-btn': 'name_parts',           // /api/mesh-name-parts
 };
 /** Prix d'un outil (id de son bouton) lu dans la grille ; null si la grille
  *  est inconnue, l'outil gratuit ou local. Ne regarde PAS le mode de calcul. */
@@ -29146,13 +29171,14 @@ const _CLOUD_LB_BOUTONS = {
 };
 // Visionneuse 3D : route par clic simulé vers les boutons workspace
 // (LB3D_TOOL_MAP). sculpt/paintvert/selectface/export/blender/folder restent
-// sans pastille (gratuits/locaux) ; texvar/regionretex/enhancetex/detailsynth
-// sont masquées en Cloud. « center » (→ Set Pivot) volontairement ABSENT : op
-// locale gratuite.
+// sans pastille (gratuits/locaux) ; texvar/regionretex/enhancetex passent par
+// le worker en mode Cloud depuis le 2026-09-30 ; detailsynth est « Local
+// only ». « center » (→ Set Pivot) volontairement ABSENT : op locale gratuite.
 const _CLOUD_LB3D_BOUTONS = {
   smooth: 'ws-mesh-smooth-btn', decimate: 'ws-mesh-decimate-btn', subdivide: 'ws-mesh-subdivide-btn',
   fixnormals: 'ws-mesh-fixnormals-btn', fillholes: 'ws-mesh-fillholes-btn',
   watertight: 'ws-mesh-watertight-btn', retexture: 'ws-mesh-retexture-btn', material: 'ws-mesh-material-btn',
+  texvar: 'ws-mesh-texvar-btn', regionretex: 'ws-mesh-region-retex-btn', enhancetex: 'ws-mesh-enhance-tex-btn',
 };
 
 window._applyToolPills = function () {
@@ -29336,15 +29362,14 @@ window._applyValidationPills();
 // (sans GPU NVIDIA) par _marquerHorsMode — voir plus haut.
 // ============================================================
 const _CLOUD_HIDDEN_MESH_TOOLS = [
-  'ws-mesh-enhance-tex-btn',   // Real-ESRGAN local, pas d'endpoint worker
-  'ws-mesh-detail-synth-btn',  // detail_synth.py SDXL local
-  'ws-mesh-region-retex-btn',  // SDXL inpaint atlas local
-  'ws-mesh-reshape-btn',       // auto inpaint 3D : SDXL + moteur 3D locaux
-  'ws-mesh-reshape-draw-btn',  // idem, zone peinte en 3D
-  'ws-mesh-texvar-btn',        // texture_var absent de la whitelist /api/mesh-op
-  'ws-mesh-trellis2-btn',      // trellis2_retex absent de la whitelist /api/mesh-op
-  'ws-mesh-name-btn',          // part namer local (Modal _partnamer non déployé)
-                               // (paid no-op côté worker, pas de vraie reprojection)
+  // RETIRES le 2026-09-30 — passent par le worker en mode Cloud, memes routes
+  // que le site (main.js) : ws-mesh-enhance-tex-btn (/api/mesh-enhance-tex),
+  // ws-mesh-region-retex-btn (/api/mesh-region-retex), ws-mesh-texvar-btn
+  // (/api/mesh-texvar), ws-mesh-trellis2-btn (/api/mesh-retexture),
+  // ws-mesh-name-btn (/api/mesh-name-parts).
+  'ws-mesh-detail-synth-btn',  // detail_synth.py SDXL local (absent du site aussi)
+  'ws-mesh-reshape-btn',       // auto inpaint 3D : le site rend la vue de face dans le
+  'ws-mesh-reshape-draw-btn',  // navigateur (__rendreFaceAPlat), pas encore porte ici
   'ws-mesh-center-btn',        // set_pivot absent de la whitelist /api/mesh-op
                                // (op trimesh locale, pas de venv IA en Cloud)
 ];
@@ -29352,8 +29377,7 @@ const _CLOUD_HIDDEN_MESH_TOOLS = [
 // lightbox route vers les boutons workspace par clic simulé, leur entrée
 // porte donc le même marquage.
 const _CLOUD_HIDDEN_LB3D_TOOLS = {
-  texvar: 'ws-mesh-texvar-btn', regionretex: 'ws-mesh-region-retex-btn',
-  enhancetex: 'ws-mesh-enhance-tex-btn', detailsynth: 'ws-mesh-detail-synth-btn',
+  detailsynth: 'ws-mesh-detail-synth-btn',
   center: 'ws-mesh-center-btn',
 };
 // Outils qui exigent Blender installé (aucun rapport avec le mode de calcul) :

@@ -5494,6 +5494,21 @@ ipcMain.handle('enhance-mesh-texture', async (event, { meshPath, jobId }) => {
     const ext = path.extname(meshPath) || '.glb';
     const base = safeBase(path.basename(meshPath, ext));
     const newMeshPath = path.join(dir, `${base}_enhanced_${Date.now()}${ext}`);
+    // Mode Cloud (2026-09-30) : meme route que le site, /api/mesh-enhance-tex
+    // (atlas x2 sur nos GPU, geometrie intacte) — rien ne tourne sur le PC.
+    if (isCloudMode()) {
+      if (!isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
+      safeSend('ai3d-progress', '[cloud] Sharpen texture (x2)…\n');
+      const r = await cloudFallback.atlasOp({ meshPath, endpoint: '/api/mesh-enhance-tex', champs: {},
+        outPath: newMeshPath, projectName: base });
+      if (!r.success) {
+        return { success: false, error: r.error || 'cloud texture sharpening failed',
+                 ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
+      }
+      writeMeta(newMeshPath, { kind: 'op', op: 'enhance_tex', parent: meshPath,
+                               params: { cloud: true, r2_url: r.resultUrl } });
+      return { success: true, newPath: newMeshPath };
+    }
     const venvPy = path.join(__dirname, '..', '..', 'external', 'TRELLIS2_win', '.venv', 'Scripts', 'python.exe');
     const py = app.isPackaged ? _aiPython() : (fs.existsSync(venvPy) ? venvPy : 'python');
     const UPSCALE_SCRIPT = path.join(SCRIPTS_DIR, 'texture_upscale.py');
@@ -9208,6 +9223,35 @@ ipcMain.handle('mesh:render-front', async (_e, { meshPath } = {}) => {
   });
 });
 ipcMain.handle('mesh:region-retex', async (_e, { meshPath, maskDataUrl, prompt, strength, uvMask } = {}) => {
+  // Mode Cloud (2026-09-30) : meme route que le site, /api/mesh-region-retex.
+  // Le worker attend un masque DANS LA TEXTURE (peint sur le modele 3D) : la
+  // vieille fenetre a plat (masque de la vue de face) reste locale.
+  if (isCloudMode()) {
+    try {
+      if (!meshPath || !fs.existsSync(meshPath) || !isPathAllowed(meshPath)) return { ok: false, error: 'Mesh not found' };
+      if (!uvMask) return { ok: false, error: 'In Cloud mode, paint the area on the 3D model (Re-texture a region).' };
+      const base = path.basename(meshPath, path.extname(meshPath));
+      const out = path.join(path.dirname(meshPath), `${base}_retex_${Date.now()}.glb`);
+      const force = Number(strength) || 0.8;
+      safeSend('ai3d-progress', '[cloud] Re-texture a region…\n');
+      const r = await cloudFallback.atlasOp({
+        meshPath, endpoint: '/api/mesh-region-retex', outPath: out,
+        projectName: base.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 90),
+        champs: { mask: String(maskDataUrl || ''), prompt: String(prompt || 'detailed texture'), strength: force },
+      });
+      if (!r.success) {
+        return { ok: false, error: r.error || 'cloud region re-texture failed',
+                 ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
+      }
+      writeMeta(out, {
+        kind: 'op', op: 'retex', parent: meshPath,
+        params: { prompt: String(prompt || ''), strength: force, uvMask: true, cloud: true, r2_url: r.resultUrl },
+      });
+      return { ok: true, path: out };
+    } catch (e) {
+      return { ok: false, error: String(e.message || e) };
+    }
+  }
   const script = path.join(SCRIPTS_DIR, 'face_inpaint_atlas.py');
   const maskPath = path.join(os.tmpdir(), `fabmesh_mask_${Date.now()}.png`);
   try {
@@ -9351,12 +9395,51 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
   // ── Mode Cloud : route les ops simples vers POST /api/mesh-op (worker,
   // 1 crédit). Mapping positionnel→nommé identique au shim web
   // (meshyAPI-cloud.js). set_pivot reste LOCAL (pas dans la whitelist worker,
-  // CPU pur, gratuit) ; texture_var / trellis2_retex sont masqués côté
-  // renderer en mode Cloud (_applyCloudFeatureMask) — toute op non mappée
-  // retombe sur l'exécution locale.
+  // CPU pur, gratuit ; marque « Local only » en mode Cloud par le renderer) ;
+  // texture_var / trellis2_retex passent par leurs routes dediees (ci-dessous,
+  // 2026-09-30) — toute autre op non mappée retombe sur l'exécution locale.
   if (isCloudMode()) {
     try {
       const p = (params || []).map(String);
+      // Outils de TEXTURE du site (2026-09-30), memes routes que lui :
+      // Texture variants -> /api/mesh-texvar (synchrone), Re-texture all ->
+      // /api/mesh-retexture (travail asynchrone). Avant, ces deux boutons
+      // etaient caches en mode Cloud et, appeles quand meme, tournaient sur le PC.
+      if (operation === 'texture_var' || operation === 'trellis2_retex') {
+        let r;
+        if (operation === 'texture_var') {
+          // schema bureau : [force 0-1, graine, style] — meme ordre que le shim web
+          const force = Number(p[0]);
+          const graine = parseInt(p[1], 10);
+          safeSend('ai3d-progress', '[cloud] Texture variants…\n');
+          r = await cloudFallback.atlasOp({
+            meshPath, endpoint: '/api/mesh-texvar', outPath, projectName: base,
+            champs: { strength: Number.isFinite(force) ? force : 0.4,
+                      ...(Number.isFinite(graine) ? { seed: graine } : {}), style: p[2] || '' },
+          });
+        } else {
+          // schema bureau : [image de reference, preset, graine]
+          if (!p[0] || !fs.existsSync(p[0])) {
+            return { success: false, error: 'Pick a reference image first (Image step).' };
+          }
+          safeSend('ai3d-progress', '[cloud] Re-texture all…\n');
+          r = await cloudFallback.retexture({
+            meshPath, imagePath: p[0], preset: p[1] || 'fast', seed: p[2], outPath, projectName: base,
+            onProgress: (st, polls) => safeSend('ai3d-progress',
+              `[cloud] Re-texture all… ${st || 'processing'} (${polls * 4}s)\n`),
+          });
+        }
+        if (!r.success) {
+          return { success: false, error: r.error || 'cloud texture operation failed',
+                   ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
+        }
+        const stats = fs.statSync(outPath);
+        writeMeta(outPath, {
+          kind: 'op', op: operation, parent: meshPath,
+          params: { ...(namedParams || { args: params || [] }), cloud: true, r2_url: r.resultUrl },
+        });
+        return { success: true, newPath: outPath, filename: path.basename(outPath), size: stats.size, operation };
+      }
       let opType = operation;
       let opParams = null;
       switch (operation) {
@@ -9590,6 +9673,28 @@ ipcMain.handle('name-parts', async (_event, { meshPath, assetType, rigPath }) =>
   try {
     if (!meshPath || !fs.existsSync(meshPath)) return { success: false, error: 'Mesh not found' };
     if (!isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
+    // Mode Cloud (2026-09-30) : meme route que le site, /api/mesh-name-parts.
+    // Le fichier annexe <mesh>.parts.json est ecrit ICI aussi : la liste des
+    // maillages le relit (zones nommees gardees au rechargement).
+    if (isCloudMode()) {
+      const at = String(assetType || 'other').replace(/[^a-z_]/gi, '').slice(0, 20) || 'other';
+      const rig = (rigPath && fs.existsSync(rigPath) && isPathAllowed(rigPath)) ? rigPath : null;
+      safeSend('ai3d-progress', '[Name] Naming parts (cloud)…');
+      const r = await cloudFallback.nameParts({
+        meshPath, rigPath: rig, assetType: at,
+        projectName: path.basename(meshPath, path.extname(meshPath)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 90),
+      });
+      if (!r.success) {
+        return { success: false, error: r.error || 'cloud naming failed',
+                 ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
+      }
+      const sidecar = meshPath + '.parts.json';
+      try {
+        fs.writeFileSync(sidecar, JSON.stringify({ parts: r.parts, source: r.source, cloud: true }, null, 2), 'utf-8');
+      } catch (e) { log.warn('name-parts', 'sidecar: ' + e.message); }
+      console.log(`[name-parts] CLOUD DONE in ${((Date.now() - _t0) / 1000).toFixed(0)}s → ${r.parts.length} parts (${r.source})`);
+      return { success: true, sidecar, parts: r.parts, source: r.source, assetType: at };
+    }
     const segPython = app.isPackaged
       ? path.join(SEGMENT_PYTHON_DIR, 'python.exe')
       : path.join(__dirname, '..', '..', 'python-segment', 'python.exe');
