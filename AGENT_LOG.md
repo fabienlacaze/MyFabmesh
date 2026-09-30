@@ -24773,3 +24773,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee : bande rouge semi-transparente dans le gris (autres logiciels), remplie depuis la droite = consommation reelle (mesuree quand MyFabmesh ne calcule pas).
 
 - (suite) Barre partagee : bande rouge = consommation reelle des autres logiciels (nvidia-smi 2,7 Go sur 2,9 gardes = 92 %, verifie) ; espace reduit entre barres et legendes ; libelle « Other apps » masque si la zone est etroite.
+
+- (suite) Barre partagee : consommation reelle des autres logiciels = fine bande a degrade vert -> rouge au bas du gris, remplie depuis la droite (plus a gauche, plus rouge).
