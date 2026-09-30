@@ -58,9 +58,8 @@ cas('journal des pics : dernier travail reussi, releve par un refus plus recent'
   const pics = b.lirePics(journal);
   assert.equal(pics.get('trellis2_1024').besoinMo, 4800);
   assert.equal(pics.get('trellis2_1024').besoinVramMo, 9580);       // pic reserve + contexte CUDA
-  assert.equal(pics.get('trellis2_1536_cascade').besoinMo, 11800);  // refus sans type : RAM
-  assert.equal(pics.get('trellis2_1536_cascade').besoinVramMo, undefined);
-  assert.equal(pics.get('trellis2_1536_cascade').issue, 'memoire');
+  // refus RAM (ancien plafond d'engagement, disparu le 30/09) : ignores
+  assert.equal(pics.has('trellis2_1536_cascade'), false);
   // un refus VRAM ne se confond pas avec un besoin RAM
   assert.equal(pics.get('trellis2_1024_cascade').besoinMo, 5000);
   assert.equal(pics.get('trellis2_1024_cascade').besoinVramMo, 12500);
@@ -73,16 +72,28 @@ cas('journal des pics : dernier travail reussi, releve par un refus plus recent'
   assert.equal(b.besoinMo(null, 'x', 7), 7);
 });
 
-cas('verdict : la RAM passe avant la VRAM, un budget inconnu ne bloque pas', () => {
-  assert.deepEqual(b.verdict({ besoinRamMo: 4000, budgetRamMo: 13104, besoinVramMo: 9000, budgetVramMo: 11460 }), { ok: true });
-  const v = b.verdict({ besoinRamMo: 12700, budgetRamMo: 8300, besoinVramMo: 99999, budgetVramMo: 1 });
-  assert.equal(v.ok, false);
-  assert.equal(v.type, 'ram');
-  assert.equal(v.besoinGo, 12.5);
-  assert.equal(v.dispoGo, 8.1);
-  assert.ok(v.phrase.startsWith('This generation needs about 12.5 GB of RAM but only 8.1 GB are available under your limit'));
-  assert.equal(b.verdict({ besoinRamMo: 1, budgetRamMo: 2, besoinVramMo: 5000, budgetVramMo: 4000 }).type, 'vram');
-  assert.deepEqual(b.verdict({ besoinRamMo: 5000, budgetRamMo: null }), { ok: true });
+cas('verdict : la RAM ne bloque jamais (plafond souple), la VRAM avec une marge de 10 %', () => {
+  assert.equal(b.verdict({ besoinRamMo: 4000, budgetRamMo: 13104, besoinVramMo: 9000, budgetVramMo: 11460 }).ok, true);
+  const v = b.verdict({ besoinRamMo: 12700, budgetRamMo: 8300, besoinVramMo: 1000, budgetVramMo: 5000 });
+  assert.equal(v.ok, true);                                  // RAM courte : le calcul part, plus lent
+  assert.deepEqual(v.ralenti, { type: 'ram', besoinGo: 12.5, dispoGo: 8.1 });
+  const w = b.verdict({ besoinRamMo: 1, budgetRamMo: 2, besoinVramMo: 8808, budgetVramMo: 8454 });
+  assert.equal(w.ok, false);
+  assert.equal(w.type, 'vram');                              // 8,8 Go x 1,1 > 8,45 : retenu au lancement
+  assert.equal(b.verdict({ besoinVramMo: 8000, budgetVramMo: 8700 }).ok, false);   // 8,8 avec la marge
+  assert.equal(b.verdict({ besoinVramMo: 7800, budgetVramMo: 8700 }).ok, true);
+  assert.equal(b.verdict({ besoinRamMo: 5000, budgetRamMo: null }).ok, true);
+  assert.ok(b.phraseManque('ram', 12.5, 8.1).startsWith('This generation needs about 12.5 GB of RAM but only 8.1 GB are available under your limit'));
+});
+
+cas('modele de reserve : part = total - plancher - max(reserve, autres) ; reserve maximale', () => {
+  assert.equal(b.budgetReserveMo({ totalMo: 16303, plancherMo: 512, reserveMo: 5000, autresMo: 3900 }), 16303 - 512 - 5000);
+  assert.equal(b.budgetReserveMo({ totalMo: 16303, plancherMo: 512, reserveMo: 5000, autresMo: 7000 }), 16303 - 512 - 7000);
+  assert.equal(b.budgetReserveMo({ totalMo: 8000, plancherMo: 512, reserveMo: 9000, autresMo: 0 }), 0);
+  assert.equal(b.reserveMaxMo({ totalMo: 16303, plancherMo: 512, besoinMaxMo: 10000 }), 16303 - 512 - 10000);
+  assert.equal(b.reserveMaxMo({ totalMo: 8000, plancherMo: 512, besoinMaxMo: 10000 }), 0);
+  assert.equal(b.PLANCHER_RAM_MO, 2048);
+  assert.equal(b.PLANCHER_VRAM_MO, 512);
 });
 
 cas('marqueur Python -> phrase (sortie melangee, CRLF)', () => {

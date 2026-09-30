@@ -289,8 +289,8 @@ function humanizeErrorMessage(raw) {
   const plafond = s.match(/needs about ([\d.]+) GB of (RAM|VRAM) but only ([\d.]+) GB are available under your limit/);
   if (plafond) {
     return plafond[2] === 'VRAM'
-      ? _i18nTf('This generation needs about {x} GB of VRAM but only {y} GB are available under your limit. Close other apps using the graphics card or raise the VRAM limit in Settings.', plafond[1], plafond[3])
-      : _i18nTf('This generation needs about {x} GB of RAM but only {y} GB are available under your limit. Close other apps or raise the RAM limit in Settings.', plafond[1], plafond[3]);
+      ? _i18nTf('This generation needs about {x} GB of VRAM but only {y} GB are available under your limit. Close other apps using the graphics card or lower the reserve for other apps in Settings.', plafond[1], plafond[3])
+      : _i18nTf('This generation needs about {x} GB of RAM but only {y} GB are available under your limit. Close other apps or lower the reserve for other apps in Settings.', plafond[1], plafond[3]);
   }
   // Saturation VRAM (GPU) — CUDA / cuBLAS / allocation carte graphique.
   const gpuOom = /cuda out of memory|outofmemoryerror|cublas_status_alloc_failed|cudaerrormemoryallocation|cuda error: out of memory|hip out of memory|torch\.cuda\.outofmemory/i.test(s);
@@ -2428,10 +2428,9 @@ let _cachedTotalRamGB = null;
 // gpuLimits is defined by the time this runs (callers either await checkRAM
 // first, deferring past module-eval, or fire after the slider exists).
 function _currentRamBudgetGB() {
-  if (_cachedTotalRamGB == null) return null;
-  let ramPct = 85;
-  try { if (gpuLimits && typeof gpuLimits.ram === 'number') ramPct = gpuLimits.ram; } catch (_) {}
-  return _cachedTotalRamGB * (ramPct / 100);
+  // Modele de reserve (2026-09-30) : la RAM ne bloque plus un calcul (plafond souple, il ralentit) ; seules les options qui
+  // demandent plus que la RAM PHYSIQUE sont retenues.
+  return _cachedTotalRamGB;
 }
 function _gateCascadeRow(el, ok, title) {
   if (!el) return;
@@ -11097,7 +11096,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     effort: 2,
     buildStages,
     subdivide: triPreset.subdivide,
-    vramFraction: (gpuLimits?.vram || 90) / 100,
+    vramFraction: _fractionVramEquivalente(),
     trellis2Steps: t2cfg.steps,
     trellis2MaxTris,
     max_tris: trellis2MaxTris,   // nom lu par le worker (FormData)
@@ -19845,6 +19844,12 @@ if (!window.__fabmesh_ai3d_listener_installed && window.meshyAPI && window.meshy
   // already re-emits a remapped LOCAL_SF3D_PROGRESS: line for those.
   const SUB_PREFIX = 'LOCAL_SF3D: ';
   window.meshyAPI.onAI3DProgress((msg) => {
+    // REPLI DE LA 3D sur manque de VRAM (scripts/trellis2_native_full_pipeline.py) : on le dit, une fois par generation.
+    try {
+      if (/LOCAL_TRELLIS2_REPLI:/.test(String(msg || ''))) {
+        showToast(_i18nT('Not enough graphics memory for the finest 3D mode: continuing in a lighter mode (slightly less detailed).'), 'info', 8000);
+      }
+    } catch (_) {}
     try {
       if (!msg || typeof msg !== 'string') return;
       // DIAGNOSTIC: log every chunk containing a progress marker, with the
@@ -21968,34 +21973,49 @@ const gpuLimits = (() => {
   //   VRAM  ≥ 60% : SDXL + SF3D need ~9 GB → 60% of 16 GB
   //   GPU%  ≥ 30% : below = throttle 70% of time (unusable)
   //   TEMP  ≥ 50% : slider 50% maps to 65°C (below = throttle constant)
-  v.vram = Math.max(60, Math.min(100, Number(v.vram) || 90));
   v.util = Math.max(30, Math.min(100, Number(v.util) || 95));
   v.temp = Math.max(50, Math.min(100, Number(v.temp) || 80));
-  v.ram  = Math.max(50, Math.min(100, Number(v.ram)  || 85));
   v.cpu  = Math.max(25, Math.min(100, Number(v.cpu)  || 100));
+  // MODELE DE RESERVE (2026-09-30, valide par l'utilisateur) : vram / ram = part de la carte / de la RAM RESERVEE AUX AUTRES
+  // LOGICIELS, en % du total ; null = pas encore fixee -> la plus haute qui laisse passer l'outil le plus lourd (posee des que
+  // besoins et totaux sont connus). L'ancien stockage (limite totale) est oublie une fois.
+  if (v.modele !== 'reserve') { v.vram = null; v.ram = null; v.modele = 'reserve'; }
+  else {
+    v.vram = (v.vram == null) ? null : Math.max(0, Math.min(95, Number(v.vram) || 0));
+    v.ram  = (v.ram == null)  ? null : Math.max(0, Math.min(95, Number(v.ram) || 0));
+  }
   return v;
 })();
 function saveGpuLimits() {
   try { localStorage.setItem(GPU_LIMITS_KEY, JSON.stringify(gpuLimits)); } catch (e) {}
-  // Push RAM limit to main process so Python subprocesses inherit FABMESH_RAM_LIMIT_MB
-  if (API.setRamLimit) API.setRamLimit(gpuLimits.ram).catch(() => {});
   if (API.setCpuLimit) API.setCpuLimit(gpuLimits.cpu).catch(() => {});
-  // Push GPU util/temp/vram limits so:
-  //  - Python bridges throttle via gpu_throttle.py (util/temp live)
-  //  - SDXL server respawns with the new VRAM PyTorch cap (vram)
-  //  - New subprocesses inherit all 3 via env vars
+  // GPU util / temp : lus en direct par gpu_throttle.py. RAM / VRAM : RESERVES pour les autres logiciels (modele de reserve).
   if (API.setGpuLimits) {
-    API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: gpuLimits.vram }).catch(() => {});
+    API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp }).catch(() => {});
   }
+  _envoyerReserves();
   // The RAM slider IS the budget — re-evaluate which cascade modes fit the new
   // budget and refresh the marker's GB tooltip live as the user drags it.
   try { gateUltraQualityByRAM(); } catch (_) {}
   try { applyGpuLimitMarkers(); } catch (_) {}
 }
+// Reserves en Mo pour main (FABMESH_RAM_RESERVE_MB / FABMESH_VRAM_RESERVE_MB), des que les totaux sont connus.
+function _envoyerReserves(opts = {}) {
+  if (!API.setReserves) return;
+  const o = { ...opts };
+  if (gpuLimits.ram != null && _cachedTotalRamGB != null) o.ramReserveMb = Math.round(_cachedTotalRamGB * gpuLimits.ram / 100 * 1024);
+  if (gpuLimits.vram != null && _lastVramTotalGB != null && o.vramReserveMb == null) o.vramReserveMb = Math.round(_lastVramTotalGB * gpuLimits.vram / 100 * 1024);
+  if (o.ramReserveMb != null || o.vramReserveMb != null) API.setReserves(o).catch(() => {});
+}
+// Fraction VRAM equivalente (limite totale) pour les appels qui la transmettent encore (compatibilite des scripts).
+function _fractionVramEquivalente() {
+  if (_lastVramTotalGB == null || gpuLimits.vram == null) return 0.9;
+  const plancher = (_besoinsGen && _besoinsGen.planchers) ? _besoinsGen.planchers.vramGo : 0.5;
+  return Math.max(0.3, Math.min(0.97, (_lastVramTotalGB * (1 - gpuLimits.vram / 100) - plancher) / _lastVramTotalGB));
+}
 // Push limits on startup so they're set before any job runs
-if (API.setRamLimit) API.setRamLimit(gpuLimits.ram).catch(() => {});
 if (API.setCpuLimit) API.setCpuLimit(gpuLimits.cpu).catch(() => {});
-if (API.setGpuLimits) API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: gpuLimits.vram }).catch(() => {});
+if (API.setGpuLimits) API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp }).catch(() => {});
 // LIGNES DE LIMITE sous les barres VRAM / RAM (user 2026-09-30 : « valeurs de limites et valeurs reelles melangees ») : la barre et la valeur du haut = usage REEL ;
 // la ligne violette dessous = limite posee pour les generations + ce qu'il reste de libre pour le PC. Mise a jour en direct pendant le glissement.
 let _lastVramTotalGB = null, _lastVramUsedGB = null, _lastRamUsedGB = null, _besoinsGen = null;
@@ -22027,37 +22047,59 @@ function majLignesLimites() {
     seuil('set-cpu-limtxt', p >= 100 ? 'No limit: generations may use the whole processor' : `Generations use at most ${p} % of the processor` + (t ? ` (about ${Math.max(1, Math.round(t * p / 100))} of ${t} threads)` : '') + ' · they run slower, your PC stays responsive'); }
   seuil('set-gpu-util-limtxt', `Jobs wait while GPU usage is above ${Math.round(gpuLimits.util)} %`);
   seuil('set-gpu-temp-limtxt', `Jobs wait while the GPU is hotter than ${Math.round(gpuLimits.temp)} °C`);
-  ligne('set-gpu-vram-limtxt', _lastVramTotalGB, gpuLimits.vram);
-  ligne('set-ram-limtxt', _cachedTotalRamGB, gpuLimits.ram);
-  // LIMITE MINIMUM (user 2026-09-30 : « il faut que l'on ne puisse pas regler les limites en dessous de ce dont on a besoin au
-  // minimum pour faire tourner l'appli, toutes generations confondues »). La limite porte sur TOUT ce qui occupe la carte / la
-  // RAM : son minimum = la generation la plus lourde (image, 3D, outils, Detail++) + ce qu'occupent les AUTRES logiciels,
-  // mesure quand l'appli n'occupe rien. Le curseur ne descend pas dessous, et une limite trop basse remonte d'elle-meme.
-  if (_besoinsGen) {
-    const b = _besoinsGen;
-    const ligneBesoin = (id, totalGB, pct, usedGB, cle, nom) => {
-      const el = document.getElementById(id); if (!el || totalGB == null) return;
-      // besoin = l'outil le plus exigeant, TOUS outils confondus (main.js, memory-needs, journal des pics)
-      const lourd = (nom === 'vram' ? b.vram : b.ram) || { go: 0, outil: '' };
-      const need = Number(lourd.go) || 0;
-      const libre = !b.appliActive && !isJobRunning();
-      if (usedGB != null && libre) _autresUsageGo[nom] = usedGB;
-      const autres = _autresUsageGo[nom];
-      const minGB = (autres != null ? autres : 0) + need;
-      const minPct = Math.min(98, Math.ceil(minGB / totalGB * 100) + 1);
-      el.textContent = `Minimum limit: ${minGB.toFixed(1)} GB (heaviest tool: ${lourd.outil || '?'} ${need.toFixed(1)} GB` + (autres != null ? ` + other apps ${autres.toFixed(1)} GB)` : ')');
-      el.classList.toggle('short', minPct >= 98);
-      if (GPU_LIMITS_MIN[nom] !== minPct) { GPU_LIMITS_MIN[nom] = minPct; try { paintGpuDisabledZones(); } catch (_) {} }
-      // remontee automatique seulement quand l'appli n'occupe rien (changer la limite VRAM relance le serveur d'images)
-      if (gpuLimits[nom] < minPct && libre) {
-        gpuLimits[nom] = minPct;
-        try { saveGpuLimits(); } catch (_) {}
-        const poignee = document.getElementById(nom === 'vram' ? 'set-gpu-vram-limit' : 'set-ram-limit');
-        if (poignee) poignee.style.left = minPct + '%';
-      }
-    };
-    ligneBesoin('set-gpu-vram-needtxt', _lastVramTotalGB, gpuLimits.vram, _lastVramUsedGB, 'vramGo', 'vram');
-    ligneBesoin('set-ram-needtxt', _cachedTotalRamGB, gpuLimits.ram, _lastRamUsedGB, 'ramGo', 'ram');
+  // MODELE DE RESERVE (2026-09-30, valide par l'utilisateur). Pour la VRAM et la RAM :
+  //   part de MyFabmesh = total - plancher Windows - max(reserve pour les autres logiciels, ce qu'ils occupent vraiment)
+  // La reserve ne peut pas depasser total - plancher - outil le plus lourd (tous outils confondus, mesures du journal des pics) :
+  // l'outil le plus lourd passe toujours tant que les autres logiciels restent dans leur reserve. Zone hachuree = au-dela.
+  const b = _besoinsGen;
+  const parts = {};
+  const ressource = (nom, totalGB, usedGB, idLim, idBesoin) => {
+    if (totalGB == null) return;
+    const plancher = (b && b.planchers) ? (nom === 'vram' ? b.planchers.vramGo : b.planchers.ramGo) : (nom === 'vram' ? 0.5 : 2);
+    const lourd = (b && (nom === 'vram' ? b.vram : b.ram)) || { go: 0, outil: '' };
+    const need = Number(lourd.go) || 0;
+    const libre = b ? (!b.appliActive && !isJobRunning()) : false;
+    if (usedGB != null && libre) _autresUsageGo[nom] = usedGB;
+    const autres = _autresUsageGo[nom];
+    const reserveMaxGB = Math.max(0, totalGB - plancher - need);
+    const maxPct = Math.max(0, Math.floor(reserveMaxGB / totalGB * 1000) / 10);
+    if (GPU_LIMITS_MAX[nom] !== maxPct) { GPU_LIMITS_MAX[nom] = maxPct; try { paintGpuDisabledZones(); } catch (_) {} }
+    // reserve pas encore fixee, ou devenue trop haute (outil plus lourd mesure) : la plus haute qui laisse passer l'outil le plus
+    // lourd. Seulement quand l'appli n'occupe rien : changer la reserve VRAM relance le serveur d'images.
+    if (b && libre && (gpuLimits[nom] == null || gpuLimits[nom] > maxPct)) {
+      gpuLimits[nom] = maxPct;
+      try { saveGpuLimits(); } catch (_) {}
+    }
+    const pct = gpuLimits[nom] == null ? maxPct : gpuLimits[nom];
+    const poignee = document.getElementById(nom === 'vram' ? 'set-gpu-vram-limit' : 'set-ram-limit');
+    if (poignee && !_draggingGpuLimit) poignee.style.left = pct + '%';
+    const reserveGB = totalGB * pct / 100;
+    const partGB = Math.max(0, totalGB - plancher - Math.max(reserveGB, autres == null ? 0 : autres));
+    parts[nom] = { partGB, autres, reserveGB };
+    const el = document.getElementById(idLim);
+    if (el) el.textContent = `Other apps: ${autres == null ? '?' : autres.toFixed(1)} GB used · ${reserveGB.toFixed(1)} GB kept for them · MyFabmesh: ${partGB.toFixed(1)} GB · Windows: ${plancher.toFixed(1)} GB`;
+    const eb = document.getElementById(idBesoin);
+    if (eb) {
+      eb.textContent = `Heaviest tool: ${lourd.outil || '?'} ${need.toFixed(1)} GB · reserve at most ${reserveMaxGB.toFixed(1)} GB`;
+      eb.classList.toggle('short', partGB < need);
+    }
+  };
+  ressource('vram', _lastVramTotalGB, _lastVramUsedGB, 'set-gpu-vram-limtxt', 'set-gpu-vram-needtxt');
+  ressource('ram', _cachedTotalRamGB, _lastRamUsedGB, 'set-ram-limtxt', 'set-ram-needtxt');
+  // VOYANTS (presentation choisie par l'utilisateur) : chaque outil lourd peut-il partir maintenant ?
+  const zone = document.getElementById('set-hw-voyants');
+  if (zone && b && b.types) {
+    const outils = ['Image generation', '3D', 'Detail++'].filter((o) => b.types[o]);
+    zone.innerHTML = outils.map((o) => {
+      const t = b.types[o];
+      const needV = (Number(t.vramGo) || 0) * 1.1, needR = Number(t.ramGo) || 0;
+      const pv = parts.vram, pr = parts.ram;
+      let etat = 'ok', txt = '';
+      if (pv && pv.partGB < needV) { etat = 'ko'; txt = `VRAM ${(needV - pv.partGB).toFixed(1)} GB short`; }
+      else if (pr && pr.partGB < needR) { etat = 'lent'; txt = 'RAM tight: slower'; }
+      const nomAff = o === 'Image generation' ? 'Image' : o;
+      return `<span class="hw-voyant ${etat}" title="${escapeHtml(txt || 'Ready')}">${etat === 'ok' ? '&#10003;' : (etat === 'ko' ? '&#10007;' : '&#9888;')} ${escapeHtml(_i18nT(nomAff))}${txt ? ' <small>' + escapeHtml(_i18nT(txt.replace(/[\d.]+ GB/, '{x}')).replace('{x}', txt.match(/[\d.]+ GB/)?.[0] || '')) + '</small>' : ''}</span>`;
+    }).join('');
   }
 }
 function applyGpuLimitMarkers() {
@@ -22068,22 +22110,12 @@ function applyGpuLimitMarkers() {
   const r = document.getElementById('set-ram-limit');
   const cp = document.getElementById('set-cpu-limit');
   if (cp) cp.style.left = gpuLimits.cpu + '%';
-  if (v) v.style.left = gpuLimits.vram + '%';
+  if (v && gpuLimits.vram != null) v.style.left = gpuLimits.vram + '%';
   if (u) u.style.left = gpuLimits.util + '%';
   if (t) t.style.left = gpuLimits.temp + '%';
-  if (r) {
-    r.style.left = gpuLimits.ram + '%';
-    // Show the budget in GB so the user sets an understandable ceiling:
-    // budget = physical RAM × ram%. This is the real cap the pipeline fits
-    // under (it picks a lighter cascade mode rather than saturating).
-    if (_cachedTotalRamGB != null) {
-      const budgetGB = _cachedTotalRamGB * (gpuLimits.ram / 100);
-      r.title = `Budget RAM : ${budgetGB.toFixed(0)} GB (${gpuLimits.ram}% de ${_cachedTotalRamGB.toFixed(0)} GB). ` +
-        `Glisse pour plafonner ce que l'appli peut utiliser.`;
-    } else {
-      r.title = 'Glisse pour plafonner le budget RAM (max RAM usage)';
-    }
-  }
+  if (r && gpuLimits.ram != null) r.style.left = gpuLimits.ram + '%';
+  if (r) r.title = _i18nT('Drag to set how much RAM stays reserved for your other apps');
+  if (v) v.title = _i18nT('Drag to set how much graphics memory stays reserved for your other apps');
 }
 function isJobRunning() {
   return state.jobs.some(j => j.status === 'running');
@@ -22096,18 +22128,26 @@ const GPU_LIMITS_MIN = {
 const GPU_LIMITS_DEFAULTS = {
   ram: 85, vram: 90, util: 95, temp: 80, cpu: 100,
 };
-// Paint the gray "disabled" zone on each slider (from 0% to MIN_BY_STAT).
+// Reserve maximale (en %) pour vram / ram : au-dela, l'outil le plus lourd ne passerait plus (calculee par majLignesLimites).
+const GPU_LIMITS_MAX = { vram: 95, ram: 95 };
+// Paint the gray "disabled" zone on each slider : de 0 au minimum (util / temp / cpu), ou du maximum a 100 % (reserves vram / ram).
 function paintGpuDisabledZones() {
   document.querySelectorAll('.gpu-bar').forEach(bar => {
     const stat = bar.dataset.stat;
-    const minPct = GPU_LIMITS_MIN[stat] || 5;
     let zone = bar.querySelector('.gpu-bar-disabled-zone');
     if (!zone) {
       zone = document.createElement('div');
       zone.className = 'gpu-bar-disabled-zone';
       bar.insertBefore(zone, bar.firstChild);
     }
-    zone.style.width = minPct + '%';
+    if (stat === 'vram' || stat === 'ram') {
+      const maxPct = GPU_LIMITS_MAX[stat] == null ? 95 : GPU_LIMITS_MAX[stat];
+      zone.style.left = maxPct + '%';
+      zone.style.width = (100 - maxPct) + '%';
+    } else {
+      zone.style.left = '0';
+      zone.style.width = (GPU_LIMITS_MIN[stat] || 5) + '%';
+    }
   });
 }
 // Reset all sliders to their default values.
@@ -22160,11 +22200,9 @@ function setupGpuLimitDragging() {
           const c = Math.round(30 + (pct / 100) * 70);
           return c + ' °C';
         }
-        if (s === 'ram' && _cachedTotalRamGB != null) {
-          // RAM marker = budget ceiling. Show it in GB so the user dials in an
-          // understandable number ("I want a 25 GB budget") instead of a %.
-          const gb = _cachedTotalRamGB * (pct / 100);
-          return Math.round(pct) + ' %  (~' + gb.toFixed(0) + ' GB)';
+        if ((s === 'ram' && _cachedTotalRamGB != null) || (s === 'vram' && _lastVramTotalGB != null)) {
+          const gb = (s === 'ram' ? _cachedTotalRamGB : _lastVramTotalGB) * (pct / 100);
+          return gb.toFixed(1) + ' GB ' + _i18nT('kept for other apps');
         }
         return Math.round(pct) + ' %';
       };
@@ -22173,8 +22211,12 @@ function setupGpuLimitDragging() {
       function onMove(ev) {
         const rect = bar.getBoundingClientRect();
         let pct = ((ev.clientX - rect.left) / rect.width) * 100;
-        const minPct = GPU_LIMITS_MIN[stat] || 5;
-        pct = Math.max(minPct, Math.min(100, pct));
+        if (stat === 'vram' || stat === 'ram') {
+          pct = Math.max(0, Math.min(GPU_LIMITS_MAX[stat] == null ? 95 : GPU_LIMITS_MAX[stat], pct));
+        } else {
+          const minPct = GPU_LIMITS_MIN[stat] || 5;
+          pct = Math.max(minPct, Math.min(100, pct));
+        }
         handle.style.left = pct + '%';
         gpuLimits[stat] = pct;
         tip.textContent = formatValue(stat, pct);
@@ -22225,16 +22267,16 @@ async function checkGpuLimits() {
     const gpu = await API.checkGPU();
     if (!gpu || !gpu.available) return { ok: true };
     const reasons = [];
-    const vramPct = (gpu.usedGB / gpu.totalGB) * 100;
-    if (vramPct > gpuLimits.vram) reasons.push(`VRAM at ${vramPct.toFixed(0)}% > ${gpuLimits.vram.toFixed(0)}% limit`);
+    // VRAM : seul un calcul qui n'aurait plus de part (modele de reserve) est signale ; la RAM ne bloque jamais (plafond souple).
+    const _resV = gpuLimits.vram == null ? 0 : gpu.totalGB * gpuLimits.vram / 100;
+    if (gpu.totalGB - 0.5 - Math.max(_resV, gpu.usedGB) <= 0) reasons.push(`Graphics memory full (${gpu.usedGB.toFixed(1)}/${gpu.totalGB.toFixed(1)} GB)`);
     if ((gpu.gpuUtil || 0) > gpuLimits.util) reasons.push(`GPU usage at ${gpu.gpuUtil}% > ${gpuLimits.util.toFixed(0)}% limit`);
     if ((gpu.tempC || 0) > gpuLimits.temp) reasons.push(`Temperature ${gpu.tempC}°C > ${gpuLimits.temp.toFixed(0)}°C limit`);
     // Check system RAM limit
     try {
       if (API.checkRAM) {
         const ram = await API.checkRAM();
-        const ramPct = (ram.usedGB / ram.totalGB) * 100;
-        if (ramPct > gpuLimits.ram) reasons.push(`RAM at ${ramPct.toFixed(0)}% > ${gpuLimits.ram.toFixed(0)}% limit`);
+        void ram;
       }
     } catch (e2) {}
     return { ok: reasons.length === 0, reasons };
@@ -22519,9 +22561,10 @@ async function hasVramHeadroomFor(kind) {
     }
     // Otherwise (engine not loaded, or a non-reusing kind): predict the VRAM the
     // job's pipeline will allocate and compare against the slider limit.
-    const projectedUsedGB = gpu.usedGB + cost;
-    const projectedPct = (projectedUsedGB / gpu.totalGB) * 100;
-    if (projectedPct > gpuLimits.vram) {
+    // MODELE DE RESERVE : part de MyFabmesh = total - plancher - max(reserve des autres logiciels, leur usage)
+    const _reserveV = gpuLimits.vram == null ? 0 : gpu.totalGB * gpuLimits.vram / 100;
+    const _partV = gpu.totalGB - 0.5 - Math.max(_reserveV, gpu.usedGB);
+    if (cost > _partV) {
       return {
         ok: false, vram: true,
         reason: _i18nTf('Not enough VRAM: {x} GB used, this job needs about {y} GB more than the limit allows. It will wait until VRAM frees up.', `${gpu.usedGB.toFixed(1)}/${gpu.totalGB.toFixed(1)}`, cost)
@@ -22646,15 +22689,15 @@ async function processQueue() {
     // Depart force sur un manque de VRAM : la limite VRAM est relevee le temps que le calcul demarre (il lit la sienne au
     // lancement), puis remise.
     let _vramRemise = null;
-    if (next.force && res && res.vram && API.setGpuLimits) {
+    if (next.force && res && res.vram && API.setReserves) {
       try {
-        _vramRemise = gpuLimits.vram;
-        await API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: 97 });
+        _vramRemise = true;
+        await API.setReserves({ vramReserveMb: 0 });          // la reserve des autres logiciels est levee pour ce lancement
       } catch (_) { _vramRemise = null; }
     }
     try { next.run(); } catch (e) { console.error('queued job failed', e); }
     if (_vramRemise != null) {
-      setTimeout(() => { try { API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: _vramRemise, noRestart: true }); } catch (_) {} }, 8000);
+      setTimeout(() => { try { _envoyerReserves({ noRestart: true }); } catch (_) {} }, 8000);
     }
     // Give the started job a moment to allocate VRAM before checking the next one
     await new Promise(r => setTimeout(r, 5000));
@@ -22719,7 +22762,7 @@ async function refreshGpuStats() {
       `Used ${gpu.usedGB.toFixed(1)} GB of ${gpu.totalGB.toFixed(1)} GB (${vramPct.toFixed(0)}%)`;
     _lastVramTotalGB = gpu.totalGB; _lastVramUsedGB = gpu.usedGB; _chargerBesoinsGen(); try { majLignesLimites(); } catch (_) {}
     document.getElementById('set-gpu-vram-fill').style.width = vramPct + '%';
-    document.querySelector('.gpu-bar[data-stat="vram"]')?.classList.toggle('over-limit', vramPct > gpuLimits.vram);
+    document.querySelector('.gpu-bar[data-stat="vram"]')?.classList.toggle('over-limit', gpu.usedGB > gpu.totalGB - 0.5);
     // GPU utilization
     const util = gpu.gpuUtil || 0;
     document.getElementById('set-gpu-util-val').textContent = util.toFixed(0) + '%';
@@ -22748,7 +22791,7 @@ async function refreshGpuStats() {
       } catch (_) {}
       _cachedTotalRamGB = ram.totalGB; _lastRamUsedGB = ram.usedGB; try { majLignesLimites(); } catch (_) {}
       if (ramFillEl) ramFillEl.style.width = ramPct + '%';
-      document.querySelector('.gpu-bar[data-stat="ram"]')?.classList.toggle('over-limit', ramPct > gpuLimits.ram);
+      document.querySelector('.gpu-bar[data-stat="ram"]')?.classList.toggle('over-limit', ram.usedGB > ram.totalGB - 2);
     }
   } catch (e) {}
 }

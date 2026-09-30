@@ -74,6 +74,18 @@ class CalculsPurs(unittest.TestCase):
         self.assertEqual(cm.plafond_resident_mo(100), cm.PLANCHER_RESIDENT_MO)
         self.assertEqual(cm.plafond_resident_mo(0), cm.PLANCHER_RESIDENT_MO)
 
+    def test_modele_de_reserve(self):
+        # part de l'appli = total - plancher - max(reserve pour les autres, leur usage reel)
+        self.assertEqual(cm.budget_reserve_mo(16303, 512, 5000, 3900), 16303 - 512 - 5000)   # autres dans leur reserve
+        self.assertEqual(cm.budget_reserve_mo(16303, 512, 5000, 7000), 16303 - 512 - 7000)   # autres au-dela : l'appli prend moins
+        self.assertEqual(cm.budget_reserve_mo(8000, 512, 9000, 0), 0.0)                      # jamais negative
+        self.assertEqual(cm.reserve_mo({'FABMESH_RAM_RESERVE_MB': '4000'}, 'FABMESH_RAM_RESERVE_MB'), 4000)
+        self.assertEqual(cm.reserve_mo({'FABMESH_RAM_RESERVE_MB': '0'}, 'FABMESH_RAM_RESERVE_MB'), 0)
+        self.assertIsNone(cm.reserve_mo({}, 'FABMESH_RAM_RESERVE_MB'))
+        self.assertIsNone(cm.reserve_mo({'FABMESH_RAM_RESERVE_MB': 'abc'}, 'FABMESH_RAM_RESERVE_MB'))
+        self.assertEqual(cm.plancher_mo({}, 'FABMESH_RAM_PLANCHER_MB', cm.PLANCHER_RAM_MO), 2048)
+        self.assertEqual(cm.plancher_mo({'FABMESH_RAM_PLANCHER_MB': '3000'}, 'FABMESH_RAM_PLANCHER_MB', 2048), 3000)
+
     def test_vram(self):
         self.assertEqual(cm.budget_vram_mo(14672, 5000), 9672)
         self.assertEqual(cm.budget_vram_mo(14672, 16000), 0.0)
@@ -132,6 +144,14 @@ ENFANT_RAM = textwrap.dedent(r'''
     cm._ajuster()                          # signal de limitation
     p = cm.memoire_processus()
     print('ALLOC_2G_OK ws=%d plafond=%d' % (p['ws_mo'], cm.etat()['ram_plafond_mo']), flush=True)
+''')
+
+ENFANT_RESERVE = textwrap.dedent(r'''
+    import sys, json
+    sys.path.insert(0, sys.argv[1])
+    import cloisonnement_memoire as cm
+    e = cm.appliquer('test_reserve', cle='test_reserve')
+    print('ETAT ' + json.dumps({k: e.get(k) for k in ('ram_reserve_mo', 'ram_plancher_mo', 'ram_budget_mo', 'ram_plafond_mo', 'ram_total_mo')}), flush=True)
 ''')
 
 ENFANT_TORCH = textwrap.dedent(r'''
@@ -209,6 +229,28 @@ class PlafondReel(unittest.TestCase):
         if shutil.which('node') is None:
             self.skipTest('node absent')
         self._verifier_limite(self._lancer(ENFANT_RAM, via_node=True))
+
+    def test_reserve_posee_par_main(self):
+        # reserve plus grande que la RAM : la part de l'appli tombe a 0, le plafond reste au plancher (le calcul ralentit, sans erreur)
+        env_res = dict(os.environ, FABMESH_RAM_RESERVE_MB='999999')
+        script = os.path.join(self.dossier, 'enfant_reserve.py')
+        with open(script, 'w', encoding='utf-8') as f:
+            f.write(ENFANT_RESERVE)
+        r = subprocess.run([sys.executable, script, SCRIPTS], capture_output=True, text=True, timeout=120,
+                           env=dict(env_res, FABMESH_MEMOIRE_JOURNAL=self.journal, PYTHONIOENCODING='utf-8'))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        etat = json.loads([l for l in r.stdout.splitlines() if l.startswith('ETAT ')][0][5:])
+        self.assertEqual(etat['ram_reserve_mo'], 999999)
+        self.assertEqual(etat['ram_plancher_mo'], cm.PLANCHER_RAM_MO)
+        self.assertEqual(etat['ram_budget_mo'], 0.0)
+        self.assertEqual(etat['ram_plafond_mo'], cm.PLANCHER_RESIDENT_MO)
+        # reserve raisonnable : part = total - plancher - max(reserve, autres)
+        env_res['FABMESH_RAM_RESERVE_MB'] = '1000'
+        r = subprocess.run([sys.executable, script, SCRIPTS], capture_output=True, text=True, timeout=120,
+                           env=dict(env_res, FABMESH_MEMOIRE_JOURNAL=self.journal, PYTHONIOENCODING='utf-8'))
+        etat = json.loads([l for l in r.stdout.splitlines() if l.startswith('ETAT ')][0][5:])
+        self.assertGreater(etat['ram_budget_mo'], 0)
+        self.assertLessEqual(etat['ram_budget_mo'], etat['ram_total_mo'] - cm.PLANCHER_RAM_MO - 1000 + 1)
 
     @unittest.skipUnless(AVEC_TORCH, 'torch absent')
     def test_allocateur_cpu_de_pytorch(self):

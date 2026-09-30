@@ -121,10 +121,10 @@ MARQUEUR_LIMITE = 'FABMESH_MEM_LIMITE'
 # debut « This generation needs about X GB of RAM|VRAM but only Y GB are
 # available under your limit » tel quel.
 PHRASE_RAM = ('This generation needs about {x} GB of RAM but only {y} GB are available '
-              'under your limit. Close other apps or raise the RAM limit in Settings.')
+              'under your limit. Close other apps or lower the reserve for other apps in Settings.')
 PHRASE_VRAM = ('This generation needs about {x} GB of VRAM but only {y} GB are available '
-               'under your limit. Close other apps using the graphics card or raise the '
-               'VRAM limit in Settings.')
+               'under your limit. Close other apps using the graphics card or lower the '
+               'reserve for other apps in Settings.')
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +160,42 @@ def budget_ram_mo(limite_mo, utilisee_systeme_mo, propre_ws_mo):
     Le reste = RAM utilisee du systeme moins la part residente de ce processus."""
     autres = max(0.0, float(utilisee_systeme_mo) - float(propre_ws_mo))
     return max(0.0, float(limite_mo) - autres)
+
+
+# MODELE DE RESERVE (2026-09-30, valide par l'utilisateur apres « comment on garde assez de ressources pour notre logiciel,
+# comment on garde une partie de l'ordi pour d'autres logiciels et pour ne pas le planter, comment on fait avec les logiciels
+# que l'on ne controle pas ») :
+#   part de l'appli = total - plancher Windows - max(reserve pour les autres logiciels, ce qu'ils occupent vraiment)
+# - le PLANCHER (2 Go de RAM, 0,5 Go de VRAM) n'est jamais pris par l'appli : le PC ne manque jamais de tout ;
+# - la RESERVE est reglee par l'utilisateur (main.js : FABMESH_RAM_RESERVE_MB / FABMESH_VRAM_RESERVE_MB) ; les autres logiciels
+#   peuvent grossir jusqu'a elle sans que l'appli ne les gene ;
+# - s'ils la depassent (logiciels que l'on ne controle pas), l'appli prend moins : la RAM ralentit (plafond souple), la VRAM
+#   passe en mode leger ou attend. L'appli ne touche jamais aux autres logiciels.
+# Ancien modele (limite totale FABMESH_RAM_LIMIT_MB / FABMESH_VRAM_FRACTION) garde tel quel quand aucune reserve n'est posee.
+PLANCHER_RAM_MO = 2048
+PLANCHER_VRAM_MO = 512
+
+
+def reserve_mo(env, cle):
+    """Reserve pour les autres logiciels (Mo) posee par main.js ; None si absente (ancien modele)."""
+    try:
+        v = float(env.get(cle))
+    except (TypeError, ValueError):
+        return None
+    return v if v >= 0 else None
+
+
+def plancher_mo(env, cle, defaut):
+    try:
+        v = float(env.get(cle) or 0)
+    except (TypeError, ValueError):
+        v = 0.0
+    return v if v > 0 else float(defaut)
+
+
+def budget_reserve_mo(total_mo, plancher, reserve, autres_mo):
+    """Part de l'appli (Mo) : total - plancher - max(reserve, usage reel des autres), jamais negative."""
+    return max(0.0, float(total_mo) - float(plancher) - max(float(reserve), float(autres_mo)))
 
 
 def plafond_resident_mo(budget_mo):
@@ -449,7 +485,13 @@ def appliquer(nom, cle=None, log=None, budget_ram_fixe_mo=None):
 
         # VRAM occupee par les AUTRES : mesuree AVANT que ce processus n'initialise CUDA.
         v = vram_nvidia_smi()
-        if v:
+        res_v = reserve_mo(os.environ, 'FABMESH_VRAM_RESERVE_MB')
+        if v and res_v is not None:
+            pl_v = plancher_mo(os.environ, 'FABMESH_VRAM_PLANCHER_MB', PLANCHER_VRAM_MO)
+            _etat.update(vram_total_mo=v['total_mo'], vram_autres_mo=v['utilisee_mo'], vram_reserve_mo=res_v,
+                         vram_plancher_mo=pl_v, vram_limite_mo=max(0.0, v['total_mo'] - pl_v - res_v),
+                         vram_budget_mo=budget_reserve_mo(v['total_mo'], pl_v, res_v, v['utilisee_mo']))
+        elif v:
             lim_v = limite_vram_mo(os.environ, v['total_mo'])
             _etat.update(vram_total_mo=v['total_mo'], vram_autres_mo=v['utilisee_mo'],
                          vram_limite_mo=lim_v, vram_budget_mo=budget_vram_mo(lim_v, v['utilisee_mo']))
@@ -461,8 +503,13 @@ def appliquer(nom, cle=None, log=None, budget_ram_fixe_mo=None):
             _log('plafond RAM indisponible hors Windows : seule la VRAM sera plafonnee')
         else:
             lim = limite_ram_mo(os.environ, sysm['total_mo'])
+            res = reserve_mo(os.environ, 'FABMESH_RAM_RESERVE_MB')
             if budget_ram_fixe_mo is not None:
                 budget = float(budget_ram_fixe_mo)
+            elif res is not None:
+                pl = plancher_mo(os.environ, 'FABMESH_RAM_PLANCHER_MB', PLANCHER_RAM_MO)
+                _etat.update(ram_reserve_mo=res, ram_plancher_mo=pl)
+                budget = budget_reserve_mo(sysm['total_mo'], pl, res, max(0.0, sysm['utilisee_mo'] - proc['ws_mo']))
             elif lim is None:
                 budget = None
             else:
@@ -550,6 +597,12 @@ def _ajuster(force=False):
             return
         if _etat.get('budget_fixe_mo') is not None:
             budget = float(_etat['budget_fixe_mo'])
+        elif _etat.get('ram_reserve_mo') is not None:
+            sysm = memoire_systeme()
+            if not sysm:
+                return
+            budget = budget_reserve_mo(sysm['total_mo'], _etat.get('ram_plancher_mo') or PLANCHER_RAM_MO,
+                                       _etat['ram_reserve_mo'], max(0.0, sysm['utilisee_mo'] - proc['ws_mo']))
         else:
             sysm = memoire_systeme()
             if not sysm or _etat.get('ram_limite_mo') is None:
@@ -567,8 +620,14 @@ def _ajuster(force=False):
         # depasse son budget -> il rend ses pages. Budget impose (tests) : des qu'il depasse.
         if isinstance(job, _PlafondResident) and proc['ws_mo'] > job.plafond_mo * (1 + MARGE_DELESTAGE):
             sysm = memoire_systeme()
-            pression = bool(sysm and _etat.get('ram_limite_mo') is not None
-                            and sysm['utilisee_mo'] > _etat['ram_limite_mo'])
+            if sysm and _etat.get('ram_reserve_mo') is not None:
+                # le PC n'a plus de quoi tenir le plancher ET la marge de croissance laissee aux autres logiciels
+                autres = max(0.0, sysm['utilisee_mo'] - proc['ws_mo'])
+                marge_autres = max(0.0, _etat['ram_reserve_mo'] - autres)
+                pression = (sysm['total_mo'] - sysm['utilisee_mo']) < (_etat.get('ram_plancher_mo') or PLANCHER_RAM_MO) + marge_autres
+            else:
+                pression = bool(sysm and _etat.get('ram_limite_mo') is not None
+                                and sysm['utilisee_mo'] > _etat['ram_limite_mo'])
             if pression or _etat.get('budget_fixe_mo') is not None:
                 if job.delester():
                     _etat['delestages'] = (_etat.get('delestages') or 0) + 1
@@ -596,8 +655,8 @@ def _suivre():
 def _annoncer(moment):
     d = {'moment': moment, 'nom': _etat.get('nom'), 'cle': _etat.get('cle'),
          'ram_actif': bool(_etat.get('ram_actif'))}
-    for k in ('ram_limite_mo', 'ram_budget_mo', 'ram_plafond_mo', 'ram_budget_lancement_mo',
-              'decalage_mo', 'vram_limite_mo', 'vram_autres_mo', 'vram_budget_mo',
+    for k in ('ram_limite_mo', 'ram_reserve_mo', 'ram_budget_mo', 'ram_plafond_mo', 'ram_budget_lancement_mo',
+              'decalage_mo', 'vram_limite_mo', 'vram_reserve_mo', 'vram_autres_mo', 'vram_budget_mo',
               'vram_contexte_mo'):
         if _etat.get(k) is not None:
             d[k] = round(_etat[k])
@@ -607,8 +666,13 @@ def _annoncer(moment):
         d['ws_mo'] = round(proc['ws_mo'])
     print(f'{MARQUEUR_PLAFOND} ' + json.dumps(d), flush=True)
     if _etat.get('ram_actif'):
-        origine = ('budget impose' if _etat.get('budget_fixe_mo') is not None
-                   else f'limite {_etat.get("ram_limite_mo") or 0:.0f} - RAM des autres')
+        if _etat.get('budget_fixe_mo') is not None:
+            origine = 'budget impose'
+        elif _etat.get('ram_reserve_mo') is not None:
+            origine = (f'total - plancher {_etat.get("ram_plancher_mo") or 0:.0f} - max(reserve '
+                       f'{_etat["ram_reserve_mo"]:.0f}, RAM des autres)')
+        else:
+            origine = f'limite {_etat.get("ram_limite_mo") or 0:.0f} - RAM des autres'
         _log(f'plafond RAM ({moment}) : {_etat["ram_plafond_mo"]:.0f} Mo residents au plus, au-dela le calcul '
              f'ralentit sans s\'arreter, plafond souple (budget {_etat["ram_budget_mo"]:.0f} Mo = {origine} ; '
              f'{d.get("ws_mo", 0)} Mo residents, {d.get("engage_mo", 0)} Mo engages)')

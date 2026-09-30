@@ -237,6 +237,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   memoryBudget: (kind) => ipcRenderer.invoke('memory-budget', kind),
   memoryNeeds: () => ipcRenderer.invoke('memory-needs'),
   setCpuLimit: (pct) => ipcRenderer.invoke('set-cpu-limit', pct),
+  setReserves: (o) => ipcRenderer.invoke('set-reserves', o),
   cpuUsage: () => ipcRenderer.invoke('cpu-usage'),
   diskFree: () => ipcRenderer.invoke('disk-free'),
   setRamLimit: (pct) => ipcRenderer.invoke('set-ram-limit', pct),

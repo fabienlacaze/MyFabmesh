@@ -2449,6 +2449,7 @@
             </div>
             <div class="gpu-limit-line" id="set-gpu-temp-limtxt"></div>
           </div>
+          <div class="hw-voyants" id="set-hw-voyants"></div>
           <div class="gpu-stat">
             <div class="gpu-stat-row">
               <span class="gpu-stat-label">VRAM</span>
@@ -2715,6 +2716,11 @@
     <style>
     .gpu-limit-line{margin-top:5px;font-size:11px;color:#a78bfa;text-align:left}
     .gpu-need-line{margin-top:2px;color:#9aa0b4}
+    .hw-voyants{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
+    .hw-voyant{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(34,197,94,.14);color:#22c55e}
+    .hw-voyant.ko{background:rgba(239,68,68,.14);color:#ef4444}
+    .hw-voyant.lent{background:rgba(245,158,11,.14);color:#f59e0b}
+    .hw-voyant small{font-weight:500;opacity:.9;margin-left:3px}
     .gpu-need-line.short{color:#f59e0b}
     .gpu-bar-limit{background:#a78bfa !important}
     .etape-verrouillee{opacity:.45;filter:grayscale(.6)}

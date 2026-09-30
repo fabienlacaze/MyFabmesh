@@ -825,79 +825,110 @@ def main():
         f"guidance={_tex_params['guidance_strength']} (sharpened bake)")
 
     _mv_path_failed = False
-    try:
-        if len(mv_images) > 1:
-            try:
-                # Multi-view path: replicate pipeline.run() internals with a
-                # multi-image cond. Same code as trellis2_image_to_3d.py:540-595
-                # except `[image]` -> `mv_images`.
-                torch.manual_seed(seed)
-                cond_512 = pipeline.get_cond(mv_images, 512)
-                cond_1024 = (pipeline.get_cond(mv_images, 1024)
-                             if mode != '512' else None)
-                ss_res = {'512': 32, '1024': 64,
-                          '1024_cascade': 32, '1536_cascade': 32}[mode]
-                coords = pipeline.sample_sparse_structure(
-                    cond_512, ss_res, 1, {})
-                if mode == '512':
-                    shape_slat = pipeline.sample_shape_slat(
-                        cond_512,
-                        pipeline.models['shape_slat_flow_model_512'],
-                        coords, {})
-                    tex_slat = pipeline.sample_tex_slat(
-                        cond_512,
-                        pipeline.models['tex_slat_flow_model_512'],
-                        shape_slat, _tex_params)
-                    res = 512
-                elif mode == '1024':
-                    shape_slat = pipeline.sample_shape_slat(
-                        cond_1024,
-                        pipeline.models['shape_slat_flow_model_1024'],
-                        coords, {})
-                    tex_slat = pipeline.sample_tex_slat(
-                        cond_1024,
-                        pipeline.models['tex_slat_flow_model_1024'],
-                        shape_slat, _tex_params)
-                    res = 1024
-                else:
-                    # Cascade modes: fall back to single-image run() for now
-                    # (cascade needs both sample_shape_slat_cascade which has
-                    # extra constraints we'd need to thread through).
-                    log(f'cascade mode not yet multi-view; falling back to single view')
-                    outputs = pipeline.run(img, num_samples=1, seed=seed,
-                                           pipeline_type=mode,
-                                           preprocess_image=False)
-                    shape_slat = None  # marker for the branch below
-                if shape_slat is not None:
+    # REPLI SUR MANQUE DE VRAM (2026-09-30, user : « mettre les limites ne doit pas casser les generations »). Le besoin de la 3D
+    # depend de l'objet : 8,2 Go en 1024_cascade pour une voiture, plus de 10,4 Go pour un portail detaille (echec apres 10 min).
+    # Plutot que d'echouer, le calcul recommence dans le mode plus leger suivant (le modele est un peu moins fin) et le dit.
+    _modes_repli = {'1536_cascade': ['1024_cascade', '1024', '512'], '1024_cascade': ['1024', '512'], '1024': ['512'], '512': []}
+    _essais = [mode] + _modes_repli.get(mode, [])
+    for _i_essai, mode in enumerate(_essais):
+        try:
+            if len(mv_images) > 1:
+                try:
+                    # Multi-view path: replicate pipeline.run() internals with a
+                    # multi-image cond. Same code as trellis2_image_to_3d.py:540-595
+                    # except `[image]` -> `mv_images`.
+                    torch.manual_seed(seed)
+                    cond_512 = pipeline.get_cond(mv_images, 512)
+                    cond_1024 = (pipeline.get_cond(mv_images, 1024)
+                                 if mode != '512' else None)
+                    ss_res = {'512': 32, '1024': 64,
+                              '1024_cascade': 32, '1536_cascade': 32}[mode]
+                    coords = pipeline.sample_sparse_structure(
+                        cond_512, ss_res, 1, {})
+                    if mode == '512':
+                        shape_slat = pipeline.sample_shape_slat(
+                            cond_512,
+                            pipeline.models['shape_slat_flow_model_512'],
+                            coords, {})
+                        tex_slat = pipeline.sample_tex_slat(
+                            cond_512,
+                            pipeline.models['tex_slat_flow_model_512'],
+                            shape_slat, _tex_params)
+                        res = 512
+                    elif mode == '1024':
+                        shape_slat = pipeline.sample_shape_slat(
+                            cond_1024,
+                            pipeline.models['shape_slat_flow_model_1024'],
+                            coords, {})
+                        tex_slat = pipeline.sample_tex_slat(
+                            cond_1024,
+                            pipeline.models['tex_slat_flow_model_1024'],
+                            shape_slat, _tex_params)
+                        res = 1024
+                    else:
+                        # Cascade modes: fall back to single-image run() for now
+                        # (cascade needs both sample_shape_slat_cascade which has
+                        # extra constraints we'd need to thread through).
+                        log(f'cascade mode not yet multi-view; falling back to single view')
+                        outputs = pipeline.run(img, num_samples=1, seed=seed,
+                                               pipeline_type=mode,
+                                               preprocess_image=False)
+                        shape_slat = None  # marker for the branch below
+                    if shape_slat is not None:
+                        torch.cuda.empty_cache()
+                        outputs = [pipeline.decode_latent(shape_slat, tex_slat, res)]
+                except RuntimeError as _mv_err:
+                    # Multi-view shape mismatch — the TRELLIS-2 4B checkpoint's
+                    # cross_attn is sized for 1 view per query. Fall back to
+                    # single-image rather than killing the whole 3D gen.
+                    log(f'multi-view conditioning failed ({_mv_err}); falling back to single-view')
+                    _mv_path_failed = True
                     torch.cuda.empty_cache()
-                    outputs = [pipeline.decode_latent(shape_slat, tex_slat, res)]
-            except RuntimeError as _mv_err:
-                # Multi-view shape mismatch — the TRELLIS-2 4B checkpoint's
-                # cross_attn is sized for 1 view per query. Fall back to
-                # single-image rather than killing the whole 3D gen.
-                log(f'multi-view conditioning failed ({_mv_err}); falling back to single-view')
-                _mv_path_failed = True
-                torch.cuda.empty_cache()
+                    outputs = pipeline.run(
+                        img,
+                        num_samples=1,
+                        seed=seed,
+                        pipeline_type=mode,
+                        preprocess_image=False,
+                    )
+            else:
                 outputs = pipeline.run(
                     img,
                     num_samples=1,
                     seed=seed,
                     pipeline_type=mode,
-                    preprocess_image=False,
+                    preprocess_image=False,  # we did rembg upstream
                 )
-        else:
-            outputs = pipeline.run(
-                img,
-                num_samples=1,
-                seed=seed,
-                pipeline_type=mode,
-                preprocess_image=False,  # we did rembg upstream
-            )
-    except torch.cuda.OutOfMemoryError as e:
-        log(f'OOM in mode={mode}: {e}')
-        log(f'VRAM peak: {torch.cuda.max_memory_allocated()/1e9:.1f} GB')
-        _cm.signaler_si_memoire(e)      # phrase claire + marqueur lu par main.js
-        sys.exit(2)
+            break
+        except torch.cuda.OutOfMemoryError as e:
+          if _i_essai < len(_essais) - 1:
+              _suivant = _essais[_i_essai + 1]
+              log(f'VRAM short in mode={mode} (peak {torch.cuda.max_memory_reserved()/1e9:.1f} GB): '
+                  f'retrying in the lighter mode {_suivant} (slightly less detailed model)')
+              print(f'LOCAL_TRELLIS2_REPLI: {mode} -> {_suivant}', flush=True)
+              _cm.mesurer('repli_vram')
+              del e
+              outputs = None
+              try:
+                  for _m in list(getattr(pipeline, 'models', {}).values()):
+                      try:
+                          _m.cpu()
+                      except Exception:
+                          pass
+              except Exception:
+                  pass
+              import gc as _gc
+              _gc.collect()
+              torch.cuda.empty_cache()
+              try:
+                  torch.cuda.reset_peak_memory_stats()
+              except Exception:
+                  pass
+              continue
+          log(f'OOM in mode={mode}: {e}')
+          log(f'VRAM peak: {torch.cuda.max_memory_allocated()/1e9:.1f} GB')
+          _cm.signaler_si_memoire(e)      # phrase claire + marqueur lu par main.js
+          sys.exit(2)
     log(f'inference done in {time.time()-t_inf:.1f}s, '
         f'VRAM peak {torch.cuda.max_memory_allocated()/1e9:.1f} GB')
     _cm.mesurer('inference_done')

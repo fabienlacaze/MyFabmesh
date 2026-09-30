@@ -20,9 +20,9 @@
  * ========================================================================== */
 
 const PHRASE_RAM = 'This generation needs about {x} GB of RAM but only {y} GB are available '
-  + 'under your limit. Close other apps or raise the RAM limit in Settings.';
+  + 'under your limit. Close other apps or lower the reserve for other apps in Settings.';
 const PHRASE_VRAM = 'This generation needs about {x} GB of VRAM but only {y} GB are available '
-  + 'under your limit. Close other apps using the graphics card or raise the VRAM limit in Settings.';
+  + 'under your limit. Close other apps using the graphics card or lower the reserve for other apps in Settings.';
 
 /** Limite RAM (Mo) : le marqueur (FABMESH_RAM_LIMIT_MB) borne a la RAM physique ;
  *  sans marqueur, la RAM physique (ne jamais pousser le PC dans le fichier d'echange). */
@@ -43,6 +43,18 @@ function limiteVramMo(fraction, totalMo) {
 
 function budgetVramMo({ limiteMo, utiliseeMo }) {
   return Math.max(0, limiteMo - utiliseeMo);
+}
+
+/* MODELE DE RESERVE (2026-09-30, meme definition que scripts/cloisonnement_memoire.py) :
+ *   part de l'appli = total - plancher - max(reserve pour les autres logiciels, ce qu'ils occupent vraiment). */
+const PLANCHER_RAM_MO = 2048;
+const PLANCHER_VRAM_MO = 512;
+function budgetReserveMo({ totalMo, plancherMo, reserveMo, autresMo }) {
+  return Math.max(0, totalMo - plancherMo - Math.max(Number(reserveMo) || 0, Number(autresMo) || 0));
+}
+/** Reserve la plus haute qui laisse encore passer l'outil le plus lourd (les autres restant dans leur reserve). */
+function reserveMaxMo({ totalMo, plancherMo, besoinMaxMo }) {
+  return Math.max(0, totalMo - plancherMo - (Number(besoinMaxMo) || 0));
 }
 
 /** Mo -> Go au dixieme : vers le haut pour un besoin, vers le bas pour un disponible. */
@@ -142,4 +154,5 @@ module.exports = {
   PHRASE_RAM, PHRASE_VRAM,
   limiteRamMo, budgetRamMo, limiteVramMo, budgetVramMo, versGo,
   lirePics, besoinMo, besoinVramMo, phraseManque, verdict, manqueDansSortie,
+  PLANCHER_RAM_MO, PLANCHER_VRAM_MO, budgetReserveMo, reserveMaxMo,
 };

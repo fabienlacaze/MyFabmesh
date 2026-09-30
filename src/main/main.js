@@ -3401,12 +3401,26 @@ function _vramNvidiaSmi() {
 async function _budgetsMemoire() {
   const totalMo = os.totalmem() / MO;
   const utiliseeMo = (os.totalmem() - os.freemem()) / MO;
-  const limiteMo = budgetMemoire.limiteRamMo(process.env.FABMESH_RAM_LIMIT_MB, totalMo);
-  const ram = { totalMo, utiliseeMo, limiteMo, budgetMo: budgetMemoire.budgetRamMo({ limiteMo, utiliseeMo }) };
+  // MODELE DE RESERVE (voir budget_memoire.js) quand les reserves sont posees par les Reglages ; sinon l'ancienne limite totale.
+  const resRam = process.env.FABMESH_RAM_RESERVE_MB, resVram = process.env.FABMESH_VRAM_RESERVE_MB;
+  let ram;
+  if (resRam != null && resRam !== '') {
+    const plancherMo = budgetMemoire.PLANCHER_RAM_MO;
+    ram = { totalMo, utiliseeMo, reserveMo: Number(resRam), plancherMo, limiteMo: Math.max(0, totalMo - plancherMo - Number(resRam)),
+            budgetMo: budgetMemoire.budgetReserveMo({ totalMo, plancherMo, reserveMo: Number(resRam), autresMo: utiliseeMo }) };
+  } else {
+    const limiteMo = budgetMemoire.limiteRamMo(process.env.FABMESH_RAM_LIMIT_MB, totalMo);
+    ram = { totalMo, utiliseeMo, limiteMo, budgetMo: budgetMemoire.budgetRamMo({ limiteMo, utiliseeMo }) };
+  }
   let vram = null;
   if (!isCloudMode() && !(_nvidiaGpuCache && !_nvidiaGpuCache.hasNvidia)) {
     const g = await _vramNvidiaSmi();
-    if (g) {
+    if (g && resVram != null && resVram !== '') {
+      const plancherMo = budgetMemoire.PLANCHER_VRAM_MO;
+      vram = { totalMo: g.totalMo, utiliseeMo: g.utiliseeMo, reserveMo: Number(resVram), plancherMo,
+               limiteMo: Math.max(0, g.totalMo - plancherMo - Number(resVram)),
+               budgetMo: budgetMemoire.budgetReserveMo({ totalMo: g.totalMo, plancherMo, reserveMo: Number(resVram), autresMo: g.utiliseeMo }) };
+    } else if (g) {
       const lim = budgetMemoire.limiteVramMo(process.env.FABMESH_VRAM_FRACTION, g.totalMo);
       vram = { totalMo: g.totalMo, utiliseeMo: g.utiliseeMo, limiteMo: lim,
                budgetMo: budgetMemoire.budgetVramMo({ limiteMo: lim, utiliseeMo: g.utiliseeMo }) };
@@ -3495,7 +3509,8 @@ ipcMain.handle('memory-needs', () => {
   // n'est pas celui des AUTRES logiciels : l'interface garde alors sa derniere mesure.
   let appliActive = false;
   try { appliActive = !!(sdxlProc && sdxlProc.exitCode === null) || activeProcs.size > 0; } catch (_) {}
-  const out = { vram: vramLourd, ram: plusLourd('ramGo'), types: Object.fromEntries(Object.entries(types).map(([k, v]) => [libelle(k), v])), appliActive };
+  const out = { planchers: { ramGo: budgetMemoire.PLANCHER_RAM_MO / 1024, vramGo: budgetMemoire.PLANCHER_VRAM_MO / 1024 },
+    vram: vramLourd, ram: plusLourd('ramGo'), types: Object.fromEntries(Object.entries(types).map(([k, v]) => [libelle(k), v])), appliActive };
   // compatibilite (ancienne forme lue par l'interface) : image / mesh
   out.image = types.realvis; out.mesh = types.trellis2;
   return out;
@@ -7241,6 +7256,20 @@ ipcMain.handle('disk-free', () => {
     const st = fs.statfsSync(dir);
     return { freeGB: Math.round(st.bavail * st.bsize / 1e8) / 10, totalGB: Math.round(st.blocks * st.bsize / 1e8) / 10, drive: path.parse(dir).root.replace(/[\/]+$/, '') };
   } catch (e) { return null; }
+});
+
+// RESERVES POUR LES AUTRES LOGICIELS (modele de reserve, 2026-09-30) : posees par les Reglages, lues par chaque calcul au lancement
+// (scripts/cloisonnement_memoire.py) et par les budgets de main (_budgetsMemoire). Changer la reserve VRAM relance le serveur
+// d'images (son plafond est fixe a son demarrage), sauf noRestart (retour apres un « Start now »).
+ipcMain.handle('set-reserves', (_e, o = {}) => {
+  const avant = process.env.FABMESH_VRAM_RESERVE_MB;
+  if (Number.isFinite(Number(o.ramReserveMb)) && Number(o.ramReserveMb) >= 0) process.env.FABMESH_RAM_RESERVE_MB = String(Math.round(Number(o.ramReserveMb)));
+  if (Number.isFinite(Number(o.vramReserveMb)) && Number(o.vramReserveMb) >= 0) process.env.FABMESH_VRAM_RESERVE_MB = String(Math.round(Number(o.vramReserveMb)));
+  if (avant !== process.env.FABMESH_VRAM_RESERVE_MB && sdxlProc && !o.noRestart) {
+    try { stopSdxlServer(); } catch (_) {}
+  }
+  return { ramReserveMb: Number(process.env.FABMESH_RAM_RESERVE_MB || 0), vramReserveMb: Number(process.env.FABMESH_VRAM_RESERVE_MB || 0),
+    planchers: { ramMo: budgetMemoire.PLANCHER_RAM_MO, vramMo: budgetMemoire.PLANCHER_VRAM_MO } };
 });
 
 // Set system RAM limit (called from renderer when user drags the RAM slider)
