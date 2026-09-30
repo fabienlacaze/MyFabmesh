@@ -24342,3 +24342,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Mesure : rendu rapproche (navigateur reel, meme camera / lumiere) de la version legere seule, avec carte de normales (5 variantes de signe / moyenne de voisins) et du mesh COMPLET.
   Ecart moyen au rendu du complet (sur 255) : version legere SEULE 3,53 ; avec carte 4,16 a 4,77 (moyenne de 8 voisins orientes : 4,16). Sans orientation des voisins : 12,9 (bruit).
 - Conclusion : a 500 K triangles avec la texture d'origine, la version legere est deja a ~1,4 % du rendu du complet ; la carte de normales n'ameliore pas (elle ajoute du bruit mal cale). Non branchee.
+
+## 2026-09-30 — Etat local pousse
+- Commit de `scripts/.gpu_limit.json` (horodatage) et `build-info.js` (regenere a chaque lancement). `.vscode/` (reglage d'editeur local) volontairement NON pousse.
