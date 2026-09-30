@@ -299,22 +299,58 @@
   animation: none;
 }
 .wiz-dl-row.done .timer { color: var(--text-2); }
-/* Barre horizontale globale avec jalons (2026-09-30) : un jalon par grand moteur, meme pictogrammes que les etapes du logiciel. */
-.wiz-jalons { margin: 14px 18px 0; padding-bottom: 34px; }
-.wiz-jalons-pct { text-align: center; font-size: 18px; font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; margin-bottom: 26px; }
-.wiz-jalons-track { position: relative; height: 8px; background: var(--bg-3); border-radius: 4px; }
+/* Barre horizontale globale avec jalons (2026-09-30) : un jalon par grand moteur, dans l'ORDRE DU LOGICIEL (moteur d'IA, images, 3D,
+   rig, animation), avec les MEMES pictogrammes et les MEMES couleurs que les etapes de l'appli (anneau de la couleur de l'etape).
+   A gauche du pourcentage, une roue qui tourne tant que l'installation travaille ; a droite, un chronometre a la seconde. */
+.wiz-jalons { margin: 14px 18px 0; padding-bottom: 40px; }
+.wiz-jalons-pct {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-size: 18px; font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; margin-bottom: 28px;
+}
+.wiz-roue {
+  flex: none; box-sizing: border-box; width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--bg-3, #24243a); border-top-color: #a855f7; border-right-color: #e84d7a;
+  animation: wiz-tourne .9s linear infinite;
+}
+.wiz-roue.attente { animation: none; opacity: .35; }
+.wiz-roue.fini, .wiz-roue.avert, .wiz-roue.erreur {
+  animation: none; border: none; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: #0b1a10; background: var(--success);
+}
+.wiz-roue.fini::after, .wiz-roue.avert::after { content: '\2713'; }
+.wiz-roue.avert { background: #fb923c; }
+.wiz-roue.erreur { background: var(--error); color: #fff; }
+.wiz-roue.erreur::after { content: '!'; }
+.wiz-chrono { font-size: 13px; font-weight: 600; color: var(--text-2); min-width: 46px; text-align: left; }
+.wiz-jalons-track { position: relative; height: 8px; background: var(--bg-3, #24243a); border-radius: 4px; }
 .wiz-jalons-fill { height: 100%; width: 0%; background: var(--accent-grad); border-radius: 4px; transition: width 0.4s ease; }
 .wiz-jalon {
-  position: absolute; top: 4px; transform: translate(-50%, -50%);
-  width: 30px; height: 30px; border-radius: 50%;
+  --cat: #8b8fa3;
+  position: absolute; top: 4px; transform: translate(-50%, -50%); box-sizing: border-box;
+  width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--bg-2, #1b1b26); border: 2px solid var(--bg-3); color: var(--text-2);
-  transition: background .3s, border-color .3s, color .3s;
+  background: color-mix(in srgb, var(--cat) 12%, var(--bg-1, #15151f)); border: 2px solid var(--cat); color: var(--cat);
+  opacity: .45; transition: opacity .3s, box-shadow .3s;
 }
-.wiz-jalon svg { width: 16px; height: 16px; }
-.wiz-jalon span { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); font-size: 11px; white-space: nowrap; color: var(--text-2); }
-.wiz-jalon.actif { border-color: #a855f7; color: var(--text-1); }
-.wiz-jalon.fait { background: var(--success); border-color: var(--success); color: #0b1a10; }
+.wiz-jalon[hidden] { display: none; }
+.wiz-jalon svg { width: 19px; height: 19px; }
+.wiz-jalon > span { position: absolute; top: 38px; left: 50%; transform: translateX(-50%); font-size: 11px; white-space: nowrap; color: var(--text-2); }
+.wiz-jalon.actif { opacity: 1; animation: wiz-jalon-pulse 1.6s ease-in-out infinite; }
+.wiz-jalon.actif > span, .wiz-jalon.fait > span { color: var(--text-1); }
+.wiz-jalon.fait { opacity: 1; box-shadow: 0 0 0 4px color-mix(in srgb, var(--cat) 28%, transparent); }
+.wiz-jalon.fait::after {
+  content: '\2713'; position: absolute; right: -6px; bottom: -5px; width: 15px; height: 15px; border-radius: 8px;
+  font-size: 9px; font-weight: 800; line-height: 15px; text-align: center; color: #fff; background: var(--cat);
+  box-shadow: 0 0 0 2px var(--bg-2, #1d1d2c);
+}
+@keyframes wiz-jalon-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cat) 55%, transparent); }
+  50%      { box-shadow: 0 0 0 7px color-mix(in srgb, var(--cat) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wiz-roue { animation-duration: 2.4s; }
+  .wiz-jalon.actif { animation: none; }
+}
 .wiz-fini {
   margin-top: 12px; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.4;
   background: rgba(74, 222, 128, .12); border: 1px solid var(--success); color: var(--text-1);

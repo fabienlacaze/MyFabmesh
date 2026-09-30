@@ -100,24 +100,24 @@ DINOV3_FILES = ['config.json', 'model.safetensors', 'preprocessor_config.json']
 # annonces pour des depots qui en pesaient 16,2 / 27,8 / 20,8 / 5,0 / 19,8 / 3,1 / 5,6 Go : « ~15 Go » affiches pour ~77 Go telecharges, et une barre de progression
 # (calculee sur ces tailles) fausse. Totaux : lite ~19,4 Go, standard ~38,6 Go, full ~48,7 Go (+ ~8,5 Go de moteur d'IA installe avant).
 MODELS = {
+    # ORDRE DU LOGICIEL (2026-09-30, user : « les installations dans l'ordre logique, image puis 3D puis rig puis anim ») : modeles d'image
+    # d'abord, puis la 3D (moteur 3D + analyseur d'image). Meme ordre que WIZARD_MODELS dans src/main/main.js (lignes de l'assistant).
     'lite': [
+        ('blip1',    'Salesforce/blip-image-captioning-large', 1880),
         ('trellis2', 'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',   DINOV3_CANONICAL_REPO, 1250),
-        ('blip1',    'Salesforce/blip-image-captioning-large', 1880),
     ],
     'standard': [
-        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
-        ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
         ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
         ('lightning', 'ByteDance/SDXL-Lightning', 390),
         ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2510),
         ('ipadapter', 'h94/IP-Adapter', 9310),
         ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
         ('esrgan',    'RealESRGAN_x4plus', 70),
-    ],
-    'full': [
         ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
         ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
+    ],
+    'full': [
         ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
         ('lightning', 'ByteDance/SDXL-Lightning', 390),
         ('sdxl_inp',  'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', 6940),
@@ -126,6 +126,8 @@ MODELS = {
         ('florence2', 'microsoft/Florence-2-large', 3120),
         ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
         ('esrgan',    'RealESRGAN_x4plus', 70),
+        ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
+        ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
     ],
 }
 
@@ -182,8 +184,15 @@ def _hf_cache_size_mb(repo):
     total = 0
     for root, _dirs, files in os.walk(repo_dir):
         for fn in files:
+            chemin = os.path.join(root, fn)
+            # LIENS SYMBOLIQUES IGNORES (2026-09-30, « ca depasse les 16 240 Mo et pourtant ce n'est pas a 100 % ») : quand Windows autorise les
+            # liens (mode developpeur), le cache range chaque fichier dans blobs/ ET pose un lien dans snapshots/ ; getsize suit le lien, donc
+            # chaque fichier termine etait compte DEUX fois (27 548 Mo affiches pour un modele de 16 240 Mo). Pire : _already_installed pouvait
+            # prendre un depot a moitie telecharge pour complet et le sauter.
+            if os.path.islink(chemin):
+                continue
             try:
-                total += os.path.getsize(os.path.join(root, fn))
+                total += os.path.getsize(chemin)
             except OSError:
                 pass
     # Mo DECIMAUX (1e6 octets) : les tailles du plan viennent de l'API du Hub (octets / 1e6). Avec des Mio (1024 * 1024) un depot de 16 240 Mo n'atteignait que 95 % (15 485 Mio)

@@ -51,6 +51,9 @@
    ═══════════════════════════════════════════════════════════════════ */
 const _t0 = Date.now();
 // Pourcentage global au milieu de la barre de telechargement (2026-09-30) : ne recule jamais.
+// ECHELLE UNIQUE (barre, pourcentage et jalons) : moteur d'IA 0-8, modeles 8-84 (images D'ABORD puis 3D, au prorata des Mo — meme ordre que le
+// telechargement), moteur de rig 84-92, animation 92-100 (rien a telecharger : elle s'allume quand tout est fini).
+const FIN_MOTEUR = 8, FIN_MODELES = 84, FIN_RIG = 92;
 let _pctGlobal = 0;
 function majGlobal(pct) {
   _pctGlobal = Math.max(_pctGlobal, Math.max(0, Math.min(100, pct)));
@@ -71,15 +74,48 @@ function majJalons() {
     if (!fait) actifPose = true;
   }
 }
-// Positions des jalons selon le plan du mode choisi : 3D = TRELLIS + analyseur ; images = le reste des modeles.
+// Position de chaque jalon = FIN de sa phase sur l'echelle ci-dessus (3D = moteur 3D + analyseur d'image ; images = tous les autres modeles).
+// Ecart minimal : les pictogrammes et leurs libelles ne doivent pas se chevaucher.
 function placerJalons(plan) {
   const tot = plan.total_mb || 0;
-  if (!tot) return;
-  const g3d = plan.items.filter((i) => /^(trellis|dinov3)/.test(i.id)).reduce((a, i) => a + i.size_mb, 0);
-  const j3d = document.querySelector('.wiz-jalon[data-j="3d"]'), jimg = document.querySelector('.wiz-jalon[data-j="img"]');
-  if (j3d) { if (g3d > 0) j3d.style.left = (8 + 80 * g3d / tot).toFixed(1) + '%'; else j3d.hidden = true; }
-  if (jimg) { if (tot - g3d > 0) jimg.style.left = '88%'; else jimg.hidden = true; }
+  const g3d = (plan.items || []).filter((i) => /^(trellis|dinov3)/.test(i.id)).reduce((a, i) => a + i.size_mb, 0);
+  const gImg = tot - g3d;
+  const ECART = 8;
+  const poser = (cle, pos, visible = true) => {
+    const j = document.querySelector(`.wiz-jalon[data-j="${cle}"]`);
+    if (!j) return;
+    j.hidden = !visible;
+    j.style.left = pos.toFixed(1) + '%';
+  };
+  poser('engine', FIN_MOTEUR);
+  const pImg = tot ? FIN_MOTEUR + (FIN_MODELES - FIN_MOTEUR) * gImg / tot : FIN_MOTEUR + ECART;
+  poser('img', Math.max(FIN_MOTEUR + ECART, Math.min(FIN_MODELES - ECART, pImg)), gImg > 0);
+  poser('3d', FIN_MODELES, g3d > 0);
+  poser('rig', FIN_RIG);
+  poser('anim', 100);
   majJalons();
+}
+// ROUE + CHRONOMETRE (2026-09-30, user : « une circular bar qui tourne a gauche du pourcentage pour montrer que ca marche » et « un chronometre a
+// droite du pourcentage, a la seconde »). La roue tourne tant que l'installation travaille ; coche verte a la fin, « ! » en cas d'arret.
+let _chronoDebut = 0, _chronoMinuteur = null;
+function _fmtDuree(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(ss).padStart(2, '0');
+}
+function _chronoAfficher() {
+  const el = document.getElementById('dl-chrono');
+  if (el && _chronoDebut) el.textContent = _fmtDuree(Date.now() - _chronoDebut);
+}
+function etatProgression(etat) {   // 'marche' | 'fini' | 'avert' | 'erreur'
+  const roue = document.getElementById('dl-roue');
+  if (roue) roue.className = 'wiz-roue' + (etat === 'marche' ? '' : ' ' + etat);
+  if (etat === 'marche') {
+    if (!_chronoDebut) _chronoDebut = Date.now();
+    if (!_chronoMinuteur) _chronoMinuteur = setInterval(_chronoAfficher, 1000);
+  } else if (_chronoMinuteur) {
+    clearInterval(_chronoMinuteur); _chronoMinuteur = null;
+  }
+  _chronoAfficher();
 }
 
 function journal(type, data) {
@@ -537,6 +573,7 @@ async function _startDownloadInterne() {
     document.getElementById('btn-dl-next').disabled = false;
     return;
   }
+  etatProgression('marche');
 
   // ---- Preflight: is there enough free disk on the data drive? A multi-GB
   // install that dies half-way on a full disk leaves a permanently-broken
@@ -557,6 +594,7 @@ async function _startDownloadInterne() {
           // desarmer la garde, sinon `goto()` autorise une seconde chaine.
           startDownload();
         });
+        etatProgression('erreur');
         return;  // btn-dl-next stays disabled — can't proceed until space is freed
       }
     }
@@ -600,7 +638,7 @@ async function _startDownloadInterne() {
       barreMax = Math.max(barreMax, Math.min(92, (mo / AIENV_TOTAL_MO) * 100));
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       set('dl-done', Math.round(mo).toLocaleString('en-US'));
-      majGlobal(Math.min(8, (mo / AIENV_TOTAL_MO) * 8));
+      majGlobal(Math.min(FIN_MOTEUR, (mo / AIENV_TOTAL_MO) * FIN_MOTEUR));
       set('dl-total', '~' + AIENV_TOTAL_MO.toLocaleString('en-US'));
       set('dl-speed', vit.toFixed(1));
       // Debit tombe a ~0 (mesure du 2026-09-30 : « 0.1 MB/s · ETA 1191 min ») : le telechargement est fini, pip DECOMPRESSE et installe (plusieurs minutes
@@ -660,6 +698,7 @@ async function _startDownloadInterne() {
     const cause = lignes.find((x) => /^(ERROR|Could not|Not enough|pip exited|Last error)/i.test(x)) || lignes[0] || 'unknown error';
     const court = /^Command failed:/i.test(cause) ? 'the installer stopped unexpectedly' : cause.slice(0, 220);
     // Bloc d'echec (2026-09-30, user : « un bouton plus joli et bien plus visible pour Retry, et un bouton pour m'envoyer les logs »)
+    etatProgression('erreur');
     list.innerHTML += `<div class="wiz-erreur">
       <div class="wiz-erreur-titre">The AI engine installation stopped</div>
       <div class="wiz-erreur-msg">${court.replace(/</g, '&lt;')}</div>
@@ -741,7 +780,7 @@ async function _startDownloadInterne() {
       }
     }
     document.getElementById('dl-done').textContent = p.total_done_mb || 0;
-    if (plan.total_mb) majGlobal(8 + Math.min(80, (p.total_done_mb || 0) * 80 / plan.total_mb));
+    if (plan.total_mb) majGlobal(FIN_MOTEUR + Math.min(FIN_MODELES - FIN_MOTEUR, (p.total_done_mb || 0) * (FIN_MODELES - FIN_MOTEUR) / plan.total_mb));
     document.getElementById('dl-speed').textContent = (p.speed_mbps || 0).toFixed(1);
     document.getElementById('dl-eta').textContent = p.eta || '–';
   });
@@ -752,6 +791,7 @@ async function _startDownloadInterne() {
     console.log('[wizard] Phase 2: model download OK');
   } catch (e) {
     console.error('[wizard] Model download FAILED:', (e && e.message) || e);
+    etatProgression('erreur');
     list.innerHTML += `<div class="wiz-dl-row"><span class="name" style="color:var(--error)">Download failed: ${e.message}. <a href="#" id="retry-dl">Retry</a></span></div>`;
     document.getElementById('retry-dl')?.addEventListener('click', () => {
       // NE PAS faire `initialized.delete('download')` : cela re-arme aussi
@@ -805,7 +845,7 @@ async function _startDownloadInterne() {
       }
       return;
     }
-    if (typeof p.pct === 'number') majGlobal(88 + Math.min(12, p.pct * 0.12));
+    if (typeof p.pct === 'number') majGlobal(FIN_MODELES + Math.min(FIN_RIG - FIN_MODELES, p.pct * (FIN_RIG - FIN_MODELES) / 100));
     list.scrollTop = list.scrollHeight;
     if (fill && typeof p.pct === 'number') fill.style.width = Math.max(3, p.pct) + '%';
     const name = document.getElementById('rigenv-name');
@@ -814,7 +854,7 @@ async function _startDownloadInterne() {
       else if (p.step.startsWith('rig-ckpt-')) name.textContent = `Downloading rig model ${p.step.slice(9)}…`;
     }
     if (p.done && !p.error) {
-      majGlobal(100);
+      majGlobal(FIN_RIG);
       const row = document.querySelector('.wiz-dl-row[data-id="__rigenv"]');
       if (row) { row.classList.add('done'); row.classList.remove('in-progress'); }
     }
@@ -858,6 +898,11 @@ async function _startDownloadInterne() {
       startDownload();
     });
   }
+  // ANIMATION (2026-09-30, user : « il manque l'icone d'animation », ordre image > 3D > rig > anim) : rien a telecharger — les cycles de marche
+  // sont integres au logiciel et les animations IA sont calculees en ligne. Ligne affichee pour que la chaine complete soit visible.
+  list.insertAdjacentHTML('beforeend', '<div class="wiz-dl-row done" data-id="__anim"><span class="name">Animation engine ready — built in, nothing to download</span>'
+    + '<span class="size">0 MB</span><div class="bar"><div class="bar-fill"></div></div></div>');
+  list.scrollTop = list.scrollHeight;
   document.getElementById('btn-dl-next').disabled = false;
   annoncerFin(!document.getElementById('retry-rig'));
 }
@@ -867,6 +912,7 @@ async function _startDownloadInterne() {
 function annoncerFin(toutOk) {
   document.getElementById('dl-fini')?.remove();
   if (toutOk) majGlobal(100);
+  etatProgression(toutOk ? 'fini' : 'avert');
   const sp = document.getElementById('dl-speed'), et = document.getElementById('dl-eta');
   if (sp) sp.textContent = '0.0'; if (et) et.textContent = '–';
   const div = document.createElement('div');

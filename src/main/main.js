@@ -9666,25 +9666,24 @@ ipcMain.handle('wizard:detect-hardware', async () => {
 // needs. Sizes are HF download approximations (MB).
 // Generic UI labels (no model brand visible). Internal IDs stay so the
 // download/test scripts know what they're pulling.
+// ORDRE DU LOGICIEL (2026-09-30) : modeles d'image d'abord, puis la 3D — meme ordre que MODELS dans scripts/wizard_download.py.
 const WIZARD_MODELS = {
   lite:     [
+    { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
     { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
     { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
-    { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
   ],
   standard: [
-    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
-    { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
     { id: 'realvis',   label: 'Texture engine',                           repo: 'SG161222/RealVisXL_V4.0',                        size_mb: 6940 },
     { id: 'lightning', label: 'Turbo engine (Lightning)',                 repo: 'ByteDance/SDXL-Lightning',                       size_mb: 390  },
     { id: 'cn_pose',   label: 'Back-view module',                         repo: 'xinsir/controlnet-openpose-sdxl-1.0',            size_mb: 2510 },
     { id: 'ipadapter', label: 'Reference module',                         repo: 'h94/IP-Adapter',                                 size_mb: 9310 },
     { id: 'blip1',     label: 'Vision analyzer',                          repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
     { id: 'esrgan',    label: 'Upscale engine',                           repo: 'github://RealESRGAN_x4plus',                      size_mb: 70   },
+    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core',                          repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
+    { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
   ],
   full:     [
-    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core (Ultra)',                  repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
-    { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
     { id: 'realvis',   label: 'Texture engine',                           repo: 'SG161222/RealVisXL_V4.0',                        size_mb: 6940 },
     { id: 'lightning', label: 'Turbo engine (Lightning)',                 repo: 'ByteDance/SDXL-Lightning',                       size_mb: 390  },
     { id: 'sdxl_inp',  label: 'Face refiner',                             repo: 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', size_mb: 6940 },
@@ -9693,6 +9692,8 @@ const WIZARD_MODELS = {
     { id: 'florence2', label: 'Advanced vision analyzer',                 repo: 'microsoft/Florence-2-large',                     size_mb: 3120 },
     { id: 'blip1',     label: 'Basic vision analyzer',                    repo: 'Salesforce/blip-image-captioning-large',         size_mb: 1880 },
     { id: 'esrgan',    label: 'Upscale engine',                           repo: 'github://RealESRGAN_x4plus',                      size_mb: 70   },
+    { id: 'trellis2',  label: 'MyFabmesh.AI 3D Core (Ultra)',                  repo: 'microsoft/TRELLIS.2-4B',                         size_mb: 16240 },
+    { id: 'dinov3',    label: 'Image analyzer core',                      repo: 'facebook/dinov3-vitl16-pretrain-lvd1689m',       size_mb: 1250 },
   ],
 };
 
