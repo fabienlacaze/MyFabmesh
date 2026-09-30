@@ -48,18 +48,27 @@ cas('journal des pics : dernier travail reussi, releve par un refus plus recent'
   const journal = [
     '{"cle":"trellis2_1024","issue":"ok","pic_prive_mo":5200}',
     'pas du json',
-    '{"cle":"trellis2_1024","issue":"ok","pic_prive_mo":4800}',
+    '{"cle":"trellis2_1024","issue":"ok","pic_prive_mo":4800,"pic_vram_reserve_mo":9100,"vram_contexte_mo":480}',
     '{"cle":"trellis2_1536_cascade","issue":"memoire","besoin_mo":11800}',
+    '{"cle":"trellis2_1024_cascade","issue":"ok","pic_prive_mo":5000,"pic_vram_reserve_mo":10000}',
+    '{"cle":"trellis2_1024_cascade","issue":"memoire","manque":"vram","besoin_mo":12500}',
     '{"cle":"realvis","issue":"fin","pic_prive_mo":9000}',
     '{"cle":"sdxl_server","issue":"ok","pic_prive_mo":0}',
   ].join('\r\n');
   const pics = b.lirePics(journal);
   assert.equal(pics.get('trellis2_1024').besoinMo, 4800);
-  assert.equal(pics.get('trellis2_1536_cascade').besoinMo, 11800);
+  assert.equal(pics.get('trellis2_1024').besoinVramMo, 9580);       // pic reserve + contexte CUDA
+  assert.equal(pics.get('trellis2_1536_cascade').besoinMo, 11800);  // refus sans type : RAM
+  assert.equal(pics.get('trellis2_1536_cascade').besoinVramMo, undefined);
   assert.equal(pics.get('trellis2_1536_cascade').issue, 'memoire');
+  // un refus VRAM ne se confond pas avec un besoin RAM
+  assert.equal(pics.get('trellis2_1024_cascade').besoinMo, 5000);
+  assert.equal(pics.get('trellis2_1024_cascade').besoinVramMo, 12500);
   assert.equal(pics.has('realvis'), false);        // issue inconnue (processus arrete) : ignore
   assert.equal(pics.has('sdxl_server'), false);    // pic nul : ignore
   assert.equal(b.besoinMo(pics, ['trellis2_1536_cascade', 'trellis2_1024'], 999), 4800);
+  assert.equal(b.besoinVramMo(pics, ['trellis2_1536_cascade'], null), null);
+  assert.equal(b.besoinVramMo(pics, ['trellis2_1024_cascade', 'trellis2_1024'], null), 9580);
   assert.equal(b.besoinMo(pics, 'inconnu', 999), 999);
   assert.equal(b.besoinMo(null, 'x', 7), 7);
 });

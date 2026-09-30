@@ -22266,6 +22266,9 @@ async function hasVramHeadroomFor(kind) {
     if (API.memoryBudget) {
       const m = await API.memoryBudget(kind);
       if (m && m.ok === false) {
+        if (m.type === 'vram' && m.besoinGo != null) {
+          return { ok: false, memoire: true, reason: _i18nTf('Waiting for graphics memory: this job needs about {x} GB of VRAM and {y} GB are free under your limit. It starts as soon as it fits (close apps using the graphics card or raise the VRAM limit in Settings).', m.besoinGo, m.dispoGo) };
+        }
         if (m.besoinGo != null) {
           return { ok: false, memoire: true, reason: _i18nTf('Waiting for memory: this job needs about {x} GB of RAM and {y} GB are free under your limit. It starts as soon as it fits (close other apps or raise the RAM limit in Settings).', m.besoinGo, m.dispoGo) };
         }

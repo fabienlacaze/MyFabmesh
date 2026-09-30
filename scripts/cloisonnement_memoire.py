@@ -649,6 +649,7 @@ def signaler(info):
         _etat['issue'] = 'memoire'
         _etat['refus'] = True
         _etat['besoin_mo'] = info['besoin_mo']
+        _etat['manque'] = info['type']          # 'ram' ou 'vram' : le journal ne les confond pas
     marque = f'{MARQUEUR_MANQUE} ' + json.dumps({
         'type': info['type'], 'besoin_go': en_go(info['besoin_mo']),
         'dispo_go': en_go_bas(info['dispo_mo']), 'nom': _etat.get('nom')})
@@ -685,6 +686,7 @@ def texte_erreur(exc):
             with _verrou:
                 _etat['refus'] = True          # le serveur continue : pas d'issue « memoire » definitive
                 _etat['besoin_mo'] = max(_etat.get('besoin_mo') or 0.0, info['besoin_mo'])
+                _etat['manque'] = info['type']
             return info['phrase']
     except Exception:
         pass
@@ -761,6 +763,8 @@ def _ecrire_journal(issue):
               'vram_contexte_mo', 'pic_vram_reserve_mo', 'besoin_mo'):
         if _etat.get(k) is not None:
             ligne[k] = round(_etat[k])
+    if _etat.get('manque'):
+        ligne['manque'] = _etat['manque']      # unite de besoin_mo : 'ram' ou 'vram'
     try:
         if os.path.isfile(chemin) and os.path.getsize(chemin) > 512 * 1024:
             with open(chemin, 'r', encoding='utf-8') as f:

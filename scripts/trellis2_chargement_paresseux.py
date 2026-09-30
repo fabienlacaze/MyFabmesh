@@ -36,7 +36,11 @@ A MESURER au prochain essai reel (lignes FABMESH_MEM_ETAPE « monte ... » et
 MEMES CALCULS que l'amont : meme constructeur, meme conversion de type, meme
 load_state_dict(strict=False) ; l'initialisation aleatoire (ensuite ecrasee
 par les poids) tire dans une copie des generateurs (torch.random.fork_rng) :
-le bruit des echantillonneurs est celui qu'on aurait sans ce module.
+le bruit des echantillonneurs est celui qu'on aurait sans ce module. VERIFIE le
+2026-09-30 sur CPU (build/test_cloisonnement_memoire.py, vrai code + vrais
+fichiers du cache) : from_pretrained n'engage plus rien (+0 Mo au lieu de ~16 Go)
+et chaque parametre des 8 modeles est dans son fichier de poids ; seul manque
+« rope_phases » du modele de structure, un tampon CALCULE par le constructeur.
 Repli : si la construction sur la carte echoue (manque de VRAM transitoire,
 code de modele inattendu), le modele est construit comme l'amont (en RAM),
 monte sur la carte, et sa copie en RAM est rendue.
@@ -130,10 +134,16 @@ def construire(nom_classe, args, fichier_poids, chemin, dev):
         etat = load_file(fichier_poids, device=str(dev))
         absentes, _inattendues = modele.load_state_dict(etat, strict=False)
         del etat
+        # Les blocs float32 de la construction (convertis ensuite) restent dans le cache
+        # de l'allocateur : on les rend, l'etape a besoin d'une carte non fragmentee.
+        _vider_cache(dev)
         mode = 'sur la carte' if dev.type == 'cuda' else f'sur {dev}'
         if absentes:
-            _log(f'[paresseux] {nom_classe} : {len(absentes)} cle(s) absente(s) du fichier de poids '
-                 f'(gardent leur initialisation, comme en amont)')
+            # MESURE du 2026-09-30 (cles des 8 modeles contre leurs fichiers) : seul
+            # « rope_phases » du modele de structure manque — un tampon CALCULE par le
+            # constructeur (positions), pas tire au hasard : meme valeur qu'en amont.
+            _log(f'[paresseux] {nom_classe} : cle(s) absente(s) du fichier, gardees telles que '
+                 f'calculees par le constructeur (comme en amont) : {list(absentes)[:4]}')
     except Exception as e:
         modele = None
         _vider_cache(dev)

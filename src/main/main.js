@@ -3334,7 +3334,9 @@ ipcMain.handle('memory-budget', async (_e, kind) => {
   // (son propre plafond le protege de toute facon).
   try {
     const b = await _budgetsMemoire();
-    const mesure = budgetMemoire.besoinMo(_picsMemoire(), CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
+    const pics = _picsMemoire();
+    const mesure = budgetMemoire.besoinMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
+    const mesureVram = budgetMemoire.besoinVramMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
     const base = {
       budgetRamGo: budgetMemoire.versGo(b.ram.budgetMo, 'bas'),
       limiteRamGo: budgetMemoire.versGo(b.ram.limiteMo, 'bas'),
@@ -3342,10 +3344,12 @@ ipcMain.handle('memory-budget', async (_e, kind) => {
       utiliseeRamGo: budgetMemoire.versGo(b.ram.utiliseeMo),
       budgetVramGo: b.vram ? budgetMemoire.versGo(b.vram.budgetMo, 'bas') : null,
     };
-    if (mesure != null) {
-      const v = budgetMemoire.verdict({ besoinRamMo: mesure, budgetRamMo: b.ram.budgetMo });
+    if (mesure != null || mesureVram != null) {
+      const v = budgetMemoire.verdict({ besoinRamMo: mesure, budgetRamMo: b.ram.budgetMo,
+        besoinVramMo: mesureVram, budgetVramMo: b.vram ? b.vram.budgetMo : null });
       if (!v.ok) return { ...base, ...v };
-    } else if (b.ram.budgetMo <= 0) {
+    }
+    if (mesure == null && b.ram.budgetMo <= 0) {
       // Pas encore de mesure pour ce type : on attend seulement que la RAM repasse sous la limite.
       return { ...base, ok: false, type: 'ram', besoinGo: null };
     }
@@ -7916,9 +7920,32 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
       ultraQ = false;
       qualityPlus = false;
     }
+    // VRAM : le plafond PyTorch est aussi reel desormais (budget = limite VRAM - VRAM des
+    // autres ; avant, le pilote debordait en silence dans la RAM). Seuls les besoins
+    // MESURES comptent ici : aucune estimation VRAM fiable n'existe avant la premiere mesure.
+    const vramBudgetMo = _b.vram ? _b.vram.budgetMo : null;
+    const besoinVram = {
+      ultra: budgetMemoire.besoinVramMo(_pics, 'trellis2_1536_cascade', null),
+      plus: budgetMemoire.besoinVramMo(_pics, 'trellis2_1024_cascade', null),
+      base: budgetMemoire.besoinVramMo(_pics, 'trellis2_1024', null),
+    };
+    if (vramBudgetMo != null) {
+      if (ultraQ && besoinVram.ultra != null && besoinVram.ultra > vramBudgetMo) {
+        log.warn('main', `image-to-3d: Ultra (1536) needs ~${go(besoinVram.ultra)}GB VRAM > budget ${go(vramBudgetMo)}GB — Quality+ (1024)`);
+        try { safeSend('ai3d-progress', `[main] Fine geometry (1536) needs about ${go(besoinVram.ultra)} GB of VRAM, ${go(vramBudgetMo)} GB are free under your limit: using 1024 instead\n`); } catch (_) {}
+        ultraQ = false;
+      }
+      if ((ultraQ || qualityPlus) && besoinVram.plus != null && besoinVram.plus > vramBudgetMo) {
+        log.warn('main', `image-to-3d: Quality+ (1024 cascade) needs ~${go(besoinVram.plus)}GB VRAM > budget ${go(vramBudgetMo)}GB — base mode`);
+        try { safeSend('ai3d-progress', `[main] Sharp edges (1024 cascade) needs about ${go(besoinVram.plus)} GB of VRAM, ${go(vramBudgetMo)} GB are free under your limit: using the base mode\n`); } catch (_) {}
+        ultraQ = false;
+        qualityPlus = false;
+      }
+    }
     // Meme le mode de base ne tient pas : on n'essaie pas (il serait refuse en route).
-    if (besoin.base > budgetMo) {
-      const v = budgetMemoire.verdict({ besoinRamMo: besoin.base, budgetRamMo: budgetMo });
+    const v = budgetMemoire.verdict({ besoinRamMo: besoin.base, budgetRamMo: budgetMo,
+      besoinVramMo: besoinVram.base, budgetVramMo: vramBudgetMo });
+    if (!v.ok) {
       log.warn('main', `image-to-3d ABORTED pre-flight: ${v.phrase}`);
       try { safeSend('ai3d-progress', `[main] ${v.phrase}\n`); } catch (_) {}
       return { success: false, error: v.phrase };

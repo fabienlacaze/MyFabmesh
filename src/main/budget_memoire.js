@@ -51,9 +51,10 @@ function versGo(mo, sens = 'haut') {
   return Math.max(0, (sens === 'bas' ? Math.floor(x + 1e-9) : Math.ceil(x - 1e-9)) / 10);
 }
 
-/** Journal des pics -> Map cle -> { besoinMo, issue, date }. Un travail REUSSI
- *  donne son pic mesure ; un refus par manque de memoire plus recent releve le
- *  besoin a ce qu'il avait demande (on ne relance pas un travail voue a l'echec). */
+/** Journal des pics -> Map cle -> { besoinMo (RAM), besoinVramMo, issue, date }. Un
+ *  travail REUSSI donne ses pics mesures ; un refus par manque de memoire plus recent
+ *  releve le besoin (RAM ou VRAM selon `manque`) a ce qu'il avait demande : on ne
+ *  relance pas un travail voue a l'echec. */
 function lirePics(texte) {
   const m = new Map();
   for (const ligne of String(texte || '').split(/\r?\n/)) {
@@ -61,25 +62,40 @@ function lirePics(texte) {
     let j;
     try { j = JSON.parse(ligne); } catch (_) { continue; }
     if (!j || !j.cle) continue;
+    const prec = m.get(j.cle) || {};
     if (j.issue === 'ok' && Number(j.pic_prive_mo) > 0) {
-      m.set(j.cle, { besoinMo: Number(j.pic_prive_mo), issue: 'ok', date: j.date || null });
+      const vram = Number(j.pic_vram_reserve_mo) > 0
+        ? Number(j.pic_vram_reserve_mo) + (Number(j.vram_contexte_mo) || 0) : null;
+      m.set(j.cle, { besoinMo: Number(j.pic_prive_mo), besoinVramMo: vram, issue: 'ok', date: j.date || null });
     } else if (j.issue === 'memoire' && Number(j.besoin_mo) > 0) {
-      const prec = m.get(j.cle);
-      m.set(j.cle, { besoinMo: Math.max(prec ? prec.besoinMo : 0, Number(j.besoin_mo)), issue: 'memoire', date: j.date || null });
+      const b = Number(j.besoin_mo);
+      m.set(j.cle, j.manque === 'vram'
+        ? { ...prec, besoinVramMo: Math.max(prec.besoinVramMo || 0, b), issue: 'memoire', date: j.date || null }
+        : { ...prec, besoinMo: Math.max(prec.besoinMo || 0, b), issue: 'memoire', date: j.date || null });
     }
   }
   return m;
 }
 
-/** Besoin (Mo) pour une ou plusieurs cles : la plus FAIBLE mesure (le travail peut
- *  prendre la variante la plus legere), sinon `defautMo`. */
-function besoinMo(pics, cles, defautMo) {
+function _plusFaible(pics, cles, champ, defaut) {
   let meilleur = null;
   for (const c of [].concat(cles || [])) {
     const p = pics && pics.get(c);
-    if (p && (meilleur == null || p.besoinMo < meilleur)) meilleur = p.besoinMo;
+    const v = p ? p[champ] : null;
+    if (v != null && (meilleur == null || v < meilleur)) meilleur = v;
   }
-  return meilleur != null ? meilleur : defautMo;
+  return meilleur != null ? meilleur : defaut;
+}
+
+/** Besoin RAM (Mo) pour une ou plusieurs cles : la plus FAIBLE mesure (le travail
+ *  peut prendre la variante la plus legere), sinon `defautMo`. */
+function besoinMo(pics, cles, defautMo) {
+  return _plusFaible(pics, cles, 'besoinMo', defautMo);
+}
+
+/** Besoin VRAM (Mo) mesure (pic reserve par PyTorch + contexte CUDA), sinon `defautMo`. */
+function besoinVramMo(pics, cles, defautMo) {
+  return _plusFaible(pics, cles, 'besoinVramMo', defautMo);
 }
 
 function phraseManque(type, besoinGo, dispoGo) {
@@ -117,5 +133,5 @@ function manqueDansSortie(texte) {
 module.exports = {
   PHRASE_RAM, PHRASE_VRAM,
   limiteRamMo, budgetRamMo, limiteVramMo, budgetVramMo, versGo,
-  lirePics, besoinMo, phraseManque, verdict, manqueDansSortie,
+  lirePics, besoinMo, besoinVramMo, phraseManque, verdict, manqueDansSortie,
 };

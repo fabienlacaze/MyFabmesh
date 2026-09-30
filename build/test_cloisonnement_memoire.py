@@ -356,5 +356,100 @@ class ChargementParesseux(unittest.TestCase):
             tp._fabrique_amont = None
 
 
+ENFANT_TRELLIS2_REEL = textwrap.dedent(r'''
+    import os, sys, types
+    sys.dont_write_bytecode = True            # rien d'ecrit dans l'arbre TRELLIS-2 vendu
+    os.environ.setdefault('HF_HUB_OFFLINE', '1')
+    os.environ['SPARSE_ATTN_BACKEND'] = 'sdpa'
+    os.environ['ATTN_BACKEND'] = 'sdpa'
+    sys.path.insert(0, sys.argv[2])           # .../TRELLIS2_win/src
+    sys.path.insert(0, sys.argv[1])           # scripts/
+    # Extensions CUDA absentes d'un Python de test : des coquilles suffisent pour IMPORTER
+    # les modules (rien ne s'execute sur la carte).
+    def coquille(nom):
+        m = types.ModuleType(nom); m.__path__ = []; m.__file__ = '<coquille>'
+        def attr(a):
+            if a.startswith('__'):
+                raise AttributeError(a)
+            return type(a, (), {'__init__': lambda s, *x, **k: None, '__call__': lambda s, *x, **k: None})
+        m.__getattr__ = attr
+        return m
+    for nom in ('flex_gemm', 'flex_gemm.ops', 'flex_gemm.ops.spconv', 'flex_gemm.ops.grid_sample',
+                'flex_gemm.ops.serialize', 'o_voxel', 'o_voxel.convert', 'o_voxel.postprocess',
+                'o_voxel.io', 'cumesh', 'kaolin', 'nvdiffrast', 'nvdiffrast.torch', 'utils3d', 'utils3d.torch'):
+        try:
+            __import__(nom)
+        except Exception:
+            sys.modules[nom] = coquille(nom)
+    import torch
+    import cloisonnement_memoire as cm
+    import trellis2_chargement_paresseux as tp
+    try:
+        from trellis2.pipelines import Trellis2ImageTo3DPipeline
+        import trellis2_sans_detourage; trellis2_sans_detourage.appliquer()
+        tp.appliquer(log=lambda m: None)
+        avant = cm.memoire_processus()['engage_mo']
+        pipe = Trellis2ImageTo3DPipeline.from_pretrained('microsoft/TRELLIS.2-4B')
+    except Exception as e:
+        print('PREREQUIS_ABSENTS', type(e).__name__, str(e)[:300]); sys.exit(3)
+    print('ENGAGE_FROM_PRETRAINED', round(cm.memoire_processus()['engage_mo'] - avant))
+    assert all(isinstance(m, tp.ModeleParesseux) and not m.est_monte for m in pipe.models.values())
+    assert pipe.image_cond_model.model is None
+    from safetensors import safe_open
+    for k, m in pipe.models.items():
+        with torch.device('meta'):
+            modele = tp._classe(m._p_classe)(**m._p_args)
+        attendues = set(modele.state_dict().keys())
+        with safe_open(m._p_poids, framework='pt') as f:
+            fichier = set(f.keys())
+        print('CLES', k, sorted(attendues - fichier), sorted(fichier - attendues))
+    tp.DEVICE_CIBLE = 'cpu'
+    d = pipe.models['sparse_structure_decoder']
+    rng = torch.get_rng_state()
+    d.to(torch.device('cuda'))
+    assert d.est_monte and torch.equal(rng, torch.get_rng_state())
+    assert not any(p.requires_grad for p in d.parameters())
+    d.cpu()
+    assert not d.est_monte
+    print('OK_REEL')
+''')
+
+
+class ChargementParesseuxSurLeVraiTrellis2(unittest.TestCase):
+    """Le vrai code TRELLIS-2 et les vrais fichiers du cache Hugging Face, sur CPU :
+    from_pretrained ne lit AUCUN poids, les cles de chaque modele correspondent a son
+    fichier, et un petit modele (decodeur de structure, 148 Mo) se monte puis se rend.
+    Saute si l'arbre TRELLIS-2 (FABMESH_TRELLIS2_SRC ou external/TRELLIS2_win/src) ou
+    le cache sont absents."""
+
+    @unittest.skipUnless(AVEC_TORCH, 'torch / safetensors absents')
+    def test_vrai_pipeline(self):
+        src = os.environ.get('FABMESH_TRELLIS2_SRC') or os.path.join(RACINE, 'external', 'TRELLIS2_win', 'src')
+        if not os.path.isdir(os.path.join(src, 'trellis2')):
+            self.skipTest(f'arbre TRELLIS-2 absent : {src}')
+        dossier = tempfile.mkdtemp(prefix='t2reel_')
+        try:
+            script = os.path.join(dossier, 'enfant.py')
+            with open(script, 'w', encoding='utf-8') as f:
+                f.write(ENFANT_TRELLIS2_REEL)
+            r = subprocess.run([sys.executable, script, SCRIPTS, src], capture_output=True, text=True,
+                               timeout=600, env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        finally:
+            shutil.rmtree(dossier, ignore_errors=True)
+        if r.returncode == 3:
+            self.skipTest(r.stdout.strip()[-300:])
+        self.assertEqual(r.returncode, 0, r.stdout[-2000:] + r.stderr[-3000:])
+        self.assertIn('OK_REEL', r.stdout)
+        engage = int(r.stdout.split('ENGAGE_FROM_PRETRAINED ')[1].split()[0])
+        self.assertLess(engage, 200, 'from_pretrained a lu des poids')   # ~16 Go sans le mode paresseux
+        for ligne in r.stdout.splitlines():
+            if ligne.startswith('CLES '):
+                _, nom, reste = ligne.split(' ', 2)
+                absentes, en_trop = reste.split('] [')
+                # seul tampon non enregistre : rope_phases (calcule, pas tire au hasard)
+                self.assertIn(absentes.strip('[]'), ('', "'rope_phases'"), ligne)
+                self.assertEqual(en_trop.strip('[]'), '', ligne)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
