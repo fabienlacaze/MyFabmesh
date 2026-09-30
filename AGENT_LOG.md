@@ -24683,3 +24683,9 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — Hardware : minimums pour generer affiches (user : « le plus petit dont on a besoin... montre dans les reglages »)
 - main.js IPC memory-needs (valeurs mesurees : images 9,2 Go RAM / 5,9 Go VRAM ; 3D 5,3 Go RAM / 9,1 Go VRAM, remplacees par le dernier pic du journal memoire_pics.jsonl) ; preload memoryNeeds ; index2.js/html : ligne « Needed to generate ... free under your limit now » sous VRAM et RAM (orange si la place libre est inferieure), curseur non descendable sous le besoin le plus grand (GPU_LIMITS_MIN dynamique). Bureau seulement ; dans l app installee via re-empaquetage app.asar (test).
+
+## 2026-09-30 — 3D locale : plantage a l export (TypeError UsdTimeCode) = Smart App Control bloque les DLL natives de usd-core (pxr)
+- Constat : inference OK (272 s, VRAM pic 6 Go) puis export : `No to_python (by-value) converter found for C++ type ... UsdTimeCode` (2 essais, 17:28 et 18:32). `import pxr` -> ImportError « DLL load failed while importing _usd: An Application Control policy has blocked this file ». kaolin importe pxr : module a moitie charge.
+- Test : pxr renomme => `import kaolin`, `kaolin.render.mesh`, `kaolin.ops.mesh` OK sans USD.
+- wizard_install_deps.py : `pip uninstall -y usd-core` juste apres kaolin (non bloquant). Sur le PC du user : dossier site-packages/pxr renomme en pxr_off.
+- Egalement installe a la main : python/Include (Python.h) pour que Triton compile (tcc) — a livrer avec l appli, voir docs/REPRISE_2026-09-30.md.

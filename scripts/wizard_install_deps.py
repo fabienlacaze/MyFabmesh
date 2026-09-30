@@ -457,6 +457,13 @@ def main():
     _run([py, '-m', 'pip', 'install',
           '--find-links', KAOLIN_INDEX,
           *KAOLIN_PACKAGES], step='kaolin')
+    # kaolin tire usd-core (module `pxr`) pour son export USD, que l'appli n'utilise pas. Ses DLL natives non signees sont REFUSEES par Smart App Control :
+    # le module reste a moitie charge et la 3D plante a l'export (« No to_python (by-value) converter found for ... UsdTimeCode », mesure 2026-09-30 sur 2 essais).
+    # Sans `pxr`, kaolin.render / kaolin.ops s'importent et tournent (teste). On le retire ; jamais bloquant.
+    try:
+        _run([py, '-m', 'pip', 'uninstall', '-y', 'usd-core'], step='kaolin')
+    except Exception:
+        pass
 
     # Step 2c: REQUIRED — pure-Python / lightweight from PyPI
     _run([py, '-m', 'pip', 'install', *PYPI_PACKAGES], step='pypi')
