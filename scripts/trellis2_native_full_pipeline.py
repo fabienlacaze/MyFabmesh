@@ -762,6 +762,7 @@ def main():
     log('loading Trellis2ImageTo3DPipeline from microsoft/TRELLIS.2-4B...')
     t_load = time.time()
     from trellis2.pipelines import Trellis2ImageTo3DPipeline
+    import trellis2_sans_detourage; trellis2_sans_detourage.appliquer()   # detourage deja fait en amont : ne pas charger BiRefNet (timm + kornia)
     pipeline = Trellis2ImageTo3DPipeline.from_pretrained(
         'microsoft/TRELLIS.2-4B')
     pipeline.rembg_model = None  # gated, replaced by external rembg upstream

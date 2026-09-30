@@ -175,6 +175,33 @@ def check_blip_loadable():
     log(f'[smoke]   vision module OK')
 
 
+def check_background_remover():
+    # Le detourage (scripts/rembg, onnxruntime seul) a fait echouer TOUTE premiere generation 3D d'une installation neuve (2026-09-30) sans que ce test
+    # le voie : on l'execute pour de vrai sur une petite image (telecharge aussi les poids u2net, 176 Mo, s'ils manquent : le reseau est teste ici,
+    # pas a la premiere generation).
+    log('[smoke] checking background remover...')
+    from PIL import Image
+    import rembg
+    sortie = rembg.remove(Image.new('RGB', (96, 96), (200, 30, 30)), session=rembg.new_session('u2net'))
+    if sortie.mode != 'RGBA' or sortie.size != (96, 96):
+        raise RuntimeError('background remover returned an unexpected image')
+    log('[smoke]   background remover OK')
+
+
+def check_mesh_tools():
+    log('[smoke] checking mesh tools...')
+    import importlib
+    manquants = []
+    for m in ('fast_simplification', 'xatlas', 'trimesh', 'pygltflib', 'cv2', 'scipy', 'onnxruntime'):
+        try:
+            importlib.import_module(m)
+        except Exception as e:
+            manquants.append(f'{m} ({type(e).__name__}: {e})')
+    if manquants:
+        raise RuntimeError('missing or blocked mesh tools: ' + '; '.join(manquants))
+    log('[smoke]   mesh tools OK')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--mode', required=True)
@@ -186,6 +213,8 @@ def main():
     try:
         check_torch_cuda()
         check_cuda_wheels()
+        check_mesh_tools()
+        check_background_remover()
         check_trellis_loadable()
         check_dinov3_loadable()
         if args.mode in ('standard', 'full', 'lite'):

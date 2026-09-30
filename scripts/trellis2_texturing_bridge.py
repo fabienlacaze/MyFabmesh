@@ -191,6 +191,7 @@ def main():
     print('LOCAL_TRELLIS2_PROGRESS: 67 trellis2_loading', flush=True)
     log('loading Trellis2TexturingPipeline from microsoft/TRELLIS.2-4B...')
     t_load = time.time()
+    import trellis2_sans_detourage; trellis2_sans_detourage.appliquer()   # detourage deja fait en amont : ne pas charger BiRefNet (timm + kornia)
     pipeline = Trellis2TexturingPipeline.from_pretrained(
         'microsoft/TRELLIS.2-4B', config_file=args.config)
     pipeline.rembg_model = None  # rembg pre-process upstream

@@ -139,6 +139,7 @@ PYPI_PACKAGES = [
     # DETOURAGE (2026-09-30) : PAS de paquet `rembg` (il tire pymatting -> numba, dont la DLL est BLOQUEE par Smart App Control, et n'installe aucun moteur
     # onnxruntime). `scripts/rembg/` le remplace (u2net par onnxruntime seul, meme resultat) ; il ne lui faut que onnxruntime (version CPU, ~1 s par image).
     'onnxruntime>=1.18,<2',
+    'timm>=1.0,<2',      # code distant de Florence-2 (legende d'image) : `requires timm` sinon
     # Modules importes a la demande par les scripts, absents de l'environnement neuf (audit des imports du 2026-09-30) : reduction de maillage
     # (fast_simplification : petites cibles sans triangles retournes), depliage UV (xatlas), telemetrie GPU
     # (pynvml). PAS kornia (detection de visage, retouche locale) : sa DLL kornia_rs est BLOQUEE par Smart App Control (« An Application Control policy has
@@ -301,6 +302,24 @@ def _poser_nvrtc13(py):
     emit({'step': 'trellis2-nvrtc', 'pct': 99, 'done': False, 'current': 'nvrtc64_130_0.dll -> torch/lib'})
 
 
+def _poser_detourage(py):
+    """Remplacement de `rembg` DANS l'environnement (2026-09-30). Le vrai rembg tire pymatting -> numba (DLL bloquee par Smart App Control) ; notre
+    `scripts/rembg/__init__.py` (u2net par onnxruntime seul) le remplace. Il doit etre dans site-packages et non seulement dans scripts/ : l'interprete
+    embarque a un fichier ._pth, donc le dossier du script n'est PAS ajoute a sys.path et la plupart des scripts ne l'y ajoutent pas eux-memes."""
+    import shutil
+    src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rembg', '__init__.py')
+    if not os.path.isfile(src):
+        raise RuntimeError('detourage de remplacement introuvable : ' + src)
+    r = subprocess.run([py, '-c', "import sysconfig; print(sysconfig.get_paths()['purelib'])"], capture_output=True, text=True, timeout=60)
+    if r.returncode != 0 or not r.stdout.strip():
+        raise RuntimeError('site-packages introuvable : ' + (r.stderr or '')[-200:])
+    dest = os.path.join(r.stdout.strip(), 'rembg')
+    shutil.rmtree(dest, ignore_errors=True)          # un vrai rembg deja present (ancienne installation) est remplace
+    os.makedirs(dest, exist_ok=True)
+    shutil.copy2(src, os.path.join(dest, '__init__.py'))
+    emit({'step': 'pypi', 'pct': 99, 'done': False, 'current': 'background remover installed'})
+
+
 def _install_trellis2_wheels(py):
     """Install the custom TRELLIS-2 CUDA wheels. Tries the local bundled
     wheels dir first (FABMESH_WHEELS_DIR env, set by the Electron wizard when
@@ -372,6 +391,7 @@ def main():
         # Dev mode: just install the pure-Python stuff so we can iterate
         # quickly without re-downloading 2 GB of torch every time.
         _run([py, '-m', 'pip', 'install', *PYPI_PACKAGES], step='pypi')
+        _poser_detourage(py)
         emit({'step': 'done', 'pct': 100, 'done': True})
         return
 
@@ -389,6 +409,7 @@ def main():
 
     # Step 2c: REQUIRED — pure-Python / lightweight from PyPI
     _run([py, '-m', 'pip', 'install', *PYPI_PACKAGES], step='pypi')
+    _poser_detourage(py)
 
     # Step 2d: REQUIRED — TRELLIS-2 custom CUDA wheels (o-voxel, cumesh,
     # flex-gemm, spconv). Local bundled dir first, GitHub release fallback.
