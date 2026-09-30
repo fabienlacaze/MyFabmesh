@@ -24775,3 +24775,9 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee : bande rouge = consommation reelle des autres logiciels (nvidia-smi 2,7 Go sur 2,9 gardes = 92 %, verifie) ; espace reduit entre barres et legendes ; libelle « Other apps » masque si la zone est etroite.
 
 - (suite) Barre partagee : consommation reelle des autres logiciels = fine bande a degrade vert -> rouge au bas du gris, remplie depuis la droite (plus a gauche, plus rouge).
+
+- (suite) Minimum vital de la 3D = son plus petit besoin MESURE (pas le pire, pas un echec) : elle retombe sur un mode plus leger quand la VRAM manque. Avant : 12,5 Go (portail, pire cas) alors que la voiture passe a 8,2 (user : « ca a marche avec moins »). Les autres outils gardent le maximum mesure.
+
+- (suite) Reglages > Materiel : usage reel des autres logiciels a l'echelle de la barre entiere (gradient, rouge au-dela de la limite) ; GPU / temperature / processeur au meme style (piste gris clair + fine bande a degrade). Minimum VRAM actuel 9,8 Go = Detail++ (estimation 8,9 x 1,1, jamais mesure) ; 3D mesuree 8,2 x 1,1.
+
+- (suite) File d'attente 3D : le besoin de VRAM d'une 3D est le PLUS PETIT mesure (lirePics), les echecs sont ignores. Le message « needs 12.4 GB ... 9.8 free » (user : « c'est faux ») venait du DERNIER passage (portail 11,3 x 1,1) qui retenait une voiture passant a 8,2 ; la 3D recommence de toute facon dans un mode plus leger sur manque de VRAM.

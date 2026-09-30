@@ -2439,6 +2439,7 @@
               <div class="hw-seg hw-add" id="set-vram-add" title="Extra room for MyFabmesh (what you do not keep for your other apps)"><span id="set-vram-add-lbl"></span></div>
               <div class="hw-seg hw-trop" id="set-vram-trop" title="Used by your other apps beyond what you keep for them"><span id="set-vram-trop-lbl"></span></div>
               <div class="hw-seg hw-autres" id="set-vram-autres"><div class="hw-use" id="set-vram-autres-use"></div><span id="set-vram-autres-lbl"></span></div>
+              <div class="hw-reel" id="set-vram-reel" title="What your other apps really use right now"></div>
               <div class="hw-besoin" id="set-vram-besoin"><i id="set-vram-besoin-lbl"></i></div>
               <div class="gpu-bar-limit hw-poignee" id="set-gpu-vram-limit" title="Drag to share the graphics memory between your other apps and MyFabmesh"></div>
             </div>
@@ -2456,6 +2457,7 @@
               <div class="hw-seg hw-add" id="set-ram-add" title="Extra room for MyFabmesh (what you do not keep for your other apps)"><span id="set-ram-add-lbl"></span></div>
               <div class="hw-seg hw-trop" id="set-ram-trop" title="Used by your other apps beyond what you keep for them"><span id="set-ram-trop-lbl"></span></div>
               <div class="hw-seg hw-autres" id="set-ram-autres"><div class="hw-use" id="set-ram-autres-use"></div><span id="set-ram-autres-lbl"></span></div>
+              <div class="hw-reel" id="set-ram-reel" title="What your other apps really use right now"></div>
               <div class="hw-besoin" id="set-ram-besoin"><i id="set-ram-besoin-lbl"></i></div>
               <div class="gpu-bar-limit hw-poignee" id="set-ram-limit" title="Drag to share the memory between your other apps and MyFabmesh"></div>
             </div>
@@ -2745,7 +2747,7 @@
     .hw-trop{background:repeating-linear-gradient(135deg,#9aa3b2 0 5px,#d9861a 5px 10px)}
     .hw-mfm{background:#4b2b99;color:#fff}
     .hw-use{display:none}
-    .hw-autres .hw-use{display:block;position:absolute;left:4px;right:4px;width:auto;top:auto;bottom:3px;height:5px;border-radius:3px;background:linear-gradient(270deg,#4ade80,#fbbf24 60%,#f87171);clip-path:inset(0 0 0 var(--reste,100%))}   /* consommation reelle des autres logiciels : fine bande, depuis la droite, de plus en plus rouge vers la gauche */
+    .hw-reel{position:absolute;left:4px;right:4px;bottom:3px;height:5px;border-radius:3px;z-index:2;pointer-events:none;background:linear-gradient(270deg,#4ade80 0%,#fbbf24 var(--dl,30%),#f87171 calc(var(--dl,30%) + 18%));clip-path:inset(0 0 0 var(--reste,100%))}   /* usage reel des autres logiciels, a l'echelle de la barre entiere, depuis la droite ; rouge au-dela de la limite */
     .hw-trop span{color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
     .hw-seg span{position:relative;z-index:1;padding:0 6px;overflow:hidden;text-overflow:ellipsis}
     .hw-besoin{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed rgba(255,255,255,.85);z-index:2;pointer-events:none}
@@ -2754,6 +2756,12 @@
     .hw-legende{display:flex;justify-content:space-between;gap:10px;margin-top:5px;font-size:11px;color:var(--text-2)}
     .hw-legende b{color:var(--text-0)}
     .hw-sep{height:1px;background:rgba(255,255,255,.06);margin:2px 0}
+    /* GPU / temperature / processeur : meme style que les barres memoire (piste gris clair, fine bande a degrade en bas) */
+    #set-gpu-card .gpu-bar{height:22px;background:#9aa3b2;border:none;border-radius:7px}
+    #set-gpu-card .gpu-bar-fill{position:absolute;left:4px;bottom:3px;height:5px;max-width:calc(100% - 8px);border-radius:3px;background:linear-gradient(90deg,#4ade80,#fbbf24 60%,#f87171);background-size:380px 100%;z-index:1}
+    #set-gpu-card .gpu-bar.over-limit{border:none;box-shadow:0 0 0 1px #f87171}
+    #set-gpu-card .gpu-bar.over-limit .gpu-bar-fill{background-image:linear-gradient(90deg,#4ade80,#fbbf24 60%,#f87171) !important;background-color:transparent !important;animation:none}
+    #set-gpu-card .gpu-bar-disabled-zone{border-radius:0 7px 7px 0}
     .hw-seuil-txt{font-weight:500;color:var(--text-2)}
     .hw-seuil-txt.short{color:#f59e0b}
     .gpu-bar-disabled-zone.droite{border-radius:0 6px 6px 0;background-image:repeating-linear-gradient(-45deg,rgba(239,68,68,.22) 0 4px,rgba(0,0,0,.18) 4px 8px)}

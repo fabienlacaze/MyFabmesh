@@ -3488,6 +3488,9 @@ ipcMain.handle('memory-needs', () => {
       if (!j || !j.cle || j.cle === 'test_ram' || j.cle === 'test_torch' || j.cle === 'essai') continue;
       const cle = /^trellis2/.test(j.cle) ? 'trellis2' : j.cle;
       // echec par manque de VRAM : ce qu'il demandait est aussi un besoin (3D : 8,8 Go le 30/09 apres des reussites a 8,2)
+      // 3D : jamais le besoin d'un echec ni le pire mode — elle RECOMMENCE dans un mode plus leger sur manque de VRAM (repli), donc son
+      // minimum vital est son plus petit besoin mesure (user 30/09 : « MyFabmesh n'utilise pas 12,5 Go, ca a marche avec moins »).
+      if (cle === 'trellis2' && j.issue === 'memoire') continue;
       if (j.issue === 'memoire' && j.manque === 'vram' && j.besoin_mo > 0 && j.date >= '2026-09-30T21:30') {
         const p0 = vus[cle] || { ramGo: 0, vramGo: 0 };
         vus[cle] = { ramGo: p0.ramGo, vramGo: Math.max(p0.vramGo, Math.ceil(j.besoin_mo / 102.4) / 10) };
@@ -3499,7 +3502,11 @@ ipcMain.handle('memory-needs', () => {
       const p = vus[cle] || { ramGo: 0, vramGo: 0 };
       // arrondis VERS LE HAUT, comme le controle au lancement (budget_memoire.versGo 'haut') : sinon la reserve maximale laissait
       // 0,1 Go de moins que ce que le controle exige (3D retenue « 11,2 Go demandes, 11,1 libres », 30/09)
-      vus[cle] = { ramGo: Math.max(p.ramGo, Math.ceil(ram / 102.4) / 10), vramGo: Math.max(p.vramGo, Math.ceil(vram / 102.4) / 10) };
+      const ramH = Math.ceil(ram / 102.4) / 10, vramH = Math.ceil(vram / 102.4) / 10;
+      const plusPetit = (x, y) => (x > 0 && y > 0 ? Math.min(x, y) : Math.max(x, y));
+      vus[cle] = cle === 'trellis2'
+        ? { ramGo: plusPetit(p.ramGo, ramH), vramGo: plusPetit(p.vramGo, vramH) }        // plus petit besoin MESURE (repli vers un mode plus leger)
+        : { ramGo: Math.max(p.ramGo, ramH), vramGo: Math.max(p.vramGo, vramH) };
     }
     for (const [cle, v] of Object.entries(vus)) types[cle] = { ramGo: v.ramGo || (types[cle] || {}).ramGo || 0, vramGo: v.vramGo || (types[cle] || {}).vramGo || 0 };
   } catch (_) {}

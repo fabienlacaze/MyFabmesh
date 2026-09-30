@@ -22092,7 +22092,12 @@ function majLignesLimites() {
     poser('trop', 'width', larg(tropVisGB));
     poser('add', 'width', larg(addGB));
     // bande rouge semi-transparente dans le gris, depuis la droite : ce que les autres logiciels consomment vraiment
-    { const e = el('autres-use'); if (e) { const part = reserveGB > 0 ? Math.min(100, autresGB / Math.min(reserveGB, extraTotGB || reserveGB) * 100) : (autresGB > 0 ? 100 : 0); e.style.setProperty('--reste', (100 - part) + '%'); } }
+    { const e = el('reel'); if (e) {
+        const limPos = (plancher + minGB + (extraTotGB - Math.min(reserveGB, extraTotGB))) / totalGB * 100;     // position du separateur
+        const usePct = Math.max(0, Math.min(100, autresGB / totalGB * 100));
+        e.style.setProperty('--dl', Math.max(1, 100 - limPos) + '%');
+        e.style.setProperty('--reste', (100 - usePct) + '%');
+      } }
     const libelle = (suffixe, txt, assezLarge) => { const e = el(suffixe); if (e) e.textContent = assezLarge ? txt : ''; };
     // libelle complet si la part est assez large, sinon le nom seul (jamais de texte coupe)
     libelle('autres-lbl', reserveGB / totalGB > 0.3 ? _i18nTf('Other apps {x} GB', go(reserveGB)) : _i18nT('Other apps'), reserveGB / totalGB > 0.2);

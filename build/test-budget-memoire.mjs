@@ -62,7 +62,7 @@ cas('journal des pics : dernier travail reussi, releve par un refus plus recent'
   assert.equal(pics.has('trellis2_1536_cascade'), false);
   // un refus VRAM ne se confond pas avec un besoin RAM
   assert.equal(pics.get('trellis2_1024_cascade').besoinMo, 5000);
-  assert.equal(pics.get('trellis2_1024_cascade').besoinVramMo, 12500);
+  assert.equal(pics.get('trellis2_1024_cascade').besoinVramMo, 10000);   // 3D : un echec ne releve pas le besoin (repli vers un mode plus leger)
   assert.equal(pics.has('realvis'), false);        // issue inconnue (processus arrete) : ignore
   assert.equal(pics.has('sdxl_server'), false);    // pic nul : ignore
   assert.equal(b.besoinMo(pics, ['trellis2_1536_cascade', 'trellis2_1024'], 999), 4800);

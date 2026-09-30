@@ -82,7 +82,12 @@ function lirePics(texte) {
     if (j.issue === 'ok' && (Number(j.pic_ws_mo) > 0 || Number(j.pic_prive_mo) > 0)) {
       const vram = Number(j.pic_vram_reserve_mo) > 0
         ? Number(j.pic_vram_reserve_mo) + (Number(j.vram_contexte_mo) || 0) : null;
-      m.set(j.cle, { besoinMo: Number(j.pic_ws_mo) > 0 ? Number(j.pic_ws_mo) : Number(j.pic_prive_mo), besoinVramMo: vram, issue: 'ok', date: j.date || null });
+      // 3D (cles trellis2_*) : elle recommence dans un mode plus leger sur manque de VRAM (repli), donc son besoin de VRAM est le plus
+      // PETIT mesure, pas le dernier (un gros objet comme le portail a 11,3 Go ne doit pas retenir une voiture qui passe a 8,2).
+      const vramRetenue = (/^trellis2/.test(j.cle) && prec.besoinVramMo != null && vram != null) ? Math.min(prec.besoinVramMo, vram) : vram;
+      m.set(j.cle, { besoinMo: Number(j.pic_ws_mo) > 0 ? Number(j.pic_ws_mo) : Number(j.pic_prive_mo), besoinVramMo: vramRetenue, issue: 'ok', date: j.date || null });
+    } else if (/^trellis2/.test(j.cle)) {
+      continue;        // echec de la 3D : le repli le rattrape, ce n'est pas un besoin
     } else if (j.issue === 'memoire' && Number(j.besoin_mo) > 0 && j.manque === 'vram') {
       const b = Number(j.besoin_mo);
       m.set(j.cle, j.manque === 'vram'
