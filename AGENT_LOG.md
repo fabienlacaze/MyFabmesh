@@ -24698,3 +24698,9 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 ## 2026-09-30 — livraison de Include/ (Python.h) avec le Python embarque
 - build/fetch_python_embed.py : telecharge le paquet NuGet officiel python 3.11.9 (sha256 fixe) et extrait tools/include -> build/python-embed/Include (~2 Mo, PSF). main.js copie python-embed en recursif (cpSync) : l env IA de l utilisateur l a. Sans Python.h, Triton ne compile pas son lanceur (tcc : exit 1) et la 3D locale plante. Copie aussi posee a la main dans build/python-embed (gitignore) pour la prochaine construction.
 - Resultat mesure : 3D locale complete OK sur le PC du user (glb 20,9 Mo, 356 s), limites tenues.
+
+## 2026-09-30 — Hardware : limite CPU reglable + espace disque (choix user)
+- cloisonnement_memoire._plafonner_cpu : Job Object CPU_RATE_CONTROL HARD_CAP depuis FABMESH_CPU_LIMIT_PCT. MESURE : charge fixe sur 32 fils = 2,3 s sans limite, 3,5 s a 50 %, 6,6 s a 25 %.
+- main.js : IPC set-cpu-limit, cpu-usage (os.cpus), disk-free (statfs du dossier de donnees). preload : setCpuLimit, cpuUsage, diskFree.
+- index2 : barre CPU (usage reel + curseur, minimum 25 %, defaut 100 = aucune limite) avec ligne « Generations use at most X % of the processor (about N of T threads) » ; ligne Disk (libre / total, orange sous 70 Go). Bureau seulement.
+- Verifs : 10 gardes OK, 14 tests cloisonnement OK.

@@ -236,6 +236,9 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   // Budget memoire d'un type de travail (limite - RAM des autres, besoin mesure) : file d'attente.
   memoryBudget: (kind) => ipcRenderer.invoke('memory-budget', kind),
   memoryNeeds: () => ipcRenderer.invoke('memory-needs'),
+  setCpuLimit: (pct) => ipcRenderer.invoke('set-cpu-limit', pct),
+  cpuUsage: () => ipcRenderer.invoke('cpu-usage'),
+  diskFree: () => ipcRenderer.invoke('disk-free'),
   setRamLimit: (pct) => ipcRenderer.invoke('set-ram-limit', pct),
   setGpuLimits: (limits) => ipcRenderer.invoke('set-gpu-limits', limits),
   showInExplorer: (filePath) => ipcRenderer.invoke('show-in-explorer', filePath),

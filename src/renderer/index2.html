@@ -2474,6 +2474,24 @@
             <div class="gpu-limit-line" id="set-ram-limtxt"></div>
             <div class="gpu-limit-line gpu-need-line" id="set-ram-needtxt"></div>
           </div>
+          <div class="gpu-stat" style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">
+            <div class="gpu-stat-row">
+              <span class="gpu-stat-label">CPU</span>
+              <span class="gpu-stat-val" id="set-cpu-val">--</span>
+            </div>
+            <div class="gpu-bar" data-stat="cpu">
+              <div class="gpu-bar-fill" id="set-cpu-fill"></div>
+              <div class="gpu-bar-limit" id="set-cpu-limit" style="left:100%" title="Drag to limit the processor share generations can use"></div>
+            </div>
+            <div class="gpu-limit-line" id="set-cpu-limtxt"></div>
+          </div>
+          <div class="gpu-stat" style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.06);">
+            <div class="gpu-stat-row">
+              <span class="gpu-stat-label">Disk</span>
+              <span class="gpu-stat-val" id="set-disk-val">--</span>
+            </div>
+            <div class="gpu-limit-line gpu-need-line" id="set-disk-txt"></div>
+          </div>
           <div class="settings-box-hint">Drag markers to set limits. Jobs queue until all limits are met.</div>
         </div>
 

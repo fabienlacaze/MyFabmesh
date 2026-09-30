@@ -21945,7 +21945,7 @@ let _lastProcList = 0;  // 2026-06-14: throttle list-processes to ~2s inside the
 // permanently block any heavy job because cost > limit).
 const GPU_LIMITS_KEY = 'fabmesh-gpu-limits';
 const gpuLimits = (() => {
-  let v = { vram: 90, util: 95, temp: 80, ram: 85 };
+  let v = { vram: 90, util: 95, temp: 80, ram: 85, cpu: 100 };
   try {
     const stored = localStorage.getItem(GPU_LIMITS_KEY);
     if (stored) {
@@ -21963,12 +21963,14 @@ const gpuLimits = (() => {
   v.util = Math.max(30, Math.min(100, Number(v.util) || 95));
   v.temp = Math.max(50, Math.min(100, Number(v.temp) || 80));
   v.ram  = Math.max(50, Math.min(100, Number(v.ram)  || 85));
+  v.cpu  = Math.max(25, Math.min(100, Number(v.cpu)  || 100));
   return v;
 })();
 function saveGpuLimits() {
   try { localStorage.setItem(GPU_LIMITS_KEY, JSON.stringify(gpuLimits)); } catch (e) {}
   // Push RAM limit to main process so Python subprocesses inherit FABMESH_RAM_LIMIT_MB
   if (API.setRamLimit) API.setRamLimit(gpuLimits.ram).catch(() => {});
+  if (API.setCpuLimit) API.setCpuLimit(gpuLimits.cpu).catch(() => {});
   // Push GPU util/temp/vram limits so:
   //  - Python bridges throttle via gpu_throttle.py (util/temp live)
   //  - SDXL server respawns with the new VRAM PyTorch cap (vram)
@@ -21983,6 +21985,7 @@ function saveGpuLimits() {
 }
 // Push limits on startup so they're set before any job runs
 if (API.setRamLimit) API.setRamLimit(gpuLimits.ram).catch(() => {});
+if (API.setCpuLimit) API.setCpuLimit(gpuLimits.cpu).catch(() => {});
 if (API.setGpuLimits) API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.temp, vram: gpuLimits.vram }).catch(() => {});
 // LIGNES DE LIMITE sous les barres VRAM / RAM (user 2026-09-30 : « valeurs de limites et valeurs reelles melangees ») : la barre et la valeur du haut = usage REEL ;
 // la ligne violette dessous = limite posee pour les generations + ce qu'il reste de libre pour le PC. Mise a jour en direct pendant le glissement.
@@ -21996,6 +21999,8 @@ function majLignesLimites() {
     el.textContent = `Limit for generations: ${lim.toFixed(1)} GB · keeps ${(totalGB - lim).toFixed(1)} GB free for your PC`;
   };
   const seuil = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  { const t = (window.__cpuThreads || 0), p = Math.round(gpuLimits.cpu);
+    seuil('set-cpu-limtxt', p >= 100 ? 'No limit: generations may use the whole processor' : `Generations use at most ${p} % of the processor` + (t ? ` (about ${Math.max(1, Math.round(t * p / 100))} of ${t} threads)` : '') + ' · they run slower, your PC stays responsive'); }
   seuil('set-gpu-util-limtxt', `Jobs wait while GPU usage is above ${Math.round(gpuLimits.util)} %`);
   seuil('set-gpu-temp-limtxt', `Jobs wait while the GPU is hotter than ${Math.round(gpuLimits.temp)} °C`);
   ligne('set-gpu-vram-limtxt', _lastVramTotalGB, gpuLimits.vram);
@@ -22023,6 +22028,8 @@ function applyGpuLimitMarkers() {
   const u = document.getElementById('set-gpu-util-limit');
   const t = document.getElementById('set-gpu-temp-limit');
   const r = document.getElementById('set-ram-limit');
+  const cp = document.getElementById('set-cpu-limit');
+  if (cp) cp.style.left = gpuLimits.cpu + '%';
   if (v) v.style.left = gpuLimits.vram + '%';
   if (u) u.style.left = gpuLimits.util + '%';
   if (t) t.style.left = gpuLimits.temp + '%';
@@ -22045,11 +22052,11 @@ function isJobRunning() {
 }
 // Minimums per stat — also used by the disabled-zone overlay.
 const GPU_LIMITS_MIN = {
-  ram: 50, vram: 60, util: 30, temp: 50,
+  ram: 50, vram: 60, util: 30, temp: 50, cpu: 25,
 };
 // Defaults used by the Reset button.
 const GPU_LIMITS_DEFAULTS = {
-  ram: 85, vram: 90, util: 95, temp: 80,
+  ram: 85, vram: 90, util: 95, temp: 80, cpu: 100,
 };
 // Paint the gray "disabled" zone on each slider (from 0% to MIN_BY_STAT).
 function paintGpuDisabledZones() {
@@ -22098,7 +22105,7 @@ function setupGpuLimitDragging() {
         // mouseup handler is never attached on this path) FROZE the whole live
         // hardware panel until the next Settings re-open.
         _draggingGpuLimit = false;
-        customError('VRAM/RAM limits can only be changed between jobs — they apply at subprocess start. GPU usage and temperature limits can be dragged live.', 'Locked');
+        customError('VRAM, RAM and CPU limits can only be changed between jobs — they apply at subprocess start. GPU usage and temperature limits can be dragged live.', 'Locked');
         return;
       }
       // Create or reuse a tooltip bubble that shows the current value while dragging
@@ -22685,6 +22692,10 @@ async function refreshGpuStats() {
       const ramValEl = document.getElementById('set-ram-val');
       const ramFillEl = document.getElementById('set-ram-fill');
       if (ramValEl) ramValEl.textContent = `Used ${ram.usedGB.toFixed(1)} GB of ${ram.totalGB.toFixed(1)} GB (${ramPct.toFixed(0)}%)`;
+      try {
+        if (API.cpuUsage) { const c = await API.cpuUsage(); window.__cpuThreads = c.threads; const cv = document.getElementById('set-cpu-val'), cf = document.getElementById('set-cpu-fill'); if (cv) cv.textContent = `Used ${c.pct} % of ${c.threads} threads`; if (cf) cf.style.width = c.pct + '%'; }
+        if (API.diskFree) { const d = await API.diskFree(); if (d) { const dv = document.getElementById('set-disk-val'), dt = document.getElementById('set-disk-txt'); if (dv) dv.textContent = `${d.freeGB.toFixed(0)} GB free of ${d.totalGB.toFixed(0)} GB (${d.drive})`; if (dt) { dt.textContent = d.freeGB < 70 ? 'Low space: the models take about 60 GB, plus room for your results' : 'Enough room for the models (about 60 GB) and your results'; dt.classList.toggle('short', d.freeGB < 70); } } }
+      } catch (_) {}
       _cachedTotalRamGB = ram.totalGB; _lastRamUsedGB = ram.usedGB; try { majLignesLimites(); } catch (_) {}
       if (ramFillEl) ramFillEl.style.width = ramPct + '%';
       document.querySelector('.gpu-bar[data-stat="ram"]')?.classList.toggle('over-limit', ramPct > gpuLimits.ram);

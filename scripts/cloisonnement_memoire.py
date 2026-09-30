@@ -399,6 +399,7 @@ def appliquer(nom, cle=None, log=None, budget_ram_fixe_mo=None):
                      vram_contexte_mo=None, vram_fraction=None, besoin_mo=None)
         _installer_crochet()
         _surveiller_parent()
+        _etat['job_cpu'] = _plafonner_cpu()
         if os.environ.get('FABMESH_CLOISONNEMENT') == '0':
             _log('cloisonnement memoire DESACTIVE (FABMESH_CLOISONNEMENT=0) : aucun plafond')
             return etat()
@@ -716,6 +717,36 @@ def _crochet(type_, valeur, tb):
         (_precedent or sys.__excepthook__)(type_, valeur, tb)
     finally:
         signaler_si_memoire(valeur)
+
+
+class _TauxCpu(ctypes.Structure if sys.platform == 'win32' else object):
+    # JOBOBJECT_CPU_RATE_CONTROL_INFORMATION : ControlFlags + CpuRate (1/100 de %, union avec Weight / MinRate-MaxRate)
+    _fields_ = [('ControlFlags', ctypes.c_uint32), ('CpuRate', ctypes.c_uint32)] if sys.platform == 'win32' else []
+
+
+def _plafonner_cpu():
+    """LIMITE CPU (user 2026-09-30) : FABMESH_CPU_LIMIT_PCT (pose par main.js depuis le curseur « CPU » des reglages) plafonne la part du processeur que ce calcul et ses
+    enfants peuvent prendre, par un Job Object en CPU_RATE_CONTROL HARD_CAP (Windows 8+, job imbrique accepte). 100 ou absent = aucun plafond.
+    N'arrete rien : le calcul ralentit seulement (export, texture, Blender)."""
+    if sys.platform != 'win32' or os.environ.get('FABMESH_CLOISONNEMENT') == '0':
+        return None
+    try:
+        pct = float(os.environ.get('FABMESH_CPU_LIMIT_PCT') or 0)
+    except ValueError:
+        return None
+    if not 1 <= pct < 100:
+        return None
+    try:
+        job = _Job()
+        info = _TauxCpu(0x1 | 0x4, int(round(pct * 100)))     # ENABLE | HARD_CAP
+        if not _k32.SetInformationJobObject(job.h, 15, ctypes.byref(info), ctypes.sizeof(info)):   # JobObjectCpuRateControlInformation
+            raise OSError(ctypes.get_last_error(), 'SetInformationJobObject(cpu)')
+        job.rattacher()
+        _log('plafond CPU : %d %% du processeur au plus' % round(pct))
+        return job
+    except Exception as e:
+        _log('plafond CPU non pose : %s' % e)
+        return None
 
 
 def _surveiller_parent():

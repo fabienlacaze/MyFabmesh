@@ -7155,6 +7155,28 @@ ipcMain.handle('translate-prompt', async (event, { text, from } = {}) => {
   return { text };  // fail open → original (don't cache failures)
 });
 
+// LIMITE CPU (user 2026-09-30) : le curseur CPU des reglages pose FABMESH_CPU_LIMIT_PCT, lu au demarrage de chaque calcul (scripts/cloisonnement_memoire.py, _plafonner_cpu).
+ipcMain.handle('set-cpu-limit', (_e, pct) => {
+  const p = Math.round(Number(pct) || 100);
+  if (p >= 100) delete process.env.FABMESH_CPU_LIMIT_PCT; else process.env.FABMESH_CPU_LIMIT_PCT = String(Math.max(10, p));
+  return { pct: p };
+});
+let _cpuPrec = null;
+ipcMain.handle('cpu-usage', () => {
+  const t = os.cpus().reduce((a, c) => { const x = c.times; a.tot += x.user + x.nice + x.sys + x.idle + x.irq; a.idle += x.idle; return a; }, { tot: 0, idle: 0 });
+  let pct = 0;
+  if (_cpuPrec && t.tot > _cpuPrec.tot) pct = Math.round(100 * (1 - (t.idle - _cpuPrec.idle) / (t.tot - _cpuPrec.tot)));
+  _cpuPrec = t;
+  return { pct: Math.max(0, Math.min(100, pct)), threads: os.cpus().length };
+});
+ipcMain.handle('disk-free', () => {
+  try {
+    const dir = app.getPath('userData');
+    const st = fs.statfsSync(dir);
+    return { freeGB: Math.round(st.bavail * st.bsize / 1e8) / 10, totalGB: Math.round(st.blocks * st.bsize / 1e8) / 10, drive: path.parse(dir).root.replace(/[\/]+$/, '') };
+  } catch (e) { return null; }
+});
+
 // Set system RAM limit (called from renderer when user drags the RAM slider)
 ipcMain.handle('set-ram-limit', (event, limitPct) => {
   // Convert percentage to absolute MB based on total system RAM
