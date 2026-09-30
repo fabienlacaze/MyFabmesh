@@ -24654,3 +24654,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — message vert de fin de verification visible
 - Le bloc « You are all set » etait dans #test-status, au-dessus de la liste (hors ecran). Ajout de #test-fin (vert) juste au-dessus du bouton Launch, affiche a la fin.
+
+## 2026-09-30 — retrait de « Built with DINOv3 (Meta Platforms) » de la fenetre A propos (bureau + web), exigence user : aucune fuite de nom de moteur. Attribution de licence conservee uniquement dans THIRD_PARTY_LICENSES.txt.
