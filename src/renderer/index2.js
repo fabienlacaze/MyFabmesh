@@ -5217,7 +5217,11 @@ document.getElementById('bs3d-start')?.addEventListener('click', () => {
   // otherwise the new version's cover would be the scaffolded half-building.
   mp = String(mp).replace(/_stages3d[\\\/]stage_\d+\.glb$/i, '.glb');
   const count = Math.max(2, Math.min(20, parseInt(document.getElementById('bs3d-count')?.value, 10) || 5));
-  const job = pushJob(`${_i18nT('Construction stages 3D')}: ${p.name}`, null,
+  // Nom STOCKE en anglais, identique au site : « 3D construction stages » range
+  // la tuile a l'etape 3D (_jobStepIndex) ; _displayJobName le traduit. L'ancien
+  // nom traduit (« Construction stages 3D » / « Étapes de construction 3D »)
+  // commencait par le motif des etapes 2D et tombait dans l'etape Image.
+  const job = pushJob(`3D construction stages: ${p.name}`, null,
     { [_i18nT('Stages')]: count, Source: String(mp).split(/[\\/]/).pop() }, count * 2500, { projectName: p.name });
   (async () => {
     try {
