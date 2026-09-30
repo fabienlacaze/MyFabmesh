@@ -21,12 +21,15 @@ generate_tile) ; la route et les reglages sont dans le noyau partage.
 
 PARITE. Le bloc entre les marqueurs NOYAU PARTAGE est EXTRAIT de
 scripts/sdxl_server.py et recopie a l'identique dans modal_app/_recolor.py.
-build/check-outfit-parity.mjs surveille les deux copies.
+build/check-noyaux-partages.mjs surveille les deux copies (--sync recopie).
+Detection (plusieurs formulations) et recollage a la taille d'origine y
+vivent aussi depuis le 2026-09-30 : bureau et Modal font la meme chose.
 """
 
 # --- NOYAU PARTAGE : DEBUT (copie identique dans modal_app/_recolor.py) ---
 # Extrait de scripts/sdxl_server.py — ne rien y ajouter qui depende du bureau
-# ou de Modal : numpy + PIL seulement.
+# ou de Modal : numpy + PIL seulement (scipy en option : recolor_masque_fond
+# s'en passe s'il manque).
 import numpy as np
 from PIL import Image
 
@@ -147,4 +150,88 @@ def recolor_tile_params(noun, full_prompt, recolor_all=False, strength=1.0):
         'prompt': f"{full_prompt}, same shape, preserve folds and details, photorealistic",
         'negative': "deformed, distorted, blurry, low quality, changed shape, extra parts",
     }
+
+
+# DETECTION ET RECOLLAGE (2026-09-30, banc modal_app/test_recolor_matiere.py) : communs au bureau et a Modal.
+def recolor_variantes_cible(nom):
+    """Formulations essayees tour a tour pour trouver la partie (CLIPSeg rate souvent les petites parties repetees, « windows ») :
+    telle quelle, singulier / pluriel, « the X », « X area ». Reprise telle quelle du bureau, que Modal n'avait pas (une seule
+    formulation : une partie trouvee sur le PC pouvait etre « introuvable » sur le site)."""
+    base = (nom or '').strip()
+    if not base:
+        return []
+    autre = base[:-1] if (base.lower().endswith('s') and len(base) > 3) else base + 's'
+    vues = []
+    for v in (base, autre, 'the ' + base, base + ' area'):
+        if v not in vues:
+            vues.append(v)
+    return vues
+
+
+def recolor_meilleur_masque(nom, masquer, assez=2.0):
+    """Masque le plus couvrant parmi `recolor_variantes_cible(nom)`, arret des qu'une formulation couvre `assez` % de l'image.
+    `masquer(texte)` rend un masque PIL « L » a la taille de travail. Retourne (masque ou None, couverture en %)."""
+    meilleur, couverture = None, 0.0
+    for v in recolor_variantes_cible(nom):
+        m = masquer(v)
+        c = float((np.asarray(m) > 128).mean() * 100.0)
+        if meilleur is None or c > couverture:
+            meilleur, couverture = m, c
+        if couverture >= assez:
+            break
+    return meilleur, couverture
+
+
+def recolor_masque_a_taille(masque, taille):
+    """Masque de la taille de travail (<= 1024 px) ramene a la taille d'ORIGINE de l'image (bilineaire : pas de rebond hors
+    du masque, le zero reste zero)."""
+    taille = tuple(taille)
+    return masque if masque.size == taille else masque.resize(taille, Image.BILINEAR)
+
+
+def recolor_recoller(original, rendu, masque):
+    """Recolle un re-rendu (taille de travail) sur l'image d'ORIGINE a travers le masque : hors du masque, les pixels d'origine
+    au pixel pres. Avant le 2026-09-30, TOUTE l'image faisait l'aller-retour taille de travail -> taille d'origine et sortait
+    adoucie des qu'elle n'etait pas deja a cette taille (image agrandie, importee, cote non multiple de 8). Le virage de teinte,
+    lui, se fait directement a la taille d'origine : recolor_hsv_masked(original, recolor_masque_a_taille(masque, ...))."""
+    base = original.convert('RGB')
+    if rendu.size != base.size:
+        rendu = rendu.resize(base.size, Image.LANCZOS)
+    m = (np.asarray(recolor_masque_a_taille(masque, base.size)).astype(np.float32) / 255.0)[..., None]
+    sortie = np.asarray(base).astype(np.float32) * (1 - m) + np.asarray(rendu.convert('RGB')).astype(np.float32) * m
+    return Image.fromarray(sortie.clip(0, 255).astype(np.uint8), 'RGB')
+
+
+def recolor_masque_fond(img):
+    """Fond de STUDIO d'un asset : zone claire et neutre (blanc, gris clair, degrade compris) reliee aux bords de l'image.
+    Meme regle que _masque_fond de la variante de texture (bureau et Modal). Masque doux 0..1 (H x W), ou None si l'image
+    n'a pas un tel fond (scene, fond sombre) ou si scipy manque (rien n'est alors protege, comme avant)."""
+    try:
+        from scipy import ndimage
+    except Exception:
+        return None
+    a = np.asarray(img.convert('RGB'), dtype=np.float32)
+    neutre = (a.mean(axis=2) > 150) & ((a.max(axis=2) - a.min(axis=2)) < 15)
+    lab, n = ndimage.label(neutre)
+    if not n:
+        return None
+    bords = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+    fond = np.isin(lab, bords[bords > 0])
+    if fond.mean() < 0.15:                      # pas un fond d'asset
+        return None
+    fond = ndimage.binary_erosion(fond, iterations=2)
+    return ndimage.gaussian_filter(fond.astype(np.float32), 1.5)
+
+
+def recolor_garder_fond(source, sortie):
+    """« One part » : le fond de studio reste celui de la source. La marge de detection (15 px par defaut) et le plancher
+    de saturation du virage coloraient le blanc AUTOUR de la partie : bloc rose de 110 niveaux autour d'un casque « red »
+    (banc modal_app/test_recolor_matiere.py, 2026-09-30). La variante de texture a deja cette protection (_garder_fond)."""
+    m = recolor_masque_fond(source)
+    if m is None:
+        return sortie
+    m = m[..., None]
+    a = np.asarray(source.convert('RGB'), dtype=np.float32)
+    o = np.asarray(sortie.convert('RGB'), dtype=np.float32)
+    return Image.fromarray(np.clip(o * (1 - m) + a * m, 0, 255).astype(np.uint8), 'RGB')
 # --- NOYAU PARTAGE : FIN ---

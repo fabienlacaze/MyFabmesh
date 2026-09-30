@@ -10616,7 +10616,14 @@ async function callModalImageOp(env: Env, userId: string, input: {
     r = await doFetch();
   }
   if (r.status === 422) {
-    return { maskEmpty: true, error: (await r.text()).slice(0, 200) };
+    // Modal (FastAPI) repond {"detail": "..."} : l'utilisateur ne doit voir que le message (Recolor le montre tel quel).
+    const brut = await r.text();
+    let message = brut;
+    try {
+      const j = JSON.parse(brut) as { detail?: unknown };
+      if (typeof j?.detail === 'string') message = j.detail;
+    } catch { /* texte brut */ }
+    return { maskEmpty: true, error: message.slice(0, 200) };
   }
   if (!r.ok) {
     if (r.status === 524) {
@@ -12067,7 +12074,7 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
       await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
                          'failed', { req, projectName, op: 'recolor', reason: 'couleur_ou_partie_absente' });
       return json({ ok: false, success: false,
-        error: `${result.error} (credits rembourses)` },
+        error: `${result.error} (credits refunded)` },
         { status: 422 });
     }
     await logOperation(env, user.id, 'text2image', cost, opStart, Date.now(),
