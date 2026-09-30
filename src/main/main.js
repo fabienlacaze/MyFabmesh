@@ -1628,6 +1628,17 @@ function createSplash() {
   }
 }
 
+// Vrai si l'URL est une des pages de l'appli (index2.html, wizard.html du
+// dossier renderer livre) — ancre et parametres ignores.
+function _estPageAppli(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'file:') return false;
+    const f = require('url').fileURLToPath(u).toLowerCase();
+    return ['index2.html', 'wizard.html'].some((p) => path.join(__dirname, '..', 'renderer', p).toLowerCase() === f);
+  } catch (_) { return false; }
+}
+
 function createWindow() {
   // Avant TOUTE autre chose : quelque chose de visible et d'animé à
   // l'écran, pour que l'app ne paraisse jamais figée au lancement.
@@ -1796,10 +1807,19 @@ function createWindow() {
   // Empêche le renderer de naviguer AILLEURS que vers les pages locales
   // de l'app (index2.html / wizard.html). Un clic sur un lien http:// est
   // redirigé vers le navigateur système au lieu de remplacer la page.
+  // 2026-09-30 : TOUT file: n'est plus autorise, seulement NOS pages. Le lien
+  // relatif « FABMESH_API.md » des Reglages (fichier absent du paquet)
+  // remplacait l'interface entiere par une page d'erreur, et la croix ne
+  // fermait plus rien (personne pour repondre a app-close-requested).
   mainWindow.webContents.on('will-navigate', (event, url) => {
     try {
       const u = new URL(url);
-      if (u.protocol === 'file:') return; // navigation interne autorisée
+      if (u.protocol === 'file:') {
+        if (_estPageAppli(url)) return;   // navigation interne autorisée
+        event.preventDefault();
+        log.warn('main', `will-navigate bloqué (fichier hors de l'appli): ${url}`);
+        return;
+      }
       event.preventDefault();
       if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'mailto:') {
         shell.openExternal(url).catch(() => {});
@@ -1816,6 +1836,17 @@ function createWindow() {
   // Exception: on the wizard, close immediately — there's no risk of
   // losing user work, and a stuck wizard with no exit is a soft-lock.
   let closeConfirmed = false;
+  // POIGNEE DE MAIN DE FERMETURE BORNEE (2026-09-30). La croix attendait sans
+  // limite la reponse de la page. Page qui n'est pas l'appli (echec de
+  // chargement) ou rendu mort : personne ne repond, la fenetre ne se fermait
+  // plus. Desormais : fermeture directe dans ces deux cas, et si la page ne
+  // dit pas « recu » (app-close-ack, envoye par le preload) en 5 s, une
+  // fenetre native propose de fermer quand meme.
+  let _minuterieFermeture = null;
+  ipcMain.removeAllListeners('app-close-ack');
+  ipcMain.on('app-close-ack', () => {
+    if (_minuterieFermeture) { clearTimeout(_minuterieFermeture); _minuterieFermeture = null; }
+  });
   mainWindow.on('close', (event) => {
     if (closeConfirmed || _isQuitting) return;
     const currentUrl = mainWindow.webContents.getURL() || '';
@@ -1824,8 +1855,36 @@ function createWindow() {
       // are interrupted; HuggingFace snapshot_download resumes on next run.
       return;
     }
+    const wc = mainWindow.webContents;
+    if (!_estPageAppli(currentUrl) || (typeof wc.isCrashed === 'function' && wc.isCrashed())) {
+      log.warn('main', `fermeture directe : page hors de l'appli ou rendu mort (${currentUrl})`);
+      return;
+    }
     event.preventDefault();
     mainWindow.webContents.send('app-close-requested');
+    if (_minuterieFermeture) return;
+    _minuterieFermeture = setTimeout(async () => {
+      _minuterieFermeture = null;
+      if (closeConfirmed || _isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
+      log.warn('main', 'la page ne repond pas a la demande de fermeture (5 s)');
+      try {
+        const r = await dialog.showMessageBox(mainWindow, {
+          type: 'warning', buttons: ['Close', 'Wait'], defaultId: 1, cancelId: 1, noLink: true,
+          title: 'MyFabmesh.AI', message: 'MyFabmesh.AI is not responding.',
+          detail: 'Close it anyway? Running jobs will be stopped.',
+        });
+        if (r && r.response === 0 && mainWindow && !mainWindow.isDestroyed()) { closeConfirmed = true; mainWindow.close(); }
+      } catch (_) {}
+    }, 5000);
+  });
+  // Echec de chargement d'une page qui n'est pas l'appli : retour a l'appli
+  // au lieu d'une fenetre vide. L'echec de NOS pages garde son filet
+  // (loadFile().catch -> fenetre de secours).
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return;               // -3 = ERR_ABORTED (navigation remplacee)
+    try { log.warn('main', `did-fail-load ${code} ${desc} ${url}`); } catch (_) {}
+    if (_isQuitting || _estPageAppli(url) || !mainWindow || mainWindow.isDestroyed()) return;
+    try { mainWindow.loadFile(path.join(__dirname, '..', 'renderer', isSetupComplete() ? 'index2.html' : 'wizard.html')); } catch (_) {}
   });
   ipcMain.on('app-close-confirmed', (_e, opts) => {
     closeConfirmed = true;

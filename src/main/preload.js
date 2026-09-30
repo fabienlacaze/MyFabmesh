@@ -248,7 +248,8 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   deleteProject: (opts) => ipcRenderer.invoke('delete-project', opts),
   creerProjetVide: (opts) => ipcRenderer.invoke('projet-vide:creer', opts),
   listerProjetsVides: () => ipcRenderer.invoke('projet-vide:lister'),
-  onAppCloseRequested: (cb) => ipcRenderer.on('app-close-requested', () => cb()),
+  // « recu » immediat (app-close-ack) : sans lui, main propose de fermer au bout de 5 s (page morte).
+  onAppCloseRequested: (cb) => ipcRenderer.on('app-close-requested', () => { ipcRenderer.send('app-close-ack'); cb(); }),
   confirmAppClose: (opts) => ipcRenderer.send('app-close-confirmed', opts || {}),
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
   exportDiagnostics: () => ipcRenderer.invoke('export-diagnostics'),
