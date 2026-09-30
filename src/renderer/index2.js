@@ -205,6 +205,10 @@ document.addEventListener('click', (e) => {
              id.includes('-btn') || id.includes('export') || id.includes('apply') ||
              id.includes('mv-btn'))) {
     logAction('click:' + (btn.id || id.slice(0,40)));
+  } else if (id === 'confirm-ok' || id === 'confirm-cancel') {
+    // Reponse aux fenetres de confirmation (2026-09-30) : sans elle, « Generate anyway » ou « Cancel » ne laissaient aucune
+    // trace et un clic « sans effet » etait impossible a diagnostiquer dans renderer.log.
+    logAction('click:' + id, { fenetre: (document.getElementById('confirm-title')?.textContent || '').slice(0, 60) });
   }
 }, true);
 
@@ -10925,7 +10929,7 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
 let _lastGatedRun = null;
 function gatedRun(kind, displayName, runFn) {
   _lastGatedRun = { kind, displayName, runFn };
-  enqueueJob(kind, displayName, runFn);
+  return enqueueJob(kind, displayName, runFn);   // promesse rendue : l'appelant sait quand le travail est parti ou en file
 }
 
 // Open the legal-warning + PIN flow; if the user completes it (now unrestricted),
@@ -11010,21 +11014,29 @@ document.getElementById('ws-3d-triangles')?.addEventListener('change', updateMes
   sync();
 })();
 
-// Count of 3D mesh generations currently IN FLIGHT per project. Used to ASK
-// before launching a 2nd gen of the SAME project (the user's earlier "two
-// Untitled gens fighting" confusion) — not to hard-block, since a big GPU may
-// have room. The VRAM-aware concurrency gate below decides whether it actually
-// runs now or queues.
-const _meshGenInFlight = new Map(); // projectName -> count
+// 3D EN COURS OU EN ATTENTE POUR CE PROJET ? Sert a DEMANDER avant une 2e generation du MEME projet (confusion « deux
+// Untitled qui se battent ») sans bloquer : une grosse carte a la place, la file d'attente VRAM decide ensuite.
+// ETAT LU, PLUS DE COMPTEUR (2026-09-30) : l'ancien compteur par projet n'etait rendu qu'a la FIN du travail. Une 3D retiree
+// de la file par la croix de sa tuile ne finit jamais : le projet restait « deja en cours » jusqu'au redemarrage (« voiture »,
+// 30/09 18:13 -> 18:21). On lit donc les tuiles en cours et la file d'attente ; `_meshGenLancement` couvre les quelques
+// secondes entre le clic et l'entree dans la file (verification memoire en cours), et se vide quoi qu'il arrive.
+const _meshGenLancement = new Set();
+function _meshGenEnCours(nomProjet) {
+  const nom = `Generate 3D: ${nomProjet}`;
+  if (_meshGenLancement.has(nomProjet)) return true;
+  if (queuedJobs.some((q) => q && q.displayName === nom)) return true;
+  return state.jobs.some((j) => j && j.status === 'running' && String(j.name || '').replace(' (resumed)', '') === nom);
+}
 document.getElementById('ws-generate-mesh').addEventListener('click', async () => {
   const p = state.currentProject;
   if (!p || !p.selectedImagePath) { showToast('Pick an image first.', 'error'); return; }
-  if ((_meshGenInFlight.get(p.name) || 0) > 0) {
+  if (_meshGenEnCours(p.name)) {
     const proceed = await customConfirm(
       'A 3D generation is already running for this project. Start another one in parallel anyway? It will queue automatically if the GPU is busy.',
       '3D generation already running',
       'Generate anyway'
     );
+    console.log(`[mesh] Generate 3D: ${p.name} deja en cours ou en attente -> ${proceed ? 'lancer quand meme' : 'annule'}`);
     if (!proceed) return;
   }
   const engine = document.getElementById('ws-3d-engine').value;
@@ -11145,8 +11157,10 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     'Source image': p.selectedImagePath ? p.selectedImagePath.split(/[/\\]/).pop() : '--',
   };
   const _projName = p.name;
-  _meshGenInFlight.set(_projName, (_meshGenInFlight.get(_projName) || 0) + 1);
-  gatedRun('mesh', `Generate 3D: ${p.name}`, async () => {
+  _meshGenLancement.add(_projName);
+  const _finLancement = () => _meshGenLancement.delete(_projName);
+  Promise.resolve(gatedRun('mesh', `Generate 3D: ${p.name}`, async () => {
+    _finLancement();                     // la tuile (pushJob) prend le relais
     const job = pushJob(`Generate 3D: ${p.name}`, null, jobParams, expectedMs, { sourceImageUrl: p.selectedImagePath, projectName: p.name });
     try {
       // `jobId` : sans lui le processus n'est pas enregistre sous son nom
@@ -11173,13 +11187,11 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     } catch (e) {
       completeJob(job.id, false, e?.error || e?.message || String(e));
       if (!job.cancelled) reportPipelineError(e?.error || e?.message || String(e), '3D generation error');
-    } finally {
-      // Free this project's in-flight slot (count-aware: a parallel gen of the
-      // same project keeps its own slot).
-      const _c = (_meshGenInFlight.get(_projName) || 1) - 1;
-      if (_c > 0) _meshGenInFlight.set(_projName, _c); else _meshGenInFlight.delete(_projName);
     }
-  });
+  })).catch((e) => {                     // jamais un clic sans effet ni message
+    console.error('[mesh] Generate 3D: lancement impossible', e);
+    customError(e?.message || String(e), '3D generation error');
+  }).finally(_finLancement);             // en file ou partie : la file / la tuile prend le relais
 });
 
 // ----- Mesh edit tools -----
