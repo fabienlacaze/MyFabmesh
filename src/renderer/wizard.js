@@ -680,7 +680,7 @@ async function _startDownloadInterne() {
       <span class="size">~8.5 GB</span>
       <div class="bar"><div class="bar-fill"></div></div>
     </div>
-    <div class="wiz-dl-row"><span class="name" style="opacity:.65" id="aienv-note">One-time setup: about 4.3 GB to download for the AI engine (8.5 GB on disk once installed), then the models download. Your PC may feel slow while it downloads. You can leave it running; just keep this window open.</span></div>`;
+`;
   // LISTE COMPLETE DES LE DEBUT (user, 2026-09-30 : « mets la liste complete des le debut ») : moteur d'IA, tous les modeles du mode, les 5
   // lignes du moteur de rig et l'animation, toutes en attente ; chaque ligne s'allume a son tour.
   const planComplet = await window.wizardAPI.getDownloadPlan(chosenMode);

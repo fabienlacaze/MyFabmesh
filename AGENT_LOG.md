@@ -24638,3 +24638,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - wizard.js pose fab_ouvrir_nouveau_projet ; index2.js ouvre New project au 1er affichage.
 - Classe .etape-verrouillee (bureau+web) sur Rig/Animation tant que le projet n a ni maillage ni rig (cadenas, grise).
 - main.js : wizard:final-test reussi => redacteurDemarrer() en arriere-plan, inactivite 8 min.
+
+## 2026-09-30 — wizard : textes de la page Downloading models
+- Phrase sous « Downloading models » remplacee par « Your PC may feel slow... keep this window open » ; ligne d intro « One-time setup... » du moteur d IA supprimee.
