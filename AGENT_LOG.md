@@ -24350,3 +24350,11 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Demande user (« pas tres lisible ») : `wizard.html / wizard.css / wizard.js` : une seule carte mise en avant (mode recommande, badge RECOMMENDED) et un petit menu « Other option »
   (Full / Standard / Lite / Cloud, avec tailles ; modes indisponibles grises). Les 4 cartes d'origine restent dans la page (masquees) : la logique existante (VRAM, selection, journal) est inchangee.
 - Test navigateur reel (machine simulee RTX 5080) : page Mode -> « Standard ~15 GB » + badge, menu a 4 options, Continue actif ; choix « Cloud » -> carte Cloud 0 GB sans badge. La version du Store installee (1.0.39) a encore l'ancien assistant.
+
+## 2026-09-30 — Assistant d'installation : progression du moteur d'IA en OCTETS (barre / debit / temps restant)
+- Constat (test d'installation de zero, version Store 1.0.39) : etape « torch » sans aucun signe de vie pendant ~minutes (barre a 6,9 %, « — MB/s », « 2.5 GB » a gauche et « ~5 GB » a droite) ;
+  la progression se comptait en PAQUETS (torch = 1 paquet de 2,5 Go). Le journal montrait bien l'avancement (pypi 99 % a 11:25) mais l'ecran restait fige.
+- `scripts/wizard_install_deps.py` : thread de surveillance des dossiers temporaires `pip-unpack-*` (taille cumulee + debit lisse, dossiers anterieurs ignores) -> evenements
+  `{bytes_done, speed_mbps}` chaque 1,5 s ; emit protege par un verrou. Banc : roue scipy 40 Mo -> 40,1 Mo mesures, 26,5 Mo/s.
+- `wizard.js` : barre = max(paquets, octets/5 Go, jamais en arriere), compteur du bas « X / ~5,000 MB », debit, temps restant ; libelle « Downloading PyTorch… » (plus de « 2.5 GB » contradictoire) ; total « ~5 GB » affiche comme estimation.
+- NON verifie dans l'appli packagee (le Store installe est l'ancienne version) : a refaire avec la prochaine version.

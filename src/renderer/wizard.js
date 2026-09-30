@@ -537,7 +537,7 @@ async function _startDownloadInterne() {
   const _AIENV_STEPS = {
     'copy-python': 'Preparing the Python environment…',
     'pip-bootstrap': 'Setting up the installer…',
-    'torch': 'Downloading PyTorch (~2.5 GB)…',
+    'torch': 'Downloading PyTorch…',
     'pypi': 'Installing libraries (diffusers, transformers…)…',
     'xformers-optional': 'Installing xformers (speed boost)…',
     'flash-attn-optional': 'Finishing up…',
@@ -549,16 +549,32 @@ async function _startDownloadInterne() {
       <span class="size">~5 GB</span>
       <div class="bar"><div class="bar-fill"></div></div>
     </div>
-    <div class="wiz-dl-row"><span class="name" style="opacity:.65" id="aienv-note">One-time setup (~5 GB). Your PC may feel slow and the progress bar may pause for a few minutes during the big downloads — this is normal. You can leave it running; just keep this window open.</span></div>`;
+    <div class="wiz-dl-row"><span class="name" style="opacity:.65" id="aienv-note">One-time setup, about 5 GB in total. Your PC may feel slow while it downloads. You can leave it running; just keep this window open.</span></div>`;
   // The byte/speed/ETA counters are for the MODEL download, not this pip
   // install (which reports by step, not by bytes) — show "—" meanwhile so
   // they don't read as "frozen at 0".
   for (const id of ['dl-done', 'dl-total', 'dl-speed', 'dl-eta']) {
     const el = document.getElementById(id); if (el) el.textContent = '—';
   }
+  // PROGRESSION EN OCTETS (2026-09-30) : le script d'installation mesure ce que pip telecharge (bytes_done, speed_mbps) ; la barre et le
+  // compteur du bas (Mo, Mo/s, temps restant) les utilisent. Le total (~5 Go) est une ESTIMATION affichee comme telle.
+  const AIENV_TOTAL_MO = 5000;
+  let barreMax = 3;
   window.wizardAPI.onInstallProgress((p) => {
     const fill = document.querySelector('.wiz-dl-row[data-id="__aienv"] .bar-fill');
-    if (fill && typeof p.pct === 'number') fill.style.width = Math.max(3, p.pct) + '%';
+    if (typeof p.bytes_done === 'number') {
+      const mo = p.bytes_done / 1e6, vit = Number(p.speed_mbps) || 0;
+      barreMax = Math.max(barreMax, Math.min(97, (mo / AIENV_TOTAL_MO) * 100));
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      set('dl-done', Math.round(mo).toLocaleString('en-US'));
+      set('dl-total', '~' + AIENV_TOTAL_MO.toLocaleString('en-US'));
+      set('dl-speed', vit.toFixed(1));
+      const rest = Math.max(0, AIENV_TOTAL_MO - mo);
+      const sec = vit > 0.05 ? rest / vit : null;
+      set('dl-eta', sec == null ? '–' : (sec < 90 ? Math.round(sec) + ' s' : Math.round(sec / 60) + ' min'));
+    }
+    if (fill && typeof p.pct === 'number') barreMax = Math.max(barreMax, p.pct);
+    if (fill) fill.style.width = Math.max(3, barreMax) + '%';
     const name = document.getElementById('aienv-name');
     if (name && p.step && _AIENV_STEPS[p.step]) name.textContent = _AIENV_STEPS[p.step];
     if (p.done) {

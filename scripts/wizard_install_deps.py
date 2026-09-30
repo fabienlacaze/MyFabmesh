@@ -31,6 +31,9 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+import threading
+import time
 
 
 # PyTorch CUDA 12.8 official wheels (binary only, no compile needed).
@@ -137,9 +140,58 @@ PYPI_PACKAGES = [
 ]
 
 
+_EMIT_LOCK = threading.Lock()
+
+
 def emit(obj):
-    sys.stdout.write(json.dumps(obj) + '\n')
-    sys.stdout.flush()
+    with _EMIT_LOCK:
+        sys.stdout.write(json.dumps(obj) + '\n')
+        sys.stdout.flush()
+
+
+# PROGRESSION EN OCTETS (2026-09-30, test d'installation de zero : « le debit reste a zero, la barre ne marche pas, il ne se passe rien »).
+# Jusqu'ici la progression se comptait en PAQUETS : torch (2,5 Go) est UN paquet, donc la barre restait a 6,9 % pendant des dizaines de minutes
+# et le debit affichait « — ». pip telecharge chaque roue dans un dossier temporaire `pip-unpack-*` : on en mesure la taille chaque seconde
+# (les dossiers deja presents au demarrage sont ignores) et on emet octets telecharges + debit lisse.
+_UNPACK_DEJA = set()
+_UNPACK_MAX = {}
+
+
+def _dossiers_pip():
+    import glob
+    return glob.glob(os.path.join(tempfile.gettempdir(), 'pip-unpack-*'))
+
+
+def _taille_dossier(d):
+    total = 0
+    try:
+        for f in os.listdir(d):
+            try:
+                total += os.path.getsize(os.path.join(d, f))
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return total
+
+
+def _surveiller_telechargement(stop, step):
+    """Thread : emet {bytes_done, speed_mbps} toutes les ~1,5 s tant que `stop` n'est pas leve."""
+    t_prev, b_prev, vitesse = time.time(), sum(_UNPACK_MAX.values()), 0.0
+    while not stop.wait(1.5):
+        try:
+            for d in _dossiers_pip():
+                if d in _UNPACK_DEJA:
+                    continue
+                _UNPACK_MAX[d] = max(_UNPACK_MAX.get(d, 0), _taille_dossier(d))
+        except Exception:
+            pass
+        total = sum(_UNPACK_MAX.values())
+        now = time.time()
+        inst = max(0.0, (total - b_prev) / max(now - t_prev, 1e-3)) / 1e6      # Mo/s
+        vitesse = inst if vitesse == 0.0 else 0.6 * vitesse + 0.4 * inst        # lissage
+        t_prev, b_prev = now, total
+        emit({'step': step, 'done': False, 'bytes_done': int(total), 'speed_mbps': round(vitesse, 2)})
 
 
 def _lower_priority():
@@ -175,6 +227,10 @@ def _run(args, step):
     include the tail of pip's output so the UI shows WHY (disk full, network,
     etc.) instead of a bare 'pip exited 1'."""
     emit({'step': step, 'pct': 0, 'done': False, 'msg': ' '.join(args[-3:])})
+    if not _UNPACK_DEJA:
+        _UNPACK_DEJA.update(_dossiers_pip())
+    arret = threading.Event()
+    threading.Thread(target=_surveiller_telechargement, args=(arret, step), daemon=True).start()
     proc = subprocess.Popen(args, stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT, text=True,
                              encoding='utf-8', errors='replace')
@@ -193,6 +249,7 @@ def _run(args, step):
             emit({'step': step, 'pct': pct, 'done': False,
                   'current': line[:120]})
     proc.wait()
+    arret.set()
     if proc.returncode != 0:
         ctx = '\n'.join(tail)
         low = ctx.lower()
