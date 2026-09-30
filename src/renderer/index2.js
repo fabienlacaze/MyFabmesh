@@ -22092,6 +22092,14 @@ function majLignesLimites() {
     poser('trop', 'width', larg(tropVisGB));
     poser('add', 'width', larg(addGB));
     // bande rouge semi-transparente dans le gris, depuis la droite : ce que les autres logiciels consomment vraiment
+    { const e = el('reel-mfm'); if (e) {          // consommation reelle de MyFabmesh : dans le violet, rouge a droite
+        const regionGB = Math.max(0.001, minGB + addGB);
+        const mfmReel = (!libre && usedGB != null) ? Math.max(0, Math.min(regionGB, usedGB - autresGB)) : 0;
+        e.style.left = 'calc(4px + (100% - 8px) * ' + (plancher / totalGB) + ')';
+        e.style.width = 'calc((100% - 8px) * ' + (regionGB / totalGB) + ')';
+        e.style.right = 'auto';
+        e.style.setProperty('--reste-m', (100 - mfmReel / regionGB * 100) + '%');
+      } }
     { const e = el('reel'); if (e) {
         const limPos = (plancher + minGB + (extraTotGB - Math.min(reserveGB, extraTotGB))) / totalGB * 100;     // position du separateur
         const usePct = Math.max(0, Math.min(100, autresGB / totalGB * 100));
