@@ -24763,3 +24763,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee, disposition demandee par le user : Windows (gris) | MyFabmesh minimum = outil le plus lourd (violet fonce, fixe) | autres logiciels = leur reserve (gris clair) | depassement (hachure) | MyFabmesh en plus (violet clair, variable). Le separateur se deplace sur la reserve : le gris diminue, le violet clair prend la place.
 
 - (suite) Barre partagee : ordre Windows | MyFabmesh minimum | MyFabmesh en plus (violet clair, colle au fonce) | autres (gris, a droite) ; bande orange de depassement retiree (user : « ne sert a rien »), la phrase sous la barre suffit.
+
+- (suite) Barre partagee : textes remis dans l'ordre de la barre (MyFabmesh a gauche, Autres a droite), total MyFabmesh = violet fonce + clair, une seule phrase d'alerte, indice de glissement corrige.

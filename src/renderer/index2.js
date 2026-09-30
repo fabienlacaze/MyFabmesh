@@ -22105,13 +22105,14 @@ function majLignesLimites() {
     const lim = document.getElementById(`${idp}-limtxt`);
     if (lim) lim.innerHTML = `${escapeHtml(_i18nT('Other apps:'))} <b>${escapeHtml(_i18nTf('{x} GB kept', go(reserveGB)))}</b>`;
     const mt = document.getElementById(`${idp}-mfmtxt`);
-    if (mt) mt.innerHTML = `${escapeHtml(_i18nT('MyFabmesh:'))} <b>${escapeHtml(_i18nTf('{x} GB', go(partGB)))}</b>`;
+    if (mt) mt.innerHTML = `${escapeHtml(_i18nT('MyFabmesh:'))} <b>${escapeHtml(_i18nTf('{x} GB', go(minGB + addGB)))}</b>`;     // = ce que montre la barre (violet fonce + violet clair)
     const eb = document.getElementById(`${idp}-needtxt`);
     if (eb) {
       const court = partGB + 0.05 < need;
+      // une seule phrase courte, seulement quand il y a un probleme (les chiffres sont dans la barre)
       let txt = '';
       if (tropGB > 0.05) {
-        txt = _i18nTf('Your other apps use {x} GB, {y} GB more than kept.', go(autresGB), go(autresGB - reserveGB));
+        txt = _i18nTf('Your other apps use {x} GB, more than the {y} GB kept.', go(autresGB), go(reserveGB));
         if (court) txt += ' ' + (nom === 'vram' ? _i18nTf('{x} will wait.', outil) : _i18nT('Generations will be slower.'));
       } else if (court) {
         txt = _i18nTf('{x} needs {y} GB: move the marker to the left.', outil, go(need));
