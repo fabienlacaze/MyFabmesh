@@ -1020,6 +1020,19 @@ async function refreshProjectsPage() {
     }
   }
 
+  // DOUBLON PROJET VIDE / DOSSIER REEL (2026-09-30, test d'installation de zero : « la premiere image generee ne s'affiche pas »).
+  // Un projet nomme « Mobilier design » (espace) est memorise sous ce nom, mais ses images vont dans le dossier « Mobilier_design » : deux entrees
+  // coexistaient, et le rechargement apres la generation prenait l'ancienne (vide, nom exact) -> 0 image. On retire le marqueur vide des qu'un
+  // projet reel de meme nom « assaini » a du contenu.
+  {
+    const _san = (n) => String(n).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const _plein = (p) => (p.images?.length || 0) + (p.meshes?.length || 0) + (p.rigs?.length || 0) + (p.animations?.length || 0) > 0;
+    for (const [cle, p] of [...projectsMap.entries()]) {
+      if (_plein(p)) continue;
+      const jumeau = [...projectsMap.values()].find((q) => q !== p && _plein(q) && _san(q.name) === _san(p.name));
+      if (jumeau) projectsMap.delete(cle);
+    }
+  }
   state.projects = Array.from(projectsMap.values()).sort((a, b) => b.latestTimestamp - a.latestTimestamp);
   // Apply user display-name overrides (project rename) without touching files.
   try {
@@ -19471,9 +19484,11 @@ async function reloadCurrentProject() {
   const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, '_');
   await refreshProjectsPage();
   // Try exact match first, then sanitized match (spaces → underscores)
-  const refreshed = state.projects.find(p => p.name === name)
-    || state.projects.find(p => p.name === sanitizedName)
-    || state.projects.find(p => p.name.replace(/[^a-zA-Z0-9_-]/g, '_') === sanitizedName);
+  // Plusieurs entrees peuvent correspondre (marqueur de projet vide « Mobilier design » + dossier reel « Mobilier_design ») : on prend celle qui a du contenu.
+  const _candidats = state.projects.filter(p => p.name === name || p.name === sanitizedName
+    || p.name.replace(/[^a-zA-Z0-9_-]/g, '_') === sanitizedName);
+  const _poids = (p) => (p.images?.length || 0) + (p.meshes?.length || 0) + (p.rigs?.length || 0) + (p.animations?.length || 0);
+  const refreshed = _candidats.sort((a, b) => _poids(b) - _poids(a))[0];
   if (refreshed) console.log('[reload] matched project:', refreshed.name, 'for requested:', name);
   else console.log('[reload] NO MATCH for project:', name, '(sanitized:', sanitizedName, ') in:', state.projects.map(p => p.name).slice(0, 10));
   if (!refreshed) {

@@ -24433,3 +24433,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 
 ## 2026-09-30 — Assistant : nouveau projet — mode Auto (type et style deduits de la description)
 - Fenetre « New project » (bureau + web) : case « Auto » (cochee par defaut, memorisee) ; le type d'asset et le style sont deduits du nom + description (francais/anglais, mots-cles avec score, sans serveur), menus verrouilles et affichant la valeur detectee, info « Detected: … ». Decochee = menus libres. Fonction detecterTypeEtStyle (index2.js des deux cotes). Verifie sur 8 phrases (chaise/table/lampe -> Prop, orc -> Character, husky pixar -> Animal + Pixar…).
+
+## 2026-09-30 — Assistant : premiere image generee invisible dans un projet dont le nom contient un espace
+- Cause (installation de zero, journaux renderer) : projet « Mobilier design » = marqueur de projet vide sous ce nom + dossier d'images « Mobilier_design » ; apres la generation, reloadCurrentProject prenait l'entree au nom exact (le marqueur, vide) -> « images: 0 », bande d'images vide malgre ref_0.png ecrit 1 s plus tot.
+- Correctif (bureau + web) : refreshProjectsPage retire le marqueur vide quand un projet reel de meme nom assaini a du contenu ; reloadCurrentProject choisit, parmi les candidats, celui qui a le plus de contenu.
