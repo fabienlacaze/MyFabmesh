@@ -24765,3 +24765,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee : ordre Windows | MyFabmesh minimum | MyFabmesh en plus (violet clair, colle au fonce) | autres (gris, a droite) ; bande orange de depassement retiree (user : « ne sert a rien »), la phrase sous la barre suffit.
 
 - (suite) Barre partagee : textes remis dans l'ordre de la barre (MyFabmesh a gauche, Autres a droite), total MyFabmesh = violet fonce + clair, une seule phrase d'alerte, indice de glissement corrige.
+
+- (suite) Reglages > Materiel : ligne « Ready: Image / 3D / Detail++ » masquee (user : pas besoin).
