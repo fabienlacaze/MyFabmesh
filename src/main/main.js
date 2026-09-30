@@ -3405,7 +3405,10 @@ ipcMain.handle('memory-budget', async (_e, kind) => {
   try {
     const b = await _budgetsMemoire();
     const pics = _picsMemoire();
-    const mesure = budgetMemoire.besoinMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
+    // 1er lancement sans mesure : valeur MESUREE le 2026-09-30 (generation d'image locale, engagement de pic 12 855 Mo). Sans elle, un budget trop
+    // juste (Unreal ouvert) laissait partir le travail, qui mourait en violation d'acces native (0xC0000005) au chargement, sans message.
+    const BESOIN_RAM_DEFAUT_MO = { image: 12900 };
+    const mesure = budgetMemoire.besoinMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], BESOIN_RAM_DEFAUT_MO[kind] != null ? BESOIN_RAM_DEFAUT_MO[kind] : null);
     const mesureVram = budgetMemoire.besoinVramMo(pics, CLES_MEMOIRE_PAR_TYPE[kind] || [], null);
     const base = {
       budgetRamGo: budgetMemoire.versGo(b.ram.budgetMo, 'bas'),

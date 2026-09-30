@@ -24659,3 +24659,8 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — audit fuites de noms de moteurs (2e passe)
 - showToast masque aussi les noms (bureau + web) ; libelles en dur : ControlNet Tile -> texture refine, « SDXL tile » -> refine, xatlas -> UV unwrap (Detail++, Resolution). HTML, wizard, i18n visibles : propres ; i18n.js garde des chaines inutilisees (Modal containers, AnyTop) non affichees.
+
+## 2026-09-30 — echec generation d image (violation d acces 0xC0000005) + bouton Copy error
+- REPRODUIT : local_juggernaut_bridge.py sous plafond RAM (budget 9,1 Go = 27 Go - 18 Go occupes par les autres) plante au chargement du pipeline (exit -1073741819) ; avec FABMESH_CLOISONNEMENT=0 : OK en 66 s, pic engage 12 855 Mo. Aucune mesure au 1er lancement, donc le travail partait sans garde.
+- main.js memory-budget : besoin RAM par defaut 12 900 Mo pour image (mesure) : refus propre avec chiffres avant lancement.
+- index2.js (bureau+web) : customError a un bouton Copy error (copie le texte affiche, sans fermer).

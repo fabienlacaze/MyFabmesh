@@ -354,7 +354,14 @@ function customError(message, title = 'Error') {
   msgEl.style.textAlign = 'left';
   okBtn.textContent = 'OK';
   okBtn.classList.remove('danger');
-  cancelBtn.style.display = 'none';
+  // Bouton « Copy error » (user 2026-09-30) : reutilise le bouton secondaire, sans fermer la fenetre.
+  cancelBtn.style.display = '';
+  cancelBtn.textContent = 'Copy error';
+  const onCopy = async () => {
+    try { await navigator.clipboard.writeText(safe); cancelBtn.textContent = 'Copied ✓'; }
+    catch (_) { try { const r = document.createRange(); r.selectNodeContents(msgEl); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand('copy'); sel.removeAllRanges(); cancelBtn.textContent = 'Copied ✓'; } catch (__) { cancelBtn.textContent = 'Copy failed'; } }
+  };
+  cancelBtn.addEventListener('click', onCopy);
   const _prevZ = modal.style.zIndex;
   modal.style.zIndex = '10200';  // above #modal-job-details (10000) so a confirm opened FROM it is reachable
   modal.classList.remove('hidden');
@@ -363,6 +370,8 @@ function customError(message, title = 'Error') {
       modal.classList.add('hidden');
       modal.style.zIndex = _prevZ;
       okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCopy);
+      cancelBtn.textContent = 'Cancel';
       modal.removeEventListener('click', onOverlay);
       // Reset for normal customConfirm reuse
       msgEl.style.maxHeight = '';
