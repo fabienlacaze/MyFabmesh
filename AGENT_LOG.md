@@ -24678,3 +24678,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — reprise des travaux apres Ctrl+R (user : « se souvenir de ce qui tourne et le montrer dans la popup avec l avancement »)
 - Retrait du garde-fou Ctrl+R. index2.js envoie toutes les 2 s (et au dechargement) l instantane des travaux en cours (jobsSnapshot) ; main.js, au 2e did-finish-load, apparie les sous-processus vivants (kind != other) a ces etats et reutilise l evenement jobs-resumed (tuile avec avancement, _watchResumedPid, job-pid-exited => rafraichit le projet). Pas de retour de resultat automatique vers le projet au-dela du rafraichissement (choix user : tuiles + progression). A TESTER (restart Electron requis).
+
+## 2026-09-30 (soir) — backup complet + note de reprise docs/REPRISE_2026-09-30.md pour la bascule sur Claude Code cloud. Constat : app.asar du user re-empaquete a la main pour tester ; Include Python copie dans python/Include ; 3D locale encore a confirmer.
