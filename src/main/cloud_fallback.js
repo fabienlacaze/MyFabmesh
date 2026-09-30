@@ -334,6 +334,12 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
   // peut durer ~350 s — l'ancien AbortController de 300 s tuait une requête
   // que le worker était sur le point de satisfaire.
   const attempt = async (n) => {
+    // Jeton relu A CHAQUE appel (2026-09-30) : « 6 images » = deux appels
+    // successifs, le second peut partir plusieurs minutes apres le premier
+    // (demarrage a froid). Le jeton lu une seule fois pouvait avoir expire
+    // entre-temps : 401 -> logout(), l'utilisateur etait deconnecte et le
+    // second lot perdu. getAccessToken() le renouvelle s'il arrive a terme.
+    const jeton = (await getAccessToken()) || tok;
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 10 * 60 * 1000);
     let resp, data;
@@ -342,7 +348,7 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Cookie: `mfm-session=${tok}`,   // le worker ne lit PAS Authorization
+          Cookie: `mfm-session=${jeton}`,   // le worker ne lit PAS Authorization
         },
         body: JSON.stringify({
           prompt,                          // prompt déjà enrichi par le desktop
