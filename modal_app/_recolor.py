@@ -90,6 +90,51 @@ def recolor_hsv_masked(img_rgb, mask_soft, color_spec, strength=1.0):
     base = np.array(img_rgb).astype(np.float32)
     blended = base * (1 - m) + np.array(recolored).astype(np.float32) * m
     return Image.fromarray(blended.clip(0, 255).astype(np.uint8), 'RGB')
+# ROUTE ET REGLAGES DU RE-RENDU « MATIERE / STYLE » (2026-09-30, decision du user : « B — meme capacite que le PC » : le cloud repeint aussi
+# les matieres). Une demande sans mot de couleur (« cuir vieilli », « rusty metal ») ou un style sur toute l'image (« military green camo »)
+# passe par un re-rendu ControlNet-Tile masque par CLIPSeg ; une couleur simple (« cape rouge ») garde le virage HSV ci-dessus.
+# UNE SEULE definition pour le bureau (scripts/sdxl_server.py) et Modal : les reglages ne peuvent plus diverger.
+def recolor_mots_descriptifs(prompt):
+    """Mots du prompt qui ne sont PAS des mots de couleur : « military green camo » -> ['military', 'camo'] ; « green » -> []."""
+    mots = []
+    for raw in (prompt or '').split():
+        if _strip_accents(raw.strip(".,;:!?\"'()").lower()) not in _COLOR_LEXICON:
+            mots.append(raw)
+    return mots
+
+
+def recolor_tile_route(color_spec, prompt, recolor_all):
+    """True quand la demande passe par le re-rendu ControlNet-Tile plutot que par le virage HSV : aucune couleur connue (matiere),
+    OU toute l'image avec des mots descriptifs en plus d'une couleur (« military green camo »). Une couleur SEULE (« vert »)
+    garde le virage rapide. (Correctif du 2026-09-30 : l'ancienne condition testait le « nom » de parse_recolor_prompt, qui retombe sur
+    le texte entier quand il ne reste aucun autre mot — « green » partait donc en re-rendu, contre l'intention du commit 45a1e2e7.)"""
+    return color_spec is None or bool(recolor_all and recolor_mots_descriptifs(prompt))
+
+
+def recolor_tile_params(noun, full_prompt, recolor_all=False, strength=1.0):
+    """Reglages du re-rendu : { denoise, cn, steps, guidance, prompt, negative }.
+
+    Toute l'image (style) : vrai re-rendu img2img (denoise 0,57 a 0,85 selon le curseur Strength, ControlNet a 0,45 pour que les
+    couleurs changent tout en tenant la forme, prompt oriente COHERENCE). Une partie : reglage prudent (denoise 0,18) pour
+    preserver la zone detectee."""
+    s = max(0.2, min(1.0, float(strength)))
+    if recolor_all:
+        return {
+            'denoise': 0.5 + s * 0.35, 'cn': 0.45, 'steps': 30, 'guidance': 6.5,
+            'prompt': (f"the whole subject repainted in a {full_prompt} colour scheme, "
+                       f"cohesive realistic {full_prompt} palette applied consistently to every surface, "
+                       f"natural studio lighting and soft shadows preserved, each material keeps its own "
+                       f"surface qualities (metal stays metallic, glass stays glass), same exact shape and "
+                       f"structure, photorealistic, highly detailed"),
+            'negative': ("flat uniform tint, single flat colour smear, washed out, monochrome, posterised, "
+                         "unrealistic colours, oversaturated, deformed, distorted, blurry, low quality, "
+                         "changed shape, extra parts"),
+        }
+    return {
+        'denoise': 0.18, 'cn': 0.65, 'steps': 20, 'guidance': 5.5,
+        'prompt': f"{full_prompt}, same shape, preserve folds and details, photorealistic",
+        'negative': "deformed, distorted, blurry, low quality, changed shape, extra parts",
+    }
 # --- NOYAU PARTAGE : FIN ---
 
 # ---------------------------------------------------------------------------
@@ -124,10 +169,10 @@ def generate(seg_processor, seg_model, source_img, prompt,
              max_dim=1024):
     """Recolorie la partie nommee. Retourne (image, couverture_pourcent).
 
-    Leve ValueError si le prompt ne nomme aucune couleur connue : ce cas
-    demandait cote bureau un rendu ControlNet-Tile, que Modal n'a pas.
-    L'appelant se rabat alors sur l'img2img (op `modify`) et le DIT, au lieu
-    de rendre une image inchangee en ayant facture.
+    Leve ValueError si le prompt ne nomme aucune couleur connue ; depuis le
+    2026-09-30 l'appelant (op `recolor` de app.py) aiguille alors la demande
+    vers `generate_tile` (matiere / style) AVANT d'arriver ici : ce garde ne
+    sert plus que de filet.
     """
     noun, color_spec = parse_recolor_prompt(prompt)
     if color_spec is None:
@@ -160,3 +205,55 @@ def generate(seg_processor, seg_model, source_img, prompt,
 
     out = recolor_hsv_masked(travail, masque, color_spec, strength)
     return out.resize((ow, oh), Image.LANCZOS), couverture
+
+
+def generate_tile(seg_processor, seg_model, tile_pipe, source_img, prompt,
+                  strength=1.0, dilate=15, rel=0.5, recolor_all=False,
+                  max_dim=1024):
+    """Matiere ou style (« cuir vieilli », « rusty metal », « sunset gradient ») : re-rendu ControlNet-Tile
+    masque par CLIPSeg. Retourne (image, couverture_pourcent).
+
+    Portage de scripts/sdxl_server.do_recolor_tile (decision du user, 2026-09-30 : « B — meme capacite que le PC »).
+    Memes reglages que le bureau : ils viennent du noyau partage (`recolor_tile_params`). `tile_pipe` est le pipe ControlNet-Tile
+    deja utilise par `tex_variant` (self._get_tile_pipe()). Leve ValueError si la partie nommee est introuvable."""
+    import torch
+    noun, _spec = parse_recolor_prompt(prompt)
+    img = source_img.convert('RGB')
+    ow, oh = img.size
+    if max(ow, oh) > max_dim:
+        if ow > oh:
+            w, h = max_dim, int(oh * max_dim / ow)
+        else:
+            h, w = max_dim, int(ow * max_dim / oh)
+    else:
+        w, h = ow, oh
+    w = max(8, (w // 8) * 8); h = max(8, (h // 8) * 8)
+    travail = img.resize((w, h), Image.LANCZOS)
+
+    if recolor_all:
+        masque = Image.new('L', (w, h), 255)
+        couverture = 100.0
+    else:
+        masque = _masque_clipseg(seg_processor, seg_model, travail, w, h, noun or prompt, dilate, rel)
+        a = np.asarray(masque)
+        couverture = 100.0 * float((a > 127).sum()) / float(max(1, a.size))
+        if couverture < 0.2:
+            raise ValueError("« %s » introuvable sur l'image (couverture %.1f %%)." % (noun or prompt, couverture))
+
+    p = recolor_tile_params(noun, prompt, recolor_all, strength)
+    with torch.inference_mode():
+        resultat = tile_pipe(
+            prompt=p['prompt'], negative_prompt=p['negative'],
+            image=travail, control_image=travail,
+            strength=p['denoise'], num_inference_steps=p['steps'],
+            guidance_scale=p['guidance'], controlnet_conditioning_scale=p['cn'],
+            generator=torch.Generator('cuda').manual_seed(42),
+        ).images[0]
+    if resultat.size != (w, h):
+        resultat = resultat.resize((w, h), Image.LANCZOS)
+    m = (np.asarray(masque).astype(np.float32) / 255.0)[..., None]
+    sortie = np.asarray(travail).astype(np.float32) * (1 - m) + np.asarray(resultat).astype(np.float32) * m
+    final = Image.fromarray(sortie.clip(0, 255).astype(np.uint8), 'RGB')
+    if (w, h) != (ow, oh):
+        final = final.resize((ow, oh), Image.LANCZOS)
+    return final, couverture

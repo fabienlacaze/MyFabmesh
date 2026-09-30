@@ -12031,8 +12031,11 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
   }
 
   const cost = await getPrice(env, 'recolor');
-  // Pas de diffusion : une passe CLIPSeg puis du numpy. Bien moins qu'un modify.
-  const estimatedTotal = 0.02;
+  // Deux voies cote Modal (2026-09-30, « meme capacite que le PC ») : une COULEUR (« cape rouge ») = CLIPSeg + numpy (~0,02 $) ; une MATIERE
+  // ou un STYLE (« cuir vieilli », « sunset gradient ») = re-rendu ControlNet-Tile (~0,08 $, comme tex_variant). La voie n'est connue
+  // que de Modal (le lexique de couleurs vit dans le noyau partage scripts/recolor_core.py) : on reserve l'estimation haute, le prix
+  // en credits reste unique (grille : `recolor`).
+  const estimatedTotal = 0.08;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
@@ -12063,8 +12066,8 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
       await refundModalSpend(env, estimatedTotal, user.id);
       await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
                          'failed', { req, projectName, op: 'recolor', reason: 'couleur_ou_partie_absente' });
-      return json({ ok: false, success: false, needsModify: true,
-        error: `${result.error} (credits rembourses — essaie « Modify » pour une matiere)` },
+      return json({ ok: false, success: false,
+        error: `${result.error} (credits rembourses)` },
         { status: 422 });
     }
     await logOperation(env, user.id, 'text2image', cost, opStart, Date.now(),

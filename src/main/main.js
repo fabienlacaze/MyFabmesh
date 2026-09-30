@@ -5521,9 +5521,9 @@ ipcMain.handle('recolor', async (event, { imagePath, prompt, strength, dilate, r
     const newImagePath = path.join(dir, `${base}_recolor_${Date.now()}${ext}`);
     // Mode Cloud : /api/recolor (tarif `recolor` de la grille), meme contrat de
     // sortie — meme raison que tex-variant ci-dessus. `rel` (precision de
-    // detection) n'existe pas cote worker, comme pour auto-inpaint. Une matiere
-    // (« rusty metal ») au lieu d'une couleur : le worker rend 422, credits
-    // rembourses, et son message le dit. Corps identique au site.
+    // detection) n'existe pas cote worker, comme pour auto-inpaint. Couleur OU
+    // matiere / style (« rusty metal », « sunset gradient ») : depuis le
+    // 2026-09-30 Modal fait les deux, comme le PC. Corps identique au site.
     if (isCloudMode()) {
       const r = await cloudFallback.imageOp({
         endpoint: '/api/recolor', srcPath: imagePath, outPath: newImagePath,

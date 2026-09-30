@@ -64,6 +64,7 @@ if os.environ.get('FABMESH_NO_WORKER_THROTTLE') != '1':
 # dans le Python embarque (._pth) : on l'ajoute.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cloisonnement_memoire as _cm
+from recolor_core import recolor_tile_route, recolor_tile_params   # route + reglages MATIERE/STYLE, communs avec Modal (2026-09-30)
 _cm.appliquer('sdxl_server', cle='sdxl_server', log=lambda m: print(f'SDXL_SERVER: {m}', flush=True))
 
 # Faster startup: only import what we need at top
@@ -1170,7 +1171,7 @@ def do_recolor(input_path, prompt, output_path, strength=1.0, dilate=15, rel=0.5
     #    bare colour ('military green camo' strips to noun 'military camo').
     # Without this, 'military green camo' matched 'green' → the flat HSV path →
     # a tartiné tint that barely showed. A bare colour ('green') still uses HSV.
-    if color_spec is None or (recolor_all and noun.strip()):
+    if recolor_tile_route(color_spec, prompt, recolor_all):
         return do_recolor_tile(input_path, noun, prompt, output_path, dilate, rel,
                                recolor_all=recolor_all, strength=strength)
     load_clipseg()
@@ -1252,43 +1253,18 @@ def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0
                 coverage = (np.array(mask_soft) > 128).mean() * 100
                 if coverage < 0.2:
                     return {"ok": False, "error": f"'{noun}' not detected (coverage {coverage:.1f}%)"}
-            # Whole-image restyle needs real denoise or the style barely shows
-            # (0.35 kept a "military green camo" building silver). Drive it from
-            # the Strength slider: 20%→0.44, 100%→0.76. ControlNet still holds the
-            # shape (lower cond so colours can actually change). Part material
-            # recolor stays conservative (0.18) to preserve the detected region.
-            # Whole-image restyle = a real img2img RE-RENDER (like the Age tool),
-            # not a flat hue smear. Higher denoise so the model actually repaints
-            # (20%->0.57, 100%->0.85), lower ControlNet cond (0.45) so colours can
-            # change while the shape holds, and a COHERENCE-oriented prompt so the
-            # palette is applied realistically (lighting/shadows/materials kept).
-            _s = max(0.2, min(1.0, float(strength)))
-            if recolor_all:
-                _denoise = 0.5 + _s * 0.35
-                _cn = 0.45
-                _prompt = (f"the whole subject repainted in a {full_prompt} colour scheme, "
-                           f"cohesive realistic {full_prompt} palette applied consistently to every surface, "
-                           f"natural studio lighting and soft shadows preserved, each material keeps its own "
-                           f"surface qualities (metal stays metallic, glass stays glass), same exact shape and "
-                           f"structure, photorealistic, highly detailed")
-                _neg = ("flat uniform tint, single flat colour smear, washed out, monochrome, posterised, "
-                        "unrealistic colours, oversaturated, deformed, distorted, blurry, low quality, "
-                        "changed shape, extra parts")
-            else:
-                _denoise = 0.18
-                _cn = 0.65
-                _prompt = f"{full_prompt}, same shape, preserve folds and details, photorealistic"
-                _neg = "deformed, distorted, blurry, low quality, changed shape, extra parts"
+            # Reglages (denoise, ControlNet, pas, guidance, prompts) : noyau commun avec Modal, scripts/recolor_core.py
+            _p = recolor_tile_params(noun, full_prompt, recolor_all, strength)
             with torch.inference_mode():
                 result = pipe(
-                    prompt=_prompt,
-                    negative_prompt=_neg,
+                    prompt=_p['prompt'],
+                    negative_prompt=_p['negative'],
                     image=img_work,
                     control_image=img_work,
-                    strength=_denoise,
-                    num_inference_steps=(30 if recolor_all else 20),
-                    guidance_scale=(6.5 if recolor_all else 5.5),
-                    controlnet_conditioning_scale=_cn,
+                    strength=_p['denoise'],
+                    num_inference_steps=_p['steps'],
+                    guidance_scale=_p['guidance'],
+                    controlnet_conditioning_scale=_p['cn'],
                     generator=torch.Generator("cuda").manual_seed(42),
                 ).images[0]
             if result.size != (work_w, work_h):

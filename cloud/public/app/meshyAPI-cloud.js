@@ -2555,10 +2555,10 @@
     recolor: async ({ imagePath, prompt, strength, dilate, recolorAll, projectName: _projetDemande } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Recolorier — port cloud de l'IPC bureau. CLIPSeg detecte la partie
-      // nommee, puis virage HSV qui preserve la luminance : plis et ombres
-      // restent. Le chemin ControlNet-Tile du bureau (matieres : « rusty
-      // metal ») n'existe pas sur Modal — le worker repond alors 422 avec
-      // needsModify, credits rembourses.
+      // nommee, puis : une couleur = virage HSV qui preserve la luminance ; une
+      // matiere ou un style (« rusty metal ») = re-rendu ControlNet-Tile masque
+      // (Modal, depuis le 2026-09-30, comme le PC). 422 seulement si la partie
+      // nommee est introuvable : credits rembourses.
       if (!imagePath) return { success: false, error: 'imagePath required' };
       if (!prompt)    return { success: false, error: 'prompt required' };
       try {

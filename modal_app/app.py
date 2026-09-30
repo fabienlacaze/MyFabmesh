@@ -1792,11 +1792,13 @@ class MyFabmeshBackview:
             tag = "tex_variant"
 
         elif op == "recolor":
-            # Recolorier — CLIPSeg detecte la partie nommee, puis virage HSV
-            # qui PRESERVE la luminance : plis, ombres et matiere intacts,
-            # seule la teinte change. Aucun modele en plus : le CLIPSeg de
-            # l'Auto Inpaint suffit, et le reste est du numpy.
-            from modal_app._recolor import generate as recolor_generate
+            # Recolorier — CLIPSeg detecte la partie nommee, puis :
+            #  - une COULEUR (« cape rouge ») : virage HSV qui PRESERVE la luminance (plis, ombres et matiere intacts,
+            #    seule la teinte change) — du numpy, aucun modele en plus que le CLIPSeg de l'Auto Inpaint ;
+            #  - une MATIERE ou un STYLE (« cuir vieilli », « sunset gradient ») : re-rendu ControlNet-Tile masque par
+            #    CLIPSeg, comme sur le bureau (2026-09-30, « meme capacite que le PC »). Route et reglages : noyau partage.
+            from modal_app._recolor import (generate as recolor_generate, generate_tile as recolor_generate_tile,
+                                            parse_recolor_prompt, recolor_tile_route)
             prompt = (payload.get("prompt") or "").strip()
             if not prompt:
                 raise HTTPException(status_code=400, detail="prompt required for recolor")
@@ -1804,18 +1806,28 @@ class MyFabmeshBackview:
             if _hf:
                 raise HTTPException(status_code=403, detail=_hf)
             seg_proc, seg_model, _ = self._get_auto_inpaint_models()
+            _recolor_all = bool(payload.get("recolor_all"))
+            _noun, _spec = parse_recolor_prompt(prompt)
+            _matiere = recolor_tile_route(_spec, prompt, _recolor_all)
             try:
-                img, couverture = recolor_generate(
-                    seg_proc, seg_model, src_img, prompt,
-                    strength=float(payload.get("strength") or 1.0),
-                    dilate=int(payload.get("dilate") or 15),
-                    recolor_all=bool(payload.get("recolor_all")),
-                )
+                if _matiere:
+                    img, couverture = recolor_generate_tile(
+                        seg_proc, seg_model, self._get_tile_pipe(), src_img, prompt,
+                        strength=float(payload.get("strength") or 1.0),
+                        dilate=int(payload.get("dilate") or 15),
+                        recolor_all=_recolor_all,
+                    )
+                else:
+                    img, couverture = recolor_generate(
+                        seg_proc, seg_model, src_img, prompt,
+                        strength=float(payload.get("strength") or 1.0),
+                        dilate=int(payload.get("dilate") or 15),
+                        recolor_all=_recolor_all,
+                    )
             except ValueError as e:
-                # Couleur inconnue ou partie introuvable : l'appelant rembourse
-                # et se rabat sur l'img2img, comme pour un masque vide.
+                # Partie introuvable : l'appelant rembourse (message renvoye tel quel).
                 raise HTTPException(status_code=422, detail=str(e))
-            print(f"[recolor] couverture={couverture:.1f}%", flush=True)
+            print(f"[recolor] route={'matiere' if _matiere else 'teinte'} couverture={couverture:.1f}%", flush=True)
             tag = "recolor"
 
         elif op == "segment":

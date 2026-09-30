@@ -13,10 +13,11 @@ est pourtant du pur numpy une fois le masque obtenu, et CLIPSeg tourne deja
 sur Modal pour l'Auto Inpaint : il n'y avait aucun modele a ajouter, juste du
 code a ne pas dupliquer de travers.
 
-DEUX CHEMINS, et un seul est ici. Un mot de couleur simple (« cape rouge »)
-prend la voie HSV ci-dessous. Une MATIERE (« rusty metal », « sunset
-gradient ») demandait cote bureau un rendu ControlNet-Tile, que Modal n'a
-pas : l'appelant cloud se rabat alors sur l'img2img existant, et le dit.
+DEUX CHEMINS. Un mot de couleur simple (« cape rouge ») prend la voie HSV
+ci-dessous. Une MATIERE (« rusty metal », « cuir vieilli ») ou un style
+(« sunset gradient ») passe par un re-rendu ControlNet-Tile masque par
+CLIPSeg : depuis le 2026-09-30 aussi sur Modal (modal_app/_recolor.py,
+generate_tile) ; la route et les reglages sont dans le noyau partage.
 
 PARITE. Le bloc entre les marqueurs NOYAU PARTAGE est EXTRAIT de
 scripts/sdxl_server.py et recopie a l'identique dans modal_app/_recolor.py.
@@ -101,4 +102,49 @@ def recolor_hsv_masked(img_rgb, mask_soft, color_spec, strength=1.0):
     base = np.array(img_rgb).astype(np.float32)
     blended = base * (1 - m) + np.array(recolored).astype(np.float32) * m
     return Image.fromarray(blended.clip(0, 255).astype(np.uint8), 'RGB')
+# ROUTE ET REGLAGES DU RE-RENDU « MATIERE / STYLE » (2026-09-30, decision du user : « B — meme capacite que le PC » : le cloud repeint aussi
+# les matieres). Une demande sans mot de couleur (« cuir vieilli », « rusty metal ») ou un style sur toute l'image (« military green camo »)
+# passe par un re-rendu ControlNet-Tile masque par CLIPSeg ; une couleur simple (« cape rouge ») garde le virage HSV ci-dessus.
+# UNE SEULE definition pour le bureau (scripts/sdxl_server.py) et Modal : les reglages ne peuvent plus diverger.
+def recolor_mots_descriptifs(prompt):
+    """Mots du prompt qui ne sont PAS des mots de couleur : « military green camo » -> ['military', 'camo'] ; « green » -> []."""
+    mots = []
+    for raw in (prompt or '').split():
+        if _strip_accents(raw.strip(".,;:!?\"'()").lower()) not in _COLOR_LEXICON:
+            mots.append(raw)
+    return mots
+
+
+def recolor_tile_route(color_spec, prompt, recolor_all):
+    """True quand la demande passe par le re-rendu ControlNet-Tile plutot que par le virage HSV : aucune couleur connue (matiere),
+    OU toute l'image avec des mots descriptifs en plus d'une couleur (« military green camo »). Une couleur SEULE (« vert »)
+    garde le virage rapide. (Correctif du 2026-09-30 : l'ancienne condition testait le « nom » de parse_recolor_prompt, qui retombe sur
+    le texte entier quand il ne reste aucun autre mot — « green » partait donc en re-rendu, contre l'intention du commit 45a1e2e7.)"""
+    return color_spec is None or bool(recolor_all and recolor_mots_descriptifs(prompt))
+
+
+def recolor_tile_params(noun, full_prompt, recolor_all=False, strength=1.0):
+    """Reglages du re-rendu : { denoise, cn, steps, guidance, prompt, negative }.
+
+    Toute l'image (style) : vrai re-rendu img2img (denoise 0,57 a 0,85 selon le curseur Strength, ControlNet a 0,45 pour que les
+    couleurs changent tout en tenant la forme, prompt oriente COHERENCE). Une partie : reglage prudent (denoise 0,18) pour
+    preserver la zone detectee."""
+    s = max(0.2, min(1.0, float(strength)))
+    if recolor_all:
+        return {
+            'denoise': 0.5 + s * 0.35, 'cn': 0.45, 'steps': 30, 'guidance': 6.5,
+            'prompt': (f"the whole subject repainted in a {full_prompt} colour scheme, "
+                       f"cohesive realistic {full_prompt} palette applied consistently to every surface, "
+                       f"natural studio lighting and soft shadows preserved, each material keeps its own "
+                       f"surface qualities (metal stays metallic, glass stays glass), same exact shape and "
+                       f"structure, photorealistic, highly detailed"),
+            'negative': ("flat uniform tint, single flat colour smear, washed out, monochrome, posterised, "
+                         "unrealistic colours, oversaturated, deformed, distorted, blurry, low quality, "
+                         "changed shape, extra parts"),
+        }
+    return {
+        'denoise': 0.18, 'cn': 0.65, 'steps': 20, 'guidance': 5.5,
+        'prompt': f"{full_prompt}, same shape, preserve folds and details, photorealistic",
+        'negative': "deformed, distorted, blurry, low quality, changed shape, extra parts",
+    }
 # --- NOYAU PARTAGE : FIN ---

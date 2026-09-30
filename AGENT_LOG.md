@@ -24607,3 +24607,9 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - Dossiers déplacés mémorisés (config.json > dossiersDonneesConnus + témoin + registre), au choix du dossier et à chaque démarrage.
 - Bancs : node build/test-desinstallation.mjs --nsis --processus (npm run test:desinstallation) 19/19. Faux arbre, parité JS/NSIS, vrai code NSIS exécuté, arrêt des processus sur des copies de PING.EXE. Navigateur : flux NSIS/Store/français, 0 erreur.
 - NON fait sur ce PC : installation ou désinstallation réelle (interdit). Smart App Control bloque le constructeur de désinstalleur d'electron-builder (Code Integrity 3077), même avec l'ancien script. Les deux scripts ont été compilés en -WX avec l'exécution substituée en mémoire, sortie effacée.
+
+## 2026-09-30 — Recolor « matiere / style » sur Modal (decision user : « B — meme capacite que le PC ») — CODE PRET, PAS DEPLOYE
+- Noyau partage scripts/recolor_core.py (copie Modal resynchronisee) : recolor_tile_route + recolor_tile_params (reglages du re-rendu ControlNet-Tile, identiques a l'ancien code du bureau : 40 combinaisons verifiees). sdxl_server.py les utilise (plus de copie en ligne).
+- CORRECTIF bureau : une couleur SEULE sur toute l'image (« vert ») partait en re-rendu lourd (le « nom » de parse_recolor_prompt retombe sur le texte entier) contre l'intention du commit 45a1e2e7 ; elle reprend le virage HSV rapide, comme sur le cloud.
+- Modal : _recolor.generate_tile + op recolor de app.py (route couleur -> HSV, matiere/style -> tuile). Worker : plus de refus « essaie Modify », estimation 0,08 $, prix inchange (grille `recolor`). tsc : 31 erreurs (inchange).
+- A FAIRE : banc GPU modal_app (cout ~0,15 $), puis modal deploy + rechauffer_apres_deploy.py, puis deploiement du site.
