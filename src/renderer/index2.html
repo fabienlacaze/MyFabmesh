@@ -2435,9 +2435,10 @@
             </div>
             <div class="hw-partage" data-stat="vram">
               <div class="hw-seg hw-win" id="set-vram-win" title="Kept for Windows"></div>
+              <div class="hw-seg hw-mfm" id="set-vram-mfm" title="The minimum MyFabmesh needs (heaviest tool)"><div class="hw-use" id="set-vram-mfm-use"></div><span id="set-vram-mfm-lbl"></span></div>
               <div class="hw-seg hw-autres" id="set-vram-autres"><div class="hw-use" id="set-vram-autres-use"></div><span id="set-vram-autres-lbl"></span></div>
               <div class="hw-seg hw-trop" id="set-vram-trop" title="Used by your other apps beyond what you keep for them"><span id="set-vram-trop-lbl"></span></div>
-              <div class="hw-seg hw-mfm" id="set-vram-mfm"><div class="hw-use" id="set-vram-mfm-use"></div><span id="set-vram-mfm-lbl"></span></div>
+              <div class="hw-seg hw-add" id="set-vram-add" title="Extra room for MyFabmesh (what you do not keep for your other apps)"><span id="set-vram-add-lbl"></span></div>
               <div class="hw-besoin" id="set-vram-besoin"><i id="set-vram-besoin-lbl"></i></div>
               <div class="gpu-bar-limit hw-poignee" id="set-gpu-vram-limit" title="Drag to share the graphics memory between your other apps and MyFabmesh"></div>
             </div>
@@ -2451,9 +2452,10 @@
             </div>
             <div class="hw-partage" data-stat="ram">
               <div class="hw-seg hw-win" id="set-ram-win" title="Kept for Windows"></div>
+              <div class="hw-seg hw-mfm" id="set-ram-mfm" title="The minimum MyFabmesh needs (heaviest tool)"><div class="hw-use" id="set-ram-mfm-use"></div><span id="set-ram-mfm-lbl"></span></div>
               <div class="hw-seg hw-autres" id="set-ram-autres"><div class="hw-use" id="set-ram-autres-use"></div><span id="set-ram-autres-lbl"></span></div>
               <div class="hw-seg hw-trop" id="set-ram-trop" title="Used by your other apps beyond what you keep for them"><span id="set-ram-trop-lbl"></span></div>
-              <div class="hw-seg hw-mfm" id="set-ram-mfm"><div class="hw-use" id="set-ram-mfm-use"></div><span id="set-ram-mfm-lbl"></span></div>
+              <div class="hw-seg hw-add" id="set-ram-add" title="Extra room for MyFabmesh (what you do not keep for your other apps)"><span id="set-ram-add-lbl"></span></div>
               <div class="hw-besoin" id="set-ram-besoin"><i id="set-ram-besoin-lbl"></i></div>
               <div class="gpu-bar-limit hw-poignee" id="set-ram-limit" title="Drag to share the memory between your other apps and MyFabmesh"></div>
             </div>
@@ -2734,17 +2736,13 @@
     .hw-partage{position:relative;display:flex;height:30px;margin:4px 0 0;border-radius:7px;background:var(--bg-3)}
     .hw-seg{position:relative;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;font-size:11px;font-weight:600;min-width:0;transition:width .3s}
     .hw-seg:first-child{border-radius:7px 0 0 7px}
-    .hw-seg.hw-mfm{border-radius:0 7px 7px 0}
-    .hw-seg.hw-trop{background:repeating-linear-gradient(135deg,#3f5f80 0 5px,#b9770a 5px 10px)}
-    .hw-win{background:#3b3b4c}
-    .hw-autres{background:#3f5f80;color:#eaf2ff}
-    .hw-trop{background:repeating-linear-gradient(135deg,#f59e0b 0 5px,#c77b06 5px 10px)}
-    .hw-mfm{background:repeating-linear-gradient(135deg,#5b3aa8 0 6px,#51329a 6px 12px);color:#fff}
-    .hw-use{position:absolute;left:0;top:0;bottom:0;background:#b79cff;opacity:.95;transition:width .3s}
-    .hw-mfm .hw-use{box-shadow:1px 0 0 #fff}
+    .hw-seg.hw-add{border-radius:0 7px 7px 0;background:#b79cff;color:#2a1160}
+    .hw-win{background:#4a4a5c}
+    .hw-autres{background:#9aa3b2;color:#1d2230}
+    .hw-trop{background:repeating-linear-gradient(135deg,#9aa3b2 0 5px,#d9861a 5px 10px)}
+    .hw-mfm{background:#4b2b99;color:#fff}
+    .hw-use{display:none}
     .hw-trop span{color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
-    .hw-mfm span{text-shadow:0 0 3px #2a1160,0 0 6px #2a1160}
-    .hw-autres .hw-use{background:#6d93bb;opacity:.7}
     .hw-seg span{position:relative;z-index:1;padding:0 6px;overflow:hidden;text-overflow:ellipsis}
     .hw-besoin{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed rgba(255,255,255,.85);z-index:2;pointer-events:none}
     .hw-besoin i{position:absolute;top:calc(100% + 1px);left:0;transform:translateX(-50%);font-style:normal;font-size:10px;color:var(--text-1);white-space:nowrap}

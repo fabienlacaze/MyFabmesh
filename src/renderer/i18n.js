@@ -1208,6 +1208,8 @@
       'Kept for Windows': 'Gardé pour Windows',
       'Other apps {x} GB': 'Autres {x} Go',
       'Other apps': 'Autres',
+      'The minimum MyFabmesh needs (heaviest tool)': 'Le minimum dont MyFabmesh a besoin (outil le plus lourd)',
+      'Extra room for MyFabmesh (what you do not keep for your other apps)': 'Place en plus pour MyFabmesh (ce que vous ne gardez pas pour vos autres logiciels)',
       'Used by your other apps beyond what you keep for them': 'Utilisé par vos autres logiciels au-delà de ce que vous leur gardez',
       'MyFabmesh {x} GB': 'MyFabmesh {x} Go',
       'Other apps:': 'Autres logiciels :',

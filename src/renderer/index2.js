@@ -22076,26 +22076,32 @@ function majLignesLimites() {
     const tropGB = Math.max(0, Math.min(autresGB - reserveGB, totalGB - plancher - reserveGB));
     const mfmUseGB = (!libre && usedGB != null) ? Math.max(0, Math.min(partGB, usedGB - autresGB)) : 0;
     parts[nom] = { partGB, autres, reserveGB };
-    _geoPartage[nom] = { totalGB, plancherGB: plancher, reserveMaxGB, maxPct };
+    _geoPartage[nom] = { totalGB, plancherGB: plancher + Math.min(need, Math.max(0, totalGB - plancher)), reserveMaxGB, maxPct };
+    // 2026-09-30 (demande du user) : Windows | MyFabmesh minimum (fixe, violet fonce) | autres logiciels (leur reserve, gris clair) | depassement |
+    // MyFabmesh en plus (violet clair, variable). Deplacer la limite vers la gauche reduit le gris et agrandit le violet clair.
+    const minGB = Math.min(need, Math.max(0, totalGB - plancher));
+    const extraTotGB = Math.max(0, totalGB - plancher - minGB);          // = reserve maximale
+    const tropVisGB = Math.max(0, Math.min(tropGB, extraTotGB - Math.min(reserveGB, extraTotGB)));
+    const addGB = Math.max(0, extraTotGB - Math.min(reserveGB, extraTotGB) - tropVisGB);
     const larg = (gb) => Math.max(0, Math.min(100, gb / totalGB * 100)) + '%';
     const el = (suffixe) => document.getElementById(`set-${px}-${suffixe}`);
     const poser = (suffixe, prop, v) => { const e = el(suffixe); if (e) e.style[prop] = v; };
     poser('win', 'width', larg(plancher));
-    poser('autres', 'width', larg(reserveGB));
-    poser('trop', 'width', larg(tropGB));
-    poser('mfm', 'width', larg(partGB));
-    poser('autres-use', 'width', reserveGB > 0 ? Math.min(100, autresGB / reserveGB * 100) + '%' : '0%');
-    poser('mfm-use', 'width', partGB > 0 ? (mfmUseGB / partGB * 100) + '%' : '0%');
+    poser('mfm', 'width', larg(minGB));
+    poser('autres', 'width', larg(Math.min(reserveGB, extraTotGB)));
+    poser('trop', 'width', larg(tropVisGB));
+    poser('add', 'width', larg(addGB));
     const libelle = (suffixe, txt, assezLarge) => { const e = el(suffixe); if (e) e.textContent = assezLarge ? txt : ''; };
     // libelle complet si la part est assez large, sinon le nom seul (jamais de texte coupe)
-    libelle('autres-lbl', reserveGB / totalGB > 0.3 ? _i18nTf('Other apps {x} GB', go(reserveGB)) : _i18nT('Other apps'), reserveGB / totalGB > 0.16);
-    libelle('mfm-lbl', partGB / totalGB > 0.34 ? _i18nTf('MyFabmesh {x} GB', go(partGB)) : 'MyFabmesh', partGB / totalGB > 0.16);
-    libelle('trop-lbl', '+' + go(tropGB) + ' GB', tropGB / totalGB > 0.1);
+    libelle('autres-lbl', reserveGB / totalGB > 0.3 ? _i18nTf('Other apps {x} GB', go(reserveGB)) : _i18nT('Other apps'), reserveGB / totalGB > 0.14);
+    libelle('mfm-lbl', minGB / totalGB > 0.3 ? _i18nTf('MyFabmesh {x} GB', go(minGB)) : 'MyFabmesh', minGB / totalGB > 0.14);
+    libelle('trop-lbl', '+' + go(tropVisGB) + ' GB', tropVisGB / totalGB > 0.17);
+    libelle('add-lbl', '+' + go(addGB) + ' GB', addGB / totalGB > 0.17);
     poser('besoin', 'left', larg(Math.max(plancher, totalGB - need)));
-    poser('besoin', 'display', need > 0 ? '' : 'none');
+    poser('besoin', 'display', 'none');                 // le minimum est desormais la part violet fonce
     { const e = el('besoin-lbl'); if (e) e.textContent = need > 0 ? `${outil} ${go(need)}` : ''; }
     const poignee = document.getElementById(`${idp}-limit`);
-    if (poignee && !_draggingGpuLimit) poignee.style.left = larg(plancher + reserveGB);
+    if (poignee && !_draggingGpuLimit) poignee.style.left = larg(plancher + minGB + Math.min(reserveGB, extraTotGB));
     const lim = document.getElementById(`${idp}-limtxt`);
     if (lim) lim.innerHTML = `${escapeHtml(_i18nT('Other apps:'))} <b>${escapeHtml(_i18nTf('{x} GB kept', go(reserveGB)))}</b>`;
     const mt = document.getElementById(`${idp}-mfmtxt`);

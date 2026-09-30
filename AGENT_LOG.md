@@ -24759,3 +24759,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) Barre partagee : usage REEL de MyFabmesh en violet clair dans sa part (violet fixe = part allouee), libelle lisible (ombre).
 
 - (suite) Barre partagee : la bande de depassement porte un libelle « +X GB » (usage des autres logiciels au-dela de leur reserve).
+
+- (suite) Barre partagee, disposition demandee par le user : Windows (gris) | MyFabmesh minimum = outil le plus lourd (violet fonce, fixe) | autres logiciels = leur reserve (gris clair) | depassement (hachure) | MyFabmesh en plus (violet clair, variable). Le separateur se deplace sur la reserve : le gris diminue, le violet clair prend la place.
