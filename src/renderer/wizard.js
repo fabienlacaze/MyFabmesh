@@ -50,6 +50,15 @@
    chemin de projet. Uniquement matériel et navigation.
    ═══════════════════════════════════════════════════════════════════ */
 const _t0 = Date.now();
+// Pourcentage global au milieu de la barre de telechargement (2026-09-30) : ne recule jamais.
+let _pctGlobal = 0;
+function majGlobal(pct) {
+  _pctGlobal = Math.max(_pctGlobal, Math.max(0, Math.min(100, pct)));
+  const f = document.getElementById('dl-global-fill'), t = document.getElementById('dl-global-pct');
+  if (f) f.style.width = _pctGlobal + '%';
+  if (t) t.textContent = Math.floor(_pctGlobal) + ' %';
+}
+
 function journal(type, data) {
   try {
     const evt = { type, ms: Date.now() - _t0, etape: (typeof currentStep === 'string' ? currentStep : null), ...(data || {}) };
@@ -567,6 +576,7 @@ async function _startDownloadInterne() {
       barreMax = Math.max(barreMax, Math.min(92, (mo / AIENV_TOTAL_MO) * 100));
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       set('dl-done', Math.round(mo).toLocaleString('en-US'));
+      majGlobal(Math.min(8, (mo / AIENV_TOTAL_MO) * 8));
       set('dl-total', '~' + AIENV_TOTAL_MO.toLocaleString('en-US'));
       set('dl-speed', vit.toFixed(1));
       // Debit tombe a ~0 (mesure du 2026-09-30 : « 0.1 MB/s · ETA 1191 min ») : le telechargement est fini, pip DECOMPRESSE et installe (plusieurs minutes
@@ -705,6 +715,7 @@ async function _startDownloadInterne() {
       }
     }
     document.getElementById('dl-done').textContent = p.total_done_mb || 0;
+    if (plan.total_mb) majGlobal(8 + Math.min(92, (p.total_done_mb || 0) * 92 / plan.total_mb));
     document.getElementById('dl-speed').textContent = (p.speed_mbps || 0).toFixed(1);
     document.getElementById('dl-eta').textContent = p.eta || '–';
   });

@@ -24409,3 +24409,7 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - Deux defauts de progression corriges dans `wizard_download.py` : (1) tailles du plan en Mo DECIMAUX (API du Hub) mais cache mesure en Mio -> un depot de 16 240 Mo plafonnait a ~95 % ;
   (2) temps restant calcule sur le seul modele en cours (« ETA 16s » avec 18 Go a telecharger) -> maintenant total du mode - fait, debit lisse. Banc sur un vrai depot (390 Mo) : pct 17 -> 51 -> 100, ETA 20 s -> 12 s.
 - A noter (non corrige) : dinov3 est range en double dans le cache (miroir + id canonique, 1,2 Go chacun).
+
+## 2026-09-30 — Assistant : pourcentage global au milieu de la barre de telechargement
+- Cause du « bloque a 6940 Mo » signalee par le user : cache mesure en Mio (6618) contre taille annoncee en Mo (6940) -> plafond 95 % ; corrige au commit precedent (verifie : les 10 depots du cache correspondent au Mo pres au plan).
+- Ajout d'une barre globale avec le pourcentage au milieu (`#dl-global-pct`) : moteur = 0-8 %, modeles = 8-100 %, ne recule jamais (`majGlobal`, wizard.js/html/css).
