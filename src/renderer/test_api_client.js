@@ -421,6 +421,24 @@
     if (!el) throw new Error('element introuvable : ' + JSON.stringify(t) + ' (voir GET /ui/catalog)');
     return el;
   }
+  // ZONES RESERVEES A L'UTILISATEUR (2026-09-30). Au niveau STANDARD de la
+  // Control API (interrupteur des Reglages, acces confie a Claude), main pose
+  // __garde : une automatisation ne peut ni se donner l'acces complet
+  // (Reglages > Assistant), ni desinstaller ou tout effacer, ni reconfigurer,
+  // ni toucher au controle parental (code PIN), ni changer le consentement aux
+  // rapports d'erreur. Le niveau complet (developpement, FABMESH_TEST_API=1)
+  // n'est pas concerne.
+  const _ZONES_RESERVEES = ['#set-assistant', '#modal-assistant-aide', '#set-uninstall', '#about-suppr-donnees',
+    '#modal-suppr-donnees', '#set-reconfigure', '#parental-toggle', '#btn-parental-lock', '#np-unlock',
+    '#_pin-input', '#set-crash-optin', '#set-blender-browse'];
+  function _garder(el, p) {
+    if (!p || p.__garde !== true || !el || !el.closest) return;
+    for (const sel of _ZONES_RESERVEES) {
+      let dedans = false;
+      try { dedans = !!el.closest(sel); } catch (_) {}
+      if (dedans) throw new Error('reserved to the user, not available to automation: ' + _ref(el) + ' (' + sel + ')');
+    }
+  }
   /** Rend l'element atteignable : carte d'etape depliee, <details> parents ouverts. */
   function _deplier(el) {
     const ouverts = [];
@@ -488,6 +506,7 @@
   }
   async function uiClic(p) {
     const el = _exiger(p.target !== undefined ? p.target : p);
+    _garder(el, p);
     const deplies = _deplier(el);
     if (el.disabled) throw new Error('element desactive : ' + _ref(el) + ' ' + _libelle(el));
     el.scrollIntoView({ block: 'center' });
@@ -504,6 +523,7 @@
     for (const [k, v] of Object.entries((p && p.fields) || {})) {
       const el = _trouver(k);
       if (!el) { res[k] = { erreur: 'introuvable' }; continue; }
+      try { _garder(el, p); } catch (e) { res[k] = { erreur: e.message }; continue; }
       _deplier(el);
       try { res[k] = _poser(el, v); } catch (e) { res[k] = { erreur: e.message }; }
     }
