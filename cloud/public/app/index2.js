@@ -7125,11 +7125,14 @@ document.getElementById('ws-facefix-btn')?.addEventListener('click', async () =>
     : 'MyFabmesh.AI Refine';
   const faceFixSource = target;
   const faceFixProject = p.name;
+  // Prix LU dans la grille (tarif face_fix_image, 3 aujourd'hui) : la fiche
+  // du travail annoncait « 2 credits » en dur (audit du 2026-09-30).
+  const prixFaceFix = window.__LIVE_PRICES && window.__LIVE_PRICES.face_fix_image;
   gatedRun('img2img', `Face Fix: ${p.name}`, async () => {
     const job = pushJob(`Face Fix: ${p.name}`, null, {
       Engine: warmLabel,
       Detection: 'OpenCV Haar (face)',
-      Cost: '2 credits',
+      ...(typeof prixFaceFix === 'number' ? { Cost: `${prixFaceFix} credit${prixFaceFix === 1 ? '' : 's'}` } : {}),
     }, expectedMs, undefined, { sourceImageUrl: faceFixSource, projectName: faceFixProject });
     try {
       const r = await window.meshyAPI.faceFixImage({ imagePath: target });
@@ -19614,7 +19617,13 @@ async function _majApercuAnim() {
   const procedural = ALLURES_PROCEDURALES.includes(t);
   const nom = procedural ? _nomClipSelection({ type: t, variante: v === '*' ? 'normal' : v }) : t;
   if (desc) {
-    desc.textContent = !procedural ? _i18nT('AI animation (5 credits), work in progress.')
+    // Prix du clip IA LU dans la grille (tarif `anim`, syncLivePricing), plus
+    // « 5 » en dur (2026-09-30) ; grille inconnue : pas de chiffre.
+    const prixIA = window.__LIVE_PRICES && window.__LIVE_PRICES.anim;
+    desc.textContent = !procedural
+      ? ((typeof prixIA === 'number' && prixIA > 0)
+        ? _i18nTf('AI animation ({x} credits), work in progress.', prixIA)
+        : _i18nT('AI animation, work in progress.'))
       : v === '*' ? _i18nT('All the variants of this animation.')
       : _i18nT((DESCRIPTIONS_MODE[_modeAnim()] || {})[nom] || DESCRIPTIONS_ANIM[nom] || '');
   }
