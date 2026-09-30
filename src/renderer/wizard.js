@@ -549,7 +549,7 @@ async function _startDownloadInterne() {
       <span class="size">~8.5 GB</span>
       <div class="bar"><div class="bar-fill"></div></div>
     </div>
-    <div class="wiz-dl-row"><span class="name" style="opacity:.65" id="aienv-note">One-time setup: the AI engine is about 8.5 GB, then the models download. Your PC may feel slow while it downloads. You can leave it running; just keep this window open.</span></div>`;
+    <div class="wiz-dl-row"><span class="name" style="opacity:.65" id="aienv-note">One-time setup: about 4.3 GB to download for the AI engine (8.5 GB on disk once installed), then the models download. Your PC may feel slow while it downloads. You can leave it running; just keep this window open.</span></div>`;
   // The byte/speed/ETA counters are for the MODEL download, not this pip
   // install (which reports by step, not by bytes) — show "—" meanwhile so
   // they don't read as "frozen at 0".
@@ -558,20 +558,25 @@ async function _startDownloadInterne() {
   }
   // PROGRESSION EN OCTETS (2026-09-30) : le script d'installation mesure ce que pip telecharge (bytes_done, speed_mbps) ; la barre et le
   // compteur du bas (Mo, Mo/s, temps restant) les utilisent. Le total (~5 Go) est une ESTIMATION affichee comme telle.
-  const AIENV_TOTAL_MO = 8500;
+  const AIENV_TOTAL_MO = 4300;   // taille TELECHARGEE (roues : torch ~2,9 Go + torchvision + bibliotheques) ; ~8,5 Go une fois installe sur le disque
   let barreMax = 3;
   window.wizardAPI.onInstallProgress((p) => {
     const fill = document.querySelector('.wiz-dl-row[data-id="__aienv"] .bar-fill');
     if (typeof p.bytes_done === 'number') {
       const mo = p.bytes_done / 1e6, vit = Number(p.speed_mbps) || 0;
-      barreMax = Math.max(barreMax, Math.min(97, (mo / AIENV_TOTAL_MO) * 100));
+      barreMax = Math.max(barreMax, Math.min(92, (mo / AIENV_TOTAL_MO) * 100));
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       set('dl-done', Math.round(mo).toLocaleString('en-US'));
       set('dl-total', '~' + AIENV_TOTAL_MO.toLocaleString('en-US'));
       set('dl-speed', vit.toFixed(1));
+      // Debit tombe a ~0 (mesure du 2026-09-30 : « 0.1 MB/s · ETA 1191 min ») : le telechargement est fini, pip DECOMPRESSE et installe (plusieurs minutes
+      // sans octets nouveaux). On l'affiche tel quel au lieu d'un temps restant absurde.
       const rest = Math.max(0, AIENV_TOTAL_MO - mo);
-      const sec = vit > 0.05 ? rest / vit : null;
-      set('dl-eta', sec == null ? '–' : (sec < 90 ? Math.round(sec) + ' s' : Math.round(sec / 60) + ' min'));
+      const installe = vit < 0.5 && mo > 50;
+      const sec = (!installe && vit > 0.05) ? rest / vit : null;
+      const nom = document.getElementById('aienv-name');
+      if (installe && nom && p.step === 'torch') nom.textContent = 'Installing PyTorch (unpacking files, a few minutes)…';
+      set('dl-eta', installe ? 'installing…' : (sec == null ? '–' : (sec < 90 ? Math.round(sec) + ' s' : Math.round(sec / 60) + ' min')));
     }
     if (fill && typeof p.pct === 'number') barreMax = Math.max(barreMax, p.pct);
     if (fill) fill.style.width = Math.max(3, barreMax) + '%';

@@ -24397,3 +24397,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 
 ## 2026-09-30 — Recommandation « Full » : seuil VRAM 15 Go (une RTX 5080 tombait a Standard)
 - Cause : `_recommendMode` (main.js) et `hw_detect.py` exigeaient `vram >= 16 * 1024` ; une carte 16 Go annonce ~16 303 Mo -> Standard alors que la carte Full de l'assistant (MODE_VRAM_REQ) utilise deja 15 Go. Seuil unifie a 15 Go ; seuils de disque de hw_detect.py alignes sur ceux de main.js (40 / 60 / 75 Go).
+
+## 2026-09-30 — Assistant : compteur du moteur d'IA (total = octets TELECHARGES, debit ~0 = installation)
+- Constat sur l'installation reelle (NSIS 1.0.40) : compteur « 3,498 / ~8,500 Mo » fige puis « 0.1 MB/s · ETA 1191 min ». Cause : le total (8,5 Go) etait la taille SUR DISQUE, alors que les octets mesures sont ceux des roues telechargees (~4,3 Go) ;
+  apres le telechargement pip decompresse et installe torch (plusieurs minutes sans octets nouveaux) -> debit ~0 et temps restant absurde.
+- `wizard.js` : total 4 300 Mo (telecharge), barre plafonnee a 92 % pendant le telechargement, debit < 0,5 Mo/s apres 50 Mo -> « installing… » et libelle « Installing PyTorch (unpacking files…) ». Le journal montre l'installation en cours (dossier python 6,2 Go et croissant).
