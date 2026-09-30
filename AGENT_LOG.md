@@ -24641,3 +24641,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — wizard : textes de la page Downloading models
 - Phrase sous « Downloading models » remplacee par « Your PC may feel slow... keep this window open » ; ligne d intro « One-time setup... » du moteur d IA supprimee.
+
+## 2026-09-30 — CORRECTIF wizard_download.py (install bloquee a 7 %)
+- Mon reordonnancement des MODELS (patch du 30/09) a ecrase le bloc _OPTIONAL_MODELS + constantes DINOv3 (recherche de "MODELS = {" trouvee dans "_OPTIONAL_MODELS = {") => NameError DINOV3_CANONICAL_REPO au start-download. Fichier restaure depuis 81d93001, seul l ordre de MODELS change. Verifie par import reel du module (les tests wizard precedents moquaient l API).
