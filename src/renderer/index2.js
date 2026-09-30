@@ -7578,7 +7578,7 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
       Prompt: userPrompt,
     }, expectedMs, { projectName: p.name, assetKind: assetType });
     try {
-      const _genArgs = { prompt, userPrompt, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages: _stagesSent, jobId: job.id, vramFraction: (gpuLimits?.vram || 90) / 100, assetType, computeMode: _computeM };
+      const _genArgs = { prompt, userPrompt, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages: _stagesSent, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM };
       // La modale de connexion + le retry sont gérés en amont par le wrapper
       // API (voir _CLOUD_LOGIN_METHODS) — commun à TOUS les outils cloud.
       const r = await API.generateImages(_genArgs);
@@ -20979,17 +20979,14 @@ async function refreshJobGpuMonitor() {
     const temp = document.getElementById('jgm-temp');
     // Convert the 0-100 slider positions to the same units shown next to
     // each line so the limit and the current value are directly comparable.
-    const vramLimitPct  = Math.round(gpuLimits?.vram ?? 90);
-    const vramLimitGB   = (gpu.totalGB * vramLimitPct / 100);
-    const utilLimitPct  = Math.round(gpuLimits?.util ?? 95);
-    // Temperature slider uses the same 30-100°C mapping as the tooltip
-    const tempLimitC    = Math.round(30 + ((gpuLimits?.temp ?? 80) / 100) * 70);
+    // MODELE DE RESERVE : gpuLimits.vram / .ram sont la reserve des AUTRES logiciels, pas une limite ; on montre l'usage de la
+    // carte sur son total (rouge : la carte est pleine). Temperature : le reglage est en °C (meme echelle que les Reglages).
+    const tempLimitC    = Math.round(gpuLimits?.temp ?? 80);
     if (vram) {
-      const vramPct = (gpu.usedGB / gpu.totalGB) * 100;
-      vram.textContent = `${gpu.usedGB.toFixed(1)} / ${vramLimitGB.toFixed(0)}`;
+      vram.textContent = `${gpu.usedGB.toFixed(1)} / ${gpu.totalGB.toFixed(0)}`;
       vram.classList.remove('warn', 'error');
-      if (vramPct > vramLimitPct) vram.classList.add('error');
-      else if (vramPct > 70) vram.classList.add('warn');
+      if (gpu.usedGB > gpu.totalGB - 0.5) vram.classList.add('error');
+      else if (gpu.usedGB > gpu.totalGB * 0.85) vram.classList.add('warn');
     }
     if (util) {
       // GPU at 100% is normal during a gen (unlike RAM saturation) — show the
@@ -21008,13 +21005,10 @@ async function refreshJobGpuMonitor() {
     if (ramEl && API.checkRAM) {
       try {
         const ram = await API.checkRAM();
-        const ramPct = (ram.usedGB / ram.totalGB) * 100;
-        const ramLimitPct = Math.round(gpuLimits?.ram ?? 85);
-        const ramLimitGB  = (ram.totalGB * ramLimitPct / 100);
-        ramEl.textContent = `${ram.usedGB.toFixed(1)} / ${ramLimitGB.toFixed(0)} GB`;
+        ramEl.textContent = `${ram.usedGB.toFixed(1)} / ${ram.totalGB.toFixed(0)} GB`;
         ramEl.classList.remove('warn', 'error');
-        if (ramPct > ramLimitPct) ramEl.classList.add('error');
-        else if (ramPct > 70) ramEl.classList.add('warn');
+        if (ram.usedGB > ram.totalGB - 2) ramEl.classList.add('error');
+        else if (ram.usedGB > ram.totalGB * 0.85) ramEl.classList.add('warn');
       } catch (e2) {}
     }
   } catch (e) {}
@@ -22035,57 +22029,99 @@ setInterval(() => {
     if (!ouverte && _gpuProbeAllowed()) refreshGpuStats();
   } catch (_) {}
 }, 60000);
+// Geometrie des barres partagees (VRAM / RAM), lue pendant le glissement du separateur.
+const _geoPartage = { vram: null, ram: null };
+let _reservesEnvoyees = false;
 function majLignesLimites() {
-  const ligne = (id, totalGB, pct, libelle) => {
-    const el = document.getElementById(id);
-    if (!el || totalGB == null) return;
-    const lim = totalGB * (pct / 100);
-    el.textContent = `Limit for generations: ${lim.toFixed(1)} GB · keeps ${(totalGB - lim).toFixed(1)} GB free for your PC`;
-  };
   const seuil = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
   { const t = (window.__cpuThreads || 0), p = Math.round(gpuLimits.cpu);
-    seuil('set-cpu-limtxt', p >= 100 ? 'No limit: generations may use the whole processor' : `Generations use at most ${p} % of the processor` + (t ? ` (about ${Math.max(1, Math.round(t * p / 100))} of ${t} threads)` : '') + ' · they run slower, your PC stays responsive'); }
-  seuil('set-gpu-util-limtxt', `Jobs wait while GPU usage is above ${Math.round(gpuLimits.util)} %`);
-  seuil('set-gpu-temp-limtxt', `Jobs wait while the GPU is hotter than ${Math.round(gpuLimits.temp)} °C`);
+    const fils = t ? Math.max(1, Math.round(t * p / 100)) : null;
+    seuil('set-cpu-limtxt', fils ? _i18nTf('· MyFabmesh may use {x} of {y} threads', fils, t) : _i18nTf('· MyFabmesh may use {x} % of the processor', p)); }
+  seuil('set-gpu-util-limtxt', _i18nTf('· pauses above {x}', Math.round(gpuLimits.util) + ' %'));
+  seuil('set-gpu-temp-limtxt', _i18nTf('· pauses above {x}', Math.round(gpuLimits.temp) + ' °C'));
   // MODELE DE RESERVE (2026-09-30, valide par l'utilisateur). Pour la VRAM et la RAM :
   //   part de MyFabmesh = total - plancher Windows - max(reserve pour les autres logiciels, ce qu'ils occupent vraiment)
   // La reserve ne peut pas depasser total - plancher - outil le plus lourd (tous outils confondus, mesures du journal des pics) :
-  // l'outil le plus lourd passe toujours tant que les autres logiciels restent dans leur reserve. Zone hachuree = au-dela.
+  // l'outil le plus lourd passe toujours tant que les autres logiciels restent dans leur reserve.
+  // BARRE PARTAGEE (maquette A, choisie par l'utilisateur le 2026-09-30 : « visuellement c'est pas intuitif ») :
+  //   [ Windows | autres logiciels (leur reserve, usage reel en clair) | depassement orange | MyFabmesh ]
+  // Le separateur blanc = la reserve ; le trait pointille = le minimum de MyFabmesh (outil le plus lourd), jamais depasse.
   const b = _besoinsGen;
   const parts = {};
-  const ressource = (nom, totalGB, usedGB, idLim, idBesoin) => {
+  const go = (x) => (Math.round(x * 10) / 10).toFixed(1);
+  const ressource = (nom, totalGB, usedGB) => {
     if (totalGB == null) return;
+    const px = nom === 'vram' ? 'vram' : 'ram';
+    const idp = nom === 'vram' ? 'set-gpu-vram' : 'set-ram';
     const plancher = (b && b.planchers) ? (nom === 'vram' ? b.planchers.vramGo : b.planchers.ramGo) : (nom === 'vram' ? 0.5 : 2);
     const lourd = (b && (nom === 'vram' ? b.vram : b.ram)) || { go: 0, outil: '' };
     const need = Number(lourd.go) || 0;
+    const outil = _i18nT(lourd.outil || '?');
     const libre = b ? (!b.appliActive && !isJobRunning()) : false;
     if (usedGB != null && libre) _autresUsageGo[nom] = usedGB;
     const autres = _autresUsageGo[nom];
     const reserveMaxGB = Math.max(0, totalGB - plancher - need);
     const maxPct = Math.max(0, Math.floor(reserveMaxGB / totalGB * 1000) / 10);
-    if (GPU_LIMITS_MAX[nom] !== maxPct) { GPU_LIMITS_MAX[nom] = maxPct; try { paintGpuDisabledZones(); } catch (_) {} }
+    GPU_LIMITS_MAX[nom] = maxPct;
     // reserve pas encore fixee, ou devenue trop haute (outil plus lourd mesure) : la plus haute qui laisse passer l'outil le plus
     // lourd. Seulement quand l'appli n'occupe rien : changer la reserve VRAM relance le serveur d'images.
-    if (b && libre && (gpuLimits[nom] == null || gpuLimits[nom] > maxPct)) {
+    if (b && libre && !_draggingGpuLimit && (gpuLimits[nom] == null || gpuLimits[nom] > maxPct)) {
       gpuLimits[nom] = maxPct;
       try { saveGpuLimits(); } catch (_) {}
     }
     const pct = gpuLimits[nom] == null ? maxPct : gpuLimits[nom];
-    const poignee = document.getElementById(nom === 'vram' ? 'set-gpu-vram-limit' : 'set-ram-limit');
-    if (poignee && !_draggingGpuLimit) poignee.style.left = pct + '%';
     const reserveGB = totalGB * pct / 100;
-    const partGB = Math.max(0, totalGB - plancher - Math.max(reserveGB, autres == null ? 0 : autres));
+    const autresGB = autres == null ? 0 : autres;
+    const partGB = Math.max(0, totalGB - plancher - Math.max(reserveGB, autresGB));
+    const tropGB = Math.max(0, Math.min(autresGB - reserveGB, totalGB - plancher - reserveGB));
+    const mfmUseGB = (!libre && usedGB != null) ? Math.max(0, Math.min(partGB, usedGB - autresGB)) : 0;
     parts[nom] = { partGB, autres, reserveGB };
-    const el = document.getElementById(idLim);
-    if (el) el.textContent = `Other apps: ${autres == null ? '?' : autres.toFixed(1)} GB used · ${reserveGB.toFixed(1)} GB kept for them · MyFabmesh: ${partGB.toFixed(1)} GB · Windows: ${plancher.toFixed(1)} GB`;
-    const eb = document.getElementById(idBesoin);
+    _geoPartage[nom] = { totalGB, plancherGB: plancher, reserveMaxGB, maxPct };
+    const larg = (gb) => Math.max(0, Math.min(100, gb / totalGB * 100)) + '%';
+    const el = (suffixe) => document.getElementById(`set-${px}-${suffixe}`);
+    const poser = (suffixe, prop, v) => { const e = el(suffixe); if (e) e.style[prop] = v; };
+    poser('win', 'width', larg(plancher));
+    poser('autres', 'width', larg(reserveGB));
+    poser('trop', 'width', larg(tropGB));
+    poser('mfm', 'width', larg(partGB));
+    poser('autres-use', 'width', reserveGB > 0 ? Math.min(100, autresGB / reserveGB * 100) + '%' : '0%');
+    poser('mfm-use', 'width', partGB > 0 ? (mfmUseGB / partGB * 100) + '%' : '0%');
+    const libelle = (suffixe, txt, assezLarge) => { const e = el(suffixe); if (e) e.textContent = assezLarge ? txt : ''; };
+    // libelle complet si la part est assez large, sinon le nom seul (jamais de texte coupe)
+    libelle('autres-lbl', reserveGB / totalGB > 0.3 ? _i18nTf('Other apps {x} GB', go(reserveGB)) : _i18nT('Other apps'), reserveGB / totalGB > 0.16);
+    libelle('mfm-lbl', partGB / totalGB > 0.34 ? _i18nTf('MyFabmesh {x} GB', go(partGB)) : 'MyFabmesh', partGB / totalGB > 0.16);
+    poser('besoin', 'left', larg(Math.max(plancher, totalGB - need)));
+    poser('besoin', 'display', need > 0 ? '' : 'none');
+    { const e = el('besoin-lbl'); if (e) e.textContent = need > 0 ? `${outil} ${go(need)}` : ''; }
+    const poignee = document.getElementById(`${idp}-limit`);
+    if (poignee && !_draggingGpuLimit) poignee.style.left = larg(plancher + reserveGB);
+    const lim = document.getElementById(`${idp}-limtxt`);
+    if (lim) lim.innerHTML = `${escapeHtml(_i18nT('Other apps:'))} <b>${escapeHtml(_i18nTf('{x} GB kept', go(reserveGB)))}</b>`;
+    const mt = document.getElementById(`${idp}-mfmtxt`);
+    if (mt) mt.innerHTML = `${escapeHtml(_i18nT('MyFabmesh:'))} <b>${escapeHtml(_i18nTf('{x} GB', go(partGB)))}</b>`;
+    const eb = document.getElementById(`${idp}-needtxt`);
     if (eb) {
-      eb.textContent = `Heaviest tool: ${lourd.outil || '?'} ${need.toFixed(1)} GB · reserve at most ${reserveMaxGB.toFixed(1)} GB`;
-      eb.classList.toggle('short', partGB < need);
+      const court = partGB + 0.05 < need;
+      let txt = '';
+      if (tropGB > 0.05) {
+        txt = _i18nTf('Your other apps use {x} GB, {y} GB more than kept.', go(autresGB), go(autresGB - reserveGB));
+        if (court) txt += ' ' + (nom === 'vram' ? _i18nTf('{x} will wait.', outil) : _i18nT('Generations will be slower.'));
+      } else if (court) {
+        txt = _i18nTf('{x} needs {y} GB: move the marker to the left.', outil, go(need));
+      }
+      eb.textContent = txt;
+      eb.classList.toggle('short', !!txt);
     }
   };
-  ressource('vram', _lastVramTotalGB, _lastVramUsedGB, 'set-gpu-vram-limtxt', 'set-gpu-vram-needtxt');
-  ressource('ram', _cachedTotalRamGB, _lastRamUsedGB, 'set-ram-limtxt', 'set-ram-needtxt');
+  ressource('vram', _lastVramTotalGB, _lastVramUsedGB);
+  ressource('ram', _cachedTotalRamGB, _lastRamUsedGB);
+  // Reserves envoyees au processus principal des que les totaux sont connus (1re sonde, 8 s apres le demarrage) : sans cela,
+  // apres un redemarrage de l'appli, les generations repartaient sur l'ancien modele tant que l'utilisateur ne touchait pas
+  // aux Reglages (bug du 2026-09-30).
+  if (!_reservesEnvoyees && _lastVramTotalGB != null && _cachedTotalRamGB != null && gpuLimits.vram != null && gpuLimits.ram != null) {
+    _reservesEnvoyees = true;
+    _envoyerReserves({ noRestart: true });
+  }
   // VOYANTS (presentation choisie par l'utilisateur) : chaque outil lourd peut-il partir maintenant ?
   const zone = document.getElementById('set-hw-voyants');
   if (zone && b && b.types) {
@@ -22110,12 +22146,11 @@ function applyGpuLimitMarkers() {
   const r = document.getElementById('set-ram-limit');
   const cp = document.getElementById('set-cpu-limit');
   if (cp) cp.style.left = gpuLimits.cpu + '%';
-  if (v && gpuLimits.vram != null) v.style.left = gpuLimits.vram + '%';
   if (u) u.style.left = gpuLimits.util + '%';
   if (t) t.style.left = gpuLimits.temp + '%';
-  if (r && gpuLimits.ram != null) r.style.left = gpuLimits.ram + '%';
-  if (r) r.title = _i18nT('Drag to set how much RAM stays reserved for your other apps');
-  if (v) v.title = _i18nT('Drag to set how much graphics memory stays reserved for your other apps');
+  try { paintGpuDisabledZones(); } catch (_) {}
+  if (r) r.title = _i18nT('Drag to share the memory between your other apps and MyFabmesh');
+  if (v) v.title = _i18nT('Drag to share the graphics memory between your other apps and MyFabmesh');
 }
 function isJobRunning() {
   return state.jobs.some(j => j.status === 'running');
@@ -22130,29 +22165,27 @@ const GPU_LIMITS_DEFAULTS = {
 };
 // Reserve maximale (en %) pour vram / ram : au-dela, l'outil le plus lourd ne passerait plus (calculee par majLignesLimites).
 const GPU_LIMITS_MAX = { vram: 95, ram: 95 };
-// Paint the gray "disabled" zone on each slider : de 0 au minimum (util / temp / cpu), ou du maximum a 100 % (reserves vram / ram).
+// Zone hachuree de chaque seuil (charge GPU, temperature, processeur) : a DROITE du marqueur, la ou les travaux se mettent en
+// pause (GPU, temperature) ou que MyFabmesh n'utilise pas (processeur). La VRAM et la RAM ont leur barre partagee.
 function paintGpuDisabledZones() {
   document.querySelectorAll('.gpu-bar').forEach(bar => {
     const stat = bar.dataset.stat;
+    if (!(stat in gpuLimits)) return;
     let zone = bar.querySelector('.gpu-bar-disabled-zone');
     if (!zone) {
       zone = document.createElement('div');
       zone.className = 'gpu-bar-disabled-zone';
       bar.insertBefore(zone, bar.firstChild);
     }
-    if (stat === 'vram' || stat === 'ram') {
-      const maxPct = GPU_LIMITS_MAX[stat] == null ? 95 : GPU_LIMITS_MAX[stat];
-      zone.style.left = maxPct + '%';
-      zone.style.width = (100 - maxPct) + '%';
-    } else {
-      zone.style.left = '0';
-      zone.style.width = (GPU_LIMITS_MIN[stat] || 5) + '%';
-    }
+    zone.classList.add('droite');
+    const v = Math.max(0, Math.min(100, Number(gpuLimits[stat]) || 0));
+    zone.style.left = v + '%';
+    zone.style.width = (100 - v) + '%';
   });
 }
 // Reset all sliders to their default values.
 function resetGpuLimits() {
-  Object.assign(gpuLimits, GPU_LIMITS_DEFAULTS);
+  Object.assign(gpuLimits, GPU_LIMITS_DEFAULTS, { vram: null, ram: null });
   saveGpuLimits();
   applyGpuLimitMarkers();
 }
@@ -22194,12 +22227,7 @@ function setupGpuLimitDragging() {
         handle.appendChild(tip);
       }
       const formatValue = (s, pct) => {
-        if (s === 'temp') {
-          // Map 0-100% slider to a 30-100°C displayed range (matches the
-          // tempC → bar width mapping used elsewhere in the UI).
-          const c = Math.round(30 + (pct / 100) * 70);
-          return c + ' °C';
-        }
+        if (s === 'temp') return Math.round(pct) + ' °C';     // la barre va de 0 a 100 °C (meme echelle que la valeur mesuree)
         if ((s === 'ram' && _cachedTotalRamGB != null) || (s === 'vram' && _lastVramTotalGB != null)) {
           const gb = (s === 'ram' ? _cachedTotalRamGB : _lastVramTotalGB) * (pct / 100);
           return gb.toFixed(1) + ' GB ' + _i18nT('kept for other apps');
@@ -22212,14 +22240,22 @@ function setupGpuLimitDragging() {
         const rect = bar.getBoundingClientRect();
         let pct = ((ev.clientX - rect.left) / rect.width) * 100;
         if (stat === 'vram' || stat === 'ram') {
-          pct = Math.max(0, Math.min(GPU_LIMITS_MAX[stat] == null ? 95 : GPU_LIMITS_MAX[stat], pct));
-        } else {
-          const minPct = GPU_LIMITS_MIN[stat] || 5;
-          pct = Math.max(minPct, Math.min(100, pct));
+          // barre partagee : le separateur part apres la part de Windows et s'arrete au minimum de MyFabmesh
+          const g = _geoPartage[stat];
+          if (!g) return;                    // totaux pas encore connus
+          const reservePct = Math.max(0, Math.min(g.maxPct, pct - g.plancherGB / g.totalGB * 100));
+          handle.style.left = (g.plancherGB / g.totalGB * 100 + reservePct) + '%';
+          gpuLimits[stat] = reservePct;
+          tip.textContent = formatValue(stat, reservePct);
+          try { majLignesLimites(); } catch (_) {}
+          return;
         }
+        const minPct = GPU_LIMITS_MIN[stat] || 5;
+        pct = Math.max(minPct, Math.min(100, pct));
         handle.style.left = pct + '%';
         gpuLimits[stat] = pct;
         tip.textContent = formatValue(stat, pct);
+        try { paintGpuDisabledZones(); majLignesLimites(); } catch (_) {}
       }
       function onUp() {
         document.removeEventListener('mousemove', onMove);
@@ -22246,10 +22282,11 @@ function refreshGpuLimitLockState() {
     const locked = running && !liveStats.has(stat);
     h.classList.toggle('locked', locked);
     h.title = locked
-      ? 'Locked while a generation is running (applied at subprocess start)'
-      : (running && liveStats.has(stat)
-          ? 'Drag to adjust live — throttle picks up new limit within 0.5s'
-          : 'Drag to set max threshold');
+      ? _i18nT('Locked while a generation is running (applied at subprocess start)')
+      : (stat === 'vram' ? _i18nT('Drag to share the graphics memory between your other apps and MyFabmesh')
+        : stat === 'ram' ? _i18nT('Drag to share the memory between your other apps and MyFabmesh')
+        : stat === 'cpu' ? _i18nT('Drag to limit the processor share MyFabmesh can use')
+        : _i18nT('Drag to set when jobs pause'));
   });
 }
 
@@ -22504,7 +22541,8 @@ async function hasVramHeadroomFor(kind) {
         const gpu = await API.checkGPU();
         if (gpu && gpu.available && gpu.totalGB) {
           const peak = JOB_VRAM_PEAK_GB[kind] || 12;
-          const limitGB = gpu.totalGB * ((gpuLimits?.vram || 90) / 100);
+          // part de MyFabmesh (modele de reserve), pas la reserve des autres logiciels
+          const limitGB = gpu.totalGB - 0.5 - (gpuLimits.vram == null ? 0 : gpu.totalGB * gpuLimits.vram / 100);
           maxConcurrent = Math.max(1, Math.floor(limitGB / peak));
         }
       } catch (_) {}
@@ -22554,7 +22592,7 @@ async function hasVramHeadroomFor(kind) {
         const m = await API.memoryBudget(kind);
         if (m && m.ralenti && m.ralenti.type === 'ram') _annoncerRalentiRam(kind, m.ralenti);
         if (m && m.ok === false && m.type === 'vram' && m.besoinGo != null) {
-          return { ok: false, memoire: true, vram: true, reason: _i18nTf('Waiting for graphics memory: this job needs about {x} GB of VRAM and {y} GB are free under your limit. It starts as soon as it fits (close apps using the graphics card, raise the VRAM limit in Settings, or press Start now).', m.besoinGo, m.dispoGo) };
+          return { ok: false, memoire: true, vram: true, reason: _i18nTf('Waiting for graphics memory: this job needs about {x} GB of VRAM and {y} GB are free for MyFabmesh. It starts as soon as it fits (close apps using the graphics card, lower the reserve for other apps in Settings, or press Start now).', m.besoinGo, m.dispoGo) };
         }
         if (m && m.vramMesuree) return { ok: true };
       } catch (_) {}
@@ -22757,15 +22795,11 @@ async function refreshGpuStats() {
     }
     document.getElementById('set-gpu-name').textContent = gpu.name || 'GPU';
     // VRAM
-    const vramPct = (gpu.usedGB / gpu.totalGB) * 100;
-    document.getElementById('set-gpu-vram-val').textContent =
-      `Used ${gpu.usedGB.toFixed(1)} GB of ${gpu.totalGB.toFixed(1)} GB (${vramPct.toFixed(0)}%)`;
+    document.getElementById('set-gpu-vram-val').textContent = _i18nTf('{x} of {y} GB used', gpu.usedGB.toFixed(1), gpu.totalGB.toFixed(1));
     _lastVramTotalGB = gpu.totalGB; _lastVramUsedGB = gpu.usedGB; _chargerBesoinsGen(); try { majLignesLimites(); } catch (_) {}
-    document.getElementById('set-gpu-vram-fill').style.width = vramPct + '%';
-    document.querySelector('.gpu-bar[data-stat="vram"]')?.classList.toggle('over-limit', gpu.usedGB > gpu.totalGB - 0.5);
     // GPU utilization
     const util = gpu.gpuUtil || 0;
-    document.getElementById('set-gpu-util-val').textContent = util.toFixed(0) + '%';
+    document.getElementById('set-gpu-util-val').textContent = util.toFixed(0) + ' %';
     document.getElementById('set-gpu-util-fill').style.width = util + '%';
     document.querySelector('.gpu-bar[data-stat="util"]')?.classList.remove('over-limit');  // GPU at 100% is normal — never flag it red
     // Temperature (scale 0-100°C → 0-100% bar, red zone after 80)
@@ -22781,17 +22815,13 @@ async function refreshGpuStats() {
   try {
     if (API.checkRAM) {
       const ram = await API.checkRAM();
-      const ramPct = (ram.usedGB / ram.totalGB) * 100;
       const ramValEl = document.getElementById('set-ram-val');
-      const ramFillEl = document.getElementById('set-ram-fill');
-      if (ramValEl) ramValEl.textContent = `Used ${ram.usedGB.toFixed(1)} GB of ${ram.totalGB.toFixed(1)} GB (${ramPct.toFixed(0)}%)`;
+      if (ramValEl) ramValEl.textContent = _i18nTf('{x} of {y} GB used', ram.usedGB.toFixed(1), ram.totalGB.toFixed(1));
       try {
-        if (API.cpuUsage) { const c = await API.cpuUsage(); window.__cpuThreads = c.threads; const cv = document.getElementById('set-cpu-val'), cf = document.getElementById('set-cpu-fill'); if (cv) cv.textContent = `Used ${c.pct} % of ${c.threads} threads`; if (cf) cf.style.width = c.pct + '%'; }
-        if (API.diskFree) { const d = await API.diskFree(); if (d) { const dv = document.getElementById('set-disk-val'), dt = document.getElementById('set-disk-txt'); if (dv) dv.textContent = `${d.freeGB.toFixed(0)} GB free of ${d.totalGB.toFixed(0)} GB (${d.drive})`; if (dt) { dt.textContent = d.freeGB < 70 ? 'Low space: the models take about 60 GB, plus room for your results' : 'Enough room for the models (about 60 GB) and your results'; dt.classList.toggle('short', d.freeGB < 70); } } }
+        if (API.cpuUsage) { const c = await API.cpuUsage(); window.__cpuThreads = c.threads; const cv = document.getElementById('set-cpu-val'), cf = document.getElementById('set-cpu-fill'); if (cv) cv.textContent = `${c.pct} %`; if (cf) cf.style.width = c.pct + '%'; }
+        if (API.diskFree) { const d = await API.diskFree(); if (d) { const dv = document.getElementById('set-disk-val'), dt = document.getElementById('set-disk-txt'); if (dv) dv.textContent = _i18nTf('{x} GB free ({y})', d.freeGB.toFixed(0), d.drive); if (dt) { dt.textContent = d.freeGB < 70 ? _i18nT('· low: the models need about 60 GB') : _i18nT('· enough for the models (~60 GB)'); dt.classList.toggle('short', d.freeGB < 70); } } }
       } catch (_) {}
       _cachedTotalRamGB = ram.totalGB; _lastRamUsedGB = ram.usedGB; try { majLignesLimites(); } catch (_) {}
-      if (ramFillEl) ramFillEl.style.width = ramPct + '%';
-      document.querySelector('.gpu-bar[data-stat="ram"]')?.classList.toggle('over-limit', ram.usedGB > ram.totalGB - 2);
     }
   } catch (e) {}
 }
@@ -22810,8 +22840,8 @@ async function openSettings() {
   refreshProcList();  // 2026-06-14: immediate first paint of the process list + count
   checkClaudeDesktopStatus();
   refreshParentalStatus();
-  // Ensure main process has the current RAM limit
-  if (API.setRamLimit) API.setRamLimit(gpuLimits.ram).catch(() => {});
+  // (Plus d'appel a setRamLimit : gpuLimits.ram est la RESERVE des autres logiciels, pas une limite totale. L'envoyer comme
+  // limite faisait refuser le redacteur local (« over-limit ») des que la RAM utilisee depassait la reserve.)
   if (_gpuPollTimer) clearInterval(_gpuPollTimer);
   // 500ms tick while Settings is open so the user sees real-time VRAM/GPU/RAM.
   // The timer is cleared as soon as the panel closes (set-close handler).

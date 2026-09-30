@@ -7265,7 +7265,12 @@ ipcMain.handle('disk-free', () => {
 // d'images (son plafond est fixe a son demarrage), sauf noRestart (retour apres un « Start now »).
 ipcMain.handle('set-reserves', (_e, o = {}) => {
   const avant = process.env.FABMESH_VRAM_RESERVE_MB;
-  if (Number.isFinite(Number(o.ramReserveMb)) && Number(o.ramReserveMb) >= 0) process.env.FABMESH_RAM_RESERVE_MB = String(Math.round(Number(o.ramReserveMb)));
+  if (Number.isFinite(Number(o.ramReserveMb)) && Number(o.ramReserveMb) >= 0) {
+    process.env.FABMESH_RAM_RESERVE_MB = String(Math.round(Number(o.ramReserveMb)));
+    // l'ancienne limite totale ne s'applique plus : laissee en place, elle faisait refuser le redacteur local (« over-limit »)
+    // et declenchait de faux avertissements de la surveillance
+    delete process.env.FABMESH_RAM_LIMIT_MB;
+  }
   if (Number.isFinite(Number(o.vramReserveMb)) && Number(o.vramReserveMb) >= 0) process.env.FABMESH_VRAM_RESERVE_MB = String(Math.round(Number(o.vramReserveMb)));
   if (avant !== process.env.FABMESH_VRAM_RESERVE_MB && sdxlProc && !o.noRestart) {
     try { stopSdxlServer(); } catch (_) {}
@@ -7276,6 +7281,8 @@ ipcMain.handle('set-reserves', (_e, o = {}) => {
 
 // Set system RAM limit (called from renderer when user drags the RAM slider)
 ipcMain.handle('set-ram-limit', (event, limitPct) => {
+  // Modele de reserve actif : la limite totale n'existe plus (un ancien appel passerait la RESERVE pour une limite).
+  if (process.env.FABMESH_RAM_RESERVE_MB) return { ignored: true };
   // Convert percentage to absolute MB based on total system RAM
   const totalMB = Math.round(os.totalmem() / (1024 * 1024));
   const limitMB = Math.round(totalMB * (limitPct / 100));
