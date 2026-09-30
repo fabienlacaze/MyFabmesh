@@ -24333,3 +24333,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   `modal_<hex>_rigged_...` : pas de correspondance -> pas de report en pleine resolution (export silencieux de la version legere). Repli ajoute : le maillage dont le chemin R2 est `<racine du rig>.glb`.
 - Test appli (API simulee) : export FBX d'un rig `skinlight` -> `/api/mesh-light/full` avec le rig ET le mesh complet, puis `/api/mesh-convert` sur le rig pleine resolution ;
   export d'une peinture sur la legere -> `/api/mesh-light/fulltex` puis conversion ; export d'un rig normal -> aucun appel supplementaire.
+
+## 2026-09-30 — Test appli : editeur de poids sur le rig leger
+- Editeur ouvert sur la version legere (461 387 sommets, 76 os) ; « Recalculate all bones » en 523 ms ; « Save as new rig version » -> `/api/mesh-op/client-result?op=skin_paint&light=1&source=<rig>` (40,5 Mo).
