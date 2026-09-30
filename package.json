@@ -27,7 +27,8 @@
     "build:msix": "npm run prebuild:licence-check && npm run prebuild:prompt-tables && electron-builder --win appx && node build/organize_dist.js",
     "build:all": "npm run prebuild:licence-check && npm run prebuild:prompt-tables && electron-builder --win nsis appx && node build/organize_dist.js",
     "prebuild:prompt-tables": "python build/sync_prompt_tables.py --verify",
-    "check:prix": "node build/check-prix-affiches.mjs"
+    "check:prix": "node build/check-prix-affiches.mjs",
+    "test:desinstallation": "node build/test-desinstallation.mjs --nsis --processus"
   },
   "dependencies": {
     "@google/model-viewer": "^4.2.0",
