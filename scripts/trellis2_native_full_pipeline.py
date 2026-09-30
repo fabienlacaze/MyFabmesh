@@ -45,10 +45,14 @@ os.environ.setdefault('SPARSE_ATTN_BACKEND', 'sdpa')
 os.environ.setdefault('TORCHINDUCTOR_USE_TRITON', '0')
 os.environ.setdefault('TRANSFORMERS_ATTN_IMPLEMENTATION', 'eager')
 
-# --- FabMesh graceful self-limiting (a ceiling that does NOT kill the app) ---
-# This is the heavy worker that peaks ~19-27 GB system RAM. We do NOT hard-cap
-# its memory (a hard cap just OOM-crashes it). Instead we keep the PC USABLE
-# while it runs:
+# --- FabMesh graceful self-limiting ---
+# 2026-09-30 : la RAM et la VRAM de ce processus sont desormais PLAFONNEES pour
+# de vrai (scripts/cloisonnement_memoire.py, applique plus bas avant tout import
+# lourd) : une allocation au-dela du budget est REFUSEE proprement (message clair),
+# au lieu de pousser le PC dans le fichier d'echange. Et les modeles ne dorment
+# plus dans la RAM (scripts/trellis2_chargement_paresseux.py) : l'ancien pic de
+# ~19-27 Go venait surtout des ~15 Go de poids gardes en RAM.
+# En plus, on garde le PC utilisable pendant le calcul :
 #   - cap CPU threads so the OS keeps cores for the desktop/UI (set before torch
 #     so torch picks up the limit at import),
 #   - drop to background CPU + DISK I/O priority so its paging during the heavy
@@ -93,6 +97,13 @@ TRELLIS2_SRC = os.environ.get('FABMESH_TRELLIS2_SRC') or os.path.abspath(
     os.path.join(SCRIPTS, '..', 'external', 'TRELLIS2_win', 'src'))
 sys.path.insert(0, TRELLIS2_SRC)
 sys.path.insert(0, SCRIPTS)  # for add_ai_metadata
+
+# Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
+# La cle du journal des pics distingue les modes (leurs besoins different).
+import cloisonnement_memoire as _cm
+_cm.appliquer('trellis2_native',
+              cle='trellis2_' + os.environ.get('FABMESH_TRELLIS2_NATIVE_MODE', '1024'),
+              log=lambda m: print(f'[t2_native] {m}', flush=True))
 
 # Aucun appel reseau quand les modeles sont deja sur le disque (2026-09-28) :
 # sinon chaque generation interroge huggingface.co, et un antivirus qui
@@ -693,18 +704,13 @@ def main():
         f'cc={torch.cuda.get_device_capability(0)}')
     log(f'mode={mode} seed={seed} decim={decim} tex_res={tex_res}')
 
-    # GPU VRAM cap — the VRAM slider (Settings) now also applies to 3D, like the
-    # image-gen path. set_per_process_memory_fraction is a REAL hard cap: PyTorch
-    # refuses to allocate past this fraction of the 16 GB (raises a catchable
-    # OutOfMemoryError, never freezes the machine). The RAM budget caps system
-    # RAM; this caps VRAM — same idea, different memory.
-    try:
-        _vf = float(os.environ.get('FABMESH_VRAM_FRACTION', '') or 0)
-        if 0 < _vf <= 1 and torch.cuda.is_available():
-            torch.cuda.set_per_process_memory_fraction(_vf, 0)
-            log(f'VRAM cap: {_vf:.0%} of device 0')
-    except Exception as _e:
-        log(f'VRAM cap skipped: {_e}')
+    # Plafond VRAM = limite VRAM de l'utilisateur MOINS ce que les autres logiciels
+    # occupent deja (2026-09-30). L'ancienne fraction de la carte ENTIERE laissait
+    # PyTorch demander plus que la VRAM libre quand Unreal tournait : le pilote
+    # debordait alors dans la memoire partagee, donc dans la RAM. Resserre aussi
+    # le plafond RAM (fin de l'initialisation). Voir cloisonnement_memoire.
+    _cm.plafonner_vram(torch)
+    _cm.mesurer('initialisation')
 
     print('LOCAL_TRELLIS2_PROGRESS: 8 image_prep', flush=True)
     img = _prep_image(image_path)
@@ -758,17 +764,26 @@ def main():
         log(f'multi-view conditioning: {len(mv_images)} images '
             f'(front + {len(mv_images)-1} extras)')
 
+    _cm.mesurer('image_prep')
     print('LOCAL_TRELLIS2_PROGRESS: 12 loading_pipeline', flush=True)
     log('loading Trellis2ImageTo3DPipeline from microsoft/TRELLIS.2-4B...')
     t_load = time.time()
     from trellis2.pipelines import Trellis2ImageTo3DPipeline
     import trellis2_sans_detourage; trellis2_sans_detourage.appliquer()   # detourage deja fait en amont : ne pas charger BiRefNet (timm + kornia)
+    # Modeles lus A LA DEMANDE, directement sur la carte, rendus apres leur etape
+    # (2026-09-30) : l'etape « loading_pipeline » ne charge plus ~15 Go de poids
+    # dans la RAM. Voir scripts/trellis2_chargement_paresseux.py.
+    import trellis2_chargement_paresseux
+    _paresseux = trellis2_chargement_paresseux.appliquer(log=log, mesurer=_cm.mesurer)
     pipeline = Trellis2ImageTo3DPipeline.from_pretrained(
         'microsoft/TRELLIS.2-4B')
     pipeline.rembg_model = None  # gated, replaced by external rembg upstream
+    if _paresseux:
+        pipeline.low_vram = True   # chaque etape monte son modele puis le rend (.to / .cpu)
     pipeline.cuda()
     log(f'pipeline loaded in {time.time()-t_load:.1f}s, '
         f'VRAM peak {torch.cuda.max_memory_allocated()/1e9:.1f} GB')
+    _cm.mesurer('pipeline_ready')
     print('LOCAL_TRELLIS2_PROGRESS: 35 pipeline_ready', flush=True)
 
     log(f'inference (pipeline_type={mode}, n_views={len(mv_images)})...')
@@ -881,9 +896,11 @@ def main():
     except torch.cuda.OutOfMemoryError as e:
         log(f'OOM in mode={mode}: {e}')
         log(f'VRAM peak: {torch.cuda.max_memory_allocated()/1e9:.1f} GB')
+        _cm.signaler_si_memoire(e)      # phrase claire + marqueur lu par main.js
         sys.exit(2)
     log(f'inference done in {time.time()-t_inf:.1f}s, '
         f'VRAM peak {torch.cuda.max_memory_allocated()/1e9:.1f} GB')
+    _cm.mesurer('inference_done')
     print('LOCAL_TRELLIS2_PROGRESS: 80 inference_done', flush=True)
 
     mesh = outputs[0]
@@ -921,6 +938,7 @@ def main():
     else:
         glb = _exporter(mesh.vertices, mesh.faces, decim, True)
     log(f'GLB built in {time.time()-t_exp:.1f}s')
+    _cm.mesurer('glb_built')
     print('LOCAL_TRELLIS2_PROGRESS: 92 brightening', flush=True)
 
     # Couleurs accordees sur l'IMAGE SOURCE (noyau partage, 2026-09-26) ; repli
@@ -963,6 +981,9 @@ def main():
     except Exception as _ai_e:
         log(f'AI Act metadata skipped: {_ai_e}')
 
+    # Pic mesure -> journal (main.js s'en sert pour estimer le besoin du prochain
+    # travail). AVANT le marqueur « 100 done » : main.js n'attend pas la fin du processus.
+    _cm.terminer('ok')
     print('LOCAL_TRELLIS2_PROGRESS: 100 done', flush=True)
     log(f'TOTAL: {time.time()-t0:.1f}s')
 
