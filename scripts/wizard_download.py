@@ -57,7 +57,10 @@ def _lower_priority():
 # upscaler, florence2 = secondary captioner). A failure on THESE only warns;
 # a failure on any other (essential) model fails the install loudly so the
 # user never proceeds with a broken setup.
-_OPTIONAL_MODELS = {'esrgan', 'florence2', 'writer'}
+_OPTIONAL_MODELS = {'esrgan', 'florence2', 'writer',
+                    # modules des OUTILS d'image (Detail++, affinage, decodeur) : la generation marche sans eux ; Detail++ dit alors
+                    # clairement qu'ils manquent et renvoie vers Settings > Reconfigure (2026-09-30)
+                    'vae_fix', 'cn_tile', 'cn_union'}
 
 
 # ---------------------------------------------------------------------------
@@ -108,14 +111,21 @@ MODELS = {
         ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
         ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
     ],
+    # OUTILS D'IMAGE DU SERVEUR (2026-09-30, user : « si Detail++ marche il faut installer ControlNet-Union des le debut ») :
+    # le decodeur d'images (tous les pipelines du serveur d'images), le module de detail (Detail++), le module d'affinage (Detail
+    # refine, Age, variantes, Recolor matiere). Sans eux, le serveur les telechargeait EN SILENCE a la premiere utilisation (tuile
+    # figee pendant des minutes). Tailles mesurees sur l'API du Hub (fichiers de ALLOW_PATTERNS seulement) : 335, 2 502, 2 512 Mo.
     'standard': [
         ('writer',    'onnx-community/Qwen3-4B-ONNX', 2897),
         ('dinov3',    DINOV3_CANONICAL_REPO, 1250),
         ('blip1',     'Salesforce/blip-image-captioning-large', 1880),
         ('esrgan',    'RealESRGAN_x4plus', 70),
         ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
+        ('vae_fix',   'madebyollin/sdxl-vae-fp16-fix', 335),
         ('lightning', 'ByteDance/SDXL-Lightning', 390),
         ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2510),
+        ('cn_tile',   'xinsir/controlnet-tile-sdxl-1.0', 2502),
+        ('cn_union',  'xinsir/controlnet-union-sdxl-1.0', 2512),
         ('ipadapter', 'h94/IP-Adapter', 9310),
         ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
     ],
@@ -126,9 +136,12 @@ MODELS = {
         ('florence2', 'microsoft/Florence-2-large', 3120),
         ('esrgan',    'RealESRGAN_x4plus', 70),
         ('realvis',   'SG161222/RealVisXL_V4.0', 6940),
+        ('vae_fix',   'madebyollin/sdxl-vae-fp16-fix', 335),
         ('lightning', 'ByteDance/SDXL-Lightning', 390),
         ('sdxl_inp',  'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', 6940),
         ('cn_pose',   'xinsir/controlnet-openpose-sdxl-1.0', 2510),
+        ('cn_tile',   'xinsir/controlnet-tile-sdxl-1.0', 2502),
+        ('cn_union',  'xinsir/controlnet-union-sdxl-1.0', 2512),
         ('ipadapter', 'h94/IP-Adapter', 9310),
         ('trellis2',  'microsoft/TRELLIS.2-4B', 16240),
     ],
@@ -142,6 +155,11 @@ ALLOW_PATTERNS = {
     'ByteDance/SDXL-Lightning': ['sdxl_lightning_4step_lora.safetensors'],
     # Redacteur local (scripts/redacteur.py) : seule la version 4 bits pour processeur (2,9 Go sur ~15 Go de variantes).
     'onnx-community/Qwen3-4B-ONNX': ['onnxruntime/cpu_and_mobile/cpu-int4-kld-block-128/*'],
+    # Serveur d'images (sdxl_server.py) : chaque depot est lu par from_pretrained en .safetensors (config.json + poids). Exclus :
+    # la variante « promax » du module de detail (+2,5 Go), les .bin et fichiers uniques du decodeur, les images d'exemple.
+    'madebyollin/sdxl-vae-fp16-fix': ['config.json', 'diffusion_pytorch_model.safetensors'],
+    'xinsir/controlnet-tile-sdxl-1.0': ['config.json', 'diffusion_pytorch_model.safetensors'],
+    'xinsir/controlnet-union-sdxl-1.0': ['config.json', 'diffusion_pytorch_model.safetensors'],
 }
 # FICHIERS INUTILES EXCLUS (2026-09-30). snapshot_download prenait TOUT le depot : formats en double (.bin / .h5 a cote de .safetensors), poids fp32 alors que le code
 # charge `variant='fp16'` partout, le fichier unique de RealVis en plus de ses composants, les modeles SD 1.5 d'IP-Adapter... Chaque exclusion a ete verifiee contre le code
