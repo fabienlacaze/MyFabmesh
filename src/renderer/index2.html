@@ -2756,8 +2756,10 @@
     .hw-besoin{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed rgba(255,255,255,.85);z-index:2;pointer-events:none}
     .hw-besoin i{position:absolute;top:calc(100% + 1px);left:0;transform:translateX(-50%);font-style:normal;font-size:10px;color:var(--text-1);white-space:nowrap}
     .gpu-bar-limit.hw-poignee{top:-5px;bottom:-5px;width:6px;background:#fff !important;border-radius:3px;z-index:3}
-    .hw-legende{display:flex;justify-content:space-between;gap:10px;margin-top:5px;font-size:11px;color:var(--text-2)}
+    .hw-legende{display:flex;justify-content:space-between;gap:10px;margin-top:3px;height:13px;line-height:13px;font-size:11px;color:var(--text-2)}
     .hw-legende b{color:var(--text-0)}
+    /* meme ecart sous chaque barre : les barres a seuil gardent la place de la legende des barres memoire */
+    #set-gpu-card .gpu-stat:not(.hw-mem):has(.gpu-bar){padding-bottom:16px}
     .hw-sep{height:1px;background:rgba(255,255,255,.06);margin:2px 0}
     /* GPU / temperature / processeur : meme style que les barres memoire (piste gris clair, fine bande a degrade en bas) */
     #set-gpu-card .gpu-bar{height:22px;background:linear-gradient(90deg,#4b2b99 var(--min,0%),#b79cff var(--min,0%));border:none;border-radius:7px}

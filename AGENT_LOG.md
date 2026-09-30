@@ -24787,3 +24787,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - (suite) GPU / temperature / processeur : partie fixe minimum en violet fonce (GPU_LIMITS_MIN) a gauche, comme les barres memoire.
 
 - (suite) Temperature : style d'origine (degrade plein + zone hachuree), a part, sous GPU / processeur.
+
+- (suite) Reglages > Materiel : ecart vertical uniforme sous chaque barre (legende memoire 16 px = marge des barres a seuil).
