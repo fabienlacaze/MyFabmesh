@@ -42,6 +42,9 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import threading
+import time
 
 
 TORCH_INDEX = 'https://download.pytorch.org/whl/cu128'
@@ -115,9 +118,56 @@ SHAPEVAE_SECOND = os.path.join('skinning', 'third_partys', 'Michelangelo',
                                'checkpoints', 'aligned_shape_latents', 'shapevae-256.ckpt')
 
 
+_EMIT_LOCK = threading.Lock()
+
+
 def emit(obj):
-    sys.stdout.write(json.dumps(obj) + '\n')
-    sys.stdout.flush()
+    with _EMIT_LOCK:
+        sys.stdout.write(json.dumps(obj) + '\n')
+        sys.stdout.flush()
+
+
+# DEBIT ET OCTETS (2026-09-30, user : "on n'a plus de vitesse alors que ca telecharge") : la phase du moteur de rig n'emettait que des paliers
+# sans octets, donc le compteur du bas restait a "0.0 MB/s". Un fil mesure chaque 1,5 s : dossiers temporaires de pip (pip-unpack-*, roues en
+# cours) + dossier de mise en attente des poids Hugging Face (_hf_staging, fichiers .incomplete compris) + poids deja deplaces.
+_UNPACK_DEJA = set()
+_UNPACK_MAX = {}
+_STAGING = [None]
+_DEJA_RANGES = [0]
+
+
+def _taille_arbre(d):
+    total = 0
+    for racine, _dirs, fichiers in os.walk(d):
+        for f in fichiers:
+            try:
+                total += os.path.getsize(os.path.join(racine, f))
+            except OSError:
+                pass
+    return total
+
+
+def _surveiller_octets(stop):
+    import glob
+    _UNPACK_DEJA.update(glob.glob(os.path.join(tempfile.gettempdir(), 'pip-unpack-*')))
+    t_prev, b_prev, vitesse, max_total = time.time(), 0, 0.0, 0
+    while not stop.wait(1.5):
+        try:
+            for d in glob.glob(os.path.join(tempfile.gettempdir(), 'pip-unpack-*')):
+                if d not in _UNPACK_DEJA:
+                    _UNPACK_MAX[d] = max(_UNPACK_MAX.get(d, 0), _taille_arbre(d))
+            total = sum(_UNPACK_MAX.values()) + _DEJA_RANGES[0]
+            if _STAGING[0] and os.path.isdir(_STAGING[0]):
+                total += _taille_arbre(_STAGING[0])
+        except Exception:
+            continue
+        total = max(total, max_total)       # jamais de recul (le poids quitte la zone de mise en attente une fois termine)
+        max_total = total
+        now = time.time()
+        inst = max(0.0, (total - b_prev) / max(now - t_prev, 1e-3)) / 1e6
+        vitesse = inst if vitesse == 0.0 else 0.6 * vitesse + 0.4 * inst
+        t_prev, b_prev = now, total
+        emit({'step': 'rig-octets', 'done': False, 'bytes_done': int(total), 'speed_mbps': round(vitesse, 2)})
 
 
 def _run(args, step):
@@ -157,6 +207,7 @@ def _download_checkpoints(pup_dir):
     # Imported HERE (not top-level): huggingface_hub is installed by the
     # pip steps that run earlier in this very process.
     from huggingface_hub import hf_hub_download
+    _STAGING[0] = os.path.join(pup_dir, '_hf_staging')
     total = sum(mb for (_, _, _, mb) in CHECKPOINTS)
     done = 0
     for repo, fname, rel_dest, size_mb in CHECKPOINTS:
@@ -174,6 +225,10 @@ def _download_checkpoints(pup_dir):
         # file at the destination (no symlink to cache on Windows).
         got = hf_hub_download(repo_id=repo, filename=fname,
                               local_dir=os.path.join(pup_dir, '_hf_staging', repo.replace('/', '_')))
+        try:
+            _DEJA_RANGES[0] += os.path.getsize(got)
+        except OSError:
+            pass
         shutil.move(got, dest)
         done += size_mb
         emit({'step': step, 'pct': round(done * 100 / total), 'done': False, 'msg': 'ok'})
@@ -216,6 +271,7 @@ def main():
                     help='skip pip installs (checkpoints/code only)')
     args = ap.parse_args()
     py = args.python
+    threading.Thread(target=_surveiller_octets, args=(threading.Event(),), daemon=True).start()
 
     code_src = os.environ.get('FABMESH_PUPPETEER_CODE', '')
     pup_dir = os.environ.get('FABMESH_PUPPETEER_DIR', '')

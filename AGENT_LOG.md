@@ -24420,3 +24420,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 
 ## 2026-09-30 — Assistant : defilement automatique de la liste de telechargement
 - wizard.js : la liste suit le modele en cours (scrollIntoView nearest) et descend en bas a chaque evenement de la phase moteur de rig.
+
+## 2026-09-30 — Assistant : debit et octets pendant l'installation du moteur de rig
+- Constat (user) : « on n'a plus de vitesse alors que ca telecharge » — la phase 3 n'emettait aucun octet. wizard_install_rig.py : fil de mesure (pip-unpack-*, _hf_staging, poids deplaces) -> evenements rig-octets {bytes_done, speed_mbps} ; wizard.js affiche debit + temps restant (~5 Go) ; main.js ne journalise plus ces evenements.

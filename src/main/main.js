@@ -10256,7 +10256,7 @@ ipcMain.handle('wizard:install-rig', async (event) => {
           const p = JSON.parse(ligne);
           if (p.error) erreurJsonl = p.error;
           if (p.skipped) ignore = { reason: p.reason || 'skipped' };
-          if (p.step) log.info('main', 'install-rig step=' + p.step + ' pct=' + p.pct + (p.error ? ' ERROR=' + p.error : ''));
+          if (p.step && p.bytes_done === undefined) log.info('main', 'install-rig step=' + p.step + ' pct=' + p.pct + (p.error ? ' ERROR=' + p.error : ''));
           event.sender.send('wizard:rig-progress', p);
         } catch (_) {}
       }

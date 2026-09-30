@@ -769,6 +769,17 @@ async function _startDownloadInterne() {
     if (sp) sp.textContent = '–'; if (et) et.textContent = 'installing the rig engine…'; }
   window.wizardAPI.onRigProgress((p) => {
     const fill = document.querySelector('.wiz-dl-row[data-id="__rigenv"] .bar-fill');
+    if (p.step === 'rig-octets') {
+      // Octets mesures par le script : debit reel et temps restant (total ~5 Go : torch 3,3 + poids 1,6 + bibliotheques).
+      const RIG_TOTAL_MO = 5000, mo = (p.bytes_done || 0) / 1e6, vit = Number(p.speed_mbps) || 0;
+      const sp = document.getElementById('dl-speed'), et = document.getElementById('dl-eta');
+      if (sp) sp.textContent = vit.toFixed(1);
+      if (et) {
+        const sec = vit > 0.5 ? Math.max(0, RIG_TOTAL_MO - mo) / vit : null;
+        et.textContent = sec == null ? 'installing…' : (sec < 90 ? Math.round(sec) + ' s' : Math.round(sec / 60) + ' min');
+      }
+      return;
+    }
     if (typeof p.pct === 'number') majGlobal(88 + Math.min(12, p.pct * 0.12));
     list.scrollTop = list.scrollHeight;
     if (fill && typeof p.pct === 'number') fill.style.width = Math.max(3, p.pct) + '%';
