@@ -24487,3 +24487,8 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 - modal_app/redacteur/redacteur.py = copie EXACTE de scripts/redacteur.py (ajoutee a check-noyaux-partages). modal_app/redacteur_web.py : endpoint decrire (cle partagee), {prechauffer:true} demarre le conteneur.
 - Worker : POST /api/describe-asset (session requise, gratuit, 40/heure/compte, 3 000/jour ; URL MODAL_REDACTEUR_URL ou deduite du routeur maillage) ; type verifie contre la liste du formulaire ; toute erreur -> { ok:false } et repli mots-cles. tsc : 31 erreurs (inchange).
 - Client web : meme logique que le bureau (prechauffage a l'ouverture, redaction 0,9 s apres la derniere frappe du nom, jamais d'ecrasement d'une description tapee).
+
+## 2026-09-30 — Redacteur du site deploye (myfabmesh-redacteur) : mesures froid / chaud, instantane memoire
+- Deploye : https://fabienlacaze--myfabmesh-redacteur-redacteur-decrire.modal.run (URL deduite par le worker). Methode rediger (SDK, identifiants Modal) pour les essais.
+- Mesures (protocole froid PUIS chaud, conteneurs arretes entre deux essais) : sans instantane, froid 35,3 s / chaud 6,6-7,0 s ; avec enable_memory_snapshot (modele charge dans enter(snap=True)) : 1er froid 40,9 s (creation de l'instantane), froids suivants 11,8 s et 15,6 s, chaud ~7 s. Qualite identique au bureau.
+- Site deploye (worker 84eae7df) : index2.js servi = cloud/out ; /api/describe-asset repond 401 sans session (route presente). Test de bout en bout avec une session : a faire par le user (pas de session de pilotage sur ce PC, et on ne se connecte jamais a sa place).

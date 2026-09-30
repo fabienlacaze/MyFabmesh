@@ -44,20 +44,30 @@ def _check_auth(payload: dict) -> None:
         raise HTTPException(status_code=401, detail="auth")
 
 
+# INSTANTANE MEMOIRE : le modele charge est fige une fois, puis RESTAURE au demarrage d'un conteneur froid (35 s mesurees sans).
 @app.cls(
-    image=image, cpu=4.0, memory=6144, timeout=120, scaledown_window=180,
+    image=image, cpu=4.0, memory=6144, timeout=120, scaledown_window=180, enable_memory_snapshot=True,
     secrets=[modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"])],
 )
 @modal.concurrent(max_inputs=4)
 class Redacteur:
-    @modal.enter()
+    @modal.enter(snap=True)
     def charger(self):
         import sys
         sys.path.insert(0, "/opt/redacteur")
         import redacteur
         redacteur.charger()
         self.r = redacteur
+
+    @modal.enter(snap=False)
+    def apres_restauration(self):
         self.verrou = threading.Lock()          # une redaction a la fois (le processeur est partage)
+
+    @modal.method()
+    def rediger(self, name: str, notes: str = "", lang: str = "en", type_indice: str = None):
+        """Appel direct par le SDK Modal (essais, outils internes) : protege par les identifiants Modal, sans cle partagee."""
+        with self.verrou:
+            return self.r.decrire(name, notes, lang, type_indice)
 
     @modal.fastapi_endpoint(method="POST")
     def decrire(self, payload: dict):
