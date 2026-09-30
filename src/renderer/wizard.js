@@ -646,6 +646,7 @@ async function _startDownloadInterne() {
   list.innerHTML = `
     <div class="wiz-dl-row in-progress" data-id="__aienv">
       <span class="name" id="aienv-name">Installing the AI engine…</span>
+      <span class="timer" id="aienv-pct">0 %</span>
       <span class="size">~8.5 GB</span>
       <div class="bar"><div class="bar-fill"></div></div>
     </div>
@@ -669,11 +670,22 @@ async function _startDownloadInterne() {
   // compteur du bas (Mo, Mo/s, temps restant) les utilisent. Le total (~5 Go) est une ESTIMATION affichee comme telle.
   const AIENV_TOTAL_MO = 4300;   // taille TELECHARGEE (roues : torch ~2,9 Go + torchvision + bibliotheques) ; ~8,5 Go une fois installe sur le disque
   let barreMax = 3;
+  // AVANCEMENT PAR ETAPE (2026-09-30, user : « pas de % pour cette etape, la barre reste longtemps chargee a fond ») : avant, la barre prenait le plus
+  // grand de « octets telecharges » et « avancement de l'etape » et se collait vers 92 % pendant l'installation des bibliotheques. Maintenant
+  // chaque etape a un POIDS (part du temps total) et une fraction propre ; la barre ne recule jamais et le pourcentage est ecrit sur la ligne.
+  const ETAPES_MOTEUR = [['copy-python', 1], ['pip-bootstrap', 2], ['torch', 40], ['kaolin', 6], ['pypi', 26], ['translation', 4],
+    ['trellis2-wheels-local', 6], ['trellis2-wheels-github', 0], ['trellis2-deps', 9], ['trellis2-nvrtc', 3], ['xformers-optional', 1], ['flash-attn-optional', 2]];
+  const TOTAL_POIDS = ETAPES_MOTEUR.reduce((t, e) => t + e[1], 0);
+  let fractionEtape = 0, etapeCourante = null;
+  const pctMoteur = (etape, frac) => {
+    let base = 0;
+    for (const [k, w] of ETAPES_MOTEUR) { if (k === etape) return (base + w * Math.max(0, Math.min(1, frac))) * 100 / TOTAL_POIDS; base += w; }
+    return null;
+  };
   window.wizardAPI.onInstallProgress((p) => {
     const fill = document.querySelector('.wiz-dl-row[data-id="__aienv"] .bar-fill');
     if (typeof p.bytes_done === 'number') {
       const mo = p.bytes_done / 1e6, vit = Number(p.speed_mbps) || 0;
-      barreMax = Math.max(barreMax, Math.min(92, (mo / AIENV_TOTAL_MO) * 100));
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       set('dl-done', Math.round(mo).toLocaleString('en-US'));
       majGlobal(Math.min(FIN_MOTEUR, (mo / AIENV_TOTAL_MO) * FIN_MOTEUR));
@@ -688,8 +700,14 @@ async function _startDownloadInterne() {
       if (installe && nom && p.step === 'torch') nom.textContent = 'Installing PyTorch (unpacking files, a few minutes)…';
       set('dl-eta', installe ? 'installing…' : (sec == null ? '–' : (sec < 90 ? Math.round(sec) + ' s' : Math.round(sec / 60) + ' min')));
     }
-    if (fill && typeof p.pct === 'number') barreMax = Math.max(barreMax, p.pct);
+    if (p.step && p.step !== etapeCourante && ETAPES_MOTEUR.some((e) => e[0] === p.step)) { etapeCourante = p.step; fractionEtape = 0; }
+    if (p.step === 'torch' && typeof p.bytes_done === 'number') fractionEtape = Math.max(fractionEtape, Math.min(1, p.bytes_done / 1e6 / 2900));
+    else if (typeof p.pct === 'number' && p.step === etapeCourante) fractionEtape = Math.max(fractionEtape, p.pct / 100);
+    const pm = pctMoteur(etapeCourante, fractionEtape);
+    if (pm != null) barreMax = Math.max(barreMax, Math.min(99, pm));
+    if (p.done) barreMax = 100;
     if (fill) fill.style.width = Math.max(3, barreMax) + '%';
+    const lp = document.getElementById('aienv-pct'); if (lp) lp.textContent = Math.floor(barreMax) + ' %';
     const name = document.getElementById('aienv-name');
     if (name && p.step && _AIENV_STEPS[p.step]) name.textContent = _AIENV_STEPS[p.step];
     if (p.done) {

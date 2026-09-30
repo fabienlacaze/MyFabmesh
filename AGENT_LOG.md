@@ -24615,3 +24615,6 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - A FAIRE : banc GPU modal_app (cout ~0,15 $), puis modal deploy + rechauffer_apres_deploy.py, puis deploiement du site.
 
 ## 2026-09-30 — Assistant : liste de telechargement COMPLETE des le debut (moteur d'IA, modeles, 5 lignes du rig, animation), lignes en attente puis allumees (user). Teste en navigateur (API simulee), 0 erreur.
+
+## 2026-09-30 — Assistant : moteur d'IA, avancement PAR ETAPE avec pourcentage sur la ligne
+- User : « pas de % pour cette etape, la barre reste longtemps chargee a fond ». La barre prenait le max (octets, pct d'etape) et se collait a ~92 % pendant « Installing libraries ». Maintenant chaque etape a un poids (torch 40, bibliotheques 26, roues 6+9+3...) et une fraction propre ; la barre ne recule pas, le pourcentage est ecrit sur la ligne (#aienv-pct). Teste en navigateur (API simulee).
