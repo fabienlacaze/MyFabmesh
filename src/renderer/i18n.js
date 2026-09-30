@@ -315,19 +315,62 @@
       'Units': 'Unités',
       'Centimeters (cm)': 'Centimètres (cm)', 'Millimeters (mm)': 'Millimètres (mm)',
       'Meters (m)': 'Mètres (m)', 'Inches (in)': 'Pouces (in)',
-      // ---- Uninstall popup ----
+      // ---- Uninstall / Remove all MyFabmesh data (2026-09-30) ----
       'Uninstall MyFabmesh.AI': 'Désinstaller MyFabmesh.AI',
-      'This removes the app. Optionally, also delete:': "Ceci retire l'application. En option, supprimer aussi :",
-      'Delete the AI models (~17 GB)': 'Supprimer les modèles IA (~17 Go)',
-      'Re-downloadable — keep to reinstall without downloading again.': 'Re-téléchargeables — garde-les pour réinstaller sans re-télécharger.',
-      'Delete my generated content': 'Supprimer mes contenus générés',
-      'Your projects, source images and 3D meshes.': 'Tes projets, images sources et meshes 3D.',
-      'Delete my settings': 'Supprimer mes réglages',
-      'Config and logs.': 'Configuration et logs.',
-      'Nothing checked = your creations and models are kept.': 'Rien de coché = tes créations et modèles sont conservés.',
-      'Uncheck an item to keep it after uninstalling.': 'Décoche un élément pour le conserver après la désinstallation.',
       'Uninstall': 'Désinstaller',
-      'Uninstalling MyFabmesh.AI… (running silently)': 'Désinstallation de MyFabmesh.AI… (en cours, silencieux)',
+      'Removes the AI engine, the downloaded models, the caches and the settings, then the app itself. You choose whether to keep your projects.':
+        "Supprime le moteur d'IA, les modèles téléchargés, les caches et les réglages, puis l'application elle-même. Vous choisissez de garder ou non vos projets.",
+      'Removes the AI engine, the downloaded models, the caches and the settings (you choose whether to keep your projects). Then remove the app itself in Windows Settings > Apps.':
+        "Supprime le moteur d'IA, les modèles téléchargés, les caches et les réglages (vous choisissez de garder ou non vos projets). Retirez ensuite l'application elle-même dans Paramètres Windows > Applications.",
+      'Remove all MyFabmesh data…': 'Supprimer toutes les données MyFabmesh…',
+      'Remove all MyFabmesh data': 'Supprimer toutes les données MyFabmesh',
+      'Uninstall completely': 'Désinstaller complètement',
+      'Settings > Installation > Remove all MyFabmesh data deletes the AI engine, the downloaded models, the caches and the settings, shows their size first, lets you keep your projects, then uninstalls the app. Uninstalling from Windows Settings > Apps removes the same data and asks whether to also delete your projects.':
+        "Réglages > Installation > Supprimer toutes les données MyFabmesh efface le moteur d'IA, les modèles téléchargés, les caches et les réglages, en affichant d'abord leur taille ; vous pouvez garder vos projets ; l'application est ensuite désinstallée. Désinstaller depuis Paramètres Windows > Applications supprime les mêmes données et demande s'il faut aussi supprimer vos projets.",
+      'Windows Settings > Apps only removes the app itself. First use Settings > Installation > Remove all MyFabmesh data: it deletes the AI engine, the downloaded models, the caches and the settings (and, if you want, your projects), including folders on other drives.':
+        "Paramètres Windows > Applications ne retire que l'application elle-même. Utilisez d'abord Réglages > Installation > Supprimer toutes les données MyFabmesh : le moteur d'IA, les modèles téléchargés, les caches et les réglages sont effacés (et, si vous le souhaitez, vos projets), y compris dans les dossiers placés sur d'autres disques.",
+      'Deletes everything MyFabmesh.AI stored on this PC. Nothing is deleted until you click Delete.':
+        "Efface tout ce que MyFabmesh.AI a enregistré sur ce PC. Rien n'est supprimé avant que vous cliquiez sur Supprimer.",
+      'Measuring…': 'Mesure en cours…',
+      'AI engine and downloaded models': "Moteur d'IA et modèles téléchargés",
+      'AI engine, models and their caches.': "Moteur d'IA, modèles et leurs caches.",
+      'Including {x}': 'Y compris {x}',
+      'Settings, logs and temporary files': 'Réglages, journaux et fichiers temporaires',
+      'Setup state, logs, update cache, temporary files.': "État de l'installation, journaux, cache des mises à jour, fichiers temporaires.",
+      'Also delete my projects and creations': 'Supprimer aussi mes projets et créations',
+      'Images, 3D models, rigs, history and exports. Unticked: kept, and found again if you reinstall.':
+        'Images, modèles 3D, rigs, historique et exports. Non coché : conservés, et retrouvés si vous réinstallez.',
+      'Also delete MyFabmesh models left in the shared AI model cache': "Supprimer aussi les modèles MyFabmesh restés dans le cache de modèles d'IA partagé",
+      'Downloaded there by earlier versions. Other AI software may use the same models: they would download them again.':
+        "Téléchargés là par des versions précédentes. D'autres logiciels d'IA peuvent utiliser les mêmes modèles : ils les téléchargeraient à nouveau.",
+      'GB': 'Go', 'MB': 'Mo',
+      'Delete {x}': 'Supprimer {x}',
+      'Could not measure the data:': 'Impossible de mesurer les données :',
+      'Left in place (not recognized as a MyFabmesh folder, delete it yourself if needed):':
+        "Laissé en place (pas reconnu comme un dossier MyFabmesh ; supprimez-le vous-même si besoin) :",
+      'Disabled when MyFabmesh.AI runs from its source code: it would delete the data of the installed app.':
+        "Désactivé quand MyFabmesh.AI tourne depuis son code source : cela effacerait les données de l'application installée.",
+      'Disabled when MyFabmesh.AI runs from its source code: it would uninstall the installed app.':
+        "Désactivé quand MyFabmesh.AI tourne depuis son code source : cela désinstallerait l'application installée.",
+      'Stopping the AI engine…': "Arrêt du moteur d'IA…",
+      'Deleting…': 'Suppression…',
+      '{x} of {y}': '{x} sur {y}',
+      'The data could not be removed.': "Les données n'ont pas pu être supprimées.",
+      'Done: {x} freed.': 'Terminé : {x} libérés.',
+      '{x} items in use were left in place: they are removed when the app is uninstalled.':
+        "{x} éléments en cours d'utilisation sont restés en place : ils seront supprimés à la désinstallation de l'application.",
+      'Restart the app': "Redémarrer l'application",
+      'Last step: uninstall the app itself. MyFabmesh.AI then closes and finishes uninstalling in the background (about a minute).':
+        "Dernière étape : désinstaller l'application elle-même. MyFabmesh.AI se ferme alors et termine la désinstallation en arrière-plan (environ une minute).",
+      'Uninstall the app': "Désinstaller l'application",
+      'MyFabmesh.AI is closing and finishes uninstalling in the background.':
+        'MyFabmesh.AI se ferme et termine la désinstallation en arrière-plan.',
+      'Uninstall failed': 'Échec de la désinstallation',
+      'Last step: remove the app itself in Windows Settings > Apps > Installed apps > MyFabmesh.AI > Uninstall.':
+        "Dernière étape : retirez l'application elle-même dans Paramètres Windows > Applications > Applications installées > MyFabmesh.AI > Désinstaller.",
+      'Open Windows Settings': 'Ouvrir les Paramètres Windows',
+      'MyFabmesh.AI must restart.': 'MyFabmesh.AI doit redémarrer.',
+      'A removal is already running.': 'Une suppression est déjà en cours.',
       // ---- Part naming (Nommer les zones) ----
       'Name the zones (AI)': 'Nommer les zones (IA)',
       'What kind of object is this? (sets the naming vocabulary)':

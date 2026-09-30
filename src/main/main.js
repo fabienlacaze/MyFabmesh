@@ -560,7 +560,12 @@ function isCloudMode() {
 // le venv IA provisionné — `build/python-embed` est NU (aucun site-packages),
 // donc tout script échouerait sur ModuleNotFoundError. Le parcours Cloud
 // (machine sans GPU) ne provisionne jamais ce venv.
+// « Remove all MyFabmesh data » lance ou fait (2026-09-30) : plus aucun serveur Python ne doit
+// demarrer (traduction, filtre, images) — il verrouillerait les fichiers en cours de suppression.
+// `var` : lisible sans zone morte temporelle quel que soit l'ordre d'appel au chargement du module.
+var _moteurRetire = false;
 function _localPyLibsUsable() {
+  if (_moteurRetire) return false;
   // Override de test : rejoue le comportement « aucun venv IA » (mode Cloud du
   // testeur Store) depuis la machine de dev.
   if (process.env.FABMESH_FORCE_NO_LOCAL_PY === '1') return false;
@@ -889,6 +894,53 @@ const SAMPART3D_DIR      = path.join(HEAVY_DIR, 'SAMPart3D');
 const PARTSAM_DIR        = path.join(HEAVY_DIR, 'PartSAM');   // moteur de découpe feedforward (remplace SAMPart3D)
 // HuggingFace model cache (the big download); HF_HOME points here.
 const HF_CACHE_DIR  = path.join(HEAVY_DIR, 'hf_cache');
+/* CONFINEMENT DES ECRITURES DES MOTEURS (2026-09-30, user : « vraiment desinstaller tout MyFabmesh »).
+ * Plusieurs bibliotheques ecrivaient HORS de nos dossiers, donc hors de portee de la desinstallation :
+ * ~/.cache/huggingface (le serveur d'images etait lance sans HF_HOME : modeles telecharges une 2e fois),
+ * ~/.u2net (detourage, 176 Mo), ~/.cache/realesrgan_weights, ~/.cache/torch, ~/.triton (nouvelles
+ * installations), %LOCALAPPDATA%\pip\cache (pip de l'assistant : plusieurs Go de roues) et %TEMP%.
+ * Tous les processus Python heritent de process.env : chaque cache pointe ici dans le dossier de donnees
+ * (HEAVY_DIR), que « Remove all MyFabmesh data » et le desinstalleur effacent. « ai-cache » et non
+ * « cache » : par defaut HEAVY_DIR est le dossier de l'appli, ou Chromium a deja son « Cache ».
+ * Seulement dans l'appli installee : en developpement, les modeles vivent dans les caches par defaut. */
+const AI_CACHE_DIR = path.join(HEAVY_DIR, 'ai-cache');
+const AI_TMP_DIR   = path.join(HEAVY_DIR, 'ai-tmp');
+// Cache Hugging Face PARTAGE du user (avant redirection) : d'anciennes versions y ont laisse des modeles,
+// proposes a part par « Remove all MyFabmesh data ».
+const HF_HUB_PARTAGE = process.env.HF_HUB_CACHE || process.env.HUGGINGFACE_HUB_CACHE
+  || path.join(process.env.HF_HOME || path.join(os.homedir(), '.cache', 'huggingface'), 'hub');
+if (app.isPackaged) {
+  const env = process.env;
+  const hub = path.join(HF_CACHE_DIR, 'hub');
+  env.HF_HOME = HF_CACHE_DIR;
+  env.HF_HUB_CACHE = hub;
+  env.HUGGINGFACE_HUB_CACHE = hub;
+  for (const k of ['TRANSFORMERS_CACHE', 'PYTORCH_TRANSFORMERS_CACHE', 'DIFFUSERS_CACHE']) {
+    if (env[k]) env[k] = hub;     // anciennes variables : prioritaires sur HF_HOME si le user en a pose une
+  }
+  env.TORCH_HOME = path.join(AI_CACHE_DIR, 'torch');
+  env.XDG_CACHE_HOME = AI_CACHE_DIR;
+  env.PIP_CACHE_DIR = path.join(AI_CACHE_DIR, 'pip');
+  env.MPLCONFIGDIR = path.join(AI_CACHE_DIR, 'matplotlib');
+  // Caches de COMPILATION (noyaux Triton de la 3D, extensions torch) : deja remplis a l'emplacement par
+  // defaut par une installation precedente, on les garde — tout recompiler couterait plusieurs minutes a
+  // la premiere generation 3D. Caches partages avec d'autres logiciels : jamais effaces a la desinstallation.
+  const dossierExiste = (p) => { try { return fs.statSync(p).isDirectory(); } catch (_) { return false; } };
+  const neufSaufAncien = (cle, neuf, ancien) => { if (dossierExiste(neuf) || !dossierExiste(ancien)) env[cle] = neuf; };
+  neufSaufAncien('TRITON_CACHE_DIR', path.join(AI_CACHE_DIR, 'triton'), path.join(os.homedir(), '.triton', 'cache'));
+  neufSaufAncien('TORCH_EXTENSIONS_DIR', path.join(AI_CACHE_DIR, 'torch_extensions'),
+    path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'torch_extensions'));
+  // Poids deja telecharges par une version precedente dans le dossier personnel : reutilises sur place
+  // (aucun re-telechargement) ; la suppression complete et le desinstalleur les effacent.
+  const neufOuAncien = (neuf, ancien, fichier) =>
+    (!fs.existsSync(path.join(neuf, fichier)) && fs.existsSync(path.join(ancien, fichier))) ? ancien : neuf;
+  env.U2NET_HOME = neufOuAncien(path.join(AI_CACHE_DIR, 'u2net'), path.join(os.homedir(), '.u2net'), 'u2net.onnx');
+  env.FABMESH_REALESRGAN_DIR = neufOuAncien(path.join(AI_CACHE_DIR, 'realesrgan_weights'),
+    path.join(os.homedir(), '.cache', 'realesrgan_weights'), 'RealESRGAN_x4plus.pth');
+  // Temporaires Python (tempfile lit TMPDIR avant TEMP ; Node et Chromium l'ignorent sous Windows).
+  // Dossier absent ou non inscriptible : Python retombe de lui-meme sur %TEMP%.
+  try { fs.mkdirSync(AI_TMP_DIR, { recursive: true }); env.TMPDIR = AI_TMP_DIR; } catch (_) {}
+}
 
 // SCRIPTS_DIR is READ-ONLY: in prod the .py files are copied to
 // process.resourcesPath/scripts by electron-builder extraResources.
@@ -1240,7 +1292,7 @@ function _refreshSdxlVram() {
 }
 
 function startSdxlServer() {
-  if (sdxlProc) return;
+  if (sdxlProc || _moteurRetire) return;         // moteur en cours de suppression (Remove all MyFabmesh data)
   const serverScript = path.join(SCRIPTS_DIR, 'sdxl_server.py');
   if (!fs.existsSync(serverScript)) {
     console.warn('SDXL server script not found, falling back to subprocess mode');
@@ -2365,6 +2417,23 @@ app.whenReady().then(() => {
 
   // 2026-06-13: resume any jobs the user paused on the last quit.
   try { resumePausedJobs(); } catch (e) { log.warn('main', `resumePausedJobs failed: ${e.message}`); }
+
+  // Dossiers de donnees deplaces (actuel + anciens) : liste dans config.json, temoin et registre pour que
+  // la desinstallation les retrouve (2026-09-30, voir _memoriserDossierDonnees). Les installations
+  // deplacees par une version precedente sont ainsi rattrapees au premier lancement.
+  try {
+    if (app.isPackaged) {
+      const cfg = loadConfig();
+      const liste = _listeDossiersDonnees(cfg, [HEAVY_DIR]);
+      if (liste.length) {
+        if (JSON.stringify(liste) !== JSON.stringify(cfg.dossiersDonneesConnus || [])) {
+          cfg.dossiersDonneesConnus = liste;
+          saveConfig(cfg);
+        }
+        for (const d of liste) if (fs.existsSync(d)) _memoriserDossierDonnees(d);
+      }
+    }
+  } catch (e) { log.warn('main', `memoire des dossiers de donnees : ${e.message}`); }
 
   /* PONT MCP — OUTILLAGE DE DEVELOPPEMENT, PAS DU PRODUIT.
    *
@@ -10075,6 +10144,32 @@ function _aiPythonReady() {
 ipcMain.handle('wizard:get-python-exe', () => _embeddedPython());
 ipcMain.handle('wizard:ai-python-ready', () => _aiPythonReady());
 
+/* DOSSIERS DE DONNEES DEPLACES : MEMOIRE POUR LA DESINSTALLATION (2026-09-30).
+ * Changer d'emplacement ne deplace rien : l'ancien dossier garde son moteur et ses modeles. On retient
+ * donc TOUS les dossiers utilises (config.json > dossiersDonneesConnus) pour que « Remove all MyFabmesh
+ * data » les vide, et on les inscrit sous HKCU\Software\MyFabmesh.AI\DataDirs, ou le desinstalleur NSIS
+ * (build/uninstaller.nsh) les retrouve. Un temoin .myfabmesh-data est pose dans chacun : sans lui, le
+ * desinstalleur n'y touche pas. Registre : ni dans le paquet du Store (aucun desinstalleur, registre
+ * virtualise) ni en developpement. Regles de surete : src/main/desinstallation.js. */
+const _desinst = require('./desinstallation');
+function _listeDossiersDonnees(cfg, ajouts = []) {
+  const l = [];
+  const connus = Array.isArray(cfg && cfg.dossiersDonneesConnus) ? cfg.dossiersDonneesConnus : [];
+  for (const d of [...connus, ...ajouts]) {
+    if (typeof d !== 'string' || !path.isAbsolute(d) || _desinst.memeChemin(d, DATA_BASE)) continue;
+    if (!l.some((x) => _desinst.memeChemin(x, d))) l.push(path.resolve(d));
+  }
+  return l;
+}
+function _memoriserDossierDonnees(d) {
+  if (!app.isPackaged || !d || _desinst.memeChemin(d, DATA_BASE)) return;
+  if (!_desinst.poserTemoin(d)) return;          // nom inattendu, racine, dossier absent : rien a inscrire
+  if (process.platform !== 'win32' || isStoreBuild()) return;
+  execFile('reg', _desinst.argsRegistreAjout(d), { windowsHide: true, timeout: 15000 }, (err) => {
+    if (err) log.warn('desinstallation', 'inscription du dossier de donnees impossible : ' + err.message);
+  });
+}
+
 // Data location (relocatable heavy data: AI venv + models). Lets the user
 // move the ~7-22 GB download off C: onto another drive (config.dataDir).
 ipcMain.handle('get-data-location', () => {
@@ -10098,7 +10193,10 @@ ipcMain.handle('pick-data-folder', async () => {
   catch (e) { return { ok: false, error: 'Folder is not writable: ' + e.message }; }
   let freeBytes = null;
   try { const s = fs.statfsSync(dir); freeBytes = s.bavail * s.bsize; } catch (_) {}
-  const cfg = loadConfig(); cfg.dataDir = dir; saveConfig(cfg);
+  const cfg = loadConfig(); cfg.dataDir = dir;
+  cfg.dossiersDonneesConnus = _listeDossiersDonnees(cfg, [HEAVY_DIR, dir]);   // l'ancien dossier garde son contenu
+  saveConfig(cfg);
+  _memoriserDossierDonnees(dir);
   log.info('main', 'data location set to ' + dir + ' (restart to apply)');
   return { ok: true, path: dir, freeBytes, restartNeeded: HEAVY_DIR !== dir };
 });
@@ -10365,13 +10463,176 @@ function _findUninstaller() {
   return null;
 }
 
-// Launch the NSIS uninstaller (from the app or from dev — resolved via the
-// exe folder or the Windows registry). The uninstaller itself asks whether to
-// also delete models/generated content/settings.
+/* ═══ SUPPRESSION COMPLETE DES DONNEES (Reglages > Installation, A propos) — 2026-09-30 ═══
+ * Inventaire avec tailles -> validation dans la fenetre -> arret des moteurs -> suppression -> puis
+ * desinstallation de l'appli (NSIS) ou renvoi vers Parametres > Applications (Store, qui ne peut lancer
+ * aucun script de desinstallation). Listes et regles de surete : src/main/desinstallation.js. Le rendu ne
+ * transmet JAMAIS de chemin : seulement « supprimer aussi les projets » (oui / non).
+ * En developpement : inventaire seulement. userData y est celui de l'appli INSTALLEE (meme nom de
+ * paquet) : supprimer depuis le code source effacerait les donnees de l'appli installee. */
+function _contexteSuppression() {
+  const chemin = (nom) => { try { return app.getPath(nom); } catch (_) { return null; } };
+  return {
+    userData: app.getPath('userData'),
+    appData: chemin('appData'),
+    localAppData: process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+    temp: os.tmpdir(),
+    home: os.homedir(),
+    documents: chemin('documents'), desktop: chemin('desktop'), downloads: chemin('downloads'),
+    installDir: path.dirname(process.execPath),
+    dossierActuel: HEAVY_DIR,
+    dossiersDonnees: _listeDossiersDonnees(loadConfig(), [HEAVY_DIR]),
+    hubHfPartage: HF_HUB_PARTAGE,
+  };
+}
+function _modeLivraison() {
+  if (!app.isPackaged) return 'dev';
+  if (isStoreBuild()) return 'store';
+  return _findUninstaller() ? 'nsis' : 'portable';
+}
+// Processus lances depuis nos dossiers (python du moteur, jobs mis en pause lors d'une session
+// precedente) ou executant nos scripts. L'appli elle-meme et ses processus Electron sont exclus.
+function _arreterProcessusDonnees(ctx) {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') return resolve();
+    const deplaces = ctx.dossiersDonnees.filter((d) =>
+      _desinst.dossierDeplaceValide(d, ctx, { estActuel: _desinst.memeChemin(d, ctx.dossierActuel) }).ok);
+    const env = {
+      ...process.env,
+      ..._desinst.environnementArret({
+        dossiers: [ctx.userData, path.join(ctx.appData || ctx.userData, 'fabmesh'), ...deplaces],
+        scripts: SCRIPTS_DIR, exeAppli: process.execPath, pidAppli: process.pid,
+      }),
+    };
+    _cp.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', _desinst.SCRIPT_ARRET],
+      { env, windowsHide: true, timeout: 45000 }, (err) => {
+        if (err) log.warn('desinstallation', 'arret des processus : ' + err.message);
+        setTimeout(resolve, 800);                 // le temps que Windows libere les fichiers
+      });
+  });
+}
+// Entree « fabmesh » ajoutee a la config de Claude Desktop par « Connect to Claude Desktop ».
+function _retirerEntreeClaudeDesktop() {
+  try {
+    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+    const configPath = path.join(appData, 'Claude', 'claude_desktop_config.json');
+    if (!fs.existsSync(configPath)) return;
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    if (config && config.mcpServers && config.mcpServers.fabmesh) {
+      delete config.mcpServers.fabmesh;
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    }
+  } catch (e) { log.warn('desinstallation', 'config de Claude Desktop : ' + e.message); }
+}
+
+let _planSuppression = null;
+let _suppressionEnCours = false;
+ipcMain.handle('donnees:inventaire', async () => {
+  try {
+    const ctx = _contexteSuppression();
+    const plan = await _desinst.mesurer(_desinst.planifier(ctx));
+    _planSuppression = plan;
+    return {
+      ok: true,
+      mode: _modeLivraison(),
+      resume: _desinst.resumer(plan),
+      dossierAppli: ctx.userData,
+      dossiersDeplaces: ctx.dossiersDonnees.filter((d) => fs.existsSync(d)),
+      refus: plan.refus.filter((r) => fs.existsSync(r.chemin)).map((r) => ({ chemin: r.chemin, raison: r.raison })),
+    };
+  } catch (e) {
+    log.error('desinstallation', 'inventaire : ' + (e && (e.stack || e.message)));
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('donnees:supprimer', async (_e, opts = {}) => {
+  if (!app.isPackaged) {
+    return { ok: false, mode: 'dev', error: 'Disabled when MyFabmesh.AI runs from its source code: it would delete the data of the installed app.' };
+  }
+  if (_suppressionEnCours) return { ok: false, error: 'A removal is already running.' };
+  _suppressionEnCours = true;
+  const supprimerProjets = !!(opts && opts.supprimerProjets === true);
+  const supprimerPartages = !!(opts && opts.supprimerPartages === true);
+  const envoyer = (p) => safeSend('donnees:progression', p);
+  try {
+    const ctx = _contexteSuppression();
+    const plan = _planSuppression || await _desinst.mesurer(_desinst.planifier(ctx));
+    const resume = _desinst.resumer(plan);
+    const total = resume.moteur.octets + resume.reglages.octets
+      + (supprimerProjets ? resume.projets.octets + resume.config.octets : 0)
+      + (supprimerPartages ? resume.partage.octets : 0);
+    log.info('desinstallation', `suppression complete : debut (projets ${supprimerProjets ? 'supprimes' : 'gardes'}, ~${Math.round(total / 1e6)} Mo)`);
+    envoyer({ etape: 'arret', octets: 0, total });
+    // 1. Moteurs et travaux : plus aucun processus ne doit tenir un fichier du moteur ouvert, ni
+    //    redemarrer pendant la suppression (traduction automatique de l'interface, par exemple).
+    _moteurRetire = true;
+    _keepJobsOnQuit = false;
+    try { killAllActiveProcs(); } catch (_) {}
+    try { stopSdxlServer(); } catch (_) {}
+    try { stopTranslateServer(); } catch (_) {}
+    try { stopNsfwServer(); } catch (_) {}
+    await _arreterProcessusDonnees(ctx);
+    _retirerEntreeClaudeDesktop();
+    // 2. Journal ferme : un fichier ouvert empecherait de retirer le dossier des journaux.
+    try { if (_logStream) _logStream.end(); } catch (_) {}
+    _logStream = null;
+    // 3. Suppression, avec progression.
+    envoyer({ etape: 'suppression', octets: 0, total });
+    let dernier = 0;
+    const r = await _desinst.supprimer(plan, ctx, {
+      supprimerProjets,
+      supprimerPartages,
+      surProgression: ({ octets }) => {
+        const t = Date.now();
+        if (t - dernier > 250) { dernier = t; envoyer({ etape: 'suppression', octets, total }); }
+      },
+    });
+    _planSuppression = null;
+    // 4. Memoire des dossiers deplaces : on oublie ceux qui ont ete vides.
+    if (process.platform === 'win32' && !isStoreBuild()) {
+      for (const d of r.dossiersRetires) {
+        _cp.execFile('reg', _desinst.argsRegistreRetrait(d), { windowsHide: true, timeout: 15000 }, () => {});
+      }
+    }
+    if (!supprimerProjets) {                        // config.json gardee avec les projets : sans l'emplacement efface
+      try {
+        const cfg = loadConfig();
+        const reste = _listeDossiersDonnees(cfg).filter((d) => !r.dossiersRetires.some((x) => _desinst.memeChemin(x, d)));
+        if (cfg.dataDir && r.dossiersRetires.some((x) => _desinst.memeChemin(x, cfg.dataDir))) delete cfg.dataDir;
+        if (reste.length) cfg.dossiersDonneesConnus = reste; else delete cfg.dossiersDonneesConnus;
+        if (fs.existsSync(CONFIG_PATH)) saveConfig(cfg);
+      } catch (_) {}
+    }
+    // 5. Profil Electron (stockage local, caches du navigateur) : vide ici, retire par la desinstallation.
+    try {
+      const { session } = require('electron');
+      await session.defaultSession.clearStorageData();
+      await session.defaultSession.clearCache();
+    } catch (_) {}
+    envoyer({ etape: 'fin', octets: r.liberes, total });
+    return {
+      ok: true, mode: _modeLivraison(), liberes: r.liberes,
+      echecs: r.echecs.length, detailsEchecs: r.echecs.slice(0, 20),
+    };
+  } catch (e) {
+    try { log.error('desinstallation', 'suppression : ' + (e && (e.stack || e.message))); } catch (_) {}
+    return { ok: false, error: e.message };
+  } finally {
+    _suppressionEnCours = false;
+  }
+});
+ipcMain.handle('app:ouvrir-applis-windows', async () => {
+  try { await shell.openExternal('ms-settings:appsfeatures'); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Launch the NSIS uninstaller. Called after « Remove all MyFabmesh data » (the choices were
+// validated in the app window): runs silently (/S) and passes the projects choice as an argument,
+// read by build/uninstaller.nsh (--delete-projects / --keep-projects).
 ipcMain.handle('app:uninstall', async (_e, opts = {}) => {
   // Installation Microsoft Store (MSIX) : il n'y a AUCUN désinstalleur NSIS.
   // On ouvre le panneau Windows au lieu d'affirmer « l'app n'est pas installée ».
-  if (process.windowsStore) {
+  if (process.windowsStore || isStoreBuild()) {
     try { shell.openExternal('ms-settings:appsfeatures'); } catch (_) {}
     return {
       ok: false, mode: 'store',
@@ -10379,24 +10640,27 @@ ipcMain.handle('app:uninstall', async (_e, opts = {}) => {
            + 'Windows Settings → Apps → Installed apps (just opened for you).',
     };
   }
+  // Depuis le code source, le desinstalleur trouve serait celui de l'appli INSTALLEE : on refuse.
+  if (!app.isPackaged) {
+    return { ok: false, mode: 'dev', error: 'Disabled when MyFabmesh.AI runs from its source code: it would uninstall the installed app.' };
+  }
   const uninstaller = _findUninstaller();
   if (uninstaller) {
-    const { spawn } = require('child_process');
-    // On lance le désinstalleur en SILENCIEUX (/S) : les questions (confirmer,
-    // supprimer modèles / contenus générés / réglages) sont déjà posées par la
-    // jolie popup in-app → plus AUCUN dialogue Windows moche. Les choix sont
-    // transmis via variables d'env, lues par customUnInstall (build/uninstaller.nsh).
-    const env = {
-      ...process.env,
-      FABMESH_UNINST_MODELS: opts.models ? '1' : '0',
-      FABMESH_UNINST_GENERATED: opts.generated ? '1' : '0',
-      FABMESH_UNINST_SETTINGS: opts.settings ? '1' : '0',
-    };
-    spawn(uninstaller, ['/S', '/currentuser'], { detached: true, stdio: 'ignore', env }).unref();
-    // En build packagé, on quitte pour libérer les fichiers verrouillés ;
-    // en dev l'app installée est distincte, on ne tue pas l'éditeur.
-    if (app.isPackaged) setTimeout(() => app.quit(), 500);
-    return { ok: true, mode: 'nsis', packaged: app.isPackaged };
+    const args = ['/S', '/currentuser', opts && opts.supprimerProjets === true ? '--delete-projects' : '--keep-projects'];
+    let enfant;
+    try {
+      enfant = _cp.spawn(uninstaller, args, { detached: true, stdio: 'ignore' });
+    } catch (e) {                                   // lancement refuse par Windows (erreur levee tout de suite)
+      log.error('desinstallation', 'lancement du desinstalleur impossible : ' + e.message);
+      return { ok: false, mode: 'nsis', error: 'The Windows uninstaller could not be started (' + e.message + '). Uninstall MyFabmesh.AI from Windows Settings > Apps.' };
+    }
+    enfant.on('error', (e) => log.error('desinstallation', 'desinstalleur : ' + e.message));
+    enfant.unref();
+    // Surtout pas dans la liste des processus a tuer a la fermeture (fullCleanup) : le desinstalleur
+    // doit survivre a l'appli, qui se ferme justement pour liberer ses fichiers.
+    try { allActiveProcs.delete(enfant); } catch (_) {}
+    setTimeout(() => app.quit(), 800);
+    return { ok: true, mode: 'nsis', packaged: true };
   }
   return {
     ok: false,
@@ -10568,6 +10832,9 @@ ipcMain.handle('wizard:complete', (_e, state) => {
     if (fs.existsSync(SETUP_BACKUP_FILE)) {
       try { fs.unlinkSync(SETUP_BACKUP_FILE); } catch (_) {}
     }
+    // Roues pip gardees pendant l'installation (une reprise ne re-telecharge pas torch) : inutiles une
+    // fois l'installation terminee, et plusieurs Go (2026-09-30, cache confine dans ai-cache\pip).
+    if (app.isPackaged) fs.promises.rm(path.join(AI_CACHE_DIR, 'pip'), { recursive: true, force: true }).catch(() => {});
     log.info('wizard', `setup completed (mode=${state?.mode})`);
   } catch (e) {
     log.warn('wizard', `cannot persist setup_state: ${e.message}`);

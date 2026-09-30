@@ -2546,15 +2546,13 @@
         </div>
         <div class="settings-box" style="margin-top:8px;">
           <div class="settings-box-title">Uninstall MyFabmesh.AI</div>
-          <!-- Le texte annoncait « You'll be asked whether to also delete the
-               AI models (~17 GB) » : ces trois questions ne sont posees que par
-               le desinstalleur NSIS. Dans le paquet du Store, `app:uninstall`
-               renvoie vers les Parametres de Windows et ne demande rien. On
-               n'annonce donc plus une question qui ne sera pas posee ; le texte
-               exact est ajuste a l'execution selon la livraison. -->
-          <div class="settings-box-desc" id="set-uninstall-desc">Remove MyFabmesh.AI from your computer. Your generated meshes folder is never touched.</div>
+          <!-- DESINSTALLATION COMPLETE (2026-09-30) : le bouton ouvre la fenetre « Remove all MyFabmesh
+               data » (#modal-suppr-donnees) : inventaire avec tailles, projets gardes par defaut,
+               validation, suppression, puis desinstallation de l'appli (NSIS) ou Parametres >
+               Applications (Store). Le texte est ajuste a l'execution selon la livraison. -->
+          <div class="settings-box-desc" id="set-uninstall-desc">Removes the AI engine, the downloaded models, the caches and the settings, then the app itself. You choose whether to keep your projects.</div>
           <div style="margin-top:8px;">
-            <button id="set-uninstall" class="ghost-btn danger" style="width:100%; padding:6px 12px; font-size:12px;">&#128465;&#65039; Uninstall MyFabmesh.AI</button>
+            <button id="set-uninstall" class="ghost-btn danger" style="width:100%; padding:6px 12px; font-size:12px;">&#128465;&#65039; Remove all MyFabmesh data&hellip;</button>
           </div>
         </div>
 
@@ -3619,6 +3617,14 @@
         <button id="about-report-btn" class="ghost-btn" style="margin-top:8px;">&#9873; Report AI content</button>
       </div>
 
+      <!-- AIDE : DESINSTALLATION COMPLETE (2026-09-30). Texte ajuste a l'execution pour le Store
+           (Windows n'y retire que l'appli : les donnees se suppriment d'abord ici). -->
+      <div class="about-section">
+        <div class="about-label">Uninstall completely</div>
+        <p id="about-desinstaller-texte">Settings &gt; Installation &gt; Remove all MyFabmesh data deletes the AI engine, the downloaded models, the caches and the settings, shows their size first, lets you keep your projects, then uninstalls the app. Uninstalling from Windows Settings &gt; Apps removes the same data and asks whether to also delete your projects.</p>
+        <button id="about-suppr-donnees" class="ghost-btn" style="margin-top:8px;">&#128465;&#65039; Remove all MyFabmesh data&hellip;</button>
+      </div>
+
       <div class="about-section">
         <div class="about-label">Resources</div>
         <div class="about-links">
@@ -3647,6 +3653,61 @@
       <div class="about-section about-credits">
         <div class="about-label">Crafted by</div>
         <p>An Ayros Studio production · Crash reports sent anonymously via Sentry.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       REMOVE ALL MYFABMESH DATA (2026-09-30) — Reglages > Installation et A propos.
+       Etape 1 : inventaire avec tailles (rien n'est supprime avant « Delete »), projets gardes par
+       defaut. Etape 2 : progression. Etape 3 : fin, puis desinstallation de l'appli (NSIS) ou
+       Parametres > Applications (Store). Logique : _sddOuvrir (index2.js) ; main.js donnees:*.
+       Au-dessus des Reglages et de « A propos », d'ou elle s'ouvre.
+       ============================================================ -->
+  <div id="modal-suppr-donnees" class="modal-overlay hidden" style="z-index:10060;">
+    <div class="modal-card sdd-carte">
+      <div class="fen-tete">
+        <h2>Remove all MyFabmesh data</h2>
+        <button type="button" class="settings-close-x" id="sdd-fermer" title="Close">&#10005;</button>
+      </div>
+      <div id="sdd-etape-choix">
+        <p class="modal-subtitle">Deletes everything MyFabmesh.AI stored on this PC. Nothing is deleted until you click Delete.</p>
+        <div id="sdd-mesure" class="sdd-mesure">Measuring&hellip;</div>
+        <div id="sdd-liste" class="sdd-liste" hidden>
+          <div class="sdd-ligne">
+            <span class="sdd-nom"><b>AI engine and downloaded models</b><small id="sdd-moteur-detail">AI engine, models and their caches.</small></span>
+            <span class="sdd-taille" id="sdd-moteur-taille">&ndash;</span>
+          </div>
+          <div class="sdd-ligne">
+            <span class="sdd-nom"><b>Settings, logs and temporary files</b><small>Setup state, logs, update cache, temporary files.</small></span>
+            <span class="sdd-taille" id="sdd-reglages-taille">&ndash;</span>
+          </div>
+          <label class="opt-ligne sdd-ligne sdd-projets">
+            <input type="checkbox" id="sdd-projets">
+            <span class="sdd-nom"><b>Also delete my projects and creations</b><small>Images, 3D models, rigs, history and exports. Unticked: kept, and found again if you reinstall.</small></span>
+            <span class="sdd-taille" id="sdd-projets-taille">&ndash;</span>
+          </label>
+          <label class="opt-ligne sdd-ligne sdd-projets" id="sdd-partage-ligne" hidden>
+            <input type="checkbox" id="sdd-partage">
+            <span class="sdd-nom"><b>Also delete MyFabmesh models left in the shared AI model cache</b><small>Downloaded there by earlier versions. Other AI software may use the same models: they would download them again.</small></span>
+            <span class="sdd-taille" id="sdd-partage-taille">&ndash;</span>
+          </label>
+        </div>
+        <p class="fen-note" id="sdd-note" hidden></p>
+      </div>
+      <div id="sdd-etape-progression" hidden>
+        <p class="modal-subtitle" id="sdd-progression-texte">Stopping the AI engine&hellip;</p>
+        <div class="sdd-barre"><div class="sdd-barre-remplie" id="sdd-barre"></div></div>
+        <p class="fen-note" id="sdd-progression-octets"></p>
+      </div>
+      <div id="sdd-etape-fin" hidden>
+        <p class="modal-subtitle" id="sdd-fin-titre"></p>
+        <p class="sdd-fin-texte" id="sdd-fin-texte"></p>
+        <p class="fen-note" id="sdd-fin-note" hidden></p>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-btn" id="sdd-annuler">Cancel</button>
+        <button class="primary-btn danger" id="sdd-supprimer" disabled>Delete</button>
       </div>
     </div>
   </div>

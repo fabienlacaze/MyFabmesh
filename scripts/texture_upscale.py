@@ -65,8 +65,9 @@ def upscale_atlas(img: Image.Image, scale=2, model_name='RealESRGAN_x4plus',
     from basicsr.archs.rrdbnet_arch import RRDBNet
     from realesrgan import RealESRGANer
 
-    # Auto-download weight on first run.
-    model_dir = os.path.expanduser('~/.cache/realesrgan_weights')
+    # Auto-download weight on first run. Dossier donne par l'appli (FABMESH_REALESRGAN_DIR, dans son dossier
+    # de donnees : efface a la desinstallation, 2026-09-30) ; ~/.cache/realesrgan_weights hors de l'appli.
+    model_dir = os.environ.get('FABMESH_REALESRGAN_DIR') or os.path.expanduser('~/.cache/realesrgan_weights')
     os.makedirs(model_dir, exist_ok=True)
     weight_path = os.path.join(model_dir, f'{model_name}.pth')
     if not os.path.isfile(weight_path):

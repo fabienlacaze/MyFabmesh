@@ -4795,3 +4795,22 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 
 #modal-journal .mj-liste li { display: grid; grid-template-columns: 46px 1fr; column-gap: 10px; align-items: baseline; }
 #modal-journal .mj-build { font-size: 11px; color: var(--text-2, #9aa3b5); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* REMOVE ALL MYFABMESH DATA (2026-09-30) — suppression complete des donnees (Reglages > Installation, A propos) */
+.modal-card.sdd-carte { width: 580px; max-width: 92vw; }
+.sdd-mesure { font-size: 12.5px; color: var(--text-2); padding: 14px 0; }
+.sdd-liste { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.sdd-ligne { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
+.modal-card label.opt-ligne.sdd-ligne { margin: 0; }
+.sdd-nom { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sdd-nom b { font-size: 13px; font-weight: 600; color: var(--text, #e8e8f0); }
+.sdd-nom small { font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+.sdd-taille { flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--accent); white-space: nowrap;
+  font-variant-numeric: tabular-nums; }
+.sdd-projets input { margin-top: 3px; flex: 0 0 auto; }
+.sdd-barre { height: 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); overflow: hidden; margin: 6px 0; }
+.sdd-barre-remplie { height: 100%; width: 0; background: var(--accent-grad, var(--accent)); transition: width .25s; }
+.sdd-fin-texte { font-size: 13px; line-height: 1.5; color: var(--text-1); white-space: pre-line; }
+#sdd-note { color: #f0b429; white-space: pre-line; }
+#modal-suppr-donnees [hidden] { display: none !important; }   /* les .sdd-liste / .opt-ligne sont en flex */
