@@ -195,7 +195,7 @@ window.openProjectByName = async function (projectName, focusAssetUrl) {
 // supplies (no hardcoded value here).
 // ────────────────────────────────────────────────────────────────
 /** Envoi d'un GLB de plus de 100 Mo (poids de peau d'un gros rig) : morceaux de 32 Mio assembles par le serveur. */
-async function uploadGlbParMorceaux(bytes, { source, project }, onProgress) {
+async function uploadGlbParMorceaux(bytes, { source, project, light }, onProgress) {
   const base = '/api/mesh-op/client-multi';
   const post = async (qs, body, json) => {
     const r = await fetch(base + '?' + new URLSearchParams(qs).toString(), {
@@ -207,7 +207,7 @@ async function uploadGlbParMorceaux(bytes, { source, project }, onProgress) {
     if (!r.ok || d?.success === false) throw new Error(d?.error || `HTTP ${r.status}`);
     return d;
   };
-  const init = await post({ action: 'init', project: project || '', source: source || '' });
+  const init = await post({ action: 'init', project: project || '', source: source || '', ...(light ? { light: '1' } : {}) });
   const taille = init.partSize || 32 * 1024 * 1024, total = Math.ceil(bytes.byteLength / taille), parts = [];
   try {
     for (let i = 0; i < total; i++) {
@@ -29242,10 +29242,11 @@ document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () 
       let data;
       if (glb.byteLength > 90 * 1024 * 1024) {
         // fichier trop gros pour un seul envoi (limite 100 Mo) : morceaux de 32 Mio
-        data = await uploadGlbParMorceaux(new Uint8Array(glb), { source, project: p?.name || '' },
+        data = await uploadGlbParMorceaux(new Uint8Array(glb), { source, project: p?.name || '', light: !!_legerP },
           (i, n) => showToast(_i18nT('Uploading') + ' ' + i + ' / ' + n + '…', 'info', 2500));
       } else {
         const qs = new URLSearchParams({ op: 'skin_paint', project: p?.name || '', source });
+        if (_legerP) qs.set('light', '1');
         const r = await fetch('/api/mesh-op/client-result?' + qs.toString(), {
           method: 'POST', credentials: 'include', headers: { 'content-type': 'model/gltf-binary' }, body: new Uint8Array(glb) });
         data = await r.json().catch(() => ({}));
@@ -29256,6 +29257,17 @@ document.getElementById('ws-rig-poids-btn')?.addEventListener('click', async () 
     },
   });
 });
+
+// Export en pleine resolution : URL du maillage complet dont descend un rig (voir API.pleineResolution).
+window.__maillageParentUrl = async (rigPath) => {
+  try {
+    const p = state.currentProject; if (!p) return null;
+    const nom = String(rigPath).split('?')[0].split('/').pop();
+    const rec = (p.rigs || []).find((r) => String(r.path || r.url || '').split('?')[0].split('/').pop() === nom) || { filename: nom };
+    const mp = _resolveParentMeshPath(rec, p);
+    return mp ? await API.getMeshLocalUrl(mp) : null;
+  } catch (_) { return null; }
+};
 
 // ══ NUMERO DE VERSION (2026-09-29) : petit repere en bas a droite ; le build monte a chaque modification
 // (build/ecrire-version.mjs ecrit build-info.js). Survol = date et commit. Identique bureau / web.

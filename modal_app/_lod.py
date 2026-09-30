@@ -28,10 +28,11 @@ CIBLE_FACES = 500_000
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("nodejs")
-    .pip_install("fastapi[standard]", "requests")
+    .pip_install("fastapi[standard]", "requests", "numpy>=1.26,<2", "scipy>=1.11,<1.18")
     .run_commands("mkdir -p /opt/lod/build /opt/lod/src/renderer/lib && echo '{\"type\":\"module\"}' > /opt/lod/package.json")
     .add_local_file("build/gen_light_glb.mjs", remote_path="/opt/lod/build/gen_light_glb.mjs", copy=True)
     .add_local_file("src/renderer/lib/meshopt-simplifier.js", remote_path="/opt/lod/src/renderer/lib/meshopt-simplifier.js", copy=True)
+    .add_local_python_source("modal_app")
 )
 
 
@@ -111,6 +112,44 @@ def faire_leger(job_id: str, mesh_url: str, cible: int = CIBLE_FACES):
 
 @app.function(
     image=image,
+    cpu=4.0,
+    memory=16384,
+    timeout=600,
+    volumes={"/lod_data": volume},
+)
+def reporter_peau(job_id: str, rig_leger_url: str, maillage_url: str):
+    """PLEINE RESOLUTION A L'EXPORT (2026-09-30) : le rig retouche sur la version legere (~500 K) est reporte sur le maillage
+    COMPLET (texture, UV, materiaux d'origine) : chaque sommet du complet prend les poids du sommet le plus proche de la version legere
+    (modal_app/transfert_peau.py, teste : 99 % des sommets gardent le meme os dominant que le rig complet d'origine, 2 s de calcul).
+    Ecrit /lod_data/<job>.glb (ou .err)."""
+    import urllib.request
+
+    def _fin(nom: str, contenu):
+        with open(f"/lod_data/{job_id}.{nom}", "wb" if isinstance(contenu, bytes) else "w") as f:
+            f.write(contenu)
+        volume.commit()
+
+    def _lire(url: str) -> bytes:
+        req = urllib.request.Request(url, headers={"User-Agent": "myfabmesh"})
+        with urllib.request.urlopen(req, timeout=300) as r:
+            return r.read()
+
+    try:
+        from modal_app import transfert_peau as tp
+        t0 = time.time()
+        leger = _lire(rig_leger_url)
+        plein = _lire(maillage_url)
+        print(f"[report] rig leger {len(leger) / 1e6:.0f} Mo, maillage complet {len(plein) / 1e6:.0f} Mo", flush=True)
+        out = tp.transferer_peau(leger, plein, log=lambda m: print(m, flush=True))
+        _fin("glb", out)
+        print(f"[report] rig pleine resolution : {len(out) / 1e6:.0f} Mo en {time.time() - t0:.0f} s", flush=True)
+    except Exception as e:
+        print(f"[report] ECHEC : {e}", flush=True)
+        _fin("err", json.dumps({"error": str(e)[:400]}))
+
+
+@app.function(
+    image=image,
     timeout=120,
     volumes={"/lod_data": volume},
     secrets=[modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"])],
@@ -153,6 +192,17 @@ def lod_router():
         job = _job(p)
         cible = int(p.get("cible") or CIBLE_FACES)
         faire_leger.spawn(job, url, max(50_000, min(cible, 1_000_000)))
+        return JSONResponse({"job_id": job, "status": "queued"})
+
+    @api.post("/lod-report-start")
+    async def lod_report_start(request: Request):
+        p = await _json(request)
+        _auth(p)
+        rig, mesh = (p.get("rig_url") or "").strip(), (p.get("mesh_url") or "").strip()
+        if not (rig.startswith("https://") and mesh.startswith("https://")):
+            raise HTTPException(status_code=400, detail="rig_url and mesh_url required")
+        job = _job(p)
+        reporter_peau.spawn(job, rig, mesh)
         return JSONResponse({"job_id": job, "status": "queued"})
 
     @api.post("/lod-status")

@@ -24284,3 +24284,10 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
   La version legere reste un COMPAGNON d'affichage (`<compte>/light/`) ; export = fichier de la version choisie (jamais substitue : la substitution ne
   touche que readMeshFile, pas exportMesh / mesh-convert).
 - Reserve connue : l'edition des poids sur la version legere enregistre une version legere ; reporter la peau sur le complet reste a faire.
+
+## 2026-09-30 — Export en PLEINE resolution d'un rig retouche sur la version legere
+- Editeur de poids sur la version legere -> version nommee `_rigged_skinlight_<ts>.glb` (au lieu de skinpaint), routes client-result et multipart.
+- A l'export (`exportMesh` web) : si le rig est `skinlight`, `API.pleineResolution` -> `/api/mesh-light/full` -> Modal `reporter_peau` (CPU) reporte la peau sur le
+  maillage complet parent (texture / UV / materiaux d'origine) ; l'export prend ce rig complet. Repli : export de la version legere avec un message.
+- TEST LOCAL (centipede) : rig leger 40 Mo + mesh complet 323 Mo -> rig complet 466 Mo, 10 346 880 triangles, 76 os, poids somme = 1, 99,0 % des sommets gardent le
+  meme os dominant que le rig complet d'origine, transfert en 2 s. Chemin serveur (Modal, worker, client) NON teste : budget coupe jusqu'au 1er octobre.

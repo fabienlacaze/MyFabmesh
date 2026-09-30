@@ -13297,13 +13297,37 @@ async function handleMeshLight(req: Request, env: Env, action: string): Promise<
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MESHES) return err(500, 'R2 binding required');
-  if (!['find', 'start', 'status'].includes(action)) return err(404, 'not found');
-  const b = await req.json().catch(() => ({})) as { url?: string; job_id?: string; key?: string };
+  if (!['find', 'start', 'status', 'full'].includes(action)) return err(404, 'not found');
+  const b = await req.json().catch(() => ({})) as { url?: string; job_id?: string; key?: string; mesh_url?: string };
+
+  // PLEINE RESOLUTION A L'EXPORT : { url = rig retouche sur la version legere, mesh_url = maillage complet d'origine }
+  if (action === 'full') {
+    const base = _lodBaseUrl(env);
+    const cleRig = await _cleDepuisUrlSignee(env, String(b.url || ''));
+    const cleMesh = await _cleDepuisUrlSignee(env, String(b.mesh_url || ''));
+    if (!cleRig || !cleMesh) return err(403, 'forbidden');
+    if (!base) return json({ skipped: true, reason: 'not configured' });
+    const nom = (cleRig.split('/').pop() || '').replace(/\.glb$/i, '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 200);
+    const clePleine = `${user.id}/full/${nom}_full.glb`;
+    if (await env.MESHES.head(clePleine)) return json({ found: true, key: clePleine, url: await signedR2Url(env, clePleine, 'mesh') });
+    if (await _limiteCalculAtteinte(env)) return json({ skipped: true, reason: 'paused' });
+    const restants = await checkAndIncrementUserCalls(env, user.id);
+    if (restants == null) return json({ skipped: true, reason: 'user limit' });
+    const jobId = crypto.randomUUID();
+    try {
+      const r = await fetch(`${base}/lod-report-start`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, job_id: jobId, rig_url: await signedR2Url(env, cleRig, 'mesh'), mesh_url: await signedR2Url(env, cleMesh, 'mesh') }),
+        signal: AbortSignal.timeout(60_000) });
+      if (!r.ok) return json({ skipped: true, reason: `modal HTTP ${r.status}` });
+    } catch (e) { return json({ skipped: true, reason: e instanceof Error ? e.message : String(e) }); }
+    return json({ found: false, job_id: jobId, key: clePleine });
+  }
 
   if (action === 'status') {
     const key = String(b.key || ''), job = String(b.job_id || '');
     const base = _lodBaseUrl(env);
-    if (!base || !job || !key.startsWith(`${user.id}/light/`) || key.includes('..')) return err(400, 'bad request');
+    if (!base || !job || !(key.startsWith(`${user.id}/light/`) || key.startsWith(`${user.id}/full/`)) || key.includes('..')) return err(400, 'bad request');
     const post = (path: string, extra: Record<string, unknown> = {}) => fetch(`${base}${path}`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, job_id: job, ...extra }), signal: AbortSignal.timeout(60_000) });
@@ -13360,7 +13384,7 @@ async function handleMeshOpClientMulti(req: Request, env: Env): Promise<Response
   if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
   const q = new URL(req.url).searchParams;
   const action = q.get('action') || '';
-  const cleOk = (k: string) => k.startsWith(`${user.id}/rigged/`) && /_rigged_skinpaint_\d+\.glb$/.test(k) && !k.includes('..');
+  const cleOk = (k: string) => k.startsWith(`${user.id}/rigged/`) && /_rigged_(skinpaint|skinlight)_\d+\.glb$/.test(k) && !k.includes('..');
 
   if (action === 'init') {
     const restants = await checkAndIncrementUserCalls(env, user.id);
@@ -13368,7 +13392,8 @@ async function handleMeshOpClientMulti(req: Request, env: Env): Promise<Response
     const source = String(q.get('source') || '').replace(/\.glb$/i, '').replace(/_rigged_.*$/i, '')
       .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 160);
     if (!source) return err(400, 'source required');
-    const key = `${user.id}/rigged/${source}_rigged_skinpaint_${Date.now()}.glb`;
+    const moteurPeau = q.get('light') === '1' ? 'skinlight' : 'skinpaint';
+    const key = `${user.id}/rigged/${source}_rigged_${moteurPeau}_${Date.now()}.glb`;
     const mp = await env.MESHES.createMultipartUpload(key, { httpMetadata: { contentType: 'model/gltf-binary' } });
     return json({ ok: true, success: true, key, uploadId: mp.uploadId, partSize: MULTI_PART_OCTETS });
   }
@@ -13515,8 +13540,9 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
     // projet par le nom du maillage source (handleListMeshes : ce qui precede « _rigged_ »).
     const sourceRig = String(new URL(req.url).searchParams.get('source') || '')
       .replace(/\.glb$/i, '').replace(/_rigged_.*$/i, '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 160);
+    const moteurPeau = new URL(req.url).searchParams.get('light') === '1' ? 'skinlight' : 'skinpaint';
     const key = op === 'skin_paint' && sourceRig
-      ? `${user.id}/rigged/${sourceRig}_rigged_skinpaint_${Date.now()}.glb`
+      ? `${user.id}/rigged/${sourceRig}_rigged_${moteurPeau}_${Date.now()}.glb`
       : `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}_client.glb`;
     await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
     const url = await signedR2Url(env, key, 'mesh');

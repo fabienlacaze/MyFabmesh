@@ -1183,6 +1183,28 @@
       } catch (_) { /* facultatif */ }
       return null;
     },
+    /* PLEINE RESOLUTION A L'EXPORT (2026-09-30) : un rig retouche sur la version legere (`_rigged_skinlight_`) est reporte sur le
+     * maillage complet d'origine (Modal, CPU, quelques secondes) avant d'etre exporte. Rend l'URL du rig complet, ou null. */
+    pleineResolution: async (rigUrl, meshUrl) => {
+      const post = async (chemin, corps) => {
+        const r = await fetch('/api/mesh-light/' + chemin, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corps) });
+        return r.ok ? await r.json() : null;
+      };
+      try {
+        const d = await post('full', { url: rigUrl, mesh_url: meshUrl });
+        if (!d) return null;
+        if (d.found) return d.url;
+        if (!d.job_id) return null;
+        for (let i = 0; i < 90; i++) {
+          await new Promise((ok) => setTimeout(ok, 4000));
+          const s = await post('status', { job_id: d.job_id, key: d.key });
+          if (!s) continue;
+          if (s.skipped || s.error) return null;
+          if (s.ready) return s.url;
+        }
+      } catch (_) { /* on exporte alors la version telle quelle */ }
+      return null;
+    },
     getParentalStatus: async () => {
       // Garde 60 s (2026-09-29) : chaque rendu de la bande des versions l'attendait sur le reseau, bande vide
       // pendant ce temps. toggleUnrestricted l'efface : un deverrouillage est pris en compte tout de suite.
@@ -2041,8 +2063,18 @@
         // c'est lui qui declenche cote serveur l'echelle en cm et l'axe
         // Y-up attendus par Unreal. L'extension renvoyee reste .fbx.
         const fmt = targetFormat || 'glb';
-        const url = await impl.getMeshLocalUrl(sourcePath);
+        let url = await impl.getMeshLocalUrl(sourcePath);
         if (!url) return { ok: false, error: 'mesh not found' };
+        // rig retouche sur la version legere : on l'exporte en PLEINE resolution (peau reportee sur le maillage complet)
+        if (/_rigged_skinlight_\d+/i.test(String(sourcePath)) && window.__maillageParentUrl) {
+          try {
+            if (window.showToast) window.showToast('Preparing the full-resolution rig for export…', 'info', 6000);
+            const mu = await window.__maillageParentUrl(sourcePath);
+            const fu = mu ? await impl.pleineResolution(url, mu) : null;
+            if (fu) url = fu;
+            else if (window.showToast) window.showToast('Full resolution unavailable: exporting the light version instead.', 'warning', 8000);
+          } catch (_) { /* version legere telle quelle */ }
+        }
 
         // Recupere UN mesh dans le format demande. GLB = telechargement
         // direct, aucun aller-retour serveur. Tout autre format passe par
