@@ -24623,6 +24623,3 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 
 ## 2026-09-30 — Assistant : « Image analyzer core » (dinov3) range dans le groupe IMAGES (user : « les images c'est le premier installe »)
 - Ordre des telechargements (wizard_download.py MODELS + WIZARD_MODELS de main.js) : dinov3 avant le moteur 3D ; jalon 3D = moteur 3D seul ; verification (smoke test + libelles) : analyseur d'image dans le groupe images.
-
-## 2026-09-30 — Assistant : barre a jalons ESPACES REGULIEREMENT, avancement par phase (user : « on dirait que la generation d'image est celle qui prend le plus de temps »)
-- Positions visuelles fixes 12/34/56/78/100 %, barre et pourcentage suivent une echelle par phase (ancres reel -> visuel, wizard.js visuel()) ; les Mo, le debit et le temps restant restent reels. Teste en navigateur (API simulee).

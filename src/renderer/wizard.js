@@ -58,29 +58,16 @@ let _pctGlobal = 0;
 function majGlobal(pct) {
   _pctGlobal = Math.max(_pctGlobal, Math.max(0, Math.min(100, pct)));
   const f = document.getElementById('dl-global-fill'), t = document.getElementById('dl-global-pct');
-  const v = visuel(_pctGlobal);
-  if (f) f.style.width = v + '%';
-  if (t) t.textContent = Math.floor(v) + ' %';
+  if (f) f.style.width = _pctGlobal + '%';
+  if (t) t.textContent = Math.floor(_pctGlobal) + ' %';
   majJalons();
-}
-// ECHELLE VISUELLE (user, 2026-09-30 : « on dirait que la generation d'image est celle qui prend le plus de temps ») : les 5 jalons sont espaces
-// REGULIEREMENT (lisible) et la barre avance par PHASE : chaque phase occupe le meme espace, quelle que soit sa taille (les Mo et le temps
-// restant, eux, restent reels). `_ancres` = [avancement reel, position visuelle], remplie par placerJalons.
-const POS_VISUELLES = { engine: 12, img: 34, '3d': 56, rig: 78, anim: 100 };
-let _ancres = [[0, 0], [FIN_MOTEUR, 12], [60, 34], [FIN_MODELES, 56], [FIN_RIG, 78], [100, 100]];
-function visuel(r) {
-  for (let i = 1; i < _ancres.length; i++) {
-    const [r0, v0] = _ancres[i - 1], [r1, v1] = _ancres[i];
-    if (r <= r1) return r1 === r0 ? v1 : v0 + (v1 - v0) * (r - r0) / (r1 - r0);
-  }
-  return 100;
 }
 // Jalons : un moteur est « fait » quand la barre a depasse sa position ; le premier non fait est « actif ».
 function majJalons() {
   let actifPose = false;
   for (const j of document.querySelectorAll('.wiz-jalons:not(.wiz-jalons-test) .wiz-jalon')) {   // la page de verification a sa propre barre
     if (j.hidden) continue;
-    const pos = parseFloat(j.dataset.reel) || 0;
+    const pos = parseFloat(j.style.left) || 0;
     const fait = _pctGlobal >= pos - 0.01;
     j.classList.toggle('fait', fait);
     j.classList.toggle('actif', !fait && !actifPose);
@@ -98,8 +85,7 @@ function placerJalons(plan) {
     const j = document.querySelector(`.wiz-jalons:not(.wiz-jalons-test) .wiz-jalon[data-j="${cle}"]`);
     if (!j) return;
     j.hidden = !visible;
-    j.dataset.reel = String(pos);
-    j.style.left = (POS_VISUELLES[cle] || pos) + '%';
+    j.style.left = pos.toFixed(1) + '%';
   };
   poser('engine', FIN_MOTEUR);
   const pImg = tot ? FIN_MOTEUR + (FIN_MODELES - FIN_MOTEUR) * gImg / tot : FIN_MOTEUR + ECART;
@@ -107,11 +93,7 @@ function placerJalons(plan) {
   poser('3d', FIN_MODELES, g3d > 0);
   poser('rig', FIN_RIG);
   poser('anim', 100);
-  _ancres = [[0, 0], [FIN_MOTEUR, POS_VISUELLES.engine]];
-  if (gImg > 0) _ancres.push([Math.max(FIN_MOTEUR + ECART, Math.min(FIN_MODELES - ECART, pImg)), POS_VISUELLES.img]);
-  if (g3d > 0) _ancres.push([FIN_MODELES, POS_VISUELLES['3d']]);
-  _ancres.push([FIN_RIG, POS_VISUELLES.rig], [100, POS_VISUELLES.anim]);
-  majGlobal(_pctGlobal);
+  majJalons();
 }
 // ROUE + CHRONOMETRE (2026-09-30, user : « une circular bar qui tourne a gauche du pourcentage pour montrer que ca marche » et « un chronometre a
 // droite du pourcentage, a la seconde »). La roue tourne tant que l'installation travaille ; coche verte a la fin, « ! » en cas d'arret.
