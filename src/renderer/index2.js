@@ -21994,6 +21994,9 @@ function majLignesLimites() {
     const lim = totalGB * (pct / 100);
     el.textContent = `Limit for generations: ${lim.toFixed(1)} GB · keeps ${(totalGB - lim).toFixed(1)} GB free for your PC`;
   };
+  const seuil = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  seuil('set-gpu-util-limtxt', `Jobs wait while GPU usage is above ${Math.round(gpuLimits.util)} %`);
+  seuil('set-gpu-temp-limtxt', `Jobs wait while the GPU is hotter than ${Math.round(gpuLimits.temp)} °C`);
   ligne('set-gpu-vram-limtxt', _lastVramTotalGB, gpuLimits.vram);
   ligne('set-ram-limtxt', _cachedTotalRamGB, gpuLimits.ram);
 }
