@@ -885,12 +885,49 @@ function annoncerFin(toutOk) {
 async function runFinalTest() {
   const status = document.getElementById('test-status');
   const log = document.getElementById('test-log');
-  status.textContent = 'Running test generation...';
+  const liste = document.getElementById('test-list');
+  const barre = document.getElementById('test-bar-fill');
+  status.textContent = 'Checking your setup…';
   log.textContent = '';
+  liste.innerHTML = '';
 
+  // Liste de verifications lisible (2026-09-30, user : « plus joli et plus convivial ») : chaque ligne « [smoke] checking X... » du test devient une
+  // ligne de la liste, avec un libelle humain ; le journal brut reste dans « Technical details ».
+  const LIBELLES = [
+    [/native cuda wheels/i, '3D acceleration libraries', 'Speeds up mesh building'],
+    [/pytorch|cuda/i, 'Graphics card', 'Your GPU is ready for AI'],
+    [/3d core|trellis/i, '3D generation engine', 'Turns an image into a 3D model'],
+    [/dino/i, 'Image analyzer', 'Understands your reference image'],
+    [/vision/i, 'Vision module', 'Checks the shapes and colors'],
+  ];
+  const ATTENDU = 5;
+  let courante = null, nbOk = 0;
+  const finir = (li, ok) => {
+    if (!li) return;
+    li.classList.remove('en-cours'); li.classList.add(ok ? 'ok' : 'ko');
+    li.querySelector('.ico').textContent = ok ? '✓' : '!';
+    if (ok) { nbOk++; barre.style.width = Math.min(96, 8 + 88 * nbOk / ATTENDU) + '%'; }
+  };
   window.wizardAPI.onTestLog((line) => {
     log.textContent += line + '\n';
     log.scrollTop = log.scrollHeight;
+    const m = /checking (.+?)(?:\.\.\.|…)\s*$/i.exec(line);
+    if (m) {
+      finir(courante, true);
+      const brut = m[1].trim();
+      const f = LIBELLES.find((x) => x[0].test(brut));
+      const li = document.createElement('li');
+      li.className = 'en-cours';
+      li.innerHTML = '<span class="ico"></span><span class="nom"></span><span class="desc"></span>';
+      li.querySelector('.nom').textContent = f ? f[1] : brut.charAt(0).toUpperCase() + brut.slice(1);
+      li.querySelector('.desc').textContent = f ? f[2] : '';
+      liste.appendChild(li); courante = li;
+    } else if (/FAILED/.test(line)) {
+      finir(courante, false); courante = null;
+      document.getElementById('test-tech').open = true;
+    } else if (/all checks passed/i.test(line)) {
+      finir(courante, true); courante = null; barre.style.width = '100%';
+    }
   });
 
   try {
@@ -906,6 +943,7 @@ async function runFinalTest() {
       // a popping circle, then the text fades up. Replaces the plain
       // "✓ Test passed" line.
       status.classList.remove('error');
+      finir(courante, true); courante = null; barre.style.width = '100%';
       status.innerHTML = `
         <div class="wiz-test-success">
           <svg class="wiz-check" viewBox="0 0 52 52" aria-hidden="true">
@@ -913,8 +951,8 @@ async function runFinalTest() {
             <path class="wiz-check-path" fill="none" d="M14 27 l8 8 l16 -18"/>
           </svg>
           <div class="wiz-test-success-text">
-            <div class="wiz-test-success-title">Test passed</div>
-            <div class="wiz-test-success-sub">Completed in ${result.duration_s}s · MyFabmesh.AI is ready</div>
+            <div class="wiz-test-success-title">You are all set!</div>
+            <div class="wiz-test-success-sub">Everything works (checked in ${result.duration_s}s). Click <b>Launch MyFabmesh.AI</b> to start creating.</div>
           </div>
         </div>`;
       // Trigger the launch button with a subtle highlight.
@@ -922,8 +960,9 @@ async function runFinalTest() {
       launch.disabled = false;
       launch.classList.add('wiz-launch-ready');
     } else {
-      status.textContent = '⚠ Test failed: ' + result.error;
+      status.textContent = '⚠ One check did not pass: ' + result.error + ' — use “Export logs” (top right) and send us the file, or try again.';
       status.classList.add('error');
+      document.getElementById('test-tech').open = true;
       document.getElementById('btn-launch').disabled = true;
     }
   } catch (e) {

@@ -216,10 +216,12 @@
     <!-- STEP 5: TEST -->
     <section class="wiz-page" id="page-test">
       <div class="wiz-card">
-        <h1 class="wiz-h1">Final test</h1>
-        <p class="wiz-lead">Running a tiny generation to confirm everything works.</p>
+        <h1 class="wiz-h1">Almost there!</h1>
+        <p class="wiz-lead">We are checking that everything works on your PC. This takes about a minute.</p>
         <div id="test-status" class="wiz-status">Preparing…</div>
-        <pre id="test-log" class="wiz-test-log"></pre>
+        <div class="wiz-test-bar"><div class="wiz-test-bar-fill" id="test-bar-fill"></div></div>
+        <ul id="test-list" class="wiz-check-list"></ul>
+        <details class="wiz-tech" id="test-tech"><summary>Technical details</summary><pre id="test-log" class="wiz-test-log"></pre></details>
         <div class="wiz-actions">
           <button class="primary-btn" id="btn-launch" disabled>Launch MyFabmesh.AI</button>
         </div>

@@ -24427,3 +24427,6 @@ Reste au user : soumission manuelle dans Partner Center (API Azure AD morte).
 ## 2026-09-30 — Assistant : barre horizontale a jalons + message de fin de telechargement
 - wizard : la barre globale devient une piste horizontale avec un jalon par moteur (AI engine / 3D / Images / Rig, memes pictogrammes que les etapes du logiciel), pourcentage au-dessus, jalons verts une fois passes.
 - Message de fin (user : « on ne sait pas quand c'est telecharge ») : bandeau vert « Download complete… click Continue » (orange si le rig a echoue), bouton Continue qui pulse. Teste en navigateur (stub API) : jalons 8/52/88/100 %, message, 0 erreur.
+
+## 2026-09-30 — Assistant : etape finale de l'assistant plus conviviale
+- wizard (html/css/js) : « Final test » devient « Almost there! » ; le journal brut [smoke] est remplace par une liste de verifications lisibles (Graphics card, 3D acceleration libraries, 3D generation engine, Image analyzer, Vision module) avec spinner/coche, barre de progression, message « You are all set! » ; journal technique replie dans « Technical details » (ouvert automatiquement en cas d'echec). Teste en navigateur avec API simulee.

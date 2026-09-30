@@ -394,6 +394,26 @@
 }
 
 /* Test log ------------------------------------------------------- */
+.wiz-test-bar { height: 8px; background: var(--bg-3); border-radius: 4px; margin: 16px 0 14px; overflow: hidden; }
+.wiz-test-bar-fill { height: 100%; width: 4%; background: var(--accent-grad); border-radius: 4px; transition: width .5s ease; }
+.wiz-check-list { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.wiz-check-list li {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  background: var(--bg-2, #1b1b26); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text-2); font-size: 14px; transition: color .3s, border-color .3s;
+}
+.wiz-check-list li .ico { width: 22px; height: 22px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px; font-weight: 700; border: 2px solid var(--bg-3); }
+.wiz-check-list li.en-cours { color: var(--text-1); border-color: #a855f7; }
+.wiz-check-list li.en-cours .ico { border-color: #a855f7 transparent #a855f7 #a855f7; animation: wiz-tourne .8s linear infinite; }
+.wiz-check-list li.ok { color: var(--text-1); }
+.wiz-check-list li.ok .ico { background: var(--success); border-color: var(--success); color: #0b1a10; }
+.wiz-check-list li.ko { color: var(--error); border-color: var(--error); }
+.wiz-check-list li.ko .ico { background: var(--error); border-color: var(--error); color: #fff; }
+.wiz-check-list li .desc { margin-left: auto; font-size: 12px; color: var(--text-2); }
+@keyframes wiz-tourne { to { transform: rotate(360deg); } }
+.wiz-tech { margin-top: 4px; }
+.wiz-tech summary { cursor: pointer; color: var(--text-2); font-size: 12px; margin-bottom: 8px; }
+.wiz-tech .wiz-test-log { height: 160px; }
 .wiz-test-log {
   background: var(--bg-0);
   color: var(--text-1);
