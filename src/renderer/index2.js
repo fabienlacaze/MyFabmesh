@@ -21999,7 +21999,22 @@ if (API.setGpuLimits) API.setGpuLimits({ util: gpuLimits.util, temp: gpuLimits.t
 // LIGNES DE LIMITE sous les barres VRAM / RAM (user 2026-09-30 : « valeurs de limites et valeurs reelles melangees ») : la barre et la valeur du haut = usage REEL ;
 // la ligne violette dessous = limite posee pour les generations + ce qu'il reste de libre pour le PC. Mise a jour en direct pendant le glissement.
 let _lastVramTotalGB = null, _lastVramUsedGB = null, _lastRamUsedGB = null, _besoinsGen = null;
-async function _chargerBesoinsGen() { try { if (window.meshyAPI?.memoryNeeds) { _besoinsGen = await window.meshyAPI.memoryNeeds(); majLignesLimites(); } } catch (_) {} }
+const _autresUsageGo = { vram: null, ram: null };
+let _besoinsGenDate = 0;
+async function _chargerBesoinsGen() {
+  if (Date.now() - _besoinsGenDate < 4000 && _besoinsGen) return;       // la sonde tourne toutes les 500 ms : journal relu toutes les 4 s
+  _besoinsGenDate = Date.now();
+  try { if (window.meshyAPI?.memoryNeeds) { _besoinsGen = await window.meshyAPI.memoryNeeds(); majLignesLimites(); } } catch (_) {}
+}
+// Limite minimum tenue AUSSI fenetre Reglages fermee : une sonde au demarrage puis chaque minute (la limite trop basse remonte
+// avant la generation suivante, pas seulement quand l'utilisateur ouvre les Reglages).
+setTimeout(() => { try { if (_gpuProbeAllowed()) refreshGpuStats(); } catch (_) {} }, 8000);
+setInterval(() => {
+  try {
+    const ouverte = !document.getElementById('modal-settings')?.classList.contains('hidden');
+    if (!ouverte && _gpuProbeAllowed()) refreshGpuStats();
+  } catch (_) {}
+}, 60000);
 function majLignesLimites() {
   const ligne = (id, totalGB, pct, libelle) => {
     const el = document.getElementById(id);
@@ -22014,18 +22029,33 @@ function majLignesLimites() {
   seuil('set-gpu-temp-limtxt', `Jobs wait while the GPU is hotter than ${Math.round(gpuLimits.temp)} °C`);
   ligne('set-gpu-vram-limtxt', _lastVramTotalGB, gpuLimits.vram);
   ligne('set-ram-limtxt', _cachedTotalRamGB, gpuLimits.ram);
-  // MINIMUM POUR GENERER : besoin de chaque type de travail (mesure) + place libre sous la limite maintenant ; le curseur ne descend pas sous le besoin le plus grand.
+  // LIMITE MINIMUM (user 2026-09-30 : « il faut que l'on ne puisse pas regler les limites en dessous de ce dont on a besoin au
+  // minimum pour faire tourner l'appli, toutes generations confondues »). La limite porte sur TOUT ce qui occupe la carte / la
+  // RAM : son minimum = la generation la plus lourde (image, 3D, outils, Detail++) + ce qu'occupent les AUTRES logiciels,
+  // mesure quand l'appli n'occupe rien. Le curseur ne descend pas dessous, et une limite trop basse remonte d'elle-meme.
   if (_besoinsGen) {
     const b = _besoinsGen;
+    // VRAM : toutes les generations (un manque casse le calcul). RAM : image et 3D seulement — les pics de CHARGEMENT du serveur
+    // d'images (14,6 Go mesures le 30/09) passent sous le plafond souple en ralentissant, sans echec (scripts/cloisonnement_memoire.py).
+    const typesPar = { vramGo: ['image', 'mesh', 'outils', 'detail'], ramGo: ['image', 'mesh'] };
     const ligneBesoin = (id, totalGB, pct, usedGB, cle, nom) => {
       const el = document.getElementById(id); if (!el || totalGB == null) return;
-      const img = b.image[cle], mesh = b.mesh[cle], need = Math.max(img, mesh);
-      const libre = totalGB * (pct / 100) - (usedGB == null ? 0 : usedGB);
-      el.textContent = `Needed to generate: ${img.toFixed(1)} GB for images · ${mesh.toFixed(1)} GB for 3D` + (usedGB == null ? '' : ` · free under your limit now: ${Math.max(0, libre).toFixed(1)} GB`);
-      el.classList.toggle('short', usedGB != null && libre < need);
-      const minPct = Math.min(95, Math.ceil(need / totalGB * 100));
+      const need = Math.max(0, ...typesPar[cle].filter((t) => b[t]).map((t) => Number(b[t][cle]) || 0));
+      const libre = !b.appliActive && !isJobRunning();
+      if (usedGB != null && libre) _autresUsageGo[nom] = usedGB;
+      const autres = _autresUsageGo[nom];
+      const minGB = (autres != null ? autres : 0) + need;
+      const minPct = Math.min(98, Math.ceil(minGB / totalGB * 100) + 1);
+      el.textContent = `Minimum limit: ${minGB.toFixed(1)} GB (heaviest generation ${need.toFixed(1)} GB` + (autres != null ? ` + other apps ${autres.toFixed(1)} GB)` : ')');
+      el.classList.toggle('short', minPct >= 98);
       if (GPU_LIMITS_MIN[nom] !== minPct) { GPU_LIMITS_MIN[nom] = minPct; try { paintGpuDisabledZones(); } catch (_) {} }
-      if (gpuLimits[nom] < minPct) { gpuLimits[nom] = minPct; try { saveGpuLimits(); } catch (_) {} }
+      // remontee automatique seulement quand l'appli n'occupe rien (changer la limite VRAM relance le serveur d'images)
+      if (gpuLimits[nom] < minPct && libre) {
+        gpuLimits[nom] = minPct;
+        try { saveGpuLimits(); } catch (_) {}
+        const poignee = document.getElementById(nom === 'vram' ? 'set-gpu-vram-limit' : 'set-ram-limit');
+        if (poignee) poignee.style.left = minPct + '%';
+      }
     };
     ligneBesoin('set-gpu-vram-needtxt', _lastVramTotalGB, gpuLimits.vram, _lastVramUsedGB, 'vramGo', 'vram');
     ligneBesoin('set-ram-needtxt', _cachedTotalRamGB, gpuLimits.ram, _lastRamUsedGB, 'ramGo', 'ram');
@@ -22688,7 +22718,7 @@ async function refreshGpuStats() {
     const vramPct = (gpu.usedGB / gpu.totalGB) * 100;
     document.getElementById('set-gpu-vram-val').textContent =
       `Used ${gpu.usedGB.toFixed(1)} GB of ${gpu.totalGB.toFixed(1)} GB (${vramPct.toFixed(0)}%)`;
-    _lastVramTotalGB = gpu.totalGB; _lastVramUsedGB = gpu.usedGB; if (!_besoinsGen) _chargerBesoinsGen(); try { majLignesLimites(); } catch (_) {}
+    _lastVramTotalGB = gpu.totalGB; _lastVramUsedGB = gpu.usedGB; _chargerBesoinsGen(); try { majLignesLimites(); } catch (_) {}
     document.getElementById('set-gpu-vram-fill').style.width = vramPct + '%';
     document.querySelector('.gpu-bar[data-stat="vram"]')?.classList.toggle('over-limit', vramPct > gpuLimits.vram);
     // GPU utilization

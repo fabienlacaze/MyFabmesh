@@ -1197,6 +1197,7 @@
       'Not enough free graphics memory: {x} GB free, this job needs about {y} GB. It will wait.': 'Mémoire graphique libre insuffisante : {x} Go libres, ce travail a besoin d\'environ {y} Go. Il attend.',
       'Limited by your RAM setting ({y} GB free for this job, about {x} GB useful): it may run slower.': 'Limité par votre réglage de RAM ({y} Go libres pour ce travail, environ {x} Go utiles) : il peut être plus lent.',
       'Start now': 'Démarrer',
+      'Minimum limit': 'Limite minimum',
       'This site does not share the image file. Save the image first (right-click, Save image as), then drop the saved file.': "Ce site ne partage pas le fichier de l'image. Enregistrez d'abord l'image (clic droit, Enregistrer l'image sous), puis glissez le fichier enregistré.",
       'Could not import the dragged image.': "Impossible d'importer l'image glissée.",
       'Start now, above your limits': 'Démarrer maintenant, au-delà de vos limites',

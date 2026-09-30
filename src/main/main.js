@@ -3454,18 +3454,25 @@ function _manqueMemoireDansSortie(texte) {
 // MINIMUMS POUR GENERER (user 2026-09-30 : « c'est quoi le plus petit dont on a besoin pour faire tourner proprement l'appli ? il faudrait que ce soit montre dans les reglages »).
 // Valeurs MESUREES le 2026-09-30 (RAM = pic residente, VRAM = reservee par PyTorch + contexte CUDA), remplacees par le dernier pic mesure sur CE PC quand il existe.
 ipcMain.handle('memory-needs', () => {
-  const out = { image: { ramGo: 9.2, vramGo: 5.9 }, mesh: { ramGo: 5.3, vramGo: 9.1 } };
+  // Besoins par type de generation (Go). Detail++ : 8,9 Go de VRAM MESURES le 2026-09-30 (pipeline ControlNet-Union +
+  // IP-Adapter a 1024 px, message du serveur) — pas encore journalise ; outils d'image : serveur d'images (sdxl_server).
+  const out = { image: { ramGo: 9.2, vramGo: 5.9 }, mesh: { ramGo: 5.3, vramGo: 9.1 },
+    outils: { ramGo: 9.2, vramGo: 7.8 }, detail: { ramGo: 9.2, vramGo: 8.9 } };
   try {
     for (const l of fs.readFileSync(MEMOIRE_JOURNAL, 'utf-8').split(/\r?\n/)) {
       if (!l.trim()) continue;
       let j; try { j = JSON.parse(l); } catch (_) { continue; }
       if (!j || (j.issue !== 'ok' && j.issue !== 'fin') || !(j.pic_ws_mo > 0)) continue;
-      const k = /^realvis/.test(j.cle) ? 'image' : (/^trellis2/.test(j.cle) ? 'mesh' : null);
+      const k = /^realvis/.test(j.cle) ? 'image' : (/^trellis2/.test(j.cle) ? 'mesh' : (j.cle === 'sdxl_server' && j.issue === 'ok' ? 'outils' : null));
       if (!k) continue;
       out[k] = { ramGo: Math.round(j.pic_ws_mo / 102.4) / 10, vramGo: Math.round(((j.pic_vram_reserve_mo || 0) + (j.vram_contexte_mo || 0)) / 102.4) / 10 || out[k].vramGo };
     }
   } catch (_) {}
-  return out;
+  // L'appli occupe-t-elle la carte / la RAM en ce moment (serveur d'images charge, calcul en cours) ? Si oui, l'usage mesure
+  // n'est pas celui des AUTRES logiciels : l'interface garde alors sa derniere mesure.
+  let appliActive = false;
+  try { appliActive = !!(sdxlProc && sdxlProc.exitCode === null) || activeProcs.size > 0; } catch (_) {}
+  return { ...out, appliActive };
 });
 ipcMain.handle('memory-budget', async (_e, kind) => {
   // Jamais bloquant sur une erreur de mesure : dans le doute, le travail part
