@@ -1568,6 +1568,8 @@
       'Import failed': 'Échec de l\'import',
       'Prompt copied!': 'Prompt copié !',
       'Copy failed': 'Échec de la copie',
+      'Copy error': "Copier l'erreur",
+      'Copied ✓': 'Copié ✓',
       'Prompt already enhanced. Edit manually or clear it.': 'Prompt déjà amélioré. Modifiez-le manuellement ou effacez-le.',
       'Back photo added': 'Photo arrière ajoutée',
       'Back photo ready': 'Photo arrière prête',

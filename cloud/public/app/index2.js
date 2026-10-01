@@ -440,6 +440,25 @@ function customError(message, title = 'Error') {
   });
 }
 
+// Bouton « Copy error » pour les fenetres d'erreur qui n'ont pas de bouton secondaire libre (user 2026-09-30 : « dans les messages d'erreurs comme ca il
+// faut un bouton pour pouvoir copier le message d'erreur »). Un seul bouton par id, reutilise : on remplace son gestionnaire, jamais on n'en empile.
+function _boutonCopierErreur(apres, texte, id) {
+  let b = document.getElementById(id);
+  if (!b) {
+    b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'ghost-btn';
+    b.style.cssText = 'margin-top:8px;padding:4px 12px;font-size:13px;';
+    apres.insertAdjacentElement('afterend', b);
+  }
+  b.textContent = (typeof _i18nT === 'function') ? _i18nT('Copy error') : 'Copy error';
+  b.style.display = '';
+  b.onclick = async () => {
+    const ok = (t) => { b.textContent = (typeof _i18nT === 'function') ? _i18nT(t) : t; };
+    try { await navigator.clipboard.writeText(texte); ok('Copied ✓'); }
+    catch (_) { try { const r = document.createRange(); r.selectNodeContents(apres); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand('copy'); sel.removeAllRanges(); ok('Copied ✓'); } catch (__) { ok('Copy failed'); } }
+  };
+  return b;
+}
+
 // Variant of customError that shows an action button (e.g. "Open Settings")
 // in addition to the standard OK dismiss. Returns true if the user clicked the
 // action button, false on OK/overlay/Escape. The caller is responsible for
@@ -464,6 +483,7 @@ function customErrorWithAction(message, title, actionLabel) {
   okBtn.classList.remove('danger');
   cancelBtn.textContent = 'OK';
   cancelBtn.style.display = '';
+  _boutonCopierErreur(msgEl, safe, 'confirm-copy-err');
   const _prevZ = modal.style.zIndex;
   modal.style.zIndex = '10200';  // above #modal-job-details (10000) so a confirm opened FROM it is reachable
   modal.classList.remove('hidden');
@@ -475,6 +495,7 @@ function customErrorWithAction(message, title, actionLabel) {
       cancelBtn.removeEventListener('click', onCancel);
       modal.removeEventListener('click', onOverlay);
       document.removeEventListener('keydown', onKey);
+      document.getElementById('confirm-copy-err')?.remove();
       // Reset shared modal styles/buttons so later customConfirm/customError
       // calls start from a clean state.
       msgEl.style.maxHeight = '';
@@ -22602,12 +22623,14 @@ async function refreshJobDetailsModal(id) {
     if (j.status === 'error' && j.errorMessage) {
       errBox.textContent = j.errorMessage;
       errBox.classList.remove('hidden');
+      _boutonCopierErreur(errBox, j.errorMessage, 'jd-error-copy');
       // Content-filter block → offer a direct Unlock shortcut.
       const isContentFilter = /content filter|parental control|unrestricted mode/i.test(j.errorMessage);
       if (unlockBtn) unlockBtn.style.display = isContentFilter ? '' : 'none';
     } else {
       errBox.textContent = '';
       errBox.classList.add('hidden');
+      document.getElementById('jd-error-copy')?.remove();
       if (unlockBtn) unlockBtn.style.display = 'none';
     }
   }
