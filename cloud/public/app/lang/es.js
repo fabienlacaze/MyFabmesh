@@ -250,15 +250,6 @@
       'Construction stages (3 versions)': 'Etapas de construcción (3 versiones)',
       'Advanced texture options': 'Opciones de textura avanzadas',
       'Quality preset': 'Preajuste de calidad',
-      'Multi-reference (use front + back photo · +1 cr)': 'Multirreferencia (usar foto frontal + trasera · +1 cr)',
-      'Detail refine (+~90s · +2 cr · sharper micro-details)': 'Afinar detalle (+~90s · +2 cr · microdetalles más nítidos)',
-      'Auto-rectify source view (+~36s · +1 cr · better mesh proportions)':
-        'Rectificar automáticamente la vista fuente (+~36s · +1 cr · mejores proporciones de malla)',
-      'Texture smooth (+~12s · free · CPU only, no AI)': 'Suavizado de textura (+~12s · gratis · solo CPU, sin IA)',
-      'Quality+ (sharper edges · +~30s · +1 cr)': 'Calidad+ (bordes más nítidos · +~30s · +1 cr)',
-      'Ultra Quality (+~50s · +2 cr · fine face detail)': 'Ultra calidad (+~50s · +2 cr · detalle fino del rostro)',
-      'Ultra HD 8K texture (+~5min · +3 cr)': 'Textura Ultra HD 8K (+~5min · +3 cr)',
-      'Face fix (+~60s · +2 cr)': 'Corregir rostro (+~60s · +2 cr)',
       'PBR baseColor + roughness + metallic exported in the GLB automatically.':
         'baseColor + roughness + metallic PBR exportados automáticamente en el GLB.',
       'Generate 3D': 'Generar la 3D',
@@ -418,7 +409,6 @@
       'leather helmet, plain background...': 'casco de cuero, fondo liso...',
       'How far to expand the detected mask around the target. 0px = tight to the object; higher widens it to cover edges, shadows or halos. ~15px recommended.':
         'Cuánto expandir la máscara detectada alrededor del objetivo. 0px = pegada al objeto; más alto la amplía para cubrir bordes, sombras o halos. ~15px recomendado.',
-      'Detect the mask (1 credit per check)': 'Detectar la máscara (1 crédito por comprobación)',
       // ---- Multi-view options modal ----
       'Generate Multi-Views': 'Generar multivistas',
       'A new image version will be created so the original stays untouched.':

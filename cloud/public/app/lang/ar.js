@@ -252,15 +252,6 @@
       'Construction stages (3 versions)': 'مراحل البناء (3 نسخ)',
       'Advanced texture options': 'خيارات الخامة المتقدمة',
       'Quality preset': 'إعداد جودة مسبق',
-      'Multi-reference (use front + back photo · +1 cr)': 'مرجع متعدد (استخدم صورة أمامية + خلفية · +1 cr)',
-      'Detail refine (+~90s · +2 cr · sharper micro-details)': 'صقل التفاصيل (+~90ث · +2 cr · تفاصيل دقيقة أوضح)',
-      'Auto-rectify source view (+~36s · +1 cr · better mesh proportions)':
-        'تصحيح تلقائي للعرض المصدر (+~36ث · +1 cr · نِسَب شبكة أفضل)',
-      'Texture smooth (+~12s · free · CPU only, no AI)': 'تنعيم الخامة (+~12ث · مجاني · CPU فقط، بدون ذكاء اصطناعي)',
-      'Quality+ (sharper edges · +~30s · +1 cr)': 'جودة+ (حواف أوضح · +~30ث · +1 cr)',
-      'Ultra Quality (+~50s · +2 cr · fine face detail)': 'جودة فائقة (+~50ث · +2 cr · تفاصيل وجه دقيقة)',
-      'Ultra HD 8K texture (+~5min · +3 cr)': 'خامة Ultra HD 8K (+~5 دقائق · +3 cr)',
-      'Face fix (+~60s · +2 cr)': 'إصلاح الوجه (+~60ث · +2 cr)',
       'PBR baseColor + roughness + metallic exported in the GLB automatically.':
         'يتم تصدير baseColor + roughness + metallic من PBR في ملف GLB تلقائيًا.',
       'Generate 3D': 'توليد ثلاثي الأبعاد',
@@ -420,7 +411,6 @@
       'leather helmet, plain background...': 'خوذة جلدية، خلفية سادة...',
       'How far to expand the detected mask around the target. 0px = tight to the object; higher widens it to cover edges, shadows or halos. ~15px recommended.':
         'مقدار توسيع القناع المكتشف حول الهدف. 0px = ملاصق للكائن؛ والقيم الأعلى توسّعه لتغطية الحواف أو الظلال أو الهالات. يُوصى بـ ~15px.',
-      'Detect the mask (1 credit per check)': 'كشف القناع (رصيد واحد لكل فحص)',
       // ---- Multi-view options modal ----
       'Generate Multi-Views': 'توليد العروض المتعددة',
       'A new image version will be created so the original stays untouched.':

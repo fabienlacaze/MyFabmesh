@@ -253,15 +253,6 @@
     'Construction stages (3 versions)': 'निर्माण चरण (3 संस्करण)',
     'Advanced texture options': 'उन्नत टेक्सचर विकल्प',
     'Quality preset': 'गुणवत्ता प्रीसेट',
-    'Multi-reference (use front + back photo · +1 cr)': 'मल्टी-रेफरेंस (आगे + पीछे की फोटो · +1 cr)',
-    'Detail refine (+~90s · +2 cr · sharper micro-details)': 'विवरण परिष्करण (+~90s · +2 cr · तेज सूक्ष्म-विवरण)',
-    'Auto-rectify source view (+~36s · +1 cr · better mesh proportions)':
-      'स्रोत व्यू ऑटो-सुधार (+~36s · +1 cr · बेहतर मेश अनुपात)',
-    'Texture smooth (+~12s · free · CPU only, no AI)': 'टेक्सचर स्मूथ (+~12s · मुफ्त · केवल CPU, कोई AI नहीं)',
-    'Quality+ (sharper edges · +~30s · +1 cr)': 'क्वालिटी+ (तेज किनारे · +~30s · +1 cr)',
-    'Ultra Quality (+~50s · +2 cr · fine face detail)': 'अल्ट्रा क्वालिटी (+~50s · +2 cr · बारीक चेहरा विवरण)',
-    'Ultra HD 8K texture (+~5min · +3 cr)': 'अल्ट्रा HD 8K टेक्सचर (+~5min · +3 cr)',
-    'Face fix (+~60s · +2 cr)': 'चेहरा सुधार (+~60s · +2 cr)',
     'PBR baseColor + roughness + metallic exported in the GLB automatically.':
       'PBR baseColor + roughness + metallic स्वतः GLB में निर्यात किए जाते हैं।',
     'Generate 3D': '3D बनाएं',
@@ -421,7 +412,6 @@
     'leather helmet, plain background...': 'चमड़े का हेलमेट, सादी पृष्ठभूमि...',
     'How far to expand the detected mask around the target. 0px = tight to the object; higher widens it to cover edges, shadows or halos. ~15px recommended.':
       'लक्ष्य के चारों ओर पहचाने गए मास्क को कितना फैलाना है। 0px = वस्तु से सटा हुआ; अधिक मान किनारों, छायाओं या हेलो को ढकने हेतु इसे चौड़ा करता है। ~15px अनुशंसित।',
-    'Detect the mask (1 credit per check)': 'मास्क पहचानें (प्रति जांच 1 क्रेडिट)',
     // ---- Multi-view options modal ----
     'Generate Multi-Views': 'मल्टी-व्यू बनाएं',
     'A new image version will be created so the original stays untouched.':
