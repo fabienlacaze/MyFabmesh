@@ -2402,21 +2402,23 @@
              images basculaient. Meme interrupteur que la barre du haut (topbar-compute). -->
         <div class="settings-section-header">Compute</div>
         <div class="settings-box" id="set-compute-box">
-          <div class="settings-box-title" id="set-compute-titre">Local or Cloud, for everything</div>
-          <div class="settings-box-desc" style="display:flex; flex-direction:column; gap:4px; line-height:1.5;">
-            <div id="set-compute-portee" data-i18n>Images, 3D, rig, animation and every AI tool follow this switch.</div>
-            <div>&#128421;&#65039; <b style="color:var(--text-0);">Local</b> &nbsp;·&nbsp; <span data-i18n>Free and unlimited</span> &nbsp;·&nbsp; <span data-i18n>Requires an NVIDIA GPU</span></div>
-            <!-- Prix par image LU dans la grille (_majMentionsPrixImage, index2.js) : « 3 credits per image »
-                 etait ecrit en dur (2026-09-30). Masque tant que la grille est inconnue. -->
-            <div>&#9729;&#65039; <b style="color:var(--text-0);">Cloud</b> &nbsp;·&nbsp; <span data-i18n>Works on any PC</span><span id="set-cloud-prix-image" hidden> &nbsp;·&nbsp; <span id="set-cloud-prix-image-val" data-i18n-skip></span></span> &nbsp;·&nbsp; <span data-i18n>Results also appear in your web library</span></div>
+          <div class="settings-box-title" id="set-compute-titre">Where should everything run?</div>
+          <div class="compute-cartes" role="radiogroup">
+            <button type="button" id="set-compute-local" class="ct-btn compute-carte" data-mode="local" role="radio">
+              <span class="cc-tete"><span class="cc-ico">&#128421;&#65039;</span><span class="cc-titre" data-i18n>On this PC</span><span class="cc-coche" aria-hidden="true">&#10003;</span></span>
+              <span class="cc-ligne" data-i18n>Free and unlimited</span>
+              <span class="cc-ligne" data-i18n>Uses your NVIDIA graphics card</span>
+              <span class="cc-etat" id="set-compute-note" data-i18n-skip></span>
+            </button>
+            <button type="button" id="set-compute-cloud" class="ct-btn compute-carte" data-mode="cloud" role="radio">
+              <span class="cc-tete"><span class="cc-ico">&#9729;&#65039;</span><span class="cc-titre" data-i18n>Cloud</span><span class="cc-coche" aria-hidden="true">&#10003;</span></span>
+              <span class="cc-ligne" data-i18n>Works on any PC</span>
+              <!-- Prix par image LU dans la grille (_majMentionsPrixImage, index2.js), masque tant que la grille est inconnue. -->
+              <span class="cc-ligne" id="set-cloud-prix-image" hidden><span id="set-cloud-prix-image-val" data-i18n-skip></span></span>
+              <span class="cc-ligne" data-i18n>Needs an account and credits</span>
+            </button>
           </div>
-          <div style="display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap;">
-            <div class="compute-toggle">
-              <button type="button" id="set-compute-local" class="ct-btn" data-mode="local">Local (free)</button>
-              <button type="button" id="set-compute-cloud" class="ct-btn" data-mode="cloud">Cloud (credits)</button>
-            </div>
-            <span id="set-compute-note" style="font-size:11px; color:var(--text-2);"></span>
-          </div>
+          <div class="settings-box-hint" id="set-compute-portee" data-i18n>Images, 3D, rig, animation and every AI tool follow this choice.</div>
         </div>
 
         <!-- ═══ PARENTAL CONTROL ═══ -->
@@ -2816,6 +2818,10 @@
     .hwtip-pin::after{content:"";width:1px;height:6px;background:rgba(255,255,255,.7)}
     .hwtip-barre{display:flex;height:14px;border-radius:5px;overflow:hidden;background:var(--bg-3)}
     .hwtip-seg{display:block;height:100%}
+    .hwtip-barre{position:relative}
+    .hwtip-reel{position:absolute;bottom:2px;height:4px;border-radius:2px;pointer-events:none}
+    .hwtip-reel-m{background:linear-gradient(90deg,#4ade80,#fbbf24 60%,#f87171);clip-path:inset(0 var(--reste-m,100%) 0 0)}
+    .hwtip-reel-a{background:linear-gradient(270deg,#4ade80 0%,#fbbf24 var(--dl,30%),#f87171 calc(var(--dl,30%) + 18%));clip-path:inset(0 0 0 var(--reste,100%))}
     .hwtip-liste{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
     .hwtip-liste li{display:flex;gap:10px;align-items:flex-start}
     .hwtip-n{flex:0 0 18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff;text-shadow:0 0 3px #000;margin-top:1px}
@@ -2826,6 +2832,22 @@
     .hwtip-note{margin-top:10px;font-size:11px;color:var(--text-2);font-style:italic}
     .hwtip-now{margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.12);color:#fff;font-weight:600}
     .hwtip-warn{color:#f59e0b;font-weight:600}
+    /* COMPUTE : deux grandes cartes a choisir */
+    .compute-cartes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:6px 0 10px}
+    .compute-carte{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:14px 16px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg-2);color:var(--text-1);cursor:pointer;transition:border-color .12s,background .12s,box-shadow .12s;font-size:12px;line-height:1.35}
+    .compute-carte:hover:not(:disabled){border-color:rgba(168,85,247,.55);background:rgba(168,85,247,.07)}
+    .compute-carte.active{border-color:#a855f7;background:linear-gradient(135deg,rgba(224,68,124,.16),rgba(138,92,246,.2));box-shadow:0 0 0 1px rgba(168,85,247,.35) inset;color:#fff}
+    .compute-carte:disabled{opacity:.45;cursor:not-allowed}
+    .cc-tete{display:flex;align-items:center;gap:10px;width:100%}
+    .cc-ico{font-size:20px}
+    .cc-titre{font-size:15px;font-weight:700;color:var(--text-0);flex:1}
+    .cc-coche{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;border:1.5px solid var(--border-strong);color:transparent}
+    .compute-carte.active .cc-coche{background:#a855f7;border-color:#a855f7;color:#fff}
+    .cc-ligne{color:var(--text-2)}
+    .cc-ligne::before{content:"\2022";margin-right:7px;color:var(--accent)}
+    .cc-etat{margin-top:4px;font-size:11px;color:#d9c9ff;font-weight:600}
+    .cc-etat:empty{display:none}
+    @media (max-width:640px){.compute-cartes{grid-template-columns:1fr}}
     .hw-pret{display:none !important;}   /* « pas besoin » (user 30/09) : la barre et sa phrase suffisent */
     .hw-pret-off{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
     .hw-pret-lbl{font-size:11px;font-weight:600;color:var(--text-2)}

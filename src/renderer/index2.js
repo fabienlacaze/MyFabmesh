@@ -23145,7 +23145,9 @@ function _htmlInfoBulle(cle) {
   const pastille = (n, couleur) => `<span class="hwtip-n" style="background:${couleur}">${n}</span>`;
   const ligne = (n, couleur, titre, valeur, texte) =>
     `<li>${pastille(n, couleur)}<div><div class="hwtip-lt"><b>${escapeHtml(titre)}</b><span class="hwtip-v">${escapeHtml(valeur)}</span></div><p>${escapeHtml(texte)}</p></div></li>`;
-  const schema = (parts) => {                  // parts : [{pct, couleur, n}] ; repere numerote au-dessus de chaque part
+  // reel : { regionPct, nousPct (part de la region occupee par MyFabmesh, 0-100), zoneDroitePct (largeur de la zone des autres), droiteOffsetPct,
+  // autresPct (part de la zone occupee par les autres, 0-100), dlPct } : les deux fines barres arc-en-ciel de l'usage REEL, comme dans la fenetre
+  const schema = (parts, reel) => {            // parts : [{pct, couleur, n}] ; repere numerote au-dessus de chaque part
     const tot = parts.reduce((a, p) => a + p.pct, 0) || 1;
     let x = 0; const pins = [];
     const segs = parts.filter((p) => p.pct > 0.2).map((p) => {
@@ -23153,7 +23155,10 @@ function _htmlInfoBulle(cle) {
       pins.push(`<span class="hwtip-pin" style="left:${centre}%"><i>${p.n}</i></span>`);
       return `<span class="hwtip-seg" style="width:${w}%;background:${p.couleur}"></span>`;
     }).join('');
-    return `<div class="hwtip-schema"><div class="hwtip-pins">${pins.join('')}</div><div class="hwtip-barre">${segs}</div></div>`;
+    const lignes = !reel ? '' :
+      `<span class="hwtip-reel hwtip-reel-m" style="left:0;width:${reel.regionPct}%;--reste-m:${100 - Math.min(100, reel.nousPct)}%"></span>`
+      + `<span class="hwtip-reel hwtip-reel-a" style="right:${reel.droiteOffsetPct}%;width:${reel.zoneDroitePct}%;--dl:${Math.max(1, reel.dlPct)}%;--reste:${100 - Math.min(100, reel.autresPct)}%"></span>`;
+    return `<div class="hwtip-schema"><div class="hwtip-pins">${pins.join('')}</div><div class="hwtip-barre">${segs}${lignes}</div></div>`;
   };
   const C = { min: '#4b2b99', add: '#b79cff', autres: '#9aa3b2', win: '#4a4a5c' };
   if (cle === 'vram' || cle === 'ram') {
@@ -23164,7 +23169,12 @@ function _htmlInfoBulle(cle) {
       ? Tf('Your other apps use {x} GB of the {y} GB you keep for them.', _go(h.autresGB), _go(h.reserveGB))
       : Tf('MyFabmesh uses {x} GB. Your other apps used {y} GB when MyFabmesh was idle.', _go(h.mfmReelGB), _go(h.autresGB));
     return `<div class="hwtip-titre"><b>${escapeHtml(nom)}</b><span>${escapeHtml(Tf('{x} GB in total', _go(h.totalGB)))}</span></div>`
-      + schema([{ pct: h.minGB, couleur: C.min, n: 1 }, { pct: h.addGB, couleur: C.add, n: 2 }, { pct: Math.min(h.reserveGB, h.totalGB - h.plancher - h.minGB), couleur: C.autres, n: 3 }, { pct: h.plancher, couleur: C.win, n: 4 }])
+      + schema([{ pct: h.minGB, couleur: C.min, n: 1 }, { pct: h.addGB, couleur: C.add, n: 2 }, { pct: Math.min(h.reserveGB, h.totalGB - h.plancher - h.minGB), couleur: C.autres, n: 3 }, { pct: h.plancher, couleur: C.win, n: 4 }],
+        (() => {
+          const zone = Math.max(0.001, h.totalGB - h.plancher), region = Math.max(0.001, h.minGB + h.addGB);
+          return { regionPct: region / h.totalGB * 100, nousPct: h.mfmReelGB / region * 100, droiteOffsetPct: h.plancher / h.totalGB * 100,
+            zoneDroitePct: zone / h.totalGB * 100, autresPct: h.autresGB / zone * 100, dlPct: Math.min(h.reserveGB, h.totalGB - h.plancher - h.minGB) / zone * 100 };
+        })())
       + `<ul class="hwtip-liste">`
       + ligne(1, C.min, T('MyFabmesh minimum'), _go(h.minGB) + ' GB', Tf('What the heaviest tool needs ({x}). Always kept for MyFabmesh: you cannot go below it.', h.outil || '?'))
       + ligne(2, C.add, T('Extra for MyFabmesh'), _go(h.addGB) + ' GB', T('Free room MyFabmesh may use on top of its minimum. Drag the marker to the right to give it more.'))
@@ -23180,7 +23190,8 @@ function _htmlInfoBulle(cle) {
     const nous = gpu ? k.gpuNous : k.cpuNous, autres = gpu ? k.gpuAutres : k.cpuAutres, total = gpu ? k.gpuTotal : k.cpuTotal;
     const nom = gpu ? T('GPU load') : T('Processor');
     return `<div class="hwtip-titre"><b>${escapeHtml(nom)}</b><span>${escapeHtml(total + ' %')}</span></div>`
-      + schema([{ pct: min, couleur: C.min, n: 1 }, { pct: Math.max(0, lim - min), couleur: C.add, n: 2 }, { pct: Math.max(0, 100 - lim), couleur: C.autres, n: 3 }])
+      + schema([{ pct: min, couleur: C.min, n: 1 }, { pct: Math.max(0, lim - min), couleur: C.add, n: 2 }, { pct: Math.max(0, 100 - lim), couleur: C.autres, n: 3 }],
+        { regionPct: Math.max(1, lim), nousPct: nous / Math.max(1, lim) * 100, droiteOffsetPct: 0, zoneDroitePct: 100, autresPct: autres, dlPct: 100 - lim })
       + `<ul class="hwtip-liste">`
       + ligne(1, C.min, T('Lowest limit'), min + ' %', T('MyFabmesh always keeps at least this much to work.'))
       + ligne(2, C.add, T('MyFabmesh may use'), lim + ' %', gpu
