@@ -9023,7 +9023,7 @@ function _evenementPiloteNvidia(depuisMs) {
   });
 }
 
-ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, rectifyForce, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2MaxTris, assetType }) => {
+ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, rectifyForce, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2Finesse, trellis2MaxTris, assetType }) => {
   const _departPilote = Date.now();   // pour retrouver un evenement du pilote NVIDIA pendant ce calcul
   if (jobId) _annulesParUtilisateur.delete(jobId);
   let imagePath = _imagePath;
@@ -9423,6 +9423,9 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
                 FABMESH_TRELLIS2_NATIVE_MODE: '1024_cascade',
                 FABMESH_TRELLIS2_NATIVE_DECIM: '1000000',
               } : {})),
+      // FINESSE DE LA FORME (menu « Shape detail », 2026-10-02) : auto | rapide | fin | max, lue par le pipeline TRELLIS.2 patche
+      // (scripts/apply_trellis2_ram_patches.py, patch g). Valeur inconnue = auto.
+      ...(engine === 'trellis2_native' ? { FABMESH_TRELLIS2_FINESSE: ['auto', 'rapide', 'fin', 'max'].includes(String(trellis2Finesse)) ? String(trellis2Finesse) : 'auto' } : {}),
       // « Max triangles » choisi par l'utilisateur : l'emporte sur les valeurs
       // ci-dessus (borne 5 000 - 3 000 000, meme regle que le web).
       ...(engine === 'trellis2_native' && Number(trellis2MaxTris) > 0
@@ -9703,6 +9706,12 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
         // bridge, with a timestamp — lets us tell if the bar stays at 5%
         // because (a) the bridge never emits higher values or (b) main.js
         // buffers them or (c) the renderer filters them out.
+        // Le pipeline signale qu'il a reduit la finesse d'un sujet tres dense : trace dans le journal et message dans le suivi du travail.
+        if (chunk.indexOf('FABMESH_FINESSE:') !== -1 || chunk.indexOf('the resolution is reduced to') !== -1) {
+          for (const l of chunk.split(/\r?\n/)) {
+            if (/FABMESH_FINESSE:|the resolution is reduced to|\[fabmesh\] HR /.test(l)) log.info('main', `3D finesse: ${l.trim()}`);
+          }
+        }
         const progLines = chunk.split(/\r?\n/).filter(l => /LOCAL_[A-Z0-9_]+_PROGRESS:/.test(l));
         for (const pl of progLines) {
           log.info('progress-diag', `t+${Date.now()}: ${pl.trim()}`);

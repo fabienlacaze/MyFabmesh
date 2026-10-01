@@ -725,6 +725,17 @@
                       <input type="number" id="ws-trellis2-tris-custom" min="500" max="10000000" step="1000" value="750000"
                              style="display:none; width:110px; margin-left:6px;" title="500 to 10 000 000 triangles — unused credits are refunded if the mesh has fewer" />
                     </div>
+                    <!-- FINESSE DE LA FORME (2026-10-02, user : « si on peut regler autant le faire (drop down ou slider) ») : un sujet tres detaille (camion, batiment)
+                         pouvait depasser 30 min. Auto ne simplifie QUE ces sujets-la ; Rapide plafonne tout le monde ; Fin = comme avant ; Maximum = aucune limite. -->
+                    <div class="form-row" id="ws-trellis2-finesse-row" style="margin-top:6px;">
+                      <label for="ws-trellis2-finesse" style="font-size:13px;" title="How finely the 3D shape is calculated. Auto only simplifies very detailed subjects (a truck, a building...) so they finish in about 10 minutes instead of 30 or more.">Shape detail</label>
+                      <select id="ws-trellis2-finesse" title="How finely the 3D shape is calculated. Auto only simplifies very detailed subjects (a truck, a building...) so they finish in about 10 minutes instead of 30 or more.">
+                        <option value="auto" selected>Auto (recommended)</option>
+                        <option value="rapide">Faster (a bit less detail)</option>
+                        <option value="fin">Fine (as before)</option>
+                        <option value="max">Maximum (no limit, can be very slow)</option>
+                      </select>
+                    </div>
                     <div class="form-row check-row" id="ws-trellis2-multiref-row" style="margin-top:6px; display:none;">
                       <label class="inline-check" style="font-size:13px;" title="Uses the front AND back photos together, so the back of the mesh matches your back view.">
                         <input type="checkbox" id="ws-trellis2-multiref" />

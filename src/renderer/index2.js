@@ -4430,7 +4430,7 @@ function _updateGenButtonsEstimate() {
   'ws-3d-engine', 'ws-3d-quality', 'ws-3d-triangles',
   'ws-trellis2-preset', 'ws-trellis2-refine', 'ws-trellis2-rectify',
   'ws-trellis2-smooth', 'ws-trellis2-quality-plus', 'ws-trellis2-ultra-q',
-  'ws-trellis2-face-fix', 'ws-engine', 'ws-count', 'ws-quality',
+  'ws-trellis2-face-fix', 'ws-trellis2-finesse', 'ws-engine', 'ws-count', 'ws-quality',
   'ws-mv-scope', 'ws-asset-type', 'ws-anim-type',
 ].forEach(id => {
   const el = document.getElementById(id);
@@ -11413,6 +11413,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     // Also send via the snake_case key expected by the python runner.
     ultra_hd: effectiveUltraHD,
     trellis2Preset,
+    trellis2Finesse: document.getElementById('ws-trellis2-finesse')?.value || 'auto',   // auto | rapide | fin | max (voir main.js, FABMESH_TRELLIS2_FINESSE)
     assetType: document.getElementById('ws-asset-type')?.value || 'character',
   };
   const qualityLabels = { draft: 'Draft', standard: 'Standard', high: 'High' };

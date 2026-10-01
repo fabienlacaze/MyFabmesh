@@ -22,6 +22,8 @@ disk, vs ~1.4 s/it when it fits). See AGENT_LOG.md 2026-06-14.
   (d) trellis2_image_to_3d — FABMESH_TRELLIS2_HR_FLOOR : plancher de la reduction
                              de resolution HR (defaut 1024 = upstream ; plus bas pour
                              les sujets tres denses, essai du camion 2026-10-02).
+  (g) trellis2_image_to_3d — FABMESH_TRELLIS2_FINESSE (auto | rapide | fin | max) : menu « Shape detail » de l'appli ;
+                             auto = budget 18 000 jetons pour les sujets denses seulement.
 
 Exit code 0 = all patches present (applied now or already there); 1 = a
 target file or anchor was not found (TRELLIS-2 upstream changed — re-derive).
@@ -224,6 +226,12 @@ PATCHES = [
         "        _env_cap = _os.environ.get('FABMESH_TRELLIS2_MAX_TOKENS')\n",
         "        _env_cap = _os.environ.get('FABMESH_TRELLIS2_MAX_TOKENS_FORCE') or _os.environ.get('FABMESH_TRELLIS2_MAX_TOKENS')   # _FORCE : essai (l'appli pose MAX_TOKENS elle-meme en Ultra)\n",
         "FABMESH_TRELLIS2_MAX_TOKENS_FORCE",
+    ),
+    (
+        IMG,
+        "        _hr_floor = int(_os2.environ.get('FABMESH_TRELLIS2_HR_FLOOR') or 1024)\n",
+        '        _hr_floor = int(_os2.environ.get(\'FABMESH_TRELLIS2_HR_FLOOR\') or 1024)\n        # FabMesh (2026-10-02) : FINESSE DE LA FORME, reglee par le menu « Shape detail » de l\'appli (variable FABMESH_TRELLIS2_FINESSE).\n        #   auto   (defaut) : comportement d\'origine, SAUF pour un sujet tres dense (plus de 4 000 points de structure : un camion, un batiment) dont le budget\n        #                     passe a 18 000 jetons et le plancher a 640 -> il finit en ~10 min au lieu de 30 et plus (bus mesure : 36 019 jetons a 1024 =\n        #                     ~40 s par pas ; 17 742 jetons a 768 = ~11 s par pas).\n        #   rapide          : budget 12 288 et plancher 512 pour tous les sujets.\n        #   fin             : comportement d\'origine (budget du preset, plancher 1024).\n        #   max             : aucun plafond (budget 65 536) ; peut manquer de memoire sur un PC a 16 Go.\n        # FABMESH_TRELLIS2_MAX_TOKENS_FORCE (essais) l\'emporte sur tout cela.\n        _fin = (_os2.environ.get(\'FABMESH_TRELLIS2_FINESSE\') or \'auto\').strip().lower()\n        if not _os2.environ.get(\'FABMESH_TRELLIS2_MAX_TOKENS_FORCE\'):\n            if _fin == \'rapide\':\n                max_num_tokens = min(max_num_tokens, 12288)\n                _hr_floor = min(_hr_floor, 512)\n            elif _fin == \'auto\':\n                if coords_struct_n > 4000 and max_num_tokens > 18000:\n                    max_num_tokens = 18000\n                    _hr_floor = min(_hr_floor, 640)\n                    print(f"FABMESH_FINESSE: sujet tres dense ({coords_struct_n} points de structure) -> finesse reduite automatiquement (budget {max_num_tokens} jetons)", flush=True)\n            elif _fin == \'max\':\n                max_num_tokens = max(max_num_tokens, 65536)\n',
+        "_fin = (_os2.environ.get('FABMESH_TRELLIS2_FINESSE')",
     ),
     (
         SATTN,
