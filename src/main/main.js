@@ -4099,6 +4099,16 @@ function installAllLimitsSafetyKill(proc, jobName) {
               const _prevC = global._cpuPrecedent; global._cpuPrecedent = { idle: _idleC, tot: _totC };
               const _cpuPct = _prevC ? Math.round(100 * (1 - (_idleC - _prevC.idle) / Math.max(1, _totC - _prevC.tot))) : null;
               log.info('main', `[charge] CPU machine ${_cpuPct == null ? '?' : _cpuPct + ' %'} | GPU ${gpuUtil} % | VRAM ${vramUsed}/${vramTotal} Mo | ${tempC} °C | RAM machine ${_usedMB.toFixed(0)} Mo | RAM libre ${(os.freemem() / 1048576).toFixed(0)} Mo`);
+              // QUI utilise la carte (2026-10-01, user : « unreal n'etait pas ouvert » : la 3D du bus tournait 2,5 fois plus lentement qu'une autre
+              // aux besoins memoire identiques, sans qu'on sache qui partageait la carte). Utilisation GPU par processus (compteurs Windows
+              // « GPU Engine »), les 4 premiers, ecrite sans bloquer l'observateur.
+              const _psGpu = "$s=(Get-Counter '\\GPU Engine(*)\\Utilization Percentage' -ErrorAction SilentlyContinue).CounterSamples;$g=@{};"
+                + "foreach($x in $s){if($x.InstanceName -match 'pid_(\\d+)_'){$k=[int]$Matches[1];$g[$k]=$g[$k]+$x.CookedValue}};"
+                + "$g.GetEnumerator()|Sort-Object Value -Descending|Select-Object -First 4|ForEach-Object{$p=Get-Process -Id $_.Key -ErrorAction SilentlyContinue;if($p -and $_.Value -ge 1){'{0} {1}%' -f $p.ProcessName,[math]::Round($_.Value)}}";
+              _cp.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', _psGpu], { timeout: 8000, windowsHide: true }, (_e, _o) => {
+                const t = String(_o || '').trim().split(/\r?\n/).filter(Boolean).join(', ');
+                try { log.info('main', `[charge-gpu] utilisation de la carte par processus : ${t || 'aucun (< 1 %)'}`); } catch (_) {}
+              });
             }
           } catch (_) {}
           const _gpuLimit = parseFloat(process.env.FABMESH_GPU_LIMIT || '');
