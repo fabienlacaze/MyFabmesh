@@ -20092,6 +20092,15 @@ if (!window.__fabmesh_ai3d_listener_installed && window.meshyAPI && window.meshy
         showToast(_i18nT('Not enough graphics memory for the finest 3D mode: continuing in a lighter mode (slightly less detailed).'), 'info', 8000);
       }
     } catch (_) {}
+    // ATTENTE DE VRAM AU DECODAGE (scripts/cloisonnement_memoire.attendre_vram_libre) : on le dit, pour que l'utilisateur ferme ce qui occupe la carte.
+    try {
+      const _m = String(msg || '');
+      if (/LOCAL_TRELLIS2_ATTENTE_VRAM:\s*\{/.test(_m)) {
+        showToast(_i18nT('The 3D ran out of graphics memory at the very end. Close other apps that use the graphics card (browser, Unreal, games…): it resumes by itself as soon as there is room (3 minutes at most).'), 'error', 25000);
+      } else if (/LOCAL_TRELLIS2_ATTENTE_VRAM:\s*ok/.test(_m)) {
+        showToast(_i18nT('Enough graphics memory: finishing the 3D.'), 'success', 6000);
+      }
+    } catch (_) {}
     try {
       if (!msg || typeof msg !== 'string') return;
       // DIAGNOSTIC: log every chunk containing a progress marker, with the

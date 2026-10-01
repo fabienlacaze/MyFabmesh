@@ -570,6 +570,79 @@ def plafonner_vram(torch, device=0):
     return etat()
 
 
+def besoin_libre_mo(pic_mo, reserve_actuelle_mo, marge_mo=800.0):
+    """VRAM LIBRE (Mo) necessaire pour rejouer un calcul qui a manque de memoire a `pic_mo` : le pic, plus une marge, moins ce que
+    PyTorch detient deja apres le vidage. Fonction pure (testable sans carte)."""
+    return max(0.0, float(pic_mo) + float(marge_mo) - float(reserve_actuelle_mo))
+
+
+def plafond_vram_apres_manque(libre_mo, total_mo, reserve_mo, actuel_mo, marge_mo=700.0, part_max=0.97):
+    """Nouveau plafond PyTorch (Mo) apres un manque de VRAM, ou None s'il n'y a rien a gagner. Fonction pure.
+    Le plafond est une limite DOUCE (user : « mettre les limites ne doit pas casser les generations ») : on le releve jusqu'a ce que
+    PyTorch detient deja (reserve) + ce que la carte a REELLEMENT de libre, moins une marge pour les autres logiciels, sans depasser
+    `part_max` de la carte."""
+    nouveau = min(float(reserve_mo) + float(libre_mo) - float(marge_mo), float(total_mo) * float(part_max))
+    if nouveau <= float(actuel_mo) + 256.0:
+        return None
+    return nouveau
+
+
+def relever_plafond_vram(torch, device=0, marge_mo=700.0):
+    """A appeler APRES torch.cuda.empty_cache() quand un calcul a manque de VRAM. Renvoie le nouveau plafond (Mo) ou None."""
+    try:
+        if not torch.cuda.is_available():
+            return None
+        libre, total = torch.cuda.mem_get_info(device)
+        total_mo = total / MO
+        actuel = (_etat.get('vram_fraction') or 0.0) * total_mo
+        nouveau = plafond_vram_apres_manque(libre / MO, total_mo, torch.cuda.memory_reserved(device) / MO, actuel, marge_mo)
+        if nouveau is None:
+            _log(f'plafond VRAM inchange apres manque : {actuel:.0f} Mo (carte libre {libre / MO:.0f} Mo, marge {marge_mo:.0f} Mo)')
+            return None
+        torch.cuda.set_per_process_memory_fraction(nouveau / total_mo, device)
+        _etat.update(vram_fraction=nouveau / total_mo, plafond_vram_releve_mo=nouveau)
+        _log(f'plafond VRAM RELEVE apres manque : {actuel:.0f} -> {nouveau:.0f} Mo (carte libre {libre / MO:.0f} Mo, marge {marge_mo:.0f} Mo)')
+        return nouveau
+    except Exception as e:
+        _log(f'plafond VRAM non releve : {type(e).__name__}: {e}')
+        return None
+
+
+def attendre_vram_libre(torch, pic_mo, delai_s=180.0, marge_mo=800.0, device=0, dormir=None, horloge=None, annoncer=None):
+    """Apres un manque de VRAM AU DECODAGE (2026-10-01 : 22 min d'echantillonnage perdues, tout refait en mode plus leger) : annonce a
+    l'utilisateur, attend jusqu'a `delai_s` qu'il y ait de la place (il ferme le navigateur, Unreal...), puis rend la main pour rejouer
+    le decodage depuis le disque. Renvoie True des qu'il y a assez de VRAM libre, False si le delai est ecoule. `dormir`/`horloge`/
+    `annoncer` sont injectables pour les tests."""
+    dormir = dormir or time.sleep
+    horloge = horloge or time.time
+    annoncer = annoncer or (lambda t: print(t, flush=True))
+    try:
+        if not torch.cuda.is_available():
+            return False
+        besoin = besoin_libre_mo(pic_mo, torch.cuda.memory_reserved(device) / MO, marge_mo)
+        libre = torch.cuda.mem_get_info(device)[0] / MO
+        if libre >= besoin:
+            _log(f'VRAM libre {libre:.0f} Mo >= besoin {besoin:.0f} Mo : pas d\'attente')
+            return True
+        annoncer('LOCAL_TRELLIS2_ATTENTE_VRAM: ' + json.dumps({'besoin_go': round(besoin / 1024.0, 1), 'libre_go': round(libre / 1024.0, 1),
+                                                              'delai_s': int(delai_s)}))
+        _log(f'attente de VRAM : besoin {besoin:.0f} Mo libres, il y en a {libre:.0f} ; jusqu\'a {delai_s:.0f} s')
+        t0 = horloge()
+        while horloge() - t0 < delai_s:
+            dormir(2.0)
+            libre = torch.cuda.mem_get_info(device)[0] / MO
+            if libre >= besoin:
+                _log(f'VRAM libre {libre:.0f} Mo >= besoin {besoin:.0f} Mo apres {horloge() - t0:.0f} s : on reprend')
+                annoncer('LOCAL_TRELLIS2_ATTENTE_VRAM: ok')
+                return True
+        _log(f'attente de VRAM terminee sans assez de place ({libre:.0f} Mo libres pour {besoin:.0f} Mo)')
+        annoncer('LOCAL_TRELLIS2_ATTENTE_VRAM: expire')
+        return False
+    except Exception as e:
+        _log(f'attente de VRAM impossible : {type(e).__name__}: {e}')
+        return False
+
+
 def regime():
     """Fin de l'initialisation : mesure l'engagement non resident (« decalage ») et
     ramene le plafond RAM au budget. Les scripts sans CUDA l'appellent eux-memes."""

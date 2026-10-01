@@ -929,6 +929,7 @@ def main():
                 )
             break
         except torch.cuda.OutOfMemoryError as e:
+          _pic_manque_mo = torch.cuda.max_memory_reserved() / (1024 * 1024)   # pic atteint avant l'echec (lu AVANT le vidage)
           if _i_essai < len(_essais) - 1:
               _suivant = _essais[_i_essai + 1]
               _meme_mode = (_suivant == mode)
@@ -967,6 +968,15 @@ def main():
                   torch.cuda.reset_peak_memory_stats()
               except Exception:
                   pass
+              # MEME MODE rejoue (decodage seul, ~1 min) : on laisse a l'utilisateur le temps de fermer ce qui occupe la carte (annonce a
+              # l'ecran, 3 min au plus), puis on releve le plafond DOUX a ce que la carte a vraiment de libre. Sans cela, le decodage
+              # rate une 2e fois et TOUT l'echantillonnage (20+ min) est refait dans un mode plus leger (01/10).
+              if _meme_mode:
+                  try:
+                      _cm.attendre_vram_libre(torch, _pic_manque_mo)
+                      _cm.relever_plafond_vram(torch)
+                  except Exception:
+                      pass
               continue
           log(f'OOM in mode={mode}: {e}')
           log(f'VRAM peak: {torch.cuda.max_memory_allocated()/1e9:.1f} GB')

@@ -1568,6 +1568,8 @@
       'Import failed': 'Échec de l\'import',
       'Prompt copied!': 'Prompt copié !',
       'Copy failed': 'Échec de la copie',
+      'The 3D ran out of graphics memory at the very end. Close other apps that use the graphics card (browser, Unreal, games…): it resumes by itself as soon as there is room (3 minutes at most).': "La 3D manque de mémoire graphique tout à la fin. Fermez les applications qui utilisent la carte (navigateur, Unreal, jeux…) : elle reprend toute seule dès qu'il y a de la place (3 minutes au plus).",
+      'Enough graphics memory: finishing the 3D.': "Assez de mémoire graphique : la 3D se termine.",
       'This 3D is taking much longer than usual. Often the graphics memory is full because of other apps (browser, Unreal…). If the bar stops moving, cancel it, close them and try again.': "Cette 3D prend beaucoup plus de temps que d'habitude. Souvent la mémoire graphique est pleine à cause d'autres applications (navigateur, Unreal…). Si la barre n'avance plus, annulez, fermez-les et relancez.",
       'Copy error': "Copier l'erreur",
       'Copied ✓': 'Copié ✓',
