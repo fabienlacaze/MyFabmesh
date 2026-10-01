@@ -2932,7 +2932,7 @@
     .hw-pret-off{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
     .hw-pret-lbl{font-size:13px;font-weight:600;color:var(--text-2)}
     .hw-pret .hw-voyants{display:contents}
-    .hw-partage{position:relative;display:flex;height:30px;margin:4px 0 0;border-radius:7px;background:var(--bg-3)}
+    .hw-partage{position:relative;display:flex;height:26px;margin:4px 0 0;border-radius:7px;background:var(--bg-3)}   /* meme hauteur que TOUTES les barres de limites (26 px) */
     /* DISQUE : ce que MyFabmesh occupe (modeles, moteurs + appli, generations, cache), le reste du disque, et le libre (fond de la barre) */
     .hw-disque{overflow:hidden}
     .hw-disque .hw-seg{font-size:12px}
@@ -2962,16 +2962,23 @@
     #set-gpu-card .gpu-stat:not(.hw-mem):has(.gpu-bar){padding-bottom:16px}
     .hw-sep{height:1px;background:rgba(255,255,255,.06);margin:2px 0}
     /* GPU / temperature / processeur : meme style que les barres memoire (piste gris clair, fine bande a degrade en bas) */
-    #set-gpu-card .gpu-bar{container-type:inline-size;height:22px;background:linear-gradient(90deg,#4b2b99 var(--min,0%),#b79cff var(--min,0%));border:none;border-radius:7px}
+    #set-gpu-card .gpu-bar{container-type:inline-size;height:26px;background:linear-gradient(90deg,#4b2b99 var(--min,0%),#b79cff var(--min,0%));border:none;border-radius:7px}
     #set-gpu-card .gpu-bar-fill{position:absolute;left:auto;right:4px;bottom:3px;height:5px;max-width:calc(100% - 8px);border-radius:3px;background:linear-gradient(270deg,#4ade80,#fbbf24 60%,#f87171);background-size:100cqw 100%;background-position:right;z-index:1}
     #set-gpu-card .gpu-bar-fill{transition:none}       /* moins de repeinture : la fenetre pesait ~7 % de la carte avec les Reglages ouverts */
     #set-gpu-card .gpu-bar.over-limit{border:none;box-shadow:0 0 0 1px #f87171}
     #set-gpu-card .gpu-bar.over-limit .gpu-bar-fill{background-image:linear-gradient(270deg,#4ade80,#fbbf24 60%,#f87171) !important;background-color:transparent !important;animation:none}
-    /* temperature : comme avant (degrade plein a gauche, zone hachuree a droite du marqueur), a part, sous les autres limites */
-    #set-gpu-card .gpu-bar[data-stat="temp"]{height:12px;background:var(--bg-3);border:1px solid var(--border);border-radius:6px}
-    #set-gpu-card .gpu-bar[data-stat="temp"] .gpu-bar-fill{left:0;right:auto;bottom:auto;top:0;height:100%;max-width:100%;border-radius:6px;background:linear-gradient(90deg,#4ade80,#fbbf24 60%,#f87171 90%);background-size:auto}
-    #set-gpu-card .gpu-bar[data-stat="temp"] .gpu-bar-disabled-zone{border-radius:0 6px 6px 0;background-color:transparent;background-image:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0,rgba(255,255,255,.06) 4px,rgba(0,0,0,.18) 4px,rgba(0,0,0,.18) 8px)}
+    /* temperature : MEME barre que les autres (26 px, meme piste, meme fine bande a degrade en bas, depuis la gauche), zone interdite hachuree a droite du marqueur */
+    #set-gpu-card .gpu-bar[data-stat="temp"]{height:26px;background:#b79cff;border:none;border-radius:7px}
+    #set-gpu-card .gpu-bar[data-stat="temp"] .gpu-bar-fill{left:4px;right:auto;bottom:3px;top:auto;height:5px;max-width:calc(100% - 8px);border-radius:3px;background:linear-gradient(90deg,#4ade80,#fbbf24 60%,#f87171);background-size:100cqw 100%;background-position:left}
+    #set-gpu-card .gpu-bar[data-stat="temp"] .gpu-bar-disabled-zone{border-radius:0 7px 7px 0;background-color:#9aa3b2;background-image:repeating-linear-gradient(-45deg,rgba(255,255,255,.12) 0,rgba(255,255,255,.12) 4px,rgba(0,0,0,.16) 4px,rgba(0,0,0,.16) 8px)}
     #set-gpu-card .gpu-bar-disabled-zone,#set-gpu-card .gpu-bar-disabled-zone.droite{border-radius:0 7px 7px 0;background-image:none;background-color:#9aa3b2}   /* a droite du marqueur : meme gris que « autres logiciels » */
+    /* etiquettes DANS les barres a seuil (GPU, processeur, temperature) : meme lecture que « MyFabmesh 9,8 Go » / « Other apps 5,6 Go » des barres memoire */
+    #set-gpu-card .gpu-bar-lbl{position:absolute;top:0;height:100%;display:flex;align-items:center;justify-content:center;padding:0 6px;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;z-index:2;box-sizing:border-box}
+    #set-gpu-card .gpu-bar-lbl[hidden]{display:none}
+    #set-gpu-card .gpu-bar-lbl-g{color:#fff}
+    #set-gpu-card .gpu-bar-lbl-d{color:#1d2230}
+    #set-gpu-card .gpu-bar[data-stat="temp"] .gpu-bar-lbl-g{color:#2a1160}
+    #set-gpu-card .gpu-bar[data-stat="temp"] .gpu-bar-lbl-d{color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
     .hw-seuil-txt{font-weight:500;color:var(--text-2)}
     .hw-seuil-txt.short{color:#f59e0b}
     .gpu-bar-disabled-zone.droite{border-radius:0 6px 6px 0;background-image:repeating-linear-gradient(-45deg,rgba(239,68,68,.22) 0 4px,rgba(0,0,0,.18) 4px 8px)}

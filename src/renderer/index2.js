@@ -22537,6 +22537,20 @@ function paintGpuDisabledZones() {
     const v = Math.max(0, Math.min(100, Number(gpuLimits[stat]) || 0));
     zone.style.left = v + '%';
     zone.style.width = (100 - v) + '%';
+    // Etiquettes dans la barre (user : « pas de texte Other apps ») : meme information que les barres memoire. Masquees quand la zone est trop etroite.
+    const min = GPU_LIMITS_MIN[stat] || 0;
+    const lbl = (cls, txt, left, width, ok) => {
+      let el = bar.querySelector('.' + cls);
+      if (!el) { el = document.createElement('div'); el.className = 'gpu-bar-lbl ' + cls; bar.appendChild(el); }
+      el.style.left = left + '%'; el.style.width = width + '%'; el.textContent = ok ? txt : ''; el.hidden = !ok;
+    };
+    if (stat === 'temp') {
+      lbl('gpu-bar-lbl-g', _i18nT('Full speed'), 0, v, v >= 20);
+      lbl('gpu-bar-lbl-d', _i18nT('Slows down'), v, 100 - v, 100 - v >= 14);
+    } else {
+      lbl('gpu-bar-lbl-g', _i18nT('MyFabmesh') + ' ' + min + ' %', 0, min, min >= 14);
+      lbl('gpu-bar-lbl-d', _i18nT('Other apps') + ' ' + Math.round(100 - v) + ' %', v, 100 - v, 100 - v >= 14);
+    }
   });
 }
 // Reset all sliders to their default values.
@@ -23303,11 +23317,14 @@ function _htmlInfoBulle(cle) {
     + `</ul><div class="hwtip-note">${escapeHtml(T('Green: low use. Red: high use.'))}</div>`;
   const schema = (parts, reel) => {            // parts : [{pct, couleur, n}] ; repere numerote au-dessus de chaque part
     const tot = parts.reduce((a, p) => a + p.pct, 0) || 1;
-    let x = 0; const pins = [];
-    const segs = parts.filter((p) => p.pct > 0.2).map((p) => {
+    let x = 0, dernier = -99, decal = 0; const pins = [];
+    const segs = parts.map((p) => {
       const w = p.pct / tot * 100; const centre = x + w / 2; x += w;
-      pins.push(`<span class="hwtip-pin" style="left:${centre}%"><i>${p.n}</i></span>`);
-      return `<span class="hwtip-seg" style="width:${w}%;background:${p.couleur}"></span>`;
+      // TOUS les reperes sont dessines, meme pour un segment de largeur nulle (« Extra for MyFabmesh : 0,0 Go » perdait son numero 2) ;
+      // deux reperes trop proches sont decales pour ne pas se recouvrir.
+      decal = Math.abs(centre - dernier) < 5 ? decal + 17 : 0; dernier = centre;
+      pins.push(`<span class="hwtip-pin" style="left:${centre}%;margin-left:${decal}px"><i>${p.n}</i></span>`);
+      return w > 0.2 ? `<span class="hwtip-seg" style="width:${w}%;background:${p.couleur}"></span>` : '';
     }).join('');
     const lignes = !reel ? '' :
       `<span class="hwtip-reel hwtip-reel-m" style="left:0;width:${reel.regionPct}%;--reste-m:${100 - Math.min(100, reel.nousPct)}%"></span>`
@@ -23375,10 +23392,20 @@ function _htmlInfoBulle(cle) {
       + `<div class="hwtip-now">${escapeHtml(Tf('MyFabmesh uses {x} GB of this disk.', _go(k.mfm)))}</div>`;
   }
   if (cle === 'temp') {
+    const lim = Math.max(1, Math.min(99, Number(k.tempLimit) || 80));
+    const C2 = { pause: '#9aa3b2' };
+    const lignesReel = `</ul><div class="hwtip-sous">${escapeHtml(T('The thin line: the temperature right now'))}</div><ul class="hwtip-liste">`
+      + ligneReel('g', T('Temperature now'), k.temp + ' °C', T('Starts on the left. Green: cool. Red: hot.'))
+      + `</ul>`;
     return `<div class="hwtip-titre"><b>${escapeHtml(T('Temperature'))}</b><span>${escapeHtml(k.temp + ' °C')}</span></div>`
+      + schema([{ pct: lim, couleur: C.add, n: 1 }, { pct: 100 - lim, couleur: C2.pause, n: 2 }],
+        { regionPct: 100, nousPct: Math.min(100, k.temp), droiteOffsetPct: 0, zoneDroitePct: 0, autresPct: 0, dlPct: 100 })
       + `<ul class="hwtip-liste">`
-      + ligne(1, '#4ade80', T('Limit'), k.tempLimit + ' °C', Tf('Above {x} °C the generations slow down by themselves until the card cools. Drag the marker to change it.', k.tempLimit))
-      + `</ul><div class="hwtip-now">${escapeHtml(Tf('Now: {x} °C', k.temp))}${k.temp > k.tempLimit ? '<br><span class="hwtip-warn">' + escapeHtml(T('Above the limit: generations are slowed down.')) + '</span>' : ''}</div>`;
+      + ligne(1, C.add, T('Full speed'), '0 – ' + lim + ' °C', T('Below the limit the generations run at full speed.'))
+      + ligne(2, C2.pause, T('Slows down'), '> ' + lim + ' °C', Tf('Above {x} °C the generations slow down by themselves until the card cools. Drag the marker to change it.', lim))
+      + lignesReel
+      + `<div class="hwtip-note">${escapeHtml(T('Green: low use. Red: high use.'))}</div>`
+      + `<div class="hwtip-now">${escapeHtml(Tf('Now: {x} °C', k.temp))}${k.temp > lim ? '<br><span class="hwtip-warn">' + escapeHtml(T('Above the limit: generations are slowed down.')) + '</span>' : ''}</div>`;
   }
   return '';
 }
