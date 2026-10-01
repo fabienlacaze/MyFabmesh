@@ -201,9 +201,29 @@ PATCHES = [
     (
         IMG,
         "            if num_tokens < max_num_tokens or hr_resolution == 1024:\n",
-        "            print(f\"[fabmesh] HR {hr_resolution}: {num_tokens} jetons (budget {max_num_tokens}, plancher {_hr_floor})\", flush=True)\n"
+        "            _l = f\"[fabmesh] HR {hr_resolution}: {num_tokens} jetons (budget {max_num_tokens}, plancher {_hr_floor}, structure {coords_struct_n})\"\n"
+        "            print(_l, flush=True)\n"
+        "            try:\n"
+        "                _lf = _os2.environ.get('FABMESH_TRELLIS2_TOKENS_LOG')\n"
+        "                if _lf:\n"
+        "                    with open(_lf, 'a', encoding='utf-8') as _fh:\n"
+        "                        _fh.write(_l + '\\n')\n"
+        "            except Exception:\n"
+        "                pass\n"
         "            if num_tokens < max_num_tokens or hr_resolution <= _hr_floor:\n",
         "hr_resolution <= _hr_floor",
+    ),
+    (
+        IMG,
+        "        # LR\n        noise = SparseTensor(\n            feats=torch.randn(coords.shape[0], flow_model_lr.in_channels).to(self.device),\n            coords=coords,\n        )\n",
+        "        coords_struct_n = int(coords.shape[0])\n        # LR\n        noise = SparseTensor(\n            feats=torch.randn(coords.shape[0], flow_model_lr.in_channels).to(self.device),\n            coords=coords,\n        )\n",
+        "coords_struct_n = int(coords.shape[0])",
+    ),
+    (
+        IMG,
+        "        _env_cap = _os.environ.get('FABMESH_TRELLIS2_MAX_TOKENS')\n",
+        "        _env_cap = _os.environ.get('FABMESH_TRELLIS2_MAX_TOKENS_FORCE') or _os.environ.get('FABMESH_TRELLIS2_MAX_TOKENS')   # _FORCE : essai (l'appli pose MAX_TOKENS elle-meme en Ultra)\n",
+        "FABMESH_TRELLIS2_MAX_TOKENS_FORCE",
     ),
     (
         SATTN,

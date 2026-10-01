@@ -3370,6 +3370,8 @@ const activeProcs = new Map(); // jobId -> proc
 // PAUSE / REPRISE REELLES de la 3D (2026-10-01, scripts/trellis2_reprise.py) : jobId -> { ckptDir, paused, relancer, annuler }.
 // En pause le processus n'existe plus (VRAM et RAM rendues) ; `relancer` le relance sur le meme dossier de points de reprise.
 const jobCtl = new Map();
+// Travaux 3D arretes par l'UTILISATEUR (bouton d'annulation) : le message d'echec dit « annulee » et non « manque de memoire » (2026-10-02).
+const _annulesParUtilisateur = new Set();
 // Track ALL spawned subprocesses (not just those with a jobId), so cancel-job
 // can kill any orphan even when the calling handler did not pass a jobId.
 const allActiveProcs = new Set();
@@ -3707,6 +3709,7 @@ ipcMain.handle('job:resume', (_e, jobId) => {
 ipcMain.handle('job:paused-ids', () => Array.from(jobCtl.entries()).filter(([, c]) => c.paused).map(([id]) => id));
 
 ipcMain.handle('cancel-job', (event, jobId) => {
+  if (jobId) _annulesParUtilisateur.add(jobId);
   log.info('main', `cancel-job: jobId=${jobId}, killing ${allActiveProcs.size} tracked procs + orphans`);
   // Travail EN PAUSE : aucun processus a tuer, on rejette la promesse du lancement (qui nettoie les points de reprise).
   { const c = jobCtl.get(jobId); if (c && c.paused) { c.paused = false; c.relancer = null; try { c.annuler && c.annuler(); } catch (_) {} return true; } }
@@ -3817,6 +3820,40 @@ const CLES_MEMOIRE_PAR_TYPE = {
 // Phrase claire quand un script a manque de memoire : marqueur explicite, sinon un
 // processus mort SANS pile Python juste apres avoir approche son plafond (code natif
 // qui ne verifie pas malloc). null si la sortie ne montre ni l'un ni l'autre.
+/** DIAGNOSTIC D'UN ECHEC 3D (2026-10-02, user : « c'est pas suffisant pour analyser ca » apres un message « manque de memoire » affiche pour un travail
+ *  ANNULE a la main). Le message generique ne disait ni la cause probable ni ou le calcul en etait. Rend { cause, diagnostic } :
+ *    cause       'annulee' | 'delai' | 'plantage' | 'inconnue'  (decide du PREMIER paragraphe du message)
+ *    diagnostic  texte multi-lignes : duree, derniere etape et pas, code de sortie, dernier releve memoire du script. Copiable avec « Copy error ». */
+function _diagnosticEchec3D(err, sortie, departMs, delaiMs, annuleParUtilisateur) {
+  const dureeS = Math.max(0, Math.round((Date.now() - departMs) / 1000));
+  const dureeTxt = dureeS >= 60 ? `${Math.floor(dureeS / 60)} min ${String(dureeS % 60).padStart(2, '0')} s` : `${dureeS} s`;
+  const lignes = [];
+  const phases = [...String(sortie || '').matchAll(/LOCAL_[A-Z0-9_]+_PROGRESS:\s*(\d+)\s+([A-Za-z_0-9]+)/g)];
+  const dernierePhase = phases.length ? phases[phases.length - 1] : null;
+  const pas = [...String(sortie || '').matchAll(/LOCAL_TRELLIS2_STEP:\s*(\{[^}]*\})/g)];
+  let dernierPas = null;
+  if (pas.length) { try { dernierPas = JSON.parse(pas[pas.length - 1][1]); } catch (_) {} }
+  lignes.push(`Durée avant l'arrêt : ${dureeTxt}`);
+  lignes.push(dernierePhase ? `Dernière étape : « ${dernierePhase[2]} » à ${dernierePhase[1]} %`
+    + (dernierPas ? ` (${dernierPas.phase}, pas ${dernierPas.pas}/${dernierPas.total})` : '') : 'Dernière étape : aucune (le script n\'avait encore rien annoncé)');
+  const code = err && err.code, signal = err && err.signal;
+  const codesWindows = { 3221225477: 'violation d\'accès mémoire (plantage du processus)', '-1073741819': 'violation d\'accès mémoire (plantage du processus)',
+    3221226505: 'arrêt anormal du processus (abort)', '-1073740791': 'arrêt anormal du processus (abort)', 3221225786: 'interrompu par Ctrl+C', 1: 'erreur Python (voir la trace)' };
+  if (code != null || signal) lignes.push(`Sortie du processus : code ${code != null ? code : '—'}${codesWindows[code] ? ' = ' + codesWindows[code] : ''}${signal ? ' · signal ' + signal : ''}${err && err.killed ? ' · tué par l\'appli' : ''}`);
+  // Dernier releve memoire ecrit par le script lui-meme (FABMESH_MEM_ETAPE) : memoire a la derniere etape connue.
+  const mem = [...String(sortie || '').matchAll(/FABMESH_MEM_ETAPE[^\n]*/g)];
+  if (mem.length) {
+    const m = mem[mem.length - 1][0];
+    const g = (k) => { const r = new RegExp(k + '=([^ ]+)').exec(m); return r ? r[1] : null; };
+    lignes.push(`Dernier relevé mémoire (étape « ${g('etape') || '?'} ») : RAM machine ${g('ram_sys') || '?'} · mémoire graphique ${g('vram_carte') || '?'} · pic mémoire graphique du calcul ${g('pic_vram_torch') || '?'}`);
+  }
+  let cause = 'inconnue';
+  if (annuleParUtilisateur) cause = 'annulee';
+  else if (err && err.killed && (signal === 'SIGTERM' || signal === 'SIGKILL') && delaiMs && dureeS * 1000 >= delaiMs - 15000) cause = 'delai';
+  else if (code != null && codesWindows[code] && code !== 1) cause = 'plantage';
+  return { cause, diagnostic: lignes.join('\n'), dureeTxt };
+}
+
 function _manqueMemoireDansSortie(texte) {
   const m = budgetMemoire.manqueDansSortie(texte);
   if (m) return m.phrase;
@@ -8988,6 +9025,7 @@ function _evenementPiloteNvidia(depuisMs) {
 
 ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, rectifyForce, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2MaxTris, assetType }) => {
   const _departPilote = Date.now();   // pour retrouver un evenement du pilote NVIDIA pendant ce calcul
+  if (jobId) _annulesParUtilisateur.delete(jobId);
   let imagePath = _imagePath;
   let engine = _engine;
   // SF3D and TripoSR both disabled at the UI level — Stability AI
@@ -9483,7 +9521,8 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
           safeSend('job-paused', { jobId });
           return;
         }
-        if (error) { reject({ error: error.message, stdout, stderr }); return; }
+        // code / signal / killed : le diagnostic d'echec (voir _diagnosticEchec3D) distingue ainsi un arret par delai, un plantage et une annulation.
+        if (error) { reject({ error: error.message, stdout, stderr, code: error.code, signal: error.signal, killed: !!error.killed }); return; }
         if (!fs.existsSync(meshPath)) { reject({ error: 'GLB not created (Python did not produce output)', stdout, stderr }); return; }
         const stats = fs.statSync(meshPath);
         // Save source image path for later display in viewer
@@ -9735,6 +9774,17 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
     } else if (pyErrorLine) {
       errMsg = pyErrorLine;
     }
+    // CAUSE + DIAGNOSTIC (2026-10-02) : le message generique « manque de memoire » ne s'applique plus a une annulation, un delai ou un plantage connus.
+    const _annule = !!(jobId && _annulesParUtilisateur.delete(jobId));
+    const _d3 = _diagnosticEchec3D(err, combined, _departPilote, 3600000, _annule);
+    if (_d3.cause === 'annulee') {
+      errMsg = 'Travail annulé : le calcul a été arrêté à la demande, ce n\'est pas une panne.';
+    } else if (_d3.cause === 'delai') {
+      errMsg = 'Délai dépassé : la 3D locale a été arrêtée au bout de ' + _d3.dureeTxt + ' (plafond de 60 min). Le sujet est très dense : essayez un préréglage plus léger ou moins de triangles.';
+    } else if (_d3.cause === 'plantage') {
+      errMsg = 'Le calcul 3D s\'est arrêté brutalement (plantage du processus, pas une erreur Python). Souvent une mémoire saturée : fermez les applications lourdes et relancez.';
+    }
+    errMsg += '\n\n' + _d3.diagnostic;
     // Evenement du pilote NVIDIA pendant ce calcul : on le dit (une autre application graphique peut le declencher).
     const _pilote = await _evenementPiloteNvidia(_departPilote - 60000);
     if (_pilote) {
