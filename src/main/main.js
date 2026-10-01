@@ -9116,6 +9116,14 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
       proc.stdout?.on('data', d => {
         const chunk = d.toString();
         stdoutBuf += chunk;
+        // ETAPE PRECISE de la 3D (scripts/trellis2_reprise.py) : un evenement par pas d'echantillonnage, avec l'identifiant du travail.
+        if (jobId && chunk.indexOf('LOCAL_TRELLIS2_STEP:') !== -1) {
+          for (const l of chunk.split(/\r?\n/)) {
+            const m = /LOCAL_TRELLIS2_STEP:\s*(\{.*\})/.exec(l);
+            if (!m) continue;
+            try { const o = JSON.parse(m[1]); safeSend('job-progress', { jobId, etape: 'echantillonnage', phase: o.phase, pas: o.pas, total: o.total }); } catch (_) {}
+          }
+        }
         // Diagnostic: log any LOCAL_*_PROGRESS line we see coming from the
         // bridge, with a timestamp — lets us tell if the bar stays at 5%
         // because (a) the bridge never emits higher values or (b) main.js

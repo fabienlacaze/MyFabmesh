@@ -18,7 +18,30 @@ import sys
 import time
 
 CODE_PAUSE = 77
-_etat = {'dir': None, 'n': 0, 'log': print}
+_etat = {'dir': None, 'n': 0, 'log': print, 'mode': '1024', 'pct': -1}
+
+# AVANCEMENT PRECIS (user 2026-10-01 : « ca permet d'avoir une progress bar plus precise ») : entre 40 % (structure creuse) et 80 %
+# (inference finie) la barre ne bougeait pas pendant ~5 min. Chaque pas de chaque appel fait avancer la barre ; poids = part du temps
+# d'inference (estimee sur les mesures du 30/09 : la forme haute resolution et la texture dominent).
+_PHASES_CASCADE = (('structure', 0.06), ('forme', 0.14), ('forme_fine', 0.42), ('texture', 0.38))
+_PHASES_SIMPLE = (('structure', 0.08), ('forme', 0.47), ('texture', 0.45))
+
+
+def _phases():
+    return _PHASES_CASCADE if 'cascade' in str(_etat.get('mode') or '') else _PHASES_SIMPLE
+
+
+def _annoncer_pas(n, i, steps):
+    """Marqueurs lus par l'appli : la barre (LOCAL_TRELLIS2_PROGRESS) et l'etape ecrite sous la barre (LOCAL_TRELLIS2_STEP)."""
+    phases = _phases()
+    k = min(n, len(phases) - 1)
+    avant = sum(w for _, w in phases[:k])
+    frac = avant + phases[k][1] * (i + 1) / max(1, steps)
+    pct = int(40 + 40 * min(1.0, frac))
+    if pct != _etat['pct']:
+        _etat['pct'] = pct
+        print(f'LOCAL_TRELLIS2_PROGRESS: {pct} sampling', flush=True)
+    print('LOCAL_TRELLIS2_STEP: ' + json.dumps({'phase': phases[k][0], 'pas': i + 1, 'total': int(steps)}), flush=True)
 
 
 def _chemin(nom):
@@ -62,10 +85,13 @@ def _charger(nom, modele):
         return None
 
 
-def reinitialiser():
+def reinitialiser(mode=None):
     """Vide le dossier (changement de mode : les appels ne se correspondent plus) et repart a zero."""
+    if mode:
+        _etat['mode'] = mode
     d = _etat.get('dir')
     if not d:
+        _etat['n'] = 0
         return
     try:
         for f in os.listdir(d):
@@ -106,12 +132,11 @@ def _verifier_meta():
 
 def installer(log=print):
     """A appeler une fois le pipeline importe. Sans FABMESH_CKPT_DIR : ne fait rien."""
-    d = os.environ.get('FABMESH_CKPT_DIR')
-    if not d:
-        return False
-    os.makedirs(d, exist_ok=True)
-    _etat.update(dir=d, n=0, log=log)
-    _verifier_meta()
+    d = os.environ.get('FABMESH_CKPT_DIR') or None
+    _etat.update(dir=d, n=0, log=log, mode=os.environ.get('FABMESH_TRELLIS2_NATIVE_MODE', '1024'), pct=-1)
+    if d:
+        os.makedirs(d, exist_ok=True)
+        _verifier_meta()
     import numpy as np
     import torch
     from easydict import EasyDict as edict
@@ -123,7 +148,7 @@ def installer(log=print):
         n = _etat['n']
         _etat['n'] = n + 1
         kwargs.pop('return_traj', None)          # jamais demande par le pipeline ; la reprise ne rejoue pas la trajectoire
-        fait = _charger(f'fait_{n}.pt', noise)
+        fait = _charger(f'fait_{n}.pt', noise) if _etat['dir'] else None
         if fait is not None:
             log(f'reprise : appel {n} deja calcule, repris sans recalcul')
             return edict({'samples': _restaurer(fait, noise), 'pred_x_t': [], 'pred_x_0': []})
@@ -133,7 +158,7 @@ def installer(log=print):
         t_pairs = list((t_seq[i], t_seq[i + 1]) for i in range(steps))
         sample_courant = noise
         debut = 0
-        part = _charger(f'partiel_{n}.pt', noise)
+        part = _charger(f'partiel_{n}.pt', noise) if _etat['dir'] else None
         if part is not None and 0 <= int(part.get('pas', -1)) < steps:
             debut = int(part['pas'])
             sample_courant = _restaurer(part['x'], noise)
@@ -142,9 +167,9 @@ def installer(log=print):
                 os.remove(_chemin(f'partiel_{n}.pt'))
             except OSError:
                 pass
-        pause = _chemin('PAUSE')
+        pause = _chemin('PAUSE') if _etat['dir'] else None
         for i in tqdm(range(debut, steps), desc=tqdm_desc, disable=not verbose, initial=debut, total=steps):
-            if os.path.exists(pause):
+            if pause and os.path.exists(pause):
                 _ecrire_atomique(f'partiel_{n}.pt', {'pas': i, 'x': _serialiser(sample_courant)})
                 print(f'LOCAL_TRELLIS2_PAUSED: appel {n}, pas {i}/{steps}', flush=True)
                 try:
@@ -156,9 +181,11 @@ def installer(log=print):
             t, t_prev = t_pairs[i]
             out = self.sample_once(model, sample_courant, t, t_prev, cond, **kwargs)
             sample_courant = out.pred_x_prev
-        _ecrire_atomique(f'fait_{n}.pt', _serialiser(sample_courant))
+            _annoncer_pas(n, i, steps)
+        if _etat['dir']:
+            _ecrire_atomique(f'fait_{n}.pt', _serialiser(sample_courant))
         return edict({'samples': sample_courant, 'pred_x_t': [], 'pred_x_0': []})
 
     fe.FlowEulerSampler.sample = sample
-    log(f'pause/reprise reelle active (points de reprise : {d})')
+    log(f'sampler hook active (progress per step' + (f'; pause/resume checkpoints in {d})' if d else ')'))
     return True

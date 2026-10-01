@@ -930,7 +930,7 @@ def main():
               print(f'LOCAL_TRELLIS2_REPLI: {mode} -> {_suivant}', flush=True)
               _cm.mesurer('repli_vram')
               try:
-                  trellis2_reprise.reinitialiser()      # autre mode : les appels ne correspondent plus aux points de reprise
+                  trellis2_reprise.reinitialiser(_suivant)      # autre mode : les appels ne correspondent plus aux points de reprise
               except Exception:
                   pass
               del e

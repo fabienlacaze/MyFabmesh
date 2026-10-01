@@ -19979,6 +19979,10 @@ function _libelleEtapeTravail(d) {
     case 'rendu': return d.vues ? Tf('Rendering the views ({x}/{y})', d.vue || 0, d.vues) : T('Rendering the views');
     case 'chargement': return T('Loading the detail model');
     case 'affinage': return d.vues ? Tf('Adding detail: view {x}/{y}', d.vue || 1, d.vues) : T('Adding detail');
+    case 'echantillonnage': {
+      const modele = { structure: 'Sketching the structure ({x}/{y})', forme: 'Shaping the model, rough ({x}/{y})', forme_fine: 'Shaping the model, fine ({x}/{y})', texture: 'Painting the texture ({x}/{y})' }[d.phase];
+      return modele ? Tf(modele, d.pas || 0, d.total || 0) : null;
+    }
     case 'recuisson': return d.phase === 'enregistrement' ? T('Saving the model') : T('Baking the new texture');
     default: return null;
   }
