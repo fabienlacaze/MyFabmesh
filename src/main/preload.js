@@ -112,6 +112,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   // promised long before it existed).
   getCrashReports: () => ipcRenderer.invoke('app:get-crash-reports'),
   gpuOccupation: () => ipcRenderer.invoke('gpu-occupation'),
+  preparer3D: (opts) => ipcRenderer.invoke('preparer-3d', opts),
   setCrashReports: (on) => ipcRenderer.invoke('app:set-crash-reports', on),
   reconfigureFabmesh: () => ipcRenderer.invoke('wizard:reset-setup'),
   uninstallFabmesh: (opts) => ipcRenderer.invoke('app:uninstall', opts),

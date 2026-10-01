@@ -2659,12 +2659,33 @@
         <!-- GRAPHICS MEMORY DURING A 3D (2026-10-01, user : « on peut mettre un switch dans les settings pour ca ») : libere les contextes
              WebGL des visionneuses pendant une 3D locale. Logique : index2.js, « MEMOIRE GRAPHIQUE PENDANT UNE 3D ». -->
         <div class="settings-box" id="set-liberer-gpu-box">
-          <div class="settings-box-title">Graphics memory during a 3D</div>
+          <div class="settings-box-title">Resources during a 3D</div>
           <div class="np-auto-row asst-ligne" id="set-liberer-gpu-row">
             <label class="np-switch" for="set-liberer-gpu"><input type="checkbox" id="set-liberer-gpu" checked /><span class="np-switch-track" aria-hidden="true"></span></label>
             <div class="np-auto-texte">
               <div class="np-auto-titre">Free the app's graphics memory while a 3D runs</div>
               <div class="np-auto-info">The 3D viewers go blank until the 3D is done, which gives the calculation up to 1 GB more. They come back by themselves.</div>
+            </div>
+          </div>
+          <div class="np-auto-row asst-ligne" id="set-vider-images-row">
+            <label class="np-switch" for="set-vider-images"><input type="checkbox" id="set-vider-images" checked /><span class="np-switch-track" aria-hidden="true"></span></label>
+            <div class="np-auto-texte">
+              <div class="np-auto-titre">Unload the image engine when a 3D starts</div>
+              <div class="np-auto-info">It keeps its models in graphics memory for up to 5 minutes after the last image. The next image takes a few seconds longer to start.</div>
+            </div>
+          </div>
+          <div class="np-auto-row asst-ligne" id="set-arret-aides-row">
+            <label class="np-switch" for="set-arret-aides"><input type="checkbox" id="set-arret-aides" checked /><span class="np-switch-track" aria-hidden="true"></span></label>
+            <div class="np-auto-texte">
+              <div class="np-auto-titre">Pause the translator and the writing assistant during a 3D</div>
+              <div class="np-auto-info">Gives back 1 to 4 GB of memory. Automatic descriptions are slower to start during the 3D.</div>
+            </div>
+          </div>
+          <div class="np-auto-row asst-ligne" id="set-propose-leger-row">
+            <label class="np-switch" for="set-propose-leger"><input type="checkbox" id="set-propose-leger" checked /><span class="np-switch-track" aria-hidden="true"></span></label>
+            <div class="np-auto-texte">
+              <div class="np-auto-titre">Offer a lighter mode when graphics memory is tight</div>
+              <div class="np-auto-info">Before a 3D, if other apps fill the card, you can choose a lighter mode (slightly less detailed) instead of risking a failure at the end.</div>
             </div>
           </div>
         </div>

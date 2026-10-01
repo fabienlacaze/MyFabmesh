@@ -11333,7 +11333,13 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   // lancer, en les nommant (la 3D du bus : 22 min perdues puis un echec au decodage, carte pleine).
   if (engine === 'trellis2_native') {
     const _besoinMo = (trellis2Preset === 'ultra_8k' || trellis2Preset === 'quality' || trellis2UltraQ) ? 11000 : 9000;
-    if (!(await _verifierVramAvant3D(_besoinMo))) return;
+    const _choix = await _verifierVramAvant3D(_besoinMo, !!(trellis2UltraQ || trellis2QualityPlus));
+    if (_choix === 'annuler') return;
+    if (_choix === 'leger') {
+      // Mode plus leger : sans « Fine geometry » ni « Sharp edges » le calcul passe en 1024 (voir main.js, FABMESH_TRELLIS2_NATIVE_MODE).
+      params.trellis2UltraQ = false; params.trellis2QualityPlus = false;
+      try { jobParams.Options = [..._optsActives.filter((o) => o !== 'Fine geometry' && o !== 'Sharp edges'), 'Lighter mode'].join(', '); } catch (_) {}
+    }
   }
   const _projName = p.name;
   _meshGenLancement.add(_projName);
@@ -11342,6 +11348,9 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     _finLancement();                     // la tuile (pushJob) prend le relais
     const job = pushJob(`Generate 3D: ${p.name}`, null, jobParams, expectedMs, { sourceImageUrl: p.selectedImagePath, projectName: p.name });
     if (engine === 'trellis2_native') { try { window._libererMemoireGraphique?.(); } catch (_) {} }   // rend la memoire des visionneuses au calcul
+    if (engine === 'trellis2_native') {
+      try { await window.meshyAPI?.preparer3D?.({ viderImages: window._optionRessources('fab-vider-images'), arretAides: window._optionRessources('fab-arret-aides') }); } catch (_) {}
+    }
     try {
       // `jobId` : sans lui le processus n'est pas enregistre sous son nom
       // (main.js : `if (jobId) activeProcs.set(jobId, proc)`), et Annuler
@@ -31675,37 +31684,64 @@ window._restaurerMemoireGraphique = function () {
   }
   return n;
 };
-/** Avant une 3D locale : la carte a-t-elle la place ? Sinon on le dit, en nommant ce qui l'occupe. `true` = continuer. */
-async function _verifierVramAvant3D(besoinMo) {
+window._optionRessources = function (cle) { try { return localStorage.getItem(cle) !== '0'; } catch (_) { return true; } };
+/** Fenetre a trois issues (carte trop prise) : « leger » | « quand-meme » | « annuler ». */
+function _choixMemoireJuste(msg, peutLeger) {
+  return new Promise((resolve) => {
+    document.getElementById('modal-memoire-juste')?.remove();
+    const m = document.createElement('div');
+    m.id = 'modal-memoire-juste'; m.className = 'modal-overlay'; m.setAttribute('data-i18n-skip', '');
+    const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    m.innerHTML = `<div class="modal-card" style="max-width:560px;width:92vw;">
+      <div class="fen-tete"><h2>${esc(_i18nT('Graphics memory is tight'))}</h2></div>
+      <p class="modal-subtitle" style="white-space:pre-line;">${esc(msg)}</p>
+      <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
+        ${peutLeger ? `<button class="primary-btn" id="mj-leger">${esc(_i18nT('Lighter mode'))}</button>` : ''}
+        <button class="${peutLeger ? 'ghost-btn' : 'primary-btn'}" id="mj-quand-meme">${esc(_i18nT('Start anyway'))}</button>
+        <button class="ghost-btn" id="mj-annuler">${esc(_i18nT('Cancel'))}</button>
+      </div></div>`;
+    document.body.appendChild(m);
+    const fin = (v) => { m.remove(); document.removeEventListener('keydown', echap); resolve(v); };
+    const echap = (e) => { if (e.key === 'Escape') fin('annuler'); };
+    document.addEventListener('keydown', echap);
+    m.querySelector('#mj-leger')?.addEventListener('click', () => fin('leger'));
+    m.querySelector('#mj-quand-meme').addEventListener('click', () => fin('quand-meme'));
+    m.querySelector('#mj-annuler').addEventListener('click', () => fin('annuler'));
+  });
+}
+/** Avant une 3D locale : la carte a-t-elle la place ? Sinon on le dit, en nommant ce qui l'occupe.
+ *  Renvoie « ok » (rien a dire) | « quand-meme » | « leger » | « annuler ». `peutLeger` : le mode actuel peut etre allege. */
+async function _verifierVramAvant3D(besoinMo, peutLeger) {
   try {
-    if (!window.meshyAPI?.gpuOccupation) return true;
-    if (typeof window._computeMode === 'function' && window._computeMode() === 'cloud') return true;
+    if (!window.meshyAPI?.gpuOccupation) return 'ok';
+    if (typeof window._computeMode === 'function' && window._computeMode() === 'cloud') return 'ok';
     const o = await Promise.race([window.meshyAPI.gpuOccupation(), new Promise((r) => setTimeout(() => r(null), 7000))]);
-    if (!o || !(o.totalMo > 0)) return true;
-    // Si la liberation de la memoire de l'interface est active, cette part sera rendue au calcul (jusqu'a 1,5 Go).
+    if (!o || !(o.totalMo > 0)) return 'ok';
+    // Ce que la 3D va rendre a la carte : l'interface (si active), le serveur d'images en VRAM n'est pas compte (inconnu ici).
     const rendue = window._libererGpuActif() ? Math.min(o.ownMo || 0, 1500) : 0;
     const dispo = o.totalMo - Math.max(0, o.autresMo - rendue);
-    if (dispo >= besoinMo) return true;
+    if (dispo >= besoinMo) return 'ok';
     const Go = (mo) => (mo / 1024).toFixed(1);
     const liste = (o.top || []).filter((x) => x.mo >= 300).slice(0, 5).map((x) => `• ${x.nom} : ${Go(x.mo)} GB`).join('\n');
     const msg = _i18nTf('Other apps already use {x} GB of your graphics card ({y} GB in total).', Go(o.autresMo), Go(o.totalMo))
       + '\n' + _i18nTf('This 3D needs about {x} GB. On a card that is too full it can be very slow or stop at the very end, and the whole run is lost.', Go(besoinMo))
       + (liste ? '\n\n' + liste : '')
       + '\n\n' + _i18nT('Close them first for the best result.');
-    return await customConfirm(msg, _i18nT('Graphics memory is tight'), _i18nT('Start anyway'));
-  } catch (_) { return true; }
+    if (peutLeger && window._optionRessources('fab-propose-leger')) return await _choixMemoireJuste(msg, true);
+    return (await customConfirm(msg, _i18nT('Graphics memory is tight'), _i18nT('Start anyway'))) ? 'quand-meme' : 'annuler';
+  } catch (_) { return 'ok'; }
 }
-(function _reglageLibererGpu() {
-  const cb = document.getElementById('set-liberer-gpu');
-  if (!cb) return;
-  const ligne = document.getElementById('set-liberer-gpu-row');
-  const marquer = () => ligne && ligne.classList.toggle('on', cb.checked);
-  cb.checked = window._libererGpuActif();
-  marquer();
-  cb.addEventListener('change', () => {
-    try { localStorage.setItem('fab-liberer-gpu', cb.checked ? '1' : '0'); } catch (_) {}
+(function _reglagesRessources3D() {
+  const REGLAGES = [['set-liberer-gpu', 'fab-liberer-gpu'], ['set-vider-images', 'fab-vider-images'], ['set-arret-aides', 'fab-arret-aides'], ['set-propose-leger', 'fab-propose-leger']];
+  for (const [id, cle] of REGLAGES) {
+    const cb = document.getElementById(id);
+    if (!cb) continue;
+    const ligne = document.getElementById(id + '-row') || document.getElementById('set-liberer-gpu-row');
+    const marquer = () => ligne && ligne.classList.toggle('on', cb.checked);
+    cb.checked = window._optionRessources(cle);
     marquer();
-  });
+    cb.addEventListener('change', () => { try { localStorage.setItem(cle, cb.checked ? '1' : '0'); } catch (_) {} marquer(); });
+  }
 })();
 
 // ══ BARRE DU HAUT : MENU « ... » (2026-10-01, user : « on a beaucoup trop de choix, des mini menus deroulants pour grouper les icones ? »).

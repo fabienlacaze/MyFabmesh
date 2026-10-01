@@ -7871,6 +7871,20 @@ async function _calculerDiskUsage() {
     t: Date.now(),
   };
 }
+// PREPARATION D'UNE 3D LOCALE (2026-10-01, Reglages > Hardware > « Resources during a 3D ») : rend la memoire que les serveurs auxiliaires
+// gardent (image : modeles en VRAM jusqu'a 5 min apres la derniere image ; traduction ~1 Go ; redacteur Qwen ~3,4 Go de RAM). Ils redemarrent
+// tout seuls a la demande. Appele par l'interface quand la 3D demarre reellement (apres la file d'attente).
+ipcMain.handle('preparer-3d', async (_e, o = {}) => {
+  const fait = [];
+  if (o && o.viderImages) { try { if (sdxlProc) { stopSdxlServer(); fait.push('image engine'); } } catch (_) {} }
+  if (o && o.arretAides) {
+    try { if (translateProc) { stopTranslateServer(); fait.push('translator'); } } catch (_) {}
+    try { if (redacteurProc) { redacteurArreter('3D en cours'); fait.push('writing assistant'); } } catch (_) {}
+  }
+  try { log.info('main', `[prepa-3d] libere : ${fait.join(', ') || 'rien a liberer'}`); } catch (_) {}
+  return { fait };
+});
+
 // OCCUPATION DE LA CARTE GRAPHIQUE (2026-10-01, user : « avertir avant le lancement en nommant ce qui occupe la carte »). Une 3D locale qui
 // demarre sur une carte deja presque pleine (navigateur, Unreal, Epic, l'interface elle-meme) est tres lente puis echoue au decodage :
 // la 3D du bus a perdu 37 min ainsi. Renvoie { totalMo, autresMo (tout ce qui est deja occupe), ownMo (notre interface), top: [{ nom, mo }] }
