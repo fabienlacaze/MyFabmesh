@@ -632,7 +632,11 @@ async function _spendRefusalMessage(env: Env, userId?: string): Promise<string> 
     // Within 20% of the personal cap => it is almost certainly the one
     // that refused. Below that, the global cap is the culprit and the
     // generic wording is the honest one.
-    if (cur >= maxUser * 0.8) {
+    // 2026-10-01 : le compte d'un testeur avait 1,598 $ sur 2,00 $ : sous le seuil de 80 % (1,60), donc annonce « capacite partagee epuisee » alors
+    // que le compteur GLOBAL du jour n'etait qu'a 1,69 $ sur 10 $. Si le global est loin de son plafond, c'est forcement le plafond PERSONNEL qui refuse.
+    const maxGlobal = _plafond(env.MAX_DAILY_MODAL_SPEND_USD, DEFAULT_MAX_MODAL_SPEND_USD);
+    const global = parseFloat((await r2GetText(env, `_meta/modal_spend/${todayUTC()}`)) || '0') || 0;
+    if (cur >= maxUser * 0.8 || global < maxGlobal * 0.8) {
       // Ce plafond ne s'applique qu'aux comptes GRATUITS (checkAndIncrementModalSpend).
       return "You have reached today's generation limit for free accounts. It resets at midnight UTC. "
            + 'Your credits are safe and you were not charged.';
