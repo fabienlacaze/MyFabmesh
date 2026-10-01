@@ -22220,7 +22220,7 @@ function majLignesLimites() {
     const tropGB = Math.max(0, Math.min(autresGB - reserveGB, totalGB - plancher - reserveGB));
     const mfmUseGB = (!libre && usedGB != null) ? Math.max(0, Math.min(partGB, usedGB - plancher - autresGB)) : 0;
     parts[nom] = { partGB, autres, reserveGB };
-    _geoPartage[nom] = { totalGB, plancherGB: plancher + Math.min(need, Math.max(0, totalGB - plancher)), reserveMaxGB, maxPct };
+    _geoPartage[nom] = { totalGB, plancherGB: Math.min(need, Math.max(0, totalGB - plancher)), reserveMaxGB, maxPct };       // (nom conserve) = decalage du separateur : le minimum de MyFabmesh ; Windows est tout a droite
     // 2026-09-30 (demande du user) : Windows | MyFabmesh minimum (fixe, violet fonce) | autres logiciels (leur reserve, gris clair) | depassement |
     // MyFabmesh en plus (violet clair, variable). Deplacer la limite vers la gauche reduit le gris et agrandit le violet clair.
     const minGB = Math.min(need, Math.max(0, totalGB - plancher));
@@ -22239,15 +22239,17 @@ function majLignesLimites() {
     { const e = el('reel-mfm'); if (e) {          // consommation reelle de MyFabmesh : dans le violet, rouge a droite
         const regionGB = Math.max(0.001, minGB + addGB);
         const mfmReel = (!libre && usedGB != null) ? Math.max(0, Math.min(regionGB, usedGB - plancher - autresGB)) : 0;
-        e.style.left = 'calc(4px + (100% - 8px) * ' + (plancher / totalGB) + ')';
+        e.style.left = '4px';
         e.style.width = 'calc((100% - 8px) * ' + (regionGB / totalGB) + ')';
         e.style.right = 'auto';
         e.style.setProperty('--reste-m', (100 - mfmReel / regionGB * 100) + '%');
       } }
     { const e = el('reel'); if (e) {
-        const limPos = (plancher + minGB + (extraTotGB - Math.min(reserveGB, extraTotGB))) / totalGB * 100;     // position du separateur
-        const usePct = Math.max(0, Math.min(100, autresGB / totalGB * 100));
-        e.style.setProperty('--dl', Math.max(1, 100 - limPos) + '%');
+        // Windows est TOUT A DROITE : la bande des autres logiciels part du bord gauche de Windows (pas du bord de la barre)
+        const zoneGB = Math.max(0.001, totalGB - plancher);
+        e.style.right = 'calc(4px + (100% - 8px) * ' + (plancher / totalGB) + ')';
+        const usePct = Math.max(0, Math.min(100, autresGB / zoneGB * 100));
+        e.style.setProperty('--dl', Math.max(1, Math.min(100, Math.min(reserveGB, extraTotGB) / zoneGB * 100)) + '%');     // distance bord droit -> separateur
         e.style.setProperty('--reste', (100 - usePct) + '%');
       } }
     const libelle = (suffixe, txt, assezLarge) => { const e = el(suffixe); if (e) e.textContent = assezLarge ? txt : ''; };
@@ -22260,7 +22262,7 @@ function majLignesLimites() {
     poser('besoin', 'display', 'none');                 // le minimum est desormais la part violet fonce
     { const e = el('besoin-lbl'); if (e) e.textContent = need > 0 ? `${outil} ${go(need)}` : ''; }
     const poignee = document.getElementById(`${idp}-limit`);
-    if (poignee && !_draggingGpuLimit) poignee.style.left = larg(plancher + minGB + (extraTotGB - Math.min(reserveGB, extraTotGB)));
+    if (poignee && !_draggingGpuLimit) poignee.style.left = larg(minGB + (extraTotGB - Math.min(reserveGB, extraTotGB)));
     const lim = document.getElementById(`${idp}-limtxt`);
     if (lim) lim.innerHTML = `${escapeHtml(_i18nT('Other apps:'))} <b>${escapeHtml(_i18nTf('{x} GB kept', go(reserveGB)))}</b>`;
     const mt = document.getElementById(`${idp}-mfmtxt`);

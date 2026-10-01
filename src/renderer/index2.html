@@ -2439,11 +2439,11 @@
               <span class="gpu-stat-val" id="set-gpu-vram-val">--</span>
             </div>
             <div class="hw-partage" data-stat="vram">
-              <div class="hw-seg hw-win" id="set-vram-win" title="Kept for Windows"></div>
               <div class="hw-seg hw-mfm" id="set-vram-mfm" title="The minimum MyFabmesh needs (heaviest tool)"><div class="hw-use" id="set-vram-mfm-use"></div><span id="set-vram-mfm-lbl"></span></div>
               <div class="hw-seg hw-add" id="set-vram-add" title="Extra room for MyFabmesh (what you do not keep for your other apps)"><span id="set-vram-add-lbl"></span></div>
               <div class="hw-seg hw-trop" id="set-vram-trop" title="Used by your other apps beyond what you keep for them"><span id="set-vram-trop-lbl"></span></div>
               <div class="hw-seg hw-autres" id="set-vram-autres"><div class="hw-use" id="set-vram-autres-use"></div><span id="set-vram-autres-lbl"></span></div>
+              <div class="hw-seg hw-win" id="set-vram-win" title="Kept for Windows"></div>
               <div class="hw-reel hw-reel-mfm" id="set-vram-reel-mfm" title="What MyFabmesh really uses right now"></div>
               <div class="hw-reel" id="set-vram-reel" title="What your other apps really use right now"></div>
               <div class="hw-besoin" id="set-vram-besoin"><i id="set-vram-besoin-lbl"></i></div>
@@ -2458,11 +2458,11 @@
               <span class="gpu-stat-val" id="set-ram-val">--</span>
             </div>
             <div class="hw-partage" data-stat="ram">
-              <div class="hw-seg hw-win" id="set-ram-win" title="Kept for Windows"></div>
               <div class="hw-seg hw-mfm" id="set-ram-mfm" title="The minimum MyFabmesh needs (heaviest tool)"><div class="hw-use" id="set-ram-mfm-use"></div><span id="set-ram-mfm-lbl"></span></div>
               <div class="hw-seg hw-add" id="set-ram-add" title="Extra room for MyFabmesh (what you do not keep for your other apps)"><span id="set-ram-add-lbl"></span></div>
               <div class="hw-seg hw-trop" id="set-ram-trop" title="Used by your other apps beyond what you keep for them"><span id="set-ram-trop-lbl"></span></div>
               <div class="hw-seg hw-autres" id="set-ram-autres"><div class="hw-use" id="set-ram-autres-use"></div><span id="set-ram-autres-lbl"></span></div>
+              <div class="hw-seg hw-win" id="set-ram-win" title="Kept for Windows"></div>
               <div class="hw-reel hw-reel-mfm" id="set-ram-reel-mfm" title="What MyFabmesh really uses right now"></div>
               <div class="hw-reel" id="set-ram-reel" title="What your other apps really use right now"></div>
               <div class="hw-besoin" id="set-ram-besoin"><i id="set-ram-besoin-lbl"></i></div>
@@ -2753,7 +2753,7 @@
     .hw-seg{position:relative;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;font-size:11px;font-weight:600;min-width:0}
     .hw-seg:first-child{border-radius:7px 0 0 7px}
     .hw-seg.hw-add{background:#b79cff;color:#2a1160}
-    .hw-seg.hw-autres{border-radius:0 7px 7px 0}
+    .hw-seg.hw-win{border-radius:0 7px 7px 0}
     .hw-win{background:#4a4a5c}
     .hw-autres{background:#9aa3b2;color:#1d2230}
     .hw-trop{background:repeating-linear-gradient(135deg,#9aa3b2 0 5px,#d9861a 5px 10px)}
