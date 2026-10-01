@@ -808,6 +808,7 @@
         if (buildStages) {
           window.__meshyEmit('image-progress', { jobId, index: 0, total: 3, status: 'fetching' });
           const staged = [];
+          let premiereErreur = '';
           for (let s = 0; s < _CLOUD_BUILD_STAGE_MODIFIERS.length; s++) {
             const mod = _CLOUD_BUILD_STAGE_MODIFIERS[s];
             try {
@@ -815,10 +816,14 @@
               staged.push(...paths);
               window.__meshyEmit('image-progress', { jobId, index: s + 1, total: 3, status: 'fetching' });
             } catch (e) {
-              log(`generateImages stage ${s + 1} failed:`, e instanceof Error ? e.message : String(e));
+              const msg = e instanceof Error ? e.message : String(e);
+              if (!premiereErreur) premiereErreur = msg;
+              log(`generateImages stage ${s + 1} failed:`, msg);
             }
           }
-          if (!staged.length) return { success: false, images: [], error: 'Construction stages produced no images.' };
+          // Aucune etape : la VRAIE cause (credits, plafond du jour...), comme le
+          // bureau (main.js), au lieu d'un message generique (2026-09-30).
+          if (!staged.length) return { success: false, images: [], error: premiereErreur || 'Construction stages produced no images.' };
           window.__meshyEmit('image-progress', { jobId, index: 3, total: 3, status: 'done' });
           _appendCloudImages(projectName, staged, 'front');
           _savePrompt(projectName, userPrompt || prompt || '');

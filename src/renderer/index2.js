@@ -2711,7 +2711,11 @@ function _ajusterAuto3D() {
     if (cb3d && !montrer && cb3d.checked) { cb3d.checked = false; cb3d.dispatchEvent(new Event('change')); }
     for (const id of ['ws-mesh-stages3d-btn', 'ws-buildstages-btn']) {
       const b = document.getElementById(id);
-      if (b) b.style.display = montrer ? '' : 'none';
+      // Etapes 2D (ws-buildstages-btn) : outil LOCAL, absent du site et sans
+      // route cloud -> masque en mode Cloud (_CLOUD_HIDDEN_TOOLS). Sans cette
+      // garde, un changement de type d'asset le faisait reapparaitre.
+      const cloudSansOutil = id === 'ws-buildstages-btn' && _isCloudMode();
+      if (b) b.style.display = (montrer && !cloudSansOutil) ? '' : 'none';
     }
   };
   const sel = document.getElementById('ws-asset-type');
@@ -5218,7 +5222,11 @@ document.getElementById('bs3d-start')?.addEventListener('click', () => {
   // otherwise the new version's cover would be the scaffolded half-building.
   mp = String(mp).replace(/_stages3d[\\\/]stage_\d+\.glb$/i, '.glb');
   const count = Math.max(2, Math.min(20, parseInt(document.getElementById('bs3d-count')?.value, 10) || 5));
-  const job = pushJob(`${_i18nT('Construction stages 3D')}: ${p.name}`, null,
+  // Nom STOCKE en anglais, identique au site : « 3D construction stages » range
+  // la tuile a l'etape 3D (_jobStepIndex) ; _displayJobName le traduit. L'ancien
+  // nom traduit (« Construction stages 3D » / « Étapes de construction 3D »)
+  // commencait par le motif des etapes 2D et tombait dans l'etape Image.
+  const job = pushJob(`3D construction stages: ${p.name}`, null,
     { [_i18nT('Stages')]: count, Source: String(mp).split(/[\\/]/).pop() }, count * 2500, { projectName: p.name });
   (async () => {
     try {
@@ -7562,12 +7570,13 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
     expectedMs += count * mvPerImage;
   }
   gatedRun('image', `Generate images: ${p.name}`, async () => {
-    // Le mode est résolu AVANT pushJob : multi-vues et étapes de construction
-    // sont désactivées en Cloud (pas d'endpoint worker), le détail de tâche doit
-    // donc annoncer ce qui part RÉELLEMENT, pas ce que cochent les cases.
+    // Le mode est résolu AVANT pushJob : les multi-vues sont désactivées en
+    // Cloud (pas d'endpoint worker), le détail de tâche doit donc annoncer ce
+    // qui part RÉELLEMENT, pas ce que cochent les cases. Les étapes de
+    // construction partent AUSSI en Cloud depuis le 2026-09-30 : 3 images, une
+    // par étape, quel que soit Count, comme le site (main.js generate-images).
     const _computeM = _isCloudMode() ? 'cloud' : 'local';
     const _mvSent = multiView && _computeM !== 'cloud';
-    const _stagesSent = buildStages && _computeM !== 'cloud';
     const _mv6Sent = mv6view && _computeM !== 'cloud';
     const _offCloud = _i18nT('off (Cloud mode)');
     const job = pushJob(`Generate images: ${p.name}`, null, {
@@ -7579,12 +7588,11 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
       'Multi-view': _mv6Sent ? '6 views'
         : (_mvSent ? '2 views (back)'
           : ((mv6view || multiView) && _computeM === 'cloud' ? _offCloud : 'no')),
-      'Construction stages': _stagesSent ? 'yes'
-        : (buildStages && _computeM === 'cloud' ? _offCloud : 'no'),
+      'Construction stages': buildStages ? 'yes' : 'no',
       Prompt: userPrompt,
     }, expectedMs, { projectName: p.name, assetKind: assetType });
     try {
-      const _genArgs = { prompt, userPrompt, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages: _stagesSent, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM };
+      const _genArgs = { prompt, userPrompt, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM };
       // La modale de connexion + le retry sont gérés en amont par le wrapper
       // API (voir _CLOUD_LOGIN_METHODS) — commun à TOUS les outils cloud.
       const r = await API.generateImages(_genArgs);
@@ -29177,17 +29185,20 @@ window._applyCloudCostPill = function (btn) {
     // vaut moins que pas de chiffre.
     const img = cloud ? window._prixImage() : null;
     // En mode Cloud TOUTES les images demandees partent (lots de 4 au plus,
-    // cloud_fallback.generateImages) ; vues de dos et etapes de construction ne
-    // partent pas (bouton Generate) : rien d'autre n'est facture.
-    const n = Math.max(1, parseInt(document.getElementById('ws-count')?.value, 10) || 4);
+    // cloud_fallback.generateImages) ; les vues de dos ne partent pas (bouton
+    // Generate). Etapes de construction cochees : 3 images, une par etape,
+    // quel que soit Count (main.js generate-images) — meme regle que le site
+    // (cloud-overrides.js, recalcImage).
+    const etapes = !!document.getElementById('ws-img-buildstages')?.checked;
+    const n = etapes ? 3 : Math.max(1, parseInt(document.getElementById('ws-count')?.value, 10) || 4);
     window._posePastille(btn, img ? n * img.prix : null, true);
     const pill = btn.querySelector('.generate-cost-pill');
     if (pill && img) pill.title = `${n} × ${img.prix}`;
   } catch (_) {}
 };
-// Nombre d'images, qualite et moteur changent le prix : pastille ET mention
-// « credits par image » de la ligne Compute suivent.
-['ws-count', 'ws-quality', 'ws-engine'].forEach((id) => {
+// Nombre d'images, qualite, moteur et etapes de construction changent le prix :
+// pastille ET mention « credits par image » de la ligne Compute suivent.
+['ws-count', 'ws-quality', 'ws-engine', 'ws-img-buildstages'].forEach((id) => {
   const el = document.getElementById(id);
   const maj = () => { window._applyCloudCostPill(); window._majMentionsPrixImage?.(); };
   el?.addEventListener('change', maj);
