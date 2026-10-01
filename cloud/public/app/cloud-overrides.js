@@ -671,7 +671,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           } else {
             if (txt) txt.textContent = startingCount > 0
               ? `Server starting${startingCount > 1 ? ` (${startingCount} services)` : ''}`
-              : `Server warming up${coldCount > 1 ? ` (${coldCount} services)` : ''}`;
+              : `Servers asleep${coldCount > 1 ? ` (${coldCount} services)` : ''}`;   // 2026-10-02 : « warming up » etait FAUX pour des services FROIDS (user)
             wrap.style.display = 'inline-flex';
           }
         }
