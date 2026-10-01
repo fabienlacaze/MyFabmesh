@@ -139,7 +139,7 @@ function journal(type, data) {
   } catch (_) { /* le journal ne doit JAMAIS casser l'assistant */ }
 }
 
-const STEPS = ['welcome', 'detect', 'mode', 'download', 'test', 'account', 'no-gpu'];
+const STEPS = ['welcome', 'detect', 'mode', 'download', 'test', 'no-gpu', 'account'];
 let currentStep = 'welcome';
 let hwReport = null;
 let chosenMode = null;
@@ -221,6 +221,12 @@ function goto(step) {
       const tag = document.querySelector(`.wiz-step-tag[data-step="${s}"]`);
       if (tag) tag.classList.add('hidden');
     }
+    // Sans ces deux etapes, « 6. Account » suivrait « 3. Mode ».
+    const tagCompte = document.querySelector('.wiz-step-tag[data-step="account"]');
+    if (tagCompte) tagCompte.textContent = '4. Account';
+  }
+  if (step === 'account' && !initialized.has('account')) {
+    initialized.add('account'); initCompte();
   }
   if (step === 'download' && !initialized.has('download')) {
     initialized.add('download'); startDownload();
@@ -1246,35 +1252,190 @@ async function runFinalTest() {
   launch.classList.add('wiz-launch-ready');
 }
 
-// Fin des verifications -> page « Account » (se connecter, et pourquoi) -> lancement.
-document.getElementById('btn-launch').addEventListener('click', () => { goto('account'); });
+// Fin du parcours LOCAL : l'etape facultative « Account » passe avant le
+// lancement (2026-09-30, user : « a aucun moment on me demande de me connecter
+// / creer un compte »). Le lancement lui-meme est dans lancerAppli().
+document.getElementById('btn-launch').addEventListener('click', () => {
+  modeFinal = chosenMode;
+  sortieFinale = 'lancement';
+  memoriserInstallation();
+  goto('account');
+});
 
-// seConnecter : l'appli s'ouvre avec la fenetre de connexion (drapeau lu par index2.js), puis « New project ».
-async function terminerAvecCompte(seConnecter) {
-  const a = document.getElementById('btn-account-signin'), b = document.getElementById('btn-account-skip');
-  if (a) a.disabled = true; if (b) b.disabled = true;
-  journal('fin', { sortie: seConnecter ? 'lancement_connexion' : 'lancement', mode: chosenMode });
-  // user 2026-09-30 : a la fin de l'installation, ouvrir directement « New project » (drapeau lu par index2.js au premier affichage)
-  try {
-    localStorage.setItem('fab_ouvrir_nouveau_projet', '1');
-    if (seConnecter) localStorage.setItem('fab_ouvrir_connexion', '1');
-  } catch (_) {}
-  await window.wizardAPI.completeSetup({ mode: chosenMode, hw: hwReport });
+// L'installation est FAITE a ce stade : on l'ecrit tout de suite, pour qu'une
+// fenetre fermee sur l'etape « Account » (facultative) ne fasse pas tout
+// reprendre au lancement suivant. Sans effet visible ; l'echec est sans gravite
+// (completeSetup la reecrit au lancement).
+function memoriserInstallation() {
+  try { window.wizardAPI.saveSetupState?.({ mode: modeFinal, hw: hwReport })?.catch?.(() => {}); } catch (_) {}
 }
-document.getElementById('btn-account-signin')?.addEventListener('click', () => terminerAvecCompte(true));
-document.getElementById('btn-account-skip')?.addEventListener('click', () => terminerAvecCompte(false));
 
 // Page « no-gpu » : lancer l'app EN MODE CLOUD (et non le site web). Sans ce
 // bouton, une machine sans GPU NVIDIA (Surface des testeurs Store, laptops)
 // n'avait AUCUN moyen d'ouvrir l'application — le wizard renvoyait vers le
 // navigateur. Le mode Cloud route désormais tout le pipeline vers le worker.
-document.getElementById('btn-launch-cloud')?.addEventListener('click', async () => {
-  const b = document.getElementById('btn-launch-cloud');
-  if (b) { b.disabled = true; b.textContent = 'Starting…'; }
-  try { localStorage.setItem('fab-compute-mode', 'cloud'); localStorage.setItem('fab_ouvrir_connexion', '1'); } catch (_) {}     // sans carte NVIDIA : le cloud EST la generation, la connexion est demandee des l'ouverture
-  journal('fin', { sortie: 'lancement_cloud', mode: 'cloud' });
-  await window.wizardAPI.completeSetup({ mode: 'cloud', hw: hwReport });
+// Il passe lui aussi par l'etape « Account » (facultative, « Skip » toujours la).
+document.getElementById('btn-launch-cloud')?.addEventListener('click', () => {
+  try { localStorage.setItem('fab-compute-mode', 'cloud'); } catch (_) {}
+  modeFinal = 'cloud';
+  sortieFinale = 'lancement_cloud';
+  memoriserInstallation();
+  goto('account');
 });
+
+// ---------- STEP 6: account (FACULTATIF) ----------
+// Connexion ou inscription SUR PLACE, avec les memes appels que la fenetre de
+// connexion de l'appli (meshyAPI.cloudLogin / cloudSignup / cloudVerifySignup) :
+// aucun navigateur ouvert (refus de certification n°2). Jamais bloquant :
+// « Skip » lance l'appli sans compte. Le journal ne recoit JAMAIS l'adresse.
+let modeFinal = null;
+let sortieFinale = 'lancement';
+let compteMode = 'signin';
+let compteConnecte = false;
+const $c = (id) => document.getElementById(id);
+
+async function lancerAppli() {
+  const boutons = ['btn-acc-launch', 'btn-acc-skip'].map($c).filter(Boolean);
+  boutons.forEach((b) => { b.disabled = true; });
+  journal('fin', { sortie: sortieFinale, mode: modeFinal, compte: compteConnecte ? 'connecte' : 'sans' });
+  // user 2026-09-30 : a la fin de l'installation, ouvrir directement « New project » (drapeau lu par index2.js au premier affichage)
+  if (sortieFinale === 'lancement') { try { localStorage.setItem('fab_ouvrir_nouveau_projet', '1'); } catch (_) {} }
+  try {
+    await window.wizardAPI.completeSetup({ mode: modeFinal, hw: hwReport });
+  } catch (e) {
+    // Jamais de cul-de-sac : les boutons reviennent, avec la cause.
+    boutons.forEach((b) => { b.disabled = false; });
+    compteMessage('Could not start MyFabmesh.AI: ' + String((e && e.message) || e) + ' — try again.');
+  }
+}
+
+function compteMessage(texte, ok) {
+  const el = $c('acc-msg');
+  if (!el) return;
+  el.textContent = texte || '';
+  el.classList.toggle('ok', !!ok);
+}
+
+function compteAfficherMode(m) {
+  compteMode = m;
+  $c('acc-tab-signin').classList.toggle('actif', m === 'signin');
+  $c('acc-tab-signup').classList.toggle('actif', m !== 'signin');
+  $c('acc-pass').hidden = (m === 'verify');
+  $c('acc-code').hidden = (m !== 'verify');
+  $c('acc-pass').setAttribute('autocomplete', m === 'signup' ? 'new-password' : 'current-password');
+  $c('acc-submit').textContent = m === 'signin' ? 'Sign in' : (m === 'signup' ? 'Create account' : 'Confirm');
+  $c('acc-forgot').hidden = (m !== 'signin');
+  compteMessage('');
+  if (m === 'verify') setTimeout(() => $c('acc-code')?.focus(), 30);
+}
+
+function compteReussi(email) {
+  compteConnecte = true;
+  compteMessage('');
+  $c('acc-form').hidden = true;
+  $c('acc-ok-email').textContent = email || '';
+  $c('acc-ok').hidden = false;
+  $c('btn-acc-skip').hidden = true;
+  $c('btn-acc-launch').hidden = false;
+  // PAS de focus sur « Launch » : valider le formulaire par Entree aurait
+  // aussi lance l'appli (la touche arrive au bouton qui vient de prendre le
+  // focus) — constate au banc le 2026-09-30.
+  journal('compte', { etat: 'connecte' });
+}
+
+async function compteSoumettre() {
+  const api = window.meshyAPI;
+  if (!api || typeof api.cloudLogin !== 'function') {
+    compteMessage('Sign-in is not available right now. You can do it later in the app.');
+    return;
+  }
+  const email = $c('acc-email').value.trim();
+  const pass = $c('acc-pass').value;
+  const bouton = $c('acc-submit');
+  const appel = async (fn) => {
+    bouton.disabled = true;
+    try { return await fn(); } catch (e) { return { success: false, error: String((e && e.message) || e) }; }
+    finally { bouton.disabled = false; }
+  };
+  if (compteMode === 'verify') {
+    const code = $c('acc-code').value.trim();
+    if (!code) { compteMessage('Enter the code from your email.'); return; }
+    const r = await appel(() => api.cloudVerifySignup({ email, code }));
+    if (r && r.success) compteReussi(r.email || email);
+    else compteMessage((r && r.error) || 'That code was not accepted.');
+    return;
+  }
+  if (!email || !pass) { compteMessage('Email and password are required.'); return; }
+  // Meme garde que la fenetre de l'appli : une adresse sans @ recevait
+  // « Invalid login credentials », qui accuse le mot de passe.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    compteMessage(email.includes('@')
+      ? 'This email address looks incomplete — check the part after the @.'
+      : 'This email address is missing the @ sign.');
+    return;
+  }
+  if (compteMode === 'signup') {
+    if (pass.length < 6) { compteMessage('Password must be at least 6 characters.'); return; }
+    const r = await appel(() => api.cloudSignup({ email, password: pass }));
+    if (!r || !r.success) {
+      if (/already\s*registered|already\s*exists|User already/i.test(String((r && r.error) || ''))) {
+        compteAfficherMode('verify');
+        compteMessage('This email is already registered. Enter the 6-digit code we emailed you, or go back and sign in.', true);
+        return;
+      }
+      compteMessage((r && r.error) || 'Could not create the account.');
+      return;
+    }
+    journal('compte', { etat: 'inscrit' });
+    if (r.codeRequis === false) { compteReussi(r.email || email); return; }
+    compteAfficherMode('verify');
+    compteMessage('Account created — check your email for the code.', true);
+    return;
+  }
+  const r = await appel(() => api.cloudLogin({ email, password: pass }));
+  if (r && r.success) { compteReussi(r.email || email); return; }
+  const brut = String((r && r.error) || '');
+  if (/invalid login credentials/i.test(brut)) {
+    compteMessage('Wrong email or password. No account yet? Use "Create an account" above.');
+  } else if (/email not confirmed|not confirmed/i.test(brut)) {
+    compteAfficherMode('verify');
+    compteMessage('This account is not confirmed yet. Enter the 6-digit code we emailed you.');
+  } else {
+    compteMessage(brut || 'Sign-in failed.');
+  }
+}
+
+async function initCompte() {
+  const lead = $c('acc-lead');
+  if (lead && modeFinal === 'cloud') {
+    lead.textContent = 'In Cloud mode, generations use credits: sign in or create an account now '
+      + '(new accounts get free credits), or later in the app.';
+  }
+  $c('acc-tab-signin')?.addEventListener('click', () => compteAfficherMode('signin'));
+  $c('acc-tab-signup')?.addEventListener('click', () => compteAfficherMode('signup'));
+  $c('acc-submit')?.addEventListener('click', compteSoumettre);
+  for (const id of ['acc-email', 'acc-pass', 'acc-code']) {
+    $c(id)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') compteSoumettre(); });
+  }
+  $c('acc-forgot')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const email = $c('acc-email').value.trim();
+    if (!email) { compteMessage('Enter your email first.'); return; }
+    let r = null;
+    try { r = await window.meshyAPI?.cloudRecover?.({ email }); } catch (_) { r = null; }
+    if (r && r.success) compteMessage('Reset email sent — follow the link, then sign in here.', true);
+    else compteMessage((r && r.error) || 'Could not send the email.');
+  });
+  $c('btn-acc-skip')?.addEventListener('click', () => { journal('compte', { etat: 'passe' }); lancerAppli(); });
+  $c('btn-acc-launch')?.addEventListener('click', () => lancerAppli());
+  compteAfficherMode('signin');
+  // Une session existe deja (reconfiguration, compte cree sur le site) : rien a saisir.
+  try {
+    const s = await window.meshyAPI?.cloudStatus?.();
+    if (s && s.loggedIn) { compteReussi(s.email || ''); return; }
+  } catch (_) {}
+  setTimeout(() => $c('acc-email')?.focus(), 50);
+}
 
 // Export logs button — one click → diagnostics .txt on the Desktop,
 // so a user (or a friend testing the app) can send it to support

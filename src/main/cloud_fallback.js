@@ -285,20 +285,32 @@ function logout() {
   return { success: true };
 }
 
+/* UN SEUL rafraichissement a la fois (2026-09-30). Au demarrage, plusieurs
+ * lectures de l'etat du compte partent ensemble (barre du haut, Reglages,
+ * bouton « Sign in » du mode Local) : chacune echangeait le MEME jeton de
+ * rafraichissement contre une session. Supabase fait tourner ce jeton ; un
+ * echange refuse vidait la session (_saveSession) — l'utilisateur se
+ * retrouvait deconnecte sans rien avoir fait. Les appels simultanes attendent
+ * desormais le meme echange. */
+let _rafraichissementEnCours = null;
 async function getAccessToken() {
   if (_mem && _mem.access_token && Date.now() < _mem.expires_at) return _mem.access_token;
-  const stored = _mem || _loadSession();
-  if (stored && stored.refresh_token) {
-    _mem = { ..._mem, ...stored };
-    try {
-      await _supabaseToken({ refresh_token: stored.refresh_token }, 'refresh_token');
-      return _mem.access_token;
-    } catch (e) {
-      _deps.log?.warn?.('cloud-fallback', `refresh failed: ${e.message}`);
-      _mem = null; _saveSession();
+  if (_rafraichissementEnCours) return _rafraichissementEnCours;
+  _rafraichissementEnCours = (async () => {
+    const stored = _mem || _loadSession();
+    if (stored && stored.refresh_token) {
+      _mem = { ..._mem, ...stored };
+      try {
+        await _supabaseToken({ refresh_token: stored.refresh_token }, 'refresh_token');
+        return _mem.access_token;
+      } catch (e) {
+        _deps.log?.warn?.('cloud-fallback', `refresh failed: ${e.message}`);
+        _mem = null; _saveSession();
+      }
     }
-  }
-  return null;
+    return null;
+  })();
+  try { return await _rafraichissementEnCours; } finally { _rafraichissementEnCours = null; }
 }
 
 async function status() {
@@ -795,13 +807,29 @@ function _postLongIsCold(r) {
 // outPath et renvoie l'URL R2 du résultat (à persister dans le sidecar du
 // nouveau fichier pour le chaînage).
 async function meshOp({ meshPath, opType, params = {}, outPath, projectName }) {
+  return _opMaillageSync({ meshPath, endpoint: '/api/mesh-op', champs: { opType, params }, outPath, projectName });
+}
+
+/* Operations sur l'ATLAS d'un maillage, en mode Cloud du bureau (2026-09-30) :
+ * les MEMES routes que le site (_opAtlasGpu, worker.ts) — /api/mesh-texvar
+ * (Texture variants), /api/mesh-enhance-tex (Sharpen texture x2),
+ * /api/mesh-region-retex (Re-texture a region, masque peint en 3D). Meme
+ * contrat, memes rejeux et meme telechargement que meshOp. */
+async function atlasOp({ meshPath, endpoint, champs = {}, outPath, projectName }) {
+  return _opMaillageSync({ meshPath, endpoint, champs, outPath, projectName });
+}
+
+// Coeur commun des operations mesh SYNCHRONES : { meshUrl, ...champs,
+// projectName } vers `endpoint`, rejeu « URL signee perimee » OU « demarrage
+// a froid » (jamais les deux), puis telechargement du GLB rendu.
+async function _opMaillageSync({ meshPath, endpoint, champs = {}, outPath, projectName }) {
   let src = await resolveMeshUrl(meshPath);
   if (!src.success) return src;
   let attempts = 0;
   const call = (meshUrl) => {
     attempts++;
-    return _authedPostLong('/api/mesh-op',
-      { meshUrl, opType, params, ...(projectName ? { projectName } : {}) });
+    return _authedPostLong(endpoint,
+      { meshUrl, ...champs, ...(projectName ? { projectName } : {}) });
   };
   let r = await call(src.meshUrl);
   // Deux causes de rejeu possibles, jamais cumulées (2 appels réseau max) :
@@ -903,6 +931,110 @@ async function pollJob({ statusPath, jobId, outPath, urlKeys = ['mesh_url', 'ani
     }
   }
   return { success: false, error: `cloud job timeout (${Math.round(capMs / 60000)} min)` };
+}
+
+/* « Name the zones (AI) » en mode Cloud du bureau (2026-09-30) — meme route
+ * que le site : POST /api/mesh-name-parts { meshUrl, assetType, rigUrl }.
+ * Le worker n'accepte que les maillages DU compte (cle <uid>/…, voir
+ * handleMeshNameParts) : si l'URL memorisee pointe ailleurs, on televerse le
+ * fichier (upload-mesh range sous <uid>/edited/) et on rejoue une fois. Le
+ * rig (voie squelette) est facultatif : s'il ne se televerse pas, la voie
+ * vision fait le travail. */
+async function nameParts({ meshPath, rigPath, assetType, projectName }) {
+  let src = await resolveMeshUrl(meshPath);
+  if (!src.success) return src;
+  let rigUrl = null;
+  if (rigPath) {
+    try { const rr = await resolveMeshUrl(rigPath); if (rr.success) rigUrl = rr.meshUrl; } catch (_) {}
+  }
+  let attempts = 0;
+  const call = (meshUrl) => {
+    attempts++;
+    return _authedPostLong('/api/mesh-name-parts',
+      { meshUrl, assetType: assetType || 'other', rigUrl, ...(projectName ? { projectName } : {}) });
+  };
+  let r = await call(src.meshUrl);
+  const refuse = !r.needsCloudLogin && !r.error && !(r.status >= 200 && r.status < 300);
+  const msg = String((r.json && r.json.error) || '');
+  if (refuse && !src.uploaded && (_staleUrlError(msg, r.status) || /only your own/i.test(msg))) {
+    src = await resolveMeshUrl(meshPath, { forceUpload: true });
+    if (!src.success) return src;
+    r = await call(src.meshUrl);
+  } else if (attempts < 2 && _postLongIsCold(r)) {
+    _progress(`Cloud GPU is starting up (cold start), retrying in ${COLD_RETRY_DELAY_MS / 1000}s…`);
+    await new Promise((res) => setTimeout(res, COLD_RETRY_DELAY_MS));
+    r = await call(src.meshUrl);
+    if (_postLongIsCold(r)) return { success: false, error: COLD_START_ERR };
+  }
+  if (r.needsCloudLogin) return { success: false, needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
+  if (r.error) return { success: false, error: r.error };
+  const j = r.json || {};
+  if (!(r.status >= 200 && r.status < 300) || j.success === false || j.ok === false) {
+    return { success: false, error: _httpErr(r.status, j) };
+  }
+  return {
+    success: true, parts: Array.isArray(j.parts) ? j.parts : [], source: j.source || null,
+    assetType: j.assetType || assetType || 'other', creditsRemaining: j.creditsRemaining,
+  };
+}
+
+/* « Re-texture all (AI) » en mode Cloud du bureau (2026-09-30) — meme route
+ * que le site : l'image de reference est televersee, POST /api/mesh-retexture
+ * cree un travail `modal_…` (ASYNCHRONE : 1-3 min + demarrage a froid), suivi
+ * par /api/jobs/:id comme une generation 3D. Aucun rejeu du demarrage : il
+ * lancerait un second travail paye (le worker rembourse un echec). */
+async function retexture({ meshPath, imagePath, preset, seed, outPath, projectName, onProgress }) {
+  const img = await uploadImage(imagePath, 'retexture_ref');
+  if (!img.success) return img;
+  const graine = Number.isFinite(Number(seed)) ? Math.floor(Number(seed)) : undefined;
+  const start = await startMeshJob({
+    meshPath, startPath: '/api/mesh-retexture',
+    bodyFor: (meshUrl) => ({
+      meshUrl, imageUrl: img.url, preset: preset || 'fast',
+      ...(graine !== undefined ? { seed: graine } : {}),
+      ...(projectName ? { projectName } : {}),
+    }),
+  });
+  if (!start.success) return start;
+  return _suivreTravailMaillage(start.jobId, { outPath, onProgress });
+}
+
+// Suit un travail `modal_…` (GET /api/jobs/:id, 4 s) jusqu'au GLB, qu'il
+// telecharge a outPath. Meme lecture que generateMesh : 30 min au moins, ou le
+// delai maximal annonce par le serveur pour CE travail (+5 min).
+async function _suivreTravailMaillage(jobId, { outPath, onProgress } = {}) {
+  const t0 = Date.now();
+  let horizonMs = 30 * 60 * 1000;
+  let polls = 0;
+  let coldNoted = false;
+  while (Date.now() - t0 < horizonMs) {
+    await new Promise((res) => setTimeout(res, 4000));
+    polls++;
+    const a = await _authedFetch(`/api/jobs/${encodeURIComponent(jobId)}`);
+    if (a.needsCloudLogin) return { success: false, needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
+    const js = await a.resp.json().catch(() => ({}));
+    if (js.delai_max_s > 0) horizonMs = Math.max(30 * 60 * 1000, js.delai_max_s * 1000 + 5 * 60 * 1000);
+    const st = String(js.status || js.state || '');
+    try { onProgress?.(st, polls); } catch (_) {}
+    if (!coldNoted && polls >= 10 && /queued|pending|starting/i.test(st)) {
+      coldNoted = true;
+      _progress('Cloud GPU is starting up (cold start) — this first run can take 2-3 minutes…');
+    }
+    if (/succeeded|completed/i.test(st)) {
+      const url = _findGlbUrl(js);
+      if (!url) return { success: false, error: 'job succeeded but no GLB url in response' };
+      const dl = await _downloadTo(url, outPath, 1000);
+      if (!dl.success) return dl;
+      return { success: true, newPath: outPath, resultUrl: _absUrl(String(url)), size: dl.size };
+    }
+    if (/failed|error|canceled|cancelled/i.test(st)) {
+      // Les credits sont rembourses cote worker sur un travail en echec.
+      return { success: false, error: js.error || js.detail || `job ${st}` };
+    }
+  }
+  return { success: false, error: 'The job is still running on the server after '
+    + Math.round(horizonMs / 60000) + ' min — the result will appear in your web library when it is done. '
+    + 'No extra credit will be charged.' };
 }
 
 // Études de construction 3D — POST /api/construction-stages-3d (SYNC mais
@@ -1430,4 +1562,6 @@ module.exports = {
   prewarm,
   // Outils mesh mode Cloud (R2-reuse)
   resolveMeshUrl, uploadImage, meshOp, startJob, startMeshJob, pollJob, constructionStages3D,
+  // Outils du site passes par le worker en mode Cloud du bureau (2026-09-30)
+  atlasOp, nameParts, retexture,
 };

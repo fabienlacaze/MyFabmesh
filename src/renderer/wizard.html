@@ -253,20 +253,34 @@
       </div>
     </section>
 
-    <!-- STEP 6: ACCOUNT (user 2026-10-01 : « a la fin de l'install une page pour dire de se connecter, et pourquoi ») -->
+
+    <!-- STEP 6: ACCOUNT — FACULTATIF (2026-09-30, user : « a aucun moment on me demande de me
+         connecter / creer un compte »). Derniere etape des DEUX parcours (local et cloud), juste avant
+         le lancement. Connexion ou inscription SUR PLACE (memes appels que la fenetre de l'appli :
+         cloudLogin / cloudSignup + code a 6 chiffres) : aucun navigateur ouvert. « Skip » lance l'appli
+         sans compte ; rien de local n'en depend. -->
     <section class="wiz-page" id="page-account">
       <div class="wiz-card">
-        <h1 class="wiz-h1">Sign in to MyFabmesh</h1>
-        <p class="wiz-lead">Your PC is ready. A free account unlocks the online features:</p>
-        <ul class="wiz-check-list wiz-account-list">
-          <li><b>Cloud generation</b> &mdash; create on our servers when you want more speed or your PC is busy (paid with credits; new accounts get free credits).</li>
-          <li><b>Marketplace</b> &mdash; browse, share and sell 3D assets.</li>
-          <li><b>Cloud library &amp; history</b> &mdash; your projects and credits, available from any device.</li>
-        </ul>
-        <p class="wiz-lead" style="font-size:12px;opacity:.8;">Local generation on this PC never needs an account. You can sign in later from Settings &gt; Account.</p>
-        <div class="wiz-actions" style="gap:10px;">
-          <button class="ghost-btn" id="btn-account-skip">Not now</button>
-          <button class="primary-btn" id="btn-account-signin">Sign in or create an account</button>
+        <h1 class="wiz-h1">Your MyFabmesh account</h1>
+        <p class="wiz-lead" id="acc-lead">Optional. An account lets you use the cloud, your web library and the marketplace. Everything local works without one.</p>
+        <div class="wiz-compte" id="acc-form">
+          <div class="wiz-compte-onglets" role="tablist">
+            <button type="button" class="wiz-onglet actif" id="acc-tab-signin" role="tab">Sign in</button>
+            <button type="button" class="wiz-onglet" id="acc-tab-signup" role="tab">Create an account</button>
+          </div>
+          <input id="acc-email" type="email" placeholder="Email" autocomplete="username">
+          <input id="acc-pass" type="password" placeholder="Password" autocomplete="current-password">
+          <input id="acc-code" type="text" inputmode="numeric" maxlength="8" placeholder="6-digit code from your email" autocomplete="one-time-code" hidden>
+          <div class="wiz-compte-msg" id="acc-msg" role="status"></div>
+          <div class="wiz-compte-actions">
+            <a href="#" id="acc-forgot">Forgot password?</a>
+            <button type="button" class="primary-btn" id="acc-submit">Sign in</button>
+          </div>
+        </div>
+        <div class="wiz-fini" id="acc-ok" hidden>&#10003; Signed in as <b id="acc-ok-email"></b></div>
+        <div class="wiz-actions">
+          <button class="ghost-btn" id="btn-acc-skip">Skip</button>
+          <button class="primary-btn" id="btn-acc-launch" hidden>Launch MyFabmesh.AI</button>
         </div>
       </div>
     </section>

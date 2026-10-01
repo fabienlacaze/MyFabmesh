@@ -86,6 +86,8 @@ const _CLOUD_LOGIN_METHODS = [
   // in… » s'affichait au lieu de la fenetre de connexion. Recolor et Age
   // (texVariant) passent par le worker en mode Cloud depuis ce jour.
   'outfitCutout', 'recolor', 'texVariant',
+  // Outils de texture du site passes par le worker en mode Cloud (2026-09-30).
+  'enhanceMeshTexture', 'nameParts', 'regionRetex',
 ];
 const API = (() => {
   const raw = window.meshyAPI;
@@ -10323,6 +10325,16 @@ function _i18nTf(s, ...a) {
   if (window.FabI18n && FabI18n.tf) return FabI18n.tf(s, ...a);
   let i = 0; return String(s).replace(/\{[xy]\}/g, () => (i < a.length ? String(a[i++]) : ''));
 }
+/** Infobulle DYNAMIQUE qui tient : i18n.js garde l'infobulle d'origine de
+ *  chaque element (__i18n_title) et la REPOSE a chaque application de la
+ *  langue — un simple `el.title = …` pose avant l'application est donc
+ *  efface (constate au banc le 2026-09-30). On remplace aussi la source
+ *  anglaise, ainsi la traduction suit un changement de langue. */
+function _poserInfobulle(el, anglais) {
+  if (!el) return;
+  el.__i18n_title = anglais;
+  el.setAttribute('title', _i18nT(anglais));
+}
 // Un mesh dérivé est nommé `${base}_${op}_${ts}.glb`. Renvoie l'op du DERNIER
 // suffixe (la modif qui a produit cette version), ou isVersion=false si le
 // fichier est un ORIGINAL (généré direct depuis une image, pas d'op).
@@ -12607,13 +12619,27 @@ function _mtInitPivotSliders() {
 
 /** Prix d'un outil de la fenetre « Mesh tool » en mode Cloud, avec la regle de
  *  handleMeshOp (worker.ts) : /api/mesh-op au tarif mesh_op_simple, sauf
- *  Watertight au-dela d'une resolution de 256 (watertight_hd). null = outil
- *  local et gratuit (set_pivot…) ou masque en Cloud (texture_var…). */
+ *  Watertight au-dela d'une resolution de 256 (watertight_hd) ; Texture
+ *  variants et Re-texture all ont leur route et leur tarif. null = outil
+ *  local et gratuit (set_pivot…). */
 const _OUTILS_MAILLAGE_CLOUD = ['smooth', 'triangle_count', 'decimate', 'subdivide',
   'fix_normals', 'fill_holes', 'retexture', 'watertight'];
 function _prixOutilMaillage(toolName, vals) {
   const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-  if (!cloud || !_OUTILS_MAILLAGE_CLOUD.includes(toolName) || !window._prixDe) return null;
+  if (!cloud || !window._prixDe) return null;
+  // Outils de texture passes par le worker en mode Cloud (2026-09-30) : leur
+  // propre tarif — getPrice de handleMeshTexVar / handleMeshRetexture.
+  if (toolName === 'texture_var') return window._prixDe('texture_var');
+  if (toolName === 'trellis2_retex') {
+    const palier = ['fast', 'balanced', 'quality', 'ultra_8k'].includes(vals && vals.preset) ? vals.preset : 'fast';
+    const base = window._prixDe('retex_' + palier);
+    // Ultra 8K : la re-texture cuit en 4096, puis runMeshTool enchaine
+    // « Sharpen texture (x2) », facture a part (/api/mesh-enhance-tex) : le
+    // prix annonce l'inclut, comme ce qui sera preleve.
+    const plus = palier === 'ultra_8k' ? window._prixDe('enhance_tex') : 0;
+    return (base == null || plus == null) ? null : base + plus;
+  }
+  if (!_OUTILS_MAILLAGE_CLOUD.includes(toolName)) return null;
   // main.js (mesh-tool) envoie `resolution: Number(p[0]) || 512`
   if (toolName === 'watertight' && (Number(vals && vals.resolution) || 512) > 256) return window._prixDe('watertight_hd');
   return window._prixDe('mesh_op_simple');
@@ -14472,7 +14498,9 @@ async function _peApplyMaskRetex() {
   const strength = parseFloat(document.getElementById('pe-mask-strength')?.value) || 0.8;
   const job = (typeof pushJob === 'function')
     ? pushJob('AI region re-texture', null, { 'Source mesh': String(meshPath).split(/[/\\]/).pop() }, 60000) : null;
-  const r = await window.meshyAPI.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true });
+  // API (et non window.meshyAPI) : en mode Cloud sans session, la fenetre de
+  // connexion s'ouvre puis l'appel est rejoue (_CLOUD_LOGIN_METHODS).
+  const r = await API.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true });
   if (r && r.ok && r.path) {
     if (job) completeJob(job.id, true);
     showToast(_i18nT('Region re-textured') + ' ✅', 'success');
@@ -28280,7 +28308,14 @@ async function _exigerConnexion() {
 }
 window._exigerConnexion = _exigerConnexion;
 
-async function showCloudLoginModal() {
+/* opts (2026-09-30) : { mode: 'signin' | 'signup', texte: phrase d'accroche
+ * (anglais, traduite) }. Sans opts : connexion, avec un texte qui dit la VRAIE
+ * raison — l'ancien texte fixe (« No NVIDIA GPU was detected… ») s'affichait
+ * aussi sur un PC equipe d'une carte NVIDIA passe en mode Cloud. */
+async function showCloudLoginModal(opts = {}) {
+  const texteConnexion = (opts && opts.texte) || (_hasNvidia()
+    ? 'Sign in with your MyFabmesh account to use the cloud (new accounts get free credits).'
+    : 'No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).');
   return new Promise((resolve) => {
     const old = document.getElementById('cloud-login-overlay');
     if (old) old.remove();
@@ -28315,7 +28350,12 @@ async function showCloudLoginModal() {
       </div>`;
     document.body.appendChild(ov);
     try { window.FabI18n?.apply?.(ov); } catch (_) {}
-    const done = (v) => { ov.remove(); resolve(v); };
+    const done = (v) => {
+      ov.remove();
+      // Connecte : barre du haut, Reglages et interrupteurs suivent tout de suite.
+      if (v) { try { window._apresConnexionCloud?.(); } catch (_) {} }
+      resolve(v);
+    };
     ov.querySelector('#cl-cancel').onclick = () => {
       // Annuler PENDANT la confirmation laisse un compte cree mais non
       // confirme : sans un mot d'explication, l'utilisateur ne comprend pas
@@ -28396,9 +28436,7 @@ async function showCloudLoginModal() {
       const T = (s) => (typeof _i18nT === 'function' ? _i18nT(s) : s);
       if (m === 'signin') {
         els.titre.textContent = T('Sign in to MyFabmesh Cloud');
-        els.texte.textContent = _hasNvidia()
-          ? T('Sign in with your MyFabmesh account to use cloud generation and the Marketplace (new accounts get free credits).')
-          : T('No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).');
+        els.texte.textContent = T(texteConnexion);
         els.pass.parentElement.style.display = '';
         els.pass.setAttribute('autocomplete', 'current-password');
         els.code.style.display = 'none';
@@ -28425,6 +28463,9 @@ async function showCloudLoginModal() {
         setTimeout(() => els.code.focus(), 50);
       }
     };
+    // Etat d'ouverture : connexion (texte selon la raison) ou directement la
+    // creation de compte (bouton « Create account » des Reglages, assistant).
+    setMode(opts && opts.mode === 'signup' ? 'signup' : 'signin');
     els.lienSignup.onclick = (e) => {
       e.preventDefault();
       setMode(mode === 'signin' ? 'signup' : 'signin');
@@ -28594,15 +28635,18 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   try { API.setComputeMode?.(gpu.hasNvidia ? 'local' : 'cloud'); } catch (_) {}
 
   if (gpu.hasNvidia) {
-    // Machine équipée : local par défaut, cloud OPT-IN via les Réglages
-    // (switch « Cloud generation »). La ligne Compute du panneau image ne
-    // s'affiche que quand le mode Cloud est actif — indicateur + retour
-    // rapide au Local, sans polluer l'UI des utilisateurs 100 % locaux.
+    // Machine équipée : local par défaut, cloud OPT-IN (interrupteur de la
+    // barre du haut ou Réglages > Compute). La ligne Compute du panneau image
+    // reste CACHEE depuis le 2026-09-30 : placee dans l'etape Image, elle
+    // laissait croire que seules les images basculaient (user : « c'est toutes
+    // les generations qui doivent basculer »). L'interrupteur unique est dans
+    // la barre du haut ; cette fonction reste le point de synchronisation.
     const row = btnL.closest('.form-row');
     const syncRow = async () => {
       const m = _computeMode();
       try { API.setComputeMode?.(m); } catch (_) {}
-      if (row) row.style.display = (m === 'cloud') ? '' : 'none';
+      if (row) row.style.display = 'none';
+      try { window._majInterrupteurCalcul?.(); } catch (_) {}
       await apply(m, gpu);
       try { window._applyCloudCostPill?.(); } catch (_) {}
       try { window._refreshTopbarCredits?.(); } catch (_) {}
@@ -28617,11 +28661,13 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
       try { window._majTousLesPrix?.(); } catch (_) {}
       try { if (m === 'cloud' && !window._prix) window._chargerPrix?.(); } catch (_) {}
     };
-    btnL.addEventListener('click', () => { localStorage.setItem('fab-compute-mode', 'local'); syncRow(); });
-    btnC.addEventListener('click', async () => {
-      if (!(await _exigerConnexion())) { syncRow(); return; }     // pas de generation cloud sans compte
-      localStorage.setItem('fab-compute-mode', 'cloud'); syncRow();
-    });
+    // Boutons caches mais pilotables : meme chemin que l'interrupteur unique.
+    const choisir = (m) => {
+      if (typeof window._choisirModeCalcul === 'function') { window._choisirModeCalcul(m); return; }
+      localStorage.setItem('fab-compute-mode', m); syncRow();
+    };
+    btnL.addEventListener('click', () => choisir('local'));
+    btnC.addEventListener('click', () => choisir('cloud'));
     window._syncComputeRow = syncRow;   // appelé par le switch des Réglages
     await syncRow();
     return;
@@ -28635,6 +28681,7 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     ? _i18nT('No NVIDIA GPU detected — local generation unavailable on this device')
     : 'No NVIDIA GPU detected — local generation unavailable on this device';
   await apply('cloud', gpu);
+  try { window._majInterrupteurCalcul?.(); } catch (_) {}
   // Le mode Cloud est connu maintenant : options ignorees par le serveur et
   // prix reposes (ils ont pu etre calcules avec le mode de la session d'avant).
   try { window._masquerOptionsSansEffetCloud?.(); } catch (_) {}
@@ -28662,6 +28709,7 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   const note = document.getElementById('set-compute-note');
   const acct = document.getElementById('set-cloud-account');
   const bLogin = document.getElementById('set-cloud-login');
+  const bSignup = document.getElementById('set-cloud-signup');
   const bLogout = document.getElementById('set-cloud-logout');
   if (!bl || !bc) return;
 
@@ -28688,16 +28736,19 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
       if (s?.loggedIn) {
         if (acct) acct.textContent = s.email + (s.credits != null ? ' · ' + _i18nTf('{x} credits', s.credits) : '');
         if (bLogin) bLogin.style.display = 'none';
+        if (bSignup) bSignup.style.display = 'none';
         if (bLogout) bLogout.style.display = '';
         if (actions) actions.style.display = 'flex';
       } else {
         if (acct) acct.textContent = (typeof _i18nT === 'function') ? _i18nT('Not signed in') : 'Not signed in';
         if (bLogin) bLogin.style.display = '';
+        if (bSignup) bSignup.style.display = '';
         if (bLogout) bLogout.style.display = 'none';
         if (actions) actions.style.display = 'none';
       }
     } catch (_) {}
     try { await window._syncComputeRow?.(); } catch (_) {}
+    try { window._majInterrupteurCalcul?.(); } catch (_) {}
     try { window._applyCloudCostPill?.(); } catch (_) {}
     try { window._refreshTopbarCredits?.(); } catch (_) {}
     try { window._applyToolPills?.(); } catch (_) {}
@@ -28710,10 +28761,26 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
     try { if (mode === 'cloud' && !window._prix) window._chargerPrix?.(); } catch (_) {}
   };
 
+  // CHOIX EXPLICITE du mode — UN seul chemin pour la barre du haut, les
+  // Reglages et les boutons caches du panneau image (2026-09-30) : tout est
+  // repose (prix, outils disponibles, compte, interrupteurs).
+  window._choisirModeCalcul = async (mode) => {
+    const m = (mode === 'cloud') ? 'cloud' : 'local';
+    if (m === 'local' && bl.disabled) return;
+    // PC AVEC carte NVIDIA : le Cloud est un CHOIX, il exige un compte (user 2026-10-01 : « si on n'est pas connecte et qu'on bascule sur la
+    // generation cloud, il faut afficher la fenetre de connexion avant de pouvoir continuer » ; rien d'affiche si deja connecte). Fenetre
+    // fermee sans connexion : on reste en Local. Sans carte NVIDIA le cloud est impose : on ne bloque pas, la connexion est proposee.
+    if (m === 'cloud' && _hasNvidia() && !(await _exigerConnexion())) { refresh(); return; }
+    localStorage.setItem('fab-compute-mode', m);
+    refresh();
+    // Passer en Cloud sans compte : proposer de se connecter ou d'en creer un, au moment ou ca sert.
+    if (m === 'cloud') _proposerConnexionPourCloud();
+  };
+  window._rafraichirCompteReglages = refresh;
+
   bl.addEventListener('click', () => {
     if (bl.disabled) return;
-    localStorage.setItem('fab-compute-mode', 'local');
-    refresh();
+    window._choisirModeCalcul('local');
   });
   // Section Compte (2026-09-28, alignee sur le web)
   document.getElementById('set-account-topup')?.addEventListener('click', () => _openCloudSite('/buy'));
@@ -28725,13 +28792,15 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   // L'historique est dans les parametres : l'icone de la barre faisait doublon.
   const histoBarre = document.getElementById('btn-history');
   if (histoBarre) histoBarre.style.display = 'none';
-  bc.addEventListener('click', async () => {
-    if (!(await _exigerConnexion())) { refresh(); return; }       // pas de generation cloud sans compte : la fenetre de connexion d'abord
-    localStorage.setItem('fab-compute-mode', 'cloud');
-    refresh();
+  bc.addEventListener('click', () => {
+    window._choisirModeCalcul('cloud');
   });
   bLogin?.addEventListener('click', async () => {
     const ok = await showCloudLoginModal();
+    if (ok) refresh();
+  });
+  bSignup?.addEventListener('click', async () => {
+    const ok = await showCloudLoginModal({ mode: 'signup' });
     if (ok) refresh();
   });
   bLogout?.addEventListener('click', async () => {
@@ -28740,6 +28809,73 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   });
 
   refresh();
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMPTE : PROPOSE AU MOMENT UTILE, JAMAIS BLOQUANT (2026-09-30)
+   User : « a aucun moment on me demande de me connecter / creer un
+   compte ». Points d'entree : l'assistant (etape facultative), le passage
+   en mode Cloud sans session (une fois par lancement), toute action Cloud
+   sans session (enveloppe _CLOUD_LOGIN_METHODS), Reglages > Account
+   (« Create an account »), et un bouton « Sign in » permanent dans la
+   barre du haut en mode Local tant qu'aucun compte n'est connecte (en
+   mode Cloud, la pastille du solde l'affiche deja).
+   ═══════════════════════════════════════════════════════════════════ */
+let _connexionProposeePourCloud = false;
+async function _proposerConnexionPourCloud() {
+  if (_connexionProposeePourCloud) return;
+  let s = null;
+  try { s = await API.cloudStatus?.(); } catch (_) { return; }
+  if (!s || s.loggedIn) return;
+  _connexionProposeePourCloud = true;
+  try {
+    await showCloudLoginModal({
+      texte: 'Cloud mode runs everything on the MyFabmesh cloud, with your credits. Sign in or create an account (new accounts get free credits).',
+    });
+  } catch (_) {}
+}
+window._apresConnexionCloud = () => {
+  try { window._refreshTopbarCredits?.(); } catch (_) {}
+  try { window._rafraichirCompteReglages?.(); } catch (_) {}
+};
+document.getElementById('topbar-signin')?.addEventListener('click', async () => {
+  try { await showCloudLoginModal(); } catch (_) {}
+});
+
+// ============================================================
+// INTERRUPTEUR UNIQUE DE LA BARRE DU HAUT (2026-09-30)
+// User : « c'est toutes les generations qui doivent basculer, pas
+// que les images ». Le mode valait deja pour la 3D, le rig, les
+// outils… mais son seul interrupteur visible vivait dans l'etape
+// Image et les Reglages l'appelaient « Image generation compute ».
+// Il est desormais dans la barre du haut, visible partout, et pose
+// le MEME etat que Reglages > Compute (_choisirModeCalcul).
+// ============================================================
+(async () => {
+  const bl = document.getElementById('topbar-compute-local');
+  const bc = document.getElementById('topbar-compute-cloud');
+  if (!bl || !bc) return;
+  window._majInterrupteurCalcul = () => {
+    const m = (typeof window._computeMode === 'function') ? window._computeMode() : 'local';
+    bl.classList.toggle('active', m === 'local');
+    bc.classList.toggle('active', m === 'cloud');
+    bl.setAttribute('aria-pressed', String(m === 'local'));
+    bc.setAttribute('aria-pressed', String(m === 'cloud'));
+  };
+  const choisir = (m) => {
+    if (typeof window._choisirModeCalcul === 'function') window._choisirModeCalcul(m);
+    else document.getElementById(m === 'cloud' ? 'set-compute-cloud' : 'set-compute-local')?.click();
+  };
+  bl.addEventListener('click', () => { if (!bl.disabled) choisir('local'); });
+  bc.addEventListener('click', () => choisir('cloud'));
+  window._majInterrupteurCalcul();
+  let gpu = { hasNvidia: true };
+  try { gpu = await API.gpuStatus?.() || gpu; } catch (_) {}
+  if (gpu && gpu.hasNvidia === false) {
+    bl.disabled = true;
+    _poserInfobulle(bl, 'No NVIDIA GPU detected — local generation unavailable on this device');
+  }
+  window._majInterrupteurCalcul();
 })();
 
 // ============================================================
@@ -29258,7 +29394,20 @@ window._refreshTopbarCredits = async function (creditsKnown) {
     const val = document.getElementById('topbar-credits-val');
     if (!el || !val) return;
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    if (!cloud) { el.style.display = 'none'; return; }
+    const signin = document.getElementById('topbar-signin');
+    if (!cloud) {
+      el.style.display = 'none';
+      // Mode Local : bouton « Sign in » tant qu'aucun compte n'est connecte
+      // (2026-09-30) — sans lui, rien dans l'appli ne proposait de compte.
+      if (signin) {
+        let connecte = false;
+        try { const s = await API.cloudStatus?.(); connecte = !!s?.loggedIn; } catch (_) {}
+        const encoreLocal = !((typeof window._computeMode === 'function') && window._computeMode() === 'cloud');
+        signin.style.display = (encoreLocal && !connecte) ? '' : 'none';
+      }
+      return;
+    }
+    if (signin) signin.style.display = 'none';
     el.style.display = 'inline-flex';
     const T = (s) => (typeof _i18nT === 'function' ? _i18nT(s) : s);
     const titreConnecte = (mail) => (mail
@@ -29390,6 +29539,13 @@ const _CLOUD_TOOL_TARIFS = {
   'ws-mesh-material-btn': 'mesh_op_simple',   // material_adjust
   'ws-mesh-stages3d-btn': 'construction3d',   // /api/construction-stages-3d
   'ws-mesh-segment-btn': 'mesh_segment',      // /api/mesh-segment
+  // Outils de texture du site, passes par le worker en mode Cloud du bureau
+  // (main.js, 2026-09-30) — memes cles que cloud-overrides.js.
+  'ws-mesh-texvar-btn': 'texture_var',        // /api/mesh-texvar
+  'ws-mesh-trellis2-btn': 'retex_fast',       // /api/mesh-retexture, palier Fast (prix exact dans la fenetre)
+  'ws-mesh-enhance-tex-btn': 'enhance_tex',   // /api/mesh-enhance-tex
+  'ws-mesh-region-retex-btn': 'region_retex', // /api/mesh-region-retex
+  'ws-mesh-name-btn': 'name_parts',           // /api/mesh-name-parts
 };
 /** Prix d'un outil (id de son bouton) lu dans la grille ; null si la grille
  *  est inconnue, l'outil gratuit ou local. Ne regarde PAS le mode de calcul. */
@@ -29399,7 +29555,9 @@ window._prixBouton = function (id) {
   const p = typeof t === 'function' ? t() : window._prixDe(t);
   return (typeof p === 'number' && p > 0) ? p : null;
 };
-// Outils SANS équivalent cloud (gaps de parité) : masqués en mode Cloud.
+// Outils SANS équivalent cloud (gaps de parité) : en mode Cloud, marqués
+// « Local only » sur un PC à GPU NVIDIA, masqués sans GPU NVIDIA
+// (_marquerHorsMode, 2026-09-30).
 const _CLOUD_HIDDEN_TOOLS = [
   // 'ws-recolor-btn' retire le 2026-09-24 : /api/recolor existe desormais.
   // 'ws-age-btn' retire le 2026-09-24 : /api/tex-variant existe desormais.
@@ -29416,13 +29574,14 @@ const _CLOUD_LB_BOUTONS = {
 };
 // Visionneuse 3D : route par clic simulé vers les boutons workspace
 // (LB3D_TOOL_MAP). sculpt/paintvert/selectface/export/blender/folder restent
-// sans pastille (gratuits/locaux) ; texvar/regionretex/enhancetex/detailsynth
-// sont masquées en Cloud. « center » (→ Set Pivot) volontairement ABSENT : op
-// locale gratuite.
+// sans pastille (gratuits/locaux) ; texvar/regionretex/enhancetex passent par
+// le worker en mode Cloud depuis le 2026-09-30 ; detailsynth est « Local
+// only ». « center » (→ Set Pivot) volontairement ABSENT : op locale gratuite.
 const _CLOUD_LB3D_BOUTONS = {
   smooth: 'ws-mesh-smooth-btn', decimate: 'ws-mesh-decimate-btn', subdivide: 'ws-mesh-subdivide-btn',
   fixnormals: 'ws-mesh-fixnormals-btn', fillholes: 'ws-mesh-fillholes-btn',
   watertight: 'ws-mesh-watertight-btn', retexture: 'ws-mesh-retexture-btn', material: 'ws-mesh-material-btn',
+  texvar: 'ws-mesh-texvar-btn', regionretex: 'ws-mesh-region-retex-btn', enhancetex: 'ws-mesh-enhance-tex-btn',
 };
 
 window._applyToolPills = function () {
@@ -29438,18 +29597,104 @@ window._applyToolPills = function () {
     for (const [tool, id] of Object.entries(_CLOUD_LB3D_BOUTONS)) {
       window._posePastille(document.querySelector(`[data-lb3d-tool="${tool}"]`), prix(id));
     }
-    for (const id of _CLOUD_HIDDEN_TOOLS) {
-      const b = document.getElementById(id);
-      if (b) b.style.display = cloud ? 'none' : '';
-    }
-    // Pendants lightbox des boutons masqués : la lightbox route par clic
-    // simulé vers le bouton workspace, masquer ce dernier ne suffit donc pas.
+    for (const id of _CLOUD_HIDDEN_TOOLS) _marquerHorsMode(document.getElementById(id), cloud);
+    // Pendants lightbox : la lightbox route par clic simulé vers le bouton
+    // workspace, son entrée porte donc le même marquage.
     for (const tool of ['multiview']) {
-      const b = document.querySelector(`.lb-tool-btn[data-lb-tool="${tool}"]`);
-      if (b) b.style.display = cloud ? 'none' : '';
+      _marquerHorsMode(document.querySelector(`.lb-tool-btn[data-lb-tool="${tool}"]`), cloud, 'ws-' + tool + '-btn');
     }
   } catch (_) {}
 };
+
+/* ═══════════════════════════════════════════════════════════════════
+   OUTILS ABSENTS DU MODE CHOISI — signalés, jamais morts (2026-09-30)
+
+   Avant, un outil sans route du worker DISPARAISSAIT en mode Cloud : rien
+   ne disait qu'il existait ni comment le retrouver. Désormais, sur un PC à
+   GPU NVIDIA passé en Cloud, il reste visible, marqué « Local only », et un
+   clic propose de repasser en mode Local. SANS GPU NVIDIA il ne pourra
+   jamais tourner : il reste masqué (certification Store, point A2 de
+   store-cert/STORE_RESUBMISSION.md — un testeur ne doit pas voir d'outil
+   inutilisable).
+
+   Le masquage passe par une CLASSE (et plus par style.display) : d'autres
+   règles pilotent déjà l'affichage de ces boutons (type d'asset pour les
+   étapes de construction), il ne faut pas les écraser.
+
+   Sens inverse : en mode Local, ce qui part QUAND MÊME sur le cloud (clips
+   d'animation IA, rig sans moteur local) porte un badge « Cloud »
+   (_poseBadgeCloud, _applyRigAnimPills).
+   ═══════════════════════════════════════════════════════════════════ */
+const _NOMS_OUTILS_LOCAUX = {
+  'ws-buildstages-btn': 'Construction stages',
+  'ws-multiview-btn': 'Multi-Views',
+  'ws-mesh-enhance-tex-btn': 'Sharpen texture (x2)',
+  'ws-mesh-detail-synth-btn': 'Detail++',
+  'ws-mesh-region-retex-btn': 'Re-texture a region',
+  'ws-mesh-reshape-btn': 'Reshape a region',
+  'ws-mesh-reshape-draw-btn': 'Reshape (draw)',
+  'ws-mesh-texvar-btn': 'Texture variants',
+  'ws-mesh-trellis2-btn': 'Re-texture all',
+  'ws-mesh-name-btn': 'Name the zones',
+  'ws-mesh-center-btn': 'Set Pivot',
+};
+function _marquerHorsMode(el, horsMode, idOutil) {
+  if (!el) return;
+  const masquer = !!horsMode && !_hasNvidia();
+  el.classList.toggle('outil-masque-cloud', masquer);
+  const marquer = !!horsMode && !masquer;
+  el.classList.toggle('outil-hors-mode', marquer);
+  let badge = el.querySelector(':scope > .badge-mode');
+  if (marquer) {
+    el.dataset.horsMode = idOutil || el.id || '';
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'badge-mode';
+      el.appendChild(badge);
+    }
+    badge.textContent = _i18nT('Local only');
+  } else {
+    delete el.dataset.horsMode;
+    if (badge) badge.remove();
+  }
+}
+/** Badge « Cloud » (mode Local) : cette action part sur le cloud MyFabmesh
+ *  quoi qu'il arrive. Idempotent ; rappelé après chaque réécriture du bouton. */
+function _poseBadgeCloud(btn, oui) {
+  if (!btn) return;
+  let b = btn.querySelector(':scope > .badge-mode.badge-cloud');
+  if (!oui) { if (b) b.remove(); return; }
+  if (!b) {
+    b = document.createElement('span');
+    b.className = 'badge-mode badge-cloud';
+    btn.appendChild(b);
+  }
+  b.textContent = '☁ ' + _i18nT('Cloud');
+  _poserInfobulle(b, 'Runs on the MyFabmesh cloud, even in Local mode');
+}
+async function _expliquerHorsMode(el) {
+  const id = el.dataset.horsMode || el.id;
+  const nom = _i18nT(_NOMS_OUTILS_LOCAUX[id] || 'This tool');
+  const ok = await fabConfirm({
+    title: nom,
+    message: _i18nT('This tool runs on this PC only. Switch to Local mode to use it?'),
+    okLabel: _i18nT('Switch to Local'), cancelLabel: _i18nT('Cancel'),
+    icon: '\u{1F5A5}\uFE0F', danger: false,
+  });
+  if (!ok) return;
+  window._choisirModeCalcul?.('local');
+  showToast(_i18nT('Local mode: everything runs on this PC.'), 'success', 3500);
+}
+// CAPTURE sur window : passe AVANT les écouteurs de document (fenêtre de
+// lancement, lightbox) — un outil hors mode ne doit rien ouvrir d'autre.
+window.addEventListener('click', (e) => {
+  const cible = e.target && e.target.closest ? e.target.closest('[data-hors-mode]') : null;
+  if (!cible) return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  _expliquerHorsMode(cible);
+}, true);
+
 window._applyToolPills();
 
 /* FENETRES DE VALIDATION (2026-09-30). Chaque outil ouvre une fenetre avant
@@ -29514,52 +29759,53 @@ window._applyValidationPills = function () {
 window._applyValidationPills();
 
 // ============================================================
-// MASQUAGE DES OUTILS DESKTOP-ONLY EN MODE CLOUD — ces outils
-// IA 3D/rig n'ont AUCUN équivalent côté worker (pas d'endpoint) :
-// les laisser visibles en mode Cloud = échec garanti au clic.
-// En mode Local, tout est ré-affiché.
+// OUTILS DESKTOP-ONLY EN MODE CLOUD — ces outils IA 3D n'ont AUCUN
+// équivalent côté worker (pas d'endpoint) : un clic en mode Cloud
+// échouerait. Marqués « Local only » (PC à GPU NVIDIA) ou masqués
+// (sans GPU NVIDIA) par _marquerHorsMode — voir plus haut.
 // ============================================================
 const _CLOUD_HIDDEN_MESH_TOOLS = [
-  'ws-mesh-enhance-tex-btn',   // Real-ESRGAN local, pas d'endpoint worker
-  'ws-mesh-detail-synth-btn',  // detail_synth.py SDXL local
-  'ws-mesh-region-retex-btn',  // SDXL inpaint atlas local
-  'ws-mesh-reshape-btn',       // auto inpaint 3D : SDXL + moteur 3D locaux
-  'ws-mesh-reshape-draw-btn',  // idem, zone peinte en 3D
-  'ws-mesh-texvar-btn',        // texture_var absent de la whitelist /api/mesh-op
-  'ws-mesh-trellis2-btn',      // trellis2_retex absent de la whitelist /api/mesh-op
-  'ws-mesh-name-btn',          // part namer local (Modal _partnamer non déployé)
-                               // (paid no-op côté worker, pas de vraie reprojection)
+  // RETIRES le 2026-09-30 — passent par le worker en mode Cloud, memes routes
+  // que le site (main.js) : ws-mesh-enhance-tex-btn (/api/mesh-enhance-tex),
+  // ws-mesh-region-retex-btn (/api/mesh-region-retex), ws-mesh-texvar-btn
+  // (/api/mesh-texvar), ws-mesh-trellis2-btn (/api/mesh-retexture),
+  // ws-mesh-name-btn (/api/mesh-name-parts).
+  'ws-mesh-detail-synth-btn',  // detail_synth.py SDXL local (absent du site aussi)
+  'ws-mesh-reshape-btn',       // auto inpaint 3D : le site rend la vue de face dans le
+  'ws-mesh-reshape-draw-btn',  // navigateur (__rendreFaceAPlat), pas encore porte ici
   'ws-mesh-center-btn',        // set_pivot absent de la whitelist /api/mesh-op
                                // (op trimesh locale, pas de venv IA en Cloud)
 ];
-// Entrées lightbox 3D correspondantes : la lightbox route vers les boutons
-// workspace par clic simulé, masquer le bouton workspace ne suffit donc pas.
-const _CLOUD_HIDDEN_LB3D_TOOLS = ['texvar', 'regionretex', 'enhancetex', 'detailsynth', 'center',
-  'blender'];  // Open in Blender : binaire local, jamais disponible en Cloud
-// Outils qui exigent Blender installé (aucun rapport avec le cloud) : sur une
-// machine de test Store, Blender est absent → clic = « Blender path not
-// configured ». On les grise avec une explication au lieu d'une erreur.
-// En mode Cloud ils sont en plus MASQUÉS (voir _applyCloudFeatureMask) : le
-// pipeline Blender/Unreal/FBX est 100 % local, sans équivalent worker.
+// Entrées lightbox 3D correspondantes (entrée -> bouton workspace) : la
+// lightbox route vers les boutons workspace par clic simulé, leur entrée
+// porte donc le même marquage.
+const _CLOUD_HIDDEN_LB3D_TOOLS = {
+  detailsynth: 'ws-mesh-detail-synth-btn',
+  center: 'ws-mesh-center-btn',
+};
+// Outils qui exigent Blender installé (aucun rapport avec le mode de calcul) :
+// sur une machine de test Store, Blender est absent → clic = « Blender path
+// not configured ». On les grise avec une explication au lieu d'une erreur.
+// En mode Cloud ils sont MASQUÉS tant que Blender n'est pas configuré (le
+// testeur Store, toujours en Cloud, ne les voit pas) ; Blender configuré, ils
+// marchent dans les deux modes : c'est un logiciel du PC, pas un calcul.
 const _BLENDER_TOOLS = ['ws-mesh-blender-btn', 'ws-rig-blender-btn', 'ws-rig-unreal-btn',
   'ws-anim-export-btn'];   // Export FBX = anim:export → Blender
+window._blenderConfigure = false;
 
 window._applyCloudFeatureMask = function () {
   try {
     const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
-    for (const id of _CLOUD_HIDDEN_MESH_TOOLS) {
-      const el = document.getElementById(id);
-      if (el) el.style.display = cloud ? 'none' : '';
+    for (const id of _CLOUD_HIDDEN_MESH_TOOLS) _marquerHorsMode(document.getElementById(id), cloud);
+    for (const [t, id] of Object.entries(_CLOUD_HIDDEN_LB3D_TOOLS)) {
+      _marquerHorsMode(document.querySelector(`[data-lb3d-tool="${t}"]`), cloud, id);
     }
-    for (const t of _CLOUD_HIDDEN_LB3D_TOOLS) {
-      const el = document.querySelector(`[data-lb3d-tool="${t}"]`);
-      if (el) el.style.display = cloud ? 'none' : '';
-    }
-    // Blender / Unreal / Export FBX : chaîne 100 % locale (binaire externe).
+    // Blender / Unreal / Export FBX (+ entrée « blender » de la lightbox 3D).
     // _applyBlenderToolState ne touche QUE disabled/title → pas de conflit ici.
-    for (const id of _BLENDER_TOOLS) {
-      const el = document.getElementById(id);
-      if (el) el.style.display = cloud ? 'none' : '';
+    const sansBlender = cloud && !window._blenderConfigure;
+    for (const el of [..._BLENDER_TOOLS.map((id) => document.getElementById(id)),
+      document.querySelector('[data-lb3d-tool="blender"]')]) {
+      if (el) el.classList.toggle('outil-masque-cloud', sansBlender);
     }
     // Mode « Colours & materials » (forme gardee) de la fenetre Variant : il
     // etait masque en Cloud parce que tex-variant ne tournait qu'en local. Il
@@ -29598,6 +29844,9 @@ window._applyBlenderToolState = async function () {
       el.classList.toggle('disabled', !blender);
       if (!blender) el.title = msg; else el.removeAttribute('title');
     }
+    // Blender configure : ses outils restent visibles en mode Cloud aussi.
+    window._blenderConfigure = !!blender;
+    window._applyCloudFeatureMask?.();
   } catch (_) {}
 };
 window._applyBlenderToolState();
@@ -29646,6 +29895,14 @@ window._applyRigAnimPills = function () {
     const pAnim = window._prixDe('anim');
     window._posePastille(document.getElementById('ws-generate-anim'),
       (nbClips && pAnim != null) ? nbClips * pAnim : null);
+    // Mode LOCAL : ce qui part quand meme sur le cloud le DIT (2026-09-30) —
+    // clips d'animation IA (moteur non livre avec l'appli) et rig sans moteur
+    // local. En mode Cloud tout y part : pas de badge.
+    const rigViaCloudEnLocal = !cloud && window._rigViaCloud === true;
+    for (const id of ['ws-generate-rig-ai', 'ws-rig-reskin-btn', 'pts-regenerer']) {
+      _poseBadgeCloud(document.getElementById(id), rigViaCloudEnLocal);
+    }
+    _poseBadgeCloud(document.getElementById('ws-generate-anim'), !cloud && nbClips > 0);
   } catch (_) {}
 };
 window._applyRigAnimPills();

@@ -55,6 +55,8 @@ contextBridge.exposeInMainWorld('wizardAPI', {
   runFinalTest: (mode) => ipcRenderer.invoke('wizard:final-test', mode),
   onTestLog: (cb) => ipcRenderer.on('wizard:test-log', (_e, line) => cb(line)),
   completeSetup: (state) => ipcRenderer.invoke('wizard:complete', state),
+  // Etat d'installation ecrit avant l'etape facultative « Account » (sans quitter l'assistant).
+  saveSetupState: (state) => ipcRenderer.invoke('wizard:save-state', state),
   openExternal: (url) => ipcRenderer.invoke('wizard:open-external', url),
   // Canal SEPARE : wizard:open-external refuse tout ce qui n'est pas https,
   // donc les liens mailto: n'ont jamais pu s'ouvrir. Voir app:open-mailto.
