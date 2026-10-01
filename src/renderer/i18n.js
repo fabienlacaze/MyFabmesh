@@ -1235,6 +1235,8 @@
       'Pause (frees RAM and VRAM)': 'Pause (libère la RAM et la VRAM)',
       'Resume': 'Reprendre',
       'Pausing...': 'Mise en pause…',
+      '{x} threads': '{x} fils',
+      '{x} GB RAM': '{x} Go de RAM',
       'Sketching the structure ({x}/{y})': 'Esquisse de la structure ({x}/{y})',
       'Shaping the model, rough ({x}/{y})': 'Mise en forme, grossière ({x}/{y})',
       'Shaping the model, fine ({x}/{y})': 'Mise en forme, fine ({x}/{y})',

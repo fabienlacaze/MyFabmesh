@@ -7496,7 +7496,8 @@ ipcMain.handle('cpu-usage', () => {
   let pct = 0;
   if (_cpuPrec && t.tot > _cpuPrec.tot) pct = Math.round(100 * (1 - (t.idle - _cpuPrec.idle) / (t.tot - _cpuPrec.tot)));
   _cpuPrec = t;
-  return { pct: Math.max(0, Math.min(100, pct)), threads: os.cpus().length };
+  let modele = ''; try { modele = String((os.cpus()[0] || {}).model || '').replace(/\(R\)|\(TM\)|\bCPU\b|@.*$/gi, '').replace(/\s+/g, ' ').trim(); } catch (_) {}
+  return { pct: Math.max(0, Math.min(100, pct)), threads: os.cpus().length, model: modele };
 });
 ipcMain.handle('disk-free', () => {
   try {

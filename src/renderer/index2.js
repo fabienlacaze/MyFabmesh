@@ -22989,10 +22989,14 @@ async function refreshGpuStats() {
       const ramValEl = document.getElementById('set-ram-val');
       if (ramValEl) ramValEl.textContent = _i18nTf('{x} of {y} GB used', ram.usedGB.toFixed(1), ram.totalGB.toFixed(1));
       try {
-        if (API.cpuUsage) { const c = await API.cpuUsage(); window.__cpuThreads = c.threads; const cv = document.getElementById('set-cpu-val'), cf = document.getElementById('set-cpu-fill'); if (cv) cv.textContent = `${c.pct} %`; if (cf) cf.style.width = c.pct + '%'; }
+        if (API.cpuUsage) { const c = await API.cpuUsage(); window.__cpuThreads = c.threads; window.__cpuModel = c.model || ''; const cv = document.getElementById('set-cpu-val'), cf = document.getElementById('set-cpu-fill'); if (cv) cv.textContent = `${c.pct} %`; if (cf) cf.style.width = c.pct + '%'; }
         if (API.diskFree) { const d = await API.diskFree(); if (d) { const dv = document.getElementById('set-disk-val'), dt = document.getElementById('set-disk-txt'); if (dv) dv.textContent = _i18nTf('{x} GB free ({y})', d.freeGB.toFixed(0), d.drive); if (dt) { dt.textContent = d.freeGB < 70 ? _i18nT('· low: the models need about 60 GB') : _i18nT('· enough for the models (~60 GB)'); dt.classList.toggle('short', d.freeGB < 70); } } }
       } catch (_) {}
       _cachedTotalRamGB = ram.totalGB; _lastRamUsedGB = ram.usedGB; try { majLignesLimites(); } catch (_) {}
+      try {      // resume du PC sous le nom de la carte : processeur, fils, RAM (lus sur la machine, jamais ecrits en dur)
+        const sub = document.getElementById('set-pc-sub');
+        if (sub) sub.textContent = [window.__cpuModel, window.__cpuThreads ? _i18nTf('{x} threads', window.__cpuThreads) : '', _i18nTf('{x} GB RAM', ram.totalGB.toFixed(0))].filter(Boolean).join(' · ');
+      } catch (_) {}
     }
   } catch (e) {}
 }
