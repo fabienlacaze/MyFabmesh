@@ -26,7 +26,7 @@
 *{box-sizing:border-box}
 html,body{background:var(--bg-0)}
 body{margin:0;color:var(--text-0);font:14px/1.45 var(--sans)}
-.app{max-width:1280px;margin:0 auto;padding-inline:clamp(16px,3vw,32px);padding-block:16px 48px}
+.app{max-width:1400px;margin:0 auto;padding-inline:clamp(10px,2vw,32px);padding-block:16px 48px}
 button{font:inherit;color:inherit}
 a{color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
@@ -82,7 +82,15 @@ a{color:var(--accent)}
 @media(min-width:1250px){.g2{grid-template-columns:minmax(0,4fr) minmax(0,8fr)}}
 .g2b{grid-template-columns:minmax(0,1fr)}
 @media(min-width:1250px){.g2b{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
-.carte{background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:14px 16px;min-width:0}
+.carte{background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:14px 16px;min-width:0;container-type:inline-size}
+/* Carte etroite (< 660 px) : cellules serrees, colonne secondaire masquee, verdicts raccourcis -> plus aucun defilement horizontal. */
+@container (max-width: 660px){
+  .carte th,.carte td{padding-inline:5px}
+  .carte th{letter-spacing:.3px;font-size:10px}
+  .carte td{font-size:13px}
+  .masque-etroit{display:none}
+  .vl{display:none}
+}
 .carte h2{margin:0 0 10px;font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-2);font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
 .carte h2 small{letter-spacing:0;text-transform:none;font-weight:400;font-size:12px}
 .carte h3{margin:14px 0 6px;font-size:13px;color:var(--text-1)}
@@ -105,7 +113,7 @@ td.libre{white-space:normal}
 .lien{background:none;border:0;padding:0;cursor:pointer;color:var(--text-0);border-bottom:1px dashed var(--text-2)}
 .lien:hover{color:var(--accent);border-bottom-color:var(--accent)}
 .lien.actif{color:var(--accent);border-bottom-style:solid}
-.pill{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;border:1px solid var(--border)}
+.pill{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;border:1px solid var(--border);white-space:nowrap}
 .pill.ok{color:var(--ok);border-color:rgba(76,217,100,.45)}
 .pill.err{color:var(--err);border-color:rgba(255,82,82,.55)}
 .pill.warn{color:var(--warn);border-color:rgba(255,170,51,.55)}
@@ -171,6 +179,15 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .confirm{margin-top:8px;padding:10px 12px;border:1px solid var(--err);border-radius:8px;background:rgba(255,82,82,.08)}
 .boite{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:var(--bg-2)}
 .boite pre{white-space:pre-wrap;word-break:break-word;font:inherit;margin:6px 0 0}
+.galerie{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.vignette{position:relative;padding:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg-2);cursor:pointer;aspect-ratio:1}
+.vignette:hover{border-color:var(--accent)}
+.vignette img{width:100%;height:100%;object-fit:cover;display:block}
+.vignette .leg{position:absolute;left:0;right:0;bottom:0;padding:16px 6px 4px;font-size:11px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.78));text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:100;padding:16px}
+.lb img{max-width:96vw;max-height:78vh;object-fit:contain;border-radius:8px;background:var(--bg-2)}
+.lb .cap{color:var(--text-1);font-size:13px;text-align:center}
+.lb .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .pied{margin-top:28px;color:var(--text-2);font-size:12px;border-top:1px solid var(--border);padding-top:12px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -181,6 +198,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
     <div class="l1">
       <div class="titre"><h1>MyFabmesh · Admin</h1><span class="maj" id="maj">chargement…</span></div>
       <div class="seg" role="group" aria-label="Période" id="periode">
+        <button type="button" data-per="6h" aria-pressed="false">6 h</button>
         <button type="button" data-per="24h" aria-pressed="false">24 h</button>
         <button type="button" data-per="7j" aria-pressed="true">7 jours</button>
         <button type="button" data-per="30j" aria-pressed="false">30 jours</button>
@@ -219,6 +237,12 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
         <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
       </div>
     </div>
+    <div class="carte" style="margin-top:16px"><h2>Images générées <small id="n-imgs"></small></h2>
+      <div class="ligneform"><label for="imgs-jours">Période</label>
+        <select id="imgs-jours" style="width:auto"><option value="1">24 heures</option><option value="3" selected>3 jours</option><option value="7">7 jours</option><option value="30">30 jours</option></select>
+        <button type="button" class="btn petit" id="b-imgs">Actualiser</button>
+        <span class="note">Toutes les images des comptes actifs sur la période, les plus récentes d'abord. Un filtre « compte » ne montre que ses images. Cliquez pour agrandir.</span></div>
+      <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div></div>
   </section>
 
   <!-- ═════════ ARGENT ═════════ -->
@@ -229,9 +253,9 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
       <div class="carte"><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2>
         <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
         <p class="note" id="note-graphe"></p></div>
-      <div class="carte"><h2>Par opération <small>30 derniers jours · clic sur une ligne pour filtrer</small></h2>
+      <div class="carte"><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2>
         <p class="note" id="resume-ops"></p>
-        <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
+        <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
         <p class="note" id="note-ops"></p>
       </div>
     </div>
@@ -306,6 +330,11 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
       <div class="defil"><table><thead><tr><th>Heure</th><th>Acteur</th><th>Action</th><th>Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div></div>
   </section>
 
+  <div class="lb" id="lb" hidden role="dialog" aria-label="Image agrandie">
+    <img id="lb-img" alt="">
+    <div class="cap" id="lb-cap"></div>
+    <div class="btns"><button type="button" class="btn petit" id="lb-prec">← Précédente</button><button type="button" class="btn petit" id="lb-suiv">Suivante →</button><a class="btn petit" id="lb-ouvrir" target="_blank" rel="noopener" href="#">Ouvrir en grand ↗</a><button type="button" class="btn petit" id="lb-fermer">Fermer (Échap)</button></div>
+  </div>
   <p class="pied">Page de travail pour l'administrateur. Restent sur <a href="/admin">l'ancienne page</a> : activer ou retirer la double authentification, les journaux de debug, la visionneuse des images et maillages d'un compte, le rapprochement manuel d'un paiement.</p>
 </div>
 
@@ -386,7 +415,7 @@ var S = {
   series: { rev: true, cost: true, marge: true }, tarifs: false, killConfirm: null, decoOuvert: false, msgForm: null,
   session: false
 };
-var PER_MIN = { '24h': 1440, '7j': 10080, '30j': 43200 };
+var PER_MIN = { '6h': 360, '24h': 1440, '7j': 10080, '30j': 43200 };
 /* TRI DES TABLEAUX (2026-10-02, user : « il faut pouvoir trier »). Un clic sur un en-tete trie, un second inverse. Sens de depart : texte A -> Z, nombres et dates decroissants. */
 S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 } };
 S.triComptes = 'activite';
@@ -512,6 +541,45 @@ async function chargerAudience() {
   var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
   var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'audience') renderAudience(); }
 }
+S.imgs = null; S.imgsAt = 0; S.imgsCle = ''; S.imgsJours = 3; S.lb = -1;
+async function chargerImages(force) {
+  var uid = '';
+  if (S.filt.compte) {
+    if (!S.users) await chargerUsers();
+    var u = S.users && S.users.users.filter(function (x) { return x.email === S.filt.compte; })[0];
+    if (u) uid = u.id;
+  }
+  var cle = uid + '|' + S.imgsJours;
+  if (!force && S.imgs && S.imgsCle === cle && Date.now() - S.imgsAt < 120000) { renderGalerie(); return; }
+  $('#n-imgs').textContent = 'chargement…';
+  var j = await silencieux(http('/api/admin/images/recent?n=60&jours=' + S.imgsJours + (uid ? '&uid=' + encodeURIComponent(uid) : '')));
+  if (j) { S.imgs = j; S.imgsCle = cle; S.imgsAt = Date.now(); } else $('#n-imgs').textContent = 'indisponible';
+  renderGalerie();
+}
+function renderGalerie() {
+  var J = S.imgs, box = $('#galerie'); if (!J) return;
+  $('#n-imgs').textContent = J.images.length + ' image' + (J.images.length > 1 ? 's' : '') + (J.total_trouve > J.images.length ? ' sur ' + J.total_trouve : '') + ' · ' + J.comptes + ' compte' + (J.comptes > 1 ? 's' : '');
+  majSiChange(box, J.images.length ? J.images.map(function (im, i) {
+    return '<button type="button" class="vignette" data-img="' + i + '" title="' + esc((im.email || '') + ' · ' + im.key) + '"><img loading="lazy" src="' + esc(im.url) + '" alt=""><span class="leg">' + esc(nomCompte(im.email)) + ' · ' + esc(im.dossier) + ' · <span data-ts="' + esc(im.uploaded) + '"></span></span></button>';
+  }).join('') : '<div class="vide">Aucune image sur cette période' + (S.filt.compte ? ' pour ce compte' : '') + '.</div>');
+  majHorloge();
+}
+function ouvrirLb(i) {
+  var im = S.imgs && S.imgs.images[i]; if (!im) return;
+  S.lb = i; $('#lb-img').src = im.url; $('#lb-ouvrir').href = im.url;
+  $('#lb-cap').textContent = (im.email || 'compte inconnu') + ' · ' + im.dossier + ' · ' + dateFr(im.uploaded) + ' · ' + Math.round(im.size / 1024) + ' Ko';
+  $('#lb').hidden = false;
+}
+function fermerLb() { S.lb = -1; $('#lb').hidden = true; $('#lb-img').removeAttribute('src'); }
+S.rec = null; S.recAt = 0;
+/* Fenetres COURTES d'Argent (6 h, 24 h) : la facture Modal reelle est journaliere, le cout est donc ESTIME travail par travail par le serveur. */
+async function chargerArgentRecent(force) {
+  if (S.per !== '6h' && S.per !== '24h') return;
+  var h = S.per === '6h' ? 6 : 24;
+  if (!force && S.rec && S.rec.heures === h && Date.now() - S.recAt < 60000) return;
+  var j = await silencieux(http('/api/admin/argent-recent?heures=' + h));
+  if (j) { S.rec = j; S.recAt = Date.now(); if (S.tab === 'argent') renderArgent(); }
+}
 async function chargerModalStatus() { var j = await silencieux(http('/api/admin/modal-status')); if (j) { S.modal = j; if (S.tab === 'systeme') renderWarm(); if (S.tab === 'maintenant') renderConteneurs(); } }
 async function chargerSante() { var j = await silencieux(http('/api/admin/sante.json')); if (j) { S.sante = j; if (S.tab === 'systeme') renderSante(); } }
 async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/status')); if (j) { S.totp = j; if (S.tab === 'systeme') renderSecurite(); } }
@@ -626,7 +694,49 @@ function majHorloge() {
 }
 
 /* ───────────────────────── Argent ───────────────────────── */
+function htmlVerdict(value, reel, credits) {
+  if (credits <= 0 && reel > 0.005) return '<span class="pill">Non facturé</span>';
+  if (reel <= 0.005) return '<span class="pill ok">Négligeable</span>';
+  var x = value / reel;
+  return x >= 2 ? '<span class="pill ok"><span class="vl">Rentable </span>×' + x.toFixed(1) + '</span>' : x >= 1 ? '<span class="pill warn"><span class="vl">Juste </span>×' + x.toFixed(1) + '</span>' : '<span class="pill err"><span class="vl">À perte </span>×' + x.toFixed(2) + '</span>';
+}
+function renderArgentCourt() {
+  var h = S.per === '6h' ? 6 : 24, R = S.rec;
+  var th = $('th[data-tri="ops:reel"]'); if (th) th.textContent = 'Coût estimé';
+  if (!R || R.heures !== h) {
+    majSiChange($('#kpis-argent'), cellule('Chargement…', '…', 'calcul sur les ' + h + ' dernières heures'));
+    $('#t-ops').innerHTML = '<tr><td colspan="7" class="vide">Chargement…</td></tr>'; return renderGpu();
+  }
+  var lim = Date.now() - h * 3600e3, enc = 0, nA = 0;
+  if (S.pay && S.pay.achats) S.pay.achats.forEach(function (a) { if (a.test || a.etat === 'rembourse') return; if (Date.parse(a.date) >= lim) { enc += Number(a.encaisse_eur) || 0; nA++; } });
+  var T = R.totaux, marge = T.valeur_eur - T.cout_eur;
+  majSiChange($('#kpis-argent'),
+    cellule('Encaissé réel', S.pay ? eur(enc) : '—', S.pay ? nA + ' achat' + (nA > 1 ? 's' : '') + ' sur ' + h + ' h (Stripe, hors test)' : 'chargement…')
+    + cellule('Valeur des crédits', eur(T.valeur_eur), T.ops + ' travaux · ' + num(T.credits) + ' crédits' + (T.echecs ? ' · ' + T.echecs + ' échec' + (T.echecs > 1 ? 's' : '') : ''))
+    + '<div class="cell"><div class="k">Coût GPU<span class="est">estimation</span></div><div class="v tn" style="color:var(--cost)">' + eur(T.cout_eur) + '</div><div class="s">durée de chaque travail × tarif du GPU</div></div>'
+    + cellule('Marge estimée', eur(marge), T.valeur_eur > 0 ? Math.round(marge / T.valeur_eur * 100) + ' % de la valeur des crédits' : 'aucun crédit consommé', marge < 0 ? 'alerte' : ''));
+  var lab = R.buckets.map(function (b) { var d = new Date(b.debut); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
+  var val = R.buckets.map(function (b) { return b.valeur_eur; }), cout = R.buckets.map(function (b) { return b.cout_eur; }), mar = R.buckets.map(function (b) { return +(b.valeur_eur - b.cout_eur).toFixed(2); });
+  $('#sous-graphe').textContent = 'par ' + (R.pas_min >= 60 ? (R.pas_min / 60) + ' h' : R.pas_min + ' min') + ' · ' + h + ' dernières heures';
+  var def = [['rev', 'Valeur des crédits', 'var(--revenue)', val, false], ['cost', 'Coût GPU estimé', 'var(--cost)', cout, false], ['marge', 'Marge estimée', 'var(--margin)', mar, true]];
+  $('#legende').innerHTML = def.map(function (d) { return '<button type="button" data-ser="' + d[0] + '" aria-pressed="' + S.series[d[0]] + '"><i style="background:' + d[2] + '"></i>' + d[1] + '</button>'; }).join('');
+  courbes('g-argent', lab, def.map(function (d) { return { v: d[3], col: d[2], on: S.series[d[0]], aire: d[4], nom: d[1] }; }), { titre: 'Valeur des crédits, coût estimé et marge', h: 300, fmt: function (v) { return eur(v, Math.abs(v) < 10 ? 2 : 0); },
+    lecture: function (k, l, se) { var el = $('#lecture'); if (k < 0) { el.textContent = ''; return; } el.innerHTML = '<b>' + esc(l) + '</b> · ' + se.map(function (s) { return s.on ? esc(s.nom) + ' ' + eur(s.v[k]) : ''; }).filter(Boolean).join(' · '); } });
+  $('#note-graphe').textContent = 'La facture Modal réelle n\'existe que par jour : sur ' + h + ' h le coût est estimé d\'après la durée de chaque travail. Valeur des crédits = crédits des travaux réussis au prix net ; ce n\'est pas de l\'argent encaissé.';
+  var lignes = Object.keys(R.types).map(function (op) { var m = R.types[op]; var o = { op: op, count: m.count, failed: m.failed, credits: m.credits, value: m.valeur_eur, reel: m.cout_eur }; o.marge = o.value - o.reel; o.ratio = o.reel > 0.005 ? o.value / o.reel : 1e9; return o; });
+  lignes = trier(lignes, 'ops');
+  $('#t-ops').innerHTML = lignes.map(function (m) {
+    return '<tr' + (S.filt.type === m.op ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', m.op, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(m.marge) + '</td><td>' + htmlVerdict(m.value, m.reel, m.credits) + '</td></tr>';
+  }).join('') || '<tr><td colspan="7" class="vide">Aucune opération sur ' + h + ' h.</td></tr>';
+  $('#ops-fenetre').textContent = h + ' dernières heures · coût estimé · clic sur une ligne pour filtrer';
+  $('#resume-ops').innerHTML = 'Sur les <b>' + h + ' dernières heures</b> : <b>' + T.ops + '</b> travaux, valorisés <b>' + eur(T.valeur_eur) + '</b> en crédits (' + (R.eur_par_credit || 0).toFixed(3) + ' € le crédit) pour un coût estimé de <b>' + eur(T.cout_eur) + '</b>' + (R.tronque ? ' <span class="note">(les 5 000 premiers travaux seulement)</span>' : '') + '.';
+  $('#note-ops').textContent = 'Coût estimé : la facture Modal est publiée par jour, pas par heure.';
+  majEntetesTri(); renderGpu();
+}
 function renderArgent() {
+  if (S.per === '6h' || S.per === '24h') return renderArgentCourt();
+  var th0 = $('th[data-tri="ops:reel"]'); if (th0) th0.textContent = 'Coût réel';
+  var of = $('#ops-fenetre'); if (of) of.textContent = '30 derniers jours · clic sur une ligne pour filtrer';
   var st = S.stats, p = S.prev;
   var h = '';
   var enc = null, encN = 0, tests = 0;
@@ -668,9 +778,9 @@ function renderArgent() {
   tb.innerHTML = lignes.map(function (m) {
     totV += m.value; totR += m.reel; var marge = m.value - m.reel, verdict;
     if (m.credits <= 0 && m.reel > 0.005) verdict = '<span class="pill">Non facturé</span>';
-    else if (m.reel <= 0.005) verdict = '<span class="pill ok">Coût négligeable</span>';
-    else { var x = m.value / m.reel; verdict = x >= 2 ? '<span class="pill ok">Rentable ×' + x.toFixed(1) + '</span>' : x >= 1 ? '<span class="pill warn">Juste ×' + x.toFixed(1) + '</span>' : '<span class="pill err">À perte ×' + x.toFixed(2) + '</span>'; }
-    return '<tr' + (S.filt.type === m.op ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', m.op, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(marge) + '</td><td>' + verdict + '</td></tr>';
+    else if (m.reel <= 0.005) verdict = '<span class="pill ok">Négligeable</span>';
+    else { var x = m.value / m.reel; verdict = x >= 2 ? '<span class="pill ok"><span class="vl">Rentable </span>×' + x.toFixed(1) + '</span>' : x >= 1 ? '<span class="pill warn"><span class="vl">Juste </span>×' + x.toFixed(1) + '</span>' : '<span class="pill err"><span class="vl">À perte </span>×' + x.toFixed(2) + '</span>'; }
+    return '<tr' + (S.filt.type === m.op ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', m.op, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(marge) + '</td><td>' + verdict + '</td></tr>';
   }).join('') || '<tr><td colspan="7" class="vide">Aucune opération sur 30 jours.</td></tr>';
   var sansOp = Number(bt.facture_sans_operation_eur) || 0;
   $('#resume-ops').innerHTML = 'Les opérations ont été valorisées <b>' + eur(totV) + '</b> en crédits (' + (Number(bt.eur_par_credit) || 0).toFixed(3) + ' € le crédit) et ont coûté <b>' + eur(totR) + '</b> chez Modal' + (totR > 0 ? ' : <b style="color:' + (totV >= totR ? 'var(--ok)' : 'var(--err)') + '">×' + (totV / totR).toFixed(1) + '</b>' : '') + '.' + (sansOp > 0.005 ? ' S\'y ajoutent ' + eur(sansOp) + ' facturés des jours sans opération (tests, démarrages).' : '');
@@ -748,7 +858,7 @@ function renderFiche() {
   var projets = S.projetsDe && S.projetsDe.id === u.id ? S.projetsDe.liste : null;
   box.innerHTML = '<h2>' + esc(u.email || u.id) + ' <small>inscrit le ' + esc(dateFr(u.created_at)) + (u.banned ? ' · <b style="color:var(--err)">bloqué</b>' : '') + '</small></h2><dl>' + fichesStats(u) + '</dl>'
     + '<h3>Ajuster les crédits</h3><div class="ligneform"><label for="aj">Variation</label><input type="number" id="aj" value="50" step="10"><input type="text" id="aj-motif" class="large" placeholder="Motif (obligatoire, tracé dans l\'audit)"><input type="password" id="aj-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim" id="b-aj">Appliquer</button></div><div id="aj-msg" class="note"></div>'
-    + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" id="b-projets">Voir ses projets</button> <button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux et achats</button></div><div id="ban-confirm"></div>'
+    + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" id="b-projets">Voir ses projets</button> <button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux, images et achats</button></div><div id="ban-confirm"></div>'
     + '<div id="projets">' + (projets ? htmlProjets(projets) : '') + '</div>';
 }
 function fichesStats(u) {
@@ -856,8 +966,6 @@ function renderAll() {
   $$('[role=tabpanel]').forEach(function (p) { p.hidden = p.id !== 'p-' + S.tab; });
   $$('[data-per]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.per === S.per); });
   $('#periode').hidden = !(S.tab === 'argent' || S.tab === 'audience');
-  $('[data-per="24h"]').hidden = S.tab === 'argent';
-  if (S.tab === 'argent' && S.per === '24h') S.per = '7j';
   if (S.tab === 'maintenant') renderMaintenant();
   if (S.tab === 'argent') { renderArgent(); renderAchats(); renderTarifs(); }
   if (S.tab === 'users') renderUsers();
@@ -867,8 +975,8 @@ function renderAll() {
 function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
-  if (t === 'maintenant') { chargerLive(); chargerModalStatus(); }
-  if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); }
+  if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerImages(); }
+  if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); }
   if (t === 'audience') { chargerStats(); chargerAudience(); }
   if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); chargerAudit(); }
@@ -880,12 +988,12 @@ function selectionnerCompteParEmail(email) {
 /* ───────────────────────── interactions ───────────────────────── */
 document.addEventListener('click', async function (e) {
   var t = e.target, b;
-  if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } return renderAll(); }
-  if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; return renderAll(); }
+  if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } renderAll(); if (f === 'compte' && S.tab === 'maintenant') chargerImages(); return; }
+  if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'maintenant') chargerImages(); return; }
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
   if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('maintenant'); }
-  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience') chargerAudience(); return; }
+  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); return; }
   if ((b = t.closest('[data-sub]'))) { S.sub = b.dataset.sub; return renderUsers(); }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; S.projetsDe = null; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
@@ -947,7 +1055,18 @@ document.addEventListener('click', async function (e) {
   if (t.closest('#b-audit')) return chargerAudit();
 });
 document.addEventListener('input', function (e) { if (e.target.id === 'rech') { S.rech = e.target.value; renderComptes(); } });
-document.addEventListener('change', function (e) { if (e.target.id === 'tri-comptes') { S.triComptes = e.target.value; renderComptes(); } });
+document.addEventListener('change', function (e) { if (e.target.id === 'tri-comptes') { S.triComptes = e.target.value; renderComptes(); } if (e.target.id === 'imgs-jours') { S.imgsJours = Number(e.target.value); chargerImages(true); } });
+document.addEventListener('click', function (e) {
+  var v = e.target.closest('[data-img]'); if (v) return ouvrirLb(Number(v.dataset.img));
+  if (e.target.closest('#b-imgs')) return chargerImages(true);
+  if (e.target.closest('#lb-fermer') || e.target.id === 'lb') return fermerLb();
+  if (e.target.closest('#lb-prec')) return ouvrirLb(Math.max(0, S.lb - 1));
+  if (e.target.closest('#lb-suiv')) return ouvrirLb(Math.min(S.imgs.images.length - 1, S.lb + 1));
+});
+document.addEventListener('keydown', function (e) {
+  if (S.lb < 0) return;
+  if (e.key === 'Escape') fermerLb(); else if (e.key === 'ArrowLeft') ouvrirLb(Math.max(0, S.lb - 1)); else if (e.key === 'ArrowRight') ouvrirLb(Math.min(S.imgs.images.length - 1, S.lb + 1));
+});
 function clicTri(th) {
   var p = th.dataset.tri.split(':'), nom = p[0], k = p[1], t = S.tri[nom];
   if (t.k === k) t.d = -t.d; else { t.k = k; t.d = TRI_TEXTE[k] ? 1 : -1; }

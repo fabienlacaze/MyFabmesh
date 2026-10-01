@@ -20435,6 +20435,107 @@ async function handleAdminUserImages(req: Request, env: Env, userId: string): Pr
   return json({ images: out });
 }
 
+/** GET /api/admin/images/recent?n=48&jours=3[&uid=<userId>] — ADMIN ONLY. Les dernieres images generees (tous comptes, ou un seul avec `uid`).
+ *  POURQUOI CETTE ROUTE (2026-10-02, user : « comment je vois ce que les gens ont genere (image ca me suffit) ») : /admin2 n'avait aucune vue des images.
+ *  R2 n'indexe pas par date : on liste le dossier de chaque compte ayant eu un travail dans les `jours` derniers jours (25 comptes au plus, 2 pages de 1000 objets
+ *  chacun), on garde les images (hors miniatures), on trie par date d'envoi et on signe les `n` plus recentes. Borne : jamais plus de ~50 listages R2. */
+async function handleAdminImagesRecent(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  if (!env.MESHES) return json({ images: [], comptes: 0 });
+  const u = new URL(req.url);
+  const n = Math.max(6, Math.min(120, parseInt(u.searchParams.get('n') || '48', 10) || 48));
+  const jours = Math.max(1, Math.min(30, parseInt(u.searchParams.get('jours') || '3', 10) || 3));
+  const uidDemande = (u.searchParams.get('uid') || '').replace(/[^0-9a-zA-Z_-]/g, '');
+  const sb = supabaseAdmin(env);
+  const ids: string[] = [];
+  if (uidDemande) {
+    ids.push(uidDemande);
+  } else {
+    const depuis = new Date(Date.now() - jours * 86400_000).toISOString();
+    const { data, error } = await sb.from('jobs').select('user_id').gte('created_at', depuis).order('created_at', { ascending: false }).limit(1000);
+    if (error) return err(500, error.message);
+    const vus = new Set<string>();
+    for (const r of ((data || []) as Array<{ user_id: string | null }>)) {
+      if (r.user_id && !vus.has(r.user_id)) { vus.add(r.user_id); ids.push(r.user_id); if (ids.length >= 25) break; }
+    }
+  }
+  const emails = new Map<string, string | null>();
+  if (ids.length) {
+    const { data: profils } = await sb.from('profiles').select('id, email').in('id', ids);
+    for (const p of ((profils || []) as Array<{ id: string; email: string | null }>)) emails.set(p.id, p.email);
+  }
+  type Img = { key: string; size: number; uploaded: string; ms: number; user_id: string };
+  const toutes: Img[] = [];
+  await Promise.all(ids.map(async (uid) => {
+    let cursor: string | undefined;
+    let pages = 0;
+    do {
+      const l = await env.MESHES.list({ prefix: `${uid}/`, limit: 1000, cursor });
+      for (const o of l.objects) {
+        if (!/\.(png|jpe?g|webp)$/i.test(o.key) || /_thumb\./i.test(o.key)) continue;
+        toutes.push({ key: o.key, size: o.size, uploaded: o.uploaded.toISOString(), ms: o.uploaded.getTime(), user_id: uid });
+      }
+      cursor = l.truncated ? l.cursor : undefined;
+      pages++;
+    } while (cursor && pages < 2);
+  }));
+  toutes.sort((a, b) => b.ms - a.ms);
+  const images = await Promise.all(toutes.slice(0, n).map(async (x) => ({
+    key: x.key, url: await signedR2Url(env, x.key, 'image'), size: x.size, uploaded: x.uploaded,
+    email: emails.get(x.user_id) ?? null, user_id: x.user_id, dossier: x.key.split('/')[1] || '',
+  })));
+  return json({ images, comptes: ids.length, jours, total_trouve: toutes.length });
+}
+
+/** GET /api/admin/argent-recent?heures=6 — ADMIN ONLY. L'argent sur une fenetre COURTE (1 a 72 h) pour /admin2 (user : « rajoutes 6h et 24h, il en manque dans Argent »).
+ *  La facture Modal reelle n'existe que PAR JOUR (releve horaire cumule sur la journee) : sur une fenetre courte le cout est donc ESTIME, travail par travail,
+ *  exactement comme stats.json le fait pour ses estimations (duree mesuree x tarif du conteneur, sinon cout enregistre, sinon table statique). La reponse le dit
+ *  (`estimation: true`) et la page l'affiche. Valeur des credits = credits des travaux REUSSIS x 0,162 EUR (meme prix net que stats.json). */
+async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  const heures = Math.max(1, Math.min(72, parseInt(new URL(req.url).searchParams.get('heures') || '24', 10) || 24));
+  const sb = supabaseAdmin(env);
+  const now = Date.now();
+  const depuis = new Date(now - heures * 3600_000).toISOString();
+  const { data, error } = await sb.from('jobs')
+    .select('user_id, status, credit_cost, options, created_at, finished_at, type, cost_usd')
+    .gte('created_at', depuis).order('created_at', { ascending: false }).limit(5000);
+  if (error) return err(500, error.message);
+  const EUR_PAR_CREDIT = 0.162, USD_TO_EUR = 0.93;
+  const pasMin = heures <= 6 ? 30 : heures <= 24 ? 60 : 180;
+  const nbCases = Math.ceil(heures * 60 / pasMin);
+  const cases = Array.from({ length: nbCases }, (_, i) => ({
+    debut: new Date(now - (nbCases - i) * pasMin * 60_000).toISOString(), ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0,
+  }));
+  const types: Record<string, { count: number; failed: number; credits: number; valeur_eur: number; cout_eur: number }> = {};
+  const tot = { ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0 };
+  type J = { status: string; credit_cost: number | null; options: Record<string, unknown> | null; created_at: string; finished_at?: string | null; cost_usd?: number | null };
+  for (const j of ((data ?? []) as J[])) {
+    const opType = String(j.options?.operation_type ?? 'mesh');
+    const mesure = _measuredCostUsd(opType, j.created_at, j.finished_at ?? undefined);
+    const coutUsd = mesure ?? Number(j.cost_usd ?? j.options?.cost_usd ?? MODAL_COST_USD[opType as keyof typeof MODAL_COST_USD] ?? 0);
+    const cout = coutUsd * USD_TO_EUR;
+    const credits = j.status === 'succeeded' ? Number(j.credit_cost ?? 0) : 0;
+    const valeur = credits * EUR_PAR_CREDIT;
+    const echec = j.status === 'failed';
+    const t = (types[opType] ??= { count: 0, failed: 0, credits: 0, valeur_eur: 0, cout_eur: 0 });
+    t.count++; if (echec) t.failed++; t.credits += credits; t.valeur_eur += valeur; t.cout_eur += cout;
+    tot.ops++; if (echec) tot.echecs++; tot.credits += credits; tot.valeur_eur += valeur; tot.cout_eur += cout;
+    const k = nbCases - 1 - Math.floor((now - Date.parse(j.created_at)) / (pasMin * 60_000));
+    if (k >= 0 && k < nbCases) { const c = cases[k]; c.ops++; if (echec) c.echecs++; c.credits += credits; c.valeur_eur += valeur; c.cout_eur += cout; }
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  for (const c of cases) { c.valeur_eur = r2(c.valeur_eur); c.cout_eur = r2(c.cout_eur); }
+  for (const k of Object.keys(types)) { types[k].valeur_eur = r2(types[k].valeur_eur); types[k].cout_eur = r2(types[k].cout_eur); }
+  return json({
+    ok: true, heures, pas_min: pasMin, estimation: true, tronque: (data ?? []).length >= 5000,
+    eur_par_credit: EUR_PAR_CREDIT, buckets: cases, types,
+    totaux: { ...tot, valeur_eur: r2(tot.valeur_eur), cout_eur: r2(tot.cout_eur) },
+  });
+}
+
 /** GET /api/admin/users/<userId>/projects — ADMIN ONLY. Groups the
  *  user's jobs by project_name and returns one summary row per project
  *  (thumb URL, image count, mesh count, last activity). */
@@ -22297,6 +22398,8 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/admin/audience.json'   && method === 'GET')  return await handleAdminAudience(req, env);
         if (pathname === '/api/admin/sante.json'      && method === 'GET')  return await handleAdminSante(req, env);
         if (pathname === '/api/admin/jobs/active'     && method === 'GET')  return await handleAdminActiveJobs(req, env);
+        if (pathname === '/api/admin/images/recent'   && method === 'GET')  return await handleAdminImagesRecent(req, env);
+        if (pathname === '/api/admin/argent-recent'   && method === 'GET')  return await handleAdminArgentRecent(req, env);
         if (pathname === '/api/admin/jobs/cancel'     && method === 'POST') return await handleAdminCancelJob(req, env);
         if (pathname === '/api/admin/users'           && method === 'GET')  return await handleAdminListUsers(req, env);
         if (pathname === '/api/admin/users/ban'       && method === 'POST') return await handleAdminBanUser(req, env);
