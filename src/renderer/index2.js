@@ -21329,6 +21329,17 @@ async function refreshJobDetailsModal(id) {
     }
     hintEl.classList.toggle('hidden', !show);
   }
+  // Bouton PAUSE / REPRENDRE (3D locale seulement) : arret complet, VRAM et RAM rendues, jusqu'a « Resume »
+  const pauseBtn = document.getElementById('job-details-pause');
+  if (pauseBtn) {
+    const ok = _jobPausable(j);
+    pauseBtn.style.display = ok ? '' : 'none';
+    if (ok) {
+      pauseBtn.disabled = !!j.pausing;
+      pauseBtn.innerHTML = j.paused ? '&#9654; ' + escapeHtml(_i18nT('Resume')) : (j.pausing ? escapeHtml(_i18nT('Pausing...')) : '&#10074;&#10074; ' + escapeHtml(_i18nT('Pause')));
+      pauseBtn.title = j.paused ? _i18nT('Resume') : _i18nT('Pause (frees RAM and VRAM)');
+    }
+  }
   // Cancel button: only enabled while running
   const cancelBtn = document.getElementById('job-details-cancel');
   cancelBtn.disabled = j.status !== 'running';
@@ -21409,6 +21420,10 @@ document.getElementById('job-details-unlock')?.addEventListener('click', () => {
   // Close this modal, open the legal-warning + PIN flow, then re-run the blocked job.
   closeJobDetails();
   setTimeout(() => { _unlockThenRetry(); }, 60);
+});
+document.getElementById('job-details-pause')?.addEventListener('click', async () => {
+  const id = state._jobDetailsOpenId;
+  if (id != null) { await window._togglePauseJob(id); try { refreshJobDetailsModal(id); } catch (_) {} }
 });
 document.getElementById('job-details-goto-step')?.addEventListener('click', () => {
   const id = state._jobDetailsOpenId;
