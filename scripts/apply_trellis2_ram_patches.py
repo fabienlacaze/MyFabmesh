@@ -19,6 +19,9 @@ disk, vs ~1.4 s/it when it fits). See AGENT_LOG.md 2026-06-14.
                              HR pass reallocates them.
   (b) trellis2_image_to_3d — honor FABMESH_TRELLIS2_MAX_TOKENS env to cap the
                              HR token budget (set to 32768 for Ultra/1536).
+  (d) trellis2_image_to_3d — FABMESH_TRELLIS2_HR_FLOOR : plancher de la reduction
+                             de resolution HR (defaut 1024 = upstream ; plus bas pour
+                             les sujets tres denses, essai du camion 2026-10-02).
 
 Exit code 0 = all patches present (applied now or already there); 1 = a
 target file or anchor was not found (TRELLIS-2 upstream changed — re-derive).
@@ -184,6 +187,23 @@ PATCHES = [
         # Check pipeline type
         pipeline_type = pipeline_type or self.default_pipeline_type''',
         "_os.environ.get('FABMESH_TRELLIS2_MAX_TOKENS')",
+    ),
+    (
+        IMG,
+        "        hr_resolution = resolution\n        while True:\n",
+        "        hr_resolution = resolution\n"
+        "        # FabMesh (2026-10-02) : PLANCHER de la reduction de resolution reglable (defaut 1024 = upstream).\n"
+        "        import os as _os2\n"
+        "        _hr_floor = int(_os2.environ.get('FABMESH_TRELLIS2_HR_FLOOR') or 1024)\n"
+        "        while True:\n",
+        "_os2.environ.get('FABMESH_TRELLIS2_HR_FLOOR')",
+    ),
+    (
+        IMG,
+        "            if num_tokens < max_num_tokens or hr_resolution == 1024:\n",
+        "            print(f\"[fabmesh] HR {hr_resolution}: {num_tokens} jetons (budget {max_num_tokens}, plancher {_hr_floor})\", flush=True)\n"
+        "            if num_tokens < max_num_tokens or hr_resolution <= _hr_floor:\n",
+        "hr_resolution <= _hr_floor",
     ),
     (
         SATTN,
