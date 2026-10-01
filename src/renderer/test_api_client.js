@@ -428,7 +428,7 @@
   // ni toucher au controle parental (code PIN), ni changer le consentement aux
   // rapports d'erreur. Le niveau complet (developpement, FABMESH_TEST_API=1)
   // n'est pas concerne.
-  const _ZONES_RESERVEES = ['#set-assistant', '#modal-assistant-aide', '#set-uninstall', '#about-suppr-donnees',
+  const _ZONES_RESERVEES = ['#set-assistant', '#modal-assistant-aide', '#set-uninstall',
     '#modal-suppr-donnees', '#set-reconfigure', '#parental-toggle', '#btn-parental-lock', '#np-unlock',
     '#_pin-input', '#set-crash-optin', '#set-blender-browse'];
   function _garder(el, p) {

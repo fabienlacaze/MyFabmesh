@@ -23734,8 +23734,6 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
       const T = (x) => (typeof _i18nT === 'function' ? _i18nT(x) : x);
       const d = document.getElementById('set-uninstall-desc');
       if (d) d.textContent = T('Removes the AI engine, the downloaded models, the caches and the settings (you choose whether to keep your projects). Then remove the app itself in Windows Settings > Apps.');
-      const a = document.getElementById('about-desinstaller-texte');
-      if (a) a.textContent = T('Windows Settings > Apps only removes the app itself. First use Settings > Installation > Remove all MyFabmesh data: it deletes the AI engine, the downloaded models, the caches and the settings (and, if you want, your projects), including folders on other drives.');
     } catch (_) {}
   })();
 
@@ -24112,7 +24110,6 @@ _sddEl('sdd-projets')?.addEventListener('change', _sddMajBouton);
 _sddEl('sdd-partage')?.addEventListener('change', _sddMajBouton);
 _sddEl('sdd-fermer')?.addEventListener('click', _sddFermer);
 _sddEl('set-uninstall')?.addEventListener('click', () => { _sddOuvrir(); });
-_sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); });
 
 // ============================================================
 // CALIBRATION panel wiring
