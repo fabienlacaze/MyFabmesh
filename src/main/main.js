@@ -3878,7 +3878,7 @@ ipcMain.handle('memory-needs', () => {
   // Valeurs de depart tant qu'un type n'a jamais ete mesure sur ce PC ; Detail++ : 8,9 Go de VRAM mesures le 30/09 (message du
   // serveur), son pipeline d'affinage n'est pas encore journalise a part.
   const LIBELLES = { realvis: 'Image generation', trellis2: '3D', sdxl_server: 'Image tools', front_strict: 'Auto-rectify',
-    texture_upscale: 'Ultra 8K', texture_refine: 'Detail refine', outfit_repaint: 'Outfits', inpaint: 'Inpaint', detail: 'Detail++' };
+    texture_upscale: 'Texture sharpen', texture_refine: 'Detail refine', outfit_repaint: 'Outfits', inpaint: 'Inpaint', detail: 'Detail++' };
   const libelle = (cle) => LIBELLES[Object.keys(LIBELLES).find((k) => String(cle).startsWith(k))] || String(cle);
   const types = {
     realvis: { ramGo: 9.2, vramGo: 5.9 }, trellis2: { ramGo: 5.3, vramGo: 9.1 },

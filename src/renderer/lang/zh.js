@@ -259,7 +259,7 @@
       'Texture smooth (+~12s · free · CPU only, no AI)': '纹理平滑（+~12s · 免费 · 仅 CPU，无 AI）',
       'Quality+ (sharper edges · +~30s · +1 cr)': '质量+（更锐利的边缘 · +~30s · +1 cr）',
       'Ultra Quality (+~50s · +2 cr · fine face detail)': '超高质量（+~50s · +2 cr · 精细面部细节）',
-      'Ultra HD 8K texture (+~5min · +3 cr)': '超高清 8K 纹理（+~5min · +3 cr）',
+      'Sharpened 8192px texture (+~5min · +3 cr)': '锐化至 8192px 的纹理（+~5min · +3 cr）',
       'Face fix (+~60s · +2 cr)': '面部修复（+~60s · +2 cr）',
       'PBR baseColor + roughness + metallic exported in the GLB automatically.':
         'PBR baseColor + roughness + metallic 自动导出到 GLB 中。',

@@ -14,7 +14,7 @@ ajout / suppression / rattachement des points du squelette, annuler / rétablir 
 Faits vérifiés dans le code le 27/09 :
 - mode local = carte NVIDIA avec 12 Go de mémoire vidéo ou plus (wizard.js) ; sinon
   mode Cloud, avec tous les outils (images, 3D, rig, animation) ;
-- Ultra 8K et jusqu'à 10 M de triangles aussi sur le bureau (index2.html) ;
+- Qualité Ultra (texture affinée jusqu'à 8192 px) et jusqu'à 10 M de triangles aussi sur le bureau (index2.html) ;
 - exports GLB, FBX, OBJ, STL ; serveur MCP intégré ;
 - crédits achetés sur le site (Stripe Checkout), rapports de plantage anonymes et
   désactivables (Sentry, opt-out).
@@ -34,7 +34,7 @@ Create game-ready 3D assets from a text prompt or a picture, then edit everythin
 HOW IT WORKS
 
 1. Image: type a prompt or drop a picture, then perfect it with the image tools.
-2. 3D model: one click turns the image into a textured model, with up to 8K textures and 10 million triangles.
+2. 3D model: one click turns the image into a textured model, with textures sharpened up to 8192 px and 10 million triangles.
 3. Rig: an automatic skeleton for any body (humans, animals, insects, creatures) that you can adjust point by point.
 4. Animation (beta): add idle, walk, run or attack clips, then export to FBX or Unreal Engine.
 
@@ -95,7 +95,7 @@ A major update of the public beta:
 • Projects and versions: every image, model, rig and animation is kept, nothing is lost.
 • New image tools: outfits, recolor, age, multi-views, variants, auto inpaint, face fix.
 • Auto settings pick the best 3D options for your subject.
-• Ultra 8K quality and up to 10 million triangles.
+• Ultra quality (textures sharpened up to 8192 px) and up to 10 million triangles.
 • Automatic rig for any body (humans, animals, insects, creatures) with a point-by-point skeleton editor.
 • The rig can run on your own NVIDIA card: the setup assistant downloads it for you.
 • Animation clips (beta).
@@ -108,7 +108,7 @@ A major update of the public beta:
 ### Product features (one per line, 200 characters max each)
 
 ```
-Text or picture to a textured 3D model, with up to 8K textures and 10 million triangles
+Text or picture to a textured 3D model, with textures sharpened up to 8192 px and 10 million triangles
 Auto settings: picks the best 3D options for your subject before generating
 AI image tools: modify, inpaint, remove background, upscale, restyle, outfits, recolor, age, multi-views
 Manual image tools: mask, clone stamp, crop and auto symmetry
@@ -169,7 +169,7 @@ Créez des assets 3D prêts pour le jeu à partir d'un texte ou d'une image, pui
 COMMENT ÇA MARCHE
 
 1. Image : écrivez une description ou déposez une image, puis peaufinez-la avec les outils d'image.
-2. Modèle 3D : un clic transforme l'image en modèle texturé, jusqu'à des textures 8K et 10 millions de triangles.
+2. Modèle 3D : un clic transforme l'image en modèle texturé, jusqu'à des textures affinées à 8192 px et 10 millions de triangles.
 3. Rig : un squelette automatique pour tout corps (humains, animaux, insectes, créatures), ajustable point par point.
 4. Animation (bêta) : ajoutez des clips de repos, marche, course ou attaque, puis exportez en FBX ou vers Unreal Engine.
 
@@ -230,7 +230,7 @@ Une grande mise à jour de la bêta publique :
 • Projets et versions : chaque image, modèle, squelette et animation est conservé, rien n'est perdu.
 • Nouveaux outils d'image : tenues, recoloration, âge, multi-vues, variantes, retouche automatique, correction du visage.
 • Les réglages automatiques choisissent les meilleures options 3D pour votre sujet.
-• Qualité Ultra 8K et jusqu'à 10 millions de triangles.
+• Qualité Ultra (textures affinées jusqu'à 8192 px) et jusqu'à 10 millions de triangles.
 • Rig automatique pour tout corps (humains, animaux, insectes, créatures) avec éditeur du squelette point par point.
 • Le rig peut tourner sur votre carte NVIDIA : l'assistant d'installation le télécharge pour vous.
 • Clips d'animation (bêta).
@@ -243,7 +243,7 @@ Une grande mise à jour de la bêta publique :
 ### Fonctionnalités du produit (une par ligne, 200 caractères au plus)
 
 ```
-Du texte ou d'une image à un modèle 3D texturé, jusqu'à des textures 8K et 10 millions de triangles
+Du texte ou d'une image à un modèle 3D texturé, jusqu'à des textures affinées à 8192 px et 10 millions de triangles
 Réglages automatiques : les meilleures options 3D pour votre sujet, choisies avant la génération
 Outils d'image IA : modifier, retoucher, détourer, agrandir, changer de style, tenues, couleurs, âge, multi-vues
 Outils d'image manuels : masque, tampon, recadrage et symétrie automatique

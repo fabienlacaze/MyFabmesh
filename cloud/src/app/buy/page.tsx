@@ -205,9 +205,9 @@ export default function BuyPage() {
             <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Fast</strong></td><td>{cr('mesh_fast')}</td><td><T fr="brouillon" en="draft" /></td></tr>
             <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Balanced</strong></td><td>{cr('mesh_balanced')}</td><td><T fr="recommandé" en="recommended" /></td></tr>
             <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Quality</strong></td><td>{cr('mesh_quality')}</td><td><T fr="haut niveau de détail" en="high detail" /></td></tr>
-            <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Ultra 8K</strong></td><td>{cr('mesh_ultra_8k')}</td><td><T fr="détail et texture maximum" en="maximum detail and texture" /></td></tr>
+            <tr><td><T fr="Modèle 3D" en="3D model" /> <strong>Ultra</strong></td><td>{cr('mesh_ultra_8k')}</td><td><T fr="détail et texture maximum" en="maximum detail and texture" /></td></tr>
             <tr><td><T fr="Nombre de triangles" en="Triangle count" /></td><td>+{supTris(500_000)} · +{supTris(1_000_000)} · +{supTris(10_000_000)}</td><td><T fr="jusqu'à 500 000 · 1 million · 10 millions" en="up to 500,000 · 1 million · 10 million" /></td></tr>
-            <tr><td><T fr="Options 3D : texture 8K · visage · affinage" en="3D options: 8K texture · face · refine" /></td><td>+{prix?.mesh_ultra_hd ?? '—'} / +{prix?.mesh_face_fix ?? '—'} / +{prix?.mesh_refine ?? '—'}</td><td><T fr="facultatives" en="optional" /></td></tr>
+            <tr><td><T fr="Options 3D : texture affinée à 8192 px · visage · affinage" en="3D options: sharpened 8192px texture · face · refine" /></td><td>+{prix?.mesh_ultra_hd ?? '—'} / +{prix?.mesh_face_fix ?? '—'} / +{prix?.mesh_refine ?? '—'}</td><td><T fr="facultatives" en="optional" /></td></tr>
             <tr><td><T fr="Squelette automatique (rig)" en="Automatic skeleton (rig)" /></td><td>{cr('rig')}</td><td><T fr="tout corps : humain, animal, insecte, créature" en="any body: human, animal, insect, creature" /></td></tr>
             <tr><td>Animation</td><td>{cr('anim')}</td><td><T fr="par clip" en="per clip" /></td></tr>
             <tr><td><T fr="Outils 3D simples" en="Simple 3D tools" /></td><td>{cr('mesh_op_simple')}</td><td><T fr="lisser, boucher les trous, redimensionner…" en="smooth, fill holes, resize…" /></td></tr>

@@ -705,7 +705,7 @@
                         <option value="fast" selected>Fast (12 steps · 2048px)</option>
                         <option value="balanced">Balanced (24 steps · 2048px)</option>
                         <option value="quality">Quality (32 steps · 4096px)</option>
-                        <option value="ultra_8k">Ultra 8K (32 steps · 4096→8192px)</option>
+                        <option value="ultra_8k">Ultra (32 steps · 4096px sharpened to 8192px)</option>
                       </select>
                     </div>
                     <!-- TRIANGLES MAX (2026-09-27) : plafond applique par le moteur a la
@@ -782,9 +782,9 @@
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
-                      <label class="inline-check" style="font-size:11px;" title="Upscale the baseColor atlas to 8192² (no hallucination, lossless detail recovery). Final GLB ~120 MB.">
+                      <label class="inline-check" style="font-size:11px;" title="Enlarges and sharpens the colour atlas to 8192² (sharper, but no new detail). Final GLB ~120 MB.">
                         <input type="checkbox" id="ws-trellis2-ultra-hd" checked />
-                        Ultra HD 8K
+                        Sharpened 8192px
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">

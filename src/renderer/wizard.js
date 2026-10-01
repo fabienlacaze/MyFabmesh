@@ -1066,7 +1066,7 @@ const T_LIBELLES = [
   [/writing assistant/i, 'Writing assistant', 'Writes your project descriptions', 'models'],
   [/vision/i, 'Vision module', 'Checks the shapes and colors', 'models'],
   [/mesh tools/i, 'Mesh tools', 'Simplifies and unwraps 3D models', '3d'],
-  [/texture upscaler/i, 'Texture enhancer', 'Sharpens textures (Enhance texture, Ultra 8K)', '3d'],
+  [/texture upscaler/i, 'Texture enhancer', 'Sharpens textures (Enhance texture, Ultra)', '3d'],
   [/3d core|trellis/i, '3D generation engine', 'Turns an image into a 3D model', '3d'],
   [/dino/i, 'Image analyzer', 'Understands your reference image', 'models'],
 ];

@@ -2675,7 +2675,7 @@ var _AUTO3D_OPTIONS = ['ws-trellis2-rectify', 'ws-trellis2-smooth', 'ws-trellis2
  * user sur guerrier, chevalier et araignee (« c'est nickel » : raccords 4-6,
  * rien de brule) : Ultra 8K, 500 K. Un seul reglage tant qu'aucun autre type
  * n'a ete mesure ; toucher soi-meme le menu decoche « Auto settings ». */
-var _AUTO3D_QUALITE = { preset: 'ultra_8k', tris: '500000', libelle: 'Ultra 8K · 500 K triangles' };
+var _AUTO3D_QUALITE = { preset: 'ultra_8k', tris: '500000', libelle: 'Ultra · 500 K triangles' };
 var _auto3dSymetrie = null;   // { src, sym } de l'image source affichee
 
 function _symetrieSilhouette(img) {
@@ -10743,7 +10743,7 @@ async function showGenerationHistory(startPath) {
   // des parametres ») : plus de limite a 10 lignes ni de valeur tronquee ; « non » et les listes s'affichent aussi.
   // Libelle lisible, cle brute en infobulle ; jamais le nom d'un moteur (_maskAiNames).
   const GH_LIBELLES = {
-    preset: 'Quality', max_tris: 'Max triangles', ultra_hd: 'Ultra HD 8K', ultra_q: 'Ultra quality',
+    preset: 'Quality', max_tris: 'Max triangles', ultra_hd: 'Sharpened 8192px', ultra_q: 'Ultra quality',
     quality_plus: 'Quality+', rectify: 'Auto-rectify', face_fix: 'Face fix', refine: 'Detail refine',
     smooth: 'Texture smooth', back_view: 'Back view', fast: 'Fast mode', seed: 'Seed', steps: 'Steps',
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
@@ -11421,7 +11421,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   // dropdown (ws-trellis2-preset), NOT the legacy ws-3d-quality select. Show
   // that so the running-task popup matches what the user actually picked
   // (was showing "High" while the user selected "Fast").
-  const t2PresetLabels = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality', ultra_8k: 'Ultra 8K' };
+  const t2PresetLabels = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality', ultra_8k: 'Ultra' };
   const qualityDisplay = (engine === 'trellis2_native')
     ? (t2PresetLabels[trellis2Preset] || trellis2Preset)
     : (qualityLabels[quality] || quality);
@@ -11430,7 +11430,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   const _fmtTris = (n) => n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}K`;
   const _optsActives = [trellis2MultiRef && 'Multi-reference', trellis2RectifySource && 'Auto-rectify',
     trellis2Smooth && 'Texture smooth', trellis2QualityPlus && 'Sharp edges',
-    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Ultra HD 8K',
+    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Sharpened 8192px',
     trellis2Refine && 'Detail refine', trellis2FaceFix && 'Face fix'].filter(Boolean);
   const jobParams = engine === 'trellis2_native' ? {
     Engine: engineLabel(engine),
@@ -12581,7 +12581,7 @@ const MESH_TOOL_SCHEMAS = {
         options: [['fast','Fast (12 steps · 2048px)'],
                   ['balanced','Balanced (24 steps · 2048px)'],
                   ['quality','Quality (32 steps · 4096px)'],
-                  ['ultra_8k','Ultra 8K (32 steps · 4096→8192px)']] },
+                  ['ultra_8k','Ultra (32 steps · 4096px sharpened to 8192px)']] },
       { id: 'seed', label: 'Variation (seed)', type: 'number', min: 0, max: 999999, step: 1, default: 42, randomize: true },
     ],
     // preset + seed flow as real CLI params: runMeshTool → mesh-tool IPC →

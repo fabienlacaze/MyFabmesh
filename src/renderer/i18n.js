@@ -207,6 +207,8 @@
       "Extracts each piece of clothing on a transparent background (characters)": "Extrait chaque vêtement sur fond transparent (personnages)",
       "Finds a part automatically and recolours it, keeping its shape (e.g. a red cape)": "Détecte une partie et la recolore en gardant sa forme (ex. : une cape rouge)",
       "Max triangles": "Triangles max",
+      "Sharpened 8192px": "Affinée 8192px",
+      "Texture sharpen": "Affinage de texture",
       "Shape detail": "Finesse de la forme",
       "How finely the 3D shape is calculated. Auto only simplifies very detailed subjects (a truck, a building...) so they finish in about 10 minutes instead of 30 or more.": "Finesse du calcul de la forme 3D. Auto ne simplifie que les sujets très détaillés (camion, bâtiment…) pour qu'ils finissent en une dizaine de minutes au lieu de plus de 30.",
       "Auto (recommended)": "Auto (conseillé)",
@@ -712,7 +714,7 @@
       'Texture smooth (+~12s · free · CPU only, no AI)': "Lissage de texture (+~12s · gratuit · CPU seulement, pas d'IA)",
       'Quality+ (sharper edges · +~30s · +1 cr)': 'Qualité+ (arêtes plus nettes · +~30s · +1 cr)',
       'Ultra Quality (+~50s · +2 cr · fine face detail)': 'Ultra qualité (+~50s · +2 cr · détail fin du visage)',
-      'Ultra HD 8K texture (+~5min · +3 cr)': 'Texture Ultra HD 8K (+~5min · +3 cr)',
+      'Sharpened 8192px texture (+~5min · +3 cr)': 'Texture agrandie et affinée à 8192 px (+~5min · +3 cr)',
       'Face fix (+~60s · +2 cr)': 'Correction du visage (+~60s · +2 cr)',
       'PBR baseColor + roughness + metallic exported in the GLB automatically.':
         'baseColor + roughness + metallic PBR exportés automatiquement dans le GLB.',

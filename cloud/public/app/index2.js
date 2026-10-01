@@ -2219,7 +2219,7 @@ var _AUTO3D_OPTIONS = ['ws-trellis2-rectify', 'ws-trellis2-smooth', 'ws-trellis2
  * user sur guerrier, chevalier et araignee (« c'est nickel » : raccords 4-6,
  * rien de brule) : Ultra 8K, 500 K. Un seul reglage tant qu'aucun autre type
  * n'a ete mesure ; toucher soi-meme le menu decoche « Auto settings ». */
-var _AUTO3D_QUALITE = { preset: 'ultra_8k', tris: '500000', libelle: 'Ultra 8K · 500 K triangles' };
+var _AUTO3D_QUALITE = { preset: 'ultra_8k', tris: '500000', libelle: 'Ultra · 500 K triangles' };
 var _auto3dSymetrie = null;   // { src, sym } de l'image source affichee
 
 function _symetrieSilhouette(img) {
@@ -9376,7 +9376,7 @@ async function showGenerationHistory(startPath) {
   // des parametres ») : plus de limite a 10 lignes ni de valeur tronquee ; « non » et les listes s'affichent aussi.
   // Libelle lisible, cle brute en infobulle ; jamais le nom d'un moteur (_maskAiNames).
   const GH_LIBELLES = {
-    preset: 'Quality', max_tris: 'Max triangles', ultra_hd: 'Ultra HD 8K', ultra_q: 'Ultra quality',
+    preset: 'Quality', max_tris: 'Max triangles', ultra_hd: 'Sharpened 8192px', ultra_q: 'Ultra quality',
     quality_plus: 'Quality+', rectify: 'Auto-rectify', face_fix: 'Face fix', refine: 'Detail refine',
     smooth: 'Texture smooth', back_view: 'Back view', fast: 'Fast mode', seed: 'Seed', steps: 'Steps',
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
@@ -9976,11 +9976,11 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   // DETAILS DU TRAVAIL (2026-09-27, user : « les infos de la vignette ne sont
   // pas a jour, je n'ai pas 13K target ») : ils lisaient les anciens menus
   // (qualite, triangles) au lieu des reglages reellement envoyes.
-  const t2PresetLabels = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality', ultra_8k: 'Ultra 8K' };
+  const t2PresetLabels = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality', ultra_8k: 'Ultra' };
   const _fmtTris = (n) => n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}K`;
   const _optsActives = [trellis2MultiRef && 'Multi-reference', trellis2RectifySource && 'Auto-rectify',
     trellis2Smooth && 'Texture smooth', trellis2QualityPlus && 'Sharp edges',
-    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Ultra HD 8K'].filter(Boolean);
+    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Sharpened 8192px'].filter(Boolean);
   const _nomSource = p.selectedImagePath ? p.selectedImagePath.split('?')[0].split(/[/\\]/).pop() : '--';
   const jobParams = engine === 'native_3d' ? {
     Engine: engineLabel(engine),
@@ -11128,7 +11128,7 @@ const MESH_TOOL_SCHEMAS = {
         options: [['fast','Fast (12 steps · 2048px)'],
                   ['balanced','Balanced (24 steps · 2048px)'],
                   ['quality','Quality (32 steps · 4096px)'],
-                  ['ultra_8k','Ultra 8K (32 steps · 4096→8192px)']] },
+                  ['ultra_8k','Ultra (32 steps · 4096px sharpened to 8192px)']] },
       { id: 'seed', label: 'Variation (seed)', type: 'number', min: 0, max: 999999, step: 1, default: 42, randomize: true },
     ],
     build: (vals, ctx) => [ctx.imagePath, vals.preset, String(vals.seed)],
@@ -18140,13 +18140,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // le serveur a enregistrees au lancement.
       if (String(row.type || '') === 'mesh' && row.options && typeof row.options === 'object') {
         const o = row.options;
-        const lib = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality', ultra_8k: 'Ultra 8K' };
+        const lib = { fast: 'Fast', balanced: 'Balanced', quality: 'Quality', ultra_8k: 'Ultra' };
         if (o.preset) params.Quality = lib[o.preset] || String(o.preset);
         const t = Number(o.max_tris) || 0;
         if (t) params['Max triangles'] = t >= 1e6 ? `${+(t / 1e6).toFixed(1)}M` : `${Math.round(t / 1000)}K`;
         const choisies = [o.back_view && 'Multi-reference', o.rectify && 'Auto-rectify',
           o.smooth && 'Texture smooth', o.quality_plus && !o.ultra_q && 'Sharp edges',
-          o.ultra_q && 'Fine geometry', o.ultra_hd && 'Ultra HD 8K'].filter(Boolean);
+          o.ultra_q && 'Fine geometry', o.ultra_hd && 'Sharpened 8192px'].filter(Boolean);
         params.Options = choisies.join(', ') || 'None';
       }
       const opts = { projectName: project || null };

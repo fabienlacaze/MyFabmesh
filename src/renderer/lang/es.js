@@ -257,7 +257,7 @@
       'Texture smooth (+~12s · free · CPU only, no AI)': 'Suavizado de textura (+~12s · gratis · solo CPU, sin IA)',
       'Quality+ (sharper edges · +~30s · +1 cr)': 'Calidad+ (bordes más nítidos · +~30s · +1 cr)',
       'Ultra Quality (+~50s · +2 cr · fine face detail)': 'Ultra calidad (+~50s · +2 cr · detalle fino del rostro)',
-      'Ultra HD 8K texture (+~5min · +3 cr)': 'Textura Ultra HD 8K (+~5min · +3 cr)',
+      'Sharpened 8192px texture (+~5min · +3 cr)': 'Textura nitidizada a 8192 px (+~5min · +3 cr)',
       'Face fix (+~60s · +2 cr)': 'Corregir rostro (+~60s · +2 cr)',
       'PBR baseColor + roughness + metallic exported in the GLB automatically.':
         'baseColor + roughness + metallic PBR exportados automáticamente en el GLB.',

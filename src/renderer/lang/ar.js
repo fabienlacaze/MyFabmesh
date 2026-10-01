@@ -259,7 +259,7 @@
       'Texture smooth (+~12s · free · CPU only, no AI)': 'تنعيم الخامة (+~12ث · مجاني · CPU فقط، بدون ذكاء اصطناعي)',
       'Quality+ (sharper edges · +~30s · +1 cr)': 'جودة+ (حواف أوضح · +~30ث · +1 cr)',
       'Ultra Quality (+~50s · +2 cr · fine face detail)': 'جودة فائقة (+~50ث · +2 cr · تفاصيل وجه دقيقة)',
-      'Ultra HD 8K texture (+~5min · +3 cr)': 'خامة Ultra HD 8K (+~5 دقائق · +3 cr)',
+      'Sharpened 8192px texture (+~5min · +3 cr)': 'خامة محسّنة الحدة إلى 8192 بكسل (+~5 دقائق · +3 cr)',
       'Face fix (+~60s · +2 cr)': 'إصلاح الوجه (+~60ث · +2 cr)',
       'PBR baseColor + roughness + metallic exported in the GLB automatically.':
         'يتم تصدير baseColor + roughness + metallic من PBR في ملف GLB تلقائيًا.',
