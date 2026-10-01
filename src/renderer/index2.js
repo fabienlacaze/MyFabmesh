@@ -22978,6 +22978,7 @@ async function _rafraichirSplitCharge() {
 }
 async function refreshGpuStats() {
   if (_draggingGpuLimit) return;
+  if (document.visibilityState === 'hidden') return;          // fenetre masquee : rien a redessiner
   // Sans carte NVIDIA (ou en mode Cloud) : aucune sonde matérielle, la carte
   // Hardware est remplacée par la note cloud (voir _applyHardwareCardMask).
   if (!_gpuProbeAllowed()) { try { refreshPythonStats(); } catch (_) {} return; }
@@ -23073,7 +23074,7 @@ async function openSettings() {
   // The timer is cleared as soon as the panel closes (set-close handler).
   // Sans GPU NVIDIA / en mode Cloud, le tick spawnerait nvidia-smi 2×/s pour
   // rien : on ne l'arme pas du tout (cert Store 10.1.2.10).
-  if (_gpuProbeAllowed()) _gpuPollTimer = setInterval(refreshGpuStats, 500);
+  if (_gpuProbeAllowed()) _gpuPollTimer = setInterval(refreshGpuStats, 1000);     // 1 s (etait 0,5 s) : la fenetre pese ~7 % de la carte quand les Reglages sont ouverts
 }
 
 // Carte « Hardware » des Réglages : sans carte NVIDIA (ou en mode Cloud) les
