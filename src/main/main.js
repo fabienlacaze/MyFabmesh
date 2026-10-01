@@ -9466,7 +9466,10 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
       if (_ctl) _ctl.annuler = () => reject({ error: 'Cancelled', stdout: stdoutBuf, stderr: stderrBuf });
       const lancer = () => {
       const proc = execFile(_pythonExe, fixedArgs, {
-        timeout: 1800000,
+        // PLAFOND DE LA 3D LOCALE : 60 min (30 min jusqu'au 2026-10-02). Decision du user apres mesure : le camion de face (« bus », 7 278 voxels de
+        // structure contre 960 a 2 900 pour les autres sujets) echantillonne ~35 s par pas en haute resolution et a ete COUPE a 29,8 min, a 80 %,
+        // trois fois de suite, alors qu'il aurait fini vers 33 min. Une 3D vraiment bloquee est toujours coupee au bout d'une heure.
+        timeout: 3600000,
         maxBuffer: 50 * 1024 * 1024,
         env,
       }, (error, stdout, stderr) => {
