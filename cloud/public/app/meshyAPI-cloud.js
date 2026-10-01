@@ -2365,16 +2365,37 @@
     },
 
     /* ── image version history (localStorage) ───────────────────── */
-    duplicateImageVersion: async ({ imagePath, suffix } = {}) => {
+    /* La copie est RANGEE EN R2 (/api/upload-image sans `tool` : gratuit)
+       et rend une URL https. Avant, elle rendait une URL `blob:` locale :
+       la vue de dos (Multi-Views, mode 2 vues) l'envoyait telle quelle au
+       worker, qui la refusait (« frontImageUrl host not allowed ») — l'outil
+       echouait a chaque fois. Comme au bureau, la copie devient une
+       nouvelle version du projet. */
+    duplicateImageVersion: async ({ imagePath, suffix, projectName } = {}) => {
       try {
         const r = await fetch(imagePath);
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        const blob = await r.blob();
-        const newPath = URL.createObjectURL(blob);
-        // Track in the version list. The "project name" is derived from
-        // the calling page; we don't have it here, so we use 'global'.
-        _pushVersion('global', imagePath, newPath);
+        let blob = await r.blob();
         const suf = (suffix || 'copy').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 16);
+        if (!/^image\/(png|jpeg|jpg|webp)$/i.test(blob.type || '')) {
+          // Type inconnu (ex. octet-stream) : on repasse par un canvas PNG.
+          const bmp = await createImageBitmap(blob);
+          const cv = document.createElement('canvas');
+          cv.width = bmp.width; cv.height = bmp.height;
+          cv.getContext('2d').drawImage(bmp, 0, 0);
+          blob = await new Promise((res) => cv.toBlob(res, 'image/png'));
+        }
+        const dataUrl = await new Promise((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(String(fr.result || ''));
+          fr.onerror = () => rej(fr.error || new Error('read failed'));
+          fr.readAsDataURL(blob);
+        });
+        const up = await postJSON('/api/upload-image', { dataUrl, suffix: suf });
+        if (!up?.success || !up.path) throw new Error(up?.error || 'upload failed');
+        const newPath = up.path;
+        _pushVersion('global', imagePath, newPath);
+        await _attachToProject(_projetAuLancement(projectName), newPath, 'front');
         return {
           success: true, path: newPath,
           filename: `${_stripExt(_basename(imagePath))}_${suf}_${Date.now()}.png`,

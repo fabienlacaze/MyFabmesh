@@ -590,11 +590,11 @@
                         </div>
                         <button id="ws-facefix-btn" class="ghost-btn tool-btn" title="Detect the face and repaint it sharper. Best on portraits.">&#128566;&nbsp;Face Fix</button>
                         <button id="ws-outfit-btn" class="ghost-btn tool-btn" title="Extracts each piece of clothing on a transparent background (characters)">&#128087;&nbsp;Outfits</button>
-                        <button id="ws-recolor-btn" class="ghost-btn tool-btn" title="Finds a part automatically and recolours it, keeping its shape (e.g. a red cape)">&#127912;&nbsp;Recolor</button>
-                        <button id="ws-age-btn" class="ghost-btn tool-btn" title="Make the subject younger or older — keeps the shape, changes the apparent age">&#9203;&nbsp;Age</button>
                         <button id="ws-symmetrize-auto-btn" class="ghost-btn tool-btn" title="Mirror the left half onto the right half, to make the subject symmetrical.">&#8651;&nbsp;Sym. Auto</button>
                         <button id="ws-multiview-btn" class="ghost-btn tool-btn" title="Generate 6 orthographic views from this image.">&#128065;&nbsp;Multi-Views</button>
                         <button id="ws-variant-btn" class="ghost-btn tool-btn" title="Create variants of the current image — re-roll seed or img2img with controlled strength">&#10024;&nbsp;Variant</button>
+                        <button id="ws-recolor-btn" class="ghost-btn tool-btn" title="Finds a part automatically and recolours it, keeping its shape (e.g. a red cape)">&#127912;&nbsp;Recolor</button>
+                        <button id="ws-age-btn" class="ghost-btn tool-btn" title="Make the subject younger or older — keeps the shape, changes the apparent age">&#9203;&nbsp;Age</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -903,9 +903,9 @@
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
                         <button id="ws-mesh-export-btn" class="ghost-btn tool-btn" title="Export the mesh (GLB, FBX, OBJ...). The original version is kept.">&#128190;&nbsp;Export...</button>
-                        <button id="ws-mesh-publish-btn" class="ghost-btn tool-btn" title="Publish this mesh to the marketplace.">&#128722;&nbsp;Publish to marketplace</button>
                         <button id="ws-mesh-blender-btn" class="ghost-btn tool-btn" title="Open this mesh in Blender.">&#129704;&nbsp;Open in Blender</button>
                         <button id="ws-mesh-folder-btn" class="ghost-btn tool-btn" title="Show this file in the file explorer.">&#128193;&nbsp;Show in folder</button>
+                        <button id="ws-mesh-publish-btn" class="ghost-btn tool-btn" title="Publish this mesh to the marketplace.">&#128722;&nbsp;Publish to marketplace</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -922,10 +922,11 @@
                         <button id="ws-mesh-texvar-btn" class="ghost-btn tool-btn" title="Generate DIFFERENT texture looks (geometry untouched) — change the seed for a new variant">&#127912;&nbsp;Texture variants</button>
                         <button id="ws-mesh-enhance-tex-btn" class="ghost-btn tool-btn" title="Sharpen / upscale the EXISTING baked texture (x2, no hallucination) — no re-generation">&#10024;&nbsp;Sharpen texture (x2)</button>
                         <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint with native PBR engine — qualité SOTA">&#11088;&nbsp;Re-Texture</button>
-                        <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin)">&#9986;&nbsp;Segment parts</button>
-                        <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head). Requires a segmented mesh.">&#127991;&nbsp;Name the zones</button>
                         <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part: paint it on the 3D mesh, describe the new look — geometry stays intact">&#127912;&nbsp;Re-texture a region</button>
                         <button id="ws-mesh-reshape-btn" class="ghost-btn tool-btn" title="Rebuild ONE part of the model in 3D from a prompt (for example, replace the head). Runs on your graphics card.">&#129516;&nbsp;Reshape a region</button>
+                        <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin)">&#9986;&nbsp;Segment parts</button>
+                        <button id="ws-mesh-name-btn" class="ghost-btn tool-btn" title="Name the parts (wheel / turret / cannon — arm / leg / head). Requires a segmented mesh.">&#127991;&nbsp;Name the zones</button>
+                        <button id="ws-mesh-explode-btn" class="ghost-btn tool-btn" title="Fracture the mesh into shards and blast them outward with the viewer explode slider (explosion / destruction). Texture preserved, exportable.">&#128165;&nbsp;Explode / destroy</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -940,7 +941,6 @@
                         <button id="ws-mesh-selectface-btn" class="ghost-btn tool-btn" title="Select faces to isolate, hide or work on them.">&#9634;&nbsp;Select</button>
                         <button id="ws-mesh-clone3d-btn" class="ghost-btn tool-btn" title="Clone one area of the texture onto another, directly on the model">&#129657;&nbsp;Clone stamp</button>
                         <button id="ws-mesh-reshape-draw-btn" class="ghost-btn tool-btn" title="Paint the part to rebuild straight on the 3D model, then describe what should replace it. Runs on your graphics card.">&#128396;&nbsp;Reshape (draw)</button>
-                        <button id="ws-mesh-explode-btn" class="ghost-btn tool-btn" title="Fracture the mesh into shards and blast them outward with the viewer explode slider (explosion / destruction). Texture preserved, exportable.">&#128165;&nbsp;Explode / destroy</button>
                         <button id="ws-mesh-stages3d-btn" class="ghost-btn tool-btn" title="Fabricate the 3D meshes of the construction stages (sliced building + frame + scaffolding), navigable and exportable">&#127959;&#65039; 3D construction stages</button>
                         <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize, dimension or re-orient the mesh with a gizmo and on-screen rulers. Bakes a new version.">&#128207;&nbsp;Resize / dimension</button>
                         <button id="ws-mesh-aligntex-btn" class="ghost-btn tool-btn" title="Stick images (logos, patches, labels) onto the mesh">&#127919;&nbsp;Decals</button>
@@ -1075,9 +1075,9 @@
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
                         <button id="ws-rig-unreal-btn" class="ghost-btn tool-btn rig-tool-btn" title="Export the rig in a layout Unreal Engine understands.">&#127918;&nbsp;Export to Unreal</button>
-                        <button id="ws-rig-publish-btn" class="ghost-btn tool-btn rig-tool-btn" title="Publish this rig to the marketplace.">&#128722;&nbsp;Publish to marketplace</button>
                         <button id="ws-rig-blender-btn" class="ghost-btn tool-btn rig-tool-btn" title="Open the rig in Blender.">&#129704;&nbsp;Edit in Blender</button>
                         <button id="ws-rig-folder-btn" class="ghost-btn tool-btn rig-tool-btn" title="Show this file in the file explorer.">&#128193;&nbsp;Show in folder</button>
+                        <button id="ws-rig-publish-btn" class="ghost-btn tool-btn rig-tool-btn" title="Publish this rig to the marketplace.">&#128722;&nbsp;Publish to marketplace</button>
                       </div>
                     </div>
                     <div class="step-tools-group">
@@ -1250,8 +1250,8 @@
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
                         <button id="ws-anim-export-btn" class="ghost-btn tool-btn rig-tool-btn" title="Export the animation as FBX.">&#128229;&nbsp;Export FBX</button>
-                        <button id="ws-anim-publish-btn" class="ghost-btn tool-btn rig-tool-btn" title="Publish this animation to the marketplace.">&#128722;&nbsp;Publish to marketplace</button>
                         <button id="ws-anim-folder-btn" class="ghost-btn tool-btn rig-tool-btn" title="Show this file in the file explorer.">&#128193;&nbsp;Show in folder</button>
+                        <button id="ws-anim-publish-btn" class="ghost-btn tool-btn rig-tool-btn" title="Publish this animation to the marketplace.">&#128722;&nbsp;Publish to marketplace</button>
                       </div>
                     </div>
                     <!-- Bloc « Playback » (Play / Loop / In place) RETIRE le 2026-09-27 a la demande du user :
