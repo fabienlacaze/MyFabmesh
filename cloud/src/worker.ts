@@ -3617,6 +3617,15 @@ async function handleMeDelete(req: Request, env: Env): Promise<Response> {
  *
  *  Validates the access_token by calling Supabase /auth/v1/user before
  *  setting the cookie — a forged token gets a clean 401. */
+/** Site coupe (site_enabled=false) : ouvrir une session reste permis aux seuls comptes de ADMIN_EMAILS ; tout autre compte recoit le
+ *  meme 503 qu'avant. Rend null quand le site est allume ou que le compte est administrateur. */
+async function _refusSiteCoupe(env: Env, email: string | null | undefined): Promise<Response | null> {
+  const flags = await _getServiceFlags(env);
+  if (flags.site_enabled) return null;
+  if (email && ADMIN_EMAILS.has(String(email).toLowerCase())) return null;
+  return err(503, 'site temporarily disabled by admin');
+}
+
 async function handleAuthInstallSession(req: Request, env: Env): Promise<Response> {
   let body: { access_token?: string; refresh_token?: string; expires_in?: number };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
@@ -3632,6 +3641,10 @@ async function handleAuthInstallSession(req: Request, env: Env): Promise<Respons
     headers: { 'authorization': `Bearer ${at}`, 'apikey': anon },
   });
   if (!probe.ok) return err(401, 'invalid access_token');
+  // Coupe-circuit « Site » : seul un administrateur obtient un cookie (l'e-mail vient de Supabase, pas du client).
+  { const pu = await probe.json().catch(() => ({})) as { email?: string };
+    const refus = await _refusSiteCoupe(env, pu.email);
+    if (refus) return refus; }
 
   // Default Supabase access_token lifetime is 1h. We mirror it on the
   // cookie so a stolen cookie ages out with the token it carries.
@@ -20165,6 +20178,15 @@ async function handleAdminLive(req: Request, env: Env): Promise<Response> {
   });
 }
 
+/** GET /api/admin/modal-status — ADMIN. Meme reponse que /api/modal-status (etat chaud / froid des conteneurs), mais sous la garde admin :
+ *  la page admin la lit sans dependre d'une route « utilisateur », et elle reste atteignable quand le coupe-circuit « Site » est actif
+ *  (toutes les routes /api/admin/* sont exemptees). 2026-10-01 : la carte « Warm containers » affichait « State unavailable: HTTP 401 / 503 ». */
+async function handleAdminModalStatus(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  return await handleModalStatus(req, env);
+}
+
 /** GET /api/admin/services — current state of the kill switches. */
 async function handleAdminServices(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
@@ -21886,9 +21908,15 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
       // 503 means the user pays without ever getting credits (Stripe
       // retries for 3 days then gives up). Carving it out alongside
       // /admin and /api/admin/*.
+      /* CONNEXION DE L'ADMINISTRATEUR MALGRE LE COUPE-CIRCUIT (2026-10-01, user : « je peux pas me connecter a admin car d'abord je dois
+       * me connecter a mon compte »). Toutes les routes admin exigent une SESSION UTILISATEUR (cookie pose par /api/auth/install-session)
+       * puis le cookie admin. Quand « Site » etait coupe, install-session repondait 503 : l'administrateur ne pouvait plus se connecter,
+       * donc plus rouvrir le site. Une fois la session expiree (1 h), l'interrupteur l'enfermait dehors. La route reste donc atteignable ;
+       * son gestionnaire (_refusSiteCoupe) refuse tout compte qui n'est pas dans ADMIN_EMAILS tant que le site est coupe. */
       const isAdminRoute = pathname.startsWith('/admin')
                         || pathname.startsWith('/api/admin/')
-                        || pathname === '/api/stripe-webhook';
+                        || pathname === '/api/stripe-webhook'
+                        || pathname === '/api/auth/install-session';
       if (!isAdminRoute) {
         const flags = await _getServiceFlags(env);
         if (!flags.site_enabled) {
@@ -22162,6 +22190,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/admin/payments/unreconciled' && method === 'GET')  return await handleAdminUnreconciledPayments(req, env);
         if (pathname === '/api/admin/payments/reconcile'    && method === 'POST') return await handleAdminReconcilePayment(req, env);
         if (pathname === '/api/admin/live'            && method === 'GET')  return await handleAdminLive(req, env);
+        if (pathname === '/api/admin/modal-status'    && method === 'GET')  return await handleAdminModalStatus(req, env);
         if (pathname === '/api/admin/warm'            && method === 'POST') return await handleAdminWarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/admin/services'        && method === 'GET')  return await handleAdminServices(req, env);
         if (pathname === '/api/admin/services'        && method === 'POST') return await handleAdminServicesToggle(req, env);

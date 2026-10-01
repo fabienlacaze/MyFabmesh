@@ -3203,6 +3203,12 @@
     let _killswitchPassword = '';
     let _servicesState = { modal_enabled: true, site_enabled: true };
 
+    /* SESSION EXPIREE (2026-10-01, user : « Could not load services state: HTTP 401 » puis « je peux pas me connecter a admin »).
+     * Un 401 sur le panneau Services venait de l'expiration de la session (compte, 1 h) ou du cookie admin (4 h) : la carte « Unlock » ne
+     * pouvait rien y faire (le serveur n'utilise plus le mot de passe saisi ici). On rend la main a l'ecran d'entree de la page, qui sait
+     * proposer la bonne etape : connexion au compte, puis mot de passe admin. */
+    function _adminSessionExpiree() { try { refresh(); } catch (_) {} }
+
     async function unlockServicesPanel(auto) {
       const input = document.getElementById('services-password-input');
       const errEl = document.getElementById('services-lock-err');
@@ -3218,6 +3224,7 @@
       let cur;
       try {
         const r = await fetch('/api/admin/services', { credentials: 'include' });
+        if (r.status === 401) { _adminSessionExpiree(); return; }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         cur = await r.json();
       } catch (e) {
@@ -3270,6 +3277,7 @@
           fetch('/api/admin/services', { credentials: 'include' }),
           fetch('/api/admin/market/killswitch', { credentials: 'include' }).catch(() => null),
         ]);
+        if (svcRes.status === 401) { _adminSessionExpiree(); return; }
         if (!svcRes.ok) throw new Error('HTTP ' + svcRes.status);
         _servicesState = await svcRes.json();
         // Marketplace killswitch lives at its own endpoint (R2 record,
@@ -3437,7 +3445,8 @@
     }
     async function warmRafraichir() {
       try {
-        const r = await fetch('/api/modal-status', { credentials: 'include' });
+        const r = await fetch('/api/admin/modal-status', { credentials: 'include' });
+        if (r.status === 401) { _adminSessionExpiree(); return; }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
         { const m = document.getElementById('warm-msg'); if (m && /^State unavailable/.test(m.textContent)) m.textContent = ''; }   // une erreur passagere ne reste plus affichee
