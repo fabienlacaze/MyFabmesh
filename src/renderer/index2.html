@@ -3931,40 +3931,140 @@
         <h2>Claude &amp; scripts</h2>
         <button type="button" class="settings-close-x" id="asst-aide-fermer" title="Close">&#10005;</button>
       </div>
-      <p class="modal-subtitle">Claude or your scripts use MyFabmesh.AI for you: projects, images, 3D, rigs. Only programs on this PC, only while the switch is on.</p>
+      <p class="modal-subtitle">Claude or your scripts can create projects, images, 3D models and rigs for you. MyFabmesh.AI must stay open.</p>
+      <p class="asst-note-cle">The access key is a password that MyFabmesh.AI creates by itself at each start. You do not set it: Claude reads it on its own. Only your own scripts need to copy it.</p>
+      <div class="asst-onglets" role="tablist">
+        <button type="button" class="asst-onglet actif" data-asst-onglet="desktop" role="tab" aria-selected="true">Claude Desktop <span class="asst-badge">Easiest</span></button>
+        <button type="button" class="asst-onglet" data-asst-onglet="code" role="tab" aria-selected="false">Claude Code</button>
+        <button type="button" class="asst-onglet" data-asst-onglet="scripts" role="tab" aria-selected="false">My own scripts</button>
+      </div>
       <div class="asst-aide-corps">
-        <h3 class="asst-h">Claude Desktop</h3>
-        <ol class="asst-etapes">
-          <li>Install Claude Desktop: <a href="https://claude.ai/download" target="_blank" rel="noopener">claude.ai/download</a></li>
-          <li>Click Connect Claude Desktop (this also turns the switch on).</li>
-          <li>Quit Claude Desktop completely, then reopen it.</li>
-          <li>Keep MyFabmesh.AI open and ask Claude, for example: “Make 3 medieval houses in MyFabmesh”.</li>
-        </ol>
-        <details class="asst-manuel">
-          <summary>Manual setup</summary>
-          <p class="fen-note">Claude Desktop › Settings › Developer › Edit Config, then paste:</p>
-          <pre class="asst-code" id="asst-json" data-i18n-skip></pre>
-          <button type="button" class="ghost-btn asst-petit" data-asst-copier="asst-json">Copy</button>
-        </details>
-
-        <h3 class="asst-h">Claude Code</h3>
-        <p class="fen-note">Turn the switch on, then run once in a terminal:</p>
-        <pre class="asst-code" id="asst-cmd" data-i18n-skip></pre>
-        <button type="button" class="ghost-btn asst-petit" data-asst-copier="asst-cmd">Copy</button>
-        <p class="fen-note">Or paste the access key (Advanced) into Claude Code, with the address http://127.0.0.1:7331.</p>
+        <div class="asst-panneau" data-asst-panneau="desktop">
+          <div class="asst-pas">
+            <div class="asst-pas-n">1</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Install Claude Desktop</div>
+              <p class="asst-pas-p">Free, by Anthropic. Install the app and sign in.</p>
+              <div class="asst-action"><a class="ghost-btn asst-lien" href="https://claude.ai/download" target="_blank" rel="noopener">Open claude.ai/download</a></div>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">2</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Connect Claude Desktop to MyFabmesh.AI</div>
+              <p class="asst-pas-p">Click the button. This also turns on “Allow Claude and scripts on this PC”.</p>
+              <div class="asst-action"><button type="button" class="primary-btn" id="asst-aide-connecter">Connect Claude Desktop</button><span class="asst-etat" id="asst-aide-etat-claude" data-i18n-skip></span></div>
+              <div class="asst-attendu"><span class="asst-attendu-l">You should see:</span> <span>The status next to the button says “Connected”.</span></div>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">3</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Restart Claude Desktop completely</div>
+              <p class="asst-pas-p">Right-click the Claude icon next to the clock, choose Quit, then reopen Claude Desktop. Closing the window is not enough.</p>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">4</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Check that Claude sees MyFabmesh</div>
+              <p class="asst-pas-p">In a new conversation, “fabmesh” is listed in the tools menu under the message box.</p>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">5</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Ask Claude</div>
+              <p class="asst-pas-p">Keep MyFabmesh.AI open and type: “Make 3 medieval houses in MyFabmesh”. Allow the tool when Claude asks.</p>
+              <div class="asst-attendu"><span class="asst-attendu-l">You should see:</span> <span>Projects appear in MyFabmesh.AI.</span></div>
+            </div>
+          </div>
+          <details class="asst-manuel">
+            <summary>Manual setup</summary>
+            <ol class="asst-etapes">
+              <li>In Claude Desktop: Settings › Developer › Edit Config.</li>
+              <li>Replace the file content with this text (keep your other servers, if any), save, then restart Claude Desktop.</li>
+            </ol>
+            <pre class="asst-code" id="asst-json" data-i18n-skip></pre>
+            <button type="button" class="ghost-btn asst-petit" data-asst-copier="asst-json">Copy</button>
+          </details>
+        </div>
+        <div class="asst-panneau" data-asst-panneau="code" hidden>
+          <div class="asst-pas">
+            <div class="asst-pas-n">1</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Turn on “Allow Claude and scripts on this PC”</div>
+              <p class="asst-pas-p">Settings › Assistant, or the button below.</p>
+              <div class="asst-action"><button type="button" class="ghost-btn asst-activer">Turn on</button><span class="asst-etat asst-etat-switch" data-i18n-skip></span></div>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">2</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Open a terminal</div>
+              <p class="asst-pas-p">Press the Windows key, type PowerShell, press Enter.</p>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">3</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Paste this command</div>
+              <p class="asst-pas-p">Click Copy, right-click in the terminal, press Enter. Once only.</p>
+              <pre class="asst-code" id="asst-cmd" data-i18n-skip></pre>
+              <button type="button" class="ghost-btn asst-petit" data-asst-copier="asst-cmd">Copy</button>
+              <div class="asst-attendu"><span class="asst-attendu-l">You should see:</span> <span>A line says “fabmesh” was added.</span></div>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">4</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Start Claude Code</div>
+              <p class="asst-pas-p">Type claude, press Enter, then ask: “Make 3 medieval houses in MyFabmesh”.</p>
+            </div>
+          </div>
+        </div>
+        <div class="asst-panneau" data-asst-panneau="scripts" hidden>
+          <div class="asst-pas">
+            <div class="asst-pas-n">1</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Turn on “Allow Claude and scripts on this PC”</div>
+              <p class="asst-pas-p">Settings › Assistant, or the button below.</p>
+              <div class="asst-action"><button type="button" class="ghost-btn asst-activer">Turn on</button><span class="asst-etat asst-etat-switch" data-i18n-skip></span></div>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">2</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Copy the access key</div>
+              <p class="asst-pas-p">Also in Settings › Assistant › Advanced. It changes at each start: copy it again after a restart.</p>
+              <div class="asst-action"><button type="button" class="ghost-btn asst-cle">Copy the key</button></div>
+            </div>
+          </div>
+          <div class="asst-pas">
+            <div class="asst-pas-n">3</div>
+            <div class="asst-pas-c">
+              <div class="asst-pas-t">Send a request</div>
+              <p class="asst-pas-p">Use the address below, with the header “Authorization: Bearer” followed by the key.</p>
+              <pre class="asst-code" id="asst-curl" data-i18n-skip></pre>
+              <button type="button" class="ghost-btn asst-petit" data-asst-copier="asst-curl">Copy</button>
+              <div class="asst-attendu"><span class="asst-attendu-l">You should see:</span> <span>The answer contains “ok”: true.</span></div>
+            </div>
+          </div>
+        </div>
 
         <h3 class="asst-h">Safety</h3>
         <ul class="asst-liste">
-          <li>Off by default. Only programs on this PC can connect, and only with the key.</li>
-          <li>Whoever has the key can use the app like you, cloud credits included.</li>
-          <li>A new key is made at each start. Turn the switch off when you are done.</li>
+          <li>Off by default. Only programs on this PC can connect, and only with the access key.</li>
+          <li>Whoever has the access key can use the app like you, cloud credits included.</li>
+          <li>A new access key is made at each start. Turn the switch off when you are done.</li>
         </ul>
 
         <h3 class="asst-h">Trouble?</h3>
         <ul class="asst-liste">
-          <li>Claude sees no MyFabmesh tools: quit Claude Desktop completely and reopen it.</li>
+          <li>No “fabmesh” in Claude: quit Claude Desktop completely and reopen it.</li>
           <li>“Not reachable”: open MyFabmesh.AI and turn the switch on.</li>
           <li>“Port 7331 is busy”: another copy of MyFabmesh.AI is already running.</li>
+          <li>Status “Linked to another copy”: click Connect Claude Desktop again.</li>
         </ul>
       </div>
       <div class="modal-actions">
