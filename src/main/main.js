@@ -8878,7 +8878,28 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
 // --- Image-to-3D: TRELLIS-2 native (default). SF3D and TripoSR have
 // been retired for non-commercial license; legacy requests for those
 // engines are silently rerouted to trellis2_native. ---
+// Erreur signalee par le PILOTE NVIDIA (journal System de Windows, fournisseur nvlddmkm, ex. evenement 153 « Error occurred on GPUID »).
+// 2026-10-01 : une 3D locale est morte sans trace a la seconde exacte ou le pilote ecrivait cet evenement (un test navigateur demarrait
+// sur la meme carte) ; le message affiche n'en disait rien. Renvoie « HH:MM:SS (evenement N) » du plus recent depuis `depuisMs`, ou null.
+function _evenementPiloteNvidia(depuisMs) {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') return resolve(null);
+    try {
+      const d = new Date(depuisMs);
+      const loc = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
+      const ps = "$t=[DateTime]::ParseExact('" + loc + "','yyyy-MM-ddTHH:mm:ss',$null);"
+        + "Get-WinEvent -FilterHashtable @{LogName='System';ProviderName='nvlddmkm';StartTime=$t} -MaxEvents 1 -ErrorAction SilentlyContinue"
+        + " | ForEach-Object { $_.TimeCreated.ToString('HH:mm:ss') + ' (evenement ' + $_.Id + ')' }";
+      _cp.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 10000, windowsHide: true }, (err, out) => {
+        const t = String(out || '').trim();
+        resolve(!err && t ? t : null);
+      });
+    } catch (_) { resolve(null); }
+  });
+}
+
 ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, rectifyForce, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2MaxTris, assetType }) => {
+  const _departPilote = Date.now();   // pour retrouver un evenement du pilote NVIDIA pendant ce calcul
   let imagePath = _imagePath;
   let engine = _engine;
   // SF3D and TripoSR both disabled at the UI level — Stability AI
@@ -9623,7 +9644,14 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
     } else if (pyErrorLine) {
       errMsg = pyErrorLine;
     }
-    log.error('main', `image-to-3d FAILED: ${pyErrorLine || errMsg}`);
+    // Evenement du pilote NVIDIA pendant ce calcul : on le dit (une autre application graphique peut le declencher).
+    const _pilote = await _evenementPiloteNvidia(_departPilote - 60000);
+    if (_pilote) {
+      errMsg = `Le pilote NVIDIA a signalé une erreur de la carte graphique à ${_pilote.replace('evenement', 'événement')}. `
+        + "Une autre application qui utilise la carte en même temps (navigateur, Unreal, jeu, test…) peut la déclencher : fermez-les et relancez."
+        + (pyErrorLine ? '\n' + errMsg : '');
+    }
+    log.error('main', `image-to-3d FAILED: ${pyErrorLine || errMsg}${_pilote ? ' [pilote NVIDIA : ' + _pilote + ']' : ''}`);
     // Overwrite (not append) so last_error.log doesn't grow unboundedly.
     try {
       fs.writeFileSync(
