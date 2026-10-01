@@ -1964,7 +1964,7 @@ document.getElementById('np-create').addEventListener('click', async () => {
 // 'custom' shows everything (user picks).
 const ASSET_OPTIONS_PROFILE = {
   character: {
-    'ws-trellis2-rectify':      true,   // strict front T-pose
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;   // strict front T-pose
     'ws-trellis2-smooth':       false,  // skin grain is fine
     'ws-trellis2-refine':       true,   // skin pores, hair detail
     'ws-trellis2-quality-plus': true,
@@ -1992,7 +1992,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,   // insects have no human face
   },
   vehicle: {
-    'ws-trellis2-rectify':      true,   // 3/4 iso
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;   // 3/4 iso
     'ws-trellis2-smooth':       true,   // paint, chrome
     'ws-trellis2-refine':       null,   // hallucinates wear on smooth surfaces
     'ws-trellis2-quality-plus': true,
@@ -2001,7 +2001,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   building: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
@@ -2010,7 +2010,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   weapon: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
@@ -2019,7 +2019,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   prop: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
@@ -2028,7 +2028,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   environment: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       true,
     'ws-trellis2-quality-plus': true,
@@ -2037,7 +2037,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   icon: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,   // icons are glossy / clean
     'ws-trellis2-refine':       null,   // no pores/fur on a flat icon
     'ws-trellis2-quality-plus': true,
@@ -2074,7 +2074,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     true,
   },
   custom: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       false,
     'ws-trellis2-quality-plus': true,
@@ -2224,14 +2224,9 @@ function _ajusterAuto3D() {
   const dits = [];
   const rect = visible('ws-trellis2-rectify');
   if (rect && at === 'character') {
-    const s = _auto3dSymetrie && _auto3dSymetrie.sym;
-    if (typeof s === 'number') {
-      rect.checked = s < _AUTO3D_SEUIL_BIAIS;
-      dits.push(rect.checked ? 'Angled view: rectify on' : 'Front view: no rectify');
-    } else {
-      rect.checked = false;
-      dits.push('No rectify (keeps your image as is)');
-    }
+    // JAMAIS coche automatiquement (user 2026-10-01 : « ca modifie trop l'image, du coup on croit que ce n'est pas fiable »).
+    rect.checked = false;
+    dits.push('No rectify (keeps your image as is)');
   } else if (rect) {
     dits.push(rect.checked ? 'Rectify on for this type' : 'No rectify');
   }

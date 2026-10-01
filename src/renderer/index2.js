@@ -2249,7 +2249,7 @@ document.getElementById('np-create').addEventListener('click', async () => {
 // sur le web, meme principe ici : scripts/texture_refine.py, face fix SDXL).
 const ASSET_OPTIONS_PROFILE = {
   character: {
-    'ws-trellis2-rectify':      true,   // strict front T-pose
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;   // strict front T-pose
     'ws-trellis2-smooth':       false,  // skin grain is fine
     // ON: 'refine' sharpens the body. For character/creature, main.js passes
     // --protect-face so texture_refine preserves the face UV island (Tier 2) —
@@ -2293,7 +2293,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,   // insects have no human face
   },
   vehicle: {
-    'ws-trellis2-rectify':      true,   // 3/4 iso
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;   // 3/4 iso
     'ws-trellis2-smooth':       true,   // paint, chrome
     'ws-trellis2-refine':       null,   // hallucinates wear on smooth surfaces
     'ws-trellis2-quality-plus': true,
@@ -2302,7 +2302,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   building: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
@@ -2311,7 +2311,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   weapon: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
@@ -2320,7 +2320,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   prop: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
@@ -2329,7 +2329,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   environment: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
@@ -2338,7 +2338,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   icon: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,   // icons are glossy / clean
     'ws-trellis2-refine':       null,   // no pores/fur on a flat icon
     'ws-trellis2-quality-plus': true,
@@ -2366,7 +2366,7 @@ const ASSET_OPTIONS_PROFILE = {
   },
   // Per-category "Other …" types mirror their category's checkbox profile.
   other_living: {   // like creature (faces possible -> same face-safety as character)
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       false,
     'ws-trellis2-refine':       null,   // safe: main.js passes --protect-face for other_living
     'ws-trellis2-quality-plus': true,
@@ -2375,7 +2375,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,   // OFF: generative face repaint wrecks identity
   },
   other_vehicle: {  // like vehicle (refine OFF on smooth surfaces)
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
@@ -2384,7 +2384,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   other_built: {    // like building
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
@@ -2393,7 +2393,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   other_item: {     // like prop
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
@@ -2402,7 +2402,7 @@ const ASSET_OPTIONS_PROFILE = {
     'ws-trellis2-face-fix':     null,
   },
   custom: {
-    'ws-trellis2-rectify':      true,
+    'ws-trellis2-rectify':      false, // JAMAIS coche automatiquement (user 2026-10-01 : ca modifie trop l'image, on croit que ce n'est pas fiable) ;
     'ws-trellis2-smooth':       true,
     'ws-trellis2-refine':       null,
     'ws-trellis2-quality-plus': true,
@@ -2634,14 +2634,9 @@ function _ajusterAuto3D() {
   const dits = [];
   const rect = visible('ws-trellis2-rectify');
   if (rect && at === 'character') {
-    const s = _auto3dSymetrie && _auto3dSymetrie.sym;
-    if (typeof s === 'number') {
-      rect.checked = s < _AUTO3D_SEUIL_BIAIS;
-      dits.push(rect.checked ? 'Angled view: rectify on' : 'Front view: no rectify');
-    } else {
-      rect.checked = false;
-      dits.push('No rectify (keeps your image as is)');
-    }
+    // JAMAIS coche automatiquement (user 2026-10-01 : « ca modifie trop l'image, du coup on croit que ce n'est pas fiable »).
+    rect.checked = false;
+    dits.push('No rectify (keeps your image as is)');
   } else if (rect) {
     dits.push(rect.checked ? 'Rectify on for this type' : 'No rectify');
   }

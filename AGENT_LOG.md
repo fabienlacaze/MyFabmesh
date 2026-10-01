@@ -24854,3 +24854,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - 2026-10-01 : barres memoire : Windows (part fixe) deplace TOUT A DROITE ; ordre MyFabmesh minimum | MyFabmesh en plus | autres | Windows ; la bande reelle des autres logiciels part du bord gauche de Windows.
 
 - 2026-10-01 : poids de la fenetre sur le GPU (processus GPU d'Electron mesure : 7-8 % Reglages ouverts, ~3 % fermes) : rafraichissement des Reglages 0,5 s -> 1 s, rien si la fenetre est masquee, plus de transition de largeur sur les bandes. A remesurer apres installation.
+
+- 2026-10-01 : AUTO-RECTIFY JAMAIS COCHE AUTOMATIQUEMENT (user : « ca modifie trop l'image, du coup on croit que ce n'est pas fiable »). Bureau ET web : les 12 / 8 profils par type d'asset passent a false, la case n'est plus cochee par defaut dans les deux pages, et « Auto settings » ne la coche plus (avant : coche pour un personnage vu de biais). Reste a faire cote web : deploiement (npm run build puis npm run deploy) avec les autres changements groupes.
