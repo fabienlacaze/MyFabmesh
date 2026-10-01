@@ -20467,6 +20467,54 @@ window.fabmeshJobs = {
   render: () => renderJobs(),
 };
 
+// PAUSE / REPRISE REELLES de la 3D (2026-10-01, scripts/trellis2_reprise.py) : « je clique sur pause et ca libere la RAM et la VRAM
+// jusqu'a ce que je clique sur reprendre ». Le calcul range son etat et QUITTE ; Reprendre le relance au meme pas.
+function _jobPausable(j) {
+  return !!(j && j.status === 'running' && /^Generate 3D/.test(j.name || '') && window.meshyAPI && window.meshyAPI.pauseJob && !_isCloudMode());
+}
+function _boutonPauseHtml(j) {
+  if (!_jobPausable(j)) return '';
+  const lbl = j.paused ? '&#9654;' : (j.pausing ? '&#8943;' : '&#10074;&#10074;');
+  const tip = j.paused ? _i18nT('Resume') : (j.pausing ? _i18nT('Pausing...') : _i18nT('Pause (frees RAM and VRAM)'));
+  return `<button class="job-pause-btn${j.paused ? ' on' : ''}" onclick="event.stopPropagation(); window._togglePauseJob(${j.id})" title="${escapeHtml(tip)}">${lbl}</button>`;
+}
+window._togglePauseJob = async function (id) {
+  const j = state.jobs.find((x) => x.id === id);
+  if (!j || !_jobPausable(j) || j.pausing) return;
+  try {
+    if (j.paused) {
+      const r = await window.meshyAPI.resumeJob(id);
+      if (r && r.ok) { j.paused = false; j.etape = ''; }
+    } else {
+      j.pausing = true; renderJobs();
+      const r = await window.meshyAPI.pauseJob(id);
+      if (!r || !r.ok) { j.pausing = false; showToast(_i18nT('This job cannot be paused right now.'), 'info', 4000); }
+      // sinon : l'evenement job-paused arrive des que le calcul a range son etat (quelques secondes au plus, pendant une etape de calcul)
+    }
+  } catch (e) { j.pausing = false; }
+  renderJobs();
+};
+try {
+  if (window.meshyAPI && window.meshyAPI.onJobPaused) {
+    window.meshyAPI.onJobPaused((m) => {
+      const j = state.jobs.find((x) => x.id === (m && m.jobId));
+      if (j) { j.paused = true; j.pausing = false; j.etape = _i18nT('Paused: RAM and VRAM released'); renderJobs(); }
+    });
+    window.meshyAPI.onJobResumed((m) => {
+      const j = state.jobs.find((x) => x.id === (m && m.jobId));
+      if (j) { j.paused = false; j.pausing = false; j.etape = ''; renderJobs(); }
+    });
+    // apres un rechargement de la page (Ctrl+R) : le calcul etait peut-etre deja en pause cote main
+    setTimeout(async () => {
+      try {
+        const ids = await window.meshyAPI.pausedJobIds();
+        (ids || []).forEach((id) => { const j = state.jobs.find((x) => x.id === id); if (j) { j.paused = true; j.etape = _i18nT('Paused: RAM and VRAM released'); } });
+        renderJobs();
+      } catch (_) {}
+    }, 4000);
+  }
+} catch (_) {}
+
 async function cancelJob(id) {
   const j = state.jobs.find(j => j.id === id);
   if (!j) return;
@@ -20744,6 +20792,7 @@ function renderStepProgressWidgets() {
           <div class="step-progress-item-header">
             ${_iconeCategorieHtml(_jobStepIndex(j), thumbHtml)}
             <div class="step-progress-item-name">${escapeHtml(_displayJobName(j.name))}</div>
+            ${_boutonPauseHtml(j)}
             ${canCancel ? `<button class="step-progress-cancel-btn" onclick="event.stopPropagation(); window._cancelJob(${j.id})" title="Cancel job">&#10005;</button>` : ''}
           </div>
           <div class="step-progress-item-bar">
@@ -20925,6 +20974,7 @@ function renderJobs() {
           ${_iconeCategorieHtml(_jobStepIndex(j), sbThumbHtml)}
           <div class="job-item-2-name">${escapeHtml(_displayJobName(j.name))}</div>
           ${hasStep ? `<button class="job-goto-btn" onclick="event.stopPropagation(); window._navigateToJobStep(${j.id})" title="Jump to this step">Go to</button>` : ''}
+          ${_boutonPauseHtml(j)}
           ${canCancel ? `<button class="job-cancel-btn" onclick="event.stopPropagation(); window._cancelJob(${j.id})" title="Cancel job">&#10005;</button>` : ''}
         </div>
         <div class="job-item-2-bar">
@@ -22266,7 +22316,7 @@ function applyGpuLimitMarkers() {
   if (v) v.title = _i18nT('Drag to share the graphics memory between your other apps and MyFabmesh');
 }
 function isJobRunning() {
-  return state.jobs.some(j => j.status === 'running');
+  return state.jobs.some(j => j.status === 'running' && !j.paused);     // un travail EN PAUSE a rendu sa memoire
 }
 // Minimums per stat — also used by the disabled-zone overlay.
 const GPU_LIMITS_MIN = {
@@ -22651,7 +22701,7 @@ async function hasVramHeadroomFor(kind) {
   // floor(vramLimit / realPeak). A 16 GB card runs 1 TRELLIS at a time, a
   // 48 GB card ~3. The per-project confirm dialog handles same-project dupes.
   if (kind !== 'bg') {
-    const runningHeavy = state.jobs.filter(j => j.status === 'running' && j.kind && j.kind !== 'bg').length;
+    const runningHeavy = state.jobs.filter(j => j.status === 'running' && !j.paused && j.kind && j.kind !== 'bg').length;
     if (runningHeavy > 0) {
       let maxConcurrent = 1;
       try {

@@ -2627,6 +2627,14 @@ button.tool-active {
   border-color: var(--error);
   color: white;
 }
+/* Pause / reprise reelles de la 3D */
+.job-pause-btn {
+  width: 20px; height: 20px; border-radius: 50%; background: transparent; border: 1px solid var(--border-strong);
+  color: var(--text-2); cursor: pointer; font-size: 8px; letter-spacing: -1px; padding: 0; margin-right: 4px;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s;
+}
+.job-pause-btn:hover { background: var(--accent); border-color: var(--accent); color: white; }
+.job-pause-btn.on { background: var(--accent); border-color: var(--accent); color: white; font-size: 9px; letter-spacing: 0; }
 .job-item-2-bar {
   height: 6px;
   background: var(--bg-3);

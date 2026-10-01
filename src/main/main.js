@@ -2964,7 +2964,7 @@ function _runningJobsCount() {
 // which live in allActiveProcs. Counting helpers popped the "jobs running"
 // dialog when nothing was actually generating. _runningJobsCount() (all
 // procs) stays for kill-all / the Settings process panel.
-ipcMain.handle('jobs:running-count', () => { try { return activeProcs ? activeProcs.size : 0; } catch (_) { return 0; } });
+ipcMain.handle('jobs:running-count', () => { try { return (activeProcs ? activeProcs.size : 0) + Array.from(jobCtl.values()).filter((c) => c.paused).length; } catch (_) { return 0; } });   // un travail en pause compte : fermer l'appli le perd
 ipcMain.handle('jobs:kill-all', () => {
   const n = _runningJobsCount();
   killAllActiveProcs();
@@ -3223,6 +3223,9 @@ async function _arreterCalculsOrphelins() {
 
 // Track active Python processes for cancellation
 const activeProcs = new Map(); // jobId -> proc
+// PAUSE / REPRISE REELLES de la 3D (2026-10-01, scripts/trellis2_reprise.py) : jobId -> { ckptDir, paused, relancer, annuler }.
+// En pause le processus n'existe plus (VRAM et RAM rendues) ; `relancer` le relance sur le meme dossier de points de reprise.
+const jobCtl = new Map();
 // Track ALL spawned subprocesses (not just those with a jobId), so cancel-job
 // can kill any orphan even when the calling handler did not pass a jobId.
 const allActiveProcs = new Set();
@@ -3470,8 +3473,30 @@ ipcMain.handle('stop-sdxl-server', () => {
   return { success: true };
 });
 
+// PAUSE : on pose le fichier PAUSE ; le script le voit AVANT le pas suivant, range son etat et quitte (evenement job-paused).
+ipcMain.handle('job:pause', (_e, jobId) => {
+  const c = jobCtl.get(jobId);
+  if (!c || c.paused) return { ok: false, raison: c ? 'already-paused' : 'not-pausable' };
+  try { fs.mkdirSync(c.ckptDir, { recursive: true }); fs.writeFileSync(path.join(c.ckptDir, 'PAUSE'), '1'); } catch (e) { return { ok: false, raison: String(e && e.message) }; }
+  return { ok: true };
+});
+ipcMain.handle('job:resume', (_e, jobId) => {
+  const c = jobCtl.get(jobId);
+  if (!c || !c.paused || !c.relancer) return { ok: false, raison: 'not-paused' };
+  const relancer = c.relancer;
+  c.paused = false; c.relancer = null;
+  try { fs.unlinkSync(path.join(c.ckptDir, 'PAUSE')); } catch (_) {}
+  try { safeSend('job-resumed', { jobId }); } catch (_) {}
+  log.info('main', `image-to-3d: RESUME (job ${jobId})`);
+  relancer();
+  return { ok: true };
+});
+ipcMain.handle('job:paused-ids', () => Array.from(jobCtl.entries()).filter(([, c]) => c.paused).map(([id]) => id));
+
 ipcMain.handle('cancel-job', (event, jobId) => {
   log.info('main', `cancel-job: jobId=${jobId}, killing ${allActiveProcs.size} tracked procs + orphans`);
+  // Travail EN PAUSE : aucun processus a tuer, on rejette la promesse du lancement (qui nettoie les points de reprise).
+  { const c = jobCtl.get(jobId); if (c && c.paused) { c.paused = false; c.relancer = null; try { c.annuler && c.annuler(); } catch (_) {} return true; } }
   // Kill the specific tracked proc if any
   const proc = activeProcs.get(jobId);
   if (proc) {
@@ -8893,11 +8918,20 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
       : ((engine === 'trellis2_native')
           ? path.join(__dirname, '..', '..', 'external', 'TRELLIS2_win', '.venv', 'Scripts', 'python.exe')
           : 'python');
+    // PAUSE / REPRISE REELLES (scripts/trellis2_reprise.py) : un dossier de points de reprise par lancement.
+    const ckptDir = (engine === 'trellis2_native' && jobId) ? meshPath + '.ckpt' : null;
+    if (ckptDir) {
+      try { fs.rmSync(ckptDir, { recursive: true, force: true }); fs.mkdirSync(ckptDir, { recursive: true }); env.FABMESH_CKPT_DIR = ckptDir; } catch (_) {}
+    }
+    const _ctl = (ckptDir && env.FABMESH_CKPT_DIR) ? { ckptDir, paused: false, relancer: null, annuler: null } : null;
+    if (_ctl) jobCtl.set(jobId, _ctl);
     const result = await new Promise((resolve, reject) => {
       let stdoutBuf = '';
       let stderrBuf = '';
       let lastSent = 0;
       let resolvedEarly = false;
+      if (_ctl) _ctl.annuler = () => reject({ error: 'Cancelled', stdout: stdoutBuf, stderr: stderrBuf });
+      const lancer = () => {
       const proc = execFile(_pythonExe, fixedArgs, {
         timeout: 1800000,
         maxBuffer: 50 * 1024 * 1024,
@@ -8905,6 +8939,14 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
       }, (error, stdout, stderr) => {
         if (jobId) activeProcs.delete(jobId);
         if (resolvedEarly) return;
+        // PAUSE : le script a range son etat et quitte avec le code 77 ; on attend « Reprendre » sans rien rejeter ni resoudre.
+        if (_ctl && error && error.code === 77 && /LOCAL_TRELLIS2_PAUSED/.test(String(stdout || ''))) {
+          _ctl.paused = true; _ctl.relancer = lancer;
+          try { fs.unlinkSync(path.join(ckptDir, 'PAUSE')); } catch (_) {}
+          log.info('main', `image-to-3d: PAUSED (job ${jobId}) - process exited, RAM and VRAM released`);
+          safeSend('job-paused', { jobId });
+          return;
+        }
         if (error) { reject({ error: error.message, stdout, stderr }); return; }
         if (!fs.existsSync(meshPath)) { reject({ error: 'GLB not created (Python did not produce output)', stdout, stderr }); return; }
         const stats = fs.statSync(meshPath);
@@ -9097,10 +9139,14 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
         console.error('image-to-3d process error:', err);
         reject({ error: err.message, stdout: stdoutBuf, stderr: stderrBuf });
       });
+      };   // fin de lancer()
+      lancer();
     });
+    if (_ctl) { jobCtl.delete(jobId); try { fs.rmSync(ckptDir, { recursive: true, force: true }); } catch (_) {} }
 
     return { success: true, ...result };
   } catch (err) {
+    { const _c = jobId ? jobCtl.get(jobId) : null; if (_c) { jobCtl.delete(jobId); try { fs.rmSync(_c.ckptDir, { recursive: true, force: true }); } catch (_) {} } }
     let errMsg = err.error || err.message || String(err);
     // Extract the last meaningful Python error line — but SKIP benign import
     // warnings (kaolin's optional ipyevents/visualize import contains the word

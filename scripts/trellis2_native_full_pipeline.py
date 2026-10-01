@@ -790,6 +790,13 @@ def main():
         log('gpu throttle: live GPU load / temperature limits apply between sampler steps')
     except Exception as _e_bride:
         log(f'gpu throttle unavailable for the 3D ({type(_e_bride).__name__}: {_e_bride}) : unthrottled')
+    # PAUSE / REPRISE REELLES (user 2026-10-01) : points de reprise a chaque pas de l'echantillonneur ; voir scripts/trellis2_reprise.py.
+    # Sans FABMESH_CKPT_DIR (lancement hors appli), ne fait rien.
+    try:
+        import trellis2_reprise
+        trellis2_reprise.installer(log)
+    except Exception as _e_reprise:
+        log(f'pause/reprise unavailable ({type(_e_reprise).__name__}: {_e_reprise})')
     pipeline = Trellis2ImageTo3DPipeline.from_pretrained(
         'microsoft/TRELLIS.2-4B')
     pipeline.rembg_model = None  # gated, replaced by external rembg upstream
@@ -922,6 +929,10 @@ def main():
                   f'retrying in the lighter mode {_suivant} (slightly less detailed model)')
               print(f'LOCAL_TRELLIS2_REPLI: {mode} -> {_suivant}', flush=True)
               _cm.mesurer('repli_vram')
+              try:
+                  trellis2_reprise.reinitialiser()      # autre mode : les appels ne correspondent plus aux points de reprise
+              except Exception:
+                  pass
               del e
               outputs = None
               try:
