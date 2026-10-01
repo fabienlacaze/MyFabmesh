@@ -2345,7 +2345,22 @@
           out = document.createElement('canvas');
           out.width = w + pad * 2; out.height = h + pad * 2;
           const c2 = out.getContext('2d');
-          c2.fillStyle = '#ffffff'; c2.fillRect(0, 0, out.width, out.height);
+          // COULEUR DE LA MARGE (2026-10-02, rapport d'essais du 01/10 : « la marge reste blanche ») : mediane du pourtour de l'image quand il est
+          // quasi uniforme (fond de studio beige / gris), blanc sinon. Sur un fond blanc le resultat est identique a avant.
+          let fond = '#ffffff';
+          try {
+            const lecture = document.createElement('canvas'); lecture.width = w; lecture.height = h;
+            const lc = lecture.getContext('2d', { willReadFrequently: true }); lc.drawImage(img, 0, 0);
+            const bandes = [lc.getImageData(0, 0, w, 1).data, lc.getImageData(0, h - 1, w, 1).data, lc.getImageData(0, 0, 1, h).data, lc.getImageData(w - 1, 0, 1, h).data];
+            const canaux = [[], [], []]; let opaque = true;
+            for (const d of bandes) for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 250) opaque = false; canaux[0].push(d[i]); canaux[1].push(d[i + 1]); canaux[2].push(d[i + 2]); }
+            if (opaque) {
+              const med = canaux.map((a) => Float64Array.from(a).sort()[a.length >> 1]);
+              const dev = canaux.map((a, k) => a.reduce((s2, v) => s2 + Math.abs(v - med[k]), 0) / a.length);
+              if (Math.max(...dev) <= 22) fond = 'rgb(' + med.join(',') + ')';
+            }
+          } catch (_) { /* lecture impossible : marge blanche comme avant */ }
+          c2.fillStyle = fond; c2.fillRect(0, 0, out.width, out.height);
           c2.drawImage(img, pad, pad);
         } else if (operation === 'brightness') {
           ctx.filter = `brightness(${p.brightness ?? 1}) contrast(${p.contrast ?? 1}) saturate(${p.saturation ?? 1})`;

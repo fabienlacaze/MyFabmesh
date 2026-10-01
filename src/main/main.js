@@ -6966,7 +6966,20 @@ function _quickEditNative(operation, imagePath, outPath, p) {
       for (let i = 3; i < src.length; i += 4) { if (src[i] < 250) { hasAlpha = true; break; } }
       const nw = w + pad * 2, nh = h + pad * 2;
       const dst = Buffer.alloc(nw * nh * 4, 0);
-      if (!hasAlpha) dst.fill(255);
+      if (!hasAlpha) {
+        // COULEUR DE LA MARGE (2026-10-02, rapport d'essais du 01/10 : « la marge reste blanche ») : mediane du pourtour de l'image quand il est
+        // quasi uniforme (fond de studio beige / gris), blanc sinon. Sur un fond blanc le resultat est identique a avant.
+        const bs = [], gs = [], rs = [];
+        const voir = (x, y) => { const i = (y * w + x) * 4; bs.push(src[i]); gs.push(src[i + 1]); rs.push(src[i + 2]); };
+        for (let x = 0; x < w; x++) { voir(x, 0); voir(x, h - 1); }
+        for (let y = 0; y < h; y++) { voir(0, y); voir(w - 1, y); }
+        const med = (a) => { const t = Float64Array.from(a).sort(); return t[t.length >> 1]; };
+        const mb = med(bs), mg = med(gs), mr = med(rs);
+        const dev = (a, m) => a.reduce((s2, v) => s2 + Math.abs(v - m), 0) / a.length;
+        const uniforme = Math.max(dev(bs, mb), dev(gs, mg), dev(rs, mr)) <= 22;
+        const [fb, fg, fr] = uniforme ? [mb, mg, mr] : [255, 255, 255];
+        for (let i = 0; i < dst.length; i += 4) { dst[i] = fb; dst[i + 1] = fg; dst[i + 2] = fr; dst[i + 3] = 255; }
+      }
       for (let y = 0; y < h; y++) {
         src.copy(dst, ((y + pad) * nw + pad) * 4, y * w * 4, (y + 1) * w * 4);
       }
@@ -7163,7 +7176,14 @@ from PIL import Image
 img = Image.open(r"${imagePath}")
 w, h = img.size
 pad = int(max(w, h) * ${p.padding || 0.2})
-out = Image.new(img.mode, (w + pad*2, h + pad*2), (255,255,255) if img.mode == 'RGB' else (255,255,255,0))
+bg = (255,255,255) if img.mode == 'RGB' else (255,255,255,0)
+if img.mode == 'RGB':
+    # marge a la couleur du pourtour quand il est quasi uniforme (blanc sinon)
+    edge = [img.getpixel((x,0)) for x in range(w)] + [img.getpixel((x,h-1)) for x in range(w)] + [img.getpixel((0,y)) for y in range(h)] + [img.getpixel((w-1,y)) for y in range(h)]
+    med = tuple(sorted(c[i] for c in edge)[len(edge)//2] for i in range(3))
+    dev = max(sum(abs(c[i]-med[i]) for c in edge)/len(edge) for i in range(3))
+    if dev <= 22: bg = med
+out = Image.new(img.mode, (w + pad*2, h + pad*2), bg)
 out.paste(img, (pad, pad))
 out.save(r"${outPath}")
 print("OK")`,
