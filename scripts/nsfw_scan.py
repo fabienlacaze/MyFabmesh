@@ -25,6 +25,14 @@ def main():
     results = {}
     todo = []
     for p in paths:
+        # un verdict plus ANCIEN que l'image (image remplacee) ne vaut plus : on le supprime et on rescanne
+        try:
+            m_img = os.path.getmtime(p)
+            for ext in ('.nsfw', '.nsfwok'):
+                if os.path.exists(p + ext) and os.path.getmtime(p + ext) < m_img - 1:
+                    os.remove(p + ext)
+        except OSError:
+            pass
         if os.path.exists(p + '.nsfw'):
             results[p] = True
         elif os.path.exists(p + '.nsfwok'):

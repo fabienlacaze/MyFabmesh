@@ -3390,6 +3390,20 @@ ipcMain.handle('toggle-unrestricted', (_event, { pin, enable }) => {
   return { success: true, unrestricted: true };
 });
 
+// VERDICT MEMORISE PERIME (2026-10-01, user : une image d'alien « sensible » alors qu'elle est propre ; les deux modeles la jugent saine) :
+// le verdict (.nsfw / .nsfwok) est range A COTE de l'image. Si l'image est REMPLACEE (meme nom, nouvelle generation), l'ancien verdict ne
+// s'applique plus : un verdict plus ANCIEN que l'image est supprime et l'image est rescannee.
+function _purgerVerdictPerime(imgPath) {
+  try {
+    if (!fs.existsSync(imgPath)) return;
+    const mImg = fs.statSync(imgPath).mtimeMs;
+    for (const ext of ['.nsfw', '.nsfwok']) {
+      const side = imgPath + ext;
+      if (fs.existsSync(side) && fs.statSync(side).mtimeMs < mImg - 1000) { try { fs.unlinkSync(side); } catch (_) {} }
+    }
+  } catch (_) {}
+}
+
 // Instant NSFW check: look for .nsfw tag files in a project's image folder.
 // Returns true if ANY image in the folder has a .nsfw sidecar file.
 // This is O(1) per project (just readdir + filter), no Python, no AI model.
@@ -3397,7 +3411,9 @@ ipcMain.handle('check-project-nsfw', (_event, { folderPath }) => {
   if (isUnrestrictedMode()) return { nsfw: false };
   if (!folderPath || !fs.existsSync(folderPath)) return { nsfw: false };
   try {
-    const files = fs.readdirSync(folderPath);
+    let files = fs.readdirSync(folderPath);
+    for (const f of files) { if (f.endsWith('.nsfw')) _purgerVerdictPerime(path.join(folderPath, f.slice(0, -5))); }
+    files = fs.readdirSync(folderPath);
     const hasNsfwTag = files.some(f => f.endsWith('.nsfw'));
     return { nsfw: hasNsfwTag };
   } catch (_) { return { nsfw: false }; }
@@ -3408,6 +3424,7 @@ ipcMain.handle('check-images-nsfw-tags', (_event, { images }) => {
   if (isUnrestrictedMode()) return {};
   const results = {};
   for (const imgPath of (images || [])) {
+    _purgerVerdictPerime(imgPath);
     results[imgPath] = fs.existsSync(imgPath + '.nsfw');
   }
   return results;
@@ -3479,6 +3496,7 @@ ipcMain.handle('batch-check-nsfw', async (_event, { images }) => {
   const decided = {};
   const toScan = [];
   for (const p of imgList) {
+    _purgerVerdictPerime(p);
     if (fs.existsSync(p + '.nsfw'))        decided[p] = true;
     else if (fs.existsSync(p + '.nsfwok')) decided[p] = false;
     else                                   toScan.push(p);
