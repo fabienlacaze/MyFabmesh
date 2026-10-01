@@ -8940,13 +8940,28 @@ function _cropUpdateLabel() {
 
 // Presets
 function _cropSetPreset(aspect, id) {
+  /* AUTO CENTER (2026-10-02, rapport d'essais du 01/10 : « Auto center remplace le ratio choisi par un carre (819 x 819) : le 16:9 est perdu »).
+   * Avant : le cadre repartait a 80 % de l'image ET le ratio verrouille etait efface. Maintenant « Auto center » ne fait que RECENTRER : le ratio
+   * choisi (1:1, 4:3, 16:9) est conserve ; en mode libre, la taille du cadre est conservee (80 % de l'image si aucun cadre n'a encore ete trace). */
+  const recentrer = (aspect === 'center');
+  if (recentrer) aspect = cropState.aspect;
+  const ratioVerrouille = (typeof aspect === 'number' && aspect > 0);
   document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
-  document.getElementById(id)?.classList.add('tool-active');
+  if (recentrer && ratioVerrouille) {
+    const marque = [[1, 'crop-preset-1-1'], [4 / 3, 'crop-preset-4-3'], [16 / 9, 'crop-preset-16-9']].find(([r]) => Math.abs(r - aspect) < 0.01);
+    document.getElementById(marque ? marque[1] : id)?.classList.add('tool-active');
+  } else {
+    document.getElementById(id)?.classList.add('tool-active');
+  }
   cropState.aspect = aspect;
-  if (aspect === 'center') {
-    cropState.x1 = 0.1; cropState.y1 = 0.1; cropState.x2 = 0.9; cropState.y2 = 0.9;
+  if (recentrer && !ratioVerrouille) {
+    const bw = Math.abs(cropState.x2 - cropState.x1), bh = Math.abs(cropState.y2 - cropState.y1);
+    const pleine = bw > 0.98 && bh > 0.98;                    // cadre = image entiere : rien n'a encore ete trace
+    const cw = pleine ? 0.8 : bw, ch = pleine ? 0.8 : bh;
+    cropState.x1 = (1 - cw) / 2; cropState.x2 = (1 + cw) / 2;
+    cropState.y1 = (1 - ch) / 2; cropState.y2 = (1 + ch) / 2;
     cropState.aspect = null;
-  } else if (typeof aspect === 'number' && aspect > 0) {
+  } else if (ratioVerrouille) {
     const W = cropState.w, H = cropState.h;
     if (W && H) {
       let cwn = 0.9;
