@@ -3440,6 +3440,7 @@
         const r = await fetch('/api/modal-status', { credentials: 'include' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
+        { const m = document.getElementById('warm-msg'); if (m && /^State unavailable/.test(m.textContent)) m.textContent = ''; }   // une erreur passagere ne reste plus affichee
         for (const el of document.querySelectorAll('#warm-grid .warm-carte')) {
           const cible = el.getAttribute('data-cible');
           const cfg = WARM_CARTES[cible];
@@ -3452,7 +3453,8 @@
             + '<button class="btn" data-warm="' + cible + '" style="width:100%;">🔥 Warm</button>';
         }
       } catch (e) {
-        document.getElementById('warm-msg').textContent = 'State unavailable: ' + (e && e.message ? e.message : e);
+        // Les cartes deja dessinees restent (le suivi rappelle toutes les 5 s) : seul le message dit que le rafraichissement a echoue.
+        document.getElementById('warm-msg').textContent = 'State unavailable: ' + (e && e.message ? e.message : e) + ' (retrying)';
       }
     }
     async function warmLancer(cibles) {
