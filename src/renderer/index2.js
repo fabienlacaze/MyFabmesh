@@ -1157,7 +1157,10 @@ async function _getNsfwKeywords() {
   return ['nude','naked','nsfw','porn','sex','gore','blood','murder','kill','drug','terrorist'];
 }
 // NSFW scan cache: { filename: true/false }
+// Cle = CHEMIN COMPLET normalise, JAMAIS le nom du fichier (2026-10-02, user : « je vois plus bus », « je vois qu'un seul projet ») : presque tous les projets ont une
+// image « ref_0.png » ; le verdict d'un seul (nude_woman, bloque a juste titre) cachait donc les sept autres. Le nom reste utilise pour l'AFFICHAGE du message.
 const _nsfwScanCache = {};
+const _nsfwCle = (p) => String(p || '').split('?')[0].replace(/\\/g, '/').toLowerCase();
 let _nsfwScanRunning = false;
 
 /** POURQUOI un projet est bloque par le filtre de contenu (2026-09-30, user : « il faut une popup pour prevenir quand un element genere est bloque par le
@@ -1189,12 +1192,12 @@ async function _nsfwRaison(p) {
     const imgPath = img.path || img;
     if (!imgPath) continue;
     const fname = imgPath.split(/[/\\]/).pop();
-    if (_nsfwScanCache[fname]) return { type: 'image', fichier: fname };
+    if (_nsfwScanCache[_nsfwCle(imgPath)]) return { type: 'image', fichier: fname };
   }
   // 4. Miniature affichee (projets sans image, dont la vignette vient d'un maillage)
   if (p.thumb) {
     const tname = String(p.thumb).split(/[/\\]/).pop();
-    if (_nsfwScanCache[tname]) return { type: 'image', fichier: tname };
+    if (_nsfwScanCache[_nsfwCle(p.thumb)]) return { type: 'image', fichier: tname };
     if (API.checkImagesNsfwTags) {
       try {
         const tags = await API.checkImagesNsfwTags({ images: [String(p.thumb)] });
@@ -1308,7 +1311,7 @@ async function _runNsfwBackgroundScan() {
   for (const p of state.projects) {
     if (!p.thumb) continue;
     const fname = p.thumb.split(/[/\\]/).pop();
-    if (fname in _nsfwScanCache) continue;
+    if (_nsfwCle(p.thumb) in _nsfwScanCache) continue;
     toScan.push(p.thumb);
   }
   if (toScan.length === 0) { console.log('[NSFW] nothing to scan'); return; }
@@ -1333,7 +1336,7 @@ async function _runNsfwBackgroundScan() {
           } else continue;
           if (!imgPath) continue;
           const fname = imgPath.split(/[/\\]/).pop();
-          _nsfwScanCache[fname] = nsfw;
+          _nsfwScanCache[_nsfwCle(imgPath)] = nsfw;
           if (nsfw) { changed = true; console.log('[NSFW] BLOCKED:', fname, imgPath); }
         }
       } else {
@@ -1342,7 +1345,7 @@ async function _runNsfwBackgroundScan() {
           // Defensive: skip wrapper-style keys.
           if (imgPath === 'ok' || imgPath === 'results') continue;
           const fname = imgPath.split(/[/\\]/).pop();
-          _nsfwScanCache[fname] = !!nsfw;
+          _nsfwScanCache[_nsfwCle(imgPath)] = !!nsfw;
           if (nsfw) { changed = true; console.log('[NSFW] BLOCKED:', fname, imgPath); }
         }
       }
@@ -2892,7 +2895,7 @@ document.getElementById('btn-import-image')?.addEventListener('click', async () 
       const nsfwResult = await API.batchCheckNsfw({ images: [result.path] });
       const isNsfw = nsfwResult && nsfwResult[result.path] && nsfwResult[result.path].nsfw;
       if (isNsfw) {
-        _nsfwScanCache[result.path.split(/[/\\]/).pop()] = true;
+        _nsfwScanCache[_nsfwCle(result.path)] = true;
       }
     } catch (e) { console.warn('[import] NSFW scan failed:', e); }
   }
