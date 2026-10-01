@@ -22951,6 +22951,29 @@ function renderQueueIndicator() {
 // Set true while the user is dragging a limit handle so the 500ms
 // polling skips its DOM/IPC work and the drag stays smooth.
 let _draggingGpuLimit = false;
+// CHARGE GPU / PROCESSEUR REPARTIE (user 2026-10-01) : la bande qui part de la DROITE = les AUTRES logiciels ; la fine bande dans le violet
+// (depuis la gauche) = MyFabmesh. Mesure par processus cote main (load:split), rafraichie ~2 s.
+let _splitCharge = null, _splitDate = 0;
+function _majBandesCharge() {
+  const sp = _splitCharge;
+  const poser = (fillId, mineId, limitPct, nous, autres, total) => {
+    const fill = document.getElementById(fillId), mine = document.getElementById(mineId);
+    if (fill) fill.style.width = (sp && sp.ok ? autres : total) + '%';
+    if (mine) {
+      const lim = Math.max(1, Math.min(100, limitPct));
+      mine.style.left = '4px'; mine.style.right = 'auto';
+      mine.style.width = 'calc((100% - 8px) * ' + (lim / 100) + ')';
+      mine.style.setProperty('--reste-m', (sp && sp.ok ? 100 - Math.min(100, nous / lim * 100) : 100) + '%');
+    }
+  };
+  poser('set-gpu-util-fill', 'set-gpu-util-mine', gpuLimits.util, sp ? sp.gpuNous : 0, sp ? sp.gpuAutres : 0, window.__gpuTotalUtil || 0);
+  poser('set-cpu-fill', 'set-cpu-mine', gpuLimits.cpu, sp ? sp.cpuNous : 0, sp ? sp.cpuAutres : 0, window.__cpuTotalPct || 0);
+}
+async function _rafraichirSplitCharge() {
+  if (Date.now() - _splitDate < 2000 || !API.loadSplit) return;
+  _splitDate = Date.now();
+  try { _splitCharge = await API.loadSplit(); _majBandesCharge(); } catch (_) {}
+}
 async function refreshGpuStats() {
   if (_draggingGpuLimit) return;
   // Sans carte NVIDIA (ou en mode Cloud) : aucune sonde matérielle, la carte
@@ -22972,7 +22995,7 @@ async function refreshGpuStats() {
     // GPU utilization
     const util = gpu.gpuUtil || 0;
     document.getElementById('set-gpu-util-val').textContent = util.toFixed(0) + ' %';
-    document.getElementById('set-gpu-util-fill').style.width = util + '%';
+    window.__gpuTotalUtil = util; _rafraichirSplitCharge(); _majBandesCharge();
     document.querySelector('.gpu-bar[data-stat="util"]')?.classList.remove('over-limit');  // GPU at 100% is normal — never flag it red
     // Temperature (scale 0-100°C → 0-100% bar, red zone after 80)
     const temp = gpu.tempC || 0;
@@ -22990,7 +23013,7 @@ async function refreshGpuStats() {
       const ramValEl = document.getElementById('set-ram-val');
       if (ramValEl) ramValEl.textContent = _i18nTf('{x} of {y} GB used', ram.usedGB.toFixed(1), ram.totalGB.toFixed(1));
       try {
-        if (API.cpuUsage) { const c = await API.cpuUsage(); window.__cpuThreads = c.threads; window.__cpuModel = c.model || ''; const cv = document.getElementById('set-cpu-val'), cf = document.getElementById('set-cpu-fill'); if (cv) cv.textContent = `${c.pct} %`; if (cf) cf.style.width = c.pct + '%'; }
+        if (API.cpuUsage) { const c = await API.cpuUsage(); window.__cpuThreads = c.threads; window.__cpuModel = c.model || ''; const cv = document.getElementById('set-cpu-val'), cf = document.getElementById('set-cpu-fill'); if (cv) cv.textContent = `${c.pct} %`; window.__cpuTotalPct = c.pct; _rafraichirSplitCharge(); _majBandesCharge(); }
         if (API.diskFree) { const d = await API.diskFree(); if (d) { const dv = document.getElementById('set-disk-val'), dt = document.getElementById('set-disk-txt'); if (dv) dv.textContent = _i18nTf('{x} GB free ({y})', d.freeGB.toFixed(0), d.drive); if (dt) { dt.textContent = d.freeGB < 70 ? _i18nT('· low: the models need about 60 GB') : _i18nT('· enough for the models (~60 GB)'); dt.classList.toggle('short', d.freeGB < 70); } } }
       } catch (_) {}
       _cachedTotalRamGB = ram.totalGB; _lastRamUsedGB = ram.usedGB; try { majLignesLimites(); } catch (_) {}

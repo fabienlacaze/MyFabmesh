@@ -7580,6 +7580,56 @@ ipcMain.handle('cpu-usage', () => {
   let modele = ''; try { modele = String((os.cpus()[0] || {}).model || '').replace(/\(R\)|\(TM\)|\bCPU\b|@.*$/gi, '').replace(/\s+/g, ' ').trim(); } catch (_) {}
   return { pct: Math.max(0, Math.min(100, pct)), threads: os.cpus().length, model: modele };
 });
+// CHARGE GPU / PROCESSEUR : part de MyFabmesh et part des AUTRES logiciels (2026-10-01, user : « la barre qui part de droite, c'est celle
+// des autres applis »). Compteurs Windows par processus (classes WMI, independantes de la langue) : GPU Engine (par pid) et Process.
+// « Nous » = processus de l'appli (Electron) + calculs suivis (Python des travaux, serveur d'images). Une requete a la fois.
+let _splitEnCours = null, _splitDernier = { gpuNous: 0, gpuAutres: 0, cpuNous: 0, cpuAutres: 0, ok: false, t: 0 };
+function _pidsNous() {
+  const s = new Set([process.pid]);
+  try { for (const m of app.getAppMetrics()) s.add(m.pid); } catch (_) {}
+  try { for (const p of allActiveProcs) if (p && p.pid) s.add(p.pid); } catch (_) {}
+  try { for (const p of activeProcs.values()) if (p && p.pid) s.add(p.pid); } catch (_) {}
+  try { if (sdxlProc && sdxlProc.pid) s.add(sdxlProc.pid); } catch (_) {}
+  return s;
+}
+ipcMain.handle('load:split', () => {
+  if (Date.now() - _splitDernier.t < 1500) return _splitDernier;
+  if (_splitEnCours) return _splitEnCours;
+  const script = "$g = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue | Where-Object { $_.UtilizationPercentage -gt 0 } | ForEach-Object { '{0}|{1}' -f $_.Name, $_.UtilizationPercentage }; "
+    + "$c = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process -ErrorAction SilentlyContinue | Where-Object { $_.PercentProcessorTime -gt 0 -and $_.Name -ne '_Total' -and $_.Name -ne 'Idle' } | ForEach-Object { '{0}|{1}' -f $_.IDProcess, $_.PercentProcessorTime }; "
+    + "'GPU'; $g; 'CPU'; $c";
+  _splitEnCours = new Promise((resolve) => {
+    try {
+      execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { timeout: 8000, windowsHide: true }, (err, stdout) => {
+        const fin = (r) => { _splitDernier = { ...r, t: Date.now() }; _splitEnCours = null; resolve(_splitDernier); };
+        if (err || !stdout) return fin({ gpuNous: 0, gpuAutres: 0, cpuNous: 0, cpuAutres: 0, ok: false });
+        const nous = _pidsNous();
+        const gpuPid = {};                  // par processus : le moteur le plus charge (comme le Gestionnaire des taches)
+        const cpuPid = {};
+        let mode = '';
+        for (const l of String(stdout).split(/\r?\n/)) {
+          const t = l.trim();
+          if (t === 'GPU' || t === 'CPU') { mode = t; continue; }
+          const p = t.split('|');
+          if (p.length < 2) continue;
+          if (mode === 'GPU') {
+            const m = /pid_(\d+)_/.exec(p[0]);
+            if (m) gpuPid[m[1]] = Math.max(gpuPid[m[1]] || 0, parseFloat(p[1]) || 0);
+          } else if (mode === 'CPU') {
+            cpuPid[p[0]] = (cpuPid[p[0]] || 0) + (parseFloat(p[1]) || 0);
+          }
+        }
+        let gN = 0, gA = 0, cN = 0, cA = 0;
+        for (const [pid, v] of Object.entries(gpuPid)) { if (nous.has(parseInt(pid, 10))) gN += v; else gA += v; }
+        const fils = Math.max(1, os.cpus().length);
+        for (const [pid, v] of Object.entries(cpuPid)) { if (nous.has(parseInt(pid, 10))) cN += v; else cA += v; }
+        fin({ gpuNous: Math.min(100, Math.round(gN)), gpuAutres: Math.min(100, Math.round(gA)),
+              cpuNous: Math.min(100, Math.round(cN / fils)), cpuAutres: Math.min(100, Math.round(cA / fils)), ok: true });
+      });
+    } catch (_) { _splitEnCours = null; resolve(_splitDernier); }
+  });
+  return _splitEnCours;
+});
 ipcMain.handle('disk-free', () => {
   try {
     const dir = app.getPath('userData');

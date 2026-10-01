@@ -294,6 +294,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   loadLandmarks: (opts) => ipcRenderer.invoke('load-landmarks', opts),
   analyzeSkeleton: (opts) => ipcRenderer.invoke('analyze-skeleton', opts),
   cancelJob: (jobId) => ipcRenderer.invoke('cancel-job', jobId),
+  loadSplit: () => ipcRenderer.invoke('load:split'),
   gpuList: () => ipcRenderer.invoke('gpu:list'),
   gpuSetChoice: (choix) => ipcRenderer.invoke('gpu:set-choice', choix),
   gpuPrepare: () => ipcRenderer.invoke('gpu:prepare'),
