@@ -29045,8 +29045,15 @@ async function showCloudLoginModal(opts = {}) {
     ov.id = 'cloud-login-overlay';
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100000;display:flex;align-items:center;justify-content:center;';
     ov.innerHTML = `
-      <div style="background:#15151f;border:1px solid #3a3a4a;border-radius:12px;padding:22px;width:360px;box-shadow:0 12px 40px rgba(0,0,0,.6);">
-        <h3 style="margin:0 0 6px;font-size:16px;color:#eee;" data-i18n>Sign in to MyFabmesh Cloud</h3>
+      <style>
+        #cloud-login-overlay input:focus{border-color:#a855f7 !important;outline:none;box-shadow:0 0 0 3px rgba(168,85,247,.28)}
+        #cloud-login-overlay input::placeholder{color:#7d7d92}
+        #cloud-login-overlay .lien-discret{color:#b79cff;text-decoration:none;font-weight:600}
+        #cloud-login-overlay .lien-discret:hover{text-decoration:underline}
+        #cloud-login-overlay .lien-discret:focus-visible,#cloud-login-overlay button:focus-visible{outline:2px solid #a855f7;outline-offset:2px;border-radius:4px}
+      </style>
+      <div style="background:#15151f;border:1px solid #3a3a4a;border-radius:14px;padding:26px 26px 22px;width:400px;max-width:92vw;box-shadow:0 14px 46px rgba(0,0,0,.65);">
+        <h3 style="margin:0 0 8px;font-size:19px;font-weight:700;color:#f3f3f8;" data-i18n>Sign in to MyFabmesh Cloud</h3>
         <p style="margin:0 0 14px;font-size:14px;color:#9aa;line-height:1.5;" data-i18n>No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).</p>
         <input id="cl-email" type="email" placeholder="Email" autocomplete="username"
                style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:9px 10px;border-radius:8px;border:1px solid #3a3a4a;background:#0f0f16;color:#eee;font-size:13px;">
@@ -29060,9 +29067,9 @@ async function showCloudLoginModal(opts = {}) {
                style="display:none;width:100%;box-sizing:border-box;margin-bottom:6px;padding:9px 10px;border-radius:8px;border:1px solid #3a3a4a;background:#0f0f16;color:#eee;font-size:13px;letter-spacing:2px;">
         <div id="cl-err" style="min-height:16px;font-size:13px;color:#f66;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;">
-          <span style="display:flex;flex-direction:column;gap:3px;">
-            <a href="#" id="cl-signup" style="font-size:13px;color:#8ab4ff;" data-i18n>Create an account</a>
-            <a href="#" id="cl-forgot" style="font-size:13px;color:#8ab4ff;" data-i18n>Forgot password?</a>
+          <span style="display:flex;flex-direction:column;gap:6px;">
+            <a href="#" id="cl-signup" class="lien-discret" style="font-size:14px;" data-i18n>Create an account</a>
+            <a href="#" id="cl-forgot" class="lien-discret" style="font-size:14px;" data-i18n>Forgot password?</a>
           </span>
           <div style="display:flex;gap:8px;">
             <button id="cl-cancel" style="background:#2a2a3a;color:#ddd;border:1px solid #3a3a4a;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;" data-i18n>Cancel</button>
@@ -31573,7 +31580,7 @@ function ouvrirJournalVersion() {
   const lignes = groupes.map((g, gi) => `<details class="mj-version"${gi === 0 ? ' open' : ''}><summary>v${esc(g.v)} <span class="mj-n">${g.jours.reduce((n, x) => n + x.l.length, 0)}</span></summary>${g.jours.map((jr) => `<div class="mj-jour">${esc(jr.d)}</div><ul class="mj-liste">${jr.l.map((x) => `<li><span class="mj-build">${x.n ? '#' + esc(x.n) : ''}</span><span class="mj-txt">${esc(x.t)}</span></li>`).join('')}</ul>`).join('')}</details>`).join('');
   m.innerHTML = `<div class="modal-card" style="max-width:680px;width:92vw;">
     <div class="fen-tete"><h2>${esc(t('Latest changes'))}</h2><button type="button" class="settings-close-x" id="mj-close" title="Close">&#10005;</button></div>
-    <p class="modal-subtitle">v${esc(b.version)} · build ${esc(b.build)}${b.sale ? ' *' : ''} · ${esc(b.date)} · ${esc(b.hash)}${b.sale ? ' — ' + esc(t('changes in progress, not yet saved')) : ''}</p>
+    <p class="modal-subtitle">v${esc(b.version)} · build ${esc(b.build)}${b.sale ? ' *' : ''} · ${esc(b.date)} · ${esc(b.hash)}${b.sale ? ' — ' + esc(String(t('includes changes not saved yet, so the list below stops at #{x}')).replace('{x}', String(Number(b.build) - 1))) : ''}</p>
     <div class="mj-corps">${lignes || '—'}</div>
     <div class="modal-actions"><button class="primary-btn" id="mj-ok">${esc(t('Close'))}</button></div></div>`;
   document.body.appendChild(m);

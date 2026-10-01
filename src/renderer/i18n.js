@@ -1413,6 +1413,7 @@
       'Now: {x} °C': 'Maintenant : {x} °C',
       'The two thin lines: what is used right now': 'Les deux fines lignes : ce qui est utilisé en ce moment',
       'MyFabmesh now': 'MyFabmesh maintenant',
+      'includes changes not saved yet, so the list below stops at #{x}': "contient des modifications pas encore enregistrées : la liste ci-dessous s'arrête à #{x}",
       'Version {x} is available. Use the banner at the top to download and install it.': "La version {x} est disponible. Utilisez la bannière en haut pour la télécharger et l'installer.",
       'You are running the latest version ({x}).': "Vous utilisez la dernière version ({x}).",
       'Full speed': 'Pleine vitesse',
