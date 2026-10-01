@@ -80,6 +80,33 @@ def _stub_mvadapter_optional_deps():
         if parent is not None and parent in sys.modules:
             setattr(sys.modules[parent], name.split('.')[-1], mod)
 
+    # jaxtyping / typeguard / omegaconf (2026-10-02) : MV-Adapter ne s'en sert que pour ANNOTER ses types (mvadapter/utils/typing.py : `Float[Tensor, "B C"]`,
+    # `@typechecked`, `DictConfig`). Ni l'un ni l'autre n'est dans l'environnement de l'appli ; plutot que d'installer des paquets chez l'utilisateur, on fournit
+    # des annotations inertes (sans effet a l'execution), seulement quand les vrais modules manquent.
+    for _vrai in ('jaxtyping', 'typeguard', 'omegaconf'):
+        try:
+            importlib.import_module(_vrai)
+        except Exception:
+            sys.modules.pop(_vrai, None)
+            _m = types.ModuleType(_vrai)
+            _m.__spec__ = ModuleSpec(_vrai, loader=None)
+            if _vrai == 'jaxtyping':
+                class _Annotation:
+                    def __class_getitem__(cls, item):
+                        return cls
+                for _n in ('Bool', 'Complex', 'Float', 'Inexact', 'Int', 'Integer', 'Num', 'Shaped', 'UInt'):
+                    setattr(_m, _n, type(_n, (_Annotation,), {}))
+            elif _vrai == 'omegaconf':
+                _m.DictConfig = type('DictConfig', (dict,), {})
+                _m.ListConfig = type('ListConfig', (list,), {})
+            else:
+                def _typechecked(*a, **k):
+                    if len(a) == 1 and callable(a[0]) and not k:
+                        return a[0]
+                    return lambda f: f
+                _m.typechecked = _typechecked
+            sys.modules[_vrai] = _m
+
 
 _stub_mvadapter_optional_deps()
 
@@ -189,8 +216,11 @@ def generate(input_image_path, output_dir, num_steps=50,
     dtype = torch.float16 if device == 'cuda' else torch.float32
 
     vae = AutoencoderKL.from_pretrained(vae_model, torch_dtype=dtype)
+    # VARIANTE fp16 (2026-10-02) : sans elle, diffusers veut les poids pleine precision de SDXL (~13 Go) ; la variante demi-precision (~7 Go) est
+    # celle qui tient en memoire sur la carte et qui est prechargee a l'installation du moteur.
     pipe = MVAdapterI2MVSDXLPipeline.from_pretrained(
-        base_model, vae=vae, torch_dtype=dtype)
+        base_model, vae=vae, torch_dtype=dtype,
+        **({'variant': 'fp16'} if device == 'cuda' else {}))
 
     # Scheduler shift (paper default for i2mv-sdxl)
     pipe.scheduler = ShiftSNRScheduler.from_scheduler(
