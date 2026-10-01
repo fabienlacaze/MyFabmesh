@@ -22148,7 +22148,7 @@ function majLignesLimites() {
     const need = Number(lourd.go) || 0;
     const outil = _i18nT(lourd.outil || '?');
     const libre = b ? (!b.appliActive && !isJobRunning()) : false;
-    if (usedGB != null && libre) _autresUsageGo[nom] = usedGB;
+    if (usedGB != null && libre) _autresUsageGo[nom] = Math.max(0, usedGB - plancher);     // l'usage mesure inclut Windows lui-meme : sa part fixe (plancher) est deja a gauche de la barre
     const autres = _autresUsageGo[nom];
     const reserveMaxGB = Math.max(0, totalGB - plancher - need);
     const maxPct = Math.max(0, Math.floor(reserveMaxGB / totalGB * 1000) / 10);
@@ -22164,7 +22164,7 @@ function majLignesLimites() {
     const autresGB = autres == null ? 0 : autres;
     const partGB = Math.max(0, totalGB - plancher - Math.max(reserveGB, autresGB));
     const tropGB = Math.max(0, Math.min(autresGB - reserveGB, totalGB - plancher - reserveGB));
-    const mfmUseGB = (!libre && usedGB != null) ? Math.max(0, Math.min(partGB, usedGB - autresGB)) : 0;
+    const mfmUseGB = (!libre && usedGB != null) ? Math.max(0, Math.min(partGB, usedGB - plancher - autresGB)) : 0;
     parts[nom] = { partGB, autres, reserveGB };
     _geoPartage[nom] = { totalGB, plancherGB: plancher + Math.min(need, Math.max(0, totalGB - plancher)), reserveMaxGB, maxPct };
     // 2026-09-30 (demande du user) : Windows | MyFabmesh minimum (fixe, violet fonce) | autres logiciels (leur reserve, gris clair) | depassement |
@@ -22184,7 +22184,7 @@ function majLignesLimites() {
     // bande rouge semi-transparente dans le gris, depuis la droite : ce que les autres logiciels consomment vraiment
     { const e = el('reel-mfm'); if (e) {          // consommation reelle de MyFabmesh : dans le violet, rouge a droite
         const regionGB = Math.max(0.001, minGB + addGB);
-        const mfmReel = (!libre && usedGB != null) ? Math.max(0, Math.min(regionGB, usedGB - autresGB)) : 0;
+        const mfmReel = (!libre && usedGB != null) ? Math.max(0, Math.min(regionGB, usedGB - plancher - autresGB)) : 0;
         e.style.left = 'calc(4px + (100% - 8px) * ' + (plancher / totalGB) + ')';
         e.style.width = 'calc((100% - 8px) * ' + (regionGB / totalGB) + ')';
         e.style.right = 'auto';
