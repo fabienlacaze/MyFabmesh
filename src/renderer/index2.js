@@ -25140,7 +25140,11 @@ function _showNsfwWarning() {
     const okBtn = document.getElementById('confirm-ok');
     const cancelBtn = document.getElementById('confirm-cancel');
 
-    titleEl.textContent = '⚠️ WARNING — Legal Notice';
+    // L'icone ⚠ est deja dans l'en-tete de la fenetre : pas de second emoji dans le titre (il s'affichait en double).
+    titleEl.textContent = 'WARNING — Legal Notice';
+    // customConfirm laisse `white-space: pre-line` sur ce conteneur : chaque saut de ligne du gabarit ci-dessous devenait un grand vide
+    // (mise en page « pourrie », 2026-10-01). Ici on veut le flux normal du HTML.
+    msgEl.style.whiteSpace = 'normal';
     msgEl.innerHTML = `
       <div style="text-align:left; line-height:1.6;">
         <p style="color:#ef4444; font-weight:700; font-size:14px; margin-bottom:12px;">
