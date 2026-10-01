@@ -98,3 +98,50 @@ def etat_services(payload: dict):
         v = dict(fils.map(un, _SERVICES_ETAT))
     _ETAT_CACHE.update(t=maintenant, v=v)
     return v
+
+
+# ---------------------------------------------------------------------------
+# GARDE AU CHAUD (2026-10-01, user : « je veux un switch pour basculer entre cold et warm, pour chaque container et pour le general »).
+# `update_autoscaler(min_containers=1)` garde UN conteneur allume en permanence (mesure sur le conteneur FBX : chaud en 6 s) ;
+# `min_containers=0` le relache (mesure : froid en 11 s, sans rien forcer). Le reglage vit chez Modal jusqu'au prochain deploiement de
+# l'application visee ; le worker le rejoue a chaque passage du cron tant que l'interrupteur est allume (voir worker.ts, _gardeChaudCron).
+# Un travail en cours n'est jamais coupe : abaisser le minimum laisse le conteneur finir, puis il s'eteint.
+_OBJETS_GARDE: dict = {}
+
+
+def _objet_garde(cle: str):
+    o = _OBJETS_GARDE.get(cle)
+    if o is None:
+        app_nom, classe, nom = _SERVICES_ETAT[cle]
+        o = modal.Cls.from_name(app_nom, classe)() if classe else modal.Function.from_name(app_nom, nom)
+        _OBJETS_GARDE[cle] = o
+    return o
+
+
+@app.function(
+    image=modal.Image.debian_slim(python_version="3.11").pip_install("fastapi[standard]"),
+    cpu=0.25, memory=512, timeout=60, scaledown_window=60,
+    secrets=[modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"])],
+)
+@modal.fastapi_endpoint(method="POST")
+def garde_chaud(payload: dict):
+    """payload : { _auth, cibles: { cle: true | false } } -> { resultats: { cle: "ok" | "absent" | "erreur:..." } }."""
+    _check_auth(payload)
+    demandes = payload.get("cibles") or {}
+    from concurrent.futures import ThreadPoolExecutor
+
+    def un(item):
+        cle, allume = item
+        if cle not in _SERVICES_ETAT or cle == "mvadapter":
+            return cle, "inconnu"
+        try:
+            _objet_garde(cle).update_autoscaler(min_containers=1 if allume else 0)
+            return cle, "ok"
+        except modal.exception.NotFoundError:
+            return cle, "absent"
+        except Exception as e:
+            return cle, "erreur:" + type(e).__name__
+    with ThreadPoolExecutor(max(1, len(demandes))) as fils:
+        res = dict(fils.map(un, list(demandes.items())))
+    _ETAT_CACHE.update(t=0.0, v=None)               # l'etat affiche doit refleter le changement tout de suite
+    return {"resultats": res}

@@ -20086,6 +20086,97 @@ async function handleAdminSetPricing(req: Request, env: Env): Promise<Response> 
   return json({ ok: true, current: sanitized });
 }
 
+/* ═════ GARDE AU CHAUD DES CONTENEURS (2026-10-01, user : « je veux un switch pour basculer entre cold et warm, pour chaque container et pour le general ») ═════
+ * Interrupteur ON = Modal garde UN conteneur allume (update_autoscaler(min_containers=1), voir modal_app/etat_services.py, route garde_chaud) ;
+ * OFF = il est relache (froid en ~10 s s'il est inactif). Etat voulu dans R2 `_meta/keep_warm.json` : { cle: { on, until } }.
+ * SECURITES : (1) allumer est REFUSE quand l'interrupteur Modal (coupe-circuit) est coupe ; (2) « Stop everything » / Modal coupe ETEINT tout ;
+ * (3) arret automatique apres KEEP_WARM_HEURES h (oubli = GPU facture en continu), applique par le cron de 15 min, qui rejoue aussi les
+ * interrupteurs allumes (le reglage de Modal saute a chaque deploiement de l'application visee). */
+const KEEP_WARM_KEY = '_meta/keep_warm.json';
+const KEEP_WARM_HEURES = 3;
+const KEEP_WARM_CIBLES = ['text2image', 'image', 'mesh', 'rig', 'anim', 'mesh_segment', 'fbx_retarget'] as const;
+type KeepWarmCible = typeof KEEP_WARM_CIBLES[number];
+type KeepWarmEtat = Partial<Record<KeepWarmCible, { on: boolean; until: number }>>;
+
+async function _keepWarmLire(env: Env): Promise<KeepWarmEtat> {
+  try {
+    const o = await env.MESHES.get(KEEP_WARM_KEY);
+    return o ? await o.json() as KeepWarmEtat : {};
+  } catch { return {}; }
+}
+async function _keepWarmEcrire(env: Env, e: KeepWarmEtat): Promise<void> {
+  await env.MESHES.put(KEEP_WARM_KEY, JSON.stringify(e), { httpMetadata: { contentType: 'application/json' } });
+}
+/** URL de la route garde_chaud de l'app d'etat : meme espace Modal que etat-services / le routeur maillage. */
+function _etatGardeUrl(env: Env): string | null {
+  const direct = env.MODAL_ETAT_URL ? env.MODAL_ETAT_URL.replace(/etat-services/, 'garde-chaud') : null;
+  if (direct && direct !== env.MODAL_ETAT_URL) return direct;
+  const d = env.MODAL_MESH_START_URL?.replace(/^(https:\/\/[^/]*?--)myfabmesh-cloud-mesh-router(\.modal\.run).*$/, '$1myfabmesh-etat-garde-chaud$2');
+  return d && d !== env.MODAL_MESH_START_URL ? d : null;
+}
+/** Applique { cle: true|false } chez Modal. Rend { cle: "ok" | ... } ou null si l'app d'etat est injoignable. */
+async function _gardeChaudAppliquer(env: Env, cibles: Partial<Record<KeepWarmCible, boolean>>): Promise<Record<string, string> | null> {
+  const url = _etatGardeUrl(env);
+  if (!url) return null;
+  try {
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '', cibles }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!r.ok) return null;
+    return ((await r.json()) as { resultats?: Record<string, string> }).resultats ?? null;
+  } catch { return null; }
+}
+/** Eteint les interrupteurs allumes dont `filtre` dit oui (defaut : tous). Rend le nombre d'extinctions reussies. */
+async function _gardeChaudEteindre(env: Env, filtre?: (v: { on: boolean; until: number }) => boolean): Promise<number> {
+  const etat = await _keepWarmLire(env);
+  const cles = (Object.keys(etat) as KeepWarmCible[]).filter((k) => etat[k]?.on && (!filtre || filtre(etat[k]!)));
+  if (!cles.length) return 0;
+  const res = await _gardeChaudAppliquer(env, Object.fromEntries(cles.map((k) => [k, false])) as Partial<Record<KeepWarmCible, boolean>>);
+  let n = 0;
+  for (const k of cles) if (res?.[k] === 'ok') { etat[k] = { on: false, until: 0 }; n++; }
+  if (n) await _keepWarmEcrire(env, etat);
+  return n;
+}
+/** Passage du cron (15 min) : arret des interrupteurs echus ou orphelins (Modal coupe), puis rejeu des interrupteurs encore allumes. */
+async function _gardeChaudCron(env: Env): Promise<void> {
+  const flags = await _getServiceFlags(env);
+  const now = Date.now();
+  await _gardeChaudEteindre(env, (v) => v.until <= now || flags.modal_enabled === false);
+  const etat = await _keepWarmLire(env);
+  const actifs = (Object.keys(etat) as KeepWarmCible[]).filter((k) => etat[k]?.on && (etat[k]!.until > now));
+  if (actifs.length) await _gardeChaudAppliquer(env, Object.fromEntries(actifs.map((k) => [k, true])) as Partial<Record<KeepWarmCible, boolean>>);
+}
+
+/** POST /api/admin/warm-switch  body: { cibles: { <cle>: true|false, ... } } — ADMIN. */
+async function handleAdminWarmSwitch(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  const b = await req.json().catch(() => ({})) as { cibles?: Record<string, unknown> };
+  const demandes: Partial<Record<KeepWarmCible, boolean>> = {};
+  for (const [k, v] of Object.entries(b.cibles ?? {})) {
+    if ((KEEP_WARM_CIBLES as readonly string[]).includes(k)) demandes[k as KeepWarmCible] = v === true;
+  }
+  if (!Object.keys(demandes).length) return err(400, 'cibles required');
+  const flags = await _getServiceFlags(env);
+  if (flags.modal_enabled === false && Object.values(demandes).some(Boolean)) {
+    return err(503, 'Modal is switched off (kill switch): switch it on first');
+  }
+  const res = await _gardeChaudAppliquer(env, demandes);
+  if (!res) return err(502, 'container service unavailable');
+  const etat = await _keepWarmLire(env);
+  const jusqua = Date.now() + KEEP_WARM_HEURES * 3600_000;
+  const echecs: string[] = [];
+  for (const [k, on] of Object.entries(demandes) as [KeepWarmCible, boolean][]) {
+    if (res[k] !== 'ok') { echecs.push(`${k}: ${res[k] ?? 'no answer'}`); continue; }
+    etat[k] = { on, until: on ? jusqua : 0 };
+  }
+  await _keepWarmEcrire(env, etat);
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'warm_switch', details: { demandes, echecs } });
+  return json({ ok: echecs.length === 0, garde_chaud: etat, echecs });
+}
+
 /** POST /api/admin/warm  body: { cibles?: ('text2image'|'image_op'|'rectify'|'mesh')[] } — ADMIN (2026-10-01, user : « il faut que je puisse
  *  commander le warm des containers dans l'appli / services »). Reveille a la demande les conteneurs Modal, SANS les gardes de fraicheur
  *  (force), comme le fait deja l'intention d'un utilisateur (/api/prewarm) mais sans session utilisateur ni attente : le demarrage peut
@@ -20184,7 +20275,14 @@ async function handleAdminLive(req: Request, env: Env): Promise<Response> {
 async function handleAdminModalStatus(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
-  return await handleModalStatus(req, env);
+  const rep = await handleModalStatus(req, env);
+  if (!rep.ok) return rep;
+  const j = await rep.json() as Record<string, unknown>;
+  const etat = await _keepWarmLire(env);
+  const now = Date.now();
+  const garde: Record<string, { on: boolean; until: number }> = {};
+  for (const k of Object.keys(etat) as KeepWarmCible[]) if (etat[k]?.on && etat[k]!.until > now) garde[k] = etat[k]!;
+  return json({ ...j, garde_chaud: garde, garde_chaud_heures: KEEP_WARM_HEURES });
 }
 
 /** GET /api/admin/services — current state of the kill switches. */
@@ -20241,6 +20339,8 @@ async function handleAdminServicesToggle(req: Request, env: Env): Promise<Respon
       };
   await env.MESHES.put(SERVICE_FLAGS_KEY, JSON.stringify(next));
   _invalidateServiceFlagsCache();
+  // Modal coupe (ou « Stop everything ») : plus aucun conteneur ne doit rester allume par la garde au chaud (2026-10-01).
+  if (!next.modal_enabled) { try { await _gardeChaudEteindre(env); } catch { /* le cron reessaiera */ } }
   /* « STOP EVERYTHING » ARRETE AUSSI LE MARKETPLACE (2026-09-27).
    *
    * Le Marketplace a son propre interrupteur (_meta/market_killswitch.json,
@@ -21837,6 +21937,7 @@ export default {
         // que l'alerte d'un mois fini tombe au 1er et qu'un releve arrete soit
         // signale (4 petites lectures R2 par passage).
         try { await _synchroniserAlerteModal(env); } catch (e) { rec.errors.push('alerte modal: ' + emsg(e)); }
+        try { await _gardeChaudCron(env); } catch (e) { rec.errors.push('garde chaud: ' + emsg(e)); }   // arret apres 3 h + rejeu des interrupteurs allumes
         rec.duration_ms = Date.now() - t0;
         try {
           if (env.MESHES) {
@@ -22195,6 +22296,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/admin/payments/unreconciled' && method === 'GET')  return await handleAdminUnreconciledPayments(req, env);
         if (pathname === '/api/admin/payments/reconcile'    && method === 'POST') return await handleAdminReconcilePayment(req, env);
         if (pathname === '/api/admin/live'            && method === 'GET')  return await handleAdminLive(req, env);
+        if (pathname === '/api/admin/warm-switch'     && method === 'POST') return await handleAdminWarmSwitch(req, env);
         if (pathname === '/api/admin/modal-status'    && method === 'GET')  return await handleAdminModalStatus(req, env);
         if (pathname === '/api/admin/warm'            && method === 'POST') return await handleAdminWarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/admin/services'        && method === 'GET')  return await handleAdminServices(req, env);

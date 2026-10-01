@@ -864,29 +864,15 @@
 
         <div id="services-list" style="display:flex; flex-direction:column; gap:14px;"></div>
 
-        <!-- WARM DES CONTENEURS (2026-10-01, user : « il faut que je puisse commander le warm des containers dans l'appli / services »).
-             POST /api/admin/warm (sans garde de fraicheur) ; l'etat se lit par /api/modal-status (compteurs REELS de Modal). Chaque
-             conteneur allume coute quelques centimes de GPU tant qu'il reste chaud (90 s a 5 min apres le dernier appel). -->
-        <h3 style="margin:24px 0 12px;">🔥 Warm containers</h3>
+        <!-- CONTENEURS CHAUD / FROID (2026-10-01, user : « je veux un switch pour basculer entre cold et warm, pour chaque container et pour le general »).
+             Un interrupteur par conteneur + un general. ON = Modal garde un conteneur allume (POST /api/admin/warm-switch), OFF = il est relache.
+             Arret automatique apres quelques heures ; l'etat reel (busy / warm / starting / cold) vient de /api/admin/modal-status. -->
+        <h3 style="margin:24px 0 12px;">🔥 Containers: warm / cold</h3>
         <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px;">
-          <div style="font-size:13px; color:var(--text-1);">Wake the GPU containers now, so the next generation does not wait for a cold start. Each one stays warm for a few minutes after its last call and costs a few cents of GPU.</div>
-          <div id="warm-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-top:12px;">
-            <div class="warm-carte" data-cible="mesh" data-etat="mesh"></div>
-            <div class="warm-carte" data-cible="image_op" data-etat="image_op"></div>
-            <div class="warm-carte" data-cible="text2image" data-etat="text2image"></div>
-            <div class="warm-carte" data-cible="rectify" data-etat="tpose"></div>
-            <div class="warm-carte" data-cible="rig" data-etat="rig"></div>
-            <div class="warm-carte" data-cible="anim" data-etat="anim"></div>
-            <div class="warm-carte" data-cible="segment" data-etat="mesh_segment"></div>
-            <div class="warm-carte" data-cible="fbx" data-etat="fbx_retarget"></div>
-          </div>
-          <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <button class="btn btn-accent" id="warm-all-btn">🔥 Warm everything</button>
-            <button class="btn" id="warm-refresh-btn">🔄 Refresh state</button>
-            <span id="warm-msg" style="color:var(--text-2); font-size:12px;"></span>
-          </div>
+          <div id="warm-general" style="display:flex; gap:16px; align-items:center;"></div>
+          <div id="warm-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px; margin-top:14px;"></div>
+          <div id="warm-msg" style="color:var(--text-2); font-size:12px; margin-top:10px; min-height:16px;"></div>
         </div>
-
 
         <!-- Force logout all users — nuclear session reset -->
         <h3 style="margin:32px 0 12px;">🔁 Force logout</h3>
@@ -3280,7 +3266,7 @@
     }
 
     async function loadServicesPanel() {
-      try { warmRafraichir(); } catch (_) {}   // etat des conteneurs (carte « Warm containers »)
+      try { warmRafraichir(); warmDemarrerSuivi(); } catch (_) {}   // etat des conteneurs + interrupteurs chaud / froid
       const list = document.getElementById('services-list');
       list.innerHTML = '<div style="color:var(--text-2);">Loading…</div>';
       try {
@@ -3430,17 +3416,21 @@
     /* ═══════════════════════════════════════════════════════════════
        WARM DES CONTENEURS (Services) — voir la carte « Warm containers »
        ═══════════════════════════════════════════════════════════════ */
-    const WARM_CARTES = {
-      mesh:       { titre: '🧊 3D mesh',            info: 'Mesh generation (GPU snapshot restore, ~35 s cold)' },
-      image_op:   { titre: '🖼️ Image tools',        info: 'Edit, T-pose, back view (loads ~6 GB of editing models)' },
-      text2image: { titre: '✨ Image generation',    info: 'Text to image' },
-      rectify:    { titre: '📐 Rectify / T-pose',   info: 'Light wake-up of the image container' },
-      rig:        { titre: '🦴 Rig',                 info: 'Automatic skeleton rigging (GPU A10G)' },
-      anim:       { titre: '🏃 Animation',           info: 'Generative motion (GPU A10G)' },
-      segment:    { titre: '✂️ Part segmentation',   info: 'Split a mesh into parts (GPU A100)' },
-      fbx:        { titre: '🎞️ FBX retarget',        info: 'Import an animation onto your rig (CPU)' },
-    };
+    // cle = cle de la garde au chaud (worker.ts, KEEP_WARM_CIBLES) ; etat = cle de l'etat reel de /api/modal-status
+    const WARM_CARTES = [
+      { cle: 'mesh',         etat: 'mesh',         titre: '🧊 3D mesh',            info: 'Mesh generation (GPU)' },
+      { cle: 'image',        etat: 'image_op',     titre: '🖼️ Image tools',        info: 'Edit, T-pose, back view' },
+      { cle: 'text2image',   etat: 'text2image',   titre: '✨ Image generation',    info: 'Text to image' },
+      { cle: 'rig',          etat: 'rig',          titre: '🦴 Rig',                 info: 'Automatic skeleton rigging' },
+      { cle: 'anim',         etat: 'anim',         titre: '🏃 Animation',           info: 'Generative motion' },
+      { cle: 'mesh_segment', etat: 'mesh_segment', titre: '✂️ Part segmentation',   info: 'Split a mesh into parts' },
+      { cle: 'fbx_retarget', etat: 'fbx_retarget', titre: '🎞️ FBX retarget',        info: 'Animation onto your rig (CPU)' },
+    ];
     let _warmSuivi = null;
+    let _garde = {};            // { cle: { on, until } } : interrupteurs allumes (R2)
+    let _gardeHeures = 3;
+    let _warmOccupe = false;    // une bascule est en cours
+    let _warmDerniere = null;   // derniere reponse de /api/admin/modal-status
     function warmEtatTexte(e) {
       if (!e) return { t: 'unknown', c: 'var(--text-2)' };
       const s = e.etat || (e.warm ? 'warm' : 'cold');
@@ -3450,54 +3440,91 @@
       if (s === 'absent') return { t: 'not deployed', c: 'var(--text-2)' };
       return { t: 'cold', c: 'var(--text-2)' };
     }
+    // Meme interrupteur que les services : ON vert (warm), OFF gris (cold ; le rouge reste reserve a « desactive »).
+    function warmInterrupteur(on, attr) {
+      return '<label class="switch" style="position:relative; display:inline-block; width:54px; height:30px; flex-shrink:0;">'
+        + '<input type="checkbox" ' + attr + (on ? ' checked' : '') + ' style="opacity:0; width:0; height:0;" />'
+        + '<span style="position:absolute; cursor:pointer; inset:0; background:' + (on ? 'var(--ok)' : '#4b5563') + '; border-radius:999px; transition:.2s;">'
+        + '<span style="position:absolute; height:24px; width:24px; left:' + (on ? '27px' : '3px') + '; top:3px; background:#fff; border-radius:50%; transition:.2s;"></span></span></label>';
+    }
+    function warmDessiner() {
+      const j = _warmDerniere || {};
+      const nbOn = WARM_CARTES.filter((c) => _garde[c.cle]).length;
+      document.getElementById('warm-general').innerHTML = '<div style="flex:1; min-width:0;">'
+        + '<div style="font-weight:700; font-size:14px;">All containers</div>'
+        + '<div style="color:var(--text-2); font-size:12px; margin-top:2px;">' + (nbOn ? (nbOn + ' of ' + WARM_CARTES.length + ' kept warm') : 'All cold')
+        + ' · a warm GPU costs about 1 to 3 $ per hour · each switch turns itself off after ' + _gardeHeures + ' h</div></div>'
+        + warmInterrupteur(nbOn === WARM_CARTES.length, 'data-warm-all="1"');
+      document.getElementById('warm-grid').innerHTML = WARM_CARTES.map((c) => {
+        const on = !!_garde[c.cle];
+        const e = warmEtatTexte(j[c.etat]);
+        const fin = on ? ' · until ' + new Date(_garde[c.cle].until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+        return '<div style="border:1px solid var(--border); border-radius:10px; padding:12px; background:var(--bg-2, rgba(255,255,255,.03)); display:flex; gap:12px; align-items:center;">'
+          + '<div style="flex:1; min-width:0;"><strong style="font-size:13px;">' + c.titre + '</strong>'
+          + '<div style="color:var(--text-2); font-size:11px; margin:2px 0 4px;">' + c.info + '</div>'
+          + '<div style="font-size:12px; font-weight:700; color:' + e.c + ';">● ' + e.t + '<span style="font-weight:400; color:var(--text-2);">' + fin + '</span></div></div>'
+          + warmInterrupteur(on, 'data-warm-cle="' + c.cle + '"') + '</div>';
+      }).join('');
+      for (const id of ['warm-general', 'warm-grid']) {
+        const el = document.getElementById(id);
+        if (el) { el.style.opacity = _warmOccupe ? '.55' : ''; el.style.pointerEvents = _warmOccupe ? 'none' : ''; }
+      }
+    }
     async function warmRafraichir() {
       try {
         const r = await fetch('/api/admin/modal-status', { credentials: 'include' });
         if (r.status === 401) { _adminSessionExpiree(); return; }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
+        _warmDerniere = j;
+        _garde = j.garde_chaud || {};
+        _gardeHeures = j.garde_chaud_heures || 3;
+        warmDessiner();
         { const m = document.getElementById('warm-msg'); if (m && /^State unavailable/.test(m.textContent)) m.textContent = ''; }   // une erreur passagere ne reste plus affichee
-        for (const el of document.querySelectorAll('#warm-grid .warm-carte')) {
-          const cible = el.getAttribute('data-cible');
-          const cfg = WARM_CARTES[cible];
-          const e = warmEtatTexte(j[el.getAttribute('data-etat')]);
-          el.style.cssText = 'border:1px solid var(--border); border-radius:10px; padding:12px; background:var(--bg-2, rgba(255,255,255,.03));';
-          el.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">'
-            + '<strong style="font-size:13px;">' + cfg.titre + '</strong>'
-            + '<span style="font-size:12px; font-weight:700; color:' + e.c + ';">● ' + e.t + '</span></div>'
-            + '<div style="color:var(--text-2); font-size:11px; margin:4px 0 10px;">' + cfg.info + '</div>'
-            + '<button class="btn" data-warm="' + cible + '" style="width:100%;">🔥 Warm</button>';
-        }
       } catch (e) {
-        // Les cartes deja dessinees restent (le suivi rappelle toutes les 5 s) : seul le message dit que le rafraichissement a echoue.
         document.getElementById('warm-msg').textContent = 'State unavailable: ' + (e && e.message ? e.message : e) + ' (retrying)';
       }
     }
-    async function warmLancer(cibles) {
+    async function warmBasculer(cles, on) {
+      if (_warmOccupe) return;
+      _warmOccupe = true; warmDessiner();
       const msg = document.getElementById('warm-msg');
-      msg.textContent = 'Starting…';
+      msg.textContent = on ? 'Switching on…' : 'Switching off…';
       try {
-        const r = await fetch('/api/admin/warm', {
+        const cibles = {}; cles.forEach((k) => { cibles[k] = on; });
+        const r = await fetch('/api/admin/warm-switch', {
           method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(cibles && cibles.length ? { cibles } : {}),
+          body: JSON.stringify({ cibles }),
         });
+        if (r.status === 401) { _adminSessionExpiree(); return; }
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-        msg.textContent = 'Warming ' + (j.cibles || []).length + ' container(s) — state refreshes every 5 s for 3 minutes.';
-        if (_warmSuivi) clearInterval(_warmSuivi);
-        let n = 0;
-        warmRafraichir();
-        _warmSuivi = setInterval(() => { warmRafraichir(); if (++n >= 36) { clearInterval(_warmSuivi); _warmSuivi = null; } }, 5000);
+        msg.textContent = (j.echecs && j.echecs.length) ? 'Some failed: ' + j.echecs.join(', ')
+          : (on ? 'Switched on: simple containers wake up in seconds, the 3D takes a few minutes.' : 'Switched off: idle containers stop within seconds.');
       } catch (e) {
         msg.textContent = 'Failed: ' + (e && e.message ? e.message : e);
+      } finally {
+        _warmOccupe = false;
+        await warmRafraichir();
       }
     }
-    document.getElementById('warm-grid')?.addEventListener('click', (ev) => {
-      const b = ev.target.closest('[data-warm]');
-      if (b) warmLancer([b.getAttribute('data-warm')]);
-    });
-    document.getElementById('warm-all-btn')?.addEventListener('click', () => warmLancer([]));
-    document.getElementById('warm-refresh-btn')?.addEventListener('click', warmRafraichir);
+    function warmChangement(ev) {
+      const t = ev.target;
+      if (!t || t.type !== 'checkbox') return;
+      const cle = t.getAttribute('data-warm-cle');
+      if (cle) warmBasculer([cle], t.checked);
+      else if (t.getAttribute('data-warm-all')) warmBasculer(WARM_CARTES.map((c) => c.cle), t.checked);
+    }
+    document.getElementById('warm-grid')?.addEventListener('change', warmChangement);
+    document.getElementById('warm-general')?.addEventListener('change', warmChangement);
+    // Rafraichissement toutes les 8 s tant que l'onglet Services est ouvert (demarre par loadServicesPanel).
+    function warmDemarrerSuivi() {
+      if (_warmSuivi) return;
+      _warmSuivi = setInterval(() => {
+        if (document.hidden || _warmOccupe) return;
+        if (document.querySelector('.tab.active')?.dataset?.tab === 'services') warmRafraichir();
+      }, 8000);
+    }
 
     document.getElementById('services-unlock-btn')?.addEventListener('click', unlockServicesPanel);
     document.getElementById('services-password-input')?.addEventListener('keydown', (e) => {
