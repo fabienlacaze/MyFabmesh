@@ -18240,8 +18240,14 @@ async function handleAdminAudience(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
   const url = new URL(req.url);
-  const jours = Math.max(1, Math.min(365, parseInt(url.searchParams.get('jours') || '30', 10) || 30));
-  const depuis = new Date(Date.now() - jours * 24 * 3600 * 1000).toISOString();
+  // FENETRE (2026-10-01, user : « il faut pouvoir avoir now, 1h, 6h, 1J, 2J et 5J en plus ») : ?minutes=N (1 a 525600, soit 365 j) prime ;
+  // ?jours=N (1 a 365) reste accepte pour les anciens appels.
+  const minutesDemandees = parseInt(url.searchParams.get('minutes') || '', 10);
+  const minutes = Number.isFinite(minutesDemandees) && minutesDemandees > 0
+    ? Math.min(525600, minutesDemandees)
+    : Math.max(1, Math.min(365, parseInt(url.searchParams.get('jours') || '30', 10) || 30)) * 1440;
+  const jours = Math.round((minutes / 1440) * 1000) / 1000;
+  const depuis = new Date(Date.now() - minutes * 60 * 1000).toISOString();
 
   const sb = supabaseAdmin(env);
   const { data, error } = await sb.from('jobs')
@@ -18289,6 +18295,7 @@ async function handleAdminAudience(req: Request, env: Env): Promise<Response> {
   return json({
     ok: true,
     fenetre_jours: jours,
+    fenetre_minutes: minutes,
     depuis,
     note: 'Les lignes anterieures au 2026-08-23 ne portent ni pays ni provenance '
         + 'et apparaissent en « inconnu ».',
