@@ -3918,6 +3918,8 @@ details.stage-generating > summary .stage-icon-gear {
 /* In lightbox-2 the AI tools panel (.lb-toolbox, right:20px width:200px) hides the Next
    arrow at the vertical centre — push it left of the panel. */
 #lightbox-2 .lightbox-nav.next { right: 236px; }
+/* Idem pour la visionneuse 3D, qui a maintenant sa colonne d'outils (#lb3d-toolbox). */
+#lightbox-3d .lightbox-nav.next { right: 236px; }
 .lightbox-nav:hover {
   background: var(--accent);
   border-color: var(--accent);

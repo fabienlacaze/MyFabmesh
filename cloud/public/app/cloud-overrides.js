@@ -809,6 +809,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     resolution: 'ws-resolution-btn', facefix: 'ws-facefix-btn', outfit: 'ws-outfit-btn',
     symmetry: 'ws-symmetrize-auto-btn', mask: 'ws-mask-btn', clone: 'ws-clone-btn',
     paint: 'ws-paint-btn', crop: 'ws-crop-btn', select: 'ws-select-btn', extend: 'ws-extend-btn',
+    recolor: 'ws-recolor-btn', age: 'ws-age-btn', variant: 'ws-variant-btn', multiview: 'ws-multiview-btn',
+    brightness: 'ws-brightness-btn', picker: 'ws-picker-btn', blur: 'ws-blur-btn', symmetrize: 'ws-symmetrize-btn',
+    style: 'ws-style-btn',
   };
   /** Prix du bouton `id` au reglage courant ; null si la grille est inconnue. */
   function _prixAction(id) {
@@ -989,9 +992,19 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     badge.title = `${prix} credit${prix === 1 ? '' : 's'}`;
   }
 
+  // Visionneuse 3D : memes prix que les boutons du panneau de maillage (sculpt / paint / select / export / pivot : gratuits, sans pastille).
+  const LB3D_BOUTONS = {
+    smooth: 'ws-mesh-smooth-btn', decimate: 'ws-mesh-decimate-btn', subdivide: 'ws-mesh-subdivide-btn',
+    fixnormals: 'ws-mesh-fixnormals-btn', fillholes: 'ws-mesh-fillholes-btn', watertight: 'ws-mesh-watertight-btn',
+    retexture: 'ws-mesh-retexture-btn', material: 'ws-mesh-material-btn', texvar: 'ws-mesh-texvar-btn',
+    regionretex: 'ws-mesh-region-retex-btn', enhancetex: 'ws-mesh-enhance-tex-btn', aligntex: 'ws-mesh-aligntex-btn',
+  };
   function _majPastillesVisionneuse() {
     for (const [outil, id] of Object.entries(LB_BOUTONS)) {
       _poserPastille(document.querySelector(`.lb-tool-btn[data-lb-tool="${outil}"]`), _prixAction(id));
+    }
+    for (const [outil, id] of Object.entries(LB3D_BOUTONS)) {
+      _poserPastille(document.querySelector(`[data-lb3d-tool="${outil}"]`), _prixAction(id));
     }
   }
   /** Repose la pastille de TOUS les boutons tarifes, au prix courant de la grille. */

@@ -5276,6 +5276,43 @@ document.getElementById('lightbox-3d-use')?.addEventListener('click', (e) => {
   }
 });
 
+// 3D lightbox tool column (2026-10-01, parite avec le bureau : le site n'avait aucun outil dans la visionneuse 3D plein ecran).
+// Chaque bouton clique le bouton du panneau de maillage, apres fermeture de la visionneuse (l'editeur s'ouvrirait sinon derriere).
+(function _wireLb3dToolbox() {
+  const LB3D_TOOL_MAP = {
+    smooth: 'ws-mesh-smooth-btn',
+    decimate: 'ws-mesh-decimate-btn',
+    subdivide: 'ws-mesh-subdivide-btn',
+    fixnormals: 'ws-mesh-fixnormals-btn',
+    fillholes: 'ws-mesh-fillholes-btn',
+    watertight: 'ws-mesh-watertight-btn',
+    center: 'ws-mesh-center-btn',
+    retexture: 'ws-mesh-retexture-btn',
+    texvar: 'ws-mesh-texvar-btn',
+    regionretex: 'ws-mesh-region-retex-btn',
+    aligntex: 'ws-mesh-aligntex-btn',
+    material: 'ws-mesh-material-btn',
+    enhancetex: 'ws-mesh-enhance-tex-btn',
+    sculpt: 'ws-mesh-sculpt-btn',
+    paintvert: 'ws-mesh-paintvert-btn',
+    selectface: 'ws-mesh-selectface-btn',
+    export: 'ws-mesh-export-btn',
+    publish: 'ws-mesh-publish-btn',
+  };
+  const box = document.getElementById('lb3d-toolbox');
+  if (!box) return;
+  box.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-lb3d-tool]');
+    if (!btn) return;
+    const wsBtnId = LB3D_TOOL_MAP[btn.getAttribute('data-lb3d-tool')];
+    if (!wsBtnId) return;
+    const wsBtn = document.getElementById(wsBtnId);
+    if (!wsBtn) { console.warn('lb3d-tool: missing ws button', wsBtnId); return; }
+    closeMeshLightbox();
+    setTimeout(() => wsBtn.click(), 30);
+  });
+})();
+
 function closeMeshLightbox() {
   document.getElementById('lightbox-3d').classList.add('hidden');
   stopLb3dLoop();
@@ -5441,6 +5478,15 @@ document.getElementById('lb-multiview-bar')?.addEventListener('click', (e) => {
     crop:        'ws-crop-btn',
     select:      'ws-select-btn',
     extend:      'ws-extend-btn',
+    recolor:     'ws-recolor-btn',
+    age:         'ws-age-btn',
+    variant:     'ws-variant-btn',
+    multiview:   'ws-multiview-btn',
+    brightness:  'ws-brightness-btn',
+    picker:      'ws-picker-btn',
+    blur:        'ws-blur-btn',
+    symmetrize:  'ws-symmetrize-btn',
+    style:       'ws-style-btn',
   };
   const box = document.getElementById('lb-toolbox');
   if (!box) return;
@@ -5456,7 +5502,8 @@ document.getElementById('lb-multiview-bar')?.addEventListener('click', (e) => {
     // open their own modal. The lightbox stays open in the background;
     // close it so the modal gets focus and isn't layered under.
     const OPENS_MODAL = ['modify', 'autoinpaint', 'outfit', 'mask', 'clone',
-                         'paint', 'crop', 'select', 'resolution'];
+                         'paint', 'crop', 'select', 'resolution', 'recolor', 'age', 'variant',
+                         'multiview', 'brightness', 'picker', 'blur', 'symmetrize', 'style'];
     if (OPENS_MODAL.includes(toolKey)) {
       closeLightbox();
     }

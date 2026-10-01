@@ -537,7 +537,7 @@
                     <div class="step-tools-group">
                       <div class="step-tools-label">File</div>
                       <div class="step-tools-grid">
-                        <button id="ws-export-img-btn" class="ghost-btn tool-btn" title="Save this image to disk.">&#128190;&nbsp;Export</button>
+                        <button id="ws-export-img-btn" class="ghost-btn tool-btn" title="Save this image to disk.">&#128190;&nbsp;Export image</button>
                         <button id="ws-image-publish-btn" class="ghost-btn tool-btn" title="Publish this image to the marketplace.">&#128722;&nbsp;Publish to marketplace</button>
                       </div>
                     </div>
@@ -917,11 +917,11 @@
                         <button id="ws-mesh-fixnormals-btn" class="ghost-btn tool-btn" title="Re-orient the faces. Fixes surfaces that look black or see-through.">&#8634;&nbsp;Fix Normals</button>
                         <button id="ws-mesh-fillholes-btn" class="ghost-btn tool-btn" title="Close the holes in the surface. The texture is kept.">&#9673;&nbsp;Fill Holes</button>
                         <button id="ws-mesh-watertight-btn" class="ghost-btn tool-btn" title="Rebuild a closed watertight shell (voxel remesh) — fuses all parts, removes texture (re-texture after)">&#128167;&nbsp;Watertight</button>
-                        <button id="ws-mesh-center-btn" class="ghost-btn tool-btn" title="Move the pivot point. Nothing else changes.">&#9678;&nbsp;Pivot</button>
-                        <button id="ws-mesh-retexture-btn" class="ghost-btn tool-btn" title="Re-bake the mesh texture at a higher (or lower) resolution by reprojecting the source photo onto the UVs">&#128300;&nbsp;Resolution</button>
+                        <button id="ws-mesh-center-btn" class="ghost-btn tool-btn" title="Move the pivot point. Nothing else changes.">&#9678;&nbsp;Set Pivot</button>
+                        <button id="ws-mesh-retexture-btn" class="ghost-btn tool-btn" title="Re-bake the WHOLE texture from the source photo at a chosen resolution (reprojects the photo onto the UVs)">&#128300;&nbsp;Re-bake from photo (HD)</button>
                         <button id="ws-mesh-texvar-btn" class="ghost-btn tool-btn" title="Generate DIFFERENT texture looks (geometry untouched) — change the seed for a new variant">&#127912;&nbsp;Texture variants</button>
                         <button id="ws-mesh-enhance-tex-btn" class="ghost-btn tool-btn" title="Sharpen / upscale the EXISTING baked texture (x2, no hallucination) — no re-generation">&#10024;&nbsp;Sharpen texture (x2)</button>
-                        <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint with native PBR engine — qualité SOTA">&#11088;&nbsp;Re-Texture</button>
+                        <button id="ws-mesh-trellis2-btn" class="ghost-btn tool-btn" title="Re-paint the WHOLE texture with the 3D Native PBR engine (best quality)">&#11088;&nbsp;Re-texture all</button>
                         <button id="ws-mesh-region-retex-btn" class="ghost-btn tool-btn" title="Re-texture only ONE part: paint it on the 3D mesh, describe the new look — geometry stays intact">&#127912;&nbsp;Re-texture a region</button>
                         <button id="ws-mesh-reshape-btn" class="ghost-btn tool-btn" title="Rebuild ONE part of the model in 3D from a prompt (for example, replace the head). Runs on your graphics card.">&#129516;&nbsp;Reshape a region</button>
                         <button id="ws-mesh-segment-btn" class="ghost-btn tool-btn" title="Split the mesh into semantic parts (head/torso/arms/legs — wheel/chassis/cabin)">&#9986;&nbsp;Segment parts</button>
@@ -1471,6 +1471,30 @@
       <div id="lightbox-3d-info" class="viewer-info-overlay"></div>
       <div id="lb3d-stages-bar" class="stages-bar hidden"></div>
       <canvas id="lightbox-3d-canvas"></canvas>
+      <div id="lb3d-toolbox" class="lb-toolbox">
+        <div class="lb-toolbox-group-label">GEOMETRY</div>
+        <button class="lb-tool-btn" data-lb3d-tool="smooth" title="Smooth">&#10024;&nbsp;Smooth</button>
+        <button class="lb-tool-btn" data-lb3d-tool="decimate" title="Reduce triangle count">&#9660;&nbsp;Triangle count</button>
+        <button class="lb-tool-btn" data-lb3d-tool="subdivide" title="Subdivide">&#9650;&nbsp;Subdivide</button>
+        <button class="lb-tool-btn" data-lb3d-tool="fixnormals" title="Fix normals">&#8634;&nbsp;Fix Normals</button>
+        <button class="lb-tool-btn" data-lb3d-tool="fillholes" title="Fill holes">&#9673;&nbsp;Fill Holes</button>
+        <button class="lb-tool-btn" data-lb3d-tool="watertight" title="Watertight remesh">&#128167;&nbsp;Watertight</button>
+        <button class="lb-tool-btn" data-lb3d-tool="center" title="Set pivot">&#9678;&nbsp;Set Pivot</button>
+        <div class="lb-toolbox-group-label">TEXTURE</div>
+        <button class="lb-tool-btn" data-lb3d-tool="retexture" title="Re-bake the whole texture from the source photo (HD)">&#128300;&nbsp;Re-bake from photo (HD)</button>
+        <button class="lb-tool-btn" data-lb3d-tool="texvar" title="Generate different texture looks">&#127912;&nbsp;Texture variants</button>
+        <button class="lb-tool-btn" data-lb3d-tool="regionretex" title="Re-texture only one part (detected automatically)">&#127912;&nbsp;Re-texture a region</button>
+        <button class="lb-tool-btn" data-lb3d-tool="aligntex" title="Decals">&#127919;&nbsp;Decals</button>
+        <button class="lb-tool-btn" data-lb3d-tool="material" title="Material adjust">&#10024;&nbsp;Material adjust</button>
+        <button class="lb-tool-btn" data-lb3d-tool="enhancetex" title="Sharpen/upscale the existing texture (x2)">&#10024;&nbsp;Sharpen texture (x2)</button>
+        <div class="lb-toolbox-group-label">EDIT</div>
+        <button class="lb-tool-btn" data-lb3d-tool="sculpt" title="Sculpt">&#9997;&nbsp;Sculpt</button>
+        <button class="lb-tool-btn" data-lb3d-tool="paintvert" title="Paint">&#127912;&nbsp;Paint</button>
+        <button class="lb-tool-btn" data-lb3d-tool="selectface" title="Select faces">&#9634;&nbsp;Select</button>
+        <div class="lb-toolbox-group-label">EXPORT</div>
+        <button class="lb-tool-btn" data-lb3d-tool="export" title="Export">&#128190;&nbsp;Export&hellip;</button>
+        <button class="lb-tool-btn" data-lb3d-tool="publish" title="Publish this mesh to the marketplace">&#128722;&nbsp;Publish to marketplace</button>
+      </div>
       <div id="lightbox-3d-bottom">
         <div id="lightbox-3d-filename"></div>
         <button id="lightbox-3d-use" class="primary-btn">Use this for next step &rarr;</button>
@@ -1528,15 +1552,25 @@
         <button class="lb-tool-btn" data-lb-tool="autoinpaint" title="Auto Inpaint">&#129668;&nbsp;Auto Inpaint</button>
         <button class="lb-tool-btn" data-lb-tool="removebg" title="Remove background">&#9986;&#65039;&nbsp;Remove BG</button>
         <button class="lb-tool-btn" data-lb-tool="resolution" title="Change resolution">&#127906;&nbsp;Resolution</button>
+        <button class="lb-tool-btn" data-lb-tool="style" title="Apply a style preset">&#127912;&nbsp;Style&hellip;</button>
         <button class="lb-tool-btn" data-lb-tool="facefix" title="Fix face details">&#128578;&nbsp;Face Fix</button>
         <button class="lb-tool-btn" data-lb-tool="outfit" title="Habits seuls">&#128087;&nbsp;Habits</button>
         <button class="lb-tool-btn" data-lb-tool="symmetry" title="Auto symmetry">&#8646;&nbsp;Sym. Auto</button>
+        <button class="lb-tool-btn" data-lb-tool="multiview" title="Generate multi-views">&#128065;&nbsp;Multi-Views</button>
+        <button class="lb-tool-btn" data-lb-tool="variant" title="Create variants of the current image">&#10024;&nbsp;Variant</button>
+        <button class="lb-tool-btn" data-lb-tool="recolor" title="Recolor a part, keeping the shape">&#127912;&nbsp;Recolor</button>
+        <button class="lb-tool-btn" data-lb-tool="age" title="Make the subject younger or older">&#9203;&nbsp;Age</button>
         <div class="lb-toolbox-group-label">MANUAL</div>
         <button class="lb-tool-btn" data-lb-tool="mask" title="Draw Mask">&#9999;&#65039;&nbsp;Draw Mask</button>
         <button class="lb-tool-btn" data-lb-tool="clone" title="Clone Stamp">&#128203;&nbsp;Clone Stamp</button>
         <button class="lb-tool-btn" data-lb-tool="paint" title="Paint">&#127912;&nbsp;Paint</button>
         <button class="lb-tool-btn" data-lb-tool="crop" title="Crop">&#9986;&#65039;&nbsp;Crop</button>
         <button class="lb-tool-btn" data-lb-tool="select" title="Cut / copy a zone and move it">&#9635;&nbsp;Cut/Paste</button>
+        <button class="lb-tool-btn" data-lb-tool="extend" title="Extend / outpaint">&#10696;&nbsp;Extend</button>
+        <button class="lb-tool-btn" data-lb-tool="brightness" title="Brightness">&#9728;&#65039;&nbsp;Brightness</button>
+        <button class="lb-tool-btn" data-lb-tool="picker" title="Color pick">&#128167;&nbsp;Color Pick</button>
+        <button class="lb-tool-btn" data-lb-tool="blur" title="Blur brush">&#128168;&nbsp;Blur Brush</button>
+        <button class="lb-tool-btn" data-lb-tool="symmetrize" title="Symmetrize">&#8651;&nbsp;Symmetrize</button>
       </div>
       <!-- Multi-view face selector in lightbox -->
       <div id="lb-multiview-bar" class="multiview-bar hidden" style="bottom:60px;">
