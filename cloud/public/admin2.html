@@ -58,6 +58,8 @@ a{color:var(--accent)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;box-shadow:0 0 6px currentColor;color:var(--ok)}
 .dot.w{background:var(--warn);color:var(--warn)} .dot.e{background:var(--err);color:var(--err)}
 
+.l4{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:8px}
+.l4 .lbl{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2)}
 .l3{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:10px}
 .onglets{display:flex;flex-wrap:wrap;gap:4px}
 .onglets button{background:none;border:0;border-bottom:2px solid transparent;padding:8px 14px;cursor:pointer;color:var(--text-1);font-weight:500}
@@ -197,12 +199,6 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
   <header class="haut">
     <div class="l1">
       <div class="titre"><h1>MyFabmesh · Admin</h1><span class="maj" id="maj">chargement…</span></div>
-      <div class="seg" role="group" aria-label="Période" id="periode">
-        <button type="button" data-per="6h" aria-pressed="false">6 h</button>
-        <button type="button" data-per="24h" aria-pressed="false">24 h</button>
-        <button type="button" data-per="7j" aria-pressed="true">7 jours</button>
-        <button type="button" data-per="30j" aria-pressed="false">30 jours</button>
-      </div>
     </div>
     <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
     <div class="l3">
@@ -214,6 +210,16 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
         <button role="tab" type="button" data-tab="systeme" aria-selected="false">Système</button>
       </nav>
       <div class="chips" id="chips"></div>
+    </div>
+    <div class="l4" id="l4">
+      <span class="lbl">Période</span>
+      <div class="seg" role="group" aria-label="Période" id="periode">
+        <button type="button" data-per="6h" aria-pressed="false">6 h</button>
+        <button type="button" data-per="24h" aria-pressed="false">24 h</button>
+        <button type="button" data-per="7j" aria-pressed="true">7 jours</button>
+        <button type="button" data-per="30j" aria-pressed="false">30 jours</button>
+      </div>
+      <span class="note" id="per-note">s'applique à l'onglet ouvert</span>
     </div>
   </header>
 
@@ -238,10 +244,8 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
       </div>
     </div>
     <div class="carte" style="margin-top:16px"><h2>Images générées <small id="n-imgs"></small></h2>
-      <div class="ligneform"><label for="imgs-jours">Période</label>
-        <select id="imgs-jours" style="width:auto"><option value="1">24 heures</option><option value="3" selected>3 jours</option><option value="7">7 jours</option><option value="30">30 jours</option></select>
-        <button type="button" class="btn petit" id="b-imgs">Actualiser</button>
-        <span class="note">Toutes les images des comptes actifs sur la période, les plus récentes d'abord. Un filtre « compte » ne montre que ses images. Cliquez pour agrandir.</span></div>
+      <div class="ligneform"><button type="button" class="btn petit" id="b-imgs">Actualiser</button>
+        <span class="note">Les images de la période choisie sous le menu, les plus récentes d'abord. Un filtre « compte » ne montre que ses images. Cliquez pour agrandir.</span></div>
       <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div></div>
   </section>
 
@@ -290,6 +294,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
           <option value="recent">Trier : inscription récente</option>
           <option value="email">Trier : e-mail (A → Z)</option>
         </select>
+        <label class="note" style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="users-actifs" style="width:auto"> Seulement les comptes actifs sur la période</label>
         <div class="liste" id="liste-comptes" style="margin-top:10px"></div></div>
       <div class="carte fiche" id="fiche"><div class="vide">Choisissez un compte.</div></div>
     </div>
@@ -541,7 +546,9 @@ async function chargerAudience() {
   var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
   var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'audience') renderAudience(); }
 }
-S.imgs = null; S.imgsAt = 0; S.imgsCle = ''; S.imgsJours = 3; S.lb = -1;
+S.imgs = null; S.imgsAt = 0; S.imgsCle = ''; S.lb = -1; S.usersActifs = false;
+function heuresPer() { return S.per === '6h' ? 6 : S.per === '24h' ? 24 : S.per === '30j' ? 720 : 168; }
+var LIB_PER = { '6h': '6 h', '24h': '24 h', '7j': '7 jours', '30j': '30 jours' };
 async function chargerImages(force) {
   var uid = '';
   if (S.filt.compte) {
@@ -549,10 +556,10 @@ async function chargerImages(force) {
     var u = S.users && S.users.users.filter(function (x) { return x.email === S.filt.compte; })[0];
     if (u) uid = u.id;
   }
-  var cle = uid + '|' + S.imgsJours;
+  var cle = uid + '|' + heuresPer();
   if (!force && S.imgs && S.imgsCle === cle && Date.now() - S.imgsAt < 120000) { renderGalerie(); return; }
   $('#n-imgs').textContent = 'chargement…';
-  var j = await silencieux(http('/api/admin/images/recent?n=60&jours=' + S.imgsJours + (uid ? '&uid=' + encodeURIComponent(uid) : '')));
+  var j = await silencieux(http('/api/admin/images/recent?n=60&heures=' + heuresPer() + (uid ? '&uid=' + encodeURIComponent(uid) : '')));
   if (j) { S.imgs = j; S.imgsCle = cle; S.imgsAt = Date.now(); } else $('#n-imgs').textContent = 'indisponible';
   renderGalerie();
 }
@@ -677,8 +684,8 @@ function renderMaintenant() {
   majSiChange($('#en-ligne'), el.length ? '<table><tbody>' + el.map(function (x) {
     return '<tr><td>' + lien('compte', x.email || 'inconnu', x.email || 'inconnu') + '</td><td class="n tn" data-vu0="' + (x.vu_il_y_a_s || 0) + '"></td><td>' + (x.en_ligne ? '<span class="pill ok">en ligne</span>' : '<span class="pill">parti</span>') + '</td></tr>';
   }).join('') + '</tbody></table>' : '<div class="vide">Personne.</div>');
-  var ev = trier((L.evenements || []).filter(filtreEvt).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
-  $('#n-flux').textContent = ev.length + ' affichés · les ' + (L.evenements || []).length + ' derniers travaux de tous les comptes';
+  var ev = trier((L.evenements || []).filter(filtreEvt).filter(function (x) { return Date.now() - Date.parse(x.ts) <= PER_MIN[S.per] * 60000; }).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
+  $('#n-flux').textContent = ev.length + ' dans la période (' + LIB_PER[S.per] + ') · sur les ' + (L.evenements || []).length + ' derniers travaux de tous les comptes';
   majSiChange($('#flux'), ev.length ? ev.map(function (x) {
     return '<tr><td data-ts="' + esc(x.ts_iso) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td>' + pillStatut(x.statut) + (x.erreur ? '<span class="erreur-ligne">' + esc(x.erreur) + '</span>' : '') + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td></tr>';
   }).join('') : '<tr><td colspan="7" class="vide">Aucun événement pour ce filtre.</td></tr>');
@@ -839,12 +846,14 @@ function renderUsers() {
 function renderComptes() {
   var U = S.users;
   if (!U) { $('#liste-comptes').innerHTML = '<div class="vide">Chargement…</div>'; return; }
-  var q = S.rech.toLowerCase(), l = U.users.filter(function (u) { return !q || String(u.email || '').toLowerCase().indexOf(q) >= 0; });
+  var q = S.rech.toLowerCase(), fen = PER_MIN[S.per] * 60000;
+  var actifP = function (u) { return u.last_activity && Date.now() - Date.parse(u.last_activity) <= fen; };
+  var l = U.users.filter(function (u) { return (!q || String(u.email || '').toLowerCase().indexOf(q) >= 0) && (!S.usersActifs || actifP(u)); });
   var CLE = { activite: function (u) { return u.last_activity ? Date.parse(u.last_activity) : 0; }, credits: function (u) { return Number(u.credits) || 0; }, travaux: function (u) { return u.ops_total || 0; },
     echecs: function (u) { return u.ops_failed || 0; }, recent: function (u) { return Date.parse(u.created_at) || 0; } };
   if (S.triComptes === 'email') l = l.slice().sort(function (a, b) { return String(a.email || '').localeCompare(String(b.email || ''), 'fr'); });
   else { var f = CLE[S.triComptes] || CLE.activite; l = l.slice().sort(function (a, b) { return f(b) - f(a); }); }
-  $('#n-comptes').textContent = (U.total != null ? U.total : U.users.length) + ' inscrits' + (U.truncated ? ' · 500 premiers' : '');
+  $('#n-comptes').textContent = (U.total != null ? U.total : U.users.length) + ' inscrits' + (U.truncated ? ' · 500 premiers' : '') + ' · ' + U.users.filter(actifP).length + ' actifs sur ' + LIB_PER[S.per];
   $('#liste-comptes').innerHTML = l.length ? l.map(function (u) {
     return '<button type="button" class="ligne" data-sel="' + esc(u.id) + '" aria-current="' + (S.sel === u.id) + '"><span>' + esc(u.email || u.id) + (u.banned ? ' <span class="pill err">bloqué</span>' : '') + '<br><small style="color:var(--text-2)">' + (u.last_activity ? 'actif ' + ilYa((Date.now() - Date.parse(u.last_activity)) / 1000) : 'jamais actif') + ' · ' + (u.ops_total || 0) + ' travaux</small></span><span class="tn">' + num(u.credits) + ' cr.</span></button>';
   }).join('') : '<div class="vide">Aucun compte.</div>';
@@ -965,7 +974,8 @@ function renderAll() {
   $$('[data-tab]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === S.tab); });
   $$('[role=tabpanel]').forEach(function (p) { p.hidden = p.id !== 'p-' + S.tab; });
   $$('[data-per]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.per === S.per); });
-  $('#periode').hidden = !(S.tab === 'argent' || S.tab === 'audience');
+  $('#l4').hidden = S.tab === 'systeme';
+  $('#per-note').textContent = S.tab === 'maintenant' ? 'filtre les derniers travaux et les images' : S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'audience' ? 'fenêtre des pays et canaux' : '';
   if (S.tab === 'maintenant') renderMaintenant();
   if (S.tab === 'argent') { renderArgent(); renderAchats(); renderTarifs(); }
   if (S.tab === 'users') renderUsers();
@@ -993,7 +1003,7 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
   if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('maintenant'); }
-  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); return; }
+  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'maintenant') { $('#flux')._h = null; renderMaintenant(); chargerImages(true); } if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-sub]'))) { S.sub = b.dataset.sub; return renderUsers(); }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; S.projetsDe = null; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
@@ -1055,7 +1065,7 @@ document.addEventListener('click', async function (e) {
   if (t.closest('#b-audit')) return chargerAudit();
 });
 document.addEventListener('input', function (e) { if (e.target.id === 'rech') { S.rech = e.target.value; renderComptes(); } });
-document.addEventListener('change', function (e) { if (e.target.id === 'tri-comptes') { S.triComptes = e.target.value; renderComptes(); } if (e.target.id === 'imgs-jours') { S.imgsJours = Number(e.target.value); chargerImages(true); } });
+document.addEventListener('change', function (e) { if (e.target.id === 'tri-comptes') { S.triComptes = e.target.value; renderComptes(); } if (e.target.id === 'users-actifs') { S.usersActifs = e.target.checked; renderComptes(); } });
 document.addEventListener('click', function (e) {
   var v = e.target.closest('[data-img]'); if (v) return ouvrirLb(Number(v.dataset.img));
   if (e.target.closest('#b-imgs')) return chargerImages(true);

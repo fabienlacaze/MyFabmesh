@@ -20446,13 +20446,16 @@ async function handleAdminImagesRecent(req: Request, env: Env): Promise<Response
   const u = new URL(req.url);
   const n = Math.max(6, Math.min(120, parseInt(u.searchParams.get('n') || '48', 10) || 48));
   const jours = Math.max(1, Math.min(30, parseInt(u.searchParams.get('jours') || '3', 10) || 3));
+  // ?heures=N (1 a 720) prime sur ?jours : le selecteur de periode de /admin2 propose 6 h, 24 h, 7 j et 30 j.
+  const heuresDemandees = parseInt(u.searchParams.get('heures') || '', 10);
+  const fenetreMs = Number.isFinite(heuresDemandees) && heuresDemandees > 0 ? Math.min(720, heuresDemandees) * 3600_000 : jours * 86400_000;
   const uidDemande = (u.searchParams.get('uid') || '').replace(/[^0-9a-zA-Z_-]/g, '');
   const sb = supabaseAdmin(env);
   const ids: string[] = [];
   if (uidDemande) {
     ids.push(uidDemande);
   } else {
-    const depuis = new Date(Date.now() - jours * 86400_000).toISOString();
+    const depuis = new Date(Date.now() - fenetreMs).toISOString();
     const { data, error } = await sb.from('jobs').select('user_id').gte('created_at', depuis).order('created_at', { ascending: false }).limit(1000);
     if (error) return err(500, error.message);
     const vus = new Set<string>();
@@ -20474,6 +20477,7 @@ async function handleAdminImagesRecent(req: Request, env: Env): Promise<Response
       const l = await env.MESHES.list({ prefix: `${uid}/`, limit: 1000, cursor });
       for (const o of l.objects) {
         if (!/\.(png|jpe?g|webp)$/i.test(o.key) || /_thumb\./i.test(o.key)) continue;
+        if (o.uploaded.getTime() < Date.now() - fenetreMs) continue;      // la periode choisie vaut aussi pour les images elles-memes
         toutes.push({ key: o.key, size: o.size, uploaded: o.uploaded.toISOString(), ms: o.uploaded.getTime(), user_id: uid });
       }
       cursor = l.truncated ? l.cursor : undefined;
