@@ -3381,12 +3381,39 @@ function trackProc(proc) {
 // Stop the SDXL server to free VRAM (called when a mesh/rig job is queued
 // and the SDXL server is hogging VRAM that the queued job needs).
 // Parental control: set/verify PIN + toggle unrestricted mode
+// VERIFICATION D'AGE PUIS PIN (2026-10-01, decision du proprietaire) : le PIN n'est plus cree par n'importe qui au premier deverrouillage.
+// Il se CHOISIT apres une verification d'age reussie (Stripe Identity, via le compte MyFabmesh : routes /api/age/*), et un PIN cree sans
+// verification est efface. Le PIN est sale et limite a 5 essais par 15 minutes. LIMITE ASSUMEE : l'appli de bureau fonctionne hors ligne, ce
+// verrou local est un frein, pas une preuve ; le verrou qui TIENT est celui du serveur (generations cloud). Le plancher illegal (checkHardFloor)
+// est independant de tout cela.
+const PIN_ECHECS_MAX = 5;
+const PIN_VERROU_MS = 15 * 60 * 1000;
+const _pinHash = (pin) => require('crypto').createHash('sha256').update('mfm-pin|local|' + String(pin || '')).digest('hex');
+function _pinVerrouRestantMs(config) {
+  const fin = Number(config.parentalPinVerrou || 0);
+  return fin > Date.now() ? fin - Date.now() : 0;
+}
+function _pinEchec(config) {
+  const n = Number(config.parentalPinEchecs || 0) + 1;
+  if (n >= PIN_ECHECS_MAX) { config.parentalPinEchecs = 0; config.parentalPinVerrou = Date.now() + PIN_VERROU_MS; }
+  else config.parentalPinEchecs = n;
+  saveConfig(config);
+}
+function _marquerAgeVerifie() {
+  const config = loadConfig();
+  if (config.ageVerifiedAt) return;
+  config.ageVerifiedAt = new Date().toISOString();
+  delete config.parentalPinHash;            // un PIN cree avant la verification n'a aucune valeur
+  config.parentalPinEchecs = 0; config.parentalPinVerrou = 0;
+  saveConfig(config);
+  delete process.env.FABMESH_UNRESTRICTED;
+  log.info('main', 'age verifie (compte MyFabmesh) : ancien PIN efface, nouveau PIN a choisir');
+}
 ipcMain.handle('set-parental-pin', (_event, { pin }) => {
+  if (!loadConfig().ageVerifiedAt) return { success: false, error: 'age_verification_required' };
   if (!pin || pin.length < 4) return { success: false, error: 'PIN must be at least 4 digits' };
   const config = loadConfig();
-  // Simple hash (not crypto-secure, but enough for parental control)
-  const hash = require('crypto').createHash('sha256').update(pin).digest('hex');
-  config.parentalPinHash = hash;
+  config.parentalPinHash = _pinHash(pin);
   saveConfig(config);
   return { success: true };
 });
@@ -3394,9 +3421,38 @@ ipcMain.handle('set-parental-pin', (_event, { pin }) => {
 ipcMain.handle('verify-parental-pin', (_event, { pin }) => {
   const config = loadConfig();
   if (!config.parentalPinHash) return { success: false, error: 'No PIN set. Set one first.' };
-  const hash = require('crypto').createHash('sha256').update(pin || '').digest('hex');
-  if (hash !== config.parentalPinHash) return { success: false, error: 'Wrong PIN' };
+  if (_pinVerrouRestantMs(config) > 0) return { success: false, error: 'Too many attempts. Try again later.' };
+  if (_pinHash(pin) !== config.parentalPinHash) { _pinEchec(config); return { success: false, error: 'Wrong PIN' }; }
   return { success: true };
+});
+
+// Verification d'age : le compte MyFabmesh ouvre la verification chez Stripe (piece d'identite + selfie, hebergees par Stripe) ; la reponse
+// n'est jamais prise sur parole du rendu : c'est CE processus qui interroge le serveur et enregistre « age verifie ».
+ipcMain.handle('age:start', async () => {
+  if (isStoreBuild()) return { ok: false, error: 'store_build' };
+  try {
+    if (!cloudFallback || !cloudFallback.authedFetch) return { ok: false, error: 'cloud module unavailable' };
+    const r = await cloudFallback.authedFetch('/api/age/start', { method: 'POST' });
+    if (r.needsCloudLogin) return { ok: false, needsLogin: true };
+    const j = await r.resp.json().catch(() => ({}));
+    if (!r.resp.ok) return { ok: false, status: r.resp.status, error: j.error || ('HTTP ' + r.resp.status), code: j.code, refused: !!j.refused };
+    if (j.verified) { _marquerAgeVerifie(); return { ok: true, verified: true }; }
+    // l'adresse ne sert qu'a ouvrir la page de verification Stripe : rien d'autre n'est ouvert
+    if (typeof j.url !== 'string' || !/^https:\/\/verify\.stripe\.com\//.test(j.url)) return { ok: false, error: 'unexpected verification address' };
+    return { ok: true, url: j.url };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+ipcMain.handle('age:status', async () => {
+  if (isStoreBuild()) return { ok: false, error: 'store_build' };
+  try {
+    if (!cloudFallback || !cloudFallback.authedFetch) return { ok: false, error: 'cloud module unavailable' };
+    const r = await cloudFallback.authedFetch('/api/age/status', { method: 'GET' });
+    if (r.needsCloudLogin) return { ok: false, needsLogin: true };
+    const j = await r.resp.json().catch(() => ({}));
+    if (!r.resp.ok) return { ok: false, status: r.resp.status, error: j.error || ('HTTP ' + r.resp.status) };
+    if (j.verified) _marquerAgeVerifie();
+    return { ok: true, verified: !!j.verified, refused: !!j.refused, status: j.status || null, reason: j.reason || null };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
 // Le rendu en a besoin pour ne PAS afficher un dispositif que le paquet du
@@ -3439,17 +3495,19 @@ ipcMain.handle('toggle-unrestricted', (_event, { pin, enable }) => {
     return { success: true, unrestricted: false };
   }
 
-  // UNLOCK: requires PIN
+  // UNLOCK : age verifie d'abord, PIN choisi ensuite (voir plus haut)
+  if (!config.ageVerifiedAt) return { success: false, error: 'Age verification required', code: 'age_verification_required' };
+  const reste = _pinVerrouRestantMs(config);
+  if (reste > 0) return { success: false, error: 'Too many attempts. Try again in ' + Math.ceil(reste / 60000) + ' min.', code: 'too_many_attempts' };
   if (!config.parentalPinHash) {
-    // First time: set PIN
+    // Premier PIN : seulement apres la verification d'age.
     if (!pin || pin.length < 4) return { success: false, error: 'Set a 4+ digit PIN first' };
-    const hash = require('crypto').createHash('sha256').update(pin).digest('hex');
-    config.parentalPinHash = hash;
+    config.parentalPinHash = _pinHash(pin);
+    config.parentalPinEchecs = 0;
     saveConfig(config);
   } else {
-    // Verify PIN
-    const hash = require('crypto').createHash('sha256').update(pin || '').digest('hex');
-    if (hash !== config.parentalPinHash) return { success: false, error: 'Wrong PIN' };
+    if (_pinHash(pin) !== config.parentalPinHash) { _pinEchec(config); return { success: false, error: 'Wrong PIN' }; }
+    if (config.parentalPinEchecs) { config.parentalPinEchecs = 0; saveConfig(config); }
   }
   process.env.FABMESH_UNRESTRICTED = '1';
   try { stopSdxlServer(); } catch(_) {}
@@ -3606,6 +3664,8 @@ ipcMain.handle('get-parental-status', () => {
   return {
     hasPin: !!config.parentalPinHash,
     unrestricted: process.env.FABMESH_UNRESTRICTED === '1',
+    ageVerified: !!config.ageVerifiedAt,
+    pinLockedSeconds: Math.ceil(_pinVerrouRestantMs(config) / 1000),
   };
 });
 

@@ -274,6 +274,24 @@ export function PrivacyFr() {
         avec les autorités lorsque la loi l&apos;exige.
       </p>
 
+      <h3>8.1 Vérification de l&apos;âge</h3>
+      <p>
+        Pour désactiver le filtre de contenu, nous vous demandons de vérifier
+        que vous êtes majeur. La vérification est réalisée par{' '}
+        <strong>Stripe</strong> (Stripe Identity) avec une pièce d&apos;identité
+        et un selfie, que vous envoyez à Stripe et que Stripe traite ; nous ne
+        les recevons pas. Nous recevons seulement le résultat. Nous
+        conservons que votre compte est &laquo;&nbsp;majeur vérifié&nbsp;&raquo;,
+        la date de la vérification et l&apos;identifiant de la vérification
+        Stripe. Nous ne conservons ni votre pièce, ni votre photo, ni votre
+        date de naissance, et nous demandons à Stripe d&apos;effacer les données
+        de la vérification dès que la décision est prise. La base légale est
+        notre intérêt légitime à protéger les mineurs. Si la vérification
+        montre que vous avez moins de 18 ans, le compte ne peut pas désactiver
+        le filtre de contenu. La suppression de votre compte supprime cet
+        enregistrement.
+      </p>
+
       <h2>9. Modifications</h2>
       <p>
         Nous mettons cette page à jour lorsque nos pratiques évoluent. La date de

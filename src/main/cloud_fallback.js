@@ -1557,6 +1557,7 @@ function register(deps) {
 }
 
 module.exports = {
+  authedFetch: _authedFetch,
   register, generateImages, imageOp, outfitOp, generateMesh, getAccessToken, status, login, logout,
   // Cold start Modal : préchauffage à la demande + retry partagé
   prewarm,

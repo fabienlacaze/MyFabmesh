@@ -19,6 +19,10 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { checkPromptSafety } from './nsfw_filter';
 import { legalIdentityUnfilledFields } from './config/legal-identity';
 import {
+  AGE_DEPARTS_PAR_JOUR, verdictSession, unrestrictedEffectif, pinVerrouRestant, apresEchecPin, apresSuccesPin,
+  apresVerificationReussie, apresRefusMineur, type EtatParental,
+} from './age_verification';
+import {
   calculerPrevisionModal, alerteEmailModal, regrouperPostes, moisUtc, SEUIL_ARRETE_H,
   type PrevisionModal, type LimiteModal,
 } from './prevision_modal';
@@ -15236,10 +15240,7 @@ async function handleMeshSegmentStatus(req: Request, env: Env): Promise<Response
  *  desktop FABMESH_UNRESTRICTED logic. State at R2 key
  *  _meta/parental/<userId>.json = { pin: '<sha256>', unrestricted: bool }
  * ───────────────────────────────────────────────────────────────── */
-interface ParentalState {
-  pinHash?: string;
-  unrestricted: boolean;
-}
+type ParentalState = EtatParental;
 
 async function _sha256(input: string): Promise<string> {
   const enc = new TextEncoder().encode(input);
@@ -15248,13 +15249,21 @@ async function _sha256(input: string): Promise<string> {
     .map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function getParentalState(env: Env, userId: string): Promise<ParentalState> {
+/** Etat TEL QUE RANGE (sans la regle « age verifie »). Reserve aux routes parentales qui doivent le reecrire. */
+async function getParentalStateBrut(env: Env, userId: string): Promise<ParentalState> {
   if (!env.MESHES) return { unrestricted: false };
   try {
     const obj = await env.MESHES.get(`_meta/parental/${userId}.json`);
     if (!obj) return { unrestricted: false };
     return JSON.parse(await obj.text()) as ParentalState;
   } catch { return { unrestricted: false }; }
+}
+
+/** Etat EFFECTIF, celui que lisent les generations : le filtre n'est leve que pour un compte dont l'AGE A ETE VERIFIE
+ *  (2026-10-01). Un ancien « unrestricted » pose sans verification est ignore. */
+async function getParentalState(env: Env, userId: string): Promise<ParentalState> {
+  const s = await getParentalStateBrut(env, userId);
+  return { ...s, unrestricted: unrestrictedEffectif(s) };
 }
 
 async function putParentalState(env: Env, userId: string, s: ParentalState): Promise<void> {
@@ -15268,10 +15277,16 @@ async function handleParentalStatus(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   const s = await getParentalState(env, user.id);
-  return json({ ok: true, unrestricted: !!s.unrestricted, hasPin: !!s.pinHash });
+  return json({
+    ok: true, unrestricted: !!s.unrestricted, hasPin: !!s.pinHash,
+    ageVerified: !!s.ageVerifiedAt, ageRefused: !!s.ageRefusedAt,
+    pinLockedSeconds: Math.ceil(pinVerrouRestant(s, new Date()) / 1000),
+  });
 }
 
-/** POST /api/parental/toggle — body { pin, enable }. Validates / sets PIN. */
+/** POST /api/parental/toggle — body { pin, enable }.
+ *  Lever le filtre exige : (1) l'age verifie, (2) un PIN CHOISI APRES cette verification, (3) pas plus de PIN_ECHECS_MAX essais
+ *  d'affilee (verrou de 15 min). Re-verrouiller reste libre : cela ne peut que renforcer. */
 async function handleParentalToggle(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
@@ -15280,26 +15295,133 @@ async function handleParentalToggle(req: Request, env: Env): Promise<Response> {
   // Done BEFORE the length check because 'lock' is 4 chars and would
   // otherwise route into the normal PIN validation and 403.
   if (enable === false && pin === 'lock') {
-    const cur = await getParentalState(env, user.id);
+    const cur = await getParentalStateBrut(env, user.id);
     cur.unrestricted = false;
     await putParentalState(env, user.id, cur);
     return json({ ok: true, success: true, unrestricted: false });
   }
-  if (typeof pin !== 'string' || pin.length < 4) {
-    return err(400, 'PIN must be ≥ 4 chars');
+  let cur = await getParentalStateBrut(env, user.id);
+  // Pas d'age verifie : pas de PIN a creer, pas de filtre a lever.
+  if (!cur.ageVerifiedAt) {
+    return json({ error: 'age_verification_required', code: 'age_verification_required', refused: !!cur.ageRefusedAt }, { status: 403 });
   }
-  const cur = await getParentalState(env, user.id);
-  const inHash = await _sha256(pin);
+  if (typeof pin !== 'string' || pin.length < 4 || pin.length > 64) {
+    return err(400, 'PIN must be 4 to 64 characters');
+  }
+  const maintenant = new Date();
+  const reste = pinVerrouRestant(cur, maintenant);
+  if (reste > 0) {
+    return json({ error: 'too_many_attempts', code: 'too_many_attempts', retry_after_s: Math.ceil(reste / 1000) },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(reste / 1000)) } });
+  }
+  // PIN sale par le compte : les anciens condenses (non sales) sont de toute facon effaces a la verification d'age.
+  const inHash = await _sha256('mfm-pin|' + user.id + '|' + pin);
   if (cur.pinHash) {
     // PIN already set — validate.
-    if (inHash !== cur.pinHash) return err(403, 'PIN mismatch');
+    if (inHash !== cur.pinHash) {
+      cur = apresEchecPin(cur, maintenant);
+      await putParentalState(env, user.id, cur);
+      return err(403, 'PIN mismatch');
+    }
   } else {
-    // First-time set.
+    // Premier PIN : seulement apres la verification d'age (voir plus haut).
     cur.pinHash = inHash;
   }
+  cur = apresSuccesPin(cur);
   cur.unrestricted = enable !== false;
   await putParentalState(env, user.id, cur);
   return json({ ok: true, success: true, unrestricted: cur.unrestricted });
+}
+
+/* ──────────────────────────────────────────────────────────────
+ *  VERIFICATION D'AGE (2026-10-01) — Stripe Identity. Logique pure : src/age_verification.ts (banc : build/test-verif-age.mjs).
+ *  Fail-closed : sans cle Stripe, ou si Stripe repond mal, le filtre RESTE en place pour tout le monde.
+ *  Rien de personnel n'est conserve ici : « majeur verifie le <date> » et l'identifiant de session ; la session Stripe est effacee (redact).
+ * ────────────────────────────────────────────────────────────── */
+async function _compterAge(env: Env, cle: string, plafond: number): Promise<boolean> {
+  if (!env.MESHES) return false;
+  const cur = await env.MESHES.get(cle);
+  const n = cur ? parseInt(await cur.text(), 10) || 0 : 0;
+  if (n >= plafond) return false;
+  await env.MESHES.put(cle, String(n + 1));
+  return true;
+}
+
+/** POST /api/age/start — ouvre une verification (piece d'identite + selfie hebergees par Stripe). Reponse : { ok, url } (a ouvrir dans le navigateur). */
+async function handleAgeStart(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  if (!env.STRIPE_SECRET_KEY || !env.MESHES) return err(503, 'age verification unavailable');
+  const st = await getParentalStateBrut(env, user.id);
+  if (st.ageVerifiedAt) return json({ ok: true, verified: true });
+  if (st.ageRefusedAt) return json({ ok: false, refused: true, error: 'age_refused' }, { status: 403 });
+  // Une verification deja ouverte et non commencee : on la reprend (chaque verification est facturee a l'exploitant).
+  if (st.ageSessionId) {
+    const ex = await _stripeRest(env, `https://api.stripe.com/v1/identity/verification_sessions/${encodeURIComponent(st.ageSessionId)}`, null, 'GET');
+    const d = ex.data as any;
+    if (ex.ok && d && d.status === 'requires_input' && !d.last_error && typeof d.url === 'string' && d.metadata && d.metadata.uid === user.id) {
+      return json({ ok: true, url: d.url });
+    }
+  }
+  const jour = new Date().toISOString().slice(0, 10);
+  if (!(await _compterAge(env, `_meta/agecount/${user.id}/${jour}.txt`, AGE_DEPARTS_PAR_JOUR))) {
+    return json({ ok: false, error: 'too_many_attempts', code: 'too_many_attempts' }, { status: 429 });
+  }
+  const base = (env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
+  const form: Record<string, unknown> = {
+    type: 'document',
+    options: { document: { require_live_capture: true, require_matching_selfie: true, allowed_types: ['driving_license', 'passport', 'id_card'] } },
+    metadata: { uid: user.id },
+  };
+  if (base) form.return_url = `${base}/age-done.html`;
+  const r = await _stripeRest(env, 'https://api.stripe.com/v1/identity/verification_sessions', form, 'POST');
+  const d = r.data as any;
+  if (!r.ok || !d || typeof d.id !== 'string' || typeof d.url !== 'string') {
+    console.error('age/start: Stripe a refuse', r.status, (d && d.error && d.error.message) || '');
+    return err(502, 'age verification service unavailable');
+  }
+  await putParentalState(env, user.id, { ...st, ageSessionId: d.id });
+  return json({ ok: true, url: d.url });
+}
+
+/** GET /api/age/status — relit la verification chez Stripe et, si elle est reussie, enregistre « majeur verifie » (rien d'autre). */
+async function handleAgeStatus(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  const st = await getParentalStateBrut(env, user.id);
+  if (st.ageVerifiedAt) return json({ ok: true, verified: true });
+  if (st.ageRefusedAt) return json({ ok: true, verified: false, refused: true });
+  if (!st.ageSessionId) return json({ ok: true, verified: false, status: 'none' });
+  if (!env.STRIPE_SECRET_KEY) return err(503, 'age verification unavailable');
+  const url = `https://api.stripe.com/v1/identity/verification_sessions/${encodeURIComponent(st.ageSessionId)}?expand[]=verified_outputs`;
+  const r = await _stripeRest(env, url, null, 'GET');
+  if (!r.ok) {
+    console.error('age/status: Stripe a refuse', r.status);
+    return err(502, 'age verification service unavailable');
+  }
+  const maintenant = new Date();
+  const v = verdictSession(r.data, { userId: user.id, sessionAttendue: st.ageSessionId, maintenant });
+  const effacer = async () => {
+    // Donnees personnelles chez Stripe (pieces, selfie) : effacees des que la decision est prise.
+    try {
+      const x = await _stripeRest(env, `https://api.stripe.com/v1/identity/verification_sessions/${encodeURIComponent(st.ageSessionId!)}/redact`, {}, 'POST');
+      if (!x.ok) console.error('age/status: redact refuse', x.status);
+    } catch (e) { console.error('age/status: redact en erreur', e); }
+  };
+  if (v.etat === 'verifie') {
+    await putParentalState(env, user.id, apresVerificationReussie(st, st.ageSessionId, maintenant));
+    await effacer();
+    return json({ ok: true, verified: true });
+  }
+  if (v.etat === 'mineur') {
+    await putParentalState(env, user.id, apresRefusMineur(st, maintenant));
+    await effacer();
+    return json({ ok: true, verified: false, refused: true });
+  }
+  if (v.etat === 'en_cours') return json({ ok: true, verified: false, status: 'pending' });
+  if (v.etat === 'a_refaire') return json({ ok: true, verified: false, status: 'retry', reason: v.raison });
+  console.error('age/status: session invalide', v.raison);
+  return json({ ok: true, verified: false, status: 'invalid' });
 }
 
 
@@ -21705,6 +21827,8 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         }
         if (pathname === '/api/parental/status'       && method === 'GET')  return await handleParentalStatus(req, env);
         if (pathname === '/api/parental/toggle'       && method === 'POST') return await handleParentalToggle(req, env);
+        if (pathname === '/api/age/start'             && method === 'POST') return await handleAgeStart(req, env);
+        if (pathname === '/api/age/status'            && method === 'GET')  return await handleAgeStatus(req, env);
         if (pathname === '/api/support-logs'          && method === 'POST') return await handleSupportLogs(req, env);
         if (pathname === '/api/client-log'            && method === 'POST') return await handleClientLog(req, env);
         if (pathname === '/api/client-log/list'       && method === 'GET')  return await handleClientLogList(req, env);

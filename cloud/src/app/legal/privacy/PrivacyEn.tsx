@@ -238,6 +238,22 @@ export function PrivacyEn() {
         with authorities when required by law.
       </p>
 
+      <h3>8.1 Age verification</h3>
+      <p>
+        To turn off the content filter, we ask you to verify that you are an
+        adult. The check is carried out by <strong>Stripe</strong> (Stripe
+        Identity) with an identity document and a selfie, which you send to
+        Stripe and which Stripe processes; we do not receive them. We only
+        receive the result. We store that your account is &ldquo;adult
+        verified&rdquo;, the date of the check and the identifier of the
+        Stripe check. We do not store your document, your photo or your date
+        of birth, and we ask Stripe to erase the check data as soon as the
+        decision is made. The legal basis is our legitimate interest in
+        protecting minors. If the check shows that you are under 18, the
+        account cannot turn off the content filter. Deleting your account
+        deletes this record.
+      </p>
+
       <h2>9. Changes</h2>
       <p>
         We update this page when our practices change. The &ldquo;Last

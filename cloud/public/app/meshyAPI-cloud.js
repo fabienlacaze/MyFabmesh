@@ -1222,12 +1222,32 @@
           unrestricted: !!data.unrestricted,
           unlocked: !!data.unrestricted,
           hasPin: !!data.hasPin,
+          ageVerified: !!data.ageVerified,
+          ageRefused: !!data.ageRefused,
+          pinLockedSeconds: Number(data.pinLockedSeconds || 0),
         };
         if (r.ok) impl.__parental = { t: Date.now(), v };
         return v;
       } catch (e) {
         return { enabled: true, unrestricted: false, unlocked: false, hasPin: false };
       }
+    },
+    // VERIFICATION D'AGE (Stripe Identity) : ouvre la verification, puis relit le resultat. Voir cloud/src/age_verification.ts.
+    ageStart: async () => {
+      impl.__parental = null;
+      try {
+        const r = await fetch('/api/age/start', { method: 'POST', credentials: 'same-origin' });
+        const data = await r.json().catch(() => ({}));
+        return { ok: r.ok && !!(data.url || data.verified), url: data.url || null, verified: !!data.verified, refused: !!data.refused, status: r.status, code: data.code, error: data.error };
+      } catch (e) { return { ok: false, error: String(e) }; }
+    },
+    ageStatus: async () => {
+      impl.__parental = null;
+      try {
+        const r = await fetch('/api/age/status', { credentials: 'same-origin' });
+        const data = await r.json().catch(() => ({}));
+        return { ok: r.ok, verified: !!data.verified, refused: !!data.refused, status: data.status || null, reason: data.reason || null };
+      } catch (e) { return { ok: false, error: String(e) }; }
     },
     toggleUnrestricted: async ({ pin, enable } = {}) => {
       impl.__parental = null;
@@ -1239,7 +1259,7 @@
           body: JSON.stringify({ pin, enable }),
         });
         const data = await r.json();
-        return { ok: r.ok, success: !!data.success, unrestricted: !!data.unrestricted, error: data.error };
+        return { ok: r.ok, success: !!data.success, unrestricted: !!data.unrestricted, error: data.error, code: data.code, refused: !!data.refused };
       } catch (e) {
         return { ok: false, success: false, error: String(e) };
       }

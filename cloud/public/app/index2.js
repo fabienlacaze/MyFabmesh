@@ -24990,9 +24990,74 @@ async function refreshParentalStatus() {
 }
 
 // Shared function: prompt for PIN and toggle parental control
+// VERIFICATION D'AGE avant le mode « sans restriction » (2026-10-01) — meme parcours que le bureau : Stripe Identity (piece + selfie) dans un
+// autre onglet, resultat relu toutes les 3 s. Seul « majeur verifie » + la date est conserve cote serveur.
+async function _verifierAgeFlow() {
+  if (!API.ageStart || !API.ageStatus) { showToast(_i18nT('Age verification is not available in this build.'), 'error', 6000); return false; }
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.id = 'age-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100001;display:flex;align-items:center;justify-content:center;';
+    ov.innerHTML = `
+      <div role="dialog" aria-modal="true" style="background:#15151f;border:1px solid #3a3a4a;border-radius:12px;padding:24px 28px;width:520px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.6);">
+        <h3 style="margin:0 0 10px;font-size:18px;color:#eee;" data-i18n>Verify your age</h3>
+        <p style="margin:0 0 10px;font-size:14px;color:#cbd;line-height:1.55;" data-i18n>To turn off the content filter, we must check that you are an adult. The check is done by Stripe with an ID document and a selfie.</p>
+        <p style="margin:0 0 14px;font-size:14px;color:#9aa;line-height:1.55;" data-i18n>MyFabmesh.AI keeps only “adult verified” and the date. No document, no photo, no date of birth.</p>
+        <div id="age-msg" style="min-height:22px;margin:0 0 14px;font-size:14px;color:#fbbf24;line-height:1.5;"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button id="age-cancel" class="ghost-btn" data-i18n>Cancel</button>
+          <button id="age-go" class="primary-btn" data-i18n>Start verification</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const q = (id) => ov.querySelector('#' + id);
+    let minuteur = null, termine = false, essais = 0;
+    const fin = (ok) => { if (termine) return; termine = true; clearInterval(minuteur); ov.remove(); resolve(!!ok); };
+    const dire = (txt, couleur) => { const m = q('age-msg'); m.textContent = txt ? _i18nT(txt) : ''; m.style.color = couleur || '#fbbf24'; };
+    const messageErreur = (r) => {
+      if (r && r.refused) return 'This account cannot turn off the content filter.';
+      if (r && (r.code === 'too_many_attempts' || r.status === 429)) return 'Too many attempts today. Try again tomorrow.';
+      return 'Age verification is not available right now. Try again later.';
+    };
+    const sonder = async () => {
+      if (termine) return;
+      if (++essais > 300) {       // 15 minutes
+        clearInterval(minuteur); q('age-go').disabled = false; q('age-go').textContent = _i18nT('Start again');
+        dire('The verification took too long. Start again.', '#f87171'); return;
+      }
+      let r = null;
+      try { r = await API.ageStatus(); } catch (_) {}
+      if (!r || !r.ok) return;                  // coupure passagere : on retente au tour suivant
+      if (r.verified) { showToast(_i18nT('Age verified.'), 'success', 4000); fin(true); return; }
+      if (r.refused) { clearInterval(minuteur); dire('This account cannot turn off the content filter.', '#f87171'); q('age-go').style.display = 'none'; return; }
+      if (r.status === 'retry' || r.status === 'invalid') {
+        clearInterval(minuteur); q('age-go').disabled = false; q('age-go').textContent = _i18nT('Try again');
+        dire(r.status === 'retry' ? 'The verification did not go through. You can try again.' : 'The verification could not be confirmed. Try again.', '#f87171'); return;
+      }
+      dire('Waiting for your verification. Finish it in your browser, then come back here.');
+    };
+    q('age-cancel').addEventListener('click', () => fin(false));
+    q('age-go').addEventListener('click', async () => {
+      const go = q('age-go');
+      go.disabled = true; dire('Opening the verification page…');
+      // L'onglet s'ouvre TOUT DE SUITE (dans le geste du clic) : ouvert apres l'attente reseau, un bloqueur de fenetres le refuserait.
+      const onglet = window.open('about:blank', '_blank');
+      try { if (onglet) onglet.opener = null; } catch (_) {}
+      let r = null;
+      try { r = await API.ageStart(); } catch (e) { r = { ok: false, error: String((e && e.message) || e) }; }
+      if (r && r.verified) { try { onglet && onglet.close(); } catch (_) {} fin(true); return; }
+      if (!r || !r.ok || !r.url) { try { onglet && onglet.close(); } catch (_) {} dire(messageErreur(r), '#f87171'); go.disabled = false; return; }
+      if (onglet) { onglet.location.href = r.url; }
+      else { const m = q('age-msg'); m.innerHTML = ''; const a = document.createElement('a'); a.href = r.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = _i18nT('Open the verification page'); a.style.color = '#8ab4ff'; m.appendChild(a); }
+      if (onglet) dire('Waiting for your verification. Finish it in your browser, then come back here.');
+      essais = 0; clearInterval(minuteur); minuteur = setInterval(sonder, 3000);
+    });
+  });
+}
+
 async function toggleParentalControl() {
   if (!API.getParentalStatus || !API.toggleUnrestricted) return;
-  const status = await API.getParentalStatus();
+  let status = await API.getParentalStatus();
 
   if (status.unrestricted) {
     // Lock — no PIN needed, instant
@@ -25010,8 +25075,14 @@ async function toggleParentalControl() {
     }
   } else {
     // Unlock — show legal warning first, then prompt for PIN
+    if (status.pinLockedSeconds > 0) { showToast(_i18nTf('Too many wrong PINs. Try again in {x} min.', Math.ceil(status.pinLockedSeconds / 60)), 'error', 6000); return; }
     const accepted = await _showNsfwWarning();
     if (!accepted) return;
+    // Age verifie D'ABORD, PIN CHOISI ENSUITE (un PIN cree avant la verification est efface cote serveur).
+    if (!status.ageVerified) {
+      if (!(await _verifierAgeFlow())) return;
+      status = await API.getParentalStatus();
+    }
     const pin = await _promptPin(status.hasPin ? 'Enter your PIN to unlock:' : 'Create a PIN (4+ digits) to enable unrestricted mode:');
     if (!pin) return;
     if (pin.length < 4) { showToast('PIN must be at least 4 digits.', 'error'); return; }

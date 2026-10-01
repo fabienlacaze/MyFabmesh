@@ -431,6 +431,28 @@
   "motif": false
  },
  {
+  "chemin": "/api/age/start",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAgeStart",
+  "motif": false
+ },
+ {
+  "chemin": "/api/age/status",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAgeStatus",
+  "motif": false
+ },
+ {
   "chemin": "/api/animate",
   "methodes": [
    "POST"
@@ -741,6 +763,17 @@
   "payant": false,
   "tarifs": [],
   "handler": "handleDebugAuth",
+  "motif": false
+ },
+ {
+  "chemin": "/api/describe-asset",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleDescribeAsset",
   "motif": false
  },
  {
@@ -1299,6 +1332,17 @@
   "motif": false
  },
  {
+  "chemin": "/api/mesh-light/…",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleMeshLight",
+  "motif": true
+ },
+ {
   "chemin": "/api/mesh-name-parts",
   "methodes": [
    "POST"
@@ -1327,6 +1371,19 @@
   "motif": false
  },
  {
+  "chemin": "/api/mesh-op/client-multi",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "compte",
+  "payant": true,
+  "tarifs": [
+   "manual_tool"
+  ],
+  "handler": "handleMeshOpClientMulti",
+  "motif": false
+ },
+ {
   "chemin": "/api/mesh-op/client-result",
   "methodes": [
    "POST"
@@ -1336,7 +1393,8 @@
   "tarifs": [
    "paint_emissive",
    "paint_mesh",
-   "clone3d"
+   "clone3d",
+   "skin_paint"
   ],
   "handler": "handleMeshOpClientResult",
   "motif": false
@@ -1700,6 +1758,17 @@
   "payant": false,
   "tarifs": [],
   "handler": "handleStripeWebhook",
+  "motif": false
+ },
+ {
+  "chemin": "/api/support-logs",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleSupportLogs",
   "motif": false
  },
  {
