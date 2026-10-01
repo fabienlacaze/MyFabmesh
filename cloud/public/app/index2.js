@@ -29725,3 +29725,27 @@ function ouvrirJournalVersion() {
   const el = document.getElementById('version-logiciel');
   if (el) { el.style.cursor = 'pointer'; el.style.pointerEvents = 'auto'; el.onclick = ouvrirJournalVersion; }
 })();
+
+// « EDIT SELECTED » de chaque etape : inutilisable tant qu'il n'y a RIEN a editer (user 2026-10-01 ; parite avec le bureau). Grise, ne s'ouvre pas.
+function _majVerrousEditSelected() {
+  const p = state.currentProject;
+  const n = (k) => (p && Array.isArray(p[k]) ? p[k].length : 0);
+  const aEditer = { 'step-card-image': n('images'), 'step-card-mesh': n('meshes'), 'step-card-rig': n('rigs'), 'step-card-animation': n('animations') };
+  for (const [id, nb] of Object.entries(aEditer)) {
+    const d = document.getElementById(id)?.querySelector('details.stage-edit');
+    if (!d) continue;
+    const vide = nb === 0;
+    d.classList.toggle('stage-verrouillee', vide);
+    const hint = d.querySelector('summary .stage-hint');
+    if (hint) {
+      if (hint.dataset.orig === undefined) hint.dataset.orig = hint.textContent;
+      hint.textContent = vide ? (typeof _i18nT === 'function' ? _i18nT('Nothing to edit yet') : 'Nothing to edit yet') : hint.dataset.orig;
+    }
+    if (vide && d.open) d.open = false;
+  }
+}
+document.addEventListener('click', (e) => {
+  const sm = e.target && e.target.closest ? e.target.closest('details.stage-verrouillee > summary') : null;
+  if (sm) e.preventDefault();
+}, true);
+setInterval(_majVerrousEditSelected, 1000);

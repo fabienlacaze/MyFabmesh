@@ -31,6 +31,8 @@
     .form-row:has(> label > #ws-trellis2-rectify:checked) + #ws-rectify-force-row{display:block}
 
     .etape-verrouillee{opacity:.45;filter:grayscale(.6)}
+    details.stage-verrouillee{opacity:.45;filter:grayscale(.6)}
+    details.stage-verrouillee > summary{cursor:not-allowed}
     .etape-verrouillee .step-header,.etape-verrouillee [class*="header"]{cursor:not-allowed}
     .etape-verrouillee .step-title::after,.etape-verrouillee h2::after{content:" F512";font-size:.85em}
     

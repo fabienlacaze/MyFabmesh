@@ -6,6 +6,7 @@
   if (!window.FabI18n || !window.FabI18n.register) return;
 
   window.FabI18n.register('fr', {
+    'Nothing to edit yet': 'Rien à éditer pour le moment',
     'Multi-Views': 'Multi-vues',
     'Extend': 'Étendre',
     'Brightness': 'Luminosité',
