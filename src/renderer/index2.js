@@ -356,7 +356,7 @@ function customError(message, title = 'Error') {
   msgEl.style.overflowY = 'auto';
   msgEl.style.whiteSpace = 'pre-wrap';
   msgEl.style.fontFamily = 'monospace';
-  msgEl.style.fontSize = '11px';
+  msgEl.style.fontSize = '13px';
   msgEl.style.textAlign = 'left';
   okBtn.textContent = 'OK';
   okBtn.classList.remove('danger');
@@ -658,7 +658,7 @@ function showGoToToast(targetEl, message, label, onGo) {
   span.textContent = message || (_i18nT('Item generated') + ' ✅');
   const btn = document.createElement('button');
   btn.textContent = label || _i18nT('Go to the generated item');
-  btn.style.cssText = 'background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,0.55); border-radius:6px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; flex:none;';
+  btn.style.cssText = 'background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,0.55); border-radius:6px; padding:5px 12px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap; flex:none;';
   let hideTimer = null, removeTimer = null;
   const dismiss = () => {
     clearTimeout(hideTimer); clearTimeout(removeTimer);
@@ -759,12 +759,12 @@ function customPrompt(message, defaultValue = '', title = 'Rename', okLabel = 'S
     box.style.cssText = 'background:var(--panel,#1a1a24);border:1px solid var(--border,#333);border-radius:10px;padding:18px 20px;width:min(420px,90vw);box-shadow:0 10px 40px rgba(0,0,0,0.5);';
     box.innerHTML = `
       <div style="font-size:14px;font-weight:600;color:var(--text-1,#eee);margin-bottom:8px;">${title}</div>
-      <div style="font-size:12px;color:var(--text-2,#aaa);margin-bottom:10px;">${message}</div>
+      <div style="font-size:14px;color:var(--text-2,#aaa);margin-bottom:10px;">${message}</div>
       <input type="text" class="cp-input" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--border,#444);background:#0e0e16;color:#fff;font-size:13px;" />
-      <div class="cp-error" style="display:none;color:#ff6b6b;font-size:11.5px;margin-top:7px;"></div>
+      <div class="cp-error" style="display:none;color:#ff6b6b;font-size:13.5px;margin-top:7px;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
-        <button class="cp-cancel" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border,#444);background:transparent;color:#ccc;cursor:pointer;font-size:12px;">Cancel</button>
-        <button class="cp-ok" style="padding:6px 14px;border-radius:6px;border:none;background:linear-gradient(90deg,#e0457b,#9b5de5);color:#fff;cursor:pointer;font-size:12px;font-weight:600;">${okLabel}</button>
+        <button class="cp-cancel" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border,#444);background:transparent;color:#ccc;cursor:pointer;font-size:14px;">Cancel</button>
+        <button class="cp-ok" style="padding:6px 14px;border-radius:6px;border:none;background:linear-gradient(90deg,#e0457b,#9b5de5);color:#fff;cursor:pointer;font-size:14px;font-weight:600;">${okLabel}</button>
       </div>`;
     overlay.appendChild(box);
     document.body.appendChild(overlay);
@@ -1191,15 +1191,71 @@ function _nsfwPhraseRaison(r) {
     ? `its name or description contains the word "${r.mot}"`
     : `the image analysis flagged the image "${r.fichier}" as sensitive content`;
 }
-// Projets deja signales dans cette session (une fenetre par projet, pas a chaque redessin de la grille).
+// Projets deja signales dans cette session (une fois par projet, pas a chaque redessin de la grille).
 const _nsfwAvertis = new Set();
 let _nsfwFenetreOuverte = false;
-/** Fenetre « Content blocked » (meme fenetre que celle des images importees) : dit QUELS projets sont caches et POURQUOI, propose Unlock. */
+// 2026-10-01 (user : « ce message a chaque lancement, on pourrait un peu moins visible : popup en bas a droite, et un clic dessus ouvre celle-la ») :
+// la fenetre « Content blocked » ne s'impose plus au demarrage. Une petite pastille en bas a droite dit combien de projets sont caches ;
+// un clic dessus ouvre la fenetre d'origine (quels projets, pourquoi, Unlock). Elle s'efface seule apres 20 s.
+let _nsfwEnAttente = [];
+let _nsfwReload = null;
+let _nsfwPopup = null;
+let _nsfwPopupMinuteur = 0;
+function _nsfwFermerPopup() {
+  clearTimeout(_nsfwPopupMinuteur);
+  if (_nsfwPopup) { _nsfwPopup.remove(); _nsfwPopup = null; }
+}
+function _nsfwAfficherPopup() {
+  const n = _nsfwEnAttente.length;
+  if (!n) return;
+  if (!_nsfwPopup) {
+    const el = document.createElement('div');
+    el.id = 'nsfw-popup';
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    el.style.cssText = 'position:fixed; right:20px; bottom:84px; z-index:99990; display:flex; align-items:flex-start; gap:10px; max-width:320px; padding:10px 12px; '
+      + 'background:var(--bg-2,#15151f); color:var(--text-1,#d4d4dc); border:1px solid var(--border,#2a2a38); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.45); '
+      + 'font-size:13px; line-height:1.35; cursor:pointer; transition:opacity .25s;';
+    el.innerHTML = '<span aria-hidden="true" style="font-size:16px; line-height:1.2;">&#9888;&#65039;</span>'
+      + '<span style="flex:1; min-width:0;"><b id="nsfw-popup-titre" style="display:block; color:var(--text-0,#fff); font-weight:600;"></b>'
+      + '<span id="nsfw-popup-info" style="color:var(--text-2,#9a9aaa);"></span></span>'
+      + '<button type="button" id="nsfw-popup-x" aria-label="Close" style="background:none; border:none; color:var(--text-2,#9a9aaa); cursor:pointer; font-size:15px; line-height:1; padding:0 2px;">&times;</button>';
+    el.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'nsfw-popup-x') { _nsfwFermerPopup(); _nsfwEnAttente = []; return; }
+      _nsfwOuvrirFenetre();
+    });
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _nsfwOuvrirFenetre(); } });
+    document.body.appendChild(el);
+    _nsfwPopup = el;
+  }
+  _nsfwPopup.querySelector('#nsfw-popup-titre').textContent = n === 1
+    ? _i18nT('A project is hidden by the content filter')
+    : _i18nTf('{x} projects are hidden by the content filter', n);
+  _nsfwPopup.querySelector('#nsfw-popup-info').textContent = _i18nT('Click to see why');
+  clearTimeout(_nsfwPopupMinuteur);
+  _nsfwPopupMinuteur = setTimeout(() => {
+    if (!_nsfwPopup) return;
+    _nsfwPopup.style.opacity = '0';
+    setTimeout(() => { _nsfwFermerPopup(); _nsfwEnAttente = []; }, 300);
+  }, 20000);
+}
+/** Signale les projets caches : une pastille discrete (la fenetre « Content blocked » s'ouvre au clic). */
 async function _nsfwAvertirMasques(masques, reloadFn) {
   const nouveaux = masques.filter(m => !_nsfwAvertis.has(m.p.name));
-  if (!nouveaux.length || _nsfwFenetreOuverte) return;
+  if (!nouveaux.length) return;
   nouveaux.forEach(m => _nsfwAvertis.add(m.p.name));
+  _nsfwEnAttente.push(...nouveaux);
+  _nsfwReload = reloadFn;
+  _nsfwAfficherPopup();
+}
+/** Fenetre « Content blocked » (meme fenetre que celle des images importees) : dit QUELS projets sont caches et POURQUOI, propose Unlock. */
+async function _nsfwOuvrirFenetre() {
+  const nouveaux = _nsfwEnAttente;
+  if (!nouveaux.length || _nsfwFenetreOuverte) return;
   _nsfwFenetreOuverte = true;
+  _nsfwFermerPopup();
+  _nsfwEnAttente = [];
+  const reloadFn = _nsfwReload;
   try {
     const lignes = nouveaux.slice(0, 5).map(m => `• "${m.p.displayName || m.p.name}": ${_nsfwPhraseRaison(m.raison)}`);
     if (nouveaux.length > 5) lignes.push(`… and ${nouveaux.length - 5} more`);
@@ -1441,7 +1497,7 @@ function renderAllImagesGrid() {
       </div>
       <div class="project-card-body">
         <div class="project-card-name" style="font-size:13px;">${escapeHtml(it.project.name)}</div>
-        <div class="project-card-meta" style="font-size:11px;">${escapeHtml(String(it.path).split(/[\\/]/).pop())}</div>
+        <div class="project-card-meta" style="font-size:13px;">${escapeHtml(String(it.path).split(/[\\/]/).pop())}</div>
       </div>
     </div>
   `).join('');
@@ -1538,7 +1594,7 @@ function _renderMeshCardsHtml(items) {
       <div class="project-card" style="cursor:pointer; padding:8px;" data-project="${escapeHtml(it.project.name)}" data-mesh-url="${escapeHtml(fileUrl)}">
         <div style="font-size:13px; font-weight:600; padding:4px 4px 6px;">${escapeHtml(it.project.name)}</div>
         <div class="mesh-thumb-slot" style="height:200px; background:#0a0a0e; border-radius:6px; overflow:hidden; display:flex; align-items:center; justify-content:center; color:var(--text-2); font-size:14px;">Loading…</div>
-        <div class="project-card-meta" style="font-size:11px; padding:6px 4px 0;">${escapeHtml(fname)}</div>
+        <div class="project-card-meta" style="font-size:13px; padding:6px 4px 0;">${escapeHtml(fname)}</div>
       </div>
     `;
   }).join('');
@@ -1567,7 +1623,7 @@ function renderAllMeshesGrid() {
          <button class="primary-btn" style="padding:10px 24px;">Load ${Math.min(MESH_PAGE_SIZE, remaining)} more (${remaining} remaining)</button>
        </div>`
     : (items.length > MESH_PAGE_SIZE
-        ? `<div style="grid-column:1/-1; color:var(--text-2); text-align:center; padding:12px; font-size:12px;">All ${items.length} meshes loaded.</div>`
+        ? `<div style="grid-column:1/-1; color:var(--text-2); text-align:center; padding:12px; font-size:14px;">All ${items.length} meshes loaded.</div>`
         : '');
   grid.innerHTML = _renderMeshCardsHtml(visible) + loadMoreHtml;
   grid.querySelectorAll('[data-project]').forEach((el) => {
@@ -1614,8 +1670,8 @@ function renderAllRigsGrid() {
         </div>
         ${/^https?:/i.test(url)
           ? `<model-viewer src="${escapeHtml(url)}" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:200px; background:#0a0a0e; border-radius:6px;"></model-viewer>`
-          : `<div style="height:200px; background:#0a0a0e; display:flex; align-items:center; justify-content:center; color:var(--text-2); font-size:11px; border-radius:6px;">${escapeHtml(fname || '(no preview)')}</div>`}
-        <div class="project-card-meta" style="font-size:11px; padding:6px 4px 0;">${escapeHtml(fname)}</div>
+          : `<div style="height:200px; background:#0a0a0e; display:flex; align-items:center; justify-content:center; color:var(--text-2); font-size:13px; border-radius:6px;">${escapeHtml(fname || '(no preview)')}</div>`}
+        <div class="project-card-meta" style="font-size:13px; padding:6px 4px 0;">${escapeHtml(fname)}</div>
       </div>
     `;
   }).join('');
@@ -3651,7 +3707,7 @@ async function renderImageVersions(p) {
     const _cb = img.mtime || p._reloadTs || Date.now();
     const hasEmissive = (typeof _emissiveLayerHas === 'function') && _emissiveLayerHas(img.path);
     const emissiveBadge = hasEmissive
-      ? '<span class="v-emissive-badge" title="This image has an emissive layer painted on it" style="position:absolute; bottom:2px; right:2px; background:rgba(0,0,0,0.7); border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1; box-shadow:0 0 0 1px rgba(255, 224, 102, 0.85);">💡</span>'
+      ? '<span class="v-emissive-badge" title="This image has an emissive layer painted on it" style="position:absolute; bottom:2px; right:2px; background:rgba(0,0,0,0.7); border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1; box-shadow:0 0 0 1px rgba(255, 224, 102, 0.85);">💡</span>'
       : '';
     t.innerHTML = `
       <img src="file:///${img.path.replace(/\\/g, '/')}?t=${_cb}">
@@ -3815,7 +3871,7 @@ async function _refreshStep2MvPreviews(imgPath) {
         '<div class="stage-source-mv-thumb" style="position:relative;">'
         + '<img src="file:///' + vp + '?t=' + Date.now() + '">'
         + '<span style="position:absolute; bottom:2px; left:2px; '
-        + 'background:rgba(0,0,0,0.7); color:#fff; font-size:9px; '
+        + 'background:rgba(0,0,0,0.7); color:#fff; font-size:11px; '
         + 'padding:1px 4px; border-radius:3px; letter-spacing:0.5px;">'
         + label + '</span>'
         + '</div>'
@@ -4141,7 +4197,7 @@ function showStep1Preview(imgPath) {
         fallback = document.createElement('div');
         fallback.className = 'viewer-img-error';
         fallback.style.cssText = 'position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--text-3); font-size:13px; text-align:center; padding:20px; pointer-events:none;';
-        fallback.innerHTML = '<span style="font-size:36px;">&#9888;</span><span>Image unavailable</span><span style="font-size:11px; color:var(--text-3); max-width:80%;">The file is missing or could not be read from disk.</span>';
+        fallback.innerHTML = '<span style="font-size:36px;">&#9888;</span><span>Image unavailable</span><span style="font-size:13px; color:var(--text-3); max-width:80%;">The file is missing or could not be read from disk.</span>';
         preview.appendChild(fallback);
       }
     } catch (_) {}
@@ -5027,7 +5083,7 @@ function _rzLabelsTick() {
     let el = rzState.labels[key];
     if (!el) {
       el = document.createElement('div');
-      el.style.cssText = 'position:absolute; transform:translate(-50%,-50%); font:600 12px monospace; padding:1px 5px; border-radius:5px; background:rgba(0,0,0,0.6); pointer-events:none; white-space:nowrap;';
+      el.style.cssText = 'position:absolute; transform:translate(-50%,-50%); font:600 14px monospace; padding:1px 5px; border-radius:5px; background:rgba(0,0,0,0.6); pointer-events:none; white-space:nowrap;';
       vp.appendChild(el); rzState.labels[key] = el;
     }
     const p = rzState.rulers._mid[key].clone().add(rzState.rulers.position).project(rzState.camera);
@@ -7830,7 +7886,7 @@ function _offerMultiviewRegenerate() {
         <button id="mv-regen-keep" class="ghost-btn">Keep current</button>
         <button id="mv-regen-do" class="primary-btn">Regenerate back from front</button>
       </div>
-      <p style="color:#777; font-size:11px; margin:10px 0 0;">
+      <p style="color:#777; font-size:13px; margin:10px 0 0;">
         Regenerates the back view from the current front image, keeping
         identity and pose consistent. Takes ~25 s.
       </p>
@@ -10843,7 +10899,7 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
       // c:/tmp/training_meshes/anim_preview.html.
       preview.innerHTML = `
         <canvas id="ws-anim-rig-canvas" style="position:absolute; inset:0; width:100%; height:100%; background:#0a0a0e; border-radius:6px; display:block;"></canvas>
-        <div style="position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:10px; color:var(--text-2); pointer-events:none; padding:0 8px; word-break:break-all;">${filename}</div>
+        <div style="position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:12px; color:var(--text-2); pointer-events:none; padding:0 8px; word-break:break-all;">${filename}</div>
       `;
       try { setViewerLoading('ws-anim-source-preview', true, 'Loading rig…'); } catch (_) {}
       const clearLoading = () => { try { setViewerLoading('ws-anim-source-preview', false); } catch (_) {} };
@@ -11522,7 +11578,7 @@ function _openSegmentGranularityModal() {
         'Adds a new colored, separable mesh version.</div>' +
       '<label style="font-size:13px;font-weight:500;">Granularity: <span id="seg-gran-label"></span></label>' +
       '<input id="seg-gran" type="range" min="0" max="1" step="0.1" value="0.2" style="width:100%;margin:8px 0 4px;">' +
-      '<div style="display:flex;justify-content:space-between;font-size:11px;opacity:.65;margin-bottom:18px;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:13px;opacity:.65;margin-bottom:18px;">' +
         '<span>Coarse (fewer, clean)</span><span>Fine (more parts)</span></div>' +
       '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
         '<button id="seg-cancel" class="ghost-btn" style="padding:8px 16px;">Cancel</button>' +
@@ -12396,7 +12452,7 @@ function _mtShowSpinner(show) {
     sp = document.createElement('div');
     sp.id = 'mt-spinner';
     sp.style.cssText = 'position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(10,10,20,0.45); z-index:5; pointer-events:none; gap:12px; flex-direction:column;';
-    sp.innerHTML = '<div style="width:46px; height:46px; border:4px solid rgba(255,255,255,0.16); border-top-color:#6aa6ff; border-radius:50%; animation:mtspin 0.8s linear infinite;"></div><div style="font-size:12px; color:#cdd;">Processing…</div>';
+    sp.innerHTML = '<div style="width:46px; height:46px; border:4px solid rgba(255,255,255,0.16); border-top-color:#6aa6ff; border-radius:50%; animation:mtspin 0.8s linear infinite;"></div><div style="font-size:14px; color:#cdd;">Processing…</div>';
     vp.appendChild(sp);
   }
   sp.style.display = show ? 'flex' : 'none';
@@ -12437,7 +12493,7 @@ function _mtCreateWireButton() {
   const b = document.createElement('button');
   b.id = 'mt-wire-toggle';
   b.className = 'secondary-btn';
-  b.style.cssText = 'position:absolute; top:8px; left:8px; z-index:6; padding:5px 10px; font-size:11px;';
+  b.style.cssText = 'position:absolute; top:8px; left:8px; z-index:6; padding:5px 10px; font-size:13px;';
   b.textContent = '△ Triangles';
   const sync = () => {
     b.style.background = mtState.showWire ? 'var(--accent, #6aa6ff)' : '';
@@ -12840,7 +12896,7 @@ function openMeshToolModal(toolName) {
     if (toolName === 'set_pivot') {
       const resetBtn = document.createElement('button');
       resetBtn.className = 'secondary-btn';
-      resetBtn.style.cssText = 'margin-top:6px; padding:6px 8px; font-size:12px; width:100%;';
+      resetBtn.style.cssText = 'margin-top:6px; padding:6px 8px; font-size:14px; width:100%;';
       resetBtn.textContent = '↺ ' + _i18nT('Reset offsets');
       resetBtn.onclick = () => {
         body.querySelectorAll('[data-param-id]').forEach((el) => {
@@ -14885,7 +14941,7 @@ let _pmJeton = 0;
 function _signalerApercuLeger(idNom) {
   const el = document.getElementById(idNom); if (!el) return;
   let b = el.parentElement && el.parentElement.querySelector('.apercu-leger');
-  if (!b) { b = document.createElement('span'); b.className = 'apercu-leger'; b.style.cssText = 'margin-left:8px;font-size:11px;color:#8bd;'; el.insertAdjacentElement('afterend', b); }
+  if (!b) { b = document.createElement('span'); b.className = 'apercu-leger'; b.style.cssText = 'margin-left:8px;font-size:13px;color:#8bd;'; el.insertAdjacentElement('afterend', b); }
   b.textContent = _i18nT('Light preview (~500 000 triangles) — full detail kept for export');
 }
 const _legeresDemandees = new Set();
@@ -18826,8 +18882,8 @@ function _rendreSelectionAnim() {
   if (titre) titre.textContent = `${_i18nT('To generate')} (${_animSelection.length})`;
   const icone = (t) => (_libelleType(t) || '🎬').split(' ')[0];
   box.innerHTML = _animSelection.length
-    ? _animSelection.map((e, i) => `<span class="anim-chip" data-i="${i}" title="${_escapeHtml(_i18nT('Click to preview'))}" style="display:inline-flex; align-items:center; gap:5px; padding:4px 4px 4px 9px; border:1px solid var(--border); border-radius:14px; background:rgba(255,255,255,0.04); font-size:12px; cursor:pointer;">${icone(e.type)} ${_escapeHtml(_libelleClip(_nomClipSelection(e)))}<button type="button" data-i="${i}" title="${_escapeHtml(_i18nT('Remove'))}" style="border:none; background:transparent; color:var(--text-2); cursor:pointer; font-size:13px; padding:0 5px;">&#10005;</button></span>`).join('')
-    : `<span style="color:var(--text-2); font-size:12px;">${_escapeHtml(_i18nT('Nothing selected: choose an animation and a variant, then click Add.'))}</span>`;
+    ? _animSelection.map((e, i) => `<span class="anim-chip" data-i="${i}" title="${_escapeHtml(_i18nT('Click to preview'))}" style="display:inline-flex; align-items:center; gap:5px; padding:4px 4px 4px 9px; border:1px solid var(--border); border-radius:14px; background:rgba(255,255,255,0.04); font-size:14px; cursor:pointer;">${icone(e.type)} ${_escapeHtml(_libelleClip(_nomClipSelection(e)))}<button type="button" data-i="${i}" title="${_escapeHtml(_i18nT('Remove'))}" style="border:none; background:transparent; color:var(--text-2); cursor:pointer; font-size:13px; padding:0 5px;">&#10005;</button></span>`).join('')
+    : `<span style="color:var(--text-2); font-size:14px;">${_escapeHtml(_i18nT('Nothing selected: choose an animation and a variant, then click Add.'))}</span>`;
   box.querySelectorAll('button[data-i]').forEach((b) => b.addEventListener('click', (ev) => {
     ev.stopPropagation();
     _animSelection.splice(parseInt(b.dataset.i, 10), 1);
@@ -18930,7 +18986,7 @@ document.getElementById('ws-anim-gen-more-btn')?.addEventListener('click', () =>
     if (existants.has(cb.value)) {
       const tag = document.createElement('span');
       tag.className = 'anim-existing-tag';
-      tag.style.cssText = 'margin-left:auto; font-size:10px; color:var(--accent); font-weight:600; letter-spacing:0.4px;';
+      tag.style.cssText = 'margin-left:auto; font-size:12px; color:var(--accent); font-weight:600; letter-spacing:0.4px;';
       tag.textContent = '• ' + _i18nT('EXISTING');
       label.appendChild(tag);
     }
@@ -19012,7 +19068,7 @@ function renderAnimVersions(p) {
   const _ts = (m) => { if (!m) return 0; const t = new Date(m.created || m.mtime || 0).getTime(); return Number.isFinite(t) ? t : 0; };
   const anims = (p?.animations || []).slice();
   if (!anims.length) {
-    strip.innerHTML = '<div style="color:var(--text-2); font-size:12px; padding:4px;">' + _escapeHtml(_i18nT('No animations yet. Check the clips and click Generate Animation.')) + '</div>';
+    strip.innerHTML = '<div style="color:var(--text-2); font-size:14px; padding:4px;">' + _escapeHtml(_i18nT('No animations yet. Check the clips and click Generate Animation.')) + '</div>';
     if (typeBtns) typeBtns.innerHTML = '';
     _selectedAnim = null;  // sinon la sélection pointe sur un clip supprimé
     _selectedBatch = null;
@@ -19068,8 +19124,8 @@ function renderAnimVersions(p) {
     return `
     <div class="version-thumb${actif ? ' selected' : ''}" data-lot-idx="${i}" style="position:relative; width:80px; height:80px; background:#1a1a24; border-radius:6px; padding:6px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:2px solid ${actif ? 'var(--accent)' : 'transparent'};" title="${_maskAiNames(types.join(' + ')).replace(/"/g, '&quot;')}">
       <span style="font-size:16px; letter-spacing:1px;">${types.map(_iconeAnim).join('')}</span>
-      <span style="font-size:11px; font-weight:600;">v${lots.length - 1 - i}</span>
-      <span style="font-size:9px; color:var(--text-2);">${b.clips.length > 1 ? b.clips.length + ' clips' : _escapeHtml(types[0])}</span>
+      <span style="font-size:13px; font-weight:600;">v${lots.length - 1 - i}</span>
+      <span style="font-size:11px; color:var(--text-2);">${b.clips.length > 1 ? b.clips.length + ' clips' : _escapeHtml(types[0])}</span>
       <button class="version-delete-btn" title="Delete this version">&#10005;</button>
       <div class="v-rail-mid">${imgBtn}${meshBtn}${rigBtn}</div>
       <div class="v-rail-bot">
@@ -19132,7 +19188,7 @@ function _rendreBoutonsClips() {
   typeBtns.innerHTML = boutons.map((b, i) => {
     const sel = b.c === _selectedAnim && (!b.allure || b.allure === _selectedGait);
     const nom = b.allure ? _libelleClip(b.allure) : (b.type || 'clip');
-    return `<button class="anim-type-btn${sel ? ' selected' : ''}" data-i="${i}" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; min-width:64px; background:${sel ? 'var(--bg-2)' : 'transparent'}; border:2px solid ${sel ? 'var(--accent)' : 'var(--border)'}; border-radius:6px; cursor:pointer; color:var(--text-0, var(--text)); font-size:11px;">
+    return `<button class="anim-type-btn${sel ? ' selected' : ''}" data-i="${i}" style="display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 12px; min-width:64px; background:${sel ? 'var(--bg-2)' : 'transparent'}; border:2px solid ${sel ? 'var(--accent)' : 'var(--border)'}; border-radius:6px; cursor:pointer; color:var(--text-0, var(--text)); font-size:13px;">
       <span style="font-size:18px;">${_iconeAnim(b.type)}</span>
       <span style="text-transform:uppercase; font-weight:600;">${_escapeHtml(nom)}</span>
     </button>`;
@@ -21060,7 +21116,7 @@ function renderJobs() {
           <div class="job-item-2-bar-fill queued-fill" style="width:0%"></div>
         </div>
         <div class="job-item-2-pct" style="color:var(--warning, #f59e0b); font-weight:600;">queued</div>
-        <div class="job-item-2-queue-reason" style="color:var(--text-2); font-size:11px; line-height:1.35; margin-top:4px; white-space:normal;">${escapeHtml(q.reason || '')}</div>
+        <div class="job-item-2-queue-reason" style="color:var(--text-2); font-size:13px; line-height:1.35; margin-top:4px; white-space:normal;">${escapeHtml(q.reason || '')}</div>
       </div>
     `).join('');
   }
@@ -22612,7 +22668,7 @@ async function refreshProcList() {
   const countEl = document.getElementById('set-python-count');
   if (countEl) countEl.textContent = String(procs.length);
   if (!procs.length) {
-    box.innerHTML = '<div style="font-size:11px;color:var(--text-2);padding:4px 0;">No active process.</div>';
+    box.innerHTML = '<div style="font-size:13px;color:var(--text-2);padding:4px 0;">No active process.</div>';
     return;
   }
   const fmtMs = ms => {
@@ -22628,15 +22684,15 @@ async function refreshProcList() {
     const tag = p.isAiEngine ? 'AI engine' : (p.kind || 'job');
     // "Go to" only when we resolved a project to navigate to.
     const goBtn = p.projectName
-      ? `<button class="ghost-btn proc-goto" data-project="${encodeURIComponent(p.projectName)}" data-kind="${p.kind || ''}" style="padding:3px 8px;font-size:10px;flex:none;">Go to</button>`
+      ? `<button class="ghost-btn proc-goto" data-project="${encodeURIComponent(p.projectName)}" data-kind="${p.kind || ''}" style="padding:3px 8px;font-size:12px;flex:none;">Go to</button>`
       : '';
     return `<div class="proc-row" style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--border);">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:11px;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.label}${susp}</div>
-        <div style="font-size:10px;color:var(--text-2);">pid ${p.pid} · ${tag} · ${fmtMs(p.elapsedMs)}${ram}${vram}</div>
+        <div style="font-size:13px;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.label}${susp}</div>
+        <div style="font-size:12px;color:var(--text-2);">pid ${p.pid} · ${tag} · ${fmtMs(p.elapsedMs)}${ram}${vram}</div>
       </div>
       ${goBtn}
-      <button class="ghost-btn danger proc-kill" data-pid="${p.pid}" style="padding:3px 8px;font-size:10px;flex:none;">Kill</button>
+      <button class="ghost-btn danger proc-kill" data-pid="${p.pid}" style="padding:3px 8px;font-size:12px;flex:none;">Kill</button>
     </div>`;
   }).join('');
   box.querySelectorAll('.proc-kill').forEach(btn => {
@@ -23325,6 +23381,7 @@ function _activerOngletReglages(titre) {
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
   try { localStorage.setItem('fab-reglages-onglet', titre); } catch (_) {}
+  if (titre === 'Assistant') { try { checkClaudeDesktopStatus(); window._asstRafraichir?.(); } catch (_) {} }
   const z = document.querySelector('#modal-settings .set-panels'); if (z) z.scrollTop = 0;
 }
 // ouvre l'onglet qui contient l'element vise (pour les fonctions qui ouvrent les Reglages sur un champ precis)
@@ -23942,7 +23999,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
       img.style.cssText = 'width:100%; display:block; background:#fff;';
       const lbl = document.createElement('div');
       lbl.style.cssText = 'position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.75); ' +
-        'padding:2px 3px; font-size:9px; text-align:center; color:#fff; line-height:1.1;';
+        'padding:2px 3px; font-size:11px; text-align:center; color:#fff; line-height:1.1;';
       lbl.innerHTML = `${r.axis}<br><b>${r.expected}&rarr;${r.got}</b>`;
       cell.appendChild(img); cell.appendChild(lbl);
       axesEl.appendChild(cell);
@@ -24006,13 +24063,13 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
       const err = (data && data.error) ? data.error.slice(0, 160) : 'not run';
       return `<div style="background:#1a0e0e; border:2px solid #633; border-radius:8px; padding:14px; text-align:center;">
         <h3 style="margin:0 0 8px; color:#f88; font-size:14px;">${title}</h3>
-        <p style="color:#f66; font-size:12px;">Failed: ${err}</p></div>`;
+        <p style="color:#f66; font-size:14px;">Failed: ${err}</p></div>`;
     }
     const { score, sub, bg } = extract(data);
     return `<div style="background:#161616; border:2px solid #333; border-radius:8px; padding:14px; text-align:center;">
       <h3 style="margin:0 0 8px; color:#9cf; font-size:14px;">${title}</h3>
       <div style="display:inline-block; padding:10px 22px; background:${bg}; border-radius:8px; font-size:2em; font-weight:bold; color:#fff;">${score}</div>
-      <p style="margin:6px 0 0; font-size:12px; color:#aaa;">${sub}</p></div>`;
+      <p style="margin:6px 0 0; font-size:14px; color:#aaa;">${sub}</p></div>`;
   }
 
   function renderDiagnose(res) {
@@ -24020,7 +24077,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
       const err = (res && res.error) || 'unknown';
       const stderr = (res && res.stderr) || '';
       diagBody.innerHTML = `<p style="color:#f66">Error: ${err}</p>` +
-        (stderr ? `<pre style="background:#111; padding:10px; border-radius:4px; font-size:11px; color:#faa; max-height:300px; overflow:auto;">${stderr.replace(/</g, '&lt;')}</pre>` : '');
+        (stderr ? `<pre style="background:#111; padding:10px; border-radius:4px; font-size:13px; color:#faa; max-height:300px; overflow:auto;">${stderr.replace(/</g, '&lt;')}</pre>` : '');
       return;
     }
     const s1 = res.stage1, s2 = res.stage2, s3 = res.stage3, v = res.verdict;
@@ -24040,7 +24097,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
           const border = r.correct ? '#3a3' : '#c33';
           return `<div style="position:relative; outline:2px solid ${border}; border-radius:3px; overflow:hidden;">
             <img src="${img}" style="width:100%; display:block; background:#fff;">
-            <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.8); font-size:9px; padding:1px 2px; text-align:center; color:#fff; line-height:1.1;">
+            <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.8); font-size:11px; padding:1px 2px; text-align:center; color:#fff; line-height:1.1;">
               ${r.axis}<br><b>${r.expected}&rarr;${r.got}</b>
             </div>
           </div>`;
@@ -24058,7 +24115,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
           const border = v.ok ? '#3a3' : '#c33';
           return `<div style="position:relative; outline:2px solid ${border}; border-radius:3px; overflow:hidden;">
             <img src="${mvBase}view_${v.i}.png" style="width:100%; display:block; background:#fff;">
-            <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.8); font-size:9px; padding:1px 2px; text-align:center; color:#fff; line-height:1.1;">
+            <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.8); font-size:11px; padding:1px 2px; text-align:center; color:#fff; line-height:1.1;">
               v${v.i}<br>sim ${(v.similarity||0).toFixed(2)}
             </div>
           </div>`;
@@ -24073,14 +24130,14 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
         const err = (data && data.error) ? data.error.slice(0, 160) : 'not run';
         return `<div style="background:#1a0e0e; border:2px solid #633; border-radius:8px; padding:14px; text-align:center;">
           <h3 style="margin:0 0 8px; color:#f88; font-size:14px;">${title}</h3>
-          <p style="color:#f66; font-size:12px;">Failed: ${err}</p></div>`;
+          <p style="color:#f66; font-size:14px;">Failed: ${err}</p></div>`;
       }
       const { score, sub, bg } = extract(data);
       return `<div style="background:#161616; border:2px solid #333; border-radius:8px; padding:14px;">
         <h3 style="margin:0 0 8px; color:#9cf; font-size:14px; text-align:center;">${title}</h3>
         <div style="text-align:center;">
           <div style="display:inline-block; padding:10px 22px; background:${bg}; border-radius:8px; font-size:2em; font-weight:bold; color:#fff;">${score}</div>
-          <p style="margin:6px 0 0; font-size:12px; color:#aaa;">${sub}</p>
+          <p style="margin:6px 0 0; font-size:14px; color:#aaa;">${sub}</p>
         </div>
         ${stageThumbs(data, kind)}
       </div>`;
@@ -24144,7 +24201,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
     const t0 = Date.now();
     const fmt = (ms) => { const s = Math.floor(ms/1000); const m = Math.floor(s/60); return m>0 ? `${m}m${String(s%60).padStart(2,'0')}s` : `${s}s`; };
     const progressEl = document.createElement('p');
-    progressEl.style.cssText = 'color:#9cf; font-family:monospace; font-size:12px;';
+    progressEl.style.cssText = 'color:#9cf; font-family:monospace; font-size:14px;';
     diagBody.appendChild(progressEl);
     const timer = setInterval(() => { progressEl.textContent = `[${fmt(Date.now()-t0)}] running ${engine}...`; }, 1000);
     let lastLine = '';
@@ -24182,9 +24239,9 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
       <div style="font-size:1.6em; width:32px; text-align:center;" id="tier-icon-${num}">${state === 'running' ? '<span class="tier-spinner"></span>' : icons[state]}</div>
       <div style="flex:1;">
         <div style="font-weight:bold; color:#9cf;">Tier ${num}. ${name}</div>
-        <div id="tier-msg-${num}" style="font-size:12px; color:#aaa; font-family:monospace; margin-top:4px;">waiting...</div>
+        <div id="tier-msg-${num}" style="font-size:14px; color:#aaa; font-family:monospace; margin-top:4px;">waiting...</div>
       </div>
-      <div id="tier-timer-${num}" style="font-size:12px; color:#888; font-family:monospace; min-width:50px; text-align:right;"></div>
+      <div id="tier-timer-${num}" style="font-size:14px; color:#888; font-family:monospace; min-width:50px; text-align:right;"></div>
     </div>`;
   }
 
@@ -24306,7 +24363,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
           `<span style="color:#f66">Failed: ${(res && res.error) || 'unknown'}</span>`;
         if (res && res.stderr) {
           document.getElementById('tiered-footer').innerHTML +=
-            `<pre style="margin-top:8px; font-size:11px; color:#faa; max-height:200px; overflow:auto;">${String(res.stderr).replace(/</g, '&lt;')}</pre>`;
+            `<pre style="margin-top:8px; font-size:13px; color:#faa; max-height:200px; overflow:auto;">${String(res.stderr).replace(/</g, '&lt;')}</pre>`;
         }
       } else {
         renderCalibV3Result(res.result);
@@ -24332,7 +24389,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
       const col = st.ok ? '#3a3' : '#c33';
       const bg  = st.ok ? '#1a3c1a' : '#3c1a1a';
       const regBadge = st.regression
-        ? ' <span style="background:#c33;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;">REGRESSION</span>'
+        ? ' <span style="background:#c33;color:#fff;padding:1px 6px;border-radius:3px;font-size:12px;">REGRESSION</span>'
         : '';
       const name = stageLabel[st.stage] || st.name;
       // Find matching full stage object (has details incl. compare_html)
@@ -24340,7 +24397,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
       const compareHtml = full.details && full.details.compare_html;
       const viewBtn = compareHtml
         ? ` <button class="v3-view-btn" data-path="${compareHtml.replace(/\\/g, '/')}"
-             style="margin-left:8px; padding:2px 8px; font-size:11px;
+             style="margin-left:8px; padding:2px 8px; font-size:13px;
                     background:#4d7eff; color:#fff; border:none; border-radius:3px; cursor:pointer;">
              View expected vs got</button>`
         : '';
@@ -24361,7 +24418,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
           Calibration v3 · ${s.stages_run} stages · ${s.elapsed_s}s${s.any_regression ? ' · <b style="color:#f60">REGRESSION</b>' : ''}
         </div>
         ${rows}
-        <div style="margin-top:10px; padding:8px; background:#222; border-radius:3px; font-size:12px;">${verdict}</div>
+        <div style="margin-top:10px; padding:8px; background:#222; border-radius:3px; font-size:14px;">${verdict}</div>
       </div>`;
     // Wire up "View expected vs got" buttons to open the HTML compare page
     footer.querySelectorAll('.v3-view-btn').forEach(btn => {
@@ -24404,7 +24461,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
     } else {
       verdict = `<b>Plateau at ${t3.best_score}/${t3.target}.</b> No projection config reached a perfect score — the remaining loss is upstream (mesh quality or multi-view hallucinations), not a projection flag issue.`;
     }
-    const cfg = t3.best_combo ? `<pre style="margin-top:10px; background:#0a0a0a; padding:10px; border-radius:4px; font-size:11px;">${JSON.stringify(t3.best_combo, null, 2)}</pre>` : '';
+    const cfg = t3.best_combo ? `<pre style="margin-top:10px; background:#0a0a0a; padding:10px; border-radius:4px; font-size:13px;">${JSON.stringify(t3.best_combo, null, 2)}</pre>` : '';
     document.getElementById('tiered-footer').outerHTML = `
       <div style="margin-top:14px; padding:16px; background:${bg}; border-left:6px solid ${color}; border-radius:8px;">
         <div style="font-size:1.3em; margin-bottom:8px;">Final score: <b>${finalScore}</b> · elapsed ${r.elapsed_s}s</div>
@@ -24493,7 +24550,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
       const border = r.correct ? '#3a3' : '#c33';
       return `<div style="position:relative; border-radius:4px; overflow:hidden; outline:2px solid ${border};">
           <img src="${img}" style="width:100%; display:block; background:#fff;">
-          <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.75); padding:2px 3px; font-size:9px; text-align:center; color:#fff;">
+          <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.75); padding:2px 3px; font-size:11px; text-align:center; color:#fff;">
             ${r.axis}<br><b>${r.expected}&rarr;${r.got}</b>
           </div>
         </div>`;
@@ -24504,7 +24561,7 @@ _sddEl('about-suppr-donnees')?.addEventListener('click', () => { _sddOuvrir(); }
         <div style="font-size:0.85em; color:#9cf; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; font-family:monospace;">${meshFile || rep.name}</div>
         <span style="padding:3px 10px; border-radius:4px; background:${bg}; color:#fff; font-weight:bold;">${rep.score}/${rep.total}</span>
       </div>
-      <div style="font-size:10px; color:#888; margin:4px 0 8px;">${rep.timestamp||''} · sim ${(rep.similarity||0).toFixed(2)}</div>
+      <div style="font-size:12px; color:#888; margin:4px 0 8px;">${rep.timestamp||''} · sim ${(rep.similarity||0).toFixed(2)}</div>
       <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:3px;">${axes}</div>
     </div>`;
   }
@@ -25027,7 +25084,7 @@ function _showNsfwWarning() {
         <p style="color:#ef4444; font-weight:700; font-size:14px; margin-bottom:12px;">
           You are about to disable the content filter. By proceeding, you confirm that:
         </p>
-        <ul style="color:#fca5a5; font-size:12px; padding-left:20px; margin-bottom:12px;">
+        <ul style="color:#fca5a5; font-size:14px; padding-left:20px; margin-bottom:12px;">
           <li><strong>You are over 18 years old</strong> (or the legal age of majority in your country)</li>
           <li>You take <strong>full personal responsibility</strong> for all content you generate</li>
           <li>You will <strong>NOT</strong> generate any content involving minors, children, or underage persons in any sexual, violent, or exploitative context</li>
@@ -25036,20 +25093,20 @@ function _showNsfwWarning() {
         <p style="color:#ef4444; font-weight:700; font-size:13px; margin-bottom:8px;">
           ⚖️ LEGAL REMINDER
         </p>
-        <p style="color:#d4d4d8; font-size:11px; margin-bottom:8px;">
+        <p style="color:#d4d4d8; font-size:13px; margin-bottom:8px;">
           The creation, possession, or distribution of child sexual abuse material (CSAM) is a <strong>serious criminal offense</strong> in all jurisdictions worldwide, punishable by imprisonment.
         </p>
-        <p style="color:#d4d4d8; font-size:11px; margin-bottom:8px;">
+        <p style="color:#d4d4d8; font-size:13px; margin-bottom:8px;">
           Content depicting violence, terrorism, or hate speech may also violate local laws. <strong>You are solely responsible</strong> for ensuring that your use of this software complies with all applicable laws in your jurisdiction.
         </p>
-        <p style="color:#fbbf24; font-size:11px; font-weight:600;">
+        <p style="color:#fbbf24; font-size:13px; font-weight:600;">
           MyFabmesh.AI and its developers assume NO liability for content generated by users in unrestricted mode.
         </p>
       </div>
     `;
     okBtn.textContent = 'I understand and accept responsibility';
     okBtn.classList.add('danger');
-    okBtn.style.fontSize = '11px';
+    okBtn.style.fontSize = '13px';
     cancelBtn.textContent = 'Cancel';
     cancelBtn.style.display = '';
     const _prevZ = modal.style.zIndex;
@@ -25269,8 +25326,10 @@ async function checkClaudeDesktopStatus() {
     status.textContent = !connected ? _i18nT('Not connected')
       : (ici ? _i18nT('Connected') : _i18nT('Linked to another copy of MyFabmesh.AI: click Connect.'));
     status.style.color = ici ? '#86efac' : 'var(--text-2)';
+    // UN SEUL bouton a la fois (user 2026-10-01 : « connect et deconnect en meme temps ») : relie ici -> Disconnect ;
+    // pas relie, ou relie a une AUTRE copie -> Connect (qui re-pointe Claude Desktop vers celle-ci).
     if (connectBtn) connectBtn.style.display = ici ? 'none' : '';
-    if (disconnectBtn) disconnectBtn.style.display = connected ? '' : 'none';
+    if (disconnectBtn) disconnectBtn.style.display = ici ? '' : 'none';
   } catch (e) { /* ignore */ }
 }
 
@@ -28639,7 +28698,7 @@ async function showCloudLoginModal(opts = {}) {
     ov.innerHTML = `
       <div style="background:#15151f;border:1px solid #3a3a4a;border-radius:12px;padding:22px;width:360px;box-shadow:0 12px 40px rgba(0,0,0,.6);">
         <h3 style="margin:0 0 6px;font-size:16px;color:#eee;" data-i18n>Sign in to MyFabmesh Cloud</h3>
-        <p style="margin:0 0 14px;font-size:12px;color:#9aa;line-height:1.5;" data-i18n>No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).</p>
+        <p style="margin:0 0 14px;font-size:14px;color:#9aa;line-height:1.5;" data-i18n>No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).</p>
         <input id="cl-email" type="email" placeholder="Email" autocomplete="username"
                style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:9px 10px;border-radius:8px;border:1px solid #3a3a4a;background:#0f0f16;color:#eee;font-size:13px;">
         <div style="position:relative;margin-bottom:6px;">
@@ -28650,11 +28709,11 @@ async function showCloudLoginModal(opts = {}) {
         </div>
         <input id="cl-code" type="text" inputmode="numeric" maxlength="8" placeholder="6-digit code from your email" autocomplete="one-time-code"
                style="display:none;width:100%;box-sizing:border-box;margin-bottom:6px;padding:9px 10px;border-radius:8px;border:1px solid #3a3a4a;background:#0f0f16;color:#eee;font-size:13px;letter-spacing:2px;">
-        <div id="cl-err" style="min-height:16px;font-size:11px;color:#f66;margin-bottom:8px;"></div>
+        <div id="cl-err" style="min-height:16px;font-size:13px;color:#f66;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;">
           <span style="display:flex;flex-direction:column;gap:3px;">
-            <a href="#" id="cl-signup" style="font-size:11px;color:#8ab4ff;" data-i18n>Create an account</a>
-            <a href="#" id="cl-forgot" style="font-size:11px;color:#8ab4ff;" data-i18n>Forgot password?</a>
+            <a href="#" id="cl-signup" style="font-size:13px;color:#8ab4ff;" data-i18n>Create an account</a>
+            <a href="#" id="cl-forgot" style="font-size:13px;color:#8ab4ff;" data-i18n>Forgot password?</a>
           </span>
           <div style="display:flex;gap:8px;">
             <button id="cl-cancel" style="background:#2a2a3a;color:#ddd;border:1px solid #3a3a4a;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;" data-i18n>Cancel</button>
@@ -29238,10 +29297,10 @@ async function showCloudLibraryModal() {
           <button type="button" class="ct-btn active" id="clb-tab-mine" data-i18n>My assets</button>
           <button type="button" class="ct-btn" id="clb-tab-market" data-i18n>Marketplace</button>
         </div>
-        <button id="clb-site" style="background:#2a2a3a;color:#8ab4ff;border:1px solid #3a3a4a;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;" title="Open your MyFabmesh account in the browser">&#127760; <span data-i18n>Open the website</span></button>
+        <button id="clb-site" style="background:#2a2a3a;color:#8ab4ff;border:1px solid #3a3a4a;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:14px;" title="Open your MyFabmesh account in the browser">&#127760; <span data-i18n>Open the website</span></button>
         <button id="clb-close" style="background:#2a2a3a;color:#ddd;border:1px solid #3a3a4a;border-radius:8px;padding:6px 12px;cursor:pointer;">&#10005;</button>
       </div>
-      <div id="clb-body" style="overflow:auto;flex:1;min-height:220px;color:#9aa;font-size:12px;">Loading…</div>
+      <div id="clb-body" style="overflow:auto;flex:1;min-height:220px;color:#9aa;font-size:14px;">Loading…</div>
     </div>`;
   document.body.appendChild(ov);
   try { window.FabI18n?.apply?.(ov); } catch (_) {}
@@ -29258,9 +29317,9 @@ async function showCloudLibraryModal() {
       <div style="height:100px;display:flex;align-items:center;justify-content:center;background:#0f0f16;border-radius:6px;overflow:hidden;">
         ${img ? `<img src="${img}" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.outerHTML='<span style=&quot;font-size:34px;opacity:.5;&quot;>&#128444;&#65039;</span>'">` : '<span style="font-size:34px;opacity:.5;">&#129482;</span>'}
       </div>
-      <div style="font-size:11px;color:#ccd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${title}">${title}</div>
-      ${sub ? `<div style="font-size:10px;color:#778;">${sub}</div>` : ''}
-      <button class="clb-dl primary-btn" style="padding:5px 8px;font-size:11px;" ${btnData}>${btnLabel}</button>
+      <div style="font-size:13px;color:#ccd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${title}">${title}</div>
+      ${sub ? `<div style="font-size:12px;color:#778;">${sub}</div>` : ''}
+      <button class="clb-dl primary-btn" style="padding:5px 8px;font-size:13px;" ${btnData}>${btnLabel}</button>
     </div>`;
 
   const destProject = () => (state.currentProject?.name || 'cloud_import').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -29474,7 +29533,7 @@ window._posePastille = function (btn, prix, grande = false) {
   if (!pill) {
     pill = document.createElement('span');
     pill.className = 'generate-cost-pill';
-    if (!grande) pill.style.cssText = 'font-size:10px;padding:1px 7px;margin-left:6px;';
+    if (!grande) pill.style.cssText = 'font-size:12px;padding:1px 7px;margin-left:6px;';
     pill.innerHTML = '<span class="generate-cost-bolt">&#9889;</span><span class="gcp-val"></span>';
     btn.appendChild(pill);
   }
@@ -30491,7 +30550,7 @@ window._applyRigAnimPills();
           elStatus.appendChild(adr);
           const copier = document.createElement('button');
           copier.className = 'ghost-btn';
-          copier.style.cssText = 'margin-left:8px; font-size:11px; padding:2px 8px;';
+          copier.style.cssText = 'margin-left:8px; font-size:13px; padding:2px 8px;';
           copier.textContent = 'Copy address';
           copier.onclick = () => {
             navigator.clipboard.writeText(ADRESSE_SIGNALEMENT).then(() => {
@@ -30698,8 +30757,8 @@ window._applyRigAnimPills();
     tbody.innerHTML = rows.map((r) => `
       <tr data-job-id="${esc(r.id)}" style="cursor:pointer;" title="${esc(String(r.id).startsWith('local:') ? _i18nT('Local job — click to open it') : _i18nT('Click for full details'))}">
         <td style="${cel} white-space:nowrap;">${esc(new Date(r.date).toLocaleString('fr', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</td>
-        <td style="${cel}">${esc(r.type)}${String(r.id).startsWith('local:') ? ' <span style="font-size:10px; color:var(--text-2); border:1px solid var(--border); border-radius:8px; padding:0 6px; margin-left:4px;">' + esc(_i18nT('local')) + '</span>' : ''}</td>
-        <td style="${cel}"><span style="background:${couleur(r.status)}22; color:${couleur(r.status)}; padding:2px 8px; border-radius:10px; font-size:11px;">${esc(r.status)}</span></td>
+        <td style="${cel}">${esc(r.type)}${String(r.id).startsWith('local:') ? ' <span style="font-size:12px; color:var(--text-2); border:1px solid var(--border); border-radius:8px; padding:0 6px; margin-left:4px;">' + esc(_i18nT('local')) + '</span>' : ''}</td>
+        <td style="${cel}"><span style="background:${couleur(r.status)}22; color:${couleur(r.status)}; padding:2px 8px; border-radius:10px; font-size:13px;">${esc(r.status)}</span></td>
         <td style="${cel} text-align:right; font-variant-numeric:tabular-nums;">${Number(r.duration_s || 0).toFixed(1)}s</td>
         <td style="${cel} text-align:right; font-variant-numeric:tabular-nums;">${esc(r.credits)}</td>
         <td style="${cel} color:var(--text-2);">${esc(r.project || '—')}</td>
@@ -30726,7 +30785,7 @@ window._applyRigAnimPills();
   wrap?.addEventListener('click', (e) => { if (e.target === wrap) wrap.style.display = 'none'; });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && wrap?.style.display === 'flex') wrap.style.display = 'none'; });
   const ligne = (label, val) => (val == null || val === '') ? '' :
-    `<div style="display:grid; grid-template-columns:140px 1fr; gap:12px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:var(--text-2); font-size:11px; text-transform:uppercase;">${esc(label)}</span><span>${val}</span></div>`;
+    `<div style="display:grid; grid-template-columns:140px 1fr; gap:12px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:var(--text-2); font-size:13px; text-transform:uppercase;">${esc(label)}</span><span>${val}</span></div>`;
   const nomFichier = (u) => String(u || '').split('?')[0].split('/').pop();
   corps?.addEventListener('click', (e) => {
     const a = e.target.closest('[data-projet]');

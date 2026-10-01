@@ -25,10 +25,10 @@
           d.innerHTML = '<h2 style="color:#ff6b6b;margin:0 0 12px">MyFabmesh.AI failed to start</h2>'
             + '<p>An error occurred during startup. The app is still running; please report this with the log below.</p>'
             + '<pre style="white-space:pre-wrap;background:#16161f;padding:12px;border-radius:8px;'
-            + 'border:1px solid #2a2a3a;font-size:12px">' + String(msg).replace(/[<>&]/g, function (c) {
+            + 'border:1px solid #2a2a3a;font-size:14px">' + String(msg).replace(/[<>&]/g, function (c) {
                 return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c];
               }) + '</pre>'
-            + '<p style="opacity:.7;font-size:12px">Log: %APPDATA%\\myfabmesh-ai\\renderer.log and startup.log</p>';
+            + '<p style="opacity:.7;font-size:14px">Log: %APPDATA%\\myfabmesh-ai\\renderer.log and startup.log</p>';
           (document.body || document.documentElement).appendChild(d);
         } catch (_) {}
       }
@@ -82,8 +82,8 @@
              Des credits reels partaient sans que rien a l'ecran ne nomme le
              compte debite. Le solde seul ne suffit pas — il faut dire A QUI. -->
         <!-- MARQUE ET MARKETPLACE en pastilles, comme sur le web (27/09) -->
-        <button id="topbar-brand" type="button" title="Open the MyFabmesh website" style="padding:3px 12px 3px 4px;display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;border-radius:999px;white-space:nowrap;cursor:pointer;color:#f5f5fa;background:#1b1b29;border:1px solid #2a2a40;"><img src="logo-symbole.png" alt="" width="96" height="96" style="width:22px;height:22px;border-radius:6px;flex:none">MyFabmesh<span class="brand-ai">.AI</span></button>
-        <button id="topbar-market" type="button" title="Browse the marketplace" style="padding:5px 12px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:999px;white-space:nowrap;cursor:pointer;color:#fff;border:0;background:linear-gradient(135deg,#5a4fcf,#8b5cf6);box-shadow:0 2px 6px rgba(90,79,207,0.5);">&#128722; Marketplace</button>
+        <button id="topbar-brand" type="button" title="Open the MyFabmesh website" style="padding:3px 12px 3px 4px;display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:800;border-radius:999px;white-space:nowrap;cursor:pointer;color:#f5f5fa;background:#1b1b29;border:1px solid #2a2a40;"><img src="logo-symbole.png" alt="" width="96" height="96" style="width:22px;height:22px;border-radius:6px;flex:none">MyFabmesh<span class="brand-ai">.AI</span></button>
+        <button id="topbar-market" type="button" title="Browse the marketplace" style="padding:5px 12px;display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;border-radius:999px;white-space:nowrap;cursor:pointer;color:#fff;border:0;background:linear-gradient(135deg,#5a4fcf,#8b5cf6);box-shadow:0 2px 6px rgba(90,79,207,0.5);">&#128722; Marketplace</button>
         <!-- UN SEUL interrupteur Local / Cloud pour TOUTES les generations (2026-09-30, user :
              « c'est toutes les generations qui doivent basculer, pas que les images »). Meme etat
              que Settings > Compute (cle fab-compute-mode, window._choisirModeCalcul). -->
@@ -94,7 +94,7 @@
         <!-- Point d'entree PERMANENT vers la connexion en mode Local, tant qu'aucun compte n'est connecte
              (en mode Cloud, c'est la pastille du solde qui l'affiche). Jamais bloquant. -->
         <button id="topbar-signin" type="button" class="ghost-btn topbar-signin" style="display:none;" title="Sign in or create your MyFabmesh account">Sign in</button>
-        <span id="topbar-credits" class="generate-cost-pill" title="MyFabmesh credits — click to top up" style="display:none; cursor:pointer; font-size:12px; padding:4px 11px;">&#9889; <span id="topbar-credits-val">…</span><span id="topbar-account" style="display:none; opacity:.72; margin-left:7px; padding-left:7px; border-left:1px solid rgba(0,0,0,.28); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;"></span></span>
+        <span id="topbar-credits" class="generate-cost-pill" title="MyFabmesh credits — click to top up" style="display:none; cursor:pointer; font-size:14px; padding:4px 11px;">&#9889; <span id="topbar-credits-val">…</span><span id="topbar-account" style="display:none; opacity:.72; margin-left:7px; padding-left:7px; border-left:1px solid rgba(0,0,0,.28); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;"></span></span>
         <button id="btn-refresh" class="icon-btn" title="Refresh">&#x21bb;</button>
         <button id="btn-history" class="icon-btn" title="My usage history">&#128229;</button>
         <!-- SIGNALEMENT DE CONTENU IA — politique 11.16 du Microsoft Store.
@@ -130,10 +130,10 @@
         </div>
       </div>
       <div id="home-view-toggle" style="display:inline-flex; gap:0; margin:8px 0 16px; background:var(--bg-1); border:1px solid var(--border); border-radius:999px; padding:3px;">
-        <button type="button" class="home-view-btn active" data-view="projects" style="padding:6px 16px; background:var(--accent-grad); color:white; border:none; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer;">📁 Projects <span class="home-view-count" data-count="projects">(0)</span></button>
-        <button type="button" class="home-view-btn" data-view="images" style="padding:6px 16px; background:transparent; color:var(--text-1); border:none; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer;">🖼 Images <span class="home-view-count" data-count="images">(0)</span></button>
-        <button type="button" class="home-view-btn" data-view="meshes" style="padding:6px 16px; background:transparent; color:var(--text-1); border:none; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer;">🧊 Meshes <span class="home-view-count" data-count="meshes">(0)</span></button>
-        <button type="button" class="home-view-btn" data-view="rigs" style="padding:6px 16px; background:transparent; color:var(--text-1); border:none; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer;">🦴 Rigs <span class="home-view-count" data-count="rigs">(0)</span></button>
+        <button type="button" class="home-view-btn active" data-view="projects" style="padding:6px 16px; background:var(--accent-grad); color:white; border:none; border-radius:999px; font-size:14px; font-weight:600; cursor:pointer;">📁 Projects <span class="home-view-count" data-count="projects">(0)</span></button>
+        <button type="button" class="home-view-btn" data-view="images" style="padding:6px 16px; background:transparent; color:var(--text-1); border:none; border-radius:999px; font-size:14px; font-weight:600; cursor:pointer;">🖼 Images <span class="home-view-count" data-count="images">(0)</span></button>
+        <button type="button" class="home-view-btn" data-view="meshes" style="padding:6px 16px; background:transparent; color:var(--text-1); border:none; border-radius:999px; font-size:14px; font-weight:600; cursor:pointer;">🧊 Meshes <span class="home-view-count" data-count="meshes">(0)</span></button>
+        <button type="button" class="home-view-btn" data-view="rigs" style="padding:6px 16px; background:transparent; color:var(--text-1); border:none; border-radius:999px; font-size:14px; font-weight:600; cursor:pointer;">🦴 Rigs <span class="home-view-count" data-count="rigs">(0)</span></button>
       </div>
       <div id="projects-grid" class="projects-grid">
         <!-- project cards injected here -->
@@ -184,7 +184,7 @@
                     <button type="button" id="ws-compute-local" class="ct-btn active" data-mode="local" title="Generate on this PC (NVIDIA GPU required) — free and unlimited">Local (free)</button>
                     <button type="button" id="ws-compute-cloud" class="ct-btn" data-mode="cloud" title="Generate on MyFabmesh cloud — works on any PC, uses credits">Cloud (credits)</button>
                   </div>
-                  <div id="ws-compute-note" style="font-size:10px;color:var(--text-2);margin-top:3px;min-height:12px;"></div>
+                  <div id="ws-compute-note" style="font-size:12px;color:var(--text-2);margin-top:3px;min-height:12px;"></div>
                 </div>
                 <div class="form-row">
                   <label>Engine</label>
@@ -281,11 +281,11 @@
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
                   <span style="display:flex; align-items:baseline; gap:8px; min-width:0; overflow:hidden;">
                     <label style="white-space:nowrap;">Generation prompt</label>
-                    <span class="prompt-lang-hint" style="display:none; font-size:10px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+                    <span class="prompt-lang-hint" style="display:none; font-size:12px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
                   </span>
                   <div style="display:flex; gap:4px; flex-shrink:0;">
-                    <button id="ws-copy-prompt" class="ghost-btn" style="font-size:11px; padding:2px 8px;" title="Copy prompt to clipboard">&#128203; Copy</button>
-                    <button id="ws-enhance-prompt" class="ghost-btn" style="font-size:11px; padding:2px 8px;" title="Enhance the prompt with style and quality keywords">&#10024; Enhance</button>
+                    <button id="ws-copy-prompt" class="ghost-btn" style="font-size:13px; padding:2px 8px;" title="Copy prompt to clipboard">&#128203; Copy</button>
+                    <button id="ws-enhance-prompt" class="ghost-btn" style="font-size:13px; padding:2px 8px;" title="Enhance the prompt with style and quality keywords">&#10024; Enhance</button>
                   </div>
                 </div>
                 <div class="prompt-wrap">
@@ -304,7 +304,7 @@
                 <div class="form-row">
                   <label>Quality</label>
                   <input type="range" id="ws-quality" min="10" max="60" step="2" value="30" style="flex:1; accent-color: var(--accent);" />
-                  <span id="ws-quality-val" style="min-width: 90px; font-size: 11px; color: var(--text-2); text-align: right;">30 steps</span>
+                  <span id="ws-quality-val" style="min-width: 90px; font-size: 13px; color: var(--text-2); text-align: right;">30 steps</span>
                 </div>
                 <!-- PARITE WEB (2026-09-27) : la case existait sur le web seulement ;
                      index2.js la lisait deja (visibilite, estimation, generation). -->
@@ -583,12 +583,12 @@
                       Auto settings
                     </label>
                   </div>
-                  <div id="ws-3d-auto-note" class="form-hint" style="font-size:10px; margin-top:2px;"></div>
+                  <div id="ws-3d-auto-note" class="form-hint" style="font-size:12px; margin-top:2px;"></div>
                   <!-- TRELLIS-2 Texturing options -->
-                  <details id="ws-3d-trellis2-opts" style="margin-top:8px; font-size:12px;">
+                  <details id="ws-3d-trellis2-opts" style="margin-top:8px; font-size:14px;">
                     <summary style="cursor:pointer; color:var(--text-muted);">&#9881;&#65039; Advanced options</summary>
                     <div class="form-row" style="margin-top:6px;">
-                      <label style="font-size:11px;">Quality preset</label>
+                      <label style="font-size:13px;">Quality preset</label>
                       <select id="ws-trellis2-preset">
                         <option value="fast" selected>Fast (12 steps · 2048px)</option>
                         <option value="balanced">Balanced (24 steps · 2048px)</option>
@@ -600,7 +600,7 @@
                          generation. Au-dela de 500 K, supplement par tranche de 500 K
                          (cle mesh_tris_500k, voir le worker). -->
                     <div class="form-row" id="ws-trellis2-tris-row" style="margin-top:6px;">
-                      <label for="ws-trellis2-tris" style="font-size:11px;">Max triangles</label>
+                      <label for="ws-trellis2-tris" style="font-size:13px;">Max triangles</label>
                       <select id="ws-trellis2-tris">
                         <option value="1000">1 K (very low poly)</option>
                         <option value="2000">2 K (low poly)</option>
@@ -621,19 +621,19 @@
                              style="display:none; width:110px; margin-left:6px;" title="500 to 10 000 000 triangles — unused credits are refunded if the mesh has fewer" />
                     </div>
                     <div class="form-row check-row" id="ws-trellis2-multiref-row" style="margin-top:6px; display:none;">
-                      <label class="inline-check" style="font-size:11px;" title="Uses the front AND back photos together, so the back of the mesh matches your back view.">
+                      <label class="inline-check" style="font-size:13px;" title="Uses the front AND back photos together, so the back of the mesh matches your back view.">
                         <input type="checkbox" id="ws-trellis2-multiref" />
                         Multi-reference
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:6px;">
-                      <label class="inline-check" style="font-size:11px;" title="Tile-by-tile detail refinement that adds micro-details (skin pores, fabric weave, scales, fur). Works best on objects/animals/creatures; less effective on human faces.">
+                      <label class="inline-check" style="font-size:13px;" title="Tile-by-tile detail refinement that adds micro-details (skin pores, fabric weave, scales, fur). Works best on objects/animals/creatures; less effective on human faces.">
                         <input type="checkbox" id="ws-trellis2-refine" />
                         Detail refine
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
-                      <label class="inline-check" style="font-size:11px;" title="Pre-process: rectify source image to a canonical view (strict front for characters, 3/4 ISO for vehicles / objects / creatures). Dramatically improves mesh proportions. Sampled over 3 seeds with auto-scoring.">
+                      <label class="inline-check" style="font-size:13px;" title="Pre-process: rectify source image to a canonical view (strict front for characters, 3/4 ISO for vehicles / objects / creatures). Dramatically improves mesh proportions. Sampled over 3 seeds with auto-scoring.">
                         <input type="checkbox" id="ws-trellis2-rectify" />
                         Auto-rectify
                       </label>
@@ -651,19 +651,19 @@
                       </div>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
-                      <label class="inline-check" style="font-size:11px;" title="Edge-preserving bilateral filter on the baseColor atlas. Cleans speckled grain on smooth surfaces (paint, chrome, glass) while keeping panel-gap edges sharp. Best for vehicles / objects / hard surfaces.">
+                      <label class="inline-check" style="font-size:13px;" title="Edge-preserving bilateral filter on the baseColor atlas. Cleans speckled grain on smooth surfaces (paint, chrome, glass) while keeping panel-gap edges sharp. Best for vehicles / objects / hard surfaces.">
                         <input type="checkbox" id="ws-trellis2-smooth" checked />
                         Texture smooth
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
-                      <label class="inline-check" style="font-size:11px;" title="Sharper geometry on edges (panel gaps, grilles).">
+                      <label class="inline-check" style="font-size:13px;" title="Sharper geometry on edges (panel gaps, grilles).">
                         <input type="checkbox" id="ws-trellis2-quality-plus" checked />
                         Sharp edges
                       </label>
                     </div>
                     <div class="form-row check-row" style="margin-top:4px;">
-                      <label class="inline-check" style="font-size:11px;" title="Higher voxel resolution for finer geometric detail on faces and small features. Strongly recommended for character/creature assets where facial fidelity matters. Adds ~30MB to the GLB. Overrides Quality+ mode setting.">
+                      <label class="inline-check" style="font-size:13px;" title="Higher voxel resolution for finer geometric detail on faces and small features. Strongly recommended for character/creature assets where facial fidelity matters. Adds ~30MB to the GLB. Overrides Quality+ mode setting.">
                         <input type="checkbox" id="ws-trellis2-ultra-q" />
                         Fine geometry
                       </label>
@@ -675,12 +675,12 @@
                          tracks the preset's forceUltraHd via JS. -->
                     <input type="checkbox" id="ws-trellis2-ultra-hd" style="display:none;" />
                     <div class="form-row check-row" style="margin-top:4px;">
-                      <label class="inline-check" style="font-size:11px;" title="EXPERIMENTAL. Re-projects the sharp face from your SOURCE image onto the mesh (never destructive). Helps most on PORTRAIT / face-focused sources; little gain on full-body subjects whose face is tiny in the image. Off by default.">
+                      <label class="inline-check" style="font-size:13px;" title="EXPERIMENTAL. Re-projects the sharp face from your SOURCE image onto the mesh (never destructive). Helps most on PORTRAIT / face-focused sources; little gain on full-body subjects whose face is tiny in the image. Off by default.">
                         <input type="checkbox" id="ws-trellis2-face-fix" />
                         Face fix 
                       </label>
                     </div>
-                    <div class="form-hint" style="font-size:10px;">PBR baseColor + roughness + metallic exported in the GLB automatically.</div>
+                    <div class="form-hint" style="font-size:12px;">PBR baseColor + roughness + metallic exported in the GLB automatically.</div>
                   </details>
                   <button id="ws-generate-mesh" class="primary-btn" disabled title="Build a 3D mesh from the selected image. Quality and options are set just above.">Generate 3D</button>
                 </div>
@@ -697,7 +697,7 @@
                       <div class="preview-placeholder">+ Add back photo</div>
                     </div>
                     <div id="ws-3d-source-back-filename" class="viewer-filename"></div>
-                    <button id="ws-3d-source-back-clear" class="ghost-btn" style="margin-top:4px; display:none; font-size:11px; padding:2px 8px;" title="Drop the back photo — generation returns to single-view.">Remove back photo</button>
+                    <button id="ws-3d-source-back-clear" class="ghost-btn" style="margin-top:4px; display:none; font-size:13px; padding:2px 8px;" title="Drop the back photo — generation returns to single-view.">Remove back photo</button>
                   </div>
                   <!-- 6-view grid (auto-shown when <stem>_multiview/ exists) -->
                   <div id="ws-3d-source-mv-block" class="hidden" style="margin-top:10px;">
@@ -1034,33 +1034,33 @@
                        locaux (bibliotheque de mouvements, IA locale, banque de
                        clips) ne sont plus proposes. -->
                   <div class="form-row">
-                    <label>Animations <span style="color:var(--text-2); font-weight:normal; font-size:11px;">(the preview plays your choice — add it to the list, the list becomes one version)</span></label>
+                    <label>Animations <span style="color:var(--text-2); font-weight:normal; font-size:13px;">(the preview plays your choice — add it to the list, the list becomes one version)</span></label>
                     <div id="ws-anim-types" class="anim-types-picker" style="display:grid; grid-template-columns:minmax(0,1fr) 220px; gap:10px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px;">
                       <div class="anim-apercu-cadre" style="position:relative; width:100%; height:260px; border-radius:8px; overflow:hidden; background:#0e0e14; border:1px solid var(--border);">
                         <canvas id="ws-anim-apercu" style="width:100%; height:100%; display:block;"></canvas>
-                        <div id="ws-anim-apercu-msg" style="position:absolute; inset:0; background:rgba(14,14,20,0.82); display:flex; align-items:center; justify-content:center; text-align:center; padding:10px; font-size:11px; line-height:1.35; color:var(--text-2); pointer-events:none;">Preview</div>
+                        <div id="ws-anim-apercu-msg" style="position:absolute; inset:0; background:rgba(14,14,20,0.82); display:flex; align-items:center; justify-content:center; text-align:center; padding:10px; font-size:13px; line-height:1.35; color:var(--text-2); pointer-events:none;">Preview</div>
                       </div>
                       <div style="display:flex; flex-direction:column; gap:6px; min-width:0;">
-                        <select id="ws-anim-mode" title="How this creature moves (auto-detected from the project name and the skeleton)" style="padding:6px 8px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:12px;">
+                        <select id="ws-anim-mode" title="How this creature moves (auto-detected from the project name and the skeleton)" style="padding:6px 8px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:14px;">
                           <option value="auto">Auto</option>
                           <option value="pattes">&#128062; Walks on legs</option>
                           <option value="nage">&#128031; Swims</option>
                           <option value="reptation">&#128013; Slithers</option>
                         </select>
-                        <select id="ws-anim-espece" title="Which kind of animal: a horse gallops, a lion bounds, a rabbit hops (auto-detected from the project name)" style="padding:6px 8px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:12px;"></select>
+                        <select id="ws-anim-espece" title="Which kind of animal: a horse gallops, a lion bounds, a rabbit hops (auto-detected from the project name)" style="padding:6px 8px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:14px;"></select>
                         <select id="ws-anim-choix" title="Animation" style="padding:6px 8px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:13px;"></select>
                         <select id="ws-anim-variante" title="Variant" style="padding:6px 8px; background:var(--bg-1, var(--bg-2)); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:13px;"></select>
-                        <div id="ws-anim-desc" style="font-size:12px; line-height:1.35; color:var(--text-2); min-height:32px;"></div>
-                        <button id="ws-anim-ajouter" type="button" class="ghost-btn" title="Add to the list" style="margin-top:auto; padding:7px 10px; border:1px solid var(--accent); color:var(--text); border-radius:6px; font-size:12px; font-weight:600;">&#65291; Add to the list</button>
+                        <div id="ws-anim-desc" style="font-size:14px; line-height:1.35; color:var(--text-2); min-height:32px;"></div>
+                        <button id="ws-anim-ajouter" type="button" class="ghost-btn" title="Add to the list" style="margin-top:auto; padding:7px 10px; border:1px solid var(--accent); color:var(--text); border-radius:6px; font-size:14px; font-weight:600;">&#65291; Add to the list</button>
                       </div>
                       <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--border); padding-top:8px;">
-                        <div id="ws-anim-liste-titre" style="font-size:11px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-2);">To generate</div>
+                        <div id="ws-anim-liste-titre" style="font-size:13px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-2);">To generate</div>
                         <div id="ws-anim-liste" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
                       </div>
                     </div>
                   </div>
                   <button id="ws-generate-anim" class="primary-btn">Generate Animation</button>
-                  <div id="ws-anim-status" style="margin-top:6px; font-size:11px; color:var(--text-2); min-height:14px;"></div>
+                  <div id="ws-anim-status" style="margin-top:6px; font-size:13px; color:var(--text-2); min-height:14px;"></div>
                 </div>
                 <div class="stage-create-source">
                   <div class="stage-source-label">Source rig</div>
@@ -1287,14 +1287,14 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <span style="display:flex; align-items:baseline; gap:8px; min-width:0; overflow:hidden;">
             <label style="margin:0; white-space:nowrap;">Description</label>
-            <span class="prompt-lang-hint" style="display:none; font-size:10px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+            <span class="prompt-lang-hint" style="display:none; font-size:12px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
           </span>
         </div>
         <div class="prompt-wrap">
           <textarea id="np-prompt" rows="3" placeholder="An orc warrior with leather armor, full-body pose..."></textarea>
           <div class="prompt-overlay" style="display:none;" title="Click to edit"></div>
         </div>
-        <div id="np-block-msg" class="hidden" style="margin-top:10px; padding:10px 12px; background:rgba(220,40,45,0.12); border:1px solid rgba(220,40,45,0.5); border-radius:6px; color:#f0a; font-size:12px; line-height:1.4;"></div>
+        <div id="np-block-msg" class="hidden" style="margin-top:10px; padding:10px 12px; background:rgba(220,40,45,0.12); border:1px solid rgba(220,40,45,0.5); border-radius:6px; color:#f0a; font-size:14px; line-height:1.4;"></div>
         <div class="modal-actions">
           <button class="ghost-btn" id="np-cancel">Cancel</button>
           <button class="primary-btn" id="np-unlock" style="display:none; background:linear-gradient(135deg,#f59e0b,#f97316);">&#128275; Unlock</button>
@@ -1596,7 +1596,7 @@
             <label class="opt-ligne"><input type="checkbox" id="of-completer" checked /><span><b>Fill hidden areas</b><small>Small gaps only, e.g. behind an arm</small></span></label>
             <label class="opt-ligne"><input type="checkbox" id="of-recadrer" /><span><b>Crop to the piece</b><small>Leave off to keep it aligned on the character</small></span></label>
 
-            <div id="of-absentes" class="modal-subtitle" style="display:none; margin-top:12px; font-size:12px;"></div>
+            <div id="of-absentes" class="modal-subtitle" style="display:none; margin-top:12px; font-size:14px;"></div>
           </div>
         </div>
         <div class="modal-actions">
@@ -1649,7 +1649,7 @@
               <label>Detection padding <span id="rc-dilate-val" class="slider-val">15px</span></label>
               <input type="range" id="rc-dilate" min="0" max="40" value="15" />
             </div>
-            <small id="rc-mode-hint" class="modal-subtitle" style="display:block; margin-top:8px; font-size:11px; line-height:1.35;"></small>
+            <small id="rc-mode-hint" class="modal-subtitle" style="display:block; margin-top:8px; font-size:13px; line-height:1.35;"></small>
           </div>
         </div>
         <div class="modal-actions">
@@ -1764,18 +1764,18 @@
         <div class="fen-tete"><h2>&#127959;&#65039; 3D construction study</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Builds the 3D construction stages (frame, scaffolding…). The final mesh stays the last stage.</p>
         <div style="display:flex; flex-direction:column; gap:8px; margin:16px 0;">
-          <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
+          <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
             Number of stages <span id="bs3d-count-val" class="slider-val">5</span>
           </label>
           <input type="range" id="bs3d-count" min="2" max="20" value="5" />
-          <small class="modal-subtitle" style="font-size:12px; margin-top:2px;">From 2 to 20. Geometric fabrication (~1 s per stage).</small>
-          <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; margin-top:10px;">Material mode</label>
+          <small class="modal-subtitle" style="font-size:14px; margin-top:2px;">From 2 to 20. Geometric fabrication (~1 s per stage).</small>
+          <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; margin-top:10px;">Material mode</label>
           <select id="bs3d-mat-mode" class="modal-select" style="width:100%;">
             <option value="auto" selected>&#9889; Auto (one preset for everything)</option>
             <option value="manual">&#128295; Manual (choose each component)</option>
           </select>
           <div id="bs3d-mat-auto-row">
-            <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; margin-top:10px; display:block;">Scaffold material</label>
+            <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; margin-top:10px; display:block;">Scaffold material</label>
             <select id="bs3d-material" class="modal-select" style="width:100%;">
               <option value="wood" selected>&#127959;&#65039; Wood</option>
               <option value="metal">&#128296; Metal (galvanized steel)</option>
@@ -1785,7 +1785,7 @@
           </div>
           <div id="bs3d-mat-manual-rows" class="hidden" style="display:none; grid-template-columns:1fr 1fr; gap:8px 12px;">
             <div>
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Scaffolding</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Scaffolding</label>
               <select id="bs3d-mat-scaffold" class="modal-select" style="width:100%;">
                 <option value="wood" selected>&#127959;&#65039; Wood</option>
                 <option value="metal">&#128296; Metal (galvanized steel)</option>
@@ -1794,7 +1794,7 @@
               </select>
             </div>
             <div>
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Frame</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Frame</label>
               <select id="bs3d-mat-frame" class="modal-select" style="width:100%;">
                 <option value="wood" selected>&#127959;&#65039; Wood</option>
                 <option value="metal">&#128296; Metal (galvanized steel)</option>
@@ -1803,7 +1803,7 @@
               </select>
             </div>
             <div>
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Work planks</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Work planks</label>
               <select id="bs3d-mat-planks" class="modal-select" style="width:100%;">
                 <option value="wood" selected>&#127959;&#65039; Wood</option>
                 <option value="metal">&#128296; Metal (galvanized steel)</option>
@@ -1812,7 +1812,7 @@
               </select>
             </div>
             <div>
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Formwork</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Formwork</label>
               <select id="bs3d-mat-formwork" class="modal-select" style="width:100%;">
                 <option value="wood" selected>&#127959;&#65039; Wood</option>
                 <option value="metal">&#128296; Metal (galvanized steel)</option>
@@ -1821,7 +1821,7 @@
               </select>
             </div>
           </div>
-          <small class="modal-subtitle" style="font-size:12px; margin-top:2px;">The texture adapts to the building's render style.</small>
+          <small class="modal-subtitle" style="font-size:14px; margin-top:2px;">The texture adapts to the building's render style.</small>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="bs3d-cancel">Cancel</button>
@@ -1834,14 +1834,14 @@
         <div class="fen-tete"><h2>&#128165; Explode / destroy</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Breaks the mesh into shards. The new version has a slider to blow them apart.</p>
         <div style="display:flex; flex-direction:column; gap:8px; margin:16px 0;">
-          <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
+          <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
             Fragments <span id="ex3d-frags-val" class="slider-val">24</span>
           </label>
           <input type="range" id="ex3d-frags" min="6" max="80" value="24" />
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-1); margin-top:8px;">
             <input type="checkbox" id="ex3d-fill" checked /> Fill interior (solid shards)
           </label>
-          <small class="modal-subtitle" style="font-size:12px; margin-top:2px;">About 5 s. More fragments = finer pieces. Fill interior = solid shards.</small>
+          <small class="modal-subtitle" style="font-size:14px; margin-top:2px;">About 5 s. More fragments = finer pieces. Fill interior = solid shards.</small>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="ex3d-cancel">Cancel</button>
@@ -1860,7 +1860,7 @@
         <p class="modal-subtitle">Tell us what is wrong with this result. An admin reviews every report.</p>
         <div style="display:flex; flex-direction:column; gap:14px; margin-top:14px;">
           <div>
-            <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; display:block; margin-bottom:6px;">Reason</label>
+            <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; display:block; margin-bottom:6px;">Reason</label>
             <select id="rp-reason" class="modal-select" style="width:100%;">
               <option value="sexual">Sexual or adult content</option>
               <option value="violence">Violent or graphic content</option>
@@ -1874,13 +1874,13 @@
             </select>
           </div>
           <div>
-            <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; display:block; margin-bottom:6px;">Details (optional)</label>
+            <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; display:block; margin-bottom:6px;">Details (optional)</label>
             <textarea id="rp-details" rows="4" class="modal-select" style="width:100%; resize:vertical;" placeholder="What is wrong with this result?"></textarea>
           </div>
-          <p id="rp-note" style="font-size:11px; color:var(--text-2); margin:0;">
+          <p id="rp-note" style="font-size:13px; color:var(--text-2); margin:0;">
             The prompt and a link to the file are attached.
           </p>
-          <div id="rp-status" style="font-size:12px; min-height:16px;"></div>
+          <div id="rp-status" style="font-size:14px; min-height:16px;"></div>
         </div>
         <div class="modal-actions">
           <!-- Propose apres l'envoi seulement : offrir la suppression AVANT
@@ -1899,15 +1899,15 @@
         <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
           <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:56vh; background:#0b0b14; border-radius:10px; overflow:hidden;">
             <canvas id="rz-canvas" style="width:100%; height:100%; display:block;"></canvas>
-            <div id="rz-readout" style="position:absolute; top:10px; left:12px; font-size:12px; line-height:1.5; color:#dfe6ff; background:rgba(0,0,0,0.55); padding:8px 10px; border-radius:8px; pointer-events:none; font-family:monospace;">…</div>
-            <div id="rz-hint" style="position:absolute; bottom:10px; left:12px; font-size:11px; color:#8a93b2; pointer-events:none;">Drag gizmo · orbit with right-drag · wheel to zoom</div>
+            <div id="rz-readout" style="position:absolute; top:10px; left:12px; font-size:14px; line-height:1.5; color:#dfe6ff; background:rgba(0,0,0,0.55); padding:8px 10px; border-radius:8px; pointer-events:none; font-family:monospace;">…</div>
+            <div id="rz-hint" style="position:absolute; bottom:10px; left:12px; font-size:13px; color:#8a93b2; pointer-events:none;">Drag gizmo · orbit with right-drag · wheel to zoom</div>
           </div>
           <div style="flex:0 0 240px; display:flex; flex-direction:column; gap:12px;">
             <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-1);">
               <input type="checkbox" id="rz-uniform" checked /> Uniform scale (lock ratio)
             </label>
             <div>
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; display:block; margin-bottom:4px;">Units</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600; display:block; margin-bottom:4px;">Units</label>
               <select id="rz-unit" class="modal-select" style="width:100%;">
                 <option value="cm" selected>Centimeters (cm)</option>
                 <option value="mm">Millimeters (mm)</option>
@@ -1916,11 +1916,11 @@
               </select>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Width (X)</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Width (X)</label>
               <input type="number" id="rz-dim-x" class="modal-select" step="0.001" style="width:100%;" />
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Height (Y)</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Height (Y)</label>
               <input type="number" id="rz-dim-y" class="modal-select" step="0.001" style="width:100%;" />
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Depth (Z)</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Depth (Z)</label>
               <input type="number" id="rz-dim-z" class="modal-select" step="0.001" style="width:100%;" />
             </div>
             <div style="display:flex; gap:8px;">
@@ -1929,15 +1929,15 @@
               <button class="ghost-btn" id="rz-half" style="flex:1;" title="Halve uniform size">÷2</button>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;">
-              <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Orientation</label>
+              <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">Orientation</label>
               <div style="display:flex; gap:8px;">
                 <button class="ghost-btn" id="rz-mode-scale" style="flex:1;" title="Gizmo: resize" aria-pressed="true">Scale</button>
                 <button class="ghost-btn" id="rz-mode-rotate" style="flex:1;" title="Gizmo: rotate (5° steps)" aria-pressed="false">Rotate</button>
               </div>
               <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; align-items:center;">
-                <label for="rz-rot-x" style="font:600 11px monospace; color:#ff8a8a; text-align:center;">X°</label>
-                <label for="rz-rot-y" style="font:600 11px monospace; color:#8ae0a2; text-align:center;">Y°</label>
-                <label for="rz-rot-z" style="font:600 11px monospace; color:#9ac2ff; text-align:center;">Z°</label>
+                <label for="rz-rot-x" style="font:600 13px monospace; color:#ff8a8a; text-align:center;">X°</label>
+                <label for="rz-rot-y" style="font:600 13px monospace; color:#8ae0a2; text-align:center;">Y°</label>
+                <label for="rz-rot-z" style="font:600 13px monospace; color:#9ac2ff; text-align:center;">Z°</label>
                 <input type="number" id="rz-rot-x" class="modal-select" step="1" style="width:100%; min-width:0;" title="Angle around X (°)" />
                 <input type="number" id="rz-rot-y" class="modal-select" step="1" style="width:100%; min-width:0;" title="Angle around Y (°)" />
                 <input type="number" id="rz-rot-z" class="modal-select" step="1" style="width:100%; min-width:0;" title="Angle around Z (°)" />
@@ -1946,7 +1946,7 @@
                 <button class="ghost-btn" id="rz-rz90" style="padding-left:0; padding-right:0;" title="Turn 90° around Z">+90°</button>
               </div>
             </div>
-            <small class="modal-subtitle" style="font-size:12px;">In the mesh's own units.</small>
+            <small class="modal-subtitle" style="font-size:14px;">In the mesh's own units.</small>
           </div>
         </div>
         <div class="modal-actions" style="margin-top:14px;">
@@ -1960,11 +1960,11 @@
         <div class="fen-tete"><h2>&#127959;&#65039; Construction stages</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Builds a construction timeline from the image. The image stays the last stage.</p>
         <div style="display:flex; flex-direction:column; gap:8px; margin:16px 0;">
-          <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
+          <label style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-2); font-weight:600;">
             Number of stages <span id="bs-count-val" class="slider-val">4</span>
           </label>
           <input type="range" id="bs-count" min="2" max="20" value="4" />
-          <small id="bs-count-hint" class="modal-subtitle" style="font-size:12px; margin-top:2px;">2 to 20 stages, about 5–15 s each.</small>
+          <small id="bs-count-hint" class="modal-subtitle" style="font-size:14px; margin-top:2px;">2 to 20 stages, about 5–15 s each.</small>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="bs-cancel">Cancel</button>
@@ -2067,16 +2067,16 @@
           <div style="flex:1; min-width:0;">
             <div id="at-preview-canvas-wrap" style="width:100%; height:560px; background:#1b1b1b; border-radius:6px; position:relative;">
               <canvas id="at-preview-canvas" style="width:100%; height:100%; display:block;"></canvas>
-              <div id="at-preview-status" style="position:absolute; top:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc; display:none;"></div>
+              <div id="at-preview-status" style="position:absolute; top:6px; left:8px; right:8px; font-size:13px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc; display:none;"></div>
               <!-- View buttons row, bottom of viewer -->
               <div id="at-view-buttons" style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); display:flex; gap:4px; background:rgba(0,0,0,0.7); padding:4px 6px; border-radius:6px;">
-                <button data-view="front" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Front</button>
-                <button data-view="right" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Right</button>
-                <button data-view="back"  class="ghost-btn" style="padding:3px 10px; font-size:11px;">Back</button>
-                <button data-view="left"  class="ghost-btn" style="padding:3px 10px; font-size:11px;">Left</button>
-                <button data-view="top"   class="ghost-btn" style="padding:3px 10px; font-size:11px;">Top</button>
-                <button data-view="bottom" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Bottom</button>
-                <button data-view="iso"   class="ghost-btn" style="padding:3px 10px; font-size:11px;">Iso</button>
+                <button data-view="front" class="ghost-btn" style="padding:3px 10px; font-size:13px;">Front</button>
+                <button data-view="right" class="ghost-btn" style="padding:3px 10px; font-size:13px;">Right</button>
+                <button data-view="back"  class="ghost-btn" style="padding:3px 10px; font-size:13px;">Back</button>
+                <button data-view="left"  class="ghost-btn" style="padding:3px 10px; font-size:13px;">Left</button>
+                <button data-view="top"   class="ghost-btn" style="padding:3px 10px; font-size:13px;">Top</button>
+                <button data-view="bottom" class="ghost-btn" style="padding:3px 10px; font-size:13px;">Bottom</button>
+                <button data-view="iso"   class="ghost-btn" style="padding:3px 10px; font-size:13px;">Iso</button>
               </div>
             </div>
           </div>
@@ -2084,10 +2084,10 @@
           <div style="width:280px; flex-shrink:0;">
             <!-- Side toggle: which texture we are adjusting -->
             <div id="at-side-buttons" style="display:flex; gap:4px; margin-bottom:10px;">
-              <button data-side="front" class="ghost-btn tool-active" style="flex:1; padding:5px; font-size:11px;">FRONT</button>
-              <button data-side="back"  class="ghost-btn" style="flex:1; padding:5px; font-size:11px;">BACK</button>
+              <button data-side="front" class="ghost-btn tool-active" style="flex:1; padding:5px; font-size:13px;">FRONT</button>
+              <button data-side="back"  class="ghost-btn" style="flex:1; padding:5px; font-size:13px;">BACK</button>
             </div>
-            <div style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
+            <div style="display:flex; flex-direction:column; gap:6px; font-size:13px;">
               <div>
                 <label style="display:flex; justify-content:space-between;">Translate X <span id="at-tx-val" class="slider-val">0.00</span></label>
                 <input type="range" id="at-tx" min="-0.30" max="0.30" step="0.01" value="0" style="width:100%;" />
@@ -2117,7 +2117,7 @@
                 <input type="range" id="at-opacity" min="0" max="100" step="5" value="55" style="width:100%;" />
               </div>
             </div>
-            <div style="margin-top:10px; padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:10px; color:var(--text-2);">
+            <div style="margin-top:10px; padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:12px; color:var(--text-2);">
               <div><input type="checkbox" id="at-project-live" checked /> <strong>Live project on mesh</strong></div>
               <div><input type="checkbox" id="at-show-overlay" checked /> Show overlay plane</div>
               <div><input type="checkbox" id="at-autofit" checked /> Auto-fit silhouette</div>
@@ -2186,7 +2186,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <div class="fen-tete"><h2 id="pm-title">🎨 Paint Mesh</h2></div>
           <div style="display:flex; gap:6px; align-items:center;">
-            <button id="pm-toggle-emissive" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:11px;" title="Toggle the emissive layer (paint glow on top of the diffuse)">💡 Emissive</button>
+            <button id="pm-toggle-emissive" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:13px;" title="Toggle the emissive layer (paint glow on top of the diffuse)">💡 Emissive</button>
             <button id="pm-close-x" class="settings-close-x" title="Close">&#10005;</button>
           </div>
         </div>
@@ -2195,60 +2195,60 @@
           <!-- Left: brush tools (Paint Tools-style sidebar) -->
           <div style="display:flex; flex-direction:column; gap:10px; width:140px; flex-shrink:0; padding:8px 0;">
             <div style="display:flex; flex-direction:column; gap:4px;">
-              <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
-              <button id="pm-tool-pen"    class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">✎ Pen</button>
-              <button id="pm-tool-spray"  class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">💨 Spray</button>
-              <button id="pm-tool-ink"    class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">🖋 Ink</button>
-              <button id="pm-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">⌫ Eraser</button>
-              <button id="pm-tool-pipette" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Click anywhere on the mesh to pick its colour">💧 Pipette</button>
-              <button id="pm-tool-decal" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Stick an image on the mesh (logo, tattoo, patch, label)">&#127919; Decal</button>
+              <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
+              <button id="pm-tool-pen"    class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">✎ Pen</button>
+              <button id="pm-tool-spray"  class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">💨 Spray</button>
+              <button id="pm-tool-ink"    class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">🖋 Ink</button>
+              <button id="pm-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">⌫ Eraser</button>
+              <button id="pm-tool-pipette" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;" title="Click anywhere on the mesh to pick its colour">💧 Pipette</button>
+              <button id="pm-tool-decal" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;" title="Stick an image on the mesh (logo, tattoo, patch, label)">&#127919; Decal</button>
             </div>
             <div style="display:flex; flex-direction:column; gap:4px;">
-              <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
+              <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
               <input type="color" id="pm-color" value="#ff0000" style="width:100%; height:36px; cursor:pointer; background:var(--bg-2); border:1px solid var(--border); border-radius:6px;" />
             </div>
             <div>
-              <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;"><span>Brush</span><span id="pm-brush-val">20</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:2px;"><span>Brush</span><span id="pm-brush-val">20</span></div>
               <input type="range" id="pm-brush-size" min="1" max="200" value="20" style="width:100%;" />
             </div>
             <div>
-              <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;"><span>Opacity</span><span id="pm-opacity-val">100%</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:2px;"><span>Opacity</span><span id="pm-opacity-val">100%</span></div>
               <input type="range" id="pm-opacity" min="5" max="100" value="100" style="width:100%;" />
             </div>
             <div>
-              <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;"><span>Falloff</span><span id="pm-falloff-val">30%</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:2px;"><span>Falloff</span><span id="pm-falloff-val">30%</span></div>
               <input type="range" id="pm-falloff" min="0" max="100" value="30" style="width:100%;" />
             </div>
             <div id="pm-decal-panel" style="display:none; flex-direction:column; gap:6px;">
-              <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Decal</span>
+              <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Decal</span>
               <input type="file" id="pm-decal-file" accept="image/*" style="display:none;" />
-              <button id="pm-decal-choisir" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px;">Choose image&hellip;</button>
-              <div id="pm-decal-nom" style="font-size:10px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">No image</div>
+              <button id="pm-decal-choisir" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px;">Choose image&hellip;</button>
+              <div id="pm-decal-nom" style="font-size:12px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">No image</div>
               <div>
-                <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;"><span>Size</span><span id="pm-decal-taille-val">25</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:2px;"><span>Size</span><span id="pm-decal-taille-val">25</span></div>
                 <input type="range" id="pm-decal-taille" min="2" max="100" value="25" style="width:100%;" />
               </div>
               <div>
-                <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;"><span>Rotation</span><span id="pm-decal-rot-val">0&deg;</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:2px;"><span>Rotation</span><span id="pm-decal-rot-val">0&deg;</span></div>
                 <input type="range" id="pm-decal-rot" min="-180" max="180" value="0" style="width:100%;" />
               </div>
-              <label style="font-size:11px; display:flex; gap:6px; align-items:center;"><input type="checkbox" id="pm-decal-flip" /> Mirror</label>
-              <label style="font-size:11px; display:flex; gap:6px; align-items:center;" title="Skip the faces turned away from the click, so the image does not show through the other side"><input type="checkbox" id="pm-decal-face" checked /> Facing only</label>
-              <div style="font-size:10px; color:var(--text-2);">Click on the mesh to stick it. Opacity applies. Ctrl+Z undoes.</div>
+              <label style="font-size:13px; display:flex; gap:6px; align-items:center;"><input type="checkbox" id="pm-decal-flip" /> Mirror</label>
+              <label style="font-size:13px; display:flex; gap:6px; align-items:center;" title="Skip the faces turned away from the click, so the image does not show through the other side"><input type="checkbox" id="pm-decal-face" checked /> Facing only</label>
+              <div style="font-size:12px; color:var(--text-2);">Click on the mesh to stick it. Opacity applies. Ctrl+Z undoes.</div>
             </div>
             <div style="display:flex; gap:6px;">
               <button id="pm-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)" style="flex:1; padding:4px;">↶</button>
               <button id="pm-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)" style="flex:1; padding:4px;">↷</button>
             </div>
-            <button id="pm-reset" class="secondary-btn tool-btn" title="Restore the original texture" style="padding:6px; font-size:11px;">↺ Reset texture</button>
-            <div style="padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:10px; color:var(--text-2);">
+            <button id="pm-reset" class="secondary-btn tool-btn" title="Restore the original texture" style="padding:6px; font-size:13px;">↺ Reset texture</button>
+            <div style="padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:12px; color:var(--text-2);">
               Painted onto the current map at its native resolution.
             </div>
           </div>
           <!-- Right: 3D viewer -->
           <div id="pm-viewport-wrap" style="flex:1 1 0; position:relative; background:#0b0b14; border-radius:6px; overflow:hidden; min-height:560px;">
             <canvas id="pm-canvas" style="width:100%; height:100%; display:block; cursor:crosshair;"></canvas>
-            <div id="pm-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Loading mesh…</div>
+            <div id="pm-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:13px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Loading mesh…</div>
           </div>
         </div>
         <div class="modal-actions">
@@ -2271,7 +2271,7 @@
           <div style="flex:1; min-width:0;">
             <div id="pe-viewport-wrap" style="width:100%; height:560px; background:#0b0b14; border-radius:6px; position:relative;">
               <canvas id="pe-canvas" style="width:100%; height:100%; display:block; cursor: crosshair;"></canvas>
-              <div id="pe-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Left-click + drag on the mesh to paint. Orbit with right-click.</div>
+              <div id="pe-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:13px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Left-click + drag on the mesh to paint. Orbit with right-click.</div>
             </div>
           </div>
           <div style="width:280px; flex-shrink:0; display:flex; flex-direction:column; gap:10px;">
@@ -2279,42 +2279,42 @@
                  "Re-texture a region"; peints a white UV mask, then SDXL
                  inpaints only that area (uvMask:true → no back-face bleed). -->
             <div id="pe-mask-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#160f2e; border:1px solid var(--accent, #5a4fcf); border-radius:6px;">
-              <div style="font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Zone à re-texturer</div>
-              <label style="font-size:11px;">À quoi doit ressembler cette zone ?</label>
-              <input type="text" id="pe-mask-prompt" placeholder="ex. armure en métal doré poli" style="width:100%; padding:6px; font-size:12px;" />
-              <label style="display:flex; justify-content:space-between; font-size:11px;">Intensité <span id="pe-mask-strength-val" class="slider-val">0.8</span></label>
+              <div style="font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Zone à re-texturer</div>
+              <label style="font-size:13px;">À quoi doit ressembler cette zone ?</label>
+              <input type="text" id="pe-mask-prompt" placeholder="ex. armure en métal doré poli" style="width:100%; padding:6px; font-size:14px;" />
+              <label style="display:flex; justify-content:space-between; font-size:13px;">Intensité <span id="pe-mask-strength-val" class="slider-val">0.8</span></label>
               <input type="range" id="pe-mask-strength" min="0.3" max="1" step="0.05" value="0.8" style="width:100%;" />
-              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Peins la zone en <b>blanc</b> sur le mesh (clic gauche + glisser). Tourne avec le clic droit, zoom molette.</div>
+              <div style="font-size:12px; color:var(--text-2); line-height:1.4;">Peins la zone en <b>blanc</b> sur le mesh (clic gauche + glisser). Tourne avec le clic droit, zoom molette.</div>
             </div>
             <!-- Clone-stamp (3D) mode — shown only when opened from "Tampon de clonage 3D". -->
             <div id="pe-clone-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#0f1e2e; border:1px solid #2a7fb8; border-radius:6px;">
-              <div style="font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Tampon de clonage</div>
-              <div style="font-size:11px; line-height:1.5;"><b>Ctrl+clic</b> sur le mesh = définir la <b>source</b>.<br><b>Clic gauche + glisser</b> = cloner vers la destination.</div>
-              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Paint on the texture. The shape is kept.</div>
+              <div style="font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Tampon de clonage</div>
+              <div style="font-size:13px; line-height:1.5;"><b>Ctrl+clic</b> sur le mesh = définir la <b>source</b>.<br><b>Clic gauche + glisser</b> = cloner vers la destination.</div>
+              <div style="font-size:12px; color:var(--text-2); line-height:1.4;">Paint on the texture. The shape is kept.</div>
             </div>
             <div class="pe-emissive-only">
-              <label style="display:block; font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Emissive color</label>
+              <label style="display:block; font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Emissive color</label>
               <input type="color" id="pe-color" value="#ffaa33" style="width:100%; height:36px; cursor:pointer; background:#1a1a2e; border:1px solid #333; border-radius:4px;" />
             </div>
             <div class="pe-emissive-only">
-              <label style="display:flex; justify-content:space-between; font-size:11px;">Intensity <span id="pe-intensity-val" class="slider-val">1.0</span></label>
+              <label style="display:flex; justify-content:space-between; font-size:13px;">Intensity <span id="pe-intensity-val" class="slider-val">1.0</span></label>
               <input type="range" id="pe-intensity" min="0.1" max="20" step="0.1" value="1.0" style="width:100%;" />
             </div>
             <div>
-              <label style="display:flex; justify-content:space-between; font-size:11px;">Brush size (px) <span id="pe-brush-size-val" class="slider-val">40</span></label>
+              <label style="display:flex; justify-content:space-between; font-size:13px;">Brush size (px) <span id="pe-brush-size-val" class="slider-val">40</span></label>
               <input type="range" id="pe-brush-size" min="2" max="200" step="1" value="40" style="width:100%;" />
             </div>
             <div>
-              <label style="display:flex; justify-content:space-between; font-size:11px;">Brush opacity <span id="pe-brush-opacity-val" class="slider-val">100%</span></label>
+              <label style="display:flex; justify-content:space-between; font-size:13px;">Brush opacity <span id="pe-brush-opacity-val" class="slider-val">100%</span></label>
               <input type="range" id="pe-brush-opacity" min="5" max="100" step="5" value="100" style="width:100%;" />
             </div>
             <div>
-              <label style="display:flex; justify-content:space-between; font-size:11px;">Soft falloff <span id="pe-brush-falloff-val" class="slider-val">50%</span></label>
+              <label style="display:flex; justify-content:space-between; font-size:13px;">Soft falloff <span id="pe-brush-falloff-val" class="slider-val">50%</span></label>
               <input type="range" id="pe-brush-falloff" min="0" max="100" step="5" value="50" style="width:100%;" />
             </div>
             <div style="display:flex; gap:6px; padding:6px 8px; background:#0a0a0a; border-radius:4px;">
-              <button id="pe-mode-paint" class="ghost-btn" style="flex:1; padding:6px; font-size:11px; background:var(--accent, #5a4fcf); color:#fff;">🖌 Paint</button>
-              <button id="pe-mode-erase" class="ghost-btn" style="flex:1; padding:6px; font-size:11px;">🧽 Erase</button>
+              <button id="pe-mode-paint" class="ghost-btn" style="flex:1; padding:6px; font-size:13px; background:var(--accent, #5a4fcf); color:#fff;">🖌 Paint</button>
+              <button id="pe-mode-erase" class="ghost-btn" style="flex:1; padding:6px; font-size:13px;">🧽 Erase</button>
             </div>
             <!-- Compact icon toolbar (loupe / undo / redo / reset) — same
                  disposition as the mesh-edit viewer's top bar. -->
@@ -2324,9 +2324,9 @@
               <button id="pe-redo" class="secondary-btn tool-btn" disabled title="Rétablir (Ctrl+Y)">&#8631;</button>
               <button id="pe-clear" class="secondary-btn tool-btn" title="Tout effacer">&#8635;</button>
             </div>
-            <button id="pe-toggle-emissive" class="ghost-btn pe-emissive-only" style="padding:6px; font-size:11px; background:var(--accent, #5a4fcf); color:#fff;" title="Show/hide the emissive texture on the mesh">💡 Emissive ON</button>
-            <button id="pe-load-image-layer" class="ghost-btn pe-emissive-only" style="padding:6px; font-size:11px;" title="Re-project the emissive layer painted on the source image">⬇ Load from image layer</button>
-            <div class="pe-emissive-only" style="padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:10px; color:var(--text-2);">
+            <button id="pe-toggle-emissive" class="ghost-btn pe-emissive-only" style="padding:6px; font-size:13px; background:var(--accent, #5a4fcf); color:#fff;" title="Show/hide the emissive texture on the mesh">💡 Emissive ON</button>
+            <button id="pe-load-image-layer" class="ghost-btn pe-emissive-only" style="padding:6px; font-size:13px;" title="Re-project the emissive layer painted on the source image">⬇ Load from image layer</button>
+            <div class="pe-emissive-only" style="padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:12px; color:var(--text-2);">
               Output: <code>T_emissive</code> 1024×1024 PNG embedded in the GLB.
             </div>
           </div>
@@ -2360,19 +2360,19 @@
             <span id="set-cloud-account" style="font-size:13px; font-weight:600; flex:1;">Not signed in</span>
             <!-- Creer un compte sans passer par « Sign in » d'abord (2026-09-30, user : « a aucun moment
                  on me demande de me connecter / creer un compte ») : ouvre la fenetre directement en inscription. -->
-            <button id="set-cloud-signup" class="ghost-btn" style="padding:4px 10px; font-size:11px;">Create an account</button>
-            <button id="set-cloud-login" class="ghost-btn" style="padding:4px 10px; font-size:11px;">Sign in</button>
-            <button id="set-cloud-logout" class="ghost-btn danger" style="padding:4px 10px; font-size:11px; display:none;">Sign out</button>
+            <button id="set-cloud-signup" class="ghost-btn" style="padding:4px 10px; font-size:13px;">Create an account</button>
+            <button id="set-cloud-login" class="ghost-btn" style="padding:4px 10px; font-size:13px;">Sign in</button>
+            <button id="set-cloud-logout" class="ghost-btn danger" style="padding:4px 10px; font-size:13px; display:none;">Sign out</button>
           </div>
           <div id="set-account-actions" style="display:none; flex-direction:column; gap:8px; margin-top:10px;">
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-              <span style="font-size:11px; color:var(--text-2); flex:1;">Every job, its cost and its result</span>
-              <button id="set-account-history" class="ghost-btn" style="padding:4px 10px; font-size:11px;">&#128229; Usage history</button>
-              <button id="set-account-topup" class="primary-btn" style="padding:4px 12px; font-size:11px; width:auto; flex:0 0 auto;">+ Top up</button>
+              <span style="font-size:13px; color:var(--text-2); flex:1;">Every job, its cost and its result</span>
+              <button id="set-account-history" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#128229; Usage history</button>
+              <button id="set-account-topup" class="primary-btn" style="padding:4px 12px; font-size:13px; width:auto; flex:0 0 auto;">+ Top up</button>
             </div>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-              <span style="font-size:11px; color:var(--text-2); flex:1;">Marketplace earnings, support replies, two-factor authentication and your data</span>
-              <button id="set-account-manage" class="ghost-btn" style="padding:4px 10px; font-size:11px;">Manage my account online</button>
+              <span style="font-size:13px; color:var(--text-2); flex:1;">Marketplace earnings, support replies, two-factor authentication and your data</span>
+              <button id="set-account-manage" class="ghost-btn" style="padding:4px 10px; font-size:13px;">Manage my account online</button>
             </div>
           </div>
         </div>
@@ -2427,9 +2427,9 @@
           <div class="settings-box-title">Content Filter</div>
           <div class="settings-box-desc">Blocks NSFW, violent, and illegal content in prompts. Disable with a PIN code for unrestricted adult use.</div>
           <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-            <span id="parental-status" style="font-size:12px; font-weight:700;"></span>
+            <span id="parental-status" style="font-size:14px; font-weight:700;"></span>
             <span style="flex:1;"></span>
-            <button id="parental-toggle" class="ghost-btn" style="padding:4px 12px; font-size:11px;"></button>
+            <button id="parental-toggle" class="ghost-btn" style="padding:4px 12px; font-size:13px;"></button>
           </div>
         </div>
 
@@ -2442,15 +2442,15 @@
           <div class="settings-box-title">Crash reports</div>
           <div class="settings-box-desc" id="set-crash-desc">When the app hits an unexpected error, an anonymous report is sent to our error tracker (Sentry): the stack trace, the app version, the Windows version, and a random installation id. Your Windows username and machine name are removed first. No prompt, image or mesh is ever included.</div>
           <div style="display:flex; align-items:center; gap:10px; margin-top:9px; flex-wrap:wrap;">
-            <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-size:12px;">
+            <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-size:14px;">
               <input type="checkbox" id="set-crash-optin" checked style="width:15px; height:15px; cursor:pointer;">
               <span>Send anonymous crash reports</span>
             </label>
             <span style="flex:1;"></span>
-            <span id="set-crash-hint" style="font-size:11px; color:var(--text-2);"></span>
+            <span id="set-crash-hint" style="font-size:13px; color:var(--text-2);"></span>
           </div>
           <div style="margin-top:8px;">
-            <a href="#" id="set-privacy-link" style="font-size:11px;">Read the privacy policy</a>
+            <a href="#" id="set-privacy-link" style="font-size:13px;">Read the privacy policy</a>
           </div>
         </div>
 
@@ -2599,18 +2599,18 @@
         <div class="settings-box">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
             <span class="settings-field-label">Processes</span>
-            <span style="font-size:11px; color:var(--text-2);"><span id="set-python-count">0</span> active &middot; engine <span id="set-python-sdxl">stopped</span></span>
+            <span style="font-size:13px; color:var(--text-2);"><span id="set-python-count">0</span> active &middot; engine <span id="set-python-sdxl">stopped</span></span>
           </div>
           <!-- 2026-06-14: live per-process list with an independent Kill
                button per row. Populated by refreshProcList() every 2s
                while the Settings panel is open. -->
           <div id="set-proc-list" style="margin:4px 0 8px; max-height:180px; overflow-y:auto;">
-            <div style="font-size:11px;color:var(--text-2);padding:4px 0;">No active process.</div>
+            <div style="font-size:13px;color:var(--text-2);padding:4px 0;">No active process.</div>
           </div>
           <div style="display:flex; gap:6px;">
-            <button id="set-kill-sdxl" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:11px;" disabled>Stop engine</button>
-            <button id="set-kill-python" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:11px;" disabled>Kill Processes</button>
-            <button id="set-kill-all" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:11px;" disabled>Kill All</button>
+            <button id="set-kill-sdxl" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:13px;" disabled>Stop engine</button>
+            <button id="set-kill-python" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:13px;" disabled>Kill Processes</button>
+            <button id="set-kill-all" class="ghost-btn danger" style="flex:1; padding:6px 8px; font-size:13px;" disabled>Kill All</button>
           </div>
         </div>
 
@@ -2618,9 +2618,9 @@
           <div class="settings-box-title">Logs</div>
           <div class="settings-box-desc">For support: open, watch or export the app logs.</div>
           <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
-            <button id="set-open-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:11px; ">&#128193; Open logs folder</button>
-            <button id="set-live-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:11px; ">&#128269; Live logs viewer</button>
-            <button id="set-export-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:11px; " title="Bundle all logs into one text file on your Desktop, to send for support">&#128203; Export logs to a file (for support)</button>
+            <button id="set-open-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:13px; ">&#128193; Open logs folder</button>
+            <button id="set-live-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:13px; ">&#128269; Live logs viewer</button>
+            <button id="set-export-logs" class="ghost-btn" style="flex:1 1 auto; padding:6px 8px; font-size:13px; " title="Bundle all logs into one text file on your Desktop, to send for support">&#128203; Export logs to a file (for support)</button>
           </div>
         </div>
 
@@ -2630,7 +2630,7 @@
           <div class="settings-box-title">Reconfigure MyFabmesh.AI</div>
           <div class="settings-box-desc">Re-run the first-time setup wizard to change install mode (Lite / Standard / Full) or re-download a missing model. Your projects and generated meshes are kept.</div>
           <div style="margin-top:8px;">
-            <button id="set-reconfigure" class="ghost-btn" style="width:100%; padding:6px 12px; font-size:12px;">&#9881;&#65039; Reconfigure MyFabmesh.AI</button>
+            <button id="set-reconfigure" class="ghost-btn" style="width:100%; padding:6px 12px; font-size:14px;">&#9881;&#65039; Reconfigure MyFabmesh.AI</button>
           </div>
         </div>
         <div class="settings-box" style="margin-top:8px;">
@@ -2641,7 +2641,7 @@
                Applications (Store). Le texte est ajuste a l'execution selon la livraison. -->
           <div class="settings-box-desc" id="set-uninstall-desc">Removes the AI engine, the downloaded models, the caches and the settings, then the app itself. You choose whether to keep your projects.</div>
           <div style="margin-top:8px;">
-            <button id="set-uninstall" class="ghost-btn danger" style="width:100%; padding:6px 12px; font-size:12px;">&#128465;&#65039; Remove all MyFabmesh data&hellip;</button>
+            <button id="set-uninstall" class="ghost-btn danger" style="width:100%; padding:6px 12px; font-size:14px;">&#128465;&#65039; Remove all MyFabmesh data&hellip;</button>
           </div>
         </div>
 
@@ -2754,19 +2754,19 @@
           <div style="display:flex; flex-direction:column; gap:8px;">
             <button id="quit-jobs-stop" class="primary-btn danger" style="display:block; width:100%; height:auto; min-height:0; padding:12px 14px; text-align:left; line-height:1.45;">
               &#9632; Stop jobs &amp; quit
-              <span style="display:block; font-size:11px; font-weight:400; color:rgba(255,255,255,0.7); margin-top:2px;">Kills every running subprocess (Python / Blender) and closes the app.</span>
+              <span style="display:block; font-size:13px; font-weight:400; color:rgba(255,255,255,0.7); margin-top:2px;">Kills every running subprocess (Python / Blender) and closes the app.</span>
             </button>
             <button id="quit-jobs-pause" class="ghost-btn" style="display:block; width:100%; height:auto; min-height:0; padding:12px 14px; text-align:left; line-height:1.45;">
               &#9208;&#65039; Quit &amp; pause jobs
-              <span style="display:block; font-size:11px; font-weight:400; color:var(--text-2); margin-top:2px;">Freezes the jobs and closes the app. They resume automatically the next time you open MyFabmesh.</span>
+              <span style="display:block; font-size:13px; font-weight:400; color:var(--text-2); margin-top:2px;">Freezes the jobs and closes the app. They resume automatically the next time you open MyFabmesh.</span>
             </button>
             <button id="quit-jobs-keep" class="ghost-btn" style="display:block; width:100%; height:auto; min-height:0; padding:12px 14px; text-align:left; line-height:1.45;">
               &#8631; Quit &amp; keep jobs running
-              <span style="display:block; font-size:11px; font-weight:400; color:var(--text-2); margin-top:2px;">Closes the app but leaves the jobs running in the background.</span>
+              <span style="display:block; font-size:13px; font-weight:400; color:var(--text-2); margin-top:2px;">Closes the app but leaves the jobs running in the background.</span>
             </button>
             <button id="quit-jobs-cancel" class="ghost-btn" style="display:block; width:100%; height:auto; min-height:0; padding:12px 14px; text-align:left; line-height:1.45;">
               &#10005; Cancel
-              <span style="display:block; font-size:11px; font-weight:400; color:var(--text-2); margin-top:2px;">Return to the app to pause or finish the jobs yourself.</span>
+              <span style="display:block; font-size:13px; font-weight:400; color:var(--text-2); margin-top:2px;">Return to the app to pause or finish the jobs yourself.</span>
             </button>
           </div>
         </div>
@@ -2774,10 +2774,10 @@
     </div>
 
     <style>
-    .gpu-limit-line{margin-top:5px;font-size:11px;color:#a78bfa;text-align:left}
+    .gpu-limit-line{margin-top:5px;font-size:13px;color:#a78bfa;text-align:left}
     .gpu-need-line{margin-top:2px;color:#9aa0b4}
     .hw-voyants{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
-    .hw-voyant{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(34,197,94,.14);color:#22c55e}
+    .hw-voyant{font-size:14px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(34,197,94,.14);color:#22c55e}
     .hw-voyant.ko{background:rgba(239,68,68,.14);color:#ef4444}
     .hw-voyant.lent{background:rgba(245,158,11,.14);color:#f59e0b}
     .hw-voyant small{font-weight:500;opacity:.9;margin-left:3px}
@@ -2785,9 +2785,9 @@
     .gpu-bar-limit{background:#a78bfa !important}
     /* Barre partagee (Reglages > Materiel, maquette A choisie le 2026-09-30) : Windows | autres logiciels | MyFabmesh */
     #set-gpu-vram-val,#set-ram-val{display:none}   /* « ca sert a rien » (user 30/09) : usage total de la carte / de la RAM, tous logiciels confondus */
-    .hw-pc-sub{font-size:11px;color:var(--text-2);margin:-6px 0 2px}
-    .hw-gpu-choice{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:var(--text-2)}
-    .hw-gpu-choice select{max-width:68%;font-size:11px;padding:3px 6px;background:var(--bg-3);color:var(--text-0);border:1px solid var(--border);border-radius:6px}
+    .hw-pc-sub{font-size:13px;color:var(--text-2);margin:-6px 0 2px}
+    .hw-gpu-choice{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--text-2)}
+    .hw-gpu-choice select{max-width:68%;font-size:13px;padding:3px 6px;background:var(--bg-3);color:var(--text-0);border:1px solid var(--border);border-radius:6px}
     /* Auto-rectify : le choix de fidelite n'apparait que si la case est cochee (:has suit aussi une case cochee par le code) */
     #ws-rectify-force-row{display:none}
     .form-row:has(> label > #ws-trellis2-rectify:checked) + #ws-rectify-force-row{display:block}
@@ -2806,7 +2806,7 @@
     .set-panel-titre{margin:2px 0 14px;font-size:17px;font-weight:700;color:var(--text-0);letter-spacing:.2px}
     @media (max-width:760px){.set-layout{grid-template-columns:1fr}.set-nav{flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid var(--border)}.set-nav-btn{width:auto}}
     /* Info-bulle volante du materiel */
-    .hwtip{position:fixed;z-index:200000;width:380px;max-width:92vw;pointer-events:none;padding:14px 16px 12px;border-radius:12px;background:rgba(18,18,28,.97);border:1px solid rgba(168,85,247,.5);box-shadow:0 14px 40px rgba(0,0,0,.65);color:var(--text-1);font-size:12px;line-height:1.45}
+    .hwtip{position:fixed;z-index:200000;width:380px;max-width:92vw;pointer-events:none;padding:14px 16px 12px;border-radius:12px;background:rgba(18,18,28,.97);border:1px solid rgba(168,85,247,.5);box-shadow:0 14px 40px rgba(0,0,0,.65);color:var(--text-1);font-size:14px;line-height:1.45}
     .hwtip[hidden]{display:none}
     .hwtip-titre{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px}
     .hwtip-titre b{font-size:13px;color:#fff;text-transform:uppercase;letter-spacing:.5px}
@@ -2814,7 +2814,7 @@
     .hwtip-schema{margin:2px 0 12px}
     .hwtip-pins{position:relative;height:20px}
     .hwtip-pin{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center}
-    .hwtip-pin i{font-style:normal;width:16px;height:16px;border-radius:50%;background:#fff;color:#16161f;font-size:10px;font-weight:800;display:grid;place-items:center}
+    .hwtip-pin i{font-style:normal;width:16px;height:16px;border-radius:50%;background:#fff;color:#16161f;font-size:12px;font-weight:800;display:grid;place-items:center}
     .hwtip-pin::after{content:"";width:1px;height:6px;background:rgba(255,255,255,.7)}
     .hwtip-barre{display:flex;height:14px;border-radius:5px;overflow:hidden;background:var(--bg-3)}
     .hwtip-seg{display:block;height:100%}
@@ -2824,36 +2824,36 @@
     .hwtip-reel-a{background:linear-gradient(270deg,#4ade80 0%,#fbbf24 var(--dl,30%),#f87171 calc(var(--dl,30%) + 18%));clip-path:inset(0 0 0 var(--reste,100%))}
     .hwtip-liste{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
     .hwtip-liste li{display:flex;gap:10px;align-items:flex-start}
-    .hwtip-n{flex:0 0 18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff;text-shadow:0 0 3px #000;margin-top:1px}
+    .hwtip-n{flex:0 0 18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff;text-shadow:0 0 3px #000;margin-top:1px}
     .hwtip-lt{display:flex;justify-content:space-between;gap:10px}
-    .hwtip-lt b{color:#fff;font-size:12px}
+    .hwtip-lt b{color:#fff;font-size:14px}
     .hwtip-v{font-variant-numeric:tabular-nums;color:#d9c9ff;font-weight:700;white-space:nowrap}
     .hwtip-liste p{margin:2px 0 0;color:var(--text-2)}
-    .hwtip-note{margin-top:10px;font-size:11px;color:var(--text-2);font-style:italic}
+    .hwtip-note{margin-top:10px;font-size:13px;color:var(--text-2);font-style:italic}
     .hwtip-now{margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.12);color:#fff;font-weight:600}
     .hwtip-warn{color:#f59e0b;font-weight:600}
     /* COMPUTE : deux grandes cartes a choisir */
     .compute-cartes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:6px 0 10px}
-    .compute-carte{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:14px 16px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg-2);color:var(--text-1);cursor:pointer;transition:border-color .12s,background .12s,box-shadow .12s;font-size:12px;line-height:1.35}
+    .compute-carte{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:14px 16px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg-2);color:var(--text-1);cursor:pointer;transition:border-color .12s,background .12s,box-shadow .12s;font-size:14px;line-height:1.35}
     .compute-carte:hover:not(:disabled){border-color:rgba(168,85,247,.55);background:rgba(168,85,247,.07)}
     .compute-carte.active{border-color:#a855f7;background:linear-gradient(135deg,rgba(224,68,124,.16),rgba(138,92,246,.2));box-shadow:0 0 0 1px rgba(168,85,247,.35) inset;color:#fff}
     .compute-carte:disabled{opacity:.45;cursor:not-allowed}
     .cc-tete{display:flex;align-items:center;gap:10px;width:100%}
     .cc-ico{font-size:20px}
     .cc-titre{font-size:15px;font-weight:700;color:var(--text-0);flex:1}
-    .cc-coche{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;border:1.5px solid var(--border-strong);color:transparent}
+    .cc-coche{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;border:1.5px solid var(--border-strong);color:transparent}
     .compute-carte.active .cc-coche{background:#a855f7;border-color:#a855f7;color:#fff}
     .cc-ligne{color:var(--text-2)}
     .cc-ligne::before{content:"\2022";margin-right:7px;color:var(--accent)}
-    .cc-etat{margin-top:4px;font-size:11px;color:#d9c9ff;font-weight:600}
+    .cc-etat{margin-top:4px;font-size:13px;color:#d9c9ff;font-weight:600}
     .cc-etat:empty{display:none}
     @media (max-width:640px){.compute-cartes{grid-template-columns:1fr}}
     .hw-pret{display:none !important;}   /* « pas besoin » (user 30/09) : la barre et sa phrase suffisent */
     .hw-pret-off{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
-    .hw-pret-lbl{font-size:11px;font-weight:600;color:var(--text-2)}
+    .hw-pret-lbl{font-size:13px;font-weight:600;color:var(--text-2)}
     .hw-pret .hw-voyants{display:contents}
     .hw-partage{position:relative;display:flex;height:30px;margin:4px 0 0;border-radius:7px;background:var(--bg-3)}
-    .hw-seg{position:relative;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;font-size:11px;font-weight:600;min-width:0}
+    .hw-seg{position:relative;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;font-size:13px;font-weight:600;min-width:0}
     .hw-seg:first-child{border-radius:7px 0 0 7px}
     .hw-seg.hw-add{background:#b79cff;color:#2a1160}
     .hw-seg.hw-win{border-radius:0 7px 7px 0}
@@ -2867,9 +2867,9 @@
     .hw-trop span{color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
     .hw-seg span{position:relative;z-index:1;padding:0 6px;overflow:hidden;text-overflow:ellipsis}
     .hw-besoin{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed rgba(255,255,255,.85);z-index:2;pointer-events:none}
-    .hw-besoin i{position:absolute;top:calc(100% + 1px);left:0;transform:translateX(-50%);font-style:normal;font-size:10px;color:var(--text-1);white-space:nowrap}
+    .hw-besoin i{position:absolute;top:calc(100% + 1px);left:0;transform:translateX(-50%);font-style:normal;font-size:12px;color:var(--text-1);white-space:nowrap}
     .gpu-bar-limit.hw-poignee{top:-5px;bottom:-5px;width:6px;background:#fff !important;border-radius:3px;z-index:3}
-    .hw-legende{display:flex;justify-content:space-between;gap:10px;margin-top:3px;height:13px;line-height:13px;font-size:11px;color:var(--text-2)}
+    .hw-legende{display:flex;justify-content:space-between;gap:10px;margin-top:3px;height:13px;line-height:13px;font-size:13px;color:var(--text-2)}
     .hw-legende b{color:var(--text-0)}
     /* meme ecart sous chaque barre : les barres a seuil gardent la place de la legende des barres memoire */
     #set-gpu-card .gpu-stat:not(.hw-mem):has(.gpu-bar){padding-bottom:16px}
@@ -2919,14 +2919,14 @@
         <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--bg-1);">
           <h2 style="margin:0; font-size:15px;">&#128220; Calibration log</h2>
           <div style="display:flex; gap:8px; align-items:center;">
-            <label style="font-size:11px; color:var(--text-2);">lines:
-              <input id="calib-log-lines" type="number" value="500" min="50" max="10000" step="50" style="width:70px; background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:4px; padding:3px 6px; font-size:11px;">
+            <label style="font-size:13px; color:var(--text-2);">lines:
+              <input id="calib-log-lines" type="number" value="500" min="50" max="10000" step="50" style="width:70px; background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:4px; padding:3px 6px; font-size:13px;">
             </label>
-            <button id="calib-log-refresh" class="ghost-btn" style="padding:4px 10px; font-size:11px;">&#8635; Reload</button>
+            <button id="calib-log-refresh" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#8635; Reload</button>
             <button class="settings-close-x" id="calib-log-close" title="Close">&#10005;</button>
           </div>
         </div>
-        <pre id="calib-log-body" style="margin:0; padding:14px; overflow:auto; flex:1; font-family:Consolas,Monaco,monospace; font-size:11px; color:#9bbac8; line-height:1.4; background:#0a0a0a;"></pre>
+        <pre id="calib-log-body" style="margin:0; padding:14px; overflow:auto; flex:1; font-family:Consolas,Monaco,monospace; font-size:13px; color:#9bbac8; line-height:1.4; background:#0a0a0a;"></pre>
       </div>
     </div>
 
@@ -2938,7 +2938,7 @@
         <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--bg-1);">
           <h2 style="margin:0; font-size:15px;">&#129302; Pipeline auto-diagnosis</h2>
           <div style="display:flex; gap:8px; align-items:center;">
-            <button id="calib-diagnose-cancel" class="ghost-btn danger" style="padding:4px 12px; font-size:12px; display:none;">&#9209;&#65039; Cancel</button>
+            <button id="calib-diagnose-cancel" class="ghost-btn danger" style="padding:4px 12px; font-size:14px; display:none;">&#9209;&#65039; Cancel</button>
             <button class="settings-close-x" id="calib-diagnose-close" title="Close">&#10005;</button>
           </div>
         </div>
@@ -2954,8 +2954,8 @@
         <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--bg-1);">
           <h2 style="margin:0; font-size:15px;">&#127912; Calibration gallery</h2>
           <div style="display:flex; gap:8px; align-items:center;">
-            <span id="calib-gallery-count" style="font-size:11px; color:var(--text-2);"></span>
-            <button id="calib-gallery-refresh" class="ghost-btn" style="padding:4px 10px; font-size:11px;">&#8635; Refresh</button>
+            <span id="calib-gallery-count" style="font-size:13px; color:var(--text-2);"></span>
+            <button id="calib-gallery-refresh" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#8635; Refresh</button>
             <button class="settings-close-x" id="calib-gallery-close" title="Close">&#10005;</button>
           </div>
         </div>
@@ -2970,23 +2970,23 @@
       <div class="modal-card" style="width:95vw; height:90vh; display:flex; flex-direction:column; padding:0;">
         <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); background:var(--bg-1);">
           <strong style="font-size:13px;">&#128269; Live logs</strong>
-          <select id="ll-file" style="background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:4px; padding:3px 6px; font-size:12px;">
+          <select id="ll-file" style="background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:4px; padding:3px 6px; font-size:14px;">
             <option value="fabmesh" selected>fabmesh (main)</option>
             <option value="renderer">renderer</option>
             <option value="error">error</option>
           </select>
-          <input id="ll-filter" type="text" placeholder="filter (regex)..." style="flex:1; background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:4px; padding:4px 8px; font-size:12px;">
-          <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-2);">
+          <input id="ll-filter" type="text" placeholder="filter (regex)..." style="flex:1; background:var(--bg-0); color:var(--text-0); border:1px solid var(--border); border-radius:4px; padding:4px 8px; font-size:14px;">
+          <label style="display:flex; align-items:center; gap:4px; font-size:13px; color:var(--text-2);">
             <input id="ll-autoscroll" type="checkbox" checked> Auto-scroll
           </label>
-          <button id="ll-pause" class="ghost-btn" style="padding:4px 10px; font-size:11px;">&#9208;&#65039; Pause</button>
-          <button id="ll-clear" class="ghost-btn" style="padding:4px 10px; font-size:11px;">&#128465;&#65039; Clear</button>
-          <button id="ll-copy" class="ghost-btn" style="padding:4px 10px; font-size:11px;">&#128203; Copy</button>
+          <button id="ll-pause" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#9208;&#65039; Pause</button>
+          <button id="ll-clear" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#128465;&#65039; Clear</button>
+          <button id="ll-copy" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#128203; Copy</button>
           <button class="ghost-btn" id="ll-export" title="Enregistrer un .txt sur le Bureau (pour le support)">&#128203; Exporter</button>
-          <button id="ll-close" class="ghost-btn" style="padding:4px 10px; font-size:11px;">&#10005; Close</button>
+          <button id="ll-close" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#10005; Close</button>
         </div>
-        <pre id="ll-output" style="flex:1; margin:0; padding:10px 14px; overflow:auto; font-family:'Cascadia Code','Consolas','Monaco',monospace; font-size:11px; line-height:1.4; color:#ddd; background:#0a0a0a; white-space:pre-wrap; word-break:break-all;"></pre>
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 14px; border-top:1px solid var(--border); background:var(--bg-1); font-size:10px; color:var(--text-3);">
+        <pre id="ll-output" style="flex:1; margin:0; padding:10px 14px; overflow:auto; font-family:'Cascadia Code','Consolas','Monaco',monospace; font-size:13px; line-height:1.4; color:#ddd; background:#0a0a0a; white-space:pre-wrap; word-break:break-all;"></pre>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 14px; border-top:1px solid var(--border); background:var(--bg-1); font-size:12px; color:var(--text-3);">
           <span id="ll-status">disconnected</span>
           <span id="ll-count">0 lines</span>
         </div>
@@ -3192,7 +3192,7 @@
     <div id="mask-modal" class="modal hidden">
       <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
         <div class="fen-tete"><h2>Draw Mask (paint the area to replace or remove)</h2><button id="mask-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 11px; color: var(--text-muted);">
+        <div style="font-size: 13px; color: var(--text-muted);">
           <strong>Click & drag</strong> to paint &nbsp;|&nbsp;
           <strong>E</strong> / eraser button to erase &nbsp;|&nbsp;
           <strong>B</strong> for brush &nbsp;|&nbsp;
@@ -3201,9 +3201,9 @@
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:11px; white-space:nowrap;">Brush:</span>
+            <span style="font-size:13px; white-space:nowrap;">Brush:</span>
             <input type="range" id="mask-brush-size" min="5" max="200" value="50" style="flex:1; min-width:60px;" />
-            <span id="mask-brush-val" style="min-width:24px; font-size:11px;">50</span>
+            <span id="mask-brush-val" style="min-width:24px; font-size:13px;">50</span>
           </label>
           <div style="display:flex; gap:4px; flex-shrink:0;">
             <button id="mask-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
@@ -3223,7 +3223,7 @@
           </div>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          <label for="mask-prompt" style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Replace with:</label>
+          <label for="mask-prompt" style="font-size: 14px; color: var(--text-muted); white-space: nowrap;">Replace with:</label>
           <input type="text" id="mask-prompt" placeholder="Describe what to put in the masked area — leave empty to just remove it" style="flex: 1; padding: 10px 12px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px;" />
         </div>
         <div class="modal-actions fen-pied-editeur">
@@ -3239,25 +3239,25 @@
     <div id="clone-modal" class="modal hidden">
       <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
         <div class="fen-tete"><h2>Clone Stamp</h2><button id="clone-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 11px; color: var(--text-muted);">
+        <div style="font-size: 13px; color: var(--text-muted);">
           <strong>Ctrl+Click</strong> to set source point &nbsp;|&nbsp;
           <strong>Click & drag</strong> to clone &nbsp;|&nbsp;
           <strong>Z</strong> to undo
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:11px; white-space:nowrap;">Brush:</span>
+            <span style="font-size:13px; white-space:nowrap;">Brush:</span>
             <input type="range" id="clone-brush-size" min="5" max="200" value="50" style="flex:1; min-width:60px;" />
-            <span id="clone-brush-val" style="min-width:24px; font-size:11px;">50</span>
+            <span id="clone-brush-val" style="min-width:24px; font-size:13px;">50</span>
           </label>
           <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:11px; white-space:nowrap;">Hard:</span>
+            <span style="font-size:13px; white-space:nowrap;">Hard:</span>
             <input type="range" id="clone-hardness" min="0" max="100" value="50" style="flex:1; min-width:60px;" />
-            <span id="clone-hardness-val" style="min-width:24px; font-size:11px;">50</span>
+            <span id="clone-hardness-val" style="min-width:24px; font-size:13px;">50</span>
           </label>
           <div style="display:flex; gap:4px; flex-shrink:0;">
-            <button id="clone-flip-toggle" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px;" title="Flip mode">Flip: Off</button>
-            <button id="clone-source-toggle" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px;" title="Source = modified image (your edits are clonable). Click for Original.">Source: Modified</button>
+            <button id="clone-flip-toggle" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px;" title="Flip mode">Flip: Off</button>
+            <button id="clone-source-toggle" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px;" title="Source = modified image (your edits are clonable). Click for Original.">Source: Modified</button>
             <button id="clone-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
             <button id="clone-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
             <button id="clone-undo" class="secondary-btn tool-btn" disabled title="Undo (Z)">&#8630;</button>
@@ -3275,13 +3275,13 @@
           </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <span id="clone-status" style="font-size:11px; color:var(--text-muted);">No source point set</span>
+          <span id="clone-status" style="font-size:13px; color:var(--text-muted);">No source point set</span>
           <div class="modal-actions fen-pied-editeur">
             <button id="clone-cancel" class="ghost-btn">Cancel</button>
             <button id="clone-save" class="primary-btn">Save as new version</button>
           </div>
         </div>
-        <div id="clone-error" style="display:none; padding: 8px 12px; background: rgba(255,68,68,0.15); border: 1px solid var(--error); border-radius: 4px; color: var(--error); font-size: 12px; font-weight: 600;"></div>
+        <div id="clone-error" style="display:none; padding: 8px 12px; background: rgba(255,68,68,0.15); border: 1px solid var(--error); border-radius: 4px; color: var(--error); font-size: 14px; font-weight: 600;"></div>
       </div>
     </div>
 
@@ -3289,19 +3289,19 @@
     <div id="select-modal" class="modal hidden">
       <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
         <div class="fen-tete"><h2>Selection — Cut / Copy / Paste</h2><button id="select-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 11px; color: var(--text-muted);">
+        <div style="font-size: 13px; color: var(--text-muted);">
           <strong>Rect</strong> or <strong>Lasso</strong>, then drag around the zone &nbsp;|&nbsp; <strong>Cut</strong> (leaves a transparent hole) or <strong>Copy</strong> &nbsp;|&nbsp;
           drag the piece to move it &nbsp;|&nbsp; <strong>Drop</strong> (or Enter) to place &nbsp;|&nbsp; right-drag to pan, wheel to zoom
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-          <button id="select-cut" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Cut the selection (transparent hole left behind)" disabled>&#9986;&nbsp;Cut</button>
-          <button id="select-copy" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Copy the selection" disabled>&#128203;&nbsp;Copy</button>
-          <button id="select-delete" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465;&nbsp;Delete</button>
-          <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
-          <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
+          <button id="select-cut" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Cut the selection (transparent hole left behind)" disabled>&#9986;&nbsp;Cut</button>
+          <button id="select-copy" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Copy the selection" disabled>&#128203;&nbsp;Copy</button>
+          <button id="select-delete" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465;&nbsp;Delete</button>
+          <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
+          <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
           <span style="flex:1;"></span>
-          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:12px;" title="Selection rectangulaire">&#9647;&nbsp;Rect</button>
-          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Selection libre au lasso">&#10227;&nbsp;Lasso</button>
+          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:14px;" title="Selection rectangulaire">&#9647;&nbsp;Rect</button>
+          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Selection libre au lasso">&#10227;&nbsp;Lasso</button>
           <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
           <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
           <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)">&#8631;</button>
@@ -3311,7 +3311,7 @@
           <canvas id="select-overlay" style="position: absolute; left: 0; top: 0; pointer-events: none;"></canvas>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <span id="select-status" style="font-size:11px; color:var(--text-muted);">Drag to select a rectangle.</span>
+          <span id="select-status" style="font-size:13px; color:var(--text-muted);">Drag to select a rectangle.</span>
           <div class="modal-actions fen-pied-editeur">
             <button id="select-cancel" class="ghost-btn">Cancel</button>
             <button id="select-save" class="primary-btn">Save as new version</button>
@@ -3442,7 +3442,7 @@
   <div id="modal-colorpick" class="modal-overlay hidden">
     <div class="modal-card" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
       <div class="fen-tete"><h2>Color Picker</h2><button class="settings-close-x" id="cpick-close-x">&#10005;</button></div>
-      <div style="font-size:11px; color:var(--text-muted);">Click anywhere on the image to pick a color.</div>
+      <div style="font-size:13px; color:var(--text-muted);">Click anywhere on the image to pick a color.</div>
       <div id="cpick-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; cursor:crosshair;">
         <canvas id="cpick-canvas" style="position:absolute; left:0; top:0;"></canvas>
         <div id="cpick-cursor" style="position:absolute; pointer-events:none; width:20px; height:20px; border:2px solid white; border-radius:50%; box-shadow:0 0 0 1px black; display:none; transform:translate(-50%,-50%);">
@@ -3453,7 +3453,7 @@
         <div id="cpick-swatch" style="width:48px; height:48px; border-radius:8px; border:2px solid var(--border);"></div>
         <div>
           <div id="cpick-hex" style="font-size:18px; font-weight:700; font-family:monospace;"></div>
-          <div id="cpick-rgb" style="font-size:11px; color:var(--text-2); white-space:nowrap;"></div>
+          <div id="cpick-rgb" style="font-size:13px; color:var(--text-2); white-space:nowrap;"></div>
         </div>
         <span style="flex:1;"></span>
       </div>
@@ -3470,18 +3470,18 @@
       <div class="fen-tete"><h2>Blur / Sharpen Brush</h2><button id="blur-close-x" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <label style="display:flex; align-items:center; gap:4px; flex:1 1 140px;">
-          <span style="font-size:11px;">Brush:</span>
+          <span style="font-size:13px;">Brush:</span>
           <input type="range" id="blur-brush-size" min="5" max="200" value="30" style="flex:1; min-width:60px;" />
-          <span id="blur-brush-val" style="min-width:24px; font-size:11px;">30</span>
+          <span id="blur-brush-val" style="min-width:24px; font-size:13px;">30</span>
         </label>
         <label style="display:flex; align-items:center; gap:4px; flex:1 1 140px;">
-          <span style="font-size:11px;">Strength:</span>
+          <span style="font-size:13px;">Strength:</span>
           <input type="range" id="blur-strength" min="1" max="20" value="5" style="flex:1; min-width:60px;" />
-          <span id="blur-strength-val" style="min-width:24px; font-size:11px;">5</span>
+          <span id="blur-strength-val" style="min-width:24px; font-size:13px;">5</span>
         </label>
         <div style="display:flex; gap:4px; flex-shrink:0;">
-          <button id="blur-mode-blur" class="secondary-btn tool-btn tool-active" style="padding:4px 10px; font-size:11px;">Blur</button>
-          <button id="blur-mode-sharpen" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:11px;">Sharpen</button>
+          <button id="blur-mode-blur" class="secondary-btn tool-btn tool-active" style="padding:4px 10px; font-size:13px;">Blur</button>
+          <button id="blur-mode-sharpen" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:13px;">Sharpen</button>
           <button id="blur-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
           <button id="blur-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="blur-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
@@ -3506,15 +3506,15 @@
     <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
       <div class="fen-tete"><h2>Crop</h2><button id="crop-close-x" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-        <button id="crop-preset-free" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px;">Free</button>
-        <button id="crop-preset-1-1" class="secondary-btn" style="padding:4px 10px; font-size:11px;">1:1</button>
-        <button id="crop-preset-4-3" class="secondary-btn" style="padding:4px 10px; font-size:11px;">4:3</button>
-        <button id="crop-preset-16-9" class="secondary-btn" style="padding:4px 10px; font-size:11px;">16:9</button>
-        <button id="crop-preset-center" class="secondary-btn" style="padding:4px 10px; font-size:11px;">Auto center</button>
+        <button id="crop-preset-free" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">Free</button>
+        <button id="crop-preset-1-1" class="secondary-btn" style="padding:4px 10px; font-size:13px;">1:1</button>
+        <button id="crop-preset-4-3" class="secondary-btn" style="padding:4px 10px; font-size:13px;">4:3</button>
+        <button id="crop-preset-16-9" class="secondary-btn" style="padding:4px 10px; font-size:13px;">16:9</button>
+        <button id="crop-preset-center" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Auto center</button>
         <span style="flex:1;"></span>
-        <span id="crop-size-label" style="font-size:11px; color:var(--text-2);"></span>
+        <span id="crop-size-label" style="font-size:13px; color:var(--text-2);"></span>
       </div>
-      <div style="font-size:10px; color:var(--text-3);">Drag to select the crop area. Use presets for fixed aspect ratios.</div>
+      <div style="font-size:12px; color:var(--text-3);">Drag to select the crop area. Use presets for fixed aspect ratios.</div>
       <div id="crop-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; cursor:crosshair;">
         <canvas id="crop-canvas" style="position:absolute; left:0; top:0;"></canvas>
         <canvas id="crop-overlay" style="position:absolute; left:0; top:0;"></canvas>
@@ -3531,22 +3531,22 @@
     <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
       <div class="fen-tete"><h2>Symmetrize</h2><button id="sym-close" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <label style="font-size:11px; display:flex; align-items:center; gap:4px;">
+        <label style="font-size:13px; display:flex; align-items:center; gap:4px;">
           Direction:
-          <button id="sym-dir-lr" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px;">L &#8594; R</button>
-          <button id="sym-dir-rl" class="secondary-btn" style="padding:4px 10px; font-size:11px;">R &#8594; L</button>
+          <button id="sym-dir-lr" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">L &#8594; R</button>
+          <button id="sym-dir-rl" class="secondary-btn" style="padding:4px 10px; font-size:13px;">R &#8594; L</button>
         </label>
-        <label style="font-size:11px; display:flex; align-items:center; gap:4px;">
+        <label style="font-size:13px; display:flex; align-items:center; gap:4px;">
           Mode:
-          <button id="sym-mode-full" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px;">Full</button>
-          <button id="sym-mode-mask" class="secondary-btn" style="padding:4px 10px; font-size:11px;">Mask</button>
+          <button id="sym-mode-full" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">Full</button>
+          <button id="sym-mode-mask" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Mask</button>
         </label>
-        <label id="sym-brush-label" style="font-size:11px; display:none; align-items:center; gap:4px;">
+        <label id="sym-brush-label" style="font-size:13px; display:none; align-items:center; gap:4px;">
           Brush:
           <input type="range" id="sym-brush-size" min="5" max="200" value="40" style="width:80px;" />
           <span id="sym-brush-val">40</span>
-          <button id="sym-paint-mode" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px; margin-left:6px;">Paint</button>
-          <button id="sym-erase-mode" class="secondary-btn" style="padding:4px 10px; font-size:11px;">Erase</button>
+          <button id="sym-paint-mode" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px; margin-left:6px;">Paint</button>
+          <button id="sym-erase-mode" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Erase</button>
         </label>
         <span style="flex:1;"></span>
         <div style="display:flex; gap:4px; flex-shrink:0;">
@@ -3557,7 +3557,7 @@
           <button id="sym-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
         </div>
       </div>
-      <div style="font-size:10px; color:var(--text-3);">
+      <div style="font-size:12px; color:var(--text-3);">
         Drag the <strong style="color:#22c55e;">green line</strong> to move the axis. <strong>Shift+drag</strong> to rotate. In Mask mode: paint to select, <strong>Ctrl+drag</strong> to move axis, <strong>Shift+drag</strong> to rotate.
       </div>
       <div id="sym-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px;">
@@ -3594,51 +3594,51 @@
         <div style="display:flex; flex-direction:column; gap:10px; width:130px; flex-shrink:0; padding:8px 4px 8px 0; overflow-y:auto;">
           <!-- Tool buttons -->
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Select</span>
-            <button id="paint-tool-sel-rect" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9634;&nbsp;Rect</button>
-            <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#10038;&nbsp;Lasso</button>
-            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Select an area of similar colour in one click.">&#10022;&nbsp;Wand</button>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Select</span>
+            <button id="paint-tool-sel-rect" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9634;&nbsp;Rect</button>
+            <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#10038;&nbsp;Lasso</button>
+            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;" title="Select an area of similar colour in one click.">&#10022;&nbsp;Wand</button>
             <div style="display:flex; gap:4px;">
-              <button id="paint-sel-invert" class="secondary-btn" style="padding:4px 4px; font-size:10px; flex:1;" title="Invert selection">&#8646; Invert</button>
-              <button id="paint-sel-none" class="secondary-btn" style="padding:4px 4px; font-size:10px; flex:1;" title="Deselect (edit everywhere)">&#10005; None</button>
+              <button id="paint-sel-invert" class="secondary-btn" style="padding:4px 4px; font-size:12px; flex:1;" title="Invert selection">&#8646; Invert</button>
+              <button id="paint-sel-none" class="secondary-btn" style="padding:4px 4px; font-size:12px; flex:1;" title="Deselect (edit everywhere)">&#10005; None</button>
             </div>
           </div>
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
-            <button id="paint-tool-pen" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9998;&nbsp;Pen</button>
-            <button id="paint-tool-spray" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128168;&nbsp;Spray</button>
-            <button id="paint-tool-ink" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128396;&nbsp;Ink</button>
-            <button id="paint-tool-line" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9585;&nbsp;Line</button>
-            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Drag colour around as if with a finger.">&#9775;&nbsp;Smudge</button>
-            <button id="paint-tool-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9781;&nbsp;Fill</button>
-            <button id="paint-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9003;&nbsp;Eraser</button>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
+            <button id="paint-tool-pen" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9998;&nbsp;Pen</button>
+            <button id="paint-tool-spray" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#128168;&nbsp;Spray</button>
+            <button id="paint-tool-ink" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#128396;&nbsp;Ink</button>
+            <button id="paint-tool-line" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9585;&nbsp;Line</button>
+            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;" title="Drag colour around as if with a finger.">&#9775;&nbsp;Smudge</button>
+            <button id="paint-tool-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9781;&nbsp;Fill</button>
+            <button id="paint-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9003;&nbsp;Eraser</button>
           </div>
           <!-- Color -->
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
             <div style="display:flex; align-items:center; gap:6px;">
               <input type="color" id="paint-color" value="#ff0000" style="width:36px; height:36px; border:none; padding:0; cursor:pointer; border-radius:6px;" title="Pick color" />
-              <button id="paint-eyedropper" class="secondary-btn tool-btn" style="padding:6px 8px; font-size:11px;" title="Pick from image"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M2 22l1-1h3l9-9"/><path d="M3 21v-3l9-9"/><circle cx="17.5" cy="6.5" r="3.5"/></svg></button>
+              <button id="paint-eyedropper" class="secondary-btn tool-btn" style="padding:6px 8px; font-size:13px;" title="Pick from image"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M2 22l1-1h3l9-9"/><path d="M3 21v-3l9-9"/><circle cx="17.5" cy="6.5" r="3.5"/></svg></button>
             </div>
           </div>
           <!-- Brush size -->
           <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Brush <span id="paint-brush-val" style="color:var(--text-1);">20</span></span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Brush <span id="paint-brush-val" style="color:var(--text-1);">20</span></span>
             <input type="range" id="paint-brush-size" min="1" max="200" value="20" style="width:100%;" />
           </div>
           <!-- Opacity -->
           <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Opacity <span id="paint-opacity-val" style="color:var(--text-1);">100%</span></span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Opacity <span id="paint-opacity-val" style="color:var(--text-1);">100%</span></span>
             <input type="range" id="paint-opacity" min="5" max="100" value="100" style="width:100%;" />
           </div>
           <!-- Hardness (Pen soft↔hard edge) -->
           <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Hardness <span id="paint-hardness-val" style="color:var(--text-1);">100%</span></span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Hardness <span id="paint-hardness-val" style="color:var(--text-1);">100%</span></span>
             <input type="range" id="paint-hardness" min="0" max="100" value="100" style="width:100%;" />
           </div>
           <!-- Tolerance (for Wand/Fill) -->
           <div id="paint-tolerance-group" style="display:none; flex-direction:column; gap:2px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Tolerance <span id="paint-tolerance-val" style="color:var(--text-1);">32</span></span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Tolerance <span id="paint-tolerance-val" style="color:var(--text-1);">32</span></span>
             <input type="range" id="paint-tolerance" min="1" max="128" value="32" style="width:100%;" />
           </div>
         </div>
@@ -3666,9 +3666,9 @@
         <h2 id="mesh-edit-title">Mesh Edit</h2>
         <!-- Main tools: mode selector (top, centered) -->
         <div style="display:flex; gap:6px;">
-          <button id="me-tool-sculpt" class="secondary-btn tool-btn tool-active" style="padding:6px 18px; font-size:12px;">&#9997;&nbsp;Sculpt</button>
-          <button id="me-tool-paint" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:12px;">&#127912;&nbsp;Paint</button>
-          <button id="me-tool-select" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:12px;">&#9634;&nbsp;Select</button>
+          <button id="me-tool-sculpt" class="secondary-btn tool-btn tool-active" style="padding:6px 18px; font-size:14px;">&#9997;&nbsp;Sculpt</button>
+          <button id="me-tool-paint" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:14px;">&#127912;&nbsp;Paint</button>
+          <button id="me-tool-select" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:14px;">&#9634;&nbsp;Select</button>
         </div>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
           <button id="me-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier: show a zoomed loupe under the cursor (toggle)">&#128269;</button>
@@ -3680,17 +3680,17 @@
       <!-- General controls toolbar (always visible): symmetry + brush sliders -->
       <div style="display:flex; align-items:center; gap:18px; flex-shrink:0; padding:6px 2px; border-top:1px solid var(--border, #333); border-bottom:1px solid var(--border, #333); flex-wrap:wrap;">
         <div id="me-sym-opts" style="display:flex; align-items:center; gap:6px;">
-          <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Mirror</span>
-          <button id="me-sym-x" class="secondary-btn tool-btn" style="padding:3px 10px; font-size:11px; color:#ff5577; border-color:rgba(255,85,119,0.55);" title="Mirror edits across the X axis (left / right).">X</button>
-          <button id="me-sym-y" class="secondary-btn tool-btn" style="padding:3px 10px; font-size:11px; color:#55ff77; border-color:rgba(85,255,119,0.55);" title="Mirror edits across the Y axis (up / down).">Y</button>
-          <button id="me-sym-z" class="secondary-btn tool-btn" style="padding:3px 10px; font-size:11px; color:#5599ff; border-color:rgba(85,153,255,0.55);" title="Mirror edits across the Z axis (front / back).">Z</button>
+          <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Mirror</span>
+          <button id="me-sym-x" class="secondary-btn tool-btn" style="padding:3px 10px; font-size:13px; color:#ff5577; border-color:rgba(255,85,119,0.55);" title="Mirror edits across the X axis (left / right).">X</button>
+          <button id="me-sym-y" class="secondary-btn tool-btn" style="padding:3px 10px; font-size:13px; color:#55ff77; border-color:rgba(85,255,119,0.55);" title="Mirror edits across the Y axis (up / down).">Y</button>
+          <button id="me-sym-z" class="secondary-btn tool-btn" style="padding:3px 10px; font-size:13px; color:#5599ff; border-color:rgba(85,153,255,0.55);" title="Mirror edits across the Z axis (front / back).">Z</button>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:10px; color:var(--text-muted);">Radius <span id="me-brush-val" style="color:var(--text-1);">0.05</span></span>
+          <span style="font-size:12px; color:var(--text-muted);">Radius <span id="me-brush-val" style="color:var(--text-1);">0.05</span></span>
           <input type="range" id="me-brush-size" min="1" max="100" value="25" style="width:130px;" />
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:10px; color:var(--text-muted);">Strength <span id="me-strength-val" style="color:var(--text-1);">0.5</span></span>
+          <span style="font-size:12px; color:var(--text-muted);">Strength <span id="me-strength-val" style="color:var(--text-1);">0.5</span></span>
           <input type="range" id="me-strength" min="1" max="100" value="50" style="width:130px;" />
         </div>
       </div>
@@ -3699,13 +3699,13 @@
         <div style="display:flex; flex-direction:column; gap:10px; width:200px; flex-shrink:0; padding:8px 4px 8px 0; overflow-y:auto;">
           <!-- Sculpt options -->
           <div id="me-sculpt-opts" style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Sculpt</span>
-            <button id="me-sculpt-push" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; width:100%;" title="Push the surface inwards.">&#9650;&nbsp;Push</button>
-            <button id="me-sculpt-pull" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Pull the surface outwards.">&#9660;&nbsp;Pull</button>
-            <button id="me-sculpt-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Even out the surface under the brush.">&#10024;&nbsp;Smooth</button>
-            <button id="me-sculpt-flatten" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Flatten the surface under the brush.">&#9644;&nbsp;Flatten</button>
-            <button id="me-sculpt-grab" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Drag a whole region without deforming its detail.">&#9995;&nbsp;Grab</button>
-            <button id="me-sculpt-inflate" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;" title="Swell the surface along its normals.">&#8853;&nbsp;Inflate</button>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Sculpt</span>
+            <button id="me-sculpt-push" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px; width:100%;" title="Push the surface inwards.">&#9650;&nbsp;Push</button>
+            <button id="me-sculpt-pull" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;" title="Pull the surface outwards.">&#9660;&nbsp;Pull</button>
+            <button id="me-sculpt-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;" title="Even out the surface under the brush.">&#10024;&nbsp;Smooth</button>
+            <button id="me-sculpt-flatten" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;" title="Flatten the surface under the brush.">&#9644;&nbsp;Flatten</button>
+            <button id="me-sculpt-grab" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;" title="Drag a whole region without deforming its detail.">&#9995;&nbsp;Grab</button>
+            <button id="me-sculpt-inflate" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;" title="Swell the surface along its normals.">&#8853;&nbsp;Inflate</button>
           </div>
           <!-- Select options -->
           <div id="me-select-opts" class="me-sel-panel" style="display:none; flex-direction:column; gap:4px;">
@@ -3719,7 +3719,7 @@
               <button id="me-sel-wand" class="secondary-btn tool-btn" style="flex:1;" title="Magic wand: click a face to select the whole connected flat region (within the Angle below). Ctrl = add.">&#10024;&nbsp;Wand</button>
               <button id="me-sel-lasso" class="secondary-btn tool-btn" style="flex:1;" title="Lasso: draw a freehand loop; every face inside is selected. Ctrl = add.">&#10057;&nbsp;Lasso</button>
             </div>
-            <label id="me-sel-wand-angle-row" style="display:none; align-items:center; gap:6px; font-size:10px; color:var(--text-muted); padding:1px 2px;">
+            <label id="me-sel-wand-angle-row" style="display:none; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); padding:1px 2px;">
               <span style="white-space:nowrap;">Wand angle</span>
               <input type="range" id="me-sel-wand-angle" min="1" max="80" value="20" style="flex:1; min-width:50px;" />
               <span id="me-sel-wand-angle-val" style="min-width:26px; text-align:right;">20&deg;</span>
@@ -3757,7 +3757,7 @@
               <button id="me-sel-duplicate" class="secondary-btn tool-btn" style="flex:1;" title="Duplicate the selected faces into a new layer">&#10697;&nbsp;Duplicate</button>
               <button id="me-sel-crop" class="secondary-btn tool-btn" style="flex:1;" title="Keep only the selection (delete the rest), or the opposite if 'Keep the rest' is on">&#9986;&nbsp;Crop</button>
             </div>
-            <label id="me-sel-crop-keeprest-row" style="display:none; align-items:center; gap:7px; font-size:12px; color:var(--text-2, #aab); padding:3px 4px 4px 6px; cursor:pointer;" title="When on, Crop keeps the REST and deletes the selection instead">
+            <label id="me-sel-crop-keeprest-row" style="display:none; align-items:center; gap:7px; font-size:14px; color:var(--text-2, #aab); padding:3px 4px 4px 6px; cursor:pointer;" title="When on, Crop keeps the REST and deletes the selection instead">
               <input type="checkbox" id="me-sel-crop-keeprest" style="margin:0; cursor:pointer; width:15px; height:15px; flex-shrink:0;"> Garder le reste
             </label>
             <div style="display:flex; gap:5px;">
@@ -3768,12 +3768,12 @@
           </div>
           <!-- Paint options -->
           <div id="me-paint-opts" style="display:none; flex-direction:column; gap:4px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
             <input type="color" id="me-paint-color" value="#ff0000" style="width:36px; height:36px; border:none; cursor:pointer; border-radius:6px;" />
-            <button id="me-paint-pick" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle; margin-right:5px;"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42l-2.34-2.34c-.2-.19-.45-.29-.71-.29z"/></svg>Pick color</button>
-            <button id="me-paint-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#129529;&nbsp;Fill all</button>
-            <button id="me-paint-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#10024;&nbsp;Smooth</button>
-            <button id="me-paint-reset" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; width:100%;">&#8634;&nbsp;Reset paint</button>
+            <button id="me-paint-pick" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle; margin-right:5px;"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42l-2.34-2.34c-.2-.19-.45-.29-.71-.29z"/></svg>Pick color</button>
+            <button id="me-paint-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;">&#129529;&nbsp;Fill all</button>
+            <button id="me-paint-smooth" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;">&#10024;&nbsp;Smooth</button>
+            <button id="me-paint-reset" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;">&#8634;&nbsp;Reset paint</button>
           </div>
         </div>
         <!-- Right: 3D viewport -->
@@ -3993,12 +3993,12 @@
         <table id="history-table" style="width:100%; border-collapse:collapse; font-size:13px;">
           <thead>
             <tr style="position:sticky; top:0; background:var(--bg-2); z-index:1;">
-              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Date</th>
-              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Type</th>
-              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Status</th>
-              <th style="padding:8px 10px; text-align:right; font-size:11px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Duration</th>
-              <th style="padding:8px 10px; text-align:right; font-size:11px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Credits</th>
-              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Project</th>
+              <th style="padding:8px 10px; text-align:left; font-size:13px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Date</th>
+              <th style="padding:8px 10px; text-align:left; font-size:13px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Type</th>
+              <th style="padding:8px 10px; text-align:left; font-size:13px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Status</th>
+              <th style="padding:8px 10px; text-align:right; font-size:13px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Duration</th>
+              <th style="padding:8px 10px; text-align:right; font-size:13px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Credits</th>
+              <th style="padding:8px 10px; text-align:left; font-size:13px; text-transform:uppercase; color:var(--text-2); border-bottom:1px solid var(--border);">Project</th>
             </tr>
           </thead>
           <tbody id="history-tbody"></tbody>
@@ -4012,9 +4012,9 @@
     <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:12px; max-width:760px; width:100%; max-height:80vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.6);">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border);">
         <strong id="history-detail-title" style="font-size:14px;">Event details</strong>
-        <button id="history-detail-close" class="ghost-btn" style="padding:3px 10px; font-size:11px;">✕ Close</button>
+        <button id="history-detail-close" class="ghost-btn" style="padding:3px 10px; font-size:13px;">✕ Close</button>
       </div>
-      <div id="history-detail-body" style="font-size:12px; color:var(--text-1); line-height:1.6; padding:16px 18px; overflow-y:auto;">Loading…</div>
+      <div id="history-detail-body" style="font-size:14px; color:var(--text-1); line-height:1.6; padding:16px 18px; overflow-y:auto;">Loading…</div>
     </div>
   </div>
 
