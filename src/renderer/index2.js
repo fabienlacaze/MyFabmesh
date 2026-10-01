@@ -2077,7 +2077,27 @@ function _majVerrousEtapes() {
     c.classList.toggle('etape-verrouillee', regles[id]);
     if (regles[id]) c.classList.add('collapsed');
   }
+  // « EDIT SELECTED » de chaque etape : inutilisable tant qu'il n'y a RIEN a editer (user 2026-10-01 : « edit selected des animations est
+  // active alors que je n'en ai pas genere »). Grise, ne s'ouvre pas, et le sous-titre le dit.
+  const aEditer = { 'step-card-image': n('images'), 'step-card-mesh': n('meshes'), 'step-card-rig': n('rigs'), 'step-card-animation': n('animations') };
+  for (const [id, nb] of Object.entries(aEditer)) {
+    const d = document.getElementById(id)?.querySelector('details.stage-edit');
+    if (!d) continue;
+    const vide = nb === 0;
+    d.classList.toggle('stage-verrouillee', vide);
+    const hint = d.querySelector('summary .stage-hint');
+    if (hint) {
+      if (hint.dataset.orig === undefined) hint.dataset.orig = hint.textContent;
+      hint.textContent = vide ? _i18nT('Nothing to edit yet') : hint.dataset.orig;
+    }
+    if (vide && d.open) d.open = false;
+  }
 }
+// un « Edit selected » verrouille ne s'ouvre pas
+document.addEventListener('click', (e) => {
+  const sm = e.target && e.target.closest ? e.target.closest('details.stage-verrouillee > summary') : null;
+  if (sm) e.preventDefault();
+}, true);
 setInterval(_majVerrousEtapes, 1000);
 // Fin d'installation : ouvre « New project » une seule fois (drapeau pose par le wizard).
 setTimeout(async () => {
@@ -11330,8 +11350,7 @@ document.getElementById('ws-mesh-detail-synth-btn')?.addEventListener('click', (
           // fichiers absents -> « Reconfigure MyFabmesh.AI » (ne telecharge que ce qui manque) ; memoire -> limites de Hardware.
           // (customErrorWithAction garde le message entier : l'etape ET la raison.)
           if (await customErrorWithAction(msg, _i18nT('Detail++ failed'), _i18nT('Open Settings'))) {
-            await openSettings();
-            if (!manqueMemoire) document.getElementById('set-reconfigure')?.scrollIntoView({ block: 'center' });
+            await openSettings(manqueMemoire ? '#set-gpu-card' : '#set-reconfigure');
           }
         } else {
           customError(msg, _i18nT('Detail++ failed'));
@@ -22280,6 +22299,9 @@ function majLignesLimites() {
     const extraTotGB = Math.max(0, totalGB - plancher - minGB);          // = reserve maximale
     const tropVisGB = 0;      // la bande orange ne servait a rien (user) : le depassement n'est dit que par la phrase sous la barre
     const addGB = Math.max(0, extraTotGB - Math.min(reserveGB, extraTotGB) - tropVisGB);
+    // chiffres lus par l'info-bulle qui suit la souris (voir _initInfoBullesMateriel)
+    (window.__hw = window.__hw || {})[nom] = { totalGB, plancher, minGB, addGB, reserveGB, autresGB, partGB, need, outil: lourd.outil || '',
+      usedGB, libre, tropGB, mfmReelGB: (!libre && usedGB != null) ? Math.max(0, usedGB - plancher - autresGB) : 0 };
     const larg = (gb) => Math.max(0, Math.min(100, gb / totalGB * 100)) + '%';
     const el = (suffixe) => document.getElementById(`set-${px}-${suffixe}`);
     const poser = (suffixe, prop, v) => { const e = el(suffixe); if (e) e.style[prop] = v; };
@@ -23026,6 +23048,9 @@ function _majBandesCharge() {
   // par processus est lissee, le total de nvidia-smi est instantane, ils ne se recoupaient pas).
   const nousGpu = sp && sp.ok ? Math.max(0, (window.__gpuTotalUtil || 0) - sp.gpuAutres) : 0;
   const nousCpu = sp && sp.ok ? Math.max(0, (window.__cpuTotalPct || 0) - sp.cpuAutres) : 0;
+  window.__hwCharge = { gpuTotal: window.__gpuTotalUtil || 0, gpuNous: nousGpu, gpuAutres: sp && sp.ok ? sp.gpuAutres : 0, gpuLimit: Math.round(gpuLimits.util),
+    cpuTotal: window.__cpuTotalPct || 0, cpuNous: nousCpu, cpuAutres: sp && sp.ok ? sp.cpuAutres : 0, cpuLimit: Math.round(gpuLimits.cpu), threads: window.__cpuThreads || 0,
+    temp: window.__gpuTemp || 0, tempLimit: Math.round(gpuLimits.temp), mesure: !!(sp && sp.ok) };
   poser('set-gpu-util-fill', 'set-gpu-util-mine', gpuLimits.util, nousGpu, sp ? sp.gpuAutres : 0, window.__gpuTotalUtil || 0);
   poser('set-cpu-fill', 'set-cpu-mine', gpuLimits.cpu, nousCpu, sp ? sp.cpuAutres : 0, window.__cpuTotalPct || 0);
 }
@@ -23060,7 +23085,7 @@ async function refreshGpuStats() {
     document.querySelector('.gpu-bar[data-stat="util"]')?.classList.remove('over-limit');  // GPU at 100% is normal — never flag it red
     // Temperature (scale 0-100°C → 0-100% bar, red zone after 80)
     const temp = gpu.tempC || 0;
-    document.getElementById('set-gpu-temp-val').textContent = temp.toFixed(0) + ' °C';
+    document.getElementById('set-gpu-temp-val').textContent = temp.toFixed(0) + ' °C'; window.__gpuTemp = temp;
     document.getElementById('set-gpu-temp-fill').style.width = Math.min(100, temp) + '%';
     document.querySelector('.gpu-bar[data-stat="temp"]')?.classList.toggle('over-limit', temp > gpuLimits.temp);
     refreshGpuLimitLockState();
@@ -23110,8 +23135,203 @@ async function _chargerChoixGpu() {
   } catch (_) {}
 }
 
-async function openSettings() {
+// INFO-BULLE VOLANTE du materiel (user 2026-10-01 : « au lieu du tip texte, une popup volante qui suit la souris avec un explicatif de tout ce que
+// ca veut dire et en dessous les details en numerique, un peu comme sur la photo du cerveau ») : un schema de la barre avec des repères numerotes,
+// la legende numerotee (explication + chiffre), puis la situation en direct. Recalculee a chaque survol, sans rien stocker.
+let _infobulleEl = null, _infobulleCle = null, _infobulleT = 0;
+function _go(x) { return (Math.round(x * 10) / 10).toFixed(1); }
+function _htmlInfoBulle(cle) {
+  const T = _i18nT, Tf = _i18nTf;
+  const pastille = (n, couleur) => `<span class="hwtip-n" style="background:${couleur}">${n}</span>`;
+  const ligne = (n, couleur, titre, valeur, texte) =>
+    `<li>${pastille(n, couleur)}<div><div class="hwtip-lt"><b>${escapeHtml(titre)}</b><span class="hwtip-v">${escapeHtml(valeur)}</span></div><p>${escapeHtml(texte)}</p></div></li>`;
+  const schema = (parts) => {                  // parts : [{pct, couleur, n}] ; repere numerote au-dessus de chaque part
+    const tot = parts.reduce((a, p) => a + p.pct, 0) || 1;
+    let x = 0; const pins = [];
+    const segs = parts.filter((p) => p.pct > 0.2).map((p) => {
+      const w = p.pct / tot * 100; const centre = x + w / 2; x += w;
+      pins.push(`<span class="hwtip-pin" style="left:${centre}%"><i>${p.n}</i></span>`);
+      return `<span class="hwtip-seg" style="width:${w}%;background:${p.couleur}"></span>`;
+    }).join('');
+    return `<div class="hwtip-schema"><div class="hwtip-pins">${pins.join('')}</div><div class="hwtip-barre">${segs}</div></div>`;
+  };
+  const C = { min: '#4b2b99', add: '#b79cff', autres: '#9aa3b2', win: '#4a4a5c' };
+  if (cle === 'vram' || cle === 'ram') {
+    const h = (window.__hw || {})[cle]; if (!h) return '';
+    const nom = cle === 'vram' ? T('Graphics memory (VRAM)') : T('Memory (RAM)');
+    const reste = Math.max(0, h.autresGB - h.reserveGB);
+    const maintenant = h.libre
+      ? Tf('Your other apps use {x} GB of the {y} GB you keep for them.', _go(h.autresGB), _go(h.reserveGB))
+      : Tf('MyFabmesh uses {x} GB. Your other apps used {y} GB when MyFabmesh was idle.', _go(h.mfmReelGB), _go(h.autresGB));
+    return `<div class="hwtip-titre"><b>${escapeHtml(nom)}</b><span>${escapeHtml(Tf('{x} GB in total', _go(h.totalGB)))}</span></div>`
+      + schema([{ pct: h.minGB, couleur: C.min, n: 1 }, { pct: h.addGB, couleur: C.add, n: 2 }, { pct: Math.min(h.reserveGB, h.totalGB - h.plancher - h.minGB), couleur: C.autres, n: 3 }, { pct: h.plancher, couleur: C.win, n: 4 }])
+      + `<ul class="hwtip-liste">`
+      + ligne(1, C.min, T('MyFabmesh minimum'), _go(h.minGB) + ' GB', Tf('What the heaviest tool needs ({x}). Always kept for MyFabmesh: you cannot go below it.', h.outil || '?'))
+      + ligne(2, C.add, T('Extra for MyFabmesh'), _go(h.addGB) + ' GB', T('Free room MyFabmesh may use on top of its minimum. Drag the marker to the right to give it more.'))
+      + ligne(3, C.autres, T('Other apps'), _go(h.reserveGB) + ' GB', T('What you keep for your other software. MyFabmesh never takes it. Drag the marker to the left to keep more.'))
+      + ligne(4, C.win, T('Windows'), _go(h.plancher) + ' GB', T('Kept for the system itself. Never used.'))
+      + `</ul><div class="hwtip-note">${escapeHtml(T('The thin line inside a block is the real use right now: green is low, red is high.'))}</div>`
+      + `<div class="hwtip-now">${escapeHtml(maintenant)}${reste > 0.05 ? '<br><span class="hwtip-warn">' + escapeHtml(Tf('They use {x} GB more than kept: MyFabmesh gets less.', _go(reste))) + '</span>' : ''}</div>`;
+  }
+  const k = window.__hwCharge; if (!k) return '';
+  if (cle === 'gpu' || cle === 'cpu') {
+    const gpu = cle === 'gpu';
+    const lim = gpu ? k.gpuLimit : k.cpuLimit, min = gpu ? 30 : 25;
+    const nous = gpu ? k.gpuNous : k.cpuNous, autres = gpu ? k.gpuAutres : k.cpuAutres, total = gpu ? k.gpuTotal : k.cpuTotal;
+    const nom = gpu ? T('GPU load') : T('Processor');
+    return `<div class="hwtip-titre"><b>${escapeHtml(nom)}</b><span>${escapeHtml(total + ' %')}</span></div>`
+      + schema([{ pct: min, couleur: C.min, n: 1 }, { pct: Math.max(0, lim - min), couleur: C.add, n: 2 }, { pct: Math.max(0, 100 - lim), couleur: C.autres, n: 3 }])
+      + `<ul class="hwtip-liste">`
+      + ligne(1, C.min, T('Lowest limit'), min + ' %', T('MyFabmesh always keeps at least this much to work.'))
+      + ligne(2, C.add, T('MyFabmesh may use'), lim + ' %', gpu
+        ? Tf('Above {x} % the generations slow down by themselves to let the card breathe. Drag the marker to change it.', lim)
+        : (k.threads ? Tf('{x} of {y} threads. Generations run slower so your PC stays responsive.', Math.max(1, Math.round(k.threads * lim / 100)), k.threads) : T('Generations run slower so your PC stays responsive.')))
+      + ligne(3, C.autres, T('Left for other apps'), (100 - lim) + ' %', T('Not touched by MyFabmesh.'))
+      + `</ul><div class="hwtip-note">${escapeHtml(T('The thin line inside a block is the real use right now: green is low, red is high.'))}</div>`
+      + `<div class="hwtip-now">${escapeHtml(k.mesure ? Tf('Now: {a} % in total · MyFabmesh {b} % · other apps {c} %', total, nous, autres) : Tf('Now: {a} % in total', total))}</div>`;
+  }
+  if (cle === 'temp') {
+    return `<div class="hwtip-titre"><b>${escapeHtml(T('Temperature'))}</b><span>${escapeHtml(k.temp + ' °C')}</span></div>`
+      + `<ul class="hwtip-liste">`
+      + ligne(1, '#4ade80', T('Limit'), k.tempLimit + ' °C', Tf('Above {x} °C the generations slow down by themselves until the card cools. Drag the marker to change it.', k.tempLimit))
+      + `</ul><div class="hwtip-now">${escapeHtml(Tf('Now: {x} °C', k.temp))}${k.temp > k.tempLimit ? '<br><span class="hwtip-warn">' + escapeHtml(T('Above the limit: generations are slowed down.')) + '</span>' : ''}</div>`;
+  }
+  return '';
+}
+function _initInfoBullesMateriel() {
+  const carte = document.getElementById('set-gpu-card');
+  if (!carte || carte.dataset.infobulle) return;
+  carte.dataset.infobulle = '1';
+  const el = document.createElement('div');
+  el.id = 'hwtip'; el.className = 'hwtip'; el.hidden = true;
+  document.body.appendChild(el);
+  _infobulleEl = el;
+  const cleDe = (stat) => {
+    if (stat.querySelector('#set-gpu-vram-limit')) return 'vram';
+    if (stat.querySelector('#set-ram-limit')) return 'ram';
+    if (stat.querySelector('#set-gpu-util-limit')) return 'gpu';
+    if (stat.querySelector('#set-cpu-limit')) return 'cpu';
+    if (stat.querySelector('#set-gpu-temp-limit')) return 'temp';
+    return null;
+  };
+  const placer = (e) => {
+    const r = el.getBoundingClientRect();
+    let x = e.clientX + 18, y = e.clientY + 18;
+    if (x + r.width > innerWidth - 8) x = Math.max(8, e.clientX - r.width - 18);
+    if (y + r.height > innerHeight - 8) y = Math.max(8, innerHeight - r.height - 8);
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+  };
+  carte.addEventListener('mousemove', (e) => {
+    if (_draggingGpuLimit || e.target.closest('.gpu-bar-limit')) { el.hidden = true; return; }
+    const stat = e.target.closest('.gpu-stat');
+    const cle = stat ? cleDe(stat) : null;
+    if (!cle) { el.hidden = true; return; }
+    if (cle !== _infobulleCle || Date.now() - _infobulleT > 400) {
+      const html = _htmlInfoBulle(cle);
+      if (!html) { el.hidden = true; return; }
+      el.innerHTML = html; _infobulleCle = cle; _infobulleT = Date.now();
+    }
+    el.hidden = false;
+    placer(e);
+  });
+  carte.addEventListener('mouseleave', () => { el.hidden = true; _infobulleCle = null; });
+  // plus aucune infobulle texte native sur ces blocs (elles se superposeraient)
+  carte.querySelectorAll('.hw-seg, .hw-reel').forEach((x) => x.removeAttribute('title'));
+}
+
+// REFONTE DES REGLAGES (2026-10-01, user : « j'ai pas l'impression que la page settings ait ete refaite ») : au lieu d'un long defilement de
+// neuf sections, une fenetre large avec un MENU a gauche et UNE section a droite. Les sections existantes sont deplacees telles quelles (leurs
+// identifiants et leurs ecouteurs ne changent pas) : chaque « .settings-section-header » + ce qui le suit devient un panneau.
+const _ONGLETS_REGLAGES = [
+  // [titre de la section dans le HTML, glyphe]  — dans l'ordre du menu
+  ['Hardware', '\u2699'], ['Compute', '\u2601'], ['Account', '\u263A'], ['Language', '\u2736'], ['Assistant', '\u2726'],
+  ['Parental Control', '\u2691'], ['Privacy', '\u26BF'], ['System', '\u25A3'], ['Installation', '\u2193'],
+];
+let _ongletsPrets = false;
+function _initOngletsReglages() {
+  if (_ongletsPrets) return;
+  const card = document.querySelector('#modal-settings .settings-card');
+  if (!card) return;
+  const entete = card.querySelector('.settings-header');
+  const enfants = Array.from(card.children).filter((e) => e !== entete);
+  const panneaux = {};               // titre -> <div class="set-panel">
+  let courant = null;
+  for (const e of enfants) {
+    if (e.classList && e.classList.contains('settings-section-header')) {
+      const titre = (e.textContent || '').trim();
+      courant = document.createElement('div');
+      courant.className = 'set-panel';
+      courant.dataset.section = titre;
+      const h = document.createElement('h3');
+      h.className = 'set-panel-titre';
+      h.textContent = titre;
+      courant.appendChild(h);
+      panneaux[titre] = courant;
+      e.remove();
+      continue;
+    }
+    if (courant) courant.appendChild(e);
+    // un element AVANT la 1re section (rare) reste en place
+  }
+  const nav = document.createElement('nav');
+  nav.className = 'set-nav';
+  nav.setAttribute('role', 'tablist');
+  const zone = document.createElement('div');
+  zone.className = 'set-panels';
+  const vus = new Set();
+  const ordre = _ONGLETS_REGLAGES.map((x) => x[0]).concat(Object.keys(panneaux).filter((t) => !_ONGLETS_REGLAGES.some((x) => x[0] === t)));
+  for (const titre of ordre) {
+    const p = panneaux[titre];
+    if (!p || vus.has(titre)) continue;
+    vus.add(titre);
+    const glyphe = (_ONGLETS_REGLAGES.find((x) => x[0] === titre) || [0, '\u2022'])[1];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'set-nav-btn';
+    b.dataset.section = titre;
+    b.setAttribute('role', 'tab');
+    b.innerHTML = `<span class="set-nav-ico" aria-hidden="true">${glyphe}</span><span class="set-nav-txt">${escapeHtml(_i18nT(titre))}</span>`;
+    b.addEventListener('click', () => _activerOngletReglages(titre));
+    nav.appendChild(b);
+    zone.appendChild(p);
+    const ph = p.querySelector('.set-panel-titre'); if (ph) ph.textContent = _i18nT(titre);
+  }
+  const mise = document.createElement('div');
+  mise.className = 'set-layout';
+  mise.append(nav, zone);
+  card.appendChild(mise);
+  card.classList.add('set-onglets');
+  _ongletsPrets = true;
+  let dernier = 'Hardware';
+  try { dernier = localStorage.getItem('fab-reglages-onglet') || 'Hardware'; } catch (_) {}
+  _activerOngletReglages(panneaux[dernier] ? dernier : ordre.find((t) => panneaux[t]));
+}
+function _activerOngletReglages(titre) {
+  document.querySelectorAll('#modal-settings .set-panel').forEach((p) => p.classList.toggle('actif', p.dataset.section === titre));
+  document.querySelectorAll('#modal-settings .set-nav-btn').forEach((b) => {
+    const on = b.dataset.section === titre;
+    b.classList.toggle('actif', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  try { localStorage.setItem('fab-reglages-onglet', titre); } catch (_) {}
+  const z = document.querySelector('#modal-settings .set-panels'); if (z) z.scrollTop = 0;
+}
+// ouvre l'onglet qui contient l'element vise (pour les fonctions qui ouvrent les Reglages sur un champ precis)
+function _ouvrirReglagesVers(sel) {
+  try {
+    const el = document.querySelector(sel);
+    const p = el && el.closest('.set-panel');
+    if (p) _activerOngletReglages(p.dataset.section);
+    if (el) setTimeout(() => el.scrollIntoView({ block: 'center' }), 50);
+  } catch (_) {}
+}
+window._ouvrirReglagesVers = _ouvrirReglagesVers;
+
+async function openSettings(cible) {
   document.getElementById('modal-settings').classList.remove('hidden');
+  _initOngletsReglages();
+  try { _initInfoBullesMateriel(); } catch (_) {}
+  if (cible) _ouvrirReglagesVers(cible);
   try {
     const cfg = await API.getConfig();
     const blenderEl = document.getElementById('set-blender-path');
@@ -23418,10 +23638,11 @@ document.getElementById('topbar-market')?.addEventListener('click', async () => 
 document.getElementById('job-gpu-monitor')?.addEventListener('click', (e) => {
   e.stopPropagation();
   document.getElementById('modal-job-details')?.classList.add('hidden');
-  openSettings();
+  openSettings('#set-gpu-card');
 });
 function closeSettings() {
   document.getElementById('modal-settings').classList.add('hidden');
+  try { const t = document.getElementById('hwtip'); if (t) t.hidden = true; } catch (_) {}
   if (_gpuPollTimer) { clearInterval(_gpuPollTimer); _gpuPollTimer = null; }
 }
 document.getElementById('set-close')?.addEventListener('click', closeSettings);
