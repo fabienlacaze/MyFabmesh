@@ -10792,6 +10792,13 @@ ipcMain.handle('generate-back-view', async (_event, { frontImage, promptHint, nu
       `mvadapter requested on assetType=${assetType}, falling back to sheet`);
     resolvedMode = 'sheet';
   }
+  // MOTEUR MV-ADAPTER ABSENT (2026-10-02) : son code n'est plus livre (nettoyage du 2026-09-30). Un « creature » partait donc vers un script qui ne
+  // pouvait pas demarrer. Repli sur RealVis + squelette de dos, qui a donne de VRAIS dos sur l'alien (mesure du 2026-10-02, reference de face 0,25).
+  if (resolvedMode === 'mvadapter'
+      && !fs.existsSync(path.join(path.dirname(SCRIPTS_DIR), 'external', 'MV-Adapter', 'mvadapter'))) {
+    log.warn('generate-back-view', 'MV-Adapter absent : repli sur realvis');
+    resolvedMode = 'realvis';
+  }
   const SCRIPT_BY_MODE = {
     sheet:     'generate_back_view_sheet.py',
     mirror:    'generate_back_view_mirror.py',
@@ -10804,6 +10811,10 @@ ipcMain.handle('generate-back-view', async (_event, { frontImage, promptHint, nu
   // Pass the front stem as a 5th arg so the python script names files
   // back_<stem>_0.png (avoids collision when multiple fronts in same project).
   const args = [script, frontImage, outDir, promptHint || '', String(numImages || 1), frontStem];
+  // MEMOIRE (2026-10-02, rapport d'essais du 01/10 : « Multi-Views 2 vues pousse la VRAM a 14,8 Go ») : le serveur d'images garde son modele charge
+  // pendant que le script de dos en charge un SECOND (RealVis + ControlNet + IP-Adapter + Florence-2). On libere le serveur d'abord, comme pour la
+  // 3D et les multi-vues (il se recharge tout seul au prochain outil d'image).
+  await _freeSdxlForHeavyOp('vue de dos');
   return new Promise((resolve) => {
     const env = { ...process.env, PYTHONUNBUFFERED: '1' };
     // Forward the requested view count to the sheet generator. Valid:
