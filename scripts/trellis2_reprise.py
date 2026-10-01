@@ -27,8 +27,76 @@ _PHASES_CASCADE = (('structure', 0.06), ('forme', 0.14), ('forme_fine', 0.42), (
 _PHASES_SIMPLE = (('structure', 0.08), ('forme', 0.47), ('texture', 0.45))
 
 
+def _type():
+    return 'cascade' if 'cascade' in str(_etat.get('mode') or '') else 'simple'
+
+
 def _phases():
-    return _PHASES_CASCADE if 'cascade' in str(_etat.get('mode') or '') else _PHASES_SIMPLE
+    """Phases avec leurs poids : ceux APPRIS sur ce PC si on en a (voir _apprendre), sinon ceux de depart."""
+    base = _PHASES_CASCADE if _type() == 'cascade' else _PHASES_SIMPLE
+    appris = _etat.get('poids', {}).get(_type())
+    if appris and len(appris) == len(base):
+        return tuple((nom, w) for (nom, _), w in zip(base, appris))
+    return base
+
+
+# AUTO-AMELIORATION (user 2026-10-01 : « il faudrait que ca s'ameliore tout seul, comme ca ce n'est pas dependant que de mon PC ») :
+# chaque 3D terminee d'une traite note la part de temps de chaque phase (logs/progression_3d.json, 8 dernieres par type de mode). Les poids
+# de la barre = moyenne de ces parts, melangee aux poids de depart tant qu'il y a peu de mesures (k / (k + 2)). Chaque PC apprend donc SON
+# rythme (carte, limites de charge, taille des objets) des la premiere generation.
+_NB_MESURES = 8
+
+
+def _fichier_appris():
+    j = os.environ.get('FABMESH_MEMOIRE_JOURNAL')
+    return os.path.join(os.path.dirname(j), 'progression_3d.json') if j else None
+
+
+def _charger_appris():
+    f = _fichier_appris()
+    poids = {}
+    if not f or not os.path.isfile(f):
+        return poids
+    try:
+        with open(f, 'r', encoding='utf-8') as fh:
+            data = json.load(fh)
+    except Exception:
+        return poids
+    for type_, base in (('cascade', _PHASES_CASCADE), ('simple', _PHASES_SIMPLE)):
+        parts = [p for p in (data.get(type_) or []) if isinstance(p, list) and len(p) == len(base) and all(isinstance(x, (int, float)) and x >= 0 for x in p)]
+        if not parts:
+            continue
+        k = len(parts)
+        alpha = k / (k + 2.0)
+        moy = [sum(p[i] for p in parts) / k for i in range(len(base))]
+        mixte = [alpha * moy[i] + (1 - alpha) * base[i][1] for i in range(len(base))]
+        total = sum(mixte) or 1.0
+        poids[type_] = [x / total for x in mixte]
+    return poids
+
+
+def _apprendre(durees):
+    """durees : une duree (s) par appel, toutes mesurees dans CE processus (une reprise partielle n'apprend rien)."""
+    f = _fichier_appris()
+    base = _PHASES_CASCADE if _type() == 'cascade' else _PHASES_SIMPLE
+    if not f or len(durees) != len(base) or any(d is None or d <= 0 for d in durees):
+        return
+    total = sum(durees)
+    part = [round(d / total, 4) for d in durees]
+    try:
+        data = {}
+        if os.path.isfile(f):
+            with open(f, 'r', encoding='utf-8') as fh:
+                data = json.load(fh) or {}
+        liste = [p for p in (data.get(_type()) or []) if isinstance(p, list)] + [part]
+        data[_type()] = liste[-_NB_MESURES:]
+        tmp = f + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as fh:
+            json.dump(data, fh)
+        os.replace(tmp, f)
+        _etat['log']('progress weights learned: ' + ' / '.join(f'{x:.0%}' for x in part))
+    except Exception as e:
+        _etat['log'](f'progress weights not saved ({type(e).__name__})')
 
 
 def _annoncer_pas(n, i, steps):
@@ -89,6 +157,7 @@ def reinitialiser(mode=None):
     """Vide le dossier (changement de mode : les appels ne se correspondent plus) et repart a zero."""
     if mode:
         _etat['mode'] = mode
+        _etat['durees'] = {}
     d = _etat.get('dir')
     if not d:
         _etat['n'] = 0
@@ -133,7 +202,8 @@ def _verifier_meta():
 def installer(log=print):
     """A appeler une fois le pipeline importe. Sans FABMESH_CKPT_DIR : ne fait rien."""
     d = os.environ.get('FABMESH_CKPT_DIR') or None
-    _etat.update(dir=d, n=0, log=log, mode=os.environ.get('FABMESH_TRELLIS2_NATIVE_MODE', '1024'), pct=-1)
+    _etat.update(dir=d, n=0, log=log, mode=os.environ.get('FABMESH_TRELLIS2_NATIVE_MODE', '1024'), pct=-1, durees={})
+    _etat['poids'] = _charger_appris()
     if d:
         os.makedirs(d, exist_ok=True)
         _verifier_meta()
@@ -168,6 +238,7 @@ def installer(log=print):
             except OSError:
                 pass
         pause = _chemin('PAUSE') if _etat['dir'] else None
+        t_debut = time.time() if debut == 0 else None          # appel mesure d'une traite : sert a apprendre les poids
         for i in tqdm(range(debut, steps), desc=tqdm_desc, disable=not verbose, initial=debut, total=steps):
             if pause and os.path.exists(pause):
                 _ecrire_atomique(f'partiel_{n}.pt', {'pas': i, 'x': _serialiser(sample_courant)})
@@ -182,6 +253,9 @@ def installer(log=print):
             out = self.sample_once(model, sample_courant, t, t_prev, cond, **kwargs)
             sample_courant = out.pred_x_prev
             _annoncer_pas(n, i, steps)
+        _etat['durees'][n] = (time.time() - t_debut) if t_debut is not None else None
+        if n == len(_phases()) - 1 and all(_etat['durees'].get(i) for i in range(n + 1)):
+            _apprendre([_etat['durees'][i] for i in range(n + 1)])
         if _etat['dir']:
             _ecrire_atomique(f'fait_{n}.pt', _serialiser(sample_courant))
         return edict({'samples': sample_courant, 'pred_x_t': [], 'pred_x_0': []})

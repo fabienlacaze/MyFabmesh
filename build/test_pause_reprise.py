@@ -45,12 +45,15 @@ if SparseTensor is not None:
     noise = SparseTensor(feats=torch.randn(5, 4), coords=torch.tensor([[0, i, i, i] for i in range(5)], dtype=torch.int32))
     b = s.sample(Modele(), noise, None, steps=8, rescale_t=3.0, verbose=False).samples
     res.append(hashlib.sha256(b.feats.numpy().tobytes()).hexdigest())
+c = s.sample(Modele(), torch.randn(1, 4, 3, 3), None, steps=5, rescale_t=3.0, verbose=False).samples
+res.append(hashlib.sha256(c.numpy().tobytes()).hexdigest())
 print('RESULTAT ' + json.dumps(res))
 '''
 
 
 def lancer(dossier, pause_apres=0):
-    env = dict(os.environ, FABMESH_CKPT_DIR=dossier, PAUSE_APRES=str(pause_apres), PYTHONIOENCODING='utf-8')
+    env = dict(os.environ, FABMESH_CKPT_DIR=dossier, PAUSE_APRES=str(pause_apres), PYTHONIOENCODING='utf-8',
+               FABMESH_MEMOIRE_JOURNAL=os.path.join(os.path.dirname(dossier), 'memoire_pics.jsonl'))
     env.pop('FABMESH_TRELLIS2_NATIVE_MODE', None)
     p = subprocess.run([sys.executable, '-c', ENFANT, SCRIPTS, SRC_T2], capture_output=True, text=True, env=env, timeout=300)
     res = None
@@ -84,6 +87,12 @@ def main():
         assert 'repris sans recalcul' in sortie and 'repris au pas' in sortie, 'la reprise n\'a pas utilise les points : ' + sortie[-600:]
         assert res == ref, f'resultat different apres reprise : {res} != {ref}'
         print('reprise : resultat IDENTIQUE a un calcul ininterrompu ->', [r[:12] for r in res])
+        # AUTO-APPRENTISSAGE des poids de la barre : le calcul de reference (d'une traite) a note ses durees ; la reprise (appels en cache) n'apprend rien
+        f = os.path.join(base, 'progression_3d.json')
+        assert os.path.isfile(f), 'progression_3d.json non ecrit apres un calcul d une traite'
+        data = json.load(open(f, encoding='utf-8'))
+        assert list(data) == ['simple'] and len(data['simple']) == 1 and len(data['simple'][0]) == 3 and abs(sum(data['simple'][0]) - 1) < 0.01, data
+        print('apprentissage :', data)
         print('OK')
         return 0
     finally:
