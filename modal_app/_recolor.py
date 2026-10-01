@@ -191,22 +191,52 @@ def recolor_recoller(original, rendu, masque):
 
 
 def recolor_masque_fond(img):
-    """Fond de STUDIO d'un asset : zone claire et neutre (blanc, gris clair, degrade compris) reliee aux bords de l'image.
-    Meme regle que _masque_fond de la variante de texture (bureau et Modal). Masque doux 0..1 (H x W), ou None si l'image
-    n'a pas un tel fond (scene, fond sombre) ou si scipy manque (rien n'est alors protege, comme avant)."""
+    """Fond de STUDIO d'un asset : zone LISSE reliee aux bords de l'image (blanc, gris, BEIGE, degrade et ombre douce compris).
+    Masque doux 0..1 (H x W), ou None si l'image n'a pas un tel fond (scene, fond sombre) ou si scipy manque (rien n'est alors
+    protege, comme avant).
+
+    2026-10-02 (rapport d'essais du 01/10 : « One part » deborde, halo rose autour du chevalier) : l'ancienne regle ne reconnaissait
+    que les fonds NEUTRES clairs (moyenne > 150 et ecart de couleur < 15). Le fond beige du chevalier (ecart ~26) n'etait donc pas
+    protege et la teinte coloriait tout autour de la partie. Un fond de studio se reconnait mieux a sa LISSEUR (gradient de luminance
+    quasi nul, degrade doux compris) qu'a sa couleur : on garde les pixels lisses, proches de la mediane du pourtour, relies aux bords.
+    Les reflets d'acier ou un aplat de l'objet ne sont pas absorbes : ils sont separes du fond par le contour du sujet (fort gradient).
+    Mesure sur 5 images reelles : fond du chevalier 77 % (l'ancienne regle : aucun), les autres equivalentes ou meilleures, 0-6 % du
+    sujet central classe en fond. L'ancienne regle reste en repli quand la zone lisse couvre moins de 15 % de l'image (image bruitee)."""
     try:
         from scipy import ndimage
     except Exception:
         return None
     a = np.asarray(img.convert('RGB'), dtype=np.float32)
-    neutre = (a.mean(axis=2) > 150) & ((a.max(axis=2) - a.min(axis=2)) < 15)
-    lab, n = ndimage.label(neutre)
-    if not n:
-        return None
-    bords = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
-    fond = np.isin(lab, bords[bords > 0])
-    if fond.mean() < 0.15:                      # pas un fond d'asset
-        return None
+    fond = None
+    lum = ndimage.gaussian_filter(a.mean(axis=2), 1.5)
+    gy, gx = np.gradient(lum)
+    grad = ndimage.uniform_filter(np.hypot(gx, gy), 3) * (max(a.shape[:2]) / 1024.0)     # niveaux par pixel a 1024 px : independant de la taille
+    bord = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
+    med = np.median(bord, axis=0)
+    lisse = (grad < 1.6) & (np.abs(a - med).max(axis=2) < 70)
+    lab, n = ndimage.label(lisse)
+    if n:
+        bords = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+        f = np.isin(lab, bords[bords > 0])
+        if f.mean() >= 0.15:
+            # Petites poches NON lisses cernees par le fond (grain du papier, bruit) : le fond aussi. Le sujet, lui, est UNE grande zone
+            # (seuil 0,2 % de l'image) : il n'est jamais comble. Sans cela, des taches de teinte restaient dans le cadre autour de la partie.
+            reste, nr = ndimage.label(~f)
+            if nr:
+                tailles = np.bincount(reste.ravel())
+                petites = np.zeros(nr + 1, dtype=bool)
+                petites[1:] = tailles[1:] < 0.002 * f.size
+                f = f | petites[reste]
+            fond = f
+    if fond is None:                            # repli : ancienne regle (fond neutre clair relie aux bords)
+        neutre = (a.mean(axis=2) > 150) & ((a.max(axis=2) - a.min(axis=2)) < 15)
+        lab, n = ndimage.label(neutre)
+        if not n:
+            return None
+        bords = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+        fond = np.isin(lab, bords[bords > 0])
+        if fond.mean() < 0.15:                  # pas un fond d'asset
+            return None
     fond = ndimage.binary_erosion(fond, iterations=2)
     return ndimage.gaussian_filter(fond.astype(np.float32), 1.5)
 
