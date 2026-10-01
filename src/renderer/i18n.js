@@ -1568,6 +1568,7 @@
       'Import failed': 'Échec de l\'import',
       'Prompt copied!': 'Prompt copié !',
       'Copy failed': 'Échec de la copie',
+      'Open the setup wizard': "Ouvrir l'assistant d'installation",
       'Resources during a generation': "Ressources pendant une génération",
       'Eco mode': "Mode éco",
       'Frees memory while the PC generates: turns on the three options below. Some tools take a few seconds longer to restart.': "Libère de la mémoire pendant que le PC génère : active les trois options ci-dessous. Certains outils mettent quelques secondes de plus à redémarrer.",

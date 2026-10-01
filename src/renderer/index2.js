@@ -22792,7 +22792,7 @@ async function refreshProcList() {
   const countEl = document.getElementById('set-python-count');
   if (countEl) countEl.textContent = String(procs.length);
   if (!procs.length) {
-    box.innerHTML = '<div style="font-size:13px;color:var(--text-2);padding:4px 0;">No active process.</div>';
+    box.innerHTML = '';
     return;
   }
   const fmtMs = ms => {
