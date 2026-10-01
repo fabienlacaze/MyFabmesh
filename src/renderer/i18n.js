@@ -1721,6 +1721,8 @@
       'Move cursor over image': "Déplacez le curseur sur l'image",
       'Update check not available in this build.': 'Vérification des mises à jour indisponible dans cette version.',
       'Checking GitHub for updates…': 'Recherche de mises à jour sur GitHub…',
+      'Running a development build — no updates available.': "Version de développement : pas de mise à jour.",
+      'Update check failed: {x}': "Échec de la vérification des mises à jour : {x}",
       'You are running the latest version.': 'Vous utilisez la dernière version.',
       'GPU info unavailable': 'Infos GPU indisponibles',
       'Re-skin': 'Re-skin',

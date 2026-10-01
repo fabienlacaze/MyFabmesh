@@ -23863,6 +23863,28 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
   });
 })();
 
+/* « CHECK FOR UPDATES » DANS LE MENU « ... » (2026-10-01, user : « mets le directement dans le menu deroulant »). Meme verification que le bouton de la fenetre
+ * « A propos », mais le resultat s'affiche en notification : plus besoin d'ouvrir la fenetre. Sous MSIX (Store), Windows met a jour : la ligne est masquee. */
+(() => {
+  const b = document.getElementById('btn-check-update');
+  if (!b) return;
+  (async () => { try { if (await window.meshyAPI?.isStoreBuild?.()) b.style.setProperty('display', 'none', 'important'); } catch (_) {} })();
+  b.addEventListener('click', async () => {
+    if (!window.meshyAPI?.checkForUpdate) { showToast(_i18nT('Update check not available in this build.'), 'info'); return; }
+    showToast(_i18nT('Checking GitHub for updates…'), 'info', 1800);
+    try {
+      const r = await window.meshyAPI.checkForUpdate();
+      if (!r.ok) {
+        showToast(r.error === 'dev build, skipping' ? _i18nT('Running a development build — no updates available.') : _i18nTf('Update check failed: {x}', r.error || 'unknown'), 'error', 4000);
+      } else if (r.hasUpdate) {
+        showToast(_i18nTf('Version {x} is available. Use the banner at the top to download and install it.', r.version), 'success', 6000);
+      } else {
+        showToast(_i18nTf('You are running the latest version ({x}).', r.current || (window.__BUILD__ && window.__BUILD__.version) || ''), 'success', 4000);
+      }
+    } catch (e) { showToast(_i18nTf('Update check failed: {x}', e.message), 'error', 4000); }
+  });
+})();
+
 // Auto-update toast — non-blocking, top-right.
 //
 // Le telechargement n'est plus lance en tache de fond (voir _initAutoUpdate
@@ -31832,7 +31854,7 @@ async function _verifierVramAvant3D(besoinMo, peutLeger) {
   const bouton = document.getElementById('btn-topbar-more');
   if (!bouton || !document.getElementById('topbar-more-src')) return;
   const T = (x) => ((typeof _i18nT === 'function') ? _i18nT(x) : x);
-  const LIGNES = [['btn-refresh', 'Refresh'], ['btn-history', 'My usage history'], ['btn-parental-lock', 'Parental control'], ['btn-about', 'About MyFabmesh.AI']];
+  const LIGNES = [['btn-refresh', 'Refresh'], ['btn-check-update', 'Check for updates'], ['btn-history', 'My usage history'], ['btn-parental-lock', 'Parental control'], ['btn-about', 'About MyFabmesh.AI']];
   let menu = null;
   const fermer = () => {
     if (!menu) return;
