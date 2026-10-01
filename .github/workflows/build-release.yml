@@ -80,6 +80,15 @@ jobs:
           python build/fetch_vc_redist.py
           python build/fetch_trellis2_wheels.py
 
+      - name: Rebuild the bundled TRELLIS-2 Python source (gitignored locally) and verify it
+        # external/TRELLIS2_win/src/trellis2 is a nested upstream repo, ignored by git, and REQUIRED by extraResources: without it the
+        # installer ships without the local 3D engine. build/fetch_trellis2_source.py = upstream commit pinned + external_patches/ +
+        # kaolin shim, then checks every file against build/trellis2_source.sha256 (fails on any difference).
+        run: python build/fetch_trellis2_source.py
+
+      - name: Stamp version / build number
+        run: node build/ecrire-version.mjs
+
       - name: Build NSIS installer
         # -p never: don't let electron-builder implicit-publish on tag (it throws
         # on the missing GH_TOKEN before organize_dist runs → empty release).
