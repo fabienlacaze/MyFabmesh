@@ -130,6 +130,22 @@
       });
     })();
   </script>
+<script>
+  // SUIVI DES CONTEXTES WEBGL (2026-10-01) : l'interface (visionneuses 3D) tient ~1-1,5 Go de la carte graphique, que le calcul 3D
+  // local ne peut pas utiliser. Ce suivi, pose AVANT tout module, permet a index2.js de les liberer pendant une 3D (reglage
+  // « Free the app's graphics memory while a 3D runs ») puis de les restaurer. Sans effet tant que rien ne les libere.
+  (function () {
+    try {
+      const suivis = []; window.__fabGlSuivis = suivis;
+      const orig = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type) {
+        const c = orig.apply(this, arguments);
+        try { if (c && /^webgl/i.test(String(type)) && !suivis.some((s) => s.cv.deref() === this)) suivis.push({ cv: new WeakRef(this), gl: new WeakRef(c) }); } catch (_) {}
+        return c;
+      };
+    } catch (_) {}
+  })();
+</script>
 </head>
 <body class="advanced-mode">
   <!-- Auto-update toast: hidden by default. Appears when the main
@@ -2638,6 +2654,19 @@
             <div class="hd-legende" id="set-disk-legende" hidden></div>
           </div>
           <div class="settings-box-hint">Drag the white markers. Memory: right gives MyFabmesh more, left keeps more for your other apps.</div>
+        </div>
+
+        <!-- GRAPHICS MEMORY DURING A 3D (2026-10-01, user : « on peut mettre un switch dans les settings pour ca ») : libere les contextes
+             WebGL des visionneuses pendant une 3D locale. Logique : index2.js, « MEMOIRE GRAPHIQUE PENDANT UNE 3D ». -->
+        <div class="settings-box" id="set-liberer-gpu-box">
+          <div class="settings-box-title">Graphics memory during a 3D</div>
+          <div class="np-auto-row asst-ligne" id="set-liberer-gpu-row">
+            <label class="np-switch" for="set-liberer-gpu"><input type="checkbox" id="set-liberer-gpu" checked /><span class="np-switch-track" aria-hidden="true"></span></label>
+            <div class="np-auto-texte">
+              <div class="np-auto-titre">Free the app's graphics memory while a 3D runs</div>
+              <div class="np-auto-info">The 3D viewers go blank until the 3D is done, which gives the calculation up to 1 GB more. They come back by themselves.</div>
+            </div>
+          </div>
         </div>
 
         <!-- ═══ AI ASSISTANT ═══ -->

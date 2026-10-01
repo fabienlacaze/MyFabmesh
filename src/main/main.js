@@ -7871,6 +7871,36 @@ async function _calculerDiskUsage() {
     t: Date.now(),
   };
 }
+// OCCUPATION DE LA CARTE GRAPHIQUE (2026-10-01, user : « avertir avant le lancement en nommant ce qui occupe la carte »). Une 3D locale qui
+// demarre sur une carte deja presque pleine (navigateur, Unreal, Epic, l'interface elle-meme) est tres lente puis echoue au decodage :
+// la 3D du bus a perdu 37 min ainsi. Renvoie { totalMo, autresMo (tout ce qui est deja occupe), ownMo (notre interface), top: [{ nom, mo }] }
+// ou null (pas de carte NVIDIA / mesure impossible).
+const _NOMS_GPU = { chrome: 'Chrome', msedge: 'Edge', firefox: 'Firefox', dwm: 'Windows (affichage)', 'MyFabmesh.AI': 'MyFabmesh (interface)',
+  EpicGamesLauncher: 'Epic Games Launcher', UnrealEditor: 'Unreal Editor', Code: 'VS Code', explorer: 'Explorateur Windows',
+  steamwebhelper: 'Steam', discord: 'Discord', obs64: 'OBS' };
+ipcMain.handle('gpu-occupation', async () => {
+  try {
+    const smi = _cp.execFileSync('nvidia-smi', [..._gpuArgs(), '--query-gpu=memory.total,memory.used', '--format=csv,noheader,nounits'],
+      { encoding: 'utf-8', timeout: 3000, windowsHide: true });
+    const [totalMo, autresMo] = (smi.split('\n')[0] || '').split(',').map((x) => parseFloat(x.trim()));
+    if (!(totalMo > 0)) return null;
+    const ps = "$s=(Get-Counter '\\GPU Process Memory(*)\\Dedicated Usage' -ErrorAction SilentlyContinue).CounterSamples;$g=@{};"
+      + "foreach($x in $s){if($x.InstanceName -match 'pid_(\\d+)_'){$k=[int]$Matches[1];$g[$k]=$g[$k]+$x.CookedValue}};"
+      + "$g.GetEnumerator()|ForEach-Object{$p=Get-Process -Id $_.Key -ErrorAction SilentlyContinue;if($p){'{0}|{1}' -f $p.ProcessName,[math]::Round($_.Value/1MB)}}";
+    const sortie = await new Promise((resolve) => {
+      _cp.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 6000, windowsHide: true }, (err, out) => resolve(err ? '' : String(out || '')));
+    });
+    const par = new Map();
+    for (const l of sortie.split(/\r?\n/)) {
+      const [nom, mo] = l.split('|');
+      const v = parseFloat(mo);
+      if (nom && v > 0) par.set(nom, (par.get(nom) || 0) + v);
+    }
+    const top = [...par.entries()].map(([nom, mo]) => ({ nom: _NOMS_GPU[nom] || nom, mo })).sort((a, b) => b.mo - a.mo).slice(0, 8);
+    return { totalMo, autresMo, ownMo: par.get('MyFabmesh.AI') || 0, top };
+  } catch (_) { return null; }
+});
+
 ipcMain.handle('disk-usage', async (_e, opts = {}) => {
   try {
     if (_diskUsageCache && !(opts && opts.force) && Date.now() - _diskUsageCache.t < 5 * 60 * 1000) return _diskUsageCache;

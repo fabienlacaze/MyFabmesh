@@ -111,6 +111,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   // Opt-out for Sentry crash reports (the switch the privacy policy
   // promised long before it existed).
   getCrashReports: () => ipcRenderer.invoke('app:get-crash-reports'),
+  gpuOccupation: () => ipcRenderer.invoke('gpu-occupation'),
   setCrashReports: (on) => ipcRenderer.invoke('app:set-crash-reports', on),
   reconfigureFabmesh: () => ipcRenderer.invoke('wizard:reset-setup'),
   uninstallFabmesh: (opts) => ipcRenderer.invoke('app:uninstall', opts),

@@ -11329,12 +11329,19 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     'Target triangles': triPreset.label,
     'Source image': p.selectedImagePath ? p.selectedImagePath.split(/[/\\]/).pop() : '--',
   };
+  // AVERTISSEMENT AVANT UNE 3D LOCALE (2026-10-01) : si la carte graphique est deja trop prise par d'autres applications, on le dit AVANT de
+  // lancer, en les nommant (la 3D du bus : 22 min perdues puis un echec au decodage, carte pleine).
+  if (engine === 'trellis2_native') {
+    const _besoinMo = (trellis2Preset === 'ultra_8k' || trellis2Preset === 'quality' || trellis2UltraQ) ? 11000 : 9000;
+    if (!(await _verifierVramAvant3D(_besoinMo))) return;
+  }
   const _projName = p.name;
   _meshGenLancement.add(_projName);
   const _finLancement = () => _meshGenLancement.delete(_projName);
   Promise.resolve(gatedRun('mesh', `Generate 3D: ${p.name}`, async () => {
     _finLancement();                     // la tuile (pushJob) prend le relais
     const job = pushJob(`Generate 3D: ${p.name}`, null, jobParams, expectedMs, { sourceImageUrl: p.selectedImagePath, projectName: p.name });
+    if (engine === 'trellis2_native') { try { window._libererMemoireGraphique?.(); } catch (_) {} }   // rend la memoire des visionneuses au calcul
     try {
       // `jobId` : sans lui le processus n'est pas enregistre sous son nom
       // (main.js : `if (jobId) activeProcs.set(jobId, proc)`), et Annuler
@@ -11360,6 +11367,8 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     } catch (e) {
       completeJob(job.id, false, e?.error || e?.message || String(e));
       if (!job.cancelled) reportPipelineError(e?.error || e?.message || String(e), '3D generation error');
+    } finally {
+      try { window._restaurerMemoireGraphique?.(); } catch (_) {}   // les visionneuses reviennent
     }
   })).catch((e) => {                     // jamais un clic sans effet ni message
     console.error('[mesh] Generate 3D: lancement impossible', e);
@@ -31632,6 +31641,71 @@ function ouvrirJournalVersion() {
 (function activerJournalVersion() {
   const el = document.getElementById('version-logiciel');
   if (el) { el.style.cursor = 'pointer'; el.style.pointerEvents = 'auto'; el.onclick = ouvrirJournalVersion; }
+})();
+
+// ══ MEMOIRE GRAPHIQUE PENDANT UNE 3D (2026-10-01, user : « on peut mettre un switch dans les settings pour ca »).
+// L'interface (visionneuses 3D, contextes WebGL suivis par index2.html) tient ~1-1,5 Go de la carte, que la 3D locale ne peut pas utiliser alors
+// qu'elle manque justement de place a la fin du calcul. Pendant une 3D locale on PERD les contextes WebGL (WEBGL_lose_context) ; three.js les
+// reinitialise a la restauration. Reglage : localStorage « fab-liberer-gpu » (actif par defaut), interrupteur dans Reglages > Hardware.
+window._libererGpuActif = function () { try { return localStorage.getItem('fab-liberer-gpu') !== '0'; } catch (_) { return true; } };
+const _glLiberes = [];
+window._libererMemoireGraphique = function () {
+  if (!window._libererGpuActif()) return 0;
+  let n = 0;
+  for (const s of (window.__fabGlSuivis || [])) {
+    try {
+      const gl = s.gl.deref(); const cv = s.cv.deref();
+      if (!gl || !cv || gl.isContextLost()) continue;
+      const ext = gl.getExtension('WEBGL_lose_context');
+      if (!ext) continue;
+      ext.loseContext(); _glLiberes.push(new WeakRef(gl)); n++;
+    } catch (_) {}
+  }
+  if (n) { try { showToast(_i18nT('Graphics memory freed for the 3D: the viewers come back when it is done.'), 'info', 6000); } catch (_) {} }
+  return n;
+};
+window._restaurerMemoireGraphique = function () {
+  let n = 0;
+  while (_glLiberes.length) {
+    try {
+      const gl = _glLiberes.pop().deref();
+      if (!gl || !gl.isContextLost()) continue;
+      gl.getExtension('WEBGL_lose_context')?.restoreContext(); n++;
+    } catch (_) {}
+  }
+  return n;
+};
+/** Avant une 3D locale : la carte a-t-elle la place ? Sinon on le dit, en nommant ce qui l'occupe. `true` = continuer. */
+async function _verifierVramAvant3D(besoinMo) {
+  try {
+    if (!window.meshyAPI?.gpuOccupation) return true;
+    if (typeof window._computeMode === 'function' && window._computeMode() === 'cloud') return true;
+    const o = await Promise.race([window.meshyAPI.gpuOccupation(), new Promise((r) => setTimeout(() => r(null), 7000))]);
+    if (!o || !(o.totalMo > 0)) return true;
+    // Si la liberation de la memoire de l'interface est active, cette part sera rendue au calcul (jusqu'a 1,5 Go).
+    const rendue = window._libererGpuActif() ? Math.min(o.ownMo || 0, 1500) : 0;
+    const dispo = o.totalMo - Math.max(0, o.autresMo - rendue);
+    if (dispo >= besoinMo) return true;
+    const Go = (mo) => (mo / 1024).toFixed(1);
+    const liste = (o.top || []).filter((x) => x.mo >= 300).slice(0, 5).map((x) => `• ${x.nom} : ${Go(x.mo)} GB`).join('\n');
+    const msg = _i18nTf('Other apps already use {x} GB of your graphics card ({y} GB in total).', Go(o.autresMo), Go(o.totalMo))
+      + '\n' + _i18nTf('This 3D needs about {x} GB. On a card that is too full it can be very slow or stop at the very end, and the whole run is lost.', Go(besoinMo))
+      + (liste ? '\n\n' + liste : '')
+      + '\n\n' + _i18nT('Close them first for the best result.');
+    return await customConfirm(msg, _i18nT('Graphics memory is tight'), _i18nT('Start anyway'));
+  } catch (_) { return true; }
+}
+(function _reglageLibererGpu() {
+  const cb = document.getElementById('set-liberer-gpu');
+  if (!cb) return;
+  const ligne = document.getElementById('set-liberer-gpu-row');
+  const marquer = () => ligne && ligne.classList.toggle('on', cb.checked);
+  cb.checked = window._libererGpuActif();
+  marquer();
+  cb.addEventListener('change', () => {
+    try { localStorage.setItem('fab-liberer-gpu', cb.checked ? '1' : '0'); } catch (_) {}
+    marquer();
+  });
 })();
 
 // ══ BARRE DU HAUT : MENU « ... » (2026-10-01, user : « on a beaucoup trop de choix, des mini menus deroulants pour grouper les icones ? »).
