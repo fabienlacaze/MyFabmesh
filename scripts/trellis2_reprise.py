@@ -153,6 +153,12 @@ def _charger(nom, modele):
         return None
 
 
+def recommencer():
+    """Meme mode, on repart du debut MAIS les points de reprise sont gardes : les appels deja calcules sont rendus tels quels. Sert a
+    rejouer seulement la fin (decodage) apres un manque de memoire, sans refaire 8 minutes d'echantillonnage."""
+    _etat['n'] = 0
+
+
 def reinitialiser(mode=None):
     """Vide le dossier (changement de mode : les appels ne se correspondent plus) et repart a zero."""
     if mode:

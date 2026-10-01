@@ -852,6 +852,12 @@ def main():
     # Plutot que d'echouer, le calcul recommence dans le mode plus leger suivant (le modele est un peu moins fin) et le dit.
     _modes_repli = {'1536_cascade': ['1024_cascade', '1024', '512'], '1024_cascade': ['1024', '512'], '1024': ['512'], '512': []}
     _essais = [mode] + _modes_repli.get(mode, [])
+    # MANQUE DE VRAM A LA FIN (user 2026-10-01 : le toast « memoire insuffisante » est apparu apres « Peinture de la texture (24/24) » : le
+    # DECODAGE du modele a depasse le plafond, et tout l'echantillonnage etait refait en mode plus leger, ~8 min perdues). Avec les points de
+    # reprise (FABMESH_CKPT_DIR), on REESSAIE D'ABORD le meme mode apres avoir tout vide : l'echantillonnage est rendu depuis le disque, seul
+    # le decodage est rejoue (~1 min). Le mode plus leger n'est choisi que si ce second essai echoue aussi.
+    if os.environ.get('FABMESH_CKPT_DIR'):
+        _essais = [mode, mode] + _modes_repli.get(mode, [])
     for _i_essai, mode in enumerate(_essais):
         try:
             if len(mv_images) > 1:
@@ -925,14 +931,25 @@ def main():
         except torch.cuda.OutOfMemoryError as e:
           if _i_essai < len(_essais) - 1:
               _suivant = _essais[_i_essai + 1]
-              log(f'VRAM short in mode={mode} (peak {torch.cuda.max_memory_reserved()/1e9:.1f} GB): '
-                  f'retrying in the lighter mode {_suivant} (slightly less detailed model)')
-              print(f'LOCAL_TRELLIS2_REPLI: {mode} -> {_suivant}', flush=True)
-              _cm.mesurer('repli_vram')
-              try:
-                  trellis2_reprise.reinitialiser(_suivant)      # autre mode : les appels ne correspondent plus aux points de reprise
-              except Exception:
-                  pass
+              _meme_mode = (_suivant == mode)
+              if _meme_mode:
+                  log(f'VRAM short in mode={mode} (peak {torch.cuda.max_memory_reserved()/1e9:.1f} GB): '
+                      f'clearing memory and retrying the SAME mode (sampling is reloaded from disk, only the end is replayed)')
+                  print(f'LOCAL_TRELLIS2_RETRY: {mode}', flush=True)
+                  _cm.mesurer('retry_vram')
+                  try:
+                      trellis2_reprise.recommencer()
+                  except Exception:
+                      pass
+              else:
+                  log(f'VRAM short in mode={mode} (peak {torch.cuda.max_memory_reserved()/1e9:.1f} GB): '
+                      f'retrying in the lighter mode {_suivant} (slightly less detailed model)')
+                  print(f'LOCAL_TRELLIS2_REPLI: {mode} -> {_suivant}', flush=True)
+                  _cm.mesurer('repli_vram')
+                  try:
+                      trellis2_reprise.reinitialiser(_suivant)      # autre mode : les appels ne correspondent plus aux points de reprise
+                  except Exception:
+                      pass
               del e
               outputs = None
               try:

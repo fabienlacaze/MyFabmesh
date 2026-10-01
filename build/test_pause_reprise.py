@@ -41,6 +41,11 @@ torch.manual_seed(7)
 s = FlowEulerSampler(sigma_min=1e-5)
 a = s.sample(Modele(), torch.randn(1, 4, 3, 3), None, steps=6, rescale_t=3.0, verbose=False).samples
 res = [hashlib.sha256(a.numpy().tobytes()).hexdigest()]
+if os.environ.get('RECOMMENCER'):
+    # meme mode : on repart du debut MAIS les points de reprise restent -> le 1er appel est rendu sans recalcul (cas : manque de VRAM au decodage)
+    trellis2_reprise.recommencer()
+    a2 = s.sample(Modele(), torch.randn(1, 4, 3, 3), None, steps=6, rescale_t=3.0, verbose=False).samples
+    print('RECOMMENCER_EGAL ' + str(bool(torch.equal(a, a2))))
 if SparseTensor is not None:
     noise = SparseTensor(feats=torch.randn(5, 4), coords=torch.tensor([[0, i, i, i] for i in range(5)], dtype=torch.int32))
     b = s.sample(Modele(), noise, None, steps=8, rescale_t=3.0, verbose=False).samples
@@ -51,8 +56,8 @@ print('RESULTAT ' + json.dumps(res))
 '''
 
 
-def lancer(dossier, pause_apres=0):
-    env = dict(os.environ, FABMESH_CKPT_DIR=dossier, PAUSE_APRES=str(pause_apres), PYTHONIOENCODING='utf-8',
+def lancer(dossier, pause_apres=0, recommencer=False):
+    env = dict(os.environ, FABMESH_CKPT_DIR=dossier, PAUSE_APRES=str(pause_apres), PYTHONIOENCODING='utf-8', RECOMMENCER='1' if recommencer else '',
                FABMESH_MEMOIRE_JOURNAL=os.path.join(os.path.dirname(dossier), 'memoire_pics.jsonl'))
     env.pop('FABMESH_TRELLIS2_NATIVE_MODE', None)
     p = subprocess.run([sys.executable, '-c', ENFANT, SCRIPTS, SRC_T2], capture_output=True, text=True, env=env, timeout=300)
@@ -93,6 +98,10 @@ def main():
         data = json.load(open(f, encoding='utf-8'))
         assert list(data) == ['simple'] and len(data['simple']) == 1 and len(data['simple'][0]) == 3 and abs(sum(data['simple'][0]) - 1) < 0.01, data
         print('apprentissage :', data)
+        # recommencer() : meme mode, points de reprise gardes, le 1er appel est rendu depuis le disque
+        code, res, sortie = lancer(os.path.join(base, 'recommencer'), recommencer=True)
+        assert code == 0 and 'RECOMMENCER_EGAL True' in sortie and 'repris sans recalcul' in sortie, 'recommencer() : ' + sortie[-600:]
+        print('recommencer : le 1er appel est rendu depuis le disque, resultat identique')
         print('OK')
         return 0
     finally:
