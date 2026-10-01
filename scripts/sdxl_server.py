@@ -214,8 +214,27 @@ def _reduire(kwargs, echelle):
     return kw, taille
 
 
+def _avec_bride(pipe, kwargs):
+    """BRIDAGE EN DIRECT (user 2026-10-01 : « il faut que ca bride reellement ») : a chaque pas de debruitage, pause si la carte depasse la
+    limite de charge ou de temperature des Reglages (scripts/gpu_throttle.py, limites relues en direct). Chaine le rappel deja present."""
+    try:
+        import inspect
+        import gpu_throttle
+        if 'callback_on_step_end' not in inspect.signature(pipe.__call__).parameters:
+            return kwargs
+        suite = kwargs.get('callback_on_step_end')
+
+        def _rappel(p, i, t, ck):
+            gpu_throttle.throttle_sync()
+            return suite(p, i, t, ck) if suite else ck
+        return dict(kwargs, callback_on_step_end=_rappel)
+    except Exception:
+        return kwargs
+
+
 def _executer(pipe, **kwargs):
     """pipe(**kwargs) qui ne casse pas sur un manque de VRAM (voir plus haut)."""
+    kwargs = _avec_bride(pipe, kwargs)
     from PIL import Image as _I
     echelle_retenue = getattr(pipe, '_fabmesh_echelle', None)
     if echelle_retenue is None:

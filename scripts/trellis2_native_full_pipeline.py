@@ -775,6 +775,21 @@ def main():
     # dans la RAM. Voir scripts/trellis2_chargement_paresseux.py.
     import trellis2_chargement_paresseux
     _paresseux = trellis2_chargement_paresseux.appliquer(log=log, mesurer=_cm.mesurer)
+    # BRIDAGE EN DIRECT (user 2026-10-01 : « il faut que ca bride reellement ») : a chaque pas de l'echantillonneur, pause si la carte
+    # depasse la limite de charge ou de temperature des Reglages (scripts/gpu_throttle.py ; limites relues en direct). Avant, seule la
+    # generation d'image freinait ; la 3D ne regardait ces limites qu'au lancement.
+    try:
+        import gpu_throttle
+        from trellis2.pipelines.samplers import flow_euler as _fe
+        _pas_original = _fe.FlowEulerSampler.sample_once
+
+        def _pas_brida(self, *a, **k):
+            gpu_throttle.throttle_sync()
+            return _pas_original(self, *a, **k)
+        _fe.FlowEulerSampler.sample_once = _pas_brida
+        log('gpu throttle: live GPU load / temperature limits apply between sampler steps')
+    except Exception as _e_bride:
+        log(f'gpu throttle unavailable for the 3D ({type(_e_bride).__name__}: {_e_bride}) : unthrottled')
     pipeline = Trellis2ImageTo3DPipeline.from_pretrained(
         'microsoft/TRELLIS.2-4B')
     pipeline.rembg_model = None  # gated, replaced by external rembg upstream

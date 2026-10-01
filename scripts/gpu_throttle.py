@@ -59,6 +59,7 @@ def _get_gpu_stats():
             ['nvidia-smi', '--query-gpu=utilization.gpu,temperature.gpu',
              '--format=csv,noheader,nounits'],
             stderr=subprocess.DEVNULL, timeout=2,
+            creationflags=(0x08000000 if sys.platform == 'win32' else 0),     # CREATE_NO_WINDOW : pas de console qui clignote
         ).decode().strip()
         util_s, temp_s = out.split(',')
         return int(util_s.strip()), int(temp_s.strip())
