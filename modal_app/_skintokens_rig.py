@@ -232,6 +232,9 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
     un rig qui ignore ce que l'utilisateur a demande.
     """
     options = dict(options or {})
+    if options.get("_warm"):
+        print("[skintokens] reveil du conteneur", flush=True)
+        return b""
     mesh_url = options.pop("mesh_url", None)
     points = options.get("points") or None
     # squelette IMPOSE {joints, parents} : peau seule, ou articulations
@@ -536,6 +539,16 @@ def rig_router():
     @api.get("/healthz")
     async def healthz():
         return {"ok": True, "fn": "rig_router", "engine": "skintokens"}
+
+    # REVEIL A LA DEMANDE (2026-10-01, user : « il faut que je puisse commander le warm des containers dans l'appli / services ») : un appel avec
+    # le drapeau « _warm » boote le conteneur GPU et rend la main tout de suite, sans charger de modele ni rien ecrire. Appele par la route /warm du routeur
+    # (CPU, authentifiee), elle-meme appelee par /api/admin/warm du site. Le conteneur reste ensuite chaud `scaledown_window` secondes.
+    @api.post("/warm")
+    async def warm(request: Request):
+        payload = await _json(request)
+        _auth(payload)
+        await rig_mesh.spawn.aio(b"", None, None, {"_warm": True})
+        return {"ok": True, "warming": True}
 
     @api.post("/rig-start")
     async def rig_start(request: Request):

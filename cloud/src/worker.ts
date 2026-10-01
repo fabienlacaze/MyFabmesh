@@ -20074,7 +20074,8 @@ async function handleAdminSetPricing(req: Request, env: Env): Promise<Response> 
  *  (force), comme le fait deja l'intention d'un utilisateur (/api/prewarm) mais sans session utilisateur ni attente : le demarrage peut
  *  durer 3 min, la reponse part tout de suite, l'etat se lit ensuite par /api/modal-status. Cible absente = les quatre.
  *    text2image : generation d'images        image_op : outils d'image (charge ~6 Go de modeles d'edition, T-pose, vue de dos)
- *    rectify    : reveil leger du conteneur image   mesh : 3D (instantane GPU)                                                  */
+ *    rectify    : reveil leger du conteneur image   mesh : 3D (instantane GPU)
+ *    rig / anim / segment / fbx : applications Modal separees, route POST /warm de chacune (2026-10-01)                       */
 async function handleAdminWarm(req: Request, env: Env,
                                ctx?: { waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> {
   const guard = await _requireAdmin(req, env);
@@ -20082,7 +20083,7 @@ async function handleAdminWarm(req: Request, env: Env,
   const flags = await _getServiceFlags(env);
   if (flags.modal_enabled === false) return err(503, 'Modal is switched off (kill switch): switch it on first');
   const body = await req.json().catch(() => ({})) as { cibles?: unknown };
-  const permises = ['text2image', 'image_op', 'rectify', 'mesh'] as const;
+  const permises = ['text2image', 'image_op', 'rectify', 'mesh', 'rig', 'anim', 'segment', 'fbx'] as const;
   type Cible = typeof permises[number];
   const demandees = Array.isArray(body.cibles)
     ? (body.cibles as unknown[]).filter((x): x is Cible => (permises as readonly unknown[]).includes(x)) : [];
@@ -20782,7 +20783,7 @@ function _healthzUrl(fullUrl: string): string {
  *  container boots regardless of whether Cloudflare kept the connection.
  *  Never throws. */
 async function preWarmModal(env: Env,
-                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' | 'mesh' | 'rectify'; force?: boolean } = {}): Promise<void> {
+                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' | 'mesh' | 'rectify' | 'rig' | 'anim' | 'segment' | 'fbx'; force?: boolean } = {}): Promise<void> {
   /* RECTIFICATION (2026-09-29) : case « Auto-rectify » cochee = rectification au prochain « Generate
    * 3D ». On reveille le conteneur (instantane GPU : modeles deja sur la carte) par /healthz, SANS
    * /warm qui chargerait en plus CLIPSeg + SDXL Inpaint + ControlNet-Tile, inutiles ici. */
@@ -20794,6 +20795,26 @@ async function preWarmModal(env: Env,
     await _writeLastWarmMs(env, '_meta/last_warm_tpose.txt').catch(() => {});
     await fetch(_healthzUrl(url), { method: 'GET', signal: AbortSignal.timeout(120_000) }).catch(() => null);
     console.log('[pre-warm] rectify healthz pinged');
+    return;
+  }
+  /* RIG / ANIMATION / SEGMENTATION / RETARGET FBX (2026-10-01, user : « il faut que je puisse commander le warm de TOUS les containers ») : applications Modal
+   * separees dont le GPU ne demarrait qu'au lancement d'un travail. Chacune expose maintenant POST /warm (authentifiee) qui boote son conteneur et rend
+   * la main (appel vide avec le drapeau « _warm »). La cle d'heure de chauffe alimente l'estimation de /api/modal-status quand les compteurs reels manquent. */
+  if (opts.cible === 'rig' || opts.cible === 'anim' || opts.cible === 'segment' || opts.cible === 'fbx') {
+    const base = opts.cible === 'rig' ? _rigBaseUrl(env)
+      : opts.cible === 'anim' ? env.MODAL_ANYTOP_ANIM_URL
+      : opts.cible === 'segment' ? env.MODAL_SEGMENT_URL : env.MODAL_FBX_RETARGET_URL;
+    if (!base) return;
+    const racine = base.replace(/\/(rig|segment|anim|fbx-retarget)-start\/?$/, '').replace(/\/+$/, '');
+    const cleChaud = opts.cible === 'rig' ? 'rig' : opts.cible === 'anim' ? 'anim' : opts.cible === 'segment' ? 'mesh_segment' : 'fbx_retarget';
+    await _writeLastWarmMs(env, `_meta/last_warm_${cleChaud}.txt`).catch(() => {});
+    await fetch(racine + '/warm', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '' }),
+      signal: AbortSignal.timeout(30_000),
+    }).then((r) => console.log(`[pre-warm] ${opts.cible} /warm -> ${r.status}`))
+      .catch((e) => console.warn(`[pre-warm] ${opts.cible} failed:`, e instanceof Error ? e.message : String(e)));
     return;
   }
   /* CONTENEUR 3D (2026-09-29) : demarre PENDANT la rectification qui precede un maillage,

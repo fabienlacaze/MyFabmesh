@@ -1308,6 +1308,9 @@ def segment_mesh(
     Sur `job_id`, écrit /seg_data/<job_id>.glb (succès) ou <job_id>.err
     (échec JSON) pour que segment_status / segment_fetch servent le résultat.
     """
+    if job_id == "_warm":      # reveil a la demande : voir /warm du routeur
+        _log("reveil du conteneur")
+        return b""
     t_total = time.time()
     tmp_dir = tempfile.mkdtemp(prefix="partsam_")
     try:
@@ -1477,6 +1480,16 @@ def segment_router():
     @api.get("/healthz")
     async def healthz():
         return {"ok": True, "fn": "segment_router", "engine": "partsam"}
+
+    # REVEIL A LA DEMANDE (2026-10-01, user : « il faut que je puisse commander le warm des containers dans l'appli / services ») : un appel avec
+    # le drapeau « _warm » boote le conteneur GPU et rend la main tout de suite, sans charger de modele ni rien ecrire. Appele par la route /warm du routeur
+    # (CPU, authentifiee), elle-meme appelee par /api/admin/warm du site. Le conteneur reste ensuite chaud `scaledown_window` secondes.
+    @api.post("/warm")
+    async def warm(request: Request):
+        payload = await _read_json(request)
+        _check_auth(payload)
+        await segment_mesh.spawn.aio(b"", granularity=0.0, job_id="_warm")
+        return {"ok": True, "warming": True}
 
     @api.post("/segment-start")
     async def segment_start(request: Request):

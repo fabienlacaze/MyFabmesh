@@ -1597,6 +1597,17 @@ def anim_router():
     async def healthz():
         return {"ok": True, "fn": "anim_router"}
 
+    # REVEIL A LA DEMANDE (2026-10-01, user : « il faut que je puisse commander le warm des containers dans l'appli / services ») : un appel avec
+    # le drapeau « _warm » boote le conteneur GPU et rend la main tout de suite, sans charger de modele ni rien ecrire. Appele par la route /warm du routeur
+    # (CPU, authentifiee), elle-meme appelee par /api/admin/warm du site. Le conteneur reste ensuite chaud `scaledown_window` secondes.
+    @api.post("/warm")
+    async def warm(request: Request):
+        payload = await _read_json(request)
+        _check_auth(payload)
+        fn = modal.Function.from_name("myfabmesh-unimate", "animer_unimate")   # moteur d'animation de production
+        await fn.spawn.aio(b"", "", "", "", "_warm")
+        return {"ok": True, "warming": True}
+
     @api.post("/anim-start")
     async def anim_start(request: Request):
         payload = await _read_json(request)

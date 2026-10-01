@@ -182,6 +182,9 @@ def _moteur():
               volumes={"/anim_data": anim_output_volume})
 def animer_unimate(rig_octets: bytes, anim_type: str, prompt: str, asset_type: str, job_id: str):
     """Ecrit /anim_data/<job_id>.glb (ou .err) — contrat de `animate_mesh`."""
+    if job_id == "_warm":      # reveil a la demande : voir /warm du routeur de myfabmesh-anim
+        print("[unimate] reveil du conteneur", flush=True)
+        return None
     import hashlib
     t0 = time.time()
     sortie = f"/anim_data/{job_id}.glb"

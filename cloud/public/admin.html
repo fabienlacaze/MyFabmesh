@@ -875,6 +875,10 @@
             <div class="warm-carte" data-cible="image_op" data-etat="image_op"></div>
             <div class="warm-carte" data-cible="text2image" data-etat="text2image"></div>
             <div class="warm-carte" data-cible="rectify" data-etat="tpose"></div>
+            <div class="warm-carte" data-cible="rig" data-etat="rig"></div>
+            <div class="warm-carte" data-cible="anim" data-etat="anim"></div>
+            <div class="warm-carte" data-cible="segment" data-etat="mesh_segment"></div>
+            <div class="warm-carte" data-cible="fbx" data-etat="fbx_retarget"></div>
           </div>
           <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
             <button class="btn btn-accent" id="warm-all-btn">🔥 Warm everything</button>
@@ -3416,6 +3420,10 @@
       image_op:   { titre: '🖼️ Image tools',        info: 'Edit, T-pose, back view (loads ~6 GB of editing models)' },
       text2image: { titre: '✨ Image generation',    info: 'Text to image' },
       rectify:    { titre: '📐 Rectify / T-pose',   info: 'Light wake-up of the image container' },
+      rig:        { titre: '🦴 Rig',                 info: 'Automatic skeleton rigging (GPU A10G)' },
+      anim:       { titre: '🏃 Animation',           info: 'Generative motion (GPU A10G)' },
+      segment:    { titre: '✂️ Part segmentation',   info: 'Split a mesh into parts (GPU A100)' },
+      fbx:        { titre: '🎞️ FBX retarget',        info: 'Import an animation onto your rig (CPU)' },
     };
     let _warmSuivi = null;
     function warmEtatTexte(e) {

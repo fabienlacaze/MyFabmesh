@@ -118,6 +118,9 @@ def retarget(
     Returns the number of bytes written on success. On failure writes
     an .err JSON sentinel and raises (so the call_id is marked
     failed)."""
+    if job_id == "_warm":      # reveil a la demande : voir /warm du routeur
+        _log("reveil du conteneur")
+        return 0
     if not job_id:
         job_id = uuid.uuid4().hex
 
@@ -254,6 +257,16 @@ def fbx_retarget_router():
     @api.get("/healthz")
     async def healthz():
         return {"ok": True, "fn": "fbx_retarget_router"}
+
+    # REVEIL A LA DEMANDE (2026-10-01, user : « il faut que je puisse commander le warm des containers dans l'appli / services ») : un appel avec
+    # le drapeau « _warm » boote le conteneur GPU et rend la main tout de suite, sans charger de modele ni rien ecrire. Appele par la route /warm du routeur
+    # (CPU, authentifiee), elle-meme appelee par /api/admin/warm du site. Le conteneur reste ensuite chaud `scaledown_window` secondes.
+    @api.post("/warm")
+    async def warm(request: Request):
+        payload = await _read_json(request)
+        _check_auth(payload)
+        await retarget.spawn.aio(b"", b"", "auto", "humanoid_puppeteer", "clip", "_warm")
+        return {"ok": True, "warming": True}
 
     @api.post("/fbx-retarget-start")
     async def start(request: Request):
