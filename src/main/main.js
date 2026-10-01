@@ -9590,9 +9590,18 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
     // NOT the "Traceback (most recent call last):" header. A traceback that shows
     // only the header means the process was KILLED mid-print (OOM/crash) → leave
     // pyErrorLine empty so the resource-exhaustion branch below fires.
-    const pyErrorLine = combined.split(/\r?\n/).reverse()
-      .find(l => /MemoryError|CUDA|out of memory|Killed|bad_alloc|Cannot allocate|\b\w*(Error|Exception)\b\s*:/i.test(l.trim())
-                 && !_isWarn(l) && !_isHeader(l)) || '';
+    // 2026-10-01 : la ligne qui SUIT un avertissement Python est le code source cite par l'avertissement
+    // (« torch.empty(1, device=f'cuda:{device}')  # cree le contexte CUDA ») : elle contient « CUDA » sans etre une erreur. Elle s'est
+    // affichee comme « 3D generation failed » alors que le calcul avait ete tue sans aucune trace. « CUDA » seul n'est donc plus un
+    // marqueur : seules les vraies formules (« CUDA error », « CUDA out of memory ») comptent.
+    const _lignes = combined.split(/\r?\n/);
+    const _estSourceCite = (i) => i > 0 && _isWarn(_lignes[i - 1]);
+    const _re = /MemoryError|CUDA (?:error|failure|driver)|out of memory|Killed|bad_alloc|Cannot allocate|\b\w*(Error|Exception)\b\s*:/i;
+    let pyErrorLine = '';
+    for (let i = _lignes.length - 1; i >= 0; i--) {
+      const l = _lignes[i];
+      if (_re.test(l.trim()) && !_isWarn(l) && !_isHeader(l) && !_estSourceCite(i)) { pyErrorLine = l; break; }
+    }
     // Resource-exhaustion heuristic: an OOM / killed crash leaves NO real Python
     // traceback (only warnings) and the run never reached 100% — the process was
     // killed mid-load. Detect explicit memory markers OR "no real error + did not
