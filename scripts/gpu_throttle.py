@@ -36,7 +36,7 @@ import json
 try:
     import pynvml
     pynvml.nvmlInit()
-    _NVML_HANDLE = pynvml.nvmlDeviceGetHandleByIndex(0)
+    _NVML_HANDLE = pynvml.nvmlDeviceGetHandleByIndex(int(os.environ.get('FABMESH_GPU_INDEX') or 0))     # carte choisie (plusieurs cartes)
     _NVML_OK = True
 except Exception:
     _NVML_OK = False
@@ -56,7 +56,7 @@ def _get_gpu_stats():
     try:
         import subprocess
         out = subprocess.check_output(
-            ['nvidia-smi', '--query-gpu=utilization.gpu,temperature.gpu',
+            ['nvidia-smi'] + (['-i', os.environ['FABMESH_GPU_INDEX']] if (os.environ.get('FABMESH_GPU_INDEX') or '').isdigit() else []) + ['--query-gpu=utilization.gpu,temperature.gpu',
              '--format=csv,noheader,nounits'],
             stderr=subprocess.DEVNULL, timeout=2,
             creationflags=(0x08000000 if sys.platform == 'win32' else 0),     # CREATE_NO_WINDOW : pas de console qui clignote

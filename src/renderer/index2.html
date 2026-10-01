@@ -2428,6 +2428,10 @@
             <button id="gpu-limits-reset" class="gpu-limits-reset" title="Reset all limits to defaults">↻</button>
           </div>
           <div class="hw-pc-sub" id="set-pc-sub"></div>
+          <div class="hw-gpu-choice" id="set-gpu-choice-row" style="display:none">
+            <label for="set-gpu-choice">Graphics card used</label>
+            <select id="set-gpu-choice"></select>
+          </div>
           <div class="hw-pret"><span class="hw-pret-lbl">Ready:</span><div class="hw-voyants" id="set-hw-voyants"></div></div>
           <div class="gpu-stat hw-mem">
             <div class="gpu-stat-row">
@@ -2737,6 +2741,8 @@
     /* Barre partagee (Reglages > Materiel, maquette A choisie le 2026-09-30) : Windows | autres logiciels | MyFabmesh */
     #set-gpu-vram-val,#set-ram-val{display:none}   /* « ca sert a rien » (user 30/09) : usage total de la carte / de la RAM, tous logiciels confondus */
     .hw-pc-sub{font-size:11px;color:var(--text-2);margin:-6px 0 2px}
+    .hw-gpu-choice{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:var(--text-2)}
+    .hw-gpu-choice select{max-width:68%;font-size:11px;padding:3px 6px;background:var(--bg-3);color:var(--text-0);border:1px solid var(--border);border-radius:6px}
     .hw-pret{display:none !important;}   /* « pas besoin » (user 30/09) : la barre et sa phrase suffisent */
     .hw-pret-off{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
     .hw-pret-lbl{font-size:11px;font-weight:600;color:var(--text-2)}

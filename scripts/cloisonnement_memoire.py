@@ -367,7 +367,8 @@ def vram_nvidia_smi(timeout=5.0):
     (tous processus). None sans carte NVIDIA."""
     try:
         kw = {'creationflags': 0x08000000} if _WIN else {}   # CREATE_NO_WINDOW : pas de console qui clignote
-        r = subprocess.run(['nvidia-smi', '--query-gpu=memory.total,memory.used',
+        idx = os.environ.get('FABMESH_GPU_INDEX')            # plusieurs cartes : celle que l'appli a choisie (Reglages > Materiel)
+        r = subprocess.run(['nvidia-smi'] + (['-i', idx] if idx and idx.isdigit() else []) + ['--query-gpu=memory.total,memory.used',
                             '--format=csv,noheader,nounits'],
                            capture_output=True, text=True, timeout=timeout, **kw)
         if r.returncode != 0 or not r.stdout.strip():

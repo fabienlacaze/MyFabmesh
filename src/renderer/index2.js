@@ -22827,6 +22827,7 @@ async function enqueueJob(kind, displayName, runFn) {
     runFn();
     return;
   }
+  try { if (API.gpuPrepare) await API.gpuPrepare(); } catch (_) {}      // plusieurs cartes en mode Automatique : la plus libre
   const r = await hasVramHeadroomFor(kind);
   if (r && r.ok) {
     runFn();
@@ -23001,6 +23002,30 @@ async function refreshGpuStats() {
   } catch (e) {}
 }
 
+// PLUSIEURS CARTES NVIDIA : le selecteur n'apparait que s'il y en a plusieurs ; « Automatique » = la plus de VRAM libre au lancement de chaque generation.
+async function _chargerChoixGpu() {
+  try {
+    const row = document.getElementById('set-gpu-choice-row'), sel = document.getElementById('set-gpu-choice');
+    if (!row || !sel || !API.gpuList) return;
+    const e = await API.gpuList();
+    if (!e || !e.liste || e.liste.length < 2) { row.style.display = 'none'; return; }
+    row.style.display = '';
+    sel.innerHTML = `<option value="auto">${escapeHtml(_i18nT('Automatic (most free memory)'))}</option>` +
+      e.liste.map((g) => `<option value="${g.index}">${escapeHtml(g.name)} (${g.totalGB} GB)</option>`).join('');
+    sel.value = e.choix;
+    if (!sel.dataset.bound) {
+      sel.dataset.bound = '1';
+      sel.addEventListener('change', async () => {
+        const r = await API.gpuSetChoice(sel.value);
+        const g = r && r.liste && r.liste.find((x) => x.index === r.utilise);
+        if (g) showToast(_i18nTf('The next generations use {x}.', g.name), 'info', 4000);
+        _lastVramTotalGB = null; _autresUsageGo.vram = null;
+        refreshGpuStats();
+      });
+    }
+  } catch (_) {}
+}
+
 async function openSettings() {
   document.getElementById('modal-settings').classList.remove('hidden');
   try {
@@ -23011,6 +23036,7 @@ async function openSettings() {
   _applyHardwareCardMask();
   applyGpuLimitMarkers();
   setupGpuLimitDragging();
+  _chargerChoixGpu();
   refreshGpuStats();
   refreshProcList();  // 2026-06-14: immediate first paint of the process list + count
   checkClaudeDesktopStatus();

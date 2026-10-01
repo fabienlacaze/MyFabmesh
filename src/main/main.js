@@ -504,6 +504,63 @@ function checkHardFloor(prompt) {
 // Résultat mis en cache (le matériel ne change pas en cours de session).
 // =============================================================================
 let _nvidiaGpuCache = null;   // { hasNvidia: bool, name: string }
+
+// ===== PLUSIEURS CARTES NVIDIA (2026-10-01, demande du user) =====
+// Reglages > Materiel : « Carte utilisee » = Automatique (la plus libre au lancement) ou une carte precise (config.gpuChoix).
+// Avec UNE seule carte rien ne change (aucune variable posee). Avec plusieurs : FABMESH_GPU_INDEX = index PHYSIQUE (celui de
+// nvidia-smi / NVML) pour les mesures des scripts, et CUDA_VISIBLE_DEVICES = ce meme index (+ CUDA_DEVICE_ORDER=PCI_BUS_ID pour que
+// les deux numerotations coincident) : la carte choisie devient cuda:0 pour PyTorch, donc tout le code qui vise le device 0 suit.
+let _gpuIdx = null;          // index physique choisi, null = une seule carte (ou pas de NVIDIA) : sondes sans « -i »
+let _gpuListe = [];
+function _gpuArgs() { return _gpuIdx != null ? ['-i', String(_gpuIdx)] : []; }
+function _listerGpus() {
+  return new Promise((resolve) => {
+    try {
+      execFile('nvidia-smi', ['--query-gpu=index,name,memory.total,memory.used,utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'],
+        { timeout: 4000, windowsHide: true }, (err, stdout) => {
+          if (err || !stdout) return resolve([]);
+          const liste = [];
+          for (const l of String(stdout).split(/\r?\n/)) {
+            const p = l.split(',').map((x) => x.trim());
+            if (p.length < 4 || !/^\d+$/.test(p[0])) continue;
+            const total = parseFloat(p[2]) || 0, used = parseFloat(p[3]) || 0;
+            liste.push({ index: parseInt(p[0], 10), name: p[1], totalMo: total, usedMo: used, freeMo: Math.max(0, total - used),
+              util: parseFloat(p[4]) || 0, temp: parseFloat(p[5]) || 0 });
+          }
+          resolve(liste);
+        });
+    } catch (_) { resolve([]); }
+  });
+}
+function _appliquerGpu(idx) {
+  const avant = _gpuIdx;
+  _gpuIdx = idx == null ? null : String(idx);
+  if (_gpuIdx == null) {
+    delete process.env.FABMESH_GPU_INDEX;
+    if (avant != null) { delete process.env.CUDA_VISIBLE_DEVICES; delete process.env.CUDA_DEVICE_ORDER; }
+  } else {
+    process.env.FABMESH_GPU_INDEX = _gpuIdx;
+    process.env.CUDA_DEVICE_ORDER = 'PCI_BUS_ID';
+    process.env.CUDA_VISIBLE_DEVICES = _gpuIdx;
+  }
+  if (avant !== _gpuIdx) {
+    log.info('gpu-detect', _gpuIdx == null ? 'single GPU: no device pinning' : `GPU in use: index ${_gpuIdx}`);
+    // le serveur d'images garde sa carte jusqu'a son arret : on le relance sur la nouvelle
+    try { if (typeof sdxlProc !== 'undefined' && sdxlProc && typeof stopSdxlServer === 'function') stopSdxlServer(); } catch (_) {}
+  }
+}
+async function _resoudreGpu() {
+  const liste = await _listerGpus();
+  _gpuListe = liste;
+  if (liste.length <= 1) { _appliquerGpu(null); return { liste, choix: 'auto', utilise: liste.length ? liste[0].index : null }; }
+  let choix = 'auto';
+  try { choix = String((loadConfig() || {}).gpuChoix || 'auto'); } catch (_) {}
+  let idx;
+  if (choix !== 'auto' && liste.some((g) => String(g.index) === choix)) idx = choix;
+  else idx = String(liste.slice().sort((a, b) => b.freeMo - a.freeMo)[0].index);        // Automatique : la plus de VRAM libre
+  _appliquerGpu(idx);
+  return { liste, choix: liste.some((g) => String(g.index) === choix) ? choix : 'auto', utilise: parseInt(idx, 10) };
+}
 function detectNvidiaGpu() {
   // FABMESH_FORCE_NO_GPU=1 : simule une machine sans GPU NVIDIA (test du
   // fallback cloud sur la machine de dev, voir store-cert/STORE_RESUBMISSION.md).
@@ -516,6 +573,7 @@ function detectNvidiaGpu() {
       { timeout: 8000 }, (err, stdout) => {
         const name = (!err && stdout) ? String(stdout).trim().split(/\r?\n/)[0] : '';
         _nvidiaGpuCache = { hasNvidia: !!name, name };
+        if (name) _resoudreGpu().catch(() => {});         // plusieurs cartes ? choisit celle a utiliser (config.gpuChoix)
         log.info('gpu-detect', _nvidiaGpuCache.hasNvidia
           ? `NVIDIA GPU: ${name}` : 'no NVIDIA GPU (nvidia-smi absent/vide) — moteurs locaux indisponibles, fallback cloud');
         resolve(_nvidiaGpuCache);
@@ -3543,7 +3601,7 @@ const MO = 1024 * 1024;
 function _vramNvidiaSmi() {
   return new Promise((resolve) => {
     try {
-      execFile('nvidia-smi', ['--query-gpu=memory.total,memory.used', '--format=csv,noheader,nounits'],
+      execFile('nvidia-smi', [..._gpuArgs(), '--query-gpu=memory.total,memory.used', '--format=csv,noheader,nounits'],
         { timeout: 3000, windowsHide: true }, (err, stdout) => {
           if (err || !stdout) return resolve(null);
           const cols = String(stdout).split(/\r?\n/)[0].split(',').map(s => parseFloat(s));
@@ -3866,7 +3924,7 @@ function installAllLimitsSafetyKill(proc, jobName) {
       try {
         const _gpuOut = require('child_process').execFileSync(
           'nvidia-smi',
-          ['--query-gpu=memory.used,memory.total,utilization.gpu,temperature.gpu',
+          [..._gpuArgs(), '--query-gpu=memory.used,memory.total,utilization.gpu,temperature.gpu',
             '--format=csv,noheader,nounits'],
           { encoding: 'utf-8', timeout: 1500 }
         );
@@ -7030,6 +7088,29 @@ ipcMain.handle('show-in-explorer', (event, filePath) => {
   shell.showItemInFolder(filePath);
 });
 
+// Cartes disponibles + choix courant (Reglages > Materiel : selecteur affiche seulement s'il y a plusieurs cartes)
+function _etatGpus() {
+  let choix = 'auto'; try { choix = String((loadConfig() || {}).gpuChoix || 'auto'); } catch (_) {}
+  return {
+    liste: _gpuListe.map((g) => ({ index: g.index, name: g.name, totalGB: +(g.totalMo / 1024).toFixed(1), freeGB: +(g.freeMo / 1024).toFixed(1) })),
+    choix, utilise: _gpuIdx == null ? (_gpuListe[0] ? _gpuListe[0].index : null) : parseInt(_gpuIdx, 10),
+  };
+}
+ipcMain.handle('gpu:list', async () => { try { await _resoudreGpu(); } catch (_) {} return _etatGpus(); });
+ipcMain.handle('gpu:set-choice', async (_e, choix) => {
+  try { const cfg = loadConfig() || {}; cfg.gpuChoix = String(choix == null ? 'auto' : choix); saveConfig(cfg); } catch (_) {}
+  try { await _resoudreGpu(); } catch (_) {}
+  return _etatGpus();
+});
+// Avant chaque generation : en mode Automatique, re-choisit la carte la plus libre (seulement si rien ne tourne).
+ipcMain.handle('gpu:prepare', async () => {
+  try {
+    const cfg = loadConfig() || {};
+    if (String(cfg.gpuChoix || 'auto') === 'auto' && activeProcs.size === 0 && _gpuListe.length > 1) await _resoudreGpu();
+  } catch (_) {}
+  return true;
+});
+
 // Check GPU status
 ipcMain.handle('check-gpu', async () => {
   // Aucun GPU NVIDIA (ou mode Cloud forcé) : ne pas lancer nvidia-smi du tout.
@@ -7041,7 +7122,7 @@ ipcMain.handle('check-gpu', async () => {
   // Use nvidia-smi for instant GPU stats (no PyTorch load, ~50 ms)
   return new Promise((resolve) => {
     execFile('nvidia-smi',
-      ['--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'],
+      [..._gpuArgs(), '--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'],
       { timeout: 3000 },
       (error, stdout) => {
         if (error) {
