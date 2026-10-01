@@ -1804,6 +1804,9 @@ def project_texture(mesh_path, source_image_path, output_path, tex_res=1024,
 
 
 if __name__ == '__main__':
+    # L'appli disparait -> la recuisson s'arrete (2026-09-30) ; seulement lance en script (d'autres outils importent ce module).
+    import surveillance_parent
+    surveillance_parent.surveiller('texture_project')
     import argparse
     parser = argparse.ArgumentParser(description='FabMesh Texture Projection')
     parser.add_argument('mesh', help='Input mesh GLB file')
