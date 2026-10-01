@@ -654,14 +654,51 @@ async function translateUserPrompt(text) {
   let lang = 'en';
   try { lang = (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase(); } catch (_) {}
   if (lang === 'en') return String(text);
+  if (_ressembleAnglais(text)) return String(text);  // deja de l'anglais (champ modifie a la main) : ne pas le repasser par le francais
+  try { _setPromptBusy(TRANSLATING_MSG); } catch (_) {}
   try {
     const r = await Promise.race([
       API.translatePrompt({ text: String(text), from: lang }),
       new Promise((res) => setTimeout(() => res(null), 8000)),
     ]);
-    return (r && r.text) ? r.text : String(text);
+    return (r && r.text) ? _corrigerFauxAmis(text, r.text, lang) : String(text);
   } catch (_) { return String(text); }
+  finally { try { _clearPromptBusy(); } catch (_) {} }
 }
+
+// Aide de langue sous « Generation prompt » / « Description » (portee du bureau, 2026-10-01) : sans elle, le texte tape en francais
+// devenait de l'anglais SANS explication (user : « le prompt automatique a l'air de se melanger avec la traduction »).
+const PROMPT_LANG_HINT = {
+  fr: "✍️ écris dans ta langue (traduit auto en anglais)",
+  es: "✍️ escribe en tu idioma (traducido auto)",
+  zh: "✍️ 用你的语言（自动翻译成英文）",
+  hi: "✍️ अपनी भाषा में (स्वतः अनुवादित)",
+  ar: "✍️ بلغتك (تُترجم تلقائيًا)",
+  en: "",
+};
+const TRANSLATING_MSG = {
+  fr: "Traduction de ta description…", es: "Traduciendo tu descripción…", zh: "正在翻译您的描述…",
+  hi: "आपके विवरण का अनुवाद हो रहा है…", ar: "جارٍ ترجمة وصفك…", en: "Translating your description…",
+};
+function _langPrompt() {
+  let lang = 'en';
+  try { lang = (document.getElementById('lang-select')?.value || localStorage.getItem('fabmesh.lang') || 'en').toLowerCase(); } catch (_) {}
+  return lang;
+}
+function _updatePromptLangHint() {
+  const txt = PROMPT_LANG_HINT[_langPrompt()] || '';
+  document.querySelectorAll('.prompt-lang-hint').forEach((el) => { el.textContent = txt; el.style.display = txt ? '' : 'none'; });
+}
+function _setPromptBusy(msgMap) {
+  const msg = (msgMap && (msgMap[_langPrompt()] || msgMap.en)) || '';
+  document.querySelectorAll('.prompt-lang-hint').forEach((el) => { el.textContent = '⏳ ' + msg; el.style.display = ''; });
+}
+function _clearPromptBusy() { try { _updatePromptLangHint(); } catch (_) {} }
+(function _initPromptLangHint() {
+  try { _updatePromptLangHint(); } catch (_) {}
+  try { document.getElementById('lang-select')?.addEventListener('change', () => setTimeout(() => { try { _updatePromptLangHint(); } catch (_) {} }, 30)); } catch (_) {}
+})();
+
 
 function showToast(message, type = 'info', durationMs = 3000) {
   message = _masquerMoteursErr(message);
@@ -5639,6 +5676,8 @@ const ASSET_TYPE_PROMPTS = {
   avion: 'complete passenger aircraft, 3/4 isometric view, full body visible from nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
   bateau: 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
   animal: 'full body animal, lateral profile, whole animal nose to tail, body stretched out, all four feet on ground, fills 60 percent of frame, plain white background, centered',
+  // 2026-10-01 : animal qui VOLE (« flying pink pig ») : le gabarit « animal » dit « all four feet on ground » et contredit le vol.
+  en_vol: 'full body animal, airborne, lateral profile, whole animal nose to tail, fills 60 percent of frame, plain white background, centered',
   insect: 'full body insect, exactly six legs, segmented head thorax abdomen, antennae, 3/4 isometric view from above, all six legs visible, fills 60 percent of frame, plain white background, centered',
   // 2026-09-28 : choisis AUTOMATIQUEMENT pour un animal / une creature d'apres les mots du prompt
   // (buildFullPrompt) : le gabarit « animal » (« all four feet on ground ») faisait dessiner un
@@ -5758,7 +5797,48 @@ function _epoqueUnite(texte) {
   return [t, tenue];
 }
 
+/* CHAINE DU PROMPT (2026-10-01, user : « il a trouve une incoherence entre son besoin et les prompts de creation de projet / image »).
+ * Cas reel (« cochon rose volant avec casquette et masque, sur ses pattes, short vert fluo ») :
+ *  - la phrase d'INTENTION (« I want to make a ») partait telle quelle dans le prompt : elle ne decrit rien et prend des jetons ;
+ *  - « flying » etait CONTREDIT par le gabarit animal (« all four feet on ground ») : le moteur ignorait le vol ;
+ *  - « short » (le vetement, en francais) est traduit « short » (l'adjectif) : le short disparaissait ;
+ *  - un texte DEJA anglais (champ modifie a la main) repassait par la traduction depuis le francais.
+ * Meme logique cote Modal (modal_app/_prompts.py). */
+const _MOTS_VOL = new Set("fly flying flies flight winged wings wing airborne hovering soaring gliding volant volante volants volantes voler aile ailes ailee ailees volador voladora voladores volando alas fliegend fliegende fliegt flugel voador voadora asas".split(" "));
+function _parleDeVol(texte) {
+  const t = String(texte || "").toLowerCase().replace(/œ/g, "oe").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return t.split(/[^a-z0-9]+/).some((m) => _MOTS_VOL.has(m));
+}
+const _DEMANDE_EN = /^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?/i;
+const _DEMANDE_FR = /^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais|(?:fais|cr[ée]e|g[ée]n[èe]re|dessine|fabrique)(?:-moi)?)\s+(?:(?:faire|cr[ée]er|g[ée]n[ée]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?/i;
+/** Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide. */
+function _epurerDemande(texte) {
+  const brut = String(texte == null ? "" : texte);
+  const t = brut.replace(_DEMANDE_EN, "").replace(_DEMANDE_FR, "")
+    .replace(/[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$/i, "").trim();
+  return t.length >= 3 ? t : brut.trim();
+}
+/** Vrai si le texte est deja de l'anglais (aucune lettre accentuee ni ecriture non latine, des mots outils anglais, aucun mot outil fr / es / de). */
+function _ressembleAnglais(texte) {
+  const t = String(texte || "");
+  if (/[^\u0000-\u024f]/.test(t) || /[àâäãçéèêëîïôöõùûüÿñœæ¿¡ß]/i.test(t)) return false;
+  const EN = new Set("the a an and with of at to for is are has have his her its that who wearing holding from into while must stand standing".split(" "));
+  const AUTRE = new Set("le la les un une des du de et avec sur sous dans pour qui est au aux sans tres son sa ses il elle el los las y con por para que muy del al und mit der die das ein eine".split(" "));
+  let en = 0, autre = 0;
+  for (const m of (t.toLowerCase().match(/[a-z']+/g) || [])) { if (EN.has(m)) en++; if (AUTRE.has(m)) autre++; }
+  return en >= 2 && autre === 0;
+}
+/** Faux amis connus apres traduction : « short » (le vetement) traduit par l'adjectif. */
+function _corrigerFauxAmis(source, traduit, lang) {
+  let t = String(traduit || "");
+  if (lang === "fr" && /\bshorts?\b/i.test(String(source || ""))) {
+    t = t.replace(/\bshort\b(?!\s+(?:hair|tail|legs?|neck|snout|nose|fur|beard|ears?|arms?|sleeves?|horns?|beak|wings?|body|mane|time))/gi, "shorts");
+  }
+  return t;
+}
+
 function buildFullPrompt(userPrompt, assetType, assetStyle) {
+  userPrompt = _epurerDemande(userPrompt);
   const typePrefix = ASSET_TYPE_PREFIXES[assetType] || '';
   let typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
   // Animal SANS PATTES (serpent, ver) ou POISSON : gabarit dedie (corps etire / de profil), d'apres les
@@ -5767,6 +5847,7 @@ function buildFullPrompt(userPrompt, assetType, assetStyle) {
     const m = modeDepuisTexte(userPrompt);
     if (m === 'reptation') typeSuffix = ASSET_TYPE_PROMPTS.sans_pattes || typeSuffix;
     else if (m === 'nage') typeSuffix = ASSET_TYPE_PROMPTS.poisson || typeSuffix;
+    else if (assetType === 'animal' && _parleDeVol(userPrompt)) typeSuffix = ASSET_TYPE_PROMPTS.en_vol || typeSuffix;
   }
   const stylePrefix = ASSET_STYLE_PROMPTS[assetStyle] || '';
   const parts = _TYPES_UNITE.includes(assetType)

@@ -407,7 +407,10 @@
                   </select>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between;">
-                  <label>Generation prompt</label>
+                  <span style="display:flex; align-items:baseline; gap:8px; min-width:0; overflow:hidden;">
+                    <label style="white-space:nowrap;">Generation prompt</label>
+                    <span class="prompt-lang-hint" style="display:none; font-size:12px; color:var(--text-2, #8a8f98); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+                  </span>
                   <div style="display:flex; gap:4px;">
                     <button id="ws-copy-prompt" class="ghost-btn" style="font-size:11px; padding:2px 8px;" title="Copy prompt to clipboard">&#128203; Copy</button>
                     <button id="ws-enhance-prompt" class="ghost-btn" style="font-size:11px; padding:2px 8px;" title="Enhance the prompt with style and quality keywords">&#10024; Enhance</button>
@@ -1377,7 +1380,10 @@
           </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <label style="margin:0;">Description</label>
+          <span style="display:flex; align-items:baseline; gap:8px; min-width:0; overflow:hidden;">
+            <label style="margin:0; white-space:nowrap;">Description</label>
+            <span class="prompt-lang-hint" style="display:none; font-size:12px; color:var(--text-2, #8a8f98); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+          </span>
         </div>
         <textarea id="np-prompt" rows="3" placeholder="An orc warrior with leather armor, full-body pose..."></textarea>
         <div id="np-block-msg" class="hidden" style="margin-top:10px; padding:10px 12px; background:rgba(220,40,45,0.12); border:1px solid rgba(220,40,45,0.5); border-radius:6px; color:#f0a; font-size:12px; line-height:1.4;"></div>

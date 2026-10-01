@@ -33,6 +33,7 @@ ASSET_TYPE_PROMPTS = {
     'avion'             : 'complete passenger aircraft, 3/4 isometric view, full body visible from nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
     'bateau'            : 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
     'animal'            : 'full body animal, lateral profile, whole animal nose to tail, body stretched out, all four feet on ground, fills 60 percent of frame, plain white background, centered',
+    'en_vol'            : 'full body animal, airborne, lateral profile, whole animal nose to tail, fills 60 percent of frame, plain white background, centered',
     'insect'            : 'full body insect, exactly six legs, segmented head thorax abdomen, antennae, 3/4 isometric view from above, all six legs visible, fills 60 percent of frame, plain white background, centered',
     'sans_pattes'       : 'full body, head to tail tip, body stretched out straight, gentle S-curve, seen from above at an angle, fills 60 percent of frame, plain white background, centered',
     'poisson'           : 'full body fish, lateral profile, body straight from head to tail fin, fins spread, fills 60 percent of frame, plain white background, centered',
@@ -120,6 +121,42 @@ def mode_depuis_texte(texte: str):
     return None
 
 
+# Chaine du prompt (2026-10-01) : copie de _epurerDemande / _parleDeVol de src/renderer/index2.js.
+# « I want to make a flying pink pig » : la phrase d'intention ne decrit rien, et « flying » etait contredit par le
+# gabarit animal (« all four feet on ground »).
+_MOTS_VOL = set('fly flying flies flight winged wings wing airborne hovering soaring gliding volant volante volants volantes voler aile ailes ailee ailees volador voladora voladores volando alas fliegend fliegende fliegt flugel voador voadora asas'.split())
+_DEMANDE_EN = None
+_DEMANDE_FR = None
+
+
+def _parle_de_vol(texte: str) -> bool:
+    import re as _re
+    import unicodedata as _ud
+    t = _ud.normalize('NFD', str(texte or '').lower().replace('œ', 'oe'))
+    t = ''.join(c for c in t if _ud.category(c) != 'Mn')
+    return any(m in _MOTS_VOL for m in _re.split(r'[^a-z0-9]+', t))
+
+
+def _epurer_demande(texte: str) -> str:
+    """Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide."""
+    import re as _re
+    global _DEMANDE_EN, _DEMANDE_FR
+    if _DEMANDE_EN is None:
+        _DEMANDE_EN = _re.compile(
+            r"^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?"
+            r"|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
+            r"|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
+            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
+        _DEMANDE_FR = _re.compile(
+            r"^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais"
+            r"|(?:fais|cr[eé]e|g[eé]n[èe]re|dessine|fabrique)(?:-moi)?)\s+"
+            r"(?:(?:faire|cr[eé]er|g[eé]n[eé]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?", _re.I)
+    brut = str(texte if texte is not None else '')
+    t = _DEMANDE_FR.sub('', _DEMANDE_EN.sub('', brut, count=1), count=1)
+    t = _re.sub(r"[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$", '', t, flags=_re.I).strip()
+    return t if len(t) >= 3 else brut.strip()
+
+
 def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -> str:
     """Ajoute style + gabarit autour du texte de l'utilisateur, SANS doublon.
 
@@ -145,6 +182,7 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
     style, gabarit] pour une unite. Le site ne l'avait jamais : le worker
     transmet le texte BRUT de l'utilisateur.
     """
+    user_prompt = _epurer_demande(user_prompt)
     style_prefix = ASSET_STYLE_PROMPTS.get(asset_style, '')
     type_prefix = ASSET_TYPE_PREFIXES.get(asset_type, '')
     type_suffix = ASSET_TYPE_PROMPTS.get(asset_type, '')
@@ -155,6 +193,8 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
             type_suffix = ASSET_TYPE_PROMPTS.get('sans_pattes', type_suffix)
         elif m == 'nage':
             type_suffix = ASSET_TYPE_PROMPTS.get('poisson', type_suffix)
+        elif asset_type == 'animal' and _parle_de_vol(user_prompt):
+            type_suffix = ASSET_TYPE_PROMPTS.get('en_vol', type_suffix)
     deja = (user_prompt or '').lower()
 
     def _absent(bloc: str) -> bool:
