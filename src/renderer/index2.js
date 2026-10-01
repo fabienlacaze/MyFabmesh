@@ -9278,15 +9278,37 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
           tCtx.filter = 'blur(' + Math.max(1, s) + 'px)';
           tCtx.drawImage(mgr.canvas, ax, ay, aw, ah, 0, 0, aw, ah);
         } else {
+          /* NETTETE = MASQUE FLOU (unsharp mask) : sortie = original + k x (original - flou). Seuls les CONTOURS bougent, les zones plates restent
+           * identiques. L'ancienne version melangeait 50 % d'une copie en contraste +75 % et luminosite +10 % : tout le fond uni sous le trait
+           * s'eclaircissait (halo clair en carre, capture du rapport du 01/10). Le bord du pinceau s'estompe aussi (fondu radial). */
+          const br = Math.max(1, Math.round(r / 8));                       // rayon du flou (px)
+          const pad = br * 3;
+          const px = Math.max(0, ax - pad), py = Math.max(0, ay - pad);
+          const pw = Math.min(mgr.w - px, (ax - px) + aw + pad), ph = Math.min(mgr.h - py, (ay - py) + ah + pad);
+          const bc = document.createElement('canvas');
+          bc.width = pw; bc.height = ph;
+          const bctx = bc.getContext('2d');
+          bctx.filter = 'blur(' + br + 'px)';
+          bctx.drawImage(mgr.canvas, px, py, pw, ph, 0, 0, pw, ph);
+          const flou = bctx.getImageData(ax - px, ay - py, aw, ah).data;
           tCtx.drawImage(mgr.canvas, ax, ay, aw, ah, 0, 0, aw, ah);
-          const t2 = document.createElement('canvas');
-          t2.width = aw; t2.height = ah;
-          const t2c = t2.getContext('2d');
-          t2c.filter = 'contrast(' + (100 + s * 15) + '%) brightness(' + (100 + s * 2) + '%)';
-          t2c.drawImage(mgr.canvas, ax, ay, aw, ah, 0, 0, aw, ah);
-          tCtx.globalAlpha = 0.5;
-          tCtx.drawImage(t2, 0, 0);
-          tCtx.globalAlpha = 1;
+          const img = tCtx.getImageData(0, 0, aw, ah);
+          const dd = img.data;
+          const k = s * 0.06;                                              // force par passage (un trait en cumule plusieurs)
+          for (let i = 0; i < dd.length; i += 4) {
+            if (flou[i + 3] < 250) continue;                               // bord de l'image : flou incomplet, on n'y touche pas
+            for (let c = 0; c < 3; c++) {
+              const v = dd[i + c] + k * (dd[i + c] - flou[i + c]);
+              dd[i + c] = v < 0 ? 0 : (v > 255 ? 255 : v);
+            }
+          }
+          tCtx.putImageData(img, 0, 0);
+          const gr = tCtx.createRadialGradient(x - ax, y - ay, 0, x - ax, y - ay, r);   // fondu : plein au centre, nul au bord
+          gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.7, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+          tCtx.globalCompositeOperation = 'destination-in';
+          tCtx.fillStyle = gr;
+          tCtx.fillRect(0, 0, aw, ah);
+          tCtx.globalCompositeOperation = 'source-over';
         }
         ctx.save();
         ctx.beginPath();
