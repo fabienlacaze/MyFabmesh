@@ -271,6 +271,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   confirmAppClose: (opts) => ipcRenderer.send('app-close-confirmed', opts || {}),
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
   exportDiagnostics: () => ipcRenderer.invoke('export-diagnostics'),
+  sendDiagnostics: () => ipcRenderer.invoke('send-diagnostics'),
   calibRun: (opts) => ipcRenderer.invoke('calib-run', opts || {}),
   calibLastReport: () => ipcRenderer.invoke('calib-last-report'),
   calibOpenReport: (opts) => ipcRenderer.invoke('calib-open-report', opts || {}),

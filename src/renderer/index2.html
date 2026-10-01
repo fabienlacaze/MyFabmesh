@@ -26,12 +26,14 @@
         apres: "Une erreur est survenue dans l'application. Le reste continue de fonctionner.",
         expl: "Rien n'est perdu : vos projets et vos fichiers n'ont pas été touchés. Fermer puis rouvrir l'application règle le plus souvent le problème. Si cela revient, copiez les détails ci-dessous et envoyez-les nous : ils disent exactement où ça a cassé.",
         ou: 'Où', detail: 'Détails (sélectionnables)', copier: 'Copier les détails', copie: 'Copié ✓', dossier: 'Ouvrir le dossier des journaux', recharger: 'Recharger', fermer: 'Fermer',
+        envoyer: 'Envoyer au support', envoi: 'Envoi…', envoye: 'Envoyé ✓ Référence : ', echec: "Envoi impossible (pas de connexion ?). Copiez les détails à la place.", cequi: "Envoie l'erreur et les derniers journaux, jamais vos fichiers de projet.",
         pied: 'Journaux : %APPDATA%\\myfabmesh-ai\\renderer.log et startup.log',
       } : {
         titre: 'MyFabmesh.AI could not start',
         apres: 'An error occurred in the app. Everything else keeps working.',
         expl: 'Nothing is lost: your projects and files were not touched. Closing and reopening the app usually fixes it. If it happens again, copy the details below and send them to us: they say exactly where it broke.',
         ou: 'Where', detail: 'Details (selectable)', copier: 'Copy details', copie: 'Copied ✓', dossier: 'Open the logs folder', recharger: 'Reload', fermer: 'Close',
+        envoyer: 'Send to support', envoi: 'Sending…', envoye: 'Sent ✓ Reference: ', echec: 'Could not send (no connection?). Copy the details instead.', cequi: 'Sends the error and the latest logs, never your project files.',
         pied: 'Logs: %APPDATA%\\myfabmesh-ai\\renderer.log and startup.log',
       };
       var bootFini = false, derniere = '';
@@ -56,7 +58,7 @@
       }
       function infos(msg, e) {
         var lieu = (e && e.filename) ? (String(e.filename).split(/[\\/]/).pop() + ':' + (e.lineno || '?') + ':' + (e.colno || '?')) : '';
-        var version = ''; try { version = (document.querySelector('[data-app-version]') || {}).textContent || ''; } catch (_) {}
+        var version = ''; try { var bi = window.__BUILD__; version = bi ? ('v' + bi.version + ' build ' + bi.build + (bi.hash ? ' ' + bi.hash : '')) : ''; } catch (_) {}
         return { lieu: lieu, texte: [
           'MyFabmesh.AI error report', new Date().toISOString(), lieu ? 'Where: ' + lieu : '', 'App: ' + (version || (typeof window.__fabVersion === 'string' ? window.__fabVersion : 'unknown')),
           'System: ' + navigator.userAgent, '', String(msg)].filter(function (x, i) { return x !== '' || i > 5; }).join('\n') };
@@ -84,6 +86,17 @@
           var b1 = bouton(T.copier, '#7c3aed'); b1.onclick = function () { copier(i.texte, b1); }; z.appendChild(b1);
           if (window.meshyAPI && window.meshyAPI.openLogsFolder) { var b2 = bouton(T.dossier); b2.onclick = function () { try { window.meshyAPI.openLogsFolder(); } catch (_) {} }; z.appendChild(b2); }
           var b3 = bouton(T.recharger); b3.onclick = function () { location.reload(); }; z.appendChild(b3);
+          if (window.meshyAPI && window.meshyAPI.sendDiagnostics) {
+            var b4 = bouton(T.envoyer, '#0f766e'); var etat = document.createElement('div'); etat.style.cssText = 'width:100%;font-size:13px;opacity:.8;margin-top:2px'; etat.textContent = T.cequi;
+            b4.onclick = function () {
+              b4.disabled = true; b4.textContent = T.envoi;
+              window.meshyAPI.sendDiagnostics().then(function (r) {
+                if (r && r.ok) { b4.textContent = '✓'; etat.textContent = T.envoye + r.id; }
+                else { b4.disabled = false; b4.textContent = T.envoyer; etat.textContent = T.echec; }
+              }, function () { b4.disabled = false; b4.textContent = T.envoyer; etat.textContent = T.echec; });
+            };
+            z.appendChild(b4); z.appendChild(etat);
+          }
         } catch (_) {}
       }
       function banniere(msg, e) {
