@@ -1568,6 +1568,7 @@
       'Import failed': 'Échec de l\'import',
       'Prompt copied!': 'Prompt copié !',
       'Copy failed': 'Échec de la copie',
+      'This 3D is taking much longer than usual. Often the graphics memory is full because of other apps (browser, Unreal…). If the bar stops moving, cancel it, close them and try again.': "Cette 3D prend beaucoup plus de temps que d'habitude. Souvent la mémoire graphique est pleine à cause d'autres applications (navigateur, Unreal…). Si la barre n'avance plus, annulez, fermez-les et relancez.",
       'Copy error': "Copier l'erreur",
       'Copied ✓': 'Copié ✓',
       'Prompt already enhanced. Edit manually or clear it.': 'Prompt déjà amélioré. Modifiez-le manuellement ou effacez-le.',

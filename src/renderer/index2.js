@@ -20297,6 +20297,14 @@ function pushJob(name, onCancel, params, expectedMsOverride, opts, _cloudOpts) {
   job.bridgeReporting = false;
   job.tickTimer = setInterval(() => {
     if (job.status !== 'running') { clearInterval(job.tickTimer); return; }
+    // ALERTE DE LENTEUR (2026-10-01, user : « 37 min pour rien », une 3D locale a tourne 36 min dont 30 a 10 fois sa vitesse normale, memoire
+    // graphique saturee par d'autres applis, puis a ete tuee). Une fois par travail 3D local : au-dela de 2,5 fois la duree attendue (et d'au
+    // moins 10 min), on previent tout de suite au lieu de laisser attendre en silence.
+    if (!job._alerteLenteur && job.kind === 'mesh' && !(typeof window._computeMode === 'function' && window._computeMode() === 'cloud')
+        && job.progress < 98 && (Date.now() - job.startedAt) > Math.max(10 * 60000, 2.5 * expected)) {
+      job._alerteLenteur = true;
+      try { showToast(_i18nT('This 3D is taking much longer than usual. Often the graphics memory is full because of other apps (browser, Unreal…). If the bar stops moving, cancel it, close them and try again.'), 'error', 30000); } catch (_) {}
+    }
     if (job.bridgeReporting) return; // bridge is driving the bar now
     const elapsed = Date.now() - job.startedAt;
     const estimated = Math.min(90, 5 + (elapsed / expected) * 85);
