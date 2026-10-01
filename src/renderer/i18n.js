@@ -1601,6 +1601,7 @@
       'Close: {x}': "À fermer : {x}",
       'Normal': "Normal",
       'Not installed on this device': "Non installé sur cet appareil",
+      '{x} GB of graphics memory left, this image needs {y} GB.': "Il reste {x} Go de mémoire graphique ; cette image en demande {y} Go.",
       'Other apps already use {x} GB of your graphics card ({y} GB in total).': "D'autres applications utilisent déjà {x} Go de votre carte graphique ({y} Go au total).",
       'This 3D needs about {x} GB. On a card that is too full it can be very slow or stop at the very end, and the whole run is lost.': "Cette 3D a besoin d'environ {x} Go. Sur une carte trop pleine, elle peut être très lente ou s'arrêter tout à la fin, et tout le calcul est perdu.",
       'Close them first for the best result.': "Fermez-les d'abord pour un meilleur résultat.",

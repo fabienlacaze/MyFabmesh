@@ -7688,6 +7688,14 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   if (!wasEnhanced) _promptHideOverlay(_wsTa);
   const prompt = buildFullPrompt(englishUser, assetType, assetStyle);
   const engine = document.getElementById('ws-engine').value;
+  // AVERTISSEMENT MEMOIRE POUR LES IMAGES LOCALES (2026-10-02, rapport d'essais du 01/10 : un essai « Fast » avait demarre carte deja pleine, 10,9 Go
+  // occupes, et depasse 5 min a 15,6 Go). Besoins MESURES : un moteur d'image local ajoute ~9 Go (Fast / Balanced : +8,9 Go sur 2,8 Go de base),
+  // HiDream ~12 Go. Meme fenetre que la 3D : Annuler / Normal / Mode eco.
+  if (['local-flux', 'local-lightning', 'local-sd', 'hidream'].includes(engine) && !_isCloudMode()) {
+    const _choixImg = await _verifierVramAvant3D(engine === 'hidream' ? 12000 : 9000, false, 'image');
+    if (_choixImg === 'annuler') return;
+    if (_choixImg === 'eco') window._activerModeEco(true);
+  }
   const count = parseInt(document.getElementById('ws-count').value) || 4;
   const steps = parseInt(document.getElementById('ws-quality').value) || 30;
   // Extra views: auto-determined from the active asset type. The old
@@ -31868,7 +31876,7 @@ function _choixMemoireJuste(msg, o) {
 }
 /** Avant une 3D locale : la carte a-t-elle la place ? Sinon on le dit, en nommant ce qui l'occupe, et on PROPOSE le mode eco.
  *  Renvoie « ok » | « eco » | « leger » | « quand-meme » | « annuler ». `peutLeger` : le mode actuel peut etre allege. */
-async function _verifierVramAvant3D(besoinMo, peutLeger) {
+async function _verifierVramAvant3D(besoinMo, peutLeger, quoi) {
   try {
     if (!window.meshyAPI?.gpuOccupation) return 'ok';
     if (typeof window._computeMode === 'function' && window._computeMode() === 'cloud') return 'ok';
@@ -31884,7 +31892,7 @@ async function _verifierVramAvant3D(besoinMo, peutLeger) {
     // Ce que l'utilisateur peut FERMER : les autres logiciels (ni l'interface de MyFabmesh, ni l'affichage de Windows).
     const aFermer = (o.top || []).filter((x) => x.mo >= 300 && !/myfabmesh|windows|dwm/i.test(String(x.nom))).slice(0, 3)
       .map((x) => `${x.nom} (${Go(x.mo)} GB)`).join(', ');
-    const msg = _i18nTf('{x} GB of graphics memory left, this 3D needs {y} GB.', Go(dispo), Go(besoinMo))
+    const msg = _i18nTf(quoi === 'image' ? '{x} GB of graphics memory left, this image needs {y} GB.' : '{x} GB of graphics memory left, this 3D needs {y} GB.', Go(dispo), Go(besoinMo))
       + '\n' + (!ecoDeja ? _i18nT('Eco mode frees memory while the 3D runs.') : (aFermer ? _i18nTf('Close: {x}', aFermer) : ''));
     return await _choixMemoireJuste(msg, { eco: !ecoDeja });
   } catch (_) { return 'ok'; }
