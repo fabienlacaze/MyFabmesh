@@ -20262,6 +20262,17 @@ async function handleAdminLive(req: Request, env: Env): Promise<Response> {
       age_s: Math.max(0, Math.round((now - Date.parse(j.created_at)) / 1000)), credits: j.credit_cost ?? 0,
     })),
     fenetres: { m5: fenetre(5), m15: fenetre(15), h1: fenetre(60) },
+    // Dernière heure par tranches de 5 min (le plus ancien d'abord), pour la barre d'activité de /admin2 : 12 cases { ok, echecs }. « ok » = tout ce qui n'a pas échoué
+    // (réussis ET en cours). Meme source que `fenetres` (les 500 dernieres lignes de l'heure), donc rien de plus a lire.
+    serie_5min: (() => {
+      const cases = Array.from({ length: 12 }, () => ({ ok: 0, echecs: 0 }));
+      for (const j of rRecent) {
+        const b = 11 - Math.floor((now - Date.parse(j.created_at)) / 300_000);
+        if (b < 0 || b > 11) continue;
+        if (j.status === 'failed') cases[b].echecs++; else cases[b].ok++;
+      }
+      return cases;
+    })(),
     evenements: rDerniers.map((j) => ({
       ts: j.created_at, email: j.user_id ? (emails.get(j.user_id) ?? null) : null, type: j.type, statut: j.status, projet: j.project_name ?? null,
       duree_s: duree(j), credits: j.credit_cost ?? 0, erreur: j.error ? String(j.error).slice(0, 140) : null,

@@ -93,7 +93,7 @@ const LIVRES = [
  *  admin.html ajoutee le 2026-09-30 : tout son code (~4 000 lignes, dont la
  *  carte « Cout GPU » et le bandeau du budget) est un <script> en ligne, et
  *  aucun garde ne le lisait. */
-const PAGES = ['src/renderer/index2.html', 'cloud/public/app/index.html', 'cloud/public/admin.html'];
+const PAGES = ['src/renderer/index2.html', 'cloud/public/app/index.html', 'cloud/public/admin.html', 'cloud/public/admin2.html'];
 
 function scriptsEnLigne(chemin) {
   const brut = readFileSync(join(RACINE, chemin), 'utf-8');
