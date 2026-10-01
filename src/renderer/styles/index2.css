@@ -4974,6 +4974,30 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 #topbar-more-menu button:hover, #topbar-more-menu button:focus-visible { background: var(--bg-3); color: var(--text-0); outline: none; }
 #topbar-more-menu .tm-ic { width: 22px; flex: none; text-align: center; font-size: 15px; }
 
-/* MODE ECO (2026-10-01) : l'interrupteur principal de Reglages > Hardware > « Resources during a generation » ressort des quatre autres. */
-.np-eco-principal { border-width: 2px; margin-bottom: 14px; }
-.np-eco-principal .np-auto-titre { font-size: 15px; }
+/* MODE ECO (2026-10-01) : l'interrupteur principal de Reglages > Hardware > « Resources during a generation » doit se distinguer des options
+   (user : « on n'arrive pas a differencier le bouton principal des autres ») : grande carte coloree, interrupteur plus gros, vert quand actif ;
+   les trois options qu'il commande sont regroupees dessous, en retrait, sur un filet. */
+.np-eco-principal {
+  padding: 18px 20px; margin: 6px 0 4px; border: 2px solid var(--accent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 24%, var(--bg-2)), color-mix(in srgb, var(--accent) 6%, var(--bg-2)));
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.np-eco-principal.on {
+  border-color: #22c55e;
+  background: linear-gradient(135deg, color-mix(in srgb, #22c55e 30%, var(--bg-2)), color-mix(in srgb, #22c55e 8%, var(--bg-2)));
+  box-shadow: 0 6px 22px rgba(34, 197, 94, .28);
+}
+.modal-card .np-eco-principal label.np-switch { width: 60px; height: 32px; }
+.np-eco-principal .np-switch-track { border-radius: 16px; }
+.np-eco-principal .np-switch-track::after { top: 3px; left: 3px; width: 24px; height: 24px; }
+.modal-card .np-eco-principal .np-switch input:checked + .np-switch-track { background: #22c55e; }
+.modal-card .np-eco-principal .np-switch input:checked + .np-switch-track::after { transform: translateX(28px); }
+.np-eco-principal .np-auto-titre { font-size: 19px; }
+.np-eco-principal .np-auto-titre::before { content: '\1F33F\00a0\00a0'; }
+.np-eco-principal .np-auto-info { font-size: 14px; color: var(--text-1); }
+.np-eco-inclus-titre { margin: 14px 0 0 8px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-2); }
+.np-eco-inclus { margin: 0 0 0 20px; padding-left: 14px; border-left: 3px solid color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.np-eco-inclus .np-auto-row { margin: 8px 0 0; padding: 8px 10px; }
+.np-eco-inclus .np-auto-titre { font-size: 13px; font-weight: 600; }
+.np-eco-inclus .np-auto-info { font-size: 13px; }
+.np-eco-sep { height: 1px; background: var(--border); margin: 20px 0 4px; }

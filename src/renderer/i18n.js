@@ -1568,6 +1568,7 @@
       'Import failed': 'Échec de l\'import',
       'Prompt copied!': 'Prompt copié !',
       'Copy failed': 'Échec de la copie',
+      'Eco mode turns on': "Le mode éco active",
       'Open the setup wizard': "Ouvrir l'assistant d'installation",
       'Resources during a generation': "Ressources pendant une génération",
       'Eco mode': "Mode éco",
