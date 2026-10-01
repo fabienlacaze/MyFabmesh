@@ -34,6 +34,25 @@ PIECES_TENUE = {
     'helmet':   'a helmet, a hat, a headdress',
 }
 
+#: FORMULATIONS COMPLEMENTAIRES (2026-10-02, rapport d'essais du 01/10 : « la cuirasse manque (armor, top, belt, gloves non detectes) »).
+#: Mesure avec le vrai CLIPSeg sur le chevalier : une liste de termes separes par des virgules DILUE la requete. « body armor, breastplate,
+#: chest armor » -> pic 21 / 255 (aire 0 %) ; « armor » -> pic 101 (8,7 %), « a cuirass » -> 144 (13,7 %) ; « a shirt, a tunic, a jacket, a coat »
+#: -> pic 62 (0,14 %) contre « a tunic » 148 (2,6 %) ; « a belt » -> 48 contre « a leather belt » 81 / « a brown belt » 153 ; gants : pic 190 mais
+#: effaces par le retrait de la peau (voir PIECES_MAINS). On GARDE la formulation d'origine (rien ne regresse) et on lui AJOUTE ces termes
+#: courts : les masques s'unissent. Une formulation sous le plancher de _binariser ne contribue simplement pas.
+SUPPLEMENTS_PIECES = {
+    'armor': ['armor', 'a cuirass'],
+    'top':   ['a tunic', 'a shirt'],
+    'belt':  ['a leather belt', 'a brown belt'],
+    'gloves': ['a leather glove', 'a glove'],
+}
+
+#: Pieces portees SUR les mains : le retrait « main nue » de TERMES_PEAU les avalait (« gloves » : 0,44 % de l'image avant retrait, 0,01 % apres).
+#: Pour elles on ne retire que le VISAGE (TERMES_VISAGE) et on ne garde que les pixels ou la reponse « gant » DOMINE la reponse « main nue » :
+#: un personnage aux mains nues ne produit donc pas de faux gants (mesure : alien sans gants -> 0 %).
+PIECES_MAINS = ('gloves',)
+TERMES_VISAGE = 'a face, a head, hair'
+
 #: Ce qui n'est PAS un vetement et doit sortir de chaque masque.
 TERMES_PEAU = 'a face, a head, hair, bare skin, a bare hand'
 
@@ -55,7 +74,7 @@ NEGATIF_RECOUTURE = ('a person, a face, a head, hair, skin, a human, a body, '
 #: En dessous de cette fraction de la silhouette, la piece est jugee absente.
 #: Mesure de garde : une cape occupe ~10-30 % du perso, une ceinture ~1-2 %.
 #: 0.004 laisse passer la ceinture sans laisser passer le bruit de CLIPSeg.
-AIRE_MINI_PIECE = 0.004
+AIRE_MINI_PIECE = 0.003      # 0,004 avant le 2026-10-02 : gants et ceinture du chevalier (0,3-0,7 % de l'image) etaient a la limite
 
 
 def _binariser(arr_0_255, rel=0.5, plancher=50.0):
@@ -199,25 +218,47 @@ def decouper_tenue(
     m_peau = _et(m_peau, m_perso)
 
     noms = list(pieces) if pieces else list(PIECES_TENUE.keys())
-    # Chaque entree porte une LISTE de termes, dont on unit les masques.
-    # L'ensemble interrogeait CLIPSeg avec les vingt concepts colles en une
-    # seule phrase : le modele rendait alors une tache vague couvrant tout le
-    # personnage, peau comprise (constate sur un orc le 2026-09-24). Interroge
-    # piece par piece, chaque masque est net, et leur union est la tenue.
-    demandes = []
-    if ensemble:
-        termes = [PIECES_TENUE[n] for n in noms if n in PIECES_TENUE]
-        demandes.append(('outfit', termes or ['clothing, garment']))
-    if par_piece:
-        demandes += [(n, [PIECES_TENUE[n]]) for n in noms if n in PIECES_TENUE]
+    # Chaque piece est interrogee par ses formulations (celle d'origine + SUPPLEMENTS_PIECES), les masques s'unissent. L'ensemble interrogeait
+    # CLIPSeg avec les vingt concepts colles en une seule phrase : le modele rendait alors une tache vague couvrant tout le personnage, peau
+    # comprise (constate sur un orc le 2026-09-24). Interroge piece par piece, chaque masque est net, et leur union est la tenue.
+    cache_pieces = {}
+    m_visage = [None]
 
-    resultats = []
-    for nom, termes in demandes:
+    def _masque_piece(cle):
+        if cle in cache_pieces:
+            return cache_pieces[cle]
         m = None
-        for t in termes:
+        for t in [PIECES_TENUE[cle]] + list(SUPPLEMENTS_PIECES.get(cle, [])):
             mt = Image.fromarray(_binariser(clipseg(t), rel=0.45), mode='L')
             m = mt if m is None else _ou(m, mt)
-        m = _sauf(_et(m, m_perso), m_peau)     # BORNAGE DUR + retrait de la peau
+        m = _et(m, m_perso)                     # BORNAGE DUR
+        if cle in PIECES_MAINS:
+            if m_visage[0] is None:
+                m_visage[0] = _et(Image.fromarray(_binariser(clipseg(TERMES_VISAGE), rel=0.45), mode='L'), m_perso)
+            gant = np.maximum(np.asarray(clipseg('a leather glove')), np.asarray(clipseg('a glove')))
+            nue = np.asarray(clipseg('a bare hand'))
+            domine = Image.fromarray(((gant > nue).astype(np.uint8)) * 255, mode='L')
+            m = _sauf(_et(m, domine), m_visage[0])
+        else:
+            m = _sauf(m, m_peau)                # retrait de la peau
+        cache_pieces[cle] = m
+        return m
+
+    demandes = []
+    if ensemble:
+        demandes.append(('outfit', [n for n in noms if n in PIECES_TENUE]))
+    if par_piece:
+        demandes += [(n, [n]) for n in noms if n in PIECES_TENUE]
+
+    resultats = []
+    for nom, cles in demandes:
+        if cles:
+            m = None
+            for cle in cles:
+                mp = _masque_piece(cle)
+                m = mp if m is None else _ou(m, mp)
+        else:
+            m = _sauf(_et(Image.fromarray(_binariser(clipseg('clothing, garment'), rel=0.45), mode='L'), m_perso), m_peau)
         if _aire(m) < AIRE_MINI_PIECE:
             continue                            # piece absente de l'image
 
