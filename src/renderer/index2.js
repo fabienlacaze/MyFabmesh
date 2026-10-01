@@ -11335,6 +11335,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     const _besoinMo = (trellis2Preset === 'ultra_8k' || trellis2Preset === 'quality' || trellis2UltraQ) ? 11000 : 9000;
     const _choix = await _verifierVramAvant3D(_besoinMo, !!(trellis2UltraQ || trellis2QualityPlus));
     if (_choix === 'annuler') return;
+    if (_choix === 'eco') window._activerModeEco(true);          // persistant : visible et reversible dans Reglages > Hardware
     if (_choix === 'leger') {
       // Mode plus leger : sans « Fine geometry » ni « Sharp edges » le calcul passe en 1024 (voir main.js, FABMESH_TRELLIS2_NATIVE_MODE).
       params.trellis2UltraQ = false; params.trellis2QualityPlus = false;
@@ -11347,10 +11348,6 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   Promise.resolve(gatedRun('mesh', `Generate 3D: ${p.name}`, async () => {
     _finLancement();                     // la tuile (pushJob) prend le relais
     const job = pushJob(`Generate 3D: ${p.name}`, null, jobParams, expectedMs, { sourceImageUrl: p.selectedImagePath, projectName: p.name });
-    if (engine === 'trellis2_native') { try { window._libererMemoireGraphique?.(); } catch (_) {} }   // rend la memoire des visionneuses au calcul
-    if (engine === 'trellis2_native') {
-      try { await window.meshyAPI?.preparer3D?.({ viderImages: window._optionRessources('fab-vider-images'), arretAides: window._optionRessources('fab-arret-aides') }); } catch (_) {}
-    }
     try {
       // `jobId` : sans lui le processus n'est pas enregistre sous son nom
       // (main.js : `if (jobId) activeProcs.set(jobId, proc)`), et Annuler
@@ -11376,8 +11373,6 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     } catch (e) {
       completeJob(job.id, false, e?.error || e?.message || String(e));
       if (!job.cancelled) reportPipelineError(e?.error || e?.message || String(e), '3D generation error');
-    } finally {
-      try { window._restaurerMemoireGraphique?.(); } catch (_) {}   // les visionneuses reviennent
     }
   })).catch((e) => {                     // jamais un clic sans effet ni message
     console.error('[mesh] Generate 3D: lancement impossible', e);
@@ -20339,6 +20334,7 @@ function pushJob(name, onCancel, params, expectedMsOverride, opts, _cloudOpts) {
     renderJobs();
   }, 800);
   state.jobs.push(job);
+  try { window._ressourcesDebutGeneration?.(job); } catch (_) {}   // mode eco : memoire rendue au calcul (voir « RESSOURCES PENDANT UNE GENERATION »)
   renderJobs();
   // Auto-open the details modal so the user sees the live progress + cancel button
   // without having to click the bubble in the corner.
@@ -20638,6 +20634,7 @@ function completeJob(id, success, errorMessage) {
   if (_finDiffereeSiEnfants(j, success, errorMessage)) return;
   j.progress = 100;
   j.status = success ? 'done' : 'error';
+  try { window._ressourcesFinGeneration?.(j); } catch (_) {}
   // Un travail termine REMONTE en tete de la liste (demande de l'utilisateur),
   // puis part dans « Travaux finis » (_programmerArchivage).
   state.jobs = [j, ...state.jobs.filter(x => x !== j)];
@@ -31652,14 +31649,28 @@ function ouvrirJournalVersion() {
   if (el) { el.style.cursor = 'pointer'; el.style.pointerEvents = 'auto'; el.onclick = ouvrirJournalVersion; }
 })();
 
-// ══ MEMOIRE GRAPHIQUE PENDANT UNE 3D (2026-10-01, user : « on peut mettre un switch dans les settings pour ca »).
-// L'interface (visionneuses 3D, contextes WebGL suivis par index2.html) tient ~1-1,5 Go de la carte, que la 3D locale ne peut pas utiliser alors
-// qu'elle manque justement de place a la fin du calcul. Pendant une 3D locale on PERD les contextes WebGL (WEBGL_lose_context) ; three.js les
-// reinitialise a la restauration. Reglage : localStorage « fab-liberer-gpu » (actif par defaut), interrupteur dans Reglages > Hardware.
-window._libererGpuActif = function () { try { return localStorage.getItem('fab-liberer-gpu') !== '0'; } catch (_) { return true; } };
+// ══ RESSOURCES PENDANT UNE GENERATION (2026-10-01, user : « durant une generation plutot que 3D... un bouton en premier pour passer en mode economie
+// (qui enclenche tous ces choix) ... que l'appli propose ou non de passer en mode eco si on est proche des limites, par defaut pas mode eco »).
+// MODE ECO (fab-mode-eco, desactive par defaut) = les trois options ci-dessous ensemble ; chacune reste reglable. La 4e (fab-propose-eco, active) decide si
+// l'appli PROPOSE le mode eco avant une 3D quand la carte est trop prise. A chaque travail LOCAL (pushJob) : on libere les contextes WebGL des visionneuses
+// (suivis par index2.html), on decharge le moteur d'images avant une 3D / un rig / une animation, et on met le traducteur et le redacteur en pause ; a la fin
+// du dernier travail (completeJob) les visionneuses reviennent.
+const _DEFAUTS_RESSOURCES = { 'fab-mode-eco': false, 'fab-liberer-gpu': false, 'fab-vider-images': false, 'fab-arret-aides': false, 'fab-propose-eco': true };
+const _IDS_RESSOURCES = { 'fab-mode-eco': 'set-mode-eco', 'fab-liberer-gpu': 'set-liberer-gpu', 'fab-vider-images': 'set-vider-images', 'fab-arret-aides': 'set-arret-aides', 'fab-propose-eco': 'set-propose-eco' };
+const _CLES_ECO = ['fab-liberer-gpu', 'fab-vider-images', 'fab-arret-aides'];
+window._optionRessources = function (cle) {
+  try { const v = localStorage.getItem(cle); if (v === '1') return true; if (v === '0') return false; } catch (_) {}
+  return !!_DEFAUTS_RESSOURCES[cle];
+};
+window._libererGpuActif = function () { return window._optionRessources('fab-liberer-gpu'); };
+function _poserOptionRessources(cle, on) {
+  try { localStorage.setItem(cle, on ? '1' : '0'); } catch (_) {}
+  const id = _IDS_RESSOURCES[cle]; const cb = document.getElementById(id);
+  if (cb) { cb.checked = on; document.getElementById(id + '-row')?.classList.toggle('on', on); }
+}
+window._activerModeEco = function (on) { _poserOptionRessources('fab-mode-eco', on); for (const k of _CLES_ECO) _poserOptionRessources(k, on); };
 const _glLiberes = [];
 window._libererMemoireGraphique = function () {
-  if (!window._libererGpuActif()) return 0;
   let n = 0;
   for (const s of (window.__fabGlSuivis || [])) {
     try {
@@ -31670,7 +31681,7 @@ window._libererMemoireGraphique = function () {
       ext.loseContext(); _glLiberes.push(new WeakRef(gl)); n++;
     } catch (_) {}
   }
-  if (n) { try { showToast(_i18nT('Graphics memory freed for the 3D: the viewers come back when it is done.'), 'info', 6000); } catch (_) {} }
+  if (n) { try { showToast(_i18nT('Graphics memory freed for the generation: the viewers come back when it is done.'), 'info', 6000); } catch (_) {} }
   return n;
 };
 window._restaurerMemoireGraphique = function () {
@@ -31684,63 +31695,89 @@ window._restaurerMemoireGraphique = function () {
   }
   return n;
 };
-window._optionRessources = function (cle) { try { return localStorage.getItem(cle) !== '0'; } catch (_) { return true; } };
-/** Fenetre a trois issues (carte trop prise) : « leger » | « quand-meme » | « annuler ». */
-function _choixMemoireJuste(msg, peutLeger) {
+const _genEco = new Set();      // travaux locaux en cours qui ont declenche l'economie de ressources
+window._ressourcesDebutGeneration = function (job) {
+  if (!job || job.parentJobId) return;
+  if (typeof window._computeMode === 'function' && window._computeMode() === 'cloud') return;
+  _genEco.add(job.id);
+  if (_genEco.size > 1) return;                    // deja fait pour le travail precedent
+  if (window._optionRessources('fab-liberer-gpu')) window._libererMemoireGraphique();
+  const lourd = job.kind === 'mesh' || job.kind === 'rig' || /3d|rig|anim/i.test(String(job.name || ''));
+  const o = { viderImages: lourd && window._optionRessources('fab-vider-images'), arretAides: window._optionRessources('fab-arret-aides') };
+  if (o.viderImages || o.arretAides) { try { window.meshyAPI?.preparer3D?.(o); } catch (_) {} }
+};
+window._ressourcesFinGeneration = function (job) {
+  if (job) _genEco.delete(job.id);
+  if (_genEco.size === 0) window._restaurerMemoireGraphique();
+};
+// Filet : un travail annule ou perdu ne doit pas laisser les visionneuses vides.
+setInterval(() => {
+  if (_genEco.size && !(state.jobs || []).some((j) => j.status === 'running')) { _genEco.clear(); window._restaurerMemoireGraphique(); }
+}, 5000);
+/** Fenetre a choix (carte trop prise) : « eco » | « leger » | « quand-meme » | « annuler ». `o.eco` : proposer le mode eco ; `o.leger` : 3D plus legere. */
+function _choixMemoireJuste(msg, o) {
   return new Promise((resolve) => {
     document.getElementById('modal-memoire-juste')?.remove();
     const m = document.createElement('div');
     m.id = 'modal-memoire-juste'; m.className = 'modal-overlay'; m.setAttribute('data-i18n-skip', '');
     const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    m.innerHTML = `<div class="modal-card" style="max-width:560px;width:92vw;">
+    const premier = o.eco ? 'eco' : (o.leger ? 'leger' : 'quand-meme');
+    const btn = (id, cle, texte) => `<button class="${cle === premier ? 'primary-btn' : 'ghost-btn'}" id="${id}">${esc(texte)}</button>`;
+    m.innerHTML = `<div class="modal-card" style="max-width:600px;width:92vw;">
       <div class="fen-tete"><h2>${esc(_i18nT('Graphics memory is tight'))}</h2></div>
       <p class="modal-subtitle" style="white-space:pre-line;">${esc(msg)}</p>
       <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
-        ${peutLeger ? `<button class="primary-btn" id="mj-leger">${esc(_i18nT('Lighter mode'))}</button>` : ''}
-        <button class="${peutLeger ? 'ghost-btn' : 'primary-btn'}" id="mj-quand-meme">${esc(_i18nT('Start anyway'))}</button>
+        ${o.eco ? btn('mj-eco', 'eco', _i18nT('Eco mode')) : ''}
+        ${o.leger ? btn('mj-leger', 'leger', _i18nT('Lighter mode')) : ''}
+        ${btn('mj-quand-meme', 'quand-meme', _i18nT('Start anyway'))}
         <button class="ghost-btn" id="mj-annuler">${esc(_i18nT('Cancel'))}</button>
       </div></div>`;
     document.body.appendChild(m);
     const fin = (v) => { m.remove(); document.removeEventListener('keydown', echap); resolve(v); };
     const echap = (e) => { if (e.key === 'Escape') fin('annuler'); };
     document.addEventListener('keydown', echap);
+    m.querySelector('#mj-eco')?.addEventListener('click', () => fin('eco'));
     m.querySelector('#mj-leger')?.addEventListener('click', () => fin('leger'));
     m.querySelector('#mj-quand-meme').addEventListener('click', () => fin('quand-meme'));
     m.querySelector('#mj-annuler').addEventListener('click', () => fin('annuler'));
   });
 }
-/** Avant une 3D locale : la carte a-t-elle la place ? Sinon on le dit, en nommant ce qui l'occupe.
- *  Renvoie « ok » (rien a dire) | « quand-meme » | « leger » | « annuler ». `peutLeger` : le mode actuel peut etre allege. */
+/** Avant une 3D locale : la carte a-t-elle la place ? Sinon on le dit, en nommant ce qui l'occupe, et on PROPOSE le mode eco.
+ *  Renvoie « ok » | « eco » | « leger » | « quand-meme » | « annuler ». `peutLeger` : le mode actuel peut etre allege. */
 async function _verifierVramAvant3D(besoinMo, peutLeger) {
   try {
     if (!window.meshyAPI?.gpuOccupation) return 'ok';
     if (typeof window._computeMode === 'function' && window._computeMode() === 'cloud') return 'ok';
     const o = await Promise.race([window.meshyAPI.gpuOccupation(), new Promise((r) => setTimeout(() => r(null), 7000))]);
     if (!o || !(o.totalMo > 0)) return 'ok';
-    // Ce que la 3D va rendre a la carte : l'interface (si active), le serveur d'images en VRAM n'est pas compte (inconnu ici).
+    // Ce que la generation va rendre a la carte : l'interface (si la liberation est active, jusqu'a 1,5 Go).
     const rendue = window._libererGpuActif() ? Math.min(o.ownMo || 0, 1500) : 0;
     const dispo = o.totalMo - Math.max(0, o.autresMo - rendue);
     if (dispo >= besoinMo) return 'ok';
+    if (!window._optionRessources('fab-propose-eco')) return 'ok';       // l'utilisateur ne veut pas etre interrompu
     const Go = (mo) => (mo / 1024).toFixed(1);
     const liste = (o.top || []).filter((x) => x.mo >= 300).slice(0, 5).map((x) => `• ${x.nom} : ${Go(x.mo)} GB`).join('\n');
+    const ecoDeja = window._optionRessources('fab-mode-eco');
     const msg = _i18nTf('Other apps already use {x} GB of your graphics card ({y} GB in total).', Go(o.autresMo), Go(o.totalMo))
       + '\n' + _i18nTf('This 3D needs about {x} GB. On a card that is too full it can be very slow or stop at the very end, and the whole run is lost.', Go(besoinMo))
       + (liste ? '\n\n' + liste : '')
-      + '\n\n' + _i18nT('Close them first for the best result.');
-    if (peutLeger && window._optionRessources('fab-propose-leger')) return await _choixMemoireJuste(msg, true);
-    return (await customConfirm(msg, _i18nT('Graphics memory is tight'), _i18nT('Start anyway'))) ? 'quand-meme' : 'annuler';
+      + '\n\n' + _i18nT('Close them first for the best result.')
+      + (ecoDeja ? '' : '\n' + _i18nT('Eco mode frees memory while the PC generates (Settings > Hardware).'));
+    return await _choixMemoireJuste(msg, { eco: !ecoDeja, leger: !!peutLeger });
   } catch (_) { return 'ok'; }
 }
-(function _reglagesRessources3D() {
-  const REGLAGES = [['set-liberer-gpu', 'fab-liberer-gpu'], ['set-vider-images', 'fab-vider-images'], ['set-arret-aides', 'fab-arret-aides'], ['set-propose-leger', 'fab-propose-leger']];
-  for (const [id, cle] of REGLAGES) {
+(function _reglagesRessources() {
+  for (const cle of Object.keys(_IDS_RESSOURCES)) {
+    const id = _IDS_RESSOURCES[cle];
     const cb = document.getElementById(id);
     if (!cb) continue;
-    const ligne = document.getElementById(id + '-row') || document.getElementById('set-liberer-gpu-row');
-    const marquer = () => ligne && ligne.classList.toggle('on', cb.checked);
     cb.checked = window._optionRessources(cle);
-    marquer();
-    cb.addEventListener('change', () => { try { localStorage.setItem(cle, cb.checked ? '1' : '0'); } catch (_) {} marquer(); });
+    document.getElementById(id + '-row')?.classList.toggle('on', cb.checked);
+    cb.addEventListener('change', () => {
+      if (cle === 'fab-mode-eco') { window._activerModeEco(cb.checked); return; }
+      _poserOptionRessources(cle, cb.checked);
+      if (_CLES_ECO.includes(cle)) _poserOptionRessources('fab-mode-eco', _CLES_ECO.every((k) => window._optionRessources(k)));   // le mode eco reflete les trois
+    });
   }
 })();
 

@@ -4973,3 +4973,7 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 }
 #topbar-more-menu button:hover, #topbar-more-menu button:focus-visible { background: var(--bg-3); color: var(--text-0); outline: none; }
 #topbar-more-menu .tm-ic { width: 22px; flex: none; text-align: center; font-size: 15px; }
+
+/* MODE ECO (2026-10-01) : l'interrupteur principal de Reglages > Hardware > « Resources during a generation » ressort des quatre autres. */
+.np-eco-principal { border-width: 2px; margin-bottom: 14px; }
+.np-eco-principal .np-auto-titre { font-size: 15px; }
