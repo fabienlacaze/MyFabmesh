@@ -12393,6 +12393,14 @@ ipcMain.handle('disconnect-claude-desktop', async () => {
   }
 });
 
+// Relance de Claude Desktop depuis l'aide de l'Assistant (module src/main/claude_desktop.js : cible par le CHEMIN de l'executable,
+// jamais Claude Code, qui s'appelle aussi claude.exe). Pas dans le paquet du Store : fermer l'application d'un tiers n'y a pas sa place.
+ipcMain.handle('claude-desktop:restart', async () => {
+  if (isStoreBuild()) return { ok: false, erreur: 'store_build' };
+  try { return await require('./claude_desktop').relancer(); }
+  catch (e) { return { ok: false, erreur: String((e && e.message) || e) }; }
+});
+
 // « Connected » ne veut plus dire « une entree fabmesh existe » : elle doit viser
 // le serveur de CETTE installation (sur un PC de developpement, l'entree ecrite
 // par le depot faisait croire l'appli installee branchee).

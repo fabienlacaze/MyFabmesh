@@ -4945,6 +4945,7 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 .asst-etat { font-size: 13px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--text-2); }
 .asst-etat.ok { background: rgba(74,222,128,.16); color: #86efac; }
 .asst-etat.warn { background: rgba(251,191,36,.16); color: #fcd34d; }
+.asst-pas-note { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--text-2); }
 .asst-attendu { margin-top: 8px; font-size: 13px; color: var(--text-2); }
 .asst-attendu-l { color: #86efac; font-weight: 700; }
 

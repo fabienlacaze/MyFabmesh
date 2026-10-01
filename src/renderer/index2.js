@@ -24991,6 +24991,26 @@ async function _asstCopier(texte, bouton) {
     document.getElementById('set-claude-connect')?.click();
     setTimeout(majAide, 1500); setTimeout(majAide, 4000);
   });
+  // Bouton « Restart Claude Desktop » : confirmation (le texte non envoye est perdu), puis fermeture complete et reouverture.
+  // Absent du paquet du Store (la ligne « A la main » reste alors la seule consigne).
+  (async () => {
+    try { if (await _buildStore()) document.getElementById('asst-aide-relancer')?.closest('.asst-action')?.remove(); } catch (_) {}
+  })();
+  document.getElementById('asst-aide-relancer')?.addEventListener('click', async (ev) => {
+    const b = ev.currentTarget;
+    if (!API.restartClaudeDesktop) return;
+    const ok = await customConfirm('Claude Desktop will close and reopen. Text you have not sent in Claude Desktop will be lost.', 'Restart Claude Desktop', 'Restart');
+    if (!ok) return;
+    const avant = b.textContent;
+    b.disabled = true; b.textContent = _i18nT('Restarting...');
+    let r = null;
+    try { r = await API.restartClaudeDesktop(); } catch (_) {}
+    b.disabled = false; b.textContent = avant;
+    if (r && r.ok) showToast(_i18nT(r.enCours ? 'Claude Desktop restarted.' : 'Claude Desktop opened.'), 'success', 5000);
+    else if (r && r.erreur === 'not_installed') showToast(_i18nT('Claude Desktop is not installed on this PC.'), 'error', 6000);
+    else showToast(_i18nT('Could not restart Claude Desktop. Do it by hand (step 3).'), 'error', 6000);
+    setTimeout(majAide, 3000);
+  });
   aide?.querySelectorAll('.asst-activer').forEach((b) => b.addEventListener('click', () => {
     if (!inter.checked) { inter.checked = true; inter.dispatchEvent(new Event('change')); }
     setTimeout(majAide, 800);
