@@ -31759,32 +31759,29 @@ window._ressourcesFinGeneration = function (job) {
 setInterval(() => {
   if (_genEco.size && !(state.jobs || []).some((j) => j.status === 'running')) { _genEco.clear(); window._restaurerMemoireGraphique(); }
 }, 5000);
-/** Fenetre a choix (carte trop prise) : « eco » | « leger » | « quand-meme » | « annuler ». `o.eco` : proposer le mode eco ; `o.leger` : 3D plus legere. */
+/** Fenetre « memoire graphique juste » (2026-10-01, user : « pas assez clair, trop de boutons, trop de blabla ») : un message de deux lignes,
+ *  DEUX boutons — l'action conseillee (`principal` : « eco » | « leger » | « quand-meme », `libelle`) et Annuler (Echap aussi).
+ *  Rend `principal` ou « annuler ». */
 function _choixMemoireJuste(msg, o) {
   return new Promise((resolve) => {
     document.getElementById('modal-memoire-juste')?.remove();
     const m = document.createElement('div');
     m.id = 'modal-memoire-juste'; m.className = 'modal-overlay'; m.setAttribute('data-i18n-skip', '');
     const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const premier = o.eco ? 'eco' : (o.leger ? 'leger' : 'quand-meme');
-    const btn = (id, cle, texte) => `<button class="${cle === premier ? 'primary-btn' : 'ghost-btn'}" id="${id}">${esc(texte)}</button>`;
-    m.innerHTML = `<div class="modal-card" style="max-width:600px;width:92vw;">
+    m.innerHTML = `<div class="modal-card" style="max-width:440px;width:92vw;">
       <div class="fen-tete"><h2>${esc(_i18nT('Graphics memory is tight'))}</h2></div>
-      <p class="modal-subtitle" style="white-space:pre-line;">${esc(msg)}</p>
-      <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
-        ${o.eco ? btn('mj-eco', 'eco', _i18nT('Eco mode')) : ''}
-        ${o.leger ? btn('mj-leger', 'leger', _i18nT('Lighter mode')) : ''}
-        ${btn('mj-quand-meme', 'quand-meme', _i18nT('Start anyway'))}
+      <p class="modal-subtitle" style="white-space:pre-line;font-size:14px;line-height:1.5;">${esc(msg)}</p>
+      <div class="modal-actions" style="gap:8px;">
         <button class="ghost-btn" id="mj-annuler">${esc(_i18nT('Cancel'))}</button>
+        <button class="primary-btn" id="mj-principal">${esc(o.libelle)}</button>
       </div></div>`;
     document.body.appendChild(m);
     const fin = (v) => { m.remove(); document.removeEventListener('keydown', echap); resolve(v); };
     const echap = (e) => { if (e.key === 'Escape') fin('annuler'); };
     document.addEventListener('keydown', echap);
-    m.querySelector('#mj-eco')?.addEventListener('click', () => fin('eco'));
-    m.querySelector('#mj-leger')?.addEventListener('click', () => fin('leger'));
-    m.querySelector('#mj-quand-meme').addEventListener('click', () => fin('quand-meme'));
+    m.querySelector('#mj-principal').addEventListener('click', () => fin(o.principal));
     m.querySelector('#mj-annuler').addEventListener('click', () => fin('annuler'));
+    m.querySelector('#mj-principal').focus();
   });
 }
 /** Avant une 3D locale : la carte a-t-elle la place ? Sinon on le dit, en nommant ce qui l'occupe, et on PROPOSE le mode eco.
@@ -31801,14 +31798,16 @@ async function _verifierVramAvant3D(besoinMo, peutLeger) {
     if (dispo >= besoinMo) return 'ok';
     if (!window._optionRessources('fab-propose-eco')) return 'ok';       // l'utilisateur ne veut pas etre interrompu
     const Go = (mo) => (mo / 1024).toFixed(1);
-    const liste = (o.top || []).filter((x) => x.mo >= 300).slice(0, 5).map((x) => `• ${x.nom} : ${Go(x.mo)} GB`).join('\n');
     const ecoDeja = window._optionRessources('fab-mode-eco');
-    const msg = _i18nTf('Other apps already use {x} GB of your graphics card ({y} GB in total).', Go(o.autresMo), Go(o.totalMo))
-      + '\n' + _i18nTf('This 3D needs about {x} GB. On a card that is too full it can be very slow or stop at the very end, and the whole run is lost.', Go(besoinMo))
-      + (liste ? '\n\n' + liste : '')
-      + '\n\n' + _i18nT('Close them first for the best result.')
-      + (ecoDeja ? '' : '\n' + _i18nT('Eco mode frees memory while the PC generates (Settings > Hardware).'));
-    return await _choixMemoireJuste(msg, { eco: !ecoDeja, leger: !!peutLeger });
+    // Choix conseille : le mode eco d'abord (il libere la memoire de l'interface), puis le mode plus leger, sinon lancer tel quel.
+    const principal = !ecoDeja ? 'eco' : (peutLeger ? 'leger' : 'quand-meme');
+    const libelle = principal === 'eco' ? _i18nT('Eco mode and start') : (principal === 'leger' ? _i18nT('Lighter mode and start') : _i18nT('Start anyway'));
+    // Ce que l'utilisateur peut FERMER : les autres logiciels (ni l'interface de MyFabmesh, ni l'affichage de Windows).
+    const aFermer = (o.top || []).filter((x) => x.mo >= 300 && !/myfabmesh|windows|dwm/i.test(String(x.nom))).slice(0, 3)
+      .map((x) => `${x.nom} (${Go(x.mo)} GB)`).join(', ');
+    const msg = _i18nTf('{x} GB of graphics memory left, this 3D needs {y} GB.', Go(dispo), Go(besoinMo))
+      + '\n' + (!ecoDeja ? _i18nT('Eco mode frees memory while the 3D runs.') : (aFermer ? _i18nTf('Close: {x}', aFermer) : ''));
+    return await _choixMemoireJuste(msg, { principal, libelle });
   } catch (_) { return 'ok'; }
 }
 (function _reglagesRessources() {
