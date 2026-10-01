@@ -6,11 +6,30 @@ instance end-to-end: generate images, meshes, rigs, inspect state,
 capture screenshots, tail logs in real time.
 
 - **Host** : `127.0.0.1:7331` (local only — never expose externally)
-- **Always-on** (disable with `FABMESH_CONTROL_API=0`)
-- **Auth** : Bearer token written at startup to
-  `~/.fabmesh/test_api_token.txt` and `<repo>/.test_api_token`
+- **Switched on** (2026-09-30):
+  - installed app: **off by default**; Settings › Assistant › "Allow Claude and
+    scripts on this PC" starts and stops it live (the "?" button there explains
+    Claude Desktop / Claude Code set-up);
+  - development (`npm start`) and `FABMESH_TEST_API=1` / `FABMESH_CONTROL_API=1`:
+    on at launch, full access. `FABMESH_CONTROL_API=0`: no automatic start.
+- **Two levels**:
+  - *standard* (the switch): `/ui/*` (settings, uninstall and parental-control
+    controls refused), generation, projects, jobs, screenshots, logs read-only,
+    `/ipc` limited to a read-only allow-list, images of the data folders only.
+    No `/eval`, no arbitrary file read or write. Routes outside this level
+    answer 403.
+  - *full* ("Developer full access" in Settings › Assistant › Advanced, not in
+    the Store build; always in development and with the variables above):
+    every route below.
+- **Auth** : Bearer token, new at each start of the server, written after it
+  listens to `~/.fabmesh/test_api_token.txt` (and `<repo>/.test_api_token` in
+  development), deleted when it stops.
+- Requests carrying an `Origin` header (web pages) or a foreign `Host` are refused.
 
-Every request must carry `Authorization: Bearer <token>` (or `?token=...`).
+Every request must carry `Authorization: Bearer <token>` (`?token=...` is
+accepted only with full access).
+Claude Desktop / Claude Code connect through `scripts/mcp_server.py` (MCP over
+stdio), which talks to this API.
 
 ---
 
