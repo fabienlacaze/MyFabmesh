@@ -24830,3 +24830,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
   * translate_prompt.py : dossier du script sur sys.path (._pth), delai reseau 60 s (urllib d'Argos sans delai : etape de l'assistant figee 15 min derriere un pare-feu), arret si l'index Argos est injoignable (sinon get_available_packages se rappelle jusqu'a la RecursionError, verifie dans le code 1.11.0) ;
   * translate_server.py : delai reseau 60 s ; wizard_smoke_test.py : import reel de argostranslate.translate ; garde check_imports_voisins : minisbd = copie dans site-packages.
 - Verifie (python de developpement, argos 1.11.0 + stanza 1.10.1) : remplacant en tete de chemin -> `from argostranslate import translate` OK et « Une fourmi geante. Elle porte un casque rouge ! » -> « A giant ant. She's wearing a red helmet! » (6,6 s). Gardes : voisins OK.
+
+- 2026-10-01 : fusion de wf5-bureau-fiabilite-2 (4d849be6). sdxl_server.py : RealVis charge en variante fp16 (fonction _charger_realvis) — sans variante, diffusers telechargeait ~10 Go de poids fp32 au 1er Detail++ (verifie : unet fp32 apparu dans le cache a 20:59 le 30/09), cause probable des longues attentes de Detail++.

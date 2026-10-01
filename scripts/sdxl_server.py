@@ -80,6 +80,17 @@ PORT = 5555
 # Research License, disqualifying it from a Steam release. RealVis XL shares the
 # same SDXL architecture so StableDiffusionXLImg2ImgPipeline loads it unchanged.
 IMG2IMG_MODEL = "SG161222/RealVisXL_V4.0"
+
+
+def _charger_realvis(classe, **kw):
+    """RealVis XL : variante fp16 (les fichiers que l'assistant installe). Sans `variant`, diffusers prenait les poids fp32 par
+    defaut et telechargeait ~10 Go de plus en silence au premier Detail++ (constate le 2026-09-30 a 20:59). Repli sans variante
+    seulement si les fichiers fp16 sont introuvables."""
+    try:
+        return classe.from_pretrained(IMG2IMG_MODEL, variant="fp16", **kw)
+    except (OSError, ValueError) as e:
+        log(f"RealVis fp16 introuvable ({type(e).__name__}) : poids par defaut", 'err')
+        return classe.from_pretrained(IMG2IMG_MODEL, **kw)
 # Back-compat alias (some older code paths still reference the old name).
 SDXL_TURBO_MODEL = IMG2IMG_MODEL
 SDXL_INPAINT_MODEL = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
@@ -378,10 +389,8 @@ def load_img2img():
         _set_memory_fraction()
         from diffusers import StableDiffusionXLImg2ImgPipeline
         t0 = time.time()
-        # RealVis XL V4.0 doesn't ship an fp16 variant branch — ask for fp16 dtype
-        # but omit variant="fp16" so the loader grabs the default safetensors.
-        pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(
-            IMG2IMG_MODEL,
+        pipe = _charger_realvis(
+            StableDiffusionXLImg2ImgPipeline,
             torch_dtype=torch.float16,
             use_safetensors=True,
         )
@@ -526,8 +535,8 @@ def load_controlnet_tile():
             torch_dtype=torch.float16,
             use_safetensors=True,
         )
-        pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
-            IMG2IMG_MODEL,
+        pipe = _charger_realvis(
+            StableDiffusionXLControlNetImg2ImgPipeline,
             controlnet=controlnet,
             torch_dtype=torch.float16,
             use_safetensors=True,
@@ -609,8 +618,8 @@ def load_controlnet_geo():
             torch_dtype=torch.float16,
             use_safetensors=True,
         )
-        pipe = StableDiffusionXLControlNetUnionImg2ImgPipeline.from_pretrained(
-            IMG2IMG_MODEL,
+        pipe = _charger_realvis(
+            StableDiffusionXLControlNetUnionImg2ImgPipeline,
             controlnet=controlnet,
             torch_dtype=torch.float16,
             use_safetensors=True,
