@@ -24834,3 +24834,5 @@ Demande exploitant : « On n'a toujours pas de moyen pour réellement cloisonner
 - 2026-10-01 : fusion de wf5-bureau-fiabilite-2 (4d849be6). sdxl_server.py : RealVis charge en variante fp16 (fonction _charger_realvis) — sans variante, diffusers telechargeait ~10 Go de poids fp32 au 1er Detail++ (verifie : unet fp32 apparu dans le cache a 20:59 le 30/09), cause probable des longues attentes de Detail++.
 
 - 2026-10-01 : « autres logiciels » = usage mesure - plancher Windows (Windows etait compte deux fois : sa part fixe a gauche ET dans l'usage mesure, ex. 21,8 Go = les 68 % du Gestionnaire des taches) ; usage reel de MyFabmesh = usage - plancher - autres.
+
+- 2026-10-01 : besoin VRAM de TOUS les outils = plus petit pic RESERVE mesure d'une reussite (Ultra 8K : 10,6 Go avec 11,8 de budget, 6,4 avec 7,2, meme resultat) ; le minimum affiche ne gonfle plus quand le budget est large. RAM : plus grand pic (sauf 3D).

@@ -3633,9 +3633,10 @@ ipcMain.handle('memory-needs', () => {
       // 0,1 Go de moins que ce que le controle exige (3D retenue « 11,2 Go demandes, 11,1 libres », 30/09)
       const ramH = Math.ceil(ram / 102.4) / 10, vramH = Math.ceil(vram / 102.4) / 10;
       const plusPetit = (x, y) => (x > 0 && y > 0 ? Math.min(x, y) : Math.max(x, y));
-      vus[cle] = cle === 'trellis2'
-        ? { ramGo: plusPetit(p.ramGo, ramH), vramGo: plusPetit(p.vramGo, vramH) }        // plus petit besoin MESURE (repli vers un mode plus leger)
-        : { ramGo: Math.max(p.ramGo, ramH), vramGo: Math.max(p.vramGo, vramH) };
+      // VRAM : le pic RESERVE par PyTorch depend de la place qu'on lui laisse (le cache s'etend, puis se vide sous un plafond serre : Ultra 8K
+      // 10,6 Go avec 11,8 de budget, 6,4 Go avec 7,2 — meme resultat). Le besoin reel est donc le plus PETIT pic mesure d'une reussite, pour
+      // TOUS les outils (user 1/10 : « Ultra 8K will wait » alors qu'il passe a 6,3 Go). RAM : le plus grand pic, sauf 3D (repli).
+      vus[cle] = { ramGo: cle === 'trellis2' ? plusPetit(p.ramGo, ramH) : Math.max(p.ramGo, ramH), vramGo: plusPetit(p.vramGo, vramH) };
     }
     for (const [cle, v] of Object.entries(vus)) types[cle] = { ramGo: v.ramGo || (types[cle] || {}).ramGo || 0, vramGo: v.vramGo || (types[cle] || {}).vramGo || 0 };
   } catch (_) {}
