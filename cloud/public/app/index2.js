@@ -29790,8 +29790,10 @@ window.__maillageParentUrl = async (rigPath) => {
   const el = document.createElement('div');
   el.id = 'version-logiciel';
   el.setAttribute('data-i18n-skip', ''); el.setAttribute('translate', 'no');
-  el.textContent = `v${b.version} · build ${b.build}${b.sale ? '*' : ''}`;
-  el.title = `${b.date} · ${b.hash}${b.sale ? ' · unsaved changes' : ''}`;
+  // Seul le dernier build ENREGISTRE est annonce : le travail en cours n'interesse pas l'utilisateur (« on s'en fout de dire l'en-cours aux users »).
+  // b.build compte deja +1 quand des modifications ne sont pas enregistrees : on le retire, pour que le numero annonce soit toujours dans la liste.
+  el.textContent = `v${b.version} · build ${b.sale ? Number(b.build) - 1 : b.build}`;
+  el.title = `${b.date} · ${b.hash}`;
   document.body.appendChild(el);
 })();
 
@@ -29809,7 +29811,7 @@ function ouvrirJournalVersion() {
   const lignes = groupes.map((g, gi) => `<details class="mj-version"${gi === 0 ? ' open' : ''}><summary>v${esc(g.v)} <span class="mj-n">${g.jours.reduce((n, x) => n + x.l.length, 0)}</span></summary>${g.jours.map((jr) => `<div class="mj-jour">${esc(jr.d)}</div><ul class="mj-liste">${jr.l.map((x) => `<li><span class="mj-build">${x.n ? '#' + esc(x.n) : ''}</span><span class="mj-txt">${esc(x.t)}</span></li>`).join('')}</ul>`).join('')}</details>`).join('');
   m.innerHTML = `<div class="modal-card" style="max-width:680px;width:92vw;">
     <div class="fen-tete"><h2>${esc(t('Latest changes'))}</h2><button type="button" class="settings-close-x" id="mj-close" title="Close">&#10005;</button></div>
-    <p class="modal-subtitle">v${esc(b.version)} · build ${esc(b.build)}${b.sale ? ' *' : ''} · ${esc(b.date)} · ${esc(b.hash)}${b.sale ? ' — ' + esc(t('changes in progress, not yet saved')) : ''}</p>
+    <p class="modal-subtitle">v${esc(b.version)} · build ${esc(b.sale ? Number(b.build) - 1 : b.build)} · ${esc(b.date)} · ${esc(b.hash)}</p>
     <div class="mj-corps">${lignes || '—'}</div>
     <div class="modal-actions"><button class="primary-btn" id="mj-ok">${esc(t('Close'))}</button></div></div>`;
   document.body.appendChild(m);
