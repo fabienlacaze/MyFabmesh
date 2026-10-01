@@ -78,6 +78,11 @@ def caption_outfit(florence_proc, florence_model, ref_img) -> str:
         r'\b(her|his|their) (mouth|eyes|nose)\b',
     ]:
         outfit_desc = re.sub(noise, '', outfit_desc, flags=re.IGNORECASE)
+    # Pieces qui n'existent QUE devant : le prompt de dos ne doit pas les nommer (« breastplate » dessinait un plastron sur le dos).
+    for avant, apres in [(r'\bbreast ?plates?\b', 'back plate'), (r'\bchest ?plates?\b', 'back plate'), (r'\bchest armou?r\b', 'back armor'),
+                         (r'\bcuirass(es)?\b', 'back armor'), (r'\bvisors?\b[^,.;]*', ''), (r'\b(face|faces|eyes?|nose|mouth)\b', ''),
+                         (r'\bchest\b', 'back')]:
+        outfit_desc = re.sub(avant, apres, outfit_desc, flags=re.IGNORECASE)
     outfit_desc = re.sub(r'\s+', ' ', outfit_desc).strip(' .,;')
     if len(outfit_desc) > 200:
         outfit_desc = outfit_desc[:200].rsplit(' ', 1)[0] + '...'
@@ -94,6 +99,10 @@ def strip_front_tokens(hint: str) -> str:
         r'three[- ]?quarter view', r'three[- ]?fourth view',
     ]:
         out = re.sub(pat, '', out, flags=re.IGNORECASE)
+    # VISAGE / VISIERE (2026-10-02) : « his face partially obscured by a metal helm » est lu comme « visage visible » et ramene l'avant.
+    for pat in [r'\b(his|her|their|its) face\b[^,.;]*', r'\bface (is )?(partially |partly )?(obscured|hidden|covered)[^,.;]*',
+                r'\bvisors?\b[^,.;]*', r'\blooking (at|towards?)\b[^,.;]*', r'\bgaze\b[^,.;]*']:
+        out = re.sub(pat, '', out, flags=re.IGNORECASE)
     out = re.sub(r',\s*,', ',', out)
     return re.sub(r'\s+', ' ', out).strip(' ,')
 
@@ -105,12 +114,15 @@ def build_back_prompts(hint_clean: str, outfit_desc: str) -> tuple[str, str]:
         if outfit_desc else ''
     )
     prompt = (
-        f'{base}{outfit_phrase}, back view, from behind, back of head visible, '
-        f'turned away from camera, full body centered, plain grey '
+        f'{base}{outfit_phrase}, (back view:1.5), (seen from behind:1.5), (rear view of the character:1.3), (back of the head visible:1.3), '
+        f'(back of the skull, smooth back of the head:1.2), (turned away from camera:1.4), full body centered, plain grey '
         f'background, studio lighting, sharp focus, ultra detailed, '
         f'8k, masterpiece'
     )
     neg = (
+        '(front view:1.6), (facing camera:1.5), (face visible:1.5), (frontal view:1.5), (visor:1.5), (eye slits:1.4), '
+        '(mouth:1.5), (open mouth:1.5), (teeth:1.5), (fangs:1.4), (eyes:1.4), (face:1.5), '
+        '(breastplate:1.4), (chest armor:1.3), (chest plate:1.3), '
         'blurry, deformed, extra limbs, bad anatomy, different person, '
         'front view, facing camera, face visible, frontal view, '
         'eyes visible, looking at camera, mouth visible, ears in front, '
@@ -172,7 +184,7 @@ def generate(
     skel_img: Image.Image,
     front_img: Image.Image,
     prompt_hint: str = '',
-    ip_scale: float = 0.65,
+    ip_scale: float = 0.25,      # 0,65 jusqu'au 2026-10-02 : une reference de face forte recopie la face (mesure dans scripts/generate_back_view.py)
     cn_scale: float = 1.0,
     steps: int = 30,
     seed: int = 424242,

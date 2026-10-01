@@ -28,8 +28,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _sdxl_prompt_utils import encode_sdxl_long_prompt
 
 
+# REFERENCE DE FACE 0,65 -> 0,25 (2026-10-02, rapport d'essais du 01/10 : « la vue de dos montre encore l'avant »). MESURE sur la carte, 4 candidats par
+# essai : alien (0,65) 4 faces sur 4 ; alien (0,12) 4 DOS sur 4 ; chevalier (0,25 et 0,12) 3 dos sur 4. Une reference de face forte (IP-Adapter) recopie
+# la face quelle que soit la consigne « de dos » ; faible, le modele suit le squelette de dos et le prompt, et garde le style (couleurs, materiaux).
 def generate_back(front_image, out_dir, prompt_hint='', num_images=1,
-                  ip_scale=0.65, steps=30, seed=424242, name_suffix='',
+                  ip_scale=0.25, steps=30, seed=424242, name_suffix='',
                   cn_scale=1.0):
     os.makedirs(out_dir, exist_ok=True)
     print(f'[back-view] front={front_image} out={out_dir} hint="{prompt_hint}" '
@@ -102,6 +105,11 @@ def generate_back(front_image, out_dir, prompt_hint='', num_images=1,
         r'three[- ]?fourth view',
     ]
     for pat in _front_patterns:
+        hint_clean = _re.sub(pat, '', hint_clean, flags=_re.IGNORECASE)
+    # VISAGE / VISIERE (2026-10-02, rapport d'essais du 01/10 : « la vue de dos montre encore l'avant », chevalier a visiere) : une consigne
+    # comme « his face partially obscured by a metal helm » est lue par SDXL comme « visage visible » et ramene l'avant.
+    for pat in [r'\b(his|her|their|its) face\b[^,.;]*', r'\bface (is )?(partially |partly )?(obscured|hidden|covered)[^,.;]*',
+                r'\bvisors?\b[^,.;]*', r'\blooking (at|towards?)\b[^,.;]*', r'\bgaze\b[^,.;]*']:
         hint_clean = _re.sub(pat, '', hint_clean, flags=_re.IGNORECASE)
     hint_clean = _re.sub(r',\s*,', ',', hint_clean)
     hint_clean = _re.sub(r'\s+', ' ', hint_clean).strip(' ,')
@@ -196,6 +204,12 @@ def generate_back(front_image, out_dir, prompt_hint='', num_images=1,
         ]:
             outfit_desc = _re_fl.sub(noise, '', outfit_desc,
                                       flags=_re_fl.IGNORECASE)
+        # Pieces d'armure / de vetement qui n'existent QUE devant : le prompt de dos ne doit pas les nommer (« breastplate » dessinait un plastron
+        # sur le dos du chevalier). Remplacees par leur equivalent arriere ; visiere, visage, yeux retires.
+        for avant, apres in [(r'\bbreast ?plates?\b', 'back plate'), (r'\bchest ?plates?\b', 'back plate'), (r'\bchest armou?r\b', 'back armor'),
+                             (r'\bcuirass(es)?\b', 'back armor'), (r'\bvisors?\b[^,.;]*', ''), (r'\b(face|faces|eyes?|nose|mouth)\b', ''),
+                             (r'\bchest\b', 'back')]:
+            outfit_desc = _re_fl.sub(avant, apres, outfit_desc, flags=_re_fl.IGNORECASE)
         outfit_desc = _re_fl.sub(r'\s+', ' ', outfit_desc).strip(' .,;')
         # Keep at most ~200 chars to avoid drowning the back-view cue
         if len(outfit_desc) > 200:
@@ -229,12 +243,15 @@ def generate_back(front_image, out_dir, prompt_hint='', num_images=1,
     base = hint_clean if hint_clean else 'a character'
     outfit_phrase = (f', wearing {outfit_desc}, same outfit, same garments' if outfit_desc else '')
     prompt = (
-        f'{base}{outfit_phrase}, back view, from behind, back of head visible, '
-        f'turned away from camera, full body centered, plain grey '
+        f'{base}{outfit_phrase}, (back view:1.5), (seen from behind:1.5), (rear view of the character:1.3), (back of the head visible:1.3), (back of the skull, smooth back of the head:1.2), '
+        f'(turned away from camera:1.4), full body centered, plain grey '
         f'background, studio lighting, sharp focus, ultra detailed, '
         f'8k, masterpiece'
     )
     neg = (
+        '(front view:1.6), (facing camera:1.5), (face visible:1.5), (frontal view:1.5), (visor:1.5), (eye slits:1.4), '
+        '(mouth:1.5), (open mouth:1.5), (teeth:1.5), (fangs:1.4), (eyes:1.4), (face:1.5), '
+        '(breastplate:1.4), (chest armor:1.3), (chest plate:1.3), '
         'blurry, deformed, extra limbs, bad anatomy, different person, '
         # ANTI-FRONT: stop the model from regenerating a front view (the
         # IPAdapter on the front photo strongly pulls in this direction).
@@ -374,6 +391,8 @@ def generate_back(front_image, out_dir, prompt_hint='', num_images=1,
             print(f'[back-view] candidate {k+1}/{n_candidates} seed={cand_seed} '
                   f'color_match={score:.3f} ({time.time()-t0:.1f}s)', flush=True)
             candidates.append((score, img, cand_seed))
+            if os.environ.get('FABMESH_BACK_SAVE_ALL') == '1':      # diagnostic : garde TOUS les candidats (desactive par defaut)
+                img.save(os.path.join(out_dir, f'candidat{suffix}_{k}.png'))
 
         candidates.sort(key=lambda t: -t[0])
         best_score, best_img, best_seed = candidates[0]

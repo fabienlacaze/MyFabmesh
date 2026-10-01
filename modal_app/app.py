@@ -1450,7 +1450,7 @@ class MyFabmeshBackview:
             self.skel_img,
             front_img,
             prompt_hint=payload.get("prompt_hint") or "",
-            ip_scale=float(payload.get("ip_scale") or 0.65),
+            ip_scale=float(payload.get("ip_scale") or 0.25),     # 0,65 avant le 2026-10-02 (vue de dos qui montrait l'avant)
             steps=int(payload.get("steps") or 30),
             seed=int(payload.get("seed") or 424242),
             n_candidates=int(payload.get("n_candidates") or 4),
