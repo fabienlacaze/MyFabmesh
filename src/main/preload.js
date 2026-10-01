@@ -185,6 +185,8 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   connectClaudeDesktop: () => ipcRenderer.invoke('connect-claude-desktop'),
   disconnectClaudeDesktop: () => ipcRenderer.invoke('disconnect-claude-desktop'),
   restartClaudeDesktop: () => ipcRenderer.invoke('claude-desktop:restart'),
+  assistantAutoGet: () => ipcRenderer.invoke('assistant-api:auto-get'),
+  assistantAutoSet: (on) => ipcRenderer.invoke('assistant-api:auto-set', on === true),
   checkClaudeDesktop: () => ipcRenderer.invoke('check-claude-desktop'),
   onMcpJobStart: (cb) => ipcRenderer.on('mcp-job-start', (e, data) => cb(data)),
   onMcpJobEnd: (cb) => ipcRenderer.on('mcp-job-end', (e, data) => cb(data)),

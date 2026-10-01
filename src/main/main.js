@@ -12171,6 +12171,7 @@ function _decisionApiAuLancement() {
   if (env.FABMESH_CONTROL_API === '0') return { demarrer: false };
   if (!app.isPackaged) return { demarrer: true, niveau: 'complet', force: true };
   if (_reglagesApi().enabled === true) return { demarrer: true, niveau: _niveauVouluApi(), force: false };
+  if (_autoConnexionClaude()) return { demarrer: true, niveau: _niveauVouluApi(), force: false };
   return { demarrer: false };
 }
 function _surEvenementApi(evt) {
@@ -12203,6 +12204,7 @@ function _demarrerApiAuLancement() {
     return;
   }
   _configurerApi();
+  if (_autoConnexionClaude()) _assurerLiaisonClaude();
   _controleApi.demarrer({ niveau: d.niveau }).then((e) => {
     if (e.actif) log.info('assistant', `API locale allumee au lancement : 127.0.0.1:${e.port}, acces ${e.niveau}${d.force ? ' (impose par l\'environnement ou le developpement)' : ''}`);
     else log.warn('assistant', `API locale : demarrage impossible (${e.erreur})`);
@@ -12305,9 +12307,11 @@ ipcMain.handle('set-config', (_event, patch) => {
  * (resources\python-embed\python.exe, signe PSF, compatible Smart App Control)
  * et le serveur livre (resources\scripts\mcp_server.py, bibliotheque standard
  * seulement), qui parle a l'API locale avec la cle de ~/.fabmesh. */
+// Claude Desktop installe par le Store lit une copie PRIVEE de sa configuration (voir src/main/claude_config.js) : on traite toutes les installations.
+const _claudeConfig = require('./claude_config');
 function _cheminConfigClaude() {
-  const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-  return path.join(appData, 'Claude', 'claude_desktop_config.json');
+  const c = _claudeConfig.cheminsConfig();
+  return c.length ? c[0].fichier : path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Claude', 'claude_desktop_config.json');
 }
 function _entreeMcpClaude() {
   return { command: _embeddedPython(), args: [path.join(SCRIPTS_DIR, 'mcp_server.py')] };
@@ -12332,28 +12336,18 @@ const _normChemin = (s) => String(s || '').replace(/[\\/]+/g, '\\').toLowerCase(
 // the local API on. Claude Desktop sees the tools after a full restart.
 ipcMain.handle('connect-claude-desktop', async () => {
   try {
-    const configPath = _cheminConfigClaude();
-    let config = {};
-    if (fs.existsSync(configPath)) {
-      const brut = fs.readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, '');
-      if (brut.trim()) {
-        // Illisible : on ne l'ecrase JAMAIS (il porte peut-etre d'autres serveurs du user).
-        try { config = JSON.parse(brut); }
-        catch (e) { return { success: false, error: "Claude Desktop's settings file is not valid JSON. Fix it, or use Manual setup in the ? help." }; }
-        if (!config || typeof config !== 'object' || Array.isArray(config)) {
-          return { success: false, error: "Claude Desktop's settings file has an unexpected format. Use Manual setup in the ? help." };
-        }
-      }
+    const r = _claudeConfig.relier(_entreeMcpClaude());
+    if (!r.ok) {
+      const illisible = (r.echecs || []).includes('unreadable');
+      return { success: false, error: illisible
+        ? "Claude Desktop's settings file is not valid JSON. Fix it, or use Manual setup in the ? help."
+        : ('Could not write the Claude Desktop settings: ' + ((r.echecs || [])[0] || 'unknown error')) };
     }
-    if (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers)) config.mcpServers = {};
-    config.mcpServers.fabmesh = _entreeMcpClaude();
-    fs.mkdirSync(path.dirname(configPath), { recursive: true });
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-    log.info('main', `Claude Desktop config written to ${configPath}`);
+    log.info('main', `Claude Desktop config written to ${r.fichiers.join(' | ')}`);
     // Brancher Claude = l'autoriser : l'interrupteur s'allume.
     let api = _etatAssistant();
     if (!api.actif) api = await _allumerApi(true);
-    return { success: true, configPath, api };
+    return { success: true, configPath: r.fichiers[0], api };
   } catch (e) {
     log.error('main', `connect-claude-desktop failed: ${e.message}`);
     return { success: false, error: e.message };
@@ -12362,16 +12356,10 @@ ipcMain.handle('connect-claude-desktop', async () => {
 
 ipcMain.handle('disconnect-claude-desktop', async () => {
   try {
-    // Remove from Claude Desktop config
-    const configPath = _cheminConfigClaude();
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      if (config.mcpServers && config.mcpServers.fabmesh) {
-        delete config.mcpServers.fabmesh;
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-        log.info('main', 'Removed FabMesh from Claude Desktop config');
-      }
-    }
+    // Retire l'entree de TOUTES les installations de Claude Desktop (classique et paquet Store)
+    const d = _claudeConfig.delier();
+    if (!d.ok) return { success: false, error: "Claude Desktop's settings file is not valid JSON." };
+    log.info('main', 'Removed FabMesh from Claude Desktop config');
     // Also remove the fabmesh entry from the local .claude/mcp.json
     // (DON'T delete the whole file — it may contain other MCP servers)
     const localMcp = path.join(__dirname, '..', '..', '.claude', 'mcp.json');
@@ -12406,17 +12394,32 @@ ipcMain.handle('claude-desktop:restart', async () => {
 // par le depot faisait croire l'appli installee branchee).
 ipcMain.handle('check-claude-desktop', async () => {
   try {
-    const configPath = _cheminConfigClaude();
-    if (!fs.existsSync(configPath)) return { connected: false };
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, ''));
-    const e = config && config.mcpServers && config.mcpServers.fabmesh;
-    if (!e) return { connected: false };
-    const script = Array.isArray(e.args) ? e.args.find((a) => /mcp_server\.py$/i.test(String(a))) : null;
-    const ici = !!script && _normChemin(script) === _normChemin(_entreeMcpClaude().args[0]);
-    return { connected: true, ici };
+    const e = _claudeConfig.etat(_entreeMcpClaude());
+    return { connected: e.connecte, ici: e.ici };
   } catch (e) {
     return { connected: false };
   }
+});
+
+// CONNEXION AUTOMATIQUE (2026-10-01, user : « on peut pas avoir un mode connexion automatique ? ») : option des Reglages > Assistant, desactivee par defaut.
+// Activee : a chaque lancement de MyFabmesh.AI, l'API locale s'allume et la liaison avec Claude Desktop est remise sur CETTE installation
+// (rien n'est cree si Claude Desktop est absent). Claude relit la cle lui-meme a chaque appel ; seul un Claude Desktop deja ouvert
+// doit etre relance pour voir un changement de liaison.
+const _autoConnexionClaude = () => { try { return loadConfig().assistantAutoConnect === true; } catch (_) { return false; } };
+function _assurerLiaisonClaude() {
+  try {
+    const n = _claudeConfig.assurerSiPresent(_entreeMcpClaude());
+    if (n) log.info('assistant', `liaison Claude Desktop remise sur cette installation (${n} fichier(s))`);
+  } catch (e) { log.warn('assistant', 'liaison automatique Claude Desktop : ' + e.message); }
+}
+ipcMain.handle('assistant-api:auto-get', () => ({ enabled: _autoConnexionClaude() }));
+ipcMain.handle('assistant-api:auto-set', async (_e, on) => {
+  const c = loadConfig();
+  c.assistantAutoConnect = on === true;
+  saveConfig(c);
+  log.info('assistant', `connexion automatique ${on === true ? 'activee' : 'desactivee'}`);
+  if (on === true) { _assurerLiaisonClaude(); try { await _allumerApi(true); } catch (_) {} }
+  return { enabled: c.assistantAutoConnect === true };
 });
 
 ipcMain.handle('set-blender-path', async () => {

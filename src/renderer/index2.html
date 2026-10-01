@@ -2574,6 +2574,8 @@
             <button id="set-claude-disconnect" class="ghost-btn danger" style="display:none;">Disconnect</button>
             <span id="set-claude-status" class="settings-status-dot" data-i18n-skip></span>
           </div>
+          <label class="asst-auto-ligne" for="set-claude-auto"><input type="checkbox" id="set-claude-auto" /><span>Connect automatically at each start</span></label>
+          <div class="settings-box-hint">MyFabmesh.AI turns the access on and relinks Claude Desktop each time it starts.</div>
           <details class="asst-avance" id="set-api-avance">
             <summary>Advanced</summary>
             <div class="asst-champ">
@@ -3940,6 +3942,14 @@
       </div>
       <div class="asst-aide-corps">
         <div class="asst-panneau" data-asst-panneau="desktop">
+          <div class="asst-auto-bloc">
+            <div class="asst-pas-t">One click</div>
+            <p class="asst-pas-p">Links Claude Desktop to MyFabmesh.AI, turns on access, and restarts Claude Desktop for you.</p>
+            <div class="asst-action"><button type="button" class="primary-btn" id="asst-aide-auto">Connect automatically</button></div>
+            <label class="asst-auto-ligne" for="asst-aide-auto-case"><input type="checkbox" id="asst-aide-auto-case" /><span>Also do it at each start of MyFabmesh.AI</span></label>
+            <p class="asst-pas-note">Not installed yet? Install Claude Desktop first (step 1), then come back.</p>
+          </div>
+          <h3 class="asst-h">Or step by step</h3>
           <div class="asst-pas">
             <div class="asst-pas-n">1</div>
             <div class="asst-pas-c">
@@ -4059,6 +4069,7 @@
           <li>Off by default. Only programs on this PC can connect, and only with the access key.</li>
           <li>Whoever has the access key can use the app like you, cloud credits included.</li>
           <li>A new access key is made at each start. Turn the switch off when you are done.</li>
+          <li>With automatic connection, access is turned on at each start of MyFabmesh.AI.</li>
         </ul>
 
         <h3 class="asst-h">Trouble?</h3>

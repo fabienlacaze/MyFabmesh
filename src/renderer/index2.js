@@ -24860,6 +24860,7 @@ async function _asstCopier(texte, bouton) {
   }
   async function rafraichir() {
     try { await afficher(await API.assistantEtat()); } catch (_) {}
+    try { _lireAuto(); } catch (_) {}   // la case « connexion automatique » suit le reglage reel (declaree plus bas)
   }
   window._asstRafraichir = rafraichir;
 
@@ -24949,6 +24950,7 @@ async function _asstCopier(texte, bouton) {
     } catch (_) {}
     aide.classList.remove('hidden');
     majAide();
+    try { const r = await API.assistantAutoGet(); const k = document.getElementById('asst-aide-auto-case'); if (k) k.checked = !!(r && r.enabled); } catch (_) {}
     clearInterval(_minuteurAide);
     _minuteurAide = setInterval(majAide, 2000);
   }
@@ -25011,6 +25013,44 @@ async function _asstCopier(texte, bouton) {
     else showToast(_i18nT('Could not restart Claude Desktop. Do it by hand (step 3).'), 'error', 6000);
     setTimeout(majAide, 3000);
   });
+  // CONNEXION AUTOMATIQUE (user : « on peut pas avoir un mode connexion automatique ? »).
+  // Bouton « en un clic » = lier Claude Desktop + allumer l'acces + le redemarrer, apres UNE confirmation.
+  document.getElementById('asst-aide-auto')?.addEventListener('click', async (ev) => {
+    const b = ev.currentTarget;
+    const ok = await customConfirm('MyFabmesh.AI will link Claude Desktop, turn on access, then close and reopen Claude Desktop. Text you have not sent in Claude Desktop will be lost.', 'Connect automatically', 'Connect');
+    if (!ok) return;
+    const avant = b.textContent;
+    b.disabled = true; b.textContent = _i18nT('Connecting...');
+    let r = null;
+    try { r = await API.connectClaudeDesktop(); } catch (e) { r = { success: false, error: String((e && e.message) || e) }; }
+    if (!(r && r.success)) {
+      b.disabled = false; b.textContent = avant;
+      showToast((r && r.error) ? _i18nT(r.error) : _i18nT('Unknown error'), 'error', 7000);
+      majAide();
+      return;
+    }
+    let rr = null;
+    try { if (!(await _buildStore()) && API.restartClaudeDesktop) rr = await API.restartClaudeDesktop(); } catch (_) {}
+    b.disabled = false; b.textContent = avant;
+    rafraichir(); checkClaudeDesktopStatus();
+    if (rr && rr.ok) showToast(_i18nT('Done. In Claude Desktop, open a new conversation: “fabmesh” is in the tools menu.'), 'success', 9000);
+    else if (rr && rr.erreur === 'not_installed') showToast(_i18nT('Claude Desktop is not installed on this PC. Install it, then click again.'), 'error', 8000);
+    else showToast(_i18nT('Linked. Now restart Claude Desktop completely (step 3).'), 'info', 8000);
+    setTimeout(majAide, 1500);
+  });
+  // Option « a chaque demarrage » : une seule option, deux cases (Reglages et aide) gardees synchronisees.
+  const _casesAuto = () => [document.getElementById('set-claude-auto'), document.getElementById('asst-aide-auto-case')].filter(Boolean);
+  const _lireAuto = async () => {
+    try { const r = await API.assistantAutoGet(); _casesAuto().forEach((x) => { x.checked = !!(r && r.enabled); }); } catch (_) {}
+  };
+  _casesAuto().forEach((cx) => cx.addEventListener('change', async () => {
+    const on = cx.checked;
+    _casesAuto().forEach((x) => { x.checked = on; });
+    try { await API.assistantAutoSet(on); } catch (_) {}
+    showToast(_i18nT(on ? 'Automatic connection is on.' : 'Automatic connection is off.'), 'info', 4000);
+    rafraichir(); checkClaudeDesktopStatus(); setTimeout(majAide, 600);
+  }));
+  _lireAuto();
   aide?.querySelectorAll('.asst-activer').forEach((b) => b.addEventListener('click', () => {
     if (!inter.checked) { inter.checked = true; inter.dispatchEvent(new Event('change')); }
     setTimeout(majAide, 800);
@@ -25151,15 +25191,15 @@ function _showNsfwWarning() {
           You are about to disable the content filter. By proceeding, you confirm that:
         </p>
         <ul style="color:#fca5a5; font-size:14px; padding-left:20px; margin-bottom:12px;">
-          <li><strong>You are over 18 years old</strong> (or the legal age of majority in your country)</li>
-          <li>You take <strong>full personal responsibility</strong> for all content you generate</li>
-          <li>You will <strong>NOT</strong> generate any content involving minors, children, or underage persons in any sexual, violent, or exploitative context</li>
-          <li>You will <strong>NOT</strong> generate content depicting non-consensual acts, torture, or extreme violence against real persons</li>
+          <li style="margin-bottom:8px;"><strong>You are over 18 years old</strong> (or the legal age of majority in your country)</li>
+          <li style="margin-bottom:8px;">You take <strong>full personal responsibility</strong> for all content you generate</li>
+          <li style="margin-bottom:8px;">You will <strong>NOT</strong> generate any content involving minors, children, or underage persons in any sexual, violent, or exploitative context</li>
+          <li style="margin-bottom:8px;">You will <strong>NOT</strong> generate content depicting non-consensual acts, torture, or extreme violence against real persons</li>
         </ul>
         <p style="color:#ef4444; font-weight:700; font-size:13px; margin-bottom:8px;">
           ⚖️ LEGAL REMINDER
         </p>
-        <p style="color:#d4d4d8; font-size:13px; margin-bottom:8px;">
+        <p style="color:#d4d4d8; font-size:13px; margin-bottom:12px;">
           The creation, possession, or distribution of child sexual abuse material (CSAM) is a <strong>serious criminal offense</strong> in all jurisdictions worldwide, punishable by imprisonment.
         </p>
         <p style="color:#d4d4d8; font-size:13px; margin-bottom:8px;">
@@ -25181,12 +25221,19 @@ function _showNsfwWarning() {
     okBtn.style.fontSize = '13px';
     cancelBtn.textContent = 'Cancel';
     cancelBtn.style.display = '';
+    // Fenetre plus large et plus aeree (user 2026-10-01 : « elargis la fenetre, ca fait moins dense »), rendue a la fermeture.
+    const _carteLarge = modal.querySelector('.modal-card'); const _largeurAvant = _carteLarge ? _carteLarge.style.width : '';
+    if (_carteLarge) _carteLarge.style.width = '700px';
+    const _zoneMsg = msgEl.parentElement; const _margeAvant = _zoneMsg ? _zoneMsg.style.padding : '';
+    if (_zoneMsg) _zoneMsg.style.padding = '24px 32px';
     const _prevZ = modal.style.zIndex;
     modal.style.zIndex = '99999';
     modal.classList.remove('hidden');
 
     function cleanup(result) {
       modal.classList.add('hidden');
+      if (_carteLarge) _carteLarge.style.width = _largeurAvant;
+      if (_zoneMsg) _zoneMsg.style.padding = _margeAvant;
       modal.style.zIndex = _prevZ;
       okBtn.removeEventListener('click', onOk);
       cancelBtn.removeEventListener('click', onCancel);

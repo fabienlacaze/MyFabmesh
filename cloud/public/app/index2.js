@@ -25050,15 +25050,15 @@ function _showNsfwWarning() {
           You are about to disable the content filter. By proceeding, you confirm that:
         </p>
         <ul style="color:#fca5a5; font-size:12px; padding-left:20px; margin-bottom:12px;">
-          <li><strong>You are over 18 years old</strong> (or the legal age of majority in your country)</li>
-          <li>You take <strong>full personal responsibility</strong> for all content you generate</li>
-          <li>You will <strong>NOT</strong> generate any content involving minors, children, or underage persons in any sexual, violent, or exploitative context</li>
-          <li>You will <strong>NOT</strong> generate content depicting non-consensual acts, torture, or extreme violence against real persons</li>
+          <li style="margin-bottom:8px;"><strong>You are over 18 years old</strong> (or the legal age of majority in your country)</li>
+          <li style="margin-bottom:8px;">You take <strong>full personal responsibility</strong> for all content you generate</li>
+          <li style="margin-bottom:8px;">You will <strong>NOT</strong> generate any content involving minors, children, or underage persons in any sexual, violent, or exploitative context</li>
+          <li style="margin-bottom:8px;">You will <strong>NOT</strong> generate content depicting non-consensual acts, torture, or extreme violence against real persons</li>
         </ul>
         <p style="color:#ef4444; font-weight:700; font-size:13px; margin-bottom:8px;">
           ⚖️ LEGAL REMINDER
         </p>
-        <p style="color:#d4d4d8; font-size:11px; margin-bottom:8px;">
+        <p style="color:#d4d4d8; font-size:11px; margin-bottom:12px;">
           The creation, possession, or distribution of child sexual abuse material (CSAM) is a <strong>serious criminal offense</strong> in all jurisdictions worldwide, punishable by imprisonment.
         </p>
         <p style="color:#d4d4d8; font-size:11px; margin-bottom:8px;">
@@ -25080,12 +25080,19 @@ function _showNsfwWarning() {
     okBtn.style.fontSize = '11px';
     cancelBtn.textContent = 'Cancel';
     cancelBtn.style.display = '';
+    // Fenetre plus large et plus aeree (user 2026-10-01 : « elargis la fenetre, ca fait moins dense »), rendue a la fermeture.
+    const _carteLarge = modal.querySelector('.modal-card'); const _largeurAvant = _carteLarge ? _carteLarge.style.width : '';
+    if (_carteLarge) _carteLarge.style.width = '700px';
+    const _zoneMsg = msgEl.parentElement; const _margeAvant = _zoneMsg ? _zoneMsg.style.padding : '';
+    if (_zoneMsg) _zoneMsg.style.padding = '24px 32px';
     const _prevZ = modal.style.zIndex;
     modal.style.zIndex = '99999';
     modal.classList.remove('hidden');
 
     function cleanup(result) {
       modal.classList.add('hidden');
+      if (_carteLarge) _carteLarge.style.width = _largeurAvant;
+      if (_zoneMsg) _zoneMsg.style.padding = _margeAvant;
       modal.style.zIndex = _prevZ;
       okBtn.removeEventListener('click', onOk);
       cancelBtn.removeEventListener('click', onCancel);
