@@ -4663,9 +4663,9 @@
       // comptait pour un jour plein avec 1 h de donnees).
       const jours = Array.isArray(p.rythme_jours) ? p.rythme_jours : [];
       _mcTexte('mc-rythme', p.rythme_usd_jour == null ? '—' : _mcUsd(p.rythme_usd_jour) + ' / jour');
-      let subR = p.rythme_source === '7_jours' && jours.length
-        ? `moyenne des 7 derniers jours complets (${_mcJJMM(jours[0].jour)}→${_mcJJMM(jours[jours.length - 1].jour)})`
-        : p.rythme_source === 'depuis_debut_mois' ? 'moyenne depuis le 1er du mois' : 'pas assez de données';
+      let subR = (p.rythme_source === 'mois_en_cours' || p.rythme_source === '7_jours') && jours.length
+        ? `moyenne des ${jours.length} derniers jours complets de ce mois (${_mcJJMM(jours[0].jour)}→${_mcJJMM(jours[jours.length - 1].jour)})`
+        : p.rythme_source === 'depuis_debut_mois' ? 'moyenne depuis le 1er du mois' : 'pas assez de données ce mois-ci';
       if (!aJour && relMs != null && p.rythme_usd_jour != null) subR += ` · au relevé ${_mcDuReleve(relMs)}`;
       _mcTexte('mc-rythme-sub', subR);
       const cr = document.getElementById('mc-c-rythme');

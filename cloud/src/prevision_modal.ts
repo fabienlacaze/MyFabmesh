@@ -19,8 +19,9 @@
  *   - releve « a jour » <= 2 h ; au-dela il REMPLACE le verdict : jamais de
  *     prevision sur des chiffres perimes. > 26 h = « arrete » (seuil de
  *     l'arret automatique, inchange) ;
- *   - rythme = moyenne des 7 derniers jours COMPLETS de la facture (le jour en
- *     cours, a 1 h de donnees, comptait pour un jour plein) ;
+ *   - rythme = moyenne des jours COMPLETS DU MOIS EN COURS (2 au moins, 7 au plus ;
+ *     le jour en cours, a 1 h de donnees, comptait pour un jour plein), sinon total
+ *     du mois / temps ecoule des 12 premieres heures, sinon aucun (2026-10-01) ;
  *   - on raisonne jusqu'a la remise a zero : le 1er du mois a 00:00 UTC
  *     (02:00 a Paris l'ete, 01:00 l'hiver) ;
  *   - un releve du mois PRECEDENT n'est jamais presente comme « ce mois ».
@@ -87,7 +88,7 @@ export interface PrevisionModal {
   depense_usd: number | null;             // depense du mois EN COURS (null si inconnue)
   reste_usd: number | null;
   rythme_usd_jour: number | null;
-  rythme_source: '7_jours' | 'depuis_debut_mois' | null;
+  rythme_source: '7_jours' | 'mois_en_cours' | 'depuis_debut_mois' | null;
   rythme_jours: Array<{ jour: string; usd: number }>;
   fin_prevue_usd: number | null;          // depense prevue a la remise a zero
   marge_usd: number | null;               // limite - fin prevue
@@ -244,24 +245,34 @@ export function calculerPrevisionModal(e: EntreesPrevision): PrevisionModal {
   const depense = rel && duMois ? rel.usage : null;
   const reste = (limite != null && depense != null) ? limite - depense : null;
 
-  // Rythme : 7 derniers jours COMPLETS avant le jour (UTC) du releve.
+  // Rythme (corrige le 2026-10-01, user : « pourquoi on a la limite » : le 1er octobre la fenetre de 7 jours remontait a la fin de SEPTEMBRE
+  // (24/09-30/09 : 19,28 $/jour d'essais et de mises en ligne) et annoncait une coupure le 9 octobre alors qu'octobre coutait ~1,5 $/jour).
+  //  - 2 jours COMPLETS ou plus dans le mois en cours -> leur moyenne (au plus les 7 derniers) ;
+  //  - sinon, au moins 12 h ecoulees dans le mois -> total du mois / temps ecoule ;
+  //  - sinon -> pas de rythme (« pas assez de donnees ») plutot qu'un chiffre d'un autre mois.
   let rythme: number | null = null;
   let rythmeSource: PrevisionModal['rythme_source'] = null;
   const rythmeJours: Array<{ jour: string; usd: number }> = [];
-  if (rel && rel.byDay) {
+  if (rel) {
     const d0 = debutJourUtc(rel.tsMs);
-    let t = 0;
-    for (let i = 7; i >= 1; i--) {
-      const j = jourUtc(d0 - i * JOUR);
-      const v = rel.byDay[j] ?? 0;              // Modal n'ecrit aucune ligne pour un jour sans usage
-      rythmeJours.push({ jour: j, usd: r4(v) });
-      t += v;
+    const moisReleve = moisUtc(rel.tsMs);
+    if (rel.byDay) {
+      const joursMois: Array<{ jour: string; usd: number }> = [];
+      for (let i = 7; i >= 1; i--) {
+        const j = jourUtc(d0 - i * JOUR);
+        if (j.slice(0, 7) !== moisReleve) continue;        // un jour d'un autre mois ne dit rien du mois en cours
+        joursMois.push({ jour: j, usd: r4(rel.byDay[j] ?? 0) });   // Modal n'ecrit aucune ligne pour un jour sans usage
+      }
+      if (joursMois.length >= 2) {
+        rythmeJours.push(...joursMois);
+        rythme = joursMois.reduce((t, x) => t + x.usd, 0) / joursMois.length;
+        rythmeSource = 'mois_en_cours';
+      }
     }
-    rythme = t / 7;
-    rythmeSource = '7_jours';
-  } else if (rel) {
-    const ecoule = (rel.tsMs - debutMoisUtc(rel.tsMs)) / JOUR;
-    if (ecoule >= 1) { rythme = rel.usage / ecoule; rythmeSource = 'depuis_debut_mois'; }
+    if (rythme == null) {
+      const ecoule = (rel.tsMs - debutMoisUtc(rel.tsMs)) / JOUR;
+      if (ecoule >= 0.5) { rythme = rel.usage / ecoule; rythmeSource = 'depuis_debut_mois'; }
+    }
   }
 
   // Prevision : seulement sur un releve A JOUR du mois en cours.
