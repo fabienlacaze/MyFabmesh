@@ -65,6 +65,8 @@ if os.environ.get('FABMESH_NO_WORKER_THROTTLE') != '1':
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cloisonnement_memoire as _cm
 from recolor_core import recolor_tile_route, recolor_tile_params   # route + reglages MATIERE/STYLE, communs avec Modal (2026-09-30)
+from recolor_core import (recolor_meilleur_masque, recolor_masque_a_taille, recolor_recoller,   # detection, recollage et
+                          recolor_garder_fond)                                                  # fond protege : communs avec Modal
 _cm.appliquer('sdxl_server', cle='sdxl_server', log=lambda m: print(f'SDXL_SERVER: {m}', flush=True))
 
 # Faster startup: only import what we need at top
@@ -1370,35 +1372,20 @@ def do_recolor(input_path, prompt, output_path, strength=1.0, dilate=15, rel=0.5
                 mask_soft = Image.new("L", (work_w, work_h), 255)
                 coverage = 100.0
             else:
-                # CLIPSeg is weak on small / repeated parts (e.g. building "windows").
-                # Try a few phrasings and keep the strongest mask before giving up.
-                _base = noun.strip()
-                _nl = _base.lower()
-                _variants = [_base]
-                if _nl.endswith('s') and len(_nl) > 3:
-                    _variants.append(_base[:-1])          # windows -> window
-                else:
-                    _variants.append(_base + 's')         # window  -> windows
-                _variants += ['the ' + _base, _base + ' area']
-                mask_soft, coverage, _seen = None, 0.0, set()
-                for _vt in _variants:
-                    if not _vt or _vt in _seen:
-                        continue
-                    _seen.add(_vt)
-                    _m = _clipseg_mask(img_work, work_w, work_h, _vt, dilate, rel)
-                    _c = (np.array(_m) > 128).mean() * 100
-                    if _c > coverage:
-                        mask_soft, coverage = _m, _c
-                    if coverage >= 2.0:  # good enough — stop early
-                        break
-                if coverage < 0.2:
-                    return {"ok": False, "error": f"'{noun}' not found. CLIPSeg couldn't segment it — try a broader/simpler word (e.g. the whole facade, roof, walls), or lower Detection precision."}
+                # CLIPSeg is weak on small / repeated parts (e.g. building "windows"): a few phrasings, the strongest mask
+                # wins (noyau partage recolor_core.recolor_meilleur_masque — Modal fait la meme chose depuis le 2026-09-30).
+                mask_soft, coverage = recolor_meilleur_masque(
+                    noun, lambda _vt: _clipseg_mask(img_work, work_w, work_h, _vt, dilate, rel))
+                if mask_soft is None or coverage < 0.2:
+                    return {"ok": False, "error": f"'{noun}' not found on the image. Try a broader or simpler word (e.g. the whole facade, roof, walls), or lower Detection precision."}
                 if coverage > 80:
                     log(f"WARNING: recolor mask covers {coverage:.0f}%", 'warn')
                 save_debug_mask(output_path, mask_soft)
-            recolored = recolor_hsv_masked(img_work, mask_soft, color_spec, strength)
-            if (work_w, work_h) != orig_size:
-                recolored = recolored.resize(orig_size, Image.LANCZOS)
+            # Virage de teinte A LA TAILLE D'ORIGINE (2026-09-30) : hors du masque, l'image reste identique au pixel pres
+            # (avant : toute l'image faisait l'aller-retour 1024 px -> taille d'origine et sortait adoucie).
+            recolored = recolor_hsv_masked(img, recolor_masque_a_taille(mask_soft, orig_size), color_spec, strength)
+            if not recolor_all:   # une PARTIE ne colore plus le fond de studio autour d'elle (noyau partage)
+                recolored = recolor_garder_fond(img, recolored)
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             recolored.save(output_path)
             elapsed = time.time() - t0
@@ -1451,13 +1438,10 @@ def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0
                     controlnet_conditioning_scale=_p['cn'],
                     generator=torch.Generator("cuda").manual_seed(42),
                 ).images[0]
-            if result.size != (work_w, work_h):
-                result = result.resize((work_w, work_h), Image.LANCZOS)
-            m = (np.array(mask_soft).astype(np.float32) / 255.0)[..., None]
-            out = np.array(img_work).astype(np.float32) * (1 - m) + np.array(result).astype(np.float32) * m
-            final = Image.fromarray(out.clip(0, 255).astype(np.uint8), 'RGB')
-            if (work_w, work_h) != orig_size:
-                final = final.resize(orig_size, Image.LANCZOS)
+            # Recolle sur l'image d'ORIGINE a travers le masque (noyau partage) : hors du masque, pixels d'origine.
+            final = recolor_recoller(img, result, mask_soft)
+            if not recolor_all:
+                final = recolor_garder_fond(img, final)
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             final.save(output_path)
             elapsed = time.time() - t0

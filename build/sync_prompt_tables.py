@@ -24,6 +24,11 @@ Le desktop fait autorite (c'est lui que voit l'utilisateur dans les
 menus). Modal garde le controle du prompt final, mais sa table est
 GENEREE, plus jamais recopiee.
 
+Trois tables : ASSET_TYPE_PROMPTS (gabarit de fin), ASSET_STYLE_PROMPTS,
+et depuis le 2026-09-30 ASSET_TYPE_PREFIXES (prefixe de categorie en tete,
+« a single isolated environment prop ») : le site ne l'avait jamais, le
+worker envoyant a Modal le texte brut de l'utilisateur.
+
 USAGE
 =====
     python build/sync_prompt_tables.py            # regenere
@@ -51,7 +56,7 @@ ALIAS = {
 }
 
 
-def extraire(nom_table: str) -> list[tuple[str, str]]:
+def extraire(nom_table: str, minimum: int = 10) -> list[tuple[str, str]]:
     """Recupere les paires (cle, valeur) d'un objet JS du renderer."""
     src = io.open(SRC_JS, encoding='utf-8').read()
     debut = src.index(f'const {nom_table} = {{')
@@ -60,7 +65,7 @@ def extraire(nom_table: str) -> list[tuple[str, str]]:
     # cle: 'valeur'  — cle quotee ou non. Les lignes de commentaire du
     # desktop ne matchent pas (elles n'ont pas la forme cle: 'valeur').
     paires = re.findall(r"^\s*'?([A-Za-z0-9_-]+)'?\s*:\s*'([^']*)'", bloc, re.M)
-    if len(paires) < 10:
+    if len(paires) < minimum:
         raise SystemExit(
             f'{nom_table}: {len(paires)} entrees extraites, c\'est trop peu — '
             'le format du source desktop a probablement change. '
@@ -87,7 +92,11 @@ def rendre(nom: str, paires: list[tuple[str, str]], avec_alias: bool) -> str:
     return '\n'.join(lignes)
 
 
-def remplacer(contenu: str, nom: str, nouveau: str) -> str:
+def remplacer(contenu: str, nom: str, nouveau: str, apres: str = '') -> str:
+    """Remplace la table `nom` ; absente, l'insere juste apres la table `apres` (premiere generation)."""
+    if f'{nom} = {{' not in contenu and apres:
+        b = contenu.index('\n}', contenu.index(f'{apres} = {{')) + 2
+        return contenu[:b] + '\n\n' + nouveau + contenu[b:]
     a = contenu.index(f'{nom} = {{')
     b = contenu.index('\n}', a) + 2
     return contenu[:a] + nouveau + contenu[b:]
@@ -98,15 +107,21 @@ def main() -> int:
 
     types = extraire('ASSET_TYPE_PROMPTS')
     styles = extraire('ASSET_STYLE_PROMPTS')
+    # PREFIXES de categorie (2026-09-30) : « a single isolated environment prop » EN TETE du prompt, pour qu'un nom
+    # dominant (« Rune Crystals », « robot house ») ne soit pas dessine en batiment ou en personnage. Le worker envoie a
+    # Modal le texte BRUT de l'utilisateur : sans cette table, le site n'avait jamais ces prefixes, seul le bureau.
+    prefixes = extraire('ASSET_TYPE_PREFIXES', minimum=1)
 
     actuel = io.open(DST_PY, encoding='utf-8').read()
     attendu = remplacer(actuel, 'ASSET_TYPE_PROMPTS',
                         rendre('ASSET_TYPE_PROMPTS', types, avec_alias=False))
+    attendu = remplacer(attendu, 'ASSET_TYPE_PREFIXES',
+                        rendre('ASSET_TYPE_PREFIXES', prefixes, avec_alias=False), apres='ASSET_TYPE_PROMPTS')
     attendu = remplacer(attendu, 'ASSET_STYLE_PROMPTS',
                         rendre('ASSET_STYLE_PROMPTS', styles, avec_alias=True))
 
     if attendu == actuel:
-        print(f'[sync_prompt_tables] a jour — {len(types)} types, '
+        print(f'[sync_prompt_tables] a jour — {len(types)} types, {len(prefixes)} prefixes, '
               f'{len(styles)} styles (+{len(ALIAS)} alias)')
         return 0
 
@@ -119,7 +134,7 @@ def main() -> int:
         return 1
 
     io.open(DST_PY, 'w', encoding='utf-8').write(attendu)
-    print(f'[sync_prompt_tables] regenere — {len(types)} types, '
+    print(f'[sync_prompt_tables] regenere — {len(types)} types, {len(prefixes)} prefixes, '
           f'{len(styles)} styles (+{len(ALIAS)} alias)')
     return 0
 

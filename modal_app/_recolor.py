@@ -3,10 +3,12 @@
 Le noyau ci-dessous est une COPIE OCTET POUR OCTET du bloc « NOYAU PARTAGE »
 de ce fichier (lui-meme extrait de scripts/sdxl_server.py). Il n'est pas
 importe : l'image Modal ne monte que `modal_app`, l'appli packagee n'embarque
-que `scripts`. build/check-outfit-parity.mjs refuse une divergence.
+que `scripts`. build/check-noyaux-partages.mjs refuse une divergence.
 
 Ne jamais editer ce bloc ici : editer la source, puis
-`node build/check-outfit-parity.mjs --sync`.
+`node build/check-noyaux-partages.mjs --sync`.
+
+Banc sur la vraie image Modal : modal_app/test_recolor_matiere.py.
 
 CLIPSeg est celui deja charge par _get_auto_inpaint_models() — aucun modele
 supplementaire.
@@ -14,7 +16,8 @@ supplementaire.
 
 # --- NOYAU PARTAGE : DEBUT (copie identique dans modal_app/_recolor.py) ---
 # Extrait de scripts/sdxl_server.py — ne rien y ajouter qui depende du bureau
-# ou de Modal : numpy + PIL seulement.
+# ou de Modal : numpy + PIL seulement (scipy en option : recolor_masque_fond
+# s'en passe s'il manque).
 import numpy as np
 from PIL import Image
 
@@ -135,6 +138,90 @@ def recolor_tile_params(noun, full_prompt, recolor_all=False, strength=1.0):
         'prompt': f"{full_prompt}, same shape, preserve folds and details, photorealistic",
         'negative': "deformed, distorted, blurry, low quality, changed shape, extra parts",
     }
+
+
+# DETECTION ET RECOLLAGE (2026-09-30, banc modal_app/test_recolor_matiere.py) : communs au bureau et a Modal.
+def recolor_variantes_cible(nom):
+    """Formulations essayees tour a tour pour trouver la partie (CLIPSeg rate souvent les petites parties repetees, « windows ») :
+    telle quelle, singulier / pluriel, « the X », « X area ». Reprise telle quelle du bureau, que Modal n'avait pas (une seule
+    formulation : une partie trouvee sur le PC pouvait etre « introuvable » sur le site)."""
+    base = (nom or '').strip()
+    if not base:
+        return []
+    autre = base[:-1] if (base.lower().endswith('s') and len(base) > 3) else base + 's'
+    vues = []
+    for v in (base, autre, 'the ' + base, base + ' area'):
+        if v not in vues:
+            vues.append(v)
+    return vues
+
+
+def recolor_meilleur_masque(nom, masquer, assez=2.0):
+    """Masque le plus couvrant parmi `recolor_variantes_cible(nom)`, arret des qu'une formulation couvre `assez` % de l'image.
+    `masquer(texte)` rend un masque PIL « L » a la taille de travail. Retourne (masque ou None, couverture en %)."""
+    meilleur, couverture = None, 0.0
+    for v in recolor_variantes_cible(nom):
+        m = masquer(v)
+        c = float((np.asarray(m) > 128).mean() * 100.0)
+        if meilleur is None or c > couverture:
+            meilleur, couverture = m, c
+        if couverture >= assez:
+            break
+    return meilleur, couverture
+
+
+def recolor_masque_a_taille(masque, taille):
+    """Masque de la taille de travail (<= 1024 px) ramene a la taille d'ORIGINE de l'image (bilineaire : pas de rebond hors
+    du masque, le zero reste zero)."""
+    taille = tuple(taille)
+    return masque if masque.size == taille else masque.resize(taille, Image.BILINEAR)
+
+
+def recolor_recoller(original, rendu, masque):
+    """Recolle un re-rendu (taille de travail) sur l'image d'ORIGINE a travers le masque : hors du masque, les pixels d'origine
+    au pixel pres. Avant le 2026-09-30, TOUTE l'image faisait l'aller-retour taille de travail -> taille d'origine et sortait
+    adoucie des qu'elle n'etait pas deja a cette taille (image agrandie, importee, cote non multiple de 8). Le virage de teinte,
+    lui, se fait directement a la taille d'origine : recolor_hsv_masked(original, recolor_masque_a_taille(masque, ...))."""
+    base = original.convert('RGB')
+    if rendu.size != base.size:
+        rendu = rendu.resize(base.size, Image.LANCZOS)
+    m = (np.asarray(recolor_masque_a_taille(masque, base.size)).astype(np.float32) / 255.0)[..., None]
+    sortie = np.asarray(base).astype(np.float32) * (1 - m) + np.asarray(rendu.convert('RGB')).astype(np.float32) * m
+    return Image.fromarray(sortie.clip(0, 255).astype(np.uint8), 'RGB')
+
+
+def recolor_masque_fond(img):
+    """Fond de STUDIO d'un asset : zone claire et neutre (blanc, gris clair, degrade compris) reliee aux bords de l'image.
+    Meme regle que _masque_fond de la variante de texture (bureau et Modal). Masque doux 0..1 (H x W), ou None si l'image
+    n'a pas un tel fond (scene, fond sombre) ou si scipy manque (rien n'est alors protege, comme avant)."""
+    try:
+        from scipy import ndimage
+    except Exception:
+        return None
+    a = np.asarray(img.convert('RGB'), dtype=np.float32)
+    neutre = (a.mean(axis=2) > 150) & ((a.max(axis=2) - a.min(axis=2)) < 15)
+    lab, n = ndimage.label(neutre)
+    if not n:
+        return None
+    bords = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+    fond = np.isin(lab, bords[bords > 0])
+    if fond.mean() < 0.15:                      # pas un fond d'asset
+        return None
+    fond = ndimage.binary_erosion(fond, iterations=2)
+    return ndimage.gaussian_filter(fond.astype(np.float32), 1.5)
+
+
+def recolor_garder_fond(source, sortie):
+    """« One part » : le fond de studio reste celui de la source. La marge de detection (15 px par defaut) et le plancher
+    de saturation du virage coloraient le blanc AUTOUR de la partie : bloc rose de 110 niveaux autour d'un casque « red »
+    (banc modal_app/test_recolor_matiere.py, 2026-09-30). La variante de texture a deja cette protection (_garder_fond)."""
+    m = recolor_masque_fond(source)
+    if m is None:
+        return sortie
+    m = m[..., None]
+    a = np.asarray(source.convert('RGB'), dtype=np.float32)
+    o = np.asarray(sortie.convert('RGB'), dtype=np.float32)
+    return Image.fromarray(np.clip(o * (1 - m) + a * m, 0, 255).astype(np.uint8), 'RGB')
 # --- NOYAU PARTAGE : FIN ---
 
 # ---------------------------------------------------------------------------
@@ -164,23 +251,8 @@ def _masque_clipseg(seg_processor, seg_model, img_work, w, h, texte, dilate, rel
     return m.filter(ImageFilter.GaussianBlur(3))
 
 
-def generate(seg_processor, seg_model, source_img, prompt,
-             strength=1.0, dilate=15, rel=0.5, recolor_all=False,
-             max_dim=1024):
-    """Recolorie la partie nommee. Retourne (image, couverture_pourcent).
-
-    Leve ValueError si le prompt ne nomme aucune couleur connue ; depuis le
-    2026-09-30 l'appelant (op `recolor` de app.py) aiguille alors la demande
-    vers `generate_tile` (matiere / style) AVANT d'arriver ici : ce garde ne
-    sert plus que de filet.
-    """
-    noun, color_spec = parse_recolor_prompt(prompt)
-    if color_spec is None:
-        raise ValueError(
-            "« %s » ne nomme pas une couleur connue : ce cas passe par la "
-            "re-generation guidee, pas par le virage de teinte." % prompt)
-
-    img = source_img.convert('RGB')
+def _image_de_travail(img, max_dim=1024):
+    """Meme reduction que resize_for_sdxl du bureau : grand cote a max_dim, cotes multiples de 8. Rend (image, w, h)."""
     ow, oh = img.size
     if max(ow, oh) > max_dim:
         if ow > oh:
@@ -190,21 +262,39 @@ def generate(seg_processor, seg_model, source_img, prompt,
     else:
         w, h = ow, oh
     w = max(8, (w // 8) * 8); h = max(8, (h // 8) * 8)
-    travail = img.resize((w, h), Image.LANCZOS)
+    return img.resize((w, h), Image.LANCZOS), w, h
 
+
+def generate(seg_processor, seg_model, source_img, prompt,
+             strength=1.0, dilate=15, rel=0.5, recolor_all=False,
+             max_dim=1024):
+    """Recolorie la partie nommee. Retourne (image, couverture_pourcent).
+
+    Comme le bureau (sdxl_server.do_recolor) : detection par plusieurs formulations (recolor_meilleur_masque), puis virage de
+    teinte A LA TAILLE D'ORIGINE : hors du masque, l'image reste identique au pixel pres ; une partie ne colore plus le fond
+    de studio autour d'elle (recolor_garder_fond) (2026-09-30).
+
+    Leve ValueError si le prompt ne nomme aucune couleur connue (l'op `recolor` de app.py aiguille alors la demande vers
+    `generate_tile` AVANT d'arriver ici : ce garde ne sert que de filet) ou si la partie est introuvable (422, rembourse).
+    """
+    noun, color_spec = parse_recolor_prompt(prompt)
+    if color_spec is None:
+        raise ValueError("'%s' names no known colour." % prompt)
+
+    img = source_img.convert('RGB')
     if recolor_all:
-        masque = Image.new('L', (w, h), 255)
+        masque = Image.new('L', img.size, 255)
         couverture = 100.0
     else:
-        masque = _masque_clipseg(seg_processor, seg_model, travail, w, h,
-                                 noun or prompt, dilate, rel)
-        a = np.asarray(masque)
-        couverture = 100.0 * float((a > 127).sum()) / float(max(1, a.size))
-        if couverture < 0.2:
-            raise ValueError("« %s » introuvable sur l'image." % (noun or prompt))
+        travail, w, h = _image_de_travail(img, max_dim)
+        masque, couverture = recolor_meilleur_masque(
+            noun or prompt,
+            lambda texte: _masque_clipseg(seg_processor, seg_model, travail, w, h, texte, dilate, rel))
+        if masque is None or couverture < 0.2:
+            raise ValueError("'%s' not found on the image. Try a broader or simpler word." % (noun or prompt))
 
-    out = recolor_hsv_masked(travail, masque, color_spec, strength)
-    return out.resize((ow, oh), Image.LANCZOS), couverture
+    sortie = recolor_hsv_masked(img, recolor_masque_a_taille(masque, img.size), color_spec, strength)
+    return (sortie if recolor_all else recolor_garder_fond(img, sortie)), couverture
 
 
 def generate_tile(seg_processor, seg_model, tile_pipe, source_img, prompt,
@@ -215,30 +305,21 @@ def generate_tile(seg_processor, seg_model, tile_pipe, source_img, prompt,
 
     Portage de scripts/sdxl_server.do_recolor_tile (decision du user, 2026-09-30 : « B — meme capacite que le PC »).
     Memes reglages que le bureau : ils viennent du noyau partage (`recolor_tile_params`). `tile_pipe` est le pipe ControlNet-Tile
-    deja utilise par `tex_variant` (self._get_tile_pipe()). Leve ValueError si la partie nommee est introuvable."""
+    deja utilise par `tex_variant` (self._get_tile_pipe()). Le re-rendu est recolle sur l'image d'ORIGINE (recolor_recoller) :
+    hors du masque, pixels d'origine. Leve ValueError si la partie nommee est introuvable."""
     import torch
     noun, _spec = parse_recolor_prompt(prompt)
     img = source_img.convert('RGB')
-    ow, oh = img.size
-    if max(ow, oh) > max_dim:
-        if ow > oh:
-            w, h = max_dim, int(oh * max_dim / ow)
-        else:
-            h, w = max_dim, int(ow * max_dim / oh)
-    else:
-        w, h = ow, oh
-    w = max(8, (w // 8) * 8); h = max(8, (h // 8) * 8)
-    travail = img.resize((w, h), Image.LANCZOS)
+    travail, w, h = _image_de_travail(img, max_dim)
 
     if recolor_all:
         masque = Image.new('L', (w, h), 255)
         couverture = 100.0
     else:
         masque = _masque_clipseg(seg_processor, seg_model, travail, w, h, noun or prompt, dilate, rel)
-        a = np.asarray(masque)
-        couverture = 100.0 * float((a > 127).sum()) / float(max(1, a.size))
+        couverture = float((np.asarray(masque) > 128).mean() * 100.0)
         if couverture < 0.2:
-            raise ValueError("« %s » introuvable sur l'image (couverture %.1f %%)." % (noun or prompt, couverture))
+            raise ValueError("'%s' not found on the image (coverage %.1f %%)." % (noun or prompt, couverture))
 
     p = recolor_tile_params(noun, prompt, recolor_all, strength)
     with torch.inference_mode():
@@ -249,11 +330,5 @@ def generate_tile(seg_processor, seg_model, tile_pipe, source_img, prompt,
             guidance_scale=p['guidance'], controlnet_conditioning_scale=p['cn'],
             generator=torch.Generator('cuda').manual_seed(42),
         ).images[0]
-    if resultat.size != (w, h):
-        resultat = resultat.resize((w, h), Image.LANCZOS)
-    m = (np.asarray(masque).astype(np.float32) / 255.0)[..., None]
-    sortie = np.asarray(travail).astype(np.float32) * (1 - m) + np.asarray(resultat).astype(np.float32) * m
-    final = Image.fromarray(sortie.clip(0, 255).astype(np.uint8), 'RGB')
-    if (w, h) != (ow, oh):
-        final = final.resize((ow, oh), Image.LANCZOS)
-    return final, couverture
+    sortie = recolor_recoller(img, resultat, masque)
+    return (sortie if recolor_all else recolor_garder_fond(img, sortie)), couverture
