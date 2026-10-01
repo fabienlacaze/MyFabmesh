@@ -78,6 +78,23 @@ const fs = require('fs');
 const os = require('os');
 // Lineage sidecar <output>.meta.json (Generation History) — best-effort, never throws.
 const { writeMeta, readMeta } = require('./meta');
+// SUIVI DE LIGNEE DES IMAGES (2026-10-01, user : « il faut que j'aie View generation history sur les versions d'images aussi ») : UN SEUL point d'entree.
+// ipcMain.handle est enveloppe AVANT l'enregistrement des gestionnaires ; pour les canaux qui produisent des images (src/main/lignee_images.js), on lit les
+// arguments EXACTS envoyes au moteur et le resultat, puis on ecrit le sidecar `<image>.meta.json` de chaque image nouvelle (parent, operation, parametres, duree).
+// Aucun gestionnaire n'est modifie ; un sidecar rate ne casse jamais une generation.
+const _ligneeImages = require('./lignee_images');
+{
+  const _handleOrig = ipcMain.handle.bind(ipcMain);
+  ipcMain.handle = (canal, fn) => _handleOrig(canal, _ligneeImages.CANAUX[canal] ? async (evt, ...args) => {
+    const debut = Date.now();
+    const res = await fn(evt, ...args);
+    try {
+      for (const { chemin, meta } of _ligneeImages.lignees(canal, args, res, Date.now() - debut, debut,
+        { existe: (p) => fs.existsSync(p), mtime: (p) => fs.statSync(p).mtimeMs })) writeMeta(chemin, meta);
+    } catch (_) { /* best-effort */ }
+    return res;
+  } : fn);
+}
 
 // Force UTF-8 in EVERY spawned Python child. The embedded Windows python
 // defaults its stdout/file encoding to the console codepage (cp1252 on
@@ -7311,6 +7328,7 @@ ipcMain.handle('check-gpu', async () => {
 // a CUDA GPU with enough VRAM (FP8 peaks ~11 GB → require ~12 GB) AND the
 // isolated HiDream runtime present. The renderer uses this to hide the HiDream
 // dropdown option on machines that can't run it (they keep RealVisXL).
+let _hidreamSonde = null;
 ipcMain.handle('hidream-available', async () => {
   const HIDREAM_PY = 'd:/ai_eval/HiDream/.venv/Scripts/python.exe';
   const MIN_VRAM_MB = 12000;
@@ -7332,11 +7350,25 @@ ipcMain.handle('hidream-available', async () => {
         const totalMB = parseFloat(parts[1] || '0');
         const gpu = parts[0] || 'GPU';
         const vramOk = totalMB >= MIN_VRAM_MB;
-        const available = vramOk && hasRuntime;
-        const reason = !hasRuntime ? 'HiDream runtime not installed on this machine'
+        let available = vramOk && hasRuntime;
+        let reason = !hasRuntime ? 'HiDream runtime not installed on this machine'
                      : !vramOk ? `HiDream needs ~12 GB VRAM (this GPU has ${(totalMB / 1024).toFixed(0)} GB)`
                      : 'ok';
-        resolve({ available, reason, gpu, vramGB: +(totalMB / 1024).toFixed(1), hasRuntime });
+        const fin = () => resolve({ available, reason, gpu, vramGB: +(totalMB / 1024).toFixed(1), hasRuntime });
+        if (!available) return fin();
+        // SONDE (2026-10-01) : sur ce poste Windows (controle d'application / Smart App Control) refuse torch\lib\shm.dll de l'environnement HiDream :
+        // l'option etait proposee, puis « produced no images ». On tente UN `import torch` (une seule fois par session) et on masque le moteur s'il est bloque.
+        // Smart App Control n'est JAMAIS desactive ni contourne.
+        if (_hidreamSonde) { available = _hidreamSonde.ok; reason = _hidreamSonde.reason; return fin(); }
+        execFile(HIDREAM_PY, ['-c', 'import torch'], { timeout: 25000, windowsHide: true, env: { ...process.env, HF_HOME: 'D:/hf_cache' } }, (err, _o, e2) => {
+          if (err) {
+            const cause = _causeHiDream(e2, err.message);
+            _hidreamSonde = { ok: false, reason: cause.bloque ? 'blocked by Windows (Application Control refuses a file of this engine)' : 'the engine does not start: ' + cause.detail };
+            available = false; reason = _hidreamSonde.reason;
+            try { log.warn('hidream', 'moteur masque : ' + cause.detail); } catch (_) {}
+          } else { _hidreamSonde = { ok: true, reason: 'ok' }; }
+          fin();
+        });
       });
   });
 });
@@ -7782,6 +7814,55 @@ ipcMain.handle('load:split', () => {
     } catch (_) { _splitEnCours = null; resolve(_splitDernier); }
   });
   return _splitEnCours;
+});
+// OCCUPATION DU DISQUE PAR MYFABMESH (2026-10-01, user : « pour le disk rajoute une barre comme les autres avec les infos de MyFabmesh : generations... ») :
+// modeles d'IA, moteurs et application, generations de l'utilisateur, cache et fichiers temporaires. Parcours en arriere-plan, resultat garde 5 min.
+let _diskUsageCache = null, _diskUsageEnCours = null;
+async function _tailleDossier(racine) {
+  const fsp = fs.promises; let total = 0; const pile = [racine];
+  while (pile.length) {
+    const d = pile.pop();
+    let ents; try { ents = await fsp.readdir(d, { withFileTypes: true }); } catch (_) { continue; }
+    for (const e of ents) {
+      const p = path.join(d, e.name);
+      if (e.isSymbolicLink()) continue;                       // les liens des caches de modeles ne sont pas des octets de plus
+      if (e.isDirectory()) { pile.push(p); continue; }
+      try { total += (await fsp.lstat(p)).size; } catch (_) {}
+    }
+  }
+  return total;
+}
+async function _calculerDiskUsage() {
+  const racine = app.getPath('userData');
+  const GO = 1e9;
+  const classe = { modeles: ['hf_cache', 'models'], moteurs: ['python', 'python-rig', 'SkinTokens'],
+    generations: ['images', 'meshes', 'previews', 'animations', 'rigs', 'projects', 'history'] };
+  const total = { modeles: 0, moteurs: 0, generations: 0, cache: 0 };
+  let ents = []; try { ents = await fs.promises.readdir(racine, { withFileTypes: true }); } catch (_) {}
+  const taches = ents.map(async (e) => {
+    const p = path.join(racine, e.name);
+    let cat = 'cache';
+    for (const [k, noms] of Object.entries(classe)) if (noms.includes(e.name)) cat = k;
+    let taille = 0;
+    if (e.isDirectory()) taille = await _tailleDossier(p); else { try { taille = (await fs.promises.lstat(p)).size; } catch (_) {} }
+    total[cat] += taille;
+  });
+  taches.push((async () => { try { total.moteurs += await _tailleDossier(path.dirname(process.execPath)); } catch (_) {} })());   // l'application elle-meme
+  await Promise.all(taches);
+  const st = fs.statfsSync(racine);
+  return {
+    drive: path.parse(racine).root.replace(/[\\/]+$/, ''),
+    totalGB: st.blocks * st.bsize / GO, freeGB: st.bavail * st.bsize / GO,
+    mfm: { modeles: total.modeles / GO, moteurs: total.moteurs / GO, generations: total.generations / GO, cache: total.cache / GO },
+    t: Date.now(),
+  };
+}
+ipcMain.handle('disk-usage', async (_e, opts = {}) => {
+  try {
+    if (_diskUsageCache && !(opts && opts.force) && Date.now() - _diskUsageCache.t < 5 * 60 * 1000) return _diskUsageCache;
+    if (!_diskUsageEnCours) _diskUsageEnCours = _calculerDiskUsage().then((d) => { _diskUsageCache = d; return d; }).finally(() => { _diskUsageEnCours = null; });
+    return await _diskUsageEnCours;
+  } catch (e) { return null; }
 });
 ipcMain.handle('disk-free', () => {
   try {
@@ -8420,6 +8501,18 @@ const _BUILD_STAGE_MODIFIERS = [
   'fully finished and complete, every detail present, clean polished final version',
 ];
 
+// HiDream : cause reelle d'un echec (2026-10-01). Sur ce poste le script ne demarrait meme pas : « WinError 4551 : une stratégie de contrôle
+// d'application a bloqué ce fichier » (torch\\lib\\shm.dll de l'environnement d:\\ai_eval\\HiDream). Ne JAMAIS contourner : Smart App Control reste actif.
+let _hidreamDerniereErreur = null;
+function _causeHiDream(stderr, brut) {
+  const t = String(stderr || '') + '\n' + String(brut || '');
+  if (/WinError 4551|Application Control policy|bloqu[ée].*(strat|contr)/i.test(t)) {
+    return { bloque: true, detail: 'HiDream bloque par Windows (controle d\'application) : ' + (t.match(/Error loading "([^"]+)"/) || [])[1],
+      message: 'HiDream is blocked by Windows (Smart App Control / Application Control refuses a file of this engine). Nothing was changed on your PC.' };
+  }
+  const derniere = t.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(-1)[0] || 'unknown error';
+  return { bloque: false, detail: 'HiDream a echoue : ' + derniere.slice(0, 300), message: 'HiDream failed: ' + derniere.slice(0, 200) };
+}
 ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages, projectName, engine, quality, steps, vramFraction, assetType, buildStages, computeMode }) => {
   // GARDE MANQUANTE — cause du REFUS STORE du 2026-08-08 (10.1.2.10
   // « Unusable Feature: Generate »).
@@ -8639,6 +8732,7 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
     // loop numImages with a varying seed. Model weights are cached on D:
     // (C: is near-full) so we point HF_HOME there.
     if (engine === 'hidream') {
+      _hidreamDerniereErreur = null;
       const hiPython = 'd:/ai_eval/HiDream/.venv/Scripts/python.exe';
       const hiScript = 'd:/ai_eval/HiDream/run_fp8.py';
       const stepsClamped = Math.max(4, Math.min(60, parseInt(steps) || 28));
@@ -8655,16 +8749,22 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
               '--width', '1024', '--height', '1024',
               '--seed', String(ts + i),
             ], { cwd: 'd:/ai_eval/HiDream', timeout: 1800000, maxBuffer: 50 * 1024 * 1024, env: hiEnv },
-              (error) => { if (error) { reject({ error: error.message }); return; } resolve(); });
+              (error, _out, errTxt) => { if (error) { reject({ error: error.message, stderr: String(errTxt || '') }); return; } resolve(); });
             proc.stdout.on('data', d => { safeSend('ai3d-progress', d.toString()); });
             proc.stderr?.on('data', d => { safeSend('ai3d-progress', '[stderr] ' + d.toString()); });
           });
           if (fs.existsSync(outPath)) images.push(outPath);
         } catch (e) {
           safeSend('ai3d-progress', '[hidream] error: ' + (e && e.error ? e.error : e));
+          // La cause reelle etait PERDUE (« produced no images (see logs) » sans rien dans les journaux) : on la garde et on la journalise.
+          _hidreamDerniereErreur = _causeHiDream(e && e.stderr, e && e.error);
+          try { log.error('hidream', _hidreamDerniereErreur.detail); } catch (_) {}
         }
       }
-      if (!images.length) return { success: false, error: 'HiDream produced no images (see logs).' };
+      if (!images.length) {
+        const cause = _hidreamDerniereErreur;
+        return { success: false, error: cause ? cause.message : 'HiDream produced no images (see logs).' };
+      }
       return { success: true, images };
     }
 

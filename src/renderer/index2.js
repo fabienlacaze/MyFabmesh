@@ -3707,14 +3707,18 @@ async function renderImageVersions(p) {
     const _cb = img.mtime || p._reloadTs || Date.now();
     const hasEmissive = (typeof _emissiveLayerHas === 'function') && _emissiveLayerHas(img.path);
     const emissiveBadge = hasEmissive
-      ? '<span class="v-emissive-badge" title="This image has an emissive layer painted on it" style="position:absolute; bottom:2px; right:2px; background:rgba(0,0,0,0.7); border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1; box-shadow:0 0 0 1px rgba(255, 224, 102, 0.85);">💡</span>'
+      ? '<span class="v-emissive-badge" title="This image has an emissive layer painted on it" style="position:absolute; bottom:2px; right:26px; background:rgba(0,0,0,0.7); border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1; box-shadow:0 0 0 1px rgba(255, 224, 102, 0.85);">💡</span>'
       : '';
     t.innerHTML = `
       <img src="file:///${img.path.replace(/\\/g, '/')}?t=${_cb}">
       <span class="v-label">v${images.length - 1 - i}</span>
       <button class="version-delete-btn" title="Delete this version">&#10005;</button>
+      <div class="v-rail-bot">
+        <button class="version-history-btn" title="${_escapeHtml(_i18nT('View generation history'))}">&#9201;</button>
+      </div>
       ${emissiveBadge}
     `;
+    t.querySelector('.version-history-btn').addEventListener('click', (e) => { e.stopPropagation(); showGenerationHistory(img.path); });
     t.addEventListener('click', () => {
       strip.querySelectorAll('.version-thumb').forEach(x => x.classList.remove('selected'));
       t.classList.add('selected');
@@ -8568,6 +8572,7 @@ document.getElementById('sym-apply')?.addEventListener('click', async () => {
       basePath: symState.imgPath,
       dataUrl: dataUrl,
       suffix: 'symmetrized',
+      lignee: { op: 'symmetrize', params: { direction: symState.direction, mode: symState.mode, axisX: Math.round(symState.axisX * 1000) / 1000, axisAngle: Math.round(symState.axisAngle * 1000) / 1000 } },
     });
     if (r?.success) {
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
@@ -9023,7 +9028,7 @@ document.getElementById('ws-style-menu')?.addEventListener('click', async (e) =>
   gatedRun('img2img', `Style: ${style.split(',')[0]}`, async () => {
     const job = pushJob(`Style Transfer: ${p.name}`, null, { Style: style.split(',')[0] }, 30000, { sourceImageUrl: tgt, projectName: p.name });
     try {
-      const r = await API.img2img({ imagePath: tgt, prompt: style, strength: 0.6, engine: 'local-sdxl' });
+      const r = await API.img2img({ imagePath: tgt, prompt: style, strength: 0.6, engine: 'local-sdxl', lignee: { op: 'style', params: { style: String(style).slice(0, 80) } } });
       if (r?.success) {
         // Remember which style was applied to this NEW image version only.
         // We deliberately do NOT tag the source image: it was the INPUT, not a
@@ -9278,7 +9283,7 @@ document.getElementById('blur-save')?.addEventListener('click', async () => {
     : null;
   try {
     const dataUrl = bCanvas.toDataURL('image/png');
-    const r = await API.saveImageDataUrl({ basePath: tgt, dataUrl, suffix: 'blur' });
+    const r = await API.saveImageDataUrl({ basePath: tgt, dataUrl, suffix: 'blur', lignee: { op: 'blur', params: { mode: blurState.mode, brushSize: blurState.brushSize, strength: blurState.strength } } });
     if (r?.success) {
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
       showToast('Saved!', 'success');
@@ -10053,6 +10058,7 @@ document.getElementById('paint-save')?.addEventListener('click', async () => {
   try {
     const result = await window.meshyAPI.saveImageDataUrl({
       basePath: paintState.imgPath, dataUrl, suffix: 'painted',
+      lignee: { op: 'paint', params: { tool: paintState.tool, color: paintState.color, brushSize: paintState.brushSize, opacity: paintState.opacity } },
     });
     if (result && result.success) {
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
@@ -10446,6 +10452,18 @@ function _meshRootBase(filename) {
 // étape depuis 2026-07-09 — kind/op/engine/parent/params). Dégradation propre
 // pour les assets ANTÉRIEURS: déduction depuis le nom de fichier (dernière op
 // seulement, parent par heuristique de racine) + note « params non tracés ».
+// Libelles des operations d'IMAGE (cles = operations ecrites par main.js / lignee_images.js) et suffixe de nom -> operation (images anterieures au suivi).
+const _IMG_OP_LABEL = {
+  generate: 'Image generation', modify: 'Modify', style: 'Style', variant: 'Variant', age: 'Age', texvar: 'Variant / Age', inpaint: 'Inpaint',
+  nobg: 'Remove background', recolor: 'Recolor', upscale: 'Resolution ×2', downscale: 'Resolution ÷2', brightness: 'Brightness', blur: 'Blur / Sharpen brush',
+  paint: 'Paint', clone: 'Clone stamp', edit: 'Cut / Paste', extend: 'Extend', crop: 'Crop', symmetrize: 'Symmetrize', outfit: 'Outfit', facefix: 'Face fix',
+  multiview: 'Multi-views', backview: 'Back view', chantier: 'Construction stages', adjust: 'Adjust',
+};
+const _IMG_SUFFIXE_OP = {
+  refined: 'modify', texvar: 'texvar', inpaint: 'inpaint', nobg: 'nobg', recolor: 'recolor', upscale: 'upscale', downscale: 'downscale', brightness: 'brightness',
+  blur: 'blur', painted: 'paint', cloned: 'clone', edit: 'edit', extend: 'extend', crop: 'crop', symmetrize: 'symmetrize', symmetrized: 'symmetrize',
+  outfit: 'outfit', facefix: 'facefix', mv: 'multiview', chantier: 'chantier', style: 'style', adjust: 'adjust',
+};
 async function buildLineageTimeline(startPath, p) {
   const steps = [];
   const norm = (s) => String(s || '').replace(/\\/g, '/').toLowerCase();
@@ -10461,6 +10479,38 @@ async function buildLineageTimeline(startPath, p) {
     if (rec) { const t = new Date(rec.created || rec.mtime || 0).getTime(); if (Number.isFinite(t) && t) return t; }
     return 0;
   };
+  // IMAGE (2026-10-01) : on remonte la chaine des versions (sidecar `parent`, sinon deduction depuis le nom) jusqu'a l'image racine (la generation).
+  if (findIn(p.images, startPath)) {
+    const imgs = (p.images || []).map((x) => (typeof x === 'string' ? x : x.path));
+    let cur = startPath, garde = 0;
+    while (cur && garde++ < 40) {
+      const nom = String(cur).split(/[\\/]/).pop();
+      const meta = await getMeta(null, cur);
+      const m = nom.match(/^(.*)_([a-z]+)_(\d{13})(?:_\d+)?(\.[a-z0-9]+)$/i);
+      const deduit = m && _IMG_OP_LABEL[(_IMG_SUFFIXE_OP[m[2].toLowerCase()] || '')] ? { op: _IMG_SUFFIXE_OP[m[2].toLowerCase()], parentNom: m[1] + m[4], ts: Number(m[3]) } : null;
+      const op = (meta && meta.op) || (deduit && deduit.op) || null;
+      let parent = (meta && meta.parent) || null;
+      if (!parent && deduit) parent = imgs.find((x) => norm(String(x).split(/[\\/]/).pop()) === norm(deduit.parentNom)) || null;
+      const racine = !op || op === 'generate';
+      steps.unshift({
+        kind: racine ? 'image' : 'op', path: cur, filename: nom,
+        thumb: 'file:///' + String(cur).replace(/\\/g, '/'),
+        ts: (meta && meta.ts) || (deduit && deduit.ts) || 0, engine: meta && meta.engine, opKey: op,
+        opLabel: op && !racine ? (_IMG_OP_LABEL[op] || op) : null,
+        // `image-quick-edit` range ses reglages dans params.params : on les remonte d'un niveau (une ligne par reglage au lieu d'un bloc JSON)
+        params: (meta && meta.params) ? (() => {
+          const pr = meta.params, o = {};
+          for (const k of Object.keys(pr)) { if (k === 'params' && pr[k] && typeof pr[k] === 'object' && !Array.isArray(pr[k])) Object.assign(o, pr[k]); else o[k] = pr[k]; }
+          if (meta.durationMs) o.duration_ms = meta.durationMs;
+          return o;
+        })() : (racine && p && typeof p.prompt === 'string' && p.prompt.trim() ? { prompt: p.prompt.trim() } : null),
+        derived: !meta,
+      });
+      if (racine || !parent || norm(parent) === norm(cur)) break;
+      cur = parent;
+    }
+    return steps;
+  }
   let curPath = startPath;
   let guard = 0;
   while (curPath && guard++ < 20) {
@@ -10565,6 +10615,11 @@ async function showGenerationHistory(startPath) {
     texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
     skeleton: 'Skeleton', anim_type: 'Animation', voxel_grid: 'Voxel grid', tex_steps: 'Texture steps', op_type: 'Operation',
     prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode',
+    numImages: 'Images', quality: 'Quality', userPrompt: 'Your prompt', cnScale: 'Shape lock', negPrompt: 'Negative prompt', gris: 'Grey level', motifs: 'Patterns',
+    targetText: 'Target', replaceText: 'Replace with', precision: 'Precision', dilate: 'Padding', recolorAll: 'Whole image', rel: 'Colour', style: 'Style',
+    direction: 'Direction', axisX: 'Axis position', axisAngle: 'Axis angle', brushSize: 'Brush size', tool: 'Tool', color: 'Colour', opacity: 'Opacity',
+    hardness: 'Hardness', operation: 'Operation', suffix: 'Variant', engine: 'Engine', device: 'Device',
+    brightness: 'Brightness', contrast: 'Contrast', saturation: 'Saturation', sharpness: 'Sharpness',
   };
   const fmtVal = (k, v) => {
     if (v === true) return '✓';
@@ -21672,8 +21727,8 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
         const rv = _reglagesVarianteForme(strength, seed, guidePrompt,
           p.assetType || document.getElementById('ws-asset-type')?.value, p.prompt || p.initialPrompt);
         const r = texMode
-          ? await API.texVariant({ imagePath: target, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg, motifs: rv.motifs })
-          : await API.img2img({ imagePath: target, prompt: (guidePrompt || prompt), strength, engine: 'local-sdxl', seed });
+          ? await API.texVariant({ imagePath: target, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg, motifs: rv.motifs, lignee: { op: 'variant', params: { mode: 'colours and materials (shape locked)' } } })
+          : await API.img2img({ imagePath: target, prompt: (guidePrompt || prompt), strength, engine: 'local-sdxl', seed, lignee: { op: 'variant', params: { mode: 'everything (shape can change)' } } });
         if (r?.success) { completeJob(job.id, true); await reloadCurrentProject(); }
         else { completeJob(job.id, false, r?.error); showToast('Variant failed: ' + (r?.error || 'unknown'), 'error'); }
       } catch (e) {
@@ -22199,7 +22254,7 @@ document.getElementById('age-go')?.addEventListener('click', async () => {
       Amount: Math.abs(v) + '%',
     }, 20000, { sourceImageUrl: imagePath, projectName: p.name });
     try {
-      const r = await API.texVariant({ imagePath, prompt, strength, seed: 0, cnScale, negPrompt });
+      const r = await API.texVariant({ imagePath, prompt, strength, seed: 0, cnScale, negPrompt, lignee: { op: 'age' } });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -23156,7 +23211,7 @@ async function refreshGpuStats() {
       if (ramValEl) ramValEl.textContent = _i18nTf('{x} of {y} GB used', ram.usedGB.toFixed(1), ram.totalGB.toFixed(1));
       try {
         if (API.cpuUsage) { const c = await API.cpuUsage(); window.__cpuThreads = c.threads; window.__cpuModel = c.model || ''; const cv = document.getElementById('set-cpu-val'), cf = document.getElementById('set-cpu-fill'); if (cv) cv.textContent = `${c.pct} %`; window.__cpuTotalPct = c.pct; _rafraichirSplitCharge(); _majBandesCharge(); }
-        if (API.diskFree) { const d = await API.diskFree(); if (d) { const dv = document.getElementById('set-disk-val'), dt = document.getElementById('set-disk-txt'); if (dv) dv.textContent = _i18nTf('{x} GB free ({y})', d.freeGB.toFixed(0), d.drive); if (dt) { dt.textContent = d.freeGB < 70 ? _i18nT('· low: the models need about 60 GB') : _i18nT('· enough for the models (~60 GB)'); dt.classList.toggle('short', d.freeGB < 70); } } }
+        _majBarreDisque(); if (API.diskFree) { const d = await API.diskFree(); if (d) { const dv = document.getElementById('set-disk-val'), dt = document.getElementById('set-disk-txt'); if (dv) dv.textContent = _i18nTf('{x} GB free ({y})', d.freeGB.toFixed(0), d.drive); if (dt) { dt.textContent = d.freeGB < 70 ? _i18nT('· low: the models need about 60 GB') : _i18nT('· enough for the models (~60 GB)'); dt.classList.toggle('short', d.freeGB < 70); } } }
       } catch (_) {}
       _cachedTotalRamGB = ram.totalGB; _lastRamUsedGB = ram.usedGB; try { majLignesLimites(); } catch (_) {}
       try {      // resume du PC sous le nom de la carte : processeur, fils, RAM (lus sur la machine, jamais ecrits en dur)
@@ -23196,13 +23251,56 @@ async function _chargerChoixGpu() {
 // la legende numerotee (explication + chiffre), puis la situation en direct. Recalculee a chaque survol, sans rien stocker.
 let _infobulleEl = null, _infobulleCle = null, _infobulleT = 0;
 function _go(x) { return (Math.round(x * 10) / 10).toFixed(1); }
+// BARRE DU DISQUE (2026-10-01) : modeles, moteurs + appli, generations, cache de MyFabmesh ; le reste du disque ; le libre = fond de la barre.
+async function _majBarreDisque() {
+  try {
+    if (!API.diskUsage) return;
+    const d = await API.diskUsage();
+    if (!d || !d.totalGB) return;
+    const parts = [
+      { id: 'mod', cle: 'Models', gb: d.mfm.modeles, couleur: '#4b2b99' }, { id: 'mot', cle: 'Engines & app', gb: d.mfm.moteurs, couleur: '#7a52d6' },
+      { id: 'gen', cle: 'Your generations', gb: d.mfm.generations, couleur: '#b79cff' }, { id: 'cac', cle: 'Cache & temporary files', gb: d.mfm.cache, couleur: '#dccfff' },
+    ];
+    const utilise = Math.max(0, d.totalGB - d.freeGB);
+    const mfm = parts.reduce((a, x) => a + x.gb, 0);
+    const autres = Math.max(0, utilise - mfm);
+    window.__hwDisque = { d, parts, utilise, mfm, autres };
+    const pct = (gb) => Math.max(0, gb / d.totalGB * 100);
+    const go = (x) => (x >= 100 ? Math.round(x) : Math.round(x * 10) / 10) + ' GB';
+    for (const x of parts) {
+      const el = document.getElementById('set-disk-' + x.id); if (!el) continue;
+      el.style.display = x.gb > 0.005 ? '' : 'none';
+      el.style.width = pct(x.gb) + '%'; el.textContent = pct(x.gb) > 9 ? go(x.gb) : '';
+      el.title = _i18nT(x.cle) + ' : ' + go(x.gb);
+    }
+    const ot = document.getElementById('set-disk-autres');
+    if (ot) { ot.style.width = pct(autres) + '%'; ot.textContent = pct(autres) > 9 ? go(autres) : ''; ot.title = _i18nT('Other files') + ' : ' + go(autres); }
+    document.getElementById('set-disk-bar')?.removeAttribute('hidden');
+    const lg = document.getElementById('set-disk-legende');
+    if (lg) {
+      const chip = (couleur, nom, gb) => `<span class="hd-chip"><i style="background:${couleur}"></i>${escapeHtml(_i18nT(nom))} <b>${escapeHtml(go(gb))}</b></span>`;
+      lg.innerHTML = parts.map((x) => chip(x.couleur, x.cle, x.gb)).join('') + chip('#9aa3b2', 'Other files', autres) + chip('var(--bg-3)', 'Free', d.freeGB);
+      lg.removeAttribute('hidden');
+    }
+  } catch (_) {}
+}
 function _htmlInfoBulle(cle) {
-  const T = _i18nT, Tf = _i18nTf;
+  const T = _i18nT;
+  // {x}, {y}, {a}, {b}, {c} remplaces dans l'ordre (le gabarit « Now: {a} % in total · MyFabmesh {b} % ... » s'affichait tel quel).
+  const Tf = (modele, ...v) => { let i = 0; return T(modele).replace(/\{[xyabc]\}/g, () => (i < v.length ? String(v[i++]) : '')); };
   const pastille = (n, couleur) => `<span class="hwtip-n" style="background:${couleur}">${n}</span>`;
   const ligne = (n, couleur, titre, valeur, texte) =>
     `<li>${pastille(n, couleur)}<div><div class="hwtip-lt"><b>${escapeHtml(titre)}</b><span class="hwtip-v">${escapeHtml(valeur)}</span></div><p>${escapeHtml(texte)}</p></div></li>`;
   // reel : { regionPct, nousPct (part de la region occupee par MyFabmesh, 0-100), zoneDroitePct (largeur de la zone des autres), droiteOffsetPct,
   // autresPct (part de la zone occupee par les autres, 0-100), dlPct } : les deux fines barres arc-en-ciel de l'usage REEL, comme dans la fenetre
+  // Les DEUX fines lignes arc-en-ciel du schema (usage reel) : une legende a elles, avec un echantillon de couleur et la valeur.
+  const ligneReel = (sens, titre, valeur, texte) =>
+    `<li><span class="hwtip-sw hwtip-sw-${sens}" aria-hidden="true"></span><div><div class="hwtip-lt"><b>${escapeHtml(titre)}</b><span class="hwtip-v">${escapeHtml(valeur)}</span></div><p>${escapeHtml(texte)}</p></div></li>`;
+  const legendeReel = (valNous, valAutres) =>
+    `</ul><div class="hwtip-sous">${escapeHtml(T('The two thin lines: what is used right now'))}</div><ul class="hwtip-liste">`
+    + ligneReel('g', T('MyFabmesh now'), valNous, T('Starts on the left, inside blocks 1 and 2.'))
+    + ligneReel('d', T('Other apps now'), valAutres, T('Starts on the right, inside block 3.'))
+    + `</ul><div class="hwtip-note">${escapeHtml(T('Green: low use. Red: high use.'))}</div>`;
   const schema = (parts, reel) => {            // parts : [{pct, couleur, n}] ; repere numerote au-dessus de chaque part
     const tot = parts.reduce((a, p) => a + p.pct, 0) || 1;
     let x = 0; const pins = [];
@@ -23221,9 +23319,12 @@ function _htmlInfoBulle(cle) {
     const h = (window.__hw || {})[cle]; if (!h) return '';
     const nom = cle === 'vram' ? T('Graphics memory (VRAM)') : T('Memory (RAM)');
     const reste = Math.max(0, h.autresGB - h.reserveGB);
-    const maintenant = h.libre
-      ? Tf('Your other apps use {x} GB of the {y} GB you keep for them.', _go(h.autresGB), _go(h.reserveGB))
-      : Tf('MyFabmesh uses {x} GB. Your other apps used {y} GB when MyFabmesh was idle.', _go(h.mfmReelGB), _go(h.autresGB));
+    // 2026-10-01 (user : « le texte du bas est faux ») : l'ancienne phrase affirmait « vos autres logiciels utilisaient X Go quand MyFabmesh etait au repos »
+    // alors que ce X comprend la fenetre de MyFabmesh elle-meme et que « MyFabmesh utilise 0,0 Go » contredisait la barre. On ne dit plus que ce qui est mesure :
+    // l'occupation TOTALE de la carte, tous programmes confondus, et la hausse due a MyFabmesh quand il calcule.
+    const maintenant = h.usedGB == null ? '' : (h.libre
+      ? Tf("In use right now: {x} GB of {y} GB, all programs together (including MyFabmesh's own window). MyFabmesh is not computing.", _go(h.usedGB), _go(h.totalGB))
+      : Tf('In use right now: {x} GB of {y} GB, all programs together. MyFabmesh adds about {a} GB while it computes.', _go(h.usedGB), _go(h.totalGB), _go(h.mfmReelGB)));
     return `<div class="hwtip-titre"><b>${escapeHtml(nom)}</b><span>${escapeHtml(Tf('{x} GB in total', _go(h.totalGB)))}</span></div>`
       + schema([{ pct: h.minGB, couleur: C.min, n: 1 }, { pct: h.addGB, couleur: C.add, n: 2 }, { pct: Math.min(h.reserveGB, h.totalGB - h.plancher - h.minGB), couleur: C.autres, n: 3 }, { pct: h.plancher, couleur: C.win, n: 4 }],
         (() => {
@@ -23236,7 +23337,7 @@ function _htmlInfoBulle(cle) {
       + ligne(2, C.add, T('Extra for MyFabmesh'), _go(h.addGB) + ' GB', T('Free room MyFabmesh may use on top of its minimum. Drag the marker to the right to give it more.'))
       + ligne(3, C.autres, T('Other apps'), _go(h.reserveGB) + ' GB', T('What you keep for your other software. MyFabmesh never takes it. Drag the marker to the left to keep more.'))
       + ligne(4, C.win, T('Windows'), _go(h.plancher) + ' GB', T('Kept for the system itself. Never used.'))
-      + `</ul><div class="hwtip-note">${escapeHtml(T('The thin line inside a block is the real use right now: green is low, red is high.'))}</div>`
+      + legendeReel(_go(h.mfmReelGB) + ' GB', _go(h.autresGB) + ' GB')
       + `<div class="hwtip-now">${escapeHtml(maintenant)}${reste > 0.05 ? '<br><span class="hwtip-warn">' + escapeHtml(Tf('They use {x} GB more than kept: MyFabmesh gets less.', _go(reste))) + '</span>' : ''}</div>`;
   }
   const k = window.__hwCharge; if (!k) return '';
@@ -23254,8 +23355,24 @@ function _htmlInfoBulle(cle) {
         ? Tf('Above {x} % the generations slow down by themselves to let the card breathe. Drag the marker to change it.', lim)
         : (k.threads ? Tf('{x} of {y} threads. Generations run slower so your PC stays responsive.', Math.max(1, Math.round(k.threads * lim / 100)), k.threads) : T('Generations run slower so your PC stays responsive.')))
       + ligne(3, C.autres, T('Left for other apps'), (100 - lim) + ' %', T('Not touched by MyFabmesh.'))
-      + `</ul><div class="hwtip-note">${escapeHtml(T('The thin line inside a block is the real use right now: green is low, red is high.'))}</div>`
+      + legendeReel(k.mesure ? nous + ' %' : '—', k.mesure ? autres + ' %' : '—')
       + `<div class="hwtip-now">${escapeHtml(k.mesure ? Tf('Now: {a} % in total · MyFabmesh {b} % · other apps {c} %', total, nous, autres) : Tf('Now: {a} % in total', total))}</div>`;
+  }
+  if (cle === 'disk') {
+    const k = window.__hwDisque; if (!k) return '';
+    const expl = {
+      'Models': 'AI models downloaded to this PC (images, 3D, rig...). The biggest part, needed to work offline.',
+      'Engines & app': 'The application itself and the programs it runs (Python, engines).',
+      'Your generations': 'Your projects: images, 3D models, rigs and animations.',
+      'Cache & temporary files': 'Work files and logs. Safe to delete: they are rebuilt when needed.',
+    };
+    const C = { 'Models': '#4b2b99', 'Engines & app': '#7a52d6', 'Your generations': '#b79cff', 'Cache & temporary files': '#dccfff' };
+    const lignes = k.parts.map((x, i) => ligne(i + 1, C[x.cle], T(x.cle), _go(x.gb) + ' GB', T(expl[x.cle]))).join('')
+      + ligne(5, '#9aa3b2', T('Other files'), _go(k.autres) + ' GB', T('Everything else on this disk: Windows, your software, your documents.'));
+    return `<div class="hwtip-titre"><b>${escapeHtml(T('Disk'))} (${escapeHtml(k.d.drive)})</b><span>${escapeHtml(Tf('{x} GB in total', _go(k.d.totalGB)))}</span></div>`
+      + schema([...k.parts.map((x, i) => ({ pct: x.gb, couleur: C[x.cle], n: i + 1 })), { pct: k.autres, couleur: '#9aa3b2', n: 5 }, { pct: Math.max(0.01, k.d.freeGB), couleur: '#2a2938', n: 6 }])
+      + `<ul class="hwtip-liste">${lignes}` + ligne(6, '#2a2938', T('Free'), _go(k.d.freeGB) + ' GB', T('Still available on this disk.')) + `</ul>`
+      + `<div class="hwtip-now">${escapeHtml(Tf('MyFabmesh uses {x} GB of this disk.', _go(k.mfm)))}</div>`;
   }
   if (cle === 'temp') {
     return `<div class="hwtip-titre"><b>${escapeHtml(T('Temperature'))}</b><span>${escapeHtml(k.temp + ' °C')}</span></div>`
@@ -23279,6 +23396,7 @@ function _initInfoBullesMateriel() {
     if (stat.querySelector('#set-gpu-util-limit')) return 'gpu';
     if (stat.querySelector('#set-cpu-limit')) return 'cpu';
     if (stat.querySelector('#set-gpu-temp-limit')) return 'temp';
+    if (stat.querySelector('#set-disk-bar')) return 'disk';
     return null;
   };
   const placer = (e) => {
@@ -23474,13 +23592,19 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
     const r = await window.meshyAPI?.getCrashReports?.();
     cb.checked = r ? r.enabled !== false : true;
   } catch (_) { /* garde la valeur par defaut de la case */ }
+  document.getElementById('set-crash-row')?.classList.toggle('on', cb.checked);
+  const ligneCrash = document.getElementById('set-crash-row');
+  const marquer = () => ligneCrash && ligneCrash.classList.toggle('on', cb.checked);
+  marquer();
   cb.addEventListener('change', async () => {
     const on = cb.checked;
+    marquer();
     try {
       const r = await window.meshyAPI?.setCrashReports?.(on);
       if (r && r.success === false) throw new Error(r.error || 'save failed');
     } catch (_) {
       cb.checked = !on;
+      marquer();
       if (hint) hint.textContent = T('Could not save this setting.');
       return;
     }
@@ -25133,7 +25257,8 @@ async function refreshParentalStatus() {
 // les 3 s. Seul « majeur verifie » + la date est conserve : ni piece, ni photo, ni date de naissance.
 async function _verifierAgeFlow() {
   if (!API.ageStart || !API.ageStatus) { showToast(_i18nT('Age verification is not available in this build.'), 'error', 6000); return false; }
-  if (!(await _exigerConnexion())) return false;
+  // Le texte dit la VRAIE raison (la fenetre parlait du cloud : trompeur ici) — la verification est liee au compte.
+  if (!(await _exigerConnexion('To verify your age, sign in with your MyFabmesh account. The verification is tied to your account.'))) return false;
   return new Promise((resolve) => {
     const ov = document.createElement('div');
     ov.id = 'age-overlay';
@@ -28872,9 +28997,9 @@ async function _openCloudSite(pathOrUrl) {
 
 // Connexion EXIGEE avant les fonctions en ligne (user 2026-10-01 : generation cloud, Marketplace). Deja connecte : rien ne s'affiche.
 // Rend true si on est connecte (ou si on vient de l'etre), false si la fenetre est fermee sans connexion.
-async function _exigerConnexion() {
+async function _exigerConnexion(texte) {
   try { const s = await API.cloudStatus?.(); if (s && s.loggedIn) return true; } catch (_) {}
-  return !!(await showCloudLoginModal());
+  return !!(await showCloudLoginModal(texte ? { texte } : {}));
 }
 window._exigerConnexion = _exigerConnexion;
 
@@ -31435,3 +31560,5 @@ function ouvrirJournalVersion() {
   const el = document.getElementById('version-logiciel');
   if (el) { el.style.cursor = 'pointer'; el.style.pointerEvents = 'auto'; el.onclick = ouvrirJournalVersion; }
 })();
+// Le code de premier niveau est alle jusqu'au bout : le demarrage est reussi (garde-fou de index2.html : une erreur ulterieure ne bloque plus l'interface).
+try { window.__fabBootDone && window.__fabBootDone(); } catch (_) {}

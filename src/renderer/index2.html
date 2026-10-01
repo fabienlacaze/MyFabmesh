@@ -14,37 +14,106 @@
        graph and surfaces ANY uncaught error / failed import as a visible
        panel + a log line, so the window always paints something. -->
   <script>
+    /* GARDE-FOU DE DEMARRAGE (refait le 2026-10-01, user : « l'user ne pourrait meme pas envoyer de message ou copier le message, qui n'explique pas
+       assez bien »). Avant : un ecran « failed to start » plein ecran, a N'IMPORTE QUEL moment (une erreur sans gravite 40 s apres le lancement
+       masquait toute l'interface), texte non selectionnable (body { user-select: none }), aucune explication, aucun bouton.
+       Maintenant : - AVANT la fin du demarrage : un ecran qui explique, avec le detail (message, fichier:ligne, version) SELECTIONNABLE et trois
+       boutons (Copier, Ouvrir le dossier des journaux, Recharger) ; - APRES : une simple banniere en bas, qui ne bloque rien (Copier / Fermer). */
     (function () {
-      function showBootError(msg) {
+      var FR = /^fr/i.test((navigator.language || ''));
+      var T = FR ? {
+        titre: "MyFabmesh.AI n'a pas pu démarrer",
+        apres: "Une erreur est survenue dans l'application. Le reste continue de fonctionner.",
+        expl: "Rien n'est perdu : vos projets et vos fichiers n'ont pas été touchés. Fermer puis rouvrir l'application règle le plus souvent le problème. Si cela revient, copiez les détails ci-dessous et envoyez-les nous : ils disent exactement où ça a cassé.",
+        ou: 'Où', detail: 'Détails (sélectionnables)', copier: 'Copier les détails', copie: 'Copié ✓', dossier: 'Ouvrir le dossier des journaux', recharger: 'Recharger', fermer: 'Fermer',
+        pied: 'Journaux : %APPDATA%\\myfabmesh-ai\\renderer.log et startup.log',
+      } : {
+        titre: 'MyFabmesh.AI could not start',
+        apres: 'An error occurred in the app. Everything else keeps working.',
+        expl: 'Nothing is lost: your projects and files were not touched. Closing and reopening the app usually fixes it. If it happens again, copy the details below and send them to us: they say exactly where it broke.',
+        ou: 'Where', detail: 'Details (selectable)', copier: 'Copy details', copie: 'Copied ✓', dossier: 'Open the logs folder', recharger: 'Reload', fermer: 'Close',
+        pied: 'Logs: %APPDATA%\\myfabmesh-ai\\renderer.log and startup.log',
+      };
+      var bootFini = false, derniere = '';
+      // Le demarrage est fini quand index2.js a execute tout son code de premier niveau (window.__fabBootDone), ou, par securite, apres 25 s sans erreur.
+      window.__fabBootDone = function () { bootFini = true; };
+      setTimeout(function () { bootFini = true; }, 25000);
+      function echapper(x) { return String(x).replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }); }
+      function copier(texte, bouton) {
+        function ok() { if (bouton) { var a = bouton.textContent; bouton.textContent = T.copie; setTimeout(function () { bouton.textContent = a; }, 1600); } }
         try {
-          if (document.getElementById('fab-boot-error')) return;
-          var d = document.createElement('div');
-          d.id = 'fab-boot-error';
-          d.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#0b0b14;color:#e6e6f0;'
-            + 'font-family:system-ui,sans-serif;padding:32px;overflow:auto;';
-          d.innerHTML = '<h2 style="color:#ff6b6b;margin:0 0 12px">MyFabmesh.AI failed to start</h2>'
-            + '<p>An error occurred during startup. The app is still running; please report this with the log below.</p>'
-            + '<pre style="white-space:pre-wrap;background:#16161f;padding:12px;border-radius:8px;'
-            + 'border:1px solid #2a2a3a;font-size:14px">' + String(msg).replace(/[<>&]/g, function (c) {
-                return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c];
-              }) + '</pre>'
-            + '<p style="opacity:.7;font-size:14px">Log: %APPDATA%\\myfabmesh-ai\\renderer.log and startup.log</p>';
-          (document.body || document.documentElement).appendChild(d);
+          if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(texte).then(ok, repli); return; }
         } catch (_) {}
+        repli();
+        function repli() {
+          try { var t = document.createElement('textarea'); t.value = texte; t.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); ok(); } catch (_) {}
+        }
+      }
+      function bouton(txt, couleur) {
+        var b = document.createElement('button'); b.type = 'button'; b.textContent = txt;
+        b.style.cssText = 'font:600 14px system-ui,sans-serif;padding:9px 16px;border-radius:8px;border:1px solid #3a3a4a;cursor:pointer;color:#fff;background:' + (couleur || '#23232f');
+        return b;
+      }
+      function infos(msg, e) {
+        var lieu = (e && e.filename) ? (String(e.filename).split(/[\\/]/).pop() + ':' + (e.lineno || '?') + ':' + (e.colno || '?')) : '';
+        var version = ''; try { version = (document.querySelector('[data-app-version]') || {}).textContent || ''; } catch (_) {}
+        return { lieu: lieu, texte: [
+          'MyFabmesh.AI error report', new Date().toISOString(), lieu ? 'Where: ' + lieu : '', 'App: ' + (version || (typeof window.__fabVersion === 'string' ? window.__fabVersion : 'unknown')),
+          'System: ' + navigator.userAgent, '', String(msg)].filter(function (x, i) { return x !== '' || i > 5; }).join('\n') };
       }
       function logBoot(m) {
         try { window.meshyAPI && window.meshyAPI.rendererLog && window.meshyAPI.rendererLog({ tag: 'boot', msg: m }); } catch (_) {}
       }
+      function ecranBloquant(msg, e) {
+        try {
+          if (document.getElementById('fab-boot-error')) return;
+          var i = infos(msg, e);
+          var d = document.createElement('div');
+          d.id = 'fab-boot-error';
+          d.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#0b0b14;color:#e6e6f0;font-family:system-ui,sans-serif;padding:32px;overflow:auto;'
+            + 'user-select:text;-webkit-user-select:text;';
+          d.innerHTML = '<h2 style="color:#ff6b6b;margin:0 0 12px;font-size:24px">' + T.titre + '</h2>'
+            + '<p style="max-width:70ch;line-height:1.55;font-size:15px;margin:0 0 14px">' + T.expl + '</p>'
+            + (i.lieu ? '<p style="margin:0 0 8px;font-size:14px"><b>' + T.ou + ' :</b> <code>' + echapper(i.lieu) + '</code></p>' : '')
+            + '<div style="font-size:13px;opacity:.75;margin:10px 0 4px">' + T.detail + '</div>'
+            + '<pre id="fab-boot-detail" style="white-space:pre-wrap;word-break:break-word;background:#16161f;padding:12px;border-radius:8px;border:1px solid #2a2a3a;font-size:13.5px;user-select:text;-webkit-user-select:text;cursor:text;max-height:40vh;overflow:auto">' + echapper(i.texte) + '</pre>'
+            + '<div id="fab-boot-btns" style="display:flex;gap:10px;flex-wrap:wrap;margin:14px 0"></div>'
+            + '<p style="opacity:.65;font-size:13px;margin:8px 0 0">' + echapper(T.pied) + '</p>';
+          (document.body || document.documentElement).appendChild(d);
+          var z = d.querySelector('#fab-boot-btns');
+          var b1 = bouton(T.copier, '#7c3aed'); b1.onclick = function () { copier(i.texte, b1); }; z.appendChild(b1);
+          if (window.meshyAPI && window.meshyAPI.openLogsFolder) { var b2 = bouton(T.dossier); b2.onclick = function () { try { window.meshyAPI.openLogsFolder(); } catch (_) {} }; z.appendChild(b2); }
+          var b3 = bouton(T.recharger); b3.onclick = function () { location.reload(); }; z.appendChild(b3);
+        } catch (_) {}
+      }
+      function banniere(msg, e) {
+        try {
+          if (msg === derniere) return;            // la meme erreur en boucle n'empile rien
+          derniere = msg;
+          var i = infos(msg, e);
+          var b = document.getElementById('fab-erreur-bandeau');
+          if (b) b.remove();
+          b = document.createElement('div');
+          b.id = 'fab-erreur-bandeau';
+          b.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:999998;max-width:min(680px,92vw);background:#2a1418;color:#ffd9dc;border:1px solid #7a2a33;'
+            + 'border-radius:10px;padding:10px 14px;font:14px/1.4 system-ui,sans-serif;display:flex;gap:12px;align-items:center;flex-wrap:wrap;box-shadow:0 8px 28px rgba(0,0,0,.5)';
+          var t = document.createElement('span'); t.style.cssText = 'flex:1 1 260px;user-select:text;-webkit-user-select:text'; t.textContent = T.apres + (i.lieu ? ' (' + i.lieu + ')' : '');
+          b.appendChild(t);
+          var c = bouton(T.copier, '#7c3aed'); c.style.padding = '6px 12px'; c.onclick = function () { copier(i.texte, c); }; b.appendChild(c);
+          var f = bouton(T.fermer); f.style.padding = '6px 12px'; f.onclick = function () { b.remove(); derniere = ''; }; b.appendChild(f);
+          (document.body || document.documentElement).appendChild(b);
+        } catch (_) {}
+      }
+      function signaler(msg, e, type) {
+        logBoot(type + ': ' + msg);
+        if (bootFini) banniere(msg, e); else ecranBloquant(msg, e);
+      }
       window.addEventListener('error', function (e) {
-        var m = (e && e.error && e.error.stack) || (e && e.message) || 'Unknown error';
-        logBoot('error: ' + m);
-        showBootError(m);
+        signaler((e && e.error && e.error.stack) || (e && e.message) || 'Unknown error', e, 'error');
       });
       window.addEventListener('unhandledrejection', function (e) {
         var r = e && e.reason;
-        var m = (r && r.stack) || (r && r.message) || String(r);
-        logBoot('reject: ' + m);
-        showBootError(m);
+        signaler((r && r.stack) || (r && r.message) || String(r), null, 'reject');
       });
     })();
   </script>
@@ -2441,17 +2510,14 @@
         <div class="settings-box">
           <div class="settings-box-title">Crash reports</div>
           <div class="settings-box-desc" id="set-crash-desc">When the app hits an unexpected error, an anonymous report is sent to our error tracker (Sentry): the stack trace, the app version, the Windows version, and a random installation id. Your Windows username and machine name are removed first. No prompt, image or mesh is ever included.</div>
-          <div style="display:flex; align-items:center; gap:10px; margin-top:9px; flex-wrap:wrap;">
-            <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-size:14px;">
-              <input type="checkbox" id="set-crash-optin" checked style="width:15px; height:15px; cursor:pointer;">
-              <span>Send anonymous crash reports</span>
-            </label>
-            <span style="flex:1;"></span>
-            <span id="set-crash-hint" style="font-size:13px; color:var(--text-2);"></span>
+          <div class="np-auto-row asst-ligne" id="set-crash-row">
+            <label class="np-switch" for="set-crash-optin"><input type="checkbox" id="set-crash-optin" checked /><span class="np-switch-track" aria-hidden="true"></span></label>
+            <div class="np-auto-texte">
+              <div class="np-auto-titre">Send anonymous crash reports</div>
+              <div class="np-auto-info" id="set-crash-hint" data-i18n-skip></div>
+            </div>
           </div>
-          <div style="margin-top:8px;">
-            <a href="#" id="set-privacy-link" style="font-size:13px;">Read the privacy policy</a>
-          </div>
+          <a href="#" id="set-privacy-link" class="set-lien">Read the privacy policy</a>
         </div>
 
         <!-- ═══ HARDWARE ═══ -->
@@ -2543,6 +2609,14 @@
               <span class="gpu-stat-label">Disk</span>
               <span class="gpu-stat-val"><span id="set-disk-val">--</span> <span class="hw-seuil-txt" id="set-disk-txt"></span></span>
             </div>
+            <div class="hw-partage hw-disque" id="set-disk-bar" hidden>
+              <div class="hw-seg hd-mod" id="set-disk-mod"></div>
+              <div class="hw-seg hd-mot" id="set-disk-mot"></div>
+              <div class="hw-seg hd-gen" id="set-disk-gen"></div>
+              <div class="hw-seg hd-cac" id="set-disk-cac"></div>
+              <div class="hw-seg hw-autres" id="set-disk-autres"></div>
+            </div>
+            <div class="hd-legende" id="set-disk-legende" hidden></div>
           </div>
           <div class="settings-box-hint">Drag the white markers. Memory: right gives MyFabmesh more, left keeps more for your other apps.</div>
         </div>
@@ -2831,6 +2905,10 @@
     .hwtip-lt b{color:#fff;font-size:14px}
     .hwtip-v{font-variant-numeric:tabular-nums;color:#d9c9ff;font-weight:700;white-space:nowrap}
     .hwtip-liste p{margin:2px 0 0;color:var(--text-2)}
+    .hwtip-sous{margin:12px 0 4px;font-size:13px;font-weight:700;color:var(--text-0)}
+    .hwtip-sw{flex:0 0 18px;height:6px;margin-top:8px;border-radius:3px}
+    .hwtip-sw-g{background:linear-gradient(90deg,#4ade80,#fbbf24 60%,#f87171)}
+    .hwtip-sw-d{background:linear-gradient(270deg,#4ade80,#fbbf24 60%,#f87171)}
     .hwtip-note{margin-top:10px;font-size:13px;color:var(--text-2);font-style:italic}
     .hwtip-now{margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.12);color:#fff;font-weight:600}
     .hwtip-warn{color:#f59e0b;font-weight:600}
@@ -2855,6 +2933,13 @@
     .hw-pret-lbl{font-size:13px;font-weight:600;color:var(--text-2)}
     .hw-pret .hw-voyants{display:contents}
     .hw-partage{position:relative;display:flex;height:30px;margin:4px 0 0;border-radius:7px;background:var(--bg-3)}
+    /* DISQUE : ce que MyFabmesh occupe (modeles, moteurs + appli, generations, cache), le reste du disque, et le libre (fond de la barre) */
+    .hw-disque{overflow:hidden}
+    .hw-disque .hw-seg{font-size:12px}
+    .hw-disque .hd-mod,.hw-disque .hd-mot,.hw-disque .hd-gen,.hw-disque .hd-cac{min-width:4px;flex:0 0 auto}   /* un morceau tres petit reste visible */
+    .hd-mod{background:#4b2b99;color:#fff}.hd-mot{background:#7a52d6;color:#fff}.hd-gen{background:#b79cff;color:#2a1160}.hd-cac{background:#dccfff;color:#2a1160}
+    .hd-legende{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0 2px;font-size:13px;color:var(--text-1)}
+    .hd-chip{display:inline-flex;align-items:center;gap:6px}.hd-chip i{width:11px;height:11px;border-radius:3px;display:inline-block}.hd-chip b{font-weight:700;color:var(--text-0)}
     .hw-seg{position:relative;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;font-size:13px;font-weight:600;min-width:0}
     .hw-seg:first-child{border-radius:7px 0 0 7px}
     .hw-seg.hw-add{background:#b79cff;color:#2a1160}

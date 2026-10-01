@@ -312,7 +312,7 @@
       renderJobs();
       Promise.resolve()
         .then(function () {
-          return window.meshyAPI.saveImageDataUrl({ basePath: imgPath, dataUrl: dataUrl, suffix: 'cloned' });
+          return window.meshyAPI.saveImageDataUrl({ basePath: imgPath, dataUrl: dataUrl, suffix: 'cloned', lignee: { op: 'clone', params: { brushSize: cloneState.brushSize, hardness: cloneState.hardness } } });
         })
         .then(function (result) {
           if (result && result.success) {

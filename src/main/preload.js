@@ -322,6 +322,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   stopSdxlServer: () => ipcRenderer.invoke('stop-sdxl-server'),
   toggleUnrestricted: (opts) => ipcRenderer.invoke('toggle-unrestricted', opts),
   getParentalStatus: () => ipcRenderer.invoke('get-parental-status'),
+  diskUsage: (opts) => ipcRenderer.invoke('disk-usage', opts),
   ageStart: () => ipcRenderer.invoke('age:start'),
   ageStatus: () => ipcRenderer.invoke('age:status'),
   checkProjectNsfw: (opts) => ipcRenderer.invoke('check-project-nsfw', opts),

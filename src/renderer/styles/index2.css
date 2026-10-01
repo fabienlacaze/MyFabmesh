@@ -4859,6 +4859,11 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 .modal-card .np-switch input:checked + .np-switch-track { background: var(--accent-grad); border-color: transparent; }
 .modal-card .np-switch input:checked + .np-switch-track::after { transform: translateX(18px); }
 .modal-card .np-switch input:focus-visible + .np-switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Lien de texte des Reglages : la couleur par defaut du navigateur (bleu fonce souligne) etait illisible sur fond sombre (user : « pas joli »). */
+.set-lien { display: inline-block; margin-top: 4px; font-size: 14px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.set-lien::after { content: ' 97'; font-weight: 400; }
+.set-lien:hover { text-decoration: underline; }
+.set-lien:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 .np-auto-texte { min-width: 0; flex: 1; }
 .np-auto-titre { font-size: 13px; font-weight: 700; color: var(--text-0); }
 .np-auto-info { font-size: 14px; color: var(--text-2); margin-top: 2px; line-height: 1.35; }
