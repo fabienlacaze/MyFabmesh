@@ -156,7 +156,7 @@ def choisir(candidates, sims, tolerance=0.05):
     return max(eligibles, key=lambda k: sims[k])
 
 
-def load_pipeline(use_ipadapter_image_ref=None):
+def load_pipeline(use_ipadapter_image_ref=None, ip_scale=0.7):
     from diffusers import StableDiffusionXLPipeline
     log('loading RealVisXL + (optional IPAdapter)')
     kwargs = {
@@ -179,16 +179,16 @@ def load_pipeline(use_ipadapter_image_ref=None):
         pipe.load_ip_adapter(
             'h94/IP-Adapter', subfolder='sdxl_models',
             weight_name='ip-adapter-plus_sdxl_vit-h.safetensors')
-        # 0.7 = preserve identity + still let the prompt re-orient
-        # the subject toward strict front.
-        pipe.set_ip_adapter_scale(0.7)
+        # FIDELITE A L'IMAGE (choix « Faithful / Balanced / Free » de la case Auto-rectify, 2026-10-01) : 0,95 / 0,7 / 0,5.
+        # 0.7 = preserve identity + still let the prompt re-orient the subject toward strict front.
+        pipe.set_ip_adapter_scale(float(ip_scale))
     pipe.enable_model_cpu_offload()
     log('pipeline ready')
     return pipe
 
 
 def generate(prompt, out_path, ref_image=None, seeds=3, steps=30,
-             guidance=7.0, size=1024, mode='front'):
+             guidance=7.0, size=1024, mode='front', ip_scale=0.7):
     if mode == 'iso':
         full_prompt = prompt.strip().rstrip('.,') + ISO_TAIL
         neg = NEG_ISO
@@ -204,7 +204,7 @@ def generate(prompt, out_path, ref_image=None, seeds=3, steps=30,
         ipadapter_ref = sur_blanc(Image.open(ref_image))   # transparence -> BLANC, pas noir
         log(f'using ref image as IPAdapter anchor: {ref_image}')
 
-    pipe = load_pipeline(use_ipadapter_image_ref=ipadapter_ref)
+    pipe = load_pipeline(use_ipadapter_image_ref=ipadapter_ref, ip_scale=ip_scale)
 
     candidates = []
     t0 = time.time()
@@ -255,6 +255,8 @@ def main():
     ap.add_argument('--seeds', type=int, default=3)
     ap.add_argument('--steps', type=int, default=30)
     ap.add_argument('--guidance', type=float, default=7.0)
+    ap.add_argument('--ip-scale', dest='ip_scale', type=float, default=0.7,
+                    help='fidelite a l image de reference (0.5 libre, 0.7 equilibre, 0.95 fidele)')
     args = ap.parse_args()
     # Plafond VRAM = limite de l'utilisateur moins ce que les autres occupent deja ;
     # plafond RAM ramene au budget (voir cloisonnement_memoire).
@@ -281,14 +283,14 @@ def main():
                 prompt = 'subject'
         generate(prompt, args.output, ref_image=args.from_image,
                  seeds=args.seeds, steps=args.steps, guidance=args.guidance,
-                 mode=args.mode)
+                 mode=args.mode, ip_scale=max(0.3, min(1.0, args.ip_scale)))
     else:
         if not args.prompt_or_first:
             log('ERROR: prompt required (or use --from-image)')
             sys.exit(2)
         generate(args.prompt_or_first, args.output, ref_image=None,
                  seeds=args.seeds, steps=args.steps, guidance=args.guidance,
-                 mode=args.mode)
+                 mode=args.mode, ip_scale=max(0.3, min(1.0, args.ip_scale)))
     _cm.terminer('ok')
 
 

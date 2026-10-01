@@ -2421,7 +2421,7 @@ interface GenerateInput {
             | 'avion' | 'bateau' | 'animal' | 'custom';
   mode: 'lite' | 'standard' | 'full';
   seed?: number;
-  rectify?: boolean; back_view?: boolean; smooth?: boolean;
+  rectify?: boolean; rectify_force?: 'fidele' | 'equilibre' | 'libre'; back_view?: boolean; smooth?: boolean;
   face_fix?: boolean; ultra_hd?: boolean; fast?: boolean;
   // Trellis2 advanced options — values MUST match the data-credits
   // attributes in cloud/public/app/index.html so the UI cost meter and
@@ -7817,6 +7817,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     mode: (form.get('mode') as GenerateInput['mode']) || 'standard',
     seed: parseInt(String(form.get('seed') ?? '42'), 10) || 42,
     rectify: form.get('rectify') === 'true',
+    rectify_force: ((v) => (v === 'equilibre' || v === 'libre') ? v : 'fidele')(String(form.get('rectify_force') ?? 'fidele')),
     back_view: form.get('back_view') === 'true',
     smooth: form.get('smooth') === 'true',
     face_fix: form.get('face_fix') === 'true',
@@ -7989,6 +7990,8 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
             refImageUrl: frontUrl,
             mode: rectifyMode,
             seeds: 3,
+            // fidelite a l'image (choix Faithful / Balanced / Free de la case Auto-rectify) ; meme table que le bureau
+            ip_scale: ({ fidele: 0.95, equilibre: 0.7, libre: 0.5 } as Record<string, number>)[input.rectify_force ?? 'fidele'] ?? 0.95,
           }, 'rectify'), req, projectName ?? undefined);
         console.log(`[wave2.1] rectified front → ${rectifyMode} (asset=${input.asset_type})`);
         frontUrl = rectifiedUrl;

@@ -625,6 +625,18 @@
                         Auto-rectify
                       </label>
                     </div>
+                    <div class="form-row" id="ws-rectify-force-row" style="margin-top:4px;">
+                      <select id="ws-trellis2-rectify-force" style="display:none;">
+                        <option value="fidele" selected>Faithful</option>
+                        <option value="equilibre">Balanced</option>
+                        <option value="libre">Free</option>
+                      </select>
+                      <div class="choix" data-pour="ws-trellis2-rectify-force">
+                        <button type="button" class="choix-btn" data-valeur="fidele"><b>Faithful</b><small>Stays close to your image</small></button>
+                        <button type="button" class="choix-btn" data-valeur="equilibre"><b>Balanced</b></button>
+                        <button type="button" class="choix-btn" data-valeur="libre"><b>Free</b><small>Turns the subject more</small></button>
+                      </div>
+                    </div>
                     <div class="form-row check-row" style="margin-top:4px;">
                       <label class="inline-check" style="font-size:11px;" title="Edge-preserving bilateral filter on the baseColor atlas. Cleans speckled grain on smooth surfaces (paint, chrome, glass) while keeping panel-gap edges sharp. Best for vehicles / objects / hard surfaces.">
                         <input type="checkbox" id="ws-trellis2-smooth" checked />
@@ -2745,6 +2757,9 @@
     .hw-pc-sub{font-size:11px;color:var(--text-2);margin:-6px 0 2px}
     .hw-gpu-choice{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:var(--text-2)}
     .hw-gpu-choice select{max-width:68%;font-size:11px;padding:3px 6px;background:var(--bg-3);color:var(--text-0);border:1px solid var(--border);border-radius:6px}
+    /* Auto-rectify : le choix de fidelite n'apparait que si la case est cochee (:has suit aussi une case cochee par le code) */
+    #ws-rectify-force-row{display:none}
+    .form-row:has(> label > #ws-trellis2-rectify:checked) + #ws-rectify-force-row{display:block}
     .hw-pret{display:none !important;}   /* « pas besoin » (user 30/09) : la barre et sa phrase suffisent */
     .hw-pret-off{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
     .hw-pret-lbl{font-size:11px;font-weight:600;color:var(--text-2)}

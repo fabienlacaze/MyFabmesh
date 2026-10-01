@@ -8587,7 +8587,7 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
 // --- Image-to-3D: TRELLIS-2 native (default). SF3D and TripoSR have
 // been retired for non-commercial license; legacy requests for those
 // engines are silently rerouted to trellis2_native. ---
-ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2MaxTris, assetType }) => {
+ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, rectifyForce, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2MaxTris, assetType }) => {
   let imagePath = _imagePath;
   let engine = _engine;
   // SF3D and TripoSR both disabled at the UI level — Stability AI
@@ -8816,6 +8816,7 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
           '--from-image', imagePath,
           '--mode', rectifyMode,
           '--seeds', '3',
+          '--ip-scale', String({ fidele: 0.95, equilibre: 0.7, libre: 0.5 }[rectifyForce] || 0.95),     // choix Faithful / Balanced / Free de la case Auto-rectify
         ], { timeout: 180000, maxBuffer: 10 * 1024 * 1024,
              env: { ...process.env, PYTHONUNBUFFERED: '1', HF_HOME: HF_CACHE_DIR, HUGGINGFACE_HUB_CACHE: path.join(HF_CACHE_DIR, 'hub') } },
         (err) => err ? reject(err) : resolve());

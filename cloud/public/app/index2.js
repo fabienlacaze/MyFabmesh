@@ -9711,6 +9711,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   const trellis2Refine = document.getElementById('ws-trellis2-refine')?.checked || false;
   if (trellis2Refine) expectedMs += 90000;  // ~90s for SDXL Tile Refine
   const trellis2RectifySource = document.getElementById('ws-trellis2-rectify')?.checked || false;
+  const rectifyForce = document.getElementById('ws-trellis2-rectify-force')?.value || 'fidele';     // fidelite a l'image : fidele (0,95) / equilibre (0,7) / libre (0,5)
   if (trellis2RectifySource) expectedMs += 36000;  // ~36s for front-strict rectify
   const trellis2Smooth = document.getElementById('ws-trellis2-smooth')?.checked || false;
   if (trellis2Smooth) expectedMs += 12000;  // ~12s for bilateral smooth
@@ -9763,6 +9764,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     multiref:     trellis2MultiRef,
     refine:       trellis2Refine,
     rectify:      trellis2RectifySource,
+    rectify_force: rectifyForce,
     smooth:       trellis2Smooth,
     quality_plus: trellis2QualityPlus,
     ultra_q:      trellis2UltraQ,
