@@ -11278,7 +11278,12 @@ ipcMain.handle('app:check-for-update', async () => {
   if (!app.isPackaged) return { ok: false, error: 'dev build, skipping' };
   try {
     const result = await _updater.checkForUpdates();
-    return { ok: true, hasUpdate: !!result?.updateInfo, version: result?.updateInfo?.version || null };
+    // `updateInfo` existe TOUJOURS (c'est la fiche de la derniere release publiee) : sans test de version, la release « 1.0.0-beta » (la seule
+    // publiee) passait pour une mise a jour sur une 1.0.44 et l'ecran annoncait « Version 1.0.0 is downloading » (user : « ca telecharge quoi la ? »).
+    // Rien n'est jamais telecharge ici (autoDownload=false) : on dit seulement qu'une version PLUS RECENTE existe.
+    const vue = result?.updateInfo?.version || null;
+    const plusRecente = result?.isUpdateAvailable === true || (vue && require('semver').gt(String(vue), app.getVersion()));
+    return { ok: true, hasUpdate: !!plusRecente, version: vue, current: app.getVersion() };
   } catch (e) {
     return { ok: false, error: e.message };
   }

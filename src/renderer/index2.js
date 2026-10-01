@@ -23753,9 +23753,9 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
           ? 'Running a development build — no updates available.'
           : 'Update check failed: ' + (r.error || 'unknown');
       } else if (r.hasUpdate) {
-        statusEl.textContent = `Version ${r.version} is downloading. We'll show a toast when it's ready.`;
+        statusEl.textContent = _i18nTf('Version {x} is available. Use the banner at the top to download and install it.', r.version);
       } else {
-        statusEl.textContent = 'You are running the latest version.';
+        statusEl.textContent = _i18nTf('You are running the latest version ({x}).', r.current || (window.__BUILD__ && window.__BUILD__.version) || '');
       }
     } catch (e) {
       statusEl.textContent = 'Update check failed: ' + e.message;
