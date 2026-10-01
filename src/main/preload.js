@@ -239,6 +239,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   logToFile: (line) => ipcRenderer.send('renderer-log', line),
   generateMultiview: (opts) => ipcRenderer.invoke('generate-multiview', opts),
   checkMultiviewDir: (imagePath) => ipcRenderer.invoke('check-multiview-dir', imagePath),
+  multiviewEngineStatus: () => ipcRenderer.invoke('multiview-engine-status'),
   generateConstructionStages: (opts) => ipcRenderer.invoke('generate-construction-stages', opts),
   generateConstructionStages3d: (opts) => ipcRenderer.invoke('generate-construction-stages-3d', opts),
   checkStages3dDir: (meshPath) => ipcRenderer.invoke('check-stages3d-dir', meshPath),

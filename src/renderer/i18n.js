@@ -1600,6 +1600,8 @@
       'Eco mode frees memory while the 3D runs.': "Le mode éco libère de la mémoire pendant la 3D.",
       'Close: {x}': "À fermer : {x}",
       'Normal': "Normal",
+      'Not installed on this device': "Non installé sur cet appareil",
+      '6 views': "6 vues",
       'Other apps already use {x} GB of your graphics card ({y} GB in total).': "D'autres applications utilisent déjà {x} Go de votre carte graphique ({y} Go au total).",
       'This 3D needs about {x} GB. On a card that is too full it can be very slow or stop at the very end, and the whole run is lost.': "Cette 3D a besoin d'environ {x} Go. Sur une carte trop pleine, elle peut être très lente ou s'arrêter tout à la fin, et tout le calcul est perdu.",
       'Close them first for the best result.': "Fermez-les d'abord pour un meilleur résultat.",

@@ -4449,11 +4449,26 @@ function _cloudToolUnavailable(label) {
   showToast(_i18nTf('{x} runs on the local AI engine (NVIDIA GPU) and is not available in Cloud mode.', label),
             'info', 6000);
 }
-document.getElementById('ws-multiview-btn')?.addEventListener('click', () => {
+document.getElementById('ws-multiview-btn')?.addEventListener('click', async () => {
   if (_isCloudMode()) { _cloudToolUnavailable(_i18nT('Multi-Views')); return; }
   const p = state.currentProject;
   if (!p || !p.selectedImagePath) { showToast('Pick an image first.', 'error'); return; }
   const modal = document.getElementById('modal-multiview-options');
+  // Moteur 6 vues absent de l'installation : on le sait AVANT de lancer (voir main.js, multiview-engine-status). L'option « 6 views » est grisee
+  // avec sa raison, « 2 views » est choisi ; plus de travail qui attend la file de memoire pour echouer en une milliseconde.
+  try {
+    const st = await window.meshyAPI?.multiviewEngineStatus?.();
+    const dispo = !st || st.mvadapter !== false;
+    const sel = document.getElementById('mv-opt-mode');
+    const opt6 = sel && Array.from(sel.options).find((o) => o.value === '6view');
+    const b6 = modal && modal.querySelector('.choix-btn[data-valeur="6view"]');
+    const petit = b6 && b6.querySelector('small');
+    if (petit && !petit.dataset.orig) petit.dataset.orig = petit.textContent;
+    if (opt6) opt6.disabled = !dispo;
+    if (petit) petit.textContent = dispo ? petit.dataset.orig : _i18nT('Not installed on this device');
+    if (!dispo && sel) { sel.value = '2view'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    else if (sel && typeof _synchroChoix === 'function') _synchroChoix(modal);
+  } catch (_) { /* statut indisponible : on laisse les deux choix */ }
   if (modal) modal.classList.remove('hidden');
 });
 
@@ -4476,6 +4491,12 @@ document.getElementById('mv-opt-start')?.addEventListener('click', async () => {
   if (!p || !p.selectedImagePath) { showToast('Pick an image first.', 'error'); return; }
   const srcImgPath = p.previewImagePath || p.selectedImagePath;
   const mode = document.getElementById('mv-opt-mode')?.value || '6view';
+  if (mode === '6view') {      // filet : jamais de travail ni de file d'attente pour un moteur que l'on sait absent
+    try {
+      const st = await window.meshyAPI?.multiviewEngineStatus?.();
+      if (st && st.mvadapter === false) { showToast(_i18nT('Not installed on this device') + ': ' + _i18nT('6 views'), 'error', 5000); return; }
+    } catch (_) {}
+  }
   const harmonize = document.getElementById('mv-opt-harmonize')?.checked ?? true;
   const upscale   = document.getElementById('mv-opt-upscale')?.checked ?? false;
 

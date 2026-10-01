@@ -9870,6 +9870,15 @@ function _mvScriptForEngine(engineOverride) {
   return path.join(SCRIPTS_DIR, name);
 }
 
+/* ETAT DU MOTEUR 6 VUES (2026-10-02, rapport d'essais du 01/10 : « moteur absent de l'installation » puis « un echec a mis 9 min 42 s a s'afficher »).
+ * Le message d'absence existait deja, mais il n'etait donne qu'APRES la file d'attente de la memoire graphique (l'essai « 2 vues » precedent avait
+ * rempli la carte a 14,8 Go) : le travail impossible attendait 9 min pour echouer en une milliseconde. La fenetre Multi-Views interroge donc cet
+ * etat a l'OUVERTURE et grise l'option « 6 views » quand le moteur n'est pas la. */
+ipcMain.handle('multiview-engine-status', async () => {
+  const mvadapter = fs.existsSync(path.join(path.dirname(SCRIPTS_DIR), 'external', 'MV-Adapter', 'mvadapter'));
+  return { mvadapter };
+});
+
 ipcMain.handle('generate-multiview', async (_event, opts) => {
   const { imagePath, harmonize, upscale, engine: engineOverride } = (opts || {});
   // MV-Adapter est local uniquement (aucun endpoint worker). Le chemin
