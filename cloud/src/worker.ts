@@ -20062,6 +20062,30 @@ async function handleAdminSetPricing(req: Request, env: Env): Promise<Response> 
   return json({ ok: true, current: sanitized });
 }
 
+/** POST /api/admin/warm  body: { cibles?: ('text2image'|'image_op'|'rectify'|'mesh')[] } — ADMIN (2026-10-01, user : « il faut que je puisse
+ *  commander le warm des containers dans l'appli / services »). Reveille a la demande les conteneurs Modal, SANS les gardes de fraicheur
+ *  (force), comme le fait deja l'intention d'un utilisateur (/api/prewarm) mais sans session utilisateur ni attente : le demarrage peut
+ *  durer 3 min, la reponse part tout de suite, l'etat se lit ensuite par /api/modal-status. Cible absente = les quatre.
+ *    text2image : generation d'images        image_op : outils d'image (charge ~6 Go de modeles d'edition, T-pose, vue de dos)
+ *    rectify    : reveil leger du conteneur image   mesh : 3D (instantane GPU)                                                  */
+async function handleAdminWarm(req: Request, env: Env,
+                               ctx?: { waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  const flags = await _getServiceFlags(env);
+  if (flags.modal_enabled === false) return err(503, 'Modal is switched off (kill switch): switch it on first');
+  const body = await req.json().catch(() => ({})) as { cibles?: unknown };
+  const permises = ['text2image', 'image_op', 'rectify', 'mesh'] as const;
+  type Cible = typeof permises[number];
+  const demandees = Array.isArray(body.cibles)
+    ? (body.cibles as unknown[]).filter((x): x is Cible => (permises as readonly unknown[]).includes(x)) : [];
+  const cibles: Cible[] = demandees.length ? Array.from(new Set(demandees)) : [...permises];
+  const p = Promise.all(cibles.map((cible) => preWarmModal(env, { cible, force: true }).catch(() => {})));
+  if (ctx?.waitUntil) ctx.waitUntil(p); else p.catch(() => {});
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'warm_containers', details: { cibles } });
+  return json({ ok: true, warming: true, cibles });
+}
+
 /** GET /api/admin/services — current state of the kill switches. */
 async function handleAdminServices(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
@@ -20684,7 +20708,7 @@ function _healthzUrl(fullUrl: string): string {
  *  container boots regardless of whether Cloudflare kept the connection.
  *  Never throws. */
 async function preWarmModal(env: Env,
-                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' | 'mesh' | 'rectify' } = {}): Promise<void> {
+                            opts: { imageOp?: boolean; cible?: 'text2image' | 'image_op' | 'mesh' | 'rectify'; force?: boolean } = {}): Promise<void> {
   /* RECTIFICATION (2026-09-29) : case « Auto-rectify » cochee = rectification au prochain « Generate
    * 3D ». On reveille le conteneur (instantane GPU : modeles deja sur la carte) par /healthz, SANS
    * /warm qui chargerait en plus CLIPSeg + SDXL Inpaint + ControlNet-Tile, inutiles ici. */
@@ -20692,7 +20716,7 @@ async function preWarmModal(env: Env,
     const url = env.MODAL_RECTIFY_URL;
     if (!url) return;
     const last = await _readLastWarmMs(env, '_meta/last_warm_tpose.txt').catch(() => null);
-    if (last != null && Date.now() - last < PREWARM_FRESH_MS) return;
+    if (!opts.force && last != null && Date.now() - last < PREWARM_FRESH_MS) return;
     await _writeLastWarmMs(env, '_meta/last_warm_tpose.txt').catch(() => {});
     await fetch(_healthzUrl(url), { method: 'GET', signal: AbortSignal.timeout(120_000) }).catch(() => null);
     console.log('[pre-warm] rectify healthz pinged');
@@ -20728,7 +20752,7 @@ async function preWarmModal(env: Env,
     if (!t.url) continue;
     try {
       const last = await _readLastWarmMs(env, t.warmKey).catch(() => null);
-      if (last != null && Date.now() - last < PREWARM_FRESH_MS) {
+      if (!opts.force && last != null && Date.now() - last < PREWARM_FRESH_MS) {
         console.log(`[pre-warm] ${t.label} already warm — skipped`);
         continue;
       }
@@ -22038,6 +22062,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/admin/payments'              && method === 'GET')  return await handleAdminPayments(req, env);
         if (pathname === '/api/admin/payments/unreconciled' && method === 'GET')  return await handleAdminUnreconciledPayments(req, env);
         if (pathname === '/api/admin/payments/reconcile'    && method === 'POST') return await handleAdminReconcilePayment(req, env);
+        if (pathname === '/api/admin/warm'            && method === 'POST') return await handleAdminWarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/admin/services'        && method === 'GET')  return await handleAdminServices(req, env);
         if (pathname === '/api/admin/services'        && method === 'POST') return await handleAdminServicesToggle(req, env);
         if (pathname === '/api/admin/audit'           && method === 'GET')  return await handleAdminAuditLog(req, env);

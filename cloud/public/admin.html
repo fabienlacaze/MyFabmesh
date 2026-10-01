@@ -838,6 +838,26 @@
 
         <div id="services-list" style="display:flex; flex-direction:column; gap:14px;"></div>
 
+        <!-- WARM DES CONTENEURS (2026-10-01, user : « il faut que je puisse commander le warm des containers dans l'appli / services »).
+             POST /api/admin/warm (sans garde de fraicheur) ; l'etat se lit par /api/modal-status (compteurs REELS de Modal). Chaque
+             conteneur allume coute quelques centimes de GPU tant qu'il reste chaud (90 s a 5 min apres le dernier appel). -->
+        <h3 style="margin:24px 0 12px;">🔥 Warm containers</h3>
+        <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px;">
+          <div style="font-size:13px; color:var(--text-1);">Wake the GPU containers now, so the next generation does not wait for a cold start. Each one stays warm for a few minutes after its last call and costs a few cents of GPU.</div>
+          <div id="warm-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-top:12px;">
+            <div class="warm-carte" data-cible="mesh" data-etat="mesh"></div>
+            <div class="warm-carte" data-cible="image_op" data-etat="image_op"></div>
+            <div class="warm-carte" data-cible="text2image" data-etat="text2image"></div>
+            <div class="warm-carte" data-cible="rectify" data-etat="tpose"></div>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-accent" id="warm-all-btn">🔥 Warm everything</button>
+            <button class="btn" id="warm-refresh-btn">🔄 Refresh state</button>
+            <span id="warm-msg" style="color:var(--text-2); font-size:12px;"></span>
+          </div>
+        </div>
+
+
         <!-- Force logout all users — nuclear session reset -->
         <h3 style="margin:32px 0 12px;">🔁 Force logout</h3>
         <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:12px; padding:16px;">
@@ -3212,6 +3232,7 @@
     }
 
     async function loadServicesPanel() {
+      try { warmRafraichir(); } catch (_) {}   // etat des conteneurs (carte « Warm containers »)
       const list = document.getElementById('services-list');
       list.innerHTML = '<div style="color:var(--text-2);">Loading…</div>';
       try {
@@ -3359,6 +3380,72 @@
         loadServicesPanel();  // revert UI to true state
       }
     }
+
+
+    /* ═══════════════════════════════════════════════════════════════
+       WARM DES CONTENEURS (Services) — voir la carte « Warm containers »
+       ═══════════════════════════════════════════════════════════════ */
+    const WARM_CARTES = {
+      mesh:       { titre: '🧊 3D mesh',            info: 'Mesh generation (GPU snapshot restore, ~35 s cold)' },
+      image_op:   { titre: '🖼️ Image tools',        info: 'Edit, T-pose, back view (loads ~6 GB of editing models)' },
+      text2image: { titre: '✨ Image generation',    info: 'Text to image' },
+      rectify:    { titre: '📐 Rectify / T-pose',   info: 'Light wake-up of the image container' },
+    };
+    let _warmSuivi = null;
+    function warmEtatTexte(e) {
+      if (!e) return { t: 'unknown', c: 'var(--text-2)' };
+      const s = e.etat || (e.warm ? 'warm' : 'cold');
+      if (s === 'busy') return { t: 'busy', c: 'var(--accent)' };
+      if (s === 'warm') return { t: 'warm', c: 'var(--ok)' };
+      if (s === 'starting') return { t: 'starting…', c: '#e0a030' };
+      if (s === 'absent') return { t: 'not deployed', c: 'var(--text-2)' };
+      return { t: 'cold', c: 'var(--text-2)' };
+    }
+    async function warmRafraichir() {
+      try {
+        const r = await fetch('/api/modal-status', { credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        for (const el of document.querySelectorAll('#warm-grid .warm-carte')) {
+          const cible = el.getAttribute('data-cible');
+          const cfg = WARM_CARTES[cible];
+          const e = warmEtatTexte(j[el.getAttribute('data-etat')]);
+          el.style.cssText = 'border:1px solid var(--border); border-radius:10px; padding:12px; background:var(--bg-2, rgba(255,255,255,.03));';
+          el.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">'
+            + '<strong style="font-size:13px;">' + cfg.titre + '</strong>'
+            + '<span style="font-size:12px; font-weight:700; color:' + e.c + ';">● ' + e.t + '</span></div>'
+            + '<div style="color:var(--text-2); font-size:11px; margin:4px 0 10px;">' + cfg.info + '</div>'
+            + '<button class="btn" data-warm="' + cible + '" style="width:100%;">🔥 Warm</button>';
+        }
+      } catch (e) {
+        document.getElementById('warm-msg').textContent = 'State unavailable: ' + (e && e.message ? e.message : e);
+      }
+    }
+    async function warmLancer(cibles) {
+      const msg = document.getElementById('warm-msg');
+      msg.textContent = 'Starting…';
+      try {
+        const r = await fetch('/api/admin/warm', {
+          method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(cibles && cibles.length ? { cibles } : {}),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        msg.textContent = 'Warming ' + (j.cibles || []).length + ' container(s) — state refreshes every 5 s for 3 minutes.';
+        if (_warmSuivi) clearInterval(_warmSuivi);
+        let n = 0;
+        warmRafraichir();
+        _warmSuivi = setInterval(() => { warmRafraichir(); if (++n >= 36) { clearInterval(_warmSuivi); _warmSuivi = null; } }, 5000);
+      } catch (e) {
+        msg.textContent = 'Failed: ' + (e && e.message ? e.message : e);
+      }
+    }
+    document.getElementById('warm-grid')?.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-warm]');
+      if (b) warmLancer([b.getAttribute('data-warm')]);
+    });
+    document.getElementById('warm-all-btn')?.addEventListener('click', () => warmLancer([]));
+    document.getElementById('warm-refresh-btn')?.addEventListener('click', warmRafraichir);
 
     document.getElementById('services-unlock-btn')?.addEventListener('click', unlockServicesPanel);
     document.getElementById('services-password-input')?.addEventListener('keydown', (e) => {
