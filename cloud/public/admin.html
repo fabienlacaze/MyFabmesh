@@ -458,6 +458,7 @@
         <div class="tab-group-header">📈 ACTIVITY</div>
         <div class="tab-group-items">
           <button class="tab active" data-tab="overview">📌 Overview</button>
+          <button class="tab" data-tab="live">🔴 Live</button>
           <button class="tab" data-tab="traffic">👥 Trafic</button>
           <button class="tab" data-tab="ops">⚙️ Opérations <span class="tab-badge" id="badge-ops">0</span></button>
           <button class="tab" data-tab="active">🛑 Active <span class="tab-badge" id="badge-active">0</span></button>
@@ -721,6 +722,25 @@
       </table>
       </div>
       <div id="by-type-note" class="muted" style="font-size:12px; margin-top:10px; line-height:1.5;"></div>
+    </div>
+
+    <!-- Tab: Live (temps reel, 2026-10-01) -->
+    <div class="tab-panel" data-panel="live">
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+        <span id="live-etat" style="font-size:12px; color:var(--text-2);">—</span>
+        <label style="font-size:12px; color:var(--text-1); cursor:pointer;"><input type="checkbox" id="live-auto" checked> Actualisation auto (3 s)</label>
+        <button class="btn" onclick="chargerLive()">🔄 Actualiser</button>
+      </div>
+      <div id="live-compteurs" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:14px;"></div>
+      <div style="font-size:11px; color:var(--text-2); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px;">Conteneurs GPU</div>
+      <div id="live-conteneurs" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;"></div>
+      <div style="font-size:11px; color:var(--text-2); margin-bottom:16px;">Les générations d'images sont synchrones : elles n'apparaissent dans « En cours » qu'une fois terminées ; un conteneur « busy » signale qu'un calcul tourne.</div>
+      <h3 style="margin:8px 0;">En ligne (battement &lt; 15 min)</h3>
+      <table><thead><tr><th>Compte</th><th>Vu il y a</th><th>État</th></tr></thead><tbody id="live-ligne"><tr><td colspan="3" style="color:var(--text-2)">—</td></tr></tbody></table>
+      <h3 style="margin:18px 0 8px;">En cours</h3>
+      <table><thead><tr><th>Depuis</th><th>Compte</th><th>Type</th><th>Projet</th><th>Statut</th><th>Crédits</th></tr></thead><tbody id="live-encours"><tr><td colspan="6" style="color:var(--text-2)">—</td></tr></tbody></table>
+      <h3 style="margin:18px 0 8px;">Derniers événements</h3>
+      <table><thead><tr><th>Heure</th><th>Compte</th><th>Type</th><th>Projet</th><th>Statut</th><th>Durée</th><th>Crédits</th><th>Erreur</th></tr></thead><tbody id="live-evenements"><tr><td colspan="8" style="color:var(--text-2)">—</td></tr></tbody></table>
     </div>
 
     <!-- Tab: Active Jobs -->
@@ -5290,6 +5310,7 @@
         // one) so the user gets a fresh list immediately on tab switch
         // instead of waiting for the 3 s polling interval.
         if (t === 'active') { btn.dataset.loaded = '1'; loadActiveJobs(); }
+        if (t === 'live') { chargerLive(); }   // temps reel : recharge a CHAQUE ouverture, puis toutes les 3 s
         if (t === 'active'  && !btn.dataset.loaded) { btn.dataset.loaded = '1'; loadActiveJobs(); }
         if (t === 'users'   && !btn.dataset.loaded) { btn.dataset.loaded = '1'; loadUsers(); }
         // Debug logs : s'ouvrait VIDE tant qu'on ne cliquait pas sur Fetch.
@@ -5336,6 +5357,73 @@
       const activeTab = document.querySelector('.tab.active');
       if (activeTab?.dataset?.tab === 'active') loadActiveJobs(true);
     }, 3_000);
+
+
+    /* ═══════════════════════════════════════════════════════════════
+       LIVE — temps reel (onglet « Live »), interroge /api/admin/live toutes les 3 s tant que l'onglet est ouvert
+       ═══════════════════════════════════════════════════════════════ */
+    const LIVE_SERVICES = { text2image: 'Images', image_op: 'Outils d\'image', back_view: 'Vue de dos', tpose: 'T-pose', mesh: '3D', rig: 'Rig',
+      anim: 'Animation', mvadapter: 'Multi-vues', mesh_segment: 'Segmentation', fbx_retarget: 'FBX' };
+    const liveDuree = (s) => (s == null ? '—' : s < 60 ? s + ' s' : s < 3600 ? Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0') + ' s' : Math.floor(s / 3600) + ' h ' + String(Math.floor(s % 3600 / 60)).padStart(2, '0'));
+    const liveStatut = (st) => {
+      const c = st === 'succeeded' ? 'var(--ok)' : st === 'failed' ? 'var(--err)' : st === 'canceled' ? 'var(--text-2)' : '#e0a030';
+      return '<span style="color:' + c + '; font-weight:600;">' + escapeHtml(String(st || '')) + '</span>';
+    };
+    let _liveEnCours = false;
+    async function chargerLive(silencieux) {
+      if (_liveEnCours) return;
+      _liveEnCours = true;
+      const etat = document.getElementById('live-etat');
+      try {
+        const [rl, rm] = await Promise.all([
+          fetch('/api/admin/live', { credentials: 'include' }),
+          fetch('/api/modal-status', { credentials: 'include' }).catch(() => null),
+        ]);
+        if (!rl.ok) throw new Error('HTTP ' + rl.status);
+        const j = await rl.json();
+        const modal = rm && rm.ok ? await rm.json().catch(() => null) : null;
+        const enLigne5 = (j.en_ligne || []).filter((x) => x.en_ligne).length;
+        const carte = (titre, valeur, sous, couleur) => '<div style="background:var(--bg-1); border:1px solid var(--border); border-radius:10px; padding:10px 12px;">'
+          + '<div style="font-size:10px; color:var(--text-2); letter-spacing:1px; text-transform:uppercase;">' + titre + '</div>'
+          + '<div style="font-size:22px; font-weight:700; margin-top:2px; color:' + (couleur || 'var(--text-0)') + ';">' + valeur + '</div>'
+          + '<div style="font-size:11px; color:var(--text-2); margin-top:2px;">' + sous + '</div></div>';
+        const f = j.fenetres || {};
+        const lib = (w) => w ? (w.lances + ' lancés · ' + w.reussis + ' ok · ' + w.echecs + ' échec' + (w.echecs > 1 ? 's' : '') + ' · ' + w.credits + ' cr') : '—';
+        document.getElementById('live-compteurs').innerHTML =
+          carte('En ligne (5 min)', enLigne5, (j.en_ligne || []).length + ' vus sur 15 min', enLigne5 ? 'var(--ok)' : '')
+          + carte('Travaux en cours', (j.en_cours || []).length, 'maillages, rigs, animations…', (j.en_cours || []).length ? '#e0a030' : '')
+          + carte('5 dernières minutes', (f.m5 || {}).lances ?? 0, lib(f.m5), ((f.m5 || {}).echecs ? 'var(--err)' : ''))
+          + carte('15 dernières minutes', (f.m15 || {}).lances ?? 0, lib(f.m15), ((f.m15 || {}).echecs ? 'var(--err)' : ''))
+          + carte('Dernière heure', (f.h1 || {}).lances ?? 0, lib(f.h1) + ' · ' + ((f.h1 || {}).comptes ?? 0) + ' compte(s)', ((f.h1 || {}).echecs ? 'var(--err)' : ''));
+        document.getElementById('live-conteneurs').innerHTML = modal
+          ? Object.keys(LIVE_SERVICES).filter((k) => modal[k]).map((k) => {
+              const e = warmEtatTexte(modal[k]);
+              return '<span style="border:1px solid var(--border); border-radius:999px; padding:3px 10px; font-size:12px;">' + LIVE_SERVICES[k] + ' <b style="color:' + e.c + ';">● ' + e.t + '</b></span>';
+            }).join('')
+          : '<span style="color:var(--text-2); font-size:12px;">état indisponible</span>';
+        const v = (t, n) => '<tr><td colspan="' + n + '" style="color:var(--text-2)">' + t + '</td></tr>';
+        document.getElementById('live-ligne').innerHTML = (j.en_ligne || []).length
+          ? j.en_ligne.map((x) => '<tr><td>' + escapeHtml(x.email || 'inconnu') + '</td><td class="num">' + liveDuree(x.vu_il_y_a_s) + '</td><td>'
+              + (x.en_ligne ? '<span style="color:var(--ok)">● en ligne</span>' : '<span style="color:var(--text-2)">○ parti récemment</span>') + '</td></tr>').join('')
+          : v('personne', 3);
+        document.getElementById('live-encours').innerHTML = (j.en_cours || []).length
+          ? j.en_cours.map((x) => '<tr><td class="num">' + liveDuree(x.age_s) + '</td><td>' + escapeHtml(x.email || 'inconnu') + '</td><td>' + escapeHtml(x.type || '') + '</td><td>'
+              + escapeHtml(x.projet || '') + '</td><td>' + liveStatut(x.statut) + '</td><td class="num">' + x.credits + '</td></tr>').join('')
+          : v('aucun travail en cours', 6);
+        document.getElementById('live-evenements').innerHTML = (j.evenements || []).length
+          ? j.evenements.map((x) => '<tr><td>' + new Date(x.ts).toLocaleTimeString('fr-FR') + '</td><td>' + escapeHtml(x.email || 'inconnu') + '</td><td>' + escapeHtml(x.type || '')
+              + '</td><td>' + escapeHtml(x.projet || '') + '</td><td>' + liveStatut(x.statut) + '</td><td class="num">' + liveDuree(x.duree_s) + '</td><td class="num">' + x.credits
+              + '</td><td style="color:var(--err); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escapeHtml(x.erreur || '') + '">' + escapeHtml(x.erreur || '') + '</td></tr>').join('')
+          : v('aucun événement', 8);
+        if (etat) etat.textContent = 'Mis à jour à ' + new Date().toLocaleTimeString('fr-FR');
+      } catch (e) {
+        if (etat) etat.textContent = 'Erreur : ' + (e && e.message ? e.message : e);
+      } finally { _liveEnCours = false; }
+    }
+    setInterval(() => {
+      if (document.hidden || !document.getElementById('live-auto')?.checked) return;
+      if (document.querySelector('.tab.active')?.dataset?.tab === 'live') chargerLive(true);
+    }, 3000);
 
     // Live kill-switch summary at the top — clickable, jumps to the
     // Services tab. Refreshes every 30s so flipping a switch from

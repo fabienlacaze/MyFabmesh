@@ -20093,6 +20093,73 @@ async function handleAdminWarm(req: Request, env: Env,
   return json({ ok: true, warming: true, cibles });
 }
 
+/** GET /api/admin/live — ADMIN. Instantane « temps reel » de l'activite (2026-10-01, user : « tous ces menus ne me permettent pas de voir en temps
+ *  reel, ca manque »). Interroge par l'onglet Live toutes les 3 s : qui est en ligne (battement < 5 min), les travaux en cours, ce qui s'est passe
+ *  sur 5 min / 15 min / 1 h, et les 30 derniers evenements. Les generations d'IMAGES sont synchrones : leur ligne n'existe qu'a la fin (voir l'onglet
+ *  Active) ; l'etat des conteneurs (busy / warm / cold) est lu a part par la page (/api/modal-status). */
+async function handleAdminLive(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  const sb = supabaseAdmin(env);
+  const now = Date.now();
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const presence: Array<{ id: string; ms: number }> = [];
+  try {
+    const l = await env.MESHES.list({ prefix: '_meta/presence/', limit: 1000 });
+    for (const o of (l.objects || [])) {
+      const ms = o.uploaded ? o.uploaded.getTime() : 0;
+      if (ms >= now - 15 * 60_000) presence.push({ id: o.key.slice('_meta/presence/'.length), ms });
+    }
+  } catch { /* presence illisible : le reste de l'ecran reste utile */ }
+  type Ligne = { id: string; user_id: string | null; type: string | null; status: string; credit_cost: number | null;
+                 created_at: string; finished_at?: string | null; project_name?: string | null; error?: string | null };
+  const colonnes = 'id,user_id,type,status,credit_cost,created_at,finished_at,project_name,error';
+  const [recent, actifs, derniers] = await Promise.all([
+    sb.from('jobs').select(colonnes).gte('created_at', iso(now - 3_600_000)).order('created_at', { ascending: false }).limit(500),
+    sb.from('jobs').select(colonnes).in('status', ['starting', 'processing', 'queued', 'running'])
+      .gte('created_at', iso(now - 3 * 3_600_000)).order('created_at', { ascending: false }).limit(100),
+    sb.from('jobs').select(colonnes).order('created_at', { ascending: false }).limit(30),
+  ]);
+  const rRecent = ((recent.data || []) as Ligne[]);
+  const rActifs = ((actifs.data || []) as Ligne[]);
+  const rDerniers = ((derniers.data || []) as Ligne[]);
+  const ids = [...new Set([...presence.map((p) => p.id), ...rActifs.map((j) => j.user_id), ...rDerniers.map((j) => j.user_id)]
+    .filter((x): x is string => !!x))];
+  const emails = new Map<string, string | null>();
+  if (ids.length) {
+    const { data: profils } = await sb.from('profiles').select('id, email').in('id', ids);
+    for (const p of ((profils || []) as Array<{ id: string; email: string | null }>)) emails.set(p.id, p.email);
+  }
+  const fenetre = (minutes: number) => {
+    const depuis = now - minutes * 60_000;
+    const l = rRecent.filter((j) => Date.parse(j.created_at) >= depuis);
+    return {
+      lances: l.length,
+      reussis: l.filter((j) => j.status === 'succeeded').length,
+      echecs: l.filter((j) => j.status === 'failed').length,
+      credits: l.filter((j) => j.status === 'succeeded').reduce((t, j) => t + Number(j.credit_cost ?? 0), 0),
+      comptes: new Set(l.map((j) => j.user_id).filter(Boolean)).size,
+    };
+  };
+  const duree = (j: Ligne) => (j.finished_at && j.created_at) ? Math.max(0, Math.round((Date.parse(j.finished_at) - Date.parse(j.created_at)) / 1000)) : null;
+  return json({
+    ok: true,
+    maintenant: iso(now),
+    en_ligne: presence.sort((a, b) => b.ms - a.ms).map((p) => ({
+      email: emails.get(p.id) ?? null, vu_il_y_a_s: Math.max(0, Math.round((now - p.ms) / 1000)), en_ligne: now - p.ms < HEARTBEAT_WINDOW_MS,
+    })),
+    en_cours: rActifs.map((j) => ({
+      id: j.id, email: j.user_id ? (emails.get(j.user_id) ?? null) : null, type: j.type, statut: j.status, projet: j.project_name ?? null,
+      age_s: Math.max(0, Math.round((now - Date.parse(j.created_at)) / 1000)), credits: j.credit_cost ?? 0,
+    })),
+    fenetres: { m5: fenetre(5), m15: fenetre(15), h1: fenetre(60) },
+    evenements: rDerniers.map((j) => ({
+      ts: j.created_at, email: j.user_id ? (emails.get(j.user_id) ?? null) : null, type: j.type, statut: j.status, projet: j.project_name ?? null,
+      duree_s: duree(j), credits: j.credit_cost ?? 0, erreur: j.error ? String(j.error).slice(0, 140) : null,
+    })),
+  });
+}
+
 /** GET /api/admin/services — current state of the kill switches. */
 async function handleAdminServices(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
@@ -22069,6 +22136,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/admin/payments'              && method === 'GET')  return await handleAdminPayments(req, env);
         if (pathname === '/api/admin/payments/unreconciled' && method === 'GET')  return await handleAdminUnreconciledPayments(req, env);
         if (pathname === '/api/admin/payments/reconcile'    && method === 'POST') return await handleAdminReconcilePayment(req, env);
+        if (pathname === '/api/admin/live'            && method === 'GET')  return await handleAdminLive(req, env);
         if (pathname === '/api/admin/warm'            && method === 'POST') return await handleAdminWarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/admin/services'        && method === 'GET')  return await handleAdminServices(req, env);
         if (pathname === '/api/admin/services'        && method === 'POST') return await handleAdminServicesToggle(req, env);
