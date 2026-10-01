@@ -1,39 +1,40 @@
 @echo off
 REM ---------------------------------------------------------------------
-REM Remonte la facturation Modal REELLE vers le dashboard admin.
-REM Lance chaque heure par la tache planifiee « MyFabmesh - Modal usage ».
+REM Releve horaire de la facture Modal -> carte « Cout GPU (Modal) » de l'admin.
+REM Lance chaque heure (hh:01) par la tache planifiee « MyFabmesh - Modal usage ».
 REM
-REM POURQUOI : sans ce poller, _meta/modal_real_usage.json n'est jamais
-REM ecrit. Le dashboard retombe alors sur ses ESTIMATIONS, et l'alerte
-REM « budget Modal bientot epuise » n'a aucune donnee fraiche a comparer.
-REM Le flux etait gele depuis 46 jours sans que rien ne le signale (c'est
-REM desormais visible : la carte passe en rouge « PERIME » au-dela de 48 h).
+REM 2026-09-30 : le secret n'est plus lu ici. Il vivait dans
+REM %USERPROFILE%\.fabmesh, que le nettoyage du disque du 30/09 a efface :
+REM la tache sortait en code 2 chaque heure SANS AUCUNE TRACE (le journal
+REM etait dans le meme dossier). modal_usage_push.py le lit maintenant dans le
+REM registre (HKCU\Software\FabWare\Exploitation), hors de tout dossier
+REM qu'un nettoyage efface, et ecrit chaque echec en clair dans le journal.
 REM
-REM Le secret n'est PAS dans le depot : il vit dans le profil utilisateur,
-REM au meme endroit que le jeton de l'API de controle.
+REM Journal : %LOCALAPPDATA%\FabWare\Exploitation\releve_modal.log
+REM           (dossier recree au besoin, borne a 1 Mo).
+REM Reparer (secret perdu ou refuse) : scripts\reinitialiser_releve_modal.ps1
+REM Codes : 0 ok, 1 inattendu, 2 secret introuvable, 3 cle refusee,
+REM         4 facture Modal illisible, 5 site injoignable, 9 python introuvable.
 REM ---------------------------------------------------------------------
 setlocal
 
 set "REPO=%~dp0.."
-set "SECRET_FILE=%USERPROFILE%\.fabmesh\modal_usage_secret.txt"
-set "LOG=%USERPROFILE%\.fabmesh\modal_usage.log"
+set "JDIR=%LOCALAPPDATA%\FabWare\Exploitation"
+set "LOG=%JDIR%\releve_modal.log"
+if not exist "%JDIR%" mkdir "%JDIR%" >nul 2>&1
 
-if not exist "%SECRET_FILE%" (
-  echo [%date% %time%] ECHEC : %SECRET_FILE% introuvable >> "%LOG%"
-  exit /b 2
-)
-
-set /p MODAL_USAGE_SECRET=<"%SECRET_FILE%"
 set "PYTHONUTF8=1"
-
+set "PYTHONIOENCODING=utf-8"
 cd /d "%REPO%"
-python scripts\modal_usage_push.py >> "%LOG%" 2>&1
-set RC=%ERRORLEVEL%
-echo [%date% %time%] exit=%RC% >> "%LOG%"
 
-REM On garde le journal borne : sans ca il grossit indefiniment.
-for %%A in ("%LOG%") do if %%~zA GTR 1000000 (
-  move /y "%LOG%" "%LOG%.old" >nul 2>&1
+where python >nul 2>&1
+if errorlevel 1 (
+  echo [%date% %time%] ECHEC ^(code 9^) : python introuvable dans le PATH de la tache planifiee. >> "%LOG%"
+  exit /b 9
 )
 
-exit /b %RC%
+REM Le script ecrit lui-meme le journal (et le fait tourner) : il ne faut donc
+REM PAS que cmd le tienne ouvert. stderr va dans un fichier a part, pour garder
+REM la trace d'un plantage de Python avant meme la lecture des arguments.
+python scripts\modal_usage_push.py --journal "%LOG%" 1>nul 2>"%JDIR%\releve_modal_stderr.txt"
+exit /b %ERRORLEVEL%
