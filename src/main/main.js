@@ -4087,6 +4087,20 @@ function installAllLimitsSafetyKill(proc, jobName) {
         if (_cols.length >= 4) {
           const [vramUsed, vramTotal, gpuUtil, tempC] = _cols;
           const _vramFrac = parseFloat(process.env.FABMESH_VRAM_FRACTION || '');
+          // RELEVE DE CHARGE (2026-10-01, user : « elle a mis 30 min, les Ultra d'avant non »). Une ligne par minute pendant un calcul : processeur
+          // TOTAL de la machine (pas seulement le notre : une compilation Unreal le sature), carte, memoire. Sans cela, impossible de dire apres coup
+          // si un calcul lent l'etait a cause d'une autre application.
+          try {
+            const _nowC = Date.now();
+            if (!global._dernierReleveCharge || _nowC - global._dernierReleveCharge > 55000) {
+              global._dernierReleveCharge = _nowC;
+              let _idleC = 0, _totC = 0;
+              for (const c of os.cpus()) { for (const k of Object.keys(c.times)) _totC += c.times[k]; _idleC += c.times.idle; }
+              const _prevC = global._cpuPrecedent; global._cpuPrecedent = { idle: _idleC, tot: _totC };
+              const _cpuPct = _prevC ? Math.round(100 * (1 - (_idleC - _prevC.idle) / Math.max(1, _totC - _prevC.tot))) : null;
+              log.info('main', `[charge] CPU machine ${_cpuPct == null ? '?' : _cpuPct + ' %'} | GPU ${gpuUtil} % | VRAM ${vramUsed}/${vramTotal} Mo | ${tempC} °C | RAM machine ${_usedMB.toFixed(0)} Mo | RAM libre ${(os.freemem() / 1048576).toFixed(0)} Mo`);
+            }
+          } catch (_) {}
           const _gpuLimit = parseFloat(process.env.FABMESH_GPU_LIMIT || '');
           const _tempLimitSlider = parseFloat(process.env.FABMESH_TEMP_LIMIT || '');
           // VRAM — WARN ONLY, never suspend (2026-06-14). Suspending the
