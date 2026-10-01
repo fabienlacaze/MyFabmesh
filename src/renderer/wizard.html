@@ -23,6 +23,7 @@
       <span class="wiz-step-tag" data-step="mode">3. Mode</span>
       <span class="wiz-step-tag" data-step="download">4. Download</span>
       <span class="wiz-step-tag" data-step="test">5. Test</span>
+      <span class="wiz-step-tag" data-step="account">6. Account</span>
       <button id="wiz-export-logs" class="ghost-btn" style="padding:4px 14px; font-size:11px; height:28px;" title="Save a diagnostics file to your Desktop for support">Export logs</button>
       <button id="wiz-cancel-btn" class="ghost-btn" style="padding:4px 14px; font-size:11px; height:28px;">Cancel</button>
     </div>
@@ -246,8 +247,26 @@
         <ul id="test-list" class="wiz-check-list"></ul>
         <details class="wiz-tech" id="test-tech"><summary>Technical details</summary><pre id="test-log" class="wiz-test-log"></pre></details>
         <div class="wiz-actions">
-          <div class="wiz-test-fin" id="test-fin" hidden>&#10003; Everything is verified: your PC is ready. Click Launch to create your first project.</div>
-          <button class="primary-btn" id="btn-launch" disabled>Launch MyFabmesh.AI</button>
+          <div class="wiz-test-fin" id="test-fin" hidden>&#10003; Everything is verified: your PC is ready. Click Continue to finish.</div>
+          <button class="primary-btn" id="btn-launch" disabled>Continue</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 6: ACCOUNT (user 2026-10-01 : « a la fin de l'install une page pour dire de se connecter, et pourquoi ») -->
+    <section class="wiz-page" id="page-account">
+      <div class="wiz-card">
+        <h1 class="wiz-h1">Sign in to MyFabmesh</h1>
+        <p class="wiz-lead">Your PC is ready. A free account unlocks the online features:</p>
+        <ul class="wiz-check-list wiz-account-list">
+          <li><b>Cloud generation</b> &mdash; create on our servers when you want more speed or your PC is busy (paid with credits; new accounts get free credits).</li>
+          <li><b>Marketplace</b> &mdash; browse, share and sell 3D assets.</li>
+          <li><b>Cloud library &amp; history</b> &mdash; your projects and credits, available from any device.</li>
+        </ul>
+        <p class="wiz-lead" style="font-size:12px;opacity:.8;">Local generation on this PC never needs an account. You can sign in later from Settings &gt; Account.</p>
+        <div class="wiz-actions" style="gap:10px;">
+          <button class="ghost-btn" id="btn-account-skip">Not now</button>
+          <button class="primary-btn" id="btn-account-signin">Sign in or create an account</button>
         </div>
       </div>
     </section>

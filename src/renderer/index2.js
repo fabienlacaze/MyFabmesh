@@ -2078,8 +2078,13 @@ function _majVerrousEtapes() {
 }
 setInterval(_majVerrousEtapes, 1000);
 // Fin d'installation : ouvre « New project » une seule fois (drapeau pose par le wizard).
-setTimeout(() => {
+setTimeout(async () => {
   try {
+    // page « Account » de l'assistant : « Sign in » ouvre la fenetre de connexion (rien si deja connecte), puis « New project »
+    if (localStorage.getItem('fab_ouvrir_connexion') === '1') {
+      localStorage.removeItem('fab_ouvrir_connexion');
+      try { const st = await API.cloudStatus?.(); if (!(st && st.loggedIn)) await showCloudLoginModal(); } catch (_) {}
+    }
     if (localStorage.getItem('fab_ouvrir_nouveau_projet') !== '1') return;
     localStorage.removeItem('fab_ouvrir_nouveau_projet');
     if (!state.currentProject) openNewProjectModal();
@@ -22965,8 +22970,13 @@ function _majBandesCharge() {
       mine.style.setProperty('--reste-m', (sp && sp.ok ? 100 - Math.min(100, nous / lim * 100) : 100) + '%');
     }
   };
-  poser('set-gpu-util-fill', 'set-gpu-util-mine', gpuLimits.util, sp ? sp.gpuNous : 0, sp ? sp.gpuAutres : 0, window.__gpuTotalUtil || 0);
-  poser('set-cpu-fill', 'set-cpu-mine', gpuLimits.cpu, sp ? sp.cpuNous : 0, sp ? sp.cpuAutres : 0, window.__cpuTotalPct || 0);
+  // La part de MyFabmesh = TOTAL (la valeur affichee, instantanee) - part des AUTRES (mesure par processus) : les deux bandes sont ainsi
+  // toujours coherentes avec le pourcentage ecrit au-dessus (user 2026-10-01 : « l'instantane n'est pas du tout a la limite » : la mesure
+  // par processus est lissee, le total de nvidia-smi est instantane, ils ne se recoupaient pas).
+  const nousGpu = sp && sp.ok ? Math.max(0, (window.__gpuTotalUtil || 0) - sp.gpuAutres) : 0;
+  const nousCpu = sp && sp.ok ? Math.max(0, (window.__cpuTotalPct || 0) - sp.cpuAutres) : 0;
+  poser('set-gpu-util-fill', 'set-gpu-util-mine', gpuLimits.util, nousGpu, sp ? sp.gpuAutres : 0, window.__gpuTotalUtil || 0);
+  poser('set-cpu-fill', 'set-cpu-mine', gpuLimits.cpu, nousCpu, sp ? sp.cpuAutres : 0, window.__cpuTotalPct || 0);
 }
 async function _rafraichirSplitCharge() {
   if (Date.now() - _splitDate < 2000 || !API.loadSplit) return;
@@ -28247,6 +28257,14 @@ async function _openCloudSite(pathOrUrl) {
   }
 }
 
+// Connexion EXIGEE avant les fonctions en ligne (user 2026-10-01 : generation cloud, Marketplace). Deja connecte : rien ne s'affiche.
+// Rend true si on est connecte (ou si on vient de l'etre), false si la fenetre est fermee sans connexion.
+async function _exigerConnexion() {
+  try { const s = await API.cloudStatus?.(); if (s && s.loggedIn) return true; } catch (_) {}
+  return !!(await showCloudLoginModal());
+}
+window._exigerConnexion = _exigerConnexion;
+
 async function showCloudLoginModal() {
   return new Promise((resolve) => {
     const old = document.getElementById('cloud-login-overlay');
@@ -28363,7 +28381,9 @@ async function showCloudLoginModal() {
       const T = (s) => (typeof _i18nT === 'function' ? _i18nT(s) : s);
       if (m === 'signin') {
         els.titre.textContent = T('Sign in to MyFabmesh Cloud');
-        els.texte.textContent = T('No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).');
+        els.texte.textContent = _hasNvidia()
+          ? T('Sign in with your MyFabmesh account to use cloud generation and the Marketplace (new accounts get free credits).')
+          : T('No NVIDIA GPU was detected on this device, so images are generated on the MyFabmesh cloud. Sign in with your MyFabmesh account (new accounts get free credits).');
         els.pass.parentElement.style.display = '';
         els.pass.setAttribute('autocomplete', 'current-password');
         els.code.style.display = 'none';
@@ -28583,7 +28603,10 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
       try { if (m === 'cloud' && !window._prix) window._chargerPrix?.(); } catch (_) {}
     };
     btnL.addEventListener('click', () => { localStorage.setItem('fab-compute-mode', 'local'); syncRow(); });
-    btnC.addEventListener('click', () => { localStorage.setItem('fab-compute-mode', 'cloud'); syncRow(); });
+    btnC.addEventListener('click', async () => {
+      if (!(await _exigerConnexion())) { syncRow(); return; }     // pas de generation cloud sans compte
+      localStorage.setItem('fab-compute-mode', 'cloud'); syncRow();
+    });
     window._syncComputeRow = syncRow;   // appelé par le switch des Réglages
     await syncRow();
     return;
@@ -28687,7 +28710,8 @@ window._computeMode = () => localStorage.getItem('fab-compute-mode') || 'local';
   // L'historique est dans les parametres : l'icone de la barre faisait doublon.
   const histoBarre = document.getElementById('btn-history');
   if (histoBarre) histoBarre.style.display = 'none';
-  bc.addEventListener('click', () => {
+  bc.addEventListener('click', async () => {
+    if (!(await _exigerConnexion())) { refresh(); return; }       // pas de generation cloud sans compte : la fenetre de connexion d'abord
     localStorage.setItem('fab-compute-mode', 'cloud');
     refresh();
   });
@@ -28735,6 +28759,7 @@ document.getElementById('ws-cloud-share-mesh-btn')?.addEventListener('click', as
 
 // ---- Navigateur Bibliothèque cloud / Marketplace ----
 async function showCloudLibraryModal() {
+  if (!(await _exigerConnexion())) return;          // Marketplace / bibliotheque : connexion d'abord (rien si deja connecte)
   const old = document.getElementById('cloud-lib-overlay');
   if (old) old.remove();
   const ov = document.createElement('div');

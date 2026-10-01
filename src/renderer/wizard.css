@@ -598,3 +598,8 @@
 .wiz-check-list li .verdict.ko { color: var(--error); }
 .wiz-test-fin { color: var(--success); font-weight: 700; font-size: 14px; text-align: center; padding: 10px 0 12px; }
 .wiz-test-fin[hidden] { display: none; }
+
+/* Page « Account » : lignes en texte courant, bouton « Not now » sur une ligne */
+.wiz-account-list li { display: block; }
+.wiz-account-list li b { color: var(--text-0, #fff); }
+#btn-account-skip { white-space: nowrap; }

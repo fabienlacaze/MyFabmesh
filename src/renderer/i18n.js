@@ -1235,6 +1235,7 @@
       'Pause (frees RAM and VRAM)': 'Pause (libère la RAM et la VRAM)',
       'Resume': 'Reprendre',
       'Pausing...': 'Mise en pause…',
+      'Sign in with your MyFabmesh account to use cloud generation and the Marketplace (new accounts get free credits).': 'Connectez-vous avec votre compte MyFabmesh pour utiliser la génération cloud et la Marketplace (les nouveaux comptes reçoivent des crédits gratuits).',
       'Faithful': 'Fidèle',
       'Balanced': 'Équilibré',
       'Free': 'Libre',

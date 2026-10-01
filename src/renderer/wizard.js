@@ -139,7 +139,7 @@ function journal(type, data) {
   } catch (_) { /* le journal ne doit JAMAIS casser l'assistant */ }
 }
 
-const STEPS = ['welcome', 'detect', 'mode', 'download', 'test', 'no-gpu'];
+const STEPS = ['welcome', 'detect', 'mode', 'download', 'test', 'account', 'no-gpu'];
 let currentStep = 'welcome';
 let hwReport = null;
 let chosenMode = null;
@@ -1246,12 +1246,23 @@ async function runFinalTest() {
   launch.classList.add('wiz-launch-ready');
 }
 
-document.getElementById('btn-launch').addEventListener('click', async () => {
-  journal('fin', { sortie: 'lancement', mode: chosenMode });
+// Fin des verifications -> page « Account » (se connecter, et pourquoi) -> lancement.
+document.getElementById('btn-launch').addEventListener('click', () => { goto('account'); });
+
+// seConnecter : l'appli s'ouvre avec la fenetre de connexion (drapeau lu par index2.js), puis « New project ».
+async function terminerAvecCompte(seConnecter) {
+  const a = document.getElementById('btn-account-signin'), b = document.getElementById('btn-account-skip');
+  if (a) a.disabled = true; if (b) b.disabled = true;
+  journal('fin', { sortie: seConnecter ? 'lancement_connexion' : 'lancement', mode: chosenMode });
   // user 2026-09-30 : a la fin de l'installation, ouvrir directement « New project » (drapeau lu par index2.js au premier affichage)
-  try { localStorage.setItem('fab_ouvrir_nouveau_projet', '1'); } catch (_) {}
+  try {
+    localStorage.setItem('fab_ouvrir_nouveau_projet', '1');
+    if (seConnecter) localStorage.setItem('fab_ouvrir_connexion', '1');
+  } catch (_) {}
   await window.wizardAPI.completeSetup({ mode: chosenMode, hw: hwReport });
-});
+}
+document.getElementById('btn-account-signin')?.addEventListener('click', () => terminerAvecCompte(true));
+document.getElementById('btn-account-skip')?.addEventListener('click', () => terminerAvecCompte(false));
 
 // Page « no-gpu » : lancer l'app EN MODE CLOUD (et non le site web). Sans ce
 // bouton, une machine sans GPU NVIDIA (Surface des testeurs Store, laptops)
@@ -1260,7 +1271,7 @@ document.getElementById('btn-launch').addEventListener('click', async () => {
 document.getElementById('btn-launch-cloud')?.addEventListener('click', async () => {
   const b = document.getElementById('btn-launch-cloud');
   if (b) { b.disabled = true; b.textContent = 'Starting…'; }
-  try { localStorage.setItem('fab-compute-mode', 'cloud'); } catch (_) {}
+  try { localStorage.setItem('fab-compute-mode', 'cloud'); localStorage.setItem('fab_ouvrir_connexion', '1'); } catch (_) {}     // sans carte NVIDIA : le cloud EST la generation, la connexion est demandee des l'ouverture
   journal('fin', { sortie: 'lancement_cloud', mode: 'cloud' });
   await window.wizardAPI.completeSetup({ mode: 'cloud', hw: hwReport });
 });
