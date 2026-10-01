@@ -78,17 +78,27 @@ a{color:var(--accent)}
 .rempl b{color:var(--text-1);font-weight:600}
 .grille{display:grid;gap:16px}
 .g2{grid-template-columns:minmax(0,1fr)}
-@media(min-width:1000px){.g2{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}.g2b{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.g3{grid-template-columns:minmax(0,4fr) minmax(0,8fr)}}
+@media(min-width:1000px){.g3{grid-template-columns:minmax(0,4fr) minmax(0,8fr)}}
+@media(min-width:1250px){.g2{grid-template-columns:minmax(0,4fr) minmax(0,8fr)}}
 .g2b{grid-template-columns:minmax(0,1fr)}
-@media(min-width:1000px){.g2b{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(min-width:1250px){.g2b{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
 .carte{background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:14px 16px;min-width:0}
 .carte h2{margin:0 0 10px;font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-2);font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
 .carte h2 small{letter-spacing:0;text-transform:none;font-weight:400;font-size:12px}
 .carte h3{margin:14px 0 6px;font-size:13px;color:var(--text-1)}
 .defil{overflow-x:auto}
 table{border-collapse:collapse;width:100%}
-th{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2);font-weight:600;text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+th{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2);font-weight:600;text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+th[data-tri]{cursor:pointer;user-select:none}
+th[data-tri]:hover{color:var(--text-0)}
+th[data-tri]::after{content:" ↕";opacity:.35;font-size:10px}
+th[aria-sort="ascending"]::after{content:" ▲";opacity:1;color:var(--accent)}
+th[aria-sort="descending"]::after{content:" ▼";opacity:1;color:var(--accent)}
+.defil.haut{max-height:72vh;overflow:auto}
+.defil.haut thead th{position:sticky;top:0;background:var(--bg-1);z-index:1}
+td.coupe{white-space:normal;overflow-wrap:anywhere}
+.erreur-ligne{display:block;color:var(--err);font-size:11px;white-space:normal;max-width:240px;overflow-wrap:anywhere}
 tr:last-child td{border-bottom:0}
 td.n,th.n{text-align:right}
 td.libre{white-space:normal}
@@ -205,7 +215,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
         <div class="carte"><h2>En ligne <small id="n-ligne"></small></h2><div id="en-ligne"></div></div>
       </div>
       <div class="carte"><h2>Derniers travaux <small id="n-flux"></small></h2>
-        <div class="defil"><table><thead><tr><th>Quand</th><th>Compte</th><th>Type</th><th>Projet</th><th>Statut</th><th class="n">Durée</th><th class="n">Crédits</th><th>Erreur</th></tr></thead><tbody id="flux"></tbody></table></div>
+        <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
         <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
       </div>
     </div>
@@ -221,7 +231,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
         <p class="note" id="note-graphe"></p></div>
       <div class="carte"><h2>Par opération <small>30 derniers jours · clic sur une ligne pour filtrer</small></h2>
         <p class="note" id="resume-ops"></p>
-        <div class="defil"><table><thead><tr><th>Opération</th><th class="n">Nombre</th><th class="n">Crédits</th><th class="n">Valeur</th><th class="n">Coût réel</th><th class="n">Marge</th><th>Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
+        <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
         <p class="note" id="note-ops"></p>
       </div>
     </div>
@@ -232,7 +242,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
         <div id="tarifs" hidden style="margin-top:10px"></div></div>
     </div>
     <div class="carte" style="margin-top:16px"><h2>Achats Stripe <small id="resume-achats"></small></h2>
-      <div class="defil"><table><thead><tr><th>Date</th><th>Compte</th><th>Pack</th><th class="n">Encaissé</th><th class="n">Crédits</th><th>État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div>
+      <div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div>
   </section>
 
   <!-- ═════════ UTILISATEURS ═════════ -->
@@ -247,6 +257,15 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
       <div class="carte"><h2>Comptes <small id="n-comptes"></small></h2>
         <label for="rech" style="position:absolute;left:-9999px">Rechercher un e-mail</label>
         <input type="search" id="rech" placeholder="Rechercher un e-mail" autocomplete="off">
+        <label for="tri-comptes" style="position:absolute;left:-9999px">Trier les comptes</label>
+        <select id="tri-comptes" style="margin-top:8px">
+          <option value="activite">Trier : dernière activité</option>
+          <option value="credits">Trier : crédits (plus élevés)</option>
+          <option value="travaux">Trier : nombre de travaux</option>
+          <option value="echecs">Trier : échecs</option>
+          <option value="recent">Trier : inscription récente</option>
+          <option value="email">Trier : e-mail (A → Z)</option>
+        </select>
         <div class="liste" id="liste-comptes" style="margin-top:10px"></div></div>
       <div class="carte fiche" id="fiche"><div class="vide">Choisissez un compte.</div></div>
     </div>
@@ -368,6 +387,27 @@ var S = {
   session: false
 };
 var PER_MIN = { '24h': 1440, '7j': 10080, '30j': 43200 };
+/* TRI DES TABLEAUX (2026-10-02, user : « il faut pouvoir trier »). Un clic sur un en-tete trie, un second inverse. Sens de depart : texte A -> Z, nombres et dates decroissants. */
+S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 } };
+S.triComptes = 'activite';
+var TRI_TEXTE = { email: 1, type: 1, projet: 1, statut: 1, op: 1, pack: 1, etat: 1 };
+function trier(liste, nom) {
+  var t = S.tri[nom], k = t.k, d = t.d;
+  return liste.slice().sort(function (a, b) {
+    var x = a[k], y = b[k];
+    if (x == null) x = TRI_TEXTE[k] ? '' : -Infinity; if (y == null) y = TRI_TEXTE[k] ? '' : -Infinity;
+    var c = (typeof x === 'string' || typeof y === 'string') ? String(x).localeCompare(String(y), 'fr') : (x < y ? -1 : x > y ? 1 : 0);
+    return c * d;
+  });
+}
+function majEntetesTri() {
+  $$('th[data-tri]').forEach(function (th) {
+    var p = th.dataset.tri.split(':'), t = S.tri[p[0]];
+    th.setAttribute('aria-sort', t && t.k === p[1] ? (t.d > 0 ? 'ascending' : 'descending') : 'none');
+    th.setAttribute('role', 'button'); th.tabIndex = 0;
+    th.title = 'Trier par cette colonne';
+  });
+}
 
 /* ───────────────────────── réseau ───────────────────────── */
 function erreur(msg, status, json) { var e = new Error(msg); e.status = status; e.json = json; return e; }
@@ -456,7 +496,7 @@ function barresRecent(id, serie) {
 }
 
 /* ───────────────────────── chargements ───────────────────────── */
-async function chargerLive() { var j = await silencieux(http('/api/admin/live')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (S.tab === 'maintenant') renderMaintenant(); majHorloge(); } }
+async function chargerLive() { var j = await silencieux(http('/api/admin/live?n=100')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (S.tab === 'maintenant') renderMaintenant(); majHorloge(); } }
 async function chargerServices() {
   var r = await Promise.all([silencieux(http('/api/admin/services')), silencieux(http('/api/admin/market/killswitch'))]);
   if (r[0]) { S.svc = r[0]; S.mkt = r[1] && r[1].killswitch ? r[1].killswitch : { enabled: false }; renderBandeau(); if (S.tab === 'systeme') renderKill(); }
@@ -569,12 +609,12 @@ function renderMaintenant() {
   majSiChange($('#en-ligne'), el.length ? '<table><tbody>' + el.map(function (x) {
     return '<tr><td>' + lien('compte', x.email || 'inconnu', x.email || 'inconnu') + '</td><td class="n tn" data-vu0="' + (x.vu_il_y_a_s || 0) + '"></td><td>' + (x.en_ligne ? '<span class="pill ok">en ligne</span>' : '<span class="pill">parti</span>') + '</td></tr>';
   }).join('') + '</tbody></table>' : '<div class="vide">Personne.</div>');
-  var ev = (L.evenements || []).filter(filtreEvt);
-  $('#n-flux').textContent = ev.length + ' affichés';
+  var ev = trier((L.evenements || []).filter(filtreEvt).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
+  $('#n-flux').textContent = ev.length + ' affichés · les ' + (L.evenements || []).length + ' derniers travaux de tous les comptes';
   majSiChange($('#flux'), ev.length ? ev.map(function (x) {
-    return '<tr><td data-ts="' + esc(x.ts) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.type || '?') + '</td><td>' + esc(x.projet || '') + '</td><td>' + pillStatut(x.statut) + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td><td style="color:var(--err);max-width:240px;overflow:hidden;text-overflow:ellipsis" title="' + esc(x.erreur || '') + '">' + esc(x.erreur || '') + '</td></tr>';
-  }).join('') : '<tr><td colspan="8" class="vide">Aucun événement pour ce filtre.</td></tr>');
-  majHorloge();
+    return '<tr><td data-ts="' + esc(x.ts_iso) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td>' + pillStatut(x.statut) + (x.erreur ? '<span class="erreur-ligne">' + esc(x.erreur) + '</span>' : '') + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="vide">Aucun événement pour ce filtre.</td></tr>');
+  majHorloge(); majEntetesTri();
 }
 /* Les durees relatives sont recalculees SUR PLACE chaque seconde : le HTML des listes ne depend pas de l'heure, donc il n'est pas reconstruit a chaque
    rafraichissement (le lien sous le curseur ne disparait pas) et rien ne clignote. */
@@ -621,7 +661,9 @@ function renderArgent() {
   var bt = st && st.by_type_30d;
   var tb = $('#t-ops');
   if (!bt || !bt.types) { tb.innerHTML = '<tr><td colspan="7" class="vide">' + (st ? 'Données indisponibles.' : 'Chargement…') + '</td></tr>'; $('#resume-ops').textContent = ''; $('#note-ops').textContent = ''; return renderGpu(); }
-  var lignes = Object.keys(bt.types).map(function (op) { var m = bt.types[op]; return { op: op, count: m.count, failed: m.failed || 0, credits: m.credits, value: m.value_eur, reel: m.real_eur, paid: m.paid_eur }; }).sort(function (a, b) { return b.reel - a.reel; });
+  var lignes = Object.keys(bt.types).map(function (op) { var m = bt.types[op]; return { op: op, count: m.count, failed: m.failed || 0, credits: m.credits, value: m.value_eur, reel: m.real_eur, paid: m.paid_eur }; });
+  lignes.forEach(function (m) { m.marge = m.value - m.reel; m.ratio = m.reel > 0.005 ? m.value / m.reel : 1e9; });
+  lignes = trier(lignes, 'ops');
   var totV = 0, totR = 0;
   tb.innerHTML = lignes.map(function (m) {
     totV += m.value; totR += m.reel; var marge = m.value - m.reel, verdict;
@@ -632,6 +674,7 @@ function renderArgent() {
   }).join('') || '<tr><td colspan="7" class="vide">Aucune opération sur 30 jours.</td></tr>';
   var sansOp = Number(bt.facture_sans_operation_eur) || 0;
   $('#resume-ops').innerHTML = 'Les opérations ont été valorisées <b>' + eur(totV) + '</b> en crédits (' + (Number(bt.eur_par_credit) || 0).toFixed(3) + ' € le crédit) et ont coûté <b>' + eur(totR) + '</b> chez Modal' + (totR > 0 ? ' : <b style="color:' + (totV >= totR ? 'var(--ok)' : 'var(--err)') + '">×' + (totV / totR).toFixed(1) + '</b>' : '') + '.' + (sansOp > 0.005 ? ' S\'y ajoutent ' + eur(sansOp) + ' facturés des jours sans opération (tests, démarrages).' : '');
+  majEntetesTri();
   $('#note-ops').textContent = bt.cout_reel ? 'Coût réel = facture Modal de chaque jour répartie sur les opérations du jour selon leur durée. Les échecs coûtent sans rien rapporter.' : '⚠ Relevé Modal absent : coût = durée mesurée × tarif du GPU, sans démarrages à froid ni inactivité (sous-estimé).';
   renderGpu();
 }
@@ -654,7 +697,8 @@ function renderAchats() {
   var P = S.pay, tb = $('#t-achats');
   if (!P || !P.achats) { tb.innerHTML = '<tr><td colspan="7" class="vide">Chargement…</td></tr>'; return; }
   var ETATS = { credite: ['Crédité', 'ok'], rembourse_partiel: ['Remboursé en partie', 'warn'], rembourse: ['Remboursé', 'err'], non_rapproche: ['Payé, crédits NON versés', 'err'] };
-  var l = P.achats.filter(function (a) { return !S.filt.compte || a.email === S.filt.compte; });
+  var l = trier(P.achats.filter(function (a) { return !S.filt.compte || a.email === S.filt.compte; }).map(function (a) { var o = Object.assign({}, a); o.ts = Date.parse(a.date); return o; }), 'achats');
+  majEntetesTri();
   $('#resume-achats').textContent = P.count + ' achat(s) · ' + P.acheteurs + ' acheteur(s)' + (P.achats.some(function (a) { return a.test; }) ? ' · dont paiements en mode test' : '');
   tb.innerHTML = l.length ? l.map(function (a) {
     var e = ETATS[a.etat] || [a.etat, ''], sid = a.stripe_id || '';
@@ -686,6 +730,10 @@ function renderComptes() {
   var U = S.users;
   if (!U) { $('#liste-comptes').innerHTML = '<div class="vide">Chargement…</div>'; return; }
   var q = S.rech.toLowerCase(), l = U.users.filter(function (u) { return !q || String(u.email || '').toLowerCase().indexOf(q) >= 0; });
+  var CLE = { activite: function (u) { return u.last_activity ? Date.parse(u.last_activity) : 0; }, credits: function (u) { return Number(u.credits) || 0; }, travaux: function (u) { return u.ops_total || 0; },
+    echecs: function (u) { return u.ops_failed || 0; }, recent: function (u) { return Date.parse(u.created_at) || 0; } };
+  if (S.triComptes === 'email') l = l.slice().sort(function (a, b) { return String(a.email || '').localeCompare(String(b.email || ''), 'fr'); });
+  else { var f = CLE[S.triComptes] || CLE.activite; l = l.slice().sort(function (a, b) { return f(b) - f(a); }); }
   $('#n-comptes').textContent = (U.total != null ? U.total : U.users.length) + ' inscrits' + (U.truncated ? ' · 500 premiers' : '');
   $('#liste-comptes').innerHTML = l.length ? l.map(function (u) {
     return '<button type="button" class="ligne" data-sel="' + esc(u.id) + '" aria-current="' + (S.sel === u.id) + '"><span>' + esc(u.email || u.id) + (u.banned ? ' <span class="pill err">bloqué</span>' : '') + '<br><small style="color:var(--text-2)">' + (u.last_activity ? 'actif ' + ilYa((Date.now() - Date.parse(u.last_activity)) / 1000) : 'jamais actif') + ' · ' + (u.ops_total || 0) + ' travaux</small></span><span class="tn">' + num(u.credits) + ' cr.</span></button>';
@@ -899,6 +947,14 @@ document.addEventListener('click', async function (e) {
   if (t.closest('#b-audit')) return chargerAudit();
 });
 document.addEventListener('input', function (e) { if (e.target.id === 'rech') { S.rech = e.target.value; renderComptes(); } });
+document.addEventListener('change', function (e) { if (e.target.id === 'tri-comptes') { S.triComptes = e.target.value; renderComptes(); } });
+function clicTri(th) {
+  var p = th.dataset.tri.split(':'), nom = p[0], k = p[1], t = S.tri[nom];
+  if (t.k === k) t.d = -t.d; else { t.k = k; t.d = TRI_TEXTE[k] ? 1 : -1; }
+  if (nom === 'flux') { $('#flux')._h = null; renderMaintenant(); } else if (nom === 'ops') renderArgent(); else if (nom === 'achats') renderAchats();
+}
+document.addEventListener('click', function (e) { var th = e.target.closest('th[data-tri]'); if (th) clicTri(th); });
+document.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('th[data-tri]')) { e.preventDefault(); clicTri(e.target); } });
 async function renderMessagesForce(recharger) { $('#msgs').innerHTML = ''; if (recharger) await chargerMessages(); else renderMessages(); }
 async function renderAnnoncesForce(recharger) { $('#annonces').innerHTML = ''; if (recharger) await chargerAnnonces(); else renderAnnonces(); }
 async function basculerService(k, on, motif) {

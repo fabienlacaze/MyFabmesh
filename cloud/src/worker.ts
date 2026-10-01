@@ -20227,7 +20227,8 @@ async function handleAdminLive(req: Request, env: Env): Promise<Response> {
     sb.from('jobs').select(colonnes).gte('created_at', iso(now - 3_600_000)).order('created_at', { ascending: false }).limit(500),
     sb.from('jobs').select(colonnes).in('status', ['starting', 'processing', 'queued', 'running'])
       .gte('created_at', iso(now - 3 * 3_600_000)).order('created_at', { ascending: false }).limit(100),
-    sb.from('jobs').select(colonnes).order('created_at', { ascending: false }).limit(30),
+    // ?n=N (10 a 200, defaut 30) : nombre de derniers travaux rendus. /admin2 en demande 100 pour pouvoir les trier.
+    sb.from('jobs').select(colonnes).order('created_at', { ascending: false }).limit(Math.max(10, Math.min(200, parseInt(new URL(req.url).searchParams.get('n') || '30', 10) || 30))),
   ]);
   const rRecent = ((recent.data || []) as Ligne[]);
   const rActifs = ((actifs.data || []) as Ligne[]);
