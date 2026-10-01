@@ -14,7 +14,7 @@ REGLE. Import d'un module de scripts/ (fichier du meme dossier ou de scripts/) :
   - au niveau du module : il faut AVANT lui, au niveau du module, un `sys.path.insert/append(...)` qui mentionne
     __file__ (directement ou via une variable qui en derive), ou l'appel d'une fonction du fichier qui le fait ;
   - dans une fonction : une telle insertion au niveau du module, ou plus haut dans la MEME fonction.
-Les modules copies dans site-packages par l'assistant (rembg) sont exclus. EXCEPTIONS ci-dessous, chacune justifiee :
+Les modules copies dans site-packages par l'assistant (rembg, minisbd) sont exclus. EXCEPTIONS ci-dessous, chacune justifiee :
 un script qui n'est JAMAIS lance par le Python embarque (Blender, outil de dev) ou un module seulement importe par des
 ponts qui posent deja le chemin.
 
@@ -26,7 +26,7 @@ import sys
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(RACINE, 'scripts')
-COPIES_SITE_PACKAGES = {'rembg'}          # wizard_install_deps._poser_detourage
+COPIES_SITE_PACKAGES = {'rembg', 'minisbd'}   # wizard_install_deps._poser_detourage / _poser_minisbd_neutre
 EXCEPTIONS = {
     'anytop_retarget.py': "module importe par mesh2motion_bridge / clips_fbx_bridge / kimodo_bridge, qui posent le chemin",
     'fbx_motion.py': "module importe par anytop_retarget (meme situation)",

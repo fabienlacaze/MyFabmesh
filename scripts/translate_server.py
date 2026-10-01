@@ -17,7 +17,8 @@ import threading
 import time
 import importlib.util
 
-# Python EMBARQUE (fichier ._pth) : le dossier du script n'est pas dans sys.path -> `import translate_prompt` (2026-09-30).
+# Python EMBARQUE (fichier ._pth) : le dossier du script n'est pas dans sys.path -> `import translate_prompt`, et `minisbd`
+# (remplacant neutre de scripts/minisbd, importe par argostranslate au chargement) (2026-09-30).
 _ICI = os.path.dirname(os.path.abspath(__file__))
 if _ICI not in sys.path:
     sys.path.insert(0, _ICI)
@@ -144,6 +145,13 @@ def main():
     if importlib.util.find_spec("argostranslate") is None:
         sys.stderr.write("[translate-server] argostranslate is not installed - translation unavailable\n")
         sys.exit(3)
+    # Serveur d'appoint : l'appli disparait (plantage, arret force) -> il s'arrete aussi, au lieu de garder son port et sa RAM (2026-09-30).
+    import surveillance_parent
+    surveillance_parent.surveiller('translate_server')
+    # Argos (urllib) et stanza (requests) telechargent SANS delai : une connexion bloquee au premier usage d'une langue gardait
+    # _lock (toutes les traductions en attente) ou le telechargement de fond « en cours » pour toujours. 60 s sans octet = echec.
+    import socket
+    socket.setdefaulttimeout(60)
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), _Handler)
     # main.js waits for this line before routing requests here.
     print("TRANSLATE READY", flush=True)

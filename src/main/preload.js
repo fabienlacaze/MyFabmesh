@@ -172,6 +172,8 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   imageToTrellis: (opts) => ipcRenderer.invoke('image-to-3d-trellis', opts),
   imageTo3D: (opts) => ipcRenderer.invoke('image-to-3d', opts),
   onAI3DProgress: (cb) => ipcRenderer.on('ai3d-progress', (e, msg) => cb(msg)),
+  // Avancement REEL d'un travail precis (etape + pourcentage), par identifiant de travail : Detail++ (2026-09-30).
+  onJobProgress: (cb) => ipcRenderer.on('job-progress', (_e, d) => cb(d)),
   onBuildStageProgress: (cb) => ipcRenderer.on('build-stage-progress', (e, data) => cb(data)),
   refineMesh: (opts) => ipcRenderer.invoke('refine-mesh', opts),
   saveScreenshot: (opts) => ipcRenderer.invoke('save-screenshot', opts),

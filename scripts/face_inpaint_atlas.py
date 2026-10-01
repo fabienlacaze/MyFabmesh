@@ -408,4 +408,7 @@ def main():
 
 
 if __name__ == '__main__':
+    # L'appli disparait -> ce calcul s'arrete (2026-09-30) ; seulement lance en script (texture_refine / face_reproject importent le module).
+    import surveillance_parent
+    surveillance_parent.surveiller('face_inpaint_atlas')
     main()

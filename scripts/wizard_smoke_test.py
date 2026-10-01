@@ -206,6 +206,29 @@ def check_background_remover():
     log('[smoke]   background remover OK')
 
 
+# Modules des OUTILS d'image (2026-09-30) : Detail++, affinage de texture, decodeur de tous les pipelines du serveur d'images. Meme
+# liste que les lignes vae_fix / cn_tile / cn_union de wizard_download.MODELS (fichiers de ALLOW_PATTERNS). FACULTATIFS comme au
+# telechargement : absents, une ligne d'information (jamais un echec) ; Detail++ le redira clairement a l'usage.
+_MODULES_DETAIL = [
+    ('image decoder', 'madebyollin/sdxl-vae-fp16-fix'),
+    ('texture refine module', 'xinsir/controlnet-tile-sdxl-1.0'),
+    ('Detail++ module', 'xinsir/controlnet-union-sdxl-1.0'),
+]
+
+
+def check_image_detail_modules():
+    from huggingface_hub import try_to_load_from_cache
+    manquants = [nom for nom, depot in _MODULES_DETAIL
+                 if not all(isinstance(try_to_load_from_cache(depot, f), str)
+                            for f in ('config.json', 'diffusion_pytorch_model.safetensors'))]
+    if manquants:
+        log('[smoke] image detail modules: not installed (optional, Settings > Reconfigure downloads them): '
+            + ', '.join(manquants))
+        return
+    log('[smoke] checking image detail modules...')
+    log('[smoke]   image detail modules OK')
+
+
 def check_writer():
     """Redacteur local (fenetre New project) : moteur ONNX importable ET modele present. Sans chargement du modele (quelques
     secondes de plus) : l'import prouve que Smart App Control laisse passer la bibliotheque."""
@@ -245,11 +268,13 @@ def check_texture_upscaler():
 
 def report_prompt_translator():
     """Traduction des prompts : FACULTATIVE (etape de l'assistant qui n'arrete jamais l'installation) -> simple ligne de
-    journal, jamais un echec. Import REEL des parties natives (une DLL peut s'installer puis etre bloquee par Smart App Control)."""
+    journal, jamais un echec. Import REEL des parties natives (une DLL peut s'installer puis etre bloquee par Smart App Control)
+    et de `argostranslate.translate`, la chaine qu'utilise l'appli (stanza, remplacant neutre de minisbd) : `package` seul
+    s'importait meme quand la traduction ne pouvait pas se charger."""
     try:
         import ctranslate2  # noqa: F401
         import sentencepiece  # noqa: F401
-        from argostranslate import package
+        from argostranslate import package, translate  # noqa: F401
         modeles = sorted(f'{p.from_code}->{p.to_code}' for p in package.get_installed_packages())
         log(f'[smoke] prompt translator: ready (models: {", ".join(modeles) or "none yet, downloaded at first use"})')
     except Exception as e:
@@ -273,6 +298,8 @@ def main():
         if args.mode in ('standard', 'full', 'lite'):
             check_blip_loadable()
         check_background_remover()
+        if args.mode in ('standard', 'full'):
+            check_image_detail_modules()
         check_cuda_wheels()
         check_mesh_tools()
         check_texture_upscaler()

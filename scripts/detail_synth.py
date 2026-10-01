@@ -93,10 +93,20 @@ import os
 import sys
 import json
 import math
+import time
 import socket
 import argparse
 import tempfile
+import threading
 import subprocess
+
+# Python EMBARQUE (fichier ._pth) : le dossier du script n'est pas dans sys.path.
+_ICI = os.path.dirname(os.path.abspath(__file__))
+if _ICI not in sys.path:
+    sys.path.insert(0, _ICI)
+# L'appli disparait (plantage, arret force) -> ce calcul et sa recuisson (texture_project.py) s'arretent aussi (2026-09-30).
+import surveillance_parent
+surveillance_parent.surveiller('detail_synth', enfants=True)
 
 # If anything from trellis ever gets imported transitively, these must be set
 # before that import. We don't import trellis here (only trimesh / kaolin /
@@ -124,6 +134,29 @@ except Exception:
 # ---------------------------------------------------------------------------
 def log(msg):
     print(f'[detail_synth] {msg}', flush=True)
+
+
+# ---------------------------------------------------------------------------
+# AVANCEMENT REEL + ECHEC CLAIR (2026-09-30, user : « la tuile reste a 90 % pendant des minutes puis image engine server failed
+# to start »). main.js relaie chaque ligne FABMESH_PROGRES a la tuile du travail (etape + pourcentage), et fait de la ligne
+# FABMESH_DETAIL_ERREUR le message de la fenetre d'erreur (etape + phrase, au lieu d'une pile ou d'un dict Python).
+# Bandes : 12 maillage, 14-24 rendus, 25-29 chargement du modele de detail, 30-88 affinage vue par vue, 89-99 recuisson.
+# ---------------------------------------------------------------------------
+def progres(pct, etape, **extra):
+    try:
+        d = {'pct': int(max(0, min(99, round(pct)))), 'etape': etape}
+        d.update({k: v for k, v in extra.items() if v is not None})
+        print('FABMESH_PROGRES ' + json.dumps(d), flush=True)
+    except Exception:
+        pass
+
+
+def echec(etape, message, code=4, **extra):
+    d = {'etape': etape, 'message': str(message)[:600]}
+    d.update({k: v for k, v in extra.items() if v is not None})
+    print('FABMESH_DETAIL_ERREUR ' + json.dumps(d), flush=True)
+    log(f'ERROR: {message}')
+    sys.exit(code)
 
 
 # ---------------------------------------------------------------------------
@@ -454,13 +487,12 @@ def _ensure_kaolin_rasterize():
                 [venv_py, os.path.abspath(__file__)] + sys.argv[1:],
                 env=env).returncode
             sys.exit(rc)
-        log(f'ERROR: kaolin is required for the render stage but failed to '
-            f'import ({e}).')
         log('  Install it in this python (torch 2.8 / cu128 build):')
         log('    pip install kaolin==0.18.0 -f '
             'https://nvidia-kaolin.s3.us-east-2.amazonaws.com/'
             'torch-2.8.0_cu128.html')
-        sys.exit(2)
+        echec('rendu', f'The 3D renderer of the AI engine is missing or broken ({e}). '
+              'Open Settings > Reconfigure to repair the AI engine.', code=2)
 
 
 def _kaolin_rasterize_persp(clip, faces_t, res):
@@ -618,7 +650,7 @@ def _dr_texture(tex, uv, filter_mode='linear'):
 
 def render_views(verts_cam, faces, uv, tex_rgb, out_dir, res=RENDER_RES,
                  norm_cam=None, write_normal=True, write_depth=False,
-                 head_weight=None, write_head_mask=False):
+                 head_weight=None, write_head_mask=False, rapport=None):
     """STAGE 1: rasterize each view with kaolin (Apache 2.0), sample the baked
     texture, write render_<i>.png (RGB, white background). Returns
         (render_paths, normal_paths, depth_paths, head_mask_paths)
@@ -798,6 +830,8 @@ def render_views(verts_cam, faces, uv, tex_rgb, out_dir, res=RENDER_RES,
             del nrm_interp
         if hw_interp is not None:
             del hw_interp
+        if rapport:
+            rapport(i + 1, len(VIEWS))
 
     # --- free the GPU before SDXL stage ---
     del verts_t, faces_t, uv_t, tex_t
@@ -845,6 +879,47 @@ def _sdxl_up(host=SDXL_HOST, port=SDXL_PORT, timeout=2.0):
             return True
     except OSError:
         return False
+
+
+def _etat_serveur(host=SDXL_HOST, port=SDXL_PORT):
+    """GET /progress du serveur d'images (etape, pas de debruitage) ; None si indisponible (ancien serveur, occupe)."""
+    try:
+        import urllib.request as _u
+        with _u.urlopen(f'http://{host}:{port}/progress', timeout=0.8) as r:
+            return json.loads(r.read().decode('utf-8'))
+    except Exception:
+        return None
+
+
+# Affinage : 30 -> 88 %, une bande par vue. Pendant qu'une vue est calculee (la requete HTTP bloque), un fil lit l'avancement du
+# serveur : « chargement » du modele de detail (1re vue seulement, 30 a 90 s), puis les pas de debruitage de la vue.
+AFFINAGE_DEBUT, AFFINAGE_FIN = 30.0, 88.0
+
+
+class _SuiviAffinage(threading.Thread):
+    def __init__(self, vue, vues):
+        super().__init__(daemon=True)
+        self.vue, self.vues = vue, vues
+        self.arret = threading.Event()
+        self.t0 = time.time()
+
+    def run(self):
+        bande = (AFFINAGE_FIN - AFFINAGE_DEBUT) / max(1, self.vues)
+        dernier, dernier_t = None, 0.0
+        while not self.arret.wait(1.0):
+            e = _etat_serveur() or {}
+            if e.get('etape') == 'chargement':
+                d = (min(29, 25 + (time.time() - self.t0) / 20.0), 'chargement', {})
+            elif e.get('etape') == 'calcul' and e.get('total'):
+                frac = min(1.0, float(e.get('pas') or 0) / float(e['total']))
+                d = (AFFINAGE_DEBUT + (self.vue + frac) * bande, 'affinage',
+                     {'vue': self.vue + 1, 'vues': self.vues, 'pas': int(e.get('pas') or 0), 'total': int(e['total'])})
+            else:
+                continue
+            cle = (int(d[0]), d[1], d[2].get('pas'))
+            if cle != dernier or time.time() - dernier_t > 3:     # le temps ecoule de la tuile avance aussi
+                progres(d[0], d[1], **d[2])
+                dernier, dernier_t = cle, time.time()
 
 
 def _post_json(url, payload, timeout=1200):
@@ -900,11 +975,9 @@ def refine_views(render_paths, out_dir, prompt, strength, steps, seed=42,
     view_<i>.png paths.
     """
     if not _sdxl_up():
-        log('ERROR: SDXL server is not reachable on '
-            f'{SDXL_HOST}:{SDXL_PORT}.')
-        log('  Start it first (the human owns VRAM sequencing):')
-        log('    python scripts/sdxl_server.py')
-        sys.exit(3)
+        log(f'SDXL server is not reachable on {SDXL_HOST}:{SDXL_PORT} '
+            '(start it first: python scripts/sdxl_server.py)')
+        echec('affinage', 'The image engine is not running (it stopped or never started).', code=3)
 
     use_geo = (refiner == 'geo')
     if use_geo and not normal_paths:
@@ -935,8 +1008,7 @@ def refine_views(render_paths, out_dir, prompt, strength, steps, seed=42,
         if use_geo:
             ctrl = normal_paths[i] if i < len(normal_paths) else None
             if not ctrl or not os.path.exists(ctrl):
-                log(f'ERROR: normal map for view {i} missing ({ctrl}).')
-                sys.exit(4)
+                echec('rendu', f'The surface map of view {i + 1} was not rendered ({ctrl}).')
             payload = {
                 'input': os.path.abspath(rp),
                 'control': os.path.abspath(ctrl),
@@ -963,14 +1035,29 @@ def refine_views(render_paths, out_dir, prompt, strength, steps, seed=42,
                 'seed': seed,
             }
             log(f'  refining view {i} (tile): {rp} (strength={strength}, steps={steps})')
-        status, body = _post_json(url, payload)
+        n = len(render_paths)
+        progres(AFFINAGE_DEBUT + i * (AFFINAGE_FIN - AFFINAGE_DEBUT) / max(1, n), 'affinage', vue=i + 1, vues=n)
+        suivi = _SuiviAffinage(i, n)
+        suivi.start()
+        try:
+            status, body = _post_json(url, payload)
+        except Exception as e:
+            # Serveur mort ou coupe en pleine vue : echec IMMEDIAT et nomme (avant : pile Python « ConnectionError »).
+            nom = type(e).__name__
+            if 'Timeout' in nom or 'timed out' in str(e).lower():
+                echec('affinage', f'The image engine did not answer for 20 minutes (view {i + 1}/{n}).',
+                      code=3, vue=i + 1, vues=n)
+            echec('affinage', f'The image engine stopped while refining view {i + 1}/{n} ({nom}).',
+                  code=3, vue=i + 1, vues=n)
+        finally:
+            suivi.arret.set()
         if status != 200 or not (isinstance(body, dict) and body.get('ok')):
-            log(f'ERROR: {endpoint} failed for view {i} '
-                f'(HTTP {status}): {body}')
-            sys.exit(4)
+            log(f'{endpoint} failed for view {i} (HTTP {status}): {body}')
+            raison = body.get('error') if isinstance(body, dict) else None
+            echec('affinage', raison or f'The image engine answered HTTP {status}.', vue=i + 1, vues=n)
         if not os.path.exists(out_p):
-            log(f'ERROR: server reported ok but {out_p} is missing.')
-            sys.exit(4)
+            echec('affinage', f'The image engine reported success but wrote no image for view {i + 1}/{n}.',
+                  vue=i + 1, vues=n)
 
         # --- HEAD FREEZE composite (both refiners) ---------------------------
         # final = render_i * head_mask + view_i * (1 - head_mask). Keeps the
@@ -1041,10 +1128,31 @@ def reproject(mesh_path, front_ref, out_glb, multiview_dir, texture_size):
     # ADDED where the 6 views cover well. Default on; set
     # FABMESH_TEXPROJ_BASE_ATLAS=0 in the environment to disable.
     _env.setdefault('FABMESH_TEXPROJ_BASE_ATLAS', '1')
-    proc = subprocess.run(cmd, text=True, env=_env)
-    if proc.returncode != 0:
-        log(f'ERROR: texture_project.py exited rc={proc.returncode}')
-        sys.exit(5)
+    # Sortie LUE ligne a ligne (avant : heritee telle quelle) : chaque phase de la recuisson devient un avancement (89 -> 99 %).
+    phases = [('] mesh:', 90, 'lecture'), ('xatlas', 91, 'uv'), ('] projecting', 92, 'projection'),
+              ('rasterizing UV atlas', 95, 'atlas'), ('rasterization', 96, 'atlas'), ('] fill:', 97, 'remplissage'),
+              ('uv_inpaint', 97, 'remplissage'), ('blended, saving', 98, 'enregistrement'), ('] done in', 99, 'enregistrement')]
+    progres(89, 'recuisson', phase='lecture')
+    vues_vues, derniere_erreur = 0, None
+    proc = subprocess.Popen(cmd, text=True, env=_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            bufsize=1, encoding='utf-8', errors='replace')
+    for ligne in proc.stdout:
+        ligne = ligne.rstrip('\r\n')
+        print(ligne, flush=True)
+        if 'ERROR' in ligne or 'Error' in ligne:
+            derniere_erreur = ligne.split('ERROR:', 1)[-1].strip() or ligne.strip()
+        if '] view az=' in ligne or ']   view az=' in ligne:
+            vues_vues += 1
+            progres(92 + min(3.0, vues_vues * 0.5), 'recuisson', phase='projection')
+            continue
+        for motif, pct, phase in phases:
+            if motif in ligne:
+                progres(pct, 'recuisson', phase=phase)
+                break
+    rc = proc.wait()
+    if rc != 0:
+        log(f'texture_project.py exited rc={rc}')
+        echec('recuisson', derniere_erreur or f'The texture re-bake stopped (code {rc}).', code=5)
     log(f'reproject done -> {out_glb}')
 
 
@@ -1119,18 +1227,31 @@ def main():
 
     # --- STAGE 1: render ---
     log('STAGE 1: render (kaolin raster, Apache 2.0)')
-    verts_cam, faces, uv, tex_rgb, norm_cam, head_weight = \
-        load_mesh_for_render(mesh_path)
+    progres(12, 'maillage')
+    try:
+        verts_cam, faces, uv, tex_rgb, norm_cam, head_weight = \
+            load_mesh_for_render(mesh_path)
+    except SystemExit:
+        raise
+    except Exception as e:
+        echec('maillage', f'The 3D model could not be read ({type(e).__name__}: {e}).', code=2)
     log(f'mesh: {len(verts_cam)} verts, {len(faces)} faces, '
         f'tex {tex_rgb.shape[1]}x{tex_rgb.shape[0]}')
     # Normal maps are the geometry control for --refiner geo; render them unless
     # we're explicitly on the legacy tile path (cheap, but skip if not needed).
     want_normal = (args.refiner == 'geo')
     want_head = (args.freeze_head == 'on')
-    render_paths, normal_paths, _depth_paths, head_mask_paths = render_views(
-        verts_cam, faces, uv, tex_rgb, work, res=RENDER_RES,
-        norm_cam=norm_cam, write_normal=want_normal, write_depth=False,
-        head_weight=head_weight, write_head_mask=want_head)
+    progres(14, 'rendu', vue=0, vues=len(VIEWS))
+    try:
+        render_paths, normal_paths, _depth_paths, head_mask_paths = render_views(
+            verts_cam, faces, uv, tex_rgb, work, res=RENDER_RES,
+            norm_cam=norm_cam, write_normal=want_normal, write_depth=False,
+            head_weight=head_weight, write_head_mask=want_head,
+            rapport=lambda k, n: progres(14 + 10.0 * k / n, 'rendu', vue=k, vues=n))
+    except SystemExit:
+        raise
+    except Exception as e:
+        echec('rendu', f'The views of the model could not be rendered ({type(e).__name__}: {e}).', code=2)
     views_json = write_views_json(work)
 
     if args.render_only:
@@ -1156,6 +1277,7 @@ def main():
         log('STAGE 2: refine (SDXL ControlNet-Tile /img2img_tile, port 5555)')
     if want_head:
         log('  head/face FREEZE on: head region kept from original render.')
+    progres(25, 'chargement')
     view_paths = refine_views(
         render_paths, work, args.prompt, args.strength, args.steps,
         seed=args.seed, refiner=args.refiner, normal_paths=normal_paths,

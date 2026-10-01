@@ -90,6 +90,13 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    # Serveur d'appoint : l'appli disparait (plantage, arret force) -> il s'arrete aussi, au lieu de garder son port et sa RAM
+    # (2026-09-30). Python EMBARQUE (fichier ._pth) : le dossier du script n'est pas dans sys.path.
+    _ici = os.path.dirname(os.path.abspath(__file__))
+    if _ici not in sys.path:
+        sys.path.insert(0, _ici)
+    import surveillance_parent
+    surveillance_parent.surveiller('nsfw_server')
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), _Handler)
     print("NSFW READY", flush=True)   # main.js waits for this
     srv.serve_forever()

@@ -479,6 +479,7 @@ function renderModeCards() {
   // Aucune carte disponible (ne devrait plus arriver grâce à la carte Cloud) :
   // on ne laisse SURTOUT pas l'utilisateur bloqué avec Continue grisé.
   if (!target) { goto('no-gpu'); return; }
+  majTaillesModes();
   const recoCard = cardFor(target);
   if (recoCard) {
     for (const c of document.querySelectorAll('.wiz-mode-card')) c.classList.remove('selected');
@@ -487,6 +488,21 @@ function renderModeCards() {
     chosenMode = target;
     journal('mode', { choisi: chosenMode, par: 'recommandation' });
     document.getElementById('btn-mode-next').disabled = false;
+  }
+  syncModeUI();
+}
+
+// TAILLES DES MODES LUES DANS LE PLAN (2026-09-30) : les cartes affichaient des tailles ecrites en dur (~57 / ~47 / ~28 Go) que
+// chaque modele ajoute rendait fausses (deja ~60 / ~50 / ~31 avant l'ajout des modules d'image). Taille = modeles du mode (Mo
+// decimaux, mesures sur l'API du Hub : la meme source que la liste de telechargement) + moteur d'IA installe (~8,5 Go).
+const MOTEUR_IA_GO = 8.5;
+async function majTaillesModes() {
+  for (const m of ['full', 'standard', 'lite']) {
+    try {
+      const plan = await window.wizardAPI.getDownloadPlan(m);
+      const el = document.querySelector(`.wiz-mode-card[data-mode="${m}"] .wiz-mode-size`);
+      if (el && plan && plan.total_mb) el.textContent = '~' + Math.round(plan.total_mb / 1000 + MOTEUR_IA_GO) + ' GB';
+    } catch (_) { /* repli : la taille ecrite dans la page */ }
   }
   syncModeUI();
 }
@@ -600,7 +616,7 @@ const GROUPES = {
 function groupeDeModele(id) {
   if (/^(writer|dinov3|blip1|florence2|esrgan)$/.test(id)) return 'models';
   if (/^trellis/.test(id)) return '3d';
-  return 'img';
+  return 'img';   // generation d'image ET ses outils : realvis, vae_fix, lightning, sdxl_inp, cn_pose, cn_tile, cn_union, ipadapter
 }
 function enteteGroupe(cle) {
   const g = GROUPES[cle];
@@ -1040,6 +1056,7 @@ const T_LIBELLES = [
   [/native cuda wheels/i, '3D acceleration libraries', 'Speeds up mesh building', '3d'],
   [/pytorch|cuda/i, 'Graphics card', 'Your GPU is ready for AI', 'engine'],
   [/background remover/i, 'Background remover', 'Cuts your subject out of the picture', 'img'],
+  [/image detail modules/i, 'Detail modules', 'Adds fine detail to textures (Detail++, texture refine)', 'img'],
   [/writing assistant/i, 'Writing assistant', 'Writes your project descriptions', 'models'],
   [/vision/i, 'Vision module', 'Checks the shapes and colors', 'models'],
   [/mesh tools/i, 'Mesh tools', 'Simplifies and unwraps 3D models', '3d'],
