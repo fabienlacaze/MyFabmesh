@@ -567,6 +567,7 @@
       // ---- Top bar (icons / tooltips) ----
       'Back to projects': 'Retour aux projets',
       'Refresh': 'Actualiser',
+      'More': 'Plus',
       'My usage history': "Mon historique d'utilisation",
       'Parental control': 'Contrôle parental',
       'About MyFabmesh.AI': 'À propos de MyFabmesh.AI',

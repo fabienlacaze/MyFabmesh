@@ -29826,6 +29826,52 @@ function ouvrirJournalVersion() {
   if (el) { el.style.cursor = 'pointer'; el.style.pointerEvents = 'auto'; el.onclick = ouvrirJournalVersion; }
 })();
 
+// ══ BARRE DU HAUT : MENU « ... » (2026-10-01, user : « on a beaucoup trop de choix, des mini menus deroulants pour grouper les icones ? »).
+// Les boutons d'origine (btn-refresh, btn-history, btn-parental-lock, btn-about) restent dans le DOM, caches, avec leurs gestionnaires et leur etat
+// (le cadenas change d'icone et d'info-bulle). Le menu en fabrique des lignes lisibles a l'ouverture et leur transmet le clic (Maj+clic compris sur
+// Actualiser). Un bouton masque par ailleurs (historique hors connexion, cadenas dans la version Store) n'a pas de ligne.
+(function menuBarreDuHaut() {
+  const bouton = document.getElementById('btn-topbar-more');
+  if (!bouton || !document.getElementById('topbar-more-src')) return;
+  const T = (x) => ((typeof _i18nT === 'function') ? _i18nT(x) : x);
+  const LIGNES = [['btn-refresh', 'Refresh'], ['btn-history', 'My usage history'], ['btn-parental-lock', 'Parental control'], ['btn-about', 'About MyFabmesh.AI']];
+  let menu = null;
+  const fermer = () => {
+    if (!menu) return;
+    menu.remove(); menu = null; bouton.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', dehors, true); document.removeEventListener('keydown', touche, true);
+  };
+  const dehors = (e) => { if (menu && !menu.contains(e.target) && !bouton.contains(e.target)) fermer(); };
+  const touche = (e) => { if (e.key === 'Escape') { fermer(); bouton.focus(); } };
+  const ouvrir = () => {
+    const m = document.createElement('div');
+    m.id = 'topbar-more-menu'; m.setAttribute('role', 'menu'); m.setAttribute('data-i18n-skip', '');
+    LIGNES.forEach(([id, libelle]) => {
+      const orig = document.getElementById(id);
+      if (!orig || getComputedStyle(orig).display === 'none') return;
+      const ligne = document.createElement('button');
+      ligne.type = 'button'; ligne.id = 'tm-' + id; ligne.setAttribute('role', 'menuitem');
+      const ic = document.createElement('span'); ic.className = 'tm-ic'; ic.innerHTML = orig.innerHTML;
+      const tx = document.createElement('span'); tx.textContent = T(id === 'btn-parental-lock' ? (orig.title || libelle) : libelle);
+      ligne.append(ic, tx);
+      ligne.addEventListener('click', (ev) => {
+        fermer();
+        orig.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: ev.shiftKey, ctrlKey: ev.ctrlKey, metaKey: ev.metaKey }));
+      });
+      m.appendChild(ligne);
+    });
+    if (!m.children.length) return;
+    document.body.appendChild(m);
+    const r = bouton.getBoundingClientRect();
+    m.style.top = (r.bottom + 6) + 'px';
+    m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+    menu = m; bouton.setAttribute('aria-expanded', 'true');
+    document.addEventListener('mousedown', dehors, true); document.addEventListener('keydown', touche, true);
+    m.firstChild.focus();
+  };
+  bouton.addEventListener('click', () => { if (menu) fermer(); else ouvrir(); });
+})();
+
 // « EDIT SELECTED » de chaque etape : inutilisable tant qu'il n'y a RIEN a editer (user 2026-10-01 ; parite avec le bureau). Grise, ne s'ouvre pas.
 function _majVerrousEditSelected() {
   const p = state.currentProject;

@@ -177,8 +177,6 @@
              (en mode Cloud, c'est la pastille du solde qui l'affiche). Jamais bloquant. -->
         <button id="topbar-signin" type="button" class="ghost-btn topbar-signin" style="display:none;" title="Sign in or create your MyFabmesh account">Sign in</button>
         <span id="topbar-credits" class="generate-cost-pill" title="MyFabmesh credits — click to top up" style="display:none; cursor:pointer; font-size:14px; padding:4px 11px;">&#9889; <span id="topbar-credits-val">…</span><span id="topbar-account" style="display:none; opacity:.72; margin-left:7px; padding-left:7px; border-left:1px solid rgba(0,0,0,.28); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;"></span></span>
-        <button id="btn-refresh" class="icon-btn" title="Refresh">&#x21bb;</button>
-        <button id="btn-history" class="icon-btn" title="My usage history">&#128229;</button>
         <!-- SIGNALEMENT DE CONTENU IA — politique 11.16 du Microsoft Store.
              REFUSE DEUX FOIS (2026-08-04 puis 2026-08-19) alors que le
              dispositif existait deja. La cause est la DECOUVRABILITE : les
@@ -189,9 +187,17 @@
              Il est desormais dans la barre du haut, visible en permanence,
              des le tout premier lancement et sans aucun contenu. -->
         <button id="btn-report-ai" class="icon-btn" title="Report inappropriate AI-generated content">&#9873;</button>
-        <button id="btn-parental-lock" class="icon-btn" title="Parental control" style="font-size:14px;">&#128274;</button>
-        <button id="btn-about" class="icon-btn" title="About MyFabmesh.AI">?</button>
+        <!-- MENU « ... » (2026-10-01, user : « on a beaucoup trop de choix, des mini menus deroulants pour grouper les icones ? »).
+             Les quatre boutons d'origine (memes id, memes gestionnaires) restent DANS le DOM, caches : le menu en cree des lignes lisibles
+             qui leur transmettent le clic (menuBarreDuHaut, index2.js). Le signalement de contenu reste visible : exigence du Store (11.16). -->
+        <button id="btn-topbar-more" class="icon-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="More">&#8943;</button>
         <button id="btn-settings" class="icon-btn" title="Settings">&#9881;</button>
+        <span id="topbar-more-src" style="display:none">
+          <button id="btn-refresh" class="icon-btn" title="Refresh">&#x21bb;</button>
+          <button id="btn-history" class="icon-btn" title="My usage history">&#128229;</button>
+          <button id="btn-parental-lock" class="icon-btn" title="Parental control" style="font-size:14px;">&#128274;</button>
+          <button id="btn-about" class="icon-btn" title="About MyFabmesh.AI">?</button>
+        </span>
       </div>
     </header>
 

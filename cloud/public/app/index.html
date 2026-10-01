@@ -240,11 +240,17 @@
             });
           })();
         </script>
-        <button id="btn-refresh" class="icon-btn" title="Refresh">&#x21bb;</button>
-        <button id="btn-history" class="icon-btn" title="My usage history">&#128229;</button>
-        <button id="btn-parental-lock" class="icon-btn" title="Parental control" style="font-size:14px;">&#128274;</button>
-        <button id="btn-about" class="icon-btn" title="About MyFabmesh.AI">?</button>
+        <!-- MENU « ... » (2026-10-01, user : « on a beaucoup trop de choix, des mini menus deroulants pour grouper les icones ? »).
+             Les quatre boutons d'origine (memes id, memes gestionnaires) restent DANS le DOM, caches : le menu en cree des lignes lisibles
+             qui leur transmettent le clic (menuBarreDuHaut, index2.js). Le signalement de contenu reste visible : exigence du Store (11.16). -->
+        <button id="btn-topbar-more" class="icon-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="More">&#8943;</button>
         <button id="btn-settings" class="icon-btn" title="Settings">&#9881;</button>
+        <span id="topbar-more-src" style="display:none">
+          <button id="btn-refresh" class="icon-btn" title="Refresh">&#x21bb;</button>
+          <button id="btn-history" class="icon-btn" title="My usage history">&#128229;</button>
+          <button id="btn-parental-lock" class="icon-btn" title="Parental control" style="font-size:14px;">&#128274;</button>
+          <button id="btn-about" class="icon-btn" title="About MyFabmesh.AI">?</button>
+        </span>
       </div>
     </header>
 
