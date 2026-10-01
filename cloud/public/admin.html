@@ -1305,6 +1305,9 @@
     let _loginPassword = '';
     let _sensitivePassword = '';
     let _sensitivePendingTab = null;
+    // Anti-rebond de _adminSessionExpiree (2026-10-01) : plusieurs sondeurs (Live 3 s, Warm 5 s, pastilles 30 s) peuvent echouer en 401 en meme temps ;
+    // on ne rend la main a l'ecran d'entree qu'UNE fois, le drapeau retombe des que refresh() aboutit.
+    let _sessionExpireeSignalee = false;
 
     async function refresh() {
       const errEl  = document.getElementById('err');
@@ -1335,6 +1338,7 @@
         const d = await r.json();
         login.style.display = 'none'; passwd.style.display = 'none';
         main.style.display = 'block';
+        if (_sessionExpireeSignalee) { _sessionExpireeSignalee = false; setTimeout(() => { try { document.querySelector('.tab.active')?.click(); } catch (_) {} }, 0); }
         // Session admin valide -> les onglets sensibles sont deverrouilles.
         // Il y avait une SECONDE demande du mot de passe pour Finance/System
         // alors que ce meme mot de passe venait d'etre saisi a l'entree : deux
@@ -3207,7 +3211,14 @@
      * Un 401 sur le panneau Services venait de l'expiration de la session (compte, 1 h) ou du cookie admin (4 h) : la carte « Unlock » ne
      * pouvait rien y faire (le serveur n'utilise plus le mot de passe saisi ici). On rend la main a l'ecran d'entree de la page, qui sait
      * proposer la bonne etape : connexion au compte, puis mot de passe admin. */
-    function _adminSessionExpiree() { try { refresh(); } catch (_) {} }
+    function _adminSessionExpiree() {
+      if (_sessionExpireeSignalee) return;
+      _sessionExpireeSignalee = true;
+      // les onglets se rechargeront a la reconnexion (sinon « unlocked » / « loaded » les laissaient vides)
+      try { document.querySelectorAll('.tab').forEach((b) => { delete b.dataset.unlocked; delete b.dataset.loaded; }); } catch (_) {}
+      try { if (_warmSuivi) { clearInterval(_warmSuivi); _warmSuivi = null; } } catch (_) {}
+      try { refresh(); } catch (_) {}
+    }
 
     async function unlockServicesPanel(auto) {
       const input = document.getElementById('services-password-input');
@@ -3360,10 +3371,8 @@
           body: JSON.stringify({ service: 'all', enabled, password: _killswitchPassword }),
         });
         if (r.status === 401) {
-          _killswitchPassword = '';
-          document.getElementById('services-lock').style.display = '';
-          document.getElementById('services-panel').style.display = 'none';
-          showAdminInfo('Locked', 'Password no longer valid. Please re-enter.', 'err');
+          showAdminInfo('Session expired', 'Sign in again to continue: your admin session is no longer valid.', 'err');
+          _adminSessionExpiree();
           return;
         }
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -3403,11 +3412,9 @@
           body: JSON.stringify({ service, enabled, password: _killswitchPassword }),
         });
         if (r.status === 401) {
-          // Password got rotated mid-session — lock the panel again.
-          _killswitchPassword = '';
-          document.getElementById('services-lock').style.display = '';
-          document.getElementById('services-panel').style.display = 'none';
-          showAdminInfo('Locked', 'Password no longer valid. Please re-enter.', 'err');
+          // Le serveur ne lit plus le mot de passe pour un interrupteur : un 401 = session (compte ou cookie admin) expiree.
+          showAdminInfo('Session expired', 'Sign in again to continue: your admin session is no longer valid.', 'err');
+          _adminSessionExpiree();
           return;
         }
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -3506,6 +3513,11 @@
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ password: _killswitchPassword }),
           });
+          if (r.status === 401 && /unauthorized|admin_password_required/.test(await r.clone().text().catch(() => ''))) {
+            showAdminInfo('Session expired', 'Sign in again to continue: your admin session is no longer valid.', 'err');
+            _adminSessionExpiree();
+            return;
+          }
           if (r.status === 401) {
             _killswitchPassword = '';
             document.getElementById('services-lock').style.display = '';
@@ -4408,6 +4420,7 @@
       try {
         // ?legere=1 : la prevision seule, sans Supabase (appel toutes les 5 min).
         const r = await fetch('/api/admin/modal-credits?legere=1', { credentials: 'include' });
+        if (r.status === 401) { _adminSessionExpiree(); return; }
         if (!r.ok) return;
         _updateModalBanner((await r.json()).prevision);
       } catch (_) {}
@@ -5396,8 +5409,9 @@
       try {
         const [rl, rm] = await Promise.all([
           fetch('/api/admin/live', { credentials: 'include' }),
-          fetch('/api/modal-status', { credentials: 'include' }).catch(() => null),
+          fetch('/api/admin/modal-status', { credentials: 'include' }).catch(() => null),
         ]);
+        if (rl.status === 401 || (rm && rm.status === 401)) { _adminSessionExpiree(); return; }
         if (!rl.ok) throw new Error('HTTP ' + rl.status);
         const j = await rl.json();
         const modal = rm && rm.ok ? await rm.json().catch(() => null) : null;
@@ -5419,7 +5433,7 @@
               const e = warmEtatTexte(modal[k]);
               return '<span style="border:1px solid var(--border); border-radius:999px; padding:3px 10px; font-size:12px;">' + LIVE_SERVICES[k] + ' <b style="color:' + e.c + ';">● ' + e.t + '</b></span>';
             }).join('')
-          : '<span style="color:var(--text-2); font-size:12px;">état indisponible</span>';
+          : '<span style="color:var(--text-2); font-size:12px;">état indisponible (' + (rm ? 'HTTP ' + rm.status : 'réseau') + ')</span>';
         const v = (t, n) => '<tr><td colspan="' + n + '" style="color:var(--text-2)">' + t + '</td></tr>';
         document.getElementById('live-ligne').innerHTML = (j.en_ligne || []).length
           ? j.en_ligne.map((x) => '<tr><td>' + escapeHtml(x.email || 'inconnu') + '</td><td class="num">' + liveDuree(x.vu_il_y_a_s) + '</td><td>'
@@ -5484,6 +5498,7 @@
     async function refreshKillSwitchSummary() {
       try {
         const r = await fetch('/api/admin/services', { credentials: 'include' });
+        if (r.status === 401) { _adminSessionExpiree(); return; }
         if (!r.ok) return;
         const s = await r.json();
         _servicesState = s;
@@ -5523,6 +5538,7 @@
     async function refreshAllTabBadges(fresh = false) {
       try {
         const r = await fetch('/api/admin/badges' + (fresh ? '?fresh=1' : ''), { credentials: 'include' });
+        if (r.status === 401) { _adminSessionExpiree(); return; }
         if (!r.ok) return;
         const j = await r.json();
         updateTabBadge('badge-market', j.market_pending);
@@ -5545,6 +5561,27 @@
       if (active === 'active') loadActiveJobs(true);
       if (active === 'finance') loadModalCredits();
     });
+
+    /* MAINTIEN DE LA SESSION (2026-10-01) : le cookie de session utilisateur dure 1 h ; l'appli /app/ le renouvelle toutes les 50 min, la page
+     * admin jamais -> un onglet admin ouvert plus d'une heure perdait sa session sans prevenir. Meme cadence et meme horodatage partage
+     * (localStorage, cle commune avec l'appli) pour ne jamais lancer deux echanges de jeton rapproches (rotation du refresh token Supabase).
+     * Un 401 « no refresh cookie » est ignore (la session courante peut encore etre valable) ; « refresh rejected » = session morte. */
+    const _CLE_REFRESH_SESSION = 'mfm-last-session-refresh';
+    function _dernierRefreshSession() { try { return Number(localStorage.getItem(_CLE_REFRESH_SESSION)) || 0; } catch (_) { return 0; } }
+    async function _maintenirSession() {
+      if (document.hidden) return;
+      if (Date.now() - _dernierRefreshSession() < 40 * 60 * 1000) return;
+      try { localStorage.setItem(_CLE_REFRESH_SESSION, String(Date.now())); } catch (_) {}
+      try {
+        const r = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+        if (r.status === 401) {
+          const t = await r.text().catch(() => '');
+          if (/refresh rejected/.test(t)) _adminSessionExpiree();
+        }
+      } catch (_) { /* reseau ou service en panne : rien n'est efface, on reessaiera */ }
+    }
+    setInterval(_maintenirSession, 50 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) _maintenirSession(); });
 
     refresh();
   </script>

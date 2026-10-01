@@ -99,6 +99,17 @@
   "motif": false
  },
  {
+  "chemin": "/api/admin/live",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminLive",
+  "motif": false
+ },
+ {
   "chemin": "/api/admin/login",
   "methodes": [
    "POST"
@@ -195,6 +206,17 @@
   "payant": false,
   "tarifs": [],
   "handler": "handleAdminModalSetBudget",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/modal-status",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminModalStatus",
   "motif": false
  },
  {
@@ -428,6 +450,17 @@
    "variable (voir le handler)"
   ],
   "handler": "handleAdminAdjustCredits",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/warm",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminWarm",
   "motif": false
  },
  {

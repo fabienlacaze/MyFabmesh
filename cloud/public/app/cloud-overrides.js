@@ -98,6 +98,43 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     return _refreshInFlight;
   }
 
+  // ── Page de maintenance (2026-10-01, user : « pourquoi on n'est pas envoye sur une page qui dit que le site est en maintenance ? ») ──
+  // Coupe-circuit « Site » actif : le HTML de /app/ est un fichier statique servi AVANT le worker, donc il s'affichait normalement, puis chaque
+  // appel /api/* rendait 503 « site temporarily disabled by admin » et l'interface montrait des listes VIDES (« Vos projets (0) ») : on
+  // croyait ses projets perdus. Au premier 503 de ce type, un ecran plein page dit la verite, et la page se recharge toute seule au retour.
+  let _maintenanceMontree = false;
+  const _MSG_MAINTENANCE = {
+    en: ['MyFabmesh.AI is down for maintenance', 'Your projects are safe. We will be back shortly. This page reloads by itself when the service returns.', 'Try again'],
+    fr: ['MyFabmesh.AI est en maintenance', 'Vos projets sont en sécurité. Nous revenons très vite. Cette page se recharge toute seule au retour du service.', 'Réessayer'],
+    es: ['MyFabmesh.AI está en mantenimiento', 'Tus proyectos están a salvo. Volvemos enseguida. Esta página se recarga sola cuando el servicio vuelva.', 'Reintentar'],
+    zh: ['MyFabmesh.AI 正在维护', '您的项目是安全的。我们很快回来。服务恢复后此页面会自动刷新。', '重试'],
+    hi: ['MyFabmesh.AI रखरखाव में है', 'आपके प्रोजेक्ट सुरक्षित हैं। हम जल्द लौटेंगे। सेवा लौटते ही यह पेज अपने आप रीलोड होगा।', 'फिर कोशिश करें'],
+    ar: ['MyFabmesh.AI قيد الصيانة', 'مشاريعك بأمان. سنعود قريبًا. تُعاد تحميل هذه الصفحة تلقائيًا عند عودة الخدمة.', 'إعادة المحاولة'],
+  };
+  function _afficherMaintenance() {
+    if (_maintenanceMontree || !document.body) return;
+    _maintenanceMontree = true;
+    let lang = 'en';
+    try { lang = (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase().slice(0, 2); } catch (_) {}
+    const m = _MSG_MAINTENANCE[lang] || _MSG_MAINTENANCE.en;
+    const ov = document.createElement('div');
+    ov.id = 'maintenance-overlay';
+    ov.setAttribute('role', 'alert');
+    if (lang === 'ar') ov.setAttribute('dir', 'rtl');
+    ov.style.cssText = 'position:fixed; inset:0; z-index:2147483000; background:#0a0a0e; color:#f0f0f0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; font:16px system-ui,sans-serif;';
+    const carte = document.createElement('div');
+    carte.style.cssText = 'max-width:480px;';
+    const h = document.createElement('h1'); h.textContent = '🛠 ' + m[0]; h.style.cssText = 'margin:0 0 12px; font-size:24px;';
+    const p = document.createElement('p'); p.textContent = m[1]; p.style.cssText = 'margin:0 0 20px; color:#a8a8b8; line-height:1.5;';
+    const b = document.createElement('button'); b.textContent = m[2]; b.style.cssText = 'padding:10px 22px; border:0; border-radius:8px; background:#8b5cf6; color:#fff; font:600 15px system-ui,sans-serif; cursor:pointer;';
+    b.addEventListener('click', () => window.location.reload());
+    carte.append(h, p, b); ov.append(carte); document.body.appendChild(ov);
+    // Retour du service : une route publique (le prix) cesse de rendre 503 -> rechargement automatique.
+    setInterval(async () => {
+      try { const r = await _origFetch('/api/pricing', { credentials: 'include', cache: 'no-store' }); if (r.status !== 503) window.location.reload(); } catch (_) {}
+    }, 20000);
+  }
+
   window.fetch = async function patchedFetch(input, init) {
     let res = await _origFetch(input, init);
     try {
@@ -125,6 +162,10 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           const next = encodeURIComponent(window.location.pathname + window.location.search);
           window.location.replace(`/login?next=${next}`);
         }
+      }
+      if (res.status === 503 && sameOriginApi && !_maintenanceMontree) {
+        const j = await res.clone().json().catch(() => null);
+        if (j && /site temporarily disabled by admin/i.test(String(j.error || ''))) _afficherMaintenance();
       }
     } catch (_) { /* ignore */ }
     return res;
@@ -424,6 +465,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // the mfm-refresh cookie (30 days). On 401 we let the next API call
     // route the user to /login naturally.
     const _refreshSession = async () => {
+      try { localStorage.setItem('mfm-last-session-refresh', String(Date.now())); } catch (_) {}   // horodatage partage avec la page admin
       try {
         const r = await fetch('/api/auth/refresh', {
           method: 'POST', credentials: 'include',

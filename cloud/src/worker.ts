@@ -3610,13 +3610,6 @@ async function handleMeDelete(req: Request, env: Env): Promise<Response> {
   });
 }
 
-/** POST /api/auth/install-session — body { access_token, refresh_token, expires_in? }
- *  Client just did supabase.auth.signInWithPassword(); this endpoint
- *  copies the resulting access_token into a HttpOnly cookie so future
- *  requests can authenticate WITHOUT exposing the JWT to JS.
- *
- *  Validates the access_token by calling Supabase /auth/v1/user before
- *  setting the cookie — a forged token gets a clean 401. */
 /** Site coupe (site_enabled=false) : ouvrir une session reste permis aux seuls comptes de ADMIN_EMAILS ; tout autre compte recoit le
  *  meme 503 qu'avant. Rend null quand le site est allume ou que le compte est administrateur. */
 async function _refusSiteCoupe(env: Env, email: string | null | undefined): Promise<Response | null> {
@@ -3626,6 +3619,13 @@ async function _refusSiteCoupe(env: Env, email: string | null | undefined): Prom
   return err(503, 'site temporarily disabled by admin');
 }
 
+/** POST /api/auth/install-session — body { access_token, refresh_token, expires_in? }
+ *  Client just did supabase.auth.signInWithPassword(); this endpoint
+ *  copies the resulting access_token into a HttpOnly cookie so future
+ *  requests can authenticate WITHOUT exposing the JWT to JS.
+ *
+ *  Validates the access_token by calling Supabase /auth/v1/user before
+ *  setting the cookie — a forged token gets a clean 401. */
 async function handleAuthInstallSession(req: Request, env: Env): Promise<Response> {
   let body: { access_token?: string; refresh_token?: string; expires_in?: number };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
@@ -21916,7 +21916,12 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
       const isAdminRoute = pathname.startsWith('/admin')
                         || pathname.startsWith('/api/admin/')
                         || pathname === '/api/stripe-webhook'
-                        || pathname === '/api/auth/install-session';
+                        || pathname === '/api/auth/install-session'
+                        /* /api/auth/refresh : echange le cookie mfm-refresh DEJA detenu contre un nouveau jeton Supabase (aucun credit, aucun
+                         * Modal). Elle reste ouverte POUR TOUS, sans filtre d'e-mail : Supabase fait TOURNER le refresh token au premier echange ;
+                         * refuser apres coup (503 sans Set-Cookie) perdrait le nouveau jeton et l'ancien serait rejoue -> session effacee pour un
+                         * compte non administrateur. Sans cette exemption la session de l'administrateur (1 h) mourait en maintenance. */
+                        || pathname === '/api/auth/refresh';
       if (!isAdminRoute) {
         const flags = await _getServiceFlags(env);
         if (!flags.site_enabled) {

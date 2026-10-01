@@ -84,7 +84,12 @@ export function LoginForm() {
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      throw new Error('cookie install failed: ' + ((j as { error?: string }).error || r.status));
+      const detail = (j as { error?: string }).error || r.status;
+      // Coupe-circuit « Site » : un message lisible plutot que « cookie install failed » (seuls les administrateurs peuvent encore se connecter).
+      if (r.status === 503 && /temporarily disabled/i.test(String(detail))) {
+        throw new Error('MyFabmesh.AI is down for maintenance. Please try again in a few minutes.');
+      }
+      throw new Error('cookie install failed: ' + detail);
     }
   }
 
