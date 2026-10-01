@@ -19,7 +19,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { checkPromptSafety } from './nsfw_filter';
 import { legalIdentityUnfilledFields } from './config/legal-identity';
 import {
-  AGE_DEPARTS_PAR_JOUR, verdictSession, unrestrictedEffectif, pinVerrouRestant, apresEchecPin, apresSuccesPin,
+  AGE_DEPARTS_PAR_JOUR, AGE_DEPARTS_GLOBAUX_PAR_JOUR, PIN_ECHECS_MAX, PIN_VERROU_MS, verdictSession, unrestrictedEffectif,
   apresVerificationReussie, apresRefusMineur, type EtatParental,
 } from './age_verification';
 import {
@@ -49,6 +49,8 @@ export interface Env {
   // Server-side env.
   MOCK?: string;
   STRIPE_SECRET_KEY?: string;
+  /** Essais seulement : '1' accepte les sessions Stripe Identity de TEST comme preuve d'age (a ne JAMAIS poser en production). */
+  AGE_ALLOW_TEST_MODE?: string;
   /** '1' = accepter deliberement une cle Stripe de TEST en production, pour
    *  eprouver la chaine de paiement. Sans ce drapeau, un paiement de test est
    *  refuse et le webhook n'accorde AUCUN credit : une cle sk_test_ deployee
@@ -2245,6 +2247,8 @@ async function _lireCle(env: Env, empreinte: string): Promise<CleApi | null> {
 const _CLE_API_INTERDIT = [
   /^\/api\/api-keys/, /^\/api\/account/, /^\/api\/auth\//, /^\/api\/checkout/, /^\/api\/stripe/,
   /^\/api\/admin\//, /^\/api\/market\/checkout/, /^\/api\/market\/seller\//, /^\/api\/me\/delete/,
+  // controle parental et verification d'age : jamais pilotables par une cle API (2026-10-01)
+  /^\/api\/parental\//, /^\/api\/age\//,
 ];
 // TRAVAUX VISIBLES (2026-09-28, user : « il faut que la generation en cours soit affichee
 // dans les taches en cours, il faut creer un projet aussi, comme si c'etait moi ») : une
@@ -3404,6 +3408,11 @@ async function handleMeExport(req: Request, env: Env): Promise<Response> {
     // données du compte : fiches mises en vente (avec l'e-mail en clair),
     // achats effectués, et le rattachement Stripe Connect du vendeur.
     marketplace: await _exportMarketplaceDuCompte(env, user.id),
+    // Verification d'age (2026-10-01) : seulement ce que nous conservons — jamais le PIN, ni date de naissance, ni image.
+    age_verification: await (async () => {
+      const st = await getParentalStateBrut(env, user.id);
+      return { verified_at: st.ageVerifiedAt ?? null, refused_at: st.ageRefusedAt ?? null, stripe_session_id: st.ageSessionId ?? null };
+    })(),
     r2_keys: r2Keys,
   };
   return new Response(JSON.stringify(body, null, 2), {
@@ -3456,8 +3465,18 @@ async function handleMeDelete(req: Request, env: Env): Promise<Response> {
   if (env.MESHES) {
     for (const cle of [`_logs/latest/${user.id}.log`,      // journaux console
                        `_meta/paid/${user.id}`,            // drapeau compte payant
+                       `_meta/parental/${user.id}.json`,   // controle parental : PIN condense, age verifie (promesse de la politique § 8.1)
                        `_market/sellers/${user.id}.json`]) { // lien Stripe Connect
       await env.MESHES.delete(cle).catch(() => {});
+    }
+    // compteurs de verification d'age et d'essais de PIN du compte
+    for (const prefixe of [`_meta/agecount/${user.id}/`, `_meta/pinfail/${user.id}/`]) {
+      let cur: string | undefined; let n = 0;
+      do {
+        const l = await env.MESHES.list({ prefix: prefixe, cursor: cur, limit: 1000 });
+        await Promise.all((l.objects || []).map((o) => env.MESHES.delete(o.key).catch(() => {})));
+        cur = l.truncated ? l.cursor : undefined; n++;
+      } while (cur && n < 5);
     }
     /* LES DIAGNOSTICS TECHNIQUES PARTENT AVEC LE COMPTE (art. 17 du RGPD).
      *
@@ -11557,6 +11576,16 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // Le mode T-pose envoie a Modal `prompt` (pas `userPrompt`) : ce champ-la doit passer le meme filtre (revue du 2026-10-01).
+    const autre = (prompt ?? '').toString().trim();
+    if (autre && autre !== rawPrompt) {
+      const s2 = checkPromptSafety(autre, unrestricted);
+      if (!s2.safe) {
+        return json({ ok: false, success: false,
+          error: s2.reason ?? 'prompt blocked by content filter',
+          blocked: s2.blocked }, { status: 400 });
+      }
+    }
   }
   const n = Math.max(1, Math.min(4, numImages ?? 1));
   // borne aussi ce qui part au calcul : 500 pas se payaient au prix de 30
@@ -12906,6 +12935,14 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
   if (!isTrustedAssetHost(env, meshUrl) || !isTrustedAssetHost(env, vueUrl)) return err(400, 'url host not allowed');
   const texte = String(prompt || '').trim().slice(0, 500);
   if (!texte) return err(400, 'prompt required (what should replace the part)');
+  // Filtre de contenu (revue de securite du 2026-10-01 : cette route etait la SEULE a prompt libre sans aucun filtre, plancher illegal compris).
+  {
+    const etat = await getParentalState(env, user.id);
+    const surete = checkPromptSafety(texte, env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted);
+    if (!surete.safe) {
+      return json({ ok: false, success: false, error: surete.reason ?? 'prompt blocked by content filter', blocked: surete.blocked }, { status: 400 });
+    }
+  }
   const masqueDataUrl = String(uvMaskDataUrl || maskDataUrl || '');
   const m = masqueDataUrl.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
   if (!m) return err(400, 'mask required (PNG data URL)');
@@ -15272,6 +15309,32 @@ async function putParentalState(env: Env, userId: string, s: ParentalState): Pro
     JSON.stringify(s), { httpMetadata: { contentType: 'application/json' } });
 }
 
+/** Requete de navigateur venue d'un AUTRE site : refusee (le cookie de session part avec elle). Les appels sans en-tete Origin
+ *  (application de bureau, scripts) ne sont pas concernes. */
+function _origineSuspecte(req: Request, env: Env): boolean {
+  const o = req.headers.get('origin');
+  if (!o) return false;
+  try {
+    const propre = new URL(req.url).origin;
+    const site = env.NEXT_PUBLIC_SITE_URL ? new URL(env.NEXT_PUBLIC_SITE_URL).origin : null;
+    return o !== propre && o !== site;
+  } catch { return true; }
+}
+
+/** Essais de PIN : compteur ATOMIQUE par fenetre de PIN_VERROU_MS (la comparaison n'a lieu qu'apres l'increment). Deux requetes
+ *  simultanees ne peuvent plus lire « 0 echec » toutes les deux : au plus PIN_ECHECS_MAX comparaisons par fenetre. */
+const _pinFenetre = (userId: string) => {
+  const n = Math.floor(Date.now() / PIN_VERROU_MS);
+  return { cle: `_meta/pinfail/${userId}/${n}`, resteS: Math.ceil(((n + 1) * PIN_VERROU_MS - Date.now()) / 1000) };
+};
+async function _pinBloqueSecondes(env: Env, userId: string): Promise<number> {
+  if (!env.MESHES) return 0;
+  const w = _pinFenetre(userId);
+  const o = await env.MESHES.get(w.cle);
+  const n = o ? parseInt(await o.text(), 10) || 0 : 0;
+  return n >= PIN_ECHECS_MAX ? w.resteS : 0;
+}
+
 /** GET /api/parental/status — current user state. */
 async function handleParentalStatus(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
@@ -15280,27 +15343,30 @@ async function handleParentalStatus(req: Request, env: Env): Promise<Response> {
   return json({
     ok: true, unrestricted: !!s.unrestricted, hasPin: !!s.pinHash,
     ageVerified: !!s.ageVerifiedAt, ageRefused: !!s.ageRefusedAt,
-    pinLockedSeconds: Math.ceil(pinVerrouRestant(s, new Date()) / 1000),
+    pinLockedSeconds: await _pinBloqueSecondes(env, user.id),
   });
 }
 
 /** POST /api/parental/toggle — body { pin, enable }.
- *  Lever le filtre exige : (1) l'age verifie, (2) un PIN CHOISI APRES cette verification, (3) pas plus de PIN_ECHECS_MAX essais
- *  d'affilee (verrou de 15 min). Re-verrouiller reste libre : cela ne peut que renforcer. */
+ *  Lever le filtre exige : (1) l'age verifie, (2) un PIN CHOISI APRES cette verification, (3) pas plus de PIN_ECHECS_MAX essais par
+ *  fenetre de 15 min (compteur atomique). Re-verrouiller reste libre : cela ne peut que renforcer. */
 async function handleParentalToggle(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
-  const { pin, enable } = await req.json() as { pin?: string; enable?: boolean };
+  if (_origineSuspecte(req, env)) return err(403, 'bad origin');
+  let corps: { pin?: unknown; enable?: unknown };
+  try { corps = await req.json() as { pin?: unknown; enable?: unknown }; } catch { return err(400, 'JSON body required'); }
+  const { pin, enable } = corps;
   // Re-lock without PIN — the renderer sends pin:'lock' + enable:false.
-  // Done BEFORE the length check because 'lock' is 4 chars and would
-  // otherwise route into the normal PIN validation and 403.
   if (enable === false && pin === 'lock') {
     const cur = await getParentalStateBrut(env, user.id);
     cur.unrestricted = false;
     await putParentalState(env, user.id, cur);
     return json({ ok: true, success: true, unrestricted: false });
   }
-  let cur = await getParentalStateBrut(env, user.id);
+  // Seul `enable: true` leve le filtre : toute autre valeur (absente, texte, nombre) est refusee, plus de « tout sauf false ».
+  if (enable !== true) return err(400, 'enable must be true to unlock (or false with pin "lock" to re-lock)');
+  const cur = await getParentalStateBrut(env, user.id);
   // Pas d'age verifie : pas de PIN a creer, pas de filtre a lever.
   if (!cur.ageVerifiedAt) {
     return json({ error: 'age_verification_required', code: 'age_verification_required', refused: !!cur.ageRefusedAt }, { status: 403 });
@@ -15308,64 +15374,100 @@ async function handleParentalToggle(req: Request, env: Env): Promise<Response> {
   if (typeof pin !== 'string' || pin.length < 4 || pin.length > 64) {
     return err(400, 'PIN must be 4 to 64 characters');
   }
-  const maintenant = new Date();
-  const reste = pinVerrouRestant(cur, maintenant);
-  if (reste > 0) {
-    return json({ error: 'too_many_attempts', code: 'too_many_attempts', retry_after_s: Math.ceil(reste / 1000) },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil(reste / 1000)) } });
+  // On COMPTE l'essai d'abord (atomique), on compare ensuite.
+  const w = _pinFenetre(user.id);
+  const n = await _casIncrementCounter(env, w.cle, 1, PIN_ECHECS_MAX);
+  if (n === null) {
+    return json({ error: 'too_many_attempts', code: 'too_many_attempts', retry_after_s: w.resteS },
+      { status: 429, headers: { 'Retry-After': String(w.resteS) } });
   }
   // PIN sale par le compte : les anciens condenses (non sales) sont de toute facon effaces a la verification d'age.
   const inHash = await _sha256('mfm-pin|' + user.id + '|' + pin);
   if (cur.pinHash) {
-    // PIN already set — validate.
-    if (inHash !== cur.pinHash) {
-      cur = apresEchecPin(cur, maintenant);
-      await putParentalState(env, user.id, cur);
-      return err(403, 'PIN mismatch');
-    }
+    if (inHash !== cur.pinHash) return err(403, 'PIN mismatch');
   } else {
     // Premier PIN : seulement apres la verification d'age (voir plus haut).
     cur.pinHash = inHash;
   }
-  cur = apresSuccesPin(cur);
-  cur.unrestricted = enable !== false;
+  cur.unrestricted = true;
   await putParentalState(env, user.id, cur);
-  return json({ ok: true, success: true, unrestricted: cur.unrestricted });
+  await env.MESHES!.delete(w.cle).catch(() => {});      // PIN juste : le compteur repart de zero
+  return json({ ok: true, success: true, unrestricted: true });
 }
 
 /* ──────────────────────────────────────────────────────────────
  *  VERIFICATION D'AGE (2026-10-01) — Stripe Identity. Logique pure : src/age_verification.ts (banc : build/test-verif-age.mjs).
- *  Fail-closed : sans cle Stripe, ou si Stripe repond mal, le filtre RESTE en place pour tout le monde.
- *  Rien de personnel n'est conserve ici : « majeur verifie le <date> » et l'identifiant de session ; la session Stripe est effacee (redact).
+ *  Fail-closed : sans cle Stripe, avec une cle de TEST (sauf AGE_ALLOW_TEST_MODE=1), ou si Stripe repond mal, le filtre RESTE en place.
+ *  Rien de personnel n'est conserve ici : « majeur verifie le <date> » et l'identifiant de session ; la date de naissance n'est lue
+ *  que le temps de calculer l'age, et la session Stripe est effacee (redact) des que la decision est prise ou la session abandonnee.
  * ────────────────────────────────────────────────────────────── */
-async function _compterAge(env: Env, cle: string, plafond: number): Promise<boolean> {
-  if (!env.MESHES) return false;
-  const cur = await env.MESHES.get(cle);
-  const n = cur ? parseInt(await cur.text(), 10) || 0 : 0;
-  if (n >= plafond) return false;
-  await env.MESHES.put(cle, String(n + 1));
-  return true;
+const _cleStripeDeTest = (env: Env) => /^(sk|rk)_test_/.test(String(env.STRIPE_SECRET_KEY || ''));
+const _urlSessionAge = (id: string) => `https://api.stripe.com/v1/identity/verification_sessions/${encodeURIComponent(id)}`;
+
+async function _lireSessionAge(env: Env, id: string): Promise<{ ok: boolean; data: any }> {
+  const r = await _stripeRest(env, `${_urlSessionAge(id)}?expand[]=verified_outputs`, null, 'GET');
+  if (!r.ok) console.error('age: lecture Stripe refusee', r.status);
+  return { ok: r.ok, data: r.data };
+}
+
+/** Efface chez Stripe les pieces et le selfie d'une session (best effort, jamais bloquant). */
+async function _effacerSessionAge(env: Env, id: string): Promise<void> {
+  try {
+    const x = await _stripeRest(env, `${_urlSessionAge(id)}/redact`, {}, 'POST');
+    if (!x.ok) console.error('age: redact refuse', x.status);
+  } catch (e) { console.error('age: redact en erreur', e); }
+}
+
+/** Verdict sur une session lue chez Stripe ET ses consequences : age verifie / refus enregistres, puis session effacee. */
+async function _appliquerVerdictAge(env: Env, userId: string, st: ParentalState, session: any, maintenant: Date) {
+  const id = st.ageSessionId as string;
+  const v = verdictSession(session, { userId, sessionAttendue: id, maintenant, autoriserTest: env.AGE_ALLOW_TEST_MODE === '1' });
+  if (v.etat === 'verifie') {
+    await putParentalState(env, userId, apresVerificationReussie(st, id, maintenant));
+    await _effacerSessionAge(env, id);
+  } else if (v.etat === 'mineur') {
+    await putParentalState(env, userId, apresRefusMineur(st, maintenant));
+    await _effacerSessionAge(env, id);
+  } else if (v.etat === 'invalide') {
+    console.error('age: session invalide', v.raison);
+  }
+  return v;
 }
 
 /** POST /api/age/start — ouvre une verification (piece d'identite + selfie hebergees par Stripe). Reponse : { ok, url } (a ouvrir dans le navigateur). */
 async function handleAgeStart(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
+  if (_origineSuspecte(req, env)) return err(403, 'bad origin');
   if (!env.STRIPE_SECRET_KEY || !env.MESHES) return err(503, 'age verification unavailable');
+  // Cle de TEST en production : les « documents de test » de Stripe donneraient un faux « majeur ». On n'ouvre rien.
+  if (_cleStripeDeTest(env) && env.AGE_ALLOW_TEST_MODE !== '1') return err(503, 'age verification unavailable');
   const st = await getParentalStateBrut(env, user.id);
   if (st.ageVerifiedAt) return json({ ok: true, verified: true });
   if (st.ageRefusedAt) return json({ ok: false, refused: true, error: 'age_refused' }, { status: 403 });
-  // Une verification deja ouverte et non commencee : on la reprend (chaque verification est facturee a l'exploitant).
+  // Une verification deja ouverte : on la JUGE d'abord (terminee = enregistree, en cours = reprise ; chaque verification est facturee).
   if (st.ageSessionId) {
-    const ex = await _stripeRest(env, `https://api.stripe.com/v1/identity/verification_sessions/${encodeURIComponent(st.ageSessionId)}`, null, 'GET');
-    const d = ex.data as any;
-    if (ex.ok && d && d.status === 'requires_input' && !d.last_error && typeof d.url === 'string' && d.metadata && d.metadata.uid === user.id) {
-      return json({ ok: true, url: d.url });
+    const ex = await _lireSessionAge(env, st.ageSessionId);
+    if (!ex.ok) return err(502, 'age verification service unavailable');
+    const v = await _appliquerVerdictAge(env, user.id, st, ex.data, new Date());
+    if (v.etat === 'verifie') return json({ ok: true, verified: true });
+    if (v.etat === 'mineur') return json({ ok: false, refused: true, error: 'age_refused' }, { status: 403 });
+    if (v.etat === 'en_cours') {
+      if (ex.data && ex.data.status === 'requires_input' && typeof ex.data.url === 'string') return json({ ok: true, url: ex.data.url });
+      return json({ ok: true, pending: true });                 // en traitement chez Stripe : pas de seconde verification
     }
+    await _effacerSessionAge(env, st.ageSessionId);              // abandonnee ou echouee : effacee avant d'en ouvrir une autre
   }
+  // Plafonds : par compte ET global (la facture Stripe est reelle), compteurs atomiques.
   const jour = new Date().toISOString().slice(0, 10);
-  if (!(await _compterAge(env, `_meta/agecount/${user.id}/${jour}.txt`, AGE_DEPARTS_PAR_JOUR))) {
+  const cleCompte = `_meta/agecount/${user.id}/${jour}.txt`;
+  const cleGlobale = `_meta/agecount/_global/${jour}.txt`;
+  if ((await _casIncrementCounter(env, cleCompte, 1, AGE_DEPARTS_PAR_JOUR)) === null) {
     return json({ ok: false, error: 'too_many_attempts', code: 'too_many_attempts' }, { status: 429 });
+  }
+  if ((await _casIncrementCounter(env, cleGlobale, 1, AGE_DEPARTS_GLOBAUX_PAR_JOUR)) === null) {
+    await _casIncrementCounter(env, cleCompte, -1, AGE_DEPARTS_PAR_JOUR).catch(() => null);
+    return json({ ok: false, error: 'busy', code: 'busy' }, { status: 429 });
   }
   const base = (env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
   const form: Record<string, unknown> = {
@@ -15393,34 +15495,13 @@ async function handleAgeStatus(req: Request, env: Env): Promise<Response> {
   if (st.ageRefusedAt) return json({ ok: true, verified: false, refused: true });
   if (!st.ageSessionId) return json({ ok: true, verified: false, status: 'none' });
   if (!env.STRIPE_SECRET_KEY) return err(503, 'age verification unavailable');
-  const url = `https://api.stripe.com/v1/identity/verification_sessions/${encodeURIComponent(st.ageSessionId)}?expand[]=verified_outputs`;
-  const r = await _stripeRest(env, url, null, 'GET');
-  if (!r.ok) {
-    console.error('age/status: Stripe a refuse', r.status);
-    return err(502, 'age verification service unavailable');
-  }
-  const maintenant = new Date();
-  const v = verdictSession(r.data, { userId: user.id, sessionAttendue: st.ageSessionId, maintenant });
-  const effacer = async () => {
-    // Donnees personnelles chez Stripe (pieces, selfie) : effacees des que la decision est prise.
-    try {
-      const x = await _stripeRest(env, `https://api.stripe.com/v1/identity/verification_sessions/${encodeURIComponent(st.ageSessionId!)}/redact`, {}, 'POST');
-      if (!x.ok) console.error('age/status: redact refuse', x.status);
-    } catch (e) { console.error('age/status: redact en erreur', e); }
-  };
-  if (v.etat === 'verifie') {
-    await putParentalState(env, user.id, apresVerificationReussie(st, st.ageSessionId, maintenant));
-    await effacer();
-    return json({ ok: true, verified: true });
-  }
-  if (v.etat === 'mineur') {
-    await putParentalState(env, user.id, apresRefusMineur(st, maintenant));
-    await effacer();
-    return json({ ok: true, verified: false, refused: true });
-  }
+  const r = await _lireSessionAge(env, st.ageSessionId);
+  if (!r.ok) return err(502, 'age verification service unavailable');
+  const v = await _appliquerVerdictAge(env, user.id, st, r.data, new Date());
+  if (v.etat === 'verifie') return json({ ok: true, verified: true });
+  if (v.etat === 'mineur') return json({ ok: true, verified: false, refused: true });
   if (v.etat === 'en_cours') return json({ ok: true, verified: false, status: 'pending' });
   if (v.etat === 'a_refaire') return json({ ok: true, verified: false, status: 'retry', reason: v.raison });
-  console.error('age/status: session invalide', v.raison);
   return json({ ok: true, verified: false, status: 'invalid' });
 }
 

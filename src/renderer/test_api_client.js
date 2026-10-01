@@ -472,7 +472,7 @@
     if (el.disabled || el.classList.contains('disabled')) e.disabled = true;
     if (!vis) e.hidden = true;
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-      e.value = el.type === 'checkbox' || el.type === 'radio' ? el.checked : String(el.value).slice(0, 200);
+      e.value = el.type === 'checkbox' || el.type === 'radio' ? el.checked : (el.type === 'password' ? (el.value ? '********' : '') : String(el.value).slice(0, 200));
       if (el.type === 'range' || el.type === 'number') { if (el.min !== '') e.min = el.min; if (el.max !== '') e.max = el.max; }
     }
     if (el.tagName === 'SELECT') {

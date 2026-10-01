@@ -23,6 +23,8 @@
 export const AGE_MAJORITE = 18;
 /** Departs de verification par compte et par jour : chaque verification est facturee par Stripe a l'exploitant. */
 export const AGE_DEPARTS_PAR_JOUR = 3;
+/** Plafond GLOBAL de departs par jour : la facture Stripe est reelle, et des comptes jetables contournent le plafond par compte. */
+export const AGE_DEPARTS_GLOBAUX_PAR_JOUR = 20;
 /** Essais de PIN avant verrouillage, et duree du verrou. 10 000 combinaisons sans limite = tout se devine par script. */
 export const PIN_ECHECS_MAX = 5;
 export const PIN_VERROU_MS = 15 * 60 * 1000;
@@ -54,12 +56,15 @@ export type VerdictAge =
  *  toute donnee manquante ou incoherente donne « invalide », jamais « verifie ». */
 export function verdictSession(
   session: any,
-  ctx: { userId: string; sessionAttendue: string | null | undefined; maintenant: Date },
+  ctx: { userId: string; sessionAttendue: string | null | undefined; maintenant: Date; autoriserTest?: boolean },
 ): VerdictAge {
   if (!session || typeof session !== 'object') return { etat: 'invalide', raison: 'session_absente' };
   if (!ctx.sessionAttendue || session.id !== ctx.sessionAttendue) return { etat: 'invalide', raison: 'session_inconnue' };
   if (!session.metadata || session.metadata.uid !== ctx.userId) return { etat: 'invalide', raison: 'session_autre_compte' };
   if (session.type !== 'document') return { etat: 'invalide', raison: 'type_inattendu' };
+  // MODE TEST : avec une cle sk_test_, les « documents de test » de Stripe donnent un « verifie » sans aucune piece reelle. Refuse sauf autorisation
+  // explicite (variable AGE_ALLOW_TEST_MODE du worker, pour les essais seulement).
+  if (session.livemode !== true && !ctx.autoriserTest) return { etat: 'invalide', raison: 'mode_test' };
   switch (session.status) {
     case 'verified': {
       const age = ageRevolu(session.verified_outputs && session.verified_outputs.dob, ctx.maintenant);
@@ -70,6 +75,8 @@ export function verdictSession(
       return { etat: 'en_cours' };
     case 'requires_input': {
       const code = session.last_error && session.last_error.code;
+      // Stripe sait deja que le titulaire est trop jeune : c'est un refus d'age, pas une nouvelle tentative a facturer
+      if (code === 'under_supported_age') return { etat: 'mineur' };
       // une session toute neuve est aussi « requires_input » : sans erreur, la personne n'a simplement pas fini
       return code ? { etat: 'a_refaire', raison: String(code) } : { etat: 'en_cours' };
     }

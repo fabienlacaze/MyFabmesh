@@ -25151,7 +25151,7 @@ async function _verifierAgeFlow() {
       </div>`;
     document.body.appendChild(ov);
     const q = (id) => ov.querySelector('#' + id);
-    let minuteur = null, termine = false, essais = 0;
+    let minuteur = null, termine = false, essais = 0, echecsSondage = 0;
     const fin = (ok) => { if (termine) return; termine = true; clearInterval(minuteur); ov.remove(); resolve(!!ok); };
     const dire = (txt, couleur) => { const m = q('age-msg'); m.textContent = txt ? _i18nT(txt) : ''; m.style.color = couleur || '#fbbf24'; };
     const messageErreur = (r) => {
@@ -25167,7 +25167,11 @@ async function _verifierAgeFlow() {
       }
       let r = null;
       try { r = await API.ageStatus(); } catch (_) {}
-      if (!r || !r.ok) return;                  // coupure passagere : on retente au tour suivant
+      if (!r || !r.ok) {                        // coupure passagere : on retente ; 5 echecs de suite : on le dit
+        if (++echecsSondage >= 5) { clearInterval(minuteur); q('age-go').disabled = false; q('age-go').textContent = _i18nT('Try again'); dire(r && r.needsLogin ? 'Sign in again, then retry.' : 'Age verification is not available right now. Try again later.', '#f87171'); }
+        return;
+      }
+      echecsSondage = 0;
       if (r.verified) { showToast(_i18nT('Age verified.'), 'success', 4000); fin(true); return; }
       if (r.refused) { clearInterval(minuteur); dire('This account cannot turn off the content filter.', '#f87171'); q('age-go').style.display = 'none'; return; }
       if (r.status === 'retry') { clearInterval(minuteur); q('age-go').disabled = false; q('age-go').textContent = _i18nT('Try again'); dire('The verification did not go through. You can try again.', '#f87171'); return; }
@@ -25190,7 +25194,13 @@ async function _verifierAgeFlow() {
   });
 }
 
+let _parentalEnCours = false;
 async function toggleParentalControl() {
+  if (_parentalEnCours) return;
+  _parentalEnCours = true;
+  try { await _toggleParentalControl(); } finally { _parentalEnCours = false; }
+}
+async function _toggleParentalControl() {
   // Meme garde que dans le processus principal : ni avertissement, ni
   // demande de code PIN dans une livraison Store.
   if (await _buildStore()) return;
@@ -25217,11 +25227,11 @@ async function toggleParentalControl() {
     const accepted = await _showNsfwWarning();
     if (!accepted) return;
     // Age verifie D'ABORD, PIN CHOISI ENSUITE (un PIN cree avant la verification est efface).
-    if (!status.ageVerified) {
+    if (!status.ageVerified || (!status.hasPin && !status.canCreatePin)) {
       if (!(await _verifierAgeFlow())) return;
       status = await API.getParentalStatus();
     }
-    const pin = await _promptPin(status.hasPin ? 'Enter your PIN to unlock:' : 'Create a PIN (4+ digits) to enable unrestricted mode:');
+    const pin = await _promptPin(status.hasPin ? 'Enter your PIN to unlock:' : 'Create a PIN (4 to 12 digits) to enable unrestricted mode:');
     if (!pin) return;
     if (pin.length < 4) { showToast('PIN must be at least 4 digits.', 'error'); return; }
     const r = await API.toggleUnrestricted({ pin, enable: true });

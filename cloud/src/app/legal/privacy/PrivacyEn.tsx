@@ -243,8 +243,10 @@ export function PrivacyEn() {
         To turn off the content filter, we ask you to verify that you are an
         adult. The check is carried out by <strong>Stripe</strong> (Stripe
         Identity) with an identity document and a selfie, which you send to
-        Stripe and which Stripe processes; we do not receive them. We only
-        receive the result. We store that your account is &ldquo;adult
+        Stripe and which Stripe processes; we do not receive them. We
+        receive the result and, for a moment, the date of birth read by
+        Stripe, only to confirm that you are 18 or older; we do not keep
+        it. We store that your account is &ldquo;adult
         verified&rdquo;, the date of the check and the identifier of the
         Stripe check. We do not store your document, your photo or your date
         of birth, and we ask Stripe to erase the check data as soon as the

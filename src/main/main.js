@@ -405,7 +405,7 @@ function isStoreBuild() {
   try {
     if (process.windowsStore === true) return true;
     const base = (typeof process.resourcesPath === 'string') ? process.resourcesPath : '';
-    return /[\/]WindowsApps[\/]/i.test(base);
+    return /[\\/]WindowsApps[\\/]/i.test(base);
   } catch (_) { return false; }
 }
 
@@ -424,6 +424,9 @@ function isStoreBuild() {
  * exemple) ; le second refuse le basculement. Le plancher illegal
  * (`checkHardFloor`) reste evalue AVANT tout court-circuit, dans tous les
  * cas et toutes les livraisons. */
+// 2026-10-01 (revue de securite) : un FABMESH_UNRESTRICTED herite du profil ou du lanceur levait tout le filtre dans une appli INSTALLEE, sans
+// verification d'age ni PIN. Purge au demarrage hors developpement ; le deverrouillage legitime repose la variable PLUS TARD, par toggle-unrestricted.
+if (typeof app !== 'undefined' && app.isPackaged) delete process.env.FABMESH_UNRESTRICTED;
 function isUnrestrictedMode() {
   if (isStoreBuild()) return false;
   return process.env.FABMESH_UNRESTRICTED === '1';
@@ -3401,30 +3404,19 @@ function _pinEchec(config) {
 }
 function _marquerAgeVerifie() {
   const config = loadConfig();
-  if (config.ageVerifiedAt) return;
-  config.ageVerifiedAt = new Date().toISOString();
-  delete config.parentalPinHash;            // un PIN cree avant la verification n'a aucune valeur
-  config.parentalPinEchecs = 0; config.parentalPinVerrou = 0;
+  // CHAQUE confirmation du serveur (compte connecte) ouvre une fenetre de 15 min pour CHOISIR un PIN : sans elle, le drapeau « age verifie »
+  // restait valable indefiniment et pour toute la machine (n'importe qui pouvait creer le PIN plus tard).
+  config.ageCreerPinJusqua = Date.now() + 15 * 60 * 1000;
+  if (!config.ageVerifiedAt) {
+    config.ageVerifiedAt = new Date().toISOString();
+    delete config.parentalPinHash;            // un PIN cree avant la verification n'a aucune valeur
+    config.parentalPinEchecs = 0; config.parentalPinVerrou = 0;
+    delete process.env.FABMESH_UNRESTRICTED;
+    log.info('main', 'age verifie (compte MyFabmesh) : ancien PIN efface, nouveau PIN a choisir');
+  }
   saveConfig(config);
-  delete process.env.FABMESH_UNRESTRICTED;
-  log.info('main', 'age verifie (compte MyFabmesh) : ancien PIN efface, nouveau PIN a choisir');
 }
-ipcMain.handle('set-parental-pin', (_event, { pin }) => {
-  if (!loadConfig().ageVerifiedAt) return { success: false, error: 'age_verification_required' };
-  if (!pin || pin.length < 4) return { success: false, error: 'PIN must be at least 4 digits' };
-  const config = loadConfig();
-  config.parentalPinHash = _pinHash(pin);
-  saveConfig(config);
-  return { success: true };
-});
-
-ipcMain.handle('verify-parental-pin', (_event, { pin }) => {
-  const config = loadConfig();
-  if (!config.parentalPinHash) return { success: false, error: 'No PIN set. Set one first.' };
-  if (_pinVerrouRestantMs(config) > 0) return { success: false, error: 'Too many attempts. Try again later.' };
-  if (_pinHash(pin) !== config.parentalPinHash) { _pinEchec(config); return { success: false, error: 'Wrong PIN' }; }
-  return { success: true };
-});
+// (set-parental-pin / verify-parental-pin retires le 2026-10-01 : aucun appelant, surface inutile ; le PIN passe par toggle-unrestricted.)
 
 // Verification d'age : le compte MyFabmesh ouvre la verification chez Stripe (piece d'identite + selfie, hebergees par Stripe) ; la reponse
 // n'est jamais prise sur parole du rendu : c'est CE processus qui interroge le serveur et enregistre « age verifie ».
@@ -3500,8 +3492,9 @@ ipcMain.handle('toggle-unrestricted', (_event, { pin, enable }) => {
   const reste = _pinVerrouRestantMs(config);
   if (reste > 0) return { success: false, error: 'Too many attempts. Try again in ' + Math.ceil(reste / 60000) + ' min.', code: 'too_many_attempts' };
   if (!config.parentalPinHash) {
-    // Premier PIN : seulement apres la verification d'age.
-    if (!pin || pin.length < 4) return { success: false, error: 'Set a 4+ digit PIN first' };
+    // Premier PIN : seulement dans la fenetre ouverte par une confirmation du serveur (voir _marquerAgeVerifie).
+    if (!(Number(config.ageCreerPinJusqua || 0) > Date.now())) return { success: false, error: 'Age verification required', code: 'age_verification_required' };
+    if (typeof pin !== 'string' || !/^\d{4,12}$/.test(pin)) return { success: false, error: 'The PIN must be 4 to 12 digits' };
     config.parentalPinHash = _pinHash(pin);
     config.parentalPinEchecs = 0;
     saveConfig(config);
@@ -3665,6 +3658,7 @@ ipcMain.handle('get-parental-status', () => {
     hasPin: !!config.parentalPinHash,
     unrestricted: process.env.FABMESH_UNRESTRICTED === '1',
     ageVerified: !!config.ageVerifiedAt,
+    canCreatePin: Number(config.ageCreerPinJusqua || 0) > Date.now(),
     pinLockedSeconds: Math.ceil(_pinVerrouRestantMs(config) / 1000),
   };
 });
@@ -12175,7 +12169,12 @@ ipcMain.handle('wizard:complete', (_e, state) => {
   return { ok: true };
 });
 
-ipcMain.handle('get-config', () => loadConfig());
+// Le PIN (hash) et ses compteurs ne sortent JAMAIS vers le rendu : F12 est ouvert, un hash a 4 chiffres se retrouve hors ligne en un instant
+// (revue de securite du 2026-10-01). Le rendu n'a besoin que de get-parental-status (hasPin, ageVerified...).
+ipcMain.handle('get-config', () => {
+  const { parentalPinHash, parentalPinEchecs, parentalPinVerrou, ageCreerPinJusqua, ...sans } = loadConfig();
+  return sans;
+});
 
 /* ═══════════════════════════════════════════════════════════════════
    ASSISTANT — API LOCALE (Control API) ET CLAUDE (2026-09-30)

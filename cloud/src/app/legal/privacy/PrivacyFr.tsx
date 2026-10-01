@@ -280,7 +280,9 @@ export function PrivacyFr() {
         que vous êtes majeur. La vérification est réalisée par{' '}
         <strong>Stripe</strong> (Stripe Identity) avec une pièce d&apos;identité
         et un selfie, que vous envoyez à Stripe et que Stripe traite ; nous ne
-        les recevons pas. Nous recevons seulement le résultat. Nous
+        les recevons pas. Nous recevons le résultat et, un instant, la date de
+        naissance lue par Stripe, uniquement pour confirmer que vous avez
+        18 ans ou plus ; nous ne la conservons pas. Nous
         conservons que votre compte est &laquo;&nbsp;majeur vérifié&nbsp;&raquo;,
         la date de la vérification et l&apos;identifiant de la vérification
         Stripe. Nous ne conservons ni votre pièce, ni votre photo, ni votre

@@ -3,7 +3,7 @@
 // Les fonctions sont PURES : aucun reseau, aucun R2, l'heure est passee en parametre.
 import {
   ageRevolu, verdictSession, unrestrictedEffectif, pinVerrouRestant, apresEchecPin, apresSuccesPin,
-  apresVerificationReussie, apresRefusMineur, AGE_MAJORITE, PIN_ECHECS_MAX, PIN_VERROU_MS,
+  apresVerificationReussie, apresRefusMineur, AGE_MAJORITE, PIN_ECHECS_MAX, PIN_VERROU_MS, AGE_DEPARTS_GLOBAUX_PAR_JOUR,
 } from '../cloud/src/age_verification.ts';
 
 let echecs = 0;
@@ -24,7 +24,7 @@ for (const [nom, dob] of [
 ]) ok(ageRevolu(dob, maintenant) === null, 'date de naissance ' + nom + ' -> null (jamais « majeur » par defaut)');
 
 // --- verdict d'une session Stripe
-const base = (extra = {}) => ({ id: 'vs_1', type: 'document', status: 'verified', metadata: { uid: 'u1' }, verified_outputs: { dob: { day: 1, month: 1, year: 1990 } }, ...extra });
+const base = (extra = {}) => ({ id: 'vs_1', type: 'document', livemode: true, status: 'verified', metadata: { uid: 'u1' }, verified_outputs: { dob: { day: 1, month: 1, year: 1990 } }, ...extra });
 const ctx = { userId: 'u1', sessionAttendue: 'vs_1', maintenant };
 ok(verdictSession(base(), ctx).etat === 'verifie', 'majeur verifie -> verifie');
 ok(verdictSession(base({ verified_outputs: { dob: { day: 2, month: 10, year: 2008 } } }), ctx).etat === 'mineur', '17 ans -> mineur');
@@ -43,6 +43,12 @@ ok(rf.etat === 'a_refaire' && rf.raison === 'document_unverified_other', 'requir
 ok(verdictSession(base({ status: 'canceled' }), ctx).etat === 'a_refaire', 'canceled -> a refaire');
 ok(verdictSession(base({ status: 'bizarre' }), ctx).etat === 'invalide', 'statut inconnu -> invalide');
 ok(verdictSession(null, ctx).etat === 'invalide' && verdictSession(undefined, ctx).etat === 'invalide' && verdictSession('x', ctx).etat === 'invalide', 'session absente / pas un objet -> invalide');
+
+ok(verdictSession(base({ livemode: false }), ctx).etat === 'invalide' && verdictSession(base({ livemode: false }), ctx).raison === 'mode_test', 'session de TEST (livemode false) -> invalide (pas de « majeur » avec un document de test)');
+ok(verdictSession(base({ livemode: undefined }), ctx).etat === 'invalide', 'livemode absent -> invalide (echec ferme)');
+ok(verdictSession(base({ livemode: false }), { ...ctx, autoriserTest: true }).etat === 'verifie', 'session de test + autorisation explicite -> verifie (essais seulement)');
+ok(verdictSession(base({ status: 'requires_input', last_error: { code: 'under_supported_age' } }), ctx).etat === 'mineur', 'under_supported_age (Stripe) -> mineur : refus d age, pas une tentative a refaire');
+ok(AGE_DEPARTS_GLOBAUX_PAR_JOUR > 0 && AGE_DEPARTS_GLOBAUX_PAR_JOUR <= 50, 'plafond global de departs borne');
 
 // --- le filtre ne se leve que pour un age verifie
 ok(!unrestrictedEffectif({ unrestricted: true }), 'ancien « unrestricted » SANS verification -> ignore');
