@@ -249,6 +249,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .dispo > *{min-width:0}
 @media(min-width:1100px){.dispo.d21{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}.dispo.d11{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.dispo.d32{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}}
 .colonne{display:grid;gap:16px;align-content:start;min-width:0}
+.a-traiter-msg{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin-top:16px;padding:10px 16px;border:1px solid rgba(255,170,51,.45);border-radius:12px;background:rgba(255,170,51,.07);color:var(--text-1)}
 .grp-t{margin:16px 0 4px;font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-2);font-weight:600;display:flex;gap:8px;align-items:center}
 .grp-t:first-child{margin-top:0}
 td .lienclair{padding:0}
@@ -375,11 +376,10 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         </div></details>
     </div>
     <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
-    <div class="dispo d21">
+    <div class="a-traiter-msg" id="a-traiter-msg" hidden></div>
+    <div class="pile" style="margin-top:16px">
       <details class="carte vol" open data-id="m-cours-m" data-res="cours"><summary><h2>En cours <small id="n-cours-m"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="encours-m"></div></div></details>
-      <details class="carte vol" open data-id="m-sante" data-res="sante"><summary><h2>À traiter <small id="sante-etat-m"></small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="sante-m"><div class="vide">Chargement…</div></div></div></details>
     </div>
   </section>
 
@@ -1023,7 +1023,9 @@ function renderConteneurs() {
   if (!m) { majSiChange($('#conteneurs'), '<span class="note">état en cours de chargement…</span>'); return; }
   majSiChange($('#conteneurs'), Object.keys(NOMS_CONT).filter(function (k) { return m[k]; }).map(function (k) {
     var e = m[k], s = e.etat || (e.warm ? 'warm' : 'cold'), t = ETAT_CONT[s] || ['inconnu', 'var(--text-2)'];
-    return '<button type="button" data-goto="systeme" title="Ouvrir Santé pour agir" style="background:none;color:inherit;font:inherit;cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px">' + NOMS_CONT[k] + ' <b style="color:' + t[1] + '">● ' + t[0] + '</b></button>';
+    /* memes couleurs que les services (user : « mets les couleurs comme dans les services ») : chaud = vert, froid = rouge avec cadre rouge */
+    var coul = s === 'cold' ? 'var(--err)' : s === 'warm' ? 'var(--ok)' : t[1];
+    return '<button type="button" data-goto="systeme" title="Ouvrir Santé pour agir" style="background:none;color:inherit;font:inherit;cursor:pointer;border:1px solid ' + (s === 'cold' ? 'var(--err)' : 'var(--border)') + ';border-radius:999px;padding:3px 10px;font-size:12px">' + NOMS_CONT[k] + ' <b style="color:' + coul + '">● ' + t[0] + '</b></button>';
   }).join(''));
 }
 function renderEncoursCompact(enc, L) {
@@ -1421,7 +1423,7 @@ function renderWarm() {
   var gpuOn = actif('modal') !== false, garde = m.garde_chaud || {}, h = m.garde_chaud_heures || 3;
   var nb = WARM.filter(function (w) { return garde[w.cle]; }).length, tous = nb === WARM.length;
   var bloque = !gpuOn || warmOccupe;
-  var html = '<div class="sw"><div class="gauche"><div><b>Tous les conteneurs</b> <span class="pill ' + (nb ? 'warn' : 'ok') + '">' + (nb ? nb + ' sur ' + WARM.length + ' gardés chauds' : 'Tout froid') + '</span></div><div class="d">' + (gpuOn ? 'Un GPU chaud coûte environ 1 à 3 $ de l\'heure. Chaque interrupteur se coupe seul après ' + h + ' h.' : 'Calcul GPU coupé : tout est froid et ces interrupteurs sont bloqués.') + '</div></div><button type="button" role="switch" class="froid" aria-checked="' + tous + '" aria-label="Tous les conteneurs" data-warmall="1"' + (bloque ? ' disabled' : '') + '></button></div>';
+  var html = '<div class="note" style="margin:0 0 4px">' + (gpuOn ? 'Un GPU chaud coûte environ 1 à 3 $ de l\'heure. Chaque interrupteur se coupe seul après ' + h + ' h.' : 'Calcul GPU coupé : tout est froid et ces interrupteurs sont bloqués.') + '</div>';
   html += WARM.map(function (w) {
     var on = !!garde[w.cle], e = m[w.etat] || {}, s = e.etat || (e.warm ? 'warm' : 'cold'), t = ETAT_CONT[s] || ['inconnu', 'var(--text-2)'];
     return '<div class="sw"><div class="gauche"><div>' + esc(w.n) + '</div><div class="d">état réel : <b style="color:' + t[1] + '">● ' + t[0] + '</b>' + (on && garde[w.cle].until ? ' · gardé chaud jusqu\'à ' + new Date(garde[w.cle].until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '') + '</div></div><button type="button" role="switch" class="froid" aria-checked="' + on + '" aria-label="' + esc(w.n) + '" data-warm="' + w.cle + '"' + (bloque ? ' disabled' : '') + '></button></div>';
@@ -1473,7 +1475,8 @@ function renderSante() {
   /* Une seule liste, triee par urgence (user : « pourraient etre groupes dans Sante »). Vue d'ensemble n'en montre que les points a traiter. */
   majSiChange($('#sante'), '<h3 class="grp-t">À traiter <span class="pill ' + (nb ? 'warn' : 'ok') + '">' + nb + '</span></h3>' + (nb ? mal.map(ligne).join('') : '<div class="vide">Rien à traiter.</div>')
     + '<h3 class="grp-t">En ordre <span class="pill ok">' + bien.length + '</span></h3>' + bien.map(ligne).join('') + '<div class="note">' + esc(s.note || '') + '</div>');
-  majSiChange($('#sante-m'), (nb ? mal.map(ligne).join('') : '<div class="vide">Tout est en ordre.</div>') + '<div style="margin-top:8px"><button type="button" class="lienclair" data-goto="systeme">Ouvrir Santé →</button></div>');
+  var mm = $('#a-traiter-msg');
+  if (mm) { mm.hidden = !nb; majSiChange(mm, nb ? '<span class="pill warn">' + pl(nb, 'point à traiter', 'points à traiter') + '</span><span>dans Santé.</span><button type="button" class="lienclair" data-goto="systeme">Ouvrir Santé →</button>' : ''); }
 }
 function renderSecurite() {
   var t = S.totp, box = $('#securite');
@@ -2129,8 +2132,13 @@ var RES = {
     var m = S.modal; if (!m) return '…';
     var nb = WARM.filter(function (w) { return (m.garde_chaud || {})[w.cle]; }).length, gpuOn = actif('modal') !== false;
     if (!gpuOn) return pillR('err', 'Calcul GPU coupé') + ' <button type="button" class="btn prim" data-kill="modal" style="font-size:15px;font-weight:700;padding:10px 18px">Rallumer le calcul GPU</button>';
-    return (nb ? pillR('warn', nb + ' sur ' + WARM.length + ' gardés chauds') : pillR('ok', 'Tout froid'))
-      + maitre({ froid: true, on: nb === WARM.length, label: 'Interrupteur général : garder tous les conteneurs chauds', texte: 'Tout chaud', data: 'data-warmall="1"', bloque: warmOccupe, teinte: nb === WARM.length ? 'warm' : '' });
+    var tous = nb === WARM.length;
+    /* UNE phrase qui dit l'etat ET ce que fait le clic (user : « un message plus clair : les conteneurs sont froids, cliquer pour les allumer »). */
+    var phrase = tous ? 'Tous les conteneurs sont <b style="color:var(--warn)">chauds</b> (facturés) : cliquez pour les éteindre.'
+      : nb ? '<b style="color:var(--warn)">' + nb + ' conteneur' + (nb > 1 ? 's' : '') + ' sur ' + WARM.length + '</b> ' + (nb > 1 ? 'sont chauds' : 'est chaud') + ' : cliquez pour allumer les autres.'
+      : 'Les conteneurs sont <b>froids</b> : cliquez pour les allumer.';
+    return '<span style="flex:1 1 220px;text-align:right;font-size:13px">' + phrase + '</span>'
+      + maitre({ froid: true, on: tous, label: tous ? 'Éteindre tous les conteneurs' : 'Allumer tous les conteneurs', texte: tous ? 'Tout éteindre' : 'Tout allumer', data: 'data-warmall="1"', bloque: warmOccupe, teinte: tous ? 'warm' : '' });
   },
   sante: function () {
     var s = S.sante; if (!s) return '…';
