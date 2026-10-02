@@ -1366,21 +1366,33 @@ function renderAchats() {
    Les saisies non enregistrees vivent dans S.prixEdit (jamais perdues par un rafraichissement du tableau) ; l'enregistrement les envoie toutes. */
 /* CATEGORIES : les 4 etapes de l'appli + « Outils et divers » (user : « groupes-les et range-les par categories »). */
 var CATS = [{ id: 'image', n: 'Image', col: '#4c9aff', num: 1 }, { id: '3d', n: 'Maillage 3D', col: '#c84cff', num: 2 }, { id: 'rig', n: 'Squelette', col: '#ff9f43', num: 3 },
-  { id: 'anim', n: 'Animation', col: '#2ecc71', num: 4 }, { id: 'div', n: 'Outils et divers', col: '#9a9ab2', num: 0 }];
-var OPS_IMAGE = ['text2image', 'tpose', 'rectify', 'back-view', 'sheet', 'remove-bg', 'modify', 'segment-image', 'auto_inpaint', 'mask_inpaint', 'face_fix_image', 'upscale', 'tex_variant', 'recolor', 'outfit'];
+  { id: 'anim', n: 'Animation', col: '#2ecc71', num: 4 }];
+/* Pas de categorie « divers » (user : « tous les outils de l'appli sont lies a des images, des 3D, des rigs ou des animations ») : chaque outil va dans ce qu'il TRAITE. */
+var OPS_IMAGE = ['text2image', 'tpose', 'rectify', 'back-view', 'sheet', 'remove-bg', 'modify', 'segment-image', 'auto_inpaint', 'mask_inpaint', 'face_fix_image', 'upscale', 'tex_variant', 'recolor', 'outfit', 'project'];
+var OUTIL_CAT = { skeleton_points: 'rig', rig_joints: 'rig', skin_paint: 'rig', open_anim: 'anim', export_anim: 'anim', export_glb: '3d', export_image: 'image', color_pick: 'image' };
+function catParNom(nom, defaut) {
+  nom = String(nom || '').toLowerCase();
+  if (OUTIL_CAT[nom]) return OUTIL_CAT[nom];
+  if (/rig|skelet|joint|bone|skin/.test(nom)) return 'rig';
+  if (/anim|motion|retarget|walk|idle/.test(nom)) return 'anim';
+  if (/mesh|glb|3d|uv|textur|sculpt|vertex|unreal|fbx|usd|pivot/.test(nom)) return '3d';
+  return defaut;
+}
 function opCat(op) {
   if (OPS_IMAGE.indexOf(op) >= 0) return 'image';
   if (op === 'rig') return 'rig';
   if (op === 'animate' || op === 'animate_fbx') return 'anim';
-  if (op === 'mesh' || op === 'mesh-face' || op === 'retexture' || op === 'reshape' || op === 'segment' || op === 'construction3d' || op.indexOf('mesh-op') === 0) return '3d';
-  return 'div';                       // outils manuels, exports, conversions, projets
+  if (op === 'mesh-convert') return '3d';
+  if (op.indexOf('manual-tool') === 0) return catParNom(op.split(':')[1], 'image');       // outils manuels du navigateur : surtout des outils d'image (peindre, flouter, cloner...)
+  if (op.indexOf('mesh-op') === 0) return catParNom(op.split(':')[1], '3d');                // outils de maillage : 3D, sauf la peau (skin_paint)
+  return catParNom(op, '3d');                                                               // mesh, retexture, reshape, segment, construction3d...
 }
 function prixCat(k) {
   if (k === 'rig' || k === 'reskin') return 'rig';
   if (k === 'anim') return 'anim';
-  if (k === 'manual_tool' || k === 'export' || k === 'market_publish') return 'div';
+  if (k === 'manual_tool') return 'image';                  // un seul prix pour tous les outils manuels : porte par la premiere ligne presente
   if (/^(text2image|back_view|modify|segment|auto_inpaint|mask_inpaint|face_fix_image|upscale|rectify|remove_background|tex_variant|recolor|outfit)/.test(k)) return 'image';
-  return '3d';                        // mesh_*, retex_*, texture_var, enhance_tex, region_retex, reshape, name_parts, construction3d, watertight_hd, align_texture...
+  return '3d';                        // mesh_*, retex_*, texture_var, enhance_tex, region_retex, reshape, name_parts, construction3d, watertight_hd, align_texture, export, market_publish...
 }
 /* Les cles de prix qu'aucune ligne du tableau ne porte (options, supplements : multi-references, Quality+, nommer les zones...) sont des lignes du tableau, dans leur categorie
    (user : « integre les autres operations dans operations »). */
