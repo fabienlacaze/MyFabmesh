@@ -408,7 +408,6 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         </div></div>
         <div class="tab-group tab-group-system"><div class="tab-group-header">Système</div><div class="tab-group-items">
           <button role="tab" type="button" class="tab" data-tab="systeme" aria-selected="false">Santé<span class="badge w" id="b-sante" hidden>0</span></button>
-          <button role="tab" type="button" class="tab" data-tab="journal" aria-selected="false">Journal</button>
         </div></div>
       </nav>
       <div class="chips" id="chips"></div>
@@ -478,6 +477,15 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div id="g-dl"></div></div></details>
         <p class="note" id="note-audience"></p>
       </div>
+    </div>
+    <div class="pile" style="margin-top:16px">
+      <details class="carte vol" open data-id="s-diag" data-res="diag"><summary><h2>Diagnostic <small>opérations récentes et journaux envoyés par les appareils</small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="ligneform"><input type="text" id="dbg-compte" class="large" placeholder="E-mail ou identifiant du compte (vide = tous)" autocomplete="off"><select id="dbg-limite" style="width:auto" aria-label="Nombre de lignes à afficher"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="dbg-echecs" style="width:auto"> échecs seulement</label><button type="button" class="btn petit prim" id="b-dbg">Afficher</button><button type="button" class="btn petit" id="b-dbg-dernier" title="Ouvrir le dernier journal envoyé par un appareil">Dernier journal</button></div>
+          <h3>Opérations</h3><div class="defil haut"><table><thead><tr><th data-tri="dbg:date">Quand</th><th data-tri="dbg:email">Compte</th><th data-tri="dbg:operation">Opération</th><th data-tri="dbg:status">Statut</th><th class="n" data-tri="dbg:duree_s">Durée</th><th class="n" data-tri="dbg:credits">Crédits</th><th></th></tr></thead><tbody id="dbg-traces"><tr><td colspan="7" class="vide">Cliquez sur « Afficher ».</td></tr></tbody></table></div>
+          <h3>Journaux envoyés par les appareils <small id="dbg-logs-n" class="note"></small></h3><div class="defil haut"><table><thead><tr><th data-tri="dbglog:uploaded">Envoyé</th><th data-tri="dbglog:email">Compte</th><th data-tri="dbglog:kind">Type</th><th data-tri="dbglog:status">État</th><th data-tri="dbglog:project">Projet</th><th class="n" data-tri="dbglog:size">Taille</th><th></th></tr></thead><tbody id="dbg-logs"></tbody></table></div>
+          <div id="dbg-wrap" hidden class="boite" style="margin-top:12px"><div class="ligneform" style="justify-content:space-between"><b id="dbg-titre"></b><span><button type="button" class="btn petit" id="dbg-copier">Copier</button> <button type="button" class="btn petit" id="dbg-telecharger">Télécharger</button> <button type="button" class="btn petit" id="dbg-fermer">Fermer</button></span></div><pre id="dbg-viewer" style="max-height:420px;overflow:auto;font:12px var(--mono)"></pre></div>
+        </div></details>
     </div>
   </section>
 
@@ -590,28 +598,18 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div id="warm"></div></div></details>
       </div>
     </div>
-  </section>
-
-  <!-- ═════════ JOURNAL ═════════ -->
-  <section id="p-journal" role="tabpanel" hidden>
-    <div class="pile" style="margin-top:18px">
+    <div class="dispo d32" style="margin-top:16px">
       <details class="carte vol" open data-id="s-audit" data-res="audit"><summary><h2>Journal d'audit <small>actions de l'administrateur</small></h2><span class="res"></span></summary>
         <div class="corps">
           <div class="ligneform"><label for="audit-jour">Jour</label><input type="date" id="audit-jour" style="width:170px"><button type="button" class="btn petit" id="b-audit">Afficher</button></div>
           <div class="defil"><table><thead><tr><th data-tri="audit:ts">Heure</th><th data-tri="audit:actor">Acteur</th><th data-tri="audit:ip">IP</th><th data-tri="audit:action">Action</th><th data-tri="audit:target">Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div>
         </div></details>
-      <details class="carte vol" open data-id="s-diag" data-res="diag"><summary><h2>Diagnostic <small>opérations récentes et journaux envoyés par les appareils</small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <div class="ligneform"><input type="text" id="dbg-compte" class="large" placeholder="E-mail ou identifiant du compte (vide = tous)" autocomplete="off"><select id="dbg-limite" style="width:auto" aria-label="Nombre de lignes à afficher"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="dbg-echecs" style="width:auto"> échecs seulement</label><button type="button" class="btn petit prim" id="b-dbg">Afficher</button><button type="button" class="btn petit" id="b-dbg-dernier" title="Ouvrir le dernier journal envoyé par un appareil">Dernier journal</button></div>
-          <h3>Opérations</h3><div class="defil haut"><table><thead><tr><th data-tri="dbg:date">Quand</th><th data-tri="dbg:email">Compte</th><th data-tri="dbg:operation">Opération</th><th data-tri="dbg:status">Statut</th><th class="n" data-tri="dbg:duree_s">Durée</th><th class="n" data-tri="dbg:credits">Crédits</th><th></th></tr></thead><tbody id="dbg-traces"><tr><td colspan="7" class="vide">Cliquez sur « Afficher ».</td></tr></tbody></table></div>
-          <h3>Journaux envoyés par les appareils <small id="dbg-logs-n" class="note"></small></h3><div class="defil haut"><table><thead><tr><th data-tri="dbglog:uploaded">Envoyé</th><th data-tri="dbglog:email">Compte</th><th data-tri="dbglog:kind">Type</th><th data-tri="dbglog:status">État</th><th data-tri="dbglog:project">Projet</th><th class="n" data-tri="dbglog:size">Taille</th><th></th></tr></thead><tbody id="dbg-logs"></tbody></table></div>
-          <div id="dbg-wrap" hidden class="boite" style="margin-top:12px"><div class="ligneform" style="justify-content:space-between"><b id="dbg-titre"></b><span><button type="button" class="btn petit" id="dbg-copier">Copier</button> <button type="button" class="btn petit" id="dbg-telecharger">Télécharger</button> <button type="button" class="btn petit" id="dbg-fermer">Fermer</button></span></div><pre id="dbg-viewer" style="max-height:420px;overflow:auto;font:12px var(--mono)"></pre></div>
-        </div></details>
-      <details class="carte vol" open data-id="s-securite" data-res="securite"><summary><h2>Sécurité</h2><span class="res"></span></summary>
+      <div class="colonne">
+        <details class="carte vol" open data-id="s-securite" data-res="securite"><summary><h2>Sécurité</h2><span class="res"></span></summary>
         <div class="corps"><div id="securite"></div></div></details>
+      </div>
     </div>
   </section>
-
   <div class="lb" id="fp" hidden role="dialog" aria-modal="true" aria-label="Mot de passe administrateur oublié">
     <div class="carte" style="max-width:440px;width:100%">
       <h2>Mot de passe administrateur oublié</h2>
@@ -1017,7 +1015,7 @@ async function chargerArgentRecent(force) {
 }
 async function chargerModalStatus() { var j = await silencieux(http('/api/admin/modal-status')); if (j) { S.modal = j; if (S.tab === 'systeme') renderWarm(); if (S.tab === 'maintenant') renderConteneurs(); } }
 async function chargerSante() { var j = await silencieux(http('/api/admin/sante.json')); if (j) { S.sante = j; renderSante(); } chargerStats(); }
-async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/status')); if (j) { S.totp = j; if (S.tab === 'journal') renderSecurite(); } }
+async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/status')); if (j) { S.totp = j; if (S.tab === 'systeme') renderSecurite(); } }
 async function chargerUsers() { var j = await silencieux(http('/api/admin/users')); if (j) { S.users = j; if (S.tab === 'users') renderUsers(); } }
 async function chargerMessages() { var j = await silencieux(http('/api/admin/contact-messages')); if (j) { S.msgs = j.messages || []; if (S.tab === 'messages') renderMessages(); majSousBadges(); } }
 async function chargerAnnonces() { var j = await silencieux(http('/api/admin/market/list')); if (j) { S.listings = j.listings || []; S.offerts = j.offerts || []; S.offertsMax = j.offerts_max || 5; if (S.tab === 'marketplace') renderAnnonces(); majSousBadges(); } }
@@ -1793,8 +1791,7 @@ function renderAll() {
   if (S.tab === 'messages') renderMessages();
   if (S.tab === 'marketplace') renderAnnonces();
   if (S.tab === 'travaux') renderAudience();
-  if (S.tab === 'systeme') { renderKill(); renderWarm(); renderSante(); }
-  if (S.tab === 'journal') renderSecurite();
+  if (S.tab === 'systeme') { renderKill(); renderWarm(); renderSante(); renderSecurite(); }
   majSousBadges(); majResumes();
 }
 function ouvrirOnglet(t) {
@@ -1806,8 +1803,7 @@ function ouvrirOnglet(t) {
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.stats) chargerStats(); }
   if (t === 'messages') { if (!S.msgs) chargerMessages(); }
   if (t === 'marketplace') { if (!S.listings) chargerAnnonces(); }
-  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerModalFull(); }
-  if (t === 'journal') { chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
+  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerModalFull(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
   chargerVolets();
 }
 function selectionnerCompteParEmail(email) {
@@ -2348,7 +2344,8 @@ function chargerVolets() {
   var t = S.tab;
   if (t === 'users') chargerImages();
   if (t === 'argent') chargerModalFull();
-  if (t === 'journal') { chargerDebug(); chargerAudit(); }
+  if (t === 'systeme') chargerAudit();
+  if (t === 'travaux') chargerDebug();
 }
 document.addEventListener('click', function (e) {
   var sm = e.target.closest ? e.target.closest('details.vol > summary') : null;
@@ -2567,7 +2564,8 @@ window.addEventListener('resize', function () {
 /* ───────────────────────── démarrage ───────────────────────── */
 var depart = (location.hash || '').replace('#', '');
 if (depart === 'audience') depart = 'travaux'; if (depart === 'tarifs') depart = 'argent';        // anciens liens : les onglets ont ete fusionnes
-if (['maintenant', 'travaux', 'argent', 'users', 'messages', 'marketplace', 'systeme', 'journal'].indexOf(depart) >= 0) S.tab = depart;
+if (depart === 'journal') depart = 'systeme';        // ancien onglet Journal : eclate dans Activite (Diagnostic) et Sante (Audit, Securite)
+if (['maintenant', 'travaux', 'argent', 'users', 'messages', 'marketplace', 'systeme'].indexOf(depart) >= 0) S.tab = depart;
 cablerOnglets(); appliquerVolets(document);
 renderAll(); etiqueterChamps();
 chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); chargerSante();
