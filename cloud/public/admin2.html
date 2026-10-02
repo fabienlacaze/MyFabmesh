@@ -209,6 +209,14 @@ button[role=switch][aria-checked="true"]::after{transform:translateX(20px);backg
 button[role=switch].froid[aria-checked="true"]{background:rgba(255,170,51,.22);border-color:var(--warn)}
 button[role=switch].froid[aria-checked="true"]::after{background:var(--warn)}
 button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
+.v3d{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+.v3d[hidden]{display:none}
+.v3d-boite{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;width:min(960px,100%);max-height:100%;display:flex;flex-direction:column;overflow:hidden}
+.v3d-haut{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.v3d-haut b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#v3d-zone{height:min(70vh,640px);background:var(--bg-3)}
+#v3d-zone model-viewer{width:100%;height:100%}
+.v3d-note{padding:8px 14px;color:var(--text-2);font-size:12px}
 .journal{font:12px/1.6 var(--mono);color:var(--text-1);display:grid;gap:2px}
 .journal span{color:var(--text-2)}
 .confirm{margin-top:8px;padding:10px 12px;border:1px solid var(--err);border-radius:8px;background:rgba(255,82,82,.08)}
@@ -304,12 +312,12 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
       <nav class="tabs" role="tablist" aria-label="Sections">
         <div class="tab-group tab-group-activity"><div class="tab-group-header">📈 ACTIVITÉ</div><div class="tab-group-items">
           <button role="tab" type="button" class="tab" data-tab="maintenant" aria-selected="true">🔴 Maintenant</button>
-          <button role="tab" type="button" class="tab" data-tab="audience" aria-selected="false">👥 Audience</button>
+          <button role="tab" type="button" class="tab" data-tab="audience" aria-selected="false">📋 Activité</button>
         </div></div>
         <div class="tab-group tab-group-finance"><div class="tab-group-header">💰 FINANCE</div><div class="tab-group-items">
           <button role="tab" type="button" class="tab" data-tab="argent" aria-selected="false">📊 Argent</button>
         </div></div>
-        <div class="tab-group tab-group-system"><div class="tab-group-header">🛠 SYSTÈME</div><div class="tab-group-items">
+        <div class="tab-group tab-group-system"><div class="tab-group-header">🛠 GESTION</div><div class="tab-group-items">
           <button role="tab" type="button" class="tab" data-tab="users" aria-selected="false">🧑 Utilisateurs<span class="badge" id="b-users" hidden>0</span></button>
           <button role="tab" type="button" class="tab" data-tab="systeme" aria-selected="false">🚨 Système</button>
         </div></div>
@@ -353,17 +361,6 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
           <p class="note">Stripe a encaissé mais les crédits n'ont pas été versés (webhook manqué). Vérifiez le paiement dans Stripe, puis versez les crédits.</p>
           <div class="defil"><table><thead><tr><th data-tri="recon:created_at">Date</th><th data-tri="recon:email">Compte</th><th data-tri="recon:pack_id">Pack</th><th class="n" data-tri="recon:amount_eur">Montant</th><th>Session Stripe</th><th class="n" data-tri="recon:expected_credits">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
         </div></details>
-      <details class="carte vol" data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
-          <p class="note" id="note-graphe"></p>
-        </div></details>
-      <details class="carte vol" data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <p class="note" id="resume-ops"></p>
-          <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th class="n masque-etroit" data-tri="ops:prix" title="Valeur vendue par opération réussie">Prix / op</th><th class="n masque-etroit" data-tri="ops:coutop" title="Coût réel par opération, échecs inclus">Coût / op</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
-          <p class="note" id="note-ops"></p>
-        </div></details>
       <details class="carte vol" data-id="a-gpu" data-res="gpu"><summary><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <div id="gpu-detail"></div>
@@ -375,10 +372,21 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
             <div class="ligneform"><button type="button" class="btn prim" id="b-lim-ok" disabled>Enregistrer</button><button type="button" class="btn" id="b-lim-non">Annuler</button></div><div id="lim-err" class="msg-err"></div>
           </div>
         </div></details>
-      <details class="carte vol" data-id="a-tarifs" data-res="tarifs"><summary><h2>Tarifs <small>crédits par opération</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="tarifs"></div></div></details>
+      <details class="carte vol" data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
+          <p class="note" id="note-graphe"></p>
+        </div></details>
+      <details class="carte vol" data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <p class="note" id="resume-ops"></p>
+          <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th class="n masque-etroit" data-tri="ops:prix" title="Valeur vendue par opération réussie">Prix / op</th><th class="n masque-etroit" data-tri="ops:coutop" title="Coût réel par opération, échecs inclus">Coût / op</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
+          <p class="note" id="note-ops"></p>
+        </div></details>
       <details class="carte vol" data-id="a-achats" data-res="achats"><summary><h2>Achats Stripe <small id="resume-achats"></small></h2><span class="res"></span></summary>
         <div class="corps"><div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div></details>
+      <details class="carte vol" data-id="a-tarifs" data-res="tarifs"><summary><h2>Tarifs <small>crédits par opération</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="tarifs"></div></div></details>
       <details class="carte vol" data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
         <div class="corps"><div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div></div></details>
     </div>
@@ -388,6 +396,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
   <section id="p-users" role="tabpanel" hidden>
     <div class="seg" role="group" aria-label="Sous-section" style="margin:14px 0 12px">
       <button type="button" data-sub="comptes" aria-pressed="true">Comptes</button>
+      <button type="button" data-sub="origine" aria-pressed="false">Origine</button>
       <button type="button" data-sub="messages" aria-pressed="false" id="sb-messages">Messages</button>
       <button type="button" data-sub="market" aria-pressed="false" id="sb-market">Marketplace</button>
     </div>
@@ -413,6 +422,18 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="liste" id="liste-comptes" style="margin-top:10px"></div></div>
       <div class="carte fiche" id="fiche"><div class="vide">Choisissez un compte.</div></div>
     </div>
+    <div id="sub-origine" hidden>
+      <div class="kpis" id="kpis-audience"></div>
+      <div class="pile">
+      <details class="carte vol" data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="b-pays"></div></div></details>
+      <details class="carte vol" data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
+        <div class="corps"><div id="b-canal"></div></div></details>
+      <details class="carte vol" data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small>par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-dl"></div></div></details>
+      </div>
+      <p class="note" id="note-audience"></p>
+    </div>
     <div id="sub-messages" hidden class="carte"><h2>Messages de contact <small id="n-msgs"></small></h2><div id="msgs"></div></div>
     <div id="sub-market" hidden class="carte"><h2>Annonces <small id="n-annonces"></small></h2>
       <div class="seg" role="group" aria-label="Statut" style="margin-bottom:10px">
@@ -425,8 +446,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
 
   <!-- ═════════ AUDIENCE ═════════ -->
   <section id="p-audience" role="tabpanel" hidden>
-    <div class="kpis" id="kpis-audience"></div>
-    <div class="outils-volets"><span class="note">Ce que font les comptes (activité, derniers travaux, créations) et d'où ils viennent. Le direct est dans Maintenant.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
+    <div class="outils-volets"><span class="note">Ce qui s'est passé : derniers travaux, créations, activité par jour. Le direct est dans Maintenant ; l'origine des comptes est dans Utilisateurs.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
     <div class="pile">
       <details class="carte vol" data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
         <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
@@ -449,19 +469,12 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
             <span class="note" id="cre-note"></span><span class="note">Un filtre « compte » ne montre que ses créations. Cliquez pour voir les paramètres.</span></div>
           <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div>
         </div></details>
-      <details class="carte vol" data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="b-pays"></div></div></details>
-      <details class="carte vol" data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
-        <div class="corps"><div id="b-canal"></div></div></details>
-      <details class="carte vol" data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small>par jour</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="g-dl"></div></div></details>
       <details class="carte vol" data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-act"></div></div></details>
       <details class="carte vol" data-id="u-ops" data-res="opsj"><summary><h2>Travaux lancés <small>par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-ops"></div></div></details>
     </div>
-    <p class="note" id="note-audience"></p>
-  </section>
+    </section>
 
   <!-- ═════════ SYSTÈME ═════════ -->
   <section id="p-systeme" role="tabpanel" hidden>
@@ -504,13 +517,14 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
       <div class="ligneform" style="margin-top:10px"><button type="button" class="btn" id="fp-fermer">Fermer</button></div>
     </div>
   </div>
+  <div class="v3d" id="v3d" hidden role="dialog" aria-modal="true" aria-label="Aperçu 3D"><div class="v3d-boite"><div class="v3d-haut"><b id="v3d-titre"></b><button type="button" class="btn petit" id="v3d-fermer">Fermer</button></div><div id="v3d-zone"></div><div class="v3d-note" id="v3d-note">Glisser pour tourner, molette pour zoomer. Le modèle se charge depuis un lien signé de courte durée.</div></div></div>
   <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Création agrandie">
     <div class="lb-cadre">
       <div class="lb-vue"><img id="lb-img" alt=""><div class="lb-pas-image" id="lb-pas-image" hidden>Pas d'aperçu image pour cet élément.</div></div>
       <aside class="lb-params" id="lb-params" aria-label="Paramètres utilisés"></aside>
     </div>
     <div class="cap" id="lb-cap"></div>
-    <div class="btns"><button type="button" class="btn petit" id="lb-prec">← Précédente</button><button type="button" class="btn petit" id="lb-suiv">Suivante →</button><a class="btn petit" id="lb-ouvrir" target="_blank" rel="noopener" href="#">Ouvrir en grand ↗</a><a class="btn petit" id="lb-3d" target="_blank" rel="noopener" href="#" hidden>Télécharger le 3D</a><button type="button" class="btn petit danger" id="lb-sup">Supprimer l'image</button><button type="button" class="btn petit" id="lb-fermer">Fermer (Échap)</button></div>
+    <div class="btns"><button type="button" class="btn petit" id="lb-prec">← Précédente</button><button type="button" class="btn petit" id="lb-suiv">Suivante →</button><button type="button" class="btn petit" id="lb-voir3d" hidden>Voir en 3D</button><a class="btn petit" id="lb-ouvrir" target="_blank" rel="noopener" href="#">Ouvrir en grand ↗</a><a class="btn petit" id="lb-3d" target="_blank" rel="noopener" href="#" hidden>Télécharger le 3D</a><button type="button" class="btn petit danger" id="lb-sup">Supprimer l'image</button><button type="button" class="btn petit" id="lb-fermer">Fermer (Échap)</button></div>
   </div>
   <p class="pied">Page d'administration MyFabmesh. L'ancienne page reste disponible en secours : <a href="/admin?ancienne=1">/admin?ancienne=1</a>.</p>
 </div>
@@ -726,11 +740,11 @@ async function chargerBadges() { var j = await silencieux(http('/api/admin/badge
 async function chargerPaiements() { var j = await silencieux(http('/api/admin/payments')); if (j) { S.pay = j; renderBandeau(); if (S.tab === 'argent') renderAchats(); } }
 async function chargerStats(force) {
   if (!force && S.stats && Date.now() - S.statsAt < 120000) return;
-  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience') renderAudience(); if (S.tab === 'systeme') { renderSante(); majResumes(); } }
+  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience' || S.tab === 'users') renderAudience(); if (S.tab === 'systeme') { renderSante(); majResumes(); } }
 }
 async function chargerAudience() {
   var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
-  var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'audience') renderAudience(); }
+  var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'audience' || S.tab === 'users') renderAudience(); }
 }
 S.lb = -1; S.usersActifs = false;
 function heuresPer() { return S.per === '6h' ? 6 : S.per === '24h' ? 24 : S.per === '30j' ? 720 : 168; }
@@ -801,13 +815,44 @@ function ouvrirLb(i) {
   var img = $('#lb-img'); if (it.url) { img.src = it.url; } else img.removeAttribute('src'); img.hidden = !it.url; $('#lb-pas-image').hidden = !!it.url;
   var ouvrir = $('#lb-ouvrir'); ouvrir.hidden = !it.url; if (it.url) ouvrir.href = it.url;
   var m3 = $('#lb-3d'); m3.hidden = !it.mesh_url; if (it.mesh_url) m3.href = it.mesh_url;
+  var v3 = $('#lb-voir3d'); v3.hidden = !it.mesh_url;
   var sup = $('#lb-sup'); sup.hidden = !it.supprimable; sup.textContent = "Supprimer l'image";
   $('#lb-cap').textContent = (it.email || 'compte inconnu') + ' · ' + (CRE_TYPE[it.tab] || '') + ' · ' + (it.projet || '') + ' · ' + dateFr(it.quand);
   $('#lb-params').innerHTML = htmlParams(it);
   $('#lb').hidden = false;
   if (neuf) $('#lb-fermer').focus();
 }
-function fermerLb() { S.lb = -1; $('#lb').hidden = true; $('#lb-img').removeAttribute('src'); var r = S.lbRetour; S.lbRetour = null; if (r && r.focus && document.contains(r)) r.focus(); }
+/* APERCU 3D : <model-viewer> (Google, Apache-2.0, deja autorise par la CSP via unpkg) injecte a la premiere demande, puis detruit a la fermeture (un contexte WebGL par aperçu). */
+function charger3d() {
+  if (window.customElements && customElements.get('model-viewer')) return Promise.resolve();
+  return new Promise(function (ok) {
+    if (document.getElementById('mv-script')) { customElements.whenDefined('model-viewer').then(ok, ok); return; }
+    var sc = document.createElement('script'); sc.id = 'mv-script'; sc.type = 'module'; sc.src = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js';
+    sc.onload = function () { customElements.whenDefined('model-viewer').then(ok, ok); }; sc.onerror = function () { ok(); };
+    document.head.appendChild(sc);
+  });
+}
+async function ouvrir3d(url, titre) {
+  if (!url) return;
+  S.v3dRetour = document.activeElement;
+  $('#v3d-titre').textContent = titre || 'Aperçu 3D';
+  var z = $('#v3d-zone'); z.innerHTML = '<div class="v3d-note">Chargement du modèle…</div>'; $('#v3d').hidden = false; $('#v3d-fermer').focus();
+  await charger3d();
+  if ($('#v3d').hidden) return;
+  if (!(window.customElements && customElements.get('model-viewer'))) { z.innerHTML = '<div class="v3d-note msg-err">Le lecteur 3D n\'a pas pu se charger (réseau). Utilisez « Télécharger le modèle ».</div>'; return; }
+  var mv = document.createElement('model-viewer'); mv.setAttribute('src', url); mv.setAttribute('camera-controls', ''); mv.setAttribute('auto-rotate', ''); mv.setAttribute('shadow-intensity', '0.6'); mv.setAttribute('exposure', '1'); mv.setAttribute('alt', titre || 'Aperçu 3D');
+  mv.addEventListener('error', function () { var n = $('#v3d-note'); if (n) n.textContent = 'Le modèle n\'a pas pu être chargé (lien expiré ou fichier absent).'; });
+  z.innerHTML = ''; z.appendChild(mv);
+}
+function fermer3d() { $('#v3d').hidden = true; $('#v3d-zone').innerHTML = ''; var r = S.v3dRetour; S.v3dRetour = null; if (r && r.focus && document.contains(r)) r.focus(); }
+document.addEventListener('click', function (e) {
+  if (!e.target.closest) return;
+  if (e.target.closest('#v3d-fermer') || e.target.id === 'v3d') { fermer3d(); return; }
+  if (e.target.closest('#lb-voir3d')) { var it = S.cre.liste[S.lb]; if (it && it.mesh_url) ouvrir3d(it.mesh_url, (it.projet || 'Modèle') + ' · ' + (it.email || '')); return; }
+  var b3 = e.target.closest('[data-apercu3d]'); if (b3) { ouvrir3d(b3.dataset.apercu3d, b3.dataset.titre || 'Modèle'); }
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#v3d').hidden) { e.stopPropagation(); fermer3d(); } }, true);
+function fermerLb() { fermer3d(); S.lb = -1; $('#lb').hidden = true; $('#lb-img').removeAttribute('src'); var r = S.lbRetour; S.lbRetour = null; if (r && r.focus && document.contains(r)) r.focus(); }
 document.addEventListener('click', async function (e) {
   var b = e.target.closest ? e.target.closest('[data-cre]') : null;
   if (b) { S.cre.onglet = b.dataset.cre; majOngletsCre(); renderGalerie(); chargerImages(); return; }
@@ -1133,9 +1178,9 @@ function renderTarifs() {
 /* ───────────────────────── Utilisateurs ───────────────────────── */
 function renderUsers() {
   $$('[data-sub]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.sub === S.sub); });
-  ['comptes', 'messages', 'market'].forEach(function (k) { $('#sub-' + k).hidden = S.sub !== k; });
+  ['comptes', 'origine', 'messages', 'market'].forEach(function (k) { $('#sub-' + k).hidden = S.sub !== k; });
   majSousBadges();
-  if (S.sub === 'comptes') renderComptes(); else if (S.sub === 'messages') renderMessages(); else renderAnnonces();
+  if (S.sub === 'comptes') renderComptes(); else if (S.sub === 'origine') renderAudience(); else if (S.sub === 'messages') renderMessages(); else renderAnnonces();
 }
 function renderComptes() {
   var U = S.users;
@@ -1332,11 +1377,11 @@ function renderAll() {
   $$('section[role=tabpanel]').forEach(function (p) { p.hidden = p.id !== 'p-' + S.tab; });
   $$('[data-per]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.per === S.per); });
   $('#l4').hidden = S.tab === 'systeme' || S.tab === 'maintenant';
-  $('#per-note').textContent = S.tab === 'maintenant' ? '' : S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'audience' ? 'fenêtre des pays, canaux et créations' : '';
+  $('#per-note').textContent = S.tab === 'maintenant' ? '' : S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs, pays et canaux sur la période' : S.tab === 'audience' ? 'fenêtre des travaux, créations et courbes' : '';
   if (S.tab === 'maintenant' || S.tab === 'audience') renderMaintenant();      // « Derniers travaux » et « Activité récente » vivent dans Audience
   if (S.tab === 'argent') { renderArgent(); renderAchats(); renderTarifs(); }
   if (S.tab === 'users') renderUsers();
-  if (S.tab === 'audience') renderAudience();
+  if (S.tab === 'audience' || S.tab === 'users') renderAudience();
   if (S.tab === 'systeme') { renderKill(); renderWarm(); renderSante(); renderSecurite(); }
   majResumes();
 }
@@ -1346,7 +1391,7 @@ function ouvrirOnglet(t) {
   if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); }
   if (t === 'audience') chargerLive();
   if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); }
-  if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); }
+  if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); if (!S.stats) chargerStats(); if (!S.aud || S.audPer !== S.per) chargerAudience(); }
   if (t === 'audience') { chargerStats(); chargerAudience(); }
   if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
   chargerVolets();
@@ -1364,7 +1409,7 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
   if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('audience'); }
-  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
+  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience' || S.tab === 'users') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-sub]'))) { S.sub = b.dataset.sub; return renderUsers(); }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; S.projetsDe = null; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
@@ -1717,7 +1762,10 @@ async function chargerActifs(uid, genre) {
   try {
     var chemin = '/api/admin/users/' + encodeURIComponent(uid) + (genre === 'rigs' ? '/rigs' : '/meshes' + (genre === 'animations' ? '?kind=animations' : ''));
     var j = await http(chemin);
-    S.actifs = { uid: uid, genre: genre, liste: (genre === 'rigs' ? j.rigs : j.meshes) || [] };
+    /* pastille « annonce » (reprise de /admin) : les annonces du compte, indexees par travail et par adresse du fichier */
+    var ann = {};
+    try { var jl = await http('/api/admin/users/' + encodeURIComponent(uid) + '/listings'); (jl.listings || []).forEach(function (l) { var inf = { statut: l.status }; if (l.job_id) ann['j:' + l.job_id] = inf; var u = l.asset_url || l.mesh_url; if (u) ann['u:' + u] = inf; }); } catch (_) {}
+    S.actifs = { uid: uid, genre: genre, ann: ann, liste: (genre === 'rigs' ? j.rigs : j.meshes) || [] };
     box.innerHTML = htmlActifs(); majEntetesTri();
   } catch (er) { box.innerHTML = '<div class="msg-err">' + esc(er.message) + '</div>'; }
 }
@@ -1727,7 +1775,8 @@ function htmlActifs() {
   if (!A.liste.length) return '<h3>' + titre + '</h3><div class="vide">Aucun.</div>';
   return '<h3>' + titre + ' (' + A.liste.length + ')</h3><div class="defil haut"><table><thead><tr><th data-tri="actifs:created_at">Date</th><th data-tri="actifs:project_name">Projet</th><th data-tri="actifs:asset_type">Type</th><th></th></tr></thead><tbody>' + trier(A.liste.map(function (m, i) { var o = Object.assign({}, m); o._i = i; return o; }), 'actifs').map(function (m) { var i = m._i;
     var url = m.mesh_url || '', peutSup = A.genre !== 'rigs';
-    return '<tr><td class="tn">' + esc(dateFr(m.created_at)) + '</td><td class="coupe">' + esc(m.project_name || '') + '</td><td>' + esc(m.asset_type || '') + '</td><td>' + (url ? '<a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Télécharger</a>' : '')
+    var an = A.ann && (A.ann['j:' + m.id] || A.ann['u:' + url]), pastille = an ? ' ' + (an.statut === 'approved' ? pillR('ok', 'annonce publiée') : an.statut === 'pending' ? pillR('warn', 'annonce à valider') : pillR('err', 'annonce refusée')) : '';
+    return '<tr><td class="tn">' + esc(dateFr(m.created_at)) + '</td><td class="coupe">' + esc(m.project_name || '') + pastille + '</td><td>' + esc(m.asset_type || '') + '</td><td>' + (url ? '<a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Télécharger</a>' + (A.genre !== 'animations' ? ' <button type="button" class="btn petit" data-apercu3d="' + esc(url) + '" data-titre="' + esc((m.project_name || 'Modèle') + ' · ' + (m.asset_type || '')) + '">Aperçu 3D</button>' : '') : '')
       + (peutSup ? (S.actifsSup === i ? ' <span class="confirm" style="display:inline-block;margin:0">Supprimer définitivement ? <button type="button" class="btn danger petit" data-actif-sup-ok="' + i + '">Oui</button> <button type="button" class="btn petit" data-actif-sup-non="1">Non</button></span>' : ' <button type="button" class="btn danger petit" data-actif-sup="' + i + '">Supprimer</button>') : '') + '</td></tr>';
   }).join('') + '</tbody></table></div>';
 }
