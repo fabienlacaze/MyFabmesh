@@ -24,7 +24,9 @@ image = (
     .pip_install("torch", "torchvision", "safetensors", "numpy", "tqdm", "psutil", "einops", "omegaconf>=2.3.0", "diffusers>=0.33.1",
                  "peft>=0.17.0", "rotary_embedding_torch>=0.5.3", "opencv-python-headless", "gguf", "matplotlib", "pillow", "huggingface_hub")
     .add_local_dir(DEPOT, "/root/seedvr2", ignore=["models/**", "**/__pycache__/**", ".git/**"])
-    .add_local_file(PHOTO, "/root/in/photo.png")
+    .add_local_file(PHOTO, "/root/in/chevalier/photo.png")
+    .add_local_file("C:/tmp/bench_tex/photos/bus/photo.png", "/root/in/bus/photo.png")
+    .add_local_file("C:/tmp/bench_tex/photos/alien/photo.png", "/root/in/alien/photo.png")
 )
 poids = modal.Volume.from_name("myfabmesh-bench-seedvr2-poids", create_if_missing=True)
 app = modal.App("myfabmesh-test-seedvr2-4k", image=image)
@@ -53,7 +55,7 @@ def telecharger() -> dict:
 
 
 @app.function(gpu="L40S", timeout=900, volumes={DOSSIER_POIDS: poids})
-def mesurer(resolution: int = 2048) -> dict:
+def mesurer(resolution: int = 2048, sujet: str = "chevalier") -> dict:
     import io
     import os
     import re
@@ -80,8 +82,8 @@ def mesurer(resolution: int = 2048) -> dict:
             time.sleep(1.0)
     threading.Thread(target=surveiller, daemon=True).start()
 
-    sortie_dir = f"/root/out_{resolution}"
-    cmd = [sys.executable, "inference_cli.py", "/root/in", "--output", sortie_dir, "--output_format", "png", "--resolution", str(resolution), "--batch_size", "1",
+    sortie_dir = f"/root/out_{sujet}_{resolution}"
+    cmd = [sys.executable, "inference_cli.py", f"/root/in/{sujet}", "--output", sortie_dir, "--output_format", "png", "--resolution", str(resolution), "--batch_size", "1",
            "--attention_mode", "sdpa", "--dit_model", "seedvr2_ema_3b_fp8_e4m3fn.safetensors", "--vae_encode_tiled", "--vae_decode_tiled",
            "--color_correction", "lab", "--seed", "42"]
     t0 = time.time()
@@ -102,8 +104,8 @@ def mesurer(resolution: int = 2048) -> dict:
         im = Image.open(sortie).convert("RGB")
         r["taille_sortie"] = im.size
         b = io.BytesIO()
-        im.save(b, "JPEG", quality=93)
-        r["jpeg"] = b.getvalue()
+        im.save(b, "PNG")
+        r["png"] = b.getvalue()
     r["dans_le_conteneur_s"] = round(time.time() - t_debut, 1)
     if code != 0:
         r["fin_du_journal"] = [l[:160] for l in txt.strip().splitlines()[-6:]]
@@ -111,24 +113,22 @@ def mesurer(resolution: int = 2048) -> dict:
 
 
 @app.local_entrypoint()
-def main(resolution: int = 2048):
+def main(sujets: str = "bus,alien", resolution: int = 2048):
+    """Lance TOUS les sujets EN MEME TEMPS (un conteneur L40S chacun) et enregistre chaque image agrandie (PNG)."""
     import time
 
-    t = time.time()
-    print(f"[0 s] téléchargement des poids (conteneur sans GPU, une seule fois)...", flush=True)
-    print("   ->", telecharger.remote(), f"| attente cote client : {time.time() - t:.0f} s", flush=True)
-
-    for nom in ("A FROID (nouveau conteneur)", "A CHAUD (conteneur deja la)"):
-        t = time.time()
-        print(f"[{nom}] SeedVR2 {resolution} px : appel envoye...", flush=True)
-        r = mesurer.remote(resolution)
-        attente = time.time() - t
-        jpeg = r.pop("jpeg", None)
-        print(f"[{nom}] ATTENTE COTE UTILISATEUR : {attente:.1f} s", flush=True)
-        for k, v in r.items():
-            print(f"      {k}: {v}", flush=True)
-        if jpeg and nom.startswith("A FROID"):
-            chemin = f"C:/tmp/bench_tex/seedvr2_cloud_{resolution}.jpg"
+    liste = [x for x in sujets.split(",") if x]
+    t0 = time.time()
+    print(f"[0 s] {len(liste)} appels envoyes en meme temps : {', '.join(liste)} (SeedVR2 {resolution} px, L40S)", flush=True)
+    appels = {n: mesurer.spawn(resolution, n) for n in liste}
+    for n, a in appels.items():
+        r = a.get()
+        attente = time.time() - t0
+        png = r.pop("png", None)
+        print(f"[{attente:.0f} s] {n} : termine | code {r.get('code')} | calcul seul {r.get('calcul_seul_s')} s | dans le conteneur {r.get('dans_le_conteneur_s')} s | pic VRAM {r.get('pic_vram_mo')} Mo", flush=True)
+        if png:
+            chemin = f"C:/tmp/bench_tex/sr_cloud_{n}_{resolution}.png"
             with open(chemin, "wb") as f:
-                f.write(jpeg)
-            print(f"      image enregistree : {chemin} ({len(jpeg) // 1024} Ko)", flush=True)
+                f.write(png)
+            print(f"        image enregistree : {chemin} ({len(png) // 1024} Ko)", flush=True)
+    print(f"[{time.time() - t0:.0f} s] TOUT EST FINI (attente cote utilisateur pour le lot)", flush=True)
