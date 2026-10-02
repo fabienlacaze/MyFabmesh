@@ -47,7 +47,7 @@ export default async function run(page) {
   r.bonMdp = await txt('#aj-msg');
   await page.click('#b-ban'); await page.click('#b-ban-ok'); await page.waitForTimeout(500);
   r.banni = (await txt('#fiche h2')).includes('bloqué');
-  await page.click('#b-projets'); await page.waitForTimeout(400); r.projets = await txt('#projets');
+  r.projetsBoutonSupprime = (await page.locator('#b-projets').count()) === 0; r.creationsFiche = (await page.locator('details[data-id="f-creations"]').count()) === 1;
   await page.fill('#rech', 'nora'); r.recherche = await page.locator('#liste-comptes .ligne').count();
   await page.fill('#rech', '');
   await page.click('[data-sub="messages"]'); await page.waitForTimeout(400);

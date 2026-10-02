@@ -32,7 +32,7 @@ export default async function run(page) {
   await page.locator('[data-ms="approved"]').click(); await page.waitForTimeout(300); r.debordements.marketPublie = await mesure();
   await page.screenshot({ path: 'admin2_m400_market.png', fullPage: true });
   // visionneuse empilee
-  await page.click('[data-tab="audience"]'); await page.waitForTimeout(1500);
+  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
   await page.locator('#galerie .vignette').first().click(); await page.waitForTimeout(500);
   r.lb = await page.evaluate(() => { const a = document.querySelector('#lb-img').getBoundingClientRect(), b = document.querySelector('#lb-params').getBoundingClientRect(); return { imageHaut: Math.round(a.top), paramsHaut: Math.round(b.top), empile: b.top >= a.bottom - 2, largeurImg: Math.round(a.width), largeurParams: Math.round(b.width), fenetre: window.innerWidth, page: document.documentElement.scrollWidth }; });
   await page.screenshot({ path: 'admin2_m400_lb.png' });

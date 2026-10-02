@@ -24,7 +24,7 @@ export default async function run(page) {
   verif('gpu : releve a jour (pastille)', /Relevé Modal : à jour/.test(g), g.slice(0, 400));
   verif('gpu : 3 postes', (await page.locator('#gpu-detail details[data-id="g-postes"] .barre').count()) === 3);
   verif('gpu : repartition', /Compte administrateur : 310 calculs/.test(g), g);
-  verif('gpu : protections (5 lignes)', (await page.locator('#gpu-detail details[data-id="g-protections"] .sw').count()) === 5);
+  verif('gpu : plus de bloc protections (renvoi vers Sante)', (await page.locator('#gpu-detail details[data-id="g-protections"]').count()) === 0 && /sont dans Santé/.test(g), g.slice(-300));
   verif('gpu : pas d alarme au depart', !/protections à vérifier/.test(await page.locator('details[data-id="a-gpu"] > summary .res').textContent()));
   verif('gpu : bouton limite', /Changer la limite mensuelle/.test(g));
   // coupe le calcul GPU -> la protection passe a « a verifier »
@@ -33,7 +33,8 @@ export default async function run(page) {
   await page.click('[data-tab="argent"]'); await page.waitForTimeout(1800);
   const sg = await page.locator('details[data-id="a-gpu"] > summary .res').textContent();
   verif('gpu : alarme quand le GPU est coupe', /protections à vérifier/.test(sg), sg);
-  verif('gpu : protections ouvertes + pastille', /à vérifier/.test(await page.locator('details[data-id="g-protections"] summary').innerText()));
+  await page.click('[data-tab="systeme"]'); await page.waitForTimeout(1500);
+  verif('sante : interrupteur GPU coupe visible dans Systeme', /Interrupteur « Calcul GPU »\s*coupé/.test(await page.locator('#sante').innerText()), (await page.locator('#sante').innerText()).slice(0, 400));
   await page.click('[data-tab="systeme"]'); await page.locator('#kill [data-kill="modal"]').click(); await page.waitForTimeout(800);
 
   // ---- AUDIENCE : travaux

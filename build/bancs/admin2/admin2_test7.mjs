@@ -19,7 +19,7 @@ export default async function run(page) {
   r.toutArreterApres = await page.locator('[data-stop="tous"]').count();
 
   // ---- galerie : suppression d'une image
-  await page.click('[data-tab="audience"]'); await page.waitForTimeout(900);
+  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
   const avant = await page.locator('#galerie .vignette').count();
   await page.locator('#galerie .vignette').first().click(); await page.waitForTimeout(200);
   await page.click('#lb-sup'); r.libelleSup = await txt('#lb-sup'); await page.click('#lb-sup'); await page.waitForTimeout(600);

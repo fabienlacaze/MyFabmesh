@@ -21,8 +21,7 @@ export default async function run(page) {
   ok(!(await page.locator('#v3d').isVisible()), 'aperçu 3D : Échap ne ferme pas');
   ok((await page.locator('#v3d-zone').innerHTML()) === '', 'aperçu 3D : zone non vidée à la fermeture');
   // Creations : onglet 3D -> visionneuse -> « Voir en 3D »
-  await page.click('[data-tab="audience"]'); await page.waitForTimeout(900);
-  await page.click('details[data-id="m-creations"] > summary'); await page.waitForTimeout(800);
+  ok(await page.evaluate(() => document.querySelector('details[data-id="f-creations"]').open), 'Créations de la fiche : pas ouvertes par défaut');
   await page.click('#cre-onglets [data-cre="3d"]'); await page.waitForTimeout(900);
   await page.locator('#galerie .vignette').first().click(); await page.waitForTimeout(400);
   ok(await page.locator('#lb-voir3d').isVisible(), 'visionneuse : bouton Voir en 3D absent');

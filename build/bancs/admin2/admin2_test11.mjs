@@ -4,14 +4,14 @@ export default async function run(page) {
   const erreurs = [];
   page.on('pageerror', (e) => erreurs.push(String(e.message || e)));
   await page.setViewportSize({ width: 1300, height: 900 });
-  await page.evaluate(() => { try { localStorage.setItem('admin2.volets', JSON.stringify({ 'm-creations': true })); } catch (_) {} });
+  await page.evaluate(() => { try { localStorage.removeItem('admin2.volets'); } catch (_) {} });
   await page.reload(); await page.waitForTimeout(2500);
-  await page.click('[data-tab="audience"]'); await page.waitForTimeout(900);
-  r.volet = await page.evaluate(() => document.querySelector('details[data-id="m-creations"]').open);
+  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
+  r.volet = await page.evaluate(() => document.querySelector('details[data-id="f-creations"]').open);
   r.onglets = (await page.locator('#cre-onglets button').allInnerTexts()).map((x) => x.trim());
   r.actif = await page.evaluate(() => document.querySelector('#cre-onglets [aria-selected="true"]').dataset.cre);
   r.imagesVignettes = await page.locator('#galerie .vignette').count();
-  r.resume = await page.evaluate(() => document.querySelector('details[data-id="m-creations"] .res').textContent);
+  r.resume = await page.evaluate(() => document.querySelector('#n-imgs').textContent);
   // visionneuse : parametres a droite
   await page.locator('#galerie .vignette').first().click(); await page.waitForTimeout(300);
   r.params = (await page.locator('#lb-params').innerText()).replace(/\s+/g, ' ');

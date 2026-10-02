@@ -342,12 +342,18 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
   <section id="p-maintenant" role="tabpanel">
     <div class="outils-volets"><span class="note">Cliquez un titre pour l'ouvrir. Cliquez un compte ou un type pour filtrer.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
     <div class="pile">
+      <details class="carte vol" data-id="m-sante" data-res="sante"><summary><h2>Santé <small id="sante-etat-m"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="sante-m"><div class="vide">Chargement…</div></div></div></details>
       <details class="carte vol" data-id="m-cours" data-res="cours"><summary><h2>En cours <small id="n-cours"></small></h2><span class="res"></span></summary>
         <div class="corps"><div class="encours" id="encours"></div></div></details>
       <details class="carte vol" data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Conteneurs <small>état réel</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div></details>
       <details class="carte vol" data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="en-ligne"></div></div></details>
+      <details class="carte vol" data-id="m-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-act-m"></div></div></details>
+      <details class="carte vol" data-id="m-ops" data-res="opsj"><summary><h2>Travaux lancés <small>par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-ops-m"></div></div></details>
     </div>
   </section>
 
@@ -454,20 +460,6 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps">
           <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
           <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
-        </div></details>
-      <details class="carte vol" data-id="m-creations" data-res="creations"><summary><h2>Créations <small id="n-imgs"></small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <div class="onglets" role="tablist" id="cre-onglets" aria-label="Type de création">
-            <button type="button" role="tab" data-cre="projets" aria-selected="false">Projets</button>
-            <button type="button" role="tab" data-cre="images" aria-selected="true">Images</button>
-            <button type="button" role="tab" data-cre="3d" aria-selected="false">3D</button>
-            <button type="button" role="tab" data-cre="rigs" aria-selected="false">Rigs</button>
-            <button type="button" role="tab" data-cre="animations" aria-selected="false">Animations</button>
-            <button type="button" role="tab" data-cre="editions" aria-selected="false">Éditions</button>
-          </div>
-          <div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-imgs">Actualiser</button>
-            <span class="note" id="cre-note"></span><span class="note">Un filtre « compte » ne montre que ses créations. Cliquez pour voir les paramètres.</span></div>
-          <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div>
         </div></details>
       <details class="carte vol" data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-act"></div></div></details>
@@ -602,7 +594,7 @@ var S = {
   tab: 'maintenant', per: '7j', sub: 'comptes', ms: 'pending',
   filt: { compte: null, type: null, pays: null },
   live: null, liveAt: 0, svc: null, mkt: null, prev: null, pay: null, badges: null, stats: null, aud: null, audPer: '',
-  users: null, sel: null, rech: '', projetsDe: null, msgs: null, listings: null, pricing: null, modal: null, sante: null, totp: null,
+  users: null, sel: null, rech: '', msgs: null, listings: null, pricing: null, modal: null, sante: null, totp: null,
   series: { rev: true, cost: true, marge: true }, tarifs: false, killConfirm: null, decoOuvert: false, msgForm: null,
   session: false
 };
@@ -690,7 +682,9 @@ function courbes(id, labels, series, opts) {
   function X(k) { return L + (n === 1 ? 0 : k * (W - L - Rr) / (n - 1)); }
   function Y(v) { return T + (H - T - B) * (1 - (v - min) / (max - min)); }
   var g = '<svg class="graph" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(opts.titre) + '">';
-  for (i = 0; i <= 4; i++) { var val = min + (max - min) * i / 4, yy = Y(val); g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/><text class="ax" x="' + (L - 8) + '" y="' + (yy + 4) + '" text-anchor="end">' + opts.fmt(val) + '</text>'; }
+  /* comptages (opts.entier) : des graduations a pas ENTIER (avant : 0,5 arrondi donnait « 2, 2, 1, 1, 0 » pour un maximum de 2) */
+  var q = 4; if (opts.entier) q = [4, 5, 2, 1].filter(function (c) { return max % c === 0; })[0] || 4;
+  for (i = 0; i <= q; i++) { var val = min + (max - min) * i / q, yy = Y(val); g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/><text class="ax" x="' + (L - 8) + '" y="' + (yy + 4) + '" text-anchor="end">' + opts.fmt(val) + '</text>'; }
   var pas = Math.max(1, Math.round(n / 6));
   for (i = 0; i < n; i += pas) g += '<text class="ax" x="' + X(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(labels[i]) + '</text>';
   series.forEach(function (se) {
@@ -712,7 +706,7 @@ function courbes(id, labels, series, opts) {
   z.addEventListener('pointermove', lire);
   z.addEventListener('pointerleave', function () { v.setAttribute('visibility', 'hidden'); if (opts.lecture) opts.lecture(-1); });
 }
-function serieSimple(id, labels, vals, col, titre) { courbes(id, labels, [{ v: vals, col: col, on: true, aire: true }], { titre: titre, fmt: function (v) { return NF.format(Math.round(v)); } }); }
+function serieSimple(id, labels, vals, col, titre) { courbes(id, labels, [{ v: vals, col: col, on: true, aire: true }], { titre: titre, entier: true, fmt: function (v) { return NF.format(Math.round(v)); } }); }
 function barresRecent(id, serie) {
   var N = serie.length, W = 520, H = 130, L = 26, B = 22, T = 8, max = 2, i;
   for (i = 0; i < N; i++) max = Math.max(max, serie[i].ok + serie[i].echecs);
@@ -740,7 +734,7 @@ async function chargerBadges() { var j = await silencieux(http('/api/admin/badge
 async function chargerPaiements() { var j = await silencieux(http('/api/admin/payments')); if (j) { S.pay = j; renderBandeau(); if (S.tab === 'argent') renderAchats(); } }
 async function chargerStats(force) {
   if (!force && S.stats && Date.now() - S.statsAt < 120000) return;
-  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience' || S.tab === 'users') renderAudience(); if (S.tab === 'systeme') { renderSante(); majResumes(); } }
+  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); if (S.tab === 'maintenant') { courbesParJour(); renderSante(); majResumes(); } if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience' || S.tab === 'users') renderAudience(); if (S.tab === 'systeme') { renderSante(); majResumes(); } }
 }
 async function chargerAudience() {
   var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
@@ -769,35 +763,32 @@ function creNormaliser(onglet, j) {
   }) };
 }
 function majOngletsCre() { $$('#cre-onglets [data-cre]').forEach(function (b) { b.id = 'cre-t-' + b.dataset.cre; b.setAttribute('aria-controls', 'galerie'); b.setAttribute('aria-selected', b.dataset.cre === S.cre.onglet); b.tabIndex = b.dataset.cre === S.cre.onglet ? 0 : -1; }); var g = $('#galerie'); g.setAttribute('role', 'tabpanel'); g.setAttribute('aria-labelledby', 'cre-t-' + S.cre.onglet); }
+function creNImgs(txt) { var e = $('#n-imgs'); if (e) e.textContent = txt; }
 async function chargerImages(force) {
-  if (!voletOuvert('m-creations')) return;
-  var C = S.cre, onglet = C.onglet, uid = '';
-  if (S.filt.compte) {
-    if (!S.users) await chargerUsers();
-    var u = S.users && S.users.users.filter(function (x) { return x.email === S.filt.compte; })[0];
-    if (u) uid = u.id;
-  }
+  if (S.tab !== 'users' || !S.sel || !$('#galerie') || !voletOuvert('f-creations')) return;
+  var C = S.cre, onglet = C.onglet, uid = S.sel;
   var cle = onglet + '|' + uid;
   if (!force && C.data[onglet] && C.cle[onglet] === cle && Date.now() - C.at[onglet] < 120000) { renderGalerie(); return; }
-  $('#n-imgs').textContent = 'chargement…';
+  creNImgs('chargement…');
   var chemin = onglet === 'editions' ? '/api/admin/images/recent?n=60&heures=168' + (uid ? '&uid=' + encodeURIComponent(uid) : '')
     : '/api/admin/creations?onglet=' + encodeURIComponent(onglet) + '&n=60&heures=' + CRE_FENETRE[onglet] + (uid ? '&uid=' + encodeURIComponent(uid) : '');
   var j = await silencieux(http(chemin));
-  if (onglet !== S.cre.onglet) return;               // l'utilisateur a change d'onglet pendant le chargement : cet onglet se rechargera
-  if (j) { C.data[onglet] = creNormaliser(onglet, j); C.cle[onglet] = cle; C.at[onglet] = Date.now(); } else $('#n-imgs').textContent = 'indisponible';
+  if (onglet !== S.cre.onglet || uid !== S.sel) return;               // l'utilisateur a change d'onglet ou de compte pendant le chargement : il se rechargera
+  if (j) { C.data[onglet] = creNormaliser(onglet, j); C.cle[onglet] = cle; C.at[onglet] = Date.now(); } else creNImgs('indisponible');
   renderGalerie();
 }
 function renderGalerie() {
-  var C = S.cre, D = C.data[C.onglet], box = $('#galerie'); majOngletsCre();
-  $('#cre-note').textContent = C.onglet === 'images' ? 'Les 60 plus récentes, sur 7 jours.' : C.onglet === 'editions' ? 'Les 60 fichiers image les plus récents, sur 7 jours (tous dossiers).' : 'Les 60 plus récents, sur 30 jours.';
-  if (!D) { C.liste = []; return; }
+  var C = S.cre, D = C.data[C.onglet], box = $('#galerie'); if (!box) return; majOngletsCre();
+  if (D && C.cle[C.onglet] !== C.onglet + '|' + S.sel) D = null;              // donnees d'un AUTRE compte : ne pas les montrer
+  var nt = $('#cre-note'); if (nt) nt.textContent = C.onglet === 'images' ? 'Les 60 plus récentes, sur 7 jours.' : C.onglet === 'editions' ? 'Les 60 fichiers image les plus récents, sur 7 jours (tous dossiers).' : 'Les 60 plus récents, sur 30 jours.';
+  if (!D) { C.liste = []; majSiChange(box, '<div class="vide">Chargement…</div>'); return; }
   C.liste = D.items;
-  $('#n-imgs').textContent = pl(D.items.length, 'élément', 'éléments') + (D.total > D.items.length ? ' sur ' + D.total : '') + ' · ' + pl(D.comptes, 'compte', 'comptes');
+  creNImgs(pl(D.items.length, 'élément', 'éléments') + (D.total > D.items.length ? ' sur ' + D.total : ''));
   majSiChange(box, D.items.length ? D.items.map(function (it, i) {
-    var leg = esc(nomCompte(it.email)) + ' · ' + esc(it.projet || it.kind || '') + ' · <span data-ts="' + esc(it.quand) + '"></span>';
+    var leg = esc(it.projet || it.kind || '') + ' · <span data-ts="' + esc(it.quand) + '"></span>';
     return '<button type="button" class="vignette" data-img="' + i + '" title="' + esc((it.email || '') + ' · ' + (it.projet || '')) + '">'
       + (it.url ? '<img loading="lazy" src="' + esc(it.url) + '" alt="">' : '<span class="sans-img">' + esc(CRE_TYPE[it.tab] || '') + '</span>') + '<span class="leg">' + leg + '</span></button>';
-  }).join('') : '<div class="vide">Rien sur cette période' + (S.filt.compte ? ' pour ce compte' : '') + '.</div>');
+  }).join('') : '<div class="vide">Rien sur cette période pour ce compte.</div>');
   majHorloge();
 }
 function htmlParams(it) {
@@ -875,7 +866,7 @@ async function chargerArgentRecent(force) {
   if (j) { S.rec = j; S.recAt = Date.now(); if (S.tab === 'argent') renderArgent(); }
 }
 async function chargerModalStatus() { var j = await silencieux(http('/api/admin/modal-status')); if (j) { S.modal = j; if (S.tab === 'systeme') renderWarm(); if (S.tab === 'maintenant') renderConteneurs(); } }
-async function chargerSante() { var j = await silencieux(http('/api/admin/sante.json')); if (j) { S.sante = j; if (S.tab === 'systeme') renderSante(); } chargerStats(); }
+async function chargerSante() { var j = await silencieux(http('/api/admin/sante.json')); if (j) { S.sante = j; if (S.tab === 'systeme' || S.tab === 'maintenant') renderSante(); } chargerStats(); }
 async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/status')); if (j) { S.totp = j; if (S.tab === 'systeme') renderSecurite(); } }
 async function chargerUsers() { var j = await silencieux(http('/api/admin/users')); if (j) { S.users = j; if (S.tab === 'users') renderUsers(); } }
 async function chargerMessages() { var j = await silencieux(http('/api/admin/contact-messages')); if (j) { S.msgs = j.messages || []; if (S.tab === 'users') renderMessages(); majSousBadges(); } }
@@ -1091,6 +1082,7 @@ async function chargerModalFull(force) {
   try { var j = await http('/api/admin/modal-credits'); if (j && j.prevision) { S.mfull = j; S.mfullAt = Date.now(); S.mfullErr = ''; } }
   catch (er) { if (!S.mfull) S.mfullErr = er.message; }
   if (S.tab === 'argent') renderGpu();
+  if (S.tab === 'maintenant' || S.tab === 'systeme') renderSante();
 }
 function ligneProt(cls, titre, etat, detail) {
   return '<div class="sw"><div class="gauche"><div>' + esc(titre) + ' <span class="pill ' + cls + '">' + esc(etat) + '</span></div>' + (detail ? '<div class="d">' + detail + '</div>' : '') + '</div></div>';
@@ -1100,6 +1092,25 @@ function gpuAlarme() {
   var p = m.prevision || {}, rel = p.releve || {}, pr = m.protections || {}, aa = pr.arret_auto || p.arret_auto || {}, inter = pr.interrupteur_modal;
   return (aa.etat === 'inactif' && p.niveau !== 'debut_de_mois') || !!(inter && inter.actif === false) || !!(rel.erreur && rel.erreur.message) || !!rel.refus_ts;
 }
+/* Lignes des protections automatiques : [{ cls, titre, etat, detail }]. Affichees dans Sante (Maintenant et Systeme), plus dans Argent. */
+function protectionsDonnees(m, p, rel) {
+  var pr = m.protections || {}, aa = pr.arret_auto || p.arret_auto || {}, er = rel.erreur && rel.erreur.message ? rel.erreur : null, inter = pr.interrupteur_modal, em = pr.email_alerte || {}, pq = pr.plafond_quotidien, L = [];
+  var AA = { actif: ['ok', 'actif'], bloque: ['err', 'calculs GPU refusés'], aveugle: ['warn', 'aveugle'], inactif: ['err', 'inactif'], tout_refuse: ['err', 'tout est refusé'], sans_limite: ['', 'sans objet (aucune limite)'] }[aa.etat] || ['warn', String(aa.etat || 'inconnu')];
+  L.push(ligneProtD(AA[0], 'Arrêt automatique à 100 % de la limite', AA[1], esc(aa.raison || '')));
+  var RE = { a_jour: ['ok', 'à jour'], en_retard: ['warn', 'en retard'], arrete: ['err', 'arrêté'], absent: ['err', 'jamais reçu'] }[rel.etat] || ['warn', String(rel.etat || 'inconnu')];
+  var det = 'Relevé horaire poussé par le poste d\'exploitation (tâche planifiée « MyFabmesh - Modal usage »). Journal : <code>%LOCALAPPDATA%\\FabWare\\Exploitation\\releve_modal.log</code>. Secret perdu ou refusé : <code>scripts\\reinitialiser_releve_modal.ps1</code>.';
+  if (er) det += '<br><span style="color:var(--err)">Dernière erreur ' + esc(dateFr(er.ts)) + ' : ' + esc(er.message) + '</span>';
+  if (rel.refus_ts) det += '<br><span style="color:var(--err)">Envoi refusé ' + esc(dateFr(rel.refus_ts)) + ' : la clé du poste ne correspond plus à celle du site.</span>';
+  L.push(ligneProtD(RE[0], 'Relevé de la facture', RE[1], det));
+  L.push(ligneProtD(em.configure ? 'ok' : 'warn', "E-mail d'alerte", em.configure ? 'configuré' : 'non configuré', em.configure ? esc('Vers ' + (em.destinataires || []).join(', ') + ' : coupure prévue, limite atteinte (1 par niveau et par mois), relevé arrêté (1 par jour).') : "Clé d'envoi absente (RESEND_API_KEY) : aucun e-mail ne part."));
+  if (inter) L.push(ligneProtD(inter.actif ? 'ok' : 'err', 'Interrupteur « Calcul GPU »', inter.actif ? 'allumé' : 'coupé', inter.actif ? '' : "Aucun calcul GPU n'est lancé."));
+  if (pq && Number(pq.usd) > 0) {
+    var est = Number(pq.depense_estimee_usd) || 0, pct = Math.min(100, est / Number(pq.usd) * 100);
+    L.push(ligneProtD(pct >= 100 ? 'err' : 'ok', 'Plafond du jour des comptes gratuits', usd(est) + ' / ' + usd(pq.usd), '<div class="jauge' + (pct >= 100 ? ' critique' : pct >= 70 ? ' haute' : '') + '" style="margin:4px 0 6px"><i style="width:' + pct.toFixed(1) + '%"></i></div>Estimation du site, tous comptes. Au-delà, les comptes gratuits sont mis en pause jusqu\'à ' + esc(pq.remise_ts ? new Date(pq.remise_ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '02:00') + '.'));
+  }
+  return L;
+}
+function ligneProtD(cls, titre, etat, detail) { return { cls: cls, titre: titre, etat: etat, detail: detail }; }
 function htmlGpuPlus() {
   var m = S.mfull;
   if (!m) return '<div class="note">' + (S.mfullErr ? 'Détail indisponible : ' + esc(S.mfullErr) : 'Chargement du détail (postes, protections)…') + '</div>';
@@ -1113,21 +1124,7 @@ function htmlGpuPlus() {
   if (rp) h += '<p class="note">Compte administrateur : ' + pl(Number(rp.admin_ops) || 0, 'calcul', 'calculs') + ', ≈ ' + usd(rp.admin_usd) + '. Clients : ' + pl(Number(rp.clients_ops) || 0, 'calcul', 'calculs') + ' (' + pl(Number(rp.clients_comptes) || 0, 'compte', 'comptes') + '), ≈ ' + usd(rp.clients_usd) + '.'
     + (rp.technique_usd != null && Number(rp.technique_usd) >= 0.01 ? ' Reste de la facture ≈ ' + usd(rp.technique_usd) + ' : démarrage et veille des serveurs, mises en ligne, essais.' : '') + ' (estimations par calcul' + (rp.tronque ? ', liste tronquée' : '') + ')</p>';
   h += '</div></details>';
-  var pr = m.protections || {}, aa = pr.arret_auto || p.arret_auto || {}, er = rel.erreur && rel.erreur.message ? rel.erreur : null, inter = pr.interrupteur_modal, em = pr.email_alerte || {}, pq = pr.plafond_quotidien, L = [];
-  var AA = { actif: ['ok', 'actif'], bloque: ['err', 'calculs GPU refusés'], aveugle: ['warn', 'aveugle'], inactif: ['err', 'inactif'], tout_refuse: ['err', 'tout est refusé'], sans_limite: ['', 'sans objet (aucune limite)'] }[aa.etat] || ['warn', String(aa.etat || 'inconnu')];
-  L.push(ligneProt(AA[0], 'Arrêt automatique à 100 % de la limite', AA[1], esc(aa.raison || '')));
-  var RE = { a_jour: ['ok', 'à jour'], en_retard: ['warn', 'en retard'], arrete: ['err', 'arrêté'], absent: ['err', 'jamais reçu'] }[rel.etat] || ['warn', String(rel.etat || 'inconnu')];
-  var det = 'Relevé horaire poussé par le poste d\'exploitation (tâche planifiée « MyFabmesh - Modal usage »). Journal : <code>%LOCALAPPDATA%\\FabWare\\Exploitation\\releve_modal.log</code>. Secret perdu ou refusé : <code>scripts\\reinitialiser_releve_modal.ps1</code>.';
-  if (er) det += '<br><span style="color:var(--err)">Dernière erreur ' + esc(dateFr(er.ts)) + ' : ' + esc(er.message) + '</span>';
-  if (rel.refus_ts) det += '<br><span style="color:var(--err)">Envoi refusé ' + esc(dateFr(rel.refus_ts)) + ' : la clé du poste ne correspond plus à celle du site.</span>';
-  L.push(ligneProt(RE[0], 'Relevé de la facture', RE[1], det));
-  L.push(ligneProt(em.configure ? 'ok' : 'warn', "E-mail d'alerte", em.configure ? 'configuré' : 'non configuré', em.configure ? esc('Vers ' + (em.destinataires || []).join(', ') + ' : coupure prévue, limite atteinte (1 par niveau et par mois), relevé arrêté (1 par jour).') : "Clé d'envoi absente (RESEND_API_KEY) : aucun e-mail ne part."));
-  if (inter) L.push(ligneProt(inter.actif ? 'ok' : 'err', 'Interrupteur « Calcul GPU »', inter.actif ? 'allumé' : 'coupé', inter.actif ? '' : "Aucun calcul GPU n'est lancé."));
-  if (pq && Number(pq.usd) > 0) {
-    var est = Number(pq.depense_estimee_usd) || 0, pct = Math.min(100, est / Number(pq.usd) * 100);
-    L.push(ligneProt(pct >= 100 ? 'err' : 'ok', 'Plafond du jour des comptes gratuits', usd(est) + ' / ' + usd(pq.usd), '<div class="jauge' + (pct >= 100 ? ' critique' : pct >= 70 ? ' haute' : '') + '" style="margin:4px 0 6px"><i style="width:' + pct.toFixed(1) + '%"></i></div>Estimation du site, tous comptes. Au-delà, les comptes gratuits sont mis en pause jusqu\'à ' + esc(pq.remise_ts ? new Date(pq.remise_ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '02:00') + '.'));
-  }
-  h += '<details class="vol mini" data-id="g-protections" data-def="' + (gpuAlarme() ? '1' : '0') + '"><summary>Protections automatiques' + (gpuAlarme() ? ' <span class="pill err">à vérifier</span>' : '') + '</summary><div class="corps">' + L.join('') + '</div></details>';
+  h += '<div class="note">Les protections automatiques (arrêt à 100 %, relevé de la facture, e-mail d\'alerte, interrupteur, plafond des comptes gratuits) sont dans <b>Santé</b> (onglets Maintenant et Système).</div>';
   return h;
 }
 function renderGpu() {
@@ -1209,17 +1206,24 @@ function renderFiche() {
   if (!u) { if (!box.querySelector('input')) majSiChange(box, '<div class="vide">Choisissez un compte.</div>'); return; }
   if (box.dataset.uid === u.id && box.querySelector('input')) { /* saisie en cours : seule la partie chiffree est rafraichie */ var dl = $('dl', box); if (dl) dl.innerHTML = fichesStats(u); return; }
   box.dataset.uid = u.id;
-  var projets = S.projetsDe && S.projetsDe.id === u.id ? S.projetsDe.liste : null;
   box.innerHTML = '<h2>' + esc(u.email || u.id) + ' <small>inscrit le ' + esc(dateFr(u.created_at)) + (u.banned ? ' · <b style="color:var(--err)">bloqué</b>' : '') + '</small></h2><dl>' + fichesStats(u) + '</dl>'
     + '<details class="vol mini" data-id="f-credits"><summary>Ajuster les crédits</summary><div class="corps"><div class="ligneform"><label for="aj">Variation</label><input type="number" id="aj" value="50" step="10"><input type="text" id="aj-motif" class="large" placeholder="Motif (obligatoire, tracé dans l\'audit)"><input type="password" id="aj-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim" id="b-aj">Appliquer</button></div><div id="aj-msg" class="note" aria-live="polite"></div></div></details>'
-    + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" id="b-projets">Voir ses projets</button> <button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux, images et achats</button> <button type="button" class="btn" data-actifs="meshes">Maillages</button> <button type="button" class="btn" data-actifs="rigs">Rigs</button> <button type="button" class="btn" data-actifs="animations">Animations</button> <a class="btn" href="/market/author?id=' + encodeURIComponent(u.id) + '" target="_blank" rel="noopener">Profil public ↗</a></div><div id="ban-confirm"></div>'
-    + '<div id="projets">' + (projets ? htmlProjets(projets) : '') + '</div><div id="actifs"></div>';
+    + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux et achats</button> <button type="button" class="btn" data-actifs="meshes">Maillages</button> <button type="button" class="btn" data-actifs="rigs">Rigs</button> <button type="button" class="btn" data-actifs="animations">Animations</button> <a class="btn" href="/market/author?id=' + encodeURIComponent(u.id) + '" target="_blank" rel="noopener">Profil public ↗</a></div><div id="ban-confirm"></div>'
+    + '<div id="actifs"></div>' + htmlCreationsFiche();
   appliquerVolets(box);
+  if (voletOuvert('f-creations')) { renderGalerie(); chargerImages(); }
+}
+/* Creations du compte choisi : gallery + parametres (images, 3D, rigs, animations, editions). Ouverte par defaut : c'est ce qu'on vient chercher dans la fiche. */
+function htmlCreationsFiche() {
+  return '<details class="vol mini" data-id="f-creations" data-def="1"><summary>Créations <small id="n-imgs"></small></summary><div class="corps">'
+    + '<div class="onglets" role="tablist" id="cre-onglets" aria-label="Type de création">'
+    + ['projets:Projets', 'images:Images', '3d:3D', 'rigs:Rigs', 'animations:Animations', 'editions:Éditions'].map(function (x) { var k = x.split(':')[0]; return '<button type="button" role="tab" data-cre="' + k + '" aria-selected="' + (S.cre.onglet === k) + '">' + x.split(':')[1] + '</button>'; }).join('')
+    + '</div><div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-imgs">Actualiser</button><span class="note" id="cre-note"></span><span class="note">Cliquez pour voir les paramètres.</span></div>'
+    + '<div class="galerie" id="galerie"><div class="vide">Chargement…</div></div></div></details>';
 }
 function fichesStats(u) {
   return '<div><dt>Crédits</dt><dd class="tn">' + num(u.credits) + '</dd></div><div><dt>Travaux</dt><dd class="tn">' + num(u.ops_total) + '</dd></div><div><dt>Échecs</dt><dd class="tn">' + num(u.ops_failed) + (u.ops_total ? ' <small style="font-size:12px;font-weight:400;color:' + (u.ops_failed / u.ops_total > 0.2 ? 'var(--err)' : 'var(--text-2)') + '">' + (100 * u.ops_failed / u.ops_total).toFixed(u.ops_failed / u.ops_total >= 0.1 ? 0 : 1) + ' %</small>' : '') + '</dd></div><div><dt>Crédits dépensés</dt><dd class="tn">' + num(u.credits_spent) + '</dd></div><div><dt>Projets</dt><dd class="tn">' + num(u.projects_count) + '</dd></div><div><dt>Maillages</dt><dd class="tn">' + num(u.meshes_count) + '</dd></div><div><dt>Rigs</dt><dd class="tn">' + num(u.rigs_count) + '</dd></div><div><dt>Animations</dt><dd class="tn">' + num(u.animations_count) + '</dd></div>';
 }
-function htmlProjets(l) { return l.length ? '<h3>Projets</h3><div class="defil"><table><tbody>' + l.map(function (p) { return '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.asset_type || '') + '</td><td class="n tn">' + (p.meshes || 0) + ' maillage(s)</td><td class="n">' + esc(ilYa((Date.now() - Date.parse(p.latest)) / 1000)) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="vide">Aucun projet.</div>'; }
 function renderMessages() {
   var M = S.msgs, box = $('#msgs');
   if (!M) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
@@ -1282,7 +1286,14 @@ function renderAudience() {
   $('#kpis-audience').innerHTML = u ? cellule('Inscrits', num(u.signups_total), 'comptes créés') + cellule('Avec ≥ 1 travail', num(u.users_with_ops), 'ont lancé une opération') + cellule('En ligne', num(u.online_now), 'appli ouverte ces 5 min') + cellule('Actifs 7 j', num(u.active_7d), 'comptes distincts') + cellule('Actifs 30 j', num(u.active_30d), 'comptes distincts') + (st.operations ? cellule('Travaux (total)', num(st.operations.total), (st.operations.total ? (100 * st.operations.succeeded / st.operations.total).toFixed(1).replace('.', ',') + ' % réussis' : '—') + ' · ' + num(st.operations.failed) + ' échec' + (st.operations.failed > 1 ? 's' : ''), st.operations.total && st.operations.failed / st.operations.total > 0.2 ? 'vigil' : '') : '') + cellule('Téléchargements', num(st.desktop_downloads_total), (st.series_30d || []).reduce(function (a, p) { return a + (p.downloads || 0); }, 0) + ' sur 30 j') : cellule('Inscrits', '—', 'chargement…');
   if (A) { barres('b-pays', A.par_pays, nomPays, 'pays'); barres('b-canal', A.par_provenance, null, null); $('#note-audience').textContent = (A.note || '') + ' Fenêtre : ' + (A.fenetre_jours >= 1 ? A.fenetre_jours + ' jour(s)' : Math.round(A.fenetre_jours * 24) + ' h') + '.' + (st && st.jobs_truncated ? ' ⚠ Plafond de 20 000 lignes atteint : les totaux « depuis le début » sont sous-estimés.' : ''); }
   else { $('#b-pays').innerHTML = '<div class="vide">Chargement…</div>'; $('#b-canal').innerHTML = ''; }
-  if (st && st.series_30d) { var s = st.series_30d, lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); }); serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour'); serieSimple('g-act', lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour'); serieSimple('g-ops', lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour'); }
+  if (st && st.series_30d) { var s = st.series_30d, lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); }); serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour'); courbesParJour(); }
+}
+/* courbes « comptes actifs » et « travaux lances » par jour : dessinees dans Activite ET dans Maintenant (memes donnees, ids distincts) */
+function courbesParJour() {
+  var st = S.stats; if (!st || !st.series_30d) return;
+  var s = st.series_30d, lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); });
+  ['g-act', 'g-act-m'].forEach(function (id) { if ($('#' + id)) serieSimple(id, lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour'); });
+  ['g-ops', 'g-ops-m'].forEach(function (id) { if ($('#' + id)) serieSimple(id, lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour'); });
 }
 
 /* ───────────────────────── Système ───────────────────────── */
@@ -1335,13 +1346,29 @@ function pointsSante() {
   if (st.jobs_truncated) pts.push({ cle: 'totaux_tronques', ok: false, etat: 'plafond de 20 000 lignes atteint', consequence: 'Les totaux « depuis le début » sont sous-estimés (les travaux les plus anciens ne sont pas comptés).', action: null });
   return pts;
 }
+/* Sante = points du serveur + protections automatiques, en UNE liste (user : « pourraient etre groupes dans Sante »).
+   Deux points du serveur disent moins que la protection du meme nom (« Releve de la facture Modal : 4 h » contre « Releve de la facture : a jour / en retard / arrete + derniere erreur » ;
+   « Alertes par e-mail : AUCUNE cle » contre « E-mail d'alerte : configure + destinataires ») : une fois les protections chargees, seule la version detaillee reste. */
+function lignesSante() {
+  var m = S.mfull, items = pointsSante().filter(function (x) { return !(m && (x.cle === 'alerte_admin' || x.cle === 'usage_reel')); }).map(function (x) {
+    return { cle: x.cle, titre: LIBELLES_SANTE[x.cle] || x.cle, cls: x.ok ? 'ok' : 'warn', etat: x.etat, detail: (x.consequence ? esc(x.consequence) : '') + (x.action ? (x.consequence ? '<br>' : '') + '<span style="font-family:var(--mono)">' + esc(x.action) + '</span>' : '') };
+  });
+  var prot = [];
+  if (m) { var pr = m.prevision || S.prev || {}; prot = protectionsDonnees(m, pr, pr.releve || {}); }
+  else if (S.mfullErr) prot = [ligneProtD('warn', 'Protections automatiques', 'indisponibles', esc(S.mfullErr))];
+  var k = items.findIndex(function (x) { return x.cle === 'remboursement_auto'; }); if (k < 0) k = items.length;
+  items.splice.apply(items, [k, 0].concat(prot));
+  return items;
+}
+function santeAlertes(L) { return L.filter(function (x) { return x.cls === 'warn' || x.cls === 'err'; }); }
 function renderSante() {
-  var s = S.sante, box = $('#sante'); if (!s) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
-  var pts = pointsSante(), nb = pts.filter(function (p) { return !p.ok; }).length;
-  $('#sante-etat').innerHTML = s.pret_a_vendre && !nb ? '<span class="pill ok">prêt à vendre</span>' : '<span class="pill warn">' + nb + ' point(s) à traiter</span>';
-  majSiChange(box, pts.map(function (p) {
-    return '<div class="sw"><div class="gauche"><div>' + esc(LIBELLES_SANTE[p.cle] || p.cle) + ' <span class="pill ' + (p.ok ? 'ok' : 'warn') + '">' + esc(p.etat) + '</span></div>' + (p.consequence ? '<div class="d">' + esc(p.consequence) + '</div>' : '') + (p.action ? '<div class="d" style="font-family:var(--mono)">' + esc(p.action) + '</div>' : '') + '</div></div>';
-  }).join('') + '<div class="note">' + esc(s.note || '') + '</div>');
+  var s = S.sante, boxes = [$('#sante'), $('#sante-m')].filter(Boolean);
+  if (!s) { boxes.forEach(function (b) { b.innerHTML = '<div class="vide">Chargement…</div>'; }); return; }
+  var L = lignesSante(), nb = santeAlertes(L).length;
+  var pill = s.pret_a_vendre && !nb ? '<span class="pill ok">prêt à vendre</span>' : '<span class="pill warn">' + nb + ' point(s) à traiter</span>';
+  ['#sante-etat', '#sante-etat-m'].forEach(function (id) { var e = $(id); if (e) e.innerHTML = pill; });
+  var html = L.map(function (x) { return ligneProt(x.cls, x.titre, x.etat, x.detail); }).join('') + '<div class="note">' + esc(s.note || '') + '</div>';
+  boxes.forEach(function (b) { majSiChange(b, html); });
 }
 function renderSecurite() {
   var t = S.totp, box = $('#securite');
@@ -1379,6 +1406,7 @@ function renderAll() {
   $('#l4').hidden = S.tab === 'systeme' || S.tab === 'maintenant';
   $('#per-note').textContent = S.tab === 'maintenant' ? '' : S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs, pays et canaux sur la période' : S.tab === 'audience' ? 'fenêtre des travaux, créations et courbes' : '';
   if (S.tab === 'maintenant' || S.tab === 'audience') renderMaintenant();      // « Derniers travaux » et « Activité récente » vivent dans Audience
+  if (S.tab === 'maintenant') { courbesParJour(); renderSante(); }
   if (S.tab === 'argent') { renderArgent(); renderAchats(); renderTarifs(); }
   if (S.tab === 'users') renderUsers();
   if (S.tab === 'audience' || S.tab === 'users') renderAudience();
@@ -1388,16 +1416,16 @@ function renderAll() {
 function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
-  if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); }
+  if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); chargerSante(); courbesParJour(); chargerModalFull(); renderSante(); }
   if (t === 'audience') chargerLive();
   if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); if (!S.stats) chargerStats(); if (!S.aud || S.audPer !== S.per) chargerAudience(); }
   if (t === 'audience') { chargerStats(); chargerAudience(); }
-  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
+  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerModalFull(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
   chargerVolets();
 }
 function selectionnerCompteParEmail(email) {
-  if (!S.users) return; var u = S.users.users.filter(function (x) { return x.email === email; })[0]; if (u) { S.sel = u.id; S.projetsDe = null; $('#fiche').dataset.uid = ''; }
+  if (!S.users) return; var u = S.users.users.filter(function (x) { return x.email === email; })[0]; if (u) { S.sel = u.id; $('#fiche').dataset.uid = ''; }
 }
 
 /* ───────────────────────── interactions ───────────────────────── */
@@ -1412,7 +1440,7 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience' || S.tab === 'users') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-sub]'))) { S.sub = b.dataset.sub; return renderUsers(); }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
-  if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; S.projetsDe = null; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
+  if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
   if ((b = t.closest('[data-ser]'))) { S.series[b.dataset.ser] = !S.series[b.dataset.ser]; return renderArgent(); }
   if (t.closest('#b-tarifs')) { S.tarifs = !S.tarifs; if (S.tarifs && !S.pricing) chargerPricing(); return renderTarifs(); }
   if (t.closest('#b-tarifs-raz')) { S.pricing.current = Object.assign({}, S.pricing.defaults); $('#tarifs').innerHTML = ''; return renderTarifs(); }
@@ -1439,7 +1467,6 @@ document.addEventListener('click', async function (e) {
   if (t.closest('#b-ban')) { var ub = S.users.users.filter(function (x) { return x.id === S.sel; })[0]; $('#ban-confirm').innerHTML = '<div class="confirm">' + (ub.banned ? 'Débloquer' : 'Bloquer') + ' ' + esc(ub.email || ub.id) + ' ? ' + (ub.banned ? 'Il retrouve l\'accès tout de suite.' : 'Il sera déconnecté à sa prochaine requête (environ une minute).') + ' <button type="button" class="btn danger petit" id="b-ban-ok">Confirmer</button> <button type="button" class="btn petit" id="b-ban-non">Annuler</button></div>'; return; }
   if (t.closest('#b-ban-non')) { $('#ban-confirm').innerHTML = ''; return; }
   if (t.closest('#b-ban-ok')) { var ub2 = S.users.users.filter(function (x) { return x.id === S.sel; })[0]; try { await http('/api/admin/users/ban', { method: 'POST', body: { userId: ub2.id, ban: !ub2.banned } }); ub2.banned = !ub2.banned; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; renderComptes(); } catch (er4) { $('#ban-confirm').innerHTML = '<div class="msg-err">' + esc(er4.message) + '</div>'; } return; }
-  if (t.closest('#b-projets')) { var up = S.sel; try { var jp = await http('/api/admin/users/' + encodeURIComponent(up) + '/projects'); S.projetsDe = { id: up, liste: jp.projects || [] }; $('#projets').innerHTML = htmlProjets(S.projetsDe.liste); } catch (er5) { $('#projets').innerHTML = '<div class="msg-err">' + esc(er5.message) + '</div>'; } return; }
   /* messages */
   if ((b = t.closest('[data-lu]'))) { try { await http('/api/admin/contact-messages/' + encodeURIComponent(b.dataset.lu) + '/read', { method: 'POST' }); } catch (_) {} await chargerMessages(); chargerBadges(); return; }
   if ((b = t.closest('[data-supm]'))) { var cm = b.dataset.supm; b.outerHTML = '<span class="confirm">Supprimer définitivement ? <button type="button" class="btn danger petit" data-supm-ok="' + esc(cm) + '">Oui</button></span>'; return; }
@@ -1797,7 +1824,7 @@ document.addEventListener('click', async function (e) {
     if (!S.lbSupArme) { S.lbSupArme = true; bt.textContent = 'Confirmer : supprimer pour de bon'; return; }
     try {
       await http('/api/admin/images?key=' + encodeURIComponent(im.key), { method: 'DELETE' });
-      S.cre.liste.splice(S.lb, 1); S.lbSupArme = false; fermerLb(); $('#galerie')._h = null; renderGalerie();
+      S.cre.liste.splice(S.lb, 1); S.lbSupArme = false; fermerLb(); if ($('#galerie')) $('#galerie')._h = null; renderGalerie();
     } catch (er) { bt.textContent = 'Échec : ' + er.message; S.lbSupArme = false; }
     return;
   }
@@ -1905,14 +1932,14 @@ function surVolet(d) {
   var id = d.dataset.id;
   if (id === 'a-tarifs') { S.tarifs = d.open; if (d.open && !S.pricing) chargerPricing(); renderTarifs(); }
   if (!d.open) return;
-  if (id === 'm-creations') chargerImages();
+  if (id === 'f-creations') chargerImages();
   else if (id === 's-diag') chargerDebug();
   else if (id === 's-audit') chargerAudit();
   else if (id === 'a-gpu') chargerModalFull();
 }
 function chargerVolets() {
   var t = S.tab;
-  if (t === 'audience' && voletOuvert('m-creations')) chargerImages();
+  if (t === 'users') chargerImages();
   if (t === 'argent') { S.tarifs = voletOuvert('a-tarifs'); if (S.tarifs && !S.pricing) chargerPricing(); renderTarifs(); if (voletOuvert('a-gpu')) chargerModalFull(); }
   if (t === 'systeme') { if (voletOuvert('s-diag')) chargerDebug(); if (voletOuvert('s-audit')) chargerAudit(); }
 }
@@ -1946,7 +1973,6 @@ var RES = {
     ev.forEach(function (x) { var t = Date.parse(x.ts); if (t > dernier) dernier = t; });
     return esc(ev.length + ' derniers · ') + (ech ? pillR('err', pl(ech, 'échec', 'échecs')) : 'aucun échec') + (dernier ? esc(' · dernier ' + ilYa((Date.now() - dernier) / 1000)) : '');
   },
-  creations: function () { var C = S.cre, D = C.data[C.onglet], bo = $('#cre-onglets [data-cre="' + C.onglet + '"]'); return D ? esc((bo ? bo.textContent : C.onglet) + ' : ' + pl(D.items.length, 'élément', 'éléments') + ' · ' + pl(D.comptes, 'compte', 'comptes')) : 'ouvrez pour charger'; },
   activite: function () {
     var f = S.live && S.live.fenetres; if (!f || !f.h1) return '…';
     return esc('5 min : ' + (f.m5 ? f.m5.lances : '—') + ' · 15 min : ' + (f.m15 ? f.m15.lances : '—') + ' · 1 h : ' + f.h1.lances + ' lancés') + (f.h1.echecs ? ' ' + pillR('err', pl(f.h1.echecs, 'échec', 'échecs')) : '');
@@ -1993,7 +2019,8 @@ var RES = {
   },
   sante: function () {
     var s = S.sante; if (!s) return '…';
-    var n = pointsSante().filter(function (p) { return !p.ok; }).length; return s.pret_a_vendre && !n ? pillR('ok', 'prêt à vendre') : pillR('warn', pl(n, 'point à traiter', 'points à traiter'));
+    var bad = santeAlertes(lignesSante()), n = bad.length;
+    return s.pret_a_vendre && !n ? pillR('ok', 'prêt à vendre') : pillR(bad.some(function (x) { return x.cls === 'err'; }) ? 'err' : 'warn', pl(n, 'point à traiter', 'points à traiter'));
   },
   securite: function () { var t = S.totp; if (!t) return '…'; return t.enrolled ? pillR('ok', '2FA activée') : pillR('warn', '2FA non activée'); },
   audit: function () { var a = S.auditEntries; return a ? esc(pl(a.length, 'action', 'actions') + ' ce jour-là') : 'ouvrez pour charger'; },
@@ -2025,6 +2052,7 @@ cadence(function () { chargerBadges(); }, 30000);
 cadence(function () { chargerPaiements(); }, 300000);
 cadence(function () { if (S.tab === 'maintenant') chargerBloques(); }, 60000);
 cadence(function () { if (S.tab === 'argent' && voletOuvert('a-gpu')) chargerModalFull(); }, 120000);
+cadence(function () { if (S.tab === 'maintenant' || S.tab === 'systeme') { chargerModalFull(); if (S.tab === 'maintenant') chargerSante(); } }, 120000);
 cadence(function () { if (S.tab === 'systeme' || S.tab === 'maintenant') chargerModalStatus(); }, 8000);
 cadence(function () { if (S.tab === 'argent' || S.tab === 'audience') chargerStats(true); }, 300000);
 setInterval(majHorloge, 1000);

@@ -103,7 +103,8 @@ export default async function run(page) {
   verif('tri au clavier (Espace) inverse', (await page.getAttribute('th[data-tri="flux:email"]', 'aria-sort')) === 'descending');
 
   // ---- visionneuse : focus dedans, boucle, Echap, retour au declencheur
-  await page.evaluate(() => document.querySelector('details[data-id="m-creations"]').open = true); await page.waitForTimeout(1200);
+  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
+  await page.evaluate(() => { const d = document.querySelector('details[data-id="f-creations"]'); if (d && !d.open) d.open = true; }); await page.waitForTimeout(1200);
   const vign = page.locator('#galerie .vignette').first(); await vign.focus(); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
   verif('visionneuse : focus sur Fermer', (await page.evaluate(() => document.activeElement.id)) === 'lb-fermer');
   let dehors = 0; for (let i = 0; i < 14; i++) { await page.keyboard.press('Tab'); if (!(await page.evaluate(() => !!document.activeElement.closest('#lb')))) dehors++; }
