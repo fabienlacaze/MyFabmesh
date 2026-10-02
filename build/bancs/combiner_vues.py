@@ -6,14 +6,14 @@ from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
 ap = argparse.ArgumentParser()
 ap.add_argument('glb'); ap.add_argument('sortie'); ap.add_argument('vues', nargs='+')
-ap.add_argument('--tau', type=float, default=45.0); ap.add_argument('--gain-max', type=float, default=1.4); ap.add_argument('--sans-ton', action='store_true'); ap.add_argument('--ton-canal', action='store_true')
+ap.add_argument('--tau', type=float, default=45.0); ap.add_argument('--gain-max', type=float, default=1.4); ap.add_argument('--sans-ton', action='store_true'); ap.add_argument('--ton-canal', action='store_true'); ap.add_argument('--ton-sur-premiere', action='store_true')   # ajuste la courbe de tons sur la PREMIERE vue seule (la photo)
 args = ap.parse_args(); os.makedirs(args.sortie, exist_ok=True)
 T0 = time.time()
 def log(*a): print('[%5.1fs]' % (time.time() - T0), *a, flush=True)
 scene = trimesh.load(args.glb, force='scene', process=False); mesh = list(scene.geometry.values())[0]
 mat = mesh.visual.material
 ATLAS = np.asarray((getattr(mat, 'baseColorTexture', None) or getattr(mat, 'image', None)).convert('RGB')); AH = ATLAS.shape[0]
-acc = np.zeros((AH, AH, 3), np.float32); W = np.zeros((AH, AH), np.float32)
+acc = np.zeros((AH, AH, 3), np.float32); W = np.zeros((AH, AH), np.float32); W_TON = None; accT = np.zeros((AH, AH, 3), np.float32)
 for v in args.vues:
     d, _, p = v.rpartition(':')
     try:
@@ -22,6 +22,8 @@ for v in args.vues:
         d, pv = v, 1.0
     n = np.load(os.path.join(d, 'nouveau.npy')); w = np.load(os.path.join(d, 'poids.npy')).astype(np.float32) / 255.0 * pv
     acc += n.astype(np.float32) * w[..., None]; W += w
+    if W_TON is None:
+        W_TON = np.minimum(w, 1.0).copy(); accT = n.astype(np.float32) * w[..., None]
     log('vue', d, 'poids', pv, ': %.2f %% des texels' % (100.0 * float((w > 0.5).mean())))
     del n, w
 NOUVEAU = np.clip(acc / np.maximum(W, 1e-4)[..., None], 0, 255).astype(np.uint8); del acc
@@ -38,8 +40,12 @@ if not args.sans_ton:
     # ancienne texture -> photo (appariement de quantiles des moyennes locales) et on l'applique a TOUT l'atlas comme un facteur commun aux trois canaux : la teinte de chaque texel
     # ne bouge pas (l'appariement canal par canal faisait virer le cochon au vert). Le calage local de couleur traite ensuite la teinte la ou la photo est reportee.
     sel = den > 0.5
+    if args.ton_sur_premiere:
+        denT = aire(W_TON); sel = denT > 0.5; den_t = denT; NT = np.clip(accT / np.maximum(W_TON, 1e-4)[..., None], 0, 255).astype(np.uint8)
+    else:
+        den_t = den; W_TON = w_f; NT = NOUVEAU
     Lum = lambda c: 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
-    oL = Lum([aire(ATLAS[..., c].astype(np.float32) * w_f) / np.maximum(den, 1e-6) for c in range(3)]); nL = Lum([aire(NOUVEAU[..., c].astype(np.float32) * w_f) / np.maximum(den, 1e-6) for c in range(3)])
+    oL = Lum([aire(ATLAS[..., c].astype(np.float32) * W_TON) / np.maximum(den_t, 1e-6) for c in range(3)]); nL = Lum([aire(NT[..., c].astype(np.float32) * W_TON) / np.maximum(den_t, 1e-6) for c in range(3)])
     qs = np.linspace(0.01, 0.99, 50); oq = np.quantile(oL[sel], qs); nq = np.maximum.accumulate(np.quantile(nL[sel], qs))
     x = np.arange(256, dtype=np.float32); l = np.interp(x, oq, nq); l[x < oq[0]] = x[x < oq[0]] + (nq[0] - oq[0]); l[x > oq[-1]] = x[x > oq[-1]] + (nq[-1] - oq[-1])
     lutL = np.clip(l, 0, 255).astype(np.float32)

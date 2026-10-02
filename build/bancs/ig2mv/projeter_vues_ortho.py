@@ -18,6 +18,7 @@ ap.add_argument('--tol', type=float, default=0.006)
 ap.add_argument('--cos-min', type=float, default=0.35)
 ap.add_argument('--sans-flot', action='store_true')
 ap.add_argument('--tuile', type=int, default=4096)
+ap.add_argument('--normales-sommets', action='store_true')   # ancien comportement : normales par sommet de TRELLIS (incoherentes sur les grandes faces)
 args = ap.parse_args()
 os.makedirs(args.sortie, exist_ok=True)
 Image.MAX_IMAGE_PIXELS = None
@@ -98,8 +99,15 @@ uniform vec2 tile; uniform float N; in vec3 in_pos; in vec2 in_uv; in vec3 in_nr
 void main(){ gl_Position = vec4((in_uv * N - tile) * 2.0 - 1.0, 0.0, 1.0); p = in_pos; n = in_nrm; }""", fragment_shader="""#version 330
 in vec3 p; in vec3 n; layout(location=0) out vec4 o0; layout(location=1) out vec4 o1;
 void main(){ o0 = vec4(p, 1.0); o1 = vec4(n, 1.0); }""")
-vbo2 = ctx.buffer(np.hstack([Vstd, UV, Nstd]).astype('f4').tobytes())     # coordonnees STD directement (meme repere que les cameras)
-vao2 = ctx.vertex_array(prog_uv, [(vbo2, '3f 2f 3f', 'in_pos', 'in_uv', 'in_nrm')], ibo)
+if args.normales_sommets:
+    vbo2 = ctx.buffer(np.hstack([Vstd, UV, Nstd]).astype('f4').tobytes())     # coordonnees STD directement (meme repere que les cameras)
+    vao2 = ctx.vertex_array(prog_uv, [(vbo2, '3f 2f 3f', 'in_pos', 'in_uv', 'in_nrm')], ibo)
+else:
+    # normales GEOMETRIQUES de chaque triangle (sommets dupliques par face) : celles de TRELLIS sont aberrantes sur les grandes faces planes et faisaient des plaques
+    P3 = Vstd[F]; nf = np.cross(P3[:, 1] - P3[:, 0], P3[:, 2] - P3[:, 0]); nf /= np.maximum(np.linalg.norm(nf, axis=1, keepdims=True), 1e-12)
+    donnees = np.concatenate([P3, UV[F], np.repeat(nf[:, None, :], 3, axis=1)], axis=2).reshape(-1, 8).astype('f4')
+    vbo2 = ctx.buffer(donnees.tobytes()); vao2 = ctx.vertex_array(prog_uv, [(vbo2, '3f 2f 3f', 'in_pos', 'in_uv', 'in_nrm')])
+    log('normales geometriques par face : %d triangles' % len(F))
 Tl = min(args.tuile, AH); N = AH // Tl
 dev = torch.device('cuda')
 POS = np.zeros((AH, AH, 3), np.float16); NR = np.zeros((AH, AH, 3), np.float16); VALIDE = np.zeros((AH, AH), bool)
