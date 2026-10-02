@@ -198,7 +198,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 <div class="app">
   <header class="haut">
     <div class="l1">
-      <div class="titre"><h1>MyFabmesh · Admin</h1><span class="maj" id="maj">chargement…</span></div>
+      <div class="titre"><h1>MyFabmesh · Admin</h1><span class="maj" id="maj">chargement…</span><button type="button" class="btn petit" id="b-logout" title="Fermer la session administrateur">Déconnexion</button></div>
     </div>
     <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
     <div class="l3">
@@ -223,10 +223,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
     </div>
   </header>
 
-  <div class="alerte-session" id="session" hidden role="alert">
-    <span><b id="session-titre">Session expirée.</b> <span id="session-texte">Ouvrez la page de connexion, puis revenez ici : cette page se remet à jour toute seule.</span></span>
-    <a class="btn prim" href="/admin" id="session-lien">Ouvrir la connexion</a>
-  </div>
+  <div class="alerte-session" id="session" hidden role="alert"><div id="session-corps" style="flex:1;min-width:260px"></div></div>
 
   <!-- ═════════ MAINTENANT ═════════ -->
   <section id="p-maintenant" role="tabpanel">
@@ -264,7 +261,14 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
       </div>
     </div>
     <div class="grille g2b" style="margin-top:16px">
-      <div class="carte"><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><div id="gpu-detail"></div></div>
+      <div class="carte"><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><div id="gpu-detail"></div>
+        <div id="lim-zone" class="confirm" hidden>
+          <div><b>1.</b> Sur modal.com, réglez d'abord la limite de dépense (« Usage limit »). <a href="https://modal.com/settings/fabienlacaze/usage" target="_blank" rel="noopener">Ouvrir modal.com ↗</a></div>
+          <label class="note" style="display:flex;gap:6px;align-items:center;margin:6px 0"><input type="checkbox" id="lim-fait" style="width:auto"> C'est fait : même limite sur modal.com</label>
+          <div><b>2.</b> Recopiez ici le même montant : <input type="number" id="lim-montant" min="1" step="0.01" inputmode="decimal" style="width:130px"> $</div>
+          <div id="lim-apercu" class="boite" style="margin-top:8px">Saisissez un montant pour voir la conséquence.</div>
+          <div class="ligneform"><button type="button" class="btn prim" id="b-lim-ok" disabled>Enregistrer</button><button type="button" class="btn" id="b-lim-non">Annuler</button></div><div id="lim-err" class="msg-err"></div>
+        </div></div>
       <div class="carte"><h2>Tarifs <small>crédits par opération</small></h2>
         <button type="button" class="btn" id="b-tarifs" aria-expanded="false">Modifier les tarifs</button>
         <div id="tarifs" hidden style="margin-top:10px"></div></div>
@@ -335,6 +339,20 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
       <div class="defil"><table><thead><tr><th>Heure</th><th>Acteur</th><th>Action</th><th>Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div></div>
   </section>
 
+  <div class="lb" id="fp" hidden role="dialog" aria-label="Mot de passe administrateur oublié">
+    <div class="carte" style="max-width:440px;width:100%">
+      <h2>Mot de passe administrateur oublié</h2>
+      <div id="fp-e1"><p class="note">Un code à 6 chiffres est envoyé à la boîte de l'administrateur, comme pour un utilisateur qui réinitialise son mot de passe.</p><button type="button" class="btn prim" id="fp-envoyer">Envoyer le code</button></div>
+      <div id="fp-e2" hidden><p class="note">Saisissez le code reçu par e-mail.</p><div class="ligneform"><input type="text" id="fp-code" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres" style="width:170px"><button type="button" class="btn" id="fp-envoyer2">Renvoyer</button><button type="button" class="btn prim" id="fp-verifier">Vérifier</button></div></div>
+      <div id="fp-e3" hidden><p class="note">Code accepté. Choisissez le nouveau mot de passe : 20 caractères au moins.</p>
+        <div class="ligneform"><input type="text" id="fp-user" placeholder="Nouvel identifiant (vide = garder l'actuel)" autocomplete="username"></div>
+        <div class="ligneform"><input type="password" id="fp-mdp1" placeholder="Nouveau mot de passe (20 caractères minimum)" autocomplete="new-password"></div>
+        <div class="ligneform"><input type="password" id="fp-mdp2" placeholder="Confirmer le mot de passe" autocomplete="new-password"></div>
+        <button type="button" class="btn prim" id="fp-valider">Changer le mot de passe</button></div>
+      <div id="fp-msg" hidden></div>
+      <div class="ligneform" style="margin-top:10px"><button type="button" class="btn" id="fp-fermer">Fermer</button></div>
+    </div>
+  </div>
   <div class="lb" id="lb" hidden role="dialog" aria-label="Image agrandie">
     <img id="lb-img" alt="">
     <div class="cap" id="lb-cap"></div>
@@ -446,13 +464,16 @@ function majEntetesTri() {
 /* ───────────────────────── réseau ───────────────────────── */
 function erreur(msg, status, json) { var e = new Error(msg); e.status = status; e.json = json; return e; }
 function sessionPerdue(code, texte) {
-  S.session = true;
-  var mdp = /admin_password_required/.test(texte || '');
-  $('#session-titre').textContent = code === 403 ? 'Compte non autorisé.' : (mdp ? 'Mot de passe administrateur requis.' : 'Session expirée.');
-  $('#session-texte').textContent = code === 403 ? "Ce compte n'est pas dans la liste des administrateurs." : "Ouvrez la page de connexion, puis revenez ici : cette page se remet à jour toute seule.";
+  var mode = code === 403 ? 'refus' : (/admin_password_required/.test(texte || '') ? 'mdp' : 'user');
+  if (S.session === mode) return;                 // deja affiche : on ne reconstruit pas le formulaire (saisie en cours)
+  S.session = mode;
+  var box = $('#session-corps');
+  if (mode === 'user') box.innerHTML = '<b>Session expirée.</b> Connectez-vous avec le compte administrateur : <a class="btn prim" href="/login?next=/admin2">Se connecter</a> <span class="note">Cette page se remet à jour toute seule ensuite.</span>';
+  else if (mode === 'refus') box.innerHTML = '<b>Compte non autorisé.</b> Ce compte n\'est pas dans la liste des administrateurs. <a class="btn" href="/login?next=/admin2">Changer de compte</a>';
+  else box.innerHTML = '<form id="f-login" autocomplete="off"><b>Mot de passe administrateur</b> <span class="note">second verrou de la page, en plus de votre compte</span><div class="ligneform" style="margin:8px 0 0"><input type="text" id="lg-user" class="large" placeholder="Identifiant admin" autocomplete="username"><input type="password" id="lg-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><span id="lg-totp-ligne" hidden><input type="text" id="lg-totp" inputmode="numeric" maxlength="6" placeholder="Code 2FA (6 chiffres)" autocomplete="one-time-code" style="width:170px"></span><button type="submit" class="btn prim">Déverrouiller</button><button type="button" class="lienclair" id="b-oubli">Mot de passe oublié ?</button></div><div id="lg-err" class="msg-err"></div></form>';
   $('#session').hidden = false;
 }
-function sessionRetablie() { if (S.session) { S.session = false; $('#session').hidden = true; } }
+function sessionRetablie() { if (S.session) { S.session = false; $('#session').hidden = true; $('#session-corps').innerHTML = ''; } }
 /* opts.mdp : un 401 « invalid password » est une erreur de saisie, pas une session perdue. */
 async function http(path, opts) {
   opts = opts || {};
@@ -808,7 +829,7 @@ function renderGpu() {
     + cellule('Mois en cours', usd(p.depense_usd), 'reste ' + usd(p.reste_usd)) + cellule('Limite mensuelle', usd(lim), p.limite && p.limite.source === 'admin' ? 'réglée ici' : 'par défaut')
     + cellule('Rythme', p.rythme_usd_jour == null ? '—' : usd(p.rythme_usd_jour) + '/j', 'fin de mois prévue ' + usd(p.fin_prevue_usd)) + '</div>'
     + '<div class="note">Relevé Modal : ' + (p.releve && p.releve.ts ? ilYa((Date.now() - Date.parse(p.releve.ts)) / 1000) : 'jamais publié') + (p.arret_auto && p.arret_auto.raison ? ' · arrêt automatique : ' + esc(p.arret_auto.raison) : '') + '</div>'
-    + '<div class="ligneform" style="margin-top:8px"><label for="lim-gpu">Nouvelle limite ($)</label><input type="number" id="lim-gpu" min="1" step="1" value="' + (lim || '') + '"><button type="button" class="btn petit" id="b-lim">Enregistrer</button><span id="lim-msg" class="msg-ok"></span></div>';
+    + '<div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-lim-ouvrir">Changer la limite mensuelle</button></div>';
 }
 function renderAchats() {
   var P = S.pay, tb = $('#t-achats');
@@ -1017,12 +1038,6 @@ document.addEventListener('click', async function (e) {
     catch (er) { m.className = 'msg-err'; m.textContent = 'Échec : ' + er.message; }
     return;
   }
-  if (t.closest('#b-lim')) {
-    var n = Number($('#lim-gpu').value), msg = $('#lim-msg'); msg.className = 'note'; msg.textContent = '…';
-    try { var jj = await http('/api/admin/modal-credits/total', { method: 'POST', body: { total: n } }); if (jj.prevision) S.prev = jj.prevision; msg.className = 'msg-ok'; msg.textContent = '✓ Limite enregistrée'; renderBandeau(); }
-    catch (er2) { msg.className = 'msg-err'; msg.textContent = er2.message; }
-    return;
-  }
   /* utilisateurs */
   if (t.closest('#b-aj')) {
     var u = S.users.users.filter(function (x) { return x.id === S.sel; })[0], am = $('#aj-msg');
@@ -1105,6 +1120,127 @@ async function basculerWarm(cibles) {
   catch (er) { warmMsg = 'Échec : ' + er.message; }
   warmOccupe = false; await chargerModalStatus(); renderWarm();
 }
+
+/* ═════════════ LIMITE MENSUELLE DU GPU, AVEC SES GARDE-FOUS (2026-10-02) ═════════════
+   Meme parcours que /admin : la limite se regle D'ABORD sur modal.com (aucune API ne permet de la lire, d'ou la case a cocher), puis se recopie ici ;
+   l'apercu est calcule par le serveur (rien n'est ecrit) : la consequence se voit AVANT d'enregistrer. */
+var limSeq = 0, limMin = null, limDepasse = false;
+function limMontant() { var v = Math.round(parseFloat(String($('#lim-montant').value || '').replace(',', '.')) * 100) / 100; return isFinite(v) ? v : null; }
+function limBouton() {
+  var n = limMontant(), ok = n != null && n >= 1 && n <= 100000, b = $('#b-lim-ok');
+  b.disabled = !(ok && $('#lim-fait').checked);
+  b.textContent = ok ? (limDepasse ? 'Enregistrer ' + usd(n) + ' et couper les calculs' : 'Enregistrer ' + usd(n)) : 'Enregistrer';
+  b.className = 'btn ' + (limDepasse ? 'danger' : 'prim');
+}
+function limApercu() {
+  clearTimeout(limMin); var box = $('#lim-apercu'), n = limMontant(); limDepasse = false;
+  if (n == null || n < 1 || n > 100000) {
+    box.textContent = n == null ? 'Saisissez un montant pour voir la conséquence.' : n < 1 ? "1 $ au minimum. Pour tout couper, utilisez l'interrupteur « Calcul GPU » de l'onglet Système." : '100 000 $ au maximum.';
+    return limBouton();
+  }
+  box.textContent = 'Calcul…'; limBouton();
+  var seq = ++limSeq;
+  limMin = setTimeout(async function () {
+    try {
+      var j = await http('/api/admin/modal-credits/total', { method: 'POST', body: { total: n, apercu: true } });
+      if (seq !== limSeq) return;
+      var p = j.prevision || {};
+      if (p.niveau === 'atteinte') { limDepasse = true; box.textContent = 'Avec ' + usd(n) + ' : limite déjà dépassée (' + usd(p.depense_usd) + ' dépensés). Le site refusera tout de suite les calculs GPU.'; }
+      else if (['ok', 'serre', 'coupure_prevue'].indexOf(p.niveau) >= 0) box.textContent = 'Avec ' + usd(n) + ' : ' + (p.icone || '') + ' ' + (p.titre || '') + '. ' + (p.phrase || '');
+      else if (p.reste_usd != null) box.textContent = 'Avec ' + usd(n) + ' : il restait ' + usd(p.reste_usd) + ' au dernier relevé (' + (p.titre || '') + ').';
+      else box.textContent = 'Avec ' + usd(n) + ' : ' + (p.titre || '') + '.';
+    } catch (er) { if (seq !== limSeq) return; box.textContent = 'Aperçu indisponible : ' + er.message; }
+    limBouton();
+  }, 350);
+}
+document.addEventListener('click', async function (e) {
+  if (e.target.closest('#b-lim-ouvrir')) {
+    var lim = S.prev && S.prev.limite;
+    $('#lim-montant').value = lim && lim.source === 'admin' && Number(lim.usd) > 0 ? String(lim.usd) : '';
+    $('#lim-fait').checked = false; $('#lim-err').textContent = ''; $('#lim-zone').hidden = false; limApercu(); $('#lim-montant').focus(); return;
+  }
+  if (e.target.closest('#b-lim-non')) { clearTimeout(limMin); limSeq++; $('#lim-zone').hidden = true; return; }
+  if (e.target.closest('#b-lim-ok')) {
+    var n = limMontant(), b = $('#b-lim-ok');
+    if (b.disabled || n == null || n < 1 || !$('#lim-fait').checked) return;
+    b.disabled = true; $('#lim-err').textContent = '';
+    try {
+      var j = await http('/api/admin/modal-credits/total', { method: 'POST', body: { total: n } });
+      limSeq++; var box = $('#lim-apercu'); box.textContent = '✅ Limite enregistrée : ' + usd(j.total) + '. Vérifiez que modal.com affiche la même.';
+      b.textContent = 'Enregistré'; chargerPrevision();
+    } catch (er) { $('#lim-err').textContent = "Échec de l'enregistrement : " + er.message; b.disabled = false; }
+  }
+});
+document.addEventListener('input', function (e) { if (e.target.id === 'lim-montant') limApercu(); });
+document.addEventListener('change', function (e) { if (e.target.id === 'lim-fait') limBouton(); });
+
+/* ═════════════ CONNEXION INTEGREE (2026-10-02, « je retiens la V2 » : la page doit se suffire) ═════════════
+   Memes routes que /admin : /api/admin/login (identifiant + mot de passe, + code 2FA si un secret est enrole), /api/admin/reset-request|verify|password
+   pour le mot de passe oublie, /api/admin/logout. Sans session utilisateur, le bouton renvoie vers /login?next=/admin2. */
+document.addEventListener('submit', async function (e) {
+  if (e.target.id !== 'f-login') return;
+  e.preventDefault();
+  var err = $('#lg-err'); err.textContent = '';
+  try {
+    var r = await fetch('/api/admin/login', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: $('#lg-user').value, password: $('#lg-mdp').value, totp: ($('#lg-totp') && $('#lg-totp').value) || undefined }) });
+    var detail = ''; try { detail = (await r.clone().json()).error || ''; } catch (_) {}
+    if (r.status === 401) {
+      if (/totp_required/i.test(detail)) { $('#lg-totp-ligne').hidden = false; err.textContent = "Saisissez le code à 6 chiffres de votre application d'authentification."; $('#lg-totp').focus(); return; }
+      if (/invalid totp/i.test(detail)) { err.textContent = 'Code incorrect, réessayez.'; $('#lg-totp').select(); return; }
+      err.textContent = 'Identifiant ou mot de passe incorrect.'; $('#lg-mdp').select(); return;
+    }
+    if (!r.ok) { err.textContent = 'Connexion impossible : HTTP ' + r.status + (detail ? ' — ' + detail : ''); return; }
+    sessionRetablie(); toutRecharger();
+  } catch (er) { err.textContent = 'Connexion impossible : ' + er.message; }
+});
+function toutRecharger() {
+  S.stats = null; S.users = null; S.msgs = null; S.listings = null; S.pricing = null; S.imgs = null;
+  chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); ouvrirOnglet(S.tab);
+}
+document.addEventListener('click', async function (e) {
+  if (e.target.closest('#b-logout')) { try { await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }); } catch (_) {} S.liveAt = 0; chargerLive(); return; }
+  if (e.target.closest('#b-oubli')) { fpEtape(1); fpMsg(''); ['fp-code', 'fp-user', 'fp-mdp1', 'fp-mdp2'].forEach(function (id) { $('#' + id).value = ''; }); $('#fp').hidden = false; return; }
+  if (e.target.closest('#fp-fermer') || e.target.id === 'fp') { $('#fp').hidden = true; return; }
+  if (e.target.closest('#fp-envoyer, #fp-envoyer2')) {
+    fpMsg('Envoi…');
+    var a = await fpPost('/api/admin/reset-request', {});
+    if (!a.r.ok) return fpMsg(a.j.error || ('HTTP ' + a.r.status), 'err');
+    fpEtape(2); fpMsg('✓ Code envoyé à ' + (a.j.sent_to || 'la boîte administrateur') + '.', 'ok'); $('#fp-code').focus(); return;
+  }
+  if (e.target.closest('#fp-verifier')) {
+    var code = $('#fp-code').value.trim(); if (!code) return fpMsg('Saisissez le code à 6 chiffres reçu par e-mail.', 'err');
+    fpMsg('Vérification…');
+    var v = await fpPost('/api/admin/reset-verify', { code: code });
+    if (!v.r.ok) return fpMsg(v.j.error === 'invalid_code' ? 'Code faux ou expiré. Utilisez « Renvoyer » pour en recevoir un nouveau.' : (v.j.error || ('HTTP ' + v.r.status)), 'err');
+    fpTicket = v.j.ticket; fpEtape(3); fpMsg(''); $('#fp-mdp1').focus(); return;
+  }
+  if (e.target.closest('#fp-valider')) {
+    var m1 = $('#fp-mdp1').value, m2 = $('#fp-mdp2').value;
+    if (m1.length < 20) return fpMsg('Le mot de passe doit faire au moins 20 caractères.', 'err');
+    if (m1 !== m2) return fpMsg('Les deux mots de passe ne correspondent pas.', 'err');
+    fpMsg('Changement en cours…');
+    var w = await fpPost('/api/admin/reset-password', { newPassword: m1, username: $('#fp-user').value.trim(), ticket: fpTicket });
+    if (!w.r.ok) {
+      var er = w.j.error || ('HTTP ' + w.r.status);
+      return fpMsg(er === 'ticket_expired' ? 'Votre vérification a expiré (15 min). Recommencez avec « Envoyer le code ».' : er === 'code_required' ? "Aucun code vérifié : cliquez sur « Envoyer le code » et validez-le d'abord." : er === 'ticket_invalid' ? 'Vérification non reconnue. Recommencez avec « Envoyer le code ».' : er === 'too_many_attempts' ? 'Trop de tentatives. Recommencez avec « Envoyer le code ».' : er, 'err');
+    }
+    fpMsg('✓ Mot de passe changé. Connectez-vous avec le nouveau.', 'ok');
+    var champ = $('#lg-mdp'); if (champ) champ.value = m1;
+    setTimeout(function () { $('#fp').hidden = true; }, 1600); return;
+  }
+});
+var fpTicket = null;
+function fpEtape(n) { [1, 2, 3].forEach(function (i) { $('#fp-e' + i).hidden = i !== n; }); }
+function fpMsg(t, k) { var m = $('#fp-msg'); m.hidden = !t; m.className = k === 'ok' ? 'msg-ok' : k === 'err' ? 'msg-err' : 'note'; m.textContent = t || ''; }
+async function fpPost(chemin, corps) {
+  try {
+    var r = await fetch(chemin, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corps || {}) });
+    var j = null; try { j = await r.json(); } catch (_) {}
+    return { r: r, j: j || {} };
+  } catch (er) { return { r: { ok: false, status: 0 }, j: { error: 'Réseau indisponible' } }; }
+}
+
 
 /* ───────────────────────── boucles de rafraîchissement ───────────────────────── */
 function cadence(fn, ms) { setInterval(function () { if (!document.hidden) fn(); }, ms); }
