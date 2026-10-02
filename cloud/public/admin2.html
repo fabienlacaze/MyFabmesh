@@ -1023,7 +1023,7 @@ function renderConteneurs() {
   if (!m) { majSiChange($('#conteneurs'), '<span class="note">état en cours de chargement…</span>'); return; }
   majSiChange($('#conteneurs'), Object.keys(NOMS_CONT).filter(function (k) { return m[k]; }).map(function (k) {
     var e = m[k], s = e.etat || (e.warm ? 'warm' : 'cold'), t = ETAT_CONT[s] || ['inconnu', 'var(--text-2)'];
-    return '<span style="border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px">' + NOMS_CONT[k] + ' <b style="color:' + t[1] + '">● ' + t[0] + '</b></span>';
+    return '<button type="button" data-goto="systeme" title="Ouvrir Santé pour agir" style="background:none;color:inherit;font:inherit;cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px">' + NOMS_CONT[k] + ' <b style="color:' + t[1] + '">● ' + t[0] + '</b></button>';
   }).join(''));
 }
 function renderEncoursCompact(enc, L) {
