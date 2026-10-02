@@ -235,6 +235,19 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .boite{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:var(--bg-2)}
 .boite pre{white-space:pre-wrap;word-break:break-word;font:inherit;margin:6px 0 0}
 .galerie{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.grille-projets{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.carte-projet{display:flex;flex-direction:column;padding:0;overflow:hidden;text-align:left;background:var(--bg-1);border:1px solid var(--border);border-radius:12px;cursor:pointer;color:inherit;font:inherit;transition:transform .18s,border-color .18s}
+.carte-projet:hover{transform:translateY(-3px);border-color:var(--accent)}
+.cp-thumb{position:relative;height:160px;background:var(--bg-2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.cp-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.cp-thumb .sans-img{color:var(--text-2);font-size:12px}
+.cp-quand{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;padding:2px 8px;border-radius:999px}
+.cp-corps{padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.cp-nom{font-size:14px;font-weight:700;color:var(--text-0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-meta{font-size:11px;color:var(--text-2)}
+.cp-prog{display:flex;gap:4px;margin-top:6px}
+.cp-prog span{flex:1;height:4px;border-radius:2px;background:var(--bg-3)}
+.cp-prog span.fait{background:linear-gradient(135deg,#e94560,#a855f7)}
 .vignette{position:relative;padding:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg-2);cursor:pointer;aspect-ratio:1}
 .vignette:hover{border-color:var(--accent)}
 .vignette img{width:100%;height:100%;object-fit:cover;display:block}
@@ -858,6 +871,13 @@ async function chargerImages(force) {
   if (j) { C.data[onglet] = creNormaliser(onglet, j); C.cle[onglet] = cle; C.at[onglet] = Date.now(); } else creNImgs('indisponible');
   renderGalerie();
 }
+function htmlCarteProjet(it, i) {
+  var P = it.params || {}, n = [Number(P.images) || 0, Number(P.maillages_3d) || 0, Number(P.rigs) || 0, Number(P.animations) || 0];
+  return '<button type="button" class="carte-projet" data-img="' + i + '" title="' + esc((it.email || '') + ' · ' + (it.projet || '')) + '"><div class="cp-thumb">'
+    + (it.url ? '<img loading="lazy" src="' + esc(it.url) + '" alt="">' : '<span class="sans-img">Pas d\'image</span>') + '<span class="cp-quand" data-ts="' + esc(it.quand) + '"></span></div>'
+    + '<div class="cp-corps"><div class="cp-nom">' + esc(it.projet || 'sans nom') + '</div><div class="cp-meta">' + n[0] + ' img · ' + n[1] + ' mesh · ' + n[2] + ' rig · ' + n[3] + ' anim</div>'
+    + '<div class="cp-prog">' + n.map(function (x) { return '<span class="' + (x > 0 ? 'fait' : '') + '"></span>'; }).join('') + '</div></div></button>';
+}
 function renderGalerie() {
   var C = S.cre, D = C.data[C.onglet], box = $('#galerie'); if (!box) return; majOngletsCre();
   if (D && C.cle[C.onglet] !== C.onglet + '|' + S.sel) D = null;              // donnees d'un AUTRE compte : ne pas les montrer
@@ -865,7 +885,9 @@ function renderGalerie() {
   if (!D) { C.liste = []; majSiChange(box, '<div class="vide">Chargement…</div>'); return; }
   C.liste = D.items;
   creNImgs(pl(D.items.length, 'élément', 'éléments') + (D.total > D.items.length ? ' sur ' + D.total : ''));
+  box.className = C.onglet === 'projets' ? 'grille-projets' : 'galerie';
   majSiChange(box, D.items.length ? D.items.map(function (it, i) {
+    if (C.onglet === 'projets') return htmlCarteProjet(it, i);
     var leg = esc(it.projet || it.kind || '') + ' · <span data-ts="' + esc(it.quand) + '"></span>';
     return '<button type="button" class="vignette" data-img="' + i + '" title="' + esc((it.email || '') + ' · ' + (it.projet || '')) + '">'
       + (it.url ? '<img loading="lazy" src="' + esc(it.url) + '" alt="">' : '<span class="sans-img">' + esc(CRE_TYPE[it.tab] || '') + '</span>') + '<span class="leg">' + leg + '</span></button>';
