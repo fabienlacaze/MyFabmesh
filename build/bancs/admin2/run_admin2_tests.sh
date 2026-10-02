@@ -14,7 +14,7 @@ for n in $liste; do
   f=/c/tmp/admin2_test$n.mjs
   [ -f "$f" ] || continue
   redemarrer
-  out=$(timeout 240 node /c/Users/Utilisateur/.claude/skills/browser-automation/browser.mjs http://127.0.0.1:8799/admin2 --script "$f" 2>&1)
+  out=$(timeout 150 node /c/Users/Utilisateur/.claude/skills/browser-automation/browser.mjs http://127.0.0.1:8799/admin2 --script "$f" 2>&1)
   err=$(echo "$out" | grep -c "SCRIPT ERROR")
   con=$(echo "$out" | sed -n 's/^console errors\/warnings (\([0-9]*\)).*/\1/p')
   req=$(echo "$out" | sed -n 's/^requests failed (\([0-9]*\)).*/\1/p')

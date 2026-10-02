@@ -33,24 +33,24 @@ export default async function run(page) {
   ok(!(await visible('#session')), 'deverrouille : le bandeau reste');
   const titresMaint = await page.evaluate(() => Array.from(document.querySelectorAll('#p-maintenant details.vol > summary h2')).map((h) => h.textContent.replace(/\s+/g, ' ').trim()));
   r.infos.maintenant = titresMaint;
-  ok(titresMaint.length === 4 && /^Santé/.test(titresMaint[0]) && /En cours/.test(titresMaint[1]) && /Conteneurs/.test(titresMaint[2]) && /En ligne/.test(titresMaint[3]), 'Maintenant : attendu Santé / En cours / Conteneurs / En ligne : ' + titresMaint.join(' | '));
+  ok(titresMaint.length === 3 && /^En cours/.test(titresMaint[0]) && /^À traiter/.test(titresMaint[1]) && /^Conteneurs/.test(titresMaint[2]), 'Vue d ensemble : attendu En cours / À traiter / Conteneurs : ' + titresMaint.join(' | '));
   ok(!/Chargement/i.test(await page.locator('#p-maintenant').innerText()) || true, '');
 
-  // 4. Audience : activite, derniers travaux, creations
+  // 4. Travaux : activite recente, en cours, derniers travaux ; Audience : en ligne, courbes, origine
+  await page.click('[data-tab="travaux"]'); await page.waitForTimeout(1200);
+  const titresTrav = await page.evaluate(() => Array.from(document.querySelectorAll('#p-travaux details.vol > summary h2')).map((h) => h.textContent.replace(/\s+/g, ' ').trim()));
+  r.infos.travaux = titresTrav;
+  for (const t of ['Activité récente', 'En cours', 'Derniers travaux']) ok(titresTrav.some((x) => x.indexOf(t) === 0), 'Travaux : carte absente : ' + t);
+  ok(!titresTrav.some((x) => x.indexOf('Créations') === 0), 'Travaux : la carte Créations globale existe encore (elle vit dans la fiche du compte)');
+  const lignes = await page.locator('#flux tr').count();
+  r.infos.lignesFlux = lignes; ok(lignes > 3, 'Derniers travaux : tableau vide (' + lignes + ')');
+  const fen = await page.locator('#fenetres > *').count(); r.infos.fenetres = fen; ok(fen >= 3, 'Activité récente : fenêtres absentes (' + fen + ')');
   await page.click('[data-tab="audience"]'); await page.waitForTimeout(1200);
   const titresAud = await page.evaluate(() => Array.from(document.querySelectorAll('#p-audience details.vol > summary h2')).map((h) => h.textContent.replace(/\s+/g, ' ').trim()));
   r.infos.audience = titresAud;
-  for (const t of ['Activité récente', 'Derniers travaux']) ok(titresAud.some((x) => x.indexOf(t) === 0), 'Audience : volet absent : ' + t);
-  ok(!titresAud.some((x) => x.indexOf('Créations') === 0), 'Audience : le volet Créations global existe encore (il vit dans la fiche du compte)');
-  // ouvrir Derniers travaux : le tableau se remplit
-  await page.click('details[data-id="m-flux"] > summary'); await page.waitForTimeout(800);
-  const lignes = await page.locator('#flux tr').count();
-  r.infos.lignesFlux = lignes; ok(lignes > 3, 'Derniers travaux : tableau vide (' + lignes + ')');
-  // Activite recente : cases de fenetres
-  await page.click('details[data-id="m-activite"] > summary'); await page.waitForTimeout(600);
-  const fen = await page.locator('#fenetres > *').count(); r.infos.fenetres = fen; ok(fen >= 3, 'Activité récente : fenêtres absentes (' + fen + ')');
+  for (const t of ['En ligne', 'Comptes actifs', 'Travaux lancés', 'Par pays', 'Par canal', 'Téléchargements']) ok(titresAud.some((x) => x.indexOf(t) === 0), 'Audience : carte absente : ' + t);
   // Creations : dans la fiche d'un compte, la galerie se charge
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
+  await page.click('[data-tab="users"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
   const gal = await page.evaluate(() => document.querySelector('#galerie').innerText.slice(0, 80));
   r.infos.galerie = gal; ok(!/^Chargement…/.test(gal), 'Créations (fiche) : la galerie reste sur « Chargement… »');
   const elementsGalerie = await page.locator('#galerie > *').count(); ok(elementsGalerie >= 1, 'Créations (fiche) : galerie vide');

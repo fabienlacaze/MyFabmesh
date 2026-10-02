@@ -9,11 +9,11 @@ export default async function run(page) {
 
   // ---- onglets ARIA
   const onglets = await page.evaluate(() => Array.from(document.querySelectorAll('[role=tab][data-tab]')).map((b) => { const c = document.getElementById(b.getAttribute('aria-controls')); return { id: b.id, ctl: !!c, lab: c && c.getAttribute('aria-labelledby') === b.id, tab: b.tabIndex, sel: b.getAttribute('aria-selected') }; }));
-  verif('onglets : aria-controls/aria-labelledby', onglets.length === 5 && onglets.every((o) => o.ctl && o.lab), onglets);
+  verif('onglets : aria-controls/aria-labelledby', onglets.length === 10 && onglets.every((o) => o.ctl && o.lab), onglets);
   verif('onglets : un seul arret de tabulation', onglets.filter((o) => o.tab === 0).length === 1 && onglets.find((o) => o.tab === 0).sel === 'true', onglets);
   await page.focus('#t-maintenant'); await page.keyboard.press('ArrowRight'); await page.waitForTimeout(300);
-  verif('onglets : fleche droite active Audience', (await page.evaluate(() => document.activeElement.id)) === 't-audience' && (await page.getAttribute('#t-audience', 'aria-selected')) === 'true');
-  await page.keyboard.press('End'); verif('onglets : Fin -> dernier', (await page.evaluate(() => document.activeElement.id)) === 't-systeme');
+  verif('onglets : fleche droite active Travaux', (await page.evaluate(() => document.activeElement.id)) === 't-travaux' && (await page.getAttribute('#t-travaux', 'aria-selected')) === 'true');
+  await page.keyboard.press('End'); verif('onglets : Fin -> dernier', (await page.evaluate(() => document.activeElement.id)) === 't-journal');
   await page.keyboard.press('Home'); await page.waitForTimeout(200); verif('onglets : Debut -> premier', (await page.evaluate(() => document.activeElement.id)) === 't-maintenant');
   verif('onglets : panneau cache pour les autres', await page.locator('#p-argent').isHidden() && await page.locator('#p-maintenant').isVisible());
 
@@ -39,7 +39,7 @@ export default async function run(page) {
   verif('clavier : les volets (summary) sont atteignables', vus.filter((a) => a.tag === 'summary').length >= 4, vus.filter((a) => a.tag === 'summary').length);
 
   // ---- ordre dans un volet OUVERT : ordre du DOM, sans tabindex positif
-  await page.click('[data-tab="audience"]'); await page.waitForTimeout(900);
+  await page.click('[data-tab="travaux"]'); await page.waitForTimeout(900);
   await page.evaluate(() => document.querySelector('details[data-id="m-flux"] > summary').click()); await page.waitForTimeout(400);
   const ordre = await page.evaluate(() => {
     const d = document.querySelector('details[data-id="m-flux"]'), foc = Array.from(d.querySelectorAll('button,a[href],input,select,textarea,[tabindex]')).filter((e) => e.tabIndex >= 0 && e.offsetParent !== null);
@@ -69,7 +69,7 @@ export default async function run(page) {
   const tousContrastes = { testes: 0, mini: 99, faibles: {} };
   const mesurer = async (nom) => { const c = await page.evaluate(CONTRASTE); tousContrastes.testes += c._stats.testes; tousContrastes.mini = Math.min(tousContrastes.mini, c._stats.mini); Object.keys(c).filter((k) => k[0] !== '_').forEach((k) => { tousContrastes.faibles[nom + ' ' + k] = c[k] + ' ratio ' + c['_r' + k]; }); };
   // ---- noms accessibles de tous les controles (tous les volets ouverts)
-  for (const tab of ['maintenant', 'argent', 'users', 'audience', 'systeme']) {
+  for (const tab of ['maintenant', 'travaux', 'audience', 'argent', 'tarifs', 'users', 'messages', 'marketplace', 'systeme', 'journal']) {
     await page.click('[data-tab="' + tab + '"]'); await page.waitForTimeout(500);
     await page.evaluate((t) => { document.querySelectorAll('#p-' + t + ' [data-volets="1"]').forEach((b) => b.click()); }, tab); await page.waitForTimeout(1200);
     const sans = await page.evaluate(() => {
@@ -85,25 +85,24 @@ export default async function run(page) {
     const sansContour = await page.evaluate(() => { const out = []; Array.from(document.querySelectorAll('button,a[href],input,select,textarea,summary,[tabindex="0"]')).filter((e) => e.offsetParent !== null && !e.disabled && e.tabIndex >= 0).forEach((e) => { e.focus(); if (document.activeElement !== e) return; const cs = getComputedStyle(e); if (!(cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0)) out.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + '.' + String(e.className).split(' ')[0]); }); return out; });
     verif('contour de focus sur tous les controles (' + tab + ')', sansContour.length === 0, sansContour.slice(0, 8));
   }
-  // sous-onglets utilisateurs : messages et marketplace
-  await page.click('[data-tab="users"]'); await page.waitForTimeout(400);
-  for (const sub of ['messages', 'market']) {
-    await page.click('[data-sub="' + sub + '"]'); await page.waitForTimeout(500);
-    const sans = await page.evaluate(() => { const out = []; document.querySelectorAll('#p-users input:not([type=hidden]),#p-users select,#p-users textarea,#p-users button,#p-users a[href]').forEach((e) => { if (e.offsetParent === null) return; const n = (e.getAttribute('aria-label') || (e.labels && e.labels.length ? 'l' : '') || (e.matches('button,a') ? (e.textContent || '').trim() || e.title || (e.querySelector('img[alt]') || {}).alt : '')).trim(); if (!n) out.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '')); }); return out; });
-    verif('noms accessibles (users/' + sub + ')', sans.length === 0, sans);
-    await mesurer('users/' + sub);
+  // onglets Messages et Marketplace
+  for (const sub of ['messages', 'marketplace']) {
+    await page.click('[data-tab="' + sub + '"]'); await page.waitForTimeout(700);
+    const sans = await page.evaluate((t) => { const out = []; document.querySelectorAll('#p-' + t + ' input:not([type=hidden]),#p-' + t + ' select,#p-' + t + ' textarea,#p-' + t + ' button,#p-' + t + ' a[href]').forEach((e) => { if (e.offsetParent === null) return; const n = e.getAttribute('aria-label') || (e.labels && e.labels.length ? 'label' : '') || (e.textContent || '').trim() || e.title || (e.querySelector('img[alt]') || {}).alt; if (!n) out.push(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '')); }); return out; }, sub);
+    verif('noms accessibles (' + sub + ')', sans.length === 0, sans);
+    await mesurer(sub);
   }
   // titres de colonnes : th reste un columnheader, le tri passe par un bouton
   const ths = await page.evaluate(() => Array.from(document.querySelectorAll('th[data-tri]')).map((t) => ({ role: t.getAttribute('role'), bouton: !!t.querySelector('button.tri'), sort: t.getAttribute('aria-sort') })));
   verif('tri : th sans role=button, avec bouton interne et aria-sort', ths.length > 10 && ths.every((t) => t.role === null && t.bouton && ['none', 'ascending', 'descending'].includes(t.sort)), ths.filter((t) => t.role !== null || !t.bouton).slice(0, 3));
-  await page.click('[data-tab="audience"]'); await page.waitForTimeout(500);
+  await page.click('[data-tab="travaux"]'); await page.waitForTimeout(700);
   await page.focus('th[data-tri="flux:email"] .tri'); await page.keyboard.press('Enter'); await page.waitForTimeout(200);
   verif('tri au clavier (Entree sur le bouton)', (await page.getAttribute('th[data-tri="flux:email"]', 'aria-sort')) === 'ascending');
   await page.keyboard.press('Space'); await page.waitForTimeout(200);
   verif('tri au clavier (Espace) inverse', (await page.getAttribute('th[data-tri="flux:email"]', 'aria-sort')) === 'descending');
 
   // ---- visionneuse : focus dedans, boucle, Echap, retour au declencheur
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
+  await page.click('[data-tab="users"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
   await page.evaluate(() => { const d = document.querySelector('details[data-id="f-creations"]'); if (d && !d.open) d.open = true; }); await page.waitForTimeout(1200);
   const vign = page.locator('#galerie .vignette').first(); await vign.focus(); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
   verif('visionneuse : focus sur Fermer', (await page.evaluate(() => document.activeElement.id)) === 'lb-fermer');

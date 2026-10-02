@@ -5,7 +5,7 @@ export default async function run(page) {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => { try { localStorage.removeItem('admin2.volets'); } catch (_) {} });
   await page.reload(); await page.waitForTimeout(1500);
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1200);
+  await page.click('[data-tab="users"]'); await page.waitForTimeout(1200);
   await page.locator('#liste-comptes .ligne').first().click(); await page.waitForTimeout(400);
   await page.click('[data-actifs="meshes"]'); await page.waitForTimeout(900);
   const lignes = await page.locator('#actifs tbody tr').allInnerTexts();

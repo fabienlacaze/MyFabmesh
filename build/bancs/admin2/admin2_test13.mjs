@@ -24,7 +24,7 @@ export default async function run(page) {
   verif('gpu : releve a jour (pastille)', /Relevé Modal : à jour/.test(g), g.slice(0, 400));
   verif('gpu : 3 postes', (await page.locator('#gpu-detail details[data-id="g-postes"] .barre').count()) === 3);
   verif('gpu : repartition', /Compte administrateur : 310 calculs/.test(g), g);
-  verif('gpu : plus de bloc protections (renvoi vers Sante)', (await page.locator('#gpu-detail details[data-id="g-protections"]').count()) === 0 && /sont dans Santé/.test(g), g.slice(-300));
+  verif('gpu : plus de bloc protections (renvoi vers Sante)', (await page.locator('#gpu-detail details[data-id="g-protections"]').count()) === 0 && /sont dans l.onglet Santé/.test(g), g.slice(-300));
   verif('gpu : pas d alarme au depart', !/protections à vérifier/.test(await page.locator('details[data-id="a-gpu"] > summary .res').textContent()));
   verif('gpu : bouton limite', /Changer la limite mensuelle/.test(g));
   // coupe le calcul GPU -> la protection passe a « a verifier »
@@ -38,7 +38,7 @@ export default async function run(page) {
   await page.click('[data-tab="systeme"]'); await page.locator('#kill [data-kill="modal"]').click(); await page.waitForTimeout(800);
 
   // ---- AUDIENCE : travaux
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.click('[data-sub="origine"]'); await page.waitForTimeout(1200);
+  await page.click('[data-tab="audience"]'); await page.waitForTimeout(1200);
   const ka = await txt('#kpis-audience');
   verif('audience : carte travaux', /TRAVAUX \(TOTAL\) 900 93,3 % réussis · 60 échecs/.test(ka), ka);
   verif('audience : courbe travaux/jour', (await page.locator('#g-ops svg').count()) === 1);
@@ -55,6 +55,7 @@ export default async function run(page) {
   const sa2 = await txt('#sante');
   verif('sante : tache arretee (120 min)', /plus de 45 min/.test(sa2), sa2);
   verif('sante : 2 points', /2 point/.test(await txt('#sante-etat')), await txt('#sante-etat'));
+  await page.click('[data-tab="journal"]'); await page.waitForTimeout(1200);
   await page.click('#b-audit'); await page.waitForTimeout(700);
   const au = (await page.locator('#audit tr').allInnerTexts()).map((x) => x.replace(/\s+/g, ' '));
   verif('audit : IP', au.some((x) => x.includes('198.51.100.4')), au);
@@ -67,7 +68,7 @@ export default async function run(page) {
   verif('2fa : pas de bouton retirer', (await page.locator('#b-2fa-retirer').count()) === 0);
 
   // ---- UTILISATEURS : recherche par identifiant, tris, avertissement, profil public
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1500);
+  await page.click('[data-tab="users"]'); await page.waitForTimeout(1500);
   await page.fill('#rech', 'u3'); await page.waitForTimeout(200);
   verif('comptes : recherche par identifiant', (await page.locator('#liste-comptes .ligne').count()) === 1);
   await page.fill('#rech', '');
@@ -81,7 +82,7 @@ export default async function run(page) {
   verif('fiche : taux d echec', /%/.test(await txt('#fiche dl')));
 
   // ---- MESSAGES
-  await page.click('[data-sub="messages"]'); await page.waitForTimeout(500);
+  await page.click('[data-tab="messages"]'); await page.waitForTimeout(500);
   verif('messages : capture visible', (await page.locator('#msgs img.pj').count()) === 1);
   verif('messages : fichier 3D signale', (await page.locator('#msgs .pj-fichier').count()) === 1 && /Contenu signalé/.test(await txt('#msgs')));
   verif('messages : legende apercu', /Aperçu · capture\.png · 50 Ko/.test(await txt('#msgs')));
@@ -90,7 +91,7 @@ export default async function run(page) {
   verif('messages : nom echappe (XSS)', (await page.locator('#msgs i').count()) === 0 && (await page.locator('#msgs b').count()) >= 2);
 
   // ---- MARKETPLACE
-  await page.click('[data-sub="market"]'); await page.waitForTimeout(500);
+  await page.click('[data-tab="marketplace"]'); await page.waitForTimeout(500);
   verif('annonce a valider : apercu (poster)', (await page.locator('#annonces .annonce img.apercu-annonce[src^="/api/market/poster/a1"]').count()) === 1);
   verif('annonce : licence + auteur', /CC-BY/.test(await txt('#annonces')) && (await page.locator('#annonces a[href="/market/author?id=u9"]').count()) === 1);
   verif('annonce a valider : pas de « gratuit ce mois »', (await page.locator('#annonces [data-offert]').count()) === 0);
@@ -101,7 +102,7 @@ export default async function run(page) {
   verif('annonce : titre echappe (XSS)', (await page.locator('#annonces img[src="x"]').count()) === 0);
 
   // ---- TARIFS : remise ligne par ligne
-  await page.click('[data-tab="argent"]'); await page.waitForTimeout(1500);
+  await page.click('[data-tab="tarifs"]'); await page.waitForTimeout(1500);
   const rz = page.locator('#tarifs [data-pk-raz="rig"]'), champ = page.locator('#tarifs [data-pk="rig"]');
   verif('tarifs : bouton remise desactive si inchange', await rz.isDisabled());
   await champ.fill('77'); await page.waitForTimeout(100);
@@ -110,7 +111,7 @@ export default async function run(page) {
   verif('tarifs : remise a l origine', (await champ.inputValue()) === '30' && (await rz.isDisabled()));
 
   // ---- AUDIENCE : par pays (un compte = un pays : la somme des comptes par pays est le nombre de comptes distincts)
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.click('[data-sub="origine"]'); await page.waitForTimeout(1200);
+  await page.click('[data-tab="audience"]'); await page.waitForTimeout(1200);
   const pays = (await page.locator('#b-pays .barre').allInnerTexts()).map((x) => x.replace(/\s+/g, ' ').trim());
   verif('par pays : 3 lignes triees par travaux', pays.length === 3 && /^France 320 · 5 comptes · 6.3 % éch\./.test(pays[0]) && /^Belgique 110 · 2 comptes · 4.5 % éch\./.test(pays[1]) && /^inconnu 40 · 1 compte · 0 % éch\./.test(pays[2]), pays);
   verif('par pays : resume avec total des comptes', /8 comptes/.test(await page.locator('details[data-id="u-pays"] > summary .res').textContent()), await page.locator('details[data-id="u-pays"] > summary .res').textContent());
@@ -119,6 +120,7 @@ export default async function run(page) {
   await page.locator('[data-clear="all"]').click();
 
   // ---- ACTUALISER
+  await page.click('[data-tab="maintenant"]'); await page.waitForTimeout(600);
   await page.click('#b-refresh'); await page.waitForTimeout(1200);
   verif('actualiser : la page reste affichee', /EN LIGNE/.test(await txt('#bandeau')));
   return { ok: echecs.length === 0, echecs };

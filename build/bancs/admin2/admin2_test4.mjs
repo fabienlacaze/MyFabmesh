@@ -20,7 +20,7 @@ export default async function run(page) {
   r.triCredits24 = await page.locator('#t-ops tr td:first-child').allInnerTexts();
   await page.click('[data-per="7j"]'); await page.waitForTimeout(1200);
   r.retour7j = await txt('#kpis-argent'); r.entete7j = await txt('th[data-tri="ops:reel"]'); r.fenetre7j = await txt('#ops-fenetre');
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="origine"]'); await page.waitForTimeout(800);
+  await page.click('[data-tab="audience"]'); await page.waitForTimeout(800);
   await page.click('[data-per="6h"]'); await page.waitForTimeout(1000);
   r.audience6h = await txt('#note-audience'); r.boutonsAudience = await page.locator('#periode button').allInnerTexts();
   await page.click('[data-tab="argent"]'); await page.click('[data-per="24h"]'); await page.waitForTimeout(1200); await page.screenshot({ path: 'admin2_argent24h.png' });

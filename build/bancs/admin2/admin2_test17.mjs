@@ -7,7 +7,7 @@ export default async function run(page) {
   await page.reload(); await page.waitForTimeout(1500);
   await page.click('[data-tab="systeme"]'); await page.waitForTimeout(2500);
   const ouvert = (id) => page.evaluate((i) => document.querySelector('details[data-id="' + i + '"]').open, id);
-  ok(!(await ouvert('s-kill')) && !(await ouvert('s-warm')), 'volets non fermes au depart');
+  ok((await ouvert('s-kill')) && (await ouvert('s-warm')), 'cartes ouvertes au depart (plan A)');
   const sw = (id) => page.locator('details[data-id="' + id + '"] > summary button[role=switch].maitre');
   ok(await sw('s-kill').count() === 1, 'pas d\'interrupteur general dans Interrupteurs d\'urgence');
   ok(await sw('s-warm').count() === 1, 'pas d\'interrupteur general dans Conteneurs');
@@ -16,12 +16,12 @@ export default async function run(page) {
   r.infos.warm = await sw('s-warm').getAttribute('aria-checked');
   // un clic sur l'interrupteur du titre ne deplie PAS le volet « Conteneurs » ; il garde tout chaud
   await sw('s-warm').click(); await page.waitForTimeout(1500);
-  ok(!(await ouvert('s-warm')), 'le clic sur l\'interrupteur a deplie le volet Conteneurs');
+  ok(await ouvert('s-warm'), 'le clic sur l\'interrupteur a replie la carte Conteneurs');
   r.infos.warmApres = await sw('s-warm').getAttribute('aria-checked');
   ok(r.infos.warmApres === 'true', 'tous chauds : interrupteur non active (' + r.infos.warmApres + ')');
   // « Tout couper » depuis le titre : ouvre le volet et demande confirmation
   await sw('s-kill').click(); await page.waitForTimeout(800);
-  ok(await ouvert('s-kill'), 'tout couper : le volet ne s\'est pas ouvert');
+  ok(await ouvert('s-kill'), 'tout couper : la carte n\'est pas ouverte');
   ok(await page.locator('#kill .confirm').count() >= 1, 'tout couper : pas de confirmation');
   await page.locator('#kill [data-kill-ok="all-off"]').click(); await page.waitForTimeout(1500);
   r.infos.killApres = await sw('s-kill').getAttribute('aria-checked');

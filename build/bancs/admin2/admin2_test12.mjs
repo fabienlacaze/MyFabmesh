@@ -17,7 +17,7 @@ export default async function run(page) {
     });
     return { page: doc.scrollWidth, fenetre: W, depassent: larges.slice(0, 8), n: larges.length };
   });
-  for (const tab of ['maintenant', 'argent', 'users', 'audience', 'systeme']) {
+  for (const tab of ['maintenant', 'travaux', 'audience', 'argent', 'tarifs', 'users', 'messages', 'marketplace', 'systeme', 'journal']) {
     await page.click('[data-tab="' + tab + '"]'); await page.waitForTimeout(1500);
     r.debordements[tab] = await mesure();
     await page.screenshot({ path: 'admin2_m400_' + tab + '.png', fullPage: true });
@@ -26,13 +26,13 @@ export default async function run(page) {
   await page.click('[data-tab="users"]'); await page.waitForTimeout(500);
   await page.locator('#liste-comptes .ligne').first().click(); await page.waitForTimeout(500);
   r.debordements.fiche = await mesure();
-  await page.click('[data-sub="messages"]'); await page.waitForTimeout(500); r.debordements.messages = await mesure();
+  await page.click('[data-tab="messages"]'); await page.waitForTimeout(500); r.debordements.messages = await mesure();
   await page.screenshot({ path: 'admin2_m400_messages.png', fullPage: true });
-  await page.click('[data-sub="market"]'); await page.waitForTimeout(500); r.debordements.market = await mesure();
+  await page.click('[data-tab="marketplace"]'); await page.waitForTimeout(500); r.debordements.market = await mesure();
   await page.locator('[data-ms="approved"]').click(); await page.waitForTimeout(300); r.debordements.marketPublie = await mesure();
   await page.screenshot({ path: 'admin2_m400_market.png', fullPage: true });
   // visionneuse empilee
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
+  await page.click('[data-tab="users"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
   await page.locator('#galerie .vignette').first().click(); await page.waitForTimeout(500);
   r.lb = await page.evaluate(() => { const a = document.querySelector('#lb-img').getBoundingClientRect(), b = document.querySelector('#lb-params').getBoundingClientRect(); return { imageHaut: Math.round(a.top), paramsHaut: Math.round(b.top), empile: b.top >= a.bottom - 2, largeurImg: Math.round(a.width), largeurParams: Math.round(b.width), fenetre: window.innerWidth, page: document.documentElement.scrollWidth }; });
   await page.screenshot({ path: 'admin2_m400_lb.png' });

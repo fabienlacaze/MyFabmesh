@@ -41,19 +41,16 @@ header.haut{display:contents}
 .bandeau-modal{margin-inline:calc(-1 * clamp(10px,2vw,32px));padding:10px 16px;text-align:center;font-weight:600;color:#1a1204;background:#ffb020;cursor:pointer}
 .bandeau-modal.rouge{background:#c62828;color:#fff}
 .logo{width:40px;height:40px;border-radius:8px;flex:none}
-.tabs{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
-.tab-group{display:flex;flex-direction:column;padding:8px 10px 0;border-radius:10px;background:var(--bg-1);border:1px solid var(--border)}
-.tab-group-header{font-size:10px;font-weight:800;letter-spacing:2px;padding:0 4px 6px}
-.tab-group-items{display:flex;gap:2px}
-.tab-group-activity{border-color:rgba(76,217,100,.35);background:rgba(76,217,100,.05)} .tab-group-activity .tab-group-header{color:var(--ok)}
-.tab-group-finance{border-color:rgba(255,170,51,.35);background:rgba(255,170,51,.05)} .tab-group-finance .tab-group-header{color:var(--warn)}
-.tab-group-system{border-color:rgba(200,76,255,.35);background:rgba(200,76,255,.05)} .tab-group-system .tab-group-header{color:var(--accent)}
-.tab{background:transparent;color:var(--text-1);border:0;border-bottom:2px solid transparent;padding:8px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;border-radius:4px 4px 0 0;white-space:nowrap}
-.tab:hover{color:var(--text-0);background:rgba(255,255,255,.04)}
-.tab[aria-selected="true"]{color:var(--text-0);font-weight:700}
-.tab-group-activity .tab[aria-selected="true"]{border-bottom-color:var(--ok);background:rgba(76,217,100,.15)}
-.tab-group-finance .tab[aria-selected="true"]{border-bottom-color:var(--warn);background:rgba(255,170,51,.15)}
-.tab-group-system .tab[aria-selected="true"]{border-bottom-color:var(--accent);background:rgba(200,76,255,.15)}
+.tabs{display:flex;flex-wrap:wrap;gap:0;align-items:stretch;margin-top:4px}
+.tab-group{display:flex;flex-direction:column;padding:0 24px;border-left:1px solid var(--border)}
+.tab-group:first-child{padding-left:0;border-left:0}
+.tab-group-header{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-2);padding:8px 0 2px}
+.tab-group-items{display:flex;gap:18px}
+.tab{background:none;color:var(--text-2);border:0;border-bottom:2px solid transparent;padding:6px 2px 10px;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--text-0)}
+.tab[aria-selected="true"]{color:var(--text-0);font-weight:650;border-bottom-color:var(--accent)}
+.bandeau-modal:not([hidden]) + .l1{margin-top:16px}
+#g-heure{max-width:900px}
 .l1{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;justify-content:space-between}
 .titre{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .titre h1{margin:0;font-size:24px;letter-spacing:.2px;display:flex;align-items:center;gap:12px}
@@ -61,10 +58,10 @@ header.haut{display:contents}
 .seg{display:inline-flex;background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:2px}
 .seg button{background:none;border:0;padding:6px 14px;border-radius:6px;cursor:pointer;color:var(--text-1)}
 .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--text-0);box-shadow:inset 0 0 0 1px var(--accent)}
-.bandeau{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:2px;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg-0);padding-block:8px}
-.cell{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:8px 12px;min-width:0}
+.bandeau{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin:18px 0 16px}
+.cell{background:var(--bg-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0}
 .cell .k{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2)}
-.cell .v{font-size:22px;font-weight:600;line-height:1.2;margin-top:2px}
+.cell .v{font-size:28px;font-weight:650;line-height:1.15;margin-top:6px}
 .cell .s{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cell.alerte{border-color:var(--err)} .cell.alerte .v{color:var(--err)}
 .cell.vigil{border-color:var(--warn)}
@@ -78,12 +75,14 @@ header.haut{display:contents}
 
 .l4{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:8px}
 .l4 .lbl{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2)}
-.l3{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:10px}
+.l3{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 12px;margin-top:10px;border-bottom:1px solid var(--border)}
+.l3 .chips{padding-bottom:10px}
 .onglets{display:flex;flex-wrap:wrap;gap:4px}
 .onglets button{background:none;border:0;border-bottom:2px solid transparent;padding:8px 14px;cursor:pointer;color:var(--text-1);font-weight:500}
 .onglets button:hover{color:var(--text-0)}
 .onglets button[aria-selected="true"]{color:var(--text-0);border-bottom-color:var(--accent)}
 .badge{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;background:#c62828;color:#fff;font-size:11px;line-height:18px;text-align:center}
+.badge.w{background:var(--warn);color:#1a1204}
 .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-left:auto}
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:999px;padding:3px 6px 3px 12px;font-size:12px}
 .chip button{background:none;border:0;cursor:pointer;color:var(--text-1);padding:0 6px;font-size:14px;line-height:1}
@@ -109,7 +108,7 @@ html.verrou .alerte-session .ligneform{flex-wrap:wrap}
 @media(min-width:1250px){.g2{grid-template-columns:minmax(0,4fr) minmax(0,8fr)}}
 .g2b{grid-template-columns:minmax(0,1fr)}
 @media(min-width:1250px){.g2b{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
-.carte{background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:14px 16px;min-width:0;container-type:inline-size}
+.carte{background:var(--bg-1);border:1px solid var(--border);border-radius:12px;padding:18px 20px;min-width:0;container-type:inline-size}
 /* Carte etroite (< 800 px) : cellules serrees, colonne secondaire masquee, verdicts raccourcis -> plus aucun defilement horizontal. */
 @container (max-width: 800px){
   .carte th,.carte td{padding-inline:5px}
@@ -232,7 +231,14 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .lb .cap{color:var(--text-1);font-size:13px;text-align:center}
 .lb .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 /* ───────── volets repliables ───────── */
-.pile{display:grid;gap:8px}
+.pile{display:grid;gap:16px}
+.dispo{display:grid;gap:16px;align-items:start;grid-template-columns:minmax(0,1fr)}
+.dispo > *{min-width:0}
+@media(min-width:1100px){.dispo.d21{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}.dispo.d11{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.dispo.d32{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}}
+.colonne{display:grid;gap:16px;align-content:start;min-width:0}
+.grp-t{margin:16px 0 4px;font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-2);font-weight:600;display:flex;gap:8px;align-items:center}
+.grp-t:first-child{margin-top:0}
+td .lienclair{padding:0}
 .outils-volets{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;margin:14px 0 10px}
 .outils-volets .note{margin:0}
 .outils-volets .grp{display:flex;gap:6px}
@@ -240,16 +246,16 @@ details.vol{min-width:0}
 details.vol > summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;border-radius:8px}
 details.vol > summary::-webkit-details-marker{display:none}
 details.vol > summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--text-2);border-bottom:2px solid var(--text-2);transform:rotate(-45deg);transition:transform .15s;margin:0 6px 0 2px}
+details.carte.vol > summary::before{display:none}
 details.vol[open] > summary::before{transform:rotate(45deg)}
 details.vol[open] > summary .res{display:none}
 details.vol[open] > summary .res:has(.maitre-groupe, .btn){display:block}      /* l'interrupteur general reste visible volet ouvert */
 details.vol:not([open]) > summary h2 small{display:none}
 details.carte.vol{padding:0}
-details.carte.vol > summary{padding:12px 16px}
-details.carte.vol > summary:hover{background:var(--bg-2)}
+details.carte.vol > summary{padding:16px 20px 2px;cursor:default}
 details.carte.vol > summary h2{margin:0;flex:0 1 auto;min-width:0;max-width:100%}
 details.carte.vol > summary .res{margin-left:auto;flex:1 1 220px;min-width:0;font-size:13px;color:var(--text-1);text-align:right}
-details.carte.vol > .corps{padding:12px 16px 14px;border-top:1px solid var(--border)}
+details.carte.vol > .corps{padding:8px 20px 18px;border-top:0}
 details.mini{margin:12px 0 0;border-top:1px solid var(--border);padding-top:2px}
 details.mini > summary{padding:8px 0;font-size:13px;font-weight:600;color:var(--text-1)}
 details.mini > .corps{padding:4px 0 0}
@@ -307,19 +313,25 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
     <div class="l1">
       <div class="titre"><h1><img class="logo" src="/logo-symbole.png" alt="" width="40" height="40">MyFabmesh — Admin</h1><span class="maj" id="maj">chargement…</span><button type="button" class="btn petit" id="b-refresh" title="Recharger toutes les données de l'onglet">Actualiser</button><button type="button" class="btn petit" id="b-logout" title="Fermer la session administrateur">Déconnexion</button></div>
     </div>
-    <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
     <div class="l3">
       <nav class="tabs" role="tablist" aria-label="Sections">
-        <div class="tab-group tab-group-activity"><div class="tab-group-header">📈 ACTIVITÉ</div><div class="tab-group-items">
-          <button role="tab" type="button" class="tab" data-tab="maintenant" aria-selected="true">🔴 Maintenant</button>
-          <button role="tab" type="button" class="tab" data-tab="audience" aria-selected="false">📋 Activité</button>
+        <div class="tab-group tab-group-activity"><div class="tab-group-header">Activité</div><div class="tab-group-items">
+          <button role="tab" type="button" class="tab" data-tab="maintenant" aria-selected="true">Vue d’ensemble</button>
+          <button role="tab" type="button" class="tab" data-tab="travaux" aria-selected="false">Travaux<span class="badge w" id="b-travaux" hidden>0</span></button>
+          <button role="tab" type="button" class="tab" data-tab="audience" aria-selected="false">Audience</button>
         </div></div>
-        <div class="tab-group tab-group-finance"><div class="tab-group-header">💰 FINANCE</div><div class="tab-group-items">
-          <button role="tab" type="button" class="tab" data-tab="argent" aria-selected="false">📊 Argent</button>
+        <div class="tab-group tab-group-finance"><div class="tab-group-header">Finance</div><div class="tab-group-items">
+          <button role="tab" type="button" class="tab" data-tab="argent" aria-selected="false">Argent</button>
+          <button role="tab" type="button" class="tab" data-tab="tarifs" aria-selected="false">Tarifs</button>
         </div></div>
-        <div class="tab-group tab-group-system"><div class="tab-group-header">🛠 GESTION</div><div class="tab-group-items">
-          <button role="tab" type="button" class="tab" data-tab="users" aria-selected="false">🧑 Utilisateurs<span class="badge" id="b-users" hidden>0</span></button>
-          <button role="tab" type="button" class="tab" data-tab="systeme" aria-selected="false">🚨 Système</button>
+        <div class="tab-group tab-group-gestion"><div class="tab-group-header">Gestion</div><div class="tab-group-items">
+          <button role="tab" type="button" class="tab" data-tab="users" aria-selected="false">Comptes</button>
+          <button role="tab" type="button" class="tab" data-tab="messages" aria-selected="false">Messages<span class="badge" id="b-messages" hidden>0</span></button>
+          <button role="tab" type="button" class="tab" data-tab="marketplace" aria-selected="false">Marketplace<span class="badge" id="b-market" hidden>0</span></button>
+        </div></div>
+        <div class="tab-group tab-group-system"><div class="tab-group-header">Système</div><div class="tab-group-items">
+          <button role="tab" type="button" class="tab" data-tab="systeme" aria-selected="false">Santé<span class="badge w" id="b-sante" hidden>0</span></button>
+          <button role="tab" type="button" class="tab" data-tab="journal" aria-selected="false">Journal</button>
         </div></div>
       </nav>
       <div class="chips" id="chips"></div>
@@ -338,32 +350,78 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
 
   <div class="alerte-session" id="session" role="alert"><div id="session-corps" style="flex:1;min-width:260px"><b class="verrou-titre">🔒 Vérification de votre session…</b>Les chiffres s'affichent dès que la connexion est confirmée.</div></div>
 
-  <!-- ═════════ MAINTENANT ═════════ -->
+  <!-- ═════════ VUE D'ENSEMBLE ═════════ -->
   <section id="p-maintenant" role="tabpanel">
-    <div class="outils-volets"><span class="note">Cliquez un titre pour l'ouvrir. Cliquez un compte ou un type pour filtrer.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
-    <div class="pile">
-      <details class="carte vol" data-id="m-sante" data-res="sante"><summary><h2>Santé <small id="sante-etat-m"></small></h2><span class="res"></span></summary>
+    <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
+    <div class="dispo d21">
+      <details class="carte vol" open data-id="m-cours-m" data-res="cours"><summary><h2>En cours <small id="n-cours-m"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="encours-m"></div></div></details>
+      <details class="carte vol" open data-id="m-sante" data-res="sante"><summary><h2>À traiter <small id="sante-etat-m"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="sante-m"><div class="vide">Chargement…</div></div></div></details>
-      <details class="carte vol" data-id="m-cours" data-res="cours"><summary><h2>En cours <small id="n-cours"></small></h2><span class="res"></span></summary>
-        <div class="corps"><div class="encours" id="encours"></div></div></details>
-      <details class="carte vol" data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Conteneurs <small>état réel</small></h2><span class="res"></span></summary>
+    </div>
+    <div class="pile" style="margin-top:16px">
+      <details class="carte vol" open data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Conteneurs <small>état réel</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div></details>
-      <details class="carte vol" data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
+    </div>
+  </section>
+
+  <!-- ═════════ TRAVAUX ═════════ -->
+  <section id="p-travaux" role="tabpanel" hidden>
+    <div class="pile" style="margin-top:18px">
+      <details class="carte vol" open data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
+      <details class="carte vol" open data-id="m-cours" data-res="cours"><summary><h2>En cours <small id="n-cours"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="encours" id="encours"></div></div></details>
+      <details class="carte vol" open data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
+          <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Comptes.</p>
+        </div></details>
+    </div>
+  </section>
+
+  <!-- ═════════ AUDIENCE ═════════ -->
+  <section id="p-audience" role="tabpanel" hidden>
+    <div class="pile" style="margin-top:18px">
+      <details class="carte vol" open data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="en-ligne"></div></div></details>
+      <div class="kpis" id="kpis-audience" style="margin-bottom:0"></div>
+      <div class="dispo d11">
+        <details class="carte vol" open data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-act"></div></div></details>
+        <details class="carte vol" open data-id="u-ops" data-res="opsj"><summary><h2>Travaux lancés <small>par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-ops"></div></div></details>
+      </div>
+      <div class="dispo d11">
+        <details class="carte vol" open data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="b-pays"></div></div></details>
+        <div class="colonne">
+          <details class="carte vol" open data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
+        <div class="corps"><div id="b-canal"></div></div></details>
+          <details class="carte vol" open data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small>par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-dl"></div></div></details>
+        </div>
+      </div>
+      <p class="note" id="note-audience"></p>
     </div>
   </section>
 
   <!-- ═════════ ARGENT ═════════ -->
   <section id="p-argent" role="tabpanel" hidden>
-    <div class="kpis" id="kpis-argent"></div>
-    <div class="outils-volets"><span class="note">Les chiffres clés sont au-dessus. Ouvrez un titre pour le détail.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
+    <div class="kpis" id="kpis-argent" style="margin-top:18px"></div>
     <div class="pile">
-      <details class="carte vol" id="recon" data-id="a-recon" data-res="recon" data-def="1" hidden><summary><h2>Paiements encaissés, crédits non versés <small id="recon-n"></small></h2><span class="res"></span></summary>
+      <details class="carte vol" open id="recon" data-id="a-recon" data-res="recon" data-def="1" hidden><summary><h2>Paiements encaissés, crédits non versés <small id="recon-n"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <p class="note">Stripe a encaissé mais les crédits n'ont pas été versés (webhook manqué). Vérifiez le paiement dans Stripe, puis versez les crédits.</p>
           <div class="defil"><table><thead><tr><th data-tri="recon:created_at">Date</th><th data-tri="recon:email">Compte</th><th data-tri="recon:pack_id">Pack</th><th class="n" data-tri="recon:amount_eur">Montant</th><th>Session Stripe</th><th class="n" data-tri="recon:expected_credits">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
         </div></details>
-      <details class="carte vol" data-id="a-gpu" data-res="gpu"><summary><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><span class="res"></span></summary>
+      <div class="dispo d21">
+        <details class="carte vol" open data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
+          <p class="note" id="note-graphe"></p>
+        </div></details>
+        <details class="carte vol" open data-id="a-gpu" data-res="gpu"><summary><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <div id="gpu-detail"></div>
           <div id="lim-zone" class="confirm" hidden>
@@ -374,34 +432,31 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
             <div class="ligneform"><button type="button" class="btn prim" id="b-lim-ok" disabled>Enregistrer</button><button type="button" class="btn" id="b-lim-non">Annuler</button></div><div id="lim-err" class="msg-err"></div>
           </div>
         </div></details>
-      <details class="carte vol" data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
-          <p class="note" id="note-graphe"></p>
-        </div></details>
-      <details class="carte vol" data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
+      </div>
+      <details class="carte vol" open data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
         <div class="corps">
           <p class="note" id="resume-ops"></p>
           <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th class="n masque-etroit" data-tri="ops:prix" title="Valeur vendue par opération réussie">Prix / op</th><th class="n masque-etroit" data-tri="ops:coutop" title="Coût réel par opération, échecs inclus">Coût / op</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
           <p class="note" id="note-ops"></p>
         </div></details>
-      <details class="carte vol" data-id="a-achats" data-res="achats"><summary><h2>Achats Stripe <small id="resume-achats"></small></h2><span class="res"></span></summary>
+      <details class="carte vol" open data-id="a-achats" data-res="achats"><summary><h2>Achats Stripe <small id="resume-achats"></small></h2><span class="res"></span></summary>
         <div class="corps"><div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div></details>
-      <details class="carte vol" data-id="a-tarifs" data-res="tarifs"><summary><h2>Tarifs <small>crédits par opération</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="tarifs"></div></div></details>
-      <details class="carte vol" data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
+      <details class="carte vol" open data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
         <div class="corps"><div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div></div></details>
     </div>
   </section>
 
-  <!-- ═════════ UTILISATEURS ═════════ -->
-  <section id="p-users" role="tabpanel" hidden>
-    <div class="seg" role="group" aria-label="Sous-section" style="margin:14px 0 12px">
-      <button type="button" data-sub="comptes" aria-pressed="true">Comptes</button>
-      <button type="button" data-sub="origine" aria-pressed="false">Origine</button>
-      <button type="button" data-sub="messages" aria-pressed="false" id="sb-messages">Messages</button>
-      <button type="button" data-sub="market" aria-pressed="false" id="sb-market">Marketplace</button>
+  <!-- ═════════ TARIFS ═════════ -->
+  <section id="p-tarifs" role="tabpanel" hidden>
+    <div class="pile" style="margin-top:18px">
+      <details class="carte vol" open data-id="a-tarifs" data-res="tarifs"><summary><h2>Tarifs <small>crédits par opération</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="tarifs"></div></div></details>
     </div>
+  </section>
+
+  <!-- ═════════ COMPTES ═════════ -->
+  <section id="p-users" role="tabpanel" hidden>
+    <div style="margin-top:18px">
     <div id="sub-comptes" class="grille g3">
       <div class="carte"><h2>Comptes <small id="n-comptes"></small></h2>
         <label for="rech" class="sr">Rechercher un e-mail ou un identifiant</label>
@@ -424,70 +479,60 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="liste" id="liste-comptes" style="margin-top:10px"></div></div>
       <div class="carte fiche" id="fiche"><div class="vide">Choisissez un compte.</div></div>
     </div>
-    <div id="sub-origine" hidden>
-      <div class="kpis" id="kpis-audience"></div>
-      <div class="pile">
-      <details class="carte vol" data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="b-pays"></div></div></details>
-      <details class="carte vol" data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
-        <div class="corps"><div id="b-canal"></div></div></details>
-      <details class="carte vol" data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small>par jour</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="g-dl"></div></div></details>
-      </div>
-      <p class="note" id="note-audience"></p>
     </div>
-    <div id="sub-messages" hidden class="carte"><h2>Messages de contact <small id="n-msgs"></small></h2><div id="msgs"></div></div>
-    <div id="sub-market" hidden class="carte"><h2>Annonces <small id="n-annonces"></small></h2>
+  </section>
+
+  <!-- ═════════ MESSAGES ═════════ -->
+  <section id="p-messages" role="tabpanel" hidden>
+    <div style="margin-top:18px">
+    <div id="sub-messages" class="carte"><h2>Messages de contact <small id="n-msgs"></small></h2><div id="msgs"></div></div>
+    </div>
+  </section>
+
+  <!-- ═════════ MARKETPLACE ═════════ -->
+  <section id="p-marketplace" role="tabpanel" hidden>
+    <div style="margin-top:18px">
+    <div id="sub-market" class="carte"><h2>Annonces <small id="n-annonces"></small></h2>
       <div class="seg" role="group" aria-label="Statut" style="margin-bottom:10px">
         <button type="button" data-ms="pending" aria-pressed="true">À valider</button>
         <button type="button" data-ms="approved" aria-pressed="false">Publiées</button>
         <button type="button" data-ms="rejected" aria-pressed="false">Refusées</button>
       </div>
       <div id="annonces"></div></div>
+    </div>
   </section>
 
-  <!-- ═════════ AUDIENCE ═════════ -->
-  <section id="p-audience" role="tabpanel" hidden>
-    <div class="outils-volets"><span class="note">Ce qui s'est passé : derniers travaux, créations, activité par jour. Le direct est dans Maintenant ; l'origine des comptes est dans Utilisateurs.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
-    <div class="pile">
-      <details class="carte vol" data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
-        <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
-      <details class="carte vol" data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
-          <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
-        </div></details>
-      <details class="carte vol" data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="g-act"></div></div></details>
-      <details class="carte vol" data-id="u-ops" data-res="opsj"><summary><h2>Travaux lancés <small>par jour</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="g-ops"></div></div></details>
-    </div>
-    </section>
-
-  <!-- ═════════ SYSTÈME ═════════ -->
+  <!-- ═════════ SANTE ═════════ -->
   <section id="p-systeme" role="tabpanel" hidden>
-    <div class="outils-volets"><span class="note">Chaque ligne résume l'état. Ouvrez-la pour agir.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
-    <div class="pile">
-      <details class="carte vol" data-id="s-kill" data-res="kill"><summary><h2>Interrupteurs d'urgence <small>un service coupé alerte le bandeau</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="kill"></div></div></details>
-      <details class="carte vol" data-id="s-warm" data-res="warm"><summary><h2>Conteneurs chaud / froid <small>chaud = prêt, mais facturé</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="warm"></div></div></details>
-      <details class="carte vol" data-id="s-sante" data-res="sante"><summary><h2>Santé <small id="sante-etat"></small></h2><span class="res"></span></summary>
+    <div class="dispo d32" style="margin-top:18px">
+      <details class="carte vol" open data-id="s-sante" data-res="sante"><summary><h2>Santé <small id="sante-etat"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="sante"></div></div></details>
-      <details class="carte vol" data-id="s-securite" data-res="securite"><summary><h2>Sécurité</h2><span class="res"></span></summary>
-        <div class="corps"><div id="securite"></div></div></details>
-      <details class="carte vol" data-id="s-audit" data-res="audit"><summary><h2>Journal d'audit <small>actions de l'administrateur</small></h2><span class="res"></span></summary>
+      <div class="colonne">
+        <details class="carte vol" open data-id="s-kill" data-res="kill"><summary><h2>Interrupteurs d'urgence <small>un service coupé alerte le bandeau</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="kill"></div></div></details>
+        <details class="carte vol" open data-id="s-warm" data-res="warm"><summary><h2>Conteneurs chaud / froid <small>chaud = prêt, mais facturé</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="warm"></div></div></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ JOURNAL ═════════ -->
+  <section id="p-journal" role="tabpanel" hidden>
+    <div class="pile" style="margin-top:18px">
+      <details class="carte vol" open data-id="s-audit" data-res="audit"><summary><h2>Journal d'audit <small>actions de l'administrateur</small></h2><span class="res"></span></summary>
         <div class="corps">
           <div class="ligneform"><label for="audit-jour">Jour</label><input type="date" id="audit-jour" style="width:170px"><button type="button" class="btn petit" id="b-audit">Afficher</button></div>
           <div class="defil"><table><thead><tr><th data-tri="audit:ts">Heure</th><th data-tri="audit:actor">Acteur</th><th data-tri="audit:ip">IP</th><th data-tri="audit:action">Action</th><th data-tri="audit:target">Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div>
         </div></details>
-      <details class="carte vol" data-id="s-diag" data-res="diag"><summary><h2>Diagnostic <small>opérations récentes et journaux envoyés par les appareils</small></h2><span class="res"></span></summary>
+      <details class="carte vol" open data-id="s-diag" data-res="diag"><summary><h2>Diagnostic <small>opérations récentes et journaux envoyés par les appareils</small></h2><span class="res"></span></summary>
         <div class="corps">
           <div class="ligneform"><input type="text" id="dbg-compte" class="large" placeholder="E-mail ou identifiant du compte (vide = tous)" autocomplete="off"><select id="dbg-limite" style="width:auto" aria-label="Nombre de lignes à afficher"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="dbg-echecs" style="width:auto"> échecs seulement</label><button type="button" class="btn petit prim" id="b-dbg">Afficher</button><button type="button" class="btn petit" id="b-dbg-dernier" title="Ouvrir le dernier journal envoyé par un appareil">Dernier journal</button></div>
           <h3>Opérations</h3><div class="defil haut"><table><thead><tr><th data-tri="dbg:date">Quand</th><th data-tri="dbg:email">Compte</th><th data-tri="dbg:operation">Opération</th><th data-tri="dbg:status">Statut</th><th class="n" data-tri="dbg:duree_s">Durée</th><th class="n" data-tri="dbg:credits">Crédits</th><th></th></tr></thead><tbody id="dbg-traces"><tr><td colspan="7" class="vide">Cliquez sur « Afficher ».</td></tr></tbody></table></div>
           <h3>Journaux envoyés par les appareils <small id="dbg-logs-n" class="note"></small></h3><div class="defil haut"><table><thead><tr><th data-tri="dbglog:uploaded">Envoyé</th><th data-tri="dbglog:email">Compte</th><th data-tri="dbglog:kind">Type</th><th data-tri="dbglog:status">État</th><th data-tri="dbglog:project">Projet</th><th class="n" data-tri="dbglog:size">Taille</th><th></th></tr></thead><tbody id="dbg-logs"></tbody></table></div>
           <div id="dbg-wrap" hidden class="boite" style="margin-top:12px"><div class="ligneform" style="justify-content:space-between"><b id="dbg-titre"></b><span><button type="button" class="btn petit" id="dbg-copier">Copier</button> <button type="button" class="btn petit" id="dbg-telecharger">Télécharger</button> <button type="button" class="btn petit" id="dbg-fermer">Fermer</button></span></div><pre id="dbg-viewer" style="max-height:420px;overflow:auto;font:12px var(--mono)"></pre></div>
         </div></details>
+      <details class="carte vol" open data-id="s-securite" data-res="securite"><summary><h2>Sécurité</h2><span class="res"></span></summary>
+        <div class="corps"><div id="securite"></div></div></details>
     </div>
   </section>
 
@@ -659,6 +704,7 @@ async function http(path, opts) {
 function silencieux(p) { return p.catch(function () { return null; }); }
 
 /* ───────────────────────── rendu : outils ───────────────────────── */
+function sur() { for (var i = 0; i < arguments.length; i++) if (arguments[i] === S.tab) return true; return false; }
 function majSiChange(el, html) { if (!el) return false; if (el._h === html) return false; el._h = html; el.innerHTML = html; return true; }
 function lien(f, v, txt) { var a = S.filt[f] === v; return '<button type="button" class="lien' + (a ? ' actif' : '') + '" data-f="' + f + '" data-v="' + esc(v) + '">' + esc(txt) + '</button>'; }
 function pillStatut(st) {
@@ -720,21 +766,21 @@ function barresRecent(id, serie) {
 }
 
 /* ───────────────────────── chargements ───────────────────────── */
-async function chargerLive() { var j = await silencieux(http('/api/admin/live?n=100')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (S.tab === 'maintenant' || S.tab === 'audience') renderMaintenant(); majHorloge(); } }
+async function chargerLive() { var j = await silencieux(http('/api/admin/live?n=100')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (sur('maintenant', 'travaux', 'audience')) renderMaintenant(); majHorloge(); } }
 async function chargerServices() {
   var r = await Promise.all([silencieux(http('/api/admin/services')), silencieux(http('/api/admin/market/killswitch'))]);
   if (r[0]) { S.svc = r[0]; S.mkt = r[1] && r[1].killswitch ? r[1].killswitch : { enabled: false }; renderBandeau(); if (S.tab === 'systeme') renderKill(); }
 }
 async function chargerPrevision() { var j = await silencieux(http('/api/admin/modal-credits?legere=1')); if (j && j.prevision) { S.prev = j.prevision; renderBandeau(); if (S.tab === 'argent') renderGpu(); } }
-async function chargerBadges() { var j = await silencieux(http('/api/admin/badges')); if (j) { S.badges = j; var n = (j.messages_unread || 0) + (j.market_pending || 0); var b = $('#b-users'); b.textContent = n; b.hidden = !n; majSousBadges(); } }
+async function chargerBadges() { var j = await silencieux(http('/api/admin/badges')); if (j) { S.badges = j; majSousBadges(); } }
 async function chargerPaiements() { var j = await silencieux(http('/api/admin/payments')); if (j) { S.pay = j; renderBandeau(); if (S.tab === 'argent') renderAchats(); } }
 async function chargerStats(force) {
   if (!force && S.stats && Date.now() - S.statsAt < 120000) return;
-  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); if (S.tab === 'maintenant') { renderSante(); majResumes(); } if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience' || S.tab === 'users') renderAudience(); if (S.tab === 'systeme') { renderSante(); majResumes(); } }
+  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); renderSante(); if (S.tab === 'maintenant') majResumes(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience') renderAudience(); if (S.tab === 'systeme') majResumes(); }
 }
 async function chargerAudience() {
   var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
-  var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'audience' || S.tab === 'users') renderAudience(); }
+  var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'audience') renderAudience(); }
 }
 S.lb = -1; S.usersActifs = false;
 function heuresPer() { return S.per === '6h' ? 6 : S.per === '24h' ? 24 : S.per === '30j' ? 720 : 168; }
@@ -862,12 +908,12 @@ async function chargerArgentRecent(force) {
   if (j) { S.rec = j; S.recAt = Date.now(); if (S.tab === 'argent') renderArgent(); }
 }
 async function chargerModalStatus() { var j = await silencieux(http('/api/admin/modal-status')); if (j) { S.modal = j; if (S.tab === 'systeme') renderWarm(); if (S.tab === 'maintenant') renderConteneurs(); } }
-async function chargerSante() { var j = await silencieux(http('/api/admin/sante.json')); if (j) { S.sante = j; if (S.tab === 'systeme' || S.tab === 'maintenant') renderSante(); } chargerStats(); }
-async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/status')); if (j) { S.totp = j; if (S.tab === 'systeme') renderSecurite(); } }
+async function chargerSante() { var j = await silencieux(http('/api/admin/sante.json')); if (j) { S.sante = j; renderSante(); } chargerStats(); }
+async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/status')); if (j) { S.totp = j; if (S.tab === 'journal') renderSecurite(); } }
 async function chargerUsers() { var j = await silencieux(http('/api/admin/users')); if (j) { S.users = j; if (S.tab === 'users') renderUsers(); } }
-async function chargerMessages() { var j = await silencieux(http('/api/admin/contact-messages')); if (j) { S.msgs = j.messages || []; if (S.tab === 'users') renderMessages(); majSousBadges(); } }
-async function chargerAnnonces() { var j = await silencieux(http('/api/admin/market/list')); if (j) { S.listings = j.listings || []; S.offerts = j.offerts || []; S.offertsMax = j.offerts_max || 5; if (S.tab === 'users') renderAnnonces(); majSousBadges(); } }
-async function chargerPricing() { var j = await silencieux(http('/api/admin/pricing')); if (j) { S.pricing = { defaults: j.defaults || {}, current: Object.assign({}, j.defaults || {}, j.current || {}) }; if (S.tab === 'argent') renderTarifs(); } }
+async function chargerMessages() { var j = await silencieux(http('/api/admin/contact-messages')); if (j) { S.msgs = j.messages || []; if (S.tab === 'messages') renderMessages(); majSousBadges(); } }
+async function chargerAnnonces() { var j = await silencieux(http('/api/admin/market/list')); if (j) { S.listings = j.listings || []; S.offerts = j.offerts || []; S.offertsMax = j.offerts_max || 5; if (S.tab === 'marketplace') renderAnnonces(); majSousBadges(); } }
+async function chargerPricing() { var j = await silencieux(http('/api/admin/pricing')); if (j) { S.pricing = { defaults: j.defaults || {}, current: Object.assign({}, j.defaults || {}, j.current || {}) }; if (S.tab === 'tarifs') renderTarifs(); } }
 async function chargerAudit() {
   var jour = $('#audit-jour').value || new Date().toISOString().slice(0, 10);
   var j = await silencieux(http('/api/admin/audit?day=' + encodeURIComponent(jour)));
@@ -924,8 +970,9 @@ function renderChips() {
 function majSousBadges() {
   var m = S.msgs ? S.msgs.filter(function (x) { return !x.read; }).length : (S.badges ? S.badges.messages_unread : 0);
   var a = S.listings ? S.listings.filter(function (x) { return x.status === 'pending'; }).length : (S.badges ? S.badges.market_pending : 0);
-  $('#sb-messages').textContent = 'Messages' + (m ? ' (' + m + ')' : '');
-  $('#sb-market').textContent = 'Marketplace' + (a ? ' (' + a + ')' : '');
+  var bm = $('#b-messages'), ba = $('#b-market');
+  if (bm) { bm.textContent = m; bm.hidden = !m; }
+  if (ba) { ba.textContent = a; ba.hidden = !a; }
 }
 
 /* ───────────────────────── Maintenant ───────────────────────── */
@@ -940,6 +987,19 @@ function renderConteneurs() {
     return '<span style="border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px">' + NOMS_CONT[k] + ' <b style="color:' + t[1] + '">● ' + t[0] + '</b></span>';
   }).join(''));
 }
+function renderEncoursCompact(enc, L) {
+  var tot = (L.en_cours || []).length, n = enc.length, bt = $('#b-travaux');
+  if (bt) { bt.textContent = tot; bt.hidden = !tot; }
+  var nc = $('#n-cours-m'); if (nc) nc.textContent = n + ' sur ' + tot;
+  majSiChange($('#encours-m'), (n ? '<div class="defil"><table><tbody>' + enc.slice(0, 6).map(function (x) {
+    return '<tr><td>' + esc(x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td class="coupe">' + esc(nomCompte(x.email)) + '</td><td class="n tn">' + pillStatut(x.statut) + ' <span data-age0="' + (x.age_s || 0) + '"></span></td></tr>';
+  }).join('') + '</tbody></table></div>' + (n > 6 ? '<div class="note">et ' + (n - 6) + ' autre(s)…</div>' : '') : '<div class="vide">Aucun travail en cours' + (S.filt.compte || S.filt.type ? ' pour ce filtre' : '') + '.</div>')
+    + (function () {
+      var bq = (S.bloques || []).filter(function (x) { return (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); });
+      return bq.length ? '<div class="note" style="color:var(--warn)">' + bq.length + (bq.length > 1 ? ' travaux bloqués' : ' travail bloqué') + ' depuis plus de 3 h : à arrêter pour rembourser.</div>' : '';
+    })()
+    + '<div style="margin-top:8px"><button type="button" class="lienclair" data-goto="travaux">Tous les travaux →</button></div>');
+}
 function renderMaintenant() {
   var L = S.live; if (!L) return;
   var enc = (L.en_cours || []).filter(filtreEvt);
@@ -952,6 +1012,7 @@ function renderMaintenant() {
   function fen(t, w) { return cellule(t, w ? w.lances : '—', w ? w.reussis + ' ok · ' + w.echecs + ' échec' + (w.echecs > 1 ? 's' : '') + ' · ' + w.credits + ' cr.' : '', w && w.echecs ? 'vigil' : ''); }
   majSiChange($('#fenetres'), fen('5 min', f.m5) + fen('15 min', f.m15) + fen('1 h', f.h1));
   if (L.serie_5min && L.serie_5min.length) barresRecent('g-heure', L.serie_5min); else majSiChange($('#g-heure'), '');
+  renderEncoursCompact(enc, L);
   renderConteneurs();
   var el = L.en_ligne || [];
   $('#n-ligne').textContent = el.filter(function (x) { return x.en_ligne; }).length + ' en ligne · ' + el.length + ' vus sur 15 min';
@@ -1078,7 +1139,7 @@ async function chargerModalFull(force) {
   try { var j = await http('/api/admin/modal-credits'); if (j && j.prevision) { S.mfull = j; S.mfullAt = Date.now(); S.mfullErr = ''; } }
   catch (er) { if (!S.mfull) S.mfullErr = er.message; }
   if (S.tab === 'argent') renderGpu();
-  if (S.tab === 'maintenant' || S.tab === 'systeme') renderSante();
+  renderSante();
 }
 function ligneProt(cls, titre, etat, detail) {
   return '<div class="sw"><div class="gauche"><div>' + esc(titre) + ' <span class="pill ' + cls + '">' + esc(etat) + '</span></div>' + (detail ? '<div class="d">' + detail + '</div>' : '') + '</div></div>';
@@ -1120,7 +1181,7 @@ function htmlGpuPlus() {
   if (rp) h += '<p class="note">Compte administrateur : ' + pl(Number(rp.admin_ops) || 0, 'calcul', 'calculs') + ', ≈ ' + usd(rp.admin_usd) + '. Clients : ' + pl(Number(rp.clients_ops) || 0, 'calcul', 'calculs') + ' (' + pl(Number(rp.clients_comptes) || 0, 'compte', 'comptes') + '), ≈ ' + usd(rp.clients_usd) + '.'
     + (rp.technique_usd != null && Number(rp.technique_usd) >= 0.01 ? ' Reste de la facture ≈ ' + usd(rp.technique_usd) + ' : démarrage et veille des serveurs, mises en ligne, essais.' : '') + ' (estimations par calcul' + (rp.tronque ? ', liste tronquée' : '') + ')</p>';
   h += '</div></details>';
-  h += '<div class="note">Les protections automatiques (arrêt à 100 %, relevé de la facture, e-mail d\'alerte, interrupteur, plafond des comptes gratuits) sont dans <b>Santé</b> (onglets Maintenant et Système).</div>';
+  h += '<div class="note">Les protections automatiques (arrêt à 100 %, relevé de la facture, e-mail d\'alerte, interrupteur, plafond des comptes gratuits) sont dans l\'onglet <b>Santé</b>.</div>';
   return h;
 }
 function renderGpu() {
@@ -1169,12 +1230,7 @@ function renderTarifs() {
 }
 
 /* ───────────────────────── Utilisateurs ───────────────────────── */
-function renderUsers() {
-  $$('[data-sub]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.sub === S.sub); });
-  ['comptes', 'origine', 'messages', 'market'].forEach(function (k) { $('#sub-' + k).hidden = S.sub !== k; });
-  majSousBadges();
-  if (S.sub === 'comptes') renderComptes(); else if (S.sub === 'origine') renderAudience(); else if (S.sub === 'messages') renderMessages(); else renderAnnonces();
-}
+function renderUsers() { majSousBadges(); renderComptes(); }
 function renderComptes() {
   var U = S.users;
   if (!U) { $('#liste-comptes').innerHTML = '<div class="vide">Chargement…</div>'; return; }
@@ -1204,21 +1260,21 @@ function renderFiche() {
   box.dataset.uid = u.id;
   box.innerHTML = '<h2>' + esc(u.email || u.id) + ' <small>inscrit le ' + esc(dateFr(u.created_at)) + (u.banned ? ' · <b style="color:var(--err)">bloqué</b>' : '') + '</small></h2><dl>' + fichesStats(u) + '</dl>'
     + '<details class="vol mini" data-id="f-credits"><summary>Ajuster les crédits</summary><div class="corps"><div class="ligneform"><label for="aj">Variation</label><input type="number" id="aj" value="50" step="10"><input type="text" id="aj-motif" class="large" placeholder="Motif (obligatoire, tracé dans l\'audit)"><input type="password" id="aj-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim" id="b-aj">Appliquer</button></div><div id="aj-msg" class="note" aria-live="polite"></div></div></details>'
-    + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux et achats</button> <button type="button" class="btn" data-actifs="meshes">Maillages</button> <button type="button" class="btn" data-actifs="rigs">Rigs</button> <button type="button" class="btn" data-actifs="animations">Animations</button> <a class="btn" href="/market/author?id=' + encodeURIComponent(u.id) + '" target="_blank" rel="noopener">Profil public ↗</a></div><div id="ban-confirm"></div>'
-    + '<div id="actifs"></div>' + htmlCreationsFiche();
+    + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux et achats</button> <button type="button" class="btn" data-actifs="meshes">Maillages (' + num(u.meshes_count) + ')</button> <button type="button" class="btn" data-actifs="rigs">Rigs (' + num(u.rigs_count) + ')</button> <button type="button" class="btn" data-actifs="animations">Animations (' + num(u.animations_count) + ')</button> <a class="btn" href="/market/author?id=' + encodeURIComponent(u.id) + '" target="_blank" rel="noopener">Profil public ↗</a></div><div id="ban-confirm"></div>'
+    + '<div id="actifs"></div>' + htmlCreationsFiche(u);
   appliquerVolets(box);
   if (voletOuvert('f-creations')) { renderGalerie(); chargerImages(); }
 }
 /* Creations du compte choisi : gallery + parametres (images, 3D, rigs, animations, editions). Ouverte par defaut : c'est ce qu'on vient chercher dans la fiche. */
-function htmlCreationsFiche() {
+function htmlCreationsFiche(u) {
   return '<details class="vol mini" data-id="f-creations" data-def="1"><summary>Créations <small id="n-imgs"></small></summary><div class="corps">'
     + '<div class="onglets" role="tablist" id="cre-onglets" aria-label="Type de création">'
-    + ['projets:Projets', 'images:Images', '3d:3D', 'rigs:Rigs', 'animations:Animations', 'editions:Éditions'].map(function (x) { var k = x.split(':')[0]; return '<button type="button" role="tab" data-cre="' + k + '" aria-selected="' + (S.cre.onglet === k) + '">' + x.split(':')[1] + '</button>'; }).join('')
+    + ['projets:Projets (' + num(u.projects_count) + ')', 'images:Images', '3d:3D', 'rigs:Rigs', 'animations:Animations', 'editions:Éditions'].map(function (x) { var k = x.split(':')[0]; return '<button type="button" role="tab" data-cre="' + k + '" aria-selected="' + (S.cre.onglet === k) + '">' + x.split(':')[1] + '</button>'; }).join('')
     + '</div><div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-imgs">Actualiser</button><span class="note" id="cre-note"></span><span class="note">Cliquez pour voir les paramètres.</span></div>'
     + '<div class="galerie" id="galerie"><div class="vide">Chargement…</div></div></div></details>';
 }
 function fichesStats(u) {
-  return '<div><dt>Crédits</dt><dd class="tn">' + num(u.credits) + '</dd></div><div><dt>Travaux</dt><dd class="tn">' + num(u.ops_total) + '</dd></div><div><dt>Échecs</dt><dd class="tn">' + num(u.ops_failed) + (u.ops_total ? ' <small style="font-size:12px;font-weight:400;color:' + (u.ops_failed / u.ops_total > 0.2 ? 'var(--err)' : 'var(--text-2)') + '">' + (100 * u.ops_failed / u.ops_total).toFixed(u.ops_failed / u.ops_total >= 0.1 ? 0 : 1) + ' %</small>' : '') + '</dd></div><div><dt>Crédits dépensés</dt><dd class="tn">' + num(u.credits_spent) + '</dd></div><div><dt>Projets</dt><dd class="tn">' + num(u.projects_count) + '</dd></div><div><dt>Maillages</dt><dd class="tn">' + num(u.meshes_count) + '</dd></div><div><dt>Rigs</dt><dd class="tn">' + num(u.rigs_count) + '</dd></div><div><dt>Animations</dt><dd class="tn">' + num(u.animations_count) + '</dd></div>';
+  return '<div><dt>Crédits</dt><dd class="tn">' + num(u.credits) + '</dd></div><div><dt>Travaux</dt><dd class="tn">' + num(u.ops_total) + '</dd></div><div><dt>Échecs</dt><dd class="tn">' + num(u.ops_failed) + (u.ops_total ? ' <small style="font-size:12px;font-weight:400;color:' + (u.ops_failed / u.ops_total > 0.2 ? 'var(--err)' : 'var(--text-2)') + '">' + (100 * u.ops_failed / u.ops_total).toFixed(u.ops_failed / u.ops_total >= 0.1 ? 0 : 1) + ' %</small>' : '') + '</dd></div><div><dt>Crédits dépensés</dt><dd class="tn">' + num(u.credits_spent) + '</dd></div>';
 }
 function renderMessages() {
   var M = S.msgs, box = $('#msgs');
@@ -1360,11 +1416,15 @@ function santeAlertes(L) { return L.filter(function (x) { return x.cls === 'warn
 function renderSante() {
   var s = S.sante, boxes = [$('#sante'), $('#sante-m')].filter(Boolean);
   if (!s) { boxes.forEach(function (b) { b.innerHTML = '<div class="vide">Chargement…</div>'; }); return; }
-  var L = lignesSante(), nb = santeAlertes(L).length;
+  var L = lignesSante(), mal = santeAlertes(L), bien = L.filter(function (x) { return !(x.cls === 'warn' || x.cls === 'err'); }), nb = mal.length;
   var pill = s.pret_a_vendre && !nb ? '<span class="pill ok">prêt à vendre</span>' : '<span class="pill warn">' + nb + ' point(s) à traiter</span>';
   ['#sante-etat', '#sante-etat-m'].forEach(function (id) { var e = $(id); if (e) e.innerHTML = pill; });
-  var html = L.map(function (x) { return ligneProt(x.cls, x.titre, x.etat, x.detail); }).join('') + '<div class="note">' + esc(s.note || '') + '</div>';
-  boxes.forEach(function (b) { majSiChange(b, html); });
+  var bs = $('#b-sante'); if (bs) { bs.textContent = nb; bs.hidden = !nb; }
+  var ligne = function (x) { return ligneProt(x.cls, x.titre, x.etat, x.detail); };
+  /* Une seule liste, triee par urgence (user : « pourraient etre groupes dans Sante »). Vue d'ensemble n'en montre que les points a traiter. */
+  majSiChange($('#sante'), '<h3 class="grp-t">À traiter <span class="pill ' + (nb ? 'warn' : 'ok') + '">' + nb + '</span></h3>' + (nb ? mal.map(ligne).join('') : '<div class="vide">Rien à traiter.</div>')
+    + '<h3 class="grp-t">En ordre <span class="pill ok">' + bien.length + '</span></h3>' + bien.map(ligne).join('') + '<div class="note">' + esc(s.note || '') + '</div>');
+  majSiChange($('#sante-m'), (nb ? mal.map(ligne).join('') : '<div class="vide">Tout est en ordre.</div>') + '<div style="margin-top:8px"><button type="button" class="lienclair" data-goto="systeme">Ouvrir Santé →</button></div>');
 }
 function renderSecurite() {
   var t = S.totp, box = $('#securite');
@@ -1399,25 +1459,32 @@ function renderAll() {
   $$('[data-tab]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === S.tab); if (b.getAttribute('role') === 'tab') b.tabIndex = b.dataset.tab === S.tab ? 0 : -1; });
   $$('section[role=tabpanel]').forEach(function (p) { p.hidden = p.id !== 'p-' + S.tab; });
   $$('[data-per]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.per === S.per); });
-  $('#l4').hidden = S.tab === 'systeme' || S.tab === 'maintenant';
-  $('#per-note').textContent = S.tab === 'maintenant' ? '' : S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs, pays et canaux sur la période' : S.tab === 'audience' ? 'fenêtre des travaux, créations et courbes' : '';
-  if (S.tab === 'maintenant' || S.tab === 'audience') renderMaintenant();      // « Derniers travaux » et « Activité récente » vivent dans Audience
+  $('#l4').hidden = !sur('audience', 'argent', 'users');
+  $('#per-note').textContent = S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'audience' ? 'fenêtre des courbes, pays et canaux' : '';
+  if (sur('maintenant', 'travaux', 'audience')) renderMaintenant();      // en cours, derniers travaux, en ligne : un seul rendu, plusieurs onglets
   if (S.tab === 'maintenant') renderSante();
-  if (S.tab === 'argent') { renderArgent(); renderAchats(); renderTarifs(); }
+  if (S.tab === 'argent') { renderArgent(); renderAchats(); }
+  if (S.tab === 'tarifs') { S.tarifs = true; renderTarifs(); }
   if (S.tab === 'users') renderUsers();
-  if (S.tab === 'audience' || S.tab === 'users') renderAudience();
-  if (S.tab === 'systeme') { renderKill(); renderWarm(); renderSante(); renderSecurite(); }
-  majResumes();
+  if (S.tab === 'messages') renderMessages();
+  if (S.tab === 'marketplace') renderAnnonces();
+  if (S.tab === 'audience') renderAudience();
+  if (S.tab === 'systeme') { renderKill(); renderWarm(); renderSante(); }
+  if (S.tab === 'journal') renderSecurite();
+  majSousBadges(); majResumes();
 }
 function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
   if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); chargerSante(); chargerModalFull(); renderSante(); }
-  if (t === 'audience') chargerLive();
+  if (t === 'travaux') { chargerLive(); chargerBloques(); }
+  if (t === 'audience') { chargerLive(); chargerStats(); chargerAudience(); }
   if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); }
-  if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); if (!S.stats) chargerStats(); if (!S.aud || S.audPer !== S.per) chargerAudience(); }
-  if (t === 'audience') { chargerStats(); chargerAudience(); }
-  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerModalFull(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
+  if (t === 'users') { if (!S.users) chargerUsers(); if (!S.stats) chargerStats(); }
+  if (t === 'messages') { if (!S.msgs) chargerMessages(); }
+  if (t === 'marketplace') { if (!S.listings) chargerAnnonces(); }
+  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerModalFull(); }
+  if (t === 'journal') { chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
   chargerVolets();
 }
 function selectionnerCompteParEmail(email) {
@@ -1432,9 +1499,8 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'audience') chargerImages(); return; }
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
-  if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('audience'); }
-  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience' || S.tab === 'users') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
-  if ((b = t.closest('[data-sub]'))) { S.sub = b.dataset.sub; return renderUsers(); }
+  if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('travaux'); }
+  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
   if ((b = t.closest('[data-ser]'))) { S.series[b.dataset.ser] = !S.series[b.dataset.ser]; return renderArgent(); }
@@ -1892,7 +1958,7 @@ async function chargerBloques() {
   var j = await silencieux(http('/api/admin/jobs/active')); if (!j) return;
   var lim = Date.now() - 3 * 3600e3;
   S.bloques = (j.jobs || []).filter(function (x) { return Date.parse(x.created_at) < lim; });
-  if (S.tab === 'maintenant' || S.tab === 'audience') { $('#encours')._h = null; renderMaintenant(); }
+  if (sur('maintenant', 'travaux', 'audience')) { $('#encours')._h = null; renderMaintenant(); }
   majResumes();
 }
 function htmlBloques() {
@@ -1916,7 +1982,10 @@ var VOLETS = {};
 try { VOLETS = JSON.parse(localStorage.getItem('admin2.volets') || '{}') || {}; } catch (_) { VOLETS = {}; }
 function sauverVolets() { try { localStorage.setItem('admin2.volets', JSON.stringify(VOLETS)); } catch (_) {} }
 function appliquerVolets(racine) {
-  $$('details.vol[data-id]', racine).forEach(function (d) { var v = VOLETS[d.dataset.id], ouvert = v == null ? d.dataset.def === '1' : !!v; if (d.open !== ouvert) d.open = ouvert; });
+  $$('details.vol[data-id]', racine).forEach(function (d) {
+    if (d.classList.contains('carte')) { if (!d.open) d.open = true; return; }       // plan A : les cartes sont toujours ouvertes
+    var v = VOLETS[d.dataset.id], ouvert = v == null ? d.dataset.def === '1' : !!v; if (d.open !== ouvert) d.open = ouvert;
+  });
 }
 function voletOuvert(id) { var d = document.querySelector('details.vol[data-id="' + id + '"]'); return !!(d && d.open); }
 function memoriserVolet(d) { VOLETS[d.dataset.id] = d.open; sauverVolets(); }
@@ -1936,12 +2005,13 @@ function surVolet(d) {
 function chargerVolets() {
   var t = S.tab;
   if (t === 'users') chargerImages();
-  if (t === 'argent') { S.tarifs = voletOuvert('a-tarifs'); if (S.tarifs && !S.pricing) chargerPricing(); renderTarifs(); if (voletOuvert('a-gpu')) chargerModalFull(); }
-  if (t === 'systeme') { if (voletOuvert('s-diag')) chargerDebug(); if (voletOuvert('s-audit')) chargerAudit(); }
+  if (t === 'argent') chargerModalFull();
+  if (t === 'tarifs') { S.tarifs = true; if (!S.pricing) chargerPricing(); renderTarifs(); }
+  if (t === 'journal') { chargerDebug(); chargerAudit(); }
 }
 document.addEventListener('click', function (e) {
   var sm = e.target.closest ? e.target.closest('details.vol > summary') : null;
-  if (sm) { var d = sm.parentNode; setTimeout(function () { memoriserVolet(d); surVolet(d); majResumes(); }, 0); return; }
+  if (sm) { var d = sm.parentNode; if (d.classList.contains('carte')) { if (!e.target.closest('button,a,input,select,label')) e.preventDefault(); return; } setTimeout(function () { memoriserVolet(d); surVolet(d); majResumes(); }, 0); return; }
   var b = e.target.closest ? e.target.closest('[data-volets]') : null;
   if (b) {
     var v = b.dataset.volets === '1';
@@ -2046,8 +2116,8 @@ cadence(function () { chargerServices(); }, 30000);
 cadence(function () { chargerPrevision(); }, 60000);
 cadence(function () { chargerBadges(); }, 30000);
 cadence(function () { chargerPaiements(); }, 300000);
-cadence(function () { if (S.tab === 'maintenant') chargerBloques(); }, 60000);
-cadence(function () { if (S.tab === 'argent' && voletOuvert('a-gpu')) chargerModalFull(); }, 120000);
+cadence(function () { if (sur('maintenant', 'travaux')) chargerBloques(); }, 60000);
+cadence(function () { if (S.tab === 'argent') chargerModalFull(); }, 120000);
 cadence(function () { if (S.tab === 'maintenant' || S.tab === 'systeme') { chargerModalFull(); if (S.tab === 'maintenant') chargerSante(); } }, 120000);
 cadence(function () { if (S.tab === 'systeme' || S.tab === 'maintenant') chargerModalStatus(); }, 8000);
 cadence(function () { if (S.tab === 'argent' || S.tab === 'audience') chargerStats(true); }, 300000);
@@ -2108,10 +2178,10 @@ document.addEventListener('keydown', function (e) {
 
 /* ───────────────────────── démarrage ───────────────────────── */
 var depart = (location.hash || '').replace('#', '');
-if (['maintenant', 'argent', 'users', 'audience', 'systeme'].indexOf(depart) >= 0) S.tab = depart;
+if (['maintenant', 'travaux', 'audience', 'argent', 'tarifs', 'users', 'messages', 'marketplace', 'systeme', 'journal'].indexOf(depart) >= 0) S.tab = depart;
 cablerOnglets(); appliquerVolets(document);
 renderAll(); etiqueterChamps();
-chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus();
+chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); chargerSante();
 ouvrirOnglet(S.tab);
 })();
 </script>

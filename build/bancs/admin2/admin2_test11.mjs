@@ -6,7 +6,7 @@ export default async function run(page) {
   await page.setViewportSize({ width: 1300, height: 900 });
   await page.evaluate(() => { try { localStorage.removeItem('admin2.volets'); } catch (_) {} });
   await page.reload(); await page.waitForTimeout(2500);
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
+  await page.click('[data-tab="users"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
   r.volet = await page.evaluate(() => document.querySelector('details[data-id="f-creations"]').open);
   r.onglets = (await page.locator('#cre-onglets button').allInnerTexts()).map((x) => x.trim());
   r.actif = await page.evaluate(() => document.querySelector('#cre-onglets [aria-selected="true"]').dataset.cre);

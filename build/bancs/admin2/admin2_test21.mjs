@@ -5,12 +5,12 @@ export default async function run(page) {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => { try { localStorage.removeItem('admin2.volets'); } catch (_) {} });
   await page.goto(new URL(page.url()).origin + '/admin2#users'); await page.reload(); await page.waitForTimeout(1500);
-  // Activite : plus de volet global
-  await page.click('[data-tab="audience"]'); await page.waitForTimeout(800);
-  ok((await page.locator('#p-audience details[data-id="m-creations"]').count()) === 0, 'Activité : le volet Créations global existe encore');
-  ok((await page.locator('#galerie').count()) === 0, 'Activité : une galerie traîne');
+  // Travaux : plus de volet global
+  await page.click('[data-tab="travaux"]'); await page.waitForTimeout(800);
+  ok((await page.locator('#p-travaux details[data-id="m-creations"]').count()) === 0, 'Travaux : le volet Créations global existe encore');
+  ok((await page.locator('#galerie').count()) === 0, 'Travaux : une galerie traîne');
   // Utilisateurs : rien tant qu'aucun compte n'est choisi
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000);
+  await page.click('[data-tab="users"]'); await page.waitForTimeout(1000);
   ok((await page.locator('#galerie').count()) === 0, 'Créations visibles sans compte choisi');
   // compte 1
   await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
@@ -19,7 +19,7 @@ export default async function run(page) {
   const v1 = await page.locator('#galerie .vignette').count(); r.infos.compte1 = { nom1, v1 };
   ok(v1 >= 1, 'compte 1 : aucune vignette');
   const onglets = (await page.locator('#cre-onglets button').allInnerTexts()).map((x) => x.trim());
-  r.infos.onglets = onglets; ok(onglets.join('|') === 'Projets|Images|3D|Rigs|Animations|Éditions', 'onglets : ' + onglets.join('|'));
+  r.infos.onglets = onglets; ok(/^Projets \(\d+\)\|Images\|3D\|Rigs\|Animations\|Éditions$/.test(onglets.join('|')), 'onglets : ' + onglets.join('|'));
   const leg = await page.locator('#galerie .leg').first().innerText(); r.infos.legende = leg.replace(/\s+/g, ' ');
   ok(leg.indexOf('@') < 0, 'la légende répète l\'adresse du compte : ' + leg);
   // redondances retirees de la fiche
@@ -47,6 +47,8 @@ export default async function run(page) {
   ok((await page.locator('#galerie .vignette').count()) >= 0, '');
   // la fiche garde Maillages / Rigs / Animations (gestion : telechargement, suppression, annonce)
   for (const g of ['meshes', 'rigs', 'animations']) ok((await page.locator('[data-actifs="' + g + '"]').count()) === 1, 'bouton de gestion absent : ' + g);
+  ok((await page.locator('#fiche dl > div').count()) === 4, 'la fiche doit avoir 4 tuiles (Crédits, Travaux, Échecs, Dépensés) : ' + (await page.locator('#fiche dl > div').count()));
+  ok(/Maillages \(\d+\)/.test(await page.locator('[data-actifs="meshes"]').innerText()), 'le bouton Maillages ne porte pas son compteur');
   await page.screenshot({ path: 'C:/tmp/admin2_fiche_creations.png' });
   r.ok = r.echecs.length === 0; return r;
 }

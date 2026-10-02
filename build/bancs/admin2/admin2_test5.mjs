@@ -11,7 +11,7 @@ export default async function run(page) {
   r.sousLeMenu = per.y > nav.y + nav.h - 2;
   r.boutons = await page.locator('#periode button').allInnerTexts();
   const visible = {};
-  for (const tab of ['maintenant', 'argent', 'users', 'audience', 'systeme']) { await page.click('[data-tab="' + tab + '"]'); await page.waitForTimeout(500); visible[tab] = !(await page.locator('#l4').isHidden()); }
+  for (const tab of ['maintenant', 'travaux', 'audience', 'argent', 'tarifs', 'users', 'messages', 'marketplace', 'systeme', 'journal']) { await page.click('[data-tab="' + tab + '"]'); await page.waitForTimeout(500); visible[tab] = !(await page.locator('#l4').isHidden()); }
   r.visibleParOnglet = visible;
   await page.click('[data-tab="maintenant"]'); await page.waitForTimeout(500); r.periodeMasqueeSurMaintenant = await page.locator('#l4').isHidden();
   await page.click('[data-tab="users"]'); await page.waitForTimeout(1000);

@@ -6,12 +6,12 @@ export default async function run(page) {
   const col = async (sel) => (await page.locator(sel).allInnerTexts()).map((x) => x.replace(/\s+/g, ' ').trim());
   for (const largeur of [1100, 1400]) {
     await page.setViewportSize({ width: largeur, height: 900 });
-    await page.goto('http://127.0.0.1:8799/admin2#audience'); await page.reload(); await page.waitForTimeout(1500);
+    await page.goto('http://127.0.0.1:8799/admin2#travaux'); await page.reload(); await page.waitForTimeout(1500);
     const m = await page.evaluate(() => { const d = document.querySelector('#flux').closest('.defil'); return { scrollW: d.scrollWidth, clientW: d.clientWidth, page: document.documentElement.scrollWidth, fenetre: window.innerWidth }; });
     r['largeur' + largeur] = m;
   }
   await page.setViewportSize({ width: 1100, height: 900 });
-  await page.goto('http://127.0.0.1:8799/admin2#audience'); await page.reload(); await page.waitForTimeout(1500);
+  await page.goto('http://127.0.0.1:8799/admin2#travaux'); await page.reload(); await page.waitForTimeout(1500);
   const avant = (await col('#flux tr td:nth-child(2)')).slice(0, 4);
   await page.locator('th[data-tri="flux:email"]').click(); await page.waitForTimeout(300);
   const asc = await col('#flux tr td:nth-child(2)');
@@ -43,7 +43,7 @@ export default async function run(page) {
   r.comptesParCredits = (await col('#liste-comptes .ligne')).map((x) => x.replace(/\s+/g, ' '));
   await page.selectOption('#tri-comptes', 'email'); await page.waitForTimeout(300);
   r.comptesParEmail = (await col('#liste-comptes .ligne span:first-child'));
-  await page.setViewportSize({ width: 1100, height: 900 }); await page.click('[data-tab="audience"]'); await page.waitForTimeout(1200);
+  await page.setViewportSize({ width: 1100, height: 900 }); await page.click('[data-tab="travaux"]'); await page.waitForTimeout(1200);
   await page.screenshot({ path: 'admin2_etroit.png' });
   return r;
 }

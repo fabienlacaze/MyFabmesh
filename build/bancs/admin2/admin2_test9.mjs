@@ -15,7 +15,7 @@ export default async function run(page) {
   r.actifArgent = await page.locator('.tab[data-tab="argent"]').getAttribute('aria-selected');
   r.clicBanniere = await page.evaluate(() => { document.querySelector('#bandeau-modal').click(); return document.querySelector('.tab[aria-selected="true"]').dataset.tab; });
   // tri du diagnostic
-  await page.click('[data-tab="systeme"]'); await page.waitForTimeout(1500);
+  await page.click('[data-tab="journal"]'); await page.waitForTimeout(1500);
   await page.click('#b-dbg'); await page.waitForTimeout(800);
   r.avant = await col('#dbg-traces tr td:nth-child(3)');
   await page.locator('th[data-tri="dbg:operation"]').click(); await page.waitForTimeout(300);

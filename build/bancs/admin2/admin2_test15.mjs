@@ -7,9 +7,9 @@ export default async function run(page) {
   await page.setViewportSize({ width: 1300, height: 900 });
   await page.evaluate(() => { localStorage.setItem('admin2.volets', JSON.stringify({ 'm-cours': false })); });
   await page.reload(); await page.waitForTimeout(2200);
+  await page.click('[data-tab="travaux"]'); await page.waitForTimeout(800);
   const res = await page.locator('details[data-id="m-cours"] > summary .res').textContent();
   verif('resume ferme : pastille bloques', /1 bloqué depuis plus de 3 h/.test(res), res);
-  await page.click('details[data-id="m-cours"] > summary'); await page.waitForTimeout(400);
   const corps = await txt('#encours');
   verif('section bloques', /Bloqués depuis plus de 3 h/.test(corps) && /vieux-chateau/.test(corps) && /lancé il y a 5 h/.test(corps), corps);
   verif('le travail recent n est pas dans les bloques', (await page.locator('#encours .job').count()) === 4, await page.locator('#encours .job').count());

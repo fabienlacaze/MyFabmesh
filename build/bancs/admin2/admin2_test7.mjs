@@ -9,6 +9,7 @@ export default async function run(page) {
   await page.waitForTimeout(1500);
 
   // ---- Maintenant : arret de travaux
+  await page.click('[data-tab="travaux"]'); await page.waitForTimeout(1200);
   r.enCours = await page.locator('#encours .job').count();
   r.toutArreter = await page.locator('[data-stop="tous"]').count();
   await page.locator('[data-stop="j1"]').click(); await page.waitForTimeout(200);
@@ -19,7 +20,7 @@ export default async function run(page) {
   r.toutArreterApres = await page.locator('[data-stop="tous"]').count();
 
   // ---- galerie : suppression d'une image
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="comptes"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
+  await page.click('[data-tab="users"]'); await page.waitForTimeout(1000); await page.locator('#liste-comptes .ligne').nth(0).click(); await page.waitForTimeout(1800);
   const avant = await page.locator('#galerie .vignette').count();
   await page.locator('#galerie .vignette').first().click(); await page.waitForTimeout(200);
   await page.click('#lb-sup'); r.libelleSup = await txt('#lb-sup'); await page.click('#lb-sup'); await page.waitForTimeout(600);
@@ -35,7 +36,7 @@ export default async function run(page) {
   await page.click('[data-actifs="rigs"]'); await page.waitForTimeout(500);
   r.rigs = await page.locator('#actifs tbody tr').count(); r.rigSansSuppression = (await page.locator('#actifs [data-actif-sup]').count()) === 0;
   // annonces : prix, gratuit, suppression
-  await page.click('[data-sub="market"]'); await page.waitForTimeout(400);
+  await page.click('[data-tab="marketplace"]'); await page.waitForTimeout(400);
   await page.locator('#annonces .boite input[type=number]').first().fill('25'); await page.locator('[data-prix]').first().click(); await page.waitForTimeout(600);
   r.prixAnnonce = (await etat()).prixAnnonce;
   r.offertAbsentSiNonPublie = (await page.locator('#annonces [data-offert]').count()) === 0;
@@ -52,12 +53,13 @@ export default async function run(page) {
   await page.waitForTimeout(500); r.reconCache = await page.locator('#recon').isHidden();
   r.exports = await page.locator('a[href^="/api/admin/history"]').count();
   await page.waitForTimeout(600);
+  await page.click('[data-tab="tarifs"]'); await page.waitForTimeout(1000);
   r.blocWindows = await page.locator('#tar-d-prix').inputValue(); await page.fill('#tar-d-prix', '49.99'); await page.uncheck('#tar-d-gratuit');
   await page.click('#b-tarifs-ok'); await page.waitForTimeout(800);
   const pr = (await etat()).pricing.current; r.tarifWindows = [pr.desktop_prix_centimes, pr.desktop_gratuit];
 
   // ---- Systeme : 2FA et diagnostic
-  await page.click('[data-tab="systeme"]'); await page.waitForTimeout(1500);
+  await page.click('[data-tab="journal"]'); await page.waitForTimeout(1500);
   r.statut2fa = await txt('#securite .sw');
   await page.click('#b-2fa-remplacer'); await page.waitForTimeout(500);
   r.qrOuFallback = (await page.locator('#totp-qr svg').count()) + ' svg / ' + (await page.locator('#securite .note').count()) + ' notes';
@@ -66,7 +68,7 @@ export default async function run(page) {
   await page.fill('#tp-actuel', '654321'); await page.click('#b-2fa-ok'); await page.waitForTimeout(800); r.remplOk = await txt('#securite .msg-ok');
   r.retirerAbsent = (await page.locator('#b-2fa-retirer').count()) === 0;
   r.noteRetrait = (await txt('#securite .sw .d')).includes('ne peut pas être retirée');
-  await page.evaluate(() => fetch('/__totp/reset')); await page.click('[data-tab="maintenant"]'); await page.click('[data-tab="systeme"]'); await page.waitForTimeout(1200);
+  await page.evaluate(() => fetch('/__totp/reset')); await page.click('[data-tab="maintenant"]'); await page.click('[data-tab="journal"]'); await page.waitForTimeout(1200);
   await page.click('#b-2fa-activer'); await page.waitForTimeout(500); await page.fill('#tp-code', '123456'); await page.click('#b-2fa-ok'); await page.waitForTimeout(900); r.activerOk = await txt('#securite .msg-ok');
   await page.click('#b-dbg'); await page.waitForTimeout(800);
   r.traces = await page.locator('#dbg-traces tr').count(); r.logs = await page.locator('#dbg-logs tr').count();

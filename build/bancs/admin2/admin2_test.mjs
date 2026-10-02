@@ -10,7 +10,7 @@ export default async function run(page) {
 
   // ---- bandeau + Maintenant
   r.bandeau = await txt('#bandeau');
-  await page.click('[data-tab="audience"]'); await page.waitForTimeout(900);
+  await page.click('[data-tab="travaux"]'); await page.waitForTimeout(900);
   r.fluxLignes = await page.locator('#flux tr').count();
   r.enCoursCartes = await page.locator('#encours .job').count();
   r.conteneurs = await txt('#conteneurs');
@@ -29,11 +29,13 @@ export default async function run(page) {
   r.gpu = await txt('#gpu-detail');
   await page.click('[data-ser="cost"]'); r.legendeCout = await page.locator('[data-ser="cost"]').getAttribute('aria-pressed'); await page.click('[data-ser="cost"]');
   await page.waitForTimeout(600);
+  await page.click('[data-tab="tarifs"]'); await page.waitForTimeout(1200);
   r.tarifsChamps = await page.locator('#tarifs [data-pk]').count();
   await page.locator('#tarifs [data-pk="rig"]').fill('33');
   await page.click('#b-tarifs-ok'); await page.waitForTimeout(700);
   r.tarifsMsg = await txt('#tarifs-msg');
   r.tarifServeur = (await etat()).pricing.current.rig;
+  await page.click('[data-tab="argent"]'); await page.waitForTimeout(800);
   await page.click('[data-per="30j"]'); r.sousGraphe = await txt('#sous-graphe');
 
   // ---- Utilisateurs
@@ -50,18 +52,18 @@ export default async function run(page) {
   r.projetsBoutonSupprime = (await page.locator('#b-projets').count()) === 0; r.creationsFiche = (await page.locator('details[data-id="f-creations"]').count()) === 1;
   await page.fill('#rech', 'nora'); r.recherche = await page.locator('#liste-comptes .ligne').count();
   await page.fill('#rech', '');
-  await page.click('[data-sub="messages"]'); await page.waitForTimeout(400);
+  await page.click('[data-tab="messages"]'); await page.waitForTimeout(400);
   r.messages = await page.locator('#msgs .boite').count();
   r.xssEchappe = (await page.locator('#msgs b').allInnerTexts()).join('|').includes('test') === false || true;
   await page.locator('[data-rep]').first().click(); await page.fill('#msgs textarea', 'Bonjour, c\'est réglé.'); await page.locator('[data-rep-ok]').first().click(); await page.waitForTimeout(600);
   r.reponduServeur = (await etat()).msgs[0].replied;
-  await page.click('[data-sub="market"]'); await page.waitForTimeout(300);
+  await page.click('[data-tab="marketplace"]'); await page.waitForTimeout(300);
   r.annonces = await page.locator('#annonces .boite').count();
   await page.locator('[data-appr]').first().click(); await page.waitForTimeout(600);
   r.approuveServeur = (await etat()).listings[0].status;
 
   // ---- Audience
-  await page.click('[data-tab="users"]'); await page.click('[data-sub="origine"]'); await page.waitForTimeout(1200);
+  await page.click('[data-tab="audience"]'); await page.waitForTimeout(1200);
   r.kpisAudience = await txt('#kpis-audience');
   r.barresPays = await page.locator('#b-pays .barre').count();
   r.graphes = await page.locator('#g-dl svg, #g-act svg').count();
@@ -83,10 +85,14 @@ export default async function run(page) {
   await page.locator('[data-warm="rig"]').click(); await page.waitForTimeout(1500);
   r.warmServeur = Object.keys((await etat()).garde);
   r.sante = await txt('#sante-etat');
+  await page.click('[data-tab="journal"]'); await page.waitForTimeout(1200);
+  await page.click('[data-tab="journal"]'); await page.waitForTimeout(1200);
   r.securite = await txt('#securite');
   await page.click('#b-deco'); await page.fill('#deco-mdp', 'faux'); await page.click('#b-deco-ok'); await page.waitForTimeout(500);
   r.decoFaux = await txt('#deco-msg');
   r.audit = await page.locator('#audit tr').count();
+  await page.click('[data-tab="systeme"]'); await page.waitForTimeout(800);
+  await page.click('[data-tab="systeme"]'); await page.waitForTimeout(800);
   await page.locator('#kill [data-kill-all="off"]').click(); r.toutCouperConfirm = await page.locator('[data-kill-ok="all-off"]').count(); await page.locator('[data-kill-non]').click();
 
   // ---- session perdue puis retablie
