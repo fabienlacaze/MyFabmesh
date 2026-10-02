@@ -45,6 +45,17 @@ function friendlyAuthError(raw: string): string {
  */
 type Mode = 'signin' | 'signup' | 'verify' | 'forgot' | 'forgot-sent';
 
+/** Destination `?next=` : UNIQUEMENT un chemin de CE site. Une adresse absolue (https://autre-site), `//autre-site`, `/\autre-site` ou `javascript:` envoyait l'utilisateur,
+ *  apres une connexion reussie, vers une page d'hameconnage ou executait du script (revue admin 2026-10-02, transverse/T4). */
+function safeNext(brut: string | null, defaut: string): string {
+  if (!brut) return defaut;
+  try {
+    const u = new URL(brut, window.location.origin);
+    if (u.origin !== window.location.origin || !brut.startsWith('/') || brut.startsWith('//') || brut.startsWith('/\\')) return defaut;
+    return u.pathname + u.search + u.hash;
+  } catch { return defaut; }
+}
+
 export function LoginForm() {
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
@@ -96,7 +107,7 @@ export function LoginForm() {
   function navigateAfterAuth() {
     // Land in the app on the projects listing (nicer than the bare /account
     // page), unless an explicit ?next= was provided.
-    const next = new URLSearchParams(window.location.search).get('next') || '/app/#/projects';
+    const next = safeNext(new URLSearchParams(window.location.search).get('next'), '/app/#/projects');
     window.location.href = next;
   }
 

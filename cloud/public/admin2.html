@@ -59,6 +59,9 @@ header.haut{display:contents}
 .seg{display:inline-flex;background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:2px}
 .seg button{background:none;border:0;padding:6px 14px;border-radius:6px;cursor:pointer;color:var(--text-1)}
 .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--text-0);box-shadow:inset 0 0 0 1px var(--accent)}
+.seg button{white-space:nowrap}
+@media(max-width:480px){.seg{flex-wrap:wrap}.seg button{padding:6px 8px}}
+.avert{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);width:max-content;max-width:min(560px,calc(100vw - 32px));background:var(--bg-2);color:var(--text-0);border:1px solid var(--err);border-radius:10px;padding:10px 14px;font-size:13px;z-index:60;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 .bandeau{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin:18px 0 16px}
 .cell{background:var(--bg-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0}
 .cell .k{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2)}
@@ -195,7 +198,7 @@ textarea{resize:vertical;min-height:70px}
 .sw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
 .sw:last-child{border-bottom:0}
 .sw .d{color:var(--text-2);font-size:12px}
-.sw .gauche{min-width:0}
+.sw .gauche{min-width:0}.sw .gauche .pill{white-space:normal}
 button[role=switch]{flex:none;width:46px;height:26px;border-radius:13px;border:1px solid var(--text-2);background:var(--bg-3);position:relative;cursor:pointer;padding:0}
 button[role=switch]::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--text-2);transition:transform .15s}
 /* INTERRUPTEUR GENERAL d'une section (2026-10-02, user : « il faut mieux montrer les main switch de chaque section ») : dans l'en-tete du volet, donc visible volet ferme */
@@ -391,7 +394,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
 <body>
 <div class="app" role="main">
   <header class="haut">
-    <div class="bandeau-modal" id="bandeau-modal" hidden role="status"></div>
+    <div class="bandeau-modal" id="bandeau-modal" hidden role="button" tabindex="0" aria-live="polite"></div>
     <div class="l1">
       <div class="titre"><h1><img class="logo" src="/logo-symbole.png" alt="" width="40" height="40">MyFabmesh — Admin</h1><span class="maj" id="maj">chargement…</span><button type="button" class="btn petit" id="b-refresh" title="Recharger toutes les données de l'onglet">Actualiser</button><button type="button" class="btn petit" id="b-logout" title="Fermer la session administrateur">Déconnexion</button></div>
     </div>
@@ -441,7 +444,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
           <h3 class="grp-t">Conteneurs</h3><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div>
         </div></details>
     </div>
-    <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
+    <div class="bandeau" id="bandeau" role="group" aria-label="Situation en direct, indépendante des filtres"></div>
     <div class="a-traiter-msg" id="a-traiter-msg" hidden></div>
     <div class="pile" style="margin-top:16px">
       <details class="carte vol" open data-id="m-cours-m" data-res="cours"><summary><h2>En cours <small id="n-cours-m"></small></h2><span class="res"></span></summary>
@@ -464,7 +467,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps">
           <div class="note" id="flux-retour" hidden style="margin:0 0 6px"><button type="button" class="lienclair" data-act="retour">← Revenir aux derniers travaux</button></div>
           <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
-          <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Comptes.</p>
+          <p class="note">Jusqu'aux 100 derniers travaux de tous les comptes (la tuile Travaux ou Échecs ouvre la liste complète de la période, 200 au plus). Pour l'historique d'un compte : onglet Comptes.</p>
         </div></details>
       </div>
       <div class="colonne">
@@ -472,7 +475,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div id="en-ligne"></div></div></details>
         <details class="carte vol" open data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small id="sous-act">distincts par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-act"></div></div></details>
-        <details class="carte vol" open data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
+        <details class="carte vol" open data-id="u-pays" data-res="pays"><summary><h2>Par pays</h2><span class="res"></span></summary>
         <div class="corps"><div id="b-pays"></div></div></details>
         <details class="carte vol" open data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
         <div class="corps"><div id="b-canal"></div></div></details>
@@ -604,8 +607,8 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
     <div class="dispo d32" style="margin-top:16px">
       <details class="carte vol" open data-id="s-audit" data-res="audit"><summary><h2>Journal d'audit <small>actions de l'administrateur</small></h2><span class="res"></span></summary>
         <div class="corps">
-          <div class="ligneform"><label for="audit-jour">Jour</label><input type="date" id="audit-jour" style="width:170px"><button type="button" class="btn petit" id="b-audit">Afficher</button></div>
-          <div class="defil"><table><thead><tr><th data-tri="audit:ts">Heure</th><th data-tri="audit:actor">Acteur</th><th data-tri="audit:ip">IP</th><th data-tri="audit:action">Action</th><th data-tri="audit:target">Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div>
+          <div class="ligneform"><label for="audit-jour">Jour (UTC)</label><input type="date" id="audit-jour" style="width:170px"><button type="button" class="btn petit" id="b-audit">Afficher</button></div>
+          <div class="defil"><table><thead><tr><th data-tri="audit:ts">Date et heure</th><th data-tri="audit:actor">Acteur</th><th data-tri="audit:ip">IP</th><th data-tri="audit:action">Action</th><th data-tri="audit:target">Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div>
         </div></details>
       <div class="colonne">
         <details class="carte vol" open data-id="s-securite" data-res="securite"><summary><h2>Sécurité</h2><span class="res"></span></summary>
@@ -750,7 +753,7 @@ function erreur(msg, status, json) { var e = new Error(msg); e.status = status; 
 function sessionPerdue(code, texte) {
   var mode = code === 403 ? 'refus' : (/admin_password_required/.test(texte || '') ? 'mdp' : 'user');
   if (S.session === mode) return;                 // deja affiche : on ne reconstruit pas le formulaire (saisie en cours)
-  S.session = mode;
+  S.session = mode; viderSecurite();                // 2026-10-02 (F5) : plus de secret 2FA en cours d'enrolement dans le DOM cache pendant le verrou
   var box = $('#session-corps');
   if (mode === 'user') box.innerHTML = '<b class="verrou-titre">🔒 Votre session a expiré</b> Connectez-vous avec le compte administrateur : <a class="btn prim" href="/login?next=/admin2">Se connecter</a> <span class="note">Cette page se remet à jour toute seule ensuite.</span>';
   else if (mode === 'refus') box.innerHTML = '<b class="verrou-titre">🔒 Compte non autorisé</b> Ce compte n\'est pas dans la liste des administrateurs. <a class="btn" href="/login?next=/admin2">Changer de compte</a>';
@@ -761,8 +764,10 @@ function sessionPerdue(code, texte) {
   window.scrollTo(0, 0);
   var champ = $(mode === 'mdp' ? '#lg-user' : '#session-corps a'); if (champ && champ.focus) champ.focus();
 }
+/* Oublie un enrolement 2FA ou une deconnexion globale en cours (secret, QR, mot de passe saisi) : a la deconnexion et a la perte de session, sinon le formulaire et la cle reviennent a l'ecran apres la reconnexion. */
+function viderSecurite() { S.totpMode = null; S.totpSecret = null; S.totpUri = null; S.totpErr = ''; S.decoOuvert = false; var sc = $('#securite'); if (sc) sc.innerHTML = ''; }
 function sessionRetablie() {
-  if (S.session) { S.session = false; $('#session-corps').innerHTML = ''; }
+  if (S.session) { S.session = false; $('#session-corps').innerHTML = ''; setTimeout(toutRecharger, 0); }        // 2026-10-02 (T6) : la page promet « se remet a jour toute seule » : toutes les donnees sont relues au retour de la session (une seule fois : S.session est deja faux au 2e appel)
   $('#session').hidden = true; document.documentElement.classList.remove('verrou');        // premiere reponse admin reussie : on montre la page
 }
 /* opts.mdp : un 401 « invalid password » est une erreur de saisie, pas une session perdue. */
@@ -778,22 +783,63 @@ async function http(path, opts) {
   var texte = ''; try { texte = await r.text(); } catch (_) {}
   var json = null; try { json = texte ? JSON.parse(texte) : null; } catch (_) {}
   if ((r.status === 401 || r.status === 403) && !(opts.mdp && /invalid|wrong|current|code/i.test(texte))) { sessionPerdue(r.status, texte); throw erreur('Session expirée', r.status, json); }
+  /* 2026-10-02 : un 5xx ou un 429 avant la PREMIERE reponse reussie laissait « Vérification de votre session… » sans cause. Un 4xx autre (400, 404, 409) n'est pas une panne : rien ici. Le garde data-http evite de reconstruire le bouton a chaque sondage. */
+  if ((r.status >= 500 || r.status === 429) && document.documentElement.classList.contains('verrou') && !S.session) { var cs = $('#session-corps'); if (cs.getAttribute('data-http') !== String(r.status)) { cs.setAttribute('data-http', String(r.status)); $('#session').classList.add('erreur'); cs.innerHTML = '<b class="verrou-titre">Serveur indisponible (HTTP ' + r.status + ')</b>L\'administration ne répond pas correctement ; nouvelle tentative automatique toutes les 3 s. <button type="button" class="btn prim" onclick="location.reload()">Réessayer</button>'; } }
   if (r.status === 503 && /temporarily/.test(texte)) throw erreur('Service momentanément indisponible', 503, json);
   if (!r.ok) throw erreur((json && json.error) || ('HTTP ' + r.status), r.status, json);
   sessionRetablie();
   return json;
 }
 function silencieux(p) { return p.catch(function () { return null; }); }
+/* MECANISME COMMUN DES PANNES (2026-10-02, audit : un 500, un 503, un 429 ou une coupure reseau etaient avales : « Chargement… » a vie, donnees figees presentees comme vivantes, aucun message).
+   lecture(cle, promesse[, garde]) : comme silencieux() (rend le JSON, ou null en cas d'echec, jamais d'exception) MAIS retient le motif dans S.err[cle] et l'efface au premier succes.
+     Un 401 / 403 n'est pas une panne : sessionPerdue() l'affiche deja (S.err[cle] reste vide). `garde` (facultatif) : fonction qui rend false quand la reponse est PERIMEE (periode changee, reponse en retard) : S.err n'est alors pas touche.
+   enAttente(cle) : HTML d'une carte qui n'a encore AUCUNE donnee : « Chargement… » tant que rien n'a echoue, sinon « Lecture impossible : <motif> » en alerte. A utiliser a la place de '<div class="vide">Chargement…</div>'.
+   chg(cle) : meme idee pour les petites legendes de tuile (« chargement… » ou « indisponible »).
+   La relance automatique des chargeurs (cadence) est conservee : le message disparait seul au premier succes.
+   avertir(msg) / echecAction(quoi, er) : echec d'une ACTION (clic) : message persistant en bas de page (ferme au clic, ou apres 15 s). Jamais pour un 401 / 403 (la banniere de session s'en charge).
+   Exemple : var j = await lecture('sante', http('/api/admin/sante.json')); if (!j && !S.sante) renderSante();   et dans le rendu : box.innerHTML = enAttente('sante');
+   Exemple : try { await http(...); } catch (er) { echecAction('Suppression du message', er); } */
+S.err = {};
+function lecture(cle, p, garde) {
+  return p.then(function (j) { if (!garde || garde()) delete S.err[cle]; return j; }, function (e) {
+    if (garde && !garde()) return null;
+    if (e && (e.status === 401 || e.status === 403)) delete S.err[cle]; else S.err[cle] = (e && e.message) || 'erreur';
+    return null;
+  });
+}
+function enAttente(cle) { return S.err[cle] ? '<div class="msg-err" role="alert">Lecture impossible : ' + esc(S.err[cle]) + '. Le bouton Actualiser réessaie.</div>' : '<div class="vide">Chargement…</div>'; }
+function chg(cle) { return S.err[cle] ? 'indisponible' : 'chargement…'; }
+function avertir(msg) {
+  var z = $('#avert');
+  if (!z) { z = document.createElement('div'); z.id = 'avert'; z.className = 'avert'; z.setAttribute('role', 'alert'); z.title = 'Cliquez pour fermer'; z.addEventListener('click', function () { z.hidden = true; }); document.body.appendChild(z); }
+  z.textContent = msg; z.hidden = false; clearTimeout(z._t); z._t = setTimeout(function () { z.hidden = true; }, 15000);
+}
+function echecAction(quoi, er) { if (er && (er.status === 401 || er.status === 403)) return; avertir('Échec : ' + quoi + ' — ' + ((er && er.message) || 'erreur')); }
 
 /* ───────────────────────── rendu : outils ───────────────────────── */
 function sur() { for (var i = 0; i < arguments.length; i++) if (arguments[i] === S.tab) return true; return false; }
-function majSiChange(el, html) { if (!el) return false; if (el._h === html) return false; el._h = html; el.innerHTML = html; return true; }
+/* 2026-10-02 (audit F4 / T1) : data-age0 / data-vu0 portent l'age rendu par le serveur et changent a CHAQUE sondage ; comparer le HTML entier reconstruisait les listes toutes les 3 s (bouton sous le curseur detruit, case « Rembourser » recochee).
+   La cle de comparaison les ignore ; s'il n'y a que l'horloge qui change, les attributs sont mis a jour SUR PLACE (majHorloge les relit chaque seconde). */
+function majSiChange(el, html) {
+  if (!el) return false;
+  var cle = html.replace(/ data-(?:age0|vu0)="[^"]*"| checked(?= style="width:auto">)/g, '');      // 2e motif : l'etat coche de « Rembourser les crédits » (S.stopRefund) ne doit pas reconstruire la liste (focus clavier perdu)
+  if (el._h === cle) {
+    if (/data-(?:age0|vu0)=/.test(html)) {
+      var tmp = document.createElement('div'); tmp.innerHTML = html;
+      var a = el.querySelectorAll('[data-age0],[data-vu0]'), b = tmp.querySelectorAll('[data-age0],[data-vu0]');
+      for (var i = 0; i < a.length && i < b.length; i++) { ['data-age0', 'data-vu0'].forEach(function (k) { if (b[i].hasAttribute(k)) a[i].setAttribute(k, b[i].getAttribute(k)); }); }
+    }
+    return false;
+  }
+  el._h = cle; el.innerHTML = html; return true;
+}
 function lien(f, v, txt) { var a = S.filt[f] === v; return '<button type="button" class="lien' + (a ? ' actif' : '') + '" data-f="' + f + '" data-v="' + esc(v) + '">' + esc(txt) + '</button>'; }
 function pillStatut(st) {
   if (st === 'succeeded') return '<span class="pill ok">Réussi</span>';
   if (st === 'failed') return '<span class="pill err">Échec</span>';
   if (st === 'canceled' || st === 'cancelled') return '<span class="pill">Annulé</span>';
-  return '<span class="pill run">' + esc(st || '?') + '</span>';
+  return '<span class="pill run">' + esc({ processing: 'en cours', starting: 'démarrage', queued: 'en attente', running: 'en cours' }[st] || st || '?') + '</span>';
 }
 function cellule(k, v, s, cls, extra) { return '<div class="cell' + (cls ? ' ' + cls : '') + '"><div class="k">' + k + '</div><div class="v tn">' + v + '</div><div class="s">' + (s || '') + '</div>' + (extra || '') + '</div>'; }
 
@@ -851,21 +897,56 @@ function barresRecent(id, serie) {
 }
 
 /* ───────────────────────── chargements ───────────────────────── */
-async function chargerLive() { var j = await silencieux(http('/api/admin/live?n=100')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (sur('maintenant', 'travaux')) renderMaintenant(); if (S.tab === 'travaux') renderKpisAct(); majHorloge(); } }
-async function chargerServices() {
-  var r = await Promise.all([silencieux(http('/api/admin/services')), silencieux(http('/api/admin/market/killswitch'))]);
-  if (r[0]) { S.svc = r[0]; S.mkt = r[1] && r[1].killswitch ? r[1].killswitch : { enabled: false }; renderBandeau(); if (S.tab === 'systeme') renderKill(); }
+/* 2026-10-02 (audit F1 / T4 / F3) : numero de sequence (une reponse tardive n'ecrase jamais une plus recente), panne VISIBLE dans l'etiquette « mis a jour a » (majEtiquetteMaj),
+   pastille de l'onglet Activite tenue a jour depuis n'importe quel onglet. La relance reste celle de cadence() (3 s). */
+async function chargerLive() {
+  var n = S.liveN = (S.liveN || 0) + 1; if (!S.liveDebut) S.liveDebut = Date.now();      // revue : debut de la 1re requete encore en vol, sans quoi « pend depuis 20 s » ne se declenche jamais
+  var j = await lecture('live', http('/api/admin/live?n=100'), function () { return n >= (S.liveRecu || 0); });
+  if (n === S.liveN) S.liveDebut = 0;
+  if (n < (S.liveRecu || 0)) return;
+  if (!j) { majEtiquetteMaj(); return; }
+  S.liveRecu = n; S.live = j; S.liveAt = Date.now();
+  var bt = $('#b-travaux'), nbc = (j.en_cours || []).length; if (bt) { bt.textContent = nbc; bt.hidden = !nbc; }
+  renderBandeau(); if (sur('maintenant', 'travaux')) renderMaintenant(); if (S.tab === 'travaux') renderKpisAct(); majHorloge();
 }
-async function chargerPrevision() { var j = await silencieux(http('/api/admin/modal-credits?legere=1')); if (j && j.prevision) { S.prev = j.prevision; renderBandeau(); if (S.tab === 'argent') renderGpu(); } }
-async function chargerBadges() { var j = await silencieux(http('/api/admin/badges')); if (j) { S.badges = j; majSousBadges(); } }
-async function chargerPaiements() { var j = await silencieux(http('/api/admin/payments')); if (j) { S.pay = j; renderBandeau(); if (S.tab === 'argent') renderAchats(); } }
+/* L'etiquette du haut de page : « mis a jour a HH:MM:SS », ou en rouge « ⚠ <motif>, donnees de HH:MM:SS » quand la derniere lecture en direct a echoue (ou pend depuis plus de 20 s). */
+function majEtiquetteMaj() {
+  var mj = $('#maj'); if (!mj || document.documentElement.classList.contains('verrou')) return;
+  var panne = !!S.err.live || !!(S.liveDebut && Date.now() - S.liveDebut > 20000), t;
+  if (!S.liveAt) t = panne ? '⚠ ' + (S.err.live || 'serveur injoignable') : 'chargement…';
+  else t = (panne ? '⚠ ' + (S.err.live || 'serveur injoignable') + ', données de ' : 'mis à jour à ') + new Date(S.liveAt).toLocaleTimeString('fr-FR');
+  if (mj.textContent !== t) mj.textContent = t;
+  mj.style.color = panne ? 'var(--err)' : '';
+}
+async function chargerServices() {
+  var r = await Promise.all([lecture('svc', http('/api/admin/services')), lecture('mkt', http('/api/admin/market/killswitch'))]);
+  /* 2026-10-02 : une lecture ratee du coupe-circuit Marketplace garde le DERNIER etat connu (avant : { enabled: false }, donc « Actif » a tort). renderSante : les services coupes y comptent (F2, A3). */
+  if (r[0]) { S.svc = r[0]; S.mkt = r[1] && r[1].killswitch ? r[1].killswitch : (S.mkt || { enabled: false }); }
+  renderBandeau(); renderSante(); if (S.tab === 'systeme') renderKill();
+}
+async function chargerPrevision() { var j = await lecture('prev', http('/api/admin/modal-credits?legere=1')); if (j && j.prevision) { S.prev = j.prevision; renderBandeau(); if (S.tab === 'argent') renderGpu(); } else if (!S.prev) renderBandeau(); }
+async function chargerBadges() {
+  var j = await silencieux(http('/api/admin/badges'));
+  if (j) {
+    /* 2026-10-02 (MM-03) : majSousBadges prefere la liste locale au compteur du serveur ; un nouveau message / signalement / annonce n'allumait donc plus jamais la pastille apres une premiere visite. On relit la liste seulement si le compteur serveur A CHANGE depuis le sondage precedent ET differe du compte local : aucun rechargement apres une action locale (cache serveur de 60 s), ni en cas d'ecart permanent (le serveur plafonne son scan a 400 fichiers). */
+    var pb = S.badges; S.badges = j;
+    if (pb && S.msgs && j.messages_unread !== pb.messages_unread && j.messages_unread !== S.msgs.filter(function (x) { return !x.read; }).length) chargerMessages();
+    if (pb && S.listings && j.market_pending !== pb.market_pending && j.market_pending !== S.listings.filter(function (x) { return x.status === 'pending'; }).length) chargerAnnonces();
+    majSousBadges();
+  }
+}
+async function chargerPaiements() { var j = await lecture('pay', http('/api/admin/payments')); if (j) { S.pay = j; renderBandeau(); if (S.tab === 'argent') { renderAchats(); renderArgent(); } } else if (!S.pay) { renderBandeau(); if (S.tab === 'argent') { renderAchats(); renderArgent(); } } }      /* 2026-10-02 (ARG-6 / ARG-9) : Argent est re-rendu sur le S.pay frais (les tuiles « Encaisse reel » le lisent ; l'ordre d'arrivee de stats.json et de payments n'a plus d'importance) ; un echec sans donnee est visible */
 async function chargerStats(force) {
-  if (!force && S.stats && Date.now() - S.statsAt < 120000) return;
-  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); renderSante(); if (S.tab === 'maintenant') majResumes(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'travaux') renderAudience(); if (S.tab === 'systeme') majResumes(); }
+  if ((S.statsEnCours && Date.now() - S.statsEnCours < 60000) || (!force && S.stats && Date.now() - S.statsAt < 120000)) return; S.statsEnCours = Date.now();      /* F7 : jamais deux lectures de stats.json en meme temps (au demarrage elles partaient en double) */
+  var j = await lecture('stats', http('/api/admin/stats.json')); S.statsEnCours = false; if (!j && !S.stats && S.tab === 'argent') renderArgent(); if (j) { S.stats = j; S.statsAt = Date.now(); renderSante(); if (S.tab === 'maintenant') majResumes(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'travaux') renderAudience(); if (S.tab === 'systeme') majResumes(); }
 }
 async function chargerAudience() {
-  var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
-  var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'travaux') renderAudience(); }
+  var per = S.per, min = PER_MIN[per] || 10080; if (S.aud && S.audPer === per && Date.now() - (S.audAt || 0) < 120000) return;
+  /* 2026-10-02 (T12) : une reponse d'une periode abandonnee est IGNOREE (avant : etiquetee avec la periode courante, donc des chiffres de 7 j affiches comme 30 j). (T4) : l'echec est visible (S.err.aud). */
+  var j = await lecture('aud', http('/api/admin/audience.json?minutes=' + min), function () { return per === S.per; });
+  if (per !== S.per) return;
+  if (j) { S.aud = j; S.audPer = per; S.audAt = Date.now(); }
+  if (S.tab === 'travaux') renderAudience();
 }
 S.lb = -1; S.usersActifs = false;
 function heuresPer() { return PER_MIN[S.per] ? Math.max(1, Math.round(PER_MIN[S.per] / 60)) : 168; }
@@ -1013,21 +1094,21 @@ async function chargerArgentRecent(force) {
   if (!periodeCourte()) return;
   var h = heuresCourtes();
   if (!force && S.rec && S.rec.heures === h && Date.now() - S.recAt < 60000) return;
-  var j = await silencieux(http('/api/admin/argent-recent?heures=' + h));
-  if (j) { S.rec = j; S.recAt = Date.now(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'travaux') courbesParJour(); }
+  var j = await lecture('rec', http('/api/admin/argent-recent?heures=' + h), function () { return h === heuresCourtes(); });
+  if (j) { S.rec = j; S.recAt = Date.now(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'travaux') courbesParJour(); } else { S.recErrH = h; if (S.tab === 'travaux') courbesParJour(); if (S.tab === 'argent') renderArgent(); }      // 2026-10-02 (ARG-6) : S.recErrH = la periode qui a echoue (un message d'une autre periode ne s'affiche pas)
 }
-async function chargerModalStatus() { var j = await silencieux(http('/api/admin/modal-status')); if (j) { S.modal = j; if (S.tab === 'systeme') renderWarm(); if (S.tab === 'maintenant') renderConteneurs(); } }
-async function chargerSante() { var j = await silencieux(http('/api/admin/sante.json')); if (j) { S.sante = j; renderSante(); } chargerStats(); }
-async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/status')); if (j) { S.totp = j; if (S.tab === 'systeme') renderSecurite(); } }
-async function chargerUsers() { var j = await silencieux(http('/api/admin/users')); if (j) { S.users = j; if (S.tab === 'users') renderUsers(); } }
-async function chargerMessages() { var j = await silencieux(http('/api/admin/contact-messages')); if (j) { S.msgs = j.messages || []; if (S.tab === 'messages') renderMessages(); majSousBadges(); } }
-async function chargerAnnonces() { var j = await silencieux(http('/api/admin/market/list')); if (j) { S.listings = j.listings || []; S.offerts = j.offerts || []; S.offertsMax = j.offerts_max || 5; if (S.tab === 'marketplace') renderAnnonces(); majSousBadges(); } }
-async function chargerPricing() { var j = await silencieux(http('/api/admin/pricing')); if (j) { S.pricing = { defaults: j.defaults || {}, current: Object.assign({}, j.defaults || {}, j.current || {}) }; if (S.tab === 'argent') { renderArgent(); renderPrix(); } } }
+async function chargerModalStatus() { var j = await lecture('modal', http('/api/admin/modal-status')); if (j) S.modal = j; if (S.tab === 'systeme') renderWarm(); if (S.tab === 'maintenant') renderConteneurs(); }
+async function chargerSante() { var j = await lecture('sante', http('/api/admin/sante.json')); if (j) S.sante = j; renderSante(); chargerStats(); }
+async function chargerTotp() { var j = await lecture('totp', http('/api/admin/totp/status')); if (j) S.totp = j; if (S.tab === 'systeme') renderSecurite(); }
+async function chargerUsers() { var j = await lecture('users', http('/api/admin/users').then(function (r) { if (!r || !Array.isArray(r.users)) throw erreur('Réponse invalide', 0); return r; })); if (j) { S.users = j; if (S.tab === 'users') renderUsers(); } else if (S.tab === 'users') renderUsers(); }      // 2026-10-02 (USR-04) : un 500 / une coupure affichent le motif dans la liste (avant : « Chargement… » a vie) ; un corps 200 vide n'ecrase plus S.users
+async function chargerMessages() { var j = await lecture('msgs', http('/api/admin/contact-messages')); if (j) { S.msgs = j.messages || []; S.msgsAt = Date.now(); if (S.tab === 'messages') renderMessages(); majSousBadges(); } else if (S.tab === 'messages') renderMessages(); }
+async function chargerAnnonces() { var j = await lecture('ann', http('/api/admin/market/list')); if (j) { S.listings = j.listings || []; S.annAt = Date.now(); S.offerts = j.offerts || []; S.offertsMax = j.offerts_max || 5; if (S.tab === 'marketplace') renderAnnonces(); majSousBadges(); } else if (S.tab === 'marketplace') renderAnnonces(); }
+async function chargerPricing() { var j = await lecture('pricing', http('/api/admin/pricing')); if (j) { S.pricing = { defaults: j.defaults || {}, current: Object.assign({}, j.defaults || {}, j.current || {}) }; if (S.tab === 'argent') { renderArgent(); renderPrix(); } } else if (!S.pricing) { var bwp = $('#windows-prix'); if (bwp) { bwp._sig = null; bwp.innerHTML = enAttente('pricing'); } } }      // 2026-10-02 (ARG-6) : prix illisibles = message (avant : « Chargement… » a vie et aucun champ de prix) ; _sig remis a null pour que le succes reconstruise le champ Windows
 async function chargerAudit() {
   var jour = $('#audit-jour').value || new Date().toISOString().slice(0, 10);
-  var j = await silencieux(http('/api/admin/audit?day=' + encodeURIComponent(jour)));
+  var j = await lecture('audit', http('/api/admin/audit?day=' + encodeURIComponent(jour)));
   var tb = $('#audit');
-  if (!j) { tb.innerHTML = '<tr><td colspan="6" class="vide">Journal indisponible.</td></tr>'; return; }
+  if (!j) { S.auditEntries = null; renderAudit(); return; }      // 2026-10-02 : l'ancien jour n'est plus affiche sous le nouveau, et un tri ne remplace plus l'erreur par « Aucune action »
   S.auditEntries = j.entries || []; renderAudit();
 }
 
@@ -1041,29 +1122,29 @@ function servicesCoupes() {
 function ventes24h() {
   if (!S.pay || !S.pay.achats) return null;
   var lim = Date.now() - 86400000, tot = 0, n = 0;
-  S.pay.achats.forEach(function (a) { if (a.test || a.etat === 'rembourse') return; if (Date.parse(a.date) >= lim) { tot += Number(a.encaisse_eur) || 0; n++; } });
+  S.pay.achats.forEach(function (a) { if (a.test || a.etat === 'rembourse' || a.etat === 'non_rapproche') return; if (Date.parse(a.date) >= lim) { tot += Number(a.encaisse_eur) || 0; n++; } });
   return { tot: tot, n: n };
 }
 function renderBandeau() {
   var L = S.live, h = '';
   var enLigne = L ? (L.en_ligne || []).filter(function (x) { return x.en_ligne; }).length : null;
-  h += cellule('En ligne', enLigne == null ? '—' : enLigne, L ? (L.en_ligne || []).length + ' vus sur 15 min' : 'chargement…');
+  h += cellule('En ligne', enLigne == null ? '—' : enLigne, L ? (L.en_ligne || []).length + ' vus sur 15 min' : chg('live'));
   h += cellule('En cours', L ? (L.en_cours || []).length : '—', 'travaux lancés');
   var f = L && L.fenetres ? L.fenetres.h1 : null, pc = f && f.lances ? Math.round(f.echecs / f.lances * 100) : 0;
-  h += cellule('Échecs 1 h', f ? f.echecs + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + f.lances + ' · ' + pc + ' %</span>' : '—', f ? (f.echecs && pc >= 20 && f.lances >= 5 ? 'à regarder' : 'normal') : '', f && f.echecs && pc >= 20 && f.lances >= 5 ? 'alerte' : '');
+  h += cellule('Échecs 1 h', f ? f.echecs + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + f.lances + ' · ' + pc + ' %</span>' : '—', f ? (f.echecs && pc >= 20 && f.lances >= 5 ? 'à regarder' : (f.echecs && f.lances < 5 ? 'trop peu pour juger' : 'normal')) : '', f && f.echecs && pc >= 20 && f.lances >= 5 ? 'alerte' : '');
   var p = S.prev;
   if (p) {
     var lim = p.limite && p.limite.usd, dep = p.depense_usd, pj = lim && dep != null ? Math.min(100, dep / lim * 100) : 0;
     var cls = p.couleur === 'rouge' || p.urgence ? 'alerte' : (p.couleur === 'orange' ? 'vigil' : '');
     h += cellule('Coût GPU aujourd\'hui', usd(p.aujourdhui_usd), 'mois ' + usd(dep) + ' / ' + usd(lim), cls, '<div class="jauge' + (pj >= 90 ? ' critique' : pj >= 70 ? ' haute' : '') + '"><i style="width:' + pj.toFixed(0) + '%"></i></div>');
-  } else h += cellule('Coût GPU aujourd\'hui', '—', 'chargement…');
+  } else h += cellule('Coût GPU aujourd\'hui', '—', chg('prev'));
   var v = ventes24h();
-  h += cellule('Ventes 24 h', v ? eur(v.tot) : '—', v ? v.n + ' achat' + (v.n > 1 ? 's' : '') + ' (hors test)' : 'chargement…');
+  h += cellule('Ventes 24 h', v ? eur(v.tot) : '—', v ? v.n + ' achat' + (v.n > 1 ? 's' : '') + ' (hors test)' : chg('pay'));
   majSiChange($('#bandeau'), h);
   renderServicesEtat();
   var bm = $('#bandeau-modal'), ban = S.prev && S.prev.bandeau;
   if (ban && ban.texte) { bm.textContent = ban.texte; bm.className = 'bandeau-modal' + (ban.couleur === 'rouge' ? ' rouge' : ''); bm.hidden = false; } else bm.hidden = true;
-  $('#maj').textContent = S.liveAt ? 'mis à jour à ' + new Date(S.liveAt).toLocaleTimeString('fr-FR') : 'chargement…';
+  majEtiquetteMaj();
   majResumes();
 }
 function renderChips() {
@@ -1071,7 +1152,7 @@ function renderChips() {
   if (f.compte) { any = true; out += '<span class="chip">Compte : ' + esc(nomCompte(f.compte)) + '<button type="button" data-clear="compte" aria-label="Retirer ce filtre">×</button></span>'; }
   if (f.type) { any = true; out += '<span class="chip">Type : ' + esc(f.type) + '<button type="button" data-clear="type" aria-label="Retirer ce filtre">×</button></span>'; }
   if (f.pays) { any = true; out += '<span class="chip">Pays : ' + esc(nomPays(f.pays)) + '<button type="button" data-clear="pays" aria-label="Retirer ce filtre">×</button></span>'; }
-  $('#chips').innerHTML = any ? out + '<button type="button" class="lienclair" data-clear="all">Tout effacer</button>' : '<span class="hint">Aucun filtre · cliquez un compte, un type ou un pays</span>';
+  $('#chips').innerHTML = any ? out + '<button type="button" class="lienclair" data-clear="all">Tout effacer</button>' : (sur('travaux', 'argent', 'messages') ? '<span class="hint">Aucun filtre · cliquez un compte ou un type</span>' : '');
 }
 function majSousBadges() {
   var m = S.msgs ? S.msgs.filter(function (x) { return !x.read; }).length : (S.badges ? S.badges.messages_unread : 0);
@@ -1082,13 +1163,13 @@ function majSousBadges() {
 }
 
 /* ───────────────────────── Maintenant ───────────────────────── */
-function filtreEvt(x) { return (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); }
+function filtreEvt(x) { return (!S.filt.compte || (x.email || 'inconnu') === S.filt.compte) && (!S.filt.type || (x.type || '?') === S.filt.type); }
 var ETAT_CONT = { busy: ['occupé', 'var(--accent)'], warm: ['chaud', 'var(--ok)'], starting: ['démarre…', 'var(--warn)'], absent: ['non déployé', 'var(--text-2)'], cold: ['froid', 'var(--text-2)'] };
 var NOMS_CONT = { text2image: 'Images', image_op: "Outils d'image", back_view: 'Vue de dos', tpose: 'T-pose', mesh: '3D', rig: 'Rig', anim: 'Animation', mvadapter: 'Multi-vues', mesh_segment: 'Segmentation', fbx_retarget: 'FBX' };
 function renderServicesEtat() {
   var box = $('#services-etat'); if (!box) return;
-  if (!S.svc) { majSiChange(box, '<span class="note">état en cours de chargement…</span>'); return; }
-  majSiChange(box, KILL.map(function (k) {
+  if (!S.svc) { majSiChange(box, S.err.svc ? '<span class="msg-err">état indisponible : ' + esc(S.err.svc) + '</span>' : '<span class="note">état en cours de chargement…</span>'); return; }
+  majSiChange(box, (S.err.svc ? '<span class="msg-err">lecture impossible, état peut-être périmé · </span>' : '') + KILL.map(function (k) {
     var on = actif(k.k);
     return '<button type="button" data-goto="systeme" title="Ouvrir Santé pour agir" style="background:none;color:inherit;font:inherit;cursor:pointer;border:1px solid ' + (on ? 'var(--border)' : 'var(--err)') + ';border-radius:999px;padding:3px 10px;font-size:12px">'
       + esc(k.n) + ' <b style="color:' + (on ? 'var(--ok)' : 'var(--err)') + '">● ' + (on ? 'ON' : 'OFF') + '</b></button>';
@@ -1096,12 +1177,12 @@ function renderServicesEtat() {
 }
 function renderConteneurs() {
   var m = S.modal;
-  if (!m) { majSiChange($('#conteneurs'), '<span class="note">état en cours de chargement…</span>'); return; }
-  majSiChange($('#conteneurs'), Object.keys(NOMS_CONT).filter(function (k) { return m[k]; }).map(function (k) {
+  if (!m) { majSiChange($('#conteneurs'), S.err.modal ? '<span class="msg-err">état indisponible : ' + esc(S.err.modal) + '</span>' : '<span class="note">état en cours de chargement…</span>'); return; }
+  majSiChange($('#conteneurs'), (S.err.modal ? '<span class="msg-err">lecture impossible, état peut-être périmé · </span>' : '') + Object.keys(NOMS_CONT).filter(function (k) { return m[k]; }).map(function (k) {
     var e = m[k], s = e.etat || (e.warm ? 'warm' : 'cold'), t = ETAT_CONT[s] || ['inconnu', 'var(--text-2)'];
     /* memes couleurs que les services (user : « mets les couleurs comme dans les services ») : chaud = vert, froid = rouge avec cadre rouge */
     var coul = s === 'cold' ? 'var(--err)' : s === 'warm' ? 'var(--ok)' : t[1];
-    return '<button type="button" data-goto="systeme" title="Ouvrir Santé pour agir" style="background:none;color:inherit;font:inherit;cursor:pointer;border:1px solid ' + (s === 'cold' ? 'var(--err)' : 'var(--border)') + ';border-radius:999px;padding:3px 10px;font-size:12px">' + NOMS_CONT[k] + ' <b style="color:' + coul + '">● ' + t[0] + '</b></button>';
+    return '<button type="button" data-goto="systeme" title="Ouvrir Santé pour agir" style="background:none;color:inherit;font:inherit;cursor:pointer;border:1px solid ' + (s === 'cold' ? 'var(--err)' : 'var(--border)') + ';border-radius:999px;padding:3px 10px;font-size:12px">' + NOMS_CONT[k] + ' <b style="color:' + coul + '">● ' + t[0] + '</b>' + (e.reel ? '' : ' <span title="estimation : état Modal indisponible">≈</span>') + '</button>';
   }).join(''));
 }
 function renderEncoursCompact(enc, L) {
@@ -1112,7 +1193,7 @@ function renderEncoursCompact(enc, L) {
     return '<tr><td>' + esc(x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td class="coupe">' + esc(nomCompte(x.email)) + '</td><td class="n tn">' + pillStatut(x.statut) + ' <span data-age0="' + (x.age_s || 0) + '"></span></td></tr>';
   }).join('') + '</tbody></table></div>' + (n > 6 ? '<div class="note">et ' + (n - 6) + ' autre(s)…</div>' : '') : '<div class="vide">Aucun travail en cours' + (S.filt.compte || S.filt.type ? ' pour ce filtre' : '') + '.</div>')
     + (function () {
-      var bq = (S.bloques || []).filter(function (x) { return (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); });
+      var bq = (S.bloques || []).filter(function (x) { return (!S.filt.compte || (x.email || 'inconnu') === S.filt.compte) && (!S.filt.type || (x.type || '?') === S.filt.type); });
       return bq.length ? '<div class="note" style="color:var(--warn)">' + bq.length + (bq.length > 1 ? ' travaux bloqués' : ' travail bloqué') + ' depuis plus de 3 h : à arrêter pour rembourser.</div>' : '';
     })()
     + '<div style="margin-top:8px"><button type="button" class="lienclair" data-goto="travaux">Tous les travaux →</button></div>');
@@ -1151,6 +1232,7 @@ function renderMaintenant() {
    rafraichissement (le lien sous le curseur ne disparait pas) et rien ne clignote. */
 function majHorloge() {
   var now = Date.now(), dt = S.liveAt ? (now - S.liveAt) / 1000 : 0;
+  majEtiquetteMaj();                      // 2026-10-02 : l'etiquette du haut passe en alerte si la lecture en direct echoue ou pend
   $$('[data-ts]').forEach(function (e) { var t = ilYa((now - Date.parse(e.getAttribute('data-ts'))) / 1000); if (e.textContent !== t) e.textContent = t; });
   $$('[data-age0]').forEach(function (e) { var t = 'depuis ' + dureeS(Math.round(Number(e.getAttribute('data-age0')) + dt)); if (e.textContent !== t) e.textContent = t; });
   $$('[data-vu0]').forEach(function (e) { var t = ilYa(Number(e.getAttribute('data-vu0')) + dt); if (e.textContent !== t) e.textContent = t; });
@@ -1276,15 +1358,16 @@ function renderArgentCourt() {
   var h = heuresCourtes(), R = S.rec, lh = h === 1 ? 'dernière heure' : h + ' dernières heures', lhp = h === 1 ? 'la dernière heure' : 'les ' + h + ' dernières heures';
   libEntete($('th[data-tri="ops:reel"]'), 'Coût estimé');
   if (!R || R.heures !== h) {
-    majSiChange($('#kpis-argent'), cellule('Chargement…', '…', 'calcul sur ' + lhp));
-    $('#t-ops').innerHTML = '<tr><td colspan="10" class="vide">Chargement…</td></tr>'; return renderGpu();
+    var ep = S.err.rec && S.recErrH === h;
+    majSiChange($('#kpis-argent'), cellule(ep ? 'Indisponible' : 'Chargement…', '…', ep ? esc('lecture impossible : ' + S.err.rec) + ' (Actualiser réessaie)' : 'calcul sur ' + lhp));
+    $('#t-ops').innerHTML = '<tr><td colspan="10" class="vide">' + (ep ? 'Indisponible : ' + esc(S.err.rec) + '. Cliquez sur Actualiser.' : 'Chargement…') + '</td></tr>'; return renderGpu();
   }
   var lim = Date.now() - h * 3600e3, enc = 0, nA = 0;
-  if (S.pay && S.pay.achats) S.pay.achats.forEach(function (a) { if (a.test || a.etat === 'rembourse') return; if (Date.parse(a.date) >= lim) { enc += Number(a.encaisse_eur) || 0; nA++; } });
+  if (S.pay && S.pay.achats) S.pay.achats.forEach(function (a) { if (a.test || a.etat === 'rembourse' || a.etat === 'non_rapproche') return; if (Date.parse(a.date) >= lim) { enc += Number(a.encaisse_eur) || 0; nA++; } });
   var T = R.totaux, marge = T.valeur_eur - T.cout_eur;
   S.resCourbe = 'valeur ' + eur(T.valeur_eur) + ' · coût ' + eur(T.cout_eur) + ' · marge ' + eur(marge) + ' (' + h + ' h, estimé)';
   majSiChange($('#kpis-argent'),
-    cellule('Encaissé réel', S.pay ? eur(enc) : '—', S.pay ? nA + ' achat' + (nA > 1 ? 's' : '') + ' sur ' + h + ' h (Stripe, hors test)' : 'chargement…')
+    cellule('Encaissé réel', S.pay ? eur(enc) : '—', S.pay ? nA + ' achat' + (nA > 1 ? 's' : '') + ' sur ' + h + ' h (Stripe, hors test)' : chg('pay'))
     + cellule('Valeur des crédits', eur(T.valeur_eur), T.ops + ' travaux · ' + num(T.credits) + ' crédits' + (T.echecs ? ' · ' + T.echecs + ' échec' + (T.echecs > 1 ? 's' : '') : ''))
     + '<div class="cell"><div class="k">Coût GPU<span class="est">estimation</span></div><div class="v tn" style="color:var(--cost)">' + eur(T.cout_eur) + '</div><div class="s">durée de chaque travail × tarif du GPU</div></div>'
     + tuileCoutReel(R.cout_reel, h)
@@ -1314,8 +1397,8 @@ function renderArgent() {
   var st = S.stats, p = S.prev;
   var h = '';
   var enc = null, encN = 0, tests = 0;
-  if (S.pay && S.pay.achats) { enc = 0; S.pay.achats.forEach(function (a) { if (a.test) { tests++; return; } if (a.etat === 'rembourse') return; enc += Number(a.encaisse_eur) || 0; encN++; }); }
-  h += cellule('Encaissé réel', enc == null ? '—' : eur(enc), enc == null ? 'chargement…' : encN + ' achat' + (encN > 1 ? 's' : '') + ' (Stripe, hors test' + (tests ? ' · ' + tests + ' test écarté' + (tests > 1 ? 's' : '') : '') + ')');
+  if (S.pay && S.pay.achats) { enc = 0; S.pay.achats.forEach(function (a) { if (a.test) { tests++; return; } if (a.etat === 'rembourse' || a.etat === 'non_rapproche') return; enc += Number(a.encaisse_eur) || 0; encN++; }); }
+  h += cellule('Encaissé réel', enc == null ? '—' : eur(enc), enc == null ? chg('pay') : encN + ' achat' + (encN > 1 ? 's' : '') + ' depuis le début (Stripe, hors test' + (tests ? ' · ' + tests + ' test écarté' + (tests > 1 ? 's' : '') : '') + ')');
   if (st) {
     var rv = st.revenue || {}, reel = rv.real_cost_eur, age = rv.real_usage_age_h;
     var fr = reel == null ? (rv.real_usage_usd != null ? 'en attente du 1er relevé du mois' : 'relevé absent') : age == null ? 'facture Modal du mois' : age > 26 ? '⚠ relevé arrêté depuis ' + Math.round(age / 24) + ' j' : age > 2 ? '⚠ relevé en retard (' + age + ' h)' : 'facture Modal du mois, à jour';
@@ -1324,7 +1407,7 @@ function renderArgent() {
     h += cellule('Marge du mois', rv.real_margin_eur == null ? '—' : eur(rv.real_margin_eur), rm > 0 && rv.real_margin_eur != null ? Math.round(rv.real_margin_eur / rm * 100) + ' % de ' + eur(rm) + ' encaissés ce mois' : 'aucun encaissement ce mois');
     h += cellule('Crédits consommés', eur(rv.credits_revenue_payeurs_eur || 0), '+ ' + eur(rv.credits_revenue_offerts_eur || 0) + ' offerts (hors CA)');
     h += '<div class="cell" style="opacity:.85"><div class="k">Coût estimé<span class="est">estimation</span></div><div class="v tn" style="color:var(--text-2)">' + eur(rv.total_cost_eur) + '</div><div class="s">depuis le début · hors marge</div></div>';
-  } else h += cellule('Coût GPU du mois', '—', 'chargement…') + cellule('Marge du mois', '—', '');
+  } else h += cellule('Coût GPU du mois', '—', chg('stats')) + cellule('Marge du mois', '—', '');
   majSiChange($('#kpis-argent'), h);
 
   var ser = st && st.series_30d ? st.series_30d : null;
@@ -1343,11 +1426,11 @@ function renderArgent() {
     courbes('g-argent', lab, def.map(function (d) { return { v: d[3], col: d[2], on: S.series[d[0]], aire: d[4], nom: d[1] }; }), { titre: 'Valeur des crédits, coût GPU et marge', h: 300, fmt: function (v) { return eur(v, Math.abs(v) < 10 ? 2 : 0); },
       lecture: function (k, l, se) { var el = $('#lecture'); if (k < 0) { el.textContent = ''; return; } el.innerHTML = '<b>' + esc(l) + '</b> · ' + se.map(function (s) { return s.on ? esc(s.nom) + ' ' + eur(s.v[k]) : ''; }).filter(Boolean).join(' · '); } });
     $('#note-graphe').textContent = 'Le coût est celui de la facture Modal quand le relevé du jour existe' + (estimes ? ' (' + estimes + ' jour' + (estimes > 1 ? 's' : '') + ' sur ' + nb + ' encore estimé' + (estimes > 1 ? 's' : '') + ')' : '') + '. « Valeur des crédits » = crédits consommés par des comptes qui ont payé, au prix net ; ce n\'est pas de l\'argent encaissé.';
-  } else { $('#g-argent').innerHTML = '<div class="vide">Chargement…</div>'; $('#legende').innerHTML = ''; }
+  } else { $('#g-argent').innerHTML = enAttente('stats'); $('#legende').innerHTML = ''; }
 
   var bt = st && st.by_type_30d;
   var tb = $('#t-ops');
-  if (!bt || !bt.types) { tb.innerHTML = '<tr><td colspan="9" class="vide">' + (st ? 'Données indisponibles.' : 'Chargement…') + '</td></tr>'; $('#resume-ops').textContent = ''; $('#note-ops').textContent = ''; return renderGpu(); }
+  if (!bt || !bt.types) { tb.innerHTML = '<tr><td colspan="9" class="vide">' + (st ? 'Données indisponibles.' : S.err.stats ? 'Statistiques indisponibles : ' + esc(S.err.stats) + '. Cliquez sur Actualiser.' : 'Chargement…') + '</td></tr>'; $('#resume-ops').textContent = ''; $('#note-ops').textContent = ''; return renderGpu(); }
   S.estimes = bt.estimes || {}; S.eurCred = Number(bt.eur_par_credit) || 0.162; S.coquilles = (bt.types.project || {}).count || 0;
   var lignes = Object.keys(bt.types).filter(function (op) { return op !== 'project'; }).map(function (op) { var m = bt.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed || 0, credits: m.credits_now != null ? m.credits_now : m.credits, value: m.value_now_eur != null ? m.value_now_eur : m.value_eur, reel: m.real_eur, paid: m.paid_eur }); });
   lignes = trier(rattacherAnnexes(avecToutesLesOps(lignes, bt.connues, bt.familles)), 'ops'); calcProprios(lignes);
@@ -1376,12 +1459,12 @@ function ligneProt(cls, titre, etat, detail) {
 }
 function gpuAlarme() {
   var m = S.mfull; if (!m) return false;
-  var p = m.prevision || {}, rel = p.releve || {}, pr = m.protections || {}, aa = pr.arret_auto || p.arret_auto || {}, inter = pr.interrupteur_modal;
+  var p = m.prevision || {}, rel = p.releve || {}, pr = m.protections || {}, aa = pr.arret_auto || p.arret_auto || {}, inter = S.svc ? { actif: S.svc.modal_enabled !== false } : pr.interrupteur_modal;
   return (aa.etat === 'inactif' && p.niveau !== 'debut_de_mois') || !!(inter && inter.actif === false) || !!(rel.erreur && rel.erreur.message) || !!rel.refus_ts;
 }
 /* Lignes des protections automatiques : [{ cls, titre, etat, detail }]. Affichees dans Sante (Maintenant et Systeme), plus dans Argent. */
 function protectionsDonnees(m, p, rel) {
-  var pr = m.protections || {}, aa = pr.arret_auto || p.arret_auto || {}, er = rel.erreur && rel.erreur.message ? rel.erreur : null, inter = pr.interrupteur_modal, em = pr.email_alerte || {}, pq = pr.plafond_quotidien, L = [];
+  var pr = m.protections || {}, aa = pr.arret_auto || p.arret_auto || {}, er = rel.erreur && rel.erreur.message ? rel.erreur : null, inter = S.svc ? { actif: S.svc.modal_enabled !== false } : pr.interrupteur_modal, em = pr.email_alerte || {}, pq = pr.plafond_quotidien, L = [];
   var AA = { actif: ['ok', 'actif'], bloque: ['err', 'calculs GPU refusés'], aveugle: ['warn', 'aveugle'], inactif: ['err', 'inactif'], tout_refuse: ['err', 'tout est refusé'], sans_limite: ['', 'sans objet (aucune limite)'] }[aa.etat] || ['warn', String(aa.etat || 'inconnu')];
   L.push(ligneProtD(AA[0], 'Arrêt automatique à 100 % de la limite', AA[1], esc(aa.raison || '')));
   var RE = { a_jour: ['ok', 'à jour'], en_retard: ['warn', 'en retard'], arrete: ['err', 'arrêté'], absent: ['err', 'jamais reçu'] }[rel.etat] || ['warn', String(rel.etat || 'inconnu')];
@@ -1391,9 +1474,9 @@ function protectionsDonnees(m, p, rel) {
   L.push(ligneProtD(RE[0], 'Relevé de la facture', RE[1], det));
   L.push(ligneProtD(em.configure ? 'ok' : 'warn', "E-mail d'alerte", em.configure ? 'configuré' : 'non configuré', em.configure ? esc('Vers ' + (em.destinataires || []).join(', ') + ' : coupure prévue, limite atteinte (1 par niveau et par mois), relevé arrêté (1 par jour).') : "Clé d'envoi absente (RESEND_API_KEY) : aucun e-mail ne part."));
   if (inter) L.push(ligneProtD(inter.actif ? 'ok' : 'err', 'Interrupteur « Calcul GPU »', inter.actif ? 'allumé' : 'coupé', inter.actif ? '' : "Aucun calcul GPU n'est lancé."));
-  if (pq && Number(pq.usd) > 0) {
-    var est = Number(pq.depense_estimee_usd) || 0, pct = Math.min(100, est / Number(pq.usd) * 100);
-    L.push(ligneProtD(pct >= 100 ? 'err' : 'ok', 'Plafond du jour des comptes gratuits', usd(est) + ' / ' + usd(pq.usd), '<div class="jauge' + (pct >= 100 ? ' critique' : pct >= 70 ? ' haute' : '') + '" style="margin:4px 0 6px"><i style="width:' + pct.toFixed(1) + '%"></i></div>Estimation du site, tous comptes. Au-delà, les comptes gratuits sont mis en pause jusqu\'à ' + esc(pq.remise_ts ? new Date(pq.remise_ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '02:00') + '.'));
+  if (pq && pq.usd != null) {
+    var est = Number(pq.depense_estimee_usd) || 0, pct = Number(pq.usd) > 0 ? Math.min(100, est / Number(pq.usd) * 100) : 100;
+    L.push(ligneProtD(pct >= 100 ? 'err' : 'ok', 'Plafond du jour des comptes gratuits', usd(est) + ' / ' + usd(pq.usd), '<div class="jauge' + (pct >= 100 ? ' critique' : pct >= 70 ? ' haute' : '') + '" style="margin:4px 0 6px"><i style="width:' + pct.toFixed(1) + '%"></i></div>Estimation du site, tous comptes. ' + (Number(pq.usd) > 0 ? 'Au-delà, les comptes gratuits sont mis en pause jusqu\'à ' : 'Plafond à 0 $ : les comptes gratuits sont déjà en pause jusqu\'à ') + esc(pq.remise_ts ? new Date(pq.remise_ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '02:00') + '.'));
   }
   return L;
 }
@@ -1435,9 +1518,9 @@ function renderGpu() {
 }
 function renderAchats() {
   var P = S.pay, tb = $('#t-achats');
-  if (!P || !P.achats) { tb.innerHTML = '<tr><td colspan="7" class="vide">Chargement…</td></tr>'; return; }
+  if (!P || !P.achats) { tb.innerHTML = '<tr><td colspan="7" class="vide">' + (S.err.pay ? 'Achats indisponibles : ' + esc(S.err.pay) + '. Cliquez sur Actualiser.' : 'Chargement…') + '</td></tr>'; return; }
   var ETATS = { credite: ['Crédité', 'ok'], rembourse_partiel: ['Remboursé en partie', 'warn'], rembourse: ['Remboursé', 'err'], non_rapproche: ['Payé, crédits NON versés', 'err'] };
-  var l = trier(P.achats.filter(function (a) { return !S.filt.compte || a.email === S.filt.compte; }).map(function (a) { var o = Object.assign({}, a); o.ts = Date.parse(a.date); return o; }), 'achats');
+  var l = trier(P.achats.filter(function (a) { return !S.filt.compte || (a.email || 'inconnu') === S.filt.compte; }).map(function (a) { var o = Object.assign({}, a); o.ts = Date.parse(a.date); return o; }), 'achats');
   majEntetesTri();
   $('#resume-achats').textContent = P.count + ' achat(s) · ' + P.acheteurs + ' acheteur(s)' + (P.achats.some(function (a) { return a.test; }) ? ' · dont paiements en mode test' : '');
   tb.innerHTML = l.length ? l.map(function (a) {
@@ -1557,7 +1640,7 @@ function valPrix(k) { var e = S.prixEdit; return e && e[k] != null ? e[k] : (S.p
 function champPrix(k, lib, sansRaz) {
   var D = S.pricing.defaults, v = valPrix(k), mod = v !== D[k];
   return '<span class="prix-champ' + (lib ? ' v' : '') + '">' + (lib ? '<label class="orig" for="pk-' + esc(k) + '">' + esc(lib) + '</label>' : '')
-    + '<input type="number" class="pin' + (mod ? ' mod' : '') + '" id="pk-' + esc(k) + '" min="0" step="1" value="' + esc(String(v)) + '" data-pk="' + esc(k) + '" aria-label="Prix de ' + esc(k) + ' en crédits" title="Origine : ' + D[k] + ' crédits">'
+    + '<input type="number" class="pin' + (mod ? ' mod' : '') + '" id="pk-' + esc(k) + '" min="' + (k.indexOf('mesh_') === 0 ? D[k] : 0) + '" step="1" value="' + esc(String(v)) + '" data-pk="' + esc(k) + '" aria-label="Prix de ' + esc(k) + ' en crédits" title="Origine : ' + D[k] + ' crédits' + (k.indexOf('mesh_') === 0 ? ' · plancher : le site ne vend pas en dessous' : '') + '">'
     + (sansRaz ? '' : '<button type="button" class="btn petit" data-pk-raz="' + esc(k) + '"' + (mod ? '' : ' disabled') + ' aria-label="Remettre ' + esc(k) + ' à ' + D[k] + '" title="Remettre à la valeur d\'origine (' + D[k] + ')">↻</button>') + '</span>';
 }
 function celluleprix(op) {
@@ -1583,8 +1666,9 @@ function focusPrix() { var a = document.activeElement, tb = $('#t-ops'); return 
 function majBarrePrix() {
   var bar = $('#barre-prix'); if (!bar) return;
   var e = S.prixEdit || {}, cur = S.pricing ? S.pricing.current : {}, ks = Object.keys(e).filter(function (k) { return e[k] !== cur[k]; }), n = ks.length + (S.winEdit ? 1 : 0);
+  var sous = ks.filter(function (k) { return k.indexOf('mesh_') === 0 && S.pricing && S.pricing.defaults[k] != null && e[k] < S.pricing.defaults[k]; });      // 2026-10-02 (ARG-4) : prevenir AVANT l'enregistrement
   bar.hidden = !n; if (!n) { bar._h = null; return; }
-  var detail = ks.slice(0, 4).map(function (k) { return esc(k) + ' ' + cur[k] + ' → ' + e[k]; }).join(' · ') + (ks.length > 4 ? ' · +' + (ks.length - 4) : '') + (S.winEdit ? (ks.length ? ' · ' : '') + 'prix Windows' : '');
+  var detail = ks.slice(0, 4).map(function (k) { return esc(k) + ' ' + cur[k] + ' → ' + e[k]; }).join(' · ') + (ks.length > 4 ? ' · +' + (ks.length - 4) : '') + (S.winEdit ? (ks.length ? ' · ' : '') + 'prix Windows' : '') + (sous.length ? ' · ⚠ ' + sous.join(', ') + ' sous le plancher du code : le serveur refusera' : '');
   majSiChange(bar, '<div><b>' + pl(n, 'modification non enregistrée', 'modifications non enregistrées') + '</b><div class="note" style="margin:2px 0 0">' + detail + '. Tracé dans le journal à l\'enregistrement.</div></div>'
     + '<div class="ligneform" style="margin:0"><button type="button" class="btn" id="b-tarifs-non">Annuler</button><button type="button" class="btn prim" id="b-tarifs-ok">Enregistrer les tarifs</button></div>');
 }
@@ -1607,7 +1691,7 @@ function renderPrix() {
 function renderUsers() { majSousBadges(); renderComptes(); }
 function renderComptes() {
   var U = S.users;
-  if (!U) { $('#liste-comptes').innerHTML = '<div class="vide">Chargement…</div>'; return; }
+  if (!U) { $('#liste-comptes').innerHTML = enAttente('users'); return; }
   var q = S.rech.toLowerCase(), fen = PER_MIN[S.per] * 60000;
   var actifP = function (u) { return u.last_activity && Date.now() - Date.parse(u.last_activity) <= fen; };
   var l = U.users.filter(function (u) { return (!q || String(u.email || '').toLowerCase().indexOf(q) >= 0 || String(u.id || '').toLowerCase().indexOf(q) >= 0) && (!S.usersActifs || actifP(u)); });
@@ -1632,7 +1716,7 @@ function renderFiche() {
   if (!u) { if (!box.querySelector('input')) majSiChange(box, '<div class="vide">Choisissez un compte.</div>'); return; }
   if (box.dataset.uid === u.id && box.querySelector('input')) { /* saisie en cours : seule la partie chiffree est rafraichie */ var dl = $('dl', box); if (dl) dl.innerHTML = fichesStats(u); return; }
   box.dataset.uid = u.id;
-  box.innerHTML = '<h2>' + esc(u.email || u.id) + ' <small>inscrit le ' + esc(dateFr(u.created_at)) + (u.banned ? ' · <b style="color:var(--err)">bloqué</b>' : '') + '</small></h2><dl>' + fichesStats(u) + '</dl>'
+  box.innerHTML = '<h2>' + esc(u.email || u.id) + ' <small>inscrit le ' + esc(new Date(u.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })) + (u.banned ? ' · <b style="color:var(--err)">bloqué</b>' : '') + '</small></h2><dl>' + fichesStats(u) + '</dl>'
     + '<details class="vol mini" data-id="f-credits"><summary>Ajuster les crédits</summary><div class="corps"><div class="ligneform"><label for="aj">Variation</label><input type="number" id="aj" value="50" step="10"><input type="text" id="aj-motif" class="large" placeholder="Motif (obligatoire, tracé dans l\'audit)"><input type="password" id="aj-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim" id="b-aj">Appliquer</button></div><div id="aj-msg" class="note" aria-live="polite"></div></div></details>'
     + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux et achats</button> <button type="button" class="btn" data-actifs="meshes">Maillages (' + num(u.meshes_count) + ')</button> <button type="button" class="btn" data-actifs="rigs">Rigs (' + num(u.rigs_count) + ')</button> <button type="button" class="btn" data-actifs="animations">Animations (' + num(u.animations_count) + ')</button> <a class="btn" href="/market/author?id=' + encodeURIComponent(u.id) + '" target="_blank" rel="noopener">Profil public ↗</a></div><div id="ban-confirm"></div>'
     + '<div id="actifs"></div>' + htmlCreationsFiche(u);
@@ -1648,25 +1732,26 @@ function htmlCreationsFiche(u) {
     + '<div class="galerie" id="galerie"><div class="vide">Chargement…</div></div></div></details>';
 }
 function fichesStats(u) {
-  return '<div><dt>Crédits</dt><dd class="tn">' + num(u.credits) + '</dd></div><div><dt>Travaux</dt><dd class="tn">' + num(u.ops_total) + '</dd></div><div><dt>Échecs</dt><dd class="tn">' + num(u.ops_failed) + (u.ops_total ? ' <small style="font-size:12px;font-weight:400;color:' + (u.ops_failed / u.ops_total > 0.2 ? 'var(--err)' : 'var(--text-2)') + '">' + (100 * u.ops_failed / u.ops_total).toFixed(u.ops_failed / u.ops_total >= 0.1 ? 0 : 1) + ' %</small>' : '') + '</dd></div><div><dt>Crédits dépensés</dt><dd class="tn">' + num(u.credits_spent) + '</dd></div>';
+  return '<div><dt>Crédits</dt><dd class="tn">' + num(u.credits) + '</dd></div><div><dt>Travaux</dt><dd class="tn">' + num(u.ops_total) + '</dd></div><div><dt>Échecs</dt><dd class="tn">' + num(u.ops_failed) + (u.ops_total && u.ops_failed ? ' <small style="font-size:12px;font-weight:400;color:' + (u.ops_failed / u.ops_total > 0.2 ? 'var(--err)' : 'var(--text-2)') + '">' + (100 * u.ops_failed / u.ops_total).toFixed(u.ops_failed / u.ops_total >= 0.1 ? 0 : 1) + ' %</small>' : '') + '</dd></div><div><dt>Crédits dépensés</dt><dd class="tn">' + num(u.credits_spent) + '</dd></div>';
 }
+function majEnteteMsgs() { var M = S.msgs; if (!M) return; $('#n-msgs').textContent = M.filter(function (m) { return !m.read; }).length + ' non lu(s) sur ' + M.length + (S.err.msgs ? ' · ⚠ actualisation impossible : ' + S.err.msgs : ''); }
 function renderMessages() {
   var M = S.msgs, box = $('#msgs');
-  if (!M) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
-  if (box.querySelector('textarea')) return;                 // un brouillon de reponse est ouvert : pas de reconstruction
-  $('#n-msgs').textContent = M.filter(function (m) { return !m.read; }).length + ' non lu(s) sur ' + M.length;
+  if (!M) { box.innerHTML = enAttente('msgs'); return; }
+  if (box.querySelector('textarea')) { majEnteteMsgs(); return; }                 // un brouillon de reponse est ouvert : pas de reconstruction (2026-10-02, MM-09 : mais le compteur de l'en-tete reste juste)
+  majEnteteMsgs();
   box.innerHTML = M.length ? M.map(function (m) {
-    var qui = m.name ? esc(m.name) : (m.user_email ? 'compte connecté' : 'anonyme'), peutRepondre = !!(m.user_id || m.email);
+    var qui = m.name ? esc(m.name) : (m.user_email ? 'compte connecté' : 'anonyme'), peutRepondre = !!m.user_id;      /* 2026-10-02 (MM-04) : la reponse n'est livree que sur le COMPTE de l'expediteur (/api/me/replies filtre sur user_id) et aucun e-mail n'est envoye : sans compte, « Répondre » enregistrait une reponse que personne ne lirait */
     /* Pieces jointes : une capture se VOIT (un signalement de contenu ne s'instruit pas sur un nom de fichier) ; un maillage se telecharge, on affiche son apercu. */
     var pj = (m.attachments || []).map(function (a) {
       var url = esc(a.url || ''), nom = esc(a.name || 'pièce jointe'), ko = a.size ? Math.max(1, Math.round(a.size / 1024)) : 0, img = /^image\//i.test(a.mime || '');
       return '<div class="pj-bloc">' + (img ? '<a href="' + url + '" target="_blank" rel="noopener"><img class="pj" loading="lazy" src="' + url + '" alt="' + nom + '"></a>' : '<span class="pj-fichier" aria-hidden="true">🧊</span>')
-        + '<div class="note">' + (a.role === 'preview' ? 'Aperçu' : 'Contenu signalé') + ' · <a href="' + url + '" target="_blank" rel="noopener">' + nom + '</a>' + (ko ? ' · ' + ko + ' Ko' : '') + '</div></div>';
+        + '<div class="note">' + (a.role === 'preview' ? 'Aperçu' : a.role === 'asset' ? 'Contenu signalé' : 'Capture jointe') + ' · <a href="' + url + '" target="_blank" rel="noopener">' + nom + '</a>' + (ko ? ' · ' + ko + ' Ko' : '') + '</div></div>';
     }).join('');
     return '<div class="boite"><div class="ligneform" style="justify-content:space-between;margin:0"><span>' + (m.read ? '' : '<span class="pill run">nouveau</span> ') + (m.replied ? '<span class="pill ok">répondu</span> ' : '') + '<b>' + esc(m.subject || '(sans objet)') + '</b></span><span class="note">' + qui + (m.user_email ? ' · ' + lien('compte', m.user_email, m.user_email) : '') + ' · ' + esc(dateFr(m.created_at)) + '</span></div>'
       + (m.email || m.ip ? '<div class="note">' + (m.email ? 'Répondre à : <code>' + esc(m.email) + '</code>' : '') + (m.email && m.ip ? ' · ' : '') + (m.ip ? 'IP : <code>' + esc(m.ip) + '</code>' : '') + '</div>' : '')
       + '<pre>' + esc(m.message) + '</pre>' + (pj ? '<div>' + pj + '</div>' : '') + (m.reply_body ? '<div class="note" style="border-left:3px solid var(--ok);padding-left:8px;margin-top:8px">Votre réponse' + (m.replied_at ? ' · ' + esc(dateFr(m.replied_at)) : '') + ' : ' + esc(m.reply_body) + '</div>' : '')
-      + '<div class="ligneform" style="margin:8px 0 0">' + (peutRepondre ? '<button type="button" class="btn petit" data-rep="' + esc(m.id) + '">Répondre</button>' : '<span class="note">anonyme : pas de réponse possible</span>') + (m.read ? '' : '<button type="button" class="btn petit" data-lu="' + esc(m.id) + '">Marquer lu</button>') + '<button type="button" class="btn petit danger" data-supm="' + esc(m.id) + '">Supprimer</button></div><div id="rep-' + esc(m.id) + '"></div></div>';
+      + '<div class="ligneform" style="margin:8px 0 0">' + (peutRepondre ? '<button type="button" class="btn petit" data-rep="' + esc(m.id) + '">Répondre</button>' : '<span class="note">' + (m.email ? 'sans compte : il ne verra pas une réponse écrite ici, écrivez-lui à l’adresse ci-dessus' : 'anonyme : pas de réponse possible') + '</span>') + (m.read ? '' : '<button type="button" class="btn petit" data-lu="' + esc(m.id) + '">Marquer lu</button>') + '<button type="button" class="btn petit danger" data-supm="' + esc(m.id) + '">Supprimer</button></div><div id="rep-' + esc(m.id) + '"></div></div>';
   }).join('') : '<div class="vide">Aucun message.</div>';
 }
 var LIC_ANNONCE = { personal: 'Usage personnel', cc0: 'CC0', 'cc-by': 'CC-BY', 'cc-by-nc': 'CC-BY-NC', commercial: 'Commercial' };
@@ -1674,24 +1759,24 @@ var ICONE_ANNONCE = { image: '🖼', rig: '🦴', animation: '🎬', mesh: '🧊
 function renderAnnonces() {
   var L = S.listings, box = $('#annonces');
   $$('[data-ms]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.ms === S.ms); });
-  if (!L) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
+  if (!L) { box.innerHTML = enAttente('ann'); return; }
   if (box.querySelector('textarea') || (document.activeElement && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT')) return;
   var l = L.filter(function (x) { return x.status === S.ms; });
-  $('#n-annonces').textContent = L.filter(function (x) { return x.status === 'pending'; }).length + ' à valider · ' + L.length + ' au total';
+  $('#n-annonces').textContent = L.filter(function (x) { return x.status === 'pending'; }).length + ' à valider · ' + L.length + ' au total' + (S.err.ann ? ' · ⚠ actualisation impossible : ' + S.err.ann : '');
   box.innerHTML = l.length ? l.map(function (a) {
     var kind = a.asset_kind || (a.mesh_url ? 'mesh' : 'image'), url = a.apercu_url || a.asset_url || a.mesh_url || '';
-    /* Un modérateur doit VOIR ce qu'il valide : l'image elle-même, ou la vignette du maillage (le fichier 3D ne s'affiche pas ici : « Aperçu ↗ » le télécharge). */
+    /* Un modérateur doit VOIR ce qu'il valide : l'image elle-même, ou la vignette du maillage ; pour un fichier 3D, « Aperçu 3D » ouvre le visualiseur (2026-10-02, MM-06 : « Aperçu ↗ » ne faisait que télécharger le .glb, et la vignette manque quand le vendeur n'en a pas deposé). */
     var vignette = kind === 'image' ? (a.apercu_url || a.asset_url || '') : '/api/market/poster/' + encodeURIComponent(a.id);
     var offrable = a.status === 'approved' && (a.price_cents || 0) > 0, part = eur((a.price_cents || 0) * 0.35 / 100);
     var titre = (ICONE_ANNONCE[kind] || '🧊') + ' ' + (a.status === 'approved' ? '<a href="/market?item=' + encodeURIComponent(a.id) + '" target="_blank" rel="noopener">' + esc(a.title || '(sans titre)') + '</a>' : esc(a.title || '(sans titre)') + ' <span class="note">(pas encore visible publiquement)</span>');
     var auteur = a.user_id ? '<a href="/market/author?id=' + encodeURIComponent(a.user_id) + '" target="_blank" rel="noopener">' + esc(a.author_display || 'auteur') + '</a>' : esc(a.author_display || '');
-    return '<div class="boite annonce"><a class="apercu"' + (url ? ' href="' + esc(url) + '" target="_blank" rel="noopener" title="Ouvrir le fichier"' : '') + '>' + (vignette ? '<img class="apercu-annonce" loading="lazy" src="' + esc(vignette) + '" alt="Aperçu de l\'annonce">' : '') + '</a><div class="infos">'
+    return '<div class="boite annonce"><a class="apercu"' + (url ? ' href="' + esc(url) + '" target="_blank" rel="noopener" title="' + (kind === 'image' ? 'Ouvrir le fichier' : 'Télécharger le fichier') + '"' : '') + '>' + (vignette ? '<img class="apercu-annonce" loading="lazy" src="' + esc(vignette) + '" alt="Aperçu de l\'annonce">' : '') + '</a><div class="infos">'
       + '<div class="ligneform" style="justify-content:space-between;margin:0"><span><b>' + titre + '</b> <span class="pill">' + (a.price_cents === 0 ? 'Gratuit' : eur((a.price_cents || 0) / 100)) + '</span></span></div>'
       + '<div class="note">' + auteur + ' · ' + esc(LIC_ANNONCE[a.licence] || a.licence || '') + ' · ' + esc(dateFr(a.created_at)) + '</div>'
       + (a.description ? '<pre>' + esc(String(a.description).slice(0, 400)) + '</pre>' : '') + (a.rejection_reason ? '<div class="note" style="color:var(--err)">Motif du refus : ' + esc(a.rejection_reason) + '</div>' : '')
-      + '<div class="ligneform" style="margin:8px 0 0">' + (url ? '<a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Aperçu ↗</a>' : '') + (a.status !== 'approved' ? '<button type="button" class="btn petit prim" data-appr="' + esc(a.id) + '">Approuver</button>' : '') + (a.status !== 'rejected' ? '<button type="button" class="btn petit danger" data-rej="' + esc(a.id) + '">Refuser</button>' : '') + '</div><div class="ligneform" style="margin:8px 0 0"><label for="prix-' + esc(a.id) + '" class="note">Prix (€)</label><input type="number" id="prix-' + esc(a.id) + '" min="0" step="0.01" value="' + ((a.price_cents || 0) / 100).toFixed(2) + '" style="width:90px"><button type="button" class="btn petit" data-prix="' + esc(a.id) + '">Enregistrer le prix</button><span class="note">(0 = gratuit)</span>'
+      + '<div class="ligneform" style="margin:8px 0 0">' + (url ? (kind === 'image' ? '<a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Aperçu ↗</a>' : '<button type="button" class="btn petit" data-apercu3d="' + esc(url) + '" data-titre="' + esc(a.title || 'Modèle') + '">Aperçu 3D</button> <a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Télécharger</a>') : '') + (a.status !== 'approved' ? '<button type="button" class="btn petit prim" data-appr="' + esc(a.id) + '">Approuver</button>' : '') + (a.status !== 'rejected' ? '<button type="button" class="btn petit danger" data-rej="' + esc(a.id) + '">Refuser</button>' : '') + '</div><div class="ligneform" style="margin:8px 0 0"><label for="prix-' + esc(a.id) + '" class="note">Prix (€)</label><input type="number" id="prix-' + esc(a.id) + '" min="0" step="0.01" value="' + ((a.price_cents || 0) / 100).toFixed(2) + '" style="width:90px"><button type="button" class="btn petit" data-prix="' + esc(a.id) + '">Enregistrer le prix</button><span class="note">(0 = gratuit)</span>'
       + (offrable ? '<label class="note" style="display:flex;gap:6px;align-items:center" title="Tout compte connecté peut le retirer gratuitement jusqu\'à la fin du mois et le garde. Le créateur reçoit ' + part + ' par retrait, payé par la plateforme."><input type="checkbox" data-offert="' + esc(a.id) + '" style="width:auto"' + (S.offerts.indexOf(a.id) >= 0 ? ' checked' : '') + '> Gratuit ce mois-ci (' + S.offerts.length + '/' + S.offertsMax + ') · le créateur reçoit ' + part + ' par retrait</label>' : '')
-      + (S.annSup === a.id ? '<span class="confirm" style="display:inline-block;margin:0">Supprimer définitivement ? <button type="button" class="btn danger petit" data-supann-ok="' + esc(a.id) + '">Oui</button> <button type="button" class="btn petit" data-supann-non="1">Non</button></span>' : '<button type="button" class="btn petit danger" data-supann="' + esc(a.id) + '">Supprimer</button>') + '</div><div id="rj-' + esc(a.id) + '"></div></div></div>';
+      + (S.annSup === a.id ? '<span class="confirm" style="display:inline-block;margin:0">Supprimer définitivement ? Les acheteurs perdront l\'accès à ce fichier, sans remboursement automatique ; « Refuser » masque l\'annonce sans effacer les achats. <button type="button" class="btn danger petit" data-supann-ok="' + esc(a.id) + '">Oui</button> <button type="button" class="btn petit" data-supann-non="1">Non</button></span>' : '<button type="button" class="btn petit danger" data-supann="' + esc(a.id) + '">Supprimer</button>') + '</div><div id="rj-' + esc(a.id) + '"></div></div></div>';
   }).join('') : '<div class="vide">Aucune annonce dans cet état.</div>';
 }
 document.addEventListener('error', function (e) { var t = e.target; if (t && t.matches && t.matches('img.apercu-annonce')) t.style.visibility = 'hidden'; }, true);
@@ -1716,17 +1801,21 @@ function tuileAct(act, titre, valeur, sous, o) {
     + '<div class="k">' + esc(titre) + '</div><div class="v tn">' + valeur + '</div><div class="s">' + sous + '</div></button>';
 }
 async function chargerEchecs(force) {
-  var min = PER_MIN[S.per] || 43200, mode = S.fluxMode; if (!mode) return;
+  var per = S.per, min = PER_MIN[per] || 43200, mode = S.fluxMode; if (!mode) return;
   if (!force && S.echecs && S.echecs.per === S.per && S.echecs.mode === mode && Date.now() - S.echecs.at < 60000) return;
-  var j = await silencieux(http('/api/admin/traces?' + (mode === 'echecs' ? 'statuts=failed&' : '') + 'limit=200&minutes=' + min));
-  if (j && S.fluxMode === mode) { S.echecs = { per: S.per, mode: mode, at: Date.now(), liste: j.traces || [] }; renderMaintenant(); }
+  /* 2026-10-02 (T4 / T12) : echec visible (S.err.echecs) et reponse d'une periode ou d'un mode abandonnes IGNOREE. */
+  var j = await lecture('echecs', http('/api/admin/traces?' + (mode === 'echecs' ? 'statuts=failed&' : '') + 'limit=200&minutes=' + min), function () { return per === S.per && mode === S.fluxMode; });
+  if (per !== S.per || S.fluxMode !== mode) return;
+  if (j) S.echecs = { per: per, mode: mode, at: Date.now(), liste: j.traces || [] };
+  renderMaintenant();
 }
 function renderFluxEchecs() {
   var mode = S.fluxMode, E = S.echecs && S.echecs.per === S.per && S.echecs.mode === mode ? S.echecs : null, nomMode = mode === 'echecs' ? 'Échecs' : 'Travaux';
   $('#t-flux').textContent = nomMode; $('#flux-retour').hidden = false;
-  if (!E) { $('#n-flux').textContent = 'chargement…'; majSiChange($('#flux'), '<tr><td colspan="7" class="vide">Chargement…</td></tr>'); return; }
-  var l = E.liste.filter(function (x) { return (mode !== 'echecs' || x.status === 'failed') && (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); });
-  $('#n-flux').textContent = l.length + ' ' + (mode === 'echecs' ? (l.length > 1 ? 'échecs' : 'échec') : (l.length > 1 ? 'travaux' : 'travail')) + ' sur ' + (LIB_PER[S.per] || '') + (E.liste.length >= 200 ? ' · les 200 plus récents' : '');
+  if (!E) { var ee = S.err.echecs; $('#n-flux').textContent = ee ? 'indisponible' : 'chargement…'; majSiChange($('#flux'), ee ? '<tr><td colspan="7" class="vide msg-err">Liste indisponible : ' + esc(ee) + '. Nouvelle tentative dans une minute, ou bouton Actualiser.</td></tr>' : '<tr><td colspan="7" class="vide">Chargement…</td></tr>'); return; }
+  /* 2026-10-02 (T8) : les en-tetes se trient aussi dans cette liste (le tri lit ts / statut : copies portant ces cles, E.liste n'est pas modifiee). (T9) : un compte sans e-mail est le filtre « inconnu », un type absent « ? » (comme les liens). */
+  var l = trier(E.liste.filter(function (x) { return (mode !== 'echecs' || x.status === 'failed') && (!S.filt.compte || (x.email || 'inconnu') === S.filt.compte) && (!S.filt.type || (x.type || '?') === S.filt.type); }).map(function (x) { return Object.assign({}, x, { ts: Date.parse(x.date) || 0, statut: x.status }); }), 'flux');
+  $('#n-flux').textContent = l.length + ' ' + (mode === 'echecs' ? (l.length > 1 ? 'échecs' : 'échec') : (l.length > 1 ? 'travaux' : 'travail')) + ' sur ' + (LIB_PER[S.per] || '') + (E.liste.length >= 200 ? ' · les 200 plus récents' : '') + (S.err.echecs ? ' · ⚠ actualisation impossible (' + S.err.echecs + ')' : '');
   majSiChange($('#flux'), l.length ? l.map(function (x) {
     return '<tr><td data-ts="' + esc(x.date) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.operation || x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td>' + pillStatut(x.status) + (x.erreur ? '<span class="erreur-ligne">' + esc(String(x.erreur).slice(0, 140)) + '</span>' : '') + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td></tr>';
   }).join('') : '<tr><td colspan="7" class="vide">Aucun ' + (mode === 'echecs' ? 'échec' : 'travail') + ' sur cette période.</td></tr>');
@@ -1736,18 +1825,18 @@ function renderKpisAct() {
   var box = $('#kpis-act'); if (!box) return;
   var L = S.live, A = S.aud && S.audPer === S.per ? S.aud : null, lib = LIB_PER[S.per] || '', tot = 0, reu = 0, ech = 0, comptes = 0;
   if (A) { (A.par_provenance || []).forEach(function (x) { tot += x.travaux; reu += x.reussis; ech += x.echecs; }); (A.par_pays || []).forEach(function (x) { comptes += x.comptes; }); }
-  var pe = tot ? Math.round(ech / tot * 100) : 0, alerte = !!(A && ech && pe >= 20 && tot >= 5), ch = 'chargement…';
+  var pe = tot ? Math.round(ech / tot * 100) : 0, alerte = !!(A && ech && pe >= 20 && tot >= 5), ch = chg('aud');
   majSiChange(box, tuileAct('cours', 'En cours', L ? (L.en_cours || []).length : '—', 'travaux lancés · en direct · voir', { titre: 'Aller à la liste des travaux en cours' })
     + tuileAct('travaux', 'Travaux · ' + lib, A ? num(tot) : '…', A ? (tot ? Math.round(100 * reu / tot) + ' % réussis' : 'aucun travail') + (S.fluxMode === 'travaux' ? ' · liste affichée' : ' · voir la liste') : ch, { titre: 'Voir la liste des travaux de la période' })
-    + tuileAct('echecs', 'Échecs · ' + lib, A ? ech + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + tot + ' · ' + pe + ' %</span>' : '…', A ? (S.fluxMode === 'echecs' ? 'liste affichée · cliquer pour revenir' : (alerte ? 'à regarder' : 'normal') + ' · voir la liste') : ch, { alerte: alerte, titre: 'Voir les travaux en échec sur la période' })
+    + tuileAct('echecs', 'Échecs · ' + lib, A ? ech + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + tot + ' · ' + pe + ' %</span>' : '…', A ? (S.fluxMode === 'echecs' ? 'liste affichée · cliquer pour revenir' : (alerte ? 'à regarder' : (ech && tot < 5 ? 'trop peu pour juger' : 'normal')) + ' · voir la liste') : ch, { alerte: alerte, titre: 'Voir les travaux en échec sur la période' })
     + tuileAct('comptes', 'Comptes actifs · ' + lib, A ? num(comptes) : '…', A ? 'ont lancé un travail · voir les comptes' : ch, { titre: 'Voir les comptes actifs sur la période' }));
 }
 function renderAudience() {
   var st = S.stats, A = S.aud && S.audPer === S.per ? S.aud : null;
   var u = st && st.users;
   renderKpisAct();
-  if (A) { barres('b-pays', A.par_pays, nomPays, 'pays'); barres('b-canal', A.par_provenance, null, null); $('#note-audience').textContent = (A.note || '') + ' Fenêtre : ' + (A.fenetre_jours >= 1 ? A.fenetre_jours + ' jour(s)' : Math.round(A.fenetre_jours * 24) + ' h') + '.' + (st && st.jobs_truncated ? ' ⚠ Plafond de 20 000 lignes atteint : les totaux « depuis le début » sont sous-estimés.' : ''); }
-  else { $('#b-pays').innerHTML = '<div class="vide">Chargement…</div>'; $('#b-canal').innerHTML = ''; }
+  if (A) { barres('b-pays', A.par_pays, nomPays, null); barres('b-canal', A.par_provenance, null, null); $('#note-audience').textContent = (A.note || '') + ' Fenêtre : ' + (A.fenetre_jours >= 1 ? A.fenetre_jours + ' jour(s)' : (function (mn) { return mn >= 60 ? Math.round(mn / 60) + ' h' : mn + ' min'; })(A.fenetre_minutes || Math.round(A.fenetre_jours * 1440))) + '.' + (S.err.aud ? ' ⚠ Dernière actualisation impossible : ' + S.err.aud + '.' : '') + (st && st.jobs_truncated ? ' ⚠ Plafond de 20 000 lignes atteint : les totaux « depuis le début » sont sous-estimés.' : ''); }
+  else { $('#b-pays').innerHTML = enAttente('aud'); $('#b-canal').innerHTML = ''; }
   courbesParJour();
 }
 /* courbes « comptes actifs » et « travaux lances » par jour : dessinees dans Activite seulement (retirees de Maintenant a la demande du user) */
@@ -1771,14 +1860,14 @@ function courbesParJour() {
     var R = S.rec, h = heuresCourtes();
     if (R && R.heures === h && R.buckets) {
       var lb = R.buckets.map(function (b) { var d = new Date(b.debut); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
-      var tr = 'par ' + (R.pas_min >= 60 ? (R.pas_min / 60) + ' h' : R.pas_min + ' min') + ' · ' + LIB_PER[S.per];
+      var tr = 'par ' + (R.pas_min >= 60 ? (R.pas_min / 60) + ' h' : R.pas_min + ' min') + ' · ' + (S.per === 'now' ? '1 h' : LIB_PER[S.per]);
       serieSimple('g-ops', lb, R.buckets.map(function (b) { return b.ops || 0; }), 'var(--accent)', 'Travaux lancés');
       if ($('#g-act')) {
         if (R.buckets.length && R.buckets[0].comptes != null) serieSimple('g-act', lb, R.buckets.map(function (b) { return b.comptes || 0; }), 'var(--ok)', 'Comptes actifs');
         else $('#g-act').innerHTML = '<div class="vide">Chargement…</div>';
       }
       sm('#sous-ops', tr); sm('#sous-act', 'distincts ' + tr);
-    } else { $('#g-ops').innerHTML = '<div class="vide">Chargement…</div>'; if ($('#g-act')) $('#g-act').innerHTML = '<div class="vide">Chargement…</div>'; sm('#sous-ops', LIB_PER[S.per]); sm('#sous-act', LIB_PER[S.per]); }
+    } else { $('#g-ops').innerHTML = enAttente('rec'); if ($('#g-act')) $('#g-act').innerHTML = enAttente('rec'); sm('#sous-ops', LIB_PER[S.per]); sm('#sous-act', LIB_PER[S.per]); }
   }
 }
 
@@ -1787,30 +1876,32 @@ var KILL = [{ k: 'modal', n: 'Calcul GPU', d: "Génération, rig, animation, out
 function actif(k) { if (!S.svc) return null; if (k === 'market') return !(S.mkt && S.mkt.enabled); return S.svc[k + '_enabled'] !== false; }
 function ouvrirVolet(id) { var d = $('details[data-id="' + id + '"]'); if (d && !d.open) d.open = true; }
 function renderKill() {
-  var box = $('#kill'); if (!S.svc) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
+  if (S.killErr && Date.now() - (S.killErrAt || 0) > 15000) S.killErr = '';      // revue : un echec ancien ne doit pas rester affiche a cote d'un etat qui a repris
+  var box = $('#kill'); if (!S.svc) { box.innerHTML = enAttente('svc'); return; }
   if (box.querySelector('input')) return;      // un champ de motif est ouvert
   var tous = KILL.every(function (k) { return actif(k.k); });
   var h = KILL.map(function (k) {
     var on = actif(k.k);
-    return '<div class="sw"><div class="gauche"><div>' + esc(k.n) + ' <span class="pill ' + (on ? 'ok' : 'err') + '">' + (on ? 'Actif' : 'Coupé') + '</span></div><div class="d">' + esc(k.d) + (k.k === 'market' && !on && S.mkt && S.mkt.reason ? ' Motif : ' + esc(S.mkt.reason) : '') + '</div></div><button type="button" role="switch" aria-checked="' + on + '" aria-label="' + esc(k.n) + '" data-kill="' + k.k + '"></button></div>'
+    return '<div class="sw"><div class="gauche"><div>' + esc(k.n) + ' <span class="pill ' + (on ? 'ok' : 'err') + '">' + (on ? 'Actif' : 'Coupé') + '</span></div><div class="d">' + esc(k.d) + (k.k === 'market' && !on && S.mkt && S.mkt.reason ? ' Motif : ' + esc(S.mkt.reason) : '') + (k.k === 'market' && S.err.mkt ? ' ⚠ État non confirmé (lecture impossible : ' + esc(S.err.mkt) + ').' : '') + '</div></div><button type="button" role="switch" aria-checked="' + on + '" aria-label="' + esc(k.n) + '" data-kill="' + k.k + '"></button></div>'
       + (S.killConfirm === k.k ? '<div class="confirm">Couper « ' + esc(k.n) + ' » ?' + (k.k === 'market' ? ' <input type="text" id="kill-motif" placeholder="Motif visible des visiteurs (obligatoire)" style="margin:6px 0">' : '') + ' <button type="button" class="btn danger petit" data-kill-ok="' + k.k + '">Confirmer</button> <button type="button" class="btn petit" data-kill-non="1">Annuler</button></div>' : '');
   }).join('');
-  h += '<div class="ligneform" style="margin-top:12px">' + (tous ? '<button type="button" class="btn danger petit" data-kill-all="off">Tout couper</button>' : '<button type="button" class="btn petit" data-kill-all="on">Tout rallumer</button>') + '<span id="kill-msg" class="msg-err"></span></div>'
-    + (S.killConfirm === 'all-off' ? '<div class="confirm">Tout couper (site, GPU, paiements, marketplace) ? <button type="button" class="btn danger petit" data-kill-ok="all-off">Confirmer</button> <button type="button" class="btn petit" data-kill-non="1">Annuler</button></div>' : '');
+  h += '<div class="ligneform" style="margin-top:12px">' + (tous ? '<button type="button" class="btn danger petit" data-kill-all="off">Tout couper</button>' : '<button type="button" class="btn petit" data-kill-all="on">Tout rallumer</button>') + '<span id="kill-msg" class="msg-err">' + esc(S.killErr || (S.err.svc ? 'Lecture impossible : ' + S.err.svc + ' (état peut-être périmé).' : '')) + '</span></div>'
+    + (S.killConfirm === 'all-on' ? '<div class="confirm">Tout rallumer (site, GPU, paiements, marketplace) ? Les calculs GPU redeviennent facturables et une Marketplace coupée rouvre aussi (son motif est effacé). <button type="button" class="btn prim petit" data-kill-ok="all-on">Confirmer</button> <button type="button" class="btn petit" data-kill-non="1">Annuler</button></div>' : '') + (S.killConfirm === 'all-off' ? '<div class="confirm">Tout couper (site, GPU, paiements, marketplace) ? <button type="button" class="btn danger petit" data-kill-ok="all-off">Confirmer</button> <button type="button" class="btn petit" data-kill-non="1">Annuler</button></div>' : '');
   box.innerHTML = h;
 }
 var WARM = [{ cle: 'mesh', etat: 'mesh', n: 'Maillage 3D' }, { cle: 'image', etat: 'image_op', n: "Outils d'image · vue de dos · T-pose" }, { cle: 'text2image', etat: 'text2image', n: "Génération d'images" }, { cle: 'rig', etat: 'rig', n: 'Squelette' }, { cle: 'anim', etat: 'anim', n: 'Animation' }, { cle: 'mesh_segment', etat: 'mesh_segment', n: 'Segmentation' }, { cle: 'fbx_retarget', etat: 'fbx_retarget', n: 'Retarget FBX (processeur)' }];
 var warmOccupe = false, warmMsg = '';
 function renderWarm() {
-  var m = S.modal, box = $('#warm'); if (!m) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
+  var m = S.modal, box = $('#warm'); if (!m) { majSiChange(box, enAttente('modal')); return; }
   var gpuOn = actif('modal') !== false, garde = m.garde_chaud || {}, h = m.garde_chaud_heures || 3;
   var nb = WARM.filter(function (w) { return garde[w.cle]; }).length, tous = nb === WARM.length;
   var bloque = !gpuOn || warmOccupe;
   var html = '<div class="note" style="margin:0 0 4px">' + (gpuOn ? 'Un GPU chaud coûte environ 1 à 3 $ de l\'heure. Chaque interrupteur se coupe seul après ' + h + ' h.' : 'Calcul GPU coupé : tout est froid et ces interrupteurs sont bloqués.') + '</div>';
   html += WARM.map(function (w) {
     var on = !!garde[w.cle], e = m[w.etat] || {}, s = e.etat || (e.warm ? 'warm' : 'cold'), t = ETAT_CONT[s] || ['inconnu', 'var(--text-2)'];
-    return '<div class="sw"><div class="gauche"><div>' + esc(w.n) + '</div><div class="d">état réel : <b style="color:' + t[1] + '">● ' + t[0] + '</b>' + (on && garde[w.cle].until ? ' · gardé chaud jusqu\'à ' + new Date(garde[w.cle].until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '') + '</div></div><button type="button" role="switch" class="froid" aria-checked="' + on + '" aria-label="' + esc(w.n) + '" data-warm="' + w.cle + '"' + (bloque ? ' disabled' : '') + '></button></div>';
+    return '<div class="sw"><div class="gauche"><div>' + esc(w.n) + '</div><div class="d">' + (e.reel ? 'état réel' : 'état estimé') + ' : <b style="color:' + t[1] + '">● ' + t[0] + '</b>' + (on && garde[w.cle].until ? ' · gardé chaud jusqu\'à ' + new Date(garde[w.cle].until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '') + '</div></div><button type="button" role="switch" class="froid" aria-checked="' + on + '" aria-label="' + esc(w.n) + '" data-warm="' + w.cle + '"' + (bloque ? ' disabled' : '') + '></button></div>';
   }).join('');
+  if (S.warmConfirm && gpuOn) html += '<div class="confirm">Allumer les ' + WARM.length + ' conteneurs ? Environ 1 à 3 $ par heure et par conteneur (GPU facturés), pendant ' + h + ' h au plus avant l\'arrêt automatique. <button type="button" class="btn danger petit" data-warm-ok="1">Confirmer</button> <button type="button" class="btn petit" data-warm-non="1">Annuler</button></div>';
   html += '<div class="note" id="warm-msg" aria-live="polite">' + esc(warmMsg) + '</div>';
   majSiChange(box, html);
 }
@@ -1837,11 +1928,12 @@ function pointsSante() {
    « Alertes par e-mail : AUCUNE cle » contre « E-mail d'alerte : configure + destinataires ») : une fois les protections chargees, seule la version detaillee reste. */
 function lignesSante() {
   var m = S.mfull, items = pointsSante().filter(function (x) { return !(m && (x.cle === 'alerte_admin' || x.cle === 'usage_reel')); }).map(function (x) {
-    return { cle: x.cle, titre: LIBELLES_SANTE[x.cle] || x.cle, cls: x.ok ? 'ok' : 'warn', etat: x.etat, detail: (x.consequence ? esc(x.consequence) : '') + (x.action ? (x.consequence ? '<br>' : '') + '<span style="font-family:var(--mono)">' + esc(x.action) + '</span>' : '') };
+    return { cle: x.cle, titre: LIBELLES_SANTE[x.cle] || x.cle, cls: x.ok ? 'ok' : 'warn', etat: x.etat, detail: (x.consequence ? esc(x.consequence) : '') + (x.action ? (x.consequence ? '<br>' : '') + '<span style="font-family:var(--mono)">' + esc(x.action) + '</span>' : '') + (Array.isArray(x.detail) && x.detail.length ? '<br>' + x.detail.map(function (d) { return esc(d.compte) + ' : ' + pl(Number(d.credits) || 0, 'crédit', 'crédits'); }).join(' · ') : '') + (Array.isArray(x.details) && x.details.length ? '<br>' + esc(x.details.join(', ')) : '') };
   });
   var prot = [];
   if (m) { var pr = m.prevision || S.prev || {}; prot = protectionsDonnees(m, pr, pr.releve || {}); }
   else if (S.mfullErr) prot = [ligneProtD('warn', 'Protections automatiques', 'indisponibles', esc(S.mfullErr))];
+  var coupes = servicesCoupes().filter(function (n) { return n !== 'Calcul GPU' || !m; }); if (coupes.length) items.unshift({ cle: 'services_coupes', titre: 'Services coupés', cls: 'err', etat: coupes.join(', '), detail: "Rallumer depuis l'onglet Santé." });      // 2026-10-02 : Site, Paiements, Marketplace coupes n'alertaient nulle part hors de la carte Services
   var k = items.findIndex(function (x) { return x.cle === 'remboursement_auto'; }); if (k < 0) k = items.length;
   items.splice.apply(items, [k, 0].concat(prot));
   return items;
@@ -1849,14 +1941,18 @@ function lignesSante() {
 function santeAlertes(L) { return L.filter(function (x) { return x.cls === 'warn' || x.cls === 'err'; }); }
 function renderSante() {
   var s = S.sante, boxes = [$('#sante'), $('#sante-m')].filter(Boolean);
-  if (!s) { boxes.forEach(function (b) { b.innerHTML = '<div class="vide">Chargement…</div>'; }); return; }
+  if (!s) {
+    boxes.forEach(function (b) { majSiChange(b, enAttente('sante')); });
+    var m0 = $('#a-traiter-msg'); if (m0) { m0.hidden = !S.err.sante; majSiChange(m0, S.err.sante ? '<span class="pill err">Santé indisponible</span><span>' + esc(S.err.sante) + ' : impossible de dire s\'il y a des points à traiter.</span>' : ''); }      // une panne ne doit pas se lire « rien à signaler »
+    return;
+  }
   var L = lignesSante(), mal = santeAlertes(L), bien = L.filter(function (x) { return !(x.cls === 'warn' || x.cls === 'err'); }), nb = mal.length;
   var pill = s.pret_a_vendre && !nb ? '<span class="pill ok">prêt à vendre</span>' : '<span class="pill warn">' + nb + ' point(s) à traiter</span>';
   ['#sante-etat', '#sante-etat-m'].forEach(function (id) { var e = $(id); if (e) e.innerHTML = pill; });
   var bs = $('#b-sante'); if (bs) { bs.textContent = nb; bs.hidden = !nb; }
   var ligne = function (x) { return ligneProt(x.cls, x.titre, x.etat, x.detail); };
   /* Une seule liste, triee par urgence (user : « pourraient etre groupes dans Sante »). Vue d'ensemble n'en montre que les points a traiter. */
-  majSiChange($('#sante'), '<h3 class="grp-t">À traiter <span class="pill ' + (nb ? 'warn' : 'ok') + '">' + nb + '</span></h3>' + (nb ? mal.map(ligne).join('') : '<div class="vide">Rien à traiter.</div>')
+  majSiChange($('#sante'), (S.err.sante ? '<div class="msg-err">Dernière lecture impossible (' + esc(S.err.sante) + ') : chiffres d\'avant.</div>' : '') + '<h3 class="grp-t">À traiter <span class="pill ' + (nb ? 'warn' : 'ok') + '">' + nb + '</span></h3>' + (nb ? mal.map(ligne).join('') : '<div class="vide">Rien à traiter.</div>')
     + '<h3 class="grp-t">En ordre <span class="pill ok">' + bien.length + '</span></h3>' + bien.map(ligne).join('') + '<div class="note">' + esc(s.note || '') + '</div>');
   var mm = $('#a-traiter-msg');
   if (mm) { mm.hidden = !nb; majSiChange(mm, nb ? '<span class="pill warn">' + pl(nb, 'point à traiter', 'points à traiter') + '</span><span>dans Santé.</span><button type="button" class="lienclair" data-goto="systeme">Ouvrir Santé →</button>' : ''); }
@@ -1865,7 +1961,7 @@ function renderSecurite() {
   var t = S.totp, box = $('#securite');
   if (box.querySelector('input')) { return; }          // une saisie est en cours (2FA ou deconnexion forcee)
   var enrolle = t && t.enrolled;
-  var h = '<div class="sw"><div class="gauche"><div>Double authentification</div><div class="d">' + (t ? (enrolle ? 'Activée' + (t.email ? ' pour ' + esc(t.email) : '') + (t.enrolled_at ? ' depuis le ' + esc(dateFr(t.enrolled_at)) : '') : 'Non activée : toute personne qui connaît le mot de passe administrateur peut entrer.') : 'Chargement…') + (enrolle ? ' Elle ne peut pas être retirée depuis le site (décision du 27/07/2026). Téléphone perdu : supprimer l\'objet <code>_meta/admin-totp.json</code> du bucket depuis un poste autorisé (<code>wrangler r2 object delete … --remote</code>).' : '') + '</div></div>'
+  var h = '<div class="sw"><div class="gauche"><div>Double authentification</div><div class="d">' + (t ? (enrolle ? 'Activée' + (t.email ? ' pour ' + esc(t.email) : '') + (t.enrolled_at ? ' depuis le ' + esc(dateFr(t.enrolled_at)) : '') : 'Non activée : toute personne qui connaît le mot de passe administrateur peut entrer.') : (S.err.totp ? 'État indisponible : ' + esc(S.err.totp) + '. Cliquez sur Actualiser.' : 'Chargement…')) + (enrolle ? ' Elle ne peut pas être retirée depuis le site (décision du 27/07/2026). Téléphone perdu : supprimer l\'objet <code>_meta/admin-totp.json</code> du bucket depuis un poste autorisé (<code>wrangler r2 object delete … --remote</code>).' : '') + '</div></div>'
     + (t && !S.totpMode ? (enrolle ? '<button type="button" class="btn petit" id="b-2fa-remplacer">Remplacer</button>' : '<button type="button" class="btn petit prim" id="b-2fa-activer">Activer</button>') : '') + '</div>';
   if (enrolle && t.enrolled_at && Date.parse(t.enrolled_at) < Date.parse('2026-08-19T00:00:00Z') && !S.totpMode) h += '<div class="confirm" style="border-color:var(--warn)">⚠ Ce secret a été enregistré avant la fermeture de l\'accès public au stockage (18/08) : il a pu être lu. Remplacez-le.</div>';
   if (S.totpMode === 'enroll' || S.totpMode === 'replace') {
@@ -1911,10 +2007,10 @@ function ouvrirOnglet(t) {
   renderAll();
   if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); chargerSante(); chargerModalFull(); renderSante(); }
   if (t === 'travaux') { chargerLive(); chargerBloques(); chargerStats(); chargerAudience(); chargerArgentRecent(); }
-  if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); if (!S.pricing) chargerPricing(); }
+  if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); S.reconMsg = ''; chargerNonRapproches(); if (!S.pricing) chargerPricing(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.stats) chargerStats(); }
-  if (t === 'messages') { if (!S.msgs) chargerMessages(); }
-  if (t === 'marketplace') { if (!S.listings) chargerAnnonces(); }
+  if (t === 'messages') { if (!S.msgs || Date.now() - (S.msgsAt || 0) > 60000) chargerMessages(); }      // 2026-10-02 (MM-03) : revenir sur l'onglet relit la liste si elle a plus d'une minute (un brouillon ouvert est protege par renderMessages)
+  if (t === 'marketplace') { if (!S.listings || Date.now() - (S.annAt || 0) > 60000) chargerAnnonces(); }
   if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerModalFull(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
   chargerVolets();
 }
@@ -1940,58 +2036,67 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
   if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('travaux'); }
   if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') { chargerAudience(); chargerArgentRecent(true); if (S.fluxMode) chargerEchecs(true); } if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
-  if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
+  if ((b = t.closest('[data-ms]'))) { if (b.dataset.ms !== S.ms) { S.ms = b.dataset.ms; $('#annonces').innerHTML = ''; } return renderAnnonces(); }      // 2026-10-02 (MM-09) : changer de filtre ferme un brouillon de refus (avant : bouton actif mais liste de l'ancien filtre) ; recliquer le filtre actif le garde
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
   if ((b = t.closest('[data-ser]'))) { S.series[b.dataset.ser] = !S.series[b.dataset.ser]; return renderArgent(); }
   if (t.closest('#b-tarifs-non')) { S.prixEdit = {}; S.winEdit = false; var bw0 = $('#windows-prix'); if (bw0) bw0._sig = null; $('#tarifs-msg').textContent = ''; renderArgent(); return; }
   if (t.closest('#b-tarifs-raz')) {
     if (!S.pricing) return; S.prixEdit = S.prixEdit || {};
-    Object.keys(S.pricing.defaults).forEach(function (k) { if (k.indexOf('desktop_') !== 0 && S.pricing.current[k] !== S.pricing.defaults[k]) S.prixEdit[k] = S.pricing.defaults[k]; });
+    Object.keys(S.pricing.defaults).forEach(function (k) { if (k.indexOf('desktop_') === 0) return; if (S.pricing.current[k] !== S.pricing.defaults[k]) S.prixEdit[k] = S.pricing.defaults[k]; else delete S.prixEdit[k]; });      // 2026-10-02 (ARG-8) : une saisie sur un prix deja a l'origine est aussi abandonnee
     renderArgent(); return;
   }
   if (t.closest('#b-tarifs-ok')) {
-    var cur = Object.assign({}, S.pricing.current, S.prixEdit || {}), tp = $('#tar-d-prix'), tg = $('#tar-d-gratuit');
-    if (tp) { var dp = parseFloat(String(tp.value).replace(',', '.')); if (isFinite(dp) && dp >= 0) cur.desktop_prix_centimes = Math.round(dp * 100); }
-    if (tg) cur.desktop_gratuit = tg.checked ? 1 : 0;
+    /* 2026-10-02 (ARG-5) : le serveur REMPLACE toute la grille ; envoyer la copie lue a l'ouverture annulait en silence les prix changes entre-temps (autre session, script). On relit la grille juste avant d'ecrire : seules les cles SAISIES (S.prixEdit) la modifient. */
+    var fr = await http('/api/admin/pricing').catch(function () { return null; });
+    if (!fr) { var m0 = $('#tarifs-msg'); m0.className = 'msg-err'; m0.textContent = 'Échec : impossible de relire la grille actuelle, rien n\'a été enregistré.'; return; }
+    var cur = Object.assign({}, S.pricing.defaults, fr.current || {}, S.prixEdit || {}), tp = $('#tar-d-prix'), tg = $('#tar-d-gratuit');
+    if (tp && S.winEdit) { var dp = parseFloat(String(tp.value).replace(',', '.')); if (isFinite(dp) && dp >= 0) cur.desktop_prix_centimes = Math.round(dp * 100); else { var mw = $('#tarifs-msg'); mw.className = 'msg-err'; mw.textContent = 'Prix Windows invalide : saisissez un nombre positif ou nul.'; return; } }      // ARG-5 : les champs Windows ne comptent que s'ils ont ete touches (sinon ils portent une valeur lue il y a longtemps) ; ARG-11 : un prix invalide n'est plus ignore en silence
+    if (tg && S.winEdit) cur.desktop_gratuit = tg.checked ? 1 : 0;
     var m = $('#tarifs-msg'); m.className = 'note'; m.textContent = 'Enregistrement…';
-    try { var j = await http('/api/admin/pricing', { method: 'POST', body: { prices: cur, password: '' } }); S.pricing.current = Object.assign({}, S.pricing.defaults, j.current || cur); S.prixEdit = {}; S.winEdit = false; var bw1 = $('#windows-prix'); if (bw1) bw1._sig = null; m.className = 'msg-ok'; m.textContent = '✓ Enregistré : pris en compte par tous les utilisateurs d\'ici une minute.'; renderArgent(); }
+    try { var j = await http('/api/admin/pricing', { method: 'POST', body: { prices: cur, password: '' } }); var refus = Array.isArray(j.refuses) ? j.refuses.map(function (x) { return x.cle + ' (demandé ' + x.demande + ', plancher ' + x.plancher + ')'; }) : []; S.pricing.current = Object.assign({}, S.pricing.defaults, j.current || cur); S.prixEdit = {}; S.winEdit = false; var bw1 = $('#windows-prix'); if (bw1) bw1._sig = null; m.className = refus.length ? 'msg-err' : 'msg-ok'; m.textContent = refus.length ? '⚠ Refusé par le serveur : un prix mesh_* ne descend jamais sous le plancher du code, le plancher est conservé pour ' + refus.join(', ') + '. Les autres prix sont enregistrés.' : '✓ Enregistré : pris en compte par tous les utilisateurs d\'ici une minute.'; renderArgent(); }
     catch (er) { m.className = 'msg-err'; m.textContent = 'Échec : ' + er.message; }
     return;
   }
   /* utilisateurs */
   if (t.closest('#b-aj')) {
+    if (!S.users) { var am0 = $('#aj-msg'); am0.className = 'msg-err'; am0.textContent = 'La liste des comptes n’est pas chargée : cliquez sur Actualiser.'; return; }      // 2026-10-02 (USR-07) : plus de TypeError muet quand S.users est null
     var u = S.users.users.filter(function (x) { return x.id === S.sel; })[0], am = $('#aj-msg');
+    if (!u) { am.className = 'msg-err'; am.textContent = 'Ce compte n’est plus dans la liste chargée : cliquez sur Actualiser.'; return; }
     var delta = Math.trunc(Number($('#aj').value)), motif = $('#aj-motif').value.trim(), mdp = $('#aj-mdp').value;
     if (!delta) { am.className = 'msg-err'; am.textContent = 'La variation doit être un entier non nul.'; return; }
+    if (Math.abs(delta) > 10000) { am.className = 'msg-err'; am.textContent = 'Variation limitée à ±10 000 crédits par opération.'; return; }      // 2026-10-02 (USR-06) : borne du serveur ; le solde, lui, est tranché par le serveur (le solde affiche peut etre ancien)
     if (motif.length < 3) { am.className = 'msg-err'; am.textContent = 'Un motif est obligatoire (3 caractères minimum).'; return; }
     if (!mdp) { am.className = 'msg-err'; am.textContent = 'Mot de passe administrateur requis.'; return; }
-    am.className = 'note'; am.textContent = 'Application…';
+    am.className = 'note'; am.textContent = 'Application…'; var bAj = $('#b-aj'); bAj.disabled = true;      // 2026-10-02 (USR-03) : le double clic envoyait deux POST (credits verses deux fois)
     try { var jc = await http('/api/admin/users/credits', { method: 'POST', mdp: true, body: { userId: u.id, delta: delta, reason: motif, password: mdp } }); u.credits = jc.credits; am.className = 'msg-ok'; am.textContent = '✓ ' + (delta > 0 ? '+' : '') + delta + ' → ' + jc.credits + ' crédits'; $('#aj-mdp').value = ''; renderComptes(); }
-    catch (er3) { am.className = 'msg-err'; am.textContent = er3.status === 401 ? 'Mot de passe incorrect.' : er3.message; }
+    catch (er3) { am.className = 'msg-err'; am.textContent = er3.status === 401 ? 'Mot de passe incorrect.' : er3.status === 409 ? 'Refusé : le solde passerait sous zéro (solde affiché : ' + (u.credits == null ? 'inconnu' : u.credits) + ' ; actualisez si ce chiffre est ancien).' : er3.status === 404 ? 'Compte introuvable.' : er3.status === 502 ? 'Le service de crédits a échoué, réessayez.' : er3.message; } finally { bAj.disabled = false; }
     return;
   }
-  if (t.closest('#b-ban')) { var ub = S.users.users.filter(function (x) { return x.id === S.sel; })[0]; $('#ban-confirm').innerHTML = '<div class="confirm">' + (ub.banned ? 'Débloquer' : 'Bloquer') + ' ' + esc(ub.email || ub.id) + ' ? ' + (ub.banned ? 'Il retrouve l\'accès tout de suite.' : 'Il sera déconnecté à sa prochaine requête (environ une minute).') + ' <button type="button" class="btn danger petit" id="b-ban-ok">Confirmer</button> <button type="button" class="btn petit" id="b-ban-non">Annuler</button></div>'; return; }
+  if (t.closest('#b-ban')) { if (!S.users) { $('#ban-confirm').innerHTML = '<div class="msg-err">La liste des comptes n’est pas chargée : cliquez sur Actualiser.</div>'; return; } var ub = S.users.users.filter(function (x) { return x.id === S.sel; })[0]; $('#ban-confirm').innerHTML = '<div class="confirm">' + (ub.banned ? 'Débloquer' : 'Bloquer') + ' ' + esc(ub.email || ub.id) + ' ? ' + (ub.banned ? 'Il retrouve l\'accès tout de suite.' : 'Il sera déconnecté à sa prochaine requête (environ une minute).') + ' <button type="button" class="btn danger petit" id="b-ban-ok">Confirmer</button> <button type="button" class="btn petit" id="b-ban-non">Annuler</button></div>'; return; }
   if (t.closest('#b-ban-non')) { $('#ban-confirm').innerHTML = ''; return; }
-  if (t.closest('#b-ban-ok')) { var ub2 = S.users.users.filter(function (x) { return x.id === S.sel; })[0]; try { await http('/api/admin/users/ban', { method: 'POST', body: { userId: ub2.id, ban: !ub2.banned } }); ub2.banned = !ub2.banned; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; renderComptes(); } catch (er4) { $('#ban-confirm').innerHTML = '<div class="msg-err">' + esc(er4.message) + '</div>'; } return; }
+  if (t.closest('#b-ban-ok')) { if (!S.users) { $('#ban-confirm').innerHTML = '<div class="msg-err">La liste des comptes n’est pas chargée : cliquez sur Actualiser.</div>'; return; } var ub2 = S.users.users.filter(function (x) { return x.id === S.sel; })[0]; try { await http('/api/admin/users/ban', { method: 'POST', body: { userId: ub2.id, ban: !ub2.banned } }); ub2.banned = !ub2.banned; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; renderComptes(); } catch (er4) { $('#ban-confirm').innerHTML = '<div class="msg-err">' + esc(er4.message) + '</div>'; } return; }
   /* messages */
-  if ((b = t.closest('[data-lu]'))) { try { await http('/api/admin/contact-messages/' + encodeURIComponent(b.dataset.lu) + '/read', { method: 'POST' }); } catch (_) {} await chargerMessages(); chargerBadges(); return; }
-  if ((b = t.closest('[data-supm]'))) { var cm = b.dataset.supm; b.outerHTML = '<span class="confirm">Supprimer définitivement ? <button type="button" class="btn danger petit" data-supm-ok="' + esc(cm) + '">Oui</button></span>'; return; }
-  if ((b = t.closest('[data-supm-ok]'))) { try { await http('/api/admin/contact-messages/' + encodeURIComponent(b.dataset.supmOk), { method: 'DELETE' }); } catch (_) {} await chargerMessages(); chargerBadges(); return; }
+  if ((b = t.closest('[data-lu]'))) { try { await http('/api/admin/contact-messages/' + encodeURIComponent(b.dataset.lu) + '/read', { method: 'POST' }); } catch (er) { echecAction('marquer le message comme lu', er); } await chargerMessages(); chargerBadges(); return; }
+  if ((b = t.closest('[data-supm]'))) { var cm = b.dataset.supm; b.outerHTML = '<span class="confirm">Supprimer définitivement ? <button type="button" class="btn danger petit" data-supm-ok="' + esc(cm) + '">Oui</button> <button type="button" class="btn petit" data-rep-non="1">Non</button></span>'; return; }      // 2026-10-02 (MM-10) : « Non » redessine la liste (data-rep-non), la confirmation est annulee
+  if ((b = t.closest('[data-supm-ok]'))) { try { await http('/api/admin/contact-messages/' + encodeURIComponent(b.dataset.supmOk), { method: 'DELETE' }); } catch (er) { echecAction('suppression du message', er); } await chargerMessages(); chargerBadges(); return; }
   if ((b = t.closest('[data-rep]'))) { var rid = b.dataset.rep; $('#rep-' + rid).innerHTML = '<textarea id="rep-t-' + esc(rid) + '" placeholder="Votre réponse (visible par l\'utilisateur sur son compte)"></textarea><div class="ligneform" style="margin-top:6px"><button type="button" class="btn prim petit" data-rep-ok="' + esc(rid) + '">Envoyer</button><button type="button" class="btn petit" data-rep-non="1">Annuler</button><span class="msg-err" id="rep-m-' + esc(rid) + '"></span></div>'; $('#rep-t-' + rid).focus(); return; }
   if (t.closest('[data-rep-non]')) { return renderMessagesForce(); }
   if ((b = t.closest('[data-rep-ok]'))) { var rid2 = b.dataset.repOk, corps = $('#rep-t-' + rid2).value.trim(); if (!corps) { $('#rep-m-' + rid2).textContent = 'La réponse est vide.'; return; } try { await http('/api/admin/contact-messages/' + encodeURIComponent(rid2) + '/reply', { method: 'POST', body: { body: corps } }); await renderMessagesForce(true); } catch (er6) { $('#rep-m-' + rid2).textContent = er6.message; } return; }
   /* annonces */
-  if ((b = t.closest('[data-appr]'))) { try { await http('/api/admin/market/' + encodeURIComponent(b.dataset.appr) + '/approve', { method: 'POST' }); } catch (_) {} await chargerAnnonces(); chargerBadges(); return; }
+  if ((b = t.closest('[data-appr]'))) { try { await http('/api/admin/market/' + encodeURIComponent(b.dataset.appr) + '/approve', { method: 'POST' }); } catch (er) { echecAction('approbation de l\'annonce', er); } await chargerAnnonces(); chargerBadges(); return; }
   if ((b = t.closest('[data-rej]'))) { var lid = b.dataset.rej; $('#rj-' + lid).innerHTML = '<textarea id="rj-t-' + esc(lid) + '" placeholder="Motif du refus (optionnel, montré à l\'auteur)"></textarea><div class="ligneform" style="margin-top:6px"><button type="button" class="btn danger petit" data-rej-ok="' + esc(lid) + '">Refuser l\'annonce</button><button type="button" class="btn petit" data-rej-non="1">Annuler</button></div>'; $('#rj-t-' + lid).focus(); return; }
   if (t.closest('[data-rej-non]')) { return renderAnnoncesForce(); }
-  if ((b = t.closest('[data-rej-ok]'))) { var lid2 = b.dataset.rejOk; try { await http('/api/admin/market/' + encodeURIComponent(lid2) + '/reject', { method: 'POST', body: { reason: $('#rj-t-' + lid2).value.trim() } }); } catch (_) {} await renderAnnoncesForce(true); chargerBadges(); return; }
+  if ((b = t.closest('[data-rej-ok]'))) { var lid2 = b.dataset.rejOk; try { await http('/api/admin/market/' + encodeURIComponent(lid2) + '/reject', { method: 'POST', body: { reason: $('#rj-t-' + lid2).value.trim() } }); } catch (er) { echecAction('refus de l\'annonce', er); await chargerAnnonces(); chargerBadges(); return; } await renderAnnoncesForce(true); chargerBadges(); return; }      // 2026-10-02 (MM-02) : echec = on ne vide PAS la zone (le motif saisi est conserve : renderAnnonces ne reconstruit pas tant qu'un textarea est ouvert)
   /* système : interrupteurs */
   if ((b = t.closest('[data-kill]'))) { var k = b.dataset.kill, on = actif(k); if (on) { ouvrirVolet('s-kill'); S.killConfirm = k; $('#kill').innerHTML = ''; return renderKill(); } return basculerService(k, true); }
-  if ((b = t.closest('[data-kill-ok]'))) { var ko = b.dataset.killOk; if (ko === 'all-off') return basculerTout(false); var motif2 = $('#kill-motif') ? $('#kill-motif').value.trim() : ''; if (ko === 'market' && !motif2) { var km = $('#kill-motif'); km.style.borderColor = 'var(--err)'; km.focus(); return; } return basculerService(ko, false, motif2); }
+  if ((b = t.closest('[data-kill-ok]'))) { var ko = b.dataset.killOk; if (ko === 'all-off') return basculerTout(false); if (ko === 'all-on') return basculerTout(true); var motif2 = $('#kill-motif') ? $('#kill-motif').value.trim() : ''; if (ko === 'market' && !motif2) { var km = $('#kill-motif'); km.style.borderColor = 'var(--err)'; km.focus(); return; } return basculerService(ko, false, motif2); }
   if (t.closest('[data-kill-non]')) { S.killConfirm = null; $('#kill').innerHTML = ''; return renderKill(); }
-  if ((b = t.closest('[data-kill-all]'))) { if (b.dataset.killAll === 'on') return basculerTout(true); ouvrirVolet('s-kill'); S.killConfirm = 'all-off'; $('#kill').innerHTML = ''; return renderKill(); }
+  if ((b = t.closest('[data-kill-all]'))) { ouvrirVolet('s-kill'); S.killConfirm = b.dataset.killAll === 'on' ? 'all-on' : 'all-off'; $('#kill').innerHTML = ''; return renderKill(); }
   if ((b = t.closest('[data-warm]'))) { var cible = {}; cible[b.dataset.warm] = b.getAttribute('aria-checked') !== 'true'; return basculerWarm(cible); }
-  if (t.closest('[data-warmall]')) { var cs = {}; var allOn = WARM.every(function (w) { return (S.modal.garde_chaud || {})[w.cle]; }); WARM.forEach(function (w) { cs[w.cle] = !allOn; }); return basculerWarm(cs); }
+  if (t.closest('[data-warmall]')) { var cs = {}; var allOn = WARM.every(function (w) { return (S.modal.garde_chaud || {})[w.cle]; }); if (!allOn) { ouvrirVolet('s-warm'); S.warmConfirm = true; return renderWarm(); }      /* 2026-10-02 : allumer = GPU facturés (1 à 3 $ de l'heure chacun) : confirmation en ligne, comme les coupures */
+    WARM.forEach(function (w) { cs[w.cle] = !allOn; }); return basculerWarm(cs); }
+  if (t.closest('[data-warm-non]')) { S.warmConfirm = false; return renderWarm(); }
+  if (t.closest('[data-warm-ok]')) { var cs2 = {}; S.warmConfirm = false; WARM.forEach(function (w) { cs2[w.cle] = true; }); return basculerWarm(cs2); }
   /* sécurité */
   if (t.closest('#b-deco')) { S.decoOuvert = true; $('#securite').innerHTML = ''; return renderSecurite(); }
   if (t.closest('#b-deco-non')) { S.decoOuvert = false; $('#securite').innerHTML = ''; return renderSecurite(); }
@@ -2038,16 +2143,16 @@ document.addEventListener('click', function (e) { var th = e.target.closest('th[
 async function renderMessagesForce(recharger) { $('#msgs').innerHTML = ''; if (recharger) await chargerMessages(); else renderMessages(); }
 async function renderAnnoncesForce(recharger) { $('#annonces').innerHTML = ''; if (recharger) await chargerAnnonces(); else renderAnnonces(); }
 async function basculerService(k, on, motif) {
-  var m = $('#kill-msg'); S.killConfirm = null; S.mfullAt = 0;
+  S.killErr = ''; S.killConfirm = null; S.mfullAt = 0;
   try {
     if (k === 'market') await http('/api/admin/market/killswitch', { method: 'POST', body: { enabled: !on, reason: on ? '' : motif } });
     else await http('/api/admin/services', { method: 'POST', body: { service: k, enabled: on, password: '' } });
-  } catch (er) { if (m) m.textContent = 'Échec : ' + er.message; }
+  } catch (er) { S.killErr = 'Échec : ' + er.message; S.killErrAt = Date.now(); }      // 2026-10-02 : garde dans S puis ecrit par renderKill (le message etait efface par le rendu qui suivait)
   $('#kill').innerHTML = ''; await chargerServices(); renderKill(); if (k === 'modal') chargerModalStatus();
 }
-async function basculerTout(on) {
+async function basculerTout(on) { S.killErr = '';
   S.killConfirm = null; S.mfullAt = 0;
-  try { await http('/api/admin/services', { method: 'POST', body: { service: 'all', enabled: on, password: '' } }); } catch (er) { var m = $('#kill-msg'); if (m) m.textContent = 'Échec : ' + er.message; }
+  try { await http('/api/admin/services', { method: 'POST', body: { service: 'all', enabled: on, password: '' } }); } catch (er) { S.killErr = 'Échec : ' + er.message; S.killErrAt = Date.now(); }
   $('#kill').innerHTML = ''; await chargerServices(); renderKill(); chargerModalStatus();
 }
 async function basculerWarm(cibles) {
@@ -2124,19 +2229,25 @@ document.addEventListener('submit', async function (e) {
     if (r.status === 401) {
       if (/totp_required/i.test(detail)) { $('#lg-totp-ligne').hidden = false; err.textContent = "Saisissez le code à 6 chiffres de votre application d'authentification."; $('#lg-totp').focus(); return; }
       if (/invalid totp/i.test(detail)) { err.textContent = 'Code incorrect, réessayez.'; $('#lg-totp').select(); return; }
+      if (/^unauthorized/i.test(detail)) { sessionPerdue(401, detail); return; }      // 2026-10-02 (T5) : session utilisateur expiree, pas un mot de passe faux
       err.textContent = 'Identifiant ou mot de passe incorrect.'; $('#lg-mdp').select(); return;
     }
     if (!r.ok) { err.textContent = 'Connexion impossible : HTTP ' + r.status + (detail ? ' — ' + detail : ''); return; }
-    sessionRetablie(); toutRecharger();
+    sessionRetablie();
   } catch (er) { err.textContent = 'Connexion impossible : ' + er.message; }
 });
 function toutRecharger() {
-  chargerBloques(); S.stats = null; S.users = null; S.msgs = null; S.listings = null; S.pricing = null; S.prixEdit = {}; S.winEdit = false; S.mfull = null; S.sante = null; S.aud = null; S.cre.data = {};
-  chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); ouvrirOnglet(S.tab);
+  chargerBloques(); S.stats = null; S.users = null; S.msgs = null; S.listings = null; S.pricing = null; S.prixEdit = {}; S.winEdit = false; var bwr = $('#windows-prix'); if (bwr) bwr._sig = null; delete S.err.users; delete S.err.msgs; delete S.err.ann; S.mfull = null; S.sante = null; S.aud = null; S.cre.data = {};
+  S.echecs = null; chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); ouvrirOnglet(S.tab); if (S.fluxMode) chargerEchecs(true);
 }
 document.addEventListener('click', async function (e) {
-  if (e.target.closest('#b-refresh')) { toutRecharger(); return; }
-  if (e.target.closest('#b-logout')) { try { await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }); } catch (_) {} S.liveAt = 0; chargerLive(); return; }
+  if (e.target.closest('#b-refresh')) {
+    var brf = $('#b-refresh');
+    /* 2026-10-02 (ARG-11) : Actualiser remet les prix saisis a zero ; avec des modifications en attente, le 1er clic arme (libelle change), le 2e confirme, l'armement tombe apres 6 s. */
+    if ((Object.keys(S.prixEdit || {}).length || S.winEdit) && !S.refArme) { S.refArme = true; brf.textContent = 'Abandonner les prix saisis ?'; clearTimeout(S.refT); S.refT = setTimeout(function () { S.refArme = false; brf.textContent = 'Actualiser'; }, 6000); return; }
+    S.refArme = false; clearTimeout(S.refT); brf.textContent = 'Actualiser'; toutRecharger(); return;
+  }
+  if (e.target.closest('#b-logout')) { try { await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }); } catch (_) {} S.liveAt = 0; viderSecurite(); chargerLive(); return; }
   if (e.target.closest('#b-oubli')) { fpEtape(1); fpMsg(''); ['fp-code', 'fp-user', 'fp-mdp1', 'fp-mdp2'].forEach(function (id) { $('#' + id).value = ''; }); $('#fp').hidden = false; S.fpRetour = e.target.closest('button'); $('#fp-envoyer').focus(); return; }
   if (e.target.closest('#fp-fermer') || e.target.id === 'fp') { fermerFp(); return; }
   if (e.target.closest('#fp-envoyer, #fp-envoyer2')) {
@@ -2196,7 +2307,7 @@ document.addEventListener('click', async function (e) {
       await http('/api/admin/totp/confirm', { method: 'POST', mdp: true, body: { secret: S.totpSecret, code: code, current_code: rempl ? actuel : undefined } });
       S.totpMode = null; S.totpSecret = null; S.secMsgOk = true; S.secMsg = rempl ? "Authentificateur remplacé : l'ancienne entrée ne marche plus, supprimez-la de votre application." : 'Double authentification activée : elle sera demandée à chaque connexion.';
       $('#securite').innerHTML = ''; await chargerTotp(); renderSecurite();
-    } catch (er) { $('#tp-err').textContent = er.status === 401 ? (/current/i.test(er.message) ? "Le code de l'ANCIENNE entrée est faux ou manquant." : 'Code faux pour la NOUVELLE entrée, réessayez.') : er.message; }
+    } catch (er) { var te = $('#tp-err'); if (te) te.textContent = er.status === 401 ? (/current/i.test(er.message) ? "Le code de l'ANCIENNE entrée est faux ou manquant." : 'Code faux pour la NOUVELLE entrée, réessayez.') : er.message; }
     return;
   }
 });
@@ -2226,8 +2337,9 @@ function renderTraces() {
   majEntetesTri();
 }
 function renderDbgLogs() {
-  var tl = $('#dbg-logs'), logs = trier(S.dbgLogs || [], 'dbglog');
-  $('#dbg-logs-n').textContent = (S.dbgLogsN != null ? S.dbgLogsN : logs.length) + ' fichier(s)';
+  /* 2026-10-02 (T14) : la ligne « notice » du serveur (analyse limitee a N comptes) n'est pas un journal : plus de bouton « Voir » qui menait a une erreur 400, et le decompte est « affiches sur N ». */
+  var tl = $('#dbg-logs'), tous = trier(S.dbgLogs || [], 'dbglog'), avis = tous.filter(function (l) { return l.kind === 'notice'; })[0], logs = tous.filter(function (l) { return l.kind !== 'notice'; });
+  $('#dbg-logs-n').textContent = logs.length + ' affiché(s) sur ' + Math.max(logs.length, (S.dbgLogsN != null ? S.dbgLogsN : tous.length) - (avis ? 1 : 0)) + (avis ? ' — ' + avis.key : '');
   tl.innerHTML = logs.length ? logs.map(function (l) {
     return '<tr><td class="tn">' + esc(String(l.uploaded || '').replace('T', ' ').slice(5, 19)) + '</td><td>' + esc(l.email || String(l.uid || '').slice(0, 8) + '…') + '</td><td>' + esc(l.kind || '—') + '</td><td>' + esc(l.status || '—') + '</td><td class="coupe">' + esc(l.project || '—') + '</td><td class="n tn">' + (l.size / 1024).toFixed(1) + ' Ko</td><td><button type="button" class="btn petit" data-log="' + esc(l.key) + '">Voir</button></td></tr>';
   }).join('') : '<tr><td colspan="7" class="vide">Aucun journal pour ce filtre.</td></tr>';
@@ -2239,10 +2351,12 @@ function detailsAudit(x) {
   return d;
 }
 function renderAudit() {
-  var tb = $('#audit'), e = trier(S.auditEntries || [], 'audit');
+  var tb = $('#audit'), e;
+  if (!S.auditEntries) { tb.innerHTML = '<tr><td colspan="6" class="vide' + (S.err.audit ? ' msg-err' : '') + '">' + (S.err.audit ? 'Journal indisponible : ' + esc(S.err.audit) : 'Cliquez sur Afficher pour charger le journal.') + '</td></tr>'; majEntetesTri(); return; }
+  e = trier(S.auditEntries, 'audit');
   tb.innerHTML = e.length ? e.map(function (x) {
     var d = JSON.stringify(detailsAudit(x));
-    return '<tr><td class="tn">' + esc((x.ts || '').slice(11, 19)) + '</td><td>' + esc(x.actor || '—') + '</td><td class="tn" style="font:11px var(--mono)">' + esc(x.ip || '') + '</td><td><b>' + esc(x.action || '') + '</b></td><td>' + esc(x.target || '') + '</td><td class="libre" style="color:var(--text-2);font:11px var(--mono);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(JSON.stringify(x)) + '">' + esc(d === '{}' ? '' : d) + '</td></tr>';
+    return '<tr><td class="tn">' + esc(x.ts ? new Date(x.ts).toLocaleString('fr-FR') : '') + '</td><td>' + esc(x.actor || '—') + '</td><td class="tn" style="font:11px var(--mono)">' + esc(x.ip || '') + '</td><td><b>' + esc(x.action || '') + '</b></td><td>' + esc(x.target || '') + '</td><td class="libre" style="color:var(--text-2);font:11px var(--mono);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(JSON.stringify(x)) + '">' + esc(d === '{}' ? '' : d) + '</td></tr>';
   }).join('') : '<tr><td colspan="6" class="vide">Aucune action ce jour-là.</td></tr>';
   majEntetesTri();
 }
@@ -2279,19 +2393,21 @@ document.addEventListener('click', async function (e) {
 });
 
 /* ═════════════ ARRETER UN TRAVAIL (porte de /admin : « Stop », « Stop all », remboursement au choix) ═════════════ */
-S.stopConfirm = null; S.stopMsg = '';
+S.stopConfirm = null; S.stopMsg = ''; S.stopRefund = true;
+/* 2026-10-02 (T1) : le choix « Rembourser » est retenu dans S : la liste se redessine (travail fini, rechargement des bloques) sans le remettre a « coche ». */
+document.addEventListener('change', function (e) { if (e.target && e.target.id === 'stop-refund') S.stopRefund = e.target.checked; });
 document.addEventListener('click', async function (e) {
   var t = e.target, b;
-  if ((b = t.closest('[data-stop]'))) { S.stopConfirm = b.dataset.stop; S.stopMsg = ''; $('#encours')._h = null; renderMaintenant(); return; }
+  if ((b = t.closest('[data-stop]'))) { S.stopConfirm = b.dataset.stop; S.stopMsg = ''; S.stopRefund = true; $('#encours')._h = null; renderMaintenant(); return; }
   if (t.closest('[data-stop-non]')) { S.stopConfirm = null; $('#encours')._h = null; renderMaintenant(); return; }
   if ((b = t.closest('[data-stop-ok]'))) {
     var cible = b.dataset.stopOk, rembourser = $('#stop-refund') ? $('#stop-refund').checked : true;
-    var ids = cible === 'tous' ? (S.live ? S.live.en_cours.map(function (x) { return x.id; }) : []) : [cible], ok = 0, ko = 0, rembourse = 0, modal = [];
+    var ids = cible === 'tous' ? (S.live ? S.live.en_cours.filter(filtreEvt).map(function (x) { return x.id; }) : []) : [cible], ok = 0, ko = 0, rembourse = 0, modal = [], raison = '';      // T2 : « Tout arrêter (N) » n'arrete que les N travaux AFFICHES (liste filtree), jamais ceux des autres comptes
     for (var i = 0; i < ids.length; i++) {
       try { var j = await http('/api/admin/jobs/cancel', { method: 'POST', body: { jobId: ids[i], refund: rembourser } }); ok++; rembourse += j.refunded || 0; if (j.modalError) modal.push(j.modalError); }
-      catch (_) { ko++; }
+      catch (er) { ko++; if (!raison) raison = er.message; }
     }
-    S.stopConfirm = null; S.stopMsg = ok + ' travail(aux) arrêté(s)' + (ko ? ', ' + ko + ' échec(s)' : '') + ' · ' + (rembourser ? rembourse + ' crédit(s) remboursé(s)' : 'sans remboursement') + (modal.length ? ' · GPU : ' + modal[0] : '') + '. Le GPU peut tourner encore une trentaine de secondes.';
+    S.stopConfirm = null; S.stopMsgAt = Date.now(); S.stopMsg = ok + ' travail(aux) arrêté(s)' + (ko ? ', ' + ko + ' échec(s)' + (raison ? ' (' + raison + ')' : '') : '') + ' · ' + (rembourser ? rembourse + ' crédit(s) remboursé(s)' : 'sans remboursement') + (modal.length ? ' · GPU : ' + modal[0] : '') + '. Le GPU peut tourner encore une trentaine de secondes.';
     $('#encours')._h = null; chargerLive(); chargerBloques(); return;
   }
 });
@@ -2302,10 +2418,11 @@ async function chargerActifs(uid, genre) {
   var box = $('#actifs'); box.innerHTML = '<div class="vide">Chargement…</div>'; S.actifsSup = null;
   try {
     var chemin = '/api/admin/users/' + encodeURIComponent(uid) + (genre === 'rigs' ? '/rigs' : '/meshes' + (genre === 'animations' ? '?kind=animations' : ''));
-    var j = await http(chemin);
+    var j = await http(chemin); if (!box.isConnected) return;      // 2026-10-02 (USR-08) : la fiche d'origine a disparu (autre compte choisi) : cette reponse tardive ne doit pas ecrire S.actifs (la suppression agirait sur l'ancien compte)
     /* pastille « annonce » (reprise de /admin) : les annonces du compte, indexees par travail et par adresse du fichier */
     var ann = {};
     try { var jl = await http('/api/admin/users/' + encodeURIComponent(uid) + '/listings'); (jl.listings || []).forEach(function (l) { var inf = { statut: l.status }; if (l.job_id) ann['j:' + l.job_id] = inf; var u = l.asset_url || l.mesh_url; if (u) ann['u:' + u] = inf; }); } catch (_) {}
+    if (!box.isConnected) return;
     S.actifs = { uid: uid, genre: genre, ann: ann, liste: (genre === 'rigs' ? j.rigs : j.meshes) || [] };
     box.innerHTML = htmlActifs(); majEntetesTri();
   } catch (er) { box.innerHTML = '<div class="msg-err">' + esc(er.message) + '</div>'; }
@@ -2347,35 +2464,43 @@ document.addEventListener('click', async function (e) {
 /* ═════════════ PAIEMENTS ENCAISSES MAIS CREDITS NON VERSES (rapprochement manuel, mot de passe exige) ═════════════ */
 S.recon = null; S.reconSel = null;
 async function chargerNonRapproches() {
-  var j = await silencieux(http('/api/admin/payments/unreconciled'));
-  if (!j) return;
+  var j = await lecture('recon', http('/api/admin/payments/unreconciled'));
+  if (!j) { renderRecon(); return; }                 // 2026-10-02 (ARG-6) : echec visible dans la carte (motif, ou « actualisation impossible » si une liste est deja connue)
   S.recon = j.payments || []; renderRecon();
 }
 function renderRecon() {
-  var box = $('#recon'), L = S.recon || []; box.hidden = !L.length; if (!L.length) return;
-  $('#recon-n').textContent = L.length + ' paiement(s)';
+  var box = $('#recon'), L = S.recon || [];
+  /* 2026-10-02 (ARG-6) : liste illisible = la carte reste VISIBLE avec le motif (avant : carte masquee, un paiement encaisse sans credits devenait invisible). */
+  if (!S.recon && S.err.recon) { box.hidden = false; $('#recon-n').textContent = '— liste indisponible : ' + S.err.recon + '. Cliquez sur Actualiser.'; $('#recon-t').innerHTML = ''; $('#recon-t')._h = null; return; }
+  /* 2026-10-02 (ARG-3) : le resultat d'un versement (S.reconMsg) survit au rechargement de la liste, meme vide : la carte reste affichee pour le montrer, sans ligne ni compteur perimes. */
+  box.hidden = !L.length && !S.reconMsg;
+  if (!L.length) { S.reconSel = null; S.reconSid = ''; $('#recon-t').innerHTML = ''; $('#recon-t')._h = null; $('#recon-n').textContent = ''; $('#recon-form').innerHTML = S.reconMsg || ''; return; }
+  $('#recon-n').textContent = L.length + ' paiement(s)' + (S.err.recon ? ' · ⚠ actualisation impossible : ' + S.err.recon : '');
   majSiChange($('#recon-t'), trier(L.map(function (p, i) { var o = Object.assign({}, p); o._i = i; return o; }), 'recon').map(function (p) { var i = p._i;
     var sid = String(p.stripe_session_id || ''), qui = p.email || (p.user_id ? String(p.user_id).slice(0, 8) + '…' : '—');
     return '<tr><td class="tn">' + esc(dateFr(p.created_at)) + '</td><td>' + esc(qui) + '</td><td>' + esc(p.pack_id || '—') + '</td><td class="n tn">' + (p.amount_eur == null ? '?' : eur(p.amount_eur)) + '</td><td style="font:11px var(--mono)" title="' + esc(sid) + '">' + esc(sid.slice(0, 18)) + (sid.length > 18 ? '…' : '') + '</td><td class="n tn">' + (p.expected_credits == null ? '?' : p.expected_credits) + '</td><td><button type="button" class="btn petit prim" data-recon="' + i + '"' + (sid ? '' : ' disabled') + '>Verser les crédits</button></td></tr>';
   }).join(''));
   majEntetesTri();
   var f = $('#recon-form');
-  if (S.reconSel == null) { if (!f.querySelector('input')) f.innerHTML = ''; return; }
+  if (S.reconSel == null) { if (!f.querySelector('input')) f.innerHTML = S.reconMsg || ''; return; }
   if (f.querySelector('input')) return;
-  var p = L[S.reconSel]; if (!p) return;
+  var p = L.filter(function (x) { return String(x.stripe_session_id || '') === S.reconSid; })[0];
+  if (!p) { S.reconSel = null; S.reconSid = ''; f.innerHTML = S.reconMsg || ''; return; }      // revue : le paiement affiche et la session envoyee au POST sont TOUJOURS les memes
   f.innerHTML = '<div class="confirm">Verser <b>' + (p.expected_credits == null ? 'les crédits' : p.expected_credits + ' crédits') + '</b> à <b>' + esc(p.email || p.user_id || '') + '</b> pour la session ' + esc(String(p.stripe_session_id || '').slice(0, 22)) + '… ? Vérifiez d\'abord le paiement dans Stripe.<div class="ligneform" style="margin:8px 0 0"><input type="password" id="rc-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim petit" id="rc-ok">Verser</button><button type="button" class="btn petit" id="rc-non">Annuler</button></div><div id="rc-msg" class="msg-err"></div></div>';
 }
 document.addEventListener('click', async function (e) {
   var t = e.target, b;
-  if ((b = t.closest('[data-recon]'))) { S.reconSel = Number(b.dataset.recon); $('#recon-form').innerHTML = ''; renderRecon(); return; }
-  if (t.closest('#rc-non')) { S.reconSel = null; $('#recon-form').innerHTML = ''; return; }
+  if ((b = t.closest('[data-recon]'))) { S.reconSel = Number(b.dataset.recon); S.reconSid = String(((S.recon || [])[S.reconSel] || {}).stripe_session_id || ''); S.reconMsg = ''; $('#recon-form').innerHTML = ''; renderRecon(); return; }      /* 2026-10-02 (ARG-2) : la session est figee AU CLIC ; le POST l'envoie telle quelle (avant : S.recon[S.reconSel] relu a la validation, un autre paiement si la liste avait change) */
+  if (t.closest('#rc-non')) { S.reconSel = null; S.reconSid = ''; $('#recon-form').innerHTML = ''; return; }
   if (t.closest('#rc-ok')) {
-    var p = S.recon[S.reconSel], mdp = $('#rc-mdp').value; if (!mdp) { $('#rc-msg').textContent = 'Mot de passe requis.'; return; }
+    if (S.reconOcc) return;                       // 2026-10-02 (ARG-3) : un seul POST a la fois (le double clic en envoyait deux ; le 2e « Deja rapproche » ecrasait le message du 1er)
+    var mdp = $('#rc-mdp').value; if (!S.reconSid) return; if (!mdp) { $('#rc-msg').textContent = 'Mot de passe requis.'; return; } S.reconOcc = true; $('#rc-ok').disabled = true;
     try {
-      var j = await http('/api/admin/payments/reconcile', { method: 'POST', mdp: true, body: { sessionId: p.stripe_session_id, password: mdp } });
-      S.reconSel = null; $('#recon-form').innerHTML = '<div class="msg-ok">' + (j.already ? 'Déjà rapproché : rien n\'a changé.' : '✓ ' + j.credits + ' crédits versés (' + eur(j.amount_eur || 0) + ') → solde ' + j.balance + '.') + '</div>';
-      chargerNonRapproches(); chargerPaiements();
-    } catch (er) { $('#rc-msg').textContent = er.status === 401 ? 'Mot de passe incorrect.' : er.message; }
+      var j = await http('/api/admin/payments/reconcile', { method: 'POST', mdp: true, body: { sessionId: S.reconSid, password: mdp } });
+      S.reconSel = null; S.reconSid = ''; $('#recon-form').innerHTML = S.reconMsg = '<div class="msg-ok">' + (j.already ? 'Déjà rapproché : rien n\'a changé.' : '✓ ' + j.credits + ' crédits versés (' + eur(j.amount_eur || 0) + ') → solde ' + j.balance + '.') + '</div>';
+      chargerNonRapproches(); chargerPaiements(); chargerStats(true);                 // 2026-10-02 (ARG-3 / ARG-9) : les KPI (encaisse reel, marge du mois) bougent tout de suite ; chargerPaiements re-rend Argent sur le S.pay frais
+    } catch (er) { var rm = $('#rc-msg'), rb = $('#rc-ok'); if (rb) rb.disabled = false; if (rm) rm.textContent = er.status === 401 ? 'Mot de passe incorrect.' : er.message; if (er.status === 409) chargerNonRapproches(); }      // 409 (ARG-1) : paiement rembourse ou en litige, le message du serveur est affiche et la liste relue
+    finally { S.reconOcc = false; }
   }
 });
 
@@ -2386,12 +2511,18 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-prix]'))) {
     var id = b.dataset.prix, v = parseFloat(String($('#prix-' + id).value).replace(',', '.'));
     if (!isFinite(v) || v < 0) { b.textContent = 'Prix invalide'; return; }
+    /* 2026-10-02 (MM-08) : 0 sur une annonce APPROUVEE et payante rend le fichier telechargeable par tous (ce qui est telecharge ne se reprend pas) : 2e clic requis, comme la suppression d'image (pas de boite native dans cette page). L'armement tombe apres 8 s. */
+    var cur0 = (S.listings || []).filter(function (x) { return x.id === id; })[0];
+    if (cur0 && cur0.status === 'approved' && cur0.price_cents > 0 && Math.round(v * 100) === 0) {
+      if (!(b._arme && Date.now() - b._arme < 8000)) { b._arme = Date.now(); b.textContent = 'Confirmer : rendre GRATUIT ?'; b.title = 'Le fichier deviendra téléchargeable par tous, sans achat. Cliquez de nouveau pour confirmer.'; setTimeout(function () { if (b.isConnected && b._arme) { b._arme = 0; b.textContent = 'Enregistrer le prix'; b.title = ''; } }, 8000); return; }
+      b._arme = 0;
+    }
     try { await http('/api/admin/market/' + encodeURIComponent(id) + '/price', { method: 'POST', body: { price_cents: Math.round(v * 100) } }); await chargerAnnonces(); } catch (er) { b.textContent = 'Échec : ' + er.message; }
     return;
   }
   if ((b = t.closest('[data-supann]'))) { S.annSup = b.dataset.supann; $('#annonces').innerHTML = ''; renderAnnonces(); return; }
   if (t.closest('[data-supann-non]')) { S.annSup = null; $('#annonces').innerHTML = ''; renderAnnonces(); return; }
-  if ((b = t.closest('[data-supann-ok]'))) { try { await http('/api/admin/market/' + encodeURIComponent(b.dataset.supannOk), { method: 'DELETE' }); } catch (_) {} S.annSup = null; $('#annonces').innerHTML = ''; await chargerAnnonces(); chargerBadges(); return; }
+  if ((b = t.closest('[data-supann-ok]'))) { try { await http('/api/admin/market/' + encodeURIComponent(b.dataset.supannOk), { method: 'DELETE' }); } catch (er) { echecAction('suppression de l\'annonce', er); } S.annSup = null; $('#annonces').innerHTML = ''; await chargerAnnonces(); chargerBadges(); return; }
 });
 document.addEventListener('change', async function (e) {
   var c = e.target.closest ? e.target.closest('[data-offert]') : null; if (!c) return;
@@ -2402,27 +2533,28 @@ document.addEventListener('change', async function (e) {
 
 
 function confirmArret(cible) {
-  return '<div class="confirm">' + (cible === 'tous' ? 'Arrêter TOUS les travaux en cours, de tous les comptes ?' : 'Arrêter ce travail ?') + ' <label class="note" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="stop-refund" checked style="width:auto"> Rembourser les crédits</label> <button type="button" class="btn danger petit" data-stop-ok="' + esc(cible) + '">Arrêter</button> <button type="button" class="btn petit" data-stop-non="1">Annuler</button></div>';
+  return '<div class="confirm">' + (cible === 'tous' ? 'Arrêter ' + pl(S.live ? (S.live.en_cours || []).filter(filtreEvt).length : 0, 'travail en cours', 'travaux en cours') + (S.filt.compte || S.filt.type ? ' (filtre actif)' : ', de tous les comptes') + ' ?' : 'Arrêter ce travail ?') + ' <label class="note" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="stop-refund"' + (S.stopRefund === false ? '' : ' checked') + ' style="width:auto"> Rembourser les crédits</label> <button type="button" class="btn danger petit" data-stop-ok="' + esc(cible) + '">Arrêter</button> <button type="button" class="btn petit" data-stop-non="1">Annuler</button></div>';
 }
 /* Travaux « actifs » depuis plus de 3 h (la route /api/admin/live n'en regarde que 3) : lus sur /api/admin/jobs/active, l'ancienne liste « Active » de /admin. */
 S.bloques = [];
 async function chargerBloques() {
-  var j = await silencieux(http('/api/admin/jobs/active')); if (!j) return;
+  var j = await lecture('bloques', http('/api/admin/jobs/active')); if (!j) { if (sur('maintenant', 'travaux')) renderMaintenant(); return; }
   var lim = Date.now() - 3 * 3600e3;
   S.bloques = (j.jobs || []).filter(function (x) { return Date.parse(x.created_at) < lim; });
   if (sur('maintenant', 'travaux')) { $('#encours')._h = null; renderMaintenant(); }
   majResumes();
 }
 function htmlBloques() {
-  var b = (S.bloques || []).filter(function (x) { return (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); });
-  if (!b.length) return '';
-  return '<h3 style="color:var(--warn)">Bloqués depuis plus de 3 h <small class="note">probablement figés : à arrêter pour rembourser</small></h3>' + b.map(function (x) {
+  var b = (S.bloques || []).filter(function (x) { return (!S.filt.compte || (x.email || 'inconnu') === S.filt.compte) && (!S.filt.type || (x.type || '?') === S.filt.type); });
+  var avis = S.err.bloques ? '<div class="note" style="color:var(--err)">Liste des travaux bloqués indisponible : ' + esc(S.err.bloques) + '.</div>' : '';
+  if (!b.length) return avis;
+  return avis + '<h3 style="color:var(--warn)">Bloqués depuis plus de 3 h <small class="note">probablement figés : à arrêter pour rembourser</small></h3>' + b.map(function (x) {
     return '<div class="job"><div class="t"><span>' + lien('type', x.type || '?', x.type || '?') + (x.project_name ? ' · <span class="s">' + esc(x.project_name) + '</span>' : '') + '</span><span>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</span></div>'
       + '<div class="s tn">' + pillStatut(x.status) + ' lancé <span data-ts="' + esc(x.created_at) + '"></span> · ' + (x.credit_cost || 0) + ' crédits' + (S.stopConfirm === x.id ? '' : ' <button type="button" class="btn danger petit" data-stop="' + esc(x.id) + '">Arrêter</button>') + '</div>' + (S.stopConfirm === x.id ? confirmArret(x.id) : '') + '</div>';
   }).join('');
 }
 function barreArret(enc) {
-  var h = S.stopMsg ? '<div class="note">' + esc(S.stopMsg) + '</div>' : '';
+  var h = (S.stopMsg && Date.now() - (S.stopMsgAt || 0) < 20000) ? '<div class="note">' + esc(S.stopMsg) + '</div>' : '';
   if (enc.length > 2) h += S.stopConfirm === 'tous' ? confirmArret('tous') : '<div class="ligneform" style="margin:0 0 8px"><button type="button" class="btn danger petit" data-stop="tous">Tout arrêter (' + enc.length + ')</button></div>';
   return h;
 }
@@ -2514,7 +2646,7 @@ var RES = {
     return n ? pillR('warn', pl(n, 'prix modifié', 'prix modifiés')) : "valeurs d'origine";
   },
   achats: function () { var P = S.pay; if (!P || !P.achats) return '…'; return esc(pl(P.count, 'achat', 'achats') + ' · ' + pl(P.acheteurs, 'acheteur', 'acheteurs')); },
-  recon: function () { return pillR('err', pl((S.recon || []).length, 'paiement à rapprocher', 'paiements à rapprocher')); },
+  recon: function () { if (!S.recon) return S.err.recon ? pillR('warn', 'liste indisponible') : '…'; return pillR('err', pl(S.recon.length, 'paiement à rapprocher', 'paiements à rapprocher')); },      // 2026-10-02 (ARG-6) : liste illisible != « 0 paiement »
   exports: function () { return 'Excel · CSV'; },
   pays: function () { var l = S.aud && S.aud.par_pays; if (!S.aud) return '…'; if (!l || !l.length) return 'aucune donnée'; var nc = l.reduce(function (a, o) { return a + (o.comptes || 0); }, 0); return esc(nomPays(l[0].cle) + ' : ' + NF.format(l[0].travaux) + ' travaux · ' + pl(l.length, 'pays', 'pays') + ' · ' + pl(nc, 'compte', 'comptes')); },
   canal: function () { var l = S.aud && S.aud.par_provenance; if (!S.aud) return '…'; if (!l || !l.length) return 'aucune donnée'; return esc(l[0].cle + ' : ' + NF.format(l[0].travaux) + ' travaux · ' + pl(l.length, 'canal', 'canaux')); },
@@ -2544,7 +2676,7 @@ var RES = {
     var bad = santeAlertes(lignesSante()), n = bad.length;
     return s.pret_a_vendre && !n ? pillR('ok', 'prêt à vendre') : pillR(bad.some(function (x) { return x.cls === 'err'; }) ? 'err' : 'warn', pl(n, 'point à traiter', 'points à traiter'));
   },
-  securite: function () { var t = S.totp; if (!t) return '…'; return t.enrolled ? pillR('ok', '2FA activée') : pillR('warn', '2FA non activée'); },
+  securite: function () { var t = S.totp; if (!t) return S.err.totp ? pillR('warn', 'état indisponible') : '…'; return t.enrolled ? pillR('ok', '2FA activée') : pillR('warn', '2FA non activée'); },
   audit: function () { var a = S.auditEntries; return a ? esc(pl(a.length, 'action', 'actions') + ' ce jour-là') : 'ouvrez pour charger'; },
   diag: function () {
     if (!S.dbgCharge) return 'ouvrez pour charger';
@@ -2564,6 +2696,8 @@ function resumeOps(lignes, v, c) {
   return esc(act + ' opération' + (act > 1 ? 's' : '') + ' utilisée' + (act > 1 ? 's' : '') + ' sur ' + lignes.length + ' · valeur ' + eur(v) + ' · coût ' + eur(c)) + (perte ? ' ' + pillR('warn', perte + ' sous ×' + OBJECTIF_RENTA) : '');
 }
 cadence(majResumes, 1000);
+/* 2026-10-02 (F8) : le bandeau Modal ouvre l'onglet Argent au clic ; Entree ou Espace font de meme (role=button, tabindex=0) */
+document.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.id === 'bandeau-modal') { e.preventDefault(); ouvrirOnglet('argent'); } });
 
 /* ───────────────────────── boucles de rafraîchissement ───────────────────────── */
 function cadence(fn, ms) { setInterval(function () { if (!document.hidden) fn(); }, ms); }
@@ -2574,9 +2708,13 @@ cadence(function () { chargerBadges(); }, 30000);
 cadence(function () { chargerPaiements(); }, 300000);
 cadence(function () { if (sur('maintenant', 'travaux')) chargerBloques(); }, 60000);
 cadence(function () { if (S.tab === 'argent') chargerModalFull(); }, 120000);
-cadence(function () { if (S.tab === 'maintenant' || S.tab === 'systeme') { chargerModalFull(); if (S.tab === 'maintenant') chargerSante(); } }, 120000);
-cadence(function () { if (S.tab === 'systeme' || S.tab === 'maintenant') chargerModalStatus(); }, 8000);
+cadence(function () { if (S.tab === 'maintenant' || S.tab === 'systeme') { chargerModalFull(); if (S.tab === 'maintenant' || !S.sante) chargerSante(); } }, 120000);
+/* 2026-10-02 (F7) : modal-status interroge Modal (jusqu'a 8 s) : pas de nouvel appel tant que le precedent n'est pas revenu. La cadence reste de 8 s (exigence « etat reel »). */
+cadence(function () { if ((S.tab === 'systeme' || S.tab === 'maintenant') && !(S.msEnCours && Date.now() - S.msEnCours < 60000)) { S.msEnCours = Date.now(); var fin = function () { S.msEnCours = 0; }; chargerModalStatus().then(fin, fin); } }, 8000);
 cadence(function () { if (S.tab === 'argent' || S.tab === 'travaux') chargerStats(true); }, 300000);
+cadence(function () { if (S.tab === 'argent') chargerArgentRecent(true); }, 60000);      // 2026-10-02 (ARG-9) : les periodes courtes d'Argent se rafraichissent seules (chargerArgentRecent sort si la periode n'est pas courte ; Activite a sa propre cadence de 60 s)
+/* 2026-10-02 (T3) : les tuiles Travaux / Echecs / Comptes, les barres pays et canal, les courbes courtes et la liste d'echecs ne se rafraichissaient JAMAIS : relues chaque minute tant que l'onglet Activite est ouvert (et ressayees apres une panne). */
+cadence(function () { if (S.tab === 'travaux') { S.audAt = 0; chargerAudience(); chargerArgentRecent(true); if (S.fluxMode) chargerEchecs(true); } }, 60000);
 setInterval(majHorloge, 1000);
 document.addEventListener('visibilitychange', function () { if (document.hidden) return; chargerLive(); chargerServices(); chargerBadges(); maintenirSession(); });
 
@@ -2677,11 +2815,15 @@ window.addEventListener('resize', function () {
 /* ───────────────────────── démarrage ───────────────────────── */
 var depart = (location.hash || '').replace('#', '');
 if (depart === 'audience') depart = 'travaux'; if (depart === 'tarifs') depart = 'argent';        // anciens liens : les onglets ont ete fusionnes
-if (depart === 'journal') depart = 'systeme';        // ancien onglet Journal : eclate dans Activite (Diagnostic) et Sante (Audit, Securite)
+if (depart === 'journal') depart = 'systeme';
+/* 2026-10-02 (T8) : /admin redirige vers /admin2 en gardant le fragment : les anciens favoris (#traffic, #ops, #active, #finance, #pricing, #services, #market-<id>...) ouvrent l'onglet qui les a remplaces. */
+var ANC = { overview: 'maintenant', live: 'maintenant', traffic: 'travaux', ops: 'travaux', active: 'travaux', finance: 'argent', bytype: 'argent', pricing: 'argent', market: 'marketplace', services: 'systeme', audit: 'systeme', debuglogs: 'systeme' };
+if (/^market-/.test(depart)) depart = 'marketplace'; else if (Object.prototype.hasOwnProperty.call(ANC, depart)) depart = ANC[depart];        // ancien onglet Journal : eclate dans Activite (Diagnostic) et Sante (Audit, Securite)
 if (['maintenant', 'travaux', 'argent', 'users', 'messages', 'marketplace', 'systeme'].indexOf(depart) >= 0) S.tab = depart;
 cablerOnglets(); appliquerVolets(document);
 renderAll(); etiqueterChamps();
-chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); chargerSante();
+/* 2026-10-02 (F7) : ouvrirOnglet() relance deja live (Maintenant, Activite), modal-status et sante (Maintenant, Sante) : au demarrage elles partaient en double. */
+chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); if (!sur('maintenant', 'travaux')) chargerLive(); if (!sur('maintenant', 'systeme')) { chargerModalStatus(); chargerSante(); }
 ouvrirOnglet(S.tab);
 })();
 </script>

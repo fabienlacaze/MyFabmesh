@@ -2117,15 +2117,43 @@ async function _auditLog(env: Env, opts: {
     target: opts.target ?? null,
     ...(opts.details ?? {}),
   }) + '\n';
-  try {
-    // R2 doesn't support append, so we read+concat+put. Cheap because
-    // a day-long admin log stays <100 KB even with active moderation.
-    const existing = await env.MESHES.get(key);
-    const prev = existing ? await existing.text() : '';
-    await env.MESHES.put(key, prev + line);
-  } catch (e) {
-    console.warn('[audit] failed to append log line:', e instanceof Error ? e.message : String(e));
+  // R2 doesn't support append, so we read+concat+put. Cheap because
+  // a day-long admin log stays <100 KB even with active moderation.
+  // 2026-10-02 (audit systeme-b/F3) : l'ecriture est CONDITIONNELLE (etag) avec reprise bruitee, comme _casIncrementCounter. Sans condition, deux
+  // actions simultanees (rafale d'admin_login_failed) repartaient du meme contenu et la derniere ecriture effacait la ligne de l'autre.
+  // Le catch est DANS la boucle : un refus R2 (limite d'une ecriture/s par cle) declenche une nouvelle tentative au lieu d'abandonner.
+  // Limite connue : au-dela de 8 ecrivains simultanes sur la meme cle, une ligne peut encore se perdre (tracee en console).
+  for (let essai = 0; essai < 8; essai++) {
+    if (essai > 0) await new Promise((r) => setTimeout(r, _attenteBruitee(essai)));
+    try {
+      const existing = await env.MESHES.get(key);
+      const prev = existing ? await existing.text() : '';
+      const res = existing
+        ? await env.MESHES.put(key, prev + line, { onlyIf: { etagMatches: existing.etag } })
+        : await env.MESHES.put(key, prev + line, { onlyIf: { etagDoesNotMatch: '*' } });
+      if (res) return;
+    } catch (e) {
+      console.warn('[audit] ecriture refusee (essai ' + (essai + 1) + ') :', e instanceof Error ? e.message : String(e));
+    }
   }
+  console.warn('[audit] ligne perdue apres 8 tentatives (contention) :', opts.action);
+}
+
+/** 2026-10-02 (audit systeme-b/F1) : heure d'AUTHENTIFICATION d'un jeton Supabase (plus petit amr[].timestamp, en secondes) et e-mail du jeton.
+ *  Contrairement a `iat`, cette heure est CONSERVEE par Supabase a chaque rafraichissement : c'est elle qui dit si la session descend d'une
+ *  connexion anterieure a « Deconnecter tout le monde ». Le jeton est lu tel que Supabase vient de le renvoyer (rien de forgeable ici).
+ *  authTime = null quand `amr` est absent : l'appelant laisse alors passer (ouvert). Jamais d'exception. */
+function _claimsAuthJwt(token: string): { authTime: number | null; email: string } {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return { authTime: null, email: '' };
+    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+    const payload = JSON.parse(atob(padded + pad)) as { email?: string; amr?: Array<{ timestamp?: number }> };
+    const ts = (Array.isArray(payload.amr) ? payload.amr : [])
+      .map((a) => a?.timestamp).filter((x): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0);
+    return { authTime: ts.length ? Math.min(...ts) : null, email: String(payload.email || '').toLowerCase() };
+  } catch { return { authTime: null, email: '' }; }
 }
 
 /** Decode a JWT payload without verifying — we only need the `iat`
@@ -3834,9 +3862,27 @@ async function handleAuthRefresh(req: Request, env: Env): Promise<Response> {
       { status: 401, headers });
   }
   const data = await r.json() as {
-    access_token?: string; refresh_token?: string; expires_in?: number;
+    access_token?: string; refresh_token?: string; expires_in?: number; user?: { email?: string };
   };
   if (!data.access_token) return err(502, 'supabase did not return access_token');
+  // 2026-10-02 (audit systeme-b/F1) : « Deconnecter tout le monde » etait ANNULE par ce rafraichissement : l'estampille n'etait lue que par
+  // getSessionUser (iat du jeton), or un jeton NEUF a un iat posterieur a l'estampille. On juge donc l'heure d'AUTHENTIFICATION du jeton que
+  // Supabase vient de renvoyer (amr), qui, elle, survit au rafraichissement. Administrateurs exemptes (comme dans getSessionUser : ils ne se
+  // deconnectent pas eux-memes) ; amr absent ou e-mail illisible ou estampille illisible = on laisse passer (ouvert, comportement d'avant).
+  // Le refresh token est deja consomme par la rotation : le refuser ici termine reellement la lignee de session.
+  {
+    const minIat = await _getMinSessionIat(env);
+    if (minIat > 0) {
+      const claims = _claimsAuthJwt(data.access_token);
+      const mail = String(data.user?.email ?? claims.email ?? '').toLowerCase();
+      if (mail && !ADMIN_EMAILS.has(mail) && claims.authTime !== null && claims.authTime < minIat) {
+        const h = new Headers({ 'content-type': 'application/json' });
+        h.append('set-cookie', `${MFM_SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+        h.append('set-cookie', `${MFM_REFRESH_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+        return new Response(JSON.stringify({ ok: false, error: 'refresh rejected', reason: 'admin_forced_logout' }), { status: 401, headers: h });
+      }
+    }
+  }
 
   const maxAge = typeof data.expires_in === 'number' && data.expires_in > 0
     ? Math.min(data.expires_in, 60 * 60 * 24)
@@ -4006,7 +4052,20 @@ async function handleAdminContactList(req: Request, env: Env): Promise<Response>
           const text = await r2GetText(env, obj.key);
           if (!text) continue;
           const parsed = JSON.parse(text);
-          if (parsed && typeof parsed === 'object') items.push(parsed);
+          if (parsed && typeof parsed === 'object') {
+            // 2026-10-02 (audit messages-marketplace/MM-01) : les URL signees stockees dans le JSON expirent (24 h pour les captures du formulaire,
+            // 30 j pour les pieces d'un signalement) : un message lu le lendemain affichait des images en 403. On RE-SIGNE a la lecture depuis
+            // `attachments[].key` (en memoire, rien n'est reecrit dans R2). Garde de prefixe : le worker ne devient jamais un oracle de signature.
+            // Echec de signature (secret absent) : l'ancienne URL est conservee.
+            if (Array.isArray(parsed.attachments)) {
+              for (const a of parsed.attachments) {
+                if (a && typeof a.key === 'string' && a.key.startsWith('_meta/contact/')) {
+                  try { a.url = await signedR2Url(env, a.key, 'export'); } catch { /* garde l'ancienne URL */ }
+                }
+              }
+            }
+            items.push(parsed);
+          }
         } catch (parseErr) {
           // Log but don't 500 — one corrupt file shouldn't break the list.
           console.warn('[admin/contact] parse failed for', obj.key, parseErr);
@@ -4047,6 +4106,20 @@ async function handleAdminContactDelete(req: Request, env: Env, id: string): Pro
   if (adminCheck instanceof Response) return adminCheck;
   if (!env.MESHES) return err(500, 'storage not configured');
   const key = `_meta/contact/${_safeId(id)}.json`;
+  // 2026-10-02 (audit messages-marketplace/MM-12) : les pieces jointes (captures, maillage signale et son apercu, jusqu'a 60 Mo) vivent sous
+  // `_meta/contact/<id>/` ; seule la fiche JSON etait effacee, donc « Supprimer definitivement » laissait des donnees personnelles dans R2.
+  // Pieces d'ABORD, JSON ensuite : si la suppression des pieces echoue, le message reste visible et peut etre retente (pas d'orphelins
+  // introuvables). Le prefixe se termine par « / » : il ne peut pas toucher les pieces d'un autre message. Liste vide = rien a faire.
+  try {
+    let curseur: string | undefined = undefined;
+    do {
+      const lst: R2Objects = await env.MESHES.list({ prefix: `_meta/contact/${_safeId(id)}/`, limit: 100, cursor: curseur });
+      await Promise.all(lst.objects.map((o) => env.MESHES.delete(o.key)));
+      curseur = lst.truncated ? lst.cursor : undefined;
+    } while (curseur);
+  } catch (e) {
+    return err(502, 'attachments delete failed: ' + (e instanceof Error ? e.message : String(e)));
+  }
   await env.MESHES.delete(key);
   return json({ ok: true, success: true });
 }
@@ -5069,6 +5142,7 @@ async function handleMarketUnpublish(req: Request, env: Env, id: string): Promis
     const parsed = JSON.parse(txt);
     if (parsed.user_id !== user.id) return err(403, 'not your listing');
     await env.MESHES.delete(key);
+    await _retirerDesOfferts(env, id);
     try { await env.MESHES.delete(APERCU_PREFIXE + id); } catch {}
     try { await env.MESHES.delete(`_market/poster/${id}`); } catch {}
     return json({ ok: true, success: true });
@@ -5182,7 +5256,11 @@ function _ficheVitrine(l: Record<string, unknown>, env: Env): Record<string, unk
  *  gratuites comme payantes (ce n'est pas le produit vendu). */
 async function handleMarketPoster(env: Env, id: string): Promise<Response> {
   if (!env.MESHES) return err(404, 'not found');
-  const l = (await _loadAllListings(env)).find((x) => x.id === id);
+  // 2026-10-02 (audit messages-marketplace/MM-13) : la cle de la fiche est connue (`_market/listings/<id>.json`) ; _loadAllListings relisait TOUTES
+  // les fiches (une lecture R2 par fiche) pour en retrouver une, a chaque vignette : N x (N+1) lectures sur la page des annonces.
+  const _txtFiche = await r2GetText(env, `_market/listings/${id}.json`);
+  let l: MarketListing | undefined;
+  try { l = _txtFiche ? (JSON.parse(_txtFiche) as MarketListing) : undefined; } catch { l = undefined; }
   if (!l || l.asset_kind === 'image') return err(404, 'not found');
   // MINIATURE PROPRE A LA FICHE (2026-09-28) : photographiee par le navigateur
   // du vendeur a la publication (/api/market/poster-upload). Prioritaire : c'est
@@ -5249,6 +5327,19 @@ async function _offertsDuMois(env: Env, mois = _moisCourant()): Promise<string[]
   const txt = await r2GetText(env, `_market/offerts/${mois}.json`);
   if (!txt) return [];
   try { const j = JSON.parse(txt); return Array.isArray(j.ids) ? j.ids.map(String) : []; } catch { return []; }
+}
+
+/** 2026-10-02 (audit messages-marketplace/MM-07) : retire une annonce du registre « gratuit ce mois-ci » quand elle est supprimee, refusee, passee a
+ *  0 EUR ou retiree par l'auteur. Sans cela elle gardait un des 5 emplacements (et le compteur de la page) jusqu'au mois suivant, et la route
+ *  refusait la 6e annonce (« already 5 free items ») sans aucun controle pour liberer l'orpheline. Au mieux : ne bloque jamais l'action appelante. */
+async function _retirerDesOfferts(env: Env, id: string): Promise<void> {
+  try {
+    const mois = _moisCourant();
+    const ids = await _offertsDuMois(env, mois);
+    if (!ids.includes(id)) return;
+    await env.MESHES.put(`_market/offerts/${mois}.json`, JSON.stringify({ ids: ids.filter((x) => x !== id), maj: _isoNow() }),
+                         { httpMetadata: { contentType: 'application/json' } });
+  } catch { /* au mieux */ }
 }
 
 /** POST /api/admin/market/<id>/offert  body { actif } — ADMIN. */
@@ -5771,6 +5862,7 @@ async function handleAdminMarketPrice(req: Request, env: Env, id: string): Promi
   await env.MESHES.put(key, JSON.stringify(parsed), { httpMetadata: { contentType: 'application/json' } });
   await _auditLog(env, { req, actorEmail: guard.email, action: 'market_price',
                          details: { listing: id, avant: ancien, apres: prix } });
+  if (prix === 0) await _retirerDesOfferts(env, id);
   const txtPrix = prix === 0 ? 'free' : `${(prix / 100).toFixed(2)} €`;
   await _addUserNotification(env, parsed.user_id, {
     kind: 'market_price',
@@ -5801,6 +5893,7 @@ async function handleAdminMarketReject(req: Request, env: Env, id: string): Prom
     parsed.rejection_reason = reason || 'No reason provided';
     await env.MESHES.put(key, JSON.stringify(parsed),
                          { httpMetadata: { contentType: 'application/json' } });
+    await _retirerDesOfferts(env, id);
     const reasonSuffix = reason ? ` Reason: ${reason}` : '';
     await _addUserNotification(env, parsed.user_id, {
       kind: 'market_rejected',
@@ -6961,6 +7054,7 @@ async function handleAdminMarketDelete(req: Request, env: Env, id: string): Prom
       } while (cursor);
     } catch {}
   }
+  await _retirerDesOfferts(env, id);
   // Drop the downloads counter too (separate key per FIX 15).
   try { await env.MESHES.delete(`_market/downloads/${id}.txt`); } catch {}
   try { await env.MESHES.delete(APERCU_PREFIXE + id); } catch {}
@@ -16367,8 +16461,14 @@ async function handleAdminLogsList(req: Request, env: Env): Promise<Response> {
   // If email provided, resolve to uid via profiles.
   if (!uid && email) {
     const sb = supabaseAdmin(env);
-    const { data } = await sb.from('profiles').select('id, email').eq('email', email).maybeSingle();
-    if (data?.id) uid = data.id as string;
+    // 2026-10-02 (audit systeme-b/F6) : .eq sensible a la casse ; un e-mail non retrouve laissait uid vide et la liste retombait sur TOUS les
+    // comptes sans le dire (alors que les operations disaient « no account »). Recherche insensible a la casse (comme handleAdminTraces),
+    // egalite exacte verifiee (les « _ » et « % » sont des jokers de ilike), et un e-mail inconnu rend une liste VIDE avec une note.
+    const { data: trouves, error: errRecherche } = await sb.from('profiles').select('id, email').ilike('email', email).limit(5);
+    if (errRecherche) return err(500, errRecherche.message);
+    const exact = ((trouves ?? []) as Array<{ id: string; email: string | null }>)
+      .find((p) => String(p.email || '').toLowerCase() === email.toLowerCase());
+    if (exact?.id) uid = exact.id; else return json({ ok: true, count: 0, logs: [], note: 'no account with this e-mail' });
   }
   // Since 2026-08-20 every diagnostic log lives under `_logs/diag/<uid>/`,
   // so "everyone" is ONE list() instead of one per profile. The old layout
@@ -18440,6 +18540,8 @@ async function handleAdminAudience(req: Request, env: Env): Promise<Response> {
   const sb = supabaseAdmin(env);
   const { data, error } = await sb.from('jobs')
     .select('status, credit_cost, created_at, options, user_id')
+    // 2026-10-02 (audit travaux/T10) : sans tri, au-dela du plafond les lignes ecartees etaient arbitraires ; on garde les PLUS RECENTES.
+    .order('created_at', { ascending: false })
     .gte('created_at', depuis)
     .limit(5000);
   if (error) return err(500, error.message);
@@ -18514,6 +18616,8 @@ async function handleAdminAudience(req: Request, env: Env): Promise<Response> {
         + 'et apparaissent en « inconnu ».',
     par_pays: rendre(parPays),
     par_provenance: rendre(parProvenance),
+    // 2026-10-02 (audit travaux/T10) : true = plafond de 5 000 lignes atteint, totaux partiels (la page peut prevenir).
+    tronque: lignes.length >= 5000,
   });
 }
 
@@ -19563,6 +19667,17 @@ async function handleAdminBanUser(req: Request, env: Env): Promise<Response> {
   const userId = String(body?.userId || '').trim();
   const ban = !!body?.ban;
   if (!userId) return err(400, 'userId required');
+  // 2026-10-02 (audit users/USR-05) : getSessionUser rejette tout compte banni AVANT de regarder ADMIN_EMAILS (pas d'exemption, contrairement a la
+  // deconnexion forcee). Bannir un administrateur, ou soi-meme, verrouillait donc l'admin hors de tout /api/admin/* sans retour possible par
+  // l'interface (il fallait editer _meta/banned-users.json a la main). On refuse, en francais : la page affiche ce message. Debannir reste permis.
+  if (ban) {
+    if (userId === guard.id) return err(400, 'Vous ne pouvez pas bloquer votre propre compte : vous seriez verrouillé hors de l administration.');
+    try {
+      const { data: cible } = await supabaseAdmin(env).from('profiles').select('email').eq('id', userId).maybeSingle();
+      const em = String((cible as { email?: string | null } | null)?.email || '').toLowerCase();
+      if (em && ADMIN_EMAILS.has(em)) return err(400, 'Un compte administrateur ne peut pas être bloqué : il serait verrouillé hors de l administration.');
+    } catch { /* base injoignable ou mock : la garde contre soi-meme reste active */ }
+  }
   let list: string[] = [];
   try {
     const obj = await env.MESHES.get(BAN_LIST_KEY);
@@ -19646,6 +19761,19 @@ async function handleAdminAdjustCredits(req: Request, env: Env): Promise<Respons
 function _packPayout(packId: string | null | undefined): { credits: number; eur: number } | null {
   const p = (PACKS as Record<string, { credits: number; euros: number } | undefined>)[String(packId ?? '')];
   return p ? { credits: p.credits, eur: p.euros } : null;
+}
+
+/** 2026-10-02 (audit argent/ARG-1) : ids des lignes `payments` deja REMBOURSEES ou en litige (`credits_origine` renseigne, 0 compris).
+ *  Un remboursement total laisse la ligne a credits = 0 / amount_eur = 0 : elle ressemble a un paiement « non rapproche » alors que les
+ *  credits ont ete REPRIS. La verser recreerait des credits repris et fausserait le chiffre d'affaires. Meme regle que handleAdminPayments
+ *  (etat 'rembourse' : origine != null). Colonne absente (erreur de requete) : ensemble vide = comportement d'avant, rien ne casse. */
+async function _idsPaiementsRembourses(sb: SupabaseClient, ids: unknown[]): Promise<Set<unknown>> {
+  const propres = ids.filter((x) => x != null);
+  if (!propres.length) return new Set<unknown>();
+  const r = await sb.from('payments').select('id, credits_origine').in('id', propres as number[]);
+  if (r.error) return new Set<unknown>();
+  return new Set<unknown>(((r.data || []) as Array<{ id: unknown; credits_origine?: number | null }>)
+    .filter((x) => x.credits_origine != null).map((x) => x.id));
 }
 
 /** GET /api/admin/payments — ADMIN ONLY. Historique COMPLET des achats Stripe.
@@ -19734,6 +19862,9 @@ async function handleAdminUnreconciledPayments(req: Request, env: Env): Promise<
     pack_id: string | null; credits: number | null; amount_eur: number | null;
     created_at: string | null;
   }>;
+  // Une ligne remboursee / en litige (credits_origine renseigne) n'est PAS « non rapprochee » : meme regle que handleAdminPayments (etat 'rembourse').
+  const _rembourses = await _idsPaiementsRembourses(sb, rows.map((p) => p.id));
+  if (_rembourses.size) rows.splice(0, rows.length, ...rows.filter((p) => !_rembourses.has(p.id)));
   // Resolve emails in ONE query, same pattern as handleAdminActiveJobs.
   const userIds = [...new Set(rows.map((p) => p.user_id).filter((x): x is string => !!x))];
   const emails = new Map<string, string | null>();
@@ -19787,6 +19918,11 @@ async function handleAdminReconcilePayment(req: Request, env: Env): Promise<Resp
     .eq('stripe_session_id', sessionId)
     .maybeSingle();
   if (!probe) return err(404, 'payment not found');
+  // 2026-10-02 (audit argent/ARG-1) : un paiement rembourse ou en litige (credits_origine renseigne) a credits = 0 SANS etre « non rapproche » :
+  // le « verser » recreerait les credits repris. Refus 409 ; colonne absente = comportement d'avant (le helper rend un ensemble vide).
+  if ((await _idsPaiementsRembourses(sb, [(probe as { id: unknown }).id])).size) {
+    return err(409, 'Paiement remboursé ou en litige : les crédits ont été repris, il ne peut pas être rapproché (rien ne sera versé).');
+  }
   /* NE PAS RECONCILIER UN PAIEMENT QUE LE WEBHOOK EST EN TRAIN DE TRAITER.
    *
    * La reclamation conditionnelle ci-dessous est atomique entre plusieurs
@@ -20116,6 +20252,28 @@ async function handleAdminTotpSetup(req: Request, env: Env): Promise<Response> {
   return json({ secret, uri });
 }
 
+/** 2026-10-02 (audit systeme-b/F7) : compteur d'ECHECS par IP et par action, pour les routes admin qui verifient un secret (code actuel du 2FA,
+ *  mot de passe de deconnexion globale). Avant, seul /api/admin/login limitait : avec un cookie admin vole, ces deux routes etaient des oracles de
+ *  force brute (le code a 6 chiffres est accepte sur 3 fenetres). Cle SEPAREE par action (`<scope>-<ip>`) : un echec 2FA ne verrouille pas le login
+ *  et une connexion reussie (qui efface la cle du login) ne remet pas ce compteur a zero. 10 echecs / heure puis 429, comme le login.
+ *  `enregistrer` = false : dit seulement si l'IP est BLOQUEE ; true : ajoute un echec. Lecture-modification-ecriture non atomique (comme le login) :
+ *  freine la rafale mais ne borne pas strictement la concurrence. Panne R2 : on laisse passer (ouvert), comme le login. */
+async function _adminFailGate(req: Request, env: Env, scope: string, enregistrer: boolean): Promise<boolean> {
+  const ip = (req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? 'unknown').replace(/[^A-Fa-f0-9.:]/g, '_').slice(0, 64);
+  const cle = `_meta/admin_login_fails/${scope}-${ip}.json`;
+  let f: { count: number; first_ts: number } = { count: 0, first_ts: 0 };
+  try {
+    const o = await env.MESHES?.get(cle);
+    if (o) f = await o.json() as typeof f;
+  } catch { /* illisible : on repart de zero */ }
+  if (!(f && typeof f.count === 'number' && typeof f.first_ts === 'number') || Date.now() - f.first_ts > 60 * 60 * 1000) f = { count: 0, first_ts: 0 };
+  if (!enregistrer) return f.count >= 10;
+  f.count += 1;
+  if (!f.first_ts) f.first_ts = Date.now();
+  try { await env.MESHES?.put(cle, JSON.stringify(f)); } catch { /* au mieux */ }
+  return f.count >= 10;
+}
+
 /** POST /api/admin/totp/confirm  body: { secret, code }
  *  Verifies the code against the (un-persisted) secret. On success
  *  saves it to R2 — every subsequent admin login now requires TOTP. */
@@ -20139,7 +20297,12 @@ async function handleAdminTotpConfirm(req: Request, env: Env): Promise<Response>
   if (actuel) {
     const codeActuel = String(body.current_code || '').trim();
     if (!codeActuel) return err(401, 'current_code_required');
-    if (!(await _totpVerify(actuel, codeActuel))) return err(401, 'invalid current code');
+    // F7 : on ne compte QUE l'echec du code ACTUEL (preuve de possession) ; le code du NOUVEAU secret n'est pas un oracle, l'appelant le connait.
+    if (await _adminFailGate(req, env, 'totp', false)) return err(429, 'too many failed attempts; try again in an hour');
+    if (!(await _totpVerify(actuel, codeActuel))) {
+      await _adminFailGate(req, env, 'totp', true);
+      return err(401, 'invalid current code');
+    }
   }
   if (!(await _totpVerify(secret, code))) return err(401, 'invalid code');
   await env.MESHES.put(TOTP_KEY, JSON.stringify({
@@ -20188,7 +20351,12 @@ async function handleAdminForceLogoutAll(req: Request, env: Env): Promise<Respon
   let body: { password?: string } | null = null;
   try { body = await req.json() as typeof body; } catch { return err(400, 'body required'); }
   const pw = String(body?.password || '');
-  if (!(await _verifyAdminPassword(env, pw))) return err(401, 'invalid password');
+  // 2026-10-02 (audit systeme-b/F7) : meme limite d'essais que le login (10 echecs / heure / IP), cle separee.
+  if (await _adminFailGate(req, env, 'logout', false)) return err(429, 'too many failed attempts; try again in an hour');
+  if (!(await _verifyAdminPassword(env, pw))) {
+    await _adminFailGate(req, env, 'logout', true);
+    return err(401, 'invalid password');
+  }
   const iat = Math.floor(Date.now() / 1000);
   await env.MESHES.put(MIN_SESSION_IAT_KEY, JSON.stringify({
     iat, stamped_by: guard.email, stamped_at: new Date().toISOString(),
@@ -20272,21 +20440,32 @@ async function handleAdminSetPricing(req: Request, env: Env): Promise<Response> 
   if (!prices || typeof prices !== 'object') return err(400, 'prices object required');
   // Only persist keys we know about — silently drop unknown keys.
   const sanitized: Record<string, number> = {};
+  // 2026-10-02 (audit argent/ARG-4) : _getPricing ignore toute surcharge mesh_* SOUS le defaut du code (plancher : une baisse passe par le code).
+  // Avant, ce POST stockait quand meme la valeur et la renvoyait comme « enregistree » : l'admin voyait « Enregistre » alors que le site vendait
+  // au plancher. Desormais on NE STOCKE PAS une telle valeur (le defaut est ecrit a sa place) et on la liste dans `refuses` pour que la page le dise.
+  const refuses: Array<{ cle: string; demande: number; plancher: number }> = [];
   for (const k of Object.keys(PRICING_DEFAULTS)) {
     const v = (prices as Record<string, unknown>)[k];
+    const plancher = (PRICING_DEFAULTS as Record<string, number>)[k];
     if (typeof v === 'number' && v >= 0 && Number.isFinite(v)) {
-      sanitized[k] = Math.floor(v);
+      const val = Math.floor(v);
+      if (k.startsWith('mesh_') && typeof plancher === 'number' && val < plancher) {
+        refuses.push({ cle: k, demande: val, plancher });
+        sanitized[k] = plancher;
+      } else {
+        sanitized[k] = val;
+      }
     } else {
-      sanitized[k] = (PRICING_DEFAULTS as Record<string, number>)[k];
+      sanitized[k] = plancher;
     }
   }
   await env.MESHES.put(PRICING_KEY, JSON.stringify(sanitized));
   _invalidatePricingCache();
   await _auditLog(env, {
     req, actorEmail: guard.email,
-    action: 'set_pricing', details: { prices: sanitized },
+    action: 'set_pricing', details: refuses.length ? { prices: sanitized, refuses } : { prices: sanitized },
   });
-  return json({ ok: true, current: sanitized });
+  return json({ ok: true, current: sanitized, refuses });
 }
 
 /* ═════ GARDE AU CHAUD DES CONTENEURS (2026-10-01, user : « je veux un switch pour basculer entre cold et warm, pour chaque container et pour le general ») ═════
@@ -20433,6 +20612,10 @@ async function handleAdminLive(req: Request, env: Env): Promise<Response> {
     // ?n=N (10 a 200, defaut 30) : nombre de derniers travaux rendus. /admin2 en demande 100 pour pouvoir les trier.
     sb.from('jobs').select(colonnes).order('created_at', { ascending: false }).limit(Math.max(10, Math.min(200, parseInt(new URL(req.url).searchParams.get('n') || '30', 10) || 30))),
   ]);
+  // 2026-10-02 (audit travaux/T5) : une panne Supabase donnait des tableaux vides et un 200 « ok » : l'ecran en direct affichait « Aucun
+  // travail en cours / 0 echec » exactement quand la base est en panne. On repond 500, comme handleAdminTraces et handleAdminActiveJobs.
+  const erreurLive = recent.error || actifs.error || derniers.error;
+  if (erreurLive) return err(500, erreurLive.message);
   const rRecent = ((recent.data || []) as Ligne[]);
   const rActifs = ((actifs.data || []) as Ligne[]);
   const rDerniers = ((derniers.data || []) as Ligne[]);
@@ -21110,7 +21293,17 @@ async function handleAdminDeleteImage(req: Request, env: Env): Promise<Response>
   if (key.startsWith('_meta/') || key.startsWith('_market/')) {
     return err(400, 'protected key — use the proper endpoint');
   }
-  try { await env.MESHES.delete(key); } catch {}
+  // 2026-10-02 (audit users/USR-02) : l'onglet Images d'admin2 liste `user_assets` ; sans effacer la ligne qui porte cette cle, la vignette
+  // revenait cassee apres « Actualiser » et la galerie du client gardait une tuile morte. La ligne part dans le MEME try que l'objet R2 :
+  // si R2 echoue, la ligne reste coherente avec le fichier. Pas de suppression par parent_path : elle effacerait les lignes des images
+  // DERIVEES (lignee modifiee <- generee) dont les fichiers R2 restent, alors que l'admin n'en retire qu'une.
+  try {
+    await env.MESHES.delete(key);
+    const { error: eu } = await supabaseAdmin(env).from('user_assets').delete().eq('r2_path', key);
+    if (eu) console.warn('[admin/images] user_assets cleanup failed:', eu.message);
+  } catch {}
+  // 2026-10-02 (audit users/USR-09) : suppression definitive du contenu d'un client : on laisse une trace (qui, quoi, quand).
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'delete_image', target: key });
   // Cascade: any market listing whose asset_url ends with this key
   // becomes invalid — delete the listing JSON.
   try {
@@ -21123,7 +21316,7 @@ async function handleAdminDeleteImage(req: Request, env: Env): Promise<Response>
         const rawUrl = String(parsed?.asset_url || parsed?.mesh_url || '');
         // Strip any ?exp&sig query so signed /r2/ URLs still match by key.
         const url = rawUrl.split('?')[0];
-        if (url && url.endsWith('/' + key)) await env.MESHES.delete(obj.key);
+        if (url && url.endsWith('/' + key)) { await env.MESHES.delete(obj.key); await _retirerDesOfferts(env, String(parsed?.id ?? obj.key.replace(/^_market\/listings\//, '').replace(/\.json$/, ''))); }
       } catch {}
     }
   } catch {}
@@ -21141,8 +21334,25 @@ async function handleAdminDeleteMesh(req: Request, env: Env, userId: string, job
     .eq('id', jobId).eq('user_id', userId).maybeSingle();
   if (!job) return err(404, 'mesh not found');
   // Best-effort R2 cleanup. delete() never throws on a missing key.
+  // 2026-10-02 (audit users/USR-01) : mesh_url est stocke comme CLE R2 (`mesh/<id>.glb`, `mesh/modal_<hex>.glb`, `<uid>/mesh-op/...`) ; l'ancienne
+  // cle `<uid>/<id>.glb` (chemin Replicate) ne servait que dans 0 % des cas du pipeline actuel : le GLB restait en ligne. On derive donc la cle de
+  // job.mesh_url comme la route utilisateur, et on retombe sur l'ancienne cle si elle est illisible. Jamais un espace reserve (_meta/, _market/).
+  let cleMesh = `${userId}/${jobId}.glb`;
+  let cleMeshConservee = '';
   if (env.MESHES) {
-    try { await env.MESHES.delete(`${userId}/${jobId}.glb`); } catch {}
+    const cleDerivee = _cleR2DepuisUrl(env, String((job as { mesh_url?: string | null }).mesh_url || ''));
+    if (cleDerivee && !cleDerivee.startsWith('_meta/') && !cleDerivee.startsWith('_market/')) cleMesh = cleDerivee;
+    // REVUE 2026-10-02 (regression majeure) : une copie de projet (`copy_*`, handleCopyMeshToProject) partage le MEME mesh_url que l'original, et cette route
+    // accepte n'importe quelle URL de l'hote de confiance : supprimer une copie (ou une ligne forgee) effacait le GLB d'un AUTRE compte. On ne touche au
+    // fichier que si AUCUNE autre ligne ne le reference ; au moindre doute (erreur de lecture), on le GARDE.
+    let fichierConserve = '';
+    try {
+      const { data: autres, error: ea } = await sb.from('jobs').select('id').like('mesh_url', '%' + cleMesh).neq('id', jobId).limit(1);
+      if (ea) fichierConserve = 'lecture impossible : ' + ea.message;
+      else if (autres && autres.length) fichierConserve = 'fichier partage avec ' + String((autres[0] as { id?: string }).id);
+    } catch (e) { fichierConserve = 'lecture impossible : ' + (e instanceof Error ? e.message : String(e)); }
+    if (!fichierConserve) { try { await env.MESHES.delete(cleMesh); } catch {} }
+    cleMeshConservee = fichierConserve;
     // Cascade: any market listing referencing this mesh becomes invalid;
     // we delete the listing JSON too so the marketplace stays clean.
     try {
@@ -21154,12 +21364,16 @@ async function handleAdminDeleteMesh(req: Request, env: Env, userId: string, job
           const parsed = JSON.parse(txt);
           if (parsed?.job_id === jobId) {
             await env.MESHES.delete(obj.key);
+            await _retirerDesOfferts(env, String(parsed?.id ?? obj.key.replace(/^_market\/listings\//, '').replace(/\.json$/, '')));
           }
         } catch {}
       }
     } catch {}
   }
   const { error } = await sb.from('jobs').delete().eq('id', jobId).eq('user_id', userId);
+  // 2026-10-02 (audit users/USR-09) : journalise AVANT le test d'erreur : le GLB R2 est deja detruit, un echec partiel doit aussi laisser une trace.
+  await _auditLog(env, { req, actorEmail: guard.email, action: error ? 'delete_mesh_failed' : 'delete_mesh', target: jobId,
+    details: { user_id: userId, key: cleMesh, fichier_conserve: cleMeshConservee || undefined, error: error ? error.message : undefined } });
   if (error) return err(500, error.message);
   return json({ ok: true, success: true });
 }

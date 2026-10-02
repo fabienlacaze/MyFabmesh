@@ -31,7 +31,7 @@ export default function AuthCallbackPage() {
 
         const url = new URL(window.location.href);
         const code = url.searchParams.get('code');
-        const next = url.searchParams.get('next') || '/app/';
+        const next = (() => { const brut = url.searchParams.get('next'); try { const u = new URL(brut || '/app/', window.location.origin); return u.origin === window.location.origin && !!brut && brut.startsWith('/') && !brut.startsWith('//') && !brut.startsWith('/\\') ? u.pathname + u.search + u.hash : '/app/'; } catch { return '/app/'; } })();   // chemin de CE site uniquement (revue admin 2026-10-02, T4)
         const hasHashToken =
           typeof window !== 'undefined'
           && window.location.hash.includes('access_token');
