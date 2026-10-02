@@ -19112,6 +19112,9 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
    * leur cout reel (donc les verdicts x4 qu'on calibrait justement). On la sort des operations et on la compte dans « facture sans operation ». Fichier : R2 `_meta/modal_hors_operations.json`
    * = { jours: { 'AAAA-MM-JJ': { '<application>': <USD> } }, motif }. Ne retire jamais plus que ce qui est deja facture (la facture Modal arrive avec du retard). */
   let horsOperations: Record<string, Record<string, number>> = {};
+  // Resultats du banc Modal « avec / sans » (R2 `_meta/bench_options.json`, ecrit par build/bancs/publier_bench_options.py) : /admin2 les affiche (carte « Mesures du banc Modal »).
+  let benchOptions: unknown = null;
+  try { const tb = await r2GetText(env, '_meta/bench_options.json'); benchOptions = tb ? JSON.parse(tb) : null; } catch { /* absent : la carte n'apparait pas */ }
   try {
     const th = await r2GetText(env, '_meta/modal_hors_operations.json');
     const jh = th ? JSON.parse(th) : null;
@@ -19249,6 +19252,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       // Toutes les operations qui existent (meme a zero) et la famille de chacune, pour l'affichage et le filtre.
       connues: OPERATIONS_CONNUES,
       estimes: COUT_ESTIME_PAR_PRIX,
+      bench: benchOptions,
       familles: _familles(Object.fromEntries(ops30.map((o) => [o.cle, o.op]))),
       facture_sans_operation_eur: +factureSansOperationEur.toFixed(2),
       cout_reel: !!realByDay,

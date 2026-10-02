@@ -513,6 +513,8 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
           <p class="note" id="note-ops"></p>
           <div class="note" id="tarifs-msg" aria-live="polite"></div>
         </div></details>
+      <details class="carte vol" data-id="a-banc" data-res="banc" id="carte-banc" hidden><summary><h2>Mesures du banc Modal <small id="banc-date"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="banc"></div></div></details>
       <div class="barre-act" id="barre-prix" hidden role="region" aria-label="Modifications de prix non enregistrées"></div>
       <div class="dispo d11">
         <div class="colonne">
@@ -1285,7 +1287,7 @@ function rentaOp(m) {
   var ok = (m.count || 0) - (m.failed || 0), mes = m.reel > 0.005 && m.value > 0 && !m.estime ? m.value / m.reel : null;
   if (mes != null && ok >= MIN_ECHANTILLON) return { x: mes, est: false };
   var e = estimeOp(m.op);
-  if (e) return { x: e.x, est: true, cout: e.cout, prix: e.prix, mes: mes, ok: ok };
+  if (e) return { x: e.x, est: true, banc: !!m.banc, cout: e.cout, prix: e.prix, mes: mes, ok: ok };
   return mes != null ? { x: mes, est: false } : null;
 }
 function htmlVerdict(m) {
@@ -1295,10 +1297,10 @@ function htmlVerdict(m) {
     return '<span class="pill">—</span>';
   }
   var cls = r.x >= OBJECTIF_RENTA ? 'ok' : r.x >= 1 ? 'warn' : 'err';
-  var lab = r.x >= OBJECTIF_RENTA ? (r.est ? 'Estimé ' : 'Rentable ') : r.x >= 1 ? 'Sous ×' + OBJECTIF_RENTA + ' · ' : 'À perte ';
-  var tip = r.est ? 'Estimation, pas une mesure : ' + (r.ok ? 'seulement ' + r.ok + ' réussite' + (r.ok > 1 ? 's' : '') + ' sur la période' : 'aucune réussite sur la période') + '. Coût estimé ' + eur(r.cout, 3) + ' par appel pour ' + r.prix + ' crédit' + (r.prix > 1 ? 's' : '') + ' (prix actuel)'
+  var lab = r.x >= OBJECTIF_RENTA ? (r.banc ? 'Mesuré ' : r.est ? 'Estimé ' : 'Rentable ') : r.x >= 1 ? 'Sous ×' + OBJECTIF_RENTA + ' · ' : 'À perte ';
+  var tip = r.banc ? 'Coût mesuré par le banc Modal du 02/10 (voir la carte « Mesures du banc Modal »), pour ' + r.prix + ' crédit' + (r.prix > 1 ? 's' : '') + ' (prix actuel).' : r.est ? 'Estimation, pas une mesure : ' + (r.ok ? 'seulement ' + r.ok + ' réussite' + (r.ok > 1 ? 's' : '') + ' sur la période' : 'aucune réussite sur la période') + '. Coût estimé ' + eur(r.cout, 3) + ' par appel pour ' + r.prix + ' crédit' + (r.prix > 1 ? 's' : '') + ' (prix actuel)'
     + (r.mes != null ? '. Mesuré sur la période : ×' + r.mes.toFixed(1) + ' (échantillon trop mince).' : '.') : (r.x < OBJECTIF_RENTA ? 'Sous l\'objectif de ×' + OBJECTIF_RENTA : '');
-  return '<span class="pill ' + cls + '"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><span class="vl">' + lab + '</span>' + (r.est ? '≈' : '') + '×' + (r.x >= 100 ? String(Math.round(r.x)) : r.x.toFixed(1)) + '</span>';
+  return '<span class="pill ' + cls + '"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><span class="vl">' + lab + '</span>' + (r.est && !r.banc ? '≈' : '') + '×' + (r.x >= 100 ? String(Math.round(r.x)) : r.x.toFixed(1)) + '</span>';
 }
 /* « Par operation » : TOUTES les operations qui existent (user : « il faut toutes les operations qui existent »). Celles qui n'ont pas servi sur la periode
    s'affichent a zero ; `famille` = type grossier des travaux, seul connu du filtre « clic sur une ligne ». */
@@ -1332,6 +1334,12 @@ function nomOp(op) { return OPTIONS_MESH[op] ? OPTIONS_MESH[op][0] : op; }
 function ligneOpHtml(m) { return ligneOpSeule(m); }
 function pillPrix(k, titre, unite, signe) { var v = valPrix(k); return '<span class="pill ok" data-pill-pk="' + esc(k) + '" data-unite="' + esc(unite) + '" data-signe="' + esc(signe) + '" title="' + esc(titre) + '">' + signe + (v == null ? '…' : v) + unite + '</span>'; }
 /* Coût des options : retire de la ligne « mesh » ce que coûtent les options estimées (le redressement n'est pas retiré : son coût est celui d'appels séparés, déjà hors de « mesh »). */
+/* Cle d'option de la ligne `mesh-option:<x>` -> source de son cout dans le banc (true = MESURE : avec/sans, journal, 30 j). */
+function sourceBanc(op) {
+  var B = S.bench; if (!B || !B.options) return false;
+  var k = (OP_PRIX[op] || [])[0], o = B.options.filter(function (x) { return x.cle === k; })[0];
+  return !!o && (o.source === 'avec_sans' || o.source === 'direct' || o.source === 'mesure_30j');
+}
 function separerCoutsOptions(lignes) {
   var E = S.estimes || {}, mesh = null, retire = 0;
   lignes.forEach(function (m) { if (m.op === 'mesh') mesh = m; });
@@ -1339,7 +1347,7 @@ function separerCoutsOptions(lignes) {
     if (m.op.indexOf('mesh-option:') !== 0 || m.op === 'mesh-option:rectify') return;
     var c = 0; (OP_PRIX[m.op] || []).forEach(function (k) { if (E[k] > 0) c = E[k]; });
     if (!(m.count > 0) || !(c > 0)) return;
-    m.reel = c * m.count; m.estime = true; retire += m.reel; completeOp(m);
+    m.reel = c * m.count; m.estime = true; m.banc = sourceBanc(m.op); retire += m.reel; completeOp(m);
   });
   if (mesh && retire > 0) { mesh.reel = Math.max(0, mesh.reel - retire); mesh.retireOptions = retire; completeOp(mesh); }
 }
@@ -1353,7 +1361,7 @@ function ligneOpSeule(m) {
   var fam = m.famille || m.op;
   var sousNom = OPTIONS_MESH[m.op] ? '<div class="orig">' + esc(OPTIONS_MESH[m.op][1]) + '</div>' : m.op === 'mesh' ? '<div class="orig">palier de qualité seul : chaque option a sa propre ligne</div>' : '';
   if (!m.count && !(m.reel > 0.005)) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, nomOp(m.op)) + sousNom + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td>' + htmlVerdict(m) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
-  return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, nomOp(m.op)) + (m.annexes ? ' <span class="orig" title="Le coût de ' + esc(m.annexes.join(', ')) + ' est compté avec cette opération (aucune recette propre)">+ ' + esc(m.annexes.join(' + ')) + '</span>' : '') + sousNom + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn"' + (m.estime ? ' title="Coût ESTIMÉ avec − sans (écart de GPU de l\'option), pas une mesure"' : '') + '>' + (m.estime ? '≈ ' : '') + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : (rentaOp(m) || {}).est ? 'var(--text-2)' : 'var(--err)') + '"' + ((rentaOp(m) || {}).est && m.marge < 0 ? ' title="Marge mesurée sur un échantillon trop mince : voir le verdict (estimé)"' : '') + '>' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
+  return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, nomOp(m.op)) + (m.annexes ? ' <span class="orig" title="Le coût de ' + esc(m.annexes.join(', ')) + ' est compté avec cette opération (aucune recette propre)">+ ' + esc(m.annexes.join(' + ')) + '</span>' : '') + sousNom + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn"' + (m.estime ? (m.banc ? ' title="Coût MESURÉ par le banc Modal (avec − sans)"' : ' title="Coût ESTIMÉ avec − sans (écart de GPU de l\'option), pas une mesure"') : '') + '>' + (m.estime && !m.banc ? '≈ ' : '') + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : (rentaOp(m) || {}).est ? 'var(--text-2)' : 'var(--err)') + '"' + ((rentaOp(m) || {}).est && m.marge < 0 ? ' title="Marge mesurée sur un échantillon trop mince : voir le verdict (estimé)"' : '') + '>' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
 }
 /* Coût REEL Modal de l'heure passee (user : « c'est le plus precis qu'on puisse avoir ») : difference de deux releves horaires de la facture, demarrages a froid et inactivite compris. */
 function hhmm(iso) { var d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -1390,7 +1398,7 @@ function renderArgentCourt() {
   courbes('g-argent', lab, def.map(function (d) { return { v: d[3], col: d[2], on: S.series[d[0]], aire: d[4], nom: d[1] }; }), { titre: 'Valeur des crédits, coût estimé et marge', h: 300, fmt: function (v) { return eur(v, Math.abs(v) < 10 ? 2 : 0); },
     lecture: function (k, l, se) { var el = $('#lecture'); if (k < 0) { el.textContent = ''; return; } el.innerHTML = '<b>' + esc(l) + '</b> · ' + se.map(function (s) { return s.on ? esc(s.nom) + ' ' + eur(s.v[k]) : ''; }).filter(Boolean).join(' · '); } });
   $('#note-graphe').textContent = 'La facture Modal réelle n\'existe que par jour : sur ' + h + ' h le coût est estimé d\'après la durée de chaque travail. Valeur des crédits = crédits des travaux réussis au prix net ; ce n\'est pas de l\'argent encaissé.';
-  S.estimes = R.estimes || {}; S.eurCred = Number(R.eur_par_credit) || 0.162; S.coquilles = (R.types.project || {}).count || 0;
+  S.estimes = R.estimes || {}; if (S.stats && S.stats.by_type_30d) S.bench = S.stats.by_type_30d.bench || S.bench || null; S.eurCred = Number(R.eur_par_credit) || 0.162; S.coquilles = (R.types.project || {}).count || 0;
   var lignes = Object.keys(R.types).filter(function (op) { return op !== 'project'; }).map(function (op) { var m = R.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed, credits: m.credits_now != null ? m.credits_now : m.credits, value: m.valeur_now_eur != null ? m.valeur_now_eur : m.valeur_eur, reel: m.cout_eur }); });
   lignes = rattacherAnnexes(avecToutesLesOps(lignes, R.connues, R.familles)); separerCoutsOptions(lignes); lignes = trier(lignes, 'ops'); calcProprios(lignes);
   S.resOps = resumeOps(lignes, T.valeur_eur, T.cout_eur);
@@ -1398,7 +1406,7 @@ function renderArgentCourt() {
   $('#ops-fenetre').textContent = lh + ' · coût estimé · clic sur une ligne pour filtrer';
   $('#resume-ops').innerHTML = 'Sur <b>' + lhp + '</b> : <b>' + T.ops + '</b> travaux, valorisés <b>' + eur(T.valeur_eur) + '</b> en crédits (' + (R.eur_par_credit || 0).toFixed(3) + ' € le crédit) pour un coût estimé de <b>' + eur(T.cout_eur) + '</b>' + (R.tronque ? ' <span class="note">(les 5 000 premiers travaux seulement)</span>' : '') + '.';
   $('#note-ops').textContent = 'Coût estimé : la facture Modal est publiée par jour, pas par heure. Crédits et valeur au prix d\'aujourd\'hui ; « ≈ » = estimé (moins de ' + MIN_ECHANTILLON + ' réussites sur la période). Toutes les opérations existantes sont listées.' + coquillesNote();
-  majEntetesTri(); renderPrix(); renderGpu();
+  majEntetesTri(); renderPrix(); renderBanc(); renderGpu();
 }
 function renderArgent() {
   if (periodeCourte()) return renderArgentCourt();
@@ -1441,7 +1449,7 @@ function renderArgent() {
   var bt = st && st.by_type_30d;
   var tb = $('#t-ops');
   if (!bt || !bt.types) { tb.innerHTML = '<tr><td colspan="9" class="vide">' + (st ? 'Données indisponibles.' : S.err.stats ? 'Statistiques indisponibles : ' + esc(S.err.stats) + '. Cliquez sur Actualiser.' : 'Chargement…') + '</td></tr>'; $('#resume-ops').textContent = ''; $('#note-ops').textContent = ''; return renderGpu(); }
-  S.estimes = bt.estimes || {}; S.eurCred = Number(bt.eur_par_credit) || 0.162; S.coquilles = (bt.types.project || {}).count || 0;
+  S.estimes = bt.estimes || {}; S.bench = bt.bench || null; S.eurCred = Number(bt.eur_par_credit) || 0.162; S.coquilles = (bt.types.project || {}).count || 0;
   var lignes = Object.keys(bt.types).filter(function (op) { return op !== 'project'; }).map(function (op) { var m = bt.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed || 0, credits: m.credits_now != null ? m.credits_now : m.credits, value: m.value_now_eur != null ? m.value_now_eur : m.value_eur, reel: m.real_eur, paid: m.paid_eur }); });
   lignes = rattacherAnnexes(avecToutesLesOps(lignes, bt.connues, bt.familles)); separerCoutsOptions(lignes); lignes = trier(lignes, 'ops'); calcProprios(lignes);
   var totV = 0, totR = 0, totP = 0;
@@ -1453,6 +1461,7 @@ function renderArgent() {
   majEntetesTri();
   $('#note-ops').textContent = (bt.cout_reel ? 'Coût réel = facture Modal de chaque jour répartie sur les opérations du jour selon leur durée. Les échecs coûtent sans rien rapporter.' : '⚠ Relevé Modal absent : coût = durée mesurée × tarif du GPU, sans démarrages à froid ni inactivité (sous-estimé).') + ' Crédits et valeur sont recomptés aux prix d\'aujourd\'hui. Redressement, feuille multi-vues et T-pose sont comptés avec leur opération mère. « ≈ » = estimé (moins de ' + MIN_ECHANTILLON + ' réussites sur la période). Toutes les opérations existantes sont listées.' + coquillesNote();
   renderPrix();
+  renderBanc();
   renderGpu();
 }
 /* Detail complet de la carte « Cout GPU » (postes, repartition, protections automatiques) : /api/admin/modal-credits SANS ?legere=1.
@@ -1679,6 +1688,39 @@ function majBarrePrix() {
   var detail = ks.slice(0, 4).map(function (k) { return esc(k) + ' ' + cur[k] + ' → ' + e[k]; }).join(' · ') + (ks.length > 4 ? ' · +' + (ks.length - 4) : '') + (S.winEdit ? (ks.length ? ' · ' : '') + 'prix Windows' : '') + (sous.length ? ' · ⚠ ' + sous.join(', ') + ' sous le plancher du code : le serveur refusera' : '');
   majSiChange(bar, '<div><b>' + pl(n, 'modification non enregistrée', 'modifications non enregistrées') + '</b><div class="note" style="margin:2px 0 0">' + detail + '. Tracé dans le journal à l\'enregistrement.</div></div>'
     + '<div class="ligneform" style="margin:0"><button type="button" class="btn" id="b-tarifs-non">Annuler</button><button type="button" class="btn prim" id="b-tarifs-ok">Enregistrer les tarifs</button></div>');
+}
+/* CARTE « Mesures du banc Modal » (user, 02/10/2026 : « j'aimerais voir les resultats ») : ce que le banc avec / sans a mesure, option par option et palier par palier,
+   rapproche du prix en credits d'aujourd'hui. Donnees : R2 `_meta/bench_options.json` (stats.json > by_type_30d.bench). */
+var SRC_BANC = { avec_sans: ['Mesuré', 'ok', 'écart de durée entre générations avec et sans l\'option, même image, même graine'], direct: ['Mesuré (journal)', 'ok', 'durée lue dans le journal Modal de l\'étape : l\'écart avec / sans est noyé dans le bruit'],
+  mesure_30j: ['Mesuré (30 j)', 'ok', 'facture réelle répartie sur 30 jours de travaux'], bruit: ['Bruit', 'warn', 'écart non significatif : estimation conservée'], non_mesuree: ['Non mesuré', 'warn', 'jamais utilisée : estimation'] };
+function renderBanc() {
+  var B = S.bench, carte = $('#carte-banc'); if (!carte) return;
+  if (!B || !B.options) { carte.hidden = true; return; }
+  carte.hidden = false; $('#banc-date').textContent = B.date ? dateFr(B.date + 'T12:00:00Z').slice(0, 5) + ' · ' + B.generations + ' générations, aucun échec' : '';
+  var k0 = S.eurCred || 0.162, h = '<p class="note">' + esc(B.methode || '') + '</p>';
+  h += '<div class="defil"><table><thead><tr><th>Option de la 3D</th><th class="n">Sans</th><th class="n">Avec</th><th class="n">Écart</th><th class="n">Coût réel</th><th class="n">Prix actuel</th><th class="n">Rentabilité</th><th>Fiabilité</th></tr></thead><tbody>'
+    + B.options.map(function (o) {
+      var pr = valPrix(o.cle), src = SRC_BANC[o.source] || [o.source, '', ''], libPr = null;
+      if (o.cle === 'mesh_tris_500k' && pr != null) { var cb = valPrix('mesh_tris_courbe_pct') || 130, sb = valPrix('mesh_tris_base') || 1; pr = Math.max(sb, Math.ceil(pr * Math.pow(4, cb / 100) - 1e-9)); libPr = pr + ' cr (2 M)'; }      // la mesure porte sur 2 M de triangles : on compare AU PRIX de 2 M
+      var x = pr != null && o.cout_eur > 0 ? pr * k0 / o.cout_eur : null;
+      return '<tr><td>' + esc(o.nom) + '<div class="orig">' + esc(o.note || '') + '</div></td>'
+        + '<td class="n tn">' + (o.sans_s != null ? Math.round(o.sans_s) + ' s' : '—') + '</td><td class="n tn">' + (o.avec_s != null ? Math.round(o.avec_s) + ' s' : (o.direct_s != null ? '' : '—')) + '</td>'
+        + '<td class="n tn">' + (o.ecart_s != null ? (o.ecart_s >= 0 ? '+' : '−') + Math.abs(Math.round(o.ecart_s)) + ' s <span class="orig">± ' + Math.round(o.erreur_s) + '</span>' : (o.direct_s != null ? Math.round(o.direct_s) + ' s directs' : '—')) + '</td>'
+        + '<td class="n tn"><b>' + eur(o.cout_eur, 3) + '</b></td><td class="n tn">' + (pr == null ? '—' : libPr || pr + ' cr') + '</td>'
+        + '<td class="n tn">' + (x ? '<span class="pill ' + (x >= OBJECTIF_RENTA ? 'ok' : 'warn') + '">×' + (x >= 100 ? Math.round(x) : x.toFixed(1)) + '</span>' : '—') + '</td>'
+        + '<td><span class="pill ' + src[1] + '" title="' + esc(src[2]) + '">' + esc(src[0]) + '</span>' + (o.paires ? ' <span class="orig">' + o.paires + ' paires</span>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  h += '<div class="defil" style="margin-top:10px"><table><thead><tr><th>Palier (génération sans option)</th><th class="n">Mesures</th><th class="n">Durée</th><th class="n">GPU à chaud</th><th class="n">Prix actuel</th><th class="n">Rentabilité à chaud</th><th class="n">Au coût réel (' + eur(B.cout_reel_par_generation_eur || 0.62) + ')</th></tr></thead><tbody>'
+    + (B.paliers || []).map(function (p) {
+      var pr = valPrix(p.cle), v = pr != null ? pr * k0 : null;
+      return '<tr><td>' + esc(p.nom) + '<div class="orig">' + esc(p.reglage || '') + '</div></td><td class="n tn">' + p.n + '</td><td class="n tn">' + Math.round(p.duree_s) + ' s <span class="orig">(' + Math.round(p.min_s) + '–' + Math.round(p.max_s) + ')</span></td>'
+        + '<td class="n tn">' + eur(p.gpu_chaud_eur, 3) + '</td><td class="n tn">' + (pr == null ? '—' : pr + ' cr') + '</td>'
+        + '<td class="n tn">' + (v && p.gpu_chaud_eur > 0 ? '<span class="pill ok">×' + Math.round(v / p.gpu_chaud_eur) + '</span>' : '—') + '</td>'
+        + '<td class="n tn">' + (v ? '<span class="pill ' + (v / (B.cout_reel_par_generation_eur || 0.62) >= OBJECTIF_RENTA ? 'ok' : 'warn') + '">×' + (v / (B.cout_reel_par_generation_eur || 0.62)).toFixed(1) + '</span>' : '—') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  h += '<p class="note"><b>À retenir :</b> une génération 3D coûte ' + eur(B.gpu_chaud_par_generation_eur[0], 2) + ' à ' + eur(B.gpu_chaud_par_generation_eur[1], 2) + ' de GPU quand le conteneur est chaud, mais ' + eur(B.cout_reel_par_generation_eur, 2)
+    + ' en moyenne sur 30 jours : le coût est surtout fixe (démarrages à froid, inactivité facturée, déploiements, tests) et baissera avec le trafic. Les options pèsent très peu ; le redressement (appel séparé) est la seule vraiment coûteuse. ' + esc(B.limites || '') + '</p>';
+  majSiChange($('#banc'), h);
 }
 function renderPrix() {
   var pr = S.pricing, bw = $('#windows-prix');
@@ -2651,6 +2693,7 @@ var RES = {
   enligne: function () { var el = S.live && S.live.en_ligne; if (!el) return '…'; return esc(el.filter(function (x) { return x.en_ligne; }).length + ' en ligne · ' + el.length + ' vus sur 15 min'); },
   courbe: function () { return esc(S.resCourbe || '…'); },
   ops: function () { return S.resOps || '…'; },
+  banc: function () { var B = S.bench; return B ? esc(B.generations + ' générations · ' + (B.options || []).length + ' options · ' + (B.paliers || []).length + ' paliers · coût du banc ' + usd(B.cout_usd)) : '…'; },
   gpu: function () {
     var p = S.prev; if (!p) return '…';
     var lim = p.limite && p.limite.usd, cls = p.couleur === 'rouge' ? 'err' : p.couleur === 'orange' ? 'warn' : 'ok';
@@ -2818,6 +2861,33 @@ function ouvrirJournalVersion() {
   el.addEventListener('click', ouvrirJournalVersion);
   document.body.appendChild(el);
 })();
+
+/* NOUVELLE VERSION (user, 02/10/2026 : « c'est ca que tu as mis a jour ? » devant une capture de l'ANCIENNE page : l'onglet restait ouvert des heures sans jamais se recharger). Toutes les 2 minutes et au retour sur l'onglet,
+   on relit /app/build-info.js (jamais en cache) ; si le numero de build est plus recent que celui de la page chargee, une barre propose de recharger. Jamais de rechargement automatique :
+   une modification de prix non enregistree serait perdue (la barre le dit). */
+var _verTest = 0;
+async function verifierVersion() {
+  var b = window.__BUILD__; if (!b || _verTest || document.getElementById('nouvelle-version')) return;
+  _verTest = 1;
+  try {
+    var r = await fetch('/app/build-info.js?v=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' });
+    var txt = r.ok ? await r.text() : '', m = /"build"\s*:\s*(\d+)/.exec(txt), n = m ? Number(m[1]) : 0;
+    if (n > Number(b.build)) {
+      var d = document.createElement('div'); d.id = 'nouvelle-version'; d.setAttribute('role', 'status'); d.className = 'barre-act';
+      d.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;max-width:calc(100vw - 32px)';
+      var perdu = Object.keys(S.prixEdit || {}).length || S.winEdit;
+      d.innerHTML = '<div><b>Une nouvelle version de l\'admin est disponible.</b><div class="note" style="margin:2px 0 0">Cette page date d\'avant la dernière mise à jour' + (perdu ? ' · ⚠ vos prix non enregistrés seraient perdus' : '') + '.</div></div>'
+        + '<div class="ligneform" style="margin:0"><button type="button" class="btn" id="nv-plus-tard">Plus tard</button><button type="button" class="btn prim" id="nv-recharger">Recharger</button></div>';
+      document.body.appendChild(d);
+      $('#nv-recharger').addEventListener('click', function () { location.reload(); });
+      $('#nv-plus-tard').addEventListener('click', function () { d.remove(); _verTest = 1; setTimeout(function () { _verTest = 0; }, 30 * 60000); });
+    }
+  } catch (_) { /* hors ligne : on reessaie au prochain passage */ }
+  if (!document.getElementById('nouvelle-version')) _verTest = 0;
+}
+setInterval(function () { if (!document.hidden) verifierVersion(); }, 120000);
+document.addEventListener('visibilitychange', function () { if (!document.hidden) verifierVersion(); });
+setTimeout(verifierVersion, 15000);
 
 var _rsz = 0, _rszW = window.innerWidth;
 window.addEventListener('resize', function () {

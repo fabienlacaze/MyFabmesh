@@ -1,0 +1,159 @@
+{
+ "v": 1,
+ "date": "2026-10-02",
+ "generations": 48,
+ "echecs": 0,
+ "cout_usd": 3.49,
+ "duree_min": 107,
+ "methode": "Même image (un personnage), même graine, conteneur L40S chaud ; paires « sans / avec » intercalées ; 1re génération de chaque configuration écartée ; 2 paires par option, 3 mesures par palier.",
+ "limites": "2 paires seulement : seules Géométrie fine, Texture nette 8K et Triangles max sortent nettement du bruit. Une seule image : le coût de l'affinage et de la correction du visage dépend du contenu. Multi-références non mesurée.",
+ "cout_reel_par_generation_eur": 0.62,
+ "gpu_chaud_par_generation_eur": [
+  0.055,
+  0.081
+ ],
+ "options": [
+  {
+   "cle": "mesh_rectify",
+   "nom": "Redressement auto",
+   "source": "mesure_30j",
+   "note": "21,4 € de GPU réel pour 65 générations qui l'ont payé (appel à part, avec son propre démarrage à froid)",
+   "cout_eur": 0.33
+  },
+  {
+   "cle": "mesh_ultra_q",
+   "nom": "Géométrie fine",
+   "source": "avec_sans",
+   "note": "voxels 1536 en cascade",
+   "paires": 2,
+   "sans_s": 116.8,
+   "avec_s": 175.8,
+   "ecart_s": 59.0,
+   "erreur_s": 22.2,
+   "cout_eur": 0.03
+  },
+  {
+   "cle": "mesh_ultra_hd",
+   "nom": "Texture nette 8K",
+   "source": "avec_sans",
+   "note": "Real-ESRGAN ×2 ; le fichier passe de 36 à 53 Mo",
+   "paires": 2,
+   "sans_s": 108.3,
+   "avec_s": 157.1,
+   "ecart_s": 48.8,
+   "erreur_s": 11.7,
+   "cout_eur": 0.025
+  },
+  {
+   "cle": "mesh_tris_500k",
+   "nom": "Triangles max (2 M au lieu de 500 K)",
+   "source": "avec_sans",
+   "note": "deux doublements, ~21 s chacun ; le fichier passe de 36 à 95 Mo",
+   "paires": 2,
+   "sans_s": 108.8,
+   "avec_s": 150.9,
+   "ecart_s": 42.1,
+   "erreur_s": 10.6,
+   "cout_eur": 0.021
+  },
+  {
+   "cle": "mesh_refine",
+   "nom": "Affinage des détails",
+   "source": "direct",
+   "note": "journal Modal : « atlas affiné en 53,0 s » (9 tuiles) ; option suspendue sur le site, active au bureau",
+   "paires": 2,
+   "sans_s": 122.0,
+   "avec_s": 145.1,
+   "ecart_s": 23.1,
+   "erreur_s": 18.6,
+   "direct_s": 53.0,
+   "cout_eur": 0.027
+  },
+  {
+   "cle": "mesh_face_fix",
+   "nom": "Correction du visage",
+   "source": "direct",
+   "note": "journal Modal : « face_fix done in 16,1 s » ; option suspendue sur le site, active au bureau",
+   "paires": 2,
+   "sans_s": 126.7,
+   "avec_s": 115.0,
+   "ecart_s": -11.8,
+   "erreur_s": 6.6,
+   "direct_s": 16.1,
+   "cout_eur": 0.008
+  },
+  {
+   "cle": "mesh_quality_plus",
+   "nom": "Arêtes nettes",
+   "source": "bruit",
+   "note": "écart noyé dans le bruit : estimation physique conservée (~15 s)",
+   "paires": 2,
+   "sans_s": 113.8,
+   "avec_s": 125.7,
+   "ecart_s": 12.0,
+   "erreur_s": 30.0,
+   "cout_eur": 0.008
+  },
+  {
+   "cle": "mesh_smooth",
+   "nom": "Texture lissée",
+   "source": "avec_sans",
+   "note": "filtre bilatéral sur le processeur",
+   "paires": 2,
+   "sans_s": 122.1,
+   "avec_s": 125.2,
+   "ecart_s": 3.1,
+   "erreur_s": 9.1,
+   "cout_eur": 0.002
+  },
+  {
+   "cle": "mesh_multiref",
+   "nom": "Multi-références",
+   "source": "non_mesuree",
+   "note": "jamais utilisée sur 30 jours : estimation (~10 s)",
+   "cout_eur": 0.005
+  }
+ ],
+ "paliers": [
+  {
+   "cle": "mesh_fast",
+   "nom": "Rapide (fast)",
+   "n": 2,
+   "duree_s": 109.7,
+   "min_s": 96.1,
+   "max_s": 123.2,
+   "gpu_chaud_eur": 0.055,
+   "reglage": "24 pas, atlas 1024"
+  },
+  {
+   "cle": "mesh_balanced",
+   "nom": "Équilibré (balanced)",
+   "n": 14,
+   "duree_s": 116.9,
+   "min_s": 98.9,
+   "max_s": 137.8,
+   "gpu_chaud_eur": 0.059,
+   "reglage": "24 pas, atlas 2048 ; générations « sans option » du banc"
+  },
+  {
+   "cle": "mesh_quality",
+   "nom": "Qualité (quality)",
+   "n": 3,
+   "duree_s": 138.3,
+   "min_s": 124.6,
+   "max_s": 150.1,
+   "gpu_chaud_eur": 0.07,
+   "reglage": "32 pas, atlas 4096"
+  },
+  {
+   "cle": "mesh_ultra_8k",
+   "nom": "8K (ultra_8k)",
+   "n": 3,
+   "duree_s": 160.0,
+   "min_s": 159.2,
+   "max_s": 160.5,
+   "gpu_chaud_eur": 0.081,
+   "reglage": "32 pas, atlas 4096, texture 8192 px"
+  }
+ ]
+}

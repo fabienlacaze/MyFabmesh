@@ -47,5 +47,6 @@ types['mesh']['credits_now'] = base_tot; types['mesh']['value_now_eur'] = round(
 base += ['mesh-option:' + o for o in 'rectify quality_plus ultra_q ultra_hd smooth max_tris multiref refine face_fix'.split()]
 for k in ('rectify','sheet','mvadapter'):
     if k in types and types[k]['credits'] == 0: types[k]['credits_now'] = 0; types[k]['value_now_eur'] = 0
-json.dump({'types': types, 'connues': base, 'estimes': est, 'grille': json.load(open('C:/tmp/grille_candidate.json', encoding='utf-8'))}, open('C:/tmp/mock_reel.json', 'w', encoding='utf-8'), ensure_ascii=False)
+bench = json.load(open('C:/Users/Utilisateur/Desktop/FabWare/MeshyMyself/docs/campagnes/bench_options_r2_2026-10-02.json', encoding='utf-8'))
+json.dump({'bench': bench, 'types': types, 'connues': base, 'estimes': est, 'grille': json.load(open('C:/tmp/grille_candidate.json', encoding='utf-8'))}, open('C:/tmp/mock_reel.json', 'w', encoding='utf-8'), ensure_ascii=False)
 print(len(types), 'types', len(base), 'connues', len(est), 'estimes')
