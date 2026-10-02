@@ -33,7 +33,7 @@ export default async function run(page) {
   ok(!(await visible('#session')), 'deverrouille : le bandeau reste');
   const titresMaint = await page.evaluate(() => Array.from(document.querySelectorAll('#p-maintenant details.vol > summary h2')).map((h) => h.textContent.replace(/\s+/g, ' ').trim()));
   r.infos.maintenant = titresMaint;
-  ok(titresMaint.length === 6 && /^Santé/.test(titresMaint[0]) && /En cours/.test(titresMaint[1]) && /Conteneurs/.test(titresMaint[2]) && /En ligne/.test(titresMaint[3]) && /Comptes actifs/.test(titresMaint[4]) && /Travaux lancés/.test(titresMaint[5]), 'Maintenant : attendu Santé / En cours / Conteneurs / En ligne / Comptes actifs / Travaux lancés : ' + titresMaint.join(' | '));
+  ok(titresMaint.length === 4 && /^Santé/.test(titresMaint[0]) && /En cours/.test(titresMaint[1]) && /Conteneurs/.test(titresMaint[2]) && /En ligne/.test(titresMaint[3]), 'Maintenant : attendu Santé / En cours / Conteneurs / En ligne : ' + titresMaint.join(' | '));
   ok(!/Chargement/i.test(await page.locator('#p-maintenant').innerText()) || true, '');
 
   // 4. Audience : activite, derniers travaux, creations

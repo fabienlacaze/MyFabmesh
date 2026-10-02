@@ -350,10 +350,6 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div></details>
       <details class="carte vol" data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="en-ligne"></div></div></details>
-      <details class="carte vol" data-id="m-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="g-act-m"></div></div></details>
-      <details class="carte vol" data-id="m-ops" data-res="opsj"><summary><h2>Travaux lancés <small>par jour</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="g-ops-m"></div></div></details>
     </div>
   </section>
 
@@ -734,7 +730,7 @@ async function chargerBadges() { var j = await silencieux(http('/api/admin/badge
 async function chargerPaiements() { var j = await silencieux(http('/api/admin/payments')); if (j) { S.pay = j; renderBandeau(); if (S.tab === 'argent') renderAchats(); } }
 async function chargerStats(force) {
   if (!force && S.stats && Date.now() - S.statsAt < 120000) return;
-  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); if (S.tab === 'maintenant') { courbesParJour(); renderSante(); majResumes(); } if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience' || S.tab === 'users') renderAudience(); if (S.tab === 'systeme') { renderSante(); majResumes(); } }
+  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); if (S.tab === 'maintenant') { renderSante(); majResumes(); } if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience' || S.tab === 'users') renderAudience(); if (S.tab === 'systeme') { renderSante(); majResumes(); } }
 }
 async function chargerAudience() {
   var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
@@ -1288,12 +1284,12 @@ function renderAudience() {
   else { $('#b-pays').innerHTML = '<div class="vide">Chargement…</div>'; $('#b-canal').innerHTML = ''; }
   if (st && st.series_30d) { var s = st.series_30d, lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); }); serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour'); courbesParJour(); }
 }
-/* courbes « comptes actifs » et « travaux lances » par jour : dessinees dans Activite ET dans Maintenant (memes donnees, ids distincts) */
+/* courbes « comptes actifs » et « travaux lances » par jour : dessinees dans Activite seulement (retirees de Maintenant a la demande du user) */
 function courbesParJour() {
   var st = S.stats; if (!st || !st.series_30d) return;
   var s = st.series_30d, lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); });
-  ['g-act', 'g-act-m'].forEach(function (id) { if ($('#' + id)) serieSimple(id, lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour'); });
-  ['g-ops', 'g-ops-m'].forEach(function (id) { if ($('#' + id)) serieSimple(id, lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour'); });
+  ['g-act'].forEach(function (id) { if ($('#' + id)) serieSimple(id, lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour'); });
+  ['g-ops'].forEach(function (id) { if ($('#' + id)) serieSimple(id, lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour'); });
 }
 
 /* ───────────────────────── Système ───────────────────────── */
@@ -1406,7 +1402,7 @@ function renderAll() {
   $('#l4').hidden = S.tab === 'systeme' || S.tab === 'maintenant';
   $('#per-note').textContent = S.tab === 'maintenant' ? '' : S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs, pays et canaux sur la période' : S.tab === 'audience' ? 'fenêtre des travaux, créations et courbes' : '';
   if (S.tab === 'maintenant' || S.tab === 'audience') renderMaintenant();      // « Derniers travaux » et « Activité récente » vivent dans Audience
-  if (S.tab === 'maintenant') { courbesParJour(); renderSante(); }
+  if (S.tab === 'maintenant') renderSante();
   if (S.tab === 'argent') { renderArgent(); renderAchats(); renderTarifs(); }
   if (S.tab === 'users') renderUsers();
   if (S.tab === 'audience' || S.tab === 'users') renderAudience();
@@ -1416,7 +1412,7 @@ function renderAll() {
 function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
-  if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); chargerSante(); courbesParJour(); chargerModalFull(); renderSante(); }
+  if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); chargerSante(); chargerModalFull(); renderSante(); }
   if (t === 'audience') chargerLive();
   if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); if (!S.stats) chargerStats(); if (!S.aud || S.audPer !== S.per) chargerAudience(); }
