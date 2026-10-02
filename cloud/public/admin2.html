@@ -12,6 +12,7 @@
 <meta name="robots" content="noindex,nofollow">
 <title>MyFabmesh — Admin</title>
 <link rel="icon" href="/favicon.png" type="image/png">
+<script async src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
 :root{
   color-scheme: dark;
@@ -250,6 +251,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
   <section id="p-argent" role="tabpanel" hidden>
     <p class="rempl">Remplace <b>Revenus · Par type · Pricing</b>. Une seule courbe, une seule source de coût : la facture réelle. L'estimation reste visible mais n'entre dans aucune marge.</p>
     <div class="kpis" id="kpis-argent"></div>
+    <div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div>
     <div class="grille g2b">
       <div class="carte"><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2>
         <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
@@ -275,6 +277,10 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
     </div>
     <div class="carte" style="margin-top:16px"><h2>Achats Stripe <small id="resume-achats"></small></h2>
       <div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div>
+    <div class="carte" id="recon" style="margin-top:16px" hidden><h2>Paiements encaissés, crédits non versés <small id="recon-n"></small></h2>
+      <p class="note">Stripe a encaissé mais les crédits n'ont pas été versés (webhook manqué). Vérifiez le paiement dans Stripe, puis versez les crédits.</p>
+      <div class="defil"><table><thead><tr><th>Date</th><th>Compte</th><th>Pack</th><th class="n">Montant</th><th>Session Stripe</th><th class="n">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
+    </div>
   </section>
 
   <!-- ═════════ UTILISATEURS ═════════ -->
@@ -337,6 +343,12 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
     <div class="carte" style="margin-top:16px"><h2>Journal d'audit <small>actions de l'administrateur</small></h2>
       <div class="ligneform"><label for="audit-jour">Jour</label><input type="date" id="audit-jour" style="width:170px"><button type="button" class="btn petit" id="b-audit">Afficher</button></div>
       <div class="defil"><table><thead><tr><th>Heure</th><th>Acteur</th><th>Action</th><th>Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div></div>
+    <div class="carte" style="margin-top:16px"><h2>Diagnostic <small>opérations récentes et journaux envoyés par les appareils</small></h2>
+      <div class="ligneform"><input type="text" id="dbg-compte" class="large" placeholder="E-mail ou identifiant du compte (vide = tous)" autocomplete="off"><select id="dbg-limite" style="width:auto"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="dbg-echecs" style="width:auto"> échecs seulement</label><button type="button" class="btn petit prim" id="b-dbg">Afficher</button></div>
+      <h3>Opérations</h3><div class="defil haut"><table><thead><tr><th>Quand</th><th>Compte</th><th>Opération</th><th>Statut</th><th class="n">Durée</th><th class="n">Crédits</th><th></th></tr></thead><tbody id="dbg-traces"><tr><td colspan="7" class="vide">Cliquez sur « Afficher ».</td></tr></tbody></table></div>
+      <h3>Journaux envoyés par les appareils <small id="dbg-logs-n" class="note"></small></h3><div class="defil haut"><table><thead><tr><th>Envoyé</th><th>Compte</th><th>Type</th><th>État</th><th class="n">Taille</th><th></th></tr></thead><tbody id="dbg-logs"></tbody></table></div>
+      <div id="dbg-wrap" hidden class="boite" style="margin-top:12px"><div class="ligneform" style="justify-content:space-between"><b id="dbg-titre"></b><span><button type="button" class="btn petit" id="dbg-copier">Copier</button> <button type="button" class="btn petit" id="dbg-telecharger">Télécharger</button> <button type="button" class="btn petit" id="dbg-fermer">Fermer</button></span></div><pre id="dbg-viewer" style="max-height:420px;overflow:auto;font:12px var(--mono)"></pre></div>
+    </div>
   </section>
 
   <div class="lb" id="fp" hidden role="dialog" aria-label="Mot de passe administrateur oublié">
@@ -356,9 +368,9 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
   <div class="lb" id="lb" hidden role="dialog" aria-label="Image agrandie">
     <img id="lb-img" alt="">
     <div class="cap" id="lb-cap"></div>
-    <div class="btns"><button type="button" class="btn petit" id="lb-prec">← Précédente</button><button type="button" class="btn petit" id="lb-suiv">Suivante →</button><a class="btn petit" id="lb-ouvrir" target="_blank" rel="noopener" href="#">Ouvrir en grand ↗</a><button type="button" class="btn petit" id="lb-fermer">Fermer (Échap)</button></div>
+    <div class="btns"><button type="button" class="btn petit" id="lb-prec">← Précédente</button><button type="button" class="btn petit" id="lb-suiv">Suivante →</button><a class="btn petit" id="lb-ouvrir" target="_blank" rel="noopener" href="#">Ouvrir en grand ↗</a><button type="button" class="btn petit danger" id="lb-sup">Supprimer l'image</button><button type="button" class="btn petit" id="lb-fermer">Fermer (Échap)</button></div>
   </div>
-  <p class="pied">Page de travail pour l'administrateur. Restent sur <a href="/admin">l'ancienne page</a> : activer ou retirer la double authentification, les journaux de debug, la visionneuse des images et maillages d'un compte, le rapprochement manuel d'un paiement.</p>
+  <p class="pied">Page d'administration MyFabmesh. L'ancienne page <a href="/admin">/admin</a> reste disponible en secours.</p>
 </div>
 
 <script>
@@ -483,7 +495,7 @@ async function http(path, opts) {
   try { r = await fetch(path, init); } catch (e) { throw erreur('Réseau indisponible', 0); }
   var texte = ''; try { texte = await r.text(); } catch (_) {}
   var json = null; try { json = texte ? JSON.parse(texte) : null; } catch (_) {}
-  if ((r.status === 401 || r.status === 403) && !(opts.mdp && /invalid password/.test(texte))) { sessionPerdue(r.status, texte); throw erreur('Session expirée', r.status, json); }
+  if ((r.status === 401 || r.status === 403) && !(opts.mdp && /invalid|wrong|current|code/i.test(texte))) { sessionPerdue(r.status, texte); throw erreur('Session expirée', r.status, json); }
   if (r.status === 503 && /temporarily/.test(texte)) throw erreur('Service momentanément indisponible', 503, json);
   if (!r.ok) throw erreur((json && json.error) || ('HTTP ' + r.status), r.status, json);
   sessionRetablie();
@@ -594,7 +606,7 @@ function renderGalerie() {
 }
 function ouvrirLb(i) {
   var im = S.imgs && S.imgs.images[i]; if (!im) return;
-  S.lb = i; $('#lb-img').src = im.url; $('#lb-ouvrir').href = im.url;
+  S.lb = i; S.lbSupArme = false; $('#lb-sup').textContent = "Supprimer l'image"; $('#lb-img').src = im.url; $('#lb-ouvrir').href = im.url;
   $('#lb-cap').textContent = (im.email || 'compte inconnu') + ' · ' + im.dossier + ' · ' + dateFr(im.uploaded) + ' · ' + Math.round(im.size / 1024) + ' Ko';
   $('#lb').hidden = false;
 }
@@ -613,7 +625,7 @@ async function chargerSante() { var j = await silencieux(http('/api/admin/sante.
 async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/status')); if (j) { S.totp = j; if (S.tab === 'systeme') renderSecurite(); } }
 async function chargerUsers() { var j = await silencieux(http('/api/admin/users')); if (j) { S.users = j; if (S.tab === 'users') renderUsers(); } }
 async function chargerMessages() { var j = await silencieux(http('/api/admin/contact-messages')); if (j) { S.msgs = j.messages || []; if (S.tab === 'users') renderMessages(); majSousBadges(); } }
-async function chargerAnnonces() { var j = await silencieux(http('/api/admin/market/list')); if (j) { S.listings = j.listings || []; if (S.tab === 'users') renderAnnonces(); majSousBadges(); } }
+async function chargerAnnonces() { var j = await silencieux(http('/api/admin/market/list')); if (j) { S.listings = j.listings || []; S.offerts = j.offerts || []; S.offertsMax = j.offerts_max || 5; if (S.tab === 'users') renderAnnonces(); majSousBadges(); } }
 async function chargerPricing() { var j = await silencieux(http('/api/admin/pricing')); if (j) { S.pricing = { defaults: j.defaults || {}, current: Object.assign({}, j.defaults || {}, j.current || {}) }; if (S.tab === 'argent') renderTarifs(); } }
 async function chargerAudit() {
   var jour = $('#audit-jour').value || new Date().toISOString().slice(0, 10);
@@ -691,10 +703,10 @@ function renderMaintenant() {
   var L = S.live; if (!L) return;
   var enc = (L.en_cours || []).filter(filtreEvt);
   $('#n-cours').textContent = enc.length + ' sur ' + (L.en_cours || []).length;
-  majSiChange($('#encours'), enc.length ? enc.map(function (x) {
+  majSiChange($('#encours'), barreArret(enc) + (enc.length ? enc.map(function (x) {
     return '<div class="job"><div class="t"><span>' + lien('type', x.type || '?', x.type || '?') + (x.projet ? ' · <span class="s">' + esc(x.projet) + '</span>' : '') + '</span><span>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</span></div>'
-      + '<div class="s tn">' + pillStatut(x.statut) + ' <span data-age0="' + (x.age_s || 0) + '"></span> · ' + (x.credits || 0) + ' crédits</div></div>';
-  }).join('') : '<div class="vide">Aucun travail en cours' + (S.filt.compte || S.filt.type ? ' pour ce filtre' : '') + '.</div>');
+      + '<div class="s tn">' + pillStatut(x.statut) + ' <span data-age0="' + (x.age_s || 0) + '"></span> · ' + (x.credits || 0) + ' crédits' + (S.stopConfirm === x.id ? '' : ' <button type="button" class="btn danger petit" data-stop="' + esc(x.id) + '">Arrêter</button>') + '</div>' + (S.stopConfirm === x.id ? confirmArret(x.id) : '') + '</div>';
+  }).join('') : '<div class="vide">Aucun travail en cours' + (S.filt.compte || S.filt.type ? ' pour ce filtre' : '') + '.</div>'));
   var f = L.fenetres || {};
   function fen(t, w) { return cellule(t, w ? w.lances : '—', w ? w.reussis + ' ok · ' + w.echecs + ' échec' + (w.echecs > 1 ? 's' : '') + ' · ' + w.credits + ' cr.' : '', w && w.echecs ? 'vigil' : ''); }
   majSiChange($('#fenetres'), fen('5 min', f.m5) + fen('15 min', f.m15) + fen('1 h', f.h1));
@@ -854,7 +866,7 @@ function renderTarifs() {
     var mod = C[k] !== D[k];
     return '<tr data-k="' + esc(k) + '"><td style="font:12px var(--mono)">' + esc(k) + '</td><td class="libre" style="color:var(--text-2);font-size:12px;min-width:200px">' + esc(PRICING_DESCRIPTIONS[k] || '') + '</td><td class="n tn" style="color:var(--text-2)">' + D[k] + '</td><td class="n"><input type="number" min="0" step="1" value="' + C[k] + '" data-pk="' + esc(k) + '" style="width:84px;text-align:right' + (mod ? ';border-color:var(--warn);color:var(--warn)' : '') + '"></td></tr>';
   }).join('');
-  box.innerHTML = '<p class="note">Prix en crédits. Valeur d\'origine à gauche ; une valeur modifiée passe en orange. Les prix de l\'application Windows restent sur l\'ancienne page. L\'enregistrement est tracé dans le journal d\'audit.</p><div class="defil" style="max-height:420px;overflow:auto"><table><thead><tr><th>Clé</th><th>Rôle</th><th class="n">Origine</th><th class="n">Actuel</th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="ligneform" style="margin-top:8px"><button type="button" class="btn prim" id="b-tarifs-ok">Enregistrer les tarifs</button><button type="button" class="btn" id="b-tarifs-raz">Tout remettre à l\'origine</button><span id="tarifs-msg" class="msg-ok"></span></div>';
+  box.innerHTML = '<p class="note">Prix en crédits. Valeur d\'origine à gauche ; une valeur modifiée passe en orange. L\'enregistrement est tracé dans le journal d\'audit.</p>' + '<div class="boite"><b>Application Windows</b><div class="ligneform" style="margin:6px 0 0"><label for="tar-d-prix">Prix affiché sur le site (€)</label><input type="number" id="tar-d-prix" min="0" step="0.01" value="' + (Number(C.desktop_prix_centimes != null ? C.desktop_prix_centimes : (D.desktop_prix_centimes != null ? D.desktop_prix_centimes : 8999)) / 100).toFixed(2) + '" style="width:110px"><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="tar-d-gratuit" style="width:auto"' + (Number(C.desktop_gratuit != null ? C.desktop_gratuit : 1) !== 0 ? ' checked' : '') + '> Gratuite pendant la bêta</label></div></div>' + '<div class="defil" style="max-height:420px;overflow:auto"><table><thead><tr><th>Clé</th><th>Rôle</th><th class="n">Origine</th><th class="n">Actuel</th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="ligneform" style="margin-top:8px"><button type="button" class="btn prim" id="b-tarifs-ok">Enregistrer les tarifs</button><button type="button" class="btn" id="b-tarifs-raz">Tout remettre à l\'origine</button><span id="tarifs-msg" class="msg-ok"></span></div>';
 }
 
 /* ───────────────────────── Utilisateurs ───────────────────────── */
@@ -888,8 +900,8 @@ function renderFiche() {
   var projets = S.projetsDe && S.projetsDe.id === u.id ? S.projetsDe.liste : null;
   box.innerHTML = '<h2>' + esc(u.email || u.id) + ' <small>inscrit le ' + esc(dateFr(u.created_at)) + (u.banned ? ' · <b style="color:var(--err)">bloqué</b>' : '') + '</small></h2><dl>' + fichesStats(u) + '</dl>'
     + '<h3>Ajuster les crédits</h3><div class="ligneform"><label for="aj">Variation</label><input type="number" id="aj" value="50" step="10"><input type="text" id="aj-motif" class="large" placeholder="Motif (obligatoire, tracé dans l\'audit)"><input type="password" id="aj-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim" id="b-aj">Appliquer</button></div><div id="aj-msg" class="note"></div>'
-    + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" id="b-projets">Voir ses projets</button> <button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux, images et achats</button></div><div id="ban-confirm"></div>'
-    + '<div id="projets">' + (projets ? htmlProjets(projets) : '') + '</div>';
+    + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" id="b-projets">Voir ses projets</button> <button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux, images et achats</button> <button type="button" class="btn" data-actifs="meshes">Maillages</button> <button type="button" class="btn" data-actifs="rigs">Rigs</button> <button type="button" class="btn" data-actifs="animations">Animations</button></div><div id="ban-confirm"></div>'
+    + '<div id="projets">' + (projets ? htmlProjets(projets) : '') + '</div><div id="actifs"></div>';
 }
 function fichesStats(u) {
   return '<div><dt>Crédits</dt><dd class="tn">' + num(u.credits) + '</dd></div><div><dt>Travaux</dt><dd class="tn">' + num(u.ops_total) + '</dd></div><div><dt>Échecs</dt><dd class="tn">' + num(u.ops_failed) + '</dd></div><div><dt>Crédits dépensés</dt><dd class="tn">' + num(u.credits_spent) + '</dd></div><div><dt>Projets</dt><dd class="tn">' + num(u.projects_count) + '</dd></div><div><dt>Maillages</dt><dd class="tn">' + num(u.meshes_count) + '</dd></div><div><dt>Rigs</dt><dd class="tn">' + num(u.rigs_count) + '</dd></div><div><dt>Animations</dt><dd class="tn">' + num(u.animations_count) + '</dd></div>';
@@ -911,14 +923,14 @@ function renderAnnonces() {
   var L = S.listings, box = $('#annonces');
   $$('[data-ms]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.ms === S.ms); });
   if (!L) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
-  if (box.querySelector('textarea')) return;
+  if (box.querySelector('textarea') || (document.activeElement && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT')) return;
   var l = L.filter(function (x) { return x.status === S.ms; });
   $('#n-annonces').textContent = L.filter(function (x) { return x.status === 'pending'; }).length + ' à valider · ' + L.length + ' au total';
   box.innerHTML = l.length ? l.map(function (a) {
     var url = a.apercu_url || a.asset_url || a.mesh_url || '';
     return '<div class="boite"><div class="ligneform" style="justify-content:space-between;margin:0"><span><b>' + esc(a.title || '(sans titre)') + '</b> <span class="pill">' + (a.price_cents === 0 ? 'Gratuit' : eur((a.price_cents || 0) / 100)) + '</span> <span class="note">' + esc(a.asset_kind || (a.mesh_url ? 'mesh' : 'image')) + '</span></span><span class="note">' + esc(a.author_display || '') + ' · ' + esc(dateFr(a.created_at)) + '</span></div>'
       + (a.description ? '<pre>' + esc(String(a.description).slice(0, 400)) + '</pre>' : '') + (a.rejection_reason ? '<div class="note">Motif du refus : ' + esc(a.rejection_reason) + '</div>' : '')
-      + '<div class="ligneform" style="margin:8px 0 0">' + (url ? '<a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Aperçu ↗</a>' : '') + (a.status !== 'approved' ? '<button type="button" class="btn petit prim" data-appr="' + esc(a.id) + '">Approuver</button>' : '') + (a.status !== 'rejected' ? '<button type="button" class="btn petit danger" data-rej="' + esc(a.id) + '">Refuser</button>' : '') + '</div><div id="rj-' + esc(a.id) + '"></div></div>';
+      + '<div class="ligneform" style="margin:8px 0 0">' + (url ? '<a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Aperçu ↗</a>' : '') + (a.status !== 'approved' ? '<button type="button" class="btn petit prim" data-appr="' + esc(a.id) + '">Approuver</button>' : '') + (a.status !== 'rejected' ? '<button type="button" class="btn petit danger" data-rej="' + esc(a.id) + '">Refuser</button>' : '') + '</div><div class="ligneform" style="margin:8px 0 0"><label for="prix-' + esc(a.id) + '" class="note">Prix (€)</label><input type="number" id="prix-' + esc(a.id) + '" min="0" step="0.01" value="' + ((a.price_cents || 0) / 100).toFixed(2) + '" style="width:90px"><button type="button" class="btn petit" data-prix="' + esc(a.id) + '">Enregistrer le prix</button><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-offert="' + esc(a.id) + '" style="width:auto"' + (S.offerts.indexOf(a.id) >= 0 ? ' checked' : '') + '> Gratuit ce mois-ci (' + S.offerts.length + '/' + S.offertsMax + ')</label>' + (S.annSup === a.id ? '<span class="confirm" style="display:inline-block;margin:0">Supprimer définitivement ? <button type="button" class="btn danger petit" data-supann-ok="' + esc(a.id) + '">Oui</button> <button type="button" class="btn petit" data-supann-non="1">Non</button></span>' : '<button type="button" class="btn petit danger" data-supann="' + esc(a.id) + '">Supprimer</button>') + '</div><div id="rj-' + esc(a.id) + '"></div></div>';
   }).join('') : '<div class="vide">Aucune annonce dans cet état.</div>';
 }
 
@@ -982,12 +994,32 @@ function renderSante() {
 }
 function renderSecurite() {
   var t = S.totp, box = $('#securite');
-  if (box.querySelector('input')) { return; }
-  var h = '<div class="sw"><div class="gauche"><div>Double authentification</div><div class="d">' + (t ? (t.enrolled ? 'Activée' + (t.email ? ' pour ' + esc(t.email) : '') + (t.enrolled_at ? ' depuis le ' + esc(dateFr(t.enrolled_at)) : '') : 'Non activée') : 'Chargement…') + '</div></div>' + (t ? '<span class="pill ' + (t.enrolled ? 'ok' : 'warn') + '">' + (t.enrolled ? 'Activée' : 'Absente') + '</span>' : '') + '</div>'
-    + '<div class="sw"><div class="gauche"><div>Déconnecter tout le monde</div><div class="d">Ferme toutes les sessions des utilisateurs. La vôtre est conservée.</div></div>' + (S.decoOuvert ? '' : '<button type="button" class="btn danger petit" id="b-deco">Déconnecter</button>') + '</div>';
+  if (box.querySelector('input')) { return; }          // une saisie est en cours (2FA ou deconnexion forcee)
+  var enrolle = t && t.enrolled;
+  var h = '<div class="sw"><div class="gauche"><div>Double authentification</div><div class="d">' + (t ? (enrolle ? 'Activée' + (t.email ? ' pour ' + esc(t.email) : '') + (t.enrolled_at ? ' depuis le ' + esc(dateFr(t.enrolled_at)) : '') : 'Non activée : toute personne qui connaît le mot de passe administrateur peut entrer.') : 'Chargement…') + '</div></div>'
+    + (t && !S.totpMode ? (enrolle ? '<span><button type="button" class="btn petit" id="b-2fa-remplacer">Remplacer</button> <button type="button" class="btn petit danger" id="b-2fa-retirer">Retirer</button></span>' : '<button type="button" class="btn petit prim" id="b-2fa-activer">Activer</button>') : '') + '</div>';
+  if (enrolle && t.enrolled_at && Date.parse(t.enrolled_at) < Date.parse('2026-08-19T00:00:00Z') && !S.totpMode) h += '<div class="confirm" style="border-color:var(--warn)">⚠ Ce secret a été enregistré avant la fermeture de l\'accès public au stockage (18/08) : il a pu être lu. Remplacez-le.</div>';
+  if (S.totpMode === 'enroll' || S.totpMode === 'replace') {
+    h += '<div class="confirm" style="border-color:var(--accent)"><div>1. Scannez ce code avec votre application d\'authentification (ou saisissez la clé à la main).</div>'
+      + '<div id="totp-qr" style="background:#fff;display:inline-block;padding:6px;border-radius:6px;margin:8px 0"></div>'
+      + '<div class="tn" style="font:13px var(--mono);word-break:break-all">' + esc(String(S.totpSecret || '').replace(/(.{4})/g, '$1 ').trim()) + '</div>'
+      + '<div class="ligneform" style="margin:8px 0 0">' + (S.totpMode === 'replace' ? '<input type="text" id="tp-actuel" inputmode="numeric" maxlength="6" placeholder="Code de l\'ANCIENNE entrée" autocomplete="off" style="width:200px">' : '')
+      + '<input type="text" id="tp-code" inputmode="numeric" maxlength="6" placeholder="Code de la NOUVELLE entrée" autocomplete="one-time-code" style="width:200px"><button type="button" class="btn prim petit" id="b-2fa-ok">Confirmer</button><button type="button" class="btn petit" id="b-2fa-non">Annuler</button></div><div id="tp-err" class="msg-err">' + esc(S.totpErr || '') + '</div></div>';
+  } else if (S.totpMode === 'disable') {
+    h += '<div class="confirm"><div>Retirer la double authentification : mot de passe et code actuel requis.</div><div class="ligneform" style="margin:8px 0 0"><input type="password" id="tp-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><input type="text" id="tp-code" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres" autocomplete="off" style="width:170px"><button type="button" class="btn danger petit" id="b-2fa-off-ok">Retirer la 2FA</button><button type="button" class="btn petit" id="b-2fa-non">Annuler</button></div><div id="tp-err" class="msg-err">' + esc(S.totpErr || '') + '</div></div>';
+  }
+  if (S.secMsg) h += '<div class="' + (S.secMsgOk ? 'msg-ok' : 'msg-err') + '" style="margin:6px 0">' + esc(S.secMsg) + '</div>';
+  h += '<div class="sw"><div class="gauche"><div>Déconnecter tout le monde</div><div class="d">Ferme toutes les sessions des utilisateurs. La vôtre est conservée.</div></div>' + (S.decoOuvert ? '' : '<button type="button" class="btn danger petit" id="b-deco">Déconnecter</button>') + '</div>';
   if (S.decoOuvert) h += '<div class="confirm">Confirmer avec le mot de passe administrateur : <div class="ligneform" style="margin:6px 0 0"><input type="password" id="deco-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn danger petit" id="b-deco-ok">Déconnecter tout le monde</button><button type="button" class="btn petit" id="b-deco-non">Annuler</button></div><div id="deco-msg" class="msg-err"></div></div>';
   box.innerHTML = h;
+  if (S.totpMode === 'enroll' || S.totpMode === 'replace') dessinerQr();
 }
+function dessinerQr() {
+  var el = $('#totp-qr'); if (!el) return;
+  try { var qr = qrcode(0, 'M'); qr.addData(S.totpUri); qr.make(); el.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 1 }); }
+  catch (_) { el.outerHTML = '<div class="note">Le générateur de code QR n\'a pas pu se charger : saisissez la clé ci-dessous dans votre application.</div>'; }
+}
+S.totpMode = null; S.totpSecret = null; S.totpUri = null; S.totpErr = ''; S.secMsg = ''; S.secMsgOk = false;
 
 /* ───────────────────────── affichage global ───────────────────────── */
 function renderAll() {
@@ -1007,10 +1039,10 @@ function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
   if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerImages(); }
-  if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); }
+  if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); }
   if (t === 'audience') { chargerStats(); chargerAudience(); }
-  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); chargerAudit(); }
+  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerTotp(); chargerDebug(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); chargerAudit(); }
 }
 function selectionnerCompteParEmail(email) {
   if (!S.users) return; var u = S.users.users.filter(function (x) { return x.email === email; })[0]; if (u) { S.sel = u.id; S.projetsDe = null; $('#fiche').dataset.uid = ''; }
@@ -1033,6 +1065,7 @@ document.addEventListener('click', async function (e) {
   if (t.closest('#b-tarifs-raz')) { S.pricing.current = Object.assign({}, S.pricing.defaults); $('#tarifs').innerHTML = ''; return renderTarifs(); }
   if (t.closest('#b-tarifs-ok')) {
     $$('#tarifs [data-pk]').forEach(function (i) { var v = parseInt(i.value, 10); if (isFinite(v) && v >= 0) S.pricing.current[i.dataset.pk] = v; });
+    var dp = parseFloat(String($('#tar-d-prix').value).replace(',', '.')); if (isFinite(dp) && dp >= 0) S.pricing.current.desktop_prix_centimes = Math.round(dp * 100); S.pricing.current.desktop_gratuit = $('#tar-d-gratuit').checked ? 1 : 0;
     var m = $('#tarifs-msg'); m.className = 'note'; m.textContent = 'Enregistrement…';
     try { var j = await http('/api/admin/pricing', { method: 'POST', body: { prices: S.pricing.current, password: '' } }); S.pricing.current = Object.assign({}, S.pricing.defaults, j.current || S.pricing.current); m.className = 'msg-ok'; m.textContent = '✓ Enregistré : pris en compte par tous les utilisateurs d\'ici une minute.'; }
     catch (er) { m.className = 'msg-err'; m.textContent = 'Échec : ' + er.message; }
@@ -1241,6 +1274,207 @@ async function fpPost(chemin, corps) {
   } catch (er) { return { r: { ok: false, status: 0 }, j: { error: 'Réseau indisponible' } }; }
 }
 
+
+document.addEventListener('click', async function (e) {
+  var t = e.target;
+  if (t.closest('#b-2fa-activer') || t.closest('#b-2fa-remplacer')) {
+    var rem = !!t.closest('#b-2fa-remplacer'); S.secMsg = ''; S.totpErr = '';
+    try { var j = await http('/api/admin/totp/setup', { method: 'POST' }); S.totpMode = rem ? 'replace' : 'enroll'; S.totpSecret = j.secret; S.totpUri = j.uri; }
+    catch (er) { S.secMsg = 'Préparation impossible : ' + er.message; S.secMsgOk = false; }
+    $('#securite').innerHTML = ''; renderSecurite(); return;
+  }
+  if (t.closest('#b-2fa-retirer')) { S.totpMode = 'disable'; S.totpErr = ''; S.secMsg = ''; $('#securite').innerHTML = ''; renderSecurite(); return; }
+  if (t.closest('#b-2fa-non')) { S.totpMode = null; S.totpSecret = null; S.totpErr = ''; $('#securite').innerHTML = ''; renderSecurite(); return; }
+  if (t.closest('#b-2fa-ok')) {
+    var code = ($('#tp-code').value || '').trim().replace(/\s/g, ''), actuel = ($('#tp-actuel') && $('#tp-actuel').value || '').trim().replace(/\s/g, ''), rempl = S.totpMode === 'replace';
+    if (!/^\d{6}$/.test(code) || (rempl && !/^\d{6}$/.test(actuel))) { $('#tp-err').textContent = rempl ? 'Les deux codes doivent avoir 6 chiffres.' : 'Le code doit avoir 6 chiffres.'; return; }
+    try {
+      await http('/api/admin/totp/confirm', { method: 'POST', mdp: true, body: { secret: S.totpSecret, code: code, current_code: rempl ? actuel : undefined } });
+      S.totpMode = null; S.totpSecret = null; S.secMsgOk = true; S.secMsg = rempl ? "Authentificateur remplacé : l'ancienne entrée ne marche plus, supprimez-la de votre application." : 'Double authentification activée : elle sera demandée à chaque connexion.';
+      $('#securite').innerHTML = ''; await chargerTotp(); renderSecurite();
+    } catch (er) { $('#tp-err').textContent = er.status === 401 ? (/current/i.test(er.message) ? "Le code de l'ANCIENNE entrée est faux ou manquant." : 'Code faux pour la NOUVELLE entrée, réessayez.') : er.message; }
+    return;
+  }
+  if (t.closest('#b-2fa-off-ok')) {
+    try {
+      await http('/api/admin/totp/disable', { method: 'POST', mdp: true, body: { password: $('#tp-mdp').value, code: ($('#tp-code').value || '').trim() } });
+      S.totpMode = null; S.secMsgOk = true; S.secMsg = 'Double authentification retirée. Vous pourrez la réactiver quand vous voulez.';
+      $('#securite').innerHTML = ''; await chargerTotp(); renderSecurite();
+    } catch (er) { $('#tp-err').textContent = er.status === 401 ? 'Mot de passe ou code faux.' : er.message; }
+  }
+});
+
+/* ═════════════ DIAGNOSTIC : opérations récentes + journaux envoyés par les appareils (porté de /admin) ═════════════ */
+S.traces = []; S.dbgTexte = ''; S.dbgNom = '';
+async function chargerDebug() {
+  var q = $('#dbg-compte').value.trim(), lim = $('#dbg-limite').value, qs = new URLSearchParams({ limit: lim });
+  if (q) { if (q.indexOf('@') >= 0) qs.set('email', q); else qs.set('uid', q); }
+  if ($('#dbg-echecs').checked) qs.set('failed', '1');
+  var tb = $('#dbg-traces'); tb.innerHTML = '<tr><td colspan="7" class="vide">Chargement…</td></tr>';
+  try {
+    var j = await http('/api/admin/traces?' + qs.toString());
+    S.traces = j.traces || [];
+    tb.innerHTML = S.traces.length ? S.traces.map(function (t, i) {
+      var cls = t.status === 'succeeded' ? 'ok' : (t.status === 'failed' || t.status === 'canceled') ? 'err' : 'warn';
+      return '<tr><td class="tn">' + esc(String(t.date || '').replace('T', ' ').slice(5, 19)) + '</td><td>' + esc(t.email || '—') + '</td><td class="coupe">' + esc(t.operation || '') + ' <span class="note">' + esc(t.projet || '') + '</span></td><td><span class="pill ' + cls + '">' + esc(t.status || '—') + '</span>' + (t.erreur ? '<span class="erreur-ligne">' + esc(String(t.erreur).split('\n')[0].slice(0, 160)) + '</span>' : '') + '</td><td class="n tn">' + (t.duree_s == null ? '—' : t.duree_s + ' s') + '</td><td class="n tn">' + (t.credits == null ? '—' : t.credits) + '</td><td><button type="button" class="btn petit" data-trace="' + i + '">Détails</button>' + (t.rapport ? ' <button type="button" class="btn petit" data-log="' + esc(t.rapport) + '">Rapport</button>' : '') + '</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="vide">' + esc(j.note || 'Aucune opération pour ce filtre.') + '</td></tr>';
+  } catch (er) { tb.innerHTML = '<tr><td colspan="7" class="msg-err">' + esc(er.message) + '</td></tr>'; }
+  var tl = $('#dbg-logs'); tl.innerHTML = '<tr><td colspan="6" class="vide">Chargement…</td></tr>';
+  try {
+    var jl = await http('/api/admin/logs/list?' + qs.toString().replace('&failed=1', ''));
+    var logs = jl.logs || [];
+    $('#dbg-logs-n').textContent = (jl.count != null ? jl.count : logs.length) + ' fichier(s)';
+    tl.innerHTML = logs.length ? logs.map(function (l) {
+      return '<tr><td class="tn">' + esc(String(l.uploaded || '').replace('T', ' ').slice(5, 19)) + '</td><td>' + esc(l.email || String(l.uid || '').slice(0, 8) + '…') + '</td><td>' + esc(l.kind || '—') + '</td><td>' + esc(l.status || '—') + '</td><td class="n tn">' + (l.size / 1024).toFixed(1) + ' Ko</td><td><button type="button" class="btn petit" data-log="' + esc(l.key) + '">Voir</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="vide">Aucun journal pour ce filtre.</td></tr>';
+  } catch (er) { tl.innerHTML = '<tr><td colspan="6" class="msg-err">' + esc(er.message) + '</td></tr>'; }
+}
+function dbgAfficher(titre, texte, nom) { S.dbgTexte = texte; S.dbgNom = nom || 'journal'; $('#dbg-titre').textContent = titre; $('#dbg-viewer').textContent = texte; $('#dbg-wrap').hidden = false; $('#dbg-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+document.addEventListener('click', async function (e) {
+  var t = e.target, b;
+  if (t.closest('#b-dbg')) return chargerDebug();
+  if ((b = t.closest('[data-trace]'))) {
+    var x = S.traces[Number(b.dataset.trace)]; if (!x) return;
+    dbgAfficher(x.operation + ' · ' + x.id, ['opération : ' + x.operation + '   (type ' + (x.type || '—') + ', actif ' + (x.asset_type || '—') + ')', 'statut    : ' + x.status, 'compte    : ' + (x.email || '—'), 'projet    : ' + (x.projet || '—'), 'date      : ' + x.date, 'durée     : ' + (x.duree_s == null ? '—' : x.duree_s + ' s'), 'crédits   : ' + (x.credits == null ? '—' : x.credits) + '   coût GPU estimé : ' + (x.cout_usd == null ? '—' : x.cout_usd) + ' $', '', 'réglages (texte saisi retiré) :', JSON.stringify(x.reglages || {}, null, 2), '', 'erreur :', x.erreur || '—'].join('\n'), 'trace_' + x.id);
+    return;
+  }
+  if ((b = t.closest('[data-log]'))) {
+    var cle = b.dataset.log; dbgAfficher(cle, 'Chargement…', cle.replace(/[/\\]/g, '_'));
+    try { var r = await fetch('/api/admin/logs/get?key=' + encodeURIComponent(cle), { credentials: 'include' }); var tx = await r.text(); if (r.status === 401 || r.status === 403) { sessionPerdue(r.status, tx); } dbgAfficher(cle, r.ok ? tx : 'Erreur ' + r.status, cle.replace(/[/\\]/g, '_')); }
+    catch (er) { dbgAfficher(cle, 'Échec du chargement : ' + er.message); }
+    return;
+  }
+  if (t.closest('#dbg-copier')) { try { await navigator.clipboard.writeText(S.dbgTexte); $('#dbg-titre').textContent = '✓ Copié'; } catch (_) {} return; }
+  if (t.closest('#dbg-telecharger')) { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([S.dbgTexte], { type: 'text/plain' })); a.download = (S.dbgNom || 'journal') + '.txt'; document.body.appendChild(a); a.click(); a.remove(); return; }
+  if (t.closest('#dbg-fermer')) { $('#dbg-wrap').hidden = true; S.dbgTexte = ''; return; }
+});
+
+/* ═════════════ ARRETER UN TRAVAIL (porte de /admin : « Stop », « Stop all », remboursement au choix) ═════════════ */
+S.stopConfirm = null; S.stopMsg = '';
+document.addEventListener('click', async function (e) {
+  var t = e.target, b;
+  if ((b = t.closest('[data-stop]'))) { S.stopConfirm = b.dataset.stop; S.stopMsg = ''; $('#encours')._h = null; renderMaintenant(); return; }
+  if (t.closest('[data-stop-non]')) { S.stopConfirm = null; $('#encours')._h = null; renderMaintenant(); return; }
+  if ((b = t.closest('[data-stop-ok]'))) {
+    var cible = b.dataset.stopOk, rembourser = $('#stop-refund') ? $('#stop-refund').checked : true;
+    var ids = cible === 'tous' ? (S.live ? S.live.en_cours.map(function (x) { return x.id; }) : []) : [cible], ok = 0, ko = 0, rembourse = 0, modal = [];
+    for (var i = 0; i < ids.length; i++) {
+      try { var j = await http('/api/admin/jobs/cancel', { method: 'POST', body: { jobId: ids[i], refund: rembourser } }); ok++; rembourse += j.refunded || 0; if (j.modalError) modal.push(j.modalError); }
+      catch (_) { ko++; }
+    }
+    S.stopConfirm = null; S.stopMsg = ok + ' travail(aux) arrêté(s)' + (ko ? ', ' + ko + ' échec(s)' : '') + ' · ' + (rembourser ? rembourse + ' crédit(s) remboursé(s)' : 'sans remboursement') + (modal.length ? ' · GPU : ' + modal[0] : '') + '. Le GPU peut tourner encore une trentaine de secondes.';
+    $('#encours')._h = null; chargerLive(); return;
+  }
+});
+
+/* ═════════════ MAILLAGES, RIGS ET ANIMATIONS D'UN COMPTE (liste + téléchargement + suppression ; pas d'aperçu 3D : « image, ça me suffit ») ═════════════ */
+S.actifs = null; S.actifsSup = null;
+async function chargerActifs(uid, genre) {
+  var box = $('#actifs'); box.innerHTML = '<div class="vide">Chargement…</div>'; S.actifsSup = null;
+  try {
+    var chemin = '/api/admin/users/' + encodeURIComponent(uid) + (genre === 'rigs' ? '/rigs' : '/meshes' + (genre === 'animations' ? '?kind=animations' : ''));
+    var j = await http(chemin);
+    S.actifs = { uid: uid, genre: genre, liste: (genre === 'rigs' ? j.rigs : j.meshes) || [] };
+    box.innerHTML = htmlActifs();
+  } catch (er) { box.innerHTML = '<div class="msg-err">' + esc(er.message) + '</div>'; }
+}
+function htmlActifs() {
+  var A = S.actifs; if (!A) return '';
+  var titre = A.genre === 'rigs' ? 'Rigs' : A.genre === 'animations' ? 'Animations' : 'Maillages';
+  if (!A.liste.length) return '<h3>' + titre + '</h3><div class="vide">Aucun.</div>';
+  return '<h3>' + titre + ' (' + A.liste.length + ')</h3><div class="defil haut"><table><thead><tr><th>Date</th><th>Projet</th><th>Type</th><th></th></tr></thead><tbody>' + A.liste.map(function (m, i) {
+    var url = m.mesh_url || '', peutSup = A.genre !== 'rigs';
+    return '<tr><td class="tn">' + esc(dateFr(m.created_at)) + '</td><td class="coupe">' + esc(m.project_name || '') + '</td><td>' + esc(m.asset_type || '') + '</td><td>' + (url ? '<a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Télécharger</a>' : '')
+      + (peutSup ? (S.actifsSup === i ? ' <span class="confirm" style="display:inline-block;margin:0">Supprimer définitivement ? <button type="button" class="btn danger petit" data-actif-sup-ok="' + i + '">Oui</button> <button type="button" class="btn petit" data-actif-sup-non="1">Non</button></span>' : ' <button type="button" class="btn danger petit" data-actif-sup="' + i + '">Supprimer</button>') : '') + '</td></tr>';
+  }).join('') + '</tbody></table></div>';
+}
+document.addEventListener('click', async function (e) {
+  var t = e.target, b;
+  if ((b = t.closest('[data-actifs]'))) { if (S.sel) chargerActifs(S.sel, b.dataset.actifs); return; }
+  if ((b = t.closest('[data-actif-sup]'))) { S.actifsSup = Number(b.dataset.actifSup); $('#actifs').innerHTML = htmlActifs(); return; }
+  if (t.closest('[data-actif-sup-non]')) { S.actifsSup = null; $('#actifs').innerHTML = htmlActifs(); return; }
+  if ((b = t.closest('[data-actif-sup-ok]'))) {
+    var i = Number(b.dataset.actifSupOk), m = S.actifs && S.actifs.liste[i]; if (!m) return;
+    try { await http('/api/admin/users/' + encodeURIComponent(S.actifs.uid) + '/meshes/' + encodeURIComponent(m.id), { method: 'DELETE' }); S.actifs.liste.splice(i, 1); } catch (er) { $('#actifs').insertAdjacentHTML('afterbegin', '<div class="msg-err">' + esc(er.message) + '</div>'); }
+    S.actifsSup = null; $('#actifs').innerHTML = htmlActifs(); return;
+  }
+  /* suppression d'une image depuis la visionneuse : deux clics (le second confirme) */
+  if (t.closest('#lb-sup')) {
+    var im = S.imgs && S.imgs.images[S.lb]; if (!im) return;
+    var bt = $('#lb-sup');
+    if (!S.lbSupArme) { S.lbSupArme = true; bt.textContent = 'Confirmer : supprimer pour de bon'; return; }
+    try {
+      await http('/api/admin/images?key=' + encodeURIComponent(im.key), { method: 'DELETE' });
+      S.imgs.images.splice(S.lb, 1); S.lbSupArme = false; fermerLb(); $('#galerie')._h = null; renderGalerie();
+    } catch (er) { bt.textContent = 'Échec : ' + er.message; S.lbSupArme = false; }
+    return;
+  }
+});
+
+/* ═════════════ PAIEMENTS ENCAISSES MAIS CREDITS NON VERSES (rapprochement manuel, mot de passe exige) ═════════════ */
+S.recon = null; S.reconSel = null;
+async function chargerNonRapproches() {
+  var j = await silencieux(http('/api/admin/payments/unreconciled'));
+  if (!j) return;
+  S.recon = j.payments || []; renderRecon();
+}
+function renderRecon() {
+  var box = $('#recon'), L = S.recon || []; box.hidden = !L.length; if (!L.length) return;
+  $('#recon-n').textContent = L.length + ' paiement(s)';
+  majSiChange($('#recon-t'), L.map(function (p, i) {
+    var sid = String(p.stripe_session_id || ''), qui = p.email || (p.user_id ? String(p.user_id).slice(0, 8) + '…' : '—');
+    return '<tr><td class="tn">' + esc(dateFr(p.created_at)) + '</td><td>' + esc(qui) + '</td><td>' + esc(p.pack_id || '—') + '</td><td class="n tn">' + (p.amount_eur == null ? '?' : eur(p.amount_eur)) + '</td><td style="font:11px var(--mono)" title="' + esc(sid) + '">' + esc(sid.slice(0, 18)) + (sid.length > 18 ? '…' : '') + '</td><td class="n tn">' + (p.expected_credits == null ? '?' : p.expected_credits) + '</td><td><button type="button" class="btn petit prim" data-recon="' + i + '"' + (sid ? '' : ' disabled') + '>Verser les crédits</button></td></tr>';
+  }).join(''));
+  var f = $('#recon-form');
+  if (S.reconSel == null) { if (!f.querySelector('input')) f.innerHTML = ''; return; }
+  if (f.querySelector('input')) return;
+  var p = L[S.reconSel]; if (!p) return;
+  f.innerHTML = '<div class="confirm">Verser <b>' + (p.expected_credits == null ? 'les crédits' : p.expected_credits + ' crédits') + '</b> à <b>' + esc(p.email || p.user_id || '') + '</b> pour la session ' + esc(String(p.stripe_session_id || '').slice(0, 22)) + '… ? Vérifiez d\'abord le paiement dans Stripe.<div class="ligneform" style="margin:8px 0 0"><input type="password" id="rc-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim petit" id="rc-ok">Verser</button><button type="button" class="btn petit" id="rc-non">Annuler</button></div><div id="rc-msg" class="msg-err"></div></div>';
+}
+document.addEventListener('click', async function (e) {
+  var t = e.target, b;
+  if ((b = t.closest('[data-recon]'))) { S.reconSel = Number(b.dataset.recon); $('#recon-form').innerHTML = ''; renderRecon(); return; }
+  if (t.closest('#rc-non')) { S.reconSel = null; $('#recon-form').innerHTML = ''; return; }
+  if (t.closest('#rc-ok')) {
+    var p = S.recon[S.reconSel], mdp = $('#rc-mdp').value; if (!mdp) { $('#rc-msg').textContent = 'Mot de passe requis.'; return; }
+    try {
+      var j = await http('/api/admin/payments/reconcile', { method: 'POST', mdp: true, body: { sessionId: p.stripe_session_id, password: mdp } });
+      S.reconSel = null; $('#recon-form').innerHTML = '<div class="msg-ok">' + (j.already ? 'Déjà rapproché : rien n\'a changé.' : '✓ ' + j.credits + ' crédits versés (' + eur(j.amount_eur || 0) + ') → solde ' + j.balance + '.') + '</div>';
+      chargerNonRapproches(); chargerPaiements();
+    } catch (er) { $('#rc-msg').textContent = er.status === 401 ? 'Mot de passe incorrect.' : er.message; }
+  }
+});
+
+/* ═════════════ ANNONCES : prix, « gratuit ce mois-ci », suppression (porte de /admin) ═════════════ */
+S.offerts = []; S.offertsMax = 5; S.annSup = null;
+document.addEventListener('click', async function (e) {
+  var t = e.target, b;
+  if ((b = t.closest('[data-prix]'))) {
+    var id = b.dataset.prix, v = parseFloat(String($('#prix-' + id).value).replace(',', '.'));
+    if (!isFinite(v) || v < 0) { b.textContent = 'Prix invalide'; return; }
+    try { await http('/api/admin/market/' + encodeURIComponent(id) + '/price', { method: 'POST', body: { price_cents: Math.round(v * 100) } }); await chargerAnnonces(); } catch (er) { b.textContent = 'Échec : ' + er.message; }
+    return;
+  }
+  if ((b = t.closest('[data-supann]'))) { S.annSup = b.dataset.supann; $('#annonces').innerHTML = ''; renderAnnonces(); return; }
+  if (t.closest('[data-supann-non]')) { S.annSup = null; $('#annonces').innerHTML = ''; renderAnnonces(); return; }
+  if ((b = t.closest('[data-supann-ok]'))) { try { await http('/api/admin/market/' + encodeURIComponent(b.dataset.supannOk), { method: 'DELETE' }); } catch (_) {} S.annSup = null; $('#annonces').innerHTML = ''; await chargerAnnonces(); chargerBadges(); return; }
+});
+document.addEventListener('change', async function (e) {
+  var c = e.target.closest ? e.target.closest('[data-offert]') : null; if (!c) return;
+  var actif = c.checked; c.disabled = true;
+  try { var j = await http('/api/admin/market/' + encodeURIComponent(c.dataset.offert) + '/offert', { method: 'POST', body: { actif: actif } }); S.offerts = j.ids || []; $('#annonces').innerHTML = ''; renderAnnonces(); }
+  catch (er) { c.checked = !actif; c.disabled = false; $('#n-annonces').textContent = 'Non enregistré : ' + er.message; }
+});
+
+
+function confirmArret(cible) {
+  return '<div class="confirm">' + (cible === 'tous' ? 'Arrêter TOUS les travaux en cours, de tous les comptes ?' : 'Arrêter ce travail ?') + ' <label class="note" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="stop-refund" checked style="width:auto"> Rembourser les crédits</label> <button type="button" class="btn danger petit" data-stop-ok="' + esc(cible) + '">Arrêter</button> <button type="button" class="btn petit" data-stop-non="1">Annuler</button></div>';
+}
+function barreArret(enc) {
+  var h = S.stopMsg ? '<div class="note">' + esc(S.stopMsg) + '</div>' : '';
+  if (enc.length > 2) h += S.stopConfirm === 'tous' ? confirmArret('tous') : '<div class="ligneform" style="margin:0 0 8px"><button type="button" class="btn danger petit" data-stop="tous">Tout arrêter (' + enc.length + ')</button></div>';
+  return h;
+}
 
 /* ───────────────────────── boucles de rafraîchissement ───────────────────────── */
 function cadence(fn, ms) { setInterval(function () { if (!document.hidden) fn(); }, ms); }
