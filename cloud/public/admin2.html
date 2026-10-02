@@ -207,6 +207,27 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .lb img{max-width:96vw;max-height:78vh;object-fit:contain;border-radius:8px;background:var(--bg-2)}
 .lb .cap{color:var(--text-1);font-size:13px;text-align:center}
 .lb .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+/* ───────── volets repliables ───────── */
+.pile{display:grid;gap:8px}
+.outils-volets{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;margin:14px 0 10px}
+.outils-volets .note{margin:0}
+.outils-volets .grp{display:flex;gap:6px}
+details.vol{min-width:0}
+details.vol > summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;border-radius:8px}
+details.vol > summary::-webkit-details-marker{display:none}
+details.vol > summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--text-2);border-bottom:2px solid var(--text-2);transform:rotate(-45deg);transition:transform .15s;margin:0 6px 0 2px}
+details.vol[open] > summary::before{transform:rotate(45deg)}
+details.vol[open] > summary .res{display:none}
+details.vol:not([open]) > summary h2 small{display:none}
+details.carte.vol{padding:0}
+details.carte.vol > summary{padding:12px 16px}
+details.carte.vol > summary:hover{background:var(--bg-2)}
+details.carte.vol > summary h2{margin:0;flex:none}
+details.carte.vol > summary .res{margin-left:auto;flex:1 1 220px;min-width:0;font-size:13px;color:var(--text-1);text-align:right}
+details.carte.vol > .corps{padding:12px 16px 14px;border-top:1px solid var(--border)}
+details.mini{margin:12px 0 0;border-top:1px solid var(--border);padding-top:2px}
+details.mini > summary{padding:8px 0;font-size:13px;font-weight:600;color:var(--text-1)}
+details.mini > .corps{padding:4px 0 0}
 .pied{margin-top:28px;color:var(--text-2);font-size:12px;border-top:1px solid var(--border);padding-top:12px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -251,65 +272,74 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 
   <!-- ═════════ MAINTENANT ═════════ -->
   <section id="p-maintenant" role="tabpanel">
-    <p class="rempl">Remplace <b>Overview · Live · Active · Opérations</b>. Un seul flux, rafraîchi toutes les 3 s. Cliquez un compte ou un type pour filtrer.</p>
-    <div class="grille g2">
-      <div class="grille" style="align-content:start">
-        <div class="carte"><h2>En cours <small id="n-cours"></small></h2><div class="encours" id="encours"></div></div>
-        <div class="carte"><h2>Activité récente <small>travaux lancés</small></h2><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div>
-        <div class="carte"><h2>Conteneurs <small>état réel</small></h2><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
-        <div class="carte"><h2>En ligne <small id="n-ligne"></small></h2><div id="en-ligne"></div></div>
-      </div>
-      <div class="carte"><h2>Derniers travaux <small id="n-flux"></small></h2>
-        <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
-        <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
-      </div>
+    <div class="outils-volets"><span class="note">Cliquez un titre pour l'ouvrir. Cliquez un compte ou un type pour filtrer.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
+    <div class="pile">
+      <details class="carte vol" data-id="m-cours" data-res="cours"><summary><h2>En cours <small id="n-cours"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="encours" id="encours"></div></div></details>
+      <details class="carte vol" data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
+          <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
+        </div></details>
+      <details class="carte vol" data-id="m-creations" data-res="creations"><summary><h2>Images générées <small id="n-imgs"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="ligneform"><button type="button" class="btn petit" id="b-imgs">Actualiser</button>
+            <span class="note">Les 60 images les plus récentes des 7 derniers jours. Un filtre « compte » ne montre que ses images. Cliquez pour agrandir.</span></div>
+          <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div>
+        </div></details>
+      <details class="carte vol" data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
+      <details class="carte vol" data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Conteneurs <small>état réel</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div></details>
+      <details class="carte vol" data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="en-ligne"></div></div></details>
     </div>
-    <div class="carte" style="margin-top:16px"><h2>Images générées <small id="n-imgs"></small></h2>
-      <div class="ligneform"><button type="button" class="btn petit" id="b-imgs">Actualiser</button>
-        <span class="note">Les 60 images les plus récentes des 7 derniers jours. Un filtre « compte » ne montre que ses images. Cliquez pour agrandir.</span></div>
-      <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div></div>
   </section>
 
   <!-- ═════════ ARGENT ═════════ -->
   <section id="p-argent" role="tabpanel" hidden>
-    <p class="rempl">Remplace <b>Revenus · Par type · Pricing</b>. Une seule courbe, une seule source de coût : la facture réelle. L'estimation reste visible mais n'entre dans aucune marge.</p>
     <div class="kpis" id="kpis-argent"></div>
-    <div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div>
-    <div class="grille g2b">
-      <div class="carte"><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2>
-        <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
-        <p class="note" id="note-graphe"></p></div>
-      <div class="carte"><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2>
-        <p class="note" id="resume-ops"></p>
-        <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
-        <p class="note" id="note-ops"></p>
-      </div>
-    </div>
-    <div class="grille g2b" style="margin-top:16px">
-      <div class="carte"><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><div id="gpu-detail"></div>
-        <div id="lim-zone" class="confirm" hidden>
-          <div><b>1.</b> Sur modal.com, réglez d'abord la limite de dépense (« Usage limit »). <a href="https://modal.com/settings/fabienlacaze/usage" target="_blank" rel="noopener">Ouvrir modal.com ↗</a></div>
-          <label class="note" style="display:flex;gap:6px;align-items:center;margin:6px 0"><input type="checkbox" id="lim-fait" style="width:auto"> C'est fait : même limite sur modal.com</label>
-          <div><b>2.</b> Recopiez ici le même montant : <input type="number" id="lim-montant" min="1" step="0.01" inputmode="decimal" style="width:130px"> $</div>
-          <div id="lim-apercu" class="boite" style="margin-top:8px">Saisissez un montant pour voir la conséquence.</div>
-          <div class="ligneform"><button type="button" class="btn prim" id="b-lim-ok" disabled>Enregistrer</button><button type="button" class="btn" id="b-lim-non">Annuler</button></div><div id="lim-err" class="msg-err"></div>
-        </div></div>
-      <div class="carte"><h2>Tarifs <small>crédits par opération</small></h2>
-        <button type="button" class="btn" id="b-tarifs" aria-expanded="false">Modifier les tarifs</button>
-        <div id="tarifs" hidden style="margin-top:10px"></div></div>
-    </div>
-    <div class="carte" style="margin-top:16px"><h2>Achats Stripe <small id="resume-achats"></small></h2>
-      <div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div>
-    <div class="carte" id="recon" style="margin-top:16px" hidden><h2>Paiements encaissés, crédits non versés <small id="recon-n"></small></h2>
-      <p class="note">Stripe a encaissé mais les crédits n'ont pas été versés (webhook manqué). Vérifiez le paiement dans Stripe, puis versez les crédits.</p>
-      <div class="defil"><table><thead><tr><th data-tri="recon:created_at">Date</th><th data-tri="recon:email">Compte</th><th data-tri="recon:pack_id">Pack</th><th class="n" data-tri="recon:amount_eur">Montant</th><th>Session Stripe</th><th class="n" data-tri="recon:expected_credits">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
+    <div class="outils-volets"><span class="note">Les chiffres clés sont au-dessus. Ouvrez un titre pour le détail.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
+    <div class="pile">
+      <details class="carte vol" id="recon" data-id="a-recon" data-res="recon" data-def="1" hidden><summary><h2>Paiements encaissés, crédits non versés <small id="recon-n"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <p class="note">Stripe a encaissé mais les crédits n'ont pas été versés (webhook manqué). Vérifiez le paiement dans Stripe, puis versez les crédits.</p>
+          <div class="defil"><table><thead><tr><th data-tri="recon:created_at">Date</th><th data-tri="recon:email">Compte</th><th data-tri="recon:pack_id">Pack</th><th class="n" data-tri="recon:amount_eur">Montant</th><th>Session Stripe</th><th class="n" data-tri="recon:expected_credits">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
+        </div></details>
+      <details class="carte vol" data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
+          <p class="note" id="note-graphe"></p>
+        </div></details>
+      <details class="carte vol" data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <p class="note" id="resume-ops"></p>
+          <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
+          <p class="note" id="note-ops"></p>
+        </div></details>
+      <details class="carte vol" data-id="a-gpu" data-res="gpu"><summary><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div id="gpu-detail"></div>
+          <div id="lim-zone" class="confirm" hidden>
+            <div><b>1.</b> Sur modal.com, réglez d'abord la limite de dépense (« Usage limit »). <a href="https://modal.com/settings/fabienlacaze/usage" target="_blank" rel="noopener">Ouvrir modal.com ↗</a></div>
+            <label class="note" style="display:flex;gap:6px;align-items:center;margin:6px 0"><input type="checkbox" id="lim-fait" style="width:auto"> C'est fait : même limite sur modal.com</label>
+            <div><b>2.</b> Recopiez ici le même montant : <input type="number" id="lim-montant" min="1" step="0.01" inputmode="decimal" style="width:130px"> $</div>
+            <div id="lim-apercu" class="boite" style="margin-top:8px">Saisissez un montant pour voir la conséquence.</div>
+            <div class="ligneform"><button type="button" class="btn prim" id="b-lim-ok" disabled>Enregistrer</button><button type="button" class="btn" id="b-lim-non">Annuler</button></div><div id="lim-err" class="msg-err"></div>
+          </div>
+        </div></details>
+      <details class="carte vol" data-id="a-tarifs" data-res="tarifs"><summary><h2>Tarifs <small>crédits par opération</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="tarifs"></div></div></details>
+      <details class="carte vol" data-id="a-achats" data-res="achats"><summary><h2>Achats Stripe <small id="resume-achats"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div></details>
+      <details class="carte vol" data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div></div></details>
     </div>
   </section>
 
   <!-- ═════════ UTILISATEURS ═════════ -->
   <section id="p-users" role="tabpanel" hidden>
-    <p class="rempl">Remplace <b>Users · Messages · Marketplace</b>. Une fiche par compte : crédits, projets, blocage, tout au même endroit.</p>
-    <div class="seg" role="group" aria-label="Sous-section" style="margin-bottom:12px">
+    <div class="seg" role="group" aria-label="Sous-section" style="margin:14px 0 12px">
       <button type="button" data-sub="comptes" aria-pressed="true">Comptes</button>
       <button type="button" data-sub="messages" aria-pressed="false" id="sb-messages">Messages</button>
       <button type="button" data-sub="market" aria-pressed="false" id="sb-market">Marketplace</button>
@@ -343,34 +373,45 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 
   <!-- ═════════ AUDIENCE ═════════ -->
   <section id="p-audience" role="tabpanel" hidden>
-    <p class="rempl">Remplace <b>Trafic</b>. Les tendances : qui vient, d'où, par quel canal. Le direct est dans Maintenant.</p>
     <div class="kpis" id="kpis-audience"></div>
-    <div class="grille g2b">
-      <div class="carte"><h2>Par pays <small>clic pour filtrer</small></h2><div id="b-pays"></div></div>
-      <div class="carte"><h2>Par canal</h2><div id="b-canal"></div></div>
-      <div class="carte"><h2>Téléchargements du bureau <small>par jour</small></h2><div id="g-dl"></div></div>
-      <div class="carte"><h2>Comptes actifs <small>distincts par jour</small></h2><div id="g-act"></div></div>
+    <div class="outils-volets"><span class="note">D'où viennent les comptes et par quel canal. Le direct est dans Maintenant.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
+    <div class="pile">
+      <details class="carte vol" data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="b-pays"></div></div></details>
+      <details class="carte vol" data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
+        <div class="corps"><div id="b-canal"></div></div></details>
+      <details class="carte vol" data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small>par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-dl"></div></div></details>
+      <details class="carte vol" data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-act"></div></div></details>
     </div>
     <p class="note" id="note-audience"></p>
   </section>
 
   <!-- ═════════ SYSTÈME ═════════ -->
   <section id="p-systeme" role="tabpanel" hidden>
-    <p class="rempl">Remplace <b>Services · Audit log</b> et la sécurité. Les interrupteurs d'urgence sont en haut, les journaux en bas.</p>
-    <div class="grille g2b">
-      <div class="carte"><h2>Interrupteurs d'urgence <small>un service coupé alerte le bandeau</small></h2><div id="kill"></div></div>
-      <div class="carte"><h2>Conteneurs chaud / froid <small>chaud = prêt, mais facturé</small></h2><div id="warm"></div></div>
-      <div class="carte"><h2>Santé <small id="sante-etat"></small></h2><div id="sante"></div></div>
-      <div class="carte"><h2>Sécurité</h2><div id="securite"></div></div>
-    </div>
-    <div class="carte" style="margin-top:16px"><h2>Journal d'audit <small>actions de l'administrateur</small></h2>
-      <div class="ligneform"><label for="audit-jour">Jour</label><input type="date" id="audit-jour" style="width:170px"><button type="button" class="btn petit" id="b-audit">Afficher</button></div>
-      <div class="defil"><table><thead><tr><th data-tri="audit:ts">Heure</th><th data-tri="audit:actor">Acteur</th><th data-tri="audit:action">Action</th><th data-tri="audit:target">Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div></div>
-    <div class="carte" style="margin-top:16px"><h2>Diagnostic <small>opérations récentes et journaux envoyés par les appareils</small></h2>
-      <div class="ligneform"><input type="text" id="dbg-compte" class="large" placeholder="E-mail ou identifiant du compte (vide = tous)" autocomplete="off"><select id="dbg-limite" style="width:auto"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="dbg-echecs" style="width:auto"> échecs seulement</label><button type="button" class="btn petit prim" id="b-dbg">Afficher</button></div>
-      <h3>Opérations</h3><div class="defil haut"><table><thead><tr><th data-tri="dbg:date">Quand</th><th data-tri="dbg:email">Compte</th><th data-tri="dbg:operation">Opération</th><th data-tri="dbg:status">Statut</th><th class="n" data-tri="dbg:duree_s">Durée</th><th class="n" data-tri="dbg:credits">Crédits</th><th></th></tr></thead><tbody id="dbg-traces"><tr><td colspan="7" class="vide">Cliquez sur « Afficher ».</td></tr></tbody></table></div>
-      <h3>Journaux envoyés par les appareils <small id="dbg-logs-n" class="note"></small></h3><div class="defil haut"><table><thead><tr><th data-tri="dbglog:uploaded">Envoyé</th><th data-tri="dbglog:email">Compte</th><th data-tri="dbglog:kind">Type</th><th data-tri="dbglog:status">État</th><th class="n" data-tri="dbglog:size">Taille</th><th></th></tr></thead><tbody id="dbg-logs"></tbody></table></div>
-      <div id="dbg-wrap" hidden class="boite" style="margin-top:12px"><div class="ligneform" style="justify-content:space-between"><b id="dbg-titre"></b><span><button type="button" class="btn petit" id="dbg-copier">Copier</button> <button type="button" class="btn petit" id="dbg-telecharger">Télécharger</button> <button type="button" class="btn petit" id="dbg-fermer">Fermer</button></span></div><pre id="dbg-viewer" style="max-height:420px;overflow:auto;font:12px var(--mono)"></pre></div>
+    <div class="outils-volets"><span class="note">Chaque ligne résume l'état. Ouvrez-la pour agir.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
+    <div class="pile">
+      <details class="carte vol" data-id="s-kill" data-res="kill"><summary><h2>Interrupteurs d'urgence <small>un service coupé alerte le bandeau</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="kill"></div></div></details>
+      <details class="carte vol" data-id="s-warm" data-res="warm"><summary><h2>Conteneurs chaud / froid <small>chaud = prêt, mais facturé</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="warm"></div></div></details>
+      <details class="carte vol" data-id="s-sante" data-res="sante"><summary><h2>Santé <small id="sante-etat"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="sante"></div></div></details>
+      <details class="carte vol" data-id="s-securite" data-res="securite"><summary><h2>Sécurité</h2><span class="res"></span></summary>
+        <div class="corps"><div id="securite"></div></div></details>
+      <details class="carte vol" data-id="s-audit" data-res="audit"><summary><h2>Journal d'audit <small>actions de l'administrateur</small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="ligneform"><label for="audit-jour">Jour</label><input type="date" id="audit-jour" style="width:170px"><button type="button" class="btn petit" id="b-audit">Afficher</button></div>
+          <div class="defil"><table><thead><tr><th data-tri="audit:ts">Heure</th><th data-tri="audit:actor">Acteur</th><th data-tri="audit:action">Action</th><th data-tri="audit:target">Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div>
+        </div></details>
+      <details class="carte vol" data-id="s-diag" data-res="diag"><summary><h2>Diagnostic <small>opérations récentes et journaux envoyés par les appareils</small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="ligneform"><input type="text" id="dbg-compte" class="large" placeholder="E-mail ou identifiant du compte (vide = tous)" autocomplete="off"><select id="dbg-limite" style="width:auto"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="dbg-echecs" style="width:auto"> échecs seulement</label><button type="button" class="btn petit prim" id="b-dbg">Afficher</button></div>
+          <h3>Opérations</h3><div class="defil haut"><table><thead><tr><th data-tri="dbg:date">Quand</th><th data-tri="dbg:email">Compte</th><th data-tri="dbg:operation">Opération</th><th data-tri="dbg:status">Statut</th><th class="n" data-tri="dbg:duree_s">Durée</th><th class="n" data-tri="dbg:credits">Crédits</th><th></th></tr></thead><tbody id="dbg-traces"><tr><td colspan="7" class="vide">Cliquez sur « Afficher ».</td></tr></tbody></table></div>
+          <h3>Journaux envoyés par les appareils <small id="dbg-logs-n" class="note"></small></h3><div class="defil haut"><table><thead><tr><th data-tri="dbglog:uploaded">Envoyé</th><th data-tri="dbglog:email">Compte</th><th data-tri="dbglog:kind">Type</th><th data-tri="dbglog:status">État</th><th class="n" data-tri="dbglog:size">Taille</th><th></th></tr></thead><tbody id="dbg-logs"></tbody></table></div>
+          <div id="dbg-wrap" hidden class="boite" style="margin-top:12px"><div class="ligneform" style="justify-content:space-between"><b id="dbg-titre"></b><span><button type="button" class="btn petit" id="dbg-copier">Copier</button> <button type="button" class="btn petit" id="dbg-telecharger">Télécharger</button> <button type="button" class="btn petit" id="dbg-fermer">Fermer</button></span></div><pre id="dbg-viewer" style="max-height:420px;overflow:auto;font:12px var(--mono)"></pre></div>
+        </div></details>
     </div>
   </section>
 
@@ -606,6 +647,7 @@ S.imgs = null; S.imgsAt = 0; S.imgsCle = ''; S.lb = -1; S.usersActifs = false;
 function heuresPer() { return S.per === '6h' ? 6 : S.per === '24h' ? 24 : S.per === '30j' ? 720 : 168; }
 var LIB_PER = { '6h': '6 h', '24h': '24 h', '7j': '7 jours', '30j': '30 jours' };
 async function chargerImages(force) {
+  if (!voletOuvert('m-creations')) return;
   var uid = '';
   if (S.filt.compte) {
     if (!S.users) await chargerUsers();
@@ -694,6 +736,7 @@ function renderBandeau() {
   var bm = $('#bandeau-modal'), ban = S.prev && S.prev.bandeau;
   if (ban && ban.texte) { bm.textContent = ban.texte; bm.className = 'bandeau-modal' + (ban.couleur === 'rouge' ? ' rouge' : ''); bm.hidden = false; } else bm.hidden = true;
   $('#maj').textContent = S.liveAt ? 'mis à jour à ' + new Date(S.liveAt).toLocaleTimeString('fr-FR') : 'chargement…';
+  majResumes();
 }
 function renderChips() {
   var f = S.filt, out = '', any = false;
@@ -772,6 +815,7 @@ function renderArgentCourt() {
   var lim = Date.now() - h * 3600e3, enc = 0, nA = 0;
   if (S.pay && S.pay.achats) S.pay.achats.forEach(function (a) { if (a.test || a.etat === 'rembourse') return; if (Date.parse(a.date) >= lim) { enc += Number(a.encaisse_eur) || 0; nA++; } });
   var T = R.totaux, marge = T.valeur_eur - T.cout_eur;
+  S.resCourbe = 'valeur ' + eur(T.valeur_eur) + ' · coût ' + eur(T.cout_eur) + ' · marge ' + eur(marge) + ' (' + h + ' h, estimé)';
   majSiChange($('#kpis-argent'),
     cellule('Encaissé réel', S.pay ? eur(enc) : '—', S.pay ? nA + ' achat' + (nA > 1 ? 's' : '') + ' sur ' + h + ' h (Stripe, hors test)' : 'chargement…')
     + cellule('Valeur des crédits', eur(T.valeur_eur), T.ops + ' travaux · ' + num(T.credits) + ' crédits' + (T.echecs ? ' · ' + T.echecs + ' échec' + (T.echecs > 1 ? 's' : '') : ''))
@@ -787,6 +831,7 @@ function renderArgentCourt() {
   $('#note-graphe').textContent = 'La facture Modal réelle n\'existe que par jour : sur ' + h + ' h le coût est estimé d\'après la durée de chaque travail. Valeur des crédits = crédits des travaux réussis au prix net ; ce n\'est pas de l\'argent encaissé.';
   var lignes = Object.keys(R.types).map(function (op) { var m = R.types[op]; var o = { op: op, count: m.count, failed: m.failed, credits: m.credits, value: m.valeur_eur, reel: m.cout_eur }; o.marge = o.value - o.reel; o.ratio = o.reel > 0.005 ? o.value / o.reel : 1e9; return o; });
   lignes = trier(lignes, 'ops');
+  S.resOps = resumeOps(lignes, T.valeur_eur, T.cout_eur);
   $('#t-ops').innerHTML = lignes.map(function (m) {
     return '<tr' + (S.filt.type === m.op ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', m.op, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(m.marge) + '</td><td>' + htmlVerdict(m.value, m.reel, m.credits) + '</td></tr>';
   }).join('') || '<tr><td colspan="7" class="vide">Aucune opération sur ' + h + ' h.</td></tr>';
@@ -820,6 +865,8 @@ function renderArgent() {
     var coutJ = sl.map(function (x) { return x.real_cost_eur != null ? x.real_cost_eur : x.cost_eur; });
     var revJ = sl.map(function (x) { return x.revenue_eur; });
     var marJ = sl.map(function (x, i) { return +(revJ[i] - coutJ[i]).toFixed(2); });
+    var som = function (a) { return a.reduce(function (x, y) { return x + y; }, 0); };
+    S.resCourbe = 'valeur ' + eur(som(revJ)) + ' · coût ' + eur(som(coutJ)) + ' · marge ' + eur(som(marJ)) + ' (' + nb + ' j)';
     var estimes = sl.filter(function (x) { return x.real_cost_eur == null; }).length;
     var lab = sl.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); });
     $('#sous-graphe').textContent = 'par jour · ' + nb + ' derniers jours';
@@ -844,6 +891,7 @@ function renderArgent() {
     else { var x = m.value / m.reel; verdict = x >= 2 ? '<span class="pill ok"><span class="vl">Rentable </span>×' + x.toFixed(1) + '</span>' : x >= 1 ? '<span class="pill warn"><span class="vl">Juste </span>×' + x.toFixed(1) + '</span>' : '<span class="pill err"><span class="vl">À perte </span>×' + x.toFixed(2) + '</span>'; }
     return '<tr' + (S.filt.type === m.op ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', m.op, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(marge) + '</td><td>' + verdict + '</td></tr>';
   }).join('') || '<tr><td colspan="7" class="vide">Aucune opération sur 30 jours.</td></tr>';
+  S.resOps = resumeOps(lignes, totV, totR);
   var sansOp = Number(bt.facture_sans_operation_eur) || 0;
   $('#resume-ops').innerHTML = 'Les opérations ont été valorisées <b>' + eur(totV) + '</b> en crédits (' + (Number(bt.eur_par_credit) || 0).toFixed(3) + ' € le crédit) et ont coûté <b>' + eur(totR) + '</b> chez Modal' + (totR > 0 ? ' : <b style="color:' + (totV >= totR ? 'var(--ok)' : 'var(--err)') + '">×' + (totV / totR).toFixed(1) + '</b>' : '') + '.' + (sansOp > 0.005 ? ' S\'y ajoutent ' + eur(sansOp) + ' facturés des jours sans opération (tests, démarrages).' : '');
   majEntetesTri();
@@ -879,7 +927,7 @@ function renderAchats() {
   }).join('') : '<tr><td colspan="7" class="vide">Aucun achat' + (S.filt.compte ? ' pour ce compte' : '') + '.</td></tr>';
 }
 function renderTarifs() {
-  var box = $('#tarifs'); box.hidden = !S.tarifs; $('#b-tarifs').setAttribute('aria-expanded', S.tarifs);
+  var box = $('#tarifs'); box.hidden = !S.tarifs; var btar = $('#b-tarifs'); if (btar) btar.setAttribute('aria-expanded', S.tarifs);
   if (!S.tarifs) return;
   if (!S.pricing) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
   if (box.querySelector('input')) return;      // ne jamais effacer une saisie en cours
@@ -921,9 +969,10 @@ function renderFiche() {
   box.dataset.uid = u.id;
   var projets = S.projetsDe && S.projetsDe.id === u.id ? S.projetsDe.liste : null;
   box.innerHTML = '<h2>' + esc(u.email || u.id) + ' <small>inscrit le ' + esc(dateFr(u.created_at)) + (u.banned ? ' · <b style="color:var(--err)">bloqué</b>' : '') + '</small></h2><dl>' + fichesStats(u) + '</dl>'
-    + '<h3>Ajuster les crédits</h3><div class="ligneform"><label for="aj">Variation</label><input type="number" id="aj" value="50" step="10"><input type="text" id="aj-motif" class="large" placeholder="Motif (obligatoire, tracé dans l\'audit)"><input type="password" id="aj-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim" id="b-aj">Appliquer</button></div><div id="aj-msg" class="note"></div>'
+    + '<details class="vol mini" data-id="f-credits"><summary>Ajuster les crédits</summary><div class="corps"><div class="ligneform"><label for="aj">Variation</label><input type="number" id="aj" value="50" step="10"><input type="text" id="aj-motif" class="large" placeholder="Motif (obligatoire, tracé dans l\'audit)"><input type="password" id="aj-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn prim" id="b-aj">Appliquer</button></div><div id="aj-msg" class="note"></div></div></details>'
     + '<h3>Compte</h3><div class="ligneform"><button type="button" class="btn ' + (u.banned ? '' : 'danger') + '" id="b-ban">' + (u.banned ? 'Débloquer ce compte' : 'Bloquer ce compte') + '</button><button type="button" class="btn" id="b-projets">Voir ses projets</button> <button type="button" class="btn" data-goto-filtre="' + esc(u.email || '') + '">Voir ses travaux, images et achats</button> <button type="button" class="btn" data-actifs="meshes">Maillages</button> <button type="button" class="btn" data-actifs="rigs">Rigs</button> <button type="button" class="btn" data-actifs="animations">Animations</button></div><div id="ban-confirm"></div>'
     + '<div id="projets">' + (projets ? htmlProjets(projets) : '') + '</div><div id="actifs"></div>';
+  appliquerVolets(box);
 }
 function fichesStats(u) {
   return '<div><dt>Crédits</dt><dd class="tn">' + num(u.credits) + '</dd></div><div><dt>Travaux</dt><dd class="tn">' + num(u.ops_total) + '</dd></div><div><dt>Échecs</dt><dd class="tn">' + num(u.ops_failed) + '</dd></div><div><dt>Crédits dépensés</dt><dd class="tn">' + num(u.credits_spent) + '</dd></div><div><dt>Projets</dt><dd class="tn">' + num(u.projects_count) + '</dd></div><div><dt>Maillages</dt><dd class="tn">' + num(u.meshes_count) + '</dd></div><div><dt>Rigs</dt><dd class="tn">' + num(u.rigs_count) + '</dd></div><div><dt>Animations</dt><dd class="tn">' + num(u.animations_count) + '</dd></div>';
@@ -1056,15 +1105,17 @@ function renderAll() {
   if (S.tab === 'users') renderUsers();
   if (S.tab === 'audience') renderAudience();
   if (S.tab === 'systeme') { renderKill(); renderWarm(); renderSante(); renderSecurite(); }
+  majResumes();
 }
 function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
-  if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerImages(); }
+  if (t === 'maintenant') { chargerLive(); chargerModalStatus(); }
   if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); }
   if (t === 'audience') { chargerStats(); chargerAudience(); }
-  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerTotp(); chargerDebug(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); chargerAudit(); }
+  if (t === 'systeme') { chargerServices(); chargerModalStatus(); chargerSante(); chargerTotp(); if (!$('#audit-jour').value) $('#audit-jour').value = new Date().toISOString().slice(0, 10); }
+  chargerVolets();
 }
 function selectionnerCompteParEmail(email) {
   if (!S.users) return; var u = S.users.users.filter(function (x) { return x.email === email; })[0]; if (u) { S.sel = u.id; S.projetsDe = null; $('#fiche').dataset.uid = ''; }
@@ -1328,13 +1379,13 @@ document.addEventListener('click', async function (e) {
 });
 
 /* ═════════════ DIAGNOSTIC : opérations récentes + journaux envoyés par les appareils (porté de /admin) ═════════════ */
-S.traces = []; S.dbgTexte = ''; S.dbgNom = '';
+S.traces = []; S.dbgTexte = ''; S.dbgNom = ''; S.dbgCharge = false;
 async function chargerDebug() {
   var q = $('#dbg-compte').value.trim(), lim = $('#dbg-limite').value, qs = new URLSearchParams({ limit: lim });
   if (q) { if (q.indexOf('@') >= 0) qs.set('email', q); else qs.set('uid', q); }
   if ($('#dbg-echecs').checked) qs.set('failed', '1');
   $('#dbg-traces').innerHTML = '<tr><td colspan="7" class="vide">Chargement…</td></tr>';
-  try { var j = await http('/api/admin/traces?' + qs.toString()); S.traces = j.traces || []; S.tracesNote = j.note || ''; }
+  try { var j = await http('/api/admin/traces?' + qs.toString()); S.traces = j.traces || []; S.tracesNote = j.note || ''; S.dbgCharge = true; }
   catch (er) { S.traces = []; $('#dbg-traces').innerHTML = '<tr><td colspan="7" class="msg-err">' + esc(er.message) + '</td></tr>'; }
   if (S.traces.length || !$('#dbg-traces').querySelector('.msg-err')) renderTraces();
   $('#dbg-logs').innerHTML = '<tr><td colspan="6" class="vide">Chargement…</td></tr>';
@@ -1514,6 +1565,125 @@ function barreArret(enc) {
   return h;
 }
 
+/* ═════════════ VOLETS REPLIABLES (2026-10-02, user : « trop de données partout, plus de menus collapsables pour synthétiser les infos et ouvrir que ce que je veux ») ═════════════
+   Chaque bloc est un <details class="vol"> : une ligne de résumé quand il est fermé, tout le détail quand il est ouvert. L'état de chaque volet est gardé dans ce navigateur.
+   Les volets lourds (images, diagnostic, journal d'audit) ne chargent leurs données qu'à l'ouverture. */
+var VOLETS = {};
+try { VOLETS = JSON.parse(localStorage.getItem('admin2.volets') || '{}') || {}; } catch (_) { VOLETS = {}; }
+function sauverVolets() { try { localStorage.setItem('admin2.volets', JSON.stringify(VOLETS)); } catch (_) {} }
+function appliquerVolets(racine) {
+  $$('details.vol[data-id]', racine).forEach(function (d) { var v = VOLETS[d.dataset.id], ouvert = v == null ? d.dataset.def === '1' : !!v; if (d.open !== ouvert) d.open = ouvert; });
+}
+function voletOuvert(id) { var d = document.querySelector('details.vol[data-id="' + id + '"]'); return !!(d && d.open); }
+function memoriserVolet(d) { VOLETS[d.dataset.id] = d.open; sauverVolets(); }
+function pl(n, un, plu) { return n + ' ' + (n > 1 ? plu : un); }
+function pillR(c, t) { return '<span class="pill ' + c + '">' + esc(t) + '</span>'; }
+
+/* Ce qui se charge quand un volet s'ouvre, ou quand on arrive sur un onglet dont le volet est déjà ouvert. */
+function surVolet(d) {
+  var id = d.dataset.id;
+  if (id === 'a-tarifs') { S.tarifs = d.open; if (d.open && !S.pricing) chargerPricing(); renderTarifs(); }
+  if (!d.open) return;
+  if (id === 'm-creations') chargerImages();
+  else if (id === 's-diag') chargerDebug();
+  else if (id === 's-audit') chargerAudit();
+}
+function chargerVolets() {
+  var t = S.tab;
+  if (t === 'maintenant' && voletOuvert('m-creations')) chargerImages();
+  if (t === 'argent') { S.tarifs = voletOuvert('a-tarifs'); if (S.tarifs && !S.pricing) chargerPricing(); renderTarifs(); }
+  if (t === 'systeme') { if (voletOuvert('s-diag')) chargerDebug(); if (voletOuvert('s-audit')) chargerAudit(); }
+}
+document.addEventListener('click', function (e) {
+  var sm = e.target.closest ? e.target.closest('details.vol > summary') : null;
+  if (sm) { var d = sm.parentNode; setTimeout(function () { memoriserVolet(d); surVolet(d); majResumes(); }, 0); return; }
+  var b = e.target.closest ? e.target.closest('[data-volets]') : null;
+  if (b) {
+    var v = b.dataset.volets === '1';
+    $$('details.vol', b.closest('section')).forEach(function (d) { if (d.hidden || d.open === v) return; d.open = v; memoriserVolet(d); surVolet(d); });
+    majResumes();
+  }
+});
+
+/* Le résumé d'un volet fermé : une ligne, calculée à partir de données déjà chargées (aucune requête de plus). */
+var RES = {
+  cours: function () {
+    var L = S.live; if (!L) return '…';
+    var e = (L.en_cours || []).filter(filtreEvt); if (!e.length) return 'aucun travail en cours';
+    var types = {}; e.forEach(function (x) { types[x.type || '?'] = 1; });
+    return pillR('run', pl(e.length, 'travail', 'travaux') + ' en cours') + ' ' + esc(Object.keys(types).slice(0, 3).join(', '));
+  },
+  flux: function () {
+    var L = S.live; if (!L) return '…';
+    var ev = (L.evenements || []).filter(filtreEvt); if (!ev.length) return 'aucun événement';
+    var ech = ev.filter(function (x) { return x.statut === 'failed'; }).length, dernier = 0;
+    ev.forEach(function (x) { var t = Date.parse(x.ts); if (t > dernier) dernier = t; });
+    return esc(ev.length + ' derniers · ') + (ech ? pillR('err', pl(ech, 'échec', 'échecs')) : 'aucun échec') + (dernier ? esc(' · dernier ' + ilYa((Date.now() - dernier) / 1000)) : '');
+  },
+  creations: function () { var J = S.imgs; return J && J.images ? esc(pl(J.images.length, 'image', 'images') + ' · ' + pl(J.comptes || 0, 'compte', 'comptes')) : 'ouvrez pour charger'; },
+  activite: function () {
+    var f = S.live && S.live.fenetres; if (!f || !f.h1) return '…';
+    return esc('5 min : ' + (f.m5 ? f.m5.lances : '—') + ' · 15 min : ' + (f.m15 ? f.m15.lances : '—') + ' · 1 h : ' + f.h1.lances + ' lancés') + (f.h1.echecs ? ' ' + pillR('err', pl(f.h1.echecs, 'échec', 'échecs')) : '');
+  },
+  conteneurs: function () {
+    var m = S.modal; if (!m) return '…';
+    var n = { busy: 0, warm: 0, starting: 0, cold: 0 }; Object.keys(NOMS_CONT).forEach(function (k) { if (!m[k]) return; var e = m[k], s = e.etat || (e.warm ? 'warm' : 'cold'); if (n[s] != null) n[s]++; });
+    var p = []; if (n.busy) p.push(pillR('run', pl(n.busy, 'occupé', 'occupés'))); if (n.starting) p.push(pillR('warn', n.starting + ' démarre')); if (n.warm) p.push(pillR('ok', pl(n.warm, 'chaud', 'chauds')));
+    return p.length ? p.join(' ') : 'tous froids';
+  },
+  enligne: function () { var el = S.live && S.live.en_ligne; if (!el) return '…'; return esc(el.filter(function (x) { return x.en_ligne; }).length + ' en ligne · ' + el.length + ' vus sur 15 min'); },
+  courbe: function () { return esc(S.resCourbe || '…'); },
+  ops: function () { return S.resOps || '…'; },
+  gpu: function () {
+    var p = S.prev; if (!p) return '…';
+    var lim = p.limite && p.limite.usd, cls = p.couleur === 'rouge' ? 'err' : p.couleur === 'orange' ? 'warn' : 'ok';
+    return pillR(cls, p.titre || p.niveau || 'OK') + esc(' ' + usd(p.aujourdhui_usd) + " aujourd'hui · mois " + usd(p.depense_usd) + ' / ' + usd(lim));
+  },
+  tarifs: function () {
+    var P = S.pricing; if (!P) return 'crédits par opération';
+    var n = Object.keys(P.defaults).filter(function (k) { return k.indexOf('desktop_') !== 0 && P.current[k] !== P.defaults[k]; }).length;
+    return n ? pillR('warn', pl(n, 'prix modifié', 'prix modifiés')) : "valeurs d'origine";
+  },
+  achats: function () { var P = S.pay; if (!P || !P.achats) return '…'; return esc(pl(P.count, 'achat', 'achats') + ' · ' + pl(P.acheteurs, 'acheteur', 'acheteurs')); },
+  recon: function () { return pillR('err', pl((S.recon || []).length, 'paiement à rapprocher', 'paiements à rapprocher')); },
+  exports: function () { return 'Excel · CSV'; },
+  pays: function () { var l = S.aud && S.aud.par_pays; if (!S.aud) return '…'; if (!l || !l.length) return 'aucune donnée'; return esc(nomPays(l[0].cle) + ' : ' + NF.format(l[0].travaux) + ' travaux · ' + pl(l.length, 'pays', 'pays')); },
+  canal: function () { var l = S.aud && S.aud.par_provenance; if (!S.aud) return '…'; if (!l || !l.length) return 'aucune donnée'; return esc(l[0].cle + ' : ' + NF.format(l[0].travaux) + ' travaux · ' + pl(l.length, 'canal', 'canaux')); },
+  dl: function () { var s = S.stats && S.stats.series_30d; if (!s) return '…'; return esc(NF.format(s.reduce(function (a, p) { return a + (p.downloads || 0); }, 0)) + ' sur 30 j · ' + NF.format(S.stats.desktop_downloads_total || 0) + ' au total'); },
+  act: function () { var s = S.stats && S.stats.series_30d; if (!s || !s.length) return '…'; return esc(pl(s[s.length - 1].users || 0, 'compte actif', 'comptes actifs') + ' le dernier jour'); },
+  kill: function () {
+    if (!S.svc) return '…';
+    var c = servicesCoupes(); return c.length ? pillR('err', pl(c.length, 'coupé', 'coupés')) + ' ' + esc(c.join(', ')) : pillR('ok', 'Tout actif');
+  },
+  warm: function () {
+    var m = S.modal; if (!m) return '…';
+    var nb = WARM.filter(function (w) { return (m.garde_chaud || {})[w.cle]; }).length; return nb ? pillR('warn', nb + ' sur ' + WARM.length + ' gardés chauds') : pillR('ok', 'Tout froid');
+  },
+  sante: function () {
+    var s = S.sante; if (!s) return '…';
+    var n = s.points.filter(function (p) { return !p.ok; }).length; return s.pret_a_vendre ? pillR('ok', 'prêt à vendre') : pillR('warn', pl(n, 'point à traiter', 'points à traiter'));
+  },
+  securite: function () { var t = S.totp; if (!t) return '…'; return t.enrolled ? pillR('ok', '2FA activée') : pillR('warn', '2FA non activée'); },
+  audit: function () { var a = S.auditEntries; return a ? esc(pl(a.length, 'action', 'actions') + ' ce jour-là') : 'ouvrez pour charger'; },
+  diag: function () {
+    if (!S.dbgCharge) return 'ouvrez pour charger';
+    var ech = S.traces.filter(function (t) { return t.status === 'failed'; }).length;
+    return esc(pl(S.traces.length, 'opération', 'opérations')) + (ech ? ' ' + pillR('err', pl(ech, 'échec', 'échecs')) : '');
+  }
+};
+function majResumes() {
+  $$('details.vol[data-res]').forEach(function (d) {
+    var f = RES[d.dataset.res], el = $('summary .res', d); if (!f || !el) return;
+    var h; try { h = f(); } catch (_) { h = ''; }
+    if (el._h !== h) { el._h = h; el.innerHTML = h; }
+  });
+}
+function resumeOps(lignes, v, c) {
+  var perte = lignes.filter(function (m) { return m.reel > 0.005 && m.value < m.reel; }).length;
+  return esc(pl(lignes.length, 'opération', 'opérations') + ' · valeur ' + eur(v) + ' · coût ' + eur(c)) + (perte ? ' ' + pillR('err', perte + ' à perte') : '');
+}
+cadence(majResumes, 1000);
+
 /* ───────────────────────── boucles de rafraîchissement ───────────────────────── */
 function cadence(fn, ms) { setInterval(function () { if (!document.hidden) fn(); }, ms); }
 cadence(function () { chargerLive(); }, 3000);
@@ -1539,6 +1709,7 @@ setInterval(maintenirSession, 50 * 60 * 1000);
 /* ───────────────────────── démarrage ───────────────────────── */
 var depart = (location.hash || '').replace('#', '');
 if (['maintenant', 'argent', 'users', 'audience', 'systeme'].indexOf(depart) >= 0) S.tab = depart;
+appliquerVolets(document);
 renderAll();
 chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus();
 ouvrirOnglet(S.tab);
