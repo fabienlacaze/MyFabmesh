@@ -2673,6 +2673,50 @@ const MODAL_COST_USD: Record<string, number> = {
   'mesh-op-client': 0,
 };
 
+/** NOM AFFICHE d'une operation dans « Par operation » (Argent de /admin2).
+ *
+ *  Le type enregistre dans `jobs` est GROSSIER : tous les outils d'image (retouche, mise a l'echelle, repeinte, recoloriage, habits...) sont journalises
+ *  'text2image' avec `options.op` ; les outils de maillage 'mesh-op' / 'mesh-op-client' et les outils manuels 'manual-tool' avec `options.op_type`. Le tableau
+ *  les melait donc tous (user : « il faut toutes les operations qui existent »). On les eclate ici, POUR L'AFFICHAGE SEULEMENT : le cout reel reste reparti par
+ *  poste sur le type grossier (cleOp / posteOp), qui n'est pas touche.
+ *  'segment' d'image (CLIPSeg) est renomme : 'segment' tout court est la decoupe 3D en pieces, un autre travail. */
+function _cleOperation(opType: string, options: Record<string, unknown> | null | undefined): string {
+  const sous = (v: unknown): string => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(v)) ? v : '';
+  if (opType === 'text2image') { const o = sous(options?.op); return o ? (o === 'segment' ? 'segment-image' : o) : opType; }
+  if (opType === 'mesh-op' || opType === 'mesh-op-client' || opType === 'manual-tool') { const o = sous(options?.op_type); return o ? `${opType}:${o}` : opType; }
+  return opType;
+}
+/** Famille (type grossier) d'un nom affiche : sert au filtre « clic sur une ligne » de la page, dont les travaux en cours ne connaissent que le type grossier. */
+function _familleOperation(cle: string): string {
+  if (cle === 'segment-image') return 'text2image';
+  if (cle.includes(':')) return cle.split(':')[0];
+  return IMAGE_OPS_AFFICHEES.includes(cle) ? 'text2image' : cle;
+}
+/** Familles de toutes les operations connues ou observees : celles qu'on a vues passer portent leur VRAI type grossier, les autres le deduisent du nom. */
+function _familles(observees: Record<string, string>): Record<string, string> {
+  const r: Record<string, string> = {};
+  for (const k of OPERATIONS_CONNUES) r[k] = _familleOperation(k);
+  for (const [k, f] of Object.entries(observees)) r[k] = f;
+  return r;
+}
+const IMAGE_OPS_AFFICHEES = ['modify', 'auto_inpaint', 'mask_inpaint', 'face_fix_image', 'upscale', 'tex_variant', 'recolor', 'outfit'];
+/** TOUTES les operations qui existent, meme celles qu'aucun travail n'a utilisees sur la periode (elles s'affichent alors a zero). Les outils manuels du navigateur
+ *  ne sont listes ici que sous les noms VERIFIES (vus dans les travaux reels ou dans le code du client) ; les autres (leur nom vient du client) apparaissent des qu'ils servent,
+ *  plutot que d'afficher a zero, a tort, un nom devine. */
+const OPERATIONS_CONNUES: string[] = [
+  // images
+  'text2image', 'tpose', 'rectify', 'back-view', 'sheet', 'remove-bg', ...IMAGE_OPS_AFFICHEES, 'segment-image',
+  // 3D
+  'mesh', 'mesh-face', 'retexture', 'reshape', 'segment', 'rig', 'animate', 'animate_fbx', 'construction3d', 'mesh-convert',
+  // outils de maillage executes par le serveur
+  ...['smooth', 'decimate', 'center', 'fix_normals', 'fill_holes', 'subdivide', 'material', 'material_adjust', 'retex_swap', 'watertight', 'align_texture',
+      'resize', 'explode', 'texture_var', 'enhance_tex', 'region_retex'].map((o) => `mesh-op:${o}`),
+  // outils de maillage executes dans le navigateur
+  ...['smooth', 'decimate', 'subdivide', 'fix_normals', 'fill_holes', 'center', 'paint_emissive', 'paint_mesh', 'clone3d', 'skin_paint'].map((o) => `mesh-op-client:${o}`),
+  // outils manuels du navigateur (debites a l'enregistrement ou a l'ouverture)
+  ...['skeleton_points', 'rig_joints', 'symmetrize', 'paint', 'extend', 'clone_stamp', 'color_pick', 'export_image', 'export_glb', 'export_anim', 'open_anim'].map((o) => `manual-tool:${o}`),
+];
+
 /** Persist a single non-mesh operation in the jobs table so the
  *  history CSV can show it. Mesh inserts happen inline in handleGenerate
  *  (they already need a job row for status polling). Fire-and-forget —
@@ -18562,7 +18606,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   const seriesByDay: Record<string, { ops: number; users: Set<string>; revenue_eur: number; cost_eur: number; margin_eur: number }> = {};
   // Operations des 30 derniers jours, gardees une par une pour le tableau
   // « Par type » au COUT REEL (voir byType30 plus bas).
-  const ops30: Array<{ day: string; op: string; ok: boolean; credits: number; paye: number; mesure: number }> = [];
+  const ops30: Array<{ day: string; op: string; cle: string; ok: boolean; credits: number; paye: number; mesure: number }> = [];
 
   type J = {
     user_id: string; status: string; credit_cost: number;
@@ -18618,7 +18662,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       s.revenue_eur += revenueEur;
       s.cost_eur += costEur;
       s.margin_eur += marginEur;
-      ops30.push({ day, op: opType, ok: j.status === 'succeeded', credits, paye: revenueEur, mesure: costEur });
+      ops30.push({ day, op: opType, cle: _cleOperation(opType, j.options), ok: j.status === 'succeeded', credits, paye: revenueEur, mesure: costEur });
     }
   }
 
@@ -18819,7 +18863,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   }
   const byType30: Record<string, { count: number; failed: number; credits: number; value_eur: number; paid_eur: number; measured_eur: number; real_eur: number }> = {};
   for (const o of ops30) {
-    const b = (byType30[o.op] ??= { count: 0, failed: 0, credits: 0, value_eur: 0, paid_eur: 0, measured_eur: 0, real_eur: 0 });
+    const b = (byType30[o.cle] ??= { count: 0, failed: 0, credits: 0, value_eur: 0, paid_eur: 0, measured_eur: 0, real_eur: 0 });
     b.count += 1;
     if (!o.ok) b.failed += 1;
     b.credits += o.credits;
@@ -18918,6 +18962,9 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     by_type: byType,
     by_type_30d: {
       types: byType30,
+      // Toutes les operations qui existent (meme a zero) et la famille de chacune, pour l'affichage et le filtre.
+      connues: OPERATIONS_CONNUES,
+      familles: _familles(Object.fromEntries(ops30.map((o) => [o.cle, o.op]))),
       facture_sans_operation_eur: +factureSansOperationEur.toFixed(2),
       cout_reel: !!realByDay,
       eur_par_credit: EUR_PER_CREDIT_NET,
@@ -20539,6 +20586,8 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
     debut: new Date(now - (nbCases - i) * pasMin * 60_000).toISOString(), ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0,
   }));
   const types: Record<string, { count: number; failed: number; credits: number; valeur_eur: number; cout_eur: number }> = {};
+  const famillesVues: Record<string, string> = {};
+  const cleOp = (opType: string, o: Record<string, unknown> | null | undefined) => { const c = _cleOperation(opType, o); famillesVues[c] = opType; return c; };
   const tot = { ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0 };
   type J = { status: string; credit_cost: number | null; options: Record<string, unknown> | null; created_at: string; finished_at?: string | null; cost_usd?: number | null };
   for (const j of ((data ?? []) as J[])) {
@@ -20549,7 +20598,7 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
     const credits = j.status === 'succeeded' ? Number(j.credit_cost ?? 0) : 0;
     const valeur = credits * EUR_PAR_CREDIT;
     const echec = j.status === 'failed';
-    const t = (types[opType] ??= { count: 0, failed: 0, credits: 0, valeur_eur: 0, cout_eur: 0 });
+    const t = (types[cleOp(opType, j.options)] ??= { count: 0, failed: 0, credits: 0, valeur_eur: 0, cout_eur: 0 });
     t.count++; if (echec) t.failed++; t.credits += credits; t.valeur_eur += valeur; t.cout_eur += cout;
     tot.ops++; if (echec) tot.echecs++; tot.credits += credits; tot.valeur_eur += valeur; tot.cout_eur += cout;
     const k = nbCases - 1 - Math.floor((now - Date.parse(j.created_at)) / (pasMin * 60_000));
@@ -20561,6 +20610,8 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
   return json({
     ok: true, heures, pas_min: pasMin, estimation: true, tronque: (data ?? []).length >= 5000,
     eur_par_credit: EUR_PAR_CREDIT, buckets: cases, types,
+    connues: OPERATIONS_CONNUES,
+    familles: _familles(famillesVues),
     totaux: { ...tot, valeur_eur: r2(tot.valeur_eur), cout_eur: r2(tot.cout_eur) },
   });
 }
@@ -20638,9 +20689,25 @@ async function handleAdminCreations(req: Request, env: Env): Promise<Response> {
       const { data: th } = await sb.from('user_assets').select('parent_path, r2_path').eq('kind', 'thumb-mesh').in('parent_path', cles);
       for (const t of ((th || []) as Array<{ parent_path: string; r2_path: string }>)) miniatures.set(t.parent_path, t.r2_path);
     }
+    /* IMAGE DE REPLI : l'image du PROJET (user : « charge juste une image dans les petites icones »). La miniature d'un maillage est rangee sous le chemin EXACT de son
+     * fichier, qui change a chaque version, rig ou animation : sur les 171 fichiers 3D des 30 derniers jours, 0 avait sa miniature exacte, 164 avaient une image de leur
+     * projet. On prend l'image de face du projet, a defaut sa miniature 3D la plus recente. */
+    const imagesProjet = new Map<string, { face?: string; mini?: string }>();
+    const ids = [...new Set(jobs.map((j) => j.user_id))], noms = [...new Set(jobs.map((j) => j.project_name).filter((x): x is string => !!x))];
+    if (ids.length && noms.length) {
+      const { data: ap } = await sb.from('user_assets').select('user_id, project, kind, r2_path, created_at')
+        .in('kind', ['image-front', 'thumb-mesh']).in('user_id', ids).in('project', noms).order('created_at', { ascending: false }).limit(1500);
+      for (const a of ((ap || []) as Array<{ user_id: string; project: string; kind: string; r2_path: string }>)) {
+        const e = imagesProjet.get(a.user_id + '\u0001' + a.project) ?? {};
+        if (a.kind === 'image-front' && !e.face) e.face = a.r2_path;
+        if (a.kind === 'thumb-mesh' && !e.mini) e.mini = a.r2_path;
+        imagesProjet.set(a.user_id + '\u0001' + a.project, e);
+      }
+    }
     const items = await Promise.all(jobs.map(async (j) => {
       const debut = Date.parse(j.created_at), fin = Date.parse(String(j.finished_at || ''));
-      const mini = j.mesh_url ? miniatures.get(j.mesh_url) : undefined;
+      const ip = j.project_name ? imagesProjet.get(j.user_id + '\u0001' + j.project_name) : undefined;
+      const mini = (j.mesh_url ? miniatures.get(j.mesh_url) : undefined) ?? ip?.face ?? ip?.mini;
       return {
         id: j.id, tab: onglet, kind: voulu, projet: j.project_name, email: emails.get(j.user_id) ?? null, user_id: j.user_id, created_at: j.created_at,
         key: null, mesh_url: j.mesh_url ? await signedR2Url(env, j.mesh_url, 'mesh') : null, url: mini ? await signedR2Url(env, mini, 'image') : null,

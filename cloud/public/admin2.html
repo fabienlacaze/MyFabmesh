@@ -197,11 +197,24 @@ textarea{resize:vertical;min-height:70px}
 button[role=switch]{flex:none;width:46px;height:26px;border-radius:13px;border:1px solid var(--text-2);background:var(--bg-3);position:relative;cursor:pointer;padding:0}
 button[role=switch]::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--text-2);transition:transform .15s}
 /* INTERRUPTEUR GENERAL d'une section (2026-10-02, user : « il faut mieux montrer les main switch de chaque section ») : dans l'en-tete du volet, donc visible volet ferme */
-.maitre-groupe{display:inline-flex;align-items:center;gap:8px;margin-left:12px;vertical-align:middle}
-.maitre-lib{font-size:12px;font-weight:600;color:var(--text-1);white-space:nowrap}
-button[role=switch].maitre{width:60px;height:32px;border-radius:16px;border-width:2px}
-button[role=switch].maitre::after{top:4px;left:4px;width:20px;height:20px}
-button[role=switch].maitre[aria-checked="true"]::after{transform:translateX(28px)}
+.maitre-groupe{display:inline-flex;align-items:center;gap:16px;margin-left:12px;padding:8px 10px 8px 20px;border:2px solid var(--border);border-radius:999px;background:var(--bg-2);vertical-align:middle}
+.maitre-groupe.m-ok{border-color:var(--ok);background:rgba(76,217,100,.13)}
+.maitre-groupe.m-err{border-color:var(--err);background:rgba(255,82,82,.16)}
+.maitre-groupe.m-warm{border-color:var(--warn);background:rgba(255,170,51,.15)}
+.maitre-lib{font-size:16px;font-weight:700;color:var(--text-0);white-space:nowrap;letter-spacing:.2px}
+/* interrupteur PRINCIPAL d'une section (2026-10-02, user : « rends les switch principaux plus visibles ») : 88 x 46, plein de couleur, ON / OFF ecrit dans la glissiere */
+button[role=switch].maitre{position:relative;width:88px;height:46px;border-radius:23px;border:0;background:#454558}
+button[role=switch].maitre::before{content:"OFF";position:absolute;top:50%;right:13px;transform:translateY(-50%);font-size:12px;font-weight:800;letter-spacing:1px;color:#d8d8e6}
+button[role=switch].maitre::after{top:5px;left:5px;width:36px;height:36px;background:#f4f4fa;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+button[role=switch].maitre[aria-checked="true"]{background:var(--ok);border:0}
+button[role=switch].maitre[aria-checked="true"]::before{content:"ON";left:14px;right:auto;color:#07210d}
+button[role=switch].maitre[aria-checked="true"]::after{transform:translateX(42px);background:#fff}
+button[role=switch].maitre.froid[aria-checked="true"]{background:var(--warn)}
+button[role=switch].maitre.froid[aria-checked="true"]::before{color:#2a1a02}
+button[role=switch].maitre.alerte{background:var(--err)}
+button[role=switch].maitre.alerte::before{color:#2a0606}
+button[role=switch].maitre:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+details.carte.vol[open] > summary .res:has(.maitre-groupe){display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px 16px}
 summary .res .btn{margin-left:10px}
 button[role=switch][aria-checked="true"]{background:rgba(76,217,100,.25);border-color:var(--ok)}
 button[role=switch][aria-checked="true"]::after{transform:translateX(20px);background:var(--ok)}
@@ -262,6 +275,8 @@ details.mini > .corps{padding:4px 0 0}
 .lb-cadre{display:flex;gap:16px;align-items:stretch;width:min(1240px,100%);max-height:78vh;min-height:0}
 .lb-vue{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center}
 .lb .lb-vue img{max-width:100%;max-height:78vh}
+.lb-viewer3d{flex:1 1 auto;width:100%;height:min(72vh,680px);border-radius:10px;overflow:hidden;background:var(--bg-3);display:flex;align-items:center;justify-content:center}
+.lb-viewer3d model-viewer{width:100%;height:100%}
 .lb-pas-image{color:var(--text-2);padding:40px 20px;border:1px dashed var(--border);border-radius:10px;text-align:center}
 .lb-params{flex:0 0 min(340px,38%);background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:12px 14px;overflow:auto;font-size:13px;color:var(--text-1)}
 .lb-params h3{margin:0 0 8px;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-2)}
@@ -352,16 +367,16 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
 
   <!-- ═════════ VUE D'ENSEMBLE ═════════ -->
   <section id="p-maintenant" role="tabpanel">
+    <div class="pile" style="margin-top:18px">
+      <details class="carte vol" open data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Conteneurs <small>état réel</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div></details>
+    </div>
     <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
     <div class="dispo d21">
       <details class="carte vol" open data-id="m-cours-m" data-res="cours"><summary><h2>En cours <small id="n-cours-m"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="encours-m"></div></div></details>
       <details class="carte vol" open data-id="m-sante" data-res="sante"><summary><h2>À traiter <small id="sante-etat-m"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="sante-m"><div class="vide">Chargement…</div></div></div></details>
-    </div>
-    <div class="pile" style="margin-top:16px">
-      <details class="carte vol" open data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Conteneurs <small>état réel</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div></details>
     </div>
   </section>
 
@@ -553,7 +568,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
   <div class="v3d" id="v3d" hidden role="dialog" aria-modal="true" aria-label="Aperçu 3D"><div class="v3d-boite"><div class="v3d-haut"><b id="v3d-titre"></b><button type="button" class="btn petit" id="v3d-fermer">Fermer</button></div><div id="v3d-zone"></div><div class="v3d-note" id="v3d-note">Glisser pour tourner, molette pour zoomer. Le modèle se charge depuis un lien signé de courte durée.</div></div></div>
   <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Création agrandie">
     <div class="lb-cadre">
-      <div class="lb-vue"><img id="lb-img" alt=""><div class="lb-pas-image" id="lb-pas-image" hidden>Pas d'aperçu image pour cet élément.</div></div>
+      <div class="lb-vue"><img id="lb-img" alt=""><div class="lb-viewer3d" id="lb-viewer3d" hidden></div><div class="lb-pas-image" id="lb-pas-image" hidden>Pas d'aperçu image pour cet élément.</div></div>
       <aside class="lb-params" id="lb-params" aria-label="Paramètres utilisés"></aside>
     </div>
     <div class="cap" id="lb-cap"></div>
@@ -842,13 +857,28 @@ function htmlParams(it) {
   return '<h3>Paramètres utilisés</h3><dl class="pm">' + l.map(function (x) { return '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('') + '</dl>'
     + (it.texte ? '<div class="note">Le texte saisi par la personne (prompt, description) est masqué.</div><button type="button" class="btn petit" id="lb-voir-texte">Voir le texte saisi</button><div id="lb-texte"></div>' : '');
 }
+/* Visualiseur 3D de la visionneuse : un seul <model-viewer> a la fois, detruit a chaque changement d'element et a la fermeture (un contexte WebGL par apercu). */
+function lb3dVider() { S.lb3dTok = (S.lb3dTok || 0) + 1; var z = $('#lb-viewer3d'); if (z) z.innerHTML = ''; }
+async function lb3dCharger(it) {
+  var z = $('#lb-viewer3d'); S.lb3dTok = (S.lb3dTok || 0) + 1; var tok = S.lb3dTok;
+  z.innerHTML = '<div class="v3d-note">Chargement du modèle…</div>';
+  await charger3d();
+  if (tok !== S.lb3dTok || $('#lb').hidden) return;                  // un autre element a ete ouvert, ou la visionneuse est fermee
+  if (!(window.customElements && customElements.get('model-viewer'))) { z.innerHTML = '<div class="v3d-note msg-err">Le lecteur 3D n\'a pas pu se charger (réseau). Utilisez « Télécharger le 3D ».</div>'; return; }
+  var mv = document.createElement('model-viewer'); mv.setAttribute('src', it.mesh_url); mv.setAttribute('camera-controls', ''); mv.setAttribute('auto-rotate', ''); mv.setAttribute('shadow-intensity', '0.6'); mv.setAttribute('exposure', '1');
+  mv.setAttribute('alt', (it.projet || 'Modèle 3D') + ' (aperçu 3D)'); if (it.url) mv.setAttribute('poster', it.url); if (it.tab === 'animations') mv.setAttribute('autoplay', '');
+  mv.addEventListener('error', function () { if (tok !== S.lb3dTok) return; z.innerHTML = '<div class="v3d-note msg-err">Le modèle n\'a pas pu être chargé (lien expiré ou fichier absent).</div>'; });
+  z.innerHTML = ''; z.appendChild(mv);
+}
 function ouvrirLb(i) {
   var it = S.cre.liste[i]; if (!it) return;
   var neuf = S.lb < 0; if (neuf) S.lbRetour = document.activeElement; S.lb = i; S.lbSupArme = false;
-  var img = $('#lb-img'); if (it.url) { img.src = it.url; } else img.removeAttribute('src'); img.hidden = !it.url; $('#lb-pas-image').hidden = !!it.url;
+  var a3 = !!it.mesh_url;      // 3D, rig, animation : un VISUALISEUR 3D dans la visionneuse (user : « un viewer 3d quand je clique sur un element »)
+  var img = $('#lb-img'); if (it.url) { img.src = it.url; } else img.removeAttribute('src'); img.hidden = !it.url || a3; $('#lb-pas-image').hidden = !!it.url || a3;
+  $('#lb-viewer3d').hidden = !a3; if (a3) lb3dCharger(it); else lb3dVider();
   var ouvrir = $('#lb-ouvrir'); ouvrir.hidden = !it.url; if (it.url) ouvrir.href = it.url;
   var m3 = $('#lb-3d'); m3.hidden = !it.mesh_url; if (it.mesh_url) m3.href = it.mesh_url;
-  var v3 = $('#lb-voir3d'); v3.hidden = !it.mesh_url;
+  var v3 = $('#lb-voir3d'); v3.hidden = true;           // le visualiseur est maintenant dans la visionneuse
   var sup = $('#lb-sup'); sup.hidden = !it.supprimable; sup.textContent = "Supprimer l'image";
   $('#lb-cap').textContent = (it.email || 'compte inconnu') + ' · ' + (CRE_TYPE[it.tab] || '') + ' · ' + (it.projet || '') + ' · ' + dateFr(it.quand);
   $('#lb-params').innerHTML = htmlParams(it);
@@ -885,7 +915,7 @@ document.addEventListener('click', function (e) {
   var b3 = e.target.closest('[data-apercu3d]'); if (b3) { ouvrir3d(b3.dataset.apercu3d, b3.dataset.titre || 'Modèle'); }
 });
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#v3d').hidden) { e.stopPropagation(); fermer3d(); } }, true);
-function fermerLb() { fermer3d(); S.lb = -1; $('#lb').hidden = true; $('#lb-img').removeAttribute('src'); var r = S.lbRetour; S.lbRetour = null; if (r && r.focus && document.contains(r)) r.focus(); }
+function fermerLb() { fermer3d(); lb3dVider(); S.lb = -1; $('#lb').hidden = true; $('#lb-img').removeAttribute('src'); var r = S.lbRetour; S.lbRetour = null; if (r && r.focus && document.contains(r)) r.focus(); }
 document.addEventListener('click', async function (e) {
   var b = e.target.closest ? e.target.closest('[data-cre]') : null;
   if (b) { S.cre.onglet = b.dataset.cre; majOngletsCre(); renderGalerie(); chargerImages(); return; }
@@ -1042,9 +1072,19 @@ function htmlVerdict(value, reel, credits) {
   var x = value / reel;
   return x >= 2 ? '<span class="pill ok"><span class="vl">Rentable </span>×' + x.toFixed(1) + '</span>' : x >= 1 ? '<span class="pill warn"><span class="vl">Juste </span>×' + x.toFixed(1) + '</span>' : '<span class="pill err"><span class="vl">À perte </span>×' + x.toFixed(2) + '</span>';
 }
+/* « Par operation » : TOUTES les operations qui existent (user : « il faut toutes les operations qui existent »). Celles qui n'ont pas servi sur la periode
+   s'affichent a zero ; `famille` = type grossier des travaux, seul connu du filtre « clic sur une ligne ». */
+function avecToutesLesOps(lignes, connues, familles) {
+  var vues = {};
+  lignes.forEach(function (m) { vues[m.op] = m; m.famille = (familles && familles[m.op]) || m.op; });
+  (connues || []).forEach(function (k) { if (!vues[k]) { var m = completeOp({ op: k, count: 0, failed: 0, credits: 0, value: 0, reel: 0, paid: 0 }); m.famille = (familles && familles[k]) || k; lignes.push(m); vues[k] = m; } });
+  return lignes;
+}
 function completeOp(o) { o.marge = o.value - o.reel; o.ratio = o.reel > 0.005 ? o.value / o.reel : 1e9; var ok = (o.count || 0) - (o.failed || 0); o.prix = ok > 0 ? o.value / ok : 0; o.coutop = o.count > 0 ? o.reel / o.count : 0; return o; }
 function ligneOpHtml(m) {
-  return '<tr' + (S.filt.type === m.op ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', m.op, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m.value, m.reel, m.credits) + '</td></tr>';
+  var fam = m.famille || m.op;
+  if (!m.count) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, m.op) + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td><span class="pill">pas utilisée</span></td></tr>';
+  return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m.value, m.reel, m.credits) + '</td></tr>';
 }
 function renderArgentCourt() {
   var h = S.per === '6h' ? 6 : 24, R = S.rec;
@@ -1071,12 +1111,12 @@ function renderArgentCourt() {
     lecture: function (k, l, se) { var el = $('#lecture'); if (k < 0) { el.textContent = ''; return; } el.innerHTML = '<b>' + esc(l) + '</b> · ' + se.map(function (s) { return s.on ? esc(s.nom) + ' ' + eur(s.v[k]) : ''; }).filter(Boolean).join(' · '); } });
   $('#note-graphe').textContent = 'La facture Modal réelle n\'existe que par jour : sur ' + h + ' h le coût est estimé d\'après la durée de chaque travail. Valeur des crédits = crédits des travaux réussis au prix net ; ce n\'est pas de l\'argent encaissé.';
   var lignes = Object.keys(R.types).map(function (op) { var m = R.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed, credits: m.credits, value: m.valeur_eur, reel: m.cout_eur }); });
-  lignes = trier(lignes, 'ops');
+  lignes = trier(avecToutesLesOps(lignes, R.connues, R.familles), 'ops');
   S.resOps = resumeOps(lignes, T.valeur_eur, T.cout_eur);
   $('#t-ops').innerHTML = lignes.map(ligneOpHtml).join('') || '<tr><td colspan="9" class="vide">Aucune opération sur ' + h + ' h.</td></tr>';
   $('#ops-fenetre').textContent = h + ' dernières heures · coût estimé · clic sur une ligne pour filtrer';
   $('#resume-ops').innerHTML = 'Sur les <b>' + h + ' dernières heures</b> : <b>' + T.ops + '</b> travaux, valorisés <b>' + eur(T.valeur_eur) + '</b> en crédits (' + (R.eur_par_credit || 0).toFixed(3) + ' € le crédit) pour un coût estimé de <b>' + eur(T.cout_eur) + '</b>' + (R.tronque ? ' <span class="note">(les 5 000 premiers travaux seulement)</span>' : '') + '.';
-  $('#note-ops').textContent = 'Coût estimé : la facture Modal est publiée par jour, pas par heure.';
+  $('#note-ops').textContent = 'Coût estimé : la facture Modal est publiée par jour, pas par heure. Toutes les opérations existantes sont listées ; celles sans activité sur la période sont à zéro.';
   majEntetesTri(); renderGpu();
 }
 function renderArgent() {
@@ -1121,7 +1161,7 @@ function renderArgent() {
   var tb = $('#t-ops');
   if (!bt || !bt.types) { tb.innerHTML = '<tr><td colspan="9" class="vide">' + (st ? 'Données indisponibles.' : 'Chargement…') + '</td></tr>'; $('#resume-ops').textContent = ''; $('#note-ops').textContent = ''; return renderGpu(); }
   var lignes = Object.keys(bt.types).map(function (op) { var m = bt.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed || 0, credits: m.credits, value: m.value_eur, reel: m.real_eur, paid: m.paid_eur }); });
-  lignes = trier(lignes, 'ops');
+  lignes = trier(avecToutesLesOps(lignes, bt.connues, bt.familles), 'ops');
   var totV = 0, totR = 0, totP = 0;
   lignes.forEach(function (m) { totV += m.value; totR += m.reel; totP += Number(m.paid) || 0; });
   tb.innerHTML = lignes.map(ligneOpHtml).join('') || '<tr><td colspan="9" class="vide">Aucune opération sur 30 jours.</td></tr>';
@@ -1129,7 +1169,7 @@ function renderArgent() {
   var sansOp = Number(bt.facture_sans_operation_eur) || 0;
   $('#resume-ops').innerHTML = 'Les opérations ont été valorisées <b>' + eur(totV) + '</b> en crédits (' + (Number(bt.eur_par_credit) || 0).toFixed(3) + ' € le crédit) et ont coûté <b>' + eur(totR) + '</b> chez Modal' + (totR > 0 ? ' : <b style="color:' + (totV >= totR ? 'var(--ok)' : 'var(--err)') + '">×' + (totV / totR).toFixed(1) + '</b>' : '') + '.' + (sansOp > 0.005 ? ' S\'y ajoutent ' + eur(sansOp) + ' facturés des jours sans opération (tests, démarrages).' : '') + ' Réellement encaissé sur ces opérations (comptes ayant payé) : <b>' + eur(totP) + '</b>, le reste a été consommé avec des crédits offerts ou de test.';
   majEntetesTri();
-  $('#note-ops').textContent = bt.cout_reel ? 'Coût réel = facture Modal de chaque jour répartie sur les opérations du jour selon leur durée. Les échecs coûtent sans rien rapporter.' : '⚠ Relevé Modal absent : coût = durée mesurée × tarif du GPU, sans démarrages à froid ni inactivité (sous-estimé).';
+  $('#note-ops').textContent = (bt.cout_reel ? 'Coût réel = facture Modal de chaque jour répartie sur les opérations du jour selon leur durée. Les échecs coûtent sans rien rapporter.' : '⚠ Relevé Modal absent : coût = durée mesurée × tarif du GPU, sans démarrages à froid ni inactivité (sous-estimé).') + ' Toutes les opérations existantes sont listées ; celles sans activité sur la période sont à zéro.';
   renderGpu();
 }
 /* Detail complet de la carte « Cout GPU » (postes, repartition, protections automatiques) : /api/admin/modal-credits SANS ?legere=1.
@@ -2022,7 +2062,7 @@ document.addEventListener('click', function (e) {
 
 /* Le résumé d'un volet fermé : une ligne, calculée à partir de données déjà chargées (aucune requête de plus). */
 function maitre(o) {
-  return '<span class="maitre-groupe"><span class="maitre-lib">' + esc(o.texte) + '</span><button type="button" role="switch" class="maitre' + (o.froid ? ' froid' : '') + '" aria-checked="' + (o.on ? 'true' : 'false') + '" aria-label="' + esc(o.label) + '" ' + o.data + (o.bloque ? ' disabled' : '') + '></button></span>';
+  return '<span class="maitre-groupe' + (o.teinte ? ' m-' + o.teinte : '') + '"><span class="maitre-lib">' + esc(o.texte) + '</span><button type="button" role="switch" class="maitre' + (o.froid ? ' froid' : '') + (o.alerte ? ' alerte' : '') + '" aria-checked="' + (o.on ? 'true' : 'false') + '" aria-label="' + esc(o.label) + '" ' + o.data + (o.bloque ? ' disabled' : '') + '></button></span>';
 }
 var RES = {
   cours: function () {
@@ -2074,14 +2114,14 @@ var RES = {
     if (!S.svc) return '…';
     var c = servicesCoupes(), tous = !c.length;
     return (c.length ? pillR('err', pl(c.length, 'coupé', 'coupés')) + ' ' + esc(c.join(', ')) : pillR('ok', 'Tout actif'))
-      + maitre({ on: tous, label: tous ? 'Interrupteur général : tout couper' : 'Interrupteur général : tout rallumer', texte: tous ? 'Tout actif' : 'Tout rallumer', data: 'data-kill-all="' + (tous ? 'off' : 'on') + '"' });
+      + maitre({ on: tous, label: tous ? 'Interrupteur général : tout couper' : 'Interrupteur général : tout rallumer', texte: tous ? 'Tout actif' : 'Tout rallumer', data: 'data-kill-all="' + (tous ? 'off' : 'on') + '"', teinte: tous ? 'ok' : 'err', alerte: !tous });
   },
   warm: function () {
     var m = S.modal; if (!m) return '…';
     var nb = WARM.filter(function (w) { return (m.garde_chaud || {})[w.cle]; }).length, gpuOn = actif('modal') !== false;
-    if (!gpuOn) return pillR('err', 'Calcul GPU coupé') + ' <button type="button" class="btn prim petit" data-kill="modal">Rallumer le calcul GPU</button>';
+    if (!gpuOn) return pillR('err', 'Calcul GPU coupé') + ' <button type="button" class="btn prim" data-kill="modal" style="font-size:15px;font-weight:700;padding:10px 18px">Rallumer le calcul GPU</button>';
     return (nb ? pillR('warn', nb + ' sur ' + WARM.length + ' gardés chauds') : pillR('ok', 'Tout froid'))
-      + maitre({ froid: true, on: nb === WARM.length, label: 'Interrupteur général : garder tous les conteneurs chauds', texte: 'Tout chaud', data: 'data-warmall="1"', bloque: warmOccupe });
+      + maitre({ froid: true, on: nb === WARM.length, label: 'Interrupteur général : garder tous les conteneurs chauds', texte: 'Tout chaud', data: 'data-warmall="1"', bloque: warmOccupe, teinte: nb === WARM.length ? 'warm' : '' });
   },
   sante: function () {
     var s = S.sante; if (!s) return '…';
@@ -2104,8 +2144,8 @@ function majResumes() {
   });
 }
 function resumeOps(lignes, v, c) {
-  var perte = lignes.filter(function (m) { return m.reel > 0.005 && m.value < m.reel; }).length;
-  return esc(pl(lignes.length, 'opération', 'opérations') + ' · valeur ' + eur(v) + ' · coût ' + eur(c)) + (perte ? ' ' + pillR('err', perte + ' à perte') : '');
+  var perte = lignes.filter(function (m) { return m.reel > 0.005 && m.value < m.reel; }).length, act = lignes.filter(function (m) { return m.count > 0; }).length;
+  return esc(act + ' opération' + (act > 1 ? 's' : '') + ' utilisée' + (act > 1 ? 's' : '') + ' sur ' + lignes.length + ' · valeur ' + eur(v) + ' · coût ' + eur(c)) + (perte ? ' ' + pillR('err', perte + ' à perte') : '');
 }
 cadence(majResumes, 1000);
 
