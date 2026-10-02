@@ -85,7 +85,7 @@ const routes = {
     return { ok: true, onglet, items: items.slice(0, n), comptes: uid ? 1 : 4 }; },
   'GET /api/admin/creation-texte': (b, u) => { etat.textesLus = (etat.textesLus || 0) + 1; return { ok: true, texte: { prompt: 'un chevalier en armure bleue <script>alert(1)</script>', negative_prompt: 'flou' } }; },
   'GET /api/admin/argent-recent': (b, u) => { const h = Number(u.searchParams.get('heures') || 24); const pas = h <= 6 ? 30 : h <= 24 ? 60 : 180; const n = Math.ceil(h * 60 / pas);
-    const buckets = Array.from({ length: n }, (_, i) => { const v = 1 + ((i * 7) % 5); return { debut: new Date(now - (n - i) * pas * 60e3).toISOString(), ops: v, echecs: i % 6 === 0 ? 1 : 0, credits: v * 20, valeur_eur: +(v * 3.2).toFixed(2), cout_eur: +(v * 1.1).toFixed(2) }; });
+    const buckets = Array.from({ length: n }, (_, i) => { const v = 1 + ((i * 7) % 5); return { debut: new Date(now - (n - i) * pas * 60e3).toISOString(), ops: v, echecs: i % 6 === 0 ? 1 : 0, comptes: 1 + ((i * 3) % 4), credits: v * 20, valeur_eur: +(v * 3.2).toFixed(2), cout_eur: +(v * 1.1).toFixed(2) }; });
     const sum = (k) => buckets.reduce((a, c) => a + c[k], 0);
     return { ok: true, heures: h, pas_min: pas, estimation: true, tronque: false, eur_par_credit: 0.162, buckets,
       connues: OPERATIONS_MOCK, familles: FAMILLES_MOCK,

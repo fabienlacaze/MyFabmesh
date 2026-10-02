@@ -20629,13 +20629,14 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
   const pasMin = heures <= 2 ? 5 : heures <= 6 ? 30 : heures <= 24 ? 60 : 180;
   const nbCases = Math.ceil(heures * 60 / pasMin);
   const cases = Array.from({ length: nbCases }, (_, i) => ({
-    debut: new Date(now - (nbCases - i) * pasMin * 60_000).toISOString(), ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0,
+    debut: new Date(now - (nbCases - i) * pasMin * 60_000).toISOString(), ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0, users: new Set<string>(),
   }));
+  const tousComptes = new Set<string>();       // comptes distincts sur la fenetre (user : « Comptes actifs » doit suivre la periode)
   const types: Record<string, { count: number; failed: number; credits: number; valeur_eur: number; cout_eur: number }> = {};
   const famillesVues: Record<string, string> = {};
   const cleOp = (opType: string, o: Record<string, unknown> | null | undefined) => { const c = _cleOperation(opType, o); famillesVues[c] = opType; return c; };
   const tot = { ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0 };
-  type J = { status: string; credit_cost: number | null; options: Record<string, unknown> | null; created_at: string; finished_at?: string | null; cost_usd?: number | null };
+  type J = { user_id?: string | null; status: string; credit_cost: number | null; options: Record<string, unknown> | null; created_at: string; finished_at?: string | null; cost_usd?: number | null };
   for (const j of ((data ?? []) as J[])) {
     const opType = String(j.options?.operation_type ?? 'mesh');
     const mesure = _measuredCostUsd(opType, j.created_at, j.finished_at ?? undefined);
@@ -20644,22 +20645,23 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
     const credits = j.status === 'succeeded' ? Number(j.credit_cost ?? 0) : 0;
     const valeur = credits * EUR_PAR_CREDIT;
     const echec = j.status === 'failed';
+    if (j.user_id) tousComptes.add(j.user_id);
     const t = (types[cleOp(opType, j.options)] ??= { count: 0, failed: 0, credits: 0, valeur_eur: 0, cout_eur: 0 });
     t.count++; if (echec) t.failed++; t.credits += credits; t.valeur_eur += valeur; t.cout_eur += cout;
     tot.ops++; if (echec) tot.echecs++; tot.credits += credits; tot.valeur_eur += valeur; tot.cout_eur += cout;
     const k = nbCases - 1 - Math.floor((now - Date.parse(j.created_at)) / (pasMin * 60_000));
-    if (k >= 0 && k < nbCases) { const c = cases[k]; c.ops++; if (echec) c.echecs++; c.credits += credits; c.valeur_eur += valeur; c.cout_eur += cout; }
+    if (k >= 0 && k < nbCases) { const c = cases[k]; c.ops++; if (echec) c.echecs++; c.credits += credits; c.valeur_eur += valeur; c.cout_eur += cout; if (j.user_id) c.users.add(j.user_id); }
   }
   const r2 = (n: number) => Math.round(n * 100) / 100;
   for (const c of cases) { c.valeur_eur = r2(c.valeur_eur); c.cout_eur = r2(c.cout_eur); }
   for (const k of Object.keys(types)) { types[k].valeur_eur = r2(types[k].valeur_eur); types[k].cout_eur = r2(types[k].cout_eur); }
   return json({
     ok: true, heures, pas_min: pasMin, estimation: true, tronque: (data ?? []).length >= 5000,
-    eur_par_credit: EUR_PAR_CREDIT, buckets: cases, types,
+    eur_par_credit: EUR_PAR_CREDIT, buckets: cases.map(({ users, ...c }) => ({ ...c, comptes: users.size })), types,
     cout_reel: await _coutReelRecent(env, heures),
     connues: OPERATIONS_CONNUES,
     familles: _familles(famillesVues),
-    totaux: { ...tot, valeur_eur: r2(tot.valeur_eur), cout_eur: r2(tot.cout_eur) },
+    totaux: { ...tot, valeur_eur: r2(tot.valeur_eur), cout_eur: r2(tot.cout_eur), comptes: tousComptes.size },
   });
 }
 

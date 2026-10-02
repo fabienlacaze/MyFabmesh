@@ -1544,20 +1544,30 @@ function courbesParJour() {
   var st = S.stats, court = periodeCourte(), nb = S.per === '30j' ? 30 : 7, sm = function (id, txt) { var e = $(id); if (e) e.textContent = txt; };
   if (st && st.series_30d) {
     var s = st.series_30d.slice(-nb), lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); });
-    if ($('#g-act')) serieSimple('g-act', lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour');
-    if ($('#g-dl')) serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour');
-    if (!court && $('#g-ops')) serieSimple('g-ops', lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour');
     var jours = 'par jour · ' + nb + ' derniers jours';
-    sm('#sous-act', 'distincts ' + jours); sm('#sous-dl', jours);
-    if (!court) sm('#sous-ops', jours);
+    if (!court) {
+      if ($('#g-act')) serieSimple('g-act', lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour');
+      if ($('#g-ops')) serieSimple('g-ops', lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour');
+      if ($('#g-dl')) serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour');
+      sm('#sous-act', 'distincts ' + jours); sm('#sous-ops', jours); sm('#sous-dl', jours);
+    } else if ($('#g-dl')) {                     // les telechargements ne sont comptes que PAR JOUR : on le dit au lieu d'afficher une courbe qui ne suit pas la periode
+      var auj = s.length ? (s[s.length - 1].downloads || 0) : 0;
+      $('#g-dl').innerHTML = '<div class="vide">Les téléchargements ne sont comptés que par jour : choisissez <b>7 jours</b> ou <b>30 jours</b>. Aujourd\'hui : <b>' + auj + '</b>.</div>';
+      sm('#sous-dl', 'par jour');
+    }
   }
-  if (court && $('#g-ops')) {                    // 6 h / 24 h : travaux lances par tranche (meme source que Argent), pas par jour
+  if (court && $('#g-ops')) {                    // 6 h / 24 h / ... : travaux lances et comptes actifs PAR TRANCHE de la periode (meme source que Argent)
     var R = S.rec, h = heuresCourtes();
     if (R && R.heures === h && R.buckets) {
       var lb = R.buckets.map(function (b) { var d = new Date(b.debut); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
+      var tr = 'par ' + (R.pas_min >= 60 ? (R.pas_min / 60) + ' h' : R.pas_min + ' min') + ' · ' + LIB_PER[S.per];
       serieSimple('g-ops', lb, R.buckets.map(function (b) { return b.ops || 0; }), 'var(--accent)', 'Travaux lancés');
-      sm('#sous-ops', 'par ' + (R.pas_min >= 60 ? (R.pas_min / 60) + ' h' : R.pas_min + ' min') + ' · ' + LIB_PER[S.per]);
-    } else { $('#g-ops').innerHTML = '<div class="vide">Chargement…</div>'; sm('#sous-ops', LIB_PER[S.per]); }
+      if ($('#g-act')) {
+        if (R.buckets.length && R.buckets[0].comptes != null) serieSimple('g-act', lb, R.buckets.map(function (b) { return b.comptes || 0; }), 'var(--ok)', 'Comptes actifs');
+        else $('#g-act').innerHTML = '<div class="vide">Chargement…</div>';
+      }
+      sm('#sous-ops', tr); sm('#sous-act', 'distincts ' + tr);
+    } else { $('#g-ops').innerHTML = '<div class="vide">Chargement…</div>'; if ($('#g-act')) $('#g-act').innerHTML = '<div class="vide">Chargement…</div>'; sm('#sous-ops', LIB_PER[S.per]); sm('#sous-act', LIB_PER[S.per]); }
   }
 }
 
