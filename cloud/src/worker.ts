@@ -1865,7 +1865,9 @@ const PRICING_DEFAULTS = {
   desktop_prix_centimes: 8999,
   desktop_gratuit:       1,          // 1 = « gratuit pendant la beta » affiche
   // Image ops
-  text2image:       3,
+  // 6 (2026-10-02, demande du user : le bouton « Generer une nouvelle version » doit afficher 6 ; il affichait 3). MESURE : x13 a 3 credits, donc pas une exigence de rentabilite.
+  // Prix d'UNE image a 30 pas (au prorata des pas : 10 pas = 2, 60 pas = 12). La T-pose paie le meme prix : elle n'a pas de cle propre.
+  text2image:       6,
   // x4 (2026-10-02) : MESURE 30 j, 18 vues arriere dont 9 echecs (le cout des echecs retombe sur les reussites) : 0,11 EUR / essai, x2,2 a 3 credits -> 6 credits = x4,3.
   back_view:        6,
   modify:           3,
@@ -2721,6 +2723,8 @@ function _creditsMeshAuPrix(o: Record<string, unknown>, p: Record<string, number
   n += _supplementTriangles(Number(o.max_tris) || 500_000, p.mesh_tris_500k ?? 1, p.mesh_tris_base ?? 1, p.mesh_tris_courbe_pct ?? 130);
   return n;
 }
+/** Prix de text2image AVANT le passage a 6 (2026-10-02). Un travail d'image ancien ne porte pas ses pas : on le recompte au prorata des deux prix. */
+const PRIX_IMAGE_AVANT_2026_10_02 = 3;
 function _creditsAuPrixActuel(cle: string, op: string, opts: Record<string, unknown> | null | undefined, enregistres: number, p: Record<string, number>): number {
   const o = opts ?? {};
   if (op === 'mesh') return _creditsMeshAuPrix(o, p);
@@ -2728,7 +2732,11 @@ function _creditsAuPrixActuel(cle: string, op: string, opts: Record<string, unkn
   if (op === 'retexture') { const pal = ['fast', 'balanced', 'quality', 'ultra_8k'].includes(String(o.preset)) ? String(o.preset) : 'fast'; return p['retex_' + pal] ?? enregistres; }
   // Images : le credit facture = nombre d'images x prix (x mise a l'echelle des pas pour text2image). Ni l'un ni l'autre n'est un prix de cle constant : text2image et T-pose gardent le credit FACTURE
   // (leur prix n'a pas change) ; la vue arriere = nombre d'images x prix actuel.
-  if (cle === 'text2image' || cle === 'tpose') return enregistres;
+  if (cle === 'text2image' || cle === 'tpose') {
+    // depuis le 2026-10-02 chaque image enregistre ses pas (`pas`) : recompte EXACT (meme formule que _prixImageSelonPas) ; avant, au prorata ancien -> nouveau prix
+    if (typeof o.pas === 'number' && p.text2image != null) return _prixImageSelonPas(p.text2image, o.pas);
+    return p.text2image != null ? Math.max(1, Math.round(enregistres * p.text2image / PRIX_IMAGE_AVANT_2026_10_02)) : enregistres;
+  }
   if (cle === 'back-view') return Math.max(1, Math.min(4, Number(o.n) || 1)) * (p.back_view ?? enregistres);
   if (cle === 'rectify') return enregistres > 0 ? (p.rectify ?? enregistres) : 0;   // appel interne : paye par l'option mesh_rectify de la generation (deja comptee dans le maillage)
   if (cle === 'outfit') { const complet = typeof o.completer === 'boolean' ? o.completer : enregistres >= 6; return (complet ? p.outfit_complete : p.outfit) ?? enregistres; }
@@ -11901,7 +11909,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     const debut = opStart + i * trancheMs;
     await logOperation(env, user.id, opType,
                        COST_PER_IMAGE, debut, debut + trancheMs, 'succeeded',
-                       { req, projectName, asset_type, asset_style, batch_index: i, batch_size: n });
+                       { req, projectName, asset_type, asset_style, batch_index: i, batch_size: n, pas: turbo ? 4 : pas });
   }
   // Persist in user_assets so /api/cloud-projects can list these
   // without the client needing to cache R2 paths in localStorage.
