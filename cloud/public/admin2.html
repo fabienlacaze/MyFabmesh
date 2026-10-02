@@ -618,6 +618,13 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div id="securite"></div></div></details>
       </div>
     </div>
+    <div class="pile" style="margin-top:16px">
+      <details class="carte vol" data-id="s-formes"><summary><h2>Vérification technique <small>forme des réponses du serveur</small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <p class="note">Lit les pages de lecture de l'admin avec VOTRE session et télécharge un fichier qui décrit seulement la FORME des réponses (noms de champs, types, longueurs de listes). Aucune valeur, aucune adresse e-mail, aucun montant n'y figure. Sert à vérifier que cette page lit bien ce que le serveur renvoie.</p>
+          <div class="ligneform"><button type="button" class="btn prim" id="b-formes">Télécharger les formes des réponses</button><span id="formes-msg" class="note" aria-live="polite"></span></div>
+        </div></details>
+    </div>
   </section>
   <div class="lb" id="fp" hidden role="dialog" aria-modal="true" aria-label="Mot de passe administrateur oublié">
     <div class="carte" style="max-width:440px;width:100%">
@@ -2865,6 +2872,35 @@ function ouvrirJournalVersion() {
 /* NOUVELLE VERSION (user, 02/10/2026 : « c'est ca que tu as mis a jour ? » devant une capture de l'ANCIENNE page : l'onglet restait ouvert des heures sans jamais se recharger). Toutes les 2 minutes et au retour sur l'onglet,
    on relit /app/build-info.js (jamais en cache) ; si le numero de build est plus recent que celui de la page chargee, une barre propose de recharger. Jamais de rechargement automatique :
    une modification de prix non enregistree serait perdue (la barre le dit). */
+/* VERIFICATION TECHNIQUE (user, 02/10/2026 : « va-y, teste » : la session ne peut pas se connecter a l'admin de production ; la page, elle, l'est deja). Exporte la FORME des reponses des routes de lecture
+   (jamais une valeur) : meme liste que `node build/fab-web.mjs admin-formes`. Lecture seule : uniquement des GET. */
+var FORMES_ROUTES = ['/api/admin/live?n=100', '/api/admin/services', '/api/admin/market/killswitch', '/api/admin/badges', '/api/admin/stats.json', '/api/admin/audience.json', '/api/admin/users',
+  '/api/admin/contact-messages', '/api/admin/market/list', '/api/admin/pricing', '/api/admin/modal-status', '/api/admin/sante.json', '/api/admin/totp/status', '/api/admin/images/recent',
+  '/api/admin/creations', '/api/admin/argent-recent?heures=24', '/api/admin/payments', '/api/admin/payments/unreconciled', '/api/admin/modal-credits', '/api/admin/traces?limit=5',
+  '/api/admin/logs/list', '/api/admin/audit', '/api/admin/jobs/active'];
+function formeDe(v, prof) {
+  prof = prof || 0;
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return v.length && prof < 6 ? { '[]': v.length, element: formeDe(v[0], prof + 1) } : { '[]': v.length };
+  if (typeof v === 'object') { if (prof >= 6) return 'objet'; var o = {}; Object.keys(v).sort().forEach(function (k) { o[k] = formeDe(v[k], prof + 1); }); return o; }
+  return typeof v;
+}
+async function exporterFormes() {
+  var msg = $('#formes-msg'), btn = $('#b-formes'), sortie = { genere: new Date().toISOString(), build: window.__BUILD__ ? window.__BUILD__.build : null,
+    note: 'FORMES seulement : aucune valeur, aucun e-mail. Les champs absents d\'une liste vide ne sont pas visibles.', routes: {} };
+  btn.disabled = true;
+  for (var i = 0; i < FORMES_ROUTES.length; i++) {
+    msg.textContent = 'Lecture ' + (i + 1) + ' / ' + FORMES_ROUTES.length + '…';
+    try { sortie.routes[FORMES_ROUTES[i]] = { status: 200, forme: formeDe(await http(FORMES_ROUTES[i])) }; }
+    catch (er) { sortie.routes[FORMES_ROUTES[i]] = { status: er.status || 0, erreur: String(er.message || er).replace(/\S+@\S+/g, '<e-mail>').slice(0, 120) }; }
+  }
+  var blob = new Blob([JSON.stringify(sortie, null, 1)], { type: 'application/json' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'admin_formes.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+  var ko = Object.keys(sortie.routes).filter(function (k) { return sortie.routes[k].status !== 200; }).length;
+  msg.textContent = 'Fichier « admin_formes.json » téléchargé (' + FORMES_ROUTES.length + ' routes, ' + ko + ' en erreur).'; btn.disabled = false;
+}
+document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('#b-formes')) exporterFormes(); });
+
 var _verTest = 0;
 async function verifierVersion() {
   var b = window.__BUILD__; if (!b || _verTest || document.getElementById('nouvelle-version')) return;
