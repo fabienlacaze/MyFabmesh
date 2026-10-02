@@ -1946,10 +1946,13 @@ const PRICING_DEFAULTS = {
   // $0.154 on the Studio pack, i.e. at a 58% LOSS. Floor is now 3.
   // x4 (2026-10-02) : MESURE 30 j par palier (cout reel, echecs inclus) : fast x3,3 (11 essais) et standard/qualite x4,0 pile (74) ; balanced x7,5 et ultra 8K x6,3 passaient deja.
   // Le cout est surtout FIXE (demarrage a froid, chargement, cuisson), il ne baisse pas avec les pas de diffusion : fast ne peut pas etre moins cher que balanced.
-  mesh_fast:        11,
-  mesh_balanced:    11,
-  mesh_quality:     14,
-  mesh_ultra_8k:    16,
+  // PALIERS RELEVES le 2026-10-02 (choix du user apres la mesure « avec et sans » de /admin2) : cout reel d'une generation 3D hors options = 0,62 EUR (0,70 par reussite en comptant
+  // les echecs ; 80,34 EUR / 130 generations en 30 j, surtout fixe : demarrages a froid). Le palier SEUL (sans aucune option) etait a x3,2 (fast x2,5 ; 8K x3,6) : le x4,8 moyen ne tenait que
+  // grace aux options. 17 credits x 0,162 = 2,75 EUR = x3,9 a x4,0 sur 0,70 EUR ; quality 18 et 8K 19 gardent l'ordre de l'echelle. Ancienne grille : R2 `_meta/pricing.avant-paliers-2026-10-02.json`.
+  mesh_fast:        17,
+  mesh_balanced:    17,
+  mesh_quality:     18,
+  mesh_ultra_8k:    19,
   mesh_multiref:    1,
   mesh_refine:      2,
   // Option « Auto-rectify » : un appel GPU a part (classe image, traine de
