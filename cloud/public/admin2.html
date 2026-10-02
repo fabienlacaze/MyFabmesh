@@ -197,24 +197,24 @@ textarea{resize:vertical;min-height:70px}
 button[role=switch]{flex:none;width:46px;height:26px;border-radius:13px;border:1px solid var(--text-2);background:var(--bg-3);position:relative;cursor:pointer;padding:0}
 button[role=switch]::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--text-2);transition:transform .15s}
 /* INTERRUPTEUR GENERAL d'une section (2026-10-02, user : « il faut mieux montrer les main switch de chaque section ») : dans l'en-tete du volet, donc visible volet ferme */
-.maitre-groupe{display:inline-flex;align-items:center;gap:16px;margin-left:12px;padding:8px 10px 8px 20px;border:2px solid var(--border);border-radius:999px;background:var(--bg-2);vertical-align:middle}
-.maitre-groupe.m-ok{border-color:var(--ok);background:rgba(76,217,100,.13)}
-.maitre-groupe.m-err{border-color:var(--err);background:rgba(255,82,82,.16)}
-.maitre-groupe.m-warm{border-color:var(--warn);background:rgba(255,170,51,.15)}
-.maitre-lib{font-size:16px;font-weight:700;color:var(--text-0);white-space:nowrap;letter-spacing:.2px}
-/* interrupteur PRINCIPAL d'une section (2026-10-02, user : « rends les switch principaux plus visibles ») : 88 x 46, plein de couleur, ON / OFF ecrit dans la glissiere */
-button[role=switch].maitre{position:relative;width:88px;height:46px;border-radius:23px;border:0;background:#454558}
-button[role=switch].maitre::before{content:"OFF";position:absolute;top:50%;right:13px;transform:translateY(-50%);font-size:12px;font-weight:800;letter-spacing:1px;color:#d8d8e6}
-button[role=switch].maitre::after{top:5px;left:5px;width:36px;height:36px;background:#f4f4fa;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.maitre-groupe{display:inline-flex;align-items:center;gap:12px;margin-left:12px;padding:6px 8px 6px 14px;border:2px solid var(--text-2);border-radius:999px;background:var(--bg-2);vertical-align:middle}
+.maitre-groupe.m-ok{border-color:var(--ok);background:rgba(76,217,100,.12)}
+.maitre-groupe.m-err{border-color:var(--err);background:rgba(255,82,82,.14)}
+.maitre-groupe.m-warm{border-color:var(--warn);background:rgba(255,170,51,.14)}
+.maitre-lib{font-size:14px;font-weight:700;color:var(--text-0);white-space:nowrap}
+/* interrupteur PRINCIPAL d'une section : meme forme pour tous (user : « ils doivent se ressembler, par contre ils sont trop gros ») ; seule la COULEUR dit l'etat. 66 x 34, ON / OFF ecrit dans la glissiere */
+button[role=switch].maitre{position:relative;width:66px;height:34px;border-radius:17px;border:0;background:#454558}
+button[role=switch].maitre::before{content:"OFF";position:absolute;top:50%;right:10px;transform:translateY(-50%);font-size:11px;font-weight:800;letter-spacing:.8px;color:#d8d8e6}
+button[role=switch].maitre::after{top:4px;left:4px;width:26px;height:26px;background:#f4f4fa;box-shadow:0 1px 3px rgba(0,0,0,.45)}
 button[role=switch].maitre[aria-checked="true"]{background:var(--ok);border:0}
-button[role=switch].maitre[aria-checked="true"]::before{content:"ON";left:14px;right:auto;color:#07210d}
-button[role=switch].maitre[aria-checked="true"]::after{transform:translateX(42px);background:#fff}
+button[role=switch].maitre[aria-checked="true"]::before{content:"ON";left:11px;right:auto;color:#07210d}
+button[role=switch].maitre[aria-checked="true"]::after{transform:translateX(32px);background:#fff}
 button[role=switch].maitre.froid[aria-checked="true"]{background:var(--warn)}
 button[role=switch].maitre.froid[aria-checked="true"]::before{color:#2a1a02}
 button[role=switch].maitre.alerte{background:var(--err)}
 button[role=switch].maitre.alerte::before{color:#2a0606}
 button[role=switch].maitre:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
-details.carte.vol[open] > summary .res:has(.maitre-groupe){display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px 16px}
+details.carte.vol[open] > summary .res:has(.maitre-groupe){display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px 12px}
 summary .res .btn{margin-left:10px}
 button[role=switch][aria-checked="true"]{background:rgba(76,217,100,.25);border-color:var(--ok)}
 button[role=switch][aria-checked="true"]::after{transform:translateX(20px);background:var(--ok)}
@@ -368,8 +368,11 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
   <!-- ═════════ VUE D'ENSEMBLE ═════════ -->
   <section id="p-maintenant" role="tabpanel">
     <div class="pile" style="margin-top:18px">
-      <details class="carte vol" open data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Conteneurs <small>état réel</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div></details>
+      <details class="carte vol" open data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Services et conteneurs <small>état réel</small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <h3 class="grp-t">Services</h3><div id="services-etat" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          <h3 class="grp-t">Conteneurs</h3><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div></details>
     </div>
     <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
     <div class="dispo d21">
@@ -980,11 +983,8 @@ function renderBandeau() {
   } else h += cellule('Coût GPU aujourd\'hui', '—', 'chargement…');
   var v = ventes24h();
   h += cellule('Ventes 24 h', v ? eur(v.tot) : '—', v ? v.n + ' achat' + (v.n > 1 ? 's' : '') + ' (hors test)' : 'chargement…');
-  var coupes = servicesCoupes();
-  h += '<button type="button" class="cell svc' + (coupes.length ? ' alerte' : '') + '" data-goto="systeme"><div class="k">Services</div><div class="v" style="font-size:18px">'
-    + (S.svc ? (coupes.length ? '<span class="dot e"></span>' + coupes.length + ' coupé' + (coupes.length > 1 ? 's' : '') : '<span class="dot"></span>Tout actif') : '—')
-    + '</div><div class="s">' + esc(S.svc ? (coupes.length ? coupes.join(', ') : '4 services sur 4') : 'chargement…') + '</div></button>';
   majSiChange($('#bandeau'), h);
+  renderServicesEtat();
   var bm = $('#bandeau-modal'), ban = S.prev && S.prev.bandeau;
   if (ban && ban.texte) { bm.textContent = ban.texte; bm.className = 'bandeau-modal' + (ban.couleur === 'rouge' ? ' rouge' : ''); bm.hidden = false; } else bm.hidden = true;
   $('#maj').textContent = S.liveAt ? 'mis à jour à ' + new Date(S.liveAt).toLocaleTimeString('fr-FR') : 'chargement…';
@@ -1009,6 +1009,15 @@ function majSousBadges() {
 function filtreEvt(x) { return (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); }
 var ETAT_CONT = { busy: ['occupé', 'var(--accent)'], warm: ['chaud', 'var(--ok)'], starting: ['démarre…', 'var(--warn)'], absent: ['non déployé', 'var(--text-2)'], cold: ['froid', 'var(--text-2)'] };
 var NOMS_CONT = { text2image: 'Images', image_op: "Outils d'image", back_view: 'Vue de dos', tpose: 'T-pose', mesh: '3D', rig: 'Rig', anim: 'Animation', mvadapter: 'Multi-vues', mesh_segment: 'Segmentation', fbx_retarget: 'FBX' };
+function renderServicesEtat() {
+  var box = $('#services-etat'); if (!box) return;
+  if (!S.svc) { majSiChange(box, '<span class="note">état en cours de chargement…</span>'); return; }
+  majSiChange(box, KILL.map(function (k) {
+    var on = actif(k.k);
+    return '<button type="button" data-goto="systeme" title="Ouvrir Santé pour agir" style="background:none;color:inherit;font:inherit;cursor:pointer;border:1px solid ' + (on ? 'var(--border)' : 'var(--err)') + ';border-radius:999px;padding:3px 10px;font-size:12px">'
+      + esc(k.n) + ' <b style="color:' + (on ? 'var(--ok)' : 'var(--err)') + '">● ' + (on ? 'ON' : 'OFF') + '</b></button>';
+  }).join(''));
+}
 function renderConteneurs() {
   var m = S.modal;
   if (!m) { majSiChange($('#conteneurs'), '<span class="note">état en cours de chargement…</span>'); return; }
