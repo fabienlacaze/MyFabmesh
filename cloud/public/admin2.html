@@ -1157,11 +1157,15 @@ function majHorloge() {
 }
 
 /* ───────────────────────── Argent ───────────────────────── */
+/* OBJECTIF DE RENTABILITE : au moins x4 (user, 02/10/2026 : « rentables a au moins x4 »). Vert = x4 ou plus ; orange = sous x4 ; rouge = a perte (sous x1). */
+var OBJECTIF_RENTA = 4;
 function htmlVerdict(value, reel, credits) {
   if (credits <= 0 && reel > 0.005) return '<span class="pill">Non facturé</span>';
   if (reel <= 0.005) return '<span class="pill ok">Négligeable</span>';
   var x = value / reel;
-  return x >= 2 ? '<span class="pill ok"><span class="vl">Rentable </span>×' + x.toFixed(1) + '</span>' : x >= 1 ? '<span class="pill warn"><span class="vl">Juste </span>×' + x.toFixed(1) + '</span>' : '<span class="pill err"><span class="vl">À perte </span>×' + x.toFixed(2) + '</span>';
+  if (x >= OBJECTIF_RENTA) return '<span class="pill ok"><span class="vl">Rentable </span>×' + x.toFixed(1) + '</span>';
+  if (x >= 1) return '<span class="pill warn" title="Sous l\'objectif de ×' + OBJECTIF_RENTA + '"><span class="vl">Sous ×' + OBJECTIF_RENTA + ' · </span>×' + x.toFixed(1) + '</span>';
+  return '<span class="pill err"><span class="vl">À perte </span>×' + x.toFixed(2) + '</span>';
 }
 /* « Par operation » : TOUTES les operations qui existent (user : « il faut toutes les operations qui existent »). Celles qui n'ont pas servi sur la periode
    s'affichent a zero ; `famille` = type grossier des travaux, seul connu du filtre « clic sur une ligne ». */
@@ -2469,8 +2473,8 @@ function majResumes() {
   });
 }
 function resumeOps(lignes, v, c) {
-  var perte = lignes.filter(function (m) { return m.reel > 0.005 && m.value < m.reel; }).length, act = lignes.filter(function (m) { return m.count > 0; }).length;
-  return esc(act + ' opération' + (act > 1 ? 's' : '') + ' utilisée' + (act > 1 ? 's' : '') + ' sur ' + lignes.length + ' · valeur ' + eur(v) + ' · coût ' + eur(c)) + (perte ? ' ' + pillR('err', perte + ' à perte') : '');
+  var perte = lignes.filter(function (m) { return m.reel > 0.005 && m.credits > 0 && m.value < OBJECTIF_RENTA * m.reel; }).length, act = lignes.filter(function (m) { return m.count > 0; }).length;
+  return esc(act + ' opération' + (act > 1 ? 's' : '') + ' utilisée' + (act > 1 ? 's' : '') + ' sur ' + lignes.length + ' · valeur ' + eur(v) + ' · coût ' + eur(c)) + (perte ? ' ' + pillR('warn', perte + ' sous ×' + OBJECTIF_RENTA) : '');
 }
 cadence(majResumes, 1000);
 

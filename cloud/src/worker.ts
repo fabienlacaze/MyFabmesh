@@ -1866,7 +1866,8 @@ const PRICING_DEFAULTS = {
   desktop_gratuit:       1,          // 1 = « gratuit pendant la beta » affiche
   // Image ops
   text2image:       3,
-  back_view:        3,
+  // x4 (2026-10-02) : MESURE 30 j, 18 vues arriere dont 9 echecs (le cout des echecs retombe sur les reussites) : 0,11 EUR / essai, x2,2 a 3 credits -> 6 credits = x4,3.
+  back_view:        6,
   modify:           3,
   segment:          3,  // CLIPSeg detect-only (Auto Inpaint live mask preview) — each = a GPU call
   auto_inpaint:     6,
@@ -1894,7 +1895,8 @@ const PRICING_DEFAULTS = {
   tex_variant:      3,
   recolor:          3,
   outfit:           3,
-  outfit_complete:  6,
+  // x4 (2026-10-02) : MESURE 30 j, 8 habits completes (5 reussis), 3,69 EUR de GPU reel pour 4,86 EUR de credits = x1,3 -> 19 credits = x4,1 (une passe SDXL PAR PIECE).
+  outfit_complete:  19,
   // Mesh ops
   mesh_op_simple:   1,
   align_texture:    2,          // « Align Texture » : vraie reprojection (texture_project.py), 2026-09-28
@@ -1925,7 +1927,7 @@ const PRICING_DEFAULTS = {
   // travail GPU qu'un mask_inpaint (6). Pose a 2 comme les autres outils
   // portes, sur demande explicite du user (« 1 ou 2 credits »).
   region_retex:     3,          // releve 2026-09-27 (voir tex_variant)
-  reshape:          10,         // « Reshape a region » : repeinte SDXL + piece en 3D (TRELLIS), 2026-09-28
+  reshape:          23,         // « Reshape a region » : repeinte SDXL + piece en 3D (TRELLIS), 2026-09-28. x4 (2026-10-02) : MESURE 2 essais, 0,92 EUR reel chacun (228 a 505 s) a 10 credits = x1,75 -> 23 credits = x4,0. ECHANTILLON MINCE : a revoir avec plus d'essais.
   // Mesh generation ladder repriced 2026-07-28 from MEASURED Modal cost,
   // not from the (wrong) _meshCostUsd estimate. 30 days of succeeded
   // jobs: median 373s for the 1-credit preset, 420s for the 8-credit one
@@ -1934,16 +1936,20 @@ const PRICING_DEFAULTS = {
   // vary. At $0.000542/s on L40S plus the 300s scaledown tail, one
   // generation really costs ~$0.37; the old 1-credit price sold it for
   // $0.154 on the Studio pack, i.e. at a 58% LOSS. Floor is now 3.
-  mesh_fast:        8,
-  mesh_balanced:    10,
-  mesh_quality:     13,
+  // x4 (2026-10-02) : MESURE 30 j par palier (cout reel, echecs inclus) : fast x3,3 (11 essais) et standard/qualite x4,0 pile (74) ; balanced x7,5 et ultra 8K x6,3 passaient deja.
+  // Le cout est surtout FIXE (demarrage a froid, chargement, cuisson), il ne baisse pas avec les pas de diffusion : fast ne peut pas etre moins cher que balanced.
+  mesh_fast:        11,
+  mesh_balanced:    11,
+  mesh_quality:     14,
   mesh_ultra_8k:    16,
   mesh_multiref:    1,
   mesh_refine:      2,
   // Option « Auto-rectify » : un appel GPU a part (classe image, traine de
   // 300 s), ~0,23 EUR isole. A 1 credit elle perdait 0,10 EUR. Releve a 3 le
   // 2026-09-27 (meme prix que le rectify lance seul).
-  mesh_rectify:     3,
+  // x4 (2026-10-02) : MESURE 30 j, le redressement a coute 21,4 EUR reels (74 appels, 26 echecs) et n'est facture sur AUCUNE de ses lignes (credits 0, « compris dans le maillage ») ;
+  // 65 generations ont paye cette option 3 credits = 31,6 EUR : x1,5 -> 9 credits = x4,4.
+  mesh_rectify:     9,
   mesh_quality_plus: 1,
   mesh_ultra_q:     2,
   mesh_ultra_hd:    3,
@@ -2583,6 +2589,7 @@ const OP_HARDWARE: Record<string, keyof typeof GPU_USD_PER_SEC> = {
   'segment': 'A100',          // CORRIGE : _partsam.py tourne sur A100
   'animate': 'A10G', 'animate_fbx': 'CPU',
   'mesh-op': 'CPU', 'mesh-op-client': 'CPU', 'mesh-convert': 'CPU',
+  'manual-tool': 'CPU',       // outils du navigateur (peindre, etendre...) : aucun GPU ; absent de la table, il etait chiffre au tarif L40S (1 peinture = 0,62 EUR « reel »)
 };
 
 /** Cost of ONE job priced from how long it actually ran. Returns null
@@ -2705,7 +2712,7 @@ const IMAGE_OPS_AFFICHEES = ['modify', 'auto_inpaint', 'mask_inpaint', 'face_fix
  *  plutot que d'afficher a zero, a tort, un nom devine. */
 const OPERATIONS_CONNUES: string[] = [
   // images
-  'text2image', 'tpose', 'rectify', 'back-view', 'sheet', 'remove-bg', ...IMAGE_OPS_AFFICHEES, 'segment-image',
+  'text2image', 'tpose', 'rectify', 'back-view', 'sheet', 'mvadapter', 'remove-bg', ...IMAGE_OPS_AFFICHEES, 'segment-image',
   // 3D
   'mesh', 'mesh-face', 'retexture', 'reshape', 'segment', 'rig', 'animate', 'animate_fbx', 'construction3d', 'mesh-convert',
   // outils de maillage executes par le serveur
