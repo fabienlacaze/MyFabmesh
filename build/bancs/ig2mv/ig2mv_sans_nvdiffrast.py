@@ -16,6 +16,7 @@ ap.add_argument('--guidage', type=float, default=3.0)
 ap.add_argument('--graine', type=int, default=42)
 ap.add_argument('--taille', type=int, default=768)
 ap.add_argument('--ref-scale', type=float, default=1.0)
+ap.add_argument('--poids-forme', type=float, default=1.0)   # control_conditioning_scale : poids des cartes de position + normales
 ap.add_argument('--cartes-seulement', action='store_true')
 ap.add_argument('--prompt', default='high quality')   # texte decrivant l'objet (le prompt du projet donne a MV-Adapter le sens que la forme seule ne porte pas)
 ap.add_argument('--negatif', default='watermark, ugly, deformed, noisy, blurry, low contrast')
@@ -147,11 +148,11 @@ pipe.enable_vae_slicing()
 pipe.enable_model_cpu_offload()
 log('pipeline chargee ; generation (%d pas)...' % args.pas)
 images = pipe(args.prompt, height=H, width=W, num_inference_steps=args.pas, guidance_scale=args.guidage, num_images_per_prompt=6,
-              control_image=torch.from_numpy(controle).to('cuda'), control_conditioning_scale=1.0, reference_image=reference,
+              control_image=torch.from_numpy(controle).to('cuda'), control_conditioning_scale=args.poids_forme, reference_image=reference,
               reference_conditioning_scale=args.ref_scale, negative_prompt=args.negatif,
               cross_attention_kwargs={'scale': 1.0}, generator=torch.Generator(device='cuda').manual_seed(args.graine)).images
 for i, im in enumerate(images):
     im.save(os.path.join(args.sortie, 'vue_%d.png' % i))
-json.dump({'engine': 'mvadapter_ig2mv', 'elevations': EL, 'azimuts': AZ, 'distance': DIST, 'cadre': CADRE, 'pas': args.pas, 'prompt': args.prompt, 'graine': args.graine,
+json.dump({'engine': 'mvadapter_ig2mv', 'elevations': EL, 'azimuts': AZ, 'distance': DIST, 'cadre': CADRE, 'pas': args.pas, 'prompt': args.prompt, 'guidage': args.guidage, 'poids_forme': args.poids_forme, 'graine': args.graine,
            'duree_s': round(time.time() - T0, 1)}, open(os.path.join(args.sortie, 'vues.json'), 'w'))
 log('TERMINE : 6 vues enregistrees')
