@@ -19108,11 +19108,25 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     if (mesureParCle[cle] > 0) factureParCle[cle] = (factureParCle[cle] ?? 0) + eur;
     else factureSansOperationEur += eur;
   };
+  /* COUTS HORS OPERATIONS (2026-10-02) : un banc de mesure lance sur le VRAI conteneur (modal_app/test_options_avec_sans.py : ~2,5 USD de GPU) n'ecrit aucune ligne `jobs`, mais sa depense
+   * tombe dans la facture du jour de l'application. Sans ce retrait, la repartition « facture du jour / operations du jour » la mettait sur les quelques vrais travaux de la journee et faussait
+   * leur cout reel (donc les verdicts x4 qu'on calibrait justement). On la sort des operations et on la compte dans « facture sans operation ». Fichier : R2 `_meta/modal_hors_operations.json`
+   * = { jours: { 'AAAA-MM-JJ': { '<application>': <USD> } }, motif }. Ne retire jamais plus que ce qui est deja facture (la facture Modal arrive avec du retard). */
+  let horsOperations: Record<string, Record<string, number>> = {};
+  try {
+    const th = await r2GetText(env, '_meta/modal_hors_operations.json');
+    const jh = th ? JSON.parse(th) : null;
+    if (jh && typeof jh === 'object' && jh.jours && typeof jh.jours === 'object') horsOperations = jh.jours as Record<string, Record<string, number>>;
+  } catch { /* absent : rien a retirer */ }
   if (realByDayApp) {
     for (const [d, apps] of Object.entries(realByDayApp)) {
       if (d < debut30 || !apps || typeof apps !== 'object') continue;
-      for (const [app, usd] of Object.entries(apps)) {
-        if (typeof usd !== 'number') continue;
+      for (const [app, usdBrut] of Object.entries(apps)) {
+        if (typeof usdBrut !== 'number') continue;
+        const aRetirer = Number(horsOperations[d]?.[app]);
+        const retire = Number.isFinite(aRetirer) && aRetirer > 0 ? Math.min(usdBrut, aRetirer) : 0;
+        if (retire > 0) factureSansOperationEur += retire * USD_TO_EUR;
+        const usd = usdBrut - retire;
         const poste = posteApp(app);
         if (poste) imputer(`${d}|${poste}`, usd * USD_TO_EUR);
         else factureSansOperationEur += usd * USD_TO_EUR;
