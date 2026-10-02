@@ -301,6 +301,9 @@ details[data-id="a-ops"] .prix-champ .btn.petit{padding:0 6px;height:24px}
 details[data-id="a-ops"] .cat-pastille{min-width:16px;height:16px;font-size:10px;margin:0 5px 0 2px}
 .grp-op td,.grp-fixe td{background:var(--bg-2);font-size:12px;color:var(--text-1);border-bottom:1px solid var(--border);padding-block:7px}
 .grp-op{cursor:pointer}
+.grp-inact td{padding:5px 8px;font-size:12px;color:var(--text-2);cursor:pointer;border-bottom:1px dashed var(--border)}
+.grp-inact:hover td{background:var(--bg-2);color:var(--text-0)}
+.grp-inact:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .grp-op:hover td{background:var(--bg-3)}
 .grp-op:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .cat-pastille{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;color:#0a0a0e;margin:0 6px 0 2px;vertical-align:middle}
@@ -721,7 +724,7 @@ function heuresCourtes() { return PER_H_COURT[S.per]; }
 /* TRI DES TABLEAUX (2026-10-02, user : « il faut pouvoir trier »). Un clic sur un en-tete trie, un second inverse. Sens de depart : texte A -> Z, nombres et dates decroissants. */
 S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 }, dbg: { k: 'date', d: -1 }, dbglog: { k: 'uploaded', d: -1 }, audit: { k: 'ts', d: -1 }, recon: { k: 'created_at', d: -1 }, actifs: { k: 'created_at', d: -1 } };
 S.triComptes = 'activite';
-S.prixEdit = {}; S.winEdit = false; S.rechOps = ''; S.opsFerme = {}; S.fluxMode = null;
+S.prixEdit = {}; S.winEdit = false; S.rechOps = ''; S.opsFerme = {}; S.opsInactifs = {}; S.fluxMode = null;
 var TRI_TEXTE = { email: 1, type: 1, projet: 1, statut: 1, op: 1, pack: 1, etat: 1, operation: 1, status: 1, kind: 1, actor: 1, action: 1, target: 1, pack_id: 1, project_name: 1, asset_type: 1, ip: 1, project: 1 };
 function trier(liste, nom) {
   var t = S.tri[nom], k = t.k, d = t.d;
@@ -1420,13 +1423,32 @@ function htmlOpsGroupees(lignes) {
     h += '<tr class="grp-op" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + (!ferme) + '"><td><span class="chev">' + (ferme ? '▸' : '▾') + '</span>' + pastilleCat(c) + '<b>' + esc(c.n) + '</b> <span class="orig">' + act + ' sur ' + vraies.length + ' utilisées' + (nopt ? ' · ' + nopt + ' option' + (nopt > 1 ? 's' : '') : '') + '</span></td>'
       + '<td class="n tn">' + n + '</td><td class="n tn masque-etroit">' + num(cr) + '</td><td class="n tn">' + eur(va) + '</td><td class="n tn">' + eur(re) + '</td><td class="n tn" style="color:' + (va - re >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(va - re) + '</td>'
       + '<td class="masque-etroit"></td><td class="masque-etroit"></td><td></td><td></td></tr>';
-    if (!ferme) h += l.map(ligneOpHtml).join('');
+    if (!ferme) {
+      var vus = l, cache = [];
+      if (!rech) { vus = l.filter(ligneActive); cache = l.filter(function (m) { return !ligneActive(m); }); }
+      h += vus.map(ligneOpHtml).join('');
+      if (cache.length) {                                    // user : « pourquoi j'en ai plein qui sont "pas utilisee" ou "option" ? » -> replies par defaut, un clic les montre
+        var ouvert = !!S.opsInactifs[c.id], nopt = cache.filter(function (m) { return m.option; }).length, nop = cache.length - nopt, morceaux = [];
+        if (nop) morceaux.push(nop + ' opération' + (nop > 1 ? 's' : '') + ' sans activité');
+        if (nopt) morceaux.push(nopt + ' option' + (nopt > 1 ? 's' : '') + ' de prix');
+        h += '<tr class="grp-inact" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + ouvert + '"><td colspan="10"><span class="chev">' + (ouvert ? '▾' : '▸') + '</span>' + (ouvert ? 'Masquer ' : 'Afficher ') + 'les ' + morceaux.join(' et ') + '</td></tr>';
+        if (ouvert) h += cache.map(ligneOpHtml).join('');
+      }
+    }
   });
   return h;
 }
+/* Une ligne reste visible si elle a servi OU si son prix a une modification non enregistree (jamais cacher un changement en cours). */
+function ligneActive(m) {
+  if (!m.option && m.count > 0) return true;
+  var ks = m.option ? [m.op] : (OP_PRIX[m.op] || []), e = S.prixEdit || {};
+  return ks.some(function (k) { return e[k] != null; });
+}
+function basculerInactifs(g) { S.opsInactifs[g.dataset.cat] = g.getAttribute('aria-expanded') !== 'true'; renderArgent(); }
 function basculerGroupe(g) { S.opsFerme[g.dataset.cat] = g.getAttribute('aria-expanded') === 'true'; renderArgent(); }
-document.addEventListener('click', function (e) { var g = e.target.closest ? e.target.closest('tr.grp-op') : null; if (g) basculerGroupe(g); });
-document.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr.grp-op')) { e.preventDefault(); basculerGroupe(e.target); } });
+document.addEventListener('click', function (e) { var g = e.target.closest ? e.target.closest('tr.grp-op') : null; if (g) basculerGroupe(g); var h = e.target.closest ? e.target.closest('tr.grp-inact') : null; if (h) basculerInactifs(h); });
+document.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr.grp-op')) { e.preventDefault(); basculerGroupe(e.target); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr.grp-inact')) { e.preventDefault(); basculerInactifs(e.target); } });
 var OP_PRIX = {
   'text2image': ['text2image'], 'modify': ['modify'], 'segment-image': ['segment'], 'auto_inpaint': ['auto_inpaint'], 'mask_inpaint': ['mask_inpaint'], 'face_fix_image': ['face_fix_image'], 'upscale': ['upscale'],
   'back-view': ['back_view'], 'rectify': ['rectify'], 'remove-bg': ['remove_background'], 'tex_variant': ['tex_variant'], 'recolor': ['recolor'], 'outfit': ['outfit', 'outfit_complete'],
