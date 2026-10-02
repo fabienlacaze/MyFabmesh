@@ -2738,18 +2738,26 @@ const _PRIX_CLE_OP: Record<string, string> = {
   'back-view': 'back_view', 'remove-bg': 'remove_background', 'tex_variant': 'tex_variant', 'recolor': 'recolor', 'rectify': 'rectify', 'reshape': 'reshape', 'construction3d': 'construction3d',
   'animate': 'anim', 'animate_fbx': 'anim', 'segment': 'mesh_segment', 'mesh-convert': 'export', 'mesh-face': 'mesh_face_fix', 'tpose': 'text2image',
 };
-function _creditsMeshAuPrix(o: Record<string, unknown>, p: Record<string, number>): number {
+/** Une generation 3D = le PALIER choisi (`base`) + une ligne par OPTION cochee (`options`, cle sans prefixe : rectify, refine, quality_plus, ultra_q, ultra_hd, face_fix, smooth, max_tris).
+ *  /admin2 les montre comme des outils a part entiere (cle `mesh-option:<x>`), avec leur propre nombre d'usages, leur valeur au prix actuel et leur cout estime « avec et sans ».
+ *  Meme regle que `creditCost` : base + somme des options = le prix facture. */
+function _decomposerMeshAuPrix(o: Record<string, unknown>, p: Record<string, number>): { base: number; options: Record<string, number> } {
   const pr = String(o.preset ?? '');
-  let n = pr === 'ultra_8k' ? (p.mesh_ultra_8k ?? 8) : pr === 'quality' ? (p.mesh_quality ?? 4) : pr === 'balanced' ? (p.mesh_balanced ?? 2) : (p.mesh_fast ?? 1);
-  if (o.rectify) n += p.mesh_rectify ?? 3;
-  if (o.refine) n += p.mesh_refine ?? 2;
-  if (o.quality_plus && !o.ultra_q) n += p.mesh_quality_plus ?? 1;
-  if (o.ultra_q) n += p.mesh_ultra_q ?? 2;
-  if (o.ultra_hd && pr !== 'ultra_8k') n += p.mesh_ultra_hd ?? 3;
-  if (o.face_fix) n += p.mesh_face_fix ?? 2;
-  if (o.smooth) n += p.mesh_smooth ?? 1;
-  n += _supplementTriangles(Number(o.max_tris) || 500_000, p.mesh_tris_500k ?? 1, p.mesh_tris_base ?? 1, p.mesh_tris_courbe_pct ?? 130);
-  return n;
+  const base = pr === 'ultra_8k' ? (p.mesh_ultra_8k ?? 8) : pr === 'quality' ? (p.mesh_quality ?? 4) : pr === 'balanced' ? (p.mesh_balanced ?? 2) : (p.mesh_fast ?? 1);
+  const options: Record<string, number> = {};
+  if (o.rectify) options.rectify = p.mesh_rectify ?? 3;
+  if (o.refine) options.refine = p.mesh_refine ?? 2;
+  if (o.quality_plus && !o.ultra_q) options.quality_plus = p.mesh_quality_plus ?? 1;
+  if (o.ultra_q) options.ultra_q = p.mesh_ultra_q ?? 2;
+  if (o.ultra_hd && pr !== 'ultra_8k') options.ultra_hd = p.mesh_ultra_hd ?? 3;
+  if (o.face_fix) options.face_fix = p.mesh_face_fix ?? 2;
+  if (o.smooth) options.smooth = p.mesh_smooth ?? 1;
+  options.max_tris = _supplementTriangles(Number(o.max_tris) || 500_000, p.mesh_tris_500k ?? 1, p.mesh_tris_base ?? 1, p.mesh_tris_courbe_pct ?? 130);
+  return { base, options };
+}
+function _creditsMeshAuPrix(o: Record<string, unknown>, p: Record<string, number>): number {
+  const d = _decomposerMeshAuPrix(o, p);
+  return d.base + Object.values(d.options).reduce((a, b) => a + b, 0);
 }
 /** Prix de text2image AVANT le passage a 6 (2026-10-02). Un travail d'image ancien ne porte pas ses pas : on le recompte au prorata des deux prix. */
 const PRIX_IMAGE_AVANT_2026_10_02 = 3;
@@ -2780,6 +2788,7 @@ function _creditsAuPrixActuel(cle: string, op: string, opts: Record<string, unkn
 /** Famille (type grossier) d'un nom affiche : sert au filtre « clic sur une ligne » de la page, dont les travaux en cours ne connaissent que le type grossier. */
 function _familleOperation(cle: string): string {
   if (cle === 'segment-image') return 'text2image';
+  if (cle.startsWith('mesh-option:')) return 'mesh';      // option de la generation 3D : le filtre « clic sur une ligne » montre les generations
   if (cle.includes(':')) return cle.split(':')[0];
   return IMAGE_OPS_AFFICHEES.includes(cle) ? 'text2image' : cle;
 }
@@ -2799,6 +2808,8 @@ const OPERATIONS_CONNUES: string[] = [
   'text2image', 'tpose', 'rectify', 'back-view', 'sheet', 'mvadapter', 'remove-bg', ...IMAGE_OPS_AFFICHEES, 'segment-image',
   // 3D
   'mesh', 'retexture', 'reshape', 'segment', 'rig', 'animate', 'animate_fbx', 'construction3d', 'mesh-convert',
+  // options de la generation 3D, comptees comme des outils (cles de prix mesh_*) : voir _decomposerMeshAuPrix
+  ...['rectify', 'quality_plus', 'ultra_q', 'ultra_hd', 'smooth', 'max_tris', 'multiref', 'refine', 'face_fix'].map((o) => `mesh-option:${o}`),
   // outils de maillage executes par le serveur
   ...['smooth', 'decimate', 'center', 'fix_normals', 'fill_holes', 'subdivide', 'material', 'material_adjust', 'retex_swap', 'watertight', 'align_texture',
       'resize', 'explode', 'texture_var', 'enhance_tex', 'region_retex', 'name_parts'].map((o) => `mesh-op:${o}`),
@@ -2821,6 +2832,18 @@ const COUT_ESTIME_PAR_PRIX: Record<string, number> = {
   watertight_hd: 0.05, mesh_segment: 0.30, rig: 0.37, reskin: 0.20, anim: 0.05,
   // aucun GPU (CPU, ou navigateur) : le plus gros poste est la part de la facture Modal repartie
   construction3d: 0.02, export: 0.005, manual_tool: 0.005, mesh_op_simple: 0.03,
+  // OPTIONS de la generation 3D = cout MARGINAL « avec - sans », en EUR par usage (GPU L40S 0,000542 USD/s x 0,93). La difference de duree entre generations avec et sans l'option N'EST PAS
+  // mesurable dans la table `jobs` (119 generations reussies / 30 j : ecart-type 244 s, demarrages a froid, options cochees ensemble par les profils d'asset : une regression place ultra_hd a
+  // +274 s +/- 125 mais le palier ultra_8k a -328 s, les deux sont confondus). Hors redressement (MESURE), ces valeurs sont donc des ESTIMATIONS PHYSIQUES a confirmer par un banc avec / sans :
+  mesh_rectify: 0.33,          // MESURE 30 j : 21,4 EUR reels de GPU pour 65 generations qui l'ont paye (appel a part, avec son propre demarrage a froid)
+  mesh_ultra_hd: 0.011,        // ~20 s de Real-ESRGAN 8K (18-25 s mesures, voir _esrgan.affuter_atlas)
+  mesh_ultra_q: 0.015,         // voxels 1536 en cascade : ~30 s de plus que 1024 (mediane des generations « balanced » avec ultra_q = 90 s en tout apres le 29/09, donc l'ecart est borne)
+  mesh_quality_plus: 0.008,    // voxels 1024 en cascade : ~15 s de plus
+  mesh_smooth: 0.003,          // filtre bilateral sur l'atlas, CPU, ~5 s
+  mesh_refine: 0.05,           // affinage par tuiles SDXL + ControlNet-Tile : ~100 s (option SUSPENDUE sur le site, active au bureau)
+  mesh_face_fix: 0.02,         // passe SDXL Inpaint sur la zone du visage : ~40 s (option SUSPENDUE sur le site)
+  mesh_multiref: 0.005,        // une image de conditionnement de plus : ~10 s (jamais utilisee sur 30 j)
+  mesh_tris_500k: 0.006,       // cuisson / export plus longs avec plus de triangles : +12 s par doublement mesure (+/- 24 s)
 };
 
 /** Persist a single non-mesh operation in the jobs table so the
@@ -18837,7 +18860,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   const seriesByDay: Record<string, { ops: number; users: Set<string>; revenue_eur: number; cost_eur: number; margin_eur: number }> = {};
   // Operations des 30 derniers jours, gardees une par une pour le tableau
   // « Par type » au COUT REEL (voir byType30 plus bas).
-  const ops30: Array<{ day: string; op: string; cle: string; ok: boolean; credits: number; now: number; paye: number; mesure: number }> = [];
+  const ops30: Array<{ day: string; op: string; cle: string; ok: boolean; credits: number; now: number; opt?: Record<string, number>; paye: number; mesure: number }> = [];
   const prixActuels = await _getPricing(env);
 
   type J = {
@@ -18895,7 +18918,10 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       s.cost_eur += costEur;
       s.margin_eur += marginEur;
       const cleAff = _cleOperation(opType, j.options);
-      ops30.push({ day, op: opType, cle: cleAff, ok: j.status === 'succeeded', credits, now: j.status === 'succeeded' ? _creditsAuPrixActuel(cleAff, opType, j.options, Number(j.credit_cost ?? 0), prixActuels) : 0, paye: revenueEur, mesure: costEur });
+      const reussi = j.status === 'succeeded';
+      // generation 3D reussie : la ligne « mesh » ne compte que le PALIER, chaque option va sur sa ligne `mesh-option:<x>` (meme total)
+      const decomp = reussi && opType === 'mesh' ? _decomposerMeshAuPrix((j.options ?? {}) as Record<string, unknown>, prixActuels) : null;
+      ops30.push({ day, op: opType, cle: cleAff, ok: reussi, credits, now: decomp ? decomp.base : reussi ? _creditsAuPrixActuel(cleAff, opType, j.options, Number(j.credit_cost ?? 0), prixActuels) : 0, opt: decomp ? decomp.options : undefined, paye: revenueEur, mesure: costEur });
     }
   }
 
@@ -19109,6 +19135,14 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     b.real_eur += (typeof facture === 'number' && mesureParCle[cle] > 0)
       ? facture * (o.mesure / mesureParCle[cle])
       : o.mesure;                                      // rien de facture sur ce poste ce jour-la : la mesure
+  }
+  // lignes des OPTIONS 3D : un usage = une generation reussie qui l'a cochee ; credits au prix d'aujourd'hui (le credit enregistre n'est pas ventile par option)
+  for (const o of ops30) {
+    if (!o.opt) continue;
+    for (const [k, c] of Object.entries(o.opt)) {
+      const b = (byType30['mesh-option:' + k] ??= { count: 0, failed: 0, credits: 0, value_eur: 0, value_now_eur: 0, credits_now: 0, paid_eur: 0, measured_eur: 0, real_eur: 0 });
+      b.count += 1; b.credits += c; b.credits_now += c; b.value_eur += c * EUR_PER_CREDIT_NET; b.value_now_eur += c * EUR_PER_CREDIT_NET;
+    }
   }
   for (const b of Object.values(byType30)) {
     for (const k of ['value_eur', 'value_now_eur', 'paid_eur', 'measured_eur', 'real_eur'] as const) b[k] = +b[k].toFixed(3);
@@ -20918,7 +20952,15 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
     if (j.user_id) tousComptes.add(j.user_id);
     const cleAff = cleOp(opType, j.options);
     const t = (types[cleAff] ??= { count: 0, failed: 0, credits: 0, credits_now: 0, valeur_now_eur: 0, valeur_eur: 0, cout_eur: 0 });
-    if (!echec && j.status === 'succeeded') { const cn = _creditsAuPrixActuel(cleAff, opType, j.options, Number(j.credit_cost ?? 0), prixActuels); t.credits_now += cn; t.valeur_now_eur += cn * EUR_PAR_CREDIT; }
+    if (!echec && j.status === 'succeeded') {
+      const dm = opType === 'mesh' ? _decomposerMeshAuPrix((j.options ?? {}) as Record<string, unknown>, prixActuels) : null;
+      const cn = dm ? dm.base : _creditsAuPrixActuel(cleAff, opType, j.options, Number(j.credit_cost ?? 0), prixActuels);
+      t.credits_now += cn; t.valeur_now_eur += cn * EUR_PAR_CREDIT;
+      if (dm) for (const [ko, co] of Object.entries(dm.options)) {          // options 3D : une ligne chacune (voir _decomposerMeshAuPrix)
+        const to = (types['mesh-option:' + ko] ??= { count: 0, failed: 0, credits: 0, credits_now: 0, valeur_now_eur: 0, valeur_eur: 0, cout_eur: 0 });
+        to.count++; to.credits += co; to.credits_now += co; to.valeur_eur += co * EUR_PAR_CREDIT; to.valeur_now_eur += co * EUR_PAR_CREDIT;
+      }
+    }
     t.count++; if (echec) t.failed++; t.credits += credits; t.valeur_eur += valeur; t.cout_eur += cout;
     tot.ops++; if (echec) tot.echecs++; tot.credits += credits; tot.valeur_eur += valeur; tot.cout_eur += cout;
     const k = nbCases - 1 - Math.floor((now - Date.parse(j.created_at)) / (pasMin * 60_000));

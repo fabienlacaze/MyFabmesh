@@ -466,6 +466,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <details class="carte vol" open data-id="m-flux" data-res="flux"><summary><h2><span id="t-flux">Derniers travaux</span> <small id="n-flux"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <div class="note" id="flux-retour" hidden style="margin:0 0 6px"><button type="button" class="lienclair" data-act="retour">← Revenir aux derniers travaux</button></div>
+          <div class="note" id="flux-achats" hidden style="margin:0 0 6px"></div>
           <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
           <p class="note">Jusqu'aux 100 derniers travaux de tous les comptes (la tuile Travaux ou Échecs ouvre la liste complète de la période, 200 au plus). Pour l'historique d'un compte : onglet Comptes.</p>
         </div></details>
@@ -1218,6 +1219,7 @@ function renderMaintenant() {
     return '<tr><td>' + lien('compte', x.email || 'inconnu', x.email || 'inconnu') + '</td><td class="n tn" data-vu0="' + (x.vu_il_y_a_s || 0) + '"></td><td>' + (x.en_ligne ? '<span class="pill ok">en ligne</span>' : '<span class="pill">parti</span>') + '</td></tr>';
   }).join('') + '</tbody></table>' : '<div class="vide">Personne.</div>');
   if (S.fluxMode) renderFluxEchecs(); else { $('#t-flux').textContent = 'Derniers travaux'; $('#flux-retour').hidden = true; }
+  var fa = $('#flux-achats'); if (fa) { fa.hidden = !S.filt.compte; if (S.filt.compte) majSiChange(fa, 'Compte : <b>' + esc(S.filt.compte) + '</b> · <button type="button" class="lienclair" data-goto="argent">voir ses achats →</button>'); }
   var depuisPer = Date.now() - (PER_MIN[S.per] || 43200) * 60000;
   if (!S.fluxMode) {
     var ev = trier((L.evenements || []).filter(filtreEvt).filter(function (x) { return Date.parse(x.ts) >= depuisPer; }).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
@@ -1252,12 +1254,12 @@ function rattacherAnnexes(lignes) {
   var par = {}, out = [], touches = [];
   lignes.forEach(function (m) { par[m.op] = m; });
   lignes.forEach(function (m) {
-    var mere = ANNEXES[m.op] ? par[ANNEXES[m.op]] : null;
+    var mere = m.op === 'rectify' && par['mesh-option:rectify'] ? par['mesh-option:rectify'] : ANNEXES[m.op] ? par[ANNEXES[m.op]] : null;
     if (!mere) { out.push(m); return; }
     if (!(m.count > 0 || m.reel > 0.005)) return;                      // annexe sans activite : rien a rattacher, et pas de ligne propre
     mere.reel += m.reel; mere.value += m.value; mere.credits += m.credits; mere.paid = (Number(mere.paid) || 0) + (Number(m.paid) || 0);
     if (m.op === 'tpose') { mere.count += m.count; mere.failed += m.failed; }
-    (mere.annexes = mere.annexes || []).push(ANNEXE_LIB[m.op] || m.op);
+    if (mere.op.indexOf('mesh-option:') !== 0) (mere.annexes = mere.annexes || []).push(ANNEXE_LIB[m.op] || m.op);
     if (touches.indexOf(mere) < 0) touches.push(mere);
   });
   touches.forEach(completeOp);
@@ -1267,7 +1269,7 @@ function rattacherAnnexes(lignes) {
 function prixDe(op) {
   if (OP_PRIX[op]) return OP_PRIX[op];
   if (op.indexOf('manual-tool') === 0) return ['manual_tool'];
-  if (op.indexOf('mesh-op') === 0) return ['mesh_op_simple'];
+  if (op.indexOf('mesh-op:') === 0) return ['mesh_op_simple'];
   return null;
 }
 function estimeOp(op) {
@@ -1280,7 +1282,7 @@ function estimeOp(op) {
   return best;
 }
 function rentaOp(m) {
-  var ok = (m.count || 0) - (m.failed || 0), mes = m.reel > 0.005 && m.value > 0 ? m.value / m.reel : null;
+  var ok = (m.count || 0) - (m.failed || 0), mes = m.reel > 0.005 && m.value > 0 && !m.estime ? m.value / m.reel : null;
   if (mes != null && ok >= MIN_ECHANTILLON) return { x: mes, est: false };
   var e = estimeOp(m.op);
   if (e) return { x: e.x, est: true, cout: e.cout, prix: e.prix, mes: mes, ok: ok };
@@ -1307,33 +1309,40 @@ function avecToutesLesOps(lignes, connues, familles) {
   return lignes;
 }
 function completeOp(o) { o.marge = o.value - o.reel; o.ratio = o.reel > 0.005 ? o.value / o.reel : 1e9; var ok = (o.count || 0) - (o.failed || 0); o.prix = ok > 0 ? o.value / ok : 0; o.coutop = o.count > 0 ? o.reel / o.count : 0; return o; }
-function ligneOpHtml(m) { return ligneOpSeule(m) + (m.supls ? m.supls.map(suplHtml).join('') : ''); }
-/* Suppléments de prix (user, 02/10/2026 : « toujours pas compris ces option ») : cases à cocher de la fenêtre 3D dont le prix S'AJOUTE à celui de la génération. Ils n'ont ni travail, ni coût propre
-   (tout est déjà dans la ligne de l'opération mère) : ils s'affichent en retrait SOUS elle, en français. `par` = opération mère ; sans mère, c'est un réglage (publication marketplace). */
-var SUPPL = {
-  mesh_rectify: ['mesh', 'Redressement auto', 'site : 3D > Advanced options > case « Auto-rectify » (redresse la photo de face avant la 3D)'],
-  mesh_face_fix: ['mesh', 'Correction du visage', 'site : case « Face fix » SUSPENDUE (grisée, non facturée)'],
-  mesh_smooth: ['mesh', 'Texture lissée', 'site : 3D > Advanced options > case « Texture smooth »'],
-  mesh_multiref: ['mesh', 'Multi-références', 'site : case « Multi-reference », visible seulement quand une vue de dos est jointe'],
-  mesh_quality_plus: ['mesh', 'Arêtes nettes', 'site : 3D > Advanced options > case « Sharp edges »'],
-  mesh_ultra_q: ['mesh', 'Géométrie fine', 'site : 3D > Advanced options > case « Fine geometry »'],
-  mesh_ultra_hd: ['mesh', 'Texture nette 8K', 'site : case « Sharpened 8192px » MASQUÉE (comprise dans le préréglage Ultra 8K)'],
-  mesh_refine: ['mesh', 'Affinage des détails', 'site : case « Detail refine » SUSPENDUE (grisée, non facturée)'],
-  mesh_tris_500k: ['mesh', 'Triangles max : prix pour 500 K', 'site : 3D > Advanced options > menu « Max triangles » ; au-delà de 500 K, suit la courbe'],
-  mesh_tris_base: ['mesh', 'Triangles max : minimum', 'même menu « Max triangles » : prix plancher, quel que soit le choix (50 K à 500 K)'],
-  mesh_tris_courbe_pct: ['mesh', 'Triangles max : courbe', 'en % et non en crédits (100 = linéaire ; 130 : 1 M = +3, 2 M = +7, 3 M = +11)'],
-  rectify: ['mesh', 'Redressement lancé seul', 'aucun bouton sur le site : il passe par la case « Auto-rectify » ci-dessus (route API seule)'],
-  market_publish: [null, 'Publier sur la marketplace', 'site : bouton « Publish to marketplace » (image, 3D, squelette, animation) : aucun calcul GPU']
+/* OPTIONS DE LA GENERATION 3D (user, 02/10/2026 : « c'est un outil comme les autres qui coûte du crédit, arrête de mettre supplément ; on doit pouvoir estimer le avec et sans »).
+   Chaque case de la fenêtre 3D est une ligne d'outil `mesh-option:<x>` : nombre de générations qui l'ont cochée, crédits et valeur au prix d'aujourd'hui (le serveur sépare le palier des options),
+   coût « avec − sans » ESTIMÉ (table `estimes` du serveur ; le redressement, lui, est MESURÉ : appels à part). La ligne « mesh » ne garde que le palier choisi ; son coût est diminué du coût estimé des options. */
+var OPTIONS_MESH = {
+  'mesh-option:rectify': ['Redressement auto', 'site : 3D > Advanced options > case « Auto-rectify » (redresse la photo de face avant la 3D)'],
+  'mesh-option:quality_plus': ['Arêtes nettes', 'site : 3D > Advanced options > case « Sharp edges »'],
+  'mesh-option:ultra_q': ['Géométrie fine', 'site : 3D > Advanced options > case « Fine geometry »'],
+  'mesh-option:ultra_hd': ['Texture nette 8K', 'site : case « Sharpened 8192px » masquée (comprise dans le préréglage Ultra 8K)'],
+  'mesh-option:smooth': ['Texture lissée', 'site : 3D > Advanced options > case « Texture smooth »'],
+  'mesh-option:max_tris': ['Triangles max', 'site : 3D > Advanced options > menu « Max triangles » (le prix suit le nombre choisi)'],
+  'mesh-option:multiref': ['Multi-références', 'site : case « Multi-reference », visible seulement avec une vue de dos jointe'],
+  'mesh-option:refine': ['Affinage des détails', 'site : case « Detail refine » suspendue (grisée, non facturée) ; active au bureau'],
+  'mesh-option:face_fix': ['Correction du visage', 'site : case « Face fix » suspendue (grisée, non facturée) ; active au bureau']
 };
-function suplHtml(o) {
-  var pas = o.op === 'mesh_tris_courbe_pct' ? ['Pourcentage de courbure du barème, pas un prix en crédits'] : o.op === 'rectify' ? ['Prix du redressement lancé seul (route API)'] : ['Se coche dans la fenêtre de génération 3D : ce prix s\'ajoute à celui de la génération. Son usage et son coût sont déjà comptés dans la ligne ci-dessus.'];
-  return '<tr class="supl" style="color:var(--text-2)"><td class="coupe opt-cle" style="padding-left:30px"><span aria-hidden="true">↳</span> <span style="color:var(--text-1)">' + esc(o.lib || o.op) + '</span><div class="orig">' + esc(o.detail || '') + ' · <span style="font:11px var(--mono)">' + esc(o.op) + '</span></div></td>'
-    + '<td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td>'
-    + '<td>' + pillPrix(o.op, pas[0], o.op === 'mesh_tris_courbe_pct' ? ' %' : ' cr', o.op === 'rectify' || o.op === 'mesh_tris_courbe_pct' ? '' : '+') + '</td><td class="n prix">' + (S.pricing ? champPrix(o.op, '', true) : '…') + '</td></tr>';
-}
-/* Le « verdict » d'une ligne sans coût propre est son PRIX en crédits (suit la saisie : voir le gestionnaire `input`). */
+/* Tarifs qui n'ont aucune ligne d'outil : une action (publier) ou la route API du redressement lancé seul. Leur « verdict » est le prix. */
+var AUTRES_TARIFS = {
+  rectify: ['Redressement lancé seul', 'aucun bouton sur le site : il passe par la case « Auto-rectify » (route API seule)'],
+  market_publish: ['Publier sur la marketplace', 'site : bouton « Publish to marketplace » (image, 3D, squelette, animation) : aucun calcul GPU']
+};
+function nomOp(op) { return OPTIONS_MESH[op] ? OPTIONS_MESH[op][0] : op; }
+function ligneOpHtml(m) { return ligneOpSeule(m); }
 function pillPrix(k, titre, unite, signe) { var v = valPrix(k); return '<span class="pill ok" data-pill-pk="' + esc(k) + '" data-unite="' + esc(unite) + '" data-signe="' + esc(signe) + '" title="' + esc(titre) + '">' + signe + (v == null ? '…' : v) + unite + '</span>'; }
-
+/* Coût des options : retire de la ligne « mesh » ce que coûtent les options estimées (le redressement n'est pas retiré : son coût est celui d'appels séparés, déjà hors de « mesh »). */
+function separerCoutsOptions(lignes) {
+  var E = S.estimes || {}, mesh = null, retire = 0;
+  lignes.forEach(function (m) { if (m.op === 'mesh') mesh = m; });
+  lignes.forEach(function (m) {
+    if (m.op.indexOf('mesh-option:') !== 0 || m.op === 'mesh-option:rectify') return;
+    var c = 0; (OP_PRIX[m.op] || []).forEach(function (k) { if (E[k] > 0) c = E[k]; });
+    if (!(m.count > 0) || !(c > 0)) return;
+    m.reel = c * m.count; m.estime = true; retire += m.reel; completeOp(m);
+  });
+  if (mesh && retire > 0) { mesh.reel = Math.max(0, mesh.reel - retire); mesh.retireOptions = retire; completeOp(mesh); }
+}
 function ligneOpSeule(m) {
   if (m.option) {
     var desc = PRICING_DESCRIPTIONS[m.op] || '';
@@ -1342,8 +1351,9 @@ function ligneOpSeule(m) {
       + '<td>' + pillPrix(m.op, 'Action sans calcul GPU : pas de coût propre', ' cr', '') + '</td><td class="n prix">' + (S.pricing ? champPrix(m.op, '', true) : '…') + '</td></tr>';
   }
   var fam = m.famille || m.op;
-  if (!m.count && !(m.reel > 0.005)) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, m.op) + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td>' + htmlVerdict(m) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
-  return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, m.op) + (m.annexes ? ' <span class="orig" title="Le coût de ' + esc(m.annexes.join(', ')) + ' est compté avec cette opération (aucune recette propre)">+ ' + esc(m.annexes.join(' + ')) + '</span>' : '') + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : (rentaOp(m) || {}).est ? 'var(--text-2)' : 'var(--err)') + '"' + ((rentaOp(m) || {}).est && m.marge < 0 ? ' title="Marge mesurée sur un échantillon trop mince : voir le verdict (estimé)"' : '') + '>' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
+  var sousNom = OPTIONS_MESH[m.op] ? '<div class="orig">' + esc(OPTIONS_MESH[m.op][1]) + '</div>' : m.op === 'mesh' ? '<div class="orig">palier de qualité seul : chaque option a sa propre ligne</div>' : '';
+  if (!m.count && !(m.reel > 0.005)) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, nomOp(m.op)) + sousNom + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td>' + htmlVerdict(m) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
+  return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, nomOp(m.op)) + (m.annexes ? ' <span class="orig" title="Le coût de ' + esc(m.annexes.join(', ')) + ' est compté avec cette opération (aucune recette propre)">+ ' + esc(m.annexes.join(' + ')) + '</span>' : '') + sousNom + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn"' + (m.estime ? ' title="Coût ESTIMÉ avec − sans (écart de GPU de l\'option), pas une mesure"' : '') + '>' + (m.estime ? '≈ ' : '') + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : (rentaOp(m) || {}).est ? 'var(--text-2)' : 'var(--err)') + '"' + ((rentaOp(m) || {}).est && m.marge < 0 ? ' title="Marge mesurée sur un échantillon trop mince : voir le verdict (estimé)"' : '') + '>' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
 }
 /* Coût REEL Modal de l'heure passee (user : « c'est le plus precis qu'on puisse avoir ») : difference de deux releves horaires de la facture, demarrages a froid et inactivite compris. */
 function hhmm(iso) { var d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -1382,7 +1392,7 @@ function renderArgentCourt() {
   $('#note-graphe').textContent = 'La facture Modal réelle n\'existe que par jour : sur ' + h + ' h le coût est estimé d\'après la durée de chaque travail. Valeur des crédits = crédits des travaux réussis au prix net ; ce n\'est pas de l\'argent encaissé.';
   S.estimes = R.estimes || {}; S.eurCred = Number(R.eur_par_credit) || 0.162; S.coquilles = (R.types.project || {}).count || 0;
   var lignes = Object.keys(R.types).filter(function (op) { return op !== 'project'; }).map(function (op) { var m = R.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed, credits: m.credits_now != null ? m.credits_now : m.credits, value: m.valeur_now_eur != null ? m.valeur_now_eur : m.valeur_eur, reel: m.cout_eur }); });
-  lignes = trier(rattacherAnnexes(avecToutesLesOps(lignes, R.connues, R.familles)), 'ops'); calcProprios(lignes);
+  lignes = rattacherAnnexes(avecToutesLesOps(lignes, R.connues, R.familles)); separerCoutsOptions(lignes); lignes = trier(lignes, 'ops'); calcProprios(lignes);
   S.resOps = resumeOps(lignes, T.valeur_eur, T.cout_eur);
   if (!focusPrix()) $('#t-ops').innerHTML = htmlOpsGroupees(lignes) || '<tr><td colspan="10" class="vide">Aucune opération' + (S.rechOps ? ' ne correspond à la recherche' : ' sur ' + h + ' h') + '.</td></tr>';
   $('#ops-fenetre').textContent = lh + ' · coût estimé · clic sur une ligne pour filtrer';
@@ -1433,7 +1443,7 @@ function renderArgent() {
   if (!bt || !bt.types) { tb.innerHTML = '<tr><td colspan="9" class="vide">' + (st ? 'Données indisponibles.' : S.err.stats ? 'Statistiques indisponibles : ' + esc(S.err.stats) + '. Cliquez sur Actualiser.' : 'Chargement…') + '</td></tr>'; $('#resume-ops').textContent = ''; $('#note-ops').textContent = ''; return renderGpu(); }
   S.estimes = bt.estimes || {}; S.eurCred = Number(bt.eur_par_credit) || 0.162; S.coquilles = (bt.types.project || {}).count || 0;
   var lignes = Object.keys(bt.types).filter(function (op) { return op !== 'project'; }).map(function (op) { var m = bt.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed || 0, credits: m.credits_now != null ? m.credits_now : m.credits, value: m.value_now_eur != null ? m.value_now_eur : m.value_eur, reel: m.real_eur, paid: m.paid_eur }); });
-  lignes = trier(rattacherAnnexes(avecToutesLesOps(lignes, bt.connues, bt.familles)), 'ops'); calcProprios(lignes);
+  lignes = rattacherAnnexes(avecToutesLesOps(lignes, bt.connues, bt.familles)); separerCoutsOptions(lignes); lignes = trier(lignes, 'ops'); calcProprios(lignes);
   var totV = 0, totR = 0, totP = 0;
   lignes.forEach(function (m) { totV += m.value; totR += m.reel; totP += Number(m.paid) || 0; });
   if (!focusPrix()) tb.innerHTML = htmlOpsGroupees(lignes) || '<tr><td colspan="10" class="vide">Aucune opération' + (S.rechOps ? ' ne correspond à la recherche' : ' sur 30 jours') + '.</td></tr>';
@@ -1553,6 +1563,7 @@ function opCat(op) {
   if (op === 'animate' || op === 'animate_fbx') return 'anim';
   if (op === 'mesh-convert') return '3d';
   if (op.indexOf('manual-tool') === 0) return catParNom(op.split(':')[1], 'image');       // outils manuels du navigateur : surtout des outils d'image (peindre, flouter, cloner...)
+  if (op.indexOf('mesh-option:') === 0) return '3d';                                      // options de la generation 3D (avant le test mesh-op, dont elles partagent le debut du nom)
   if (op.indexOf('mesh-op') === 0) return catParNom(op.split(':')[1], '3d');                // outils de maillage : 3D, sauf la peau (skin_paint)
   return catParNom(op, '3d');                                                               // mesh, retexture, reshape, segment, construction3d...
 }
@@ -1570,20 +1581,15 @@ function lignesOptions() {
   var p = S.prixProprio || {}, out = [];
   Object.keys(S.pricing.defaults).sort().forEach(function (k) {
     if (k.indexOf('desktop_') === 0 || p[k]) return;
-    var sp = SUPPL[k];
-    out.push({ op: k, option: true, cat: sp && sp[0] ? opCat(sp[0]) : prixCat(k), par: sp ? sp[0] : null, lib: sp ? sp[1] : '', detail: sp ? sp[2] : '', count: 0, failed: 0, credits: 0, value: 0, reel: 0 });
+    var at = AUTRES_TARIFS[k];
+    out.push({ op: k, option: true, cat: prixCat(k), lib: at ? at[0] : '', detail: at ? at[1] : '', count: 0, failed: 0, credits: 0, value: 0, reel: 0 });
   });
   return out;
 }
 function pastilleCat(c) { return '<span class="cat-pastille" style="background:' + c.col + '">' + (c.num || '·') + '</span>'; }
 /* « Par operation » en groupes repliables, avec le sous-total de chaque categorie ; l'ordre de tri choisi vaut DANS chaque groupe. Une recherche deplie tout. */
 function htmlOpsGroupees(lignes) {
-  var opts = lignesOptions(), parOp = {};
-  lignes.forEach(function (m) { parOp[m.op] = m; m.supls = null; });
-  var libres = opts.filter(function (o) { var mere = o.par ? parOp[o.par] : null; if (mere) { (mere.supls = mere.supls || []).push(o); return false; } return true; });
-  var ordreSupl = Object.keys(SUPPL);
-  lignes.forEach(function (m) { if (m.supls) m.supls.sort(function (x, y) { return ordreSupl.indexOf(x.op) - ordreSupl.indexOf(y.op); }); });
-  var vis = filtrerOps(lignes.concat(libres)), rech = !!String(S.rechOps || '').trim(), parCat = {}, h = '';
+  var vis = filtrerOps(lignes.concat(lignesOptions())), rech = !!String(S.rechOps || '').trim(), parCat = {}, h = '';
   CATS.forEach(function (c) { parCat[c.id] = []; });
   vis.forEach(function (m) { parCat[m.cat || opCat(m.op)].push(m); });
   CATS.forEach(function (c) {
@@ -1612,7 +1618,7 @@ function htmlOpsGroupees(lignes) {
 /* Une ligne reste visible si elle a servi OU si son prix a une modification non enregistree (jamais cacher un changement en cours). */
 function ligneActive(m) {
   if (!m.option && m.count > 0) return true;
-  var ks = (m.option ? [m.op] : (OP_PRIX[m.op] || [])).concat((m.supls || []).map(function (s) { return s.op; })), e = S.prixEdit || {};
+  var ks = m.option ? [m.op] : (OP_PRIX[m.op] || []), e = S.prixEdit || {};
   return ks.some(function (k) { return e[k] != null; });
 }
 function basculerInactifs(g) { S.opsInactifs[g.dataset.cat] = g.getAttribute('aria-expanded') !== 'true'; renderArgent(); }
@@ -1628,14 +1634,16 @@ var OP_PRIX = {
   'mesh-op:smooth': ['mesh_op_simple'], 'mesh-op:decimate': ['mesh_op_simple'], 'mesh-op:center': ['mesh_op_simple'], 'mesh-op:fix_normals': ['mesh_op_simple'], 'mesh-op:fill_holes': ['mesh_op_simple'],
   'mesh-op:subdivide': ['mesh_op_simple'], 'mesh-op:material': ['mesh_op_simple'], 'mesh-op:material_adjust': ['mesh_op_simple'], 'mesh-op:retex_swap': ['mesh_op_simple'], 'mesh-op:resize': ['mesh_op_simple'],
   'mesh-op:explode': ['mesh_op_simple'], 'mesh-op:watertight': ['watertight_hd'], 'mesh-op:align_texture': ['align_texture'], 'mesh-op:texture_var': ['texture_var'], 'mesh-op:enhance_tex': ['enhance_tex'],
-  'mesh-op:region_retex': ['region_retex'], 'mesh-op:name_parts': ['name_parts'], 'mesh-convert': ['export'], 'manual-tool:export_image': ['export'], 'manual-tool:export_glb': ['export'], 'manual-tool:export_anim': ['export'],
+  'mesh-op:region_retex': ['region_retex'], 'mesh-op:name_parts': ['name_parts'],
+  'mesh-option:rectify': ['mesh_rectify'], 'mesh-option:quality_plus': ['mesh_quality_plus'], 'mesh-option:ultra_q': ['mesh_ultra_q'], 'mesh-option:ultra_hd': ['mesh_ultra_hd'], 'mesh-option:smooth': ['mesh_smooth'],
+  'mesh-option:max_tris': ['mesh_tris_500k', 'mesh_tris_base', 'mesh_tris_courbe_pct'], 'mesh-option:multiref': ['mesh_multiref'], 'mesh-option:refine': ['mesh_refine'], 'mesh-option:face_fix': ['mesh_face_fix'], 'mesh-convert': ['export'], 'manual-tool:export_image': ['export'], 'manual-tool:export_glb': ['export'], 'manual-tool:export_anim': ['export'],
   'manual-tool:clone_stamp': ['manual_tool'], 'manual-tool:paint': ['manual_tool'], 'manual-tool:extend': ['manual_tool'], 'manual-tool:symmetrize': ['manual_tool'], 'manual-tool:color_pick': ['manual_tool'],
   'manual-tool:skeleton_points': ['manual_tool'], 'manual-tool:rig_joints': ['manual_tool'], 'manual-tool:open_anim': ['manual_tool'],
   'mesh-op-client:smooth': ['mesh_op_simple'], 'mesh-op-client:decimate': ['mesh_op_simple'], 'mesh-op-client:subdivide': ['mesh_op_simple'], 'mesh-op-client:fix_normals': ['mesh_op_simple'], 'mesh-op-client:fill_holes': ['mesh_op_simple'],
   'mesh-op-client:center': ['mesh_op_simple'], 'mesh-op-client:paint_emissive': ['mesh_op_simple'], 'mesh-op-client:paint_mesh': ['mesh_op_simple'], 'mesh-op-client:clone3d': ['mesh_op_simple'], 'mesh-op-client:skin_paint': ['mesh_op_simple']
 };
 var PRIX_LIB = { mesh_fast: 'rapide', mesh_balanced: 'équilibré', mesh_quality: 'qualité', mesh_ultra_8k: '8K', outfit: 'habits', outfit_complete: 'complet', rig: 'squelette', reskin: 'peau seule',
-  retex_fast: 'rapide', retex_balanced: 'équilibré', retex_quality: 'qualité', retex_ultra_8k: '8K' };
+  retex_fast: 'rapide', retex_balanced: 'équilibré', retex_quality: 'qualité', retex_ultra_8k: '8K', mesh_tris_500k: 'pour 500 K', mesh_tris_base: 'minimum', mesh_tris_courbe_pct: 'courbe %' };
 function valPrix(k) { var e = S.prixEdit; return e && e[k] != null ? e[k] : (S.pricing ? S.pricing.current[k] : null); }
 function champPrix(k, lib, sansRaz) {
   var D = S.pricing.defaults, v = valPrix(k), mod = v !== D[k];
@@ -1661,7 +1669,7 @@ function calcProprios(lignes) {
   Object.keys(OP_PRIX).forEach(function (op) { if (presentes[op]) OP_PRIX[op].forEach(function (k) { if (!p[k] && (!S.pricing || S.pricing.defaults[k] != null)) p[k] = op; }); });
   S.prixProprio = p;
 }
-function filtrerOps(l) { var q = String(S.rechOps || '').toLowerCase().trim(); return q ? l.filter(function (m) { return m.op.toLowerCase().indexOf(q) >= 0 || (m.supls || []).some(function (s) { return (s.op + ' ' + (s.lib || '')).toLowerCase().indexOf(q) >= 0; }); }) : l; }
+function filtrerOps(l) { var q = String(S.rechOps || '').toLowerCase().trim(); return q ? l.filter(function (m) { return (m.op + ' ' + nomOp(m.op) + ' ' + (m.lib || '')).toLowerCase().indexOf(q) >= 0; }) : l; }
 function focusPrix() { var a = document.activeElement, tb = $('#t-ops'); return !!(a && a.dataset && a.dataset.pk && tb && tb.contains(a)); }
 function majBarrePrix() {
   var bar = $('#barre-prix'); if (!bar) return;
@@ -1800,17 +1808,19 @@ function tuileAct(act, titre, valeur, sous, o) {
   return '<button type="button" class="cell svc' + (o.alerte ? ' alerte' : '') + (on ? ' sel' : '') + '" data-act="' + act + '"' + (act === 'echecs' || act === 'travaux' ? ' aria-pressed="' + !!on + '"' : '') + ' title="' + esc(o.titre || '') + '">'
     + '<div class="k">' + esc(titre) + '</div><div class="v tn">' + valeur + '</div><div class="s">' + sous + '</div></button>';
 }
+/* Compte filtre qu'on peut demander au serveur par e-mail (« inconnu » = comptes sans e-mail : filtre cote page seulement). */
+function comptePourTraces() { var c = S.filt && S.filt.compte; return c && c !== 'inconnu' ? c : ''; }
 async function chargerEchecs(force) {
-  var per = S.per, min = PER_MIN[per] || 43200, mode = S.fluxMode; if (!mode) return;
-  if (!force && S.echecs && S.echecs.per === S.per && S.echecs.mode === mode && Date.now() - S.echecs.at < 60000) return;
+  var per = S.per, min = PER_MIN[per] || 43200, mode = S.fluxMode, cp = comptePourTraces(); if (!mode) return;
+  if (!force && S.echecs && S.echecs.per === S.per && S.echecs.mode === mode && (S.echecs.compte || '') === cp && Date.now() - S.echecs.at < 60000) return;
   /* 2026-10-02 (T4 / T12) : echec visible (S.err.echecs) et reponse d'une periode ou d'un mode abandonnes IGNOREE. */
-  var j = await lecture('echecs', http('/api/admin/traces?' + (mode === 'echecs' ? 'statuts=failed&' : '') + 'limit=200&minutes=' + min), function () { return per === S.per && mode === S.fluxMode; });
-  if (per !== S.per || S.fluxMode !== mode) return;
-  if (j) S.echecs = { per: per, mode: mode, at: Date.now(), liste: j.traces || [] };
+  var j = await lecture('echecs', http('/api/admin/traces?' + (mode === 'echecs' ? 'statuts=failed&' : '') + 'limit=200&minutes=' + min + (cp ? '&email=' + encodeURIComponent(cp) : '')), function () { return per === S.per && mode === S.fluxMode && cp === comptePourTraces(); });
+  if (per !== S.per || S.fluxMode !== mode || cp !== comptePourTraces()) return;
+  if (j) S.echecs = { per: per, mode: mode, compte: cp, at: Date.now(), liste: j.traces || [] };
   renderMaintenant();
 }
 function renderFluxEchecs() {
-  var mode = S.fluxMode, E = S.echecs && S.echecs.per === S.per && S.echecs.mode === mode ? S.echecs : null, nomMode = mode === 'echecs' ? 'Échecs' : 'Travaux';
+  var mode = S.fluxMode, E = S.echecs && S.echecs.per === S.per && S.echecs.mode === mode && (S.echecs.compte || '') === comptePourTraces() ? S.echecs : null, nomMode = mode === 'echecs' ? 'Échecs' : 'Travaux';
   $('#t-flux').textContent = nomMode; $('#flux-retour').hidden = false;
   if (!E) { var ee = S.err.echecs; $('#n-flux').textContent = ee ? 'indisponible' : 'chargement…'; majSiChange($('#flux'), ee ? '<tr><td colspan="7" class="vide msg-err">Liste indisponible : ' + esc(ee) + '. Nouvelle tentative dans une minute, ou bouton Actualiser.</td></tr>' : '<tr><td colspan="7" class="vide">Chargement…</td></tr>'); return; }
   /* 2026-10-02 (T8) : les en-tetes se trient aussi dans cette liste (le tri lit ts / statut : copies portant ces cles, E.liste n'est pas modifiee). (T9) : un compte sans e-mail est le filtre « inconnu », un type absent « ? » (comme les liens). */
@@ -2002,6 +2012,7 @@ function renderAll() {
   if (S.tab === 'systeme') { renderKill(); renderWarm(); renderSante(); renderSecurite(); }
   majSousBadges(); majResumes();
 }
+function allerCarte(id) { var c = $('details[data-id="' + id + '"]'); if (c) { c.open = true; if (c.scrollIntoView) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
 function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
@@ -2022,8 +2033,8 @@ function selectionnerCompteParEmail(email) {
 document.addEventListener('click', async function (e) {
   var t = e.target, b;
   if (t.closest('#bandeau-modal')) return ouvrirOnglet('argent');
-  if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } renderAll(); if (f === 'compte' && S.tab === 'maintenant') chargerImages(); return; }
-  if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'users') chargerImages(); return; }
+  if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } renderAll(); if (f === 'compte' && S.fluxMode) chargerEchecs(true); if (f === 'compte' && S.tab === 'maintenant') chargerImages(); return; }
+  if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.fluxMode && (b.dataset.clear === 'all' || b.dataset.clear === 'compte')) chargerEchecs(true); if (S.tab === 'users') chargerImages(); return; }
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
   if ((b = t.closest('[data-act]'))) {
     var act = b.dataset.act, aller = function (id) { var c = $('details[data-id="' + id + '"]'); if (c && c.scrollIntoView) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
@@ -2034,7 +2045,12 @@ document.addEventListener('click', async function (e) {
     renderKpisAct(); renderMaintenant(); aller('m-flux'); return;
   }
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
-  if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('travaux'); }
+  if ((b = t.closest('[data-goto-filtre]'))) {
+    /* 2026-10-02 (user : « ca m'envoie dans la page de garde au lieu de me montrer les projets ») : le compte devient LE filtre (un ancien filtre de pays vidait la liste), la liste de ses travaux de la periode
+       est chargee depuis le serveur (traces?email=, et non les 200 derniers travaux de tous les comptes) et la page defile jusqu'a elle ; ses achats sont a un clic (lien sous le titre de la liste). */
+    S.filt = { compte: b.dataset.gotoFiltre || 'inconnu', type: null, pays: null }; S.fluxMode = 'travaux'; renderChips(); ouvrirOnglet('travaux'); chargerEchecs(true);
+    setTimeout(function () { allerCarte('m-flux'); }, 80); return;
+  }
   if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') { chargerAudience(); chargerArgentRecent(true); if (S.fluxMode) chargerEchecs(true); } if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-ms]'))) { if (b.dataset.ms !== S.ms) { S.ms = b.dataset.ms; $('#annonces').innerHTML = ''; } return renderAnnonces(); }      // 2026-10-02 (MM-09) : changer de filtre ferme un brouillon de refus (avant : bouton actif mais liste de l'ancien filtre) ; recliquer le filtre actif le garde
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
