@@ -25,7 +25,8 @@ import time
 import argparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRELLIS2_SRC = os.path.join(ROOT, 'external', 'TRELLIS2_win', 'src')
+# Appli installee : Electron / mesh_tools.py passent FABMESH_TRELLIS2_SRC (copie dans resources/TRELLIS2_win/src) ; dev : checkout external/.
+TRELLIS2_SRC = os.environ.get('FABMESH_TRELLIS2_SRC') or os.path.join(ROOT, 'external', 'TRELLIS2_win', 'src')
 sys.path.insert(0, TRELLIS2_SRC)
 
 # Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.

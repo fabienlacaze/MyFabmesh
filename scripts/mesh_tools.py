@@ -630,6 +630,14 @@ def trellis2_retex(input_path, output_path, source_image, preset='fast', seed=42
         os.path.dirname(__file__), '..', 'external', 'TRELLIS2_win',
         '.venv', 'Scripts', 'python.exe'))
     env = dict(os.environ)
+    if not os.path.exists(venv_py):
+        # APPLI INSTALLEE (2026-10-02, campagne des outils 3D : « Re-texture all » plantait en FileNotFoundError) : il n'y a pas de
+        # venv external/TRELLIS2_win ; comme pour trellis2_native_full_pipeline (main.js : app.isPackaged ? _aiPython()), on utilise le Python
+        # IA embarque (celui qui lance ce script) et les sources copiees dans resources/TRELLIS2_win/src.
+        venv_py = sys.executable
+        src_pkg = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'TRELLIS2_win', 'src'))
+        if os.path.isdir(src_pkg):
+            env.setdefault('FABMESH_TRELLIS2_SRC', src_pkg)
     env['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
     env['TORCHDYNAMO_DISABLE'] = '1'
     env['TORCHINDUCTOR_USE_TRITON'] = '0'
