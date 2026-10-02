@@ -71,6 +71,7 @@ header.haut{display:contents}
 .jauge.haute i{background:var(--warn)} .jauge.critique i{background:var(--err)}
 .cell.svc{cursor:pointer;text-align:left;font:inherit;width:100%}
 .cell.svc:hover{background:var(--bg-2)}
+.cell.sel{border-color:var(--accent);background:var(--accent-soft)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;box-shadow:0 0 6px currentColor;color:var(--ok)}
 .dot.w{background:var(--warn);color:var(--warn)} .dot.e{background:var(--err);color:var(--err)}
 
@@ -445,8 +446,9 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
         <details class="carte vol" open data-id="u-ops" data-res="opsj"><summary><h2>Travaux lancés <small id="sous-ops">par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-ops"></div></div></details>
-        <details class="carte vol" open data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
+        <details class="carte vol" open data-id="m-flux" data-res="flux"><summary><h2><span id="t-flux">Derniers travaux</span> <small id="n-flux"></small></h2><span class="res"></span></summary>
         <div class="corps">
+          <div class="note" id="flux-retour" hidden style="margin:0 0 6px"><button type="button" class="lienclair" data-echecs="1">← Revenir à tous les travaux</button></div>
           <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
           <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Comptes.</p>
         </div></details>
@@ -709,7 +711,7 @@ function heuresCourtes() { return PER_H_COURT[S.per]; }
 /* TRI DES TABLEAUX (2026-10-02, user : « il faut pouvoir trier »). Un clic sur un en-tete trie, un second inverse. Sens de depart : texte A -> Z, nombres et dates decroissants. */
 S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 }, dbg: { k: 'date', d: -1 }, dbglog: { k: 'uploaded', d: -1 }, audit: { k: 'ts', d: -1 }, recon: { k: 'created_at', d: -1 }, actifs: { k: 'created_at', d: -1 } };
 S.triComptes = 'activite';
-S.prixEdit = {}; S.winEdit = false; S.rechOps = ''; S.opsFerme = {};
+S.prixEdit = {}; S.winEdit = false; S.rechOps = ''; S.opsFerme = {}; S.fluxEchecs = false;
 var TRI_TEXTE = { email: 1, type: 1, projet: 1, statut: 1, op: 1, pack: 1, etat: 1, operation: 1, status: 1, kind: 1, actor: 1, action: 1, target: 1, pack_id: 1, project_name: 1, asset_type: 1, ip: 1, project: 1 };
 function trier(liste, nom) {
   var t = S.tri[nom], k = t.k, d = t.d;
@@ -1118,12 +1120,15 @@ function renderMaintenant() {
   majSiChange($('#en-ligne'), el.length ? '<table><tbody>' + el.map(function (x) {
     return '<tr><td>' + lien('compte', x.email || 'inconnu', x.email || 'inconnu') + '</td><td class="n tn" data-vu0="' + (x.vu_il_y_a_s || 0) + '"></td><td>' + (x.en_ligne ? '<span class="pill ok">en ligne</span>' : '<span class="pill">parti</span>') + '</td></tr>';
   }).join('') + '</tbody></table>' : '<div class="vide">Personne.</div>');
+  if (S.fluxEchecs) renderFluxEchecs(); else { $('#t-flux').textContent = 'Derniers travaux'; $('#flux-retour').hidden = true; }
   var depuisPer = Date.now() - (PER_MIN[S.per] || 43200) * 60000;
-  var ev = trier((L.evenements || []).filter(filtreEvt).filter(function (x) { return Date.parse(x.ts) >= depuisPer; }).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
-  $('#n-flux').textContent = ev.length + ' sur ' + (LIB_PER[S.per] || '') + ' · parmi les ' + (L.evenements || []).length + ' derniers travaux de tous les comptes';
-  majSiChange($('#flux'), ev.length ? ev.map(function (x) {
-    return '<tr><td data-ts="' + esc(x.ts_iso) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td>' + pillStatut(x.statut) + (x.erreur ? '<span class="erreur-ligne">' + esc(x.erreur) + '</span>' : '') + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td></tr>';
-  }).join('') : '<tr><td colspan="7" class="vide">Aucun travail sur cette période' + (S.filt.compte || S.filt.type ? ' pour ce filtre' : '') + '.</td></tr>');
+  if (!S.fluxEchecs) {
+    var ev = trier((L.evenements || []).filter(filtreEvt).filter(function (x) { return Date.parse(x.ts) >= depuisPer; }).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
+    $('#n-flux').textContent = ev.length + ' sur ' + (LIB_PER[S.per] || '') + ' · parmi les ' + (L.evenements || []).length + ' derniers travaux de tous les comptes';
+    majSiChange($('#flux'), ev.length ? ev.map(function (x) {
+      return '<tr><td data-ts="' + esc(x.ts_iso) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td>' + pillStatut(x.statut) + (x.erreur ? '<span class="erreur-ligne">' + esc(x.erreur) + '</span>' : '') + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="vide">Aucun travail sur cette période' + (S.filt.compte || S.filt.type ? ' pour ce filtre' : '') + '.</td></tr>');
+  }
   majHorloge(); majEntetesTri();
 }
 /* Les durees relatives sont recalculees SUR PLACE chaque seconde : le HTML des listes ne depend pas de l'heure, donc il n'est pas reconstruit a chaque
@@ -1565,6 +1570,30 @@ function barres(id, lignes, noms, filtre) {
   }).join('') + '<div class="note"><span style="color:var(--accent)">■</span> travaux &nbsp; <span style="color:var(--err)">■</span> dont échecs</div>';
 }
 /* Activite = Travaux + Audience (user : « Activite B : ce qui se passe / qui est la »). Quatre chiffres en tete. */
+/* Un clic sur la tuile « Echecs » = la liste des travaux EN ECHEC sur la periode (user : « si je clique ca doit me montrer la liste des travaux filtree sur les echecs »). */
+function tuileEchecs(lib, A, ech, tot, pe, alerte) {
+  var on = !!S.fluxEchecs;
+  return '<button type="button" class="cell svc' + (alerte ? ' alerte' : '') + (on ? ' sel' : '') + '" data-echecs="1" aria-pressed="' + on + '" title="Voir les travaux en échec sur la période">'
+    + '<div class="k">Échecs · ' + esc(lib) + '</div><div class="v tn">' + (A ? ech + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + tot + ' · ' + pe + ' %</span>' : '…') + '</div>'
+    + '<div class="s">' + (A ? (on ? 'liste affichée plus bas · cliquer pour revenir' : (alerte ? 'à regarder' : 'normal') + ' · cliquer pour voir la liste') : 'chargement…') + '</div></button>';
+}
+async function chargerEchecs(force) {
+  var min = PER_MIN[S.per] || 43200;
+  if (!force && S.echecs && S.echecs.per === S.per && Date.now() - S.echecs.at < 60000) return;
+  var j = await silencieux(http('/api/admin/traces?statuts=failed&limit=200&minutes=' + min));
+  if (j) { S.echecs = { per: S.per, at: Date.now(), liste: j.traces || [] }; renderMaintenant(); }
+}
+function renderFluxEchecs() {
+  var E = S.echecs && S.echecs.per === S.per ? S.echecs : null;
+  $('#t-flux').textContent = 'Échecs'; $('#flux-retour').hidden = false;
+  if (!E) { $('#n-flux').textContent = 'chargement…'; majSiChange($('#flux'), '<tr><td colspan="7" class="vide">Chargement…</td></tr>'); return; }
+  var l = E.liste.filter(function (x) { return x.status === 'failed' && (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); });
+  $('#n-flux').textContent = l.length + ' échec' + (l.length > 1 ? 's' : '') + ' sur ' + (LIB_PER[S.per] || '') + (E.liste.length >= 200 ? ' · les 200 plus récents' : '');
+  majSiChange($('#flux'), l.length ? l.map(function (x) {
+    return '<tr><td data-ts="' + esc(x.date) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.operation || x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td>' + pillStatut(x.status) + (x.erreur ? '<span class="erreur-ligne">' + esc(String(x.erreur).slice(0, 140)) + '</span>' : '') + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="vide">Aucun échec sur cette période.</td></tr>');
+  majHorloge();
+}
 function renderKpisAct() {
   var box = $('#kpis-act'); if (!box) return;
   var L = S.live, A = S.aud && S.audPer === S.per ? S.aud : null, lib = LIB_PER[S.per] || '', tot = 0, reu = 0, ech = 0, comptes = 0;
@@ -1572,7 +1601,7 @@ function renderKpisAct() {
   var pe = tot ? Math.round(ech / tot * 100) : 0, alerte = !!(A && ech && pe >= 20 && tot >= 5);
   majSiChange(box, cellule('En cours', L ? (L.en_cours || []).length : '—', 'travaux lancés · en direct')
     + cellule('Travaux · ' + lib, A ? num(tot) : '…', A ? (tot ? Math.round(100 * reu / tot) + ' % réussis' : 'aucun travail') : 'chargement…')
-    + cellule('Échecs · ' + lib, A ? ech + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + tot + ' · ' + pe + ' %</span>' : '…', A ? (alerte ? 'à regarder' : 'normal') : 'chargement…', alerte ? 'alerte' : '')
+    + tuileEchecs(lib, A, ech, tot, pe, alerte)
     + cellule('Comptes actifs · ' + lib, A ? num(comptes) : '…', A ? 'ont lancé un travail' : 'chargement…'));
 }
 function renderAudience() {
@@ -1764,9 +1793,10 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } renderAll(); if (f === 'compte' && S.tab === 'maintenant') chargerImages(); return; }
   if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'users') chargerImages(); return; }
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
+  if ((b = t.closest('[data-echecs]'))) { S.fluxEchecs = !S.fluxEchecs; if (S.fluxEchecs) chargerEchecs(true); renderKpisAct(); renderMaintenant(); var cf = $('details[data-id="m-flux"]'); if (cf && cf.scrollIntoView) cf.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
   if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('travaux'); }
-  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') { chargerAudience(); chargerArgentRecent(true); } if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
+  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') { chargerAudience(); chargerArgentRecent(true); if (S.fluxEchecs) chargerEchecs(true); } if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
   if ((b = t.closest('[data-ser]'))) { S.series[b.dataset.ser] = !S.series[b.dataset.ser]; return renderArgent(); }

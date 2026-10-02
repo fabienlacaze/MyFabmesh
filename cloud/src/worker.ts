@@ -16356,7 +16356,7 @@ async function handleAdminLogsList(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, count: collected.length, logs: collected.slice(0, limit) });
 }
 
-/** GET /api/admin/traces?email=|uid=&limit=&failed=1 — ADMIN. La trace
+/** GET /api/admin/traces?email=|uid=&limit=&failed=1[&minutes=N][&statuts=failed] — ADMIN. `minutes` = fenetre (tuile « Echecs » d'Activite), `statuts` = liste stricte (sans `canceled`). La trace
  *  SERVEUR de chaque generation / operation, pour tous les comptes.
  *
  *  Ajoute le 2026-09-27 (« faire remonter les logs des users a chaque
@@ -16372,6 +16372,8 @@ async function handleAdminTraces(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
   const limit = Math.max(1, Math.min(200, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
   const echecsSeuls = url.searchParams.get('failed') === '1';
+  const minutesFenetre = parseInt(url.searchParams.get('minutes') || '', 10);
+  const statutsStricts = (url.searchParams.get('statuts') || '').split(',').map((x) => x.trim()).filter((x) => /^[a-z_]{3,20}$/.test(x)).slice(0, 5);
   let uid = (url.searchParams.get('uid') || '').trim();
   const email = (url.searchParams.get('email') || '').trim().toLowerCase();
   const sb = supabaseAdmin(env);
@@ -16384,7 +16386,9 @@ async function handleAdminTraces(req: Request, env: Env): Promise<Response> {
     .select('id, user_id, type, asset_type, mode, status, credit_cost, cost_usd, project_name, options, error, created_at, finished_at')
     .order('created_at', { ascending: false }).limit(limit);
   if (uid) q = q.eq('user_id', uid);
-  if (echecsSeuls) q = q.in('status', ['failed', 'canceled']);
+  if (Number.isFinite(minutesFenetre) && minutesFenetre > 0) q = q.gte('created_at', new Date(Date.now() - Math.min(minutesFenetre, 525600) * 60_000).toISOString());
+  if (statutsStricts.length) q = q.in('status', statutsStricts);
+  else if (echecsSeuls) q = q.in('status', ['failed', 'canceled']);
   const { data, error } = await q;
   if (error) return err(500, error.message);
   const rows = (data || []) as Array<Record<string, unknown>>;
