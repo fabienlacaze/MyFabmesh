@@ -22652,6 +22652,13 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         return err(404, `no route for ${method} ${pathname}`);
       }
 
+      /* /admin devient /admin2 (2026-10-02, user : « ok go » apres « faut-il rediriger /admin vers /admin2 ? »). L'ancienne page reste
+       * joignable en secours par /admin?ancienne=1 (aucune route d'API ne change : les deux pages parlent aux memes routes). 302, pas 301 :
+       * le navigateur ne doit pas garder la redirection si on revient en arriere. */
+      if ((method === 'GET' || method === 'HEAD') && /^\/admin\/?$/.test(pathname) && url.searchParams.get('ancienne') !== '1') {
+        return new Response(null, { status: 302, headers: { location: '/admin2', 'cache-control': 'no-store' } });
+      }
+
       // ── static assets (next export output served via env.ASSETS) ──
       // Wrap the response so we can layer the same security headers
       // as our JSON responses, plus a tight CSP on HTML pages.

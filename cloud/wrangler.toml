@@ -37,6 +37,9 @@ head_sampling_rate = 1
 [assets]
 directory = "out"
 binding = "ASSETS"
+# /admin passe d'abord par le worker, qui le redirige vers /admin2 (2026-10-02). Sans cette ligne Cloudflare sert admin.html
+# directement, sans jamais appeler le worker. L'ancienne page reste ouverte par /admin?ancienne=1.
+run_worker_first = ["/admin", "/admin/"]
 
 # Production R2 bucket binding (uploaded GLBs).
 # The bucket name must exist beforehand (already created):
