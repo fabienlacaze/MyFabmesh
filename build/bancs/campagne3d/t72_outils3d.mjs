@@ -15,6 +15,7 @@ const SORTIE = 'C:/tmp/campagne/t72_resume.txt';
 const BASE_V = 'v4';
 const PROJET = 'chevalier_medieval';
 const groupes = (process.argv[2] || 'geo,tex,edit,lourd').split(',');
+const SAUTER = (process.env.SAUTER || '').split(',').filter(Boolean);
 const note = (s) => { const l = new Date().toLocaleTimeString('fr-FR') + ' ' + s; console.log(l); appendFileSync(SORTIE, l + '\n'); };
 const mouse = (target, path, extra = {}) => h.api('POST', '/ui/mouse', { target, path, steps: 12, delay: 15, ...extra });
 const taille = (f) => { try { return statSync(f).size; } catch (_) { return 0; } };
@@ -27,11 +28,12 @@ function journalDepuis(pos) {
   return buf.toString('utf8');
 }
 async function fermerTout() {
+  await h.clic('seg-cancel').catch(() => {});   // boite « Segment parts » : hors liste /ui/modal
   for (let i = 0; i < 5; i++) {
     const m = await h.modale(); const l = (m.data || []); if (!l.length) return true;
     for (const x of l) {
       let r;
-      if (x.id === 'modal-confirm') r = await h.clic('confirm-ok');
+      if (x.id === 'modal-confirm') { r = await h.clic({ text: 'Cancel', within: 'modal-confirm' }); if (!r.ok) r = await h.clic('confirm-cancel'); }   // JAMAIS « Install » / « Delete » en fermeture automatique
       else { r = await h.clic({ text: 'Cancel', within: x.id }); if (!r.ok) r = await h.clic({ text: 'Close', within: x.id }); if (!r.ok) r = await h.clic({ text: 'Back', within: x.id }); }
       await h.dormir(600);
     }
@@ -64,7 +66,11 @@ async function selectionner(puce) {
     await h.clic({ text: puce, within: 'step-card-mesh' }); await h.dormir(1500);
     const e = await projetEtat(); const n = e.meshes.length; const idx = Number(puce.slice(1));
     const attendu = e.meshes[n - 1 - idx];
-    if (attendu && e.prev && String(e.prev).replace(/\\/g, '/') === String(attendu).replace(/\\/g, '/')) return true;
+    if (attendu && e.prev && String(e.prev).replace(/\\/g, '/') === String(attendu).replace(/\\/g, '/')) {
+      // le clic sur une puce ne change que l'apercu ; Material adjust, Paint Mesh, Align texture lisent selectedMeshPath seul (defaut constate) : on aligne comme « Use this mesh for Rig »
+      await h.evalue('const p=window.state.currentProject; p.selectedMeshPath=p.previewMeshPath; return p.selectedMeshPath');
+      return true;
+    }
   }
   return false;
 }
@@ -72,7 +78,18 @@ async function setNombre(valeur, modal = 'modal-mesh-tool') {
   const code = 'const m=document.getElementById("' + modal + '"); const n=m.querySelector("input[type=number]"); n.value="' + valeur + '"; n.dispatchEvent(new Event("input",{bubbles:true})); n.dispatchEvent(new Event("change",{bubbles:true})); return n.value';
   return (await h.evalue(code)).data;
 }
+import { readdirSync } from 'node:fs';
+const MESHES = join(process.env.APPDATA, 'myfabmesh-ai', 'meshes');
+function fichiersApres(t0) {
+  try { return readdirSync(MESHES).filter((f) => /^chevalier_medieval_.*\.glb$/.test(f)).map((f) => ({ f, t: statSync(join(MESHES, f)).mtimeMs })).filter((x) => x.t >= t0 - 1000).sort((a, b) => b.t - a.t).map((x) => join(MESHES, x.f)); } catch (_) { return []; }
+}
+let T0_ESSAI = 0;
 async function attendreVersion(avant, ms = 180000) {
+  const t00 = Date.now();
+  while (Date.now() - t00 < ms) { const e = await projetEtat(); if (e.meshes.length > avant) return true; if (fichiersApres(T0_ESSAI).length) return true; await h.dormir(2500); }
+  return false;
+}
+async function attendreVersionAncien(avant, ms = 180000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) { const e = await projetEtat(); if (e.meshes.length > avant) return true; await h.dormir(2500); }
   return false;
@@ -91,13 +108,14 @@ async function finir(cible) {
 
 async function essai({ nom, groupe, base = BASE_V, max = 600000, lancer, notes = '', versionAttendue = true, lourd = false }) {
   if (!groupes.includes(groupe)) return null;
+  if (SAUTER.includes(nom)) { note('SAUT demande : ' + nom); return null; }
   if (CRASH_GPU) { note('SAUT (carte en erreur) : ' + nom); return null; }
   if (Date.now() - DEBUT > BUDGET_MS) { note('SAUT (budget de temps depasse) : ' + nom); return null; }
   note('=== ' + groupe + ' / ' + nom + ' (base ' + base + ')');
   await fermerTout();
   const ok = await selectionner(base);
   if (!ok) { note('   ECHEC : version ' + base + ' non selectionnable'); appendFileSync('C:/tmp/campagne/resultats3d.jsonl', JSON.stringify({ groupe, nom, ok: false, erreur: 'version de base non selectionnable' }) + '\n'); return null; }
-  const e0 = await projetEtat(); const avant = e0.meshes.length;
+  const e0 = await projetEtat(); const avant = e0.meshes.length; T0_ESSAI = Date.now();
   const pos = taille(join(LOGS, 'fabmesh.log'));
   const l = await h.essayer({ categorie: '04_mesh_' + groupe, nom, max, note: notes, cible: '#ws-mesh-canvas', lancer: async () => {
     const r = await lancer(avant); if (r && r.ok === false) return r;
@@ -109,8 +127,10 @@ async function essai({ nom, groupe, base = BASE_V, max = 600000, lancer, notes =
     return { ok: true };
   } });
   const e1 = await projetEtat(); const apres = e1.meshes.length; l.versions_ajoutees = apres - avant;
-  if (versionAttendue && l.ok && apres <= avant) { l.ok = false; l.erreur = 'aucune nouvelle version creee'; }
-  let m = null; const nouvelle = apres > avant ? e1.meshes[0] : null;
+  const surDisque = fichiersApres(T0_ESSAI);
+  if (versionAttendue && apres <= avant && surDisque.length) { l.etat_non_rafraichi = true; l.versions_ajoutees = surDisque.length; l.note_etat = 'fichier cree sur le disque mais absent de la liste des versions du projet (liste non rafraichie)'; note('   ! version creee (' + h.nomFichier(surDisque[0]) + ') mais la liste des versions du projet n a pas ete rafraichie'); }
+  if (versionAttendue && l.ok && apres <= avant && !surDisque.length) { l.ok = false; l.erreur = 'aucune nouvelle version creee'; }
+  let m = null; const nouvelle = apres > avant ? e1.meshes[0] : (surDisque.length ? surDisque[0] : null);
   if (nouvelle) { m = valider(nouvelle); l.nouvelle_version = h.nomFichier(nouvelle); l.mesures = m; }
   const j = journalDepuis(pos);
   if (/nvlddmkm|device lost|CUDA error|illegal memory access|DXGI_ERROR_DEVICE|GPU hung|cudaErrorLaunchFailure/i.test(j)) { CRASH_GPU = true; l.erreur_gpu = true; note('   !!! ERREUR GPU dans le journal : on s\'arrete avant les outils lourds suivants'); }
@@ -201,7 +221,7 @@ if (groupes.includes('edit')) {
 // ------------------------------------------------------------------ LOURD : segmentation, nommage, remodelage
 if (groupes.includes('lourd')) {
   const seg = await essai({ nom: 'segment_parts', groupe: 'lourd', max: 1800000, lourd: true, notes: 'Segment parts : decoupe en parties semantiques (6 a 10 min)', lancer: async () => {
-    let o = await h.clic('ws-mesh-segment-btn'); if (!o.ok) return o; await h.dormir(4000); const j = await h.jobs(); if (!j.length) { await h.dormir(8000); } return { ok: true }; } });
+    let o = await h.clic('ws-mesh-segment-btn'); if (!o.ok) return o; await h.dormir(2500); const g = await h.clic('seg-go'); if (!g.ok) return { ok: false, error: 'boite Segment parts : bouton Segment introuvable ' + JSON.stringify(g).slice(0, 120) }; await h.dormir(5000); return { ok: true }; } });
   if (seg && seg.l && seg.l.ok) {
     await essai({ nom: 'name_zones', groupe: 'lourd', base: 'v' + ((await projetEtat()).meshes.length - 1), max: 900000, lourd: true, notes: 'Name the zones : nomme les parties segmentees', lancer: async () => {
       let o = await h.clic('ws-mesh-name-btn'); if (!o.ok) return o; await h.dormir(3000);

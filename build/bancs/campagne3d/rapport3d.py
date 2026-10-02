@@ -8,13 +8,14 @@ verd = {}
 if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
     verd = json.load(io.open(sys.argv[1], encoding='utf-8'))
 base = json.load(io.open(D + '/base_v4.json', encoding='utf-8')) if os.path.exists(D + '/base_v4.json') else {}
-lignes = []
+_d = {}
 if os.path.exists(D + '/resultats3d.jsonl'):
     for l in io.open(D + '/resultats3d.jsonl', encoding='utf-8'):
         try:
-            lignes.append(json.loads(l))
+            x = json.loads(l); _d[(x['groupe'], x['nom'])] = x       # le DERNIER essai d'un outil fait foi (les relances remplacent)
         except Exception:
             pass
+lignes = list(_d.values())
 
 
 def vignette(f, t=300):
@@ -82,7 +83,8 @@ for g in groupes:
         if m.get('animations'): mes.append('%s anim.' % m['animations'] + (' %s s' % m['duree_s'] if m.get('duree_s') else ''))
         if m.get('taille_mo') is not None: mes.append('%s Mo' % m['taille_mo'])
         gpu = 'VRAM +%s Mo (pic %s), GPU %s %%, %s °C' % (x.get('vram_ajoutee_mo'), x.get('vram_pic_mo'), x.get('gpu_pic_pct'), x.get('temp_pic_c')) if x.get('vram_pic_mo') else ''
-        cap = vignette(x.get('capture'))
+        _r = D + '/rendus/%s_%s.png' % (x['groupe'], x['nom'])
+        cap = vignette(_r, 420) if os.path.exists(_r) else vignette(x.get('capture'))
         out.append('<tr><td><b>%s</b><div class="n">%s</div></td><td><span class="p" style="background:%s">%s</span><div class="n">%s</div></td><td>%s s</td><td class="n">%s<br>%s</td><td>%s</td></tr>' % (
             html.escape(x['nom']), html.escape(x.get('note', '') or ''), COUL[st], LIB[st], html.escape(v or ''), x.get('duree_s'), html.escape(' · '.join(mes)), html.escape(gpu),
             ('<img src="%s">' % cap) if cap else ''))

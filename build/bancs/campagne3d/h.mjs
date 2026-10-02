@@ -83,7 +83,8 @@ export function erreursDepuis(pos) {
 export async function attendreTravaux(maxMs, { graceMs = 6000, journal = null } = {}) {
   const debut = Date.now(); let vu = false; let vide = 0;
   while (Date.now() - debut < maxMs) {
-    const j = await jobs().catch(() => []);
+    // un travail en erreur reste liste dans /jobs : il est TERMINE (2026-10-02 : une attente de 25 min sur « Re-texture all » en erreur)
+    const j = (await jobs().catch(() => [])).filter((x) => !/^(error|failed|done|completed|cancel)/i.test(String((x && x.status) || '')));
     if (j.length) { vu = true; vide = 0; if (journal) journal(j); }
     else { vide++; if (vu && vide >= 2) return { fini: true, vu, ms: Date.now() - debut }; if (!vu && Date.now() - debut > graceMs) return { fini: true, vu: false, ms: Date.now() - debut }; }
     await dormir(2500);

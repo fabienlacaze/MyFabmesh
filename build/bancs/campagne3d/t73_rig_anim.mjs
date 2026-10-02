@@ -23,7 +23,7 @@ async function fermerTout() {
     const m = await h.modale(); const l = (m.data || []); if (!l.length) return true;
     for (const x of l) {
       let r;
-      if (x.id === 'modal-confirm') r = await h.clic('confirm-ok');
+      if (x.id === 'modal-confirm') { r = await h.clic({ text: 'Cancel', within: 'modal-confirm' }); if (!r.ok) r = await h.clic('confirm-cancel'); }   // JAMAIS « Install » / « Delete » en fermeture automatique
       else { r = await h.clic({ text: 'Cancel', within: x.id }); if (!r.ok) r = await h.clic({ text: 'Close', within: x.id }); }
       await h.dormir(600);
     }
