@@ -35,16 +35,32 @@ a{color:var(--accent)}
 [hidden]{display:none!important}
 
 /* ───────── en-tête fixe ───────── */
-.haut{background:var(--bg-0);padding-block:4px 10px;border-bottom:1px solid var(--border)}
-@media(min-width:900px){.haut{position:sticky;top:env(safe-area-inset-top,0px);z-index:20}}
+.haut{display:contents}
+/* Banniere d'alerte Modal (meme texte et memes couleurs que /admin : orange, rouge si urgent) */
+.bandeau-modal{margin-inline:calc(-1 * clamp(10px,2vw,32px));padding:10px 16px;text-align:center;font-weight:600;color:#1a1204;background:#ffb020;cursor:pointer}
+.bandeau-modal.rouge{background:#ff4d4f;color:#fff}
+.logo{width:40px;height:40px;border-radius:8px;flex:none}
+.tabs{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.tab-group{display:flex;flex-direction:column;padding:8px 10px 0;border-radius:10px;background:var(--bg-1);border:1px solid var(--border)}
+.tab-group-header{font-size:10px;font-weight:800;letter-spacing:2px;padding:0 4px 6px}
+.tab-group-items{display:flex;gap:2px}
+.tab-group-activity{border-color:rgba(76,217,100,.35);background:rgba(76,217,100,.05)} .tab-group-activity .tab-group-header{color:var(--ok)}
+.tab-group-finance{border-color:rgba(255,170,51,.35);background:rgba(255,170,51,.05)} .tab-group-finance .tab-group-header{color:var(--warn)}
+.tab-group-system{border-color:rgba(200,76,255,.35);background:rgba(200,76,255,.05)} .tab-group-system .tab-group-header{color:var(--accent)}
+.tab{background:transparent;color:var(--text-1);border:0;border-bottom:2px solid transparent;padding:8px 14px;font-size:13px;font-weight:600;letter-spacing:.3px;cursor:pointer;border-radius:4px 4px 0 0;white-space:nowrap}
+.tab:hover{color:var(--text-0);background:rgba(255,255,255,.04)}
+.tab[aria-selected="true"]{color:var(--text-0);font-weight:700}
+.tab-group-activity .tab[aria-selected="true"]{border-bottom-color:var(--ok);background:rgba(76,217,100,.15)}
+.tab-group-finance .tab[aria-selected="true"]{border-bottom-color:var(--warn);background:rgba(255,170,51,.15)}
+.tab-group-system .tab[aria-selected="true"]{border-bottom-color:var(--accent);background:rgba(200,76,255,.15)}
 .l1{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;justify-content:space-between}
 .titre{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-.titre h1{margin:0;font-size:20px;letter-spacing:.2px}
+.titre h1{margin:0;font-size:24px;letter-spacing:.2px;display:flex;align-items:center;gap:12px}
 .titre .maj{font-size:12px;color:var(--text-2)}
 .seg{display:inline-flex;background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:2px}
 .seg button{background:none;border:0;padding:6px 14px;border-radius:6px;cursor:pointer;color:var(--text-1)}
 .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--text-0);box-shadow:inset 0 0 0 1px var(--accent)}
-.bandeau{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
+.bandeau{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:2px;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg-0);padding-block:8px}
 .cell{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:8px 12px;min-width:0}
 .cell .k{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2)}
 .cell .v{font-size:22px;font-weight:600;line-height:1.2;margin-top:2px}
@@ -198,17 +214,24 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 <body>
 <div class="app">
   <header class="haut">
+    <div class="bandeau-modal" id="bandeau-modal" hidden role="status"></div>
     <div class="l1">
-      <div class="titre"><h1>MyFabmesh · Admin</h1><span class="maj" id="maj">chargement…</span><button type="button" class="btn petit" id="b-logout" title="Fermer la session administrateur">Déconnexion</button></div>
+      <div class="titre"><h1><img class="logo" src="/logo-symbole.png" alt="" width="40" height="40">MyFabmesh — Admin</h1><span class="maj" id="maj">chargement…</span><button type="button" class="btn petit" id="b-logout" title="Fermer la session administrateur">Déconnexion</button></div>
     </div>
     <div class="bandeau" id="bandeau" aria-label="Situation en direct, indépendante des filtres"></div>
     <div class="l3">
-      <nav class="onglets" role="tablist" aria-label="Sections">
-        <button role="tab" type="button" data-tab="maintenant" aria-selected="true">Maintenant</button>
-        <button role="tab" type="button" data-tab="argent" aria-selected="false">Argent</button>
-        <button role="tab" type="button" data-tab="users" aria-selected="false">Utilisateurs<span class="badge" id="b-users" hidden>0</span></button>
-        <button role="tab" type="button" data-tab="audience" aria-selected="false">Audience</button>
-        <button role="tab" type="button" data-tab="systeme" aria-selected="false">Système</button>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <div class="tab-group tab-group-activity"><div class="tab-group-header">📈 ACTIVITÉ</div><div class="tab-group-items">
+          <button role="tab" type="button" class="tab" data-tab="maintenant" aria-selected="true">🔴 Maintenant</button>
+          <button role="tab" type="button" class="tab" data-tab="audience" aria-selected="false">👥 Audience</button>
+        </div></div>
+        <div class="tab-group tab-group-finance"><div class="tab-group-header">💰 FINANCE</div><div class="tab-group-items">
+          <button role="tab" type="button" class="tab" data-tab="argent" aria-selected="false">📊 Argent</button>
+        </div></div>
+        <div class="tab-group tab-group-system"><div class="tab-group-header">🛠 SYSTÈME</div><div class="tab-group-items">
+          <button role="tab" type="button" class="tab" data-tab="users" aria-selected="false">🧑 Utilisateurs<span class="badge" id="b-users" hidden>0</span></button>
+          <button role="tab" type="button" class="tab" data-tab="systeme" aria-selected="false">🚨 Système</button>
+        </div></div>
       </nav>
       <div class="chips" id="chips"></div>
     </div>
@@ -279,7 +302,7 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
       <div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div>
     <div class="carte" id="recon" style="margin-top:16px" hidden><h2>Paiements encaissés, crédits non versés <small id="recon-n"></small></h2>
       <p class="note">Stripe a encaissé mais les crédits n'ont pas été versés (webhook manqué). Vérifiez le paiement dans Stripe, puis versez les crédits.</p>
-      <div class="defil"><table><thead><tr><th>Date</th><th>Compte</th><th>Pack</th><th class="n">Montant</th><th>Session Stripe</th><th class="n">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
+      <div class="defil"><table><thead><tr><th data-tri="recon:created_at">Date</th><th data-tri="recon:email">Compte</th><th data-tri="recon:pack_id">Pack</th><th class="n" data-tri="recon:amount_eur">Montant</th><th>Session Stripe</th><th class="n" data-tri="recon:expected_credits">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
     </div>
   </section>
 
@@ -342,11 +365,11 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
     </div>
     <div class="carte" style="margin-top:16px"><h2>Journal d'audit <small>actions de l'administrateur</small></h2>
       <div class="ligneform"><label for="audit-jour">Jour</label><input type="date" id="audit-jour" style="width:170px"><button type="button" class="btn petit" id="b-audit">Afficher</button></div>
-      <div class="defil"><table><thead><tr><th>Heure</th><th>Acteur</th><th>Action</th><th>Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div></div>
+      <div class="defil"><table><thead><tr><th data-tri="audit:ts">Heure</th><th data-tri="audit:actor">Acteur</th><th data-tri="audit:action">Action</th><th data-tri="audit:target">Cible</th><th>Détail</th></tr></thead><tbody id="audit"></tbody></table></div></div>
     <div class="carte" style="margin-top:16px"><h2>Diagnostic <small>opérations récentes et journaux envoyés par les appareils</small></h2>
       <div class="ligneform"><input type="text" id="dbg-compte" class="large" placeholder="E-mail ou identifiant du compte (vide = tous)" autocomplete="off"><select id="dbg-limite" style="width:auto"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="dbg-echecs" style="width:auto"> échecs seulement</label><button type="button" class="btn petit prim" id="b-dbg">Afficher</button></div>
-      <h3>Opérations</h3><div class="defil haut"><table><thead><tr><th>Quand</th><th>Compte</th><th>Opération</th><th>Statut</th><th class="n">Durée</th><th class="n">Crédits</th><th></th></tr></thead><tbody id="dbg-traces"><tr><td colspan="7" class="vide">Cliquez sur « Afficher ».</td></tr></tbody></table></div>
-      <h3>Journaux envoyés par les appareils <small id="dbg-logs-n" class="note"></small></h3><div class="defil haut"><table><thead><tr><th>Envoyé</th><th>Compte</th><th>Type</th><th>État</th><th class="n">Taille</th><th></th></tr></thead><tbody id="dbg-logs"></tbody></table></div>
+      <h3>Opérations</h3><div class="defil haut"><table><thead><tr><th data-tri="dbg:date">Quand</th><th data-tri="dbg:email">Compte</th><th data-tri="dbg:operation">Opération</th><th data-tri="dbg:status">Statut</th><th class="n" data-tri="dbg:duree_s">Durée</th><th class="n" data-tri="dbg:credits">Crédits</th><th></th></tr></thead><tbody id="dbg-traces"><tr><td colspan="7" class="vide">Cliquez sur « Afficher ».</td></tr></tbody></table></div>
+      <h3>Journaux envoyés par les appareils <small id="dbg-logs-n" class="note"></small></h3><div class="defil haut"><table><thead><tr><th data-tri="dbglog:uploaded">Envoyé</th><th data-tri="dbglog:email">Compte</th><th data-tri="dbglog:kind">Type</th><th data-tri="dbglog:status">État</th><th class="n" data-tri="dbglog:size">Taille</th><th></th></tr></thead><tbody id="dbg-logs"></tbody></table></div>
       <div id="dbg-wrap" hidden class="boite" style="margin-top:12px"><div class="ligneform" style="justify-content:space-between"><b id="dbg-titre"></b><span><button type="button" class="btn petit" id="dbg-copier">Copier</button> <button type="button" class="btn petit" id="dbg-telecharger">Télécharger</button> <button type="button" class="btn petit" id="dbg-fermer">Fermer</button></span></div><pre id="dbg-viewer" style="max-height:420px;overflow:auto;font:12px var(--mono)"></pre></div>
     </div>
   </section>
@@ -452,14 +475,14 @@ var S = {
 };
 var PER_MIN = { '6h': 360, '24h': 1440, '7j': 10080, '30j': 43200 };
 /* TRI DES TABLEAUX (2026-10-02, user : « il faut pouvoir trier »). Un clic sur un en-tete trie, un second inverse. Sens de depart : texte A -> Z, nombres et dates decroissants. */
-S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 } };
+S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 }, dbg: { k: 'date', d: -1 }, dbglog: { k: 'uploaded', d: -1 }, audit: { k: 'ts', d: -1 }, recon: { k: 'created_at', d: -1 }, actifs: { k: 'created_at', d: -1 } };
 S.triComptes = 'activite';
-var TRI_TEXTE = { email: 1, type: 1, projet: 1, statut: 1, op: 1, pack: 1, etat: 1 };
+var TRI_TEXTE = { email: 1, type: 1, projet: 1, statut: 1, op: 1, pack: 1, etat: 1, operation: 1, status: 1, kind: 1, actor: 1, action: 1, target: 1, pack_id: 1, project_name: 1, asset_type: 1 };
 function trier(liste, nom) {
   var t = S.tri[nom], k = t.k, d = t.d;
   return liste.slice().sort(function (a, b) {
     var x = a[k], y = b[k];
-    if (x == null) x = TRI_TEXTE[k] ? '' : -Infinity; if (y == null) y = TRI_TEXTE[k] ? '' : -Infinity;
+    var vide = (TRI_TEXTE[k] || /date|ts|uploaded|created|_at$/.test(k)) ? '' : -Infinity; if (x == null) x = vide; if (y == null) y = vide;
     var c = (typeof x === 'string' || typeof y === 'string') ? String(x).localeCompare(String(y), 'fr') : (x < y ? -1 : x > y ? 1 : 0);
     return c * d;
   });
@@ -632,10 +655,7 @@ async function chargerAudit() {
   var j = await silencieux(http('/api/admin/audit?day=' + encodeURIComponent(jour)));
   var tb = $('#audit');
   if (!j) { tb.innerHTML = '<tr><td colspan="5" class="vide">Journal indisponible.</td></tr>'; return; }
-  var e = j.entries || [];
-  tb.innerHTML = e.length ? e.map(function (x) {
-    return '<tr><td class="tn">' + esc((x.ts || '').slice(11, 19)) + '</td><td>' + esc(x.actor || '—') + '</td><td><b>' + esc(x.action || '') + '</b></td><td>' + esc(x.target || '') + '</td><td class="libre" style="color:var(--text-2);font:11px var(--mono);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(JSON.stringify(x.details || {})) + '">' + esc(JSON.stringify(x.details || {})) + '</td></tr>';
-  }).join('') : '<tr><td colspan="5" class="vide">Aucune action le ' + esc(jour) + '.</td></tr>';
+  S.auditEntries = j.entries || []; renderAudit();
 }
 
 /* ───────────────────────── bandeau ───────────────────────── */
@@ -671,6 +691,8 @@ function renderBandeau() {
     + (S.svc ? (coupes.length ? '<span class="dot e"></span>' + coupes.length + ' coupé' + (coupes.length > 1 ? 's' : '') : '<span class="dot"></span>Tout actif') : '—')
     + '</div><div class="s">' + esc(S.svc ? (coupes.length ? coupes.join(', ') : '4 services sur 4') : 'chargement…') + '</div></button>';
   majSiChange($('#bandeau'), h);
+  var bm = $('#bandeau-modal'), ban = S.prev && S.prev.bandeau;
+  if (ban && ban.texte) { bm.textContent = ban.texte; bm.className = 'bandeau-modal' + (ban.couleur === 'rouge' ? ' rouge' : ''); bm.hidden = false; } else bm.hidden = true;
   $('#maj').textContent = S.liveAt ? 'mis à jour à ' + new Date(S.liveAt).toLocaleTimeString('fr-FR') : 'chargement…';
 }
 function renderChips() {
@@ -1051,6 +1073,7 @@ function selectionnerCompteParEmail(email) {
 /* ───────────────────────── interactions ───────────────────────── */
 document.addEventListener('click', async function (e) {
   var t = e.target, b;
+  if (t.closest('#bandeau-modal')) return ouvrirOnglet('argent');
   if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } renderAll(); if (f === 'compte' && S.tab === 'maintenant') chargerImages(); return; }
   if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'maintenant') chargerImages(); return; }
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
@@ -1128,7 +1151,7 @@ document.addEventListener('keydown', function (e) {
 function clicTri(th) {
   var p = th.dataset.tri.split(':'), nom = p[0], k = p[1], t = S.tri[nom];
   if (t.k === k) t.d = -t.d; else { t.k = k; t.d = TRI_TEXTE[k] ? 1 : -1; }
-  if (nom === 'flux') { $('#flux')._h = null; renderMaintenant(); } else if (nom === 'ops') renderArgent(); else if (nom === 'achats') renderAchats();
+  if (nom === 'flux') { $('#flux')._h = null; renderMaintenant(); } else if (nom === 'ops') renderArgent(); else if (nom === 'achats') renderAchats(); else if (nom === 'dbg') renderTraces(); else if (nom === 'dbglog') renderDbgLogs(); else if (nom === 'audit') renderAudit(); else if (nom === 'recon') { $('#recon-t')._h = null; renderRecon(); } else if (nom === 'actifs') { $('#actifs').innerHTML = htmlActifs(); majEntetesTri(); }
 }
 document.addEventListener('click', function (e) { var th = e.target.closest('th[data-tri]'); if (th) clicTri(th); });
 document.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('th[data-tri]')) { e.preventDefault(); clicTri(e.target); } });
@@ -1310,31 +1333,45 @@ async function chargerDebug() {
   var q = $('#dbg-compte').value.trim(), lim = $('#dbg-limite').value, qs = new URLSearchParams({ limit: lim });
   if (q) { if (q.indexOf('@') >= 0) qs.set('email', q); else qs.set('uid', q); }
   if ($('#dbg-echecs').checked) qs.set('failed', '1');
-  var tb = $('#dbg-traces'); tb.innerHTML = '<tr><td colspan="7" class="vide">Chargement…</td></tr>';
-  try {
-    var j = await http('/api/admin/traces?' + qs.toString());
-    S.traces = j.traces || [];
-    tb.innerHTML = S.traces.length ? S.traces.map(function (t, i) {
-      var cls = t.status === 'succeeded' ? 'ok' : (t.status === 'failed' || t.status === 'canceled') ? 'err' : 'warn';
-      return '<tr><td class="tn">' + esc(String(t.date || '').replace('T', ' ').slice(5, 19)) + '</td><td>' + esc(t.email || '—') + '</td><td class="coupe">' + esc(t.operation || '') + ' <span class="note">' + esc(t.projet || '') + '</span></td><td><span class="pill ' + cls + '">' + esc(t.status || '—') + '</span>' + (t.erreur ? '<span class="erreur-ligne">' + esc(String(t.erreur).split('\n')[0].slice(0, 160)) + '</span>' : '') + '</td><td class="n tn">' + (t.duree_s == null ? '—' : t.duree_s + ' s') + '</td><td class="n tn">' + (t.credits == null ? '—' : t.credits) + '</td><td><button type="button" class="btn petit" data-trace="' + i + '">Détails</button>' + (t.rapport ? ' <button type="button" class="btn petit" data-log="' + esc(t.rapport) + '">Rapport</button>' : '') + '</td></tr>';
-    }).join('') : '<tr><td colspan="7" class="vide">' + esc(j.note || 'Aucune opération pour ce filtre.') + '</td></tr>';
-  } catch (er) { tb.innerHTML = '<tr><td colspan="7" class="msg-err">' + esc(er.message) + '</td></tr>'; }
-  var tl = $('#dbg-logs'); tl.innerHTML = '<tr><td colspan="6" class="vide">Chargement…</td></tr>';
-  try {
-    var jl = await http('/api/admin/logs/list?' + qs.toString().replace('&failed=1', ''));
-    var logs = jl.logs || [];
-    $('#dbg-logs-n').textContent = (jl.count != null ? jl.count : logs.length) + ' fichier(s)';
-    tl.innerHTML = logs.length ? logs.map(function (l) {
-      return '<tr><td class="tn">' + esc(String(l.uploaded || '').replace('T', ' ').slice(5, 19)) + '</td><td>' + esc(l.email || String(l.uid || '').slice(0, 8) + '…') + '</td><td>' + esc(l.kind || '—') + '</td><td>' + esc(l.status || '—') + '</td><td class="n tn">' + (l.size / 1024).toFixed(1) + ' Ko</td><td><button type="button" class="btn petit" data-log="' + esc(l.key) + '">Voir</button></td></tr>';
-    }).join('') : '<tr><td colspan="6" class="vide">Aucun journal pour ce filtre.</td></tr>';
-  } catch (er) { tl.innerHTML = '<tr><td colspan="6" class="msg-err">' + esc(er.message) + '</td></tr>'; }
+  $('#dbg-traces').innerHTML = '<tr><td colspan="7" class="vide">Chargement…</td></tr>';
+  try { var j = await http('/api/admin/traces?' + qs.toString()); S.traces = j.traces || []; S.tracesNote = j.note || ''; }
+  catch (er) { S.traces = []; $('#dbg-traces').innerHTML = '<tr><td colspan="7" class="msg-err">' + esc(er.message) + '</td></tr>'; }
+  if (S.traces.length || !$('#dbg-traces').querySelector('.msg-err')) renderTraces();
+  $('#dbg-logs').innerHTML = '<tr><td colspan="6" class="vide">Chargement…</td></tr>';
+  try { var jl = await http('/api/admin/logs/list?' + qs.toString().replace('&failed=1', '')); S.dbgLogs = jl.logs || []; S.dbgLogsN = jl.count != null ? jl.count : S.dbgLogs.length; renderDbgLogs(); }
+  catch (er2) { S.dbgLogs = []; $('#dbg-logs').innerHTML = '<tr><td colspan="6" class="msg-err">' + esc(er2.message) + '</td></tr>'; }
+}
+/* Les tableaux du diagnostic se trient comme les autres (clic sur l'en-tete). `data-trace` pointe dans la VUE triee (S.tracesVue). */
+function renderTraces() {
+  var tb = $('#dbg-traces');
+  S.tracesVue = trier(S.traces, 'dbg');
+  tb.innerHTML = S.tracesVue.length ? S.tracesVue.map(function (t, i) {
+    var cls = t.status === 'succeeded' ? 'ok' : (t.status === 'failed' || t.status === 'canceled') ? 'err' : 'warn';
+    return '<tr><td class="tn">' + esc(String(t.date || '').replace('T', ' ').slice(5, 19)) + '</td><td>' + esc(t.email || '—') + '</td><td class="coupe">' + esc(t.operation || '') + ' <span class="note">' + esc(t.projet || '') + '</span></td><td><span class="pill ' + cls + '">' + esc(t.status || '—') + '</span>' + (t.erreur ? '<span class="erreur-ligne">' + esc(String(t.erreur).split('\n')[0].slice(0, 160)) + '</span>' : '') + '</td><td class="n tn">' + (t.duree_s == null ? '—' : t.duree_s + ' s') + '</td><td class="n tn">' + (t.credits == null ? '—' : t.credits) + '</td><td><button type="button" class="btn petit" data-trace="' + i + '">Détails</button>' + (t.rapport ? ' <button type="button" class="btn petit" data-log="' + esc(t.rapport) + '">Rapport</button>' : '') + '</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="vide">' + esc(S.tracesNote || 'Aucune opération pour ce filtre.') + '</td></tr>';
+  majEntetesTri();
+}
+function renderDbgLogs() {
+  var tl = $('#dbg-logs'), logs = trier(S.dbgLogs || [], 'dbglog');
+  $('#dbg-logs-n').textContent = (S.dbgLogsN != null ? S.dbgLogsN : logs.length) + ' fichier(s)';
+  tl.innerHTML = logs.length ? logs.map(function (l) {
+    return '<tr><td class="tn">' + esc(String(l.uploaded || '').replace('T', ' ').slice(5, 19)) + '</td><td>' + esc(l.email || String(l.uid || '').slice(0, 8) + '…') + '</td><td>' + esc(l.kind || '—') + '</td><td>' + esc(l.status || '—') + '</td><td class="n tn">' + (l.size / 1024).toFixed(1) + ' Ko</td><td><button type="button" class="btn petit" data-log="' + esc(l.key) + '">Voir</button></td></tr>';
+  }).join('') : '<tr><td colspan="6" class="vide">Aucun journal pour ce filtre.</td></tr>';
+  majEntetesTri();
+}
+function renderAudit() {
+  var tb = $('#audit'), e = trier(S.auditEntries || [], 'audit');
+  tb.innerHTML = e.length ? e.map(function (x) {
+    return '<tr><td class="tn">' + esc((x.ts || '').slice(11, 19)) + '</td><td>' + esc(x.actor || '—') + '</td><td><b>' + esc(x.action || '') + '</b></td><td>' + esc(x.target || '') + '</td><td class="libre" style="color:var(--text-2);font:11px var(--mono);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(JSON.stringify(x.details || {})) + '">' + esc(JSON.stringify(x.details || {})) + '</td></tr>';
+  }).join('') : '<tr><td colspan="5" class="vide">Aucune action ce jour-là.</td></tr>';
+  majEntetesTri();
 }
 function dbgAfficher(titre, texte, nom) { S.dbgTexte = texte; S.dbgNom = nom || 'journal'; $('#dbg-titre').textContent = titre; $('#dbg-viewer').textContent = texte; $('#dbg-wrap').hidden = false; $('#dbg-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
 document.addEventListener('click', async function (e) {
   var t = e.target, b;
   if (t.closest('#b-dbg')) return chargerDebug();
   if ((b = t.closest('[data-trace]'))) {
-    var x = S.traces[Number(b.dataset.trace)]; if (!x) return;
+    var x = S.tracesVue[Number(b.dataset.trace)]; if (!x) return;
     dbgAfficher(x.operation + ' · ' + x.id, ['opération : ' + x.operation + '   (type ' + (x.type || '—') + ', actif ' + (x.asset_type || '—') + ')', 'statut    : ' + x.status, 'compte    : ' + (x.email || '—'), 'projet    : ' + (x.projet || '—'), 'date      : ' + x.date, 'durée     : ' + (x.duree_s == null ? '—' : x.duree_s + ' s'), 'crédits   : ' + (x.credits == null ? '—' : x.credits) + '   coût GPU estimé : ' + (x.cout_usd == null ? '—' : x.cout_usd) + ' $', '', 'réglages (texte saisi retiré) :', JSON.stringify(x.reglages || {}, null, 2), '', 'erreur :', x.erreur || '—'].join('\n'), 'trace_' + x.id);
     return;
   }
@@ -1375,14 +1412,14 @@ async function chargerActifs(uid, genre) {
     var chemin = '/api/admin/users/' + encodeURIComponent(uid) + (genre === 'rigs' ? '/rigs' : '/meshes' + (genre === 'animations' ? '?kind=animations' : ''));
     var j = await http(chemin);
     S.actifs = { uid: uid, genre: genre, liste: (genre === 'rigs' ? j.rigs : j.meshes) || [] };
-    box.innerHTML = htmlActifs();
+    box.innerHTML = htmlActifs(); majEntetesTri();
   } catch (er) { box.innerHTML = '<div class="msg-err">' + esc(er.message) + '</div>'; }
 }
 function htmlActifs() {
   var A = S.actifs; if (!A) return '';
   var titre = A.genre === 'rigs' ? 'Rigs' : A.genre === 'animations' ? 'Animations' : 'Maillages';
   if (!A.liste.length) return '<h3>' + titre + '</h3><div class="vide">Aucun.</div>';
-  return '<h3>' + titre + ' (' + A.liste.length + ')</h3><div class="defil haut"><table><thead><tr><th>Date</th><th>Projet</th><th>Type</th><th></th></tr></thead><tbody>' + A.liste.map(function (m, i) {
+  return '<h3>' + titre + ' (' + A.liste.length + ')</h3><div class="defil haut"><table><thead><tr><th data-tri="actifs:created_at">Date</th><th data-tri="actifs:project_name">Projet</th><th data-tri="actifs:asset_type">Type</th><th></th></tr></thead><tbody>' + trier(A.liste.map(function (m, i) { var o = Object.assign({}, m); o._i = i; return o; }), 'actifs').map(function (m) { var i = m._i;
     var url = m.mesh_url || '', peutSup = A.genre !== 'rigs';
     return '<tr><td class="tn">' + esc(dateFr(m.created_at)) + '</td><td class="coupe">' + esc(m.project_name || '') + '</td><td>' + esc(m.asset_type || '') + '</td><td>' + (url ? '<a class="btn petit" href="' + esc(url) + '" target="_blank" rel="noopener">Télécharger</a>' : '')
       + (peutSup ? (S.actifsSup === i ? ' <span class="confirm" style="display:inline-block;margin:0">Supprimer définitivement ? <button type="button" class="btn danger petit" data-actif-sup-ok="' + i + '">Oui</button> <button type="button" class="btn petit" data-actif-sup-non="1">Non</button></span>' : ' <button type="button" class="btn danger petit" data-actif-sup="' + i + '">Supprimer</button>') : '') + '</td></tr>';
@@ -1421,10 +1458,11 @@ async function chargerNonRapproches() {
 function renderRecon() {
   var box = $('#recon'), L = S.recon || []; box.hidden = !L.length; if (!L.length) return;
   $('#recon-n').textContent = L.length + ' paiement(s)';
-  majSiChange($('#recon-t'), L.map(function (p, i) {
+  majSiChange($('#recon-t'), trier(L.map(function (p, i) { var o = Object.assign({}, p); o._i = i; return o; }), 'recon').map(function (p) { var i = p._i;
     var sid = String(p.stripe_session_id || ''), qui = p.email || (p.user_id ? String(p.user_id).slice(0, 8) + '…' : '—');
     return '<tr><td class="tn">' + esc(dateFr(p.created_at)) + '</td><td>' + esc(qui) + '</td><td>' + esc(p.pack_id || '—') + '</td><td class="n tn">' + (p.amount_eur == null ? '?' : eur(p.amount_eur)) + '</td><td style="font:11px var(--mono)" title="' + esc(sid) + '">' + esc(sid.slice(0, 18)) + (sid.length > 18 ? '…' : '') + '</td><td class="n tn">' + (p.expected_credits == null ? '?' : p.expected_credits) + '</td><td><button type="button" class="btn petit prim" data-recon="' + i + '"' + (sid ? '' : ' disabled') + '>Verser les crédits</button></td></tr>';
   }).join(''));
+  majEntetesTri();
   var f = $('#recon-form');
   if (S.reconSel == null) { if (!f.querySelector('input')) f.innerHTML = ''; return; }
   if (f.querySelector('input')) return;
