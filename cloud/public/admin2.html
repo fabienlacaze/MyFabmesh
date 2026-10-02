@@ -228,6 +228,18 @@ details.carte.vol > .corps{padding:12px 16px 14px;border-top:1px solid var(--bor
 details.mini{margin:12px 0 0;border-top:1px solid var(--border);padding-top:2px}
 details.mini > summary{padding:8px 0;font-size:13px;font-weight:600;color:var(--text-1)}
 details.mini > .corps{padding:4px 0 0}
+.lb-cadre{display:flex;gap:16px;align-items:stretch;width:min(1240px,100%);max-height:78vh;min-height:0}
+.lb-vue{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center}
+.lb .lb-vue img{max-width:100%;max-height:78vh}
+.lb-pas-image{color:var(--text-2);padding:40px 20px;border:1px dashed var(--border);border-radius:10px;text-align:center}
+.lb-params{flex:0 0 min(340px,38%);background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:12px 14px;overflow:auto;font-size:13px;color:var(--text-1)}
+.lb-params h3{margin:0 0 8px;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-2)}
+dl.pm{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0 0 10px}
+dl.pm dt{color:var(--text-2)}
+dl.pm dd{margin:0;overflow-wrap:anywhere}
+pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono);background:var(--bg-2);border-radius:8px;padding:8px;margin:4px 0 8px;max-height:200px;overflow:auto}
+.vignette .sans-img{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--text-2);font-size:12px;letter-spacing:1px;text-transform:uppercase}
+@media(max-width:800px){.lb-cadre{flex-direction:column;max-height:none;overflow:auto}.lb-params{flex:none;max-height:34vh}}
 .pied{margin-top:28px;color:var(--text-2);font-size:12px;border-top:1px solid var(--border);padding-top:12px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -281,10 +293,18 @@ details.mini > .corps{padding:4px 0 0}
           <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
           <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
         </div></details>
-      <details class="carte vol" data-id="m-creations" data-res="creations"><summary><h2>Images générées <small id="n-imgs"></small></h2><span class="res"></span></summary>
+      <details class="carte vol" data-id="m-creations" data-res="creations"><summary><h2>Créations <small id="n-imgs"></small></h2><span class="res"></span></summary>
         <div class="corps">
-          <div class="ligneform"><button type="button" class="btn petit" id="b-imgs">Actualiser</button>
-            <span class="note">Les 60 images les plus récentes des 7 derniers jours. Un filtre « compte » ne montre que ses images. Cliquez pour agrandir.</span></div>
+          <div class="onglets" role="tablist" id="cre-onglets" aria-label="Type de création">
+            <button type="button" role="tab" data-cre="projets" aria-selected="false">Projets</button>
+            <button type="button" role="tab" data-cre="images" aria-selected="true">Images</button>
+            <button type="button" role="tab" data-cre="3d" aria-selected="false">3D</button>
+            <button type="button" role="tab" data-cre="rigs" aria-selected="false">Rigs</button>
+            <button type="button" role="tab" data-cre="animations" aria-selected="false">Animations</button>
+            <button type="button" role="tab" data-cre="editions" aria-selected="false">Éditions</button>
+          </div>
+          <div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-imgs">Actualiser</button>
+            <span class="note" id="cre-note"></span><span class="note">Un filtre « compte » ne montre que ses créations. Cliquez pour voir les paramètres.</span></div>
           <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div>
         </div></details>
       <details class="carte vol" data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
@@ -429,10 +449,13 @@ details.mini > .corps{padding:4px 0 0}
       <div class="ligneform" style="margin-top:10px"><button type="button" class="btn" id="fp-fermer">Fermer</button></div>
     </div>
   </div>
-  <div class="lb" id="lb" hidden role="dialog" aria-label="Image agrandie">
-    <img id="lb-img" alt="">
+  <div class="lb" id="lb" hidden role="dialog" aria-label="Création agrandie">
+    <div class="lb-cadre">
+      <div class="lb-vue"><img id="lb-img" alt=""><div class="lb-pas-image" id="lb-pas-image" hidden>Pas d'aperçu image pour cet élément.</div></div>
+      <aside class="lb-params" id="lb-params" aria-label="Paramètres utilisés"></aside>
+    </div>
     <div class="cap" id="lb-cap"></div>
-    <div class="btns"><button type="button" class="btn petit" id="lb-prec">← Précédente</button><button type="button" class="btn petit" id="lb-suiv">Suivante →</button><a class="btn petit" id="lb-ouvrir" target="_blank" rel="noopener" href="#">Ouvrir en grand ↗</a><button type="button" class="btn petit danger" id="lb-sup">Supprimer l'image</button><button type="button" class="btn petit" id="lb-fermer">Fermer (Échap)</button></div>
+    <div class="btns"><button type="button" class="btn petit" id="lb-prec">← Précédente</button><button type="button" class="btn petit" id="lb-suiv">Suivante →</button><a class="btn petit" id="lb-ouvrir" target="_blank" rel="noopener" href="#">Ouvrir en grand ↗</a><a class="btn petit" id="lb-3d" target="_blank" rel="noopener" href="#" hidden>Télécharger le 3D</a><button type="button" class="btn petit danger" id="lb-sup">Supprimer l'image</button><button type="button" class="btn petit" id="lb-fermer">Fermer (Échap)</button></div>
   </div>
   <p class="pied">Page d'administration MyFabmesh. L'ancienne page <a href="/admin">/admin</a> reste disponible en secours.</p>
 </div>
@@ -643,39 +666,93 @@ async function chargerAudience() {
   var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
   var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'audience') renderAudience(); }
 }
-S.imgs = null; S.imgsAt = 0; S.imgsCle = ''; S.lb = -1; S.usersActifs = false;
+S.lb = -1; S.usersActifs = false;
 function heuresPer() { return S.per === '6h' ? 6 : S.per === '24h' ? 24 : S.per === '30j' ? 720 : 168; }
 var LIB_PER = { '6h': '6 h', '24h': '24 h', '7j': '7 jours', '30j': '30 jours' };
+/* ═════════════ CREATIONS PAR TYPE (2026-10-02, user : « il faut plusieurs onglets par type : projets, images, 3d... » et « a droite de la vue il faut les parametres utilises ») ═════════════
+   Un onglet par type de creation ; chaque creation s'ouvre dans la visionneuse avec ses parametres a droite. Le texte SAISI (prompt, description) n'est jamais envoye avec la liste :
+   un bouton le demande pour UNE creation, et la lecture est inscrite dans le journal d'audit. */
+var CRE_TYPE = { projets: 'Projet', images: 'Image', '3d': 'Maillage 3D', rigs: 'Rig', animations: 'Animation', editions: 'Fichier image' };
+var CRE_FENETRE = { images: 168, projets: 720, '3d': 720, rigs: 720, animations: 720 };
+var LIB_PARAM = { seed: 'Graine', steps: 'Pas', asset_type: "Type d'objet", asset_style: 'Style', mode: 'Mode', origin: 'Origine', count: 'Nombre', tpose: 'T-pose', type: 'Opération', operation_type: 'Opération', objet: "Type d'objet",
+  credits: 'Crédits', cout_usd: 'Coût GPU ($)', duree_s: 'Durée (s)', images: 'Images', maillages_3d: 'Maillages 3D', rigs: 'Rigs', animations: 'Animations', fichier: 'Fichier', taille: 'Taille',
+  prompt: 'Texte saisi', full_prompt: 'Texte complet', caption: 'Légende', description: 'Description', negative_prompt: 'Texte négatif' };
+S.cre = { onglet: 'images', data: {}, at: {}, cle: {}, liste: [] };
+function creNormaliser(onglet, j) {
+  if (onglet === 'editions') {
+    return { comptes: j.comptes || 0, total: j.total_trouve, items: (j.images || []).map(function (im) {
+      return { id: im.key, tab: 'editions', kind: im.dossier, projet: im.dossier, email: im.email, quand: im.uploaded, url: im.url, key: im.key, params: { fichier: String(im.key).split('/').pop(), taille: Math.round(im.size / 1024) + ' Ko' }, supprimable: true, texte: null };
+    }) };
+  }
+  return { comptes: j.comptes || 0, total: (j.items || []).length, items: (j.items || []).map(function (it) {
+    return { id: it.id, tab: onglet, kind: it.kind, projet: it.projet, email: it.email, quand: it.created_at, url: it.url, mesh_url: it.mesh_url || null, key: it.key, params: it.params || {}, supprimable: onglet === 'images', texte: onglet === 'images' ? 'image' : (onglet === 'projets' ? null : '3d') };
+  }) };
+}
+function majOngletsCre() { $$('#cre-onglets [data-cre]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.cre === S.cre.onglet); }); }
 async function chargerImages(force) {
   if (!voletOuvert('m-creations')) return;
-  var uid = '';
+  var C = S.cre, onglet = C.onglet, uid = '';
   if (S.filt.compte) {
     if (!S.users) await chargerUsers();
     var u = S.users && S.users.users.filter(function (x) { return x.email === S.filt.compte; })[0];
     if (u) uid = u.id;
   }
-  var cle = uid + '|168';
-  if (!force && S.imgs && S.imgsCle === cle && Date.now() - S.imgsAt < 120000) { renderGalerie(); return; }
+  var cle = onglet + '|' + uid;
+  if (!force && C.data[onglet] && C.cle[onglet] === cle && Date.now() - C.at[onglet] < 120000) { renderGalerie(); return; }
   $('#n-imgs').textContent = 'chargement…';
-  var j = await silencieux(http('/api/admin/images/recent?n=60&heures=168' + (uid ? '&uid=' + encodeURIComponent(uid) : '')));
-  if (j) { S.imgs = j; S.imgsCle = cle; S.imgsAt = Date.now(); } else $('#n-imgs').textContent = 'indisponible';
+  var chemin = onglet === 'editions' ? '/api/admin/images/recent?n=60&heures=168' + (uid ? '&uid=' + encodeURIComponent(uid) : '')
+    : '/api/admin/creations?onglet=' + encodeURIComponent(onglet) + '&n=60&heures=' + CRE_FENETRE[onglet] + (uid ? '&uid=' + encodeURIComponent(uid) : '');
+  var j = await silencieux(http(chemin));
+  if (onglet !== S.cre.onglet) return;               // l'utilisateur a change d'onglet pendant le chargement : cet onglet se rechargera
+  if (j) { C.data[onglet] = creNormaliser(onglet, j); C.cle[onglet] = cle; C.at[onglet] = Date.now(); } else $('#n-imgs').textContent = 'indisponible';
   renderGalerie();
 }
 function renderGalerie() {
-  var J = S.imgs, box = $('#galerie'); if (!J) return;
-  $('#n-imgs').textContent = J.images.length + ' image' + (J.images.length > 1 ? 's' : '') + (J.total_trouve > J.images.length ? ' sur ' + J.total_trouve : '') + ' · ' + J.comptes + ' compte' + (J.comptes > 1 ? 's' : '');
-  majSiChange(box, J.images.length ? J.images.map(function (im, i) {
-    return '<button type="button" class="vignette" data-img="' + i + '" title="' + esc((im.email || '') + ' · ' + im.key) + '"><img loading="lazy" src="' + esc(im.url) + '" alt=""><span class="leg">' + esc(nomCompte(im.email)) + ' · ' + esc(im.dossier) + ' · <span data-ts="' + esc(im.uploaded) + '"></span></span></button>';
-  }).join('') : '<div class="vide">Aucune image sur cette période' + (S.filt.compte ? ' pour ce compte' : '') + '.</div>');
+  var C = S.cre, D = C.data[C.onglet], box = $('#galerie'); majOngletsCre();
+  $('#cre-note').textContent = C.onglet === 'images' ? 'Les 60 plus récentes, sur 7 jours.' : C.onglet === 'editions' ? 'Les 60 fichiers image les plus récents, sur 7 jours (tous dossiers).' : 'Les 60 plus récents, sur 30 jours.';
+  if (!D) { C.liste = []; return; }
+  C.liste = D.items;
+  $('#n-imgs').textContent = pl(D.items.length, 'élément', 'éléments') + (D.total > D.items.length ? ' sur ' + D.total : '') + ' · ' + pl(D.comptes, 'compte', 'comptes');
+  majSiChange(box, D.items.length ? D.items.map(function (it, i) {
+    var leg = esc(nomCompte(it.email)) + ' · ' + esc(it.projet || it.kind || '') + ' · <span data-ts="' + esc(it.quand) + '"></span>';
+    return '<button type="button" class="vignette" data-img="' + i + '" title="' + esc((it.email || '') + ' · ' + (it.projet || '')) + '">'
+      + (it.url ? '<img loading="lazy" src="' + esc(it.url) + '" alt="">' : '<span class="sans-img">' + esc(CRE_TYPE[it.tab] || '') + '</span>') + '<span class="leg">' + leg + '</span></button>';
+  }).join('') : '<div class="vide">Rien sur cette période' + (S.filt.compte ? ' pour ce compte' : '') + '.</div>');
   majHorloge();
 }
+function htmlParams(it) {
+  var l = [['Type', (CRE_TYPE[it.tab] || it.tab) + (it.kind && it.kind !== 'projet' && it.tab !== 'editions' ? ' · ' + it.kind : '')], ['Projet', it.projet || '—'], ['Compte', it.email || 'inconnu'], ['Date', dateFr(it.quand)]];
+  Object.keys(it.params || {}).forEach(function (k) {
+    var v = it.params[k]; if (v == null || v === '') return;
+    l.push([LIB_PARAM[k] || k, typeof v === 'boolean' ? (v ? 'oui' : 'non') : typeof v === 'object' ? JSON.stringify(v) : String(v)]);
+  });
+  return '<h3>Paramètres utilisés</h3><dl class="pm">' + l.map(function (x) { return '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('') + '</dl>'
+    + (it.texte ? '<div class="note">Le texte saisi par la personne (prompt, description) est masqué.</div><button type="button" class="btn petit" id="lb-voir-texte">Voir le texte saisi</button><div id="lb-texte"></div>' : '');
+}
 function ouvrirLb(i) {
-  var im = S.imgs && S.imgs.images[i]; if (!im) return;
-  S.lb = i; S.lbSupArme = false; $('#lb-sup').textContent = "Supprimer l'image"; $('#lb-img').src = im.url; $('#lb-ouvrir').href = im.url;
-  $('#lb-cap').textContent = (im.email || 'compte inconnu') + ' · ' + im.dossier + ' · ' + dateFr(im.uploaded) + ' · ' + Math.round(im.size / 1024) + ' Ko';
+  var it = S.cre.liste[i]; if (!it) return;
+  S.lb = i; S.lbSupArme = false;
+  var img = $('#lb-img'); if (it.url) { img.src = it.url; } else img.removeAttribute('src'); img.hidden = !it.url; $('#lb-pas-image').hidden = !!it.url;
+  var ouvrir = $('#lb-ouvrir'); ouvrir.hidden = !it.url; if (it.url) ouvrir.href = it.url;
+  var m3 = $('#lb-3d'); m3.hidden = !it.mesh_url; if (it.mesh_url) m3.href = it.mesh_url;
+  var sup = $('#lb-sup'); sup.hidden = !it.supprimable; sup.textContent = "Supprimer l'image";
+  $('#lb-cap').textContent = (it.email || 'compte inconnu') + ' · ' + (CRE_TYPE[it.tab] || '') + ' · ' + (it.projet || '') + ' · ' + dateFr(it.quand);
+  $('#lb-params').innerHTML = htmlParams(it);
   $('#lb').hidden = false;
 }
 function fermerLb() { S.lb = -1; $('#lb').hidden = true; $('#lb-img').removeAttribute('src'); }
+document.addEventListener('click', async function (e) {
+  var b = e.target.closest ? e.target.closest('[data-cre]') : null;
+  if (b) { S.cre.onglet = b.dataset.cre; majOngletsCre(); renderGalerie(); chargerImages(); return; }
+  if (!e.target.closest || !e.target.closest('#lb-voir-texte')) return;
+  var it = S.cre.liste[S.lb]; if (!it || !it.texte) return;
+  var zone = $('#lb-texte'); zone.innerHTML = '<div class="note">Chargement…</div>';
+  try {
+    var j = await http('/api/admin/creation-texte?type=' + it.texte + '&id=' + encodeURIComponent(it.id)), ks = Object.keys(j.texte || {});
+    zone.innerHTML = ks.length ? ks.map(function (k) { return '<div class="note">' + esc(LIB_PARAM[k] || k) + '</div><pre class="texte-saisi">' + esc(j.texte[k]) + '</pre>'; }).join('') + '<div class="note">Cette lecture est inscrite dans le journal d\'audit.</div>' : '<div class="note">Aucun texte saisi pour cette création.</div>';
+    var bt = $('#lb-voir-texte'); if (bt) bt.hidden = true;
+  } catch (er) { zone.innerHTML = '<div class="msg-err">' + esc(er.message) + '</div>'; }
+});
 S.rec = null; S.recAt = 0;
 /* Fenetres COURTES d'Argent (6 h, 24 h) : la facture Modal reelle est journaliere, le cout est donc ESTIME travail par travail par le serveur. */
 async function chargerArgentRecent(force) {
@@ -1193,11 +1270,11 @@ document.addEventListener('click', function (e) {
   if (e.target.closest('#b-imgs')) return chargerImages(true);
   if (e.target.closest('#lb-fermer') || e.target.id === 'lb') return fermerLb();
   if (e.target.closest('#lb-prec')) return ouvrirLb(Math.max(0, S.lb - 1));
-  if (e.target.closest('#lb-suiv')) return ouvrirLb(Math.min(S.imgs.images.length - 1, S.lb + 1));
+  if (e.target.closest('#lb-suiv')) return ouvrirLb(Math.min(S.cre.liste.length - 1, S.lb + 1));
 });
 document.addEventListener('keydown', function (e) {
   if (S.lb < 0) return;
-  if (e.key === 'Escape') fermerLb(); else if (e.key === 'ArrowLeft') ouvrirLb(Math.max(0, S.lb - 1)); else if (e.key === 'ArrowRight') ouvrirLb(Math.min(S.imgs.images.length - 1, S.lb + 1));
+  if (e.key === 'Escape') fermerLb(); else if (e.key === 'ArrowLeft') ouvrirLb(Math.max(0, S.lb - 1)); else if (e.key === 'ArrowRight') ouvrirLb(Math.min(S.cre.liste.length - 1, S.lb + 1));
 });
 function clicTri(th) {
   var p = th.dataset.tri.split(':'), nom = p[0], k = p[1], t = S.tri[nom];
@@ -1302,7 +1379,7 @@ document.addEventListener('submit', async function (e) {
   } catch (er) { err.textContent = 'Connexion impossible : ' + er.message; }
 });
 function toutRecharger() {
-  S.stats = null; S.users = null; S.msgs = null; S.listings = null; S.pricing = null; S.imgs = null;
+  S.stats = null; S.users = null; S.msgs = null; S.listings = null; S.pricing = null; S.cre.data = {};
   chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); ouvrirOnglet(S.tab);
 }
 document.addEventListener('click', async function (e) {
@@ -1488,12 +1565,12 @@ document.addEventListener('click', async function (e) {
   }
   /* suppression d'une image depuis la visionneuse : deux clics (le second confirme) */
   if (t.closest('#lb-sup')) {
-    var im = S.imgs && S.imgs.images[S.lb]; if (!im) return;
+    var im = S.cre.liste[S.lb]; if (!im || !im.supprimable || !im.key) return;
     var bt = $('#lb-sup');
     if (!S.lbSupArme) { S.lbSupArme = true; bt.textContent = 'Confirmer : supprimer pour de bon'; return; }
     try {
       await http('/api/admin/images?key=' + encodeURIComponent(im.key), { method: 'DELETE' });
-      S.imgs.images.splice(S.lb, 1); S.lbSupArme = false; fermerLb(); $('#galerie')._h = null; renderGalerie();
+      S.cre.liste.splice(S.lb, 1); S.lbSupArme = false; fermerLb(); $('#galerie')._h = null; renderGalerie();
     } catch (er) { bt.textContent = 'Échec : ' + er.message; S.lbSupArme = false; }
     return;
   }
@@ -1620,7 +1697,7 @@ var RES = {
     ev.forEach(function (x) { var t = Date.parse(x.ts); if (t > dernier) dernier = t; });
     return esc(ev.length + ' derniers · ') + (ech ? pillR('err', pl(ech, 'échec', 'échecs')) : 'aucun échec') + (dernier ? esc(' · dernier ' + ilYa((Date.now() - dernier) / 1000)) : '');
   },
-  creations: function () { var J = S.imgs; return J && J.images ? esc(pl(J.images.length, 'image', 'images') + ' · ' + pl(J.comptes || 0, 'compte', 'comptes')) : 'ouvrez pour charger'; },
+  creations: function () { var C = S.cre, D = C.data[C.onglet], bo = $('#cre-onglets [data-cre="' + C.onglet + '"]'); return D ? esc((bo ? bo.textContent : C.onglet) + ' : ' + pl(D.items.length, 'élément', 'éléments') + ' · ' + pl(D.comptes, 'compte', 'comptes')) : 'ouvrez pour charger'; },
   activite: function () {
     var f = S.live && S.live.fenetres; if (!f || !f.h1) return '…';
     return esc('5 min : ' + (f.m5 ? f.m5.lances : '—') + ' · 15 min : ' + (f.m15 ? f.m15.lances : '—') + ' · 1 h : ' + f.h1.lances + ' lancés') + (f.h1.echecs ? ' ' + pillR('err', pl(f.h1.echecs, 'échec', 'échecs')) : '');

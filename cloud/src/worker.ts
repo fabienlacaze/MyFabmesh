@@ -18278,11 +18278,35 @@ async function handleAdminAudience(req: Request, env: Env): Promise<Response> {
   const parPays = new Map<string, Case>();
   const parProvenance = new Map<string, Case>();
 
-  for (const j of ((data ?? []) as Array<{
+  const lignes = (data ?? []) as Array<{
     status: string; credit_cost: number | null; user_id: string | null;
     options: Record<string, unknown> | null;
-  }>)) {
-    const pays = (j.options?.pays as string | undefined) || 'inconnu';
+  }>;
+
+  // UN COMPTE = UN PAYS (2026-10-02, user : « c'est faux » sur « Par pays »). Le pays d'un travail est celui de la CONNEXION au moment
+  // de la requete (VPN, reseau mobile, voyage) : un meme compte apparaissait en France, en Allemagne et en « inconnu » (les etapes internes
+  // n'ont pas de requete), donc la meme personne etait comptee dans trois pays. Chaque compte est desormais range dans le pays le plus
+  // frequent de SES connexions ; tous ses travaux, y compris les etapes internes sans pays, comptent pour ce pays. Les travaux sans
+  // compte gardent leur propre pays. La provenance (canal) reste, elle, comptee travail par travail.
+  const paysDuCompte = new Map<string, string>();
+  {
+    const frequences = new Map<string, Map<string, number>>();
+    for (const j of lignes) {
+      const p = j.options?.pays as string | undefined;
+      if (!j.user_id || !p) continue;
+      const m = frequences.get(j.user_id) ?? new Map<string, number>();
+      m.set(p, (m.get(p) ?? 0) + 1);
+      frequences.set(j.user_id, m);
+    }
+    for (const [uid, m] of frequences) {
+      let meilleur = '', n = -1;
+      for (const [p, c] of m) if (c > n) { meilleur = p; n = c; }
+      paysDuCompte.set(uid, meilleur);
+    }
+  }
+
+  for (const j of lignes) {
+    const pays = (j.user_id ? paysDuCompte.get(j.user_id) : undefined) || (j.options?.pays as string | undefined) || 'inconnu';
     const prov = (j.options?.provenance as string | undefined) || 'inconnu';
     for (const [carte, cle] of [[parPays, pays], [parProvenance, prov]] as Array<[Map<string, Case>, string]>) {
       const c = carte.get(cle) ?? neuf();
@@ -18314,7 +18338,8 @@ async function handleAdminAudience(req: Request, env: Env): Promise<Response> {
     fenetre_jours: jours,
     fenetre_minutes: minutes,
     depuis,
-    note: 'Les lignes anterieures au 2026-08-23 ne portent ni pays ni provenance '
+    note: 'Un compte est compté une seule fois, dans le pays le plus fréquent de ses connexions '
+        + '(un VPN ou un déplacement ne le dédouble pas). Les lignes antérieures au 2026-08-23 ne portent ni pays ni provenance '
         + 'et apparaissent en « inconnu ».',
     par_pays: rendre(parPays),
     par_provenance: rendre(parProvenance),
@@ -20540,6 +20565,157 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
   });
 }
 
+/** Texte SAISI par l'utilisateur dans les parametres d'une creation (prompt, description, negatif...). Les autres reglages (graine, pas, preset, type d'objet,
+ *  style choisi dans un menu) ne sont PAS du texte saisi. Meme esprit que `TEXTE_SAISI` dans handleAdminTraces (la politique de confidentialite promet des
+ *  rapports « debarrasses des prompts »), avec « style » en moins : `asset_style` est un choix de menu. */
+const TEXTE_SAISI_ADMIN = /prompt|caption|description|negative|translat|^text$/i;
+function _paramsSansTexte(o: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const r: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o || {})) {
+    if (k === 'req' || TEXTE_SAISI_ADMIN.test(k)) continue;
+    if (typeof v === 'string' && v.length > 200) continue;
+    if (v && typeof v === 'object') { try { if (JSON.stringify(v).length > 400) continue; } catch { continue; } }
+    r[k] = v;
+  }
+  return r;
+}
+
+/** GET /api/admin/creations?onglet=projets|images|3d|rigs|animations&n=60&heures=720[&uid=][&projet=] — ADMIN ONLY. Ce que les comptes ont CREE, par type
+ *  (user : « il faut plusieurs onglets par type : projets, images, 3d... » et « a droite de la vue, les parametres utilises »). Sources : `user_assets` (images
+ *  et miniatures 3D, avec leur `meta` : graine, pas, type d'objet, style...) et `jobs` (maillages, rigs, animations, avec leurs `options`). Les reglages sont rendus
+ *  SANS le texte saisi ; le texte ne s'obtient que par /api/admin/creation-texte (un clic, journalise). */
+async function handleAdminCreations(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  const u = new URL(req.url);
+  const onglet = ['projets', 'images', '3d', 'rigs', 'animations'].includes(u.searchParams.get('onglet') || '') ? String(u.searchParams.get('onglet')) : 'images';
+  const n = Math.max(6, Math.min(120, parseInt(u.searchParams.get('n') || '60', 10) || 60));
+  const heures = Math.max(1, Math.min(8760, parseInt(u.searchParams.get('heures') || '720', 10) || 720));
+  const uid = (u.searchParams.get('uid') || '').replace(/[^0-9a-zA-Z_-]/g, '');
+  const projet = (u.searchParams.get('projet') || '').slice(0, 128);
+  const depuis = new Date(Date.now() - heures * 3600_000).toISOString();
+  const sb = supabaseAdmin(env);
+  const emails = new Map<string, string | null>();
+  const remplirEmails = async (ids: Array<string | null | undefined>) => {
+    const liste = [...new Set(ids.filter((x): x is string => !!x))];
+    if (!liste.length) return;
+    const { data: pr } = await sb.from('profiles').select('id, email').in('id', liste);
+    for (const p of ((pr || []) as Array<{ id: string; email: string | null }>)) emails.set(p.id, p.email);
+  };
+  type Asset = { id: number; user_id: string; project: string; kind: string; r2_path: string; parent_path: string | null; meta: Record<string, unknown> | null; created_at: string };
+  type Job = { id: string; user_id: string; type: string | null; asset_type: string | null; mode: string | null; status: string; credit_cost: number | null; cost_usd: number | null;
+               project_name: string | null; mesh_url: string | null; options: Record<string, unknown> | null; created_at: string; finished_at: string | null };
+
+  if (onglet === 'images') {
+    let q = sb.from('user_assets').select('id, user_id, project, kind, r2_path, parent_path, meta, created_at')
+      .like('kind', 'image-%').gte('created_at', depuis).order('created_at', { ascending: false }).limit(n);
+    if (uid) q = q.eq('user_id', uid);
+    if (projet) q = q.eq('project', projet);
+    const { data, error } = await q;
+    if (error) return err(500, error.message);
+    const rows = (data || []) as Asset[];
+    await remplirEmails(rows.map((r) => r.user_id));
+    const items = await Promise.all(rows.map(async (a) => ({
+      id: String(a.id), tab: 'images', kind: a.kind.replace(/^image-/, ''), projet: a.project, email: emails.get(a.user_id) ?? null, user_id: a.user_id,
+      created_at: a.created_at, key: a.r2_path, url: await signedR2Url(env, a.r2_path, 'image'), params: _paramsSansTexte(a.meta),
+    })));
+    return json({ ok: true, onglet, items, comptes: new Set(rows.map((r) => r.user_id)).size });
+  }
+
+  if (onglet === '3d' || onglet === 'rigs' || onglet === 'animations') {
+    const voulu = onglet === '3d' ? 'mesh' : onglet === 'rigs' ? 'rig' : 'animation';
+    let q = sb.from('jobs').select('id, user_id, type, asset_type, mode, status, credit_cost, cost_usd, project_name, mesh_url, options, created_at, finished_at')
+      .eq('status', 'succeeded').not('mesh_url', 'is', null).gte('created_at', depuis).order('created_at', { ascending: false }).limit(600);
+    if (uid) q = q.eq('user_id', uid);
+    if (projet) q = q.eq('project_name', projet);
+    const { data, error } = await q;
+    if (error) return err(500, error.message);
+    const jobs = ((data || []) as Job[]).filter((j) => _natureGlb(j.mesh_url, j.options) === voulu).slice(0, n);
+    await remplirEmails(jobs.map((j) => j.user_id));
+    const miniatures = new Map<string, string>();
+    const cles = jobs.map((j) => j.mesh_url).filter((x): x is string => !!x);
+    if (cles.length) {
+      const { data: th } = await sb.from('user_assets').select('parent_path, r2_path').eq('kind', 'thumb-mesh').in('parent_path', cles);
+      for (const t of ((th || []) as Array<{ parent_path: string; r2_path: string }>)) miniatures.set(t.parent_path, t.r2_path);
+    }
+    const items = await Promise.all(jobs.map(async (j) => {
+      const debut = Date.parse(j.created_at), fin = Date.parse(String(j.finished_at || ''));
+      const mini = j.mesh_url ? miniatures.get(j.mesh_url) : undefined;
+      return {
+        id: j.id, tab: onglet, kind: voulu, projet: j.project_name, email: emails.get(j.user_id) ?? null, user_id: j.user_id, created_at: j.created_at,
+        key: null, mesh_url: j.mesh_url ? await signedR2Url(env, j.mesh_url, 'mesh') : null, url: mini ? await signedR2Url(env, mini, 'image') : null,
+        params: { type: j.type, objet: j.asset_type, mode: j.mode, credits: j.credit_cost, cout_usd: j.cost_usd,
+                  duree_s: Number.isFinite(debut) && Number.isFinite(fin) ? Math.round((fin - debut) / 1000) : null, ..._paramsSansTexte(j.options) },
+      };
+    }));
+    return json({ ok: true, onglet, items, comptes: new Set(jobs.map((j) => j.user_id)).size });
+  }
+
+  // projets : un projet = (compte, nom) ; comptes d'images et de fichiers 3D, derniere activite, une vignette
+  let qa = sb.from('user_assets').select('user_id, project, kind, r2_path, created_at').gte('created_at', depuis).order('created_at', { ascending: false }).limit(1500);
+  let qj = sb.from('jobs').select('user_id, project_name, mesh_url, options, created_at').eq('status', 'succeeded').not('mesh_url', 'is', null).gte('created_at', depuis).order('created_at', { ascending: false }).limit(1500);
+  if (uid) { qa = qa.eq('user_id', uid); qj = qj.eq('user_id', uid); }
+  const [ra, rj] = await Promise.all([qa, qj]);
+  if (ra.error) return err(500, ra.error.message);
+  type Proj = { user_id: string; projet: string; images: number; meshes: number; rigs: number; anims: number; derniere: string; thumb: string | null };
+  const projets = new Map<string, Proj>();
+  const prendre = (uidp: string, nom: string, quand: string): Proj | null => {
+    if (!nom || nom === '_thumbs') return null;
+    const k = uidp + '\u0001' + nom;
+    let p = projets.get(k);
+    if (!p) { p = { user_id: uidp, projet: nom, images: 0, meshes: 0, rigs: 0, anims: 0, derniere: quand, thumb: null }; projets.set(k, p); }
+    if (quand > p.derniere) p.derniere = quand;
+    return p;
+  };
+  for (const a of ((ra.data || []) as Array<{ user_id: string; project: string; kind: string; r2_path: string; created_at: string }>)) {
+    const p = prendre(a.user_id, a.project, a.created_at); if (!p) continue;
+    if (/^image-/.test(a.kind)) { p.images++; if (!p.thumb && a.kind === 'image-front') p.thumb = a.r2_path; }
+    else if (!p.thumb && a.kind === 'thumb-mesh') p.thumb = a.r2_path;
+  }
+  for (const j of ((rj.data || []) as Array<{ user_id: string; project_name: string | null; mesh_url: string | null; options: Record<string, unknown> | null; created_at: string }>)) {
+    const p = prendre(j.user_id, String(j.project_name || ''), j.created_at); if (!p) continue;
+    const nature = _natureGlb(j.mesh_url, j.options);
+    if (nature === 'rig') p.rigs++; else if (nature === 'animation') p.anims++; else p.meshes++;
+  }
+  const liste = [...projets.values()].filter((p) => !projet || p.projet === projet).sort((a, b) => b.derniere.localeCompare(a.derniere)).slice(0, n);
+  await remplirEmails(liste.map((p) => p.user_id));
+  const items = await Promise.all(liste.map(async (p) => ({
+    id: p.user_id + ':' + p.projet, tab: 'projets', kind: 'projet', projet: p.projet, email: emails.get(p.user_id) ?? null, user_id: p.user_id, created_at: p.derniere, key: null,
+    url: p.thumb ? await signedR2Url(env, p.thumb, 'image') : null, params: { images: p.images, maillages_3d: p.meshes, rigs: p.rigs, animations: p.anims },
+  })));
+  return json({ ok: true, onglet, items, comptes: new Set(liste.map((p) => p.user_id)).size });
+}
+
+/** GET /api/admin/creation-texte?type=image|3d&id=<id> — ADMIN ONLY. Le texte SAISI d'UNE creation (prompt, description...), sur demande explicite. Chaque lecture est
+ *  inscrite dans le journal d'audit (action `view_prompt`) : voir ce que quelqu'un a ecrit est un acte qui doit laisser une trace. */
+async function handleAdminCreationTexte(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  const u = new URL(req.url);
+  const type = u.searchParams.get('type') === '3d' ? '3d' : 'image';
+  const id = (u.searchParams.get('id') || '').replace(/[^0-9a-zA-Z_:-]/g, '').slice(0, 80);
+  if (!id) return err(400, 'id required');
+  const sb = supabaseAdmin(env);
+  let source: Record<string, unknown> | null = null;
+  let proprietaire: string | null = null;
+  if (type === 'image') {
+    const { data } = await sb.from('user_assets').select('user_id, meta').eq('id', id).limit(1);
+    const r = (data || [])[0] as { user_id: string; meta: Record<string, unknown> | null } | undefined;
+    source = r?.meta ?? null; proprietaire = r?.user_id ?? null;
+  } else {
+    const { data } = await sb.from('jobs').select('user_id, options').eq('id', id).limit(1);
+    const r = (data || [])[0] as { user_id: string; options: Record<string, unknown> | null } | undefined;
+    source = r?.options ?? null; proprietaire = r?.user_id ?? null;
+  }
+  if (!source) return err(404, 'not found');
+  const texte: Record<string, string> = {};
+  for (const [k, v] of Object.entries(source)) {
+    if (TEXTE_SAISI_ADMIN.test(k) && typeof v === 'string') texte[k] = v.slice(0, 2000);
+  }
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'view_prompt', target: `${type}:${id}`, details: { user_id: proprietaire, champs: Object.keys(texte) } });
+  return json({ ok: true, texte });
+}
+
 /** GET /api/admin/users/<userId>/projects — ADMIN ONLY. Groups the
  *  user's jobs by project_name and returns one summary row per project
  *  (thumb URL, image count, mesh count, last activity). */
@@ -22404,6 +22580,8 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/admin/jobs/active'     && method === 'GET')  return await handleAdminActiveJobs(req, env);
         if (pathname === '/api/admin/images/recent'   && method === 'GET')  return await handleAdminImagesRecent(req, env);
         if (pathname === '/api/admin/argent-recent'   && method === 'GET')  return await handleAdminArgentRecent(req, env);
+        if (pathname === '/api/admin/creations'       && method === 'GET')  return await handleAdminCreations(req, env);
+        if (pathname === '/api/admin/creation-texte'  && method === 'GET')  return await handleAdminCreationTexte(req, env);
         if (pathname === '/api/admin/jobs/cancel'     && method === 'POST') return await handleAdminCancelJob(req, env);
         if (pathname === '/api/admin/users'           && method === 'GET')  return await handleAdminListUsers(req, env);
         if (pathname === '/api/admin/users/ban'       && method === 'POST') return await handleAdminBanUser(req, env);
