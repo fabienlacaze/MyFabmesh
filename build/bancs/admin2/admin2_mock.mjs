@@ -52,7 +52,7 @@ const routes = {
     { date: iso(20 * 3600e3), email: MAILS[2], pack: 'Pack 1500', encaisse_eur: 49, credits: 1500, etat: 'credite', stripe_id: 'cs_live_def', test: false },
     { date: iso(5 * 86400e3), email: MAILS[1], pack: 'Pack 100', encaisse_eur: 5, credits: 100, etat: 'credite', stripe_id: 'cs_test_xyz', test: true }] }),
   'GET /api/admin/stats.json': () => ({ generated_at: iso(0), users: { total: 41, users_with_ops: 12, signups_total: 58, active_7d: 9, active_30d: 17, online_now: 2 }, operations: { total: 900, succeeded: 840, failed: 60 }, cron: { ts: iso((etat.cronAgeMin == null ? 12 : etat.cronAgeMin) * 60e3), scanned: 18, reaped: 1, credits_refunded: 60, duration_ms: 840, errors: [] }, jobs_truncated: false,
-    by_type_30d: REEL ? { cout_reel: true, eur_par_credit: 0.162, facture_sans_operation_eur: 1.4, types: REEL.types, connues: REEL.connues, estimes: REEL.estimes, familles: FAMILLES_MOCK } : { cout_reel: true, eur_par_credit: 0.162, facture_sans_operation_eur: 1.4, estimes: {}, types: { mesh: { count: 120, failed: 9, credits: 7000, value_eur: 190, real_eur: 95, paid_eur: 60 }, rig: { count: 40, failed: 6, credits: 1200, value_eur: 40, real_eur: 46, paid_eur: 10 }, image: { count: 400, failed: 4, credits: 1600, value_eur: 26, real_eur: 0.003, paid_eur: 8 }, anim: { count: 12, failed: 0, credits: 0, value_eur: 0, real_eur: 3, paid_eur: 0 }, modify: { count: 30, failed: 2, credits: 90, value_eur: 14.6, real_eur: 0.2, paid_eur: 0 }, 'mesh-op:smooth': { count: 5, failed: 0, credits: 5, value_eur: 0.8, real_eur: 0.01, paid_eur: 0 } },
+    by_type_30d: REEL ? { cout_reel: true, eur_par_credit: 0.162, facture_sans_operation_eur: 1.4, types: REEL.types, connues: REEL.connues, estimes: REEL.estimes, bench: REEL.bench, familles: FAMILLES_MOCK } : { cout_reel: true, eur_par_credit: 0.162, facture_sans_operation_eur: 1.4, estimes: {}, types: { mesh: { count: 120, failed: 9, credits: 7000, value_eur: 190, real_eur: 95, paid_eur: 60 }, rig: { count: 40, failed: 6, credits: 1200, value_eur: 40, real_eur: 46, paid_eur: 10 }, image: { count: 400, failed: 4, credits: 1600, value_eur: 26, real_eur: 0.003, paid_eur: 8 }, anim: { count: 12, failed: 0, credits: 0, value_eur: 0, real_eur: 3, paid_eur: 0 }, modify: { count: 30, failed: 2, credits: 90, value_eur: 14.6, real_eur: 0.2, paid_eur: 0 }, 'mesh-op:smooth': { count: 5, failed: 0, credits: 5, value_eur: 0.8, real_eur: 0.01, paid_eur: 0 } },
       connues: OPERATIONS_MOCK, familles: FAMILLES_MOCK },
     revenue: { credits_revenue_payeurs_eur: 41.5, credits_revenue_offerts_eur: 12.25, payeurs_count: 2, payments_count: 3, total_gross_eur: 73, total_cost_eur: 310, total_margin_eur: -20, real_cost_eur: 38.4, real_margin_eur: 34.6, real_revenue_mois_eur: 73, real_usage_age_h: 1, real_usage_usd: 41.3 },
     last_7d: { ops: 120, revenue_eur: 40, margin_eur: 22 }, series_30d: days, desktop_downloads_total: 213 }),
@@ -127,6 +127,7 @@ http.createServer((req, res) => {
   if (u.pathname === '/api/admin/logs/get') { const k = u.searchParams.get('key') || ''; res.writeHead(200, { 'content-type': 'text/plain' }); res.end(k === '_logs/latest/_last_uid.txt' ? 'u1' : 'ligne 1 du journal (' + k + ')\nligne 2 du journal'); return; }
   if (u.pathname.startsWith('/api/')) {
     if (sess.perdue) { res.writeHead(401, { 'content-type': 'application/json' }); res.end('{"error":"unauthorized"}'); return; }
+    if (process.env.MOCK_COOKIE_ADMIN && /^\/api\/admin\//.test(u.pathname) && u.pathname !== '/api/admin/login' && !/admin_session=FAKEADMIN/.test(req.headers.cookie || '')) { res.writeHead(401, { 'content-type': 'application/json' }); res.end('{"error":"admin_password_required"}'); return; }
     if (sess.mdp && !/^\/api\/admin\/(login|reset-)/.test(u.pathname)) { res.writeHead(401, { 'content-type': 'application/json' }); res.end('{"error":"admin_password_required"}'); return; }
     let body = ''; req.on('data', (c) => body += c); req.on('end', () => {
       let b = {}; try { b = body ? JSON.parse(body) : {}; } catch (_) {}
@@ -140,7 +141,9 @@ http.createServer((req, res) => {
       if (!f) { const m = /^\/api\/admin\/market\/([^/]+)\/(price|offert)$/.exec(u.pathname); if (m) f = () => { if (m[2] === 'price') { etat.prixAnnonce = b.price_cents; return { ok: true }; } etat.offerts = b.actif ? [m[1]] : []; return { ok: true, ids: etat.offerts }; }; }
       if (!f) { const m = /^\/api\/admin\/market\/([^/]+)$/.exec(u.pathname); if (m && req.method === 'DELETE') f = () => { etat.annonceSupprimee = true; return { ok: true }; }; }
       if (!f) { j(res, { error: 'inconnu ' + key }, 404); return; }
-      const r = f(b, u); if (Array.isArray(r)) j(res, r[1], r[0]); else j(res, r);
+      const r = f(b, u);
+      if (u.pathname === '/api/admin/login' && !Array.isArray(r)) { res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'admin_session=FAKEADMIN; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400' }); res.end(JSON.stringify(r)); return; }
+      if (Array.isArray(r)) j(res, r[1], r[0]); else j(res, r);
     });
     return;
   }
