@@ -18,6 +18,7 @@ ap.add_argument('--tol', type=float, default=0.006)
 ap.add_argument('--cos-min', type=float, default=0.35)
 ap.add_argument('--sans-flot', action='store_true')
 ap.add_argument('--tuile', type=int, default=4096)
+ap.add_argument('--debug-facteurs', action='store_true')   # enregistre (2048 px) les trois facteurs du poids : profondeur, angle, masque
 ap.add_argument('--normales-sommets', action='store_true')   # ancien comportement : normales par sommet de TRELLIS (incoherentes sur les grandes faces)
 args = ap.parse_args()
 os.makedirs(args.sortie, exist_ok=True)
@@ -158,6 +159,8 @@ for k in [int(x) for x in args.vues.split(',') if x]:
     GT = torch.from_numpy(ALIGN).to(dev).permute(2, 0, 1)[None].float()
     dr = torch.tensor(droite, dtype=torch.float32, device=dev); hh = torch.tensor(haut, dtype=torch.float32, device=dev); lk = torch.tensor(look, dtype=torch.float32, device=dev); pp = torch.tensor(p, dtype=torch.float32, device=dev)
     NOUV = np.empty_like(ATLAS); POIDS = np.zeros((AH, AH), np.uint8); couvert = 0; total = int(VALIDE.sum()); diag = []
+    if args.debug_facteurs:
+        D_VIS = np.zeros((AH, AH), np.uint8); D_ANG = np.zeros((AH, AH), np.uint8); D_MK = np.zeros((AH, AH), np.uint8)
     for r0_ in range(0, AH, 2048):
         pos = torch.from_numpy(POS[r0_:r0_ + 2048].astype(np.float32)).to(dev); nrm = torch.from_numpy(NR[r0_:r0_ + 2048].astype(np.float32)).to(dev)
         val = torch.from_numpy(VALIDE[r0_:r0_ + 2048]).to(dev)
@@ -174,6 +177,8 @@ for k in [int(x) for x in args.vues.split(',') if x]:
         mk = torch.nn.functional.grid_sample(MT, grille, mode='bilinear', padding_mode='zeros', align_corners=True)[0, 0]
         col = torch.nn.functional.grid_sample(GT, grille, mode='bilinear', padding_mode='border', align_corners=True)[0]
         a = (val & vis & dans).float() * wang * mk
+        if args.debug_facteurs:
+            D_VIS[r0_:r0_ + 2048] = ((val & vis & dans).float() * 255).byte().cpu().numpy(); D_ANG[r0_:r0_ + 2048] = (wang * val.float() * 255).byte().cpu().numpy(); D_MK[r0_:r0_ + 2048] = (mk * val.float() * 255).byte().cpu().numpy()
         NOUV[r0_:r0_ + 2048] = col.permute(1, 2, 0).clamp(0, 255).byte().cpu().numpy(); POIDS[r0_:r0_ + 2048] = (a * 255).byte().cpu().numpy()
         couvert += int((a > 0.5).sum())
         if r0_ == 0 or True:
@@ -183,6 +188,9 @@ for k in [int(x) for x in args.vues.split(',') if x]:
         torch.cuda.empty_cache()
     dg = np.array(diag).sum(0); log('   diag vue %d : valides %d | dans image %.1f %% | visibles(prof) %.1f %% | cos>min %.1f %% | masque>0,5 %.1f %% | tout %.1f %% | vis&cos %.1f %% | vis&masque %.1f %%' % (k, dg[0], 100 * dg[1] / dg[0], 100 * dg[2] / dg[0], 100 * dg[3] / dg[0], 100 * dg[4] / dg[0], 100 * dg[5] / dg[0], 100 * dg[6] / dg[0], 100 * dg[7] / dg[0]))
     dossier_v = os.path.join(args.sortie, 'vue_%d' % k); os.makedirs(dossier_v, exist_ok=True)
+    if args.debug_facteurs:
+        for nom_, arr_ in (('vis', D_VIS), ('ang', D_ANG), ('mask', D_MK), ('poids', POIDS)):
+            Image.fromarray(cv2.resize(arr_, (2048, 2048), interpolation=cv2.INTER_AREA)).save(os.path.join(dossier_v, 'facteur_%s.png' % nom_))
     np.save(os.path.join(dossier_v, 'nouveau.npy'), NOUV); np.save(os.path.join(dossier_v, 'poids.npy'), POIDS)
     log('vue %d (az %s, el %s) : %.2f %% des texels utiles projetes (%.1f s)' % (k, AZ[k], EL[k], 100.0 * couvert / max(total, 1), time.time() - t1))
 log('termine')
