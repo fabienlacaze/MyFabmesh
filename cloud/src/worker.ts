@@ -2835,18 +2835,17 @@ const COUT_ESTIME_PAR_PRIX: Record<string, number> = {
   watertight_hd: 0.05, mesh_segment: 0.30, rig: 0.37, reskin: 0.20, anim: 0.05,
   // aucun GPU (CPU, ou navigateur) : le plus gros poste est la part de la facture Modal repartie
   construction3d: 0.02, export: 0.005, manual_tool: 0.005, mesh_op_simple: 0.03,
-  // OPTIONS de la generation 3D = cout MARGINAL « avec - sans », en EUR par usage (GPU L40S 0,000542 USD/s x 0,93). La difference de duree entre generations avec et sans l'option N'EST PAS
-  // mesurable dans la table `jobs` (119 generations reussies / 30 j : ecart-type 244 s, demarrages a froid, options cochees ensemble par les profils d'asset : une regression place ultra_hd a
-  // +274 s +/- 125 mais le palier ultra_8k a -328 s, les deux sont confondus). Hors redressement (MESURE), ces valeurs sont donc des ESTIMATIONS PHYSIQUES a confirmer par un banc avec / sans :
-  mesh_rectify: 0.33,          // MESURE 30 j : 21,4 EUR reels de GPU pour 65 generations qui l'ont paye (appel a part, avec son propre demarrage a froid)
-  mesh_ultra_hd: 0.011,        // ~20 s de Real-ESRGAN 8K (18-25 s mesures, voir _esrgan.affuter_atlas)
-  mesh_ultra_q: 0.015,         // voxels 1536 en cascade : ~30 s de plus que 1024 (mediane des generations « balanced » avec ultra_q = 90 s en tout apres le 29/09, donc l'ecart est borne)
-  mesh_quality_plus: 0.008,    // voxels 1024 en cascade : ~15 s de plus
-  mesh_smooth: 0.003,          // filtre bilateral sur l'atlas, CPU, ~5 s
-  mesh_refine: 0.05,           // affinage par tuiles SDXL + ControlNet-Tile : ~100 s (option SUSPENDUE sur le site, active au bureau)
-  mesh_face_fix: 0.02,         // passe SDXL Inpaint sur la zone du visage : ~40 s (option SUSPENDUE sur le site)
-  mesh_multiref: 0.005,        // une image de conditionnement de plus : ~10 s (jamais utilisee sur 30 j)
-  mesh_tris_500k: 0.006,       // cuisson / export plus longs avec plus de triangles : +12 s par doublement mesure (+/- 24 s)
+  // OPTIONS de la generation 3D = cout MARGINAL « avec - sans », en EUR par usage (GPU L40S 0,000542 USD/s x 0,93). MESURE du 2026-10-02 (modal_app/test_options_avec_sans.py : MEME image, MEME graine,
+  // conteneur chaud, paires « sans / avec » intercalees, 2 paires par option ; resultats dans AGENT_LOG.md). La table `jobs` ne permettait pas de les lire (ecart-type 244 s : demarrages a froid).
+  mesh_rectify: 0.33,          // MESURE sur 30 j : 21,4 EUR reels de GPU pour 65 generations qui l'ont paye (appel a part, avec son propre demarrage a froid)
+  mesh_ultra_hd: 0.025,        // MESURE avec/sans : +49 s +/- 12 (Real-ESRGAN 8K ; le GLB passe de 36 a 53 Mo)
+  mesh_ultra_q: 0.030,         // MESURE avec/sans : +59 s +/- 22 (voxels 1536 en cascade)
+  mesh_quality_plus: 0.008,    // avec/sans : +12 s +/- 30 (bruit) ; estimation physique retenue (voxels 1024 en cascade, ~15 s)
+  mesh_smooth: 0.002,          // MESURE avec/sans : +3 s +/- 9 (filtre bilateral CPU)
+  mesh_refine: 0.027,          // MESURE DIRECTE (journal Modal) : « atlas affine en 53,0 s » (9 tuiles SDXL + ControlNet-Tile) ; avec/sans +23 s +/- 19. SUSPENDUE sur le site, active au bureau
+  mesh_face_fix: 0.008,        // MESURE DIRECTE (journal Modal) : « face_fix done in 16,1 s » ; avec/sans -12 s +/- 7 (bruit). SUSPENDUE sur le site, active au bureau
+  mesh_multiref: 0.005,        // NON MESUREE (jamais utilisee sur 30 j) : une image de conditionnement de plus, ~10 s estimees
+  mesh_tris_500k: 0.011,       // MESURE avec/sans : 2 M au lieu de 500 K = +42 s +/- 11 (2 doublements) soit ~21 s par doublement ; le GLB passe de 36 a 95 Mo
 };
 
 /** Persist a single non-mesh operation in the jobs table so the

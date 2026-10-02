@@ -67,8 +67,16 @@ def url_image():
     return s3.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": CLE_IMAGE}, ExpiresIn=6 * 3600)
 
 
-def plan(repeats):
-    """Liste ordonnee des generations : (etiquette, groupe, extra, mesuree?)."""
+def plan(repeats, seulement=None):
+    """Liste ordonnee des generations : (etiquette, groupe, extra, mesuree?). `seulement` = liste de noms de PALIERS : on ne mesure alors que ceux-la (2e passage)."""
+    if seulement:
+        etapes = []
+        for nom in seulement:
+            extra = PALIERS[nom]
+            etapes.append((nom, "palier|" + nom + "|chauffe", extra, False))
+            for i in range(repeats):
+                etapes.append((nom, "palier|" + nom, extra, True))
+        return etapes
     etapes = [("base", "chauffe", {}, False)]
     for nom, extra in OPTIONS.items():
         etapes.append((nom, nom + "|chauffe", extra, False))                 # 1re generation d'une configuration : compile les noyaux GPU de sa taille, ecartee
@@ -110,8 +118,15 @@ def main():
     ap.add_argument("--repeats", type=int, default=2, help="paires avec/sans mesurees par option")
     ap.add_argument("--budget-min", type=float, default=85.0, help="plafond de duree TOTALE (minutes) : au-dela, le banc s'arrete et resume")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--seulement", default="", help="paliers a mesurer seuls, separes par des virgules (ex. fast,quality,ultra_8k)")
+    ap.add_argument("--sortie", default=SORTIE, help="fichier de resultats")
     a = ap.parse_args()
-    etapes = plan(a.repeats)
+    sortie = a.sortie
+    seul = [x.strip() for x in a.seulement.split(",") if x.strip()]
+    for x in seul:
+        if x not in PALIERS:
+            sys.exit("palier inconnu : " + x)
+    etapes = plan(a.repeats, seul or None)
     print("generations prevues : %d (dont %d mesurees) ; ~100 s chacune = ~%.0f min, ~%.1f USD de L40S" % (
         len(etapes), sum(1 for e in etapes if e[3]), len(etapes) * 100 / 60, len(etapes) * 100 * 0.000542), flush=True)
     if a.dry_run:
@@ -124,7 +139,7 @@ def main():
     res, debut = [], time.time()
 
     def sauver():
-        json.dump({"debut": debut, "duree_s": round(time.time() - debut), "resultats": res, "resume": resume(res)}, io.open(SORTIE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        json.dump({"debut": debut, "duree_s": round(time.time() - debut), "resultats": res, "resume": resume(res)}, io.open(sortie, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
     for i, (nom, groupe, extra, mesuree) in enumerate(etapes):
         if time.time() - debut > a.budget_min * 60:

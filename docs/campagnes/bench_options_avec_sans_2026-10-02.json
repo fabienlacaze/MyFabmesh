@@ -1,0 +1,657 @@
+{
+ "banc_options": {
+  "debut": 1790956505.088992,
+  "duree_s": 5234,
+  "resultats": [
+   {
+    "i": 0,
+    "nom": "base",
+    "groupe": "chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 125.1,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 1,
+    "nom": "ultra_hd",
+    "groupe": "ultra_hd|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 125.1,
+    "err": null,
+    "extra": {
+     "ultra_hd": true,
+     "texture_size": 4096
+    }
+   },
+   {
+    "i": 2,
+    "nom": "base",
+    "groupe": "ultra_hd|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 114.1,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 3,
+    "nom": "ultra_hd",
+    "groupe": "ultra_hd|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 151.1,
+    "err": null,
+    "extra": {
+     "ultra_hd": true,
+     "texture_size": 4096
+    }
+   },
+   {
+    "i": 4,
+    "nom": "base",
+    "groupe": "ultra_hd|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 102.6,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 5,
+    "nom": "ultra_hd",
+    "groupe": "ultra_hd|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 163.1,
+    "err": null,
+    "extra": {
+     "ultra_hd": true,
+     "texture_size": 4096
+    }
+   },
+   {
+    "i": 6,
+    "nom": "ultra_q",
+    "groupe": "ultra_q|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 175.9,
+    "err": null,
+    "extra": {
+     "mode": "1536_cascade",
+     "ultra_q": true
+    }
+   },
+   {
+    "i": 7,
+    "nom": "base",
+    "groupe": "ultra_q|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 101.1,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 8,
+    "nom": "ultra_q",
+    "groupe": "ultra_q|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 182.3,
+    "err": null,
+    "extra": {
+     "mode": "1536_cascade",
+     "ultra_q": true
+    }
+   },
+   {
+    "i": 9,
+    "nom": "base",
+    "groupe": "ultra_q|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 132.5,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 10,
+    "nom": "ultra_q",
+    "groupe": "ultra_q|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 169.3,
+    "err": null,
+    "extra": {
+     "mode": "1536_cascade",
+     "ultra_q": true
+    }
+   },
+   {
+    "i": 11,
+    "nom": "quality_plus",
+    "groupe": "quality_plus|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 114.1,
+    "err": null,
+    "extra": {
+     "mode": "1024_cascade",
+     "quality_plus": true
+    }
+   },
+   {
+    "i": 12,
+    "nom": "base",
+    "groupe": "quality_plus|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 117.6,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 13,
+    "nom": "quality_plus",
+    "groupe": "quality_plus|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 99.6,
+    "err": null,
+    "extra": {
+     "mode": "1024_cascade",
+     "quality_plus": true
+    }
+   },
+   {
+    "i": 14,
+    "nom": "base",
+    "groupe": "quality_plus|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 109.9,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 15,
+    "nom": "quality_plus",
+    "groupe": "quality_plus|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 151.8,
+    "err": null,
+    "extra": {
+     "mode": "1024_cascade",
+     "quality_plus": true
+    }
+   },
+   {
+    "i": 16,
+    "nom": "smooth",
+    "groupe": "smooth|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 118.4,
+    "err": null,
+    "extra": {
+     "smooth": true
+    }
+   },
+   {
+    "i": 17,
+    "nom": "base",
+    "groupe": "smooth|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 132.1,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 18,
+    "nom": "smooth",
+    "groupe": "smooth|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 126.1,
+    "err": null,
+    "extra": {
+     "smooth": true
+    }
+   },
+   {
+    "i": 19,
+    "nom": "base",
+    "groupe": "smooth|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 112.1,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 20,
+    "nom": "smooth",
+    "groupe": "smooth|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 124.2,
+    "err": null,
+    "extra": {
+     "smooth": true
+    }
+   },
+   {
+    "i": 21,
+    "nom": "face_fix",
+    "groupe": "face_fix|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 127.9,
+    "err": null,
+    "extra": {
+     "face_fix": true
+    }
+   },
+   {
+    "i": 22,
+    "nom": "base",
+    "groupe": "face_fix|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 137.8,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 23,
+    "nom": "face_fix",
+    "groupe": "face_fix|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 119.5,
+    "err": null,
+    "extra": {
+     "face_fix": true
+    }
+   },
+   {
+    "i": 24,
+    "nom": "base",
+    "groupe": "face_fix|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 115.6,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 25,
+    "nom": "face_fix",
+    "groupe": "face_fix|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 110.4,
+    "err": null,
+    "extra": {
+     "face_fix": true
+    }
+   },
+   {
+    "i": 26,
+    "nom": "refine",
+    "groupe": "refine|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 142.9,
+    "err": null,
+    "extra": {
+     "refine": true
+    }
+   },
+   {
+    "i": 27,
+    "nom": "base",
+    "groupe": "refine|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 132.5,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 28,
+    "nom": "refine",
+    "groupe": "refine|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 137.0,
+    "err": null,
+    "extra": {
+     "refine": true
+    }
+   },
+   {
+    "i": 29,
+    "nom": "base",
+    "groupe": "refine|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 111.5,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 30,
+    "nom": "refine",
+    "groupe": "refine|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 153.2,
+    "err": null,
+    "extra": {
+     "refine": true
+    }
+   },
+   {
+    "i": 31,
+    "nom": "tris_2M",
+    "groupe": "tris_2M|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 102.6,
+    "err": null,
+    "extra": {
+     "decimation_target": 2000000,
+     "tris_exact": true
+    }
+   },
+   {
+    "i": 32,
+    "nom": "base",
+    "groupe": "tris_2M|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 118.6,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 33,
+    "nom": "tris_2M",
+    "groupe": "tris_2M|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 150.1,
+    "err": null,
+    "extra": {
+     "decimation_target": 2000000,
+     "tris_exact": true
+    }
+   },
+   {
+    "i": 34,
+    "nom": "base",
+    "groupe": "tris_2M|sans",
+    "mesuree": true,
+    "ok": true,
+    "dt": 98.9,
+    "err": null,
+    "extra": {}
+   },
+   {
+    "i": 35,
+    "nom": "tris_2M",
+    "groupe": "tris_2M|avec",
+    "mesuree": true,
+    "ok": true,
+    "dt": 151.7,
+    "err": null,
+    "extra": {
+     "decimation_target": 2000000,
+     "tris_exact": true
+    }
+   },
+   {
+    "i": 36,
+    "nom": "fast",
+    "groupe": "palier|fast|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 109.0,
+    "err": null,
+    "extra": {
+     "texture_size": 1024
+    }
+   },
+   {
+    "i": 37,
+    "nom": "fast",
+    "groupe": "palier|fast",
+    "mesuree": true,
+    "ok": true,
+    "dt": 96.1,
+    "err": null,
+    "extra": {
+     "texture_size": 1024
+    }
+   },
+   {
+    "i": 38,
+    "nom": "fast",
+    "groupe": "palier|fast",
+    "mesuree": true,
+    "ok": true,
+    "dt": 123.2,
+    "err": null,
+    "extra": {
+     "texture_size": 1024
+    }
+   },
+   {
+    "i": 39,
+    "nom": "quality",
+    "groupe": "palier|quality|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 142.5,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32
+    }
+   }
+  ],
+  "resume": {
+   "ultra_hd": {
+    "paires": 2,
+    "sans_s": 108.3,
+    "avec_s": 157.1,
+    "delta_s": 48.8,
+    "erreur_type_s": 11.7,
+    "cout_eur": 0.0246,
+    "cout_eur_haut": 0.0364
+   },
+   "ultra_q": {
+    "paires": 2,
+    "sans_s": 116.8,
+    "avec_s": 175.8,
+    "delta_s": 59.0,
+    "erreur_type_s": 22.2,
+    "cout_eur": 0.0297,
+    "cout_eur_haut": 0.0521
+   },
+   "quality_plus": {
+    "paires": 2,
+    "sans_s": 113.8,
+    "avec_s": 125.7,
+    "delta_s": 12.0,
+    "erreur_type_s": 30.0,
+    "cout_eur": 0.006,
+    "cout_eur_haut": 0.0362
+   },
+   "smooth": {
+    "paires": 2,
+    "sans_s": 122.1,
+    "avec_s": 125.2,
+    "delta_s": 3.1,
+    "erreur_type_s": 9.1,
+    "cout_eur": 0.0015,
+    "cout_eur_haut": 0.0107
+   },
+   "face_fix": {
+    "paires": 2,
+    "sans_s": 126.7,
+    "avec_s": 115.0,
+    "delta_s": -11.8,
+    "erreur_type_s": 6.6,
+    "cout_eur": 0.0,
+    "cout_eur_haut": 0.0007
+   },
+   "refine": {
+    "paires": 2,
+    "sans_s": 122.0,
+    "avec_s": 145.1,
+    "delta_s": 23.1,
+    "erreur_type_s": 18.6,
+    "cout_eur": 0.0116,
+    "cout_eur_haut": 0.0304
+   },
+   "tris_2M": {
+    "paires": 2,
+    "sans_s": 108.8,
+    "avec_s": 150.9,
+    "delta_s": 42.1,
+    "erreur_type_s": 10.6,
+    "cout_eur": 0.0212,
+    "cout_eur_haut": 0.032
+   },
+   "palier_fast": {
+    "n": 2,
+    "duree_s": 109.7,
+    "base_balanced_s": 116.9,
+    "delta_vs_balanced_s": -7.3
+   }
+  }
+ },
+ "banc_paliers": {
+  "debut": 1790961746.579205,
+  "duree_s": 1214,
+  "resultats": [
+   {
+    "i": 0,
+    "nom": "quality",
+    "groupe": "palier|quality|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 155.1,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32
+    }
+   },
+   {
+    "i": 1,
+    "nom": "quality",
+    "groupe": "palier|quality",
+    "mesuree": true,
+    "ok": true,
+    "dt": 150.1,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32
+    }
+   },
+   {
+    "i": 2,
+    "nom": "quality",
+    "groupe": "palier|quality",
+    "mesuree": true,
+    "ok": true,
+    "dt": 140.2,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32
+    }
+   },
+   {
+    "i": 3,
+    "nom": "quality",
+    "groupe": "palier|quality",
+    "mesuree": true,
+    "ok": true,
+    "dt": 124.6,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32
+    }
+   },
+   {
+    "i": 4,
+    "nom": "ultra_8k",
+    "groupe": "palier|ultra_8k|chauffe",
+    "mesuree": false,
+    "ok": true,
+    "dt": 140.4,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32,
+     "ultra_hd": true
+    }
+   },
+   {
+    "i": 5,
+    "nom": "ultra_8k",
+    "groupe": "palier|ultra_8k",
+    "mesuree": true,
+    "ok": true,
+    "dt": 160.4,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32,
+     "ultra_hd": true
+    }
+   },
+   {
+    "i": 6,
+    "nom": "ultra_8k",
+    "groupe": "palier|ultra_8k",
+    "mesuree": true,
+    "ok": true,
+    "dt": 159.2,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32,
+     "ultra_hd": true
+    }
+   },
+   {
+    "i": 7,
+    "nom": "ultra_8k",
+    "groupe": "palier|ultra_8k",
+    "mesuree": true,
+    "ok": true,
+    "dt": 160.5,
+    "err": null,
+    "extra": {
+     "texture_size": 4096,
+     "tex_steps": 32,
+     "ultra_hd": true
+    }
+   }
+  ],
+  "resume": {}
+ }
+}
