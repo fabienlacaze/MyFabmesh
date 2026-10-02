@@ -1427,8 +1427,8 @@ function htmlOpsGroupees(lignes) {
       var vus = l, cache = [];
       if (!rech) { vus = l.filter(ligneActive); cache = l.filter(function (m) { return !ligneActive(m); }); }
       h += vus.map(ligneOpHtml).join('');
-      if (cache.length) {                                    // user : « pourquoi j'en ai plein qui sont "pas utilisee" ou "option" ? » -> replies par defaut, un clic les montre
-        var ouvert = !!S.opsInactifs[c.id], nopt = cache.filter(function (m) { return m.option; }).length, nop = cache.length - nopt, morceaux = [];
+      if (cache.length) {                                    // AFFICHEES par defaut (le user : « tu es sur qu'on ne va pas les utiliser ? ») ; cette ligne permet seulement de les replier
+        var ouvert = S.opsInactifs[c.id] !== false, nopt = cache.filter(function (m) { return m.option; }).length, nop = cache.length - nopt, morceaux = [];
         if (nop) morceaux.push(nop + ' opération' + (nop > 1 ? 's' : '') + ' sans activité');
         if (nopt) morceaux.push(nopt + ' option' + (nopt > 1 ? 's' : '') + ' de prix');
         h += '<tr class="grp-inact" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + ouvert + '"><td colspan="10"><span class="chev">' + (ouvert ? '▾' : '▸') + '</span>' + (ouvert ? 'Masquer ' : 'Afficher ') + 'les ' + morceaux.join(' et ') + '</td></tr>';
