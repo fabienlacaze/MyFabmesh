@@ -249,6 +249,20 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .dispo > *{min-width:0}
 @media(min-width:1100px){.dispo.d21{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}.dispo.d11{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.dispo.d32{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}}
 .colonne{display:grid;gap:16px;align-content:start;min-width:0}
+.dispo-act,.dispo-arg{display:grid;gap:20px;align-items:start;grid-template-columns:minmax(0,1fr);margin-top:16px}
+.dispo-act > .colonne,.dispo-arg > .colonne{min-width:0}
+@media(min-width:1180px){.dispo-act{grid-template-columns:minmax(0,1fr) 380px}.dispo-arg{grid-template-columns:minmax(0,1fr) 400px}}
+.dispo-arg{margin-top:0}
+.barre-act{position:sticky;bottom:12px;z-index:15;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:12px 18px;background:var(--bg-3);border:1px solid var(--accent);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.barre-act b{font-size:14px}
+.prix-champ{display:inline-flex;align-items:center;gap:6px;margin:1px 0}
+.prix-champ.v{flex-direction:column;align-items:flex-end;gap:2px}
+.prix-multi{display:inline-grid;grid-template-columns:repeat(2,auto);gap:4px 10px;justify-content:end}
+@container (max-width: 1040px){ .masque-etroit{display:none} }
+.prix-champ .orig,.orig{font-size:11px;color:var(--text-2);white-space:nowrap}
+input.pin{width:64px;text-align:right;padding:4px 8px}
+input.pin.mod{border-color:var(--warn);color:var(--warn)}
+td.prix{white-space:normal}
 .a-traiter-msg{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin-top:16px;padding:10px 16px;border:1px solid rgba(255,170,51,.45);border-radius:12px;background:rgba(255,170,51,.07);color:var(--text-1)}
 .grp-t{margin:16px 0 4px;font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:var(--text-2);font-weight:600;display:flex;gap:8px;align-items:center}
 .grp-t:first-child{margin-top:0}
@@ -333,12 +347,10 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
       <nav class="tabs" role="tablist" aria-label="Sections">
         <div class="tab-group tab-group-activity"><div class="tab-group-header">Activité</div><div class="tab-group-items">
           <button role="tab" type="button" class="tab" data-tab="maintenant" aria-selected="true">Vue d’ensemble</button>
-          <button role="tab" type="button" class="tab" data-tab="travaux" aria-selected="false">Travaux<span class="badge w" id="b-travaux" hidden>0</span></button>
-          <button role="tab" type="button" class="tab" data-tab="audience" aria-selected="false">Audience</button>
+          <button role="tab" type="button" class="tab" data-tab="travaux" aria-selected="false">Activité<span class="badge w" id="b-travaux" hidden>0</span></button>
         </div></div>
         <div class="tab-group tab-group-finance"><div class="tab-group-header">Finance</div><div class="tab-group-items">
           <button role="tab" type="button" class="tab" data-tab="argent" aria-selected="false">Argent</button>
-          <button role="tab" type="button" class="tab" data-tab="tarifs" aria-selected="false">Tarifs</button>
         </div></div>
         <div class="tab-group tab-group-gestion"><div class="tab-group-header">Gestion</div><div class="tab-group-items">
           <button role="tab" type="button" class="tab" data-tab="users" aria-selected="false">Comptes</button>
@@ -383,44 +395,36 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
     </div>
   </section>
 
-  <!-- ═════════ TRAVAUX ═════════ -->
+  <!-- ═════════ ACTIVITE ═════════ -->
   <section id="p-travaux" role="tabpanel" hidden>
-    <div class="pile" style="margin-top:18px">
-      <details class="carte vol" open data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
-        <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
-      <details class="carte vol" open data-id="m-cours" data-res="cours"><summary><h2>En cours <small id="n-cours"></small></h2><span class="res"></span></summary>
+    <div class="kpis" id="kpis-act" style="margin-top:18px"></div>
+    <div class="dispo-act">
+      <div class="colonne">
+        <details class="carte vol" open data-id="m-cours" data-res="cours"><summary><h2>En cours <small id="n-cours"></small></h2><span class="res"></span></summary>
         <div class="corps"><div class="encours" id="encours"></div></div></details>
-      <details class="carte vol" open data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
+        <details class="carte vol" open data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
+        <details class="carte vol" open data-id="u-ops" data-res="opsj"><summary><h2>Travaux lancés <small>par jour</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="g-ops"></div></div></details>
+        <details class="carte vol" open data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
           <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Comptes.</p>
         </div></details>
-    </div>
-  </section>
-
-  <!-- ═════════ AUDIENCE ═════════ -->
-  <section id="p-audience" role="tabpanel" hidden>
-    <div class="pile" style="margin-top:18px">
-      <details class="carte vol" open data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
+      </div>
+      <div class="colonne">
+        <details class="carte vol" open data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="en-ligne"></div></div></details>
-      <div class="kpis" id="kpis-audience" style="margin-bottom:0"></div>
-      <div class="dispo d11">
         <details class="carte vol" open data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-act"></div></div></details>
-        <details class="carte vol" open data-id="u-ops" data-res="opsj"><summary><h2>Travaux lancés <small>par jour</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="g-ops"></div></div></details>
-      </div>
-      <div class="dispo d11">
         <details class="carte vol" open data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="b-pays"></div></div></details>
-        <div class="colonne">
-          <details class="carte vol" open data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
+        <details class="carte vol" open data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
         <div class="corps"><div id="b-canal"></div></div></details>
-          <details class="carte vol" open data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small>par jour</small></h2><span class="res"></span></summary>
+        <details class="carte vol" open data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small>par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-dl"></div></div></details>
-        </div>
+        <p class="note" id="note-audience"></p>
       </div>
-      <p class="note" id="note-audience"></p>
     </div>
   </section>
 
@@ -433,13 +437,31 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
           <p class="note">Stripe a encaissé mais les crédits n'ont pas été versés (webhook manqué). Vérifiez le paiement dans Stripe, puis versez les crédits.</p>
           <div class="defil"><table><thead><tr><th data-tri="recon:created_at">Date</th><th data-tri="recon:email">Compte</th><th data-tri="recon:pack_id">Pack</th><th class="n" data-tri="recon:amount_eur">Montant</th><th>Session Stripe</th><th class="n" data-tri="recon:expected_credits">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
         </div></details>
-      <div class="dispo d21">
-        <details class="carte vol" open data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
+      <div class="dispo-arg">
+        <div class="colonne">
+          <details class="carte vol" open data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="ligneform" style="margin-bottom:4px"><input type="search" id="rech-ops" placeholder="Chercher une opération" autocomplete="off" style="max-width:280px"></div>
+          <p class="note" id="resume-ops"></p>
+          <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th class="n masque-etroit" data-tri="ops:prix" title="Valeur vendue par opération réussie">Prix / op</th><th class="n masque-etroit" data-tri="ops:coutop" title="Coût réel par opération, échecs inclus">Coût / op</th><th data-tri="ops:ratio">Verdict</th><th class="n" title="Prix en crédits, modifiable ici">Prix (crédits)</th></tr></thead><tbody id="t-ops"></tbody></table></div>
+          <p class="note" id="note-ops"></p>
+          <div class="note" id="tarifs-msg" aria-live="polite"></div>
+        </div></details>
+          <div class="barre-act" id="barre-prix" hidden role="region" aria-label="Modifications de prix non enregistrées"></div>
+          <details class="carte vol" open data-id="a-achats" data-res="achats"><summary><h2>Achats Stripe <small id="resume-achats"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div></details>
+          <details class="carte vol" open data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div></div></details>
+          <details class="carte vol" open data-id="a-autres"><summary><h2>Autres tarifs <small>options et suppléments, sans ligne dans le tableau</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="tarifs-autres"></div><div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-tarifs-raz">Tout remettre à l'origine</button></div></div></details>
+        </div>
+        <div class="colonne">
+          <details class="carte vol" open data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
           <p class="note" id="note-graphe"></p>
         </div></details>
-        <details class="carte vol" open data-id="a-gpu" data-res="gpu"><summary><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><span class="res"></span></summary>
+          <details class="carte vol" open data-id="a-gpu" data-res="gpu"><summary><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <div id="gpu-detail"></div>
           <div id="lim-zone" class="confirm" hidden>
@@ -450,25 +472,10 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
             <div class="ligneform"><button type="button" class="btn prim" id="b-lim-ok" disabled>Enregistrer</button><button type="button" class="btn" id="b-lim-non">Annuler</button></div><div id="lim-err" class="msg-err"></div>
           </div>
         </div></details>
+          <details class="carte vol" open data-id="a-windows"><summary><h2>Application Windows <small>prix affiché sur le site</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="windows-prix"><div class="vide">Chargement…</div></div></div></details>
+        </div>
       </div>
-      <details class="carte vol" open data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <p class="note" id="resume-ops"></p>
-          <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th class="n masque-etroit" data-tri="ops:prix" title="Valeur vendue par opération réussie">Prix / op</th><th class="n masque-etroit" data-tri="ops:coutop" title="Coût réel par opération, échecs inclus">Coût / op</th><th data-tri="ops:ratio">Verdict</th></tr></thead><tbody id="t-ops"></tbody></table></div>
-          <p class="note" id="note-ops"></p>
-        </div></details>
-      <details class="carte vol" open data-id="a-achats" data-res="achats"><summary><h2>Achats Stripe <small id="resume-achats"></small></h2><span class="res"></span></summary>
-        <div class="corps"><div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div></details>
-      <details class="carte vol" open data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
-        <div class="corps"><div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div></div></details>
-    </div>
-  </section>
-
-  <!-- ═════════ TARIFS ═════════ -->
-  <section id="p-tarifs" role="tabpanel" hidden>
-    <div class="pile" style="margin-top:18px">
-      <details class="carte vol" open data-id="a-tarifs" data-res="tarifs"><summary><h2>Tarifs <small>crédits par opération</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="tarifs"></div></div></details>
     </div>
   </section>
 
@@ -661,6 +668,7 @@ var PER_MIN = { '6h': 360, '24h': 1440, '7j': 10080, '30j': 43200 };
 /* TRI DES TABLEAUX (2026-10-02, user : « il faut pouvoir trier »). Un clic sur un en-tete trie, un second inverse. Sens de depart : texte A -> Z, nombres et dates decroissants. */
 S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 }, dbg: { k: 'date', d: -1 }, dbglog: { k: 'uploaded', d: -1 }, audit: { k: 'ts', d: -1 }, recon: { k: 'created_at', d: -1 }, actifs: { k: 'created_at', d: -1 } };
 S.triComptes = 'activite';
+S.prixEdit = {}; S.winEdit = false; S.rechOps = '';
 var TRI_TEXTE = { email: 1, type: 1, projet: 1, statut: 1, op: 1, pack: 1, etat: 1, operation: 1, status: 1, kind: 1, actor: 1, action: 1, target: 1, pack_id: 1, project_name: 1, asset_type: 1, ip: 1, project: 1 };
 function trier(liste, nom) {
   var t = S.tri[nom], k = t.k, d = t.d;
@@ -784,7 +792,7 @@ function barresRecent(id, serie) {
 }
 
 /* ───────────────────────── chargements ───────────────────────── */
-async function chargerLive() { var j = await silencieux(http('/api/admin/live?n=100')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (sur('maintenant', 'travaux', 'audience')) renderMaintenant(); majHorloge(); } }
+async function chargerLive() { var j = await silencieux(http('/api/admin/live?n=100')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (sur('maintenant', 'travaux')) renderMaintenant(); if (S.tab === 'travaux') renderKpisAct(); majHorloge(); } }
 async function chargerServices() {
   var r = await Promise.all([silencieux(http('/api/admin/services')), silencieux(http('/api/admin/market/killswitch'))]);
   if (r[0]) { S.svc = r[0]; S.mkt = r[1] && r[1].killswitch ? r[1].killswitch : { enabled: false }; renderBandeau(); if (S.tab === 'systeme') renderKill(); }
@@ -794,11 +802,11 @@ async function chargerBadges() { var j = await silencieux(http('/api/admin/badge
 async function chargerPaiements() { var j = await silencieux(http('/api/admin/payments')); if (j) { S.pay = j; renderBandeau(); if (S.tab === 'argent') renderAchats(); } }
 async function chargerStats(force) {
   if (!force && S.stats && Date.now() - S.statsAt < 120000) return;
-  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); renderSante(); if (S.tab === 'maintenant') majResumes(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'audience') renderAudience(); if (S.tab === 'systeme') majResumes(); }
+  var j = await silencieux(http('/api/admin/stats.json')); if (j) { S.stats = j; S.statsAt = Date.now(); renderSante(); if (S.tab === 'maintenant') majResumes(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'travaux') renderAudience(); if (S.tab === 'systeme') majResumes(); }
 }
 async function chargerAudience() {
   var min = PER_MIN[S.per] || 10080; if (S.aud && S.audPer === S.per && Date.now() - (S.audAt || 0) < 120000) return;
-  var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'audience') renderAudience(); }
+  var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'travaux') renderAudience(); }
 }
 S.lb = -1; S.usersActifs = false;
 function heuresPer() { return S.per === '6h' ? 6 : S.per === '24h' ? 24 : S.per === '30j' ? 720 : 168; }
@@ -946,7 +954,7 @@ async function chargerTotp() { var j = await silencieux(http('/api/admin/totp/st
 async function chargerUsers() { var j = await silencieux(http('/api/admin/users')); if (j) { S.users = j; if (S.tab === 'users') renderUsers(); } }
 async function chargerMessages() { var j = await silencieux(http('/api/admin/contact-messages')); if (j) { S.msgs = j.messages || []; if (S.tab === 'messages') renderMessages(); majSousBadges(); } }
 async function chargerAnnonces() { var j = await silencieux(http('/api/admin/market/list')); if (j) { S.listings = j.listings || []; S.offerts = j.offerts || []; S.offertsMax = j.offerts_max || 5; if (S.tab === 'marketplace') renderAnnonces(); majSousBadges(); } }
-async function chargerPricing() { var j = await silencieux(http('/api/admin/pricing')); if (j) { S.pricing = { defaults: j.defaults || {}, current: Object.assign({}, j.defaults || {}, j.current || {}) }; if (S.tab === 'tarifs') renderTarifs(); } }
+async function chargerPricing() { var j = await silencieux(http('/api/admin/pricing')); if (j) { S.pricing = { defaults: j.defaults || {}, current: Object.assign({}, j.defaults || {}, j.current || {}) }; if (S.tab === 'argent') { renderArgent(); renderPrix(); } } }
 async function chargerAudit() {
   var jour = $('#audit-jour').value || new Date().toISOString().slice(0, 10);
   var j = await silencieux(http('/api/admin/audit?day=' + encodeURIComponent(jour)));
@@ -1094,15 +1102,15 @@ function avecToutesLesOps(lignes, connues, familles) {
 function completeOp(o) { o.marge = o.value - o.reel; o.ratio = o.reel > 0.005 ? o.value / o.reel : 1e9; var ok = (o.count || 0) - (o.failed || 0); o.prix = ok > 0 ? o.value / ok : 0; o.coutop = o.count > 0 ? o.reel / o.count : 0; return o; }
 function ligneOpHtml(m) {
   var fam = m.famille || m.op;
-  if (!m.count) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, m.op) + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td><span class="pill">pas utilisée</span></td></tr>';
-  return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m.value, m.reel, m.credits) + '</td></tr>';
+  if (!m.count) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, m.op) + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td><span class="pill">pas utilisée</span></td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
+  return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m.value, m.reel, m.credits) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
 }
 function renderArgentCourt() {
   var h = S.per === '6h' ? 6 : 24, R = S.rec;
   libEntete($('th[data-tri="ops:reel"]'), 'Coût estimé');
   if (!R || R.heures !== h) {
     majSiChange($('#kpis-argent'), cellule('Chargement…', '…', 'calcul sur les ' + h + ' dernières heures'));
-    $('#t-ops').innerHTML = '<tr><td colspan="9" class="vide">Chargement…</td></tr>'; return renderGpu();
+    $('#t-ops').innerHTML = '<tr><td colspan="10" class="vide">Chargement…</td></tr>'; return renderGpu();
   }
   var lim = Date.now() - h * 3600e3, enc = 0, nA = 0;
   if (S.pay && S.pay.achats) S.pay.achats.forEach(function (a) { if (a.test || a.etat === 'rembourse') return; if (Date.parse(a.date) >= lim) { enc += Number(a.encaisse_eur) || 0; nA++; } });
@@ -1122,13 +1130,13 @@ function renderArgentCourt() {
     lecture: function (k, l, se) { var el = $('#lecture'); if (k < 0) { el.textContent = ''; return; } el.innerHTML = '<b>' + esc(l) + '</b> · ' + se.map(function (s) { return s.on ? esc(s.nom) + ' ' + eur(s.v[k]) : ''; }).filter(Boolean).join(' · '); } });
   $('#note-graphe').textContent = 'La facture Modal réelle n\'existe que par jour : sur ' + h + ' h le coût est estimé d\'après la durée de chaque travail. Valeur des crédits = crédits des travaux réussis au prix net ; ce n\'est pas de l\'argent encaissé.';
   var lignes = Object.keys(R.types).map(function (op) { var m = R.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed, credits: m.credits, value: m.valeur_eur, reel: m.cout_eur }); });
-  lignes = trier(avecToutesLesOps(lignes, R.connues, R.familles), 'ops');
+  lignes = trier(avecToutesLesOps(lignes, R.connues, R.familles), 'ops'); calcProprios(lignes);
   S.resOps = resumeOps(lignes, T.valeur_eur, T.cout_eur);
-  $('#t-ops').innerHTML = lignes.map(ligneOpHtml).join('') || '<tr><td colspan="9" class="vide">Aucune opération sur ' + h + ' h.</td></tr>';
+  if (!focusPrix()) $('#t-ops').innerHTML = filtrerOps(lignes).map(ligneOpHtml).join('') || '<tr><td colspan="10" class="vide">Aucune opération' + (S.rechOps ? ' ne correspond à la recherche' : ' sur ' + h + ' h') + '.</td></tr>';
   $('#ops-fenetre').textContent = h + ' dernières heures · coût estimé · clic sur une ligne pour filtrer';
   $('#resume-ops').innerHTML = 'Sur les <b>' + h + ' dernières heures</b> : <b>' + T.ops + '</b> travaux, valorisés <b>' + eur(T.valeur_eur) + '</b> en crédits (' + (R.eur_par_credit || 0).toFixed(3) + ' € le crédit) pour un coût estimé de <b>' + eur(T.cout_eur) + '</b>' + (R.tronque ? ' <span class="note">(les 5 000 premiers travaux seulement)</span>' : '') + '.';
   $('#note-ops').textContent = 'Coût estimé : la facture Modal est publiée par jour, pas par heure. Toutes les opérations existantes sont listées ; celles sans activité sur la période sont à zéro.';
-  majEntetesTri(); renderGpu();
+  majEntetesTri(); renderPrix(); renderGpu();
 }
 function renderArgent() {
   if (S.per === '6h' || S.per === '24h') return renderArgentCourt();
@@ -1172,15 +1180,16 @@ function renderArgent() {
   var tb = $('#t-ops');
   if (!bt || !bt.types) { tb.innerHTML = '<tr><td colspan="9" class="vide">' + (st ? 'Données indisponibles.' : 'Chargement…') + '</td></tr>'; $('#resume-ops').textContent = ''; $('#note-ops').textContent = ''; return renderGpu(); }
   var lignes = Object.keys(bt.types).map(function (op) { var m = bt.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed || 0, credits: m.credits, value: m.value_eur, reel: m.real_eur, paid: m.paid_eur }); });
-  lignes = trier(avecToutesLesOps(lignes, bt.connues, bt.familles), 'ops');
+  lignes = trier(avecToutesLesOps(lignes, bt.connues, bt.familles), 'ops'); calcProprios(lignes);
   var totV = 0, totR = 0, totP = 0;
   lignes.forEach(function (m) { totV += m.value; totR += m.reel; totP += Number(m.paid) || 0; });
-  tb.innerHTML = lignes.map(ligneOpHtml).join('') || '<tr><td colspan="9" class="vide">Aucune opération sur 30 jours.</td></tr>';
+  if (!focusPrix()) tb.innerHTML = filtrerOps(lignes).map(ligneOpHtml).join('') || '<tr><td colspan="10" class="vide">Aucune opération' + (S.rechOps ? ' ne correspond à la recherche' : ' sur 30 jours') + '.</td></tr>';
   S.resOps = resumeOps(lignes, totV, totR);
   var sansOp = Number(bt.facture_sans_operation_eur) || 0;
   $('#resume-ops').innerHTML = 'Les opérations ont été valorisées <b>' + eur(totV) + '</b> en crédits (' + (Number(bt.eur_par_credit) || 0).toFixed(3) + ' € le crédit) et ont coûté <b>' + eur(totR) + '</b> chez Modal' + (totR > 0 ? ' : <b style="color:' + (totV >= totR ? 'var(--ok)' : 'var(--err)') + '">×' + (totV / totR).toFixed(1) + '</b>' : '') + '.' + (sansOp > 0.005 ? ' S\'y ajoutent ' + eur(sansOp) + ' facturés des jours sans opération (tests, démarrages).' : '') + ' Réellement encaissé sur ces opérations (comptes ayant payé) : <b>' + eur(totP) + '</b>, le reste a été consommé avec des crédits offerts ou de test.';
   majEntetesTri();
   $('#note-ops').textContent = (bt.cout_reel ? 'Coût réel = facture Modal de chaque jour répartie sur les opérations du jour selon leur durée. Les échecs coûtent sans rien rapporter.' : '⚠ Relevé Modal absent : coût = durée mesurée × tarif du GPU, sans démarrages à froid ni inactivité (sous-estimé).') + ' Toutes les opérations existantes sont listées ; celles sans activité sur la période sont à zéro.';
+  renderPrix();
   renderGpu();
 }
 /* Detail complet de la carte « Cout GPU » (postes, repartition, protections automatiques) : /api/admin/modal-credits SANS ?legere=1.
@@ -1267,17 +1276,78 @@ function renderAchats() {
     return '<tr><td class="tn">' + esc(dateFr(a.date)) + '</td><td>' + lien('compte', a.email || 'inconnu', a.email || '—') + '</td><td>' + esc(a.pack || '—') + (a.abonnement ? ' <span class="note">(abonnement)</span>' : '') + (a.test ? ' <span class="est">test</span>' : '') + '</td><td class="n tn">' + eur(a.encaisse_eur) + '</td><td class="n tn">' + num(a.credits) + '</td><td><span class="pill ' + e[1] + '">' + esc(e[0]) + '</span></td><td>' + (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">ouvrir ↗</a>' : '—') + '</td></tr>';
   }).join('') : '<tr><td colspan="7" class="vide">Aucun achat' + (S.filt.compte ? ' pour ce compte' : '') + '.</td></tr>';
 }
-function renderTarifs() {
-  var box = $('#tarifs'); box.hidden = !S.tarifs; var btar = $('#b-tarifs'); if (btar) btar.setAttribute('aria-expanded', S.tarifs);
-  if (!S.tarifs) return;
-  if (!S.pricing) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
-  if (box.querySelector('input')) return;      // ne jamais effacer une saisie en cours
-  var D = S.pricing.defaults, C = S.pricing.current;
-  var rows = Object.keys(D).filter(function (k) { return k.indexOf('desktop_') !== 0; }).map(function (k) {
-    var mod = C[k] !== D[k];
-    return '<tr data-k="' + esc(k) + '"><td style="font:12px var(--mono)">' + esc(k) + '</td><td class="libre" style="color:var(--text-2);font-size:12px;min-width:200px">' + esc(PRICING_DESCRIPTIONS[k] || '') + '</td><td class="n tn" style="color:var(--text-2)">' + D[k] + '</td><td class="n"><input type="number" min="0" step="1" value="' + C[k] + '" data-pk="' + esc(k) + '" aria-label="Prix de ' + esc(k) + '" style="width:84px;text-align:right' + (mod ? ';border-color:var(--warn);color:var(--warn)' : '') + '"></td><td><button type="button" class="btn petit" data-pk-raz="' + esc(k) + '"' + (mod ? '' : ' disabled') + ' aria-label="Remettre ' + esc(k) + ' à ' + D[k] + '" title="Remettre à la valeur d\'origine">↻</button></td></tr>';
-  }).join('');
-  box.innerHTML = '<p class="note">Prix en crédits. Valeur d\'origine à gauche ; une valeur modifiée passe en orange. L\'enregistrement est tracé dans le journal d\'audit.</p>' + '<div class="boite"><b>Application Windows</b><div class="ligneform" style="margin:6px 0 0"><label for="tar-d-prix">Prix affiché sur le site (€)</label><input type="number" id="tar-d-prix" min="0" step="0.01" value="' + (Number(C.desktop_prix_centimes != null ? C.desktop_prix_centimes : (D.desktop_prix_centimes != null ? D.desktop_prix_centimes : 8999)) / 100).toFixed(2) + '" style="width:110px"><label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="tar-d-gratuit" style="width:auto"' + (Number(C.desktop_gratuit != null ? C.desktop_gratuit : 1) !== 0 ? ' checked' : '') + '> Gratuite pendant la bêta</label></div></div>' + '<div class="defil" style="max-height:420px;overflow:auto"><table><thead><tr><th>Clé</th><th>Rôle</th><th class="n">Origine</th><th class="n">Actuel</th><th><span class="sr">Remise à l\'origine</span></th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="ligneform" style="margin-top:8px"><button type="button" class="btn prim" id="b-tarifs-ok">Enregistrer les tarifs</button><button type="button" class="btn" id="b-tarifs-raz">Tout remettre à l\'origine</button><span id="tarifs-msg" class="msg-ok" aria-live="polite"></span></div>';
+/* ───────────────────────── Prix (ex-onglet Tarifs) ─────────────────────────
+   Le prix se regle SUR LA LIGNE de l'operation, dans « Par operation », a cote de ce qu'elle coute et rapporte (user : « Argent B : le prix dans le tableau »).
+   Une cle de prix n'a qu'UN champ : la premiere ligne PRESENTE qui la porte ; les autres lignes montrent « = prix ». Les cles sans ligne vont dans « Autres tarifs ».
+   Les saisies non enregistrees vivent dans S.prixEdit (jamais perdues par un rafraichissement du tableau) ; l'enregistrement les envoie toutes. */
+var OP_PRIX = {
+  'text2image': ['text2image'], 'modify': ['modify'], 'segment-image': ['segment'], 'auto_inpaint': ['auto_inpaint'], 'mask_inpaint': ['mask_inpaint'], 'face_fix_image': ['face_fix_image'], 'upscale': ['upscale'],
+  'back-view': ['back_view'], 'rectify': ['rectify'], 'remove-bg': ['remove_background'], 'tex_variant': ['tex_variant'], 'recolor': ['recolor'], 'outfit': ['outfit', 'outfit_complete'],
+  'mesh': ['mesh_fast', 'mesh_balanced', 'mesh_quality', 'mesh_ultra_8k'], 'mesh-face': ['mesh_face_fix'], 'retexture': ['retex_fast', 'retex_balanced', 'retex_quality', 'retex_ultra_8k'],
+  'reshape': ['reshape'], 'segment': ['mesh_segment'], 'rig': ['rig', 'reskin'], 'animate': ['anim'], 'animate_fbx': ['anim'], 'construction3d': ['construction3d'],
+  'mesh-op:smooth': ['mesh_op_simple'], 'mesh-op:decimate': ['mesh_op_simple'], 'mesh-op:center': ['mesh_op_simple'], 'mesh-op:fix_normals': ['mesh_op_simple'], 'mesh-op:fill_holes': ['mesh_op_simple'],
+  'mesh-op:subdivide': ['mesh_op_simple'], 'mesh-op:material': ['mesh_op_simple'], 'mesh-op:material_adjust': ['mesh_op_simple'], 'mesh-op:retex_swap': ['mesh_op_simple'], 'mesh-op:resize': ['mesh_op_simple'],
+  'mesh-op:explode': ['mesh_op_simple'], 'mesh-op:watertight': ['watertight_hd'], 'mesh-op:align_texture': ['align_texture'], 'mesh-op:texture_var': ['texture_var'], 'mesh-op:enhance_tex': ['enhance_tex'],
+  'mesh-op:region_retex': ['region_retex'], 'mesh-convert': ['export'], 'manual-tool:export_image': ['export'], 'manual-tool:export_glb': ['export'], 'manual-tool:export_anim': ['export'],
+  'manual-tool:clone_stamp': ['manual_tool'], 'manual-tool:paint': ['manual_tool'], 'manual-tool:extend': ['manual_tool'], 'manual-tool:symmetrize': ['manual_tool'], 'manual-tool:color_pick': ['manual_tool'],
+  'manual-tool:skeleton_points': ['manual_tool'], 'manual-tool:rig_joints': ['manual_tool'], 'manual-tool:open_anim': ['manual_tool']
+};
+var PRIX_LIB = { mesh_fast: 'rapide', mesh_balanced: 'équilibré', mesh_quality: 'qualité', mesh_ultra_8k: '8K', outfit: 'habits', outfit_complete: 'complet', rig: 'squelette', reskin: 'peau seule',
+  retex_fast: 'rapide', retex_balanced: 'équilibré', retex_quality: 'qualité', retex_ultra_8k: '8K' };
+function valPrix(k) { var e = S.prixEdit; return e && e[k] != null ? e[k] : (S.pricing ? S.pricing.current[k] : null); }
+function champPrix(k, lib, sansRaz) {
+  var D = S.pricing.defaults, v = valPrix(k), mod = v !== D[k];
+  return '<span class="prix-champ' + (lib ? ' v' : '') + '">' + (lib ? '<label class="orig" for="pk-' + esc(k) + '">' + esc(lib) + '</label>' : '')
+    + '<input type="number" class="pin' + (mod ? ' mod' : '') + '" id="pk-' + esc(k) + '" min="0" step="1" value="' + esc(String(v)) + '" data-pk="' + esc(k) + '" aria-label="Prix de ' + esc(k) + ' en crédits" title="Origine : ' + D[k] + ' crédits">'
+    + (sansRaz ? '' : '<button type="button" class="btn petit" data-pk-raz="' + esc(k) + '"' + (mod ? '' : ' disabled') + ' aria-label="Remettre ' + esc(k) + ' à ' + D[k] + '" title="Remettre à la valeur d\'origine (' + D[k] + ')">↻</button>') + '</span>';
+}
+function celluleprix(op) {
+  var ks = OP_PRIX[op];
+  if (!ks) return '<span class="orig" title="Compris dans le prix d\'une autre opération">—</span>';
+  if (!S.pricing) return '<span class="orig">…</span>';
+  ks = ks.filter(function (k) { return S.pricing.defaults[k] != null; });
+  if (!ks.length) return '<span class="orig">—</span>';
+  var multi = ks.length > 1;
+  var h = ks.map(function (k) {
+    var pr = S.prixProprio && S.prixProprio[k];
+    return pr === op ? champPrix(k, multi ? (PRIX_LIB[k] || k) : '', true) : '<span class="orig" title="Même prix que ' + esc(pr || '?') + '">= ' + esc(String(valPrix(k))) + '</span>';
+  }).join(' ');
+  return multi ? '<span class="prix-multi">' + h + '</span>' : h;
+}
+function calcProprios(lignes) {
+  var presentes = {}, p = {}; lignes.forEach(function (m) { presentes[m.op] = 1; });
+  Object.keys(OP_PRIX).forEach(function (op) { if (presentes[op]) OP_PRIX[op].forEach(function (k) { if (!p[k] && (!S.pricing || S.pricing.defaults[k] != null)) p[k] = op; }); });
+  S.prixProprio = p;
+}
+function filtrerOps(l) { var q = String(S.rechOps || '').toLowerCase().trim(); return q ? l.filter(function (m) { return m.op.toLowerCase().indexOf(q) >= 0; }) : l; }
+function focusPrix() { var a = document.activeElement, tb = $('#t-ops'); return !!(a && a.dataset && a.dataset.pk && tb && tb.contains(a)); }
+function majBarrePrix() {
+  var bar = $('#barre-prix'); if (!bar) return;
+  var e = S.prixEdit || {}, cur = S.pricing ? S.pricing.current : {}, ks = Object.keys(e).filter(function (k) { return e[k] !== cur[k]; }), n = ks.length + (S.winEdit ? 1 : 0);
+  bar.hidden = !n; if (!n) { bar._h = null; return; }
+  var detail = ks.slice(0, 4).map(function (k) { return esc(k) + ' ' + cur[k] + ' → ' + e[k]; }).join(' · ') + (ks.length > 4 ? ' · +' + (ks.length - 4) : '') + (S.winEdit ? (ks.length ? ' · ' : '') + 'prix Windows' : '');
+  majSiChange(bar, '<div><b>' + pl(n, 'modification non enregistrée', 'modifications non enregistrées') + '</b><div class="note" style="margin:2px 0 0">' + detail + '. Tracé dans le journal à l\'enregistrement.</div></div>'
+    + '<div class="ligneform" style="margin:0"><button type="button" class="btn" id="b-tarifs-non">Annuler</button><button type="button" class="btn prim" id="b-tarifs-ok">Enregistrer les tarifs</button></div>');
+}
+function renderPrix() {
+  var pr = S.pricing, ba = $('#tarifs-autres'), bw = $('#windows-prix');
+  if (!pr) { if (ba) majSiChange(ba, '<div class="vide">Chargement…</div>'); return; }
+  var D = pr.defaults, C = pr.current, p = S.prixProprio || {};
+  if (ba && !(document.activeElement && ba.contains(document.activeElement))) {
+    var cles = Object.keys(D).filter(function (k) { return k.indexOf('desktop_') !== 0 && !p[k]; });
+    majSiChange(ba, cles.length ? '<div class="defil"><table><thead><tr><th>Clé</th><th>Rôle</th><th class="n">Origine</th><th class="n">Actuel</th></tr></thead><tbody>' + cles.map(function (k) {
+      return '<tr data-k="' + esc(k) + '"><td style="font:12px var(--mono)">' + esc(k) + '</td><td class="libre" style="color:var(--text-2);font-size:12px;min-width:160px">' + esc(PRICING_DESCRIPTIONS[k] || '') + '</td><td class="n tn" style="color:var(--text-2)">' + D[k] + '</td><td class="n prix">' + champPrix(k) + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="vide">Tous les prix ont une ligne dans le tableau.</div>');
+  }
+  if (bw && !(document.activeElement && bw.contains(document.activeElement))) {
+    var cents = C.desktop_prix_centimes != null ? C.desktop_prix_centimes : (D.desktop_prix_centimes != null ? D.desktop_prix_centimes : 8999), gr = Number(C.desktop_gratuit != null ? C.desktop_gratuit : 1) !== 0, sig = cents + '|' + gr;
+    if (bw._sig !== sig || !bw.querySelector('input')) {
+      bw._sig = sig;
+      bw.innerHTML = '<div class="ligneform" style="margin:0"><label for="tar-d-prix">Prix affiché sur le site (€)</label><input type="number" id="tar-d-prix" min="0" step="0.01" value="' + (Number(cents) / 100).toFixed(2) + '" style="width:110px"></div>'
+        + '<label class="note" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="tar-d-gratuit" style="width:auto"' + (gr ? ' checked' : '') + '> Gratuite pendant la bêta</label>';
+    }
+  }
+  majBarrePrix();
 }
 
 /* ───────────────────────── Utilisateurs ───────────────────────── */
@@ -1383,10 +1453,20 @@ function barres(id, lignes, noms, filtre) {
     return '<div class="barre"><span>' + (filtre ? lien(filtre, o.cle, nom) : esc(nom)) + '</span><span class="piste" title="' + o.echecs + ' échec(s)"><i style="width:' + (o.travaux / max * 100) + '%"></i><b style="width:' + (o.echecs / max * 100) + '%"></b></span><span class="tn" style="font-size:12px;color:var(--text-1)">' + NF.format(o.travaux) + ' · ' + o.comptes + ' compte' + (o.comptes > 1 ? 's' : '') + ' · ' + o.taux_echec_pct + ' % éch.</span></div>';
   }).join('') + '<div class="note"><span style="color:var(--accent)">■</span> travaux &nbsp; <span style="color:var(--err)">■</span> dont échecs</div>';
 }
+/* Activite = Travaux + Audience (user : « Activite B : ce qui se passe / qui est la »). Quatre chiffres en tete. */
+function renderKpisAct() {
+  var box = $('#kpis-act'); if (!box) return;
+  var st = S.stats, u = st && st.users, L = S.live, fh = L && L.fenetres ? L.fenetres.h1 : null, pcf = fh && fh.lances ? Math.round(fh.echecs / fh.lances * 100) : 0;
+  var s7 = st && st.series_30d ? st.series_30d.slice(-7) : null, ops7 = s7 ? s7.reduce(function (a, x) { return a + (x.ops || 0); }, 0) : null, alerte = fh && fh.echecs && pcf >= 20 && fh.lances >= 5;
+  majSiChange(box, cellule('En cours', L ? (L.en_cours || []).length : '—', 'travaux lancés')
+    + cellule('Échecs 1 h', fh ? fh.echecs + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + fh.lances + ' · ' + pcf + ' %</span>' : '—', fh ? (alerte ? 'à regarder' : 'normal') : '', alerte ? 'alerte' : '')
+    + cellule('Travaux · 7 j', ops7 == null ? '—' : num(ops7), st && st.operations && st.operations.total ? (100 * st.operations.succeeded / st.operations.total).toFixed(0) + ' % réussis depuis le début' : '')
+    + cellule('Comptes actifs · 7 j', u ? num(u.active_7d) : '—', u ? num(u.active_30d) + ' sur 30 jours' : ''));
+}
 function renderAudience() {
   var st = S.stats, A = S.aud;
   var u = st && st.users;
-  $('#kpis-audience').innerHTML = u ? cellule('Inscrits', num(u.signups_total), 'comptes créés') + cellule('Avec ≥ 1 travail', num(u.users_with_ops), 'ont lancé une opération') + cellule('En ligne', num(u.online_now), 'appli ouverte ces 5 min') + cellule('Actifs 7 j', num(u.active_7d), 'comptes distincts') + cellule('Actifs 30 j', num(u.active_30d), 'comptes distincts') + (st.operations ? cellule('Travaux (total)', num(st.operations.total), (st.operations.total ? (100 * st.operations.succeeded / st.operations.total).toFixed(1).replace('.', ',') + ' % réussis' : '—') + ' · ' + num(st.operations.failed) + ' échec' + (st.operations.failed > 1 ? 's' : ''), st.operations.total && st.operations.failed / st.operations.total > 0.2 ? 'vigil' : '') : '') + cellule('Téléchargements', num(st.desktop_downloads_total), (st.series_30d || []).reduce(function (a, p) { return a + (p.downloads || 0); }, 0) + ' sur 30 j') : cellule('Inscrits', '—', 'chargement…');
+  renderKpisAct();
   if (A) { barres('b-pays', A.par_pays, nomPays, 'pays'); barres('b-canal', A.par_provenance, null, null); $('#note-audience').textContent = (A.note || '') + ' Fenêtre : ' + (A.fenetre_jours >= 1 ? A.fenetre_jours + ' jour(s)' : Math.round(A.fenetre_jours * 24) + ' h') + '.' + (st && st.jobs_truncated ? ' ⚠ Plafond de 20 000 lignes atteint : les totaux « depuis le début » sont sous-estimés.' : ''); }
   else { $('#b-pays').innerHTML = '<div class="vide">Chargement…</div>'; $('#b-canal').innerHTML = ''; }
   if (st && st.series_30d) { var s = st.series_30d, lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); }); serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour'); courbesParJour(); }
@@ -1511,16 +1591,15 @@ function renderAll() {
   $$('[data-tab]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === S.tab); if (b.getAttribute('role') === 'tab') b.tabIndex = b.dataset.tab === S.tab ? 0 : -1; });
   $$('section[role=tabpanel]').forEach(function (p) { p.hidden = p.id !== 'p-' + S.tab; });
   $$('[data-per]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.per === S.per); });
-  $('#l4').hidden = !sur('audience', 'argent', 'users');
-  $('#per-note').textContent = S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'audience' ? 'fenêtre des courbes, pays et canaux' : '';
-  if (sur('maintenant', 'travaux', 'audience')) renderMaintenant();      // en cours, derniers travaux, en ligne : un seul rendu, plusieurs onglets
+  $('#l4').hidden = !sur('travaux', 'argent', 'users');
+  $('#per-note').textContent = S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'travaux' ? 'fenêtre des courbes, pays et canaux' : '';
+  if (sur('maintenant', 'travaux')) renderMaintenant();      // en cours, derniers travaux, en ligne : un seul rendu, plusieurs onglets
   if (S.tab === 'maintenant') renderSante();
   if (S.tab === 'argent') { renderArgent(); renderAchats(); }
-  if (S.tab === 'tarifs') { S.tarifs = true; renderTarifs(); }
   if (S.tab === 'users') renderUsers();
   if (S.tab === 'messages') renderMessages();
   if (S.tab === 'marketplace') renderAnnonces();
-  if (S.tab === 'audience') renderAudience();
+  if (S.tab === 'travaux') renderAudience();
   if (S.tab === 'systeme') { renderKill(); renderWarm(); renderSante(); }
   if (S.tab === 'journal') renderSecurite();
   majSousBadges(); majResumes();
@@ -1529,9 +1608,8 @@ function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
   if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); chargerSante(); chargerModalFull(); renderSante(); }
-  if (t === 'travaux') { chargerLive(); chargerBloques(); }
-  if (t === 'audience') { chargerLive(); chargerStats(); chargerAudience(); }
-  if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); }
+  if (t === 'travaux') { chargerLive(); chargerBloques(); chargerStats(); chargerAudience(); }
+  if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); if (!S.pricing) chargerPricing(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.stats) chargerStats(); }
   if (t === 'messages') { if (!S.msgs) chargerMessages(); }
   if (t === 'marketplace') { if (!S.listings) chargerAnnonces(); }
@@ -1548,21 +1626,26 @@ document.addEventListener('click', async function (e) {
   var t = e.target, b;
   if (t.closest('#bandeau-modal')) return ouvrirOnglet('argent');
   if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } renderAll(); if (f === 'compte' && S.tab === 'maintenant') chargerImages(); return; }
-  if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'audience') chargerImages(); return; }
+  if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'users') chargerImages(); return; }
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
   if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('travaux'); }
-  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
+  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
   if ((b = t.closest('[data-ser]'))) { S.series[b.dataset.ser] = !S.series[b.dataset.ser]; return renderArgent(); }
-  if (t.closest('#b-tarifs')) { S.tarifs = !S.tarifs; if (S.tarifs && !S.pricing) chargerPricing(); return renderTarifs(); }
-  if (t.closest('#b-tarifs-raz')) { S.pricing.current = Object.assign({}, S.pricing.defaults); $('#tarifs').innerHTML = ''; return renderTarifs(); }
+  if (t.closest('#b-tarifs-non')) { S.prixEdit = {}; S.winEdit = false; var bw0 = $('#windows-prix'); if (bw0) bw0._sig = null; $('#tarifs-msg').textContent = ''; renderArgent(); return; }
+  if (t.closest('#b-tarifs-raz')) {
+    if (!S.pricing) return; S.prixEdit = S.prixEdit || {};
+    Object.keys(S.pricing.defaults).forEach(function (k) { if (k.indexOf('desktop_') !== 0 && S.pricing.current[k] !== S.pricing.defaults[k]) S.prixEdit[k] = S.pricing.defaults[k]; });
+    renderArgent(); return;
+  }
   if (t.closest('#b-tarifs-ok')) {
-    $$('#tarifs [data-pk]').forEach(function (i) { var v = parseInt(i.value, 10); if (isFinite(v) && v >= 0) S.pricing.current[i.dataset.pk] = v; });
-    var dp = parseFloat(String($('#tar-d-prix').value).replace(',', '.')); if (isFinite(dp) && dp >= 0) S.pricing.current.desktop_prix_centimes = Math.round(dp * 100); S.pricing.current.desktop_gratuit = $('#tar-d-gratuit').checked ? 1 : 0;
+    var cur = Object.assign({}, S.pricing.current, S.prixEdit || {}), tp = $('#tar-d-prix'), tg = $('#tar-d-gratuit');
+    if (tp) { var dp = parseFloat(String(tp.value).replace(',', '.')); if (isFinite(dp) && dp >= 0) cur.desktop_prix_centimes = Math.round(dp * 100); }
+    if (tg) cur.desktop_gratuit = tg.checked ? 1 : 0;
     var m = $('#tarifs-msg'); m.className = 'note'; m.textContent = 'Enregistrement…';
-    try { var j = await http('/api/admin/pricing', { method: 'POST', body: { prices: S.pricing.current, password: '' } }); S.pricing.current = Object.assign({}, S.pricing.defaults, j.current || S.pricing.current); m.className = 'msg-ok'; m.textContent = '✓ Enregistré : pris en compte par tous les utilisateurs d\'ici une minute.'; }
+    try { var j = await http('/api/admin/pricing', { method: 'POST', body: { prices: cur, password: '' } }); S.pricing.current = Object.assign({}, S.pricing.defaults, j.current || cur); S.prixEdit = {}; S.winEdit = false; var bw1 = $('#windows-prix'); if (bw1) bw1._sig = null; m.className = 'msg-ok'; m.textContent = '✓ Enregistré : pris en compte par tous les utilisateurs d\'ici une minute.'; renderArgent(); }
     catch (er) { m.className = 'msg-err'; m.textContent = 'Échec : ' + er.message; }
     return;
   }
@@ -1608,14 +1691,21 @@ document.addEventListener('click', async function (e) {
 });
 document.addEventListener('input', function (e) { if (e.target.id === 'rech') { S.rech = e.target.value; renderComptes(); } });
 document.addEventListener('input', function (e) {
-  var k = e.target.dataset && e.target.dataset.pk; if (!k || !S.pricing) return;
-  var v = parseInt(e.target.value, 10), mod = isFinite(v) && v !== S.pricing.defaults[k];
-  e.target.style.borderColor = mod ? 'var(--warn)' : ''; e.target.style.color = mod ? 'var(--warn)' : '';
-  var rz = e.target.closest('tr').querySelector('[data-pk-raz]'); if (rz) rz.disabled = !mod;
+  var el = e.target, k = el.dataset && el.dataset.pk;
+  if (k && S.pricing) {
+    var v = parseInt(el.value, 10), cur = S.pricing.current[k], D = S.pricing.defaults, mod = isFinite(v) && v !== D[k];
+    S.prixEdit = S.prixEdit || {};
+    if (isFinite(v) && v >= 0 && v !== cur) S.prixEdit[k] = v; else delete S.prixEdit[k];
+    el.classList.toggle('mod', mod);
+    var rz = el.parentNode.querySelector('[data-pk-raz]'); if (rz) rz.disabled = !mod;
+    majBarrePrix(); return;
+  }
+  if (el.id === 'tar-d-prix' || el.id === 'tar-d-gratuit') { S.winEdit = true; majBarrePrix(); return; }
+  if (el.id === 'rech-ops') { S.rechOps = el.value; renderArgent(); }
 });
 document.addEventListener('click', function (e) {
   var b = e.target.closest ? e.target.closest('[data-pk-raz]') : null; if (!b || !S.pricing) return;
-  var i = b.closest('tr').querySelector('[data-pk]'); i.value = S.pricing.defaults[b.dataset.pkRaz]; i.dispatchEvent(new Event('input', { bubbles: true }));
+  var i = b.parentNode.querySelector('[data-pk]'); if (!i) return; i.value = S.pricing.defaults[b.dataset.pkRaz]; i.dispatchEvent(new Event('input', { bubbles: true }));
 });
 document.addEventListener('change', function (e) { if (e.target.id === 'tri-comptes') { S.triComptes = e.target.value; renderComptes(); } if (e.target.id === 'users-actifs') { S.usersActifs = e.target.checked; renderComptes(); } });
 document.addEventListener('click', function (e) {
@@ -1731,7 +1821,7 @@ document.addEventListener('submit', async function (e) {
   } catch (er) { err.textContent = 'Connexion impossible : ' + er.message; }
 });
 function toutRecharger() {
-  chargerBloques(); S.stats = null; S.users = null; S.msgs = null; S.listings = null; S.pricing = null; S.mfull = null; S.sante = null; S.aud = null; S.cre.data = {};
+  chargerBloques(); S.stats = null; S.users = null; S.msgs = null; S.listings = null; S.pricing = null; S.prixEdit = {}; S.winEdit = false; S.mfull = null; S.sante = null; S.aud = null; S.cre.data = {};
   chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); ouvrirOnglet(S.tab);
 }
 document.addEventListener('click', async function (e) {
@@ -2010,7 +2100,7 @@ async function chargerBloques() {
   var j = await silencieux(http('/api/admin/jobs/active')); if (!j) return;
   var lim = Date.now() - 3 * 3600e3;
   S.bloques = (j.jobs || []).filter(function (x) { return Date.parse(x.created_at) < lim; });
-  if (sur('maintenant', 'travaux', 'audience')) { $('#encours')._h = null; renderMaintenant(); }
+  if (sur('maintenant', 'travaux')) { $('#encours')._h = null; renderMaintenant(); }
   majResumes();
 }
 function htmlBloques() {
@@ -2047,7 +2137,6 @@ function pillR(c, t) { return '<span class="pill ' + c + '">' + esc(t) + '</span
 /* Ce qui se charge quand un volet s'ouvre, ou quand on arrive sur un onglet dont le volet est déjà ouvert. */
 function surVolet(d) {
   var id = d.dataset.id;
-  if (id === 'a-tarifs') { S.tarifs = d.open; if (d.open && !S.pricing) chargerPricing(); renderTarifs(); }
   if (!d.open) return;
   if (id === 'f-creations') chargerImages();
   else if (id === 's-diag') chargerDebug();
@@ -2058,7 +2147,6 @@ function chargerVolets() {
   var t = S.tab;
   if (t === 'users') chargerImages();
   if (t === 'argent') chargerModalFull();
-  if (t === 'tarifs') { S.tarifs = true; if (!S.pricing) chargerPricing(); renderTarifs(); }
   if (t === 'journal') { chargerDebug(); chargerAudit(); }
 }
 document.addEventListener('click', function (e) {
@@ -2177,7 +2265,7 @@ cadence(function () { if (sur('maintenant', 'travaux')) chargerBloques(); }, 600
 cadence(function () { if (S.tab === 'argent') chargerModalFull(); }, 120000);
 cadence(function () { if (S.tab === 'maintenant' || S.tab === 'systeme') { chargerModalFull(); if (S.tab === 'maintenant') chargerSante(); } }, 120000);
 cadence(function () { if (S.tab === 'systeme' || S.tab === 'maintenant') chargerModalStatus(); }, 8000);
-cadence(function () { if (S.tab === 'argent' || S.tab === 'audience') chargerStats(true); }, 300000);
+cadence(function () { if (S.tab === 'argent' || S.tab === 'travaux') chargerStats(true); }, 300000);
 setInterval(majHorloge, 1000);
 document.addEventListener('visibilitychange', function () { if (document.hidden) return; chargerLive(); chargerServices(); chargerBadges(); maintenirSession(); });
 
@@ -2235,7 +2323,8 @@ document.addEventListener('keydown', function (e) {
 
 /* ───────────────────────── démarrage ───────────────────────── */
 var depart = (location.hash || '').replace('#', '');
-if (['maintenant', 'travaux', 'audience', 'argent', 'tarifs', 'users', 'messages', 'marketplace', 'systeme', 'journal'].indexOf(depart) >= 0) S.tab = depart;
+if (depart === 'audience') depart = 'travaux'; if (depart === 'tarifs') depart = 'argent';        // anciens liens : les onglets ont ete fusionnes
+if (['maintenant', 'travaux', 'argent', 'users', 'messages', 'marketplace', 'systeme', 'journal'].indexOf(depart) >= 0) S.tab = depart;
 cablerOnglets(); appliquerVolets(document);
 renderAll(); etiqueterChamps();
 chargerLive(); chargerServices(); chargerPrevision(); chargerBadges(); chargerPaiements(); chargerModalStatus(); chargerSante();
