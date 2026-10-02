@@ -2736,7 +2736,7 @@ function _creditsAuPrixActuel(cle: string, op: string, opts: Record<string, unkn
   if (cle.startsWith('manual-tool')) return p.manual_tool ?? enregistres;
   if (cle.startsWith('mesh-op-client')) return p.mesh_op_simple ?? enregistres;
   if (cle.startsWith('mesh-op:')) {
-    const sous = cle.slice(8), cleP = ({ watertight: 'watertight_hd', align_texture: 'align_texture', texture_var: 'texture_var', enhance_tex: 'enhance_tex', region_retex: 'region_retex' } as Record<string, string>)[sous] ?? 'mesh_op_simple';
+    const sous = cle.slice(8), cleP = ({ watertight: 'watertight_hd', align_texture: 'align_texture', texture_var: 'texture_var', enhance_tex: 'enhance_tex', region_retex: 'region_retex', name_parts: 'name_parts' } as Record<string, string>)[sous] ?? 'mesh_op_simple';
     return p[cleP] ?? enregistres;
   }
   return enregistres;
@@ -2765,7 +2765,7 @@ const OPERATIONS_CONNUES: string[] = [
   'mesh', 'retexture', 'reshape', 'segment', 'rig', 'animate', 'animate_fbx', 'construction3d', 'mesh-convert',
   // outils de maillage executes par le serveur
   ...['smooth', 'decimate', 'center', 'fix_normals', 'fill_holes', 'subdivide', 'material', 'material_adjust', 'retex_swap', 'watertight', 'align_texture',
-      'resize', 'explode', 'texture_var', 'enhance_tex', 'region_retex'].map((o) => `mesh-op:${o}`),
+      'resize', 'explode', 'texture_var', 'enhance_tex', 'region_retex', 'name_parts'].map((o) => `mesh-op:${o}`),
   // outils de maillage executes dans le navigateur
   ...['smooth', 'decimate', 'subdivide', 'fix_normals', 'fill_holes', 'center', 'paint_emissive', 'paint_mesh', 'clone3d', 'skin_paint'].map((o) => `mesh-op-client:${o}`),
   // outils manuels du navigateur (debites a l'enregistrement ou a l'ouverture)

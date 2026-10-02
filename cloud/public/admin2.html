@@ -1218,12 +1218,36 @@ function avecToutesLesOps(lignes, connues, familles) {
   return lignes;
 }
 function completeOp(o) { o.marge = o.value - o.reel; o.ratio = o.reel > 0.005 ? o.value / o.reel : 1e9; var ok = (o.count || 0) - (o.failed || 0); o.prix = ok > 0 ? o.value / ok : 0; o.coutop = o.count > 0 ? o.reel / o.count : 0; return o; }
-function ligneOpHtml(m) {
+function ligneOpHtml(m) { return ligneOpSeule(m) + (m.supls ? m.supls.map(suplHtml).join('') : ''); }
+/* Suppléments de prix (user, 02/10/2026 : « toujours pas compris ces option ») : cases à cocher de la fenêtre 3D dont le prix S'AJOUTE à celui de la génération. Ils n'ont ni travail, ni coût propre
+   (tout est déjà dans la ligne de l'opération mère) : ils s'affichent en retrait SOUS elle, en français. `par` = opération mère ; sans mère, c'est un réglage (publication marketplace). */
+var SUPPL = {
+  mesh_rectify: ['mesh', 'Redressement auto', 'case « Auto-rectify » : redresse la photo de face avant la 3D'],
+  mesh_face_fix: ['mesh', 'Correction du visage', 'case « Face fix » : visage repeint sur la texture'],
+  mesh_smooth: ['mesh', 'Texture lissée', 'case « Texture smooth »'],
+  mesh_multiref: ['mesh', 'Multi-références', 'case « Multi-reference » : plusieurs photos de départ'],
+  mesh_quality_plus: ['mesh', 'Qualité+', 'voxels 1024 en cascade'],
+  mesh_ultra_q: ['mesh', 'Qualité ultra', 'voxels 1536 en cascade'],
+  mesh_ultra_hd: ['mesh', 'Texture nette 8K', 'texture affûtée à 8192 px'],
+  mesh_refine: ['mesh', 'Affinage des détails', 'case « Detail refine »'],
+  mesh_tris_500k: ['mesh', 'Triangles max : prix pour 500 K', 'au-delà de 500 K, le supplément suit la courbe ci-dessous'],
+  mesh_tris_base: ['mesh', 'Triangles max : minimum', 'supplément plancher, quel que soit le choix (50 K à 500 K)'],
+  mesh_tris_courbe_pct: ['mesh', 'Triangles max : courbe', 'en % et non en crédits (100 = linéaire ; 130 : 1 M = +3, 2 M = +7, 3 M = +11)'],
+  rectify: ['mesh', 'Redressement lancé seul', 'route API « rectify-image » : le site ne l\'appelle pas, il passe par la case Auto-rectify ci-dessus'],
+  market_publish: [null, 'Publier sur la marketplace', 'action de la marketplace : aucun calcul GPU']
+};
+function suplHtml(o) {
+  var pas = o.op === 'mesh_tris_courbe_pct' ? ['réglage', 'Pourcentage de courbure du barème, pas un prix en crédits'] : o.op === 'rectify' ? ['outil seul', 'Prix de la route API de redressement lancée seule'] : ['supplément', 'Se coche dans la fenêtre de génération 3D : ce prix s\'ajoute à celui de la génération. Son usage et son coût sont déjà comptés dans la ligne ci-dessus.'];
+  return '<tr class="supl" style="color:var(--text-2)"><td class="coupe opt-cle" style="padding-left:30px"><span aria-hidden="true">↳</span> <span style="color:var(--text-1)">' + esc(o.lib || o.op) + '</span><div class="orig">' + esc(o.detail || '') + ' · <span style="font:11px var(--mono)">' + esc(o.op) + '</span></div></td>'
+    + '<td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td>'
+    + '<td><span class="pill" title="' + esc(pas[1]) + '">' + pas[0] + '</span></td><td class="n prix">' + (S.pricing ? champPrix(o.op, '', true) : '…') + '</td></tr>';
+}
+function ligneOpSeule(m) {
   if (m.option) {
     var desc = PRICING_DESCRIPTIONS[m.op] || '';
-    return '<tr style="color:var(--text-2)"><td class="coupe opt-cle"><span style="font:12px var(--mono);color:var(--text-1)">' + esc(m.op) + '</span>' + (desc ? '<div class="orig">' + esc(desc) + '</div>' : '') + '</td>'
+    return '<tr style="color:var(--text-2)"><td class="coupe opt-cle">' + (m.lib ? '<span style="color:var(--text-1)">' + esc(m.lib) + '</span><div class="orig">' + esc(m.detail || '') + ' · <span style="font:11px var(--mono)">' + esc(m.op) + '</span></div>' : '<span style="font:12px var(--mono);color:var(--text-1)">' + esc(m.op) + '</span>' + (desc ? '<div class="orig">' + esc(desc) + '</div>' : '')) + '</td>'
       + '<td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td>'
-      + '<td><span class="pill" title="Option ou supplément de prix : pas d\'opération propre">option</span></td><td class="n prix">' + (S.pricing ? champPrix(m.op, '', true) : '…') + '</td></tr>';
+      + '<td><span class="pill" title="Tarif d\'une action ou d\'un réglage qui n\'est pas un travail GPU : pas de coût ni de verdict">réglage</span></td><td class="n prix">' + (S.pricing ? champPrix(m.op, '', true) : '…') + '</td></tr>';
   }
   var fam = m.famille || m.op;
   if (!m.count && !(m.reel > 0.005)) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, m.op) + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td>' + htmlVerdict(m) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
@@ -1453,14 +1477,20 @@ function lignesOptions() {
   var p = S.prixProprio || {}, out = [];
   Object.keys(S.pricing.defaults).sort().forEach(function (k) {
     if (k.indexOf('desktop_') === 0 || p[k]) return;
-    out.push({ op: k, option: true, cat: prixCat(k), count: 0, failed: 0, credits: 0, value: 0, reel: 0 });
+    var sp = SUPPL[k];
+    out.push({ op: k, option: true, cat: sp && sp[0] ? opCat(sp[0]) : prixCat(k), par: sp ? sp[0] : null, lib: sp ? sp[1] : '', detail: sp ? sp[2] : '', count: 0, failed: 0, credits: 0, value: 0, reel: 0 });
   });
   return out;
 }
 function pastilleCat(c) { return '<span class="cat-pastille" style="background:' + c.col + '">' + (c.num || '·') + '</span>'; }
 /* « Par operation » en groupes repliables, avec le sous-total de chaque categorie ; l'ordre de tri choisi vaut DANS chaque groupe. Une recherche deplie tout. */
 function htmlOpsGroupees(lignes) {
-  var vis = filtrerOps(lignes.concat(lignesOptions())), rech = !!String(S.rechOps || '').trim(), parCat = {}, h = '';
+  var opts = lignesOptions(), parOp = {};
+  lignes.forEach(function (m) { parOp[m.op] = m; m.supls = null; });
+  var libres = opts.filter(function (o) { var mere = o.par ? parOp[o.par] : null; if (mere) { (mere.supls = mere.supls || []).push(o); return false; } return true; });
+  var ordreSupl = Object.keys(SUPPL);
+  lignes.forEach(function (m) { if (m.supls) m.supls.sort(function (x, y) { return ordreSupl.indexOf(x.op) - ordreSupl.indexOf(y.op); }); });
+  var vis = filtrerOps(lignes.concat(libres)), rech = !!String(S.rechOps || '').trim(), parCat = {}, h = '';
   CATS.forEach(function (c) { parCat[c.id] = []; });
   vis.forEach(function (m) { parCat[m.cat || opCat(m.op)].push(m); });
   CATS.forEach(function (c) {
@@ -1468,7 +1498,7 @@ function htmlOpsGroupees(lignes) {
     var vraies = l.filter(function (m) { return !m.option; }), nopt = l.length - vraies.length, act = vraies.filter(function (m) { return m.count > 0; }).length, n = 0, cr = 0, va = 0, re = 0;
     l.forEach(function (m) { n += m.count || 0; cr += m.credits || 0; va += m.value || 0; re += m.reel || 0; });
     var ferme = !rech && !!S.opsFerme[c.id];
-    h += '<tr class="grp-op" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + (!ferme) + '"><td><span class="chev">' + (ferme ? '▸' : '▾') + '</span>' + pastilleCat(c) + '<b>' + esc(c.n) + '</b> <span class="orig">' + act + ' sur ' + vraies.length + ' utilisées' + (nopt ? ' · ' + nopt + ' option' + (nopt > 1 ? 's' : '') : '') + '</span></td>'
+    h += '<tr class="grp-op" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + (!ferme) + '"><td><span class="chev">' + (ferme ? '▸' : '▾') + '</span>' + pastilleCat(c) + '<b>' + esc(c.n) + '</b> <span class="orig">' + act + ' sur ' + vraies.length + ' utilisées' + (nopt ? ' · ' + nopt + ' réglage' + (nopt > 1 ? 's' : '') : '') + '</span></td>'
       + '<td class="n tn">' + n + '</td><td class="n tn masque-etroit">' + num(cr) + '</td><td class="n tn">' + eur(va) + '</td><td class="n tn">' + eur(re) + '</td><td class="n tn" style="color:' + (va - re >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(va - re) + '</td>'
       + '<td class="masque-etroit"></td><td class="masque-etroit"></td><td></td><td></td></tr>';
     if (!ferme) {
@@ -1478,7 +1508,7 @@ function htmlOpsGroupees(lignes) {
       if (cache.length) {                                    // AFFICHEES par defaut (le user : « tu es sur qu'on ne va pas les utiliser ? ») ; cette ligne permet seulement de les replier
         var ouvert = S.opsInactifs[c.id] !== false, nopt = cache.filter(function (m) { return m.option; }).length, nop = cache.length - nopt, morceaux = [];
         if (nop) morceaux.push(nop + ' opération' + (nop > 1 ? 's' : '') + ' sans activité');
-        if (nopt) morceaux.push(nopt + ' option' + (nopt > 1 ? 's' : '') + ' de prix');
+        if (nopt) morceaux.push(nopt + ' réglage' + (nopt > 1 ? 's' : '') + ' de prix');
         h += '<tr class="grp-inact" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + ouvert + '"><td colspan="10"><span class="chev">' + (ouvert ? '▾' : '▸') + '</span>' + (ouvert ? 'Masquer ' : 'Afficher ') + 'les ' + morceaux.join(' et ') + '</td></tr>';
         if (ouvert) h += cache.map(ligneOpHtml).join('');
       }
@@ -1489,7 +1519,7 @@ function htmlOpsGroupees(lignes) {
 /* Une ligne reste visible si elle a servi OU si son prix a une modification non enregistree (jamais cacher un changement en cours). */
 function ligneActive(m) {
   if (!m.option && m.count > 0) return true;
-  var ks = m.option ? [m.op] : (OP_PRIX[m.op] || []), e = S.prixEdit || {};
+  var ks = (m.option ? [m.op] : (OP_PRIX[m.op] || [])).concat((m.supls || []).map(function (s) { return s.op; })), e = S.prixEdit || {};
   return ks.some(function (k) { return e[k] != null; });
 }
 function basculerInactifs(g) { S.opsInactifs[g.dataset.cat] = g.getAttribute('aria-expanded') !== 'true'; renderArgent(); }
@@ -1505,7 +1535,7 @@ var OP_PRIX = {
   'mesh-op:smooth': ['mesh_op_simple'], 'mesh-op:decimate': ['mesh_op_simple'], 'mesh-op:center': ['mesh_op_simple'], 'mesh-op:fix_normals': ['mesh_op_simple'], 'mesh-op:fill_holes': ['mesh_op_simple'],
   'mesh-op:subdivide': ['mesh_op_simple'], 'mesh-op:material': ['mesh_op_simple'], 'mesh-op:material_adjust': ['mesh_op_simple'], 'mesh-op:retex_swap': ['mesh_op_simple'], 'mesh-op:resize': ['mesh_op_simple'],
   'mesh-op:explode': ['mesh_op_simple'], 'mesh-op:watertight': ['watertight_hd'], 'mesh-op:align_texture': ['align_texture'], 'mesh-op:texture_var': ['texture_var'], 'mesh-op:enhance_tex': ['enhance_tex'],
-  'mesh-op:region_retex': ['region_retex'], 'mesh-convert': ['export'], 'manual-tool:export_image': ['export'], 'manual-tool:export_glb': ['export'], 'manual-tool:export_anim': ['export'],
+  'mesh-op:region_retex': ['region_retex'], 'mesh-op:name_parts': ['name_parts'], 'mesh-convert': ['export'], 'manual-tool:export_image': ['export'], 'manual-tool:export_glb': ['export'], 'manual-tool:export_anim': ['export'],
   'manual-tool:clone_stamp': ['manual_tool'], 'manual-tool:paint': ['manual_tool'], 'manual-tool:extend': ['manual_tool'], 'manual-tool:symmetrize': ['manual_tool'], 'manual-tool:color_pick': ['manual_tool'],
   'manual-tool:skeleton_points': ['manual_tool'], 'manual-tool:rig_joints': ['manual_tool'], 'manual-tool:open_anim': ['manual_tool'],
   'mesh-op-client:smooth': ['mesh_op_simple'], 'mesh-op-client:decimate': ['mesh_op_simple'], 'mesh-op-client:subdivide': ['mesh_op_simple'], 'mesh-op-client:fix_normals': ['mesh_op_simple'], 'mesh-op-client:fill_holes': ['mesh_op_simple'],
@@ -1538,7 +1568,7 @@ function calcProprios(lignes) {
   Object.keys(OP_PRIX).forEach(function (op) { if (presentes[op]) OP_PRIX[op].forEach(function (k) { if (!p[k] && (!S.pricing || S.pricing.defaults[k] != null)) p[k] = op; }); });
   S.prixProprio = p;
 }
-function filtrerOps(l) { var q = String(S.rechOps || '').toLowerCase().trim(); return q ? l.filter(function (m) { return m.op.toLowerCase().indexOf(q) >= 0; }) : l; }
+function filtrerOps(l) { var q = String(S.rechOps || '').toLowerCase().trim(); return q ? l.filter(function (m) { return m.op.toLowerCase().indexOf(q) >= 0 || (m.supls || []).some(function (s) { return (s.op + ' ' + (s.lib || '')).toLowerCase().indexOf(q) >= 0; }); }) : l; }
 function focusPrix() { var a = document.activeElement, tb = $('#t-ops'); return !!(a && a.dataset && a.dataset.pk && tb && tb.contains(a)); }
 function majBarrePrix() {
   var bar = $('#barre-prix'); if (!bar) return;
