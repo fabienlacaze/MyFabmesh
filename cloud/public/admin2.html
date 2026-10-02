@@ -172,7 +172,7 @@ td.libre{white-space:normal}
 .legende i{width:12px;height:3px;border-radius:2px;display:inline-block}
 .lecture{min-height:20px;font-size:12px;color:var(--text-1);margin-bottom:4px}
 svg.graph{width:100%;height:auto;display:block;touch-action:pan-y}
-.ax{fill:var(--text-2);font:11px var(--sans)}
+.ax{fill:var(--text-1);font:12px var(--sans)}
 .barre{display:grid;grid-template-columns:minmax(90px,150px) 1fr auto;gap:10px;align-items:center;padding:5px 0}
 .barre .piste{background:var(--bg-3);height:10px;border-radius:5px;overflow:hidden;position:relative}
 .barre .piste i{display:block;height:100%;background:var(--accent)}
@@ -799,7 +799,9 @@ function cellule(k, v, s, cls, extra) { return '<div class="cell' + (cls ? ' ' +
 /* ───────────────────────── graphiques ───────────────────────── */
 function nice(v) { if (v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
 function courbes(id, labels, series, opts) {
-  var W = 720, H = opts.h || 230, L = 54, Rr = 14, T = 14, B = 26, n = labels.length, max = 0, min = 0, i;
+  /* Le graphique est trace a la LARGEUR REELLE de sa carte : avant, une largeur fixe de 720 reduite a 340 px dans une colonne etroite donnait des chiffres de 5 px (user : « pas assez lisible »). */
+  var cont = $('#' + id), cw = cont ? Math.round(cont.clientWidth) : 0;
+  var W = cw >= 220 ? cw : 720, H = opts.h || 230, L = 46, Rr = 14, T = 14, B = 28, n = labels.length, max = 0, min = 0, i;
   series.forEach(function (se) { if (!se.on) return; se.v.forEach(function (x) { if (x > max) max = x; if (x < min) min = x; }); });
   max = nice(max || 1); min = min < 0 ? -nice(-min) : 0;
   function X(k) { return L + (n === 1 ? 0 : k * (W - L - Rr) / (n - 1)); }
@@ -808,13 +810,13 @@ function courbes(id, labels, series, opts) {
   /* comptages (opts.entier) : des graduations a pas ENTIER (avant : 0,5 arrondi donnait « 2, 2, 1, 1, 0 » pour un maximum de 2) */
   var q = 4; if (opts.entier) q = [4, 5, 2, 1].filter(function (c) { return max % c === 0; })[0] || 4;
   for (i = 0; i <= q; i++) { var val = min + (max - min) * i / q, yy = Y(val); g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--border)" stroke-width="1"/><text class="ax" x="' + (L - 8) + '" y="' + (yy + 4) + '" text-anchor="end">' + opts.fmt(val) + '</text>'; }
-  var pas = Math.max(1, Math.round(n / 6));
-  for (i = 0; i < n; i += pas) g += '<text class="ax" x="' + X(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(labels[i]) + '</text>';
+  var pas = Math.max(1, Math.ceil(n / Math.max(3, Math.floor((W - L - Rr) / 62))));        // une etiquette tous les ~62 px : jamais de texte qui se chevauche
+  for (i = 0; i < n; i += pas) g += '<text class="ax" x="' + X(i) + '" y="' + (H - 7) + '" text-anchor="middle">' + esc(labels[i]) + '</text>';
   series.forEach(function (se) {
     if (!se.on) return;
     var d = ''; se.v.forEach(function (v, k) { d += (k ? 'L' : 'M') + X(k).toFixed(1) + ' ' + Y(v).toFixed(1); });
     if (se.aire) g += '<path d="' + d + ' L' + X(n - 1) + ' ' + Y(0) + ' L' + X(0) + ' ' + Y(0) + ' Z" fill="' + se.col + '" fill-opacity=".12"/>';
-    g += '<path d="' + d + '" fill="none" stroke="' + se.col + '" stroke-width="2" stroke-linejoin="round"/>';
+    g += '<path d="' + d + '" fill="none" stroke="' + se.col + '" stroke-width="2.5" stroke-linejoin="round"/>';
     g += '<circle cx="' + X(n - 1) + '" cy="' + Y(se.v[n - 1]) + '" r="4" fill="' + se.col + '"/>';
   });
   g += '<line id="' + id + '-v" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) + '" stroke="var(--text-2)" stroke-dasharray="3 3" visibility="hidden"/>';
@@ -831,7 +833,8 @@ function courbes(id, labels, series, opts) {
 }
 function serieSimple(id, labels, vals, col, titre) { courbes(id, labels, [{ v: vals, col: col, on: true, aire: true }], { titre: titre, entier: true, fmt: function (v) { return NF.format(Math.round(v)); } }); }
 function barresRecent(id, serie) {
-  var N = serie.length, W = 520, H = 130, L = 26, B = 22, T = 8, max = 2, i;
+  var cont = $('#' + id), cw = cont ? Math.round(cont.clientWidth) : 0;
+  var N = serie.length, W = cw >= 220 ? cw : 520, H = 150, L = 28, B = 24, T = 8, max = 2, i;
   for (i = 0; i < N; i++) max = Math.max(max, serie[i].ok + serie[i].echecs);
   max = Math.ceil(max / 2) * 2;
   var bw = (W - L) / N, g = '<svg class="graph" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Travaux par tranche de 5 minutes, dernière heure">';
@@ -840,7 +843,7 @@ function barresRecent(id, serie) {
     var h1 = (H - T - B) * serie[i].ok / max, h2 = (H - T - B) * serie[i].echecs / max, x = L + i * bw + 3;
     g += '<rect x="' + x + '" y="' + (H - B - h1) + '" width="' + (bw - 6) + '" height="' + h1 + '" rx="2" fill="var(--accent)"/>';
     g += '<rect x="' + x + '" y="' + (H - B - h1 - h2) + '" width="' + (bw - 6) + '" height="' + h2 + '" rx="2" fill="var(--err)"/>';
-    if (i % 3 === 0) g += '<text class="ax" x="' + (x + (bw - 6) / 2) + '" y="' + (H - 6) + '" text-anchor="middle">-' + ((N - 1 - i) * 5 + 5) + ' min</text>';
+    if (i % Math.max(1, Math.ceil(N / Math.max(3, Math.floor((W - L) / 70)))) === 0) g += '<text class="ax" x="' + (x + (bw - 6) / 2) + '" y="' + (H - 7) + '" text-anchor="middle">-' + ((N - 1 - i) * 5 + 5) + ' min</text>';
   }
   g += '</svg><div class="note"><span style="color:var(--accent)">■</span> réussis ou en cours &nbsp; <span style="color:var(--err)">■</span> échecs</div>';
   majSiChange($('#' + id), g);
@@ -2551,6 +2554,15 @@ function ouvrirJournalVersion() {
   el.addEventListener('click', ouvrirJournalVersion);
   document.body.appendChild(el);
 })();
+
+var _rsz = 0, _rszW = window.innerWidth;
+window.addEventListener('resize', function () {
+  clearTimeout(_rsz);
+  _rsz = setTimeout(function () {
+    if (Math.abs(window.innerWidth - _rszW) < 40) return; _rszW = window.innerWidth;
+    if (S.tab === 'travaux') { courbesParJour(); if (S.live) renderMaintenant(); } if (S.tab === 'argent') renderArgent();
+  }, 250);
+});
 
 /* ───────────────────────── démarrage ───────────────────────── */
 var depart = (location.hash || '').replace('#', '');
