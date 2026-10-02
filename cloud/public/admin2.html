@@ -256,6 +256,12 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .barre-act{position:sticky;bottom:12px;z-index:15;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:12px 18px;background:var(--bg-3);border:1px solid var(--accent);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
 .barre-act b{font-size:14px}
 .prix-champ{display:inline-flex;align-items:center;gap:6px;margin:1px 0}
+.grp-op td,.grp-fixe td{background:var(--bg-2);font-size:12px;color:var(--text-1);border-bottom:1px solid var(--border);padding-block:7px}
+.grp-op{cursor:pointer}
+.grp-op:hover td{background:var(--bg-3)}
+.grp-op:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.cat-pastille{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;color:#0a0a0e;margin:0 6px 0 2px;vertical-align:middle}
+.chev{display:inline-block;width:12px;color:var(--text-2)}
 .prix-champ.v{flex-direction:column;align-items:flex-end;gap:2px}
 .prix-multi{display:inline-grid;grid-template-columns:repeat(2,auto);gap:4px 10px;justify-content:end}
 @container (max-width: 1040px){ .masque-etroit{display:none} }
@@ -367,6 +373,9 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
     <div class="l4" id="l4">
       <span class="lbl">Période</span>
       <div class="seg" role="group" aria-label="Période" id="periode">
+        <button type="button" data-per="now" aria-pressed="false" title="Les 5 dernières minutes">Maintenant</button>
+        <button type="button" data-per="1h" aria-pressed="false">1 h</button>
+        <button type="button" data-per="2h" aria-pressed="false">2 h</button>
         <button type="button" data-per="6h" aria-pressed="false">6 h</button>
         <button type="button" data-per="24h" aria-pressed="false">24 h</button>
         <button type="button" data-per="7j" aria-pressed="true">7 jours</button>
@@ -404,7 +413,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div class="encours" id="encours"></div></div></details>
         <details class="carte vol" open data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
         <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
-        <details class="carte vol" open data-id="u-ops" data-res="opsj"><summary><h2>Travaux lancés <small>par jour</small></h2><span class="res"></span></summary>
+        <details class="carte vol" open data-id="u-ops" data-res="opsj"><summary><h2>Travaux lancés <small id="sous-ops">par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-ops"></div></div></details>
         <details class="carte vol" open data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
         <div class="corps">
@@ -415,13 +424,13 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
       <div class="colonne">
         <details class="carte vol" open data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
         <div class="corps"><div id="en-ligne"></div></div></details>
-        <details class="carte vol" open data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small>distincts par jour</small></h2><span class="res"></span></summary>
+        <details class="carte vol" open data-id="u-act" data-res="act"><summary><h2>Comptes actifs <small id="sous-act">distincts par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-act"></div></div></details>
         <details class="carte vol" open data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="b-pays"></div></div></details>
         <details class="carte vol" open data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
         <div class="corps"><div id="b-canal"></div></div></details>
-        <details class="carte vol" open data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small>par jour</small></h2><span class="res"></span></summary>
+        <details class="carte vol" open data-id="u-dl" data-res="dl"><summary><h2>Téléchargements du bureau <small id="sous-dl">par jour</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="g-dl"></div></div></details>
         <p class="note" id="note-audience"></p>
       </div>
@@ -664,11 +673,15 @@ var S = {
   series: { rev: true, cost: true, marge: true }, tarifs: false, killConfirm: null, decoOuvert: false, msgForm: null,
   session: false
 };
-var PER_MIN = { '6h': 360, '24h': 1440, '7j': 10080, '30j': 43200 };
+var PER_MIN = { now: 5, '1h': 60, '2h': 120, '6h': 360, '24h': 1440, '7j': 10080, '30j': 43200 };
+/* periodes COURTES : l'argent se lit alors sur /api/admin/argent-recent (heures entieres, 1 h au minimum), par tranches fines */
+var PER_H_COURT = { now: 1, '1h': 1, '2h': 2, '6h': 6, '24h': 24 };
+function periodeCourte() { return PER_H_COURT[S.per] != null; }
+function heuresCourtes() { return PER_H_COURT[S.per]; }
 /* TRI DES TABLEAUX (2026-10-02, user : « il faut pouvoir trier »). Un clic sur un en-tete trie, un second inverse. Sens de depart : texte A -> Z, nombres et dates decroissants. */
 S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 }, dbg: { k: 'date', d: -1 }, dbglog: { k: 'uploaded', d: -1 }, audit: { k: 'ts', d: -1 }, recon: { k: 'created_at', d: -1 }, actifs: { k: 'created_at', d: -1 } };
 S.triComptes = 'activite';
-S.prixEdit = {}; S.winEdit = false; S.rechOps = '';
+S.prixEdit = {}; S.winEdit = false; S.rechOps = ''; S.opsFerme = {};
 var TRI_TEXTE = { email: 1, type: 1, projet: 1, statut: 1, op: 1, pack: 1, etat: 1, operation: 1, status: 1, kind: 1, actor: 1, action: 1, target: 1, pack_id: 1, project_name: 1, asset_type: 1, ip: 1, project: 1 };
 function trier(liste, nom) {
   var t = S.tri[nom], k = t.k, d = t.d;
@@ -809,8 +822,8 @@ async function chargerAudience() {
   var j = await silencieux(http('/api/admin/audience.json?minutes=' + min)); if (j) { S.aud = j; S.audPer = S.per; S.audAt = Date.now(); if (S.tab === 'travaux') renderAudience(); }
 }
 S.lb = -1; S.usersActifs = false;
-function heuresPer() { return S.per === '6h' ? 6 : S.per === '24h' ? 24 : S.per === '30j' ? 720 : 168; }
-var LIB_PER = { '6h': '6 h', '24h': '24 h', '7j': '7 jours', '30j': '30 jours' };
+function heuresPer() { return PER_MIN[S.per] ? Math.max(1, Math.round(PER_MIN[S.per] / 60)) : 168; }
+var LIB_PER = { now: '5 min', '1h': '1 h', '2h': '2 h', '6h': '6 h', '24h': '24 h', '7j': '7 jours', '30j': '30 jours' };
 /* ═════════════ CREATIONS PAR TYPE (2026-10-02, user : « il faut plusieurs onglets par type : projets, images, 3d... » et « a droite de la vue il faut les parametres utilises ») ═════════════
    Un onglet par type de creation ; chaque creation s'ouvre dans la visionneuse avec ses parametres a droite. Le texte SAISI (prompt, description) n'est jamais envoye avec la liste :
    un bouton le demande pour UNE creation, et la lecture est inscrite dans le journal d'audit. */
@@ -942,11 +955,11 @@ document.addEventListener('click', async function (e) {
 S.rec = null; S.recAt = 0;
 /* Fenetres COURTES d'Argent (6 h, 24 h) : la facture Modal reelle est journaliere, le cout est donc ESTIME travail par travail par le serveur. */
 async function chargerArgentRecent(force) {
-  if (S.per !== '6h' && S.per !== '24h') return;
-  var h = S.per === '6h' ? 6 : 24;
+  if (!periodeCourte()) return;
+  var h = heuresCourtes();
   if (!force && S.rec && S.rec.heures === h && Date.now() - S.recAt < 60000) return;
   var j = await silencieux(http('/api/admin/argent-recent?heures=' + h));
-  if (j) { S.rec = j; S.recAt = Date.now(); if (S.tab === 'argent') renderArgent(); }
+  if (j) { S.rec = j; S.recAt = Date.now(); if (S.tab === 'argent') renderArgent(); if (S.tab === 'travaux') courbesParJour(); }
 }
 async function chargerModalStatus() { var j = await silencieux(http('/api/admin/modal-status')); if (j) { S.modal = j; if (S.tab === 'systeme') renderWarm(); if (S.tab === 'maintenant') renderConteneurs(); } }
 async function chargerSante() { var j = await silencieux(http('/api/admin/sante.json')); if (j) { S.sante = j; renderSante(); } chargerStats(); }
@@ -1068,11 +1081,12 @@ function renderMaintenant() {
   majSiChange($('#en-ligne'), el.length ? '<table><tbody>' + el.map(function (x) {
     return '<tr><td>' + lien('compte', x.email || 'inconnu', x.email || 'inconnu') + '</td><td class="n tn" data-vu0="' + (x.vu_il_y_a_s || 0) + '"></td><td>' + (x.en_ligne ? '<span class="pill ok">en ligne</span>' : '<span class="pill">parti</span>') + '</td></tr>';
   }).join('') + '</tbody></table>' : '<div class="vide">Personne.</div>');
-  var ev = trier((L.evenements || []).filter(filtreEvt).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
-  $('#n-flux').textContent = ev.length + ' affichés · les ' + (L.evenements || []).length + ' derniers travaux de tous les comptes';
+  var depuisPer = Date.now() - (PER_MIN[S.per] || 43200) * 60000;
+  var ev = trier((L.evenements || []).filter(filtreEvt).filter(function (x) { return Date.parse(x.ts) >= depuisPer; }).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
+  $('#n-flux').textContent = ev.length + ' sur ' + (LIB_PER[S.per] || '') + ' · parmi les ' + (L.evenements || []).length + ' derniers travaux de tous les comptes';
   majSiChange($('#flux'), ev.length ? ev.map(function (x) {
     return '<tr><td data-ts="' + esc(x.ts_iso) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td>' + pillStatut(x.statut) + (x.erreur ? '<span class="erreur-ligne">' + esc(x.erreur) + '</span>' : '') + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td></tr>';
-  }).join('') : '<tr><td colspan="7" class="vide">Aucun événement pour ce filtre.</td></tr>');
+  }).join('') : '<tr><td colspan="7" class="vide">Aucun travail sur cette période' + (S.filt.compte || S.filt.type ? ' pour ce filtre' : '') + '.</td></tr>');
   majHorloge(); majEntetesTri();
 }
 /* Les durees relatives sont recalculees SUR PLACE chaque seconde : le HTML des listes ne depend pas de l'heure, donc il n'est pas reconstruit a chaque
@@ -1105,11 +1119,20 @@ function ligneOpHtml(m) {
   if (!m.count) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, m.op) + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td><span class="pill">pas utilisée</span></td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
   return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m.value, m.reel, m.credits) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
 }
+/* Coût REEL Modal de l'heure passee (user : « c'est le plus precis qu'on puisse avoir ») : difference de deux releves horaires de la facture, demarrages a froid et inactivite compris. */
+function hhmm(iso) { var d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function tuileCoutReel(CR, h) {
+  var hr = CR && CR.heure, fe = CR && CR.fenetre;
+  var sub1 = hr ? 'heure passée · relevé de ' + hhmm(hr.de) + ' à ' + hhmm(hr.a) + (hr.minutes > 90 ? ' (' + Math.round(hr.minutes / 60) + ' h d\'écart)' : '')
+    : (CR ? 'en attente de deux relevés du même mois' : 'historique en cours de constitution : il faut deux relevés horaires');
+  var sub2 = fe && h > 1 ? h + ' h : ' + eur(fe.eur) + (fe.complet ? '' : ' depuis ' + hhmm(fe.de)) : '';
+  return '<div class="cell"><div class="k">Coût réel Modal<span class="est" style="border-style:solid;color:var(--ok);border-color:var(--ok)">facture</span></div><div class="v tn" style="color:var(--cost)">' + (hr ? eur(hr.eur) : '—') + '</div><div class="s" title="' + esc(sub1) + '">' + esc(sub1) + '</div>' + (sub2 ? '<div class="s">' + esc(sub2) + '</div>' : '') + '</div>';
+}
 function renderArgentCourt() {
-  var h = S.per === '6h' ? 6 : 24, R = S.rec;
+  var h = heuresCourtes(), R = S.rec, lh = h === 1 ? 'dernière heure' : h + ' dernières heures', lhp = h === 1 ? 'la dernière heure' : 'les ' + h + ' dernières heures';
   libEntete($('th[data-tri="ops:reel"]'), 'Coût estimé');
   if (!R || R.heures !== h) {
-    majSiChange($('#kpis-argent'), cellule('Chargement…', '…', 'calcul sur les ' + h + ' dernières heures'));
+    majSiChange($('#kpis-argent'), cellule('Chargement…', '…', 'calcul sur ' + lhp));
     $('#t-ops').innerHTML = '<tr><td colspan="10" class="vide">Chargement…</td></tr>'; return renderGpu();
   }
   var lim = Date.now() - h * 3600e3, enc = 0, nA = 0;
@@ -1120,10 +1143,11 @@ function renderArgentCourt() {
     cellule('Encaissé réel', S.pay ? eur(enc) : '—', S.pay ? nA + ' achat' + (nA > 1 ? 's' : '') + ' sur ' + h + ' h (Stripe, hors test)' : 'chargement…')
     + cellule('Valeur des crédits', eur(T.valeur_eur), T.ops + ' travaux · ' + num(T.credits) + ' crédits' + (T.echecs ? ' · ' + T.echecs + ' échec' + (T.echecs > 1 ? 's' : '') : ''))
     + '<div class="cell"><div class="k">Coût GPU<span class="est">estimation</span></div><div class="v tn" style="color:var(--cost)">' + eur(T.cout_eur) + '</div><div class="s">durée de chaque travail × tarif du GPU</div></div>'
+    + tuileCoutReel(R.cout_reel, h)
     + cellule('Marge estimée', eur(marge), T.valeur_eur > 0 ? Math.round(marge / T.valeur_eur * 100) + ' % de la valeur des crédits' : 'aucun crédit consommé', marge < 0 ? 'alerte' : ''));
   var lab = R.buckets.map(function (b) { var d = new Date(b.debut); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
   var val = R.buckets.map(function (b) { return b.valeur_eur; }), cout = R.buckets.map(function (b) { return b.cout_eur; }), mar = R.buckets.map(function (b) { return +(b.valeur_eur - b.cout_eur).toFixed(2); });
-  $('#sous-graphe').textContent = 'par ' + (R.pas_min >= 60 ? (R.pas_min / 60) + ' h' : R.pas_min + ' min') + ' · ' + h + ' dernières heures';
+  $('#sous-graphe').textContent = 'par ' + (R.pas_min >= 60 ? (R.pas_min / 60) + ' h' : R.pas_min + ' min') + ' · ' + lh;
   var def = [['rev', 'Valeur des crédits', 'var(--revenue)', val, false], ['cost', 'Coût GPU estimé', 'var(--cost)', cout, false], ['marge', 'Marge estimée', 'var(--margin)', mar, true]];
   $('#legende').innerHTML = def.map(function (d) { return '<button type="button" data-ser="' + d[0] + '" aria-pressed="' + S.series[d[0]] + '"><i style="background:' + d[2] + '"></i>' + d[1] + '</button>'; }).join('');
   courbes('g-argent', lab, def.map(function (d) { return { v: d[3], col: d[2], on: S.series[d[0]], aire: d[4], nom: d[1] }; }), { titre: 'Valeur des crédits, coût estimé et marge', h: 300, fmt: function (v) { return eur(v, Math.abs(v) < 10 ? 2 : 0); },
@@ -1132,14 +1156,14 @@ function renderArgentCourt() {
   var lignes = Object.keys(R.types).map(function (op) { var m = R.types[op]; return completeOp({ op: op, count: m.count, failed: m.failed, credits: m.credits, value: m.valeur_eur, reel: m.cout_eur }); });
   lignes = trier(avecToutesLesOps(lignes, R.connues, R.familles), 'ops'); calcProprios(lignes);
   S.resOps = resumeOps(lignes, T.valeur_eur, T.cout_eur);
-  if (!focusPrix()) $('#t-ops').innerHTML = filtrerOps(lignes).map(ligneOpHtml).join('') || '<tr><td colspan="10" class="vide">Aucune opération' + (S.rechOps ? ' ne correspond à la recherche' : ' sur ' + h + ' h') + '.</td></tr>';
-  $('#ops-fenetre').textContent = h + ' dernières heures · coût estimé · clic sur une ligne pour filtrer';
-  $('#resume-ops').innerHTML = 'Sur les <b>' + h + ' dernières heures</b> : <b>' + T.ops + '</b> travaux, valorisés <b>' + eur(T.valeur_eur) + '</b> en crédits (' + (R.eur_par_credit || 0).toFixed(3) + ' € le crédit) pour un coût estimé de <b>' + eur(T.cout_eur) + '</b>' + (R.tronque ? ' <span class="note">(les 5 000 premiers travaux seulement)</span>' : '') + '.';
+  if (!focusPrix()) $('#t-ops').innerHTML = htmlOpsGroupees(lignes) || '<tr><td colspan="10" class="vide">Aucune opération' + (S.rechOps ? ' ne correspond à la recherche' : ' sur ' + h + ' h') + '.</td></tr>';
+  $('#ops-fenetre').textContent = lh + ' · coût estimé · clic sur une ligne pour filtrer';
+  $('#resume-ops').innerHTML = 'Sur <b>' + lhp + '</b> : <b>' + T.ops + '</b> travaux, valorisés <b>' + eur(T.valeur_eur) + '</b> en crédits (' + (R.eur_par_credit || 0).toFixed(3) + ' € le crédit) pour un coût estimé de <b>' + eur(T.cout_eur) + '</b>' + (R.tronque ? ' <span class="note">(les 5 000 premiers travaux seulement)</span>' : '') + '.';
   $('#note-ops').textContent = 'Coût estimé : la facture Modal est publiée par jour, pas par heure. Toutes les opérations existantes sont listées ; celles sans activité sur la période sont à zéro.';
   majEntetesTri(); renderPrix(); renderGpu();
 }
 function renderArgent() {
-  if (S.per === '6h' || S.per === '24h') return renderArgentCourt();
+  if (periodeCourte()) return renderArgentCourt();
   libEntete($('th[data-tri="ops:reel"]'), 'Coût réel');
   var of = $('#ops-fenetre'); if (of) of.textContent = '30 derniers jours · clic sur une ligne pour filtrer';
   var st = S.stats, p = S.prev;
@@ -1183,7 +1207,7 @@ function renderArgent() {
   lignes = trier(avecToutesLesOps(lignes, bt.connues, bt.familles), 'ops'); calcProprios(lignes);
   var totV = 0, totR = 0, totP = 0;
   lignes.forEach(function (m) { totV += m.value; totR += m.reel; totP += Number(m.paid) || 0; });
-  if (!focusPrix()) tb.innerHTML = filtrerOps(lignes).map(ligneOpHtml).join('') || '<tr><td colspan="10" class="vide">Aucune opération' + (S.rechOps ? ' ne correspond à la recherche' : ' sur 30 jours') + '.</td></tr>';
+  if (!focusPrix()) tb.innerHTML = htmlOpsGroupees(lignes) || '<tr><td colspan="10" class="vide">Aucune opération' + (S.rechOps ? ' ne correspond à la recherche' : ' sur 30 jours') + '.</td></tr>';
   S.resOps = resumeOps(lignes, totV, totR);
   var sansOp = Number(bt.facture_sans_operation_eur) || 0;
   $('#resume-ops').innerHTML = 'Les opérations ont été valorisées <b>' + eur(totV) + '</b> en crédits (' + (Number(bt.eur_par_credit) || 0).toFixed(3) + ' € le crédit) et ont coûté <b>' + eur(totR) + '</b> chez Modal' + (totR > 0 ? ' : <b style="color:' + (totV >= totR ? 'var(--ok)' : 'var(--err)') + '">×' + (totV / totR).toFixed(1) + '</b>' : '') + '.' + (sansOp > 0.005 ? ' S\'y ajoutent ' + eur(sansOp) + ' facturés des jours sans opération (tests, démarrages).' : '') + ' Réellement encaissé sur ces opérations (comptes ayant payé) : <b>' + eur(totP) + '</b>, le reste a été consommé avec des crédits offerts ou de test.';
@@ -1280,6 +1304,45 @@ function renderAchats() {
    Le prix se regle SUR LA LIGNE de l'operation, dans « Par operation », a cote de ce qu'elle coute et rapporte (user : « Argent B : le prix dans le tableau »).
    Une cle de prix n'a qu'UN champ : la premiere ligne PRESENTE qui la porte ; les autres lignes montrent « = prix ». Les cles sans ligne vont dans « Autres tarifs ».
    Les saisies non enregistrees vivent dans S.prixEdit (jamais perdues par un rafraichissement du tableau) ; l'enregistrement les envoie toutes. */
+/* CATEGORIES : les 4 etapes de l'appli + « Outils et divers » (user : « groupes-les et range-les par categories »). */
+var CATS = [{ id: 'image', n: 'Image', col: '#4c9aff', num: 1 }, { id: '3d', n: 'Maillage 3D', col: '#c84cff', num: 2 }, { id: 'rig', n: 'Squelette', col: '#ff9f43', num: 3 },
+  { id: 'anim', n: 'Animation', col: '#2ecc71', num: 4 }, { id: 'div', n: 'Outils et divers', col: '#9a9ab2', num: 0 }];
+var OPS_IMAGE = ['text2image', 'tpose', 'rectify', 'back-view', 'sheet', 'remove-bg', 'modify', 'segment-image', 'auto_inpaint', 'mask_inpaint', 'face_fix_image', 'upscale', 'tex_variant', 'recolor', 'outfit'];
+function opCat(op) {
+  if (OPS_IMAGE.indexOf(op) >= 0) return 'image';
+  if (op === 'rig') return 'rig';
+  if (op === 'animate' || op === 'animate_fbx') return 'anim';
+  if (op === 'mesh' || op === 'mesh-face' || op === 'retexture' || op === 'reshape' || op === 'segment' || op === 'construction3d' || op.indexOf('mesh-op') === 0) return '3d';
+  return 'div';                       // outils manuels, exports, conversions, projets
+}
+function prixCat(k) {
+  if (k === 'rig' || k === 'reskin') return 'rig';
+  if (k === 'anim') return 'anim';
+  if (k === 'manual_tool' || k === 'export' || k === 'market_publish') return 'div';
+  if (/^(text2image|back_view|modify|segment|auto_inpaint|mask_inpaint|face_fix_image|upscale|rectify|remove_background|tex_variant|recolor|outfit)/.test(k)) return 'image';
+  return '3d';                        // mesh_*, retex_*, texture_var, enhance_tex, region_retex, reshape, name_parts, construction3d, watertight_hd, align_texture...
+}
+function pastilleCat(c) { return '<span class="cat-pastille" style="background:' + c.col + '">' + (c.num || '·') + '</span>'; }
+/* « Par operation » en groupes repliables, avec le sous-total de chaque categorie ; l'ordre de tri choisi vaut DANS chaque groupe. Une recherche deplie tout. */
+function htmlOpsGroupees(lignes) {
+  var vis = filtrerOps(lignes), rech = !!String(S.rechOps || '').trim(), parCat = {}, h = '';
+  CATS.forEach(function (c) { parCat[c.id] = []; });
+  vis.forEach(function (m) { parCat[opCat(m.op)].push(m); });
+  CATS.forEach(function (c) {
+    var l = parCat[c.id]; if (!l.length) return;
+    var act = l.filter(function (m) { return m.count > 0; }).length, n = 0, cr = 0, va = 0, re = 0;
+    l.forEach(function (m) { n += m.count || 0; cr += m.credits || 0; va += m.value || 0; re += m.reel || 0; });
+    var ferme = !rech && !!S.opsFerme[c.id];
+    h += '<tr class="grp-op" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + (!ferme) + '"><td><span class="chev">' + (ferme ? '▸' : '▾') + '</span>' + pastilleCat(c) + '<b>' + esc(c.n) + '</b> <span class="orig">' + act + ' sur ' + l.length + ' utilisées</span></td>'
+      + '<td class="n tn">' + n + '</td><td class="n tn masque-etroit">' + num(cr) + '</td><td class="n tn">' + eur(va) + '</td><td class="n tn">' + eur(re) + '</td><td class="n tn" style="color:' + (va - re >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(va - re) + '</td>'
+      + '<td class="masque-etroit"></td><td class="masque-etroit"></td><td></td><td></td></tr>';
+    if (!ferme) h += l.map(ligneOpHtml).join('');
+  });
+  return h;
+}
+function basculerGroupe(g) { S.opsFerme[g.dataset.cat] = g.getAttribute('aria-expanded') === 'true'; renderArgent(); }
+document.addEventListener('click', function (e) { var g = e.target.closest ? e.target.closest('tr.grp-op') : null; if (g) basculerGroupe(g); });
+document.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr.grp-op')) { e.preventDefault(); basculerGroupe(e.target); } });
 var OP_PRIX = {
   'text2image': ['text2image'], 'modify': ['modify'], 'segment-image': ['segment'], 'auto_inpaint': ['auto_inpaint'], 'mask_inpaint': ['mask_inpaint'], 'face_fix_image': ['face_fix_image'], 'upscale': ['upscale'],
   'back-view': ['back_view'], 'rectify': ['rectify'], 'remove-bg': ['remove_background'], 'tex_variant': ['tex_variant'], 'recolor': ['recolor'], 'outfit': ['outfit', 'outfit_complete'],
@@ -1335,8 +1398,12 @@ function renderPrix() {
   var D = pr.defaults, C = pr.current, p = S.prixProprio || {};
   if (ba && !(document.activeElement && ba.contains(document.activeElement))) {
     var cles = Object.keys(D).filter(function (k) { return k.indexOf('desktop_') !== 0 && !p[k]; });
-    majSiChange(ba, cles.length ? '<div class="defil"><table><thead><tr><th>Clé</th><th>Rôle</th><th class="n">Origine</th><th class="n">Actuel</th></tr></thead><tbody>' + cles.map(function (k) {
-      return '<tr data-k="' + esc(k) + '"><td style="font:12px var(--mono)">' + esc(k) + '</td><td class="libre" style="color:var(--text-2);font-size:12px;min-width:160px">' + esc(PRICING_DESCRIPTIONS[k] || '') + '</td><td class="n tn" style="color:var(--text-2)">' + D[k] + '</td><td class="n prix">' + champPrix(k) + '</td></tr>';
+    var parC = {}; cles.sort().forEach(function (k) { (parC[prixCat(k)] = parC[prixCat(k)] || []).push(k); });
+    majSiChange(ba, cles.length ? '<div class="defil"><table><thead><tr><th>Clé</th><th>Rôle</th><th class="n">Origine</th><th class="n">Actuel</th></tr></thead><tbody>' + CATS.map(function (c) {
+      if (!parC[c.id]) return '';
+      return '<tr class="grp-fixe"><td colspan="4">' + pastilleCat(c) + '<b>' + esc(c.n) + '</b></td></tr>' + parC[c.id].map(function (k) {
+        return '<tr data-k="' + esc(k) + '"><td style="font:12px var(--mono)">' + esc(k) + '</td><td class="libre" style="color:var(--text-2);font-size:12px;min-width:160px">' + esc(PRICING_DESCRIPTIONS[k] || '') + '</td><td class="n tn" style="color:var(--text-2)">' + D[k] + '</td><td class="n prix">' + champPrix(k) + '</td></tr>';
+      }).join('');
     }).join('') + '</tbody></table></div>' : '<div class="vide">Tous les prix ont une ligne dans le tableau.</div>');
   }
   if (bw && !(document.activeElement && bw.contains(document.activeElement))) {
@@ -1456,27 +1523,42 @@ function barres(id, lignes, noms, filtre) {
 /* Activite = Travaux + Audience (user : « Activite B : ce qui se passe / qui est la »). Quatre chiffres en tete. */
 function renderKpisAct() {
   var box = $('#kpis-act'); if (!box) return;
-  var st = S.stats, u = st && st.users, L = S.live, fh = L && L.fenetres ? L.fenetres.h1 : null, pcf = fh && fh.lances ? Math.round(fh.echecs / fh.lances * 100) : 0;
-  var s7 = st && st.series_30d ? st.series_30d.slice(-7) : null, ops7 = s7 ? s7.reduce(function (a, x) { return a + (x.ops || 0); }, 0) : null, alerte = fh && fh.echecs && pcf >= 20 && fh.lances >= 5;
-  majSiChange(box, cellule('En cours', L ? (L.en_cours || []).length : '—', 'travaux lancés')
-    + cellule('Échecs 1 h', fh ? fh.echecs + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + fh.lances + ' · ' + pcf + ' %</span>' : '—', fh ? (alerte ? 'à regarder' : 'normal') : '', alerte ? 'alerte' : '')
-    + cellule('Travaux · 7 j', ops7 == null ? '—' : num(ops7), st && st.operations && st.operations.total ? (100 * st.operations.succeeded / st.operations.total).toFixed(0) + ' % réussis depuis le début' : '')
-    + cellule('Comptes actifs · 7 j', u ? num(u.active_7d) : '—', u ? num(u.active_30d) + ' sur 30 jours' : ''));
+  var L = S.live, A = S.aud && S.audPer === S.per ? S.aud : null, lib = LIB_PER[S.per] || '', tot = 0, reu = 0, ech = 0, comptes = 0;
+  if (A) { (A.par_provenance || []).forEach(function (x) { tot += x.travaux; reu += x.reussis; ech += x.echecs; }); (A.par_pays || []).forEach(function (x) { comptes += x.comptes; }); }
+  var pe = tot ? Math.round(ech / tot * 100) : 0, alerte = !!(A && ech && pe >= 20 && tot >= 5);
+  majSiChange(box, cellule('En cours', L ? (L.en_cours || []).length : '—', 'travaux lancés · en direct')
+    + cellule('Travaux · ' + lib, A ? num(tot) : '…', A ? (tot ? Math.round(100 * reu / tot) + ' % réussis' : 'aucun travail') : 'chargement…')
+    + cellule('Échecs · ' + lib, A ? ech + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + tot + ' · ' + pe + ' %</span>' : '…', A ? (alerte ? 'à regarder' : 'normal') : 'chargement…', alerte ? 'alerte' : '')
+    + cellule('Comptes actifs · ' + lib, A ? num(comptes) : '…', A ? 'ont lancé un travail' : 'chargement…'));
 }
 function renderAudience() {
-  var st = S.stats, A = S.aud;
+  var st = S.stats, A = S.aud && S.audPer === S.per ? S.aud : null;
   var u = st && st.users;
   renderKpisAct();
   if (A) { barres('b-pays', A.par_pays, nomPays, 'pays'); barres('b-canal', A.par_provenance, null, null); $('#note-audience').textContent = (A.note || '') + ' Fenêtre : ' + (A.fenetre_jours >= 1 ? A.fenetre_jours + ' jour(s)' : Math.round(A.fenetre_jours * 24) + ' h') + '.' + (st && st.jobs_truncated ? ' ⚠ Plafond de 20 000 lignes atteint : les totaux « depuis le début » sont sous-estimés.' : ''); }
   else { $('#b-pays').innerHTML = '<div class="vide">Chargement…</div>'; $('#b-canal').innerHTML = ''; }
-  if (st && st.series_30d) { var s = st.series_30d, lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); }); serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour'); courbesParJour(); }
+  courbesParJour();
 }
 /* courbes « comptes actifs » et « travaux lances » par jour : dessinees dans Activite seulement (retirees de Maintenant a la demande du user) */
 function courbesParJour() {
-  var st = S.stats; if (!st || !st.series_30d) return;
-  var s = st.series_30d, lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); });
-  ['g-act'].forEach(function (id) { if ($('#' + id)) serieSimple(id, lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour'); });
-  ['g-ops'].forEach(function (id) { if ($('#' + id)) serieSimple(id, lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour'); });
+  var st = S.stats, court = periodeCourte(), nb = S.per === '30j' ? 30 : 7, sm = function (id, txt) { var e = $(id); if (e) e.textContent = txt; };
+  if (st && st.series_30d) {
+    var s = st.series_30d.slice(-nb), lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); });
+    if ($('#g-act')) serieSimple('g-act', lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour');
+    if ($('#g-dl')) serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour');
+    if (!court && $('#g-ops')) serieSimple('g-ops', lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour');
+    var jours = 'par jour · ' + nb + ' derniers jours';
+    sm('#sous-act', 'distincts ' + jours); sm('#sous-dl', jours);
+    if (!court) sm('#sous-ops', jours);
+  }
+  if (court && $('#g-ops')) {                    // 6 h / 24 h : travaux lances par tranche (meme source que Argent), pas par jour
+    var R = S.rec, h = heuresCourtes();
+    if (R && R.heures === h && R.buckets) {
+      var lb = R.buckets.map(function (b) { var d = new Date(b.debut); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
+      serieSimple('g-ops', lb, R.buckets.map(function (b) { return b.ops || 0; }), 'var(--accent)', 'Travaux lancés');
+      sm('#sous-ops', 'par ' + (R.pas_min >= 60 ? (R.pas_min / 60) + ' h' : R.pas_min + ' min') + ' · ' + LIB_PER[S.per]);
+    } else { $('#g-ops').innerHTML = '<div class="vide">Chargement…</div>'; sm('#sous-ops', LIB_PER[S.per]); }
+  }
 }
 
 /* ───────────────────────── Système ───────────────────────── */
@@ -1592,7 +1674,7 @@ function renderAll() {
   $$('section[role=tabpanel]').forEach(function (p) { p.hidden = p.id !== 'p-' + S.tab; });
   $$('[data-per]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.per === S.per); });
   $('#l4').hidden = !sur('travaux', 'argent', 'users');
-  $('#per-note').textContent = S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'travaux' ? 'fenêtre des courbes, pays et canaux' : '';
+  $('#per-note').textContent = S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'travaux' ? 'chiffres, courbes, travaux, pays et canaux · En cours et Activité récente restent en direct' : '';
   if (sur('maintenant', 'travaux')) renderMaintenant();      // en cours, derniers travaux, en ligne : un seul rendu, plusieurs onglets
   if (S.tab === 'maintenant') renderSante();
   if (S.tab === 'argent') { renderArgent(); renderAchats(); }
@@ -1608,7 +1690,7 @@ function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
   if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); chargerSante(); chargerModalFull(); renderSante(); }
-  if (t === 'travaux') { chargerLive(); chargerBloques(); chargerStats(); chargerAudience(); }
+  if (t === 'travaux') { chargerLive(); chargerBloques(); chargerStats(); chargerAudience(); chargerArgentRecent(); }
   if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); if (!S.pricing) chargerPricing(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.stats) chargerStats(); }
   if (t === 'messages') { if (!S.msgs) chargerMessages(); }
@@ -1630,7 +1712,7 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
   if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('travaux'); }
-  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
+  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') { chargerAudience(); chargerArgentRecent(true); } if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
   if ((b = t.closest('[data-ser]'))) { S.series[b.dataset.ser] = !S.series[b.dataset.ser]; return renderArgent(); }

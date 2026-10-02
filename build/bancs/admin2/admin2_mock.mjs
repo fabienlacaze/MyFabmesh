@@ -89,6 +89,7 @@ const routes = {
     const sum = (k) => buckets.reduce((a, c) => a + c[k], 0);
     return { ok: true, heures: h, pas_min: pas, estimation: true, tronque: false, eur_par_credit: 0.162, buckets,
       connues: OPERATIONS_MOCK, familles: FAMILLES_MOCK,
+      cout_reel: { heure: { usd: 0.41, eur: 0.38, de: iso(3720e3), a: iso(120e3), minutes: 60 }, fenetre: { usd: 2.2, eur: 2.05, de: iso(6 * 3600e3 + 120e3), a: iso(120e3), minutes: 360, complet: true }, dernier_releve: iso(120e3), age_min: 2 },
       types: { mesh: { count: 6, failed: 1, credits: 360, valeur_eur: 58.32, cout_eur: 31.2 }, rig: { count: 3, failed: 0, credits: 90, valeur_eur: 14.58, cout_eur: 21.4 }, 'remove-bg': { count: 9, failed: 0, credits: 18, valeur_eur: 2.9, cout_eur: 0.004 } },
       totaux: { ops: sum('ops'), echecs: 2, credits: sum('credits'), valeur_eur: +sum('valeur_eur').toFixed(2), cout_eur: +sum('cout_eur').toFixed(2) } }; },
   'POST /api/admin/login': (b) => { if (b.password !== 'bon') return [401, { error: 'invalid password' }]; if (sess.totp && !b.totp) return [401, { error: 'totp_required' }]; if (sess.totp && b.totp !== '123456') return [401, { error: 'invalid totp' }]; sess.mdp = false; return { ok: true }; },

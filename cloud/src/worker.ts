@@ -4445,6 +4445,50 @@ async function handleAdminModalSetBudget(req: Request, env: Env): Promise<Respon
  *  le releve n'a pas pu lire la facture, { erreur } — affichee sur la carte.
  *  Un envoi REFUSE (cle differente) est note, pour que la carte distingue
  *  « PC eteint » de « cle refusee » : ils ne se reparent pas pareil. */
+/** HISTORIQUE DES RELEVES de la facture Modal (2026-10-02, user : « rajoute le cout reel de Modal de l'heure passee, c'est le plus precis qu'on puisse avoir »).
+ *  Chaque relevé ECRASAIT le précédent (`_meta/modal_real_usage.json`) : la facture n'existait donc qu'au jour, jamais à l'heure. Le relevé étant CUMULÉ sur le mois,
+ *  la différence entre deux relevés successifs EST le coût réel de l'intervalle (démarrages à froid et inactivité compris, ce que l'estimation par durée ne voit pas).
+ *  On garde ici les 120 derniers points (80 h au plus) : `_meta/modal_usage_hist.json`. Meilleur effort : un échec n'empêche jamais d'enregistrer le relevé. */
+const CLE_HISTO_RELEVE = '_meta/modal_usage_hist.json';
+type PointReleve = { ts: string; usage: number; mois: string };
+async function _lireHistoReleves(env: Env): Promise<PointReleve[]> {
+  try {
+    const txt = await r2GetText(env, CLE_HISTO_RELEVE);
+    const j = txt ? JSON.parse(txt) : null;
+    const pts = Array.isArray(j?.points) ? (j.points as PointReleve[]) : [];
+    return pts.filter((x) => x && typeof x.ts === 'string' && Number.isFinite(Date.parse(x.ts)) && Number.isFinite(Number(x.usage)) && typeof x.mois === 'string')
+      .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+  } catch { return []; }
+}
+async function _noterReleveHistorique(env: Env, usage: number, mois: string): Promise<void> {
+  try {
+    const now = Date.now();
+    let pts = (await _lireHistoReleves(env)).filter((x) => now - Date.parse(x.ts) < 80 * 3600_000);
+    const dernier = pts[pts.length - 1];
+    const point = { ts: new Date(now).toISOString(), usage: Math.round(usage * 10000) / 10000, mois };
+    // un relevé rejoué dans les 10 minutes REMPLACE le précédent (relevés horaires : deux poseurs ne doivent pas doubler les points)
+    if (dernier && now - Date.parse(dernier.ts) < 600_000) pts[pts.length - 1] = point; else pts.push(point);
+    pts = pts.slice(-120);
+    await env.MESHES.put(CLE_HISTO_RELEVE, JSON.stringify({ v: 1, points: pts }));
+  } catch { /* historique = confort */ }
+}
+/** Coût RÉEL (facture Modal) de la dernière heure et de la fenêtre demandée, par différence de relevés cumulés. `null` tant qu'il n'y a pas deux relevés du même mois. */
+async function _coutReelRecent(env: Env, heures: number) {
+  const pts = await _lireHistoReleves(env);
+  if (pts.length < 2) return null;
+  const USD_TO_EUR = 0.93;
+  const L = pts[pts.length - 1], tL = Date.parse(L.ts);
+  const calc = (P: PointReleve | undefined) => (P && P.mois === L.mois && L.usage >= P.usage)
+    ? { usd: Math.round((L.usage - P.usage) * 10000) / 10000, eur: Math.round((L.usage - P.usage) * USD_TO_EUR * 10000) / 10000, de: P.ts, a: L.ts, minutes: Math.round((tL - Date.parse(P.ts)) / 60000) }
+    : null;
+  const heure = calc(pts[pts.length - 2]);                       // dernier intervalle entre deux relevés (≈ 1 h)
+  const limite = tL - heures * 3600_000;
+  let base: PointReleve | undefined;
+  for (const x of pts) if (Date.parse(x.ts) <= limite) base = x;   // le relevé le plus récent AU PLUS TARD au début de la fenêtre
+  const complet = !!base;
+  const fen = calc(base ?? pts[0]);
+  return { heure, fenetre: fen ? { ...fen, complet } : null, dernier_releve: L.ts, age_min: Math.round((Date.now() - tL) / 60000) };
+}
 let _dernierRefusReleve = 0;
 async function handleAdminModalUsageIngest(req: Request, env: Env): Promise<Response> {
   const secret = (env.MODAL_USAGE_SECRET || '').trim();
@@ -4507,6 +4551,7 @@ async function handleAdminModalUsageIngest(req: Request, env: Env): Promise<Resp
     cycle: String(body?.cycle || ''), mois, ts: new Date().toISOString(),
   }));
   try { await env.MESHES.delete(CLE_RELEVE_ERREUR); } catch { /* best-effort */ }
+  await _noterReleveHistorique(env, usage, mois);
   _limiteMemo = null;
   await _synchroniserAlerteModal(env);
   return json({ ok: true, success: true });
@@ -20580,7 +20625,8 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
     .gte('created_at', depuis).order('created_at', { ascending: false }).limit(5000);
   if (error) return err(500, error.message);
   const EUR_PAR_CREDIT = 0.162, USD_TO_EUR = 0.93;
-  const pasMin = heures <= 6 ? 30 : heures <= 24 ? 60 : 180;
+  // Tranches fines pour 1 h et 2 h (user : « rajoutes now, 1h, 2h » : 12 et 24 cases de 5 min), 30 min jusqu'a 6 h, puis 1 h et 3 h.
+  const pasMin = heures <= 2 ? 5 : heures <= 6 ? 30 : heures <= 24 ? 60 : 180;
   const nbCases = Math.ceil(heures * 60 / pasMin);
   const cases = Array.from({ length: nbCases }, (_, i) => ({
     debut: new Date(now - (nbCases - i) * pasMin * 60_000).toISOString(), ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0,
@@ -20610,6 +20656,7 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
   return json({
     ok: true, heures, pas_min: pasMin, estimation: true, tronque: (data ?? []).length >= 5000,
     eur_par_credit: EUR_PAR_CREDIT, buckets: cases, types,
+    cout_reel: await _coutReelRecent(env, heures),
     connues: OPERATIONS_CONNUES,
     familles: _familles(famillesVues),
     totaux: { ...tot, valeur_eur: r2(tot.valeur_eur), cout_eur: r2(tot.cout_eur) },
