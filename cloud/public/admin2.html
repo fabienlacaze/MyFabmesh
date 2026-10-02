@@ -13,6 +13,7 @@
 <title>MyFabmesh — Admin</title>
 <link rel="icon" href="/favicon.png" type="image/png">
 <script async src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="/app/build-info.js"></script>
 <style>
 :root{
   color-scheme: dark;
@@ -269,6 +270,22 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .barre-act{position:sticky;bottom:12px;z-index:15;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:12px 18px;background:var(--bg-3);border:1px solid var(--accent);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
 .barre-act b{font-size:14px}
 .prix-champ{display:inline-flex;align-items:center;gap:6px;margin:1px 0}
+#version-logiciel{position:fixed;right:10px;bottom:6px;z-index:90;font-size:10.5px;letter-spacing:.3px;color:var(--text-2);opacity:.6;background:none;border:0;padding:2px 4px;cursor:pointer;font-family:inherit}
+#version-logiciel:hover,#version-logiciel:focus-visible{opacity:1}
+.mj-fond{position:fixed;inset:0;z-index:310;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+.mj-boite{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;width:min(680px,100%);max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+.mj-haut{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px 6px}
+.mj-haut h2{margin:0;font-size:16px}
+.mj-sous{margin:0;padding:0 18px 8px;color:var(--text-2);font-size:12px}
+.mj-corps{overflow-y:auto;padding:0 18px 14px;display:flex;flex-direction:column;gap:6px}
+.mj-version{border:1px solid var(--border);border-radius:8px;padding:6px 10px}
+.mj-version > summary{cursor:pointer;font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.mj-n{font-size:11px;font-weight:500;color:var(--text-2);background:rgba(255,255,255,.06);border-radius:999px;padding:0 8px}
+.mj-jour{margin:8px 0 2px;font-size:11px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.mj-liste{list-style:none;margin:4px 0 6px;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.4}
+.mj-liste li{display:grid;grid-template-columns:46px 1fr;column-gap:10px;align-items:baseline;padding:4px 10px;border-left:3px solid var(--accent);background:rgba(255,255,255,.04);border-radius:4px}
+.mj-build{font-size:11px;color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mj-txt{min-width:0;overflow-wrap:anywhere}
 .grp-op td,.grp-fixe td{background:var(--bg-2);font-size:12px;color:var(--text-1);border-bottom:1px solid var(--border);padding-block:7px}
 .grp-op{cursor:pointer}
 .grp-op:hover td{background:var(--bg-3)}
@@ -463,7 +480,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="colonne">
           <details class="carte vol" open data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
         <div class="corps">
-          <div class="ligneform" style="margin-bottom:4px"><input type="search" id="rech-ops" placeholder="Chercher une opération" autocomplete="off" style="max-width:280px"></div>
+          <div class="ligneform" style="margin-bottom:4px"><input type="search" id="rech-ops" placeholder="Chercher une opération" autocomplete="off" style="max-width:280px"><button type="button" class="btn petit" id="b-tarifs-raz" title="Remet tous les prix à leur valeur d'origine (à enregistrer ensuite)">Tout remettre à l'origine</button></div>
           <p class="note" id="resume-ops"></p>
           <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th class="n masque-etroit" data-tri="ops:prix" title="Valeur vendue par opération réussie">Prix / op</th><th class="n masque-etroit" data-tri="ops:coutop" title="Coût réel par opération, échecs inclus">Coût / op</th><th data-tri="ops:ratio">Verdict</th><th class="n" title="Prix en crédits, modifiable ici">Prix (crédits)</th></tr></thead><tbody id="t-ops"></tbody></table></div>
           <p class="note" id="note-ops"></p>
@@ -474,8 +491,6 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div></details>
           <details class="carte vol" open data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
         <div class="corps"><div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div></div></details>
-          <details class="carte vol" open data-id="a-autres"><summary><h2>Autres tarifs <small>options et suppléments, sans ligne dans le tableau</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="tarifs-autres"></div><div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-tarifs-raz">Tout remettre à l'origine</button></div></div></details>
         </div>
         <div class="colonne">
           <details class="carte vol" open data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
@@ -1137,6 +1152,12 @@ function avecToutesLesOps(lignes, connues, familles) {
 }
 function completeOp(o) { o.marge = o.value - o.reel; o.ratio = o.reel > 0.005 ? o.value / o.reel : 1e9; var ok = (o.count || 0) - (o.failed || 0); o.prix = ok > 0 ? o.value / ok : 0; o.coutop = o.count > 0 ? o.reel / o.count : 0; return o; }
 function ligneOpHtml(m) {
+  if (m.option) {
+    var desc = PRICING_DESCRIPTIONS[m.op] || '';
+    return '<tr style="color:var(--text-2)"><td><span style="font:12px var(--mono);color:var(--text-1)">' + esc(m.op) + '</span>' + (desc ? '<div class="orig">' + esc(desc) + '</div>' : '') + '</td>'
+      + '<td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td>'
+      + '<td><span class="pill" title="Option ou supplément de prix : pas d\'opération propre">option</span></td><td class="n prix">' + (S.pricing ? champPrix(m.op, '', true) : '…') + '</td></tr>';
+  }
   var fam = m.famille || m.op;
   if (!m.count) return '<tr style="color:var(--text-2)"><td>' + lien('type', fam, m.op) + '</td><td class="n tn">0</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td><td><span class="pill">pas utilisée</span></td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
   return '<tr' + (S.filt.type === fam ? ' style="background:var(--accent-soft)"' : '') + '><td>' + lien('type', fam, m.op) + '</td><td class="n tn">' + m.count + (m.failed ? ' <span style="color:var(--text-2)">(' + m.failed + ' ✖)</span>' : '') + '</td><td class="n tn masque-etroit">' + num(m.credits) + '</td><td class="n tn">' + eur(m.value) + '</td><td class="n tn">' + eur(m.reel) + '</td><td class="n tn" style="color:' + (m.marge >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(m.marge) + '</td><td class="n tn masque-etroit">' + eur(m.prix, 3) + '</td><td class="n tn masque-etroit">' + eur(m.coutop, 3) + '</td><td>' + htmlVerdict(m.value, m.reel, m.credits) + '</td><td class="n prix">' + celluleprix(m.op) + '</td></tr>';
@@ -1344,18 +1365,29 @@ function prixCat(k) {
   if (/^(text2image|back_view|modify|segment|auto_inpaint|mask_inpaint|face_fix_image|upscale|rectify|remove_background|tex_variant|recolor|outfit)/.test(k)) return 'image';
   return '3d';                        // mesh_*, retex_*, texture_var, enhance_tex, region_retex, reshape, name_parts, construction3d, watertight_hd, align_texture...
 }
+/* Les cles de prix qu'aucune ligne du tableau ne porte (options, supplements : multi-references, Quality+, nommer les zones...) sont des lignes du tableau, dans leur categorie
+   (user : « integre les autres operations dans operations »). */
+function lignesOptions() {
+  if (!S.pricing) return [];
+  var p = S.prixProprio || {}, out = [];
+  Object.keys(S.pricing.defaults).sort().forEach(function (k) {
+    if (k.indexOf('desktop_') === 0 || p[k]) return;
+    out.push({ op: k, option: true, cat: prixCat(k), count: 0, failed: 0, credits: 0, value: 0, reel: 0 });
+  });
+  return out;
+}
 function pastilleCat(c) { return '<span class="cat-pastille" style="background:' + c.col + '">' + (c.num || '·') + '</span>'; }
 /* « Par operation » en groupes repliables, avec le sous-total de chaque categorie ; l'ordre de tri choisi vaut DANS chaque groupe. Une recherche deplie tout. */
 function htmlOpsGroupees(lignes) {
-  var vis = filtrerOps(lignes), rech = !!String(S.rechOps || '').trim(), parCat = {}, h = '';
+  var vis = filtrerOps(lignes.concat(lignesOptions())), rech = !!String(S.rechOps || '').trim(), parCat = {}, h = '';
   CATS.forEach(function (c) { parCat[c.id] = []; });
-  vis.forEach(function (m) { parCat[opCat(m.op)].push(m); });
+  vis.forEach(function (m) { parCat[m.cat || opCat(m.op)].push(m); });
   CATS.forEach(function (c) {
     var l = parCat[c.id]; if (!l.length) return;
-    var act = l.filter(function (m) { return m.count > 0; }).length, n = 0, cr = 0, va = 0, re = 0;
+    var vraies = l.filter(function (m) { return !m.option; }), nopt = l.length - vraies.length, act = vraies.filter(function (m) { return m.count > 0; }).length, n = 0, cr = 0, va = 0, re = 0;
     l.forEach(function (m) { n += m.count || 0; cr += m.credits || 0; va += m.value || 0; re += m.reel || 0; });
     var ferme = !rech && !!S.opsFerme[c.id];
-    h += '<tr class="grp-op" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + (!ferme) + '"><td><span class="chev">' + (ferme ? '▸' : '▾') + '</span>' + pastilleCat(c) + '<b>' + esc(c.n) + '</b> <span class="orig">' + act + ' sur ' + l.length + ' utilisées</span></td>'
+    h += '<tr class="grp-op" data-cat="' + c.id + '" tabindex="0" role="button" aria-expanded="' + (!ferme) + '"><td><span class="chev">' + (ferme ? '▸' : '▾') + '</span>' + pastilleCat(c) + '<b>' + esc(c.n) + '</b> <span class="orig">' + act + ' sur ' + vraies.length + ' utilisées' + (nopt ? ' · ' + nopt + ' option' + (nopt > 1 ? 's' : '') : '') + '</span></td>'
       + '<td class="n tn">' + n + '</td><td class="n tn masque-etroit">' + num(cr) + '</td><td class="n tn">' + eur(va) + '</td><td class="n tn">' + eur(re) + '</td><td class="n tn" style="color:' + (va - re >= 0 ? 'var(--ok)' : 'var(--err)') + '">' + eur(va - re) + '</td>'
       + '<td class="masque-etroit"></td><td class="masque-etroit"></td><td></td><td></td></tr>';
     if (!ferme) h += l.map(ligneOpHtml).join('');
@@ -1415,19 +1447,9 @@ function majBarrePrix() {
     + '<div class="ligneform" style="margin:0"><button type="button" class="btn" id="b-tarifs-non">Annuler</button><button type="button" class="btn prim" id="b-tarifs-ok">Enregistrer les tarifs</button></div>');
 }
 function renderPrix() {
-  var pr = S.pricing, ba = $('#tarifs-autres'), bw = $('#windows-prix');
-  if (!pr) { if (ba) majSiChange(ba, '<div class="vide">Chargement…</div>'); return; }
-  var D = pr.defaults, C = pr.current, p = S.prixProprio || {};
-  if (ba && !(document.activeElement && ba.contains(document.activeElement))) {
-    var cles = Object.keys(D).filter(function (k) { return k.indexOf('desktop_') !== 0 && !p[k]; });
-    var parC = {}; cles.sort().forEach(function (k) { (parC[prixCat(k)] = parC[prixCat(k)] || []).push(k); });
-    majSiChange(ba, cles.length ? '<div class="defil"><table><thead><tr><th>Clé</th><th>Rôle</th><th class="n">Origine</th><th class="n">Actuel</th></tr></thead><tbody>' + CATS.map(function (c) {
-      if (!parC[c.id]) return '';
-      return '<tr class="grp-fixe"><td colspan="4">' + pastilleCat(c) + '<b>' + esc(c.n) + '</b></td></tr>' + parC[c.id].map(function (k) {
-        return '<tr data-k="' + esc(k) + '"><td style="font:12px var(--mono)">' + esc(k) + '</td><td class="libre" style="color:var(--text-2);font-size:12px;min-width:160px">' + esc(PRICING_DESCRIPTIONS[k] || '') + '</td><td class="n tn" style="color:var(--text-2)">' + D[k] + '</td><td class="n prix">' + champPrix(k) + '</td></tr>';
-      }).join('');
-    }).join('') + '</tbody></table></div>' : '<div class="vide">Tous les prix ont une ligne dans le tableau.</div>');
-  }
+  var pr = S.pricing, bw = $('#windows-prix');
+  if (!pr) return;
+  var D = pr.defaults, C = pr.current;
   if (bw && !(document.activeElement && bw.contains(document.activeElement))) {
     var cents = C.desktop_prix_centimes != null ? C.desktop_prix_centimes : (D.desktop_prix_centimes != null ? D.desktop_prix_centimes : 8999), gr = Number(C.desktop_gratuit != null ? C.desktop_gratuit : 1) !== 0, sig = cents + '|' + gr;
     if (bw._sig !== sig || !bw.querySelector('input')) {
@@ -2434,6 +2456,39 @@ document.addEventListener('keydown', function (e) {
   if (!$('#lb').hidden) pieger($('#lb'), e);
   else if (!$('#fp').hidden) { if (e.key === 'Escape') fermerFp(); else pieger($('#fp'), e); }
 });
+
+/* NUMERO DE VERSION (user : « rajoute un versionnage comme dans desktop, en bas a droite ») : meme build-info.js que l'appli (/app/build-info.js, ecrit par build/ecrire-version.mjs).
+   Seul le dernier build ENREGISTRE est annonce (build - 1 quand des modifications ne sont pas commitees). Un clic ouvre le journal des modifications, groupe par version puis par jour. */
+function ouvrirJournalVersion() {
+  var b = window.__BUILD__; if (!b) return;
+  var ancien = document.getElementById('modal-journal'); if (ancien) ancien.remove();
+  var retour = document.activeElement, groupes = [];
+  (b.journal || []).forEach(function (j) {
+    var v = j.v || b.version, g = groupes[groupes.length - 1]; if (!g || g.v !== v) { g = { v: v, jours: [] }; groupes.push(g); }
+    var jr = g.jours[g.jours.length - 1]; if (!jr || jr.d !== j.d) { jr = { d: j.d, l: [] }; g.jours.push(jr); } jr.l.push({ t: j.t, n: j.n });
+  });
+  var lignes = groupes.map(function (g, gi) {
+    return '<details class="mj-version"' + (gi === 0 ? ' open' : '') + '><summary>v' + esc(g.v) + ' <span class="mj-n">' + g.jours.reduce(function (n, x) { return n + x.l.length; }, 0) + '</span></summary>'
+      + g.jours.map(function (jr) { return '<div class="mj-jour">' + esc(jr.d) + '</div><ul class="mj-liste">' + jr.l.map(function (x) { return '<li><span class="mj-build">' + (x.n ? '#' + esc(String(x.n)) : '') + '</span><span class="mj-txt">' + esc(x.t) + '</span></li>'; }).join('') + '</ul>'; }).join('') + '</details>';
+  }).join('');
+  var m = document.createElement('div'); m.id = 'modal-journal'; m.className = 'mj-fond'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-label', 'Dernières modifications');
+  m.innerHTML = '<div class="mj-boite"><div class="mj-haut"><h2>Dernières modifications</h2><button type="button" class="btn petit" id="mj-close">Fermer</button></div>'
+    + '<p class="mj-sous">v' + esc(b.version) + ' · build ' + esc(String(b.sale ? Number(b.build) - 1 : b.build)) + ' · ' + esc(b.date) + ' · ' + esc(b.hash) + '</p><div class="mj-corps">' + (lignes || '—') + '</div></div>';
+  document.body.appendChild(m);
+  var echap = function (e) { if (e.key === 'Escape') { e.stopPropagation(); fermer(); } };
+  var fermer = function () { m.remove(); document.removeEventListener('keydown', echap, true); if (retour && retour.focus) retour.focus(); };
+  document.addEventListener('keydown', echap, true);
+  m.addEventListener('click', function (e) { if (e.target === m) fermer(); });
+  var bf = $('#mj-close', m); bf.addEventListener('click', fermer); bf.focus();
+}
+(function afficherVersion() {
+  var b = window.__BUILD__; if (!b || document.getElementById('version-logiciel')) return;
+  var el = document.createElement('button'); el.type = 'button'; el.id = 'version-logiciel'; el.setAttribute('translate', 'no');
+  el.textContent = 'v' + b.version + ' · build ' + (b.sale ? Number(b.build) - 1 : b.build);
+  el.title = b.date + ' · ' + b.hash + ' · cliquez pour voir les dernières modifications';
+  el.addEventListener('click', ouvrirJournalVersion);
+  document.body.appendChild(el);
+})();
 
 /* ───────────────────────── démarrage ───────────────────────── */
 var depart = (location.hash || '').replace('#', '');
