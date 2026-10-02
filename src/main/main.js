@@ -9527,6 +9527,12 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
         // code / signal / killed : le diagnostic d'echec (voir _diagnosticEchec3D) distingue ainsi un arret par delai, un plantage et une annulation.
         if (error) { reject({ error: error.message, stdout, stderr, code: error.code, signal: error.signal, killed: !!error.killed }); return; }
         if (!fs.existsSync(meshPath)) { reject({ error: 'GLB not created (Python did not produce output)', stdout, stderr }); return; }
+        // ETAPES APRES LA 3D JAMAIS EXECUTEES (2026-10-02) : le chevalier genere avec « Detail refine » + « Sharpened 8192px » est ressorti brut en 4096 px, sans une
+        // seule ligne « running refine / 8k post-process » dans le journal. L'arret anticipe (checkEarlyResolve) n'avait pas vu le GLB au moment du marqueur
+        // « 100 done » (ni a la fin du flux) ; ce chemin-ci rendait alors le maillage tel quel, et l'interface annoncait des options qui n'avaient pas tourne.
+        // Le GLB existe maintenant et le marqueur est dans stdoutBuf : on rejoue l'arret anticipe, qui enchaine refine / lissage / visage / 8K.
+        checkEarlyResolve();
+        if (resolvedEarly) return;
         const stats = fs.statSync(meshPath);
         // Save source image path for later display in viewer
         try { fs.writeFileSync(meshPath + '.source', imagePath, 'utf-8'); } catch(e) {}
