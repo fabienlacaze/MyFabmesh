@@ -287,6 +287,18 @@ button[role=switch][disabled]{opacity:.4;cursor:not-allowed}
 .mj-liste li{display:grid;grid-template-columns:46px 1fr;column-gap:10px;align-items:baseline;padding:4px 10px;border-left:3px solid var(--accent);background:rgba(255,255,255,.04);border-radius:4px}
 .mj-build{font-size:11px;color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .mj-txt{min-width:0;overflow-wrap:anywhere}
+/* « Par operation » compact (user : « reduis la hauteur de operation ») : lignes serrees, hauteur bornee a 60 % de l'ecran avec en-tete collant */
+#defil-ops{max-height:60vh}
+details[data-id="a-ops"] td{padding:3px 8px;font-size:13px;line-height:1.25}
+details[data-id="a-ops"] th{padding:5px 8px}
+details[data-id="a-ops"] .grp-op td{padding-block:4px}
+details[data-id="a-ops"] input.pin{padding:2px 6px;font-size:12px;height:24px;width:60px}
+details[data-id="a-ops"] .pill{padding:0 8px;font-size:11px}
+details[data-id="a-ops"] .prix-champ{margin:0}
+td.opt-cle{max-width:460px}
+td.opt-cle .orig{white-space:normal}
+details[data-id="a-ops"] .prix-champ .btn.petit{padding:0 6px;height:24px}
+details[data-id="a-ops"] .cat-pastille{min-width:16px;height:16px;font-size:10px;margin:0 5px 0 2px}
 .grp-op td,.grp-fixe td{background:var(--bg-2);font-size:12px;color:var(--text-1);border-bottom:1px solid var(--border);padding-block:7px}
 .grp-op{cursor:pointer}
 .grp-op:hover td{background:var(--bg-3)}
@@ -448,7 +460,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <div class="corps"><div id="g-ops"></div></div></details>
         <details class="carte vol" open data-id="m-flux" data-res="flux"><summary><h2><span id="t-flux">Derniers travaux</span> <small id="n-flux"></small></h2><span class="res"></span></summary>
         <div class="corps">
-          <div class="note" id="flux-retour" hidden style="margin:0 0 6px"><button type="button" class="lienclair" data-echecs="1">← Revenir à tous les travaux</button></div>
+          <div class="note" id="flux-retour" hidden style="margin:0 0 6px"><button type="button" class="lienclair" data-act="retour">← Revenir aux derniers travaux</button></div>
           <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
           <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Comptes.</p>
         </div></details>
@@ -478,28 +490,26 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
           <p class="note">Stripe a encaissé mais les crédits n'ont pas été versés (webhook manqué). Vérifiez le paiement dans Stripe, puis versez les crédits.</p>
           <div class="defil"><table><thead><tr><th data-tri="recon:created_at">Date</th><th data-tri="recon:email">Compte</th><th data-tri="recon:pack_id">Pack</th><th class="n" data-tri="recon:amount_eur">Montant</th><th>Session Stripe</th><th class="n" data-tri="recon:expected_credits">Crédits dus</th><th></th></tr></thead><tbody id="recon-t"></tbody></table></div><div id="recon-form"></div>
         </div></details>
-      <div class="dispo-arg">
-        <div class="colonne">
-          <details class="carte vol" open data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
+      <details class="carte vol" open data-id="a-ops" data-res="ops"><summary><h2>Par opération <small id="ops-fenetre">30 derniers jours · clic sur une ligne pour filtrer</small></h2><span class="res"></span></summary>
         <div class="corps">
           <div class="ligneform" style="margin-bottom:4px"><input type="search" id="rech-ops" placeholder="Chercher une opération" autocomplete="off" style="max-width:280px"><button type="button" class="btn petit" id="b-tarifs-raz" title="Remet tous les prix à leur valeur d'origine (à enregistrer ensuite)">Tout remettre à l'origine</button></div>
           <p class="note" id="resume-ops"></p>
-          <div class="defil"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th class="n masque-etroit" data-tri="ops:prix" title="Valeur vendue par opération réussie">Prix / op</th><th class="n masque-etroit" data-tri="ops:coutop" title="Coût réel par opération, échecs inclus">Coût / op</th><th data-tri="ops:ratio">Verdict</th><th class="n" title="Prix en crédits, modifiable ici">Prix (crédits)</th></tr></thead><tbody id="t-ops"></tbody></table></div>
+          <div class="defil haut" id="defil-ops"><table><thead><tr><th data-tri="ops:op">Opération</th><th class="n" data-tri="ops:count">Nombre</th><th class="n masque-etroit" data-tri="ops:credits">Crédits</th><th class="n" data-tri="ops:value">Valeur</th><th class="n" data-tri="ops:reel">Coût réel</th><th class="n" data-tri="ops:marge">Marge</th><th class="n masque-etroit" data-tri="ops:prix" title="Valeur vendue par opération réussie">Prix / op</th><th class="n masque-etroit" data-tri="ops:coutop" title="Coût réel par opération, échecs inclus">Coût / op</th><th data-tri="ops:ratio">Verdict</th><th class="n" title="Prix en crédits, modifiable ici">Prix (crédits)</th></tr></thead><tbody id="t-ops"></tbody></table></div>
           <p class="note" id="note-ops"></p>
           <div class="note" id="tarifs-msg" aria-live="polite"></div>
         </div></details>
-          <div class="barre-act" id="barre-prix" hidden role="region" aria-label="Modifications de prix non enregistrées"></div>
-          <details class="carte vol" open data-id="a-achats" data-res="achats"><summary><h2>Achats Stripe <small id="resume-achats"></small></h2><span class="res"></span></summary>
-        <div class="corps"><div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div></details>
-          <details class="carte vol" open data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
-        <div class="corps"><div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div></div></details>
-        </div>
+      <div class="barre-act" id="barre-prix" hidden role="region" aria-label="Modifications de prix non enregistrées"></div>
+      <div class="dispo d11">
         <div class="colonne">
           <details class="carte vol" open data-id="a-courbe" data-res="courbe"><summary><h2>Valeur des crédits, coût GPU, marge <small id="sous-graphe"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <div class="legende" id="legende"></div><div class="lecture tn" id="lecture"></div><div id="g-argent"></div>
           <p class="note" id="note-graphe"></p>
         </div></details>
+          <details class="carte vol" open data-id="a-windows"><summary><h2>Application Windows <small>prix affiché sur le site</small></h2><span class="res"></span></summary>
+        <div class="corps"><div id="windows-prix"><div class="vide">Chargement…</div></div></div></details>
+        </div>
+        <div class="colonne">
           <details class="carte vol" open data-id="a-gpu" data-res="gpu"><summary><h2>Coût GPU (Modal) <small id="gpu-etat"></small></h2><span class="res"></span></summary>
         <div class="corps">
           <div id="gpu-detail"></div>
@@ -511,10 +521,12 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
             <div class="ligneform"><button type="button" class="btn prim" id="b-lim-ok" disabled>Enregistrer</button><button type="button" class="btn" id="b-lim-non">Annuler</button></div><div id="lim-err" class="msg-err"></div>
           </div>
         </div></details>
-          <details class="carte vol" open data-id="a-windows"><summary><h2>Application Windows <small>prix affiché sur le site</small></h2><span class="res"></span></summary>
-        <div class="corps"><div id="windows-prix"><div class="vide">Chargement…</div></div></div></details>
         </div>
       </div>
+      <details class="carte vol" open data-id="a-achats" data-res="achats"><summary><h2>Achats Stripe <small id="resume-achats"></small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="defil"><table><thead><tr><th data-tri="achats:ts">Date</th><th data-tri="achats:email">Compte</th><th data-tri="achats:pack">Pack</th><th class="n" data-tri="achats:encaisse_eur">Encaissé</th><th class="n" data-tri="achats:credits">Crédits</th><th data-tri="achats:etat">État</th><th>Stripe</th></tr></thead><tbody id="t-achats"></tbody></table></div></div></details>
+      <details class="carte vol" open data-id="a-exports" data-res="exports"><summary><h2>Exports <small>historique complet</small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="ligneform"><a class="btn petit" href="/api/admin/history.xlsx" download>Exporter tout l'historique (Excel)</a><a class="btn petit" href="/api/admin/history.csv" download>ou en CSV</a></div></div></details>
     </div>
   </section>
 
@@ -711,7 +723,7 @@ function heuresCourtes() { return PER_H_COURT[S.per]; }
 /* TRI DES TABLEAUX (2026-10-02, user : « il faut pouvoir trier »). Un clic sur un en-tete trie, un second inverse. Sens de depart : texte A -> Z, nombres et dates decroissants. */
 S.tri = { flux: { k: 'ts', d: -1 }, ops: { k: 'reel', d: -1 }, achats: { k: 'ts', d: -1 }, dbg: { k: 'date', d: -1 }, dbglog: { k: 'uploaded', d: -1 }, audit: { k: 'ts', d: -1 }, recon: { k: 'created_at', d: -1 }, actifs: { k: 'created_at', d: -1 } };
 S.triComptes = 'activite';
-S.prixEdit = {}; S.winEdit = false; S.rechOps = ''; S.opsFerme = {}; S.fluxEchecs = false;
+S.prixEdit = {}; S.winEdit = false; S.rechOps = ''; S.opsFerme = {}; S.fluxMode = null;
 var TRI_TEXTE = { email: 1, type: 1, projet: 1, statut: 1, op: 1, pack: 1, etat: 1, operation: 1, status: 1, kind: 1, actor: 1, action: 1, target: 1, pack_id: 1, project_name: 1, asset_type: 1, ip: 1, project: 1 };
 function trier(liste, nom) {
   var t = S.tri[nom], k = t.k, d = t.d;
@@ -1120,9 +1132,9 @@ function renderMaintenant() {
   majSiChange($('#en-ligne'), el.length ? '<table><tbody>' + el.map(function (x) {
     return '<tr><td>' + lien('compte', x.email || 'inconnu', x.email || 'inconnu') + '</td><td class="n tn" data-vu0="' + (x.vu_il_y_a_s || 0) + '"></td><td>' + (x.en_ligne ? '<span class="pill ok">en ligne</span>' : '<span class="pill">parti</span>') + '</td></tr>';
   }).join('') + '</tbody></table>' : '<div class="vide">Personne.</div>');
-  if (S.fluxEchecs) renderFluxEchecs(); else { $('#t-flux').textContent = 'Derniers travaux'; $('#flux-retour').hidden = true; }
+  if (S.fluxMode) renderFluxEchecs(); else { $('#t-flux').textContent = 'Derniers travaux'; $('#flux-retour').hidden = true; }
   var depuisPer = Date.now() - (PER_MIN[S.per] || 43200) * 60000;
-  if (!S.fluxEchecs) {
+  if (!S.fluxMode) {
     var ev = trier((L.evenements || []).filter(filtreEvt).filter(function (x) { return Date.parse(x.ts) >= depuisPer; }).map(function (x) { x.ts_ms = Date.parse(x.ts); return x; }).map(function (x) { var o = Object.assign({}, x); o.ts = x.ts_ms; o.ts_iso = x.ts; return o; }), 'flux');
     $('#n-flux').textContent = ev.length + ' sur ' + (LIB_PER[S.per] || '') + ' · parmi les ' + (L.evenements || []).length + ' derniers travaux de tous les comptes';
     majSiChange($('#flux'), ev.length ? ev.map(function (x) {
@@ -1159,7 +1171,7 @@ function completeOp(o) { o.marge = o.value - o.reel; o.ratio = o.reel > 0.005 ? 
 function ligneOpHtml(m) {
   if (m.option) {
     var desc = PRICING_DESCRIPTIONS[m.op] || '';
-    return '<tr style="color:var(--text-2)"><td><span style="font:12px var(--mono);color:var(--text-1)">' + esc(m.op) + '</span>' + (desc ? '<div class="orig">' + esc(desc) + '</div>' : '') + '</td>'
+    return '<tr style="color:var(--text-2)"><td class="coupe opt-cle"><span style="font:12px var(--mono);color:var(--text-1)">' + esc(m.op) + '</span>' + (desc ? '<div class="orig">' + esc(desc) + '</div>' : '') + '</td>'
       + '<td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn">—</td><td class="n tn masque-etroit">—</td><td class="n tn masque-etroit">—</td>'
       + '<td><span class="pill" title="Option ou supplément de prix : pas d\'opération propre">option</span></td><td class="n prix">' + (S.pricing ? champPrix(m.op, '', true) : '…') + '</td></tr>';
   }
@@ -1570,39 +1582,40 @@ function barres(id, lignes, noms, filtre) {
   }).join('') + '<div class="note"><span style="color:var(--accent)">■</span> travaux &nbsp; <span style="color:var(--err)">■</span> dont échecs</div>';
 }
 /* Activite = Travaux + Audience (user : « Activite B : ce qui se passe / qui est la »). Quatre chiffres en tete. */
-/* Un clic sur la tuile « Echecs » = la liste des travaux EN ECHEC sur la periode (user : « si je clique ca doit me montrer la liste des travaux filtree sur les echecs »). */
-function tuileEchecs(lib, A, ech, tot, pe, alerte) {
-  var on = !!S.fluxEchecs;
-  return '<button type="button" class="cell svc' + (alerte ? ' alerte' : '') + (on ? ' sel' : '') + '" data-echecs="1" aria-pressed="' + on + '" title="Voir les travaux en échec sur la période">'
-    + '<div class="k">Échecs · ' + esc(lib) + '</div><div class="v tn">' + (A ? ech + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + tot + ' · ' + pe + ' %</span>' : '…') + '</div>'
-    + '<div class="s">' + (A ? (on ? 'liste affichée plus bas · cliquer pour revenir' : (alerte ? 'à regarder' : 'normal') + ' · cliquer pour voir la liste') : 'chargement…') + '</div></button>';
+/* Les QUATRE tuiles d'Activite sont des boutons (user : « rends ces boutons cliquables ») :
+   En cours -> la carte En cours ; Travaux -> la liste des travaux de la periode ; Echecs -> les echecs de la periode ; Comptes actifs -> l'onglet Comptes, filtre « actifs sur la periode ». */
+function tuileAct(act, titre, valeur, sous, o) {
+  o = o || {};
+  var on = o.on || (act === 'echecs' || act === 'travaux') && S.fluxMode === act;
+  return '<button type="button" class="cell svc' + (o.alerte ? ' alerte' : '') + (on ? ' sel' : '') + '" data-act="' + act + '"' + (act === 'echecs' || act === 'travaux' ? ' aria-pressed="' + !!on + '"' : '') + ' title="' + esc(o.titre || '') + '">'
+    + '<div class="k">' + esc(titre) + '</div><div class="v tn">' + valeur + '</div><div class="s">' + sous + '</div></button>';
 }
 async function chargerEchecs(force) {
-  var min = PER_MIN[S.per] || 43200;
-  if (!force && S.echecs && S.echecs.per === S.per && Date.now() - S.echecs.at < 60000) return;
-  var j = await silencieux(http('/api/admin/traces?statuts=failed&limit=200&minutes=' + min));
-  if (j) { S.echecs = { per: S.per, at: Date.now(), liste: j.traces || [] }; renderMaintenant(); }
+  var min = PER_MIN[S.per] || 43200, mode = S.fluxMode; if (!mode) return;
+  if (!force && S.echecs && S.echecs.per === S.per && S.echecs.mode === mode && Date.now() - S.echecs.at < 60000) return;
+  var j = await silencieux(http('/api/admin/traces?' + (mode === 'echecs' ? 'statuts=failed&' : '') + 'limit=200&minutes=' + min));
+  if (j && S.fluxMode === mode) { S.echecs = { per: S.per, mode: mode, at: Date.now(), liste: j.traces || [] }; renderMaintenant(); }
 }
 function renderFluxEchecs() {
-  var E = S.echecs && S.echecs.per === S.per ? S.echecs : null;
-  $('#t-flux').textContent = 'Échecs'; $('#flux-retour').hidden = false;
+  var mode = S.fluxMode, E = S.echecs && S.echecs.per === S.per && S.echecs.mode === mode ? S.echecs : null, nomMode = mode === 'echecs' ? 'Échecs' : 'Travaux';
+  $('#t-flux').textContent = nomMode; $('#flux-retour').hidden = false;
   if (!E) { $('#n-flux').textContent = 'chargement…'; majSiChange($('#flux'), '<tr><td colspan="7" class="vide">Chargement…</td></tr>'); return; }
-  var l = E.liste.filter(function (x) { return x.status === 'failed' && (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); });
-  $('#n-flux').textContent = l.length + ' échec' + (l.length > 1 ? 's' : '') + ' sur ' + (LIB_PER[S.per] || '') + (E.liste.length >= 200 ? ' · les 200 plus récents' : '');
+  var l = E.liste.filter(function (x) { return (mode !== 'echecs' || x.status === 'failed') && (!S.filt.compte || x.email === S.filt.compte) && (!S.filt.type || x.type === S.filt.type); });
+  $('#n-flux').textContent = l.length + ' ' + (mode === 'echecs' ? (l.length > 1 ? 'échecs' : 'échec') : (l.length > 1 ? 'travaux' : 'travail')) + ' sur ' + (LIB_PER[S.per] || '') + (E.liste.length >= 200 ? ' · les 200 plus récents' : '');
   majSiChange($('#flux'), l.length ? l.map(function (x) {
     return '<tr><td data-ts="' + esc(x.date) + '"></td><td>' + lien('compte', x.email || 'inconnu', nomCompte(x.email)) + '</td><td>' + lien('type', x.type || '?', x.operation || x.type || '?') + '</td><td class="coupe">' + esc(x.projet || '') + '</td><td>' + pillStatut(x.status) + (x.erreur ? '<span class="erreur-ligne">' + esc(String(x.erreur).slice(0, 140)) + '</span>' : '') + '</td><td class="n tn">' + dureeS(x.duree_s) + '</td><td class="n tn">' + (x.credits || 0) + '</td></tr>';
-  }).join('') : '<tr><td colspan="7" class="vide">Aucun échec sur cette période.</td></tr>');
+  }).join('') : '<tr><td colspan="7" class="vide">Aucun ' + (mode === 'echecs' ? 'échec' : 'travail') + ' sur cette période.</td></tr>');
   majHorloge();
 }
 function renderKpisAct() {
   var box = $('#kpis-act'); if (!box) return;
   var L = S.live, A = S.aud && S.audPer === S.per ? S.aud : null, lib = LIB_PER[S.per] || '', tot = 0, reu = 0, ech = 0, comptes = 0;
   if (A) { (A.par_provenance || []).forEach(function (x) { tot += x.travaux; reu += x.reussis; ech += x.echecs; }); (A.par_pays || []).forEach(function (x) { comptes += x.comptes; }); }
-  var pe = tot ? Math.round(ech / tot * 100) : 0, alerte = !!(A && ech && pe >= 20 && tot >= 5);
-  majSiChange(box, cellule('En cours', L ? (L.en_cours || []).length : '—', 'travaux lancés · en direct')
-    + cellule('Travaux · ' + lib, A ? num(tot) : '…', A ? (tot ? Math.round(100 * reu / tot) + ' % réussis' : 'aucun travail') : 'chargement…')
-    + tuileEchecs(lib, A, ech, tot, pe, alerte)
-    + cellule('Comptes actifs · ' + lib, A ? num(comptes) : '…', A ? 'ont lancé un travail' : 'chargement…'));
+  var pe = tot ? Math.round(ech / tot * 100) : 0, alerte = !!(A && ech && pe >= 20 && tot >= 5), ch = 'chargement…';
+  majSiChange(box, tuileAct('cours', 'En cours', L ? (L.en_cours || []).length : '—', 'travaux lancés · en direct · voir', { titre: 'Aller à la liste des travaux en cours' })
+    + tuileAct('travaux', 'Travaux · ' + lib, A ? num(tot) : '…', A ? (tot ? Math.round(100 * reu / tot) + ' % réussis' : 'aucun travail') + (S.fluxMode === 'travaux' ? ' · liste affichée' : ' · voir la liste') : ch, { titre: 'Voir la liste des travaux de la période' })
+    + tuileAct('echecs', 'Échecs · ' + lib, A ? ech + ' <span style="font-size:13px;font-weight:400;color:var(--text-2)">/ ' + tot + ' · ' + pe + ' %</span>' : '…', A ? (S.fluxMode === 'echecs' ? 'liste affichée · cliquer pour revenir' : (alerte ? 'à regarder' : 'normal') + ' · voir la liste') : ch, { alerte: alerte, titre: 'Voir les travaux en échec sur la période' })
+    + tuileAct('comptes', 'Comptes actifs · ' + lib, A ? num(comptes) : '…', A ? 'ont lancé un travail · voir les comptes' : ch, { titre: 'Voir les comptes actifs sur la période' }));
 }
 function renderAudience() {
   var st = S.stats, A = S.aud && S.audPer === S.per ? S.aud : null;
@@ -1793,10 +1806,17 @@ document.addEventListener('click', async function (e) {
   if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } renderAll(); if (f === 'compte' && S.tab === 'maintenant') chargerImages(); return; }
   if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'users') chargerImages(); return; }
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
-  if ((b = t.closest('[data-echecs]'))) { S.fluxEchecs = !S.fluxEchecs; if (S.fluxEchecs) chargerEchecs(true); renderKpisAct(); renderMaintenant(); var cf = $('details[data-id="m-flux"]'); if (cf && cf.scrollIntoView) cf.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if ((b = t.closest('[data-act]'))) {
+    var act = b.dataset.act, aller = function (id) { var c = $('details[data-id="' + id + '"]'); if (c && c.scrollIntoView) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    if (act === 'cours') { S.fluxMode = null; renderKpisAct(); renderMaintenant(); aller('m-cours'); return; }
+    if (act === 'comptes') { S.usersActifs = true; S.sel = null; ouvrirOnglet('users'); var ca = $('#users-actifs'); if (ca) ca.checked = true; renderComptes(); return; }
+    S.fluxMode = (act === 'retour' || S.fluxMode === act) ? null : act;
+    if (S.fluxMode) chargerEchecs(true);
+    renderKpisAct(); renderMaintenant(); aller('m-flux'); return;
+  }
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
   if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('travaux'); }
-  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') { chargerAudience(); chargerArgentRecent(true); if (S.fluxEchecs) chargerEchecs(true); } if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
+  if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'travaux') { chargerAudience(); chargerArgentRecent(true); if (S.fluxMode) chargerEchecs(true); } if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
   if ((b = t.closest('[data-sel]'))) { S.sel = b.dataset.sel; $('#fiche').dataset.uid = ''; $('#fiche').innerHTML = ''; return renderComptes(); }
   if ((b = t.closest('[data-ser]'))) { S.series[b.dataset.ser] = !S.series[b.dataset.ser]; return renderArgent(); }
