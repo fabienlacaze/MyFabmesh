@@ -11900,7 +11900,7 @@ async function _runSegmentJob(granularity, allowInstall) {
 
 async function runMeshSegment() {
   const p = state.currentProject;
-  if (!p || !p.selectedMeshPath) { showToast('Pick a mesh first.', 'error'); return; }
+  if (!p || !(p.previewMeshPath || p.selectedMeshPath)) { showToast('Pick a mesh first.', 'error'); return; }
   if (!API.meshSegment) { showToast('Segmentation engine not available.', 'error'); return; }
   const granularity = await _openSegmentGranularityModal();
   if (granularity == null) return;  // cancelled
@@ -13595,7 +13595,7 @@ function _atSetActiveSide(side) {
 
 function openAlignTexture() {
   const p = state.currentProject;
-  if (!p || !p.selectedMeshPath) { showToast('Pick a mesh first.', 'error'); return; }
+  if (!p || !(p.previewMeshPath || p.selectedMeshPath)) { showToast('Pick a mesh first.', 'error'); return; }
   if (!p.selectedImagePath) { showToast('Pick a source image first.', 'error'); return; }
   const modal = document.getElementById('modal-align-texture');
   if (!modal) return;
@@ -13658,9 +13658,9 @@ function openAlignTexture() {
   // Init viewer + load current mesh (must be last, after modal is visible
   // so canvas has real dimensions)
   requestAnimationFrame(async () => {
-    console.log('[align-tex] init start, meshPath=', p.selectedMeshPath);
+    console.log('[align-tex] init start, meshPath=', (p.previewMeshPath || p.selectedMeshPath));
     await _atInitViewport();
-    _atLoadMesh(p.selectedMeshPath);
+    _atLoadMesh(p.previewMeshPath || p.selectedMeshPath);
   });
 }
 
@@ -14860,7 +14860,7 @@ async function _peApplyOnDevice() {
     // Desktop: write the new GLB next to the source with an _emissive
     // suffix + timestamp, then push the local path into project.meshes.
     const p = state.currentProject;
-    const srcPath = (p?.selectedMeshPath || 'mesh.glb').replace(/\\/g, '/');
+    const srcPath = (p?.previewMeshPath || p?.selectedMeshPath || 'mesh.glb').replace(/\\/g, '/');
     const meshDir = srcPath.split('/').slice(0, -1).join('/');
     const origName = (srcPath.split('/').pop() || 'mesh.glb').replace(/\.[^.]+$/, '');
     const newPath = (meshDir ? meshDir + '/' : '') + origName + '_emissive_' + Date.now() + '.glb';
@@ -15537,7 +15537,7 @@ async function _pmDecalPoser(clientX, clientY) {
 
 function openPaintMesh(opts = {}) {
   const p = state.currentProject;
-  if (!p || !p.selectedMeshPath) { showToast('Pick a mesh first.', 'error'); return; }
+  if (!p || !(p.previewMeshPath || p.selectedMeshPath)) { showToast('Pick a mesh first.', 'error'); return; }
   const modal = document.getElementById('modal-paint-mesh');
   if (!modal) return;
   modal.classList.remove('hidden');
@@ -15654,7 +15654,7 @@ function openPaintMesh(opts = {}) {
     };
     cv.onpointerup = up;
     cv.onpointercancel = up;
-    _pmLoadMesh(p.selectedMeshPath);
+    _pmLoadMesh(p.previewMeshPath || p.selectedMeshPath);
   });
 
   const close = (restore) => {
@@ -15695,7 +15695,7 @@ async function _pmApplyOnDevice() {
     let bin = '';
     for (let k = 0; k < bytes.length; k += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 8192));
     const p = state.currentProject;
-    const srcPath = (p?.selectedMeshPath || 'mesh.glb').replace(/\\/g, '/');
+    const srcPath = (p?.previewMeshPath || p?.selectedMeshPath || 'mesh.glb').replace(/\\/g, '/');
     const meshDir = srcPath.split('/').slice(0, -1).join('/');
     const origName = (srcPath.split('/').pop() || 'mesh.glb').replace(/\.[^.]+$/, '');
     const newUrl = (meshDir ? meshDir + '/' : '') + origName + '_paint_' + Date.now() + '.glb';
@@ -15980,14 +15980,14 @@ document.getElementById('mat-reset-btn')?.addEventListener('click', () =>
 document.getElementById('mat-cancel-btn')?.addEventListener('click', closeMaterialAdjust);
 document.getElementById('mat-apply-btn')?.addEventListener('click', async () => {
   const p = state.currentProject;
-  if (!p || !p.selectedMeshPath) {
+  if (!p || !(p.previewMeshPath || p.selectedMeshPath)) {
     showToast('Pick a mesh first.', 'error'); return;
   }
   const params = _matReadParams();
   showToast('Applying material adjustments…', 'info', 2000);
   try {
     const r = await API.materialAdjust({
-      meshPath: p.selectedMeshPath,
+      meshPath: p.previewMeshPath || p.selectedMeshPath,
       ...params,
     });
     if (r?.success) {
