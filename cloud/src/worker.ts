@@ -1872,9 +1872,11 @@ const PRICING_DEFAULTS = {
   segment:          3,  // CLIPSeg detect-only (Auto Inpaint live mask preview) — each = a GPU call
   auto_inpaint:     6,
   mask_inpaint:     6,
-  face_fix_image:   3,
+  // x4 (2026-10-02) : ESTIMATION (1 essai rate sur 30 j) : meme moteur que mask_inpaint, ~0,15 EUR reel / reussite -> 4 credits = x4,3.
+  face_fix_image:   4,
   upscale:          3,  // x2 = this price, x4 = this + 1
-  rectify:          3,
+  // x4 (2026-10-02) : MESURE 30 j : 21,4 EUR reels pour 65 generations qui l'ont paye = 0,33 EUR chacune -> 9 credits = x4,4 (meme prix que l'option mesh_rectify).
+  rectify:          9,
   remove_background: 1,
   // Habits seuls. Sans completion c'est CLIPSeg seul (une passe, tres
   // court) ; avec completion c'est une passe SDXL Inpaint PAR PIECE,
@@ -1899,12 +1901,13 @@ const PRICING_DEFAULTS = {
   outfit_complete:  19,
   // Mesh ops
   mesh_op_simple:   1,
-  align_texture:    2,          // « Align Texture » : vraie reprojection (texture_project.py), 2026-09-28
+  align_texture:    3,          // « Align Texture » : vraie reprojection (texture_project.py), 2026-09-28. x4 (2026-10-02) : ESTIMATION ~0,10 EUR -> 3 credits = x4,9 (2 = x3,2).
   watertight_hd:    2,          // Watertight au-dela de 256 (grille de voxels 3 a 8 x plus grande)
   // « Texture variants » : l'atlas repasse en SDXL + ControlNet-Tile par
   // tuiles (4 tuiles de 1024 pour un atlas 2K). Meme moteur et meme
   // tarif que tex_variant, a la demande du user (« 1 ou 2 credits »).
-  texture_var:      3,          // releve 2026-09-27 (voir tex_variant)
+  // x4 (2026-10-02) : ESTIMATION : 4 tuiles SDXL + ControlNet-Tile par atlas = ~4 x tex_variant (0,07 EUR mesure) = ~0,25 EUR -> 7 credits = x4,5.
+  texture_var:      7,
   // « Re-texture all (AI) » (porte le 2026-09-27) : pipeline de texturation
   // du moteur 3D sur le GPU de la generation (L40S, traine 90 s), chargement
   // du pipeline a froid + 12/24/32 pas. ~0,15-0,25 EUR isole : au pire
@@ -1913,20 +1916,23 @@ const PRICING_DEFAULTS = {
   // « Sharpen texture » (facture a part), exactement comme le bureau.
   retex_fast:       4,
   retex_balanced:   5,
-  retex_quality:    6,
-  retex_ultra_8k:   6,
+  // x4 (2026-10-02) : ESTIMATION d'apres les ~0,15-0,25 EUR isoles mesures plus haut : fast 4 = x4,3 ; balanced 5 = x4,05 ; quality et 8K ~0,25 EUR -> 7 = x4,5.
+  retex_quality:    7,
+  retex_ultra_8k:   7,
   // « Sharpen texture (x2) » : Real-ESRGAN, un reseau de restauration et non
   // une diffusion — quelques secondes a chaud, mais ~0,20 EUR isole a froid
   // (chargement + traine) : 1 credit perdait 0,07 EUR. Releve a 3 le 2026-09-27.
-  enhance_tex:      3,
+  // x4 (2026-10-02) : ESTIMATION : ~0,20 EUR isole a froid (voir ci-dessus) -> 5 credits = x4,05.
+  enhance_tex:      5,
   // « Name the zones (AI) » : rendu isole + CLIP-L, ou poids de skinning d'un
   // rig. Aucune diffusion, quelques dizaines de secondes ; ~0,19 EUR isole a
   // froid : 1 credit perdait 0,06 EUR. Releve a 3 le 2026-09-27.
-  name_parts:       3,
+  // x4 (2026-10-02) : ESTIMATION : ~0,19 EUR isole a froid (voir ci-dessus) -> 5 credits = x4,3.
+  name_parts:       5,
   // « Re-texture a region (AI) » : une passe SDXL Inpaint sur l'atlas, le meme
   // travail GPU qu'un mask_inpaint (6). Pose a 2 comme les autres outils
   // portes, sur demande explicite du user (« 1 ou 2 credits »).
-  region_retex:     3,          // releve 2026-09-27 (voir tex_variant)
+  region_retex:     5,          // x4 (2026-10-02) : ESTIMATION : meme travail GPU que mask_inpaint (~0,20 EUR) -> 5 credits = x4,05.
   reshape:          23,         // « Reshape a region » : repeinte SDXL + piece en 3D (TRELLIS), 2026-09-28. x4 (2026-10-02) : MESURE 2 essais, 0,92 EUR reel chacun (228 a 505 s) a 10 credits = x1,75 -> 23 credits = x4,0. ECHANTILLON MINCE : a revoir avec plus d'essais.
   // Mesh generation ladder repriced 2026-07-28 from MEASURED Modal cost,
   // not from the (wrong) _meshCostUsd estimate. 30 days of succeeded
@@ -2693,6 +2699,48 @@ function _cleOperation(opType: string, options: Record<string, unknown> | null |
   if (opType === 'mesh-op' || opType === 'mesh-op-client' || opType === 'manual-tool') { const o = sous(options?.op_type); return o ? `${opType}:${o}` : opType; }
   return opType;
 }
+/** CREDITS D'UN TRAVAIL REUSSI AUX PRIX D'AUJOURD'HUI (user, 02/10 : « tout a x4 minimum », choix « au prix actuel »).
+ *  Le tableau « Par operation » comptait les credits FACTURES a l'epoque : une hausse de prix n'y apparaissait qu'avec de nouveaux travaux. On recompte ici chaque travail comme s'il etait facture
+ *  aujourd'hui : une generation 3D est recalculee a partir de ses options enregistrees (meme regle que `creditCost`), les autres operations prennent le prix de leur cle.
+ *  Repli : le prix enregistre quand la cle est inconnue. Approximations assumees : `multiref` n'est pas enregistre (ignore) ; habits simples / complets = `completer` si enregistre, sinon prix >= 6. */
+const _PRIX_CLE_OP: Record<string, string> = {
+  'text2image': 'text2image', 'modify': 'modify', 'segment-image': 'segment', 'auto_inpaint': 'auto_inpaint', 'mask_inpaint': 'mask_inpaint', 'face_fix_image': 'face_fix_image', 'upscale': 'upscale',
+  'back-view': 'back_view', 'remove-bg': 'remove_background', 'tex_variant': 'tex_variant', 'recolor': 'recolor', 'rectify': 'rectify', 'reshape': 'reshape', 'construction3d': 'construction3d',
+  'animate': 'anim', 'animate_fbx': 'anim', 'segment': 'mesh_segment', 'mesh-convert': 'export', 'mesh-face': 'mesh_face_fix', 'tpose': 'text2image',
+};
+function _creditsMeshAuPrix(o: Record<string, unknown>, p: Record<string, number>): number {
+  const pr = String(o.preset ?? '');
+  let n = pr === 'ultra_8k' ? (p.mesh_ultra_8k ?? 8) : pr === 'quality' ? (p.mesh_quality ?? 4) : pr === 'balanced' ? (p.mesh_balanced ?? 2) : (p.mesh_fast ?? 1);
+  if (o.rectify) n += p.mesh_rectify ?? 3;
+  if (o.refine) n += p.mesh_refine ?? 2;
+  if (o.quality_plus && !o.ultra_q) n += p.mesh_quality_plus ?? 1;
+  if (o.ultra_q) n += p.mesh_ultra_q ?? 2;
+  if (o.ultra_hd && pr !== 'ultra_8k') n += p.mesh_ultra_hd ?? 3;
+  if (o.face_fix) n += p.mesh_face_fix ?? 2;
+  if (o.smooth) n += p.mesh_smooth ?? 1;
+  n += _supplementTriangles(Number(o.max_tris) || 500_000, p.mesh_tris_500k ?? 1, p.mesh_tris_base ?? 1, p.mesh_tris_courbe_pct ?? 130);
+  return n;
+}
+function _creditsAuPrixActuel(cle: string, op: string, opts: Record<string, unknown> | null | undefined, enregistres: number, p: Record<string, number>): number {
+  const o = opts ?? {};
+  if (op === 'mesh') return _creditsMeshAuPrix(o, p);
+  if (op === 'rig') return (o.squelette_impose ? p.reskin : p.rig) ?? enregistres;
+  if (op === 'retexture') { const pal = ['fast', 'balanced', 'quality', 'ultra_8k'].includes(String(o.preset)) ? String(o.preset) : 'fast'; return p['retex_' + pal] ?? enregistres; }
+  // Images : le credit facture = nombre d'images x prix (x mise a l'echelle des pas pour text2image). Ni l'un ni l'autre n'est un prix de cle constant : text2image et T-pose gardent le credit FACTURE
+  // (leur prix n'a pas change) ; la vue arriere = nombre d'images x prix actuel.
+  if (cle === 'text2image' || cle === 'tpose') return enregistres;
+  if (cle === 'back-view') return Math.max(1, Math.min(4, Number(o.n) || 1)) * (p.back_view ?? enregistres);
+  if (cle === 'rectify') return enregistres > 0 ? (p.rectify ?? enregistres) : 0;   // appel interne : paye par l'option mesh_rectify de la generation (deja comptee dans le maillage)
+  if (cle === 'outfit') { const complet = typeof o.completer === 'boolean' ? o.completer : enregistres >= 6; return (complet ? p.outfit_complete : p.outfit) ?? enregistres; }
+  if (_PRIX_CLE_OP[cle] && p[_PRIX_CLE_OP[cle]] != null) return p[_PRIX_CLE_OP[cle]];
+  if (cle.startsWith('manual-tool')) return p.manual_tool ?? enregistres;
+  if (cle.startsWith('mesh-op-client')) return p.mesh_op_simple ?? enregistres;
+  if (cle.startsWith('mesh-op:')) {
+    const sous = cle.slice(8), cleP = ({ watertight: 'watertight_hd', align_texture: 'align_texture', texture_var: 'texture_var', enhance_tex: 'enhance_tex', region_retex: 'region_retex' } as Record<string, string>)[sous] ?? 'mesh_op_simple';
+    return p[cleP] ?? enregistres;
+  }
+  return enregistres;
+}
 /** Famille (type grossier) d'un nom affiche : sert au filtre « clic sur une ligne » de la page, dont les travaux en cours ne connaissent que le type grossier. */
 function _familleOperation(cle: string): string {
   if (cle === 'segment-image') return 'text2image';
@@ -2714,7 +2762,7 @@ const OPERATIONS_CONNUES: string[] = [
   // images
   'text2image', 'tpose', 'rectify', 'back-view', 'sheet', 'mvadapter', 'remove-bg', ...IMAGE_OPS_AFFICHEES, 'segment-image',
   // 3D
-  'mesh', 'mesh-face', 'retexture', 'reshape', 'segment', 'rig', 'animate', 'animate_fbx', 'construction3d', 'mesh-convert',
+  'mesh', 'retexture', 'reshape', 'segment', 'rig', 'animate', 'animate_fbx', 'construction3d', 'mesh-convert',
   // outils de maillage executes par le serveur
   ...['smooth', 'decimate', 'center', 'fix_normals', 'fill_holes', 'subdivide', 'material', 'material_adjust', 'retex_swap', 'watertight', 'align_texture',
       'resize', 'explode', 'texture_var', 'enhance_tex', 'region_retex'].map((o) => `mesh-op:${o}`),
@@ -2723,6 +2771,21 @@ const OPERATIONS_CONNUES: string[] = [
   // outils manuels du navigateur (debites a l'enregistrement ou a l'ouverture)
   ...['skeleton_points', 'rig_joints', 'symmetrize', 'paint', 'extend', 'clone_stamp', 'color_pick', 'export_image', 'export_glb', 'export_anim', 'open_anim'].map((o) => `manual-tool:${o}`),
 ];
+
+/** COUT ESTIME PAR CLE DE PRIX (EUR par appel REUSSI, demarrage a froid et facture Modal repartie compris) — pour les operations QUE PERSONNE (ou presque) n'a utilisees sur la periode.
+ *  user, 02/10/2026 : « tout a x4 minimum », choix « estimer leur rentabilite ». Sans essais reels, /admin2 ne peut pas mesurer : il estime, par ANALOGIE avec une operation mesuree du meme conteneur,
+ *  et le dit (« Estime » dans le verdict). Seules les operations SANS mesure fiable sont ici ; mesh, rig, text2image, modify, tex_variant, back_view, remove_background, animate sont mesures (30 jours).
+ *  Mesures de reference (cout reel par essai, 30 j) : image chaude 0,04-0,11 ; image isolee a froid 0,19-0,27 ; habits completes 0,74 par reussite ; reshape 0,92 ; rig 0,37.
+ *  CONTRAINTE : prix x 0,162 / cout >= 4. Une cle ajoutee ici avec un prix plus bas apparait « Sous x4 » dans /admin2 des le deploiement. */
+const COUT_ESTIME_PAR_PRIX: Record<string, number> = {
+  // images (conteneur image : analogue auto_inpaint / modify, 0,07 mesure ; borne prudente a froid)
+  segment: 0.05, auto_inpaint: 0.15, mask_inpaint: 0.15, face_fix_image: 0.15, upscale: 0.08, recolor: 0.08, outfit: 0.08, outfit_complete: 0.74,
+  // maillage / texture (SDXL + ControlNet-Tile par tuiles, ou rendu isole)
+  reshape: 0.92, retex_fast: 0.15, retex_balanced: 0.20, retex_quality: 0.25, retex_ultra_8k: 0.25, texture_var: 0.25, enhance_tex: 0.20, name_parts: 0.19, region_retex: 0.20, align_texture: 0.10,
+  watertight_hd: 0.05, mesh_segment: 0.30, rig: 0.37, reskin: 0.20, anim: 0.05,
+  // aucun GPU (CPU, ou navigateur) : le plus gros poste est la part de la facture Modal repartie
+  construction3d: 0.02, export: 0.005, manual_tool: 0.005, mesh_op_simple: 0.03,
+};
 
 /** Persist a single non-mesh operation in the jobs table so the
  *  history CSV can show it. Mesh inserts happen inline in handleGenerate
@@ -12453,7 +12516,7 @@ async function handleOutfit(req: Request, env: Env): Promise<Response> {
     }
 
     await logOperation(env, user.id, 'text2image', cost, opStart, Date.now(),
-                       'succeeded', { req, projectName, op: 'outfit',
+                       'succeeded', { req, projectName, op: 'outfit', completer: !!avecCompletion,
                                       pieces: result.pieces.length });
     return json({ ok: true, success: true,
                   pieces: result.pieces, absentes: result.absentes,
@@ -18662,7 +18725,8 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   const seriesByDay: Record<string, { ops: number; users: Set<string>; revenue_eur: number; cost_eur: number; margin_eur: number }> = {};
   // Operations des 30 derniers jours, gardees une par une pour le tableau
   // « Par type » au COUT REEL (voir byType30 plus bas).
-  const ops30: Array<{ day: string; op: string; cle: string; ok: boolean; credits: number; paye: number; mesure: number }> = [];
+  const ops30: Array<{ day: string; op: string; cle: string; ok: boolean; credits: number; now: number; paye: number; mesure: number }> = [];
+  const prixActuels = await _getPricing(env);
 
   type J = {
     user_id: string; status: string; credit_cost: number;
@@ -18718,7 +18782,8 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       s.revenue_eur += revenueEur;
       s.cost_eur += costEur;
       s.margin_eur += marginEur;
-      ops30.push({ day, op: opType, cle: _cleOperation(opType, j.options), ok: j.status === 'succeeded', credits, paye: revenueEur, mesure: costEur });
+      const cleAff = _cleOperation(opType, j.options);
+      ops30.push({ day, op: opType, cle: cleAff, ok: j.status === 'succeeded', credits, now: j.status === 'succeeded' ? _creditsAuPrixActuel(cleAff, opType, j.options, Number(j.credit_cost ?? 0), prixActuels) : 0, paye: revenueEur, mesure: costEur });
     }
   }
 
@@ -18917,10 +18982,11 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       if (d >= debut30 && typeof usd === 'number') imputer(d, usd * USD_TO_EUR);
     }
   }
-  const byType30: Record<string, { count: number; failed: number; credits: number; value_eur: number; paid_eur: number; measured_eur: number; real_eur: number }> = {};
+  const byType30: Record<string, { count: number; failed: number; credits: number; value_eur: number; value_now_eur: number; credits_now: number; paid_eur: number; measured_eur: number; real_eur: number }> = {};
   for (const o of ops30) {
-    const b = (byType30[o.cle] ??= { count: 0, failed: 0, credits: 0, value_eur: 0, paid_eur: 0, measured_eur: 0, real_eur: 0 });
+    const b = (byType30[o.cle] ??= { count: 0, failed: 0, credits: 0, value_eur: 0, value_now_eur: 0, credits_now: 0, paid_eur: 0, measured_eur: 0, real_eur: 0 });
     b.count += 1;
+    b.credits_now += o.now; b.value_now_eur += o.now * EUR_PER_CREDIT_NET;
     if (!o.ok) b.failed += 1;
     b.credits += o.credits;
     b.value_eur += o.credits * EUR_PER_CREDIT_NET;
@@ -18933,7 +18999,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       : o.mesure;                                      // rien de facture sur ce poste ce jour-la : la mesure
   }
   for (const b of Object.values(byType30)) {
-    for (const k of ['value_eur', 'paid_eur', 'measured_eur', 'real_eur'] as const) b[k] = +b[k].toFixed(3);
+    for (const k of ['value_eur', 'value_now_eur', 'paid_eur', 'measured_eur', 'real_eur'] as const) b[k] = +b[k].toFixed(3);
   }
 
   // PERIODES ALIGNEES. `realCostEur` vient du poller qui interroge Modal
@@ -19020,6 +19086,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       types: byType30,
       // Toutes les operations qui existent (meme a zero) et la famille de chacune, pour l'affichage et le filtre.
       connues: OPERATIONS_CONNUES,
+      estimes: COUT_ESTIME_PAR_PRIX,
       familles: _familles(Object.fromEntries(ops30.map((o) => [o.cle, o.op]))),
       facture_sans_operation_eur: +factureSansOperationEur.toFixed(2),
       cout_reel: !!realByDay,
@@ -20643,10 +20710,11 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
     debut: new Date(now - (nbCases - i) * pasMin * 60_000).toISOString(), ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0, users: new Set<string>(),
   }));
   const tousComptes = new Set<string>();       // comptes distincts sur la fenetre (user : « Comptes actifs » doit suivre la periode)
-  const types: Record<string, { count: number; failed: number; credits: number; valeur_eur: number; cout_eur: number }> = {};
+  const types: Record<string, { count: number; failed: number; credits: number; credits_now: number; valeur_now_eur: number; valeur_eur: number; cout_eur: number }> = {};
   const famillesVues: Record<string, string> = {};
   const cleOp = (opType: string, o: Record<string, unknown> | null | undefined) => { const c = _cleOperation(opType, o); famillesVues[c] = opType; return c; };
   const tot = { ops: 0, echecs: 0, credits: 0, valeur_eur: 0, cout_eur: 0 };
+  const prixActuels = await _getPricing(env);
   type J = { user_id?: string | null; status: string; credit_cost: number | null; options: Record<string, unknown> | null; created_at: string; finished_at?: string | null; cost_usd?: number | null };
   for (const j of ((data ?? []) as J[])) {
     const opType = String(j.options?.operation_type ?? 'mesh');
@@ -20657,7 +20725,9 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
     const valeur = credits * EUR_PAR_CREDIT;
     const echec = j.status === 'failed';
     if (j.user_id) tousComptes.add(j.user_id);
-    const t = (types[cleOp(opType, j.options)] ??= { count: 0, failed: 0, credits: 0, valeur_eur: 0, cout_eur: 0 });
+    const cleAff = cleOp(opType, j.options);
+    const t = (types[cleAff] ??= { count: 0, failed: 0, credits: 0, credits_now: 0, valeur_now_eur: 0, valeur_eur: 0, cout_eur: 0 });
+    if (!echec && j.status === 'succeeded') { const cn = _creditsAuPrixActuel(cleAff, opType, j.options, Number(j.credit_cost ?? 0), prixActuels); t.credits_now += cn; t.valeur_now_eur += cn * EUR_PAR_CREDIT; }
     t.count++; if (echec) t.failed++; t.credits += credits; t.valeur_eur += valeur; t.cout_eur += cout;
     tot.ops++; if (echec) tot.echecs++; tot.credits += credits; tot.valeur_eur += valeur; tot.cout_eur += cout;
     const k = nbCases - 1 - Math.floor((now - Date.parse(j.created_at)) / (pasMin * 60_000));
@@ -20665,12 +20735,13 @@ async function handleAdminArgentRecent(req: Request, env: Env): Promise<Response
   }
   const r2 = (n: number) => Math.round(n * 100) / 100;
   for (const c of cases) { c.valeur_eur = r2(c.valeur_eur); c.cout_eur = r2(c.cout_eur); }
-  for (const k of Object.keys(types)) { types[k].valeur_eur = r2(types[k].valeur_eur); types[k].cout_eur = r2(types[k].cout_eur); }
+  for (const k of Object.keys(types)) { types[k].valeur_eur = r2(types[k].valeur_eur); types[k].valeur_now_eur = r2(types[k].valeur_now_eur); types[k].cout_eur = r2(types[k].cout_eur); }
   return json({
     ok: true, heures, pas_min: pasMin, estimation: true, tronque: (data ?? []).length >= 5000,
     eur_par_credit: EUR_PAR_CREDIT, buckets: cases.map(({ users, ...c }) => ({ ...c, comptes: users.size })), types,
     cout_reel: await _coutReelRecent(env, heures),
     connues: OPERATIONS_CONNUES,
+    estimes: COUT_ESTIME_PAR_PRIX,
     familles: _familles(famillesVues),
     totaux: { ...tot, valeur_eur: r2(tot.valeur_eur), cout_eur: r2(tot.cout_eur), comptes: tousComptes.size },
   });
