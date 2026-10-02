@@ -5,7 +5,7 @@
   route /api/admin/*. Cette page n'ouvre aucune session elle-meme : sans session elle renvoie vers /admin pour se connecter.
   Aucune route nouvelle n'est necessaire (seule /api/admin/live gagne un champ optionnel, serie_5min).
 -->
-<html lang="fr">
+<html lang="fr" class="verrou">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -92,6 +92,13 @@ header.haut{display:contents}
 
 .alerte-session{margin-top:12px;border:1px solid var(--err);background:rgba(255,82,82,.10);border-radius:10px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
 .alerte-session b{color:var(--err)}
+/* PAGE VERROUILLEE : elle DEMARRE verrouillee (classe sur <html>) et ne montre les chiffres qu'apres une premiere reponse admin reussie. Plus de page pleine de
+   « Chargement… » avant de savoir si le mot de passe est demande (user : « c'est avant d'arriver sur cette page qu'il faut demander ca »). */
+html.verrou #bandeau, html.verrou .l3, html.verrou .l4, html.verrou section[role="tabpanel"], html.verrou .pied, html.verrou .outils-volets{display:none !important}
+html.verrou .alerte-session{margin:8vh auto 0;max-width:640px;padding:22px 24px;font-size:15px;line-height:1.5;flex-direction:column;align-items:stretch;border-color:var(--bord,#444);background:rgba(255,255,255,.04)}
+html.verrou .alerte-session.erreur{border-color:var(--err);background:rgba(255,82,82,.10)}
+html.verrou .alerte-session .verrou-titre{display:block;font-size:19px;margin-bottom:6px;color:inherit}
+html.verrou .alerte-session .ligneform{flex-wrap:wrap}
 
 /* ───────── contenu ───────── */
 .rempl{color:var(--text-2);font-size:12px;margin:16px 0 12px}
@@ -188,8 +195,15 @@ textarea{resize:vertical;min-height:70px}
 .sw:last-child{border-bottom:0}
 .sw .d{color:var(--text-2);font-size:12px}
 .sw .gauche{min-width:0}
-button[role=switch]{flex:none;width:46px;height:26px;border-radius:13px;border:1px solid var(--border);background:var(--bg-3);position:relative;cursor:pointer;padding:0}
-button[role=switch]::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--text-1);transition:transform .15s}
+button[role=switch]{flex:none;width:46px;height:26px;border-radius:13px;border:1px solid var(--text-2);background:var(--bg-3);position:relative;cursor:pointer;padding:0}
+button[role=switch]::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--text-2);transition:transform .15s}
+/* INTERRUPTEUR GENERAL d'une section (2026-10-02, user : « il faut mieux montrer les main switch de chaque section ») : dans l'en-tete du volet, donc visible volet ferme */
+.maitre-groupe{display:inline-flex;align-items:center;gap:8px;margin-left:12px;vertical-align:middle}
+.maitre-lib{font-size:12px;font-weight:600;color:var(--text-1);white-space:nowrap}
+button[role=switch].maitre{width:60px;height:32px;border-radius:16px;border-width:2px}
+button[role=switch].maitre::after{top:4px;left:4px;width:20px;height:20px}
+button[role=switch].maitre[aria-checked="true"]::after{transform:translateX(28px)}
+summary .res .btn{margin-left:10px}
 button[role=switch][aria-checked="true"]{background:rgba(76,217,100,.25);border-color:var(--ok)}
 button[role=switch][aria-checked="true"]::after{transform:translateX(20px);background:var(--ok)}
 button[role=switch].froid[aria-checked="true"]{background:rgba(255,170,51,.22);border-color:var(--warn)}
@@ -220,6 +234,7 @@ details.vol > summary::-webkit-details-marker{display:none}
 details.vol > summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--text-2);border-bottom:2px solid var(--text-2);transform:rotate(-45deg);transition:transform .15s;margin:0 6px 0 2px}
 details.vol[open] > summary::before{transform:rotate(45deg)}
 details.vol[open] > summary .res{display:none}
+details.vol[open] > summary .res:has(.maitre-groupe, .btn){display:block}      /* l'interrupteur general reste visible volet ouvert */
 details.vol:not([open]) > summary h2 small{display:none}
 details.carte.vol{padding:0}
 details.carte.vol > summary{padding:12px 16px}
@@ -313,7 +328,7 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
     </div>
   </header>
 
-  <div class="alerte-session" id="session" hidden role="alert"><div id="session-corps" style="flex:1;min-width:260px"></div></div>
+  <div class="alerte-session" id="session" role="alert"><div id="session-corps" style="flex:1;min-width:260px"><b class="verrou-titre">🔒 Vérification de votre session…</b>Les chiffres s'affichent dès que la connexion est confirmée.</div></div>
 
   <!-- ═════════ MAINTENANT ═════════ -->
   <section id="p-maintenant" role="tabpanel">
@@ -321,27 +336,6 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
     <div class="pile">
       <details class="carte vol" data-id="m-cours" data-res="cours"><summary><h2>En cours <small id="n-cours"></small></h2><span class="res"></span></summary>
         <div class="corps"><div class="encours" id="encours"></div></div></details>
-      <details class="carte vol" data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
-          <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
-        </div></details>
-      <details class="carte vol" data-id="m-creations" data-res="creations"><summary><h2>Créations <small id="n-imgs"></small></h2><span class="res"></span></summary>
-        <div class="corps">
-          <div class="onglets" role="tablist" id="cre-onglets" aria-label="Type de création">
-            <button type="button" role="tab" data-cre="projets" aria-selected="false">Projets</button>
-            <button type="button" role="tab" data-cre="images" aria-selected="true">Images</button>
-            <button type="button" role="tab" data-cre="3d" aria-selected="false">3D</button>
-            <button type="button" role="tab" data-cre="rigs" aria-selected="false">Rigs</button>
-            <button type="button" role="tab" data-cre="animations" aria-selected="false">Animations</button>
-            <button type="button" role="tab" data-cre="editions" aria-selected="false">Éditions</button>
-          </div>
-          <div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-imgs">Actualiser</button>
-            <span class="note" id="cre-note"></span><span class="note">Un filtre « compte » ne montre que ses créations. Cliquez pour voir les paramètres.</span></div>
-          <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div>
-        </div></details>
-      <details class="carte vol" data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
-        <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
       <details class="carte vol" data-id="m-conteneurs" data-res="conteneurs"><summary><h2>Conteneurs <small>état réel</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="conteneurs" style="display:flex;flex-wrap:wrap;gap:6px"></div></div></details>
       <details class="carte vol" data-id="m-enligne" data-res="enligne"><summary><h2>En ligne <small id="n-ligne"></small></h2><span class="res"></span></summary>
@@ -432,8 +426,29 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
   <!-- ═════════ AUDIENCE ═════════ -->
   <section id="p-audience" role="tabpanel" hidden>
     <div class="kpis" id="kpis-audience"></div>
-    <div class="outils-volets"><span class="note">D'où viennent les comptes et par quel canal. Le direct est dans Maintenant.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
+    <div class="outils-volets"><span class="note">Ce que font les comptes (activité, derniers travaux, créations) et d'où ils viennent. Le direct est dans Maintenant.</span><span class="grp"><button type="button" class="btn petit" data-volets="1">Tout ouvrir</button><button type="button" class="btn petit" data-volets="0">Tout replier</button></span></div>
     <div class="pile">
+      <details class="carte vol" data-id="m-activite" data-res="activite"><summary><h2>Activité récente <small>travaux lancés</small></h2><span class="res"></span></summary>
+        <div class="corps"><div class="kpis" id="fenetres" style="margin-bottom:8px;grid-template-columns:repeat(3,minmax(0,1fr))"></div><div id="g-heure"></div></div></details>
+      <details class="carte vol" data-id="m-flux" data-res="flux"><summary><h2>Derniers travaux <small id="n-flux"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="defil haut"><table><thead><tr><th data-tri="flux:ts">Quand</th><th data-tri="flux:email">Compte</th><th data-tri="flux:type">Type</th><th data-tri="flux:projet">Projet</th><th data-tri="flux:statut">Statut</th><th class="n" data-tri="flux:duree_s">Durée</th><th class="n" data-tri="flux:credits">Crédits</th></tr></thead><tbody id="flux"></tbody></table></div>
+          <p class="note">Les 30 derniers travaux de tous les comptes. Pour l'historique d'un compte : onglet Utilisateurs.</p>
+        </div></details>
+      <details class="carte vol" data-id="m-creations" data-res="creations"><summary><h2>Créations <small id="n-imgs"></small></h2><span class="res"></span></summary>
+        <div class="corps">
+          <div class="onglets" role="tablist" id="cre-onglets" aria-label="Type de création">
+            <button type="button" role="tab" data-cre="projets" aria-selected="false">Projets</button>
+            <button type="button" role="tab" data-cre="images" aria-selected="true">Images</button>
+            <button type="button" role="tab" data-cre="3d" aria-selected="false">3D</button>
+            <button type="button" role="tab" data-cre="rigs" aria-selected="false">Rigs</button>
+            <button type="button" role="tab" data-cre="animations" aria-selected="false">Animations</button>
+            <button type="button" role="tab" data-cre="editions" aria-selected="false">Éditions</button>
+          </div>
+          <div class="ligneform" style="margin-top:8px"><button type="button" class="btn petit" id="b-imgs">Actualiser</button>
+            <span class="note" id="cre-note"></span><span class="note">Un filtre « compte » ne montre que ses créations. Cliquez pour voir les paramètres.</span></div>
+          <div class="galerie" id="galerie"><div class="vide">Chargement…</div></div>
+        </div></details>
       <details class="carte vol" data-id="u-pays" data-res="pays"><summary><h2>Par pays <small>clic pour filtrer</small></h2><span class="res"></span></summary>
         <div class="corps"><div id="b-pays"></div></div></details>
       <details class="carte vol" data-id="u-canal" data-res="canal"><summary><h2>Par canal</h2><span class="res"></span></summary>
@@ -608,19 +623,29 @@ function sessionPerdue(code, texte) {
   if (S.session === mode) return;                 // deja affiche : on ne reconstruit pas le formulaire (saisie en cours)
   S.session = mode;
   var box = $('#session-corps');
-  if (mode === 'user') box.innerHTML = '<b>Session expirée.</b> Connectez-vous avec le compte administrateur : <a class="btn prim" href="/login?next=/admin2">Se connecter</a> <span class="note">Cette page se remet à jour toute seule ensuite.</span>';
-  else if (mode === 'refus') box.innerHTML = '<b>Compte non autorisé.</b> Ce compte n\'est pas dans la liste des administrateurs. <a class="btn" href="/login?next=/admin2">Changer de compte</a>';
-  else box.innerHTML = '<form id="f-login" autocomplete="off"><b>Mot de passe administrateur</b> <span class="note">second verrou de la page, en plus de votre compte</span><div class="ligneform" style="margin:8px 0 0"><input type="text" id="lg-user" class="large" placeholder="Identifiant admin" autocomplete="username"><input type="password" id="lg-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><span id="lg-totp-ligne" hidden><input type="text" id="lg-totp" inputmode="numeric" maxlength="6" placeholder="Code 2FA (6 chiffres)" autocomplete="one-time-code" style="width:170px"></span><button type="submit" class="btn prim">Déverrouiller</button><button type="button" class="lienclair" id="b-oubli">Mot de passe oublié ?</button></div><div id="lg-err" class="msg-err"></div></form>';
-  $('#session').hidden = false;
+  if (mode === 'user') box.innerHTML = '<b class="verrou-titre">🔒 Votre session a expiré</b> Connectez-vous avec le compte administrateur : <a class="btn prim" href="/login?next=/admin2">Se connecter</a> <span class="note">Cette page se remet à jour toute seule ensuite.</span>';
+  else if (mode === 'refus') box.innerHTML = '<b class="verrou-titre">🔒 Compte non autorisé</b> Ce compte n\'est pas dans la liste des administrateurs. <a class="btn" href="/login?next=/admin2">Changer de compte</a>';
+  else box.innerHTML = '<form id="f-login" autocomplete="off"><b class="verrou-titre">🔒 Mot de passe administrateur</b><span class="note">Second verrou de la page, en plus de votre compte. Les chiffres s\'affichent dès que vous êtes déverrouillé.</span><div class="ligneform" style="margin:8px 0 0"><input type="text" id="lg-user" class="large" placeholder="Identifiant admin" autocomplete="username"><input type="password" id="lg-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><span id="lg-totp-ligne" hidden><input type="text" id="lg-totp" inputmode="numeric" maxlength="6" placeholder="Code 2FA (6 chiffres)" autocomplete="one-time-code" style="width:170px"></span><button type="submit" class="btn prim">Déverrouiller</button><button type="button" class="lienclair" id="b-oubli">Mot de passe oublié ?</button></div><div id="lg-err" class="msg-err"></div></form>';
+  $('#session').hidden = false; $('#session').classList.remove('erreur');
+  document.documentElement.classList.add('verrou');
+  var maj = $('#maj'); if (maj) maj.textContent = 'verrouillé';
+  window.scrollTo(0, 0);
+  var champ = $(mode === 'mdp' ? '#lg-user' : '#session-corps a'); if (champ && champ.focus) champ.focus();
 }
-function sessionRetablie() { if (S.session) { S.session = false; $('#session').hidden = true; $('#session-corps').innerHTML = ''; } }
+function sessionRetablie() {
+  if (S.session) { S.session = false; $('#session-corps').innerHTML = ''; }
+  $('#session').hidden = true; document.documentElement.classList.remove('verrou');        // premiere reponse admin reussie : on montre la page
+}
 /* opts.mdp : un 401 « invalid password » est une erreur de saisie, pas une session perdue. */
 async function http(path, opts) {
   opts = opts || {};
   var init = { credentials: 'include', method: opts.method || 'GET' };
   if (opts.body !== undefined) { init.headers = { 'content-type': 'application/json' }; init.body = JSON.stringify(opts.body); }
   var r;
-  try { r = await fetch(path, init); } catch (e) { throw erreur('Réseau indisponible', 0); }
+  try { r = await fetch(path, init); } catch (e) {
+    if (document.documentElement.classList.contains('verrou') && !S.session) { $('#session').classList.add('erreur'); $('#session-corps').innerHTML = '<b class="verrou-titre">Réseau indisponible</b>La connexion au serveur a échoué. <button type="button" class="btn prim" onclick="location.reload()">Réessayer</button>'; }
+    throw erreur('Réseau indisponible', 0);
+  }
   var texte = ''; try { texte = await r.text(); } catch (_) {}
   var json = null; try { json = texte ? JSON.parse(texte) : null; } catch (_) {}
   if ((r.status === 401 || r.status === 403) && !(opts.mdp && /invalid|wrong|current|code/i.test(texte))) { sessionPerdue(r.status, texte); throw erreur('Session expirée', r.status, json); }
@@ -691,7 +716,7 @@ function barresRecent(id, serie) {
 }
 
 /* ───────────────────────── chargements ───────────────────────── */
-async function chargerLive() { var j = await silencieux(http('/api/admin/live?n=100')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (S.tab === 'maintenant') renderMaintenant(); majHorloge(); } }
+async function chargerLive() { var j = await silencieux(http('/api/admin/live?n=100')); if (j) { S.live = j; S.liveAt = Date.now(); renderBandeau(); if (S.tab === 'maintenant' || S.tab === 'audience') renderMaintenant(); majHorloge(); } }
 async function chargerServices() {
   var r = await Promise.all([silencieux(http('/api/admin/services')), silencieux(http('/api/admin/market/killswitch'))]);
   if (r[0]) { S.svc = r[0]; S.mkt = r[1] && r[1].killswitch ? r[1].killswitch : { enabled: false }; renderBandeau(); if (S.tab === 'systeme') renderKill(); }
@@ -1218,6 +1243,7 @@ function renderAudience() {
 /* ───────────────────────── Système ───────────────────────── */
 var KILL = [{ k: 'modal', n: 'Calcul GPU', d: "Génération, rig, animation, outils d'image. Coupé : plus aucun travail lourd." }, { k: 'site', n: 'Site web', d: "Coupé : page de maintenance pour tous, sauf l'administrateur." }, { k: 'stripe', n: 'Paiements', d: 'Coupé : plus aucun achat de crédits (les paiements en cours sont quand même crédités).' }, { k: 'market', n: 'Marketplace', d: 'Coupé : ventes et achats suspendus, avec un message pour les visiteurs.' }];
 function actif(k) { if (!S.svc) return null; if (k === 'market') return !(S.mkt && S.mkt.enabled); return S.svc[k + '_enabled'] !== false; }
+function ouvrirVolet(id) { var d = $('details[data-id="' + id + '"]'); if (d && !d.open) d.open = true; }
 function renderKill() {
   var box = $('#kill'); if (!S.svc) { box.innerHTML = '<div class="vide">Chargement…</div>'; return; }
   if (box.querySelector('input')) return;      // un champ de motif est ouvert
@@ -1306,8 +1332,8 @@ function renderAll() {
   $$('section[role=tabpanel]').forEach(function (p) { p.hidden = p.id !== 'p-' + S.tab; });
   $$('[data-per]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.per === S.per); });
   $('#l4').hidden = S.tab === 'systeme' || S.tab === 'maintenant';
-  $('#per-note').textContent = S.tab === 'maintenant' ? 'filtre les derniers travaux et les images' : S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'audience' ? 'fenêtre des pays et canaux' : '';
-  if (S.tab === 'maintenant') renderMaintenant();
+  $('#per-note').textContent = S.tab === 'maintenant' ? '' : S.tab === 'argent' ? 'fenêtre des chiffres et de la courbe' : S.tab === 'users' ? 'repère les comptes actifs sur la période' : S.tab === 'audience' ? 'fenêtre des pays, canaux et créations' : '';
+  if (S.tab === 'maintenant' || S.tab === 'audience') renderMaintenant();      // « Derniers travaux » et « Activité récente » vivent dans Audience
   if (S.tab === 'argent') { renderArgent(); renderAchats(); renderTarifs(); }
   if (S.tab === 'users') renderUsers();
   if (S.tab === 'audience') renderAudience();
@@ -1318,6 +1344,7 @@ function ouvrirOnglet(t) {
   S.tab = t; try { history.replaceState(null, '', '#' + t); } catch (_) {}
   renderAll();
   if (t === 'maintenant') { chargerLive(); chargerModalStatus(); chargerBloques(); }
+  if (t === 'audience') chargerLive();
   if (t === 'argent') { chargerStats(); chargerPrevision(); chargerPaiements(); chargerArgentRecent(); chargerNonRapproches(); }
   if (t === 'users') { if (!S.users) chargerUsers(); if (!S.msgs) chargerMessages(); if (!S.listings) chargerAnnonces(); }
   if (t === 'audience') { chargerStats(); chargerAudience(); }
@@ -1333,10 +1360,10 @@ document.addEventListener('click', async function (e) {
   var t = e.target, b;
   if (t.closest('#bandeau-modal')) return ouvrirOnglet('argent');
   if ((b = t.closest('[data-f]'))) { var f = b.dataset.f, v = b.dataset.v; S.filt[f] = S.filt[f] === v ? null : v; renderChips(); if (f === 'compte' && S.filt.compte) { selectionnerCompteParEmail(S.filt.compte); } renderAll(); if (f === 'compte' && S.tab === 'maintenant') chargerImages(); return; }
-  if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'maintenant') chargerImages(); return; }
+  if ((b = t.closest('[data-clear]'))) { if (b.dataset.clear === 'all') S.filt = { compte: null, type: null, pays: null }; else S.filt[b.dataset.clear] = null; renderAll(); if (S.tab === 'audience') chargerImages(); return; }
   if ((b = t.closest('[data-tab]'))) return ouvrirOnglet(b.dataset.tab);
   if ((b = t.closest('[data-goto]'))) return ouvrirOnglet(b.dataset.goto);
-  if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('maintenant'); }
+  if ((b = t.closest('[data-goto-filtre]'))) { S.filt.compte = b.dataset.gotoFiltre; renderChips(); return ouvrirOnglet('audience'); }
   if ((b = t.closest('[data-per]'))) { S.per = b.dataset.per; renderAll(); if (S.tab === 'audience') chargerAudience(); if (S.tab === 'argent') chargerArgentRecent(true); if (S.tab === 'users') renderUsers(); return; }
   if ((b = t.closest('[data-sub]'))) { S.sub = b.dataset.sub; return renderUsers(); }
   if ((b = t.closest('[data-ms]'))) { S.ms = b.dataset.ms; return renderAnnonces(); }
@@ -1381,10 +1408,10 @@ document.addEventListener('click', async function (e) {
   if (t.closest('[data-rej-non]')) { return renderAnnoncesForce(); }
   if ((b = t.closest('[data-rej-ok]'))) { var lid2 = b.dataset.rejOk; try { await http('/api/admin/market/' + encodeURIComponent(lid2) + '/reject', { method: 'POST', body: { reason: $('#rj-t-' + lid2).value.trim() } }); } catch (_) {} await renderAnnoncesForce(true); chargerBadges(); return; }
   /* système : interrupteurs */
-  if ((b = t.closest('[data-kill]'))) { var k = b.dataset.kill, on = actif(k); if (on) { S.killConfirm = k; $('#kill').innerHTML = ''; return renderKill(); } return basculerService(k, true); }
+  if ((b = t.closest('[data-kill]'))) { var k = b.dataset.kill, on = actif(k); if (on) { ouvrirVolet('s-kill'); S.killConfirm = k; $('#kill').innerHTML = ''; return renderKill(); } return basculerService(k, true); }
   if ((b = t.closest('[data-kill-ok]'))) { var ko = b.dataset.killOk; if (ko === 'all-off') return basculerTout(false); var motif2 = $('#kill-motif') ? $('#kill-motif').value.trim() : ''; if (ko === 'market' && !motif2) { var km = $('#kill-motif'); km.style.borderColor = 'var(--err)'; km.focus(); return; } return basculerService(ko, false, motif2); }
   if (t.closest('[data-kill-non]')) { S.killConfirm = null; $('#kill').innerHTML = ''; return renderKill(); }
-  if ((b = t.closest('[data-kill-all]'))) { if (b.dataset.killAll === 'on') return basculerTout(true); S.killConfirm = 'all-off'; $('#kill').innerHTML = ''; return renderKill(); }
+  if ((b = t.closest('[data-kill-all]'))) { if (b.dataset.killAll === 'on') return basculerTout(true); ouvrirVolet('s-kill'); S.killConfirm = 'all-off'; $('#kill').innerHTML = ''; return renderKill(); }
   if ((b = t.closest('[data-warm]'))) { var cible = {}; cible[b.dataset.warm] = b.getAttribute('aria-checked') !== 'true'; return basculerWarm(cible); }
   if (t.closest('[data-warmall]')) { var cs = {}; var allOn = WARM.every(function (w) { return (S.modal.garde_chaud || {})[w.cle]; }); WARM.forEach(function (w) { cs[w.cle] = !allOn; }); return basculerWarm(cs); }
   /* sécurité */
@@ -1793,7 +1820,7 @@ async function chargerBloques() {
   var j = await silencieux(http('/api/admin/jobs/active')); if (!j) return;
   var lim = Date.now() - 3 * 3600e3;
   S.bloques = (j.jobs || []).filter(function (x) { return Date.parse(x.created_at) < lim; });
-  if (S.tab === 'maintenant') { $('#encours')._h = null; renderMaintenant(); }
+  if (S.tab === 'maintenant' || S.tab === 'audience') { $('#encours')._h = null; renderMaintenant(); }
   majResumes();
 }
 function htmlBloques() {
@@ -1836,7 +1863,7 @@ function surVolet(d) {
 }
 function chargerVolets() {
   var t = S.tab;
-  if (t === 'maintenant' && voletOuvert('m-creations')) chargerImages();
+  if (t === 'audience' && voletOuvert('m-creations')) chargerImages();
   if (t === 'argent') { S.tarifs = voletOuvert('a-tarifs'); if (S.tarifs && !S.pricing) chargerPricing(); renderTarifs(); if (voletOuvert('a-gpu')) chargerModalFull(); }
   if (t === 'systeme') { if (voletOuvert('s-diag')) chargerDebug(); if (voletOuvert('s-audit')) chargerAudit(); }
 }
@@ -1852,6 +1879,9 @@ document.addEventListener('click', function (e) {
 });
 
 /* Le résumé d'un volet fermé : une ligne, calculée à partir de données déjà chargées (aucune requête de plus). */
+function maitre(o) {
+  return '<span class="maitre-groupe"><span class="maitre-lib">' + esc(o.texte) + '</span><button type="button" role="switch" class="maitre' + (o.froid ? ' froid' : '') + '" aria-checked="' + (o.on ? 'true' : 'false') + '" aria-label="' + esc(o.label) + '" ' + o.data + (o.bloque ? ' disabled' : '') + '></button></span>';
+}
 var RES = {
   cours: function () {
     var L = S.live; if (!L) return '…';
@@ -1901,11 +1931,16 @@ var RES = {
   act: function () { var s = S.stats && S.stats.series_30d; if (!s || !s.length) return '…'; return esc(pl(s[s.length - 1].users || 0, 'compte actif', 'comptes actifs') + ' le dernier jour'); },
   kill: function () {
     if (!S.svc) return '…';
-    var c = servicesCoupes(); return c.length ? pillR('err', pl(c.length, 'coupé', 'coupés')) + ' ' + esc(c.join(', ')) : pillR('ok', 'Tout actif');
+    var c = servicesCoupes(), tous = !c.length;
+    return (c.length ? pillR('err', pl(c.length, 'coupé', 'coupés')) + ' ' + esc(c.join(', ')) : pillR('ok', 'Tout actif'))
+      + maitre({ on: tous, label: tous ? 'Interrupteur général : tout couper' : 'Interrupteur général : tout rallumer', texte: tous ? 'Tout actif' : 'Tout rallumer', data: 'data-kill-all="' + (tous ? 'off' : 'on') + '"' });
   },
   warm: function () {
     var m = S.modal; if (!m) return '…';
-    var nb = WARM.filter(function (w) { return (m.garde_chaud || {})[w.cle]; }).length; return nb ? pillR('warn', nb + ' sur ' + WARM.length + ' gardés chauds') : pillR('ok', 'Tout froid');
+    var nb = WARM.filter(function (w) { return (m.garde_chaud || {})[w.cle]; }).length, gpuOn = actif('modal') !== false;
+    if (!gpuOn) return pillR('err', 'Calcul GPU coupé') + ' <button type="button" class="btn prim petit" data-kill="modal">Rallumer le calcul GPU</button>';
+    return (nb ? pillR('warn', nb + ' sur ' + WARM.length + ' gardés chauds') : pillR('ok', 'Tout froid'))
+      + maitre({ froid: true, on: nb === WARM.length, label: 'Interrupteur général : garder tous les conteneurs chauds', texte: 'Tout chaud', data: 'data-warmall="1"', bloque: warmOccupe });
   },
   sante: function () {
     var s = S.sante; if (!s) return '…';
