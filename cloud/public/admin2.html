@@ -157,6 +157,9 @@ td.libre{white-space:normal}
 .btn.danger{border-color:var(--err);color:var(--err)}
 .btn.petit{padding:3px 10px;font-size:12px}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
+a.btn{display:inline-flex;align-items:center;gap:5px;text-decoration:none;color:inherit}
+.liens-site{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.liens-site .fl{font-size:11px;opacity:.7}
 .plus{display:flex;justify-content:center;padding-top:10px}
 .note{color:var(--text-2);font-size:12px;margin:6px 0}
 .msg-ok{color:var(--ok);font-size:12px} .msg-err{color:var(--err);font-size:12px}
@@ -397,6 +400,11 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
     <div class="bandeau-modal" id="bandeau-modal" hidden role="button" tabindex="0" aria-live="polite"></div>
     <div class="l1">
       <div class="titre"><h1><img class="logo" src="/logo-symbole.png" alt="" width="40" height="40">MyFabmesh — Admin</h1><span class="maj" id="maj">chargement…</span><button type="button" class="btn petit" id="b-refresh" title="Recharger toutes les données de l'onglet">Actualiser</button><button type="button" class="btn petit" id="b-logout" title="Fermer la session administrateur">Déconnexion</button></div>
+      <div class="liens-site" role="group" aria-label="Ouvrir le site dans un nouvel onglet">
+        <a class="btn petit" id="l-market" href="/market" target="_blank" rel="noopener" title="Ouvrir le Marketplace public (nouvel onglet)">Marketplace <span class="fl" aria-hidden="true">↗</span></a>
+        <a class="btn petit" id="l-vitrine" href="https://fabienlacaze.github.io/MyFabmesh/" target="_blank" rel="noopener" title="Ouvrir le site où l'on choisit entre l'appli Desktop et le Cloud (nouvel onglet)">Site Desktop / Cloud <span class="fl" aria-hidden="true">↗</span></a>
+        <a class="btn petit" id="l-cloud" href="/app/" target="_blank" rel="noopener" title="Ouvrir l'appli Cloud (nouvel onglet)">Appli Cloud <span class="fl" aria-hidden="true">↗</span></a>
+      </div>
     </div>
     <div class="l3">
       <nav class="tabs" role="tablist" aria-label="Sections">

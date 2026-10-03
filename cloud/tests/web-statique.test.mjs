@@ -74,3 +74,25 @@ test('ADM-10 : /admin redirige toujours vers /admin2 (plus de ?ancienne=1) et le
   assert.ok(w.slice(i, i + 200).includes("status: 302, headers: { location: '/admin2'"), 'la redirection mene a /admin2');
   assert.ok(!lire('admin2.html').includes('ancienne=1'));
 });
+
+test('ADM-11 : /admin2 propose trois acces (Marketplace, site Desktop / Cloud, appli Cloud), chacun dans un NOUVEL onglet vers une page qui existe', () => {
+  const t = lire('admin2.html');
+  const attendu = [
+    ['l-market', '/market'],
+    ['l-vitrine', 'https://fabienlacaze.github.io/MyFabmesh/'],
+    ['l-cloud', '/app/'],
+  ];
+  for (const [id, href] of attendu) {
+    const m = t.match(new RegExp('<a\\b[^>]*\\bid="' + id + '"[^>]*>'));
+    assert.ok(m, 'lien #' + id + ' absent de /admin2');
+    assert.ok(m[0].includes('href="' + href + '"'), '#' + id + ' doit pointer vers ' + href + ' : ' + m[0]);
+    assert.ok(m[0].includes('target="_blank"'), '#' + id + ' s\'ouvre dans un nouvel onglet : la session admin reste ouverte ici');
+    assert.match(m[0], /rel="[^"]*noopener/, '#' + id + ' : rel="noopener"');
+  }
+  // les cibles existent vraiment dans le site (une route absente donnerait un bouton mort)
+  assert.ok(existsSync(new URL('../src/app/market/page.tsx', import.meta.url)), 'page /market absente');
+  assert.ok(existsSync(new URL('../public/app/index.html', import.meta.url)), 'appli /app/ absente');
+  // l'adresse du site de choix est celle que la page d'accueil du Cloud utilise deja
+  const accueil = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8');
+  assert.ok(accueil.includes('https://fabienlacaze.github.io/MyFabmesh'), 'l\'accueil du Cloud pointe ailleurs : harmoniser');
+});
