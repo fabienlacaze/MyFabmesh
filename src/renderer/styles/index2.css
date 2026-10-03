@@ -3948,13 +3948,13 @@ details.stage-generating > summary .stage-gear .gear-glyph {
 }
 #lightbox-2.hidden { display: none; }
 #lightbox-2 img {
-  /* Leave ~220 px on the right for the tool column */
-  max-width: calc(92vw - 220px);
+  /* Place reservee a droite pour la colonne d outils (252 px + marges) */
+  max-width: calc(92vw - 290px);
   max-height: 92vh;
   object-fit: contain;
   box-shadow: 0 20px 60px rgba(0,0,0,0.8);
   border-radius: 8px;
-  margin-right: 220px;
+  margin-right: 270px;
 }
 
 /* Tool column on the right side of the big viewer */
@@ -3963,7 +3963,7 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   right: 20px;
   top: 72px;
   bottom: 72px;
-  width: 200px;
+  width: 252px;
   background: rgba(26, 26, 40, 0.85);
   border: 1px solid #2a2a3a;
   border-radius: 8px;
@@ -3995,11 +3995,17 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   font-size: 14px;
   text-align: left;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Libelle a la ligne au lieu d un « … » qui cache aussi la pastille de prix (2026-10-04) */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
   transition: all 0.15s ease;
 }
+.lb-tool-btn > .cloud-cost-badge { margin-left: auto; flex: 0 0 auto; }
 .lb-tool-btn:hover {
   background: #2a2a42;
   border-color: var(--accent, #d946ef);
@@ -4063,9 +4069,9 @@ details.stage-generating > summary .stage-gear .gear-glyph {
 .lightbox-nav.next { right: 24px; }
 /* In lightbox-2 the AI tools panel (.lb-toolbox, right:20px width:200px) sits over the
    vertical centre on the right and was hiding the Next arrow — push it left of the panel. */
-#lightbox-2 .lightbox-nav.next { right: 236px; }
+#lightbox-2 .lightbox-nav.next { right: 296px; }
 /* Same for the 3D viewer, which now also has a right-side tool panel (#lb3d-toolbox). */
-#lightbox-3d .lightbox-nav.next { right: 236px; }
+#lightbox-3d .lightbox-nav.next { right: 296px; }
 .lightbox-nav:hover {
   background: var(--accent);
   border-color: var(--accent);
