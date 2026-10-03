@@ -539,7 +539,9 @@ function chargerAlerte(env, extra = {}) {
   const mails = [];
   const texte = entre('/* ═══ W2-4 ALERTE DE NOUVEAU MESSAGE : DEBUT', '/* ═══ W2-4 ALERTE DE NOUVEAU MESSAGE : FIN')
     + '\n' + fonction('function _attenteBruitee(') + '\n' + fonction('async function _casIncrementCounter(') + '\n' + fonction('async function r2GetText(')
-    + '\n' + fonction('function _safeId(') + '\n' + fonction('async function handleContactSubmit(');
+    + '\n' + fonction('function _safeId(') + '\n' + fonction('async function handleContactSubmit(')
+    // 2026-10-03 (vague 5, D-05 / D-07) : la route de contact tronque l'IP et indexe son compteur par empreinte : ces aides doivent etre chargees aussi
+    + '\n' + fonction('function _tronquerIp(') + '\n' + fonction('async function _empreinteIp(') + '\n' + fonction('async function _cleCompteurIp(');
   const noms = {
     _sendAdminAlertEmail: async (_e, sujet, corps) => { mails.push({ sujet, corps }); },
     err: (status, message) => new Response(JSON.stringify({ error: message }), { status }),

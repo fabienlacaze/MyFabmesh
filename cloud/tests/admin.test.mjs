@@ -344,7 +344,7 @@ test('handleMarketUpdate (la route active) : prix, licence, caracteres et filtre
   assert.equal((await m.patch({ description: 'voir <script>' })).status, 400);
   assert.equal((await m.patch({ title: 'un titre nsfw' })).status, 400, 'filtre de contenu');
   assert.equal(m.ecrits.length, 0, 'rien n est ecrit quand une validation echoue');
-  for (const prix of [0, 50, 1200]) assert.equal((await m.patch({ price_cents: prix, licence: 'cc0', title: 'Epee +2' })).status, 200, 'prix accepte : ' + prix);
+  for (const prix of [0, 50, 1200]) assert.equal((await m.patch({ price_cents: prix, licence: 'commercial', title: 'Epee +2' })).status, 200, 'prix accepte : ' + prix);
   assert.equal(m.ecrits.length, 3);
   assert.equal(m.ecrits[2][1].price_cents, 1200);
   assert.equal(m.ecrits[2][1].status, 'pending');

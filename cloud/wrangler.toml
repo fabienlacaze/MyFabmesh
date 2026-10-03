@@ -197,6 +197,13 @@ MAX_USER_DAILY_CALLS = "40"
 # $2/day = plenty for legitimate use (~4-40 jobs) while stopping a compromised
 # or abusive account from exploding the bill. Default in worker.ts is also $2.
 MAX_USER_DAILY_SPEND_USD = "2.00"
+# 2026-10-03 (IA-06 / FIN-03 / FIN-07) : PLAFOND DE SECURITE d'un compte PAYANT, en $ de GPU estime par jour UTC. Les comptes payants ne sont pas
+# rationnes a 2 $ (leur solde borne leur depense) mais une carte volee achete des credits puis les depense avant le litige (~70-100 EUR par incident).
+# 0 coupe vraiment les comptes payants. Defaut identique dans worker.ts (DEFAULT_MAX_PAID_USER_DAILY_SPEND_USD).
+MAX_PAID_USER_DAILY_SPEND_USD = "15.00"
+# Alerte e-mail a l'exploitant quand un compte payant franchit ce montant dans la journee (une fois par compte et par jour, sans donnee personnelle).
+# 0 = alerte desactivee. Defaut identique dans worker.ts (DEFAULT_PAID_USER_SPEND_ALERT_USD).
+PAID_USER_SPEND_ALERT_USD = "5.00"
 #
 # NOTE (free signup grant): the initial free-credit grant for a NEW account is
 # set in Supabase (DB default / trigger on the profiles table), NOT here. If it

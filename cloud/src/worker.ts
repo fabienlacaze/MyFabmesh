@@ -171,6 +171,10 @@ export interface Env {
   // credits they hold. Complements the GLOBAL MAX_DAILY_*_SPEND_USD caps.
   // Default $2.00/user/day (see DEFAULT_MAX_USER_DAILY_SPEND_USD).
   MAX_USER_DAILY_SPEND_USD?: string;
+  // 2026-10-03 (IA-06 / FIN-03 / FIN-07) : PLAFOND DE SECURITE des comptes PAYANTS (defaut 15 $/jour ; 0 coupe vraiment) et seuil d'alerte
+  // e-mail a l'exploitant (defaut 5 $/jour ; 0 ou negatif = alerte desactivee). Voir decisionPlafondPayant.
+  MAX_PAID_USER_DAILY_SPEND_USD?: string;
+  PAID_USER_SPEND_ALERT_USD?: string;
 
   // Cloudflare Turnstile (captcha) secret for the siteverify call. When SET,
   // the expensive GPU endpoints require a valid `cf-turnstile-response` token
@@ -265,6 +269,11 @@ const DEFAULT_MAX_USER_DAILY_CALLS = 10;
 // default; override with MAX_USER_DAILY_SPEND_USD. This is the second line of
 // defence behind the GLOBAL MAX_DAILY_*_SPEND_USD caps.
 const DEFAULT_MAX_USER_DAILY_SPEND_USD = 2.00;
+// 2026-10-03 (IA-06 / FIN-03 / FIN-07) : un compte PAYANT n'est pas rationne a 2 $ (son solde de credits borne sa depense), mais ce solde peut avoir ete
+// achete avec une carte volee : le litige coute alors ~70 a 100 EUR (frais Stripe + remboursement + GPU deja consomme). Plafond de SECURITE haut, par
+// compte et par jour UTC ; au-dela, refus clair (_spendRefusalMessage). Alerte e-mail a l'exploitant au franchissement du seuil bas.
+const DEFAULT_MAX_PAID_USER_DAILY_SPEND_USD = 15;
+const DEFAULT_PAID_USER_SPEND_ALERT_USD = 5;
 
 function todayUTC(): string { return new Date().toISOString().slice(0, 10); }
 
@@ -512,6 +521,69 @@ async function checkAndIncrementUserDailySpend(env: Env, userId: string, estimat
   return maxUsd - next;
 }
 
+/* ═══ W5-1 PLAFOND DE SECURITE DES COMPTES PAYANTS : DEBUT ═══ */
+/** Decision PURE du plafond de securite d'un compte payant (2026-10-03, constats IA-06 / FIN-03 / FIN-07).
+ *  depenseAvant : ce que le compte a deja depense aujourd'hui (compteur de comptabilite, tous fournisseurs, rembourse quand un travail echoue).
+ *  Refuse si la depense depasserait le plafond ; un plafond <= 0 refuse TOUT (le zero est une consigne : _plafond la respecte, ici aussi).
+ *  alerter : le compte est (apres cet appel) au seuil d'alerte ou au-dela ; seuil <= 0 = alerte desactivee. L'unicite par jour est assuree par un
+ *  marqueur R2 (_alerterComptePayant), pas ici. */
+function decisionPlafondPayant(depenseAvant: number, estimeUsd: number, plafond: number, seuilAlerte: number): { refuser: boolean; apres: number; alerter: boolean } {
+  const avant = Math.max(0, Number(depenseAvant) || 0);
+  const delta = Math.max(0, Number(estimeUsd) || 0);
+  if (!(plafond > 0) || avant + delta > plafond) return { refuser: true, apres: avant, alerter: false };
+  const apres = avant + delta;
+  return { refuser: false, apres, alerter: seuilAlerte > 0 && apres >= seuilAlerte };
+}
+
+/** Vrai quand un refus d'un compte payant vient tres probablement de SON plafond de securite (pour que le message le nomme). Pure.
+ *  Meme heuristique des 80 % que celle du plafond des comptes gratuits : la depense du compte est deja proche du plafond. */
+function refusVientDuPlafondPayant(depenseDuCompte: number, plafond: number): boolean {
+  if (!(plafond > 0)) return true;
+  return (Number(depenseDuCompte) || 0) >= plafond * 0.8;
+}
+
+/** Texte de l'alerte e-mail (SANS donnee personnelle : 8 premiers caracteres de l'identifiant, montant, heure). Pure. */
+function texteAlerteComptePayant(userId: string, montantUsd: number, seuilUsd: number, plafondUsd: number, iso: string): { sujet: string; texte: string } {
+  const id8 = String(userId ?? '').slice(0, 8);
+  const montant = (Math.round((Number(montantUsd) || 0) * 100) / 100).toFixed(2);
+  return {
+    sujet: `[MyFabmesh] Compte payant ${id8}... : ${montant} $ de GPU aujourd'hui`,
+    texte: `Un compte PAYANT (identifiant ${id8}...) a depense ${montant} $ de calcul GPU aujourd'hui (seuil d'alerte ${seuilUsd} $, plafond de securite ${plafondUsd} $ par jour).\n`
+         + `Heure : ${iso}.\nSi ce n'est pas un usage normal (achat recent, rafale de travaux), verifier le compte dans /admin2 ; au plafond de securite, les travaux sont refuses jusqu'a minuit UTC.`,
+  };
+}
+
+/** Previent l'exploitant, UNE SEULE FOIS par compte et par jour (marqueur R2 pose sans ecraser). Ne leve jamais. */
+async function _alerterComptePayant(env: Env, userId: string, montantUsd: number, seuilUsd: number, plafondUsd: number): Promise<void> {
+  try {
+    if (!env.MESHES) return;
+    const iso = new Date().toISOString();
+    const pose = await env.MESHES.put(`_meta/alerte_payant/${todayUTC()}/${userId}`, JSON.stringify({ ts: iso, montant: montantUsd }), { onlyIf: { etagDoesNotMatch: '*' } });
+    if (!pose) return;   // deja prevenu aujourd'hui (ou ecriture impossible : mieux vaut se taire que doubler)
+    const m = texteAlerteComptePayant(userId, montantUsd, seuilUsd, plafondUsd, iso);
+    await _sendAdminAlertEmail(env, m.sujet, m.texte);
+  } catch { /* alerte best-effort */ }
+}
+
+/** Compte la depense d'un compte PAYANT avec son plafond de securite. Rend la depense du jour apres cet appel, ou null si le plafond serait depasse
+ *  (RIEN n'est alors incremente). Atomique (comparaison-echange sur le compteur de comptabilite). Une contention SANS depassement ne refuse pas :
+ *  un client qui a paye n'est jamais refuse pour un probleme de concurrence, on compte alors sans plafond comme avant. */
+async function _depensePayanteAvecPlafond(env: Env, userId: string, estimatedUsd: number): Promise<number | null> {
+  const plafond = _plafond(env.MAX_PAID_USER_DAILY_SPEND_USD, DEFAULT_MAX_PAID_USER_DAILY_SPEND_USD);
+  const seuil = _plafond(env.PAID_USER_SPEND_ALERT_USD, DEFAULT_PAID_USER_SPEND_ALERT_USD);
+  const cle = _cleSpendUser(userId);
+  let apres: number | null = plafond > 0 ? await _casIncrementCounter(env, cle, estimatedUsd, plafond) : null;
+  if (apres == null) {
+    const courant = parseFloat((await r2GetText(env, cle)) || '0') || 0;
+    const d = decisionPlafondPayant(courant, estimatedUsd, plafond, seuil);
+    if (d.refuser) return null;
+    apres = (await _incrementAtomique(env, cle, estimatedUsd)) ?? d.apres;
+  }
+  if (seuil > 0 && apres >= seuil) await _alerterComptePayant(env, userId, apres, seuil, plafond);
+  return apres;
+}
+/* ═══ W5-1 PLAFOND DE SECURITE DES COMPTES PAYANTS : FIN ═══ */
+
 /** Check the daily Replicate spend cap. Returns the remaining budget
  *  in USD, or null if the request would push us over (global OR per-account).
  *  CAS-atomic. When userId is passed, the per-account daily $ cap is enforced
@@ -632,6 +704,15 @@ async function _spendRefusalMessage(env: Env, userId?: string): Promise<string> 
   const GENERIC = QUOTIDIEN;
   if (!userId || !env.MESHES) return GENERIC;
   try {
+    /* COMPTE PAYANT AU PLAFOND DE SECURITE (2026-10-03, IA-06) : le message doit nommer CE plafond, pas celui des comptes gratuits. */
+    if (await _isPaidAccount(env, userId)) {
+      const plafondPaye = _plafond(env.MAX_PAID_USER_DAILY_SPEND_USD, DEFAULT_MAX_PAID_USER_DAILY_SPEND_USD);
+      const depense = parseFloat((await r2GetText(env, _cleSpendUser(userId))) || '0') || 0;
+      if (refusVientDuPlafondPayant(depense, plafondPaye)) {
+        return "Your account has reached its daily safety limit for cloud generation. It resets at midnight UTC. "
+             + 'Your credits are safe and you were not charged. Contact support if you need a higher limit.';
+      }
+    }
     const maxUser = _plafond(env.MAX_USER_DAILY_SPEND_USD, DEFAULT_MAX_USER_DAILY_SPEND_USD);
     // Le compteur de PLAFOND, pas celui de comptabilite : c'est lui qui refuse.
     const cur = parseFloat((await r2GetText(env, _cleCapUser(userId))) || '0') || 0;
@@ -877,6 +958,14 @@ async function checkAndIncrementModalSpend(env: Env, estimatedUsd: number, userI
   // credit was bought at a positive margin.
   const paid = !!userId && await _isPaidAccount(env, userId);
   if (paid) {
+    /* PLAFOND DE SECURITE (2026-10-03, IA-06 / FIN-03 / FIN-07). Le compte payant n'est plus rationne a 2 $, mais il n'est plus SANS limite non plus :
+     * une carte volee achetait des credits puis les depensait en GPU avant le litige. Verifie AVANT toute ecriture des compteurs globaux : un refus
+     * n'incremente rien. Comptabilite indisponible (R2 en erreur) : on ne bloque pas un client payant, comme avant. */
+    if (userId) {
+      let refuse = false;
+      try { refuse = (await _depensePayanteAvecPlafond(env, userId, estimatedUsd)) == null; } catch { /* comptabilite seule — jamais bloquer sur une panne */ }
+      if (refuse) return null;
+    }
     try {
       // Atomique : voir _incrementAtomique. C'etait un get + put nu, donc
       // les increments concurrents de plusieurs clients payants se
@@ -893,9 +982,7 @@ async function checkAndIncrementModalSpend(env: Env, estimatedUsd: number, userI
        * de depense par compte mentaient. Le plafond n'est toujours pas
        * applique ici — on ne fait que dire la verite sur ce qui a ete
        * depense. */
-      if (userId) {
-        await _incrementAtomique(env, _cleSpendUser(userId), estimatedUsd);
-      }
+      // Le compteur personnel est desormais incremente plus haut, par _depensePayanteAvecPlafond (plafond de securite + comptabilite en une operation).
       /* Plus d'evaluation de l'alerte ici (2026-09-30) : elle ne depend que du
        * releve horaire, de la limite et de l'heure (_previsionModal), pas de
        * cette estimation. Le releve, l'enregistrement de la limite et le cron
@@ -3039,17 +3126,42 @@ function _provenance(req?: Request | null): 'desktop' | 'web' | 'inconnu' {
  *  zero en IPv4, /48 en IPv6. Assez pour situer et depanner, plus assez pour
  *  designer un abonne. */
 function _tronquerIp(ip: string | null): string | null {
+  /* 2026-10-03 (D-05 / D-07) : REPRISE ET CORRIGEE. L'ancienne version coupait une adresse IPv6 compressee au mauvais endroit (« 2001:db8::1 » donnait
+   * « 2001:db8:1::/48 », un 3e groupe qui n'existe pas dans l'adresse), acceptait « 999.1.1.1 » et ne gerait ni la liste « a, b » d'un en-tete
+   * x-forwarded-for, ni l'adresse IPv4 dans IPv6 (« ::ffff:1.2.3.4 »). Rend l'IPv4 a /24 (« a.b.c.0 »), l'IPv6 a /48 (« a:b:c::/48 ») ; null si ce
+   * n'est pas une adresse. Les messages de contact et signalements ne gardent QUE ce reseau, plus l'adresse complete (retention annoncee : 12 mois). */
   if (!ip) return null;
-  if (ip.includes('.')) {
-    const p = ip.split('.');
-    if (p.length !== 4) return null;
-    return `${p[0]}.${p[1]}.${p[2]}.0`;
+  const brute = String(ip).split(',')[0].trim();
+  const v4 = (t: string): string | null => {
+    const p = t.split('.');
+    if (p.length !== 4 || !p.every((x) => /^\d{1,3}$/.test(x) && Number(x) <= 255)) return null;
+    return `${Number(p[0])}.${Number(p[1])}.${Number(p[2])}.0`;
+  };
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(brute)) return v4(brute);
+  if (!brute.includes(':')) return null;
+  let h = brute.replace(/^\[|\]$/g, '').split('%')[0].toLowerCase();
+  const pointee = /^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(h);             // IPv4 en queue d'une adresse IPv6
+  if (pointee) {
+    const r = v4(pointee[2]);
+    if (!r) return null;
+    if (/^(::ffff:|0:0:0:0:0:ffff:)$/.test(pointee[1])) return r;       // IPv4 « mappee » : c'est une IPv4
+    const o = pointee[2].split('.').map(Number);
+    h = pointee[1] + (((o[0] << 8) | o[1]).toString(16)) + ':' + (((o[2] << 8) | o[3]).toString(16));
   }
-  if (ip.includes(':')) {
-    const p = ip.split(':').filter(Boolean);
-    return p.length >= 3 ? `${p[0]}:${p[1]}:${p[2]}::/48` : null;
+  const moitie = h.split('::');
+  if (moitie.length > 2) return null;
+  const tete = moitie[0] ? moitie[0].split(':') : [];
+  const queue = moitie.length === 2 && moitie[1] ? moitie[1].split(':') : [];
+  let groupes: string[];
+  if (moitie.length === 2) {
+    const manque = 8 - tete.length - queue.length;
+    if (manque < 1) return null;
+    groupes = [...tete, ...new Array<string>(manque).fill('0'), ...queue];
+  } else {
+    groupes = tete;
   }
-  return null;
+  if (groupes.length !== 8 || !groupes.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
+  return `${groupes.slice(0, 3).map((g) => parseInt(g, 16).toString(16)).join(':')}::/48`;
 }
 
 /** Empreinte SALEE d'une adresse IP : permet de reconnaitre un visiteur qui
@@ -3066,10 +3178,21 @@ async function _empreinteIp(env: Env, ip: string): Promise<string | null> {
   } catch { return null; }
 }
 
+/** 2026-10-03 (D-05 / D-07) : segment de cle R2 des compteurs anti-abus par adresse (`_meta/report_rate|contact_count/<jour>/<segment>`). C'etait l'adresse IP
+ *  BRUTE dans le nom de la cle : une donnee personnelle lisible par quiconque liste le bucket, et que la retention n'efface qu'apres 2 jours. Desormais l'EMPREINTE
+ *  SALEE de l'adresse (SHA-256 du secret de signature et de l'adresse, 16 caracteres hexadecimaux, jamais affichee ni inversible sans le secret). Si le secret est
+ *  absent, repli sur le RESEAU tronque (jamais l'adresse complete). Une meme adresse donne toujours la meme cle : le plafond par adresse fonctionne comme avant. */
+async function _cleCompteurIp(env: Env, ip: string): Promise<string> {
+  const brute = String(ip ?? '').split(',')[0].trim();
+  const empreinte = await _empreinteIp(env, brute);
+  if (empreinte) return empreinte;
+  return _safeId(_tronquerIp(brute) ?? 'inconnue');
+}
+
 /* 2026-10-03 (D-11) : la fonction de diagnostic detaille qui enregistrait, par generation, le pays, la region, la ville, le reseau, l'IP tronquee,
  * l'empreinte d'IP, le user-agent et le prompt a ete SUPPRIMEE : aucun appelant n'existait (Grep), et la politique de confidentialite affirme ne
  * conserver ni ville ni IP. Ne pas la reintroduire sans declarer ces donnees dans la politique ; vague2-worker.test.mjs echoue si un appelant reapparait.
- * Les aides _tronquerIp / _empreinteIp ci-dessus sont laissees en place (documentation de la minimisation), elles ne sont plus utilisees. */
+ * Les aides _tronquerIp / _empreinteIp ci-dessus ne servaient plus a rien ; elles sont reprises depuis le 2026-10-03 (D-05 / D-07) : IP tronquee dans les messages et signalements, empreinte salee dans les compteurs anti-abus (_cleCompteurIp). */
 
 async function logOperation(
   env: Env,
@@ -3463,7 +3586,7 @@ async function handleReportContent(req: Request, env: Env): Promise<Response> {
   const ip = req.headers.get('cf-connecting-ip') || 'inconnue';
   if (env.MESHES) {
     const compteur = await _casIncrementCounter(
-      env, `_meta/report_rate/${todayUTC()}/${ip}`, 1, 20);
+      env, `_meta/report_rate/${todayUTC()}/${await _cleCompteurIp(env, ip)}`, 1, 20);   // 2026-10-03 (D-07) : empreinte, plus l'adresse brute
     if (compteur == null) return err(429, 'trop de signalements depuis cette adresse');
   }
 
@@ -3549,7 +3672,7 @@ async function handleReportContent(req: Request, env: Env): Promise<Response> {
     message,
     user_id: user?.id ?? null,
     user_email: user?.email ?? null,
-    ip,
+    ip: _tronquerIp(ip),   // 2026-10-03 (D-05) : reseau seulement (a.b.c.0 / a:b:c::/48), plus l'adresse complete
     user_agent: req.headers.get('user-agent') ?? null,
     created_at: new Date().toISOString(),
     read: false,          // fait s'allumer le badge de l'onglet Messages
@@ -4327,7 +4450,7 @@ async function handleContactSubmit(req: Request, env: Env): Promise<Response> {
   // Daily anti-spam: max 5 messages per IP/day and 200 messages
   // globally/day. Both counters live in R2 and reset at UTC midnight.
   const today = new Date().toISOString().slice(0, 10);
-  const ipKey = `_meta/contact_count/${today}/${_safeId(ip)}.txt`;
+  const ipKey = `_meta/contact_count/${today}/${await _cleCompteurIp(env, ip)}.txt`;   // 2026-10-03 (D-07) : empreinte salee, plus l'adresse brute
   const globalKey = `_meta/contact_count/${today}/_global.txt`;
   const ipCur = parseInt((await r2GetText(env, ipKey)) || '0', 10) || 0;
   const globCur = parseInt((await r2GetText(env, globalKey)) || '0', 10) || 0;
@@ -4413,7 +4536,7 @@ async function handleContactSubmit(req: Request, env: Env): Promise<Response> {
     id,
     name, email, subject, message,
     user_id, user_email,
-    ip,
+    ip: _tronquerIp(ip),   // 2026-10-03 (D-05) : reseau seulement, plus l'adresse complete
     user_agent: req.headers.get('user-agent') ?? null,
     created_at: new Date().toISOString(),
     read: false,
@@ -5157,6 +5280,7 @@ type MarketListing = {
   status: 'pending' | 'approved' | 'rejected';
   rejection_reason?: string;
   apercu_maj?: number;      // horodatage de la copie filigranee (version de son URL)
+  asset_sha256?: string | null;   // 2026-10-03 (SM-06) : empreinte SHA-256 du fichier vendu a la publication ; absente sur les fiches anciennes = inconnue, jamais bloquante
   created_at: string;
   approved_at: string | null;
   downloads: number;
@@ -5183,6 +5307,17 @@ function validerPrixFiche(v: unknown): { ok: true; cents: number } | { ok: false
     return { ok: false, message: 'Le prix d\u00e9passe le maximum autoris\u00e9 (10 000 \u20ac).' };
   }
   return { ok: true, cents: p };
+}
+/** 2026-10-03 (MP-11) : une fiche PAYANTE n'accepte que les licences « personal » et « commercial ». Une licence cc-by ou cc0 autorise la redistribution :
+ *  l'acheteur pourrait revendre ou offrir le fichier, ce qui detruit la valeur d'un achat. Elles restent permises pour le gratuit. Pure ; placee dans la
+ *  meme tranche que validerPrixFiche (les tests de la modification de fiche decoupent cette zone par ancres). */
+const LICENCES_FICHE_PAYANTE = new Set(['personal', 'commercial']);
+function validerLicencePourPrix(licence: unknown, prixCents: unknown): { ok: true } | { ok: false; message: string } {
+  const prix = Number(prixCents);
+  if (Number.isFinite(prix) && prix > 0 && !LICENCES_FICHE_PAYANTE.has(String(licence ?? '').trim().toLowerCase())) {
+    return { ok: false, message: 'Une fiche payante n\u2019accepte que les licences \u00ab personal \u00bb et \u00ab commercial \u00bb (cc-by, cc0\u2026 sont r\u00e9serv\u00e9es au gratuit).' };
+  }
+  return { ok: true };
 }
 /** IA-08 : les caracteres < et > sont refuses dans le titre et la description d'une fiche (ils servent a injecter du balisage
  *  dans les pages qui affichent ces textes). Ne regarde que les textes fournis (string). */
@@ -5259,6 +5394,62 @@ async function _fluxActifFiche(env: Env, url: string): Promise<{ body: ReadableS
  * fiche, echec a la publication). ═══ */
 const APERCU_PREFIXE = '_market/apercu/';
 
+/** 2026-10-03 (SM-01) : l'apercu public d'une fiche PAYANTE doit etre une copie de demonstration. Mesure du 02/10/2026 : les apercus deposes par le
+ *  navigateur du vendeur faisaient 509 734, 496 242 et 497 286 triangles (le fichier COMPLET), un rig gardait sa peau. Plafond serveur, verifie sur les
+ *  octets deposes : triangles comptes depuis le chunk JSON du GLB (indices / 3, ou positions / 3 sans indices, bandes et eventails inclus, chaque
+ *  instance de maillage comptee), et ni skin ni animation. */
+const APERCU_PAYANT_MAX_TRIANGLES = 30_000;
+function inspecterGlbApercu(octets: Uint8Array): { ok: true; triangles: number; skins: number; animations: number } | { ok: false } {
+  try {
+    if (octets.length < 28) return { ok: false };
+    const dv = new DataView(octets.buffer, octets.byteOffset, octets.byteLength);
+    if (dv.getUint32(0, true) !== 0x46546C67) return { ok: false };           // « glTF »
+    const longueurJson = dv.getUint32(12, true);
+    if (dv.getUint32(16, true) !== 0x4E4F534A) return { ok: false };          // premier chunk = « JSON »
+    if (longueurJson <= 0 || 20 + longueurJson > octets.length) return { ok: false };
+    const j = JSON.parse(new TextDecoder().decode(octets.subarray(20, 20 + longueurJson))) as {
+      accessors?: Array<{ count?: unknown }>; meshes?: Array<{ primitives?: Array<{ mode?: unknown; indices?: unknown; attributes?: { POSITION?: unknown } }> }>;
+      nodes?: Array<{ mesh?: unknown }>; skins?: unknown[]; animations?: unknown[];
+    };
+    const accesseurs = Array.isArray(j.accessors) ? j.accessors : [];
+    const instances = new Map<number, number>();
+    for (const n of Array.isArray(j.nodes) ? j.nodes : []) if (typeof n?.mesh === 'number') instances.set(n.mesh, (instances.get(n.mesh) ?? 0) + 1);
+    let triangles = 0;
+    const maillages = Array.isArray(j.meshes) ? j.meshes : [];
+    for (let i = 0; i < maillages.length; i++) {
+      let dansCeMaillage = 0;
+      for (const p of Array.isArray(maillages[i]?.primitives) ? maillages[i].primitives! : []) {
+        const mode = typeof p?.mode === 'number' ? p.mode : 4;
+        const idx = typeof p?.indices === 'number' ? p.indices : p?.attributes?.POSITION;
+        const n = typeof idx === 'number' ? Number(accesseurs[idx]?.count) : NaN;
+        if (!Number.isFinite(n) || n < 0) return { ok: false };                // primitive sans accesseur lisible : on ne peut pas verifier -> refus
+        dansCeMaillage += mode === 4 ? Math.floor(n / 3) : (mode === 5 || mode === 6) ? Math.max(0, n - 2) : 0;
+      }
+      triangles += dansCeMaillage * Math.max(1, instances.get(i) ?? 1);
+    }
+    return { ok: true, triangles, skins: Array.isArray(j.skins) ? j.skins.length : 0, animations: Array.isArray(j.animations) ? j.animations.length : 0 };
+  } catch { return { ok: false }; }
+}
+
+/** Empreinte SHA-256 (hex) d'un objet R2, en flux quand le runtime le permet (DigestStream de Workers : pas de copie en memoire d'un fichier de 50 Mo).
+ *  null = objet absent ou illisible : une fiche sans empreinte est INCONNUE, jamais bloquante. */
+async function _empreinteSha256Cle(env: Env, cle: string): Promise<string | null> {
+  try {
+    const obj = await env.MESHES!.get(cle);
+    if (!obj) return null;
+    const DS = (crypto as unknown as { DigestStream?: new (algo: string) => WritableStream & { digest: Promise<ArrayBuffer> } }).DigestStream;
+    let resume: ArrayBuffer;
+    if (DS) {
+      const flux = new DS('SHA-256');
+      await (obj as unknown as { body: ReadableStream }).body.pipeTo(flux);
+      resume = await flux.digest;
+    } else {
+      resume = await crypto.subtle.digest('SHA-256', await obj.arrayBuffer());
+    }
+    return [...new Uint8Array(resume)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch { return null; }
+}
+
 function _typeOctets(b: Uint8Array): string {
   if (b[0] === 0x67 && b[1] === 0x6C && b[2] === 0x54 && b[3] === 0x46) return 'model/gltf-binary';
   if (b[0] === 0xFF && b[1] === 0xD8) return 'image/jpeg';
@@ -5268,13 +5459,15 @@ function _typeOctets(b: Uint8Array): string {
 }
 
 /** Date la copie filigranee dans la fiche : elle versionne l'URL de l'apercu. */
-async function _marquerApercu(env: Env, id: string): Promise<void> {
+async function _marquerApercu(env: Env, id: string, repasserEnAttente: boolean = false): Promise<void> {
   try {
     const cle = `_market/listings/${id}.json`;
     const txt = await r2GetText(env, cle);
     if (!txt) return;
     const l = JSON.parse(txt) as MarketListing;
     l.apercu_maj = Date.now();
+    // 2026-10-03 (SM-06) : un depot du VENDEUR sur une fiche deja approuvee change ce que le public voit sans que l'administrateur l'ait valide.
+    if (repasserEnAttente && l.status === 'approved') l.status = 'pending';
     await env.MESHES!.put(cle, JSON.stringify(l), { httpMetadata: { contentType: 'application/json' } });
   } catch { /* sans version, l'ETag suffit a la revalidation */ }
 }
@@ -5432,6 +5625,9 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
   }
   if (!title) return err(400, 'title required');
   if (!MARKET_LICENCES.has(licence)) return err(400, 'invalid licence');
+  // 2026-10-03 (MP-11) : une fiche payante n'accepte que personal / commercial.
+  const licenceOk = validerLicencePourPrix(licence, price_cents);
+  if (!licenceOk.ok) return err(400, licenceOk.message);
   // 2026-10-03 (IA-08) : pas de < ni > dans le titre ni la description, et filtre de contenu sur ces deux textes.
   const texteOk = validerTexteFiche(title, description);
   if (!texteOk.ok) return err(400, texteOk.message);
@@ -5524,6 +5720,14 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
   if (existing.some((l) => l.asset_url === assetUrl && l.status !== 'rejected')) {
     return err(409, 'You already published this asset. View it on /market or remove it from /admin to re-list.');
   }
+  /* 2026-10-03 (SM-06) : empreinte SHA-256 du fichier vendu. Le controle d'origine ne comparait que l'ADRESSE : un modele achete (ou son apercu public)
+   * re-importe sous un autre nom passait. Un fichier dont l'empreinte figure deja sur la fiche d'un AUTRE compte est refuse (409) ; une fiche sans
+   * empreinte (anciennes fiches, hote externe) est inconnue et ne bloque jamais. */
+  const cleActif = _cleR2DepuisUrl(env, assetUrl);
+  const assetSha256 = cleActif ? await _empreinteSha256Cle(env, cleActif) : null;
+  if (assetSha256 && existing.some((l) => l.user_id !== user.id && l.asset_sha256 === assetSha256)) {
+    return err(409, 'This exact file is already published by another account. Only original files can be listed.');
+  }
   const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const listing: MarketListing = {
     id,
@@ -5541,6 +5745,7 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     asset_kind: kind as MarketListing['asset_kind'],
     asset_type: assetType,
     asset_url: assetUrl,
+    asset_sha256: assetSha256,
     mesh_url: kind === 'image' ? '' : assetUrl,  // legacy field kept populated for 3D kinds
     thumbnail_url: kind === 'image' ? assetUrl : null,
     status: 'pending',
@@ -5609,6 +5814,13 @@ async function handleMarketUpdate(req: Request, env: Env, id: string): Promise<R
       if (!MARKET_LICENCES.has(body.licence)) return err(400, 'invalid licence');
       parsed.licence = body.licence;
     }
+    /* 2026-10-03 (MP-11) : verifie seulement quand la modification touche le prix OU la licence (une fiche payante ancienne en cc-by, dont on ne change
+     * que le titre, reste modifiable) ; le controle porte sur le couple RESULTANT : passer une fiche cc-by en payant est refuse, tout comme passer
+     * une fiche payante en cc-by. */
+    if ((body.price_cents !== undefined && body.price_cents !== null) || typeof body.licence === 'string') {
+      const licenceOk = validerLicencePourPrix(parsed.licence, parsed.price_cents);
+      if (!licenceOk.ok) return err(400, licenceOk.message);
+    }
     // Any edit resets to pending so the admin re-reviews.
     parsed.status = 'pending';
     parsed.updated_at = new Date().toISOString();
@@ -5676,6 +5888,8 @@ function _ficheVitrine(l: Record<string, unknown>, env: Env): Record<string, unk
     user_id: l.user_id,
     created_at: l.created_at,
     downloads: l.downloads,
+    // 2026-10-03 (MP-03) : lisible par machine. TOUS les assets de la boutique sont generes par IA : l'etiquette est fixe, pas un choix du vendeur.
+    ai_generated: true,
   };
   const apercuPublic = `${siteUrl(env, 'http://localhost:3030').replace(/\/+$/, '')}/api/market/preview/${encodeURIComponent(String(l.id))}`;
   if (prix > 0) {                                  // payante : pas d'URL du fichier,
@@ -6042,6 +6256,8 @@ async function handleMarketRate(req: Request, env: Env, id: string): Promise<Res
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MESHES) return err(500, 'storage not configured');
+  const refusNote = await _verifierEligibiliteSignalement(env, user.id);   // 2026-10-03 (SM-10) : compte de plus de 7 jours ou avec un travail reussi
+  if (refusNote) return refusNote;
   let body: { rating?: number };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
   const rating = Number(body?.rating);
@@ -6089,12 +6305,18 @@ async function handleMarketReport(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MESHES) return err(500, 'storage not configured');
+  // 2026-10-03 (SM-10 / MP-06) : compte de plus de 7 jours ou avec un travail reussi, et au plus 10 signalements par compte et par jour.
+  const refusSignalement = await _verifierEligibiliteSignalement(env, user.id);
+  if (refusSignalement) return refusSignalement;
   let body: { listing_id?: string; reason?: string };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
   const listingId = String(body?.listing_id || '').trim();
   const reason = String(body?.reason || '').trim().slice(0, 2000);
   if (!listingId) return err(400, 'listing_id required');
   if (reason.length < 3) return err(400, 'a reason is required');
+  if ((await _casIncrementCounter(env, `_meta/report_rate/${todayUTC()}/compte-${user.id}`, 1, SIGNALEMENTS_MAX_PAR_COMPTE_JOUR)) == null) {
+    return err(429, 'too many reports today from this account');
+  }
 
   const lkey = `_market/listings/${listingId}.json`;
   const ltxt = await r2GetText(env, lkey);
@@ -6109,13 +6331,10 @@ async function handleMarketReport(req: Request, env: Env): Promise<Response> {
   await env.MESHES.put(`_market/reports/${listingId}/${user.id}.json`, JSON.stringify({
     listing_id: listingId, listing_title: listing.title ?? '', reporter: user.id,
     reason, created_at: now,
+    eligible: true,           // 2026-10-03 (MP-06) : seul un compte eligible peut arriver jusqu'ici ; la marque sert au comptage du seuil
   }), { httpMetadata: { contentType: 'application/json' } });
 
-  let reportCount = 0;
-  try {
-    const page = await env.MESHES.list({ prefix: `_market/reports/${listingId}/` });
-    reportCount = page.objects.length;
-  } catch {}
+  const reportCount = await _compterSignalementsEligibles(env, listingId);
 
   // DSA expeditious takedown: auto-hide at >= 3 distinct reporters, pending
   // admin review (the author gets a statement of reasons via the admin flow).
@@ -7400,6 +7619,21 @@ async function handleMarketOwned(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, items });
 }
 
+/** Inscrit `first_download_at` dans `_market/owners/<fiche>/<acheteur>.json` au premier telechargement (comparaison-echange : deux telechargements
+ *  simultanes n'ecrasent rien). Jamais ecrase ensuite. Fichier illisible ou absent : on ne touche a rien. Ne leve jamais. */
+async function _noterPremierTelechargement(env: Env, listingId: string, userId: string): Promise<void> {
+  try {
+    const cle = `_market/owners/${listingId}/${userId}.json`;
+    const o = await env.MESHES!.get(cle);
+    if (!o) return;
+    let rec: Record<string, unknown> | null = null;
+    try { rec = JSON.parse(await o.text()) as Record<string, unknown>; } catch { rec = null; }
+    if (!rec || typeof rec !== 'object' || Array.isArray(rec) || rec.first_download_at) return;
+    rec.first_download_at = new Date().toISOString();
+    await env.MESHES!.put(cle, JSON.stringify(rec), { httpMetadata: { contentType: 'application/json' }, onlyIf: { etagMatches: o.etag } });
+  } catch { /* trace seule */ }
+}
+
 /** GET /api/market/download/<listing_id> — proxies the asset bytes
  *  through the worker with Content-Disposition: attachment so the
  *  browser actually downloads instead of opening inline. Returning a
@@ -7414,11 +7648,13 @@ async function handleMarketDownload(req: Request, env: Env, listingId: string): 
   try { listing = JSON.parse(lTxt); } catch { return err(500, 'listing parse failed'); }
   if (listing.status !== 'approved') return err(404, 'listing not visible');
   // Paid listings require auth + ownership. Free listings are public.
+  let acheteurId: string | null = null;
   if (listing.price_cents > 0) {
     const user = await getSessionUser(req, env);
     if (!user) return err(401, 'unauthorized');
     const head = await env.MESHES.head(`_market/owners/${listingId}/${user.id}.json`);
     if (!head) return err(402, 'purchase required');
+    acheteurId = user.id;
   }
   const url = listing.asset_url || listing.mesh_url;
   if (!url) return err(404, 'asset URL missing');
@@ -7433,6 +7669,9 @@ async function handleMarketDownload(req: Request, env: Env, listingId: string): 
   // legacy r2.dev URL); outbound fetch only for genuinely external hosts.
   const flux = await _fluxActifFiche(env, url);
   if (!flux) return err(404, 'asset not found in storage');
+  // 2026-10-03 (SM-03, reste) : date du PREMIER telechargement reussi, conservee dans le fichier proprietaire (preuve de l'extinction du droit de
+  // retractation : les CGV l'eteignent apres double consentement ET telechargement). Ne ralentit ni ne fait echouer le telechargement.
+  if (acheteurId) await _noterPremierTelechargement(env, listingId, acheteurId);
   const headers = new Headers();
   headers.set('Content-Disposition', `attachment; filename="${filename}"`);
   headers.set('Cache-Control', 'private, max-age=60');
@@ -7462,8 +7701,20 @@ async function handleMarketPreviewUpload(req: Request, env: Env, id: string): Pr
   const type = _typeOctets(octets);
   const attendu = l.asset_kind === 'image' ? type.startsWith('image/') : type === 'model/gltf-binary';
   if (!attendu) return err(400, 'preview type does not match the listing');
+  /* 2026-10-03 (SM-01) : l'apercu d'une fiche PAYANTE ne doit pas etre le fichier vendu. On lit le chunk JSON du GLB depose : au-dela de 30 000
+   * triangles, ou avec une peau / une animation, refus 400 (le repli serveur /api/market/preview fabrique alors la copie de demonstration). */
+  if (Number(l.price_cents) > 0 && l.asset_kind !== 'image') {
+    const glb = inspecterGlbApercu(octets);
+    if (!glb.ok) return err(400, 'preview of a paid listing must be a readable GLB file');
+    if (glb.triangles > APERCU_PAYANT_MAX_TRIANGLES) {
+      return err(400, `preview of a paid listing is too detailed: ${glb.triangles} triangles (maximum ${APERCU_PAYANT_MAX_TRIANGLES}). Upload a lightweight demonstration copy, not the sold file.`);
+    }
+    if (glb.skins > 0 || glb.animations > 0) {
+      return err(400, 'preview of a paid listing must be a static copy: skins and animations are not allowed');
+    }
+  }
   await env.MESHES.put(APERCU_PREFIXE + id, octets, { httpMetadata: { contentType: type } });
-  await _marquerApercu(env, id);
+  await _marquerApercu(env, id, true);                // SM-06 : une fiche approuvee repasse en attente de moderation
   return json({ ok: true, bytes: octets.length });
 }
 
@@ -7483,6 +7734,16 @@ async function handleMarketPosterUpload(req: Request, env: Env, id: string): Pro
   const type = _typeOctets(octets);
   if (!type.startsWith('image/')) return err(400, 'poster must be an image');
   await env.MESHES.put(`_market/poster/${id}`, octets, { httpMetadata: { contentType: type } });
+  // 2026-10-03 (SM-06) : la miniature aussi est vue du public : une fiche approuvee repasse en attente de moderation.
+  if (l.status === 'approved') {
+    try {
+      const frais = JSON.parse((await r2GetText(env, `_market/listings/${id}.json`)) || 'null') as MarketListing | null;
+      if (frais && frais.status === 'approved') {
+        frais.status = 'pending';
+        await env.MESHES.put(`_market/listings/${id}.json`, JSON.stringify(frais), { httpMetadata: { contentType: 'application/json' } });
+      }
+    } catch { /* la miniature est deja deposee ; le passage en attente est best-effort */ }
+  }
   return json({ ok: true, bytes: octets.length });
 }
 
@@ -16637,6 +16898,9 @@ function decisionRetention(cle: string, uploadedMs: number | null, maintenant: n
   if (cle.startsWith('_meta/alerte_messages/')) {                          // compteurs horaires de l'alerte de message (W2-4)
     return plusVieuxQue(jourEnMs(cle.slice('_meta/alerte_messages/'.length)), RETENTION_COMPTEURS_IP_JOURS) ? 'supprimer' : 'garder';
   }
+  if (cle.startsWith('_meta/alerte_payant/')) {                            // marqueurs « une alerte par compte payant et par jour » (W5-1, 2026-10-03)
+    return plusVieuxQue(jourEnMs(cle.slice('_meta/alerte_payant/'.length)), RETENTION_COMPTEURS_IP_JOURS) ? 'supprimer' : 'garder';
+  }
   if (cle.startsWith('_meta/contact/')) {                                  // fiche `<id>.json` ET pieces `<id>/...` : meme identifiant, meme sort
     const id = cle.slice('_meta/contact/'.length).split('/')[0].replace(/\.json$/, '');
     const cree = /^(\d{13})_/.exec(id);                                    // l'identifiant commence par Date.now()
@@ -16711,7 +16975,7 @@ async function purgeRetention(env: Env, maintenant: number = Date.now(), verifie
   };
   for (const [prefixe, famille] of [
     ['_anon/logs/', 'journaux_anonymes'], ['_meta/admin_audit/', 'audit_admin'], ['_meta/report_rate/', 'compteurs_ip'],
-    ['_meta/contact_count/', 'compteurs_ip'], ['_meta/alerte_messages/', 'compteurs_alerte'], ['_meta/contact/', 'messages'], ['_trash/', 'corbeille'],
+    ['_meta/contact_count/', 'compteurs_ip'], ['_meta/alerte_messages/', 'compteurs_alerte'], ['_meta/alerte_payant/', 'compteurs_alerte'], ['_meta/contact/', 'messages'], ['_trash/', 'corbeille'],
   ] as const) {
     try { await balayer(prefixe, famille); } catch (e) { console.warn('[retention] ' + prefixe + ' :', (e as Error).message); }
   }
@@ -21376,6 +21640,47 @@ function _decisionEligibiliteOffert(creeLe: string | null | undefined, nbGenerat
   if (!Number.isFinite(t) || maintenantMs - t < OFFERT_AGE_MIN_COMPTE_JOURS * 86_400_000) return 'compte_trop_recent';   // date inconnue : ferme
   if (!(nbGenerations > 0)) return 'aucune_generation';
   return 'ok';
+}
+/* ── SM-10 / MP-06 : SIGNALER ET NOTER, REGLES DE BASE (2026-10-03) ──────────────────────────────────────────────────────────────────────
+ * Trois comptes jetables suffisaient a faire masquer l'annonce d'un concurrent, et chaque appel envoyait un e-mail sans limite. Regles :
+ *  1. signaler ou noter exige un compte de PLUS de 7 jours OU ayant au moins un travail reussi (meme esprit que les articles offerts, mais « ou » : un
+ *     vrai utilisateur tout neuf qui a deja genere peut signaler un contenu illicite : DSA) ;
+ *  2. au plus 10 signalements par compte et par jour (compteur atomique existant : au-dela, 429) ; cela borne aussi les e-mails a l'exploitant ;
+ *  3. seuls les signalements de comptes eligibles comptent pour le seuil de masquage automatique (le dossier porte `eligible: true`). */
+const SIGNALEMENT_AGE_MIN_COMPTE_JOURS = 7;
+const SIGNALEMENTS_MAX_PAR_COMPTE_JOUR = 10;
+function _decisionEligibiliteSignalement(creeLe: string | null | undefined, nbTravauxReussis: number, maintenantMs: number): boolean {
+  if (Number(nbTravauxReussis) > 0) return true;
+  const t = creeLe ? Date.parse(creeLe) : NaN;
+  return Number.isFinite(t) && maintenantMs - t > SIGNALEMENT_AGE_MIN_COMPTE_JOURS * 86_400_000;   // date inconnue et aucun travail : ferme
+}
+/** Rend null si le compte peut signaler / noter, sinon la reponse de refus (403 explicite, ou 503 si la base ne repond pas). */
+async function _verifierEligibiliteSignalement(env: Env, uid: string): Promise<Response | null> {
+  if (isMock(env)) return null;
+  try {
+    const sb = supabaseAdmin(env);
+    const [p, j] = await Promise.all([
+      sb.from('profiles').select('created_at').eq('id', uid).maybeSingle(),
+      sb.from('jobs').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'succeeded'),
+    ]);
+    if (p.error || j.error) return err(503, 'could not verify your account right now, please try again in a moment');
+    if (_decisionEligibiliteSignalement((p.data as { created_at?: string } | null)?.created_at, Number(j.count ?? 0), Date.now())) return null;
+    return err(403, `Reporting and rating are reserved for accounts at least ${SIGNALEMENT_AGE_MIN_COMPTE_JOURS} days old or that have already completed a generation.`);
+  } catch (e) {
+    console.warn('[signalement] eligibilite illisible :', e instanceof Error ? e.message : String(e));
+    return err(503, 'could not verify your account right now, please try again in a moment');
+  }
+}
+/** Nombre de signalements ELIGIBLES (dossier `eligible: true`) d'une fiche : les dossiers anciens, sans la marque, ne comptent pas. */
+async function _compterSignalementsEligibles(env: Env, listingId: string): Promise<number> {
+  let n = 0;
+  try {
+    const page = await env.MESHES!.list({ prefix: `_market/reports/${listingId}/`, limit: 200 });
+    for (const o of page.objects) {
+      try { if ((JSON.parse((await r2GetText(env, o.key)) || 'null') as { eligible?: unknown } | null)?.eligible === true) n++; } catch { /* dossier illisible : ne compte pas */ }
+    }
+  } catch { /* liste illisible : 0 */ }
+  return n;
 }
 /** Rend null si le compte peut recuperer un article offert, sinon la reponse de refus (403 explicite, ou 503 si la base ne repond pas). */
 async function _verifierEligibiliteOffert(env: Env, uid: string): Promise<Response | null> {

@@ -212,10 +212,13 @@ test('_budgetReelEpuise : releve illisible ou sans champ -> false, jamais d\'exc
 const NOMS_DEPENSE = ['todayUTC', 'r2GetText', '_plafond', '_casIncrementCounter', '_incrementAtomique', '_cleSpendUser', '_cleCapUser', '_isPaidAccount',
   'DEFAULT_MAX_DAILY_SPEND_USD', 'DEFAULT_MAX_MODAL_SPEND_USD', 'DEFAULT_MAX_USER_DAILY_CALLS', 'DEFAULT_MAX_USER_DAILY_SPEND_USD',
   'checkAndIncrementUserDailySpend', 'checkAndIncrementDailySpend', 'refundDailySpend', 'checkAndIncrementModalSpend', 'refundModalSpend', 'checkAndIncrementUserCalls'];
+// 2026-10-03 (vague 5, IA-06) : le compte payant passe par le plafond de securite (declarations absentes de l'ancien exemplaire : filtrees par `existe`)
+const NOMS_PLAFOND_PAYANT = ['DEFAULT_MAX_PAID_USER_DAILY_SPEND_USD', 'DEFAULT_PAID_USER_SPEND_ALERT_USD', 'decisionPlafondPayant', 'texteAlerteComptePayant',
+  '_alerterComptePayant', '_depensePayanteAvecPlafond'].filter((n) => existe(n));
 function mondeDepense({ r2 = {}, env = {}, budgetEpuise = false, payants = [] } = {}) {
   const bucket = creerR2(r2);
   const sb = creerSupabase({ payments: payants.map((u, i) => ({ id: i + 1, user_id: u, credits: 25 })) });
-  const f = chargerFonctions(NOMS_DEPENSE, { ...sansAttente, supabaseAdmin: () => sb, _budgetReelEpuise: async () => budgetEpuise });
+  const f = chargerFonctions([...NOMS_DEPENSE, ...NOMS_PLAFOND_PAYANT], { ...sansAttente, supabaseAdmin: () => sb, _budgetReelEpuise: async () => budgetEpuise, _sendAdminAlertEmail: async () => {} });
   return { f, env: { MESHES: bucket, ...env }, r2: bucket, sb };
 }
 const j = aujourdhui;
