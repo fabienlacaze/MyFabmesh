@@ -1,0 +1,37 @@
+#!/bin/sh
+# Crochet pre-commit (2026-10-03, constat DEP-11) : refuse un commit si
+# build/check-secrets.mjs trouve un secret dans les fichiers suivis.
+#
+# POURQUOI : le depot est PUBLIC. Une cle collee par megarde est lisible par tous
+# des le push ; mieux vaut l'arreter avant le commit que la revoquer apres.
+#
+# Activation (jamais automatique) : git config core.hooksPath .githooks
+# Desactivation : git config --unset core.hooksPath
+# Contournement exceptionnel : git commit --no-verify (seulement si la garde
+# se trompe ; jamais pour committer un vrai secret).
+
+racine=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "pre-commit : racine du depot introuvable -> commit refuse." >&2
+  exit 1
+}
+cd "$racine" || exit 1
+
+if [ ! -f build/check-secrets.mjs ]; then
+  echo "pre-commit : build/check-secrets.mjs introuvable -> commit refuse (la garde s'ouvre en echec)." >&2
+  exit 1
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit : node est introuvable dans le PATH -> commit refuse." >&2
+  echo "  Installez Node, ou contournez exceptionnellement avec : git commit --no-verify" >&2
+  exit 1
+fi
+
+if ! node build/check-secrets.mjs; then
+  echo "" >&2
+  echo "COMMIT REFUSE : un secret probable a ete detecte (details ci-dessus)." >&2
+  echo "  1. Retirez le secret du fichier (variable d'environnement, cloud/.env.local non commite)." >&2
+  echo "  2. REVOQUEZ-le chez le fournisseur s'il a pu fuiter, puis recommencez le commit." >&2
+  echo "  3. Faux positif averere seulement : git commit --no-verify (a utiliser exceptionnellement)." >&2
+  exit 1
+fi
+exit 0

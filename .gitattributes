@@ -1,0 +1,3 @@
+# Les hooks tournent sous sh : ils doivent rester en LF meme sur un clone Windows (core.autocrlf=true les passerait en CRLF
+# et sh echouerait sur « fi\r »). Relecture de la vague 5 (outils-reste), 2026-10-03.
+.githooks/* text eol=lf
