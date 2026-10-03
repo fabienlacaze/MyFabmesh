@@ -334,7 +334,7 @@ const PLANCHER_UNICODE: string[] = [
 
 // Dans une serie de lettres isolees ("c h i l d n u d e") on ne sait pas ou finissent les mots : on cherche
 // un mineur ET une nudite comme sous-chaines de la serie (une serie de 6 lettres isolees est tres rare).
-const SERIE_MINEURS: string[] = ['child', 'kid', 'girl', 'boy', 'teen', 'baby', 'infant', 'toddler', 'schoolgirl', 'young', 'preteen',
+const SERIE_MINEURS: string[] = ['kind', 'child', 'kid', 'girl', 'boy', 'teen', 'baby', 'infant', 'toddler', 'schoolgirl', 'young', 'preteen',
   'minor', 'enfant', 'fille', 'garcon', 'nino', 'nina', 'kinder', 'madchen', 'bambin', 'crianca', 'menina', 'menino'];
 const SERIE_NUDITE: string[] = ['nude', 'naked', 'topless', 'undress', 'sexy', 'porn', 'bikini', 'lingerie', 'panties', 'underwear',
   'nsfw', 'erotic', 'sensual', 'seductive', 'shirtless', 'desnud', 'nackt', 'nuda', 'nudo', 'nua', 'sexual', 'withoutclothes', 'noclothes',
@@ -449,10 +449,13 @@ const T_NUDITE_EXTREME = _compiler(NUDITE_EXTREME, 'combinaison');
 const T_VIOLENCE_ENFANT_GENERAL = _compiler(VIOLENCE_ENFANT_GENERAL, 'mineur_violence');
 const _PLANCHER_COLLES_ECRASES = PLANCHER_COLLES.map((s) => s.replace(/([a-z])\1+/g, '$1'));
 
-/** Liste a plat des termes du filtre (pour l'affichage cote bureau, `get-nsfw-keywords`). */
+/** Liste a plat des termes DURS du filtre (pour l'affichage cote bureau, `get-nsfw-keywords` : fenetre « New project », grille des projets).
+ *  Essais reels du 2026-10-03 : les termes de CONTEXTE (GENERAL_CTX_SEXUEL / GENERAL_CTX_VIOLENCE : blood, kill, wound, strip...) y figuraient aussi
+ *  et le bureau les testait en mots entiers SANS contexte : « An orc warrior covered in blood » etait refuse a la creation du projet alors que la
+ *  generation (checkPromptSafety) l'accepte. Ces termes ne bloquent qu'en contexte : ils ne font pas partie de la liste a plat. */
 export const NSFW_KEYWORDS: string[] = Array.from(new Set([
   ...GENERAL_SEXUEL_DUR, ...GENERAL_VIOLENCE_DUR, ...GENERAL_DROGUE_DUR, ...GENERAL_EXTREMISME_DUR,
-  ...GENERAL_AUTOBLESSURE_DUR, ...GENERAL_HAINE_DUR, ...GENERAL_ARMES_DUR, ...GENERAL_CTX_SEXUEL, ...GENERAL_CTX_VIOLENCE,
+  ...GENERAL_AUTOBLESSURE_DUR, ...GENERAL_HAINE_DUR, ...GENERAL_ARMES_DUR,
 ].map((s) => s.replace(/\*$/, ''))));
 
 // ═══════════════════════════════════════════════════════════════════════════

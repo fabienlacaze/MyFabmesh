@@ -2178,6 +2178,44 @@ document.addEventListener('click', (e) => {
   const sm = e.target && e.target.closest ? e.target.closest('details.stage-verrouillee > summary') : null;
   if (sm) e.preventDefault();
 }, true);
+// --- SONDAGE ADAPTATIF : DEBUT ---
+// 2026-10-03 (PERF-04) : un sondage reseau ne doit pas tourner a plein regime dans un onglet / une fenetre
+// cache(e). Intervalle x10 quand document.hidden (JAMAIS un arret : la fin d'un travail et les notifications
+// continuent d'arriver), retour a la normale ET rafraichissement immediat a l'evenement visibilitychange.
+function intervalleSondage(base) {
+  let cache = false;
+  try { cache = (typeof document !== 'undefined') && document.hidden === true; } catch (_) {}
+  return cache ? base * 10 : base;
+}
+function sondageAdaptatif(tache, base) {
+  let minuteur = null, arrete = false, enCours = false;
+  const lancer = async () => {
+    if (enCours) return;                  // jamais deux passages simultanes
+    enCours = true;
+    try { await tache(); } catch (_) {} finally { enCours = false; }
+  };
+  const planifier = () => {
+    if (minuteur !== null) { clearTimeout(minuteur); minuteur = null; }
+    if (arrete) return;
+    minuteur = setTimeout(async () => { minuteur = null; await lancer(); planifier(); }, intervalleSondage(base));
+  };
+  const surVisibilite = () => {
+    if (arrete) return;
+    if (!document.hidden) lancer();       // retour au premier plan : etat a jour tout de suite
+    planifier();                          // et l'intervalle suivant tient compte du nouvel etat
+  };
+  try { document.addEventListener('visibilitychange', surVisibilite); } catch (_) {}
+  planifier();
+  return {
+    arreter() {
+      arrete = true;
+      if (minuteur !== null) { clearTimeout(minuteur); minuteur = null; }
+      try { document.removeEventListener('visibilitychange', surVisibilite); } catch (_) {}
+    },
+    maintenant() { lancer(); },
+  };
+}
+// --- SONDAGE ADAPTATIF : FIN ---
 setInterval(_majVerrousEtapes, 1000);
 // Fin d'installation : ouvre « New project » une seule fois (drapeau pose par le wizard).
 setTimeout(async () => {
@@ -11895,7 +11933,7 @@ async function _runSegmentJob(granularity, allowInstall) {
     }
     const err = (result && result.error) || 'unknown';
     // Engine not provisioned yet → offer the one-time install, then retry.
-    if (allowInstall && /not installed|not found/i.test(err)) {
+    if (allowInstall && /not installed|not found/i.test(err) && !/mesh not found/i.test(err)) {   // 2026-10-03 : « Mesh not found » = fichier source absent, pas un moteur absent
       // 2026-10-03 : la tuile n etait passee en ERREUR qu AVANT la question ; « Cancel » laissait donc
       // un travail en erreur dans la liste alors que l utilisateur n a rien lance. On pose d abord la
       // question, puis on retire la tuile ; un « Install » accepte relance un travail neuf.
@@ -22602,7 +22640,7 @@ async function _chargerBesoinsGen() {
 // Limite minimum tenue AUSSI fenetre Reglages fermee : une sonde au demarrage puis chaque minute (la limite trop basse remonte
 // avant la generation suivante, pas seulement quand l'utilisateur ouvre les Reglages).
 setTimeout(() => { try { if (_gpuProbeAllowed()) refreshGpuStats(); } catch (_) {} }, 8000);
-setInterval(() => {
+sondageAdaptatif(() => {   // PERF-04 (2026-10-03) : x10 fenetre cachee, sonde immediate au retour
   try {
     const ouverte = !document.getElementById('modal-settings')?.classList.contains('hidden');
     if (!ouverte && _gpuProbeAllowed()) refreshGpuStats();
@@ -25342,8 +25380,8 @@ async function _asstCopier(texte, bouton) {
   });
 
   // Etat a jour tant que les Reglages sont ouverts.
-  function demarrerSondage() { if (_timer) return; rafraichir(); _timer = setInterval(rafraichir, 2000); }
-  function arreterSondage() { if (_timer) { clearInterval(_timer); _timer = null; } }
+  function demarrerSondage() { if (_timer) return; rafraichir(); _timer = sondageAdaptatif(rafraichir, 2000); }   // PERF-04 : x10 fenetre cachee
+  function arreterSondage() { if (_timer) { _timer.arreter(); _timer = null; } }
   new MutationObserver(() => {
     if (!reglages.classList.contains('hidden')) demarrerSondage(); else arreterSondage();
   }).observe(reglages, { attributes: true, attributeFilter: ['class'] });
@@ -30400,7 +30438,7 @@ window._masquerOptionsSansEffetCloud();
   let ok = await window._chargerPrix();
   window._masquerOptionsSansEffetCloud();
   // Même cadence que le web : 5 minutes.
-  setInterval(() => { window._chargerPrix(); }, 5 * 60 * 1000);
+  sondageAdaptatif(() => window._chargerPrix(), 5 * 60 * 1000);   // PERF-04 (2026-10-03) : x10 fenetre cachee
   // Grille injoignable au demarrage (reseau pas encore pret) : aucune
   // pastille — pas de chiffre invente — mais on reessaie toutes les 30 s
   // plutot que de laisser l'application sans prix pendant 5 minutes.

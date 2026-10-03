@@ -79,6 +79,23 @@ def _hf_match(text: str, kw: str) -> bool:
 
 
 def _prompt_hard_floor(prompt: str):
+    """Return a block reason if `prompt` hits the illegal floor, else None. NEVER bypassed by `unrestricted`.
+
+    2026-10-03 (constats IA-02 / IA-03) : la logique vit dans modal_app/_moderation_texte.py, portage a
+    l'identique de cloud/src/nsfw_filter.ts. L'ancienne version etait contournable (n u d e, nud3, cyrillique,
+    age ecrit en lettres...) ET refusait des prompts de jeu legitimes ("young hero with a toy gun"). Contrat
+    inchange : None si le texte passe, sinon la raison (chaine) renvoyee en 403. Module absent de l'image
+    (ne devrait pas arriver : add_local_python_source("modal_app")) -> ancienne logique, plutot que plus
+    aucun filtre."""
+    try:
+        from modal_app._moderation_texte import prompt_hard_floor
+    except ImportError as e:
+        print(f"[moderation] module absent ({e}) : ancienne logique du plancher", flush=True)
+        return _prompt_hard_floor_ancien(prompt)
+    return prompt_hard_floor(prompt)
+
+
+def _prompt_hard_floor_ancien(prompt: str):
     """Return a block reason if `prompt` hits the illegal floor (minors x
     sexual/violence, or always-illegal terms), else None. NEVER bypassed by
     `unrestricted`."""

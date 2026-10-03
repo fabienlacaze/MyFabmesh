@@ -676,7 +676,7 @@ const __filtreModeration = (() => {
   ];
   // Dans une serie de lettres isolees ("c h i l d n u d e") on ne sait pas ou finissent les mots : on cherche
   // un mineur ET une nudite comme sous-chaines de la serie (une serie de 6 lettres isolees est tres rare).
-  const SERIE_MINEURS = ['child', 'kid', 'girl', 'boy', 'teen', 'baby', 'infant', 'toddler', 'schoolgirl', 'young', 'preteen',
+  const SERIE_MINEURS = ['kind', 'child', 'kid', 'girl', 'boy', 'teen', 'baby', 'infant', 'toddler', 'schoolgirl', 'young', 'preteen',
       'minor', 'enfant', 'fille', 'garcon', 'nino', 'nina', 'kinder', 'madchen', 'bambin', 'crianca', 'menina', 'menino'];
   const SERIE_NUDITE = ['nude', 'naked', 'topless', 'undress', 'sexy', 'porn', 'bikini', 'lingerie', 'panties', 'underwear',
       'nsfw', 'erotic', 'sensual', 'seductive', 'shirtless', 'desnud', 'nackt', 'nuda', 'nudo', 'nua', 'sexual', 'withoutclothes', 'noclothes',
@@ -785,10 +785,13 @@ const __filtreModeration = (() => {
   const T_NUDITE_EXTREME = _compiler(NUDITE_EXTREME, 'combinaison');
   const T_VIOLENCE_ENFANT_GENERAL = _compiler(VIOLENCE_ENFANT_GENERAL, 'mineur_violence');
   const _PLANCHER_COLLES_ECRASES = PLANCHER_COLLES.map((s) => s.replace(/([a-z])\1+/g, '$1'));
-  /** Liste a plat des termes du filtre (pour l'affichage cote bureau, `get-nsfw-keywords`). */
+  /** Liste a plat des termes DURS du filtre (pour l'affichage cote bureau, `get-nsfw-keywords` : fenetre « New project », grille des projets).
+   *  Essais reels du 2026-10-03 : les termes de CONTEXTE (GENERAL_CTX_SEXUEL / GENERAL_CTX_VIOLENCE : blood, kill, wound, strip...) y figuraient aussi
+   *  et le bureau les testait en mots entiers SANS contexte : « An orc warrior covered in blood » etait refuse a la creation du projet alors que la
+   *  generation (checkPromptSafety) l'accepte. Ces termes ne bloquent qu'en contexte : ils ne font pas partie de la liste a plat. */
   const NSFW_KEYWORDS = Array.from(new Set([
       ...GENERAL_SEXUEL_DUR, ...GENERAL_VIOLENCE_DUR, ...GENERAL_DROGUE_DUR, ...GENERAL_EXTREMISME_DUR,
-      ...GENERAL_AUTOBLESSURE_DUR, ...GENERAL_HAINE_DUR, ...GENERAL_ARMES_DUR, ...GENERAL_CTX_SEXUEL, ...GENERAL_CTX_VIOLENCE,
+      ...GENERAL_AUTOBLESSURE_DUR, ...GENERAL_HAINE_DUR, ...GENERAL_ARMES_DUR,
   ].map((s) => s.replace(/\*$/, ''))));
   // ═══════════════════════════════════════════════════════════════════════════
   // PLANCHER ILLICITE
@@ -5901,6 +5904,23 @@ out = ${JSON.stringify(outputPath.replace(/\\/g, '/'))}
 # (simple maillage) : chemin d'origine STRICTEMENT inchange.
 a_armature = any(o.type == 'ARMATURE' for o in bpy.context.scene.objects)
 if a_armature:
+    # 2026-10-03 (essais reels) : l'importeur glTF de Blender cree un maillage « Icosphere » qui sert de FORME D'AFFICHAGE aux os (custom_shape) ;
+    # avec use_selection=False il partait dans le FBX d'Unreal (42 sommets, sans parent ni groupe de sommets). On retire seulement les objets
+    # utilises comme forme d'os, ou une « Icosphere » minuscule sans groupe de sommets ; tout echec est ignore (l'export continue).
+    try:
+        _formes = set()
+        for _arm in [o for o in bpy.context.scene.objects if o.type == 'ARMATURE']:
+            for _pb in _arm.pose.bones:
+                if _pb.custom_shape is not None:
+                    _formes.add(_pb.custom_shape.name)
+        for _o in list(bpy.data.objects):
+            if _o.type != 'MESH' or len(_o.vertex_groups) > 0:
+                continue
+            _petite = _o.name.startswith('Icosphere') and len(_o.data.vertices) < 200
+            if _o.name in _formes or _petite:
+                bpy.data.objects.remove(_o, do_unlink=True)
+    except Exception as _e:
+        print('[export-unreal] nettoyage des formes d os ignore :', _e)
     bpy.ops.export_scene.fbx(
         filepath=out,
         use_selection=False,
@@ -9944,6 +9964,14 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
     if (ckptDir) {
       try { fs.rmSync(ckptDir, { recursive: true, force: true }); fs.mkdirSync(ckptDir, { recursive: true }); env.FABMESH_CKPT_DIR = ckptDir; } catch (_) {}
     }
+    // 2026-10-03 (essais reels) : la sortie du pipeline partait au renderer SANS laisser de trace apres un succes : impossible de verifier a posteriori les
+    // accelerations (remplissage des vides d'atlas, WebP rapide, reduction sans plis). Les 300 dernieres lignes sont gardees (ecrasees a chaque generation).
+    const _journaliserSortie3D = (texte) => {
+      try {
+        const lignes = String(texte || '').split(/\r?\n/).slice(-300).map((l) => l.slice(0, 400));
+        fs.writeFileSync(path.join(LOGS_DIR, 'last_generation_3d.log'), `[${new Date().toISOString()}] job ${jobId || '-'}\n` + lignes.join('\n') + '\n');
+      } catch (_) { /* journal facultatif */ }
+    };
     const _ctl = (ckptDir && env.FABMESH_CKPT_DIR) ? { ckptDir, paused: false, relancer: null, annuler: null } : null;
     if (_ctl) jobCtl.set(jobId, _ctl);
     const result = await new Promise((resolve, reject) => {
@@ -9996,6 +10024,7 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
         // Save source image path for later display in viewer
         try { fs.writeFileSync(meshPath + '.source', imagePath, 'utf-8'); } catch(e) {}
         _writeMeshGenMeta();
+        _journaliserSortie3D(stdout);
         // Parse mesh stats from bridge stdout (LOCAL_SF3D_STATS: verts=N faces=N tex=N)
         let meshVerts = null, meshFaces = null;
         const statsMatch = (stdout || '').match(/STATS:\s*verts=(\d+)\s*faces=(\d+)/);
@@ -10019,6 +10048,7 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
         if (!fs.existsSync(meshPath)) return;
         resolvedEarly = true;
         if (jobId) activeProcs.delete(jobId);
+        _journaliserSortie3D(stdoutBuf);
 
         // Accumulator: post-process steps that failed (still recoverable
         // — we kept the original mesh — but the user should know which
@@ -10237,7 +10267,11 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
     // (« needs about X GB ... only Y GB available under your limit ») — le renderer la
     // traduit. Prioritaire sur le message generique ci-dessous.
     const _manqueMemoire = _manqueMemoireDansSortie(combined);
-    if (_manqueMemoire) {
+    // 2026-10-03 (essais reels) : executable Python introuvable (spawn ENOENT) = moteur 3D local NON INSTALLE sur ce poste, pas un manque de memoire.
+    const _moteurAbsent = !!(err && err.code === 'ENOENT');
+    if (_moteurAbsent) {
+      errMsg = "Le moteur 3D local n'est pas installé sur ce poste (exécutable introuvable). Réinstallez-le depuis les Réglages, ou utilisez le calcul cloud.";
+    } else if (_manqueMemoire) {
       errMsg = _manqueMemoire;
     } else if (_oomMarker || (!pyErrorLine && !_reachedDone)) {
       errMsg = "La génération s'est interrompue — le plus souvent un manque de mémoire "

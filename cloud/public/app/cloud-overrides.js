@@ -1824,6 +1824,44 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
    * top-right of the /app/ topbar, polled on load + every 30s + after
    * any successful generate/buy action.
    * ────────────────────────────────────────────────────────────────── */
+// --- SONDAGE ADAPTATIF : DEBUT ---
+// 2026-10-03 (PERF-04) : un sondage reseau ne doit pas tourner a plein regime dans un onglet / une fenetre
+// cache(e). Intervalle x10 quand document.hidden (JAMAIS un arret : la fin d'un travail et les notifications
+// continuent d'arriver), retour a la normale ET rafraichissement immediat a l'evenement visibilitychange.
+function intervalleSondage(base) {
+  let cache = false;
+  try { cache = (typeof document !== 'undefined') && document.hidden === true; } catch (_) {}
+  return cache ? base * 10 : base;
+}
+function sondageAdaptatif(tache, base) {
+  let minuteur = null, arrete = false, enCours = false;
+  const lancer = async () => {
+    if (enCours) return;                  // jamais deux passages simultanes
+    enCours = true;
+    try { await tache(); } catch (_) {} finally { enCours = false; }
+  };
+  const planifier = () => {
+    if (minuteur !== null) { clearTimeout(minuteur); minuteur = null; }
+    if (arrete) return;
+    minuteur = setTimeout(async () => { minuteur = null; await lancer(); planifier(); }, intervalleSondage(base));
+  };
+  const surVisibilite = () => {
+    if (arrete) return;
+    if (!document.hidden) lancer();       // retour au premier plan : etat a jour tout de suite
+    planifier();                          // et l'intervalle suivant tient compte du nouvel etat
+  };
+  try { document.addEventListener('visibilitychange', surVisibilite); } catch (_) {}
+  planifier();
+  return {
+    arreter() {
+      arrete = true;
+      if (minuteur !== null) { clearTimeout(minuteur); minuteur = null; }
+      try { document.removeEventListener('visibilitychange', surVisibilite); } catch (_) {}
+    },
+    maintenant() { lancer(); },
+  };
+}
+// --- SONDAGE ADAPTATIF : FIN ---
   let _creditsPillEl = null;
   let _compteChipEl = null;
   let _creditsPollTimer = null;
@@ -1894,8 +1932,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
 
     // First fetch + polling
     refreshCreditsPill();
-    if (_creditsPollTimer) clearInterval(_creditsPollTimer);
-    _creditsPollTimer = setInterval(refreshCreditsPill, 30_000);
+    if (_creditsPollTimer && _creditsPollTimer.arreter) _creditsPollTimer.arreter();
+    _creditsPollTimer = sondageAdaptatif(refreshCreditsPill, 30_000);   // PERF-04 : x10 onglet cache
   }
 
   // Legacy bolt span kept as fallback for any caller that still uses
@@ -2273,8 +2311,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     _inboxBadgeEl = btn.querySelector('#cloud-inbox-badge');
 
     refreshInbox();
-    if (_inboxPollTimer) clearInterval(_inboxPollTimer);
-    _inboxPollTimer = setInterval(refreshInbox, 30_000);
+    if (_inboxPollTimer && _inboxPollTimer.arreter) _inboxPollTimer.arreter();
+    _inboxPollTimer = sondageAdaptatif(refreshInbox, 30_000);   // PERF-04 : x10 onglet cache
   }
 
   async function refreshInbox() {

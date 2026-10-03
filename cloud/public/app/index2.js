@@ -1829,6 +1829,44 @@ function _majVerrousEtapes() {
     if (regles[id]) c.classList.add('collapsed');
   }
 }
+// --- SONDAGE ADAPTATIF : DEBUT ---
+// 2026-10-03 (PERF-04) : un sondage reseau ne doit pas tourner a plein regime dans un onglet / une fenetre
+// cache(e). Intervalle x10 quand document.hidden (JAMAIS un arret : la fin d'un travail et les notifications
+// continuent d'arriver), retour a la normale ET rafraichissement immediat a l'evenement visibilitychange.
+function intervalleSondage(base) {
+  let cache = false;
+  try { cache = (typeof document !== 'undefined') && document.hidden === true; } catch (_) {}
+  return cache ? base * 10 : base;
+}
+function sondageAdaptatif(tache, base) {
+  let minuteur = null, arrete = false, enCours = false;
+  const lancer = async () => {
+    if (enCours) return;                  // jamais deux passages simultanes
+    enCours = true;
+    try { await tache(); } catch (_) {} finally { enCours = false; }
+  };
+  const planifier = () => {
+    if (minuteur !== null) { clearTimeout(minuteur); minuteur = null; }
+    if (arrete) return;
+    minuteur = setTimeout(async () => { minuteur = null; await lancer(); planifier(); }, intervalleSondage(base));
+  };
+  const surVisibilite = () => {
+    if (arrete) return;
+    if (!document.hidden) lancer();       // retour au premier plan : etat a jour tout de suite
+    planifier();                          // et l'intervalle suivant tient compte du nouvel etat
+  };
+  try { document.addEventListener('visibilitychange', surVisibilite); } catch (_) {}
+  planifier();
+  return {
+    arreter() {
+      arrete = true;
+      if (minuteur !== null) { clearTimeout(minuteur); minuteur = null; }
+      try { document.removeEventListener('visibilitychange', surVisibilite); } catch (_) {}
+    },
+    maintenant() { lancer(); },
+  };
+}
+// --- SONDAGE ADAPTATIF : FIN ---
 setInterval(_majVerrousEtapes, 1000);
 function openNewProjectModal() {
   document.getElementById('np-name').value = '';
@@ -18267,10 +18305,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // can't tell error vs done here, so we assume success and let the
       // project reload bring up the actual asset). Errors will surface
       // via the next handleListMeshes/projects refresh.
+      // 2026-10-03 (PERF-04) : sondage ralenti x10 onglet cache (jamais arrete), repris tout de suite au retour.
+      let _tickMinuteur = null;
       const _tick = async () => {
+        _tickMinuteur = null;
         const cur = await _fetchActive();
         if (!Array.isArray(cur)) {
-          setTimeout(_tick, 12000);
+          _tickMinuteur = setTimeout(_tick, intervalleSondage(12000));
           return;
         }
         const stillActive = new Set(cur.map(r => r.id));
@@ -18354,9 +18395,15 @@ document.addEventListener('DOMContentLoaded', () => {
           if (dejaSuivi) continue;
           _resumeOne(row);
         }
-        setTimeout(_tick, 8000);
+        _tickMinuteur = setTimeout(_tick, intervalleSondage(8000));
       };
-      setTimeout(_tick, 8000);
+      _tickMinuteur = setTimeout(_tick, intervalleSondage(8000));
+      document.addEventListener('visibilitychange', () => {
+        if (_tickMinuteur === null) return;     // un passage est en cours : il se replanifie lui-meme
+        clearTimeout(_tickMinuteur);
+        if (document.hidden) { _tickMinuteur = setTimeout(_tick, intervalleSondage(8000)); }
+        else { _tickMinuteur = null; _tick(); }   // retour au premier plan : etat des travaux a jour tout de suite
+      });
     };
     // Defer slightly so initial pushJob calls don't clash with the
     // localStorage rig-resume path above.

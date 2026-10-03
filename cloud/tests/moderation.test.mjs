@@ -74,6 +74,8 @@ const LEGITIMES = [
   // faux amis lexicaux
   'assault rifle', 'bass guitar', 'peacock feathers', 'cockpit of a spaceship', 'sextant brass instrument', 'cumulus clouds',
   'dickens novel character', 'analysis chart on a desk', 'Essex county map', 'shotgun', 'classic car in a grass field',
+  // « kind » (adjectif anglais) : ambigu avec l'allemand « Kind », ne bloque jamais seul ni avec du vocabulaire de scene (relecture 2026-10-03)
+  'a kind knight', 'kind of a big deal', 'kind elf in the shower of rain', 'kind soldier with a knife',
 ];
 
 test('jeu 1 : au moins 40 prompts de jeu legitimes, TOUS acceptes (filtre general ET plancher)', () => {
@@ -122,7 +124,7 @@ test('jeu 2b : age en chiffres ou en lettres + tenue minimale', () => {
 
 test('jeu 2c : autres langues (es, de, pt, it, fr) pour mineur x nudite', () => {
   const cas = [
-    F('ni', 'ño ', 'des', 'nudo'), F('ni', 'ña ', 'des', 'nuda'), F('Kin', 'der ', 'na', 'ckt'), F('kleines M', 'ä', 'dchen ', 'na', 'ckt'), F('Ki', 'nd ', 'na', 'ckt'), F('na', 'cktes ', 'Ki', 'nd'),
+    F('ni', 'ño ', 'des', 'nudo'), F('ni', 'ña ', 'des', 'nuda'), F('Kin', 'der ', 'na', 'ckt'), F('kleines M', 'ä', 'dchen ', 'na', 'ckt'), F('Ki', 'nd ', 'na', 'ckt'), F('na', 'cktes ', 'Ki', 'nd'), F('k i n d ', 'n a c', ' k t'),
     F('cri', 'ança ', 'nu', 'a'), F('men', 'ina ', 'sem ', 'roupa'), F('bam', 'bino ', 'nu', 'do'), F('bam', 'bina ', 'nu', 'da'),
     F('enf', 'ant ', 'n', 'u'), F('petite ', 'fille ', 'n', 'ue'), F('m', 'ineur ', 'n', 'u'), F('adole', 'scent ', 'sans ', 'habits'),
   ];

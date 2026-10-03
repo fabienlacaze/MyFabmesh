@@ -159,11 +159,13 @@ test('Paliers de qualite : Fast = 24 pas, libelles identiques a ce que l interfa
   assert.equal(lib.balanced, `Balanced (${P.balanced.steps} steps · ${P.balanced.texSize}px)`);
   assert.equal(lib.quality, `Quality (${P.quality.steps} steps · ${P.quality.texSize}px)`);
   assert.match(lib.ultra_8k, new RegExp(`^Ultra \\(${P.ultra_8k.steps} steps · ${P.ultra_8k.texSize}px sharpened to 8192px\\)$`));
-  assert.ok(!/12 steps/.test(SRC), 'plus aucun libelle « 12 steps » dans index2.js');
+  // Relecture independante (03/10/2026) : l'outil Re-texture applique 12 pas (scripts/mesh_tools.py _TRELLIS2_PRESETS) : son libelle le dit, et lui seul.
+  assert.equal((SRC.match(/12 steps/g) || []).length, 1, 'un seul libelle « 12 steps » : celui du preset Re-texture');
+  assert.match(SRC, /\['fast','Fast \(12 steps · 2048px\)'\]/);
 });
 
 test('Traductions : le libelle Fast (24 steps) existe dans les 5 langues', () => {
   const t = lire(new URL('../../src/renderer/lang/_additions.js', import.meta.url));
   assert.equal((t.match(/"Fast \(24 steps · 2048px\)":/g) || []).length, 5);
-  assert.ok(!/Fast \(12 steps/.test(t));
+  assert.equal((t.match(/"Fast \(12 steps · 2048px\)":/g) || []).length, 5, 'libelle Re-texture (12 pas) traduit lui aussi');
 });
