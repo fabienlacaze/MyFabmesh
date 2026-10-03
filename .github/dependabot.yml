@@ -1,0 +1,30 @@
+# Mises a jour de dependances (constat DEP-04, 2026-10-03).
+# Hebdomadaire ; mineures et correctifs regroupes en UNE pull request ;
+# les mises a jour majeures restent des pull requests separees (a relire).
+# Au plus 3 pull requests ouvertes par dossier.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      mineures-et-correctifs:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "npm"
+    directory: "/cloud"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      mineures-et-correctifs:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      mineures-et-correctifs:
+        update-types: ["minor", "patch"]

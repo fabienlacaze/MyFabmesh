@@ -1351,7 +1351,7 @@ function renderAllMeshesGrid() {
       <div class="project-card" style="cursor:pointer; padding:8px;" data-project="${escapeHtml(it.project.name)}">
         <div style="font-size:13px; font-weight:600; padding:4px 4px 6px;">${escapeHtml(it.project.name)}</div>
         ${/^https?:/i.test(url)
-          ? `<model-viewer src="${escapeHtml(url)}" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:200px; background:#0a0a0e; border-radius:6px;"></model-viewer>`
+          ? `<model-viewer src="${escapeHtml(url)}" loading="lazy" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:200px; background:#0a0a0e; border-radius:6px;"></model-viewer>`
           : `<div style="height:200px; background:#0a0a0e; display:flex; align-items:center; justify-content:center; color:var(--text-2); font-size:11px; border-radius:6px;">${escapeHtml(fname || '(no preview)')}</div>`}
         <div class="project-card-meta" style="font-size:11px; padding:6px 4px 0;">${escapeHtml(fname)}</div>
       </div>
@@ -1394,7 +1394,7 @@ function renderAllRigsGrid() {
           <span style="font-size:13px; font-weight:600;">${escapeHtml(it.project.name)}</span>
         </div>
         ${/^https?:/i.test(url)
-          ? `<model-viewer src="${escapeHtml(url)}" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:200px; background:#0a0a0e; border-radius:6px;"></model-viewer>`
+          ? `<model-viewer src="${escapeHtml(url)}" loading="lazy" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:200px; background:#0a0a0e; border-radius:6px;"></model-viewer>`
           : `<div style="height:200px; background:#0a0a0e; display:flex; align-items:center; justify-content:center; color:var(--text-2); font-size:11px; border-radius:6px;">${escapeHtml(fname || '(no preview)')}</div>`}
         <div class="project-card-meta" style="font-size:11px; padding:6px 4px 0;">${escapeHtml(fname)}</div>
       </div>
@@ -11125,7 +11125,7 @@ const MESH_TOOL_SCHEMAS = {
     needsImage: true,
     params: [
       { id: 'preset', label: 'Quality preset', type: 'select', default: 'fast',
-        options: [['fast','Fast (12 steps · 2048px)'],
+        options: [['fast','Fast (12 steps · 2048px)'],   // 2026-10-03 : le preset Re-texture applique 12 pas (modal_app/_retexture.py PRESETS) ; la GENERATION 3D Fast, elle, fait 24 pas
                   ['balanced','Balanced (24 steps · 2048px)'],
                   ['quality','Quality (32 steps · 4096px)'],
                   ['ultra_8k','Ultra (32 steps · 4096px sharpened to 8192px)']] },

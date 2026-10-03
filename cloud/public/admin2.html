@@ -12,7 +12,7 @@
 <meta name="robots" content="noindex,nofollow">
 <title>MyFabmesh — Admin</title>
 <link rel="icon" href="/favicon.png" type="image/png">
-<script async src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+<script async src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js" integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
 <script src="/app/build-info.js"></script>
 <style>
 :root{
@@ -1060,7 +1060,7 @@ function charger3d() {
   if (window.customElements && customElements.get('model-viewer')) return Promise.resolve();
   return new Promise(function (ok) {
     if (document.getElementById('mv-script')) { customElements.whenDefined('model-viewer').then(ok, ok); return; }
-    var sc = document.createElement('script'); sc.id = 'mv-script'; sc.type = 'module'; sc.src = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js';
+    var sc = document.createElement('script'); sc.id = 'mv-script'; sc.type = 'module'; sc.src = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js'; sc.integrity = 'sha384-Ftcjj/GNLxPvzNDftO/oryXB9aGxsGZY9JGqsXG0uUKgQDl9RfDgsx9NJ/4IVNPe'; sc.crossOrigin = 'anonymous'; /* SRI 2026-10-03, constat ADM-05 */
     sc.onload = function () { customElements.whenDefined('model-viewer').then(ok, ok); }; sc.onerror = function () { ok(); };
     document.head.appendChild(sc);
   });

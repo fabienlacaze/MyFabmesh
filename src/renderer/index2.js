@@ -2932,6 +2932,8 @@ async function openProject(p) {
   } catch (_) {}
   showPage('workspace');
   populateWorkspace(p);
+  // 2026-10-03 (campagne 3D, defaut 4) : relire la config Blender a l ouverture d un projet.
+  try { window._applyBlenderToolState?.(); } catch (_) {}
   // For each step that already has content, expand the card and open its
   // "Edit selected" stage (closing "Create new"). Then smooth-scroll to the
   // MOST ADVANCED one (rig > mesh > image) so the user lands where they
@@ -11368,13 +11370,16 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   const trellis2UltraHD = document.getElementById('ws-trellis2-ultra-hd')?.checked || false;
   if (trellis2UltraHD) expectedMs += 280000;  // ~280s for Real-ESRGAN x2 atlas 4k→8k
   const TRELLIS2_PRESETS = {
-    fast:     { steps: 12, texSize: 2048, imgRes: 1024 },
-    balanced: { steps: 24, texSize: 2048, imgRes: 1024 },
-    quality:  { steps: 32, texSize: 4096, imgRes: 2048 },
+    // 2026-10-03 (recherche texture T2/T3) : Fast passe de 12 a 24 pas (decision du proprietaire :
+    // aligne sur le web, 24/24/32/32). Le champ imgRes a ete retire : il n'etait lu par aucun code
+    // (main.js ne le journalisait que dans le fichier de lignee, aucun script ne le recevait).
+    fast:     { steps: 24, texSize: 2048 },
+    balanced: { steps: 24, texSize: 2048 },
+    quality:  { steps: 32, texSize: 4096 },
     // Ultra 8K = Quality (TRELLIS atlas 4096) + forced Real-ESRGAN x2
     // post-process → 8192px final. Cheaper than re-running TRELLIS at
     // 8K (would OOM on RTX 5080) and quality-comparable.
-    ultra_8k: { steps: 32, texSize: 4096, imgRes: 2048, forceUltraHd: true },
+    ultra_8k: { steps: 32, texSize: 4096, forceUltraHd: true },
   };
   const t2cfg = TRELLIS2_PRESETS[trellis2Preset] || TRELLIS2_PRESETS.fast;
   // Ultra 8K forces ultra_hd ON regardless of the checkbox.
@@ -11400,7 +11405,6 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     trellis2MaxTris,
     max_tris: trellis2MaxTris,   // nom lu par le worker (FormData)
     trellis2TexSize: t2cfg.texSize,
-    trellis2ImgRes: t2cfg.imgRes,
     trellis2MultiRef,
     trellis2Refine,
     trellis2RectifySource,
@@ -11851,6 +11855,18 @@ async function _installSegmentEngine() {
   }
 }
 
+/** 2026-10-03 (campagne 3D, defaut 12) : retire une tuile de travail SANS la passer en erreur (le
+ *  travail n a jamais vraiment eu lieu : l utilisateur est encore en train de decider). */
+function _retirerJobSansTrace(job) {
+  if (!job) return;
+  try {
+    if (job.tickTimer) { clearInterval(job.tickTimer); job.tickTimer = null; }
+    state.jobs = state.jobs.filter(x => x.id !== job.id);
+    try { window._ressourcesFinGeneration?.(job); } catch (_) {}
+    renderJobs();
+  } catch (_) {}
+}
+
 async function _runSegmentJob(granularity, allowInstall) {
   const p = state.currentProject;
   const meshPath = p && (p.previewMeshPath || p.selectedMeshPath);
@@ -11880,11 +11896,14 @@ async function _runSegmentJob(granularity, allowInstall) {
     const err = (result && result.error) || 'unknown';
     // Engine not provisioned yet → offer the one-time install, then retry.
     if (allowInstall && /not installed|not found/i.test(err)) {
-      if (job && typeof completeJob === 'function') completeJob(job.id, false, 'engine not installed');
+      // 2026-10-03 : la tuile n etait passee en ERREUR qu AVANT la question ; « Cancel » laissait donc
+      // un travail en erreur dans la liste alors que l utilisateur n a rien lance. On pose d abord la
+      // question, puis on retire la tuile ; un « Install » accepte relance un travail neuf.
       const ok = await customConfirm(
         'The part-segmentation engine is not installed yet.\n\n'
         + 'Install it now? One-time download of the model + runtime.',
         'Install part segmentation', 'Install');
+      _retirerJobSansTrace(job);
       if (ok && await _installSegmentEngine()) return _runSegmentJob(granularity, false);
       return;
     }
@@ -12578,7 +12597,7 @@ const MESH_TOOL_SCHEMAS = {
     needsImage: true,
     params: [
       { id: 'preset', label: 'Quality preset', type: 'select', default: 'fast',
-        options: [['fast','Fast (12 steps · 2048px)'],
+        options: [['fast','Fast (12 steps · 2048px)'],   // 2026-10-03 : le preset Re-texture applique 12 pas (scripts/mesh_tools.py _TRELLIS2_PRESETS) ; la GENERATION 3D Fast, elle, fait 24 pas
                   ['balanced','Balanced (24 steps · 2048px)'],
                   ['quality','Quality (32 steps · 4096px)'],
                   ['ultra_8k','Ultra (32 steps · 4096px sharpened to 8192px)']] },
@@ -14921,6 +14940,21 @@ const pmState = {
   historyIndex: -1,
 };
 const PM_HISTORY_MAX = 20;
+// 2026-10-03 : taille maximale du canevas de peinture (px). Une copie d historique = w*h*4 octets
+// (67 Mo a 4096, 268 Mo a 8192) : le nombre de copies gardees est donc borne par un budget memoire.
+// 4096 et non 8192 (relecture independante) : a 8192, diffuse + emissif + metal/rugosite + leurs bases pesent ~1,3 Go de canevas et
+// 268 Mo sont re-televerses vers le GPU a chaque coup de pinceau. 4096 conserve la definition des paliers Quality / Ultra (avant : ramenee a 2048).
+const PM_TEX_MAX = 4096;
+const PM_HISTORY_BUDGET_OCTETS = 600 * 1024 * 1024;
+function _pmHistoryMax() {
+  let maxPx = 0;
+  pmState.canvases?.forEach((entry) => {
+    const L = entry.diffuse; if (!L) return;
+    maxPx = Math.max(maxPx, L.w * L.h + (entry.metal ? entry.metal.w * entry.metal.h : 0));
+  });
+  if (!maxPx) return PM_HISTORY_MAX;
+  return Math.max(2, Math.min(PM_HISTORY_MAX, Math.floor(PM_HISTORY_BUDGET_OCTETS / (maxPx * 4))));
+}
 
 // Pick the active layer (diffuse vs emissive) for the current
 // emissiveMode. Used by stamp, history snapshot, restore.
@@ -14954,7 +14988,7 @@ function _pmHistoryPush() {
   if (!snap) return;
   pmState.history.length = pmState.historyIndex + 1;
   pmState.history.push(snap);
-  if (pmState.history.length > PM_HISTORY_MAX) pmState.history.shift();
+  while (pmState.history.length > _pmHistoryMax()) pmState.history.shift();
   pmState.historyIndex = pmState.history.length - 1;
   _pmUpdateUndoRedo();
 }
@@ -15051,14 +15085,17 @@ async function _pmSetupCanvasAndBind() {
     const baseImg = baseTex?.image;
     let w = 1024, h = 1024;
     if (baseImg && baseImg.width && baseImg.height) {
-      w = Math.min(2048, baseImg.width);
-      h = Math.min(2048, baseImg.height);
+      // 2026-10-03 (campagne 3D, defaut 13) : la texture etait ramenee a 2048 px (4096 -> 2048 : la
+      // version enregistree perdait la moitie de la definition de TOUT le modele). On garde la taille
+      // d origine jusqu a 4096 px ; l historique d annulation est borne en memoire (_pmHistoryMax).
+      w = Math.min(PM_TEX_MAX, baseImg.width);
+      h = Math.min(PM_TEX_MAX, baseImg.height);
     }
     const dCanvas = document.createElement('canvas');
     dCanvas.width = w; dCanvas.height = h;
     const dCtx = dCanvas.getContext('2d');
     if (baseImg && baseImg.width && baseImg.height) {
-      try { dCtx.drawImage(baseImg, 0, 0, w, h); }
+      try { dCtx.imageSmoothingEnabled = true; dCtx.imageSmoothingQuality = 'high'; dCtx.drawImage(baseImg, 0, 0, w, h); }
       catch { dCtx.fillStyle = '#ffffff'; dCtx.fillRect(0, 0, w, h); }
     } else { dCtx.fillStyle = '#ffffff'; dCtx.fillRect(0, 0, w, h); }
     const dTex = new THREE.CanvasTexture(dCanvas);
@@ -15093,7 +15130,7 @@ async function _pmSetupCanvasAndBind() {
     try {
       const mt = mats[0]?.metalnessMap || mats[0]?.roughnessMap, mimg = mt?.image;
       if (mt && mimg && mimg.width && (!mats[0].metalnessMap || !mats[0].roughnessMap || mats[0].metalnessMap === mats[0].roughnessMap)) {
-        const mw = Math.min(2048, mimg.width), mh = Math.min(2048, mimg.height);
+        const mw = Math.min(PM_TEX_MAX, mimg.width), mh = Math.min(PM_TEX_MAX, mimg.height);
         const mc = document.createElement('canvas'); mc.width = mw; mc.height = mh;
         const mx = mc.getContext('2d', { willReadFrequently: true }); mx.drawImage(mimg, 0, 0, mw, mh);
         const mTex = new THREE.CanvasTexture(mc);
@@ -17341,9 +17378,16 @@ document.getElementById('me-sel-delete')?.addEventListener('click', () => {
       const a = idx[i], b = idx[i + 1], d = idx[i + 2];
       if (!(sel.has(a) || sel.has(b) || sel.has(d))) keep.push(a, b, d);
     }
+    // 2026-10-03 (campagne 3D, defaut 8) : les sommets des faces supprimees RESTENT dans la geometrie
+    // (seul l index change) et sont ecrits dans COLOR_0 a l enregistrement. Leur couleur cyan de
+    // selection n etait plus restauree une fois la selection « consommee » : elle fuyait dans le
+    // fichier. On rend la vraie couleur AVANT d oublier la selection (comme Crop le fait deja).
+    const colDel = geom.attributes.color;
+    if (colDel) { for (const [i, o] of sel) colDel.setXYZ(i, o[0], o[1], o[2]); colDel.needsUpdate = true; }
     geom.setIndex(keep);
     geom.attributes.position.needsUpdate = true;
     geom._selSaved = new Map();   // selection consumed
+    geom._posGroups = null; geom._posKeyByIndex = null;
     any = true;
   });
   showToast(any ? 'Selected faces deleted' : 'Nothing selected', any ? 'success' : 'info', 1500);
@@ -17615,8 +17659,28 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
     const bb = geom.boundingBox;
     const eps = (bb ? bb.min.distanceTo(bb.max) : 1) * 0.01;
     const oldV = pos.count, addV = tris.length;
+    // 2026-10-03 (campagne 3D, defaut 13) : seuls POSITION et COLOR_0 etaient prolonges ; TEXCOORD_0,
+    // NORMAL (et peaux eventuelles) gardaient l ancien nombre de sommets -> GLB invalide (81 125
+    // contre 24 005 elements). On prolonge TOUS les attributs ; si la geometrie porte des cibles de
+    // morphing (non gerees ici), on refuse plutot que d ecrire un fichier incoherent.
+    if (geom.morphAttributes && Object.keys(geom.morphAttributes).length) {
+      showToast('Duplicate is not available on a mesh with morph targets.', 'error', 4000);
+      for (const [i] of sel) col.setXYZ(i, 0, 1, 1);   // la selection reste affichee comme avant
+      return;
+    }
     const newPos = new Float32Array((oldV + addV) * 3); newPos.set(pos.array.subarray(0, oldV * 3));
     const newCol = new Float32Array((oldV + addV) * 3); newCol.set(col.array.subarray(0, oldV * 3));
+    const autres = [];   // [nom, attribut d origine, nouveau tableau] pour les attributs hors position / color
+    for (const nom of Object.keys(geom.attributes)) {
+      if (nom === 'position' || nom === 'color') continue;
+      const at = geom.attributes[nom], k = at.itemSize;
+      // Valeurs BRUTES du tableau (un attribut normalise, ex. poids de peau en Uint16, ne doit pas etre
+      // « denormalise » puis recopie) ; un attribut entrelace passe par getComponent en Float32.
+      const entrelace = !!at.isInterleavedBufferAttribute;
+      const nv = entrelace ? new Float32Array((oldV + addV) * k) : new at.array.constructor((oldV + addV) * k);
+      for (let q = 0; q < oldV; q++) for (let c2 = 0; c2 < k; c2++) nv[q * k + c2] = entrelace ? at.getComponent(q, c2) : at.array[q * k + c2];
+      autres.push([nom, at, nv]);
+    }
     const newIdx = Array.from(idx);
     const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vD = new THREE.Vector3(), n = new THREE.Vector3(), tmp = new THREE.Vector3();
     let w = oldV;
@@ -17629,12 +17693,14 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
         const s = ids[k];
         newPos[w * 3] = pos.getX(s) + n.x; newPos[w * 3 + 1] = pos.getY(s) + n.y; newPos[w * 3 + 2] = pos.getZ(s) + n.z;
         newCol[w * 3] = col.getX(s); newCol[w * 3 + 1] = col.getY(s); newCol[w * 3 + 2] = col.getZ(s);
+        for (const [, at, nv] of autres) { const kk = at.itemSize; for (let c2 = 0; c2 < kk; c2++) nv[w * kk + c2] = at.isInterleavedBufferAttribute ? at.getComponent(s, c2) : at.array[s * kk + c2]; }
         w++;
       }
       newIdx.push(base, base + 1, base + 2);
     }
     geom.setAttribute('position', new THREE.BufferAttribute(newPos, 3));
     geom.setAttribute('color', new THREE.BufferAttribute(newCol, 3));
+    for (const [nom, at, nv] of autres) geom.setAttribute(nom, new THREE.BufferAttribute(nv, at.itemSize, at.isInterleavedBufferAttribute ? false : at.normalized));
     geom.setIndex(newIdx);
     // Select the duplicate (cyan), drop the old selection.
     const nsel = new Map(), ncol = geom.attributes.color;
@@ -17739,6 +17805,18 @@ function _meSetSelectionTint(on) {
 document.getElementById('me-save')?.addEventListener('click', async () => {
   if (!meState.mesh || !meState.meshPath) return;
   _meRestoreView();   // never bake an isolated/hidden view into the saved GLB
+  // 2026-10-03 (campagne 3D, defaut 7) : « Select All + Delete + Save » enregistrait une version SANS
+  // aucune face (fichier inutilisable, ajoute au projet comme une version normale). On refuse.
+  let _facesAEnregistrer = 0;
+  meState.mesh.traverse(c => {
+    if (!c.isMesh || !c.geometry) return;
+    _facesAEnregistrer += c.geometry.index ? Math.floor(c.geometry.index.count / 3)
+      : Math.floor((c.geometry.attributes.position?.count || 0) / 3);
+  });
+  if (_facesAEnregistrer < 1) {
+    showToast('Nothing to save: the mesh has no faces left. Undo (Ctrl+Z) the deletion first.', 'error', 5000);
+    return;
+  }
   // Strip the cyan selection highlight so it isn't baked into the exported
   // vertex colours (the blue barrel bug). Re-applied after export below.
   _meSetSelectionTint(false);
@@ -17904,6 +17982,10 @@ document.getElementById('exp-go')?.addEventListener('click', async () => {
     // the internal engine. main.js sanitizes + uses it as the output basename.
     const customName = outputPath ? undefined : (nomSaisi || _nomExport3D(m));
     const r = await API.exportMesh({ sourcePath, targetFormat: format, outputPath, customName });
+    // 2026-10-03 (campagne des outils 3D, defaut 4) : un export (surtout FBX) peut avoir fait
+    // decouvrir / resoudre Blender cote main ; l etat des boutons Blender / Unreal / Export FBX
+    // etait lu une seule fois au demarrage et restait grise. On le relit ici (sans attendre).
+    try { window._applyBlenderToolState?.(); } catch (_) {}
     const outPath = r?.outputPath || r?.path;
     if (outPath) {
       // ETAPES DE CONSTRUCTION : si ce mesh en possede, on les livre dans un
@@ -23720,6 +23802,8 @@ async function openSettings(cible) {
     const blenderEl = document.getElementById('set-blender-path');
     if (blenderEl) blenderEl.value = cfg?.blenderPath || '';
   } catch (e) {}
+  // 2026-10-03 (campagne 3D, defaut 4) : meme config, meme verite pour les boutons Blender / Unreal.
+  try { window._applyBlenderToolState?.(); } catch (_) {}
   _applyHardwareCardMask();
   applyGpuLimitMarkers();
   setupGpuLimitDragging();
@@ -29827,6 +29911,67 @@ document.getElementById('ws-cloud-share-mesh-btn')?.addEventListener('click', as
 });
 
 // ---- Navigateur Bibliothèque cloud / Marketplace ----
+// 2026-10-03 (constat D-01, XSS) : tout champ venu du reseau (titre, auteur,
+// type, devise, identifiants, URL d image) etait colle tel quel dans
+// innerHTML d une fenetre a preload puissant. Un titre `<img onerror=...>`
+// s executait avec acces a window.meshyAPI. Desormais : tout est echappe, et
+// l URL d image doit etre en https:. Fonctions au niveau du module pour etre
+// testables sans DOM (tests/bureau-interface/marketplace-xss.test.mjs).
+function _clbEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+/** URL d image acceptee : https: seulement (jamais javascript:, data:, http:). */
+function _clbImgUrl(u) {
+  if (typeof u !== 'string') return '';
+  const t = u.trim();
+  return /^https:\/\//i.test(t) ? t : '';
+}
+/** Attributs data-* ECHAPPES : seules les cles connues sont ecrites. */
+function _clbData(o) {
+  const cles = ['url', 'market', 'fname', 'buy'];
+  return cles.filter((k) => o && o[k] != null && o[k] !== '')
+    .map((k) => 'data-' + k + '="' + _clbEsc(o[k]) + '"').join(' ');
+}
+/** Une fiche. title et sub sont du TEXTE (echappe ici) ; btnLabel est du HTML
+ *  fourni par le code (constantes), jamais par le reseau ; btnData vient de _clbData. */
+function _clbCard({ img, title, sub, btnLabel, btnData }) {
+  const src = _clbImgUrl(img);
+  const t = _clbEsc(title);
+  return `
+    <div style="background:#1a1a24;border:1px solid #2a2a36;border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;">
+      <div style="height:100px;display:flex;align-items:center;justify-content:center;background:#0f0f16;border-radius:6px;overflow:hidden;">
+        ${src ? `<img src="${_clbEsc(src)}" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.outerHTML='<span style=&quot;font-size:34px;opacity:.5;&quot;>&#128444;&#65039;</span>'">` : '<span style="font-size:34px;opacity:.5;">&#129482;</span>'}
+      </div>
+      <div style="font-size:13px;color:#ccd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${t}">${t}</div>
+      ${sub ? `<div style="font-size:12px;color:#778;">${_clbEsc(sub)}</div>` : ''}
+      <button class="clb-dl primary-btn" style="padding:5px 8px;font-size:13px;" ${btnData || ''}>${btnLabel}</button>
+    </div>`;
+}
+/** Fiches de la Marketplace. `abs` resout une URL (relative -> site). */
+function _clbMarketCards(listings, ownedIds, abs) {
+  return (listings || []).map((l) => {
+    l = l || {};
+    const free = !l.price_cents;
+    const owned = ownedIds.has(l.id);
+    const idTxt = String(l.id == null ? '' : l.id);
+    let fname = `market_${String(l.title || idTxt).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    fname += (l.asset_kind === 'mesh') ? '.glb' : '.png';
+    const canGet = free || owned;
+    const ownedLbl = owned ? 'Download (owned)' : 'Download (free)';
+    const prix = (Number(l.price_cents) / 100);
+    const priceLbl = `&#128722; ${Number.isFinite(prix) ? prix.toFixed(2) : '?'} ${_clbEsc(l.currency || 'EUR')}`;
+    const btnLabel = canGet ? ('&#11015; ' + ownedLbl) : priceLbl;
+    const btnData = canGet
+      ? _clbData({ market: idTxt, fname })
+      : _clbData({ buy: 'https://myfabmesh-cloud.fabien65400.workers.dev/market' });
+    return _clbCard({ img: abs(l.asset_url || l.mesh_url), title: l.title || idTxt,
+      sub: `${l.asset_kind || ''} · ${l.author_display || ''} · ${Number(l.downloads) || 0}⬇`,
+      btnLabel, btnData });
+  });
+}
+
 async function showCloudLibraryModal() {
   if (!(await _exigerConnexion())) return;          // Marketplace / bibliotheque : connexion d'abord (rien si deja connecte)
   const old = document.getElementById('cloud-lib-overlay');
@@ -29857,15 +30002,7 @@ async function showCloudLibraryModal() {
 
   const body = ov.querySelector('#clb-body');
   const grid = (inner) => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;">${inner}</div>`;
-  const card = ({ img, title, sub, btnLabel, btnData }) => `
-    <div style="background:#1a1a24;border:1px solid #2a2a36;border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;">
-      <div style="height:100px;display:flex;align-items:center;justify-content:center;background:#0f0f16;border-radius:6px;overflow:hidden;">
-        ${img ? `<img src="${img}" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.outerHTML='<span style=&quot;font-size:34px;opacity:.5;&quot;>&#128444;&#65039;</span>'">` : '<span style="font-size:34px;opacity:.5;">&#129482;</span>'}
-      </div>
-      <div style="font-size:13px;color:#ccd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${title}">${title}</div>
-      ${sub ? `<div style="font-size:12px;color:#778;">${sub}</div>` : ''}
-      <button class="clb-dl primary-btn" style="padding:5px 8px;font-size:13px;" ${btnData}>${btnLabel}</button>
-    </div>`;
+  const card = _clbCard;   // 2026-10-03 (D-01) : version echappee au niveau du module
 
   const destProject = () => (state.currentProject?.name || 'cloud_import').replace(/[^a-zA-Z0-9_-]/g, '_');
   // Les URLs du worker peuvent etre relatives (/r2/<cle>?exp&sig) : dans
@@ -29927,13 +30064,13 @@ async function showCloudLibraryModal() {
         let fname = `${proj.name}_${(imgUrl.split('/').pop() || 'img').split('?')[0]}`.replace(/[^a-zA-Z0-9_.-]/g, '_');
         if (!fname.toLowerCase().endsWith('.png')) fname += '.png';
         cards.push(card({ img: abs(imgUrl), title: proj.name, sub: 'image',
-          btnLabel: '&#11015; Import', btnData: `data-url="${(abs(imgUrl) || '').replace(/"/g, '&quot;')}" data-fname="${fname}"` }));
+          btnLabel: '&#11015; Import', btnData: _clbData({ url: abs(imgUrl) || '', fname }) }));
       }
     }
     for (const m of (r.meshes || []).slice(0, 120)) {
       const fname = (m.filename || `mesh_${Date.now()}.glb`).replace(/[^a-zA-Z0-9_.-]/g, '_');
       cards.push(card({ img: abs(m.thumb), title: m.filename || 'mesh', sub: m.projectName || 'mesh',
-        btnLabel: '&#11015; Import', btnData: `data-url="${(abs(m.url) || '').replace(/"/g, '&quot;')}" data-fname="${fname}"` }));
+        btnLabel: '&#11015; Import', btnData: _clbData({ url: abs(m.url) || '', fname }) }));
     }
     body.innerHTML = cards.length ? grid(cards.join('')) : '<div style="padding:30px;text-align:center;">Your cloud library is empty.</div>';
     wireDownloads();
@@ -29951,22 +30088,7 @@ async function showCloudLibraryModal() {
     }
     if (!r?.success) { body.textContent = `Error: ${r?.error || 'unknown'}`; return; }
     const ownedIds = new Set((r.owned || []).map(o => o.id || o.listing_id || o));
-    const cards = (r.listings || []).map((l) => {
-      const free = !l.price_cents;
-      const owned = ownedIds.has(l.id);
-      let fname = `market_${(l.title || l.id).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-      fname += (l.asset_kind === 'mesh') ? '.glb' : '.png';
-      const canGet = free || owned;
-      const ownedLbl = owned ? 'Download (owned)' : 'Download (free)';
-      const priceLbl = `&#128722; ${(l.price_cents / 100).toFixed(2)} ${l.currency || 'EUR'}`;
-      const btnLabel = canGet ? ('&#11015; ' + ownedLbl) : priceLbl;
-      const btnData = canGet
-        ? `data-market="${l.id}" data-fname="${fname}"`
-        : 'data-buy="https://myfabmesh-cloud.fabien65400.workers.dev/market"';
-      return card({ img: abs(l.asset_url || l.mesh_url), title: l.title || l.id,
-        sub: `${l.asset_kind || ''} · ${l.author_display || ''} · ${l.downloads || 0}&#11015;`,
-        btnLabel, btnData });
-    });
+    const cards = _clbMarketCards(r.listings, ownedIds, abs);   // 2026-10-03 (D-01) : tout est echappe
     body.innerHTML = cards.length ? grid(cards.join('')) : '<div style="padding:30px;text-align:center;">No marketplace listings yet.</div>';
     wireDownloads();
   }

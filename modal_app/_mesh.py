@@ -565,6 +565,35 @@ def corriger_metal_degenere(glb_obj) -> None:
                   f'metal rugueux) -> metallicFactor rabattu a 0.05', flush=True)
 
 
+class _EcouteSortie:
+    """2026-10-03 (T9) : flux de remplacement pour sys.stdout qui relaie TOUT au flux d'origine et retient les
+    lignes contenant `motif`. Ne change rien a ce que Modal journalise."""
+
+    def __init__(self, motif, lignes):
+        import sys
+        self._sortie = sys.stdout
+        self._motif = motif
+        self._lignes = lignes
+        self._reste = ''
+
+    def write(self, texte):
+        n = self._sortie.write(texte)
+        try:
+            *entieres, self._reste = (self._reste + texte).split(chr(10))
+            for ligne in entieres:
+                if self._motif in ligne and ligne.strip() not in self._lignes:
+                    self._lignes.append(ligne.strip())
+        except Exception:
+            pass
+        return n
+
+    def flush(self):
+        return self._sortie.flush()
+
+    def __getattr__(self, nom):
+        return getattr(self._sortie, nom)
+
+
 def generate(
     pipeline,                     # Trellis2ImageTo3DPipeline (already on GPU)
     o_voxel_module,               # imported o_voxel module
@@ -632,6 +661,7 @@ def generate(
     t_inf = time.time()
     o_voxel_obj = None
     vues_utilisees = len(mv_images)
+    _phrases_grille = []      # 2026-10-03 (T9) : phrases « resolution is reduced » de TRELLIS (mode cascade)
     # REPLI MONO-VUE SI LE MULTI-VUES ECHOUE — ajoute le 2026-08-04.
     #
     # Ce chemin n'avait JAMAIS tourne en production : la vue arriere plantait
@@ -687,11 +717,23 @@ def generate(
         torch.cuda.empty_cache()
     if o_voxel_obj is None:
         # Single-view path (or cascade fallback) — same as before.
-        out = pipeline.run(img, num_samples=1, seed=seed,
-                           pipeline_type=mode, preprocess_image=False)
+        # 2026-10-03 (T9, analyse des essais de texture) : en cascade, TRELLIS rabat la grille HAUTE
+        # (1536 -> 1408 -> ... -> 1024) quand elle depasse son nombre de jetons maximal et ne le dit que
+        # par un print. On relaie la sortie telle quelle et on retient cette phrase pour le journal [mesh] :
+        # sans elle, « mode=1536_cascade » laissait croire a une grille 1536 qui n'a pas eu lieu.
+        import contextlib
+        with contextlib.redirect_stdout(_EcouteSortie('resolution is reduced', _phrases_grille)):
+            out = pipeline.run(img, num_samples=1, seed=seed,
+                               pipeline_type=mode, preprocess_image=False)
         o_voxel_obj = out[0]
+    # grille REELLEMENT atteinte = 1 / taille de voxel du volume decode (aucun changement de comportement)
+    try:
+        _grille = int(round(1.0 / float(o_voxel_obj.voxel_size)))
+    except Exception:
+        _grille = None
     print(f'[mesh] TRELLIS-2 inference dt={time.time()-t_inf:.1f}s '
-          f'mode={mode} views={vues_utilisees}', flush=True)
+          f'mode={mode} views={vues_utilisees} grille={_grille}'
+          + (f' (rabattue par TRELLIS : {" ".join(_phrases_grille)})' if _phrases_grille else ''), flush=True)
 
     t_glb = time.time()
     from modal_app.acceleration_glb import accelerer_to_glb, preencoder_couleur

@@ -21,7 +21,7 @@
     "start": "node build/ecrire-version.mjs && set ELECTRON_RUN_AS_NODE= && electron .",
     "dev": "node build/ecrire-version.mjs && set ELECTRON_RUN_AS_NODE= && electron . --dev",
     "launch": "start.bat",
-    "prebuild:licence-check": "node build/ecrire-version.mjs && python build/patch_ovoxel_wheel.py --verify && node build/check-diff-sain.mjs && node build/check-js-syntax.mjs && node build/check-fonctions-portees.mjs && python build/check_modal_deps.py && python build/check_modal_methodes.py && python build/check_imports_voisins.py && node build/check-job-steps.mjs && node build/check-prix-affiches.mjs && node build/check-prompts-budget.mjs && node build/check-noyaux-partages.mjs",
+    "prebuild:licence-check": "node build/ecrire-version.mjs && node build/check-secrets.mjs && python build/patch_ovoxel_wheel.py --verify && node build/check-diff-sain.mjs && node build/check-js-syntax.mjs && node build/check-fonctions-portees.mjs && python build/check_modal_deps.py && python build/check_modal_methodes.py && python build/check_imports_voisins.py && node build/check-job-steps.mjs && node build/check-prix-affiches.mjs && node build/check-prompts-budget.mjs && node build/check-noyaux-partages.mjs && node build/miroir-moderation.mjs",
     "build:installer": "npm run prebuild:licence-check && npm run prebuild:prompt-tables && electron-builder --win nsis && node build/organize_dist.js",
     "build:installer:dir": "electron-builder --win nsis --dir",
     "build:msix": "npm run prebuild:licence-check && npm run prebuild:prompt-tables && electron-builder --win appx && node build/organize_dist.js",

@@ -159,7 +159,7 @@
   <!-- model-viewer: inline GLB previews used by the home "Meshes" view.
        Served from unpkg (already whitelisted in our CSP) instead of
        googleapis (which the CSP doesn't allow). -->
-  <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+  <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js" integrity="sha384-Ftcjj/GNLxPvzNDftO/oryXB9aGxsGZY9JGqsXG0uUKgQDl9RfDgsx9NJ/4IVNPe" crossorigin="anonymous"></script>
 </head>
 <body class="advanced-mode">
   <!-- Auto-update toast: hidden by default. Appears when the main
@@ -702,7 +702,7 @@
                       <label style="font-size:11px;">Quality preset</label>
                       <!-- Prix de chaque palier : grille /api/pricing (cloud-overrides.js), jamais ecrit ici. -->
                       <select id="ws-trellis2-preset">
-                        <option value="fast" selected>Fast (12 steps · 2048px)</option>
+                        <option value="fast" selected>Fast (24 steps · 2048px)</option>
                         <option value="balanced">Balanced (24 steps · 2048px)</option>
                         <option value="quality">Quality (32 steps · 4096px)</option>
                         <option value="ultra_8k">Ultra (32 steps · 4096px sharpened to 8192px)</option>

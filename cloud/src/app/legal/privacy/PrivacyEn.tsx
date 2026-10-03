@@ -5,17 +5,21 @@
 // EU (4.1), their retention periods. PrivacyFr.tsx holds the French text; the
 // two must be kept in step.
 //
-// The « [À_COMPLÉTER » markers keep their French prefix on purpose:
-// scripts/check-legal-identity.mjs searches every .tsx under app/legal for
-// that exact prefix and refuses the build while any is left.
+// 2026-10-03: the three « to be completed » markers formerly in 4.1 were
+// removed (findings D-08 and F1). Section 4.1 now states NO transfer safeguard,
+// because none can be verified from the code; it points to an e-mail request.
+// scripts/check-legal-identity.mjs still scans every .tsx under app/legal.
 
-import { legalIdentity as id } from '@/config/legal-identity';
+import { identiteAffichee, BandeauPhaseTest } from '../identite-affichee';
+
+const id = identiteAffichee('en');
 
 export function PrivacyEn() {
   return (
     <>
       <h1>Privacy Policy</h1>
-      <p style={{ color: 'var(--text-2)' }}>Last updated: 2026-08-23</p>
+      <p style={{ color: 'var(--text-2)' }}>Last updated: 2026-10-03</p>
+      <BandeauPhaseTest langue="en" />
 
       <p>
         This page explains what personal data MyFabmesh.AI (&ldquo;we&rdquo;,
@@ -53,9 +57,23 @@ export function PrivacyEn() {
           credit pack purchased, and the amount in EUR.
         </li>
         <li>
-          <strong>Technical data:</strong> IP address (transient, used only for
-          rate-limiting), user-agent string, and short-lived Cloudflare access
-          logs.
+          <strong>Technical data:</strong> IP address (transient, used for
+          rate-limiting and abuse prevention), user-agent string, and technical
+          logs kept by our host Cloudflare (Workers Logs).
+        </li>
+        <li>
+          <strong>Contact and report forms:</strong> when you write to us through
+          the contact form or report a piece of content, we keep your message and
+          any attachments, your e-mail address, the name you give, your IP address
+          and your browser&apos;s user-agent, and your account id if you are
+          signed in. Kept for 12 months, then deleted.
+        </li>
+        <li>
+          <strong>Access by the administrator:</strong> the service administrator
+          can view, from the administration interface, the content and data tied
+          to an account (images, meshes, prompts, e-mail address, job history)
+          for moderation, support and abuse prevention. These accesses are logged
+          (audit log, 12 months).
         </li>
         <li>
           <strong>Country and app type:</strong> for each generation, we keep the{' '}
@@ -88,9 +106,10 @@ export function PrivacyEn() {
           if a generation or a tool fails, the last 300 lines of your browser
           console are sent to us so that we can fix the problem. Before it
           leaves your browser, the report is{' '}
-          <strong>stripped of your prompts and other typed text</strong>, your
-          e-mail address, passwords and access tokens. Nothing is sent when the
-          operation succeeds. Legal basis: legitimate interest (Art. 6(1)(f)) in
+          <strong>stripped of your prompts</strong>, your e-mail address,
+          passwords and access tokens. It may still contain your project name and
+          your browser&apos;s user-agent. Nothing is sent when the operation
+          succeeds. Legal basis: legitimate interest (Art. 6(1)(f)) in
           fixing failures of the service. You can object at any time by
           unticking &ldquo;Send error reports automatically&rdquo; in Settings.
           Kept for 30 days, then deleted automatically.
@@ -105,6 +124,7 @@ export function PrivacyEn() {
         <li>To protect the service from abuse &mdash; rate-limiting, ban lists, audit logs (legitimate interest).</li>
         <li>To investigate a problem you reported, if &mdash; and only if &mdash; you switched diagnostic logs on (consent, Art. 6(1)(a); withdraw it by switching them back off).</li>
         <li>To diagnose and fix a failed operation, from an error report stripped of your typed text (legitimate interest, Art. 6(1)(f); you can object in Settings).</li>
+        <li>To moderate content, handle your messages and reports, and protect the service (legitimate interest; legal obligation where it applies).</li>
         <li>To comply with French and EU law where applicable (legal obligation).</li>
       </ul>
 
@@ -113,7 +133,10 @@ export function PrivacyEn() {
       <ul>
         <li><strong>Supabase</strong> (Auth + Postgres, EU region) &mdash; your account and jobs.</li>
         <li><strong>Stripe</strong> &mdash; your payment session.</li>
-        <li><strong>Cloudflare</strong> &mdash; Worker, R2 storage, CDN.</li>
+        <li><strong>Cloudflare</strong> &mdash; Worker, R2 storage, CDN, and Workers AI (translation into English of the text you type, when that feature is used).</li>
+        <li><strong>Brevo</strong> &mdash; sending of authentication e-mails (account confirmation, password reset). Receives your e-mail address.</li>
+        <li><strong>Resend</strong> &mdash; sending of operational alerts to the service administrator.</li>
+        <li><strong>unpkg.com</strong> &mdash; serves the JavaScript libraries loaded by our pages (3D viewer, administration QR code). Your browser downloads them directly from that service, which therefore receives your IP address and user-agent.</li>
         <li><strong>Modal Labs</strong> &mdash; GPU compute for image / mesh generation. Receives the source image you uploaded for the duration of the job.</li>
         <li><strong>Replicate</strong> &mdash; fallback GPU compute. Same scope as Modal.</li>
       </ul>
@@ -145,36 +168,25 @@ export function PrivacyEn() {
         </li>
         <li>
           <strong>Stripe</strong> &mdash; payment data and, for marketplace
-          sellers, KYC verification data.{' '}
-          [À_COMPLÉTER: identify, in the Stripe contract actually signed, the
-          contracting entity and its country of establishment, then the
-          intra-group transfers that follow from it.]
+          sellers, KYC verification data.
         </li>
         <li>
           <strong>Supabase</strong> &mdash; your account and your job history are
           hosted in the <strong>EU region</strong>, and therefore stored in the
-          European Union.{' '}
-          [À_COMPLÉTER: confirm with Supabase whether administration or support
-          access from a third country takes place, and on what basis.]
+          European Union.
         </li>
       </ul>
       <p>
-        <strong>Safeguard for these transfers:</strong>{' '}
-        [À_COMPLÉTER: state, for each recipient outside the EU, the Chapter V
-        mechanism actually relied on &mdash; adequacy decision (Art. 45, for
-        example an EU-US Data Privacy Framework certification), standard
-        contractual clauses of the European Commission (Art. 46(2)(c)), or
-        another appropriate safeguard &mdash; and the date it was put in place.]
-      </p>
-      <p style={{ fontSize: 13, color: 'var(--text-2)' }}>
-        Until this statement is completed, no safeguard should be assumed to be
-        in place: we would rather flag the missing information than announce a
-        protection we have not verified. You can ask us at any time, at{' '}
-        <a href={`mailto:${id.supportEmail}`}>{id.supportEmail}</a>, for a copy of
-        the safeguards that apply to these transfers (GDPR Art. 15(2) and
-        46(1)). If you do not want your image to be sent to a compute provider
-        located outside the European Union, do not start a generation: this
-        transfer cannot be separated from the service.
+        <strong>Safeguard for these transfers:</strong> it depends on each
+        provider (adequacy decision, standard contractual clauses of the European
+        Commission, or another Chapter V mechanism). We do not claim a particular
+        safeguard here: you can ask us for the detail, provider by provider, at{' '}
+        <a href={`mailto:${id.supportEmail}`}>{id.supportEmail}</a> (GDPR Art.
+        15(2) and 46(1)). The country of establishment of Brevo, Resend and
+        unpkg.com is not detailed here; the same request applies. If you do not
+        want your image to be sent to a compute provider located outside the
+        European Union, do not start a generation: this transfer cannot be
+        separated from the service.
       </p>
 
       <h2>5. How long we keep your data</h2>
@@ -184,7 +196,9 @@ export function PrivacyEn() {
         <li>Admin audit logs: 12 months.</li>
         <li>Diagnostic logs (only if you enabled them): 30 days, then deleted automatically.</li>
         <li>Automatic error reports (failed operations): 30 days, then deleted automatically.</li>
-        <li>Cloudflare technical logs: 24 hours (Cloudflare default).</li>
+        <li>Messages from the contact and report forms (e-mail, IP address, content and attachments): 12 months.</li>
+        <li>Nightly backups of the database and files: kept 14 days, then deleted.</li>
+        <li>Cloudflare technical logs (Workers Logs): retention set by Cloudflare, which we do not control.</li>
       </ul>
 
       <h2>6. Your rights (GDPR)</h2>

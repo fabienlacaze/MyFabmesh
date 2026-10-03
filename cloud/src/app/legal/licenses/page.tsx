@@ -54,6 +54,8 @@ export default function LicensesPage() {
         sous licence Apache-2.0 (jamais le backend nvdiffrast, dont la licence
         est non commerciale).
       </p>
+      {/* Attribution exigee par la licence DINOv3 (constat F2, 2026-10-03) : mention isolee et visible. */}
+      <p style={{ fontWeight: 600 }}>Built with DINOv3</p>
       <pre
         style={{
           whiteSpace: 'pre-wrap',

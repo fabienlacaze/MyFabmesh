@@ -8,7 +8,7 @@
 ## Context summary (inputs)
 
 - **Motion2Motion** (SIGGRAPH Asia 2025, arXiv 2508.13139): training-free, CPU-only, patch-based motion matching with sparse 6-pair cross-skeleton correspondence. No weights. ~10–60 s/clip on CPU. Built on GenMM.
-- **License:** `LinghaoChan/Motion2Motion_codes` has **no LICENSE file** → "All rights reserved" by default. **Hard blocker for Steam commercial release** without explicit grant from author (`thu.lhchen@gmail.com`).
+- **License:** `LinghaoChan/Motion2Motion_codes` has **no LICENSE file** → "All rights reserved" by default. **Hard blocker for Steam commercial release** without explicit grant from author (l'adresse de contact publique de l'auteur du depot amont).
 - **Truebones-Zoo data:** paid Gumroad EULA, non-redistributable. Cannot ship vendor BVHs. AnyTop's 70-skeleton processed dataset (1219 motions / 147k frames) inherits this restriction.
 - **Morphology classifier** (`scripts/morphology_classifier.py`) is committed (`65d6bb5`) and correctly tags a 47-bone dragon as `winged` → Truebones donor `Buzzard`. Ready to plug into Track B donor selection.
 - **Existing AnyTop retarget** lives in `scripts/anytop_retarget.py` (Track A actively iterating on it — DO NOT TOUCH).
@@ -20,7 +20,7 @@
 **Goal:** clear the legal gate **before** writing any pipeline code. Set up Track B in a directory Track A never touches.
 
 - **Tasks**
-  - Send licensing inquiry to `thu.lhchen@gmail.com` (CC `fabien65400@hotmail.fr`). Ask explicitly for: (a) commercial-redistribution grant for `Motion2Motion.py` + `run_M2M.py` + `utils/`, (b) confirmation we may ship a fork. Attach Steam/commercial context.
+  - Send licensing inquiry to l'adresse de contact publique de l'auteur du depot amont (CC `<adresse personnelle du proprietaire>`). Ask explicitly for: (a) commercial-redistribution grant for `Motion2Motion.py` + `run_M2M.py` + `utils/`, (b) confirmation we may ship a fork. Attach Steam/commercial context.
   - Mirror the upstream repo to a frozen local snapshot at `external/motion2motion_upstream/` with `.git` stripped and a `UPSTREAM_COMMIT.txt` pinning the SHA (do not vendor into our `scripts/` tree yet — keep under a clearly-fenced `external/` dir flagged "non-shippable until licensed").
   - Create the Track B working tree: `scripts/track_b_m2m/__init__.py`, `scripts/track_b_m2m/README.md` (1 paragraph: "isolated from Track A AnyTop retarget; do not import `anytop_retarget.py`").
   - Add a feature flag `FABMESH_TRACK_B_M2M=0` default, read in `scripts/track_b_m2m/__init__.py`; ALL Track B code must early-return if unset.

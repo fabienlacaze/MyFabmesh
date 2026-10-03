@@ -28,8 +28,8 @@ Creating an account no longer opens a web browser. In the sign-in dialog, click
 6-digit code sent to that address. Everything happens inside the app.
 
 Test account (already funded with credits):
-  email:    fabien65400+storetest@hotmail.fr
-  password: FabMeshTest17870491
+  email:    <fourni via le Partner Center ; voir le fichier local hors depot>
+  password: <fourni via le Partner Center ; voir le fichier local hors depot>
 
 Steps to test image generation:
   1. Launch the app. The wizard shows "Cloud mode will be used on this PC".

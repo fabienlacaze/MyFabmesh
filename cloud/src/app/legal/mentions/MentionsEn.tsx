@@ -3,13 +3,18 @@
 // (commit 2b2bc56), without the EU ODR platform removed since in French.
 // MentionsFr.tsx holds the French text; keep the two in step.
 
-import { legalIdentity as id } from '@/config/legal-identity';
+import { identiteAffichee, LienOuTexte, BandeauPhaseTest } from '../identite-affichee';
+
+// 2026-10-03 (constat F1) : tant que l'identite legale n'est pas renseignee, les gabarits sont
+// remplaces a l'affichage par un texte neutre (voir ../identite-affichee.tsx).
+const id = identiteAffichee('en');
 
 export function MentionsEn() {
   return (
     <>
       <h1>Legal Notice — Mentions légales</h1>
-      <p style={{ color: 'var(--text-2)' }}>Last updated: 2026-06-20</p>
+      <p style={{ color: 'var(--text-2)' }}>Last updated: 2026-10-03</p>
+      <BandeauPhaseTest langue="en" />
 
       <p>
         Pursuant to Article 6-III of the French Law for Confidence in the Digital
@@ -55,7 +60,7 @@ export function MentionsEn() {
         The MyFabmesh.AI brand, interface and source code are protected. The
         licences of the open-source models used to generate assets are listed on
         the <a href="/legal/licenses">Third-Party Licenses</a> page. Assets you
-        generate belong to you under the terms set out in the{' '}
+        generate: we claim no rights on them, under the terms set out in the{' '}
         <a href="/legal/terms">Terms of Service</a>.
       </p>
 
@@ -85,7 +90,7 @@ export function MentionsEn() {
       </p>
       <ul>
         <li><strong>Designated consumer mediator (médiateur agréé):</strong> {id.mediator.name}</li>
-        <li><strong>Mediator postal &amp; web contact:</strong> {id.mediator.postalAddress} — <a href={id.mediator.url} target="_blank" rel="noopener">{id.mediator.url}</a></li>
+        <li><strong>Mediator postal &amp; web contact:</strong> {id.mediator.postalAddress} — <LienOuTexte url={id.mediator.url} /></li>
       </ul>
       <p>
         {/* Former mention of the EU ODR platform: abolished by Regulation (EU)

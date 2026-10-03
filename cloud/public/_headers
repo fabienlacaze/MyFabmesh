@@ -1,0 +1,20 @@
+# En-tetes de securite des pages STATIQUES (2026-10-03, constats CLOUD-04 / ADM-04 / SM-07).
+# POURQUOI : Cloudflare sert les assets directement, sans passer par le worker
+# (seul /admin passe d abord par lui, cf. run_worker_first dans wrangler.toml).
+# Les en-tetes que le worker ajoute (SECURITY_HEADERS) n atteignaient donc jamais
+# /app/, /admin2, /legal... Ce fichier, copie tel quel dans out/_headers par Next,
+# comble le trou. Volontairement SANS Content-Security-Policy complete : les
+# pages ont des scripts en ligne, une CSP complete casserait l application.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: frame-ancestors 'self'
+
+# Administration : jamais dans un cadre, jamais en cache.
+# Les valeurs s ajoutent a celles de /* ; deux frame-ancestors = le plus strict gagne.
+/admin2*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Cache-Control: no-store

@@ -117,7 +117,7 @@ ML-training use case? Happy to sign whatever paperwork makes sense.
 
 Best,
 Fabien Lacaze
-fabien65400@hotmail.fr
+<adresse personnelle du proprietaire>
 fabware (Steam publisher)
 ```
 
@@ -155,7 +155,7 @@ and ship the MIT notice in THIRD_PARTY_LICENSES.md.
 
 Thanks for any guidance,
 Fabien Lacaze
-fabien65400@hotmail.fr
+<adresse personnelle du proprietaire>
 ```
 
 ### Template C — marklalon (fork maintainer)
@@ -187,7 +187,7 @@ Thanks for the fork — your root-folding fix in BVH.py is useful.
 
 Best,
 Fabien Lacaze
-fabien65400@hotmail.fr
+<adresse personnelle du proprietaire>
 ```
 
 ### Template D — Apovivor (UE5 Marketplace MountainDragon, ML-training clarification)
@@ -217,7 +217,7 @@ Happy to credit you in the FabMesh About screen.
 
 Thanks,
 Fabien Lacaze
-fabien65400@hotmail.fr
+<adresse personnelle du proprietaire>
 ```
 
 ---

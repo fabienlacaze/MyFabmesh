@@ -55,11 +55,19 @@ def _poids_presents(depot):
     return False
 
 
-def manquants_trellis2(config='pipeline.json', depot='microsoft/TRELLIS.2-4B'):
+def manquants_trellis2(config='pipeline.json', depot='microsoft/TRELLIS.2-4B', avec_detourage=False):
     """Ce qui manque au disque pour charger le pipeline TRELLIS-2 (liste vide =
     tout est la). Lit la config EN CACHE : elle nomme chaque sous-modele, dont
     ceux d'autres depots (« microsoft/TRELLIS-image-large/ckpts/... »), ainsi que
-    l'extracteur d'image et le detoureur."""
+    l'extracteur d'image et (si `avec_detourage`) le detoureur.
+
+    2026-10-03 (constat E-2, essai T5) : le detoureur (rembg_model, BiRefNet) n'est plus exige par
+    defaut. Les deux scripts qui appellent cette fonction (trellis2_native_full_pipeline.py,
+    trellis2_texturing_bridge.py) appliquent trellis2_sans_detourage, qui remplace BiRefNet par une
+    coquille vide : le modele n'est JAMAIS charge. L'exiger gardait le mode hors ligne eteint (modele
+    absent du cache) : sur un PC dont l'antivirus presente son propre certificat, 5 reessais SSL
+    (~30 s) a chaque generation, et un plantage observe. Un appelant qui chargerait vraiment le
+    detoureur passe `avec_detourage=True`."""
     chemin = fichier_en_cache(depot, config)
     if not chemin:
         return [f'{depot}/{config}']
@@ -80,7 +88,8 @@ def manquants_trellis2(config='pipeline.json', depot='microsoft/TRELLIS.2-4B'):
         for ext in ('.json', '.safetensors'):
             if not fichier_en_cache(d, f + ext):
                 manque.append(f'{d}/{f}{ext}')
-    for cle in ('image_cond_model', 'rembg_model'):
+    cles = ('image_cond_model', 'rembg_model') if avec_detourage else ('image_cond_model',)
+    for cle in cles:
         nom = ((args.get(cle) or {}).get('args') or {}).get('model_name')
         if nom and not (fichier_en_cache(nom, 'config.json') and _poids_presents(nom)):
             manque.append(nom)

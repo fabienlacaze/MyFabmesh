@@ -2,13 +2,18 @@
 // Version FRANCAISE (texte opposable au consommateur francais, commit 2b2bc56).
 // Deplacee telle quelle de page.tsx le 2026-09-28 ; la version anglaise est TermsEn.tsx.
 
-import { legalIdentity as id } from '@/config/legal-identity';
+import { identiteAffichee, LienOuTexte, BandeauPhaseTest } from '../identite-affichee';
+
+// 2026-10-03 (constat F1) : tant que l'identite legale n'est pas renseignee, les gabarits sont
+// remplaces a l'affichage par un texte neutre (voir ../identite-affichee.tsx).
+const id = identiteAffichee('fr');
 
 export function TermsFr() {
   return (
     <>
       <h1>Conditions générales de vente</h1>
-      <p style={{ color: 'var(--text-2)' }}>Dernière mise à jour : 2026-06-20</p>
+      <p style={{ color: 'var(--text-2)' }}>Dernière mise à jour : 2026-10-03</p>
+      <BandeauPhaseTest langue="fr" />
 
       <p>
         En créant un compte sur {id.tradeName} (exploité par{' '}
@@ -80,7 +85,7 @@ export function TermsFr() {
           <strong>Comment vous rétracter.</strong> Adressez-nous une déclaration
           dénuée d&rsquo;ambiguïté exprimant votre décision — un courriel à{' '}
           <a href={`mailto:${id.supportEmail}`}>{id.supportEmail}</a> suffit,
-          et vous pouvez également écrire à {id.registeredOffice}. Vous pouvez
+          et vous pouvez également écrire à l&rsquo;adresse postale de l&rsquo;exploitant ({id.registeredOffice}). Vous pouvez
           utiliser le formulaire type de rétractation ci-dessous, sans y être tenu.
         </li>
         <li>
@@ -131,7 +136,7 @@ du contrat de vente portant sur la fourniture du contenu numérique suivant :
       <h2>5. Propriété intellectuelle</h2>
       <ul>
         <li><strong>Ce que vous téléversez</strong> vous appartient. Vous nous concédez une licence non exclusive et gratuite pour le stocker, l&rsquo;acheminer vers les fournisseurs GPU et le traiter pour votre compte — strictement afin de fournir le service. Nous n&rsquo;entraînons pas de modèles sur vos données d&rsquo;entrée.</li>
-        <li><strong>Ce que vous générez</strong> vous appartient, dans les limites de la licence permise par les modèles sous-jacents. Les modèles d&rsquo;IA que nous utilisons autorisent tous, à ce jour, l&rsquo;usage commercial de leurs productions. Vous pouvez exploiter ces productions commercialement. Nous ne revendiquons aucun droit sur elles.</li>
+        <li><strong>Ce que vous générez.</strong> L&rsquo;usage commercial de ces productions est possible sous réserve des licences des modèles utilisés (voir la page des <a href="/legal/licenses">licences tierces</a>). Nous ne revendiquons aucun droit sur vos créations&nbsp;; nous ne garantissons pas qu&rsquo;elles soient protégeables par le droit d&rsquo;auteur ni exemptes de droits de tiers.</li>
         <li><strong>Contenus générés par IA et transparence.</strong> Toutes les images et créations 3D produites par le service sont générées par une intelligence artificielle. Conformément au règlement européen sur l&rsquo;intelligence artificielle (art. 50), les images générées portent des métadonnées de provenance lisibles par machine (IPTC <code>DigitalSourceType=trainedAlgorithmicMedia</code>). Si vous générez l&rsquo;image d&rsquo;une personne réelle et identifiable, vous êtes seul responsable de la détention des droits nécessaires et des obligations d&rsquo;information applicables à ce type de contenu.</li>
         <li><strong>Notre marque, notre code et notre interface</strong> nous appartiennent. Vous ne pouvez pas les copier.</li>
       </ul>
@@ -188,7 +193,7 @@ du contrat de vente portant sur la fourniture du contenu numérique suivant :
         saisir gratuitement le médiateur de la consommation désigné :
       </p>
       <ul>
-        <li><strong>Médiateur de la consommation désigné :</strong> {id.mediator.name} — {id.mediator.postalAddress} — <a href={id.mediator.url} target="_blank" rel="noopener">{id.mediator.url}</a></li>
+        <li><strong>Médiateur de la consommation désigné :</strong> {id.mediator.name} — {id.mediator.postalAddress} — <LienOuTexte url={id.mediator.url} /></li>
       </ul>
       <p>
         {/* La plateforme RLL de la Commission europeenne a ete SUPPRIMEE par le

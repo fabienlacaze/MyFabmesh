@@ -109,13 +109,27 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _garde(self):
+        # 2026-10-03 (constat D-04) : Host different de 127.0.0.1:<port> / localhost:<port> (DNS rebinding) ou
+        # en-tete Origin (page web ; aucun navigateur n'appelle ce serveur) -> 403. Voir securite_locale.py.
+        import securite_locale
+        ok, raison = securite_locale.requete_autorisee(self.headers, PORT)
+        if not ok:
+            sys.stderr.write("[translate-server] requete refusee (%s)" % raison + chr(10))
+            self._send({"error": "forbidden"}, 403)
+        return ok
+
     def do_GET(self):
+        if not self._garde():
+            return
         if self.path == "/ping":
             self._send({"ok": True})
         else:
             self._send({"error": "not found"}, 404)
 
     def do_POST(self):
+        if not self._garde():
+            return
         n = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(n) if n else b"{}"
         try:

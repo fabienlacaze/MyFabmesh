@@ -48,8 +48,17 @@ def smooth(glb_bytes: bytes, iterations: int = 5, lamb: float = 0.5) -> bytes:
     for m in _meshes(scene):
         if not hasattr(m, 'vertices'):
             continue
-        trimesh.smoothing.filter_laplacian(m, lamb=float(lamb),
-                                            iterations=int(iterations))
+        # 2026-10-03 (constats P4 / defauts 1-2 de la campagne, MEME DEFAUT que le bureau) : sur un maillage
+        # texture, les sommets dupliques le long des coutures d'UV n'etaient jamais soudes, donc chaque
+        # ilot etait lisse comme une surface ouverte et le maillage dechire. lisser_soude soude par
+        # position, lisse, puis reporte la position sur tous les doubles. Le comportement d'origine
+        # (contrainte de volume par defaut de trimesh) est conserve ; si elle donne des valeurs non
+        # finies (volume nul), on relance sans contrainte, comme le bureau.
+        from modal_app.acceleration_glb import lisser_soude
+        try:
+            lisser_soude(m, iterations, lamb, volume_constraint=True)
+        except Exception:
+            lisser_soude(m, iterations, lamb, volume_constraint=False)
     return _export(scene)
 
 
@@ -113,7 +122,9 @@ def decimate(glb_bytes: bytes, target_faces: int = 50_000) -> bytes:
             if old_uv is not None:
                 try:
                     from modal_app.acceleration_glb import reduire_et_recuire
-                    r_new = reduire_et_recuire(m, n, 2048, log=lambda t: print(t, flush=True))
+                    # taille=None : la texture garde sa taille d'origine (constat E-3b, 2026-10-03 ;
+                    # avant : ramenee a 2048 sans prevenir)
+                    r_new = reduire_et_recuire(m, n, None, log=lambda t: print(t, flush=True))
                     m.vertices = r_new.vertices
                     m.faces = r_new.faces
                     m.visual = r_new.visual
@@ -128,7 +139,7 @@ def decimate(glb_bytes: bytes, target_faces: int = 50_000) -> bytes:
                     import fast_simplification
                     from scipy.spatial import cKDTree
                     points, faces_out = fast_simplification.simplify(
-                        verts, faces, target_reduction=1.0 - ratio)
+                        verts, faces, target_reduction=1.0 - max(ratio, 50.0 / max(1, len(faces))))   # plancher de 50 faces (relecture 2026-10-03)
                     if old_uv.shape[0] == verts.shape[0]:
                         # Transfert par plus proche voisin ORIGINAL :
                         # replay_simplification plante (IndexError) sur
@@ -816,7 +827,8 @@ def align_texture(glb_bytes: bytes, image_url: str, translate_x: float = 0.0,
             f.write(glb_bytes)
         req = urllib.request.Request(image_url, headers={
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
-        with urllib.request.urlopen(req, timeout=60) as r, open(image, 'wb') as f:
+        from modal_app._url_sure import ouvrir_https   # 2026-10-03 (CLOUD-05) : https seulement
+        with ouvrir_https(req, timeout=60) as r, open(image, 'wb') as f:
             f.write(r.read())
         travail = maillage
         if (abs(translate_x) > 0.001 or abs(translate_y) > 0.001 or abs(translate_z) > 0.001
@@ -859,7 +871,8 @@ def retex_swap_atlas(glb_bytes: bytes, image_url: str) -> bytes:
     try:
         req = urllib.request.Request(image_url, headers={
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"})
-        with urllib.request.urlopen(req, timeout=30) as r:
+        from modal_app._url_sure import ouvrir_https   # 2026-10-03 (CLOUD-05) : https seulement
+        with ouvrir_https(req, timeout=30) as r:
             new_tex = Image.open(io.BytesIO(r.read())).convert('RGBA')
     except Exception as e:
         print(f'[mesh-op] retex_swap fetch failed: {e}', flush=True)

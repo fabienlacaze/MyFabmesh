@@ -40,7 +40,7 @@ Cf `AGENT_LOG.md` + commit history `cloud/`.
 
 ### 1a. Créer un Personal Access Token (PAT)
 
-1. Login sur https://supabase.com/dashboard (compte fabien65400@hotmail.fr existant)
+1. Login sur https://supabase.com/dashboard (compte <adresse personnelle du proprietaire> existant)
 2. Top-right avatar → **Account Settings**
 3. Onglet **Access Tokens** → **Generate new token**
 4. Name: `myfabmesh-cli`
@@ -72,7 +72,7 @@ Le script va :
 
 ### 2a. Créer un compte Stripe
 
-1. https://dashboard.stripe.com/register (use fabien65400@hotmail.fr)
+1. https://dashboard.stripe.com/register (use <adresse personnelle du proprietaire>)
 2. **Skip activation** (KYC) pour le moment → tu restes en test mode
 3. **Test mode** suffit pour développer + test launch (toggles `test/live` plus tard)
 
@@ -119,7 +119,7 @@ On a besoin de l'URL `https://myfabmesh-cloud.pages.dev/api/stripe-webhook` qui 
 
 ### 3a. Compte Cloudflare
 
-1. https://dash.cloudflare.com/sign-up (use fabien65400@hotmail.fr)
+1. https://dash.cloudflare.com/sign-up (use <adresse personnelle du proprietaire>)
 2. Validation email
 3. Skip le "Add a website" pour le moment
 

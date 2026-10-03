@@ -2,10 +2,10 @@
 -- Les credits d'inscription ne sont octroyes qu'APRES confirmation de l'e-mail
 --
 -- CONSTAT : la confirmation n'etait pas exigee. Deux comptes du 2026-07-23
--- (`toto@gmail.com`, `lundi.premier@gmail.com`) n'ont JAMAIS confirme et
+-- (`utilisateur A`, `utilisateur B`) n'ont JAMAIS confirme et
 -- detenaient malgre tout 50 credits. Rien n'empechait donc de fabriquer des
 -- comptes a la chaine avec des adresses inventees — et on en voit deja la
--- trace : `lundi.premier@` et `lundi.premier1@`, la meme personne deux fois.
+-- trace : `utilisateur B` et une variante de la meme adresse, la meme personne deux fois.
 --
 -- Une generation de maillage a froid coute 0,643 EUR. Un octroi gratuit non
 -- verifie est donc une porte ouverte sur la facture GPU.

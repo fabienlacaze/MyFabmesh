@@ -2,13 +2,16 @@
 // Version FRANCAISE (texte opposable au consommateur francais, commit 2b2bc56).
 // Deplacee telle quelle de page.tsx le 2026-09-28 ; la version anglaise est PrivacyEn.tsx.
 
-import { legalIdentity as id } from '@/config/legal-identity';
+import { identiteAffichee, BandeauPhaseTest } from '../identite-affichee';
+
+const id = identiteAffichee('fr');
 
 export function PrivacyFr() {
   return (
     <>
       <h1>Politique de confidentialité</h1>
-      <p style={{ color: 'var(--text-2)' }}>Dernière mise à jour&nbsp;: 2026-08-23</p>
+      <p style={{ color: 'var(--text-2)' }}>Dernière mise à jour&nbsp;: 2026-10-03</p>
+      <BandeauPhaseTest langue="fr" />
 
       <p>
         Cette page explique quelles données à caractère personnel MyFabmesh.AI
@@ -51,8 +54,25 @@ export function PrivacyFr() {
         </li>
         <li>
           <strong>Données techniques&nbsp;:</strong> adresse IP (transitoire,
-          utilisée uniquement pour la limitation de débit), chaîne user-agent et
-          journaux d&apos;accès Cloudflare de courte durée.
+          utilisée pour la limitation de débit et la lutte contre les abus),
+          chaîne user-agent et journaux techniques de notre hébergeur Cloudflare
+          (Workers Logs).
+        </li>
+        <li>
+          <strong>Formulaires de contact et de signalement&nbsp;:</strong> lorsque
+          vous nous écrivez par le formulaire de contact ou que vous signalez un
+          contenu, nous conservons votre message et ses pièces jointes éventuelles,
+          votre adresse e-mail, le nom que vous indiquez, votre adresse IP et le
+          user-agent de votre navigateur, ainsi que votre identifiant de compte si
+          vous êtes connecté. Conservés 12 mois, puis supprimés.
+        </li>
+        <li>
+          <strong>Consultation par l&apos;administrateur&nbsp;:</strong>{' '}
+          l&apos;administrateur du service peut consulter, depuis son interface
+          d&apos;administration, les contenus et données rattachés à un compte
+          (images, maillages, prompts, adresse e-mail, historique de tâches) pour
+          la modération, l&apos;assistance et la lutte contre les abus. Ces
+          consultations sont journalisées (journal d&apos;audit, 12 mois).
         </li>
         <li>
           <strong>Pays et type d&apos;application&nbsp;:</strong> pour chaque
@@ -93,9 +113,10 @@ export function PrivacyFr() {
           si une génération ou un outil échoue, les 300 dernières lignes de la
           console de votre navigateur nous sont envoyées pour que nous puissions
           corriger le problème. Avant de quitter votre navigateur, ce rapport est
-          <strong> débarrassé de vos prompts et autres textes saisis</strong>, de
-          votre adresse e-mail, des mots de passe et des jetons d&apos;accès. Rien
-          n&apos;est envoyé quand l&apos;opération réussit. Base légale&nbsp;:
+          <strong> débarrassé de vos prompts</strong>, de votre adresse e-mail,
+          des mots de passe et des jetons d&apos;accès. Il peut en revanche
+          contenir le nom de votre projet et le user-agent de votre navigateur.
+          Rien n&apos;est envoyé quand l&apos;opération réussit. Base légale&nbsp;:
           intérêt légitime (art. 6.1.f) à corriger les défaillances du service.
           Vous pouvez vous y opposer à tout moment en décochant &laquo;&nbsp;Send
           error reports automatically&nbsp;&raquo; dans &laquo;&nbsp;Settings&nbsp;&raquo;
@@ -111,6 +132,7 @@ export function PrivacyFr() {
         <li>Pour protéger le service contre les abus &mdash; limitation de débit, listes de bannissement, journaux d&apos;audit (intérêt légitime).</li>
         <li>Pour instruire un problème que vous nous avez signalé, si &mdash; et seulement si &mdash; vous avez activé les journaux de diagnostic (consentement, art. 6.1.a&nbsp;; retirez-le en les désactivant).</li>
         <li>Pour diagnostiquer et corriger une opération qui a échoué, à partir d&apos;un rapport d&apos;erreur sans vos textes saisis (intérêt légitime, art. 6.1.f&nbsp;; vous pouvez vous y opposer dans Settings).</li>
+        <li>Pour modérer les contenus, traiter vos messages et signalements, et protéger le service (intérêt légitime&nbsp;; obligation légale lorsqu&apos;elle s&apos;applique).</li>
         <li>Pour nous conformer au droit français et au droit de l&apos;Union européenne lorsqu&apos;ils s&apos;appliquent (obligation légale).</li>
       </ul>
 
@@ -119,31 +141,23 @@ export function PrivacyFr() {
       <ul>
         <li><strong>Supabase</strong> (Auth + Postgres, région UE) &mdash; votre compte et vos tâches.</li>
         <li><strong>Stripe</strong> &mdash; votre session de paiement.</li>
-        <li><strong>Cloudflare</strong> &mdash; Worker, stockage R2, CDN.</li>
+        <li><strong>Cloudflare</strong> &mdash; Worker, stockage R2, CDN, et Workers AI (traduction vers l&apos;anglais des textes que vous saisissez, lorsque cette fonction est utilisée).</li>
+        <li><strong>Brevo</strong> &mdash; envoi des e-mails d&apos;authentification (confirmation de compte, réinitialisation du mot de passe). Reçoit votre adresse e-mail.</li>
+        <li><strong>Resend</strong> &mdash; envoi des alertes de fonctionnement destinées à l&apos;administrateur du service.</li>
+        <li><strong>unpkg.com</strong> &mdash; diffuse les bibliothèques JavaScript chargées par nos pages (visionneuse 3D, code QR de l&apos;administration). Votre navigateur les télécharge directement auprès de ce service, qui reçoit donc votre adresse IP et votre user-agent.</li>
         <li><strong>Modal Labs</strong> &mdash; calcul GPU pour la génération d&apos;images / de maillages. Reçoit l&apos;image source que vous avez téléversée, pour la durée de la tâche.</li>
         <li><strong>Replicate</strong> &mdash; calcul GPU de secours. Même périmètre que Modal.</li>
       </ul>
 
       {/*
-        CE QUI MANQUAIT : la liste ci-dessus nommait les sous-traitants mais ne
-        disait nulle part que plusieurs d'entre eux sont établis HORS de l'Union
-        européenne (Modal Labs et Replicate sont américains ; l'image source de
-        l'utilisateur leur est transmise). Le chapitre V du RGPD (art. 44 à 49)
-        impose d'informer la personne concernée de ces transferts ET d'indiquer
-        la garantie qui les encadre — l'information était donc incomplète au
-        sens de l'art. 13.1.f.
-
-        POURQUOI UN MARQUEUR PLUTÔT QU'UNE GARANTIE ÉCRITE : nous ne savons pas
-        si des clauses contractuelles types (art. 46.2.c) ont été signées avec
-        chaque prestataire, ni lesquels sont certifiés au titre de l'EU-US Data
-        Privacy Framework (décision d'adéquation, art. 45). Affirmer une
-        garantie non vérifiée serait une déclaration fausse dans un document
-        opposable — pire qu'une lacune. Les points à trancher sont donc laissés
-        sous forme de marqueurs « À COMPLÉTER », comme dans
-        @/config/legal-identity. (Le marqueur littéral n'est pas recopié ici :
-        scripts/check-legal-identity.mjs compte les occurrences pour refuser la
-        construction tant qu'il en reste, et un exemple en commentaire fausserait
-        son décompte.)
+        2026-10-03 (constats D-08 et F1) : les trois marqueurs « a completer »
+        qui figuraient ici ont ete retires. La section 4.1 n'affirme AUCUNE
+        garantie de transfert (decision d'adequation, clauses contractuelles
+        types...) : nous ne pouvons pas verifier laquelle a ete signee avec
+        chaque prestataire, et une garantie annoncee a tort serait pire qu'une
+        lacune. Elle renvoie donc le lecteur vers une demande par e-mail.
+        A faire par l'exploitant : documenter la garantie reelle de chaque
+        prestataire et l'ecrire ici.
       */}
       <h3>4.1 Transferts hors de l&apos;Union européenne</h3>
       <p>
@@ -174,38 +188,25 @@ export function PrivacyFr() {
         </li>
         <li>
           <strong>Stripe</strong> &mdash; données de paiement et, pour les vendeurs
-          de la place de marché, données de vérification KYC.{' '}
-          [À_COMPLÉTER&nbsp;: identifier, dans le contrat Stripe effectivement
-          signé, l&apos;entité contractante et son pays d&apos;établissement, puis
-          les transferts intra-groupe qui en découlent.]
+          de la place de marché, données de vérification KYC.
         </li>
         <li>
           <strong>Supabase</strong> &mdash; votre compte et votre historique de
           tâches sont hébergés dans la <strong>région UE</strong>, donc stockés dans
-          l&apos;Union européenne.{' '}
-          [À_COMPLÉTER&nbsp;: confirmer auprès de Supabase si des accès
-          d&apos;administration ou de support depuis un pays tiers ont lieu, et à
-          quel titre.]
+          l&apos;Union européenne.
         </li>
       </ul>
       <p>
-        <strong>Garantie encadrant ces transferts&nbsp;:</strong>{' '}
-        [À_COMPLÉTER&nbsp;: indiquer, pour chaque destinataire hors UE, le
-        mécanisme du chapitre V effectivement invoqué &mdash; décision
-        d&apos;adéquation (art. 45, par exemple une certification EU-US Data
-        Privacy Framework), clauses contractuelles types de la Commission
-        européenne (art. 46.2.c), ou autre garantie appropriée &mdash; ainsi que
-        la date de sa mise en place.]
-      </p>
-      <p style={{ fontSize: 13, color: 'var(--text-2)' }}>
-        Tant que cette mention n&apos;est pas complétée, aucune garantie ne doit
-        être présumée acquise&nbsp;: nous préférons signaler l&apos;information
-        manquante plutôt que d&apos;annoncer une protection que nous
-        n&apos;aurions pas vérifiée. Vous pouvez nous demander à tout moment, à
-        l&apos;adresse <a href={`mailto:${id.supportEmail}`}>{id.supportEmail}</a>,
-        copie des garanties applicables à ces transferts (art. 15.2 et 46.1 du
-        RGPD). Si vous ne souhaitez pas que votre image soit transmise à un
-        prestataire de calcul situé hors de l&apos;Union européenne, il ne faut
+        <strong>Garantie encadrant ces transferts&nbsp;:</strong> elle dépend de
+        chaque prestataire (décision d&apos;adéquation, clauses contractuelles
+        types de la Commission européenne ou autre mécanisme du chapitre V du
+        RGPD). Nous n&apos;affirmons pas ici de garantie particulière&nbsp;: vous
+        pouvez nous en demander le détail, pour chaque prestataire, à
+        l&apos;adresse <a href={`mailto:${id.supportEmail}`}>{id.supportEmail}</a>{' '}
+        (art. 15.2 et 46.1 du RGPD). Le pays d&apos;établissement de Brevo, de
+        Resend et de unpkg.com n&apos;est pas détaillé ici&nbsp;; la même demande
+        s&apos;applique. Si vous ne souhaitez pas que votre image soit transmise à
+        un prestataire de calcul situé hors de l&apos;Union européenne, il ne faut
         pas lancer de génération&nbsp;: ce transfert est indissociable du service.
       </p>
 
@@ -216,7 +217,9 @@ export function PrivacyFr() {
         <li>Journaux d&apos;audit de l&apos;administration&nbsp;: 12 mois.</li>
         <li>Journaux de diagnostic (uniquement si vous les avez activés)&nbsp;: 30 jours, puis suppression automatique.</li>
         <li>Rapports d&apos;erreur automatiques (opérations échouées)&nbsp;: 30 jours, puis suppression automatique.</li>
-        <li>Journaux techniques Cloudflare&nbsp;: 24 heures (valeur par défaut de Cloudflare).</li>
+        <li>Messages des formulaires de contact et de signalement (e-mail, adresse IP, contenu et pièces jointes)&nbsp;: 12 mois.</li>
+        <li>Sauvegardes nocturnes de la base de données et des fichiers&nbsp;: conservées 14 jours, puis supprimées.</li>
+        <li>Journaux techniques Cloudflare (Workers Logs)&nbsp;: durée de conservation fixée par Cloudflare, que nous ne maîtrisons pas.</li>
       </ul>
 
       <h2>6. Vos droits (RGPD)</h2>

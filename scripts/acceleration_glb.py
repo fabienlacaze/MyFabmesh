@@ -27,6 +27,14 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    operations de maillage, variantes, affinage...) par `webp_rapide`, qui ne leve jamais. Les
    octets pre-encodes portent une empreinte de l'image : repris seulement si elle n'a pas change.
 
+1 bis. REMPLISSAGE PAR LE BORD LE PLUS PROCHE (2026-10-03, constat E-1 / essai T4 de l'analyse du
+   03/10). Les texels vides de l'atlas ne prennent plus l'inpainting TELEA mais la valeur du texel COUVERT
+   le plus proche (cv2.distanceTransformWithLabels : prolongement du bord de l'ilot). Mesure sur trois
+   sujets reels (build/bancs/texture/essai6_remplissage.py) : texels couverts IDENTIQUES octet pour octet,
+   couture mip2 meilleure (alien 4,39 contre 4,65 ; chevalier 5,20 contre 5,66 ; bus 3,07 contre 3,30),
+   4,2 a 9,3 s gagnees selon la taille. Si le remplissage leve une exception, repli sur le TELEA fusionne
+   d'avant (REMPLISSAGE_ATLAS = "telea" force aussi l'ancien comportement).
+
 3. REDUCTION SANS PLIS (dans accelerer_to_glb). La reduction de to_glb
    (cumesh.simplify, approximation GPU par lots) ne verifie pas qu'un triangle se
    retourne. Aux petites cibles, le maillage se replie sur lui-meme : mesure sur un
@@ -49,6 +57,11 @@ _INPAINT_APRES = """    from concurrent.futures import ThreadPoolExecutor as _Fi
         _mra = cv2.inpaint(np.ascontiguousarray(np.dstack([metallic, roughness, alpha])), mask_inv, 1, cv2.INPAINT_TELEA)
         base_color = _couleur.result()
     metallic, roughness, alpha = _mra[..., 0:1], _mra[..., 1:2], _mra[..., 2:3]"""
+# 2026-10-03 (constat E-1) : remplissage par le bord le plus proche. Les quatre lignes ci-dessus sont
+# remplacees par un seul appel au module ; _INPAINT_APRES (TELEA fusionne) reste le repli.
+_INPAINT_APRES_PROCHE = """    base_color, metallic, roughness, alpha = _remplir_atlas(mask_inv, base_color, metallic, roughness, alpha)
+    metallic, roughness, alpha = metallic[..., None], roughness[..., None], alpha[..., None]"""
+REMPLISSAGE_ATLAS = 'proche'   # 'proche' (bord le plus proche) ou 'telea' (comportement d'avant le 2026-10-03)
 _SIMPLIFY_AVANT = 'mesh.simplify(decimation_target'
 _SIMPLIFY_APRES = '_reduire_sans_plis(mesh, decimation_target'
 SEUIL_SANS_PLIS = 50_000      # faces : au-dessus, la reduction GPU d'origine ne plie pas (0,7 % a 50 000)
@@ -80,8 +93,12 @@ def accelerer_to_glb(o_voxel_module, log=print) -> None:
         src = textwrap.dedent(inspect.getsource(pp.to_glb))
         faits = []
         if _INPAINT_AVANT in src:
-            src = src.replace(_INPAINT_AVANT, _INPAINT_APRES)
-            faits.append("retouches d'atlas accelerees (canaux fusionnes, en parallele)")
+            if REMPLISSAGE_ATLAS == 'proche':
+                src = src.replace(_INPAINT_AVANT, _INPAINT_APRES_PROCHE)
+                faits.append("retouches d'atlas : prolongement du bord le plus proche")
+            else:
+                src = src.replace(_INPAINT_AVANT, _INPAINT_APRES)
+                faits.append("retouches d'atlas accelerees (canaux fusionnes, en parallele)")
         else:
             log("[mesh] retouches d'atlas : texte de to_glb inattendu, version d'origine")
         if src.count(_SIMPLIFY_AVANT) >= 1:
@@ -100,12 +117,62 @@ def accelerer_to_glb(o_voxel_module, log=print) -> None:
             return
         espace = dict(pp.__dict__)
         espace['_reduire_sans_plis'] = lambda m, cible, verbose=False: _reduire_sans_plis(m, cible, verbose, log)
+        espace['_remplir_atlas'] = lambda *a: _remplir_atlas(*a, log=log)
         espace['SEUIL_SANS_PLIS'] = SEUIL_SANS_PLIS
         exec(compile(src, inspect.getsourcefile(pp.to_glb), 'exec'), espace)
         pp.to_glb = espace['to_glb']
         log('[mesh] ' + ' ; '.join(faits))
     except Exception as e:
         log(f"[mesh] to_glb : accelerations ignorees ({type(e).__name__}: {e})")
+
+
+def remplir_bord_proche(masque_vide, *images):
+    """Prolonge chaque texel VIDE (masque_vide != 0) par la valeur du texel COUVERT le plus proche.
+    Constat E-1 (2026-10-03) : remplace cv2.inpaint TELEA sur les atlas de to_glb. Les texels couverts ne
+    sont JAMAIS ecrits (copie, puis affectation aux seuls texels vides). Les etiquettes de
+    cv2.distanceTransformWithLabels sont calculees UNE fois pour toutes les images (H x W ou H x W x C,
+    uint8). Atlas sans aucun texel couvert ou sans vide : images rendues telles quelles."""
+    import cv2
+    import numpy as np
+    vide = np.ascontiguousarray(masque_vide != 0, dtype=np.uint8)
+    couvert = np.flatnonzero(vide.reshape(-1) == 0)
+    a_remplir = np.flatnonzero(vide.reshape(-1) != 0)
+    if len(couvert) == 0 or len(a_remplir) == 0:
+        return [np.ascontiguousarray(np.array(im, copy=True)) for im in images]
+    _, etiquettes = cv2.distanceTransformWithLabels(vide, cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)
+    # l'etiquette k (a partir de 1) designe le k-ieme texel couvert dans l'ordre de balayage
+    lab = etiquettes.reshape(-1)
+    # Garde (relecture independante, 2026-10-03) : cette hypothese de numerotation est VERIFIEE a chaque appel (echantillon de ~4 000 texels couverts, premier et dernier compris).
+    # Si une autre version d'OpenCV (image Modal) la changeait, on leve : _remplir_atlas retombe alors sur TELEA au lieu de copier des couleurs fausses.
+    pas = max(1, len(couvert) // 4096)
+    echantillon = np.unique(np.concatenate([np.arange(0, len(couvert), pas), [len(couvert) - 1]])).astype(np.int64)
+    if not np.array_equal(lab[couvert[echantillon]].astype(np.int64), echantillon + 1):
+        raise ValueError('numerotation inattendue des etiquettes de cv2.distanceTransformWithLabels')
+    source = couvert[lab[a_remplir].astype(np.int64) - 1]
+    sortie = []
+    for im in images:
+        o = np.ascontiguousarray(np.array(im, copy=True))
+        plat = o.reshape(o.shape[0] * o.shape[1], -1)
+        plat[a_remplir] = plat[source]
+        sortie.append(o)
+    return sortie
+
+
+def _remplir_atlas(mask_inv, base_color, metallic, roughness, alpha, log=print):
+    """Appel injecte dans to_glb (voir _INPAINT_APRES_PROCHE) : rend couleur, metal, rugosite, alpha en
+    H x W (le texte injecte rajoute l'axe de canal). Toute exception -> TELEA fusionne d'avant."""
+    import numpy as np
+    try:
+        m2 = [np.asarray(x).reshape(x.shape[0], x.shape[1]) for x in (metallic, roughness, alpha)]
+        c, a, b, d = remplir_bord_proche(mask_inv, base_color, *m2)
+        return c, a, b, d
+    except Exception as e:
+        log(f"[mesh] remplissage au bord le plus proche ignore ({type(e).__name__}: {e}) : TELEA")
+        import cv2
+        m2 = [np.asarray(x).reshape(x.shape[0], x.shape[1]) for x in (metallic, roughness, alpha)]
+        c = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_TELEA)
+        mra = cv2.inpaint(np.ascontiguousarray(np.dstack(m2)), mask_inv, 1, cv2.INPAINT_TELEA)
+        return c, mra[..., 0], mra[..., 1], mra[..., 2]
 
 
 def _reduire_sans_plis(mesh, cible, verbose=False, log=print):
@@ -207,13 +274,17 @@ def _reduire_meshopt_wasm(vn, fn, cible):
     utiles, inv = np.unique(f.reshape(-1), return_inverse=True)
     return pos[utiles], inv.reshape(-1, 3)
 
-def reduire_et_recuire(m, cible, taille=2048, log=print):
+def reduire_et_recuire(m, cible, taille=None, log=print):
     """TRIANGLE COUNT (2026-09-29, user : « l'outil Triangle count doit aussi l'utiliser ») : reduit la FORME
     SEULE par meshoptimizer (forme tres bien conservee, jugee sur ane et cabane 10 M -> 1 K), redeplie (xatlas)
     et RECUIT la couleur depuis le maillage texture d'origine (couleur du point de surface le plus proche).
     Reduire le maillage texture tel quel deplace les coutures d'UV : texture dechiree (essai du jour).
     Rend un trimesh.Trimesh texture ; ImportError si xatlas / scipy / cv2 manquent (l'appelant garde
-    l'ancienne methode). Identique bureau / serveur."""
+    l'ancienne methode). Identique bureau / serveur.
+
+    2026-10-03 (constat E-3b, campagne des outils 3D) : `taille=None` (defaut) CONSERVE la taille de la
+    texture d'origine (plafond 8192, plancher 256). Avant, les appelants passaient 2048 : une texture de
+    4096 ou 8192 etait ramenee a 2048 SANS prevenir. Un entier explicite reste respecte."""
     import numpy as np
     import trimesh
     import xatlas
@@ -227,6 +298,8 @@ def reduire_et_recuire(m, cible, taille=2048, log=print):
         raise ImportError('pas de texture de couleur')
     A = np.asarray(tex.convert('RGB'), np.float32)
     H, W = A.shape[:2]
+    if taille is None:
+        taille = int(min(8192, max(256, max(H, W))))
     uv = np.asarray(m.visual.uv, np.float64)
     vn, inv = np.unique(np.asarray(m.vertices, np.float32), axis=0, return_inverse=True)
     fn = inv.reshape(-1)[np.asarray(m.faces)]
@@ -273,10 +346,14 @@ def reduire_et_recuire(m, cible, taille=2048, log=print):
             Q.append(np.stack([X[ti, pi], Y[ti, pi]], 1).astype(np.int64))
     P = np.concatenate(P)
     Q = np.clip(np.concatenate(Q), 0, T - 1)
-    _, k = arbre.query(P, k=4, workers=-1)
     out = np.zeros((T, T, 3), np.float32)
     rempli = np.zeros((T, T), np.uint8)
-    out[Q[:, 1], Q[:, 0]] = col[k].mean(1)
+    # par tranches (2026-10-03, E-3b) : a 8192 il y a des dizaines de millions de points ; la requete
+    # d'un seul bloc (k 4 voisins + col[k]) pesait plusieurs Go. Meme resultat, pic memoire borne.
+    for d in range(0, len(P), 2_000_000):
+        _, k = arbre.query(P[d:d + 2_000_000], k=4, workers=-1)
+        q = Q[d:d + 2_000_000]
+        out[q[:, 1], q[:, 0]] = col[k].mean(1)
     rempli[Q[:, 1], Q[:, 0]] = 1
     img = cv2.inpaint(out.clip(0, 255).astype(np.uint8), (1 - rempli) * 255, 3, cv2.INPAINT_TELEA)
     img = np.ascontiguousarray(np.flipud(img))
@@ -289,6 +366,35 @@ def reduire_et_recuire(m, cible, taille=2048, log=print):
     r = trimesh.Trimesh(V2, idx, visual=trimesh.visual.TextureVisuals(uv=uv2, material=mat), process=False)
     log(f'[tris] reduction + recuisson : {len(m.faces)} -> {len(idx)} faces, atlas {T} ({time.time() - t0:.1f} s)')
     return r
+
+def lisser_soude(g, iterations, lamb, volume_constraint=False):
+    """LISSAGE LAPLACIEN SUR LA TOPOLOGIE SOUDEE PAR POSITION (2026-10-03, constats P4 et defauts 1-2 de la
+    campagne des outils 3D). Un maillage texture TRELLIS duplique ses sommets le long des coutures d'UV :
+    `merge_vertices` ne les soude pas (UV differents), donc `filter_laplacian` lisse chaque ilot comme une
+    surface OUVERTE, deplace les deux cotes d'une couture de facon differente et DECHIRE le maillage (mesure :
+    33 composantes -> 3 279, aretes de bord 0 -> 19 379). Ici : soudure par position, lissage du maillage
+    soude, puis report de la position lissee sur TOUS les doubles (les coutures restent fermees, les UV
+    ne bougent pas). Modifie g.vertices sur place ; leve si le resultat n'est pas fini. Rend le nombre
+    de sommets soudes."""
+    import numpy as np
+    import trimesh
+    V = np.asarray(g.vertices, dtype=np.float64)
+    F = np.asarray(g.faces)
+    etendue = float(np.linalg.norm(V.max(0) - V.min(0)))
+    if not np.isfinite(etendue) or etendue <= 0:
+        etendue = 1.0
+    q = np.round(V / (etendue * 1e-7)).astype(np.int64)
+    _, premier, inv = np.unique(q, axis=0, return_index=True, return_inverse=True)
+    inv = inv.reshape(-1)
+    soude = trimesh.Trimesh(V[premier], inv[F], process=False)
+    trimesh.smoothing.filter_laplacian(soude, iterations=int(iterations), lamb=float(lamb),
+                                       volume_constraint=volume_constraint)
+    nouveaux = np.asarray(soude.vertices)[inv]
+    if not np.isfinite(nouveaux).all():
+        raise ValueError('smooth produced NaN')
+    g.vertices = nouveaux
+    return int(len(premier))
+
 
 def _nettoyer(mesh, log=print, orienter=False):
     """Doublons, aretes non-manifold, miettes, petits trous (+ orientation) — operations cumesh."""

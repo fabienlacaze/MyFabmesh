@@ -306,6 +306,13 @@ def _png_response(img):
     return Response(content=buf.getvalue(), media_type="image/png")
 
 
+def _erreur_telechargement(quoi, exc):
+    """2026-10-03 (constat CLOUD-05) : le texte de l'exception d'un telechargement ne revient plus au client
+    (oracle d'existence d'adresses internes) ; il est journalise cote serveur."""
+    from modal_app._url_sure import erreur_telechargement
+    return erreur_telechargement(quoi, exc)
+
+
 def _fetch_image(url: str, mode: str = "RGB"):
     """Browser-UA GET → PIL.Image. Required because Cloudflare R2 returns
     403 to the default urllib UA — every legacy endpoint reimplemented this
@@ -313,12 +320,15 @@ def _fetch_image(url: str, mode: str = "RGB"):
     """
     import urllib.request
     from PIL import Image
+    # 2026-10-03 (constat CLOUD-05) : https SEULEMENT, redirections comprises. urlopen acceptait file://,
+    # ftp:// et http:// : un utilisateur pouvait faire ouvrir au conteneur une adresse interne.
+    from modal_app._url_sure import ouvrir_https
     req = urllib.request.Request(
         url,
         headers={"User-Agent":
                  "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"},
     )
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with ouvrir_https(req, timeout=30) as r:
         return Image.open(io.BytesIO(r.read())).convert(mode)
 
 # ---------------------------------------------------------------------------
@@ -1437,7 +1447,7 @@ class MyFabmeshBackview:
         try:
             front_img = _fetch_image(front_url)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"front download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("front", e))
 
         _hf = _prompt_hard_floor(payload.get("prompt_hint") or "")
         if _hf:
@@ -1500,7 +1510,7 @@ class MyFabmeshBackview:
             try:
                 ref_img = _fetch_image(ref_url)
             except Exception as e:
-                raise HTTPException(status_code=502, detail=f"ref download: {e}")
+                raise HTTPException(status_code=502, detail=_erreur_telechargement("ref", e))
             # Same caption fallback as desktop generate_front_tpose.py:run_from_image
             if not prompt:
                 prompt = ("a person in a T-pose, arms extended horizontally sideways, "
@@ -1564,7 +1574,7 @@ class MyFabmeshBackview:
                 from modal_app._rectify import sur_blanc
                 ref_img = sur_blanc(_fetch_image(ref_url, mode="RGBA"))
             except Exception as e:
-                raise HTTPException(status_code=502, detail=f"ref download: {e}")
+                raise HTTPException(status_code=502, detail=_erreur_telechargement("ref", e))
             if not prompt:
                 # DESCRIPTION DU SUJET (2026-09-27). Le seul mot « subject »
                 # servait de consigne : le personnage etait REDESSINE a partir
@@ -1694,7 +1704,7 @@ class MyFabmeshBackview:
         try:
             src_img = _fetch_image(image_url)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"image download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("image", e))
 
         t0 = time.time()
         if op == "modify":
@@ -1747,7 +1757,7 @@ class MyFabmeshBackview:
             try:
                 mask_img = _fetch_image(mask_url, mode="L")
             except Exception as e:
-                raise HTTPException(status_code=502, detail=f"mask download: {e}")
+                raise HTTPException(status_code=502, detail=_erreur_telechargement("mask", e))
             _, _, inpaint_pipe = self._get_auto_inpaint_models()
             img = mask_generate(inpaint_pipe, src_img, mask_img, prompt)
             tag = "mask_inpaint"
@@ -1913,7 +1923,7 @@ class MyFabmeshBackview:
             with urllib.request.urlopen(req, timeout=60) as r:
                 src = r.read()
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("mesh", e))
 
         force = float(payload.get("strength") or 0.4)
         force = max(0.15, min(0.8, force))          # bornes du curseur bureau
@@ -1973,7 +1983,7 @@ class MyFabmeshBackview:
             with urllib.request.urlopen(req, timeout=60) as r:
                 src = r.read()
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("mesh", e))
 
         t0 = time.time()
         scene = trimesh.load(io.BytesIO(src), file_type="glb")
@@ -2048,7 +2058,7 @@ class MyFabmeshBackview:
         try:
             telecharger(mesh_url, maillage)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("mesh", e))
         routeur = _os.path.join(_os.path.dirname(__file__), "part_namer", "name_parts.py")
         cmd = [_sys.executable, routeur, maillage, sortie, "--asset-type", asset]
         if rig_url:
@@ -2146,7 +2156,7 @@ class MyFabmeshBackview:
             with urllib.request.urlopen(req, timeout=60) as r:
                 src = r.read()
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("mesh", e))
 
         t0 = time.time()
         scene = trimesh.load(io.BytesIO(src), file_type="glb")
@@ -2204,7 +2214,7 @@ class MyFabmeshBackview:
         try:
             src_img = _fetch_image(image_url)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"image download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("image", e))
 
         demandees = payload.get("pieces") or list(PIECES_TENUE.keys())
         inconnues = [p for p in demandees if p not in PIECES_TENUE]
@@ -2281,7 +2291,7 @@ class MyFabmeshBackview:
         try:
             front_img = _fetch_image(front_url)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"front download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("front", e))
 
         _hf = _prompt_hard_floor(payload.get("prompt_hint") or "")
         if _hf:
@@ -2932,7 +2942,8 @@ class MyFabmeshMesh:
                     headers={"User-Agent":
                              "Mozilla/5.0 (X11; Linux x86_64) myfabmesh-cloud/1.0"},
                 )
-                with urllib.request.urlopen(req, timeout=30) as r:
+                from modal_app._url_sure import ouvrir_https   # 2026-10-03 (CLOUD-05) : https seulement
+                with ouvrir_https(req, timeout=30) as r:
                     data = r.read()
                 return _PImg.open(io.BytesIO(data))
 
@@ -3308,7 +3319,7 @@ def mesh_router():
                 with urllib.request.urlopen(req, timeout=120) as r:
                     src = r.read()
             except Exception as e:
-                raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+                raise HTTPException(status_code=502, detail=_erreur_telechargement("mesh", e))
             params = payload.get("params") or {}
             try:
                 stages = await asyncio.to_thread(
@@ -3375,7 +3386,7 @@ def mesh_router():
                 with urllib.request.urlopen(req, timeout=60) as r:
                     src = r.read()
             except Exception as e:
-                raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+                raise HTTPException(status_code=502, detail=_erreur_telechargement("mesh", e))
             try:
                 out, stats = run_mesh_op(op_type, src, payload.get("params") or {})
             except ValueError as e:
@@ -3648,7 +3659,7 @@ def mesh_router():
             with urllib.request.urlopen(req, timeout=120) as r:
                 src = r.read()
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"mesh download: {e}")
+            raise HTTPException(status_code=502, detail=_erreur_telechargement("mesh", e))
 
         # Runs on blender_image in its own container; first call after an
         # idle period pays a cold start (~30-60s) that the caller's

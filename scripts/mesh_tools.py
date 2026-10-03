@@ -101,9 +101,12 @@ def smooth(input_path, output_path, iterations=None, lamb=None):
                 g.remove_unreferenced_vertices()
             except Exception:
                 pass
-            trimesh.smoothing.filter_laplacian(
-                g, iterations=int(iterations), lamb=float(lamb),
-                volume_constraint=False)
+            # 2026-10-03 (constats P4 / defauts 1-2 de la campagne des outils 3D) : un maillage texture a des
+            # sommets dupliques le long des coutures d'UV que merge_vertices ne soude pas. Lisser tel quel
+            # traitait chaque ilot comme une surface ouverte et dechirait le maillage (33 composantes ->
+            # 3 279). lisser_soude soude par POSITION, lisse, puis reporte sur tous les doubles.
+            from acceleration_glb import lisser_soude
+            lisser_soude(g, iterations, lamb, volume_constraint=False)
             if np.isnan(np.asarray(g.vertices)).any():
                 raise ValueError('smooth produced NaN')
         except Exception as e:
@@ -143,9 +146,10 @@ def decimate(input_path, output_path, target_faces=None):
         if not hasattr(g, 'faces') or len(g.faces) < 100:
             continue
         if len(g.faces) > target_faces:
-            # Clamp [0.01, 1.0] - let the user reach an aggressive game-asset
-            # target (e.g. 7400 from 470k) while guarding against collapse.
-            ratio = max(0.01, min(1.0, target_faces / len(g.faces)))
+            # 2026-10-03 (constat P4, campagne des outils 3D) : PLUS DE PLANCHER A 1 % (max(0.01, ...)).
+            # Il bornait en silence la reduction : viser 1 000 triangles sur un maillage de 496 000 donnait
+            # 4 960. Le garde-fou contre l'effondrement est le max(50, ...) du nombre de faces vise.
+            ratio = min(1.0, target_faces / len(g.faces))
             # Preserve the texture: fast_simplification drops UVs, so we
             # replay the collapse list to remap the per-vertex UV array and
             # rebuild a fresh TextureVisuals at the NEW vertex count. Without
@@ -160,7 +164,8 @@ def decimate(input_path, output_path, target_faces=None):
             if old_uv is not None:
                 try:
                     from acceleration_glb import reduire_et_recuire
-                    g_new = reduire_et_recuire(g, max(50, int(len(g.faces) * ratio)), 2048, log=log)
+                    # taille=None : la texture garde sa taille d'origine (avant : ramenee a 2048 sans prevenir)
+                    g_new = reduire_et_recuire(g, max(50, int(round(len(g.faces) * ratio))), None, log=log)
                     geoms[gi] = g_new
                     if geom_names[gi] is not None:
                         scene.geometry[geom_names[gi]] = g_new
@@ -173,7 +178,7 @@ def decimate(input_path, output_path, target_faces=None):
             try:
                 import fast_simplification
                 points, faces_out = fast_simplification.simplify(
-                    verts, faces, target_reduction=1.0 - ratio)
+                    verts, faces, target_reduction=1.0 - max(ratio, 50.0 / max(1, len(faces))))   # plancher de 50 faces (relecture 2026-10-03)
                 new_uv = None
                 if old_uv is not None and old_uv.shape[0] == verts.shape[0]:
                     # Transfer UVs by nearest ORIGINAL vertex. (replay_simplifi-

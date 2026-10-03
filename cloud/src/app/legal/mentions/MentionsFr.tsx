@@ -2,13 +2,18 @@
 // Version FRANCAISE (texte opposable au consommateur francais, commit 2b2bc56).
 // Deplacee telle quelle de page.tsx le 2026-09-28 ; la version anglaise est MentionsEn.tsx.
 
-import { legalIdentity as id } from '@/config/legal-identity';
+import { identiteAffichee, LienOuTexte, BandeauPhaseTest } from '../identite-affichee';
+
+// 2026-10-03 (constat F1) : tant que l'identite legale n'est pas renseignee, les gabarits sont
+// remplaces a l'affichage par un texte neutre (voir ../identite-affichee.tsx).
+const id = identiteAffichee('fr');
 
 export function MentionsFr() {
   return (
     <>
       <h1>Mentions légales</h1>
-      <p style={{ color: 'var(--text-2)' }}>Dernière mise à jour : 2026-06-20</p>
+      <p style={{ color: 'var(--text-2)' }}>Dernière mise à jour : 2026-10-03</p>
+      <BandeauPhaseTest langue="fr" />
 
       <p>
         En application de l&apos;article 6-III de la loi pour la confiance dans
@@ -58,7 +63,7 @@ export function MentionsFr() {
         protégés. Les licences des modèles open source utilisés pour générer les
         créations sont listées sur la page{' '}
         <a href="/legal/licenses">Licences tierces</a>. Les créations que vous
-        générez vous appartiennent dans les conditions prévues par les{' '}
+        générez : nous ne revendiquons aucun droit sur elles, dans les conditions prévues par les{' '}
         <a href="/legal/terms">conditions générales</a>.
       </p>
 
@@ -92,7 +97,7 @@ export function MentionsFr() {
       </p>
       <ul>
         <li><strong>Médiateur de la consommation désigné (médiateur agréé) :</strong> {id.mediator.name}</li>
-        <li><strong>Coordonnées postales &amp; en ligne du médiateur :</strong> {id.mediator.postalAddress} — <a href={id.mediator.url} target="_blank" rel="noopener">{id.mediator.url}</a></li>
+        <li><strong>Coordonnées postales &amp; en ligne du médiateur :</strong> {id.mediator.postalAddress} — <LienOuTexte url={id.mediator.url} /></li>
       </ul>
       <p>
         {/* Ancienne mention de la plateforme RLL europeenne : supprimee par le

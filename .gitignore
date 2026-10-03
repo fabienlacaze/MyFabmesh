@@ -154,3 +154,11 @@ scratch_*.err
 outils/sysinternals/
 # marqueurs des projets vides (donnees locales, 2026-09-28)
 projets_vides/
+# sauvegarde des projets du proprietaire (noms et prompts) : jamais dans le depot PUBLIC (constat DEP-10, 2026-10-03)
+FABMESH_PROJECTS_BACKUP.json
+FABMESH_PROJECTS_BACKUP.md
+# fichiers de travail locaux et copies de secrets scellees (constat DEP-09, 2026-10-03)
+build/_*.json
+build/_*.txt
+store-cert/*.local
+*.sealed.bak

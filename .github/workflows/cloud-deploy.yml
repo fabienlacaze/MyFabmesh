@@ -1,18 +1,28 @@
+# ATTENTION (constats DEP-07 / EXP-06, 2026-10-03) : la PRODUCTION se deploie
+# depuis le poste du proprietaire (cd cloud && npm run build && npm run deploy).
+# Ce workflow n'est qu'un secours MANUEL (workflow_dispatch uniquement). Il ne se
+# declenche plus sur push : un push de master republiait automatiquement l'etat
+# du depot, y compris une vieille version, sans passer par les garde-fous du poste.
+# Il passe desormais par `npm run deploy` (et non `npx wrangler deploy`) pour que
+# les gardes `predeploy` (check-r2-public, check-legal-identity, check-out-frais)
+# s'appliquent. Tant que les mentions legales ne sont pas remplies, la garde
+# legale le fera echouer : c'est voulu, ne pas la contourner ici.
+#
 # Build and deploy the Next.js Cloud app to Cloudflare Workers.
 #
 # Pipeline:
 #   1. `npm install` (legacy peer deps).
 #   2. `npm run build` → produces `cloud/out/` via Next.js static export
 #      (output: 'export' in next.config.mjs).
-#   3. `wrangler deploy` ships src/worker.ts + ./out to Cloudflare.
+#   3. `npm run deploy` (predeploy guards, then wrangler deploy) ships
+#      src/worker.ts + ./out to Cloudflare.
 #
 # We abandoned @opennextjs/cloudflare because its esbuild build step
 # crashed with "Invalid alias name" on CI for 3 consecutive runs.
 # The Worker (cloud/src/worker.ts) replaces all Next.js API routes
 # with a single-file router.
 #
-# Trigger: push to master that touches anything under cloud/, or
-# manual via "Run workflow" button in the Actions tab.
+# Trigger: manual only, via the "Run workflow" button in the Actions tab.
 #
 # Required GitHub secrets:
 #   CLOUDFLARE_API_TOKEN  - "Edit Cloudflare Workers" template
@@ -27,11 +37,6 @@
 name: Cloud — Build & Deploy
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - 'cloud/**'
-      - '.github/workflows/cloud-deploy.yml'
   workflow_dispatch:
 
 jobs:
@@ -71,7 +76,7 @@ jobs:
       - name: Deploy to Cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler deploy
+        run: npm run deploy
 
       - name: Smoke test live URL
         run: |

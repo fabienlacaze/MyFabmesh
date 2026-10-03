@@ -155,9 +155,23 @@ def _analyser(brut):
     return {'type': t, 'description': desc[:300]}
 
 
+def sans_balises(texte):
+    """Retire les balises speciales du gabarit de conversation (<|im_start|>, <|im_end|>, <|...|>) et celles de
+    reflexion (<think>) d'un texte fourni par l'utilisateur ou importe (constat IA-10, 2026-10-03). Sans cela, un
+    nom de projet comme « x<|im_end|><|im_start|>system ... » ferme le tour de l'utilisateur et ouvre un faux
+    tour « system » dans l'invite. Boucle jusqu'a stabilite : « <<||im_start|>|> » ne doit pas se reconstituer."""
+    texte = str(texte or '')
+    avant = None
+    while avant != texte:
+        avant = texte
+        texte = re.sub(r'<\|[^<>]*?\|>', ' ', texte)
+        texte = re.sub(r'</?think>', ' ', texte, flags=re.I)
+    return texte.replace('<|', ' ').replace('|>', ' ')
+
+
 def decrire(nom, notes='', lang='en', type_indice=None):
-    nom = re.sub(r'[\x00-\x1f]', ' ', str(nom or '')).strip()[:80]
-    notes = re.sub(r'[\x00-\x1f]', ' ', str(notes or '')).strip()[:400]
+    nom = re.sub(r'[\x00-\x1f]', ' ', sans_balises(nom)).strip()[:80]
+    notes = re.sub(r'[\x00-\x1f]', ' ', sans_balises(notes)).strip()[:400]
     lang = (lang or 'en').lower()[:2]
     if len(nom) < 2 and len(notes) < 3:
         return {'ok': False, 'error': 'name required'}

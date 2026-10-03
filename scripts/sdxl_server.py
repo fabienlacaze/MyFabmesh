@@ -64,6 +64,7 @@ if os.environ.get('FABMESH_NO_WORKER_THROTTLE') != '1':
 # dans le Python embarque (._pth) : on l'ajoute.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cloisonnement_memoire as _cm
+import securite_locale as _sl     # 2026-10-03 (constat D-04) : Host / Origin / chemins des requetes
 from recolor_core import recolor_tile_route, recolor_tile_params   # route + reglages MATIERE/STYLE, communs avec Modal (2026-09-30)
 from recolor_core import (recolor_meilleur_masque, recolor_masque_a_taille, recolor_recoller,   # detection, recollage et
                           recolor_garder_fond)                                                  # fond protege : communs avec Modal
@@ -1983,7 +1984,18 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass  # client gone
 
+    def _garde(self):
+        """2026-10-03 (constat D-04) : refuse une requete dont Host n'est pas 127.0.0.1:<port> / localhost:<port>
+        (DNS rebinding) ou qui porte un en-tete Origin (page web : aucun navigateur n'appelle ce serveur)."""
+        ok, raison = _sl.requete_autorisee(self.headers, PORT)
+        if not ok:
+            log(f"requete refusee ({raison})", 'warn')
+            self._json_response(403, {"ok": False, "error": "forbidden"})
+        return ok
+
     def do_GET(self):
+        if not self._garde():
+            return
         if self.path == '/ping':
             self._json_response(200, {
                 "ok": True,
@@ -2021,6 +2033,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
+        if not self._garde():
+            return
         try:
             length = int(self.headers.get('Content-Length', 0))
             if length == 0:
@@ -2030,6 +2044,13 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(raw.decode('utf-8'))
         except Exception as e:
             self._json_response(400, {"ok": False, "error": f"bad json: {e}"})
+            return
+        # 2026-10-03 (constat D-04) : chemins reseau (fuite du hachage NTLM), octets nuls, ecriture dans les
+        # dossiers systeme ou Demarrage : refuses. Les chemins du projet de l'utilisateur ne sont pas touches.
+        raison_chemin = _sl.verifier_chemins(data)
+        if raison_chemin:
+            log(f"chemin refuse ({raison_chemin})", 'warn')
+            self._json_response(403, {"ok": False, "error": "forbidden path"})
             return
 
         try:

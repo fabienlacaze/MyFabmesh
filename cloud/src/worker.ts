@@ -1098,6 +1098,91 @@ async function _sendAdminAlertEmail(env: Env, subject: string, text: string): Pr
   } catch (_) { /* best-effort */ }
 }
 
+/* ═══ W2-4 ALERTE DE NOUVEAU MESSAGE : DEBUT ═══ */
+/* 2026-10-03 (constat EXP-08) — L'EXPLOITANT EST PREVENU D'UN NOUVEAU MESSAGE DE CONTACT OU SIGNALEMENT.
+ *
+ * Jusqu'ici personne n'etait prevenu : un signalement de contenu (exige par la politique Microsoft Store 11.16) pouvait attendre des jours dans R2.
+ * E-mail via la fonction d'alerte existante (aucun nouveau secret ; no-op sans RESEND_API_KEY), avec une limite anti-spam GLOBALE de 10 par heure
+ * (compteur R2 atomique par heure UTC) : un script qui inonde le formulaire ne peut pas inonder la boite de l'exploitant. Le message n'est JAMAIS
+ * recopie : type, objet (tronque, sans retour a la ligne), identifiant et heure suffisent, le reste est dans /admin2 > Messages. */
+const ALERTE_MESSAGES_MAX_PAR_HEURE = 10;
+function cleCompteurAlerteMessages(maintenant: number): string {
+  return `_meta/alerte_messages/${new Date(maintenant).toISOString().slice(0, 13)}.txt`;   // heure UTC : « AAAA-MM-JJTHH »
+}
+function texteAlerteMessage(type: 'contact' | 'signalement', id: string, objet: string, iso: string): { sujet: string; texte: string } {
+  const propre = String(objet ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 80);
+  return {
+    sujet: type === 'contact' ? '[MyFabmesh] Nouveau message de contact' : '[MyFabmesh] Nouveau signalement de contenu',
+    texte: `Type : ${type}\nObjet : ${propre || '(vide)'}\nIdentifiant : ${String(id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64)}\nHeure : ${iso}\n`
+         + "Le contenu n'est volontairement pas recopie ici. A lire dans /admin2 > Messages.",
+  };
+}
+/** Envoie l'alerte si la limite horaire le permet. Rend true si un e-mail est parti. Ne leve jamais, ne bloque jamais l'envoi du message. */
+async function _alerterNouveauMessage(env: Env, type: 'contact' | 'signalement', id: string, objet: string): Promise<boolean> {
+  try {
+    if (!env.MESHES) return false;
+    const maintenant = Date.now();
+    const n = await _casIncrementCounter(env, cleCompteurAlerteMessages(maintenant), 1, ALERTE_MESSAGES_MAX_PAR_HEURE);
+    if (n == null) return false;                       // plus de 10 cette heure (ou contention) : pas d'e-mail
+    const m = texteAlerteMessage(type, id, objet, new Date(maintenant).toISOString());
+    await _sendAdminAlertEmail(env, m.sujet, m.texte);
+    return true;
+  } catch { return false; }
+}
+/* ═══ W2-4 ALERTE DE NOUVEAU MESSAGE : FIN ═══ */
+
+/* 2026-10-03 (constat IA-07) — ALERTE SUR CONTENU ILLICITE GRAVE.
+ *
+ * Un prompt bloque par le « plancher dur » du filtre (mineurs, pedocriminalite) etait refuse au client mais l'exploitant n'en savait rien.
+ * On le previent par e-mail (fonction d'alerte existante, aucun nouveau secret), au plus UNE fois par compte et par heure, SANS le texte du
+ * prompt : categorie, empreinte courte du compte (8 premiers caracteres de l'identifiant), heure. Le filtre (nsfw_filter.ts) marque le
+ * plancher dur par une raison commencant par « Blocked: » ; seul `minor-safety` designe la combinaison enfant x contenu sexuel/violent. */
+type CategorieContenuGrave = 'minor' | 'illegal';
+const ALERTE_CONTENU_FENETRE_MS = 60 * 60 * 1000;
+function categorieContenuGrave(r: { safe: boolean; blocked?: string; reason?: string } | null | undefined): CategorieContenuGrave | null {
+  if (!r || r.safe) return null;
+  if (typeof r.reason !== 'string' || !r.reason.startsWith('Blocked:')) return null;   // filtre souple (« Content filter: ») : pas d'alerte
+  return r.blocked === 'minor-safety' ? 'minor' : 'illegal';
+}
+/** Decision pure d'envoi : une categorie grave ET pas d'alerte pour ce compte depuis moins d'une heure. */
+function alerteContenuDue(categorie: CategorieContenuGrave | null, dernierTs: number | null | undefined, maintenant: number): boolean {
+  if (!categorie) return false;
+  return !(typeof dernierTs === 'number' && Number.isFinite(dernierTs) && maintenant - dernierTs >= 0 && maintenant - dernierTs < ALERTE_CONTENU_FENETRE_MS);
+}
+function texteAlerteContenu(categorie: CategorieContenuGrave, userId: string, iso: string): { sujet: string; texte: string } {
+  return {
+    sujet: `[MyFabmesh] Prompt bloque - contenu ${categorie === 'minor' ? 'impliquant des mineurs' : 'illicite'}`,
+    texte: `Un prompt a ete bloque par le plancher dur du filtre.\nCategorie : ${categorie}\nCompte (empreinte) : ${String(userId).slice(0, 8)}\nHeure : ${iso}\n`
+         + 'Le texte du prompt n\'est volontairement pas inclus. A traiter selon la procedure de signalement.',
+  };
+}
+async function _alerterContenuGrave(env: Env, userId: string, categorie: CategorieContenuGrave): Promise<void> {
+  try {
+    const maintenant = Date.now();
+    const cle = `_meta/alerte_contenu/${String(userId).replace(/[^A-Za-z0-9_-]/g, '_')}.txt`;
+    let dernier: number | null = null;
+    if (env.MESHES) {
+      const o = await env.MESHES.get(cle);
+      dernier = o ? parseInt(await o.text(), 10) : null;
+    }
+    if (!alerteContenuDue(categorie, dernier, maintenant)) return;
+    if (env.MESHES) await env.MESHES.put(cle, String(maintenant));
+    const iso = new Date(maintenant).toISOString();
+    console.error(`[securite] prompt bloque (${categorie}) compte ${String(userId).slice(0, 8)} a ${iso}`);
+    const m = texteAlerteContenu(categorie, userId, iso);
+    await _sendAdminAlertEmail(env, m.sujet, m.texte);
+  } catch { /* l'alerte ne doit jamais empecher le refus du prompt */ }
+}
+/** checkPromptSafety + alerte d'exploitant sur contenu grave. Meme resultat que le filtre. */
+async function _checkPromptSafetyAlerte(env: Env, userId: string, prompt: string | null | undefined, unrestricted = false) {
+  const r = checkPromptSafety(prompt, unrestricted);
+  if (!r.safe) {
+    const cat = categorieContenuGrave(r);
+    if (cat) await _alerterContenuGrave(env, userId, cat);
+  }
+  return r;
+}
+
 /** Check the per-user daily call cap. Increments on success.
  *  Returns the remaining call budget, or null if over. */
 async function checkAndIncrementUserCalls(env: Env, userId: string): Promise<number | null> {
@@ -3165,10 +3250,9 @@ function _delaiMaxGenerationS(input: GenerateInput, mode1536: boolean): number {
    *   7,6 M, 1024, texture 2048 :  213 s
    * soit ~70 s par million de triangles en 2048, x4,9 en 4096. La premiere
    * version ignorait la texture : 66 min reels pour 110 min permis. */
-  const tex = (input.ultra_hd || input.preset === 'ultra_8k' || input.preset === 'quality') ? 4096
-            : input.preset === 'balanced' ? 2048
-            : input.preset === 'fast' ? 1024
-            : input.mode === 'full' ? 2048 : 1024;
+  // 2026-10-03 (palier Fast en atlas 2048) : MEME taille que celle envoyee a Modal (tailleAtlasGeneration), sinon le delai maximal
+  // sous-estimerait l'export du palier Fast (facteur 0,5 au lieu de 1) et un calcul normal pourrait etre juge bloque.
+  const tex = tailleAtlasGeneration(input);
   const facteurTex = tex >= 4096 ? 4.9 : tex >= 2048 ? 1 : 0.5;
   const trisM = (input.max_tris ?? 500_000) / 1_000_000;
   let s = 600;                                          // froid + rectification + inference 1024
@@ -3516,6 +3600,8 @@ async function handleReportContent(req: Request, env: Env): Promise<Response> {
   await env.MESHES.put(`_meta/contact/${id}.json`, JSON.stringify(payload),
                        { httpMetadata: { contentType: 'application/json' } });
   console.warn(`[signalement] ${id} motif=${motif} type=${kind} provenance=${surface}`);
+  // 2026-10-03 (EXP-08) : e-mail a l'exploitant (motif + heure seulement, limite 10 / heure).
+  await Promise.race([_alerterNouveauMessage(env, 'signalement', id, motif), new Promise<void>((r) => setTimeout(r, 3000))]);   // relecture 2026-10-03 : au plus 3 s d'attente
 
   return json({ ok: true, id });
 }
@@ -3546,6 +3632,313 @@ async function _exportMarketplaceDuCompte(env: Env, userId: string): Promise<{
   }
 }
 
+/* ═══ W2-1 EFFACEMENT ET EXPORT DU COMPTE (D-01, D-06) : DEBUT ═══ */
+/* 2026-10-03 (constats D-01 et D-06) — LES MAILLAGES ET LES ENREGISTREMENTS RATTACHES AU COMPTE PARTENT AVEC LUI.
+ *
+ * Un maillage genere par Modal est range dans un espace COMMUN `mesh/<id>.glb` (et certains rigs sous `rigged/...`), pas sous `<uid>/`. La
+ * suppression de compte ne balayait que `<uid>/` : 53 % des maillages (43 % du stockage) survivaient a la demande d'effacement, alors que
+ * l'ecran dit « projets, images, modeles 3D supprimes ». Meme oubli pour les cles API (avec l'e-mail), les notifications, les achats et
+ * evaluations de la boutique, les compteurs de depense / d'usage et les messages de contact.
+ *
+ * REGLE ABSOLUE : on ne supprime JAMAIS un fichier encore reference ailleurs. Une cle `mesh/...` n'est supprimee que si (a) aucune ligne
+ * `jobs` d'un AUTRE compte ne la reference, (b) aucune fiche de la boutique d'un autre compte ne la reference, (c) aucune de ses propres
+ * fiches n'a ete achetee par quelqu'un d'autre (l'acheteur a paye : il doit garder son fichier). Le plan est calcule AVANT toute
+ * suppression ; s'il ne peut pas l'etre, on refuse (503) sans rien supprimer, l'utilisateur peut recommencer. */
+
+/** Prefixes sous lesquels un maillage vit HORS du dossier du compte. Liste blanche : toute autre cle (`_meta/`, `_market/`, le dossier
+ *  d'un autre compte...) est ignoree, meme si une ligne `jobs` la designait par erreur. */
+const PREFIXES_MAILLAGES_COMMUNS = ['mesh/', 'rigged/'];
+
+/** Cle R2 d'un maillage commun, deduite de `jobs.mesh_url` (cle brute ou URL du site). null = ne pas y toucher. */
+function cleMaillageCommunDepuisMeshUrl(env: Env, meshUrl: unknown): string | null {
+  if (typeof meshUrl !== 'string' || !meshUrl.trim()) return null;
+  const cle = _cleR2DepuisUrl(env, meshUrl.trim());
+  if (!cle || cle.includes('//')) return null;
+  return PREFIXES_MAILLAGES_COMMUNS.some((p) => cle.startsWith(p)) ? cle : null;
+}
+
+/** Cles communes candidates a la suppression pour un ensemble de travaux : `mesh_url` + l'emplacement canonique `mesh/<id>.glb` (ecrit par
+ *  persistModalGlb, y compris pour un travail dont la ligne n'a pas recu son mesh_url). Sans doublon. */
+function clesMaillagesCommunsDesJobs(env: Env, jobs: Array<{ id?: unknown; mesh_url?: unknown }>): string[] {
+  const out = new Set<string>();
+  for (const j of jobs) {
+    const k = cleMaillageCommunDepuisMeshUrl(env, j.mesh_url);
+    if (k) out.add(k);
+    const id = typeof j.id === 'string' ? j.id : '';
+    if (/^[A-Za-z0-9_-]{8,80}$/.test(id)) out.add(`mesh/${id}.glb`);
+  }
+  return [...out];
+}
+
+/** Decision pure : parmi les candidates, celles qu'on peut supprimer (aucune n'est protegee). */
+function clesSupprimablesMaillages(candidates: string[], protegees: Set<string>): string[] {
+  return candidates.filter((k) => !protegees.has(k));
+}
+
+/** Pages de 1000 jusqu'a epuisement (borne 100 000 lignes). Leve en cas d'erreur : l'appelant decide de refuser l'operation. */
+async function _lireTousLesJobsDuCompte(sb: SupabaseClient, userId: string): Promise<Array<{ id: string; mesh_url: string | null }>> {
+  const out: Array<{ id: string; mesh_url: string | null }> = [];
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await sb.from('jobs').select('id, mesh_url').eq('user_id', userId)
+      .order('id', { ascending: true }).range(page * 1000, page * 1000 + 999);
+    if (error) throw new Error('lecture des travaux : ' + error.message);
+    const lot = (data ?? []) as Array<{ id: string; mesh_url: string | null }>;
+    out.push(...lot);
+    if (lot.length < 1000) break;
+  }
+  return out;
+}
+
+/** Toutes les cles sous un prefixe (pages de 1000, borne `max`). */
+async function _clesSousPrefixe(env: Env, prefixe: string, max = 20000): Promise<string[]> {
+  const out: string[] = [];
+  if (!env.MESHES) return out;
+  let curseur: string | undefined;
+  do {
+    const l = await env.MESHES.list({ prefix: prefixe, cursor: curseur, limit: 1000 });
+    for (const o of l.objects || []) out.push(o.key);
+    curseur = l.truncated && out.length < max ? l.cursor : undefined;
+  } while (curseur);
+  return out;
+}
+
+/** Supprime des cles par lots de 1000 (une seule sous-requete par lot). Repli cle par cle si un lot echoue. Rend le nombre de cles traitees. */
+async function _supprimerCles(env: Env, cles: string[]): Promise<number> {
+  if (!env.MESHES || !cles.length) return 0;
+  let n = 0;
+  for (let i = 0; i < cles.length; i += 1000) {
+    const lot = cles.slice(i, i + 1000);
+    try { await env.MESHES.delete(lot); n += lot.length; }
+    catch {
+      for (const k of lot) { try { await env.MESHES.delete(k); n++; } catch { /* meilleure tentative */ } }
+    }
+  }
+  return n;
+}
+
+/** Parmi des cles, celles qui existent reellement (HEAD par groupes de 25). Les candidates `mesh/<id>.glb` sont des emplacements CANONIQUES
+ *  supposes : sans ce filtre le compte rendu a l'utilisateur annoncerait des suppressions de fichiers qui n'ont jamais existe. */
+async function _clesExistantes(env: Env, cles: string[]): Promise<string[]> {
+  const out: string[] = [];
+  if (!env.MESHES) return out;
+  for (let i = 0; i < cles.length; i += 25) {
+    const lot = cles.slice(i, i + 25);
+    const res = await Promise.all(lot.map((k) => env.MESHES!.head(k).then((h) => (h ? k : null)).catch(() => k)));   // doute -> on tente la suppression
+    for (const k of res) if (k) out.push(k);
+  }
+  return out;
+}
+
+/** Une fiche du compte a-t-elle ete achetee par quelqu'un d'autre ? */
+async function _ficheAUnAutreAcheteur(env: Env, ficheId: string, userId: string): Promise<boolean> {
+  const l = await env.MESHES!.list({ prefix: `_market/owners/${ficheId}/`, limit: 10 });
+  return (l.objects || []).some((o) => o.key !== `_market/owners/${ficheId}/${userId}.json`);
+}
+
+/** Cles candidates qu'il ne faut PAS supprimer (voir la regle en tete de bloc). Leve si une verification est impossible. */
+async function _clesMaillagesProtegees(env: Env, sb: SupabaseClient, userId: string, candidates: string[]): Promise<Set<string>> {
+  const proteges = new Set<string>();
+  if (!candidates.length || !env.MESHES) return proteges;
+  // (a) un AUTRE compte reference la meme cle (copie d'un projet, clone...)
+  for (let i = 0; i < candidates.length; i += 50) {
+    const lot = candidates.slice(i, i + 50);
+    const { data, error } = await sb.from('jobs').select('mesh_url').in('mesh_url', lot).neq('user_id', userId);
+    if (error) throw new Error('verification des copies : ' + error.message);
+    for (const r of (data ?? []) as Array<{ mesh_url?: unknown }>) {
+      const k = cleMaillageCommunDepuisMeshUrl(env, r.mesh_url);
+      if (k) proteges.add(k);
+    }
+  }
+  // (b) et (c) fiches de la boutique qui pointent vers ces fichiers (lecture STRICTE : une erreur R2 interrompt la suppression, voir _loadAllListingsStrict)
+  const ensemble = new Set(candidates);
+  for (const f of await _loadAllListingsStrict(env)) {
+    const cles = [f.asset_url, f.mesh_url]
+      .map((u) => (typeof u === 'string' && u ? _cleR2DepuisUrl(env, u) : null))
+      .filter((c): c is string => !!c && ensemble.has(c));
+    if (!cles.length) continue;
+    const garder = f.user_id !== userId || await _ficheAUnAutreAcheteur(env, f.id, userId);
+    if (garder) for (const c of cles) proteges.add(c);
+  }
+  return proteges;
+}
+
+/** Plan de suppression des maillages communs du compte. Leve si la lecture ou une verification echoue (rien n'est alors supprime). */
+async function _planMaillagesDuCompte(env: Env, sb: SupabaseClient, userId: string): Promise<{ candidats: string[]; aSupprimer: string[]; proteges: string[] }> {
+  if (!env.MESHES) return { candidats: [], aSupprimer: [], proteges: [] };
+  const candidats = clesMaillagesCommunsDesJobs(env, await _lireTousLesJobsDuCompte(sb, userId));
+  const proteges = await _clesMaillagesProtegees(env, sb, userId, candidats);
+  return { candidats, aSupprimer: clesSupprimablesMaillages(candidats, proteges), proteges: [...proteges] };
+}
+
+/** Messages de contact et signalements : { cle, id, message } pour chaque fiche `_meta/contact/<id>.json` (lecture bornee). */
+async function _lireMessagesContact(env: Env, max = 1500): Promise<Array<{ cle: string; id: string; message: Record<string, unknown> }>> {
+  const out: Array<{ cle: string; id: string; message: Record<string, unknown> }> = [];
+  if (!env.MESHES) return out;
+  let curseur: string | undefined;
+  let lus = 0;
+  do {
+    const l = await env.MESHES.list({ prefix: '_meta/contact/', cursor: curseur, limit: 1000 });
+    for (const o of l.objects || []) {
+      const m = /^_meta\/contact\/([^/]+)\.json$/.exec(o.key);
+      if (!m) continue;                       // pieces jointes et compteurs : ignores
+      if (lus >= max) return out;
+      lus++;
+      try {
+        const t = await r2GetText(env, o.key);
+        const msg = t ? JSON.parse(t) : null;
+        if (msg && typeof msg === 'object') out.push({ cle: o.key, id: m[1], message: msg as Record<string, unknown> });
+      } catch { /* fiche illisible : ignoree */ }
+    }
+    curseur = l.truncated ? l.cursor : undefined;
+  } while (curseur);
+  return out;
+}
+
+/** Supprime un message de contact : pieces jointes D'ABORD, fiche ensuite (comme la suppression par l'admin). */
+async function _supprimerMessageContact(env: Env, id: string): Promise<number> {
+  const pieces = await _clesSousPrefixe(env, `_meta/contact/${id}/`);
+  return await _supprimerCles(env, [...pieces, `_meta/contact/${id}.json`]);
+}
+
+/** Efface tout ce qui est rattache au compte HORS de son dossier `<uid>/`. Rend un bilan par famille. Ne leve jamais (chaque famille est isolee). */
+async function _effacerEnregistrementsDuCompte(env: Env, userId: string): Promise<Record<string, number>> {
+  const bilan: Record<string, number> = {};
+  if (!env.MESHES) return bilan;
+  const faire = async (nom: string, f: () => Promise<number>) => {
+    try { bilan[nom] = await f(); }
+    catch (e) { bilan[nom] = -1; console.warn('[rgpd] ' + nom + ' :', (e as Error).message); }
+  };
+  const prefixes = (...p: string[]) => async () => {
+    let n = 0;
+    for (const x of p) n += await _supprimerCles(env, await _clesSousPrefixe(env, x));
+    return n;
+  };
+  // cles API : fiche (si elle porte bien CE compte), depenses de la cle, entree de la liste du compte
+  await faire('cles_api', async () => {
+    let n = 0;
+    const base = `_meta/api_keys_user/${userId}/`;
+    for (const cle of await _clesSousPrefixe(env, base)) {
+      const emp = cle.slice(base.length);
+      if (/^[0-9a-f]{64}$/.test(emp)) {
+        const fiche = await env.MESHES!.get(`_meta/api_keys/${emp}.json`);
+        let uid: unknown = null;
+        if (fiche) { try { uid = (JSON.parse(await fiche.text()) as { uid?: unknown }).uid; } catch { /* fiche illisible */ } }
+        if (fiche && uid === userId) {
+          n += await _supprimerCles(env, [`_meta/api_keys/${emp}.json`, ...await _clesSousPrefixe(env, `_meta/api_keys_spend/${emp}/`)]);
+        }
+      }
+      n += await _supprimerCles(env, [cle]);
+    }
+    return n;
+  });
+  await faire('notifications', prefixes(`_notifications/${userId}/`));
+  // compteurs de depense / d'usage / de controle de paiement / de televersement du compte
+  await faire('compteurs', prefixes(
+    `_meta/userspend/${userId}/`, `_meta/userspend_cap/${userId}/`, `_meta/userdaily/${userId}/`, `_meta/paidcheck/${userId}/`,
+    `_meta/uploads_count/${userId}/`, `_meta/mesh_uploads_count/${userId}/`, `_meta/redacteur/${userId}-`,
+  ));
+  await faire('divers', async () => await _supprimerCles(env, [`_meta/presence/${userId}`, `_market/payout_pref/${userId}.json`]));
+  // boutique : achats, evaluations et signalements DU COMPTE (ses ventes restent : piece comptable)
+  await faire('boutique', async () => {
+    const cles: string[] = [];
+    for (const f of await _loadAllListings(env)) {
+      cles.push(`_market/owners/${f.id}/${userId}.json`, `_market/ratings/${f.id}/${userId}.json`, `_market/reports/${f.id}/${userId}.json`);
+    }
+    return await _supprimerCles(env, cles);
+  });
+  // etats transitoires des rigs, animations et segmentations lances par le compte (le nom du fichier est l'id du travail : on lit le contenu)
+  await faire('travaux_transitoires', async () => {
+    let n = 0, lus = 0;
+    for (const p of ['_meta/rig_jobs/', '_meta/anim_jobs/', '_meta/segment_jobs/']) {
+      for (const cle of await _clesSousPrefixe(env, p, 2000)) {
+        if (lus++ >= 600) return n;
+        try {
+          const t = await r2GetText(env, cle);
+          if (t && (JSON.parse(t) as { user_id?: unknown }).user_id === userId) n += await _supprimerCles(env, [cle]);
+        } catch { /* illisible : ignore */ }
+      }
+    }
+    return n;
+  });
+  // messages de contact / signalements envoyes depuis ce compte (e-mail, IP, contenu, pieces jointes)
+  await faire('messages_contact', async () => {
+    let n = 0;
+    for (const m of await _lireMessagesContact(env)) {
+      if (m.message.user_id === userId) n += await _supprimerMessageContact(env, m.id);
+    }
+    return n;
+  });
+  return bilan;
+}
+
+/** Elements de l'export RGPD qui vivent hors de `<uid>/` : notifications, cles API (sans la cle), evaluations, compteurs, messages de contact. */
+async function _exportEnregistrementsDuCompte(env: Env, userId: string): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = {};
+  if (!env.MESHES) return out;
+  const lireJson = async (cle: string): Promise<unknown> => {
+    try { const t = await r2GetText(env, cle); return t ? JSON.parse(t) : null; } catch { return null; }
+  };
+  try {
+    const n: unknown[] = [];
+    for (const cle of (await _clesSousPrefixe(env, `_notifications/${userId}/`, 1000)).slice(0, 500)) {
+      const v = await lireJson(cle); if (v) n.push(v);
+    }
+    out.notifications = n;
+  } catch { out.notifications = []; }
+  try {
+    out.cles_api = (await _clesDuCompte(env, userId)).map(([, r]) => ({
+      nom: r.nom, prefixe: r.prefixe, email: r.email, plafond: r.plafond, cree: r.cree, revoquee: r.revoquee ?? null, derniere_utilisation: r.vue ?? null,
+    }));
+  } catch { out.cles_api = []; }
+  try {
+    const evaluations: unknown[] = [];
+    const signalements: unknown[] = [];
+    for (const f of (await _loadAllListings(env)).slice(0, 400)) {
+      const e = await lireJson(`_market/ratings/${f.id}/${userId}.json`);
+      if (e) evaluations.push({ fiche: f.id, ...(e as object) });
+      const s = await lireJson(`_market/reports/${f.id}/${userId}.json`);
+      if (s) signalements.push({ fiche: f.id, ...(s as object) });
+    }
+    out.evaluations_boutique = evaluations;
+    out.signalements_boutique = signalements;
+  } catch { out.evaluations_boutique = []; out.signalements_boutique = []; }
+  try {
+    const compteurs: Array<{ cle: string; valeur: string }> = [];
+    for (const p of [`_meta/userspend/${userId}/`, `_meta/userspend_cap/${userId}/`, `_meta/userdaily/${userId}/`]) {
+      for (const cle of (await _clesSousPrefixe(env, p, 200)).slice(-100)) {
+        compteurs.push({ cle, valeur: ((await r2GetText(env, cle)) ?? '').slice(0, 200) });
+      }
+    }
+    out.compteurs_usage = compteurs;
+  } catch { out.compteurs_usage = []; }
+  try {
+    out.messages_contact = (await _lireMessagesContact(env))
+      .filter((m) => m.message.user_id === userId)
+      .map((m) => ({ ...m.message, ip: undefined }));   // l'IP brute n'est pas une donnee « du compte » a reexporter
+  } catch { out.messages_contact = []; }
+  return out;
+}
+
+/** Maillages communs du compte pour l'export : { key, size, uploaded, download_url, source }. Borne 500 (une sous-requete HEAD chacun). */
+async function _exportMaillagesCommuns(env: Env, sb: SupabaseClient, userId: string): Promise<Array<{ key: string; size: number; uploaded: string; download_url: string; source: string }>> {
+  const out: Array<{ key: string; size: number; uploaded: string; download_url: string; source: string }> = [];
+  if (!env.MESHES) return out;
+  try {
+    const cles = clesMaillagesCommunsDesJobs(env, await _lireTousLesJobsDuCompte(sb, userId)).slice(0, 500);
+    for (let i = 0; i < cles.length; i += 20) {
+      await Promise.all(cles.slice(i, i + 20).map(async (cle) => {
+        const h = await env.MESHES!.head(cle).catch(() => null);
+        if (!h) return;
+        out.push({ key: cle, size: h.size, uploaded: h.uploaded.toISOString(), download_url: await signedR2Url(env, cle, 'export'), source: 'jobs (espace commun)' });
+      }));
+    }
+  } catch (e) {
+    console.warn('[rgpd] export des maillages communs :', (e as Error).message);
+  }
+  return out.sort((a, b) => a.key.localeCompare(b.key));
+}
+/* ═══ W2-1 EFFACEMENT ET EXPORT DU COMPTE (D-01, D-06) : FIN ═══ */
+
 async function handleMeExport(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
@@ -3574,6 +3967,8 @@ async function handleMeExport(req: Request, env: Env): Promise<Response> {
       cursor = list.truncated ? list.cursor : undefined;
       pages++;
     } while (cursor && pages < 20);
+    // 2026-10-03 (constat D-01) : les maillages rangés dans l'espace commun `mesh/...` n'y figuraient pas (droit d'acces incomplet).
+    r2Keys.push(...await _exportMaillagesCommuns(env, sb, user.id));
   }
   const body = {
     exported_at: new Date().toISOString(),
@@ -3592,6 +3987,9 @@ async function handleMeExport(req: Request, env: Env): Promise<Response> {
       const st = await getParentalStateBrut(env, user.id);
       return { verified_at: st.ageVerifiedAt ?? null, refused_at: st.ageRefusedAt ?? null, stripe_session_id: st.ageSessionId ?? null };
     })(),
+    // 2026-10-03 (constat D-06) : ce que nous detenons hors du dossier du compte (notifications, cles API sans la cle, evaluations et
+    // signalements de la boutique, compteurs d'usage, messages de contact). Les achats sont dans `marketplace.achats`.
+    donnees_rattachees: await _exportEnregistrementsDuCompte(env, user.id),
     r2_keys: r2Keys,
   };
   return new Response(JSON.stringify(body, null, 2), {
@@ -3621,9 +4019,19 @@ async function handleMeDelete(req: Request, env: Env): Promise<Response> {
   if (body?.confirm !== 'DELETE') return err(400, 'confirm field must be "DELETE"');
 
   const sb = supabaseAdmin(env);
+  // 2026-10-03 (constat D-01) : le plan des maillages communs (`mesh/...`) est calcule AVANT toute suppression, tant que les lignes `jobs`
+  // existent encore. S'il ne peut pas l'etre (Supabase indisponible), on refuse : rien n'est supprime, l'utilisateur peut recommencer.
+  let planMaillages: { candidats: string[]; aSupprimer: string[]; proteges: string[] } = { candidats: [], aSupprimer: [], proteges: [] };
+  try {
+    planMaillages = await _planMaillagesDuCompte(env, sb, user.id);
+  } catch (e) {
+    console.error('[rgpd] plan de suppression des maillages impossible :', (e as Error).message);
+    return err(503, 'account deletion could not start (temporary error) - nothing was deleted, please try again');
+  }
   // R2 first — heaviest. Even if Supabase fails halfway, the user
   // can re-call and we'll just skip already-deleted keys.
   let r2Deleted = 0;
+  let enregistrementsEfface: Record<string, number> = {};
   if (env.MESHES) {
     let cursor: string | undefined;
     let pages = 0;
@@ -3638,6 +4046,9 @@ async function handleMeDelete(req: Request, env: Env): Promise<Response> {
       pages++;
     } while (cursor && pages < 50);
   }
+  // 2026-10-03 (D-01) : maillages de l'espace commun, hors fichiers encore references ailleurs (voir _clesMaillagesProtegees).
+  const maillagesSupprimes = await _supprimerCles(env, await _clesExistantes(env, planMaillages.aSupprimer));
+  r2Deleted += maillagesSupprimes;
   // RGPD — les traces qui vivent HORS du préfixe `<uid>/`. La boucle
   // ci-dessus ne balaie que les objets du compte : tout ce qui suit
   // survivait intégralement à une demande de suppression.
@@ -3673,6 +4084,8 @@ async function handleMeDelete(req: Request, env: Env): Promise<Response> {
       curseurDiag = l.truncated ? l.cursor : undefined;
       pagesDiag++;
     } while (curseurDiag && pagesDiag < 20);
+    // 2026-10-03 (D-06) : cles API, notifications, compteurs, achats / evaluations, messages de contact...
+    enregistrementsEfface = await _effacerEnregistrementsDuCompte(env, user.id);
     // Les fiches marketplace stockent `author_email` EN CLAIR — il n'est
     // masqué qu'à la lecture publique, donc l'e-mail restait sur disque après
     // la fermeture du compte. Elles resteraient en plus en vente au nom d'un
@@ -3781,6 +4194,9 @@ async function handleMeDelete(req: Request, env: Env): Promise<Response> {
   return json({
     ok: true,
     r2_objects_deleted: r2Deleted,
+    shared_meshes_deleted: maillagesSupprimes,
+    shared_meshes_kept_referenced_elsewhere: planMaillages.proteges.length,
+    records_deleted: enregistrementsEfface,
     auth_user_deleted: authDeleted,
   });
 }
@@ -4046,6 +4462,8 @@ async function handleContactSubmit(req: Request, env: Env): Promise<Response> {
   } catch (e) {
     return err(502, `storage write failed: ${e instanceof Error ? e.message : String(e)}`);
   }
+  // 2026-10-03 (EXP-08) : e-mail a l'exploitant (objet + heure seulement, limite 10 / heure).
+  await Promise.race([_alerterNouveauMessage(env, 'contact', id, subject), new Promise<void>((r) => setTimeout(r, 3000))]);   // relecture 2026-10-03 : au plus 3 s d'attente
   return json({ ok: true, success: true, id, attachments: attachments.length });
 }
 
@@ -4060,6 +4478,7 @@ function _safeId(s: string): string {
 async function handleAdminContactList(req: Request, env: Env): Promise<Response> {
   const adminCheck = await _requireAdmin(req, env);
   if (adminCheck instanceof Response) return adminCheck;
+  await _auditLecture(env, req, adminCheck.email, 'view_contacts');   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   if (!env.MESHES) return err(500, 'storage not configured');
   try {
     // Paginate — R2's list cap is 1000 per call and big inboxes will
@@ -4129,6 +4548,7 @@ async function handleAdminContactRead(req: Request, env: Env, id: string): Promi
 async function handleAdminContactDelete(req: Request, env: Env, id: string): Promise<Response> {
   const adminCheck = await _requireAdmin(req, env);
   if (adminCheck instanceof Response) return adminCheck;
+  await _auditLog(env, { req, actorEmail: adminCheck.email, action: 'contact_delete', target: id });   // 2026-10-03 (ADM-08)
   if (!env.MESHES) return err(500, 'storage not configured');
   const key = `_meta/contact/${_safeId(id)}.json`;
   // 2026-10-02 (audit messages-marketplace/MM-12) : les pieces jointes (captures, maillage signale et son apercu, jusqu'a 60 Mo) vivent sous
@@ -4457,6 +4877,7 @@ async function handleMeInboxRead(req: Request, env: Env): Promise<Response> {
 async function handleAdminContactReply(req: Request, env: Env, id: string): Promise<Response> {
   const adminCheck = await _requireAdmin(req, env);
   if (adminCheck instanceof Response) return adminCheck;
+  await _auditLog(env, { req, actorEmail: adminCheck.email, action: 'contact_reply', target: id });   // 2026-10-03 (ADM-08)
   if (!env.MESHES) return err(500, 'storage not configured');
   let body: { body?: string };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
@@ -4604,6 +5025,7 @@ async function handleAdminModalSetBudget(req: Request, env: Env): Promise<Respon
     const prevision = await _previsionModal(env, { limiteUsd: n });
     return json({ ok: true, apercu: true, total: n, prevision });
   }
+  await _auditLog(env, { req, actorEmail: adminCheck.email, action: 'modal_budget_set', details: { total: n } });   // 2026-10-03 (ADM-08)
   const avant = await _budgetR2(env);
   await env.MESHES.put('_meta/modal_budget_total.txt', String(n));
   await env.MESHES.put(CLE_LIMITE_META, JSON.stringify({ enregistree_le: new Date().toISOString(), precedente_usd: avant }));
@@ -4779,6 +5201,44 @@ const MARKET_LICENCES = new Set([
   'personal', 'cc0', 'cc-by', 'cc-by-nc', 'commercial',
 ]);
 
+/* 2026-10-03 (constats SM-09 et IA-08) — validations PURES des fiches de la place de marche, partagees par la publication et la
+ * modification (avant, la route de modification active n'avait aucune borne de prix : un prix a 1 centime faisait echouer Stripe, qui
+ * exige 0,50 EUR au minimum, et un prix enorme alimentait le calcul des reversements). */
+const PRIX_FICHE_MAX_CENTS = 1_000_000;
+const PRIX_FICHE_MIN_PAYANT_CENTS = 50;
+function validerPrixFiche(v: unknown): { ok: true; cents: number } | { ok: false; message: string } {
+  const p = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
+  if (typeof p !== 'number' || !Number.isFinite(p) || !Number.isInteger(p) || p < 0) {
+    return { ok: false, message: 'Prix invalide : un nombre entier de centimes, positif ou nul, est attendu.' };
+  }
+  if (p > 0 && p < PRIX_FICHE_MIN_PAYANT_CENTS) {
+    return { ok: false, message: 'Le prix doit \u00eatre gratuit (0) ou d\u2019au moins 50 centimes.' };
+  }
+  if (p > PRIX_FICHE_MAX_CENTS) {
+    return { ok: false, message: 'Le prix d\u00e9passe le maximum autoris\u00e9 (10 000 \u20ac).' };
+  }
+  return { ok: true, cents: p };
+}
+/** IA-08 : les caracteres < et > sont refuses dans le titre et la description d'une fiche (ils servent a injecter du balisage
+ *  dans les pages qui affichent ces textes). Ne regarde que les textes fournis (string). */
+function validerTexteFiche(titre: unknown, description: unknown): { ok: true } | { ok: false; message: string } {
+  for (const t of [titre, description]) {
+    if (typeof t === 'string' && /[<>]/.test(t)) {
+      return { ok: false, message: 'Le titre et la description ne peuvent pas contenir les caract\u00e8res < ou >.' };
+    }
+  }
+  return { ok: true };
+}
+/** IA-08 : filtre de contenu applique au titre et a la description (texte PUBLIC : toujours en mode strict, jamais le mode non restreint). */
+async function _filtrerTexteFiche(env: Env, userId: string, ...textes: unknown[]): Promise<{ ok: true } | { ok: false; message: string }> {
+  for (const t of textes) {
+    if (typeof t !== 'string' || !t.trim()) continue;
+    const s = await _checkPromptSafetyAlerte(env, userId, t, false);
+    if (!s.safe) return { ok: false, message: s.reason ?? 'contenu refus\u00e9 par le filtre' };
+  }
+  return { ok: true };
+}
+
 /** Cle R2 d'un actif de fiche. Trois formes coexistent dans `asset_url` :
  *  la cle nue (`mesh/modal_x.glb`, fiches recentes), l'URL signee du worker
  *  (`https://<site>/r2/<cle>?exp&sig`) et l'ancienne URL publique r2.dev.
@@ -4928,6 +5388,30 @@ async function _loadAllListings(env: Env): Promise<MarketListing[]> {
   return out;
 }
 
+/** CORRECTIF 2026-10-03 (relecture de la suppression de compte, constat D-01) : variante STRICTE de _loadAllListings. La version habituelle avale toute erreur de lecture d'une fiche
+ *  (elle sert a l'affichage) ; or la suppression d'un compte ne doit JAMAIS effacer un maillage vendu ou partage sur la foi d'une liste INCOMPLETE : une erreur R2 transitoire sur la
+ *  fiche d'un AUTRE compte desactivait la protection et la suppression, irreversible, repondait 200. Ici toute erreur de lecture REMONTE (l'appelant repond 503 sans rien supprimer).
+ *  Seule une fiche dont le JSON est corrompu est ignoree : elle ne designe aucun fichier de facon fiable. */
+async function _loadAllListingsStrict(env: Env): Promise<MarketListing[]> {
+  if (!env.MESHES) return [];
+  const out: MarketListing[] = [];
+  let cursor: string | undefined = undefined;
+  do {
+    const page = await env.MESHES.list({ prefix: '_market/listings/', limit: 1000, cursor });
+    for (const obj of page.objects) {
+      if (!obj.key.endsWith('.json')) continue;
+      const txt = await r2GetText(env, obj.key);
+      if (txt === null) throw new Error('fiche de la boutique illisible : ' + obj.key);
+      try {
+        const parsed = JSON.parse(txt);
+        if (parsed && parsed.id) out.push(parsed);
+      } catch { /* JSON corrompu : la fiche ne designe aucun fichier fiable */ }
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return out;
+}
+
 /** POST /api/market/publish — author publishes one of their own
  *  succeeded meshes, an image, a rig or an animation they own. Body shapes:
  *    mesh:      { asset_kind:'mesh',      jobId, title, description, price_cents, currency, licence }
@@ -4983,6 +5467,15 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
   }
   if (!title) return err(400, 'title required');
   if (!MARKET_LICENCES.has(licence)) return err(400, 'invalid licence');
+  // 2026-10-03 (IA-08) : pas de < ni > dans le titre ni la description, et filtre de contenu sur ces deux textes.
+  const texteOk = validerTexteFiche(title, description);
+  if (!texteOk.ok) return err(400, texteOk.message);
+  const filtreOk = await _filtrerTexteFiche(env, user.id, title, description);
+  if (!filtreOk.ok) return err(400, filtreOk.message);
+  // 2026-10-03 (SM-09) : un prix payant de moins de 50 centimes ferait echouer le paiement Stripe.
+  if (price_cents > 0 && price_cents < PRIX_FICHE_MIN_PAYANT_CENTS) {
+    return err(400, 'Le prix doit \u00eatre gratuit (0) ou d\u2019au moins 50 centimes.');
+  }
 
   let assetUrl = '';
   let jobId: string | null = null;
@@ -5125,6 +5618,11 @@ async function handleMarketUpdate(req: Request, env: Env, id: string): Promise<R
   try {
     const parsed = JSON.parse(txt);
     if (parsed.user_id !== user.id) return err(403, 'not your listing');
+    // 2026-10-03 (IA-08) : pas de < ni > dans le titre ni la description, et filtre de contenu sur ces deux textes.
+    const texteOk = validerTexteFiche(body.title, body.description);
+    if (!texteOk.ok) return err(400, texteOk.message);
+    const filtreOk = await _filtrerTexteFiche(env, user.id, body.title, body.description);
+    if (!filtreOk.ok) return err(400, filtreOk.message);
     if (typeof body.title === 'string') {
       const t = body.title.trim().slice(0, 120);
       if (!t) return err(400, 'title required');
@@ -5133,12 +5631,15 @@ async function handleMarketUpdate(req: Request, env: Env, id: string): Promise<R
     if (typeof body.description === 'string') {
       parsed.description = body.description.trim().slice(0, 2000);
     }
-    if (typeof body.price_cents === 'number' && Number.isFinite(body.price_cents)) {
-      parsed.price_cents = Math.max(0, Math.floor(body.price_cents));
+    /* 2026-10-03 (SM-09) : les controles de prix de l'ancienne route de modification (jamais atteinte, declaree en double) sont
+     * reportes ici : entier, 0 ou au moins 50 centimes, maximum. Avant, cette route bornait seulement vers le bas (>= 0). */
+    if (body.price_cents !== undefined && body.price_cents !== null) {
+      const prix = validerPrixFiche(body.price_cents);
+      if (!prix.ok) return err(400, prix.message);
+      parsed.price_cents = prix.cents;
     }
     if (typeof body.licence === 'string') {
-      const allowed = ['personal', 'cc0', 'cc-by', 'cc-by-nc', 'commercial'];
-      if (!allowed.includes(body.licence)) return err(400, 'invalid licence');
+      if (!MARKET_LICENCES.has(body.licence)) return err(400, 'invalid licence');
       parsed.licence = body.licence;
     }
     // Any edit resets to pending so the admin re-reviews.
@@ -5174,55 +5675,6 @@ async function handleMarketUnpublish(req: Request, env: Env, id: string): Promis
   } catch (e) {
     return err(500, e instanceof Error ? e.message : String(e));
   }
-}
-
-/** PATCH /api/market/listing/<id> — author edits their own listing.
- *  Only title/description/price_cents/licence are mutable. Editing any
- *  field bumps the listing back to status=pending so admin re-reviews. */
-async function handleMarketListingUpdate(req: Request, env: Env, id: string): Promise<Response> {
-  const user = await getSessionUser(req, env);
-  if (!user) return err(401, 'unauthorized');
-  if (!env.MESHES) return err(500, 'storage not configured');
-  const key = `_market/listings/${id}.json`;
-  const txt = await r2GetText(env, key);
-  if (!txt) return err(404, 'listing not found');
-  let listing: MarketListing;
-  try { listing = JSON.parse(txt) as MarketListing; }
-  catch (e) { return err(500, e instanceof Error ? e.message : String(e)); }
-  if (listing.user_id !== user.id) return err(403, 'not your listing');
-
-  let body: any = {};
-  try { body = await req.json(); } catch { body = {}; }
-
-  let changed = false;
-  if (typeof body.title === 'string') {
-    const t = body.title.trim().slice(0, 120);
-    if (!t) return err(400, 'title required');
-    if (t !== listing.title) { listing.title = t; changed = true; }
-  }
-  if (typeof body.description === 'string') {
-    const d = body.description.slice(0, 4000);
-    if (d !== listing.description) { listing.description = d; changed = true; }
-  }
-  if (body.price_cents !== undefined && body.price_cents !== null) {
-    const p = Number(body.price_cents);
-    if (!Number.isFinite(p) || p < 0 || !Number.isInteger(p)) return err(400, 'invalid price_cents');
-    if (p > 0 && p < 50) return err(400, 'price must be free or at least 50 cents');
-    if (p !== listing.price_cents) { listing.price_cents = p; changed = true; }
-  }
-  if (typeof body.licence === 'string') {
-    if (!MARKET_LICENCES.has(body.licence)) return err(400, 'invalid licence');
-    if (body.licence !== listing.licence) { listing.licence = body.licence; changed = true; }
-  }
-
-  if (changed) {
-    listing.status = 'pending';
-    (listing as any).updated_at = new Date().toISOString();
-    delete (listing as any).rejection_reason;
-    await env.MESHES.put(key, JSON.stringify(listing),
-                         { httpMetadata: { contentType: 'application/json' } });
-  }
-  return json({ ok: true, listing });
 }
 
 /** GET /api/market/list — PUBLIC. Approved listings only. Browse-only;
@@ -5821,6 +6273,7 @@ async function handleAdminMarketKillSwitchGet(req: Request, env: Env): Promise<R
 async function handleAdminMarketKillSwitchSet(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'market_killswitch_set', target: undefined });   // 2026-10-03 (ADM-08)
   if (!env.MESHES) return err(500, 'storage not configured');
   let body: { enabled?: unknown; reason?: unknown };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
@@ -5840,6 +6293,7 @@ async function handleAdminMarketKillSwitchSet(req: Request, env: Env): Promise<R
 async function handleAdminMarketApprove(req: Request, env: Env, id: string): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'market_approve', target: id });   // 2026-10-03 (ADM-08)
   if (!env.MESHES) return err(500, 'storage not configured');
   const key = `_market/listings/${id}.json`;
   const txt = await r2GetText(env, key);
@@ -5905,6 +6359,7 @@ async function handleAdminMarketPrice(req: Request, env: Env, id: string): Promi
 async function handleAdminMarketReject(req: Request, env: Env, id: string): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'market_reject', target: id });   // 2026-10-03 (ADM-08)
   if (!env.MESHES) return err(500, 'storage not configured');
   let body: { reason?: string };
   try { body = await req.json() as typeof body; } catch { body = {}; }
@@ -6566,6 +7021,22 @@ function _stripeForm(obj: Record<string, unknown>): URLSearchParams {
   return out;
 }
 
+/** 2026-10-03 (constats SM-03 et F4) — decision pure : le consentement a l'execution immediate
+ *  (renonciation au droit de retractation, art. L221-28 13°) est-il fourni ? Meme regle que
+ *  handleCheckout (credits) : `consent === true` exige, horodatage fourni par le client
+ *  s'il est court, sinon l'heure serveur. Sans cette trace, la charge de la preuve incombe
+ *  au vendeur professionnel. */
+function validerConsentementMarche(
+  corps: { consent?: unknown; consentedAt?: unknown } | null | undefined, maintenant: string,
+): { ok: true; consentedAt: string } | { ok: false; message: string } {
+  if (!corps || corps.consent !== true) {
+    return { ok: false, message: 'Le consentement \u00e0 la livraison imm\u00e9diate et \u00e0 la renonciation au droit de r\u00e9tractation est requis avant le paiement (art. L221-28 13\u00b0).' };
+  }
+  const horodatage = (typeof corps.consentedAt === 'string' && corps.consentedAt.length > 0 && corps.consentedAt.length <= 40)
+    ? corps.consentedAt : maintenant;
+  return { ok: true, consentedAt: horodatage };
+}
+
 /** POST /api/market/checkout  body { listing_ids: string[] } — create
  *  a Stripe Checkout Session bundling every paid listing in the user's
  *  cart. Returns { url } for the client to redirect to. Free listings
@@ -6596,10 +7067,15 @@ async function handleMarketCheckout(req: Request, env: Env): Promise<Response> {
     return err(503, 'Payments are temporarily unavailable. Please try again later.');
   }
 
-  let body: { listing_ids?: string[] };
+  let body: { listing_ids?: string[]; consent?: boolean; consentedAt?: string };
   try { body = await req.json() as typeof body; } catch { return err(400, 'bad json'); }
   const ids = (body.listing_ids ?? []).filter((x) => typeof x === 'string').slice(0, 50);
   if (!ids.length) return err(400, 'no listings in cart');
+  /* 2026-10-03 (SM-03 / F4) : la caisse de la boutique ne lisait pas `consent` que la page
+   * envoie pourtant. Exige ici et horodate dans les metadonnees de la session, comme
+   * handleCheckout pour les credits. */
+  const consentement = validerConsentementMarche(body, new Date().toISOString());
+  if (!consentement.ok) return err(400, consentement.message);
 
   // Load every requested listing + keep only the approved + priced ones.
   const listings: MarketListing[] = [];
@@ -6651,7 +7127,12 @@ async function handleMarketCheckout(req: Request, env: Env): Promise<Response> {
       kind: 'market_purchase',
       user_id: user.id,
       listing_ids: listings.map((l) => l.id).join(','),
+      withdrawal_waiver: 'accepted', withdrawal_waiver_at: consentement.consentedAt,
     },
+    /* 2026-10-03 (F4) : facture PDF et recu par e-mail, comme pour les credits (support
+     * durable, art. L221-13). Stripe les emet sans canal e-mail de notre part. */
+    invoice_creation: { enabled: true },
+    payment_intent_data: { receipt_email: user.email ?? undefined },
     // EU VAT / sales-tax auto-collection. _stripeForm encodes these as
     // automatic_tax[enabled]=true / tax_id_collection[enabled]=true.
     // Requires Stripe Tax enabled + origin address in the Dashboard.
@@ -6884,7 +7365,9 @@ async function _processMarketPurchase(env: Env, sess: {
     // Ownership index — one object per (buyer, listing). Quick HEAD
     // check in /api/market/owned and /api/market/download.
     await env.MESHES.put(`_market/owners/${listingId}/${userId}.json`,
-                         JSON.stringify({ sale_id: saleId, at: sale.paid_at }),
+                         JSON.stringify({ sale_id: saleId, at: sale.paid_at,
+                           // 2026-10-03 (SM-03) : trace de la renonciation, a cote de la propriete.
+                           withdrawal_waiver_at: sess.metadata?.withdrawal_waiver_at ?? null }),
                          { httpMetadata: { contentType: 'application/json' } });
     // Bump downloads counter on a SEPARATE R2 key so concurrent buyers
     // don't clobber the listing JSON. The listing.downloads field is now
@@ -7061,6 +7544,7 @@ async function handleMarketPreview(req: Request, env: Env, id: string): Promise<
 async function handleAdminMarketDelete(req: Request, env: Env, id: string): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'market_delete', target: id });   // 2026-10-03 (ADM-08)
   if (!env.MESHES) return err(500, 'storage not configured');
   await env.MESHES.delete(`_market/listings/${id}.json`);
   // Orphan cleanup: owners (per-buyer entries) and ratings (per-rater
@@ -7415,6 +7899,42 @@ async function handleCheckout(req: Request, env: Env): Promise<Response> {
   return json({ url: session.url });
 }
 
+/* 2026-10-03 (constat CLOUD-01) — decision pure : que faire d'une ligne `payments` ?
+ *   a_creer       : aucune ligne, premiere livraison ;
+ *   deja_credite  : credits > 0, idempotent ;
+ *   rembourse     : credits = 0 mais credits_origine renseignee (remboursement ou litige) :
+ *                   l'argent est rendu, JAMAIS recrediter ;
+ *   a_reprendre   : credits = 0 et origine NULL, essai interrompu : on reclame la ligne.
+ * Fonction pure (sans E/S) pour etre testee seule (cloud/tests/argent.test.mjs). */
+const MSG_PAIEMENT_REMBOURSE = 'paiement rembours\u00e9 ou contest\u00e9 : aucun cr\u00e9dit accord\u00e9';
+type EtatPriseEnCharge = 'a_creer' | 'deja_credite' | 'rembourse' | 'a_reprendre';
+function decisionPriseEnCharge(ligne: { credits?: number | null; credits_origine?: number | null } | null | undefined): EtatPriseEnCharge {
+  if (!ligne) return 'a_creer';
+  if (Number(ligne.credits ?? 0) > 0) return 'deja_credite';
+  if (ligne.credits_origine != null) return 'rembourse';
+  return 'a_reprendre';
+}
+
+/* Prise atomique d'une ligne `payments` (CLOUD-01) : UPDATE conditionnel
+ * credits = 0 ET credits_origine NULL. Rend 'reclamee' si EXACTEMENT une ligne a
+ * ete modifiee (alors, et seulement alors, l'appelant credite), 'perdue' si
+ * zero (deja prise, deja creditee ou remboursee), 'erreur' si la base echoue. */
+async function _reclamerPaiement(
+  sb: ReturnType<typeof supabaseAdmin>, sessionOrInvoiceId: string, credits: number, amountEur: number,
+): Promise<'reclamee' | 'perdue' | 'erreur'> {
+  const { data, error } = await sb.from('payments')
+    .update({ credits, amount_eur: amountEur })
+    .eq('stripe_session_id', sessionOrInvoiceId)
+    .eq('credits', 0)
+    .is('credits_origine', null)
+    .select('id');
+  if (error) {
+    console.error('[stripe] prise de la ligne payments impossible :', sessionOrInvoiceId, error.message);
+    return 'erreur';
+  }
+  return data && data.length === 1 ? 'reclamee' : 'perdue';
+}
+
 /* Encaissement idempotent — SORTI de handleStripeWebhook le 2026-08-23.
  *
  * Cette machine a etats etait imbriquee dans le gestionnaire de webhook,
@@ -7433,27 +7953,40 @@ async function _traiterPaiement(env: Env, opts: {
   credits: number;
   packId: string;
   amountEur: number;
-}): Promise<{ ok: true } | { ok: false; retry: boolean }> {
-  // Atomic-ish processing with self-healing on retry.
+}): Promise<{ ok: true; credited: boolean; raison?: 'deja_credite' | 'rembourse' } | { ok: false; retry: boolean }> {
+  // Traitement idempotent avec reprise apres incident.
   //
-  // Three states for the payments row:
-  //   1. Not present       → first delivery, full flow below.
-  //   2. credits === 0     → previous attempt died mid-flow (after
-  //                         placeholder INSERT, before addCredits or
-  //                         before the patch). Resume from addCredits.
-  //   3. credits > 0       → already finalised, idempotent return.
+  // 2026-10-03 (constat CLOUD-01) : la machine a etats est reecrite autour
+  // d'une PRISE ATOMIQUE. Avant, une ligne a credits = 0 voulait dire
+  // << essai interrompu, a reprendre >>, alors qu'un remboursement ou un litige
+  // remet AUSSI la ligne a 0 (en gardant credits_origine) : rejouer
+  // /api/checkout/reconcile recreditait un client deja rembourse. Et entre
+  // l'insertion de la ligne a 0 et sa mise a jour, une requete concurrente
+  // voyait 0 et creditait une seconde fois.
   //
-  // The state machine: probe → if (state 3) bail, if (state 2)
-  // resume, if (state 1) INSERT placeholder THEN proceed. Single
-  // path for the credit+patch step regardless of entry state, so
-  // a retry that crashed AT ANY point converges to a finalised row.
+  // Etats de la ligne `payments` (voir decisionPriseEnCharge) :
+  //   - absente                         -> on l'insere a 0 puis on la reclame ;
+  //   - credits > 0                     -> deja credite, retour idempotent ;
+  //   - credits = 0, origine renseignee -> REMBOURSEE / en litige : jamais recreditee ;
+  //   - credits = 0, origine NULL       -> essai interrompu, on la reclame.
+  // Dans tous les cas, SEUL l'UPDATE conditionnel de _reclamerPaiement decide
+  // qui credite : exactement une ligne reclamee = exactement un credit.
   const sb = supabaseAdmin(env);
-  const { data: existing } = await sb.from('payments')
-    .select('id, credits').eq('stripe_session_id', opts.sessionOrInvoiceId).maybeSingle();
-  if (existing && (existing as { credits: number }).credits > 0) {
-    return { ok: true }; // already credited
+  let { data: existing, error: errSonde } = await sb.from('payments')
+    .select('id, credits, credits_origine').eq('stripe_session_id', opts.sessionOrInvoiceId).maybeSingle();
+  if (errSonde) {
+    // Colonne credits_origine absente (base ancienne) : on retombe sur la sonde d'avant.
+    const repli = await sb.from('payments')
+      .select('id, credits').eq('stripe_session_id', opts.sessionOrInvoiceId).maybeSingle();
+    existing = repli.data as typeof existing;
   }
-  if (!existing) {
+  const etat = decisionPriseEnCharge(existing as { credits?: number | null; credits_origine?: number | null } | null);
+  if (etat === 'deja_credite') return { ok: true, credited: false, raison: 'deja_credite' };
+  if (etat === 'rembourse') {
+    console.warn('[stripe] paiement rembourse ou en litige, aucun credit :', opts.sessionOrInvoiceId);
+    return { ok: true, credited: false, raison: 'rembourse' };
+  }
+  if (etat === 'a_creer') {
     const ins = await sb.from('payments').insert({
       stripe_session_id: opts.sessionOrInvoiceId,
       user_id: opts.userId, pack_id: opts.packId, credits: 0,
@@ -7461,17 +7994,32 @@ async function _traiterPaiement(env: Env, opts: {
       created_at: new Date().toISOString(),
     });
     if (ins.error) {
-      // Only Postgres duplicate-key (23505) means another delivery beat
-      // us — their finalisation is independent, bail ok. Any other error
-      // (RLS, network, schema) is a real failure: ask Stripe to retry.
+      // Seule une cle dupliquee (23505) prouve qu'une autre livraison nous a
+      // devances : on tombe alors sur la prise atomique ci-dessous, qui
+      // departage (une seule des deux reclamera la ligne). Toute autre erreur
+      // (RLS, reseau, schema) est reelle : on demande a Stripe de rejouer.
       const code = (ins.error as { code?: string }).code;
-      if (code === '23505') {
-        return { ok: true };
+      if (code !== '23505') {
+        console.error('[stripe] payments insert failed:',
+          opts.sessionOrInvoiceId, ins.error.message);
+        return { ok: false, retry: true };
       }
-      console.error('[stripe] payments insert failed:',
-        opts.sessionOrInvoiceId, ins.error.message);
-      return { ok: false, retry: true };
     }
+  }
+  /* PRISE ATOMIQUE — la ligne devient la notre, ou elle ne l'est pas.
+   *
+   * On met la ligne au VRAI montant AVANT de crediter, par un UPDATE qui
+   * exige credits = 0 ET credits_origine NULL. Deux requetes simultanees
+   * (webhook + reconcile, rafale de reconcile) : une seule voit une ligne
+   * modifiee et credite. Une ligne remboursee n'est jamais reclamee. */
+  const prise = await _reclamerPaiement(sb, opts.sessionOrInvoiceId, opts.credits, opts.amountEur);
+  if (prise === 'erreur') return { ok: false, retry: true };
+  if (prise === 'perdue') {
+    // Quelqu'un d'autre l'a reclamee, ou elle est remboursee : on relit pour le dire.
+    const { data: apres } = await sb.from('payments')
+      .select('credits, credits_origine').eq('stripe_session_id', opts.sessionOrInvoiceId).maybeSingle();
+    const e2 = decisionPriseEnCharge(apres as { credits?: number | null; credits_origine?: number | null } | null);
+    return { ok: true, credited: false, raison: e2 === 'rembourse' ? 'rembourse' : 'deja_credite' };
   }
   // State 1 (just inserted) and state 2 (resuming) converge here.
   /* LE CLIENT QUI VIENT DE PAYER N'EST PLUS « NON PAYANT ».
@@ -7507,26 +8055,22 @@ async function _traiterPaiement(env: Env, opts: {
      * rejeu la retiendrait une seconde fois. La cle porte l'identifiant de
      * la session, donc deux paiements distincts ne se marchent pas dessus. */
     if (retenue > 0) await _poserDette(env, opts.userId, `rendu_${opts.sessionOrInvoiceId}`, retenue);
-    // RPC failed; placeholder stays at credits=0 so the next retry
-    // hits state 2 and re-attempts. Tell Stripe to retry by returning
-    // retry:true → handler answers with a 500 so Stripe re-delivers.
+    /* 2026-10-03 (CLOUD-01) : la ligne avait ete reclamee au vrai montant
+     * AVANT le credit. Sans credit, on la REMET A 0 pour que le prochain
+     * rejeu (Stripe ou reconcile) puisse la reclamer a nouveau. */
+    const { error: errRetour } = await sb.from('payments')
+      .update({ credits: 0, amount_eur: 0 })
+      .eq('stripe_session_id', opts.sessionOrInvoiceId)
+      .eq('credits', opts.credits)
+      .is('credits_origine', null);
+    if (errRetour) {
+      console.error('[stripe] ALERTE : credit refuse ET ligne non remise a 0 :',
+        opts.sessionOrInvoiceId, errRetour.message, '- a corriger a la main (rapprochement admin).');
+    }
+    // RPC en echec : retry:true -> le gestionnaire repond 500 et Stripe rejoue.
     return { ok: false, retry: true };
   }
-  const patch = await sb.from('payments')
-    .update({ credits: opts.credits, amount_eur: opts.amountEur })
-    .eq('stripe_session_id', opts.sessionOrInvoiceId);
-  if (patch.error) {
-    // The credits landed; only the accounting row update failed.
-    // Tell Stripe to retry: the next call will see state-3 (credits
-    // already on the user) ONLY if we already patched, otherwise
-    // state-2 and we re-credit (DOUBLE CREDIT). Mitigation: bump
-    // the placeholder to the real credits in a single transaction
-    // with addCredits via an RPC — future TODO. For now we accept
-    // the at-most-one-extra-credit risk on a rare DB blip.
-    console.warn('[stripe] payments patch failed but credits added:',
-      opts.sessionOrInvoiceId, patch.error.message);
-  }
-  return { ok: true };
+  return { ok: true, credited: true };
 }
 
 /** POST /api/checkout/reconcile — filet quand le webhook Stripe n'arrive pas.
@@ -7592,6 +8136,22 @@ async function handleCheckoutReconcile(req: Request, env: Env): Promise<Response
   const pack = packId ? (PACKS as Record<string, { credits: number } | undefined>)[packId] : undefined;
   if (!pack) return err(400, 'pack inconnu sur cette session');
 
+  /* 2026-10-03 (CLOUD-01) : une session remboursee reste << paid >> chez Stripe.
+   * On relit la charge pour refuser un paiement rembourse ou conteste meme si
+   * le webhook de remboursement n'est pas encore passe (la ligne `payments`
+   * ne le sait pas encore). Au mieux : si Stripe ne repond pas, la garde
+   * sur la ligne (credits_origine) dans _traiterPaiement reste active. */
+  const rc = await _stripeRest(
+    env, `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=payment_intent.latest_charge`,
+    null, 'GET');
+  if (rc.ok) {
+    const pi = (rc.data as { payment_intent?: { latest_charge?: { amount_refunded?: number; refunded?: boolean; disputed?: boolean } | string } }).payment_intent;
+    const charge = pi && typeof pi === 'object' && pi.latest_charge && typeof pi.latest_charge === 'object' ? pi.latest_charge : null;
+    if (charge && (Number(charge.amount_refunded ?? 0) > 0 || charge.refunded === true || charge.disputed === true)) {
+      return json({ ok: true, credited: false, reason: MSG_PAIEMENT_REMBOURSE });
+    }
+  }
+
   const res = await _traiterPaiement(env, {
     sessionOrInvoiceId: sessionId,
     userId: user.id,
@@ -7599,7 +8159,10 @@ async function handleCheckoutReconcile(req: Request, env: Env): Promise<Response
     packId: packId as string,
     amountEur: Math.round((sess.amount_total ?? 0)) / 100,
   });
-  if (!res.ok) return err(500, 'credit impossible, reessayez dans un instant');
+  if (!res.ok) return err(500, 'cr\u00e9dit impossible, r\u00e9essayez dans un instant');
+  if (res.raison === 'rembourse') {
+    return json({ ok: true, credited: false, reason: MSG_PAIEMENT_REMBOURSE });
+  }
   const { data: prof } = await supabaseAdmin(env).from('profiles')
     .select('credits').eq('id', user.id).maybeSingle();
   return json({ ok: true, credited: true, credits: (prof as { credits?: number } | null)?.credits ?? null });
@@ -8666,14 +9229,13 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
        * l'envoyait pas : tous les paliers recevaient le meme travail (24 pas
        * par defaut cote Modal, atlas 1024) pour 8 a 16 credits. On derive
        * desormais les reglages du PALIER FACTURE, cote serveur. Fast garde
-       * exactement son calcul actuel (personne n'y perd) ; chaque palier
-       * au-dessus est strictement meilleur : Balanced atlas 2048, Quality et
-       * Ultra 32 pas + atlas 4096 (comme le bureau). */
-      const PALIERS: Record<string, { pas: number; atlas: number }> = {
-        fast: { pas: 24, atlas: 1024 }, balanced: { pas: 24, atlas: 2048 },
-        quality: { pas: 32, atlas: 4096 }, ultra_8k: { pas: 32, atlas: 4096 },
-      };
-      const palier = input.preset ? PALIERS[input.preset] : undefined;
+       * ses 24 pas mais passe en atlas 2048 depuis le 2026-10-03 (l'atlas 1024
+       * jetait plus de la moitie de la couleur generee, pour le meme cout) ;
+       * Balanced atlas 2048, Quality et Ultra 32 pas + atlas 4096 (comme le
+       * bureau). */
+      // 2026-10-03 : table et taille d'atlas au niveau du fichier (PALIERS_GENERATION / tailleAtlasGeneration) ; Fast = atlas 2048 (voir leur commentaire).
+      const palier = input.preset ? PALIERS_GENERATION[input.preset] : undefined;
+      const atlasGeneration = tailleAtlasGeneration(input);
       // Au-dela de 5 M triangles, la grille 1024 ne fournit pas assez de
       // matiere (7,6 M brut mesure sur un personnage) : grille 1536.
       const trellisMode = (input.ultra_q || (input.max_tris ?? 0) > 5_000_000) ? '1536_cascade'
@@ -8693,10 +9255,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
                          : input.mode === 'full' ? 1_500_000 : 500_000,
         // ultra_hd bumps the atlas to 4096 for the Real-ESRGAN x2 pass
         // downstream. Otherwise 2048 for "full", 1024 elsewhere.
-        texture_size: input.ultra_hd ? 4096
-                    : palier ? palier.atlas
-                    : input.mode === 'full' ? 2048
-                    : 1024,
+        texture_size: atlasGeneration,
         // STEPS DU PALIER DE QUALITE. Le client calcule 12/24/32 selon
         // Fast/Balanced/Quality/Ultra et l'envoie dans `trellis2Steps`,
         // mais le worker le RECEVAIT SANS JAMAIS LE TRANSMETTRE : les
@@ -8732,7 +9291,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         const avant = (jo && jo.options && typeof jo.options === 'object') ? jo.options as Record<string, unknown> : {};
         await sbj.from('jobs').update({ status: 'processing', options: { ...avant,
           voxel_grid: trellisMode,
-          texture_size: input.ultra_hd ? 4096 : palier ? palier.atlas : input.mode === 'full' ? 2048 : 1024,
+          texture_size: atlasGeneration,
           decimation_target: input.max_tris ? input.max_tris
             : input.mode === 'lite' ? 100_000 : input.mode === 'full' ? 1_500_000 : 500_000,
           tex_steps: palier ? palier.pas : undefined,
@@ -10254,6 +10813,13 @@ async function handleRemoveBackground(req: Request, env: Env): Promise<Response>
   if (ct.includes('application/json')) {
     const corps = await req.json() as { imageUrl?: string; projectName?: string };
     if (!corps.imageUrl) return err(400, 'imageUrl required');
+    /* 2026-10-03 (CLOUD-05) : une adresse http(s) fournie par le client etait envoyee telle
+     * quelle au fournisseur. On n'accepte que nos hotes de confiance (URL signee du site,
+     * Replicate...) ; une donnee inline (data:) reste acceptee. */
+    if (/^[a-z][a-z0-9+.-]*:/i.test(corps.imageUrl) && !/^data:image\//i.test(corps.imageUrl)
+        && !isTrustedAssetHost(env, corps.imageUrl)) {
+      return err(400, 'imageUrl host not allowed');
+    }
     imageInput = corps.imageUrl;
     projectName = corps.projectName;
   } else {
@@ -11377,6 +11943,22 @@ async function callModalRectify(env: Env, userId: string, input: {
   throw new Error('R2 bucket unavailable; cannot persist Modal rectify output');
 }
 
+/* 2026-10-03 (palier Fast) — PALIERS DE QUALITE DE LA GENERATION 3D ET TAILLE D'ATLAS.
+ *
+ * Mesures du 03/10/2026 (rapport texture) : l'atlas 1024 du palier Fast jetait plus de la moitie de la couleur DEJA generee par le modele,
+ * et la cuisson en 2048 ne coute pas plus cher (la construction du modele est dominee par le CPU, pas par la taille de l'atlas).
+ * Fast passe donc a 2048 ; ses PAS ne changent pas (24). Une seule table, lue par les DEUX endroits qui decidaient la taille
+ * (l'envoi a Modal et l'enregistrement des options du job) pour qu'ils ne puissent plus diverger. */
+const PALIERS_GENERATION: Record<string, { pas: number; atlas: number }> = {
+  fast: { pas: 24, atlas: 2048 }, balanced: { pas: 24, atlas: 2048 },
+  quality: { pas: 32, atlas: 4096 }, ultra_8k: { pas: 32, atlas: 4096 },
+};
+/** Taille d'atlas demandee a Modal : ultra_hd d'abord (4096 pour le passage Real-ESRGAN), puis le palier facture, puis le mode historique. */
+function tailleAtlasGeneration(input: { ultra_hd?: boolean; preset?: string; mode?: string }): number {
+  const palier = input.preset ? PALIERS_GENERATION[input.preset] : undefined;
+  return input.ultra_hd ? 4096 : palier ? palier.atlas : input.mode === 'full' ? 2048 : 1024;
+}
+
 /* ───────────────────── Modal mesh — ASYNC pattern ─────────────────────
  * The mesh pipeline (TRELLIS-2) takes ~5-10 min on a cold container.
  * Modal web endpoints hard-cap HTTP responses at 150 s, so we cannot
@@ -11873,7 +12455,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const userState = await getParentalState(env, user.id);
   const unrestricted = envUnrestricted || !!userState.unrestricted;
   {
-    const safety = checkPromptSafety(rawPrompt, unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -11882,7 +12464,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     // Le mode T-pose envoie a Modal `prompt` (pas `userPrompt`) : ce champ-la doit passer le meme filtre (revue du 2026-10-01).
     const autre = (prompt ?? '').toString().trim();
     if (autre && autre !== rawPrompt) {
-      const s2 = checkPromptSafety(autre, unrestricted);
+      const s2 = await _checkPromptSafetyAlerte(env, user.id, autre, unrestricted);
       if (!s2.safe) {
         return json({ ok: false, success: false,
           error: s2.reason ?? 'prompt blocked by content filter',
@@ -11941,6 +12523,13 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const ESTIMATED_USD_PER_IMAGE = useTpose ? 0.02 : (useModal ? 0.006 : 0.30);
   const estimatedTotal = ESTIMATED_USD_PER_IMAGE * n;
 
+  /* 2026-10-03 (CLOUD-05) : la garde SSRF etait posee APRES les debits (budget, appels,
+   * credits) et renvoyait 400 sans rembourser : un refus coutait un credit. Elle est
+   * remontee ici, avant le moindre debit. */
+  if (useTpose && refImageUrl && !isTrustedAssetHost(env, refImageUrl)) {
+    return err(400, 'refImageUrl host not allowed');
+  }
+
   // Hard daily spend cap — refund the estimate if the call fails.
   // Conservative — never falsifies the budget upward. Modal uses its
   // own R2 counter so the two backends don't share a cap.
@@ -11967,9 +12556,6 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     return json({ ok: false, success: false, error: `insufficient credits — image generation costs ${cost} credit${cost === 1 ? '' : 's'}` }, { status: 402 });
   }
 
-  if (useTpose && refImageUrl && !isTrustedAssetHost(env, refImageUrl)) {
-    return err(400, 'refImageUrl host not allowed');
-  }
   const paths: string[] = [];
   const seedBase = seed ?? Math.floor(Math.random() * 1e9);
   const opStart = Date.now();
@@ -12069,7 +12655,7 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
     // Mirror text2image/modify: per-user parental state OR the env flag (not env only).
     const userState = await getParentalState(env, user.id);
     const unrestricted = (env.FABMESH_UNRESTRICTED === '1') || !!userState.unrestricted;
-    const safety = checkPromptSafety(hint, unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, hint, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -12182,7 +12768,7 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = checkPromptSafety(rawPrompt, unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -12340,7 +12926,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = checkPromptSafety(rawPrompt, unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -12423,7 +13009,7 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
   if (rawPrompt) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
-    const safety = checkPromptSafety(rawPrompt, envUnrestricted || userState.unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, envUnrestricted || userState.unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -12506,7 +13092,7 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
 
   const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
   const userState = await getParentalState(env, user.id);
-  const safety = checkPromptSafety(rawPrompt, envUnrestricted || userState.unrestricted);
+  const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, envUnrestricted || userState.unrestricted);
   if (!safety.safe) {
     return json({ ok: false, success: false,
       error: safety.reason ?? 'prompt blocked by content filter',
@@ -12689,7 +13275,7 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = checkPromptSafety(rawPrompt, unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -12897,7 +13483,9 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   // Only allow trusted upstreams so we don't make Modal fetch arbitrary hosts.
   if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed');
   // retex_swap also takes a user-supplied params.image_url — same SSRF risk.
-  if ((op === 'retex_swap' || op === 'align_texture') && params && typeof params === 'object') {
+  // 2026-10-03 (CLOUD-05) : verifie pour TOUTE operation qui recoit params.image_url, pas
+  // seulement ces deux-la (le champ est transmis a Modal quelle que soit l'operation).
+  if (params && typeof params === 'object') {
     const imgU = String((params as Record<string, unknown>).image_url ?? '');
     if (imgU && !isTrustedAssetHost(env, imgU)) {
       return err(400, 'params.image_url host not allowed');
@@ -13047,7 +13635,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   if (libre) {
     const userState = await getParentalState(env, user.id);
     const unrestricted = env.FABMESH_UNRESTRICTED === '1' || userState.unrestricted;
-    const safety = checkPromptSafety(libre, unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, libre, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter' }, { status: 400 });
@@ -13241,7 +13829,7 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
   // Filtre de contenu (revue de securite du 2026-10-01 : cette route etait la SEULE a prompt libre sans aucun filtre, plancher illegal compris).
   {
     const etat = await getParentalState(env, user.id);
-    const surete = checkPromptSafety(texte, env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted);
+    const surete = await _checkPromptSafetyAlerte(env, user.id, texte, env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted);
     if (!surete.safe) {
       return json({ ok: false, success: false, error: surete.reason ?? 'prompt blocked by content filter', blocked: surete.blocked }, { status: 400 });
     }
@@ -13779,6 +14367,9 @@ async function _cleDepuisUrlSignee(env: Env, rawUrl: string): Promise<string | n
   try {
     const u = new URL(rawUrl);
     if (!u.pathname.startsWith('/r2/')) return null;
+    /* 2026-10-03 (CLOUD-05) : sans controle d'hote, assetFetch ouvrait par fetch() n'importe
+     * quelle adresse dont le chemin commence par /r2/. Seul NOTRE hote est servi depuis le seau. */
+    if (u.host !== new URL(siteUrl(env, 'http://localhost:3030')).host) return null;
     const r = await assetFetch(env, rawUrl);
     if (!r.ok) return null;
     try { await r.body?.cancel(); } catch { /* corps non lu */ }
@@ -16005,6 +16596,160 @@ async function purgeDiagLogs(env: Env): Promise<{ scanned: number; deleted: numb
   return out;
 }
 
+/* ═══ W2-2 / W2-8 RETENTION : DEBUT ═══ */
+/* 2026-10-03 (constats D-05 et D-07) — LA RETENTION ANNONCEE EST ENFIN APPLIQUEE.
+ *
+ * La politique promet 30 jours pour les journaux, 12 mois pour l'audit admin et decrit l'IP comme « transitoire » ; seule `_logs/` etait
+ * balayee (purgeDiagLogs). Restaient : 272 journaux console sous `<uid>/logs/` et 41 sous `_anon/logs/` (45 a 123 jours), `_meta/admin_audit/`
+ * (aucune purge), les compteurs par IP brute `_meta/report_rate|contact_count/`, les messages de contact et signalements (e-mail, IP, contenu,
+ * pieces jointes de 60 Mo : aucune limite). S'y ajoute la corbeille `_trash/<date>/` (mise a l'abri reversible avant suppression definitive).
+ *
+ * JAMAIS `_backup/` (sauvegarde nocturne, voir plus bas) ni `_trash/` avant 30 jours. Toute cle d'une famille inconnue est GARDEE. La decision
+ * est une fonction PURE (`decisionRetention`) : age et prefixe, rien d'autre. */
+const RETENTION_JOURNAUX_CONSOLE_JOURS = 30;
+const RETENTION_AUDIT_ADMIN_JOURS = 366;       // « 12 mois » annonces : un jour de marge pour ne jamais purger a 364
+const RETENTION_COMPTEURS_IP_JOURS = 2;
+const RETENTION_MESSAGES_JOURS = 366;
+const RETENTION_CORBEILLE_JOURS = 30;
+const UUID_RE_RETENTION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** « AAAA-MM-JJ » (en tete d'un texte) -> minuit UTC en ms ; null sinon. */
+function jourEnMs(texte: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?![0-9])/.exec(texte);
+  if (!m) return null;
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Decision pure de retention pour UNE cle R2. `uploadedMs` = date d'ecriture de l'objet (null si inconnue). */
+function decisionRetention(cle: string, uploadedMs: number | null, maintenant: number): 'supprimer' | 'garder' {
+  const JOUR = 86_400_000;
+  const plusVieuxQue = (ms: number | null, jours: number) => typeof ms === 'number' && Number.isFinite(ms) && (maintenant - ms) / JOUR > jours;
+  if (cle.startsWith('_backup/')) return 'garder';                       // la sauvegarde a sa propre rotation (14 jours)
+  if (cle.startsWith('_trash/')) {
+    // l'objet est suppose mis a l'abri le jour du dossier ; on prend la date la plus RECENTE entre le dossier et l'ecriture (prudence)
+    const dossier = jourEnMs(cle.slice('_trash/'.length));
+    if (dossier == null) return 'garder';                                  // relecture 2026-10-03 : dossier non date = conserve (jamais purge sur la seule date d'ecriture)
+    const dates = [dossier, uploadedMs].filter((d): d is number => typeof d === 'number' && Number.isFinite(d));
+    return dates.length && plusVieuxQue(Math.max(...dates), RETENTION_CORBEILLE_JOURS) ? 'supprimer' : 'garder';
+  }
+  if (cle.startsWith('_anon/logs/') || (/^[0-9a-f-]{36}\/logs\//i.test(cle) && UUID_RE_RETENTION.test(cle.split('/')[0]))) {
+    return plusVieuxQue(uploadedMs, RETENTION_JOURNAUX_CONSOLE_JOURS) ? 'supprimer' : 'garder';
+  }
+  if (cle.startsWith('_meta/admin_audit/')) {
+    return plusVieuxQue(jourEnMs(cle.slice('_meta/admin_audit/'.length)) ?? uploadedMs, RETENTION_AUDIT_ADMIN_JOURS) ? 'supprimer' : 'garder';
+  }
+  if (cle.startsWith('_meta/report_rate/') || cle.startsWith('_meta/contact_count/')) {
+    const reste = cle.slice(cle.indexOf('/', '_meta/'.length) + 1);       // « AAAA-MM-JJ/<ip>... »
+    return plusVieuxQue(jourEnMs(reste), RETENTION_COMPTEURS_IP_JOURS) ? 'supprimer' : 'garder';
+  }
+  if (cle.startsWith('_meta/alerte_messages/')) {                          // compteurs horaires de l'alerte de message (W2-4)
+    return plusVieuxQue(jourEnMs(cle.slice('_meta/alerte_messages/'.length)), RETENTION_COMPTEURS_IP_JOURS) ? 'supprimer' : 'garder';
+  }
+  if (cle.startsWith('_meta/contact/')) {                                  // fiche `<id>.json` ET pieces `<id>/...` : meme identifiant, meme sort
+    const id = cle.slice('_meta/contact/'.length).split('/')[0].replace(/\.json$/, '');
+    const cree = /^(\d{13})_/.exec(id);                                    // l'identifiant commence par Date.now()
+    return plusVieuxQue(cree ? Number(cree[1]) : uploadedMs, RETENTION_MESSAGES_JOURS) ? 'supprimer' : 'garder';
+  }
+  return 'garder';
+}
+
+/** Comptes DEFINITIVEMENT supprimes parmi `ids` : absents de `profiles` ET l'API d'authentification repond 404. Rend null en cas de doute. */
+async function _comptesConfirmesSupprimes(env: Env, ids: string[]): Promise<Set<string> | null> {
+  const out = new Set<string>();
+  try {
+    const lot = ids.slice(0, 100);
+    if (!lot.length) return out;
+    const { data, error } = await supabaseAdmin(env).from('profiles').select('id').in('id', lot);
+    if (error) return null;
+    const presents = new Set((data ?? []).map((r: { id: string }) => r.id));
+    const url = env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+    const cle = env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+    if (!url || !cle) return null;
+    let appels = 0;
+    for (const id of lot) {
+      if (presents.has(id) || appels >= 50) continue;
+      appels++;
+      const r = await fetch(`${url}/auth/v1/admin/users/${id}`, { headers: { apikey: cle, authorization: `Bearer ${cle}` } });
+      if (r.status === 404) out.add(id);                                   // toute autre reponse (200, 5xx, 401) = on ne supprime rien
+    }
+    return out;
+  } catch { return null; }
+}
+
+/** Supprime les messages de contact / signalements dont `user_id` designe un compte effacé. Rend le nombre de messages supprimes. */
+async function purgerMessagesComptesSupprimes(
+  env: Env, verifier: (ids: string[]) => Promise<Set<string> | null> = (ids) => _comptesConfirmesSupprimes(env, ids),
+): Promise<number> {
+  if (!env.MESHES) return 0;
+  const messages = (await _lireMessagesContact(env, 500)).filter((m) => typeof m.message.user_id === 'string' && UUID_RE_RETENTION.test(m.message.user_id as string));
+  const ids = [...new Set(messages.map((m) => m.message.user_id as string))];
+  if (!ids.length) return 0;
+  const supprimes = await verifier(ids);
+  if (!supprimes || !supprimes.size) return 0;
+  let n = 0;
+  for (const m of messages) {
+    if (supprimes.has(m.message.user_id as string)) { await _supprimerMessageContact(env, m.id); n++; }
+  }
+  return n;
+}
+
+/** Purge de retention (cron hebdomadaire). Borne : au plus 800 suppressions et ~500 listages par passage ; ce qui reste est rapporte, jamais perdu. */
+async function purgeRetention(env: Env, maintenant: number = Date.now(), verifier?: (ids: string[]) => Promise<Set<string> | null>): Promise<{
+  scanned: number; deleted: number; left: number; messages_de_comptes_supprimes: number; par_prefixe: Record<string, number>;
+}> {
+  const out = { scanned: 0, deleted: 0, left: 0, messages_de_comptes_supprimes: 0, par_prefixe: {} as Record<string, number> };
+  if (!env.MESHES) return out;
+  const MAX_SUPPRESSIONS = 800;
+  const MAX_LISTAGES = 500;
+  let listages = 0;
+  const condamnes: Array<{ cle: string; famille: string }> = [];
+  const balayer = async (prefixe: string, famille: string) => {
+    let curseur: string | undefined;
+    do {
+      if (listages++ >= MAX_LISTAGES) { out.left++; return; }
+      const page = await env.MESHES!.list({ prefix: prefixe, cursor: curseur, limit: 1000 });
+      for (const o of page.objects || []) {
+        out.scanned++;
+        const t = o.uploaded ? new Date(o.uploaded).getTime() : NaN;
+        if (decisionRetention(o.key, Number.isFinite(t) ? t : null, maintenant) !== 'supprimer') continue;
+        if (condamnes.length < MAX_SUPPRESSIONS) condamnes.push({ cle: o.key, famille }); else out.left++;
+      }
+      curseur = page.truncated ? page.cursor : undefined;
+    } while (curseur);
+  };
+  for (const [prefixe, famille] of [
+    ['_anon/logs/', 'journaux_anonymes'], ['_meta/admin_audit/', 'audit_admin'], ['_meta/report_rate/', 'compteurs_ip'],
+    ['_meta/contact_count/', 'compteurs_ip'], ['_meta/alerte_messages/', 'compteurs_alerte'], ['_meta/contact/', 'messages'], ['_trash/', 'corbeille'],
+  ] as const) {
+    try { await balayer(prefixe, famille); } catch (e) { console.warn('[retention] ' + prefixe + ' :', (e as Error).message); }
+  }
+  // journaux console de chaque compte : `<uid>/logs/` (on enumere les dossiers de premier niveau, bornes a 400 comptes par passage)
+  try {
+    let curseur: string | undefined;
+    const comptes: string[] = [];
+    do {
+      if (listages++ >= MAX_LISTAGES) break;
+      const page = await env.MESHES.list({ prefix: '', delimiter: '/', cursor: curseur, limit: 1000 });
+      for (const p of page.delimitedPrefixes || []) {
+        const uid = p.replace(/\/$/, '');
+        if (UUID_RE_RETENTION.test(uid)) comptes.push(uid);
+      }
+      curseur = page.truncated ? page.cursor : undefined;
+    } while (curseur && comptes.length < 400);
+    for (const uid of comptes.slice(0, 400)) await balayer(`${uid}/logs/`, 'journaux_comptes');
+  } catch (e) { console.warn('[retention] journaux des comptes :', (e as Error).message); }
+  for (let i = 0; i < condamnes.length; i += 1000) {
+    const lot = condamnes.slice(i, i + 1000);
+    out.deleted += await _supprimerCles(env, lot.map((c) => c.cle));
+    for (const c of lot) out.par_prefixe[c.famille] = (out.par_prefixe[c.famille] || 0) + 1;
+  }
+  try { out.messages_de_comptes_supprimes = await purgerMessagesComptesSupprimes(env, verifier); }
+  catch (e) { console.warn('[retention] messages de comptes supprimes :', (e as Error).message); }
+  return out;
+}
+/* ═══ W2-2 / W2-8 RETENTION : FIN ═══ */
+
 /** POST /api/user-assets/delete — delete a single user_asset row
  *  (and optionally its R2 blob). Body: { path: string } where path
  *  is either a public R2 URL or a raw R2 key. */
@@ -16641,6 +17386,7 @@ async function handleAdminTraces(req: Request, env: Env): Promise<Response> {
 async function handleAdminLogsGet(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLecture(env, req, guard.email, 'view_logs');   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   if (!env.MESHES) return err(500, 'R2 binding required');
   const url = new URL(req.url);
   const key = (url.searchParams.get('key') || '').trim();
@@ -17808,13 +18554,19 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
     };
   const rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt && !refImageUrl) return err(400, 'prompt or refImageUrl required');
+  /* 2026-10-03 (constat CLOUD-05, SSRF) : refImageUrl partait telle quelle vers Modal,
+   * dont le telechargeur ouvre n'importe quelle adresse. Meme garde que les autres
+   * transmetteurs, posee AVANT tout debit (budget, appels, credits). */
+  if (refImageUrl && !isTrustedAssetHost(env, String(refImageUrl))) {
+    return err(400, 'refImageUrl host not allowed');
+  }
 
   // NSFW prompt pre-filter (same policy as text2image / back-view).
   if (rawPrompt) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = checkPromptSafety(rawPrompt, unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -18054,6 +18806,10 @@ async function handleAdminLogin(req: Request, env: Env): Promise<Response> {
   if (fails.count >= 10 && Date.now() - fails.first_ts < HOUR) {
     return err(429, 'too many failed attempts; try again in an hour');
   }
+  // 2026-10-03 (ADM-07) : plafond GLOBAL en plus du plafond par IP (changer d'adresse ne remet plus a zero).
+  if (await _adminFailGate(req, env, 'login', false)) {
+    return err(429, 'too many failed attempts; try again in an hour');
+  }
   // Stale window — reset.
   if (Date.now() - fails.first_ts > HOUR) fails = { count: 0, first_ts: 0 };
 
@@ -18067,6 +18823,7 @@ async function handleAdminLogin(req: Request, env: Env): Promise<Response> {
     fails.count += 1;
     if (fails.first_ts === 0) fails.first_ts = Date.now();
     try { await env.MESHES?.put(lockoutKey, JSON.stringify(fails)); } catch {}
+    await _adminFailGate(req, env, 'login', true);   // compteur global (ADM-07)
   };
   // Le nom d'utilisateur doit correspondre. On ne dit JAMAIS lequel des deux
   // champs est faux : un message distinct permettrait d'enumerer les noms
@@ -18078,7 +18835,8 @@ async function handleAdminLogin(req: Request, env: Env): Promise<Response> {
     await _auditLog(env, {
       req, actorEmail: user.email,
       action: 'admin_login_failed',
-      details: { reason: 'invalid_username', tried: providedUser.slice(0, 40), fails: fails.count + 1 },
+      // 2026-10-03 (ADM-08) : l'identifiant saisi n'est plus ecrit (un mot de passe tape dans ce champ s'y retrouvait) ; seulement sa longueur.
+      details: { reason: 'invalid_username', tried_length: providedUser.length, fails: fails.count + 1 },
     });
     return err(401, 'invalid credentials');
   }
@@ -18466,6 +19224,7 @@ async function handleHistoryCsv(req: Request, env: Env): Promise<Response> {
 async function handleAdminHistoryCsv(req: Request, env: Env): Promise<Response> {
   const userOrResp = await _requireAdmin(req, env);
   if (userOrResp instanceof Response) return userOrResp;
+  await _auditLecture(env, req, userOrResp.email, 'export_history_csv');   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   // Comptes ayant reellement paye : sans eux, chaque credit OFFERT
   // etait compte comme du chiffre d'affaires. Voir _comptesAyantPaye.
   const payeurs = await _comptesAyantPaye(env);
@@ -18772,7 +19531,22 @@ async function handleAdminSante(req: Request, env: Env): Promise<Response> {
   } catch { /* l'ecran de sante ne doit jamais echouer sur un detail */ }
   const detteTotale = dettes.reduce((a2, d) => a2 + d.credits, 0);
 
+  // 2026-10-03 (EXP-01) : age de la derniere sauvegarde nocturne reussie (alerte au-dela de 36 h).
+  const etatSauv = await _lireEtatSauvegarde(env);
+  const bilanSauvegarde = evaluerSauvegarde(etatSauv, Date.now());
+
   const points = [
+    {
+      cle: 'sauvegarde_nocturne',
+      ok: bilanSauvegarde.ok,
+      etat: bilanSauvegarde.etat,
+      consequence: bilanSauvegarde.ok ? null
+        : 'Aucune copie recente de la base (profils, travaux, paiements) dans R2 : une perte ou une corruption de donnees ne serait pas recuperable '
+        + 'autrement que par la sauvegarde manuelle du PC.',
+      action: bilanSauvegarde.ok ? null
+        : 'Lire le champ erreur de _backup/_dernier.json dans R2 et le recu du cron (_meta/cron/last_run.json) ; en attendant, lancer cloud/scripts/sauvegarde-donnees.py sur le PC.',
+      detail: etatSauv ? { jour: etatSauv.jour, statut: etatSauv.statut, echecs: etatSauv.echecs, erreur: etatSauv.erreur ?? null, derniere_reussite: etatSauv.derniere_reussite ?? null } : null,
+    },
     {
       cle: 'dettes_credits',
       ok: detteTotale === 0,
@@ -18849,6 +19623,24 @@ async function handleAdminSante(req: Request, env: Env): Promise<Response> {
   });
 }
 
+/** Lit une requete Supabase par pages de 1000 lignes (`.range`) jusqu'a une page vide, ou `max` lignes.
+ *  `fabrique(a, b)` rend la requete bornee a [a, b] (bornes incluses). On avance du nombre de lignes REELLEMENT recues et on s'arrete sur une page
+ *  vide : si le projet plafonne ses reponses sous 1000, aucune ligne n'est sautee. Leve en cas d'erreur (l'appelant decide quoi en faire). */
+async function lirePagesSupabase<T>(
+  fabrique: (a: number, b: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  max: number = 20000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 0; out.length < max && page < 100; page++) {
+    const { data, error } = await fabrique(out.length, out.length + 999);
+    if (error) throw new Error(error.message);
+    const lot = data ?? [];
+    if (lot.length === 0) break;
+    out.push(...lot);
+  }
+  return out.slice(0, max);
+}
+
 async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   const userOrResp = await _requireAdmin(req, env);
   if (userOrResp instanceof Response) return userOrResp;
@@ -18861,13 +19653,23 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   // Job-derived metrics — one query, then aggregate in-Worker (rows
   // are tiny, this is cheaper than 6 round-trips and keeps the SQL
   // simple for now).
-  const { data: jobs, error: jobsErr } = await sb
-    .from('jobs')
-    // finished_at added 2026-07-28: the dashboard now prices each job from
-    // its MEASURED duration instead of a static per-op guess.
-    .select('user_id, status, credit_cost, options, created_at, finished_at, type, cost_usd')
-    .order('created_at', { ascending: false })
-    .limit(20000);
+  // 2026-10-03 (constat PB-04) : lecture PAGINEE par blocs de 1000 (.range) au lieu d'un `.limit(20000)` que PostgREST plafonne a 1000 sur certains
+  // projets (le tableau de bord aurait alors tronque en silence). Tri secondaire sur `id` : des lignes de meme horodatage ne sautent ni ne se repetent
+  // d'une page a l'autre.
+  let jobs: unknown[] | null = null;
+  let jobsErr: { message: string } | null = null;
+  try {
+    jobs = await lirePagesSupabase<unknown>((a, b) => sb
+      .from('jobs')
+      // finished_at added 2026-07-28: the dashboard now prices each job from
+      // its MEASURED duration instead of a static per-op guess.
+      .select('user_id, status, credit_cost, options, created_at, finished_at, type, cost_usd')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(a, b), 20000);
+  } catch (e) {
+    jobsErr = { message: e instanceof Error ? e.message : String(e) };
+  }
   if (jobsErr) return err(500, jobsErr.message);
 
   const EUR_PER_CREDIT_NET = 0.162;
@@ -18966,11 +19768,13 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   // a l'inscription. Un compte qui n'a jamais rien paye generait donc du
   // « revenu » qui n'a jamais existe.
   try {
-    const { data: pays } = await sb
+    // 2026-10-03 (PB-04) : meme pagination que les travaux (le chiffre d'affaires brut ne doit pas etre tronque a 1000 lignes).
+    const pays = await lirePagesSupabase<unknown>((a, b) => sb
       .from('payments')
       .select('amount_eur, created_at, user_id')
       .order('created_at', { ascending: false })
-      .limit(5000);
+      .order('id', { ascending: false })
+      .range(a, b), 20000);
     for (const p of (pays ?? []) as { amount_eur: number; user_id?: string }[]) {
       grossRevenueEur += p.amount_eur ?? 0;
       paymentsCount += 1;
@@ -19802,7 +20606,10 @@ async function handleAdminAdjustCredits(req: Request, env: Env): Promise<Respons
   if (Math.abs(delta) > 10_000) return err(400, 'delta out of range (max ±10000)');
   const reason = String(body?.reason || '').trim().slice(0, 300);
   if (reason.length < 3) return err(400, 'reason required');
+  // 2026-10-03 (ADM-07) : meme compteur d'echecs que la deconnexion globale (par IP et global), cle separee.
+  if (await _adminFailGate(req, env, 'credits', false)) return err(429, 'too many failed attempts; try again in an hour');
   if (!(await _verifyAdminPassword(env, String(body?.password || '')))) {
+    await _adminFailGate(req, env, 'credits', true);
     return err(401, 'invalid password');
   }
 
@@ -19869,6 +20676,7 @@ async function _idsPaiementsRembourses(sb: SupabaseClient, ids: unknown[]): Prom
 async function handleAdminPayments(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLecture(env, req, guard.email, 'view_payments');   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   const sb = supabaseAdmin(env);
   // `credits_origine` peut ne pas exister (voir le litige plus haut) : repli.
   let res = await sb.from('payments')
@@ -19989,7 +20797,10 @@ async function handleAdminReconcilePayment(req: Request, env: Env): Promise<Resp
   try { body = await req.json() as Body; } catch { return err(400, 'body required'); }
   const sessionId = String(body?.sessionId || '').trim();
   if (!sessionId) return err(400, 'sessionId required');
+  // 2026-10-03 (ADM-07) : meme compteur d'echecs que la deconnexion globale (par IP et global), cle separee.
+  if (await _adminFailGate(req, env, 'reconcile', false)) return err(429, 'too many failed attempts; try again in an hour');
   if (!(await _verifyAdminPassword(env, String(body?.password || '')))) {
+    await _adminFailGate(req, env, 'reconcile', true);
     return err(401, 'invalid password');
   }
 
@@ -20013,6 +20824,10 @@ async function handleAdminReconcilePayment(req: Request, env: Env): Promise<Resp
    * toujours zero : elle apparait donc dans « paiements non reconcilies »
    * alors que les credits SONT DEJA arrives. Un administrateur qui clique
    * a cet instant les accorde une seconde fois.
+   *
+   * MISE A JOUR 2026-10-03 (CLOUD-01) : `_traiterPaiement` reclame desormais la ligne de facon ATOMIQUE et la met au vrai montant AVANT
+   * `addCredits` ; l'ordre decrit ci-dessus n'est plus le sien et la course est deja fermee par la reclamation. La garde de recence
+   * ci-dessous est conservee comme ceinture supplementaire.
    *
    * La fenetre est courte mais elle s'ouvre precisement quand on regarde :
    * on consulte cet ecran parce qu'un paiement vient de poser probleme.
@@ -20174,6 +20989,7 @@ async function handleAdminBadges(req: Request, env: Env): Promise<Response> {
 async function handleAdminListUsers(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLecture(env, req, guard.email, 'view_users');   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   const withAssets = new URL(req.url).searchParams.get('withAssets') === '1';
   const sb = supabaseAdmin(env);
   const { data, error } = await sb.from('profiles')
@@ -20341,18 +21157,68 @@ async function handleAdminTotpSetup(req: Request, env: Env): Promise<Response> {
  *  freine la rafale mais ne borne pas strictement la concurrence. Panne R2 : on laisse passer (ouvert), comme le login. */
 async function _adminFailGate(req: Request, env: Env, scope: string, enregistrer: boolean): Promise<boolean> {
   const ip = (req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for') ?? 'unknown').replace(/[^A-Fa-f0-9.:]/g, '_').slice(0, 64);
-  const cle = `_meta/admin_login_fails/${scope}-${ip}.json`;
-  let f: { count: number; first_ts: number } = { count: 0, first_ts: 0 };
+  /* 2026-10-03 (constat ADM-07) : DEUX compteurs. Par IP (comme avant) ET GLOBAL pour l'action : changer d'adresse (IPv6, proxys) ne
+   * remet plus le compte a zero. Un seul administrateur existe, donc un plafond global de 30 echecs / heure ne gene personne. */
+  const cleIp = `_meta/admin_login_fails/${scope}-${ip}.json`;
+  const cleGlobale = `_meta/admin_login_fails/${scope}-_total.json`;
+  const lire = async (cle: string): Promise<{ count: number; first_ts: number } | null> => {
+    try {
+      const o = await env.MESHES?.get(cle);
+      return o ? await o.json() as { count: number; first_ts: number } : null;
+    } catch { return null; /* illisible : on repart de zero */ }
+  };
+  const maintenant = Date.now();
+  const etatIp = etatEchecsAdmin(await lire(cleIp), maintenant, enregistrer, ECHECS_ADMIN_PAR_IP);
+  const etatGlobal = etatEchecsAdmin(await lire(cleGlobale), maintenant, enregistrer, ECHECS_ADMIN_GLOBAUX);
+  if (enregistrer) {
+    try { await env.MESHES?.put(cleIp, JSON.stringify(etatIp.f)); } catch { /* au mieux */ }
+    try { await env.MESHES?.put(cleGlobale, JSON.stringify(etatGlobal.f)); } catch { /* au mieux */ }
+  }
+  return etatIp.bloque || etatGlobal.bloque;
+}
+
+/** 2026-10-03 (ADM-07) — logique PURE du compteur d'echecs : fenetre glissante d'une heure, plafond donne.
+ *  `enregistrer` = true ajoute un echec. Rend le nouvel etat et si la source est bloquee (count >= plafond). */
+const ECHECS_ADMIN_PAR_IP = 10;
+const ECHECS_ADMIN_GLOBAUX = 30;
+function etatEchecsAdmin(
+  f: { count: number; first_ts: number } | null | undefined, maintenant: number, enregistrer: boolean, plafond: number,
+): { f: { count: number; first_ts: number }; bloque: boolean } {
+  let etat = f;
+  if (!(etat && typeof etat.count === 'number' && typeof etat.first_ts === 'number') || maintenant - etat.first_ts > 60 * 60 * 1000) {
+    etat = { count: 0, first_ts: 0 };
+  }
+  if (!enregistrer) return { f: etat, bloque: etat.count >= plafond };
+  etat = { count: etat.count + 1, first_ts: etat.first_ts || maintenant };
+  return { f: etat, bloque: etat.count >= plafond };
+}
+
+/** 2026-10-03 (ADM-08, D-10) — decision pure : faut-il ecrire une ligne d'audit pour une LECTURE de donnees clients ?
+ *  Les pages d'administration se rafraichissent seules ; une ligne par appel noierait le journal (un fichier R2 relu et
+ *  reecrit en entier a chaque ligne). Au plus une ligne par action et par fenetre de 10 minutes. */
+const AUDIT_LECTURE_FENETRE_MS = 10 * 60 * 1000;
+function auditLectureDue(dernierTs: number | null | undefined, maintenant: number): boolean {
+  return !(typeof dernierTs === 'number' && Number.isFinite(dernierTs) && maintenant - dernierTs >= 0 && maintenant - dernierTs < AUDIT_LECTURE_FENETRE_MS);
+}
+async function _auditLecture(env: Env, req: Request, email: string | null, action: string, target?: string): Promise<void> {
   try {
-    const o = await env.MESHES?.get(cle);
-    if (o) f = await o.json() as typeof f;
-  } catch { /* illisible : on repart de zero */ }
-  if (!(f && typeof f.count === 'number' && typeof f.first_ts === 'number') || Date.now() - f.first_ts > 60 * 60 * 1000) f = { count: 0, first_ts: 0 };
-  if (!enregistrer) return f.count >= 10;
-  f.count += 1;
-  if (!f.first_ts) f.first_ts = Date.now();
-  try { await env.MESHES?.put(cle, JSON.stringify(f)); } catch { /* au mieux */ }
-  return f.count >= 10;
+    if (!env.MESHES) return;
+    const cle = `_meta/admin_audit_lecture/${action.replace(/[^a-z0-9_]/gi, '_')}.txt`;
+    const o = await env.MESHES.get(cle);
+    const dernier = o ? parseInt(await o.text(), 10) : null;
+    const maintenant = Date.now();
+    if (!auditLectureDue(dernier, maintenant)) return;
+    await env.MESHES.put(cle, String(maintenant));
+    await _auditLog(env, { req, actorEmail: email, action, target });
+  } catch { /* le journal est au mieux : il ne doit jamais bloquer la consultation */ }
+}
+
+/** 2026-10-03 (ADM-12) — seconde couche anti-CSRF : une ECRITURE /api/admin/* dont l'en-tete Origin est PRESENT et
+ *  different du site est refusee. Sans en-tete Origin (outil en ligne de commande, scripts), rien ne change. */
+function ecritureAdminDepuisAutreOrigine(pathname: string, method: string, req: Request, env: Env): boolean {
+  if (!pathname.startsWith('/api/admin/')) return false;
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+  return _origineSuspecte(req, env);
 }
 
 /** POST /api/admin/totp/confirm  body: { secret, code }
@@ -20877,6 +21743,7 @@ async function handleAdminAuditLog(req: Request, env: Env): Promise<Response> {
 async function handleAdminUserImages(req: Request, env: Env, userId: string): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLecture(env, req, guard.email, 'view_images', userId);   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   if (!env.MESHES || !env.R2_PUBLIC_URL) return json({ images: [] });
   type Img = { key: string; url: string; size: number; uploaded: string };
   const out: Img[] = [];
@@ -20909,6 +21776,7 @@ async function handleAdminUserImages(req: Request, env: Env, userId: string): Pr
 async function handleAdminImagesRecent(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLecture(env, req, guard.email, 'view_images');   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   if (!env.MESHES) return json({ images: [], comptes: 0 });
   const u = new URL(req.url);
   const n = Math.max(6, Math.min(120, parseInt(u.searchParams.get('n') || '48', 10) || 48));
@@ -21049,6 +21917,7 @@ function _paramsSansTexte(o: Record<string, unknown> | null | undefined): Record
 async function handleAdminCreations(req: Request, env: Env): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
+  await _auditLecture(env, req, guard.email, 'view_creations');   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   const u = new URL(req.url);
   const onglet = ['projets', 'images', '3d', 'rigs', 'animations'].includes(u.searchParams.get('onglet') || '') ? String(u.searchParams.get('onglet')) : 'images';
   const n = Math.max(6, Math.min(120, parseInt(u.searchParams.get('n') || '60', 10) || 60));
@@ -21471,6 +22340,7 @@ async function handleAdminDeleteMesh(req: Request, env: Env, userId: string, job
 async function handleAdminHistoryXls(req: Request, env: Env): Promise<Response> {
   const userOrResp = await _requireAdmin(req, env);
   if (userOrResp instanceof Response) return userOrResp;
+  await _auditLecture(env, req, userOrResp.email, 'export_history_xlsx');   // 2026-10-03 (ADM-08 / D-10) : lecture de donnees clients, au plus 1 ligne / 10 min
   // Comptes ayant reellement paye : sans eux, chaque credit OFFERT
   // etait compte comme du chiffre d'affaires. Voir _comptesAyantPaye.
   const payeurs = await _comptesAyantPaye(env);
@@ -22035,6 +22905,12 @@ async function handleTranslate(req: Request, env: Env): Promise<Response> {
  * mots-cles et la description reste a taper. */
 const REDACTEUR_TYPES = new Set(['character', 'creature', 'animal', 'insect', 'other_living', 'vehicle', 'avion', 'bateau',
   'other_vehicle', 'building', 'environment', 'other_built', 'weapon', 'prop', 'icon', 'other_item']);
+/** 2026-10-03 (constat CLOUD-11) — decision pure : la pre-chauffe du redacteur n'est lancee qu'une fois par minute et par compte
+ *  (elle reveille un conteneur Modal ; elle echappait aux plafonds de la redaction). Marqueur dans le futur : on laisse passer. */
+const PRECHAUFFE_REDACTEUR_FENETRE_MS = 60_000;
+function prechauffeRedacteurDue(dernierTs: number | null | undefined, maintenant: number): boolean {
+  return !(typeof dernierTs === 'number' && Number.isFinite(dernierTs) && maintenant - dernierTs >= 0 && maintenant - dernierTs < PRECHAUFFE_REDACTEUR_FENETRE_MS);
+}
 async function handleDescribeAsset(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
@@ -22064,6 +22940,16 @@ async function handleDescribeAsset(req: Request, env: Env): Promise<Response> {
       if (!(await compter(`_meta/redacteur/${user.id}-${heure}.txt`, 40))) return json({ ok: false, raison: 'rate-limited' });
       if (!(await compter(`_meta/redacteur/jour-${jour}.txt`, 3000))) return json({ ok: false, raison: 'rate-limited' });
     }
+  }
+  if (prechauffer && env.MESHES) {
+    // 2026-10-03 (CLOUD-11) : 1 pre-chauffe par minute et par compte ; au-dela on repond « ok » sans reveiller le conteneur.
+    const cleP = `_meta/redacteur_prechauffe/${user.id}.txt`;
+    try {
+      const o = await env.MESHES.get(cleP);
+      const dernier = o ? parseInt(await o.text(), 10) : null;
+      if (!prechauffeRedacteurDue(dernier, Date.now())) return json({ ok: true });
+      await env.MESHES.put(cleP, String(Date.now()));
+    } catch { /* compteur au mieux : en cas de panne R2 on laisse passer */ }
   }
   try {
     const r = await fetch(url, {
@@ -22675,6 +23561,258 @@ function _envAvecReprises(env: Env): Env {
   return env.MESHES ? { ...env, MESHES: _r2AvecReprises(env.MESHES) } as Env : env;
 }
 
+/* ═══ W2-3 SAUVEGARDE NOCTURNE : DEBUT ═══ */
+/* 2026-10-03 (constats EXP-01, EXP-02, FIN-06) — SAUVEGARDE AUTOMATIQUE DE LA COMPTABILITE.
+ *
+ * Les sauvegardes etaient manuelles (cloud/scripts/sauvegarde-donnees.py), sur le meme PC, et la base Supabase est sur l'offre gratuite sans
+ * sauvegarde prouvee. Le cron existant (toutes les 15 min) ecrit desormais, UNE fois par jour UTC apres 02:00, dans R2 sous
+ * `_backup/AAAA-MM-JJ/` :
+ *   - supabase/<table>/NNNN.json : chaque table critique (profiles, jobs, payments, user_assets + toute table exposee par l'API), par blocs
+ *     de 1000 lignes, UNE ecriture R2 par bloc (limite memoire du worker : 128 Mo) ;
+ *   - r2/<cle> : copie des petits fichiers de reglages et de comptabilite (prix, interrupteurs, budgets, interdits, journal d'audit...).
+ *     Les SECRETS d'administration (mot de passe, second facteur, jeton de reinitialisation) ne sont volontairement PAS copies : un
+ *     second exemplaire d'un secret n'a pas a exister, la restauration passe par la procedure de reinitialisation.
+ *   - manifest.json : ce qui a ete ecrit (lignes, blocs, octets).
+ * Etat dans `_backup/_dernier.json` (jour, statut, echecs, derniere reussite) : garde « une seule fois par jour », reprise d'un passage
+ * interrompu (budget de temps de 100 s par passage, jamais d'exception vers l'appelant), verrou contre deux passages simultanes.
+ * Rotation : les dossiers de plus de 14 jours sont supprimes, SEULEMENT apres une sauvegarde du jour reussie. En cas d'echec persistant
+ * (3 echecs dans la journee) : une seule alerte e-mail par jour. Limite connue : la copie est dans le MEME compte Cloudflare que les donnees
+ * qu'elle protege ; elle ne remplace pas une copie hors-ligne (cloud/scripts/sauvegarde-donnees.py). */
+const SAUVEGARDE_CONSERVATION_JOURS = 14;
+const SAUVEGARDE_TAILLE_BLOC = 1000;
+const SAUVEGARDE_BUDGET_MS = 100_000;
+const SAUVEGARDE_HEURE_MIN_UTC = 2;
+const SAUVEGARDE_ECHECS_AVANT_ALERTE = 3;
+const SAUVEGARDE_ECHECS_MAX = 4;
+const SAUVEGARDE_ALERTE_AGE_H = 36;
+const SAUVEGARDE_TAILLE_MAX_FICHIER = 5 * 1024 * 1024;
+const SAUVEGARDE_TABLES_PAR_DEFAUT = ['profiles', 'jobs', 'payments', 'user_assets'];
+const SAUVEGARDE_FICHIERS_META = [
+  '_meta/pricing.json', '_meta/service-flags.json', '_meta/market_killswitch.json', '_meta/modal_budget_total.txt', '_meta/modal_budget_meta.json',
+  '_meta/modal_spend_total.txt', '_meta/modal_real_usage.json', '_meta/modal_usage_hist.json', '_meta/banned-users.json', '_meta/min-session-iat.json',
+  '_meta/keep_warm.json', '_meta/bench_options.json', '_meta/desktop_downloads.txt',
+];
+const SAUVEGARDE_PREFIXES_META = ['_meta/admin_audit/', '_meta/compta/', '_meta/dette/'];
+
+interface EtatSauvegarde {
+  jour: string;
+  statut: 'en_cours' | 'ok' | 'echec';
+  debut: string;
+  fin?: string;
+  echecs: number;
+  erreur?: string;
+  alerte_jour?: string | null;
+  derniere_reussite?: string | null;
+  verrou_jusqua?: number;
+  tables: Record<string, { lignes: number; blocs: number; fini: boolean; erreur?: string }>;
+  meta_fait: boolean;
+  meta_fichiers: number;
+  meta_ignores: number;
+  octets: number;
+}
+
+function jourUtcDe(ms: number): string { return new Date(ms).toISOString().slice(0, 10); }
+
+/** Garde de date, pure : faut-il lancer (ou reprendre) la sauvegarde maintenant ? */
+function sauvegardeDue(etat: EtatSauvegarde | null, maintenant: number): 'oui' | 'deja_faite' | 'trop_tot' | 'trop_d_echecs' | 'verrouille' {
+  const jour = jourUtcDe(maintenant);
+  if (new Date(maintenant).getUTCHours() < SAUVEGARDE_HEURE_MIN_UTC) return 'trop_tot';
+  if (etat && etat.jour === jour) {
+    if (etat.statut === 'ok') return 'deja_faite';
+    if ((etat.echecs || 0) >= SAUVEGARDE_ECHECS_MAX) return 'trop_d_echecs';
+  }
+  if (etat && typeof etat.verrou_jusqua === 'number' && etat.verrou_jusqua > maintenant) return 'verrouille';
+  return 'oui';
+}
+
+/** Plage `range()` (bornes incluses) du bloc numero `indice`. */
+function plageDuBloc(indice: number, taille: number = SAUVEGARDE_TAILLE_BLOC): [number, number] {
+  return [indice * taille, indice * taille + taille - 1];
+}
+
+/** Dossiers `_backup/AAAA-MM-JJ/` a supprimer : strictement plus vieux que `jours` jours. Tout nom qui n'est pas une date est ignore. */
+function dossiersSauvegardeASupprimer(prefixes: string[], aujourdhui: string, jours: number = SAUVEGARDE_CONSERVATION_JOURS): string[] {
+  const ref = jourEnMs(aujourdhui);
+  if (ref == null) return [];
+  return prefixes.filter((p) => {
+    const m = /^_backup\/(\d{4}-\d{2}-\d{2})\/$/.exec(p);
+    const d = m ? jourEnMs(m[1]) : null;
+    return d != null && (ref - d) / 86_400_000 > jours;
+  });
+}
+
+/** Point « sauvegarde nocturne » de l'ecran de sante : ok si une sauvegarde a reussi depuis 36 h au plus. */
+function evaluerSauvegarde(etat: Partial<EtatSauvegarde> | null, maintenant: number): { ok: boolean; etat: string; age_h: number | null } {
+  const t = etat && etat.derniere_reussite ? Date.parse(etat.derniere_reussite) : NaN;
+  if (!Number.isFinite(t)) return { ok: false, etat: 'JAMAIS reussie', age_h: null };
+  const age = (maintenant - t) / 3_600_000;
+  const lisible = `derniere reussite il y a ${Math.round(age)} h`;
+  return { ok: age <= SAUVEGARDE_ALERTE_AGE_H, etat: age <= SAUVEGARDE_ALERTE_AGE_H ? lisible : `${lisible} (plus de ${SAUVEGARDE_ALERTE_AGE_H} h)`, age_h: Math.round(age * 10) / 10 };
+}
+
+async function _lireEtatSauvegarde(env: Env): Promise<EtatSauvegarde | null> {
+  try { const t = await r2GetText(env, '_backup/_dernier.json'); return t ? JSON.parse(t) as EtatSauvegarde : null; } catch { return null; }
+}
+async function _ecrireEtatSauvegarde(env: Env, etat: EtatSauvegarde): Promise<void> {
+  await env.MESHES!.put('_backup/_dernier.json', JSON.stringify(etat), { httpMetadata: { contentType: 'application/json' } });
+}
+
+/** Tables a sauvegarder : les 4 critiques + tout ce que l'API REST expose (comme cloud/scripts/sauvegarde-donnees.py). Nom valide seulement. */
+async function _tablesSupabaseASauvegarder(env: Env): Promise<string[]> {
+  const url = env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const cle = env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  try {
+    const r = await fetch(`${url}/rest/v1/`, { headers: { apikey: cle, authorization: `Bearer ${cle}` }, signal: AbortSignal.timeout(10_000) });
+    if (!r.ok) return SAUVEGARDE_TABLES_PAR_DEFAUT;
+    const spec = await r.json() as { paths?: Record<string, unknown> };
+    const noms = Object.keys(spec.paths ?? {}).filter((p) => /^\/[a-z_][a-z0-9_]{0,62}$/.test(p)).map((p) => p.slice(1));
+    return [...new Set([...SAUVEGARDE_TABLES_PAR_DEFAUT, ...noms])];
+  } catch { return SAUVEGARDE_TABLES_PAR_DEFAUT; }
+}
+
+/** Une table, bloc par bloc, a partir du bloc deja ecrit. Rend 'fini' ou 'partiel' (budget de temps epuise). Leve en cas d'erreur de lecture. */
+async function _sauvegarderTable(env: Env, sb: SupabaseClient, jour: string, nom: string, etat: EtatSauvegarde, echeance: number, horloge: () => number): Promise<'fini' | 'partiel'> {
+  const suivi = etat.tables[nom] ?? (etat.tables[nom] = { lignes: 0, blocs: 0, fini: false });
+  while (!suivi.fini) {
+    if (horloge() > echeance) return 'partiel';
+    const [a, b] = plageDuBloc(suivi.blocs);
+    // Tri stable pour les 4 tables critiques (toutes ont une colonne `id`, verifie en production le 2026-10-03) : sans lui, une mise a jour concurrente entre deux blocs peut faire sauter ou
+    // doubler une ligne dans la copie (relecture W2-3).
+    const base = sb.from(nom).select('*');
+    const { data, error } = await (SAUVEGARDE_TABLES_PAR_DEFAUT.includes(nom) ? base.order('id', { ascending: true }) : base).range(a, b);
+    if (error) throw new Error(`table ${nom} : ${error.message}`);
+    const lot = (data ?? []) as unknown[];
+    if (lot.length > 0 || suivi.blocs === 0) {       // une table vide laisse quand meme un bloc 0000 (elle figure dans la sauvegarde)
+      const texte = JSON.stringify(lot);
+      await env.MESHES!.put(`_backup/${jour}/supabase/${nom}/${String(suivi.blocs).padStart(4, '0')}.json`, texte, { httpMetadata: { contentType: 'application/json' } });
+      etat.octets += texte.length;
+    }
+    suivi.lignes += lot.length;
+    suivi.blocs += lot.length > 0 ? 1 : 0;
+    if (lot.length < SAUVEGARDE_TAILLE_BLOC) suivi.fini = true;
+    await _ecrireEtatSauvegarde(env, etat);
+  }
+  return 'fini';
+}
+
+/** Copie des petits fichiers de reglages / comptabilite sous `_backup/<jour>/r2/<cle>`. Ignore l'absent et le trop gros (> 5 Mo). */
+async function _sauvegarderFichiersMeta(env: Env, jour: string, etat: EtatSauvegarde): Promise<void> {
+  const cles = [...SAUVEGARDE_FICHIERS_META];
+  // Relecture 2026-10-03 (W2-3) : les journaux d'audit des jours anciens sont deja dans les sauvegardes precedentes ET dans R2 (366 jours) : on ne recopie que les 2 derniers jours, sinon le
+  // nombre d'operations R2 croit chaque nuit avec l'audit (400 journaux = 826 operations mesurees) et finirait par depasser la limite de sous-requetes d'une invocation (la sauvegarde
+  // ne reussirait plus jamais, meta_fait ne passant a vrai qu'a la fin).
+  const limiteAudit = jourUtcDe(Date.parse(jour + 'T00:00:00Z') - 2 * 86_400_000);
+  for (const p of SAUVEGARDE_PREFIXES_META) {
+    try {
+      let liste = (await _clesSousPrefixe(env, p, 1000)).slice(0, 1000);
+      if (p === '_meta/admin_audit/') liste = liste.filter((c) => c.slice(p.length, p.length + 10) >= limiteAudit);
+      cles.push(...liste);
+    } catch { /* prefixe illisible : on continue */ }
+  }
+  for (const cle of cles) {
+    if (cle.startsWith('_backup/')) continue;           // jamais de sauvegarde de la sauvegarde
+    const o = await env.MESHES!.get(cle);
+    if (!o) continue;
+    if (o.size > SAUVEGARDE_TAILLE_MAX_FICHIER) { etat.meta_ignores++; continue; }
+    const texte = await o.text();
+    await env.MESHES!.put(`_backup/${jour}/r2/${cle}`, texte, { httpMetadata: { contentType: 'application/octet-stream' } });
+    etat.meta_fichiers++;
+    etat.octets += texte.length;
+  }
+  etat.meta_fait = true;
+}
+
+/** Rotation : supprime les dossiers de plus de 14 jours (lots de 1000, borne 5000 cles par passage). Rend le nombre de cles supprimees. */
+async function _rotationSauvegardes(env: Env, aujourdhui: string): Promise<number> {
+  const racine = await env.MESHES!.list({ prefix: '_backup/', delimiter: '/', limit: 1000 });
+  let n = 0;
+  for (const dossier of dossiersSauvegardeASupprimer(racine.delimitedPrefixes || [], aujourdhui)) {
+    if (n >= 5000) break;
+    n += await _supprimerCles(env, await _clesSousPrefixe(env, dossier, 5000));
+  }
+  return n;
+}
+
+/** Sauvegarde nocturne. NE LEVE JAMAIS. `deps` sert aux tests (client Supabase, liste de tables, horloge, alerte). */
+async function sauvegardeNocturne(env: Env, maintenant: number = Date.now(), deps: {
+  sb?: SupabaseClient; tables?: string[]; horloge?: () => number; alerter?: (sujet: string, texte: string) => Promise<void>;
+} = {}): Promise<{ statut: string; detail?: string }> {
+  try {
+    if (!env.MESHES || !env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return { statut: 'non_configuree' };
+    const horloge = deps.horloge ?? (() => Date.now());
+    const jour = jourUtcDe(maintenant);
+    const ancien = await _lireEtatSauvegarde(env);
+    const due = sauvegardeDue(ancien, maintenant);
+    if (due !== 'oui') return { statut: due };
+    const etat: EtatSauvegarde = ancien && ancien.jour === jour ? ancien : {
+      jour, statut: 'en_cours', debut: new Date(maintenant).toISOString(), echecs: 0, alerte_jour: ancien?.alerte_jour ?? null,
+      derniere_reussite: ancien?.derniere_reussite ?? null, tables: {}, meta_fait: false, meta_fichiers: 0, meta_ignores: 0, octets: 0,
+    };
+    etat.statut = 'en_cours';
+    etat.verrou_jusqua = maintenant + SAUVEGARDE_BUDGET_MS + 60_000;
+    await _ecrireEtatSauvegarde(env, etat);
+    const echeance = horloge() + SAUVEGARDE_BUDGET_MS;
+    try {
+      const sb = deps.sb ?? supabaseAdmin(env);
+      const tables = deps.tables ?? await _tablesSupabaseASauvegarder(env);
+      for (const nom of tables) {
+        if (etat.tables[nom]?.fini) continue;
+        let issue: 'fini' | 'partiel';
+        try {
+          issue = await _sauvegarderTable(env, sb, jour, nom, etat, echeance, horloge);
+        } catch (e) {
+          if (SAUVEGARDE_TABLES_PAR_DEFAUT.includes(nom)) throw e;      // les 4 tables critiques font ECHOUER la sauvegarde (compteur d'echecs, alerte)
+          // Relecture 2026-10-03 : une table FACULTATIVE illisible (droits, vue...) ne doit pas empecher pour toujours la sauvegarde des autres (manifeste, copie _meta, rotation) : on la note et on continue.
+          const suivi = etat.tables[nom] ?? (etat.tables[nom] = { lignes: 0, blocs: 0, fini: false });
+          suivi.fini = true;
+          suivi.erreur = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+          console.warn('[sauvegarde] table facultative ignoree :', nom, suivi.erreur);
+          continue;
+        }
+        if (issue === 'partiel') {
+          etat.verrou_jusqua = 0;                          // la suite est reprise au prochain passage (15 min)
+          await _ecrireEtatSauvegarde(env, etat);
+          return { statut: 'partiel' };
+        }
+      }
+      if (!etat.meta_fait) await _sauvegarderFichiersMeta(env, jour, etat);
+      await env.MESHES.put(`_backup/${jour}/manifest.json`, JSON.stringify({
+        jour, version: 1, genere_a: new Date(horloge()).toISOString(), tables: etat.tables, fichiers_r2: etat.meta_fichiers, fichiers_ignores: etat.meta_ignores, octets: etat.octets,
+      }, null, 1), { httpMetadata: { contentType: 'application/json' } });
+      etat.statut = 'ok';
+      etat.fin = new Date(horloge()).toISOString();
+      etat.derniere_reussite = etat.fin;
+      etat.verrou_jusqua = 0;
+      delete etat.erreur;
+      await _ecrireEtatSauvegarde(env, etat);
+      try { await _rotationSauvegardes(env, jour); } catch (e) { console.warn('[sauvegarde] rotation :', (e as Error).message); }
+      return { statut: 'ok' };
+    } catch (e) {
+      const msg = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+      etat.echecs = (etat.echecs || 0) + 1;
+      etat.statut = 'echec';
+      etat.erreur = msg;
+      etat.verrou_jusqua = 0;
+      console.error('[sauvegarde] echec :', msg);
+      const alerter = etat.echecs >= SAUVEGARDE_ECHECS_AVANT_ALERTE && etat.alerte_jour !== jour;
+      if (alerter) etat.alerte_jour = jour;                // une seule alerte par jour, posee AVANT l'envoi
+      try { await _ecrireEtatSauvegarde(env, etat); } catch { /* etat non ecrit : on tentera encore */ }
+      if (alerter) {
+        const envoyer = deps.alerter ?? ((s: string, t: string) => _sendAdminAlertEmail(env, s, t));
+        try {
+          await envoyer('[MyFabmesh] Sauvegarde nocturne en echec',
+            `La sauvegarde nocturne du ${jour} (UTC) a echoue ${etat.echecs} fois.\nDerniere erreur : ${msg}\n`
+            + `Derniere reussite : ${etat.derniere_reussite ?? 'aucune'}.\nVoir /admin2 > Sante > sauvegarde nocturne. Aucune autre alerte aujourd'hui.`);
+        } catch { /* alerte best-effort */ }
+      }
+      return { statut: 'echec', detail: msg };
+    }
+  } catch (e) {
+    return { statut: 'erreur_interne', detail: (e instanceof Error ? e.message : String(e)).slice(0, 200) };
+  }
+}
+/* ═══ W2-3 SAUVEGARDE NOCTURNE : FIN ═══ */
+
 export default {
   async scheduled(event: { cron?: string }, envBrut: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }): Promise<void> {
     const env = _envAvecReprises(envBrut);
@@ -22696,10 +23834,25 @@ export default {
           }
         } catch { /* best-effort — never fail the keep-alive over retention */ }
       })());
+      // 2026-10-03 (D-05, D-07, corbeille) : retention des journaux de comptes / anonymes, de l'audit admin, des compteurs par IP, des
+      // messages de contact et de la corbeille. Passage separe : une erreur de l'un ne doit pas empecher l'autre.
+      ctx.waitUntil((async () => {
+        try {
+          const r = await purgeRetention(env);
+          if (env.MESHES) {
+            await env.MESHES.put('_meta/cron/last_retention_purge.json', JSON.stringify({ ts: new Date().toISOString(), ...r }),
+              { httpMetadata: { contentType: 'application/json' } });
+          }
+        } catch { /* best-effort */ }
+      })());
     }
     // Heavier maintenance (pre-warm / purge / reap) runs only on the frequent
     // heartbeat cron — NOT the weekly keep-alive ping (avoids any credit burn).
     if (event.cron !== '0 6 * * 1') {
+      // 2026-10-03 (EXP-01, EXP-02, FIN-06) : sauvegarde nocturne (une fois par jour UTC apres 02:00, reprise sur plusieurs passages si
+      // besoin). Passage SEPARE de la maintenance : sa duree (jusqu'a ~100 s) ne doit ni retarder le reaper ni fausser le recu de cron.
+      // sauvegardeNocturne ne leve jamais ; le then() est une ceinture de securite.
+      ctx.waitUntil(sauvegardeNocturne(env).then(() => undefined, () => undefined));
       // ONE waitUntil around the whole block (they used to be three
       // fire-and-forget promises) so the receipt below can measure the real
       // duration and capture a throw from any of the three. All three are
@@ -22758,6 +23911,48 @@ export default {
     return await _routeur(req, envBrut, ctx);
   },
 };
+
+/* ═══ W2-6 SONDE /api/health : DEBUT ═══ */
+/* 2026-10-03 (constat EXP-04) — SONDE PUBLIQUE POUR UN SERVICE DE SURVEILLANCE EXTERNE.
+ *
+ * Aucune surveillance externe n'existait : une panne n'etait detectee que par les clients. GET (ou HEAD) /api/health repond { ok, ts } :
+ * 200 si R2 (HEAD d'un petit objet) ET Supabase (lecture d'une ligne) repondent, 503 sinon. AUCUN secret, AUCUN detail interne dans la reponse
+ * (les causes vont dans les journaux du worker). Pas de session, pas de credit, pas de plafond ; exemptee du coupe-circuit de maintenance (voir
+ * `isAdminRoute` dans le routeur). Resultat memorise 10 s par instance : la sonde publique ne peut pas servir a marteler R2 ni la base. */
+let _santeCache: { ts: number; ok: boolean } | null = null;
+const SANTE_CACHE_MS = 10_000;
+const SANTE_DELAI_MS = 5_000;
+async function _avecDelai<T>(p: PromiseLike<T>, ms: number): Promise<T> {
+  let minuteur: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([Promise.resolve(p), new Promise<never>((_, rejeter) => { minuteur = setTimeout(() => rejeter(new Error('delai depasse')), ms); })]);
+  } finally { if (minuteur) clearTimeout(minuteur); }
+}
+async function handleHealth(env: Env): Promise<Response> {
+  const maintenant = Date.now();
+  let ok: boolean;
+  if (_santeCache && maintenant - _santeCache.ts >= 0 && maintenant - _santeCache.ts < SANTE_CACHE_MS) {
+    ok = _santeCache.ok;
+  } else {
+    ok = true;
+    try {
+      if (!env.MESHES) throw new Error('stockage non configure');
+      await _avecDelai(env.MESHES.head('_meta/pricing.json'), SANTE_DELAI_MS);   // absent = pas une erreur : seul un echec d'acces compte
+    } catch (e) { ok = false; console.warn('[health] R2 :', (e as Error).message); }
+    if (!isMock(env)) {
+      try {
+        const { error } = await _avecDelai(supabaseAdmin(env).from('profiles').select('id').limit(1), SANTE_DELAI_MS);
+        if (error) throw new Error(error.message);
+      } catch (e) { ok = false; console.warn('[health] base :', (e as Error).message); }
+    }
+    _santeCache = { ts: maintenant, ok };
+  }
+  return new Response(JSON.stringify({ ok, ts: new Date(maintenant).toISOString() }), {
+    status: ok ? 200 : 503,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...SECURITY_HEADERS },
+  });
+}
+/* ═══ W2-6 SONDE /api/health : FIN ═══ */
 
 async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Response> {
     const env = _envAvecReprises(envBrut);
@@ -22819,6 +24014,9 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
       const isAdminRoute = pathname.startsWith('/admin')
                         || pathname.startsWith('/api/admin/')
                         || pathname === '/api/stripe-webhook'
+                        /* 2026-10-03 (EXP-04) : la sonde de surveillance doit repondre MEME site coupe (maintenance) : elle ne mesure pas l'interrupteur,
+                         * elle mesure R2 et la base. Un 503 de maintenance la ferait croire en panne. */
+                        || pathname === '/api/health'
                         || pathname === '/api/auth/install-session'
                         /* /api/auth/refresh : echange le cookie mfm-refresh DEJA detenu contre un nouveau jeton Supabase (aucun credit, aucun
                          * Modal). Elle reste ouverte POUR TOUS, sans filtre d'e-mail : Supabase fait TOURNER le refresh token au premier echange ;
@@ -22863,8 +24061,15 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         }
       }
 
+      // 2026-10-03 (ADM-12) : seconde couche anti-CSRF sur les ECRITURES d'administration (en plus de SameSite=Strict).
+      if (ecritureAdminDepuisAutreOrigine(pathname, method, req, env)) {
+        return err(403, 'bad origin');
+      }
+
       // ── /api/* router ──
       if (pathname.startsWith('/api/')) {
+        // 2026-10-03 (EXP-04) : sonde publique de surveillance externe (ni session, ni credit, ni plafond : aucun gestionnaire ci-dessous n'est atteint).
+        if (pathname === '/api/health'                && (method === 'GET' || method === 'HEAD')) return await handleHealth(env);
         if (pathname === '/api/me'                    && method === 'GET')  return await handleMe(req, env);
         if (pathname === '/api/contact'               && method === 'POST') return await handleContactSubmit(req, env);
         if (pathname === '/api/admin/contact-messages' && method === 'GET') return await handleAdminContactList(req, env);
@@ -22933,10 +24138,6 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         {
           const m = pathname.match(/^\/api\/market\/listing\/([A-Za-z0-9_]+)$/);
           if (m && method === 'PATCH') return await handleMarketUpdate(req, env, m[1]);
-        }
-        {
-          const m = pathname.match(/^\/api\/market\/listing\/([A-Za-z0-9_]+)$/);
-          if (m && method === 'PATCH') return await handleMarketListingUpdate(req, env, m[1]);
         }
         {
           const m = pathname.match(/^\/api\/admin\/market\/([A-Za-z0-9_]+)(?:\/(approve|reject|price|offert))?$/);
