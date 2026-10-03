@@ -782,3 +782,30 @@ node build/fab-web.mjs attendre [jobId]
   plafond du compte est atteint.
 - Ne jamais se connecter à un compte à la place de l'utilisateur : c'est lui
   qui lance `login`.
+
+## 19. Ajouts du 2026-10-03 (analyse complète, correctifs, gardes)
+
+- **Rapports** (HORS dépôt, il est public) : `~/Documents/MyFabmesh_analyse_2026-10-03/` (178 constats, `resultat_brut.json`), `~/Documents/MyFabmesh_texture_2026-10-03/`
+  et `~/Documents/MyFabmesh_correctifs_2026-10-03/rapport.md` (ce qui a été corrigé, vérifié, refusé, et la liste du propriétaire).
+- **Trois copies du filtre de texte, UNE source** : `cloud/src/nsfw_filter.ts`. Le bloc de `src/main/main.js` entre `>>> MIROIR MODERATION` et `<<< MIROIR MODERATION`
+  est GÉNÉRÉ (`node build/miroir-moderation.mjs --sync`) ; `modal_app/_moderation_texte.py` aussi (`python build/moderation_modal/gen_module.py`). Les deux
+  commandes SANS argument sont des gardes du `prebuild` : ne jamais éditer ces blocs à la main. Les tests de parité : `cloud/tests/moderation.test.mjs`,
+  `tests/main/moderation_bureau.test.mjs`, `build/bancs/noyaux/test_moderation_modal.py`.
+- **Suite de tests du worker** : `cd cloud && npm test` (~420 tests, 8 s, aucun réseau) est dans le `prebuild`. Technique : `cloud/tests/_charge-worker.mjs` extrait
+  des fonctions de `worker.ts` par nom (analyseur TypeScript) et les évalue avec des doublures R2 / Supabase ; `WORKER_SRC=<copie>` vise un autre exemplaire (prouver
+  qu'un test échoue sur l'ancien code). Tout correctif du worker s'accompagne d'un test qui échoue sans lui. `node --test tests/` (dossier) échoue : utiliser `tests/*.test.mjs`.
+- **Sauvegarde nocturne** : le cron `*/15` écrit dans R2 `_backup/AAAA-MM-JJ/` (Supabase profiles / jobs / payments / user_assets + petits fichiers `_meta`, JAMAIS les
+  secrets d'administration, 14 jours) ; état dans `_backup/_dernier.json`, point « sauvegarde nocturne » de /admin2 > Santé. `GET /api/health` = sonde publique (200 / 503).
+- **master et la branche de travail divergent VOLONTAIREMENT** (la vitrine du site vit sur `master`) : ne pas fusionner. Le `cloud-deploy.yml` de `master` redéploie encore
+  tout push touchant `cloud/` : voir `docs/exploitation/README.md` (décision du propriétaire ; l'assistant n'a pas été autorisé à pousser sur master ni à y créer une tâche planifiée).
+- **Marquage IA (règlement UE 2024/1689, art. 50)** : tout GLB DÉRIVÉ doit porter `asset.generator` « FabMesh <version> (AI-generated) » et `asset.extras.aiGenerated`.
+  Bureau : `scripts/add_ai_metadata.py` + `mesh_tools._export` (Python) et `src/main/marquage_ia.js` (le bloc qui enveloppe `ipcMain.handle` marque les GLB que le RÉSULTAT d'un
+  canal de CANAUX_SORTIE_GLB nomme) ; Modal : `modal_app/_marquage_ia.py`. Un nouvel outil qui écrit un GLB doit être ajouté à cette liste ; FBX / OBJ / STL ne peuvent pas porter la marque.
+  Vérifier : `python build/bancs/campagne3d/t82_marquage_glb.py <epoch>`.
+- **Banc bureau réel** : `build/bancs/campagne3d/t80_*.mjs` pilotent l'appli de développement par la Control API (accès « complet » : souris et clavier réels) ;
+  résultats dans `docs/campagnes/resultats_verif_correctifs_2026-10-03.jsonl`. Le dossier de données du bureau en développement EST le dépôt (`meshes/`, `images/`, ignorés par git).
+- **Pièges Windows / Git Bash** : `git show <rev>:<chemin>` et `modal volume ls <volume> /` exigent `MSYS_NO_PATHCONV=1` (sinon le chemin est converti) ; pas de `sleep` en avant-plan
+  dans l'outil Bash (utiliser Monitor avec une boucle `until`) ; un here-document contenant des apostrophes ou des `\\n` casse : écrire le script dans un fichier avec l'outil Write.
+- **Reste à décider par le propriétaire** : rotation du mot de passe admin et du secret 2FA, immatriculation et mentions légales, Stripe live, rotation des comptes de test du
+  Store (leurs mots de passe sont dans l'historique git public), purge des volumes Modal (fichiers de résultats conservés depuis mai), migration Electron 31, crédit d'inscription
+  15 contre 17, anciennes applications Modal à composants non commerciaux (inertes mais déployées), migration des 8 fiches de la boutique qui gardent l'e-mail dans R2.
