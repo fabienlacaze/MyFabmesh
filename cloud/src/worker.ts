@@ -17572,6 +17572,19 @@ async function handleAnimateFromReferenceStatus(req: Request, env: Env): Promise
   return json({ status: 'pending', stage: 'unknown-response' });
 }
 
+/** CORRECTIF 2026-10-03 (analyse complete, constat CLOUD-02, ELEVE, actif) : /api/proxy-image renvoyait le Content-Type du serveur DISTANT depuis NOTRE origine, sans connexion, et acceptait tout
+ *  `*.r2.dev` (le compte de n'importe qui) : une page HTML hebergee la-bas s'executait sur notre domaine (XSS, appels d'API avec les cookies de la victime). On ne se fie plus a l'en-tete du
+ *  serveur distant : le type vient des PREMIERS OCTETS, restreint aux images raster sans script (PNG, JPEG, GIF, WebP, AVIF ; SVG exclu, il peut porter du script). */
+function _typeImageParOctets(b: Uint8Array): string | null {
+  if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'image/png';
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b.length >= 6 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38 && (b[4] === 0x37 || b[4] === 0x39) && b[5] === 0x61) return 'image/gif';
+  if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  if (b.length >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70 && b[8] === 0x61 && b[9] === 0x76 && b[10] === 0x69 && (b[11] === 0x66 || b[11] === 0x73)) return 'image/avif';
+  return null;
+}
+const PROXY_IMAGE_MAX_OCTETS = 32 * 1024 * 1024;
+
 /** GET /api/proxy-image?url=<encoded> — server-side fetch of an image
  *  URL, returned as-is so the browser sees a same-origin response and
  *  bypasses CORS entirely. Used by every canvas tool that needs to
@@ -17604,8 +17617,8 @@ async function handleProxyImage(req: Request, env: Env): Promise<Response> {
     }
   } catch { /* fall through to host allow-list */ }
 
-  // Allow R2 public buckets + a few known image-serving hosts. Add to
-  // this list as new generation backends are wired in.
+  // Hotes EXACTS uniquement (CORRECTIF 2026-10-03, CLOUD-02). Le joker `*.r2.dev` est RETIRE : il laissait n'importe quel compte Cloudflare servir ce qu'il voulait depuis notre domaine ; et
+  // l'acces public de NOTRE bucket est ferme (garde check-r2-public) : nos propres fichiers passent par les URL signees /r2/ (branche ci-dessus), jamais par r2.dev.
   const allowed = new Set<string>([
     'replicate.delivery',
     'pbxt.replicate.delivery',
@@ -17614,29 +17627,43 @@ async function handleProxyImage(req: Request, env: Env): Promise<Response> {
   if (env.R2_PUBLIC_URL) {
     try { allowed.add(new URL(env.R2_PUBLIC_URL).host); } catch { /* ignore */ }
   }
-  // Wildcard *.r2.dev — R2 public bucket subdomains rotate when the
-  // bucket is recreated, and hardcoding a specific one means every
-  // rotation breaks the proxy. The *.r2.dev space is Cloudflare-only
-  // (anyone abusing it is on a different account), so the open-proxy
-  // risk is bounded by Cloudflare's account-level controls.
-  const isR2 = parsed.host.endsWith('.r2.dev');
-  if (!allowed.has(parsed.host) && !isR2) {
+  if (!allowed.has(parsed.host)) {
     return err(403, `proxy: host ${parsed.host} not allowed`);
   }
 
   try {
-    const r = await fetch(parsed.toString(), {
-      headers: { 'user-agent': 'myfabmesh-cloud-proxy/1.0' },
-    });
+    // Redirections SUIVIES A LA MAIN (3 au plus) et chacune revalidee : un hote autorise ne peut pas nous faire rebondir vers un autre.
+    let cible = parsed;
+    let r: Response | null = null;
+    for (let saut = 0; saut < 4; saut++) {
+      r = await fetch(cible.toString(), { headers: { 'user-agent': 'myfabmesh-cloud-proxy/1.0' }, redirect: 'manual' });
+      if (r.status < 300 || r.status >= 400) break;
+      const suite = r.headers.get('location');
+      if (!suite || saut === 3) return err(502, 'proxy: redirect refused');
+      let prochain: URL;
+      try { prochain = new URL(suite, cible); } catch { return err(502, 'proxy: bad redirect'); }
+      if (prochain.protocol !== 'https:' || !allowed.has(prochain.host)) return err(502, 'proxy: redirect to a non-allowed host refused');
+      cible = prochain;
+    }
+    if (!r) return err(502, 'proxy: no response');
     if (!r.ok) return err(r.status, `upstream HTTP ${r.status}`);
-    // Stream the body back. Set permissive CORS headers so any cloud
-    // page can read it via fetch() + canvas getImageData().
-    return new Response(r.body, {
+    const annonce = Number(r.headers.get('content-length') || 0);
+    if (annonce > PROXY_IMAGE_MAX_OCTETS) return err(413, 'proxy: image too large');
+    const octets = new Uint8Array(await r.arrayBuffer());
+    if (octets.byteLength > PROXY_IMAGE_MAX_OCTETS) return err(413, 'proxy: image too large');
+    // Le type vient des octets, JAMAIS de l'en-tete du serveur distant.
+    const type = _typeImageParOctets(octets);
+    if (!type) return err(415, 'proxy: not a supported raster image');
+    // CORS ouvert : les outils de canvas relisent les pixels. nosniff + CSP « sandbox » : meme un contenu inattendu ne pourrait rien executer.
+    return new Response(octets, {
       status: 200,
       headers: {
-        'content-type': r.headers.get('content-type') || 'image/png',
+        'content-type': type,
         'cache-control': 'public, max-age=300',
         'access-control-allow-origin': '*',
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'none'; sandbox",
+        'cross-origin-resource-policy': 'cross-origin',
       },
     });
   } catch (e) {
