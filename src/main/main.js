@@ -136,6 +136,7 @@ _log('boot', 'electron required OK, app.getVersion()=' + (app && app.getVersion 
 // pas de texture, code de plantage natif) : voir src/main/durcissement.js (2026-10-03).
 const {
   cheminAutorise, nettoyerEvenementSentry, blenderExeValide, pasTexturePourPalier, estPlantageNatif,
+  analyserUrlTelechargement, creerLookupPublic, masquerNomsProjet, masquerNomsDansEvenement,
 } = require('./durcissement');
 
 // ===========================================================
@@ -217,7 +218,12 @@ function crashReportsDisabled() {
         // C:\Users\<nom>\... (nom de session Windows = donnee personnelle indirecte). On
         // remplace le profil par « ~ » dans TOUTES les chaines de l'evenement. Le caractere actif
         // par defaut du rapport d'erreurs n'est pas change (decision du proprietaire).
+        // 2026-10-03 (constat D-08) : les noms de projet saisis par l'utilisateur sont masques (« projet-xxxxxx », stable) comme les
+        // chemins. _nomsDeProjets() lit des constantes definies plus bas : avant leur initialisation elle leve, d'ou le try.
+        let _noms = [];
+        try { _noms = _nomsDeProjets(); } catch (_) { /* demarrage : aucun nom connu, on nettoie quand meme les chemins */ }
         try { nettoyerEvenementSentry(event); } catch (_) { /* un nettoyage rate ne doit pas perdre le rapport */ }
+        try { masquerNomsDansEvenement(event, _noms); } catch (_) { /* idem : le rapport part meme si le masquage echoue */ }
         return event;
       },
     });
@@ -6124,15 +6130,26 @@ ipcMain.handle('save-dropped-image', async (_e, { name, base64, mime } = {}) => 
 ipcMain.handle('download-to-temp', async (event, url) => {
   return new Promise((resolve) => {
     try {
-      if (!url || !/^https?:\/\//i.test(url)) return resolve({ success: false, error: 'invalid url' });
+      if (!url || typeof url !== 'string') return resolve({ success: false, error: 'invalid url' });
+      // 2026-10-03 (constat D-05, reste) : l'adresse vient de la page (glisser-deposer). Avant, n'importe quel http(s) etait ouvert,
+      // y compris 127.0.0.1, un routeur, les metadonnees d'un hebergeur. Desormais : https, hote public, pas d'identifiants ;
+      // verifie ICI avant tout reseau, puis a chaque redirection (doGet), puis sur l'adresse reellement resolue (lookup).
+      // Pas de liste d'hotes : l'image peut venir de n'importe quel site (c'est le but du glisser-deposer).
+      const _verifUrl = analyserUrlTelechargement(url, null);
+      if (!_verifUrl.ok) return resolve({ success: false, error: 'url refused (' + _verifUrl.raison + ')' });
+      const _lookupPublic = creerLookupPublic(require('dns').lookup);
       const os = require('os');
       const tmpDir = path.join(os.tmpdir(), 'fabmesh_dl');
       try { fs.mkdirSync(tmpDir, { recursive: true }); } catch (_) {}
       const doGet = (u, redirects) => {
+        // Chaque redirection est re-verifiee : un site public peut renvoyer vers http://127.0.0.1/ ou un routeur.
+        const _v = analyserUrlTelechargement(u, null);
+        if (!_v.ok) return resolve({ success: false, error: 'url refused (' + _v.raison + ')' });
+        u = _v.url;
         let mod;
-        try { mod = u.startsWith('https') ? require('https') : require('http'); }
+        try { mod = require('https'); }
         catch (_) { return resolve({ success: false, error: 'no http module' }); }
-        const req = mod.get(u, { headers: { 'User-Agent': 'Mozilla/5.0 FabMesh/1.0' }, timeout: 20000 }, (res) => {
+        const req = mod.get(u, { headers: { 'User-Agent': 'Mozilla/5.0 FabMesh/1.0' }, timeout: 20000, lookup: _lookupPublic }, (res) => {
           if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects < 5) {
             res.resume();
             let next;
@@ -12143,9 +12160,30 @@ ipcMain.handle('export-diagnostics', async () => {
 
 // ENVOI DES DIAGNOSTICS AU SUPPORT (2026-09-30) : meme contenu que « Export logs », envoye a un point d'entree serveur BORNE (300 Ko, 5 envois par heure,
 // suppression apres 30 jours). Aucun compte requis. Le processus principal fait la requete (reseau Chromium = magasin de certificats de Windows).
+// 2026-10-03 (constat D-08) : noms de projet connus de l'installation = dossiers de IMAGES_DIR (le nom de projet EST le nom du dossier)
+// + noms d'affichage choisis par l'utilisateur (config.projectDisplayNames : cle = nom du dossier, valeur = nom affiche).
+// Sert a masquer ces noms dans ce qui quitte la machine (rapport au support, rapport d'erreur Sentry). Ne leve jamais.
+function _nomsDeProjets() {
+  const noms = new Set();
+  try {
+    for (const d of fs.readdirSync(IMAGES_DIR, { withFileTypes: true })) {
+      if (d.isDirectory() && !d.name.startsWith('_')) noms.add(d.name);
+    }
+  } catch (_) {}
+  try {
+    const aff = (loadConfig() || {}).projectDisplayNames || {};
+    for (const [cle, valeur] of Object.entries(aff)) { noms.add(cle); noms.add(valeur); }
+  } catch (_) {}
+  return [...noms].filter((n) => typeof n === 'string').slice(0, 1000);
+}
+
 ipcMain.handle('send-diagnostics', async () => {
   try {
     let texte = _diagnosticsTexte();
+    // 2026-10-03 (constat D-08) : la politique de confidentialite annonce un rapport sans textes saisis ; le nom de projet partait
+    // en clair (journal general, chemins). Remplace par un identifiant court et stable (projet-xxxxxx). Le fichier exporte sur le
+    // Bureau (export-diagnostics) reste complet : il ne quitte pas la machine tant que l'utilisateur ne l'envoie pas lui-meme.
+    try { texte = masquerNomsProjet(texte, _nomsDeProjets()); } catch (_) { /* un masquage rate ne doit pas empecher l'envoi */ }
     if (Buffer.byteLength(texte, 'utf8') > 290 * 1024) texte = texte.slice(-(280 * 1024));     // on garde la fin (le plus recent)
     const { net } = require('electron');
     const rep = await net.fetch('https://myfabmesh-cloud.fabien65400.workers.dev/api/support-logs', {

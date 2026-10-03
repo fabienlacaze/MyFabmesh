@@ -19,6 +19,8 @@ const path = require('path');
 // Sidecars lineage <artefact>.meta.json — utilisés pour la stratégie R2-reuse
 // (params.r2_url) des outils mesh en mode Cloud.
 const { readMeta, writeMeta } = require('./meta');
+// 2026-10-03 (constat D-05, reste) : validation commune des URL de telechargement (https, hote public, liste d'hotes).
+const { analyserUrlTelechargement } = require('./durcissement');
 
 // Constantes publiques (identiques à cloud/wrangler.toml [vars] — l'anon key
 // Supabase est par conception publique). Surchargables par env pour les tests.
@@ -1267,6 +1269,16 @@ async function listMarket() {
   return { success: r.ok, listings: j.listings || j.items || [], owned };
 }
 
+/* Verification d'une URL de telechargement (D-05 reste). Hotes autorises : celui du site. Une URL qui a EXACTEMENT l'origine de
+ * WORKER_URL est acceptee d'office : c'est la configuration de confiance (FABMESH_CLOUD_URL pointe un serveur local en test). */
+function _verifierUrlTelechargement(url) {
+  try {
+    const site = new URL(WORKER_URL);
+    if (new URL(url).origin === site.origin) return { ok: true, url: new URL(url).href, hote: site.hostname };
+    return analyserUrlTelechargement(url, [site.hostname]);
+  } catch (_) { return { ok: false, raison: 'adresse illisible' }; }
+}
+
 async function downloadItem({ url, marketId, destPath, fname, kind, project }) {
   // Le renderer envoie (kind, fname, project) — on construit ici le chemin
   // absolu dans les dossiers de données de l'app (jamais de chemin libre).
@@ -1286,7 +1298,22 @@ async function downloadItem({ url, marketId, destPath, fname, kind, project }) {
     if (a.needsCloudLogin) return { success: false, needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
     resp = a.resp;
   } else {
-    resp = await fetch(url.startsWith('http') ? url : `${WORKER_URL}${url}`);
+    // 2026-10-03 (constat D-05, reste) : `url` vient de la page. Avant, n'importe quelle adresse etait ouverte (127.0.0.1, routeur,
+    // http en clair...). Les URL legitimes sont celles du site MyFabmesh : « /r2/<cle>?exp&sig » (relative, preposee par le site)
+    // ou la meme forme absolue (le rendu applique deja abs()). Hotes autorises = l'hote du site (WORKER_URL, surchargeable par
+    // FABMESH_CLOUD_URL). Les anciennes URL publiques r2.dev ne marchent plus (acces public coupe) : volontairement non listees.
+    // Chaque redirection est re-verifiee. Une adresse refusee rend une erreur claire, sans reseau.
+    const brute = String(url || '');
+    let cible = /^https?:\/\//i.test(brute) ? brute : (/^\/(?!\/)/.test(brute) ? `${WORKER_URL}${brute}` : '');
+    if (!cible) return { success: false, error: 'invalid url' };
+    for (let saut = 0; saut <= 5; saut++) {
+      const v = _verifierUrlTelechargement(cible);
+      if (!v.ok) return { success: false, error: 'url refused (' + v.raison + ')' };
+      resp = await fetch(v.url, { redirect: 'manual' });
+      const suite = resp.status >= 300 && resp.status < 400 ? resp.headers.get('location') : null;
+      if (!suite) break;
+      try { cible = new URL(suite, v.url).toString(); } catch (_) { return { success: false, error: 'invalid redirect' }; }
+    }
   }
   if (!resp.ok) return { success: false, error: `HTTP ${resp.status}` };
   const buf = Buffer.from(await resp.arrayBuffer());

@@ -23976,6 +23976,9 @@ document.getElementById('btn-settings')?.addEventListener('click', openSettings)
     open('https://fabienlacaze.github.io/MyFabmesh/privacy.html');
   });
   document.getElementById('about-link-licenses')?.addEventListener('click', (e) => { e.preventDefault(); openLegal('licenses'); });
+  /* 2026-10-03 (constat F2) : page « Licences tierces » du site, dans le navigateur. Passe par _openCloudSite (mecanisme deja
+   * present : liste blanche d'hotes cote main, adresse copiee si l'ouverture echoue) : aucun nouveau canal. */
+  document.getElementById('about-link-licenses-web')?.addEventListener('click', (e) => { e.preventDefault(); _openCloudSite('/legal/licenses'); });
   document.getElementById('about-link-eula')?.addEventListener('click', (e) => { e.preventDefault(); openLegal('eula'); });
 
   const show = async () => {

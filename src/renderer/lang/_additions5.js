@@ -405,4 +405,10 @@
   window.FabI18n.register('zh', {"AI animation ({x} credits), work in progress.": "AI 动画（{x} 积分），开发中。", "AI animation, work in progress.": "AI 动画，开发中。", "{x} credits per image": "每张图片 {x} 积分", "{x} credit per image": "每张图片 {x} 积分", "{x} credits per image (default quality)": "每张图片 {x} 积分（默认质量）", "{x} credit per image (default quality)": "每张图片 {x} 积分（默认质量）"});
   window.FabI18n.register('hi', {"AI animation ({x} credits), work in progress.": "AI एनिमेशन ({x} क्रेडिट), काम जारी है।", "AI animation, work in progress.": "AI एनिमेशन, काम जारी है।", "{x} credits per image": "प्रति छवि {x} क्रेडिट", "{x} credit per image": "प्रति छवि {x} क्रेडिट", "{x} credits per image (default quality)": "प्रति छवि {x} क्रेडिट (डिफ़ॉल्ट गुणवत्ता)", "{x} credit per image (default quality)": "प्रति छवि {x} क्रेडिट (डिफ़ॉल्ट गुणवत्ता)"});
   window.FabI18n.register('ar', {"AI animation ({x} credits), work in progress.": "حركة بالذكاء الاصطناعي ({x} أرصدة)، قيد التطوير.", "AI animation, work in progress.": "حركة بالذكاء الاصطناعي، قيد التطوير.", "{x} credits per image": "{x} أرصدة لكل صورة", "{x} credit per image": "{x} رصيد لكل صورة", "{x} credits per image (default quality)": "{x} أرصدة لكل صورة (الجودة الافتراضية)", "{x} credit per image (default quality)": "{x} رصيد لكل صورة (الجودة الافتراضية)"});
+  // Lien « Licences tierces » du site, fenetre A propos (2026-10-03, constat F2).
+  window.FabI18n.register('fr', {"Third-party licenses (website)": "Licences tierces (site web)"});
+  window.FabI18n.register('es', {"Third-party licenses (website)": "Licencias de terceros (sitio web)"});
+  window.FabI18n.register('zh', {"Third-party licenses (website)": "第三方许可（网站）"});
+  window.FabI18n.register('hi', {"Third-party licenses (website)": "तृतीय-पक्ष लाइसेंस (वेबसाइट)"});
+  window.FabI18n.register('ar', {"Third-party licenses (website)": "تراخيص الجهات الخارجية (الموقع)"});
 })();
