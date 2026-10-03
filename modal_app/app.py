@@ -1066,6 +1066,7 @@ class MyFabmeshPredictor:
         steps: int,
         unrestricted: bool = False,
         turbo: bool = False,
+        pose_libre: bool = False,
     ) -> bytes:
         """Internal: do the generation and return PNG bytes."""
         from modal_app._prompts import build_enriched_prompt
@@ -1073,7 +1074,7 @@ class MyFabmeshPredictor:
         from modal_app._nsfw import is_safe, make_blocked_placeholder
 
         t0 = time.time()
-        enriched = build_enriched_prompt(prompt, asset_type, asset_style)
+        enriched = build_enriched_prompt(prompt, asset_type, asset_style, pose_libre=pose_libre)
         if not seed:
             seed = int(time.time())
         print(
@@ -1156,7 +1157,8 @@ class MyFabmeshPredictor:
                   "asset_type": "character",
                   "asset_style": "realistic",
                   "seed": 424242,
-                  "steps": 30
+                  "steps": 30,
+                  "pose_libre": false      (true : case « T-pose » decochee, le gabarit n'impose pas la T-pose)
                 }
             Response: raw PNG bytes (Content-Type image/png).
             """
@@ -1177,6 +1179,7 @@ class MyFabmeshPredictor:
                     steps=int(payload.get("steps") or 30),
                     unrestricted=bool(payload.get("unrestricted")),
                     turbo=bool(payload.get("turbo")),
+                    pose_libre=bool(payload.get("pose_libre")),
                 )
             # hors de la boucle, a l'abri de l'annulation (voir _calcul_protege)
             png = await _calcul_protege("text2image", payload, _generer)

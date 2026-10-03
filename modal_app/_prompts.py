@@ -157,8 +157,10 @@ def _epurer_demande(texte: str) -> str:
     return t if len(t) >= 3 else brut.strip()
 
 
-def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -> str:
+def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str, pose_libre: bool = False) -> str:
     """Ajoute style + gabarit autour du texte de l'utilisateur, SANS doublon.
+
+    `pose_libre` (2026-10-03, case « T-pose » DECOCHEE) : le gabarit des unites perd ses consignes de T-pose (pose libre selon le texte).
 
     2026-09-23 : ce concatenait sans rien verifier. Or le client enrichit
     deja de son cote, et envoie le resultat : le gabarit arrivait donc DEUX
@@ -215,10 +217,11 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
     if asset_type in _TYPES_UNITE and gabarit:
         try:
             from modal_app import composeur_intention as _ci
-            if _ci.actif():
-                _intention = _ci.analyser(user_prompt, asset_type, asset_style)
-                gabarit = _ci.composer_gabarit(gabarit, asset_type, _intention)[0]
-                clause = _ci.clause_objet_tenu(_intention) or ''
+            # Interrupteur d'urgence FABMESH_COMPOSEUR=0 : aucune adaptation d'INTENTION (regles vides) ; la case « T-pose » de l'utilisateur reste respectee.
+            _regles = None if _ci.actif() else ()
+            _intention = _ci.analyser(user_prompt, asset_type, asset_style)
+            gabarit = _ci.composer_gabarit(gabarit, asset_type, _intention, _regles, tpose=not pose_libre)[0]
+            clause = _ci.clause_objet_tenu(_intention, _regles) or ''
         except Exception as _e:   # le composeur ne doit jamais empecher une generation
             print(f"[prompt] composeur d'intention ignore ({type(_e).__name__}: {_e})", flush=True)
     if asset_type in _TYPES_UNITE:

@@ -116,6 +116,50 @@ class ComposeurModal(unittest.TestCase):
             self.assertEqual(un.count('holding exactly') + un.count('in the left hand'), 1, un)
             self.assertEqual(P.build_enriched_prompt(un, 'character', 'realistic'), un)
 
+    # ---------------------------------------------------------------- case « T-pose » decochee (pose_libre)
+    CONSIGNES_TPOSE = ('T-pose', 'arms extended horizontally', 'legs apart', 'symmetric', 'empty open hands')
+
+    def test_pose_libre_retire_la_tpose_du_gabarit_des_unites(self):
+        libre = P.build_enriched_prompt('An orc warrior', 'character', 'realistic', pose_libre=True)
+        for tok in self.CONSIGNES_TPOSE:
+            self.assertNotIn(tok, libre, tok)
+        for garde in ('isolated 3D character, full body, fully clothed', 'strict front view', 'facing camera', 'plain white background', 'clean silhouette'):
+            self.assertIn(garde, libre)
+        defaut = P.build_enriched_prompt('An orc warrior', 'character', 'realistic')
+        self.assertIn('T-pose', defaut)
+        self.assertEqual(P.build_enriched_prompt('An orc warrior', 'character', 'realistic', pose_libre=False), defaut)
+
+    def test_pose_libre_et_objet_tenu(self):
+        libre = P.build_enriched_prompt(ORC, 'character', 'dark-fantasy', pose_libre=True)
+        for tok in self.CONSIGNES_TPOSE:
+            self.assertNotIn(tok, libre, tok)
+        self.assertIn('holding exactly one massive spiked club in the right hand, left hand open and empty', libre)
+        self.assertTrue(libre.endswith('entire figure and held item fully visible, generous empty margins'), libre)
+
+    def test_pose_libre_sans_effet_hors_unites(self):
+        for typ in ('vehicle', 'building', 'weapon', 'prop', 'creature', 'animal', 'environment'):
+            self.assertEqual(P.build_enriched_prompt('A statue', typ, 'realistic', pose_libre=True),
+                             P.build_enriched_prompt('A statue', typ, 'realistic'), typ)
+
+    def test_pose_libre_respectee_meme_composeur_coupe(self):
+        # FABMESH_COMPOSEUR=0 coupe les adaptations d'INTENTION ; le choix explicite de l'utilisateur (la case) reste respecte
+        libre = sans_composeur(lambda: P.build_enriched_prompt(ORC, 'character', 'dark-fantasy', pose_libre=True))
+        for tok in self.CONSIGNES_TPOSE:
+            self.assertNotIn(tok, libre, tok)
+        self.assertNotIn('holding exactly one', libre, 'pas de clause : le composeur est coupe')
+        self.assertIn('empty open hands', sans_composeur(lambda: P.build_enriched_prompt(ORC, 'character', 'dark-fantasy')))
+
+    def test_pose_libre_un_texte_deja_enrichi_n_est_pas_recompose(self):
+        libre = P.build_enriched_prompt(ORC, 'character', 'dark-fantasy', pose_libre=True)
+        self.assertEqual(P.build_enriched_prompt(libre, 'character', 'dark-fantasy', pose_libre=True), libre)
+        self.assertEqual(P.build_enriched_prompt(libre, 'character', 'dark-fantasy'), libre)
+
+    def test_la_route_text2image_transmet_pose_libre(self):
+        with open(os.path.join(RACINE, 'modal_app', 'app.py'), 'r', encoding='utf-8') as f:
+            app = f.read()
+        self.assertIn('pose_libre=bool(payload.get("pose_libre")),', app)
+        self.assertIn('build_enriched_prompt(prompt, asset_type, asset_style, pose_libre=pose_libre)', app)
+
     # ---------------------------------------------------------------- build_prompts (negatif)
     def test_negatif_sans_arme_nommee_identique(self):
         for t in ('An orc', 'A knight without a weapon', 'A monk, unarmed', 'A man holding his breath'):
