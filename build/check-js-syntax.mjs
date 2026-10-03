@@ -50,6 +50,7 @@ const LIVRES = [
   'cloud/public/app/index2-edit-tools.js',
   'cloud/public/app/meshyAPI-cloud.js',
   'cloud/public/app/cloud-overrides.js',
+  'cloud/public/app/garde-traduction.js',
   'cloud/public/app/canvas-utils.js',
   'cloud/public/app/lib/Viewer3D.js',
   'cloud/public/app/lib/locomotion-procedurale.js',
