@@ -1067,14 +1067,19 @@ class MyFabmeshPredictor:
         unrestricted: bool = False,
         turbo: bool = False,
         pose_libre: bool = False,
+        negative_extra=None,
     ) -> bytes:
-        """Internal: do the generation and return PNG bytes."""
-        from modal_app._prompts import build_enriched_prompt
+        """Internal: do the generation and return PNG bytes.
+
+        `negative_extra` (2026-10-03) : termes de negatif que le client a SORTIS du texte (« no helmet » -> « helmet », via le worker) ; s'y ajoutent ceux
+        que _prompts.negatifs_utilisateur trouve dans le texte brut (anciens clients). Ils vont au NEGATIF, jamais au positif."""
+        from modal_app._prompts import build_enriched_prompt, negatifs_utilisateur
         from modal_app._realvis import generate
         from modal_app._nsfw import is_safe, make_blocked_placeholder
 
         t0 = time.time()
         enriched = build_enriched_prompt(prompt, asset_type, asset_style, pose_libre=pose_libre)
+        negatifs = negatifs_utilisateur(prompt, negative_extra)   # « no helmet » : retire du positif par build_enriched_prompt, ajoute au NEGATIF ci-dessous
         if not seed:
             seed = int(time.time())
         print(
@@ -1088,7 +1093,8 @@ class MyFabmeshPredictor:
             self.pipe.scheduler = self._euler_trailing
         try:
             img = generate(self.pipe, enriched, seed=seed, steps=steps,
-                           asset_type=asset_type, turbo=_use_turbo)
+                           asset_type=asset_type, turbo=_use_turbo,
+                           negatif_utilisateur=negatifs)
         finally:
             if _use_turbo:
                 self.pipe.disable_lora()
@@ -1158,7 +1164,8 @@ class MyFabmeshPredictor:
                   "asset_style": "realistic",
                   "seed": 424242,
                   "steps": 30,
-                  "pose_libre": false      (true : case « T-pose » decochee, le gabarit n'impose pas la T-pose)
+                  "pose_libre": false,     (true : case « T-pose » decochee, le gabarit n'impose pas la T-pose)
+                  "negative_extra": ["helmet"]   (negations de l'utilisateur sorties du texte par le client : AJOUTEES au negatif, nettoyees ici)
                 }
             Response: raw PNG bytes (Content-Type image/png).
             """
@@ -1167,7 +1174,10 @@ class MyFabmeshPredictor:
             prompt = (payload.get("prompt") or "").strip()
             if not prompt:
                 raise HTTPException(status_code=400, detail="prompt required")
-            _hf = _prompt_hard_floor(prompt)
+            # Le plancher dur voit AUSSI les negations que le client a sorties du texte (« a child, no whip » arrive comme « a child » + le terme « whip ») :
+            # meme verdict qu'avant. Sans negation, le texte lui-meme.
+            from modal_app._prompts import texte_pour_plancher
+            _hf = _prompt_hard_floor(texte_pour_plancher(prompt, payload.get("negative_extra")))
             if _hf:
                 raise HTTPException(status_code=403, detail=_hf)
             def _generer(payload):
@@ -1180,6 +1190,7 @@ class MyFabmeshPredictor:
                     unrestricted=bool(payload.get("unrestricted")),
                     turbo=bool(payload.get("turbo")),
                     pose_libre=bool(payload.get("pose_libre")),
+                    negative_extra=payload.get("negative_extra"),
                 )
             # hors de la boucle, a l'abri de l'annulation (voir _calcul_protege)
             png = await _calcul_protege("text2image", payload, _generer)
@@ -1524,6 +1535,7 @@ class MyFabmeshBackview:
         from fastapi import HTTPException
         from fastapi.responses import Response
         from modal_app._tpose import generate as tpose_generate
+        from modal_app._prompts import termes_negatifs_valides, texte_pour_plancher
         from modal_app._nsfw import is_safe, make_blocked_placeholder
 
         _check_auth(payload)
@@ -1532,7 +1544,10 @@ class MyFabmeshBackview:
         ref_url = (payload.get("ref_image_url") or "").strip()
         if not prompt and not ref_url:
             raise HTTPException(status_code=400, detail="prompt or ref_image_url required")
-        _hf = _prompt_hard_floor(prompt)
+        # negations de l'utilisateur (le prompt enrichi du client n'en porte plus) : nettoyees UNE fois, examinees par le plancher dur (« a child, no whip »
+        # est juge comme avant) puis ajoutees au negatif
+        _negatifs = termes_negatifs_valides(payload.get("negative_extra"))
+        _hf = _prompt_hard_floor(texte_pour_plancher(prompt, _negatifs))
         if _hf:
             raise HTTPException(status_code=403, detail=_hf)
 
@@ -1557,6 +1572,8 @@ class MyFabmeshBackview:
             cn_scale=float(payload.get("cn_scale") or 1.15),
             ip_scale=float(payload.get("ip_scale") or 0.75),
             steps=int(payload.get("steps") or 30),
+            # negations de l'utilisateur (le prompt enrichi du client n'en porte plus) : ajoutees au negatif, nettoyees de facon stricte
+            negatif_extra=_negatifs,
         )
 
         # Parental control — image NSFW scan, same as text2image path.

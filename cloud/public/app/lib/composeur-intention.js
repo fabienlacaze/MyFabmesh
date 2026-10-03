@@ -7,7 +7,8 @@
 //
 // CE QUE FAIT LE MODULE : analyser le texte de l'utilisateur de facon DETERMINISTE (regex seulement) et adapter le gabarit positif.
 // Un texte qui ne dit rien d'un objet tenu donne EXACTEMENT le gabarit d'origine (cas temoin « An orc » : identique a l'octet).
-// Les negatifs sont composes cote Python (pont du bureau, Modal) : ce fichier n'en compose pas.
+// Les negatifs sont composes cote Python (pont du bureau, Modal) : ce fichier n'en compose pas. Il SEPARE seulement les negations de l'utilisateur
+// (« no helmet », « without a beard ») du positif : extraireNegations() en fin de fichier ; les termes partent au serveur (champ `negativeExtra`).
 //
 // MEMES NOMS DE CLES que le module Python (snake_case) : build/intention_cas.json + build/intention_attendus.json verifient que les deux
 // langages donnent les memes sorties (build/check-intention.mjs, build/check_intention.py). Les regex restent dans le sous-ensemble
@@ -15,10 +16,10 @@
 
 export const VERSION = 1;
 export const TYPES_UNITE = ['character', 'other_living'];
-export const TOUTES_REGLES = ['objets', 'socle', 'asymetrie', 'pose', 'vue', 'buste', 'non_humain', 'parties', 'quantite'];
+export const TOUTES_REGLES = ['objets', 'socle', 'asymetrie', 'pose', 'vue', 'buste', 'non_humain', 'parties', 'quantite', 'negations'];
 // Regles ACTIVES en production : seules celles dont l'effet est mesure ou sans risque. Les autres sont codees, testees, eteintes
 // (voir le module Python pour le detail) : les activer = ajouter leur nom ici ET dans scripts/composeur_intention.py.
-export const REGLES_ACTIVES = ['objets'];
+export const REGLES_ACTIVES = ['objets', 'negations'];
 
 const CLASSES_ARME = {
   club: 'club mace cudgel bat maul flail morning star truncheon',
@@ -333,16 +334,479 @@ const RE_CLAUSES_FIN = [
   /,?\s*holding exactly two .+?s, one in each hand\s*$/i,
   /,?\s*holding [a-z'-]+(?: [a-z'-]+){0,3} in the right hand and [a-z'-]+(?: [a-z'-]+){0,3} in the left hand\s*$/i,
 ];
+// Rognage par BOUCLES : un `/[\s,]+$/` est quadratique sur une longue suite de blancs (12 s pour 100 000 espaces, mesure du 2026-10-03).
+const _BLANC = /\s/;               // un seul caractere a la fois : aucun motif quantifie ne parcourt le texte entier
+function rognerFin(s) {            // retire les blancs et les virgules de la fin
+  let b = s.length;
+  while (b > 0 && (s[b - 1] === ',' || _BLANC.test(s[b - 1]))) b--;
+  return s.slice(0, b);
+}
+function rognerDebut(s) {          // retire les blancs et les virgules du debut
+  let a = 0;
+  while (a < s.length && (s[a] === ',' || _BLANC.test(s[a]))) a++;
+  return s.slice(a);
+}
+const FENETRE_CLAUSE = 600;        // une clause generee tient en moins de 300 caracteres et se trouve en QUEUE du texte : on ne regarde que la fin
 export function retirerClauseFinale(texte) {
   const t = String(texte == null ? '' : texte);
-  const nu = t.replace(/[\s,]+$/, '');   // la coupe du gabarit laisse une virgule en queue
+  const nu = rognerFin(t);         // la coupe du gabarit laisse une virgule en queue
+  const debutFenetre = Math.max(0, nu.length - FENETRE_CLAUSE);
+  const fenetre = nu.slice(debutFenetre);
   for (const re of RE_CLAUSES_FIN) {
-    const m = re.exec(nu);
+    const m = re.exec(fenetre);
     if (!m) continue;
-    const reste = nu.slice(0, m.index).replace(/[\s,]+$/, '');
-    const clause = m[0].replace(/^[\s,]+/, '').replace(/\s+$/, '');
-    const regen = clauseObjetTenu(analyser(reste, 'character', ''), undefined);
+    const reste = rognerFin(nu.slice(0, debutFenetre + m.index));
+    const clause = rognerFin(rognerDebut(m[0]));
+    // la clause a ete composee sur le texte SANS ses negations (« no weapon, holding a shield » ne contient plus « no weapon » pour l'analyse)
+    const regen = clauseObjetTenu(analyser(positifSansNegations(reste), 'character', ''), undefined);
     if (regen && regen.toLowerCase() === clause.toLowerCase()) return reste;
   }
   return t;
+}
+
+/** Remplace les suites de virgules separees par des blancs (« a, , b » ; « a,, b ») par UNE virgule, retire la virgule de tete et de queue, puis les blancs de bord.
+ *  Meme resultat que la chaine de quatre remplacements d'origine de stripKnownPromptSuffixes (virgules doubles, virgule de tete, virgule de queue, trim) pour
+ *  tout texte qui n'a pas trois virgules d'affilee, mais en temps lineaire (la chaine d'origine est quadratique sur de longues suites de blancs). */
+export function nettoyerVirgules(texte) {
+  let s = String(texte == null ? '' : texte);
+  const n = s.length;
+  let out = '';
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    while (j < n && _BLANC.test(s[j])) j++;
+    if (j < n && s[j] === ',') {
+      let fin = j + 1;
+      let nb = 1;
+      for (;;) {
+        let m = fin;
+        while (m < n && _BLANC.test(s[m])) m++;
+        if (m < n && s[m] === ',') { nb++; fin = m + 1; } else break;
+      }
+      let e = fin;
+      while (e < n && _BLANC.test(s[e])) e++;
+      if (nb >= 2) { out += ', '; i = e; continue; }
+      out += s.slice(i, j + 1);       // une seule virgule : les blancs d'avant et la virgule, tels quels
+      i = j + 1;
+      continue;
+    }
+    if (j > i) { out += s.slice(i, j); i = j; } else { out += s[i]; i++; }
+  }
+  s = out;
+  let a = 0;
+  while (a < s.length && _BLANC.test(s[a])) a++;
+  if (a < s.length && s[a] === ',') {
+    a++;
+    while (a < s.length && _BLANC.test(s[a])) a++;
+    s = s.slice(a);
+  }
+  let b = s.length;
+  while (b > 0 && _BLANC.test(s[b - 1])) b--;
+  if (b > 0 && s[b - 1] === ',') {
+    b--;
+    while (b > 0 && _BLANC.test(s[b - 1])) b--;
+    s = s.slice(0, b);
+  }
+  return s.trim();
+}
+
+// ── negations de l'utilisateur (2026-10-03) ──────────────────────────────────────────────────────────────────────────
+// Jumeau de extraire_negations() de scripts/composeur_intention.py : MEMES mots, MEMES regles, MEMES sorties (build/check-intention.mjs). « an orc,
+// no helmet, holding a club » : le modele d'image ne comprend pas la negation (il voit « helmet » et le dessine) ; elle doit QUITTER le positif et
+// rejoindre le NEGATIF (champ `negativeExtra`). Un balayage de mots, AUCUNE regex a retour arriere (texte tronque a 2 000 caracteres, temps lineaire).
+// PRUDENCE : ce qui n'est pas compris (« no one », « not only X but also Y »...) RESTE dans le positif ; la garde-robe (« without clothes »...) aussi,
+// pour que le filtre de moderation continue a la voir.
+export const MAX_TEXTE_NEGATIONS = 2000;
+export const MAX_TERMES_NEGATIFS = 8;
+export const MAX_CARS_TERME = 40;
+export const MAX_MOTS_TERME = 3;
+
+const NEG_BLANCS = ' \t\r\n\u00a0';
+const _mots = (s) => new Set(s.split(' '));
+const NEG_ARTICLES = _mots('a an the any some his her its their my your our');
+const NEG_LEGERS = _mots('wearing holding carrying having using showing including being with');
+const NEG_SAUT_AUTRES = new Set([...NEG_ARTICLES, ...NEG_LEGERS]);
+const NEG_LEGERS_NOT = _mots('wearing holding carrying having using showing wielding');
+const NEG_CONJ = _mots('and or nor but');
+const NEG_FIN_GN = _mots('and or nor but with without in on at to for from by as while that which who whose whom where when if than then so because '
+  + 'is are was were be been being has have had near over under behind above below next around inside outside into onto '
+  + 'through across between among against along during before after like via per plus not no never of up down off out');
+const NEG_VERBES = _mots('holding wearing carrying standing sitting walking running looking riding having using showing wielding gripping covered '
+  + 'dressed clad posing facing lying kneeling crouching leaning resting hanging jumping fighting holds wears carries stands sits');
+const NEG_VIDES = _mots('anything something everything nothing none anyone someone everyone anybody somebody everybody nobody neither either both all each every '
+  + 'else other others more less much many same such one ones thing things way longer matter doubt idea need sense kind sort type part parts '
+  + 'element elements extra additional further');
+const NEG_SENSIBLES = _mots('clothes clothing clothe clothed shirt shirts top tops pants trousers underwear underpants undergarments lingerie bra bras '
+  + 'panties dress dresses skirt skirts swimsuit bikini outfit outfits garment garments attire apparel nude naked nudity topless bare nsfw');
+const NEG_FAUX = {
+  no: _mots('one longer more matter doubt idea need way sense less sooner such problem kidding'),
+  not: _mots('only just too very quite even at really exactly necessarily yet so as much many always sure to enough particularly entirely '
+    + 'completely fully simply merely rather less more once since until unless all that this what how if because'),
+  never: _mots('before again ever ending ended more quite been seen mind too'),
+  without: _mots('further fail doubt question warning ever limit end exception delay'),
+};
+const NEG_AVANT_NO = _mots('with and but or plus having has holding wearing carrying using showing including');
+const NEG_DEBUT = _mots('and but or with plus also yet');
+const NEG_DECLENCHEURS = ['no', 'not', 'never', 'without'];
+
+function negMots(segment) {
+  const jetons = [];
+  let cur = '';
+  for (const ch of segment) {
+    if (NEG_BLANCS.includes(ch)) {
+      if (cur) { jetons.push(cur); cur = ''; }
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur) jetons.push(cur);
+  return jetons;
+}
+
+/** [blancs du debut, blancs de la fin]. */
+function negBords(s) {
+  let a = 0;
+  let b = s.length;
+  while (a < b && NEG_BLANCS.includes(s[a])) a++;
+  while (b > a && NEG_BLANCS.includes(s[b - 1])) b--;
+  return [s.slice(0, a), s.slice(b)];
+}
+
+function negStrip(s) {
+  const [avant, apres] = negBords(s);
+  return s.slice(avant.length, s.length - apres.length);
+}
+
+/** [mot en minuscules, ferme] ; [null, false] si le jeton n'est pas un mot (chiffre, symbole, lettre accentuee). `ferme` : ponctuation de fin. */
+function negCoeur(jeton) {
+  let a = 0;
+  let b = jeton.length;
+  while (a < b && '"\'([{'.includes(jeton[a])) a++;
+  const b0 = b;
+  while (b > a && '"\')]}.!?:'.includes(jeton[b - 1])) b--;
+  const mot = jeton.slice(a, b);
+  if (!mot) return [null, false];
+  for (let k = 0; k < mot.length; k++) {
+    const ch = mot[k];
+    if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '-' || ch === "'")) return [null, false];
+  }
+  return [mot.toLowerCase(), b < b0];
+}
+
+function negMajuscule(jeton) {
+  let a = 0;
+  while (a < jeton.length && '"\'([{'.includes(jeton[a])) a++;
+  return a < jeton.length && jeton[a] >= 'A' && jeton[a] <= 'Z';
+}
+
+function negMotPropre(m) {
+  if (!m || m[0] === '-' || m[m.length - 1] === '-' || m.includes('--')) return false;
+  for (let k = 0; k < m.length; k++) {
+    const ch = m[k];
+    if (!((ch >= 'a' && ch <= 'z') || ch === '-')) return false;
+  }
+  return true;
+}
+
+function negTerme(mots) {
+  mots = mots.slice(-MAX_MOTS_TERME);
+  if (!mots.length) return null;
+  for (const m of mots) {
+    if (!negMotPropre(m) || NEG_SENSIBLES.has(m)) return null;
+  }
+  if (mots.every((m) => NEG_VIDES.has(m))) return null;
+  const terme = mots.join(' ');
+  if (terme.length > MAX_CARS_TERME) return null;
+  return terme;
+}
+
+/** La liste nommee continue-t-elle apres le groupe qui finit en i ? -> indice ou reprendre, ou null. */
+function negSuite(jetons, i, decl, ferme) {
+  const n = jetons.length;
+  if (ferme || i >= n) return null;
+  const w = negCoeur(jetons[i])[0];
+  if (w !== 'and' && w !== 'or' && w !== 'nor') return null;
+  let k = i + 1;
+  let repete = false;
+  if (k < n && NEG_DECLENCHEURS.includes(negCoeur(jetons[k])[0])) {
+    repete = true;
+    k++;
+  }
+  if (!repete && w === 'and' && decl !== 'without') return null;
+  const saut = repete ? NEG_SAUT_AUTRES : NEG_ARTICLES;
+  let m = k;
+  while (m < n) {
+    const w3 = negCoeur(jetons[m])[0];
+    if (w3 !== null && saut.has(w3)) m++; else break;
+  }
+  if (m >= n) return null;
+  const w3 = negCoeur(jetons[m])[0];
+  if (w3 === null || NEG_FIN_GN.has(w3) || NEG_VERBES.has(w3)) return null;
+  if (!repete && w3.length >= 5 && w3.endsWith('ed')) return null;
+  return k;
+}
+
+/** Groupes nominaux nies apres le declencheur `decl`, a partir du jeton i. -> [termes, fin] ou null. */
+function negListe(jetons, i, decl) {
+  const n = jetons.length;
+  const saut = decl === 'no' ? NEG_ARTICLES : NEG_SAUT_AUTRES;
+  const faux = NEG_FAUX[decl];
+  if (i < n && faux.has(negCoeur(jetons[i])[0])) return null;
+  const termes = [];
+  let fin = null;
+  for (;;) {
+    while (i < n) {
+      const w = negCoeur(jetons[i])[0];
+      if (w !== null && saut.has(w)) i++; else break;
+    }
+    const mots = [];
+    let ferme = false;
+    let j = i;
+    while (j < n) {
+      const [w, f] = negCoeur(jetons[j]);
+      if (w === null || NEG_FIN_GN.has(w) || (mots.length && NEG_VERBES.has(w))) break;
+      mots.push(w);
+      ferme = f;
+      j++;
+      if (f) break;
+    }
+    let terme = null;
+    if (mots.length && !faux.has(mots[0])) terme = negTerme(mots);
+    if (terme === null) {
+      if (termes.length) break;
+      return null;
+    }
+    termes.push(terme);
+    fin = j;
+    const k = negSuite(jetons, j, decl, ferme);
+    if (k === null) break;
+    i = k;
+  }
+  return [termes, fin];
+}
+
+function negVerbal(jeton) {
+  const w = negCoeur(jeton)[0];
+  return w !== null && (NEG_VERBES.has(w) || (w.length >= 5 && (w.endsWith('ing') || w.endsWith('ed'))));
+}
+
+/** Un segment (entre deux virgules). -> [action, jetons], action : 'garder' | 'modifier' | 'retirer'. Les termes trouves sont ajoutes a `etat`. */
+function negTraiterSegment(jetons, etat) {
+  const n = jetons.length;
+  let sortie = [];
+  let i = 0;
+  let modifie = false;
+  while (i < n) {
+    const jeton = jetons[i];
+    const w = negCoeur(jeton)[0];
+    let debut = true;
+    for (const s of sortie) {
+      if (!NEG_DEBUT.has(negCoeur(s)[0])) { debut = false; break; }
+    }
+    let decl = null;
+    let precedent = 0;
+    if (w === 'no' || w === 'not' || w === 'never' || w === 'without') {
+      if (debut) {
+        if (!'"\u201c'.includes(jeton[0])) decl = w;
+      } else if ('([{'.includes(jeton[0])) {
+        decl = w;
+      } else if (negMajuscule(jeton)) {
+        decl = null;
+      } else if (w === 'without') {
+        decl = w;
+      } else if (w === 'no' && NEG_AVANT_NO.has(negCoeur(sortie[sortie.length - 1])[0])) {
+        decl = w;
+        precedent = 1;
+      } else if (w === 'not' && i + 1 < n && NEG_LEGERS_NOT.has(negCoeur(jetons[i + 1])[0])) {
+        decl = w;
+      }
+    }
+    if (decl !== null) {
+      const res = negListe(jetons, i + 1, decl);
+      if (res !== null) {
+        const [termes, fin] = res;
+        const nouveaux = [];
+        for (const t of termes) {
+          if (!etat.includes(t) && !nouveaux.includes(t)) nouveaux.push(t);
+        }
+        if (etat.length + nouveaux.length <= MAX_TERMES_NEGATIFS) {
+          etat.push(...nouveaux);
+          modifie = true;
+          if (debut) {
+            sortie = [];
+            i = (fin < n && NEG_CONJ.has(negCoeur(jetons[fin])[0])) ? fin + 1 : n;
+          } else {
+            if (precedent) sortie.pop();
+            i = fin;
+            const c = i + 1 < n ? negCoeur(jetons[i])[0] : null;
+            if (i + 1 < n && (c === 'and' || c === 'or') && negVerbal(jetons[i + 1])) i++;
+          }
+          continue;
+        }
+      }
+    }
+    sortie.push(jeton);
+    i++;
+  }
+  if (!modifie) return ['garder', jetons];
+  if (!sortie.length) return ['retirer', []];
+  return ['modifier', sortie];
+}
+
+/** Decoupe sur , ; | retour a la ligne, point suivi d'un blanc et tiret isole (« a cat - no tail - sitting »).
+ *  -> [[segment, separateur], ...] ; le separateur garde les blancs qui le suivent. */
+function negSegments(t) {
+  const segs = [];
+  let cur = '';
+  let i = 0;
+  const n = t.length;
+  while (i < n) {
+    const c = t[i];
+    if (',;|\r\n'.includes(c) || (c === '.' && (i + 1 >= n || NEG_BLANCS.includes(t[i + 1])))
+        || ('-\u2013\u2014'.includes(c) && (i === 0 || NEG_BLANCS.includes(t[i - 1])) && (i + 1 >= n || NEG_BLANCS.includes(t[i + 1])))) {
+      let j = i + 1;
+      while (j < n && ' \t\u00a0'.includes(t[j])) j++;
+      segs.push([cur, t.slice(i, j)]);
+      cur = '';
+      i = j;
+    } else {
+      cur += c;
+      i++;
+    }
+  }
+  segs.push([cur, '']);
+  return segs;
+}
+
+/** Separe le texte de l'utilisateur en POSITIF (sans les locutions negatives) et NEGATIFS (termes a ajouter au negatif). -> { positif, negatifs }.
+ *  Memes regles que extraire_negations() du module Python (voir son docstring). Un texte sans negation est rendu OCTET POUR OCTET.
+ *  `regles` sans 'negations' (interrupteur d'urgence : []) : rien n'est extrait. */
+export function extraireNegations(texte, regles) {
+  let t = typeof texte === 'string' ? texte : (texte == null ? '' : String(texte));
+  if (t.length > MAX_TEXTE_NEGATIONS) t = Array.from(t).slice(0, MAX_TEXTE_NEGATIONS).join('');
+  if (!_regles(regles).includes('negations')) return { positif: t, negatifs: [] };
+  const etat = [];
+  const morceaux = [];
+  for (const [seg, sep] of negSegments(t)) {
+    const jetons = negMots(seg);
+    if (!jetons.length) { morceaux.push([seg, sep]); continue; }
+    const [action, nouveaux] = negTraiterSegment(jetons, etat);
+    if (action === 'garder') morceaux.push([seg, sep]);
+    else if (action === 'modifier') {
+      const [avant, apres] = negBords(seg);   // les blancs de bord du segment sont gardes (« a cat - no tail - sitting »)
+      morceaux.push([avant + nouveaux.join(' ') + apres, sep]);
+    }
+    else morceaux.push([null, sep]);
+  }
+  if (!etat.length) return { positif: t, negatifs: [] };
+  while (morceaux.length > 1 && morceaux[morceaux.length - 1][0] === '' && morceaux[morceaux.length - 1][1] === '') morceaux.pop();
+  const gardes = morceaux.filter((m) => m[0] !== null).map((m) => [m[0], m[1]]);
+  if (gardes.length && morceaux[morceaux.length - 1][0] === null) {
+    gardes[gardes.length - 1][1] = morceaux[morceaux.length - 1][1].startsWith('.') ? '.' : '';
+  }
+  return { positif: negStrip(gardes.map((m) => m[0] + m[1]).join('')), negatifs: etat.slice() };
+}
+
+// ── pour la fabrication du prompt (index2.js) : memes resultats que extraireNegations, avec deux garde-fous ─────────────────────────────────────────
+// 1. un texte de plus de 2 000 caracteres n'est PAS analyse (extraireNegations le tronquerait : on ne coupe jamais le texte de l'utilisateur) ;
+// 2. un texte ENTIEREMENT negatif (« no helmet ») garde son positif tel quel : un prompt vide ne vaut rien (les termes partent quand meme au negatif).
+function negTropLong(t) {
+  return t.length > MAX_TEXTE_NEGATIONS && Array.from(t).length > MAX_TEXTE_NEGATIONS;
+}
+
+/** { positif, negatifs } pour fabriquer un prompt : voir les deux garde-fous ci-dessus. */
+export function negationsEtPositif(texte, regles) {
+  const t = String(texte == null ? '' : texte);
+  if (negTropLong(t)) return { positif: t, negatifs: [] };
+  const r = extraireNegations(t, regles);
+  if (!r.negatifs.length) return { positif: t, negatifs: [] };
+  if (!negStrip(r.positif)) return { positif: t, negatifs: r.negatifs };
+  return r;
+}
+
+/** Le texte sans ses locutions negatives (« an orc, no helmet, holding a club » -> « an orc, holding a club »), ou le texte lui-meme. */
+export function positifSansNegations(texte, regles) {
+  return negationsEtPositif(texte, regles).positif;
+}
+
+/** Les termes de negatif du texte (tableau de chaines, 8 au plus). */
+export function negationsDe(texte, regles) {
+  return negationsEtPositif(texte, regles).negatifs;
+}
+
+/** Tableau tel que le serveur l'accepte (champ `negativeExtra`) : 8 termes au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets, minuscules,
+ *  sans doublon. Un element invalide est ECARTE (jamais corrige). Toute entree : une valeur inattendue donne []. */
+export function assainirNegatifs(liste) {
+  if (!Array.isArray(liste)) return [];
+  const sortie = [];
+  for (const brut of liste) {
+    if (typeof brut !== 'string') continue;
+    let propre = true;
+    for (const ch of brut) {
+      if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '-' || NEG_BLANCS.includes(ch))) { propre = false; break; }
+    }
+    if (!propre) continue;
+    const mots = negMots(brut.toLowerCase());
+    if (!mots.length || mots.some((m) => !negMotPropre(m))) continue;
+    const terme = mots.join(' ');
+    if (terme.length > MAX_CARS_TERME || sortie.includes(terme)) continue;
+    sortie.push(terme);
+    if (sortie.length >= MAX_TERMES_NEGATIFS) break;
+  }
+  return sortie;
+}
+
+// ── residus des ANCIENS gabarits (2026-10-03) ────────────────────────────────────────────────────────────────────────
+// Jusqu'au 2026-09-24 les gabarits de prompt portaient eux-memes des negations (« no shadows », « NOT a portrait »...) ; les projets d'alors les ont
+// gardees dans leur texte enregistre. stripKnownPromptSuffixes (index2.js) les retirait TOUTES, avec tout segment « no / not / never » : y compris
+// ceux de l'UTILISATEUR (« an orc, no helmet » perdait « no helmet »). Elle ne retire plus que cette liste, et seulement si le texte porte aussi une
+// SIGNATURE d'ancien gabarit : « no shadows » ou « no text » tapes par l'utilisateur dans un texte d'aujourd'hui restent donc dans son texte, puis vont au negatif.
+// SOURCES (historique git, tables ASSET_TYPE_PROMPTS de src/renderer/index2.js, cloud/public/app/index2.js et modal_app/_prompts.py ; relevees par
+// balayage de toutes les versions qui touchent une ligne de gabarit : `git log -G"white background|T-pose|photorealistic" -- <fichier>`) :
+//   d750b055 (2026-05-31) NOT a portrait / NOT a headshot / NO close-up... ; fe1941eb et 00425bf2 (2026-05-30) NEVER bipedal / NEVER upright... ;
+//   41da4867 (2026-05-30) no T-pose ; 90606d2c, d0b3853a, 53b50079 (2026-06-19) gabarit « insect » : NOT eight legs, NOT a spider, no extra legs... ;
+//   81b7a39e (2026-06-21) retire « ONE X only » / « no duplicate » / « no second X » des gabarits de base ; 497a152c (2026-09-23) retire les negations des 9
+//   gabarits restants (NOT a bust shot, no text, no UI, no clouds, no wake...) ; 2bb8f2eb (2026-09-24) retire celles de vehicle / weapon / prop / environment /
+//   other_* (no shadows, no characters...). Le style « hand-painted » garde « no realistic PBR maps » aujourd'hui encore (ASSET_STYLE_PROMPTS).
+// Forme normalisee : minuscules, blancs simples. NE JAMAIS EN RETIRER : un projet cree en 2026 doit rester nettoyable en 2030.
+export const NEGATIONS_GABARIT_HISTORIQUES = [
+  'never bipedal', 'never cartoon mascot stance', 'never humanoid posture', 'never standing on hind legs', 'never t-pose', 'never upright',
+  'no bust shot', 'no characters', 'no clouds', 'no close-up', 'no contrail', 'no doubled legs', 'no duplicate', 'no duplicated legs',
+  'no extra elements', 'no extra legs', 'no extra limbs', 'no extra tails', 'no face only', 'no formation', 'no fur', 'no head and shoulders',
+  'no head only', 'no headshot', 'no horizon', 'no human stance', 'no humanoid anthropomorphism', 'no humanoid posture', 'no humans', 'no logo',
+  'no mirrored extra legs', 'no multiple tails', 'no other characters', 'no other creatures', 'no overlapping duplicate limbs', 'no portrait',
+  'no realistic pbr maps', 'no rear view inset', 'no second animal', 'no second boat', 'no second building', 'no second car', 'no second creature',
+  'no second insect', 'no second instance', 'no second item', 'no second plane', 'no second structure', 'no second vehicle', 'no shadows', 'no t-pose',
+  'no tail', 'no text', 'no twin', 'no ui', 'no upright posture', 'no wake', 'no water',
+  'not a bust shot', 'not a cat', 'not a close-up', 'not a dog', 'not a face shot', 'not a front head-on view', 'not a head shot', 'not a headshot',
+  'not a mammal', 'not a portrait', 'not a quadruped', 'not a spider', 'not a symmetric front view', 'not a town', 'not a village', 'not an arachnid',
+  'not cropped', 'not eight legs', 'not head and shoulders', 'not touching the frame edges', 'not zoomed on face',
+];
+// Phrases qu'aucun gabarit d'aujourd'hui ni aucun texte courant n'ecrit, et que les gabarits d'avant le 2026-09-24 portaient (sous forme normalisee,
+// en minuscules ; recherche par inclusion dans le texte brut). Validees contre l'historique : chaque ligne d'ancien gabarit qui porte une negation en contient
+// une, et aucune ligne des tables actuelles n'en contient (tests/bureau-interface/composeur-prompt.test.mjs).
+export const SIGNATURES_GABARITS_ANCIENS = [
+  '3d game asset reference sheet', 'full body character sheet', 'full body character reference', 'body fills 60 percent of frame',
+  'rts unit game asset', 't-pose neutral stance', 'single isolated 3d', 'one character only', 'one creature only',
+  'one animal only', 'one insect only', 'one building only', 'one car only', 'one weapon only', 'one prop only', 'one item only', 'one subject only',
+  'one vehicle only', 'one structure only', 'one environment piece only', 'one element only', 'one complete boat only',
+  'one complete passenger aircraft only', 'one single building', 'one single vehicle', 'one single weapon', 'one single prop', 'one single creature',
+  'one single environment piece', 'one single character', 'wearing a complete outfit', 'dressed in appropriate clothing',
+  'transparent or pure white background', 'application icon style', 'complete edifice', 'studio lighting, no shadows',
+  'complete passenger aircraft, isolated', 'complete boat, isolated', 'flat icon, app icon', 'isometric three-quarter view', 'angled side view',
+  'wildlife photography of one animal', 'animal photography full body', 'single flat icon', 'single arthropod', 'isolated on a neutral background',
+];
+const RESIDUS_GABARIT = new Set(NEGATIONS_GABARIT_HISTORIQUES);
+
+/** Le texte porte-t-il la marque d'un gabarit d'AVANT le 2026-09-24 (ceux qui contenaient des negations) ? */
+export function texteDUnAncienGabarit(texte) {
+  const bas = String(texte == null ? '' : texte).toLowerCase();
+  return SIGNATURES_GABARITS_ANCIENS.some((s) => bas.includes(s));
+}
+
+/** Retire d'un texte (segments separes par des virgules) les segments qui sont EXACTEMENT un residu connu d'ancien gabarit. Rien d'autre. */
+export function retirerNegationsGabarit(texte) {
+  const segs = String(texte == null ? '' : texte).split(',');
+  const gardes = segs.filter((s) => !RESIDUS_GABARIT.has(negMots(s).join(' ').toLowerCase()));
+  return gardes.length === segs.length ? String(texte == null ? '' : texte) : gardes.join(',');
 }

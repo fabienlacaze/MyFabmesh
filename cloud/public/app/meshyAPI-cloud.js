@@ -35,6 +35,21 @@
     'fully finished and complete, every detail present, clean polished final version',
   ];
 
+  // Termes de negatif envoyes a /api/generate-image (champ `negativeExtra`, NEGATIONS de l'utilisateur : « no helmet » -> « helmet ») : 8 au plus, 40 caracteres,
+  // lettres / espaces / tirets, sans doublon (meme regle que le serveur et que index2.js). Un element invalide est ecarte.
+  function _assainirNegatifs(liste) {
+    if (!Array.isArray(liste)) return [];
+    const sortie = [];
+    for (const x of liste) {
+      if (typeof x !== 'string' || x.length > 200) continue;
+      const t = x.toLowerCase().split(/[ \t\r\n\u00a0]+/).filter(Boolean).join(' ');
+      if (!t || t.length > 40 || !/^[a-z]+(?:[ -][a-z]+)*$/.test(t) || sortie.includes(t)) continue;
+      sortie.push(t);
+      if (sortie.length >= 8) break;
+    }
+    return sortie;
+  }
+
   // Return shape per stub name. The desktop renderer often does
   // `for (const x of (await meshyAPI.listFoo()))` or
   // `(arr).find(...)` on the result, so a stub that returns
@@ -763,7 +778,7 @@
        Returns the EXACT shape the desktop IPC returns:
          { success: bool, images: [path, path, ...], error?: string }
        so the renderer's caller works unchanged. */
-    generateImages: async ({ prompt, userPrompt, projectName, numImages = 1, steps, jobId, engine, buildStages } = {}) => {
+    generateImages: async ({ prompt, userPrompt, userPromptEnvoye, negativeExtra, projectName, numImages = 1, steps, jobId, engine, buildStages } = {}) => {
       console.log('[generateImages] ENTER projectName=', projectName, 'numImages=', numImages, 'buildStages=', !!buildStages);
       // Read asset type / style from the workspace dropdowns so the
       // Worker can rebuild the enriched prompt server-side using the
@@ -785,6 +800,12 @@
       // Case decochee : pose libre, le gabarit serveur (Modal, texte brut) n'impose pas la T-pose.
       const _poseLibre = asset_type === 'character' && !!_caseTpose && !_caseTpose.checked;
 
+      // NEGATIONS de l'utilisateur : le serveur recompose le prompt depuis `userPrompt` (texte brut). On lui envoie le texte SANS les locutions negatives
+      // (`userPromptEnvoye`, calcule par index2.js) et les termes a part (`negativeExtra`). `userPrompt`, avec ses negations, ne sert qu'a la memoire du
+      // projet (_savePrompt) : la zone de texte doit retrouver ce que l'utilisateur a ecrit.
+      const _userEnvoye = (typeof userPromptEnvoye === 'string' && userPromptEnvoye.trim()) ? userPromptEnvoye : userPrompt;
+      const _negatifs = _assainirNegatifs(negativeExtra);
+
       // One /api/generate-image call → returns { paths } or throws.
       const _genOnce = async (promptArg, userPromptArg, n) => {
         const r = await fetch('/api/generate-image', {
@@ -796,6 +817,7 @@
             numImages: n, asset_type, asset_style, steps,
             tpose: _tposeDemande(promptArg),     // personnage : pose imposee par squelette (case « T-pose » cochee)
             poseLibre: _poseLibre,               // case decochee : pose libre
+            ...(_negatifs.length ? { negativeExtra: _negatifs } : {}),   // negations de l'utilisateur : ajoutees au negatif par le serveur
             turbo: engine === 'local-lightning',  // SDXL-Lightning 4-step (Modal text2image)
             projectName,         // for user_assets row insertion
           }),
@@ -821,7 +843,7 @@
           for (let s = 0; s < _CLOUD_BUILD_STAGE_MODIFIERS.length; s++) {
             const mod = _CLOUD_BUILD_STAGE_MODIFIERS[s];
             try {
-              const paths = await _genOnce(`${mod}, ${prompt}`, `${mod}, ${userPrompt || prompt}`, 1);
+              const paths = await _genOnce(`${mod}, ${prompt}`, `${mod}, ${_userEnvoye || prompt}`, 1);
               staged.push(...paths);
               window.__meshyEmit('image-progress', { jobId, index: s + 1, total: 3, status: 'fetching' });
             } catch (e) {
@@ -847,7 +869,7 @@
         // appel suivant echoue, on garde les images deja faites.
         const paths = [];
         for (let reste = Math.max(1, Number(numImages) || 1); reste > 0; reste -= 4) {
-          try { paths.push(...await _genOnce(prompt, userPrompt, Math.min(4, reste))); }
+          try { paths.push(...await _genOnce(prompt, _userEnvoye, Math.min(4, reste))); }
           catch (e) { if (!paths.length) throw e; log('generateImages batch failed:', e instanceof Error ? e.message : String(e)); break; }
         }
         window.__meshyEmit('image-progress', { jobId, index: numImages, total: numImages, status: 'done' });

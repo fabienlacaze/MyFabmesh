@@ -97,11 +97,37 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
     _asset_type = (os.environ.get('FABMESH_ASSET_TYPE') or 'character').strip().lower()
     print(f"LOCAL_REALVIS: asset_type={_asset_type}", flush=True)
 
+    # NEGATIONS DE L'UTILISATEUR (2026-10-03, scripts/composeur_intention.py extraire_negations). « an orc, no helmet » : le modele d'image ne comprend pas la negation, il voit « helmet »
+    # et le dessine ; elle va donc au NEGATIF, pour TOUS les types d'asset (pas seulement les unites). Deux sources, reunies sans doublon (8 termes au plus) : les termes que le renderer
+    # a deja extraits du texte TRADUIT (FABMESH_NEGATIVE_EXTRA, JSON) et ceux que le pont extrait lui-meme du texte brut (FABMESH_USER_PROMPT : le texte tape, parfois dans la langue de
+    # l'interface, d'ou la premiere source). Sans negation, le negatif ne change pas d'un octet. Interrupteur d'urgence : FABMESH_COMPOSEUR=0.
+    _neg_utilisateur = []
+    _texte_utilisateur = os.environ.get('FABMESH_USER_PROMPT') or prompt
+    _texte_composeur = _texte_utilisateur       # le composeur d'objets tenus analyse le texte SANS ses negations (comme le renderer)
+    _cn = None
+    try:
+        import composeur_intention as _cn
+        if _cn.actif():
+            _extrait = _cn.extraire_negations(_texte_utilisateur)
+            if _extrait['negatifs'] and _extrait['positif'].strip():
+                _texte_composeur = _extrait['positif']
+            try:
+                _du_renderer = _cn.assainir_negatifs(json.loads(os.environ.get('FABMESH_NEGATIVE_EXTRA') or '[]'))
+            except Exception:
+                _du_renderer = []
+            _neg_utilisateur = _cn.assainir_negatifs(_du_renderer + _extrait['negatifs'])
+            if _neg_utilisateur:
+                print("LOCAL_REALVIS: negations de l'utilisateur -> negatif : %s" % _neg_utilisateur, flush=True)
+    except Exception as _ce:
+        print(f"LOCAL_REALVIS: negations de l'utilisateur ignorees ({type(_ce).__name__}: {_ce})", flush=True)
+        _neg_utilisateur = []
+        _texte_composeur = _texte_utilisateur
+
     # COMPOSEUR D'INTENTION (2026-10-03, scripts/composeur_intention.py ; jumeau JS lib/composeur-intention.js, qui adapte le gabarit POSITIF
     # cote renderer). Ici : le NEGATIF et la queue du prompt. Un personnage qui TIENT quelque chose (« orc holding a massive spiked club »)
     # ne doit plus recevoir « weapon, club... » en negatif ni « symmetrical pose » en queue : mesure sur l'orc, 0 image sur 4 n'avait qu'une
-    # arme avec l'ancien gabarit. Le texte analyse est le texte BRUT de l'utilisateur (FABMESH_USER_PROMPT, pose par main.js), a defaut le
-    # prompt complet. Sans objet tenu : rien ne change, ni le negatif ni la queue. Interrupteur : FABMESH_COMPOSEUR=0.
+    # arme avec l'ancien gabarit. Le texte analyse est le texte BRUT de l'utilisateur SANS ses negations (FABMESH_USER_PROMPT, pose par main.js ; voir le bloc
+    # ci-dessus), a defaut le prompt complet. Sans objet tenu : rien ne change, ni le negatif ni la queue. Interrupteur : FABMESH_COMPOSEUR=0.
     _ci = None
     _ci_intent = None
     _ci_neg = None
@@ -110,7 +136,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             import composeur_intention as _ci_mod
             if _ci_mod.actif():
                 _ci = _ci_mod
-                _ci_intent = _ci.analyser(os.environ.get('FABMESH_USER_PROMPT') or prompt, _asset_type, '')
+                _ci_intent = _ci.analyser(_texte_composeur, _asset_type, '')
                 _ci_neg = _ci.negatifs_pont(_asset_type, _ci_intent)
                 print("LOCAL_REALVIS: composeur d'intention : objets=%s arme_nommee=%s sans_arme=%s retirer=%s ajouter=%s" % (
                     [(o['item'], o['cls'], o['count'], o['hand']) for o in _ci_intent['objets']], _ci_intent['arme_nommee'],
@@ -451,6 +477,10 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
     if _ci is not None and _ci_neg:
         negative_prompt = _ci.retirer_jetons(negative_prompt, _ci_neg['retirer'])
         negative_prompt = _ci.ajouter_jetons(negative_prompt, _ci_neg['ajouter'], en_tete=False)
+
+    # NEGATIONS DE L'UTILISATEUR : ajoutees EN QUEUE du negatif (les jetons de securite du debut restent les premiers), quelle que soit la branche ci-dessus.
+    if _neg_utilisateur and _cn is not None:
+        negative_prompt = _cn.ajouter_jetons(negative_prompt, _neg_utilisateur, en_tete=False)
 
     _throttle_cb = make_throttle_callback()  # None if disabled
 

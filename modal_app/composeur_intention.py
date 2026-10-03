@@ -11,6 +11,7 @@ CE QUE FAIT LE MODULE. Il analyse le texte de l'utilisateur de facon DETERMINIST
  - adapte le gabarit positif (composer_gabarit, clause_objet_tenu) ;
  - dit quels jetons retirer / ajouter au negatif (negatifs_pont, composer_negatif_armes).
 Un texte qui ne dit rien de tel donne EXACTEMENT le gabarit d'origine (cas temoin « An orc » : identique a l'octet).
+Les NEGATIONS de l'utilisateur (« no helmet », « without a beard ») sont separees du positif par extraire_negations() (fin du fichier) : elles vont au NEGATIF.
 
 QUELLES REGLES SONT ACTIVES. REGLES_ACTIVES (ci-dessous) : seules celles dont l'effet est MESURE ou sans risque. Les autres sont codees, testees,
 mais eteintes : socle (negatif « pedestal, base, rocks » pour les unites : l'orc sortait sur un socle rocheux, 66 % de son maillage etait une dalle),
@@ -30,8 +31,8 @@ VERSION = 1
 
 TYPES_UNITE = ('character', 'other_living')
 
-TOUTES_REGLES = ('objets', 'socle', 'asymetrie', 'pose', 'vue', 'buste', 'non_humain', 'parties', 'quantite')
-REGLES_ACTIVES = ('objets',)
+TOUTES_REGLES = ('objets', 'socle', 'asymetrie', 'pose', 'vue', 'buste', 'non_humain', 'parties', 'quantite', 'negations')
+REGLES_ACTIVES = ('objets', 'negations')
 
 # ---------------------------------------------------------------- lexiques
 CLASSES_ARME = {
@@ -500,3 +501,363 @@ def negatifs_pont(type_actif, intent, regles=None):
         'retirer': retire,
         'ajouter': ajout,
     }
+
+
+# ---------------------------------------------------------------- negations de l'utilisateur (2026-10-03)
+# « an orc, no helmet, holding a club » : le modele d'image ne comprend pas la negation (il voit « helmet » et le dessine : CLAUDE.md §14). La
+# negation doit donc QUITTER le positif et rejoindre le NEGATIF. extraire_negations() les separe de facon DETERMINISTE : un balayage de mots, AUCUNE
+# regex a retour arriere (un texte de 100 000 caracteres est tronque a 2 000 puis traite en temps lineaire). Meme logique dans le jumeau JavaScript.
+# PRINCIPE DE PRUDENCE : ce qui n'est pas compris (« no one », « not only X but also Y », « no longer »...) RESTE dans le positif, tel quel ; rien n'est
+# supprime en silence. Les negations de garde-robe (« without clothes », « no shirt »...) y restent aussi : le filtre de moderation doit continuer a les VOIR.
+MAX_TEXTE_NEGATIONS = 2000     # le texte analyse est tronque a 2 000 caracteres
+MAX_TERMES_NEGATIFS = 8        # termes de negatif envoyes au serveur (champ `negativeExtra`)
+MAX_CARS_TERME = 40
+MAX_MOTS_TERME = 3             # un terme = un groupe nominal de 1 a 3 mots (les 3 DERNIERS si la phrase en compte plus : la tete d'un groupe est a droite)
+
+_NEG_BLANCS = ' \t\r\n\u00a0'
+_NEG_ARTICLES = frozenset('a an the any some his her its their my your our'.split())
+_NEG_LEGERS = frozenset('wearing holding carrying having using showing including being with'.split())
+_NEG_SAUT_AUTRES = _NEG_ARTICLES | _NEG_LEGERS          # apres not / never / without : « not wearing a helmet », « without having a beard »
+_NEG_LEGERS_NOT = frozenset('wearing holding carrying having using showing wielding'.split())   # « not » au MILIEU d'une phrase : seulement devant ces verbes
+_NEG_CONJ = frozenset('and or nor but'.split())
+# mots qui terminent un groupe nominal : prepositions, conjonctions, relatifs, auxiliaires, autres negations
+_NEG_FIN_GN = frozenset(('and or nor but with without in on at to for from by as while that which who whose whom where when if than then so because '
+                         'is are was were be been being has have had near over under behind above below next around inside outside into onto '
+                         'through across between among against along during before after like via per plus not no never of up down off out').split())
+# verbes qui OUVRENT une autre proposition (jamais le premier mot d'un groupe : « not standing » est un terme valable)
+_NEG_VERBES = frozenset(('holding wearing carrying standing sitting walking running looking riding having using showing wielding gripping covered '
+                         'dressed clad posing facing lying kneeling crouching leaning resting hanging jumping fighting holds wears carries stands sits').split())
+# mots seuls qui ne decrivent rien : « no more », « not anything »
+_NEG_VIDES = frozenset(('anything something everything nothing none anyone someone everyone anybody somebody everybody nobody neither either both all each every '
+                        'else other others more less much many same such one ones thing things way longer matter doubt idea need sense kind sort type part parts '
+                        'element elements extra additional further').split())
+# garde-robe et nudite : ces negations RESTENT dans le positif (le filtre de moderation de chaque plateforme les lit tel quel : « without clothes »,
+# « no shirt »... sont dans ses listes). Les envoyer dans le negatif ferait disparaitre la phrase du texte que le filtre examine.
+_NEG_SENSIBLES = frozenset(('clothes clothing clothe clothed shirt shirts top tops pants trousers underwear underpants undergarments lingerie bra bras '
+                            'panties dress dresses skirt skirts swimsuit bikini outfit outfits garment garments attire apparel nude naked nudity topless '
+                            'bare nsfw').split())
+# faux amis : le mot qui SUIT le declencheur montre que ce n'est pas une negation d'objet
+_NEG_FAUX = {
+    'no': frozenset('one longer more matter doubt idea need way sense less sooner such problem kidding'.split()),
+    'not': frozenset(('only just too very quite even at really exactly necessarily yet so as much many always sure to enough particularly entirely '
+                      'completely fully simply merely rather less more once since until unless all that this what how if because').split()),
+    'never': frozenset('before again ever ending ended more quite been seen mind too'.split()),
+    'without': frozenset('further fail doubt question warning ever limit end exception delay'.split()),
+}
+_NEG_AVANT_NO = frozenset('with and but or plus having has holding wearing carrying using showing including'.split())   # « with no X », « and no X », « wearing no X »
+_NEG_DEBUT = frozenset('and but or with plus also yet'.split())      # mots de liaison qui peuvent ouvrir un segment negatif : « and no beard »
+
+
+def _neg_mots(segment):
+    """Jetons separes par des blancs (espace, tabulation, retours, espace insecable)."""
+    jetons, cur = [], []
+    for ch in segment:
+        if ch in _NEG_BLANCS:
+            if cur:
+                jetons.append(''.join(cur))
+                cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        jetons.append(''.join(cur))
+    return jetons
+
+
+def _neg_bords(s):
+    """-> (blancs du debut, blancs de la fin)."""
+    a, b = 0, len(s)
+    while a < b and s[a] in _NEG_BLANCS:
+        a += 1
+    while b > a and s[b - 1] in _NEG_BLANCS:
+        b -= 1
+    return s[:a], s[b:]
+
+
+def _neg_strip(s):
+    avant, apres = _neg_bords(s)
+    return s[len(avant):len(s) - len(apres)]
+
+
+def _neg_coeur(jeton):
+    """-> (mot en minuscules, ferme). Mot = lettres ASCII, tirets et apostrophes, sans la ponctuation de bord ; (None, False) si ce n'est pas un mot
+    (chiffre, symbole, lettre accentuee). `ferme` : une ponctuation de fin (. ! ? : ) ] } guillemet) termine le groupe nominal."""
+    a, b = 0, len(jeton)
+    while a < b and jeton[a] in '"\'([{':
+        a += 1
+    b0 = b
+    while b > a and jeton[b - 1] in '"\')]}.!?:':
+        b -= 1
+    mot = jeton[a:b]
+    if not mot:
+        return None, False
+    for ch in mot:
+        if not (('a' <= ch <= 'z') or ('A' <= ch <= 'Z') or ch == '-' or ch == "'"):
+            return None, False
+    return mot.lower(), b < b0
+
+
+def _neg_majuscule(jeton):
+    """Le premier mot du jeton commence-t-il par une majuscule ? (« Without Remorse » : un titre, pas une negation)."""
+    a = 0
+    while a < len(jeton) and jeton[a] in '"\'([{':
+        a += 1
+    return a < len(jeton) and 'A' <= jeton[a] <= 'Z'
+
+
+def _neg_mot_propre(m):
+    if not m or m[0] == '-' or m[-1] == '-' or '--' in m:
+        return False
+    for ch in m:
+        if not (('a' <= ch <= 'z') or ch == '-'):
+            return False
+    return True
+
+
+def _neg_terme(mots):
+    """Groupe nominal -> terme de negatif propre, ou None (refus : le texte reste dans le positif)."""
+    mots = mots[-MAX_MOTS_TERME:]
+    if not mots:
+        return None
+    for m in mots:
+        if not _neg_mot_propre(m) or m in _NEG_SENSIBLES:
+            return None
+    if all(m in _NEG_VIDES for m in mots):
+        return None
+    terme = ' '.join(mots)
+    if len(terme) > MAX_CARS_TERME:
+        return None
+    return terme
+
+
+def _neg_suite(jetons, i, decl, ferme):
+    """La liste nommee continue-t-elle apres le groupe qui finit en i ? -> indice ou reprendre, ou None.
+    « or » / « nor » prolongent toujours ; « and » prolonge apres « without » (« without a helmet and a cape » = ni l'un ni l'autre) ou quand le
+    declencheur est REPETE (« no helmet and no beard »). Apres un simple « no helmet and a cape », la cape reste voulue."""
+    n = len(jetons)
+    if ferme or i >= n:
+        return None
+    w, _ = _neg_coeur(jetons[i])
+    if w not in ('and', 'or', 'nor'):
+        return None
+    k = i + 1
+    repete = False
+    if k < n and _neg_coeur(jetons[k])[0] in ('no', 'without', 'not', 'never'):
+        repete = True
+        k += 1
+    if not repete and w == 'and' and decl != 'without':
+        return None
+    saut = _NEG_SAUT_AUTRES if repete else _NEG_ARTICLES
+    m = k
+    while m < n:
+        w3, _ = _neg_coeur(jetons[m])
+        if w3 is not None and w3 in saut:
+            m += 1
+        else:
+            break
+    if m >= n:
+        return None
+    w3, _ = _neg_coeur(jetons[m])
+    if w3 is None or w3 in _NEG_FIN_GN or w3 in _NEG_VERBES:
+        return None
+    if not repete and len(w3) >= 5 and w3.endswith('ed'):
+        return None
+    return k
+
+
+def _neg_liste(jetons, i, decl):
+    """Lit les groupes nominaux nies apres le declencheur `decl` (no / not / never / without), a partir du jeton i.
+    -> (termes, fin) ou None si ce n'est pas une negation exploitable. `fin` : premier jeton APRES la liste."""
+    n = len(jetons)
+    saut = _NEG_ARTICLES if decl == 'no' else _NEG_SAUT_AUTRES
+    faux = _NEG_FAUX[decl]
+    if i < n and _neg_coeur(jetons[i])[0] in faux:
+        return None
+    termes = []
+    fin = None
+    while True:
+        while i < n:
+            w, _ = _neg_coeur(jetons[i])
+            if w is not None and w in saut:
+                i += 1
+            else:
+                break
+        mots = []
+        ferme = False
+        j = i
+        while j < n:
+            w, f = _neg_coeur(jetons[j])
+            if w is None or w in _NEG_FIN_GN or (mots and w in _NEG_VERBES):
+                break
+            mots.append(w)
+            ferme = f
+            j += 1
+            if f:
+                break
+        terme = None
+        if mots and mots[0] not in faux:
+            terme = _neg_terme(mots)
+        if terme is None:
+            if termes:
+                break                      # un groupe suivant illisible : on garde ce qui a ete compris
+            return None
+        termes.append(terme)
+        fin = j
+        k = _neg_suite(jetons, j, decl, ferme)
+        if k is None:
+            break
+        i = k
+    return termes, fin
+
+
+def _neg_verbal(jeton):
+    w, _ = _neg_coeur(jeton)
+    return w is not None and (w in _NEG_VERBES or (len(w) >= 5 and (w.endswith('ing') or w.endswith('ed'))))
+
+
+def _neg_traiter_segment(jetons, etat):
+    """Un segment (entre deux virgules). -> (action, jetons) avec action 'garder' | 'modifier' | 'retirer'. Les termes trouves sont ajoutes a `etat`."""
+    n = len(jetons)
+    sortie = []
+    i = 0
+    modifie = False
+    while i < n:
+        jeton = jetons[i]
+        w, _ = _neg_coeur(jeton)
+        debut = all(_neg_coeur(s)[0] in _NEG_DEBUT for s in sortie)
+        decl = None
+        precedent = 0
+        if w in ('no', 'not', 'never', 'without'):
+            if debut:
+                if jeton[0] not in '"\u201c':          # « "No entry" » : une citation, pas une negation
+                    decl = w
+            elif jeton[0] in '([{':
+                decl = w                               # « an orc (no helmet) holding a club » : une parenthese qui nie
+            elif _neg_majuscule(jeton):
+                decl = None                            # « Without Remorse » au milieu d'une phrase : un titre
+            elif w == 'without':
+                decl = w
+            elif w == 'no' and _neg_coeur(sortie[-1])[0] in _NEG_AVANT_NO:
+                decl = w
+                precedent = 1
+            elif w == 'not' and i + 1 < n and _neg_coeur(jetons[i + 1])[0] in _NEG_LEGERS_NOT:
+                decl = w
+        if decl is not None:
+            res = _neg_liste(jetons, i + 1, decl)
+            if res is not None:
+                termes, fin = res
+                nouveaux = []
+                for t in termes:
+                    if t not in etat and t not in nouveaux:
+                        nouveaux.append(t)
+                if len(etat) + len(nouveaux) <= MAX_TERMES_NEGATIFS:
+                    etat.extend(nouveaux)
+                    modifie = True
+                    if debut:
+                        # tout le segment est une negation : « no helmet » ; « no helmet and holding a sword » garde la proposition qui suit
+                        sortie = []
+                        i = fin + 1 if (fin < n and _neg_coeur(jetons[fin])[0] in _NEG_CONJ) else n
+                    else:
+                        if precedent:
+                            sortie.pop()
+                        i = fin
+                        if i + 1 < n and _neg_coeur(jetons[i])[0] in ('and', 'or') and _neg_verbal(jetons[i + 1]):
+                            i += 1                     # « without a helmet and holding a sword » -> « ... holding a sword »
+                    continue
+        sortie.append(jeton)
+        i += 1
+    if not modifie:
+        return 'garder', jetons
+    if not sortie:
+        return 'retirer', []
+    return 'modifier', sortie
+
+
+def _neg_segments(t):
+    """Decoupe sur , ; | retour a la ligne, point suivi d'un blanc et tiret isole (« a cat - no tail - sitting »).
+    -> liste de (segment, separateur) ; le separateur garde les blancs qui le suivent."""
+    segs, cur = [], []
+    i, n = 0, len(t)
+    while i < n:
+        c = t[i]
+        if (c in ',;|\r\n' or (c == '.' and (i + 1 >= n or t[i + 1] in _NEG_BLANCS))
+                or (c in '-\u2013\u2014' and (i == 0 or t[i - 1] in _NEG_BLANCS) and (i + 1 >= n or t[i + 1] in _NEG_BLANCS))):
+            j = i + 1
+            while j < n and t[j] in ' \t\u00a0':
+                j += 1
+            segs.append((''.join(cur), t[i:j]))
+            cur = []
+            i = j
+        else:
+            cur.append(c)
+            i += 1
+    segs.append((''.join(cur), ''))
+    return segs
+
+
+def extraire_negations(texte, regles=None):
+    """Separe le texte de l'utilisateur en POSITIF (sans les locutions negatives) et NEGATIFS (termes a ajouter au negatif).
+    -> {'positif': str, 'negatifs': [str, ...]}.
+    Reconnu : segments « no X », « not X », « never X » (+ « not wearing X »), « without X », « with no X », « and no X », « wearing no X », et les listes
+    « no X and no Y », « no X or Y », « without X and Y ». Un terme = 1 a 3 mots, minuscules, articles retires, lettres / espaces / tirets, 40 caracteres au plus ;
+    8 termes au plus (au-dela, les phrases restantes RESTENT dans le positif) ; texte tronque a 2 000 caracteres.
+    Refuse (le texte reste tel quel) : « no one », « nobody », « none », « nothing », « not only X but also Y », « no longer », « no more », « not too », « cannot »,
+    « notably », les titres (« Without Remorse »), les chiffres, et la garde-robe (« without clothes »). « unarmed » / « empty-handed » restent au composeur.
+    Un texte sans negation est rendu OCTET POUR OCTET (aucune normalisation des blancs). `regles` sans 'negations' : rien n'est extrait."""
+    t = texte if isinstance(texte, str) else ('' if texte is None else str(texte))
+    t = t[:MAX_TEXTE_NEGATIONS]
+    if 'negations' not in _regles(regles):
+        return {'positif': t, 'negatifs': []}
+    etat = []
+    morceaux = []
+    for seg, sep in _neg_segments(t):
+        jetons = _neg_mots(seg)
+        if not jetons:
+            morceaux.append((seg, sep))
+            continue
+        action, nouveaux = _neg_traiter_segment(jetons, etat)
+        if action == 'garder':
+            morceaux.append((seg, sep))
+        elif action == 'modifier':
+            # les blancs de bord du segment sont gardes (« a cat - no tail - sitting » : le blanc avant le tiret)
+            avant, apres = _neg_bords(seg)
+            morceaux.append((avant + ' '.join(nouveaux) + apres, sep))
+        else:
+            morceaux.append((None, sep))
+    if not etat:
+        return {'positif': t, 'negatifs': []}
+    while len(morceaux) > 1 and morceaux[-1][0] == '' and morceaux[-1][1] == '':
+        morceaux.pop()      # le decoupage laisse un segment vide quand le texte finit par un separateur : il ne compte pas
+    gardes = [[seg, sep] for seg, sep in morceaux if seg is not None]
+    if gardes and morceaux[-1][0] is None:
+        # le dernier segment est parti : sa virgule orpheline aussi, mais pas le point final d'une phrase
+        gardes[-1][1] = '.' if morceaux[-1][1].startswith('.') else ''
+    positif = _neg_strip(''.join(seg + sep for seg, sep in gardes))
+    return {'positif': positif, 'negatifs': list(etat)}
+
+
+def assainir_negatifs(liste):
+    """Rend la liste telle que le serveur l'accepte (champ `negativeExtra`) : 8 termes au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets,
+    minuscules, sans doublon. Un element invalide est ECARTE (jamais corrige). N'importe quelle entree : une liste inattendue donne []."""
+    if not isinstance(liste, (list, tuple)):
+        return []
+    sortie = []
+    for brut in liste:
+        if not isinstance(brut, str):
+            continue
+        propre = True
+        for ch in brut:
+            if not (('a' <= ch <= 'z') or ('A' <= ch <= 'Z') or ch == '-' or ch in _NEG_BLANCS):
+                propre = False
+                break
+        if not propre:
+            continue
+        mots = _neg_mots(brut.lower())
+        if not mots or any(not _neg_mot_propre(m) for m in mots):
+            continue
+        terme = ' '.join(mots)
+        if len(terme) > MAX_CARS_TERME or terme in sortie:
+            continue
+        sortie.append(terme)
+        if len(sortie) >= MAX_TERMES_NEGATIFS:
+            break
+    return sortie

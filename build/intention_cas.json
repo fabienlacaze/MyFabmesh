@@ -1040,5 +1040,2242 @@
     "non_humain": true
    }
   }
+ },
+ {
+  "id": "n01",
+  "texte": "An orc, no helmet, holding a club",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc, holding a club",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n02",
+  "texte": "An orc without a beard",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc",
+    "negatifs": [
+     "beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n03",
+  "texte": "A knight, not wearing a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n04",
+  "texte": "A knight not wearing a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n05",
+  "texte": "no helmet and no beard",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "",
+    "negatifs": [
+     "helmet",
+     "beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n06",
+  "texte": "no helmet or beard",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "",
+    "negatifs": [
+     "helmet",
+     "beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n07",
+  "texte": "an orc with no helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n08",
+  "texte": "a knight without a helmet and holding a sword",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight holding a sword",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n09",
+  "texte": "a knight without a helmet and a cape",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight",
+    "negatifs": [
+     "helmet",
+     "cape"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n10",
+  "texte": "a knight with no helmet and a red cape",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight and a red cape",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n11",
+  "texte": "An orc, no weapons",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc",
+    "negatifs": [
+     "weapons"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n12",
+  "texte": "A knight, NO helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n13",
+  "texte": "An elf, without any weapons or armor",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An elf",
+    "negatifs": [
+     "weapons",
+     "armor"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n14",
+  "texte": "A warrior, no long white curly beard",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A warrior",
+    "negatifs": [
+     "white curly beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n15",
+  "texte": "A man, no hat with a feather",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A man",
+    "negatifs": [
+     "hat"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n16",
+  "texte": "A knight (without a helmet) holding a sword",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight holding a sword",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n17",
+  "texte": "no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "",
+    "negatifs": [
+     "hat",
+     "coat",
+     "boots",
+     "gloves",
+     "scarf",
+     "belt",
+     "cape",
+     "mask"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n18",
+  "texte": "no helmet, without a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n19",
+  "texte": "An  orc ,  warrior",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An  orc ,  warrior",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "n20",
+  "texte": "An orc, no helmet.",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc.",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n21",
+  "texte": "An orc, no helmet, ",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n22",
+  "texte": "A cat with no tail",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A cat",
+    "negatifs": [
+     "tail"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n23",
+  "texte": "A knight with a sword but no shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight with a sword",
+    "negatifs": [
+     "shield"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n24",
+  "texte": "a dragon, not flying",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a dragon",
+    "negatifs": [
+     "flying"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n25",
+  "texte": "a car, not red",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a car",
+    "negatifs": [
+     "red"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n26",
+  "texte": "A man holding no weapon",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A man",
+    "negatifs": [
+     "weapon"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n27",
+  "texte": "A tower, no windows and no doors, with a flag",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A tower, with a flag",
+    "negatifs": [
+     "windows",
+     "doors"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n28",
+  "texte": "knight, no helmet; no cape. Standing.",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "knight, Standing.",
+    "negatifs": [
+     "helmet",
+     "cape"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n29",
+  "texte": "A knight. No helmet. Holding a sword.",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight. Holding a sword.",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n30",
+  "texte": "An orc without a helmet and covered in blood",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc covered in blood",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n31",
+  "texte": "No helmet, an orc",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n32",
+  "texte": "with no helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n33",
+  "texte": "an orc (no helmet) holding a club",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc holding a club",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n34",
+  "texte": "a cat - no tail - sitting",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a cat - sitting",
+    "negatifs": [
+     "tail"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n35",
+  "texte": "a cat | no tail | sitting",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a cat | sitting",
+    "negatifs": [
+     "tail"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n36",
+  "texte": "An orc warrior covered in blood, no helmet, holding a massive spiked club, grim dark fantasy style",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc warrior covered in blood, holding a massive spiked club, grim dark fantasy style",
+    "negatifs": [
+     "helmet"
+    ]
+   },
+   "held": [
+    [
+     "club",
+     1,
+     null
+    ]
+   ],
+   "flags": {
+    "arme_nommee": true
+   }
+  }
+ },
+ {
+  "id": "n37",
+  "texte": "A man without a hat, without glasses and without a beard",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A man",
+    "negatifs": [
+     "hat",
+     "glasses",
+     "beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n38",
+  "texte": "A medieval townhall, no people, no cars, no text",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A medieval townhall",
+    "negatifs": [
+     "people",
+     "cars",
+     "text"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n39",
+  "texte": "dragon with no wings",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "dragon",
+    "negatifs": [
+     "wings"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n40",
+  "texte": "A pirate, wearing no hat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A pirate",
+    "negatifs": [
+     "hat"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n41",
+  "texte": "A soldier not holding a gun",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A soldier",
+    "negatifs": [
+     "gun"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n42",
+  "texte": "no helmet \t\n and   no beard",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "",
+    "negatifs": [
+     "helmet",
+     "beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n43",
+  "texte": "A knight\nno helmet\nholding a sword",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight\nholding a sword",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n44",
+  "texte": "no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring, no sock, no vest, no cloak",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "",
+    "negatifs": [
+     "hat",
+     "coat",
+     "boots",
+     "gloves",
+     "scarf",
+     "belt",
+     "cape",
+     "mask"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n45",
+  "texte": "A knight, not wearing a helmet, no sword, and not holding a shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "helmet",
+     "sword",
+     "shield"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n46",
+  "texte": "A knight, no shield, holding a sword",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight, holding a sword",
+    "negatifs": [
+     "shield"
+    ]
+   },
+   "held": [
+    [
+     "sword",
+     1,
+     null
+    ]
+   ]
+  }
+ },
+ {
+  "id": "f01",
+  "texte": "no one around",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no one around",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f02",
+  "texte": "A man, nobody else",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A man, nobody else",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f03",
+  "texte": "none",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "none",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f04",
+  "texte": "nothing special",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "nothing special",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f05",
+  "texte": "not only fast but also strong",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "not only fast but also strong",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f06",
+  "texte": "no longer needed",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no longer needed",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f07",
+  "texte": "no more",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no more",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f08",
+  "texte": "cannot be seen",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "cannot be seen",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f09",
+  "texte": "not too bright",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "not too bright",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f10",
+  "texte": "notably red",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "notably red",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f11",
+  "texte": "A nose and a north wind",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A nose and a north wind",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f12",
+  "texte": "a poster titled Without Remorse",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a poster titled Without Remorse",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f13",
+  "texte": "a car, not too shiny",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a car, not too shiny",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f14",
+  "texte": "A monk, unarmed",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A monk, unarmed",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f15",
+  "texte": "A man without clothes",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A man without clothes",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f16",
+  "texte": "A woman, no shirt",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A woman, no shirt",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f17",
+  "texte": "A man without a shirt",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A man without a shirt",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f18",
+  "texte": "no 3 arms",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no 3 arms",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f19",
+  "texte": "A knight, \"No entry\" sign",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight, \"No entry\" sign",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f20",
+  "texte": "an orc, not holding anything",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, not holding anything",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f21",
+  "texte": "a hat without a doubt",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a hat without a doubt",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f22",
+  "texte": "This is not a drill",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "This is not a drill",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f23",
+  "texte": "I do not know",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "I do not know",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f24",
+  "texte": "no kidding",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no kidding",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f25",
+  "texte": "not even a hat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "not even a hat",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f26",
+  "texte": "no way out",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no way out",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f27",
+  "texte": "never again",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "never again",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f28",
+  "texte": "without fail",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "without fail",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f29",
+  "texte": "no-nonsense soldier",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no-nonsense soldier",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f30",
+  "texte": "A knight, none of them wear helmets",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight, none of them wear helmets",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f31",
+  "texte": "North Pole, nonstop, nobody there",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "North Pole, nonstop, nobody there",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f32",
+  "texte": "A knight, wearing no clothes",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight, wearing no clothes",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f33",
+  "texte": "Unarmed monk, empty-handed",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "Unarmed monk, empty-handed",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f34",
+  "texte": "A woman, without a top",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A woman, without a top",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f35",
+  "texte": "A man, no underwear",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A man, no underwear",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f36",
+  "texte": "A person, not naked",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A person, not naked",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f37",
+  "texte": "Un chevalier sans casque",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "Un chevalier sans casque",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f38",
+  "texte": "Do not draw a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "Do not draw a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f39",
+  "texte": "an orc, no rock'n'roll",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no rock'n'roll",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f40",
+  "texte": "no café",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no café",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f41",
+  "texte": "A knight, no supercalifragilisticexpialidocious supercalifragilisticexpialidocious",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight, no supercalifragilisticexpialidocious supercalifragilisticexpialidocious",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f42",
+  "texte": "a thing without a thing",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a thing without a thing",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f43",
+  "texte": "A knight, not",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight, not",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f44",
+  "texte": "without",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "without",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f45",
+  "texte": "no a",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no a",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "n47",
+  "texte": "A knight, no helmet or helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n48",
+  "texte": "A knight without a hat and a hat, no cape",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "hat",
+     "cape"
+    ]
+   }
+  }
+ },
+ {
+  "id": "f46",
+  "texte": "an orc, no armor except a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no armor except a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f47",
+  "texte": "an orc, no weapon other than a club",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no weapon other than a club",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f48",
+  "texte": "an orc, no beard just a mustache",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no beard just a mustache",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f49",
+  "texte": "an orc, no helmet besides a cape",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no helmet besides a cape",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f50",
+  "texte": "a snowman with no nose except a carrot",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a snowman with no nose except a carrot",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f51",
+  "texte": "an orc with no hair except for a ponytail",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc with no hair except for a ponytail",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f52",
+  "texte": "an orc without armor apart from a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc without armor apart from a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f53",
+  "texte": "an orc, no armor excluding a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no armor excluding a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f54",
+  "texte": "an orc, no armor unless a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no armor unless a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f55",
+  "texte": "an orc, no helmet instead of a hood",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no helmet instead of a hood",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f56",
+  "texte": "an orc, no helmet rather than a hood",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no helmet rather than a hood",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f57",
+  "texte": "an orc, no beard only a mustache",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no beard only a mustache",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f58",
+  "texte": "a knight without a weapon save a sword",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight without a weapon save a sword",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f59",
+  "texte": "no armor except a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no armor except a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f60",
+  "texte": "an orc, no hat with a feather but a scarf",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no hat with a feather but a scarf",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f61",
+  "texte": "an orc, no armor with the exception of a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no armor with the exception of a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f62",
+  "texte": "an orc, no weapon other than his fists",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no weapon other than his fists",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "n49",
+  "texte": "orc warrior, no helmet holding axe",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "orc warrior, holding axe",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n50",
+  "texte": "an orc, no hat wearing a scarf",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, wearing a scarf",
+    "negatifs": [
+     "hat"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n51",
+  "texte": "no beard wearing a hat and holding a staff",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "wearing a hat and holding a staff",
+    "negatifs": [
+     "beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n52",
+  "texte": "An orc warrior, no helmet holding a massive spiked club",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc warrior, holding a massive spiked club",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n53",
+  "texte": "an orc, without a helmet standing on a rock",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, standing on a rock",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n54",
+  "texte": "no helmet but a crown",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a crown",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n55",
+  "texte": "no helmet, but a crown",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a crown",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n56",
+  "texte": "a pristine car with no signs of rust",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a pristine car",
+    "negatifs": [
+     "signs of rust"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n57",
+  "texte": "a village with no sign of life",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a village",
+    "negatifs": [
+     "sign of life"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n58",
+  "texte": "a sword, no trace of blood",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a sword",
+    "negatifs": [
+     "trace of blood"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n59",
+  "texte": "a knight, no pieces of armor",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight",
+    "negatifs": [
+     "pieces of armor"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n60",
+  "texte": "a knight, no suit of plate armor",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight",
+    "negatifs": [
+     "plate armor"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n61",
+  "texte": "a house without any kind of door",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a house",
+    "negatifs": [
+     "kind of door"
+    ]
+   }
+  }
+ },
+ {
+  "id": "f63",
+  "texte": "a woman without a stitch of clothing",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a woman without a stitch of clothing",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f64",
+  "texte": "an orc, no signs of",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no signs of",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "n62",
+  "texte": "a car with no wheels floating above the ground",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a car floating above the ground",
+    "negatifs": [
+     "wheels"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n63",
+  "texte": "a wizard with no beard wearing a blue robe and holding a staff",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a wizard wearing a blue robe and holding a staff",
+    "negatifs": [
+     "beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n64",
+  "texte": "a knight without a helmet wears a cape",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight wears a cape",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n65",
+  "texte": "a knight without a helmet can fly",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight can fly",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n66",
+  "texte": "a street, no birds flying",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a street",
+    "negatifs": [
+     "birds flying"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n67",
+  "texte": "a hero, no cape flowing behind",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a hero",
+    "negatifs": [
+     "cape flowing"
+    ]
+   }
+  }
+ },
+ {
+  "id": "f65",
+  "texte": "no soldier wears a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no soldier wears a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f66",
+  "texte": "no soldier is wearing a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no soldier is wearing a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f67",
+  "texte": "an army, no soldier carries a shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an army, no soldier carries a shield",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f68",
+  "texte": "no one is holding a sword",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no one is holding a sword",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f69",
+  "texte": "an army, no soldier can wear a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an army, no soldier can wear a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f70",
+  "texte": "No smoking sign above the door",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "No smoking sign above the door",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f71",
+  "texte": "a door. No parking sign above it",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a door. No parking sign above it",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f72",
+  "texte": "No Country for Old Men poster",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "No Country for Old Men poster",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f73",
+  "texte": "a sign that says No Entry",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a sign that says No Entry",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f74",
+  "texte": "no thanks",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no thanks",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "n68",
+  "texte": "An Orc With No Helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An Orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n69",
+  "texte": "AN ORC WITHOUT A HELMET",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "AN ORC",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n70",
+  "texte": "an orc, No Helmet.",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc.",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n71",
+  "texte": "ORC, NO HELMET, NO BEARD",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "ORC",
+    "negatifs": [
+     "helmet",
+     "beard"
+    ]
+   }
+  }
+ },
+ {
+  "id": "f75",
+  "texte": "a knight, not without a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight, not without a helmet",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f76",
+  "texte": "no one without a hat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "no one without a hat",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f77",
+  "texte": "a man who isn't without a hat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a man who isn't without a hat",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f78",
+  "texte": "a man without a hat and shirt",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a man without a hat and shirt",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f79",
+  "texte": "a girl without a hat or clothes",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a girl without a hat or clothes",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f80",
+  "texte": "A knight, no t-shirt",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight, no t-shirt",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "n72",
+  "texte": "a girl without a hat and without clothes",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a girl and without clothes",
+    "negatifs": [
+     "hat"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n73",
+  "texte": "a pirate with a wooden leg and without a hat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a pirate with a wooden leg",
+    "negatifs": [
+     "hat"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n74",
+  "texte": "an orc is not wearing a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n75",
+  "texte": "an orc that has no helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n76",
+  "texte": "an orc but without a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n77",
+  "texte": "A warrior. He has no helmet. He holds a club.",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A warrior. He holds a club.",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n78",
+  "texte": "an orc, who has no helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n79",
+  "texte": "A knight, no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring, no sock",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "hat",
+     "coat",
+     "boots",
+     "gloves",
+     "scarf",
+     "belt",
+     "cape",
+     "mask"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n80",
+  "texte": "no knight's helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n81",
+  "texte": "an orc, no dragon's wings",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "wings"
+    ]
+   }
+  }
+ },
+ {
+  "id": "f81",
+  "texte": "an orc, no knight's",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no knight's",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "n82",
+  "texte": "an orc, no weapons visible",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "weapons"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n83",
+  "texte": "an orc with no weapon at all",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "weapon"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n84",
+  "texte": "an orc, no hats allowed",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "hats"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n85",
+  "texte": "an orc, no helmet is visible",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "f82",
+  "texte": "an orc, no beard a mustache",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, no beard a mustache",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "f83",
+  "texte": "never leaving the ground",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "never leaving the ground",
+    "negatifs": []
+   }
+  }
  }
 ]

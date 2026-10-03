@@ -572,8 +572,9 @@ def _exporter_cible(exporter, vertices, faces, cible, log=print):
 
 
 def _prep_image(path):
-    """Background removal via rembg u2net (Apache 2.0) — skip TRELLIS-2's
-    internal rembg which uses the gated briaai/RMBG-2.0."""
+    """Detourage du sujet avant la 3D (on saute le detourage interne de TRELLIS-2, qui utilise le modele a acces
+    restreint briaai/RMBG-2.0). Lucida d'abord (sous-processus), repli rembg u2net (Apache 2.0) : voir _detourer_sujet.
+    FABMESH_DETOURAGE : auto (defaut) ou u2net (saute Lucida). Une image qui a deja un alpha utile n'est pas detouree."""
     from PIL import Image
     import numpy as np
     image = Image.open(path)
@@ -583,11 +584,11 @@ def _prep_image(path):
         if not (a == 255).all():
             needs_rembg = False
     if needs_rembg:
-        log('rembg u2net (background removal)...')
-        import rembg
-        image = rembg.remove(
-            image.convert('RGBA'),
-            session=rembg.new_session('u2net'))
+        ouverte = image
+        image = _detourer_sujet(ouverte, path)
+        ouverte.close()          # le chemin Lucida ne lit jamais les pixels de l'original : on rend la poignee du fichier
+    else:
+        log("detourage: aucun (l'image a deja un canal alpha utile)")
     # Audit fix: tight-crop to the subject so it fills the frame (FabMesh skips
     # TRELLIS's internal crop via preprocess_image=False). FABMESH_TEX_SKIP_CROP=1
     # to disable.
@@ -602,6 +603,115 @@ def _prep_image(path):
     # Fond noir sous la transparence : voir le noyau partage ci-dessus.
     image = _composite_on_black(image)
     return image
+
+
+def _detourer_sujet(image, path):
+    """Rend `image` (RGBA, fond d'origine conserve sous l'alpha) detouree : Lucida d'abord, repli rembg u2net.
+
+    POURQUOI (audit de fidelite du 2026-10-03). u2net ne garde que 10 % des pixels des armes et 27 % de ceux des bras
+    sur un fond gris degrade : le maillage reproduit fidelement une image deja amputee. Lucida (fine-tune de BiRefNet,
+    MIT) en recupere 99,99 % (IoU 0,94 contre 0,73).
+    COMMENT. Lucida tourne dans un SOUS-PROCESSUS (scripts/lucida_matte.py, delai 240 s, memes variables
+    d'environnement) : la VRAM est rendue au systeme AVANT le chargement du modele 3D, et un plantage ne tue pas la
+    generation. Repli sur u2net, exactement comme avant, avec la raison dans le journal, si le sous-processus echoue
+    (code retour, fichier absent, delai depasse, poids absents) ou si l'alpha rendu est aberrant (sujet sous 1 % ou
+    au-dessus de 95 % de l'image, aucune composante significative).
+    FABMESH_DETOURAGE : auto (defaut) ou u2net (saute Lucida) ; FABMESH_LUCIDA_PYTHON : interpreteur du
+    sous-processus si celui de la 3D n'a pas torch + transformers + einops (defaut : sys.executable)."""
+    import re
+    import shutil
+    import subprocess
+    import tempfile
+    from PIL import Image
+    import numpy as np
+    mode = (os.environ.get('FABMESH_DETOURAGE') or 'auto').strip().lower()
+    raison = None
+
+    def derniere_ligne(texte):
+        lignes = [l.strip() for l in (texte or '').splitlines() if l.strip()]
+        return lignes[-1][:200] if lignes else ''
+
+    def surface_composante(masque, cote=128):
+        # plus grande composante (4-connexe) du masque, en part de l'image, sur une grille reduite
+        reduit = Image.fromarray(masque.astype('uint8') * 255).resize((cote, cote), getattr(Image, 'Resampling', Image).BOX)
+        petit = (np.asarray(reduit) >= 128).tolist()
+        vus = [[False] * cote for _ in range(cote)]
+        meilleur = 0
+        for y0 in range(cote):
+            for x0 in range(cote):
+                if petit[y0][x0] and not vus[y0][x0]:
+                    pile, n = [(y0, x0)], 0
+                    vus[y0][x0] = True
+                    while pile:
+                        y, x = pile.pop()
+                        n += 1
+                        for yy, xx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                            if 0 <= yy < cote and 0 <= xx < cote and petit[yy][xx] and not vus[yy][xx]:
+                                vus[yy][xx] = True
+                                pile.append((yy, xx))
+                    meilleur = max(meilleur, n)
+        return meilleur / float(cote * cote)
+
+    if mode == 'u2net':
+        raison = 'FABMESH_DETOURAGE=u2net'
+    else:
+        if mode != 'auto':
+            log(f"detourage: FABMESH_DETOURAGE={mode!r} inconnu, mode auto")
+        t0 = time.time()
+        dossier = tempfile.mkdtemp(prefix='fabmesh_detourage_')
+        try:
+            sortie = os.path.join(dossier, 'lucida_rgba.png')
+            cmd = [os.environ.get('FABMESH_LUCIDA_PYTHON') or sys.executable,
+                   os.path.join(SCRIPTS, 'lucida_matte.py'), path, sortie]
+            try:
+                r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, errors='replace',
+                                   timeout=240, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            except subprocess.TimeoutExpired:
+                raison = 'delai de 240 s depasse'
+            except OSError as e:
+                raison = f'lancement impossible ({type(e).__name__}: {e})'
+            else:
+                if r.returncode != 0:
+                    raison = f'code retour {r.returncode} : {derniere_ligne(r.stderr) or derniere_ligne(r.stdout)}'
+                elif not os.path.isfile(sortie):
+                    raison = 'aucun fichier produit'
+                else:
+                    with Image.open(sortie) as f:
+                        candidat = f.convert('RGBA')
+                    if candidat.size != image.size:
+                        raison = f'taille inattendue {candidat.size} (attendu {image.size})'
+                    else:
+                        masque = np.asarray(candidat)[:, :, 3] >= 128
+                        part = float(masque.mean())
+                        if part == 0.0:
+                            raison = 'alpha vide (aucune composante)'
+                        elif part < 0.01:
+                            raison = f"alpha aberrant : sujet trop petit ({part:.1%} de l'image)"
+                        elif part > 0.95:
+                            raison = f"alpha aberrant : sujet = {part:.1%} de l'image (rien n'a ete retire)"
+                        else:
+                            grande = surface_composante(masque)
+                            if grande < 0.005:
+                                raison = f"alpha aberrant : aucune composante significative (la plus grande : {grande:.2%} de l'image)"
+                            else:
+                                log(f'detourage: lucida ({time.time() - t0:.1f} s)')
+                                log(f"detourage: sujet = {part:.1%} de l'image, plus grande composante {grande:.1%}")
+                                for ligne in r.stdout.splitlines():
+                                    if ligne.startswith('LUCIDA:'):
+                                        log('detourage: ' + ligne[len('LUCIDA:'):].strip())
+                                pic = re.search(r'pic_vram_reserve=(\d+)Mo', r.stdout)
+                                if pic:
+                                    log(f'detourage: pic de VRAM PyTorch du sous-processus {pic.group(1)} Mo (hors contexte CUDA)')
+                                return candidat
+        except Exception as e:
+            raison = f'{type(e).__name__}: {e}'
+        finally:
+            shutil.rmtree(dossier, ignore_errors=True)
+    log(f'detourage: u2net ({raison})')
+    import rembg
+    return rembg.remove(
+        image.convert('RGBA'),
+        session=rembg.new_session('u2net'))
 
 
 def _corriger_metal_degenere(glb_obj) -> None:
