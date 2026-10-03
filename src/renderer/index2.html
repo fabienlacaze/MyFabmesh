@@ -422,6 +422,14 @@
                     Construction stages (3 progressive versions)
                   </label>
                 </div>
+                <!-- Case « T-pose » (2026-10-03, user : une case pour decider). Cochee = pose imposee (bras ecartes, bon pour le rig et l'animation) ;
+                     decochee = pose libre selon le texte. Visible pour le type Character seulement (index2.js, _wireCaseTpose). -->
+                <div class="form-row check-row" id="ws-tpose-row">
+                  <label class="inline-check" title="Arms out, legs apart: the pose the rig and the animations expect. Untick for a free pose that follows your text (sitting, arms crossed...). Rigging and animation may be less reliable.">
+                    <input type="checkbox" id="ws-tpose" checked />
+                    T-pose (arms out, best for rigging)
+                  </label>
+                </div>
                 <!-- Multi-view scope: TRELLIS-2 already textures from 1
                      front photo, but additional reference views (back, sides,
                      top, bottom) reduce dorsal/lateral hallucinations during

@@ -668,6 +668,7 @@ var PRICING_DESCRIPTIONS = {
       face_fix_image:    'Face fix on a 2D image',
       upscale:           'Image upscale x2 (x4 = this + 1)',
       rectify:           'Auto-rectify front strict',
+      tpose:             'T-pose supplement, per character image (box ticked by default; added to the image price)',
       remove_background: 'Remove background',
       mesh_op_simple:    'Mesh smooth / decimate / fill holes / center / explode / resize… (server or in-browser)',
       mesh_fast:         '3D fast preset (base)',
@@ -1587,7 +1588,7 @@ function prixCat(k) {
   if (k === 'rig' || k === 'reskin') return 'rig';
   if (k === 'anim') return 'anim';
   if (k === 'manual_tool') return 'image';                  // un seul prix pour tous les outils manuels : porte par la premiere ligne presente
-  if (/^(text2image|back_view|modify|segment|auto_inpaint|mask_inpaint|face_fix_image|upscale|rectify|remove_background|tex_variant|recolor|outfit)/.test(k)) return 'image';
+  if (/^(text2image|tpose|back_view|modify|segment|auto_inpaint|mask_inpaint|face_fix_image|upscale|rectify|remove_background|tex_variant|recolor|outfit)/.test(k)) return 'image';
   return '3d';                        // mesh_*, retex_*, texture_var, enhance_tex, region_retex, reshape, name_parts, construction3d, watertight_hd, align_texture, export, market_publish...
 }
 /* Les cles de prix qu'aucune ligne du tableau ne porte (options, supplements : multi-references, Quality+, nommer les zones...) sont des lignes du tableau, dans leur categorie

@@ -26,7 +26,7 @@ try {
 
 const DECLARATIONS = ['ASSET_TYPE_PROMPTS', 'ASSET_STYLE_PROMPTS', 'ASSET_TYPE_PREFIXES', 'ASSET_TYPE_PREFIXES_ANCIENS', '_TYPES_UNITE',
   '_TENUE_PREHISTORIQUE', '_TENUES_EPOQUE', '_epoqueUnite', '_MOTS_VOL', '_parleDeVol', '_DEMANDE_EN', '_DEMANDE_FR', '_epurerDemande',
-  'buildFullPrompt', 'stripKnownPromptSuffixes'];
+  'buildFullPrompt', 'stripKnownPromptSuffixes', '_optionsPose'];
 
 function charger(chemin) {
   const src = readFileSync(join(RACINE, chemin), 'utf-8');
@@ -42,7 +42,7 @@ function charger(chemin) {
   const manque = DECLARATIONS.filter((d) => !vus.has(d));
   assert.deepEqual(manque, [], chemin + ' : declarations introuvables ' + manque.join(', '));
   const f = new Function('analyserIntention', 'composerGabarit', 'clauseObjetTenu', 'retirerClauseFinale', 'composeurActif', 'modeDepuisTexte',
-    morceaux.join('\n') + '\nreturn { buildFullPrompt, stripKnownPromptSuffixes, ASSET_STYLE_PROMPTS, ASSET_TYPE_PROMPTS };');
+    morceaux.join('\n') + '\nreturn { buildFullPrompt, stripKnownPromptSuffixes, _optionsPose, ASSET_STYLE_PROMPTS, ASSET_TYPE_PROMPTS };');
   return f(LIB.analyser, LIB.composerGabarit, LIB.clauseObjetTenu, LIB.retirerClauseFinale, LIB.actif, () => null);
 }
 
@@ -111,5 +111,68 @@ for (const [nom, chemin] of [['bureau', 'src/renderer/index2.js'], ['web', 'clou
     const t = 'knight holding exactly one sword in the right hand, left hand open and empty';
     const relu = P.stripKnownPromptSuffixes(P.buildFullPrompt(t, 'character', style));
     assert.ok(relu.includes('holding exactly one sword'), 'texte de l\'utilisateur perdu : ' + relu);
+  });
+
+  // ── case « T-pose » (2026-10-03) ──────────────────────────────────────────────────────────────────────────────────────────
+  const CONSIGNES_TPOSE = ['T-pose', 'arms extended horizontally', 'legs apart', 'symmetric', 'empty open hands'];
+  // les mots-cles par lesquels le pont du bureau (_is_tpose) et le site (_tposeDemande) reconnaissent un prompt de T-pose
+  const MOTS_TPOSE = /t-pose|t pose|tpose|arms extended horizontally|rts unit|neutral stance/i;
+
+  test(nom + ' : case T-pose decochee = pose libre (plus aucune consigne de T-pose, ni de mot que le pont ou le site prendraient pour une T-pose)', () => {
+    const libre = P.buildFullPrompt('An orc warrior', 'character', 'realistic', { tpose: false });
+    for (const c of CONSIGNES_TPOSE) assert.ok(!libre.includes(c), c + ' : ' + libre);
+    assert.ok(!MOTS_TPOSE.test(libre), 'le pont / le site y verraient une T-pose : ' + libre);
+    for (const garde of ['isolated 3D character', 'full body', 'fully clothed', 'strict front view', 'facing camera', 'plain white background', 'clean silhouette']) {
+      assert.ok(libre.includes(garde), garde);
+    }
+    const defaut = P.buildFullPrompt('An orc warrior', 'character', 'realistic');
+    assert.ok(MOTS_TPOSE.test(defaut) && defaut.includes('T-pose'), 'par defaut : T-pose');
+    assert.equal(P.buildFullPrompt('An orc warrior', 'character', 'realistic', {}), defaut);
+    assert.equal(P.buildFullPrompt('An orc warrior', 'character', 'realistic', { tpose: true }), defaut);
+  });
+
+  test(nom + ' : pose libre et objet tenu : la clause reste, la T-pose part', () => {
+    const libre = P.buildFullPrompt(ORC, 'character', 'dark-fantasy', { tpose: false });
+    assert.ok(libre.startsWith(ORC + ', ' + CLAUSE_ORC), libre);
+    for (const c of CONSIGNES_TPOSE) assert.ok(!libre.includes(c), c);
+    assert.ok(libre.endsWith('entire figure and held item fully visible, generous empty margins'), libre);
+  });
+
+  test(nom + ' : pose libre : composer puis relire redonne le texte (Enhance puis Generate)', () => {
+    for (const t of ['An orc', ORC, 'A knight with a sword in his left hand', 'A soldier sitting on a chair']) {
+      const un = P.buildFullPrompt(t, 'character', style, { tpose: false });
+      assert.equal(P.stripKnownPromptSuffixes(un), t, JSON.stringify(P.stripKnownPromptSuffixes(un)));
+      assert.equal(P.buildFullPrompt(P.stripKnownPromptSuffixes(un), 'character', style, { tpose: false }), un);
+    }
+  });
+
+  test(nom + " : l'option pose libre ne touche que les unites ; les autres types sont identiques", () => {
+    for (const type of ['vehicle', 'building', 'weapon', 'prop', 'creature', 'animal', 'other_living']) {
+      assert.equal(P.buildFullPrompt('A thing', type, 'realistic', { tpose: false }), P.buildFullPrompt('A thing', type, 'realistic'), type);
+    }
+  });
+
+  test(nom + " : l'interrupteur d'urgence coupe les adaptations d'intention mais respecte la case", () => {
+    globalThis.window = { __composeurIntention: false };
+    try {
+      const libre = P.buildFullPrompt(ORC, 'character', 'dark-fantasy', { tpose: false });
+      for (const c of CONSIGNES_TPOSE) assert.ok(!libre.includes(c), c);
+      assert.ok(!libre.includes('holding exactly one'), 'pas de clause : le composeur est coupe');
+      const defaut = P.buildFullPrompt(ORC, 'character', 'dark-fantasy');
+      assert.ok(defaut.includes('empty open hands') && !defaut.includes('holding exactly one'), "et par defaut le gabarit d'origine");
+    } finally { delete globalThis.window; }
+  });
+
+  test(nom + ' : _optionsPose lit la case : decochee + personnage = pose libre, sinon T-pose', () => {
+    const avecCase = (checked) => { globalThis.document = { getElementById: (id) => (id === 'ws-tpose' ? { checked } : null) }; };
+    try {
+      avecCase(false);
+      assert.deepEqual(P._optionsPose('character'), { tpose: false });
+      assert.deepEqual(P._optionsPose('vehicle'), {}, 'seul le personnage est concerne');
+      avecCase(true);
+      assert.deepEqual(P._optionsPose('character'), {});
+      globalThis.document = { getElementById: () => null };
+      assert.deepEqual(P._optionsPose('character'), {}, 'case absente : T-pose, comme avant');
+    } finally { delete globalThis.document; }
   });
 }

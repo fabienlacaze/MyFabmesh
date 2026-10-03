@@ -2226,6 +2226,18 @@ function _applyAssetOptionsProfile(assetType) {
   maj();
 })();
 
+/* CASE « T-POSE » (2026-10-03, user : « une checkbox qui permet de decider »). Visible pour le type Character seulement : c'est le seul gabarit qui impose la
+ * T-pose. Cochee par defaut. Decochee : pose libre, selon le texte (assis, bras croises...) ; le rig et l'animation sont alors moins fiables. */
+(function _wireCaseTpose() {
+  const appliquer = () => {
+    const at = document.getElementById('ws-asset-type')?.value || 'character';
+    const row = document.getElementById('ws-tpose-row');
+    if (row) row.style.display = (at === 'character') ? '' : 'none';
+  };
+  document.getElementById('ws-asset-type')?.addEventListener('change', appliquer);
+  appliquer();
+})();
+
 (function _wireAssetOptionsProfile() {
   const sel = document.getElementById('ws-asset-type');
   if (!sel) return;
@@ -5879,7 +5891,14 @@ function _corrigerFauxAmis(source, traduit, lang) {
   return t;
 }
 
-function buildFullPrompt(userPrompt, assetType, assetStyle) {
+/** Reglage de la case « T-pose » (2026-10-03) pour buildFullPrompt : { tpose: false } quand elle est DECOCHEE pour un personnage (pose libre, selon le texte),
+ *  {} sinon (T-pose, comme avant). Case absente ou autre type d'asset : {}. */
+function _optionsPose(assetType) {
+  const cb = document.getElementById('ws-tpose');
+  return (cb && assetType === 'character' && !cb.checked) ? { tpose: false } : {};
+}
+
+function buildFullPrompt(userPrompt, assetType, assetStyle, options) {
   userPrompt = _epurerDemande(userPrompt);
   const typePrefix = ASSET_TYPE_PREFIXES[assetType] || '';
   let typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
@@ -5898,11 +5917,14 @@ function buildFullPrompt(userPrompt, assetType, assetStyle) {
    * one X in the right hand, left hand open and empty ») est posee juste apres le texte de l'utilisateur, dans le premier bloc de
    * l'encodeur. Un texte sans objet tenu donne EXACTEMENT le gabarit d'origine. Interrupteur : window.__composeurIntention = false. */
   let clauseTenue = '';
-  if (_TYPES_UNITE.includes(assetType) && composeurActif()) {
+  if (_TYPES_UNITE.includes(assetType)) {
     try {
+      // Interrupteur d'urgence (window.__composeurIntention = false) : plus aucune adaptation d'INTENTION (regles vides), mais le choix explicite de
+      // l'utilisateur (case « T-pose » decochee : options.tpose === false) reste respecte.
+      const regles = composeurActif() ? undefined : [];
       const intention = analyserIntention(userPrompt, assetType, assetStyle);
-      typeSuffix = composerGabarit(typeSuffix, assetType, intention)[0];
-      clauseTenue = clauseObjetTenu(intention) || '';
+      typeSuffix = composerGabarit(typeSuffix, assetType, intention, regles, options)[0];
+      clauseTenue = clauseObjetTenu(intention, regles) || '';
     } catch (e) { console.warn('[composeur] ignore :', e && e.message); }
   }
   const parts = _TYPES_UNITE.includes(assetType)
@@ -6108,7 +6130,7 @@ document.getElementById('ws-enhance-prompt')?.addEventListener('click', async ()
   // (clean subject description, no asset-style pollution).
   textarea.dataset.rawPrompt = raw;
   // traduit depuis la langue de l'interface avant les gabarits anglais (comme le bureau)
-  const enhanced = buildFullPrompt(await translateUserPrompt(raw), assetType, assetStyle);
+  const enhanced = buildFullPrompt(await translateUserPrompt(raw), assetType, assetStyle, _optionsPose(assetType));
   textarea.value = enhanced;
   // Persist to localStorage
   if (state.currentProject) {
@@ -6145,8 +6167,9 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   // Persist per-project so the next visit to this project pre-fills the
   // form with the asset type/style used here (avoid Creature project
   // silently falling back to Character on a follow-up gen).
-  _saveProjectMeta(p.name, { assetType, assetStyle });
-  const prompt = buildFullPrompt(userPrompt, assetType, assetStyle);
+  _saveProjectMeta(p.name, { assetType, assetStyle,
+    tpose: document.getElementById('ws-tpose') ? !!document.getElementById('ws-tpose').checked : undefined });
+  const prompt = buildFullPrompt(userPrompt, assetType, assetStyle, _optionsPose(assetType));
   const engine = document.getElementById('ws-engine').value;
   const count = parseInt(document.getElementById('ws-count').value) || 4;
   const steps = parseInt(document.getElementById('ws-quality').value) || 30;
@@ -7685,6 +7708,9 @@ function _getProjectMeta(projName) {
 function _restoreProjectMeta(p) {
   if (!p?.name) return;
   const meta = _getProjectMeta(p.name);
+  // Case « T-pose » (2026-10-03) : memorisee par projet ; cochee par defaut (projet neuf, ou sans reglage memorise).
+  const cbTpose = document.getElementById('ws-tpose');
+  if (cbTpose) { cbTpose.checked = !(meta && meta.tpose === false); cbTpose.dispatchEvent(new Event('change')); }
   if (!meta) return;
   const atSel = document.getElementById('ws-asset-type');
   if (atSel && meta.assetType) {

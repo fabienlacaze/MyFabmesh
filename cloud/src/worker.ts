@@ -2044,8 +2044,12 @@ const PRICING_DEFAULTS = {
   desktop_gratuit:       1,          // 1 = « gratuit pendant la beta » affiche
   // Image ops
   // 6 (2026-10-02, demande du user : le bouton « Generer une nouvelle version » doit afficher 6 ; il affichait 3). MESURE : x13 a 3 credits, donc pas une exigence de rentabilite.
-  // Prix d'UNE image a 30 pas (au prorata des pas : 10 pas = 2, 60 pas = 12). La T-pose paie le meme prix : elle n'a pas de cle propre.
+  // Prix d'UNE image a 30 pas (au prorata des pas : 10 pas = 2, 60 pas = 12). La T-pose y AJOUTE `tpose` (voir plus bas, depuis le 2026-10-03).
   text2image:       6,
+  // SUPPLEMENT T-POSE (2026-10-03, demande du user : case « T-pose » cochee par defaut, « +1 credit »). S'ajoute a `text2image`, PAR IMAGE, uniquement
+  // quand la pose est imposee par squelette (route Modal /tpose : conteneur Backview, ControlNet + IP-Adapter, ~3 fois le GPU d'une image simple, estimation
+  // du worker 0,02 $ contre 0,006 $). Case decochee : pose libre, prix normal. Le tarif affiche (bureau et site) lit CETTE cle dans /api/pricing.
+  tpose:            1,
   // x4 (2026-10-02) : MESURE 30 j, 18 vues arriere dont 9 echecs (le cout des echecs retombe sur les reussites) : 0,11 EUR / essai, x2,2 a 3 credits -> 6 credits = x4,3.
   back_view:        6,
   modify:           3,
@@ -11212,6 +11216,7 @@ interface CogInput {
   steps?: number;
   unrestricted?: boolean;
   turbo?: boolean;
+  pose_libre?: boolean;   // case « T-pose » decochee (2026-10-03) : Modal retire la T-pose du gabarit
 }
 
 // Cached version id for fabienlacaze/myfabmesh-cloud. We resolve it
@@ -11288,6 +11293,7 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
       steps: input.steps,
       unrestricted: !!input.unrestricted,
       turbo: !!input.turbo,
+      pose_libre: !!input.pose_libre,
     }),
     // Modal cold-start on the RealVis container can hit 90-120s when
     // the GPU snapshot is fully cold (first call of the day). Plus the
@@ -12664,11 +12670,18 @@ function _prixImageSelonPas(prix30: number, pas: number): number {
   return Math.max(1, Math.round(prix30 * pas / 30));
 }
 
+/** Credits d'UNE image : le prix de l'image au prorata des pas, plus le supplement T-pose (`tpose`) quand la pose est imposee par squelette.
+ *  Le supplement ne suit pas les pas ni le Turbo : c'est le prix du chemin T-pose, pas de la diffusion. Un supplement absent ou negatif vaut 0. */
+function _prixImageComplet(prix30: number, pas: number, supplementTpose: number): number {
+  const supp = Math.max(0, Math.round(Number(supplementTpose)) || 0);
+  return _prixImageSelonPas(prix30, pas) + supp;
+}
+
 async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   const { prompt, numImages, seed, asset_type, asset_style, userPrompt, steps,
-          tpose, refImageUrl, cn_scale, ip_scale, projectName, turbo } = await req.json() as {
+          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo } = await req.json() as {
     prompt?: string;
     userPrompt?: string;
     turbo?: boolean;   // SDXL-Lightning 4-step turbo (Modal text2image only)
@@ -12684,6 +12697,9 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     // workflows where the input MUST be a clean T-pose silhouette
     // for TRELLIS-2 + MVAdapter cascade.
     tpose?: boolean;
+    // Case « T-pose » DECOCHEE (2026-10-03) : pose libre. Transmis a Modal (`pose_libre`) pour que le gabarit serveur, qui reconstruit le prompt depuis le
+    // texte brut, n'impose plus la T-pose. Sans effet si `tpose` est vrai.
+    poseLibre?: boolean;
     refImageUrl?: string;   // T-pose img2img mode: re-pose this image
     cn_scale?: number;
     ip_scale?: number;
@@ -12731,7 +12747,10 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // Turbo (accelerateur 4 pas, 2026-09-27) : facture au prix de 4 pas. Si
   // l'accelerateur manquait, Modal ferait une image normale : le client paie
   // alors moins, jamais une image ratee.
-  const COST_PER_IMAGE = _prixImageSelonPas(await getPrice(env, 'text2image'), turbo ? 4 : pas);
+  // T-pose mode requires Modal (no Replicate fallback yet). Decide AVANT le prix : la T-pose coute un supplement par image (2026-10-03).
+  const useTpose = !!tpose && !!env.MODAL_TPOSE_URL;
+  const supplementTpose = useTpose ? await getPrice(env, 'tpose') : 0;
+  const COST_PER_IMAGE = _prixImageComplet(await getPrice(env, 'text2image'), turbo ? 4 : pas, supplementTpose);
   const cost = n * COST_PER_IMAGE;
 
   // Pick the backend BEFORE the budget check — the budget cap is
@@ -12739,8 +12758,6 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // doesn't share a wallet with Replicate). Counting Modal calls
   // against the Replicate budget locks the user out of Modal as soon
   // as the (separate) Replicate counter is exhausted.
-  // T-pose mode requires Modal (no Replicate fallback yet).
-  const useTpose = !!tpose && !!env.MODAL_TPOSE_URL;
   const useModal = useTpose || !!env.MODAL_TEXT2IMAGE_URL;
   const callBackend = useModal ? callModalText2Image : callMyfabmeshCog;
 
@@ -12833,6 +12850,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           seed: seedBase + i,
           steps: pas,
           turbo: !!turbo,  // SDXL-Lightning 4-step (Modal only; Cog ignores it)
+          pose_libre: !!poseLibre,   // case « T-pose » decochee : le gabarit serveur n'impose pas la T-pose
         }, 'front'));
       }
     }

@@ -53,6 +53,7 @@ for (const a of attendus) {
   const gabarit = grave.gabarits[a.type];
   const [tplT, notesT] = J.composerGabarit(gabarit, a.type, it, 'toutes');
   const [tplD, notesD] = J.composerGabarit(gabarit, a.type, it);
+  const [tplL, notesL] = J.composerGabarit(gabarit, a.type, it, undefined, { tpose: false });
   const verifs = [
     ['clause (toutes les regles)', J.clauseObjetTenu(it, 'toutes'), a.clause_toutes],
     ['gabarit (toutes les regles)', tplT, a.tpl_toutes],
@@ -60,6 +61,8 @@ for (const a of attendus) {
     ['clause (regles actives)', J.clauseObjetTenu(it), a.clause_defaut],
     ['gabarit (regles actives)', tplD, a.tpl_defaut],
     ['notes (regles actives)', notesD, a.notes_defaut],
+    ['gabarit (pose libre)', tplL, a.tpl_libre],
+    ['notes (pose libre)', notesL, a.notes_libre],
   ];
   for (const [nom, js, py] of verifs) {
     if (!egal(js, py)) dit(`cas ${a.id} : ${nom} different\n      JS     : ${JSON.stringify(js)}\n      Python : ${JSON.stringify(py)}`);

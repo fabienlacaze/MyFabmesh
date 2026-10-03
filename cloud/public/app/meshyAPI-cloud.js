@@ -774,8 +774,16 @@
       // (local_juggernaut_bridge._is_tpose) : le gabarit « personnage » le demande, mais le chemin
       // simple l'ignorait souvent — gladiateur genere bras le long du corps, mains contre les
       // hanches, peau du rig ensuite liee aux jambes (28/09). Jamais pour un animal ou une creature.
-      const _tposeDemande = (p) => !['animal', 'creature'].includes(asset_type)
-        && /t-pose|t pose|tpose|arms extended horizontally|rts unit|neutral stance/i.test(String(p || ''));
+      //
+      // CASE « T-pose » (2026-10-03, +1 credit par image) : quand elle existe, ELLE decide, et seulement pour un personnage (l'affichage du prix suit la meme
+      // regle, cloud-overrides.js installImageCostMeter). Sans la case (autre page qui appelle ce shim) : l'ancienne regle, lue dans le prompt.
+      const _caseTpose = document.getElementById('ws-tpose');
+      const _tposeDemande = (p) => _caseTpose
+        ? (asset_type === 'character' && !!_caseTpose.checked)
+        : (!['animal', 'creature'].includes(asset_type)
+           && /t-pose|t pose|tpose|arms extended horizontally|rts unit|neutral stance/i.test(String(p || '')));
+      // Case decochee : pose libre, le gabarit serveur (Modal, texte brut) n'impose pas la T-pose.
+      const _poseLibre = asset_type === 'character' && !!_caseTpose && !_caseTpose.checked;
 
       // One /api/generate-image call → returns { paths } or throws.
       const _genOnce = async (promptArg, userPromptArg, n) => {
@@ -786,7 +794,8 @@
             prompt: promptArg,        // already-enriched fallback
             userPrompt: userPromptArg, // raw user text (Worker re-enriches)
             numImages: n, asset_type, asset_style, steps,
-            tpose: _tposeDemande(promptArg),     // personnage : pose imposee par squelette
+            tpose: _tposeDemande(promptArg),     // personnage : pose imposee par squelette (case « T-pose » cochee)
+            poseLibre: _poseLibre,               // case decochee : pose libre
             turbo: engine === 'local-lightning',  // SDXL-Lightning 4-step (Modal text2image)
             projectName,         // for user_assets row insertion
           }),

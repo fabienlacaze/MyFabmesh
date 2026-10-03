@@ -306,8 +306,13 @@ def clause_objet_tenu(intent, regles=None):
     return "holding exactly one %s in the %s hand, %s hand open and empty" % (o['item'], main, autre)
 
 
-def composer_gabarit(gabarit, type_actif, intent, regles=None):
-    """Retourne (gabarit adapte, notes). La clause d'objet tenu n'est PAS dedans : voir clause_objet_tenu()."""
+# Consignes de T-pose du gabarit des unites, retirees quand l'utilisateur DECOCHE la case « T-pose » (pose libre).
+CONSIGNES_TPOSE = ('T-pose', 'arms extended horizontally', 'legs apart', 'symmetric', 'empty open hands')
+
+
+def composer_gabarit(gabarit, type_actif, intent, regles=None, tpose=True):
+    """Retourne (gabarit adapte, notes). La clause d'objet tenu n'est PAS dedans : voir clause_objet_tenu().
+    `tpose=False` (case « T-pose » decochee) : pose libre, les consignes de T-pose quittent le gabarit des unites. Defaut : T-pose, rien ne change."""
     rg = _regles(regles)
     segs = [s.strip() for s in gabarit.split(',') if s.strip()]
     notes = []
@@ -328,6 +333,8 @@ def composer_gabarit(gabarit, type_actif, intent, regles=None):
 
     est_unite = type_actif in TYPES_UNITE
     if est_unite:
+        if not tpose and retirer(*CONSIGNES_TPOSE):
+            notes.append('pose libre : T-pose non imposee (case decochee)')
         if 'non_humain' in rg and intent['non_humain'] and retirer('fully clothed'):
             notes.append('fully clothed retire (sujet non humain)')
         if 'pose' in rg and intent['pose_libre']:

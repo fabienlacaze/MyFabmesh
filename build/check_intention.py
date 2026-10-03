@@ -172,6 +172,7 @@ def sorties(cas):
     it = C.analyser(cas['texte'], typ, cas['style'])
     tpl_t, notes_t = C.composer_gabarit(gab, typ, it, 'toutes')
     tpl_d, notes_d = C.composer_gabarit(gab, typ, it)
+    tpl_l, notes_l = C.composer_gabarit(gab, typ, it, None, tpose=False)
     arm = C.composer_negatif_armes(typ, it, True, 'toutes')
     ajout, retire = C.negatifs_extra(typ, it, 'toutes')
     return {
@@ -179,6 +180,7 @@ def sorties(cas):
         'intent': canon(it),
         'clause_toutes': C.clause_objet_tenu(it, 'toutes'), 'tpl_toutes': tpl_t, 'notes_toutes': notes_t,
         'clause_defaut': C.clause_objet_tenu(it), 'tpl_defaut': tpl_d, 'notes_defaut': notes_d,
+        'tpl_libre': tpl_l, 'notes_libre': notes_l,
         'negatif_armes': canon(arm), 'negatifs_extra': canon([ajout, retire]),
         '_retire_tot': list(retire) + (arm[1] if arm else []),
         '_ajout_tot': list(ajout) + (arm[2] if arm else []),

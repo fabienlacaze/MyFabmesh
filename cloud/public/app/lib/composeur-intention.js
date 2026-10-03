@@ -249,9 +249,14 @@ export function clauseObjetTenu(intent, regles) {
   return 'holding exactly one ' + o.item + ' in the ' + main + ' hand, ' + autre + ' hand open and empty';
 }
 
-/** Rend [gabarit adapte, notes]. La clause d'objet tenu n'est PAS dedans : voir clauseObjetTenu(). */
-export function composerGabarit(gabarit, typeActif, intent, regles) {
+// Consignes de T-pose du gabarit des unites, retirees quand l'utilisateur DECOCHE la case « T-pose » (pose libre).
+export const CONSIGNES_TPOSE = ['T-pose', 'arms extended horizontally', 'legs apart', 'symmetric', 'empty open hands'];
+
+/** Rend [gabarit adapte, notes]. La clause d'objet tenu n'est PAS dedans : voir clauseObjetTenu().
+ *  options.tpose === false (case « T-pose » decochee) : pose libre, les consignes de T-pose quittent le gabarit des unites. Defaut : T-pose, rien ne change. */
+export function composerGabarit(gabarit, typeActif, intent, regles, options) {
   const rg = _regles(regles);
+  const tpose = !(options && options.tpose === false);
   let segs = gabarit.split(',').map((s) => s.trim()).filter((s) => s);
   const notes = [];
   const retirer = (...noms) => {
@@ -268,6 +273,7 @@ export function composerGabarit(gabarit, typeActif, intent, regles) {
   };
   const estUnite = TYPES_UNITE.includes(typeActif);
   if (estUnite) {
+    if (!tpose && retirer(...CONSIGNES_TPOSE)) notes.push('pose libre : T-pose non imposee (case decochee)');
     if (rg.includes('non_humain') && intent.non_humain && retirer('fully clothed')) notes.push('fully clothed retire (sujet non humain)');
     if (rg.includes('pose') && intent.pose_libre) {
       retirer('T-pose', 'arms extended horizontally', 'legs apart', 'symmetric', 'empty open hands');

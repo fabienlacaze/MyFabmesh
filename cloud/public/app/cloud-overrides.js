@@ -1349,7 +1349,12 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const n = Math.max(1, parseInt($('ws-count')?.value, 10) || 4);   // meme defaut que le clic
       const turbo = $('ws-engine')?.value === 'local-lightning';
       const pas = turbo ? 4 : Math.max(10, Math.min(60, Math.round(Number($('ws-quality')?.value) || 30)));
-      const pImg = tarif30 == null ? null : Math.max(1, Math.round(tarif30 * pas / 30));
+      // SUPPLEMENT T-POSE (2026-10-03) : MEME regle que l'appel (meshyAPI-cloud.js) et que le worker (handleGenerateImage) — personnage, case cochee —,
+      // chiffre lu dans la grille (cle `tpose`, null si le serveur ne la connait pas encore : alors rien n'est annonce en plus).
+      const suppGrille = _prixDe('tpose');
+      const tposeActive = ($('ws-asset-type')?.value || 'character') === 'character' && !!$('ws-tpose')?.checked && typeof suppGrille === 'number';
+      const supp = tposeActive ? suppGrille : 0;
+      const pImg = tarif30 == null ? null : Math.max(1, Math.round(tarif30 * pas / 30)) + supp;
       const etapes = !!$('ws-img-buildstages')?.checked;
       const nImg = etapes ? 3 : n;
       // meme regle que le clic (index2.js) : en « auto », la vue arriere ne
@@ -1369,13 +1374,13 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           // Le detail evite la question « pourquoi 16 alors que l'image est a 2 ? ».
           pill.title = total == null ? ''
             : avecDos
-              ? `${nImg} image(s) x ${pImg} (${pas} steps) + ${nImg} back view(s) x ${pBack} = ${total} credits`
-              : `${nImg} image(s) x ${pImg} (${pas} steps) = ${total} credits`;
+              ? `${nImg} image(s) x ${pImg} (${pas} steps${supp ? ', T-pose +' + supp : ''}) + ${nImg} back view(s) x ${pBack} = ${total} credits`
+              : `${nImg} image(s) x ${pImg} (${pas} steps${supp ? ', T-pose +' + supp : ''}) = ${total} credits`;
         }
       }
       // PASTILLES PAR OPTION (2026-09-27) : Quality = prix d'UNE image a ce
       // nombre de pas ; Count et Construction stages = les images demandees.
-      pastille('ws-quality-cost', $('ws-quality-val'), pImg, `${pImg} credit(s) per image at ${pas} steps`);
+      pastille('ws-quality-cost', $('ws-quality-val'), pImg, `${pImg} credit(s) per image at ${pas} steps${supp ? ' (T-pose +' + supp + ' included)' : ''}`);
       pastille('ws-count-cost', $('ws-count'), (pImg == null || etapes) ? null : n * pImg, `${n} image(s) x ${pImg}`);
       const labEtapes = $('ws-img-buildstages')?.closest('label');
       if (labEtapes) {
@@ -1392,9 +1397,26 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         bs.textContent = pImg == null ? '' : String(3 * pImg);
         bs.title = pImg == null ? '' : `3 images x ${pImg}`;
       }
+      // Pastille de la case « T-pose » : le supplement par image, quand la grille le connait (comme les autres options, le chiffre est celui de l'option).
+      const labTpose = $('ws-tpose')?.closest('label');
+      if (labTpose) {
+        labTpose.style.display = 'flex';
+        labTpose.style.alignItems = 'center';
+        labTpose.style.gap = '6px';
+        labTpose.style.width = '100%';
+        let bt = labTpose.querySelector(':scope > .opt-cost');
+        if (!bt) {
+          bt = document.createElement('span');
+          bt.className = 'cloud-cost-badge opt-cost';
+          labTpose.appendChild(bt);
+        }
+        bt.textContent = typeof suppGrille === 'number' ? '+' + suppGrille : '';
+        bt.title = typeof suppGrille === 'number' ? `+${suppGrille} credit(s) per image when ticked` : '';
+        bt.style.display = typeof suppGrille === 'number' ? '' : 'none';
+      }
     };
     window.__majPrixImage = recalc;
-    for (const id of ['ws-count', 'ws-quality', 'ws-engine', 'ws-img-buildstages', 'ws-asset-type', 'ws-mv-scope']) {
+    for (const id of ['ws-count', 'ws-quality', 'ws-engine', 'ws-img-buildstages', 'ws-asset-type', 'ws-mv-scope', 'ws-tpose']) {
       const el = $(id);
       el?.addEventListener('change', recalc);
       el?.addEventListener('input', recalc);
