@@ -174,8 +174,10 @@ class ComposeurModal(unittest.TestCase):
         _, neg = R.build_prompts(enrichi, 'character')
         for interdit_a_tort in ('(weapon:1.6)', '(holding weapon:1.6)', '(club:1.4)'):
             self.assertNotIn(interdit_a_tort, neg)
-        for garde in ('(sword:1.5)', '(blade:1.5)', '(second weapon:1.5)', '(dual wielding:1.5)', '(duplicate weapon:1.5)'):
+        for garde in ('(sword:1.5)', '(blade:1.5)', '(second weapon:1.5)', '(duplicate weapon:1.5)'):
             self.assertIn(garde, neg)
+        # le budget de 77 jetons ne bouge pas : « extra characters, bystanders » n'est pas ecarte en plus (avec 3 jetons d'arme il l'etait)
+        self.assertIn('extra characters, bystanders', neg)
         # la securite reste la premiere consigne
         self.assertTrue(neg.startswith('nude, naked, nsfw, undressed'), neg)
 

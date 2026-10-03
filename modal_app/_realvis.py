@@ -175,7 +175,7 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
             from modal_app import composeur_intention as _ci
             if _ci.actif():
                 _intention = _ci.analyser(prompt, asset_type, "")
-                _arm = _ci.composer_negatif_armes(asset_type, _intention, avec_poids=True)
+                _arm = _ci.composer_negatif_armes(asset_type, _intention, avec_poids=True, serre=True)   # budget de 77 jetons : meme nombre de mots qu'avant
                 if _arm and _arm[0]:
                     _armes_neg = _arm[0]
                 # « duplicate objects » n'est pas repris ici : la piece « duplicate, twin... » existe deja et le budget de 77 jetons est serre

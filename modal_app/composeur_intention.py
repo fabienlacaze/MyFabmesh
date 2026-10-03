@@ -58,6 +58,9 @@ POIDS_ARME = {'weapon': 1.6, 'holding weapon': 1.6, 'sword': 1.5, 'blade': 1.5, 
               'spear': 1.5, 'axe': 1.5, 'club': 1.4, 'shield': 1.5, 'bow': 1.4, 'gun': 1.4,
               'staff': 1.3}
 NEG_UNE_SEULE_ARME = ['second weapon', 'dual wielding', 'duplicate weapon']
+# Version SERREE (Modal, text2image : le negatif y est borne a 77 jetons estimes) : meme nombre de mots que les 3 jetons d'arme retires, donc le budget ne bouge pas
+# et « extra characters, bystanders » n'est pas ecarte en plus (constate sur la vraie image Modal le 2026-10-03 avec les 3 jetons).
+NEG_UNE_SEULE_ARME_SERRE = ['second weapon', 'duplicate weapon']
 
 OBJETS_TENUS = ('torch lantern lamp book tome scroll bag sack satchel cup mug goblet bottle flask potion '
                 'flag banner flower bouquet basket umbrella orb skull fish chicken baby phone guitar '
@@ -379,7 +382,7 @@ def composer_gabarit(gabarit, type_actif, intent, regles=None, tpose=True):
 
 
 # ---------------------------------------------------------------- composition du negatif
-def composer_negatif_armes(type_actif, intent, avec_poids=True, regles=None):
+def composer_negatif_armes(type_actif, intent, avec_poids=True, regles=None, serre=False):
     """Remplace la liste des armes interdites aux unites : meme liste, moins ce que l'utilisateur DEMANDE, plus la parade
     « une seule arme » quand une seule arme est nommee. -> (morceau_negatif, retires, ajoutes) ou None (autres types).
     Sans arme nommee, ou « unarmed » : la liste d'origine, inchangee (la regle du 26/09 reste vraie)."""
@@ -395,7 +398,7 @@ def composer_negatif_armes(type_actif, intent, avec_poids=True, regles=None):
         retires = [x for x in toks if x in enlever]
         toks = [x for x in toks if x not in enlever]
         if len(intent['objets']) == 1 and intent['objets'][0]['count'] == 1:
-            ajoutes = list(NEG_UNE_SEULE_ARME)
+            ajoutes = list(NEG_UNE_SEULE_ARME_SERRE if serre else NEG_UNE_SEULE_ARME)
     if avec_poids:
         morceau = ', '.join("(%s:%s)" % (x, POIDS_ARME[x]) for x in toks)
         if ajoutes:
