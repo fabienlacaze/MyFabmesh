@@ -44,7 +44,7 @@ _For journalists, content creators, distributors, and anyone writing about MyFab
 | **Cloud version** | In development (Q3 2026) |
 | **Source code** | github.com/fabienlacaze/MyFabmesh |
 | **Website** | fabienlacaze.github.io/MyFabmesh (custom domain coming) |
-| **Contact** | fabien65400@hotmail.fr |
+| **Contact** | myfabmesh.contact@gmail.com |
 
 ---
 
@@ -111,7 +111,7 @@ Yes, a solo dev (Fabien Lacaze, France, operating under Ayros Studio). Source co
 
 ## Contact
 
-- **Email**: fabien65400@hotmail.fr
+- **Email**: myfabmesh.contact@gmail.com
 - **GitHub**: github.com/fabienlacaze
 - **Website**: fabienlacaze.github.io/MyFabmesh
 

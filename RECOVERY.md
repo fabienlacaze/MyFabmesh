@@ -112,6 +112,16 @@ npm run deploy           # NOT `npx wrangler deploy`: the predeploy guards only 
 ```
 Never put a `| tail` between build and deploy (a failed build would look like
 a success). Needs Cloudflare auth + the bindings in `cloud/wrangler.toml`.
+- **Rollback of a bad deploy** (no rebuild needed; the Worker code AND its static
+  assets come back together, they are one version):
+  ```
+  cd cloud
+  npx wrangler deployments list                       # newest last, with the version ids
+  npx wrangler rollback <version-id> -m "rollback: <reason>"
+  ```
+  Secrets and R2 / Supabase data are NOT rolled back. Then check
+  `curl -s https://<site>/api/health` and the md5 of `/app/index2.js` against `cloud/out/`.
+  To go forward again, fix the code and run the normal build + deploy.
 - Config in git: `cloud/wrangler.toml`, `cloud/next.config.mjs`,
   `cloud/package.json`.
 - **Admin** = `/admin2` (`cloud/public/**`, served by the same Worker), in git.

@@ -59,3 +59,18 @@ test('security.txt', () => {
   assert.match(t, /^Expires: 20\d\d-/m);
   assert.match(t, /^Preferred-Languages: fr, en$/m);
 });
+
+test('_headers : /_next/static/* en cache immutable, et RIEN pour /app/* (pas d\'empreinte dans leur nom)', () => {
+  const r = regles(lire('_headers'));
+  assert.equal(r['/_next/static/*']['cache-control'], 'public, max-age=31536000, immutable');
+  assert.deepEqual(Object.keys(r).filter((k) => k.startsWith('/app')), [], 'aucune regle de cache long pour /app/*');
+});
+
+test('ADM-10 : /admin redirige toujours vers /admin2 (plus de ?ancienne=1) et le pied de /admin2 ne renvoie plus vers l\'ancienne page', () => {
+  const w = readFileSync(new URL('../src/worker.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.ok(!w.includes("searchParams.get('ancienne')"), 'plus de condition ancienne dans le routeur');
+  const i = w.indexOf('/^\\/admin\\/?$/.test(pathname)) {');
+  assert.ok(i > 0, 'redirection de /admin introuvable');
+  assert.ok(w.slice(i, i + 200).includes("status: 302, headers: { location: '/admin2'"), 'la redirection mene a /admin2');
+  assert.ok(!lire('admin2.html').includes('ancienne=1'));
+});

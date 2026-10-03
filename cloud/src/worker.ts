@@ -24798,10 +24798,11 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         return err(404, `no route for ${method} ${pathname}`);
       }
 
-      /* /admin devient /admin2 (2026-10-02, user : « ok go » apres « faut-il rediriger /admin vers /admin2 ? »). L'ancienne page reste
-       * joignable en secours par /admin?ancienne=1 (aucune route d'API ne change : les deux pages parlent aux memes routes). 302, pas 301 :
-       * le navigateur ne doit pas garder la redirection si on revient en arriere. */
-      if ((method === 'GET' || method === 'HEAD') && /^\/admin\/?$/.test(pathname) && url.searchParams.get('ancienne') !== '1') {
+      /* /admin devient /admin2 (2026-10-02, user : « ok go » apres « faut-il rediriger /admin vers /admin2 ? »). 302, pas 301 : le navigateur ne doit pas garder
+       * la redirection si on revient en arriere. 2026-10-03 (constat ADM-10) : l'ancienne page n'est PLUS joignable par /admin?ancienne=1 : c'est une page
+       * d'administration de 5 600 lignes et 99 innerHTML jamais auditee ; du texte saisi par les utilisateurs (messages, prompts) pouvait s'y executer dans le
+       * navigateur de l'administrateur. Le secours en cas de panne de /admin2 est la procedure de RECOVERY.md (wrangler). Le fichier reste dans le depot. */
+      if ((method === 'GET' || method === 'HEAD') && /^\/admin\/?$/.test(pathname)) {
         return new Response(null, { status: 302, headers: { location: '/admin2', 'cache-control': 'no-store' } });
       }
 

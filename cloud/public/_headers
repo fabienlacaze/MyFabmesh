@@ -18,3 +18,8 @@
   X-Frame-Options: DENY
   Content-Security-Policy: frame-ancestors 'none'
   Cache-Control: no-store
+
+# Fichiers de Next nommes par EMPREINTE de leur contenu (/_next/static/chunks/<nom>-<hash>.js...) : jamais modifies, cache d'un an.
+# Volontairement RIEN pour /app/* (build-info.js, styles/*, lib/* ne portent pas d'empreinte) : une interface perimee apres un deploiement serait pire que 35 revalidations.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
