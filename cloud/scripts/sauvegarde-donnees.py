@@ -8,7 +8,11 @@ comptes clients, leurs fichiers et les reglages internes de l'admin) :
   C:/Users/Utilisateur/Desktop/FabWare/MeshyMyself_sauvegardes/<date>/
 
 Reprise : un objet R2 deja present avec la meme taille n'est pas retelecharge.
-Usage (depuis cloud/) : python scripts/sauvegarde-donnees.py
+Usage (depuis cloud/) : python scripts/sauvegarde-donnees.py [--leger]
+
+--leger (2026-10-03) : Supabase COMPLET + comptes auth, mais R2 limite aux prefixes systeme (`_meta/`, `_market/`, `_logs/`...
+= tout prefixe qui commence par « _ » : reglages, journal d'audit, annonces) ; l'INVENTAIRE de tous les objets (cle, taille, date) est ecrit quand meme. Les maillages et
+animations des utilisateurs (17 Go) ne sont pas recopies : a utiliser avant une modification de code ou de configuration qui ne supprime aucun fichier d'utilisateur.
 """
 import concurrent.futures as cf
 import datetime
@@ -31,7 +35,8 @@ for l in io.open('.env.local', encoding='utf-8'):
         k, v = l.split('=', 1)
         cfg[k.strip()] = v.strip().strip('"').strip("'")
 
-jour = datetime.date.today().isoformat()
+LEGER = '--leger' in sys.argv
+jour = datetime.date.today().isoformat() + ('-leger' if LEGER else '')
 dest = os.path.join(DEST_RACINE, jour)
 os.makedirs(dest, exist_ok=True)
 journal = io.open(os.path.join(dest, 'journal.txt'), 'a', encoding='utf-8')
@@ -87,6 +92,10 @@ log(f'r2: {len(objets)} objets, {total / 1e9:.2f} Go')
 racine_r2 = os.path.join(dest, 'r2')
 
 
+def a_copier(o):
+    return not LEGER or o['Key'].startswith('_')
+
+
 def copier(o):
     # « : » est interdit dans un nom de fichier Windows (cles avec une adresse IPv6) :
     # remplace par « %3A » ; la cle d'origine reste dans r2_inventaire.json
@@ -101,14 +110,14 @@ def copier(o):
 
 fait = 0; echecs = []
 with cf.ThreadPoolExecutor(8) as ex:
-    futurs = {ex.submit(copier, o): o['Key'] for o in objets}
+    futurs = {ex.submit(copier, o): o['Key'] for o in objets if a_copier(o)}
     for i, f in enumerate(cf.as_completed(futurs), 1):
         try:
             t, _ = f.result(); fait += t
         except Exception as e:
             echecs.append((futurs[f], str(e)))
-        if i % 100 == 0 or i == len(objets):
-            log(f'r2: {i}/{len(objets)} objets, {fait / 1e9:.2f}/{total / 1e9:.2f} Go')
+        if i % 100 == 0 or i == len(futurs):
+            log(f'r2: {i}/{len(futurs)} objets copies, {fait / 1e9:.2f} Go' + (' (mode leger : prefixes systeme seulement)' if LEGER else f'/{total / 1e9:.2f} Go'))
 io.open(os.path.join(dest, 'r2_inventaire.json'), 'w', encoding='utf-8').write(
     json.dumps([{'cle': o['Key'], 'taille': o['Size'], 'modifie': str(o['LastModified'])} for o in objets], ensure_ascii=False, indent=1))
 log(f'r2 echecs: {len(echecs)}', echecs[:5])
