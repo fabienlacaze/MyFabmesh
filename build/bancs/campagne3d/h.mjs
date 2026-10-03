@@ -1,5 +1,5 @@
 // Banc de la campagne de test des outils du bureau : pilotage (Control API), mesures (duree, VRAM, RAM, GPU, temperature), journal des erreurs, captures.
-import { readFileSync, existsSync, mkdirSync, appendFileSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, appendFileSync, statSync, openSync, readSync, closeSync, writeFileSync } from 'node:fs';
 import { homedir, totalmem, freemem } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -28,9 +28,19 @@ export const jobs = async () => ((await api('GET', '/jobs')).data) || [];
 export const toasts = async () => ((await api('GET', '/ui/toasts')).data) || [];
 export const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function shot(nom, target) {
+  // 2026-10-02 (suite) : au niveau d'acces « standard » de la Control API (« Developer full access » eteint), file= est refuse : l'image revient dans la reponse, on l'ecrit nous-memes.
+  // On demande TOUJOURS sans file= (une premiere capture juste apres l'ouverture d'une fenetre a rendu une image perimee : on la jette et on recommence).
   const f = SHOTS + '/' + nom + '.png';
-  const r = await api('GET', '/ui/shot?file=' + encodeURIComponent(f) + (target ? '&target=' + encodeURIComponent(target) : ''));
-  return r && r.ok ? f : null;
+  try {
+    for (let k = 0; k < 2; k++) {
+      const rr = await fetch(BASE + '/ui/shot' + (target ? '?target=' + encodeURIComponent(target) : ''), { headers: { Authorization: 'Bearer ' + jeton() } });
+      if (!rr.ok || !(rr.headers.get('content-type') || '').includes('image')) { if (k === 1) return null; continue; }
+      const buf = Buffer.from(await rr.arrayBuffer());
+      if (k === 1) { writeFileSync(f, buf); return f; }
+      await dormir(700);
+    }
+  } catch (_) {}
+  return null;
 }
 
 // ---- mesures
