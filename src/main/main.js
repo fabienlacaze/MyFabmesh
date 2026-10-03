@@ -78,6 +78,15 @@ const fs = require('fs');
 const os = require('os');
 // Lineage sidecar <output>.meta.json (Generation History) — best-effort, never throws.
 const { writeMeta, readMeta } = require('./meta');
+// MARQUAGE « GENERE PAR IA » des GLB derives (2026-10-03, reglement UE 2024/1689 art. 50, echeance 2026-12-02) : les outils de maillage,
+// l'editeur, Paint Mesh et le rig reecrivent le GLB et perdaient asset.extras.aiGenerated posee a la generation. Voir src/main/marquage_ia.js.
+const _marquageIA = require('./marquage_ia');
+function _journalMarquageIA(canal, chemin, r) {
+  try {
+    if (r && r.ok && !r.deja) _log('info', '[marquage-ia] ' + canal + ' : GLB marque ' + chemin);
+    else if (r && !r.ok) _log('warn', '[marquage-ia] ' + canal + ' : GLB NON marque (' + r.raison + ') ' + chemin);
+  } catch (_) { /* journal facultatif */ }
+}
 // SUIVI DE LIGNEE DES IMAGES (2026-10-01, user : « il faut que j'aie View generation history sur les versions d'images aussi ») : UN SEUL point d'entree.
 // ipcMain.handle est enveloppe AVANT l'enregistrement des gestionnaires ; pour les canaux qui produisent des images (src/main/lignee_images.js), on lit les
 // arguments EXACTS envoyes au moteur et le resultat, puis on ecrit le sidecar `<image>.meta.json` de chaque image nouvelle (parent, operation, parametres, duree).
@@ -85,7 +94,10 @@ const { writeMeta, readMeta } = require('./meta');
 const _ligneeImages = require('./lignee_images');
 {
   const _handleOrig = ipcMain.handle.bind(ipcMain);
-  ipcMain.handle = (canal, fn) => _handleOrig(canal, _ligneeImages.CANAUX[canal] ? async (evt, ...args) => {
+  ipcMain.handle = (canal, fnBrute) => {
+    // AI Act art. 50 : les canaux qui livrent un GLB sont enveloppes (les autres rendus tels quels) — marquage APRES le retour du gestionnaire.
+    const fn = _marquageIA.envelopper(canal, fnBrute, _journalMarquageIA);
+    return _handleOrig(canal, _ligneeImages.CANAUX[canal] ? async (evt, ...args) => {
     const debut = Date.now();
     const res = await fn(evt, ...args);
     try {
@@ -94,6 +106,7 @@ const _ligneeImages = require('./lignee_images');
     } catch (_) { /* best-effort */ }
     return res;
   } : fn);
+  };
 }
 
 // Force UTF-8 in EVERY spawned Python child. The embedded Windows python
@@ -2734,6 +2747,8 @@ async function handleAutoRigAI(params) {
     safeSend('mcp-job-end', { type: 'rig', success: false, error: 'No output' });
     return { success: false, error: 'Rigged GLB not created' };
   }
+  // AI Act art. 50 (2026-10-03) : le rig (Blender) reecrit le GLB et perd le marquage « genere par IA ».
+  try { _journalMarquageIA('mcp-auto-rig', outputGlb, _marquageIA.marquerGlbIA(outputGlb)); } catch (_) {}
   const stats = fs.statSync(outputGlb);
   safeSend('mcp-job-end', { type: 'rig', success: true, path: outputGlb });
   return { success: true, path: outputGlb, filename: path.basename(outputGlb), size: stats.size };

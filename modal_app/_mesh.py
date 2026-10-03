@@ -845,7 +845,17 @@ def _patch_ai_act_metadata(glb_bytes: bytes) -> bytes:
     """Inject asset.extras.aiGenerated + asset.generator into the JSON
     chunk of a GLB. Returns a new GLB byte string. Compatible with the
     desktop `add_ai_metadata.py` so the cloud output is interchangeable
-    with the desktop output."""
+    with the desktop output.
+
+    2026-10-03 (AI Act art. 50) : la logique vit desormais dans modal_app/_marquage_ia.py, partagee avec
+    toutes les operations qui produisent un GLB derive (meme resultat qu'avant pour la generation,
+    verifie par build/bancs/noyaux/test_marquage_modal.py). Le corps ci-dessous ne sert plus que de repli
+    si le module est introuvable : la generation ne doit jamais perdre son marquage."""
+    try:
+        from modal_app._marquage_ia import marquer_glb_octets
+        return marquer_glb_octets(glb_bytes)
+    except ImportError:
+        pass
     import struct, json
     if len(glb_bytes) < 12 or glb_bytes[:4] != b'glTF':
         return glb_bytes

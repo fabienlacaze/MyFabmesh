@@ -56,6 +56,16 @@ def _faces_glb(entete: bytes) -> int:
         return -1
 
 
+def _marquer(octets):
+    """2026-10-03 (AI Act art. 50) : le GLB livre porte le marquage « genere par IA » (module partage modal_app/_marquage_ia.py ; ne leve jamais :
+    au moindre doute, le fichier est rendu tel quel)."""
+    try:
+        from modal_app._marquage_ia import marquer_glb_octets
+        return marquer_glb_octets(octets)
+    except Exception:
+        return octets
+
+
 @app.function(
     image=image,
     cpu=4.0,
@@ -103,7 +113,7 @@ def faire_leger(job_id: str, mesh_url: str, cible: int = CIBLE_FACES):
         if p.returncode != 0 or not os.path.isfile(dst):
             raise RuntimeError((p.stderr or p.stdout)[-300:] or f"node code {p.returncode}")
         with open(dst, "rb") as f:
-            _fin("glb", f.read())
+            _fin("glb", _marquer(f.read()))   # AI Act art. 50 : la version legere porte aussi le marquage
         print(f"[lod] version legere en {time.time() - t0:.0f} s", flush=True)
     except Exception as e:
         print(f"[lod] ECHEC : {e}", flush=True)
@@ -140,7 +150,7 @@ def reporter_peau(job_id: str, rig_leger_url: str, maillage_url: str):
         leger = _lire(rig_leger_url)
         plein = _lire(maillage_url)
         print(f"[report] rig leger {len(leger) / 1e6:.0f} Mo, maillage complet {len(plein) / 1e6:.0f} Mo", flush=True)
-        out = tp.transferer_peau(leger, plein, log=lambda m: print(m, flush=True))
+        out = _marquer(tp.transferer_peau(leger, plein, log=lambda m: print(m, flush=True)))   # AI Act art. 50 : export pleine resolution du rig, livrable de l'utilisateur
         _fin("glb", out)
         print(f"[report] rig pleine resolution : {len(out) / 1e6:.0f} Mo en {time.time() - t0:.0f} s", flush=True)
     except Exception as e:
@@ -174,7 +184,7 @@ def reporter_texture(job_id: str, peint_url: str, maillage_url: str):
     try:
         from modal_app import transfert_peau as tp
         t0 = time.time()
-        out = tp.fusionner_textures(_lire(maillage_url), _lire(peint_url), log=lambda m: print(m, flush=True))
+        out = _marquer(tp.fusionner_textures(_lire(maillage_url), _lire(peint_url), log=lambda m: print(m, flush=True)))   # AI Act art. 50
         _fin("glb", out)
         print(f"[texture] fichier complet mis a jour : {len(out) / 1e6:.0f} Mo en {time.time() - t0:.0f} s", flush=True)
     except Exception as e:

@@ -119,6 +119,9 @@
       }
       function signaler(msg, e, type) {
         logBoot(type + ': ' + msg);
+        // 2026-10-03 : notification BENIGNE du navigateur (la mise en page a bouge pendant le rendu, l'observation est livree a l'image suivante, rien n'est perdu) :
+        // elle affichait « An error occurred in the app » (essai de Paint Mesh) ; ni bandeau ni ecran bloquant, elle reste dans le journal ci-dessus.
+        if (/ResizeObserver loop (completed with undelivered notifications|limit exceeded)/i.test(String(msg))) return;
         if (bootFini) banniere(msg, e); else ecranBloquant(msg, e);
       }
       window.addEventListener('error', function (e) {

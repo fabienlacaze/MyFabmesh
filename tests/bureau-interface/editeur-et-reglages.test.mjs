@@ -169,3 +169,20 @@ test('Traductions : le libelle Fast (24 steps) existe dans les 5 langues', () =>
   assert.equal((t.match(/"Fast \(24 steps · 2048px\)":/g) || []).length, 5);
   assert.equal((t.match(/"Fast \(12 steps · 2048px\)":/g) || []).length, 5, 'libelle Re-texture (12 pas) traduit lui aussi');
 });
+
+test('Garde-fou global : « ResizeObserver loop » (notification benigne) n\'affiche ni bandeau ni ecran bloquant, mais reste journalisee', () => {
+  const i = HTML.indexOf('function signaler(msg, e, type) {');
+  assert.ok(i > 0, 'signaler introuvable');
+  const corps = HTML.slice(i, i + 900);
+  const iLog = corps.indexOf('logBoot(');
+  const iFiltre = corps.indexOf('ResizeObserver loop');
+  const iBandeau = corps.indexOf('banniere(msg, e)');
+  assert.ok(iLog >= 0 && iFiltre > iLog && iBandeau > iFiltre, 'ordre : journal, filtre, puis banniere / ecran bloquant');
+  // le filtre reconnait les deux libelles du navigateur
+  const m = /if \((\/ResizeObserver[^\n]*?\/i)\.test\(String\(msg\)\)\) return;/.exec(corps);
+  assert.ok(m, 'filtre introuvable');
+  const re = new Function('return ' + m[1])();
+  assert.ok(re.test('ResizeObserver loop completed with undelivered notifications.'));
+  assert.ok(re.test('ResizeObserver loop limit exceeded'));
+  assert.ok(!re.test('TypeError: x is not a function'));
+});

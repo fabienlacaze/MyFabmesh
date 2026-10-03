@@ -199,5 +199,11 @@ def retexturer(pipeline, mesh_bytes: bytes, images: list, preset: str = 'fast',
     else:
         raise RuntimeError('le pipeline de texturation n a rendu aucun maillage exportable')
     out = buf.getvalue()
+    # 2026-10-03 (AI Act art. 50) : la re-texture sort d'un export trimesh, qui jette le marquage IA.
+    try:
+        from modal_app._marquage_ia import marquer_glb_octets
+        out = marquer_glb_octets(out)
+    except Exception:
+        pass
     log(f'TOTAL {time.time() - t0:.1f}s, {len(out)} octets')
     return out

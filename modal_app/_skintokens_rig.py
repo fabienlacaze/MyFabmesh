@@ -443,6 +443,14 @@ def rig_mesh(glb_bytes: bytes, job_id: str | None = None, complet: bool | None =
         del final
         print(f"[skintokens] peau reportee sur l'original en {time.time() - t_t:.0f} s", flush=True)
     data = open(out, "rb").read()
+    # 2026-10-03 (AI Act art. 50) : le rig sort de Blender (generator « Khronos glTF Blender I/O », extras
+    # perdus) : on remet le marquage IA du maillage genere. Le chunk binaire (os, poids, textures) est
+    # recopie octet pour octet ; ne leve jamais, rend l'entree au moindre doute.
+    try:
+        from modal_app._marquage_ia import marquer_glb_octets
+        data = marquer_glb_octets(data)
+    except Exception as _e:
+        print(f"[skintokens] marquage IA ignore : {_e}", flush=True)
     print(f"[skintokens] TERMINE en {time.time()-t0:.1f}s — {len(data)} octets", flush=True)
 
     if job_id:

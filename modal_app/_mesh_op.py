@@ -25,12 +25,26 @@ def _load_scene(glb_bytes: bytes):
     return trimesh.load(io.BytesIO(glb_bytes), file_type='glb', force='scene')
 
 
+def _marquer_ia(octets):
+    """2026-10-03 (AI Act art. 50) : marque le GLB comme genere par IA (asset.generator + asset.extras).
+
+    POURQUOI : trimesh remplace asset.generator par le sien et jette asset.extras a l'export ; toute
+    operation de maillage (Smooth, Triangle count, Watertight, Fix normals...) faisait donc perdre le
+    marquage pose a la generation. Repli silencieux si le module manque : jamais de plantage d'une
+    operation pour un marquage."""
+    try:
+        from modal_app._marquage_ia import marquer_glb_octets
+        return marquer_glb_octets(octets)
+    except Exception:
+        return octets
+
+
 def _export(scene) -> bytes:
     """Serialize scene back to GLB bytes, preserving WebP textures."""
     buf = io.BytesIO()
     from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
     scene.export(buf, file_type='glb', extension_webp=True)
-    return buf.getvalue()
+    return _marquer_ia(buf.getvalue())     # 2026-10-03 (AI Act art. 50) : le derive reste marque
 
 
 def _meshes(scene):
@@ -1552,6 +1566,14 @@ OPS = {
 
 
 def run(op_type: str, glb_bytes: bytes, params: dict | None = None):
+    """Point d'entree unique. 2026-10-03 (AI Act art. 50) : le resultat est marque une derniere fois ici,
+    pour les operations qui n'exportent pas par `_export` (align_texture rend le fichier de
+    texture_project.py, apercu rend aussi des images). Idempotent : une sortie deja marquee est inchangee."""
+    sortie, stats = _executer(op_type, glb_bytes, params)
+    return _marquer_ia(sortie), stats
+
+
+def _executer(op_type: str, glb_bytes: bytes, params: dict | None = None):
     """Single entry point — the worker passes op_type + GLB bytes +
     params, we route to the right helper above and return a
     (bytes, stats|None) tuple. fill_holes populates stats with a

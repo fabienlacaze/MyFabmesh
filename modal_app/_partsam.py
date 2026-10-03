@@ -271,9 +271,21 @@ image = (
             modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"]),
         ],
     )
+    # 2026-10-03 (AI Act art. 50) : paquet modal_app (couche locale legere) pour le module de marquage IA
+    .add_local_python_source("modal_app")
 )
 
 app = modal.App("myfabmesh-partsam", image=image)
+
+
+def _marquer(octets):
+    """2026-10-03 (AI Act art. 50) : le GLB livre porte le marquage « genere par IA » (module partage modal_app/_marquage_ia.py ; ne leve jamais :
+    au moindre doute, le fichier est rendu tel quel)."""
+    try:
+        from modal_app._marquage_ia import marquer_glb_octets
+        return marquer_glb_octets(octets)
+    except Exception:
+        return octets
 
 # Volume pour persister les sorties async (GLB segmenté), même pattern que
 # _sampart3d / _puppeteer_rig : segment-start spawn → segment-status poll →
@@ -1414,7 +1426,7 @@ def _run_segment_pipeline(glb_bytes: bytes, tmp_dir: str, granularity: float,
         if not os.path.isfile(out_glb) or os.path.getsize(out_glb) == 0:
             raise RuntimeError("export du GLB segmenté vide")
         with open(out_glb, "rb") as f:
-            out_bytes = f.read()
+            out_bytes = _marquer(f.read())   # AI Act art. 50 : le maillage segmente porte le marquage « genere par IA »
         _log(f"TOTAL dt={time.time()-t_total:.1f}s  glb={len(out_bytes)} bytes "
              f" parties={n_parts}  (iou={iou} nms={nms})")
         return out_bytes

@@ -64,6 +64,7 @@ const LIVRES = [
   'src/main/budget_memoire.js',
   'src/main/durcissement.js',
   'src/main/registre_processus.js',
+  'src/main/marquage_ia.js',
   'cloud/public/app/i18n.js',
   'src/renderer/lang/_additions.js',
   'src/renderer/lang/_additions2.js',

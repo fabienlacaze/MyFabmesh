@@ -219,4 +219,11 @@ def apply_face_fix(
     out_buf = io.BytesIO()
     from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
     scene.export(out_buf, file_type='glb', extension_webp=True)
-    return out_buf.getvalue()
+    sortie = out_buf.getvalue()
+    # 2026-10-03 (AI Act art. 50) : l'export trimesh jette le marquage IA du fichier d'entree.
+    try:
+        from modal_app._marquage_ia import marquer_glb_octets
+        sortie = marquer_glb_octets(sortie)
+    except Exception:
+        pass
+    return sortie

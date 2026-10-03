@@ -323,6 +323,17 @@ def _png_response(img):
     return Response(content=buf.getvalue(), media_type="image/png")
 
 
+def _marquer_ia(octets):
+    """2026-10-03 (AI Act art. 50, reglement UE 2024/1689) : marque un GLB DERIVE comme genere par IA.
+    Tout re-export (trimesh, Blender, three.js) jette asset.extras ; le livrable perdait son marquage.
+    Idempotent, ne leve jamais, rend l'entree au moindre doute (non-GLB, FBX/OBJ... : inchanges)."""
+    try:
+        from modal_app._marquage_ia import marquer_glb_octets
+        return marquer_glb_octets(octets)
+    except Exception:
+        return octets
+
+
 def _erreur_telechargement(quoi, exc):
     """2026-10-03 (constat CLOUD-05) : le texte de l'exception d'un telechargement ne revient plus au client
     (oracle d'existence d'adresses internes) ; il est journalise cote serveur."""
@@ -1971,7 +1982,7 @@ class MyFabmeshBackview:
         buf = io.BytesIO()
         from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
         scene.export(buf, file_type="glb", extension_webp=True)
-        out = buf.getvalue()
+        out = _marquer_ia(buf.getvalue())      # 2026-10-03 (AI Act art. 50)
         print(f"[texvar] {faits} atlas, force={force} graine={graine} "
               f"style={style!r} en {time.time() - t0:.1f}s", flush=True)
         return {"ok": True, "op_type": "texture_var", "bytes": len(out),
@@ -2028,7 +2039,7 @@ class MyFabmeshBackview:
         buf = io.BytesIO()
         from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
         scene.export(buf, file_type="glb", extension_webp=True)
-        out = buf.getvalue()
+        out = _marquer_ia(buf.getvalue())      # 2026-10-03 (AI Act art. 50)
         print(f"[enhance-tex] {faits} atlas ({', '.join(tailles)}) "
               f"en {time.time() - t0:.1f}s", flush=True)
         return {"ok": True, "op_type": "enhance_tex", "bytes": len(out),
@@ -2201,7 +2212,7 @@ class MyFabmeshBackview:
         buf = io.BytesIO()
         from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
         scene.export(buf, file_type="glb", extension_webp=True)
-        out = buf.getvalue()
+        out = _marquer_ia(buf.getvalue())      # 2026-10-03 (AI Act art. 50)
         print(f"[region-retex] zone {couverture * 100:.1f}% de l'atlas, force={force} "
               f"en {time.time() - t0:.1f}s", flush=True)
         return {"ok": True, "op_type": "region_retex", "bytes": len(out),
@@ -2885,6 +2896,19 @@ class MyFabmeshMesh:
             sortie = os.path.join(dossier, "sortie.glb")
             mi.assembler(maillage, masque, cadre, piece_glb, sortie, faces)
             shutil.copyfile(sortie, out_path)
+            # 2026-10-03 (AI Act art. 50) : l'assemblage re-exporte le maillage (marquage perdu).
+            try:
+                with open(out_path, "rb") as _f:
+                    _avant = _f.read()
+                _apres = _marquer_ia(_avant)
+                if _apres is not _avant:
+                    _tmp_out = out_path + ".marque.tmp"
+                    with open(_tmp_out, "wb") as _f:
+                        _f.write(_apres)
+                    os.replace(_tmp_out, out_path)     # remplacement atomique : jamais de fichier tronque
+                del _avant, _apres
+            except Exception as _e:
+                print(f"[reshape] marquage IA ignore : {_e}", flush=True)
             mesh_output_volume.commit()
             print(f"[reshape] DONE job={job_id} dt={time.time() - t0:.1f}s bytes={os.path.getsize(out_path)}", flush=True)
         except BaseException as e:            # mesh_inpaint signale ses echecs par SystemExit
@@ -3097,6 +3121,10 @@ class MyFabmeshMesh:
                               f"{time.time()-_t:.1f}s bytes={len(glb_bytes)}", flush=True)
                 except Exception as _e:
                     print(f"[mesh] ultra 8K ignore : {_e}", flush=True)
+
+            # 2026-10-03 (AI Act art. 50) : l'affinage, le face fix et l'Ultra 8K re-exportent par trimesh,
+            # qui jette le marquage pose par generate(). On le remet ICI, une fois, sur le fichier livre.
+            glb_bytes = _marquer_ia(glb_bytes)
 
             # TELEVERSEMENT DIRECT DANS R2 (2026-09-29). Avant : GLB ecrit sur le volume, commit, puis
             # le worker le relisait par /mesh_fetch et le recopiait dans R2 — 327 Mo (10 M de faces)
@@ -3348,6 +3376,7 @@ def mesh_router():
             job_id = uuid.uuid4().hex
             sizes = []
             for i, blob in enumerate(stages):
+                blob = _marquer_ia(blob)       # 2026-10-03 (AI Act art. 50) : etapes derivees d'un maillage genere
                 with open(f"/data/{job_id}_c3d_{i}.glb", "wb") as f:
                     f.write(blob)
                 sizes.append(len(blob))
@@ -3683,6 +3712,10 @@ def mesh_router():
         # timeout must accommodate.
         try:
             out, ext = blender_convert.remote(src, fmt)
+            if ext == "glb":
+                # 2026-10-03 (AI Act art. 50) : Blender re-exporte le GLB (marquage perdu). Les autres
+                # formats (FBX, OBJ, STL, USD...) ne peuvent pas porter ce marquage : inchanges.
+                out = _marquer_ia(out)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:

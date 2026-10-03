@@ -800,6 +800,27 @@ def _sanitize_for_export(geoms):
                 del va[key]
 
 
+def _marquer_ia(chemin):
+    """Marque le GLB produit comme genere par IA (AI Act art. 50, 2026-10-03).
+
+    POURQUOI : trimesh reecrit asset.generator (« https://github.com/mikedh/trimesh »)
+    et perd asset.extras.aiGenerated posees a la generation : apres Smooth, Triangle
+    count, Watertight, Fix normals... le livrable n'etait plus marque. Jamais fatal :
+    un echec est journalise, le fichier d'origine reste intact. Les FBX / OBJ / STL
+    ne portent pas ce marquage et ne sont pas traites."""
+    try:
+        if not str(chemin).lower().endswith('.glb') or not os.path.exists(chemin):
+            return False
+        from add_ai_metadata import patch_glb
+        ok = patch_glb(chemin)
+        if not ok:
+            log(f'AI Act art. 50 : marquage IA non applique a {os.path.basename(chemin)}')
+        return bool(ok)
+    except Exception as e:
+        log(f'AI Act art. 50 : marquage IA ignore ({type(e).__name__}: {e})')
+        return False
+
+
 def _export(scene, geoms, output_path):
     """Export mesh(es) to GLB.
 
@@ -846,6 +867,7 @@ def _export(scene, geoms, output_path):
             except Exception:
                 pass
         _do()
+    _marquer_ia(output_path)
 
 
 if __name__ == '__main__':
@@ -897,6 +919,9 @@ if __name__ == '__main__':
     try:
         t0 = time.time()
         ops[op]()
+        # Sorties qui ne passent pas par _export (sous-processus : subdivide, scellage, retexture,
+        # variantes de texture) : meme marquage, idempotent si _export l'a deja fait.
+        _marquer_ia(out)
         log(f'{op} done in {time.time()-t0:.1f}s')
         log(f'output: {out} ({os.path.getsize(out)} bytes)')
     except Exception as e:
