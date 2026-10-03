@@ -165,6 +165,23 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
     # repetitions (CLIP de-dupes identical token IDs in attention —
     # repetition does NOT brute-force weighting at guidance_scale 9.5).
     # Total budget: <=77 CLIP tokens (verified by tests).
+    # COMPOSEUR D'INTENTION (2026-10-03) : ce que l'utilisateur DEMANDE n'est plus interdit. Une unite qui tient « a massive spiked club »
+    # ne recoit plus « (weapon:1.6), (holding weapon:1.6), (club:1.4) » en negatif, et une seule arme est protegee (« second weapon »).
+    # Sans arme nommee, ou « unarmed » : la liste d'origine, a l'octet. Les autres types ne sont pas concernes.
+    _armes_neg = _ARMES_NEG.get(asset_type or "", "")
+    _extra_neg = ""
+    if asset_type in ('character', 'other_living'):
+        try:
+            from modal_app import composeur_intention as _ci
+            if _ci.actif():
+                _intention = _ci.analyser(prompt, asset_type, "")
+                _arm = _ci.composer_negatif_armes(asset_type, _intention, avec_poids=True)
+                if _arm and _arm[0]:
+                    _armes_neg = _arm[0]
+                # « duplicate objects » n'est pas repris ici : la piece « duplicate, twin... » existe deja et le budget de 77 jetons est serre
+                _extra_neg = ", ".join(x for x in _ci.negatifs_extra(asset_type, _intention)[0] if x != "duplicate objects")
+        except Exception as _e:   # le composeur ne doit jamais empecher une generation
+            print(f"[prompt] composeur d'intention ignore ({type(_e).__name__}: {_e})", flush=True)
     anatomy = _ANATOMY_NEG.get(asset_type or "") if asset_type else ""
     if asset_type in ('animal', 'creature'):                  # gabarit sans_pattes / poisson present ?
         _pl = (prompt or '').lower()
@@ -210,11 +227,13 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
         # et consomme seulement le budget — meme lecon que les triples
         # « close-up, portrait, headshot » retires a cote.
         "cast shadow, soft shadow, ambient occlusion",
-        # Les armes, pour les unites : voir _ARMES_NEG.
-        _ARMES_NEG.get(asset_type or "", ""),
+        # Les armes, pour les unites : voir _ARMES_NEG (adaptee a ce que l'utilisateur demande : composeur d'intention).
+        _armes_neg,
         # L'anatomie propre au type d'asset — c'est elle qui corrige les
         # cinq pattes et les ailes manquantes.
         anatomy.rstrip(', ') if anatomy else '',
+        # Objet tenu : pas deux fois le meme (composeur d'intention) ; vide sans objet tenu.
+        _extra_neg,
         # Anti-doublement : deux sujets dans une image la rendent inutilisable.
         "duplicate, twin, split image, collage, side by side",
         # Cadrage : un buste ne fait pas un mesh complet.

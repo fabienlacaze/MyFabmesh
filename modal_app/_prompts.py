@@ -207,6 +207,20 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
     style = style_prefix if _absent(style_prefix) else ''
     prefixe = type_prefix if _absent(type_prefix) else ''
     gabarit = type_suffix if _absent(type_suffix) else ''
+    # COMPOSEUR D'INTENTION (2026-10-03, modal_app/composeur_intention.py = scripts/composeur_intention.py ; jumeau JS lib/composeur-intention.js,
+    # meme ordre que buildFullPrompt). Une unite qui TIENT quelque chose recevait un gabarit qui disait l'inverse (« empty open hands »,
+    # « symmetric ») : 0 image sur 4 n'avait qu'une arme sur l'orc. On adapte le gabarit et on pose une clause precise apres le texte, SEULEMENT
+    # quand c'est nous qui ajoutons le gabarit : un client qui l'a deja ajoute l'a deja compose. Sans objet tenu : rien ne change.
+    clause = ''
+    if asset_type in _TYPES_UNITE and gabarit:
+        try:
+            from modal_app import composeur_intention as _ci
+            if _ci.actif():
+                _intention = _ci.analyser(user_prompt, asset_type, asset_style)
+                gabarit = _ci.composer_gabarit(gabarit, asset_type, _intention)[0]
+                clause = _ci.clause_objet_tenu(_intention) or ''
+        except Exception as _e:   # le composeur ne doit jamais empecher une generation
+            print(f"[prompt] composeur d'intention ignore ({type(_e).__name__}: {_e})", flush=True)
     if asset_type in _TYPES_UNITE:
         # UNITES : le SUJET EN TETE, et son EPOQUE rendue visible (2026-09-26).
         # Mesures (banc modal_app/test_prompts_unites.py, graines fixes) :
@@ -222,7 +236,7 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str) -
         # Texte DEJA enrichi (gabarit present : appli de bureau en mode Cloud) : l'epoque y est deja rendue ; la refaire
         # ponderait le mot dans la tenue (« (medieval:1.4) linen... ») et recollait la tenue en fin de prompt.
         texte, tenue = (user_prompt, '') if (type_suffix and not gabarit) else _epoque_unite(user_prompt)
-        parts = [p for p in (prefixe, texte, tenue, style, gabarit) if p]
+        parts = [p for p in (prefixe, texte, tenue, clause, style, gabarit) if p]
     else:
         parts = [p for p in (style, prefixe, user_prompt, gabarit) if p]
     return ', '.join(parts)

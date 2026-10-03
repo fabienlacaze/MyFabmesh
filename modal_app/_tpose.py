@@ -105,6 +105,24 @@ def generate(
     pipe.set_ip_adapter_scale(ip_scale) is called and the IP-Adapter
     image is passed; otherwise the IPAdapter branch is skipped (set to 0)."""
     full_prompt = prompt.strip().rstrip('.,') + FRONT_PROMPT_TAIL
+    negatif = NEG
+    # COMPOSEUR D'INTENTION (2026-10-03) : quand le texte fait TENIR quelque chose, la queue ne reclame plus une « symmetric T-pose » ni des
+    # « open hands », et le negatif ne reprend plus « holding objects » (le chemin T-pose recoit le prompt ENRICHI du client, dont le texte
+    # contient l'objet tenu). Sans objet tenu : queue et negatif identiques a l'octet.
+    try:
+        from modal_app import composeur_intention as _ci
+        if _ci.actif():
+            _intention = _ci.analyser(prompt, 'character', '')
+            if _intention['objets']:
+                full_prompt = (prompt.strip().rstrip('.,')
+                               + FRONT_PROMPT_TAIL.replace('symmetric T-pose', 'T-pose')
+                                                  .replace('open hands held away from the body', 'hands held away from the body'))
+                _ajout = ['duplicate objects']
+                if len(_intention['objets']) == 1 and _intention['objets'][0]['count'] == 1 and _intention['arme_nommee']:
+                    _ajout += list(_ci.NEG_UNE_SEULE_ARME)
+                negatif = _ci.ajouter_jetons(_ci.retirer_jetons(NEG, ['holding objects']), _ajout, en_tete=False)
+    except Exception as _e:   # le composeur ne doit jamais empecher une generation
+        print(f"[tpose] composeur d'intention ignore ({type(_e).__name__}: {_e})", flush=True)
     base_kwargs = {
         'image': skel_img,
         'controlnet_conditioning_scale': cn_scale,
@@ -137,12 +155,12 @@ def generate(
     # back to truncated prompts if Compel is unavailable.
     try:
         from modal_app._sdxl_prompt_utils import encode_sdxl_long_prompt
-        embeds = encode_sdxl_long_prompt(pipe, full_prompt, NEG)
+        embeds = encode_sdxl_long_prompt(pipe, full_prompt, negatif)
         img = pipe(**embeds, **base_kwargs).images[0]
     except Exception as _ce:
         print(f'[_tpose] Compel fallback ({_ce}); using truncated prompts',
               flush=True)
         img = pipe(
-            prompt=full_prompt, negative_prompt=NEG, **base_kwargs,
+            prompt=full_prompt, negative_prompt=negatif, **base_kwargs,
         ).images[0]
     return remove_bg_and_center(img, size=size)
