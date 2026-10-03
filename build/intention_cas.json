@@ -1,0 +1,1044 @@
+[
+ {
+  "id": "01",
+  "texte": "An orc warrior covered in blood, holding a massive spiked club, grim dark fantasy style",
+  "type": "character",
+  "style": "dark-fantasy",
+  "attendu": {
+   "held": [
+    [
+     "club",
+     1,
+     null
+    ]
+   ],
+   "flags": {
+    "arme_nommee": true
+   },
+   "tpl_not": [
+    "empty open hands",
+    "symmetric",
+    "clean silhouette"
+   ],
+   "neg_retire": [
+    "club",
+    "weapon",
+    "holding weapon"
+   ],
+   "neg_ajout": [
+    "dual wielding"
+   ],
+   "clause_has": [
+    "holding exactly one massive spiked club in the right hand, left hand open and empty"
+   ],
+   "tpl_has": [
+    "entire figure and held item fully visible"
+   ]
+  }
+ },
+ {
+  "id": "02",
+  "texte": "A knight with a sword in his left hand",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "sword",
+     1,
+     "left"
+    ]
+   ],
+   "neg_retire": [
+    "sword",
+    "blade"
+   ],
+   "clause_has": [
+    "in the left hand, right hand open and empty"
+   ]
+  }
+ },
+ {
+  "id": "03",
+  "texte": "A knight holding a sword and a shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "sword",
+     1,
+     null
+    ],
+    [
+     "shield",
+     1,
+     null
+    ]
+   ],
+   "neg_retire": [
+    "sword",
+    "shield"
+   ],
+   "clause_has": [
+    "holding sword in the right hand and shield in the left hand"
+   ]
+  }
+ },
+ {
+  "id": "04",
+  "texte": "A wizard holding a wooden staff",
+  "type": "character",
+  "style": "stylized",
+  "attendu": {
+   "held": [
+    [
+     "staff",
+     1,
+     null
+    ]
+   ],
+   "neg_retire": [
+    "staff"
+   ]
+  }
+ },
+ {
+  "id": "05",
+  "texte": "A samurai wielding two katanas",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "sword",
+     2,
+     null
+    ]
+   ],
+   "neg_retire": [
+    "sword"
+   ],
+   "clause_has": [
+    "holding exactly two katanas, one in each hand"
+   ]
+  }
+ },
+ {
+  "id": "06",
+  "texte": "A gunslinger dual wielding pistols",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "gun",
+     2,
+     null
+    ]
+   ],
+   "clause_has": [
+    "one in each hand"
+   ]
+  }
+ },
+ {
+  "id": "07",
+  "texte": "A barbarian carrying an axe over his shoulder",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "axe",
+     1,
+     null
+    ]
+   ],
+   "neg_retire": [
+    "axe"
+   ]
+  }
+ },
+ {
+  "id": "08",
+  "texte": "A farmer holding a pitchfork",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     null,
+     1,
+     null
+    ]
+   ],
+   "flags": {
+    "arme_nommee": false
+   },
+   "neg_retire": [
+    "holding objects"
+   ],
+   "clause_has": [
+    "holding exactly one pitchfork"
+   ]
+  }
+ },
+ {
+  "id": "09",
+  "texte": "A pirate holding a torch",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     null,
+     1,
+     null
+    ]
+   ],
+   "flags": {
+    "arme_nommee": false
+   }
+  }
+ },
+ {
+  "id": "10",
+  "texte": "A little girl holding a teddy bear",
+  "type": "character",
+  "style": "cartoon",
+  "attendu": {
+   "held": [
+    [
+     null,
+     1,
+     null
+    ]
+   ],
+   "flags": {
+    "style_non_photo": true
+   },
+   "clause_has": [
+    "teddy bear"
+   ]
+  }
+ },
+ {
+  "id": "11",
+  "texte": "A monk, unarmed, empty-handed",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [],
+   "flags": {
+    "sans_arme": true
+   },
+   "neg_retire": [],
+   "tpl_has": [
+    "empty open hands"
+   ]
+  }
+ },
+ {
+  "id": "12",
+  "texte": "A knight without a weapon",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [],
+   "flags": {
+    "sans_arme": true
+   }
+  }
+ },
+ {
+  "id": "13",
+  "texte": "A warrior, no weapons",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [],
+   "flags": {
+    "sans_arme": true
+   }
+  }
+ },
+ {
+  "id": "14",
+  "texte": "A soldier sitting on a chair",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "pose_libre": true
+   },
+   "tpl_not": [
+    "T-pose",
+    "arms extended horizontally",
+    "legs apart"
+   ],
+   "neg_retire": [
+    "crouching",
+    "bent legs"
+   ]
+  }
+ },
+ {
+  "id": "15",
+  "texte": "A girl with arms crossed",
+  "type": "character",
+  "style": "anime",
+  "attendu": {
+   "flags": {
+    "pose_libre": true
+   },
+   "tpl_not": [
+    "T-pose"
+   ]
+  }
+ },
+ {
+  "id": "16",
+  "texte": "A boy riding a horse",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "pose_libre": true
+   }
+  }
+ },
+ {
+  "id": "17",
+  "texte": "A rogue crouching in the dark",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "pose_libre": true
+   },
+   "neg_retire": [
+    "crouching"
+   ]
+  }
+ },
+ {
+  "id": "18",
+  "texte": "A ninja running",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "pose_libre": true
+   }
+  }
+ },
+ {
+  "id": "19",
+  "texte": "A warrior in a combat stance",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "pose_libre": true
+   },
+   "neg_retire": [
+    "combat stance"
+   ]
+  }
+ },
+ {
+  "id": "20",
+  "texte": "A king, back view",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "vue": "back view"
+   },
+   "tpl_not": [
+    "strict front view",
+    "facing camera"
+   ],
+   "neg_retire": [
+    "back view"
+   ],
+   "tpl_has": [
+    "back view, seen from behind"
+   ]
+  }
+ },
+ {
+  "id": "21",
+  "texte": "A dragon seen from the side",
+  "type": "creature",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "vue": "from the side"
+   },
+   "tpl_has": [
+    "side view, in profile"
+   ]
+  }
+ },
+ {
+  "id": "22",
+  "texte": "A castle, aerial view",
+  "type": "building",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "vue": "aerial view"
+   },
+   "neg_retire": [
+    "aerial view"
+   ]
+  }
+ },
+ {
+  "id": "23",
+  "texte": "A robot with glowing eyes",
+  "type": "character",
+  "style": "cyberpunk",
+  "attendu": {
+   "flags": {
+    "non_humain": true
+   },
+   "tpl_not": [
+    "fully clothed"
+   ]
+  }
+ },
+ {
+  "id": "24",
+  "texte": "A skeleton warrior",
+  "type": "character",
+  "style": "horror",
+  "attendu": {
+   "flags": {
+    "non_humain": true
+   },
+   "tpl_not": [
+    "fully clothed"
+   ]
+  }
+ },
+ {
+  "id": "25",
+  "texte": "A stone golem",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "non_humain": true
+   },
+   "tpl_not": [
+    "fully clothed"
+   ]
+  }
+ },
+ {
+  "id": "26",
+  "texte": "A three-headed dog",
+  "type": "animal",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "parties": {
+     "head": 3
+    }
+   },
+   "neg_retire": [
+    "two heads"
+   ],
+   "tpl_has": [
+    "exactly 3 heads"
+   ]
+  }
+ },
+ {
+  "id": "27",
+  "texte": "A spider-woman with four arms",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "parties": {
+     "arm": 4
+    }
+   },
+   "neg_retire": [
+    "three arms",
+    "extra arms"
+   ],
+   "tpl_has": [
+    "exactly 4 arms"
+   ]
+  }
+ },
+ {
+  "id": "28",
+  "texte": "A dragon with six legs",
+  "type": "creature",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "parties": {
+     "leg": 6
+    }
+   },
+   "neg_retire": [
+    "six legs"
+   ]
+  }
+ },
+ {
+  "id": "29",
+  "texte": "An angel with six wings",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "parties": {
+     "wing": 6
+    }
+   },
+   "tpl_has": [
+    "exactly 6 wings"
+   ]
+  }
+ },
+ {
+  "id": "30",
+  "texte": "A one-eyed cyclops",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "parties": {
+     "eye": 1
+    }
+   },
+   "tpl_has": [
+    "exactly 1 eye"
+   ]
+  }
+ },
+ {
+  "id": "31",
+  "texte": "A two-headed ogre",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "parties": {
+     "head": 2
+    }
+   },
+   "neg_retire": [
+    "two heads"
+   ]
+  }
+ },
+ {
+  "id": "32",
+  "texte": "A pair of leather boots",
+  "type": "prop",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "quantite": [
+     2,
+     "leather boots"
+    ]
+   },
+   "neg_retire": [
+    "twin",
+    "pair",
+    "two"
+   ],
+   "tpl_has": [
+    "exactly 2 leather boots"
+   ]
+  }
+ },
+ {
+  "id": "33",
+  "texte": "Three potion bottles",
+  "type": "prop",
+  "style": "stylized",
+  "attendu": {
+   "flags": {
+    "quantite": [
+     3,
+     "potion bottles"
+    ]
+   }
+  }
+ },
+ {
+  "id": "34",
+  "texte": "A set of four chess pieces",
+  "type": "prop",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "quantite": [
+     4,
+     "chess pieces"
+    ]
+   }
+  }
+ },
+ {
+  "id": "35",
+  "texte": "Two crossed swords",
+  "type": "weapon",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "quantite": [
+     2,
+     "crossed swords"
+    ]
+   }
+  }
+ },
+ {
+  "id": "36",
+  "texte": "A twin-engine airplane",
+  "type": "avion",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "quantite": null,
+    "mot_multiple": true
+   },
+   "neg_retire": [
+    "twin"
+   ]
+  }
+ },
+ {
+  "id": "37",
+  "texte": "A bust of a roman emperor",
+  "type": "character",
+  "style": "marble",
+  "attendu": {
+   "flags": {
+    "buste": true,
+    "socle_voulu": true
+   },
+   "tpl_not": [
+    "full body"
+   ],
+   "neg_retire": [
+    "portrait",
+    "cropped"
+   ]
+  }
+ },
+ {
+  "id": "38",
+  "texte": "A portrait of an elf",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "buste": true
+   },
+   "tpl_not": [
+    "full body"
+   ]
+  }
+ },
+ {
+  "id": "39",
+  "texte": "A statue of a lion on a pedestal",
+  "type": "creature",
+  "style": "marble",
+  "attendu": {
+   "flags": {
+    "socle_voulu": true
+   }
+  }
+ },
+ {
+  "id": "40",
+  "texte": "A red dragon",
+  "type": "creature",
+  "style": "synthwave",
+  "attendu": {
+   "flags": {
+    "couleurs": [
+     "red"
+    ]
+   }
+  }
+ },
+ {
+  "id": "41",
+  "texte": "An anime girl",
+  "type": "character",
+  "style": "anime",
+  "attendu": {
+   "flags": {
+    "style_non_photo": true
+   }
+  }
+ },
+ {
+  "id": "42",
+  "texte": "An orc",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [],
+   "flags": {
+    "pose_libre": false,
+    "vue": null,
+    "buste": false,
+    "non_humain": false,
+    "parties": {},
+    "quantite": null,
+    "arme_nommee": false
+   },
+   "neg_retire": [],
+   "neg_ajout": [],
+   "tpl_has": [
+    "empty open hands",
+    "symmetric",
+    "fully clothed",
+    "T-pose",
+    "clean silhouette"
+   ]
+  }
+ },
+ {
+  "id": "43",
+  "texte": "A warrior holding his breath",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [],
+   "flags": {
+    "arme_nommee": false
+   }
+  }
+ },
+ {
+  "id": "44",
+  "texte": "A knight, front view",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "vue": null
+   }
+  }
+ },
+ {
+  "id": "45",
+  "texte": "A mage casting a spell",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "pose_libre": true
+   }
+  }
+ },
+ {
+  "id": "46",
+  "texte": "A hunter with a bow in her right hand",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "bow",
+     1,
+     "right"
+    ]
+   ],
+   "neg_retire": [
+    "bow"
+   ]
+  }
+ },
+ {
+  "id": "47",
+  "texte": "An elf archer carrying a longbow",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "bow",
+     1,
+     null
+    ]
+   ]
+  }
+ },
+ {
+  "id": "48",
+  "texte": "A chef holding a knife and a fork",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "dagger",
+     1,
+     null
+    ]
+   ]
+  }
+ },
+ {
+  "id": "49",
+  "texte": "A barbarian wielding a greatsword with both hands",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "sword",
+     1,
+     "both"
+    ]
+   ],
+   "clause_has": [
+    "with both hands"
+   ]
+  }
+ },
+ {
+  "id": "50",
+  "texte": "A man holding an umbrella",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     null,
+     1,
+     null
+    ]
+   ]
+  }
+ },
+ {
+  "id": "51",
+  "texte": "A lady with a parasol",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": []
+  }
+ },
+ {
+  "id": "52",
+  "texte": "A soldier armed with a rifle",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "gun",
+     1,
+     null
+    ]
+   ],
+   "neg_retire": [
+    "gun"
+   ]
+  }
+ },
+ {
+  "id": "53",
+  "texte": "A girl holding two balloons",
+  "type": "character",
+  "style": "cartoon",
+  "attendu": {
+   "held": [
+    [
+     null,
+     2,
+     null
+    ]
+   ]
+  }
+ },
+ {
+  "id": "54",
+  "texte": "A house with two chimneys",
+  "type": "building",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "quantite": null
+   }
+  }
+ },
+ {
+  "id": "55",
+  "texte": "A zombie holding a severed head",
+  "type": "character",
+  "style": "horror",
+  "attendu": {
+   "held": [
+    [
+     null,
+     1,
+     null
+    ]
+   ]
+  }
+ },
+ {
+  "id": "56",
+  "texte": "A pirate captain, hands on hips, holding a cutlass",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "sword",
+     1,
+     null
+    ]
+   ],
+   "flags": {
+    "pose_libre": true
+   },
+   "tpl_not": [
+    "T-pose"
+   ],
+   "clause_has": [
+    "holding exactly one cutlass"
+   ]
+  }
+ },
+ {
+  "id": "57",
+  "texte": "A medieval peasant",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [],
+   "flags": {
+    "pose_libre": false
+   }
+  }
+ },
+ {
+  "id": "58",
+  "texte": "A goblin with a dagger in each hand",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "dagger",
+     2,
+     null
+    ]
+   ]
+  }
+ },
+ {
+  "id": "59",
+  "texte": "A cat sitting",
+  "type": "animal",
+  "style": "cartoon",
+  "attendu": {
+   "flags": {
+    "pose_libre": true
+   }
+  }
+ },
+ {
+  "id": "60",
+  "texte": "A cyborg soldier holding a plasma rifle",
+  "type": "character",
+  "style": "cyberpunk",
+  "attendu": {
+   "held": [
+    [
+     "gun",
+     1,
+     null
+    ]
+   ],
+   "flags": {
+    "non_humain": true
+   },
+   "tpl_not": [
+    "fully clothed"
+   ],
+   "neg_retire": [
+    "gun"
+   ]
+  }
+ },
+ {
+  "id": "61",
+  "texte": "A man holding onto a rope",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": []
+  }
+ },
+ {
+  "id": "62",
+  "texte": "A guard holding up a sign",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     null,
+     1,
+     null
+    ]
+   ]
+  }
+ },
+ {
+  "id": "63",
+  "texte": "An orc warrior covered in blood, holding a massive spiked club, holding exactly one massive spiked club in the right hand, left hand open and empty",
+  "type": "character",
+  "style": "dark-fantasy",
+  "attendu": {
+   "held": [
+    [
+     "club",
+     1,
+     null
+    ]
+   ],
+   "flags": {
+    "arme_nommee": true
+   },
+   "neg_ajout": [
+    "dual wielding"
+   ]
+  }
+ },
+ {
+  "id": "64",
+  "texte": "A rock golem with a stone hammer in his right hand",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "flags": {
+    "roche_voulue": true,
+    "non_humain": true
+   }
+  }
+ }
+]

@@ -18,6 +18,7 @@ import { Viewer3D } from './lib/Viewer3D.js';
 import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
+import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif } from './lib/composeur-intention.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
 // tampon de clonage 3D, qui lance des centaines de raycasts par coup de
@@ -5891,8 +5892,21 @@ function buildFullPrompt(userPrompt, assetType, assetStyle) {
     else if (assetType === 'animal' && _parleDeVol(userPrompt)) typeSuffix = ASSET_TYPE_PROMPTS.en_vol || typeSuffix;
   }
   const stylePrefix = ASSET_STYLE_PROMPTS[assetStyle] || '';
+  /* COMPOSEUR D'INTENTION (2026-10-03, lib/composeur-intention.js ; jumeau Python scripts/composeur_intention.py). Un personnage qui TIENT
+   * quelque chose (« orc holding a massive spiked club ») recevait un gabarit qui disait l'inverse (« empty open hands », « symmetric »,
+   * « centered, clean silhouette ») : 0 image sur 4 n'avait qu'une arme. Le gabarit est adapte, et une CLAUSE precise (« holding exactly
+   * one X in the right hand, left hand open and empty ») est posee juste apres le texte de l'utilisateur, dans le premier bloc de
+   * l'encodeur. Un texte sans objet tenu donne EXACTEMENT le gabarit d'origine. Interrupteur : window.__composeurIntention = false. */
+  let clauseTenue = '';
+  if (_TYPES_UNITE.includes(assetType) && composeurActif()) {
+    try {
+      const intention = analyserIntention(userPrompt, assetType, assetStyle);
+      typeSuffix = composerGabarit(typeSuffix, assetType, intention)[0];
+      clauseTenue = clauseObjetTenu(intention) || '';
+    } catch (e) { console.warn('[composeur] ignore :', e && e.message); }
+  }
   const parts = _TYPES_UNITE.includes(assetType)
-    ? [typePrefix, ..._epoqueUnite(userPrompt), stylePrefix, typeSuffix]
+    ? [typePrefix, ..._epoqueUnite(userPrompt), clauseTenue, stylePrefix, typeSuffix]
     : [stylePrefix, typePrefix, userPrompt, typeSuffix];
   return parts.filter(Boolean).join(', ');
 }
@@ -6028,6 +6042,9 @@ function stripKnownPromptSuffixes(raw) {
       txt = txt.slice(m.length).replace(/^\s*,\s*/, '');
     }
   }
+  /* La clause d'objet tenu posee par buildFullPrompt (composeur d'intention) reste en queue du texte une fois le style et le gabarit
+   * coupes : on la retire, sinon chaque regeneration en ajouterait une de plus. Retiree seulement si le texte restant la regenere. */
+  txt = retirerClauseFinale(txt);
   /* Les negations n'ont aucun effet dans un prompt POSITIF -- SDXL dessine
    * volontiers ce qu'on lui demande d'eviter, et elles mangent des jetons.
    * Elles vivent dans _ANATOMY_NEG (modal_app/_realvis.py). On retire donc

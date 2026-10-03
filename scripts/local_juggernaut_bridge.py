@@ -97,6 +97,30 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
     _asset_type = (os.environ.get('FABMESH_ASSET_TYPE') or 'character').strip().lower()
     print(f"LOCAL_REALVIS: asset_type={_asset_type}", flush=True)
 
+    # COMPOSEUR D'INTENTION (2026-10-03, scripts/composeur_intention.py ; jumeau JS lib/composeur-intention.js, qui adapte le gabarit POSITIF
+    # cote renderer). Ici : le NEGATIF et la queue du prompt. Un personnage qui TIENT quelque chose (« orc holding a massive spiked club »)
+    # ne doit plus recevoir « weapon, club... » en negatif ni « symmetrical pose » en queue : mesure sur l'orc, 0 image sur 4 n'avait qu'une
+    # arme avec l'ancien gabarit. Le texte analyse est le texte BRUT de l'utilisateur (FABMESH_USER_PROMPT, pose par main.js), a defaut le
+    # prompt complet. Sans objet tenu : rien ne change, ni le negatif ni la queue. Interrupteur : FABMESH_COMPOSEUR=0.
+    _ci = None
+    _ci_intent = None
+    _ci_neg = None
+    if _asset_type in ('character', 'other_living'):
+        try:
+            import composeur_intention as _ci_mod
+            if _ci_mod.actif():
+                _ci = _ci_mod
+                _ci_intent = _ci.analyser(os.environ.get('FABMESH_USER_PROMPT') or prompt, _asset_type, '')
+                _ci_neg = _ci.negatifs_pont(_asset_type, _ci_intent)
+                print("LOCAL_REALVIS: composeur d'intention : objets=%s arme_nommee=%s sans_arme=%s retirer=%s ajouter=%s" % (
+                    [(o['item'], o['cls'], o['count'], o['hand']) for o in _ci_intent['objets']], _ci_intent['arme_nommee'],
+                    _ci_intent['sans_arme'], _ci_neg['retirer'], _ci_neg['ajouter']), flush=True)
+        except Exception as _ce:
+            print(f"LOCAL_REALVIS: composeur d'intention ignore ({type(_ce).__name__}: {_ce})", flush=True)
+            _ci = None
+            _ci_intent = None
+            _ci_neg = None
+
     # Detect whether the user asked for a T-pose front-facing character.
     # Drives both (a) the model choice — DreamShaper XL Lightning + ControlNet
     # OpenPose gives a GUARANTEED T-pose that RealVisXL cannot match, and
@@ -252,13 +276,20 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
         if _asset_type in ('character', 'other_living')
         else ("weapon, holding weapon, " if _asset_type == 'creature' else "")
     )
+    if _ci_neg and _ci_neg.get('armes') is not None:
+        _armes_neg = _ci_neg['armes']   # identique a l'ancienne chaine sans arme nommee ; sinon : ce qui est DEMANDE n'est plus interdit
+    # Modele REELLEMENT charge, pour le manifeste (il disait toujours RealVisXL, meme pour le chemin T-pose sous DreamShaper Lightning).
+    _modele_manifeste = ('Lykon/dreamshaper-xl-lightning + xinsir/controlnet-openpose-sdxl-1.0'
+                         if (_is_tpose and _ctrl_pipe is not None) else 'SG161222/RealVisXL_V4.0')
+    # Un objet tenu rend l'image asymetrique : la queue ne reclame plus une « symmetrical pose ».
+    _sym_pose = '' if (_ci_intent and _ci_intent['objets']) else 'symmetrical pose, '
     if _is_tpose:
         # T-pose/front mode: reinforce strict symmetry, arms out horizontally,
         # no perspective. Zero123++ will be able to rotate around properly.
         optimized_prompt = (
             f"{prompt}, "
             f"arms extended straight out horizontally to the sides, "
-            f"legs apart shoulder-width, standing upright, symmetrical pose, "
+            f"legs apart shoulder-width, standing upright, {_sym_pose}"
             f"perfectly centered, strict front view, orthographic-like flat view, "
             f"looking directly at the camera, no tilt, no rotation, "
             f"single character isolated on plain white background, "
@@ -417,6 +448,10 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
                 "split image, collage, grid layout"
             )
 
+    if _ci is not None and _ci_neg:
+        negative_prompt = _ci.retirer_jetons(negative_prompt, _ci_neg['retirer'])
+        negative_prompt = _ci.ajouter_jetons(negative_prompt, _ci_neg['ajouter'], en_tete=False)
+
     _throttle_cb = make_throttle_callback()  # None if disabled
 
     images = []
@@ -440,7 +475,9 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
             guidance_scale=(0.0 if _lightning_on else _cfg),
             height=1024,
             width=1024,
-            generator=torch.Generator("cuda").manual_seed(int(time.time()) + i),
+            # FABMESH_SEED : graine reproductible pour comparer avant / apres (sans elle, l'heure : aucune comparaison possible).
+            generator=torch.Generator("cuda").manual_seed(
+                (int(os.environ['FABMESH_SEED']) if os.environ.get('FABMESH_SEED', '').isdigit() else int(time.time())) + i),
         )
         _used_embeds = False
         if _HAS_COMPEL:
@@ -597,7 +634,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
                 kind='image_gen',
                 path=img_path,
                 engine='local-realvis',
-                model='SG161222/RealVisXL_V4.0',
+                model=_modele_manifeste,
                 prompt=prompt,
                 full_prompt=optimized_prompt,
                 negative_prompt=negative_prompt,

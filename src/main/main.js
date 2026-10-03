@@ -9220,6 +9220,8 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
       HUGGINGFACE_HUB_CACHE: path.join(HF_CACHE_DIR, 'hub'),
       FABMESH_VRAM_FRACTION: String(fracVal),
       FABMESH_ASSET_TYPE: _assetType,
+      // Texte BRUT de l'utilisateur (sans gabarit) : le composeur d'intention du pont (scripts/composeur_intention.py) l'analyse pour adapter le negatif.
+      FABMESH_USER_PROMPT: String(rawPrompt || '').slice(0, 2000),
       PYTORCH_CUDA_ALLOC_CONF: _allocConf,
       ..._ramLimitMB ? { FABMESH_RAM_LIMIT_MB: _ramLimitMB } : {},
       ..._gpuLimit   ? { FABMESH_GPU_LIMIT:   _gpuLimit   } : {},

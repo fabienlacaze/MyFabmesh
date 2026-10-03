@@ -41,6 +41,7 @@ const LIVRES = [
   'src/renderer/lib/Viewer3D.js',
   'src/renderer/lib/locomotion-procedurale.js',
   'src/renderer/lib/apercu-animation.js',
+  'src/renderer/lib/composeur-intention.js',
   'src/main/main.js',
   'src/main/preload.js',
   'src/main/cloud_fallback.js',
@@ -53,6 +54,7 @@ const LIVRES = [
   'cloud/public/app/lib/Viewer3D.js',
   'cloud/public/app/lib/locomotion-procedurale.js',
   'cloud/public/app/lib/apercu-animation.js',
+  'cloud/public/app/lib/composeur-intention.js',
   // ajoutes le 2026-10-01 : une apostrophe non echappee dans i18n.js passait (la garde ne le regardait pas) et aurait donne « failed to start »
   'src/renderer/i18n.js',
   'src/renderer/test_api_client.js',
