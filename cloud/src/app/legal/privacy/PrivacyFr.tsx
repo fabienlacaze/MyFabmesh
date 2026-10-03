@@ -62,9 +62,11 @@ export function PrivacyFr() {
           <strong>Formulaires de contact et de signalement&nbsp;:</strong> lorsque
           vous nous écrivez par le formulaire de contact ou que vous signalez un
           contenu, nous conservons votre message et ses pièces jointes éventuelles,
-          votre adresse e-mail, le nom que vous indiquez, votre adresse IP et le
+          votre adresse e-mail, le nom que vous indiquez, votre adresse IP
+          <strong> tronquée</strong> (IPv4&nbsp;: /24&nbsp;; IPv6&nbsp;: /48) et le
           user-agent de votre navigateur, ainsi que votre identifiant de compte si
-          vous êtes connecté. Conservés 12 mois, puis supprimés.
+          vous êtes connecté. Les compteurs anti-abus de ces formulaires reposent
+          sur une empreinte hachée. Conservés 12 mois, puis supprimés.
         </li>
         <li>
           <strong>Consultation par l&apos;administrateur&nbsp;:</strong>{' '}
@@ -217,7 +219,7 @@ export function PrivacyFr() {
         <li>Journaux d&apos;audit de l&apos;administration&nbsp;: 12 mois.</li>
         <li>Journaux de diagnostic (uniquement si vous les avez activés)&nbsp;: 30 jours, puis suppression automatique.</li>
         <li>Rapports d&apos;erreur automatiques (opérations échouées)&nbsp;: 30 jours, puis suppression automatique.</li>
-        <li>Messages des formulaires de contact et de signalement (e-mail, adresse IP, contenu et pièces jointes)&nbsp;: 12 mois.</li>
+        <li>Messages des formulaires de contact et de signalement (e-mail, adresse IP tronquée, contenu et pièces jointes)&nbsp;: 12 mois.</li>
         <li>Sauvegardes nocturnes de la base de données et des fichiers&nbsp;: conservées 14 jours, puis supprimées.</li>
         <li>Journaux techniques Cloudflare (Workers Logs)&nbsp;: durée de conservation fixée par Cloudflare, que nous ne maîtrisons pas.</li>
       </ul>

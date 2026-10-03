@@ -606,6 +606,7 @@
       'Website': 'Sitio web',
       'Privacy': 'Privacidad',
       'Terms': 'Términos',
+      'Licenses': 'Licencias',
       'Contact us': 'Contáctanos',
       'Crafted by': 'Creado por',
       // ---- Contact modal ----

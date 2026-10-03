@@ -64,9 +64,11 @@ export function PrivacyEn() {
         <li>
           <strong>Contact and report forms:</strong> when you write to us through
           the contact form or report a piece of content, we keep your message and
-          any attachments, your e-mail address, the name you give, your IP address
-          and your browser&apos;s user-agent, and your account id if you are
-          signed in. Kept for 12 months, then deleted.
+          any attachments, your e-mail address, the name you give, your
+          <strong> truncated</strong> IP address (IPv4: /24; IPv6: /48) and your
+          browser&apos;s user-agent, and your account id if you are signed in. The
+          anti-abuse counters for these forms rely on a hashed fingerprint. Kept
+          for 12 months, then deleted.
         </li>
         <li>
           <strong>Access by the administrator:</strong> the service administrator
@@ -196,7 +198,7 @@ export function PrivacyEn() {
         <li>Admin audit logs: 12 months.</li>
         <li>Diagnostic logs (only if you enabled them): 30 days, then deleted automatically.</li>
         <li>Automatic error reports (failed operations): 30 days, then deleted automatically.</li>
-        <li>Messages from the contact and report forms (e-mail, IP address, content and attachments): 12 months.</li>
+        <li>Messages from the contact and report forms (e-mail, truncated IP address, content and attachments): 12 months.</li>
         <li>Nightly backups of the database and files: kept 14 days, then deleted.</li>
         <li>Cloudflare technical logs (Workers Logs): retention set by Cloudflare, which we do not control.</li>
       </ul>

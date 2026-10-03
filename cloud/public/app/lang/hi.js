@@ -609,6 +609,7 @@
     'Website': 'वेबसाइट',
     'Privacy': 'गोपनीयता',
     'Terms': 'शर्तें',
+    'Licenses': 'लाइसेंस',
     'Contact us': 'हमसे संपर्क करें',
     'Crafted by': 'द्वारा निर्मित',
     // ---- Contact modal ----

@@ -3375,6 +3375,12 @@ function sondageAdaptatif(tache, base) {
         notify('Title is required.', 'error');
         return;
       }
+      // Une fiche PAYANTE n'accepte que « Personal use only » ou « Royalty-free commercial » (le serveur refuse
+      // le reste en 400, MP-11) ; le formulaire preselectionne CC-BY, d'ou ce pre-controle lisible.
+      if (priceUSD > 0 && licence !== 'personal' && licence !== 'commercial') {
+        notify('A paid listing must use the "Personal use only" or "Royalty-free commercial" licence.', 'error');
+        return;
+      }
       // Validate that we have the right id for the kind.
       if (kind === 'mesh' && !payload?.jobId) {
         notify('No mesh selected — close and pick a mesh first.', 'error');

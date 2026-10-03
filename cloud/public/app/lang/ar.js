@@ -608,6 +608,7 @@
       'Website': 'الموقع الإلكتروني',
       'Privacy': 'الخصوصية',
       'Terms': 'الشروط',
+      'Licenses': 'التراخيص',
       'Contact us': 'اتصل بنا',
       'Crafted by': 'صُنع بواسطة',
       // ---- Contact modal ----

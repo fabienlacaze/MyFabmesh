@@ -9,6 +9,26 @@
 //
 import { useEffect, useRef, useState, Component, type ReactNode } from 'react';
 import Script from 'next/script';
+import { T } from '@/lib/langue';
+
+// 2026-10-03 (MP-03 / M3, reglement UE 2024/1689 art. 50) : tout contenu de la
+// place de marche est produit ou transforme par IA. Le badge « Genere par IA »
+// figure sur CHAQUE carte et sur la fiche detaillee. Il est TOUJOURS affiche : il
+// ne depend volontairement PAS du champ ai_generated que le worker ajoute aux
+// fiches (une ancienne reponse, un cache ou un champ absent ne doit jamais
+// cacher la mention). Langue : meme mecanisme que le pied de page (<T>, classes
+// .lang-fr / .lang-en reglees par html[lang]).
+function BadgeIA({ taille = 11 }: { taille?: number }) {
+  return (
+    <span
+      data-badge-ia
+      title="AI-generated content / Contenu généré par IA"
+      style={{ display: 'inline-block', fontSize: taille, fontWeight: 600, padding: '1px 8px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-2)', background: 'var(--bg-2)', whiteSpace: 'nowrap' }}
+    >
+      🤖 <T fr="Généré par IA" en="AI-generated" />
+    </span>
+  );
+}
 
 // Defensive error boundary — surfaces the next regression instead of the
 // generic Next.js white screen + "client-side exception" overlay.
@@ -64,6 +84,8 @@ interface Listing {
    *  gratuitement jusqu'a offert_fin, et garde pour toujours. */
   offert?: boolean;
   offert_fin?: string;
+  /** Ajoute par le worker (2026-10-03) ; le badge n'en depend PAS (voir BadgeIA). */
+  ai_generated?: boolean;
 }
 
 interface OwnedItem {
@@ -922,6 +944,7 @@ function MarketPageInner() {
                   <div style={{ color: 'var(--text-3)', fontSize: 10 }}>
                     {LICENCE_LABELS[l.licence] || l.licence}
                   </div>
+                  <div><BadgeIA taille={10} /></div>
                   <div>
                     <Stars value={l.rating_avg ?? 0} count={l.rating_count ?? 0} size={13} />
                   </div>
@@ -1045,6 +1068,7 @@ function MarketPageInner() {
                   )}
                   {selected.asset_type ? ` · ${selected.asset_type}` : ''} · {LICENCE_LABELS[selected.licence] || selected.licence}
                 </div>
+                <div style={{ marginTop: 6 }}><BadgeIA /></div>
               </div>
               <button onClick={() => setSelected(null)} className="ghost-btn" style={{ padding: '4px 12px' }}>✕</button>
             </div>

@@ -608,6 +608,7 @@
       'Website': '网站',
       'Privacy': '隐私',
       'Terms': '条款',
+      'Licenses': '许可证',
       'Contact us': '联系我们',
       'Crafted by': '制作者',
       // ---- Contact modal ----

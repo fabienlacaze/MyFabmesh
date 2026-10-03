@@ -17,6 +17,23 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Script from 'next/script';
+import { T } from '@/lib/langue';
+
+// 2026-10-03 (MP-03 / M3, reglement UE 2024/1689 art. 50) : badge « Genere par IA »
+// sur chaque carte (copie de celui de market/page.tsx : une page Next ne peut pas
+// exporter autre chose que son composant). TOUJOURS affiche, independamment du
+// champ ai_generated des fiches.
+function BadgeIA({ taille = 11 }: { taille?: number }) {
+  return (
+    <span
+      data-badge-ia
+      title="AI-generated content / Contenu généré par IA"
+      style={{ display: 'inline-block', fontSize: taille, fontWeight: 600, padding: '1px 8px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-2)', background: 'var(--bg-2)', whiteSpace: 'nowrap' }}
+    >
+      🤖 <T fr="Généré par IA" en="AI-generated" />
+    </span>
+  );
+}
 
 interface AuthorListing {
   id: string;
@@ -233,6 +250,7 @@ function AuthorPageInner() {
                   <div style={{ color: 'var(--text-3)', fontSize: 10 }}>
                     {LICENCE_LABELS[l.licence] || l.licence}
                   </div>
+                  <div><BadgeIA taille={10} /></div>
                   <StarRating avg={l.rating_avg} count={l.rating_count} />
                 </div>
               </a>

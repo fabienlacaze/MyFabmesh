@@ -1041,6 +1041,7 @@
       'Website': 'Site web',
       'Privacy': 'Confidentialité',
       'Terms': 'Conditions',
+      'Licenses': 'Licences',
       'Contact us': 'Nous contacter',
       'Crafted by': 'Réalisé par',
       // ---- Contact modal ----

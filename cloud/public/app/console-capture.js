@@ -98,8 +98,70 @@
     [new RegExp('("' + CLES_SAISIES + '"\\s*:\\s*)"(?:[^"\\\\]|\\\\.)*"', 'gi'), '$1"[texte-masque]"'],
     [new RegExp('\\b(' + CLES_SAISIES + ')(\\s*[:=]\\s*)[^\\n]+', 'gi'), '$1$2[texte-masque]'],   // jusqu'a la fin de ligne : un prompt contient des virgules
   ];
-  function _redactPrompts(line) {
+  // NOM DU PROJET (2026-10-03, constat D-08 : le nom du projet — souvent le sujet
+  // de la creation, parfois un nom de personne ou de client — partait en clair
+  // dans les rapports d'erreur, a la fois dans le champ `project` et dans les
+  // lignes du journal). Dans un rapport d'erreur il est remplace par un
+  // identifiant COURT ET STABLE (« projet-1a2b3c4d », hachage FNV-1a 32 bits du
+  // nom) : deux rapports du meme projet restent rapprochables pour le
+  // diagnostic, sans que le nom soit transmis. Le mode « diagnostic complet »
+  // (consentement explicite, annonce dans la politique) n'est pas modifie.
+  function _idProjet(nom) {
+    let h = 0x811c9dc5;
+    const s = String(nom);
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return 'projet-' + h.toString(16).padStart(8, '0');
+  }
+  function _nomsProjet(meta) {
+    const noms = [];
+    const ajoute = (n) => { if (typeof n === 'string' && n.trim().length >= 3 && noms.indexOf(n.trim()) < 0) noms.push(n.trim()); };
+    ajoute(meta && meta.project);
+    try { ajoute(window.state?.currentProject?.name); } catch (_) {}
+    // Les plus longs d'abord : « Chateau fort » avant « Chateau ».
+    return noms.sort((a, b) => b.length - a.length);
+  }
+  // Toutes les ecritures sous lesquelles un nom peut apparaitre dans un journal ou une URL : exacte, sans
+  // accents, et avec les separateurs usuels des slugs et des URL (espace -> _ - + . %20, ou encodage complet).
+  // La casse est ignoree a la recherche (relecture du 2026-10-03 : « CHATEAU FORT », chateau_fort.glb et
+  // Chateau%20Fort restaient en clair).
+  function _formesProjet(nom) {
+    const n = String(nom).trim();
+    const sansAccents = n.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const formes = [];
+    const ajoute = (f) => { if (f.length >= 3 && formes.indexOf(f) < 0) formes.push(f); };
+    for (const base of [n, sansAccents]) {
+      ajoute(base);
+      for (const sep of ['_', '-', '+', '.', '%20']) ajoute(base.replace(/\s+/g, sep));
+      try { ajoute(encodeURIComponent(base)); } catch (_) {}
+    }
+    return formes;
+  }
+  function _echapperRegex(t) { return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function _masquerProjet(line, noms) {
+    const s = String(line);
+    if (!noms || !noms.length) return s;
+    // UNE SEULE passe sur tous les noms et toutes leurs formes : l'identifiant pose n'est jamais relu (un projet
+    // nomme « Projet » ne donne plus projet-xxxxxxxx-xxxxxxxx). Un groupe par nom, les noms les plus longs d'abord
+    // (_nomsProjet les trie), les formes de la plus longue a la plus courte. Le nom doit former un MOT ENTIER :
+    // delimite par un caractere qui n'est ni lettre ni chiffre (ou par un « %XX » d'URL), sans lookbehind (Safari < 16.4).
+    const groupes = [];
+    const ids = [];
+    for (const n of noms) {
+      const formes = _formesProjet(n).sort((a, b) => b.length - a.length);
+      if (!formes.length) continue;
+      groupes.push('(' + formes.map(_echapperRegex).join('|') + ')');
+      ids.push(_idProjet(n));
+    }
+    if (!groupes.length) return s;
+    const re = new RegExp('(^|[^A-Za-z0-9]|%[0-9A-Fa-f]{2})(?:' + groupes.join('|') + ')(?![A-Za-z0-9])', 'gi');
+    return s.replace(re, function () {
+      for (let i = 0; i < ids.length; i++) if (arguments[i + 2] !== undefined) return arguments[1] + ids[i];
+      return arguments[0];
+    });
+  }
+  function _redactPrompts(line, noms) {
     let s = _redact(line);
+    if (noms && noms.length) s = _masquerProjet(s, noms);
     for (const [re, to] of PROMPT_REDACTIONS) s = s.replace(re, to);
     return s.length > 600 ? s.slice(0, 600) + ' [...]' : s;
   }
@@ -154,15 +216,18 @@
 
   // Rapport d'erreur minimise : 300 dernieres lignes, prompts masques.
   function _payloadErreur(meta) {
+    const noms = _nomsProjet(meta);
+    const projet = meta.project || (window.state?.currentProject?.name || null);
     return {
       mode: 'erreur',
       kind: meta.kind || 'unknown',
       status: meta.status || 'error',
       job_id: meta.job_id || null,
-      project: meta.project || (window.state?.currentProject?.name || null),
+      // 2026-10-03 (D-08) : identifiant court et stable, jamais le nom.
+      project: projet && String(projet).trim() ? _idProjet(String(projet).trim()) : null,
       ua: navigator.userAgent,
-      url: _redact(location.href),
-      lines: buffer.slice(-ERR_LINES).map(_redactPrompts),
+      url: _masquerProjet(_redact(location.href), noms),
+      lines: buffer.slice(-ERR_LINES).map((l) => _redactPrompts(l, noms)),
     };
   }
 

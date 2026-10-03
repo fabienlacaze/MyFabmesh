@@ -726,7 +726,7 @@ var S = {
   filt: { compte: null, type: null, pays: null },
   live: null, liveAt: 0, svc: null, mkt: null, prev: null, pay: null, badges: null, stats: null, aud: null, audPer: '',
   users: null, sel: null, rech: '', msgs: null, listings: null, pricing: null, modal: null, sante: null, totp: null,
-  series: { rev: true, cost: true, marge: true }, tarifs: false, killConfirm: null, decoOuvert: false, msgForm: null,
+  series: { rev: true, cost: true, marge: true }, tarifs: false, killConfirm: null, decoOuvert: false, revOuvert: false, msgForm: null,
   session: false
 };
 var PER_MIN = { now: 5, '1h': 60, '2h': 120, '6h': 360, '24h': 1440, '7j': 10080, '30j': 43200 };
@@ -775,7 +775,7 @@ function sessionPerdue(code, texte) {
   var champ = $(mode === 'mdp' ? '#lg-user' : '#session-corps a'); if (champ && champ.focus) champ.focus();
 }
 /* Oublie un enrolement 2FA ou une deconnexion globale en cours (secret, QR, mot de passe saisi) : a la deconnexion et a la perte de session, sinon le formulaire et la cle reviennent a l'ecran apres la reconnexion. */
-function viderSecurite() { S.totpMode = null; S.totpSecret = null; S.totpUri = null; S.totpErr = ''; S.decoOuvert = false; var sc = $('#securite'); if (sc) sc.innerHTML = ''; }
+function viderSecurite() { S.totpMode = null; S.totpSecret = null; S.totpUri = null; S.totpErr = ''; S.decoOuvert = false; S.revOuvert = false; var sc = $('#securite'); if (sc) sc.innerHTML = ''; }
 function sessionRetablie() {
   if (S.session) { S.session = false; $('#session-corps').innerHTML = ''; setTimeout(toutRecharger, 0); }        // 2026-10-02 (T6) : la page promet « se remet a jour toute seule » : toutes les donnees sont relues au retour de la session (une seule fois : S.session est deja faux au 2e appel)
   $('#session').hidden = true; document.documentElement.classList.remove('verrou');        // premiere reponse admin reussie : on montre la page
@@ -2033,6 +2033,9 @@ function renderSecurite() {
   if (S.secMsg) h += '<div class="' + (S.secMsgOk ? 'msg-ok' : 'msg-err') + '" style="margin:6px 0">' + esc(S.secMsg) + '</div>';
   h += '<div class="sw"><div class="gauche"><div>Déconnecter tout le monde</div><div class="d">Ferme toutes les sessions des utilisateurs. La vôtre est conservée.</div></div>' + (S.decoOuvert ? '' : '<button type="button" class="btn danger petit" id="b-deco">Déconnecter</button>') + '</div>';
   if (S.decoOuvert) h += '<div class="confirm">Confirmer avec le mot de passe administrateur : <div class="ligneform" style="margin:6px 0 0"><input type="password" id="deco-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn danger petit" id="b-deco-ok">Déconnecter tout le monde</button><button type="button" class="btn petit" id="b-deco-non">Annuler</button></div><div id="deco-msg" class="msg-err"></div></div>';
+  /* 2026-10-03 (ADM-03) : revocation des sessions ADMIN par epoque (POST /api/admin/revoke-sessions : session admin + mot de passe ; la reponse renvoie un cookie neuf, donc la session courante est conservee). Meme modele que « Deconnecter tout le monde » ci-dessus. */
+  h += '<div class="sw"><div class="gauche"><div>Déconnecter toutes les sessions admin</div><div class="d">Invalide tous les accès à l\'administration ouverts jusqu\'ici (autres appareils, cookie volé). La vôtre est conservée.</div></div>' + (S.revOuvert ? '' : '<button type="button" class="btn danger petit" id="b-rev">Déconnecter</button>') + '</div>';
+  if (S.revOuvert) h += '<div class="confirm">Confirmer avec le mot de passe administrateur : <div class="ligneform" style="margin:6px 0 0"><input type="password" id="rev-mdp" placeholder="Mot de passe admin" autocomplete="current-password"><button type="button" class="btn danger petit" id="b-rev-ok">Déconnecter les sessions admin</button><button type="button" class="btn petit" id="b-rev-non">Annuler</button></div><div id="rev-msg" class="msg-err"></div></div>';
   box.innerHTML = h;
   if (S.totpMode === 'enroll' || S.totpMode === 'replace') dessinerQr();
 }
@@ -2166,6 +2169,9 @@ document.addEventListener('click', async function (e) {
   if (t.closest('#b-deco')) { S.decoOuvert = true; $('#securite').innerHTML = ''; return renderSecurite(); }
   if (t.closest('#b-deco-non')) { S.decoOuvert = false; $('#securite').innerHTML = ''; return renderSecurite(); }
   if (t.closest('#b-deco-ok')) { var dm = $('#deco-msg'), pw = $('#deco-mdp').value; if (!pw) { dm.textContent = 'Mot de passe requis.'; return; } try { await http('/api/admin/force-logout-all', { method: 'POST', mdp: true, body: { password: pw } }); S.decoOuvert = false; $('#securite').innerHTML = ''; renderSecurite(); $('#securite').insertAdjacentHTML('beforeend', '<div class="msg-ok" style="margin-top:8px">✓ Sessions invalidées : les utilisateurs sont déconnectés dans les secondes qui viennent.</div>'); } catch (er7) { dm.textContent = er7.status === 401 ? 'Mot de passe incorrect.' : er7.message; } return; }
+  if (t.closest('#b-rev')) { S.revOuvert = true; $('#securite').innerHTML = ''; return renderSecurite(); }
+  if (t.closest('#b-rev-non')) { S.revOuvert = false; $('#securite').innerHTML = ''; return renderSecurite(); }
+  if (t.closest('#b-rev-ok')) { var rm = $('#rev-msg'), rpw = $('#rev-mdp').value; if (!rpw) { rm.textContent = 'Mot de passe requis.'; return; } try { await http('/api/admin/revoke-sessions', { method: 'POST', mdp: true, body: { password: rpw } }); S.revOuvert = false; $('#securite').innerHTML = ''; renderSecurite(); $('#securite').insertAdjacentHTML('beforeend', '<div class="msg-ok" style="margin-top:8px">✓ Sessions admin révoquées : les autres appareils connectés à l\'administration devront se reconnecter. La vôtre est conservée.</div>'); } catch (er8) { rm.textContent = er8.status === 401 ? 'Mot de passe incorrect.' : er8.message; } return; }
   if (t.closest('#b-audit')) return chargerAudit();
 });
 document.addEventListener('input', function (e) { if (e.target.id === 'rech') { S.rech = e.target.value; renderComptes(); } });
