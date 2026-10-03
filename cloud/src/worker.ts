@@ -159,6 +159,12 @@ export interface Env {
   ALERT_FROM_EMAIL?: string;          // From: for alert emails (Resend-verified domain; default onboarding@resend.dev)
   MODAL_USAGE_SECRET?: string;        // shared secret the modal-billing poller uses to push REAL usage
   MAX_USER_DAILY_CALLS?: string;
+  // 2026-10-03 (vague 2, worker-3) : bornes reglables des correctifs CLOUD-12, CLOUD-07, CLOUD-06, ADM-06. Absentes = valeur par defaut du code.
+  OFFERT_PLAFOND_CREATEUR_MOIS_CENTS?: string;   // total verse a un createur par mois pour les articles offerts (centimes ; defaut 5000 ; 0 = aucun versement)
+  API_KEY_RESERVATION_CREDITS?: string;          // credits reserves avant un appel par cle d'API (defaut 10)
+  ANIM_COPY_MAX_PER_DAY?: string;                // copies d'animations par compte et par jour (defaut 300 ; 0 = route coupee)
+  ANIM_COPY_MAX_BYTES_PER_DAY?: string;          // octets copies par compte et par jour (defaut 10 Gio)
+  ADMIN_ALERTE_CREDITS_SEUIL?: string;           // un octroi de credits >= ce seuil previent l'exploitant par e-mail (defaut 500)
   // Anti-DoS: per-account (per-user) daily $ spend cap on GPU jobs. A single
   // account can never push more than this much estimated cost through the
   // Modal/Replicate GPU endpoints in one UTC day, regardless of how many
@@ -2189,6 +2195,8 @@ async function _auditLog(env: Env, opts: {
   details?: Record<string, unknown>;
 }): Promise<void> {
   if (!env.MESHES) return;
+  // 2026-10-03 (ADM-06) : alerte e-mail a l'exploitant pour les actions a fort impact (10 par heure au plus, sans donnee personnelle). Ne leve jamais.
+  await _alerterActionAdmin(env, opts.action, opts.target, opts.details);
   const now = new Date();
   const day = now.toISOString().slice(0, 10);
   const key = `_meta/admin_audit/${day}.log`;
@@ -2383,6 +2391,9 @@ const _CLE_API_INTERDIT = [
   /^\/api\/admin\//, /^\/api\/market\/checkout/, /^\/api\/market\/seller\//, /^\/api\/me\/delete/,
   // controle parental et verification d'age : jamais pilotables par une cle API (2026-10-01)
   /^\/api\/parental\//, /^\/api\/age\//,
+  // 2026-10-03 (CLOUD-07) : la remise a zero du compte (tous les travaux, et les fichiers avec ?wipeR2=true) n'est pas pilotable par une cle, qui peut
+  // fuiter (depot public, scripts) : seule la session web, donc la personne, peut la declencher.
+  /^\/api\/me\/wipe-all-projects/,
 ];
 // TRAVAUX VISIBLES (2026-09-28, user : « il faut que la generation en cours soit affichee
 // dans les taches en cours, il faut creer un projet aussi, comme si c'etait moi ») : une
@@ -2420,9 +2431,11 @@ async function _avecCleApi(req: Request, env: Env, suite: () => Promise<Response
   }
   if (req.method === 'GET' || req.method === 'HEAD') return suite();
   const cleJour = `_meta/api_keys_spend/${emp}/${maintenant.toISOString().slice(0, 10)}`;
-  const deja = Number(await (await env.MESHES.get(cleJour))?.text() ?? 0) || 0;
-  if (rec.plafond > 0 && deja >= rec.plafond) {
-    return err(429, `API key daily credit cap reached (${deja}/${rec.plafond} credits today)`);
+  // 2026-10-03 (CLOUD-07) : RESERVER avant d'executer (comparaison-echange avec plafond), solder apres. Avant, une rafale passait toute la
+  // verification sur un compteur encore a zero, puis l'ecriture « derniere valeur gagne » perdait les sommes : le plafond ne protegeait pas.
+  const resa = await _reserverCreditsCle(env, cleJour, rec.plafond, Math.max(1, Math.round(_plafond(env.API_KEY_RESERVATION_CREDITS, CLE_API_RESERVATION_DEFAUT))));
+  if (!resa.ok) {
+    return err(429, `API key daily credit cap reached (${resa.deja}/${rec.plafond} credits today)`);
   }
   // Projet nomme dans la requete : il est cree s'il n'existe pas (comme le fait le site au
   // clic « New project »), pour que le travail apparaisse DANS un projet de la liste.
@@ -2445,8 +2458,15 @@ async function _avecCleApi(req: Request, env: Env, suite: () => Promise<Response
     } catch (e) { console.warn('[cle api] projet non cree :', e instanceof Error ? e.message : String(e)); }
   }
   const opVisible = _OPS_API_VISIBLES[pathname];
-  const marqueur = opVisible ? await _debuterOperation(env, rec.uid, opVisible, Date.now(), req, projet || undefined) : null;
-  const avant = await _creditsDe(env, rec.uid);
+  let marqueur: string | null = null;
+  let avant = 0;
+  try {
+    marqueur = opVisible ? await _debuterOperation(env, rec.uid, opVisible, Date.now(), req, projet || undefined) : null;
+    avant = await _creditsDe(env, rec.uid);
+  } catch (e) {
+    await _solderReservationCle(env, cleJour, resa.reserve, 0);        // rien n'a ete execute : la reservation est rendue (CLOUD-07)
+    throw e;
+  }
   // PROGRAMME COUPE EN ROUTE (2026-09-28) : le user a arrete une serie d'images ; la requete
   // coupee a annule le traitement AVANT le retrait de la ligne « processing », et la tuile
   // « Generate images: ModernHouse » est restee figee a 90 % dans le site. Le travail ENTIER
@@ -2456,13 +2476,18 @@ async function _avecCleApi(req: Request, env: Env, suite: () => Promise<Response
     let res: Response;
     try {
       res = await suite();
+    } catch (e) {
+      // 2026-10-03 (CLOUD-07) : la route a leve : on solde quand meme la reservation avec ce qui a ete debite
+      const apresEchec = await _creditsDe(env, rec.uid).catch(() => avant);
+      await _solderReservationCle(env, cleJour, resa.reserve, avant > apresEchec ? avant - apresEchec : 0);
+      throw e;
     } finally {
       if (marqueur) {
         try { await supabaseAdmin(env).from('jobs').delete().eq('id', marqueur); } catch { /* le faucheur la fermera */ }
       }
     }
-    const apres = await _creditsDe(env, rec.uid);
-    if (avant > apres) await env.MESHES.put(cleJour, String(deja + (avant - apres)));
+    const apres = await _creditsDe(env, rec.uid).catch(() => avant);   // relecture 2026-10-03 : si la lecture du solde echoue, la reservation est quand meme soldee (cout reel = 0, jamais de sur-comptage definitif)
+    await _solderReservationCle(env, cleJour, resa.reserve, avant > apres ? avant - apres : 0);   // 2026-10-03 (CLOUD-07) : remplace la reservation par le cout reel, de facon atomique
     return res;
   })();
   try { (ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined)?.waitUntil?.(travail.catch(() => undefined)); } catch { /* hors runtime */ }
@@ -3041,71 +3066,10 @@ async function _empreinteIp(env: Env, ip: string): Promise<string | null> {
   } catch { return null; }
 }
 
-async function _enregistrerDiagnostic(env: Env, req: Request | null | undefined, opts: {
-  userId: string; jobId: string; operation: string;
-  statut: 'succeeded' | 'failed'; prompt?: string | null; erreur?: string | null;
-}): Promise<void> {
-  if (!env.MESHES || !req) return;
-  try {
-    const cf = (req as unknown as {
-      cf?: { country?: string; city?: string; region?: string; asOrganization?: string; colo?: string };
-    }).cf ?? {};
-    /* IP TRONQUEE + EMPREINTE, PAS L'ADRESSE COMPLETE.
-     *
-     * Le principe de MINIMISATION (RGPD art. 5.1.c) veut qu'on ne conserve
-     * que ce qui est necessaire a la finalite poursuivie. La finalite ici est
-     * de diagnostiquer un echec et de comprendre l'audience — pas
-     * d'identifier une personne. Or :
-     *   - pour situer et depanner, le RESEAU suffit : on tronque le dernier
-     *     octet en IPv4 et on garde le /48 en IPv6 ;
-     *   - pour savoir si c'est LE MEME visiteur qui revient, une empreinte
-     *     salee suffit : elle correle sans conserver l'identifiant.
-     * On obtient donc tout ce que le user a demande — d'ou vient la requete,
-     * et reconnaitre un revenant — sans detenir une adresse qui designe
-     * quelqu'un.
-     *
-     * Le sel est R2_URL_SIGNING_SECRET, deja deploye : sans lui l'empreinte
-     * serait reversible par force brute (l'espace des IPv4 se parcourt en
-     * quelques minutes), ce qui reviendrait a stocker l'adresse en clair.
-     *
-     * Si un besoin de SECURITE (fraude, abus) exigeait un jour l'adresse
-     * complete, ce serait une autre finalite, a declarer separement. */
-    const ipBrute = req.headers.get('cf-connecting-ip')
-                 ?? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-                 ?? null;
-    const ip = _tronquerIp(ipBrute);
-    const empreinteIp = ipBrute ? await _empreinteIp(env, ipBrute) : null;
-    const enr = {
-      ts: new Date().toISOString(),
-      job_id: opts.jobId,
-      user_id: opts.userId,
-      operation: opts.operation,
-      statut: opts.statut,
-      provenance: _provenance(req),
-      pays: _paysRequete(req),
-      region: cf.region ?? null,
-      ville: cf.city ?? null,
-      reseau: cf.asOrganization ?? null,
-      point_presence: cf.colo ?? null,
-      // Reseau, pas personne : « 203.0.113.0 » et non « 203.0.113.47 ».
-      ip_reseau: ip,
-      // Correle les visites d'un meme reseau sans conserver son adresse.
-      ip_empreinte: empreinteIp,
-      user_agent: (req.headers.get('user-agent') ?? '').slice(0, 300) || null,
-      // Le prompt est ce qui manquait le plus le 2026-08-23 : sans lui, on ne
-      // pouvait pas savoir quel texte declenchait le faux positif du filtre
-      // de contenu, donc pas traiter la cause.
-      prompt: opts.prompt ? String(opts.prompt).slice(0, 1000) : null,
-      erreur: opts.erreur ? String(opts.erreur).slice(0, 500) : null,
-      retention_jours: DIAG_LOG_RETENTION_DAYS,
-    };
-    const cle = `_logs/diag/${opts.userId}/${enr.ts.replace(/[:.]/g, '-')}_${opts.operation}_${opts.statut}.json`;
-    await env.MESHES.put(cle, JSON.stringify(enr, null, 1),
-                         { httpMetadata: { contentType: 'application/json' } });
-  } catch (e) {
-    console.warn('[diag] enregistrement impossible:', e instanceof Error ? e.message : String(e));
-  }
-}
+/* 2026-10-03 (D-11) : la fonction de diagnostic detaille qui enregistrait, par generation, le pays, la region, la ville, le reseau, l'IP tronquee,
+ * l'empreinte d'IP, le user-agent et le prompt a ete SUPPRIMEE : aucun appelant n'existait (Grep), et la politique de confidentialite affirme ne
+ * conserver ni ville ni IP. Ne pas la reintroduire sans declarer ces donnees dans la politique ; vague2-worker.test.mjs echoue si un appelant reapparait.
+ * Les aides _tronquerIp / _empreinteIp ci-dessus sont laissees en place (documentation de la minimisation), elles ne sont plus utilisees. */
 
 async function logOperation(
   env: Env,
@@ -3836,6 +3800,7 @@ async function _effacerEnregistrementsDuCompte(env: Env, userId: string): Promis
   await faire('compteurs', prefixes(
     `_meta/userspend/${userId}/`, `_meta/userspend_cap/${userId}/`, `_meta/userdaily/${userId}/`, `_meta/paidcheck/${userId}/`,
     `_meta/uploads_count/${userId}/`, `_meta/mesh_uploads_count/${userId}/`, `_meta/redacteur/${userId}-`,
+    `_meta/anim_copy_count/${userId}/`, `_meta/anim_copy_bytes/${userId}/`,      // 2026-10-03 (CLOUD-06)
   ));
   await faire('divers', async () => await _supprimerCles(env, [`_meta/presence/${userId}`, `_market/payout_pref/${userId}.json`]));
   // boutique : achats, evaluations et signalements DU COMPTE (ses ventes restent : piece comptable)
@@ -4623,7 +4588,7 @@ async function handleMePublishedAssets(req: Request, env: Env): Promise<Response
             currency: parsed.currency || 'USD',
             mesh_url: parsed.mesh_url || '',
             asset_type: parsed.asset_type ?? null,
-            author_display: parsed.author_display || '',
+            author_display: _nomPublicVendeur(parsed),
             user_id: parsed.user_id || '',
             created_at: parsed.created_at || '',
             rejection_reason: parsed.rejection_reason,
@@ -5564,8 +5529,10 @@ async function handleMarketPublish(req: Request, env: Env): Promise<Response> {
     id,
     job_id: jobId,
     user_id: user.id,
-    author_email: user.email ?? null,
-    author_display: user.email ? user.email.split('@')[0] : 'anonymous',
+    // 2026-10-03 (SM-11 / MP-07) : ni l'e-mail ni son debut ne sont plus recopies dans la fiche (aucun lecteur de `author_email` dans le depot ;
+    // l'administration retrouve le vendeur par `user_id`). Le nom public est derive a chaque lecture par _nomPublicVendeur.
+    author_email: null,
+    author_display: _nomPublicVendeur({ user_id: user.id }),
     title,
     description,
     price_cents,
@@ -5705,7 +5672,7 @@ function _ficheVitrine(l: Record<string, unknown>, env: Env): Record<string, unk
     price_cents: l.price_cents, currency: l.currency, licence: l.licence,
     asset_kind: kind,
     asset_type: l.asset_type,
-    author_display: l.author_display,
+    author_display: _nomPublicVendeur(l),     // 2026-10-03 (SM-11 / MP-07) : jamais le debut de l'e-mail
     user_id: l.user_id,
     created_at: l.created_at,
     downloads: l.downloads,
@@ -5852,6 +5819,9 @@ async function handleMarketClaim(req: Request, env: Env, id: string): Promise<Re
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'sign in to claim this item');
   if (!env.MESHES) return err(500, 'storage not configured');
+  // 2026-10-03 (CLOUD-12 / SM-04) : le coupe-circuit de la place de marche arrete AUSSI les versements aux createurs (la route n'y passait pas).
+  const gate = await _marketGate(env);
+  if (gate) return gate;
   const mois = _moisCourant();
   if (!(await _offertsDuMois(env, mois)).includes(id)) return err(400, 'this item is not free this month');
   const txt = await r2GetText(env, `_market/listings/${id}.json`);
@@ -5860,6 +5830,12 @@ async function handleMarketClaim(req: Request, env: Env, id: string): Promise<Re
   if (listing.status !== 'approved') return err(404, 'listing not visible');
   const ownerKey = `_market/owners/${id}/${user.id}.json`;
   if (await env.MESHES.head(ownerKey)) return json({ ok: true, deja: true });
+  // 2026-10-03 (CLOUD-12 / SM-04 / FIN-09 / MP-05) : un compte qui fait PAYER un createur doit avoir 7 jours et une generation reelle (anti comptes jetables).
+  // Le createur qui prend son propre article ne declenche aucun versement : pas d'eligibilite requise.
+  if (!!listing.user_id && listing.user_id !== user.id) {
+    const refus = await _verifierEligibiliteOffert(env, user.id);
+    if (refus) return refus;
+  }
   // reservation atomique : un double clic ne paie pas deux fois le createur
   try {
     const pose = await env.MESHES.put(ownerKey, JSON.stringify({ claiming: true, at: _isoNow() }),
@@ -5869,13 +5845,17 @@ async function handleMarketClaim(req: Request, env: Env, id: string): Promise<Re
 
   // le createur qui recupere son propre article n'est pas paye
   const payer = !!listing.user_id && listing.user_id !== user.id;
-  const partCreateur = payer ? Math.round(Number(listing.price_cents) * OFFERT_PART_CREATEUR_PCT / 100) : 0;
+  let partCreateur = payer ? Math.round(Number(listing.price_cents) * OFFERT_PART_CREATEUR_PCT / 100) : 0;
+  // 2026-10-03 (CLOUD-12 / FIN-09) : plafond mensuel des versements par createur, reserve AVANT de payer. Au-dela, la recuperation reste accordee
+  // (article gratuit pour le lecteur) mais le createur n'est plus paye : `payout_status: 'plafonne'` dans la fiche de vente.
+  let plafonne = false;
+  if (partCreateur > 0 && !(await _reserverVersementOffert(env, mois, listing.user_id, partCreateur))) { partCreateur = 0; plafonne = true; }
   const saleId = `offert_${mois}_${id}_${user.id}`.replace(/[^A-Za-z0-9_-]/g, '');
   const sale: Record<string, unknown> = {
     id: saleId, listing_id: id, buyer_user_id: user.id, seller_user_id: listing.user_id,
     amount_cents: 0, platform_fee_cents: -partCreateur, seller_amount_cents: partCreateur,
     currency: 'EUR', offert: true, offert_mois: mois,
-    created_at: _isoNow(), paid_at: _isoNow(), status: 'paid', payout_status: payer ? 'pending' : 'none',
+    created_at: _isoNow(), paid_at: _isoNow(), status: 'paid', payout_status: plafonne ? 'plafonne' : (payer ? 'pending' : 'none'),
   };
   await env.MESHES.put(`_market/sales/${saleId}.json`, JSON.stringify(sale), { httpMetadata: { contentType: 'application/json' } });
 
@@ -5921,6 +5901,13 @@ async function handleMarketClaim(req: Request, env: Env, id: string): Promise<Re
 }
 
 async function handleMarketList(_req: Request, env: Env): Promise<Response> {
+  // 2026-10-03 (PB-06) : cache d'isolat de 30 s ; invalide par toute requete d'ecriture (voir le routeur) et jamais rempli par une lecture
+  // commencee avant une invalidation (compteur de generation).
+  const genDepart = _genCacheMarche;
+  const maintenant = Date.now();
+  if (_cacheListeMarche && maintenant >= _cacheListeMarche.t && maintenant - _cacheListeMarche.t < MARCHE_LISTE_TTL_MS) {
+    return _reponseListeMarche(_cacheListeMarche.corps);
+  }
   const all = await _loadAllListings(env);
   const offerts = new Set(await _offertsDuMois(env));
   const finOffre = _finDuMois(_moisCourant());
@@ -5938,12 +5925,14 @@ async function handleMarketList(_req: Request, env: Env): Promise<Response> {
   // Surface the killswitch state so the UI can grey out buy/publish
   // affordances. Read still returns listings, write routes return 503.
   const ks = await _getMarketKillSwitch(env);
-  return json({
+  const corps = JSON.stringify({
     ok: true,
     listings: visible,
     marketplace_disabled: ks.enabled,
     marketplace_reason: ks.enabled ? (ks.reason || null) : null,
   });
+  if (genDepart === _genCacheMarche) _cacheListeMarche = { t: maintenant, corps };
+  return _reponseListeMarche(corps);
 }
 
 /** GET /api/market/<id> — PUBLIC. Single listing details. */
@@ -6163,13 +6152,13 @@ async function handleMarketAuthorPage(_req: Request, env: Env, authorId: string)
   const approved = mine.filter((l) => l.status === 'approved');
 
   // Author display + member_since from earliest listing (any status).
-  let display = 'anonymous';
+  let display = _nomPublicVendeur({ user_id: authorId });   // 2026-10-03 (SM-11 / MP-07)
   let memberSince: string | null = null;
   if (mine.length > 0) {
     const sorted = [...mine].sort((a, b) =>
       String(a.created_at).localeCompare(String(b.created_at)));
     memberSince = sorted[0]?.created_at ?? null;
-    display = sorted[0]?.author_display || 'anonymous';
+    display = _nomPublicVendeur(sorted[0]);
   }
 
   // Sales aggregation.
@@ -6209,7 +6198,7 @@ async function handleMarketAuthorPage(_req: Request, env: Env, authorId: string)
      * Trois copies, c'est trois occasions d'en oublier une — et c'est
      * exactement ce qui s'est produit. */
     return { ..._ficheVitrine(l as unknown as Record<string, unknown>, env),
-             author_display: l.author_display,
+             author_display: _nomPublicVendeur(l),
              rating_avg: r.avg, rating_count: r.count };
   });
 
@@ -7404,7 +7393,7 @@ async function handleMarketOwned(req: Request, env: Env): Promise<Response> {
       asset_kind: l.asset_kind || (l.mesh_url ? 'mesh' : 'image'),
       asset_url: l.asset_url || l.mesh_url || '',
       mesh_url: l.mesh_url || '',
-      author_display: l.author_display,
+      author_display: _nomPublicVendeur(l),
       created_at: l.created_at,
     });
   }
@@ -8971,7 +8960,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         await refundMeshSpend();
         return err(500, 'mesh path needs storage (no imagePath URL provided)');
       }
-      const fileBytes = new Uint8Array(await input.image.arrayBuffer());
+      const fileBytes = _retirerMetadonneesImage(new Uint8Array(await input.image.arrayBuffer()));   // 2026-10-03 (IA-11) : photo du client sans EXIF / GPS
       const key = `${user.id}/source/${Date.now()}_${input.seed ?? 42}.png`;
       await env.MESHES.put(key, fileBytes, {
         httpMetadata: { contentType: input.image.type || 'image/png' },
@@ -14904,6 +14893,8 @@ async function handleUploadImage(req: Request, env: Env): Promise<Response> {
       bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
       bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50);
   if (!magicOk) return err(400, 'image bytes do not match the claimed format');
+  // 2026-10-03 (IA-11) : EXIF / XMP / IPTC (GPS surtout) retires avant l'enregistrement ; au moindre doute les octets d'origine sont gardes.
+  bytes = _retirerMetadonneesImage(bytes);
 
   // Per-user daily upload cap — same pattern as the existing budget
   // counters. Without this an authenticated user can burn our R2
@@ -17610,6 +17601,17 @@ async function handleAnimCopy(req: Request, env: Env): Promise<Response> {
   // Read the source body from R2 and stream into the new key.
   const src = await env.MESHES.get(sourceKey);
   if (!src) return err(404, 'source not found in R2');
+  // 2026-10-03 (CLOUD-06) : deux compteurs journaliers atomiques (nombre de copies, octets copies), bornes genereuses ; refus 429 explicite.
+  const jourCopie = todayUTC();
+  const cleCopies = `_meta/anim_copy_count/${user.id}/${jourCopie}.txt`;
+  const cleOctets = `_meta/anim_copy_bytes/${user.id}/${jourCopie}.txt`;
+  const maxCopies = Math.round(_plafond(env.ANIM_COPY_MAX_PER_DAY, ANIM_COPY_MAX_PAR_JOUR_DEFAUT));
+  const maxOctets = Math.round(_plafond(env.ANIM_COPY_MAX_BYTES_PER_DAY, ANIM_COPY_MAX_OCTETS_PAR_JOUR_DEFAUT));
+  if ((await _casIncrementCounter(env, cleCopies, 1, maxCopies)) == null) return err(429, 'daily animation copy quota reached, try again tomorrow');
+  if ((await _casIncrementCounter(env, cleOctets, src.size, maxOctets)) == null) {
+    await _incrementAtomique(env, cleCopies, -1);
+    return err(429, 'daily animation copy volume reached, try again tomorrow');
+  }
   const animType = (String(body.animType || 'clip').toLowerCase().replace(/[^a-z]/g, '') || 'clip').slice(0, 16);
   const projectName = String(body.projectName || '');
   const projectSlug = (projectName || 'untitled').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled';
@@ -17628,6 +17630,8 @@ async function handleAnimCopy(req: Request, env: Env): Promise<Response> {
       httpMetadata: { contentType: 'model/gltf-binary' },
     });
   } catch (e) {
+    await _incrementAtomique(env, cleCopies, -1);           // 2026-10-03 (CLOUD-06) : rien n'a ete copie, les compteurs sont rendus
+    await _incrementAtomique(env, cleOctets, -src.size);
     return err(500, `R2 copy failed: ${e instanceof Error ? e.message : String(e)}`);
   }
   return json({ ok: true, url: await signedR2Url(env, key, 'mesh'), key });
@@ -18731,8 +18735,9 @@ async function _adminTokenCheck(req: Request, env: Env): Promise<boolean> {
   const payload = raw.slice(0, dot);
   const sig = raw.slice(dot + 1);
   // payload is "<userEmail>:<expiresAt>"
+  // 2026-10-03 (ADM-03) : "<email>:<expiration>" (format historique, epoque 0) ou "<email>:<expiration>:<epoque>" (apres une revocation).
   const parts = payload.split(':');
-  if (parts.length !== 2) return false;
+  if (parts.length !== 2 && parts.length !== 3) return false;
   const exp = parseInt(parts[1], 10);
   if (!exp || Date.now() / 1000 > exp) return false;
   const expectedSig = await _hmacSign(secret, payload);
@@ -18740,7 +18745,16 @@ async function _adminTokenCheck(req: Request, env: Env): Promise<boolean> {
   if (sig.length !== expectedSig.length) return false;
   let diff = 0;
   for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expectedSig.charCodeAt(i);
-  return diff === 0;
+  if (diff !== 0) return false;
+  // Signature valide : l'epoque du cookie (0 s'il n'en porte pas) doit etre celle en vigueur (R2 `_meta/admin_epoch.json`, absente = 0).
+  const epoqueCookie = parts.length === 3 ? Number(parts[2]) : 0;
+  if (!Number.isInteger(epoqueCookie) || epoqueCookie < 0) return false;
+  let epoqueEnVigueur = 0;                      // lecture en ligne (comme _lireEpoqueAdmin) : cette fonction n'a besoin d'aucune autre nouveaute
+  try {
+    const o = await env.MESHES.get('_meta/admin_epoch.json');
+    if (o) { const e = Number((await o.json() as { epoch?: unknown }).epoch); epoqueEnVigueur = Number.isInteger(e) && e > 0 ? e : 0; }
+  } catch { epoqueEnVigueur = 0; }              // absent, illisible ou R2 en panne : epoque 0, jamais de verrou
+  return epoqueCookie === epoqueEnVigueur;
 }
 
 async function _requireAdmin(req: Request, env: Env)
@@ -18903,9 +18917,8 @@ async function handleAdminLogin(req: Request, env: Env): Promise<Response> {
   });
 
   const exp = Math.floor(Date.now() / 1000) + ADMIN_TTL_SEC;
-  const payload = `${user.email.toLowerCase()}:${exp}`;
-  const sig = await _hmacSign(pwSrc.signingKey, payload);
-  const value = `${payload}.${sig}`;
+  // 2026-10-03 (ADM-03) : format historique tant que l'epoque vaut 0 ; sinon l'epoque en vigueur entre dans la charge signee.
+  const value = await _valeurCookieAdmin(user.email, exp, pwSrc.signingKey, await _lireEpoqueAdmin(env));
   return new Response(JSON.stringify({ ok: true, expires_at: exp, totp_enrolled: !!totpSecret }), {
     status: 200,
     headers: {
@@ -21315,6 +21328,423 @@ async function handleAdminForceLogoutAll(req: Request, env: Env): Promise<Respon
   });
   return json({ ok: true, min_session_iat: iat });
 }
+
+/* ═══ VAGUE 2 / VOIE WORKER-3 (2026-10-03) : DEBUT ═══
+ * Neuf correctifs de l'analyse du 03/10/2026, regroupes ici pour qu'un relecteur les voie d'un bloc. Chacun est appele depuis son
+ * endroit d'origine (les points d'appel portent la meme reference de constat). Fonctions pures d'abord, ce qui touche R2 ensuite. */
+
+/* ── SM-11 / MP-07 : NOM PUBLIC DU VENDEUR ──────────────────────────────────────────────────────────────────────────────────────────
+ * Le nom d'auteur d'une fiche etait le debut de l'e-mail du vendeur (prenom.nom, la plupart du temps), enregistre dans la fiche et publie sans
+ * que le vendeur l'ait choisi : donnee personnelle (RGPD). On le remplace A LA LECTURE (aucune migration, les fiches deja enregistrees
+ * sont couvertes) par : le pseudonyme choisi par le vendeur s'il existe (`author_pseudo`, champ encore jamais ecrit : la route de
+ * saisie viendra plus tard), sinon « Createur-xxxxxx », derive d'un hachage de l'identifiant. Le hachage est synchrone (les projections
+ * publiques le sont) : l'identifiant du compte est deja public (`user_id` figure dans les fiches), il ne s'agit donc pas de cacher le compte
+ * mais de ne plus publier son e-mail. « Compte supprime » (pose par l'effacement du compte) est conserve tel quel. */
+function _hachageCourt(txt: string): string {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+const NOM_VENDEUR_SUPPRIME = 'Compte supprimé';
+function _nomPublicVendeur(l: { user_id?: unknown; author_display?: unknown; author_pseudo?: unknown } | null | undefined): string {
+  const choisi = typeof l?.author_pseudo === 'string' ? l.author_pseudo.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 40) : '';
+  if (choisi && !choisi.includes('@')) return choisi;                       // jamais une adresse, meme « choisie »
+  if (l?.author_display === NOM_VENDEUR_SUPPRIME) return NOM_VENDEUR_SUPPRIME;
+  const uid = typeof l?.user_id === 'string' ? l.user_id : '';
+  return uid ? `Créateur-${_hachageCourt('vendeur|' + uid).slice(0, 6)}` : 'Créateur';
+}
+
+/* ── CLOUD-12 / SM-04 / FIN-09 / MP-05 : ARTICLES GRATUITS DU MOIS ───────────────────────────────────────────────────────────────────
+ * Chaque recuperation verse 35 % du prix au createur sans plafond, a n'importe quel compte connecte. Trois bornes, la plus petite possible :
+ *  1. le compte qui recupere doit avoir au moins 7 jours ET une generation reelle reussie (debitee) ; sinon refus 403 explicite ;
+ *  2. le total VERSE a un createur dans le mois est plafonne (5 000 centimes = 50 EUR par defaut, `OFFERT_PLAFOND_CREATEUR_MOIS_CENTS`, 0 coupe
+ *     tout versement). Au-dela, la recuperation reste ACCORDEE (l'article est gratuit, le lecteur n'y est pour rien) mais le createur n'est
+ *     plus paye ; la fiche de vente porte `payout_status: 'plafonne'`. Le compteur est reserve AVANT le versement (comparaison-echange R2) :
+ *     deux recuperations simultanees ne passent pas le plafond a deux. Limite residuelle : en cas de contention soutenue le versement est
+ *     refuse par prudence (fail-safe) ; un versement qui echoue ensuite n'est pas rendu au compteur (le plafond ne peut que sous-payer) ;
+ *  3. l'auto-recuperation (le createur prend son propre article) n'est toujours pas payee, et n'a pas besoin d'eligibilite. */
+const OFFERT_PLAFOND_CREATEUR_MOIS_CENTS_DEFAUT = 5000;
+const OFFERT_AGE_MIN_COMPTE_JOURS = 7;
+function _decisionEligibiliteOffert(creeLe: string | null | undefined, nbGenerations: number, maintenantMs: number): 'ok' | 'compte_trop_recent' | 'aucune_generation' {
+  const t = creeLe ? Date.parse(creeLe) : NaN;
+  if (!Number.isFinite(t) || maintenantMs - t < OFFERT_AGE_MIN_COMPTE_JOURS * 86_400_000) return 'compte_trop_recent';   // date inconnue : ferme
+  if (!(nbGenerations > 0)) return 'aucune_generation';
+  return 'ok';
+}
+/** Rend null si le compte peut recuperer un article offert, sinon la reponse de refus (403 explicite, ou 503 si la base ne repond pas). */
+async function _verifierEligibiliteOffert(env: Env, uid: string): Promise<Response | null> {
+  if (isMock(env)) return null;
+  try {
+    const sb = supabaseAdmin(env);
+    const [p, j] = await Promise.all([
+      sb.from('profiles').select('created_at').eq('id', uid).maybeSingle(),
+      sb.from('jobs').select('id', { count: 'exact', head: true }).eq('user_id', uid).eq('status', 'succeeded').gt('credit_cost', 0),
+    ]);
+    if (p.error || j.error) return err(503, 'could not verify your account right now, please try again in a moment');
+    const d = _decisionEligibiliteOffert((p.data as { created_at?: string } | null)?.created_at, Number(j.count ?? 0), Date.now());
+    if (d === 'ok') return null;
+    return err(403, d === 'compte_trop_recent'
+      ? `Free items of the month are reserved for accounts at least ${OFFERT_AGE_MIN_COMPTE_JOURS} days old.`
+      : 'Free items of the month are reserved for accounts that have already generated at least one asset.');
+  } catch (e) {
+    console.warn('[offert] eligibilite illisible :', e instanceof Error ? e.message : String(e));
+    return err(503, 'could not verify your account right now, please try again in a moment');
+  }
+}
+/** Reserve `partCents` sur le plafond mensuel du createur. Vrai = le versement est autorise (et deja compte). */
+async function _reserverVersementOffert(env: Env, mois: string, createurId: string, partCents: number): Promise<boolean> {
+  const plafond = Math.round(_plafond(env.OFFERT_PLAFOND_CREATEUR_MOIS_CENTS, OFFERT_PLAFOND_CREATEUR_MOIS_CENTS_DEFAUT));
+  if (plafond <= 0 || !(partCents > 0)) return false;
+  const cumul = await _casIncrementCounter(env, `_meta/offert_verse/${mois}/${createurId}.txt`, partCents, plafond);
+  return cumul != null;
+}
+
+/* ── CLOUD-07 : CLES D'API, PLAFOND QUOTIDIEN ROBUSTE A LA COURSE ───────────────────────────────────────────────────────────────────────
+ * Avant : lecture du compteur, appel, puis ecriture « derniere valeur gagne » du compteur lu au depart. Une rafale de requetes passait toutes
+ * la verification (compteur encore a zero) et le compteur ne retenait pas leur somme : un plafond de 100 credits laissait tout le solde partir.
+ * Maintenant : on RESERVE avant d'executer (`_casIncrementCounter`, comparaison-echange avec plafond : une requete qui ferait depasser est
+ * refusee 429), puis on SOLDE apres l'appel (cout reel - reservation, ajoute ou rendu de facon atomique). La reservation est une estimation
+ * (10 credits par defaut, `API_KEY_RESERVATION_CREDITS`) : le cout reel d'une route n'est connu qu'apres. LIMITE RESIDUELLE, documentee : R2 n'a ni
+ * transaction ni verrou ; un appel dont le cout depasse la reservation peut franchir le plafond de (cout - reservation) par requete en vol, et
+ * le cout reel est mesure par difference de solde, donc SUR-compte quand des appels se chevauchent (ce qui ne peut que fermer plus tot). */
+const CLE_API_RESERVATION_DEFAUT = 10;
+async function _reserverCreditsCle(env: Env, cleJour: string, plafond: number, reservation: number): Promise<{ ok: boolean; reserve: number; deja: number }> {
+  if (!(plafond > 0)) return { ok: true, reserve: 0, deja: 0 };                // cle sans plafond : rien a reserver, le cout sera compte apres
+  const lu = Number(await (await env.MESHES.get(cleJour))?.text() ?? 0) || 0;
+  const restant = plafond - lu;
+  if (restant <= 0) return { ok: false, reserve: 0, deja: lu };
+  const reserve = Math.max(1, Math.min(Math.round(reservation), Math.floor(restant)));
+  const n = await _casIncrementCounter(env, cleJour, reserve, plafond);
+  if (n == null) return { ok: false, reserve: 0, deja: lu };                   // plafond atteint par une requete concurrente (ou contention : ferme par prudence)
+  return { ok: true, reserve, deja: lu };
+}
+/** Apres l'appel : remplace la reservation par le cout reel (difference positive ou negative, atomique). */
+async function _solderReservationCle(env: Env, cleJour: string, reserve: number, coutReel: number): Promise<void> {
+  const delta = Math.max(0, coutReel) - reserve;
+  if (!delta) return;
+  const r = await _incrementAtomique(env, cleJour, delta);
+  if (r == null) console.warn(`[cle api] solde de reservation perdu (contention) sur ${cleJour} : delta ${delta}`);
+}
+
+/* ── CLOUD-06 : COPIE D'ANIMATIONS, COMPTEURS JOURNALIERS ───────────────────────────────────────────────────────────────────────────────
+ * /api/animations/copy copiait un objet R2 vers R2 (jusqu'a 95 Mo) sans aucun compteur. Bornes GENEREUSES, hors de portee d'un usage normal
+ * (les deux plus gros utilisateurs font 95 % des travaux) : 300 copies et 10 Gio par compte et par jour UTC, reglables par
+ * ANIM_COPY_MAX_PER_DAY / ANIM_COPY_MAX_BYTES_PER_DAY (0 coupe la route). Aucune indexation : deux petits compteurs atomiques. */
+const ANIM_COPY_MAX_PAR_JOUR_DEFAUT = 300;
+const ANIM_COPY_MAX_OCTETS_PAR_JOUR_DEFAUT = 10 * 1024 * 1024 * 1024;
+
+/* ── ADM-06 : ALERTE E-MAIL SUR LES ACTIONS D'ADMINISTRATION A FORT IMPACT ───────────────────────────────────────────────────────────────
+ * Un compte admin compromis pouvait agir sans que l'exploitant en soit prevenu. L'alerte part de `_auditLog` (point unique : toute action
+ * auditee est vue), par la fonction d'alerte existante (aucun nouveau secret ; sans effet si RESEND_API_KEY manque), limitee a 10 par heure
+ * (compteur R2 atomique) pour qu'une rafale n'inonde pas la boite. AUCUNE donnee personnelle dans le message : ni e-mail, ni identifiant de
+ * compte, ni IP ; seulement la nature de l'action, l'heure et, pour un octroi, le montant. Un octroi n'alerte qu'au-dessus d'un seuil
+ * (500 credits par defaut, `ADMIN_ALERTE_CREDITS_SEUIL`). Il n'existe pas aujourd'hui de route admin de suppression de compte ni de
+ * remboursement : leurs noms d'action sont deja listes pour que l'alerte parte le jour ou ils existeront. */
+const ALERTE_ADMIN_MAX_PAR_HEURE = 10;
+const ALERTE_ADMIN_SEUIL_CREDITS_DEFAUT = 500;
+const ACTIONS_ADMIN_FORT_IMPACT: Record<string, string> = {
+  grant_credits: 'Octroi de credits',
+  set_pricing: 'Changement de tarif',
+  toggle_service: 'Bascule de maintenance (site, GPU, paiements ou general)',
+  market_killswitch_set: 'Bascule du coupe-circuit de la place de marche',
+  force_logout_all: 'Deconnexion de tous les comptes',
+  revoke_admin_sessions: 'Revocation des sessions administrateur',
+  reconcile_payment: 'Rapprochement manuel d un paiement (credits crees)',
+  modal_budget_set: 'Changement du budget GPU',
+  admin_password_reset: 'Rotation du mot de passe administrateur',
+  totp_replace: 'Remplacement du second facteur administrateur',
+  delete_user: 'Suppression de compte',
+  delete_account: 'Suppression de compte',
+  refund: 'Remboursement',
+  refund_payment: 'Remboursement',
+};
+/** Decision pure : rend { sujet, texte } si l'action justifie une alerte, sinon null. */
+function decisionAlerteActionAdmin(action: string, target: string | undefined, details: Record<string, unknown> | undefined, seuilCredits: number, iso: string): { sujet: string; texte: string } | null {
+  if (!Object.prototype.hasOwnProperty.call(ACTIONS_ADMIN_FORT_IMPACT, action)) return null;
+  let precision = '';
+  if (action === 'grant_credits') {
+    const d = Number(details?.delta);
+    if (!Number.isFinite(d) || Math.abs(d) < seuilCredits) return null;     // petit geste commercial : pas d'alerte
+    precision = `Montant : ${Math.round(d)} credits\n`;
+  } else if (action === 'toggle_service') {
+    const cible = ['modal', 'site', 'stripe', 'all'].includes(String(target)) ? String(target) : '?';
+    precision = `Service : ${cible}\nEtat demande : ${details?.enabled ? 'actif' : 'coupe'}\n`;
+  }
+  return {
+    sujet: `[MyFabmesh] Action admin : ${ACTIONS_ADMIN_FORT_IMPACT[action]}`,
+    texte: `Une action d'administration a fort impact vient d'etre effectuee.\nAction : ${ACTIONS_ADMIN_FORT_IMPACT[action]}\n${precision}Heure : ${iso}\n`
+         + "Detail (acteur, adresse) dans /admin2 > Journal d'audit. Si ce n'etait pas vous : Deconnecter tout le monde, puis changer le mot de passe.",
+  };
+}
+async function _alerterActionAdmin(env: Env, action: string, target: string | undefined, details: Record<string, unknown> | undefined): Promise<boolean> {
+  try {
+    if (!env.MESHES) return false;
+    const maintenant = Date.now();
+    const iso = new Date(maintenant).toISOString();
+    const m = decisionAlerteActionAdmin(action, target, details, _plafond(env.ADMIN_ALERTE_CREDITS_SEUIL, ALERTE_ADMIN_SEUIL_CREDITS_DEFAUT), iso);
+    if (!m) return false;
+    const n = await _casIncrementCounter(env, `_meta/alerte_admin/${iso.slice(0, 13)}.txt`, 1, ALERTE_ADMIN_MAX_PAR_HEURE);
+    if (n == null) return false;                      // plus de 10 cette heure (ou contention) : pas d'e-mail
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([_sendAdminAlertEmail(env, m.sujet, m.texte), new Promise((r) => { minuteur = setTimeout(r, 4000); })]);   // jamais plus de 4 s d'attente
+    if (minuteur !== undefined) clearTimeout(minuteur);
+    return true;
+  } catch { return false; }
+}
+
+/* ── IA-11 : METADONNEES DES IMAGES TELEVERSEES (EXIF / XMP / IPTC, GPS surtout) ─────────────────────────────────────────────────────────
+ * Les photos importees gardaient leurs donnees EXIF (position GPS, appareil, date) dans R2. Fonctions pures sur Uint8Array, appelees a
+ * l'enregistrement. Regle d'or : JAMAIS un fichier invalide. Au moindre doute (structure inattendue, longueur hors limites, EXIF illisible,
+ * orientation XMP differente de 1) on rend l'ORIGINAL, le meme objet.
+ *  - JPEG : segments APP1 (EXIF, XMP) et APP13 (IPTC / Photoshop) retires ; ICC (APP2), JFIF (APP0), tables et donnees d'image intacts.
+ *    ORIENTATION : si l'EXIF declare une orientation 2 a 8 (photo de telephone prise en portrait), retirer tout l'EXIF ferait afficher l'image
+ *    couchee ; le fichier n'est pas laisse tel quel pour autant (le GPS partirait avec) : l'EXIF est REMPLACE par un EXIF minimal qui ne porte QUE
+ *    l'orientation (36 octets, valide pour tout decodeur). Orientation illisible ou hors 1..8 : original intact.
+ *  - PNG  : blocs eXIf, tEXt, iTXt, zTXt retires (les autres sont recopies tels quels, CRC compris). eXIf avec orientation <> 1 : original intact.
+ *  - WebP : blocs EXIF et XMP retires, taille RIFF recalculee, drapeaux EXIF/XMP du bloc VP8X effaces. EXIF avec orientation <> 1 : original intact. */
+function _u32be(b: Uint8Array, o: number): number { return ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0; }
+function _u32le(b: Uint8Array, o: number): number { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+function _concatOctets(parts: Uint8Array[]): Uint8Array {
+  let total = 0;
+  for (const p of parts) total += p.length;
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+/** Orientation lue dans un bloc TIFF d'EXIF : 1 si le champ est absent, 0 si le bloc est illisible (doute), sinon la valeur declaree. */
+function _orientationExif(t: Uint8Array): number {
+  if (t.length >= 6 && t[0] === 0x45 && t[1] === 0x78 && t[2] === 0x69 && t[3] === 0x66 && t[4] === 0 && t[5] === 0) t = t.subarray(6);   // prefixe « Exif\0\0 »
+  if (t.length < 8) return 0;
+  const le = t[0] === 0x49 && t[1] === 0x49;
+  const be = t[0] === 0x4d && t[1] === 0x4d;
+  if (!le && !be) return 0;
+  const u16 = (o: number): number => le ? (t[o] | (t[o + 1] << 8)) : ((t[o] << 8) | t[o + 1]);
+  const u32 = (o: number): number => le ? ((t[o] | (t[o + 1] << 8) | (t[o + 2] << 16) | (t[o + 3] << 24)) >>> 0)
+                                         : (((t[o] << 24) | (t[o + 1] << 16) | (t[o + 2] << 8) | t[o + 3]) >>> 0);
+  if (u16(2) !== 42) return 0;
+  const ifd = u32(4);
+  if (ifd < 8 || ifd + 2 > t.length) return 0;
+  const n = u16(ifd);
+  if (ifd + 2 + n * 12 > t.length) return 0;
+  for (let i = 0; i < n; i++) {
+    const e = ifd + 2 + i * 12;
+    if (u16(e) === 0x0112) return u16(e + 8);
+  }
+  return 1;
+}
+/** Vrai si un bloc XMP declare une orientation autre que 1 (attribut ou element tiff:Orientation). */
+function _xmpOrientationNonNormale(octets: Uint8Array): boolean {
+  const txt = new TextDecoder('latin1').decode(octets);
+  const m = /tiff:Orientation\s*(?:=\s*["']|>\s*)(\d+)/.exec(txt);
+  return !!m && m[1] !== '1';
+}
+const _SIG_PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+/** Segment APP1 EXIF minimal (36 octets, longueur declaree 34) qui ne porte que l'orientation (2 a 8) : TIFF petit-boutiste, un seul champ, pas d'IFD suivant. */
+function _exifMinimalOrientation(orientation: number): Uint8Array {
+  return new Uint8Array([
+    0xff, 0xe1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00,           // APP1, longueur 34, « Exif\0\0 »
+    0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,                       // II, 42, IFD0 en 8
+    0x01, 0x00,                                                           // 1 champ
+    0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, orientation, 0x00, 0x00, 0x00,   // 0x0112 Orientation, SHORT, 1 valeur
+    0x00, 0x00, 0x00, 0x00,                                               // pas d'IFD suivant
+  ]);
+}
+/** JPEG : rend les octets nettoyes, ou null (rien a retirer, ou doute : l'appelant garde l'original). */
+function _nettoyerJpeg(o: Uint8Array): Uint8Array | null {
+  const n = o.length;
+  if (n < 4 || o[0] !== 0xff || o[1] !== 0xd8) return null;
+  const garde: Uint8Array[] = [o.subarray(0, 2)];
+  let retire = false;
+  let orientationGardee = 0;                                   // orientation (2..8) reecrite dans un EXIF minimal ; 0 = aucune
+  let p = 2;
+  while (p < n) {
+    if (o[p] !== 0xff) return null;
+    while (p < n && o[p] === 0xff) p++;                       // octets de remplissage
+    if (p >= n) return null;
+    const debut = p - 1;                                       // position du 0xFF qui precede le marqueur
+    const m = o[p]; p++;
+    if (m === 0xd9 || m === 0xd8 || m === 0x00) return null;   // EOI avant les donnees d'image, second SOI, octet de bourrage hors donnees : structure inattendue
+    if (m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { garde.push(o.subarray(debut, p)); continue; }   // marqueurs sans longueur
+    if (p + 2 > n) return null;
+    const len = (o[p] << 8) | o[p + 1];
+    if (len < 2 || p + len > n) return null;
+    if (m === 0xda) {                                          // debut des donnees d'image : tout le reste est recopie tel quel
+      garde.push(o.subarray(debut));
+      return retire ? _concatOctets(garde) : null;
+    }
+    const charge = o.subarray(p + 2, p + len);
+    if (m === 0xe1) {                                          // APP1 : EXIF ou XMP
+      const exif = charge.length >= 6 && charge[0] === 0x45 && charge[1] === 0x78 && charge[2] === 0x69 && charge[3] === 0x66 && charge[4] === 0 && charge[5] === 0;
+      if (exif) {
+        const orient = _orientationExif(charge);
+        if (orient >= 2 && orient <= 8) {                      // portrait de telephone : l'orientation est conservee, tout le reste de l'EXIF (GPS) part
+          if (orientationGardee !== 0 && orientationGardee !== orient) return null;   // deux EXIF qui se contredisent : doute
+          if (orientationGardee === 0) garde.push(_exifMinimalOrientation(orient));
+          orientationGardee = orient;
+        } else if (orient !== 1) return null;                  // illisible (0) ou hors 1..8 : doute
+      } else if (_xmpOrientationNonNormale(charge)) return null;
+      retire = true;
+    } else if (m === 0xed) {                                   // APP13 : IPTC / Photoshop
+      retire = true;
+    } else {
+      garde.push(o.subarray(debut, p + len));
+    }
+    p += len;
+  }
+  return null;                                                 // pas de SOS rencontre : fichier inattendu
+}
+/** PNG : blocs eXIf, tEXt, iTXt, zTXt retires. */
+function _nettoyerPng(o: Uint8Array): Uint8Array | null {
+  const n = o.length;
+  if (n < 33) return null;
+  for (let i = 0; i < 8; i++) if (o[i] !== _SIG_PNG[i]) return null;
+  const garde: Uint8Array[] = [o.subarray(0, 8)];
+  let p = 8, retire = false, premier = true, fini = false;
+  while (p < n && !fini) {
+    if (p + 12 > n) return null;
+    const len = _u32be(o, p);
+    const fin = p + 12 + len;
+    if (fin > n) return null;
+    const type = String.fromCharCode(o[p + 4], o[p + 5], o[p + 6], o[p + 7]);
+    if (!/^[A-Za-z]{4}$/.test(type)) return null;
+    if (premier && type !== 'IHDR') return null;
+    premier = false;
+    const charge = o.subarray(p + 8, p + 8 + len);
+    if (type === 'eXIf') { if (_orientationExif(charge) !== 1) return null; retire = true; }
+    else if (type === 'tEXt' || type === 'zTXt') retire = true;
+    else if (type === 'iTXt') { if (_xmpOrientationNonNormale(charge)) return null; retire = true; }
+    else garde.push(o.subarray(p, fin));
+    if (type === 'IEND') { fini = true; garde.push(o.subarray(fin)); }   // d'eventuels octets apres IEND sont conserves
+    p = fin;
+  }
+  if (!fini || !retire) return null;
+  return _concatOctets(garde);
+}
+/** WebP : blocs EXIF et XMP retires, taille RIFF et drapeaux VP8X mis a jour. */
+function _nettoyerWebp(o: Uint8Array): Uint8Array | null {
+  const n = o.length;
+  if (n < 20 || o[0] !== 0x52 || o[1] !== 0x49 || o[2] !== 0x46 || o[3] !== 0x46 || o[8] !== 0x57 || o[9] !== 0x45 || o[10] !== 0x42 || o[11] !== 0x50) return null;
+  const tailleRiff = _u32le(o, 4);
+  const finRiff = tailleRiff + 8;
+  if (finRiff > n || finRiff < 20 || (tailleRiff & 1)) return null;
+  const garde: Uint8Array[] = [];
+  let p = 12, retire = false;
+  while (p < finRiff) {
+    if (p + 8 > finRiff) return null;
+    const four = String.fromCharCode(o[p], o[p + 1], o[p + 2], o[p + 3]);
+    const len = _u32le(o, p + 4);
+    const suivant = p + 8 + len + (len & 1);                   // les blocs impairs sont completes d'un octet
+    if (suivant > finRiff) return null;
+    const charge = o.subarray(p + 8, p + 8 + len);
+    if (four === 'EXIF') { if (_orientationExif(charge) !== 1) return null; retire = true; }
+    else if (four === 'XMP ') { if (_xmpOrientationNonNormale(charge)) return null; retire = true; }
+    else if (four === 'VP8X' && len >= 10 && garde.length === 0) { const c = o.slice(p, suivant); c[8] &= ~0x0c; garde.push(c); }   // efface les drapeaux EXIF (0x08) et XMP (0x04)
+    else garde.push(o.subarray(p, suivant));
+    p = suivant;
+  }
+  if (p !== finRiff || !retire) return null;
+  const corps = _concatOctets(garde);
+  const entete = new Uint8Array(12);
+  entete.set([0x52, 0x49, 0x46, 0x46], 0);
+  const t = corps.length + 4;
+  entete[4] = t & 0xff; entete[5] = (t >>> 8) & 0xff; entete[6] = (t >>> 16) & 0xff; entete[7] = (t >>> 24) & 0xff;
+  entete.set([0x57, 0x45, 0x42, 0x50], 8);
+  return _concatOctets([entete, corps, o.subarray(finRiff)]);
+}
+/** Point d'entree : rend les octets sans metadonnees, ou LE MEME objet (original) au moindre doute. Ne leve jamais. */
+function _retirerMetadonneesImage(octets: Uint8Array): Uint8Array {
+  try {
+    let r: Uint8Array | null = null;
+    if (octets.length > 3 && octets[0] === 0xff && octets[1] === 0xd8 && octets[2] === 0xff) r = _nettoyerJpeg(octets);
+    else if (octets.length > 8 && octets[0] === 0x89 && octets[1] === 0x50) r = _nettoyerPng(octets);
+    else if (octets.length > 12 && octets[0] === 0x52 && octets[1] === 0x49) r = _nettoyerWebp(octets);
+    return r && r.length > 0 && r.length < octets.length ? r : octets;
+  } catch { return octets; }
+}
+
+/* ── PB-06 : LISTE PUBLIQUE DE LA PLACE DE MARCHE, CACHE D'ISOLAT ────────────────────────────────────────────────────────────────────────
+ * GET /api/market/list listait tout _market/listings/, lisait chaque fiche puis chaque note, a CHAQUE visite, sans authentification. Cache
+ * en memoire de l'isolat (30 s) et en-tete Cache-Control public max-age=30. Invalidation : `_invaliderCacheMarche()` est appelee apres toute
+ * requete d'ecriture (le routeur) ; un compteur de generation empeche une lecture lente, commencee AVANT l'ecriture, de remettre dans le
+ * cache un contenu perime. LIMITE : le cache est PAR ISOLAT ; un autre isolat peut servir l'ancienne liste jusqu'a 30 s. La reponse ne
+ * contient que des donnees publiques (aucun cookie, aucune donnee de session). */
+const MARCHE_LISTE_TTL_MS = 30_000;
+let _cacheListeMarche: { t: number; corps: string } | null = null;
+let _genCacheMarche = 0;
+function _invaliderCacheMarche(): void { _cacheListeMarche = null; _genCacheMarche++; }
+function _reponseListeMarche(corps: string): Response {
+  return new Response(corps, {
+    status: 200,
+    headers: { 'content-type': 'application/json; charset=utf-8', ...SECURITY_HEADERS, 'cache-control': `public, max-age=${MARCHE_LISTE_TTL_MS / 1000}` },
+  });
+}
+
+/* ── ADM-03 : REVOCATION DES SESSIONS ADMIN PAR « EPOQUE » ───────────────────────────────────────────────────────────────────────────────
+ * Le cookie admin ne pouvait pas etre revoque avant ses 4 h. Il porte maintenant (apres une revocation) l'epoque en vigueur :
+ * `email:expiration:epoque`. L'epoque stockee (R2 `_meta/admin_epoch.json`, absente = 0) est lue apres verification de la signature ;
+ * un cookie dont l'epoque differe est refuse. COMPATIBILITE, pour ne jamais enfermer l'administrateur dehors : tant que l'epoque vaut 0,
+ * les cookies sont emis ET acceptes dans l'ancien format `email:expiration` (sans epoque), un cookie emis avant le changement reste donc
+ * valide jusqu'a la premiere revocation, et un retour arriere du code n'invalide rien. La route POST /api/admin/revoke-sessions (session
+ * admin + mot de passe, comme force-logout-all) incremente l'epoque et renvoie un cookie neuf a l'appelant, qui reste connecte. */
+const ADMIN_EPOCH_KEY = '_meta/admin_epoch.json';
+/** Epoque en vigueur (0 si le fichier est absent ou illisible : jamais de verrou). Une lecture R2 par appel : les actions d'administration sont rares.
+ *  NB : `_adminTokenCheck` fait la MEME lecture en ligne (sans appeler cette fonction) pour rester autonome ; garder les deux alignees. */
+async function _lireEpoqueAdmin(env: Env): Promise<number> {
+  try {
+    const obj = await env.MESHES.get(ADMIN_EPOCH_KEY);
+    if (!obj) return 0;
+    const e = Number((await obj.json() as { epoch?: unknown }).epoch);
+    return Number.isInteger(e) && e > 0 ? e : 0;
+  } catch { return 0; }
+}
+/** Valeur du cookie admin : format historique tant que l'epoque vaut 0, sinon avec l'epoque dans la charge signee. */
+async function _valeurCookieAdmin(email: string, exp: number, cleSignature: string, epoque: number): Promise<string> {
+  const charge = epoque > 0 ? `${email.toLowerCase()}:${exp}:${epoque}` : `${email.toLowerCase()}:${exp}`;
+  return `${charge}.${await _hmacSign(cleSignature, charge)}`;
+}
+/** POST /api/admin/revoke-sessions  body { password } — ADMIN. Invalide tous les cookies admin emis jusqu'ici (sauf celui que cette reponse renvoie). */
+async function handleAdminRevokeSessions(req: Request, env: Env): Promise<Response> {
+  const guard = await _requireAdmin(req, env);
+  if (guard instanceof Response) return guard;
+  let body: { password?: string };
+  try { body = await req.json() as { password?: string }; } catch { return err(400, 'body required'); }
+  if (await _adminFailGate(req, env, 'logout', false)) return err(429, 'too many failed attempts; try again in an hour');
+  if (!(await _verifyAdminPassword(env, String(body?.password || '')))) {
+    await _adminFailGate(req, env, 'logout', true);
+    return err(401, 'invalid password');
+  }
+  if (!env.MESHES) return err(500, 'storage not configured');
+  let nouvelle = -1;
+  for (let essai = 0; essai < 6 && nouvelle < 0; essai++) {
+    if (essai > 0) await new Promise((r) => setTimeout(r, _attenteBruitee(essai)));
+    const existant = await env.MESHES.get(ADMIN_EPOCH_KEY);
+    let courante = 0;
+    if (existant) { try { const e = Number((await existant.json() as { epoch?: unknown }).epoch); courante = Number.isInteger(e) && e > 0 ? e : 0; } catch { courante = 0; } }
+    const rec = JSON.stringify({ epoch: courante + 1, at: new Date().toISOString(), by: guard.email });
+    const res = existant
+      ? await env.MESHES.put(ADMIN_EPOCH_KEY, rec, { httpMetadata: { contentType: 'application/json' }, onlyIf: { etagMatches: existant.etag } })
+      : await env.MESHES.put(ADMIN_EPOCH_KEY, rec, { httpMetadata: { contentType: 'application/json' }, onlyIf: { etagDoesNotMatch: '*' } });
+    if (res) nouvelle = courante + 1;
+  }
+  if (nouvelle < 0) return err(503, 'could not revoke sessions (storage busy), please retry');
+  await _auditLog(env, { req, actorEmail: guard.email, action: 'revoke_admin_sessions', details: { epoch: nouvelle } });
+  const src = await _getAdminPasswordSource(env);
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (src.mode !== 'none' && guard.email) {
+    const exp = Math.floor(Date.now() / 1000) + ADMIN_TTL_SEC;
+    headers['set-cookie'] = `${ADMIN_COOKIE}=${await _valeurCookieAdmin(guard.email, exp, src.signingKey, nouvelle)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${ADMIN_TTL_SEC}`;
+  }
+  return new Response(JSON.stringify({ ok: true, epoch: nouvelle }), { status: 200, headers });
+}
+
+/* ═══ VAGUE 2 / VOIE WORKER-3 : FIN ═══ */
 
 /** GET /api/pricing — PUBLIC. Returns the live credit costs so the
  *  UI can render accurate cost pills and add-on hints without re-
@@ -23907,8 +24337,13 @@ export default {
   async fetch(req: Request, envBrut: Env, ctx: unknown): Promise<Response> {
     // CLE API (2026-09-28) : une requete signee par une cle personnelle passe par la
     // garde (routes interdites, plafond de credits par jour et par cle) AUTOUR du routeur.
-    if (_lireCleApi(req)) return await _avecCleApi(req, _envAvecReprises(envBrut), () => _routeur(req, envBrut, ctx), ctx);
-    return await _routeur(req, envBrut, ctx);
+    // 2026-10-03 (PB-06) : toute requete d'ecriture invalide le cache de la liste publique de la place de marche (au retour du routeur, meme en erreur).
+    const routeur = async (): Promise<Response> => {
+      try { return await _routeur(req, envBrut, ctx); }
+      finally { if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') _invaliderCacheMarche(); }
+    };
+    if (_lireCleApi(req)) return await _avecCleApi(req, _envAvecReprises(envBrut), routeur, ctx);
+    return await routeur();
   },
 };
 
@@ -24313,6 +24748,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/admin/pricing'         && method === 'GET')  return await handleAdminGetPricing(req, env);
         if (pathname === '/api/admin/pricing'         && method === 'POST') return await handleAdminSetPricing(req, env);
         if (pathname === '/api/admin/force-logout-all' && method === 'POST') return await handleAdminForceLogoutAll(req, env);
+        if (pathname === '/api/admin/revoke-sessions' && method === 'POST') return await handleAdminRevokeSessions(req, env);   // 2026-10-03 (ADM-03)
         if (pathname === '/api/admin/totp/status'     && method === 'GET')  return await handleAdminTotpStatus(req, env);
         if (pathname === '/api/admin/totp/setup'      && method === 'POST') return await handleAdminTotpSetup(req, env);
         if (pathname === '/api/admin/totp/confirm'    && method === 'POST') return await handleAdminTotpConfirm(req, env);

@@ -1,5 +1,16 @@
 [
  {
+  "chemin": "/api/admin/argent-recent",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminArgentRecent",
+  "motif": false
+ },
+ {
   "chemin": "/api/admin/audience.json",
   "methodes": [
    "GET"
@@ -44,6 +55,28 @@
   "motif": false
  },
  {
+  "chemin": "/api/admin/creation-texte",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminCreationTexte",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/creations",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminCreations",
+  "motif": false
+ },
+ {
   "chemin": "/api/admin/force-logout-all",
   "methodes": [
    "POST"
@@ -74,6 +107,17 @@
   "payant": false,
   "tarifs": [],
   "handler": "handleAdminHistoryXls",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/images/recent",
+  "methodes": [
+   "GET"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminImagesRecent",
   "motif": false
  },
  {
@@ -319,6 +363,17 @@
   "motif": false
  },
  {
+  "chemin": "/api/admin/revoke-sessions",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminRevokeSessions",
+  "motif": false
+ },
+ {
   "chemin": "/api/admin/sante.json",
   "methodes": [
    "GET"
@@ -461,6 +516,17 @@
   "payant": false,
   "tarifs": [],
   "handler": "handleAdminWarm",
+  "motif": false
+ },
+ {
+  "chemin": "/api/admin/warm-switch",
+  "methodes": [
+   "POST"
+  ],
+  "acces": "admin",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleAdminWarmSwitch",
   "motif": false
  },
  {
@@ -862,6 +928,18 @@
   "motif": false
  },
  {
+  "chemin": "/api/health",
+  "methodes": [
+   "GET",
+   "HEAD"
+  ],
+  "acces": "public",
+  "payant": false,
+  "tarifs": [],
+  "handler": "handleHealth",
+  "motif": false
+ },
+ {
   "chemin": "/api/heartbeat",
   "methodes": [
    "POST",
@@ -1025,17 +1103,6 @@
   "payant": false,
   "tarifs": [],
   "handler": "handleMarketUpdate",
-  "motif": true
- },
- {
-  "chemin": "/api/market/listing/:param",
-  "methodes": [
-   "PATCH"
-  ],
-  "acces": "compte",
-  "payant": false,
-  "tarifs": [],
-  "handler": "handleMarketListingUpdate",
   "motif": true
  },
  {
