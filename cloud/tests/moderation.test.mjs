@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import * as CAS from './_cas-moderation.mjs';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 
@@ -205,4 +206,64 @@ test('les mots ambigus du jeu ne bloquent qu en contexte', () => {
   assert.equal(checkPromptSafety(`${MIN_ENFANT} covered in blood`).safe, false, 'enfant + violence reste bloque');
   assert.equal(checkPromptSafety('breast cancer awareness ribbon').safe, true);
   assert.equal(checkPromptSafety('bite marks, sexy vampire').safe, false);
+});
+
+// ── Jeu 4 : audit langue / moderation du 11/10/2026 (cas PARTAGES avec le bureau et Modal : tests/_cas-moderation.mjs) ──
+// Contre l'ancienne version (preuve d'echec) : git show HEAD:cloud/src/nsfw_filter.ts > /tmp/ancien.ts &&
+//   NSFW_FILTER_SRC=/tmp/ancien.ts node --test tests/moderation.test.mjs
+const affiche = ([c, t]) => `${c}: ${JSON.stringify(t)}`;
+
+test('jeu 4a (M1, M2, M3, MODERATION-01, 03, 09) : le plancher tient — actes explicites, mots colles, synonymes et ages, 12 langues, caracteres effaces, chiffres et marques — meme sous unrestricted', () => {
+  const cas = CAS.casPlancher();
+  assert.ok(cas.length > 500);
+  assert.deepEqual(cas.filter(([, t]) => checkHardFloor(t).safe || checkPromptSafety(t, true).safe).map(affiche), []);
+  // contrat de l'alerte d'exploitant (worker.ts, categorieContenuGrave) : raison « Blocked: », terme « minor-safety »
+  const r = checkHardFloor(`${CAS.F('chi', 'ld')} ${CAS.ACTES[0]}`);
+  assert.equal(r.blocked, 'minor-safety');
+  assert.match(r.reason, /^Blocked: /);
+  assert.equal(r.categorie, 'plancher');
+});
+
+test('jeu 4b (M1, MODERATION-01, 03, 09) : adultes explicites — filtre general pour un compte ordinaire, jamais le plancher, permis sous unrestricted', () => {
+  const ecarts = [];
+  for (const [c, t] of CAS.casGeneral()) {
+    if (!checkHardFloor(t).safe) ecarts.push('plancher a tort ' + affiche([c, t]));
+    else if (checkPromptSafety(t, false).safe) ecarts.push('filtre general rate ' + affiche([c, t]));
+    else if (!checkPromptSafety(t, true).safe) ecarts.push('bloque sous unrestricted ' + affiche([c, t]));
+  }
+  assert.deepEqual(ecarts, []);
+});
+
+test('jeu 4c (MODERATION-05) : faux positifs corriges — vocabulaire de jeu et mots courts d autres langues acceptes ; pas de refus « illegal » sur un age ancien', () => {
+  assert.deepEqual(CAS.LEGITIMES.filter((t) => !checkHardFloor(t).safe || !checkPromptSafety(t, false).safe), []);
+  assert.deepEqual(CAS.PLANCHER_SEULEMENT.filter((t) => !checkHardFloor(t).safe), [],
+    'ces textes ne doivent jamais declencher le plancher (refus « illegal » non levable et alerte « mineurs » a l exploitant)');
+});
+
+test('jeu 4d (MODERATION-07, SERVEUR-09) : texte envoye au generateur — longueur bornee, jetons speciaux casses, poids bornes', () => {
+  const { neutraliserSyntaxePrompt, controlerLongueurPrompt, longueurPonderee, PROMPT_MAX_CARACTERES, PROMPT_MAX_ENRICHI } = exportsMod;
+  assert.equal(typeof neutraliserSyntaxePrompt, 'function', 'neutraliserSyntaxePrompt absent');
+  for (const [entree, attendu] of CAS.SYNTAXE) assert.equal(neutraliserSyntaxePrompt(entree), attendu, JSON.stringify(entree));
+  assert.equal(PROMPT_MAX_CARACTERES, 2000);
+  assert.equal(PROMPT_MAX_ENRICHI, 4000);
+  assert.deepEqual(controlerLongueurPrompt('x'.repeat(2000)), { safe: true });
+  const trop = controlerLongueurPrompt('x'.repeat(2001));
+  assert.equal(trop.safe, false);
+  assert.equal(trop.blocked, 'length');
+  assert.equal(trop.categorie, 'longueur');
+  assert.match(trop.reason, /too long/);
+  assert.equal(controlerLongueurPrompt('x'.repeat(3999), PROMPT_MAX_ENRICHI).safe, true);
+  assert.equal(longueurPonderee('ab' + '孩'), 5, 'hors alphabet latin : 3 par caractere');
+  assert.equal(controlerLongueurPrompt('孩'.repeat(667)).safe, false);
+  assert.equal(controlerLongueurPrompt('孩'.repeat(666)).safe, true);
+  assert.equal(controlerLongueurPrompt('\u200b'.repeat(5000) + 'x').safe, true, 'les caracteres effaces ne comptent pas');
+  assert.equal(controlerLongueurPrompt('x'.repeat(1_000_000)).safe, false, 'un texte enorme est refuse sans etre parcouru');
+});
+
+test('jeu 4e : le filtre reste rapide sur un texte long (nouveaux lexiques compris)', () => {
+  for (const p of ['a brave knight in shining armor '.repeat(3000), '子供と犬 '.repeat(8000), 'x '.repeat(30000)]) {
+    const t = Date.now();
+    checkPromptSafety(p, false);
+    assert.ok(Date.now() - t < 3000, `trop lent sur ${p.length} caracteres`);
+  }
 });
