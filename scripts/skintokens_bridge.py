@@ -128,6 +128,20 @@ def main():
     except Exception as exc:
         log(f"correctif d'alignement indisponible ({exc}) - rig SANS texture")
         transfert = False
+    # SECURITE (2026-10-13) : le serveur Blender du rigger lit ses requetes avec
+    # torch.load(weights_only=False). En ecoute sur 0.0.0.0, une autre machine du
+    # reseau local pouvait lui faire executer du code pendant le rig. Il ne doit
+    # ecouter que cette machine (patch_skintokens_transfert.ecoute_locale) :
+    # sinon, aucun rig n'est lance.
+    try:
+        from patch_skintokens_transfert import ecoute_locale
+        ecoute = ecoute_locale(SKINTOKENS_DIR)
+    except Exception as exc:
+        ecoute = f"echec ({type(exc).__name__}: {exc})"
+    if ecoute not in ("deja", "applique", "absent"):
+        print("AUTORIG_ERROR: the local rig server could not be restricted to this computer "
+              f"({ecoute}); reinstall the Rig component.")
+        sys.exit(1)
     produit = lambda: os.path.exists(output_glb) and os.path.getsize(output_glb) > 0
     rc, refuse = 0, False
     # SQUELETTE COMPLET (2026-09-26, parite cloud) : meilleur de 2 tirages de
