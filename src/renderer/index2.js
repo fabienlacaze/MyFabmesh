@@ -856,6 +856,49 @@ document.getElementById('btn-refresh').addEventListener('click', async (ev) => {
 // ============================================================
 // PAGE 1: PROJECTS HOME
 // ============================================================
+/* NOMS DE PROJET NON LATINS (2026-10-13, audit de la langue : CHAMPS-02, CHAMPS-13, MANQUE-SERV-03). Les noms etaient compares par leur
+ * forme « assainie » ([^a-zA-Z0-9_-] -> _) : « 兽人战士 » et « 精灵射手 » (ou « تنين » / « فارس », « орк » / « дом ») donnent tous deux
+ * une suite de « _ ». Apres une generation, le rechargement basculait sur l'AUTRE projet s'il etait plus fourni, et un projet vide neuf
+ * disparaissait dans un projet plein de meme forme. Regle commune au site et au bureau :
+ *   - deux noms sont equivalents s'ils sont egaux a la normalisation Unicode pres (NFC), ou — pour deux noms ENTIEREMENT ASCII
+ *     seulement — s'ils ont la meme forme assainie (cas d'origine : « Mobilier design » range dans « Mobilier_design ») ;
+ *   - le projet d'un nom est celui de meme nom EXACT ; l'equivalence ne sert qu'en repli, et seulement si elle ne designe qu'UN projet.
+ * Au bureau, le dossier d'un nom non latin est « <lisible>-h<empreinte> » (src/main/slug_projet.js) et le nom SAISI est memorise comme
+ * nom d'affichage (config.projectDisplayNames) : c'est lui qui relie le projet a son dossier. */
+function _estNomAscii(nom) {
+  return !/[^\x00-\x7f]/.test(String(nom == null ? '' : nom));
+}
+function _nomsEquivalents(a, b) {
+  const x = String(a == null ? '' : a), y = String(b == null ? '' : b);
+  if (x === y || x.normalize('NFC') === y.normalize('NFC')) return true;
+  const assaini = (s) => s.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return _estNomAscii(x) && _estNomAscii(y) && assaini(x) === assaini(y);
+}
+/** Projet de `nom` dans `projets` : nom EXACT d'abord (puis nom saisi memorise d'un dossier non latin), equivalence normalisee
+ *  seulement si UN SEUL projet correspond ; sinon null. */
+function _projetDuNom(projets, nom) {
+  const n = String(nom == null ? '' : nom);
+  const liste = (projets || []).filter(Boolean);
+  const saisi = (p) => (p.displayName && !_estNomAscii(p.displayName)) ? String(p.displayName) : '';
+  const exact = liste.find((p) => p.name === n) || liste.find((p) => saisi(p) === n && n !== '');
+  if (exact) return exact;
+  const candidats = liste.filter((p) => _nomsEquivalents(p.name, n) || (saisi(p) && _nomsEquivalents(saisi(p), n)));
+  return candidats.length === 1 ? candidats[0] : null;
+}
+/** Nom SAISI d'un projet (nom d'affichage non latin memorise : « 兽人战士 »), sinon son nom de dossier : c'est lui qui va dans le
+ *  prompt, le nom d'export et le site, jamais « project-h1a2b3c4d » (2026-10-13, CHAMPS-13). */
+function _nomSaisiDuProjet(p) {
+  if (!p) return '';
+  return (p.displayName && !_estNomAscii(p.displayName)) ? String(p.displayName) : String(p.name || '');
+}
+/** Nom envoye au SITE pour un projet du bureau (meme regle que nomPourLeSite de src/main/slug_projet.js, CHAMPS-24) : le nom saisi
+ *  memorise d'un dossier non latin ; sinon le nom de dossier, comme avant — un ancien dossier (« ____ ») garde le nom que le site
+ *  connait deja, meme quand la grille l'affiche sous le nom de son projet vide. */
+function _nomPourLeSite(p) {
+  if (!p) return '';
+  if (p.displayName && !_estNomAscii(p.displayName) && !p._nomDuMarqueur) return String(p.displayName);
+  return String(p.name || '');
+}
 async function refreshProjectsPage() {
   const folders = (await API.listImageFolders()) || [];
   const meshes  = (await API.listMeshes()) || [];
@@ -865,6 +908,16 @@ async function refreshProjectsPage() {
   // rigStem (= the target GLB basename without extension) lets us
   // attribute the clip back to its source rig later in this function.
   const animsOnDisk = (await API.listAnimations?.()) || [];
+  // Noms d'affichage (config.projectDisplayNames : dossier -> nom saisi d'un projet non latin, ou renommage), lus AVANT le
+  // dedoublonnage plus bas : il en a besoin pour relier le projet vide « 兽人战士 » a son dossier « project-h1a2b3c4d » (2026-10-13).
+  let _dn = {};
+  try { _dn = (await API.getProjectDisplayNames?.()) || {}; } catch (_) { _dn = {}; }
+  // Premier contenu de chaque projet (horodatage le plus ancien) : sert a ne rattacher un ancien dossier non latin qu'au projet vide
+  // cree AVANT ce contenu (voir le dedoublonnage).
+  const _noterContenu = (p, t) => {
+    const ms = t instanceof Date ? t.getTime() : (typeof t === 'number' ? t : new Date(t || 0).getTime());
+    if (Number.isFinite(ms) && ms > 0 && !(p._premierContenu <= ms)) p._premierContenu = ms;
+  };
 
   // Group by project name (folder = base name without trailing _NNN)
   const projectsMap = new Map();
@@ -888,6 +941,7 @@ async function refreshProjectsPage() {
     const p = ensure(v.name);
     const ts = typeof v.created === 'number' ? v.created : new Date(v.created || 0).getTime();
     if (!p.latestTimestamp && Number.isFinite(ts)) p.latestTimestamp = ts;
+    if (Number.isFinite(ts) && ts > 0 && !(p._creeLe <= ts)) p._creeLe = ts;   // creation du projet vide (dedoublonnage, 2026-10-13)
     if (!p.assetType && v.assetType) p.assetType = v.assetType;
     if (!p.assetStyle && v.assetStyle) p.assetStyle = v.assetStyle;
     if (!p.prompt && v.prompt) p.prompt = v.prompt;
@@ -899,6 +953,7 @@ async function refreshProjectsPage() {
     p.images.push(...(f.images || []).map(img => ({ path: img, folder: f.name })));
     if (!p.thumb && f.images && f.images[0]) p.thumb = f.images[0];
     if (f.created && f.created > p.latestTimestamp) p.latestTimestamp = f.created;
+    for (const d of (f.imagesData || [])) _noterContenu(p, d && d.created);
     // Keep the latest prompt for the project (folders are listed newest first)
     if (!p.prompt && f.prompt) p.prompt = f.prompt;
     // Merge back-photo map from disk so the FRONT/BACK bar shows even
@@ -1000,6 +1055,7 @@ async function refreshProjectsPage() {
     const p = ensure(project);
     if (/_rigged_/i.test(m.filename)) p.rigs.push(m);
     else p.meshes.push(m);
+    _noterContenu(p, m.created);
     // Use mesh's source image as project thumb if no image folder
     if (!p.thumb && m.sourceImage) p.thumb = m.sourceImage;
     if (m.created) {
@@ -1085,12 +1141,29 @@ async function refreshProjectsPage() {
   // Un projet nomme « Mobilier design » (espace) est memorise sous ce nom, mais ses images vont dans le dossier « Mobilier_design » : deux entrees
   // coexistaient, et le rechargement apres la generation prenait l'ancienne (vide, nom exact) -> 0 image. On retire le marqueur vide des qu'un
   // projet reel de meme nom « assaini » a du contenu.
+  // 2026-10-13 (MANQUE-SERV-03, CHAMPS-13) : la forme assainie confondait deux noms non latins de meme longueur (« 兽人战士 » /
+  // « 精灵射手 » -> « ____ ») : le projet vide TOUT NEUF disparaissait dans l'autre, avec report de son type et de son prompt. Un projet
+  // vide rejoint desormais : le dossier dont le nom SAISI memorise est le sien (« project-h1a2b3c4d », voir src/main/slug_projet.js) ;
+  // le dossier de nom equivalent (_nomsEquivalents : la forme assainie seulement entre deux noms ASCII) ; un ANCIEN dossier non latin
+  // (« ____ », « _p_e_magique », d'avant ce correctif) seulement s'il a ete cree AVANT le premier contenu de ce dossier et qu'aucun
+  // autre projet vide n'est dans ce cas — un projet cree apres n'en est pas l'auteur. Ce dossier affiche alors le nom du projet vide.
   {
-    const _san = (n) => String(n).replace(/[^a-zA-Z0-9_-]/g, '_');
     const _plein = (p) => (p.images?.length || 0) + (p.meshes?.length || 0) + (p.rigs?.length || 0) + (p.animations?.length || 0) > 0;
+    const _assaini = (n) => String(n).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const _saisiDuDossier = (q) => (_dn[q.name] && !_estNomAscii(_dn[q.name])) ? String(_dn[q.name]) : '';
+    const _vides = [...projectsMap.values()].filter((p) => !_plein(p));
     for (const [cle, p] of [...projectsMap.entries()]) {
       if (_plein(p)) continue;
-      const jumeau = [...projectsMap.values()].find((q) => q !== p && _plein(q) && _san(q.name) === _san(p.name));
+      let jumeau = [...projectsMap.values()].find((q) => q !== p && _plein(q)
+        && (_nomsEquivalents(q.name, p.name) || (_saisiDuDossier(q) && _nomsEquivalents(_saisiDuDossier(q), p.name))));
+      if (!jumeau && !_estNomAscii(p.name)) {
+        const ancien = projectsMap.get(_assaini(p.name));
+        if (ancien && ancien !== p && _plein(ancien) && !_dn[ancien.name] && !ancien._nomDuMarqueur) {
+          const auteur = (r) => !_estNomAscii(r.name) && _assaini(r.name) === ancien.name
+            && Number.isFinite(r._creeLe) && Number.isFinite(ancien._premierContenu) && r._creeLe <= ancien._premierContenu;
+          if (auteur(p) && _vides.filter(auteur).length === 1) { jumeau = ancien; ancien._nomDuMarqueur = p.name; }
+        }
+      }
       if (jumeau) {
         // le marqueur porte le type / style choisis a la creation : on les reporte sur le projet reel
         if (!jumeau.assetType && p.assetType) jumeau.assetType = p.assetType;
@@ -1102,10 +1175,8 @@ async function refreshProjectsPage() {
   }
   state.projects = Array.from(projectsMap.values()).sort((a, b) => b.latestTimestamp - a.latestTimestamp);
   // Apply user display-name overrides (project rename) without touching files.
-  try {
-    const _dn = (await API.getProjectDisplayNames?.()) || {};
-    for (const _p of state.projects) _p.displayName = _dn[_p.name] || null;
-  } catch (_) {}
+  // Noms d'affichage lus plus haut (avant le dedoublonnage) ; a defaut, le nom du projet vide rattache a un ancien dossier non latin.
+  for (const _p of state.projects) _p.displayName = _dn[_p.name] || _p._nomDuMarqueur || null;
   renderProjectsGrid();
   // Start background NSFW scan (non-blocking, re-renders when done)
   _runNsfwBackgroundScan();
@@ -1171,7 +1242,8 @@ let _nsfwScanRunning = false;
 async function _nsfwRaison(p) {
   // 1. Nom + description contre la liste de mots (mots entiers : « ass » n'est pas dans « masse »)
   const keywords = await _getNsfwKeywords();
-  const text = ((p.name || '') + ' ' + (p.prompt || '')).toLowerCase();
+  // + nom SAISI d'un projet non latin : son dossier « <nom>-h<empreinte> » ne contient plus les mots du nom (2026-10-13)
+  const text = ((p.name || '') + ' ' + (_nomSaisiDuProjet(p) !== p.name ? _nomSaisiDuProjet(p) + ' ' : '') + (p.prompt || '')).toLowerCase();
   const _echapper = (s) => String(s).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const mot = keywords.find(kw => new RegExp('\\b' + _echapper(kw) + '\\b').test(text));
   if (mot) return { type: 'mot', mot };
@@ -1748,7 +1820,9 @@ async function renderProjectsGrid() {
   const searchInput = document.getElementById('project-search');
   const query = (searchInput?.value || '').trim().toLowerCase();
   if (query) {
-    visibleProjects = visibleProjects.filter(p => p.name.toLowerCase().includes(query));
+    // + nom affiche : un projet non latin se cherche par son nom saisi (« 兽人 »), pas par son dossier « project-h… » (2026-10-13)
+    visibleProjects = visibleProjects.filter(p => p.name.toLowerCase().includes(query)
+      || String(p.displayName || '').toLowerCase().includes(query));
   }
 
   if (visibleProjects.length === 0) {
@@ -1801,24 +1875,28 @@ async function renderProjectsGrid() {
     `;
     card.querySelector('.card-rename-btn')?.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const _sanitizeProj = (s) => String(s || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_')
-        .slice(0, 40).replace(/_+\d+$/, '').replace(/_+$/, '');
+      // Nom non latin ou accentue (2026-10-13) : le processus principal le range dans « <nom>-h<empreinte> » et memorise le nom saisi.
+      // L'assainir ici le reduisait a des « _ » puis a '' : « Please enter a valid name. » pour tout nom chinois, arabe, russe...
+      const _sanitizeProj = (s) => { const t = String(s || '').trim();
+        return _estNomAscii(t) ? t.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40).replace(/_+\d+$/, '').replace(/_+$/, '') : t; };
       const validate = (val) => {
         const np = _sanitizeProj(val);
         if (!np) return 'Please enter a valid name.';
-        if (np === p.name) return null;  // same project — no-op, allowed
-        if (state.projects.some(pr => pr && pr.name === np))
+        if (np === p.name || np === _nomSaisiDuProjet(p)) return null;  // same project — no-op, allowed
+        if (state.projects.some(pr => pr && (pr.name === np || _nomSaisiDuProjet(pr) === np)))
           return `A project named "${np}" already exists — choose a different name.`;
         return null;
       };
       const newName = await customPrompt(
         'New project name — renames the image folder + every mesh / rig / animation file on disk:',
-        p.name, 'Rename project', 'Rename', validate);
-      if (newName === null || !newName.trim() || newName.trim() === p.name) return;
+        _nomSaisiDuProjet(p), 'Rename project', 'Rename', validate);
+      if (newName === null || !newName.trim() || newName.trim() === p.name || newName.trim() === _nomSaisiDuProjet(p)) return;
       const r = await API.renameProjectFiles({ oldName: p.name, newName });
       if (r?.success) {
         const c = r.renamed || {};
-        showToast?.(`Renamed to "${r.newName}" — ${(c.meshes||0)+(c.rigs||0)} mesh/rig, ${c.folders||0} folder, ${c.anims||0} anim, ${c.sidecars||0} sidecar files`, 'success', 3500);
+        // nom non latin : le nom saisi, pas le dossier « <nom>-h<empreinte> » (2026-10-13)
+        const _nomAnnonce = _estNomAscii(newName.trim()) ? r.newName : newName.trim();
+        showToast?.(`Renamed to "${_nomAnnonce}" — ${(c.meshes||0)+(c.rigs||0)} mesh/rig, ${c.folders||0} folder, ${c.anims||0} anim, ${c.sidecars||0} sidecar files`, 'success', 3500);
         if (state.currentProject?.name === p.name) state.currentProject = null;
         await refreshProjectsPage();
       } else {
@@ -3543,6 +3621,10 @@ function populateWorkspace(p) {
   //   3. Initial prompt from "New project" modal
   let savedLocal = '';
   try { savedLocal = localStorage.getItem('fabmesh-prompt-' + p.name) || ''; } catch (e) {}
+  // projet non latin : le texte a pu etre memorise sous le nom SAISI, avant que le dossier « <nom>-h<empreinte> » existe (2026-10-13)
+  if (!savedLocal && _nomSaisiDuProjet(p) !== p.name) {
+    try { savedLocal = localStorage.getItem('fabmesh-prompt-' + _nomSaisiDuProjet(p)) || ''; } catch (e) {}
+  }
   // Legacy projects accumulated style/type suffixes in their persisted prompt
   // on every generation. Strip any known suffix so the textarea only shows the
   // raw user intent (the suffixes are re-added by buildFullPrompt at gen time).
@@ -3563,9 +3645,11 @@ function populateWorkspace(p) {
     const saisi = ((ta && ta.value) || '').trim();
     // texte retouche par le user (champ memorise) : tel quel ; sinon nom + description. La description enregistree
     // (p.prompt) n'en fait pas partie : au rechargement qui suit une generation, le nom disparaissait du champ.
-    const brut = savedLocal ? saisi : _sujetDuProjet(p.name, saisi);
+    // nom SAISI (« Épée magique », « 兽人战士 ») et non le nom de dossier (« Epee_magique-h1a2b3c4d », 2026-10-13)
+    const brut = savedLocal ? saisi : _sujetDuProjet(_nomSaisiDuProjet(p), saisi);
     // gabarit du TYPE DU PROJET (les listes gardent celui du projet precedent tant qu'il n'a rien genere)
-    const meta = (typeof _getProjectMeta === 'function' && _getProjectMeta(p.name)) || {};
+    const meta = (typeof _getProjectMeta === 'function'
+      && (_getProjectMeta(p.name) || (_nomSaisiDuProjet(p) !== p.name && _getProjectMeta(_nomSaisiDuProjet(p))))) || {};
     if (ta && brut && typeof buildFullPrompt === 'function'
         && !/single isolated 3D|plain white background|sharp details|photorealistic/i.test(brut)) {
       _preremplirPrompt(brut,
@@ -9140,7 +9224,8 @@ function _getProjectMeta(projName) {
 
 function _restoreProjectMeta(p) {
   if (!p?.name) return;
-  const meta = _getProjectMeta(p.name);
+  // projet non latin : reglages memorises sous le nom SAISI avant la creation de son dossier « <nom>-h<empreinte> » (2026-10-13)
+  const meta = _getProjectMeta(p.name) || (_nomSaisiDuProjet(p) !== p.name ? _getProjectMeta(_nomSaisiDuProjet(p)) : null);
   // Case « T-pose » (2026-10-03) : memorisee par projet ; cochee par defaut (projet neuf, ou sans reglage memorise).
   const cbTpose = document.getElementById('ws-tpose');
   if (cbTpose) { cbTpose.checked = !(meta && meta.tpose === false); cbTpose.dispatchEvent(new Event('change')); }
@@ -17986,7 +18071,8 @@ function _cleanExportBase(m) {
 // puis tout caractere hors [A-Za-z0-9_-] devient « _ » (meme regle que main.js : Unreal et les
 // outils 3D digerent mal espaces et accents). Identique sur le web.
 function _nomExport3D(m) {
-  const proj = String(state.currentProject?.name || '').trim();
+  // nom SAISI (« Épée magique » -> « Epee_magique_3D ») plutot que le dossier « Epee_magique-h1a2b3c4d » (2026-10-13)
+  const proj = String(_nomSaisiDuProjet(state.currentProject) || '').trim();
   const base = proj || String(m?.filename || 'mesh').replace(/\.[^.]+$/, '')
     .replace(/_(trellis2_native|trellis2|trellis|native_3d|sf3d|hunyuan|puppeteer|unirig)(?=_|$)/gi, '');
   const propre = base.normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -20259,16 +20345,14 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
 async function reloadCurrentProject() {
   if (!state.currentProject) return;
   const name = state.currentProject.name;
-  const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, '_');
   await refreshProjectsPage();
-  // Try exact match first, then sanitized match (spaces → underscores)
-  // Plusieurs entrees peuvent correspondre (marqueur de projet vide « Mobilier design » + dossier reel « Mobilier_design ») : on prend celle qui a du contenu.
-  const _candidats = state.projects.filter(p => p.name === name || p.name === sanitizedName
-    || p.name.replace(/[^a-zA-Z0-9_-]/g, '_') === sanitizedName);
-  const _poids = (p) => (p.images?.length || 0) + (p.meshes?.length || 0) + (p.rigs?.length || 0) + (p.animations?.length || 0);
-  const refreshed = _candidats.sort((a, b) => _poids(b) - _poids(a))[0];
+  // Nom EXACT d'abord (puis le nom saisi memorise d'un dossier non latin : « 兽人战士 » -> « project-h1a2b3c4d ») ; l'equivalence
+  // (« Mobilier design » range dans « Mobilier_design ») seulement si elle ne designe qu'UN projet.
+  // 2026-10-13 (CHAMPS-02) : on prenait parmi les noms de meme forme assainie celui qui avait le PLUS de contenu ; « 兽人战士 » ouvert
+  // basculait sur « 精灵射手 » apres chaque generation, et le Generate suivant partait dans l'autre projet.
+  const refreshed = _projetDuNom(state.projects, name);
   if (refreshed) console.log('[reload] matched project:', refreshed.name, 'for requested:', name);
-  else console.log('[reload] NO MATCH for project:', name, '(sanitized:', sanitizedName, ') in:', state.projects.map(p => p.name).slice(0, 10));
+  else console.log('[reload] NO MATCH for project:', name, 'in:', state.projects.map(p => p.name).slice(0, 10));
   if (!refreshed) {
     // The project no longer matches anything in the projects scan — most
     // likely the user just deleted its last image. Don't leave the UI
@@ -20774,8 +20858,10 @@ function _iconeCategorieHtml(etape, vignetteHtml) {
  * aucune, et une URL signee expire en 24 h. On garde l'image source si c'en
  * est une ; sinon, et en repli si elle ne charge plus, l'image du projet. */
 function _vignetteProjet(nom) {
+  // nom SAISI d'un projet non latin accepte aussi (travail lance avant la creation de son dossier, 2026-10-13)
   const p = (state.projects || []).find(x => x && x.name === nom)
-    || (state.currentProject && state.currentProject.name === nom ? state.currentProject : null);
+    || (state.currentProject && state.currentProject.name === nom ? state.currentProject : null)
+    || (nom && !_estNomAscii(nom) ? (state.projects || []).find(x => x && _nomSaisiDuProjet(x) === nom) : null);
   const t = p && p.thumb;
   if (!t) return '';
   return /^(https?:|data:|blob:)/i.test(String(t)) ? String(t) : (typeof _toFileUrl === 'function' ? _toFileUrl(t) : String(t));
@@ -21222,7 +21308,8 @@ function renderStepProgressWidgets() {
       const pn = _jobProjectName(j);
       // No project label on the job → show in the current project's
       // widget only (best-effort). With a label, show only if matching.
-      return !pn || pn === curName;
+      // Projet non latin : le travail lance avant la creation du dossier porte le nom SAISI (2026-10-13).
+      return !pn || pn === curName || (!!state.currentProject && pn === _nomSaisiDuProjet(state.currentProject));
     });
     if (!matching.length) {
       widget.classList.remove('has-jobs');
@@ -29971,10 +30058,11 @@ document.getElementById('topbar-signin')?.addEventListener('click', async () => 
 async function _cloudShare(filePath, kindLabel) {
   const p = state.currentProject;
   showToast(`Sending ${kindLabel} to your cloud library…`, 'info', 8000);
-  let r = await API.cloudShareAsset({ filePath, projectName: p?.name || 'desktop' });
+  // nom SAISI d'un projet non latin, pas son dossier « project-h1a2b3c4d » (2026-10-13, CHAMPS-24)
+  let r = await API.cloudShareAsset({ filePath, projectName: _nomPourLeSite(p) || 'desktop' });
   if (r?.needsCloudLogin) {
     const ok = await showCloudLoginModal();
-    if (ok) r = await API.cloudShareAsset({ filePath, projectName: p?.name || 'desktop' });
+    if (ok) r = await API.cloudShareAsset({ filePath, projectName: _nomPourLeSite(p) || 'desktop' });
     else return;
   }
   if (r?.success) showToast(`${kindLabel} sent — visible in your web library.`, 'success');

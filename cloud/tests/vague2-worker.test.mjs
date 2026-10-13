@@ -256,7 +256,9 @@ test('CLOUD-07 : une cle ne peut pas vider le compte (wipe-all-projects interdit
 function montageCopie(envExtra = {}, taille = 1000) {
   const uid = 'u-copie';
   const r2 = creerR2({ [`${uid}/animations/a.glb`]: 'x'.repeat(taille) });
-  const w = charger([...COMMUN, 'ANIM_COPY_MAX_PAR_JOUR_DEFAUT', 'ANIM_COPY_MAX_OCTETS_PAR_JOUR_DEFAUT', 'handleAnimCopy'],
+  // segment de projet de la cle (slugProjet, noms non latins, 2026-10-13) : ignore par l'ancien code qui ne le declare pas
+  const SEGMENT = ['_TRANSLIT_NOM_PROJET', '_estNomAscii', '_empreinteNomProjet', '_partieLisibleNomProjet', 'slugNonLatin', '_ancienSlugProjet', 'slugProjet'];
+  const w = charger([...COMMUN, ...SEGMENT, 'ANIM_COPY_MAX_PAR_JOUR_DEFAUT', 'ANIM_COPY_MAX_OCTETS_PAR_JOUR_DEFAUT', 'handleAnimCopy'],
     { getSessionUser: async () => ({ id: uid }), siteUrl: SITE, signedR2Url: async (e, k) => 'https://signed/' + k });
   const env = { MESHES: r2, R2_PUBLIC_URL: 'https://pub.r2.dev', ...envExtra };
   const copier = async () => { const rep = await w.handleAnimCopy(new Request('https://s/api/animations/copy', { method: 'POST', body: JSON.stringify({ sourceUrl: `${uid}/animations/a.glb`, animType: 'idle', projectName: 'p' }) }), env); return { status: rep.status, corps: await lire(rep) }; };

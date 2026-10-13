@@ -147,7 +147,8 @@ window.openProjectByName = async function (projectName, focusAssetUrl) {
     await refreshProjectsPage();
     const target = state.projects.find(p => p.name === projectName)
                 || state.projects.find(p => (p.name || '').toLowerCase() === (projectName || '').toLowerCase())
-                || state.projects.find(p => p.name?.replace(/[^a-zA-Z0-9_-]/g, '_') === (projectName || ''));
+                // forme assainie : noms ASCII seulement (2026-10-13 : tout nom non latin de meme longueur donnait « ____ »)
+                || state.projects.find(p => _estNomAscii(p.name) && p.name?.replace(/[^a-zA-Z0-9_-]/g, '_') === (projectName || ''));
     if (!target) {
       if (typeof showToast === 'function') showToast(`Project "${projectName}" not found`, 'warn', 4000);
       return;
@@ -835,6 +836,33 @@ function _rafraichirListeProjets() {
   clearTimeout(_rafraichirListeMinuteur);
   _rafraichirListeMinuteur = setTimeout(() => { try { refreshProjectsPage(); } catch (_) {} }, 2000);
 }
+/* NOMS DE PROJET NON LATINS (2026-10-13, audit de la langue : CHAMPS-02, MANQUE-SERV-03). Les noms etaient compares par leur forme
+ * « assainie » ([^a-zA-Z0-9_-] -> _) : « 兽人战士 » et « 精灵射手 » (ou « تنين » / « فارس », « орк » / « дом ») donnent tous deux une
+ * suite de « _ ». Apres une generation, le rechargement basculait sur l'AUTRE projet s'il etait plus fourni, et un projet vide neuf
+ * disparaissait dans un projet plein de meme forme. Regle commune au site et au bureau :
+ *   - deux noms sont equivalents s'ils sont egaux a la normalisation Unicode pres (NFC), ou — pour deux noms ENTIEREMENT ASCII
+ *     seulement — s'ils ont la meme forme assainie (cas d'origine : « Mobilier design » range dans « Mobilier_design ») ;
+ *   - le projet d'un nom est celui de meme nom EXACT ; l'equivalence ne sert qu'en repli, et seulement si elle ne designe qu'UN projet. */
+function _estNomAscii(nom) {
+  return !/[^\x00-\x7f]/.test(String(nom == null ? '' : nom));
+}
+function _nomsEquivalents(a, b) {
+  const x = String(a == null ? '' : a), y = String(b == null ? '' : b);
+  if (x === y || x.normalize('NFC') === y.normalize('NFC')) return true;
+  const assaini = (s) => s.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return _estNomAscii(x) && _estNomAscii(y) && assaini(x) === assaini(y);
+}
+/** Projet de `nom` dans `projets` : nom EXACT d'abord (puis, au bureau, nom saisi memorise d'un dossier non latin), equivalence
+ *  normalisee seulement si UN SEUL projet correspond ; sinon null. */
+function _projetDuNom(projets, nom) {
+  const n = String(nom == null ? '' : nom);
+  const liste = (projets || []).filter(Boolean);
+  const saisi = (p) => (p.displayName && !_estNomAscii(p.displayName)) ? String(p.displayName) : '';
+  const exact = liste.find((p) => p.name === n) || liste.find((p) => saisi(p) === n && n !== '');
+  if (exact) return exact;
+  const candidats = liste.filter((p) => _nomsEquivalents(p.name, n) || (saisi(p) && _nomsEquivalents(saisi(p), n)));
+  return candidats.length === 1 ? candidats[0] : null;
+}
 async function refreshProjectsPage() {
   const folders = (await API.listImageFolders()) || [];
   const meshes  = (await API.listMeshes()) || [];
@@ -1005,12 +1033,13 @@ async function refreshProjectsPage() {
   // Un projet nomme « Mobilier design » (espace) est memorise sous ce nom, mais ses images vont dans le dossier « Mobilier_design » : deux entrees
   // coexistaient, et le rechargement apres la generation prenait l'ancienne (vide, nom exact) -> 0 image. On retire le marqueur vide des qu'un
   // projet reel de meme nom « assaini » a du contenu.
+  // 2026-10-13 (MANQUE-SERV-03) : « meme nom assaini » seulement entre deux noms ASCII (_nomsEquivalents). « 龙骑士团 » tout neuf
+  // disparaissait dans « 兽人战士 » (meme forme « ____ ») avec report de son type et de son prompt ; idem « Cafè » dans « Café ».
   {
-    const _san = (n) => String(n).replace(/[^a-zA-Z0-9_-]/g, '_');
     const _plein = (p) => (p.images?.length || 0) + (p.meshes?.length || 0) + (p.rigs?.length || 0) + (p.animations?.length || 0) > 0;
     for (const [cle, p] of [...projectsMap.entries()]) {
       if (_plein(p)) continue;
-      const jumeau = [...projectsMap.values()].find((q) => q !== p && _plein(q) && _san(q.name) === _san(p.name));
+      const jumeau = [...projectsMap.values()].find((q) => q !== p && _plein(q) && _nomsEquivalents(q.name, p.name));
       if (jumeau) {
         // le marqueur porte le type / style choisis a la creation : on les reporte sur le projet reel
         if (!jumeau.assetType && p.assetType) jumeau.assetType = p.assetType;
@@ -21252,16 +21281,13 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
 async function reloadCurrentProject() {
   if (!state.currentProject) return;
   const name = state.currentProject.name;
-  const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, '_');
   await refreshProjectsPage();
-  // Try exact match first, then sanitized match (spaces → underscores)
-  // Plusieurs entrees peuvent correspondre (marqueur de projet vide « Mobilier design » + dossier reel « Mobilier_design ») : on prend celle qui a du contenu.
-  const _candidats = state.projects.filter(p => p.name === name || p.name === sanitizedName
-    || p.name.replace(/[^a-zA-Z0-9_-]/g, '_') === sanitizedName);
-  const _poids = (p) => (p.images?.length || 0) + (p.meshes?.length || 0) + (p.rigs?.length || 0) + (p.animations?.length || 0);
-  const refreshed = _candidats.sort((a, b) => _poids(b) - _poids(a))[0];
+  // Nom EXACT d'abord ; l'equivalence (« Mobilier design » / « Mobilier_design ») seulement si elle ne designe qu'UN projet.
+  // 2026-10-13 (CHAMPS-02) : on prenait parmi les noms de meme forme assainie celui qui avait le PLUS de contenu ; « 兽人战士 » ouvert
+  // (1 image) basculait sur « 精灵射手 » (3 images) apres chaque generation, et le Generate suivant partait dans l'autre projet.
+  const refreshed = _projetDuNom(state.projects, name);
   if (refreshed) console.log('[reload] matched project:', refreshed.name, 'for requested:', name);
-  else console.log('[reload] NO MATCH for project:', name, '(sanitized:', sanitizedName, ') in:', state.projects.map(p => p.name).slice(0, 10));
+  else console.log('[reload] NO MATCH for project:', name, 'in:', state.projects.map(p => p.name).slice(0, 10));
   if (!refreshed) {
     // The project no longer matches anything in the projects scan — most
     // likely the user just deleted its last image. Don't leave the UI

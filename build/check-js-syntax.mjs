@@ -68,6 +68,7 @@ const LIVRES = [
   'src/main/durcissement.js',
   'src/main/registre_processus.js',
   'src/main/marquage_ia.js',
+  'src/main/slug_projet.js',   // 2026-10-13 : charge par main.js au demarrage (noms de projet non latins)
   'cloud/public/app/i18n.js',
   'src/renderer/lang/_additions.js',
   'src/renderer/lang/_additions2.js',
