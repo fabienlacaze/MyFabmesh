@@ -73,9 +73,17 @@ def _etat_service(cle: str) -> dict:
             "en_cours": s.num_running_inputs, "attente": s.backlog}
 
 
+# FENETRE DE MAINTIEN (2026-10-13, levier L8 de l'etude des couts du 11/10) : 300 s -> 20 s. NON DEPLOYE au moment du commit :
+#   PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -m modal deploy modal_app/etat_services.py   (CPU seul, aucun instantane touche)
+# Un conteneur de cette application coute 0,0158 $ par heure ALLUME (0,25 coeur + 512 Mio) ; avec 300 s, une lecture toutes les
+# 60 s (panneau « Cloud services » du site) le gardait allume jour et nuit (69 h facturees du 29/09 au 05/10). Le worker garde
+# maintenant l'etat 60 s pour les visiteurs et 15 s pour /admin2 ou un panneau ouvert (worker.ts, ETAT_FRAIS_*) : avec 20 s, le
+# conteneur s'eteint entre deux lectures de visiteurs (demarrage a froid mesure : 3,1 s, sous le repli de 4,5 s du worker) et
+# reste chaud tant que /admin2 regarde (une lecture toutes les ~16 s). Aucun min_containers : rien ne le garde allume ; la route
+# garde_chaud ne vise jamais cette application. Garde : cloud/tests/etat-modal.test.mjs.
 @app.function(
     image=modal.Image.debian_slim(python_version="3.11").pip_install("fastapi[standard]"),
-    cpu=0.25, memory=512, timeout=30, scaledown_window=300,
+    cpu=0.25, memory=512, timeout=30, scaledown_window=20,
     secrets=[modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"])],
 )
 @modal.concurrent(max_inputs=16)
