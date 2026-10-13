@@ -601,6 +601,7 @@
 
       var promptEl = document.getElementById('mask-prompt');
       var promptText = promptEl ? promptEl.value.trim() : '';
+      var langueVerifiee = false;
 
       _closeMask();
 
@@ -617,7 +618,8 @@
           _alerte('maskInpaint API not available.');
           return;
         }
-        window.meshyAPI.maskInpaint({ imagePath: imgPath, maskDataUrl: maskDataUrl, prompt: promptText })
+        window.meshyAPI.maskInpaint({ imagePath: imgPath, maskDataUrl: maskDataUrl, prompt: promptText,
+          langueVerifiee: langueVerifiee || undefined })
         .then(function (r) {
           if (r && r.success) {
             try { completeJob(job.id, true); } catch (_) {}
@@ -636,10 +638,24 @@
         });
       }
 
-      if (window.fabmeshJobs && typeof window.fabmeshJobs.enqueue === 'function') {
-        window.fabmeshJobs.enqueue('inpaint', 'Manual mask inpaint', runInpaint);
+      function lancer() {
+        if (window.fabmeshJobs && typeof window.fabmeshJobs.enqueue === 'function') {
+          window.fabmeshJobs.enqueue('inpaint', 'Manual mask inpaint', runInpaint);
+        } else {
+          runInpaint();
+        }
+      }
+      // « Replace with » TRADUIT avant l'envoi (2026-10-13, lot 2 de l'audit de la langue, TRADUCTION-05 : il ne l'etait nulle part).
+      // Echec : l'utilisateur choisit (Reessayer / Envoyer tel quel) ; annule = rien n'est lance. Vide = « juste effacer ».
+      if (promptText && typeof window.fabmeshTraduirePourGeneration === 'function') {
+        window.fabmeshTraduirePourGeneration(promptText).then(function (tr) {
+          if (!tr) return;
+          promptText = tr.texte;
+          langueVerifiee = !!tr.telQuel;
+          lancer();
+        }, function () { lancer(); });
       } else {
-        runInpaint();
+        lancer();
       }
     });
   }

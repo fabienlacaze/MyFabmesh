@@ -18,6 +18,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif } from './lib/composeur-intention.js';
+import { langueSource, normaliserCodeLangue, ressembleAnglais } from './lib/langue-texte.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
 // hundreds of raycasts per stamp; native three.js raycast is O(triangles) and
@@ -2084,14 +2085,46 @@ function _npAutoSync() {
   selT.style.opacity = selS.style.opacity = actif ? '0.6' : '';
   if (!actif) { _npAutoInfo(_i18nT('Choose the type and style yourself')); return; }
   const nom = document.getElementById('np-name')?.value || '';
-  const r = detecterTypeEtStyle((_npDescAuto(desc) ? '' : desc.value) + ' ' + nom);
+  const texteNp = ((_npDescAuto(desc) ? '' : desc.value) + ' ' + nom).trim();
+  let r = detecterTypeEtStyle(texteNp);
+  if (!r.type) {   // listes fr + en : un texte dans une autre langue est analyse sur sa TRADUCTION (voir _npTexteAnalyse)
+    const anglais = _npTexteAnalyse(texteNp);
+    if (anglais !== texteNp) { const r2 = detecterTypeEtStyle(anglais); r = { type: r2.type, style: r.style || r2.style }; }
+  }
   _npTypeMotsCles = r.type;
   const typeIa = (_npIaType && _npIaType.nom === nom.trim()) ? _npIaType.type : null;
   const type = r.type || typeIa;
   if (type && [...selT.options].some((o) => o.value === type)) selT.value = type;
   selS.value = (r.style && [...selS.options].some((o) => o.value === r.style)) ? r.style : 'realistic';
-  _npAutoInfo(nom.trim() || (desc && desc.value.trim()) ? _npResume()
-    : _i18nT('Type a name: the type, the style and the description are filled in for you'));
+  const saisi = !!(nom.trim() || (desc && desc.value.trim()));
+  // RIEN DE DETECTE (2026-10-13, MANQUE-02) : le menu du type reste LIBRE et l'info le dit. Avant : « Detected: Character » et le menu
+  // verrouille sur le personnage (gabarit T-pose) pour un « castillo medieval » ou un « 中世纪城堡 ».
+  if (!type && saisi) { selT.disabled = false; selT.style.opacity = ''; }
+  _npAutoInfo(!saisi ? _i18nT('Type a name: the type, the style and the description are filled in for you')
+    : (type ? _npResume() : (NP_TYPE_NON_DETECTE[_langueInterface()] || NP_TYPE_NON_DETECTE.en)));
+}
+/* Detection du type et du style dans la langue de l'utilisateur (2026-10-13, lot 2 de l'audit de la langue, MANQUE-02 / CHAMPS-10) :
+ * les listes de mots ne connaissent que le francais et l'anglais. Un texte dans une autre langue est TRADUIT (differe pendant la frappe,
+ * cache), puis analyse ; en attendant, le texte d'origine. */
+const NP_TYPE_NON_DETECTE = {
+  fr: "Type non détecté : choisis-le dans la liste", en: "Type not detected: pick it in the list",
+  es: "Tipo no detectado: elígelo en la lista", zh: "未检测到类型：请在列表中选择",
+  hi: "प्रकार पहचाना नहीं गया: सूची में से चुनें", ar: "لم يُكتشف النوع: اختره من القائمة",
+};
+const _npTraductions = new Map();
+let _npTradMinuteur = null;
+function _npTexteAnalyse(texte) {
+  if (!texte || !langueSource(texte, _langueInterface())) return texte;
+  if (_npTraductions.has(texte)) return (_npTraductions.get(texte) || '') + ' ' + texte;
+  clearTimeout(_npTradMinuteur);
+  _npTradMinuteur = setTimeout(async () => {
+    let r = null;
+    try { r = await traduireTexteUtilisateur(texte); } catch (_) { r = null; }
+    if (_npTraductions.size > 50) _npTraductions.clear();
+    _npTraductions.set(texte, r && !r.echec ? r.texte : '');
+    try { _npAutoSync(); } catch (_) {}
+  }, 700);
+  return texte;
 }
 function _npPlanifierRedaction() {
   clearTimeout(_npIaMinuteur);
@@ -3291,7 +3324,10 @@ bindStepCardCollapse();
     if (!rawPrompt) { showToast('Type what the area should look like.', 'error'); return; }
     // No mask yet? Auto-detect from the named part (AI tool — no manual painting required).
     if (!hasPaint) { const ok = await _rrxDetect(); if (!ok) return; }
-    const prompt = await translateUserPrompt(rawPrompt);  // user's language → EN for SDXL
+    // user's language → EN for SDXL ; echec : l'utilisateur choisit, annule = rien n'est lance (2026-10-13, lot 2 de l'audit de la langue)
+    const _tr = await _traduirePourGeneration(rawPrompt);
+    if (!_tr) return;
+    const prompt = _tr.texte;
     // Mask: white where painted, black elsewhere (the script projects it to UV).
     const mc = document.createElement('canvas'); mc.width = canvas.width; mc.height = canvas.height;
     const mctx = mc.getContext('2d');
@@ -3499,10 +3535,13 @@ async function _preremplirPrompt(brut, assetType, assetStyle) {
   const jeton = (_preremplirPrompt._n = (_preremplirPrompt._n || 0) + 1);
   ta.dataset.rawPrompt = brut;
   ta.value = brut;
-  let anglais = brut;
-  try { anglais = (await translateUserPrompt(brut)) || brut; } catch (_) { /* texte d'origine */ }
+  let r = { texte: brut, echec: false };
+  try { r = await traduireTexteUtilisateur(brut); } catch (_) { r = { texte: brut, echec: true }; }
   if (jeton !== _preremplirPrompt._n || ta.value !== brut) return;
-  ta.value = buildFullPrompt(anglais, assetType, assetStyle);
+  // ECHEC de traduction (2026-10-13, audit TRADUCTION-03 / CHAMPS-21) : le texte reste BRUT, sans gabarit. Enrichi, il passait pour
+  // « deja traduit » et la generation ne le retraduisait jamais ; l'aide de langue dit l'echec et Generate retentera (et demandera).
+  if (r.echec) return;
+  ta.value = buildFullPrompt(r.texte || brut, assetType, assetStyle);
 }
 
 function populateWorkspace(p) {
@@ -4555,6 +4594,14 @@ document.getElementById('mv-opt-start')?.addEventListener('click', async () => {
   }
   const harmonize = document.getElementById('mv-opt-harmonize')?.checked ?? true;
   const upscale   = document.getElementById('mv-opt-upscale')?.checked ?? false;
+  // Indice texte de la vue de dos, TRADUIT avant toute action (2026-10-13, lot 2 : le texte d'origine partait au moteur, TRADUCTION-05) ;
+  // traduction impossible et annulee par l'utilisateur : rien n'est duplique ni lance.
+  let _indiceDos = { texte: '', telQuel: false };
+  if (mode === '2view') {
+    _indiceDos = await _indiceDosAnglais(document.getElementById('ws-prompt')?.dataset.rawPrompt
+                                         || document.getElementById('ws-prompt')?.value || '');
+    if (!_indiceDos) return;
+  }
 
   // Step 1: duplicate the image into a new version. The new version
   // will host the multi-view dir / back photo; the original image stays
@@ -4584,10 +4631,8 @@ document.getElementById('mv-opt-start')?.addEventListener('click', async () => {
     }, expectedMs, { sourceImageUrl: mvImagePath, projectName: p.name });
     showToast('Generating back photo...', 'info', 5000);
     try {
-      const rawPrompt = document.getElementById('ws-prompt')?.dataset.rawPrompt
-                        || document.getElementById('ws-prompt')?.value || '';
       const bv = await window.meshyAPI.generateBackView({
-        frontImage: mvImagePath, promptHint: rawPrompt, numImages: 1,
+        frontImage: mvImagePath, promptHint: _indiceDos.texte, numImages: 1,
         assetType: document.getElementById('ws-asset-type')?.value || 'character',
       });
       if (bv?.success && bv.paths?.length) {
@@ -7254,51 +7299,247 @@ document.getElementById('ws-rig-skeleton')?.addEventListener('change', (e) => {
   }
 });
 
-// Translate the user's raw prompt to English (Argos, offline) using the current
-// interface language as source. en / failure → unchanged. The asset-type
-// templates are English and the image models need English input. Call this on
-// the RAW user text BEFORE buildFullPrompt.
-async function translateUserPrompt(text) {
-  if (!text || !text.trim()) return text || '';
+// Translate the user's raw prompt to English (Argos offline, or the site's translator through the MyFabmesh session — main.js
+// 'translate-prompt'). The asset-type templates are English and the image models need English input. Call this on the RAW user text
+// BEFORE buildFullPrompt.
+// PLAFOND DUR de 8 s (2026-07-28) : la traduction ne doit jamais figer l'ecran — le user a signale un « Finalisation… » qui « ne finit
+// jamais », cause par 12 s d'attente d'un serveur mort PLUS ~6 s de spawn a froid. Depuis le 2026-10-13, un depassement est un ECHEC
+// montre a l'utilisateur (bloc commun ci-dessous), plus un texte non traduit envoye en silence.
+// --- TRADUCTION COMMUNE : DEBUT ---
+/* TRADUCTION DU TEXTE DE L'UTILISATEUR — BLOC IDENTIQUE bureau / web (2026-10-13, lot 2 de l'audit de la langue du 11/10 ;
+ * tests/bureau-interface/traduction-client.test.mjs compare les deux exemplaires et les execute).
+ *  - Langue SOURCE = langue du TEXTE (lib/langue-texte.js) ; l'interface ne sert que sans indice. Avant : la langue de l'interface seule
+ *    (un texte allemand sous une interface anglaise partait brut ; un prompt anglais sur trois repartait au traducteur « depuis le
+ *    francais » : TRADUCTION-01/06/07, CHAMPS-04).
+ *  - traduireTexteUtilisateur rend { texte, traduit, echec, langue, raison } : un ECHEC n'est plus confondu avec « rien a traduire »
+ *    (TRADUCTION-03, CHAMPS-05, SERVEUR-03 : delai, quota, session, modele absent... rendaient le texte d'origine EN SILENCE).
+ *  - _traduirePourGeneration : une generation PAYANTE ne part jamais avec un texte non traduit sans l'accord de l'utilisateur (fenetre
+ *    « Reessayer / Envoyer tel quel », Echap = annuler : rien n'est lance ni debite). « Tel quel » est transmis au serveur
+ *    (langueVerifiee), dont le filet de langue respecte le choix.
+ *  - Cache des traductions reussies : un meme texte n'est traduit qu'une fois par session.
+ * Plafond dur de 8 s : une traduction lente ne fige jamais l'interface ; au-dela c'est un ECHEC, plus un succes silencieux. */
+const _cacheTraductions = new Map();
+let _etatTraduction = 'ok';   // 'ok' | 'echec' (dernier essai rate) | 'indisponible' (bureau : aucun traducteur) ; l'aide de langue le dit
+/** Langue de l'INTERFACE, lue a UN seul endroit (avant : l'aide lisait le selecteur, la traduction localStorage seul : TRADUCTION-17). */
+function _langueInterface() {
   let lang = 'en';
-  try { lang = (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase(); } catch (_) {}
-  if (lang === 'en') return text;
-  if (_ressembleAnglais(text)) return text;  // deja de l'anglais (champ modifie a la main) : ne pas le repasser par le francais
-  try {
-    // PLAFOND DUR de 8 s. La traduction est un CONFORT : le prompt enrichi
-    // fonctionne tres bien en francais, il sera juste moins bien compris par le
-    // modele. En revanche une interface figee est inacceptable — le user a
-    // signale un « Finalisation… » qui « ne finit jamais » (2026-07-28), cause
-    // par 12 s d'attente d'un serveur mort PLUS ~6 s de spawn a froid. La cause
-    // racine est corrigee cote main, ce plafond est la ceinture de securite :
-    // aucune regression future en dessous ne pourra plus bloquer l'ecran.
-    const r = await Promise.race([
-      window.meshyAPI?.translatePrompt?.({ text, from: lang }),
-      new Promise((res) => setTimeout(() => res(null), 8000)),
-    ]);
-    return (r && r.text) ? _corrigerFauxAmis(text, r.text, lang) : text;
-  } catch (_) { return text; }
+  try { lang = document.getElementById('lang-select')?.value || localStorage.getItem('fabmesh.lang') || 'en'; } catch (_) {}
+  return normaliserCodeLangue(lang) || 'en';
 }
+function _majEtatTraduction(etat) {
+  if (_etatTraduction === etat) return;
+  _etatTraduction = etat;
+  try { _updatePromptLangHint(); } catch (_) {}
+}
+function _occupationTraduction(active) {
+  try { if (active) _setPromptBusy(TRANSLATING_MSG); else _clearPromptBusy(); } catch (_) {}
+}
+/** Vrai si le texte est deja de l'anglais (detection commune lib/langue-texte.js ; ancien nom garde pour les appelants). */
+function _ressembleAnglais(texte) { return ressembleAnglais(texte); }
+/** Traduit le texte de l'utilisateur vers l'anglais : { texte, traduit, echec, langue, raison }. Jamais d'exception. */
+async function traduireTexteUtilisateur(text, { plafondMs = 8000 } = {}) {
+  const brut = text == null ? '' : String(text);
+  if (!brut.trim()) return { texte: brut, traduit: false, langue: null };
+  const de = langueSource(brut, _langueInterface());
+  if (!de) return { texte: brut, traduit: false, langue: 'en' };
+  const cle = de + '|' + brut;
+  if (_cacheTraductions.has(cle)) return { texte: _cacheTraductions.get(cle), traduit: true, langue: de };
+  let r = null;
+  let raison = 'failed';
+  _occupationTraduction(true);
+  try {
+    r = await Promise.race([
+      Promise.resolve(window.meshyAPI?.translatePrompt?.({ text: brut, from: de })),
+      new Promise((res) => setTimeout(() => res({ __delai: true }), plafondMs)),
+    ]);
+  } catch (_) { r = null; raison = 'error'; }
+  finally { _occupationTraduction(false); }
+  if (r && r.raison === 'already-english') return { texte: brut, traduit: false, langue: 'en' };
+  const sortie = (r && typeof r.text === 'string') ? r.text.trim() : '';
+  const ok = !!sortie && (r.translated === true || (r.translated === undefined && !r.__delai && sortie !== brut.trim()));
+  if (!ok) {
+    if (r && r.__delai) raison = 'timeout';
+    else if (r && typeof r.raison === 'string' && r.raison) raison = r.raison;
+    else if (r && r.pending) raison = 'model-downloading';
+    else if (r && r.status === 429) raison = 'rate-limited';
+    else if (r && (r.status === 401 || r.needsCloudLogin)) raison = 'signed-out';
+    _majEtatTraduction('echec');
+    return { texte: brut, traduit: false, echec: true, langue: de, raison };
+  }
+  const final = _corrigerFauxAmis(brut, sortie, de);
+  if (_cacheTraductions.size > 300) _cacheTraductions.clear();
+  _cacheTraductions.set(cle, final);
+  _majEtatTraduction('ok');
+  return { texte: final, traduit: true, langue: de };
+}
+/** Ancienne signature (texte -> texte), pour les usages SANS generation payante (apercus, detection du type) : texte d'origine si echec. */
+async function translateUserPrompt(text) { return (await traduireTexteUtilisateur(text)).texte; }
+/** Texte ANGLAIS pour une generation PAYANTE : { texte, telQuel } ; null si la traduction a echoue et que l'utilisateur a annule. */
+async function _traduirePourGeneration(text) {
+  for (;;) {
+    const r = await traduireTexteUtilisateur(text);
+    if (!r.echec) return { texte: r.texte, telQuel: false };
+    const choix = await _choixTraductionEchouee(r);
+    if (choix === 'tel-quel') return { texte: r.texte, telQuel: true };
+    if (choix !== 'reessayer') return null;
+  }
+}
+const MSG_TRADUCTION = {
+  fr: { titre: "Traduction impossible", reessayer: "Réessayer", telQuel: "Envoyer tel quel",
+    message: "Ta description n'a pas pu être traduite en anglais ({raison}). Le moteur d'image ne comprend bien que l'anglais : envoyée telle quelle, l'image risque de ne pas lui correspondre. Échap pour annuler (rien n'est lancé ni débité).",
+    enhance: "Traduction impossible ({raison}) : ta description est restée telle quelle. Réessaie, ou écris-la en anglais.",
+    aide: "⚠️ traduction indisponible pour l'instant : écris en anglais ou réessaie",
+    aideAucun: "⚠️ aucun traducteur (moteur IA local absent, compte MyFabmesh non connecté) : écris en anglais",
+    raisons: { timeout: "délai dépassé", failed: "traducteur indisponible", error: "traducteur indisponible", unavailable: "traducteur indisponible",
+      "model-downloading": "modèle de langue en cours de téléchargement, réessaie dans un instant", "rate-limited": "trop de traductions cette heure-ci",
+      "too-long": "texte trop long", "signed-out": "session expirée, reconnecte-toi", "no-engine": "aucun traducteur : moteur IA local absent et compte MyFabmesh non connecté",
+      unsupported: "langue non prise en charge", "unknown-language": "langue non reconnue" } },
+  en: { titre: "Translation failed", reessayer: "Retry", telQuel: "Send as is",
+    message: "Your description could not be translated into English ({raison}). The image engine only really understands English: sent as is, the image may not match it. Press Escape to cancel (nothing is started or charged).",
+    enhance: "Translation failed ({raison}): your description was left as is. Retry, or write it in English.",
+    aide: "⚠️ translation unavailable right now: write in English or retry",
+    aideAucun: "⚠️ no translator (local AI engine missing, not signed in to MyFabmesh): write in English",
+    raisons: { timeout: "timed out", failed: "translator unavailable", error: "translator unavailable", unavailable: "translator unavailable",
+      "model-downloading": "language model still downloading, retry in a moment", "rate-limited": "too many translations this hour",
+      "too-long": "text too long", "signed-out": "session expired, sign in again", "no-engine": "no translator: local AI engine missing and not signed in to MyFabmesh",
+      unsupported: "language not supported", "unknown-language": "language not recognised" } },
+  es: { titre: "Traducción imposible", reessayer: "Reintentar", telQuel: "Enviar tal cual",
+    message: "Tu descripción no se pudo traducir al inglés ({raison}). El motor de imágenes solo entiende bien el inglés: enviada tal cual, la imagen puede no corresponder. Pulsa Esc para cancelar (no se lanza ni se cobra nada).",
+    enhance: "Traducción imposible ({raison}): tu descripción se quedó tal cual. Reintenta o escríbela en inglés.",
+    aide: "⚠️ traducción no disponible ahora: escribe en inglés o reintenta",
+    aideAucun: "⚠️ sin traductor (motor de IA local ausente, sin sesión en MyFabmesh): escribe en inglés",
+    raisons: { timeout: "tiempo agotado", failed: "traductor no disponible", error: "traductor no disponible", unavailable: "traductor no disponible",
+      "model-downloading": "modelo de idioma descargándose, reintenta en un momento", "rate-limited": "demasiadas traducciones esta hora",
+      "too-long": "texto demasiado largo", "signed-out": "sesión caducada, vuelve a iniciar sesión", "no-engine": "sin traductor: motor de IA local ausente y sin sesión en MyFabmesh",
+      unsupported: "idioma no admitido", "unknown-language": "idioma no reconocido" } },
+  zh: { titre: "无法翻译", reessayer: "重试", telQuel: "按原样发送",
+    message: "您的描述无法翻译成英文（{raison}）。图像引擎只能很好地理解英文：按原样发送，图像可能与描述不符。按 Esc 取消（不会启动或扣费）。",
+    enhance: "无法翻译（{raison}）：您的描述保持不变。请重试，或用英文书写。",
+    aide: "⚠️ 暂时无法翻译：请用英文书写或重试",
+    aideAucun: "⚠️ 没有翻译器（本地 AI 引擎缺失，未登录 MyFabmesh）：请用英文书写",
+    raisons: { timeout: "超时", failed: "翻译器不可用", error: "翻译器不可用", unavailable: "翻译器不可用",
+      "model-downloading": "语言模型正在下载，请稍后重试", "rate-limited": "本小时翻译次数过多",
+      "too-long": "文本过长", "signed-out": "会话已过期，请重新登录", "no-engine": "没有翻译器：本地 AI 引擎缺失且未登录 MyFabmesh",
+      unsupported: "不支持该语言", "unknown-language": "无法识别语言" } },
+  hi: { titre: "अनुवाद नहीं हो सका", reessayer: "फिर से कोशिश करें", telQuel: "जैसा है वैसा भेजें",
+    message: "आपका विवरण अंग्रेज़ी में अनुवादित नहीं हो सका ({raison})। इमेज इंजन ठीक से केवल अंग्रेज़ी समझता है: जैसा है वैसा भेजने पर छवि मेल न खाए। रद्द करने के लिए Esc दबाएँ (कुछ भी शुरू या चार्ज नहीं होगा)।",
+    enhance: "अनुवाद नहीं हो सका ({raison}): आपका विवरण जैसा था वैसा ही है। फिर से कोशिश करें, या अंग्रेज़ी में लिखें।",
+    aide: "⚠️ अभी अनुवाद उपलब्ध नहीं: अंग्रेज़ी में लिखें या फिर से कोशिश करें",
+    aideAucun: "⚠️ कोई अनुवादक नहीं (स्थानीय AI इंजन नहीं, MyFabmesh में लॉग इन नहीं): अंग्रेज़ी में लिखें",
+    raisons: { timeout: "समय समाप्त", failed: "अनुवादक उपलब्ध नहीं", error: "अनुवादक उपलब्ध नहीं", unavailable: "अनुवादक उपलब्ध नहीं",
+      "model-downloading": "भाषा मॉडल डाउनलोड हो रहा है, थोड़ी देर में फिर कोशिश करें", "rate-limited": "इस घंटे बहुत अधिक अनुवाद",
+      "too-long": "पाठ बहुत लंबा है", "signed-out": "सत्र समाप्त, फिर से लॉग इन करें", "no-engine": "कोई अनुवादक नहीं: स्थानीय AI इंजन नहीं और MyFabmesh में लॉग इन नहीं",
+      unsupported: "भाषा समर्थित नहीं", "unknown-language": "भाषा पहचानी नहीं गई" } },
+  ar: { titre: "تعذّرت الترجمة", reessayer: "إعادة المحاولة", telQuel: "إرسال كما هو",
+    message: "تعذّرت ترجمة وصفك إلى الإنجليزية ({raison}). محرك الصور لا يفهم جيدًا إلا الإنجليزية: إذا أُرسل كما هو فقد لا تطابقه الصورة. اضغط Esc للإلغاء (لن يبدأ شيء ولن يُخصم شيء).",
+    enhance: "تعذّرت الترجمة ({raison}): بقي وصفك كما هو. أعد المحاولة أو اكتبه بالإنجليزية.",
+    aide: "⚠️ الترجمة غير متاحة حاليًا: اكتب بالإنجليزية أو أعد المحاولة",
+    aideAucun: "⚠️ لا يوجد مترجم (محرك الذكاء الاصطناعي المحلي غير موجود، وغير مسجّل في MyFabmesh): اكتب بالإنجليزية",
+    raisons: { timeout: "انتهت المهلة", failed: "المترجم غير متاح", error: "المترجم غير متاح", unavailable: "المترجم غير متاح",
+      "model-downloading": "نموذج اللغة قيد التنزيل، أعد المحاولة بعد قليل", "rate-limited": "ترجمات كثيرة جدًا في هذه الساعة",
+      "too-long": "النص طويل جدًا", "signed-out": "انتهت الجلسة، سجّل الدخول من جديد", "no-engine": "لا يوجد مترجم: محرك الذكاء الاصطناعي المحلي غير موجود وغير مسجّل في MyFabmesh",
+      unsupported: "اللغة غير مدعومة", "unknown-language": "لم يتم التعرف على اللغة" } },
+};
+/** Message de traduction dans la langue de l'interface : _messageTraduction('enhance', r) ; {raison} remplace par la raison traduite. */
+function _messageTraduction(cle, r) {
+  const M = MSG_TRADUCTION[_langueInterface()] || MSG_TRADUCTION.en;
+  const raison = (r && M.raisons[r.raison]) || M.raisons.failed;
+  return String(M[cle] || MSG_TRADUCTION.en[cle] || '').replace('{raison}', raison);
+}
+/** Fenetre « traduction impossible » : 'reessayer' | 'tel-quel' | 'annuler' (Echap, clic a cote). Reprend la fenetre de confirmation. */
+function _choixTraductionEchouee(r) {
+  const M = MSG_TRADUCTION[_langueInterface()] || MSG_TRADUCTION.en;
+  const modal = document.getElementById('modal-confirm');
+  const titre = document.getElementById('confirm-title');
+  const msg = document.getElementById('confirm-message');
+  const ok = document.getElementById('confirm-ok');
+  const annuler = document.getElementById('confirm-cancel');
+  if (!modal || !titre || !msg || !ok || !annuler) {
+    return Promise.resolve(window.confirm(_messageTraduction('message', r) + '\n\n' + M.telQuel + ' ?') ? 'tel-quel' : 'annuler');
+  }
+  titre.textContent = M.titre;
+  msg.textContent = _messageTraduction('message', r);
+  const okAvant = ok.textContent, annulerAvant = annuler.textContent, dangerAvant = ok.classList.contains('danger'), zAvant = modal.style.zIndex;
+  ok.textContent = M.reessayer;
+  ok.classList.remove('danger');
+  annuler.textContent = M.telQuel;
+  annuler.style.display = '';
+  modal.style.zIndex = '10200';
+  modal.classList.remove('hidden');
+  return new Promise((resolve) => {
+    const fin = (choix) => {
+      modal.classList.add('hidden');
+      modal.style.zIndex = zAvant;
+      ok.textContent = okAvant;
+      annuler.textContent = annulerAvant;
+      if (dangerAvant) ok.classList.add('danger');
+      ok.removeEventListener('click', surOk);
+      annuler.removeEventListener('click', surTelQuel);
+      modal.removeEventListener('click', surFond);
+      document.removeEventListener('keydown', surTouche);
+      resolve(choix);
+    };
+    const surOk = () => fin('reessayer');
+    const surTelQuel = () => fin('tel-quel');
+    const surFond = (e) => { if (e.target === modal) fin('annuler'); };
+    const surTouche = (e) => { if (e.key === 'Escape') fin('annuler'); };
+    ok.addEventListener('click', surOk);
+    annuler.addEventListener('click', surTelQuel);
+    modal.addEventListener('click', surFond);
+    document.addEventListener('keydown', surTouche);
+    setTimeout(() => { try { ok.focus(); } catch (_) {} }, 50);
+  });
+}
+/** Indice texte de la VUE DE DOS, en anglais (audit TRADUCTION-05 / CHAMPS-08 : on envoyait le texte d'ORIGINE de l'utilisateur). */
+async function _indiceDosAnglais(brut) {
+  const base = stripKnownPromptSuffixes(String(brut || ''));
+  if (!base.trim()) return { texte: '', telQuel: false };
+  return _traduirePourGeneration(base);
+}
+/** Texte de l'utilisateur EN ANGLAIS depuis le champ « Describe your asset » (Generate) : gabarit retire, reste traduit s'il n'est pas
+ *  deja anglais. La decision se prend sur le CONTENU, plus sur la presence d'un mot du gabarit (MANQUE-01, CHAMPS-06/23). null = annule. */
+async function _texteUtilisateurPourGeneration(champ) {
+  return _traduirePourGeneration(stripKnownPromptSuffixes(String(champ || '').trim()));
+}
+// pour index2-edit-tools.js (script classique, hors du module) : « Replace with » du Paint-mask
+try { window.fabmeshTraduirePourGeneration = (t) => _traduirePourGeneration(t); } catch (_) {}
+// --- TRADUCTION COMMUNE : FIN ---
 
 // Prompt language hint: tell users they can type in their chosen UI language —
 // it's auto-translated to English. Hidden for English (nothing to translate).
+// 2026-10-13 (lot 2 de l'audit de la langue) : la langue du TEXTE est detectee (l'interface anglaise accepte aussi une autre langue) et
+// l'aide dit la VERITE : traduction indisponible (aucun moteur IA local ET aucune session MyFabmesh : mode Cloud deconnecte), ou dernier
+// essai rate. Avant, « traduit auto » s'affichait meme en mode Cloud, ou rien n'etait jamais traduit (TRADUCTION-02, CHAMPS-01).
 const PROMPT_LANG_HINT = {
   fr: "✍️ écris dans ta langue (traduit auto en anglais)",
   es: "✍️ escribe en tu idioma (traducido auto)",
   zh: "✍️ 用你的语言（自动翻译成英文）",
   hi: "✍️ अपनी भाषा में (स्वतः अनुवादित)",
   ar: "✍️ بلغتك (تُترجم تلقائيًا)",
-  en: "",
+  en: "✍️ any language (auto-translated to English)",
 };
 function _updatePromptLangHint() {
-  let lang = 'en';
-  try { lang = (document.getElementById('lang-select')?.value || localStorage.getItem('fabmesh.lang') || 'en').toLowerCase(); } catch (_) {}
-  const txt = PROMPT_LANG_HINT[lang] || '';
+  const lang = _langueInterface();
+  const M = MSG_TRADUCTION[lang] || MSG_TRADUCTION.en;
+  const txt = _etatTraduction === 'indisponible' ? M.aideAucun
+    : _etatTraduction === 'echec' ? M.aide
+    : (PROMPT_LANG_HINT[lang] || PROMPT_LANG_HINT.en || '');
   document.querySelectorAll('.prompt-lang-hint').forEach((el) => { el.textContent = txt; el.style.display = txt ? '' : 'none'; });
+}
+/** Bureau : un traducteur est-il joignable (moteur IA local, ou session MyFabmesh pour la traduction du site) ? Sinon l'aide le dit. */
+async function _sonderTraducteur() {
+  try {
+    const s = await window.meshyAPI?.translateStatus?.();
+    if (s && !s.local && !s.cloud) _majEtatTraduction('indisponible');
+    else if (s && _etatTraduction === 'indisponible') _majEtatTraduction('ok');
+  } catch (_) {}
 }
 (function _initPromptLangHint() {
   try { _updatePromptLangHint(); } catch (_) {}
-  try { document.getElementById('lang-select')?.addEventListener('change', () => setTimeout(() => { try { _updatePromptLangHint(); } catch (_) {} }, 30)); } catch (_) {}
+  try { document.getElementById('lang-select')?.addEventListener('change', () => setTimeout(() => { try { _updatePromptLangHint(); _sonderTraducteur(); } catch (_) {} }, 30)); } catch (_) {}
+  // l'etat du traducteur change avec la connexion au compte : relu au demarrage et quand l'utilisateur revient ecrire une description
+  try { setTimeout(_sonderTraducteur, 1500); } catch (_) {}
+  try { ['ws-prompt', 'np-prompt'].forEach((id) => document.getElementById(id)?.addEventListener('focus', () => { _sonderTraducteur(); })); } catch (_) {}
 })();
 
 // Busy indicator for the prompt area: translation can take ~2-3 s on the first
@@ -7459,16 +7700,8 @@ function _epurerDemande(texte) {
     .replace(/[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$/i, "").trim();
   return t.length >= 3 ? t : brut.trim();
 }
-/** Vrai si le texte est deja de l'anglais (aucune lettre accentuee ni ecriture non latine, des mots outils anglais, aucun mot outil fr / es / de). */
-function _ressembleAnglais(texte) {
-  const t = String(texte || "");
-  if (/[^\u0000-\u024f]/.test(t) || /[àâäãçéèêëîïôöõùûüÿñœæ¿¡ß]/i.test(t)) return false;
-  const EN = new Set("the a an and with of at to for is are has have his her its that who wearing holding from into while must stand standing".split(" "));
-  const AUTRE = new Set("le la les un une des du de et avec sur sous dans pour qui est au aux sans tres son sa ses il elle el los las y con por para que muy del al und mit der die das ein eine".split(" "));
-  let en = 0, autre = 0;
-  for (const m of (t.toLowerCase().match(/[a-z']+/g) || [])) { if (EN.has(m)) en++; if (AUTRE.has(m)) autre++; }
-  return en >= 2 && autre === 0;
-}
+/* _ressembleAnglais : remplacee le 2026-10-13 par la detection commune lib/langue-texte.js (bloc « TRADUCTION COMMUNE ») ; l'ancienne
+ * exigeait deux mots outils anglais et manquait 21 des 64 prompts anglais du proprietaire (« a red dragon », « A stone golem »...). */
 /** Faux amis connus apres traduction : « short » (le vetement) traduit par l'adjectif. */
 function _corrigerFauxAmis(source, traduit, lang) {
   let t = String(traduit || "");
@@ -7642,7 +7875,16 @@ function stripKnownPromptSuffixes(raw) {
    .map(m => m.trim())
    .filter((m, i, a) => m.length > 12 && a.indexOf(m) === i);
   for (const m of MARQUEURS_GABARIT.concat(MARQUEURS_HISTORIQUES)) {
-    const i = txt.toLowerCase().indexOf(m.toLowerCase());
+    /* LE MARQUEUR DOIT ETRE UNE PROPOSITION ENTIERE (2026-10-13, audit de la langue MANQUE-03). Un gabarit est TOUJOURS colle par
+     * propositions separees de virgules ; le marqueur cherche n'importe ou coupait du texte legitime : « a complete boat with white
+     * sails » devenait « a », « architectural building exterior with a glass facade » perdait son debut. Le marqueur ne compte donc que
+     * s'il commence la chaine ou suit une virgule, ET s'il finit la chaine ou est suivi d'une virgule. */
+    const bas = txt.toLowerCase(), cible = m.toLowerCase();
+    let i = -1;
+    for (let k = bas.indexOf(cible); k >= 0; k = bas.indexOf(cible, k + 1)) {
+      const f = k + cible.length;
+      if ((k === 0 || /,\s*$/.test(txt.slice(0, k))) && (f >= txt.length || /^\s*,/.test(txt.slice(f)))) { i = k; break; }
+    }
     if (i > 0) {
       // Cas normal : le gabarit est colle APRES le texte de l'utilisateur.
       txt = txt.slice(0, i);
@@ -7691,10 +7933,14 @@ document.getElementById('np-enhance-prompt')?.addEventListener('click', async ()
   const assetStyle = document.getElementById('np-asset-style')?.value || 'realistic';
   // Re-enhance even if the text is unchanged: strip any prior enrichment first
   // (recovers the user's base text) so re-running never double-wraps the prompt.
-  const wasEnhanced = /single isolated 3D|plain white background|sharp details|photorealistic/i.test(raw);
+  // 2026-10-13 (lot 2 de l'audit de la langue) : la partie de l'utilisateur est traduite si elle n'est pas deja anglaise, MEME quand le
+  // champ contient un mot du gabarit (avant : un ajout en francais dans un champ enrichi n'etait jamais traduit, MANQUE-01 / CHAMPS-23).
+  // Echec de traduction : dit, et le texte reste tel quel (plus de gabarit anglais autour d'un texte non traduit).
   const baseRaw = (typeof stripKnownPromptSuffixes === 'function') ? stripKnownPromptSuffixes(raw) : raw;
   const _stopCycle = _promptStartCycle(textarea, ENHANCE_STEPS);
-  const englishRaw = wasEnhanced ? baseRaw : await translateUserPrompt(baseRaw);
+  const tr = await traduireTexteUtilisateur(baseRaw);
+  if (tr.echec) { _stopCycle(); _promptHideOverlay(textarea); showToast(_messageTraduction('enhance', tr), 'error', 7000); return; }
+  const englishRaw = tr.texte;
   const enhanced = buildFullPrompt(englishRaw, assetType, assetStyle);
   await new Promise((r) => setTimeout(r, 150));
   _stopCycle();
@@ -7717,13 +7963,15 @@ document.getElementById('ws-enhance-prompt')?.addEventListener('click', async ()
   const assetStyle = document.getElementById('ws-asset-style')?.value || 'realistic';
   // Re-enhance even if the text is unchanged: strip any prior enrichment first
   // (recovers the user's base text) so re-running never double-wraps the prompt.
-  const wasEnhanced = /single isolated 3D|plain white background|sharp details|photorealistic/i.test(raw);
+  // 2026-10-13 (lot 2) : traduction decidee sur le CONTENU, echec dit et texte laisse tel quel (voir np-enhance-prompt).
   const baseRaw = (typeof stripKnownPromptSuffixes === 'function') ? stripKnownPromptSuffixes(raw) : raw;
   // Stash the original raw prompt so the back-view generator can use it
   // (clean subject description, no asset-style pollution).
   textarea.dataset.rawPrompt = baseRaw;
   const _stopCycle = _promptStartCycle(textarea, ENHANCE_STEPS);
-  const englishRaw = wasEnhanced ? baseRaw : await translateUserPrompt(baseRaw);
+  const tr = await traduireTexteUtilisateur(baseRaw);
+  if (tr.echec) { _stopCycle(); _promptHideOverlay(textarea); showToast(_messageTraduction('enhance', tr), 'error', 7000); return; }
+  const englishRaw = tr.texte;
   const enhanced = buildFullPrompt(englishRaw, assetType, assetStyle, _optionsPose(assetType));
   await new Promise((r) => setTimeout(r, 150));
   _stopCycle();
@@ -7754,7 +8002,6 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   // "angled side view" from an earlier session — without this strip,
   // the next gen would receive both that AND the new "strict front
   // view", triggering RealVis's 2-cars hallucination).
-  const wasEnhanced = /single isolated 3D|plain white background|sharp details|photorealistic/i.test(rawTextarea);
   const userPrompt = stripKnownPromptSuffixes(rawTextarea);
   const assetType = document.getElementById('ws-asset-type')?.value || 'character';
   const assetStyle = document.getElementById('ws-asset-style')?.value || 'realistic';
@@ -7763,12 +8010,17 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   // silently falling back to Character on a follow-up gen).
   _saveProjectMeta(p.name, { assetType, assetStyle,
     tpose: document.getElementById('ws-tpose') ? !!document.getElementById('ws-tpose').checked : undefined });
-  // Translate the user's text to English (unless it was already enhanced →
-  // already English) before applying the English asset-type templates.
+  // TRADUCTION decidee sur le CONTENU (2026-10-13, lot 2 de l'audit de la langue : MANQUE-01, CHAMPS-06/21/23). Avant : un champ
+  // contenant un mot du gabarit (« photorealistic », « plain white background »...) etait cru « deja anglais » et partait SANS
+  // traduction, ajout en francais compris. Desormais : la partie de l'utilisateur (gabarit retire) est traduite si elle n'est pas deja
+  // anglaise (detection locale + cache). Echec : l'utilisateur choisit (Reessayer / Envoyer tel quel) ; annule = rien n'est lance.
   const _wsTa = document.getElementById('ws-prompt');
-  if (!wasEnhanced) _promptShowLoading(_wsTa, TRANSLATING_MSG);
-  const englishUser = wasEnhanced ? userPrompt : await translateUserPrompt(userPrompt);
-  if (!wasEnhanced) _promptHideOverlay(_wsTa);
+  const _aTraduire = !!langueSource(userPrompt, _langueInterface());
+  if (_aTraduire) _promptShowLoading(_wsTa, TRANSLATING_MSG);
+  const _tr = await _texteUtilisateurPourGeneration(rawTextarea);
+  if (_aTraduire) _promptHideOverlay(_wsTa);
+  if (!_tr) return;
+  const englishUser = _tr.texte;
   const prompt = buildFullPrompt(englishUser, assetType, assetStyle, _optionsPose(assetType));
   const engine = document.getElementById('ws-engine').value;
   // AVERTISSEMENT MEMOIRE POUR LES IMAGES LOCALES (2026-10-02, rapport d'essais du 01/10 : un essai « Fast » avait demarre carte deja pleine, 10,9 Go
@@ -7850,7 +8102,10 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
       Prompt: userPrompt,
     }, expectedMs, { projectName: p.name, assetKind: assetType });
     try {
-      const _genArgs = { prompt, userPrompt, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM };
+      // userPrompt = texte d'ORIGINE (prompt.txt, pour la reouverture) ; userPromptAnglais = sa traduction, que le composeur
+      // d'intention du pont local analyse (lexique anglais : CHAMPS-09) ; langueVerifiee = « Envoyer tel quel » (filet du serveur).
+      const _genArgs = { prompt, userPrompt, userPromptAnglais: englishUser, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM,
+        assetStyle, langueVerifiee: _tr.telQuel || undefined };
       // La modale de connexion + le retry sont gérés en amont par le wrapper
       // API (voir _CLOUD_LOGIN_METHODS) — commun à TOUS les outils cloud.
       const r = await API.generateImages(_genArgs);
@@ -7898,8 +8153,9 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
             // for the back view. The enhanced prompt's 'RTS unit, T-pose
             // neutral stance, plain white background' tokens hurt IPAdapter
             // because they fight the photo reference style.
-            const rawPrompt = document.getElementById('ws-prompt')?.dataset.rawPrompt
-                              || userPrompt || '';
+            // 2026-10-13 (lot 2) : englishUser = le texte de l'utilisateur DEJA TRADUIT (ou envoye tel quel avec son accord) ; avant,
+            // dataset.rawPrompt (texte d'ORIGINE, non traduit) passait en premier (TRADUCTION-05, CHAMPS-08).
+            const rawPrompt = englishUser || '';
             for (const imgPath of r.images) {
               // STEP 1: BLIP-caption the front photo to extract outfit
               // description. This is added to the prompt so the back has
@@ -8084,6 +8340,9 @@ function _offerMultiviewRegenerate() {
       showToast('No front image to regenerate from.', 'error');
       return;
     }
+    // Indice TRADUIT (2026-10-13, lot 2 : le texte d'origine partait au moteur) ; annule par l'utilisateur : rien n'est lance.
+    const _indiceDos = await _indiceDosAnglais(document.getElementById('ws-prompt')?.dataset.rawPrompt || (p.prompt || ''));
+    if (!_indiceDos) return;
     showToast('Regenerating back view...', 'info', 5000);
     try {
       // Optional outfit captioning (same as the auto pipeline)
@@ -8092,8 +8351,7 @@ function _offerMultiviewRegenerate() {
         const cap = await window.meshyAPI.captionImage({ imagePath: frontImg });
         if (cap?.success && cap.caption) outfitDesc = cap.caption;
       } catch (_) {}
-      const rawPrompt = document.getElementById('ws-prompt')?.dataset.rawPrompt
-                        || (p.prompt || '');
+      const rawPrompt = _indiceDos.texte;
       const enrichedHint = outfitDesc ? `${rawPrompt}, ${outfitDesc}` : rawPrompt;
       const r = await window.meshyAPI.generateBackView({
         frontImage: frontImg,
@@ -8147,8 +8405,9 @@ document.getElementById('ws-modify-btn').addEventListener('click', () => {
   modifyModal.classList.remove('hidden');
   setTimeout(() => document.getElementById('mod-prompt').focus(), 50);
   // Warm the argos translate server in the background while the user types, so
-  // the first "Modify" click doesn't pay the ~5s cold-start (no-op in English).
-  try { translateUserPrompt('warm'); } catch (_) {}
+  // the first "Modify" click doesn't pay the ~5s cold-start. 2026-10-13 : demande de PRECHAUFFAGE explicite (plus une fausse
+  // traduction de « warm », qui partait au traducteur du site en mode Cloud et faisait croire a un echec de traduction).
+  try { if (_langueInterface() !== 'en') window.meshyAPI?.translatePrompt?.({ prechauffer: true }); } catch (_) {}
 });
 document.getElementById('mod-cancel').addEventListener('click', () => {
   modifyModal.classList.add('hidden');
@@ -8162,21 +8421,21 @@ document.getElementById('mod-apply').addEventListener('click', async () => {
   const engine = document.getElementById('mod-engine').value;
   const strength = parseInt(modStrength.value) / 100;
   modifyModal.classList.add('hidden');
+  // TRADUCTION AVANT la tuile (2026-10-13, lot 2 de l'audit de la langue) : un echec doit pouvoir etre ANNULE sans rien lancer (fenetre
+  // « Reessayer / Envoyer tel quel »). L'aide de langue montre « Traduction de ta description… » pendant l'attente, et le serveur de
+  // traduction est prechauffe a l'ouverture de la fenetre (ws-modify-btn) : plus de « l'appli parait figee » (2026-07-28).
+  const _tr = await _traduirePourGeneration(rawPrompt);
+  if (!_tr) return;
   // img2img is fast: ~5s on SDXL Turbo, ~20s on cloud
   const modifyExpected = engine === 'pollinations' ? 30000 : 15000;
   gatedRun('img2img', `Modify image: ${p.name}`, async () => {
     const job = pushJob(`Modify image: ${p.name}`, null, {
       Engine: engineLabel(engine),
       Strength: `${Math.round(strength * 100)}%`,
-      Prompt: rawPrompt,   // show the user's text now; refined to EN below
+      Prompt: rawPrompt,
     }, modifyExpected, { sourceImageUrl: target, projectName: p.name });
     try {
-      // Translate INSIDE the job so the card + progress appear INSTANTLY on
-      // click. Previously translateUserPrompt awaited BEFORE any UI: on the
-      // first use (or after 5 min idle) the argos translate server cold-starts
-      // (~5s) and the app looked frozen — the user's "beaucoup de temps avant
-      // de lancer l'analyse". Now the job is already on screen while we wait.
-      const prompt = await translateUserPrompt(rawPrompt);
+      const prompt = _tr.texte;
       const r = await API.img2img({ imagePath: target, prompt, strength, engine, jobId: job.id });
       if (r?.success) {
         completeJob(job.id, true);
@@ -12659,6 +12918,8 @@ const MESH_TOOL_SCHEMAS = {
       { id: 'seed', label: 'Variation (seed)', type: 'number', min: 0, max: 999999, step: 1, default: 42, randomize: true },
       { id: 'style', label: 'Style (optional)', type: 'text', default: '', placeholder: 'rusty, golden, camouflage…' },
     ],
+    // Champ de texte libre TRADUIT avant l'envoi (2026-10-13, lot 2 de l'audit de la langue, CHAMPS-03 : il partait brut).
+    texteLibre: 'style',
     // → python mesh_tools.py texture_var <in> <out> <strength0-1> <seed> <style>
     build: (vals) => [String((Number(vals.strength) || 40) / 100), String(vals.seed), vals.style || ''],
   },
@@ -13230,6 +13491,13 @@ function openMeshToolModal(toolName) {
   applyBtn.onclick = async () => {
     const vals = _mtCollectVals(body);
     if (schema.confirm && !await customConfirm(schema.confirm, schema.title, 'Continue')) return;
+    // Texte libre de l'outil (ex. Style des variantes de texture) TRADUIT avant l'envoi (2026-10-13, lot 2) ; echec et annulation :
+    // la fenetre reste ouverte, rien n'est lance.
+    if (schema.texteLibre && String(vals[schema.texteLibre] || '').trim()) {
+      const tr = await _traduirePourGeneration(String(vals[schema.texteLibre]).trim());
+      if (!tr) return;
+      vals[schema.texteLibre] = tr.texte;
+    }
     const ctx = { imagePath: p.selectedImagePath, meshPath: (p.previewMeshPath || p.selectedMeshPath) };
     // A schema can pick the operation at apply time (e.g. Triangle count
     // decides decimate vs subdivide from the target vs the current count).
@@ -14830,7 +15098,9 @@ async function _peApplyReshape() {
   }
   mctx.putImageData(out, 0, 0);
   const uvMaskDataUrl = mc.toDataURL('image/png');
-  const prompt = await translateUserPrompt(rawPrompt);
+  const _tr = await _traduirePourGeneration(rawPrompt);   // traduction avec accord en cas d'echec (2026-10-13, lot 2)
+  if (!_tr) throw new Error(_messageTraduction('titre'));
+  const prompt = _tr.texte;
   const p = state.currentProject;
   const job = (typeof pushJob === 'function')
     ? pushJob(`Reshape region: ${p?.name || ''}`, null,
@@ -14881,7 +15151,9 @@ async function _peApplyMaskRetex() {
   }
   mctx.putImageData(out, 0, 0);
   const maskDataUrl = mc.toDataURL('image/png');
-  const prompt = await translateUserPrompt(rawPrompt);
+  const _tr = await _traduirePourGeneration(rawPrompt);   // traduction avec accord en cas d'echec (2026-10-13, lot 2)
+  if (!_tr) throw new Error(_messageTraduction('titre'));
+  const prompt = _tr.texte;
   const strength = parseFloat(document.getElementById('pe-mask-strength')?.value) || 0.8;
   const job = (typeof pushJob === 'function')
     ? pushJob('AI region re-texture', null, { 'Source mesh': String(meshPath).split(/[/\\]/).pop() }, 60000) : null;
@@ -22043,9 +22315,17 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   const texMode = !!document.getElementById('var-tex-mode')?.checked;
   const rawTexPrompt = (document.getElementById('var-tex-prompt')?.value || '').trim();
   if (modal) modal.classList.add('hidden');
-  const prompt = (p && (p.prompt || p.initialPrompt)) || 'high quality, detailed';
   // The "guide" steers BOTH modes: texture-only (ControlNet) and full img2img.
-  const guidePrompt = rawTexPrompt ? await translateUserPrompt(rawTexPrompt) : '';
+  // Guide ET texte du projet TRADUITS (2026-10-13, lot 2 de l'audit de la langue) : sans image generee, le texte du projet est la
+  // description d'ORIGINE (initialPrompt), dans la langue de l'utilisateur. Echec : l'utilisateur choisit, annule = rien n'est lance.
+  const _trGuide = rawTexPrompt ? await _traduirePourGeneration(rawTexPrompt) : { texte: '', telQuel: false };
+  if (!_trGuide) return;
+  const guidePrompt = _trGuide.texte;
+  // (le texte par defaut est le notre, deja anglais : jamais traduit, jamais de fenetre)
+  const _texteProjet = String((p && (p.prompt || p.initialPrompt)) || '').trim();
+  const _trBase = _texteProjet ? await _traduirePourGeneration(_texteProjet) : { texte: 'high quality, detailed', telQuel: false };
+  if (!_trBase) return;
+  const prompt = _trBase.texte;
   showToast(`Generating ${count} variant${count > 1 ? 's' : ''}…`, 'info', 2000);
   for (let i = 0; i < count; i++) {
     const seed = Math.floor(Math.random() * 1000000);
@@ -22058,7 +22338,7 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
         { sourceImageUrl: target, projectName: p.name });
       try {
         const rv = _reglagesVarianteForme(strength, seed, guidePrompt,
-          p.assetType || document.getElementById('ws-asset-type')?.value, p.prompt || p.initialPrompt);
+          p.assetType || document.getElementById('ws-asset-type')?.value, prompt);
         const r = texMode
           ? await API.texVariant({ imagePath: target, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg, motifs: rv.motifs, lignee: { op: 'variant', params: { mode: 'colours and materials (shape locked)' } } })
           : await API.img2img({ imagePath: target, prompt: (guidePrompt || prompt), strength, engine: 'local-sdxl', seed, lignee: { op: 'variant', params: { mode: 'everything (shape can change)' } } });
@@ -22253,8 +22533,13 @@ document.getElementById('ai-go')?.addEventListener('click', async () => {
   const dilate = parseInt(document.getElementById('ai-dilate').value) || 15;
   document.getElementById('modal-auto-inpaint').classList.add('hidden');
   // User types target/replacement in their language → translate to EN (CLIPSeg + SDXL are English).
-  const target = await translateUserPrompt(rawTarget);
-  const replace = rawReplace ? await translateUserPrompt(rawReplace) : '';
+  // Echec de traduction : l'utilisateur choisit (Reessayer / Envoyer tel quel), annule = rien n'est lance (2026-10-13, lot 2).
+  const _trCible = await _traduirePourGeneration(rawTarget);
+  if (!_trCible) return;
+  const _trRempl = rawReplace ? await _traduirePourGeneration(rawReplace) : { texte: '', telQuel: false };
+  if (!_trRempl) return;
+  const target = _trCible.texte;
+  const replace = _trRempl.texte;
   // Auto-inpaint: CLIPSeg detection + SDXL inpaint, ~3 min on RTX 5080
   gatedRun('inpaint', `Auto inpaint: ${p.name}`, async () => {
     const job = pushJob(`Auto inpaint: ${p.name}`, null, {
@@ -22329,7 +22614,8 @@ async function _rcUpdateMaskPreview() {
   if (spinner) spinner.style.display = 'flex';
   srcImg.style.opacity = '0.6';
   try {
-    const target = await translateUserPrompt(noun);
+    // traduit PUIS retire les mots de couleur (en anglais) : la liste des couleurs ne connait que fr + en (2026-10-13, MANQUE-06)
+    const target = _stripColorWords(await translateUserPrompt(rawPrompt));
     const r = await API.segmentMask({ imagePath: _rcSrcPath, targetText: target, dilate, rel: _rcRel() });
     if (((document.getElementById('rc-prompt').value || '').trim()) !== rawPrompt) return;
     _rcFirstDetectDone = true;
@@ -22425,7 +22711,15 @@ document.getElementById('rc-go')?.addEventListener('click', async () => {
   const mode = document.getElementById('rc-mode')?.value || 'general';
   const recolorAll = (mode === 'general' || mode === 'whole-style');
   const stylePrompt = (document.getElementById('rc-all-prompt')?.value || '').trim();
-  const fieldRaw = (document.getElementById('rc-prompt').value || '').trim();
+  const fieldSaisi = (document.getElementById('rc-prompt').value || '').trim();
+  // Zone : le texte est TRADUIT avant d'y chercher la couleur (2026-10-13, lot 2 de l'audit de la langue, MANQUE-06 / CHAMPS-10) :
+  // la liste des couleurs ne connait que l'anglais et le francais, « casco rojo » ou « 红色头盔 » donnait « Pick a colour » a tort.
+  let _trZone = { texte: fieldSaisi, telQuel: false };
+  if (mode === 'zone' && fieldSaisi) {
+    _trZone = await _traduirePourGeneration(fieldSaisi);
+    if (!_trZone) return;
+  }
+  const fieldRaw = _trZone.texte;
   const part = _stripColorWords(fieldRaw).trim();
   const fieldHasColor = fieldRaw !== part;
   // Per-mode validation.
@@ -22459,7 +22753,12 @@ document.getElementById('rc-go')?.addEventListener('click', async () => {
   const strength = (parseInt(document.getElementById('rc-strength').value) || 100) / 100;
   const dilate = parseInt(document.getElementById('rc-dilate').value) || 15;
   document.getElementById('modal-recolor').classList.add('hidden');
-  const prompt = await translateUserPrompt(rawPrompt);  // -> EN so CLIPSeg detects the part
+  // -> EN so CLIPSeg detects the part. Seul le style libre (whole-style) reste a traduire ici (2026-10-13, lot 2) : la ZONE l'est deja
+  // ci-dessus (ou acceptee telle quelle par l'utilisateur : pas de seconde fenetre), la couleur du nuancier est un mot ANGLAIS de
+  // l'interface (« gold », « orange » sous une interface francaise partaient au traducteur). Echec : l'utilisateur choisit.
+  const _trRc = mode === 'whole-style' ? await _traduirePourGeneration(rawPrompt) : { texte: rawPrompt, telQuel: _trZone.telQuel };
+  if (!_trRc) return;
+  const prompt = _trRc.texte;
   gatedRun('img2img', `Recolor: ${p.name}`, async () => {
     const job = pushJob(`Recolor: ${p.name}`, null, {
       Prompt: recolorAll ? (rawPrompt + ' (whole image)') : rawPrompt,
@@ -22562,7 +22861,10 @@ document.getElementById('age-go')?.addEventListener('click', async () => {
   const assetType = document.getElementById('ws-asset-type')?.value || 'character';
   const isChar = ['character', 'creature', 'animal', 'humanoid', 'dragon'].includes(assetType);
   let prompt = _ageBuildPrompt(v, assetType);
-  if (guide) prompt = prompt + ', ' + (await translateUserPrompt(guide));
+  // guide traduit, avec accord en cas d'echec (2026-10-13, lot 2) : annule = rien n'est lance ni debite
+  const _trGuide = guide ? await _traduirePourGeneration(guide) : { texte: '', telQuel: false };
+  if (!_trGuide) return;
+  if (guide) prompt = prompt + ', ' + _trGuide.texte;
   const strength = _ageStrength(v);
   // Variable structure lock: for CHARACTERS a small age change keeps the
   // silhouette (high cn), a strong one frees the PROPORTIONS (cub/baby). For

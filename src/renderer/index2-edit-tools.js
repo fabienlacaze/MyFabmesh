@@ -646,10 +646,23 @@
         });
       }
 
-      if (window.fabmeshJobs && typeof window.fabmeshJobs.enqueue === 'function') {
-        window.fabmeshJobs.enqueue('inpaint', 'Manual mask inpaint', runInpaint);
+      function lancer() {
+        if (window.fabmeshJobs && typeof window.fabmeshJobs.enqueue === 'function') {
+          window.fabmeshJobs.enqueue('inpaint', 'Manual mask inpaint', runInpaint);
+        } else {
+          runInpaint();
+        }
+      }
+      // « Replace with » TRADUIT avant l'envoi (2026-10-13, lot 2 de l'audit de la langue, TRADUCTION-05 : il ne l'etait nulle part).
+      // Echec : l'utilisateur choisit (Reessayer / Envoyer tel quel) ; annule = rien n'est lance. Vide = « juste effacer ».
+      if (promptText && typeof window.fabmeshTraduirePourGeneration === 'function') {
+        window.fabmeshTraduirePourGeneration(promptText).then(function (tr) {
+          if (!tr) return;
+          promptText = tr.texte;
+          lancer();
+        }, function () { lancer(); });
       } else {
-        runInpaint();
+        lancer();
       }
     });
   }
