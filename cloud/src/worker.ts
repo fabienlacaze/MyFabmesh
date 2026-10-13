@@ -26,6 +26,10 @@ import {
   calculerPrevisionModal, alerteEmailModal, regrouperPostes, moisUtc, SEUIL_ARRETE_H,
   type PrevisionModal, type LimiteModal,
 } from './prevision_modal';
+// LANGUE DU TEXTE (2026-10-13, audit de la langue, lot 2) : MEME module que les deux interfaces (bureau, site), surveille par
+// build/check-noyaux-partages.mjs. JavaScript sans declaration de types : la forme utile est decrite par `LangueTexte` plus bas.
+// @ts-ignore -- module JS partage (cloud/public/app/lib), sans fichier de types
+import * as _langueTexteJs from '../public/app/lib/langue-texte.js';
 
 /* ──────────────────────────── env binding ──────────────────────────── */
 
@@ -12681,9 +12685,11 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   const { prompt, numImages, seed, asset_type, asset_style, userPrompt, steps,
-          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo } = await req.json() as {
+          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo, langueVerifiee } = await req.json() as {
     prompt?: string;
     userPrompt?: string;
+    // L'interface a traite la langue (traduit, ou « Envoyer tel quel » choisi apres un echec) : le filet de langue ne repasse pas.
+    langueVerifiee?: boolean;
     turbo?: boolean;   // SDXL-Lightning 4-step turbo (Modal text2image only)
     numImages?: number;
     seed?: number;
@@ -12707,7 +12713,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // The Cog rebuilds the enriched prompt itself from userPrompt + type
   // + style — we forward those. Fall back to the full enriched prompt
   // the renderer sent in case userPrompt isn't broken out.
-  const rawPrompt = (userPrompt ?? prompt ?? '').toString().trim();
+  let rawPrompt = (userPrompt ?? prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
   // NSFW prompt pre-filter — block keywords and dangerous combos BEFORE
   // we spend credits or hit Modal/Replicate. Saves the user the cost
@@ -12735,6 +12741,27 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
         return json({ ok: false, success: false,
           error: s2.reason ?? 'prompt blocked by content filter',
           blocked: s2.blocked }, { status: 400 });
+      }
+    }
+  }
+  // FILET DE LANGUE (2026-10-13, lot 2 de l'audit de la langue) : texte manifestement non anglais traduit, ou refuse, AVANT tout debit.
+  // Le prompt enrichi (route T-pose, historique) recoit la meme traduction : meme cache, un seul appel au modele par morceau.
+  let promptEnrichi: string | undefined = prompt;
+  const languesTraduites: string[] = [];
+  {
+    const cache = new Map<string, string>();
+    const avant = rawPrompt;
+    const f1 = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache });
+    if (f1.refus) return f1.refus;
+    rawPrompt = f1.texte;
+    languesTraduites.push(...f1.langues);
+    if (typeof prompt === 'string' && prompt.trim()) {
+      if (prompt.trim() === avant) promptEnrichi = rawPrompt;   // userPrompt absent : c'etait le meme texte
+      else {
+        const f2 = await _filetLangue(env, user.id, prompt, { verifie: langueVerifiee, unrestricted, cache });
+        if (f2.refus) return f2.refus;
+        promptEnrichi = f2.texte;
+        for (const l of f2.langues) if (!languesTraduites.includes(l)) languesTraduites.push(l);
       }
     }
   }
@@ -12832,8 +12859,8 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
       if (useTpose) {
         // Strict T-pose front — verbatim port of desktop generate_front_tpose.py.
         paths.push(await callModalTpose(env, user.id, {
-          // prompt ENRICHI (style + gabarit) : le texte brut perdait le style choisi (cartoon…)
-          prompt: (prompt ?? rawPrompt).toString().trim() || rawPrompt,
+          // prompt ENRICHI (style + gabarit) : le texte brut perdait le style choisi (cartoon…). Passe par le filet de langue.
+          prompt: (promptEnrichi ?? rawPrompt).toString().trim() || rawPrompt,
           refImageUrl,
           seed: seedBase + i,
           cn_scale,
@@ -12895,7 +12922,9 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           { asset_type, asset_style, prompt: rawPrompt.slice(0, 512), seed: seedBase,
             // reglages complets pour l'historique des generations (2026-09-29)
             steps: turbo ? 4 : (steps || 30), count: n, turbo: !!turbo || undefined, tpose: useTpose || undefined,
-            full_prompt: String(prompt || '').slice(0, 1500) });
+            full_prompt: String(promptEnrichi || '').slice(0, 1500),
+            // langue(s) traduite(s) par le filet du serveur (lot 2 de l'audit de la langue) : le support sait ce qui est arrive
+            langue_traduite: languesTraduites.length ? languesTraduites.join(',') : undefined });
       }
     }
   }
@@ -12905,7 +12934,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
 async function handleGenerateBackView(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
-  const { prompt, promptHint, numImages, frontImageUrl, asset_type, projectName } = await req.json() as {
+  const { prompt, promptHint, numImages, frontImageUrl, asset_type, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     prompt?: string;
@@ -12913,10 +12942,11 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
     numImages?: number;
     frontImageUrl?: string;
     asset_type?: string;
+    langueVerifiee?: boolean;
   };
   if (!frontImageUrl) return err(400, 'frontImageUrl required for back-view generation');
   if (!isTrustedAssetHost(env, frontImageUrl)) return err(400, 'frontImageUrl host not allowed');
-  const hint = (prompt ?? promptHint ?? '').toString().slice(0, 400);
+  let hint = (prompt ?? promptHint ?? '').toString().slice(0, 400);
 
   // NSFW prompt pre-filter — same policy as text2image / desktop checkPromptSafety.
   {
@@ -12929,6 +12959,10 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : l'indice de la vue de dos etait le texte d'ORIGINE (TRADUCTION-05, CHAMPS-08).
+    const filet = await _filetLangue(env, user.id, hint, { verifie: langueVerifiee, unrestricted });
+    if (filet.refus) return filet.refus;
+    hint = filet.texte.slice(0, 400);
   }
 
   const n = Math.max(1, Math.min(4, numImages ?? 1));
@@ -13016,7 +13050,7 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_IMAGE_OP_URL) {
     return err(503, 'modify backend unavailable (not configured)');
   }
-  const { imageUrl, prompt, strength, seed, steps, projectName } = await req.json() as {
+  const { imageUrl, prompt, strength, seed, steps, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imageUrl?: string;
@@ -13024,11 +13058,12 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
     strength?: number;
     seed?: number;
     steps?: number;
+    langueVerifiee?: boolean;
   };
   if (!imageUrl) return err(400, 'imageUrl required');
   // SSRF guard: only forward URLs from our trusted upstreams to Modal.
   if (!isTrustedAssetHost(env, imageUrl)) return err(400, 'imageUrl host not allowed');
-  const rawPrompt = (prompt ?? '').toString().trim();
+  let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
 
   // NSFW pre-filter — same policy as text2image/back-view/rectify.
@@ -13042,6 +13077,10 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : le site envoyait la consigne de Modify sans la traduire (TRADUCTION-04).
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
 
   const COST_PER_MODIFY = await getPrice(env, 'modify');
@@ -13103,15 +13142,25 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'mask preview backend unavailable');
-  const { imagePath, imageUrl, targetText, dilate, projectName } = await req.json() as {
+  const { imagePath, imageUrl, targetText: cibleRecue, dilate, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string; imageUrl?: string; targetText?: string; dilate?: number;
+    langueVerifiee?: boolean;
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
-  if (!targetText) return err(400, 'targetText required');
+  if (!cibleRecue) return err(400, 'targetText required');
+  let targetText = String(cibleRecue);
+  // FILET DE LANGUE (lot 2 de l'audit de la langue) : CLIPSeg ne comprend que l'anglais ; le site envoyait la cible telle quelle.
+  if (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length) {
+    const userState = await getParentalState(env, user.id);
+    const filet = await _filetLangue(env, user.id, targetText,
+      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted });
+    if (filet.refus) return filet.refus;
+    targetText = filet.texte;
+  }
 
   const cost = await getPrice(env, 'segment');  // admin-configurable (Pricing tab)
   const estimatedTotal = 0.05;
@@ -13175,7 +13224,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_IMAGE_OP_URL) {
     return err(503, 'auto-inpaint backend unavailable');
   }
-  const { imagePath, imageUrl, targetText, prompt, dilate, projectName } = await req.json() as {
+  const { imagePath, imageUrl, targetText: cibleRecue, prompt, dilate, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string;
@@ -13183,22 +13232,37 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     targetText?: string;
     prompt?: string;
     dilate?: number;
+    langueVerifiee?: boolean;
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
-  if (!targetText) return err(400, 'targetText required');
+  if (!cibleRecue) return err(400, 'targetText required');
+  let targetText = String(cibleRecue);
 
-  const rawPrompt = (prompt ?? '').toString().trim();
-  if (rawPrompt) {
+  let rawPrompt = (prompt ?? '').toString().trim();
+  if (rawPrompt || (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length)) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
-    if (!safety.safe) {
-      return json({ ok: false, success: false,
-        error: safety.reason ?? 'prompt blocked by content filter',
-        blocked: safety.blocked }, { status: 400 });
+    if (rawPrompt) {
+      const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
+      if (!safety.safe) {
+        return json({ ok: false, success: false,
+          error: safety.reason ?? 'prompt blocked by content filter',
+          blocked: safety.blocked }, { status: 400 });
+      }
+    }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : la CIBLE part a CLIPSeg, qui ne comprend que l'anglais (« chapeau » ne trouvait
+    // rien, et le site ne la traduisait pas : TRADUCTION-04) ; le remplacement part au moteur d'image.
+    const cache = new Map<string, string>();
+    const fCible = await _filetLangue(env, user.id, targetText, { verifie: langueVerifiee, unrestricted, cache });
+    if (fCible.refus) return fCible.refus;
+    targetText = fCible.texte;
+    if (rawPrompt) {
+      const fRempl = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache });
+      if (fRempl.refus) return fRempl.refus;
+      rawPrompt = fRempl.texte;
     }
   }
 
@@ -13263,17 +13327,18 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'tex-variant backend unavailable');
 
-  const { imagePath, imageUrl, prompt, strength, seed, cnScale, negPrompt, projectName, gris, motifs } =
+  const { imagePath, imageUrl, prompt, strength, seed, cnScale, negPrompt, projectName, gris, motifs, langueVerifiee } =
     await req.json() as {
       projectName?: string; gris?: number; motifs?: number;
       imagePath?: string; imageUrl?: string; prompt?: string;
       strength?: number; seed?: number; cnScale?: number; negPrompt?: string;
+      langueVerifiee?: boolean;
     };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
 
-  const rawPrompt = (prompt ?? '').toString().trim();
+  let rawPrompt = (prompt ?? '').toString().trim();
   if (rawPrompt) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
@@ -13283,6 +13348,11 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue)
+    const filet = await _filetLangue(env, user.id, rawPrompt,
+      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
 
   const cost = await getPrice(env, 'tex_variant');
@@ -13346,16 +13416,17 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'recolor backend unavailable');
 
-  const { imagePath, imageUrl, prompt, strength, dilate, recolorAll, projectName } =
+  const { imagePath, imageUrl, prompt, strength, dilate, recolorAll, projectName, langueVerifiee } =
     await req.json() as {
       projectName?: string;
       imagePath?: string; imageUrl?: string; prompt?: string;
       strength?: number; dilate?: number; recolorAll?: boolean;
+      langueVerifiee?: boolean;
     };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
-  const rawPrompt = (prompt ?? '').toString().trim();
+  let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required (ex : « cape rouge »)');
 
   const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
@@ -13365,6 +13436,13 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
     return json({ ok: false, success: false,
       error: safety.reason ?? 'prompt blocked by content filter',
       blocked: safety.blocked }, { status: 400 });
+  }
+  // FILET DE LANGUE (lot 2 de l'audit de la langue) : la partie part a CLIPSeg, la couleur au lexique (anglais) du serveur.
+  {
+    const filet = await _filetLangue(env, user.id, rawPrompt,
+      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
 
   const cost = await getPrice(env, 'recolor');
@@ -13519,23 +13597,21 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'mask-inpaint backend unavailable');
 
-  const { imagePath, imageUrl, maskDataUrl, prompt, projectName } = await req.json() as {
+  const { imagePath, imageUrl, maskDataUrl, prompt, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string; imageUrl?: string; maskDataUrl?: string; prompt?: string;
+    langueVerifiee?: boolean;
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
   if (!maskDataUrl) return err(400, 'maskDataUrl required');
-  const rawPrompt = (prompt ?? '').toString().trim();
+  let rawPrompt = (prompt ?? '').toString().trim();
   // Empty prompt = "just remove" (the UI hint "empty = just remove"). Inpaint
   // the masked region with surrounding background (object removal) instead of
   // requiring a replacement description.
   const isRemoval = !rawPrompt;
-  const effectivePrompt = isRemoval
-    ? 'clean empty background, seamless fill matching the surroundings, photorealistic, no object'
-    : rawPrompt;
 
   // NSFW pre-filter — only on a real user prompt (the removal prompt is our own
   // fixed, safe string).
@@ -13549,7 +13625,14 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : « Replace with » du Paint-mask n'etait traduit nulle part (TRADUCTION-05).
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
+  const effectivePrompt = isRemoval
+    ? 'clean empty background, seamless fill matching the surroundings, photorealistic, no object'
+    : rawPrompt;
 
   // Decode the mask data URL → bytes → upload to R2 → get a stable URL
   // for Modal to fetch.
@@ -13881,6 +13964,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   libelle: string;             // pour les messages a l'utilisateur
   estimationUsd: number;       // plafond de depense reserve, pas une facture
   texteLibre?: (corps: Record<string, unknown>) => string;   // passe au filtre
+  champTexteLibre?: string;    // champ du corps qui porte ce texte : le filet de langue y ecrit la traduction
   champs: (corps: Record<string, unknown>) => Record<string, unknown>;
 }): Promise<Response> {
   const user = await getSessionUser(req, env);
@@ -13907,6 +13991,12 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter' }, { status: 400 });
+    }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : le Style des variantes de texture n'etait traduit nulle part (CHAMPS-03).
+    if (conf.champTexteLibre) {
+      const filet = await _filetLangue(env, user.id, libre, { verifie: corps.langueVerifiee, unrestricted });
+      if (filet.refus) return filet.refus;
+      corps[conf.champTexteLibre] = filet.texte;
     }
   }
 
@@ -14086,13 +14176,13 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_MESH_START_URL || !env.MODAL_MESH_STATUS_URL || !env.MODAL_SHARED_SECRET) {
     return err(503, 'reshape backend unavailable (not configured)');
   }
-  const { meshUrl, vueUrl, maskDataUrl, uvMaskDataUrl, prompt, projectName, assetType } = await req.json() as {
+  const { meshUrl, vueUrl, maskDataUrl, uvMaskDataUrl, prompt, projectName, assetType, langueVerifiee } = await req.json() as {
     meshUrl?: string; vueUrl?: string; maskDataUrl?: string; uvMaskDataUrl?: string;
-    prompt?: string; projectName?: string; assetType?: string;
+    prompt?: string; projectName?: string; assetType?: string; langueVerifiee?: boolean;
   };
   if (!meshUrl || !vueUrl) return err(400, 'meshUrl and vueUrl required');
   if (!isTrustedAssetHost(env, meshUrl) || !isTrustedAssetHost(env, vueUrl)) return err(400, 'url host not allowed');
-  const texte = String(prompt || '').trim().slice(0, 500);
+  let texte = String(prompt || '').trim().slice(0, 500);
   if (!texte) return err(400, 'prompt required (what should replace the part)');
   // Filtre de contenu (revue de securite du 2026-10-01 : cette route etait la SEULE a prompt libre sans aucun filtre, plancher illegal compris).
   {
@@ -14101,6 +14191,11 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
     if (!surete.safe) {
       return json({ ok: false, success: false, error: surete.reason ?? 'prompt blocked by content filter', blocked: surete.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue)
+    const filet = await _filetLangue(env, user.id, texte,
+      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted });
+    if (filet.refus) return filet.refus;
+    texte = filet.texte.slice(0, 500);
   }
   const masqueDataUrl = String(uvMaskDataUrl || maskDataUrl || '');
   const m = masqueDataUrl.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
@@ -14194,6 +14289,7 @@ function handleMeshTexVar(req: Request, env: Env): Promise<Response> {
     // tuiles de 25 pas. Majoree : c'est un plafond reserve, pas une facture.
     estimationUsd: 0.08,
     texteLibre: (c) => String(c.style ?? '').trim().slice(0, 200),
+    champTexteLibre: 'style',
     champs: (c) => ({
       strength: typeof c.strength === 'number' ? c.strength : 0.4,
       seed: Number.isFinite(Number(c.seed)) ? Number(c.seed) : Math.floor(Math.random() * 1e6),
@@ -18826,7 +18922,7 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_RECTIFY_URL) {
     return err(503, 'rectify backend unavailable (not configured)');
   }
-  const { prompt, refImageUrl, mode, seeds, steps, guidance, ip_scale, projectName } =
+  const { prompt, refImageUrl, mode, seeds, steps, guidance, ip_scale, projectName, langueVerifiee } =
     await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
@@ -18837,8 +18933,9 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
       steps?: number;
       guidance?: number;
       ip_scale?: number;
+      langueVerifiee?: boolean;
     };
-  const rawPrompt = (prompt ?? '').toString().trim();
+  let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt && !refImageUrl) return err(400, 'prompt or refImageUrl required');
   /* 2026-10-03 (constat CLOUD-05, SSRF) : refImageUrl partait telle quelle vers Modal,
    * dont le telechargeur ouvre n'importe quelle adresse. Meme garde que les autres
@@ -18858,6 +18955,10 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue)
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
 
   // Cost: 1 rectify call ≈ N seeds × back-view ≈ $0.10 × 3 = $0.30 estimate.
@@ -23629,25 +23730,169 @@ async function handleLineageMeta(req: Request, env: Env): Promise<Response> {
 /* TRADUCTION DES PROMPTS (2026-09-29, user : « on doit taper dans la langue de l'appli »). Le bureau traduit la
  * description depuis la langue de l'INTERFACE vers l'anglais (Argos, en local) avant d'appliquer les gabarits
  * anglais ; le web l'envoyait telle quelle (« avion » : le moteur d'image comprend mal le francais). Workers AI
- * (m2m100) : ni GPU Modal ni credit facture. C'est un confort : toute erreur rend le texte d'origine. */
-const LANGUES_TRADUITES = new Set(['fr', 'es', 'zh', 'hi', 'ar']);
+ * (m2m100) : ni GPU Modal ni credit facture.
+ *
+ * 2026-10-13 (audit de la langue du 11/10, lot 2 — TRADUCTION-01/07/08/16, CHAMPS-04/25, SERVEUR-03/11) :
+ *  - TOUTES les langues que le modele traduit (m2m100 : 100 langues, lib/langue-texte.js LANGUES_TRADUCTIBLES), plus seulement fr, es,
+ *    zh, hi, ar : un texte allemand, japonais ou turc repartait tel quel, sans erreur ;
+ *  - la langue est d'abord celle du TEXTE (detection commune aux deux interfaces) ; `from` (normalise : « fr-FR » -> fr) ne sert que
+ *    sans indice ; un texte deja anglais n'est jamais envoye au modele ;
+ *  - longueur en CARACTERES (points de code, plus en unites UTF-16) ; un texte long est DECOUPE par phrases (le modele est plafonne a
+ *    1 000) au lieu d'un refus 400 que l'interface avalait ; sortie bornee ; corps nul ou illisible sans exception ;
+ *  - PLAFONDS comme le redacteur : 300 appels du modele par heure et par compte, 20 000 par jour au total ;
+ *  - toute reponse porte `translated` et, sinon, une `raison` (empty, already-english, unknown-language, unsupported, too-long,
+ *    rate-limited, unavailable, failed) : l'interface distingue enfin « rien a traduire » d'un ECHEC, qu'elle montre a l'utilisateur. */
+type DetectionLangue = { langue: string | null; sure: boolean; ecriture: string | null };
+type MorceauEtranger = { debut: number; fin: number; langue: string; traductible: boolean };
+const LangueTexte = _langueTexteJs as unknown as {
+  detecterLangue(t: string): DetectionLangue;
+  langueSource(t: string, langueInterface?: string): string | null;
+  morceauxEtrangers(t: string): MorceauEtranger[];
+  normaliserCodeLangue(c: unknown): string;
+  LANGUES_TRADUCTIBLES: Set<string>;
+};
+const TRADUCTION_MAX_CARACTERES = 4000;   // au-dela : raison too-long (un prompt fait rarement plus de quelques centaines de caracteres)
+const TRADUCTION_MORCEAU_MAX = 900;       // morceaux envoyes au modele (plafonne a 1 000 caracteres par appel)
+const TRADUCTION_PLAFOND_HEURE = 300;     // appels du modele par compte et par heure
+const TRADUCTION_PLAFOND_JOUR = 20_000;   // appels du modele par jour, tous comptes
+
+/** Fin de la DERNIERE correspondance de `re` (drapeau g) dans `tete`, hors debut de texte ; -1 sinon. */
+function _derniereCoupe(tete: string, re: RegExp): number {
+  let fin = -1;
+  for (const m of tete.matchAll(re)) if ((m.index ?? 0) > 0) fin = (m.index ?? 0) + m[0].length;
+  return fin;
+}
+/** Decoupe un texte en morceaux CONTIGUS de `max` caracteres au plus : aux fins de phrase, sinon aux virgules, sinon aux blancs. */
+function _decouperPourTraduction(texte: string, max = TRADUCTION_MORCEAU_MAX): string[] {
+  if ([...texte].length <= max) return [texte];
+  const morceaux: string[] = [];
+  let reste = texte;
+  while ([...reste].length > max) {
+    const tete = [...reste].slice(0, max).join('');
+    let coupe = -1;
+    for (const re of [/[.!?。！？\n]\s*/g, /[,;，；、،]\s*/g, /\s+/g]) {
+      const c = _derniereCoupe(tete, re);
+      if (c > tete.length / 3) { coupe = c; break; }
+    }
+    if (coupe <= 0) coupe = tete.length;
+    morceaux.push(reste.slice(0, coupe));
+    reste = reste.slice(coupe);
+  }
+  if (reste) morceaux.push(reste);
+  return morceaux;
+}
+
+/** Traduit `texte` (langue `de`) vers l'anglais avec le modele du site. Jamais d'exception : { ok:false, raison } en cas d'echec. */
+async function _traduireVersAnglais(env: Env, texte: string, de: string): Promise<{ texte: string; ok: boolean; raison?: string }> {
+  if (!env.AI) return { texte, ok: false, raison: 'unavailable' };
+  if (!LangueTexte.LANGUES_TRADUCTIBLES.has(de)) return { texte, ok: false, raison: 'unsupported' };
+  const sorties: string[] = [];
+  try {
+    for (const morceau of _decouperPourTraduction(texte)) {
+      if (!morceau.trim()) continue;
+      const r = await env.AI.run('@cf/meta/m2m100-1.2b',
+        { text: morceau, source_lang: de, target_lang: 'en' }) as { translated_text?: unknown };
+      const t = (r && typeof r.translated_text === 'string') ? r.translated_text.trim() : '';
+      if (!t) return { texte, ok: false, raison: 'failed' };
+      // sortie BORNEE : un modele qui boucle ne renvoie pas 50 000 caracteres a l'interface
+      sorties.push([...t].slice(0, 4 * [...morceau].length + 200).join(''));
+    }
+  } catch (e) {
+    console.log('[translate] echec', de, String((e as Error)?.message || e).slice(0, 200));
+    return { texte, ok: false, raison: 'failed' };
+  }
+  return sorties.length ? { texte: sorties.join(' '), ok: true } : { texte, ok: false, raison: 'failed' };
+}
+
+/** Compteur de plafond NON atomique (meme principe que le redacteur) : un depassement de quelques unites sous forte concurrence est
+ *  sans consequence ici. Panne R2 : on laisse passer (la traduction est un confort, pas une depense). false = plafond atteint. */
+async function _plafondTraduction(env: Env, cle: string, plafond: number): Promise<boolean> {
+  if (!env.MESHES) return true;
+  try {
+    const cur = await env.MESHES.get(cle);
+    const n = cur ? parseInt(await cur.text(), 10) || 0 : 0;
+    if (n >= plafond) return false;
+    await env.MESHES.put(cle, String(n + 1));
+  } catch { /* compteur au mieux */ }
+  return true;
+}
+
 async function handleTranslate(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
-  const b = await req.json().catch(() => ({})) as { text?: unknown; from?: unknown };
-  const texte = typeof b.text === 'string' ? b.text : '';
-  const de = typeof b.from === 'string' ? b.from.toLowerCase().slice(0, 5) : 'en';
-  if (!texte.trim() || !LANGUES_TRADUITES.has(de) || !env.AI) return json({ text: texte, translated: false });
-  if (texte.length > 1000) return err(400, 'text too long (1000 characters max)');
-  try {
-    const r = await env.AI.run('@cf/meta/m2m100-1.2b',
-      { text: texte, source_lang: de, target_lang: 'en' }) as { translated_text?: unknown };
-    const t = (r && typeof r.translated_text === 'string') ? r.translated_text.trim() : '';
-    return json({ text: t || texte, translated: !!t });
-  } catch (e) {
-    console.log('[translate] echec', de, String((e as Error)?.message || e).slice(0, 200));
-    return json({ text: texte, translated: false });
+  const b = await req.json().catch(() => null) as { text?: unknown; from?: unknown } | null;
+  const texte = (b && typeof b.text === 'string') ? b.text : '';
+  if (!texte.trim()) return json({ text: texte, translated: false, raison: 'empty' });
+  if ([...texte].length > TRADUCTION_MAX_CARACTERES) return json({ text: texte, translated: false, raison: 'too-long' });
+  const detection = LangueTexte.detecterLangue(texte);
+  if (detection.langue === 'en') return json({ text: texte, translated: false, raison: 'already-english', langue: 'en' });
+  const annoncee = LangueTexte.normaliserCodeLangue(b && b.from);
+  const de = detection.langue || (annoncee && annoncee !== 'en' ? annoncee : '');
+  if (!de) return json({ text: texte, translated: false, raison: 'unknown-language' });
+  if (!LangueTexte.LANGUES_TRADUCTIBLES.has(de)) return json({ text: texte, translated: false, raison: 'unsupported', langue: de });
+  if (!env.AI) return json({ text: texte, translated: false, raison: 'unavailable', langue: de });
+  const maintenant = new Date().toISOString();
+  const heure = maintenant.slice(0, 13).replace(/[-T]/g, '');
+  if (!(await _plafondTraduction(env, `_meta/traduction/${user.id}-${heure}.txt`, TRADUCTION_PLAFOND_HEURE))
+      || !(await _plafondTraduction(env, `_meta/traduction/jour-${maintenant.slice(0, 10)}.txt`, TRADUCTION_PLAFOND_JOUR))) {
+    return json({ text: texte, translated: false, raison: 'rate-limited', langue: de });
   }
+  const r = await _traduireVersAnglais(env, texte, de);
+  return json(r.ok ? { text: r.texte, translated: true, langue: de }
+                   : { text: texte, translated: false, raison: r.raison, langue: de });
+}
+
+/* FILET DE LANGUE DU SERVEUR (2026-10-13, audit de la langue, lot 2 (i) — SERVEUR-01, CHAMPS-12). Le serveur transmettait au moteur
+ * d'image, octet pour octet, tout texte recu : un prompt allemand (cle API, page /m/, bureau en mode Cloud sans traducteur, client
+ * ancien, traduction en echec) partait dans des gabarits anglais et etait facture. Avant tout debit, les parties MANIFESTEMENT non
+ * anglaises (lib/langue-texte.js morceauxEtrangers : un gabarit anglais du produit n'est jamais vise) sont traduites par le modele du
+ * site ; si c'est impossible, la requete est REFUSEE (422, rien n'est debite) avec un message qui dit pourquoi. Le texte traduit repasse
+ * le filtre de contenu (qui ne connait que six langues : la traduction lui montre ce que le moteur verra). `verifie === true` :
+ * l'interface a deja traite la langue, ou l'utilisateur a choisi « Envoyer tel quel » apres un echec de traduction (choix respecte). */
+async function _filetLangue(env: Env, userId: string, texte: string,
+    opts: { verifie?: unknown; unrestricted?: boolean; cache?: Map<string, string> } = {},
+): Promise<{ texte: string; refus?: Response; traduit: boolean; langues: string[] }> {
+  const t = String(texte ?? '');
+  if (!t.trim() || opts.verifie === true) return { texte: t, traduit: false, langues: [] };
+  const morceaux = LangueTexte.morceauxEtrangers(t);
+  if (!morceaux.length) return { texte: t, traduit: false, langues: [] };
+  if (!env.AI) {   // liaison absente (developpement local) : comportement d'avant, signale au journal
+    console.warn('[filet-langue] Workers AI absent : texte non anglais transmis tel quel');
+    return { texte: t, traduit: false, langues: [] };
+  }
+  let sortie = '';
+  let pos = 0;
+  const langues: string[] = [];
+  for (const m of morceaux) {
+    const extrait = t.slice(m.debut, m.fin);
+    const cle = m.langue + '|' + extrait;
+    let anglais = opts.cache?.get(cle);
+    if (anglais === undefined) {
+      const r = m.traductible ? await _traduireVersAnglais(env, extrait, m.langue)
+                              : { texte: extrait, ok: false, raison: 'unsupported' };
+      if (!r.ok) {
+        console.log('[filet-langue] refus', m.langue, r.raison);
+        return { texte: t, traduit: false, langues: [m.langue], refus: json({ ok: false, success: false, code: 'non-english-text',
+          langue: m.langue, raison: r.raison,
+          error: `Your text does not look like English (${m.langue}) and could not be translated automatically (${r.raison}). `
+            + 'The image engine only really understands English: write it in English, or try again in a moment. No credits were used.' },
+          { status: 422 }) };
+      }
+      anglais = r.texte;
+      opts.cache?.set(cle, anglais);
+    }
+    sortie += t.slice(pos, m.debut) + anglais;
+    pos = m.fin;
+    if (!langues.includes(m.langue)) langues.push(m.langue);
+  }
+  sortie += t.slice(pos);
+  const surete = await _checkPromptSafetyAlerte(env, userId, sortie, !!opts.unrestricted);
+  if (!surete.safe) {
+    return { texte: t, traduit: false, langues, refus: json({ ok: false, success: false,
+      error: surete.reason ?? 'prompt blocked by content filter', blocked: surete.blocked }, { status: 400 }) };
+  }
+  console.log('[filet-langue] traduit', langues.join(','));
+  return { texte: sortie, traduit: true, langues };
 }
 
 /* REDACTEUR DE LA FENETRE « NEW PROJECT » (2026-09-30). User : « il faut que ca genere aussi la description quand Auto est

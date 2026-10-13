@@ -392,16 +392,16 @@ export function langueSource(texte, langueInterface) {
 const COUPE = /([,;\n!?、。，；！？،؛।]+|\.(?=\s|$))/;
 
 /** Parties MANIFESTEMENT non anglaises du texte : [{ debut, fin, langue, traductible }] (positions dans `texte`).
- *  Texte entier manifestement etranger : une seule partie. Sinon (prompt enrichi de gabarits anglais) : les propositions sures, etendues
- *  aux propositions voisines de la meme langue (meme seulement probable). Une proposition anglaise ou sans indice arrete l'extension. */
+ *  Texte manifestement etranger SANS proposition anglaise : une seule partie, le texte entier (le traducteur a tout le contexte). Sinon
+ *  (prompt enrichi de gabarits anglais, melange) : les propositions sures, etendues aux propositions voisines de la meme langue (meme
+ *  seulement probable) ; une proposition anglaise ou sans indice arrete l'extension : un gabarit anglais n'est jamais retraduit. */
 export function morceauxEtrangers(texte) {
   const t = String(texte == null ? '' : texte);
   if (!t.trim()) return [];
   const global = detecterLangue(t);
-  if (global.langue && global.langue !== 'en' && global.sure) {
-    return [{ debut: 0, fin: t.length, langue: global.langue, traductible: LANGUES_TRADUCTIBLES.has(global.langue) }];
-  }
-  if (t.length > 4 * LIMITE_ANALYSE) return [];
+  const entier = () => [{ debut: 0, fin: t.length, langue: global.langue, traductible: LANGUES_TRADUCTIBLES.has(global.langue) }];
+  const etranger = !!global.langue && global.langue !== 'en' && global.sure;
+  if (t.length > 4 * LIMITE_ANALYSE) return etranger ? entier() : [];
   const morceaux = t.split(COUPE);
   const props = [];
   let pos = 0;
@@ -415,6 +415,7 @@ export function morceauxEtrangers(texte) {
     }
     pos += m.length;
   }
+  if (etranger && !props.some((p) => p.langue === 'en')) return entier();
   const res = [];
   for (let i = 0; i < props.length; i++) {
     const p = props[i];

@@ -34,6 +34,8 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
     logOperation: async (_e, _u, type, cout, _d, _f, statut) => { j.journal.push({ type, cout, statut }); },
     insertUserAsset: async (_e, _u, projet, genre) => { j.assets.push({ projet, genre }); },
     r2PathFromPublicUrl: (_e, u) => u,
+    // filet de langue (2026-10-13, teste a part : tests/traduction-serveur.test.mjs) : ici le texte est anglais, il passe tel quel
+    _filetLangue: async (_e, _u, texte) => ({ texte, traduit: false, langues: [] }),
   };
   const w = chargerFonctions(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet'], dbl);
   const env = { MODAL_TPOSE_URL: tposeUrl, MODAL_TEXT2IMAGE_URL: t2iUrl };
