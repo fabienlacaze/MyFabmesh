@@ -72,10 +72,23 @@ _ATTN_RE = re.compile(
 )
 
 
+# 2026-10-13 (audit langue / moderation du 11/10 : MODERATION-07, SERVEUR-18, MANQUE-SERV-06). Le texte de l'utilisateur
+# pilotait les poids SANS borne : « (x:99999) » = poids infini en demi-precision, « (x:-5) » = concept inverse (« vetements »
+# en negatif dans le positif), « (x:..) » = ValueError puis repli sur le prompt tronque a 77 jetons ; et 32 000 « (a »
+# coutaient 19 s (multiplication quadratique). Bornes : 8 parentheses ou crochets ouverts au plus (au-dela : texte simple),
+# poids final dans [0,5 ; 2] (les gabarits du produit vont de 1,2 a 1,8), poids mal forme lu comme une parenthese simple.
+# Les jetons speciaux « <|endoftext|> » / « <|startoftext|> » tapes dans un texte etaient lus comme les VRAIS jetons de
+# debut et de fin : ils sont casses avant la tokenisation.
+_PROFONDEUR_MAX = 8
+_POIDS_MIN = 0.5
+_POIDS_MAX = 2.0
+_RE_JETON_SPECIAL = re.compile(r"<\s*\||\|\s*>")
+
+
 def _parse_prompt_attention(text: str) -> List[Tuple[str, float]]:
     """Parse A1111-style (token:1.4) / [token] emphasis into a list of
     (text, weight) tuples. Mirrors the algorithm used by
-    diffusers/examples/community/lpw_stable_diffusion_xl.py."""
+    diffusers/examples/community/lpw_stable_diffusion_xl.py, with bounds (see above)."""
     res: List[List] = []
     round_brackets: List[int] = []
     square_brackets: List[int] = []
@@ -91,12 +104,18 @@ def _parse_prompt_attention(text: str) -> List[Tuple[str, float]]:
         weight = m.group(1)
         if token.startswith("\\"):
             res.append([token[1:], 1.0])
+        elif token in ("(", "[") and len(round_brackets) + len(square_brackets) >= _PROFONDEUR_MAX:
+            res.append([token, 1.0])
         elif token == "(":
             round_brackets.append(len(res))
         elif token == "[":
             square_brackets.append(len(res))
         elif weight is not None and round_brackets:
-            multiply_range(round_brackets.pop(), float(weight))
+            try:
+                w = float(weight)
+            except ValueError:
+                w = round_mul
+            multiply_range(round_brackets.pop(), w)
         elif token == ")" and round_brackets:
             multiply_range(round_brackets.pop(), round_mul)
         elif token == "]" and square_brackets:
@@ -108,6 +127,10 @@ def _parse_prompt_attention(text: str) -> List[Tuple[str, float]]:
         multiply_range(pos, round_mul)
     for pos in square_brackets:
         multiply_range(pos, square_mul)
+
+    for r in res:
+        w = r[1]
+        r[1] = 1.0 if w != w else min(_POIDS_MAX, max(_POIDS_MIN, w))
 
     if not res:
         res = [["", 1.0]]
@@ -128,6 +151,7 @@ def _get_prompt_tokens_and_weights(tokenizer, text: str) -> Tuple[List[int], Lis
     tokens: List[int] = []
     weights: List[float] = []
     for chunk, w in parsed:
+        chunk = _RE_JETON_SPECIAL.sub(" ", chunk)
         if not chunk:
             continue
         chunk_ids = tokenizer(chunk, truncation=False, add_special_tokens=False).input_ids

@@ -153,8 +153,33 @@ def _epurer_demande(texte: str) -> str:
             r"(?:(?:faire|cr[eé]er|g[eé]n[eé]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?", _re.I)
     brut = str(texte if texte is not None else '')
     t = _DEMANDE_FR.sub('', _DEMANDE_EN.sub('', brut, count=1), count=1)
-    t = _re.sub(r"[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$", '', t, flags=_re.I).strip()
+    t = _retirer_politesse_fin(t).strip()
     return t if len(t) >= 3 else brut.strip()
+
+
+_POLITESSE_FIN = None
+
+
+def _retirer_politesse_fin(t: str) -> str:
+    """« un dragon, please! » -> « un dragon » : meme effet que l'ancienne expression
+    [\\s,;.!]*\\b(?:please|thanks|thank you|merci)\\b[\\s.!]*$ appliquee par re.sub, SANS son cout quadratique sur une longue
+    suite de blancs ou de virgules (audit du 11/10, MODERATION-07 : 32 000 blancs = 12,6 s, sous le verrou GPU). Lineaire :
+    on retire la fin [\\s.!]*, on cherche le mot de politesse au bout, puis on remonte les separateurs [\\s,;.!] qui le
+    precedent."""
+    import re as _re
+    global _POLITESSE_FIN
+    if _POLITESSE_FIN is None:
+        _POLITESSE_FIN = _re.compile(r"\b(?:please|thanks|thank you|merci)\Z", _re.I)
+    fin = len(t)
+    while fin > 0 and (t[fin - 1].isspace() or t[fin - 1] in '.!'):
+        fin -= 1
+    m = _POLITESSE_FIN.search(t, 0, fin)
+    if not m:
+        return t
+    debut = m.start()
+    while debut > 0 and (t[debut - 1].isspace() or t[debut - 1] in ',;.!'):
+        debut -= 1
+    return t[:debut]
 
 
 def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str, pose_libre: bool = False) -> str:

@@ -152,6 +152,8 @@ const FICHIERS = [
   // composeur d'intention (2026-10-03) : objets tenus, negatifs d'armes, gabarit adapte a ce que l'utilisateur DEMANDE ; Python = bureau (pont) et Modal, JS = les deux pages
   { nom: 'composeur d intention (Python)', source: 'scripts/composeur_intention.py', copie: 'modal_app/composeur_intention.py' },
   { nom: 'composeur d intention (JS)', source: 'src/renderer/lib/composeur-intention.js', copie: 'cloud/public/app/lib/composeur-intention.js' },
+  // encodeur SDXL des prompts longs (2026-10-13) : memes bornes de poids et memes jetons speciaux casses sur le bureau et sur Modal
+  { nom: 'encodeur SDXL des prompts (poids, jetons speciaux)', source: 'scripts/_sdxl_prompt_utils.py', copie: 'modal_app/_sdxl_prompt_utils.py' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));
