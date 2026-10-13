@@ -440,7 +440,13 @@ for (const plateforme of ['bureau', 'web']) {
       // eslint-disable-next-line no-new-func
       const h = new Function('__portee', 'with (__portee) { return (__code) => eval(__code); }')(portee)('(' + g.code + ')');
       h();
-      await pause(40);
+      // le gestionnaire est synchrone, la traduction ne l'est pas : on attend l'envoi, ou la fenetre ouverte PUIS refermee
+      const modal = I.page.document.getElementById('modal-confirm');
+      for (let t = 0; t < 600; t++) {
+        if (I.appels('maskInpaint').length || (I.journal.fenetres.length && modal.classList.contains('hidden'))) break;
+        await pause(5);
+      }
+      await pause(10);
       return I;
     };
     const ok = await essai();
