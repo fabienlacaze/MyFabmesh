@@ -52,6 +52,8 @@ def generer(png: bytes, configs: list, seed: int = 7) -> dict:
     # VOL = grid[0] * grid[1] * grid[2] sur des TENSEURS int32 : deborde des la grille 1626 (2048 -> 0). Le type de cle retombe alors
     # sur uint32 alors que x * H * D depasse 2^32 : les cles se replient (a 2048, x et x + 1024 donnent la meme cle) et les voisins
     # sont recherches au mauvais endroit. Calcul en entiers Python : uint64 des que le volume depasse 2^32.
+    # Depuis le 13/10, l'image corrige deja le fichier installe (app.py::_CORRECTIF_HACHAGE_OVOXEL) : remplacement redondant, et
+    # EXP_SANS_CORRECTIF=1 ne reproduit plus le defaut (il faudrait une image construite avant ce correctif).
     import sys as _sys
     _fdg = _sys.modules["o_voxel.convert.flexible_dual_grid"]
 

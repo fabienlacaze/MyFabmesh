@@ -651,6 +651,57 @@ def blender_convert(glb_bytes: bytes, fmt: str):
     return convert(glb_bytes, fmt)
 
 
+# CORRECTIF DE LA TABLE DE HACHAGE D'O_VOXEL (2026-10-13 ; cause prouvee les 03-04/10, voir AGENT_LOG et
+# modal_app/exp_trellis_deux_tuiles.py, qui l'appliquait a l'execution).
+# o_voxel/convert/flexible_dual_grid.py::_init_hashmap calcule VOL = (grid_size[0] * grid_size[1] *
+# grid_size[2]).item() sur des TENSEURS int32 : le produit deborde (1792 -> 1 459 617 792 au lieu de
+# 5 754 585 088 ; 2048 -> 0) et le type de cle retombe sur uint32 alors que les cles x*H*D depassent 2^32
+# des la grille 1626 : collisions (a 2048, x et x + 1024 donnent la meme cle : 8 314 aretes etirees sur
+# l'axe X le 03/10). La production plafonne a 1536 (cascade ; 1536^3 < 2^32, cles uint32 justes) : AUCUN
+# changement pour elle. La grille 1792 (meilleur compromis mesure le 03/10) l'exige.
+#   1) correctif : volume en entiers Python dans la copie INSTALLEE (find_spec : rien n'est execute),
+#      octets lus et reecrits tels quels (fins de ligne conservees). La construction ECHOUE si le calcul
+#      attendu n'apparait pas EXACTEMENT une fois (o_voxel a change) : jamais de correctif ignore en silence.
+#   2) garde : charge le module installe SEUL (paquet parent factice : o_voxel/__init__ importe
+#      postprocess -> flex_gemm, qui interroge le GPU, absent a la construction) et exige des cles uint32
+#      jusqu'a la grille 1625, uint64 au-dela (1626, 1792, 2048, 3072, 4096). Appareil 'cpu' : torch 2.4.1
+#      remplit un tenseur uint64 sur le CPU, pas sur 'meta' (mesure le 13/10 sur torch 2.4.1+cpu, 2.7.1).
+# Couche AJOUTEE EN DERNIER (juste avant add_local_python_source) : CuMesh, FlexGEMM, flash-attn et les
+# poids restent en cache. Teste sur CPU : build/bancs/noyaux/test_hachage_ovoxel.py (execute ces deux
+# commandes telles quelles sur une copie du fichier du fork). Bureau : grille <= 1536, non concerne.
+_CORRECTIF_HACHAGE_OVOXEL = (
+    "python -c \"import importlib.util, os, pathlib, sys; "
+    "s = importlib.util.find_spec('o_voxel'); "
+    "s is not None or sys.exit('CORRECTIF HACHAGE O_VOXEL : paquet o_voxel introuvable'); "
+    "f = pathlib.Path(os.path.dirname(s.origin), 'convert', 'flexible_dual_grid.py'); "
+    "src = f.read_bytes().decode('utf-8'); "
+    "a = 'VOL = (grid_size[0] * grid_size[1] * grid_size[2]).item()'; "
+    "b = 'VOL = int(grid_size[0]) * int(grid_size[1]) * int(grid_size[2])"
+    "  # MyFabmesh : entiers Python, le produit int32 debordait des la grille 1626'; "
+    "n = src.count(a); "
+    "n == 1 or sys.exit(f'CORRECTIF HACHAGE O_VOXEL : {n} occurrence(s) de [{a}] dans {f} (1 attendue) : "
+    "o_voxel a change, revoir le correctif'); "
+    "f.write_bytes(src.replace(a, b).encode('utf-8')); "
+    "print('CORRECTIF HACHAGE O_VOXEL : volume en entiers Python ->', f)\"",
+    "python -c \"import importlib.util, os, sys, types, torch; "
+    "s = importlib.util.find_spec('o_voxel'); "
+    "s is not None or sys.exit('GARDE HACHAGE O_VOXEL : paquet o_voxel introuvable'); "
+    "d = os.path.dirname(s.origin); "
+    "pk = types.ModuleType('o_voxel'); pk.__path__ = [d]; pk._C = None; "
+    "cv = types.ModuleType('o_voxel.convert'); cv.__path__ = [os.path.join(d, 'convert')]; "
+    "sys.modules.update({'o_voxel': pk, 'o_voxel.convert': cv}); "
+    "sp = importlib.util.spec_from_file_location('o_voxel.convert.flexible_dual_grid', "
+    "os.path.join(d, 'convert', 'flexible_dual_grid.py')); "
+    "m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); "
+    "r = {g: m._init_hashmap(torch.tensor([g, g, g], dtype=torch.int32), 4, 'cpu')[0].dtype "
+    "for g in (1536, 1625, 1626, 1792, 2048, 3072, 4096)}; "
+    "faux = {g: str(t) for g, t in r.items() if t != (torch.uint32 if g ** 3 < 2 ** 32 else torch.uint64)}; "
+    "not faux or sys.exit(f'GARDE HACHAGE O_VOXEL : type de cle faux {faux} "
+    "(uint32 si grille**3 < 2**32, sinon uint64)'); "
+    "print('GARDE HACHAGE O_VOXEL OK :', {g: str(t) for g, t in r.items()})\"",
+)
+
+
 # ---------------------------------------------------------------------------
 # Mesh image — TRELLIS-2 has heavy CUDA build deps that we DON'T want
 # in the shared image (text2image + back-view would re-pay them for
@@ -903,6 +954,9 @@ mesh_image = (
         "d('xinsir/controlnet-tile-sdxl-1.0', allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors']); "
         "d('madebyollin/sdxl-vae-fp16-fix', allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors'])\"",
     )
+    # Table de hachage d'o_voxel juste pour les grilles > 1625 (voir _CORRECTIF_HACHAGE_OVOXEL) : correctif
+    # puis garde. EN DERNIER pour ne reconstruire que cette couche (quelques secondes), pas CuMesh ni les poids.
+    .run_commands(*_CORRECTIF_HACHAGE_OVOXEL)
     .add_local_python_source("modal_app")
 )
 
