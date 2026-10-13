@@ -49,6 +49,14 @@ des 60 forks ; le fork marklalon en corrige plusieurs) — `correctifs_rigger` :
      plantait et le tirage etait ecarte sans message — les plus LONGS, donc
      les plus complets. max_new_tokens=2040, comme le checkpoint.
 
+ECOUTE LOCALE (2026-10-13, signale par la veille IA, verifie au commit
+273b691) — `ecoute_locale` : le serveur Blender (src/server/bpy_server.py)
+ecoutait sur 0.0.0.0, donc TOUT le reseau local, et lit le corps de ses
+requetes avec torch.load(weights_only=False) (spec.py) : pendant un rig du
+bureau, une autre machine du reseau pouvait lui faire executer du code. Il
+n'ecoute plus que 127.0.0.1 (le client parle deja a localhost).
+skintokens_bridge.py refuse de lancer un rig si ce correctif n'a pas pris.
+
 Usage : python patch_skintokens_transfert.py <racine SkinTokens>
 """
 import os
@@ -227,6 +235,35 @@ def appliquer(racine):
     return "applique"
 
 
+SERVEUR_BLENDER = os.path.join("src", "server", "bpy_server.py")
+
+
+def ecoute_locale(racine):
+    """Serveur Blender en ecoute sur 127.0.0.1 seulement (voir ECOUTE LOCALE).
+    Idempotent. Rend 'deja', 'applique', 'absent' (pas de fichier serveur, donc
+    pas de serveur) ou 'echec' (il ecoute encore 0.0.0.0 : ne lancer AUCUN rig)."""
+    chemin = os.path.join(racine, SERVEUR_BLENDER)
+    try:
+        with open(chemin, encoding="utf-8", newline="") as fh:
+            texte = fh.read()
+    except FileNotFoundError:
+        return "absent"
+    except OSError:
+        return "echec"
+    if "0.0.0.0" not in texte:
+        return "deja"
+    texte = (texte.replace("host='0.0.0.0'", "host='127.0.0.1'")
+             .replace('host="0.0.0.0"', 'host="127.0.0.1"'))
+    if "0.0.0.0" in texte:                  # forme inconnue : ne rien supposer
+        return "echec"
+    try:
+        with open(chemin, "w", encoding="utf-8", newline="") as fh:
+            fh.write(texte)
+    except OSError:
+        return "echec"
+    return "applique"
+
+
 def appliquer_tout(racine):
     """Alignement du transfert + correctifs du rigger. Rend un resume lisible."""
     etat = appliquer(racine)
@@ -234,6 +271,7 @@ def appliquer_tout(racine):
         autres = correctifs_rigger(racine)
     except Exception as e:                  # un correctif rate ne bloque pas le rig
         autres = {"erreur": f"{type(e).__name__}: {e}"}
+    autres["ecoute locale"] = ecoute_locale(racine)
     return "alignement %s ; %s" % (etat, ", ".join("%s %s" % kv for kv in autres.items()))
 
 
@@ -251,3 +289,6 @@ if __name__ == "__main__":
     autres = correctifs_rigger(sys.argv[1])
     print("correctifs du rigger : %s" % autres)
     assert all(v in ("applique", "deja") for v in autres.values()), autres
+    ecoute = ecoute_locale(sys.argv[1])
+    print("ecoute locale du serveur Blender : %s" % ecoute)
+    assert ecoute in ("applique", "deja"), ecoute
