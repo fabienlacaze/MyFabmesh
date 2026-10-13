@@ -1,0 +1,40 @@
+{
+  "doublons": {
+    "bureau": {
+      "fr": 32,
+      "es": 8,
+      "zh": 19,
+      "hi": 21,
+      "ar": 24
+    },
+    "web": {
+      "fr": 24,
+      "es": 8,
+      "zh": 19,
+      "hi": 21,
+      "ar": 24
+    }
+  },
+  "bureau": {
+    "fr": 100,
+    "es": 100,
+    "zh": 100,
+    "hi": 100,
+    "ar": 100
+  },
+  "web": {
+    "fr": 100,
+    "es": 100,
+    "zh": 100,
+    "hi": 100,
+    "ar": 100
+  },
+  "coque": {
+    "fr": 100,
+    "es": 100,
+    "zh": 100,
+    "hi": 100,
+    "ar": 100
+  },
+  "note": "Seuils du garde build/check-traductions.mjs : couverture minimale (%) par cible et par langue, nombre maximal de doublons contradictoires. Reecrire avec node build/check-traductions.mjs --ecrire (jamais a la baisse sans --baisser)."
+}

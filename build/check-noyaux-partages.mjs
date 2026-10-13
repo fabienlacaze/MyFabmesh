@@ -152,6 +152,10 @@ const FICHIERS = [
   // composeur d'intention (2026-10-03) : objets tenus, negatifs d'armes, gabarit adapte a ce que l'utilisateur DEMANDE ; Python = bureau (pont) et Modal, JS = les deux pages
   { nom: 'composeur d intention (Python)', source: 'scripts/composeur_intention.py', copie: 'modal_app/composeur_intention.py' },
   { nom: 'composeur d intention (JS)', source: 'src/renderer/lib/composeur-intention.js', copie: 'cloud/public/app/lib/composeur-intention.js' },
+  // Lot interface multilingue (2026-10-13) : refus du serveur traduits a l'affichage, et traductions communes
+  // bureau / web (une derive entre les deux dictionnaires laissait des libelles traduits d'un seul cote).
+  { nom: 'textes du serveur (traduction des refus)', source: 'src/renderer/lib/textes-serveur.js', copie: 'cloud/public/app/lib/textes-serveur.js' },
+  { nom: 'traductions communes (lang/_additions6.js)', source: 'src/renderer/lang/_additions6.js', copie: 'cloud/public/app/lang/_additions6.js' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));
