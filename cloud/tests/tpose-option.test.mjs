@@ -34,6 +34,8 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
     logOperation: async (_e, _u, type, cout, _d, _f, statut) => { j.journal.push({ type, cout, statut }); },
     insertUserAsset: async (_e, _u, projet, genre) => { j.assets.push({ projet, genre }); },
     r2PathFromPublicUrl: (_e, u) => u,
+    // 2026-10-13 (MODERATION-07) : borne de longueur du prompt, testee a part (tests/moderation-worker.test.mjs)
+    _refusLongueur: () => null, PROMPT_MAX_CARACTERES: 2000, PROMPT_MAX_ENRICHI: 4000,
   };
   const w = chargerFonctions(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet'], dbl);
   const env = { MODAL_TPOSE_URL: tposeUrl, MODAL_TEXT2IMAGE_URL: t2iUrl };

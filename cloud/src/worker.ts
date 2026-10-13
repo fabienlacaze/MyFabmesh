@@ -16,7 +16,7 @@
 import Stripe from 'stripe';
 import Replicate from 'replicate';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { checkPromptSafety } from './nsfw_filter';
+import { checkPromptSafety, controlerLongueurPrompt, neutraliserSyntaxePrompt, PROMPT_MAX_CARACTERES, PROMPT_MAX_ENRICHI } from './nsfw_filter';
 import { legalIdentityUnfilledFields } from './config/legal-identity';
 import {
   AGE_DEPARTS_PAR_JOUR, AGE_DEPARTS_GLOBAUX_PAR_JOUR, PIN_ECHECS_MAX, PIN_VERROU_MS, verdictSession, unrestrictedEffectif,
@@ -1274,6 +1274,37 @@ async function _checkPromptSafetyAlerte(env: Env, userId: string, prompt: string
     if (cat) await _alerterContenuGrave(env, userId, cat);
   }
   return r;
+}
+
+/* 2026-10-13 (constats MODERATION-07 / SERVEUR-09 de l'audit du 11/10) — BORNE DE LONGUEUR des textes envoyes a un generateur.
+ * Un prompt de 1 000 000 de caracteres traversait le worker (filtre compris), etait facture et partait chez Modal, ou le
+ * nettoyage de fin de demande et le lecteur de poids tournaient des secondes, voire des minutes, sous le verrou GPU. Le texte
+ * est mesure AVANT le filtre et AVANT tout debit (longueur ponderee : hors alphabet latin un caractere compte 3, CLIP le decoupe
+ * en 2 a 3 jetons). null si le texte passe, sinon la reponse 400, de la meme forme que les refus du filtre. */
+function _refusLongueur(texte: unknown, max: number = PROMPT_MAX_CARACTERES): Response | null {
+  const r = controlerLongueurPrompt(texte, max);
+  return r.safe ? null : json({ ok: false, success: false, error: r.reason, blocked: r.blocked }, { status: 400 });
+}
+
+/* 2026-10-13 (constat MODERATION-04) — NEGATIF de « Variant » et « Age » (tex-variant). Il REMPLACE le negatif par defaut de
+ * Modal et partait tel quel, sans filtre ni borne : un negatif « vetements » pousse le modele vers la nudite sans qu'aucun mot
+ * du texte filtre ne le dise. Les deux clients n'envoient que des termes FIXES (NEG_VARIANTE_PERSONNAGE et les negatifs de
+ * l'outil Age, src/renderer/index2.js et cloud/public/app/index2.js) : on ne garde que ces termes-la, tout autre est retire. */
+const NEGATIF_TEX_VARIANT_PERMIS = new Set([
+  'deformed', 'distorted', 'changed shape', 'different pose', 'extra parts', 'missing parts', 'blurry', 'low quality',
+  'different person', 'different face', 'animal head', 'werewolf', 'nude', 'nsfw', 'green skin', 'blue skin', 'grey skin',
+  'colored skin', 'body paint', 'monochrome', 'color tint', 'mutated', 'extra limbs', 'missing limbs', 'fused limbs',
+  'bad anatomy', 'human face', 'face', 'eyes', 'mouth', 'person', 'people', 'portrait', 'character', 'humanoid', 'mask',
+  'skull', 'grayscale', 'greyscale', 'black and white', 'desaturated', 'sepia',
+]);
+function _negatifTexVariant(neg: unknown): string | undefined {
+  if (typeof neg !== 'string') return undefined;
+  const gardes: string[] = [];
+  for (const brut of neg.slice(0, 2000).split(',')) {
+    const terme = brut.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (NEGATIF_TEX_VARIANT_PERMIS.has(terme) && !gardes.includes(terme)) gardes.push(terme);
+  }
+  return gardes.length ? gardes.join(', ') : undefined;
 }
 
 /** Check the per-user daily call cap. Increments on success.
@@ -11280,13 +11311,15 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
   // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
   // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
   const cleRejeu = crypto.randomUUID();
+  // 2026-10-13 (MODERATION-07) : jetons speciaux du tokenizer casses, poids A1111 bornes, caracteres effaces retires.
+  const promptModal = neutraliserSyntaxePrompt(input.prompt);
   const doFetch = () => fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       _auth: secret,
       _cle_rejeu: cleRejeu,
-      prompt: input.prompt,
+      prompt: promptModal,
       asset_type: input.asset_type,
       asset_style: input.asset_style,
       seed: input.seed,
@@ -11389,7 +11422,7 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         _auth: secret,
-        prompt: input.prompt,
+        prompt: promptModal,
         asset_type: input.asset_type,
         asset_style: input.asset_style,
         seed: graine,
@@ -11610,7 +11643,7 @@ async function callModalBackView(env: Env, userId: string, input: {
       _auth: secret,
       _cle_rejeu: cleRejeu,
       front_image_url: input.frontImageUrl,
-      prompt_hint: input.promptHint ?? '',
+      prompt_hint: neutraliserSyntaxePrompt(input.promptHint ?? ''),   // 2026-10-13 (MODERATION-07)
       seed: input.seed,
       steps: input.steps,
       ip_scale: input.ip_scale,
@@ -11684,7 +11717,7 @@ async function callModalMVAdapter(env: Env, userId: string, input: {
     body: JSON.stringify({
       _auth: secret,
       front_image_url: input.frontImageUrl,
-      prompt_hint: input.promptHint ?? '',
+      prompt_hint: neutraliserSyntaxePrompt(input.promptHint ?? ''),   // 2026-10-13 (MODERATION-07)
       seed: input.seed ?? 1234,
       steps: input.steps ?? 50,
       guidance: input.guidance ?? 4.5,
@@ -11759,7 +11792,7 @@ async function callModalTpose(env: Env, userId: string, input: {
     body: JSON.stringify({
       _auth: secret,
       _cle_rejeu: cleRejeu,
-      prompt: input.prompt ?? '',
+      prompt: neutraliserSyntaxePrompt(input.prompt ?? ''),   // 2026-10-13 (MODERATION-07)
       ref_image_url: input.refImageUrl ?? '',
       seed: input.seed,
       cn_scale: input.cn_scale,
@@ -11842,14 +11875,14 @@ async function callModalImageOp(env: Env, userId: string, input: {
     _cle_rejeu: cleRejeu,
     op: input.op,
     image_url: input.imageUrl,
-    prompt: input.prompt ?? '',
+    prompt: neutraliserSyntaxePrompt(input.prompt ?? ''),   // 2026-10-13 (MODERATION-07)
   };
   if (input.op === 'modify') {
     body.strength = input.strength ?? 0.55;
     body.seed = input.seed;
     body.steps = input.steps;
   } else if (input.op === 'auto_inpaint' || input.op === 'segment') {
-    body.target_text = input.targetText ?? '';
+    body.target_text = neutraliserSyntaxePrompt(input.targetText ?? '');
     body.dilate = input.dilate ?? 15;
   } else if (input.op === 'mask_inpaint') {
     body.mask_url = input.maskUrl ?? '';
@@ -11857,7 +11890,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
     body.strength = input.strength ?? 0.45;
     body.seed = input.seed ?? 0;
     body.cn_scale = input.cnScale ?? 0.45;
-    body.neg_prompt = input.negPrompt;
+    body.neg_prompt = input.negPrompt == null ? input.negPrompt : neutraliserSyntaxePrompt(input.negPrompt);
     body.gris = input.gris ?? 0;
     body.motifs = input.motifs ?? 0;
   } else if (input.op === 'recolor') {
@@ -12070,7 +12103,7 @@ async function callModalSheet(env: Env, userId: string, input: {
       _auth: secret,
       _cle_rejeu: cleRejeu,
       front_image_url: input.frontImageUrl,
-      prompt_hint: input.promptHint ?? '',
+      prompt_hint: neutraliserSyntaxePrompt(input.promptHint ?? ''),   // 2026-10-13 (MODERATION-07)
       seed: input.seed,
       ip_scale: input.ip_scale,
       steps: input.steps,
@@ -12135,7 +12168,7 @@ async function callModalRectify(env: Env, userId: string, input: {
   const corps = JSON.stringify({
     _auth: secret,
     _cle_rejeu: cleRejeu,
-    prompt: input.prompt ?? '',
+    prompt: neutraliserSyntaxePrompt(input.prompt ?? ''),   // 2026-10-13 (MODERATION-07)
     ref_image_url: input.refImageUrl ?? '',
     mode: input.mode ?? 'front',
     seeds: input.seeds,
@@ -12565,7 +12598,7 @@ async function callMyfabmeshCog(env: Env, userId: string, input: CogInput, folde
         // polls beyond that.
         'prefer': 'wait=60',
       },
-      body: JSON.stringify({ version, input }),
+      body: JSON.stringify({ version, input: { ...input, prompt: neutraliserSyntaxePrompt(input.prompt) } }),   // 2026-10-13 (MODERATION-07)
     },
   );
   if (!createRes.ok) {
@@ -12709,6 +12742,14 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // the renderer sent in case userPrompt isn't broken out.
   const rawPrompt = (userPrompt ?? prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
+  // 2026-10-13 (MODERATION-07 / SERVEUR-09) : borne AVANT le filtre et tout debit. La description de l'utilisateur (userPrompt)
+  // est bornee a PROMPT_MAX_CARACTERES ; le prompt ENRICHI (gabarits compris, seul envoye par l'appli de bureau) a
+  // PROMPT_MAX_ENRICHI.
+  {
+    const trop = _refusLongueur(rawPrompt, userPrompt != null ? PROMPT_MAX_CARACTERES : PROMPT_MAX_ENRICHI)
+      || _refusLongueur(prompt ?? '', PROMPT_MAX_ENRICHI);
+    if (trop) return trop;
+  }
   // NSFW prompt pre-filter — block keywords and dangerous combos BEFORE
   // we spend credits or hit Modal/Replicate. Saves the user the cost
   // of a generation that the post-image NSFW classifier would block
@@ -13030,6 +13071,8 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
   if (!isTrustedAssetHost(env, imageUrl)) return err(400, 'imageUrl host not allowed');
   const rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
+  const trop = _refusLongueur(rawPrompt);   // 2026-10-13 (MODERATION-07)
+  if (trop) return trop;
 
   // NSFW pre-filter — same policy as text2image/back-view/rectify.
   {
@@ -13190,15 +13233,28 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   if (!targetText) return err(400, 'targetText required');
 
   const rawPrompt = (prompt ?? '').toString().trim();
-  if (rawPrompt) {
+  // 2026-10-13 (MODERATION-04) : le texte CIBLE (ce que CLIPSeg cherche, puis le negatif de la passe de remplissage) n'etait
+  // filtre que par le plancher de Modal. Il passe desormais le MEME filtre que le prompt ; et le PLANCHER voit les deux
+  // ensemble (« child » en cible et « naked » en remplacement ne sont rien separement), comme celui de Modal. Le filtre
+  // general reste champ par champ (« bed » en cible + « child's toy » en remplacement n'est pas une combinaison). Borne de
+  // longueur pour les deux.
+  const cible = String(targetText).trim();
+  const trop = _refusLongueur(cible, 300) || _refusLongueur(rawPrompt);
+  if (trop) return trop;
+  {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
-    const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
-    if (!safety.safe) {
-      return json({ ok: false, success: false,
-        error: safety.reason ?? 'prompt blocked by content filter',
-        blocked: safety.blocked }, { status: 400 });
+    const unrestricted = envUnrestricted || !!userState.unrestricted;
+    // [texte, unrestricted] : `true` = plancher seul (checkPromptSafety ne garde alors que le plancher, jamais levable).
+    const controles: [string, boolean][] = [[cible, unrestricted], [rawPrompt, unrestricted], [rawPrompt ? `${cible} ${rawPrompt}` : '', true]];
+    for (const [texte, libre] of controles) {
+      if (!texte) continue;
+      const safety = await _checkPromptSafetyAlerte(env, user.id, texte, libre);
+      if (!safety.safe) {
+        return json({ ok: false, success: false,
+          error: safety.reason ?? 'prompt blocked by content filter',
+          blocked: safety.blocked }, { status: 400 });
+      }
     }
   }
 
@@ -13274,6 +13330,8 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
 
   const rawPrompt = (prompt ?? '').toString().trim();
+  const trop = _refusLongueur(rawPrompt);   // 2026-10-13 (MODERATION-07)
+  if (trop) return trop;
   if (rawPrompt) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
@@ -13284,6 +13342,8 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
         blocked: safety.blocked }, { status: 400 });
     }
   }
+  // 2026-10-13 (MODERATION-04) : negatif reduit aux termes que les deux clients envoient (voir _negatifTexVariant).
+  const negatif = _negatifTexVariant(negPrompt);
 
   const cost = await getPrice(env, 'tex_variant');
   const estimatedTotal = 0.08;
@@ -13310,7 +13370,7 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
   try {
     const result = await callModalImageOp(env, user.id, {
       op: 'tex_variant', imageUrl: src, prompt: rawPrompt,
-      strength, seed, cnScale, negPrompt,
+      strength, seed, cnScale, negPrompt: negatif,
       gris: Math.max(0, Math.min(1, Number(gris) || 0)),
       motifs: Math.max(0, Math.min(1, Number(motifs) || 0)),
     }, 'texvar');
@@ -13357,6 +13417,8 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
   const rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required (ex : « cape rouge »)');
+  const trop = _refusLongueur(rawPrompt);   // 2026-10-13 (MODERATION-07)
+  if (trop) return trop;
 
   const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
   const userState = await getParentalState(env, user.id);
@@ -13529,6 +13591,8 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
   if (!maskDataUrl) return err(400, 'maskDataUrl required');
   const rawPrompt = (prompt ?? '').toString().trim();
+  const trop = _refusLongueur(rawPrompt);   // 2026-10-13 (MODERATION-07)
+  if (trop) return trop;
   // Empty prompt = "just remove" (the UI hint "empty = just remove"). Inpaint
   // the masked region with surrounding background (object removal) instead of
   // requiring a replacement description.
@@ -14168,7 +14232,7 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         _auth: env.MODAL_SHARED_SECRET, op_type: 'reshape', job_id: jobId,
-        mesh_url: meshUrl, vue_url: vueUrl, prompt: texte,
+        mesh_url: meshUrl, vue_url: vueUrl, prompt: neutraliserSyntaxePrompt(texte),   // 2026-10-13 (MODERATION-07)
         ...(uvMaskDataUrl ? { uv_mask_url: maskUrl } : { mask_url: maskUrl }),
       }),
       signal: AbortSignal.timeout(90_000),
@@ -14197,7 +14261,7 @@ function handleMeshTexVar(req: Request, env: Env): Promise<Response> {
     champs: (c) => ({
       strength: typeof c.strength === 'number' ? c.strength : 0.4,
       seed: Number.isFinite(Number(c.seed)) ? Number(c.seed) : Math.floor(Math.random() * 1e6),
-      style: String(c.style ?? '').trim().slice(0, 200),
+      style: neutraliserSyntaxePrompt(String(c.style ?? '').trim().slice(0, 200)),   // 2026-10-13 (MODERATION-07)
     }),
   });
 }
@@ -14233,7 +14297,7 @@ function handleMeshRegionRetex(req: Request, env: Env): Promise<Response> {
       const m = String(c.mask ?? '');
       return {
         mask_b64: m.length <= 8_000_000 ? m : '',
-        prompt: String(c.prompt ?? '').trim().slice(0, 300),
+        prompt: neutraliserSyntaxePrompt(String(c.prompt ?? '').trim().slice(0, 300)),   // 2026-10-13 (MODERATION-07)
         strength: typeof c.strength === 'number' ? c.strength : 0.8,
       };
     },
@@ -18846,6 +18910,9 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
   if (refImageUrl && !isTrustedAssetHost(env, String(refImageUrl))) {
     return err(400, 'refImageUrl host not allowed');
   }
+  // 2026-10-13 (MODERATION-07) : le prompt de rectification peut porter les gabarits : borne du prompt enrichi.
+  const trop = _refusLongueur(rawPrompt, PROMPT_MAX_ENRICHI);
+  if (trop) return trop;
 
   // NSFW prompt pre-filter (same policy as text2image / back-view).
   if (rawPrompt) {
@@ -23677,8 +23744,16 @@ async function handleDescribeAsset(req: Request, env: Env): Promise<Response> {
   const notes = typeof b.notes === 'string' ? b.notes.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 400) : '';
   const lang = typeof b.lang === 'string' && /^[a-z]{2}$/.test(b.lang.slice(0, 2)) ? b.lang.slice(0, 2) : 'en';
   const type = typeof b.type === 'string' && REDACTEUR_TYPES.has(b.type) ? b.type : null;
+  // 2026-10-13 (constat MODERATION-04 de l'audit du 11/10) : le nom et les notes partaient au redacteur sans filtre, et sa
+  // description revenait remplir le champ du projet sans filtre non plus. Meme filtre que la generation (plancher compris,
+  // alerte d'exploitant comprise), sur l'entree ET sur la sortie ; un refus rend { ok:false, raison:'blocked' } : la fenetre
+  // garde ses mots-cles et la description reste a taper (meme contrat que les autres echecs de cette route).
+  let unrestricted = false;
   if (!prechauffer) {
     if (nom.length < 2 && notes.length < 3) return err(400, 'name required');
+    unrestricted = env.FABMESH_UNRESTRICTED === '1' || !!(await getParentalState(env, user.id)).unrestricted;
+    const entree = await _checkPromptSafetyAlerte(env, user.id, [nom, notes].filter(Boolean).join(' '), unrestricted);
+    if (!entree.safe) return json({ ok: false, raison: 'blocked', error: entree.reason, blocked: entree.blocked });
     if (env.MESHES) {
       const maintenant = new Date();
       const heure = maintenant.toISOString().slice(0, 13).replace(/[-T]/g, '');
@@ -23718,6 +23793,9 @@ async function handleDescribeAsset(req: Request, env: Env): Promise<Response> {
     if (prechauffer) return json({ ok: true });
     const description = typeof d.description === 'string' ? d.description.slice(0, 300) : '';
     if (!d.ok || !description) return json({ ok: false, raison: 'no-answer' });
+    // la sortie passe par la MEME enveloppe (alerte d'exploitant comprise) : tout appel au filtre du worker passe par elle.
+    const sortie = await _checkPromptSafetyAlerte(env, user.id, description, unrestricted);
+    if (!sortie.safe) return json({ ok: false, raison: 'blocked', error: sortie.reason, blocked: sortie.blocked });
     return json({ ok: true, description, type: typeof d.type === 'string' && REDACTEUR_TYPES.has(d.type) ? d.type : null });
   } catch {
     return json({ ok: false, raison: prechauffer ? 'warming' : 'timeout' });
