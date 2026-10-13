@@ -515,9 +515,11 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
    * ────────────────────────────────────────────────────────────────── */
   let _modalStatusTimer = null;
 
-  async function _pollModalStatus() {
+  // frais (2026-10-13) : lecture « active » (panneau ouvert, service qui demarre, reveil ou clic recent) : le worker sert alors un
+  // etat de 15 s au plus ; sinon jusqu'a 60 s (cache devant l'application d'etat de Modal, facturee a la seconde).
+  async function _pollModalStatus(frais) {
     try {
-      const r = await fetch('/api/modal-status', { credentials: 'include' });
+      const r = await fetch(frais ? '/api/modal-status?frais=1' : '/api/modal-status', { credentials: 'include' });
       if (!r.ok) {
         // Fail-safe: status endpoint unreachable/erroring → assume warm
         // so the cold-start hint doesn't get stuck on forever.
@@ -693,17 +695,35 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // ETAT REEL (2026-09-29) : le worker lit les compteurs de Modal. On sonde toutes les 60 s au
     // repos, toutes les 5 s pendant qu'un service DEMARRE ou que le panneau est ouvert (pour le
     // voir passer de « starting » a « warm »), et 2,5 s apres chaque reveil envoye.
-    const boucle = async () => {
-      await _pollModalStatus();
+    // ONGLET MASQUE (2026-10-13, levier L8 de l'etude des couts du 11/10) : AUCUNE lecture tant que
+    // l'onglet est masque (document.visibilityState === 'hidden') : chaque lecture garde allumee
+    // l'application d'etat de Modal, et un onglet oublie en arriere-plan la gardait allumee jour et
+    // nuit. Reprise immediate au retour sur l'onglet. UNE SEULE lecture a la fois : un appel de
+    // __sonderEtatModal pendant une lecture lancait une seconde boucle qui ne s'arretait plus.
+    // Les lectures « actives » demandent ?frais=1 (voir _pollModalStatus), 30 s apres un reveil ou un clic compris.
+    const masque = () => { try { return document.visibilityState === 'hidden'; } catch (_) { return false; } };
+    let enCours = false, relire = false, actifJusqua = 0;
+    const actif = () => {
       const pop = document.getElementById('gpu-warmup-popover');
-      const rapide = window.__modalServicesDemarrage > 0 || (pop && pop.style.display === 'block');
-      _modalStatusTimer = setTimeout(boucle, rapide ? 5_000 : 60_000);
+      return window.__modalServicesDemarrage > 0 || !!(pop && pop.style.display === 'block') || Date.now() < actifJusqua;
+    };
+    const arreter = () => { if (_modalStatusTimer) { clearTimeout(_modalStatusTimer); _modalStatusTimer = null; } };
+    const boucle = async () => {
+      arreter();
+      if (masque()) return;                        // en pause : visibilitychange relance
+      if (enCours) { relire = true; return; }      // la lecture en cours relira a sa fin
+      enCours = true;
+      try { await _pollModalStatus(actif()); } finally { enCours = false; }
+      if (relire) { relire = false; return boucle(); }
+      if (masque() || _modalStatusTimer) return;
+      _modalStatusTimer = setTimeout(boucle, actif() ? 5_000 : 60_000);
     };
     window.__sonderEtatModal = (delai = 2_500) => {
-      if (_modalStatusTimer) clearTimeout(_modalStatusTimer);
-      _modalStatusTimer = setTimeout(boucle, delai);
+      actifJusqua = Math.max(actifJusqua, Date.now() + 30_000);
+      arreter();
+      if (!masque()) _modalStatusTimer = setTimeout(boucle, delai);
     };
-    if (_modalStatusTimer) clearTimeout(_modalStatusTimer);
+    document.addEventListener('visibilitychange', () => { if (masque()) arreter(); else boucle(); });
     boucle();
     // A l'ouverture, l'etat affiche peut dater de la derniere lecture (jusqu'a 60 s) : on le GRISE
     // le temps de la relecture (~1 s) au lieu de le montrer comme actuel (retour user, 2026-09-29).
@@ -720,13 +740,14 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // is about to fire an op so we want the freshest answer for the
     // ETA. Throttled to once per 5 s so a furious clicker doesn't
     // hammer the endpoint.
+    // 2026-10-13 : par la boucle (une seule lecture a la fois, lecture « active » pendant 30 s).
     let _lastClickPoll = 0;
     document.addEventListener('click', (e) => {
       if (e.target && e.target.closest && e.target.closest('.tool-btn')) {
         const now = Date.now();
         if (now - _lastClickPoll > 5000) {
           _lastClickPoll = now;
-          _pollModalStatus();
+          window.__sonderEtatModal(0);
         }
       }
     }, true);

@@ -14972,8 +14972,11 @@ async function _writeLastWarmMs(env: Env, key: string): Promise<void> {
 /** GET /api/modal-status — returns whether MyFabmeshBackview is
  *  warm (best-effort, based on the timestamp of our last successful
  *  call). Used by the renderer to size progress bars and show a
- *  warm/cold pill in modals. */
-async function handleModalStatus(req: Request, env: Env): Promise<Response> {
+ *  warm/cold pill in modals.
+ *  ?frais=1 (2026-10-13) : etat reel de 15 s au plus au lieu de 60 s (panneau ouvert, service qui demarre, reveil recent) ;
+ *  opts.fraicheurMs l'impose (/api/admin/modal-status : 15 s). Voir ETAT_FRAIS_VISITEUR_MS. */
+async function handleModalStatus(req: Request, env: Env,
+                                 opts: { fraicheurMs?: number; ctx?: { waitUntil?: (p: Promise<unknown>) => void } } = {}): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   const now = Date.now();
@@ -15082,8 +15085,12 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
   /* ETAT REEL (2026-09-29, demande du user). Tout ce qui precede est une ESTIMATION (heure du
    * dernier appel) : le panneau annoncait « warm » un conteneur qui mettait encore 3 min a
    * demarrer. On lit maintenant les compteurs de Modal (modal_app/etat_services.py) ; l'estimation
-   * ne sert plus que si Modal ne repond pas (reel absent ou false). */
-  const reel = await _etatReelModal(env);
+   * ne sert plus que si Modal ne repond pas (reel absent ou false).
+   * 2026-10-13 : lecture derriere un cache court (_etatReelModal) ; son age part dans `etat_reel_age_s`. */
+  const fraicheurMs = opts.fraicheurMs
+    ?? (new URL(req.url).searchParams.get('frais') === '1' ? ETAT_FRAIS_ACTIF_MS : ETAT_FRAIS_VISITEUR_MS);
+  const lu = await _etatReelModal(env, { fraicheurMs, ctx: opts.ctx });
+  const reel = lu?.v ?? null;
   if (reel) {
     const source: Record<string, string> = {
       text2image: 'text2image', image_op: 'image', back_view: 'image', tpose: 'image', mesh: 'mesh',
@@ -15101,29 +15108,95 @@ async function handleModalStatus(req: Request, env: Env): Promise<Response> {
   return json({
     ...etats,
     cold_threshold_seconds: Math.floor(COLD_THRESHOLD_MS / 1000),
+    etat_reel_age_s: lu ? Math.round(lu.ageMs / 1000) : null,
   });
 }
 
-/** Compteurs REELS des conteneurs Modal (application myfabmesh-etat, modal_app/etat_services.py) ;
- *  null si indisponible. URL : MODAL_ETAT_URL, sinon deduite de celle du routeur maillage (meme
- *  espace Modal) : …--myfabmesh-cloud-mesh-router.modal.run -> …--myfabmesh-etat-etat-services.modal.run */
-async function _etatReelModal(env: Env): Promise<Record<string, { etat?: string }> | null> {
+/* ═══ ETAT REEL DES CONTENEURS : CACHE COURT DEVANT L'APPLICATION myfabmesh-etat (2026-10-13, levier L8 de l'etude des couts du 11/10) ═══
+ * L'application CPU `myfabmesh-etat` (modal_app/etat_services.py, 0,25 coeur + 512 Mio) coute 0,0158 $ par heure ALLUMEE, et chaque appel
+ * la garde allumee `scaledown_window` secondes de plus. /api/modal-status l'interrogeait A CHAQUE requete : un onglet du site (toutes les
+ * 60 s, meme masque) ou /admin2 (toutes les 8 s) suffisait a la garder allumee jour et nuit (69 heures facturees du 29/09 au 05/10 ;
+ * ~11 $/mois des qu'un visiteur laisse le site ouvert). Desormais, dans chaque instance du worker :
+ *   - CACHE : 60 s pour le panneau « Cloud services » des visiteurs ; 15 s pour /admin2 et pour une lecture « fraiche » demandee par la
+ *     page (?frais=1 : panneau ouvert, service qui demarre, reveil ou clic sur un outil dans les 30 dernieres secondes) ;
+ *   - UNE SEULE lecture en vol, jamais deux departs a moins de 2 s (meme apres un reveil) : une requete qui arrive pendant une lecture
+ *     repond avec la derniere valeur connue au lieu d'en lancer une autre (pas de rafale ; aucune promesse partagee entre deux requetes) ;
+ *   - REPLI RAPIDE : au-dela de 4,5 s d'attente (demarrage a froid de l'application mesure le 29/09 : 3,1 s ; a chaud 0,4 s), la reponse
+ *     part avec la derniere valeur connue (moins de 2 min, son age dans `etat_reel_age_s`) ou avec l'estimation ; la lecture finit en
+ *     arriere-plan (waitUntil) et sert la requete suivante. Apres un echec, aucun nouvel essai pendant 30 s ;
+ *   - un REVEIL de conteneur (preWarmModal) ou un interrupteur chaud / froid PERIME le cache : la lecture suivante est neuve.
+ * Les instances ne partagent pas ce cache (pas d'API Cache sur workers.dev) : au plus une lecture par instance et par fenetre. */
+const ETAT_FRAIS_VISITEUR_MS = 60_000;
+const ETAT_FRAIS_ACTIF_MS = 15_000;
+const ETAT_INTERVALLE_MIN_MS = 2_000;
+const ETAT_ATTENTE_MS = 4_500;
+const ETAT_DELAI_MAX_MS = 8_000;
+const ETAT_PAUSE_ECHEC_MS = 30_000;
+const ETAT_REPLI_MAX_MS = 120_000;
+type EtatReel = Record<string, { etat?: string }>;
+/** v : derniere lecture reussie, partie a l'heure t ; perimeAvant : une lecture partie avant cette heure n'est plus fraiche (reveil,
+ *  interrupteur) ; depart / echec : heures du dernier depart et du dernier echec ; enVol : une lecture est en cours. */
+const _etatReel: { v: EtatReel | null; t: number; perimeAvant: number; depart: number; echec: number; enVol: boolean } =
+  { v: null, t: 0, perimeAvant: 0, depart: 0, echec: 0, enVol: false };
+
+/** URL de la route etat_services : MODAL_ETAT_URL, sinon deduite de celle du routeur maillage (meme espace Modal) :
+ *  …--myfabmesh-cloud-mesh-router.modal.run -> …--myfabmesh-etat-etat-services.modal.run ; null si aucune. */
+function _etatServicesUrl(env: Env): string | null {
   const url = env.MODAL_ETAT_URL
     ?? env.MODAL_MESH_START_URL?.replace(/^(https:\/\/[^/]*?--)myfabmesh-cloud-mesh-router(\.modal\.run).*$/,
                                          '$1myfabmesh-etat-etat-services$2');
-  if (!url || url === env.MODAL_MESH_START_URL) return null;
+  return url && url !== env.MODAL_MESH_START_URL ? url : null;
+}
+
+/** UNE lecture de l'application d'etat ; null si elle echoue (statut, reseau, corps illisible, plus de ETAT_DELAI_MAX_MS). */
+async function _lireEtatServices(url: string, env: Env): Promise<EtatReel | null> {
   try {
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '' }),
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(ETAT_DELAI_MAX_MS),
     });
     if (!r.ok) return null;
-    return await r.json() as Record<string, { etat?: string }>;
+    const j = await r.json() as unknown;
+    return j && typeof j === 'object' && !Array.isArray(j) ? j as EtatReel : null;
   } catch {
     return null;
   }
+}
+
+/** Un reveil de conteneur ou un interrupteur chaud / froid vient de changer l'etat : la lecture suivante ne sert pas le cache. Marge d'une
+ *  seconde : une lecture partie dans la seconde qui suit le reveil peut ne pas encore le voir chez Modal. */
+function _etatReelPerime(margeMs = 1_000): void {
+  _etatReel.perimeAvant = Math.max(_etatReel.perimeAvant, Date.now() + margeMs);
+}
+
+/** Compteurs REELS des conteneurs Modal (application myfabmesh-etat, modal_app/etat_services.py), derriere le cache decrit ci-dessus.
+ *  Rend { v, ageMs } ou null (indisponibles : /api/modal-status garde son estimation). fraicheurMs : age maximal d'une valeur du cache. */
+async function _etatReelModal(env: Env, opts: { fraicheurMs?: number; ctx?: { waitUntil?: (p: Promise<unknown>) => void } } = {}):
+    Promise<{ v: EtatReel; ageMs: number } | null> {
+  const url = _etatServicesUrl(env);
+  if (!url) return null;
+  const c = _etatReel;
+  const fraicheur = opts.fraicheurMs ?? ETAT_FRAIS_VISITEUR_MS;
+  const depart = Date.now();
+  if (c.v && c.t >= c.perimeAvant && depart - c.t < fraicheur) return { v: c.v, ageMs: depart - c.t };
+  // Une lecture partie depuis plus longtemps que son delai est morte (requete coupee avant sa fin) : elle ne bloque plus les suivantes.
+  const enVol = c.enVol && depart - c.depart < ETAT_DELAI_MAX_MS + 2_000;
+  if (!enVol && depart - c.depart >= ETAT_INTERVALLE_MIN_MS && depart - c.echec >= ETAT_PAUSE_ECHEC_MS) {
+    c.enVol = true;
+    c.depart = depart;
+    const lecture = _lireEtatServices(url, env).then((v) => {
+      if (v) { c.v = v; c.t = depart; } else c.echec = Date.now();
+      return v;
+    }).finally(() => { if (c.depart === depart) c.enVol = false; });
+    opts.ctx?.waitUntil?.(lecture);
+    const v = await _avecDelai(lecture, ETAT_ATTENTE_MS).catch(() => null);
+    if (v) return { v, ageMs: Date.now() - depart };
+  }
+  // REPLI : derniere valeur connue si elle a moins de ETAT_REPLI_MAX_MS, sinon l'estimation de l'appelant.
+  const maintenant = Date.now();
+  return c.v && maintenant - c.t < ETAT_REPLI_MAX_MS ? { v: c.v, ageMs: maintenant - c.t } : null;
 }
 
 /** POST /api/upload-image — body: { dataUrl, suffix? }. Decodes a
@@ -22207,6 +22280,7 @@ async function _gardeChaudAppliquer(env: Env, cibles: Partial<Record<KeepWarmCib
       signal: AbortSignal.timeout(25_000),
     });
     if (!r.ok) return null;
+    _etatReelPerime();             // 2026-10-13 : l'etat affiche (cache de /api/modal-status) doit refleter le changement tout de suite
     return ((await r.json()) as { resultats?: Record<string, string> }).resultats ?? null;
   } catch { return null; }
 }
@@ -22369,11 +22443,12 @@ async function handleAdminLive(req: Request, env: Env): Promise<Response> {
 
 /** GET /api/admin/modal-status — ADMIN. Meme reponse que /api/modal-status (etat chaud / froid des conteneurs), mais sous la garde admin :
  *  la page admin la lit sans dependre d'une route « utilisateur », et elle reste atteignable quand le coupe-circuit « Site » est actif
- *  (toutes les routes /api/admin/* sont exemptees). 2026-10-01 : la carte « Warm containers » affichait « State unavailable: HTTP 401 / 503 ». */
-async function handleAdminModalStatus(req: Request, env: Env): Promise<Response> {
+ *  (toutes les routes /api/admin/* sont exemptees). 2026-10-01 : la carte « Warm containers » affichait « State unavailable: HTTP 401 / 503 ».
+ *  2026-10-13 (levier L8) : /admin2 la sonde toutes les 8 s ; l'etat reel y est garde 15 s (ETAT_FRAIS_ACTIF_MS), pas a chaque appel. */
+async function handleAdminModalStatus(req: Request, env: Env, ctx?: { waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
-  const rep = await handleModalStatus(req, env);
+  const rep = await handleModalStatus(req, env, { fraicheurMs: ETAT_FRAIS_ACTIF_MS, ctx });
   if (!rep.ok) return rep;
   const j = await rep.json() as Record<string, unknown>;
   const etat = await _keepWarmLire(env);
@@ -23344,6 +23419,7 @@ async function preWarmModal(env: Env,
     const last = await _readLastWarmMs(env, '_meta/last_warm_tpose.txt').catch(() => null);
     if (!opts.force && last != null && Date.now() - last < PREWARM_FRESH_MS) return;
     await _writeLastWarmMs(env, '_meta/last_warm_tpose.txt').catch(() => {});
+    _etatReelPerime();             // 2026-10-13 : le panneau « Cloud services » doit voir le demarrage sans attendre la fin du cache
     await fetch(_healthzUrl(url), { method: 'GET', signal: AbortSignal.timeout(120_000) }).catch(() => null);
     console.log('[pre-warm] rectify healthz pinged');
     return;
@@ -23359,6 +23435,7 @@ async function preWarmModal(env: Env,
     const racine = base.replace(/\/(rig|segment|anim|fbx-retarget)-start\/?$/, '').replace(/\/+$/, '');
     const cleChaud = opts.cible === 'rig' ? 'rig' : opts.cible === 'anim' ? 'anim' : opts.cible === 'segment' ? 'mesh_segment' : 'fbx_retarget';
     await _writeLastWarmMs(env, `_meta/last_warm_${cleChaud}.txt`).catch(() => {});
+    _etatReelPerime();
     await fetch(racine + '/warm', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -23375,6 +23452,7 @@ async function preWarmModal(env: Env,
   if (opts.cible === 'mesh') {
     const url = env.MODAL_MESH_START_URL;
     if (!url) return;
+    _etatReelPerime();
     await fetch(url.replace(/\/[^/]*$/, '/mesh_warm'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -23411,6 +23489,7 @@ async function preWarmModal(env: Env,
        * faible trafic, jamais facture. Le conteneur demarre maintenant :
        * les prechauffages des 4 minutes suivantes sont inutiles. */
       await _writeLastWarmMs(env, t.warmKey).catch(() => {});
+      _etatReelPerime();
       // image_op : /healthz repond {ok:true} SANS rien charger. CLIPSeg +
       // SDXL Inpaint (~6 Go) et ControlNet-Tile ne se chargent qu'au premier
       // appel reel, si bien que le service etait annonce « warm » alors que
@@ -25009,7 +25088,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/animations/upload-locomotion' && method === 'POST') return await handleLocomotionUpload(req, env);
         if (pathname === '/api/animations/copy'       && method === 'POST') return await handleAnimCopy(req, env);
         if (pathname === '/api/landmarks'             && method === 'POST') return await handleLandmarks(req, env);
-        if (pathname === '/api/modal-status'          && method === 'GET')  return await handleModalStatus(req, env);
+        if (pathname === '/api/modal-status'          && method === 'GET')  return await handleModalStatus(req, env, { ctx: _ctx as { waitUntil?: (p: Promise<unknown>) => void } });
         // Cold-start mitigation (see the "Modal pre-warm" section):
         //   /api/heartbeat — free, unauthenticated, 1 R2 PUT. It was DEFINED
         //     but never routed, so isUserOnline() always returned false and
@@ -25062,7 +25141,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/admin/payments/reconcile'    && method === 'POST') return await handleAdminReconcilePayment(req, env);
         if (pathname === '/api/admin/live'            && method === 'GET')  return await handleAdminLive(req, env);
         if (pathname === '/api/admin/warm-switch'     && method === 'POST') return await handleAdminWarmSwitch(req, env);
-        if (pathname === '/api/admin/modal-status'    && method === 'GET')  return await handleAdminModalStatus(req, env);
+        if (pathname === '/api/admin/modal-status'    && method === 'GET')  return await handleAdminModalStatus(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/admin/warm'            && method === 'POST') return await handleAdminWarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/admin/services'        && method === 'GET')  return await handleAdminServices(req, env);
         if (pathname === '/api/admin/services'        && method === 'POST') return await handleAdminServicesToggle(req, env);
