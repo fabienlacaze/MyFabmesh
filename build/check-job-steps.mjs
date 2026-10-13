@@ -31,7 +31,9 @@ const DYNAMIQUES = new Set(['X: X', 'X (resumed)', 'name: X']);
  *  quelqu'un elargit un motif au point de tout attraper, ces lignes tombent. */
 const TEMOINS = [
   ['Generate images: orc', 1], ['Auto inpaint: orc', 1], ['Remove background: orc', 1],
-  ['Habits seuls: orc', 1], ['Recolor: orc', 1], ['Age change: orc', 1],
+  // « Habits seuls » est devenu « Outfit only » (2026-10-13 : nom stocke en anglais, traduit a l'affichage) ;
+  // l'ancien nom reste un temoin pour les travaux deja enregistres.
+  ['Outfit only: orc', 1], ['Habits seuls: orc', 1], ['Recolor: orc', 1], ['Age change: orc', 1],
   ['Generate 3D: orc', 2], ['Refine mesh: orc', 2], ['Resize: orc', 2],
   // Etapes de construction : 2D (outil image) a l'etape 1, 3D a l'etape 2. Le
   // bureau nommait la 3D « Construction stages 3D » : etape Image (2026-09-30).

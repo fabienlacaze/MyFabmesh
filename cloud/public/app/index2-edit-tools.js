@@ -826,8 +826,8 @@
     if (selState.float && selState.isCut) _selMgr.undo();  // restore the cut hole
     selState.float = null; selState.isCut = false; selState.floatDragging = false;
     selState.rect = null; selState.poly = null; selState.dragging = false;
-    _selStatus(selState.mode === 'lasso' ? 'Lasso : entoure la zone en gardant le bouton enfonce.'
-                                         : 'Trace un rectangle autour de la zone.');
+    _selStatus(selState.mode === 'lasso' ? 'Lasso: draw around the area while holding the mouse button down.'
+                                         : 'Drag a rectangle around the area.');
     _selDrawOverlay(); _selUpdateButtons();
   }
   function _selPointInFloat(x, y) {
@@ -915,8 +915,8 @@
       var l = document.getElementById('select-mode-lasso');
       if (r) r.classList.toggle('active', mode === 'rect');
       if (l) l.classList.toggle('active', mode === 'lasso');
-      _selStatus(mode === 'lasso' ? 'Lasso : entoure la zone en gardant le bouton enfonce.'
-                                  : 'Trace un rectangle autour de la zone.');
+      _selStatus(mode === 'lasso' ? 'Lasso: draw around the area while holding the mouse button down.'
+                                  : 'Drag a rectangle around the area.');
       _selDrawOverlay(); _selUpdateButtons();
     }
     if ((b = document.getElementById('select-mode-rect'))) b.addEventListener('click', function () { _selSetMode('rect'); });

@@ -173,7 +173,7 @@
     <header id="topbar">
       <div class="topbar-left">
         <button id="back-to-projects" class="icon-btn" title="Back to projects">&#8592;</button>
-        <span id="breadcrumb"></span>
+        <span id="breadcrumb" translate="no"></span>
       </div>
       <div class="topbar-right">
         <!-- Le solde, ET le compte auquel il appartient. Le proprietaire a
@@ -209,6 +209,9 @@
         <!-- MENU « ... » (2026-10-01, user : « on a beaucoup trop de choix, des mini menus deroulants pour grouper les icones ? »).
              Les quatre boutons d'origine (memes id, memes gestionnaires) restent DANS le DOM, caches : le menu en cree des lignes lisibles
              qui leur transmettent le clic (menuBarreDuHaut, index2.js). Le signalement de contenu reste visible : exigence du Store (11.16). -->
+        <!-- LANGUE A PORTEE DE MAIN (2026-10-13, INTERFACE-08) : le seul selecteur etait au fond des Reglages et inutilisable au clavier.
+             i18n.js construit ici un menu accessible (role=listbox, fleches, Entree, Echap) ; noms de langue autonymes. -->
+        <span id="topbar-lang" class="topbar-lang" data-fab-lang translate="no"></span>
         <button id="btn-topbar-more" class="icon-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="More">&#8943;</button>
         <button id="btn-settings" class="icon-btn" title="Settings">&#9881;</button>
         <span id="topbar-more-src" style="display:none">
@@ -895,7 +898,7 @@
                       <span class="light-label" title="Light intensity">&#9728;</span>
                       <input type="range" data-act="light" min="0" max="500" value="100" title="Light intensity" />
                       <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
-                        <button data-act="segcolors" class="active" title="Afficher / masquer les couleurs de segmentation">&#128065;</button>
+                        <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
                         <span title="Explode parts (segmented mesh)">&#128165;</span>
                         <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:90px;" />
                       </span>
@@ -1012,7 +1015,7 @@
                   <div class="form-row" style="display:none;">
                     <label for="ws-rig-skeleton">SKELETON</label>
                     <select id="ws-rig-skeleton" style="width:100%;">
-                      <option value="orc_m1" selected>🤖 Humanoide bipède (loading...)</option>
+                      <option value="orc_m1" selected>🤖 Biped humanoid (loading...)</option>
                     </select>
                   </div>
                   <button id="ws-generate-rig-ai" class="primary-btn" disabled title="Add a skeleton to the mesh automatically, so it can be animated.">Generate Rig</button>
@@ -1089,7 +1092,7 @@
                       <span class="light-label" title="Light intensity">&#9728;</span>
                       <input type="range" data-act="light" min="0" max="500" value="100" title="Light intensity" />
                       <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
-                        <button data-act="segcolors" class="active" title="Afficher / masquer les couleurs de segmentation">&#128065;</button>
+                        <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
                         <span title="Explode parts (segmented mesh)">&#128165;</span>
                         <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:90px;" />
                       </span>
@@ -1579,7 +1582,7 @@
         <button data-act="shadows" title="Toggle shadows">Shadows</button>
         <input type="range" data-act="light" min="0" max="200" value="100" title="Light intensity" />
         <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
-          <button data-act="segcolors" class="active" title="Afficher / masquer les couleurs de segmentation">&#128065;</button>
+          <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
           <span title="Explode parts (segmented mesh)">&#128165;</span>
           <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:110px;" />
         </span>
@@ -1607,7 +1610,7 @@
         <button class="lb-tool-btn" data-lb-tool="resolution" title="Change resolution">&#127906;&nbsp;Resolution</button>
         <button class="lb-tool-btn" data-lb-tool="style" title="Apply a style preset">&#127912;&nbsp;Style&hellip;</button>
         <button class="lb-tool-btn" data-lb-tool="facefix" title="Fix face details">&#128578;&nbsp;Face Fix</button>
-        <button class="lb-tool-btn" data-lb-tool="outfit" title="Habits seuls">&#128087;&nbsp;Habits</button>
+        <button class="lb-tool-btn" data-lb-tool="outfit" title="Outfit only">&#128087;&nbsp;Habits</button>
         <button class="lb-tool-btn" data-lb-tool="symmetry" title="Auto symmetry">&#8646;&nbsp;Sym. Auto</button>
         <button class="lb-tool-btn" data-lb-tool="multiview" title="Generate multi-views">&#128065;&nbsp;Multi-Views</button>
         <button class="lb-tool-btn" data-lb-tool="variant" title="Create variants of the current image">&#10024;&nbsp;Variant</button>
@@ -2406,17 +2409,17 @@
                  "Re-texture a region"; peints a white UV mask, then SDXL
                  inpaints only that area (uvMask:true → no back-face bleed). -->
             <div id="pe-mask-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#160f2e; border:1px solid var(--accent, #5a4fcf); border-radius:6px;">
-              <div style="font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Zone à re-texturer</div>
-              <label style="font-size:13px;">À quoi doit ressembler cette zone ?</label>
-              <input type="text" id="pe-mask-prompt" placeholder="ex. armure en métal doré poli" style="width:100%; padding:6px; font-size:14px;" />
-              <label style="display:flex; justify-content:space-between; font-size:13px;">Intensité <span id="pe-mask-strength-val" class="slider-val">0.8</span></label>
+              <div style="font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Area to re-texture</div>
+              <label style="font-size:13px;">What should this area look like?</label>
+              <input type="text" id="pe-mask-prompt" placeholder="e.g. polished golden metal armor" style="width:100%; padding:6px; font-size:14px;" />
+              <label style="display:flex; justify-content:space-between; font-size:13px;">Strength <span id="pe-mask-strength-val" class="slider-val">0.8</span></label>
               <input type="range" id="pe-mask-strength" min="0.3" max="1" step="0.05" value="0.8" style="width:100%;" />
-              <div style="font-size:12px; color:var(--text-2); line-height:1.4;">Peins la zone en <b>blanc</b> sur le mesh (clic gauche + glisser). Tourne avec le clic droit, zoom molette.</div>
+              <div style="font-size:12px; color:var(--text-2); line-height:1.4;">Paint the area in <b>white</b> on the mesh (left-click + drag). Orbit with right-click, zoom with the wheel.</div>
             </div>
             <!-- Clone-stamp (3D) mode — shown only when opened from "Tampon de clonage 3D". -->
             <div id="pe-clone-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#0f1e2e; border:1px solid #2a7fb8; border-radius:6px;">
-              <div style="font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Tampon de clonage</div>
-              <div style="font-size:13px; line-height:1.5;"><b>Ctrl+clic</b> sur le mesh = définir la <b>source</b>.<br><b>Clic gauche + glisser</b> = cloner vers la destination.</div>
+              <div style="font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Clone stamp</div>
+              <div style="font-size:13px; line-height:1.5;"><b>Ctrl+click</b> on the mesh = set the <b>source</b>.<br><b>Left-click + drag</b> = clone onto the destination.</div>
               <div style="font-size:12px; color:var(--text-2); line-height:1.4;">Paint on the texture. The shape is kept.</div>
             </div>
             <div class="pe-emissive-only">
@@ -2446,10 +2449,10 @@
             <!-- Compact icon toolbar (loupe / undo / redo / reset) — same
                  disposition as the mesh-edit viewer's top bar. -->
             <div style="display:flex; gap:6px; justify-content:center; align-items:center;">
-              <button id="pe-loupe-toggle" class="secondary-btn tool-btn" title="Loupe (agrandisseur)">&#128269;</button>
-              <button id="pe-undo" class="secondary-btn tool-btn" disabled title="Annuler (Ctrl+Z)">&#8630;</button>
-              <button id="pe-redo" class="secondary-btn tool-btn" disabled title="Rétablir (Ctrl+Y)">&#8631;</button>
-              <button id="pe-clear" class="secondary-btn tool-btn" title="Tout effacer">&#8635;</button>
+              <button id="pe-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128269;</button>
+              <button id="pe-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
+              <button id="pe-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)">&#8631;</button>
+              <button id="pe-clear" class="secondary-btn tool-btn" title="Clear all">&#8635;</button>
             </div>
             <button id="pe-toggle-emissive" class="ghost-btn pe-emissive-only" style="padding:6px; font-size:13px; background:var(--accent, #5a4fcf); color:#fff;" title="Show/hide the emissive texture on the mesh">💡 Emissive ON</button>
             <button id="pe-load-image-layer" class="ghost-btn pe-emissive-only" style="padding:6px; font-size:13px;" title="Re-project the emissive layer painted on the source image">⬇ Load from image layer</button>
@@ -2509,15 +2512,15 @@
         <div class="settings-box">
           <div style="display:flex; gap:10px; align-items:center;">
             <label for="lang-select" style="font-size:13px;">Interface language</label>
-            <span style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+            <span style="margin-inline-start:auto; display:flex; align-items:center; gap:8px;">
               <img id="lang-flag" alt="" style="width:24px; height:16px; border-radius:2px; object-fit:cover; box-shadow:0 0 0 1px rgba(255,255,255,0.15);" />
-              <select id="lang-select" style="padding:6px 10px; background:var(--bg-2); color:var(--text-0); border:1px solid var(--border); border-radius:6px;">
-                <option value="en">English</option>
-                <option value="zh">中文</option>
-                <option value="hi">हिन्दी</option>
-                <option value="es">Español</option>
-                <option value="fr">Français</option>
-                <option value="ar">العربية</option>
+              <select id="lang-select" translate="no" style="padding:6px 10px; background:var(--bg-2); color:var(--text-0); border:1px solid var(--border); border-radius:6px;">
+                <option value="en" lang="en">English</option>
+                <option value="zh" lang="zh">中文</option>
+                <option value="hi" lang="hi">हिन्दी</option>
+                <option value="es" lang="es">Español</option>
+                <option value="fr" lang="fr">Français</option>
+                <option value="ar" lang="ar" dir="rtl">العربية</option>
               </select>
             </span>
           </div>
@@ -3178,7 +3181,7 @@
           <button id="ll-pause" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#9208;&#65039; Pause</button>
           <button id="ll-clear" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#128465;&#65039; Clear</button>
           <button id="ll-copy" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#128203; Copy</button>
-          <button class="ghost-btn" id="ll-export" title="Enregistrer un .txt sur le Bureau (pour le support)">&#128203; Exporter</button>
+          <button class="ghost-btn" id="ll-export" title="Save a .txt file on the Desktop (for support)">&#128203; Export</button>
           <button id="ll-close" class="ghost-btn" style="padding:4px 10px; font-size:13px;">&#10005; Close</button>
         </div>
         <pre id="ll-output" style="flex:1; margin:0; padding:10px 14px; overflow:auto; font-family:'Cascadia Code','Consolas','Monaco',monospace; font-size:13px; line-height:1.4; color:#ddd; background:#0a0a0a; white-space:pre-wrap; word-break:break-all;"></pre>
@@ -3272,7 +3275,7 @@
          ============================================================ -->
     <div id="modal-job-details" class="modal-overlay hidden">
       <div class="modal-card" style="max-width: 480px;">
-        <button class="settings-close-x" id="job-details-close-x" title="R&#233;duire (la t&#226;che continue dans le panneau)" style="position:absolute; top:14px; right:14px; z-index:11;">&#9660;</button>
+        <button class="settings-close-x" id="job-details-close-x" title="Minimize (the task keeps running in the panel)" style="position:absolute; top:14px; right:14px; z-index:11;">&#9660;</button>
         <div id="job-gpu-monitor" class="job-gpu-monitor">
           <div class="jgm-row"><span class="jgm-label">GPU</span><span class="jgm-val" id="jgm-util">--</span></div>
           <div class="jgm-row"><span class="jgm-label">TEMP</span><span class="jgm-val" id="jgm-temp">--</span></div>
@@ -3496,8 +3499,8 @@
           <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
           <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
           <span style="flex:1;"></span>
-          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:14px;" title="Selection rectangulaire">&#9647;&nbsp;Rect</button>
-          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Selection libre au lasso">&#10227;&nbsp;Lasso</button>
+          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:14px;" title="Rectangular selection">&#9647;&nbsp;Rect</button>
+          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Freehand lasso selection">&#10227;&nbsp;Lasso</button>
           <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
           <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
           <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)">&#8631;</button>
@@ -3561,6 +3564,8 @@
   <script src="lang/_additions3.js"></script>
   <script src="lang/_additions4.js"></script>
   <script src="lang/_additions5.js"></script>
+  <script src="lang/_additions6.js"></script>
+  <script src="lib/textes-serveur.js"></script>
   <script src="canvas-utils.js"></script>
   <script src="index2-edit-tools.js"></script>
   <script src="build-info.js"></script>
@@ -3954,7 +3959,7 @@
               <button id="me-sel-crop" class="secondary-btn tool-btn" style="flex:1;" title="Keep only the selection (delete the rest), or the opposite if 'Keep the rest' is on">&#9986;&nbsp;Crop</button>
             </div>
             <label id="me-sel-crop-keeprest-row" style="display:none; align-items:center; gap:7px; font-size:14px; color:var(--text-2, #aab); padding:3px 4px 4px 6px; cursor:pointer;" title="When on, Crop keeps the REST and deletes the selection instead">
-              <input type="checkbox" id="me-sel-crop-keeprest" style="margin:0; cursor:pointer; width:15px; height:15px; flex-shrink:0;"> Garder le reste
+              <input type="checkbox" id="me-sel-crop-keeprest" style="margin:0; cursor:pointer; width:15px; height:15px; flex-shrink:0;"> Keep the rest
             </label>
             <div style="display:flex; gap:5px;">
               <button id="me-sel-flip" class="secondary-btn tool-btn" style="flex:1;" title="Flip the normals / winding of the selected faces (fix inside-out patches)">&#8644;&nbsp;Flip norm.</button>

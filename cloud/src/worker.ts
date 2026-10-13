@@ -1373,6 +1373,76 @@ const SECURITY_HEADERS: Record<string, string> = {
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
 };
 
+/* CODES DE REFUS (lot interface multilingue, 2026-10-13 ; constat INTERFACE-03 de l'audit du 11/10).
+ * Le worker ecrit ses refus en anglais (« insufficient credits — image generation costs 6 credits ») et
+ * l'interface les affichait tels quels : la boite « plus assez de credits » etait en anglais dans les
+ * six langues, au moment precis ou l'utilisateur doit decider de payer. Toute reponse d'ERREUR JSON qui
+ * n'a pas deja un `code` en recoit un a la SORTIE de fetch (_avecCodeRefus), avec ses parametres (le prix),
+ * d'apres la FAMILLE du message : un seul point de passage, donc les ~400 sites d'erreur existants et futurs
+ * en profitent sans etre retouches, et json() / err() restent inchanges. Le texte anglais `error` reste
+ * tel quel (journaux, clients existants, cles d'API).
+ * L'interface traduit le CODE (lib/textes-serveur.js, fichier commun bureau / web) ; son tableau de
+ * reconnaissance est le jumeau de celui-ci, et cloud/tests/codes-refus.test.mjs verifie que les deux
+ * donnent le meme code pour chaque message du worker. */
+type ParamsRefus = Record<string, number>;
+const REFUS_CONNUS: ReadonlyArray<readonly [RegExp, string, ((m: RegExpMatchArray) => ParamsRefus | null) | null]> = [
+  [/^insufficient credits\b(?:[\s\S]*?\bcosts?\s+(\d+))?/i, 'insufficient_credits', (m) => (m[1] ? { cost: Number(m[1]) } : null)],
+  [/^Cloud generation is paused\b/i, 'compute_paused', null],
+  [/^Free accounts share a daily cloud capacity\b/i, 'free_capacity_used', null],
+  [/^You have reached today's generation limit for free accounts\b/i, 'free_daily_limit', null],
+  [/^Your account has reached its daily safety limit\b/i, 'account_safety_limit', null],
+  [/^The service has reached its daily capacity\b/i, 'service_daily_capacity', null],
+  [/per-user daily generation limit|^user limit reached\b/i, 'daily_call_limit', null],
+  [/^API key daily credit cap reached \((\d+)\/(\d+) credits today\)/i, 'api_key_daily_cap', (m) => ({ used: Number(m[1]), cap: Number(m[2]) })],
+  [/^too many failed attempts\b/i, 'too_many_failed_attempts', null],
+  [/^daily mesh upload quota reached\b/i, 'upload_quota', null],
+  [/^Too many messages from this IP today\b|^Contact form is rate-limited today\b/i, 'contact_rate_limited', null],
+  [/^too many reports today\b|^trop de signalements\b/i, 'reports_rate_limited', null],
+  [/^Payments are temporarily unavailable\b/i, 'payments_unavailable', null],
+  [/^Sales are not open yet\b/i, 'sales_closed', null],
+  [/^site temporarily disabled\b/i, 'site_disabled', null],
+  [/^account deletion could not start\b/i, 'account_deletion_failed', null],
+  [/^auth(?:entication)? service unavailable\b/i, 'auth_unavailable', null],
+  [/^unauthori[sz]ed$/i, 'unauthorized', null],
+  [/^forbidden$/i, 'forbidden', null],
+  [/^not found$/i, 'not_found', null],
+];
+function codeRefus(message: unknown): { code: string; params?: ParamsRefus } | null {
+  if (typeof message !== 'string' || !message) return null;
+  for (const [re, code, params] of REFUS_CONNUS) {
+    const m = message.match(re);
+    if (!m) continue;
+    const p = params ? params(m) : null;
+    return p ? { code, params: p } : { code };
+  }
+  return null;
+}
+function avecCodeRefus(data: unknown, status: number): unknown {
+  if (status < 400 || !data || typeof data !== 'object' || Array.isArray(data)) return data;
+  const d = data as Record<string, unknown>;
+  if (d.code !== undefined || typeof d.error !== 'string') return data;
+  const c = codeRefus(d.error);
+  return c ? { ...d, ...c } : data;
+}
+
+/** Reponse d'erreur JSON du routeur : meme corps + `code` / `params` (sortie de fetch, voir plus bas). Une seule lecture,
+ *  seulement pour les erreurs JSON courtes ; toute surprise rend la reponse d'origine, intacte. */
+async function _avecCodeRefus(res: Response): Promise<Response> {
+  try {
+    if (!res || res.status < 400) return res;
+    if (!/application\/json/i.test(res.headers.get('content-type') || '')) return res;
+    const texte = await res.clone().text();
+    if (!texte || texte.length > 65536) return res;
+    let corps: unknown;
+    try { corps = JSON.parse(texte); } catch { return res; }
+    const enrichi = avecCodeRefus(corps, res.status);
+    if (enrichi === corps) return res;
+    const entetes = new Headers(res.headers);
+    entetes.delete('content-length');
+    return new Response(JSON.stringify(enrichi), { status: res.status, statusText: res.statusText, headers: entetes });
+  } catch { return res; }
+}
+
 const json = (data: unknown, init: ResponseInit = {}): Response =>
   new Response(JSON.stringify(data), {
     status: init.status ?? 200,
@@ -24661,8 +24731,9 @@ export default {
     // CLE API (2026-09-28) : une requete signee par une cle personnelle passe par la
     // garde (routes interdites, plafond de credits par jour et par cle) AUTOUR du routeur.
     // 2026-10-03 (PB-06) : toute requete d'ecriture invalide le cache de la liste publique de la place de marche (au retour du routeur, meme en erreur).
+    // 2026-10-13 (INTERFACE-03) : toute reponse d'erreur JSON du routeur repart avec un code de refus stable (traduit par l'interface).
     const routeur = async (): Promise<Response> => {
-      try { return await _routeur(req, envBrut, ctx); }
+      try { return await _avecCodeRefus(await _routeur(req, envBrut, ctx)); }
       finally { if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') _invaliderCacheMarche(); }
     };
     if (_lireCleApi(req)) return await _avecCleApi(req, _envAvecReprises(envBrut), routeur, ctx);

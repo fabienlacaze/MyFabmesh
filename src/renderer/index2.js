@@ -332,6 +332,9 @@ const _MOTEURS_MASQUES_ERR = [[/[A-Za-z]:[^"'\s]*[\/](?:scripts|modal_app)[\/][\
   [/RealVis\w*/gi, 'texture engine'], [/SDXL[-\w]*/gi, 'image engine'], [/BiRefNet|Lucida|rembg|u2net/gi, 'background remover'], [/Real-?ESRGAN\w*|ESRGAN/gi, 'upscale engine'],
   [/SkinTokens|UniRig|Puppeteer/gi, 'rig engine'], [/CLIPSeg/gi, 'mask engine'], [/IP-?Adapter/gi, 'reference engine'], [/ControlNet\w*/gi, 'pose engine'], [/UniMate/gi, 'animation engine']];
 function _masquerMoteursErr(t) { let r = String(t == null ? '' : t); for (const [re, sub] of _MOTEURS_MASQUES_ERR) r = r.replace(re, sub); return r; }
+// Refus du serveur et echecs « X failed: … » traduits a l'AFFICHAGE (lib/textes-serveur.js, INTERFACE-03, 2026-10-13). Les tests de
+// motifs (credits, capacite du jour, filtre de contenu) se font toujours AVANT, sur le texte anglais d'origine.
+function _traduireServeur(m) { try { return (window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(m) : m; } catch (_) { return m; } }
 function customError(message, title = 'Error') {
   message = _masquerMoteursErr(message);
   { const refus = _refusCapacite(message); if (refus) { message = refus.texte; title = refus.titre; } }
@@ -345,7 +348,7 @@ function customError(message, title = 'Error') {
   const isOom = mapped !== String(message || '');
   if (isOom && (title === 'Error' || title === 'Erreur')) title = _i18nT('Out of memory');
   // Truncate insanely long messages but keep them scrollable
-  const safe = String(mapped || 'Unknown error');
+  const safe = String(_traduireServeur(mapped) || 'Unknown error');
   const modal = document.getElementById('modal-confirm');
   const titleEl = document.getElementById('confirm-title');
   const msgEl = document.getElementById('confirm-message');
@@ -425,7 +428,7 @@ function _boutonCopierErreur(apres, texte, id) {
 window.customError = customError;   // pour index2-edit-tools.js (script classique)
 function customErrorWithAction(message, title, actionLabel) {
   message = _masquerMoteursErr(message);
-  const safe = String(message || 'Unknown error');
+  const safe = String(_traduireServeur(message) || 'Unknown error');
   const modal = document.getElementById('modal-confirm');
   const titleEl = document.getElementById('confirm-title');
   const msgEl = document.getElementById('confirm-message');
@@ -494,7 +497,7 @@ function customErrorWithAction(message, title, actionLabel) {
 function _repriseLocale() {
   const now = new Date();
   const r = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-  const heure = r.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const heure = r.toLocaleTimeString(_locale(), { hour: '2-digit', minute: '2-digit' });
   const min = Math.max(1, Math.ceil((r - now) / 60000));
   const duree = min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
   return { heure, duree };
@@ -510,6 +513,11 @@ function _refusCapacite(message) {
   if (/generation limit for free accounts|daily generation limit/i.test(s)) {
     return { titre: _i18nT('Free daily limit reached'), achat: true,
              texte: _i18nTf("You have reached today's generation limit for free accounts. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged.", heure, duree) };
+  }
+  // Compte PAYANT a son plafond de securite (worker _spendRefusalMessage) : il etait annonce comme « capacite du service ».
+  if (/^Your account has reached its daily safety limit/i.test(s)) {
+    return { titre: _i18nT('Daily safety limit reached'), achat: false,
+             texte: _i18nTf('Your account has reached its daily safety limit for cloud generation. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged. Contact support if you need a higher limit.', heure, duree) };
   }
   return { titre: _i18nT('Daily capacity reached'), achat: false,
            texte: _i18nTf('The service has reached its daily capacity. It resets at {x} (your time), in {y}. Your credits are safe and you were not charged.', heure, duree) };
@@ -619,7 +627,7 @@ function showToast(message, type = 'info', durationMs = 3000) {
   const existing = _activeToasts.get(key);
   if (existing) {
     existing.count += 1;
-    existing.el.textContent = message + '  ×' + existing.count;
+    existing.el.textContent = _traduireServeur(message) + '  ×' + existing.count;
     existing.el.style.opacity = '1';
     clearTimeout(existing.hideTimer);
     clearTimeout(existing.removeTimer);
@@ -631,7 +639,7 @@ function showToast(message, type = 'info', durationMs = 3000) {
   }
   const toast = document.createElement('div');
   toast.style.cssText = `background:${colors[type] || colors.info}; color:white; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:600; pointer-events:auto; box-shadow:0 4px 12px rgba(0,0,0,0.3); transition:opacity 0.3s; max-width:500px; text-align:center;`;
-  toast.textContent = message;
+  toast.textContent = _traduireServeur(message);
   // « Plus de credits » -> proposer le rechargement DANS la notification.
   // Place ici et non dans chaque appelant : showToast est le point de passage
   // unique de ces messages (outils mesh, variantes, regeneration...), donc un
@@ -1521,8 +1529,8 @@ function renderAllImagesGrid() {
         <img src="${escapeHtml(_imgSrcHome(it.path))}" alt="" loading="lazy">
       </div>
       <div class="project-card-body">
-        <div class="project-card-name" style="font-size:13px;">${escapeHtml(it.project.name)}</div>
-        <div class="project-card-meta" style="font-size:13px;">${escapeHtml(String(it.path).split(/[\\/]/).pop())}</div>
+        <div class="project-card-name" translate="no" style="font-size:13px;">${escapeHtml(it.project.name)}</div>
+        <div class="project-card-meta" translate="no" style="font-size:13px;">${escapeHtml(String(it.path).split(/[\\/]/).pop())}</div>
       </div>
     </div>
   `).join('');
@@ -1785,7 +1793,7 @@ async function renderProjectsGrid() {
       </div>
       <div class="project-card-body">
         <div class="project-card-name" style="display:flex;align-items:center;">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.displayName || p.name)}</span>
+          <span translate="no" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.displayName || p.name)}</span>
           <button class="card-rename-btn" title="Rename project">&#9998;</button>
         </div>
         <div class="project-card-meta">
@@ -1827,7 +1835,7 @@ async function renderProjectsGrid() {
     });
     card.querySelector('.card-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!await customConfirm(`Delete project "${p.displayName || p.name}" and all its files?`, 'Delete project')) return;
+      if (!await customConfirm(_i18nTf('Delete project "{x}" and all its files?', p.displayName || p.name), 'Delete project')) return;
       const r = await API.deleteProject({ projectName: p.name });
       if (r?.ok) await refreshProjectsPage();
       else alert('Delete failed: ' + (r?.error || 'unknown'));
@@ -1957,7 +1965,9 @@ function renderProjectsBulkBar() {
   bar.querySelector('#bulk-delete').addEventListener('click', async () => {
     const names = [...state._selectedProjects];
     if (!await customConfirm(
-        `Delete ${names.length} project${names.length > 1 ? 's' : ''} and all their files?\n\n${names.join('\n')}`,
+        names.length > 1
+          ? _i18nTf('Delete {x} projects and all their files?\n\n{y}', names.length, names.join('\n'))
+          : _i18nTf('Delete this project and all its files?\n\n{x}', names.join('\n')),
         'Delete selected projects')) return;
     let ok = 0, fail = 0;
     for (const name of names) {
@@ -3253,7 +3263,7 @@ bindStepCardCollapse();
       const r = await window.meshyAPI.segmentMask?.({ imagePath: _rrxFrontPath, targetText: det, binary: true, dilate: 8 });
       if (!(r && r.success && r.overlayPath)) {
         $('rrx-loading').style.display = 'none';
-        showToast('Could not detect "' + part + '". Try another word, or paint it.', 'error');
+        showToast(_i18nTf('Could not detect "{x}". Try another word, or paint it.', part), 'error');
         return false;
       }
       await new Promise((resolve) => {
@@ -3816,7 +3826,7 @@ async function renderImageVersions(p) {
     });
     t.querySelector('.version-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!await customConfirm(`Delete version v${p.images.length - 1 - i}? This cannot be undone.`, 'Delete image version')) return;
+      if (!await customConfirm(_i18nTf('Delete version v{x}? This cannot be undone.', p.images.length - 1 - i), 'Delete image version')) return;
       const ok = await API.deleteFile(img.path);
       // le web rend { ok:false } en cas d'echec (objet, donc « vrai ») : un echec passait pour un succes
       if (ok && ok.ok !== false && ok.success !== false) {
@@ -4220,7 +4230,7 @@ function _nomLisible(chemin) {
     const a = liste[i];
     let t = typeof a === 'string' ? 0 : _ts(a);
     if (!t) { const m = basename(cle).match(/1[6-9]\d{11}/g); t = m ? Number(m[m.length - 1]) : 0; }
-    const date = t ? new Date(t).toLocaleString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const date = t ? new Date(t).toLocaleString(_locale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
     const quoi = _i18nT(genre) + (numeroter ? ` v${liste.length - 1 - i}` : '') + (a?.type ? ` (${a.type})` : '');
     return [p?.name, quoi, date].filter(Boolean).join(' · ');
   }
@@ -4999,7 +5009,7 @@ document.getElementById('ex3d-start')?.addEventListener('click', () => {
       }
     } catch (e) {
       completeJob(job.id, false);
-      customError(e?.message || String(e), 'Explosion 3D — erreur');
+      customError(e?.message || String(e), 'Explosion 3D — error');
     }
   })();
 });
@@ -5349,7 +5359,7 @@ document.getElementById('rz-apply')?.addEventListener('click', () => {
       }
     } catch (e) {
       completeJob(job.id, false);
-      customError(e?.message || String(e), 'Redimensionnement — erreur');
+      customError(e?.message || String(e), 'Resize — error');
     }
   })();
 });
@@ -6179,7 +6189,7 @@ async function renderViewerInfo(targetEl, filePath, extras) {
     if (info.sourceImage) {
       const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
       const _srcName = String(info.sourceImage).split(/[\\/]/).pop();
-      sourceRow = `<span class="vi-row"><b>Image source :</b> `
+      sourceRow = `<span class="vi-row"><b>Source image:</b> `
         + `<a href="#" class="vi-source-link" title="${_esc(info.sourceImage)}" `
         + `style="color:#8ab4ff;text-decoration:underline;cursor:pointer;pointer-events:auto;">`
         + `${_esc(_srcName)}</a></span>`;
@@ -6684,7 +6694,7 @@ async function jumpToMesh(meshPath) {
   const p = state.currentProject;
   if (!p || !meshPath) return;
   const mesh = (p.meshes || []).find((m) => m.path === meshPath);
-  if (!mesh) { showToast('Maillage source introuvable.', 'error'); return; }
+  if (!mesh) { showToast('Source mesh not found.', 'error'); return; }
   try { closeMeshLightbox(); } catch (_) {}
   const card = document.getElementById('step-card-mesh');
   if (card) {
@@ -6706,7 +6716,7 @@ function jumpToRig(rigPath) {
   const p = state.currentProject;
   if (!p || !rigPath) return;
   const rig = (p.rigs || []).find((r) => r.path === rigPath);
-  if (!rig) { showToast('Rig source introuvable.', 'error'); return; }
+  if (!rig) { showToast('Source rig not found.', 'error'); return; }
   try { closeMeshLightbox(); } catch (_) {}
   const card = document.getElementById('step-card-rig');
   if (card) {
@@ -8134,6 +8144,12 @@ modStrength.addEventListener('input', () => {
   modStrengthVal.textContent = modStrength.value + '%';
   _updateModStrengthHint();
 });
+// Bascule de langue A CHAUD (INTERFACE-M04, 2026-10-13) : les etiquettes calculees en JS (Subtle / Moderate / Strong) gardaient
+// la langue precedente jusqu'au prochain mouvement du curseur. i18n.js emet « fabmesh:langue » apres chaque changement de langue.
+window.addEventListener('fabmesh:langue', () => {
+  try { _updateModStrengthHint(); } catch (_) {}
+  try { _updateVarStrengthHint(); } catch (_) {}
+});
 
 document.getElementById('ws-modify-btn').addEventListener('click', () => {
   const p = state.currentProject;
@@ -8199,7 +8215,7 @@ document.getElementById('ws-export-img-btn')?.addEventListener('click', async ()
   try {
     const base = (p.name || 'image') + '_' + (target.split(/[\\/]/).pop().replace(/\.[^.]+$/, ''));
     const r = await API.exportImage({ srcPath: target, defaultName: base });
-    if (r?.ok) showToast('Image exported: ' + r.path, 'success');
+    if (r?.ok) showToast(_i18nTf('Image exported: {x}', r.path), 'success');
     else if (!r?.cancelled) showToast('Export failed: ' + (r?.error || 'unknown'), 'error');
   } catch (e) {
     showToast('Export error: ' + e.message, 'error');
@@ -8277,7 +8293,7 @@ async function runQuickEdit(operation, params) {
     const r = await API.imageQuickEdit({ imagePath: target, operation, params });
     if (r?.success) {
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
-      showToast(`${operation} done`, 'success');
+      showToast(_i18nTf('{x} done', _i18nT(operation)), 'success');
       await reloadCurrentProject();
     } else {
       const msg = r?.error || 'unknown';
@@ -9354,7 +9370,7 @@ document.getElementById('ws-picker-btn')?.addEventListener('click', () => {
   cpCanvas.addEventListener('click', (e) => {
     const hex = _cpSample(e);
     navigator.clipboard.writeText(hex).catch(() => {});
-    showToast(hex + ' copied!', 'success', 1500);
+    showToast(_i18nTf('{x} copied!', hex), 'success', 1500);
   });
 })();
 ['cpick-close', 'cpick-close-x'].forEach((id) => {
@@ -9365,7 +9381,7 @@ document.getElementById('ws-picker-btn')?.addEventListener('click', () => {
 });
 document.getElementById('cpick-copy')?.addEventListener('click', () => {
   const hex = document.getElementById('cpick-hex')?.textContent;
-  if (hex) { navigator.clipboard.writeText(hex).catch(() => {}); showToast(hex + ' copied!', 'success', 1500); }
+  if (hex) { navigator.clipboard.writeText(hex).catch(() => {}); showToast(_i18nTf('{x} copied!', hex), 'success', 1500); }
 });
 document.getElementById('cpick-close')?.addEventListener('click', () => document.getElementById('modal-colorpick')?.classList.add('hidden'));
 document.getElementById('cpick-close-x')?.addEventListener('click', () => document.getElementById('modal-colorpick')?.classList.add('hidden'));
@@ -10629,6 +10645,8 @@ function _maskAiNames(s) {
 }
 // Helpers i18n gardés (FabI18n chargé avant index2.js, mais on dégrade proprement).
 function _i18nT(s) { return (window.FabI18n && FabI18n.t) ? FabI18n.t(s) : s; }
+// Langue de l'INTERFACE pour les dates et les heures (INTERFACE-14, 2026-10-13) : sans argument, toLocale* suivait le navigateur.
+function _locale() { try { return (window.FabI18n && FabI18n.locale) ? FabI18n.locale() : undefined; } catch (_) { return undefined; } }
 function _i18nTf(s, ...a) {
   if (window.FabI18n && FabI18n.tf) return FabI18n.tf(s, ...a);
   let i = 0; return String(s).replace(/\{[xy]\}/g, () => (i < a.length ? String(a[i++]) : ''));
@@ -10881,7 +10899,7 @@ async function showGenerationHistory(startPath) {
     const engineTag = s.engine === 'light'
       ? ` <span class="gh-engine" title="${_escapeHtml(_i18nT('About 1 million triangles, same shape and texture as the full rig, but light enough for the viewer and for animation. The full-resolution rig stays available for export.'))}">${_escapeHtml(_i18nT('Light · 1M triangles · for animation'))}</span>`
       : (s.engine ? ` <span class="gh-engine">${_escapeHtml(_i18nT('AI'))}</span>` : '');
-    const when = s.ts ? new Date(s.ts).toLocaleString() : '';
+    const when = s.ts ? new Date(s.ts).toLocaleString(_locale()) : '';
     const thumbSrc = s.thumb
       ? (String(s.thumb).startsWith('file:') ? s.thumb : 'file:///' + String(s.thumb).replace(/\\/g, '/'))
       : '';
@@ -11059,7 +11077,7 @@ async function renderMeshVersions(p) {
     });
     t.querySelector('.version-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!await customConfirm(`Delete mesh v${p.meshes.length - 1 - i}? This cannot be undone.`, 'Delete mesh version')) return;
+      if (!await customConfirm(_i18nTf('Delete mesh v{x}? This cannot be undone.', p.meshes.length - 1 - i), 'Delete mesh version')) return;
       await API.deleteMesh(m.filename);
       await reloadCurrentProject();
     });
@@ -11815,7 +11833,7 @@ async function runMeshTool(operation, params = [], namedParams = null) {
           if (er && er.success && er.newPath) newPath = er.newPath;
         } catch (_) {}
       }
-      showToast(`${operation} done!`, 'success');
+      showToast(_i18nTf('{x} done', _i18nT(operation)), 'success');
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
       // Register the new mesh version. populateWorkspace only RENDERS
       // p.meshes — it does not re-scan disk — so without this the decimated/
@@ -12779,7 +12797,7 @@ function _mtBuildWireframes() {
     const g = e.mesh.geometry;
     total += g?.index ? g.index.count / 3 : ((g?.attributes?.position?.count || 0) / 3);
   }
-  if (total > 1500000) { showToast('Trop de triangles pour l’affichage filaire ici', 'info', 1800); return; }
+  if (total > 1500000) { showToast('Too many triangles for the wireframe view here', 'info', 1800); return; }
   for (const e of mtState.origGeoms) {
     const g = e.mesh.geometry;
     if (!g) continue;
@@ -18095,7 +18113,7 @@ document.getElementById('exp-go')?.addEventListener('click', async () => {
             const sr = await API.exportMesh({ sourcePath: st.path, targetFormat: format, outputPath: dest });
             if (sr && (sr.outputPath || sr.path)) done++; else failed++;
           } catch (_) { failed++; }
-          showToast('Construction stages ' + (done + failed) + '/' + total + '…', 'info', 1200);
+          showToast(_i18nTf('Construction stages {x}/{y}…', done + failed, total), 'info', 1200);
         }
         showToast(failed
           ? done + '/' + total + ' stages exported — ' + failed + ' failed'
@@ -18110,17 +18128,18 @@ document.getElementById('exp-go')?.addEventListener('click', async () => {
       if (format === 'fbx_unreal') {
         const isExplode = /_explode_/i.test(String(sourcePath));
         const steps =
-          (isExplode
-            ? 'FBX exporté (cm, chaque éclat = objet séparé). Pour une DESTRUCTION jouable dans UE5 :\n\n'
-            : 'FBX exporté pour Unreal (cm). Si ce mesh est fracturé (part_XX), pour une destruction Chaos :\n\n') +
-          '1. Importe le FBX. Dans le dialogue, DÉCOCHE « Combine Meshes » (chaque part_XX reste un Static Mesh séparé) ; Import Uniform Scale = 1.\n' +
-          '2. Glisse TOUS les part_XX dans le niveau (ils se réassemblent tout seuls).\n' +
-          '3. Sélectionne-les tous.\n' +
-          '4. Passe en mode Fracture (Shift+6) → section Generate → New → choisis un chemin → Create Geometry Collection.\n' +
-          '5. C\'est DÉJÀ fracturé (chaque éclat = un bone) — ne relance PAS de fracture Voronoï.\n' +
-          '6. Optionnel : Cluster → Auto Cluster, règle les Damage Thresholds, ajoute un Chaos Solver + active la simulation.\n\n' +
-          'Note : un Geometry Collection (.uasset) ne peut PAS être généré hors d\'Unreal — il se crée uniquement dans l\'éditeur (ces étapes).';
-        customError(steps, '\u{1F3AE} FBX Unreal — créer la destruction (Geometry Collection)');
+          // Texte ANGLAIS (source de l'interface), traduit par _i18nT (2026-10-13 : il etait ecrit en francais pour tous).
+          _i18nT(isExplode
+            ? 'FBX exported (cm, each shard = a separate object). For a playable DESTRUCTION in UE5:'
+            : 'FBX exported for Unreal (cm). If this mesh is fractured (part_XX), for a Chaos destruction:') + '\n\n' +
+          _i18nT('1. Import the FBX. In the dialog, UNTICK “Combine Meshes” (each part_XX stays a separate Static Mesh); Import Uniform Scale = 1.') + '\n' +
+          _i18nT('2. Drag ALL the part_XX into the level (they reassemble by themselves).') + '\n' +
+          _i18nT('3. Select them all.') + '\n' +
+          _i18nT('4. Switch to Fracture mode (Shift+6) → Generate section → New → choose a path → Create Geometry Collection.') + '\n' +
+          _i18nT('5. It is ALREADY fractured (each shard = one bone) — do NOT run a Voronoi fracture again.') + '\n' +
+          _i18nT('6. Optional: Cluster → Auto Cluster, tune the Damage Thresholds, add a Chaos Solver and enable the simulation.') + '\n\n' +
+          _i18nT('Note: a Geometry Collection (.uasset) can NOT be generated outside Unreal — it is only created in the editor (these steps).');
+        customError(steps, '\u{1F3AE} Unreal FBX — set up the destruction (Geometry Collection)');
       }
     } else {
       completeJob(job.id, false);
@@ -18626,7 +18645,7 @@ function renderRigVersions(p) {
     });
     t.querySelector('.version-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!await customConfirm(`Delete rig v${p.rigs.length - 1 - i}? This cannot be undone.`, 'Delete rig version')) return;
+      if (!await customConfirm(_i18nTf('Delete rig v{x}? This cannot be undone.', p.rigs.length - 1 - i), 'Delete rig version')) return;
       await API.deleteMesh(r.filename);
       await reloadCurrentProject();
     });
@@ -19513,7 +19532,7 @@ function renderAnimVersions(p) {
     el.querySelector('.version-delete-btn')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       const n = b.clips.length;
-      if (!await customConfirm(`Delete this version (${n} clip${n > 1 ? 's' : ''})? This cannot be undone.`, 'Delete animation')) return;
+      if (!await customConfirm(n > 1 ? _i18nTf('Delete this version ({x} clips)? This cannot be undone.', n) : _i18nT('Delete this version (1 clip)? This cannot be undone.'), 'Delete animation')) return;
       for (const c of b.clips) { try { await API.deleteFile(c.path); } catch (_) {} }
       if (_selectedBatch === b.id) { _selectedBatch = null; _selectedAnim = null; }
       await reloadCurrentProject();
@@ -20057,7 +20076,7 @@ document.getElementById('ws-anim-export-btn')?.addEventListener('click', async (
   try {
     // Le fichier suit l'aperçu : fige s'il est affiche fige.
     const res = await window.meshyAPI.animExport?.({ glbPath: _selectedAnim.path, format: 'fbx', inPlace: _animEnPlace });
-    if (res?.success) showToast?.(`Exported: ${res.path}`, 'success');
+    if (res?.success) showToast?.(_i18nTf('Exported: {x}', res.path), 'success');
     else showToast?.(`Export failed: ${res?.error || 'unknown'}`, 'error');
   } catch (e) { showToast?.(`Export error: ${e.message}`, 'error'); }
 });
@@ -20869,7 +20888,7 @@ function renderJobsTermines() {
     const aller = _jobStepIndex(e) > 0;
     const duree = e.startedAt && e.finiLe ? fmtDuration(e.finiLe - e.startedAt) : '';
     let heure = '';
-    try { heure = new Date(e.finiLe).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (_) {}
+    try { heure = new Date(e.finiLe).toLocaleTimeString(_locale(), { hour: '2-digit', minute: '2-digit' }); } catch (_) {}
     const icone = e.statut === 'ok' ? '&#10003;' : (e.statut === 'annule' ? '&#8856;' : '&#10005;');
     const vign = _vignetteTravailHtml(e.sourceImageUrl, e.projectName);
     return `
@@ -21022,7 +21041,7 @@ async function cancelJob(id) {
   const j = state.jobs.find(j => j.id === id);
   if (!j) return;
   if (j.status !== 'running') return;
-  const ok = await customConfirm(`Cancel "${j.name}"? The current operation will be stopped.`, 'Cancel job', 'Cancel job');
+  const ok = await customConfirm(_i18nTf('Cancel "{x}"? The current operation will be stopped.', _displayJobName(j.name)), 'Cancel job', 'Cancel job');
   if (!ok) return;
   // Mark the job as cancelled BEFORE killing the process so the awaiting
   // promise can detect the cancellation and skip the error popup
@@ -21690,7 +21709,7 @@ async function refreshJobDetailsModal(id) {
   document.getElementById('job-details-title').textContent = j.status === 'done' ? 'Task complete' : (j.status === 'error' ? 'Task failed' : 'Running task');
   document.getElementById('job-details-subtitle').textContent = _displayJobName(j.name);
   document.getElementById('jd-status').textContent = j.status === 'running' ? 'Running' : (j.status === 'done' ? 'Done' : 'Error');
-  document.getElementById('jd-started').textContent = new Date(j.startedAt).toLocaleTimeString();
+  document.getElementById('jd-started').textContent = new Date(j.startedAt).toLocaleTimeString(_locale());
   document.getElementById('jd-elapsed').textContent = fmtDuration(Date.now() - j.startedAt);
   // Estimated total: start from the static estimate, but once the job has real
   // progress (>=8%) trust a DYNAMIC estimate (elapsed / fraction) — it adapts
@@ -21903,7 +21922,7 @@ document.getElementById('job-details-export-logs-legacy')?.addEventListener('cli
     const res = await window.meshyAPI.exportDiagnostics();
     if (res && res.ok) {
       btn.innerHTML = '✓ Saved to Desktop';
-      showToast && showToast('Logs saved: ' + (res.path || 'Desktop'), 'success');
+      showToast && showToast(_i18nTf('Logs saved: {x}', res.path || _i18nT('Desktop')), 'success');
     } else {
       btn.innerHTML = _orig;
       showToast && showToast('Export failed: ' + ((res && res.error) || 'unknown'), 'error');
@@ -22046,7 +22065,7 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   const prompt = (p && (p.prompt || p.initialPrompt)) || 'high quality, detailed';
   // The "guide" steers BOTH modes: texture-only (ControlNet) and full img2img.
   const guidePrompt = rawTexPrompt ? await translateUserPrompt(rawTexPrompt) : '';
-  showToast(`Generating ${count} variant${count > 1 ? 's' : ''}…`, 'info', 2000);
+  showToast(count > 1 ? _i18nTf('Generating {x} variants…', count) : _i18nT('Generating 1 variant…'), 'info', 2000);
   for (let i = 0; i < count; i++) {
     const seed = Math.floor(Math.random() * 1000000);
     const label = count > 1 ? `Variant ${i + 1}/${count}: ${p.name}` : `Variant: ${p.name}`;
@@ -22176,7 +22195,7 @@ document.getElementById('of-mode')?.addEventListener('change', _outfitSyncMode);
 document.getElementById('ws-outfit-btn')?.addEventListener('click', () => {
   const p = state.currentProject;
   const target = editTarget(p);
-  if (!target) { showToast("Choisis d'abord une image.", 'error'); return; }
+  if (!target) { showToast('Choose an image first.', 'error'); return; }
   const img = document.getElementById('of-source-img');
   if (img) img.src = _bust(_toFileUrl(target));
   const abs = document.getElementById('of-absentes');
@@ -22197,11 +22216,11 @@ document.getElementById('of-go')?.addEventListener('click', async () => {
   const parPiece = (mode === 'pieces' || mode === 'deux');
   const pieces = Array.from(document.querySelectorAll('.of-piece:checked')).map(c => c.value);
   if (parPiece && !pieces.length) {
-    showToast('Coche au moins une piece.', 'error');
+    showToast('Tick at least one piece.', 'error');
     return;
   }
   if ((parPiece ? pieces.length : 0) + (ensemble ? 1 : 0) > 8) {
-    showToast('8 pieces au maximum par appel.', 'error');
+    showToast('At most 8 pieces per run.', 'error');
     return;
   }
   const completer = !!document.getElementById('of-completer')?.checked;
@@ -22209,8 +22228,8 @@ document.getElementById('of-go')?.addEventListener('click', async () => {
   document.getElementById('modal-outfit')?.classList.add('hidden');
 
   const nb = (parPiece ? pieces.length : 0) + (ensemble ? 1 : 0);
-  gatedRun('inpaint', `Habits seuls: ${p.name}`, async () => {
-    const job = pushJob(`Habits seuls: ${p.name}`, null, {
+  gatedRun('inpaint', `Outfit only: ${p.name}`, async () => {
+    const job = pushJob(`Outfit only: ${p.name}`, null, {
       Sortie: mode === 'ensemble' ? 'la tenue entiere'
             : mode === 'pieces' ? `${pieces.length} piece(s)`
             : `la tenue + ${pieces.length} piece(s)`,
@@ -22222,19 +22241,19 @@ document.getElementById('of-go')?.addEventListener('click', async () => {
         completeJob(job.id, true);
         await reloadCurrentProject();
         const noms = (r.pieces || []).map(x => x.nom).join(', ');
-        showToast(`Habits: ${(r.pieces || []).length} image(s) — ${noms}`, 'success');
+        showToast(_i18nTf('Outfit: {x} image(s) — {y}', (r.pieces || []).length, noms), 'success');
         if (r.absentes && r.absentes.length) {
           // On le DIT au lieu de livrer une image vide : ces pieces ne sont
           // pas sur l'image, elles n'ont pas ete inventees.
-          showToast(`Non detectees, donc ignorees : ${r.absentes.join(', ')}`, 'info');
+          showToast(_i18nTf('Not detected, so skipped: {x}', r.absentes.join(', ')), 'info');
         }
       } else {
         completeJob(job.id, false);
-        if (!job.cancelled) customError(r?.error || 'unknown', 'Habits seuls');
+        if (!job.cancelled) customError(r?.error || 'unknown', 'Outfit only');
       }
     } catch (e) {
       completeJob(job.id, false);
-      if (!job.cancelled) customError(e?.error || e?.message || String(e), 'Habits seuls');
+      if (!job.cancelled) customError(e?.error || e?.message || String(e), 'Outfit only');
     }
   });
 });
@@ -24235,12 +24254,12 @@ async function _exporterJournaux(btn) {
   try {
     const res = await window.meshyAPI.exportDiagnostics();
     if (res && res.ok) {
-      showToast && showToast('Journaux enregistrés : ' + (res.path || 'Bureau'), 'success');
+      showToast && showToast(_i18nTf('Logs saved: {x}', res.path || _i18nT('Desktop')), 'success');
     } else {
-      showToast && showToast('Échec de l\'export : ' + ((res && res.error) || 'inconnu'), 'error');
+      showToast && showToast('Export failed: ' + ((res && res.error) || 'unknown'), 'error');
     }
   } catch (err) {
-    showToast && showToast('Échec de l\'export : ' + (err.message || err), 'error');
+    showToast && showToast('Export failed: ' + (err.message || err), 'error');
   } finally {
     if (btn) setTimeout(() => { btn.disabled = false; btn.innerHTML = _orig; }, 2000);
   }
@@ -24268,7 +24287,7 @@ document.getElementById('set-export-logs-legacy')?.addEventListener('click', asy
     const res = await window.meshyAPI.exportDiagnostics();
     if (res && res.ok) {
       btn.innerHTML = '✓ Saved to Desktop';
-      showToast && showToast('Logs saved: ' + (res.path || 'Desktop'), 'success');
+      showToast && showToast(_i18nTf('Logs saved: {x}', res.path || _i18nT('Desktop')), 'success');
     } else {
       btn.innerHTML = _orig;
       showToast && showToast('Export failed: ' + ((res && res.error) || 'unknown'), 'error');
@@ -25334,7 +25353,7 @@ async function _asstCopier(texte, bouton) {
     if (s < 3600) return _i18nTf('{x} min ago', Math.round(s / 60));
     return _i18nTf('{x} h ago', Math.round(s / 3600));
   };
-  const heure = (ts) => { try { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); } catch (_) { return ''; } };
+  const heure = (ts) => { try { return new Date(ts).toLocaleTimeString(_locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' }); } catch (_) { return ''; } };
 
   function texteStatut(e) {
     if (!e.actif && e.erreur === 'port-busy') return _i18nT('Could not start: port 7331 is busy (another MyFabmesh.AI is running?)');
@@ -26275,7 +26294,7 @@ window.addEventListener('drop', async (e) => {
         showGoToToast(card, _i18nTf('New {x} version added', r.kind) + ' ✅', _i18nT('Go to the imported item'));
       }
       // Fallback si la carte cible est absente (aucun toast go-to affiché).
-      if (!card) showToast?.(`Added a new ${r.kind} version`, 'success', 1800);
+      if (!card) showToast?.(_i18nTf('Added a new {x} version', _i18nT(r.kind)), 'success', 1800);
     } else {
       await refreshProjectsPage();
       showToast?.('New project created from import', 'success', 1800);
@@ -26672,11 +26691,11 @@ async function extractLandmarksFromRig() {
     }
     if (matched === 0) {
       if (typeof customError === 'function')
-        customError(`Found ${bones.length} bone(s) but none matched a known landmark name.\n\nFirst few names: ${bones.slice(0, 8).map(b => b.name).join(', ')}`, 'From rig');
+        customError(_i18nTf('Found {x} bone(s) but none matched a known landmark name.\n\nFirst few names: {y}', bones.length, bones.slice(0, 8).map(b => b.name).join(', ')), 'From rig');
       return;
     }
     if (typeof showToast === 'function') {
-      showToast(`Imported ${matched} landmark(s) from rig — drag them to adjust, then click "Re-generate rig".`, 'success', 5000);
+      showToast(_i18nTf('Imported {x} landmark(s) from the rig (matched by name) — drag them to adjust, then click "Re-generate rig".', matched), 'success', 5000);
     }
   } catch (e) {
     console.error('[extractLandmarksFromRig]', e);
@@ -29153,12 +29172,12 @@ if (window.meshyAPI?.onJobsResumed) {
       }
     }
     if (resumed > 0 && Array.isArray(jobs) && jobs.every((x) => x.reattached)) {
-      showToast?.(`${resumed} running job${resumed > 1 ? 's' : ''} kept after the reload.`, 'success', 5000);
+      showToast?.(resumed > 1 ? _i18nTf('{x} running jobs kept after the reload.', resumed) : _i18nT('1 running job kept after the reload.'), 'success', 5000);
     } else if (resumed > 0) {
-      showToast?.(`Resumed ${resumed} paused job${resumed > 1 ? 's' : ''} — finishing in the background.`, 'success', 8000);
+      showToast?.(resumed > 1 ? _i18nTf('Resumed {x} paused jobs — finishing in the background.', resumed) : _i18nT('Resumed 1 paused job — finishing in the background.'), 'success', 8000);
     }
     if (dropped > 0) {
-      showToast?.(`${dropped} paused job${dropped > 1 ? 's' : ''} could not be resumed (process no longer alive). Re-generate if needed.`, 'error', 8000);
+      showToast?.(dropped > 1 ? _i18nTf('{x} paused jobs could not be resumed (process no longer alive). Re-generate if needed.', dropped) : _i18nT('1 paused job could not be resumed (process no longer alive). Re-generate if needed.'), 'error', 8000);
     }
   });
 }
@@ -29970,14 +29989,14 @@ document.getElementById('topbar-signin')?.addEventListener('click', async () => 
 // ============================================================
 async function _cloudShare(filePath, kindLabel) {
   const p = state.currentProject;
-  showToast(`Sending ${kindLabel} to your cloud library…`, 'info', 8000);
+  showToast(_i18nTf('Sending {x} to your cloud library…', _i18nT(kindLabel)), 'info', 8000);
   let r = await API.cloudShareAsset({ filePath, projectName: p?.name || 'desktop' });
   if (r?.needsCloudLogin) {
     const ok = await showCloudLoginModal();
     if (ok) r = await API.cloudShareAsset({ filePath, projectName: p?.name || 'desktop' });
     else return;
   }
-  if (r?.success) showToast(`${kindLabel} sent — visible in your web library.`, 'success');
+  if (r?.success) showToast(_i18nTf('{x} sent — visible in your web library.', _i18nT(kindLabel)), 'success');
   else showToast(`Cloud share failed: ${r?.error || 'unknown'}`, 'error');
 }
 
@@ -30120,7 +30139,7 @@ async function showCloudLibraryModal() {
           if (ok) { b.disabled = false; b.click(); return; }
         }
         if (r?.success) {
-          showToast(`Downloaded: ${fname}`, 'success');
+          showToast(_i18nTf('Downloaded: {x}', fname), 'success');
           try { await reloadCurrentProject(); } catch (_) {}
           try { refreshProjectsPage(); } catch (_) {}
         } else if (/404/.test(r?.error || '')) {
@@ -31507,7 +31526,7 @@ window._applyRigAnimPills();
     const cel = 'padding:6px 10px; border-bottom:1px solid var(--border);';
     tbody.innerHTML = rows.map((r) => `
       <tr data-job-id="${esc(r.id)}" style="cursor:pointer;" title="${esc(String(r.id).startsWith('local:') ? _i18nT('Local job — click to open it') : _i18nT('Click for full details'))}">
-        <td style="${cel} white-space:nowrap;">${esc(new Date(r.date).toLocaleString('fr', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</td>
+        <td style="${cel} white-space:nowrap;">${esc(new Date(r.date).toLocaleString(_locale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</td>
         <td style="${cel}">${esc(r.type)}${String(r.id).startsWith('local:') ? ' <span style="font-size:12px; color:var(--text-2); border:1px solid var(--border); border-radius:8px; padding:0 6px; margin-left:4px;">' + esc(_i18nT('local')) + '</span>' : ''}</td>
         <td style="${cel}"><span style="background:${couleur(r.status)}22; color:${couleur(r.status)}; padding:2px 8px; border-radius:10px; font-size:13px;">${esc(r.status)}</span></td>
         <td style="${cel} text-align:right; font-variant-numeric:tabular-nums;">${Number(r.duration_s || 0).toFixed(1)}s</td>
@@ -31561,8 +31580,8 @@ window._applyRigAnimPills();
       html += ligne('Job ID', `<code>${esc(job.id)}</code>`);
       html += ligne('Type', esc(job.asset_type));
       html += ligne('Status', `<span style="color:${coul}; font-weight:600;">${esc(job.status)}</span>`);
-      html += ligne('Created', esc(new Date(job.created_at).toLocaleString('fr')));
-      if (job.finished_at) html += ligne('Finished', esc(new Date(job.finished_at).toLocaleString('fr')));
+      html += ligne('Created', esc(new Date(job.created_at).toLocaleString(_locale())));
+      if (job.finished_at) html += ligne('Finished', esc(new Date(job.finished_at).toLocaleString(_locale())));
       html += ligne('Duration', (durMs / 1000).toFixed(1) + ' s');
       html += ligne('Credits', esc(job.credit_cost));
       html += ligne('Project', lienProjet(job.project_name));
