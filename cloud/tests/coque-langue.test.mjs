@@ -154,6 +154,9 @@ test('feuille de style : seule la version de html[lang] est visible, juridique r
   }
   assert.ok(css.includes('html[data-juridique="fr"] .juridique-en'));
   assert.ok(css.includes('html:not([data-juridique="fr"]) .juridique-fr'));
+  // l'avis de repli est dans le flux : mesure du 13/10 en navigateur, fixe il recouvrait le titre de la page
+  const avis = css.match(/\.coque-avis-langue \{([^}]*)\}/);
+  assert.ok(avis && !/position:\s*fixed/.test(avis[1]), 'avis de repli dans le flux de la page');
 });
 
 test('barre du haut : selecteur de langue accessible, noms autonymes, hors traduction', () => {

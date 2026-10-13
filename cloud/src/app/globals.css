@@ -634,9 +634,10 @@ html[lang="fr"] .avis-francais-seul { display: none !important; }
 .coque-langue-liste li[aria-selected="true"] { font-weight: 700; }
 .coque-langue-liste li[data-actif="1"] { background: rgba(124,77,255,.28); outline: 2px solid rgba(124,77,255,.65); outline-offset: -2px; }
 
-/* Avis de repli : langue du navigateur non servie (langue-client.tsx, AvisLangue). */
+/* Avis de repli : langue du navigateur non servie (langue-client.tsx, AvisLangue). Dans le flux, sous la
+   barre du haut : il pousse la page au lieu de recouvrir son titre. */
 .coque-avis-langue {
-  position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 9400;
+  position: relative; margin: 10px auto 0; width: fit-content;
   max-width: min(560px, calc(100vw - 24px));
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 10px 12px; background: var(--bg-1); color: var(--text-0);
