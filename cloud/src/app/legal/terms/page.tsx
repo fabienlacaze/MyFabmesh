@@ -5,7 +5,7 @@
 // l'appli choisit laquelle s'affiche (lib/langue.tsx), et BasculeLangue garde
 // l'autre a un clic.
 
-import { BasculeLangue } from '@/components/BasculeLangue';
+import { BasculeLangue, AvisJuridique } from '@/components/BasculeLangue';
 import { TermsFr } from './TermsFr';
 import { TermsEn } from './TermsEn';
 
@@ -18,8 +18,9 @@ export default function TermsPage() {
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px', lineHeight: 1.65 }}>
       <BasculeLangue />
-      <div className="lang-fr"><TermsFr /></div>
-      <div className="lang-en"><TermsEn /></div>
+      <AvisJuridique />
+      <div className="juridique-fr" lang="fr" dir="ltr"><TermsFr /></div>
+      <div className="juridique-en" lang="en" dir="ltr"><TermsEn /></div>
     </main>
   );
 }

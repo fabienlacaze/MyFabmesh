@@ -1,0 +1,1574 @@
+{
+ "MyFabmesh is not available in {x} yet: the interface is shown in {y}.": {
+  "es": "MyFabmesh aún no está disponible en {x}: la interfaz se muestra en {y}.",
+  "zh": "MyFabmesh 暂不支持{x}：界面以{y}显示。",
+  "hi": "MyFabmesh अभी {x} में उपलब्ध नहीं है: इंटरफ़ेस {y} में दिखाया जा रहा है।",
+  "ar": "MyFabmesh غير متاح بعد باللغة {x}: تُعرض الواجهة باللغة {y}."
+ },
+ "Change language": {
+  "es": "Cambiar idioma",
+  "zh": "更改语言",
+  "hi": "भाषा बदलें",
+  "ar": "تغيير اللغة"
+ },
+ "Language: {x}": {
+  "es": "Idioma: {x}",
+  "zh": "语言：{x}",
+  "hi": "भाषा: {x}",
+  "ar": "اللغة: {x}"
+ },
+ "Interface language": {
+  "es": "Idioma de la interfaz",
+  "zh": "界面语言",
+  "hi": "इंटरफ़ेस भाषा",
+  "ar": "لغة الواجهة"
+ },
+ "Close": {
+  "es": "Cerrar",
+  "zh": "关闭",
+  "hi": "बंद करें",
+  "ar": "إغلاق"
+ },
+ "Purchases are not open yet.": {
+  "es": "Las compras aún no están abiertas.",
+  "zh": "暂未开放购买。",
+  "hi": "ख़रीदारी अभी शुरू नहीं हुई है।",
+  "ar": "الشراء غير متاح بعد."
+ },
+ "Payments are temporarily unavailable. Please try again later.": {
+  "es": "Los pagos no están disponibles temporalmente. Inténtalo más tarde.",
+  "zh": "支付暂时不可用。请稍后再试。",
+  "hi": "भुगतान अभी अस्थायी रूप से उपलब्ध नहीं हैं। कृपया बाद में कोशिश करें।",
+  "ar": "المدفوعات غير متاحة مؤقتًا. يُرجى المحاولة لاحقًا."
+ },
+ "The site is temporarily unavailable. Please try again later.": {
+  "es": "El sitio no está disponible temporalmente. Inténtalo más tarde.",
+  "zh": "网站暂时不可用。请稍后再试。",
+  "hi": "साइट अभी अस्थायी रूप से उपलब्ध नहीं है। कृपया बाद में कोशिश करें।",
+  "ar": "الموقع غير متاح مؤقتًا. يُرجى المحاولة لاحقًا."
+ },
+ "Your session has expired. Please sign in again.": {
+  "es": "Tu sesión ha caducado. Vuelve a iniciar sesión.",
+  "zh": "你的会话已过期。请重新登录。",
+  "hi": "आपका सत्र समाप्त हो गया है। कृपया फिर से साइन इन करें।",
+  "ar": "انتهت جلستك. يُرجى تسجيل الدخول مجددًا."
+ },
+ "You are not allowed to do this.": {
+  "es": "No tienes permiso para hacer esto.",
+  "zh": "你无权执行此操作。",
+  "hi": "आपको यह करने की अनुमति नहीं है।",
+  "ar": "غير مسموح لك بالقيام بذلك."
+ },
+ "Not found.": {
+  "es": "No encontrado.",
+  "zh": "未找到。",
+  "hi": "नहीं मिला।",
+  "ar": "غير موجود."
+ },
+ "Too many reports today. Please try again tomorrow.": {
+  "es": "Demasiadas denuncias hoy. Inténtalo mañana.",
+  "zh": "今天的举报太多了。请明天再试。",
+  "hi": "आज बहुत सारी रिपोर्ट हो गईं। कृपया कल फिर कोशिश करें।",
+  "ar": "بلاغات كثيرة اليوم. يُرجى المحاولة غدًا."
+ },
+ "This legal text is available in English and French only.": {
+  "es": "Este texto legal solo está disponible en inglés y en francés.",
+  "zh": "此法律文本仅提供英文和法文版本。",
+  "hi": "यह कानूनी पाठ केवल अंग्रेज़ी और फ़्रेंच में उपलब्ध है।",
+  "ar": "هذا النص القانوني متاح باللغتين الإنجليزية والفرنسية فقط."
+ },
+ "Cookies": {
+  "es": "Cookies",
+  "zh": "Cookie",
+  "hi": "कुकीज़",
+  "ar": "ملفات تعريف الارتباط"
+ },
+ "We only set strictly necessary cookies (your sign-in session), and we don't track you with analytics or ads. Stripe sets its own cookies on its own domain when you pay. Read more in our [Privacy Policy](/legal/privacy).": {
+  "es": "Solo usamos cookies estrictamente necesarias (tu sesión) y no te rastreamos con analítica ni publicidad. Stripe instala sus propias cookies en su propio dominio cuando pagas. Más información en nuestra [Política de privacidad](/legal/privacy).",
+  "zh": "我们只设置绝对必要的 Cookie（你的登录会话），不会通过统计分析或广告追踪你。付款时，Stripe 会在其自己的域名上设置它自己的 Cookie。详情请参阅我们的[隐私政策](/legal/privacy)。",
+  "hi": "हम केवल बिल्कुल ज़रूरी कुकीज़ (आपका साइन-इन सत्र) सेट करते हैं, और एनालिटिक्स या विज्ञापनों से आपको ट्रैक नहीं करते। भुगतान करते समय Stripe अपने डोमेन पर अपनी कुकीज़ सेट करता है। अधिक जानकारी हमारी [गोपनीयता नीति](/legal/privacy) में पढ़ें।",
+  "ar": "لا نستخدم إلا ملفات تعريف الارتباط الضرورية تمامًا (جلسة تسجيل دخولك)، ولا نتتبعك بأدوات التحليل أو الإعلانات. تضع Stripe ملفاتها الخاصة على نطاقها الخاص عند الدفع. اقرأ المزيد في [سياسة الخصوصية](/legal/privacy)."
+ },
+ "Learn more": {
+  "es": "Más información",
+  "zh": "了解更多",
+  "hi": "और जानें",
+  "ar": "اعرف المزيد"
+ },
+ "Got it": {
+  "es": "Entendido",
+  "zh": "知道了",
+  "hi": "ठीक है",
+  "ar": "حسنًا"
+ },
+ "Cookie notice": {
+  "es": "Aviso sobre cookies",
+  "zh": "Cookie 通知",
+  "hi": "कुकी सूचना",
+  "ar": "إشعار ملفات تعريف الارتباط"
+ },
+ "Open the app": {
+  "es": "Abrir la aplicación",
+  "zh": "打开应用",
+  "hi": "ऐप खोलें",
+  "ar": "فتح التطبيق"
+ },
+ "Marketplace": {
+  "es": "Marketplace",
+  "zh": "市场",
+  "hi": "मार्केटप्लेस",
+  "ar": "المتجر"
+ },
+ "Credits": {
+  "es": "Créditos",
+  "zh": "积分",
+  "hi": "क्रेडिट",
+  "ar": "الأرصدة"
+ },
+ "Pricing": {
+  "es": "Precios",
+  "zh": "价格",
+  "hi": "मूल्य",
+  "ar": "الأسعار"
+ },
+ "Desktop app": {
+  "es": "Aplicación de escritorio",
+  "zh": "桌面版应用",
+  "hi": "डेस्कटॉप ऐप",
+  "ar": "تطبيق سطح المكتب"
+ },
+ "Sign in": {
+  "es": "Iniciar sesión",
+  "zh": "登录",
+  "hi": "साइन इन करें",
+  "ar": "تسجيل الدخول"
+ },
+ "Terms": {
+  "es": "Condiciones",
+  "zh": "条款",
+  "hi": "शर्तें",
+  "ar": "الشروط"
+ },
+ "Privacy": {
+  "es": "Privacidad",
+  "zh": "隐私",
+  "hi": "गोपनीयता",
+  "ar": "الخصوصية"
+ },
+ "Legal notice": {
+  "es": "Aviso legal",
+  "zh": "法律声明",
+  "hi": "कानूनी सूचना",
+  "ar": "الإشعار القانوني"
+ },
+ "Contact": {
+  "es": "Contacto",
+  "zh": "联系我们",
+  "hi": "संपर्क",
+  "ar": "اتصل بنا"
+ },
+ "Generate game-ready 3D meshes from a single image — same interface as the desktop app, on cloud GPUs.": {
+  "es": "Genera modelos 3D listos para videojuegos a partir de una sola imagen, con la misma interfaz que la aplicación de escritorio, en GPU en la nube.",
+  "zh": "只需一张图片，即可生成可直接用于游戏的 3D 模型——界面与桌面版相同，运行在云端 GPU 上。",
+  "hi": "एक ही इमेज से गेम के लिए तैयार 3D मॉडल बनाएँ — डेस्कटॉप ऐप जैसा ही इंटरफ़ेस, क्लाउड GPU पर।",
+  "ar": "أنشئ نماذج ثلاثية الأبعاد جاهزة للألعاب من صورة واحدة — بالواجهة نفسها لتطبيق سطح المكتب، على معالجات رسومية في السحابة."
+ },
+ "Sign in / Sign up": {
+  "es": "Iniciar sesión / Registrarse",
+  "zh": "登录 / 注册",
+  "hi": "साइन इन / साइन अप",
+  "ar": "تسجيل الدخول / إنشاء حساب"
+ },
+ "Visit the MyFabmesh.AI site →": {
+  "es": "Visitar el sitio de MyFabmesh.AI →",
+  "zh": "访问 MyFabmesh.AI 网站 →",
+  "hi": "MyFabmesh.AI साइट पर जाएँ →",
+  "ar": "زيارة موقع MyFabmesh.AI ←"
+ },
+ "Want the local version for NVIDIA graphics cards?": {
+  "es": "¿Quieres la versión local para tarjetas gráficas NVIDIA?",
+  "zh": "想要适用于 NVIDIA 显卡的本地版本？",
+  "hi": "NVIDIA ग्राफ़िक्स कार्ड के लिए लोकल संस्करण चाहिए?",
+  "ar": "هل تريد النسخة المحلية لبطاقات رسومات NVIDIA؟"
+ },
+ "Download the desktop app": {
+  "es": "Descargar la aplicación de escritorio",
+  "zh": "下载桌面版应用",
+  "hi": "डेस्कटॉप ऐप डाउनलोड करें",
+  "ar": "تنزيل تطبيق سطح المكتب"
+ },
+ "AI-generated": {
+  "es": "Generado por IA",
+  "zh": "AI 生成",
+  "hi": "AI द्वारा बनाया गया",
+  "ar": "مُنشأ بالذكاء الاصطناعي"
+ },
+ "Something went wrong loading the marketplace.": {
+  "es": "Se produjo un error al cargar el marketplace.",
+  "zh": "加载市场时出错。",
+  "hi": "मार्केटप्लेस लोड करते समय कुछ गड़बड़ हो गई।",
+  "ar": "حدث خطأ أثناء تحميل المتجر."
+ },
+ "Unknown error": {
+  "es": "Error desconocido",
+  "zh": "未知错误",
+  "hi": "अज्ञात त्रुटि",
+  "ar": "خطأ غير معروف"
+ },
+ "Reload page": {
+  "es": "Recargar la página",
+  "zh": "重新加载页面",
+  "hi": "पेज फिर से लोड करें",
+  "ar": "إعادة تحميل الصفحة"
+ },
+ "Could not load the 3D preview.": {
+  "es": "No se pudo cargar la vista previa 3D.",
+  "zh": "无法加载 3D 预览。",
+  "hi": "3D प्रीव्यू लोड नहीं हो सका।",
+  "ar": "تعذّر تحميل المعاينة ثلاثية الأبعاد."
+ },
+ "Loading item… {x}%": {
+  "es": "Cargando el artículo… {x} %",
+  "zh": "正在加载作品… {x}%",
+  "hi": "आइटम लोड हो रहा है… {x}%",
+  "ar": "جارٍ تحميل العنصر… {x}%"
+ },
+ "Community-made 3D assets. Free downloads and paid listings under various licences.": {
+  "es": "Recursos 3D creados por la comunidad. Descargas gratuitas y anuncios de pago con distintas licencias.",
+  "zh": "社区创作的 3D 资源。提供免费下载，以及采用多种许可的付费作品。",
+  "hi": "समुदाय द्वारा बनाए गए 3D एसेट। अलग-अलग लाइसेंस के तहत मुफ़्त डाउनलोड और सशुल्क लिस्टिंग।",
+  "ar": "أصول ثلاثية الأبعاد من إنشاء المجتمع. تنزيلات مجانية وعروض مدفوعة بتراخيص مختلفة."
+ },
+ "Cart": {
+  "es": "Carrito",
+  "zh": "购物车",
+  "hi": "कार्ट",
+  "ar": "السلة"
+ },
+ "Marketplace temporarily disabled.": {
+  "es": "Marketplace desactivado temporalmente.",
+  "zh": "市场暂时关闭。",
+  "hi": "मार्केटप्लेस अस्थायी रूप से बंद है।",
+  "ar": "المتجر معطّل مؤقتًا."
+ },
+ "Reason: {x}": {
+  "es": "Motivo: {x}",
+  "zh": "原因：{x}",
+  "hi": "कारण: {x}",
+  "ar": "السبب: {x}"
+ },
+ "Browsing only — purchasing and publishing are paused.": {
+  "es": "Solo consulta: las compras y las publicaciones están en pausa.",
+  "zh": "仅可浏览——购买和发布已暂停。",
+  "hi": "केवल ब्राउज़िंग — ख़रीदारी और प्रकाशन रुके हुए हैं।",
+  "ar": "التصفح فقط — الشراء والنشر متوقفان مؤقتًا."
+ },
+ "Payment received — your purchase is in the **Owned** tab below.": {
+  "es": "Pago recibido: tu compra está en la pestaña **Adquiridos**, más abajo.",
+  "zh": "已收到付款——你购买的作品在下方的**已拥有**标签页中。",
+  "hi": "भुगतान मिल गया — आपकी ख़रीद नीचे **मेरे आइटम** टैब में है।",
+  "ar": "تم استلام الدفع — مشترياتك في تبويب **المملوكة** أدناه."
+ },
+ "All kinds": {
+  "es": "Todos los tipos",
+  "zh": "全部类型",
+  "hi": "सभी प्रकार",
+  "ar": "كل الأنواع"
+ },
+ "3D Meshes": {
+  "es": "Modelos 3D",
+  "zh": "3D 模型",
+  "hi": "3D मॉडल",
+  "ar": "نماذج ثلاثية الأبعاد"
+ },
+ "2D Images": {
+  "es": "Imágenes 2D",
+  "zh": "2D 图像",
+  "hi": "2D इमेज",
+  "ar": "صور ثنائية الأبعاد"
+ },
+ "Rigs": {
+  "es": "Esqueletos",
+  "zh": "骨骼",
+  "hi": "रिग",
+  "ar": "الهياكل العظمية"
+ },
+ "Animations": {
+  "es": "Animaciones",
+  "zh": "动画",
+  "hi": "एनिमेशन",
+  "ar": "التحريكات"
+ },
+ "All": {
+  "es": "Todos",
+  "zh": "全部",
+  "hi": "सभी",
+  "ar": "الكل"
+ },
+ "Free this month": {
+  "es": "Gratis este mes",
+  "zh": "本月免费",
+  "hi": "इस महीने मुफ़्त",
+  "ar": "مجاني هذا الشهر"
+ },
+ "Free": {
+  "es": "Gratis",
+  "zh": "免费",
+  "hi": "मुफ़्त",
+  "ar": "مجاني"
+ },
+ "Paid": {
+  "es": "De pago",
+  "zh": "付费",
+  "hi": "सशुल्क",
+  "ar": "مدفوع"
+ },
+ "Owned": {
+  "es": "Adquiridos",
+  "zh": "已拥有",
+  "hi": "मेरे आइटम",
+  "ar": "المملوكة"
+ },
+ "Mine": {
+  "es": "Mis anuncios",
+  "zh": "我的发布",
+  "hi": "मेरी लिस्टिंग",
+  "ar": "إعلاناتي"
+ },
+ "Loading…": {
+  "es": "Cargando…",
+  "zh": "加载中…",
+  "hi": "लोड हो रहा है…",
+  "ar": "جارٍ التحميل…"
+ },
+ "1 listing": {
+  "es": "1 anuncio",
+  "zh": "1 件作品",
+  "hi": "1 लिस्टिंग",
+  "ar": "عرض واحد"
+ },
+ "{x} listings": {
+  "es": "{x} anuncios",
+  "zh": "{x} 件作品",
+  "hi": "{x} लिस्टिंग",
+  "ar": "عدد العروض: {x}"
+ },
+ "**1 free item this month** — claim it before {x} and keep it forever. The creators are still paid.": {
+  "es": "**1 artículo gratis este mes**: consíguelo antes del {x} y quédatelo para siempre. Los creadores siguen cobrando.",
+  "zh": "**本月有 1 件免费作品**——在 {x} 前领取即可永久保留。创作者照样获得报酬。",
+  "hi": "**इस महीने 1 मुफ़्त आइटम** — इसे {x} से पहले लें और हमेशा के लिए रखें। क्रिएटर्स को फिर भी भुगतान मिलता है।",
+  "ar": "**عنصر مجاني واحد هذا الشهر** — احصل عليه قبل {x} واحتفظ به للأبد. ويحصل المبدعون على أجرهم رغم ذلك."
+ },
+ "**1 free item this month** — claim it and keep it forever. The creators are still paid.": {
+  "es": "**1 artículo gratis este mes**: consíguelo y quédatelo para siempre. Los creadores siguen cobrando.",
+  "zh": "**本月有 1 件免费作品**——领取后即可永久保留。创作者照样获得报酬。",
+  "hi": "**इस महीने 1 मुफ़्त आइटम** — इसे लें और हमेशा के लिए रखें। क्रिएटर्स को फिर भी भुगतान मिलता है।",
+  "ar": "**عنصر مجاني واحد هذا الشهر** — احصل عليه واحتفظ به للأبد. ويحصل المبدعون على أجرهم رغم ذلك."
+ },
+ "**{x} free items this month** — claim them before {y} and keep them forever. The creators are still paid.": {
+  "es": "**{x} artículos gratis este mes**: consíguelos antes del {y} y quédatelos para siempre. Los creadores siguen cobrando.",
+  "zh": "**本月有 {x} 件免费作品**——在 {y} 前领取即可永久保留。创作者照样获得报酬。",
+  "hi": "**इस महीने {x} मुफ़्त आइटम** — इन्हें {y} से पहले लें और हमेशा के लिए रखें। क्रिएटर्स को फिर भी भुगतान मिलता है।",
+  "ar": "**عناصر مجانية هذا الشهر: {x}** — احصل عليها قبل {y} واحتفظ بها للأبد. ويحصل المبدعون على أجرهم رغم ذلك."
+ },
+ "**{x} free items this month** — claim them and keep them forever. The creators are still paid.": {
+  "es": "**{x} artículos gratis este mes**: consíguelos y quédatelos para siempre. Los creadores siguen cobrando.",
+  "zh": "**本月有 {x} 件免费作品**——领取后即可永久保留。创作者照样获得报酬。",
+  "hi": "**इस महीने {x} मुफ़्त आइटम** — इन्हें लें और हमेशा के लिए रखें। क्रिएटर्स को फिर भी भुगतान मिलता है।",
+  "ar": "**عناصر مجانية هذا الشهر: {x}** — احصل عليها واحتفظ بها للأبد. ويحصل المبدعون على أجرهم رغم ذلك."
+ },
+ "No purchases yet.": {
+  "es": "Todavía no hay compras.",
+  "zh": "还没有购买记录。",
+  "hi": "अभी तक कोई ख़रीद नहीं।",
+  "ar": "لا توجد مشتريات بعد."
+ },
+ "Browse all listings →": {
+  "es": "Ver todos los anuncios →",
+  "zh": "浏览全部作品 →",
+  "hi": "सभी लिस्टिंग देखें →",
+  "ar": "تصفّح كل العروض ←"
+ },
+ "No free items this month yet. Come back soon: five paid items are offered every month.": {
+  "es": "Todavía no hay artículos gratis este mes. Vuelve pronto: cada mes se regalan cinco artículos de pago.",
+  "zh": "本月暂无免费作品。请稍后再来：每月都会免费赠送五件付费作品。",
+  "hi": "इस महीने अभी तक कोई मुफ़्त आइटम नहीं। जल्द लौटें: हर महीने पाँच सशुल्क आइटम मुफ़्त दिए जाते हैं।",
+  "ar": "لا توجد عناصر مجانية هذا الشهر بعد. عُد قريبًا: نقدّم خمسة عناصر مدفوعة مجانًا كل شهر."
+ },
+ "You haven't published anything yet.": {
+  "es": "Todavía no has publicado nada.",
+  "zh": "你还没有发布任何作品。",
+  "hi": "आपने अभी तक कुछ भी प्रकाशित नहीं किया है।",
+  "ar": "لم تنشر أي شيء بعد."
+ },
+ "Open the app to publish a mesh →": {
+  "es": "Abrir la aplicación para publicar un modelo →",
+  "zh": "打开应用发布模型 →",
+  "hi": "मॉडल प्रकाशित करने के लिए ऐप खोलें →",
+  "ar": "افتح التطبيق لنشر نموذج ←"
+ },
+ "No listings match your filters yet.": {
+  "es": "Todavía no hay anuncios que coincidan con tus filtros.",
+  "zh": "暂无符合筛选条件的作品。",
+  "hi": "अभी आपके फ़िल्टर से मेल खाती कोई लिस्टिंग नहीं है।",
+  "ar": "لا توجد عروض تطابق عوامل التصفية بعد."
+ },
+ "Publish your first mesh →": {
+  "es": "Publica tu primer modelo →",
+  "zh": "发布你的第一个模型 →",
+  "hi": "अपना पहला मॉडल प्रकाशित करें →",
+  "ar": "انشر نموذجك الأول ←"
+ },
+ "3D viewer on click": {
+  "es": "Visor 3D al hacer clic",
+  "zh": "点击查看 3D",
+  "hi": "क्लिक करने पर 3D व्यूअर",
+  "ar": "عارض ثلاثي الأبعاد عند النقر"
+ },
+ "by {x}": {
+  "es": "por {x}",
+  "zh": "作者：{x}",
+  "hi": "{x} द्वारा",
+  "ar": "بواسطة {x}"
+ },
+ "2D image": {
+  "es": "Imagen 2D",
+  "zh": "2D 图像",
+  "hi": "2D इमेज",
+  "ar": "صورة ثنائية الأبعاد"
+ },
+ "Rig": {
+  "es": "Esqueleto",
+  "zh": "骨骼",
+  "hi": "रिग",
+  "ar": "هيكل عظمي"
+ },
+ "Animation": {
+  "es": "Animación",
+  "zh": "动画",
+  "hi": "एनिमेशन",
+  "ar": "تحريك"
+ },
+ "3D mesh": {
+  "es": "Modelo 3D",
+  "zh": "3D 模型",
+  "hi": "3D मॉडल",
+  "ar": "نموذج ثلاثي الأبعاد"
+ },
+ "Approved": {
+  "es": "Aprobado",
+  "zh": "已通过",
+  "hi": "स्वीकृत",
+  "ar": "مقبول"
+ },
+ "Rejected": {
+  "es": "Rechazado",
+  "zh": "已拒绝",
+  "hi": "अस्वीकृत",
+  "ar": "مرفوض"
+ },
+ "Pending review": {
+  "es": "Pendiente de revisión",
+  "zh": "待审核",
+  "hi": "समीक्षा लंबित",
+  "ar": "بانتظار المراجعة"
+ },
+ "Edit": {
+  "es": "Editar",
+  "zh": "编辑",
+  "hi": "संपादित करें",
+  "ar": "تعديل"
+ },
+ "Remove": {
+  "es": "Quitar",
+  "zh": "移除",
+  "hi": "हटाएँ",
+  "ar": "إزالة"
+ },
+ "Download": {
+  "es": "Descargar",
+  "zh": "下载",
+  "hi": "डाउनलोड करें",
+  "ar": "تنزيل"
+ },
+ "Free download": {
+  "es": "Descarga gratuita",
+  "zh": "免费下载",
+  "hi": "मुफ़्त डाउनलोड",
+  "ar": "تنزيل مجاني"
+ },
+ "Get it free": {
+  "es": "Conseguir gratis",
+  "zh": "免费领取",
+  "hi": "मुफ़्त पाएँ",
+  "ar": "احصل عليه مجانًا"
+ },
+ "Your listing": {
+  "es": "Tu anuncio",
+  "zh": "你的作品",
+  "hi": "आपकी लिस्टिंग",
+  "ar": "عرضك"
+ },
+ "In cart — remove": {
+  "es": "En el carrito — quitar",
+  "zh": "已在购物车——移除",
+  "hi": "कार्ट में है — हटाएँ",
+  "ar": "في السلة — إزالة"
+ },
+ "Add to cart": {
+  "es": "Añadir al carrito",
+  "zh": "加入购物车",
+  "hi": "कार्ट में जोड़ें",
+  "ar": "أضف إلى السلة"
+ },
+ "Preview: reduced quality with a watermark. The full-quality file comes with your purchase.": {
+  "es": "Vista previa: calidad reducida y con marca de agua. El archivo en calidad completa se entrega con tu compra.",
+  "zh": "预览：画质降低并带有水印。购买后可获得完整画质的文件。",
+  "hi": "प्रीव्यू: कम गुणवत्ता और वॉटरमार्क के साथ। पूरी गुणवत्ता वाली फ़ाइल ख़रीद के साथ मिलती है।",
+  "ar": "معاينة: جودة منخفضة مع علامة مائية. يُسلَّم الملف بالجودة الكاملة مع الشراء."
+ },
+ "No ratings yet": {
+  "es": "Aún sin valoraciones",
+  "zh": "暂无评分",
+  "hi": "अभी कोई रेटिंग नहीं",
+  "ar": "لا توجد تقييمات بعد"
+ },
+ "Your rating:": {
+  "es": "Tu valoración:",
+  "zh": "你的评分：",
+  "hi": "आपकी रेटिंग:",
+  "ar": "تقييمك:"
+ },
+ "until {x}": {
+  "es": "hasta el {x}",
+  "zh": "截至 {x}",
+  "hi": "{x} तक",
+  "ar": "حتى {x}"
+ },
+ "the creator is still paid": {
+  "es": "el creador sigue cobrando",
+  "zh": "创作者照样获得报酬",
+  "hi": "क्रिएटर को फिर भी भुगतान मिलता है",
+  "ar": "ويحصل المبدع على أجره رغم ذلك"
+ },
+ "Get it free — yours to keep": {
+  "es": "Consíguelo gratis: es tuyo para siempre",
+  "zh": "免费领取——永久归你所有",
+  "hi": "मुफ़्त पाएँ — हमेशा आपका",
+  "ar": "احصل عليه مجانًا — ملكك للأبد"
+ },
+ "Report this listing": {
+  "es": "Denunciar este anuncio",
+  "zh": "举报此作品",
+  "hi": "इस लिस्टिंग की रिपोर्ट करें",
+  "ar": "الإبلاغ عن هذا العرض"
+ },
+ "Your cart is empty. Add paid listings from the grid.": {
+  "es": "Tu carrito está vacío. Añade anuncios de pago desde la cuadrícula.",
+  "zh": "购物车是空的。请从列表中添加付费作品。",
+  "hi": "आपकी कार्ट खाली है। ग्रिड से सशुल्क लिस्टिंग जोड़ें।",
+  "ar": "سلتك فارغة. أضف عروضًا مدفوعة من الشبكة."
+ },
+ "Total": {
+  "es": "Total",
+  "zh": "合计",
+  "hi": "कुल",
+  "ar": "الإجمالي"
+ },
+ "Redirecting to Stripe…": {
+  "es": "Redirigiendo a Stripe…",
+  "zh": "正在跳转到 Stripe…",
+  "hi": "Stripe पर भेजा जा रहा है…",
+  "ar": "جارٍ التحويل إلى Stripe…"
+ },
+ "Checkout with Stripe": {
+  "es": "Pagar con Stripe",
+  "zh": "通过 Stripe 结账",
+  "hi": "Stripe से भुगतान करें",
+  "ar": "الدفع عبر Stripe"
+ },
+ "Secure payment via Stripe · the 30% platform fee covers infrastructure and commission · sellers receive 70% net.": {
+  "es": "Pago seguro con Stripe · la tarifa del 30 % de la plataforma cubre la infraestructura y la comisión · los vendedores reciben el 70 % neto.",
+  "zh": "通过 Stripe 安全支付 · 30% 的平台费用涵盖基础设施和佣金 · 卖家实得 70%。",
+  "hi": "Stripe के ज़रिए सुरक्षित भुगतान · 30% प्लैटफ़ॉर्म शुल्क में इन्फ्रास्ट्रक्चर और कमीशन शामिल है · विक्रेताओं को 70% शुद्ध मिलता है।",
+  "ar": "دفع آمن عبر Stripe · رسوم المنصة البالغة 30% تغطي البنية التحتية والعمولة · يحصل البائعون على 70% صافيًا."
+ },
+ "Confirm your purchase": {
+  "es": "Confirma tu compra",
+  "zh": "确认购买",
+  "hi": "अपनी ख़रीद की पुष्टि करें",
+  "ar": "أكّد عملية الشراء"
+ },
+ "The legal notice below is available in French only.": {
+  "es": "El aviso legal de abajo solo está disponible en francés.",
+  "zh": "下方的法律声明仅提供法文版本。",
+  "hi": "नीचे दी गई कानूनी सूचना केवल फ़्रेंच में उपलब्ध है।",
+  "ar": "الإشعار القانوني أدناه متاح باللغة الفرنسية فقط."
+ },
+ "Cancel": {
+  "es": "Cancelar",
+  "zh": "取消",
+  "hi": "रद्द करें",
+  "ar": "إلغاء"
+ },
+ "Confirm and pay {x}": {
+  "es": "Confirmar y pagar {x}",
+  "zh": "确认并支付 {x}",
+  "hi": "पुष्टि करें और {x} का भुगतान करें",
+  "ar": "تأكيد ودفع {x}"
+ },
+ "Edit listing": {
+  "es": "Editar el anuncio",
+  "zh": "编辑作品",
+  "hi": "लिस्टिंग संपादित करें",
+  "ar": "تعديل العرض"
+ },
+ "Saving changes puts the listing back to **pending review** so an admin can check it again.": {
+  "es": "Al guardar los cambios, el anuncio vuelve a quedar **pendiente de revisión** para que un administrador lo compruebe de nuevo.",
+  "zh": "保存修改后，作品会重新变为**待审核**状态，由管理员再次审核。",
+  "hi": "बदलाव सहेजने पर लिस्टिंग फिर से **समीक्षा लंबित** हो जाती है, ताकि कोई एडमिन उसे दोबारा जाँच सके।",
+  "ar": "يؤدي حفظ التغييرات إلى إعادة العرض إلى حالة **بانتظار المراجعة** ليتحقق منه أحد المشرفين مجددًا."
+ },
+ "Title": {
+  "es": "Título",
+  "zh": "标题",
+  "hi": "शीर्षक",
+  "ar": "العنوان"
+ },
+ "Description": {
+  "es": "Descripción",
+  "zh": "描述",
+  "hi": "विवरण",
+  "ar": "الوصف"
+ },
+ "Price (in cents — 0 for free)": {
+  "es": "Precio (en céntimos; 0 = gratis)",
+  "zh": "价格（单位：分；0 表示免费）",
+  "hi": "कीमत (सेंट में — मुफ़्त के लिए 0)",
+  "ar": "السعر (بالسنت — 0 للمجاني)"
+ },
+ "Preview: {x}": {
+  "es": "Vista previa: {x}",
+  "zh": "预览：{x}",
+  "hi": "प्रीव्यू: {x}",
+  "ar": "معاينة: {x}"
+ },
+ "Licence": {
+  "es": "Licencia",
+  "zh": "许可",
+  "hi": "लाइसेंस",
+  "ar": "الترخيص"
+ },
+ "Saving…": {
+  "es": "Guardando…",
+  "zh": "正在保存…",
+  "hi": "सहेजा जा रहा है…",
+  "ar": "جارٍ الحفظ…"
+ },
+ "Save changes": {
+  "es": "Guardar los cambios",
+  "zh": "保存修改",
+  "hi": "बदलाव सहेजें",
+  "ar": "حفظ التغييرات"
+ },
+ "Want to publish a mesh you generated? Open the app, click a finished mesh, and use the **🛒 Publish to marketplace** button. An admin will review your listing before it goes live here.": {
+  "es": "¿Quieres publicar un modelo que has generado? Abre la aplicación, haz clic en un modelo terminado y usa el botón **🛒 Publicar en el marketplace**. Un administrador revisará tu anuncio antes de que aparezca aquí.",
+  "zh": "想发布你生成的模型？打开应用，点击一个已完成的模型，然后使用**🛒 发布到市场**按钮。管理员审核通过后，你的作品才会在这里上线。",
+  "hi": "अपना बनाया हुआ मॉडल प्रकाशित करना चाहते हैं? ऐप खोलें, कोई पूरा हुआ मॉडल चुनें और **🛒 मार्केटप्लेस पर प्रकाशित करें** बटन का उपयोग करें। यहाँ दिखने से पहले कोई एडमिन आपकी लिस्टिंग की समीक्षा करेगा।",
+  "ar": "هل تريد نشر نموذج أنشأته؟ افتح التطبيق، وانقر على نموذج مكتمل، واستخدم زر **🛒 النشر في المتجر**. سيراجع أحد المشرفين عرضك قبل ظهوره هنا."
+ },
+ "AI-generated content": {
+  "es": "Contenido generado por IA",
+  "zh": "AI 生成的内容",
+  "hi": "AI द्वारा बनाई गई सामग्री",
+  "ar": "محتوى مُنشأ بالذكاء الاصطناعي"
+ },
+ "Personal use": {
+  "es": "Uso personal",
+  "zh": "个人使用",
+  "hi": "निजी उपयोग",
+  "ar": "استخدام شخصي"
+ },
+ "CC0 (public domain)": {
+  "es": "CC0 (dominio público)",
+  "zh": "CC0（公有领域）",
+  "hi": "CC0 (पब्लिक डोमेन)",
+  "ar": "CC0 (ملكية عامة)"
+ },
+ "CC-BY 4.0": {
+  "es": "CC-BY 4.0",
+  "zh": "CC-BY 4.0",
+  "hi": "CC-BY 4.0",
+  "ar": "CC-BY 4.0"
+ },
+ "CC-BY-NC 4.0": {
+  "es": "CC-BY-NC 4.0",
+  "zh": "CC-BY-NC 4.0",
+  "hi": "CC-BY-NC 4.0",
+  "ar": "CC-BY-NC 4.0"
+ },
+ "Royalty-free commercial": {
+  "es": "Comercial libre de regalías",
+  "zh": "免版税商业用途",
+  "hi": "रॉयल्टी-मुक्त वाणिज्यिक",
+  "ar": "تجاري خالٍ من الإتاوات"
+ },
+ "Rate {x} out of 5": {
+  "es": "Valorar con {x} de 5",
+  "zh": "评 {x} 分（满分 5 分）",
+  "hi": "5 में से {x} रेटिंग दें",
+  "ar": "التقييم بـ {x} من 5"
+ },
+ "Request failed ({x}).": {
+  "es": "La solicitud ha fallado ({x}).",
+  "zh": "请求失败（{x}）。",
+  "hi": "अनुरोध विफल रहा ({x})।",
+  "ar": "فشل الطلب ({x})."
+ },
+ "Could not claim this item: {x}": {
+  "es": "No se pudo conseguir este artículo: {x}",
+  "zh": "无法领取此作品：{x}",
+  "hi": "यह आइटम नहीं लिया जा सका: {x}",
+  "ar": "تعذّر الحصول على هذا العنصر: {x}"
+ },
+ "Please sign in to report a listing.": {
+  "es": "Inicia sesión para denunciar un anuncio.",
+  "zh": "请先登录再举报作品。",
+  "hi": "किसी लिस्टिंग की रिपोर्ट करने के लिए कृपया साइन इन करें।",
+  "ar": "يُرجى تسجيل الدخول للإبلاغ عن عرض."
+ },
+ "Why are you reporting this listing? (illegal content, copyright / IP infringement, etc.)": {
+  "es": "¿Por qué denuncias este anuncio? (contenido ilegal, infracción de derechos de autor o de propiedad intelectual, etc.)",
+  "zh": "你为什么举报此作品？（违法内容、侵犯版权或知识产权等）",
+  "hi": "आप इस लिस्टिंग की रिपोर्ट क्यों कर रहे हैं? (अवैध सामग्री, कॉपीराइट / बौद्धिक संपदा का उल्लंघन आदि)",
+  "ar": "لماذا تبلّغ عن هذا العرض؟ (محتوى غير قانوني، أو انتهاك حقوق النشر أو الملكية الفكرية، إلخ)"
+ },
+ "Report failed: {x}": {
+  "es": "No se pudo enviar la denuncia: {x}",
+  "zh": "举报失败：{x}",
+  "hi": "रिपोर्ट नहीं भेजी जा सकी: {x}",
+  "ar": "تعذّر إرسال البلاغ: {x}"
+ },
+ "Thank you. This listing has been hidden pending moderator review.": {
+  "es": "Gracias. Este anuncio se ha ocultado hasta que lo revise un moderador.",
+  "zh": "感谢你的举报。此作品已被隐藏，等待版主审核。",
+  "hi": "धन्यवाद। मॉडरेटर की समीक्षा तक यह लिस्टिंग छिपा दी गई है।",
+  "ar": "شكرًا لك. أُخفي هذا العرض بانتظار مراجعة أحد المشرفين."
+ },
+ "Thank you. Your report has been sent to our moderators.": {
+  "es": "Gracias. Tu denuncia se ha enviado a nuestros moderadores.",
+  "zh": "感谢你的举报。举报已发送给我们的版主。",
+  "hi": "धन्यवाद। आपकी रिपोर्ट हमारे मॉडरेटरों को भेज दी गई है।",
+  "ar": "شكرًا لك. أُرسل بلاغك إلى المشرفين لدينا."
+ },
+ "No payment page was returned.": {
+  "es": "No se ha recibido ninguna página de pago.",
+  "zh": "未返回付款页面。",
+  "hi": "कोई भुगतान पेज नहीं मिला।",
+  "ar": "لم تُرجَع أي صفحة دفع."
+ },
+ "Checkout failed: {x}": {
+  "es": "El pago ha fallado: {x}",
+  "zh": "结账失败：{x}",
+  "hi": "भुगतान विफल रहा: {x}",
+  "ar": "فشل الدفع: {x}"
+ },
+ "Remove this listing from the marketplace?": {
+  "es": "¿Retirar este anuncio del marketplace?",
+  "zh": "要从市场移除此作品吗？",
+  "hi": "इस लिस्टिंग को मार्केटप्लेस से हटाएँ?",
+  "ar": "هل تريد إزالة هذا العرض من المتجر؟"
+ },
+ "Remove failed: {x}": {
+  "es": "No se pudo retirar: {x}",
+  "zh": "移除失败：{x}",
+  "hi": "हटाया नहीं जा सका: {x}",
+  "ar": "تعذّرت الإزالة: {x}"
+ },
+ "Rating failed: {x}": {
+  "es": "No se pudo guardar la valoración: {x}",
+  "zh": "评分失败：{x}",
+  "hi": "रेटिंग नहीं दी जा सकी: {x}",
+  "ar": "تعذّر التقييم: {x}"
+ },
+ "Title is required.": {
+  "es": "El título es obligatorio.",
+  "zh": "标题为必填项。",
+  "hi": "शीर्षक ज़रूरी है।",
+  "ar": "العنوان مطلوب."
+ },
+ "Save failed: {x}": {
+  "es": "No se pudo guardar: {x}",
+  "zh": "保存失败：{x}",
+  "hi": "सहेजा नहीं जा सका: {x}",
+  "ar": "تعذّر الحفظ: {x}"
+ },
+ "🔍 Search listings…": {
+  "es": "🔍 Buscar anuncios…",
+  "zh": "🔍 搜索作品…",
+  "hi": "🔍 लिस्टिंग खोजें…",
+  "ar": "🔍 ابحث في العروض…"
+ },
+ "Free until {x}": {
+  "es": "Gratis hasta el {x}",
+  "zh": "{x} 前免费",
+  "hi": "{x} तक मुफ़्त",
+  "ar": "مجاني حتى {x}"
+ },
+ "Report this listing as illegal or infringing": {
+  "es": "Denunciar este anuncio por ilegal o por infringir derechos",
+  "zh": "举报此作品违法或侵权",
+  "hi": "इस लिस्टिंग की अवैध या उल्लंघनकारी होने की रिपोर्ट करें",
+  "ar": "الإبلاغ عن هذا العرض لكونه غير قانوني أو منتهكًا للحقوق"
+ },
+ "Click to inspect on the marketplace": {
+  "es": "Haz clic para verlo en el marketplace",
+  "zh": "点击在市场中查看",
+  "hi": "मार्केटप्लेस पर देखने के लिए क्लिक करें",
+  "ar": "انقر لعرضه في المتجر"
+ },
+ "Tick the box above to continue": {
+  "es": "Marca la casilla de arriba para continuar",
+  "zh": "请勾选上方的复选框以继续",
+  "hi": "जारी रखने के लिए ऊपर दिया गया बॉक्स चुनें",
+  "ar": "حدّد المربع أعلاه للمتابعة"
+ },
+ "Loading author profile…": {
+  "es": "Cargando el perfil del autor…",
+  "zh": "正在加载作者资料…",
+  "hi": "लेखक की प्रोफ़ाइल लोड हो रही है…",
+  "ar": "جارٍ تحميل ملف المؤلف…"
+ },
+ "← Back to marketplace": {
+  "es": "← Volver al marketplace",
+  "zh": "← 返回市场",
+  "hi": "← मार्केटप्लेस पर वापस जाएँ",
+  "ar": "→ العودة إلى المتجر"
+ },
+ "Could not load this author profile ({x}).": {
+  "es": "No se pudo cargar el perfil de este autor ({x}).",
+  "zh": "无法加载该作者资料（{x}）。",
+  "hi": "इस लेखक की प्रोफ़ाइल लोड नहीं हो सकी ({x})।",
+  "ar": "تعذّر تحميل ملف هذا المؤلف ({x})."
+ },
+ "Could not load this author profile.": {
+  "es": "No se pudo cargar el perfil de este autor.",
+  "zh": "无法加载该作者资料。",
+  "hi": "इस लेखक की प्रोफ़ाइल लोड नहीं हो सकी।",
+  "ar": "تعذّر تحميل ملف هذا المؤلف."
+ },
+ "Anonymous": {
+  "es": "Anónimo",
+  "zh": "匿名",
+  "hi": "अज्ञात",
+  "ar": "مجهول"
+ },
+ "Member since {x}": {
+  "es": "Miembro desde {x}",
+  "zh": "加入时间：{x}",
+  "hi": "{x} से सदस्य",
+  "ar": "عضو منذ {x}"
+ },
+ "Listings published": {
+  "es": "Anuncios publicados",
+  "zh": "已发布作品",
+  "hi": "प्रकाशित लिस्टिंग",
+  "ar": "العروض المنشورة"
+ },
+ "Total sales": {
+  "es": "Ventas totales",
+  "zh": "总销量",
+  "hi": "कुल बिक्री",
+  "ar": "إجمالي المبيعات"
+ },
+ "Total earned": {
+  "es": "Ganancias totales",
+  "zh": "总收入",
+  "hi": "कुल कमाई",
+  "ar": "إجمالي الأرباح"
+ },
+ "Listings by {x}": {
+  "es": "Anuncios de {x}",
+  "zh": "{x} 的作品",
+  "hi": "{x} की लिस्टिंग",
+  "ar": "عروض {x}"
+ },
+ "Listings by an anonymous creator": {
+  "es": "Anuncios de un creador anónimo",
+  "zh": "匿名创作者的作品",
+  "hi": "एक अज्ञात क्रिएटर की लिस्टिंग",
+  "ar": "عروض مبدع مجهول"
+ },
+ "This creator hasn't published anything yet.": {
+  "es": "Este creador todavía no ha publicado nada.",
+  "zh": "该创作者还没有发布任何作品。",
+  "hi": "इस क्रिएटर ने अभी तक कुछ भी प्रकाशित नहीं किया है।",
+  "ar": "لم ينشر هذا المبدع أي شيء بعد."
+ },
+ "Author id required (e.g. /market/author?id=<user_id>)": {
+  "es": "Se necesita el identificador del autor (p. ej., /market/author?id=<user_id>)",
+  "zh": "需要作者 ID（例如 /market/author?id=<user_id>）",
+  "hi": "लेखक की ID ज़रूरी है (उदा. /market/author?id=<user_id>)",
+  "ar": "معرّف المؤلف مطلوب (مثل /market/author?id=<user_id>)"
+ },
+ "Verify your email": {
+  "es": "Verifica tu correo electrónico",
+  "zh": "验证你的电子邮件",
+  "hi": "अपना ईमेल सत्यापित करें",
+  "ar": "تحقّق من بريدك الإلكتروني"
+ },
+ "Enter the 6-digit code sent to **{x}**.": {
+  "es": "Introduce el código de 6 dígitos enviado a **{x}**.",
+  "zh": "请输入发送到 **{x}** 的 6 位验证码。",
+  "hi": "**{x}** पर भेजा गया 6 अंकों का कोड दर्ज करें।",
+  "ar": "أدخل الرمز المكوّن من 6 أرقام المرسل إلى **{x}**."
+ },
+ "Don't have it? Request a new one below.": {
+  "es": "¿No lo tienes? Pide uno nuevo abajo.",
+  "zh": "没有收到？请在下方重新获取。",
+  "hi": "नहीं मिला? नीचे नया कोड माँगें।",
+  "ar": "لم يصلك؟ اطلب رمزًا جديدًا أدناه."
+ },
+ "Verification code": {
+  "es": "Código de verificación",
+  "zh": "验证码",
+  "hi": "सत्यापन कोड",
+  "ar": "رمز التحقق"
+ },
+ "Confirm account": {
+  "es": "Confirmar la cuenta",
+  "zh": "确认账户",
+  "hi": "खाते की पुष्टि करें",
+  "ar": "تأكيد الحساب"
+ },
+ "Didn't get it (or code expired)? Send a new code": {
+  "es": "¿No te ha llegado (o ha caducado)? Enviar un código nuevo",
+  "zh": "没有收到（或验证码已过期）？重新发送验证码",
+  "hi": "नहीं मिला (या कोड की समय-सीमा ख़त्म हो गई)? नया कोड भेजें",
+  "ar": "لم يصلك الرمز (أو انتهت صلاحيته)؟ أرسل رمزًا جديدًا"
+ },
+ "← Back to sign in": {
+  "es": "← Volver a iniciar sesión",
+  "zh": "← 返回登录",
+  "hi": "← साइन इन पर वापस जाएँ",
+  "ar": "→ العودة إلى تسجيل الدخول"
+ },
+ "Reset your password": {
+  "es": "Restablece tu contraseña",
+  "zh": "重置密码",
+  "hi": "अपना पासवर्ड रीसेट करें",
+  "ar": "إعادة تعيين كلمة المرور"
+ },
+ "Enter your account email — we'll send you a reset link.": {
+  "es": "Introduce el correo de tu cuenta y te enviaremos un enlace para restablecerla.",
+  "zh": "输入你的账户邮箱，我们会向你发送重置链接。",
+  "hi": "अपने खाते का ईमेल दर्ज करें — हम आपको रीसेट लिंक भेजेंगे।",
+  "ar": "أدخل البريد الإلكتروني لحسابك — وسنرسل إليك رابط إعادة التعيين."
+ },
+ "Email": {
+  "es": "Correo electrónico",
+  "zh": "电子邮件",
+  "hi": "ईमेल",
+  "ar": "البريد الإلكتروني"
+ },
+ "Send reset link": {
+  "es": "Enviar el enlace de restablecimiento",
+  "zh": "发送重置链接",
+  "hi": "रीसेट लिंक भेजें",
+  "ar": "إرسال رابط إعادة التعيين"
+ },
+ "Check your inbox": {
+  "es": "Revisa tu bandeja de entrada",
+  "zh": "请查收邮件",
+  "hi": "अपना इनबॉक्स देखें",
+  "ar": "تحقّق من بريدك الوارد"
+ },
+ "I have the code → Enter it": {
+  "es": "Tengo el código → Introducirlo",
+  "zh": "我已收到验证码 → 输入",
+  "hi": "मेरे पास कोड है → दर्ज करें",
+  "ar": "لديّ الرمز ← أدخله"
+ },
+ "Password": {
+  "es": "Contraseña",
+  "zh": "密码",
+  "hi": "पासवर्ड",
+  "ar": "كلمة المرور"
+ },
+ "I confirm I am at least 16 years old (or have my guardian's consent) and I accept the [Terms of Service](/legal/terms) and the [Privacy Policy](/legal/privacy).": {
+  "es": "Confirmo que tengo al menos 16 años (o el consentimiento de mi tutor legal) y acepto las [Condiciones del servicio](/legal/terms) y la [Política de privacidad](/legal/privacy).",
+  "zh": "我确认我已年满 16 周岁（或已获得监护人同意），并接受[服务条款](/legal/terms)和[隐私政策](/legal/privacy)。",
+  "hi": "मैं पुष्टि करता/करती हूँ कि मेरी उम्र कम से कम 16 वर्ष है (या मेरे अभिभावक की सहमति है) और मैं [सेवा की शर्तें](/legal/terms) तथा [गोपनीयता नीति](/legal/privacy) स्वीकार करता/करती हूँ।",
+  "ar": "أؤكد أن عمري 16 عامًا على الأقل (أو أن لديّ موافقة وليّ أمري)، وأقبل [شروط الخدمة](/legal/terms) و[سياسة الخصوصية](/legal/privacy)."
+ },
+ "Create account": {
+  "es": "Crear la cuenta",
+  "zh": "创建账户",
+  "hi": "खाता बनाएँ",
+  "ar": "إنشاء الحساب"
+ },
+ "← Have an account? Sign in": {
+  "es": "← ¿Ya tienes cuenta? Inicia sesión",
+  "zh": "← 已有账户？登录",
+  "hi": "← पहले से खाता है? साइन इन करें",
+  "ar": "→ لديك حساب؟ سجّل الدخول"
+ },
+ "Create an account": {
+  "es": "Crear una cuenta",
+  "zh": "注册账户",
+  "hi": "नया खाता बनाएँ",
+  "ar": "إنشاء حساب"
+ },
+ "Forgot password?": {
+  "es": "¿Has olvidado tu contraseña?",
+  "zh": "忘记密码？",
+  "hi": "पासवर्ड भूल गए?",
+  "ar": "هل نسيت كلمة المرور؟"
+ },
+ "Account not verified? Enter your 6-digit code": {
+  "es": "¿Cuenta sin verificar? Introduce tu código de 6 dígitos",
+  "zh": "账户尚未验证？输入你的 6 位验证码",
+  "hi": "खाता सत्यापित नहीं है? अपना 6 अंकों का कोड दर्ज करें",
+  "ar": "حسابك غير مُتحقَّق منه؟ أدخل رمزك المكوّن من 6 أرقام"
+ },
+ "We couldn't send the verification email right now (the email service is temporarily unavailable). Please try again in a minute — if it keeps failing, contact us.": {
+  "es": "No hemos podido enviar el correo de verificación (el servicio de correo no está disponible temporalmente). Inténtalo de nuevo dentro de un minuto; si sigue fallando, contáctanos.",
+  "zh": "暂时无法发送验证邮件（邮件服务暂时不可用）。请一分钟后再试；如果仍然失败，请联系我们。",
+  "hi": "अभी सत्यापन ईमेल नहीं भेजा जा सका (ईमेल सेवा अस्थायी रूप से उपलब्ध नहीं है)। कृपया एक मिनट बाद फिर कोशिश करें — अगर फिर भी न हो, तो हमसे संपर्क करें।",
+  "ar": "تعذّر إرسال رسالة التحقق الآن (خدمة البريد غير متاحة مؤقتًا). يُرجى المحاولة بعد دقيقة — وإن استمر الخطأ، فتواصل معنا."
+ },
+ "This email is already registered — use \"Sign in\" instead (or reset your password).": {
+  "es": "Este correo ya está registrado: usa «Iniciar sesión» (o restablece tu contraseña).",
+  "zh": "该邮箱已注册——请改用“登录”（或重置密码）。",
+  "hi": "यह ईमेल पहले से पंजीकृत है — इसके बजाय “साइन इन करें” का उपयोग करें (या अपना पासवर्ड रीसेट करें)।",
+  "ar": "هذا البريد الإلكتروني مسجّل بالفعل — استخدم «تسجيل الدخول» بدلًا من ذلك (أو أعِد تعيين كلمة المرور)."
+ },
+ "Incorrect email or password.": {
+  "es": "Correo electrónico o contraseña incorrectos.",
+  "zh": "邮箱或密码不正确。",
+  "hi": "ईमेल या पासवर्ड गलत है।",
+  "ar": "البريد الإلكتروني أو كلمة المرور غير صحيحة."
+ },
+ "Your email isn't verified yet. Enter the 6-digit code we emailed you — or ask for a new one below.": {
+  "es": "Tu correo aún no está verificado. Introduce el código de 6 dígitos que te enviamos o pide uno nuevo abajo.",
+  "zh": "你的邮箱尚未验证。请输入我们通过邮件发送的 6 位验证码，或在下方重新获取。",
+  "hi": "आपका ईमेल अभी सत्यापित नहीं है। हमने जो 6 अंकों का कोड ईमेल किया है, उसे दर्ज करें — या नीचे नया कोड माँगें।",
+  "ar": "لم يُتحقَّق من بريدك الإلكتروني بعد. أدخل الرمز المكوّن من 6 أرقام الذي أرسلناه إليك — أو اطلب رمزًا جديدًا أدناه."
+ },
+ "Too many attempts — please wait a minute and try again.": {
+  "es": "Demasiados intentos: espera un minuto y vuelve a intentarlo.",
+  "zh": "尝试次数过多——请稍等一分钟后再试。",
+  "hi": "बहुत ज़्यादा प्रयास — कृपया एक मिनट रुककर फिर कोशिश करें।",
+  "ar": "محاولات كثيرة جدًا — يُرجى الانتظار دقيقة ثم المحاولة مجددًا."
+ },
+ "That code is invalid or has expired — request a new one.": {
+  "es": "Ese código no es válido o ha caducado: pide uno nuevo.",
+  "zh": "该验证码无效或已过期——请重新获取。",
+  "hi": "यह कोड अमान्य है या इसकी समय-सीमा ख़त्म हो गई है — नया कोड माँगें।",
+  "ar": "هذا الرمز غير صالح أو انتهت صلاحيته — اطلب رمزًا جديدًا."
+ },
+ "MyFabmesh.AI is down for maintenance. Please try again in a few minutes.": {
+  "es": "MyFabmesh.AI está en mantenimiento. Inténtalo de nuevo dentro de unos minutos.",
+  "zh": "MyFabmesh.AI 正在维护中。请几分钟后再试。",
+  "hi": "MyFabmesh.AI रखरखाव के लिए बंद है। कृपया कुछ मिनट बाद फिर कोशिश करें।",
+  "ar": "MyFabmesh.AI متوقف للصيانة. يُرجى المحاولة بعد بضع دقائق."
+ },
+ "Could not open your session ({x}). Please try again.": {
+  "es": "No se pudo abrir tu sesión ({x}). Inténtalo de nuevo.",
+  "zh": "无法建立你的会话（{x}）。请重试。",
+  "hi": "आपका सत्र शुरू नहीं हो सका ({x})। कृपया फिर कोशिश करें।",
+  "ar": "تعذّر فتح جلستك ({x}). يُرجى المحاولة مجددًا."
+ },
+ "We sent a new 6-digit code to {x}. Check your inbox (and spam), then enter it below.": {
+  "es": "Hemos enviado un nuevo código de 6 dígitos a {x}. Revisa tu bandeja de entrada (y el correo no deseado) e introdúcelo abajo.",
+  "zh": "我们已向 {x} 发送了新的 6 位验证码。请查看收件箱（以及垃圾邮件），然后在下方输入。",
+  "hi": "हमने {x} पर 6 अंकों का नया कोड भेजा है। अपना इनबॉक्स (और स्पैम) देखें, फिर नीचे दर्ज करें।",
+  "ar": "أرسلنا رمزًا جديدًا مكوّنًا من 6 أرقام إلى {x}. تحقّق من بريدك الوارد (ومن الرسائل غير المرغوب فيها)، ثم أدخله أدناه."
+ },
+ "Enter your email address first.": {
+  "es": "Introduce primero tu dirección de correo.",
+  "zh": "请先输入你的邮箱地址。",
+  "hi": "पहले अपना ईमेल पता दर्ज करें।",
+  "ar": "أدخل عنوان بريدك الإلكتروني أولًا."
+ },
+ "Sign-in succeeded but no session was returned.": {
+  "es": "Se ha iniciado sesión, pero no se ha recibido ninguna sesión.",
+  "zh": "登录成功，但未返回会话。",
+  "hi": "साइन इन सफल रहा, लेकिन कोई सत्र नहीं मिला।",
+  "ar": "نجح تسجيل الدخول لكن لم تُرجَع أي جلسة."
+ },
+ "Password must be at least 6 characters.": {
+  "es": "La contraseña debe tener al menos 6 caracteres.",
+  "zh": "密码至少需要 6 个字符。",
+  "hi": "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।",
+  "ar": "يجب أن تتكوّن كلمة المرور من 6 أحرف على الأقل."
+ },
+ "Please confirm your age and accept the Terms and Privacy Policy.": {
+  "es": "Confirma tu edad y acepta las Condiciones y la Política de privacidad.",
+  "zh": "请确认你的年龄，并接受服务条款和隐私政策。",
+  "hi": "कृपया अपनी उम्र की पुष्टि करें और शर्तें तथा गोपनीयता नीति स्वीकार करें।",
+  "ar": "يُرجى تأكيد عمرك وقبول الشروط وسياسة الخصوصية."
+ },
+ "Account created. Check your inbox for a 6-digit code to verify your email.": {
+  "es": "Cuenta creada. Busca en tu bandeja de entrada el código de 6 dígitos para verificar tu correo.",
+  "zh": "账户已创建。请在收件箱中查收 6 位验证码以验证你的邮箱。",
+  "hi": "खाता बन गया। अपना ईमेल सत्यापित करने के लिए इनबॉक्स में 6 अंकों का कोड देखें।",
+  "ar": "تم إنشاء الحساب. ستجد في بريدك الوارد رمزًا مكوّنًا من 6 أرقام للتحقق من بريدك الإلكتروني."
+ },
+ "Verification succeeded but no session was returned.": {
+  "es": "La verificación se ha completado, pero no se ha recibido ninguna sesión.",
+  "zh": "验证成功，但未返回会话。",
+  "hi": "सत्यापन सफल रहा, लेकिन कोई सत्र नहीं मिला।",
+  "ar": "نجح التحقق لكن لم تُرجَع أي جلسة."
+ },
+ "We sent a 6-digit code to {x}. Open the email (check spam too) and enter the code on the next screen.": {
+  "es": "Hemos enviado un código de 6 dígitos a {x}. Abre el correo (mira también en el correo no deseado) e introduce el código en la siguiente pantalla.",
+  "zh": "我们已向 {x} 发送了 6 位验证码。请打开邮件（也请检查垃圾邮件），并在下一个页面输入验证码。",
+  "hi": "हमने {x} पर 6 अंकों का कोड भेजा है। ईमेल खोलें (स्पैम भी देखें) और अगली स्क्रीन पर कोड दर्ज करें।",
+  "ar": "أرسلنا رمزًا مكوّنًا من 6 أرقام إلى {x}. افتح الرسالة (وتحقّق من الرسائل غير المرغوب فيها أيضًا) وأدخل الرمز في الشاشة التالية."
+ },
+ "Choose a password (6+ characters)": {
+  "es": "Elige una contraseña (6 caracteres o más)",
+  "zh": "设置密码（至少 6 个字符）",
+  "hi": "पासवर्ड चुनें (6 या अधिक अक्षर)",
+  "ar": "اختر كلمة مرور (6 أحرف أو أكثر)"
+ },
+ "Your password": {
+  "es": "Tu contraseña",
+  "zh": "你的密码",
+  "hi": "आपका पासवर्ड",
+  "ar": "كلمة مرورك"
+ },
+ "Hide password": {
+  "es": "Ocultar la contraseña",
+  "zh": "隐藏密码",
+  "hi": "पासवर्ड छिपाएँ",
+  "ar": "إخفاء كلمة المرور"
+ },
+ "Show password": {
+  "es": "Mostrar la contraseña",
+  "zh": "显示密码",
+  "hi": "पासवर्ड दिखाएँ",
+  "ar": "إظهار كلمة المرور"
+ },
+ "Welcome back": {
+  "es": "Hola de nuevo",
+  "zh": "欢迎回来",
+  "hi": "वापसी पर स्वागत है",
+  "ar": "مرحبًا بعودتك"
+ },
+ "Sign in with your email and password to access your Cloud workspace.": {
+  "es": "Inicia sesión con tu correo y tu contraseña para acceder a tu espacio en la nube.",
+  "zh": "使用邮箱和密码登录，进入你的云端工作区。",
+  "hi": "अपने क्लाउड वर्कस्पेस तक पहुँचने के लिए अपने ईमेल और पासवर्ड से साइन इन करें।",
+  "ar": "سجّل الدخول ببريدك الإلكتروني وكلمة المرور للوصول إلى مساحة عملك السحابية."
+ },
+ "New here? Click **Create an account** to sign up with your email and a password.": {
+  "es": "¿Eres nuevo? Haz clic en **Crear una cuenta** para registrarte con tu correo y una contraseña.",
+  "zh": "第一次来？点击**注册账户**，用邮箱和密码注册。",
+  "hi": "यहाँ नए हैं? अपने ईमेल और पासवर्ड से साइन अप करने के लिए **नया खाता बनाएँ** पर क्लिक करें।",
+  "ar": "جديد هنا؟ انقر على **إنشاء حساب** للتسجيل ببريدك الإلكتروني وكلمة مرور."
+ },
+ "Third-Party Licenses & Attributions": {
+  "es": "Licencias y atribuciones de terceros",
+  "zh": "第三方许可与署名",
+  "hi": "तृतीय-पक्ष लाइसेंस और श्रेय",
+  "ar": "تراخيص الأطراف الثالثة وإسناداتها"
+ },
+ "Add credits (DEV)": {
+  "es": "Añadir créditos (DEV)",
+  "zh": "添加积分（DEV）",
+  "hi": "क्रेडिट जोड़ें (DEV)",
+  "ar": "إضافة رصيد (DEV)"
+ },
+ "Buy": {
+  "es": "Comprar",
+  "zh": "购买",
+  "hi": "ख़रीदें",
+  "ar": "شراء"
+ },
+ "credits": {
+  "es": "créditos",
+  "zh": "积分",
+  "hi": "क्रेडिट",
+  "ar": "رصيد"
+ },
+ "Unspent credits stay refundable for 14 days.": {
+  "es": "Los créditos no utilizados se pueden reembolsar durante 14 días.",
+  "zh": "未使用的积分在 14 天内可退款。",
+  "hi": "बिना इस्तेमाल किए क्रेडिट 14 दिनों तक वापसी योग्य रहते हैं।",
+  "ar": "تبقى الأرصدة غير المستخدمة قابلة للاسترداد لمدة 14 يومًا."
+ },
+ "Confirm and pay": {
+  "es": "Confirmar y pagar",
+  "zh": "确认并支付",
+  "hi": "पुष्टि करें और भुगतान करें",
+  "ar": "تأكيد والدفع"
+ },
+ "Checkout error.": {
+  "es": "Error en el pago.",
+  "zh": "支付出错。",
+  "hi": "भुगतान में त्रुटि।",
+  "ar": "خطأ في الدفع."
+ },
+ "Network error.": {
+  "es": "Error de red.",
+  "zh": "网络错误。",
+  "hi": "नेटवर्क त्रुटि।",
+  "ar": "خطأ في الشبكة."
+ },
+ "Buy credits": {
+  "es": "Comprar créditos",
+  "zh": "购买积分",
+  "hi": "क्रेडिट खरीदें",
+  "ar": "شراء رصيد"
+ },
+ "No subscription. Credits never expire.": {
+  "es": "Sin suscripción. Los créditos no caducan nunca.",
+  "zh": "无需订阅。积分永不过期。",
+  "hi": "कोई सदस्यता नहीं। क्रेडिट कभी समाप्त नहीं होते।",
+  "ar": "بدون اشتراك. لا تنتهي صلاحية الأرصدة أبدًا."
+ },
+ "The legal information on this page (prices including VAT, right of withdrawal) is available in English and French only.": {
+  "es": "La información legal de esta página (precios con IVA, derecho de desistimiento) solo está disponible en inglés y en francés.",
+  "zh": "本页的法律信息（含增值税价格、撤回权）仅提供英文和法文版本。",
+  "hi": "इस पेज की कानूनी जानकारी (VAT सहित कीमतें, वापसी का अधिकार) केवल अंग्रेज़ी और फ़्रेंच में उपलब्ध है।",
+  "ar": "المعلومات القانونية في هذه الصفحة (الأسعار شاملة ضريبة القيمة المضافة، وحق الانسحاب) متاحة باللغتين الإنجليزية والفرنسية فقط."
+ },
+ "**Credit purchases open soon.** Meanwhile, you create with the credits offered at sign-up.": {
+  "es": "**La compra de créditos abrirá pronto.** Mientras tanto, creas con los créditos regalados al registrarte.",
+  "zh": "**积分购买即将开放。** 在此之前，你可以使用注册时赠送的积分进行创作。",
+  "hi": "**क्रेडिट की ख़रीद जल्द शुरू होगी।** तब तक आप साइन-अप पर मिले क्रेडिट से बनाते हैं।",
+  "ar": "**يُفتح شراء الأرصدة قريبًا.** وفي هذه الأثناء، تُنشئ بالأرصدة الممنوحة عند التسجيل."
+ },
+ "One-shot top-ups": {
+  "es": "Recargas puntuales",
+  "zh": "单次充值",
+  "hi": "एकमुश्त टॉप-अप",
+  "ar": "شحن لمرة واحدة"
+ },
+ "popular": {
+  "es": "popular",
+  "zh": "热门",
+  "hi": "लोकप्रिय",
+  "ar": "الأكثر شيوعًا"
+ },
+ "credit": {
+  "es": "crédito",
+  "zh": "积分",
+  "hi": "क्रेडिट",
+  "ar": "رصيد"
+ },
+ "Coming soon": {
+  "es": "Próximamente",
+  "zh": "即将推出",
+  "hi": "जल्द आ रहा है",
+  "ar": "قريبًا"
+ },
+ "Monthly subscriptions": {
+  "es": "Suscripciones mensuales",
+  "zh": "按月订阅",
+  "hi": "मासिक सदस्यताएँ",
+  "ar": "الاشتراكات الشهرية"
+ },
+ "Credits drop in automatically every month. To cancel, e-mail us at": {
+  "es": "Los créditos se abonan automáticamente cada mes. Para cancelar, escríbenos a",
+  "zh": "积分每月自动到账。如需取消，请发邮件至",
+  "hi": "क्रेडिट हर महीने अपने-आप जुड़ जाते हैं। रद्द करने के लिए हमें यहाँ ईमेल करें:",
+  "ar": "تُضاف الأرصدة تلقائيًا كل شهر. للإلغاء، راسلنا على"
+ },
+ "we stop the renewal within one business day, and you keep the credits already delivered.": {
+  "es": "detenemos la renovación en un día hábil y conservas los créditos ya entregados.",
+  "zh": "我们会在一个工作日内停止续订，已发放的积分仍归你所有。",
+  "hi": "हम एक कार्यदिवस के भीतर नवीनीकरण रोक देते हैं, और पहले से मिले क्रेडिट आपके पास रहते हैं।",
+  "ar": "نوقف التجديد خلال يوم عمل واحد، وتحتفظ بالأرصدة التي سُلّمت إليك."
+ },
+ "best value": {
+  "es": "la mejor opción",
+  "zh": "最划算",
+  "hi": "सबसे किफ़ायती",
+  "ar": "أفضل قيمة"
+ },
+ "month": {
+  "es": "mes",
+  "zh": "月",
+  "hi": "महीना",
+  "ar": "شهر"
+ },
+ "credits / month": {
+  "es": "créditos / mes",
+  "zh": "积分 / 月",
+  "hi": "क्रेडिट / महीना",
+  "ar": "رصيد / شهر"
+ },
+ "What credits cost": {
+  "es": "Lo que cuesta cada acción",
+  "zh": "各项操作所需积分",
+  "hi": "हर काम में कितने क्रेडिट लगते हैं",
+  "ar": "تكلفة كل عملية بالأرصدة"
+ },
+ "Action": {
+  "es": "Acción",
+  "zh": "操作",
+  "hi": "कार्य",
+  "ar": "العملية"
+ },
+ "Cost": {
+  "es": "Coste",
+  "zh": "费用",
+  "hi": "लागत",
+  "ar": "التكلفة"
+ },
+ "Details": {
+  "es": "Detalles",
+  "zh": "说明",
+  "hi": "विवरण",
+  "ar": "التفاصيل"
+ },
+ "Image from an idea": {
+  "es": "Imagen a partir de una idea",
+  "zh": "根据创意生成图像",
+  "hi": "किसी आइडिया से इमेज",
+  "ar": "صورة من فكرة"
+ },
+ "30 steps; the price follows the number of steps": {
+  "es": "30 pasos; el precio depende del número de pasos",
+  "zh": "30 步；价格随步数变化",
+  "hi": "30 चरण; कीमत चरणों की संख्या पर निर्भर करती है",
+  "ar": "30 خطوة؛ يتبع السعر عدد الخطوات"
+ },
+ "AI image edit": {
+  "es": "Retoque de imagen con IA",
+  "zh": "AI 图像编辑",
+  "hi": "AI इमेज एडिट",
+  "ar": "تعديل الصورة بالذكاء الاصطناعي"
+ },
+ "to": {
+  "es": "a",
+  "zh": "至",
+  "hi": "से",
+  "ar": "إلى"
+ },
+ "modify, repair, recolor, age…": {
+  "es": "modificar, reparar, recolorear, envejecer…",
+  "zh": "修改、修复、重新上色、做旧…",
+  "hi": "बदलें, सुधारें, रंग बदलें, पुराना दिखाएँ…",
+  "ar": "تعديل، إصلاح، إعادة تلوين، تعتيق…"
+ },
+ "3D model": {
+  "es": "Modelo 3D",
+  "zh": "3D 模型",
+  "hi": "3D मॉडल",
+  "ar": "نموذج ثلاثي الأبعاد"
+ },
+ "draft": {
+  "es": "borrador",
+  "zh": "草稿",
+  "hi": "ड्राफ़्ट",
+  "ar": "مسودة"
+ },
+ "recommended": {
+  "es": "recomendado",
+  "zh": "推荐",
+  "hi": "अनुशंसित",
+  "ar": "مُوصى به"
+ },
+ "high detail": {
+  "es": "alto nivel de detalle",
+  "zh": "高细节",
+  "hi": "उच्च विवरण",
+  "ar": "تفاصيل عالية"
+ },
+ "maximum detail and texture": {
+  "es": "máximo detalle y textura",
+  "zh": "最高细节与纹理",
+  "hi": "अधिकतम विवरण और टेक्सचर",
+  "ar": "أقصى قدر من التفاصيل والإكساء"
+ },
+ "Triangle count": {
+  "es": "Número de triángulos",
+  "zh": "三角面数",
+  "hi": "त्रिभुजों की संख्या",
+  "ar": "عدد المثلثات"
+ },
+ "up to 500,000 · 1 million · 10 million": {
+  "es": "hasta 500 000 · 1 millón · 10 millones",
+  "zh": "最多 50 万 · 100 万 · 1000 万",
+  "hi": "5 लाख · 10 लाख · 1 करोड़ तक",
+  "ar": "حتى 500,000 · مليون · 10 ملايين"
+ },
+ "3D options: sharpened 8192px texture · face · refine": {
+  "es": "Opciones 3D: textura nítida de 8192 px · rostro · refinado",
+  "zh": "3D 选项：8192px 锐化纹理 · 面部 · 精修",
+  "hi": "3D विकल्प: 8192px शार्प टेक्सचर · चेहरा · रिफ़ाइन",
+  "ar": "خيارات ثلاثية الأبعاد: إكساء محسّن بدقة 8192 بكسل · الوجه · التنقيح"
+ },
+ "optional": {
+  "es": "opcionales",
+  "zh": "可选",
+  "hi": "वैकल्पिक",
+  "ar": "اختيارية"
+ },
+ "Automatic skeleton (rig)": {
+  "es": "Esqueleto automático (rig)",
+  "zh": "自动骨骼（绑定）",
+  "hi": "स्वचालित कंकाल (रिग)",
+  "ar": "هيكل عظمي تلقائي (rig)"
+ },
+ "any body: human, animal, insect, creature": {
+  "es": "cualquier cuerpo: humano, animal, insecto, criatura",
+  "zh": "任意身体：人类、动物、昆虫、生物",
+  "hi": "कोई भी शरीर: इंसान, जानवर, कीड़ा, जीव",
+  "ar": "أي جسم: إنسان، حيوان، حشرة، كائن خيالي"
+ },
+ "per clip": {
+  "es": "por clip",
+  "zh": "每段",
+  "hi": "प्रति क्लिप",
+  "ar": "لكل مقطع"
+ },
+ "Simple 3D tools": {
+  "es": "Herramientas 3D sencillas",
+  "zh": "简单 3D 工具",
+  "hi": "सरल 3D टूल",
+  "ar": "أدوات ثلاثية الأبعاد بسيطة"
+ },
+ "smooth, fill holes, resize…": {
+  "es": "suavizar, rellenar agujeros, cambiar el tamaño…",
+  "zh": "平滑、补洞、调整大小…",
+  "hi": "स्मूद करें, छेद भरें, आकार बदलें…",
+  "ar": "تنعيم، سد الثقوب، تغيير الحجم…"
+ },
+ "Split into parts": {
+  "es": "Dividir en piezas",
+  "zh": "拆分为部件",
+  "hi": "हिस्सों में बाँटें",
+  "ar": "التقسيم إلى أجزاء"
+ },
+ "head, arms, wheels…": {
+  "es": "cabeza, brazos, ruedas…",
+  "zh": "头、手臂、车轮…",
+  "hi": "सिर, बाँहें, पहिए…",
+  "ar": "الرأس، الذراعان، العجلات…"
+ },
+ "Export · Marketplace publishing": {
+  "es": "Exportación · publicación en el marketplace",
+  "zh": "导出 · 发布到市场",
+  "hi": "एक्सपोर्ट · मार्केटप्लेस पर प्रकाशन",
+  "ar": "التصدير · النشر في المتجر"
+ },
+ "per file": {
+  "es": "por archivo",
+  "zh": "每个文件",
+  "hi": "प्रति फ़ाइल",
+  "ar": "لكل ملف"
+ },
+ "A 3D generation takes about 6 to 9 minutes, whatever the preset. The exact price is always shown on the button before you start.": {
+  "es": "Una generación 3D tarda entre 6 y 9 minutos, sea cual sea el ajuste. El precio exacto se muestra siempre en el botón antes de empezar.",
+  "zh": "无论选择哪种预设，一次 3D 生成大约需要 6 到 9 分钟。开始前，按钮上总会显示确切价格。",
+  "hi": "कोई भी प्रीसेट हो, एक 3D जनरेशन में लगभग 6 से 9 मिनट लगते हैं। शुरू करने से पहले सटीक कीमत हमेशा बटन पर दिखाई जाती है।",
+  "ar": "يستغرق إنشاء نموذج ثلاثي الأبعاد نحو 6 إلى 9 دقائق أيًّا كان الإعداد. ويظهر السعر الدقيق دائمًا على الزر قبل البدء."
+ },
+ "Choose a new password for your MyFabmesh.AI account.": {
+  "es": "Elige una nueva contraseña para tu cuenta de MyFabmesh.AI.",
+  "zh": "为你的 MyFabmesh.AI 账户设置新密码。",
+  "hi": "अपने MyFabmesh.AI खाते के लिए नया पासवर्ड चुनें।",
+  "ar": "اختر كلمة مرور جديدة لحسابك في MyFabmesh.AI."
+ },
+ "Validating link…": {
+  "es": "Comprobando el enlace…",
+  "zh": "正在验证链接…",
+  "hi": "लिंक की जाँच हो रही है…",
+  "ar": "جارٍ التحقق من الرابط…"
+ },
+ "Enter your email and the 6-digit code we sent you to verify your reset request.": {
+  "es": "Introduce tu correo y el código de 6 dígitos que te enviamos para confirmar tu solicitud.",
+  "zh": "请输入你的邮箱和我们发送给你的 6 位验证码，以确认重置请求。",
+  "hi": "अपना रीसेट अनुरोध सत्यापित करने के लिए अपना ईमेल और हमारे भेजे 6 अंकों का कोड दर्ज करें।",
+  "ar": "أدخل بريدك الإلكتروني والرمز المكوّن من 6 أرقام الذي أرسلناه إليك لتأكيد طلب إعادة التعيين."
+ },
+ "Code from the reset email": {
+  "es": "Código del correo de restablecimiento",
+  "zh": "重置邮件中的验证码",
+  "hi": "रीसेट ईमेल में मिला कोड",
+  "ar": "الرمز الوارد في رسالة إعادة التعيين"
+ },
+ "Verify code": {
+  "es": "Verificar el código",
+  "zh": "验证",
+  "hi": "कोड सत्यापित करें",
+  "ar": "التحقق من الرمز"
+ },
+ "No code yet?": {
+  "es": "¿Aún no tienes código?",
+  "zh": "还没有验证码？",
+  "hi": "अभी तक कोड नहीं मिला?",
+  "ar": "لم يصلك رمز بعد؟"
+ },
+ "Request a new reset": {
+  "es": "Solicitar un nuevo restablecimiento",
+  "zh": "重新申请重置",
+  "hi": "नया रीसेट माँगें",
+  "ar": "اطلب إعادة تعيين جديدة"
+ },
+ "New password": {
+  "es": "Nueva contraseña",
+  "zh": "新密码",
+  "hi": "नया पासवर्ड",
+  "ar": "كلمة المرور الجديدة"
+ },
+ "Set new password": {
+  "es": "Guardar la nueva contraseña",
+  "zh": "设置新密码",
+  "hi": "नया पासवर्ड सेट करें",
+  "ar": "تعيين كلمة المرور الجديدة"
+ },
+ "The new password must be different from the old one.": {
+  "es": "La nueva contraseña debe ser distinta de la anterior.",
+  "zh": "新密码必须与旧密码不同。",
+  "hi": "नया पासवर्ड पुराने से अलग होना चाहिए।",
+  "ar": "يجب أن تختلف كلمة المرور الجديدة عن القديمة."
+ },
+ "Code accepted but no session was created.": {
+  "es": "Código aceptado, pero no se ha creado ninguna sesión.",
+  "zh": "验证码已接受，但未创建会话。",
+  "hi": "कोड स्वीकार हुआ, लेकिन कोई सत्र नहीं बना।",
+  "ar": "قُبل الرمز لكن لم تُنشأ أي جلسة."
+ },
+ "Password updated — redirecting…": {
+  "es": "Contraseña actualizada; redirigiendo…",
+  "zh": "密码已更新——正在跳转…",
+  "hi": "पासवर्ड अपडेट हो गया — आगे ले जाया जा रहा है…",
+  "ar": "تم تحديث كلمة المرور — جارٍ التحويل…"
+ },
+ "At least 6 characters": {
+  "es": "Al menos 6 caracteres",
+  "zh": "至少 6 个字符",
+  "hi": "कम से कम 6 अक्षर",
+  "ar": "6 أحرف على الأقل"
+ },
+ "Sign-in failed": {
+  "es": "No se pudo iniciar sesión",
+  "zh": "登录失败",
+  "hi": "साइन इन विफल रहा",
+  "ar": "فشل تسجيل الدخول"
+ },
+ "Signing you in…": {
+  "es": "Iniciando sesión…",
+  "zh": "正在登录…",
+  "hi": "साइन इन हो रहा है…",
+  "ar": "جارٍ تسجيل دخولك…"
+ },
+ "Signed in — redirecting…": {
+  "es": "Sesión iniciada; redirigiendo…",
+  "zh": "已登录——正在跳转…",
+  "hi": "साइन इन हो गया — आगे ले जाया जा रहा है…",
+  "ar": "تم تسجيل الدخول — جارٍ التحويل…"
+ },
+ "This sign-in link is incomplete or has already been used. Please sign in again.": {
+  "es": "Este enlace de inicio de sesión está incompleto o ya se ha utilizado. Vuelve a iniciar sesión.",
+  "zh": "此登录链接不完整或已被使用。请重新登录。",
+  "hi": "यह साइन-इन लिंक अधूरा है या पहले ही इस्तेमाल हो चुका है। कृपया फिर से साइन इन करें।",
+  "ar": "رابط تسجيل الدخول هذا غير مكتمل أو سبق استخدامه. يُرجى تسجيل الدخول مجددًا."
+ }
+}

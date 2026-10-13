@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PACKS } from '@/lib/packs';
-import { T, langueAffichee } from '@/lib/langue';
+import { T, Message, messageServeur, texte, type Texte } from '@/lib/langue';
+import { useTr } from '@/lib/langue-client';
 
 const MOCK = process.env.NEXT_PUBLIC_MOCK === '1';
 
@@ -26,7 +27,8 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
   const [busy, setBusy] = useState(false);
   const [ouvert, setOuvert] = useState(false);
   const [accepte, setAccepte] = useState(false);
-  const [erreur, setErreur] = useState('');
+  const [erreur, setErreur] = useState<Texte | string>('');
+  const tr = useTr();
 
   const pack = PACKS[packId as keyof typeof PACKS];
 
@@ -53,10 +55,10 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
       const j = await res.json();
       if (j.url) { window.location.href = j.url; return; }
       setBusy(false);
-      setErreur(j.error || (langueAffichee() === 'fr' ? 'Erreur lors du paiement.' : 'Checkout error.'));
+      setErreur(messageServeur(j, texte('Checkout error.', 'Erreur lors du paiement.')));
     } catch (e) {
       setBusy(false);
-      setErreur(e instanceof Error ? e.message : (langueAffichee() === 'fr' ? 'Erreur réseau.' : 'Network error.'));
+      setErreur(e instanceof Error && e.message ? e.message : texte('Network error.', 'Erreur réseau.'));
     }
   }
 
@@ -82,7 +84,7 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
             style={{
               background: 'var(--bg-1, #16161c)', border: '1px solid var(--border, #333)',
               borderRadius: 14, maxWidth: 520, width: '100%', padding: '26px 26px 22px',
-              boxShadow: '0 20px 60px rgba(0,0,0,.6)', textAlign: 'left',
+              boxShadow: '0 20px 60px rgba(0,0,0,.6)', textAlign: 'start',
             }}
           >
             <h3 id={`consent-titre-${packId}`} style={{ margin: '0 0 6px', fontSize: 19 }}>
@@ -123,7 +125,8 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
               {/* Le texte du consentement dans la langue affichee (2026-09-28) ; la
                   version francaise est celle de 2b2bc56, l'anglaise celle qui la
                   precedait. */}
-              <span className="lang-fr">
+              {/* Texte JURIDIQUE : francais et anglais seulement (lib/langue.tsx, .juridique-fr / .juridique-en). */}
+              <span className="juridique-fr" lang="fr" dir="ltr">
                 Je demande expressément que mes crédits soient mis à ma disposition
                 immédiatement, et je reconnais que dès que je commence à consommer un
                 crédit ou que je génère un asset, je{' '}
@@ -131,7 +134,7 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
                 contenu numérique (art. L. 221-28 13° du code de la consommation).
                 Voir les <a href="/legal/terms" target="_blank" rel="noreferrer">conditions générales de vente</a>.
               </span>
-              <span className="lang-en">
+              <span className="juridique-en" lang="en" dir="ltr">
                 I expressly request that my credits be made available immediately,
                 and I acknowledge that once I start consuming a credit or generate
                 an asset I <strong>lose my 14-day right of withdrawal</strong> for
@@ -145,7 +148,7 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
             </p>
 
             {erreur && (
-              <p style={{ color: '#ff6b6b', fontSize: 13, margin: '12px 0 0' }}>{erreur}</p>
+              <p role="alert" style={{ color: '#ff6b6b', fontSize: 13, margin: '12px 0 0' }}><Message m={erreur} /></p>
             )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -156,7 +159,7 @@ export function BuyButton({ packId, loggedIn }: { packId: string; loggedIn: bool
                 className="primary-btn"
                 onClick={payer}
                 disabled={!accepte || busy}
-                title={accepte ? '' : (langueAffichee() === 'fr' ? 'Cochez la case ci-dessus pour continuer' : 'Tick the box above to continue')}
+                title={accepte ? '' : tr('Tick the box above to continue', 'Cochez la case ci-dessus pour continuer')}
               >
                 {busy ? '…' : <><T fr="Confirmer et payer" en="Confirm and pay" />{pack ? ` ${pack.euros} €` : ''}</>}
               </button>

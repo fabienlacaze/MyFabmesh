@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { T } from '@/lib/langue';
-import { BasculeLangue } from '@/components/BasculeLangue';
+import { BasculeLangue, AvisJuridique } from '@/components/BasculeLangue';
 
 export const metadata = {
   title: 'Third-Party Licenses — MyFabmesh.AI',
@@ -36,7 +36,8 @@ export default function LicensesPage() {
     <main style={{ maxWidth: 880, margin: '0 auto', padding: '32px 24px', lineHeight: 1.6 }}>
       <BasculeLangue />
       <h1><T fr="Licences et attributions des composants tiers" en="Third-Party Licenses & Attributions" /></h1>
-      <p className="lang-en" style={{ color: 'var(--text-2)' }}>
+      <AvisJuridique />
+      <p className="juridique-en" lang="en" dir="ltr" style={{ color: 'var(--text-2)' }}>
         MyFabmesh.AI is built with open-source software and pretrained AI models.
         The license texts and required attributions for every bundled or
         runtime-downloaded component are reproduced below, in their original
@@ -44,7 +45,7 @@ export default function LicensesPage() {
         and uses the Apache-2.0 Kaolin rasterizer (never the non-commercial
         nvdiffrast backend).
       </p>
-      <p className="lang-fr" style={{ color: 'var(--text-2)' }}>
+      <p className="juridique-fr" lang="fr" dir="ltr" style={{ color: 'var(--text-2)' }}>
         MyFabmesh.AI repose sur des logiciels open source et des modèles
         d&rsquo;IA pré-entraînés. Les textes de licence et les attributions
         requises pour chaque composant fourni avec le produit ou téléchargé à

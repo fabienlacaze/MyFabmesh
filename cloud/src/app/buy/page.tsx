@@ -92,11 +92,19 @@ export default function BuyPage() {
       <p style={{ color: 'var(--text-2)', marginBottom: 8 }}>
         <T fr="Sans abonnement. Les crédits n'expirent jamais." en="No subscription. Credits never expire." />
       </p>
-      <p className="lang-fr" style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 24 }}>
+      {/* Prix TTC et renonciation au droit de retractation : textes JURIDIQUES, francais et anglais
+          seulement (lib/langue.tsx) ; l'avis ci-dessous le dit dans les quatre autres langues. */}
+      <p className="avis-juridique" style={{ color: 'var(--text-3)', fontSize: 12, marginBottom: 6 }}>
+        <T
+          en="The legal information on this page (prices including VAT, right of withdrawal) is available in English and French only."
+          fr="Les informations juridiques de cette page (prix TTC, droit de rétractation) n'existent qu'en anglais et en français."
+        />
+      </p>
+      <p className="juridique-fr" lang="fr" dir="ltr" style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 24 }}>
         Tous les prix affichés sont <strong>TTC (TVA incluse)</strong> — la TVA est
         calculée selon votre pays au moment du paiement.
       </p>
-      <p className="lang-en" style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 24 }}>
+      <p className="juridique-en" lang="en" dir="ltr" style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 24 }}>
         All prices shown are <strong>TTC (VAT included)</strong> — VAT is calculated
         according to your country at checkout.
       </p>
@@ -115,7 +123,7 @@ export default function BuyPage() {
         }}
       >
         <span aria-hidden="true">&#9432;</span>
-        <span className="lang-fr">
+        <span className="juridique-fr" lang="fr" dir="ltr">
           Les crédits sont un contenu numérique fourni immédiatement. Avant de
           payer, il vous sera demandé de confirmer que vous{' '}
           <strong>renoncez à votre droit de rétractation de 14 jours</strong> pour
@@ -124,7 +132,7 @@ export default function BuyPage() {
           14 jours. Voir les{' '}
           <a href="/legal/terms">conditions générales de vente</a>.
         </span>
-        <span className="lang-en">
+        <span className="juridique-en" lang="en" dir="ltr">
           Credits are digital content delivered immediately. Before paying you
           will be asked to confirm that you{' '}
           <strong>waive your 14-day right of withdrawal</strong> for the credits
@@ -138,8 +146,10 @@ export default function BuyPage() {
         <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, border: '1px solid rgba(168,85,247,0.45)', background: 'rgba(168,85,247,0.10)', fontSize: 14 }}>
           {/* Pas de nombre ici : l'octroi est regle dans Supabase (15 depuis le
               2026-08-04, a la confirmation de l'adresse) et « 50 » etait faux. */}
-          <span className="lang-fr"><strong>Les achats de crédits ouvrent bientôt.</strong> En attendant, vous créez avec les crédits offerts à l&apos;inscription.</span>
-          <span className="lang-en"><strong>Credit purchases open soon.</strong> Meanwhile, you create with the credits offered at sign-up.</span>
+          <T
+            en="**Credit purchases open soon.** Meanwhile, you create with the credits offered at sign-up."
+            fr="**Les achats de crédits ouvrent bientôt.** En attendant, vous créez avec les crédits offerts à l'inscription."
+          />
         </div>
       )}
       <h3 style={{ marginTop: 24, marginBottom: 12, fontSize: 14, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-2)' }}><T fr="Recharges ponctuelles" en="One-shot top-ups" /></h3>
@@ -197,7 +207,7 @@ export default function BuyPage() {
         <h3 style={{ marginBottom: 12 }}><T fr="Ce que coûtent les crédits" en="What credits cost" /></h3>
         <table className="history">
           <thead>
-            <tr><th>Action</th><th><T fr="Coût" en="Cost" /></th><th><T fr="Détails" en="Details" /></th></tr>
+            <tr><th><T fr="Action" en="Action" /></th><th><T fr="Coût" en="Cost" /></th><th><T fr="Détails" en="Details" /></th></tr>
           </thead>
           <tbody>
             <tr><td><T fr="Image depuis une idée" en="Image from an idea" /></td><td>{cr('text2image')}</td><td><T fr="30 étapes ; le prix suit le nombre d'étapes" en="30 steps; the price follows the number of steps" /></td></tr>
@@ -209,7 +219,7 @@ export default function BuyPage() {
             <tr><td><T fr="Nombre de triangles" en="Triangle count" /></td><td>+{supTris(500_000)} · +{supTris(1_000_000)} · +{supTris(10_000_000)}</td><td><T fr="jusqu'à 500 000 · 1 million · 10 millions" en="up to 500,000 · 1 million · 10 million" /></td></tr>
             <tr><td><T fr="Options 3D : texture affinée à 8192 px · visage · affinage" en="3D options: sharpened 8192px texture · face · refine" /></td><td>+{prix?.mesh_ultra_hd ?? '—'} / +{prix?.mesh_face_fix ?? '—'} / +{prix?.mesh_refine ?? '—'}</td><td><T fr="facultatives" en="optional" /></td></tr>
             <tr><td><T fr="Squelette automatique (rig)" en="Automatic skeleton (rig)" /></td><td>{cr('rig')}</td><td><T fr="tout corps : humain, animal, insecte, créature" en="any body: human, animal, insect, creature" /></td></tr>
-            <tr><td>Animation</td><td>{cr('anim')}</td><td><T fr="par clip" en="per clip" /></td></tr>
+            <tr><td><T fr="Animation" en="Animation" /></td><td>{cr('anim')}</td><td><T fr="par clip" en="per clip" /></td></tr>
             <tr><td><T fr="Outils 3D simples" en="Simple 3D tools" /></td><td>{cr('mesh_op_simple')}</td><td><T fr="lisser, boucher les trous, redimensionner…" en="smooth, fill holes, resize…" /></td></tr>
             <tr><td><T fr="Découpe en pièces" en="Split into parts" /></td><td>{cr('mesh_segment')}</td><td><T fr="tête, bras, roues…" en="head, arms, wheels…" /></td></tr>
             <tr><td><T fr="Export · publication sur la Marketplace" en="Export · Marketplace publishing" /></td><td>{prix ? `${prix.export ?? '—'} · ${prix.market_publish ?? '—'}` : '—'}</td><td><T fr="par fichier" en="per file" /></td></tr>

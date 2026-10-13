@@ -7,6 +7,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { T } from '@/lib/langue';
+import { SelecteurLangue } from '@/lib/langue-client';
 
 const MOCK = process.env.NEXT_PUBLIC_MOCK === '1';
 
@@ -41,21 +42,24 @@ export function Nav() {
         {user ? (
           <>
             <a href="/app/" className="nav-link"><T fr="Ouvrir l'appli" en="Open the app" /></a>
-            <Link href="/market" className="nav-link">Marketplace</Link>
+            <Link href="/market" className="nav-link"><T fr="Marketplace" en="Marketplace" /></Link>
             <Link href="/buy" className="nav-link"><T fr="Crédits" en="Credits" /></Link>
             {/* le compte vit dans les parametres de l'appli (/account supprimee, 2026-09-28) */}
             <a href="/app/?reglages=compte" className="nav-link" title={user.email ?? ''}>
               {user.email?.split('@')[0]}
             </a>
             <span className="credits-pill">{user.credits}</span>
+            {/* Choix de la langue hors de l'appli, sur toutes les pages (2026-10-13, INTERFACE-04 / -07). */}
+            <SelecteurLangue />
           </>
         ) : (
           <>
             <Link href="/buy" className="nav-link"><T fr="Tarifs" en="Pricing" /></Link>
-            <Link href="https://fabienlacaze.github.io/MyFabmesh" target="_blank" className="nav-link"><T fr="Application bureau" en="Desktop app" /></Link>
+            <Link href="https://fabienlacaze.github.io/MyFabmesh" target="_blank" className="nav-link"><T fr="Application de bureau" en="Desktop app" /></Link>
             <Link href="/login" className="primary-btn" style={{ height: 32, padding: '6px 16px', fontSize: 12 }}>
               <T fr="Se connecter" en="Sign in" />
             </Link>
+            <SelecteurLangue />
           </>
         )}
       </div>

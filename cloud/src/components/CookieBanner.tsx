@@ -10,11 +10,14 @@
 // it doesn't reappear on every navigation. No tracking cookie set.
 
 import { useEffect, useState } from 'react';
+import { T } from '@/lib/langue';
+import { useTr } from '@/lib/langue-client';
 
 const LS_KEY = 'mfm-cookie-consent-v1';
 
 export function CookieBanner() {
   const [show, setShow] = useState(false);
+  const tr = useTr();
 
   useEffect(() => {
     try {
@@ -33,7 +36,7 @@ export function CookieBanner() {
   return (
     <div
       role="dialog"
-      aria-label="Cookie notice"
+      aria-label={tr('Cookie notice', 'Information sur les cookies')}
       style={{
         position: 'fixed',
         left: 16, right: 16, bottom: 16,
@@ -54,24 +57,23 @@ export function CookieBanner() {
       }}
     >
       <div style={{ flex: 1, minWidth: 240 }}>
-        <strong>🍪 Cookies</strong> — We only set strictly-necessary cookies
-        (your auth session) and we don&apos;t track you with analytics or
-        ads. Stripe sets its own cookies on their own domain when you check
-        out. Read more in our{' '}
-        <a href="/legal/privacy" style={{ color: 'var(--accent)' }}>Privacy Policy</a>.
+        <strong>🍪 <T en="Cookies" fr="Cookies" /></strong> — <T
+          en="We only set strictly necessary cookies (your sign-in session), and we don't track you with analytics or ads. Stripe sets its own cookies on its own domain when you pay. Read more in our [Privacy Policy](/legal/privacy)."
+          fr="Nous ne déposons que des cookies strictement nécessaires (votre session de connexion) et nous ne vous suivons ni par des mesures d'audience ni par de la publicité. Stripe dépose ses propres cookies sur son propre domaine lors du paiement. En savoir plus dans notre [politique de confidentialité](/legal/privacy)."
+        />
       </div>
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <a
           href="/legal/privacy"
           className="ghost-btn"
           style={{ textDecoration: 'none', padding: '8px 14px', fontSize: 13 }}
-        >Learn more</a>
+        ><T en="Learn more" fr="En savoir plus" /></a>
         <button
           type="button"
           onClick={dismiss}
           className="primary-btn"
           style={{ padding: '8px 18px', fontSize: 13 }}
-        >Got it</button>
+        ><T en="Got it" fr="J'ai compris" /></button>
       </div>
     </div>
   );

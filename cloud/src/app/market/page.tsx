@@ -10,19 +10,22 @@
 import { useEffect, useRef, useState, Component, type ReactNode } from 'react';
 import Script from 'next/script';
 import { T } from '@/lib/langue';
+import { localeDe, texte, texteServeur, type Texte } from '@/lib/langue';
+import { useLangue, useTr } from '@/lib/langue-client';
 
 // 2026-10-03 (MP-03 / M3, reglement UE 2024/1689 art. 50) : tout contenu de la
 // place de marche est produit ou transforme par IA. Le badge « Genere par IA »
 // figure sur CHAQUE carte et sur la fiche detaillee. Il est TOUJOURS affiche : il
 // ne depend volontairement PAS du champ ai_generated que le worker ajoute aux
 // fiches (une ancienne reponse, un cache ou un champ absent ne doit jamais
-// cacher la mention). Langue : meme mecanisme que le pied de page (<T>, classes
-// .lang-fr / .lang-en reglees par html[lang]).
+// cacher la mention). Langue : meme mecanisme que le pied de page (<T>, une
+// version par langue reglee par html[lang] ; lib/langue.tsx).
 function BadgeIA({ taille = 11 }: { taille?: number }) {
+  const tr = useTr();
   return (
     <span
       data-badge-ia
-      title="AI-generated content / Contenu généré par IA"
+      title={tr('AI-generated content', 'Contenu généré par IA')}
       style={{ display: 'inline-block', fontSize: taille, fontWeight: 600, padding: '1px 8px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-2)', background: 'var(--bg-2)', whiteSpace: 'nowrap' }}
     >
       🤖 <T fr="Généré par IA" en="AI-generated" />
@@ -43,16 +46,16 @@ class MarketErrorBoundary extends Component<{ children: ReactNode }, { error: Er
     if (this.state.error) {
       return (
         <div style={{ padding: 32, color: 'var(--text-1)', fontFamily: 'system-ui' }}>
-          <h2>Something went wrong loading the marketplace.</h2>
+          <h2><T en="Something went wrong loading the marketplace." fr="Le chargement de la Marketplace a échoué." /></h2>
           <p style={{ color: 'var(--text-2)', fontSize: 13 }}>
-            {this.state.error?.message || 'Unknown error'}
+            {this.state.error?.message || <T en="Unknown error" fr="Erreur inconnue" />}
           </p>
           <button
             onClick={() => { if (typeof window !== 'undefined') window.location.reload(); }}
             className="primary-btn"
             style={{ padding: '8px 16px', marginTop: 12 }}
           >
-            Reload page
+            <T en="Reload page" fr="Recharger la page" />
           </button>
         </div>
       );
@@ -105,17 +108,18 @@ interface OwnedItem {
   rating_count?: number;
 }
 
-const LICENCE_LABELS: Record<string, string> = {
-  personal: 'Personal use',
-  cc0: 'CC0 (public domain)',
-  'cc-by': 'CC-BY 4.0',
-  'cc-by-nc': 'CC-BY-NC 4.0',
-  commercial: 'Royalty-free commercial',
+const LICENCE_LABELS: Record<string, Texte> = {
+  personal: texte('Personal use', 'Usage personnel'),
+  cc0: texte('CC0 (public domain)', 'CC0 (domaine public)'),
+  'cc-by': texte('CC-BY 4.0', 'CC-BY 4.0'),
+  'cc-by-nc': texte('CC-BY-NC 4.0', 'CC-BY-NC 4.0'),
+  commercial: texte('Royalty-free commercial', 'Commercial libre de droits'),
 };
 const CART_KEY = 'mfm.market.cart';
 
-function formatPrice(cents: number, currency: string): string {
-  if (cents === 0) return 'Free';
+// « Free » arrive traduit (gratuit = libelle de l'appelant, dans la langue affichee).
+function formatPrice(cents: number, currency: string, gratuit = 'Free'): string {
+  if (cents === 0) return gratuit;
   const amount = (cents / 100).toFixed(2);
   const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency + ' ';
   return symbol + amount;
@@ -164,6 +168,7 @@ function Stars({
   onRate?: (n: number) => void;
 }) {
   const [hover, setHover] = useState(0);
+  const tr = useTr();
   const shown = interactive && hover > 0 ? hover : value;
   const stars = [1, 2, 3, 4, 5].map((i) => {
     const diff = shown - (i - 1);
@@ -186,7 +191,7 @@ function Stars({
           cursor: interactive ? 'pointer' : 'default',
           color: colorEmpty,
         }}
-        aria-label={interactive ? `Rate ${i} stars` : undefined}
+        aria-label={interactive ? tr('Rate {x} out of 5', 'Noter {x} sur 5', i) : undefined}
       >
         <span style={{ color: colorEmpty }}>★</span>
         {fill > 0 && (
@@ -234,7 +239,7 @@ function LoadingRing({ progress, failed }: { progress: number; failed: boolean }
       background: '#0a0a0e', borderRadius: 8, pointerEvents: 'none',
     }}>
       {failed ? (
-        <span style={{ color: 'var(--text-2)', fontSize: 13 }}>Could not load the 3D preview.</span>
+        <span style={{ color: 'var(--text-2)', fontSize: 13 }}><T en="Could not load the 3D preview." fr="Impossible de charger l'aperçu 3D." /></span>
       ) : (
         <>
           <svg width={64} height={64} viewBox="0 0 64 64" aria-hidden="true">
@@ -246,7 +251,7 @@ function LoadingRing({ progress, failed }: { progress: number; failed: boolean }
             />
           </svg>
           <span style={{ color: 'var(--text-2)', fontSize: 13 }} role="status">
-            Loading item… {pct}%
+            <T en="Loading item… {x}%" fr="Chargement de l'article… {x} %" vals={[pct]} />
           </span>
         </>
       )}
@@ -354,6 +359,14 @@ function MarketPageInner() {
   // afterInteractive, so the element is unknown at first paint).
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+  // Langue affichee (lib/langue-client.tsx) : attributs, dates, alertes ; le HTML statique est en anglais.
+  const tr = useTr();
+  const langue = useLangue();
+  const gratuit = tr('Free', 'Gratuit');
+  const prix = (cents: number, currency: string) => formatPrice(cents, currency, gratuit);
+  const licence = (k: string) => { const v = LICENCE_LABELS[k]; return v ? tr(v.en, v.fr) : k; };
+  const date = (iso: string) => new Date(iso).toLocaleDateString(localeDe(langue), { day: 'numeric', month: 'long' });
+  const echec = (j: unknown, status: number) => texteServeur(j, texte('Request failed ({x}).', 'La requête a échoué ({x}).', status));
 
   // First load
   useEffect(() => {
@@ -464,11 +477,11 @@ function MarketPageInner() {
     try {
       const r = await fetch('/api/market/' + encodeURIComponent(l.id) + '/claim', { method: 'POST', credentials: 'include' });
       const j = await r.json().catch(() => ({} as { error?: string }));
-      if (!r.ok) throw new Error((j as { error?: string }).error || ('HTTP ' + r.status));
+      if (!r.ok) throw new Error(echec(j, r.status));
       const o = await fetch('/api/market/owned');
       if (o.ok) { const oj = await o.json(); setOwned(oj.items ?? []); }
     } catch (e) {
-      alert('Could not claim this item: ' + (e instanceof Error ? e.message : String(e)));
+      alert(tr('Could not claim this item: {x}', 'Impossible de récupérer cet article : {x}', e instanceof Error ? e.message : String(e)));
     } finally {
       setClaimBusy(null);
     }
@@ -476,8 +489,8 @@ function MarketPageInner() {
 
   const inCart = (id: string) => cart.includes(id);
   const reportListing = async (id: string) => {
-    if (!meUserId) { alert('Please sign in to report a listing.'); return; }
-    const reason = window.prompt('Why are you reporting this listing? (illegal content, copyright / IP infringement, etc.)');
+    if (!meUserId) { alert(tr('Please sign in to report a listing.', 'Connectez-vous pour signaler une annonce.')); return; }
+    const reason = window.prompt(tr('Why are you reporting this listing? (illegal content, copyright / IP infringement, etc.)', "Pourquoi signalez-vous cette annonce ? (contenu illégal, atteinte au droit d'auteur ou à la propriété intellectuelle, etc.)"));
     if (!reason || reason.trim().length < 3) return;
     try {
       const r = await fetch('/api/market/report', {
@@ -487,12 +500,12 @@ function MarketPageInner() {
         body: JSON.stringify({ listing_id: id, reason: reason.trim() }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { alert('Report failed: ' + ((j as { error?: string }).error || r.status)); return; }
+      if (!r.ok) { alert(tr('Report failed: {x}', 'Échec du signalement : {x}', echec(j, r.status))); return; }
       alert((j as { auto_hidden?: boolean }).auto_hidden
-        ? 'Thank you. This listing has been hidden pending moderator review.'
-        : 'Thank you. Your report has been sent to our moderators.');
+        ? tr('Thank you. This listing has been hidden pending moderator review.', "Merci. Cette annonce est masquée en attendant l'examen d'un modérateur.")
+        : tr('Thank you. Your report has been sent to our moderators.', 'Merci. Votre signalement a été transmis à nos modérateurs.'));
     } catch (e) {
-      alert('Report failed: ' + (e instanceof Error ? e.message : String(e)));
+      alert(tr('Report failed: {x}', 'Échec du signalement : {x}', e instanceof Error ? e.message : String(e)));
     }
   };
   const addToCart = (id: string) => {
@@ -570,16 +583,16 @@ function MarketPageInner() {
           window.location.href = '/login?next=/market';
           return;
         }
-        throw new Error(j?.error || `HTTP ${r.status}`);
+        throw new Error(echec(j, r.status));
       }
       if (j?.url) {
         window.location.href = j.url;
       } else {
-        throw new Error('No checkout URL returned');
+        throw new Error(tr('No payment page was returned.', "Aucune page de paiement n'a été renvoyée."));
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      alert('Checkout failed: ' + msg);
+      alert(tr('Checkout failed: {x}', 'Échec du paiement : {x}', msg));
       setCheckingOut(false);
     }
   }
@@ -656,7 +669,7 @@ function MarketPageInner() {
   const mineById = new Map(myListings.map((m) => [m.listing_id, m]));
 
   async function handleRemoveMine(id: string) {
-    if (!confirm('Remove this listing from the marketplace?')) return;
+    if (!confirm(tr('Remove this listing from the marketplace?', 'Retirer cette annonce de la Marketplace ?'))) return;
     try {
       const r = await fetch(`/api/market/unpublish/${id}`, {
         method: 'POST',
@@ -664,11 +677,11 @@ function MarketPageInner() {
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        throw new Error(j?.error || `HTTP ${r.status}`);
+        throw new Error(echec(j, r.status));
       }
       await refreshMyListings();
     } catch (e: unknown) {
-      alert('Remove failed: ' + (e instanceof Error ? e.message : String(e)));
+      alert(tr('Remove failed: {x}', 'Échec du retrait : {x}', e instanceof Error ? e.message : String(e)));
     }
   }
 
@@ -700,7 +713,7 @@ function MarketPageInner() {
           return;
         }
         const j = await r.json().catch(() => ({}));
-        throw new Error(j?.error || `HTTP ${r.status}`);
+        throw new Error(echec(j, r.status));
       }
       const j = await r.json().catch(() => ({}));
       const newAvg: number | undefined = j?.avg;
@@ -717,7 +730,7 @@ function MarketPageInner() {
           : s);
       }
     } catch (e: unknown) {
-      alert('Rating failed: ' + (e instanceof Error ? e.message : String(e)));
+      alert(tr('Rating failed: {x}', 'Échec de la notation : {x}', e instanceof Error ? e.message : String(e)));
     } finally {
       setRatingBusy(false);
     }
@@ -725,7 +738,7 @@ function MarketPageInner() {
 
   async function saveEdit() {
     if (!editing) return;
-    if (!editing.title.trim()) { alert('Title is required.'); return; }
+    if (!editing.title.trim()) { alert(tr('Title is required.', 'Le titre est obligatoire.')); return; }
     setSavingEdit(true);
     try {
       const r = await fetch(`/api/market/listing/${editing.listing_id}`, {
@@ -741,12 +754,12 @@ function MarketPageInner() {
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        throw new Error(j?.error || `HTTP ${r.status}`);
+        throw new Error(echec(j, r.status));
       }
       setEditing(null);
       await refreshMyListings();
     } catch (e: unknown) {
-      alert('Save failed: ' + (e instanceof Error ? e.message : String(e)));
+      alert(tr('Save failed: {x}', "Échec de l'enregistrement : {x}", e instanceof Error ? e.message : String(e)));
     } finally {
       setSavingEdit(false);
     }
@@ -760,14 +773,15 @@ function MarketPageInner() {
       />
       <div className="page-header" style={{ alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <h2 style={{ marginBottom: 4 }}>Marketplace</h2>
+          <h2 style={{ marginBottom: 4 }}><T en="Marketplace" fr="Marketplace" /></h2>
           <div style={{ color: 'var(--text-2)', fontSize: 13 }}>
-            Community-made 3D assets. Free downloads + paid listings under various licences.
+            <T en="Community-made 3D assets. Free downloads and paid listings under various licences." fr="Des ressources 3D créées par la communauté. Téléchargements gratuits et annonces payantes sous différentes licences." />
           </div>
         </div>
         <input
           type="search"
-          placeholder="🔍 Search listings…"
+          placeholder={tr('🔍 Search listings…', '🔍 Rechercher des annonces…')}
+          dir="auto"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--text-0)', minWidth: 200, fontSize: 13 }}
@@ -778,7 +792,7 @@ function MarketPageInner() {
           className="primary-btn"
           style={{ padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 8, position: 'relative' }}
         >
-          🛒 Cart
+          🛒 <T en="Cart" fr="Panier" />
           {cart.length > 0 && (
             <span style={{ background: '#fff', color: '#000', borderRadius: 999, padding: '0 8px', fontSize: 12, fontWeight: 800 }}>
               {cart.length}
@@ -789,12 +803,12 @@ function MarketPageInner() {
 
       {marketDisabled && (
         <div style={{ background: 'rgba(244,67,54,0.15)', border: '1px solid var(--err)', color: '#ff6b6b', padding: '10px 14px', borderRadius: 8, marginBottom: 18, fontSize: 13 }}>
-          🔴 <strong>Marketplace temporarily disabled.</strong>{marketDisabledReason ? ` Reason: ${marketDisabledReason}` : ''} Browsing only — purchasing and publishing are paused.
+          🔴 <strong><T en="Marketplace temporarily disabled." fr="Marketplace temporairement désactivée." /></strong>{marketDisabledReason ? <> <T en="Reason: {x}" fr="Motif : {x}" vals={[marketDisabledReason]} /></> : ''} <T en="Browsing only — purchasing and publishing are paused." fr="Consultation seulement : les achats et les publications sont suspendus." />
         </div>
       )}
       {paidBanner && (
         <div style={{ background: 'rgba(76,175,80,0.15)', border: '1px solid var(--ok)', color: 'var(--ok)', padding: '10px 14px', borderRadius: 8, marginBottom: 18, fontSize: 13 }}>
-          ✓ Payment received — your purchase is in the <strong>Owned</strong> tab below.
+          ✓ <T en="Payment received — your purchase is in the **Owned** tab below." fr="Paiement reçu : votre achat se trouve dans l'onglet **Obtenus** ci-dessous." />
         </div>
       )}
 
@@ -806,11 +820,11 @@ function MarketPageInner() {
             className={kindFilter === k ? 'primary-btn' : 'ghost-btn'}
             style={{ padding: '6px 14px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            {k === 'all' ? '🎴 All kinds'
-              : k === 'mesh' ? '🧊 3D Meshes'
-              : k === 'image' ? '🖼 2D Images'
-              : k === 'rig' ? '🦴 Rigs'
-              : '🎬 Animations'} ({nbGenre(k)})
+            {k === 'all' ? <>🎴 <T en="All kinds" fr="Tous les types" /></>
+              : k === 'mesh' ? <>🧊 <T en="3D Meshes" fr="Modèles 3D" /></>
+              : k === 'image' ? <>🖼 <T en="2D Images" fr="Images 2D" /></>
+              : k === 'rig' ? <>🦴 <T en="Rigs" fr="Squelettes" /></>
+              : <>🎬 <T en="Animations" fr="Animations" /></>} ({nbGenre(k)})
           </button>
         ))}
       </div>
@@ -823,27 +837,35 @@ function MarketPageInner() {
             className={tab === p ? 'primary-btn' : 'ghost-btn'}
             style={{ padding: '6px 16px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            {p === 'all' ? 'All'
-              : p === 'offerts' ? '🎁 Free this month'
-              : p === 'free' ? 'Free'
-              : p === 'paid' ? 'Paid'
-              : p === 'owned' ? '✓ Owned'
-              : '📝 Mine'} ({nbOnglet(p)})
+            {p === 'all' ? <T en="All" fr="Toutes" />
+              : p === 'offerts' ? <>🎁 <T en="Free this month" fr="Gratuit ce mois-ci" /></>
+              : p === 'free' ? <T en="Free" fr="Gratuit" />
+              : p === 'paid' ? <T en="Paid" fr="Payant" />
+              : p === 'owned' ? <>✓ <T en="Owned" fr="Obtenus" /></>
+              : <>📝 <T en="Mine" fr="Mes annonces" /></>} ({nbOnglet(p)})
           </button>
         ))}
-        <div style={{ marginLeft: 'auto', color: 'var(--text-2)', fontSize: 12, alignSelf: 'center' }}>
-          {loading ? 'Loading…' : `${displayItems.length} listing${displayItems.length === 1 ? '' : 's'}`}
+        <div style={{ marginInlineStart: 'auto', color: 'var(--text-2)', fontSize: 12, alignSelf: 'center' }}>
+          {loading ? <T en="Loading…" fr="Chargement…" />
+            : displayItems.length === 1 ? <T en="1 listing" fr="1 annonce" />
+            : <T en="{x} listings" fr="{x} annonces" vals={[displayItems.length]} />}
         </div>
       </div>
 
       {(tab === 'all' || tab === 'free' || tab === 'offerts') && (() => {
         const offerts = listings.filter((l) => l.offert);
         if (!offerts.length) return null;
-        const fin = offerts[0].offert_fin ? new Date(offerts[0].offert_fin).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : '';
+        const fin = offerts[0].offert_fin ? date(offerts[0].offert_fin) : '';
+        const n = offerts.length;
         return (
           <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(76,175,80,0.45)', background: 'rgba(76,175,80,0.10)', fontSize: 13, color: 'var(--text-1)' }}>
-            🎁 <strong>{offerts.length} free item{offerts.length === 1 ? '' : 's'} this month</strong>
-            {fin ? ` — claim ${offerts.length === 1 ? 'it' : 'them'} before ${fin}` : ''} and keep {offerts.length === 1 ? 'it' : 'them'} forever. The creators are still paid.
+            🎁 {n === 1
+              ? (fin
+                ? <T en="**1 free item this month** — claim it before {x} and keep it forever. The creators are still paid." fr="**1 article gratuit ce mois-ci** : récupérez-le avant le {x} et gardez-le pour toujours. Les créateurs sont quand même rémunérés." vals={[fin]} />
+                : <T en="**1 free item this month** — claim it and keep it forever. The creators are still paid." fr="**1 article gratuit ce mois-ci** : récupérez-le et gardez-le pour toujours. Les créateurs sont quand même rémunérés." />)
+              : (fin
+                ? <T en="**{x} free items this month** — claim them before {y} and keep them forever. The creators are still paid." fr="**{x} articles gratuits ce mois-ci** : récupérez-les avant le {y} et gardez-les pour toujours. Les créateurs sont quand même rémunérés." vals={[n, fin]} />
+                : <T en="**{x} free items this month** — claim them and keep them forever. The creators are still paid." fr="**{x} articles gratuits ce mois-ci** : récupérez-les et gardez-les pour toujours. Les créateurs sont quand même rémunérés." vals={[n]} />)}
           </div>
         );
       })()}
@@ -851,12 +873,12 @@ function MarketPageInner() {
       {!loading && displayItems.length === 0 ? (
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-2)' }}>
           {tab === 'owned'
-            ? <>No purchases yet. Browse <a onClick={() => setTab('all')} style={{ color: 'var(--accent)', cursor: 'pointer' }}>All listings →</a></>
+            ? <><T en="No purchases yet." fr="Aucun achat pour l'instant." /> <a onClick={() => setTab('all')} style={{ color: 'var(--accent)', cursor: 'pointer' }}><T en="Browse all listings →" fr="Voir toutes les annonces →" /></a></>
             : tab === 'offerts'
-            ? <>No free items this month yet. Come back soon: five paid items are offered every month.</>
+            ? <T en="No free items this month yet. Come back soon: five paid items are offered every month." fr="Pas encore d'article gratuit ce mois-ci. Revenez bientôt : cinq articles payants sont offerts chaque mois." />
             : tab === 'mine'
-            ? <>You haven&apos;t published anything yet. <a href="/app/" style={{ color: 'var(--accent)' }}>Open the app to publish a mesh →</a></>
-            : <>No listings match your filters yet. <a href="/app/" style={{ color: 'var(--accent)' }}>Publish your first mesh →</a></>}
+            ? <><T en="You haven't published anything yet." fr="Vous n'avez encore rien publié." /> <a href="/app/" style={{ color: 'var(--accent)' }}><T en="Open the app to publish a mesh →" fr="Ouvrir l'appli pour publier un modèle →" /></a></>
+            : <><T en="No listings match your filters yet." fr="Aucune annonce ne correspond encore à vos filtres." /> <a href="/app/" style={{ color: 'var(--accent)' }}><T en="Publish your first mesh →" fr="Publier votre premier modèle →" /></a></>}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
@@ -904,11 +926,11 @@ function MarketPageInner() {
                     {/* Toutes les cartes 3D (gratuites comme payantes) : la vignette est une
                         image, la 3D s'ouvre au clic (libelle demande par le user, 2026-09-28). */}
                     <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.65)', color: 'var(--text-1)' }}>
-                      🔍 3D viewer on click
+                      🔍 <T en="3D viewer on click" fr="Vue 3D au clic" />
                     </div>
                     {l.offert && (
                       <div style={{ position: 'absolute', left: 8, top: 8, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: 'var(--ok)', color: '#06140a' }}>
-                        🎁 Free this month
+                        🎁 <T en="Free this month" fr="Gratuit ce mois-ci" />
                       </div>
                     )}
                   </div>
@@ -917,13 +939,13 @@ function MarketPageInner() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.title}</div>
                     {l.offert ? (
-                      <div title={l.offert_fin ? `Free until ${new Date(l.offert_fin).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : undefined}
+                      <div title={l.offert_fin ? tr('Free until {x}', "Gratuit jusqu'au {x}", date(l.offert_fin)) : undefined}
                            style={{ background: 'rgba(76,175,80,0.2)', color: 'var(--ok)', padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        <s style={{ color: 'var(--text-3)', fontWeight: 400, marginRight: 5 }}>{formatPrice(l.price_cents, l.currency)}</s>Free
+                        <s style={{ color: 'var(--text-3)', fontWeight: 400, marginInlineEnd: 5 }}>{prix(l.price_cents, l.currency)}</s><T en="Free" fr="Gratuit" />
                       </div>
                     ) : (
                     <div style={{ background: l.price_cents === 0 ? 'rgba(76,175,80,0.2)' : 'rgba(255,200,80,0.2)', color: l.price_cents === 0 ? 'var(--ok)' : '#ffcc66', padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {formatPrice(l.price_cents, l.currency)}
+                      {prix(l.price_cents, l.currency)}
                     </div>
                     )}
                   </div>
@@ -934,15 +956,15 @@ function MarketPageInner() {
                         onClick={(e) => e.stopPropagation()}
                         style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'none' }}
                       >
-                        by {l.author_display}
+                        <T en="by {x}" fr="par {x}" vals={[l.author_display]} />
                       </a>
                     ) : (
-                      <>by {l.author_display}</>
+                      <T en="by {x}" fr="par {x}" vals={[l.author_display]} />
                     )}
-                    {' · '}{kind === 'image' ? '2D image' : kind === 'rig' ? 'Rig' : kind === 'animation' ? (l.asset_type || 'Animation') : (l.asset_type || '3D mesh')}
+                    {' · '}{kind === 'image' ? <T en="2D image" fr="Image 2D" /> : kind === 'rig' ? <T en="Rig" fr="Squelette" /> : kind === 'animation' ? (l.asset_type || <T en="Animation" fr="Animation" />) : (l.asset_type || <T en="3D mesh" fr="Modèle 3D" />)}
                   </div>
                   <div style={{ color: 'var(--text-3)', fontSize: 10 }}>
-                    {LICENCE_LABELS[l.licence] || l.licence}
+                    {licence(l.licence)}
                   </div>
                   <div><BadgeIA taille={10} /></div>
                   <div>
@@ -961,8 +983,11 @@ function MarketPageInner() {
                       : 'rgba(255,200,80,0.18)';
                     return (
                       <>
-                        <div style={{ display: 'inline-block', alignSelf: 'flex-start', background: statusBg, color: statusColor, padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, textTransform: 'capitalize' }}>
-                          {status}
+                        <div style={{ display: 'inline-block', alignSelf: 'flex-start', background: statusBg, color: statusColor, padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
+                          {status === 'approved' ? <T en="Approved" fr="Approuvée" />
+                            : status === 'rejected' ? <T en="Rejected" fr="Refusée" />
+                            : status === 'pending' ? <T en="Pending review" fr="En attente de validation" />
+                            : status}
                         </div>
                         {status === 'rejected' && m?.rejection_reason && (
                           <div style={{ color: 'var(--err)', fontSize: 10, fontStyle: 'italic' }}>
@@ -975,14 +1000,14 @@ function MarketPageInner() {
                             className="ghost-btn"
                             style={{ flex: 1, padding: '6px 8px', fontSize: 12 }}
                           >
-                            ✏ Edit
+                            ✏ <T en="Edit" fr="Modifier" />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleRemoveMine(l.id); }}
                             className="ghost-btn"
                             style={{ flex: 1, padding: '6px 8px', fontSize: 12, color: 'var(--err)' }}
                           >
-                            ✗ Remove
+                            ✗ <T en="Remove" fr="Retirer" />
                           </button>
                         </div>
                       </>
@@ -995,7 +1020,7 @@ function MarketPageInner() {
                       className="primary-btn"
                       style={{ marginTop: 6, padding: '6px 12px', fontSize: 12, textAlign: 'center', textDecoration: 'none' }}
                     >
-                      ⬇ Download
+                      ⬇ <T en="Download" fr="Télécharger" />
                     </a>
                   ) : l.price_cents === 0 ? (
                     <a
@@ -1005,7 +1030,7 @@ function MarketPageInner() {
                       className="ghost-btn"
                       style={{ marginTop: 6, padding: '6px 12px', fontSize: 12, textAlign: 'center', textDecoration: 'none' }}
                     >
-                      ⬇ Free download
+                      ⬇ <T en="Free download" fr="Téléchargement gratuit" />
                     </a>
                   ) : (l.offert && !(meUserId && l.user_id === meUserId)) ? (
                     <button
@@ -1014,7 +1039,7 @@ function MarketPageInner() {
                       className="primary-btn"
                       style={{ marginTop: 6, padding: '6px 12px', fontSize: 12 }}
                     >
-                      {claimBusy === l.id ? '…' : '🎁 Get it free'}
+                      {claimBusy === l.id ? '…' : <>🎁 <T en="Get it free" fr="L'obtenir gratuitement" /></>}
                     </button>
                   ) : (meUserId && l.user_id === meUserId) ? (
                     <span
@@ -1029,7 +1054,7 @@ function MarketPageInner() {
                         borderRadius: 6,
                       }}
                     >
-                      Your listing
+                      <T en="Your listing" fr="Votre annonce" />
                     </span>
                   ) : (
                     <button
@@ -1037,7 +1062,7 @@ function MarketPageInner() {
                       className={inCart(l.id) ? 'ghost-btn' : 'primary-btn'}
                       style={{ marginTop: 6, padding: '6px 12px', fontSize: 12 }}
                     >
-                      {inCart(l.id) ? '✓ In cart — remove' : '🛒 Add to cart'}
+                      {inCart(l.id) ? <>✓ <T en="In cart — remove" fr="Dans le panier — retirer" /></> : <>🛒 <T en="Add to cart" fr="Ajouter au panier" /></>}
                     </button>
                   )}
                 </div>
@@ -1061,12 +1086,12 @@ function MarketPageInner() {
                       onClick={(e) => e.stopPropagation()}
                       style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'none' }}
                     >
-                      by {selected.author_display}
+                      <T en="by {x}" fr="par {x}" vals={[selected.author_display]} />
                     </a>
                   ) : (
-                    <>by {selected.author_display}</>
+                    <T en="by {x}" fr="par {x}" vals={[selected.author_display]} />
                   )}
-                  {selected.asset_type ? ` · ${selected.asset_type}` : ''} · {LICENCE_LABELS[selected.licence] || selected.licence}
+                  {selected.asset_type ? ` · ${selected.asset_type}` : ''} · {licence(selected.licence)}
                 </div>
                 <div style={{ marginTop: 6 }}><BadgeIA /></div>
               </div>
@@ -1092,7 +1117,7 @@ function MarketPageInner() {
             })()}
             {!selected.asset_url && selected.preview_url && (
               <p style={{ color: 'var(--text-2)', fontSize: 12, margin: 0 }}>
-                Preview: reduced quality with a watermark. The full-quality file comes with your purchase.
+                <T en="Preview: reduced quality with a watermark. The full-quality file comes with your purchase." fr="Aperçu : qualité réduite, avec filigrane. Le fichier en pleine qualité est fourni avec votre achat." />
               </p>
             )}
             {selected.description && (
@@ -1106,12 +1131,12 @@ function MarketPageInner() {
                     {Number(selected.rating_avg).toFixed(1)} / 5
                   </span>
                 ) : (
-                  <span style={{ color: 'var(--text-3)', fontSize: 12 }}>No ratings yet</span>
+                  <span style={{ color: 'var(--text-3)', fontSize: 12 }}><T en="No ratings yet" fr="Pas encore de note" /></span>
                 )}
               </div>
               {meUserId && selected.user_id !== meUserId && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-                  <span style={{ color: 'var(--text-2)', fontSize: 12 }}>Your rating:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginInlineStart: 'auto' }}>
+                  <span style={{ color: 'var(--text-2)', fontSize: 12 }}><T en="Your rating:" fr="Votre note :" /></span>
                   <Stars
                     value={0}
                     size={20}
@@ -1125,27 +1150,27 @@ function MarketPageInner() {
               {selected.offert ? (
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800 }}>
-                    <s style={{ color: 'var(--text-3)', fontWeight: 400, fontSize: 15, marginRight: 8 }}>{formatPrice(selected.price_cents, selected.currency)}</s>Free
+                    <s style={{ color: 'var(--text-3)', fontWeight: 400, fontSize: 15, marginInlineEnd: 8 }}>{prix(selected.price_cents, selected.currency)}</s><T en="Free" fr="Gratuit" />
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ok)' }}>
-                    🎁 Free this month{selected.offert_fin ? ` · until ${new Date(selected.offert_fin).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''} · the creator is still paid
+                    🎁 <T en="Free this month" fr="Gratuit ce mois-ci" />{selected.offert_fin ? <> · <T en="until {x}" fr="jusqu'au {x}" vals={[date(selected.offert_fin)]} /></> : ''} · <T en="the creator is still paid" fr="le créateur est quand même rémunéré" />
                   </div>
                 </div>
               ) : (
-              <div style={{ fontSize: 18, fontWeight: 800 }}>{formatPrice(selected.price_cents, selected.currency)}</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{prix(selected.price_cents, selected.currency)}</div>
               )}
               {ownedIds.has(selected.id) ? (
                 <a href={`/api/market/download/${encodeURIComponent(selected.id)}`} download className="primary-btn" style={{ padding: '10px 24px', textDecoration: 'none' }}>
-                  ⬇ Download
+                  ⬇ <T en="Download" fr="Télécharger" />
                 </a>
               ) : selected.price_cents === 0 ? (
                 <a href={`/api/market/download/${encodeURIComponent(selected.id)}`} download className="primary-btn" style={{ padding: '10px 24px', textDecoration: 'none' }}>
-                  ⬇ Free download
+                  ⬇ <T en="Free download" fr="Téléchargement gratuit" />
                 </a>
               ) : (selected.offert && !(meUserId && selected.user_id === meUserId)) ? (
                 <button onClick={() => claimFree(selected)} disabled={claimBusy === selected.id}
                         className="primary-btn" style={{ padding: '10px 24px' }}>
-                  {claimBusy === selected.id ? '…' : '🎁 Get it free — yours to keep'}
+                  {claimBusy === selected.id ? '…' : <>🎁 <T en="Get it free — yours to keep" fr="L'obtenir gratuitement — il est à vous" /></>}
                 </button>
               ) : (meUserId && selected.user_id === meUserId) ? (
                 <span
@@ -1158,7 +1183,7 @@ function MarketPageInner() {
                     fontSize: 13,
                   }}
                 >
-                  Your listing
+                  <T en="Your listing" fr="Votre annonce" />
                 </span>
               ) : (
                 <button
@@ -1166,16 +1191,16 @@ function MarketPageInner() {
                   className={inCart(selected.id) ? 'ghost-btn' : 'primary-btn'}
                   style={{ padding: '10px 24px' }}
                 >
-                  {inCart(selected.id) ? '✓ In cart — remove' : '🛒 Add to cart'}
+                  {inCart(selected.id) ? <>✓ <T en="In cart — remove" fr="Dans le panier — retirer" /></> : <>🛒 <T en="Add to cart" fr="Ajouter au panier" /></>}
                 </button>
               )}
             </div>
             <button
               onClick={() => reportListing(selected.id)}
-              title="Report this listing as illegal or infringing"
+              title={tr('Report this listing as illegal or infringing', "Signaler cette annonce comme illégale ou contrefaisante")}
               style={{ marginTop: 14, background: 'transparent', border: 'none',
                        color: 'var(--text-3)', fontSize: 12, cursor: 'pointer', padding: 0 }}>
-              ⚑ Report this listing
+              ⚑ <T en="Report this listing" fr="Signaler cette annonce" />
             </button>
           </div>
         </div>
@@ -1184,13 +1209,13 @@ function MarketPageInner() {
       {/* Cart drawer */}
       {cartOpen && (
         <div onClick={() => setCartOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'flex-end', zIndex: 101 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 420, maxWidth: '95vw', height: '100%', background: 'var(--bg-1)', borderLeft: '1px solid var(--border)', padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 420, maxWidth: '95vw', height: '100%', background: 'var(--bg-1)', borderInlineStart: '1px solid var(--border)', padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0 }}>🛒 Cart</h2>
+              <h2 style={{ margin: 0 }}>🛒 <T en="Cart" fr="Panier" /></h2>
               <button onClick={() => setCartOpen(false)} className="ghost-btn" style={{ padding: '4px 12px' }}>✕</button>
             </div>
             {cartItems.length === 0 ? (
-              <p style={{ color: 'var(--text-2)', fontSize: 13 }}>Your cart is empty. Add paid listings from the grid.</p>
+              <p style={{ color: 'var(--text-2)', fontSize: 13 }}><T en="Your cart is empty. Add paid listings from the grid." fr="Votre panier est vide. Ajoutez des annonces payantes depuis la grille." /></p>
             ) : (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
@@ -1201,7 +1226,7 @@ function MarketPageInner() {
                       style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
-                      title="Click to inspect on the marketplace"
+                      title={tr('Click to inspect on the marketplace', 'Cliquer pour voir sur la Marketplace')}
                     >
                       {l.asset_kind === 'image' ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -1211,8 +1236,8 @@ function MarketPageInner() {
                       )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.title}</div>
-                        <div style={{ color: 'var(--text-2)', fontSize: 11 }}>{LICENCE_LABELS[l.licence] || l.licence}</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{formatPrice(l.price_cents, l.currency)}</div>
+                        <div style={{ color: 'var(--text-2)', fontSize: 11 }}>{licence(l.licence)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{prix(l.price_cents, l.currency)}</div>
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); removeFromCart(l.id); }}
@@ -1224,14 +1249,14 @@ function MarketPageInner() {
                 </div>
                 <div style={{ paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                    <span>Total</span>
-                    <strong>{formatPrice(cartTotal, cartItems[0]?.currency || 'USD')}</strong>
+                    <span><T en="Total" fr="Total" /></span>
+                    <strong>{prix(cartTotal, cartItems[0]?.currency || 'USD')}</strong>
                   </div>
                   <button onClick={demanderPaiement} disabled={checkingOut} className="primary-btn" style={{ padding: '12px', fontSize: 14 }}>
-                    {checkingOut ? 'Redirecting to Stripe…' : `Checkout with Stripe`}
+                    {checkingOut ? <T en="Redirecting to Stripe…" fr="Redirection vers Stripe…" /> : <T en="Checkout with Stripe" fr="Payer avec Stripe" />}
                   </button>
                   <div style={{ fontSize: 11, color: 'var(--text-3)', textAlign: 'center' }}>
-                    Secure payment via Stripe · 30% platform fee covers infrastructure + commission · sellers receive 70% net.
+                    <T en="Secure payment via Stripe · the 30% platform fee covers infrastructure and commission · sellers receive 70% net." fr="Paiement sécurisé par Stripe · les 30 % de frais de plateforme couvrent l'infrastructure et la commission · les vendeurs reçoivent 70 % net." />
                   </div>
                 </div>
               </>
@@ -1263,28 +1288,33 @@ function MarketPageInner() {
             style={{
               background: 'var(--bg-1)', border: '1px solid var(--border)',
               borderRadius: 14, maxWidth: 540, width: '100%', padding: '26px 26px 22px',
-              boxShadow: '0 20px 60px rgba(0,0,0,.6)', textAlign: 'left',
+              boxShadow: '0 20px 60px rgba(0,0,0,.6)', textAlign: 'start',
               maxHeight: '90vh', overflowY: 'auto',
             }}
           >
             <h3 id="market-consent-titre" style={{ margin: '0 0 6px', fontSize: 19 }}>
-              Confirmez votre achat
+              <T en="Confirm your purchase" fr="Confirmez votre achat" />
             </h3>
+            {/* La renonciation ci-dessous est une mention JURIDIQUE en francais seulement (choix d'origine,
+                voir le commentaire au-dessus) : l'avis le dit dans les autres langues. */}
+            <p className="avis-francais-seul" style={{ fontSize: 12, color: 'var(--text-2)', margin: '4px 0 0' }}>
+              <T en="The legal notice below is available in French only." fr="La mention juridique ci-dessous n'existe qu'en français." />
+            </p>
 
             <div style={{ margin: '14px 0 18px', padding: '12px 14px', background: 'var(--bg-2)', borderRadius: 10 }}>
               {cartItems.map((l) => (
                 <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, padding: '3px 0' }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {l.title}
-                    <span style={{ color: 'var(--text-2)' }}> · {LICENCE_LABELS[l.licence] || l.licence}</span>
+                    <span style={{ color: 'var(--text-2)' }}> · {licence(l.licence)}</span>
                   </span>
-                  <span style={{ fontWeight: 600, flexShrink: 0 }}>{formatPrice(l.price_cents, l.currency)}</span>
+                  <span style={{ fontWeight: 600, flexShrink: 0 }}>{prix(l.price_cents, l.currency)}</span>
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                <span style={{ fontWeight: 600 }}>Total</span>
+                <span style={{ fontWeight: 600 }}><T en="Total" fr="Total" /></span>
                 <span style={{ fontWeight: 700, fontSize: 17 }}>
-                  {formatPrice(cartTotal, cartItems[0]?.currency || 'USD')} TTC
+                  {prix(cartTotal, cartItems[0]?.currency || 'USD')} TTC
                 </span>
               </div>
             </div>
@@ -1304,7 +1334,7 @@ function MarketPageInner() {
                 onChange={(e) => setConsentAccepte(e.target.checked)}
                 style={{ marginTop: 3, width: 17, height: 17, flexShrink: 0, cursor: 'pointer' }}
               />
-              <span>
+              <span lang="fr" dir="ltr">
                 Je demande expressément que ces créations me soient fournies
                 immédiatement après le paiement, et je reconnais que dès que je
                 les télécharge, je{' '}
@@ -1315,23 +1345,23 @@ function MarketPageInner() {
               </span>
             </label>
 
-            <p style={{ fontSize: 12, color: 'var(--text-2)', margin: '12px 0 0' }}>
+            <p lang="fr" dir="ltr" style={{ fontSize: 12, color: 'var(--text-2)', margin: '12px 0 0' }}>
               Tant que vous n&apos;avez pas téléchargé une création achetée, elle
               reste remboursable pendant 14 jours, sans motif à fournir.
             </p>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
               <button className="ghost-btn" onClick={() => setConsentOuvert(false)} disabled={checkingOut} style={{ padding: '8px 16px' }}>
-                Annuler
+                <T en="Cancel" fr="Annuler" />
               </button>
               <button
                 className="primary-btn"
                 onClick={checkout}
                 disabled={!consentAccepte || checkingOut}
-                title={consentAccepte ? '' : 'Cochez la case ci-dessus pour continuer'}
+                title={consentAccepte ? '' : tr('Tick the box above to continue', 'Cochez la case ci-dessus pour continuer')}
                 style={{ padding: '8px 20px' }}
               >
-                {checkingOut ? '…' : `Confirmer et payer ${formatPrice(cartTotal, cartItems[0]?.currency || 'USD')}`}
+                {checkingOut ? '…' : <T en="Confirm and pay {x}" fr="Confirmer et payer {x}" vals={[prix(cartTotal, cartItems[0]?.currency || 'USD')]} />}
               </button>
             </div>
           </div>
@@ -1343,25 +1373,27 @@ function MarketPageInner() {
         <div onClick={() => !savingEdit && setEditing(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 102 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-1)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, maxWidth: 540, width: '100%', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0 }}>✏ Edit listing</h2>
+              <h2 style={{ margin: 0 }}>✏ <T en="Edit listing" fr="Modifier l'annonce" /></h2>
               <button onClick={() => setEditing(null)} disabled={savingEdit} className="ghost-btn" style={{ padding: '4px 12px' }}>✕</button>
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
-              Saving changes resets the listing to <strong>pending</strong> so an admin can re-review it.
+              <T en="Saving changes puts the listing back to **pending review** so an admin can check it again." fr="Enregistrer les modifications remet l'annonce **en attente de validation** : un administrateur la vérifie à nouveau." />
             </div>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
-              Title
+              <T en="Title" fr="Titre" />
               <input
                 value={editing.title}
+                dir="auto"
                 onChange={(e) => setEditing({ ...editing, title: e.target.value })}
                 maxLength={120}
                 style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--text-0)', fontSize: 14 }}
               />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
-              Description
+              <T en="Description" fr="Description" />
               <textarea
                 value={editing.description}
+                dir="auto"
                 onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                 maxLength={2000}
                 rows={5}
@@ -1369,7 +1401,7 @@ function MarketPageInner() {
               />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
-              Price (cents — set 0 for free)
+              <T en="Price (in cents — 0 for free)" fr="Prix (en centimes — 0 pour gratuit)" />
               <input
                 type="number"
                 min={0}
@@ -1379,25 +1411,25 @@ function MarketPageInner() {
                 style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--text-0)', fontSize: 14 }}
               />
               <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                Preview: {formatPrice(editing.price_cents, 'USD')}
+                <T en="Preview: {x}" fr="Aperçu : {x}" vals={[prix(editing.price_cents, 'USD')]} />
               </div>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
-              Licence
+              <T en="Licence" fr="Licence" />
               <select
                 value={editing.licence}
                 onChange={(e) => setEditing({ ...editing, licence: e.target.value })}
                 style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--text-0)', fontSize: 14 }}
               >
-                {Object.entries(LICENCE_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
+                {Object.keys(LICENCE_LABELS).map((k) => (
+                  <option key={k} value={k}>{licence(k)}</option>
                 ))}
               </select>
             </label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-              <button onClick={() => setEditing(null)} disabled={savingEdit} className="ghost-btn" style={{ padding: '8px 16px' }}>Cancel</button>
+              <button onClick={() => setEditing(null)} disabled={savingEdit} className="ghost-btn" style={{ padding: '8px 16px' }}><T en="Cancel" fr="Annuler" /></button>
               <button onClick={saveEdit} disabled={savingEdit} className="primary-btn" style={{ padding: '8px 20px' }}>
-                {savingEdit ? 'Saving…' : 'Save changes'}
+                {savingEdit ? <T en="Saving…" fr="Enregistrement…" /> : <T en="Save changes" fr="Enregistrer les modifications" />}
               </button>
             </div>
           </div>
@@ -1405,9 +1437,10 @@ function MarketPageInner() {
       )}
 
       <div style={{ marginTop: 40, padding: 20, background: 'var(--bg-2)', borderRadius: 10, color: 'var(--text-2)', fontSize: 13, lineHeight: 1.6 }}>
-        Want to publish a mesh you generated? Open the app, click any
-        succeeded mesh, and use the <strong>🛒 Publish to marketplace</strong> button.
-        An admin will review your listing before it goes live here.
+        <T
+          en="Want to publish a mesh you generated? Open the app, click a finished mesh, and use the **🛒 Publish to marketplace** button. An admin will review your listing before it goes live here."
+          fr="Vous voulez publier un modèle que vous avez généré ? Ouvrez l'appli, cliquez sur un modèle terminé et utilisez le bouton **🛒 Publier sur la marketplace**. Un administrateur vérifie votre annonce avant sa mise en ligne ici."
+        />
       </div>
     </div>
   );
