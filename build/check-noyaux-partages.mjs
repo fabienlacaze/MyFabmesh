@@ -134,6 +134,8 @@ const FICHIERS = [
   { nom: 'reshape (auto inpaint 3D)', source: 'scripts/mesh_inpaint.py', copie: 'modal_app/reshape/mesh_inpaint.py' },
   { nom: 'serpent etire (silhouette)', source: 'scripts/serpent_etire.py', copie: 'modal_app/serpent_etire.py' },
   { nom: 'acceleration du GLB (atlas, WebP)', source: 'scripts/acceleration_glb.py', copie: 'modal_app/acceleration_glb.py' },
+  // carte de normales cuite du maillage fin vers le maillage final (2026-10-13) : generation bureau ET Modal, outils
+  { nom: 'carte de normales (cuisson)', source: 'scripts/normal_bake.py', copie: 'modal_app/normal_bake.py' },
   // Face Fix image (2026-09-29) : visage humain ou TETE d'animal + retouche SDXL, bureau (serveur local) et web
   { nom: 'face fix image (visage / tete d animal)', source: 'scripts/face_fix_image.py', copie: 'modal_app/_face_fix_image.py' },
   { nom: 'align texture (reprojection)', source: 'scripts/texture_project.py', copie: 'modal_app/texproj/texture_project.py' },
