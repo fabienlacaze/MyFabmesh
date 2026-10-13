@@ -14322,6 +14322,7 @@ function handleMeshRegionRetex(req: Request, env: Env): Promise<Response> {
     // depuis le disque a froid. Plafond reserve, pas une facture.
     estimationUsd: 0.06,
     texteLibre: (c) => String(c.prompt ?? '').trim().slice(0, 300),
+    champTexteLibre: 'prompt',
     champs: (c) => {
       // Le masque arrive en data URL PNG. On borne sa taille : un masque
       // binaire 1024x1024 pese quelques dizaines de Ko ; au-dela de 8 Mo ce

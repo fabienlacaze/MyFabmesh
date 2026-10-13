@@ -362,3 +362,66 @@ test('filet : outil en echec de traduction -> 422 avant le debit ; texte anglais
   assert.equal(ai.appels.length, 0);
   assert.equal(j.op.at(-1).targetText, 'hat');
 });
+
+/** Doublures des routes maillage / rectification : Modal (fetch), Supabase et R2 simules. */
+function monterOutils3d({ ai = fauxAI() } = {}) {
+  const j = { depenses: [], op: [], dos: [], rect: [], modal: [], jobs: [] };
+  const w = charger(['handleTexVariant', 'handleRectifyImage', 'handleMeshReshape', 'ESTIMATED_USD_RESHAPE', '_opAtlasGpu', 'handleMeshTexVar',
+    'handleMeshRegionRetex', ...AUXILIAIRES], {
+    ...doublesOutils(j),
+    callModalRectify: async (_e, _u, input) => { j.rect.push(input); return 'https://r2.example/r.png'; },
+    supabaseAdmin: () => ({ from: () => ({ insert: async (ligne) => { j.jobs.push(ligne); return { error: null }; },
+      update: () => ({ eq: async () => ({}) }) }) }),
+    _provenance: () => 'web', _paysRequete: () => 'FR',
+    fetch: async (url, init) => {
+      j.modal.push({ url: String(url), corps: JSON.parse(init.body) });
+      return new Response(JSON.stringify({ ok: true, glb_base64: btoa('glTF') }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+  const env = { AI: ai, MODAL_IMAGE_OP_URL: 'https://op.example/image_op', MODAL_RECTIFY_URL: 'https://rect.example', MODAL_SHARED_SECRET: 's',
+    MODAL_MESH_START_URL: 'https://mesh.example/mesh_start', MODAL_MESH_STATUS_URL: 'https://mesh.example/mesh_status', MESHES: creerR2(),
+    R2_PUBLIC_URL: 'https://r2.example' };
+  return { j, w, env, ai };
+}
+
+test('filet : Age / Variant (tex-variant), Rectify, Reshape, Texture variants du maillage (Style), Re-texture d une region : texte traduit', async () => {
+  const { j, w, env } = monterOutils3d();
+  let r = await w.handleTexVariant(corpsRequete('/api/tex-variant', { imageUrl: 'https://r2.example/a.png', prompt: 'une armure dorée', strength: 0.5 }), env);
+  assert.equal(r.status, 200);
+  assert.equal(j.op.at(-1).prompt, 'EN:une armure dorée');
+  r = await w.handleRectifyImage(corpsRequete('/api/rectify-image', { prompt: 'un chevalier en armure', refImageUrl: 'https://r2.example/a.png' }), env);
+  assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
+  assert.equal(j.rect.at(-1).prompt, 'EN:un chevalier en armure');
+  r = await w.handleMeshReshape(corpsRequete('/api/mesh-reshape', { meshUrl: 'https://r2.example/m.glb', vueUrl: 'https://r2.example/v.png',
+    maskDataUrl: 'data:image/png;base64,AAAA', prompt: 'une aile de chauve-souris' }), env);
+  assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
+  assert.equal(j.modal.at(-1).corps.prompt, 'EN:une aile de chauve-souris', 'reshape : Modal recoit le texte traduit');
+  r = await w.handleMeshTexVar(corpsRequete('/api/mesh-texvar', { meshUrl: 'https://r2.example/m.glb', style: 'rouillé et doré', strength: 0.4, seed: 1 }), env);
+  assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
+  assert.equal(j.modal.at(-1).corps.style, 'EN:rouillé et doré', 'Texture variants : le Style n etait traduit nulle part (CHAMPS-03)');
+  r = await w.handleMeshRegionRetex(corpsRequete('/api/mesh-region-retex', { meshUrl: 'https://r2.example/m.glb', mask: 'data:image/png;base64,AAAA',
+    prompt: 'du cuir usé et taché' }), env);
+  assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
+  assert.equal(j.modal.at(-1).corps.prompt, 'EN:du cuir usé et taché', 'Re-texture d une region : Modal recoit le texte traduit');
+});
+
+test('filet (maillage) : traduction impossible -> 422 AVANT tout debit ; « tel quel » respecte ; anglais sans appel', async () => {
+  const panne = monterOutils3d({ ai: fauxAI({ mode: 'panne' }) });
+  let r = await panne.w.handleMeshRegionRetex(corpsRequete('/api/mesh-region-retex', { meshUrl: 'https://r2.example/m.glb',
+    mask: 'data:image/png;base64,AAAA', prompt: 'du cuir usé et taché' }), panne.env);
+  assert.equal(r.status, 422);
+  r = await panne.w.handleMeshReshape(corpsRequete('/api/mesh-reshape', { meshUrl: 'https://r2.example/m.glb', vueUrl: 'https://r2.example/v.png',
+    maskDataUrl: 'data:image/png;base64,AAAA', prompt: 'une aile de chauve-souris' }), panne.env);
+  assert.equal(r.status, 422);
+  assert.deepEqual(panne.j.depenses, [], 'rien debite');
+  assert.equal(panne.j.modal.length + panne.j.jobs.length, 0, 'rien envoye a Modal, aucun travail cree');
+  r = await panne.w.handleMeshTexVar(corpsRequete('/api/mesh-texvar', { meshUrl: 'https://r2.example/m.glb', style: 'rouillé et doré',
+    langueVerifiee: true }), panne.env);
+  assert.equal(r.status, 200);
+  assert.equal(panne.j.modal.at(-1).corps.style, 'rouillé et doré');
+  const ok = monterOutils3d();
+  await ok.w.handleMeshRegionRetex(corpsRequete('/api/mesh-region-retex', { meshUrl: 'https://r2.example/m.glb', mask: 'data:image/png;base64,AAAA',
+    prompt: 'worn leather with stains' }), ok.env);
+  assert.equal(ok.ai.appels.length, 0);
+  assert.equal(ok.j.modal.at(-1).corps.prompt, 'worn leather with stains');
+});
