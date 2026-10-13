@@ -21,6 +21,8 @@ const path = require('path');
 const { readMeta, writeMeta } = require('./meta');
 // 2026-10-03 (constat D-05, reste) : validation commune des URL de telechargement (https, hote public, liste d'hotes).
 const { analyserUrlTelechargement } = require('./durcissement');
+// Noms de projet non latins (2026-10-13) : dossier d'images d'un projet = MEME regle que main.js (generate-images, depot de fichier).
+const { slugProjet } = require('./slug_projet');
 
 // Constantes publiques (identiques à cloud/wrangler.toml [vars] — l'anon key
 // Supabase est par conception publique). Surchargables par env pour les tests.
@@ -461,6 +463,16 @@ async function _authedFetch(pathname, init = {}) {
   return { resp: r };
 }
 
+/** Nom du projet pour le SITE : regle de main.js (_nomPourLeSiteDuProjet, passee par register), celle de generate-images. La page
+ *  envoie le nom de DOSSIER de son projet ; un projet non latin a pour dossier « project-h1a2b3c4d » et ses images sont sur le site
+ *  sous son nom saisi (revue du lot 3, 2026-10-13). Sans main (appel direct) : le nom recu, comme avant. */
+function _nomProjetPourLeSite(nom) {
+  const brut = nom == null ? '' : String(nom);
+  const regle = _deps && _deps.nomProjetPourLeSite;
+  if (!brut || typeof regle !== 'function') return brut;
+  try { return regle(brut) || brut; } catch (_) { return brut; }
+}
+
 async function shareAsset({ filePath, projectName }) {
   if (!fs.existsSync(filePath)) return { success: false, error: 'file not found' };
   const ext = path.extname(filePath).toLowerCase();
@@ -511,7 +523,7 @@ async function shareAsset({ filePath, projectName }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      projectName: projectName || 'desktop',
+      projectName: _nomProjetPourLeSite(projectName) || 'desktop',   // meme nom que les images du projet sur le site
       kind: isMesh ? 'mesh-desktop' : 'image-front',
       paths: [uploadedPath],
       meta: { source: 'desktop' },
@@ -1282,13 +1294,17 @@ function _verifierUrlTelechargement(url) {
 async function downloadItem({ url, marketId, destPath, fname, kind, project }) {
   // Le renderer envoie (kind, fname, project) — on construit ici le chemin
   // absolu dans les dossiers de données de l'app (jamais de chemin libre).
+  let dossierProjet = null;
   if (!destPath && fname) {
     const safe = String(fname).replace(/[^a-zA-Z0-9_.-]/g, '_');
-    const safeProj = String(project || 'cloud_import').replace(/[^a-zA-Z0-9_-]/g, '_');
+    // Dossier du projet : la regle de generate-images (slugProjet), pas l'ancienne forme assainie qui rangeait « 兽人战士 » et
+    // « 精灵射手 » dans le MEME dossier « ____ » (revue du lot 3, 2026-10-13). Nom ASCII : dossier d'avant, inchange.
+    const safeProj = slugProjet(String(project || 'cloud_import'));
     if (kind === 'mesh' && _deps.MESHES_DIR) {
       destPath = path.join(_deps.MESHES_DIR, safe);
     } else if (_deps.IMAGES_DIR) {
       destPath = path.join(_deps.IMAGES_DIR, safeProj, safe);
+      dossierProjet = safeProj;
     }
   }
   if (!destPath) return { success: false, error: 'no destination' };
@@ -1320,6 +1336,11 @@ async function downloadItem({ url, marketId, destPath, fname, kind, project }) {
   if (buf.length < 100) return { success: false, error: 'empty download' };
   fs.mkdirSync(path.dirname(destPath), { recursive: true });
   fs.writeFileSync(destPath, buf);
+  // Projet non latin dont ce telechargement cree le dossier « project-h… » : nom saisi memorise (main.js _memoriserNomProjet), comme
+  // pour une generation — la grille relie le projet ouvert a ce dossier et le site recoit ensuite le meme nom.
+  if (dossierProjet && typeof _deps.memoriserNomProjet === 'function') {
+    try { _deps.memoriserNomProjet(dossierProjet, String(project || '')); } catch (_) {}
+  }
   return { success: true, path: destPath, size: buf.length };
 }
 

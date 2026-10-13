@@ -1743,10 +1743,51 @@ function _memoriserNomProjet(dossier, nomSaisi) {
       config.projectDisplayNames = { ...noms, [dossier]: aEcrire };
       saveConfig(config);
     }
-    return nomPourLeSite(dossier, nomSaisi, config.projectDisplayNames || noms);
+    return nomPourLeSite(dossier, nomSaisi, _nomsSaisisPourLeSite(config));
   } catch (_) {
     return nomPourLeSite(dossier, nomSaisi, {});
   }
+}
+
+/** NOMS SAISIS retrouves dans les marqueurs de projets vides (revue du lot 3, 2026-10-13). Le marqueur d'un projet non latin porte le
+ *  nom de son dossier (projets_vides/project-h1a2b3c4d.json, voir _cheminProjetVide) et contient le nom saisi : seconde source apres
+ *  config.projectDisplayNames. Sans elle, un config.json reinitialise apres la 1re generation (ou un renommage d'affichage qui remplace
+ *  le nom memorise) rendait au dossier son nom « project-h… » : carte en double dans la grille, et les generations suivantes
+ *  partaient sur le site sous ce nom, coupant le projet en deux. Seuls les noms qui DONNENT ce dossier sont gardes. Ne leve jamais. */
+function _nomsSaisisDesMarqueurs() {
+  const noms = {};
+  try {
+    for (const f of fs.readdirSync(PROJETS_VIDES_DIR)) {
+      if (!/\.json$/i.test(f)) continue;
+      const dossier = f.slice(0, -5);
+      try {
+        const nom = JSON.parse(fs.readFileSync(path.join(PROJETS_VIDES_DIR, f), 'utf-8')).name;
+        if (nomAffichageAMemoriser(dossier, nom, false)) noms[dossier] = String(nom);
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return noms;
+}
+
+/** Noms dont nomPourLeSite tient compte : un nom memorise qui donne son dossier l'emporte, sinon celui du marqueur du projet. */
+function _nomsSaisisPourLeSite(config) {
+  const noms = _nomsSaisisDesMarqueurs();
+  const memo = (config && config.projectDisplayNames) || {};
+  for (const dossier of Object.keys(memo)) {
+    if (nomAffichageAMemoriser(dossier, memo[dossier], false)) noms[dossier] = String(memo[dossier]);
+  }
+  return noms;
+}
+
+/** Nom du projet `nom` pour le SITE (revue du lot 3, 2026-10-13) : LA regle du bureau, celle de generate-images — dossier =
+ *  slugProjet(nom), puis nomPourLeSite. La page envoie le nom de DOSSIER de son projet (ou le nom saisi d'un projet encore vide) ;
+ *  le partage vers le site (cloud-share-asset) et le clip d'animation (anim:motion) passent ICI. Avant, l'animation partait sous le
+ *  nom de dossier et la page choisissait elle-meme le nom du partage : un projet « 兽人战士 » cree au bureau apparaissait sur le site
+ *  en deux cartes (images sous « 兽人战士 », clip sous « project-h… »). '' pour un nom vide (l'appelant garde son defaut). */
+function _nomPourLeSiteDuProjet(nom) {
+  const n = nom == null ? '' : String(nom);
+  if (!n.trim()) return '';
+  try { return nomPourLeSite(slugProjet(n), n, _nomsSaisisPourLeSite(loadConfig())); } catch (_) { return n; }
 }
 
 let mainWindow;
@@ -6232,7 +6273,9 @@ ipcMain.handle('rename-project', (event, { oldName, newName }) => {
 });
 
 ipcMain.handle('get-project-display-names', () => {
-  try { return loadConfig().projectDisplayNames || {}; }
+  // + nom saisi des marqueurs de projets vides pour un dossier « project-h… » sans nom memorise (config.json reinitialise) : la grille
+  //   relie encore le projet a son dossier (revue du lot 3, 2026-10-13). Un nom memorise (nom saisi ou renommage) l'emporte.
+  try { return { ..._nomsSaisisDesMarqueurs(), ...(loadConfig().projectDisplayNames || {}) }; }
   catch (_) { return {}; }
 });
 
@@ -13722,6 +13765,8 @@ try {
     // Mode Cloud global : anim:kimodo route vers /api/animate (AnyTop) et
     // anim:retarget (Bibliothèque de mouvements) est désactivé.
     isCloudMode,
+    // Nom du projet envoyé au site avec un clip (anim:motion) : même règle que les images (noms non latins, 2026-10-13).
+    nomProjetPourLeSite: _nomPourLeSiteDuProjet,
   });
 } catch (e) {
   console.error('[animation] register failed:', e.message);
@@ -13735,7 +13780,10 @@ try {
   // safeSend : canal de progression partagé (« ai3d-progress ») — permet au
   // retry cold start d'annoncer « Cloud GPU is starting up… » sans toucher aux
   // 14 call sites cloud. isCloudMode : garde du heartbeat/préchauffage.
-  cloudFallback.register({ ipcMain, app, log, isPathAllowed, MESHES_DIR, IMAGES_DIR, safeSend, isCloudMode });
+  // nomProjetPourLeSite / memoriserNomProjet : nom envoyé au site par le partage, et nom saisi d'un projet non latin dont le dossier
+  // est créé par un téléchargement « Cloud library » (même règle que generate-images, 2026-10-13).
+  cloudFallback.register({ ipcMain, app, log, isPathAllowed, MESHES_DIR, IMAGES_DIR, safeSend, isCloudMode,
+    nomProjetPourLeSite: _nomPourLeSiteDuProjet, memoriserNomProjet: _memoriserNomProjet });
   // Préchauffage au démarrage en mode Cloud : le conteneur GPU Modal commence
   // à booter pendant que l'utilisateur découvre l'UI, pour que son premier clic
   // ne paie pas les 2-3 min de cold start (cause du HTTP 524).

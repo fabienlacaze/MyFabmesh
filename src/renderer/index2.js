@@ -886,18 +886,12 @@ function _projetDuNom(projets, nom) {
   return candidats.length === 1 ? candidats[0] : null;
 }
 /** Nom SAISI d'un projet (nom d'affichage non latin memorise : « 兽人战士 »), sinon son nom de dossier : c'est lui qui va dans le
- *  prompt, le nom d'export et le site, jamais « project-h1a2b3c4d » (2026-10-13, CHAMPS-13). */
+ *  prompt et le nom d'export, jamais « project-h1a2b3c4d » (2026-10-13, CHAMPS-13). Le nom envoye au SITE (images, partage, clip
+ *  d'animation) n'est PAS decide ici : la page envoie le nom de dossier et le processus principal applique sa regle (nomPourLeSite de
+ *  src/main/slug_projet.js), la meme pour les trois (revue du lot 3). */
 function _nomSaisiDuProjet(p) {
   if (!p) return '';
   return (p.displayName && !_estNomAscii(p.displayName)) ? String(p.displayName) : String(p.name || '');
-}
-/** Nom envoye au SITE pour un projet du bureau (meme regle que nomPourLeSite de src/main/slug_projet.js, CHAMPS-24) : le nom saisi
- *  memorise d'un dossier non latin ; sinon le nom de dossier, comme avant — un ancien dossier (« ____ ») garde le nom que le site
- *  connait deja, meme quand la grille l'affiche sous le nom de son projet vide. */
-function _nomPourLeSite(p) {
-  if (!p) return '';
-  if (p.displayName && !_estNomAscii(p.displayName) && !p._nomDuMarqueur) return String(p.displayName);
-  return String(p.name || '');
 }
 async function refreshProjectsPage() {
   const folders = (await API.listImageFolders()) || [];
@@ -20289,6 +20283,8 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       _lotAnim = job ? { jobId: job.id, index: i, total: types.length, type } : null;
       setStatus(`${type} (${i + 1}/${types.length})…`);
       if (job) _progresLot(job.id, (i / types.length) * 100 + 2, `${type} (${i + 1}/${types.length})`);
+      // projectName : nom de DOSSIER, comme pour les images ; anim:motion (src/main/animation.js) en tire le nom pour le site par la
+      // regle de generate-images (projet non latin : son nom saisi, sinon le clip formait une 2e carte sur le site, 2026-10-13).
       const r = await API.animMotion({ meshPath: rigPath, animType: type, assetType, projectName: proj.name, batchId });
       if (!r?.success) {
         etat[i] = 'failed';
@@ -30058,11 +30054,12 @@ document.getElementById('topbar-signin')?.addEventListener('click', async () => 
 async function _cloudShare(filePath, kindLabel) {
   const p = state.currentProject;
   showToast(`Sending ${kindLabel} to your cloud library…`, 'info', 8000);
-  // nom SAISI d'un projet non latin, pas son dossier « project-h1a2b3c4d » (2026-10-13, CHAMPS-24)
-  let r = await API.cloudShareAsset({ filePath, projectName: _nomPourLeSite(p) || 'desktop' });
+  // Nom de DOSSIER du projet : le processus principal en tire le nom pour le site par la regle de generate-images (nom saisi d'un projet
+  // non latin, CHAMPS-24). Une seule regle, cote main : la page en avait une seconde, differente (revue du lot 3, 2026-10-13).
+  let r = await API.cloudShareAsset({ filePath, projectName: p?.name || 'desktop' });
   if (r?.needsCloudLogin) {
     const ok = await showCloudLoginModal();
-    if (ok) r = await API.cloudShareAsset({ filePath, projectName: _nomPourLeSite(p) || 'desktop' });
+    if (ok) r = await API.cloudShareAsset({ filePath, projectName: p?.name || 'desktop' });
     else return;
   }
   if (r?.success) showToast(`${kindLabel} sent — visible in your web library.`, 'success');
@@ -30176,7 +30173,9 @@ async function showCloudLibraryModal() {
   const grid = (inner) => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;">${inner}</div>`;
   const card = _clbCard;   // 2026-10-03 (D-01) : version echappee au niveau du module
 
-  const destProject = () => (state.currentProject?.name || 'cloud_import').replace(/[^a-zA-Z0-9_-]/g, '_');
+  // Nom du projet ouvert, TEL QUEL : le processus principal en tire le dossier par la regle de generate-images (slugProjet) et memorise
+  // le nom saisi. L'assainir ici rangeait « 兽人战士 » et « 精灵射手 » dans le meme dossier « ____ » (revue du lot 3, 2026-10-13).
+  const destProject = () => String(state.currentProject?.name || 'cloud_import');
   // Les URLs du worker peuvent etre relatives (/r2/<cle>?exp&sig) : dans
   // Electron elles se resoudraient contre l'app -> prefixer par le site.
   const CLB_ORIGIN = 'https://myfabmesh-cloud.fabien65400.workers.dev';

@@ -23,10 +23,27 @@ try { slugBureau = require(chemin('SLUG_PROJET', '../../src/main/slug_projet.js'
 
 /** Declarations de premier niveau (fonctions, const/let/var) d'un module, par nom. */
 const _decl = new Map();
+const _ast = new Map();
+const arbre = (cle) => {
+  if (!_ast.has(cle)) _ast.set(cle, acorn.parse(SOURCES[cle], { ecmaVersion: 'latest', sourceType: 'module', allowHashBang: true }));
+  return _ast.get(cle);
+};
+/** Fonction affectee a `window.<nom>` n'importe ou dans le module (par ex. dans un bloc try), ou null. */
+function affectationWindow(cle, nom) {
+  const src = SOURCES[cle];
+  let trouve = null;
+  (function visiter(n) {
+    if (!n || typeof n.type !== 'string' || trouve) return;
+    if (n.type === 'AssignmentExpression' && n.left.type === 'MemberExpression' && n.left.object && n.left.object.name === 'window'
+        && n.left.property && n.left.property.name === nom) { trouve = src.slice(n.right.start, n.right.end); return; }
+    for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(visiter); else if (v && typeof v.type === 'string') visiter(v); }
+  })(arbre(cle));
+  return trouve;
+}
 function declarations(cle) {
   if (_decl.has(cle)) return _decl.get(cle);
   const src = SOURCES[cle];
-  const ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'module', allowHashBang: true });
+  const ast = arbre(cle);
   const m = new Map();
   for (const n of ast.body) {
     if (n.type === 'FunctionDeclaration' && n.id) m.set(n.id.name, src.slice(n.start, n.end));
@@ -45,7 +62,7 @@ function charger(cle, requis, optionnels, inj) {
   return new Function(...cles, corps)(...cles.map((k) => inj[k]));
 }
 
-const AIDES = ['_estNomAscii', '_nomsEquivalents', '_projetDuNom', '_nomSaisiDuProjet', '_nomPourLeSite'];
+const AIDES = ['_estNomAscii', '_nomsEquivalents', '_projetDuNom', '_nomSaisiDuProjet'];
 const silence = { log() {}, warn() {}, error() {} };
 
 /** Monde d'une page : `projets` = [{ name, images: n, created, shell, shellCreated, displayName }]. Rend { F, state, peuples }. */
@@ -198,19 +215,69 @@ test('bureau, non-regression ASCII : « Mobilier design » rejoint « Mobilier_d
   assert.equal(m.state.currentProject.name, 'Orc');
 });
 
-test('bureau : le nom place devant la description (prompt) et envoye au site est le nom SAISI, jamais le dossier « project-h… »', () => {
-  const d = declarations('bureau');
-  assert.ok(d.has('_nomSaisiDuProjet') && d.has('_nomPourLeSite'), 'aides de nom absentes');
-  const F = charger('bureau', ['_nomSaisiDuProjet', '_nomPourLeSite'], ['_estNomAscii'], {});
+test('bureau : le nom place devant la description (prompt) est le nom SAISI, jamais le dossier « project-h… »', () => {
+  // Le nom envoye au SITE (images, partage, clip d'animation) et le dossier d'un telechargement ne sont plus decides par la page : elle
+  // envoie le nom de dossier et le processus principal applique UNE regle (revue du lot 3) — voir tests/main/noms-projet-chaine.test.mjs.
+  const F = charger('bureau', ['_nomSaisiDuProjet'], ['_estNomAscii'], {});
   const neuf = { name: 'project-hde2e0b71', displayName: '兽人战士' };
-  const ancien = { name: '____', displayName: '兽人战士', _nomDuMarqueur: '兽人战士' };
   const ascii = { name: 'Mobilier_design', displayName: null };
+  const renomme = { name: 'orc', displayName: 'Mon orc' };
   assert.equal(F._nomSaisiDuProjet(neuf), '兽人战士');
   assert.equal(F._nomSaisiDuProjet(ascii), 'Mobilier_design');
-  assert.equal(F._nomPourLeSite(neuf), '兽人战士');
-  assert.equal(F._nomPourLeSite(ancien), '____', 'un ancien dossier garde le nom que le site connait deja');
-  assert.equal(F._nomPourLeSite(ascii), 'Mobilier_design');
-  const src = SOURCES.bureau;
-  assert.match(src, /_sujetDuProjet\(_nomSaisiDuProjet\(p\), saisi\)/, 'populateWorkspace place encore le nom de dossier dans le prompt');
-  assert.match(src, /cloudShareAsset\(\{ filePath, projectName: _nomPourLeSite\(p\) \|\| 'desktop' \}\)/, 'partage vers le site : nom de dossier');
+  assert.equal(F._nomSaisiDuProjet(renomme), 'orc', 'un renommage d affichage ASCII ne remplace pas le nom du projet dans le prompt');
+  // assert.ok plutot que assert.match : un echec ne recopie pas les 1,6 Mo de la page dans la sortie
+  assert.ok(/_sujetDuProjet\(_nomSaisiDuProjet\(p\), saisi\)/.test(SOURCES.bureau), 'populateWorkspace place encore le nom de dossier dans le prompt');
+});
+
+/* ═══════════════ regle « un seul candidat » et repli assaini (revue du lot 3 : mutants survivants) ═══════════════ */
+for (const cle of ['web', 'bureau']) {
+  test(`${cle} : _projetDuNom — nom EXACT d abord ; equivalence seulement si elle ne designe qu UN projet`, () => {
+    const F = charger(cle, ['_projetDuNom'], ['_estNomAscii', '_nomsEquivalents'], {});
+    const P = (name, displayName = null) => ({ name, displayName });
+    const souligne = P('orc_woman'), point = P('orc.woman'), orc = P('Orc');
+    assert.equal(F._projetDuNom([souligne, point, orc], 'orc woman'), null, 'deux projets equivalents : aucun des deux (pas de bascule au hasard)');
+    assert.equal(F._projetDuNom([point, souligne], 'orc woman'), null, 'idem, ordre inverse');
+    assert.equal(F._projetDuNom([souligne, orc], 'orc woman'), souligne, 'un seul projet equivalent : celui-la');
+    assert.equal(F._projetDuNom([souligne, point], 'orc.woman'), point, 'le nom exact passe avant toute equivalence');
+    const nfd = P('Cafe\u0301');
+    assert.equal(F._projetDuNom([nfd, orc], 'Caf\u00e9'), nfd, 'meme nom a la normalisation Unicode pres');
+    assert.equal(F._projetDuNom([P('兽人战士'), P('精灵射手')], '____'), null, 'la forme assainie ne relie jamais deux noms non latins');
+    const dossier = P('project-hde2e0b71', '兽人战士');
+    assert.equal(F._projetDuNom([P('精灵射手'), dossier], '兽人战士'), dossier, 'nom saisi memorise d un dossier non latin');
+  });
+}
+
+test('site : nom ouvert absent et DEUX projets equivalents (« orc_woman » 3 images, « orc.woman » 1) -> le rechargement ne bascule sur aucun', async () => {
+  // Comportement choisi par le lot (rechargement apres suppression de la derniere image) : un projet vide plutot qu'un AUTRE projet.
+  const m = monde('web', { dossiers: [{ name: 'orc_woman', images: 3, created: T0 }, { name: 'orc.woman', images: 1, created: T0 + H }] });
+  await m.F.refreshProjectsPage();
+  m.state.currentProject = { name: 'orc woman', images: [], meshes: [], rigs: [], animations: [] };
+  await m.F.reloadCurrentProject();
+  assert.equal(m.state.currentProject.name, 'orc woman', `bascule sur « ${m.state.currentProject.name} »`);
+  assert.equal(m.state.currentProject.images.length, 0);
+});
+
+/** window.openProjectByName du SITE (historique -> projet) avec une liste de projets donnee ; rend les projets ouverts et les avis. */
+function ouvertureSite(projets) {
+  const src = affectationWindow('web', 'openProjectByName');
+  assert.ok(src, 'window.openProjectByName introuvable');
+  const d = declarations('web');
+  const aides = ['_estNomAscii'].filter((n) => d.has(n));
+  const state = { projects: projets.map((name) => ({ name, images: [], meshes: [] })) };
+  const ouverts = [], avis = [];
+  const inj = { state, refreshProjectsPage: async () => {}, openProject: async (p) => { ouverts.push(p.name); }, showToast: (t) => avis.push(t),
+    document: { getElementById: () => null }, console: silence, renderImageVersions() {}, renderMeshVersions() {} };
+  const cles = Object.keys(inj);
+  const f = new Function(...cles, aides.map((n) => d.get(n)).join('\n') + '\nreturn (' + src + ');')(...cles.map((k) => inj[k]));
+  return { f, ouverts, avis };
+}
+
+test('site : openProjectByName(« ____ ») n ouvre PAS un projet non latin pris au hasard ; le repli assaini reste pour les noms ASCII', async () => {
+  const o = ouvertureSite(['兽人战士', '精灵射手']);
+  await o.f('____');
+  assert.deepEqual(o.ouverts, [], 'projet ouvert : ' + o.ouverts.join(', '));
+  assert.equal(o.avis.length, 1, 'l utilisateur est prevenu que le projet est introuvable');
+  const ascii = ouvertureSite(['兽人战士', 'Mobilier design']);
+  await ascii.f('Mobilier_design');
+  assert.deepEqual(ascii.ouverts, ['Mobilier design'], 'repli assaini d un nom ASCII (cas d origine)');
 });

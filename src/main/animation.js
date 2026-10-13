@@ -472,8 +472,16 @@ function _glbEnPlace(octets) {
 // register({ ipcMain, app, BrowserWindow, MESHES_DIR, isPathAllowed, trackProc })
 // =============================================================================
 function register(deps) {
-  const { ipcMain, app, BrowserWindow, MESHES_DIR, isPathAllowed, trackProc, isCloudMode, aiPython } = deps;
+  const { ipcMain, app, BrowserWindow, MESHES_DIR, isPathAllowed, trackProc, isCloudMode, aiPython, nomProjetPourLeSite } = deps;
   const _cloud = () => { try { return typeof isCloudMode === 'function' && isCloudMode(); } catch (_) { return false; } };
+  // Nom du projet pour le SITE (main.js _nomPourLeSiteDuProjet : la regle de generate-images). La page envoie le nom de DOSSIER ;
+  // un projet non latin cree apres le 2026-10-13 a pour dossier « project-h1a2b3c4d » : envoye tel quel, son clip formait sur le site
+  // une seconde carte a cote de ses images (« 兽人战士 »). Revue du lot 3 (noms de projet non latins).
+  const _nomPourSite = (n) => {
+    const brut = n == null ? '' : String(n);
+    if (!brut || typeof nomProjetPourLeSite !== 'function') return brut;
+    try { return nomProjetPourLeSite(brut) || brut; } catch (_) { return brut; }
+  };
   _ensureDir(MOTION_THUMBS_DIR);
 
   // ---------------------------------------------------------------------------
@@ -602,7 +610,7 @@ function register(deps) {
           rig_url: u, anim_type: type, prompt: '', engine: 'motionplus',
           asset_type: String(assetType || '').replace(/[^a-z_]/gi, '').slice(0, 32),
           batch_id: String(batchId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32) || null,
-          projectName: projectName || null,
+          projectName: _nomPourSite(projectName) || null,   // meme nom que les images du projet sur le site
         }),
       });
       // Session absente AU LANCEMENT : rien n'a ete facture, le renderer

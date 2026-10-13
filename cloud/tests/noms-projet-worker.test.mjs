@@ -155,3 +155,67 @@ test('parite bureau / worker : meme segment pour tout nom non latin ou accentue,
   // forme NFC et forme decomposee d un meme nom : meme projet visuel, meme segment
   assert.equal(w.slugNonLatin('e\u0301clair'), w.slugNonLatin('\u00e9clair'));
 });
+
+/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 5. revue du lot 3 : ordre du rattachement, et les deux autres routes d'ecriture citees par l'audit \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
+const silence = { log() {}, warn() {}, error() {} };
+
+test('rattachement : le segment de la regle ACTUELLE passe avant l ANCIEN segment d un autre nom (\u00ab Ch_teau \u00bb / \u00ab Ch\u00e2teau \u00bb)', async () => {
+  // \u00ab Ch\u00e2teau \u00bb est liste APRES \u00ab Ch_teau \u00bb : pour l'ancien segment \u00ab Ch_teau \u00bb (commun aux deux), la table garderait \u00ab Ch\u00e2teau \u00bb.
+  const m = monde(['Ch_teau', 'Ch\u00e2teau']);
+  const t = m.w._tableSegmentsProjets(['Ch_teau', 'Ch\u00e2teau']);
+  assert.equal(t('Ch_teau'), 'Ch_teau', 'segment actuel du nom ASCII \u00ab Ch_teau \u00bb');
+  assert.equal(t(m.w.slugProjet('Ch\u00e2teau')), 'Ch\u00e2teau', 'segment actuel de \u00ab Ch\u00e2teau \u00bb');
+  const cle = await m.enregistrer('Ch_teau', 'sculpt.glb');
+  const v = (await m.lister()).find((x) => x.url === 'https://r2.example/' + cle);
+  assert.equal(v && v.projectName, 'Ch_teau', 'version de \u00ab Ch_teau \u00bb rangee dans \u00ab Ch\u00e2teau \u00bb');
+});
+
+test('handleMeshOp (outils de maillage) : chaque version est rangee sous le segment de SON projet, puis relue dans ce projet', async () => {
+  const m = monde(['\u517d\u4eba\u6218\u58eb', '\u7cbe\u7075\u5c04\u624b', 'Mobilier design']);
+  const env = { ...m.env, MODAL_MESH_START_URL: 'https://modal.example/mesh_start', MODAL_SHARED_SECRET: 's' };
+  const op = charger(['handleMeshOp'], {
+    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c' }), err: doublesReponses.err, json: doublesReponses.json,
+    isTrustedAssetHost: () => true, supabaseAdmin: () => { throw new Error('non utilise'); },
+    getPrice: async () => 1, checkAndIncrementModalSpend: async () => 1, checkAndIncrementUserCalls: async () => 1,
+    spendCredits: async () => 10, addCredits: async () => 10, refundModalSpend: async () => {}, _spendRefusalMessage: async () => 'refus',
+    fetch: async () => new Response(JSON.stringify({ glb_base64: Buffer.from('glTF version').toString('base64'), stats: {} })),
+    signedR2Url: async (_e, cle) => 'https://r2.example/' + cle, logOperation: async () => {}, console: silence,
+  });
+  const segments = {};
+  for (const projet of ['\u517d\u4eba\u6218\u58eb', '\u7cbe\u7075\u5c04\u624b', 'Mobilier design']) {
+    const rep = await op.handleMeshOp(new Request('https://x.example/api/mesh-op', { method: 'POST',
+      body: JSON.stringify({ meshUrl: 'https://r2.example/u1/a.glb', opType: 'smooth', projectName: projet }) }), env);
+    const corps = await rep.json();
+    assert.equal(rep.status, 200, JSON.stringify(corps));
+    segments[projet] = corps.path.replace('https://r2.example/', '');
+  }
+  assert.equal(segments['\u517d\u4eba\u6218\u58eb'].split('/')[2], m.w.slugProjet('\u517d\u4eba\u6218\u58eb'));
+  assert.equal(segments['\u7cbe\u7075\u5c04\u624b'].split('/')[2], m.w.slugProjet('\u7cbe\u7075\u5c04\u624b'));
+  assert.equal(segments['Mobilier design'].split('/')[2], 'Mobilier_design', 'nom ASCII : segment d avant');
+  const versions = await m.lister();
+  const rangee = (cle) => versions.find((v) => v.url === 'https://r2.example/' + cle)?.projectName;
+  assert.deepEqual(Object.keys(segments).map((p) => rangee(segments[p])), ['\u517d\u4eba\u6218\u58eb', '\u7cbe\u7075\u5c04\u624b', 'Mobilier design'],
+    'versions relues dans : ' + Object.keys(segments).map((p) => rangee(segments[p])).join(', '));
+});
+
+test('handleAnimCopy (copie d un clip) : rangee sous animations/<segment de SON projet>/, distinct pour \u00ab \u517d\u4eba\u6218\u58eb \u00bb et \u00ab \u7cbe\u7075\u5c04\u624b \u00bb', async () => {
+  const uid = 'u1';
+  const source = `${uid}/animations/rig_idle_b1_1700000000000.glb`;
+  const r2 = creerR2({ [source]: 'glTF' + 'x'.repeat(100) });
+  const COMMUN = ['err', 'json', 'SECURITY_HEADERS', 'isMock', '_plafond', '_attenteBruitee', '_casIncrementCounter', '_incrementAtomique', 'r2GetText', 'todayUTC', '_isoNow'];
+  const w = charger([...COMMUN, 'ANIM_COPY_MAX_PAR_JOUR_DEFAUT', 'ANIM_COPY_MAX_OCTETS_PAR_JOUR_DEFAUT', 'handleAnimCopy'],
+    { getSessionUser: async () => ({ id: uid }), siteUrl: () => 'https://site.example', signedR2Url: async (_e, k) => 'https://r2.example/' + k });
+  const env = { MESHES: r2, R2_PUBLIC_URL: 'https://r2.example' };
+  const segments = {};
+  for (const projet of ['\u517d\u4eba\u6218\u58eb', '\u7cbe\u7075\u5c04\u624b', 'Mobilier design']) {
+    const rep = await w.handleAnimCopy(new Request('https://site.example/api/animations/copy', { method: 'POST',
+      body: JSON.stringify({ sourceUrl: source, animType: 'idle', projectName: projet }) }), env);
+    const corps = await rep.json();
+    assert.equal(rep.status, 200, JSON.stringify(corps));
+    segments[projet] = corps.key.split('/')[2];
+  }
+  assert.equal(segments['\u517d\u4eba\u6218\u58eb'], w.slugProjet('\u517d\u4eba\u6218\u58eb'));
+  assert.equal(segments['\u7cbe\u7075\u5c04\u624b'], w.slugProjet('\u7cbe\u7075\u5c04\u624b'));
+  assert.notEqual(segments['\u517d\u4eba\u6218\u58eb'], segments['\u7cbe\u7075\u5c04\u624b'], 'meme segment pour deux projets');
+  assert.equal(segments['Mobilier design'], 'Mobilier_design', 'nom ASCII : segment d avant');
+});
