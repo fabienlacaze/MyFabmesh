@@ -337,7 +337,7 @@ async function status() {
 // Retourne { success, images:[chemins locaux], creditsRemaining } ou
 // { success:false, needsCloudLogin:true } si aucune session valide.
 // -----------------------------------------------------------------------------
-async function generateImages({ prompt, numImages, imagesDir, assetType, steps, turbo, projectName }) {
+async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee }) {
   const tok = await getAccessToken();
   if (!tok) {
     return { success: false, needsCloudLogin: true,
@@ -368,6 +368,10 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
           prompt,                          // prompt déjà enrichi par le desktop
           numImages: n,                    // 1 à 4 : plafond du worker par appel
           asset_type: assetType || 'character',
+          // style du prompt deja compose (2026-10-13) : sans lui le serveur ajoutait le style realiste (MANQUE-SERV-01)
+          ...(assetStyle ? { asset_style: assetStyle } : {}),
+          // « Envoyer tel quel » choisi apres un echec de traduction : respecte par le filet de langue du serveur
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
           steps: Number(steps) || 30,
           turbo: !!turbo,
           // Passerelle desktop->web : le worker insère l'asset dans
@@ -1583,8 +1587,19 @@ function register(deps) {
   });
 }
 
+/** Une session MyFabmesh existe-t-elle (SANS appel reseau) : jeton en memoire ou session enregistree ? Sert a l'aide de langue et a la
+ *  traduction du bureau par le site (2026-10-13, audit de la langue) : une session expiree est detectee au premier appel (401). */
+function aSession() {
+  try {
+    if (_mem && (_mem.access_token || _mem.refresh_token)) return true;
+    const s = _loadSession();
+    return !!(s && s.refresh_token);
+  } catch (_) { return false; }
+}
+
 module.exports = {
   authedFetch: _authedFetch,
+  aSession,
   register, generateImages, imageOp, outfitOp, generateMesh, getAccessToken, status, login, logout,
   // Cold start Modal : préchauffage à la demande + retry partagé
   prewarm,

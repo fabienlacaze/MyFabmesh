@@ -132,7 +132,10 @@ class ComposeurPont(unittest.TestCase):
                        "model=_modele_manifeste", "FABMESH_SEED"):
             self.assertIn(marque, pont, 'pont : ' + marque)
         main = lire(os.path.join(RACINE, 'src', 'main', 'main.js'))
-        self.assertIn("FABMESH_USER_PROMPT: String(rawPrompt || '').slice(0, 2000)", main)
+        # 2026-10-13 (audit de la langue CHAMPS-09) : le composeur recoit la TRADUCTION anglaise quand l'interface la fournit (son lexique
+        # est anglais), le texte d'origine sinon. Comportement verifie par tests/main/traduction-bureau.test.mjs.
+        self.assertIn("FABMESH_USER_PROMPT: String((typeof userPromptAnglais === 'string' && userPromptAnglais.trim()) ? userPromptAnglais.trim()"
+                      " : (rawPrompt || '')).slice(0, 2000)", main)
         ast.parse(pont)    # le pont reste du Python valide
 
 

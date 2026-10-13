@@ -179,8 +179,9 @@ TRANSLATION_DEPS = [
     'sacremoses>=0.0.53,<0.2',
 ]
 TRANSLATION_PACKAGE = 'argostranslate==1.11.0'
-# Langues de l'interface du bureau (i18n.js) dont le modele X -> anglais peut etre pose par l'assistant
-LANGUES_TRADUCTION = ('fr', 'es', 'zh', 'hi')
+# Langues de l'interface du bureau (selecteur des Reglages) dont le modele X -> anglais peut etre pose par l'assistant.
+# 2026-10-13 (audit de la langue TRADUCTION-10) : l'arabe, propose par le selecteur, n'etait jamais pose.
+LANGUES_TRADUCTION = ('fr', 'es', 'zh', 'hi', 'ar')
 
 
 _EMIT_LOCK = threading.Lock()
