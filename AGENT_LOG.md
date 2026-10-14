@@ -25416,3 +25416,21 @@ Workflow `wf_cfa50442-e6a` : 2 voies disjointes + 2 relecteurs independants (ver
 **Bilan des deux audits recontroles** (workflow `wf_e7eb6e8a-ab2`, jamais presente avant ce soir) : 159 constats uniques : 21 corriges, 62 partiels, 7 faisables restants, 34 decisions du proprietaire, 22 actions du proprietaire, 13 sans objet ; 72 sont en ligne. **Veille IA** (`wf_d0f0bb07-470`) : 4 eclaireurs rendus (image : Qwen-Image-2512 et Z-Image-Turbo « go_banc », Apache-2.0), 4 verificateurs EN ECHEC (limite de session) : a relancer depuis le cache.
 **Etat des travaux arretes (tous NON valides, NON commites)** : carte de normales : `scripts/normal_bake.py` = `modal_app/normal_bake.py` (757 lignes, copies identiques) + `build/bancs/noyaux/test_normal_bake.py` (1 461 lignes) : ecrits, jamais relus par le sceptique, branchement `_mesh.py` NON fait. Outils des visionneuses : patch partiel `C:/tmp/ui_patch/viseuses.patch` (24 fichiers, 176 Ko, web + bureau + `build/bancs/ui/`), sans rapport ni revue. Fidelite : les pistes L, N1, N2 reprises sont inachevees ; la piste G (retrait de la dalle de sol) etait finie mais sans relecture. Sauvegarde GitHub : branche `backup-trellis-grilles-20261003-234951` (23 h 49, AVANT ces fichiers).
 **Cout Modal** (`modal billing report`, par jour) : 03/10 : 24,91 $ (production 15,57 ; essais tuiles 3,41 ; haute grille 4,44 ; deux tuiles 0,86) ; 04/10 depuis minuit : 6,08 $ (essais haute grille 5,95). A nettoyer sur accord : GLB locaux (~2,5 Go dans `C:/tmp/trellis_cloud/glb`), volume Modal `exp-trellis-latents`, cles R2 `_bench/`, 15 projets « TEST » du compte du proprietaire.
+
+## 2026-10-14 — Carte de normales a l'export GLB (branche carte-normales)
+
+Demande du proprietaire (04/10) : la reduction 12-47 M -> 500 K faces efface le relief ; Meshy livre une carte de normales.
+- Noyau partage `scripts/normal_bake.py` = `modal_app/normal_bake.py` (garde check-noyaux-partages) : cuisson espace tangent, convention
+  glTF (+Y vert), sommets fins convertis comme to_glb (y,z <- z,-y), rasterisation UV par bandes, dilatation aux joints, torch ou numpy,
+  repli sans carte sur toute erreur, interrupteur FABMESH_NORMAL_MAP (0 = GLB d'avant a l'octet). Taille = atlas de COULEUR (Ultra 8K
+  n'agrandit que la couleur : une carte 8192 n'apporterait rien de plus que le pas des sommets fins, et pese 4x).
+- Modal `_mesh.generate` : cuisson UNE fois apres exporter_exact + retouches, avant serialisation ; carte encodee WebP SANS PERTE
+  (`acceleration_glb.preencoder_normales`, appele aussi par webp_rapide : les outils qui relisent le GLB ne la degradent plus).
+- Outils (`_mesh_op.py`) : carte RETIREE par smooth, decimate, subdivide, watertight ; gardee par les autres (liste dans le fichier).
+  Non traites : _retexture, _tex_variant, _texture_refine, _face_fix (gardent la forme et les UV -> carte valide, re-encodee sans perte
+  via webp_rapide s'ils l'appellent).
+- Bureau `trellis2_native_full_pipeline.py` : meme branchement (commit separe).
+- Viewer3D (web + bureau) : garde les materiaux de GLTFLoader -> normalTexture affichee nativement.
+- Tests : test_normal_bake.py (29 mutations detectees), test_generation_carte_normales.py (6), test_carte_normales_bureau.py (3, echoue
+  sur l'ancien pipeline). Effet visuel NON mesure sur GPU : banc exp_trellis_haute_res.py --etape decoder sur le latent G1792 du volume
+  exp-trellis-latents, FABMESH_NORMAL_MAP=1 puis 0.

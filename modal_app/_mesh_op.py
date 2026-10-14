@@ -39,10 +39,41 @@ def _marquer_ia(octets):
         return octets
 
 
-def _export(scene) -> bytes:
-    """Serialize scene back to GLB bytes, preserving WebP textures."""
+# CARTE DE NORMALES (2026-10-13). La generation pose une carte de normales (normal_bake.py) : elle decrit le relief du maillage FIN
+# par rapport a la forme et aux UV du maillage livre. Apres une operation, elle est :
+#   GARDEE  quand la forme et les UV sont intactes, ou deplacees d'un bloc : center, resize (rotation / echelle), fix_normals (le
+#           relief suit l'orientation des faces), fill_holes (faces ajoutees, les autres intactes), align_texture et retex_swap
+#           (couleur seule), material / material_adjust (facteurs, couleur), explode (eclats aux positions d'origine, UV et
+#           normales gardees), apercu (images reduites, carte re-encodee SANS PERTE) ;
+#   RETIREE quand la forme ou les UV changent : smooth (le lissage efface un relief que la carte redessinerait), decimate (nouvelles
+#           faces et nouveaux UV ; le repli garderait l'ancien materiau sur des UV approchees), subdivide (subdivision de Loop :
+#           sommets deplaces, UV non suivis), watertight (nouvelle coque sans UV).
+# Toute carte gardee est re-encodee SANS PERTE (acceleration_glb.webp_rapide) : trimesh l'aurait encodee en WebP avec perte.
+def _retirer_cartes_normales(scene) -> int:
+    """Retire la normalTexture de chaque materiau (voir CARTE DE NORMALES ci-dessus). Ne leve jamais."""
+    try:
+        from modal_app.normal_bake import retirer_cartes_normales
+        return retirer_cartes_normales(scene)
+    except Exception:
+        n = 0
+        for m in _meshes(scene):
+            mat = getattr(getattr(m, 'visual', None), 'material', None)
+            if getattr(mat, 'normalTexture', None) is not None:
+                mat.normalTexture = None
+                n += 1
+        return n
+
+
+def _export(scene, carte_normales: bool = True) -> bytes:
+    """Serialize scene back to GLB bytes, preserving WebP textures.
+
+    carte_normales=False : l'operation a deforme la geometrie ou refait les UV, la carte de normales est retiree (voir plus haut)."""
+    if not carte_normales:
+        n = _retirer_cartes_normales(scene)
+        if n:
+            print(f'[mesh-op] carte de normales retiree ({n} materiau(x)) : forme ou UV modifies', flush=True)
     buf = io.BytesIO()
-    from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # texture couleur 8x plus vite, meme qualite
+    from modal_app.acceleration_glb import webp_rapide; webp_rapide(scene)   # couleur 8x plus vite ; carte de normales SANS PERTE
     scene.export(buf, file_type='glb', extension_webp=True)
     return _marquer_ia(buf.getvalue())     # 2026-10-03 (AI Act art. 50) : le derive reste marque
 
@@ -73,7 +104,7 @@ def smooth(glb_bytes: bytes, iterations: int = 5, lamb: float = 0.5) -> bytes:
             lisser_soude(m, iterations, lamb, volume_constraint=True)
         except Exception:
             lisser_soude(m, iterations, lamb, volume_constraint=False)
-    return _export(scene)
+    return _export(scene, carte_normales=False)     # le relief lisse ne doit pas revenir par la carte de normales
 
 
 def decimate(glb_bytes: bytes, target_faces: int = 50_000) -> bytes:
@@ -194,7 +225,7 @@ def decimate(glb_bytes: bytes, target_faces: int = 50_000) -> bytes:
             'decimation impossible ('
             + ('; '.join(erreurs[:2]) if erreurs else 'aucun maillage reduit')
             + ')')
-    return _export(scene)
+    return _export(scene, carte_normales=False)     # nouvelles faces et nouveaux UV : la carte ne correspond plus
 
 
 def center(glb_bytes: bytes) -> bytes:
@@ -785,6 +816,8 @@ def material_adjust(glb_bytes: bytes,
             emissiveFactor=[float(emissive)] * 3,
             metallicFactor=float(metallic),
             roughnessFactor=float(roughness),
+            # 2026-10-13 : la carte de normales decrit la FORME, que l'outil ne touche pas : elle suit le nouveau materiau
+            normalTexture=getattr(getattr(target_mesh.visual, 'material', None), 'normalTexture', None),
         )
         uv = getattr(target_mesh.visual, 'uv', None)
         target_mesh.visual = trimesh.visual.TextureVisuals(uv=uv, material=new_mat)
@@ -812,7 +845,7 @@ def subdivide(glb_bytes: bytes, iterations: int = 1) -> bytes:
                 m.faces = sub.faces
         except Exception as e:
             print(f'[mesh-op] subdivide skipped: {e}', flush=True)
-    return _export(scene)
+    return _export(scene, carte_normales=False)     # Loop deplace les sommets et ne suit pas les UV
 
 
 def align_texture(glb_bytes: bytes, image_url: str, translate_x: float = 0.0,
@@ -1006,7 +1039,7 @@ def watertight(glb_bytes: bytes, resolution: int = 128) -> bytes:
             print(f'[mesh-op] watertight colour bake warn: {e}', flush=True)
     print(f'[mesh-op] watertight: {len(wt.faces)} faces, watertight={wt.is_watertight} '
           f'(resolution={resolution})', flush=True)
-    return _export(trimesh.Scene(wt))
+    return _export(trimesh.Scene(wt), carte_normales=False)
 
 
 # --- NOYAU PARTAGE : DEBUT (redimensionner / orienter) ---
