@@ -212,6 +212,70 @@ test('mesure : &nbsp; garde son caractere, et la recherche suit EXACTEMENT celle
   assert.equal(valeurDe({ 'a  b': 'v' }, 'a b'), null, 'une cle a deux espaces ne peut pas etre trouvee par le navigateur');
 });
 
+/* ── Relecture du lot (2026-10-14, reserve) : la couverture etait ARRONDIE a 0,1 % AVANT d'etre comparee au seuil.
+ *    2 063 / 2 064 = 99,95 % devenait « 100.0 % » : une traduction perdue sur le bureau (2 064 libelles) passait la
+ *    garde, et `--ecrire` enregistrait 100 pour un etat a 99,95 %. Les comparaisons se font desormais sur les COMPTES
+ *    exacts, et le seuil enregistre est tronque (jamais arrondi vers le haut). */
+const ARTICLES = (n) => Array.from({ length: n }, (_, i) => 'Item number ' + (i + 1));
+const sansCle = (libs, langue, absentes) => (L) => Object.fromEntries(libs.filter((k) => !(L === langue && absentes.includes(k))).map((k) => [k, L + ' ' + k]));
+
+test('regle « couverture » : comptes EXACTS — UNE traduction manquante sur 2 064 libelles du bureau est refusee au seuil de 100 %', () => {
+  const libs = ARTICLES(2064);
+  const htmlBureau = libs.map((k) => '<b>' + k + '</b>').join('') + SELECT_OK;
+  const d = fauxDepot({
+    htmlBureau, htmlWeb: '<b>Save</b>' + SELECT_OK,
+    dicos: { bureau: tout(sansCle(libs, 'es', ['Item number 7'])), web: tout(() => ({ Save: 'x' })) },
+  });
+  const { m, erreurs } = verifier(d, { seuils: { bureau: CENT, web: CENT } });
+  assert.equal(m.cibles.bureau.libelles.size, 2064);
+  const e = erreurs.filter((x) => /^couverture bureau\/es/.test(x));
+  assert.equal(e.length, 1, 'la traduction perdue doit faire echouer la garde :\n' + erreurs.join('\n'));
+  assert.equal(m.cibles.bureau.traduits.es, 2063);
+  assert.match(e[0], /2063 \/ 2064 libelles traduits/);
+  assert.match(e[0], /"Item number 7"/, 'le libelle manquant est nomme');
+  assert.ok(!/100\.0 %/.test(e[0]), 'jamais « 100.0 % » tant qu une traduction manque : ' + e[0]);
+  assert.deepEqual(erreurs.filter((x) => /^couverture/.test(x) && !/^couverture bureau\/es/.test(x)), []);
+  // En ligne de commande, comme dans le prebuild : la ligne d'information ne dit plus 100.0 % et la garde echoue.
+  fs.writeFileSync(path.join(d, 'build', 'traductions-seuils.json'), JSON.stringify({ bureau: CENT, web: CENT, coque: CENT }));
+  const r = spawnSync(process.execPath, [SCRIPT, '--racine', d], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /bureau\s+2064 libelles : fr 100\.0 %, es 99\.9 %/, r.stdout);
+  assert.match(r.stderr, /couverture bureau\/es : 99\.9 % < seuil 100 %/, r.stderr);
+});
+
+test('cliquet : le seuil enregistre n est JAMAIS au-dessus de la couverture reelle ; il accepte l etat qui l a ecrit, refuse une traduction de moins', () => {
+  const libs = ARTICLES(2000);
+  const html = libs.map((k) => '<b>' + k + '</b>').join('') + SELECT_OK;
+  const depot = (absentes) => fauxDepot({
+    htmlBureau: html, htmlWeb: '<b>Save</b>' + SELECT_OK,
+    dicos: { bureau: tout(sansCle(libs, 'es', absentes)), web: tout(() => ({ Save: 'x' })) },
+  });
+  // 1 999 / 2 000 = 99,95 % : l'ancien arrondi enregistrait 100 (Math.round(999,5) / 10).
+  const { m } = verifier(depot(['Item number 1']), { seuils: null });
+  const atteints = seuilsAtteints(m);
+  assert.equal(atteints.bureau.es, 99.95);
+  assert.equal(atteints.bureau.fr, 100);
+  assert.deepEqual(verifier(depot(['Item number 1']), { seuils: atteints }).erreurs.filter((x) => /^couverture/.test(x)), []);
+  const ko = verifier(depot(['Item number 1', 'Item number 2']), { seuils: atteints }).erreurs.filter((x) => /^couverture/.test(x));
+  assert.equal(ko.length, 1, ko.join('\n'));
+  assert.match(ko[0], /^couverture bureau\/es : .*1998 \/ 2000 libelles traduits/);
+});
+
+test('regle « couverture » de la coque Next : comparee sur les comptes exacts aussi (2 000 / 2 001 sous un seuil de 99,96 %)', () => {
+  const libs = ARTICLES(2001);
+  const tsx = libs.map((k, i) => '<T fr="Article ' + (i + 1) + '" en="' + k + '" />').join('\n');
+  const dico = Object.fromEntries(libs.map((k) => [k, k === 'Item number 3' ? { zh: 'z', hi: 'h', ar: 'a' } : { es: 'e', zh: 'z', hi: 'h', ar: 'a' }]));
+  const d = fauxDepot({ htmlBureau: SELECT_OK, htmlWeb: SELECT_OK, dicos: {}, coque: { tsx, dico } });
+  const { m, erreurs } = verifier(d, { seuils: { coque: { fr: 100, es: 99.96, zh: 100, hi: 100, ar: 100 } } });
+  assert.equal(m.coque.libelles, 2001);
+  const e = erreurs.filter((x) => /^couverture coque/.test(x));
+  assert.equal(e.length, 1, 'le texte non traduit doit faire echouer la garde :\n' + erreurs.join('\n'));
+  assert.equal(m.coque.langues.es.traduits, 2000);
+  assert.equal(m.coque.langues.es.pourcent, 99.9, 'affichage : jamais 100.0 tant qu un texte manque');
+  assert.match(e[0], /^couverture coque\/es : 99\.9 % < seuil 99\.96 % .*2000 \/ 2001 textes traduits/);
+  assert.match(e[0], /"Item number 3"/);
+});
+
 test('depot reel : les textes cites par la revue sont MESURES et traduits dans les 5 langues, sur le web et le bureau', () => {
   const racine = process.env.GARDE_RACINE || RACINE;
   const COMMUNS = [

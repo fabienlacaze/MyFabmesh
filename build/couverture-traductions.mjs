@@ -376,6 +376,41 @@ export function libellesCible(fichiers) {
   return libelles;
 }
 
+// ── Pourcentages et seuils (relecture du lot interface, 2026-10-14) ──────────────────────────────────────────
+// La couverture etait ARRONDIE a 0,1 % AVANT d'etre comparee a un seuil : 2 063 / 2 064 = 99,95 % devenait
+// « 100.0 % », et une traduction perdue sur le bureau passait la garde du prebuild (seuil 100 %). Desormais :
+//  - toute comparaison a un seuil se fait sur les COMPTES exacts, en entiers (sousLeSeuil) ;
+//  - un seuil enregistre est la couverture atteinte TRONQUEE (seuilAtteint), jamais arrondie vers le haut ;
+//  - le pourcentage AFFICHE reste au dixieme, mais ne vaut jamais 100.0 tant qu'un libelle manque.
+// Precision des seuils : 1/10 000 de point (une traduction sur un million de libelles reste visible).
+export const PRECISION_SEUIL = 10000;
+
+/** Pourcentage affiche (au dixieme), jamais 100 tant que traduits < total. Ne sert PAS aux comparaisons. */
+export function pourcentAffiche(traduits, total) {
+  if (!total) return 100;
+  const p = Math.round((traduits / total) * 1000) / 10;
+  return p >= 100 && traduits < total ? 99.9 : p;
+}
+
+/** Vrai si traduits / total est STRICTEMENT sous `seuil` (%). Calcul en entiers : aucun arrondi ne peut
+ *  faire passer un libelle manquant. Seuil absent ou non numerique, ou rien a traduire : jamais « sous ». */
+export function sousLeSeuil(traduits, total, seuil) {
+  if (typeof seuil !== 'number' || !Number.isFinite(seuil) || !total) return false;
+  return traduits * 100 * PRECISION_SEUIL < Math.round(seuil * PRECISION_SEUIL) * total;
+}
+
+/** Seuil a enregistrer pour un etat donne : la couverture exacte tronquee au 1/10 000 de point. Jamais au-dessus
+ *  du reel (sinon la garde refuserait l'etat qui vient d'ecrire son seuil), 100 seulement si tout est traduit. */
+export function seuilAtteint(traduits, total) {
+  if (!total) return 100;
+  return Math.floor((traduits * 100 * PRECISION_SEUIL) / total) / PRECISION_SEUIL;
+}
+
+/** Comparaison de deux seuils enregistres a la meme precision (sans les ecarts du calcul en virgule flottante). */
+export function seuilPlusBas(a, b) {
+  return Math.round(a * PRECISION_SEUIL) < Math.round(b * PRECISION_SEUIL);
+}
+
 // Mesure complete d'une cible. `fichiers` : { html: [chemins], js: [chemins], i18n, dossierLang }.
 export function mesurerCible(fichiers, langues = LANGUES) {
   const tous = libellesCible(fichiers);
@@ -396,7 +431,7 @@ export function mesurerCible(fichiers, langues = LANGUES) {
     // Les plus visibles d'abord : statiques (HTML) avant dynamiques, puis plus
     // d'occurrences, puis les plus courts (etiquettes de boutons avant phrases).
     absents.sort((a, b) => (b[1].html - a[1].html) || (b[1].occ - a[1].occ) || (a[0].length - b[0].length) || (a[0] < b[0] ? -1 : 1));
-    parLangue[l] = { connus: total, traduits: ok, pourcent: total ? Math.round((ok / total) * 1000) / 10 : 100, entreesDictionnaire: Object.keys(dicts[l]).length };
+    parLangue[l] = { connus: total, traduits: ok, pourcent: pourcentAffiche(ok, total), entreesDictionnaire: Object.keys(dicts[l]).length };
     manquants[l] = absents.slice(0, 30).map(([cle, e]) => ({ libelle: cle, occurrences: e.occ, statique: e.html }));
   }
   return { libelles: total, neutres, langues: parLangue, nonTraduitsVisibles: manquants, languesAbsentes: langues.filter((l) => !presentes.includes(l)) };
@@ -449,7 +484,10 @@ function principal() {
   console.log(json ? JSON.stringify(res, null, 2) : afficher(res));
   if (min !== null) {
     const sous = [];
-    for (const [cible, r] of Object.entries(res)) for (const [l, v] of Object.entries(r.langues)) if (v.pourcent < min) sous.push(cible + '/' + l + ' ' + v.pourcent + ' %');
+    // Sur les comptes exacts, pas sur le pourcentage affiche (arrondi : 2 000 / 2 001 s'affiche 99,9 mais vaut 99,95).
+    for (const [cible, r] of Object.entries(res)) {
+      for (const [l, v] of Object.entries(r.langues)) if (sousLeSeuil(v.traduits, v.connus, min)) sous.push(cible + '/' + l + ' ' + v.traduits + ' / ' + v.connus + ' (' + v.pourcent + ' %)');
+    }
     if (sous.length) { console.error('Sous le seuil de ' + min + ' % : ' + sous.join(', ')); process.exit(1); }
   }
 }

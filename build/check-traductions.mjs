@@ -17,7 +17,9 @@
  *  1. COUVERTURE : la part de libelles traduits d'une langue (bureau, web, coque Next)
  *     passe SOUS le seuil enregistre dans build/traductions-seuils.json. Cliquet :
  *     `--ecrire` enregistre la couverture atteinte et refuse de la baisser (sauf
- *     `--baisser`, a justifier dans AGENT_LOG.md).
+ *     `--baisser`, a justifier dans AGENT_LOG.md). Comparaison sur les COMPTES exacts
+ *     (2026-10-14) : une seule traduction manquante sous un seuil de 100 % echoue, meme
+ *     sur 2 064 libelles ; le pourcentage affiche n'est qu'une information.
  *  2. DERIVE web / bureau : un libelle present dans les DEUX interfaces, traduit dans
  *     une langue d'un cote et pas de l'autre.
  *  3. ECRANS PRIORITAIRES incomplets : signalement de contenu IA, credits insuffisants,
@@ -41,6 +43,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   CIBLES, fichiersCible, libellesCible, libellesHtml, libellesJs, chargerDictionnaires, estNeutre, valeurDe,
+  pourcentAffiche, sousLeSeuil, seuilAtteint, seuilPlusBas,
 } from './couverture-traductions.mjs';
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
@@ -248,7 +251,7 @@ export function mesurerCoque(racine) {
     for (const k of textes.keys()) {
       if (l === 'fr' || (dico[k] && dico[k][l])) ok++; else manquants[l].push(k);
     }
-    langues[l] = { connus: textes.size, traduits: ok, pourcent: textes.size ? Math.round((ok / textes.size) * 1000) / 10 : 100 };
+    langues[l] = { connus: textes.size, traduits: ok, pourcent: pourcentAffiche(ok, textes.size) };
   }
   // Formes cassees : la version francaise ecrite en ligne, puis chaque langue du dictionnaire.
   const cassees = [];
@@ -272,15 +275,19 @@ export function mesurer(racine) {
     const tous = libellesCible(f);
     const libelles = new Map([...tous].filter(([k]) => !estNeutre(k)));
     const dicts = chargerDictionnaires({ i18n: f.i18n, dossierLang: f.dossierLang });
+    // couverture = pourcentage AFFICHE ; les comparaisons aux seuils utilisent traduits / libelles.size (comptes exacts).
     const couverture = {};
+    const traduits = {};
+    const manquants = {};
     for (const l of LANGUES) {
-      let ok = 0;
-      for (const k of libelles.keys()) if (valeurDe(dicts[l], k)) ok++;
-      couverture[l] = libelles.size ? Math.round((ok / libelles.size) * 1000) / 10 : 100;
+      manquants[l] = [];
+      for (const k of libelles.keys()) if (!valeurDe(dicts[l], k)) manquants[l].push(k);
+      traduits[l] = libelles.size - manquants[l].length;
+      couverture[l] = pourcentAffiche(traduits[l], libelles.size);
     }
     const fichiersDico = [f.i18n].concat(fs.existsSync(f.dossierLang)
       ? fs.readdirSync(f.dossierLang).filter((x) => x.endsWith('.js')).sort().map((x) => path.join(f.dossierLang, x)) : []);
-    cibles[c.nom] = { c, f, libelles, dicts, couverture, doublons: doublonsContradictoires(fichiersDico), fichiersDico };
+    cibles[c.nom] = { c, f, libelles, dicts, couverture, traduits, manquants, doublons: doublonsContradictoires(fichiersDico), fichiersDico };
   }
   return { cibles, coque: mesurerCoque(racine) };
 }
@@ -295,19 +302,26 @@ export function verifier(racine, { seuils = null } = {}) {
   // 2026-10-14). Elle refuse donc de conclure.
   if (!acorn) erreurs.push('module acorn introuvable (node_modules) : extraction et doublons non fiables, garde non concluante');
 
-  // 1. couverture
+  // 1. couverture — sur les COMPTES exacts (relecture du 2026-10-14) : arrondie a 0,1 % avant la comparaison,
+  //    2 063 / 2 064 = 99,95 % devenait 100,0 % et une traduction perdue sur le bureau passait le seuil de 100 %.
+  const premiers = (liste) => liste.slice(0, 8).map((x) => '\n      ' + JSON.stringify(x)).join('') + (liste.length > 8 ? '\n      …' : '');
   for (const [nom, cb] of Object.entries(m.cibles)) {
     infos.push(nom.padEnd(7) + ' ' + String(cb.libelles.size).padStart(5) + ' libelles : ' + LANGUES.map((l) => l + ' ' + cb.couverture[l].toFixed(1) + ' %').join(', '));
     for (const l of LANGUES) {
       const s = seuils && seuils[nom] && seuils[nom][l];
-      if (typeof s === 'number' && cb.couverture[l] < s) erreurs.push(`couverture ${nom}/${l} : ${cb.couverture[l].toFixed(1)} % < seuil ${s} % (${NOM_SEUILS})`);
+      if (sousLeSeuil(cb.traduits[l], cb.libelles.size, s)) {
+        erreurs.push(`couverture ${nom}/${l} : ${cb.couverture[l].toFixed(1)} % < seuil ${s} % (${NOM_SEUILS}) — ${cb.traduits[l]} / ${cb.libelles.size} libelles traduits, sans traduction :` + premiers(cb.manquants[l]));
+      }
     }
   }
   if (!m.coque.erreur) {
     infos.push('coque   ' + String(m.coque.libelles).padStart(5) + ' textes   : ' + LANGUES.map((l) => l + ' ' + m.coque.langues[l].pourcent.toFixed(1) + ' %').join(', '));
     for (const l of LANGUES) {
       const s = seuils && seuils.coque && seuils.coque[l];
-      if (typeof s === 'number' && m.coque.langues[l].pourcent < s) erreurs.push(`couverture coque/${l} : ${m.coque.langues[l].pourcent.toFixed(1)} % < seuil ${s} %`);
+      const x = m.coque.langues[l];
+      if (sousLeSeuil(x.traduits, x.connus, s)) {
+        erreurs.push(`couverture coque/${l} : ${x.pourcent.toFixed(1)} % < seuil ${s} % (${NOM_SEUILS}) — ${x.traduits} / ${x.connus} textes traduits, sans traduction :` + premiers(m.coque.manquants[l]));
+      }
     }
   } else erreurs.push('coque Next : ' + m.coque.erreur);
 
@@ -395,14 +409,16 @@ export function verifier(racine, { seuils = null } = {}) {
   return { m, erreurs, infos };
 }
 
+/** Seuils que l'etat mesure satisfait : couverture exacte TRONQUEE (seuilAtteint), jamais le pourcentage affiche
+ *  (arrondi : 1 999 / 2 000 enregistrait 100, et le cliquet n'aurait plus rien retenu). */
 export function seuilsAtteints(m) {
   const s = { doublons: {} };
   for (const [nom, cb] of Object.entries(m.cibles)) {
     s[nom] = {};
     s.doublons[nom] = {};
-    for (const l of LANGUES) { s[nom][l] = cb.couverture[l]; s.doublons[nom][l] = (cb.doublons[l] || []).length; }
+    for (const l of LANGUES) { s[nom][l] = seuilAtteint(cb.traduits[l], cb.libelles.size); s.doublons[nom][l] = (cb.doublons[l] || []).length; }
   }
-  if (!m.coque.erreur) { s.coque = {}; for (const l of LANGUES) s.coque[l] = m.coque.langues[l].pourcent; }
+  if (!m.coque.erreur) { s.coque = {}; for (const l of LANGUES) s.coque[l] = seuilAtteint(m.coque.langues[l].traduits, m.coque.langues[l].connus); }
   return s;
 }
 
@@ -421,7 +437,7 @@ function principal() {
     if (seuils) {
       for (const nom of Object.keys(nouveaux)) {
         if (nom === 'doublons') continue;
-        for (const l of LANGUES) if (seuils[nom] && typeof seuils[nom][l] === 'number' && nouveaux[nom][l] < seuils[nom][l]) baisses.push(`${nom}/${l} ${seuils[nom][l]} -> ${nouveaux[nom][l]}`);
+        for (const l of LANGUES) if (seuils[nom] && typeof seuils[nom][l] === 'number' && seuilPlusBas(nouveaux[nom][l], seuils[nom][l])) baisses.push(`${nom}/${l} ${seuils[nom][l]} -> ${nouveaux[nom][l]}`);
       }
       for (const nom of Object.keys(nouveaux.doublons)) for (const l of LANGUES) {
         const a = seuils.doublons && seuils.doublons[nom] && seuils.doublons[nom][l];
