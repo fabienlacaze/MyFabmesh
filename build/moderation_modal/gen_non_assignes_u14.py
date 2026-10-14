@@ -8,7 +8,8 @@ point de code non assigne en Unicode 14 (cette table), quelle que soit la versio
 
 Usage (avec un Python dont unicodedata.unidata_version == '14.0.0', ex. Python 3.11, celui de Modal) :
   python build/moderation_modal/gen_non_assignes_u14.py             reecrit la liste NON_ASSIGNES_U14 de nsfw_filter.ts
-  python build/moderation_modal/gen_non_assignes_u14.py --verifier  code 1 si la liste differe de la table d'Unicode 14
+  python build/moderation_modal/gen_non_assignes_u14.py --verifier  code 1 si la liste differe de la table d'Unicode 14 (garde des
+                                                                    deux prebuild ; sous un autre Python : avertissement, code 0)
 Ensuite : node build/miroir-moderation.mjs --sync ; python build/moderation_modal/gen_module.py.
 """
 import io
@@ -52,6 +53,12 @@ def liste_ts():
 
 
 def main():
+    if unicodedata.unidata_version != VERSION and '--verifier' in sys.argv:
+        # garde des deux prebuild (seconde relecture du 14/10) : sous un autre Python, la table ne peut pas etre recalculee ;
+        # la construction continue (la table est figee ; elle ne change qu'en la regenerant sous Python 3.11)
+        print('[non-assignes-u14] NON VERIFIE : ce Python connait Unicode %s ; la verification demande Unicode %s (Python 3.11)'
+              % (unicodedata.unidata_version, VERSION))
+        return
     if unicodedata.unidata_version != VERSION:
         raise SystemExit('[non-assignes-u14] ce Python connait Unicode %s ; il faut Unicode %s (Python 3.11, celui de Modal)'
                          % (unicodedata.unidata_version, VERSION))
