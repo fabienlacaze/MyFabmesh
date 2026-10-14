@@ -78,6 +78,9 @@ const fs = require('fs');
 const os = require('os');
 // Lineage sidecar <output>.meta.json (Generation History) — best-effort, never throws.
 const { writeMeta, readMeta } = require('./meta');
+// NOMS DE PROJET NON LATINS OU ACCENTUES (2026-10-13, audit de la langue) : dossier « ____ » partage par « 兽人战士 » et « 精灵射手 »,
+// accents detruits. Un nom ASCII garde sa regle d'avant ; sinon slug lisible + empreinte du nom exact (voir src/main/slug_projet.js).
+const { slugProjet, nomAffichageAMemoriser, nomPourLeSite } = require('./slug_projet');
 // MARQUAGE « GENERE PAR IA » des GLB derives (2026-10-03, reglement UE 2024/1689 art. 50, echeance 2026-12-02) : les outils de maillage,
 // l'editeur, Paint Mesh et le rig reecrivent le GLB et perdaient asset.extras.aiGenerated posee a la generation. Voir src/main/marquage_ia.js.
 const _marquageIA = require('./marquage_ia');
@@ -1729,6 +1732,64 @@ function saveConfig(config) {
   }
 }
 
+/** NOM SAISI d'un dossier de projet non latin (2026-10-13) : memorise dans config.projectDisplayNames (la grille l'affiche a la place de
+ *  « project-h1a2b3c4d »), puis rend le nom a envoyer au site en mode Cloud (CHAMPS-24 : c'etait le nom de dossier). Ne leve jamais. */
+function _memoriserNomProjet(dossier, nomSaisi) {
+  try {
+    const config = loadConfig();
+    const noms = config.projectDisplayNames || {};
+    const aEcrire = nomAffichageAMemoriser(dossier, nomSaisi, Object.prototype.hasOwnProperty.call(noms, dossier));
+    if (aEcrire) {
+      config.projectDisplayNames = { ...noms, [dossier]: aEcrire };
+      saveConfig(config);
+    }
+    return nomPourLeSite(dossier, nomSaisi, _nomsSaisisPourLeSite(config));
+  } catch (_) {
+    return nomPourLeSite(dossier, nomSaisi, {});
+  }
+}
+
+/** NOMS SAISIS retrouves dans les marqueurs de projets vides (revue du lot 3, 2026-10-13). Le marqueur d'un projet non latin porte le
+ *  nom de son dossier (projets_vides/project-h1a2b3c4d.json, voir _cheminProjetVide) et contient le nom saisi : seconde source apres
+ *  config.projectDisplayNames. Sans elle, un config.json reinitialise apres la 1re generation (ou un renommage d'affichage qui remplace
+ *  le nom memorise) rendait au dossier son nom « project-h… » : carte en double dans la grille, et les generations suivantes
+ *  partaient sur le site sous ce nom, coupant le projet en deux. Seuls les noms qui DONNENT ce dossier sont gardes. Ne leve jamais. */
+function _nomsSaisisDesMarqueurs() {
+  const noms = {};
+  try {
+    for (const f of fs.readdirSync(PROJETS_VIDES_DIR)) {
+      if (!/\.json$/i.test(f)) continue;
+      const dossier = f.slice(0, -5);
+      try {
+        const nom = JSON.parse(fs.readFileSync(path.join(PROJETS_VIDES_DIR, f), 'utf-8')).name;
+        if (nomAffichageAMemoriser(dossier, nom, false)) noms[dossier] = String(nom);
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return noms;
+}
+
+/** Noms dont nomPourLeSite tient compte : un nom memorise qui donne son dossier l'emporte, sinon celui du marqueur du projet. */
+function _nomsSaisisPourLeSite(config) {
+  const noms = _nomsSaisisDesMarqueurs();
+  const memo = (config && config.projectDisplayNames) || {};
+  for (const dossier of Object.keys(memo)) {
+    if (nomAffichageAMemoriser(dossier, memo[dossier], false)) noms[dossier] = String(memo[dossier]);
+  }
+  return noms;
+}
+
+/** Nom du projet `nom` pour le SITE (revue du lot 3, 2026-10-13) : LA regle du bureau, celle de generate-images — dossier =
+ *  slugProjet(nom), puis nomPourLeSite. La page envoie le nom de DOSSIER de son projet (ou le nom saisi d'un projet encore vide) ;
+ *  le partage vers le site (cloud-share-asset) et le clip d'animation (anim:motion) passent ICI. Avant, l'animation partait sous le
+ *  nom de dossier et la page choisissait elle-meme le nom du partage : un projet « 兽人战士 » cree au bureau apparaissait sur le site
+ *  en deux cartes (images sous « 兽人战士 », clip sous « project-h… »). '' pour un nom vide (l'appelant garde son defaut). */
+function _nomPourLeSiteDuProjet(nom) {
+  const n = nom == null ? '' : String(nom);
+  if (!n.trim()) return '';
+  try { return nomPourLeSite(slugProjet(n), n, _nomsSaisisPourLeSite(loadConfig())); } catch (_) { return n; }
+}
+
 let mainWindow;
 
 // ========== SDXL PERSISTENT SERVER ==========
@@ -2583,9 +2644,10 @@ async function handleGenerateImages(params) {
     // We can't call it directly, so we use the same code path via a local HTTP
     // call to the existing test_api or by extracting the handler. For simplicity,
     // we invoke the Python bridge directly here but send progress to the renderer.
-    const safeName = (params.projectName || 'mcp_gen').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeName = slugProjet(params.projectName || 'mcp_gen');   // meme regle que generate-images (2026-10-13)
     const imagesDir = path.join(IMAGES_DIR, safeName);
     fs.mkdirSync(imagesDir, { recursive: true });
+    _memoriserNomProjet(safeName, params.projectName);
 
     // Save prompt
     const promptsFile = path.join(imagesDir, 'prompts.json');
@@ -2633,7 +2695,7 @@ async function handleGenerateImages(params) {
 }
 
 async function handleImageTo3D(params) {
-  const safeName = (params.outputName || 'mcp_mesh').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeName = slugProjet(params.outputName || 'mcp_mesh');   // meme prefixe que le dossier d'images du projet (2026-10-13)
   const timestamp = Date.now();
   const meshFilename = `${safeName}_sf3d_${timestamp}.glb`;
   const meshPath = path.join(MESHES_DIR, meshFilename);
@@ -6062,10 +6124,12 @@ ipcMain.handle('import-dropped-file', (event, arg) => {
       // attributing a mesh) would later put the generated 3D in a DIFFERENT,
       // shorter project (the "dropped_<ts>" image vs "dropped" mesh split bug).
       const nameSource = (projectName && String(projectName).trim()) || baseName;
-      const safeBase = (nameSource.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30)
-        .replace(/_+\d+$/, '').replace(/_+$/, '')) || 'imported';
+      // Nom ASCII : regle d'avant. Nom non latin ou accentue (2026-10-13) : slug + empreinte, au lieu de « ____ » reduit a « imported ».
+      const safeBase = slugProjet(nameSource, (n) => (n.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30)
+        .replace(/_+\d+$/, '').replace(/_+$/, ''))) || 'imported';
       const projDir = path.join(IMAGES_DIR, `${safeBase}_${ts}`);
       fs.mkdirSync(projDir, { recursive: true });
+      _memoriserNomProjet(safeBase, nameSource);
       const dest = path.join(projDir, `ref_0${safeExt}`);
       fs.copyFileSync(filePath, dest);
       try { fs.writeFileSync(path.join(projDir, 'prompt.txt'), '[Imported] ' + path.basename(filePath), 'utf-8'); } catch (_) {}
@@ -6078,10 +6142,12 @@ ipcMain.handle('import-dropped-file', (event, arg) => {
     const isAnim = ext === '.glb' && path.basename(baseName).includes('__');
     // Into an open project: keep its exact name. New project: strip trailing
     // digits so the mesh's derived project name is stable (see note above).
+    // Nom non latin ou accentue (2026-10-13) : meme slug que le dossier d'images du projet (regle d'avant pour un nom ASCII).
     const targetProj = intoProj
-      ? (projectName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'imported')
-      : ((baseName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
-          .replace(/_+\d+$/, '').replace(/_+$/, '')) || 'imported');
+      ? (slugProjet(projectName, (n) => n.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)) || 'imported')
+      : (slugProjet(baseName, (n) => (n.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
+          .replace(/_+\d+$/, '').replace(/_+$/, ''))) || 'imported');
+    _memoriserNomProjet(targetProj, intoProj ? projectName : baseName);
 
     if (isAnim) {
       const animDir = path.join(MESHES_DIR, 'animated');
@@ -6207,7 +6273,9 @@ ipcMain.handle('rename-project', (event, { oldName, newName }) => {
 });
 
 ipcMain.handle('get-project-display-names', () => {
-  try { return loadConfig().projectDisplayNames || {}; }
+  // + nom saisi des marqueurs de projets vides pour un dossier « project-h… » sans nom memorise (config.json reinitialise) : la grille
+  //   relie encore le projet a son dossier (revue du lot 3, 2026-10-13). Un nom memorise (nom saisi ou renommage) l'emporte.
+  try { return { ..._nomsSaisisDesMarqueurs(), ...(loadConfig().projectDisplayNames || {}) }; }
   catch (_) { return {}; }
 });
 
@@ -6229,8 +6297,11 @@ function _meshProjectBackend(filename) {
 ipcMain.handle('rename-project-files', (event, { oldName, newName }) => {
   try {
     if (!oldName) return { success: false, error: 'missing project' };
-    let newProj = String(newName || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
-      .replace(/_+\d+$/, '').replace(/_+$/, '');   // no trailing digits -> meshProject round-trips
+    // Nom non latin ou accentue (2026-10-13) : slug + empreinte et nom saisi memorise (« 精灵射手 » donnait « ____ » puis ''
+    // -> « invalid name »). Nom ASCII : regle d'avant.
+    const nomSaisi = String(newName || '').trim();
+    let newProj = slugProjet(nomSaisi, (n) => n.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
+      .replace(/_+\d+$/, '').replace(/_+$/, ''));   // no trailing digits -> meshProject round-trips
     if (!newProj) return { success: false, error: 'invalid name' };
     if (newProj === oldName) return { success: true, newName: oldName, renamed: {} };
     const _esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -6331,6 +6402,7 @@ ipcMain.handle('rename-project-files', (event, { oldName, newName }) => {
         saveConfig(config);
       }
     } catch (_) {}
+    _memoriserNomProjet(newProj, nomSaisi);   // nom non latin : la grille affiche le nom saisi, pas « project-h1a2b3c4d »
     return { success: true, newName: newProj, renamed };
   } catch (e) {
     return { success: false, error: e.message };
@@ -8699,7 +8771,7 @@ ipcMain.handle('generate-from-prompt', async (event, { prompt, outputName, forma
     const ext = format || 'glb';
     // Normalise the renderer-supplied model to the allowlist (unknown → opus).
     const aiModel = ALLOWED_AI_MODELS.has(model) ? model : 'opus';
-    const safeName = outputName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeName = slugProjet(outputName);   // prefixe = dossier du projet (nom non latin : 2026-10-13)
     const timestamp = Date.now();
     const meshFilename = `${safeName}_${timestamp}.${ext}`;
     const scriptFilename = `${safeName}_${timestamp}.py`;
@@ -9027,7 +9099,7 @@ ipcMain.handle('list-projects', () => {
 // --- Construction Mode: 3 build stages ---
 ipcMain.handle('generate-build-stages', async (event, { prompt, outputName, engine }) => {
   try {
-    const safeName = outputName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeName = slugProjet(outputName);   // prefixe = dossier du projet (nom non latin : 2026-10-13)
     const results = [];
 
     const stagePrompts = [
@@ -9184,10 +9256,13 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
       return { success: false, error: aiSafety.reason };
     }
     const timestamp = Date.now();
-    const safeName = (projectName || 'gen').replace(/[^a-zA-Z0-9_-]/g, '_');
+    // Nom ASCII : dossier d'avant ([^a-zA-Z0-9_-] -> _). Nom non latin ou accentue : slug + empreinte (2026-10-13) — « 兽人战士 » et
+    // « 精灵射手 » ne partagent plus le dossier « ____ ». Le nom saisi est memorise pour la grille et pour le site (mode Cloud).
+    const safeName = slugProjet(projectName || 'gen');
     // Group by project name (no timestamp suffix) - all images for same project go in same folder
     const imagesDir = path.join(IMAGES_DIR, safeName);
     fs.mkdirSync(imagesDir, { recursive: true });
+    const nomPourSite = _memoriserNomProjet(safeName, projectName);
 
     // Save prompt history (append to prompts.json). We keep both the raw
     // user prompt and the enriched one for later inspection / versioning.
@@ -9250,7 +9325,9 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
           assetType: _assetType,
           steps,
           turbo: engine === 'local-lightning',
-          projectName: safeName,   // -> user_assets: visible aussi sur le site web
+          // -> user_assets : visible aussi sur le site web. Le nom SAISI (« Épée magique », « 兽人战士 »), plus le nom de dossier
+          // assaini ; un nom ASCII ou un ancien dossier envoie le meme nom qu'avant (CHAMPS-24, 2026-10-13).
+          projectName: nomPourSite,
         };
         // ETAPES DE CONSTRUCTION EN CLOUD (2026-09-30). La case etait ignoree
         // ici : Count images ordinaires. Meme regle que le site
@@ -9541,7 +9618,8 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
   // sont faites côté worker via les flags ; rien ne tourne en local.
   if (isCloudMode()) {
     try {
-      const safeName = String(outputName || 'mesh').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeName = slugProjet(String(outputName || 'mesh'));   // prefixe = dossier du projet (nom non latin : 2026-10-13)
+      _memoriserNomProjet(safeName, outputName);                  // projet sans image : la grille garde son nom saisi
       const ts = Date.now();
       const meshFilename = `${safeName}_trellis2_native_${ts}.glb`;
       const meshPath = path.join(MESHES_DIR, meshFilename);
@@ -9767,7 +9845,8 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
   }
 
   try {
-    const safeName = outputName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeName = slugProjet(outputName);   // prefixe = dossier du projet (nom non latin : 2026-10-13)
+    _memoriserNomProjet(safeName, outputName);   // projet sans image : la grille garde son nom saisi
     const timestamp = Date.now();
     const meshFilename = `${safeName}_${engine || 'ai'}_${timestamp}.glb`;
     const meshPath = path.join(MESHES_DIR, meshFilename);
@@ -10362,7 +10441,7 @@ async function _freeSdxlForHeavyOp(label) {
 ipcMain.handle('image-to-3d-trellis', async (event, { imagePath, outputName, textureSize }) => {
   try {
     await _freeSdxlForHeavyOp('mesh 3D');
-    const safeName = outputName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeName = slugProjet(outputName);   // prefixe = dossier du projet (nom non latin : 2026-10-13)
     const timestamp = Date.now();
     const meshFilename = `${safeName}_${timestamp}.glb`;
     const meshPath = path.join(MESHES_DIR, meshFilename);
@@ -10390,7 +10469,7 @@ ipcMain.handle('image-to-3d-trellis', async (event, { imagePath, outputName, tex
 // --- TRELLIS Image-to-3D via Hugging Face ---
 ipcMain.handle('generate-from-image', async (event, { imagePath, outputName }) => {
   try {
-    const safeName = outputName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeName = slugProjet(outputName);   // prefixe = dossier du projet (nom non latin : 2026-10-13)
     const timestamp = Date.now();
     const meshFilename = `${safeName}_${timestamp}.glb`;
     const meshPath = path.join(MESHES_DIR, meshFilename);
@@ -13428,7 +13507,7 @@ ipcMain.handle('run-blender-script', async (event, { scriptContent, outputName, 
   }
 
   const ext = format || 'glb';
-  const safeName = outputName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeName = slugProjet(outputName);   // prefixe = dossier du projet (nom non latin : 2026-10-13)
   const timestamp = Date.now();
   const meshFilename = `${safeName}_${timestamp}.${ext}`;
   const scriptFilename = `${safeName}_${timestamp}.py`;
@@ -13686,6 +13765,8 @@ try {
     // Mode Cloud global : anim:kimodo route vers /api/animate (AnyTop) et
     // anim:retarget (Bibliothèque de mouvements) est désactivé.
     isCloudMode,
+    // Nom du projet envoyé au site avec un clip (anim:motion) : même règle que les images (noms non latins, 2026-10-13).
+    nomProjetPourLeSite: _nomPourLeSiteDuProjet,
   });
 } catch (e) {
   console.error('[animation] register failed:', e.message);
@@ -13699,7 +13780,10 @@ try {
   // safeSend : canal de progression partagé (« ai3d-progress ») — permet au
   // retry cold start d'annoncer « Cloud GPU is starting up… » sans toucher aux
   // 14 call sites cloud. isCloudMode : garde du heartbeat/préchauffage.
-  cloudFallback.register({ ipcMain, app, log, isPathAllowed, MESHES_DIR, IMAGES_DIR, safeSend, isCloudMode });
+  // nomProjetPourLeSite / memoriserNomProjet : nom envoyé au site par le partage, et nom saisi d'un projet non latin dont le dossier
+  // est créé par un téléchargement « Cloud library » (même règle que generate-images, 2026-10-13).
+  cloudFallback.register({ ipcMain, app, log, isPathAllowed, MESHES_DIR, IMAGES_DIR, safeSend, isCloudMode,
+    nomProjetPourLeSite: _nomPourLeSiteDuProjet, memoriserNomProjet: _memoriserNomProjet });
   // Préchauffage au démarrage en mode Cloud : le conteneur GPU Modal commence
   // à booter pendant que l'utilisateur découvre l'UI, pour que son premier clic
   // ne paie pas les 2-3 min de cold start (cause du HTTP 524).
@@ -13717,7 +13801,9 @@ try {
 // Un petit marqueur par projet vide, relu par la liste des projets, supprime avec le projet.
 const PROJETS_VIDES_DIR = path.join(DATA_BASE, 'projets_vides');
 function _cheminProjetVide(nom) {
-  return path.join(PROJETS_VIDES_DIR, String(nom).replace(/[^A-Za-z0-9 ._-]/g, '_').slice(0, 120) + '.json');
+  // Nom ASCII : nom de fichier d'avant (inchange). Nom non latin ou accentue (2026-10-13) : slug + empreinte — « 兽人战士 » et
+  // « 精灵射手 » s'ecrasaient dans « ____.json » : le second projet vide effacait le premier.
+  return path.join(PROJETS_VIDES_DIR, slugProjet(String(nom), (n) => n.replace(/[^A-Za-z0-9 ._-]/g, '_').slice(0, 120)) + '.json');
 }
 ipcMain.handle('projet-vide:creer', (_e, { name, assetType, assetStyle, prompt } = {}) => {
   if (!name) return { ok: false, error: 'name required' };
@@ -13742,6 +13828,25 @@ ipcMain.handle('projet-vide:lister', () => {
 ipcMain.handle('delete-project', (event, { projectName }) => {
   if (!projectName) return { ok: false, error: 'projectName required' };
   try { fs.rmSync(_cheminProjetVide(projectName), { force: true }); } catch (_) {}   // marqueur de projet vide
+  // Marqueur d'un projet non latin cree AVANT le 2026-10-13 : ancien nom de fichier (« ____.json »), retire seulement s'il porte CE nom
+  // (un autre projet de meme forme a pu l'ecraser).
+  try {
+    const ancien = path.join(PROJETS_VIDES_DIR, String(projectName).replace(/[^A-Za-z0-9 ._-]/g, '_').slice(0, 120) + '.json');
+    if (ancien !== _cheminProjetVide(projectName) && JSON.parse(fs.readFileSync(ancien, 'utf-8')).name === projectName) {
+      fs.rmSync(ancien, { force: true });
+    }
+  } catch (_) {}
+  // Nom d'affichage memorise (nom saisi d'un projet non latin, ou renommage) : on l'oublie avec le projet, et on retire le marqueur
+  // ecrit sous ce nom s'il designe bien CE dossier (2026-10-13).
+  try {
+    const config = loadConfig();
+    const affiche = config.projectDisplayNames && config.projectDisplayNames[projectName];
+    if (affiche) {
+      if (slugProjet(affiche) === projectName) { try { fs.rmSync(_cheminProjetVide(affiche), { force: true }); } catch (_) {} }
+      delete config.projectDisplayNames[projectName];
+      saveConfig(config);
+    }
+  } catch (_) {}
   let removed = { folders: 0, meshes: 0, history: 0 };
   // 1) Image folders: any folder under IMAGES_DIR named exactly projectName or projectName_<digits>
   try {

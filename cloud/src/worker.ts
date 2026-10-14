@@ -9884,9 +9884,9 @@ async function handleProjects(req: Request, env: Env): Promise<Response> {
   // Same for mesh-op outputs — attach to the project whose sanitized
   // name matches the slug segment in the R2 key.
   try {
-    const slugify = (s: string) => (s || 'untitled').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled';
-    const projectBySlug = new Map<string, typeof projects[number]>();
-    for (const p of projects) projectBySlug.set(slugify(p.name), p);
+    // 2026-10-13 (SERVEUR-10) : meme rattachement que handleListMeshes (segment unique par nom non latin, ancien segment encore lu).
+    const projetDuSegment = _tableSegmentsProjets(projects.map((p) => p.name));
+    const projectBySlug = { get: (segment: string) => projects.find((p) => p.name === projetDuSegment(segment)) };
     const listed = await env.MESHES.list({ prefix: `${user.id}/mesh-op/`, limit: 500 });
     for (const obj of listed.objects) {
       if (!obj.key.endsWith('.glb')) continue;   // fichiers annexes (.parts.json)
@@ -10271,12 +10271,9 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
   // handleMeshOp at upload time. We map the slug back to the original
   // project by sanitizing every known projectName with the same rule
   // and looking it up.
+  // 2026-10-13 (SERVEUR-10) : segment unique par nom pour un nom non latin (slugProjet) ; l'ancien segment reste lu (_tableSegmentsProjets).
   try {
-    const slugify = (s: string) => (s || 'untitled').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled';
-    const projectBySlug = new Map<string, string>();
-    for (const m of meshes) {
-      if (m.projectName) projectBySlug.set(slugify(m.projectName), m.projectName);
-    }
+    const projetDuSegment = _tableSegmentsProjets(meshes.map((m) => m.projectName || '').filter(Boolean));
     const listed = await env.MESHES.list({ prefix: `${user.id}/mesh-op/`, limit: 500 });
     console.log(`[handleListMeshes] user=${user.id} mesh_op_count=${listed.objects.length}`);
     // ZONES NOMMEES. « Name the zones (AI) » ecrit `<maillage>.glb.parts.json`
@@ -10297,7 +10294,7 @@ async function handleListMeshes(req: Request, env: Env): Promise<Response> {
       const projectSlug = parts.length >= 4 ? parts[2] : null;
       if (!projectSlug) continue;
       const url = await signedR2Url(env, obj.key, 'mesh');
-      const inheritedProject = projectBySlug.get(projectSlug);
+      const inheritedProject = projetDuSegment(projectSlug);
       if (!inheritedProject) continue; // slug doesn't match any project
       // Detect op type from filename for the asset_type field. Defaults
       // to 'mesh' so the renderer treats it as a regular mesh version.
@@ -13700,8 +13697,9 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   // letters, digits, -, _, dot. Everything else becomes _. Empty
   // projectName falls back to 'untitled' so the listing endpoint can
   // still attach the file to *some* project.
-  const projectSlug = ((projectName || 'untitled').toString()
-    .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled');
+  // 2026-10-13 (SERVEUR-10) : un nom non latin ne « revenait » PAS au meme nom (« 兽人战士 » et « 精灵射手 » -> « ____ ») :
+  // slugProjet garde la regle d'avant pour un nom ASCII et rend un segment unique (lisible + empreinte) sinon.
+  const projectSlug = slugProjet((projectName || 'untitled').toString());
   const allowed = new Set([
     'smooth', 'decimate', 'center', 'fix_normals', 'fill_holes',
     'subdivide', 'material', 'material_adjust', 'retex_swap',
@@ -13895,8 +13893,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   const projectName = corps.projectName ? String(corps.projectName) : undefined;
   if (!meshUrl) return err(400, 'meshUrl required');
   if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed');
-  const projectSlug = ((projectName || 'untitled').toString()
-    .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled');
+  const projectSlug = slugProjet((projectName || 'untitled').toString());   // nom non latin : segment unique (2026-10-13)
 
   // Un texte libre part dans un prompt SDXL : meme filtre que tout le reste.
   const libre = conf.texteLibre ? conf.texteLibre(corps) : '';
@@ -14342,8 +14339,7 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
     meshUrl?: string; meshId?: string; stageCount?: number;
     materials?: Record<string, string> | string; projectName?: string;
   };
-  const projectSlug = ((projectName || 'untitled').toString()
-    .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled');
+  const projectSlug = slugProjet((projectName || 'untitled').toString());   // nom non latin : segment unique (2026-10-13)
   const n = Math.max(2, Math.min(Number(stageCount) || 5, 12));
   // materials: string (AUTO) or {scaffold, frame, planks, formwork} (MANUAL)
   const MAT_OK = new Set(['wood', 'metal', 'bamboo', 'aluminium']);
@@ -14915,8 +14911,7 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
      * navigateur (lissage, decimation, peinture) apparaissait donc une fois,
      * puis disparaissait au rechargement de la page. Meme regle de slug que
      * /api/mesh-op, pour que le listing la rattache au bon projet. */
-    const projectSlug = ((projectName || 'untitled').toString()
-      .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled');
+    const projectSlug = slugProjet((projectName || 'untitled').toString());   // nom non latin : segment unique (2026-10-13)
     // Poids de peau repeints (2026-09-29) : une nouvelle version du RIG, rangee avec les rigs et rattachee au
     // projet par le nom du maillage source (handleListMeshes : ce qui precede « _rigged_ »).
     const sourceRig = String(new URL(req.url).searchParams.get('source') || '')
@@ -15322,10 +15317,10 @@ async function handleUploadMesh(req: Request, env: Env): Promise<Response> {
   // sous mesh-op/<projet>/ (meme regle de slug que /api/mesh-op), donc relu
   // comme une version du projet ; un nom contenant « _rigged_ » y est classe
   // parmi les rigs par l'interface.
-  const slugProjet = typeof projectName === 'string' && projectName
-    ? projectName.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) : '';
-  const key = slugProjet
-    ? `${user.id}/mesh-op/${slugProjet}/${base}_${Date.now()}.${ext}`
+  // nom non latin : segment unique (slugProjet, 2026-10-13) ; nom ASCII : regle d'avant
+  const segmentProjet = typeof projectName === 'string' && projectName ? slugProjet(projectName) : '';
+  const key = segmentProjet
+    ? `${user.id}/mesh-op/${segmentProjet}/${base}_${Date.now()}.${ext}`
     : `${user.id}/edited/${base}_${Date.now()}.${ext}`;
   const tOutil = Date.now();
   let prixOutil = 0;
@@ -15380,7 +15375,8 @@ async function handleUploadRig(req: Request, env: Env): Promise<Response> {
     .replace(/\.(glb|gltf)$/i, '') || 'rig';
   // « _rigged_ » : c'est lui qui range le fichier parmi les rigs au rechargement
   if (!/_rigged_/i.test(nom)) nom += '_rigged_manual';
-  const projet = String(url.searchParams.get('projectName') || '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+  const nomProjet = String(url.searchParams.get('projectName') || '');
+  const projet = nomProjet ? slugProjet(nomProjet) : '';   // nom non latin : segment unique (2026-10-13)
   const key = projet
     ? `${user.id}/mesh-op/${projet}/${nom}_${Date.now()}.glb`
     : `${user.id}/edited/${nom}_${Date.now()}.glb`;
@@ -16389,8 +16385,7 @@ async function handleMeshSegmentStatus(req: Request, env: Env): Promise<Response
     // Store under the project's mesh-op prefix → auto-listed as a mesh
     // version by handleListMeshes. `_segment` name keeps it out of the
     // rigs/animations buckets on the client.
-    const projectSlug = ((record?.project_name || 'untitled')
-      .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120)) || 'untitled';
+    const projectSlug = slugProjet(record?.project_name || 'untitled');   // nom non latin : segment unique (2026-10-13)
     const key = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_segment.glb`;
     const expectedBytes = modalResp?.bytes;
     try {
@@ -17813,7 +17808,7 @@ async function handleAnimUpload(req: Request, env: Env): Promise<Response> {
 
   const animType = (String(form.get('animType') || 'clip').toLowerCase().replace(/[^a-z]/g, '') || 'clip').slice(0, 16);
   const projectName = String(form.get('projectName') || '');
-  const projectSlug = (projectName || 'untitled').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled';
+  const projectSlug = slugProjet(projectName || 'untitled');   // nom non latin : segment unique (2026-10-13)
   // Sniff GLB magic to reject random binaries.
   const head = await file.slice(0, 4).arrayBuffer();
   const magic = new TextDecoder().decode(new Uint8Array(head));
@@ -17896,7 +17891,7 @@ async function handleAnimCopy(req: Request, env: Env): Promise<Response> {
   }
   const animType = (String(body.animType || 'clip').toLowerCase().replace(/[^a-z]/g, '') || 'clip').slice(0, 16);
   const projectName = String(body.projectName || '');
-  const projectSlug = (projectName || 'untitled').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled';
+  const projectSlug = slugProjet(projectName || 'untitled');   // nom non latin : segment unique (2026-10-13)
   const incomingBatch = String(body.batchId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
   const batchId = incomingBatch || `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   // Recover the base name from the source filename so the new key
@@ -23890,7 +23885,7 @@ const _REAP_BACKENDS: Record<string, {
     lireFiche: (e, i) => getSegmentJobRecord(e, i) as Promise<Record<string, unknown> | null>,
     // Le SLUG DU PROJET REEL, pas « untitled » : la reconstruction des
     // projets ecarte les prefixes qui ne correspondent a aucun projet.
-    cle: (uid, id, f) => `${uid}/mesh-op/${_slugProjet(f?.project_name)}/${Date.now()}_segment.glb`,
+    cle: (uid, id, f) => `${uid}/mesh-op/${slugProjet(f?.project_name || 'untitled')}/${Date.now()}_segment.glb`,
   },
   animate: {
     envKey: 'MODAL_ANYTOP_ANIM_URL', path: '/anim-status', fetchPath: '/anim-fetch',
@@ -23918,9 +23913,88 @@ function _baseDepuisUrl(url: unknown, defaut: string): string {
   } catch { return defaut; }
 }
 
-function _slugProjet(nom: unknown): string {
-  const n = typeof nom === 'string' ? nom : '';
+/* SEGMENT DE PROJET DES CLES R2 (2026-10-13, audit de la langue du 11/10 : SERVEUR-10, CHAMPS-22, INTERFACE-M03).
+ *
+ * Les resultats des outils de maillage (`<uid>/mesh-op/<projet>/...`) et les animations importees ou copiees
+ * (`<uid>/animations/<projet>/...`) etaient ranges sous le nom du projet avec tout caractere hors [A-Za-z0-9._-] remplace par
+ * « _ », puis rattaches au projet par une table « segment -> nom » ou le dernier nom ecrase les autres. « 兽人战士 » et « 精灵射手 »
+ * (« تنين » / « فارس », « орк » / « дом », « Dragon Épique » / « Dragon Èpique ») donnaient le MEME segment : une version faite
+ * dans un projet apparaissait dans l'autre apres rechargement, sans retour possible puisque la confusion est inscrite dans la cle.
+ *
+ * Regle (la MEME que le bureau, src/main/slug_projet.js) :
+ *   - nom entierement ASCII : segment d'avant, inchange a l'octet pres ;
+ *   - sinon : partie lisible ASCII (accents retires, cyrillique et grec translitteres) + « -h » + empreinte FNV-1a 32 bits du nom
+ *     EXACT (forme NFC). Stable, unique par nom, et deja sur ([A-Za-z0-9_-]).
+ * Les cles deja ecrites (« ____ », « Dragon__pique ») restent lues : le listing essaie le segment de la regle actuelle, puis
+ * l'ancien segment (rattachement d'avant, inchange). */
+const _TRANSLIT_NOM_PROJET: Record<string, string> = {
+  'ß': 'ss', 'ẞ': 'SS', 'æ': 'ae', 'Æ': 'AE', 'ø': 'o', 'Ø': 'O', 'œ': 'oe', 'Œ': 'OE', 'ł': 'l', 'Ł': 'L', 'đ': 'd', 'Đ': 'D',
+  'ð': 'd', 'Ð': 'D', 'þ': 'th', 'Þ': 'Th', 'ı': 'i', 'ħ': 'h', 'Ħ': 'H', 'ŋ': 'ng', 'Ŋ': 'Ng',
+  'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ж': 'zh', 'з': 'z', 'и': 'i', 'к': 'k', 'л': 'l', 'м': 'm',
+  'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh',
+  'щ': 'shch', 'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya', 'є': 'ye', 'і': 'i', 'ґ': 'g', 'ђ': 'dj', 'ј': 'j',
+  'љ': 'lj', 'њ': 'nj', 'ћ': 'c', 'џ': 'dz',
+  'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ж': 'Zh', 'З': 'Z', 'И': 'I', 'К': 'K', 'Л': 'L', 'М': 'M',
+  'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh',
+  'Щ': 'Shch', 'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya', 'Є': 'Ye', 'І': 'I', 'Ґ': 'G', 'Ђ': 'Dj', 'Ј': 'J',
+  'Љ': 'Lj', 'Њ': 'Nj', 'Ћ': 'C', 'Џ': 'Dz',
+  'α': 'a', 'β': 'b', 'γ': 'g', 'δ': 'd', 'ε': 'e', 'ζ': 'z', 'η': 'i', 'θ': 'th', 'ι': 'i', 'κ': 'k', 'λ': 'l', 'μ': 'm',
+  'ν': 'n', 'ξ': 'x', 'ο': 'o', 'π': 'p', 'ρ': 'r', 'σ': 's', 'ς': 's', 'τ': 't', 'υ': 'y', 'φ': 'f', 'χ': 'ch', 'ψ': 'ps',
+  'ω': 'o', 'Α': 'A', 'Β': 'B', 'Γ': 'G', 'Δ': 'D', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'I', 'Θ': 'Th', 'Ι': 'I', 'Κ': 'K', 'Λ': 'L',
+  'Μ': 'M', 'Ν': 'N', 'Ξ': 'X', 'Ο': 'O', 'Π': 'P', 'Ρ': 'R', 'Σ': 'S', 'Τ': 'T', 'Υ': 'Y', 'Φ': 'F', 'Χ': 'Ch', 'Ψ': 'Ps',
+  'Ω': 'O',
+};
+
+/** Vrai si le nom ne contient que de l'ASCII : c'est lui qui garde le segment d'avant. */
+function _estNomAscii(nom: string): boolean {
+  return !/[^\x00-\x7f]/.test(nom);
+}
+
+/** Empreinte du nom EXACT : FNV-1a 32 bits des octets UTF-8 de sa forme NFC, en 8 chiffres hexadecimaux. */
+function _empreinteNomProjet(nom: string): string {
+  const octets = new TextEncoder().encode(nom.normalize('NFC'));
+  let h = 0x811c9dc5;
+  for (const o of octets) { h ^= o; h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, '0');
+}
+
+/** Partie LISIBLE (ASCII) : accents retires, lettres translitterees, tout le reste en « _ » (series fusionnees), 40 caracteres au plus. */
+function _partieLisibleNomProjet(nom: string): string {
+  const sansAccents = nom.normalize('NFKD').replace(/\p{M}+/gu, '');
+  let s = '';
+  for (const c of sansAccents) s += (Object.prototype.hasOwnProperty.call(_TRANSLIT_NOM_PROJET, c) ? _TRANSLIT_NOM_PROJET[c] : c);
+  return s.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40).replace(/_+$/, '');
+}
+
+/** Segment d'un nom NON entierement ASCII : « Éléphant » -> « Elephant-h<8 hex> », « 兽人战士 » -> « project-h<8 hex> ». */
+function slugNonLatin(nom: string): string {
+  return (_partieLisibleNomProjet(nom) || 'project') + '-h' + _empreinteNomProjet(nom);
+}
+
+/** Segment d'AVANT (cles deja ecrites) : tout caractere hors [A-Za-z0-9._-] devient « _ ». */
+function _ancienSlugProjet(nom: unknown): string {
+  const n = typeof nom === 'string' ? nom : (nom == null ? '' : String(nom));
   return (n.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120)) || 'untitled';
+}
+
+/** Segment de projet d'une cle R2 (mesh-op, animations) : segment d'avant pour un nom ASCII, slugNonLatin sinon. */
+function slugProjet(nom: unknown): string {
+  const n = typeof nom === 'string' ? nom : (nom == null ? '' : String(nom));
+  return _estNomAscii(n) ? _ancienSlugProjet(n) : slugNonLatin(n);
+}
+
+/** Table segment -> nom de projet pour rattacher les cles `<uid>/{mesh-op,animations}/<segment>/...` a leur projet. `noms` dans
+ *  l'ordre du listing : pour l'ANCIEN segment, le dernier nom gagne, comme avant (rattachement des cles deja ecrites inchange) ;
+ *  le segment de la regle actuelle est essaye d'abord, il est unique par nom. */
+function _tableSegmentsProjets(noms: Iterable<string>): (segment: string) => string | undefined {
+  const actuel = new Map<string, string>();
+  const ancien = new Map<string, string>();
+  for (const nom of noms) {
+    if (!nom) continue;
+    actuel.set(slugProjet(nom), nom);
+    ancien.set(_ancienSlugProjet(nom), nom);
+  }
+  return (segment: string) => actuel.get(segment) ?? ancien.get(segment);
 }
 
 /** One generic status poll against any of the four async Modal op apps. */

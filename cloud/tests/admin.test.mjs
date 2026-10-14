@@ -395,8 +395,12 @@ test('handleRemoveBackground : une adresse http(s) non fiable est refusee avant 
 });
 
 test('handleMeshOp : params.image_url verifiee pour toute operation (avant : seulement retex_swap et align_texture)', async () => {
+  // handleMeshOp calcule le segment de projet (slugProjet, noms non latins, 2026-10-13) avant la garde : vraie fonction si declaree
+  const { chargerFonctions, existe } = await import('./_charge-worker.mjs');
+  const SEGMENT = ['_TRANSLIT_NOM_PROJET', '_estNomAscii', '_empreinteNomProjet', '_partieLisibleNomProjet', 'slugNonLatin', '_ancienSlugProjet', 'slugProjet'];
+  const { slugProjet } = existe('slugProjet') ? chargerFonctions(SEGMENT) : { slugProjet: undefined };
   const m = charger([['async function handleMeshOp', 'async function handleMeshRetexture']], ['handleMeshOp'],
-    { getSessionUser: async () => ({ id: 'u1' }), err, json, isTrustedAssetHost, supabaseAdmin: () => { throw new Error('non'); } });
+    { getSessionUser: async () => ({ id: 'u1' }), err, json, isTrustedAssetHost, supabaseAdmin: () => { throw new Error('non'); }, slugProjet });
   const q = (op, image_url) => m.handleMeshOp(new Request('https://site.example/api/mesh-op', { method: 'POST',
     body: JSON.stringify({ meshUrl: 'https://site.example/r2/u1/a.glb?exp=1&sig=x', opType: op, params: { image_url } }) }), { ...ENV_SSRF, MODAL_MESH_START_URL: 'https://modal.example/mesh_start' });
   for (const op of ['material', 'retex_swap', 'align_texture']) {
