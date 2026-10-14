@@ -262,11 +262,14 @@ function ouvertureSite(projets) {
   const src = affectationWindow('web', 'openProjectByName');
   assert.ok(src, 'window.openProjectByName introuvable');
   const d = declarations('web');
-  const aides = ['_estNomAscii'].filter((n) => d.has(n));
+  // Integration du 14/10 : avec le lot interface multilingue, l'avis « Project "{x}" not found » passe par _i18nTf (aide de la
+  // page). Sans elle dans le bac a sable, la fonction levait ReferenceError dans son try et l'avis n'etait jamais montre (faux
+  // echec : la page reelle l'a). window sans FabI18n = repli anglais de l'aide, nom insere tel quel.
+  const aides = ['_estNomAscii', '_i18nT', '_i18nTf'].filter((n) => d.has(n));
   const state = { projects: projets.map((name) => ({ name, images: [], meshes: [] })) };
   const ouverts = [], avis = [];
   const inj = { state, refreshProjectsPage: async () => {}, openProject: async (p) => { ouverts.push(p.name); }, showToast: (t) => avis.push(t),
-    document: { getElementById: () => null }, console: silence, renderImageVersions() {}, renderMeshVersions() {} };
+    document: { getElementById: () => null }, console: silence, renderImageVersions() {}, renderMeshVersions() {}, window: {} };
   const cles = Object.keys(inj);
   const f = new Function(...cles, aides.map((n) => d.get(n)).join('\n') + '\nreturn (' + src + ');')(...cles.map((k) => inj[k]));
   return { f, ouverts, avis };
@@ -277,6 +280,7 @@ test('site : openProjectByName(« ____ ») n ouvre PAS un projet non latin pris 
   await o.f('____');
   assert.deepEqual(o.ouverts, [], 'projet ouvert : ' + o.ouverts.join(', '));
   assert.equal(o.avis.length, 1, 'l utilisateur est prevenu que le projet est introuvable');
+  assert.ok(String(o.avis[0]).includes('"____"'), 'le nom demande figure tel quel dans l avis : ' + o.avis[0]);
   const ascii = ouvertureSite(['兽人战士', 'Mobilier design']);
   await ascii.f('Mobilier_design');
   assert.deepEqual(ascii.ouverts, ['Mobilier design'], 'repli assaini d un nom ASCII (cas d origine)');
