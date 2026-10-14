@@ -43,12 +43,15 @@ def _marquer_ia(octets):
 # par rapport a la forme et aux UV du maillage livre. Apres une operation, elle est :
 #   GARDEE  quand la forme et les UV sont intactes, ou deplacees d'un bloc : center, resize (rotation / echelle), fix_normals (le
 #           relief suit l'orientation des faces), fill_holes (faces ajoutees, les autres intactes), align_texture et retex_swap
-#           (couleur seule), material / material_adjust (facteurs, couleur), explode (eclats aux positions d'origine, UV et
-#           normales gardees), apercu (images reduites, carte re-encodee SANS PERTE) ;
+#           (couleur seule), material / material_adjust (facteurs, couleur), apercu (carte gardee a l'octet si elle tient dans
+#           max_px, sinon reduite en moyenne de VECTEURS renormalises et encodee SANS PERTE : voir _carte_normales_apercu) ;
 #   RETIREE quand la forme ou les UV changent : smooth (le lissage efface un relief que la carte redessinerait), decimate (nouvelles
 #           faces et nouveaux UV ; le repli garderait l'ancien materiau sur des UV approchees), subdivide (subdivision de Loop :
-#           sommets deplaces, UV non suivis), watertight (nouvelle coque sans UV).
+#           sommets deplaces, UV non suivis), watertight (nouvelle coque sans UV) ;
+#   PERDUE  (jamais fausse) : explode, qui pose sur les eclats un materiau NEUF a couleur seule (carte, metal / rugosite et attribut
+#           NORMAL perdus, comme sur le bureau : scripts/explode_mesh_3d.py).
 # Toute carte gardee est re-encodee SANS PERTE (acceleration_glb.webp_rapide) : trimesh l'aurait encodee en WebP avec perte.
+# Le bureau suit la meme regle (scripts/mesh_tools.py, _export(..., carte_normales=False)).
 def _retirer_cartes_normales(scene) -> int:
     """Retire la normalTexture de chaque materiau (voir CARTE DE NORMALES ci-dessus). Ne leve jamais."""
     try:
@@ -1445,12 +1448,82 @@ def _filigraner_3d(img, pos_map, axe_map, taille=0.3, opacite=0.8):
     return out if avait_alpha else out.convert('RGB')
 
 
+def _images_de_texture(textures, idx) -> set:
+    """Indices des images d'une texture glTF : `source` du coeur ET sources des
+    extensions (EXT_texture_webp...). Ensemble vide si l'indice est absent."""
+    if idx is None or idx >= len(textures):
+        return set()
+    t = textures[idx]
+    return {src for src in [t.get('source')] + [e.get('source') for e in (t.get('extensions') or {}).values() if isinstance(e, dict)]
+            if src is not None}
+
+
+# CARTE DE NORMALES DE L'APERCU (2026-10-14, revue de la branche carte-normales). La copie de demonstration traitait la carte comme
+# une image quelconque : reduction LANCZOS des OCTETS (la moyenne de normales unitaires est plus courte : decodee telle quelle, elle
+# aplatit le relief, et LANCZOS deborde aux bords des ilots), puis WebP AVEC PERTE qualite 82 (mesure de la revue, carte 512 sans
+# aucune reduction : 1,1 degre d'ecart moyen, 14 degres aux bords des ilots, pour un relief moyen de 7,5 degres). Desormais :
+#   - carte qui tient deja dans max_px : octets d'ORIGINE, au bit pres ;
+#   - sinon : moyenne des VECTEURS (filtre boite, aucun lobe negatif) puis renormalisation, encodee SANS PERTE (WebP lossless, ou PNG).
+#   Une carte JPEG reduite devient PNG (mimeType mis a jour : la texture la reference par `source`, le coeur glTF accepte le PNG).
+_WEBP_SANS_PERTE_APERCU = {'lossless': True, 'quality': 0, 'method': 1}   # = acceleration_glb.WEBP_NORMALES
+
+
+def _reduire_carte_normales(img, cible: int):
+    """Carte de normales (image PIL) ramenee dans cible x cible (proportions gardees, comme thumbnail) SANS fausser les normales :
+    chaque canal decode en [-1, 1] est moyenne par un filtre boite (aire des texels), chaque normale est RENORMALISEE puis re-encodee
+    comme normal_bake ((n * 0,5 + 0,5) * 255, arrondi) ; un vecteur nul redevient la normale plate (128, 128, 255). L'alpha
+    eventuel est moyenne a part. Rend None si la carte tient deja dans cible x cible (rien a faire)."""
+    import numpy as np
+    from PIL import Image
+    W, H = img.size
+    if W <= cible and H <= cible:
+        return None
+    if W >= H:
+        w, h = cible, max(1, int(round(H * cible / float(W))))
+    else:
+        w, h = max(1, int(round(W * cible / float(H)))), cible
+    rgb = np.asarray(img.convert('RGB'))
+    canaux = []
+    for c in range(3):                     # canal par canal : un seul plan flottant a la fois (carte 4096 : ~130 Mo, pas 600)
+        plan = Image.fromarray(rgb[..., c].astype(np.float32) / 127.5 - 1.0)
+        canaux.append(np.asarray(plan.resize((w, h), Image.BOX), dtype=np.float64))
+    n = np.stack(canaux, axis=-1)
+    longueur = np.sqrt((n * n).sum(axis=-1, keepdims=True))
+    ok = np.isfinite(longueur) & (longueur > 1e-6)
+    n = np.where(ok, n / np.where(ok, longueur, 1.0), np.array([0.0, 0.0, 1.0]))
+    octets = np.clip(np.floor((n * 0.5 + 0.5) * 255.0 + 0.5), 0, 255).astype(np.uint8)
+    if 'A' in img.getbands():
+        a = Image.fromarray(np.asarray(img.getchannel('A')).astype(np.float32)).resize((w, h), Image.BOX)
+        alpha = np.clip(np.floor(np.asarray(a, dtype=np.float64) + 0.5), 0, 255).astype(np.uint8)
+        return Image.fromarray(np.dstack([octets, alpha]))
+    return Image.fromarray(octets)
+
+
+def _carte_normales_apercu(img, fmt: str, cible: int):
+    """(octets, mimeType ou None) de la carte de normales de l'apercu, ou None quand ses octets d'origine sont gardes tels quels
+    (carte deja dans cible x cible). Jamais de filigrane (il dessinerait un faux relief) ni d'encodage avec perte."""
+    petite = _reduire_carte_normales(img, cible)
+    if petite is None:
+        return None
+    sortie = io.BytesIO()
+    if fmt == 'WEBP':
+        try:
+            from modal_app.acceleration_glb import WEBP_NORMALES as reglages
+        except Exception:
+            reglages = _WEBP_SANS_PERTE_APERCU
+        petite.save(sortie, 'WEBP', **reglages)
+        return sortie.getvalue(), None
+    petite.save(sortie, 'PNG', optimize=True)
+    return sortie.getvalue(), (None if fmt == 'PNG' else 'image/png')
+
+
 def _textures_apercu(glb_bytes: bytes, max_px: int, filigrane: bool, couleur_px: int = 2048) -> bytes:
     """Reduit TOUTES les images embarquees a max_px et filigrane les textures de
     couleur, en reecrivant le GLB a la main : ni la geometrie, ni la peau, ni
     les animations ne passent par un reexport (trimesh les perdrait). Chaque
     image garde son format (PNG, JPEG, WebP) : les extensions qui le declarent
-    (EXT_texture_webp) restent justes."""
+    (EXT_texture_webp) restent justes. Les cartes de normales ne perdent rien :
+    voir CARTE DE NORMALES DE L'APERCU (une carte JPEG reduite devient PNG)."""
     import json
     import struct
     from PIL import Image
@@ -1471,16 +1544,13 @@ def _textures_apercu(glb_bytes: bytes, max_px: int, filigrane: bool, couleur_px:
     vues = doc.get('bufferViews', [])
     textures = doc.get('textures', [])
     # Images de COULEUR : seules a recevoir le filigrane (une carte de normales
-    # ou de rugosite filigranee donnerait des reliefs parasites).
-    couleur = set()
+    # ou de rugosite filigranee donnerait des reliefs parasites). Cartes de
+    # NORMALES : jamais alterees (voir CARTE DE NORMALES DE L'APERCU) ; une image
+    # a la fois couleur et carte (fichier aberrant) reste traitee en couleur.
+    couleur, normales = set(), set()
     for mat in doc.get('materials', []):
-        idx = ((mat.get('pbrMetallicRoughness') or {}).get('baseColorTexture') or {}).get('index')
-        if idx is None or idx >= len(textures):
-            continue
-        t = textures[idx]
-        for src in [t.get('source')] + [e.get('source') for e in (t.get('extensions') or {}).values() if isinstance(e, dict)]:
-            if src is not None:
-                couleur.add(src)
+        couleur |= _images_de_texture(textures, ((mat.get('pbrMetallicRoughness') or {}).get('baseColorTexture') or {}).get('index'))
+        normales |= _images_de_texture(textures, (mat.get('normalTexture') or {}).get('index'))
     nouvelles = {}
     for ii, im in enumerate(doc.get('images', [])):
         bv = im.get('bufferView')
@@ -1494,6 +1564,13 @@ def _textures_apercu(glb_bytes: bytes, max_px: int, filigrane: bool, couleur_px:
         except Exception:
             continue                      # format non lisible (KTX2…) : laisse tel quel
         fmt = (img.format or 'PNG').upper()
+        if ii in normales and ii not in couleur:
+            carte = _carte_normales_apercu(img, fmt, max_px)
+            if carte is not None:
+                nouvelles[bv], mime = carte
+                if mime:
+                    im['mimeType'] = mime
+            continue                      # carte deja assez petite : octets d'origine
         # Couleur a 2048 (le filigrane projete y reste net), autres cartes a max_px.
         cible = couleur_px if ii in couleur else max_px
         img.thumbnail((cible, cible), Image.LANCZOS)
