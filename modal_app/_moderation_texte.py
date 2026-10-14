@@ -36,6 +36,10 @@ l'adjectif anglais (« a kind knight »). Il est donc un mineur AMBIGU, comme gi
 une nudite explicite ou une tenue minimale, jamais avec le simple vocabulaire de scene (bath, shower) ni
 avec une violence. Dans une serie de lettres isolees (« k i n d n a c k t »), « kind » compte comme mineur.
 
+SECONDE RELECTURE (2026-10-14) : age (liste fermee DUREES_NON_AGE), chiffres colles (vues coupees entre lettres et chiffres),
+double sens « cock » / « erection » seulement dans une tournure ecrite telle quelle, « una escolar », « a first grade girl »,
+maillots au pluriel, references HTML / mojibake / U+FFFC lus comme ftfy les repare, viol d'une personne au filtre general.
+
 Dependances : bibliotheque standard seulement (re, time, unicodedata). Rien a ajouter a l'image Modal.
 """
 import re
@@ -51,8 +55,9 @@ _WS = "\t\n\x0b\x0c\r \xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufef
 _RE_WS = re.compile("[" + _WS + "]+")
 _RE_BLANCS_CONTROLE = re.compile("[\t\n\r]")
 
-# Caracteres EFFACES en plus de la categorie C : U+FFFD et les « ignorables » qui ne sont pas de categorie C.
-_EFFACES_HORS_C = frozenset("\ufffd\u115f\u1160\u17b4\u17b5\u2800\u3164\uffa0")
+# Caracteres EFFACES en plus de la categorie C : U+FFFD, U+FFFC (ftfy le retire avant le tokenizer CLIP : 2026-10-14) et les
+# « ignorables » qui ne sont pas de categorie C.
+_EFFACES_HORS_C = frozenset("\ufffc\ufffd\u115f\u1160\u17b4\u17b5\u2800\u3164\uffa0")
 # Marques gardees par la vue Unicode (voyelles et viramas indiens, thai, lao, tibetain, birman, khmer ; voisement des kana).
 _PLAGES_MARQUES_GARDEES = ((0x0900, 0x0DFF), (0x0E00, 0x0FFF), (0x1000, 0x109F), (0x1780, 0x17FF), (0x3099, 0x309A))
 # Vue exacte : crochet, tilde, corne, point souscrit (vietnamien, espagnol « ñ »).
@@ -188,16 +193,17 @@ MINEURS_FORT = (
     "ecolier*", "ecoliere*", "collegien*", "lyceen*", "nourrisson*", "petite fille*", "petit garcon*", "jeune fille*",
     "jeune garcon*", "moins de 18", "marmot", "marmots", "mome", "momes", "petiot*", "pitchoun*", "nouveau ne*",
     "nouveaux nes", "preado*", "pre ado*", "nino*", "nina*", "nene", "nena", "menor", "menores", "adolescente*",
-    "chiquill*", "preadolescente*", "colegial*", "menos de 18", "recien nacid*", "kinder*", "kleinkind*", "madchen*",
-    "maedchen*", "minderjahrig*", "jugendlich*", "schulmadchen*", "unter 18", "saugling*", "teenie*", "crianca*",
-    "menino*", "menina*", "garotinho*", "garotinha*", "menininh*", "nenem*", "menor de idade", "bambin*", "ragazzin*",
-    "minorenn*", "neonat*", "fanciull*", "sotto i 18", "bimba", "bimbe", "bimbi", "scolar*", "infantil*", "infante",
-    "infantes", "cocuk*", "cocug*", "bebek*", "kucuk kiz*", "kucuk oglan*", "resit olmayan", "ergen*", "ilkokul*",
-    "peuter*", "kleuter*", "minderjarig*", "jongetje*", "dziecko", "dzieci*", "dziecka", "dziecku", "dzieckiem",
-    "dziewczynk*", "chlopczyk*", "niemowl*", "nieletni*", "anak", "anak anak", "balita", "bayi", "di bawah umur",
-    "tre em", "be gai", "be trai", "em be", "thieu nhi", "vi thanh nien", "dua tre", "tre con", "con nit", "cau be",
-    "co be", "ein kind", "das kind", "dem kind", "einem kind", "kleines kind", "kleinen kind", "kindes", "een kind",
-    "het kind",
+    "chiquill*", "preadolescente*", "colegial*", "menos de 18", "recien nacid*", "una escolar", "un escolar",
+    "la escolar", "el escolar", "las escolares", "los escolares", "unas escolares", "unos escolares", "kinder*",
+    "kleinkind*", "madchen*", "maedchen*", "minderjahrig*", "jugendlich*", "schulmadchen*", "unter 18", "saugling*",
+    "teenie*", "crianca*", "menino*", "menina*", "garotinho*", "garotinha*", "menininh*", "nenem*", "menor de idade",
+    "bambin*", "ragazzin*", "minorenn*", "neonat*", "fanciull*", "sotto i 18", "bimba", "bimbe", "bimbi", "scolar*",
+    "infantil*", "infante", "infantes", "cocuk*", "cocug*", "bebek*", "kucuk kiz*", "kucuk oglan*", "resit olmayan",
+    "ergen*", "ilkokul*", "peuter*", "kleuter*", "minderjarig*", "jongetje*", "dziecko", "dzieci*", "dziecka",
+    "dziecku", "dzieckiem", "dziewczynk*", "chlopczyk*", "niemowl*", "nieletni*", "anak", "anak anak", "balita",
+    "bayi", "di bawah umur", "tre em", "be gai", "be trai", "em be", "thieu nhi", "vi thanh nien", "dua tre",
+    "tre con", "con nit", "cau be", "co be", "ein kind", "das kind", "dem kind", "einem kind", "kleines kind",
+    "kleinen kind", "kindes", "een kind", "het kind",
 )
 
 MINEURS_AMBIGUS = (
@@ -281,7 +287,7 @@ NU_MOYEN = (
     "traje de bano", "sujetador*", "sosten", "torse nu", "torses nus", "badehose*", "ohne hose", "sutia",
     "roupa transparente", "sem camiseta", "reggiseno", "pigiama trasparente", "calzones", "underpants", "undies",
     "swimwear", "swim trunks", "swimming trunks", "speedo", "speedos", "in briefs", "in his briefs", "in her briefs",
-    "in their briefs",
+    "in their briefs", "swimsuits", "swim suits", "bathing suit", "bathing suits", "swimming costume*",
 )
 
 NU_FAIBLE_PLANCHER = (
@@ -297,7 +303,8 @@ NU_FAIBLE_GENERAL = (
 
 SEXE_MINEUR_FORT = (
     "dick", "dicks", "erection*", "boner*", "hardon*", "penetrating her", "penetrating him", "being penetrated",
-    "spread legs", "spreading her legs", "spread her legs", "legs spread", "viol", "brothel*", "foursome*",
+    "spread legs", "spreading her legs", "spread her legs", "legs spread", "viol", "brothel*", "foursome*", "cock",
+    "cocks",
 )
 
 VIOLENCE_ENFANT_PLANCHER = (
@@ -549,10 +556,6 @@ COMPLEMENTS_DE = (
     "de", "d", "du", "des", "del", "di", "da", "do", "della", "dei", "dos", "das",
 )
 
-MOTS_AGE = (
-    "edad", "idade", "age", "eta",
-)
-
 PREFIXES_AGE = (
     "aged?", "age of", "ages", "age de", "agee de", "agee", "edad de", "edad", "alter von", "alter", "eta di",
     "idade de", "idade", "just turned",
@@ -613,14 +616,20 @@ EXPRESSIONS_SURES = (
     "!cria (?:um|uma|uns|umas|o|os|as|me|nos|isto|isso|outro|outra)",
     "(?:golf|golfing|golfers?|mixed|bridge|tennis) !foursomes?",
     "!foursomes? of (?:golfers|players|knights|heroes|adventurers|friends)",
-    "!erections? of (?:the|a|an|this|that|these|those|its|their|our|new|great|huge|giant|stone|steel|wooden|iron) (?:tower|towers|wall|walls|castle|castles|monument|monuments|statue|statues|structure|structures|temple|temples|bridge|bridges|church|churches|cathedral|cathedrals|pyramid|pyramids|obelisk|obelisks|scaffold|scaffolds|scaffolding|tent|tents|fort|forts|fortress|barricade|barricades|palisade|palisades|fence|fences|mast|masts|pillar|pillars|column|columns|gate|gates|house|houses|building|buildings|steel|steelwork|frame|frames|framework|totem|totems|maypole|maypoles|memorial|memorials|shrine|shrines|altar|altars|arch|arches|dam|dams|dome|domes|spire|spires|stone|stones|menhir|menhirs|statuary)",
-    "!erections? of (?:tower|towers|wall|walls|castle|castles|monument|monuments|statue|statues|structure|structures|temple|temples|bridge|bridges|church|churches|cathedral|cathedrals|pyramid|pyramids|obelisk|obelisks|scaffold|scaffolds|scaffolding|tent|tents|fort|forts|fortress|barricade|barricades|palisade|palisades|fence|fences|mast|masts|pillar|pillars|column|columns|gate|gates|house|houses|building|buildings|steel|steelwork|frame|frames|framework|totem|totems|maypole|maypoles|memorial|memorials|shrine|shrines|altar|altars|arch|arches|dam|dams|dome|domes|spire|spires|stone|stones|menhir|menhirs|statuary)",
-    "(?:tower|towers|wall|walls|castle|castles|monument|monuments|statue|statues|structure|structures|temple|temples|bridge|bridges|church|churches|cathedral|cathedrals|pyramid|pyramids|obelisk|obelisks|scaffold|scaffolds|scaffolding|tent|tents|fort|forts|fortress|barricade|barricades|palisade|palisades|fence|fences|mast|masts|pillar|pillars|column|columns|gate|gates|house|houses|building|buildings|steel|steelwork|frame|frames|framework|totem|totems|maypole|maypoles|memorial|memorials|shrine|shrines|altar|altars|arch|arches|dam|dams|dome|domes|spire|spires|stone|stones|menhir|menhirs|statuary) !erections?",
-    "!erections? (?:crew|crews|site|sites|works|team|teams|crane|cranes|phase|phases|plan|plans|stage|stages|drawing|drawings)",
+    "(?<!with.)(?<!has.)(?<!had.)(?<!having.)(?<!got.)(?<!gets.)(?<!get.)(?<!showing.)(?<!shows.)(?<!show.)(?<!his.)(?<!her.)the !erections? of (?:the|a|an|this|that|these|those|its|their|our|new|great|huge|giant|stone|steel|wooden|iron) (?:tower|towers|wall|walls|castle|castles|monument|monuments|statue|statues|structure|structures|temple|temples|bridge|bridges|church|churches|cathedral|cathedrals|pyramid|pyramids|obelisk|obelisks|scaffold|scaffolds|scaffolding|tent|tents|fort|forts|fortress|barricade|barricades|palisade|palisades|fence|fences|mast|masts|pillar|pillars|column|columns|gate|gates|house|houses|building|buildings|steel|steelwork|frame|frames|framework|totem|totems|maypole|maypoles|memorial|memorials|shrine|shrines|altar|altars|arch|arches|dam|dams|dome|domes|spire|spires|stone|stones|menhir|menhirs|statuary)",
+    "(?<!with.)(?<!has.)(?<!had.)(?<!having.)(?<!got.)(?<!gets.)(?<!get.)(?<!showing.)(?<!shows.)(?<!show.)(?<!his.)(?<!her.)the !erections? of (?:tower|towers|wall|walls|castle|castles|monument|monuments|statue|statues|structure|structures|temple|temples|bridge|bridges|church|churches|cathedral|cathedrals|pyramid|pyramids|obelisk|obelisks|scaffold|scaffolds|scaffolding|tent|tents|fort|forts|fortress|barricade|barricades|palisade|palisades|fence|fences|mast|masts|pillar|pillars|column|columns|gate|gates|house|houses|building|buildings|frame|frames|framework|totem|totems|maypole|maypoles|memorial|memorials|shrine|shrines|altar|altars|arch|arches|dam|dams|dome|domes|spire|spires|menhir|menhirs)",
+    "(?<!with.)(?<!has.)(?<!had.)(?<!having.)(?<!got.)(?<!gets.)(?<!get.)(?<!showing.)(?<!shows.)(?<!show.)(?<!his.)(?<!her.)the !erections? (?:crew|crews|site|sites|works|team|teams|crane|cranes|phase|phases|plan|plans|stage|stages|drawing|drawings)",
     "!semen (?:gudang|bangunan|putih|abu|cor|dinding|lantai|tembok|pabrik|karung|truk|sak|beton|portland|instan|mortar)",
     "(?:pabrik|karung|sak|dinding|lantai|tembok|campuran|adukan|truk|toko|harga|gudang) !semen",
-    "!peladas? de (?:futebol|futsal|bola|rua|praia|varzea|domingo)", "(?:jogo|jogos) de !peladas?",
-    "(?:jogar|jogando|jogamos|joga) !peladas?",
+    "!(?<!his.)(?<!her.)(?<!my.)(?<!your.)(?<!their.)(?<!.s.)cocks? (?:and|or|with|among|beside|near) (?:hens?|chickens?|chicks?|pullets?|poultry|roosters?|ducks?|geese|turkeys?|goats?|pigs?|cows?|sheep)",
+    "!(?<!his.)(?<!her.)(?<!my.)(?<!your.)(?<!their.)(?<!.s.)cocks? (?:and|or|with|among|beside|near) (?:a|an|the|two|three|four|five|six|some|many|several|its|their|[0-9]+) (?:hens?|chickens?|chicks?|pullets?|poultry|roosters?|ducks?|geese|turkeys?|goats?|pigs?|cows?|sheep)",
+    "(?:hens?|chickens?|chicks?|pullets?|poultry|ducks?|geese|turkeys?) (?:and|or|with) !cocks?",
+    "(?:hens?|chickens?|chicks?|pullets?|poultry|ducks?|geese|turkeys?) (?:and|or|with) (?:a|an|the|one|two|its|their) !cocks?",
+    "!(?<!his.)(?<!her.)(?<!my.)(?<!your.)(?<!their.)(?<!.s.)cocks? (?:crowing|crows|crowed|crow)",
+    "(?:crowing|crowed) !cocks?", "weather !cocks?", "!cock a doodle doo", "oilseed !rapes?",
+    "!rape (?:field|fields|flower|flowers|plant|plants|crop|crops|seed|seeds|oil|blossom|blossoms)",
+    "fields? of !rape", "yellow !rape", "!peladas? de (?:futebol|futsal|bola|rua|praia|varzea|domingo)",
+    "(?:jogo|jogos) de !peladas?", "(?:jogar|jogando|jogamos|joga) !peladas?",
 )
 
 IDIOMES_EXACTS = (
@@ -691,7 +700,10 @@ GENERAL_SEXUEL_DUR = (
     "barbusig*", "nackig*", "fkk", "geschlechtsverkehr", "vergewaltig*", "ficken", "gefickt", "pelad*", "despida",
     "despidas", "estupr*", "mutande", "mutandin*", "mutandon*", "perizoma", "senza niente addosso", "nudin*",
     "*ciplak*", "soyunmus", "tecavuz*", "mustehcen*", "naakt*", "ontkleed*", "nagie", "rozebran*", "telanjang",
-    "bugil", "pemerkosa*", "khoa than", "khieu dam", "hiep dam",
+    "bugil", "pemerkosa*", "khoa than", "khieu dam", "hiep dam", "the rape", "a rape", "rape of", "rapes of",
+    "gang rape*", "rape victim*", "le viol", "un viol", "du viol", "au viol", "les viols", "des viols",
+    "viol collectif", "viols collectifs", "violeur*", "femme violee", "femmes violees", "fille violee",
+    "filles violees", "stupr*",
 )
 
 GENERAL_CTX_SEXUEL = (
@@ -842,18 +854,46 @@ IDIOMES_RACINES = (
     "nudel", "nacktschneck", "nacktmull", "nacktsamer", "nackthund", "naaktslak", "spogliatoi",
 )
 
-PREPOSITIONS_AGE = (
-    "de", "di",
+DUREES_NON_AGE = (
+    "guerres?", "services?", "travail", "travaux", "experiences?", "carrieres?", "mariage", "prison", "captivite",
+    "exil", "paix", "regne", "combats?", "batailles?", "conflits?", "luttes?", "siege", "entrainement", "pratique",
+    "metier", "apprentissage", "formation", "etudes?", "recherches?", "voyages?", "errance", "retard", "absence",
+    "silence", "sommeil", "garantie", "anciennete", "activite", "chantier", "construction", "restauration",
+    "occupation", "dictature", "crise", "attente", "amitie", "labeur", "solitude", "emprisonnement", "detention",
+    "isolement", "campagnes?", "missions?", "quete", "navigation", "patrouilles?", "commandement", "pouvoir",
+    "tyrannie", "esclavage", "servitude", "resistance", "souffrance", "misere", "famine", "secheresse", "hiver",
+    "nuit", "tenebres", "malediction", "hibernation", "exploitation", "vieillissement", "loyaux", "bons", "guerras?",
+    "servicio", "trabajo", "experiencia", "carrera", "matrimonio", "prision", "carcel", "cautiverio", "exilio", "paz",
+    "reinado", "combates?", "batallas?", "conflictos?", "luchas?", "asedio", "entrenamiento", "practica", "oficio",
+    "aprendizaje", "estudios?", "investigacion", "viajes?", "retraso", "ausencia", "silencio", "garantia",
+    "antiguedad", "dictadura", "crisis", "espera", "amistad", "soledad", "esclavitud", "campanas?", "mision",
+    "busqueda", "mando", "tirania", "sufrimiento", "invierno", "oscuridad", "maldicion", "construccion", "obras?",
+    "servico", "trabalho", "carreira", "casamento", "prisao", "cadeia", "cativeiro", "cerco", "treino", "treinamento",
+    "pratica", "aprendizado", "estudos?", "pesquisa", "viagens?", "atraso", "solidao", "escravidao", "campanhas?",
+    "missao", "busca", "comando", "sofrimento", "inverno", "escuridao", "maldicao", "construcao", "servizio",
+    "lavoro", "esperienza", "carriera", "prigione", "prigionia", "carcere", "esilio", "pace", "regno",
+    "combattimenti?", "battaglie?", "battaglia", "conflitti?", "conflitto", "lotta", "lotte", "assedio",
+    "allenamento", "mestiere", "apprendistato", "studi", "studio", "ricerche?", "ricerca", "viaggi", "viaggio",
+    "ritardo", "assenza", "silenzio", "garanzia", "anzianita", "dittatura", "crisi", "attesa", "amicizia",
+    "solitudine", "schiavitu", "campagna", "missione", "potere", "tirannia", "sofferenza", "costruzione", "lavori",
 )
 
-DOUBLE_SENS_COQ = (
-    "cock", "cocks",
+ADJECTIFS_JEUNESSE = (
+    "young", "youth", "youthful", "jeune", "jeunes", "joven", "jovenes", "kind",
 )
 
-CONTEXTE_BASSE_COUR = (
-    "hen", "hens", "chicken*", "rooster*", "poultry", "cockerel*", "chick", "chicks", "coop", "coops", "henhouse*",
-    "hen house*", "barnyard*", "crowing", "weather vane*", "weathervane*", "coq", "gallo", "galo", "hahn", "gallina*",
-    "poule*", "huhn", "huhner",
+CLASSES_ORDINAUX = (
+    "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh",
+    "twelfth", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th",
+)
+
+ELEVES_CLASSE = (
+    "girl*", "boy*", "student*", "pupil*",
+)
+
+MOJIBAKE_EFFACES = (
+    "\xef\xbb\xbf", "\xef\xbf\xb9", "\xef\xbf\xba", "\xef\xbf\xbb", "\xef\xbf\xbc", "\xef\xbf\xbd", "\xe2\x81\xaa",
+    "\xe2\x81\xab", "\xe2\x81\xac", "\xe2\x81\xad", "\xe2\x81\xae", "\xe2\x81\xaf",
 )
 
 
@@ -864,6 +904,11 @@ _FINS_U14 = tuple(b for _, b in _BORNES_U14)
 
 # ── Chiffres Unicode (table fixe partagee avec le TypeScript) ──────────────
 _ZEROS = tuple(int(h, 16) for h in ZEROS_CHIFFRES)
+
+# ── Ce que ftfy repare avant le tokenizer CLIP (seconde relecture du 14/10) : mojibake d'un caractere efface, references HTML ──
+_RE_MOJIBAKE = re.compile("|".join(MOJIBAKE_EFFACES))
+_RE_INDICE_MOJIBAKE = re.compile("[\u00e2\u00ef\u0302\u0308]")
+_RE_REF_HTML = re.compile(r"&(?:#(?:x([0-9a-f]+)|([0-9]+));?|(amp|num);?)", re.I)
 
 
 def _chiffres_ascii(s):
@@ -883,11 +928,50 @@ def _chiffres_ascii(s):
     return "".join(sortie)
 
 
+def _effacer(s):
+    """\\t \\n \\r -> espace, puis effacement (categorie C, ignorables, non assignes en Unicode 14)."""
+    return _sans_effaces(_RE_BLANCS_CONTROLE.sub(" ", s))
+
+
+def _decoder_reference(m):
+    hexa, dec, nom = m.group(1), m.group(2), m.group(3)
+    if nom:
+        return "&" if nom.lower() == "amp" else ("#" if nom.lower() == "num" else m.group(0))
+    chiffres = (hexa if hexa is not None else dec).lstrip("0")
+    n = -1 if len(chiffres) > 7 else (0 if chiffres == "" else int(chiffres, 16 if hexa is not None else 10))
+    return "\ufffd" if n <= 0 or n > 0x10FFFF or 0xD800 <= n <= 0xDFFF else chr(n)
+
+
+def _sans_references_html(s):
+    """« &#110; » -> « n », « &#x6e; » -> « n », « &amp; » -> « & », « &num; » -> « # » ; un numero hors d'Unicode -> U+FFFD."""
+    r = s
+    for _ in range(3):
+        if "&" not in r:
+            break
+        suivant = _RE_REF_HTML.sub(_decoder_reference, r)
+        if suivant == r:
+            break
+        r = suivant
+    return r
+
+
+def _sans_mojibake(s):
+    """Mojibake d'un caractere efface retire, sur la forme NFC (meme regle que le TypeScript)."""
+    if not _RE_INDICE_MOJIBAKE.search(s):
+        return s
+    return _RE_MOJIBAKE.sub("", unicodedata.normalize("NFC", s))
+
+
 def _nettoyer(texte):
-    """Etape commune a toutes les vues : points de code non assignes en Unicode 14 effaces (AVANT NFKC), NFKC, blancs de
-    controle -> espace, effacement, chiffres en ASCII, minuscules."""
-    s = unicodedata.normalize("NFKC", _sans_non_assignes(_en_texte(texte)))
-    s = _sans_effaces(_RE_BLANCS_CONTROLE.sub(" ", s))
+    """Etape commune a toutes les vues (meme ordre que le TypeScript) : non assignes en Unicode 14 et autres caracteres effaces
+    AVANT NFKC ; mojibake d'un caractere efface retire (forme NFC, avant ET apres l'effacement) ; NFKC ; references HTML decodees
+    (puis NFKC) ; chiffres en ASCII ; minuscules. L'effacement est refait apres chaque reparation (ftfy repete les siennes jusqu'a
+    un texte stable) ; pas apres NFKC, qui ne produit aucun caractere efface."""
+    s = _effacer(_sans_mojibake(_sans_non_assignes(_en_texte(texte))))
+    s = _effacer(_sans_mojibake(s))
+    s = unicodedata.normalize("NFKC", s)
+    if "&" in s:
+        s = _effacer(unicodedata.normalize("NFKC", _sans_non_assignes(_sans_references_html(s))))
     return _chiffres_ascii(s).lower()
 
 
@@ -1082,6 +1166,23 @@ def _vue_unicode(net):
     return _RE_ESPACES.sub(" ", "".join(sortie)).strip(" ")
 
 
+# Chiffres colles a un mot (seconde relecture du 14/10) : CLIP coupe entre lettres et chiffres (« 2child » -> 2 | child). Vues
+# SUPPLEMENTAIRES coupees (« 2 child », « little 1 girl ») puis sans les chiffres colles a une lettre (« little girl »).
+_RE_FRONTIERE_CHIFFRE = re.compile("(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])")
+_RE_CHIFFRES_COLLES = re.compile("(?<=[a-z])[0-9]+|[0-9]+(?=[a-z])")
+_RE_FRONTIERE_CHIFFRE_UNICODE = re.compile("(?<=[^ 0-9])(?=[0-9])|(?<=[0-9])(?=[^ 0-9])")
+
+
+def _separees(vues):
+    """Vues coupees entre lettres et chiffres, puis sans chiffre colle a une lettre ; sans doublon, seulement si elles different."""
+    sortie = []
+    for v in vues:
+        for s in (_RE_FRONTIERE_CHIFFRE.sub(" ", v), _RE_ESPACES.sub(" ", _RE_CHIFFRES_COLLES.sub(" ", v)).strip(" ")):
+            if s != v and s not in sortie:
+                sortie.append(s)
+    return sortie
+
+
 def _vues_plancher(net):
     """Vues du plancher a partir du texte NETTOYE (`_nettoyer`)."""
     t = _sans_expressions_sures(_translit(_sans_marques(net)))
@@ -1095,16 +1196,19 @@ def _vues_plancher(net):
     t_i = _leet(t, "i")
     t_l = _leet(t, "l")
     non_ecrasees = [assembler(t), assembler(t_i), assembler(t_l)]
+    chiffres, leet_i, leet_l = _ecraser(non_ecrasees[0]), _ecraser(non_ecrasees[1]), _ecraser(non_ecrasees[2])
+    exacte = _vue_exacte(net)
     return {
-        "chiffres": _ecraser(non_ecrasees[0]),
-        "leetI": _ecraser(non_ecrasees[1]),
-        "leetL": _ecraser(non_ecrasees[2]),
+        "chiffres": chiffres,
+        "leetI": leet_i,
+        "leetL": leet_l,
         "collees": [coller(_simple(t_i)), coller(_simple(t_l))],
         "series": (_series(_simple(_joindre_ponctue(t))) + _series(_simple(_joindre_ponctue(t_i)))
                    + _series(_simple(_joindre_ponctue(t_l)))),
         "nonEcrasees": non_ecrasees,
-        "exacte": _vue_exacte(net),
-        "unicode": _RE_IDIOMES_UNICODE.sub(" ", _vue_unicode(net)),
+        "separees": _separees([chiffres, leet_i, leet_l]),
+        "exactes": [exacte] + _separees([exacte]),
+        "unicode": _RE_IDIOMES_UNICODE.sub(" ", _RE_FRONTIERE_CHIFFRE_UNICODE.sub(" ", _vue_unicode(net))),
     }
 
 
@@ -1249,12 +1353,13 @@ _NB_CHIFFRES = "(?<![0-9])(?:1[0-7]|0?[0-9])(?![0-9])"
 _PAS_GRAND = "(?! ?" + _alt(GRANDS_NOMBRES) + "(?![a-z]))"
 _NB = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES + ")" + _PAS_GRAND
 _NB_APRES_PREFIXE = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES_SURS + ")" + _PAS_GRAND
-_UNITE_ROMANE = (_alt(UNITES_AGE_ROMANES) + "(?![a-z])(?! " + _alt(COMPLEMENTS_DE) + " (?!" + _alt(MOTS_AGE)
-                 + "(?![a-z]))[a-z])")
+_UNITE_ROMANE = (_alt(UNITES_AGE_ROMANES) + "(?![a-z])(?! " + _alt(COMPLEMENTS_DE) + " " + _alt(DUREES_NON_AGE)
+                 + "(?![a-z]))")
 _UNITE = "(?:" + _alt(UNITES_AGE) + "(?![a-z])|" + _UNITE_ROMANE + ")"
-_RE_AGE = re.compile("(?:^| )" + _NB + " ?" + _UNITE + "|(?:^| )" + _alt(PREPOSITIONS_AGE) + " " + _NB + " ?"
-                     + _alt(UNITES_AGE_ROMANES) + "(?![a-z])|(?:^| )" + _alt(PREFIXES_AGE) + " ?" + _NB_APRES_PREFIXE
+_RE_AGE = re.compile("(?:^| )" + _NB + " ?" + _UNITE + "|(?:^| )" + _alt(PREFIXES_AGE) + " ?" + _NB_APRES_PREFIXE
                      + "(?![a-z0-9])" + "|(?:^| )" + _alt(NOMBRES_COMPOSES_DE) + "jahrig")
+# « N ans de <duree> » lu comme un age avec un mineur ambigu NOMME ou un indice (seconde relecture du 14/10).
+_RE_AGE_ROMAN_LARGE = re.compile("(?:^| )" + _NB + " ?" + _alt(UNITES_AGE_ROMANES) + "(?![a-z])")
 _RE_NAISSANCE = re.compile("(?:^| )" + _alt(_par_longueur(PREFIXES_NAISSANCE)) + " ((?:19|20)[0-9][0-9])(?![0-9])")
 _NB_CHIFFRES_U = "(?<![0-9])(?:1[0-7]|0?[0-9])(?! ?[0-9])"
 _NB_HAN = "(?<![一二三四五六七八九十百千两兩])(?:十[一二三四五六七]?|[一二三四五六七八九两兩])"
@@ -1273,8 +1378,10 @@ def _age_par_naissance(vue):
 
 
 # ── Compilation (une fois par processus) ───────────────────────────────────
-T_MINEURS_FORT = _compiler(MINEURS_FORT, "plancher")
+T_MINEURS_FORT = _fusionner(_compiler(MINEURS_FORT, "plancher"),
+                            _compiler([o + " grade " + e for o in CLASSES_ORDINAUX for e in ELEVES_CLASSE], "plancher"))
 T_MINEURS_AMBIGUS = _compiler(MINEURS_AMBIGUS, "plancher")
+T_MINEURS_AMBIGUS_NOMS = _compiler([x for x in MINEURS_AMBIGUS if x not in ADJECTIFS_JEUNESSE], "plancher")
 T_MINEURS_INDICES = _compiler(MINEURS_INDICES, "plancher")
 T_MINEURS_VIOLENCE = _compiler(MINEURS_VIOLENCE, "mineur_violence")
 T_NU_FORT = _compiler(NU_FORT, "plancher")
@@ -1283,8 +1390,6 @@ T_NU_MOYEN = _compiler(NU_MOYEN, "plancher")
 T_NU_FAIBLE_PLANCHER = _compiler(NU_FAIBLE_PLANCHER, "plancher")
 T_NU_FAIBLE_GENERAL = _compiler(NU_FAIBLE_GENERAL, "mineur_violence")
 T_SEXE_MINEUR_FORT = _compiler(SEXE_MINEUR_FORT, "plancher")
-T_DOUBLE_SENS_COQ = _compiler(DOUBLE_SENS_COQ, "plancher")
-T_CONTEXTE_BASSE_COUR = _compiler(CONTEXTE_BASSE_COUR, "plancher")
 T_VIOLENCE_ENFANT_PLANCHER = _compiler(VIOLENCE_ENFANT_PLANCHER, "plancher")
 T_PLANCHER_MOTS = _compiler(PLANCHER_MOTS, "plancher")
 T_PLANCHER_UNICODE = _compiler_unicode(PLANCHER_UNICODE, "plancher")
@@ -1335,7 +1440,7 @@ def check_hard_floor(prompt):
 
 
 def _plancher(v):
-    vues = [v["chiffres"], v["leetI"], v["leetL"]]
+    vues = [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]
     uni = [v["unicode"]]
 
     def bloquer(blocked, reason):
@@ -1361,11 +1466,15 @@ def _plancher(v):
 
     # 2. Mineur x nudite / sexe, mineur x violence exercee sur lui.
     mineur_fort = _chercher(vues, T_MINEURS_FORT) or _chercher(uni, T_MINEURS_FORT_UNICODE)
-    age = any(_RE_AGE.search(x) or _age_par_naissance(x) for x in vues) or bool(_RE_AGE_UNICODE.search(v["unicode"]))
     mineur_ambigu = _chercher(vues, T_MINEURS_AMBIGUS) or _chercher(uni, T_MINEURS_AMBIGUS_UNICODE)
     indice = _chercher(vues, T_MINEURS_INDICES)
+    # « une fille, 10 ans de guerre, au bain » : avec un mineur ambigu NOMME ou un indice, « N ans de <duree> » compte aussi
+    age_large = (any(_RE_AGE_ROMAN_LARGE.search(x) for x in vues)
+                 if (indice or _chercher(vues, T_MINEURS_AMBIGUS_NOMS)) else False)
+    age = (age_large or any(_RE_AGE.search(x) or _age_par_naissance(x) for x in vues)
+           or bool(_RE_AGE_UNICODE.search(v["unicode"])))
     if mineur_fort or age or mineur_ambigu or indice:
-        explicite = (_chercher(vues, T_NU_FORT) or _chercher([v["exacte"]], T_NU_EXACTS) or _chercher(uni, T_NU_FORT_UNICODE)
+        explicite = (_chercher(vues, T_NU_FORT) or _chercher(v["exactes"], T_NU_EXACTS) or _chercher(uni, T_NU_FORT_UNICODE)
                      or _chercher(uni, T_NU_SUGGESTIF_UNICODE))
         if explicite:
             return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
@@ -1374,9 +1483,6 @@ def _plancher(v):
                 return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
         if mineur_fort or age:
             if _chercher(vues, T_SEXE_MINEUR_FORT):
-                return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
-            # « cock » lu « coq » quand un mot de basse-cour est la (« a farm kid feeding a cock and two hens »)
-            if _chercher(vues, T_DOUBLE_SENS_COQ) and not _chercher(vues, T_CONTEXTE_BASSE_COUR):
                 return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
             if _chercher(vues, T_NU_FAIBLE_PLANCHER) or _chercher(uni, T_NU_FAIBLE_UNICODE):
                 return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
@@ -1399,11 +1505,11 @@ def check_prompt_safety(prompt, unrestricted=False):
     net = _nettoyer(prompt)
     souple = _simple(_sans_expressions_sures(_sans_marques(net)))   # texte tel quel (sans translitteration)
     v = _vues_plancher(net)
-    toutes = [souple, v["chiffres"], v["leetI"], v["leetL"]]   # l'explicite est teste sur les formes deguisees aussi
+    toutes = [souple, v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]   # l'explicite est teste sur les formes deguisees aussi
     # ... et sur la vue sans syntaxe de poids collee dans un mot (revue du 14/10, B1)
     colle = _sans_syntaxe_collee(net)
     vc = None if colle == net else _vues_plancher(colle)
-    explicites = toutes + [vc["chiffres"], vc["leetI"], vc["leetL"]] if vc else toutes
+    explicites = toutes + [vc["chiffres"], vc["leetI"], vc["leetL"]] + vc["separees"] if vc else toutes
 
     def refus(t):
         return {"safe": False, "blocked": _nom(t), "categorie": t.cat,
@@ -1417,7 +1523,7 @@ def check_prompt_safety(prompt, unrestricted=False):
     # 1. Termes explicites (sexe, nudite) : mots entiers, y compris deguises ; mots courts sur la vue exacte ; autres
     #    ecritures sur la vue Unicode.
     sexuel = (_chercher(explicites, T_SEXUEL_DUR)
-              or _chercher([v["exacte"], vc["exacte"]] if vc else [v["exacte"]], T_SEXUEL_EXACTS)
+              or _chercher(v["exactes"] + vc["exactes"] if vc else v["exactes"], T_SEXUEL_EXACTS)
               or _chercher([v["unicode"], vc["unicode"]] if vc else [v["unicode"]], T_SEXUEL_UNICODE))
     if sexuel:
         return refus(sexuel)
@@ -1475,7 +1581,8 @@ _RE_POIDS = re.compile(":[" + _WS + "]*([+-]?[0-9.]*)[" + _WS + "]*\\)")
 _RE_NOMBRE = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)")
 _RE_JETON_OUVRANT = re.compile("<[" + _WS + "]*\\|")
 _RE_JETON_FERMANT = re.compile("\\|[" + _WS + "]*>")
-_RE_ENTITE_HTML = re.compile("&(?=[#A-Za-z])")
+# « & » et « # » sous leurs formes de compatibilite aussi (pleine chasse, petites) : ftfy les ramene en ASCII avant de decoder
+_RE_ENTITE_HTML = re.compile("[&\uff06\ufe60](?=[#\uff03\ufe5fA-Za-z\uff21-\uff3a\uff41-\uff5a])")
 
 
 def longueur_ponderee(texte):
@@ -1497,10 +1604,10 @@ def controler_longueur_prompt(texte, max_=PROMPT_MAX_CARACTERES):
 def neutraliser_syntaxe_prompt(texte):
     """Texte tel qu'il part au generateur : caracteres effaces retires (\\t \\n \\r -> espace), jetons speciaux du tokenizer
     (« <|endoftext|> », « <|startoftext|> ») casses, references de caractere HTML cassees (« &#110; » -> « & #110; » : avec
-    ftfy, le tokenizer CLIP les decode), poids A1111 « (mot:x) » ramenes dans [POIDS_PROMPT_MIN, POIDS_PROMPT_MAX] (un poids
+    ftfy, le tokenizer CLIP les decode ; « & » et « # » en pleine chasse ou en petite forme aussi), poids A1111 « (mot:x) » ramenes dans [POIDS_PROMPT_MIN, POIDS_PROMPT_MAX] (un poids
     mal forme est retire). Un poids deja dans les bornes est laisse tel quel."""
     s = _sans_effaces(_RE_BLANCS_CONTROLE.sub(" ", _en_texte(texte)))
-    s = _RE_ENTITE_HTML.sub("& ", _RE_JETON_FERMANT.sub(" ", _RE_JETON_OUVRANT.sub(" ", s)))
+    s = _RE_ENTITE_HTML.sub(lambda m: m.group(0) + " ", _RE_JETON_FERMANT.sub(" ", _RE_JETON_OUVRANT.sub(" ", s)))
 
     def poids(m):
         nb = m.group(1)
