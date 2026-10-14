@@ -7860,6 +7860,20 @@ function stripKnownPromptSuffixes(raw) {
     'isolated, complete vehicle',
     'isolated, full weapon',
     'isolated, full structure',
+    /* FORMES ENTIERES des ouvertures historiques (2026-10-14, revue du lot 2 de la langue, B4). Depuis que le marqueur doit etre une
+     * proposition ENTIERE (MANQUE-03), « ONE complete boat only, single vessel, ... », « ONE complete passenger aircraft only, ... » et
+     * « single flat icon, app icon, ... » n'etaient plus reconnus : 648 prompts d'anciens projets gardaient tout leur gabarit, et
+     * Generate y recollait le gabarit courant (tests/bureau-interface/nettoyage-gabarits-historiques.test.mjs). */
+    'ONE complete boat only',
+    'ONE complete passenger aircraft only',
+    'single flat icon, app icon',
+    // Ouvertures d'anciens gabarits animal / creature / structure que le nettoyeur n'a JAMAIS reconnues (meme releve) : le gabarit
+    // restait entier, avant comme apres le lot 2.
+    'wildlife photography of ONE animal only',
+    'ONE animal only',
+    'full body shot from head to tail',
+    'full body shot from nose to tail',
+    'ONE structure only',
   ];
   const MARQUEURS_GABARIT = [
     ...Object.values(ASSET_TYPE_PROMPTS),
