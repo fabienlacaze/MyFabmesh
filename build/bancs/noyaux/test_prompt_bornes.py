@@ -80,6 +80,17 @@ class FauxTokenizer:
         return types.SimpleNamespace(input_ids=ids)
 
 
+class FauxTokenizerClip:
+    """Decoupage du tokenizer CLIP (suites de lettres, chiffre par chiffre, ponctuation) ; un identifiant DISTINCT par mot."""
+
+    def __init__(self):
+        self.ids = {}
+
+    def __call__(self, texte, truncation=False, add_special_tokens=False):
+        mots = re.findall(r'[^\W\d_]+|\d|[^\s\w]+|_+', texte.lower())
+        return types.SimpleNamespace(input_ids=[self.ids.setdefault(m, 1000 + len(self.ids)) for m in mots])
+
+
 class TestEncodeurSdxl(unittest.TestCase):
     def test_poids_bornes_et_robustes(self):
         for chemin in CHEMINS_SDXL:
@@ -101,6 +112,32 @@ class TestEncodeurSdxl(unittest.TestCase):
                 t0 = time.time()
                 sdxl._parse_prompt_attention(texte)
                 self.assertLess(time.time() - t0, 2.0, '%s : quadratique sur %d caracteres' % (chemin, len(texte)))
+
+    def test_syntaxe_de_poids_ne_recolle_pas_un_mot(self):
+        """Revue du 14/10 (B1) : « na()ked », « (na)(ked) », « (na:9)(ked:7) »... Le lecteur recollait deux morceaux voisins de
+        meme poids (apres la borne des poids, 9 et 7 valent tous deux 2) et un antislash seul s'effacait : le modele recevait
+        les jetons du mot ENTIER, que le filtre de texte lit en deux mots. Un mot ecrit sans syntaxe n'est jamais coupe."""
+        mot = 'na' + 'ked'
+        a, b = mot[:2], mot[2:]
+        coupes = ['%s()%s' % (a, b), '(%s)(%s)' % (a, b), '%s[]%s' % (a, b), '(%s:1)(%s:1)' % (a, b), '(%s:9)(%s:7)' % (a, b),
+                  '(%s:1.2)(%s:1.2)' % (a, b), '((%s))((%s))' % (a, b), '%s\\%s' % (a, b), '%s(:1)%s' % (a, b), '[%s][%s]' % (a, b)]
+        for chemin in CHEMINS_SDXL:
+            sdxl = charger(chemin, 'sdxl_coupe_' + str(abs(hash(chemin))))
+            tok = FauxTokenizerClip()
+            id_mot = tok(mot).input_ids[0]
+            for coupe in coupes:
+                texte = 'a warrior, %s, orc' % coupe
+                ids, _ = sdxl._get_prompt_tokens_and_weights(tok, texte)
+                self.assertNotIn(id_mot, ids, '%s : %r donne le mot entier au modele (%r)' % (
+                    chemin, texte, sdxl._parse_prompt_attention(texte)))
+            # sans syntaxe entre deux caracteres de mot, rien ne change
+            self.assertEqual(sdxl._parse_prompt_attention('a warrior: strong, ' + mot), [('a warrior: strong, ' + mot, 1.0)], chemin)
+            self.assertEqual(sdxl._parse_prompt_attention('(red cape:1.4), (blue hat:1.4)'),
+                             [('red cape', 1.4), (', ', 1.0), ('blue hat', 1.4)], chemin)
+            self.assertEqual(sdxl._parse_prompt_attention('a (red)(hat)'), [('a ', 1.0), ('red hat', 1.1)], chemin)
+            self.assertEqual(sdxl._parse_prompt_attention('a \\(cape\\)'), [('a (cape)', 1.0)], chemin)
+            ids, _ = sdxl._get_prompt_tokens_and_weights(tok, 'a warrior, (%s:1.2), orc' % mot)
+            self.assertIn(id_mot, ids, chemin)
 
     def test_jetons_speciaux_casses(self):
         for chemin in CHEMINS_SDXL:
