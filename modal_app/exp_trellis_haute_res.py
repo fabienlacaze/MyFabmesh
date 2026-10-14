@@ -51,6 +51,7 @@ def _charger_pipeline():
 
     # CORRECTIF TABLE DE HACHAGE : VOL = grid[0] * grid[1] * grid[2] est calcule sur des tenseurs int32 (deborde des la grille 1626 : 2048 -> 0),
     # le type de cle retombe sur uint32 alors que x * H * D depasse 2^32 : les cles se replient (2048 : x et x + 1024 -> meme cle).
+    # Depuis le 13/10, l'image corrige deja le fichier installe (app.py::_CORRECTIF_HACHAGE_OVOXEL) : remplacement redondant, garde pour les anciennes images.
     import o_voxel  # noqa: F401
     fdg = sys.modules["o_voxel.convert.flexible_dual_grid"]
 
