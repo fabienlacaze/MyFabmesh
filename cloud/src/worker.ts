@@ -12782,6 +12782,19 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     rawPrompt = f.textes[0];
     if (enrichi) promptEnrichi = ou >= 0 ? f.textes[1] + f.textes[0] + f.textes[2] : f.textes[1];
     languesTraduites.push(...f.langues);
+    /* FILTRE DE CONTENU SUR LA CHAINE ENTIERE (2026-10-14, troisieme relecture du lot 2). _filetLangue ne reverifie que chaque CHAMP
+     * modifie ; avec la substitution ci-dessus, les champs sont des MORCEAUX du prompt enrichi (gabarit | texte brut traduit | gabarit),
+     * et la chaine assemblee qui part a Modal (route T-pose) n'etait plus jamais vue entiere. Or les regles de combinaison de
+     * checkPromptSafety (contexte, mineur x chambre, personne x nudite, enfant x violence) portent sur la chaine ENTIERE, et /tpose
+     * n'applique que le plancher : une paire bloquee, coupee entre le gabarit et la traduction, atteignait Modal (200). Toute chaine
+     * modifiee par le filet et envoyee a Modal repasse donc le filtre en entier, comme avant la seconde revue. */
+    if (enrichi && promptEnrichi !== enrichi) {
+      const entier = await _checkPromptSafetyAlerte(env, user.id, promptEnrichi, unrestricted);
+      if (!entier.safe) {
+        return json({ ok: false, success: false, error: entier.reason ?? 'prompt blocked by content filter',
+          blocked: entier.blocked }, { status: 400 });
+      }
+    }
   }
 
   // Pick the backend BEFORE the budget check — the budget cap is

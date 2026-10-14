@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { chargerFonctions, existe, creerR2 } from './_charge-worker.mjs';
 
 const LIB = process.env.LIB_LANGUE || new URL('../public/app/lib/langue-texte.js', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
@@ -819,4 +820,112 @@ test('seconde revue : le prompt enrichi ne recoit la traduction du texte brut qu
   const textes = m.ai.appels.map((a) => a.text);
   assert.ok(textes.includes('un chat noir'), JSON.stringify(textes));
   assert.ok(textes.some((t) => t.startsWith('un chat noirci par la suie')), 'le passage etranger du prompt enrichi est traduit entier : ' + JSON.stringify(textes));
+});
+
+// ------------------------------------------------------------------------------------------------------- TROISIEME RELECTURE (14/10)
+// FILTRE DE CONTENU, avec le VRAI filtre (checkPromptSafety de src/nsfw_filter.ts, transpile ; aucune doublure « safe: true »). Le correctif
+// de la seconde revue ne reverifiait que chaque CHAMP modifie par le filet ; sur la route T-pose, les champs sont des MORCEAUX du prompt
+// enrichi (gabarit | texte brut traduit | gabarit) et la chaine ASSEMBLEE qui part a Modal n'etait plus jamais vue entiere. Les regles de
+// combinaison du filtre portent sur la chaine entiere, et /tpose n'applique que le plancher : une paire bloquee, coupee entre le gabarit et
+// la traduction, atteignait Modal (200). Aucun terme du filtre n'est ecrit ici : les paires sont tirees des listes du filtre a l'execution,
+// et aucun message d'assertion ne les affiche.
+const _exiger = createRequire(import.meta.url);
+const _tsFiltre = _exiger('typescript');
+const _srcFiltre = readFileSync(process.env.NSFW_FILTER_SRC || new URL('../src/nsfw_filter.ts', import.meta.url), 'utf8');
+const _jsFiltre = _tsFiltre.transpileModule(_srcFiltre,
+  { compilerOptions: { target: _tsFiltre.ScriptTarget.ES2022, module: _tsFiltre.ModuleKind.CommonJS } }).outputText;
+// eslint-disable-next-line no-new-func
+const FILTRE = new Function('exports', 'require', _jsFiltre + '\nreturn { checkPromptSafety: exports.checkPromptSafety, '
+  + 'checkHardFloor: exports.checkHardFloor, LISTES: { PERSONNES, NUDITE_EXTREME, MINEURS_FORT, NU_FAIBLE_GENERAL, MINEURS_VIOLENCE, '
+  + 'VIOLENCE_ENFANT_GENERAL, GENERAL_CTX_SEXUEL, CONTEXTE_SEXUEL_FAIBLE, GENERAL_CTX_VIOLENCE } };')({}, _exiger);
+const NEUTRE_FR = 'un chevalier avec une lanterne dans la forêt sombre';
+const SUFFIXE = 'plain white background, centered';
+
+/** Generation (route T-pose) avec le VRAI _checkPromptSafetyAlerte et le VRAI filtre ; le traducteur simule rend `sortie` pour le texte
+ *  neutre de l'utilisateur (et « EN: » + texte pour tout autre passage). */
+function monterFiltreReel(sortie) {
+  const j = { depenses: [], tpose: [], t2i: [], alertes: [] };
+  const appels = [];
+  const ai = { appels, async run(_m, e) { appels.push(e); return { translated_text: e.text === NEUTRE_FR ? sortie : 'EN:' + e.text }; } };
+  const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', '_checkPromptSafetyAlerte', 'categorieContenuGrave',
+    ...AUXILIAIRES], {
+    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits: 100 }), err, json, LangueTexte,
+    getParentalState: async () => ({}),
+    checkPromptSafety: FILTRE.checkPromptSafety,
+    _alerterContenuGrave: async (_e, _u, cat) => { j.alertes.push(cat); },
+    _isPaidAccount: async () => false,
+    getPrice: async (_e, k) => ({ text2image: 6, tpose: 1 }[k]),
+    isTrustedAssetHost: () => true,
+    checkAndIncrementModalSpend: async () => 100, checkAndIncrementDailySpend: async () => 100,
+    _spendRefusalMessage: async () => 'refus', checkAndIncrementUserCalls: async () => 10,
+    refundModalSpend: async () => {}, refundDailySpend: async () => {},
+    spendCredits: async (_e, _u, c) => { j.depenses.push(c); return 100 - c; }, addCredits: async () => {},
+    callModalTpose: async (_e, _u, i) => { j.tpose.push(i); return 'https://r2.example/front/t.png'; },
+    callModalText2Image: async (_e, _u, i) => { j.t2i.push(i); return 'https://r2.example/front/i.png'; },
+    callMyfabmeshCog: async (_e, _u, i) => { j.t2i.push(i); return 'https://r2.example/front/c.png'; },
+    logOperation: async () => {}, insertUserAsset: async () => {}, r2PathFromPublicUrl: (_e, u) => u,
+  });
+  const env = { AI: ai, MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MODAL_TPOSE_URL: 'https://tpose.example', MESHES: creerR2() };
+  const gen = async (corps) => {
+    const r = await w.handleGenerateImage(corpsRequete('/api/generate-image', corps), env);
+    return { status: r.status, corps: await r.json() };
+  };
+  return { j, ai, gen };
+}
+
+/** Premiere paire (a, b) des deux listes du filtre telle que : « gabarit avec a » + b est BLOQUE par le filtre, mais le gabarit seul, b seul
+ *  et le prompt d'origine (gabarit + texte francais neutre) passent, et le plancher (seul filtre de /tpose) laisse passer l'ensemble. */
+function paireCoupee(listeA, listeB, avantTexte) {
+  for (const a0 of listeA) {
+    for (const b0 of listeB) {
+      const a = String(a0).replace(/\*$/, ''), b = String(b0).replace(/\*$/, '');
+      if (!/^[a-z][a-z ]*$/.test(a) || !/^[a-z][a-z ]*$/.test(b)) continue;
+      const enrichi = avantTexte ? `portrait of a ${a}, ${NEUTRE_FR}, ${SUFFIXE}` : `${NEUTRE_FR}, ${a}, ${SUFFIXE}`;
+      const envoye = enrichi.replace(NEUTRE_FR, b);
+      if (FILTRE.checkPromptSafety(envoye).safe) continue;               // la chaine envoyee doit etre bloquee...
+      if (!FILTRE.checkPromptSafety(enrichi).safe || !FILTRE.checkPromptSafety(b).safe) continue;   // ... ses morceaux non
+      if (!FILTRE.checkPromptSafety(enrichi.replace(NEUTRE_FR, 'a lantern')).safe) continue;
+      if (!FILTRE.checkHardFloor(envoye).safe) continue;                  // ... et le plancher de Modal la laisserait passer
+      if (LangueTexte.morceauxEtrangers(enrichi.replace(NEUTRE_FR, 'a lantern')).length) continue;   // gabarit vu comme anglais
+      return { enrichi, b };
+    }
+  }
+  return null;
+}
+const REGLES_COMBINEES = [
+  ['personne x nudite (4b)', 'PERSONNES', 'NUDITE_EXTREME'],
+  ['enfant x violence (4c)', 'MINEURS_VIOLENCE', 'VIOLENCE_ENFANT_GENERAL'],
+  ['contexte sexuel (3)', 'GENERAL_CTX_SEXUEL', 'CONTEXTE_SEXUEL_FAIBLE'],
+  ['contexte violence x enfant (3)', 'GENERAL_CTX_VIOLENCE', 'MINEURS_VIOLENCE'],
+  ['mineur x chambre (4a)', 'MINEURS_FORT', 'NU_FAIBLE_GENERAL'],
+];
+
+test('troisieme relecture, FILTRE (vrai filtre) : une combinaison bloquee, coupee entre le gabarit et le texte traduit, n atteint JAMAIS la T-pose', async () => {
+  const fuites = [], essais = [];
+  for (const [regle, la, lb] of REGLES_COMBINEES) {
+    for (const avantTexte of [true, false]) {
+      const p = paireCoupee(FILTRE.LISTES[la], FILTRE.LISTES[lb], avantTexte);
+      if (!p) continue;
+      essais.push(regle + (avantTexte ? ' (gabarit avant)' : ' (gabarit apres)'));
+      const m = monterFiltreReel(p.b);
+      const r = await m.gen({ userPrompt: NEUTRE_FR, prompt: p.enrichi, asset_type: 'character', projectName: 'P', tpose: true });
+      // aucun terme du filtre dans le message : seulement la regle, le statut et ce qui est parti
+      if (r.status !== 400 || m.j.tpose.length || m.j.depenses.length) {
+        fuites.push(`${regle}${avantTexte ? ' (gabarit avant)' : ' (gabarit apres)'} : statut ${r.status}, ${m.j.tpose.length} envoi(s) a Modal, ${m.j.depenses.length} debit(s)`);
+      }
+    }
+  }
+  assert.ok(essais.length >= 4, 'paires trouvees dans les listes du filtre : ' + essais.join(' ; '));
+  assert.deepEqual(fuites, []);
+});
+
+test('troisieme relecture, FILTRE (vrai filtre) : temoin, la meme requete avec une traduction neutre part a la T-pose, chaine entiere verifiee', async () => {
+  const p = paireCoupee(FILTRE.LISTES.PERSONNES, FILTRE.LISTES.NUDITE_EXTREME, true);
+  assert.ok(p, 'paire 4b');
+  const m = monterFiltreReel('a knight holding a lantern in a dark forest');
+  const r = await m.gen({ userPrompt: NEUTRE_FR, prompt: p.enrichi, asset_type: 'character', projectName: 'P', tpose: true });
+  assert.equal(r.status, 200);
+  assert.equal(m.j.tpose.length, 1);
+  assert.equal(m.j.tpose[0].prompt, p.enrichi.replace(NEUTRE_FR, 'a knight holding a lantern in a dark forest'), 'le texte brut traduit est remis a sa place');
+  assert.deepEqual(m.j.depenses, [7]);
 });
