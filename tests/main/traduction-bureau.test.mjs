@@ -228,10 +228,11 @@ test('cloud_fallback.generateImages : le corps envoye au site porte asset_style 
   const astCf = acorn.parse(srcCf, { ecmaVersion: 'latest', sourceType: 'script', allowReturnOutsideFunction: true, allowHashBang: true });
   const fn = astCf.body.find((n) => n.type === 'FunctionDeclaration' && n.id.name === 'generateImages');
   assert.ok(fn, 'generateImages introuvable');
-  const corps = [];
+  const corps = [], entetes = [];
   const doublures = {
     getAccessToken: async () => 'jeton', WORKER_URL: 'https://site.example', logout: () => {}, _withColdRetry: (f) => f(),
-    fetch: async (_url, init) => { corps.push(JSON.parse(init.body)); return { status: 500, ok: false, json: async () => ({ error: 'banc' }) }; },
+    fetch: async (_url, init) => { corps.push(JSON.parse(init.body)); entetes.push(init.headers); return { status: 500, ok: false, json: async () => ({ error: 'banc' }) }; },
+    _enteteLangue: () => ({ 'X-Fabmesh-Langue': 'fr' }),   // langue de l'interface (troisieme relecture du lot 2, 14/10)
   };
   // eslint-disable-next-line no-new-func
   const generer = new Function(...Object.keys(doublures), srcCf.slice(fn.start, fn.end) + '\nreturn generateImages;')(...Object.values(doublures));
@@ -240,6 +241,7 @@ test('cloud_fallback.generateImages : le corps envoye au site porte asset_style 
   assert.equal(corps.length, 1);
   assert.equal(corps[0].asset_style, 'cartoon', 'avant : jamais envoye, le serveur prenait « realistic »');
   assert.equal(corps[0].langueVerifiee, true);
+  assert.equal(entetes[0]['X-Fabmesh-Langue'], 'fr', 'le refus 422 du filet de langue est redige dans la langue de l interface');
   await generer({ prompt: 'an orc', numImages: 1, imagesDir: '/i', assetType: 'character', steps: 30 });
   assert.ok(!('asset_style' in corps[1]) && !('langueVerifiee' in corps[1]), 'rien d invente quand l interface ne dit rien');
 });
@@ -269,4 +271,22 @@ test('arabe : son modele de traduction est pose par l assistant comme les autres
   const m = py.match(/^LANGUES_TRADUCTION\s*=\s*\(([^)]*)\)/m);
   assert.ok(m, 'LANGUES_TRADUCTION introuvable dans wizard_install_deps.py');
   assert.match(m[1], /'ar'/, "l'assistant refusait de poser le modele arabe");
+});
+
+test('cloud_fallback : la langue de l interface (config uiLang, fournie par main.js) part en X-Fabmesh-Langue, normalisee ; rien sans fournisseur', () => {
+  const srcCf = fs.readFileSync(CLOUD_FALLBACK, 'utf-8');
+  const astCf = acorn.parse(srcCf, { ecmaVersion: 'latest', sourceType: 'script', allowReturnOutsideFunction: true, allowHashBang: true });
+  const morceaux = astCf.body.filter((n) => (n.type === 'FunctionDeclaration' && ['definirLangueInterface', '_enteteLangue'].includes(n.id.name))
+    || (n.type === 'VariableDeclaration' && n.declarations[0].id.name === '_fournisseurLangue')).map((n) => srcCf.slice(n.start, n.end));
+  assert.equal(morceaux.length, 3, 'definirLangueInterface / _enteteLangue / _fournisseurLangue introuvables');
+  // eslint-disable-next-line no-new-func
+  const m = new Function(morceaux.join('\n') + '\nreturn { definirLangueInterface, _enteteLangue };')();
+  assert.deepEqual(m._enteteLangue(), {});
+  m.definirLangueInterface(() => 'es-ES');
+  assert.deepEqual(m._enteteLangue(), { 'X-Fabmesh-Langue': 'es' });
+  m.definirLangueInterface(() => { throw new Error('config illisible'); });
+  assert.deepEqual(m._enteteLangue(), {});
+  m.definirLangueInterface(() => 'x\r\nInjecte: 1');
+  assert.deepEqual(m._enteteLangue(), {}, 'jamais d en-tete arbitraire');
+  assert.match(fs.readFileSync(path.join(ici, '..', '..', 'src', 'main', 'main.js'), 'utf-8'), /cloudFallback\.definirLangueInterface\(\(\) => _loadUiLang\(\)\)/, 'main.js branche la langue');
 });

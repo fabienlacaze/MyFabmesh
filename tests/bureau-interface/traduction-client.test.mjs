@@ -262,3 +262,25 @@ test('bureau : sans moteur IA local ni session MyFabmesh, l aide le DIT (avant :
   await b.M._sonderTraducteur();
   assert.equal(b.M.etat(), 'ok', 'session MyFabmesh : la traduction passe par le site');
 });
+for (const [nom, chemin] of Object.entries(FICHIERS)) {
+  test(nom + ' : troisieme relecture, plafond du JOUR : le message ne dit plus « cette heure-ci » (portee transmise par le serveur)', async () => {
+    const cas = [['jour', /quotidienne de traductions du service/, /daily translation limit/],
+      ['jour-compte', /ton compte a atteint sa limite quotidienne/, /your account has reached its daily/],
+      ['heure', /cette heure-ci/, /this hour/]];
+    for (const [portee, reFr, reEn] of cas) {
+      for (const [langue, re] of [['fr', reFr], ['en', reEn]]) {
+        const a = monter(chemin, { langue, traduire: ({ text }) => ({ text, translated: false, raison: 'rate-limited', portee }) });
+        const r = await a.M.traduireTexteUtilisateur('un dragon rouge avec des ailes');
+        assert.equal(r.echec, true);
+        assert.equal(r.portee, portee);
+        const msg = a.M._messageTraduction('enhance', r);
+        assert.match(msg, re, `${langue} / ${portee} : ${msg}`);
+        if (portee !== 'heure') assert.doesNotMatch(msg, /heure|hour/);
+      }
+    }
+    for (const lg of ['fr', 'en', 'es', 'zh', 'hi', 'ar']) {
+      const a = monter(chemin, { langue: lg });
+      for (const k of ['rate-limited-jour', 'rate-limited-jour-compte']) assert.ok(a.M.MSG_TRADUCTION[lg].raisons[k], `${lg} : ${k}`);
+    }
+  });
+}

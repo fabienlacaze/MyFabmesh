@@ -78,6 +78,14 @@
     } catch (_) { return undefined; }
   }
 
+  /** Langue de l'INTERFACE, envoyee au serveur (en-tete X-Fabmesh-Langue) : ses refus du filet de langue (422) sont rediges dans
+   *  cette langue (troisieme relecture du lot 2, 14/10 : ils n'existaient qu'en anglais). Meme source que _langueInterface d'index2.js. */
+  function _enteteLangue() {
+    let lang = '';
+    try { lang = document.getElementById('lang-select')?.value || localStorage.getItem('fabmesh.lang') || ''; } catch (_) {}
+    lang = String(lang || '').toLowerCase().split(/[-_]/)[0];
+    return /^[a-z]{2,3}$/.test(lang) ? { 'X-Fabmesh-Langue': lang } : {};
+  }
   async function postJSON(url, body) {
     let corps = body || {};
     if (corps && typeof corps === 'object' && !Array.isArray(corps)
@@ -87,7 +95,7 @@
     }
     const r = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ..._enteteLangue() },
       body: JSON.stringify(corps),
       credentials: 'include',
     });
@@ -2674,7 +2682,8 @@
           return { text: text || '', translated: false, status: r.status,
             raison: r.status === 429 ? 'rate-limited' : r.status === 401 ? 'signed-out' : (r.raison || 'failed') };
         }
-        return { text: t, translated: !!(r && r.translated), raison: r && r.raison, langue: r && r.langue };
+        return { text: t, translated: !!(r && r.translated), raison: r && r.raison, langue: r && r.langue,
+          ...(r && typeof r.portee === 'string' ? { portee: r.portee } : {}) };
       } catch (_) { return { text: text || '', translated: false, raison: 'failed' }; }
     },
     segmentMask: async ({ imagePath, targetText, dilate, langueVerifiee } = {}) => {

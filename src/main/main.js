@@ -8325,7 +8325,8 @@ async function _traduireParLeSite(text, src) {
     if (!a || a.needsCloudLogin) return { text, translated: false, raison: 'signed-out' };
     const j = await a.resp.json().catch(() => ({}));
     if (j && j.translated === true && typeof j.text === 'string' && j.text.trim()) return { text: j.text, translated: true, langue: j.langue || src };
-    return { text, translated: false, raison: (j && j.raison) || (a.resp.status === 429 ? 'rate-limited' : 'failed') };
+    return { text, translated: false, raison: (j && j.raison) || (a.resp.status === 429 ? 'rate-limited' : 'failed'),
+      ...(j && typeof j.portee === 'string' ? { portee: j.portee } : {}) };
   } catch (_) { return { text, translated: false, raison: 'failed' }; }
 }
 async function _traduirePrompt(text, from) {
@@ -13751,6 +13752,8 @@ try {
 let cloudFallback = { generateImages: async () => ({ success: false, error: 'cloud fallback unavailable' }) };
 try {
   cloudFallback = require('./cloud_fallback');
+  // langue de l'interface envoyee au site (X-Fabmesh-Langue) : ses refus du filet de langue sont rediges dans cette langue (14/10)
+  try { if (typeof cloudFallback.definirLangueInterface === 'function') cloudFallback.definirLangueInterface(() => _loadUiLang()); } catch (_) {}
   // safeSend : canal de progression partagé (« ai3d-progress ») — permet au
   // retry cold start d'annoncer « Cloud GPU is starting up… » sans toucher aux
   // 14 call sites cloud. isCloudMode : garde du heartbeat/préchauffage.

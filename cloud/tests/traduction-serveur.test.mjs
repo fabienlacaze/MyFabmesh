@@ -35,7 +35,8 @@ const json = (o, init) => reponse(o, init);
 const charger = (noms, doublures) => chargerFonctions(noms.filter((n) => existe(n)), doublures);
 const AUXILIAIRES = ['_traduireVersAnglais', '_decouperPourTraduction', '_derniereCoupe', '_plafondTraduction', 'TRADUCTION_MAX_CARACTERES',
   'TRADUCTION_MORCEAU_MAX', 'TRADUCTION_PLAFOND_HEURE', 'TRADUCTION_PLAFOND_JOUR', 'LANGUES_TRADUITES', '_filetLangue',
-  '_quotaTraduction', '_refusFiletLangue', 'TRADUCTION_APPELS_PAR_REQUETE'];
+  '_quotaTraduction', '_refusFiletLangue', 'TRADUCTION_APPELS_PAR_REQUETE', 'TRADUCTION_PLAFOND_JOUR_COMPTE',
+  'TRADUCTION_PLAFOND_JOUR_COMPTE_PAYANT'];
 
 /** Faux Workers AI : traduit en prefixant « EN: », ou echoue / rend du vide / boucle sur demande. */
 function fauxAI({ mode = 'ok' } = {}) {
@@ -54,7 +55,7 @@ function fauxAI({ mode = 'ok' } = {}) {
 
 function monterTraduction({ ai = fauxAI(), session = true, r2 = creerR2() } = {}) {
   const w = charger(['handleTranslate', ...AUXILIAIRES], {
-    getSessionUser: async () => (session ? { id: 'u1', email: 'a@b.c' } : null), err, json, LangueTexte,
+    getSessionUser: async () => (session ? { id: 'u1', email: 'a@b.c' } : null), err, json, LangueTexte, _isPaidAccount: async () => false,
     _checkPromptSafetyAlerte: async () => ({ safe: true }),
   });
   const env = { AI: ai, MESHES: r2 };
@@ -195,7 +196,7 @@ test('/api/translate : session obligatoire', async () => {
 function monterGeneration({ ai = fauxAI(), bloquerTraduit = false } = {}) {
   const j = { depenses: [], t2i: [], tpose: [], filtre: [], assets: [] };
   const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', ...AUXILIAIRES], {
-    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c' }), err, json, LangueTexte,
+    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c' }), err, json, LangueTexte, _isPaidAccount: async () => false,
     getParentalState: async () => ({}),
     _checkPromptSafetyAlerte: async (_e, _u, texte) => {
       j.filtre.push(texte);
@@ -301,7 +302,7 @@ test('filet : Workers AI absent (developpement local) : comportement d avant, au
 
 function doublesOutils(j) {
   return {
-    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c' }), err, json, LangueTexte,
+    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c' }), err, json, LangueTexte, _isPaidAccount: async () => false,
     getParentalState: async () => ({}),
     _checkPromptSafetyAlerte: async () => ({ safe: true }),
     getPrice: async () => 3,
@@ -441,7 +442,7 @@ const GABARIT_QUEUE = ', 3D game asset, single isolated object, plain white back
 function monterBornes({ ai = fauxAI(), credits, r2 = creerR2() } = {}) {
   const j = { depenses: [], t2i: [] };
   const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', 'handleTranslate', ...AUXILIAIRES], {
-    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits }), err, json, LangueTexte,
+    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits }), err, json, LangueTexte, _isPaidAccount: async () => false,
     getParentalState: async () => ({}),
     _checkPromptSafetyAlerte: async () => ({ safe: true }),
     getPrice: async (_e, k) => ({ text2image: 6, tpose: 1 }[k]),
@@ -667,13 +668,14 @@ function fauxAILent(mode = 'ok') {
   } };
 }
 /** Generation + /api/translate avec une session CHANGEABLE et un debit ATOMIQUE sur le solde reel de chaque compte. */
-function monterComptes({ ai = fauxAILent(), r2 = creerR2(), utilisateur = { id: 'u1', email: 'a@b.c', credits: 100 } } = {}) {
+function monterComptes({ ai = fauxAILent(), r2 = creerR2(), utilisateur = { id: 'u1', email: 'a@b.c', credits: 100 }, payants: listePayants = [] } = {}) {
+  const payants = new Set(listePayants);   // comptes qui ont deja paye (_isPaidAccount)
   const j = { depenses: [], t2i: [] };
   let session = utilisateur;
   const soldes = new Map();
   const solde = { get v() { return soldes.has(session.id) ? soldes.get(session.id) : session.credits; }, set v(x) { soldes.set(session.id, x); } };
   const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', 'handleTranslate', 'handleAutoInpaint', ...AUXILIAIRES], {
-    getSessionUser: async () => session, err, json, LangueTexte,
+    getSessionUser: async () => session, err, json, LangueTexte, _isPaidAccount: async (_e, uid) => payants.has(uid),
     getParentalState: async () => ({}),
     _checkPromptSafetyAlerte: async () => ({ safe: true }),
     getPrice: async (_e, k) => ({ text2image: 6, tpose: 1, auto_inpaint: 3 }[k]),
@@ -928,4 +930,197 @@ test('troisieme relecture, FILTRE (vrai filtre) : temoin, la meme requete avec u
   assert.equal(m.j.tpose.length, 1);
   assert.equal(m.j.tpose[0].prompt, p.enrichi.replace(NEUTRE_FR, 'a knight holding a lantern in a dark forest'), 'le texte brut traduit est remis a sa place');
   assert.deepEqual(m.j.depenses, [7]);
+});
+// ------------------------------------------------------------------------------------------------- TROISIEME RELECTURE, B3 (14/10)
+// Cas rejoues de C:/tmp/revue_traduction_1410b_cas/r3/sceptique_r3.test.mjs (revue ab588fbe) :
+//   (b-1) des comptes INSCRITS (15 credits offerts, jamais un euro) remplissaient le compteur partage de /api/translate ; un client PAYANT
+//         ne pouvait plus faire traduire son texte ;
+//   (b-2) le filet traduisait AVANT des refus sans debit (garde refImageUrl de la T-pose, masque invalide) : ces comptes remplissaient
+//         jour-filet- sans payer, et un client PAYANT recevait 422 ;
+//   (a)   une erreur R2 sur le compteur du COMPTE (« Reduce your concurrent request rate », 10058) laissait passer l'appel sans le compter.
+// Mineurs : refus 422 en anglais seulement ; mutants survivants W8 (fusion des passages), W10 (dedoublonnage entre champs), W13 (refus
+// « unsupported » avant tout appel).
+const corpsRequeteLangue = (url, corps, langue) => new Request('https://x.example' + url,
+  { method: 'POST', body: JSON.stringify(corps), headers: langue ? { 'X-Fabmesh-Langue': langue } : {} });
+
+test('troisieme relecture B3 (b-1) : 67 comptes inscrits (15 credits, rien paye) x 60 /api/translate : un client PAYANT est toujours traduit', async () => {
+  const r2 = creerR2();
+  const m = monterComptes({ r2, payants: ['client-payant'] });
+  for (let c = 0; c < 67; c++) {
+    m.changerSession({ id: 'inscrit-' + c, email: 'g', credits: 15 });
+    for (let k = 0; k < 60; k++) await m.trad({ text: FR_4000, from: 'fr' });
+  }
+  const partage = Number(r2.lire(`_meta/traduction/jour-${jourCourant()}.txt`) || 0);
+  assert.ok(partage >= 19_000, `le scenario remplit bien le compteur partage (${partage})`);
+  for (let c = 0; c < 67; c++) {
+    assert.ok(Number(r2.lire(`_meta/traduction/inscrit-${c}-jour-${jourCourant()}.txt`) || 0) <= 300, 'plafond du JOUR d un compte non payant');
+  }
+  m.changerSession({ id: 'client-payant', email: 'c', credits: 350 });
+  const avant = m.ai.appels.length;
+  const r = await m.trad({ text: 'un chevalier en armure doree avec une epee', from: 'fr' });
+  assert.equal(r.corps.translated, true, JSON.stringify(r.corps));
+  assert.equal(m.ai.appels.length - avant, 1);
+});
+
+test('troisieme relecture B3 (b-2) : la garde refImageUrl de la T-pose refuse AVANT le filet (aucun appel du modele) ; un client PAYANT n est jamais refuse 422', async () => {
+  const r2 = creerR2();
+  const m = monterComptes({ r2, payants: ['client-payant'] });
+  const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', ...AUXILIAIRES], {
+    getSessionUser: async () => ({ id: 'inscrit', email: 'g', credits: 15 }), err, json, LangueTexte, _isPaidAccount: async () => false,
+    getParentalState: async () => ({}), _checkPromptSafetyAlerte: async () => ({ safe: true }),
+    getPrice: async (_e, k) => ({ text2image: 6, tpose: 1 }[k]), isTrustedAssetHost: (_e, u) => !String(u || '').includes('evil.example'),
+    checkAndIncrementModalSpend: async () => 100, checkAndIncrementDailySpend: async () => 100, _spendRefusalMessage: async () => 'refus',
+    checkAndIncrementUserCalls: async () => 10, refundModalSpend: async () => {}, refundDailySpend: async () => {},
+    spendCredits: async () => { throw new Error('aucun debit attendu'); }, addCredits: async () => {},
+    callModalTpose: async () => { throw new Error('rien ne doit partir'); }, logOperation: async () => {}, insertUserAsset: async () => {},
+    r2PathFromPublicUrl: (_e, u) => u,
+  });
+  const ai = fauxAI();
+  const env = { AI: ai, MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MODAL_TPOSE_URL: 'https://tpose.example', MESHES: r2 };
+  for (let k = 0; k < 20; k++) {
+    const r = await w.handleGenerateImage(corpsRequete('/api/generate-image', { userPrompt: FR_4000.slice(0, 3500), asset_type: 'character',
+      projectName: 'P', tpose: true, refImageUrl: 'https://evil.example/x.png' }), env);
+    assert.equal(r.status, 400);
+  }
+  assert.equal(ai.appels.length, 0, 'une requete refusee sans debit ne coute aucun appel du modele (avant : traduite puis refusee)');
+  // le compteur partage du filet plein (trafic de comptes non payants) : sans effet sur un client PAYANT
+  r2.ecrire(`_meta/traduction/jour-filet-${jourCourant()}.txt`, '20000');
+  m.changerSession({ id: 'client-payant', email: 'c', credits: 350 });
+  const r = await m.gen({ userPrompt: 'un chevalier en armure doree avec une epee', asset_type: 'character', projectName: 'P' });
+  assert.equal(r.status, 200, JSON.stringify(r.corps));
+  assert.match(m.j.t2i.at(-1).prompt, /^EN<fr>:/);
+  // un compte NON payant, lui, reste soumis au compteur partage (cout total borne)
+  m.changerSession({ id: 'inscrit-x', email: 'g', credits: 15 });
+  const r3 = await m.gen({ userPrompt: 'un chevalier en armure doree avec une epee', asset_type: 'character', projectName: 'P' });
+  assert.equal(r3.status, 422);
+  assert.equal(r3.corps.portee, 'jour');
+});
+
+test('troisieme relecture B3 : un masque invalide (Paint-mask, Reshape) est refuse AVANT le filet : aucun appel du modele', async () => {
+  const j = { depenses: [], op: [], dos: [] };
+  const ai = fauxAI();
+  const w = charger(['handleMaskInpaint', ...AUXILIAIRES], doublesOutils(j));
+  const env = { AI: ai, MODAL_IMAGE_OP_URL: 'https://op.example', MESHES: creerR2(), R2_PUBLIC_URL: 'https://r2.example' };
+  let r = await w.handleMaskInpaint(corpsRequete('/api/mask-inpaint', { imageUrl: 'https://r2.example/a.png', maskDataUrl: 'pas une image',
+    prompt: 'une épée avec des runes' }), env);
+  assert.equal(r.status, 400);
+  r = await w.handleMaskInpaint(corpsRequete('/api/mask-inpaint', { imageUrl: 'https://r2.example/a.png', maskDataUrl: 'data:image/png;base64,@@@',
+    prompt: 'une épée avec des runes' }), env);
+  assert.equal(r.status, 400);
+  const o = monterOutils3d();
+  r = await o.w.handleMeshReshape(corpsRequete('/api/mesh-reshape', { meshUrl: 'https://r2.example/m.glb', vueUrl: 'https://r2.example/v.png',
+    maskDataUrl: 'data:image/jpeg;base64,AAAA', prompt: 'une aile de chauve-souris' }), o.env);
+  assert.equal(r.status, 400);
+  assert.equal(ai.appels.length + o.ai.appels.length, 0, 'refus gratuits : aucun appel du traducteur');
+  assert.deepEqual([...j.depenses, ...o.j.depenses], []);
+});
+
+test('troisieme relecture B3 : plafond du JOUR propre a chaque compte (300 non payant, 3 000 payant), refus qui le dit', async () => {
+  const r2 = creerR2();
+  const m = monterComptes({ r2, payants: ['payant'] });
+  m.changerSession({ id: 'inscrit', email: 'g', credits: 15 });
+  r2.ecrire(`_meta/traduction/inscrit-jour-${jourCourant()}.txt`, '300');
+  const t = await m.trad({ text: 'un dragon rouge avec des ailes', from: 'fr' });
+  assert.equal(t.corps.raison, 'rate-limited');
+  assert.equal(t.corps.portee, 'jour-compte');
+  const g = await m.gen({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' });
+  assert.equal(g.status, 422);
+  assert.equal(g.corps.portee, 'jour-compte');
+  assert.match(g.corps.error, /your account has reached its daily translation limit/);
+  assert.equal(m.ai.appels.length, 0);
+  assert.equal(Number(r2.lire(`_meta/traduction/inscrit-${heureCourante()}.txt`) || 0), 0, 'le plafond horaire est rendu');
+  m.changerSession({ id: 'payant', email: 'p', credits: 350 });
+  r2.ecrire(`_meta/traduction/payant-jour-${jourCourant()}.txt`, '300');
+  const p = await m.trad({ text: 'un dragon rouge avec des ailes', from: 'fr' });
+  assert.equal(p.corps.translated, true, 'un compte payant a 3 000 appels par jour');
+  assert.equal(r2.lire(`_meta/traduction/payant-jour-${jourCourant()}.txt`), '301');
+});
+
+test('troisieme relecture B3 (a) : une ERREUR R2 sur le compteur du compte refuse (avant : appel accorde sans etre compte)', async () => {
+  const r2 = creerR2();
+  const put = r2.put.bind(r2);
+  r2.put = async (k, v, o) => {
+    if (k.includes('/pirate-')) throw new Error('put: Reduce your concurrent request rate for the same object. (10058)');
+    return put(k, v, o);
+  };
+  const m = monterComptes({ r2, utilisateur: { id: 'pirate', email: 'p', credits: 0 } });
+  const rs = await Promise.all(Array.from({ length: 20 }, () => m.trad({ text: FR_4000, from: 'fr' })));
+  assert.equal(m.ai.appels.length, 0, 'aucun appel du modele quand le compteur du compte est illisible');
+  assert.ok(rs.every((r) => r.corps.translated === false && r.corps.raison === 'unavailable'), JSON.stringify(rs[0].corps));
+  m.changerSession({ id: 'pirate', email: 'p', credits: 100 });
+  const g = await m.gen({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' });
+  assert.equal(g.status, 422);
+  assert.equal(g.corps.raison, 'unavailable');
+  assert.equal(m.ai.appels.length, 0);
+  assert.deepEqual(m.j.depenses, []);
+});
+
+test('troisieme relecture : le refus 422 du filet est redige dans la langue de l INTERFACE (en-tete X-Fabmesh-Langue), anglais sinon', async () => {
+  const r2 = creerR2();
+  r2.ecrire(`_meta/traduction/jour-filet-${jourCourant()}.txt`, '20000');
+  const j = { t2i: [] };
+  const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', ...AUXILIAIRES], {
+    getSessionUser: async () => ({ id: 'u1', email: 'a', credits: 100 }), err, json, LangueTexte, _isPaidAccount: async () => false,
+    getParentalState: async () => ({}), _checkPromptSafetyAlerte: async () => ({ safe: true }),
+    getPrice: async (_e, k) => ({ text2image: 6, tpose: 1 }[k]), isTrustedAssetHost: () => true,
+    spendCredits: async () => { throw new Error('aucun debit attendu'); },
+  });
+  const env = { AI: fauxAI(), MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MESHES: r2 };
+  const essai = async (langue) => {
+    const r = await w.handleGenerateImage(corpsRequeteLangue('/api/generate-image',
+      { userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' }, langue), env);
+    assert.equal(r.status, 422);
+    return r.json();
+  };
+  const fr = await essai('fr');
+  assert.match(fr.error, /limite quotidienne de traductions du service/);
+  assert.match(fr.error, /Aucun crédit n'a été utilisé/);
+  assert.match(fr.error, /français/, 'nom de la langue en francais');
+  const es = await essai('es-ES');
+  assert.match(es.error, /límite diario/);
+  const en = await essai(null);
+  assert.match(en.error, /daily translation limit/);
+  assert.match(en.error, /French/);
+  const inconnu = await essai('xx');
+  assert.equal(inconnu.error, en.error, 'langue inconnue : anglais');
+  assert.equal(fr.code, 'non-english-text');
+  assert.equal(fr.portee, 'jour', 'les champs pour un programme restent les memes');
+});
+
+test('troisieme relecture (mutant W8) : 20 passages allemands entre des mots-cles anglais : passages voisins FUSIONNES, traduit (pas 422)', async () => {
+  const m = monterComptes();
+  const de = ['ein alter Ritter mit einem schweren Schwert', 'eine rostige Rüstung mit vielen Kratzern', 'ein roter Umhang der im Wind weht',
+    'ein Helm mit zwei großen Hörnern', 'ein Schild mit einem goldenen Drachen', 'die Stiefel sind aus braunem Leder',
+    'ein Pferd steht neben ihm im Nebel', 'eine Laterne hängt an seinem Gürtel', 'die Augen leuchten in einem kalten Blau',
+    'ein Beutel voller Münzen am Gürtel', 'die Handschuhe sind aus feinem Kettengeflecht', 'ein Bogen hängt auf seinem Rücken',
+    'der Bart ist lang und grau', 'eine Narbe läuft über seine Wange', 'ein Rabe sitzt auf seiner Schulter',
+    'die Burg im Hintergrund ist verfallen', 'der Himmel ist dunkel und voller Wolken', 'ein kleiner Hund folgt ihm treu',
+    'die Klinge glänzt im Mondlicht', 'sein Mantel ist mit Pelz gefüttert'];
+  const en = ['highly detailed', 'cinematic lighting', 'octane render', 'sharp focus', '8k'];
+  const prompt = de.map((p, i) => p + ', ' + en[i % en.length]).join(', ');
+  const r = await m.gen({ prompt, asset_type: 'character', projectName: 'P' });
+  assert.equal(r.status, 200, JSON.stringify(r.corps).slice(0, 200));
+  assert.ok(m.ai.appels.length <= 16, `${m.ai.appels.length} appels`);
+  const recu = m.j.t2i.at(-1).prompt;
+  for (const p of de) assert.ok(!recu.includes(p) || recu.includes('EN<de>:'), 'aucun passage allemand ne reste brut : ' + p);
+});
+
+test('troisieme relecture (mutant W10) : un meme texte dans deux champs (cible ET remplacement d Auto-inpaint) n est traduit qu UNE fois', async () => {
+  const m = monterComptes();
+  const r = await m.inpaint({ imageUrl: 'https://r2.example/a.png', targetText: 'le chapeau du chevalier', prompt: 'le chapeau du chevalier' });
+  assert.equal(r.status, 200, JSON.stringify(r.corps));
+  assert.equal(m.ai.appels.length, 1, 'texte identique : un seul appel du modele');
+  assert.equal(m.j.t2i.at(-1).targetText, 'EN<fr>:le chapeau du chevalier');
+  assert.equal(m.j.t2i.at(-1).prompt, 'EN<fr>:le chapeau du chevalier');
+});
+
+test('troisieme relecture (mutant W13) : une langue que le traducteur ne prend pas en charge refuse AVANT tout appel, meme dans un second champ', async () => {
+  const m = monterComptes();
+  const telougou = 'ఎర్ర డ్రాగన్ రెక్కలతో కొండపై';
+  assert.equal(LangueTexte.LANGUES_TRADUCTIBLES.has('te'), false, 'hypothese du test : le telougou n est pas traduit');
+  const r = await m.inpaint({ imageUrl: 'https://r2.example/a.png', targetText: 'le chapeau du chevalier', prompt: telougou });
+  assert.equal(r.status, 422, JSON.stringify(r.corps));
+  assert.equal(r.corps.raison, 'unsupported');
+  assert.equal(m.ai.appels.length, 0, 'la cible francaise n est pas traduite pour rien');
+  assert.deepEqual(m.j.depenses, []);
 });

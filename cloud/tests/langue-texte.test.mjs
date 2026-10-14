@@ -285,3 +285,11 @@ test('seconde revue : un mot SEUL a lettres accentuees propres reste « sur » (
   }
   for (const t of ['casque', 'Drache', 'perro']) assert.equal(LT.detecterLangue(t).sure, false, t);
 });
+test('troisieme relecture (mutant L4) : un MOT OUTIL etranger en tete (« Le », « El », « Les », « Un ») n ouvre pas un nom propre', () => {
+  // avec un mot outil capitalise pris pour le debut d'un nom, « Le Vieux Chevalier » etait ecarte comme nom propre : le prompt francais
+  // ne partait plus au traducteur sous une interface anglaise
+  const cas = [['fr', 'Le Vieux Chevalier en armure, highly detailed, 8k'], ['es', 'El Gran Dragón Rojo con alas, highly detailed'],
+    ['fr', 'Les Trois Mousquetaires en armure, highly detailed'], ['fr', 'Un Grand Dragon dort sur son or, highly detailed']];
+  const fautes = cas.filter(([lg, t]) => LT.langueSource(t, 'en') !== lg).map(([lg, t]) => `${t} : ${LT.langueSource(t, 'en')} au lieu de ${lg}`);
+  assert.deepEqual(fautes, []);
+});

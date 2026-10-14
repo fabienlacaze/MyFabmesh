@@ -707,7 +707,9 @@ async function traduireTexteUtilisateur(text, { plafondMs = 8000 } = {}) {
     else if (r && r.status === 429) raison = 'rate-limited';
     else if (r && (r.status === 401 || r.needsCloudLogin)) raison = 'signed-out';
     _majEtatTraduction('echec');
-    return { texte: brut, traduit: false, echec: true, langue: de, raison };
+    // portee du plafond atteint ('heure' | 'jour' | 'jour-compte') : le message dit LEQUEL (avant : « cette heure-ci » meme au plafond du JOUR)
+    const portee = (raison === 'rate-limited' && r && typeof r.portee === 'string') ? r.portee : undefined;
+    return { texte: brut, traduit: false, echec: true, langue: de, raison, ...(portee ? { portee } : {}) };
   }
   const final = _corrigerFauxAmis(brut, sortie, de);
   if (_cacheTraductions.size > 300) _cacheTraductions.clear();
@@ -735,6 +737,7 @@ const MSG_TRADUCTION = {
     aideAucun: "⚠️ aucun traducteur (moteur IA local absent, compte MyFabmesh non connecté) : écris en anglais",
     raisons: { timeout: "délai dépassé", failed: "traducteur indisponible", error: "traducteur indisponible", unavailable: "traducteur indisponible",
       "model-downloading": "modèle de langue en cours de téléchargement, réessaie dans un instant", "rate-limited": "trop de traductions cette heure-ci",
+      "rate-limited-jour": "limite quotidienne de traductions du service atteinte, réessaie demain ou écris en anglais", "rate-limited-jour-compte": "ton compte a atteint sa limite quotidienne de traductions",
       "too-long": "texte trop long", "signed-out": "session expirée, reconnecte-toi", "no-engine": "aucun traducteur : moteur IA local absent et compte MyFabmesh non connecté",
       unsupported: "langue non prise en charge", "unknown-language": "langue non reconnue" } },
   en: { titre: "Translation failed", reessayer: "Retry", telQuel: "Send as is",
@@ -744,6 +747,7 @@ const MSG_TRADUCTION = {
     aideAucun: "⚠️ no translator (local AI engine missing, not signed in to MyFabmesh): write in English",
     raisons: { timeout: "timed out", failed: "translator unavailable", error: "translator unavailable", unavailable: "translator unavailable",
       "model-downloading": "language model still downloading, retry in a moment", "rate-limited": "too many translations this hour",
+      "rate-limited-jour": "the service's daily translation limit has been reached, try again tomorrow or write in English", "rate-limited-jour-compte": "your account has reached its daily translation limit",
       "too-long": "text too long", "signed-out": "session expired, sign in again", "no-engine": "no translator: local AI engine missing and not signed in to MyFabmesh",
       unsupported: "language not supported", "unknown-language": "language not recognised" } },
   es: { titre: "Traducción imposible", reessayer: "Reintentar", telQuel: "Enviar tal cual",
@@ -753,6 +757,7 @@ const MSG_TRADUCTION = {
     aideAucun: "⚠️ sin traductor (motor de IA local ausente, sin sesión en MyFabmesh): escribe en inglés",
     raisons: { timeout: "tiempo agotado", failed: "traductor no disponible", error: "traductor no disponible", unavailable: "traductor no disponible",
       "model-downloading": "modelo de idioma descargándose, reintenta en un momento", "rate-limited": "demasiadas traducciones esta hora",
+      "rate-limited-jour": "se alcanzó el límite diario de traducciones del servicio, reintenta mañana o escribe en inglés", "rate-limited-jour-compte": "tu cuenta alcanzó su límite diario de traducciones",
       "too-long": "texto demasiado largo", "signed-out": "sesión caducada, vuelve a iniciar sesión", "no-engine": "sin traductor: motor de IA local ausente y sin sesión en MyFabmesh",
       unsupported: "idioma no admitido", "unknown-language": "idioma no reconocido" } },
   zh: { titre: "无法翻译", reessayer: "重试", telQuel: "按原样发送",
@@ -762,6 +767,7 @@ const MSG_TRADUCTION = {
     aideAucun: "⚠️ 没有翻译器（本地 AI 引擎缺失，未登录 MyFabmesh）：请用英文书写",
     raisons: { timeout: "超时", failed: "翻译器不可用", error: "翻译器不可用", unavailable: "翻译器不可用",
       "model-downloading": "语言模型正在下载，请稍后重试", "rate-limited": "本小时翻译次数过多",
+      "rate-limited-jour": "服务的每日翻译额度已用完，请明天再试或用英文书写", "rate-limited-jour-compte": "您的账户已达到每日翻译上限",
       "too-long": "文本过长", "signed-out": "会话已过期，请重新登录", "no-engine": "没有翻译器：本地 AI 引擎缺失且未登录 MyFabmesh",
       unsupported: "不支持该语言", "unknown-language": "无法识别语言" } },
   hi: { titre: "अनुवाद नहीं हो सका", reessayer: "फिर से कोशिश करें", telQuel: "जैसा है वैसा भेजें",
@@ -771,6 +777,7 @@ const MSG_TRADUCTION = {
     aideAucun: "⚠️ कोई अनुवादक नहीं (स्थानीय AI इंजन नहीं, MyFabmesh में लॉग इन नहीं): अंग्रेज़ी में लिखें",
     raisons: { timeout: "समय समाप्त", failed: "अनुवादक उपलब्ध नहीं", error: "अनुवादक उपलब्ध नहीं", unavailable: "अनुवादक उपलब्ध नहीं",
       "model-downloading": "भाषा मॉडल डाउनलोड हो रहा है, थोड़ी देर में फिर कोशिश करें", "rate-limited": "इस घंटे बहुत अधिक अनुवाद",
+      "rate-limited-jour": "सेवा की दैनिक अनुवाद सीमा पूरी हो गई है, कल फिर कोशिश करें या अंग्रेज़ी में लिखें", "rate-limited-jour-compte": "आपके खाते की दैनिक अनुवाद सीमा पूरी हो गई है",
       "too-long": "पाठ बहुत लंबा है", "signed-out": "सत्र समाप्त, फिर से लॉग इन करें", "no-engine": "कोई अनुवादक नहीं: स्थानीय AI इंजन नहीं और MyFabmesh में लॉग इन नहीं",
       unsupported: "भाषा समर्थित नहीं", "unknown-language": "भाषा पहचानी नहीं गई" } },
   ar: { titre: "تعذّرت الترجمة", reessayer: "إعادة المحاولة", telQuel: "إرسال كما هو",
@@ -780,13 +787,14 @@ const MSG_TRADUCTION = {
     aideAucun: "⚠️ لا يوجد مترجم (محرك الذكاء الاصطناعي المحلي غير موجود، وغير مسجّل في MyFabmesh): اكتب بالإنجليزية",
     raisons: { timeout: "انتهت المهلة", failed: "المترجم غير متاح", error: "المترجم غير متاح", unavailable: "المترجم غير متاح",
       "model-downloading": "نموذج اللغة قيد التنزيل، أعد المحاولة بعد قليل", "rate-limited": "ترجمات كثيرة جدًا في هذه الساعة",
+      "rate-limited-jour": "تم بلوغ الحد اليومي للترجمة في الخدمة، أعد المحاولة غدًا أو اكتب بالإنجليزية", "rate-limited-jour-compte": "بلغ حسابك حده اليومي من الترجمات",
       "too-long": "النص طويل جدًا", "signed-out": "انتهت الجلسة، سجّل الدخول من جديد", "no-engine": "لا يوجد مترجم: محرك الذكاء الاصطناعي المحلي غير موجود وغير مسجّل في MyFabmesh",
       unsupported: "اللغة غير مدعومة", "unknown-language": "لم يتم التعرف على اللغة" } },
 };
 /** Message de traduction dans la langue de l'interface : _messageTraduction('enhance', r) ; {raison} remplace par la raison traduite. */
 function _messageTraduction(cle, r) {
   const M = MSG_TRADUCTION[_langueInterface()] || MSG_TRADUCTION.en;
-  const raison = (r && M.raisons[r.raison]) || M.raisons.failed;
+  const raison = (r && r.portee && M.raisons[r.raison + '-' + r.portee]) || (r && M.raisons[r.raison]) || M.raisons.failed;
   return String(M[cle] || MSG_TRADUCTION.en[cle] || '').replace('{raison}', raison);
 }
 /** Fenetre « traduction impossible » : 'reessayer' | 'tel-quel' | 'annuler' (Echap, clic a cote). Reprend la fenetre de confirmation. */

@@ -362,6 +362,7 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, assetSt
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ..._enteteLangue(),
           Cookie: `mfm-session=${jeton}`,   // le worker ne lit PAS Authorization
         },
         body: JSON.stringify({
@@ -454,12 +455,22 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, assetSt
 // upload-mesh (GLB ≤50 Mo, 500/j), user-assets/record, cloud-projects,
 // meshes, market/list, market/download.
 // -----------------------------------------------------------------------------
+/** Langue de l'INTERFACE du bureau (fournie par main.js : config uiLang), envoyee au site en X-Fabmesh-Langue : les refus du filet de
+ *  langue du serveur (422) sont rediges dans cette langue (troisieme relecture du lot 2, 14/10). */
+let _fournisseurLangue = null;
+function definirLangueInterface(f) { _fournisseurLangue = typeof f === 'function' ? f : null; }
+function _enteteLangue() {
+  let lang = '';
+  try { lang = _fournisseurLangue ? _fournisseurLangue() : ''; } catch (_) { lang = ''; }
+  lang = String(lang || '').toLowerCase().split(/[-_]/)[0];
+  return /^[a-z]{2,3}$/.test(lang) ? { 'X-Fabmesh-Langue': lang } : {};
+}
 async function _authedFetch(pathname, init = {}) {
   const tok = await getAccessToken();
   if (!tok) return { needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
   const r = await fetch(`${WORKER_URL}${pathname}`, {
     ...init,
-    headers: { ...(init.headers || {}), Cookie: `mfm-session=${tok}` },
+    headers: { ..._enteteLangue(), ...(init.headers || {}), Cookie: `mfm-session=${tok}` },
   });
   if (r.status === 401) { logout(); return { needsCloudLogin: true, error: CLOUD_LOGIN_ERR }; }
   return { resp: r };
@@ -1598,6 +1609,7 @@ function aSession() {
 }
 
 module.exports = {
+  definirLangueInterface,
   authedFetch: _authedFetch,
   aSession,
   register, generateImages, imageOp, outfitOp, generateMesh, getAccessToken, status, login, logout,
