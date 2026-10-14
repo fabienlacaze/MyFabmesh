@@ -12761,26 +12761,27 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const COST_PER_IMAGE = _prixImageComplet(await getPrice(env, 'text2image'), turbo ? 4 : pas, supplementTpose);
   const cost = n * COST_PER_IMAGE;
   // FILET DE LANGUE (2026-10-13, lot 2 de l'audit de la langue) : texte manifestement non anglais traduit, ou refuse, AVANT tout debit.
-  // Le prompt enrichi (route T-pose, historique) recoit la meme traduction : meme cache, un seul appel au modele par morceau.
+  // Le prompt enrichi (route T-pose, historique) recoit la MEME traduction. Seconde revue du 14/10 : quand il CONTIENT le texte brut
+  // (ancien client : gabarit + texte + gabarit), seul ce qui l'entoure repasse au filet et le texte brut traduit y est remis a sa place ;
+  // avant, le prompt enrichi etait decoupe autrement que le texte brut (ses gabarits anglais isolent chaque passage) : un prompt
+  // allemand de 618 caracteres demandait 1 + 7 appels et etait refuse « too-long » apres un premier appel perdu. Les champs sont
+  // planifies ENSEMBLE (_filetLangue) : un refus tombe avant le moindre appel.
   let promptEnrichi: string | undefined = prompt;
   const languesTraduites: string[] = [];
   {
-    const cache = new Map<string, string>();
-    const compteur = { appels: 0 };
     const avant = rawPrompt;
-    const f1 = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits, prix: cost });
-    if (f1.refus) return f1.refus;
-    rawPrompt = f1.texte;
-    languesTraduites.push(...f1.langues);
-    if (typeof prompt === 'string' && prompt.trim()) {
-      if (prompt.trim() === avant) promptEnrichi = rawPrompt;   // userPrompt absent : c'etait le meme texte
-      else {
-        const f2 = await _filetLangue(env, user.id, prompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits, prix: cost });
-        if (f2.refus) return f2.refus;
-        promptEnrichi = f2.texte;
-        for (const l of f2.langues) if (!languesTraduites.includes(l)) languesTraduites.push(l);
-      }
-    }
+    const enrichi = typeof prompt === 'string' && prompt.trim() ? prompt : '';
+    let ou = enrichi ? enrichi.indexOf(avant) : -1;
+    // le texte brut doit y etre un passage ENTIER (pas un bout de mot : « dragon » dans « dragonfly »)
+    if (ou >= 0 && (/[\p{L}\p{M}]/u.test(enrichi.charAt(ou - 1)) || /[\p{L}\p{M}]/u.test(enrichi.charAt(ou + avant.length)))) ou = -1;
+    const champs = !enrichi ? [rawPrompt]
+      : ou >= 0 ? [rawPrompt, enrichi.slice(0, ou), enrichi.slice(ou + avant.length)]
+      : [rawPrompt, enrichi];
+    const f = await _filetLangue(env, user.id, champs, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost });
+    if (f.refus) return f.refus;
+    rawPrompt = f.textes[0];
+    if (enrichi) promptEnrichi = ou >= 0 ? f.textes[1] + f.textes[0] + f.textes[2] : f.textes[1];
+    languesTraduites.push(...f.langues);
   }
 
   // Pick the backend BEFORE the budget check — the budget cap is
@@ -13265,16 +13266,12 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     // au moins, lib/langue-texte.js) : « le chapeau du chevalier » oui, un mot seul (« chapeau », « casque ») non, car « van » ou « den »
     // seraient alors traduits aussi. Le mot seul est traduit par l'INTERFACE, qui connait la langue de l'utilisateur ; un client qui
     // envoie un mot etranger seul (cle API, ancien client) le voit partir tel quel, comme avant le lot.
-    const cache = new Map<string, string>();
-    const compteur = { appels: 0 };
-    const fCible = await _filetLangue(env, user.id, targetText, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits, prix: cost });
-    if (fCible.refus) return fCible.refus;
-    targetText = fCible.texte;
-    if (rawPrompt) {
-      const fRempl = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits, prix: cost });
-      if (fRempl.refus) return fRempl.refus;
-      rawPrompt = fRempl.texte;
-    }
+    // Cible et remplacement planifies ENSEMBLE (seconde revue du 14/10) : un refus tombe avant le moindre appel du modele.
+    const f = await _filetLangue(env, user.id, [targetText, rawPrompt || ''],
+      { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost });
+    if (f.refus) return f.refus;
+    targetText = f.textes[0];
+    if (rawPrompt) rawPrompt = f.textes[1];
   }
 
   const estimatedTotal = 0.08;
@@ -23771,7 +23768,11 @@ const TRADUCTION_MAX_CARACTERES = 4000;   // au-dela : raison too-long (un promp
 const TRADUCTION_MORCEAU_MAX = 900;       // morceaux envoyes au modele (plafonne a 1 000 caracteres par appel)
 const TRADUCTION_PLAFOND_HEURE = 300;     // appels du modele par compte et par heure
 const TRADUCTION_PLAFOND_JOUR = 20_000;   // appels du modele par jour, tous comptes
-const TRADUCTION_APPELS_PAR_REQUETE = 6;  // filet de langue : appels du modele pour UNE requete (4 000 caracteres = 5 morceaux de 900)
+/** Filet de langue : appels du modele pour UNE requete (champs cumules). 4 000 caracteres font au plus 14 morceaux (_decouperPourTraduction
+ *  coupe a plus de 300 caracteres) : un texte admis par TRADUCTION_MAX_CARACTERES n'est jamais refuse par cette borne-ci, qui ne vise
+ *  que les prompts MELANGES aux passages trop nombreux (au-dela, les passages voisins de meme langue sont fusionnes ; seconde revue du
+ *  14/10 : la borne de 6 refusait « too-long » un prompt de 253 caracteres a sept passages allemands). */
+const TRADUCTION_APPELS_PAR_REQUETE = 16;
 
 /** Fin de la DERNIERE correspondance de `re` (drapeau g) dans `tete`, hors debut de texte ; -1 sinon. */
 function _derniereCoupe(tete: string, re: RegExp): number {
@@ -23821,28 +23822,73 @@ async function _traduireVersAnglais(env: Env, texte: string, de: string): Promis
   return sorties.length ? { texte: sorties.join(' '), ok: true } : { texte, ok: false, raison: 'failed' };
 }
 
-/** Compteur de plafond NON atomique (meme principe que le redacteur) : un depassement de quelques unites sous forte concurrence est
- *  sans consequence ici. Panne R2 : on laisse passer (la traduction est un confort, pas une depense). `n` appels d'un coup (un texte
- *  decoupe en morceaux compte chaque appel du modele). false = plafond atteint. */
-async function _plafondTraduction(env: Env, cle: string, plafond: number, n = 1): Promise<boolean> {
-  if (!env.MESHES) return true;
+/** Compteur de plafond ATOMIQUE (2026-10-14, seconde revue du lot 2 de la langue, B3). Avant : le compteur etait LU puis ECRIT sans
+ *  condition ; cent requetes simultanees lisaient toutes la meme valeur : 500 appels du modele pour un plafond de 300 par heure, et le
+ *  compteur affichait 5. Desormais : comparaison-echange sur l'etag R2 (`onlyIf`), avec attente croissante et bruitee entre les essais
+ *  (meme methode que _casIncrementCounter, recopiee ici pour que la fonction reste autonome). `n` appels d'un coup (un texte decoupe
+ *  compte chaque appel du modele) ; `n` negatif rend des appels (jamais sous zero).
+ *  Rend 'ok' (compte), 'plein' (le plafond serait depasse : rien n'est compte), 'contention' (echange perdu a chaque essai : rien n'est
+ *  compte), 'panne' (R2 absent ou en erreur : rien n'est compte). L'appelant decide de ce qu'il laisse passer. */
+async function _plafondTraduction(env: Env, cle: string, plafond: number, n = 1): Promise<'ok' | 'plein' | 'contention' | 'panne'> {
+  const delta = Math.round(Number(n)) || 0;
+  if (!delta) return 'ok';
+  if (!env.MESHES) return 'panne';
   try {
-    const cur = await env.MESHES.get(cle);
-    const deja = cur ? parseInt(await cur.text(), 10) || 0 : 0;
-    if (deja + Math.max(1, n) > plafond) return false;
-    await env.MESHES.put(cle, String(deja + Math.max(1, n)));
-  } catch { /* compteur au mieux */ }
-  return true;
+    for (let essai = 0; essai < 6; essai++) {
+      if (essai > 0) await new Promise((r) => setTimeout(r, Math.round([0, 25, 60, 110, 180, 280][essai] * (0.5 + Math.random()))));
+      const cur = await env.MESHES.get(cle);
+      const deja = cur ? parseInt(await cur.text(), 10) || 0 : 0;
+      const suivant = Math.max(0, deja + delta);
+      if (delta > 0 && suivant > plafond) return 'plein';
+      const pose = cur
+        ? await env.MESHES.put(cle, String(suivant), { onlyIf: { etagMatches: cur.etag } })
+        : await env.MESHES.put(cle, String(suivant), { onlyIf: { etagDoesNotMatch: '*' } });
+      if (pose) return 'ok';
+    }
+    return 'contention';
+  } catch (e) {
+    console.log('[translate] compteur indisponible', cle, String((e as Error)?.message || e).slice(0, 120));
+    return 'panne';
+  }
 }
 
-/** Quota du modele de traduction pour un COMPTE : `appels` appels du modele, comptes sur le plafond horaire du compte ET sur le plafond
- *  global du jour. Memes compteurs pour /api/translate et pour le filet de langue des routes payantes (revue du lot 2, B3 : le filet
- *  appelait le modele sans aucun plafond). false = plafond atteint. */
-async function _quotaTraduction(env: Env, userId: string, appels: number): Promise<boolean> {
+/** Quota du modele de traduction pour un COMPTE : `appels` appels du modele. Rend null s'ils sont accordes, sinon la PORTEE du plafond
+ *  atteint : 'heure' (plafond du compte) ou 'jour' (plafond global du jour). Le message de refus le dit (avant : « too many translations
+ *  this hour » meme quand c'etait le plafond du jour).
+ *  - Plafond du COMPTE (`_meta/traduction/<uid>-<heure>.txt`), le meme pour /api/translate et pour le filet des routes payantes : 300
+ *    appels par heure (60 pour un compte sans credit). Strict : une contention soutenue refuse (seul ce compte la provoque).
+ *  - Plafond GLOBAL du jour, en TROIS compteurs separes (2026-10-14, seconde revue du lot 2, B3) : avant, /api/translate (gratuit, ouvert
+ *    aux comptes a 0 credit) et le filet des routes payantes partageaient UN compteur ; 67 comptes sans credit l'epuisaient en une heure
+ *    et un client PAYANT recevait ensuite 422. Desormais : `jour-` = /api/translate des comptes qui ont des credits (20 000),
+ *    `jour-sans-credit-` = /api/translate des comptes a 0 credit (2 000), `jour-filet-` = filet des routes payantes, que seul un compte
+ *    capable de PAYER sa requete atteint (20 000). Le trafic des comptes gratuits ne peut donc plus refuser une requete payante. Une
+ *    contention sur un compteur global laisse passer (le plafond du compte, lui, est strict) ; refuse au plafond global, l'appel est
+ *    rendu au compteur du compte.
+ *  Panne R2 : on laisse passer (comme avant). */
+async function _quotaTraduction(env: Env, userId: string, appels: number,
+    porte: { filet?: boolean; sansCredit?: boolean } = {}): Promise<null | 'heure' | 'jour'> {
+  const PLAFOND_HEURE_SANS_CREDIT = 60;
+  const PLAFOND_JOUR_SANS_CREDIT = 2_000;
+  const sansCredit = !!porte.sansCredit && !porte.filet;
   const maintenant = new Date().toISOString();
   const heure = maintenant.slice(0, 13).replace(/[-T]/g, '');
-  return (await _plafondTraduction(env, `_meta/traduction/${userId}-${heure}.txt`, TRADUCTION_PLAFOND_HEURE, appels))
-    && (await _plafondTraduction(env, `_meta/traduction/jour-${maintenant.slice(0, 10)}.txt`, TRADUCTION_PLAFOND_JOUR, appels));
+  const cleCompte = `_meta/traduction/${userId}-${heure}.txt`;
+  const compte = await _plafondTraduction(env, cleCompte, sansCredit ? PLAFOND_HEURE_SANS_CREDIT : TRADUCTION_PLAFOND_HEURE, appels);
+  if (compte === 'plein' || compte === 'contention') {
+    console.log('[translate] plafond du compte', userId, compte);
+    return 'heure';
+  }
+  const jour = maintenant.slice(0, 10);
+  const cleJour = porte.filet ? `_meta/traduction/jour-filet-${jour}.txt`
+    : sansCredit ? `_meta/traduction/jour-sans-credit-${jour}.txt` : `_meta/traduction/jour-${jour}.txt`;
+  const global = await _plafondTraduction(env, cleJour, sansCredit ? PLAFOND_JOUR_SANS_CREDIT : TRADUCTION_PLAFOND_JOUR, appels);
+  if (global === 'plein') {
+    if (compte === 'ok') await _plafondTraduction(env, cleCompte, Infinity, -appels);   // aucun appel n'aura lieu : rendu au compte
+    console.log('[translate] plafond global du jour', cleJour);
+    return 'jour';
+  }
+  if (global === 'contention') console.warn('[translate] contention sur', cleJour, ': appel accorde (plafond du compte strict)');
+  return null;
 }
 
 async function handleTranslate(req: Request, env: Env): Promise<Response> {
@@ -23865,25 +23911,30 @@ async function handleTranslate(req: Request, env: Env): Promise<Response> {
   }
   if (!LangueTexte.LANGUES_TRADUCTIBLES.has(de)) return json({ text: texte, translated: false, raison: 'unsupported', langue: de });
   if (!env.AI) return json({ text: texte, translated: false, raison: 'unavailable', langue: de });
-  // un appel du modele par morceau (un texte long en compte plusieurs)
-  if (!(await _quotaTraduction(env, user.id, _decouperPourTraduction(texte).length))) {
-    return json({ text: texte, translated: false, raison: 'rate-limited', langue: de });
-  }
+  // un appel du modele par morceau (un texte long en compte plusieurs) ; un compte a 0 credit a son propre plafond global (B3)
+  const portee = await _quotaTraduction(env, user.id, _decouperPourTraduction(texte).length,
+    { sansCredit: typeof user.credits === 'number' && user.credits <= 0 });
+  if (portee) return json({ text: texte, translated: false, raison: 'rate-limited', portee, langue: de });
   const r = await _traduireVersAnglais(env, texte, de);
   return json(r.ok ? { text: r.texte, translated: true, langue: de }
                    : { text: texte, translated: false, raison: r.raison, langue: de });
 }
 
 /** Refus du filet de langue : 422, rien n'est debite. `code`, `langue` et `raison` permettent a l'interface d'afficher le message dans la
- *  langue de l'utilisateur ; `error` (anglais) nomme la langue en toutes lettres et dit quoi faire, selon la raison. */
-function _refusFiletLangue(langue: string, raison: string): Response {
+ *  langue de l'utilisateur ; `error` (anglais) nomme la langue en toutes lettres et dit quoi faire, selon la raison. `precision` :
+ *  'jour' / 'heure' pour rate-limited (portee du plafond atteint), 'melange' pour un too-long du a trop de morceaux, pas a la longueur. */
+function _refusFiletLangue(langue: string, raison: string, precision?: string): Response {
   let nom = langue;
   try { nom = new Intl.DisplayNames(['en'], { type: 'language' }).of(langue) || langue; } catch { /* code brut */ }
-  const pourquoi = raison === 'too-long' ? `is too long to be translated automatically (${TRADUCTION_MAX_CARACTERES} characters at most)`
-    : raison === 'rate-limited' ? 'could not be translated: too many translations this hour'
+  const pourquoi = raison === 'too-long'
+      ? (precision === 'melange' ? 'mixes too many separate passages to be translated automatically'
+                                 : `is too long to be translated automatically (${TRADUCTION_MAX_CARACTERES} characters at most)`)
+    : raison === 'rate-limited'
+      ? (precision === 'jour' ? 'could not be translated: the daily translation limit of the service has been reached'
+                              : 'could not be translated: too many translations this hour')
     : raison === 'unsupported' ? 'is in a language the translator does not support'
     : 'could not be translated automatically right now';
-  return json({ ok: false, success: false, code: 'non-english-text', langue, raison,
+  return json({ ok: false, success: false, code: 'non-english-text', langue, raison, ...(precision ? { portee: precision } : {}),
     error: `Your text looks like ${nom} and ${pourquoi}. The image engine only really understands English: write it in English, `
       + 'or try again in a moment. No credits were used.' }, { status: 422 });
 }
@@ -23894,76 +23945,129 @@ function _refusFiletLangue(langue: string, raison: string): Response {
  * anglaises (lib/langue-texte.js morceauxEtrangers : un gabarit anglais du produit n'est jamais vise) sont traduites par le modele du
  * site ; si c'est impossible, la requete est REFUSEE (422, rien n'est debite) avec un message qui dit pourquoi. Le texte traduit repasse
  * le filtre de contenu (qui ne connait que six langues : la traduction lui montre ce que le moteur verra). `verifie === true` :
- * l'interface a deja traite la langue, ou l'utilisateur a choisi « Envoyer tel quel » apres un echec de traduction (choix respecte). */
-async function _filetLangue(env: Env, userId: string, texte: string,
-    opts: { verifie?: unknown; unrestricted?: boolean; cache?: Map<string, string>; credits?: number; prix?: number;
-            compteur?: { appels: number } } = {},
-): Promise<{ texte: string; refus?: Response; traduit: boolean; langues: string[] }> {
-  const t = String(texte ?? '');
-  if (!t.trim() || opts.verifie === true) return { texte: t, traduit: false, langues: [] };
-  const morceaux = LangueTexte.morceauxEtrangers(t);
-  if (!morceaux.length) return { texte: t, traduit: false, langues: [] };
+ * l'interface a deja traite la langue, ou l'utilisateur a choisi « Envoyer tel quel » apres un echec de traduction (choix respecte).
+ *
+ * `texte` peut etre une LISTE de champs d'une meme requete (userPrompt + prompt enrichi, cible + remplacement) : ils sont planifies
+ * ENSEMBLE, avant le moindre appel du modele (2026-10-14, seconde revue du lot 2) — un meme morceau present dans deux champs n'est traduit
+ * qu'une fois, et un refus tombe avant tout appel (avant : le premier champ etait traduit, puis le second depassait la borne : 422 apres
+ * des appels perdus). Rend `textes` (dans l'ordre) et `texte` (le premier). */
+async function _filetLangue(env: Env, userId: string, texte: string | string[],
+    opts: { verifie?: unknown; unrestricted?: boolean; credits?: number; prix?: number } = {},
+): Promise<{ texte: string; textes: string[]; refus?: Response; traduit: boolean; langues: string[] }> {
+  const textes = (Array.isArray(texte) ? texte : [texte]).map((x) => String(x ?? ''));
+  const rendre = (r: { textes?: string[]; refus?: Response; traduit?: boolean; langues?: string[] } = {}) => {
+    const sorties = r.textes ?? textes;
+    return { texte: sorties[0] ?? '', textes: sorties, traduit: !!r.traduit, langues: r.langues ?? [], ...(r.refus ? { refus: r.refus } : {}) };
+  };
+  if (opts.verifie === true || !textes.some((x) => x.trim())) return rendre();
+  const parTexte = textes.map((x) => (x.trim() ? LangueTexte.morceauxEtrangers(x) : []));
+  const tous = parTexte.flat();
+  if (!tous.length) return rendre();
   if (!env.AI) {   // liaison absente (developpement local) : comportement d'avant, signale au journal
     console.warn('[filet-langue] Workers AI absent : texte non anglais transmis tel quel');
-    return { texte: t, traduit: false, langues: [] };
+    return rendre();
   }
-  /* BORNES (2026-10-14, revue du lot 2, B3). Avant : aucune borne de longueur, aucun plafond, et le filet tourne AVANT la verification
-   * des credits : UNE requete de 96 000 caracteres francais declenchait 108 appels du modele, et un compte a 0 credit pouvait epuiser
-   * le quota du jour pour tout le monde. Desormais, avant tout appel du modele :
+  /* BORNES (2026-10-14, revue du lot 2, B3), toutes AVANT le premier appel du modele :
    *  - compte qui ne peut PAS PAYER la requete (credits < `prix`, au moins 1 credit) : rien n'est traduit, la route refuse ensuite faute
-   *    de credit, comme pour un texte anglais. Avant (premier correctif du 14/10), seul un compte a 0 credit etait ecarte : un compte a
-   *    1 credit, sous le prix de toute route, declenchait jusqu'a 6 appels par requete refusee, sans jamais rien payer ;
-   *  - texte etranger de plus de TRADUCTION_MAX_CARACTERES : refus « too-long » (meme borne que /api/translate) ;
-   *  - au plus TRADUCTION_APPELS_PAR_REQUETE appels du modele par requete (`compteur` partage entre les champs d'une meme requete) ;
-   *  - chaque appel compte sur les plafonds de /api/translate (300 par heure et par compte, 20 000 par jour au total). */
+   *    de credit, comme pour un texte anglais ;
+   *  - plus de TRADUCTION_MAX_CARACTERES caracteres etrangers dans la requete (champs cumules, morceaux communs comptes une fois) : refus
+   *    « too-long » (meme borne que /api/translate) ;
+   *  - au plus TRADUCTION_APPELS_PAR_REQUETE appels du modele : un prompt MELANGE (« ein alter Ritter mit Schwert, highly detailed, eine
+   *    rostige Rüstung, cinematic lighting, ... ») fait un morceau par passage etranger ; au-dela de la borne, les passages voisins de la
+   *    meme langue sont FUSIONNES (les plus proches d'abord, les mots-cles anglais entre eux passent avec) au lieu d'un refus. Seconde
+   *    revue du 14/10 : la borne de 6 comptait les MORCEAUX, et refusait « too-long » un prompt de 253 caracteres ;
+   *  - chaque appel compte sur le plafond du compte et sur le plafond du jour PROPRE au filet (_quotaTraduction). */
   if (typeof opts.credits === 'number' && opts.credits < Math.max(1, Number(opts.prix) || 0)) {
     console.log('[filet-langue] credits insuffisants pour la requete : texte non traduit, la route refusera faute de credit');
-    return { texte: t, traduit: false, langues: [] };
+    return rendre();
   }
-  const aTraduire = morceaux.filter((m) => opts.cache?.get(m.langue + '|' + t.slice(m.debut, m.fin)) === undefined);
-  const caracteres = aTraduire.reduce((n, m) => n + [...t.slice(m.debut, m.fin)].length, 0);
-  if (caracteres > TRADUCTION_MAX_CARACTERES) {
-    return { texte: t, traduit: false, langues: [morceaux[0].langue], refus: _refusFiletLangue(morceaux[0].langue, 'too-long') };
+  const intraduisible = tous.find((m) => !m.traductible);
+  if (intraduisible) {
+    console.log('[filet-langue] refus', intraduisible.langue, 'unsupported');
+    return rendre({ langues: [intraduisible.langue], refus: _refusFiletLangue(intraduisible.langue, 'unsupported') });
   }
-  const appels = aTraduire.reduce((n, m) => n + (m.traductible ? _decouperPourTraduction(t.slice(m.debut, m.fin)).length : 0), 0);
-  const compteur = opts.compteur ?? { appels: 0 };
-  if (compteur.appels + appels > TRADUCTION_APPELS_PAR_REQUETE) {
-    return { texte: t, traduit: false, langues: [morceaux[0].langue], refus: _refusFiletLangue(morceaux[0].langue, 'too-long') };
-  }
-  if (appels > 0 && !(await _quotaTraduction(env, userId, appels))) {
-    console.log('[filet-langue] plafond de traduction atteint', userId);
-    return { texte: t, traduit: false, langues: [morceaux[0].langue], refus: _refusFiletLangue(morceaux[0].langue, 'rate-limited') };
-  }
-  compteur.appels += appels;
-  let sortie = '';
-  let pos = 0;
-  const langues: string[] = [];
-  for (const m of morceaux) {
-    const extrait = t.slice(m.debut, m.fin);
-    const cle = m.langue + '|' + extrait;
-    let anglais = opts.cache?.get(cle);
-    if (anglais === undefined) {
-      const r = m.traductible ? await _traduireVersAnglais(env, extrait, m.langue)
-                              : { texte: extrait, ok: false, raison: 'unsupported' };
-      if (!r.ok) {
-        console.log('[filet-langue] refus', m.langue, r.raison);
-        return { texte: t, traduit: false, langues: [m.langue], refus: _refusFiletLangue(m.langue, r.raison || 'failed') };
-      }
-      anglais = r.texte;
-      opts.cache?.set(cle, anglais);
+  const premiere = tous[0].langue;
+  type Unite = { debut: number; fin: number; langue: string };
+  const unites: Unite[][] = parTexte.map((ms) => ms.map(({ debut, fin, langue }) => ({ debut, fin, langue })));
+  const cleUnite = (i: number, u: Unite) => u.langue + '|' + textes[i].slice(u.debut, u.fin);
+  const bilan = () => {
+    const extraits = new Map<string, { langue: string; extrait: string }>();
+    for (let i = 0; i < unites.length; i++) {
+      for (const u of unites[i]) extraits.set(cleUnite(i, u), { langue: u.langue, extrait: textes[i].slice(u.debut, u.fin) });
     }
-    sortie += t.slice(pos, m.debut) + anglais;
-    pos = m.fin;
-    if (!langues.includes(m.langue)) langues.push(m.langue);
+    let caracteres = 0, appels = 0;
+    for (const { extrait } of extraits.values()) { caracteres += [...extrait].length; appels += _decouperPourTraduction(extrait).length; }
+    return { extraits, caracteres, appels };
+  };
+  let plan = bilan();
+  if (plan.caracteres > TRADUCTION_MAX_CARACTERES) {
+    return rendre({ langues: [premiere], refus: _refusFiletLangue(premiere, 'too-long') });
   }
-  sortie += t.slice(pos);
-  const surete = await _checkPromptSafetyAlerte(env, userId, sortie, !!opts.unrestricted);
-  if (!surete.safe) {
-    return { texte: t, traduit: false, langues, refus: json({ ok: false, success: false,
-      error: surete.reason ?? 'prompt blocked by content filter', blocked: surete.blocked }, { status: 400 }) };
+  while (plan.appels > TRADUCTION_APPELS_PAR_REQUETE) {
+    // paire de passages voisins de la meme langue la plus proche (dans n'importe quel champ)
+    let choix: { i: number; j: number; ecart: number } | null = null;
+    for (let i = 0; i < unites.length; i++) {
+      for (let j = 0; j + 1 < unites[i].length; j++) {
+        if (unites[i][j].langue !== unites[i][j + 1].langue) continue;
+        const ecart = unites[i][j + 1].debut - unites[i][j].fin;
+        if (!choix || ecart < choix.ecart) choix = { i, j, ecart };
+      }
+    }
+    if (!choix) break;
+    const langue = unites[choix.i][choix.j].langue;
+    const fusion = textes[choix.i].slice(unites[choix.i][choix.j].debut, unites[choix.i][choix.j + 1].fin);
+    // meme fusion dans TOUS les champs qui contiennent la meme paire : un morceau commun reste traduit une seule fois
+    for (let i = 0; i < unites.length; i++) {
+      for (let j = 0; j + 1 < unites[i].length; j++) {
+        const [a, z] = [unites[i][j], unites[i][j + 1]];
+        if (a.langue === langue && z.langue === langue && textes[i].slice(a.debut, z.fin) === fusion) {
+          unites[i].splice(j, 2, { debut: a.debut, fin: z.fin, langue });
+        }
+      }
+    }
+    plan = bilan();
+  }
+  if (plan.appels > TRADUCTION_APPELS_PAR_REQUETE) {
+    return rendre({ langues: [premiere], refus: _refusFiletLangue(premiere, 'too-long', 'melange') });
+  }
+  const portee = await _quotaTraduction(env, userId, plan.appels, { filet: true });
+  if (portee) {
+    console.log('[filet-langue] plafond de traduction atteint', userId, portee);
+    return rendre({ langues: [premiere], refus: _refusFiletLangue(premiere, 'rate-limited', portee) });
+  }
+  // traduction des passages (en parallele : la latence d'un appel, pas de leur somme)
+  const entrees = [...plan.extraits.entries()];
+  const resultats = await Promise.all(entrees.map(([, { langue, extrait }]) => _traduireVersAnglais(env, extrait, langue)));
+  const traductions = new Map<string, string>();
+  for (let n = 0; n < entrees.length; n++) {
+    const r = resultats[n];
+    if (!r.ok) {
+      const langue = entrees[n][1].langue;
+      console.log('[filet-langue] refus', langue, r.raison);
+      return rendre({ langues: [langue], refus: _refusFiletLangue(langue, r.raison || 'failed') });
+    }
+    traductions.set(entrees[n][0], r.texte);
+  }
+  const langues: string[] = [];
+  const sorties = textes.map((t, i) => {
+    let s = '', pos = 0;
+    for (const u of unites[i]) {
+      s += t.slice(pos, u.debut) + (traductions.get(cleUnite(i, u)) ?? t.slice(u.debut, u.fin));
+      pos = u.fin;
+      if (!langues.includes(u.langue)) langues.push(u.langue);
+    }
+    return s + t.slice(pos);
+  });
+  for (let i = 0; i < sorties.length; i++) {
+    if (sorties[i] === textes[i]) continue;
+    const surete = await _checkPromptSafetyAlerte(env, userId, sorties[i], !!opts.unrestricted);
+    if (!surete.safe) {
+      return rendre({ langues, refus: json({ ok: false, success: false,
+        error: surete.reason ?? 'prompt blocked by content filter', blocked: surete.blocked }, { status: 400 }) });
+    }
   }
   console.log('[filet-langue] traduit', langues.join(','));
-  return { texte: sortie, traduit: true, langues };
+  return rendre({ textes: sorties, traduit: true, langues });
 }
 
 /* REDACTEUR DE LA FENETRE « NEW PROJECT » (2026-09-30). User : « il faut que ca genere aussi la description quand Auto est

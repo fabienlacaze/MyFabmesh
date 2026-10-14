@@ -509,13 +509,14 @@ test('B3 : une requete de 96 000 caracteres etrangers ne declenche AUCUN appel a
   assert.match(r.corps.error, /French/);
 });
 
-test('B3 : au plus 6 appels du modele par requete, champs cumules (userPrompt + prompt enrichi)', async () => {
+test('B3 : 4 000 caracteres etrangers au plus par requete, champs cumules (userPrompt + prompt enrichi) : refus AVANT tout appel', async () => {
   const { generer, ai, j } = monterBornes();
   const long = 'un chevalier avec une épée dorée et un bouclier rouge. '.repeat(70).trim();       // ~3 800 caracteres : 5 morceaux
   const autre = 'une sorcière avec un chapeau pointu et une cape noire. '.repeat(25).trim();    // ~1 400 caracteres : 2 morceaux
   const r = await generer({ userPrompt: long, prompt: autre, asset_type: 'character', projectName: 'P' });
   assert.equal(r.status, 422, JSON.stringify(r.corps).slice(0, 200));
-  assert.ok(ai.appels.length <= 6, 'appels : ' + ai.appels.length);
+  assert.equal(r.corps.raison, 'too-long');
+  assert.equal(ai.appels.length, 0, 'appels : ' + ai.appels.length);
   assert.deepEqual(j.depenses, []);
 });
 
@@ -634,4 +635,188 @@ test('B3 : /api/translate compte CHAQUE appel du modele (texte decoupe) sur le p
   assert.equal(r.corps.translated, true);
   assert.equal(r2.lire(`_meta/traduction/u1-${heureCourante()}.txt`), String(ai.appels.length));
   assert.ok(ai.appels.length >= 2);
+});
+
+// ------------------------------------------------------------------------------------------------------- SECONDE REVUE DU 2026-10-14
+// Bloquants restants de la seconde revue du lot 2 (cas rejoues de C:/tmp/revue_traduction_1410b_cas/sceptique_worker.test.mjs) :
+//   B3 (a) : le compteur de plafond etait LU puis ECRIT sans condition : 100 requetes simultanees = 500 appels du modele pour un plafond
+//            de 300 par heure (compteur a 5). Desormais comparaison-echange sur l'etag R2.
+//   B3 (b) : /api/translate (gratuit, ouvert aux comptes a 0 credit) et le filet des routes payantes partageaient le plafond GLOBAL du
+//            jour : des comptes sans credit l'epuisaient et un client PAYANT recevait 422. Trois compteurs du jour desormais.
+//   Refus a tort : la borne de 6 appels par requete comptait les MORCEAUX : un prompt melange de 253 caracteres, ou un prompt allemand de
+//            618 caracteres envoye avec son prompt enrichi, etait refuse « too-long ».
+//   Mineurs : le refus au plafond du JOUR disait « this hour » et consommait le plafond horaire du compte ; un second champ hors borne
+//            tombait APRES les appels du premier.
+/** R2 avec latence : une vraie lecture / ecriture prend des millisecondes, les requetes simultanees se chevauchent. */
+function r2Lent(ms = 3) {
+  const r = creerR2();
+  const get = r.get.bind(r), put = r.put.bind(r);
+  r.get = async (k) => { await new Promise((x) => setTimeout(x, ms)); return get(k); };
+  r.put = async (k, v, o) => { await new Promise((x) => setTimeout(x, ms)); return put(k, v, o); };
+  return r;
+}
+/** Faux Workers AI LENT (2 ms par appel) : les requetes concurrentes se chevauchent vraiment. */
+function fauxAILent(mode = 'ok') {
+  const appels = [];
+  return { appels, async run(_m, e) {
+    appels.push(e);
+    await new Promise((r) => setTimeout(r, 2));
+    if (mode === 'panne') throw new Error('quota');
+    return { translated_text: 'EN<' + e.source_lang + '>:' + e.text };
+  } };
+}
+/** Generation + /api/translate avec une session CHANGEABLE et un debit ATOMIQUE sur le solde reel de chaque compte. */
+function monterComptes({ ai = fauxAILent(), r2 = creerR2(), utilisateur = { id: 'u1', email: 'a@b.c', credits: 100 } } = {}) {
+  const j = { depenses: [], t2i: [] };
+  let session = utilisateur;
+  const soldes = new Map();
+  const solde = { get v() { return soldes.has(session.id) ? soldes.get(session.id) : session.credits; }, set v(x) { soldes.set(session.id, x); } };
+  const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', 'handleTranslate', 'handleAutoInpaint', ...AUXILIAIRES], {
+    getSessionUser: async () => session, err, json, LangueTexte,
+    getParentalState: async () => ({}),
+    _checkPromptSafetyAlerte: async () => ({ safe: true }),
+    getPrice: async (_e, k) => ({ text2image: 6, tpose: 1, auto_inpaint: 3 }[k]),
+    isTrustedAssetHost: () => true,
+    checkAndIncrementModalSpend: async () => 100, checkAndIncrementDailySpend: async () => 100,
+    _spendRefusalMessage: async () => 'refus', checkAndIncrementUserCalls: async () => 10,
+    refundModalSpend: async () => {}, refundDailySpend: async () => {},
+    spendCredits: async (_e, _u, c) => { if (solde.v < c) return null; solde.v -= c; j.depenses.push(c); return solde.v; }, addCredits: async () => {},
+    callModalTpose: async (_e, _u, i) => { j.t2i.push(i); return 'https://r2.example/front/t.png'; },
+    callModalText2Image: async (_e, _u, i) => { j.t2i.push(i); return 'https://r2.example/front/i.png'; },
+    callMyfabmeshCog: async (_e, _u, i) => { j.t2i.push(i); return 'https://r2.example/front/c.png'; },
+    callModalImageOp: async (_e, _u, i) => { j.t2i.push(i); return { url: 'https://r2.example/x.png' }; },
+    logOperation: async () => {}, insertUserAsset: async () => {}, r2PathFromPublicUrl: (_e, u) => u,
+  });
+  const env = { AI: ai, MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MODAL_IMAGE_OP_URL: 'https://op.example', MESHES: r2 };
+  const reponse = async (r) => ({ status: r.status, corps: await r.json() });
+  const gen = async (corps) => reponse(await w.handleGenerateImage(corpsRequete('/api/generate-image', corps), env));
+  const trad = async (corps) => reponse(await w.handleTranslate(corpsRequete('/api/translate', corps), env));
+  const inpaint = async (corps) => reponse(await w.handleAutoInpaint(corpsRequete('/api/auto-inpaint', corps), env));
+  return { j, gen, trad, inpaint, ai, r2, changerSession: (u) => { session = u; } };
+}
+const jourCourant = () => new Date().toISOString().slice(0, 10);
+const FR_4000 = ('un dragon rouge avec de grandes ailes et des cornes noires, assis sur un tas de pieces d\'or dans une caverne sombre. ')
+  .repeat(40).slice(0, 3990);
+
+test('seconde revue B3 : 100 /api/translate SIMULTANES d un compte a 0 credit restent sous SON plafond, et le compteur compte juste', async () => {
+  const r2 = r2Lent(3);
+  const m = monterComptes({ r2, utilisateur: { id: 'pirate', email: 'p', credits: 0 } });
+  await Promise.all(Array.from({ length: 100 }, () => m.trad({ text: FR_4000, from: 'fr' })));
+  const compteur = Number(r2.lire(`_meta/traduction/pirate-${heureCourante()}.txt`) || 0);
+  assert.ok(m.ai.appels.length <= 60, `plafond d un compte sans credit (60 par heure) depasse : ${m.ai.appels.length} appels`);
+  assert.equal(compteur, m.ai.appels.length, 'le compteur du compte = les appels reellement faits (avant : 5 pour 500)');
+});
+
+test('seconde revue B3 : 100 generations SIMULTANEES (compte a 6 credits, une seule payable) : appels du modele bornes et comptes', async () => {
+  const r2 = r2Lent(3);
+  const m = monterComptes({ r2, utilisateur: { id: 'u6', email: 'p', credits: 6 } });
+  const rs = await Promise.all(Array.from({ length: 100 }, () => m.gen({ userPrompt: FR_4000.slice(0, 3500), asset_type: 'creature', projectName: 'P' })));
+  const compteur = Number(r2.lire(`_meta/traduction/u6-${heureCourante()}.txt`) || 0);
+  assert.ok(m.ai.appels.length <= 300, `plafond horaire de 300 appels depasse : ${m.ai.appels.length}`);
+  assert.equal(compteur, m.ai.appels.length, 'compteur = appels reels');
+  assert.deepEqual(m.j.depenses, [6], 'une seule generation payee');
+  assert.equal(rs.filter((r) => r.status === 200).length, 1);
+});
+
+test('seconde revue B3 : des comptes a 0 credit epuisent LEUR plafond du jour, jamais celui d un client PAYANT (avant : 422 pour lui)', async () => {
+  const r2 = creerR2();
+  const m = monterComptes({ r2, utilisateur: { id: 'gratuit0', email: 'g', credits: 0 } });
+  let refuses = 0;
+  for (let c = 0; c < 40; c++) {
+    m.changerSession({ id: 'gratuit' + c, email: 'g', credits: 0 });
+    for (let k = 0; k < 13; k++) if ((await m.trad({ text: FR_4000, from: 'fr' })).corps.raison === 'rate-limited') refuses++;
+  }
+  assert.ok(refuses > 0, 'les comptes sans credit atteignent leurs plafonds');
+  assert.ok(Number(r2.lire(`_meta/traduction/jour-sans-credit-${jourCourant()}.txt`) || 0) <= 2000, 'plafond du jour des comptes sans credit');
+  assert.equal(r2.lire(`_meta/traduction/jour-filet-${jourCourant()}.txt`), undefined, 'le compteur du filet n est pas touche');
+  // le compteur des comptes CREDITES de /api/translate est plein lui aussi : sans effet sur le filet d une requete payante
+  r2.ecrire(`_meta/traduction/jour-${jourCourant()}.txt`, '20000');
+  m.changerSession({ id: 'client-payant', email: 'c', credits: 100 });
+  const avant = m.ai.appels.length;
+  const r = await m.gen({ userPrompt: 'un chevalier en armure doree avec une epee', asset_type: 'character', projectName: 'P' });
+  assert.equal(r.status, 200, JSON.stringify(r.corps));
+  assert.equal(m.ai.appels.length - avant, 1, 'le prompt du client payant est traduit');
+  assert.match(m.j.t2i.at(-1).prompt, /^EN<fr>:/);
+});
+
+test('seconde revue B3 : au plafond du JOUR, le refus le dit (plus « this hour ») et ne consomme pas le plafond horaire du compte', async () => {
+  const r2 = creerR2();
+  r2.ecrire(`_meta/traduction/jour-filet-${jourCourant()}.txt`, '20000');
+  const m = monterComptes({ r2 });
+  const r = await m.gen({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' });
+  assert.equal(r.status, 422);
+  assert.equal(r.corps.raison, 'rate-limited');
+  assert.equal(r.corps.portee, 'jour');
+  assert.match(r.corps.error, /daily/);
+  assert.doesNotMatch(r.corps.error, /this hour/);
+  assert.equal(Number(r2.lire(`_meta/traduction/u1-${heureCourante()}.txt`) || 0), 0, 'le plafond horaire du compte est rendu');
+  assert.equal(m.ai.appels.length, 0);
+  // /api/translate : meme portee dans la reponse
+  r2.ecrire(`_meta/traduction/jour-${jourCourant()}.txt`, '20000');
+  const t = await m.trad({ text: 'un dragon rouge avec des ailes', from: 'fr' });
+  assert.equal(t.corps.raison, 'rate-limited');
+  assert.equal(t.corps.portee, 'jour');
+});
+
+test('seconde revue, refus a tort : prompt MELANGE allemand / mots-cles anglais de 253 caracteres (cle API) -> traduit, pas 422', async () => {
+  const t = 'ein alter Ritter mit Schwert, highly detailed, eine rostige Rüstung, cinematic lighting, ein roter Umhang, octane render, ein Helm mit Hörnern, sharp focus, ein Schild mit Drachen, masterpiece, die Stiefel aus Leder, 8k, ein Pferd neben ihm, concept art';
+  const m = monterComptes();
+  const r = await m.gen({ prompt: t, asset_type: 'character', projectName: 'P' });
+  assert.equal(r.status, 200, JSON.stringify(r.corps));
+  const recu = m.j.t2i[0].prompt;
+  assert.doesNotMatch(recu.replace(/EN<de>:[^,]*/g, ''), /Ritter|Rüstung|Umhang|Hörnern|Stiefel|Pferd/, 'chaque passage allemand est traduit : ' + recu);
+  assert.match(recu, /highly detailed/);
+});
+
+test('seconde revue, refus a tort : prompt allemand de 618 caracteres + prompt enrichi (ancien client) -> UN appel, traduit partout', async () => {
+  const u = ['Ein alter Ritter in einer rostigen Rüstung', 'er trägt einen schweren Schild mit einem roten Drachen',
+    'sein Schwert ist aus schwarzem Stahl', 'auf dem Kopf ein Helm mit Hörnern', '4K', 'der Umhang ist dunkelblau und zerrissen',
+    'im Hintergrund eine verfallene Burg', 'Nebel', 'die Stiefel sind aus braunem Leder', 'er hält eine Laterne in der linken Hand',
+    'sehr detailliert', 'Gold', 'die Augen leuchten grün', 'neben ihm ein kleiner Hund mit einem Halsband', 'RPG',
+    'der Gürtel hat eine silberne Schnalle', 'Zauberer', 'ein Beutel mit Münzen hängt am Gürtel', 'PBR',
+    'auf dem Rücken trägt er einen Bogen', 'Low Poly', 'die Handschuhe sind aus Kettengeflecht'].join(', ');
+  const enrichi = 'masterpiece, best quality, ' + u + ', full body, T-pose, plain white background, 3D game asset, sharp details';
+  const m = monterComptes();
+  const r = await m.gen({ userPrompt: u, prompt: enrichi, asset_type: 'character', projectName: 'P', tpose: true });
+  assert.equal(r.status, 200, JSON.stringify(r.corps));
+  assert.equal(m.ai.appels.length, 1, 'le texte brut est traduit une fois, le prompt enrichi recoit la meme traduction');
+  assert.equal(m.ai.appels[0].text, u);
+});
+
+test('seconde revue : un prompt aux passages trop nombreux et de langues alternees -> 422 AVANT tout appel (borne par requete)', async () => {
+  // 18 passages DISTINCTS (un passage repete n'est traduit qu'une fois), allemand et francais en alternance : aucune fusion possible
+  const de = ['rote', 'blaue', 'grüne', 'gelbe', 'schwarze', 'weiße', 'braune', 'graue', 'goldene'];
+  const fr = ['rouge', 'bleu', 'vert', 'jaune', 'noir', 'blanc', 'brun', 'gris', 'doré'];
+  const passages = [];
+  for (let k = 0; k < 9; k++) passages.push(`ein Drache mit ${de[k]} Flügeln und einem Schwert`, 'a blue bird', `un dragon ${fr[k]} avec des ailes et une épée`, 'a green cat');
+  const m = monterComptes();
+  const r = await m.gen({ prompt: passages.join(', '), asset_type: 'creature', projectName: 'P' });
+  assert.equal(r.status, 422, JSON.stringify(r.corps).slice(0, 200));
+  assert.equal(r.corps.raison, 'too-long');
+  assert.equal(r.corps.portee, 'melange');
+  assert.equal(m.ai.appels.length, 0);
+});
+
+test('seconde revue : Auto-inpaint, cible + remplacement planifies ENSEMBLE : hors borne -> 422 sans AUCUN appel (avant : la cible etait traduite puis refus)', async () => {
+  const m = monterComptes();
+  const r = await m.inpaint({ imageUrl: 'https://r2.example/a.png', targetText: FR_4000.slice(0, 2500), prompt: FR_4000.slice(0, 2000) });
+  assert.equal(r.status, 422);
+  assert.equal(r.corps.raison, 'too-long');
+  assert.equal(m.ai.appels.length, 0, 'appels perdus : ' + m.ai.appels.length);
+  // temoin : cible + remplacement courts -> un appel chacun, un seul debit
+  const ok = monterComptes();
+  const r2 = await ok.inpaint({ imageUrl: 'https://r2.example/a.png', targetText: 'le chapeau du chevalier', prompt: 'une couronne en or' });
+  assert.equal(r2.status, 200, JSON.stringify(r2.corps));
+  assert.equal(ok.ai.appels.length, 2);
+});
+
+test('seconde revue : le prompt enrichi ne recoit la traduction du texte brut que s il le contient comme passage ENTIER', async () => {
+  const m = monterComptes();
+  // « un chat noir » est un bout de « un chat noirci » : pas de substitution, le prompt enrichi passe entier au filet
+  const r = await m.gen({ userPrompt: 'un chat noir', prompt: 'un chat noirci par la suie, isolated 3D character, full body, T-pose',
+    asset_type: 'character', projectName: 'P', tpose: true });
+  assert.equal(r.status, 200, JSON.stringify(r.corps));
+  const textes = m.ai.appels.map((a) => a.text);
+  assert.ok(textes.includes('un chat noir'), JSON.stringify(textes));
+  assert.ok(textes.some((t) => t.startsWith('un chat noirci par la suie')), 'le passage etranger du prompt enrichi est traduit entier : ' + JSON.stringify(textes));
 });
