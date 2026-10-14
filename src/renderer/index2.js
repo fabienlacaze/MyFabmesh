@@ -7801,10 +7801,14 @@ function stripKnownPromptSuffixes(raw) {
     'one single environment piece',
     'ONE car only', 'ONE building only', 'ONE weapon only',
     'ONE prop only', 'ONE creature only', 'ONE environment piece only',
-    'ONE vehicle only', 'ONE structure only', 'ONE item only', 'ONE subject only',
-    'one character only', 'single vehicle', 'single structure', 'single item',
-    'single creature', 'only one instance',
-    'single instance', 'isolated', 'complete vehicle', 'complete object',
+    /* PARITE (2026-10-14, seconde revue du lot 2) : 'ONE vehicle only', 'ONE structure only', 'ONE item only', 'ONE subject only',
+     * 'single structure', 'single item', 'single creature', 'complete object' et 'no second vehicle / structure / item / creature /
+     * instance' n'etaient jetons que sur le BUREAU (c68296e9, juin : ces restes d'un ancien gabarit survivaient au nettoyage). La coupe
+     * par queue de gabarit (plus bas) les retire desormais avec tout le gabarit, sur les deux plateformes ; comme jetons, ils effacaient
+     * aussi une proposition de l'utilisateur au milieu de son texte, et seulement sur le bureau (« a castle, ONE structure only, with a
+     * moat » : « a castle, with a moat » ici, intact sur le site). Meme liste que le site. */
+    'one character only', 'single vehicle', 'only one instance',
+    'single instance', 'isolated', 'complete vehicle',
     // staging / lighting / framing
     'plain white background', 'even studio lighting', 'no shadows',
     'no characters', 'no other characters', 'no other creatures',
@@ -7812,8 +7816,6 @@ function stripKnownPromptSuffixes(raw) {
     'full body', 'full structure', 'full weapon', 'full item',
     // dedup negatives (sometimes leak into positive)
     'no duplicate', 'no second car', 'no second building',
-    'no second vehicle', 'no second structure', 'no second item',
-    'no second creature', 'no second instance',
     'no twin', 'no rear view inset',
     // T-pose tokens (legacy character)
     'T-pose neutral stance', 'arms extended horizontally', 'legs apart',
@@ -7822,11 +7824,8 @@ function stripKnownPromptSuffixes(raw) {
     'realistic style', 'photorealistic', 'sharp details',
     'detailed materials',
   ];
-  for (const tok of KNOWN_TOKENS) {
-    const esc = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp('(^|,\\s*)' + esc + '(?=$|,\\s*)', 'gi');
-    txt = txt.replace(re, (_, sep) => '');
-  }
+  // (La passe des KNOWN_TOKENS tourne APRES la coupe par marqueur, plus bas : la coupe doit voir le gabarit ENTIER pour reconnaitre une
+  // queue de gabarit, 2026-10-14.)
   /* COUPE PAR MARQUEUR -- ajoute le 2026-09-23.
    *
    * Les passes ci-dessus effacent le gabarit MOT POUR MOT. Un projet cree avec
@@ -7874,6 +7873,15 @@ function stripKnownPromptSuffixes(raw) {
     'full body shot from head to tail',
     'full body shot from nose to tail',
     'ONE structure only',
+    /* Ouvertures que seule la passe des KNOWN_TOKENS effacait (une proposition a la fois) : la coupe passe desormais AVANT elle et doit
+     * les reconnaitre elle-meme (2026-10-14, seconde revue du lot 2). Sans risque pour le texte de l'utilisateur : une coupe exige une
+     * queue faite UNIQUEMENT de gabarit (queueDeGabarit ci-dessous). */
+    'single isolated 3D character', 'single isolated 3D creature', 'single isolated 3D building', 'single isolated 3D vehicle',
+    'single isolated 3D weapon', 'single isolated 3D prop', 'single isolated 3D environment piece',
+    'ONE building only', 'ONE creature only', 'ONE car only', 'ONE weapon only', 'ONE prop only', 'ONE environment piece only',
+    'ONE vehicle only', 'ONE subject only', 'ONE insect only',
+    'one single building', 'one single vehicle', 'one single weapon', 'one single prop', 'one single creature',
+    'one single environment piece', 'A detailed animal', 'flat icon', 'full body', 'full item', 'isolated',
   ];
   const MARQUEURS_GABARIT = [
     ...Object.values(ASSET_TYPE_PROMPTS),
@@ -7888,28 +7896,89 @@ function stripKnownPromptSuffixes(raw) {
    .flatMap(s => [s.split(',')[0], s.split(',').slice(0, 2).join(',')])
    .map(m => m.trim())
    .filter((m, i, a) => m.length > 12 && a.indexOf(m) === i);
-  for (const m of MARQUEURS_GABARIT.concat(MARQUEURS_HISTORIQUES)) {
-    /* LE MARQUEUR DOIT ETRE UNE PROPOSITION ENTIERE (2026-10-13, audit de la langue MANQUE-03). Un gabarit est TOUJOURS colle par
-     * propositions separees de virgules ; le marqueur cherche n'importe ou coupait du texte legitime : « a complete boat with white
-     * sails » devenait « a », « architectural building exterior with a glass facade » perdait son debut. Le marqueur ne compte donc que
-     * s'il commence la chaine ou suit une virgule, ET s'il finit la chaine ou est suivi d'une virgule. */
-    const bas = txt.toLowerCase(), cible = m.toLowerCase();
-    let i = -1;
-    for (let k = bas.indexOf(cible); k >= 0; k = bas.indexOf(cible, k + 1)) {
-      const f = k + cible.length;
-      if ((k === 0 || /,\s*$/.test(txt.slice(0, k))) && (f >= txt.length || /^\s*,/.test(txt.slice(f)))) { i = k; break; }
+  /* QUEUE DE GABARIT (2026-10-14, seconde revue du lot 2 de la langue, B4). Chaque marqueur servait a « couper jusqu'a la fin » : un
+   * texte d'utilisateur qui en CONTENAIT un, suivi d'autre chose, perdait tout ce qui suivait, sans un mot, juste avant Generate (et la
+   * generation etait facturee) : « a husky, full body shot from head to tail, running in the snow » -> « a husky », « a lone wolf, ONE
+   * animal only, howling at the moon » -> « a lone wolf », « a cartoon rocket, single flat icon, app icon, with a smiling face » -> « a
+   * cartoon rocket ». Or un gabarit colle par buildFullPrompt va TOUJOURS jusqu'au bout de la chaine et n'est fait QUE de propositions de
+   * gabarit. On ne coupe donc a un marqueur que si TOUT ce qui le suit est du gabarit (propositions des tables courantes, de
+   * KNOWN_TOKENS, des marqueurs, des gabarits historiques ci-dessous, et negations), et s'il en suit au moins une. Un marqueur seul en
+   * fin de texte, ou suivi d'un texte de l'utilisateur, EST du texte de l'utilisateur : on n'y touche pas. Seules les ouvertures EN TETE
+   * (prefixes de type, anciennes fiches « 3D game asset reference sheet » qui ouvraient la chaine) sont retirees seules quand le sujet
+   * les suit. PROPOSITIONS_HISTORIQUES : propositions des 83 gabarits de type et 32 styles releves dans l'historique git qui ne sont
+   * plus dans les tables courantes (tests/bureau-interface/gabarits-historiques-nettoyage.json) ; meme liste sur le site. NE JAMAIS EN
+   * RETIRER, et y AJOUTER les propositions d'un gabarit qu'on remplace : sans elles, ses projets ne seraient plus nettoyes. */
+  const PROPOSITIONS_HISTORIQUES = [
+    'entire creature visible from head to tail', 'body fills 60 percent of frame', 'entire animal visible from nose to tail',
+    'all four feet on the ground', 'wearing a complete outfit', 'dressed in appropriate clothing', 'nothing cropped',
+    '3D game asset reference sheet', 'full body character sheet', 'long shot', 'full figure shot', 'distant camera',
+    'entire creature visible from head to feet to tail', 'flat icon', 'app icon', 'UI icon', 'transparent or pure white background',
+    'mobile / desktop application icon style', 'both wings visible', 'tail fin visible', 'full body character reference',
+    'entire animal visible from nose to tail to feet', 'full body lateral profile', 'all four feet flat on the ground',
+    'body horizontal parallel to floor', 'belly close to ground', 'four legs supporting the body from below', 'full body reference',
+    'entire insect visible', 'exactly six legs in total', 'three legs on the left side and three legs on the right side',
+    'six legs and no more', 'anatomically correct insect leg count', 'segmented body with distinct head thorax and abdomen',
+    'hard exoskeleton', 'high three-quarter angle seen from above and to the side', 'all six legs clearly visible and separated',
+    'ONE item only', 'single item', 'complete edifice', 'entire building visible from base to roof',
+    'the whole structure fits inside the frame with clear margin on every side', 'building fills about 70 percent of frame',
+    'single flat icon', 'ONE element only', 'ONE complete passenger aircraft only', 'single plane', 'ONE complete boat only',
+    'single vessel', 'ONE animal only', 'single creature with ONE single tail only', 'exactly one tail', 'ONE insect only',
+    'single arthropod', 'single creature', 'one subject only', 'ONE vehicle only', 'ONE structure only', 'single structure', 'six legs',
+    'segmented body', 'top and side of the thorax and abdomen visible', 'full body view', 'complete object',
+    'wildlife photography of ONE animal only', 'low camera angle eye-level with the animal', 'full body shot from head to tail',
+    'entire creature visible head to feet', 'wide shot showing whole body', 'full body shot from nose to tail',
+    'entire animal visible head to feet', 'whole body in frame', 'wide shot', 'head and tail at the same low height as the spine',
+    'tail extending behind', 'all four legs on the ground', 'natural quadruped standing pose', 'side angle profile view',
+    'A detailed animal', 'side angle', 'T-pose-equivalent legs apart', 'isolated on a neutral background', 'even lighting.',
+    // cadrage et vues que le composeur d'intention peut poser dans le gabarit (lib/composeur-intention.js CADRAGE_TENU, regle « vue »)
+    'entire figure and held item fully visible', 'generous empty margins', 'back view', 'seen from behind', 'in profile',
+  ];
+  const normaliserProp = (p) => String(p).trim().replace(/\.+$/, '').trim().toLowerCase();
+  // Propositions de GABARIT DE TYPE (pas de style : un style precede toujours le texte de l'utilisateur, et « steampunk », « glossy »,
+  // « watercolor painting » sont aussi des mots d'utilisateur).
+  const PROPS_GABARIT = new Set([...Object.values(ASSET_TYPE_PROMPTS), ...Object.values(ASSET_TYPE_PREFIXES), ...ASSET_TYPE_PREFIXES_ANCIENS,
+    ...KNOWN_TOKENS, ...MARQUEURS_HISTORIQUES, ...PROPOSITIONS_HISTORIQUES]
+    .flatMap((g) => String(g || '').split(',')).map(normaliserProp).filter(Boolean));
+  const queueDeGabarit = (reste) => {
+    const props = reste.split(',').map((p) => p.trim()).filter(Boolean);
+    return props.length > 0 && props.every((p) => PROPS_GABARIT.has(normaliserProp(p)) || /^(not|never|no)\b/i.test(p));
+  };
+  const OUVERTURES_EN_TETE = new Set([...Object.values(ASSET_TYPE_PREFIXES), ...ASSET_TYPE_PREFIXES_ANCIENS].filter(Boolean)
+    .flatMap((s) => [s.split(',')[0], s.split(',').slice(0, 2).join(',')])
+    .concat(['3D game asset reference sheet', 'full body character sheet']).map(normaliserProp));
+  const MARQUEURS = MARQUEURS_GABARIT.concat(MARQUEURS_HISTORIQUES);
+  /* LE MARQUEUR DOIT ETRE UNE PROPOSITION ENTIERE (2026-10-13, audit de la langue MANQUE-03). Un gabarit est TOUJOURS colle par
+   * propositions separees de virgules ; le marqueur cherche n'importe ou coupait du texte legitime : « a complete boat with white
+   * sails » devenait « a », « architectural building exterior with a glass facade » perdait son debut. Le marqueur ne compte donc que
+   * s'il commence la chaine ou suit une virgule, ET s'il finit la chaine ou est suivi d'une virgule. */
+  const borne = (k, f) => (k === 0 || /,\s*$/.test(txt.slice(0, k))) && (f >= txt.length || /^\s*,/.test(txt.slice(f)));
+  // 1) Cas normal : le gabarit est colle APRES le texte de l'utilisateur et rien d'autre ne le suit. On coupe a la queue de gabarit la
+  //    plus a GAUCHE (un marqueur peut aussi se trouver au milieu d'un gabarit : couper la, c'etait en laisser le debut).
+  let coupe = -1;
+  for (const m of MARQUEURS) {
+    const cible = m.toLowerCase(), bas = txt.toLowerCase();
+    for (let k = bas.indexOf(cible, 1); k > 0 && (coupe < 0 || k < coupe); k = bas.indexOf(cible, k + 1)) {
+      if (borne(k, k + cible.length) && queueDeGabarit(txt.slice(k + cible.length))) { coupe = k; break; }
     }
-    if (i > 0) {
-      // Cas normal : le gabarit est colle APRES le texte de l'utilisateur.
-      txt = txt.slice(0, i);
-    } else if (i === 0) {
-      /* Cas des vieux projets : le gabarit ouvre la chaine et le sujet est au
-       * MILIEU (« 3D game asset reference sheet, full body character sheet,
-       * long shot, a winged dragon, NOT a portrait »). Couper a 0 effacerait
-       * tout ; on retire donc le seul marqueur et on laisse les passes
-       * suivantes nettoyer le reste. */
-      txt = txt.slice(m.length).replace(/^\s*,\s*/, '');
+  }
+  if (coupe > 0) txt = txt.slice(0, coupe);
+  /* 2) Ouverture EN TETE suivie du sujet (« 3D game asset reference sheet, full body character sheet, long shot, a winged dragon, NOT a
+   *    portrait », prefixe de type derriere un ancien style) : couper effacerait le sujet ; on retire le seul marqueur et on laisse les
+   *    passes suivantes nettoyer le reste. */
+  for (const m of MARQUEURS) {
+    if (!OUVERTURES_EN_TETE.has(normaliserProp(m))) continue;
+    const cible = m.toLowerCase();
+    for (let k = txt.toLowerCase().indexOf(cible); k >= 0; k = txt.toLowerCase().indexOf(cible, k + 1)) {
+      if (!borne(k, k + cible.length)) continue;
+      txt = txt.slice(0, k) + txt.slice(k + cible.length).replace(/^\s*,\s*/, '');
+      k -= 1;
     }
+  }
+  // 3) Jetons connus, une proposition a la fois.
+  for (const tok of KNOWN_TOKENS) {
+    const esc = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('(^|,\\s*)' + esc + '(?=$|,\\s*)', 'gi');
+    txt = txt.replace(re, (_, sep) => '');
   }
   /* La clause d'objet tenu posee par buildFullPrompt (composeur d'intention) reste en queue du texte une fois le style et le gabarit
    * coupes : on la retire, sinon chaque regeneration en ajouterait une de plus. Retiree seulement si le texte restant la regenere. */

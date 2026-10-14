@@ -91,4 +91,59 @@ for (const [nom, chemin] of Object.entries(FICHIERS)) {
       assert.equal(strip(u), u);
     }
   });
+
+  /* SECONDE REVUE DU LOT 2 (2026-10-14, B4) : les marqueurs ajoutes par 51af1bcb coupaient « jusqu a la fin » ; un texte d utilisateur
+   * qui CONTENAIT un marqueur SUIVI d autre chose perdait la suite, juste avant Generate (facture). Une coupe exige desormais une queue
+   * faite UNIQUEMENT de gabarit. */
+  const HOSTILES = [
+    'a husky, full body shot from head to tail, running in the snow',
+    'a red fox, full body shot from nose to tail, jumping over a log',
+    'wildlife photography of ONE animal only, a snow leopard on a rock',
+    'a lone wolf, ONE animal only, howling at the moon',
+    'a castle, ONE structure only, with a moat and a drawbridge',
+    'ONE complete boat only, with red sails and a golden figurehead',
+    'a cartoon rocket, single flat icon, app icon, with a smiling face',
+    'a tiger, full body shot from head to tail',
+    'a knight, isolated 3D character, holding a sword',
+    'a dragon, full body creature, with red scales',
+    'a pirate ship, complete boat, with black sails',
+    'a lighthouse, architectural building exterior, on a cliff',
+    'a frog, ONE animal only, single creature, sitting on a leaf',
+    'a beetle, hard exoskeleton, antennae, six legs',
+    'a robot, ONE vehicle only, steampunk, glossy',
+  ];
+  test(nom + ' : un marqueur SUIVI du texte de l utilisateur (ou seul en fin de texte) ne coupe rien (revue du 14/10, B4)', () => {
+    const perdus = HOSTILES.filter((t) => strip(t) !== t).map((t) => `${t} -> ${strip(t)}`);
+    assert.deepEqual(perdus, []);
+  });
+
+  test(nom + ' : chaque prompt d ancien projet est nettoye JUSQU AU texte de l utilisateur (17 928 sur 17 928 ; HEAD : 17 496 bureau, 16 848 site)', () => {
+    const restes = [];
+    for (const u of UTILISATEURS) {
+      for (const t of H.types) {
+        for (const v of [u + ', ' + t, ...H.styles.map((s) => s + ', ' + u + ', ' + t), ...H.prefixes.map((p) => p + ', ' + u + ', ' + t)]) {
+          const r = strip(v).trim();
+          if (r !== u) restes.push(`${v.slice(0, 80)}... -> ${r.slice(0, 80)}`);
+        }
+      }
+    }
+    assert.deepEqual(restes.slice(0, 5), [], restes.length + ' prompts ne reviennent pas au texte de l utilisateur');
+  });
+
+  test(nom + ' : un ancien gabarit SUIVI d un ajout de l utilisateur n est pas coupe (le texte ajoute reste)', () => {
+    const t = H.types.find((x) => x.startsWith('ONE complete boat only,'));
+    const r = strip('a pirate ship, ' + t + ', with a red flag');
+    assert.ok(r.endsWith('with a red flag'), r.slice(-80));
+    assert.ok(r.startsWith('a pirate ship'), r.slice(0, 80));
+  });
 }
+
+test('parite : le nettoyage donne EXACTEMENT le meme texte sur le bureau et sur le site (« a castle, ONE structure only, with a moat » : « a castle » sur le site, « a castle, with a moat » sur le bureau)', () => {
+  const bureau = charger(FICHIERS.bureau), web = charger(FICHIERS.web);
+  const ecarts = [];
+  const textes = ['a castle, ONE structure only, with a moat and a drawbridge', 'a frog, single creature, on a leaf',
+    'a crate, complete object, wooden', 'a truck, ONE vehicle only, red'];
+  for (const u of UTILISATEURS) for (const t of H.types) textes.push(u + ', ' + t);
+  for (const t of textes) if (bureau(t) !== web(t)) ecarts.push(`${t.slice(0, 80)} : bureau ${JSON.stringify(bureau(t).slice(0, 60))} / site ${JSON.stringify(web(t).slice(0, 60))}`);
+  assert.deepEqual(ecarts.slice(0, 5), [], ecarts.length + ' ecarts');
+});
