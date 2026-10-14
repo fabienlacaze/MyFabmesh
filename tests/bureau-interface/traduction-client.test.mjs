@@ -204,9 +204,11 @@ for (const [nom, chemin] of Object.entries(FICHIERS)) {
     const enrichi = T.realistic + ', a red dragon with wings, avec des flammes';
     const r = await a.M._texteUtilisateurPourGeneration(enrichi);
     assert.equal(r.texte, 'EN:a red dragon with wings, avec des flammes');
+    // texte de l'utilisateur qui contient un mot du gabarit : traduit quand meme (MANQUE-01), et le mot de l'utilisateur RESTE (troisieme
+    // relecture du lot 2, B4 bis : « photorealistic » etait retire comme jeton de gabarit, comme « side view » ou « full body »)
     const b = monter(chemin, { langue: 'fr', traduire: traducteurOk });
     const r2 = await b.M._texteUtilisateurPourGeneration('un chevalier en armure, photorealistic');
-    assert.equal(r2.texte, 'EN:un chevalier en armure');
+    assert.equal(r2.texte, 'EN:un chevalier en armure, photorealistic');
     // champ enrichi entierement anglais : aucun appel
     const c = monter(chemin, { langue: 'fr', traduire: traducteurOk });
     const r3 = await c.M._texteUtilisateurPourGeneration(T.realistic + ', a red dragon with golden wings');
@@ -225,10 +227,17 @@ for (const [nom, chemin] of Object.entries(FICHIERS)) {
       'an isolated 3D character in a red cape', 'architectural building exterior with a glass facade', 'a flat app icon of a rocket']) {
       assert.equal(M.stripKnownPromptSuffixes(t), t, t);
     }
-    // les vieux gabarits restent nettoyes (proposition entiere)
-    assert.equal(M.stripKnownPromptSuffixes('medieval townhall, architectural building exterior, complete edifice, nothing cropped'), 'medieval townhall');
+    // les vieux gabarits restent nettoyes (gabarit ENTIER, releve dans l'historique git ; ouverture d'ancienne fiche EN TETE)
+    const ancienBatiment = 'architectural building exterior, complete edifice, isolated, full structure, plain white background, even studio '
+      + 'lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town';
+    assert.equal(M.stripKnownPromptSuffixes('medieval townhall, ' + ancienBatiment), 'medieval townhall');
     assert.equal(M.stripKnownPromptSuffixes('3D game asset reference sheet, full body character sheet, a winged dragon'), 'a winged dragon');
-    assert.equal(M.stripKnownPromptSuffixes('a red boat, complete boat, 3/4 isometric view'), 'a red boat');
+    assert.equal(M.stripKnownPromptSuffixes('a red boat, ' + M.ASSET_TYPE_PROMPTS.bateau), 'a red boat');
+    /* Troisieme relecture du lot 2 (14/10, B4 bis) : un MORCEAU de gabarit tape par l'utilisateur n'est plus coupe (ces deux textes
+     * etaient tronques a « medieval townhall » et « a red boat ») ; seul un gabarit EXACT connu est retire. */
+    for (const t of ['medieval townhall, architectural building exterior, complete edifice, nothing cropped', 'a red boat, complete boat, 3/4 isometric view']) {
+      assert.equal(M.stripKnownPromptSuffixes(t), t, t);
+    }
   });
 }
 

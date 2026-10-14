@@ -147,3 +147,81 @@ test('parite : le nettoyage donne EXACTEMENT le meme texte sur le bureau et sur 
   for (const t of textes) if (bureau(t) !== web(t)) ecarts.push(`${t.slice(0, 80)} : bureau ${JSON.stringify(bureau(t).slice(0, 60))} / site ${JSON.stringify(web(t).slice(0, 60))}`);
   assert.deepEqual(ecarts.slice(0, 5), [], ecarts.length + ' ecarts');
 });
+
+/* TROISIEME RELECTURE DU LOT 2 (2026-10-14, B4 bis) : le correctif de la seconde revue coupait a un marqueur (« full body », « isolated »,
+ * « flat icon »...) suivi de propositions « de gabarit » prises une a une (« back view », « wide shot », « both wings visible »...), et la
+ * passe des jetons retirait « side view », « full body », « photorealistic »... partout : le texte que l'utilisateur tapait apres « full
+ * body » ou « isolated » disparaissait au clic Generate (facture). Desormais seul un gabarit EXACT connu est retire.
+ * Textes : relecture (strip_r3 PAR_DEFAUT, sceptique_r3 CADRAGES) et mots que les anciens nettoyages prenaient pour du gabarit. */
+const COMPLET = JSON.parse(readFileSync(join(ICI, 'gabarits-historiques-releve-complet.json'), 'utf-8'));
+const TEXTES_UTILISATEUR = [
+  'a red dragon, full body, both wings visible', 'a griffin, full body, both wings visible, tail extending behind',
+  'a female elf ranger, full body, back view', 'a knight in silver armor, full body, seen from behind', 'a samurai, full body, in profile',
+  'a war horse, full body, side angle', 'a giant troll, full body, wide shot', 'a lighthouse on a cliff, isolated, long shot',
+  'a sports car, isolated, wide shot', 'a robot, isolated, back view', 'a beetle, isolated, hard exoskeleton, six legs',
+  'a stag beetle, full body, segmented body, six legs', 'a wolf, full body, all four feet on the ground',
+  'a crocodile, full body, belly close to ground', 'a medieval castle, isolated, nothing cropped', 'a shark, full body, tail fin visible',
+  'a sword icon, flat icon, app icon', 'a cyclops, full body, distant camera', 'a mage, full body, long shot, seen from behind',
+  'a viking ship, isolated, single vessel', 'a red dragon, full body, breathing fire', 'a knight, isolated, holding a lantern',
+  'a red car, side view', 'a knight, front view, holding a torch', 'a samurai, side profile, katana drawn', 'a dragon, photorealistic',
+  'a cute fox, centered', 'a castle on a hill, isolated, at sunset', 'a tree, symmetric branches', 'a dwarf, three-quarter view, braided beard',
+  'a spaceship, isometric view, glowing engines', 'a cat, 3/4 view, sitting', 'a wizard, realistic style, purple robes',
+  'an old house, sharp details, broken windows', 'a sword, detailed materials, gold hilt', 'a soldier, legs apart, holding a rifle',
+  'a goblin, neutral stance, green skin', 'a temple, plain white background, stone columns', 'a lamp, clean silhouette, art deco',
+  'an orc, T-pose, war paint', 'a bus, complete vehicle, yellow', 'a bird, both wings visible, blue feathers',
+  'a snake, full body, gentle S-curve, green scales', 'a knight, full body, isolated, red cape', 'a red car, isolated, complete vehicle, wide shot',
+  'a hero, single isolated 3D character, blue armor', 'a giant, long shot, distant camera', 'a cat, isolated, full item, plush toy',
+  'a sword, side profile, isolated', 'an icon of a shield, flat app icon, blue', 'a boat, 3/4 isometric view, red sails',
+];
+
+for (const [nom, chemin] of Object.entries(FICHIERS)) {
+  const strip = charger(chemin);
+
+  test(nom + ' : troisieme relecture (B4 bis) : un texte d utilisateur n est JAMAIS modifie, meme avec des mots de gabarit (cadrage apres « full body », « isolated »...)', () => {
+    const modifies = TEXTES_UTILISATEUR.filter((t) => strip(t) !== t).map((t) => `${t} -> ${strip(t)}`);
+    assert.deepEqual(modifies, []);
+  });
+
+  test(nom + ' : troisieme relecture : texte d utilisateur + gabarit historique (type, style, prefixe) -> EXACTEMENT le texte de l utilisateur', () => {
+    const fautes = [];
+    let total = 0;
+    const styles = [COMPLET.styles[0], COMPLET.styles[11], COMPLET.styles[30], COMPLET.styles[44]].filter(Boolean);
+    for (const u of TEXTES_UTILISATEUR) {
+      for (const t of [...COMPLET.types, ...COMPLET.ancienneInterface]) {
+        for (const v of [u + ', ' + t, ...styles.map((s) => s + ', ' + u + ', ' + t), COMPLET.prefixes[0] + ', ' + u + ', ' + t]) {
+          total++;
+          const r = strip(v);
+          if (r !== u && fautes.length < 5) fautes.push(`${v.slice(0, 100)}... -> ${r.slice(0, 100)}`);
+        }
+      }
+    }
+    assert.ok(total > 20000, 'prompts essayes : ' + total);
+    assert.deepEqual(fautes, []);
+  });
+
+  test(nom + ' : troisieme relecture : TOUS les gabarits de l historique git (releve exhaustif, toutes branches, ancienne interface) sont nettoyes', () => {
+    const restes = [];
+    let total = 0;
+    for (const u of UTILISATEURS) {
+      for (const t of [...COMPLET.types, ...COMPLET.ancienneInterface]) {
+        for (const v of [u + ', ' + t, ...COMPLET.styles.map((s) => s + ', ' + u + ', ' + t), ...COMPLET.prefixes.map((p) => p + ', ' + u + ', ' + t)]) {
+          total++;
+          if (strip(v).trim() !== u) restes.push(`${v.slice(0, 80)}... -> ${strip(v).slice(0, 80)}`);
+        }
+      }
+    }
+    assert.equal(total, 6 * (COMPLET.types.length + COMPLET.ancienneInterface.length) * (1 + COMPLET.styles.length + COMPLET.prefixes.length));
+    assert.deepEqual(restes.slice(0, 5), [], restes.length + ' prompts gardent un gabarit');
+  });
+
+  test(nom + ' : troisieme relecture : ancien gabarit recolle plusieurs fois, ou suivi d un ajout de l utilisateur : seul le gabarit part', () => {
+    const t = COMPLET.types.find((x) => x.startsWith('single isolated 3D character, full body, T-pose neutral stance'));
+    const s = COMPLET.styles.find((x) => x.startsWith('realistic style'));
+    assert.ok(t && s);
+    assert.equal(strip(`${s}, ${s}, an orc warrior, ${t}, ${t}`), 'an orc warrior');
+    assert.equal(strip(`${s}, an orc warrior, ${t}, with a red banner, ${t}`), 'an orc warrior, with a red banner');
+    // un gabarit MODIFIE a la main n'est plus reconnu : il reste (rien n'est detruit), Generate recolle le gabarit courant
+    const modifie = t.split(', ').filter((p) => p !== 'centered').join(', ');
+    assert.equal(strip('an orc warrior, ' + modifie), 'an orc warrior, ' + modifie.split(', ').filter((p) => !/^(not|never|no)\b/i.test(p)).join(', '));
+  });
+}

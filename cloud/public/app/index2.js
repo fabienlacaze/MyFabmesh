@@ -6168,225 +6168,177 @@ function buildFullPrompt(userPrompt, assetType, assetStyle, options) {
 function stripKnownPromptSuffixes(raw) {
   if (!raw || typeof raw !== 'string') return raw || '';
   let txt = raw;
-  const allSuffixes = [
-    ...Object.values(ASSET_TYPE_PROMPTS),
-    ...Object.values(ASSET_TYPE_PREFIXES),
-    ...ASSET_TYPE_PREFIXES_ANCIENS,
-    ...Object.values(ASSET_STYLE_PROMPTS),
-  ].filter(s => s && s.length > 10);
-  // Multi-pass removal: each suffix may appear several times in legacy data.
-  let changed = true;
-  let safety = 20;
-  while (changed && safety-- > 0) {
-    changed = false;
-    for (const s of allSuffixes) {
-      const esc = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Allow an optional leading ", " so we can eat the separator we inserted.
-      const re = new RegExp('(^|,\\s*)' + esc + '(?=$|,\\s*)', 'g');
-      const next = txt.replace(re, (_, sep) => (sep === ',' || sep === ', ' ? '' : ''));
-      if (next !== txt) { txt = next; changed = true; }
+  /* GABARITS EXACTS SEULEMENT (2026-10-14, troisieme relecture du lot 2 de la langue, B4 bis). Ce nettoyage tourne au clic « Generate »
+   * (_texteUtilisateurPourGeneration, puis buildFullPrompt recolle le gabarit) et a l'ouverture d'un projet. Ses versions precedentes
+   * reconnaissaient un gabarit a un MARQUEUR (« full body », « isolated », « flat icon »...) suivi de propositions « de gabarit » prises une
+   * a une, et retiraient en plus des JETONS isoles partout dans le texte (« side view », « full body », « photorealistic »...). Un texte
+   * d'utilisateur qui en contenait perdait des propositions, sans un mot, juste avant une generation facturee : « a red dragon, full body,
+   * both wings visible » -> « a red dragon », « a lighthouse on a cliff, isolated, long shot » -> « a lighthouse on a cliff », « a red
+   * car, side view » -> « a red car ». Desormais on ne retire QUE des gabarits EXACTS connus, jamais une proposition prise seule :
+   *  1. un gabarit de TYPE ou de STYLE ENTIER — tables courantes, variantes exactes du composeur d'intention (pose libre, objet tenu :
+   *     lib/composeur-intention.js composerGabarit) et GABARITS_HISTORIQUES (tous ceux qui ont existe, releves dans l'historique git de
+   *     index2.js et de l'ancienne index.html) —, c'est-a-dire une suite de propositions identiques (casse, blancs et point final ignores),
+   *     ou qu'il soit (une ancienne generation recollait gabarit sur gabarit, et un texte ajoute APRES un gabarit reste) ;
+   *  2. EN TETE seulement, et seulement si le sujet suit : un prefixe de type (courant ou ancien) ou une ouverture des anciennes fiches
+   *     (« 3D game asset reference sheet », « full body character sheet ») ;
+   *  3. la clause d'objet tenu generee par le composeur (retirerClauseFinale) et les negations, comme avant.
+   * Un gabarit MODIFIE a la main n'est plus reconnu : il reste dans le texte (rien n'est detruit) et Generate recolle le gabarit courant.
+   * NE JAMAIS RETIRER un gabarit de GABARITS_HISTORIQUES, et y AJOUTER l'ancienne version de tout gabarit de type ou de style qu'on modifie
+   * (tests/bureau-interface/gabarits-historiques-releve-complet.json et nettoyage-gabarits-historiques.test.mjs) : sans elle, les projets
+   * crees avec elle ne seraient plus nettoyes. Fonction identique a l'octet sur le bureau et sur le site (test de parite). */
+  const cle = (p) => String(p).trim().replace(/\.+$/, '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const propositions = (g) => String(g || '').split(',').map(cle).filter(Boolean);
+  // Gabarits connus, construits UNE fois (appel a chaque frappe pour la coloration du champ) ; la signature suit les tables du module.
+  const signature = Object.values(ASSET_TYPE_PROMPTS).join('\n') + '\n\n' + Object.values(ASSET_STYLE_PROMPTS).join('\n');
+  let connus = stripKnownPromptSuffixes._gabaritsConnus;
+  if (!connus || connus.signature !== signature) {
+    const GABARITS_HISTORIQUES = [
+      '3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders',
+      '3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders',
+      '3D game asset reference sheet, full body character sheet, long shot, full figure shot, wide establishing shot, distant camera, entire creature visible from head to feet to tail, body fills 60 percent of frame, ONE creature only, single instance, isolated, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot',
+      '3D game asset reference sheet, full body character sheet, long shot, full figure shot, wide establishing shot, distant camera, entire creature visible from head to feet to tail, body fills 60 percent of frame, isolated, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot',
+      '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, exactly six legs in total, three legs on the left side and three legs on the right side, six legs and no more, anatomically correct insect leg count, segmented body with distinct head thorax and abdomen, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, NOT eight legs, NOT a spider, NOT an arachnid, no extra legs, no doubled legs, no duplicated legs, no overlapping duplicate limbs, no mirrored extra legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no humanoid posture, NOT a front head-on view, NOT a portrait, NOT a close-up, NOT a headshot, no second insect, no duplicate, no text, no UI',
+      '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, six legs, segmented body, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, top and side of the thorax and abdomen visible, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, exactly six legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no extra limbs, no humanoid posture, NOT a front head-on view, NOT a symmetric front view, NOT a portrait, NOT a close-up, NOT a headshot, no second insect, no duplicate, no text, no UI',
+      '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, six legs, segmented body, hard exoskeleton, antennae, full body view, plain white background, even studio lighting, no shadows, exactly six legs, NO tail, no fur, NOT a mammal, NOT a quadruped, NOT a cat, NOT a dog, no extra limbs, no humanoid posture, no second insect, no duplicate, no text, no UI, NOT a portrait, NOT a close-up, NOT a headshot',
+      '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, isolated, exactly six legs in total, three legs on the left side and three legs on the right side, six legs and no more, anatomically correct insect leg count, segmented body with distinct head thorax and abdomen, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, NOT eight legs, NOT a spider, NOT an arachnid, no extra legs, no doubled legs, no duplicated legs, no overlapping duplicate limbs, no mirrored extra legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no humanoid posture, NOT a front head-on view, NOT a portrait, NOT a close-up, NOT a headshot, no text, no UI',
+      'A detailed aircraft, full body, side angle, isolated on a neutral background, photorealistic, even lighting.',
+      'A detailed animal, full body, side angle, T-pose-equivalent legs apart, isolated on a neutral background, photorealistic, even lighting.',
+      'A detailed ship or boat, full body, side angle, isolated on a neutral background, photorealistic, even lighting.',
+      'ONE animal only, single creature, only one instance, isolated, full body, all four legs on the ground, natural quadruped standing pose, side angle profile view, plain white background, even studio lighting, no shadows, no human stance, no T-pose, no upright posture, centered, clean silhouette, no text, no UI, no duplicate, no second animal',
+      'ONE building only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric angle, clean silhouette, no text, no UI, no duplicate, no second building',
+      'ONE building only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second building, not a village, not a town',
+      'ONE car only, single vehicle, only one instance, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second car, no twin, no rear view inset',
+      'ONE complete boat only, single vessel, only one instance, isolated, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, even studio lighting, no shadows, no water, no wake, no horizon, centered, clean silhouette, no text, no UI, no duplicate, no second boat',
+      'ONE complete passenger aircraft only, single plane, only one instance, isolated, 3/4 isometric view, full body visible from nose to tail, both wings visible, tail fin visible, plain white background, even studio lighting, no shadows, no clouds, no horizon, no contrail, centered, clean silhouette, no text, no UI, no duplicate, no second plane, no formation',
+      'ONE creature only, single creature, one subject only, full body, isolated, plain white background, even studio lighting, no shadows, no other creatures, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second creature',
+      'ONE creature only, single instance, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate',
+      'ONE environment piece only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate',
+      'ONE item only, single item, only one instance, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate, no second item',
+      'ONE prop only, single instance, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate',
+      'ONE structure only, single structure, only one instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate, no second structure',
+      'ONE subject only, single instance, isolated, complete object, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second instance',
+      'ONE vehicle only, single vehicle, only one instance, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second vehicle, no twin',
+      'ONE weapon only, single instance, isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI, no duplicate',
+      'architectural building exterior, complete edifice, entire building visible from base to roof, wide establishing shot, long shot, distant camera, the whole structure fits inside the frame with clear margin on every side, building fills about 70 percent of frame, nothing cropped, not touching the frame edges, isolated, full structure, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town',
+      'architectural building exterior, complete edifice, isolated, full structure, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town',
+      'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, nothing cropped, plain white background, even studio lighting, no shadows, centered, strict front view, clean silhouette',
+      'blocky low-fi voxel, cubic geometry, pixelated 16x16 texture, voxel inspired',
+      'blocky voxel low-fi style, cubic geometry, pixelated 16x16 texture, voxel inspired',
+      'claymation, plasticine model, soft stop-motion surface, British stop-motion clay style, handmade charm',
+      'claymation, plasticine model, soft stop-motion surface, handmade clay-animation style, handmade charm',
+      'complete boat, isolated, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, even studio lighting, no shadows, no water, no wake, no horizon, centered, clean silhouette, no text, no UI',
+      'complete passenger aircraft, isolated, 3/4 isometric view, full body visible from nose to tail, both wings visible, tail fin visible, plain white background, even studio lighting, no shadows, no clouds, no horizon, no contrail, centered, clean silhouette, no text, no UI',
+      'complete vehicle, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI',
+      'flat icon, app icon, UI icon, isolated subject centered in square frame, transparent or pure white background, soft rim light, vibrant colors, clean silhouette, slight isometric 3/4 angle, glossy material, mobile / desktop application icon style, no text, no logo, no extra elements',
+      'full body animal, lateral profile, entire animal visible from nose to tail, all four feet on the ground, fills 60 percent of frame, plain white background, centered',
+      'full body creature, wide establishing shot, entire creature visible from head to tail, body fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
+      'full body shot from head to tail, entire creature visible head to feet, wide shot showing whole body, ONE creature only, single instance, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate, NO portrait, NO headshot, NO close-up, NO head only, NO face only',
+      'full body shot from nose to tail, entire animal visible head to feet, whole body in frame, wildlife photography of ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, wide shot, distant camera, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI, NO portrait, NO headshot, NO close-up, NO head only, NO face only, NO bust shot, NO head and shoulders',
+      'full body, isolated, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI',
+      'full structure, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+      'hand-painted texture, painterly stylized fantasy MMO style, painterly diffuse, no realistic PBR maps, vibrant',
+      'hand-painted texture, stylized MMORPG fantasy, painterly diffuse, no realistic PBR maps, vibrant',
+      'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
+      'isolated 3D character, full body, fully clothed, wearing a complete outfit, dressed in appropriate clothing, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI',
+      'isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no rear view inset',
+      'isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+      'isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+      'isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town',
+      'isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI',
+      'modern 3D animated movie style, clean stylized 3D, family-friendly polish, expressive characters',
+      'one single building, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric angle, clean silhouette, no text, no UI',
+      'one single creature, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI',
+      'one single environment piece, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, angled view, clean silhouette, no text, no UI',
+      'one single prop, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, angled view, clean silhouette, no text, no UI',
+      'one single vehicle, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, angled side view, clean silhouette, no text, no UI',
+      'one single weapon, isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI',
+      'polished 3D animated-film style, clean stylized 3D, family-friendly polish, expressive characters',
+      'single flat icon, app icon, UI icon, ONE element only, isolated subject centered in square frame, transparent or pure white background, soft rim light, vibrant colors, clean silhouette, slight isometric 3/4 angle, glossy material, mobile / desktop application icon style, no text, no logo, no duplicate, no extra elements',
+      'single isolated 3D building, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D character, full body, T-pose neutral stance, RTS unit game asset, Unreal Engine ready, plain white background, even studio lighting, no shadows, no other characters, centered, isometric three-quarter view, clean silhouette, low-poly to mid-poly stylized, vibrant colors, no text, no UI',
+      'single isolated 3D character, full body, T-pose neutral stance, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, isometric three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D character, full body, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI',
+      'single isolated 3D character, one character only, full body, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI',
+      'single isolated 3D character, one character only, full body, fully clothed, wearing a complete outfit, dressed in appropriate clothing, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI',
+      'single isolated 3D creature, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI',
+      'single isolated 3D creature, full body, neutral stance, plain white background, even studio lighting, no shadows, no other creatures, centered, isometric three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D environment piece, full structure, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D prop, full item, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D vehicle, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D weapon, full weapon, plain white background, even studio lighting, no shadows, centered, side view, clean silhouette, no text, no UI',
+      'soft hand-drawn anime style, gentle warm palette, hand-drawn animation, expressive nature',
+      'stylized PBR, hero-shooter stylized game style, hand-painted shading on PBR maps, clean game asset',
+      'stylized PBR, stylized hero-shooter game art style, hand-painted shading on PBR maps, clean game asset',
+      'voxel art, blocky voxel 3D style, cubic geometry, clean voxels',
+      'voxel art, blocky voxel-style 3D, cubic geometry, clean voxels',
+      'wildlife photography of ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, low camera angle eye-level with the animal, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI',
+      'wildlife photography of ONE animal only, single creature, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, head and tail at the same low height as the spine, tail extending behind, four legs supporting the body from below, low camera angle eye-level with the animal, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI',
+    ];
+    // lib/composeur-intention.js : CONSIGNES_TPOSE (case « T-pose » decochee) et CADRAGE_TENU (objet tenu)
+    const CONSIGNES_TPOSE = ['T-pose', 'arms extended horizontally', 'legs apart', 'symmetric', 'empty open hands'];
+    const CADRAGE_TENU = 'entire figure and held item fully visible, generous empty margins';
+    const sauf = (liste, noms) => { const bas = noms.map(cle); return liste.filter((p) => !bas.includes(p)); };
+    // Variantes EXACTES de composerGabarit pour un gabarit d'unite : objet tenu (mains vides, symetrie, centrage et silhouette retires,
+    // cadrage de l'objet ajoute), pose libre (consignes de T-pose retirees), et les deux. Sans effet sur un gabarit qui n'a pas ces mots.
+    const objetTenu = (g) => {
+      const a = sauf(g, ['empty open hands', 'symmetric']);
+      const b = sauf(a, ['centered', 'clean silhouette']);
+      return b.length !== a.length ? b.concat(propositions(CADRAGE_TENU)) : a;
+    };
+    const gabarits = new Map();   // premiere proposition -> gabarits (listes de propositions), du plus long au plus court
+    const ajouter = (g) => {
+      if (g.length < 2) return;   // un gabarit fait toujours plusieurs propositions : jamais une proposition seule
+      const k = g.join(',');
+      const deja = gabarits.get(g[0]) || [];
+      if (!deja.some((x) => x.join(',') === k)) gabarits.set(g[0], deja.concat([g]).sort((x, y) => y.length - x.length));
+    };
+    for (const brut of [...Object.values(ASSET_TYPE_PROMPTS), ...Object.values(ASSET_STYLE_PROMPTS), ...GABARITS_HISTORIQUES]) {
+      const g = propositions(brut);
+      const libre = sauf(g, CONSIGNES_TPOSE);
+      for (const v of [g, objetTenu(g), libre, objetTenu(libre)]) ajouter(v);
     }
+    const ouvertures = [...Object.values(ASSET_TYPE_PREFIXES), ...ASSET_TYPE_PREFIXES_ANCIENS,
+      '3D game asset reference sheet', 'full body character sheet'].map(propositions).filter((o) => o.length).sort((x, y) => y.length - x.length);
+    connus = { signature, gabarits, ouvertures };
+    stripKnownPromptSuffixes._gabaritsConnus = connus;
   }
-  // Token-level pass: kill any leftover canonical tokens from previous
-  // template versions (legacy projects don't match the exact current
-  // template strings, but the individual tokens still pollute the user
-  // textarea and end up doubled with the new template at gen time).
-  const KNOWN_TOKENS = [
-    // angle keywords (any version)
-    'three-quarter view', 'three quarter view', '3/4 view',
-    'angled side view', 'angled view', 'isometric three-quarter view',
-    'isometric three-quarter', 'isometric angle', 'isometric view',
-    'side view', 'side profile', 'strict front view', 'front view',
-    'facing camera',
-    // isolation / dedup tokens
-    'single isolated 3D character', 'single isolated 3D building',
-    'single isolated 3D vehicle', 'single isolated 3D weapon',
-    'single isolated 3D prop', 'single isolated 3D creature',
-    'single isolated 3D environment piece',
-    'one single character', 'one single building', 'one single vehicle',
-    'one single weapon', 'one single prop', 'one single creature',
-    'one single environment piece',
-    'ONE car only', 'ONE building only', 'ONE weapon only',
-    'ONE prop only', 'ONE creature only', 'ONE environment piece only',
-    /* PARITE (2026-10-14, seconde revue du lot 2) : 'ONE vehicle only', 'ONE structure only', 'ONE item only', 'ONE subject only',
-     * 'single structure', 'single item', 'single creature', 'complete object' et 'no second vehicle / structure / item / creature /
-     * instance' n'etaient jetons que sur le BUREAU (c68296e9, juin : ces restes d'un ancien gabarit survivaient au nettoyage). La coupe
-     * par queue de gabarit (plus bas) les retire desormais avec tout le gabarit, sur les deux plateformes ; comme jetons, ils effacaient
-     * aussi une proposition de l'utilisateur au milieu de son texte, et seulement sur le bureau (« a castle, ONE structure only, with a
-     * moat » : « a castle, with a moat » ici, intact sur le site). Meme liste que le site. */
-    'one character only', 'single vehicle', 'only one instance',
-    'single instance', 'isolated', 'complete vehicle',
-    // staging / lighting / framing
-    'plain white background', 'even studio lighting', 'no shadows',
-    'no characters', 'no other characters', 'no other creatures',
-    'centered', 'clean silhouette', 'no text', 'no UI',
-    'full body', 'full structure', 'full weapon', 'full item',
-    // dedup negatives (sometimes leak into positive)
-    'no duplicate', 'no second car', 'no second building',
-    'no twin', 'no rear view inset',
-    // T-pose tokens (legacy character)
-    'T-pose neutral stance', 'arms extended horizontally', 'legs apart',
-    'symmetric', 'RTS unit game asset', 'neutral stance',
-    // style tokens (any version)
-    'realistic style', 'photorealistic', 'sharp details',
-    'detailed materials',
-  ];
-  // (La passe des KNOWN_TOKENS tourne APRES la coupe par marqueur, plus bas : la coupe doit voir le gabarit ENTIER pour reconnaitre une
-  // queue de gabarit, 2026-10-14.)
-  /* COUPE PAR MARQUEUR -- ajoute le 2026-09-23.
-   *
-   * Les passes ci-dessus effacent le gabarit MOT POUR MOT. Un projet cree avec
-   * une version ANTERIEURE du gabarit n'est donc pas reconnu : son texte reste,
-   * et la generation lui recolle le gabarit courant. Mesure sur un projet reel
-   * (« medieval townhall ») : 193 jetons CLIP pour une limite de 77 -- 60 % du
-   * prompt ignore, en plein milieu des consignes de cadrage. D'ou des batiments
-   * coupes malgre « nothing cropped ».
-   *
-   * Le gabarit est TOUJOURS ajoute en fin de chaine. Il suffit donc de reperer
-   * son DEBUT (quelques mots stables, insensibles aux revisions) et de couper
-   * jusqu'a la fin. Insensible aux versions, present et futur. */
-  /* MARQUEURS HISTORIQUES -- ajoutes le 2026-09-23.
-   *
-   * La coupe ci-dessous se fonde sur le PREMIER segment des gabarits COURANTS.
-   * En reecrivant les gabarits ce jour-la, j'ai rendu le nettoyeur aveugle aux
-   * projets crees avant : leur texte commencait par « 3D game asset reference
-   * sheet » ou « ONE item only », phrases qui n'existent plus nulle part. Ces
-   * ouvertures sont donc gravees ici, definitivement. NE JAMAIS EN RETIRER :
-   * un projet cree en 2026 doit rester nettoyable en 2030. */
-  const MARQUEURS_HISTORIQUES = [
-    'architectural building exterior',
-    'isolated 3D character',
-    '3D game asset reference sheet',
-    'full body character sheet',
-    'ONE item only',
-    'complete passenger aircraft',
-    'complete boat',
-    'flat icon, app icon',
-    'isolated, full item',
-    'isolated, complete vehicle',
-    'isolated, full weapon',
-    'isolated, full structure',
-    /* FORMES ENTIERES des ouvertures historiques (2026-10-14, revue du lot 2 de la langue, B4). Depuis que le marqueur doit etre une
-     * proposition ENTIERE (MANQUE-03), « ONE complete boat only, single vessel, ... », « ONE complete passenger aircraft only, ... » et
-     * « single flat icon, app icon, ... » n'etaient plus reconnus : 648 prompts d'anciens projets gardaient tout leur gabarit, et
-     * Generate y recollait le gabarit courant (tests/bureau-interface/nettoyage-gabarits-historiques.test.mjs). */
-    'ONE complete boat only',
-    'ONE complete passenger aircraft only',
-    'single flat icon, app icon',
-    // Ouvertures d'anciens gabarits animal / creature / structure que le nettoyeur n'a JAMAIS reconnues (meme releve) : le gabarit
-    // restait entier, avant comme apres le lot 2.
-    'wildlife photography of ONE animal only',
-    'ONE animal only',
-    'full body shot from head to tail',
-    'full body shot from nose to tail',
-    'ONE structure only',
-    /* Ouvertures que seule la passe des KNOWN_TOKENS effacait (une proposition a la fois) : la coupe passe desormais AVANT elle et doit
-     * les reconnaitre elle-meme (2026-10-14, seconde revue du lot 2). Sans risque pour le texte de l'utilisateur : une coupe exige une
-     * queue faite UNIQUEMENT de gabarit (queueDeGabarit ci-dessous). */
-    'single isolated 3D character', 'single isolated 3D creature', 'single isolated 3D building', 'single isolated 3D vehicle',
-    'single isolated 3D weapon', 'single isolated 3D prop', 'single isolated 3D environment piece',
-    'ONE building only', 'ONE creature only', 'ONE car only', 'ONE weapon only', 'ONE prop only', 'ONE environment piece only',
-    'ONE vehicle only', 'ONE subject only', 'ONE insect only',
-    'one single building', 'one single vehicle', 'one single weapon', 'one single prop', 'one single creature',
-    'one single environment piece', 'A detailed animal', 'flat icon', 'full body', 'full item', 'isolated',
-  ];
-  const MARQUEURS_GABARIT = [
-    ...Object.values(ASSET_TYPE_PROMPTS),
-    ...Object.values(ASSET_TYPE_PREFIXES),
-    ...ASSET_TYPE_PREFIXES_ANCIENS,
-  ].filter(s => s && s.length > 20)
-   /* Le marqueur est le PREMIER segment, pas les deux premiers : en trimant le
-    * gabarit « batiment » j'ai casse ma propre coupe, parce que le 2e segment
-    * avait change (« complete edifice » -> « wide establishing shot ») alors que
-    * les projets existants portent l'ancien. Le 1er segment, lui, ne bouge pas.
-    * On garde aussi la paire, qui attrape des cas que le seul 1er segment rate. */
-   .flatMap(s => [s.split(',')[0], s.split(',').slice(0, 2).join(',')])
-   .map(m => m.trim())
-   .filter((m, i, a) => m.length > 12 && a.indexOf(m) === i);
-  /* QUEUE DE GABARIT (2026-10-14, seconde revue du lot 2 de la langue, B4). Chaque marqueur servait a « couper jusqu'a la fin » : un
-   * texte d'utilisateur qui en CONTENAIT un, suivi d'autre chose, perdait tout ce qui suivait, sans un mot, juste avant Generate (et la
-   * generation etait facturee) : « a husky, full body shot from head to tail, running in the snow » -> « a husky », « a lone wolf, ONE
-   * animal only, howling at the moon » -> « a lone wolf », « a cartoon rocket, single flat icon, app icon, with a smiling face » -> « a
-   * cartoon rocket ». Or un gabarit colle par buildFullPrompt va TOUJOURS jusqu'au bout de la chaine et n'est fait QUE de propositions de
-   * gabarit. On ne coupe donc a un marqueur que si TOUT ce qui le suit est du gabarit (propositions des tables courantes, de
-   * KNOWN_TOKENS, des marqueurs, des gabarits historiques ci-dessous, et negations), et s'il en suit au moins une. Un marqueur seul en
-   * fin de texte, ou suivi d'un texte de l'utilisateur, EST du texte de l'utilisateur : on n'y touche pas. Seules les ouvertures EN TETE
-   * (prefixes de type, anciennes fiches « 3D game asset reference sheet » qui ouvraient la chaine) sont retirees seules quand le sujet
-   * les suit. PROPOSITIONS_HISTORIQUES : propositions des 83 gabarits de type et 32 styles releves dans l'historique git qui ne sont
-   * plus dans les tables courantes (tests/bureau-interface/gabarits-historiques-nettoyage.json) ; meme liste sur le site. NE JAMAIS EN
-   * RETIRER, et y AJOUTER les propositions d'un gabarit qu'on remplace : sans elles, ses projets ne seraient plus nettoyes. */
-  const PROPOSITIONS_HISTORIQUES = [
-    'entire creature visible from head to tail', 'body fills 60 percent of frame', 'entire animal visible from nose to tail',
-    'all four feet on the ground', 'wearing a complete outfit', 'dressed in appropriate clothing', 'nothing cropped',
-    '3D game asset reference sheet', 'full body character sheet', 'long shot', 'full figure shot', 'distant camera',
-    'entire creature visible from head to feet to tail', 'flat icon', 'app icon', 'UI icon', 'transparent or pure white background',
-    'mobile / desktop application icon style', 'both wings visible', 'tail fin visible', 'full body character reference',
-    'entire animal visible from nose to tail to feet', 'full body lateral profile', 'all four feet flat on the ground',
-    'body horizontal parallel to floor', 'belly close to ground', 'four legs supporting the body from below', 'full body reference',
-    'entire insect visible', 'exactly six legs in total', 'three legs on the left side and three legs on the right side',
-    'six legs and no more', 'anatomically correct insect leg count', 'segmented body with distinct head thorax and abdomen',
-    'hard exoskeleton', 'high three-quarter angle seen from above and to the side', 'all six legs clearly visible and separated',
-    'ONE item only', 'single item', 'complete edifice', 'entire building visible from base to roof',
-    'the whole structure fits inside the frame with clear margin on every side', 'building fills about 70 percent of frame',
-    'single flat icon', 'ONE element only', 'ONE complete passenger aircraft only', 'single plane', 'ONE complete boat only',
-    'single vessel', 'ONE animal only', 'single creature with ONE single tail only', 'exactly one tail', 'ONE insect only',
-    'single arthropod', 'single creature', 'one subject only', 'ONE vehicle only', 'ONE structure only', 'single structure', 'six legs',
-    'segmented body', 'top and side of the thorax and abdomen visible', 'full body view', 'complete object',
-    'wildlife photography of ONE animal only', 'low camera angle eye-level with the animal', 'full body shot from head to tail',
-    'entire creature visible head to feet', 'wide shot showing whole body', 'full body shot from nose to tail',
-    'entire animal visible head to feet', 'whole body in frame', 'wide shot', 'head and tail at the same low height as the spine',
-    'tail extending behind', 'all four legs on the ground', 'natural quadruped standing pose', 'side angle profile view',
-    'A detailed animal', 'side angle', 'T-pose-equivalent legs apart', 'isolated on a neutral background', 'even lighting.',
-    // cadrage et vues que le composeur d'intention peut poser dans le gabarit (lib/composeur-intention.js CADRAGE_TENU, regle « vue »)
-    'entire figure and held item fully visible', 'generous empty margins', 'back view', 'seen from behind', 'in profile',
-  ];
-  const normaliserProp = (p) => String(p).trim().replace(/\.+$/, '').trim().toLowerCase();
-  // Propositions de GABARIT DE TYPE (pas de style : un style precede toujours le texte de l'utilisateur, et « steampunk », « glossy »,
-  // « watercolor painting » sont aussi des mots d'utilisateur).
-  const PROPS_GABARIT = new Set([...Object.values(ASSET_TYPE_PROMPTS), ...Object.values(ASSET_TYPE_PREFIXES), ...ASSET_TYPE_PREFIXES_ANCIENS,
-    ...KNOWN_TOKENS, ...MARQUEURS_HISTORIQUES, ...PROPOSITIONS_HISTORIQUES]
-    .flatMap((g) => String(g || '').split(',')).map(normaliserProp).filter(Boolean));
-  const queueDeGabarit = (reste) => {
-    const props = reste.split(',').map((p) => p.trim()).filter(Boolean);
-    return props.length > 0 && props.every((p) => PROPS_GABARIT.has(normaliserProp(p)) || /^(not|never|no)\b/i.test(p));
+  // Correspondance d'un gabarit a partir du morceau i (les morceaux vides d'un ancien collage « ,, » sont sautes) : fin (exclue) ou -1.
+  const correspond = (cles, i, g) => {
+    let k = i, n = 0;
+    while (n < g.length && k < cles.length) {
+      if (!cles[k]) { k++; continue; }
+      if (cles[k] !== g[n]) return -1;
+      k++; n++;
+    }
+    return n === g.length ? k : -1;
   };
-  const OUVERTURES_EN_TETE = new Set([...Object.values(ASSET_TYPE_PREFIXES), ...ASSET_TYPE_PREFIXES_ANCIENS].filter(Boolean)
-    .flatMap((s) => [s.split(',')[0], s.split(',').slice(0, 2).join(',')])
-    .concat(['3D game asset reference sheet', 'full body character sheet']).map(normaliserProp));
-  const MARQUEURS = MARQUEURS_GABARIT.concat(MARQUEURS_HISTORIQUES);
-  /* LE MARQUEUR DOIT ETRE UNE PROPOSITION ENTIERE (2026-10-13, audit de la langue MANQUE-03). Un gabarit est TOUJOURS colle par
-   * propositions separees de virgules ; le marqueur cherche n'importe ou coupait du texte legitime : « a complete boat with white
-   * sails » devenait « a », « architectural building exterior with a glass facade » perdait son debut. Le marqueur ne compte donc que
-   * s'il commence la chaine ou suit une virgule, ET s'il finit la chaine ou est suivi d'une virgule. */
-  const borne = (k, f) => (k === 0 || /,\s*$/.test(txt.slice(0, k))) && (f >= txt.length || /^\s*,/.test(txt.slice(f)));
-  // 1) Cas normal : le gabarit est colle APRES le texte de l'utilisateur et rien d'autre ne le suit. On coupe a la queue de gabarit la
-  //    plus a GAUCHE (un marqueur peut aussi se trouver au milieu d'un gabarit : couper la, c'etait en laisser le debut).
-  let coupe = -1;
-  for (const m of MARQUEURS) {
-    const cible = m.toLowerCase(), bas = txt.toLowerCase();
-    for (let k = bas.indexOf(cible, 1); k > 0 && (coupe < 0 || k < coupe); k = bas.indexOf(cible, k + 1)) {
-      if (borne(k, k + cible.length) && queueDeGabarit(txt.slice(k + cible.length))) { coupe = k; break; }
+  const morceaux = txt.split(',');
+  const cles = morceaux.map(cle);
+  // 1) gabarits de type et de style ENTIERS, ou qu'ils soient
+  for (let encore = true, garde = 0; encore && garde < 50; garde++) {
+    encore = false;
+    for (let i = 0; i < cles.length && !encore; i++) {
+      for (const g of (cles[i] && connus.gabarits.get(cles[i])) || []) {
+        const fin = correspond(cles, i, g);
+        if (fin < 0) continue;
+        morceaux.splice(i, fin - i); cles.splice(i, fin - i); encore = true;
+        break;
+      }
     }
   }
-  if (coupe > 0) txt = txt.slice(0, coupe);
-  /* 2) Ouverture EN TETE suivie du sujet (« 3D game asset reference sheet, full body character sheet, long shot, a winged dragon, NOT a
-   *    portrait », prefixe de type derriere un ancien style) : couper effacerait le sujet ; on retire le seul marqueur et on laisse les
-   *    passes suivantes nettoyer le reste. */
-  for (const m of MARQUEURS) {
-    if (!OUVERTURES_EN_TETE.has(normaliserProp(m))) continue;
-    const cible = m.toLowerCase();
-    for (let k = txt.toLowerCase().indexOf(cible); k >= 0; k = txt.toLowerCase().indexOf(cible, k + 1)) {
-      if (!borne(k, k + cible.length)) continue;
-      txt = txt.slice(0, k) + txt.slice(k + cible.length).replace(/^\s*,\s*/, '');
-      k -= 1;
+  // 2) EN TETE, si le sujet suit : prefixe de type (courant ou ancien) ou ouverture d'une ancienne fiche
+  for (let encore = true; encore;) {
+    encore = false;
+    const i = cles.findIndex((c) => c);
+    if (i < 0) break;
+    for (const o of connus.ouvertures) {
+      const fin = correspond(cles, i, o);
+      if (fin < 0 || !cles.slice(fin).some((c) => c)) continue;
+      morceaux.splice(0, fin); cles.splice(0, fin); encore = true;
+      break;
     }
   }
-  // 3) Jetons connus, une proposition a la fois.
-  for (const tok of KNOWN_TOKENS) {
-    const esc = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp('(^|,\\s*)' + esc + '(?=$|,\\s*)', 'gi');
-    txt = txt.replace(re, (_, sep) => '');
-  }
+  txt = morceaux.join(',');
   /* La clause d'objet tenu posee par buildFullPrompt (composeur d'intention) reste en queue du texte une fois le style et le gabarit
    * coupes : on la retire, sinon chaque regeneration en ajouterait une de plus. Retiree seulement si le texte restant la regenere. */
   txt = retirerClauseFinale(txt);

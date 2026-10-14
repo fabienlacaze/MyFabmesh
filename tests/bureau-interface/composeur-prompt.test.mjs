@@ -146,6 +146,29 @@ for (const [nom, chemin] of [['bureau', 'src/renderer/index2.js'], ['web', 'clou
     }
   });
 
+  /* Troisieme relecture du lot 2 (2026-10-14, B4 bis) : le nettoyage ne retire plus que des gabarits EXACTS (tables courantes et variantes
+   * exactes du composeur). L'aller-retour Enhance -> Generate doit donc redonner le texte A L'OCTET pour TOUS les gabarits que
+   * buildFullPrompt peut poser, y compris quand le texte de l'utilisateur contient des mots de gabarit (« full body », « isolated »). */
+  test(nom + ' : aller-retour Enhance -> Generate EXACT pour tous les types, tous les styles, T-pose ou pose libre, objet tenu ou non', () => {
+    const textes = ['An orc warrior', ORC, 'A knight with a sword in his left hand', 'A barbarian wielding a greatsword with both hands',
+      'a red dragon, full body, both wings visible', 'a lighthouse on a cliff, isolated, long shot', 'a flying pink pig with a green cap'];
+    const fautes = [];
+    let essais = 0;
+    for (const type of Object.keys(P.ASSET_TYPE_PROMPTS)) {
+      for (const st of Object.keys(P.ASSET_STYLE_PROMPTS)) {
+        for (const options of [undefined, { tpose: false }]) {
+          for (const t of textes) {
+            essais++;
+            const relu = P.stripKnownPromptSuffixes(P.buildFullPrompt(t, type, st, options));
+            if (relu !== t && fautes.length < 5) fautes.push(`${type} / ${st} / ${JSON.stringify(options)} : ${t} -> ${relu}`);
+          }
+        }
+      }
+    }
+    assert.ok(essais > 3000, 'essais : ' + essais);
+    assert.deepEqual(fautes, []);
+  });
+
   test(nom + " : l'option pose libre ne touche que les unites ; les autres types sont identiques", () => {
     for (const type of ['vehicle', 'building', 'weapon', 'prop', 'creature', 'animal', 'other_living']) {
       assert.equal(P.buildFullPrompt('A thing', type, 'realistic', { tpose: false }), P.buildFullPrompt('A thing', type, 'realistic'), type);
