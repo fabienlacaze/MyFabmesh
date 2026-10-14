@@ -425,7 +425,7 @@ for (const plateforme of ['bureau', 'web']) {
     const E = analyser(OUTILS_EDITION[plateforme], 'script');
     const g = E.clics.get('mApply');
     assert.ok(g, OUTILS_EDITION[plateforme] + ' : gestionnaire mask-apply introuvable');
-    const essai = async ({ traduire = traducteurOk, choix = [], fermerPendantTraduction = false } = {}) => {
+    const essai = async ({ traduire = traducteurOk, choix = [], fermerPendantTraduction = false, clics = 1 } = {}) => {
       const maskCtx = { imagePath: '/projets/P/images/a.png', onSuccess: null };
       // doublure FIDELE de _closeMask : compte les fermetures comme la vraie (voir le test « _closeMask compte les fermetures »)
       const fermer = () => {
@@ -448,7 +448,8 @@ for (const plateforme of ['bureau', 'web']) {
       }, I.journal);
       // eslint-disable-next-line no-new-func
       const h = new Function('__portee', 'with (__portee) { return (__code) => eval(__code); }')(portee)('(' + g.code + ')');
-      h();
+      // `clics` > 1 : l'utilisateur reclique sur Apply PENDANT la traduction du « Replace with » (seconde revue du 14/10)
+      for (let c = 0; c < clics; c++) h();
       // le gestionnaire est synchrone, la traduction ne l'est pas : on attend l'envoi, ou la fenetre ouverte PUIS refermee
       const modal = I.page.document.getElementById('modal-confirm');
       for (let t = 0; t < 600; t++) {
@@ -480,6 +481,12 @@ for (const plateforme of ['bureau', 'web']) {
     const fermeEchec = await essai({ traduire: traducteurEnPanne, choix: ['tel-quel'], fermerPendantTraduction: true });
     assert.equal(fermeEchec.journal.fenetres.length, 1);
     assert.equal(fermeEchec.appels('maskInpaint').length, 0, 'fenetre fermee pendant la traduction (echec, tel quel) : rien n est lance');
+    // seconde revue du 2026-10-14 (mutant survivant) : un SECOND clic sur Apply pendant la traduction est ignore ; sans la garde,
+    // deux traductions puis deux inpaints partaient (deux debits pour un seul masque)
+    const double = await essai({ clics: 3 });
+    await pause(30);
+    assert.equal(double.journal.traductions.filter((a) => !a.prechauffer).length, 1, 'une seule traduction pour trois clics');
+    assert.equal(double.appels('maskInpaint').length, 1, 'un seul inpaint (un seul debit) pour trois clics');
   });
 
   test(`${plateforme} : New project — type detecte sur la TRADUCTION ; rien de detecte = menu libre et message (MANQUE-02, CHAMPS-10)`, async () => {
