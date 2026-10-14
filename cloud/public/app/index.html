@@ -3417,8 +3417,10 @@
       <div style="display:flex; align-items:center; gap:12px;">
         <div id="cpick-swatch" style="width:48px; height:48px; border-radius:8px; border:2px solid var(--border);"></div>
         <div>
-          <div id="cpick-hex" style="font-size:18px; font-weight:700; font-family:monospace;"></div>
-          <div id="cpick-rgb" style="font-size:11px; color:var(--text-2); white-space:nowrap;"></div>
+          <!-- Valeurs (jamais traduites, toujours de gauche a droite) : sans translate="no", l'arabe les entourait de
+               caracteres d'isolation invisibles et « Copy HEX » copiait « #a1b2c3 » entoure de U+2068 / U+2069 (revue du 2026-10-14). -->
+          <div id="cpick-hex" translate="no" dir="ltr" style="font-size:18px; font-weight:700; font-family:monospace;"></div>
+          <div id="cpick-rgb" translate="no" dir="ltr" style="font-size:11px; color:var(--text-2); white-space:nowrap;"></div>
         </div>
         <span style="flex:1;"></span>
       </div>

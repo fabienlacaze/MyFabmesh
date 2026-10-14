@@ -101,4 +101,37 @@ for (const cible of ['web', 'bureau']) {
       assert.ok(!ISOLATION.test(v), `${cible}/${L} : ${JSON.stringify(v)}`);
     }
   });
+
+  test(`${cible} : arabe — la pipette garde « #a1b2c3 » tel quel (pas de caracteres d'isolation dans ce que copie Copy HEX)`, async () => {
+    const zone = zoneHtml(lire(PAGE[cible]), 'modal-colorpick');
+    assert.ok(zone && zone.includes('id="cpick-hex"'), 'pipette introuvable');
+    const p = page(cible, 'ar', zone);
+    await p.attendre();
+    assert.equal(p.fenetre.FabI18n.rtl, true);
+    const hex = p.document.getElementById('cpick-hex');
+    const rgb = p.document.getElementById('cpick-rgb');
+    hex.textContent = '#a1b2c3';     // comme _cpSample (index2.js)
+    rgb.textContent = 'rgb(161, 178, 195)';
+    await p.attendre();
+    assert.equal(hex.textContent, '#a1b2c3');
+    assert.equal(rgb.textContent, 'rgb(161, 178, 195)');
+    assert.equal(hex.getAttribute('dir'), 'ltr', 'valeur affichee de gauche a droite');
+  });
+
+  test(`${cible} : refus du serveur — un NOM d'un mot apres « Prefixe: » garde son texte ; « HTTP 503: <message> » est traduit`, async () => {
+    for (const L of ['es', 'fr', 'ar']) {
+      const fm = page(cible, L).fenetre.FabMessages;
+      const ex = fm.traduire('Export failed: Settings');
+      assert.notEqual(ex, 'Export failed: Settings', `${L} : le prefixe doit etre traduit`);
+      assert.ok(/Settings/.test(ex), `${L} : le nom choisi par l'utilisateur a change : ${ex}`);
+      // les refus d'un mot passent toujours par leur code
+      assert.ok(!/unauthorized/.test(fm.traduire('Failed: unauthorized')), L);
+      const MSG = 'Cloud generation is paused for now — your credits are safe and you were not charged. Please try again later.';
+      const h = fm.traduire('HTTP 503: ' + MSG);
+      assert.ok(h.startsWith('HTTP 503: '), `${L} : ${h}`);
+      assert.ok(!h.includes('Cloud generation is paused'), `${L} : message reste en anglais : ${h}`);
+      assert.equal(fm.traduire('HTTP 404: zorglub'), 'HTTP 404: zorglub', 'message inconnu : texte d origine');
+    }
+    assert.equal(page(cible, 'en').fenetre.FabMessages.traduire('HTTP 503: anything'), 'HTTP 503: anything');
+  });
 }

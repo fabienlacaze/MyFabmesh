@@ -104,24 +104,39 @@
     return null;
   }
 
-  function traduire(texte) {
+  // `detail` : le texte est la SUITE d'un « Prefixe: » (etape 3). Revue du 2026-10-14 : le detail repassait par le
+  // dictionnaire entier, et un NOM choisi par l'utilisateur change de texte (« Export failed: Settings » devenait
+  // « Error en la exportación: Ajustes »). Un detail d'un seul mot n'est donc plus cherche tel quel dans le
+  // dictionnaire : les refus d'un mot (« unauthorized », « forbidden ») passent par leur CODE (etape 2), le reste
+  // (nom de projet, de fichier, d'outil) garde son texte. Limite assumee : un nom de plusieurs mots identique a un
+  // libelle de l'interface serait encore traduit.
+  function traduire(texte, detail) {
     const brut = String(texte == null ? '' : texte);
     const i = I();
     const s = brut.trim();
     if (!s || !i || i.lang === 'en') return brut;
     // 1. texte connu tel quel
-    const direct = t(s);
-    if (direct !== s) return direct;
+    if (!detail || /\s/.test(s)) {
+      const direct = t(s);
+      if (direct !== s) return direct;
+    }
     // 2. refus reconnu par son code
     const info = reconnaitre(s);
     if (info && GABARITS[info.code]) return GABARITS[info.code](info.params || {});
+    // 2 bis. « HTTP 503: <message> » (getJSON de meshyAPI-cloud.js pendant un sondage) : le statut reste tel quel, le
+    //    message est traduit. Avant (revue du 2026-10-14), le prefixe cachait le message aux etapes 1 et 2.
+    const http = s.match(/^(HTTP \d{3}): ([\s\S]+)$/);
+    if (http) {
+      const suite = traduire(http[2]);
+      return suite.trim() !== http[2].trim() ? http[1] + ': ' + suite : brut;
+    }
     // 3. « <Prefixe>: <detail> » : n'importe quel prefixe court (premier « : ») dont le gabarit est traduit.
     //    Avant (2026-10-13 matin) seuls « … failed: » / « … error: » l'etaient : « Error: … », « Failed: … »,
     //    « Server not responding: … » restaient en anglais malgre leur gabarit traduit dans les cinq langues.
     const deux = s.indexOf(': ');
     if (deux > 0 && deux <= 80 && s.lastIndexOf('\n', deux) < 0) {
       const gabarit = s.slice(0, deux) + ': {x}';
-      if (connu(gabarit)) return tf(gabarit, traduire(s.slice(deux + 2)));
+      if (connu(gabarit)) return tf(gabarit, traduire(s.slice(deux + 2), true));
     }
     return brut;
   }
