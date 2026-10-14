@@ -24,9 +24,10 @@ PARITE. Les listes ci-dessous sont GENEREES depuis nsfw_filter.ts (build/moderat
 fonctions suivent le TypeScript ligne a ligne. Differences voulues entre JS et Python, toutes neutralisees :
 `\\s` (JS et Python n'ont pas la meme definition : _WS ci-dessous est celle de JS), `$` (Python l'accepte
 avant un saut de ligne final : on emploie `\\Z`), `\\p{..}` (absent du module re : categories lues par unicodedata),
-longueur d'une chaine (JS compte en unites UTF-16). Reste une difference de TABLES : le Python de Modal (3.11) connait
-Unicode 14, le moteur JavaScript une version plus recente ; un caractere attribue apres Unicode 14 est efface ici (et par
-CLIP, qui tourne dans ce meme Python) mais pas forcement par le worker. Le test build/bancs/noyaux/test_moderation_modal.py
+longueur d'une chaine (JS compte en unites UTF-16). Les TABLES Unicode different (le Python de Modal, 3.11, connait
+Unicode 14, le moteur JavaScript une version plus recente) : depuis le 2026-10-14 (revue du lot, B3), les points de code non
+assignes en Unicode 14 sont effaces des deux cotes par une table FIGEE (NON_ASSIGNES_U14, generee par
+build/moderation_modal/gen_non_assignes_u14.py), quelle que soit la version du moteur. Le test build/bancs/noyaux/test_moderation_modal.py
 rejoue les memes jeux de cas que cloud/tests/moderation.test.mjs ET compare ce module au TypeScript sur un corpus
 (si node est present).
 
@@ -59,7 +60,31 @@ _MARQUES_DISTINCTIVES = frozenset("\u0303\u0309\u031b\u0323")
 
 
 def _efface(c):
-    return unicodedata.category(c)[0] == "C" or c in _EFFACES_HORS_C
+    if unicodedata.category(c)[0] == "C" or c in _EFFACES_HORS_C:
+        return True
+    cp = ord(c)
+    return cp >= 0x378 and _non_assigne_u14(cp)
+
+
+def _non_assigne_u14(cp):
+    """Point de code NON ASSIGNE en Unicode 14 (table NON_ASSIGNES_U14, partagee avec le TypeScript : revue du 14/10, B3).
+    Avec le Python 3.11 de Modal, c'est exactement la categorie Cn ; avec un Python plus recent, la table garde la meme regle.
+    Recherche par dichotomie (la plage dont le debut est le dernier <= cp)."""
+    bas, haut = 0, len(_DEBUTS_U14)
+    while bas < haut:
+        milieu = (bas + haut) // 2
+        if _DEBUTS_U14[milieu] <= cp:
+            bas = milieu + 1
+        else:
+            haut = milieu
+    return bas > 0 and cp <= _FINS_U14[bas - 1]
+
+
+def _sans_non_assignes(s):
+    """Retire les points de code non assignes en Unicode 14 (AVANT NFKC, comme le TypeScript)."""
+    if s.isascii():
+        return s
+    return "".join(c for c in s if ord(c) < 0x378 or not _non_assigne_u14(ord(c)))
 
 
 def _sans_effaces(s):
@@ -143,6 +168,11 @@ def _longueur_js(s):
 
 #@@LISTES@@
 
+# ── Points de code non assignes en Unicode 14 (table fixe partagee avec le TypeScript) ──────────────
+_BORNES_U14 = tuple((int(p.split("-")[0], 16), int(p.split("-")[-1], 16)) for p in NON_ASSIGNES_U14)
+_DEBUTS_U14 = tuple(a for a, _ in _BORNES_U14)
+_FINS_U14 = tuple(b for _, b in _BORNES_U14)
+
 # ── Chiffres Unicode (table fixe partagee avec le TypeScript) ──────────────
 _ZEROS = tuple(int(h, 16) for h in ZEROS_CHIFFRES)
 
@@ -165,8 +195,9 @@ def _chiffres_ascii(s):
 
 
 def _nettoyer(texte):
-    """Etape commune a toutes les vues : NFKC, blancs de controle -> espace, effacement, chiffres en ASCII, minuscules."""
-    s = unicodedata.normalize("NFKC", _en_texte(texte))
+    """Etape commune a toutes les vues : points de code non assignes en Unicode 14 effaces (AVANT NFKC), NFKC, blancs de
+    controle -> espace, effacement, chiffres en ASCII, minuscules."""
+    s = unicodedata.normalize("NFKC", _sans_non_assignes(_en_texte(texte)))
     s = _sans_effaces(_RE_BLANCS_CONTROLE.sub(" ", s))
     return _chiffres_ascii(s).lower()
 
@@ -197,6 +228,8 @@ def _translit(s):
 
 # Mots isoles qui contiennent un terme du filtre sans en etre un (liste IDIOMES generee), retires du texte simplifie.
 _IDIOMES = re.compile(r"(?:^| )(?:" + "|".join(IDIOMES) + r")(?= |\Z)")
+# Racines d'idiomes (liste IDIOMES_RACINES generee) : seule la racine est retiree, la fin du mot reste lue (revue du 14/10, B2).
+_IDIOMES_RACINES = re.compile(r"(?:^| )(?:" + "|".join(IDIOMES_RACINES) + r")(?=[a-z]*(?: |\Z))")
 # Expressions sures (liste EXPRESSIONS_SURES generee) : le mot marque « ! » est le SEUL retire, les autres restent lus ; une
 # expression n'est reconnue qu'ecrite telle quelle (espaces, tirets ou soulignes entre les mots), avant la simplification.
 _SEPARATEUR_EXPRESSION = "[ _-]+"
@@ -242,9 +275,9 @@ def _sans_expressions_sures(s):
 
 
 def _simple(s):
-    """Tout ce qui n'est pas [a-z0-9] devient un espace ; espaces compactes ; idiomes retires."""
+    """Tout ce qui n'est pas [a-z0-9] devient un espace ; espaces compactes ; idiomes retires (racines : la fin du mot reste)."""
     s = " " + _RE_NON_ALNUM.sub(" ", s).strip(" ") + " "
-    return _RE_WS.sub(" ", _IDIOMES.sub(" ", s)).strip(" ")
+    return _RE_WS.sub(" ", _IDIOMES_RACINES.sub(" ", _IDIOMES.sub(" ", s))).strip(" ")
 
 
 def _joindre(s):
@@ -360,8 +393,8 @@ def _vue_unicode(net):
     return _RE_ESPACES.sub(" ", "".join(sortie)).strip(" ")
 
 
-def _vues_plancher(prompt):
-    net = _nettoyer(prompt)
+def _vues_plancher(net):
+    """Vues du plancher a partir du texte NETTOYE (`_nettoyer`)."""
     t = _sans_expressions_sures(_translit(_sans_marques(net)))
 
     def assembler(x):
@@ -384,6 +417,28 @@ def _vues_plancher(prompt):
         "exacte": _vue_exacte(net),
         "unicode": _RE_IDIOMES_UNICODE.sub(" ", _vue_unicode(net)),
     }
+
+
+# Syntaxe de poids COLLEE dans un mot (revue du 14/10, B1) : « na()ked », « (na)(ked) », « (na:1)(ked:1) ». Seconde vue ou cette
+# syntaxe, prise entre deux caracteres de mot (lettre, chiffre, marque), est retiree SANS espace ; le texte tel quel reste lu.
+_RE_SYNTAXE_POIDS = re.compile(r"(?:[()\[\]]|:[+-]?[0-9.]*\))+")
+
+
+def _car_mot(c):
+    return bool(c) and unicodedata.category(c)[0] in "LNM"
+
+
+def _sans_syntaxe_collee(net):
+    """Texte nettoye sans la syntaxe de poids prise entre deux caracteres de mot (meme texte s'il n'y en a pas)."""
+    if not any(c in net for c in "()[]"):
+        return net
+
+    def remplacer(m):
+        avant = net[m.start() - 1] if m.start() > 0 else ""
+        apres = net[m.end()] if m.end() < len(net) else ""
+        return "" if _car_mot(avant) and _car_mot(apres) else m.group(0)
+
+    return _RE_SYNTAXE_POIDS.sub(remplacer, net)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -508,7 +563,8 @@ _NB_APRES_PREFIXE = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES_SURS + ")" + _PAS_G
 _UNITE_ROMANE = (_alt(UNITES_AGE_ROMANES) + "(?![a-z])(?! " + _alt(COMPLEMENTS_DE) + " (?!" + _alt(MOTS_AGE)
                  + "(?![a-z]))[a-z])")
 _UNITE = "(?:" + _alt(UNITES_AGE) + "(?![a-z])|" + _UNITE_ROMANE + ")"
-_RE_AGE = re.compile("(?:^| )" + _NB + " ?" + _UNITE + "|(?:^| )" + _alt(PREFIXES_AGE) + " ?" + _NB_APRES_PREFIXE
+_RE_AGE = re.compile("(?:^| )" + _NB + " ?" + _UNITE + "|(?:^| )" + _alt(PREPOSITIONS_AGE) + " " + _NB + " ?"
+                     + _alt(UNITES_AGE_ROMANES) + "(?![a-z])|(?:^| )" + _alt(PREFIXES_AGE) + " ?" + _NB_APRES_PREFIXE
                      + "(?![a-z0-9])" + "|(?:^| )" + _alt(NOMBRES_COMPOSES_DE) + "jahrig")
 _RE_NAISSANCE = re.compile("(?:^| )" + _alt(_par_longueur(PREFIXES_NAISSANCE)) + " ((?:19|20)[0-9][0-9])(?![0-9])")
 _NB_CHIFFRES_U = "(?<![0-9])(?:1[0-7]|0?[0-9])(?! ?[0-9])"
@@ -538,6 +594,8 @@ T_NU_MOYEN = _compiler(NU_MOYEN, "plancher")
 T_NU_FAIBLE_PLANCHER = _compiler(NU_FAIBLE_PLANCHER, "plancher")
 T_NU_FAIBLE_GENERAL = _compiler(NU_FAIBLE_GENERAL, "mineur_violence")
 T_SEXE_MINEUR_FORT = _compiler(SEXE_MINEUR_FORT, "plancher")
+T_DOUBLE_SENS_COQ = _compiler(DOUBLE_SENS_COQ, "plancher")
+T_CONTEXTE_BASSE_COUR = _compiler(CONTEXTE_BASSE_COUR, "plancher")
 T_VIOLENCE_ENFANT_PLANCHER = _compiler(VIOLENCE_ENFANT_PLANCHER, "plancher")
 T_PLANCHER_MOTS = _compiler(PLANCHER_MOTS, "plancher")
 T_PLANCHER_UNICODE = _compiler_unicode(PLANCHER_UNICODE, "plancher")
@@ -578,7 +636,16 @@ def check_hard_floor(prompt):
     """Contenu illicite (mineurs) qu'AUCUN reglage, `unrestricted` compris, ne peut lever.
     Plus strict que le filtre general sur les formes (normalisation, ages, langues), mais sans
     vocabulaire de jeu video (« kid friendly », « young hero », « teen titans style » passent)."""
-    v = _vues_plancher(prompt)
+    net = _nettoyer(prompt)
+    r = _plancher(_vues_plancher(net))
+    if not r["safe"]:
+        return r
+    # Seconde lecture sans la syntaxe de poids collee dans un mot (« na()ked » : revue du 14/10, B1).
+    colle = _sans_syntaxe_collee(net)
+    return r if colle == net else _plancher(_vues_plancher(colle))
+
+
+def _plancher(v):
     vues = [v["chiffres"], v["leetI"], v["leetL"]]
     uni = [v["unicode"]]
 
@@ -619,6 +686,9 @@ def check_hard_floor(prompt):
         if mineur_fort or age:
             if _chercher(vues, T_SEXE_MINEUR_FORT):
                 return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
+            # « cock » lu « coq » quand un mot de basse-cour est la (« a farm kid feeding a cock and two hens »)
+            if _chercher(vues, T_DOUBLE_SENS_COQ) and not _chercher(vues, T_CONTEXTE_BASSE_COUR):
+                return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
             if _chercher(vues, T_NU_FAIBLE_PLANCHER) or _chercher(uni, T_NU_FAIBLE_UNICODE):
                 return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
             if _chercher(vues, T_VIOLENCE_ENFANT_PLANCHER) or _chercher(uni, T_VIOLENCE_UNICODE):
@@ -637,10 +707,14 @@ def check_prompt_safety(prompt, unrestricted=False):
     if unrestricted:
         return {"safe": True}              # `unrestricted` ne leve que les filtres SOUPLES
 
-    base = _base(prompt)
-    souple = _simple(_sans_expressions_sures(base))   # texte tel quel (sans translitteration)
-    v = _vues_plancher(prompt)
+    net = _nettoyer(prompt)
+    souple = _simple(_sans_expressions_sures(_sans_marques(net)))   # texte tel quel (sans translitteration)
+    v = _vues_plancher(net)
     toutes = [souple, v["chiffres"], v["leetI"], v["leetL"]]   # l'explicite est teste sur les formes deguisees aussi
+    # ... et sur la vue sans syntaxe de poids collee dans un mot (revue du 14/10, B1)
+    colle = _sans_syntaxe_collee(net)
+    vc = None if colle == net else _vues_plancher(colle)
+    explicites = toutes + [vc["chiffres"], vc["leetI"], vc["leetL"]] if vc else toutes
 
     def refus(t):
         return {"safe": False, "blocked": _nom(t), "categorie": t.cat,
@@ -653,8 +727,9 @@ def check_prompt_safety(prompt, unrestricted=False):
 
     # 1. Termes explicites (sexe, nudite) : mots entiers, y compris deguises ; mots courts sur la vue exacte ; autres
     #    ecritures sur la vue Unicode.
-    sexuel = (_chercher(toutes, T_SEXUEL_DUR) or _chercher([v["exacte"]], T_SEXUEL_EXACTS)
-              or _chercher([v["unicode"]], T_SEXUEL_UNICODE))
+    sexuel = (_chercher(explicites, T_SEXUEL_DUR)
+              or _chercher([v["exacte"], vc["exacte"]] if vc else [v["exacte"]], T_SEXUEL_EXACTS)
+              or _chercher([v["unicode"], vc["unicode"]] if vc else [v["unicode"]], T_SEXUEL_UNICODE))
     if sexuel:
         return refus(sexuel)
     # 2. Autres familles bloquees seules (gore explicite, drogues dures, terrorisme, haine, auto-agression, armes).
@@ -711,6 +786,7 @@ _RE_POIDS = re.compile(":[" + _WS + "]*([+-]?[0-9.]*)[" + _WS + "]*\\)")
 _RE_NOMBRE = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)")
 _RE_JETON_OUVRANT = re.compile("<[" + _WS + "]*\\|")
 _RE_JETON_FERMANT = re.compile("\\|[" + _WS + "]*>")
+_RE_ENTITE_HTML = re.compile("&(?=[#A-Za-z])")
 
 
 def longueur_ponderee(texte):
@@ -731,10 +807,11 @@ def controler_longueur_prompt(texte, max_=PROMPT_MAX_CARACTERES):
 
 def neutraliser_syntaxe_prompt(texte):
     """Texte tel qu'il part au generateur : caracteres effaces retires (\\t \\n \\r -> espace), jetons speciaux du tokenizer
-    (« <|endoftext|> », « <|startoftext|> ») casses, poids A1111 « (mot:x) » ramenes dans [POIDS_PROMPT_MIN,
-    POIDS_PROMPT_MAX] (un poids mal forme est retire). Un poids deja dans les bornes est laisse tel quel."""
+    (« <|endoftext|> », « <|startoftext|> ») casses, references de caractere HTML cassees (« &#110; » -> « & #110; » : avec
+    ftfy, le tokenizer CLIP les decode), poids A1111 « (mot:x) » ramenes dans [POIDS_PROMPT_MIN, POIDS_PROMPT_MAX] (un poids
+    mal forme est retire). Un poids deja dans les bornes est laisse tel quel."""
     s = _sans_effaces(_RE_BLANCS_CONTROLE.sub(" ", _en_texte(texte)))
-    s = _RE_JETON_FERMANT.sub(" ", _RE_JETON_OUVRANT.sub(" ", s))
+    s = _RE_ENTITE_HTML.sub("& ", _RE_JETON_FERMANT.sub(" ", _RE_JETON_OUVRANT.sub(" ", s)))
 
     def poids(m):
         nb = m.group(1)
