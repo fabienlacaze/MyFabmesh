@@ -43,6 +43,8 @@ NOMS = [
     'DUREES_NON_AGE', 'ADJECTIFS_JEUNESSE', 'CLASSES_ORDINAUX', 'ELEVES_CLASSE', 'MOJIBAKE_EFFACES',
     # 2026-10-14 (troisieme relecture : lecture « production », gardes des tournures, mineurs construits)
     'TRANSLIT_HORS_PRODUCTION', 'GARDE_POSSESSIFS', 'GARDE_ARRETS', 'GARDE_CHANTIER', 'AVANT_ESCOLAR', 'NOMBRES_CLASSE',
+    # 2026-10-14 (quatrieme relecture : gardes du coq, personnes qui desactivent les expressions sures balisees)
+    'GARDE_DEBUTS_COQ', 'GARDE_COQ', 'PERSONNES_DESACTIVATION',
 ]
 
 src = io.open(TS, encoding='utf-8').read().replace('\r\n', '\n')

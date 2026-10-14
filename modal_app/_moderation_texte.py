@@ -177,9 +177,9 @@ def _longueur_js(s):
 
 
 MINEURS_FORT = (
-    "child", "children", "childlike", "child like", "kid", "kids", "kiddo", "kiddie", "kiddy", "infant", "infants",
-    "baby", "babies", "toddler*", "preteen*", "pre teen*", "tween*", "teen", "teens", "teenage*", "teenager*",
-    "minor", "minors", "underage", "under age", "juvenile*", "prepubescent", "pubescent", "schoolgirl*", "schoolboy*",
+    "child", "children", "childlike", "child like", "kid", "kids", "kiddo", "kiddie", "kiddy", "infant*", "baby",
+    "babies", "toddler*", "preteen*", "pre teen*", "tween*", "teen", "teens", "teenage*", "teenager*", "minor",
+    "minors", "underage", "under age", "juvenile*", "prepubescent", "pubescent", "schoolgirl*", "schoolboy*",
     "school girl*", "school boy*", "schoolchild*", "little girl*", "little boy*", "small girl*", "small boy*",
     "young girl*", "young boy*", "young lad*", "young teen*", "young looking", "looks young", "looking young",
     "kindergarten*", "preschool*", "elementary school", "primary school", "middle school", "junior high",
@@ -228,8 +228,8 @@ MINEURS_INDICES = (
 )
 
 MINEURS_VIOLENCE = (
-    "child", "children", "kid", "kids", "baby", "babies", "infant", "infants", "toddler*", "enfant*", "bebe*",
-    "nino*", "nina*", "kinder*", "crianca*", "bambin*",
+    "child", "children", "kid", "kids", "baby", "babies", "infant*", "toddler*", "enfant*", "bebe*", "nino*", "nina*",
+    "kinder*", "crianca*", "bambin*",
 )
 
 NU_FORT = (
@@ -264,15 +264,14 @@ NU_FORT = (
     "nackig*", "fkk", "geschlechtsverkehr", "vergewaltig*", "ficken", "fickt", "gefickt", "seminu", "seminus",
     "seminua", "seminuas", "seminude*", "seminudo*", "seminuda*", "seminudi", "sem roupa*", "calcinha*",
     "roupa intima", "peitos", "seios", "pelad*", "de cueca", "de cuecas", "em cueca", "em cuecas", "despido",
-    "despida", "despidos", "despidas", "nuazinh*", "trajes intimos", "estupr*", "nudo", "nudi", "nudita", "spogliat",
-    "spogliata", "spogliato", "spogliati", "spogliate", "spogliarsi", "spogliarell*", "svestit*", "senza vestiti",
-    "senza vestito", "senza abiti", "seno nudo", "seni nudi", "nuda", "sessuale", "sesso", "mutande", "mutandin*",
-    "mutandon*", "provocante", "seni", "tette", "biancheria intima", "perizoma", "seno scoperto",
-    "senza niente addosso", "nudin*", "in slip", "*ciplak*", "soyunmus", "soyunuk", "seks", "seksi", "seksuel*",
-    "erotik*", "ic camasir*", "kulot*", "tecavuz*", "taciz*", "cinsel*", "mustehcen*", "naakt*", "ontkleed*",
-    "ondergoed*", "seksueel*", "nagie", "nago", "nagich", "nagosc*", "rozebran*", "bielizn*", "seksualn*",
-    "telanjang", "bugil", "cabul*", "pakaian dalam", "pemerkosa*", "mesum", "khoa than", "khieu dam", "do lot",
-    "hiep dam",
+    "despida", "despidos", "despidas", "nuazinh*", "trajes intimos", "estupr*", "nudo", "nudi", "nudita", "spogliat*",
+    "spogliarsi", "spogliarell*", "svestit*", "senza vestiti", "senza vestito", "senza abiti", "seno nudo",
+    "seni nudi", "nuda", "sessuale", "sesso", "mutande", "mutandin*", "mutandon*", "provocante", "seni", "tette",
+    "biancheria intima", "perizoma", "seno scoperto", "senza niente addosso", "nudin*", "in slip", "*ciplak*",
+    "soyunmus", "soyunuk", "seks", "seksi", "seksuel*", "erotik*", "ic camasir*", "kulot*", "tecavuz*", "taciz*",
+    "cinsel*", "mustehcen*", "naakt*", "ontkleed*", "ondergoed*", "seksueel*", "nagie", "nago", "nagich", "nagosc*",
+    "rozebran*", "bielizn*", "seksualn*", "telanjang", "bugil", "cabul*", "pakaian dalam", "pemerkosa*", "mesum",
+    "khoa than", "khieu dam", "do lot", "hiep dam",
 )
 
 NU_EXACTS = (
@@ -314,9 +313,9 @@ SEXE_MINEUR_FORT = (
 
 VIOLENCE_ENFANT_PLANCHER = (
     "abuse*", "abusing", "hurt", "hurting", "beaten", "beating", "beat up", "punch*", "slap*", "whip*", "torture*",
-    "tortur*", "rape", "rapes", "raped", "raping", "molest*", "strangl*", "suffocat*", "mutilat*", "dismember*",
-    "murder*", "frapp*", "battu*", "maltrait*", "viole", "violee", "violer", "agress*", "abus", "abuso*",
-    "misshandl*", "missbrauch*", "spank*", "gagged", "istismar*",
+    "tortur*", "rape*", "raped", "raping", "molest*", "strangl*", "suffocat*", "mutilat*", "dismember*", "murder*",
+    "frapp*", "battu*", "maltrait*", "viole", "violee", "violer", "agress*", "abus", "abuso*", "misshandl*",
+    "missbrauch*", "spank*", "gagged", "istismar*",
 )
 
 PLANCHER_MOTS = (
@@ -542,7 +541,9 @@ NOMBRES_AMBIGUS = (
 )
 
 GRANDS_NOMBRES = (
-    "[0-9]", "thousands?", "hundreds?", "millions?", "billions?", "dozens?", "mille", "milles", "cents?", "milliers?",
+   
+    "[0-9]{3}(?: [0-9]{3})* (?:years?|yrs?|ans|anos|anni|annees|anys|jahre|jahren|mois|months?|meses|mesi|siecles?|centuries|century)",
+    "thousands?", "hundreds?", "millions?", "billions?", "dozens?", "mille", "milles", "cents?", "milliers?",
     "milliards?", "mil", "miles", "millones", "millon", "tausend", "hundert", "millionen", "milliarden", "mila",
     "cento", "centinaia", "milioni", "centenas?", "centenares", "milhares", "milhoes", "milhao",
 )
@@ -591,7 +592,7 @@ PREFIXES_AGE_UNICODE = (
 )
 
 IDIOMES = (
-    "snaked", "pornic", "nacktkatzen?",
+    "snaked", "pornic", "nacktkatzen?", "infantr(?:y|ies|yman|ymen)", "infanter(?:ia|ias|ie|ist|isten)", "infantaria",
 )
 
 EXPRESSIONS_SURES = (
@@ -604,12 +605,14 @@ EXPRESSIONS_SURES = (
     "cap !guns?", "!bedroom (?:furniture|set|sets|decor|decoration|lamp|wallpaper|interior|design)",
     "!suicide doors?", "!opium popp(?:y|ies)", "!gore tex", "counter !terrorists?", "counter !terrorism",
     "anti !terrorists?", "!(?:knife|knives) and forks?", "bunk !beds?", "hospital !beds?", "!spanking new",
-    "!sperm whales?", "bottle !nipples?", "!pussy cats?", "!pussy willows?", "moby !dick", "!dick whittington",
-    "!anal fins?", "!cum laude", "wild !ass(?:es)?", "!senos? paranasal[a-z]*", "pieds? !nu(?:e|s|es)?",
-    "!nus? pieds?", "mains? !nues?", "tetes? !nues?", "oeil !nu", "bras !nus?", "jambes? !nues?", "arbres? !nus?",
-    "branches? !nues?", "murs? !nus?", "sols? !nus?", "lames? !nues?", "epees? !nues?", "fils? !nus?",
-    "cables? !nus?", "!culottes? courtes?", "ciels? !nus?", "pieces? !nues?", "paredes? !nuas?", "stanz[ae] !nud[ae]",
-    "mur[io] !nud[oi]", "paret[ei] !nud[ae]", "(?:paint|varnish|wire|floor|wallpaper) !strippers?",
+    "!sperm whales?", "<mineur><personne> bottle !nipples?", "<mineur><personne> !pussy cats?",
+    "<mineur><personne> !pussy willows?", "<personne> moby !dick", "<personne> !dick whittington",
+    "<personne> !anal fins?", "<mineur><personne> !cum laude", "<personne> wild !ass(?:es)?",
+    "<mineur><personne> !senos? paranasal[a-z]*", "<mineur> !rapeseeds?", "pieds? !nu(?:e|s|es)?", "!nus? pieds?",
+    "mains? !nues?", "tetes? !nues?", "oeil !nu", "bras !nus?", "jambes? !nues?", "arbres? !nus?", "branches? !nues?",
+    "murs? !nus?", "sols? !nus?", "lames? !nues?", "epees? !nues?", "fils? !nus?", "cables? !nus?",
+    "!culottes? courtes?", "ciels? !nus?", "pieces? !nues?", "paredes? !nuas?", "stanz[ae] !nud[ae]",
+    "mur[io] !nud[oi]", "paret[ei] !nud[ae]", "<personne> (?:paint|varnish|wire) !strippers?",
     "(?:blank|dilated|slit|vertical|glowing|red|golden|gold|green|blue|empty|cat|catlike|feline|reptilian|snake|goat|pinpoint|eye|eyes) !pupils?",
     "!pupils? of (?:the|his|her|its|their|an|a) eyes?", "!pupils? of eyes?", "!pupils? dilat(?:ed|ing|ion|es|e)",
     "!pupil dilation",
@@ -631,10 +634,11 @@ EXPRESSIONS_SURES = (
     "<coq> (?:hens?|chickens?|chicks?|pullets?|poultry|ducks?|geese|turkeys?) (?:and|or|with) !cocks?",
     "<coq> (?:hens?|chickens?|chicks?|pullets?|poultry|ducks?|geese|turkeys?) (?:and|or|with) (?:a|an|the|one|two|its|their) !cocks?",
     "<coq> !cocks? (?:crowing|crows|crowed|crow)", "<coq> (?:crowing|crowed) !cocks?", "<coq> weather !cocks?",
-    "<coq> !cock a doodle doo", "oilseed !rapes?",
-    "!rape (?:field|fields|flower|flowers|plant|plants|crop|crops|seed|seeds|oil|blossom|blossoms)",
-    "fields? of !rape", "yellow !rape", "!peladas? de (?:futebol|futsal|bola|rua|praia|varzea|domingo)",
-    "(?:jogo|jogos) de !peladas?", "(?:jogar|jogando|jogamos|joga) !peladas?",
+    "<coq> !cock a doodle doo", "<mineur> oilseed !rapes?",
+    "<mineur> !rape (?:field|fields|flower|flowers|plant|plants|crop|crops|seed|seeds|oil|blossom|blossoms)",
+    "<mineur> fields? of !rape", "<mineur> yellow !rape",
+    "<mineur> !peladas? de (?:futebol|futsal|bola|rua|praia|varzea|domingo)", "<mineur> (?:jogo|jogos) de !peladas?",
+    "<mineur> (?:jogar|jogando|jogamos|joga) !peladas?",
 )
 
 IDIOMES_EXACTS = (
@@ -690,25 +694,24 @@ GENERAL_SEXUEL_DUR = (
     "only body paint", "scantily clad", "barely clothed", "*desnud*", "*nackt*", "nudo", "nuda", "nudi", "nudita",
     "seminu", "seminus", "seminua", "seminuas", "seminude*", "seminudo*", "seminuda*", "seminudi", "denud*",
     "deshabill*", "*pornograf*", "*pornograph*", "erotisch*", "sinnlich*", "senos", "titten", "tetas", "tette",
-    "spogliat", "spogliata", "spogliato", "spogliati", "spogliate", "spogliarsi", "spogliarell*", "svestit*",
-    "blowjob*", "blow job*", "handjob*", "hand job*", "footjob*", "foot job*", "titjob*", "titfuck*", "rimjob*",
-    "anilingus", "intercourse", "coitus", "copulat*", "sodomy", "sodomiz*", "sodomis*", "semen", "sperm", "cumshot*",
-    "bukkake", "gang bang*", "bestiality", "zoophil*", "necrophil*", "incest*", "fisting", "butt plug*", "buttplug*",
-    "vulva*", "labia", "clitor*", "clit", "clits", "areola*", "scrotum*", "testicle*", "phallus*", "pubic hair",
-    "pubes", "private parts", "intimate parts", "molest*", "raped", "raping", "rapist*", "rape scene*", "striptease*",
-    "strip tease*", "strip club*", "lap dance*", "making love", "make love", "kama sutra", "doggy style",
-    "doggystyle", "missionary position", "camel toe", "nip slip", "skinny dipping", "in the buff", "nudis*", "milf",
-    "milfs", "futanari", "shemale*", "dominatrix", "ball gag*", "ballgag*", "panties", "touching himself",
-    "touching herself", "lifting her skirt", "upskirt", "sous vetement*", "en petite tenue", "devetu*", "tenue d eve",
-    "plus simple appareil", "sans rien sur le dos", "partouze*", "calzon", "calzoncillo*", "calzoncito*",
-    "en pelotas", "sin nada puesto", "follar", "follando", "unterhose*", "schlupfer*", "reizwasche", "entblosst*",
-    "barbusig*", "nackig*", "fkk", "geschlechtsverkehr", "vergewaltig*", "ficken", "gefickt", "pelad*", "despida",
-    "despidas", "estupr*", "mutande", "mutandin*", "mutandon*", "perizoma", "senza niente addosso", "nudin*",
-    "*ciplak*", "soyunmus", "tecavuz*", "mustehcen*", "naakt*", "ontkleed*", "nagie", "rozebran*", "telanjang",
-    "bugil", "pemerkosa*", "khoa than", "khieu dam", "hiep dam", "the rape", "a rape", "rape of", "rapes of",
-    "gang rape*", "rape victim*", "le viol", "un viol", "du viol", "au viol", "les viols", "des viols",
-    "viol collectif", "viols collectifs", "violeur*", "femme violee", "femmes violees", "fille violee",
-    "filles violees", "stupr*",
+    "spogliat*", "spogliarsi", "spogliarell*", "svestit*", "blowjob*", "blow job*", "handjob*", "hand job*",
+    "footjob*", "foot job*", "titjob*", "titfuck*", "rimjob*", "anilingus", "intercourse", "coitus", "copulat*",
+    "sodomy", "sodomiz*", "sodomis*", "semen", "sperm", "cumshot*", "bukkake", "gang bang*", "bestiality", "zoophil*",
+    "necrophil*", "incest*", "fisting", "butt plug*", "buttplug*", "vulva*", "labia", "clitor*", "clit", "clits",
+    "areola*", "scrotum*", "testicle*", "phallus*", "pubic hair", "pubes", "private parts", "intimate parts",
+    "molest*", "raped", "raping", "rapist*", "rape scene*", "striptease*", "strip tease*", "strip club*",
+    "lap dance*", "making love", "make love", "kama sutra", "doggy style", "doggystyle", "missionary position",
+    "camel toe", "nip slip", "skinny dipping", "in the buff", "nudis*", "milf", "milfs", "futanari", "shemale*",
+    "dominatrix", "ball gag*", "ballgag*", "panties", "touching himself", "touching herself", "lifting her skirt",
+    "upskirt", "sous vetement*", "en petite tenue", "devetu*", "tenue d eve", "plus simple appareil",
+    "sans rien sur le dos", "partouze*", "calzon", "calzoncillo*", "calzoncito*", "en pelotas", "sin nada puesto",
+    "follar", "follando", "unterhose*", "schlupfer*", "reizwasche", "entblosst*", "barbusig*", "nackig*", "fkk",
+    "geschlechtsverkehr", "vergewaltig*", "ficken", "gefickt", "pelad*", "despida", "despidas", "estupr*", "mutande",
+    "mutandin*", "mutandon*", "perizoma", "senza niente addosso", "nudin*", "*ciplak*", "soyunmus", "tecavuz*",
+    "mustehcen*", "naakt*", "ontkleed*", "nagie", "rozebran*", "telanjang", "bugil", "pemerkosa*", "khoa than",
+    "khieu dam", "hiep dam", "the rape", "a rape", "rape of", "rapes of", "gang rape*", "rape victim*", "le viol",
+    "un viol", "du viol", "au viol", "les viols", "des viols", "viol collectif", "viols collectifs", "violeur*",
+    "femme violee", "femmes violees", "fille violee", "filles violees", "stupr*",
 )
 
 GENERAL_CTX_SEXUEL = (
@@ -953,6 +956,35 @@ NOMBRES_CLASSE = (
     "4", "5", "6", "7", "8", "9", "10", "11", "12",
 )
 
+GARDE_DEBUTS_COQ = (
+    "a", "an", "the", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "some", "many",
+    "several", "few", "this", "that", "these", "those", "each", "every", "another", "and", "or", "near", "beside",
+    "among", "of", "in", "on", "at", "from", "to", "for", "behind", "under", "over", "between", "around", "next",
+    "by", "into", "onto", "red", "brown", "golden", "gold", "speckled", "proud", "old", "farm", "barnyard",
+    "domestic", "wild",
+)
+
+GARDE_COQ = (
+    "with", "has", "had", "have", "having", "got", "holding", "holds", "hold", "held", "sucking", "sucks", "suck",
+    "sucked", "licking", "licks", "lick", "licked", "stroking", "strokes", "stroke", "stroked", "touching", "touches",
+    "touch", "touched", "grabbing", "grabs", "grab", "grabbed", "rubbing", "rubs", "rub", "rubbed", "riding", "rides",
+    "ride", "rode", "showing", "shows", "show", "showed", "shown", "kissing", "kisses", "kiss", "kissed", "eating",
+    "eats", "eat", "ate", "tasting", "tastes", "taste", "playing", "plays", "play", "played", "jerking", "jerks",
+    "jerk", "jerked", "pulling", "pulls", "pull", "pulled", "fondling", "fondles", "fondle", "worshipping",
+    "worshiping", "gagging", "choking", "chokes", "deepthroating", "blowing", "blows", "blow", "squeezing",
+    "squeezes", "squeeze", "massaging", "massages", "massage", "swallowing", "swallows", "swallow", "milking",
+    "milks", "pumping", "sitting", "sits", "sat", "bouncing", "inside", "into", "big", "bigger", "huge", "hard",
+    "large", "long", "giant", "massive", "thick", "fat", "erect", "throbbing", "veiny", "enormous", "monster",
+    "juicy", "wet", "hairy", "black", "white", "naked", "nude", "sexy",
+)
+
+PERSONNES_DESACTIVATION = (
+    "women", "men", "people", "persons", "someone", "somebody", "he", "she", "him", "her", "his", "hers", "herself",
+    "himself", "guy", "guys", "gal", "gals", "ladies", "females", "males", "dancer*", "model", "models", "wife",
+    "husband", "girlfriend", "boyfriend", "mother", "father", "mom", "dad", "sister", "brother", "teacher", "nurse",
+    "maid", "waitress", "farmer*", "worker*", "elle", "il", "ella", "el", "sie", "er", "ela", "ele", "lei", "lui",
+)
+
 
 # ── Points de code non assignes en Unicode 14 (table fixe partagee avec le TypeScript) ──────────────
 _BORNES_U14 = tuple((int(p.split("-")[0], 16), int(p.split("-")[-1], 16)) for p in NON_ASSIGNES_U14)
@@ -980,6 +1012,23 @@ def _chiffres_ascii(s):
             for z in _ZEROS:
                 if z <= cp <= z + 9:
                     rendu = str(cp - z)
+                    break
+        sortie.append(rendu)
+    return "".join(sortie)
+
+
+def _chiffres_separes(s):
+    """Chiffres decimaux de la table (hors ASCII) -> espace : lectures « production » et « separee » (quatrieme relecture, R2)."""
+    if s.isascii():
+        return s
+    sortie = []
+    for c in s:
+        cp = ord(c)
+        rendu = c
+        if cp >= 0x80:
+            for z in _ZEROS:
+                if z <= cp <= z + 9:
+                    rendu = " "
                     break
         sortie.append(rendu)
     return "".join(sortie)
@@ -1079,7 +1128,9 @@ def _cle_expression(e):
 # Gardes des tournures de ferme et de chantier (troisieme relecture du 14/10, B3) : lues sur les MOTS qui precedent la tournure
 # (listes GARDE_* generees ; meme regle que `_gardeExpression` du TypeScript). Une expression marquee « <coq> » ou « <chantier> »
 # n'est pas retiree si sa garde trouve un de ces mots.
-_RE_GARDE_EXPRESSION = re.compile("<([a-z]+)> ")
+# Balises (quatrieme relecture du 14/10) : <coq>, <chantier> = gardes locales ; <mineur>, <personne> = desactivation (voir
+# `_vues_desactivees` et `check_prompt_safety`). Plusieurs balises possibles (« <a><b> »).
+_RE_GARDE_EXPRESSION = re.compile("((?:<[a-z]+>)+) ")
 
 
 def _garde_expression(garde, avant):
@@ -1089,14 +1140,19 @@ def _garde_expression(garde, avant):
         return False
     if garde == "chantier":
         return any(m in GARDE_CHANTIER for m in mots[-2:])
-    if mots[-1].endswith("s"):
+    dernier = mots[-1]
+    if dernier.endswith("s"):
+        return True
+    # quatrieme relecture du 14/10 (R5) : determinant, nombre, preposition ou adjectif de basse-cour juste avant ; aucun verbe ni
+    # adjectif de GARDE_COQ dans le groupe nominal ni dans les deux mots qui precedent son article
+    if dernier not in GARDE_DEBUTS_COQ and not dernier.isdigit():
         return True
     i, n = len(mots) - 1, 0
     while i >= 0 and n < 6:
-        if mots[i] in GARDE_POSSESSIFS:
+        if mots[i] in GARDE_POSSESSIFS or mots[i] in GARDE_COQ:
             return True
         if mots[i] in GARDE_ARRETS:
-            return False
+            return any(m in GARDE_COQ for m in mots[max(0, i - 2):i])
         i -= 1
         n += 1
     return False
@@ -1105,8 +1161,10 @@ def _garde_expression(garde, avant):
 def _compiler_expression_sure(e):
     g = _RE_GARDE_EXPRESSION.match(e)
     corps = e[g.end():] if g else e
+    balises = tuple(g.group(1)[1:-1].split("><")) if g else ()
+    garde = next((b for b in balises if b in ("coq", "chantier")), "")
     regex = _SEPARATEUR_EXPRESSION.join(("(?:" + m[1:] + ")") if m.startswith("!") else ("(" + m + ")") for m in corps.split(" "))
-    return _cle_expression(corps), (g.group(1) if g else ""), re.compile("(^|[^a-z0-9])" + regex + "(?![a-z0-9])")
+    return _cle_expression(corps), garde, balises, re.compile("(^|[^a-z0-9])" + regex + "(?![a-z0-9])")
 
 
 _RE_EXPRESSIONS_SURES = [_compiler_expression_sure(e) for e in EXPRESSIONS_SURES]
@@ -1129,12 +1187,13 @@ def _garder_mots_garde(m, garde):
     return _garder_mots(m)
 
 
-def _sans_expressions_sures(s):
+def _sans_expressions_sures(s, desactivees=()):
     """Expressions sures (mot marque retire, les autres gardes) et « baby <animal> » -> « young <animal> ». Sur le texte AVANT
-    simplification : la ponctuation y separe encore les mots."""
+    simplification : la ponctuation y separe encore les mots. Une expression qui porte une balise de `desactivees` (« mineur »,
+    « personne ») est laissee telle quelle."""
     r = _RE_BEBE_ANIMAL.sub(r"\1young ", s) if ("baby" in s or "bebe" in s) else s
-    for cle, garde, expression in _RE_EXPRESSIONS_SURES:
-        if cle in r:
+    for cle, garde, balises, expression in _RE_EXPRESSIONS_SURES:
+        if cle in r and not any(b in desactivees for b in balises):
             r = expression.sub(_garder_mots if not garde else (lambda m, g=garde: _garder_mots_garde(m, g)), r)
     return r
 
@@ -1216,7 +1275,7 @@ def _hors_ascii_en_x(s):
     return "".join(c if ord(c) < 0x80 else ("x" if unicodedata.category(c)[0] == "L" else " ") for c in s)
 
 
-def _vue_exacte(net):
+def _vue_exacte(net, desactivees=()):
     """VUE EXACTE pour les mots COURTS « nu », « nue », « nua »... : une lettre a marque distinctive (crochet, tilde, corne,
     point souscrit) ou d'une autre ecriture devient « x » ; les accents francais sont retires."""
     s = unicodedata.normalize("NFD", net)
@@ -1237,8 +1296,14 @@ def _vue_exacte(net):
         else:
             sortie.append(c)
         i = j
-    s = _sans_expressions_sures(_hors_ascii_en_x(_translit("".join(sortie))))
-    return _RE_ESPACES.sub(" ", _RE_IDIOMES_EXACTS.sub(" ", _simple(s))).strip(" ")
+    s = _sans_expressions_sures(_hors_ascii_en_x(_translit("".join(sortie))), desactivees)
+    # assemblee comme les autres vues du plancher (quatrieme relecture du 14/10, R3) : « n.u.e », « nuuue », « nu3 »
+    vues = []
+    for x in (s, _leet(s, "i"), _leet(s, "l")):
+        v = _RE_ESPACES.sub(" ", _RE_IDIOMES_EXACTS.sub(" ", _ecraser(_joindre(_simple(_joindre_ponctue(x)))))).strip(" ")
+        if v not in vues:
+            vues.append(v)
+    return vues
 
 
 def _vue_unicode(net):
@@ -1280,9 +1345,9 @@ def _separees(vues):
     return sortie
 
 
-def _vues_plancher(net):
+def _vues_plancher(net, desactivees=()):
     """Vues du plancher a partir du texte NETTOYE (`_nettoyer`)."""
-    t = _sans_expressions_sures(_translit(_sans_marques(net)))
+    t = _sans_expressions_sures(_translit(_sans_marques(net)), desactivees)
 
     def assembler(x):
         return _joindre(_simple(_joindre_ponctue(x)))
@@ -1294,7 +1359,7 @@ def _vues_plancher(net):
     t_l = _leet(t, "l")
     non_ecrasees = [assembler(t), assembler(t_i), assembler(t_l)]
     chiffres, leet_i, leet_l = _ecraser(non_ecrasees[0]), _ecraser(non_ecrasees[1]), _ecraser(non_ecrasees[2])
-    exacte = _vue_exacte(net)
+    exactes = _vue_exacte(net, desactivees)
     uni = _vue_unicode(net)
     # vue Unicode, puis la meme sans les espaces entre deux ideogrammes han (troisieme relecture du 14/10)
     unicode = [uni] + [x for x in (_RE_ESPACE_HAN.sub("", uni),) if x != uni]
@@ -1307,7 +1372,7 @@ def _vues_plancher(net):
                    + _series(_simple(_joindre_ponctue(t_l)))),
         "nonEcrasees": non_ecrasees,
         "separees": _separees([chiffres, leet_i, leet_l]),
-        "exactes": [exacte] + _separees([exacte]),
+        "exactes": exactes + [x for x in _separees(exactes) if x not in exactes],
         "unicode": [_RE_IDIOMES_UNICODE.sub(" ", _RE_FRONTIERE_CHIFFRE_UNICODE.sub(" ", x)) for x in unicode],
     }
 
@@ -1405,7 +1470,8 @@ def _nettoyer_lecture(brut, mode):
         s = unicodedata.normalize("NFKC", _symboles_separes(_effacer_lecture(_sans_references_html(s), mode), mode))
     # marques restees seules apres la composition : separateurs (la production effacait celles de U+0300-036F)
     s = "".join(((" " if not (mode == "production" and 0x300 <= ord(c) <= 0x36F) else "") if _est_marque(c) else c) for c in s)
-    s = _chiffres_ascii(s).lower()
+    # chiffres non ASCII : separateurs pour la production et la lecture « separee » (quatrieme relecture du 14/10, R2)
+    s = (_chiffres_separes(s) if mode in ("production", "separee") else _chiffres_ascii(s)).lower()
     # apres les minuscules : « Ħ » et « Ա » deviennent « ħ » et « ա », absents des tables de la production
     return "".join(" " if c in _TRANSLIT_HORS_PRODUCTION else c for c in s) if mode == "production" else s
 
@@ -1612,6 +1678,7 @@ T_DURS_AUTRES = _fusionner(
     _compiler(GENERAL_HAINE_DUR, "haine"), _compiler(GENERAL_ARMES_DUR, "armes"),
 )
 T_PERSONNES = _compiler(PERSONNES, "combinaison")
+T_PERSONNES_DESACTIVATION = _fusionner(T_PERSONNES, _compiler(PERSONNES_DESACTIVATION, "combinaison"))
 T_NUDITE_EXTREME = _compiler(NUDITE_EXTREME, "combinaison")
 T_VIOLENCE_ENFANT_GENERAL = _compiler(VIOLENCE_ENFANT_GENERAL, "mineur_violence")
 _PLANCHER_COLLES_ECRASES = tuple(_RE_REPETE2.sub(r"\1", s) for s in PLANCHER_COLLES)
@@ -1631,7 +1698,47 @@ def check_hard_floor(prompt):
     Plus strict que le filtre general sur les formes (normalisation, ages, langues), mais sans
     vocabulaire de jeu video (« kid friendly », « young hero », « teen titans style » passent)."""
     # Toutes les lectures du texte, sans la syntaxe de poids collee dans un mot comprise (« na()ked » : revue du 14/10, B1).
-    return _plancher(_lire(prompt)[1])
+    return _plancher_lecture(*_lire(prompt))
+
+
+def _vues_desactivees(nets, vs, desactivees):
+    """Vues SANS les expressions sures portant une balise de `desactivees` (quatrieme relecture du 14/10, R4, R5) ; les vues
+    d'origine quand aucune de ces expressions n'est dans le texte."""
+    if not desactivees:
+        return vs
+    textes = [_translit(_sans_marques(n)) for n in nets]
+    touche = any(any(b in desactivees for b in balises) and any(cle in t for t in textes)
+                 for cle, _g, balises, _e in _RE_EXPRESSIONS_SURES)
+    return [_vues_plancher(n, desactivees) for n in nets] if touche else vs
+
+
+def _plancher_lecture(nets, vs):
+    """Plancher : quand un mineur ou un age est lu, les expressions balisees <mineur> ne retirent plus leur mot."""
+    r = _plancher(vs)
+    if not r["safe"] or not _mineur_lu(vs):
+        return r
+    vs2 = _vues_desactivees(nets, vs, ("mineur",))
+    return r if vs2 is vs else _plancher(vs2)
+
+
+def _signaux_mineur(vs):
+    """Signaux de mineur du plancher (mineur_fort, mineur_ambigu, indice, age), sur les vues reunies."""
+    vues = [x for v in vs for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]]
+    uni = [x for v in vs for x in v["unicode"]]
+    mineur_fort = bool(_chercher(vues, T_MINEURS_FORT) or _chercher(uni, T_MINEURS_FORT_UNICODE)
+                       or any(_RE_MINEURS_CONSTRUITS.search(x) for x in vues))
+    mineur_ambigu = bool(_chercher(vues, T_MINEURS_AMBIGUS) or _chercher(uni, T_MINEURS_AMBIGUS_UNICODE))
+    indice = bool(_chercher(vues, T_MINEURS_INDICES))
+    # « une fille, 10 ans de guerre, au bain » : avec un mineur ambigu NOMME ou un indice, « N ans de <duree> » compte aussi
+    age_large = (any(_RE_AGE_ROMAN_LARGE.search(x) for x in vues)
+                 if (indice or _chercher(vues, T_MINEURS_AMBIGUS_NOMS)) else False)
+    age = bool(age_large or any(_RE_AGE.search(x) or _age_par_naissance(x) for x in vues)
+               or any(_RE_AGE_UNICODE.search(x) for x in uni))
+    return mineur_fort, mineur_ambigu, indice, age
+
+
+def _mineur_lu(vs):
+    return any(_signaux_mineur(vs))
 
 
 def _plancher(vs):
@@ -1663,15 +1770,7 @@ def _plancher(vs):
         return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
 
     # 2. Mineur x nudite / sexe, mineur x violence exercee sur lui.
-    mineur_fort = (_chercher(vues, T_MINEURS_FORT) or _chercher(uni, T_MINEURS_FORT_UNICODE)
-                   or any(_RE_MINEURS_CONSTRUITS.search(x) for x in vues))
-    mineur_ambigu = _chercher(vues, T_MINEURS_AMBIGUS) or _chercher(uni, T_MINEURS_AMBIGUS_UNICODE)
-    indice = _chercher(vues, T_MINEURS_INDICES)
-    # « une fille, 10 ans de guerre, au bain » : avec un mineur ambigu NOMME ou un indice, « N ans de <duree> » compte aussi
-    age_large = (any(_RE_AGE_ROMAN_LARGE.search(x) for x in vues)
-                 if (indice or _chercher(vues, T_MINEURS_AMBIGUS_NOMS)) else False)
-    age = (age_large or any(_RE_AGE.search(x) or _age_par_naissance(x) for x in vues)
-           or any(_RE_AGE_UNICODE.search(x) for x in uni))
+    mineur_fort, mineur_ambigu, indice, age = _signaux_mineur(vs)
     if mineur_fort or age or mineur_ambigu or indice:
         explicite = (_chercher(vues, T_NU_FORT) or _chercher(exactes, T_NU_EXACTS) or _chercher(uni, T_NU_FORT_UNICODE)
                      or _chercher(uni, T_NU_SUGGESTIF_UNICODE))
@@ -1695,17 +1794,25 @@ def _plancher(vs):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def check_prompt_safety(prompt, unrestricted=False):
-    nets, vs = _lire(prompt)
-    floor = _plancher(vs)
+    nets, vs0 = _lire(prompt)
+    floor = _plancher_lecture(nets, vs0)
     if not floor["safe"]:
         return floor                       # plancher illicite : jamais contournable
     if unrestricted:
         return {"safe": True}              # `unrestricted` ne leve que les filtres SOUPLES
 
+    # Expressions sures balisees (quatrieme relecture du 14/10, R4, R5) : <mineur> ignorees quand un mineur ou un age est lu,
+    # <personne> (decapant) quand une personne ou un mineur est nomme.
+    mineur_lu = _mineur_lu(vs0)
+    personne_lue = mineur_lu or bool(_chercher([x for v in vs0 for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]],
+                                               T_PERSONNES_DESACTIVATION))
+    desactivees = ("mineur", "personne") if mineur_lu else (("personne",) if personne_lue else ())
+    vs = _vues_desactivees(nets, vs0, desactivees)
+
     # Toutes les lectures du texte (troisieme relecture du 14/10), chacune aussi sans la syntaxe de poids collee (revue, B1).
     # textes tels quels (sans translitteration), et coupes entre lettres et chiffres (un chiffre arabe-indien que la production
     # lisait comme un separateur devient un chiffre ASCII, que CLIP lit seul)
-    bruts = [_simple(_sans_expressions_sures(_sans_marques(n))) for n in nets]
+    bruts = [_simple(_sans_expressions_sures(_sans_marques(n), desactivees)) for n in nets]
     souples = bruts + [x for x in _separees(bruts) if x not in bruts]
     # l'explicite est teste sur les formes deguisees aussi
     toutes = souples + [x for v in vs for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]]

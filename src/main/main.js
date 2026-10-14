@@ -474,6 +474,17 @@ const __filtreModeration = (() => {
    *    apres un determinant ou un adjectif (« una joven escolar », « mi escolar »), « a grade one girl », « a girl from first
    *    grade » ; la liste plate NSFW_KEYWORDS n'a plus les tournures que l'interface lit sans contexte (« a rape field » : colza).
    *
+   * 2026-10-14 — QUATRIEME RELECTURE DU LOT (bloquants R1 a R5 ; meme critere : aucun recul par rapport a f86208c0) :
+   *  - R1 : un chiffre qui suit l'age ne l'annule plus (« aged 12, 2 ponytails », « (aged:1.3) 12 ») : seul un groupe de TROIS
+   *    chiffres suivi d'une unite (« aged 10 000 years ») fait un grand nombre (`GRANDS_NOMBRES`).
+   *  - R2 : chiffres non ASCII entre les mots : separateurs dans les lectures « production » et « separee » (`_chiffresSepares`) ;
+   *    la lecture « production » est de nouveau fidele a f86208c0 sur ce point.
+   *  - R3 : la vue exacte (« nu », « nue », « nua »...) est assemblee comme les autres : lettres separees ou repetees, leet.
+   *  - R4 : expressions sures balisees <mineur> (colza, « pelada », « bottle <nipples> »...) ignorees quand un mineur ou un age est
+   *    lu ; R5 : balisees <personne> (decapant, mots sexuels) ignorees dans le filtre general quand une personne est nommee ; garde
+   *    du coq durcie (determinant juste avant, aucun verbe ni adjectif de `GARDE_COQ`).
+   *  - Racines de la production retablies : « infant* », « rape* », « spogliat* » (« infantry » et « rapeseed » a part).
+   *
    * Le contrat de retour ne change pas : { safe, blocked?, reason? }. Deux
    * champs OPTIONNELS s'y ajoutent (IA-04) pour que l'appelant puisse compter
    * les blocages par compte : `categorie` et `hardFloor`.
@@ -605,6 +616,16 @@ const __filtreModeration = (() => {
           return c;
       });
   }
+  /** Chiffres decimaux de la table (hors ASCII) -> espace : lectures « production » et « separee » (quatrieme relecture, R2). */
+  function _chiffresSepares(s) {
+      return s.replace(/[^\x00-\x7f]/gu, (c) => {
+          const cp = c.codePointAt(0);
+          for (const z of _ZEROS)
+              if (cp >= z && cp <= z + 9)
+                  return ' ';
+          return c;
+      });
+  }
   // CE QUE ftfy REPARE AVANT LE TOKENIZER CLIP (2026-10-14, seconde relecture du lot). Avec ftfy (le tokenizer CLIP l'emploie s'il
   // est installe), « &#110;aked », « ＆#110;aked », « &amp;#110;aked » deviennent le mot entier, et un caractere efface ecrit en
   // MOJIBAKE (ses octets UTF-8 lus en Windows-1252 : « naï»¿ked » pour U+FEFF) est repare puis retire. Le filtre lit donc le
@@ -725,7 +746,9 @@ const __filtreModeration = (() => {
   // SANS barre oblique inverse (les listes sont extraites telles quelles pour le port Python). 2026-10-13 : chaque ajout a ete
   // verifie sur le tokenizer CLIP, qui ne lit pas le terme dans le mot (« nudeln » -> nu|del|n, « snaked » -> sn|aked,
   // « pornic » -> por|nic, « nacktschnecke » -> n|ack|t|sch...).
-  const IDIOMES = ['snaked', 'pornic', 'nacktkatzen?'];
+  // 2026-10-14 (quatrieme relecture) : « infant* », « rape* » et « spogliat* » redeviennent des RACINES, comme en production (le leet
+  // « 1nf4n711 », « rapeds » passaient) ; « infantry » est retire ici, « rapeseed » par une expression sure balisee <mineur>.
+  const IDIOMES = ['snaked', 'pornic', 'nacktkatzen?', 'infantr(?:y|ies|yman|ymen)', 'infanter(?:ia|ias|ie|ist|isten)', 'infantaria'];
   const _IDIOMES = new RegExp('(?:^| )(?:' + IDIOMES.join('|') + ')(?= |$)', 'g');
   // RACINES d'idiomes suivies d'une fin de mot quelconque (« Nudeln », « Nudelholz », « Nacktschnecken », « spogliatoio ») : SEULE
   // la racine est retiree, la fin reste un mot lu (revue du 14/10, B2). Avant, « nudel[a-z]* » effacait le jeton entier, mot colle
@@ -753,15 +776,24 @@ const __filtreModeration = (() => {
       'toy !(?:guns?|swords?|knife|knives|weapons?|bows?)', 'water !guns?', 'nerf !guns?', 'squirt !guns?', 'cap !guns?',
       '!bedroom (?:furniture|set|sets|decor|decoration|lamp|wallpaper|interior|design)', '!suicide doors?', '!opium popp(?:y|ies)',
       '!gore tex', 'counter !terrorists?', 'counter !terrorism', 'anti !terrorists?', '!(?:knife|knives) and forks?', 'bunk !beds?',
-      'hospital !beds?', '!spanking new', '!sperm whales?', 'bottle !nipples?', '!pussy cats?', '!pussy willows?', 'moby !dick',
-      '!dick whittington', '!anal fins?', '!cum laude', 'wild !ass(?:es)?', '!senos? paranasal[a-z]*',
+      'hospital !beds?',
+      // mot retire SEXUEL que la production lisait (quatrieme relecture du 14/10) : balises <mineur> (pas avec un mineur ou un age :
+      // « a 9 year old, bottle <nipples> » etait refuse au plancher par la production) et <personne> (pas dans le filtre general avec
+      // une personne nommee : « a woman licking <pussy> cats ») ; seulement la ou la production lisait le mot (« sperm », « spanking »
+      // n'etaient dans aucune de ses listes)
+      '!spanking new', '!sperm whales?', '<mineur><personne> bottle !nipples?',
+      '<mineur><personne> !pussy cats?', '<mineur><personne> !pussy willows?', '<personne> moby !dick',
+      '<personne> !dick whittington', '<personne> !anal fins?', '<mineur><personne> !cum laude',
+      '<personne> wild !ass(?:es)?', '<mineur><personne> !senos? paranasal[a-z]*', '<mineur> !rapeseeds?',
       // francais, portugais, italien : « nu » au sens de « a decouvert », sans personne denudee (« pieds nus », « tete nue »)
       'pieds? !nu(?:e|s|es)?', '!nus? pieds?', 'mains? !nues?', 'tetes? !nues?', 'oeil !nu', 'bras !nus?', 'jambes? !nues?',
       'arbres? !nus?', 'branches? !nues?', 'murs? !nus?', 'sols? !nus?', 'lames? !nues?', 'epees? !nues?', 'fils? !nus?', 'cables? !nus?',
       '!culottes? courtes?', 'ciels? !nus?', 'pieces? !nues?', 'paredes? !nuas?', 'stanz[ae] !nud[ae]', 'mur[io] !nud[oi]',
       'paret[ei] !nud[ae]',
       // 2026-10-14 (revue, B4) : decapant, pupilles de l'oeil, Asie Mineure, ciment (indonesien), « pelada » (football, portugais)
-      '(?:paint|varnish|wire|floor|wallpaper) !strippers?',
+      // decapant, outil (quatrieme relecture du 14/10, R5) : « floor stripper », « wallpaper stripper » retires (aussi un metier) ; balise
+      // <personne> : pas dans le filtre general quand une personne ou un mineur est nomme (« a woman with paint stripper »)
+      '<personne> (?:paint|varnish|wire) !strippers?',
       // seulement des mots qui designent l'oeil (« small pupils », « black pupils » peuvent etre des eleves : « pupils » y reste lu)
       '(?:blank|dilated|slit|vertical|glowing|red|golden|gold|green|blue|empty|cat|catlike|feline|reptilian|snake|goat|pinpoint|eye|eyes) !pupils?',
       '!pupils? of (?:the|his|her|its|their|an|a) eyes?', '!pupils? of eyes?', '!pupils? dilat(?:ed|ing|ion|es|e)', '!pupil dilation',
@@ -797,9 +829,11 @@ const __filtreModeration = (() => {
       '<coq> (?:hens?|chickens?|chicks?|pullets?|poultry|ducks?|geese|turkeys?) (?:and|or|with) !cocks?', '<coq> (?:hens?|chickens?|chicks?|pullets?|poultry|ducks?|geese|turkeys?) (?:and|or|with) (?:a|an|the|one|two|its|their) !cocks?',
       '<coq> !cocks? (?:crowing|crows|crowed|crow)', '<coq> (?:crowing|crowed) !cocks?', '<coq> weather !cocks?', '<coq> !cock a doodle doo',
       // colza (« oilseed rape », « a field of rape ») : le mot reste lu partout ailleurs
-      'oilseed !rapes?', '!rape (?:field|fields|flower|flowers|plant|plants|crop|crops|seed|seeds|oil|blossom|blossoms)', 'fields? of !rape',
-      'yellow !rape',
-      '!peladas? de (?:futebol|futsal|bola|rua|praia|varzea|domingo)', '(?:jogo|jogos) de !peladas?', '(?:jogar|jogando|jogamos|joga) !peladas?',
+      // balise <mineur> (quatrieme relecture du 14/10, R4) : expression ignoree quand un mineur ou un age est lu (« child rape fields »)
+      '<mineur> oilseed !rapes?', '<mineur> !rape (?:field|fields|flower|flowers|plant|plants|crop|crops|seed|seeds|oil|blossom|blossoms)',
+      '<mineur> fields? of !rape', '<mineur> yellow !rape',
+      '<mineur> !peladas? de (?:futebol|futsal|bola|rua|praia|varzea|domingo)', '<mineur> (?:jogo|jogos) de !peladas?',
+      '<mineur> (?:jogar|jogando|jogamos|joga) !peladas?',
   ];
   const _SEPARATEUR_EXPRESSION = '[ _-]+';
   /** Cle LITTERALE d'une expression : la plus longue suite de lettres en tete d'un de ses mots, que toute correspondance contient
@@ -827,7 +861,30 @@ const __filtreModeration = (() => {
       'of', 'in', 'on', 'at', 'from', 'to', 'for', 'behind', 'under', 'over', 'between', 'around', 'next'];
   // <chantier> : un de ces mots parmi les DEUX qui precedent (« with the erection », « showing off the erection »).
   const GARDE_CHANTIER = ['with', 'has', 'had', 'having', 'got', 'gets', 'get', 'showing', 'shows', 'show', 'his', 'her'];
-  const _RE_GARDE_EXPRESSION = /^<([a-z]+)> /;
+  // <coq>, quatrieme relecture du 14/10 (R5) : une queue fixe (« ... and two hens ») ne neutralise plus un terme sexuel.
+  //  - le mot JUSTE AVANT la tournure doit etre un determinant, un nombre, une preposition ou un adjectif de basse-cour
+  //    (`GARDE_DEBUTS_COQ`) : « a woman, <coq> and a hen », « a teen floor <coq> » ne sont pas des tournures de ferme ;
+  //  - aucun verbe ni adjectif sexuel ou d'action (`GARDE_COQ`) dans le groupe nominal ni dans les deux mots qui precedent son article
+  //    (« a woman sucking a <coq> and two hens », « a teen with a <coq> », « a woman holding a <coq> and a hen », « with a big <coq> ») ;
+  //  la politique de la ferme (« a farm kid feeding a <coq> and two hens », accepte) reste une decision du proprietaire.
+  const GARDE_DEBUTS_COQ = ['a', 'an', 'the', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+      'some', 'many', 'several', 'few', 'this', 'that', 'these', 'those', 'each', 'every', 'another', 'and', 'or', 'near', 'beside',
+      'among', 'of', 'in', 'on', 'at', 'from', 'to', 'for', 'behind', 'under', 'over', 'between', 'around', 'next', 'by', 'into', 'onto',
+      'red', 'brown', 'golden', 'gold', 'speckled', 'proud', 'old', 'farm', 'barnyard', 'domestic', 'wild'];
+  const GARDE_COQ = ['with', 'has', 'had', 'have', 'having', 'got', 'holding', 'holds', 'hold', 'held', 'sucking', 'sucks', 'suck',
+      'sucked', 'licking', 'licks', 'lick', 'licked', 'stroking', 'strokes', 'stroke', 'stroked', 'touching', 'touches', 'touch', 'touched',
+      'grabbing', 'grabs', 'grab', 'grabbed', 'rubbing', 'rubs', 'rub', 'rubbed', 'riding', 'rides', 'ride', 'rode', 'showing', 'shows',
+      'show', 'showed', 'shown', 'kissing', 'kisses', 'kiss', 'kissed', 'eating', 'eats', 'eat', 'ate', 'tasting', 'tastes', 'taste',
+      'playing', 'plays', 'play', 'played', 'jerking', 'jerks', 'jerk', 'jerked', 'pulling', 'pulls', 'pull', 'pulled', 'fondling',
+      'fondles', 'fondle', 'worshipping', 'worshiping', 'gagging', 'choking', 'chokes', 'deepthroating', 'blowing', 'blows', 'blow',
+      'squeezing', 'squeezes', 'squeeze', 'massaging', 'massages', 'massage', 'swallowing', 'swallows', 'swallow', 'milking', 'milks',
+      'pumping', 'sitting', 'sits', 'sat', 'bouncing', 'inside', 'into', 'big', 'bigger', 'huge', 'hard', 'large', 'long', 'giant',
+      'massive', 'thick', 'fat', 'erect', 'throbbing', 'veiny', 'enormous', 'monster', 'juicy', 'wet', 'hairy', 'black', 'white', 'naked',
+      'nude', 'sexy'];
+  // <mineur> et <personne> (quatrieme relecture du 14/10, R4, R5) : balises de DESACTIVATION, pas de garde locale. Une expression
+  // balisee n'est pas retiree quand le texte nomme un mineur ou un age (<mineur> : plancher et filtre general), ou une personne
+  // (<personne> : filtre general) ; voir `_vuesSansExpressionsSensibles`.
+  const _RE_GARDE_EXPRESSION = /^((?:<[a-z]+>)+) /;
   /** Vrai si la garde `garde` refuse l'expression : `avant` est le texte qui la precede (avec son separateur). */
   function _gardeExpression(garde, avant) {
       const mots = avant.split(/[^a-z0-9]+/).filter((m) => m !== '');
@@ -835,22 +892,27 @@ const __filtreModeration = (() => {
           return false;
       if (garde === 'chantier')
           return mots.slice(-2).some((m) => GARDE_CHANTIER.includes(m));
-      if (mots[mots.length - 1].endsWith('s'))
+      const dernier = mots[mots.length - 1];
+      if (dernier.endsWith('s'))
+          return true;
+      if (!GARDE_DEBUTS_COQ.includes(dernier) && !/^[0-9]+$/.test(dernier))
           return true;
       for (let i = mots.length - 1, n = 0; i >= 0 && n < 6; i--, n++) {
-          if (GARDE_POSSESSIFS.includes(mots[i]))
+          if (GARDE_POSSESSIFS.includes(mots[i]) || GARDE_COQ.includes(mots[i]))
               return true;
           if (GARDE_ARRETS.includes(mots[i]))
-              return false;
+              return mots.slice(Math.max(0, i - 2), i).some((m) => GARDE_COQ.includes(m));
       }
       return false;
   }
   const _RE_EXPRESSIONS_SURES = EXPRESSIONS_SURES.map((e) => {
       const g = _RE_GARDE_EXPRESSION.exec(e);
       const corps = g ? e.slice(g[0].length) : e;
+      const balises = g ? g[1].slice(1, -1).split('><') : [];
       return {
           cle: _cleExpression(corps),
-          garde: g ? g[1] : '',
+          garde: balises.find((b) => b === 'coq' || b === 'chantier') ?? '',
+          balises,
           re: new RegExp('(^|[^a-z0-9])'
               + corps.split(' ').map((m) => (m.startsWith('!') ? '(?:' + m.slice(1) + ')' : '(' + m + ')')).join(_SEPARATEUR_EXPRESSION)
               + '(?![a-z0-9])', 'g'),
@@ -879,11 +941,12 @@ const __filtreModeration = (() => {
   const _RE_BEBE_ANIMAL = new RegExp('(^|[^a-z0-9])(?:baby|bebe)' + _SEPARATEUR_EXPRESSION + '(?=(?:' + ANIMAUX_BEBE.join('|')
       + ')(?:s|es)?(?![a-z0-9])(?!' + _SEPARATEUR_EXPRESSION + '(?:' + VETEMENTS_ANIMAL.join('|') + ')(?:s|es)?(?![a-z0-9])))', 'g');
   /** Expressions sures (mot marque retire, les autres gardes) et « baby <animal> » -> « young <animal> ». Sur le texte AVANT
-   *  simplification : la ponctuation y separe encore les mots. */
-  function _sansExpressionsSures(s) {
+   *  simplification : la ponctuation y separe encore les mots. Une expression qui porte une balise de `desactivees` (« mineur »,
+   *  « personne ») est laissee telle quelle. */
+  function _sansExpressionsSures(s, desactivees = []) {
       let r = s.includes('baby') || s.includes('bebe') ? s.replace(_RE_BEBE_ANIMAL, '$1young ') : s;
-      for (const { cle, garde, re } of _RE_EXPRESSIONS_SURES) {
-          if (!r.includes(cle))
+      for (const { cle, garde, balises, re } of _RE_EXPRESSIONS_SURES) {
+          if (!r.includes(cle) || balises.some((b) => desactivees.includes(b)))
               continue;
           // a = [expression, separateur avant, mots gardes..., position, texte] ; une expression gardee est laissee telle quelle
           r = r.replace(re, (...a) => {
@@ -972,15 +1035,24 @@ const __filtreModeration = (() => {
   /** VUE EXACTE (2026-10-13, MODERATION-05) pour les mots COURTS « nu », « nue », « nua »... : le vietnamien « nữ » (femme),
    *  « nụ » (bouton), « nữa », « nửa » et l'espagnol « ñu » se lisaient « nu » / « nua » une fois les accents retires. Une lettre
    *  a marque distinctive (ou d'une autre ecriture) devient « x » : « nx » n'est plus « nu ». */
-  function _vueExacte(net) {
+  function _vueExacte(net, desactivees = []) {
       let s = net;
       try {
           s = s.normalize('NFD');
       }
       catch { /* garde */ }
       s = s.replace(/(\P{M})(\p{M}+)/gu, (_m, lettre, marques) => (_MARQUES_DISTINCTIVES.test(marques) ? 'x' : lettre));
-      s = _sansExpressionsSures(_translit(s).replace(/[^\x00-\x7f]/gu, (c) => (/\p{L}/u.test(c) ? 'x' : ' ')));
-      return _simple(s).replace(_RE_IDIOMES_EXACTS, ' ').replace(/ +/g, ' ').trim();
+      s = _sansExpressionsSures(_translit(s).replace(/[^\x00-\x7f]/gu, (c) => (/\p{L}/u.test(c) ? 'x' : ' ')), desactivees);
+      // Assemblee comme les autres vues du plancher (quatrieme relecture du 14/10, R3) : lettres separees par de la ponctuation ou des
+      // espaces recollees (« n.u.e », « n-u-e », « n_u_s »), lettres repetees ecrasees (« nuuue »), leet (« nu3 ») ; la production
+      // lisait ces formes (« nu », « nue » etaient des termes de ses vues ordinaires).
+      const sortie = [];
+      for (const x of [s, _leet(s, 'i'), _leet(s, 'l')]) {
+          const v = _ecraser(_joindre(_simple(_joindrePonctue(x)))).replace(_RE_IDIOMES_EXACTS, ' ').replace(/ +/g, ' ').trim();
+          if (!sortie.includes(v))
+              sortie.push(v);
+      }
+      return sortie;
   }
   /** VUE UNICODE (2026-10-13, MODERATION-01) : pour les lexiques des ecritures non latines. Marques retirees sauf celles qui
    *  portent le sens (_MARQUES_GARDEES), arabe ramene a une forme simple (tatweel retire ; ی ى -> ي ; ک -> ك ; ة -> ه ; ٱ -> ا),
@@ -1030,8 +1102,8 @@ const __filtreModeration = (() => {
       return sortie;
   }
   /** Vues du plancher a partir du texte NETTOYE (`_nettoyer`). */
-  function _vuesPlancher(net) {
-      const t = _sansExpressionsSures(_translit(_sansMarques(net)));
+  function _vuesPlancher(net, desactivees = []) {
+      const t = _sansExpressionsSures(_translit(_sansMarques(net)), desactivees);
       const assembler = (x) => _joindre(_simple(_joindrePonctue(x)));
       const nonEcrasees = [assembler(t), assembler(_leet(t, 'i')), assembler(_leet(t, 'l'))];
       const [chiffres, leetI, leetL] = nonEcrasees.map(_ecraser);
@@ -1042,12 +1114,12 @@ const __filtreModeration = (() => {
           ..._series(_simple(_joindrePonctue(t))), ..._series(_simple(_joindrePonctue(_leet(t, 'i')))),
           ..._series(_simple(_joindrePonctue(_leet(t, 'l')))),
       ];
-      const exacte = _vueExacte(net);
+      const exactes = _vueExacte(net, desactivees);
       const uni = _vueUnicode(net);
       const unicode = [uni, uni.replace(_RE_ESPACE_HAN, '')].filter((x, i, l) => l.indexOf(x) === i)
           .map((x) => x.replace(_RE_FRONTIERE_CHIFFRE_UNICODE, ' ').replace(_RE_IDIOMES_UNICODE, ' '));
       return { chiffres, leetI, leetL, collees, series, nonEcrasees, separees: _separees([chiffres, leetI, leetL]),
-          exactes: [exacte, ..._separees([exacte])], unicode };
+          exactes: [...exactes, ..._separees(exactes).filter((x) => !exactes.includes(x))], unicode };
   }
   // SYNTAXE DE POIDS COLLEE dans un mot (revue du 14/10, B1) : « na()ked », « na[]ked », « (na)(ked) », « (na:1)(ked:1) ». Le
   // lecteur de poids de l'encodeur SDXL recollait les morceaux voisins de meme poids et le modele recevait le mot ENTIER, que le
@@ -1140,7 +1212,10 @@ const __filtreModeration = (() => {
       // marques restees seules apres la composition : le tokenizer CLIP (apres NFC) coupe le mot sur elles ; la production effacait
       // celles de U+0300-036F
       s = s.replace(/\p{M}/gu, (m) => (mode === 'production' && m >= '\u0300' && m <= '\u036f' ? '' : ' '));
-      s = _chiffresAscii(s).toLowerCase();
+      // chiffres non ASCII (\u00ab \u0667 \u00bb, \u00ab \u06f7 \u00bb, \u00ab \u0967 \u00bb) : la production les lisait comme des SEPARATEURS (hors de [a-z0-9]) ; la lecture
+      // \u00ab separee \u00bb aussi (dans le doute) ; les lectures \u00ab clip \u00bb et \u00ab ftfy \u00bb les changent en chiffres ASCII, comme la principale
+      // (quatrieme relecture du 14/10, R2 : \u00ab a<U+0667>12yo<U+0667>person \u00bb devenait \u00ab a712yo7person \u00bb)
+      s = (mode === 'production' || mode === 'separee' ? _chiffresSepares(s) : _chiffresAscii(s)).toLowerCase();
       // apres les minuscules : \u00ab \u0126 \u00bb et \u00ab \u0531 \u00bb deviennent \u00ab \u0127 \u00bb et \u00ab \u0561 \u00bb, absents des tables de la production
       return mode === 'production' ? s.replace(/[^\x00-\x7f]/gu, (c) => (TRANSLIT_HORS_PRODUCTION.includes(c) ? ' ' : c)) : s;
   }
@@ -1161,7 +1236,7 @@ const __filtreModeration = (() => {
           for (const x of [n, _sansSyntaxeCollee(n)])
               if (!nets.includes(x))
                   nets.push(x);
-      return { nets, vues: nets.map(_vuesPlancher) };
+      return { nets, vues: nets.map((n) => _vuesPlancher(n)) };
   }
   // Expressions chinoises / japonaises ou « 裸 » (nu) ne designe personne : pieds nus, oeil nu, couleur chair, seigle, plantes
   // gymnospermes, fil denude, ampoule nue, « sans le sou ». Retirees du texte (vue Unicode) avant la recherche du lexique.
@@ -1215,7 +1290,7 @@ const __filtreModeration = (() => {
   // Sans ambiguite : un seul de ces mots suffit a parler d'un mineur.
   const MINEURS_FORT = [
       // anglais
-      'child', 'children', 'childlike', 'child like', 'kid', 'kids', 'kiddo', 'kiddie', 'kiddy', 'infant', 'infants', 'baby', 'babies',
+      'child', 'children', 'childlike', 'child like', 'kid', 'kids', 'kiddo', 'kiddie', 'kiddy', 'infant*', 'baby', 'babies',
       'toddler*', 'preteen*', 'pre teen*', 'tween*', 'teen', 'teens', 'teenage*', 'teenager*', 'minor', 'minors', 'underage',
       'under age', 'juvenile*', 'prepubescent', 'pubescent', 'schoolgirl*', 'schoolboy*', 'school girl*', 'school boy*',
       'schoolchild*', 'little girl*', 'little boy*', 'small girl*', 'small boy*', 'young girl*', 'young boy*', 'young lad*', 'young teen*', 'young looking', 'looks young', 'looking young',
@@ -1288,7 +1363,7 @@ const __filtreModeration = (() => {
   const ELEVES_CLASSE = ['girl*', 'boy*', 'student*', 'pupil*'];
   // Mineurs pour les combinaisons de VIOLENCE du filtre general ("minor character" est un terme de jeu).
   const MINEURS_VIOLENCE = [
-      'child', 'children', 'kid', 'kids', 'baby', 'babies', 'infant', 'infants', 'toddler*', 'enfant*', 'bebe*', 'nino*', 'nina*', 'kinder*',
+      'child', 'children', 'kid', 'kids', 'baby', 'babies', 'infant*', 'toddler*', 'enfant*', 'bebe*', 'nino*', 'nina*', 'kinder*',
       'crianca*', 'bambin*',
   ];
   // ── Nudite / sexe (B) ─────────────────────────────────────────────────────
@@ -1332,7 +1407,7 @@ const __filtreModeration = (() => {
       'roupa intima', 'peitos', 'seios', 'pelad*', 'de cueca', 'de cuecas', 'em cueca', 'em cuecas', 'despido', 'despida', 'despidos', 'despidas', 'nuazinh*',
       'trajes intimos', 'estupr*',
       // italien
-      'nudo', 'nudi', 'nudita', 'spogliat', 'spogliata', 'spogliato', 'spogliati', 'spogliate', 'spogliarsi', 'spogliarell*', 'svestit*',
+      'nudo', 'nudi', 'nudita', 'spogliat*', 'spogliarsi', 'spogliarell*', 'svestit*',
       'senza vestiti', 'senza vestito', 'senza abiti', 'seno nudo', 'seni nudi',
       'nuda', 'sessuale', 'sesso', 'mutande', 'mutandin*', 'mutandon*', 'provocante', 'seni', 'tette', 'biancheria intima', 'perizoma', 'seno scoperto',
       'senza niente addosso', 'nudin*', 'in slip',
@@ -1388,8 +1463,8 @@ const __filtreModeration = (() => {
   // Violence EXERCEE sur un enfant (plancher). Volontairement etroit : "kid with a knife"
   // ou "child hero hit by a rock" ne sont pas des contenus illicites.
   const VIOLENCE_ENFANT_PLANCHER = [
-      'abuse*', 'abusing', 'hurt', 'hurting', 'beaten', 'beating', 'beat up', 'punch*', 'slap*', 'whip*', 'torture*', 'tortur*', 'rape',
-      'rapes', 'raped', 'raping', 'molest*', 'strangl*', 'suffocat*', 'mutilat*', 'dismember*', 'murder*',
+      'abuse*', 'abusing', 'hurt', 'hurting', 'beaten', 'beating', 'beat up', 'punch*', 'slap*', 'whip*', 'torture*', 'tortur*', 'rape*',
+      'raped', 'raping', 'molest*', 'strangl*', 'suffocat*', 'mutilat*', 'dismember*', 'murder*',
       'frapp*', 'battu*', 'maltrait*', 'viole', 'violee', 'violer', 'agress*', 'abus', 'abuso*', 'misshandl*', 'missbrauch*',
       // 2026-10-13
       'spank*', 'gagged', 'istismar*',
@@ -1557,9 +1632,14 @@ const __filtreModeration = (() => {
   const NOMBRES_AMBIGUS = ['elf', 'um', 'uma', 'un', 'une', 'uno', 'una', 'ein', 'eine', 'eins', 'one', 'tre', 'tres', 'sei',
       'due', 'dos', 'once', 'neuf', 'sept', 'otto'];
   // Ce qui suit un nombre et en fait un GRAND nombre (« aged ten thousand years », « aged 10 000 years ») : pas un age < 18.
-  const GRANDS_NOMBRES = ['[0-9]', 'thousands?', 'hundreds?', 'millions?', 'billions?', 'dozens?', 'mille', 'milles', 'cents?',
+  // 2026-10-14 (quatrieme relecture, R1) : en chiffres, seulement un groupe de TROIS chiffres suivi d'une unite ; avant, un chiffre
+  // quelconque suffisait et « aged 12, 2 ponytails » ou « (aged:1.3) 12 » perdaient l'age (la production les lisait).
+  const GRANDS_NOMBRES = [
+      '[0-9]{3}(?: [0-9]{3})* (?:years?|yrs?|ans|anos|anni|annees|anys|jahre|jahren|mois|months?|meses|mesi|siecles?|centuries|century)',
+      'thousands?', 'hundreds?', 'millions?', 'billions?', 'dozens?', 'mille', 'milles', 'cents?',
       'milliers?', 'milliards?', 'mil', 'miles', 'millones', 'millon', 'tausend', 'hundert', 'millionen', 'milliarden', 'mila', 'cento',
-      'centinaia', 'milioni', 'centenas?', 'centenares', 'milhares', 'milhoes', 'milhao'];
+      'centinaia', 'milioni', 'centenas?', 'centenares', 'milhares', 'milhoes', 'milhao'
+  ];
   const UNITES_AGE = ['yo', 'y o', 'yr old', 'yrs old', 'yr o', 'years? old', 'year olds?', 'yearold', 'yrold', 'years? of age',
       'yrs? of age', 'years? young', 'yrs? young', 'months? old', 'jahre alt', 'jahrig[a-z]*', 'j alt', 'monate alt', 'yasinda[a-z]*',
       'jaar oud', 'jarig[a-z]*', 'letni[a-z]*', 'lat', 'tahun', 'tuoi'];
@@ -1696,8 +1776,8 @@ const __filtreModeration = (() => {
       'only body paint', 'scantily clad', 'barely clothed',
       '*desnud*', '*nackt*', 'nudo', 'nuda', 'nudi', 'nudita', 'seminu', 'seminus', 'seminua', 'seminuas', 'seminude*', 'seminudo*',
       'seminuda*', 'seminudi', 'denud*', 'deshabill*',
-      '*pornograf*', '*pornograph*', 'erotisch*', 'sinnlich*', 'senos', 'titten', 'tetas', 'tette', 'spogliat', 'spogliata', 'spogliato', 'spogliati',
-      'spogliate', 'spogliarsi', 'spogliarell*', 'svestit*',
+      '*pornograf*', '*pornograph*', 'erotisch*', 'sinnlich*', 'senos', 'titten', 'tetas', 'tette', 'spogliat*',
+      'spogliarsi', 'spogliarell*', 'svestit*',
       // 2026-10-13 (M1, MODERATION-01) : actes et anatomie explicites, nudite d'autres langues
       'blowjob*', 'blow job*', 'handjob*', 'hand job*', 'footjob*', 'foot job*', 'titjob*', 'titfuck*', 'rimjob*', 'anilingus',
       'intercourse', 'coitus', 'copulat*', 'sodomy', 'sodomiz*', 'sodomis*', 'semen', 'sperm', 'cumshot*', 'bukkake', 'gang bang*',
@@ -1761,6 +1841,11 @@ const __filtreModeration = (() => {
   // Combinaisons du filtre general.
   const PERSONNES = ['woman', 'man', 'person', 'girl', 'boy', 'female', 'male', 'lady', 'femme', 'homme', 'mujer', 'hombre',
       'persona', 'frau', 'mann', 'donna', 'uomo', 'mulher', 'homem'];
+  // Personnes qui DESACTIVENT les expressions sures balisees <personne> (quatrieme relecture du 14/10, R5), en plus de PERSONNES.
+  const PERSONNES_DESACTIVATION = ['women', 'men', 'people', 'persons', 'someone', 'somebody', 'he', 'she', 'him', 'her',
+      'his', 'hers', 'herself', 'himself', 'guy', 'guys', 'gal', 'gals', 'ladies', 'females', 'males', 'dancer*', 'model', 'models',
+      'wife', 'husband', 'girlfriend', 'boyfriend', 'mother', 'father', 'mom', 'dad', 'sister', 'brother', 'teacher', 'nurse', 'maid',
+      'waitress', 'farmer*', 'worker*', 'elle', 'il', 'ella', 'el', 'sie', 'er', 'ela', 'ele', 'lei', 'lui'];
   const NUDITE_EXTREME = ['without clothes', 'no clothes', 'without clothing', 'no clothing', 'unclothed', 'fully exposed',
       'spread legs', 'spanked', 'sans vetement*', 'sans habit*', 'sin ropa', 'ohne kleidung', 'ohne kleider', 'senza vestiti',
       'sem roupa*'];
@@ -1796,6 +1881,7 @@ const __filtreModeration = (() => {
   const T_CTX_VIOLENCE = _compiler(GENERAL_CTX_VIOLENCE, 'contexte');
   const T_DURS_AUTRES = _fusionner(_compiler(GENERAL_VIOLENCE_DUR, 'violence'), _compiler(GENERAL_DROGUE_DUR, 'drogue'), _compiler(GENERAL_EXTREMISME_DUR, 'extremisme'), _compiler(GENERAL_AUTOBLESSURE_DUR, 'autoblessure'), _compiler(GENERAL_HAINE_DUR, 'haine'), _compiler(GENERAL_ARMES_DUR, 'armes'));
   const T_PERSONNES = _compiler(PERSONNES, 'combinaison');
+  const T_PERSONNES_DESACTIVATION = _fusionner(T_PERSONNES, _compiler(PERSONNES_DESACTIVATION, 'combinaison'));
   const T_NUDITE_EXTREME = _compiler(NUDITE_EXTREME, 'combinaison');
   const T_VIOLENCE_ENFANT_GENERAL = _compiler(VIOLENCE_ENFANT_GENERAL, 'mineur_violence');
   const _PLANCHER_COLLES_ECRASES = PLANCHER_COLLES.map((s) => s.replace(/([a-z])\1+/g, '$1'));
@@ -1824,7 +1910,44 @@ const __filtreModeration = (() => {
   // "teen titans style" passent).
   function checkHardFloor(prompt) {
       // Toutes les lectures du texte, sans la syntaxe de poids collee dans un mot comprise (« na()ked » : revue du 14/10, B1).
-      return _plancher(_lire(prompt).vues);
+      return _plancherLecture(_lire(prompt));
+  }
+  /** Vues de la lecture SANS les expressions sures portant une balise de `desactivees` (quatrieme relecture du 14/10, R4, R5) ;
+   *  les vues d'origine quand aucune de ces expressions n'est dans le texte. */
+  function _vuesDesactivees(lecture, desactivees) {
+      if (!desactivees.length)
+          return lecture.vues;
+      const textes = lecture.nets.map((n) => _translit(_sansMarques(n)));
+      const touche = _RE_EXPRESSIONS_SURES.some((e) => e.balises.some((b) => desactivees.includes(b))
+          && textes.some((t) => t.includes(e.cle)));
+      return touche ? lecture.nets.map((n) => _vuesPlancher(n, desactivees)) : lecture.vues;
+  }
+  /** Plancher d'une lecture : quand un mineur ou un age est lu, les expressions balisees <mineur> (colza, « pelada de praia ») ne
+   *  retirent plus leur mot (« child rape fields », « uma menina pelada de praia » : la production les refusait au plancher). */
+  function _plancherLecture(lecture) {
+      const r = _plancher(lecture.vues);
+      if (!r.safe || !_mineurLu(lecture.vues))
+          return r;
+      const vs = _vuesDesactivees(lecture, ['mineur']);
+      return vs === lecture.vues ? r : _plancher(vs);
+  }
+  /** Signaux de mineur du plancher, sur les vues reunies. */
+  function _signauxMineur(vs) {
+      const vues = vs.flatMap((v) => [v.chiffres, v.leetI, v.leetL, ...v.separees]);
+      const uni = vs.flatMap((v) => v.unicode);
+      const mineurFort = !!(_chercher(vues, T_MINEURS_FORT) || _chercher(uni, T_MINEURS_FORT_UNICODE)
+          || vues.some((x) => _RE_MINEURS_CONSTRUITS.test(x)));
+      const mineurAmbigu = !!(_chercher(vues, T_MINEURS_AMBIGUS) || _chercher(uni, T_MINEURS_AMBIGUS_UNICODE));
+      const indice = !!_chercher(vues, T_MINEURS_INDICES);
+      // « une fille, 10 ans de guerre, au bain » : avec un mineur ambigu NOMME ou un indice, « N ans de <duree> » compte aussi
+      const ageLarge = (indice || _chercher(vues, T_MINEURS_AMBIGUS_NOMS)) ? vues.some((x) => _RE_AGE_ROMAN_LARGE.test(x)) : false;
+      const age = ageLarge || vues.some((x) => _RE_AGE.test(x) || _ageParNaissance(x)) || uni.some((x) => _RE_AGE_UNICODE.test(x));
+      return { mineurFort, mineurAmbigu, indice, age };
+  }
+  /** Vrai si un mineur (sans ambiguite, ambigu ou indice) ou un age est lu. */
+  function _mineurLu(vs) {
+      const s = _signauxMineur(vs);
+      return s.mineurFort || s.mineurAmbigu || s.indice || s.age;
   }
   /** Plancher sur les vues REUNIES de toutes les lectures (troisieme relecture du 14/10 : le mineur peut etre lu dans une lecture
    *  et la nudite dans une autre). */
@@ -1854,13 +1977,7 @@ const __filtreModeration = (() => {
       if (vues.some(_colle) || vs.some((v) => v.nonEcrasees.some(_colle)))
           return bloquer('minor-safety', _MSG_PLANCHER_MINEUR);
       // 2. Mineur x nudite / sexe, mineur x violence exercee sur lui.
-      const mineurFort = _chercher(vues, T_MINEURS_FORT) || _chercher(uni, T_MINEURS_FORT_UNICODE)
-          || vues.some((x) => _RE_MINEURS_CONSTRUITS.test(x));
-      const mineurAmbigu = _chercher(vues, T_MINEURS_AMBIGUS) || _chercher(uni, T_MINEURS_AMBIGUS_UNICODE);
-      const indice = _chercher(vues, T_MINEURS_INDICES);
-      // « une fille, 10 ans de guerre, au bain » : avec un mineur ambigu NOMME ou un indice, « N ans de <duree> » compte aussi
-      const ageLarge = (indice || _chercher(vues, T_MINEURS_AMBIGUS_NOMS)) ? vues.some((x) => _RE_AGE_ROMAN_LARGE.test(x)) : false;
-      const age = ageLarge || vues.some((x) => _RE_AGE.test(x) || _ageParNaissance(x)) || uni.some((x) => _RE_AGE_UNICODE.test(x));
+      const { mineurFort, mineurAmbigu, indice, age } = _signauxMineur(vs);
       if (mineurFort || age || mineurAmbigu || indice) {
           const explicite = _chercher(vues, T_NU_FORT) || _chercher(exactes, T_NU_EXACTS) || _chercher(uni, T_NU_FORT_UNICODE)
               || _chercher(uni, T_NU_SUGGESTIF_UNICODE);
@@ -1886,17 +2003,24 @@ const __filtreModeration = (() => {
   // ═══════════════════════════════════════════════════════════════════════════
   function checkPromptSafety(prompt, unrestricted = false) {
       const lecture = _lire(prompt);
-      const floor = _plancher(lecture.vues);
+      const floor = _plancherLecture(lecture);
       if (!floor.safe)
           return floor; // plancher illicite — jamais contournable
       if (unrestricted)
           return { safe: true }; // `unrestricted` ne leve que les filtres SOUPLES
+      // Expressions sures balisees (quatrieme relecture du 14/10, R4, R5) : <mineur> ignorees quand un mineur ou un age est lu,
+      // <personne> (decapant, tournures de ferme) quand une personne ou un mineur est nomme (« a woman sucking a <coq> and two hens »,
+      // « a woman with paint <stripper> » : la production les refusait).
+      const mineurLu = _mineurLu(lecture.vues);
+      const personneLue = mineurLu
+          || !!_chercher(lecture.vues.flatMap((v) => [v.chiffres, v.leetI, v.leetL, ...v.separees]), T_PERSONNES_DESACTIVATION);
+      const desactivees = mineurLu ? ['mineur', 'personne'] : (personneLue ? ['personne'] : []);
       // Toutes les lectures du texte (troisieme relecture du 14/10) : la principale, celles ou les caracteres effaces ou changes
       // separent les mots, et chacune sans la syntaxe de poids collee dans un mot (revue du 14/10, B1).
-      const vs = lecture.vues;
+      const vs = _vuesDesactivees(lecture, desactivees);
       // textes tels quels (sans translitteration), et coupes entre lettres et chiffres (« a child<U+0667>with<U+0667>a<U+0667>gun » :
       // la production lisait un chiffre arabe-indien comme un separateur ; il devient « 7 », que CLIP lit seul, comme un mot)
-      const bruts = lecture.nets.map((n) => _simple(_sansExpressionsSures(_sansMarques(n))));
+      const bruts = lecture.nets.map((n) => _simple(_sansExpressionsSures(_sansMarques(n), desactivees)));
       const souples = [...bruts, ..._separees(bruts).filter((x) => !bruts.includes(x))];
       // l'explicite est teste sur les formes deguisees aussi
       const toutes = [...souples, ...vs.flatMap((v) => [v.chiffres, v.leetI, v.leetL, ...v.separees])];

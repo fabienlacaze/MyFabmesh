@@ -1,6 +1,6 @@
-// BANC DE NON-RECUL du filtre de texte (lot « Securite des mineurs et robustesse du filtre de texte », troisieme relecture du
-// 14/10/2026). Compare la PRODUCTION (f86208c0), la version AVANT la troisieme relecture (1abd1b59) et la version APRES (copie de
-// travail) sur TOUS les contournements des relectures du lot (cas_non_recul.mjs), et verifie que les trois copies de la version
+// BANC DE NON-RECUL du filtre de texte (lot « Securite des mineurs et robustesse du filtre de texte », troisieme et quatrieme
+// relectures du 14/10/2026). Compare la PRODUCTION (f86208c0), la version AVANT la quatrieme relecture (f1632c5a ; option --avant)
+// et la version APRES (copie de travail) sur TOUS les contournements des relectures du lot (cas_non_recul.mjs), et verifie que les trois copies de la version
 // APRES rendent le meme verdict (worker TypeScript, miroir du bureau dans src/main/main.js, module Python de Modal).
 // Option --balayage : chaque point de code (grands blocs homogenes echantillonnes : non assignes, usage prive, ideogrammes) mis a
 // la place des espaces, dans un mot, ou melange a un caractere efface, juge par la production et par la version APRES.
@@ -22,7 +22,7 @@ const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const ts = createRequire(join(RACINE, 'cloud', 'package.json'))('typescript');
 const arg = (nom, defaut) => { const i = process.argv.indexOf(nom); return i > 0 ? process.argv[i + 1] : defaut; };
 const PROD = arg('--prod', 'f86208c0');
-const AVANT = arg('--avant', '1abd1b59');
+const AVANT = arg('--avant', 'f1632c5a');
 
 function charger(src) {
   const js = ts.transpileModule(src, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
