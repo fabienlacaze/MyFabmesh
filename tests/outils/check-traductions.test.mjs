@@ -11,7 +11,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { verifier, gabaritCasse, zoneHtml, doublonsContradictoires, seuilsAtteints } from '../../build/check-traductions.mjs';
-import { libellesJs } from '../../build/couverture-traductions.mjs';
+import {
+  libellesJs, libellesHtml, estTraduisible, valeurDe, CIBLES, fichiersCible, libellesCible, chargerDictionnaires,
+} from '../../build/couverture-traductions.mjs';
 
 const RACINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCRIPT = path.join(RACINE, 'build', 'check-traductions.mjs');
@@ -151,4 +153,93 @@ test('le depot reel passe le garde (seuils, derive, ecrans prioritaires, gabarit
   const { m } = verifier(racine, { seuils: s });
   const atteints = seuilsAtteints(m);
   for (const c of ['bureau', 'web']) for (const L of ['fr', 'es', 'zh', 'hi', 'ar']) assert.ok(atteints[c][L] >= s[c][L], c + '/' + L);
+});
+
+/* ── Revue du lot (2026-10-14) : bloquants B1 (placeholder d'un textarea) et B2 (textes de plus de 200 caracteres),
+ *    reproduits par les mutations M3 et M2 de la revue (C:/tmp/revue_interface_cas/mutations), qui laissaient la garde a 0. */
+const CENT = Object.fromEntries(['fr', 'es', 'zh', 'hi', 'ar'].map((L) => [L, 100]));
+
+test('mesure : les ATTRIBUTS d un <textarea>, <pre>, <code>, <svg> sont mesures, pas leur contenu (bloquant B1)', () => {
+  const h = libellesHtml('<textarea id="rp" rows="4" placeholder="What is wrong with this result?">raw prompt text</textarea>'
+    + '<code title="Copy this code">let x = 1</code><svg aria-label="Close panel"><path d="M0 0"/></svg><p>Visible</p>');
+  assert.deepEqual([...h.keys()].sort(), ['Close panel', 'Copy this code', 'Visible', 'What is wrong with this result?']);
+});
+
+test('regle « ecrans prioritaires » : le placeholder du formulaire de signalement non traduit est refuse (mutation M3)', () => {
+  const html = '<div id="modal-report"><h2>Report content</h2>'
+    + '<textarea id="rp-details" rows="4" placeholder="Describe precisely the harmful content you saw"></textarea></div>' + SELECT_OK;
+  const sauf = (L) => (L === 'fr' ? { 'Report content': 'R', 'Describe precisely the harmful content you saw': 'D' } : { 'Report content': 'R' });
+  const d = fauxDepot({ htmlBureau: html, htmlWeb: html, dicos: { bureau: tout(sauf), web: tout(sauf) } });
+  const { erreurs } = verifier(d, { seuils: null });
+  for (const cible of ['bureau', 'web']) {
+    assert.ok(erreurs.some((e) => e.includes(`(${cible}) : "Describe precisely the harmful content you saw" non traduit en es, zh, hi, ar`)), erreurs.join('\n'));
+  }
+});
+
+test('regle « couverture » : un texte de PLUS DE 200 caracteres non traduit fait baisser la couverture (mutation M2)', () => {
+  const LONG = 'This brand new consent paragraph explains in detail what we collect, why we collect it, how long we keep it, who can read it, and how you can object to it at any time from the settings of your account, in plain words.';
+  assert.ok(LONG.length > 200);
+  assert.equal(estTraduisible(LONG), true, 'le plafond de 200 caracteres de la traduction AUTOMATIQUE ne s applique pas a la mesure');
+  const html = '<b>Save</b><p>' + LONG + '</p>' + SELECT_OK;
+  const d = fauxDepot({ htmlBureau: html, htmlWeb: html, dicos: { bureau: tout(() => ({ Save: 'x' })), web: tout(() => ({ Save: 'x' })) } });
+  const { m, erreurs } = verifier(d, { seuils: { bureau: CENT, web: CENT } });
+  assert.equal(m.cibles.web.couverture.es, 50);
+  assert.ok(erreurs.some((e) => /^couverture web\/es : 50\.0 % < seuil 100 %/.test(e)), erreurs.join('\n'));
+  assert.ok(erreurs.some((e) => /^couverture bureau\/ar : 50\.0 % < seuil 100 %/.test(e)), erreurs.join('\n'));
+});
+
+test('mesure : textes AFFECTES (textContent, title, placeholder, setAttribute) mesures ; feuille de style, document.title et autres attributs non', () => {
+  const j = libellesJs("el.textContent = 'Sending your report…'; btn.title = ok ? 'Already published' : 'Publish it'; "
+    + "x.setAttribute('aria-label', 'Inbox & contact us'); y.setAttribute('data-x', 'Not text'); st.textContent = '.a { color: red; }'; "
+    + "document.title = 'Window title'; n.textContent = name || 'image'; z.className = 'Not a label'; w.placeholder = `Type here`;");
+  assert.deepEqual([...j.keys()].sort(), ['Already published', 'Inbox & contact us', 'Publish it', 'Sending your report…', 'Type here', 'image'].sort());
+  // et un tel texte sans traduction fait echouer la garde
+  const d = fauxDepot({
+    htmlBureau: '<b>Save</b>' + SELECT_OK, htmlWeb: '<b>Save</b>' + SELECT_OK,
+    dicos: { bureau: tout(() => ({ Save: 'x' })), web: tout(() => ({ Save: 'x' })) },
+    js: { web: "status.textContent = 'Sending your report…';" },
+  });
+  assert.ok(verifier(d, { seuils: { web: CENT } }).erreurs.some((e) => /^couverture web\/hi : 50\.0 %/.test(e)));
+});
+
+test('mesure : &nbsp; garde son caractere, et la recherche suit EXACTEMENT celle de i18n.js (_chercher)', () => {
+  const k = [...libellesHtml('<div>reply within 48&nbsp;h</div>').keys()][0];
+  assert.equal(k, 'reply within 48\u00a0h');
+  assert.equal(valeurDe({ 'reply within 48 h': 'v' }, k), 'v', 'insecable ramenee a une espace, comme _chercher');
+  assert.equal(valeurDe({ 'a b': 'v' }, 'a\n      b'), 'v');
+  assert.equal(valeurDe({ 'a b': 'v' }, 'a  b'), 'v');
+  assert.equal(valeurDe({ 'a b': 'v' }, 'a b'), 'v');
+  assert.equal(valeurDe({ 'a  b': 'v' }, 'a b'), null, 'une cle a deux espaces ne peut pas etre trouvee par le navigateur');
+});
+
+test('depot reel : les textes cites par la revue sont MESURES et traduits dans les 5 langues, sur le web et le bureau', () => {
+  const racine = process.env.GARDE_RACINE || RACINE;
+  const COMMUNS = [
+    'What is wrong with this result?',
+    'Results are generated by AI models and may occasionally be inappropriate or inaccurate. If you see a generated result that should not have been produced, please tell us — reports are reviewed by an admin.',
+    'Create game-ready 3D assets from a prompt or a picture: the image, a textured 3D model, an automatic rig for any body and animation (beta). Everything you generate stays editable with AI and manual tools. Export to Unreal, Blender, Unity or Godot.',
+    'Sending your report…', 'Report sent. Thank you — an admin will review it.', 'Copy address', 'make it red, add details, anime style...',
+  ];
+  const PAR_CIBLE = {
+    bureau: ['When the app hits an unexpected error, an anonymous report is sent to our error tracker (Sentry): the stack trace, the app version, the Windows version, and a random installation id. Your Windows username and machine name are removed first. No prompt, image or mesh is ever included.'],
+    web: [
+      "Off. Turn this on only if support asks you to: it sends this tab's console — including your prompts and project names — to MyFabmesh so a problem can be reproduced. Passwords, tokens and e-mail addresses are stripped before sending. Logs are deleted after 30 days. You can turn it back off at any time.",
+      "Error reports: when an operation FAILS, the last 300 lines of this tab's console are sent so we can fix the problem — with your prompts, e-mail address, passwords and tokens removed. Nothing is sent when an operation succeeds. Deleted after 30 days. You can object by unticking the box.",
+      'Inbox & contact us', 'Your current credit balance', 'MyFabmesh.AI website', '✓ Sellable by users', '✗ Not sellable by users',
+    ],
+  };
+  for (const c of CIBLES) {
+    const f = fichiersCible(racine, c);
+    const libs = libellesCible(f);
+    const vus = new Map([...libs.keys()].map((k) => [k.replace(/\s+/g, ' '), k]));
+    const d = chargerDictionnaires({ i18n: f.i18n, dossierLang: f.dossierLang });
+    for (const k of COMMUNS.concat(PAR_CIBLE[c.nom])) {
+      assert.ok(vus.has(k), `${c.nom} : non mesure par la garde : ${k.slice(0, 60)}`);
+      const manque = ['fr', 'es', 'zh', 'hi', 'ar'].filter((L) => !valeurDe(d[L], vus.get(k)));
+      assert.deepEqual(manque, [], `${c.nom} : ${k.slice(0, 60)}`);
+    }
+    // la zone prioritaire du signalement contient bien le texte indicatif
+    const html = f.html.map((p) => fs.readFileSync(p, 'utf8')).join('\n');
+    assert.ok(libellesHtml(zoneHtml(html, 'modal-report')).has('What is wrong with this result?'), c.nom + ' : placeholder hors de la zone prioritaire');
+  }
 });

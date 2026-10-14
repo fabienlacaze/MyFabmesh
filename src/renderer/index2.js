@@ -13098,7 +13098,7 @@ function openMeshToolModal(toolName) {
         if (spec.step !== undefined) labVal.step = String(spec.step);
         labVal.value = String(spec.default);
         labVal.className = 'fen-valeur';
-        labVal.title = 'Saisir la valeur exacte';
+        labVal.title = 'Enter the exact value';   // texte source ANGLAIS (traduit par lang/_additions6.js)
       } else {
         labVal = document.createElement('span');
         labVal.className = 'fen-valeur';

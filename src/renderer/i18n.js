@@ -1774,6 +1774,9 @@
     },
   };
 
+  // # --- NOYAU PARTAGE : DEBUT --- texte d'execution COMMUN bureau / web (seuls les dictionnaires
+  // ci-dessus different) ; build/check-noyaux-partages.mjs refuse une divergence (revue du lot interface,
+  // 2026-10-14 : rien ne le surveillait). Editer ICI (src/renderer/i18n.js) puis --sync.
   /* LANGUE PAR DEFAUT : CELLE DU VISITEUR, PAS L'ANGLAIS EN DUR.
    *
    * `localStorage.getItem(...) || 'en'` : au tout premier chargement rien
@@ -1892,10 +1895,13 @@
   // Recherche dans un dictionnaire : la cle exacte, puis la cle aux blancs
   // ramenes a un espace (un texte HTML ecrit sur plusieurs lignes arrive avec
   // ses retours a la ligne et son indentation : sa cle ne pouvait pas exister).
+  // 2026-10-14 (revue du lot interface) : AUSSI un blanc autre que l'espace — espace
+  // insecable (&nbsp;), espace fine. « reply within 48&nbsp;h » ne trouvait pas son
+  // entree « … 48 h » et restait en anglais dans les cinq langues.
   function _chercher(dict, k) {
     if (!dict || !k) return null;
     if (dict[k]) return dict[k];
-    if (/\s\s|[\n\r\t]/.test(k)) { const n = k.replace(/\s+/g, ' '); if (dict[n]) return dict[n]; }
+    if (/\s\s|[^\S ]/.test(k)) { const n = k.replace(/\s+/g, ' '); if (dict[n]) return dict[n]; }
     return null;
   }
 
@@ -2496,4 +2502,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
   else _init();
+  // # --- NOYAU PARTAGE : FIN ---
 }());

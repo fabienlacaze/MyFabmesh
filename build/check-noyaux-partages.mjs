@@ -34,6 +34,10 @@ const PAIRES = [
   { nom: 'image TRELLIS-2', source: 'scripts/trellis2_native_full_pipeline.py', copie: 'modal_app/_mesh.py' },
   { nom: 're-texture (finitions)', source: 'scripts/trellis2_texturing_bridge.py', copie: 'modal_app/_retexture.py' },
   { nom: 'redimensionner / orienter', source: 'scripts/scale_mesh.py', copie: 'modal_app/_mesh_op.py' },
+  // Texte d'execution de la traduction de l'interface (2026-10-14, revue du lot interface multilingue) : les
+  // dictionnaires different entre bureau et web, le code qui les applique doit rester le MEME (detection de la
+  // langue, recherche des cles, isolation en arabe, menu accessible). Marqueurs en commentaire JS « // # --- … ».
+  { nom: 'i18n (texte d execution)', source: 'src/renderer/i18n.js', copie: 'cloud/public/app/i18n.js' },
 ];
 
 function noyau(chemin) {

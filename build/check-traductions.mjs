@@ -290,6 +290,10 @@ export function verifier(racine, { seuils = null } = {}) {
   const erreurs = [];
   const infos = [];
   const { web, bureau } = m.cibles;
+  // Sans acorn, l'extraction retombe sur des expressions regulieres (1 282 libelles du bureau au lieu de 1 967)
+  // et le controle des doublons rend toujours « aucun » : la garde mesurerait autre chose SANS LE DIRE (revue du
+  // 2026-10-14). Elle refuse donc de conclure.
+  if (!acorn) erreurs.push('module acorn introuvable (node_modules) : extraction et doublons non fiables, garde non concluante');
 
   // 1. couverture
   for (const [nom, cb] of Object.entries(m.cibles)) {

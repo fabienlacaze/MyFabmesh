@@ -12,15 +12,20 @@
 //    en ligne, dont fr) puis lang/*.js, qui appellent FabI18n.register().
 //  - Les libelles a traduire = ce que le traducteur du DOM verrait :
 //      * HTML : noeuds texte (hors script/style/textarea/pre/code/svg) et
-//        attributs placeholder / title / aria-label ;
+//        attributs placeholder / title / aria-label de TOUTES les balises, y compris
+//        textarea / pre / code / svg (2026-10-14 : le placeholder d'un textarea echappait) ;
 //      * JS : litteraux passes a t() / tf() / FabI18n.t() / _i18nT() / _i18nTf()
 //        ET aux fonctions qui affichent un message (showToast, customError,
 //        customConfirm, ...), aux positions qui portent du texte (2026-10-13 :
 //        sans elles, les notifications et les fenetres d'erreur — la moitie de
-//        ce que l'utilisateur lit — n'etaient pas mesurees).
+//        ce que l'utilisateur lit — n'etaient pas mesurees) ;
+//      * JS : litteraux AFFECTES a textContent / innerText / title / placeholder /
+//        ariaLabel ou passes a setAttribute('title' | 'aria-label' | 'placeholder', …)
+//        (2026-10-14, revue du lot interface : etats du formulaire de signalement,
+//        bulles de la barre du haut).
 //    Le filtre « ce n'est pas du texte a traduire » est celui de
 //    _shouldAutoTranslate (i18n.js) : sans lettres, URL, jeton de code,
-//    valeur du genre « 18s ».
+//    valeur du genre « 18s » — SANS son plafond de longueur (2026-10-14).
 //  - Un libelle est « traduit » si dict[coeur] ou dict[brut] existe, ou le
 //    coeur est le libelle prive de ses symboles de tete (meme regle que
 //    _translateNodeValue ET, depuis le 2026-10-13, que _translateAttrs).
@@ -29,8 +34,9 @@
 //    ou un nom de produit s'ecrivent pareil partout : ils ne sont ni « traduits »
 //    ni « manquants », ils sont comptes a part (liste EXPLICITE ci-dessous,
 //    jamais une heuristique qui laisserait passer un vrai mot anglais).
-//  Limite assumee : le texte construit dynamiquement (gabarits avec ${...})
-//  n'est pas mesure ; le repli automatique du bureau (Argos) n'est pas compte.
+//  Limite assumee : le texte construit dynamiquement (gabarits avec ${...}, valeur
+//  passee par une variable : `el.textContent = mot`) n'est pas mesure ; le repli
+//  automatique du bureau n'est pas compte.
 //
 // Usage : node build/couverture-traductions.mjs [--json] [--min <pourcent>] [--racine <dossier>]
 // Par defaut informatif (code 0). --min : code 1 si une langue est sous le seuil.
@@ -52,9 +58,13 @@ export const CIBLES = [
   { nom: 'web', dossier: 'cloud/public/app', html: ['index.html'], js: ['index2.js', 'index2-edit-tools.js', 'cloud-overrides.js', 'meshyAPI-cloud.js', 'lib/textes-serveur.js', 'i18n.js'], i18n: 'i18n.js', lang: 'lang' },
 ];
 
-// Copie de _shouldAutoTranslate (i18n.js) : ce qui n'est pas un texte a traduire.
+// Reprise de _shouldAutoTranslate (i18n.js) : ce qui n'est pas un texte a traduire.
+// SANS son plafond de 200 caracteres (revue du lot interface, 2026-10-14, bloquant B2) : ce plafond borne
+// la traduction AUTOMATIQUE (cout du traducteur local) et ne dit pas si un texte doit etre traduit. Copie ici,
+// il sortait de la mesure tout texte long — l'avertissement IA de la fenetre A propos (Store 11.16), les
+// textes de vie privee des Reglages — et la garde affichait 100 % avec ces textes en anglais.
 export function estTraduisible(cle) {
-  if (!cle || cle.length > 200) return false;
+  if (!cle) return false;
   if (!/[A-Za-z]/.test(cle)) return false;
   if (/^https?:\/\//i.test(cle)) return false;
   if (!/\s/.test(cle) && /[._/\\()]|[a-z][A-Z]/.test(cle)) return false;
@@ -73,7 +83,7 @@ export const NEUTRES = new Set([
   // noms de langue ecrits dans leur langue (le selecteur doit rester autonyme)
   'English', 'Français', 'Español', '中文', 'हिन्दी', 'العربية',
   // noms de produits et de marques
-  'MyFabmesh', 'MyFabmesh.AI', 'MyFabmesh.AI Cloud', 'Claude', 'Claude Code', 'Claude Desktop', 'Blender', 'Unreal Engine', 'Unity', 'Stripe', 'GitHub', 'Discord', 'Sketchfab', 'Windows', 'NVIDIA', 'PowerShell',
+  'MyFabmesh', 'MyFabmesh.AI', 'MyFabmesh.AI Cloud', 'MyFabmesh.AI 3D Native', 'Claude', 'Claude Code', 'Claude Desktop', 'Blender', 'Unreal Engine', 'Unity', 'Stripe', 'GitHub', 'Discord', 'Sketchfab', 'Windows', 'NVIDIA', 'PowerShell',
 ]);
 export function estNeutre(cle) {
   const c = coeurDe(String(cle || '').trim());
@@ -91,12 +101,14 @@ export function coeurDe(cle) {
 }
 
 // Entites nommees courantes dans les deux pages (le navigateur les decode : le dictionnaire doit porter le caractere).
+// &nbsp; et les espaces fines donnent LEUR caractere, pas une espace ordinaire (revue du 2026-10-14) : decodes en
+// espace, « 48&nbsp;h » comptait comme traduit alors que le navigateur cherchait « 48 h » et ne trouvait rien.
 const ENTITES = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–', mdash: '—', times: '×', hellip: '…', middot: '·',
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', ndash: '–', mdash: '—', times: '×', hellip: '…', middot: '·',
   rarr: '→', larr: '←', harr: '↔', uarr: '↑', darr: '↓', rArr: '⇒', lArr: '⇐', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“',
   laquo: '«', raquo: '»', bull: '•', deg: '°', copy: '©', reg: '®', trade: '™', euro: '€', plusmn: '±', le: '≤', ge: '≥', ne: '≠',
   minus: '−', sup2: '²', sup3: '³', frac12: '½', para: '¶', sect: '§', check: '✓', cross: '✗', star: '☆', hearts: '♥', asymp: '≈',
-  infin: '∞', larrhk: '↩', crarr: '↵', loz: '◊', diams: '♦', spades: '♠', clubs: '♣', prime: '′', Prime: '″', thinsp: ' ', ensp: ' ', emsp: ' ',
+  infin: '∞', larrhk: '↩', crarr: '↵', loz: '◊', diams: '♦', spades: '♠', clubs: '♣', prime: '′', Prime: '″', thinsp: '\u2009', ensp: '\u2002', emsp: '\u2003',
 };
 function decoder(s) {
   return s
@@ -113,7 +125,14 @@ export function libellesHtml(src) {
     if (estTraduisible(cle)) sortie.set(cle, (sortie.get(cle) || 0) + 1);
   };
   let s = src.replace(/<!--[\s\S]*?-->/g, '');
-  s = s.replace(/<(script|style|textarea|pre|code|svg|noscript)\b[\s\S]*?<\/\1>/gi, '<$1></$1>');
+  s = s.replace(/<(script|style|noscript)\b[\s\S]*?<\/\1>/gi, '<$1></$1>');
+  // textarea / pre / code / svg : leur TEXTE n'est pas traduit (SKIP_TAGS de i18n.js), mais leurs ATTRIBUTS le
+  // sont (_translateAttrs parcourt tous les [placeholder], [title], [aria-label]). Avant (bloquant B1 de la revue,
+  // 2026-10-14), toute la balise etait remplacee, attributs compris : le placeholder « What is wrong with this
+  // result? » du formulaire de signalement echappait a la mesure et restait en anglais dans 4 langues.
+  // On garde donc les balises (et leurs attributs) et on retire seulement le texte qu'elles contiennent.
+  s = s.replace(/<(textarea|pre|code|svg)\b([^<>]*)>([\s\S]*?)<\/\1>/gi,
+    (_, b, attrs, dedans) => '<' + b + attrs + '>' + (dedans.match(/<[a-zA-Z][^<>]*>/g) || []).join('') + '</' + b + '>');
   const reTexte = />([^<>]+)</g;
   let m;
   while ((m = reTexte.exec(s))) ajouter(m[1]);
@@ -143,6 +162,36 @@ function litteral(n) {
   if (n.type === 'Literal' && typeof n.value === 'string') return n.value;
   if (n.type === 'TemplateLiteral' && n.expressions.length === 0) return n.quasis.map((q) => q.value.cooked).join('');
   return null;
+}
+
+// Textes POSES PAR AFFECTATION (revue du lot interface, 2026-10-14) : el.textContent = 'Sending your report…',
+// btn.title = 'Inbox & contact us', el.setAttribute('aria-label', '…'). Le traducteur du DOM les traduit (son
+// observateur voit le noeud texte ajoute ou l'attribut change) s'ils ont une entree ; la mesure ne les voyait pas :
+// les messages d'etat du formulaire de signalement (Store 11.16) n'etaient traduits qu'en francais, sans alerte.
+export const PROPRIETES_TEXTE = new Set(['textContent', 'innerText', 'title', 'placeholder', 'ariaLabel']);
+export const ATTRIBUTS_TEXTE = new Set(['title', 'aria-label', 'placeholder']);
+// Feuille de style posee par textContent (style.textContent = '.a { color: red }') : pas du texte affiche.
+const estCss = (s) => /\{[^{}]*:[^{}]*\}/.test(s);
+function litterauxAffectes(n, sortie) {
+  if (!n) return;
+  const v = litteral(n);
+  if (v != null) { sortie.push(v); return; }
+  if (n.type === 'ConditionalExpression') { litterauxAffectes(n.consequent, sortie); litterauxAffectes(n.alternate, sortie); }
+  else if (n.type === 'LogicalExpression') { litterauxAffectes(n.left, sortie); litterauxAffectes(n.right, sortie); }
+}
+function textesAffectes(n) {
+  const sortie = [];
+  if (n.type === 'AssignmentExpression' && n.operator === '=' && n.left.type === 'MemberExpression' && !n.left.computed
+      && n.left.property.type === 'Identifier' && PROPRIETES_TEXTE.has(n.left.property.name)
+      // document.title : le titre de l'onglet n'est pas parcouru par le traducteur du DOM
+      && !(n.left.object.type === 'Identifier' && n.left.object.name === 'document')) {
+    litterauxAffectes(n.right, sortie);
+  } else if (n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && !n.callee.computed
+      && n.callee.property.type === 'Identifier' && n.callee.property.name === 'setAttribute'
+      && ATTRIBUTS_TEXTE.has(litteral(n.arguments[0]))) {
+    litterauxAffectes(n.arguments[1], sortie);
+  }
+  return sortie.filter((s) => !estCss(s));
 }
 
 function nomAppele(callee) {
@@ -208,6 +257,10 @@ export function libellesJs(src) {
   parcourir(ast, (n) => {
     if (n.type === 'TemplateLiteral') { verserHtml(n.quasis.map((q) => q.value.cooked == null ? q.value.raw : q.value.cooked).join('${…}')); return; }
     if (n.type === 'Literal' && typeof n.value === 'string') { verserHtml(n.value); return; }
+    for (const v of textesAffectes(n)) {
+      const cle = v.trim();
+      if (estTraduisible(cle)) sortie.set(cle, (sortie.get(cle) || 0) + 1);
+    }
     if (n.type !== 'CallExpression') return;
     // Noms de travaux (panneau « Running jobs ») : stockes en anglais, traduits a l'affichage par
     // _displayJobName, qui cherche le gabarit « Prefixe: {x} » (ou le nom entier s'il est fixe).
@@ -288,12 +341,21 @@ export function chargerDictionnaires({ i18n, dossierLang }) {
   return registre;
 }
 
-// Meme recherche que i18n.js (_chercher) : cle exacte, puis blancs ramenes a un espace.
-const blancs = (s) => s.replace(/\s+/g, ' ');
+// MEME recherche que i18n.js (_chercher) : la cle exacte, puis — seulement si elle contient deux blancs de suite
+// ou un blanc autre que l'espace (retour a la ligne, tabulation, espace insecable) — la cle aux blancs ramenes a
+// un espace. Avant (revue du 2026-10-14), la mesure normalisait TOUT blanc et declarait traduit un texte que le
+// navigateur ne trouvait pas.
+const blancs = (k) => (/\s\s|[^\S ]/.test(k) ? k.replace(/\s+/g, ' ') : null);
+function chercher(dict, k) {
+  if (!dict || !k) return null;
+  if (dict[k]) return dict[k];
+  const n = blancs(k);
+  return (n && dict[n]) || null;
+}
 export function valeurDe(dict, cle) {
   if (!dict) return null;
   const coeur = coeurDe(cle);
-  return dict[coeur] || dict[cle] || dict[blancs(coeur)] || dict[blancs(cle)] || null;
+  return chercher(dict, coeur) || chercher(dict, cle) || null;
 }
 
 export function estTraduit(dict, cle) {
