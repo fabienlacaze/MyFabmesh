@@ -6,8 +6,10 @@
 //   - Generate traduit la partie de l'utilisateur d'un champ enrichi, meme avec un mot du gabarit (MANQUE-01, CHAMPS-06/23) ;
 //   - stripKnownPromptSuffixes ne detruit plus un texte qui contient un marqueur de gabarit au milieu d'une phrase (MANQUE-03) ;
 //   - le bloc commun est identique bureau / web ; l'aide de langue du bureau dit quand aucun traducteur n'est joignable (TRADUCTION-02).
+//   - (revue du 2026-10-14, B2) sous une interface ANGLAISE, un prompt anglais a mots partages (« camper van », « beer mug », « kobold
+//     archer ») ne part jamais au traducteur, et un traducteur indisponible n'ouvre aucune fenetre ;
 // Lancer : node --test tests/bureau-interface/traduction-client.test.mjs
-// Ancien code : WEB_INDEX2=<copie> BUREAU_INDEX2=<copie> node --test tests/bureau-interface/traduction-client.test.mjs
+// Ancien code : WEB_INDEX2=<copie> BUREAU_INDEX2=<copie> [LIB_LANGUE=<copie de lib/langue-texte.js>] node --test tests/bureau-interface/traduction-client.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
@@ -27,7 +29,7 @@ const dossier = mkdtempSync(join(tmpdir(), 'traduction-client-'));
 let LT, COMPO;
 try {
   const c1 = join(dossier, 'langue-texte.mjs');
-  writeFileSync(c1, readFileSync(join(RACINE, 'src/renderer/lib/langue-texte.js'), 'utf-8'));
+  writeFileSync(c1, readFileSync(process.env.LIB_LANGUE || join(RACINE, 'src/renderer/lib/langue-texte.js'), 'utf-8'));
   LT = await import(pathToFileURL(c1).href);
   const c2 = join(dossier, 'composeur-intention.mjs');
   writeFileSync(c2, readFileSync(join(RACINE, 'src/renderer/lib/composeur-intention.js'), 'utf-8'));
@@ -117,6 +119,8 @@ function monter(cheminFichier, { langue = 'fr', traduire = null, choix = [], sta
 
 const CORPUS = JSON.parse(readFileSync(join(RACINE, 'build/intention_cas.json'), 'utf-8')).map((c) => c.texte);
 const traducteurOk = ({ text }) => ({ text: 'EN:' + text, translated: true });
+// prompts ANGLAIS a mots partages avec une autre langue (cloud/tests/langue-corpus-hostile.json : 451 cas, dont les 195 de la revue)
+const HOSTILE = JSON.parse(readFileSync(join(RACINE, 'cloud/tests/langue-corpus-hostile.json'), 'utf-8')).anglais;
 
 for (const [nom, chemin] of Object.entries(FICHIERS)) {
   test(nom + ' : la langue SOURCE est celle du TEXTE (avant : celle de l interface, ou rien sous une interface anglaise)', async () => {
@@ -136,6 +140,28 @@ for (const [nom, chemin] of Object.entries(FICHIERS)) {
     for (const t of CORPUS) assert.equal(await a.M.translateUserPrompt(t), t);
     for (const t of ['a red dragon', 'wooden barrel', 'A stone golem']) assert.equal(await a.M.translateUserPrompt(t), t);
     assert.equal(a.appels.length, 0, 'appels inutiles : ' + JSON.stringify(a.appels.slice(0, 5)));
+  });
+
+  test(nom + ' : interface ANGLAISE + prompt anglais a mots partages (camper van, beer mug, kobold archer...) : AUCUN appel au traducteur', async () => {
+    // revue du 2026-10-14, B2 : 57 prompts anglais sur 195 partaient au traducteur avec une mauvaise langue source (avant le lot : aucun)
+    const a = monter(chemin, { langue: 'en', traduire: traducteurOk });
+    const sorties = [];
+    for (const t of HOSTILE) { const r = await a.M.translateUserPrompt(t); if (r !== t) sorties.push(`${t} -> ${r}`); }
+    assert.deepEqual(a.appels.map((x) => `${x.text} <- ${x.from}`).slice(0, 10), [], a.appels.length + ' envoyes au traducteur');
+    assert.deepEqual(sorties, []);
+  });
+
+  test(nom + ' : interface ANGLAISE + prompt anglais + traducteur indisponible : AUCUNE fenetre « Translation failed », Generate part', async () => {
+    // reponse du main du bureau quand le modele de la langue « detectee » se telecharge et qu'aucune session n'existe
+    const a = monter(chemin, { langue: 'en', choix: HOSTILE.map(() => 'annuler'),
+      traduire: ({ text }) => ({ text, translated: false, raison: 'model-downloading', pending: true }) });
+    const annules = [];
+    for (const t of HOSTILE) { const r = await a.M._traduirePourGeneration(t); if (!r || r.texte !== t) annules.push(t); }
+    assert.deepEqual({ fenetres: a.fenetre.ouvertures, annules: annules.slice(0, 10) }, { fenetres: 0, annules: [] });
+    // un texte SUREMENT etranger reste traduit sous une interface anglaise
+    const b = monter(chemin, { langue: 'en', traduire: traducteurOk });
+    assert.deepEqual(await b.M._traduirePourGeneration('ein roter Drache mit Flügeln'), { texte: 'EN:ein roter Drache mit Flügeln', telQuel: false });
+    assert.equal(b.appels[0].from, 'de');
   });
 
   test(nom + ' : ECHEC dit (raison), plus jamais confondu avec un succes ; cache des reussites', async () => {

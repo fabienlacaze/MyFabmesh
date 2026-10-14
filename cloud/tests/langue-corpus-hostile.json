@@ -1,0 +1,902 @@
+{
+ "description": "Corpus de PRECISION et de RAPPEL de lib/langue-texte.js (revue du lot 2 de l audit de la langue, 2026-10-14). anglais : prompts ANGLAIS realistes contenant des mots qui existent aussi dans une autre langue (noms propres, emprunts, mots outils : camper van, wolf den, Las Vegas sign, sombrero, beer mug...), 195 releves par la revue + cas ajoutes ; aucun ne doit partir au traducteur sous une interface anglaise ni etre vise par le filet du serveur. etrangers : prompts courts dans 10 langues, [langue, texte].",
+ "anglais": [
+  "camper van",
+  "delivery van",
+  "ice cream van",
+  "hippie van",
+  "old VW van",
+  "a camper van",
+  "panel van",
+  "police van",
+  "wolf den",
+  "dragon den",
+  "bear den",
+  "lion den",
+  "beer mug",
+  "a beer mug",
+  "beer barrel",
+  "beer stein",
+  "a beer stein",
+  "pint of beer",
+  "garden hose",
+  "fire hose",
+  "ship helm",
+  "pirate ship helm",
+  "ships helm wheel",
+  "red die",
+  "die cast car",
+  "die-cast toy truck",
+  "dice and die",
+  "sin eater",
+  "seven deadly sins statue",
+  "con artist",
+  "con man in a suit",
+  "Al Capone",
+  "Las Vegas sign",
+  "Los Angeles police car",
+  "El Dorado gold statue",
+  "Leonardo da Vinci flying machine",
+  "Van Gogh style sunflowers",
+  "zorro mask",
+  "kobold archer",
+  "kobold",
+  "piccolo flute",
+  "Elmo plush",
+  "rot zombie",
+  "fell beast",
+  "gift box",
+  "mist golem",
+  "kind robot",
+  "brand new car",
+  "son of the dragon king",
+  "a son and his father",
+  "per side armor plates",
+  "tank top",
+  "bra",
+  "pub sign",
+  "taco truck",
+  "burrito",
+  "sombrero",
+  "poncho",
+  "fiesta pinata",
+  "pizza oven",
+  "pasta bowl",
+  "espresso machine",
+  "gelato cart",
+  "cannoli",
+  "samurai helmet",
+  "ninja star",
+  "tofu",
+  "sushi platter",
+  "ramen bowl",
+  "anime girl",
+  "manga robot",
+  "karate dojo",
+  "kimono",
+  "hamburger",
+  "kindergarten toy",
+  "doppelganger",
+  "rucksack",
+  "poltergeist",
+  "wanderlust traveler",
+  "angst teenager",
+  "hamster wheel",
+  "bratwurst",
+  "pretzel",
+  "lager bottle",
+  "schnauzer dog",
+  "dachshund",
+  "rottweiler",
+  "kaiser helmet",
+  "cafe table",
+  "croissant",
+  "baguette",
+  "beret",
+  "chateau",
+  "boutique shop",
+  "cul-de-sac house",
+  "art deco lamp",
+  "robe",
+  "plate armor",
+  "lame dog",
+  "pain au chocolat",
+  "menu board",
+  "tour bus",
+  "mars rover",
+  "pour over coffee",
+  "ham sandwich",
+  "pan flute",
+  "pie",
+  "tea set",
+  "wok",
+  "grill",
+  "tent",
+  "mono wheel",
+  "solo cup",
+  "den mother",
+  "van dweller",
+  "campervan",
+  "the van",
+  "a van",
+  "van with surfboards on the roof",
+  "combat boots",
+  "tactical vest",
+  "gas mask",
+  "hazmat suit",
+  "mech suit",
+  "power armor",
+  "rail gun",
+  "magic wand",
+  "ogre",
+  "troll",
+  "imp",
+  "golem",
+  "lich",
+  "wyvern",
+  "hydra",
+  "kraken",
+  "minotaur",
+  "centaur",
+  "cyclops",
+  "samurai cat",
+  "ninja turtle",
+  "cowboy hat",
+  "saloon door",
+  "wagon wheel",
+  "cactus",
+  "tumbleweed",
+  "monster truck",
+  "go kart",
+  "jet ski",
+  "hot air balloon",
+  "zeppelin",
+  "blimp",
+  "submarine",
+  "tank",
+  "jeep",
+  "hut",
+  "igloo",
+  "yurt",
+  "tipi",
+  "pagoda",
+  "temple",
+  "mosque",
+  "church",
+  "chapel",
+  "cathedral",
+  "Die Hard building",
+  "sin city car",
+  "fiat 500",
+  "mini cooper",
+  "vespa scooter",
+  "porsche",
+  "ferrari",
+  "a vase",
+  "vase",
+  "mug",
+  "kettle",
+  "lamp",
+  "sofa",
+  "couch",
+  "desk",
+  "bed",
+  "table",
+  "den",
+  "van",
+  "die",
+  "per",
+  "sin",
+  "con",
+  "al",
+  "son",
+  "beer",
+  "hose",
+  "helm",
+  "stein",
+  "rot",
+  "fell",
+  "Van Helsing monster hunter",
+  "Van der Linde gang hideout",
+  "Don Quixote on his horse",
+  "El Cid statue",
+  "Los Pollos Hermanos sign",
+  "Dia de los Muertos sugar skull",
+  "Day of the Dead calavera mask",
+  "Le Mans race car",
+  "Les Paul electric guitar",
+  "Mont Blanc fountain pen",
+  "La Croix soda can",
+  "Del Monte fruit crate",
+  "Al Pacino style gangster",
+  "Da Vinci ornithopter",
+  "DiCaprio style suit",
+  "Von Braun rocket",
+  "Das Boot submarine",
+  "Den of thieves hideout",
+  "coup de grace sword",
+  "cul de sac street sign",
+  "Tour de France bicycle",
+  "Arc de Triomphe miniature",
+  "Notre Dame gargoyle",
+  "Moulin Rouge windmill",
+  "Cirque du Soleil acrobat",
+  "joie de vivre poster",
+  "carte blanche card",
+  "deja vu clock",
+  "film noir detective",
+  "avant garde sculpture",
+  "femme fatale in a red dress",
+  "bon appetit chef",
+  "hors d'oeuvre platter",
+  "sous vide cooker",
+  "creme brulee dessert",
+  "crème brûlée in a ramekin",
+  "pain au chocolat on a plate",
+  "croque monsieur sandwich",
+  "fleur de lis shield",
+  "papillon dog",
+  "chaise longue by the pool",
+  "haute couture dress",
+  "art nouveau lamp",
+  "belle epoque poster",
+  "Mardi Gras mask",
+  "Cinco de Mayo pinata",
+  "piñata shaped like a donkey",
+  "jalapeño pepper mascot",
+  "pico de gallo bowl",
+  "Rio de Janeiro postcard",
+  "Buenos Aires tango dancer",
+  "Santa Fe adobe house",
+  "El Paso cowboy boots",
+  "Las Cruces church",
+  "Los Alamos lab",
+  "San Diego zoo sign",
+  "Sierra Madre mountains",
+  "Casa Grande ruins",
+  "mi casa su casa doormat",
+  "hasta la vista robot",
+  "que sera sera music box",
+  "la dolce vita scooter",
+  "mamma mia poster",
+  "al dente pasta bowl",
+  "al fresco dining table",
+  "pro bono lawyer",
+  "per diem envelope",
+  "status quo sign",
+  "ad hoc shelter",
+  "alma mater banner",
+  "carpe diem tattoo",
+  "deus ex machina robot",
+  "persona non grata stamp",
+  "kindergarten classroom",
+  "wunderkind trophy",
+  "zeitgeist poster",
+  "doppelganger in a mirror",
+  "poltergeist doll",
+  "blitzkrieg tank",
+  "panzer tank",
+  "oktoberfest beer stein",
+  "lederhosen outfit",
+  "dirndl dress",
+  "bratwurst on a grill",
+  "sauerkraut jar",
+  "apple strudel",
+  "kaiser roll",
+  "wiener dog",
+  "rottweiler guard dog",
+  "doberman pinscher",
+  "german schnauzer",
+  "der kommissar police car",
+  "Die Antwoord poster",
+  "beer garden table",
+  "the wolf in his den",
+  "a den full of bones",
+  "a van parked by the beach",
+  "my old van",
+  "the delivery van is red",
+  "a con man and his tools",
+  "sin city skyline",
+  "seven sins altar",
+  "the son of a king",
+  "per aspera ad astra badge",
+  "pour the potion",
+  "a pour over coffee maker",
+  "lame horse",
+  "fell beast mount",
+  "rot and decay zombie",
+  "die with six faces",
+  "a pair of dice and a die",
+  "a helm of awe",
+  "captain at the helm",
+  "garden hose reel",
+  "fire hose nozzle",
+  "stein of ale",
+  "beer and pretzels",
+  "sombrero hat",
+  "poncho and sombrero",
+  "mariachi with a sombrero",
+  "zorro sword",
+  "the mask of zorro",
+  "kobold miner",
+  "a kobold with a lantern",
+  "rucksack full of gear",
+  "piccolo player",
+  "elmo plush toy",
+  "groot tree creature",
+  "naga warrior",
+  "naga queen with snake tail",
+  "baja truck",
+  "mobil gas station sign",
+  "chai latte cup",
+  "torn banner",
+  "sten gun",
+  "hindi script poster",
+  "giza pyramid",
+  "acer laptop",
+  "gat in a holster",
+  "cheval mirror",
+  "eau de parfum bottle",
+  "eau de toilette flask",
+  "pour homme cologne",
+  "penne alla vodka",
+  "tutti frutti ice cream",
+  "Comic Sans sign",
+  "sans serif letters",
+  "chez panisse menu",
+  "pierre the baker",
+  "bleu cheese wedge",
+  "rei ayanami figure",
+  "chainmail coif",
+  "vita juice",
+  "jack bauer phone",
+  "thomas mann book",
+  "I've got a sword",
+  "we'll make a castle",
+  "they're riding dragons",
+  "you're a wizard",
+  "it's a trap",
+  "cute af monster",
+  "scary af ghost",
+  "art deco skyscraper",
+  "coffee mug with a cat",
+  "pint glass of lager",
+  "wine bottle and glasses",
+  "crab with big claws",
+  "tortuga pirate port",
+  "amarillo by morning truck",
+  "pueblo village",
+  "alas poor yorick skull",
+  "isla nublar gate",
+  "mariposa lily",
+  "guerrero warrior mask",
+  "fuego fire spirit",
+  "madera wood sign",
+  "calavera candle",
+  "hombre with a hat",
+  "rey with a staff",
+  "donna the dancer",
+  "angelo the angel",
+  "ali baba lamp",
+  "coda of a song sheet",
+  "grigio wine",
+  "strega witch doll",
+  "drago boxer",
+  "argento silver ring",
+  "bambino baby stroller",
+  "giallo movie poster",
+  "bianca the doll",
+  "bolo tie",
+  "madeira wine cask",
+  "rode a horse into battle",
+  "wit and wisdom book",
+  "kat the cat",
+  "bruin bear",
+  "dom perignon bottle",
+  "apple pies on a tray",
+  "pod racer",
+  "jest of a jester",
+  "led lamp",
+  "pro gamer chair",
+  "a bot with wheels",
+  "arc reactor",
+  "mint ice cream",
+  "kale salad",
+  "cam rig",
+  "dev kit",
+  "ev charger",
+  "api diagram",
+  "tong tool",
+  "yang symbol",
+  "dan the man",
+  "ada lovelace portrait",
+  "under the sea castle",
+  "for sale sign",
+  "till box",
+  "sit on a chair",
+  "sine wave poster",
+  "holder for pens",
+  "a bag of gold",
+  "sort of a robot",
+  "slot machine",
+  "hun warrior",
+  "han solo blaster",
+  "med kit",
+  "av receiver",
+  "ja rule poster",
+  "on fire",
+  "tai chi master",
+  "iso container",
+  "care bear",
+  "din rail",
+  "cu copper wire",
+  "pe teacher whistle",
+  "mint condition comic",
+  "bot army",
+  "arc welder",
+  "az sign",
+  "fa so la ti do poster",
+  "u boat",
+  "sa logo",
+  "pas de deux ballet",
+  "rep counter",
+  "div tag",
+  "sense of wonder",
+  "molt of a snake",
+  "als ribbon",
+  "may pole",
+  "si fi spaceship",
+  "kay the knight",
+  "hindi movie poster",
+  "ay caramba sign",
+  "au pair",
+  "cha cha dancer",
+  "sana the sorceress"
+ ],
+ "etrangers": [
+  [
+   "fr",
+   "un chevalier en armure dorée"
+  ],
+  [
+   "fr",
+   "une épée en acier"
+  ],
+  [
+   "fr",
+   "un vieux bateau de pirate"
+  ],
+  [
+   "fr",
+   "une maison médiévale en pierre"
+  ],
+  [
+   "fr",
+   "un dragon noir avec des cornes"
+  ],
+  [
+   "fr",
+   "une voiture de sport rouge"
+  ],
+  [
+   "fr",
+   "un loup gris qui hurle"
+  ],
+  [
+   "fr",
+   "un tonneau en bois"
+  ],
+  [
+   "fr",
+   "une sorcière avec un chapeau pointu"
+  ],
+  [
+   "fr",
+   "un robot futuriste"
+  ],
+  [
+   "fr",
+   "un château fort"
+  ],
+  [
+   "fr",
+   "un gobelin avec une hache"
+  ],
+  [
+   "fr",
+   "une lampe magique"
+  ],
+  [
+   "fr",
+   "un arbre géant"
+  ],
+  [
+   "fr",
+   "un coffre au trésor"
+  ],
+  [
+   "fr",
+   "guerrier orc avec une massue"
+  ],
+  [
+   "fr",
+   "petite cabane dans la forêt"
+  ],
+  [
+   "fr",
+   "un squelette avec un bouclier"
+  ],
+  [
+   "fr",
+   "une couronne en or"
+  ],
+  [
+   "fr",
+   "un vaisseau spatial"
+  ],
+  [
+   "fr",
+   "le roi des elfes"
+  ],
+  [
+   "fr",
+   "la reine des neiges"
+  ],
+  [
+   "fr",
+   "chevalier sans tête"
+  ],
+  [
+   "fr",
+   "fusée rouge"
+  ],
+  [
+   "fr",
+   "tortue géante"
+  ],
+  [
+   "es",
+   "un caballero con armadura"
+  ],
+  [
+   "es",
+   "una espada de acero"
+  ],
+  [
+   "es",
+   "un barco pirata viejo"
+  ],
+  [
+   "es",
+   "una casa medieval de piedra"
+  ],
+  [
+   "es",
+   "un dragón negro con cuernos"
+  ],
+  [
+   "es",
+   "un coche deportivo rojo"
+  ],
+  [
+   "es",
+   "un lobo gris aullando"
+  ],
+  [
+   "es",
+   "un barril de madera"
+  ],
+  [
+   "es",
+   "una bruja con sombrero puntiagudo"
+  ],
+  [
+   "es",
+   "un robot futurista"
+  ],
+  [
+   "es",
+   "un castillo antiguo"
+  ],
+  [
+   "es",
+   "un enano con un hacha"
+  ],
+  [
+   "es",
+   "una lámpara mágica"
+  ],
+  [
+   "es",
+   "un árbol gigante"
+  ],
+  [
+   "es",
+   "un cofre del tesoro"
+  ],
+  [
+   "es",
+   "guerrero orco con un garrote"
+  ],
+  [
+   "es",
+   "cabaña pequeña en el bosque"
+  ],
+  [
+   "es",
+   "el rey de los elfos"
+  ],
+  [
+   "es",
+   "la reina del hielo"
+  ],
+  [
+   "es",
+   "tortuga gigante"
+  ],
+  [
+   "de",
+   "ein Ritter in goldener Rüstung"
+  ],
+  [
+   "de",
+   "ein Schwert aus Stahl"
+  ],
+  [
+   "de",
+   "ein altes Piratenschiff"
+  ],
+  [
+   "de",
+   "ein mittelalterliches Haus aus Stein"
+  ],
+  [
+   "de",
+   "ein schwarzer Drache mit Hörnern"
+  ],
+  [
+   "de",
+   "ein roter Sportwagen"
+  ],
+  [
+   "de",
+   "ein grauer Wolf"
+  ],
+  [
+   "de",
+   "ein Holzfass"
+  ],
+  [
+   "de",
+   "eine Hexe mit spitzem Hut"
+  ],
+  [
+   "de",
+   "ein futuristischer Roboter"
+  ],
+  [
+   "de",
+   "eine alte Burg"
+  ],
+  [
+   "de",
+   "ein Zwerg mit einer Axt"
+  ],
+  [
+   "de",
+   "eine magische Lampe"
+  ],
+  [
+   "de",
+   "ein riesiger Baum"
+  ],
+  [
+   "de",
+   "eine Schatztruhe"
+  ],
+  [
+   "de",
+   "der König der Elfen"
+  ],
+  [
+   "de",
+   "kleine Hütte im Wald"
+  ],
+  [
+   "it",
+   "un cavaliere in armatura dorata"
+  ],
+  [
+   "it",
+   "una spada di acciaio"
+  ],
+  [
+   "it",
+   "una vecchia nave pirata"
+  ],
+  [
+   "it",
+   "una casa medievale di pietra"
+  ],
+  [
+   "it",
+   "un drago nero con le corna"
+  ],
+  [
+   "it",
+   "una macchina sportiva rossa"
+  ],
+  [
+   "it",
+   "un lupo grigio"
+  ],
+  [
+   "it",
+   "una botte di legno"
+  ],
+  [
+   "it",
+   "una strega con un cappello a punta"
+  ],
+  [
+   "it",
+   "un robot futuristico"
+  ],
+  [
+   "it",
+   "un castello antico"
+  ],
+  [
+   "it",
+   "un nano con un'ascia"
+  ],
+  [
+   "it",
+   "una lampada magica"
+  ],
+  [
+   "it",
+   "un albero gigante"
+  ],
+  [
+   "it",
+   "un forziere del tesoro"
+  ],
+  [
+   "it",
+   "il re degli elfi"
+  ],
+  [
+   "pt",
+   "um cavaleiro de armadura dourada"
+  ],
+  [
+   "pt",
+   "uma espada de aço"
+  ],
+  [
+   "pt",
+   "um velho navio pirata"
+  ],
+  [
+   "pt",
+   "uma casa medieval de pedra"
+  ],
+  [
+   "pt",
+   "um dragão preto com chifres"
+  ],
+  [
+   "pt",
+   "um carro esportivo vermelho"
+  ],
+  [
+   "pt",
+   "um lobo cinza"
+  ],
+  [
+   "pt",
+   "um barril de madeira"
+  ],
+  [
+   "pt",
+   "uma bruxa com chapéu pontudo"
+  ],
+  [
+   "pt",
+   "um robô futurista"
+  ],
+  [
+   "pt",
+   "um castelo antigo"
+  ],
+  [
+   "pt",
+   "um anão com um machado"
+  ],
+  [
+   "nl",
+   "een ridder in een gouden harnas"
+  ],
+  [
+   "nl",
+   "een stalen zwaard"
+  ],
+  [
+   "nl",
+   "een oud piratenschip"
+  ],
+  [
+   "nl",
+   "een zwarte draak met hoorns"
+  ],
+  [
+   "nl",
+   "een rode sportwagen"
+  ],
+  [
+   "nl",
+   "een grijze wolf"
+  ],
+  [
+   "nl",
+   "een houten ton"
+  ],
+  [
+   "pl",
+   "rycerz w złotej zbroi"
+  ],
+  [
+   "pl",
+   "stalowy miecz"
+  ],
+  [
+   "pl",
+   "czarny smok z rogami"
+  ],
+  [
+   "pl",
+   "czerwony samochód sportowy"
+  ],
+  [
+   "tr",
+   "altın zırhlı bir şövalye"
+  ],
+  [
+   "tr",
+   "çelik bir kılıç"
+  ],
+  [
+   "tr",
+   "boynuzlu siyah bir ejderha"
+  ],
+  [
+   "tr",
+   "kırmızı bir spor araba"
+  ],
+  [
+   "sv",
+   "en riddare i gyllene rustning"
+  ],
+  [
+   "sv",
+   "ett svärd av stål"
+  ],
+  [
+   "sv",
+   "en svart drake med horn"
+  ],
+  [
+   "id",
+   "seorang ksatria dengan baju zirah emas"
+  ],
+  [
+   "id",
+   "pedang baja"
+  ],
+  [
+   "id",
+   "naga hitam dengan tanduk"
+  ]
+ ]
+}

@@ -183,3 +183,61 @@ test('robustesse : entrees degenerees, texte enorme borne en temps', () => {
   LT.morceauxEtrangers('un dragon rouge, '.repeat(20000));
   assert.ok(Date.now() - t0 < 2000, 'trop lent : ' + (Date.now() - t0) + ' ms');
 });
+
+// ------------------------------------------------------------------------------------------------ PRECISION (revue du 2026-10-14)
+// Bloquants B1 / B2 de la revue du lot 2 : un seul mot outil etranger (« van », « den », « el », « las », « sin », « con », « per »,
+// « pour ») ou un emprunt (« beer », « kobold », « sombrero ») suffisait : 57 prompts anglais sur 195 partaient au traducteur sous une
+// interface ANGLAISE et 25 etaient vises par le filet du serveur (traduits, ou refuses en 422 si le traducteur etait en panne).
+const HOSTILE = JSON.parse(readFileSync(chemin('CORPUS_HOSTILE', './langue-corpus-hostile.json'), 'utf-8'));
+
+test('precision : prompts ANGLAIS a mots partages (camper van, wolf den, Las Vegas sign...) : jamais surement etrangers, jamais traduits sous une interface anglaise, jamais vises par le filet', () => {
+  assert.ok(HOSTILE.anglais.length >= 400, 'corpus : ' + HOSTILE.anglais.length);
+  const fautes = [];
+  for (const t of HOSTILE.anglais) {
+    const d = LT.detecterLangue(t);
+    if (d.langue && d.langue !== 'en' && d.sure) fautes.push(`${t} : surement ${d.langue}`);
+    const src = LT.langueSource(t, 'en');
+    if (src) fautes.push(`${t} : traduit depuis ${src} sous une interface anglaise`);
+    const m = LT.morceauxEtrangers(t);
+    if (m.length) fautes.push(`${t} : filet du serveur (${m.map((x) => x.langue).join(',')})`);
+  }
+  assert.deepEqual(fautes, []);
+});
+
+test('precision : un mot qui existe aussi en anglais ne designe jamais une langue a lui seul ; un seul mot ne rend jamais « sur »', () => {
+  for (const t of ['van', 'den', 'die', 'beer', 'sombrero', 'rucksack', 'kobold', 'piccolo', 'el', 'las', 'con', 'sin', 'per', 'pour']) {
+    assert.equal(LT.detecterLangue(t).langue, null, t);
+  }
+  for (const t of ['drache', 'casque', 'chapeau', 'perro', 'que sera sera', 'Sturm und Drang poster', 'noir detective', 'crème brûlée',
+    'piñata', 'jalapeño', 'São Paulo skyline', 'Mötley Crüe logo']) {
+    assert.equal(LT.detecterLangue(t).sure, false, t);
+    assert.equal(LT.langueSource(t, 'en'), null, 'interface anglaise : ' + t);
+  }
+  // sous l'interface de sa langue, le mot seul part bien au traducteur
+  assert.equal(LT.langueSource('casque', 'fr'), 'fr');
+  assert.equal(LT.langueSource('Drache', 'de'), 'de');
+  assert.equal(LT.langueSource('sombrero', 'es'), 'es');
+});
+
+test('rappel : prompts ETRANGERS courts de 10 langues : traduits sous leur interface (tous), et sous une interface anglaise (presque tous)', () => {
+  let sures = 0;
+  const rates = [];
+  for (const [lg, t] of HOSTILE.etrangers) {
+    assert.ok(LT.langueSource(t, lg), 'interface ' + lg + ' : ' + t);
+    assert.notEqual(LT.detecterLangue(t).langue, 'en', t);
+    if (LT.langueSource(t, 'en') === lg) sures++; else rates.push(`${lg}|${t}`);
+  }
+  // 2 sur 111 restent ambigus sous une interface anglaise (« ein Holzfass », « eine Schatztruhe » : un mot outil + un compose inconnu)
+  assert.ok(sures >= HOSTILE.etrangers.length - 3, `${sures} sur ${HOSTILE.etrangers.length} ; rates : ${rates.join(' ; ')}`);
+});
+
+test('precision : lettres SANS emprunt anglais (turc, polonais, tcheque...) : une phrase sans mot connu reste reconnue', () => {
+  for (const [lg, t] of [['tr', 'Gerekli parametre, isteğe bağlı parametreden sonra gelemez.'], ['pl', 'Dodaj wszystkie brakujące modyfikatory'],
+    ['cs', 'Povinný parametr nemůže následovat po nepovinném parametru.']]) {
+    const d = LT.detecterLangue(t);
+    assert.equal(d.langue, lg, t);
+    assert.equal(d.sure, true, t);
+  }
+  // contractions anglaises : « I've » n'est pas le « ve » turc ou tcheque
+  for (const t of ["I've got a sword", "we'll make a castle", "they're riding dragons"]) assert.equal(LT.detecterLangue(t).langue, 'en', t);
+});

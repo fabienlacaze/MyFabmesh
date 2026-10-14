@@ -16,8 +16,21 @@
 //  - morceauxEtrangers(texte) : parties MANIFESTEMENT non anglaises d'un texte, pour le filet du serveur qui peut recevoir un prompt deja
 //    enrichi de gabarits anglais (bureau en mode Cloud, anciens clients, cles API) : seules ces parties sont traduites.
 //  - LANGUES_TRADUCTIBLES : langues que le traducteur du site (m2m100-1.2b, Workers AI) sait traduire vers l'anglais.
+//
+// PRECISION AVANT RAPPEL (2026-10-14, revue du lot 2, bloquants B1 / B2). Un seul mot outil etranger suffisait a declarer un texte
+// « surement » etranger : « camper van » (nl), « wolf den » (de), « Las Vegas sign », « sin eater », « con artist » (es), « pour over
+// coffee » (fr) etaient traduits par le filet du serveur, ou refuses en 422 quand le traducteur etait en panne ; sous une interface
+// ANGLAISE, 57 prompts anglais sur 195 partaient au traducteur (« beer mug » -> nl, « kobold archer » -> de, « sombrero » -> es).
+// Desormais :
+//  - un mot qui existe AUSSI en anglais, ou qui y vit comme nom propre ou emprunt (MOTS_AUSSI_ANGLAIS : van, den, die, el, las, con,
+//    sin, per, pour, beer, rot, helm, kobold, rucksack, sombrero...), ne designe jamais a lui seul une langue ;
+//  - « sure » exige DEUX indices distincts au moins (mots differents, ou un mot et des lettres accentuees propres a la langue), dont un
+//    qui n'existe pas en anglais (ou trois mots) ;
+//  - sous une interface ANGLAISE, seul un texte SUREMENT etranger part au traducteur (avant le lot : jamais rien).
+// Un texte etranger tres court (« Drache », « casque ») reste traduit sous une interface dans sa langue ; sous une interface anglaise,
+// il part tel quel, comme avant le lot : mieux vaut un mot etranger non traduit qu'un prompt anglais reecrit.
 
-export const VERSION = 1;
+export const VERSION = 2;
 
 /** Codes de langue du modele m2m100 (100 langues, carte du modele facebook/m2m100_1.2B), anglais exclu. */
 export const LANGUES_TRADUCTIBLES = new Set(('af am ar ast az ba be bg bn br bs ca ceb cs cy da de el es et fa ff fi fr fy ga gd gl gu ha he '
@@ -116,9 +129,9 @@ const LISTES = {
     + 'moon sun star stars day sunset cloud clouds rain snow storm lightning ocean'],
   fr: [
     'le les une des du et avec sans sur sous dans pour qui est au aux ce cette ces sa ses leur leurs elle ils elles je nous vous '
-    + 'mon mes très où par chez pas ne vers qu dont lui à',
+    + 'mon mes très où par chez pas ne vers qu dont lui à tous toutes toute sont peut être',
     'la un de en son se ou que il ma mais',
-    'rouge bleu bleue vert verte jaune noire blanc blanche marron grise doré dorée argenté argentée bois pierre fer acier épée '
+    'rouge bleu bleue vert verte jaune noir noire blanc blanche marron grise doré dorée argenté argentée bois pierre fer acier épée '
     + 'bouclier chevalier guerrier château maison arbre tonneau coffre casque armure manteau bâton sorcier sorcière géant petit vieux '
     + 'vieille jeune ancien ancienne feu glace eau verre bouteille chat chien cheval loup navire bateau voiture mur pont ruines '
     + 'rocher montagne forêt cabane crâne effrayant énorme ailes aile cornes cheveux barbe yeux tête jambes fourrure écailles '
@@ -126,19 +139,22 @@ const LISTES = {
     + 'fantôme roi reine paysan ouvrier homme femme garçon fille enfant bébé créature bête oiseau poisson araignée insecte fleur plante '
     + 'herbe feuille pomme gâteau chaise lampe porte fenêtre toit jardin ville désert océan mer rivière île planète espace fusée avion '
     + 'hélicoptère vélo roue futuriste médiéval détaillé rouillé cassé propre lumineux volant assis debout massue guerrière lapin '
-    + 'cochon vache mouton oie grenouille tortue requin baleine pieuvre crabe abeille fourmi papillon renard hibou aigle cerf souris'],
+    + 'cochon vache mouton oie grenouille tortue requin baleine pieuvre crabe abeille fourmi papillon renard hibou aigle cerf souris '
+    + 'géante gris vaisseau trésor'],
   es: [
-    'el los las y con sin por para que muy del al unos unas es está están su sus lleva tiene sobre hacia como pero estos estas ese esa',
+    'el los las y con sin por para que muy del al unos unas es está están su sus lleva tiene sobre hacia como pero estos estas ese esa '
+    + 'todos todas cuando donde puede',
     'un una de en se la son este esta',
     'rojo roja amarillo amarilla blanco blanca morado plateado madera piedra hierro acero caballero guerrero castillo árbol barril '
     + 'bastón bruja pequeño pequeña viejo vieja joven antiguo oscuro fuego hielo vidrio botella perro caballo oso coche camión puente '
     + 'ruinas montaña cabaña calavera cuernos ojos cabeza cuerpo piernas brazos ropa pantalones guantes sombrero anillo cinturón hacha '
     + 'martillo daga cuchillo enano rey reina campesino trabajador hombre mujer niño niña pájaro pez araña insecto hoja manzana silla '
     + 'puerta ventana techo suelo jardín calle ciudad pueblo río isla cohete tren rueda detallado roto limpio sucio dragón alas zorro '
-    + 'conejo cerdo oveja tortuga tiburón ballena pulpo cangrejo abeja hormiga mariposa búho águila plumas'],
+    + 'conejo cerdo oveja tortuga tiburón ballena pulpo cangrejo abeja hormiga mariposa búho águila plumas '
+    + 'lobo gris gigante futurista tesoro cofre espada'],
   de: [
     'der die das den dem ein eine einen einem einer und mit ohne auf im ist sind sein seine ihr ihre zu von vom zum zur für aus '
-    + 'bei nach über unter hinter sehr nicht kein keine trägt hält auch oder wie er',
+    + 'bei nach über unter hinter sehr nicht kein keine trägt hält auch oder wie er kann wird werden nur noch schon',
     'in',
     'rot rote roter rotes blau blaue blauer grün grüne grüner gelb gelbe schwarz schwarze schwarzer weiß weiße weißer braun grau '
     + 'silbern holz stein eisen stahl schwert schild ritter krieger burg schloss haus baum fass truhe helm rüstung umhang zauberer '
@@ -149,10 +165,12 @@ const LISTES = {
     + 'frau mädchen kreatur vogel fisch schlange spinne insekt blume pflanze blatt apfel kuchen stuhl tisch tür fenster dach garten '
     + 'straße stadt dorf wüste ozean meer fluss insel weltraum rakete flugzeug hubschrauber zug fahrrad motorrad maschine futuristisch '
     + 'mittelalterlich detailliert glänzend rostig kaputt sauber schmutzig leuchtend fliegend sitzend stehend drache fuchs hase '
-    + 'schwein kuh schaf frosch schildkröte krake krabbe biene ameise schmetterling eule adler hirsch'],
+    + 'schwein kuh schaf frosch schildkröte krake krabbe biene ameise schmetterling eule adler hirsch '
+    + 'altes alten grauer graue graues grauen magische magischer magisches magischen riesige riesiger riesiges futuristische '
+    + 'futuristischer futuristisches goldene goldener goldenes goldenen großen kleinen schwarzen weißen roten blauen grünen'],
   it: [
     'lo gli della delle dello degli dei di nel nella nei sul sulla con senza per che è molto questo questa suoi sue alla alle dal '
-    + 'dalla ha sono anche del al',
+    + 'dalla ha sono anche del al tutti tutte tutto tutta quando può essere',
     'una uno un la le e il ma da suo sua',
     'rosso rossa blu giallo gialla nero nera bianco bianca marrone grigio grigia dorato dorata argento legno pietra acciaio spada '
     + 'scudo cavaliere guerriero castello albero botte forziere elmo armatura mantello bastone strega piccolo piccola vecchio vecchia '
@@ -162,7 +180,8 @@ const LISTES = {
     + 'cannone folletto scheletro angelo soldato contadino operaio uomo donna ragazzo ragazza bambino bambina uccello pesce ragno '
     + 'insetto fiore pianta erba foglia mela cibo sedia tavolo lampada letto finestra tetto pavimento giardino città villaggio '
     + 'fiume isola pianeta spazio razzo aereo elicottero treno ruota futuristico medievale dettagliato arrugginito rotto pulito '
-    + 'sporco seduto drago volpe coniglio maiale mucca pecora anatra squalo balena polpo granchio farfalla gufo cervo'],
+    + 'sporco seduto drago volpe coniglio maiale mucca pecora anatra squalo balena polpo granchio farfalla gufo cervo '
+    + 'gigante tesoro futuristico'],
   pt: [
     'os um uma uns umas com sem para do da dos das na nas em ao aos seus suas isso é tem muito segurando',
     'o as e de por que ou no nos à este esta está seu sua mais',
@@ -173,20 +192,20 @@ const LISTES = {
     + 'espingarda canhão anão anjo rei rainha camponês trabalhador homem mulher menino menina criança bebê fera pássaro peixe aranha '
     + 'inseto grama folha maçã bolo cadeira lâmpada janela telhado chão jardim rua cidade aldeia ilha espaço foguete avião trem roda '
     + 'detalhado brilhante enferrujado sujo voando dragão raposa coelho porco ovelha tubarão baleia caranguejo abelha formiga '
-    + 'borboleta coruja águia veado noite beira'],
+    + 'borboleta coruja águia veado noite beira robô futurista gigante tesouro'],
   nl: [
     'het een met zonder van op voor zijn haar niet geen ook draagt houdt naar bij uit aan onder achter tussen wordt deze dit dat',
     'en de in is die er',
     'rode rood blauwe blauw groene groen gele geel zwarte zwart witte wit bruine bruin grijze grijs gouden zilveren houten stenen '
     + 'ijzeren zwaard ridder krijger kasteel huis kist harnas tovenaar heks reus groot grote oude jonge donker vuur ijs fles kat hond '
     + 'paard beer schip toren muur brug ruïne rots bos schedel draak vleugels staart hoorns baard ogen gezicht hoofd lichaam benen '
-    + 'handen vacht schubben veren kleren jurk broek laarzen'],
+    + 'handen vacht schubben veren kleren jurk broek laarzen oud'],
   pl: [
     'się nie jest są oraz przy dla który która które bardzo jego jej ich tego tej',
     'na do ze bez pod nad od po w z to',
     'czerwony czerwona niebieski niebieska zielony zielona żółty czarny czarna biały biała smok miecz tarcza rycerz wojownik zamek dom '
     + 'drzewo beczka hełm zbroja płaszcz czarodziej wiedźma olbrzym mały duży stary młody ciemny ogień lód woda szkło butelka kot pies '
-    + 'koń niedźwiedź statek łódź samochód wieża góra las chata czaszka skrzydła skrzydłami ogon rogi włosy broda oczy'],
+    + 'koń niedźwiedź statek łódź samochód wieża góra las chata czaszka skrzydła skrzydłami ogon rogi włosy broda oczy stalowy'],
   tr: [
     've bir ile bu şu için gibi çok olan değil ama veya ki mi daha',
     'da de',
@@ -293,27 +312,94 @@ for (const [langue, [forts, faibles, courants]] of Object.entries(LISTES)) {
 // petit poids, anglais seul.
 INDEX.set('a', [['en', 0.5]]);
 
+/* MOTS AUSSI ANGLAIS (2026-10-14, revue du lot 2, B1 / B2). Mots des listes ci-dessus qui s'ecrivent pareil en anglais, ou y vivent comme
+ * particule de nom propre (Van Gogh, Las Vegas, El Dorado, Al Capone, da Vinci...), comme emprunt (sombrero, rucksack, kobold, piccolo,
+ * chaise, femme...) ou comme sigle courant (OS, DOS, API, LED, EV...). Ils gardent leur poids (« la casa de los muertos » reste espagnol),
+ * mais ils ne designent JAMAIS a eux seuls une langue : « camper van », « wolf den », « beer mug », « sin eater » ne sont plus du
+ * neerlandais, de l'allemand ou de l'espagnol. Ajouter ici tout faux positif constate ; ne pas y mettre un mot qui n'existe pas en
+ * anglais (il ne servirait plus d'indice). Minuscules, sans accents (un mot accentue n'est pas anglais). */
+const MOTS_AUSSI_ANGLAIS = new Set((
+  // particules et mots outils qui existent aussi en anglais (ou dans ses noms propres)
+  'le la les un des du et ce sa se ne mon ma par pas dont est lui son en de il pour sous '      // fr
+  + 'el los las y con sin para del al es su sus como '                                          // es
+  + 'der die das den dem von mit im er in '                                                     // de
+  + 'lo di della per che sue dal ha uno e da '                                                  // it
+  + 'os um com do dos das na nas em o as no nos por '                                           // pt
+  + 'van met op dat is '                                                                        // nl
+  + 'jest pod od po w z to '                                                                    // pl
+  + 'at ev dev cam kale mi ki ama '                                                             // tr
+  + 'yang dan ada api tong '                                                                    // id
+  + 'chai '                                                                                     // vi
+  + 'med av till han hon under det '                                                            // sv
+  + 'og for til sit sine holder bag sort slot hun af '                                          // da, no
+  + 'ja on tai iso '                                                                            // fi
+  + 'pro led '                                                                                  // cs
+  + 'care din cu pe '                                                                           // ro
+  + 'mint bot arc az fa '                                                                       // hu
+  + 'u rep div '                                                                                // hr
+  + 'sense molt als '                                                                           // ca
+  + 'may si ni kay hindi ay '                                                                   // tl
+  + 'au cha sana '                                                                              // sw
+  // emprunts, noms propres et mots anglais presents dans les listes de mots courants
+  + 'rouge vert blanc bleu petit chat bateau sac collier fusil femme fleur chaise papillon pierre eau sans chez cheval homme esa '
+  + 'sombrero zorro rey amarillo calavera tortuga hombre pueblo alas isla guerrero mariposa fuego madera '
+  + 'rot rote stein helm hose fell rucksack kobold geist bart braun seine engel adler burg berg klein bauer mann '
+  + 'blu nero elmo piccolo donna ali coda angelo grigio strega drago argento bambino giallo bianca alla tutti '
+  + 'bolo madeira rei '
+  + 'rode wit groot beer kat bruin '
+  + 'dom pies '
+  + 'naga baja mobil '
+  + 'torn sten lille vita '
+  + 'verde cal kamen mali gat ales acer tore giza coif'
+).split(/\s+/).filter(Boolean));
+
 const ELISIONS_FR = new Set(['l', 'd', 'j', 'n', 'm', 't', 's', 'c', 'qu', 'jusqu', 'lorsqu', 'puisqu']);
 const LIMITE_ANALYSE = 2000;   // un prompt ne depasse guere quelques centaines de caracteres ; borne le cout sur un texte enorme
 
-/** Scores par langue d'un texte en ecriture latine. */
+// Langues dont les lettres propres (ı ğ ş, ą ł ż, ř ů, ő ű, ș ț, ơ ư...) n'apparaissent pour ainsi dire dans aucun emprunt anglais :
+// plusieurs de ces lettres valent DEUX indices (« Gerekli parametre, isteğe bağlı parametreden sonra gelemez » est surement turc). Pas le
+// francais, l'espagnol, l'allemand ou le portugais : « crème brûlée », « jalapeño », « Mötley Crüe », « São Paulo » sont de l'anglais.
+const SIGNES_SANS_EMPRUNT = new Set(['tr', 'pl', 'cs', 'hu', 'ro', 'vi']);
+
+/** Scores par langue d'un texte en ecriture latine, et INDICES par langue : `mots` (mots distincts de la langue), `propres` (nombre de
+ *  ces mots qui n'existent pas en anglais), `signes` (bonus cumule des lettres accentuees de la langue). */
 function scoresLatins(t) {
   const s = Object.fromEntries(LANGUES_LATINES.map((l) => [l, 0]));
+  const mots = Object.fromEntries(LANGUES_LATINES.map((l) => [l, new Set()]));
+  const propres = Object.fromEntries(LANGUES_LATINES.map((l) => [l, 0]));
+  const signes = Object.fromEntries(LANGUES_LATINES.map((l) => [l, 0]));
   const bas = t.toLowerCase().replace(/[’‘`´]/g, "'");
-  const mots = bas.split(/[^\p{L}\p{M}']+/u).filter(Boolean);
+  const decoupe = bas.split(/[^\p{L}\p{M}']+/u).filter(Boolean);
   let ing = 0, ed = 0;
-  for (const brut of mots) {
+  for (const brut of decoupe) {
     const morceaux = brut.split("'").filter((x) => x !== '');
     const elide = brut.includes("'") && morceaux.length >= 2;
     if (elide) {
-      if (ELISIONS_FR.has(morceaux[0])) { s.fr += 1; if (morceaux[0] === 'l') s.it += 0.5; }
+      if (ELISIONS_FR.has(morceaux[0])) {
+        s.fr += 1;
+        // « l'épée », « d'eau » : un indice francais a part entiere (compte une fois par forme)
+        if (!mots.fr.has(morceaux[0] + "'")) { mots.fr.add(morceaux[0] + "'"); propres.fr += 1; }
+        if (morceaux[0] === 'l') s.it += 0.5;
+      }
       const fin = morceaux[morceaux.length - 1];
       if (fin === 's' || fin === 'll' || fin === 're' || fin === 've' || (fin === 't' && /n$/.test(morceaux[0]))) s.en += 1;
     }
-    for (const m of morceaux) {
+    // contractions anglaises (« I've », « we'll », « they're ») : la fin n'est jamais un mot etranger (« ve » = « et » turc, « dans » tcheque)
+    const contraction = elide && /^(?:s|ll|re|ve|t|d|m)$/.test(morceaux[morceaux.length - 1]);
+    for (let k = 0; k < morceaux.length; k++) {
+      const m = morceaux[k];
       if (elide && m.length === 1) continue;   // « l' », « d' », « 's » : deja comptes ci-dessus
+      if (contraction && k === morceaux.length - 1) continue;
       const entree = INDEX.get(m);
-      if (entree) { for (const [lg, p] of entree) s[lg] += p; continue; }
+      if (entree) {
+        for (const [lg, p] of entree) {
+          s[lg] += p;
+          if (lg === 'en' || mots[lg].has(m)) continue;
+          mots[lg].add(m);
+          if (!MOTS_AUSSI_ANGLAIS.has(m)) propres[lg] += 1;
+        }
+        continue;
+      }
       // morphologie anglaise : participes en -ing / -ed (« holding », « spiked »), hors listes
       if (m.length >= 5 && /^[a-z]+ing$/.test(m) && ing < 3) { s.en += 1; ing++; }
       else if (m.length >= 5 && /^[a-z]+ed$/.test(m) && ed < 3) { s.en += 0.5; ed++; }
@@ -322,9 +408,13 @@ function scoresLatins(t) {
   for (const [re, bonus] of SIGNES) {
     const n = (bas.match(re) || []).length;
     if (!n) continue;
-    for (const [lg, p] of Object.entries(bonus)) s[lg] = (s[lg] || 0) + Math.min(PLAFOND_SIGNES, n * p);
+    for (const [lg, p] of Object.entries(bonus)) {
+      const b = Math.min(PLAFOND_SIGNES, n * p);
+      s[lg] = (s[lg] || 0) + b;
+      signes[lg] = (signes[lg] || 0) + b;
+    }
   }
-  return s;
+  return { s, mots, propres, signes };
 }
 
 /** Langue du texte.
@@ -355,7 +445,7 @@ export function detecterLangue(texte) {
     return { langue: affinerEcriture(ecriture, t, base), sure: autres >= 3, ecriture };
   }
   if (!latines) return { langue: null, sure: false, ecriture: null };
-  const s = scoresLatins(t);
+  const { s, mots, propres, signes } = scoresLatins(t);
   const en = s.en;
   let meilleure = null, score = 0;
   for (const lg of LANGUES_LATINES) {
@@ -365,7 +455,21 @@ export function detecterLangue(texte) {
     return { langue: 'en', sure: (en >= 3 && score * 3 <= en) || (en >= 2 && score === 0), ecriture: 'latin' };
   }
   if (meilleure && score >= 1 && score >= 1.5 * en) {
-    return { langue: meilleure, sure: (score >= 3 && score >= 2 * en) || (score >= 2 && en === 0), ecriture: 'latin' };
+    // INDICES (2026-10-14, revue du lot 2, B1 / B2). Un mot qui existe aussi en anglais (MOTS_AUSSI_ANGLAIS) compte, mais ne designe
+    // pas a lui seul une langue : « camper van », « sombrero », « Las Vegas sign » -> aucune langue. Les lettres accentuees de la langue
+    // valent un indice (deux pour des lettres sans emprunt anglais : ı ğ ş, ą ł, ř ů...). « solides » = indices qui n'existent pas en
+    // anglais (mots propres a la langue, lettres accentuees).
+    const accents = signes[meilleure] >= 1 ? (SIGNES_SANS_EMPRUNT.has(meilleure) && signes[meilleure] >= 3 ? 2 : 1) : 0;
+    const nMots = mots[meilleure].size;
+    const solides = propres[meilleure] + accents;
+    if (solides >= 1 || nMots >= 2) {
+      const assez = (score >= 3 && score >= 2 * en) || (score >= 2 && en === 0);
+      // SURE : assez de score ET deux indices distincts dont un solide, ou trois mots de la langue (« la casa de los muertos »), ou deux
+      // indices solides (« caballero a caballo a galope », malgre ses « a » anglais). UN seul mot ne suffit jamais : « que sera sera »,
+      // « Sturm und Drang », « noir detective » restent anglais pour le serveur.
+      const sure = (assez && ((solides >= 1 && nMots + accents >= 2) || nMots >= 3)) || (solides >= 2 && score >= 2);
+      return { langue: meilleure, sure, ecriture: 'latin' };
+    }
   }
   return { langue: null, sure: false, ecriture: 'latin' };
 }
@@ -376,14 +480,18 @@ export function ressembleAnglais(texte) {
 }
 
 /** Langue DEPUIS laquelle traduire `texte`, ou null s'il n'y a rien a traduire (deja anglais, vide).
- *  La langue du TEXTE l'emporte ; sans indice, la langue de l'interface (si ce n'est pas l'anglais). */
+ *  La langue du TEXTE l'emporte ; sans indice, la langue de l'interface (si ce n'est pas l'anglais).
+ *  Interface ANGLAISE (2026-10-14, revue du lot 2, B2) : seul un texte SUREMENT etranger part au traducteur. Un indice faible (un mot,
+ *  des accents d'emprunt : « camper van », « piñata », « crème brûlée ») ne suffit pas a reecrire le prompt d'un anglophone.
+ *  Interface inconnue (appel sans langue d'interface) : la langue probable du texte. */
 export function langueSource(texte, langueInterface) {
   if (!String(texte == null ? '' : texte).trim()) return null;
   const d = detecterLangue(texte);
   if (d.langue === 'en') return null;
-  if (d.langue) return d.langue;
   const ui = normaliserCodeLangue(langueInterface);
-  return ui && ui !== 'en' ? ui : null;
+  if (ui === 'en') return d.langue && d.sure ? d.langue : null;
+  if (d.langue) return d.langue;
+  return ui || null;
 }
 
 // ------------------------------------------------------------------ FILET DU SERVEUR
