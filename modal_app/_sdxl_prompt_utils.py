@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import gc
 import re
+import unicodedata
 from typing import TYPE_CHECKING, List, Tuple
 
 if TYPE_CHECKING:
@@ -83,6 +84,11 @@ _PROFONDEUR_MAX = 8
 _POIDS_MIN = 0.5
 _POIDS_MAX = 2.0
 _RE_JETON_SPECIAL = re.compile(r"<\s*\||\|\s*>")
+
+
+def _bord_de_mot(c: str) -> bool:
+    """Lettre, chiffre ou marque combinante : deux tels caracteres colles forment UN mot pour le tokenizer CLIP."""
+    return bool(c) and (c.isalnum() or unicodedata.category(c)[0] == "M")
 
 
 def _parse_prompt_attention(text: str) -> List[Tuple[str, float]]:
@@ -135,10 +141,16 @@ def _parse_prompt_attention(text: str) -> List[Tuple[str, float]]:
     if not res:
         res = [["", 1.0]]
 
-    # merge adjacent equal-weight runs
+    # merge adjacent equal-weight runs. 2026-10-14 (revue du lot moderation, B1) : la syntaxe de poids SEPARE les mots. Deux
+    # morceaux voisins de meme poids qui se touchent par deux caracteres de mot (« na()ked », « na[]ked », « (na)(ked) »,
+    # « (na:1)(ked:1) », « (na:9)(ked:7) » une fois les poids bornes) etaient recolles en UN mot : le modele recevait les jetons
+    # du mot entier, que le filtre de texte lisait en deux mots. Un espace est insere a la jointure ; entre deux morceaux, il n'y
+    # a jamais de texte simple (il est lu d'un seul tenant), donc un mot ecrit sans syntaxe n'est jamais coupe.
     merged: List[List] = []
     for chunk, w in res:
         if merged and merged[-1][1] == w:
+            if _bord_de_mot(merged[-1][0][-1:]) and _bord_de_mot(chunk[:1]):
+                merged[-1][0] += " "
             merged[-1][0] += chunk
         else:
             merged.append([chunk, w])
