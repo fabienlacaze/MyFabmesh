@@ -3931,6 +3931,7 @@ async function _effacerEnregistrementsDuCompte(env: Env, userId: string): Promis
   await faire('compteurs', prefixes(
     `_meta/userspend/${userId}/`, `_meta/userspend_cap/${userId}/`, `_meta/userdaily/${userId}/`, `_meta/paidcheck/${userId}/`,
     `_meta/uploads_count/${userId}/`, `_meta/mesh_uploads_count/${userId}/`, `_meta/redacteur/${userId}-`,
+    `_meta/traduction/${userId}-`,                                                 // 2026-10-14 (revue du lot 2 de la langue)
     `_meta/anim_copy_count/${userId}/`, `_meta/anim_copy_bytes/${userId}/`,      // 2026-10-03 (CLOUD-06)
   ));
   await faire('divers', async () => await _supprimerCles(env, [`_meta/presence/${userId}`, `_market/payout_pref/${userId}.json`]));
@@ -12750,15 +12751,16 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const languesTraduites: string[] = [];
   {
     const cache = new Map<string, string>();
+    const compteur = { appels: 0 };
     const avant = rawPrompt;
-    const f1 = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache });
+    const f1 = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits });
     if (f1.refus) return f1.refus;
     rawPrompt = f1.texte;
     languesTraduites.push(...f1.langues);
     if (typeof prompt === 'string' && prompt.trim()) {
       if (prompt.trim() === avant) promptEnrichi = rawPrompt;   // userPrompt absent : c'etait le meme texte
       else {
-        const f2 = await _filetLangue(env, user.id, prompt, { verifie: langueVerifiee, unrestricted, cache });
+        const f2 = await _filetLangue(env, user.id, prompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits });
         if (f2.refus) return f2.refus;
         promptEnrichi = f2.texte;
         for (const l of f2.langues) if (!languesTraduites.includes(l)) languesTraduites.push(l);
@@ -12960,7 +12962,7 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
         blocked: safety.blocked }, { status: 400 });
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : l'indice de la vue de dos etait le texte d'ORIGINE (TRADUCTION-05, CHAMPS-08).
-    const filet = await _filetLangue(env, user.id, hint, { verifie: langueVerifiee, unrestricted });
+    const filet = await _filetLangue(env, user.id, hint, { verifie: langueVerifiee, unrestricted, credits: user.credits });
     if (filet.refus) return filet.refus;
     hint = filet.texte.slice(0, 400);
   }
@@ -13078,7 +13080,7 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
         blocked: safety.blocked }, { status: 400 });
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : le site envoyait la consigne de Modify sans la traduire (TRADUCTION-04).
-    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted });
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
@@ -13157,7 +13159,7 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   if (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length) {
     const userState = await getParentalState(env, user.id);
     const filet = await _filetLangue(env, user.id, targetText,
-      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted });
+      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted, credits: user.credits });
     if (filet.refus) return filet.refus;
     targetText = filet.texte;
   }
@@ -13253,14 +13255,18 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
           blocked: safety.blocked }, { status: 400 });
       }
     }
-    // FILET DE LANGUE (lot 2 de l'audit de la langue) : la CIBLE part a CLIPSeg, qui ne comprend que l'anglais (« chapeau » ne trouvait
-    // rien, et le site ne la traduisait pas : TRADUCTION-04) ; le remplacement part au moteur d'image.
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : la CIBLE part a CLIPSeg, qui ne comprend que l'anglais (TRADUCTION-04) ; le
+    // remplacement part au moteur d'image. LIMITE (revue du 2026-10-14) : le filet ne traduit qu'un texte SUREMENT etranger (deux indices
+    // au moins, lib/langue-texte.js) : « le chapeau du chevalier » oui, un mot seul (« chapeau », « casque ») non, car « van » ou « den »
+    // seraient alors traduits aussi. Le mot seul est traduit par l'INTERFACE, qui connait la langue de l'utilisateur ; un client qui
+    // envoie un mot etranger seul (cle API, ancien client) le voit partir tel quel, comme avant le lot.
     const cache = new Map<string, string>();
-    const fCible = await _filetLangue(env, user.id, targetText, { verifie: langueVerifiee, unrestricted, cache });
+    const compteur = { appels: 0 };
+    const fCible = await _filetLangue(env, user.id, targetText, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits });
     if (fCible.refus) return fCible.refus;
     targetText = fCible.texte;
     if (rawPrompt) {
-      const fRempl = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache });
+      const fRempl = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits });
       if (fRempl.refus) return fRempl.refus;
       rawPrompt = fRempl.texte;
     }
@@ -13350,7 +13356,7 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue)
     const filet = await _filetLangue(env, user.id, rawPrompt,
-      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted });
+      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted, credits: user.credits });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
@@ -13440,7 +13446,7 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
   // FILET DE LANGUE (lot 2 de l'audit de la langue) : la partie part a CLIPSeg, la couleur au lexique (anglais) du serveur.
   {
     const filet = await _filetLangue(env, user.id, rawPrompt,
-      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted });
+      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted, credits: user.credits });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
@@ -13626,7 +13632,7 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
         blocked: safety.blocked }, { status: 400 });
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : « Replace with » du Paint-mask n'etait traduit nulle part (TRADUCTION-05).
-    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted });
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
@@ -13994,7 +14000,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : le Style des variantes de texture n'etait traduit nulle part (CHAMPS-03).
     if (conf.champTexteLibre) {
-      const filet = await _filetLangue(env, user.id, libre, { verifie: corps.langueVerifiee, unrestricted });
+      const filet = await _filetLangue(env, user.id, libre, { verifie: corps.langueVerifiee, unrestricted, credits: user.credits });
       if (filet.refus) return filet.refus;
       corps[conf.champTexteLibre] = filet.texte;
     }
@@ -14193,7 +14199,7 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue)
     const filet = await _filetLangue(env, user.id, texte,
-      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted });
+      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted, credits: user.credits });
     if (filet.refus) return filet.refus;
     texte = filet.texte.slice(0, 500);
   }
@@ -18957,7 +18963,7 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
         blocked: safety.blocked }, { status: 400 });
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue)
-    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted });
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
@@ -23756,6 +23762,7 @@ const TRADUCTION_MAX_CARACTERES = 4000;   // au-dela : raison too-long (un promp
 const TRADUCTION_MORCEAU_MAX = 900;       // morceaux envoyes au modele (plafonne a 1 000 caracteres par appel)
 const TRADUCTION_PLAFOND_HEURE = 300;     // appels du modele par compte et par heure
 const TRADUCTION_PLAFOND_JOUR = 20_000;   // appels du modele par jour, tous comptes
+const TRADUCTION_APPELS_PAR_REQUETE = 6;  // filet de langue : appels du modele pour UNE requete (4 000 caracteres = 5 morceaux de 900)
 
 /** Fin de la DERNIERE correspondance de `re` (drapeau g) dans `tete`, hors debut de texte ; -1 sinon. */
 function _derniereCoupe(tete: string, re: RegExp): number {
@@ -23806,16 +23813,27 @@ async function _traduireVersAnglais(env: Env, texte: string, de: string): Promis
 }
 
 /** Compteur de plafond NON atomique (meme principe que le redacteur) : un depassement de quelques unites sous forte concurrence est
- *  sans consequence ici. Panne R2 : on laisse passer (la traduction est un confort, pas une depense). false = plafond atteint. */
-async function _plafondTraduction(env: Env, cle: string, plafond: number): Promise<boolean> {
+ *  sans consequence ici. Panne R2 : on laisse passer (la traduction est un confort, pas une depense). `n` appels d'un coup (un texte
+ *  decoupe en morceaux compte chaque appel du modele). false = plafond atteint. */
+async function _plafondTraduction(env: Env, cle: string, plafond: number, n = 1): Promise<boolean> {
   if (!env.MESHES) return true;
   try {
     const cur = await env.MESHES.get(cle);
-    const n = cur ? parseInt(await cur.text(), 10) || 0 : 0;
-    if (n >= plafond) return false;
-    await env.MESHES.put(cle, String(n + 1));
+    const deja = cur ? parseInt(await cur.text(), 10) || 0 : 0;
+    if (deja + Math.max(1, n) > plafond) return false;
+    await env.MESHES.put(cle, String(deja + Math.max(1, n)));
   } catch { /* compteur au mieux */ }
   return true;
+}
+
+/** Quota du modele de traduction pour un COMPTE : `appels` appels du modele, comptes sur le plafond horaire du compte ET sur le plafond
+ *  global du jour. Memes compteurs pour /api/translate et pour le filet de langue des routes payantes (revue du lot 2, B3 : le filet
+ *  appelait le modele sans aucun plafond). false = plafond atteint. */
+async function _quotaTraduction(env: Env, userId: string, appels: number): Promise<boolean> {
+  const maintenant = new Date().toISOString();
+  const heure = maintenant.slice(0, 13).replace(/[-T]/g, '');
+  return (await _plafondTraduction(env, `_meta/traduction/${userId}-${heure}.txt`, TRADUCTION_PLAFOND_HEURE, appels))
+    && (await _plafondTraduction(env, `_meta/traduction/jour-${maintenant.slice(0, 10)}.txt`, TRADUCTION_PLAFOND_JOUR, appels));
 }
 
 async function handleTranslate(req: Request, env: Env): Promise<Response> {
@@ -23828,19 +23846,37 @@ async function handleTranslate(req: Request, env: Env): Promise<Response> {
   const detection = LangueTexte.detecterLangue(texte);
   if (detection.langue === 'en') return json({ text: texte, translated: false, raison: 'already-english', langue: 'en' });
   const annoncee = LangueTexte.normaliserCodeLangue(b && b.from);
-  const de = detection.langue || (annoncee && annoncee !== 'en' ? annoncee : '');
-  if (!de) return json({ text: texte, translated: false, raison: 'unknown-language' });
+  // Langue annoncee (celle de l'interface) : MEME regle que les deux interfaces (lib/langue-texte.js langueSource). Interface ANGLAISE :
+  // seul un texte SUREMENT etranger part au modele (revue du lot 2, B1 : « camper van » partait en neerlandais). Sans langue annoncee :
+  // la langue probable du texte.
+  const de = annoncee ? (LangueTexte.langueSource(texte, annoncee) || '') : (detection.langue || '');
+  if (!de) {
+    return json(annoncee === 'en' ? { text: texte, translated: false, raison: 'already-english', langue: 'en' }
+                                  : { text: texte, translated: false, raison: 'unknown-language' });
+  }
   if (!LangueTexte.LANGUES_TRADUCTIBLES.has(de)) return json({ text: texte, translated: false, raison: 'unsupported', langue: de });
   if (!env.AI) return json({ text: texte, translated: false, raison: 'unavailable', langue: de });
-  const maintenant = new Date().toISOString();
-  const heure = maintenant.slice(0, 13).replace(/[-T]/g, '');
-  if (!(await _plafondTraduction(env, `_meta/traduction/${user.id}-${heure}.txt`, TRADUCTION_PLAFOND_HEURE))
-      || !(await _plafondTraduction(env, `_meta/traduction/jour-${maintenant.slice(0, 10)}.txt`, TRADUCTION_PLAFOND_JOUR))) {
+  // un appel du modele par morceau (un texte long en compte plusieurs)
+  if (!(await _quotaTraduction(env, user.id, _decouperPourTraduction(texte).length))) {
     return json({ text: texte, translated: false, raison: 'rate-limited', langue: de });
   }
   const r = await _traduireVersAnglais(env, texte, de);
   return json(r.ok ? { text: r.texte, translated: true, langue: de }
                    : { text: texte, translated: false, raison: r.raison, langue: de });
+}
+
+/** Refus du filet de langue : 422, rien n'est debite. `code`, `langue` et `raison` permettent a l'interface d'afficher le message dans la
+ *  langue de l'utilisateur ; `error` (anglais) nomme la langue en toutes lettres et dit quoi faire, selon la raison. */
+function _refusFiletLangue(langue: string, raison: string): Response {
+  let nom = langue;
+  try { nom = new Intl.DisplayNames(['en'], { type: 'language' }).of(langue) || langue; } catch { /* code brut */ }
+  const pourquoi = raison === 'too-long' ? `is too long to be translated automatically (${TRADUCTION_MAX_CARACTERES} characters at most)`
+    : raison === 'rate-limited' ? 'could not be translated: too many translations this hour'
+    : raison === 'unsupported' ? 'is in a language the translator does not support'
+    : 'could not be translated automatically right now';
+  return json({ ok: false, success: false, code: 'non-english-text', langue, raison,
+    error: `Your text looks like ${nom} and ${pourquoi}. The image engine only really understands English: write it in English, `
+      + 'or try again in a moment. No credits were used.' }, { status: 422 });
 }
 
 /* FILET DE LANGUE DU SERVEUR (2026-10-13, audit de la langue, lot 2 (i) — SERVEUR-01, CHAMPS-12). Le serveur transmettait au moteur
@@ -23851,7 +23887,7 @@ async function handleTranslate(req: Request, env: Env): Promise<Response> {
  * le filtre de contenu (qui ne connait que six langues : la traduction lui montre ce que le moteur verra). `verifie === true` :
  * l'interface a deja traite la langue, ou l'utilisateur a choisi « Envoyer tel quel » apres un echec de traduction (choix respecte). */
 async function _filetLangue(env: Env, userId: string, texte: string,
-    opts: { verifie?: unknown; unrestricted?: boolean; cache?: Map<string, string> } = {},
+    opts: { verifie?: unknown; unrestricted?: boolean; cache?: Map<string, string>; credits?: number; compteur?: { appels: number } } = {},
 ): Promise<{ texte: string; refus?: Response; traduit: boolean; langues: string[] }> {
   const t = String(texte ?? '');
   if (!t.trim() || opts.verifie === true) return { texte: t, traduit: false, langues: [] };
@@ -23861,6 +23897,32 @@ async function _filetLangue(env: Env, userId: string, texte: string,
     console.warn('[filet-langue] Workers AI absent : texte non anglais transmis tel quel');
     return { texte: t, traduit: false, langues: [] };
   }
+  /* BORNES (2026-10-14, revue du lot 2, B3). Avant : aucune borne de longueur, aucun plafond, et le filet tourne AVANT la verification
+   * des credits : UNE requete de 96 000 caracteres francais declenchait 108 appels du modele, et un compte a 0 credit pouvait epuiser
+   * le quota du jour pour tout le monde. Desormais, avant tout appel du modele :
+   *  - compte SANS credit : rien n'est traduit (la route refuse ensuite, faute de credit, comme pour un texte anglais) ;
+   *  - texte etranger de plus de TRADUCTION_MAX_CARACTERES : refus « too-long » (meme borne que /api/translate) ;
+   *  - au plus TRADUCTION_APPELS_PAR_REQUETE appels du modele par requete (`compteur` partage entre les champs d'une meme requete) ;
+   *  - chaque appel compte sur les plafonds de /api/translate (300 par heure et par compte, 20 000 par jour au total). */
+  if (typeof opts.credits === 'number' && opts.credits <= 0) {
+    console.log('[filet-langue] compte sans credit : texte non traduit, la route refusera faute de credit');
+    return { texte: t, traduit: false, langues: [] };
+  }
+  const aTraduire = morceaux.filter((m) => opts.cache?.get(m.langue + '|' + t.slice(m.debut, m.fin)) === undefined);
+  const caracteres = aTraduire.reduce((n, m) => n + [...t.slice(m.debut, m.fin)].length, 0);
+  if (caracteres > TRADUCTION_MAX_CARACTERES) {
+    return { texte: t, traduit: false, langues: [morceaux[0].langue], refus: _refusFiletLangue(morceaux[0].langue, 'too-long') };
+  }
+  const appels = aTraduire.reduce((n, m) => n + (m.traductible ? _decouperPourTraduction(t.slice(m.debut, m.fin)).length : 0), 0);
+  const compteur = opts.compteur ?? { appels: 0 };
+  if (compteur.appels + appels > TRADUCTION_APPELS_PAR_REQUETE) {
+    return { texte: t, traduit: false, langues: [morceaux[0].langue], refus: _refusFiletLangue(morceaux[0].langue, 'too-long') };
+  }
+  if (appels > 0 && !(await _quotaTraduction(env, userId, appels))) {
+    console.log('[filet-langue] plafond de traduction atteint', userId);
+    return { texte: t, traduit: false, langues: [morceaux[0].langue], refus: _refusFiletLangue(morceaux[0].langue, 'rate-limited') };
+  }
+  compteur.appels += appels;
   let sortie = '';
   let pos = 0;
   const langues: string[] = [];
@@ -23873,11 +23935,7 @@ async function _filetLangue(env: Env, userId: string, texte: string,
                               : { texte: extrait, ok: false, raison: 'unsupported' };
       if (!r.ok) {
         console.log('[filet-langue] refus', m.langue, r.raison);
-        return { texte: t, traduit: false, langues: [m.langue], refus: json({ ok: false, success: false, code: 'non-english-text',
-          langue: m.langue, raison: r.raison,
-          error: `Your text does not look like English (${m.langue}) and could not be translated automatically (${r.raison}). `
-            + 'The image engine only really understands English: write it in English, or try again in a moment. No credits were used.' },
-          { status: 422 }) };
+        return { texte: t, traduit: false, langues: [m.langue], refus: _refusFiletLangue(m.langue, r.raison || 'failed') };
       }
       anglais = r.texte;
       opts.cache?.set(cle, anglais);

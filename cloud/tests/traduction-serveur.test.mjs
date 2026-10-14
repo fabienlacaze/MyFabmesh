@@ -33,7 +33,8 @@ const json = (o, init) => reponse(o, init);
  *  ce sont les assertions de COMPORTEMENT qui echouent, pas le chargement). */
 const charger = (noms, doublures) => chargerFonctions(noms.filter((n) => existe(n)), doublures);
 const AUXILIAIRES = ['_traduireVersAnglais', '_decouperPourTraduction', '_derniereCoupe', '_plafondTraduction', 'TRADUCTION_MAX_CARACTERES',
-  'TRADUCTION_MORCEAU_MAX', 'TRADUCTION_PLAFOND_HEURE', 'TRADUCTION_PLAFOND_JOUR', 'LANGUES_TRADUITES', '_filetLangue'];
+  'TRADUCTION_MORCEAU_MAX', 'TRADUCTION_PLAFOND_HEURE', 'TRADUCTION_PLAFOND_JOUR', 'LANGUES_TRADUITES', '_filetLangue',
+  '_quotaTraduction', '_refusFiletLangue', 'TRADUCTION_APPELS_PAR_REQUETE'];
 
 /** Faux Workers AI : traduit en prefixant « EN: », ou echoue / rend du vide / boucle sur demande. */
 function fauxAI({ mode = 'ok' } = {}) {
@@ -424,4 +425,137 @@ test('filet (maillage) : traduction impossible -> 422 AVANT tout debit ; « tel 
     prompt: 'worn leather with stains' }), ok.env);
   assert.equal(ok.ai.appels.length, 0);
   assert.equal(ok.j.modal.at(-1).corps.prompt, 'worn leather with stains');
+});
+
+// ------------------------------------------------------------------------------------------------------- REVUE DU 2026-10-14
+// Bloquants B1 et B3 de la revue du lot 2.
+//   B1 : un seul mot partage avec une autre langue (« van », « den », « Las », « sin », « con ») suffisait au filet : « camper van » partait
+//        au modele « depuis le neerlandais », et quand le traducteur etait en panne, ces prompts ANGLAIS recevaient un 422.
+//   B3 : le filet appelait le modele sans borne (une requete de 96 000 caracteres = 108 appels), hors de tout plafond, et meme pour un
+//        compte sans credit.
+const ANGLAIS_PARTAGES = ['camper van', 'delivery van', 'police van', 'wolf den', 'Las Vegas sign', 'sin eater', 'con artist',
+  'El Dorado gold statue', 'pour over coffee', 'beer mug', 'kobold archer', 'sombrero', 'Van Helsing monster hunter', 'que sera sera music box'];
+const GABARIT_QUEUE = ', 3D game asset, single isolated object, plain white background, sharp details';
+
+function monterBornes({ ai = fauxAI(), credits, r2 = creerR2() } = {}) {
+  const j = { depenses: [], t2i: [] };
+  const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', 'handleTranslate', ...AUXILIAIRES], {
+    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits }), err, json, LangueTexte,
+    getParentalState: async () => ({}),
+    _checkPromptSafetyAlerte: async () => ({ safe: true }),
+    getPrice: async (_e, k) => ({ text2image: 6, tpose: 1 }[k]),
+    isTrustedAssetHost: () => true,
+    checkAndIncrementModalSpend: async () => 100, checkAndIncrementDailySpend: async () => 100,
+    _spendRefusalMessage: async () => 'refus', checkAndIncrementUserCalls: async () => 10,
+    refundModalSpend: async () => {}, refundDailySpend: async () => {},
+    spendCredits: async (_e, _u, c) => { if (typeof credits === 'number' && credits < c) return null; j.depenses.push(c); return 100 - c; },
+    addCredits: async () => {},
+    callModalTpose: async (_e, _u, i) => { j.t2i.push(i); return 'https://r2.example/front/t.png'; },
+    callModalText2Image: async (_e, _u, i) => { j.t2i.push(i); return 'https://r2.example/front/i.png'; },
+    callMyfabmeshCog: async (_e, _u, i) => { j.t2i.push(i); return 'https://r2.example/front/c.png'; },
+    logOperation: async () => {}, insertUserAsset: async () => {}, r2PathFromPublicUrl: (_e, u) => u,
+  });
+  const env = { AI: ai, MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MESHES: r2 };
+  const generer = async (corps) => {
+    const r = await w.handleGenerateImage(new Request('https://x.example/api/generate-image', { method: 'POST', body: JSON.stringify(corps) }), env);
+    return { status: r.status, corps: await r.json() };
+  };
+  const traduire = async (corps) => {
+    const r = await w.handleTranslate(new Request('https://x.example/api/translate', { method: 'POST', body: JSON.stringify(corps) }), env);
+    return { status: r.status, corps: await r.json() };
+  };
+  return { j, ai, r2, generer, traduire };
+}
+const heureCourante = () => new Date().toISOString().slice(0, 13).replace(/[-T]/g, '');
+
+test('B1 : un prompt ANGLAIS a mots partages n est jamais refuse quand le traducteur est en panne, et part TEL QUEL au moteur', async () => {
+  const refuses = [], reecrits = [];
+  for (const t of ANGLAIS_PARTAGES) {
+    const panne = monterBornes({ ai: fauxAI({ mode: 'panne' }) });
+    const r = await panne.generer({ userPrompt: t, prompt: t + GABARIT_QUEUE, asset_type: 'prop', projectName: 'P' });
+    if (r.status !== 200) refuses.push(`${t} -> ${r.status} ${r.corps.langue || ''}`);
+    const ok = monterBornes();
+    await ok.generer({ userPrompt: t, prompt: t + GABARIT_QUEUE, asset_type: 'prop', projectName: 'P' });
+    const recu = ok.j.t2i[0] && ok.j.t2i[0].prompt;
+    if (recu !== t || ok.ai.appels.length) reecrits.push(`${t} -> ${JSON.stringify(recu)} (${ok.ai.appels.length} appel(s))`);
+  }
+  assert.deepEqual({ refuses, reecrits }, { refuses: [], reecrits: [] });
+});
+
+test('B1 : /api/translate sous une interface anglaise : un prompt anglais a mots partages n est pas envoye au modele', async () => {
+  for (const t of ANGLAIS_PARTAGES) {
+    const { traduire, ai } = monterBornes();
+    const r = await traduire({ text: t, from: 'en' });
+    assert.equal(r.corps.translated, false, t);
+    assert.equal(r.corps.raison, 'already-english', t);
+    assert.equal(ai.appels.length, 0, t);
+  }
+  // un texte SUREMENT etranger reste traduit, meme annonce « en »
+  const { traduire, ai } = monterBornes();
+  const r = await traduire({ text: 'ein roter Drache mit Flügeln', from: 'en' });
+  assert.equal(r.corps.translated, true);
+  assert.equal(ai.appels[0].source_lang, 'de');
+});
+
+test('B3 : une requete de 96 000 caracteres etrangers ne declenche AUCUN appel au modele (refus « too-long », rien debite)', async () => {
+  const { generer, ai, j } = monterBornes();
+  const r = await generer({ userPrompt: 'un dragon rouge avec des ailes. '.repeat(3000), asset_type: 'creature', projectName: 'P' });
+  assert.equal(r.status, 422);
+  assert.equal(r.corps.code, 'non-english-text');
+  assert.equal(r.corps.raison, 'too-long');
+  assert.equal(ai.appels.length, 0, 'appels au modele : ' + ai.appels.length);
+  assert.deepEqual(j.depenses, []);
+  assert.doesNotMatch(r.corps.error, /\(fr\)/, 'la langue est nommee en toutes lettres, pas par son code');
+  assert.match(r.corps.error, /French/);
+});
+
+test('B3 : au plus 6 appels du modele par requete, champs cumules (userPrompt + prompt enrichi)', async () => {
+  const { generer, ai, j } = monterBornes();
+  const long = 'un chevalier avec une épée dorée et un bouclier rouge. '.repeat(70).trim();       // ~3 800 caracteres : 5 morceaux
+  const autre = 'une sorcière avec un chapeau pointu et une cape noire. '.repeat(25).trim();    // ~1 400 caracteres : 2 morceaux
+  const r = await generer({ userPrompt: long, prompt: autre, asset_type: 'character', projectName: 'P' });
+  assert.equal(r.status, 422, JSON.stringify(r.corps).slice(0, 200));
+  assert.ok(ai.appels.length <= 6, 'appels : ' + ai.appels.length);
+  assert.deepEqual(j.depenses, []);
+});
+
+test('B3 : le filet compte sur le plafond horaire du compte (comme /api/translate) ; au plafond : 422, aucun appel, rien debite', async () => {
+  const r2 = creerR2();
+  const a = monterBornes({ r2 });
+  const r = await a.generer({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' });
+  assert.equal(r.status, 200);
+  assert.equal(a.ai.appels.length, 1);
+  assert.equal(r2.lire(`_meta/traduction/u1-${heureCourante()}.txt`), '1', 'l appel du filet est compte');
+  r2.ecrire(`_meta/traduction/u1-${heureCourante()}.txt`, '300');
+  const b = monterBornes({ r2 });
+  const r3 = await b.generer({ userPrompt: 'un chevalier sans casque', asset_type: 'character', projectName: 'P' });
+  assert.equal(r3.status, 422);
+  assert.equal(r3.corps.raison, 'rate-limited');
+  assert.equal(b.ai.appels.length, 0);
+  assert.deepEqual(b.j.depenses, []);
+  // un texte anglais n'est pas touche par le plafond
+  const c = monterBornes({ r2 });
+  assert.equal((await c.generer({ userPrompt: 'a red dragon with wings', asset_type: 'creature', projectName: 'P' })).status, 200);
+});
+
+test('B3 : un compte SANS credit ne declenche aucun appel au modele (la route refuse ensuite faute de credit)', async () => {
+  const { generer, ai, j } = monterBornes({ credits: 0 });
+  const r = await generer({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' });
+  assert.equal(ai.appels.length, 0);
+  assert.equal(r.status, 402);
+  assert.deepEqual(j.depenses, []);
+  // avec des credits : traduit
+  const ok = monterBornes({ credits: 50 });
+  assert.equal((await ok.generer({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' })).status, 200);
+  assert.equal(ok.ai.appels.length, 1);
+});
+
+test('B3 : /api/translate compte CHAQUE appel du modele (texte decoupe) sur le plafond du compte', async () => {
+  const r2 = creerR2();
+  const { traduire, ai } = monterBornes({ r2 });
+  const texte = 'un chevalier avec une épée dorée et un bouclier rouge. '.repeat(30).trim();     // ~1 600 caracteres : 2 morceaux
+  const r = await traduire({ text: texte, from: 'fr' });
+  assert.equal(r.corps.translated, true);
+  assert.equal(r2.lire(`_meta/traduction/u1-${heureCourante()}.txt`), String(ai.appels.length));
+  assert.ok(ai.appels.length >= 2);
 });
