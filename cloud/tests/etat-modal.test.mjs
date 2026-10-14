@@ -530,6 +530,11 @@ function pageSite({ bloquer = [], masqueAuDepart = false, elements = false } = {
     if (!n || typeof n !== 'object') return;
     if (n.type === 'FunctionDeclaration' && n.id && ['_pollModalStatus', 'installModalStatusPoll'].includes(n.id.name) && !voulus.has(n.id.name)) voulus.set(n.id.name, n);
     if (n.type === 'VariableDeclaration' && n.declarations.some((d) => d.id && d.id.name === '_modalStatusTimer') && !voulus.has('_modalStatusTimer')) voulus.set('_modalStatusTimer', n);
+    // Integration du 14/10 : aides de traduction _t / _tf (lot interface multilingue, en tete du fichier), quand CET exemplaire les a ;
+    // la ligne d'age du panneau passe par _tf. Fausse page sans FabI18n : repli anglais, valeur inseree.
+    for (const aide of ['_t', '_tf']) {
+      if (n.type === 'VariableDeclaration' && n.declarations.some((d) => d.id && d.id.name === aide) && !voulus.has(aide)) voulus.set(aide, n);
+    }
     for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(visiter); else if (v && typeof v.type === 'string') visiter(v); }
   };
   visiter(ast);

@@ -1343,6 +1343,8 @@
     "Moderate": [null, "Moderado", "适中", "मध्यम", "متوسط"],
     "Very strong": [null, "Muy fuerte", "很强", "बहुत तेज़", "قوي جدًا"],
     "(optional)": [null, "(opcional)", "（可选）", "(वैकल्पिक)", "(اختياري)"],
+    // Integration du 14/10 : ligne d'age du panneau « Cloud services » (levier L8, cloud-overrides.js), posee par _tf.
+    "Last known state, {x} s old": ["Dernier état connu, il y a {x} s", "Último estado conocido, hace {x} s", "最近一次已知状态：{x} 秒前", "अंतिम ज्ञात स्थिति, {x} सेकंड पहले", "آخر حالة معروفة، منذ {x} ثانية"],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};

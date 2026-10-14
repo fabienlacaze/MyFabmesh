@@ -682,10 +682,12 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           if (list) { list.style.opacity = ''; list.title = ''; }
           // 2026-10-14 : un etat reel de plus de 30 s (cache partage, ou repli quand Modal ne repond plus) est montre AVEC son age,
           // jamais comme actuel (meme seuil que /admin2, ageReel).
+          // Integration du 14/10 : par _tf (lot interface multilingue) ; ecrit en gabarit `${…}`, ce texte restait en anglais dans
+          // les cinq langues et la garde des traductions ne le voyait pas (elle ne mesure pas un gabarit a valeur inseree).
           const ageEl = document.getElementById('gpu-warmup-age');
           if (ageEl) {
             const vieux = ageReelS > 30;
-            ageEl.textContent = vieux ? `Last known state, ${ageReelS} s old` : '';
+            ageEl.textContent = vieux ? _tf('Last known state, {x} s old', ageReelS) : '';
             ageEl.style.display = vieux ? 'block' : 'none';
           }
           window.__modalServicesDemarrage = startingCount;
