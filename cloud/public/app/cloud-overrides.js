@@ -515,8 +515,9 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
    * ────────────────────────────────────────────────────────────────── */
   let _modalStatusTimer = null;
 
-  // frais (2026-10-13) : lecture « active » (panneau ouvert, service qui demarre, reveil ou clic recent) : le worker sert alors un
-  // etat de 15 s au plus ; sinon jusqu'a 60 s (cache devant l'application d'etat de Modal, facturee a la seconde).
+  // frais (2026-10-13, revu le 14/10) : lecture « active » (panneau ouvert, service qui demarre ; UNE lecture apres un reveil, un
+  // survol ou un clic d'outil) : le worker sert alors un etat de 4 s au plus ; sinon jusqu'a 60 s (cache devant l'application d'etat
+  // de Modal, facturee a la seconde).
   async function _pollModalStatus(frais) {
     try {
       const r = await fetch(frais ? '/api/modal-status?frais=1' : '/api/modal-status', { credentials: 'include' });
@@ -534,6 +535,11 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         return;
       }
       const d = await r.json();
+      // FRAICHEUR REELLE (2026-10-14) : le worker sert un etat reel en cache (jusqu'a 60 s au repos, 2 min en repli) et donne son age
+      // (etat_reel_age_s, compte depuis la lecture Modal). La date de l'etat est donc celle de cette LECTURE, pas celle de la reponse :
+      // le grisage a l'ouverture du panneau, le clic d'outil et la mention d'age du panneau en dependent.
+      const ageReelS = typeof d?.etat_reel_age_s === 'number' && d.etat_reel_age_s > 0 ? d.etat_reel_age_s : 0;
+      window.__modalEtatDate = Date.now() - ageReelS * 1000;
       const io = d?.image_op || {};
       window.__modalWarm = !!io.warm;
       window.__modalExpectedSeconds = io.warm
@@ -662,9 +668,16 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           // Reconstruite seulement si elle change : sinon, toutes les 5 s, le fondu des points
           // repartait de zero (saccade).
           if (list && list.__rendu !== rows) { list.innerHTML = rows; list.__rendu = rows; }
-          // Etat frais : on rend la liste lisible (elle est grisee a l'ouverture si l'etat date).
-          window.__modalEtatDate = Date.now();
+          // Etat relu : on rend la liste lisible (elle est grisee a l'ouverture si l'etat date ; sa date est posee plus haut).
           if (list) { list.style.opacity = ''; list.title = ''; }
+          // 2026-10-14 : un etat reel de plus de 30 s (cache partage, ou repli quand Modal ne repond plus) est montre AVEC son age,
+          // jamais comme actuel (meme seuil que /admin2, ageReel).
+          const ageEl = document.getElementById('gpu-warmup-age');
+          if (ageEl) {
+            const vieux = ageReelS > 30;
+            ageEl.textContent = vieux ? `Last known state, ${ageReelS} s old` : '';
+            ageEl.style.display = vieux ? 'block' : 'none';
+          }
           window.__modalServicesDemarrage = startingCount;
           // Hide pill when all warm OR all unknown (don't surface noise
           // before we have any data).
@@ -698,32 +711,50 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // ONGLET MASQUE (2026-10-13, levier L8 de l'etude des couts du 11/10) : AUCUNE lecture tant que
     // l'onglet est masque (document.visibilityState === 'hidden') : chaque lecture garde allumee
     // l'application d'etat de Modal, et un onglet oublie en arriere-plan la gardait allumee jour et
-    // nuit. Reprise immediate au retour sur l'onglet. UNE SEULE lecture a la fois : un appel de
-    // __sonderEtatModal pendant une lecture lancait une seconde boucle qui ne s'arretait plus.
-    // Les lectures « actives » demandent ?frais=1 (voir _pollModalStatus), 30 s apres un reveil ou un clic compris.
+    // nuit. UNE SEULE lecture a la fois : un appel de __sonderEtatModal pendant une lecture lancait
+    // une seconde boucle qui ne s'arretait plus.
+    // CADENCE (revue le 2026-10-14) : JAMAIS plus de requetes que l'ancien code a usage egal. La
+    // fenetre « active » de 30 s du 13/10 (cadence de 5 s apres chaque clic, survol ou reveil) les
+    // triplait (simulation d'une heure, un clic toutes les 2 min : 210 requetes contre 61). Les
+    // lectures fraiches (?frais=1, etat de 4 s au plus) sont celles ou l'on regarde : panneau ouvert
+    // ou service qui demarre (toutes les 5 s, comme avant), plus UNE lecture apres un reveil, un
+    // survol ou un clic d'outil. RETOUR SUR L'ONGLET : relecture seulement quand la derniere a plus
+    // de 15 s ET depasse la cadence en cours (60 s au repos) ; sinon la lecture suivante garde son
+    // heure. Un clic d'outil ne relit pas un etat reel de moins de 15 s.
+    const ETAT_RECENT_MS = 15_000;
     const masque = () => { try { return document.visibilityState === 'hidden'; } catch (_) { return false; } };
-    let enCours = false, relire = false, actifJusqua = 0;
+    let enCours = false, relire = false, fraisDemande = false, finLecture = 0;
     const actif = () => {
       const pop = document.getElementById('gpu-warmup-popover');
-      return window.__modalServicesDemarrage > 0 || !!(pop && pop.style.display === 'block') || Date.now() < actifJusqua;
+      return window.__modalServicesDemarrage > 0 || !!(pop && pop.style.display === 'block');
     };
+    const cadence = () => (actif() ? 5_000 : 60_000);
     const arreter = () => { if (_modalStatusTimer) { clearTimeout(_modalStatusTimer); _modalStatusTimer = null; } };
+    const programmer = (ms) => { arreter(); if (!masque()) _modalStatusTimer = setTimeout(boucle, Math.max(0, ms)); };
     const boucle = async () => {
       arreter();
       if (masque()) return;                        // en pause : visibilitychange relance
       if (enCours) { relire = true; return; }      // la lecture en cours relira a sa fin
       enCours = true;
-      try { await _pollModalStatus(actif()); } finally { enCours = false; }
+      const frais = fraisDemande || actif();
+      fraisDemande = false;
+      try { await _pollModalStatus(frais); } finally { enCours = false; finLecture = Date.now(); }
       if (relire) { relire = false; return boucle(); }
       if (masque() || _modalStatusTimer) return;
-      _modalStatusTimer = setTimeout(boucle, actif() ? 5_000 : 60_000);
+      _modalStatusTimer = setTimeout(boucle, cadence());
     };
     window.__sonderEtatModal = (delai = 2_500) => {
-      actifJusqua = Math.max(actifJusqua, Date.now() + 30_000);
-      arreter();
-      if (!masque()) _modalStatusTimer = setTimeout(boucle, delai);
+      fraisDemande = true;                         // UNE lecture fraiche, puis la cadence normale
+      programmer(delai);
     };
-    document.addEventListener('visibilitychange', () => { if (masque()) arreter(); else boucle(); });
+    document.addEventListener('visibilitychange', () => {
+      if (masque()) { arreter(); return; }
+      if (enCours || _modalStatusTimer) return;    // la lecture en cours reprogramme la suivante
+      // Lecture demandee onglet masque (reveil) : tout de suite ; sinon a l'heure que la cadence lui donnait (comptee, comme
+      // la minuterie de la boucle, depuis la FIN de la lecture precedente ; 15 s au moins).
+      const attente = fraisDemande ? 0 : finLecture + Math.max(ETAT_RECENT_MS, cadence()) - Date.now();
+      if (attente > 0) programmer(attente); else boucle();
+    });
     boucle();
     // A l'ouverture, l'etat affiche peut dater de la derniere lecture (jusqu'a 60 s) : on le GRISE
     // le temps de la relecture (~1 s) au lieu de le montrer comme actuel (retour user, 2026-09-29).
@@ -740,12 +771,13 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // is about to fire an op so we want the freshest answer for the
     // ETA. Throttled to once per 5 s so a furious clicker doesn't
     // hammer the endpoint.
-    // 2026-10-13 : par la boucle (une seule lecture a la fois, lecture « active » pendant 30 s).
+    // 2026-10-13 : par la boucle (une seule lecture a la fois ; elle remplace la lecture periodique suivante).
+    // 2026-10-14 : UNE lecture fraiche par clic, et aucune si l'etat reel affiche a moins de 15 s.
     let _lastClickPoll = 0;
     document.addEventListener('click', (e) => {
       if (e.target && e.target.closest && e.target.closest('.tool-btn')) {
         const now = Date.now();
-        if (now - _lastClickPoll > 5000) {
+        if (now - _lastClickPoll > 5000 && now - (window.__modalEtatDate || 0) > ETAT_RECENT_MS) {
           _lastClickPoll = now;
           window.__sonderEtatModal(0);
         }

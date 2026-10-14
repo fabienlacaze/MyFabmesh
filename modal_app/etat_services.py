@@ -77,10 +77,13 @@ def _etat_service(cle: str) -> dict:
 #   PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -m modal deploy modal_app/etat_services.py   (CPU seul, aucun instantane touche)
 # Un conteneur de cette application coute 0,0158 $ par heure ALLUME (0,25 coeur + 512 Mio) ; avec 300 s, une lecture toutes les
 # 60 s (panneau « Cloud services » du site) le gardait allume jour et nuit (69 h facturees du 29/09 au 05/10). Le worker garde
-# maintenant l'etat 60 s pour les visiteurs et 15 s pour /admin2 ou un panneau ouvert (worker.ts, ETAT_FRAIS_*) : avec 20 s, le
-# conteneur s'eteint entre deux lectures de visiteurs (demarrage a froid mesure : 3,1 s, sous le repli de 4,5 s du worker) et
-# reste chaud tant que /admin2 regarde (une lecture toutes les ~16 s). Aucun min_containers : rien ne le garde allume ; la route
-# garde_chaud ne vise jamais cette application. Garde : cloud/tests/etat-modal.test.mjs.
+# maintenant l'etat 60 s pour les visiteurs au repos, 7 s pour /admin2 (relu toutes les 8 s) et 4 s pour un panneau ouvert (relu
+# toutes les 5 s) (worker.ts, ETAT_FRAIS_*) : avec 20 s, le conteneur s'eteint entre deux lectures de visiteurs (demarrage a froid
+# mesure : 3,1 s, sous le repli de 4,5 s du worker) et reste chaud tant que /admin2 ou un panneau ouvert regarde.
+# BORNES (2026-10-14) : borne BASSE 13,5 s = intervalle de /admin2 (8 s) + repli du worker (4,5 s) + 1 s de marge (en dessous,
+# chaque lecture de l'administrateur paierait un demarrage a froid) ; borne HAUTE 55,9 s = cadence des visiteurs (60 s) - demarrage
+# a froid (3,1 s) - 1 s (au-dessus, le conteneur ne s'eteint plus entre deux lectures de visiteurs). Aucun min_containers : rien ne
+# le garde allume ; la route garde_chaud ne vise jamais cette application. Garde : cloud/tests/etat-modal-fenetre.test.mjs.
 @app.function(
     image=modal.Image.debian_slim(python_version="3.11").pip_install("fastapi[standard]"),
     cpu=0.25, memory=512, timeout=30, scaledown_window=20,

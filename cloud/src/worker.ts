@@ -14973,8 +14973,8 @@ async function _writeLastWarmMs(env: Env, key: string): Promise<void> {
  *  warm (best-effort, based on the timestamp of our last successful
  *  call). Used by the renderer to size progress bars and show a
  *  warm/cold pill in modals.
- *  ?frais=1 (2026-10-13) : etat reel de 15 s au plus au lieu de 60 s (panneau ouvert, service qui demarre, reveil recent) ;
- *  opts.fraicheurMs l'impose (/api/admin/modal-status : 15 s). Voir ETAT_FRAIS_VISITEUR_MS. */
+ *  ?frais=1 (2026-10-13, revu le 14/10) : etat reel de 4 s au plus au lieu de 60 s (panneau ouvert, service qui demarre, lecture qui
+ *  suit un reveil, un survol ou un clic d'outil) ; opts.fraicheurMs l'impose (/api/admin/modal-status : 7 s). Voir ETAT_FRAIS_VISITEUR_MS. */
 async function handleModalStatus(req: Request, env: Env,
                                  opts: { fraicheurMs?: number; ctx?: { waitUntil?: (p: Promise<unknown>) => void } } = {}): Promise<Response> {
   const user = await getSessionUser(req, env);
@@ -15042,13 +15042,20 @@ async function handleModalStatus(req: Request, env: Env,
    * quel que soit le compte qui l'a lance. Le panneau le disait « cold »
    * pendant toute une generation, l'etat chaud n'etant ecrit qu'a la fin. */
   const occupes = new Set<string>();
+  /** 2026-10-14 : heure de creation du travail en cours le plus RECENT, par conteneur (Infinity si inconnue : il prime alors sur l'etat reel). */
+  const occupeDepuis: Record<string, number> = {};
   try {
     const { data: actifs } = await sb.from('jobs')
-      .select('asset_type, options, type')
+      .select('asset_type, options, type, created_at')
       .in('status', ['queued', 'processing', 'running', 'starting'])
       .gte('created_at', new Date(now - 30 * 60 * 1000).toISOString())
       .limit(100);
-    for (const j of ((actifs ?? []) as LigneJob[])) occupes.add(conteneurDe(j));
+    for (const j of ((actifs ?? []) as Array<LigneJob & { created_at?: string | null }>)) {
+      const k = conteneurDe(j);
+      occupes.add(k);
+      const cree = j.created_at ? new Date(j.created_at).getTime() : NaN;
+      occupeDepuis[k] = Math.max(occupeDepuis[k] ?? -Infinity, Number.isFinite(cree) ? cree : Infinity);
+    }
   } catch { /* l'etat chaud/froid reste utile sans cela */ }
   // 2026-06-02: added rig (Puppeteer), anim (AnyTop), mvadapter
   // (multi-view generator) so the "Server warming up (N services)"
@@ -15104,6 +15111,22 @@ async function handleModalStatus(req: Request, env: Env,
       etats[k] = { ...etats[k], warm: e === 'warm' || e === 'busy', busy: e === 'busy',
                    starting: e === 'starting', etat: e, reel: true };
     }
+    /* TRAVAIL EN COURS CONTRE ETAT EN CACHE (2026-10-14, relecture du levier L8, cas H11). L'etat reel peut dater de 60 s (cache) alors
+     * que `occupes` est relu a CHAQUE requete. Un travail cree apres le depart de la lecture (moins ETAT_VISIBILITE_MS) n'a pas pu y etre
+     * compte : un travail lance juste apres une lecture s'affichait « warm » ou « cold » jusqu'a 60 s (regression du correctif « EN COURS »
+     * du 27/09). Il PRIME donc sur la lecture, pour tout le conteneur Modal qui l'execute : « warm » -> « busy » ; « cold » -> « starting »
+     * (Modal demarre un conteneur pour lui : c'est ce qu'une lecture neuve montrerait, et le 29/09 le user a refuse qu'un conteneur qui
+     * demarre soit annonce pret) ; « starting », « busy » et « absent » restent tels quels. Un travail plus ancien que la lecture y est deja
+     * compte : l'etat reel garde le dernier mot (un travail bloque en « processing » ne fait pas croire a un conteneur allume). */
+    const vuJusqua = lu!.t - ETAT_VISIBILITE_MS;
+    const sourcesNeuves = new Set<string>();
+    for (const k of occupes) if (source[k] && (occupeDepuis[k] ?? Infinity) > vuJusqua) sourcesNeuves.add(source[k]);
+    for (const [k, src] of Object.entries(source)) {
+      const e = etats[k];
+      if (!e?.reel || !sourcesNeuves.has(src)) continue;
+      if (e.etat === 'warm') etats[k] = { ...e, warm: true, busy: true, starting: false, etat: 'busy' };
+      else if (e.etat === 'cold') etats[k] = { ...e, warm: false, busy: false, starting: true, etat: 'starting' };
+    }
   }
   return json({
     ...etats,
@@ -15117,17 +15140,30 @@ async function handleModalStatus(req: Request, env: Env,
  * la garde allumee `scaledown_window` secondes de plus. /api/modal-status l'interrogeait A CHAQUE requete : un onglet du site (toutes les
  * 60 s, meme masque) ou /admin2 (toutes les 8 s) suffisait a la garder allumee jour et nuit (69 heures facturees du 29/09 au 05/10 ;
  * ~11 $/mois des qu'un visiteur laisse le site ouvert). Desormais, dans chaque instance du worker :
- *   - CACHE : 60 s pour le panneau « Cloud services » des visiteurs ; 15 s pour /admin2 et pour une lecture « fraiche » demandee par la
- *     page (?frais=1 : panneau ouvert, service qui demarre, reveil ou clic sur un outil dans les 30 dernieres secondes) ;
+ *   - CACHE : 60 s pour le panneau « Cloud services » des visiteurs au repos (la page relit toutes les 60 s) ; 4 s pour une lecture
+ *     « fraiche » demandee par la page (?frais=1 : panneau ouvert ou service qui demarre, relus toutes les 5 s ; UNE lecture apres un
+ *     reveil, un survol ou un clic d'outil) ; 7 s pour /admin2 (relu toutes les 8 s, exigence « etat reel » du 02/10). Ces deux durees
+ *     sont SOUS la cadence de la page qui les demande : chaque lecture active rend un etat aussi frais qu'avant le cache (affichage
+ *     inchange), le cache ne fait que regrouper les onglets et les visiteurs d'une meme instance. Cela ne coute rien : tant que les
+ *     lectures se suivent a moins de `scaledown_window` (20 s), le conteneur reste allume, qu'on le lise toutes les 5 s ou toutes les 15 s ;
  *   - UNE SEULE lecture en vol, jamais deux departs a moins de 2 s (meme apres un reveil) : une requete qui arrive pendant une lecture
  *     repond avec la derniere valeur connue au lieu d'en lancer une autre (pas de rafale ; aucune promesse partagee entre deux requetes) ;
+ *     une lecture qui se regle en retard ne remplace jamais une lecture plus recente ;
  *   - REPLI RAPIDE : au-dela de 4,5 s d'attente (demarrage a froid de l'application mesure le 29/09 : 3,1 s ; a chaud 0,4 s), la reponse
  *     part avec la derniere valeur connue (moins de 2 min, son age dans `etat_reel_age_s`) ou avec l'estimation ; la lecture finit en
  *     arriere-plan (waitUntil) et sert la requete suivante. Apres un echec, aucun nouvel essai pendant 30 s ;
- *   - un REVEIL de conteneur (preWarmModal) ou un interrupteur chaud / froid PERIME le cache : la lecture suivante est neuve.
- * Les instances ne partagent pas ce cache (pas d'API Cache sur workers.dev) : au plus une lecture par instance et par fenetre. */
+ *   - un REVEIL de conteneur (preWarmModal, TOUTES les cibles) ou un interrupteur chaud / froid PERIME le cache : la lecture suivante est neuve ;
+ *   - un TRAVAIL EN COURS (Supabase, relu a chaque requete) que la lecture n'a pas pu voir prime sur elle (handleModalStatus).
+ * AGE AFFICHE : `etat_reel_age_s` se compte depuis le DEPART de la lecture. Au repos, un visiteur seul voit un etat de 63 s au plus (comme
+ * avant) ; deux visiteurs d'une meme instance jusqu'a ~2 min (cache 60 s + cadence 60 s) ; un repli jusqu'a 2 min. Le panneau du site et
+ * /admin2 affichent cet age au-dela de 30 s.
+ * Les instances ne partagent pas ce cache (pas d'API Cache sur workers.dev) : au plus une lecture par instance et par fenetre ; un reveil
+ * traite par une instance ne perime pas le cache des autres (au plus 4 s d'ecart pour la lecture ?frais=1 qui suit le reveil). */
 const ETAT_FRAIS_VISITEUR_MS = 60_000;
-const ETAT_FRAIS_ACTIF_MS = 15_000;
+const ETAT_FRAIS_ACTIF_MS = 4_000;
+const ETAT_FRAIS_ADMIN_MS = 7_000;
+/** Un travail cree moins de 5 s avant le depart d'une lecture n'y est pas encore compte par Modal (insertion de la ligne, puis appel). */
+const ETAT_VISIBILITE_MS = 5_000;
 const ETAT_INTERVALLE_MIN_MS = 2_000;
 const ETAT_ATTENTE_MS = 4_500;
 const ETAT_DELAI_MAX_MS = 8_000;
@@ -15172,31 +15208,35 @@ function _etatReelPerime(margeMs = 1_000): void {
 }
 
 /** Compteurs REELS des conteneurs Modal (application myfabmesh-etat, modal_app/etat_services.py), derriere le cache decrit ci-dessus.
- *  Rend { v, ageMs } ou null (indisponibles : /api/modal-status garde son estimation). fraicheurMs : age maximal d'une valeur du cache. */
+ *  Rend { v, ageMs, t } ou null (indisponibles : /api/modal-status garde son estimation). t : heure de DEPART de la lecture qui a produit v
+ *  (l'age se compte depuis le depart : une lecture a froid de 3 s rend un etat vieux de 3 s, pas de 0). fraicheurMs : age maximal d'une
+ *  valeur du cache. */
 async function _etatReelModal(env: Env, opts: { fraicheurMs?: number; ctx?: { waitUntil?: (p: Promise<unknown>) => void } } = {}):
-    Promise<{ v: EtatReel; ageMs: number } | null> {
+    Promise<{ v: EtatReel; ageMs: number; t: number } | null> {
   const url = _etatServicesUrl(env);
   if (!url) return null;
   const c = _etatReel;
   const fraicheur = opts.fraicheurMs ?? ETAT_FRAIS_VISITEUR_MS;
   const depart = Date.now();
-  if (c.v && c.t >= c.perimeAvant && depart - c.t < fraicheur) return { v: c.v, ageMs: depart - c.t };
+  if (c.v && c.t >= c.perimeAvant && depart - c.t < fraicheur) return { v: c.v, ageMs: depart - c.t, t: c.t };
   // Une lecture partie depuis plus longtemps que son delai est morte (requete coupee avant sa fin) : elle ne bloque plus les suivantes.
   const enVol = c.enVol && depart - c.depart < ETAT_DELAI_MAX_MS + 2_000;
   if (!enVol && depart - c.depart >= ETAT_INTERVALLE_MIN_MS && depart - c.echec >= ETAT_PAUSE_ECHEC_MS) {
     c.enVol = true;
     c.depart = depart;
     const lecture = _lireEtatServices(url, env).then((v) => {
-      if (v) { c.v = v; c.t = depart; } else c.echec = Date.now();
+      /* 2026-10-14 (relecture, H7) : une lecture qui se regle EN RETARD (lecture morte, ecartee au bout de 10 s) ne remplace jamais une
+       * lecture partie apres elle ; son echec ne met pas en pause une lecture plus recente. */
+      if (v) { if (depart >= c.t) { c.v = v; c.t = depart; } } else if (depart === c.depart) c.echec = Date.now();
       return v;
     }).finally(() => { if (c.depart === depart) c.enVol = false; });
     opts.ctx?.waitUntil?.(lecture);
     const v = await _avecDelai(lecture, ETAT_ATTENTE_MS).catch(() => null);
-    if (v) return { v, ageMs: Date.now() - depart };
+    if (v) return c.v && c.t > depart ? { v: c.v, ageMs: Date.now() - c.t, t: c.t } : { v, ageMs: Date.now() - depart, t: depart };
   }
   // REPLI : derniere valeur connue si elle a moins de ETAT_REPLI_MAX_MS, sinon l'estimation de l'appelant.
   const maintenant = Date.now();
-  return c.v && maintenant - c.t < ETAT_REPLI_MAX_MS ? { v: c.v, ageMs: maintenant - c.t } : null;
+  return c.v && maintenant - c.t < ETAT_REPLI_MAX_MS ? { v: c.v, ageMs: maintenant - c.t, t: c.t } : null;
 }
 
 /** POST /api/upload-image — body: { dataUrl, suffix? }. Decodes a
@@ -22444,11 +22484,13 @@ async function handleAdminLive(req: Request, env: Env): Promise<Response> {
 /** GET /api/admin/modal-status — ADMIN. Meme reponse que /api/modal-status (etat chaud / froid des conteneurs), mais sous la garde admin :
  *  la page admin la lit sans dependre d'une route « utilisateur », et elle reste atteignable quand le coupe-circuit « Site » est actif
  *  (toutes les routes /api/admin/* sont exemptees). 2026-10-01 : la carte « Warm containers » affichait « State unavailable: HTTP 401 / 503 ».
- *  2026-10-13 (levier L8) : /admin2 la sonde toutes les 8 s ; l'etat reel y est garde 15 s (ETAT_FRAIS_ACTIF_MS), pas a chaque appel. */
+ *  2026-10-13 (levier L8) : /admin2 la sonde toutes les 8 s ; l'etat reel y est garde 7 s (ETAT_FRAIS_ADMIN_MS, revu le 14/10 : 15 s
+ *  laissaient voir un etat de 16 s au plus, contre 8 s avant, sans rien economiser : le conteneur reste allume dans les deux cas ;
+ *  simulation d'une heure, tests/etat-modal-simulation.test.mjs). */
 async function handleAdminModalStatus(req: Request, env: Env, ctx?: { waitUntil?: (p: Promise<unknown>) => void }): Promise<Response> {
   const guard = await _requireAdmin(req, env);
   if (guard instanceof Response) return guard;
-  const rep = await handleModalStatus(req, env, { fraicheurMs: ETAT_FRAIS_ACTIF_MS, ctx });
+  const rep = await handleModalStatus(req, env, { fraicheurMs: ETAT_FRAIS_ADMIN_MS, ctx });
   if (!rep.ok) return rep;
   const j = await rep.json() as Record<string, unknown>;
   const etat = await _keepWarmLire(env);

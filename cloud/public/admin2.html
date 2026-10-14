@@ -1204,8 +1204,8 @@ function renderConteneurs() {
     return '<button type="button" data-goto="systeme" title="Ouvrir Santé pour agir" style="background:none;color:inherit;font:inherit;cursor:pointer;border:1px solid ' + (s === 'cold' ? 'var(--err)' : 'var(--border)') + ';border-radius:999px;padding:3px 10px;font-size:12px">' + NOMS_CONT[k] + ' <b style="color:' + coul + '">● ' + t[0] + '</b>' + (e.reel ? ageReel(m) : ' <span title="estimation : état Modal indisponible">≈</span>') + '</button>';
   }).join(''));
 }
-/* 2026-10-13 (levier L8) : le worker garde l'etat reel 15 s pour cette page ; si l'application d'etat ne repond plus, il sert la DERNIERE valeur connue (2 min au plus) :
-   au-dela de 30 s, son age est affiche pour ne pas la presenter comme actuelle. */
+/* 2026-10-13 (levier L8) : le worker garde l'etat reel 7 s pour cette page (revu le 14/10) ; si l'application d'etat ne repond plus, il sert la DERNIERE valeur connue
+   (2 min au plus) : au-dela de 30 s, son age est affiche pour ne pas la presenter comme actuelle (meme seuil que le panneau du site). */
 function ageReel(m) { var a = m && m.etat_reel_age_s; return typeof a === 'number' && a > 30 ? ' <span class="note" title="dernier état réel connu : Modal ne répond pas">(' + a + ' s)</span>' : ''; }
 function renderEncoursCompact(enc, L) {
   var tot = (L.en_cours || []).length, n = enc.length, bt = $('#b-travaux');
@@ -2794,15 +2794,17 @@ cadence(function () { if (sur('maintenant', 'travaux')) chargerBloques(); }, 600
 cadence(function () { if (S.tab === 'argent') chargerModalFull(); }, 120000);
 cadence(function () { if (S.tab === 'maintenant' || S.tab === 'systeme') { chargerModalFull(); if (S.tab === 'maintenant' || !S.sante) chargerSante(); } }, 120000);
 /* 2026-10-02 (F7) : modal-status interroge Modal (jusqu'a 8 s) : pas de nouvel appel tant que le precedent n'est pas revenu. La cadence reste de 8 s (exigence « etat reel »).
-   2026-10-13 (levier L8) : onglet masque = aucun appel (l'application d'etat de Modal est facturee tant qu'on l'interroge) ; retour sur l'onglet = relecture immediate ; le worker garde l'etat reel 15 s. */
-function sonderModalStatus() { if (document.hidden || !sur('systeme', 'maintenant') || (S.msEnCours && Date.now() - S.msEnCours < 60000)) return; S.msEnCours = Date.now(); var fin = function () { S.msEnCours = 0; }; chargerModalStatus().then(fin, fin); }
+   2026-10-13 (levier L8) : onglet masque = aucun appel (l'application d'etat de Modal est facturee tant qu'on l'interroge) ; le worker garde l'etat reel 7 s (ETAT_FRAIS_ADMIN_MS).
+   2026-10-14 (relecture) : retour sur l'onglet = relecture seulement si la derniere a plus de 15 s ; jamais deux lectures a moins de 7 s (des allers-retours d'onglet ne
+   relisent pas plus souvent que la cadence de 8 s). */
+function sonderModalStatus(ecartMin) { var t = Date.now(); if (document.hidden || !sur('systeme', 'maintenant') || (S.msEnCours && t - S.msEnCours < 60000) || t - (S.msDernier || 0) < (ecartMin || 7000)) return; S.msEnCours = S.msDernier = t; var fin = function () { S.msEnCours = 0; }; chargerModalStatus().then(fin, fin); }
 cadence(sonderModalStatus, 8000);
 cadence(function () { if (S.tab === 'argent' || S.tab === 'travaux') chargerStats(true); }, 300000);
 cadence(function () { if (S.tab === 'argent') chargerArgentRecent(true); }, 60000);      // 2026-10-02 (ARG-9) : les periodes courtes d'Argent se rafraichissent seules (chargerArgentRecent sort si la periode n'est pas courte ; Activite a sa propre cadence de 60 s)
 /* 2026-10-02 (T3) : les tuiles Travaux / Echecs / Comptes, les barres pays et canal, les courbes courtes et la liste d'echecs ne se rafraichissaient JAMAIS : relues chaque minute tant que l'onglet Activite est ouvert (et ressayees apres une panne). */
 cadence(function () { if (S.tab === 'travaux') { S.audAt = 0; chargerAudience(); chargerArgentRecent(true); if (S.fluxMode) chargerEchecs(true); } }, 60000);
 setInterval(majHorloge, 1000);
-document.addEventListener('visibilitychange', function () { if (document.hidden) return; chargerLive(); chargerServices(); chargerBadges(); maintenirSession(); sonderModalStatus(); });
+document.addEventListener('visibilitychange', function () { if (document.hidden) return; chargerLive(); chargerServices(); chargerBadges(); maintenirSession(); sonderModalStatus(15000); });
 
 /* Maintien de la session : meme cadence et meme horodatage partage que /admin et /app (une seule rotation du jeton Supabase a la fois). */
 var CLE_REFRESH = 'mfm-last-session-refresh';
