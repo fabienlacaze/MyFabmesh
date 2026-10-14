@@ -68,6 +68,29 @@ test('CLI : --min donne le code 1 sous le seuil, 0 par defaut et au-dessus', () 
   fs.rmSync(d, { recursive: true, force: true });
 });
 
+// Relecture du lot interface (2026-10-14) : la comparaison a --min se faisait sur le pourcentage ARRONDI a 0,1.
+// 2 000 / 2 001 = 99,95 % devenait 100,0 : « --min 100 » passait avec un libelle non traduit.
+test('CLI : --min compare les COMPTES exacts (une traduction manquante sur 2 001 echoue a --min 100)', () => {
+  const d = tmp('couv-exact-');
+  const libs = Array.from({ length: 2001 }, (_, i) => 'Item number ' + (i + 1));
+  const html = libs.map((k) => '<b>' + k + '</b>').join('');
+  const es = Object.fromEntries(libs.slice(1).map((k) => [k, 'es ' + k]));
+  for (const [base, page] of [[path.join(d, 'src', 'renderer'), 'index2.html'], [path.join(d, 'cloud', 'public', 'app'), 'index.html']]) {
+    fs.mkdirSync(path.join(base, 'lang'), { recursive: true });
+    fs.writeFileSync(path.join(base, page), html);
+    fs.writeFileSync(path.join(base, 'lang', 'es.js'), 'window.FabI18n.register("es", ' + JSON.stringify(es) + ');');
+  }
+  const lancer = (...a) => spawnSync(process.execPath, [SCRIPT, '--racine', d, ...a], { encoding: 'utf8' });
+  const r = lancer('--min', '100');
+  assert.equal(r.status, 1, 'une traduction manquante doit echouer a --min 100 :\n' + r.stdout.slice(0, 400) + r.stderr);
+  assert.match(r.stderr, /bureau\/es 2000 \/ 2001/);
+  assert.equal(lancer('--min', '99.95').status, 0, '2000 / 2001 = 99,95002 % >= 99,95 %');
+  const j = JSON.parse(lancer('--json').stdout);
+  assert.equal(j.bureau.langues.es.traduits, 2000);
+  assert.equal(j.bureau.langues.es.pourcent, 99.9, 'affichage : jamais 100.0 tant qu un libelle manque');
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
 // ---- Crochet pre-commit ----
 function fauxDepot() {
   const d = tmp('hook-');

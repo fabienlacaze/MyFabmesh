@@ -589,5 +589,64 @@ model-viewer {
    (layout.tsx) pose html[lang] d'apres le choix de l'appli (fabmesh.lang) AVANT
    le premier rendu, et ces deux regles cachent l'autre version. Francais si
    l'appli est en francais, anglais sinon. */
-html[lang="fr"] .lang-en { display: none !important; }
+/* 2026-10-13 (lot interface multilingue) : SIX langues, comme l'appli. <T> rend une
+   version par langue, seule celle de html[lang] reste visible ; l'anglais est le
+   defaut (aucun script, ou langue inconnue). */
+html:is([lang="fr"], [lang="es"], [lang="zh"], [lang="hi"], [lang="ar"]) .lang-en { display: none !important; }
 html:not([lang="fr"]) .lang-fr { display: none !important; }
+html:not([lang="es"]) .lang-es { display: none !important; }
+html:not([lang="zh"]) .lang-zh { display: none !important; }
+html:not([lang="hi"]) .lang-hi { display: none !important; }
+html:not([lang="ar"]) .lang-ar { display: none !important; }
+
+/* Textes JURIDIQUES (CGV, confidentialite, mentions, renonciation au droit de
+   retractation) : francais et anglais seulement, jamais traduits par nous. Le
+   francais pour un visiteur francais, l'anglais pour tous les autres ;
+   BasculeLangue change html[data-juridique] sans toucher a la langue de
+   l'interface. L'avis « page disponible en francais et en anglais seulement »
+   ne s'affiche que dans les quatre autres langues. */
+html[data-juridique="fr"] .juridique-en { display: none !important; }
+html:not([data-juridique="fr"]) .juridique-fr { display: none !important; }
+html:is([lang="en"], [lang="fr"]) .avis-juridique { display: none !important; }
+html:not([lang]) .avis-juridique { display: none !important; }
+/* Mention juridique en francais seulement (consentement de la boutique) : avis dans les autres langues. */
+html[lang="fr"] .avis-francais-seul { display: none !important; }
+
+/* Selecteur de langue de la barre du haut (langue-client.tsx). */
+.coque-langue { position: relative; display: inline-block; }
+.coque-langue-bouton {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 8px;
+  background: transparent; color: var(--text-0);
+  border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .5px;
+}
+.coque-langue-bouton:focus-visible, .coque-langue-liste:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.coque-langue-chevron { opacity: .6; font-size: 11px; }
+.coque-langue-liste {
+  position: absolute; top: calc(100% + 4px); inset-inline-end: 0; min-width: 170px;
+  margin: 0; padding: 4px 0; list-style: none;
+  background: var(--bg-1); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.55); z-index: 9500; max-height: 60vh; overflow: hidden auto;
+}
+.coque-langue-liste[hidden] { display: none; }
+.coque-langue-liste li { padding: 8px 12px; cursor: pointer; color: var(--text-0); font-size: 13px; }
+.coque-langue-liste li[aria-selected="true"] { font-weight: 700; }
+.coque-langue-liste li[data-actif="1"] { background: rgba(124,77,255,.28); outline: 2px solid rgba(124,77,255,.65); outline-offset: -2px; }
+
+/* Avis de repli : langue du navigateur non servie (langue-client.tsx, AvisLangue). Dans le flux, sous la
+   barre du haut : il pousse la page au lieu de recouvrir son titre. */
+.coque-avis-langue {
+  position: relative; margin: 10px auto 0; width: fit-content;
+  max-width: min(560px, calc(100vw - 24px));
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; background: var(--bg-1); color: var(--text-0);
+  border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45); font-size: 13px;
+}
+.coque-avis-texte { flex: 1; min-width: 200px; }
+
+/* Droite a gauche (arabe) : proprietes logiques la ou la feuille etait physique. */
+html[dir="rtl"] .brand-cloud, html[dir="rtl"] .price-card .feat-tag { margin-left: 0; margin-right: 6px; }
+html[dir="rtl"] .breadcrumb::before { margin-right: 0; margin-left: 4px; }
+html[dir="rtl"] table.history th { text-align: right; }

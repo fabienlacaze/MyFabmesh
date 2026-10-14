@@ -1774,6 +1774,9 @@
     },
   };
 
+  // # --- NOYAU PARTAGE : DEBUT --- texte d'execution COMMUN bureau / web (seuls les dictionnaires
+  // ci-dessus different) ; build/check-noyaux-partages.mjs refuse une divergence (revue du lot interface,
+  // 2026-10-14 : rien ne le surveillait). Editer ICI (src/renderer/i18n.js) puis --sync.
   /* LANGUE PAR DEFAUT : CELLE DU VISITEUR, PAS L'ANGLAIS EN DUR.
    *
    * `localStorage.getItem(...) || 'en'` : au tout premier chargement rien
@@ -1785,24 +1788,44 @@
    * avait qu'a les choisir.
    *
    * Un choix explicite de l'utilisateur reste prioritaire pour toujours :
-   * on ne regarde le navigateur que faute de preference enregistree. */
-  // PAS d'arabe ici : le selecteur desktop n'en propose pas (le cloud, si).
-  // Avec 'ar', un Windows en arabe obtenait un selecteur vide et l'anglais.
-  const LANGUES_CONNUES = ['fr', 'es', 'zh', 'hi'];
+   * on ne regarde le navigateur que faute de preference enregistree.
+   *
+   * 2026-10-13 (lot interface multilingue) : MEME texte d'execution sur le bureau
+   * et sur le web (seuls les dictionnaires different). L'arabe est detecte des
+   * deux cotes (le selecteur du bureau le propose : INTERFACE-16). */
+  const LANGUES_CONNUES = ['fr', 'es', 'zh', 'hi', 'ar'];
+  // Noms de langue AUTONYMES, jamais traduits (INTERFACE-M05) : un visiteur arrive
+  // dans une langue qu'il ne lit pas doit reconnaitre la sienne.
+  const NOMS_LANGUES = { en: 'English', fr: 'Français', es: 'Español', zh: '中文', hi: 'हिन्दी', ar: 'العربية' };
+  const ORDRE_MENU = ['en', 'zh', 'hi', 'es', 'fr', 'ar'];
+  const LANGUES_RTL = new Set(['ar']);
 
-  function _langueDuNavigateur() {
+  /* Langue servie = la premiere langue SUPPORTEE de la liste du navigateur. On
+   * note aussi la premiere langue DEMANDEE quand elle n'est pas servie telle
+   * quelle (allemand, japonais, chinois traditionnel…) : l'interface le dit au
+   * lieu de basculer en anglais sans un mot (INTERFACE-01, repli explicite). */
+  function _analyseNavigateur() {
+    let brutes = [];
     try {
-      const brutes = (navigator.languages && navigator.languages.length)
-        ? navigator.languages : [navigator.language];
-      for (const b of brutes) {
-        if (!b) continue;
-        const court = String(b).toLowerCase().split('-')[0];
-        if (court === 'en') return 'en';
-        if (LANGUES_CONNUES.indexOf(court) !== -1) return court;
+      brutes = (navigator.languages && navigator.languages.length)
+        ? Array.from(navigator.languages) : [navigator.language];
+    } catch (_) { brutes = []; /* pas de navigator (test, worker) */ }
+    let demandee = null;
+    for (const b of brutes) {
+      if (!b) continue;
+      const tag = String(b);
+      const court = tag.toLowerCase().split('-')[0];
+      if (court === 'en') return { lang: 'en', demandee };
+      if (LANGUES_CONNUES.indexOf(court) !== -1) {
+        // Chinois traditionnel : servi en chinois simplifie, ce qui merite d'etre dit.
+        if (court === 'zh' && /^zh-(tw|hk|mo|hant)/i.test(tag) && !demandee) demandee = tag;
+        return { lang: court, demandee };
       }
-    } catch (_) { /* pas de navigator (test, worker) */ }
-    return 'en';
+      if (!demandee) demandee = tag;
+    }
+    return { lang: 'en', demandee };
   }
+  function _langueDuNavigateur() { return _analyseNavigateur().lang; }
 
   /* « ENREGISTRE » NE VEUT PAS DIRE « CHOISI » — corrige le 2026-08-23.
    *
@@ -1815,40 +1838,94 @@
    * selecteur). En son absence, un 'en' herite est reevalue une fois — mais
    * seulement si le navigateur ne demande PAS l'anglais, sinon rien ne
    * change. Le seul cas touche est donc exactement celui que le defaut
-   * lesait, et il reste rattrapable d'un clic sur le selecteur. */
+   * lesait, et il reste rattrapable d'un clic sur le selecteur.
+   *
+   * 2026-10-13 (INTERFACE-14) : une langue seulement DETECTEE n'est plus figee.
+   * Un visiteur detecte en francais restait en francais apres avoir passe son
+   * navigateur en espagnol. `fabmesh.lang.detectee` = '1' quand la langue vient
+   * du navigateur : elle est alors re-detectee a chaque ouverture. Une langue
+   * enregistree SANS ce marqueur (choix d'avant le 23/08) reste respectee, et une
+   * valeur inconnue (« de ») n'est plus reprise telle quelle. */
   const CLE_CHOIX = 'fabmesh.lang.choisi';
+  const CLE_DETECTEE = 'fabmesh.lang.detectee';
+  const CLE_AVIS = 'fabmesh.lang.avis';
+  const _servie = (l) => l === 'en' || LANGUES_CONNUES.indexOf(l) !== -1;
 
   let _lang = 'en';
+  let _detectee = false;
   try {
     const explicite = localStorage.getItem(CLE_CHOIX);
     const enregistre = localStorage.getItem('fabmesh.lang');
-    if (explicite) {
+    const detecteeAvant = localStorage.getItem(CLE_DETECTEE) === '1';
+    if (explicite && _servie(explicite)) {
       _lang = explicite;
-    } else if (enregistre && enregistre !== 'en') {
+    } else if (enregistre && enregistre !== 'en' && !detecteeAvant && _servie(enregistre)) {
       _lang = enregistre;
     } else {
       _lang = _langueDuNavigateur();
+      _detectee = true;
     }
-  } catch (_) { _lang = _langueDuNavigateur(); }
+  } catch (_) { _lang = _langueDuNavigateur(); _detectee = true; }
 
   const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'CODE', 'PRE', 'MODEL-VIEWER', 'CANVAS', 'svg', 'SVG']);
 
   function _dict() { return _lang === 'en' ? null : (I18N[_lang] || null); }
+  function _rtl() { return LANGUES_RTL.has(_lang); }
 
   // Contenu utilisateur / technique à NE JAMAIS traduire : prompts, sorties de
-  // modèles, logs. Un élément (ou un de ses parents) portant [data-i18n-skip]
-  // ou .prompt-overlay est ignoré, texte ET attributs.
+  // modèles, logs, noms de projets et de versions. Un élément (ou un de ses
+  // parents) portant [data-i18n-skip], translate="no" ou .prompt-overlay est
+  // ignoré, texte ET attributs.
   // Bug corrigé 2026-07-26 : l'aperçu du prompt enrichi (.prompt-overlay) est
   // un <div>, il était donc auto-traduit en français — le gabarit anglais du
   // moteur d'images devenait « style réaliste, photoréaliste… » et le sujet
   // de l'utilisateur était réinterprété (« brasier eteind » → « Bois de
   // chauffage »). Le <textarea> lui-même était déjà protégé par SKIP_TAGS.
+  // 2026-10-13 (INTERFACE-10) : la protection n'existait que sur le bureau ; sur le
+  // web un projet nommé « Settings » s'affichait « Paramètres ».
   function _isNoTranslate(el) {
     for (let n = el; n; n = n.parentElement) {
       if (n.nodeType === 1 && (n.hasAttribute?.('data-i18n-skip')
+          || n.getAttribute?.('translate') === 'no'
           || n.classList?.contains('prompt-overlay'))) return true;
     }
     return false;
+  }
+
+  // Recherche dans un dictionnaire : la cle exacte, puis la cle aux blancs
+  // ramenes a un espace (un texte HTML ecrit sur plusieurs lignes arrive avec
+  // ses retours a la ligne et son indentation : sa cle ne pouvait pas exister).
+  // 2026-10-14 (revue du lot interface) : AUSSI un blanc autre que l'espace — espace
+  // insecable (&nbsp;), espace fine. « reply within 48&nbsp;h » ne trouvait pas son
+  // entree « … 48 h » et restait en anglais dans les cinq langues.
+  function _chercher(dict, k) {
+    if (!dict || !k) return null;
+    if (dict[k]) return dict[k];
+    if (/\s\s|[^\S ]/.test(k)) { const n = k.replace(/\s+/g, ' '); if (dict[n]) return dict[n]; }
+    return null;
+  }
+
+  // Isolation bidirectionnelle (INTERFACE-05) : dans une interface de droite a
+  // gauche, un texte reste en anglais est encadre par FSI … PDI (U+2068 / U+2069).
+  // Sans cela « 30 steps · Medium » s'affichait « steps · Medium 30 », un montant
+  // passait en fin de phrase et le point final d'une phrase anglaise en tete de
+  // ligne. Caracteres invisibles, retires des qu'on quitte l'arabe.
+  const FSI = '\u2068';
+  const PDI = '\u2069';
+  function _isoler(s) { return FSI + s + PDI; }
+
+  // Textes DEJA traduits : les valeurs des dictionnaires, et (2026-10-13) les
+  // sorties de t() / tf(). Un message compose par tf() (« Supprimer le projet
+  // « orc » ? ») n'a pas d'entree : sans cette memoire le traducteur du DOM le
+  // prenait pour de l'anglais (isolation bidi, repli automatique du bureau).
+  const _sorties = new Set();
+  function _retenirSortie(s) {
+    if (!s || _lang === 'en') return;
+    if (_sorties.size > 3000) _sorties.clear();
+    _sorties.add(String(s).trim());
+  }
+  function _dejaTraduit(key) {
+    return (_curatedValues[_lang] && _curatedValues[_lang].has(key)) || _sorties.has(key);
   }
 
   function _translateText(root, dict) {
@@ -1877,43 +1954,76 @@
     if (!key) return;
     let translated = orig;  // dict null = English (source) -> restore the cached original
     if (dict) {
-      // Already-translated text (a curated VALUE for this lang) must be left as-is
-      // — re-translating t()'s French output mangled it ("trafic d'histoire" bug).
-      if (_curatedValues[_lang] && _curatedValues[_lang].has(key)) return;
-      // Strip a leading icon/emoji run ("🔬 Export" -> "🔬 " + "Export") and match the
-      // icon-STRIPPED core FIRST. Curated dict entries are keyed without the icon, so this
-      // must beat any stale full-string auto-translate cache entry (keyed WITH the icon),
-      // which used to shadow curated translations (e.g. "Sharpen texture"->"épingle").
-      // Core may start with a LETTER or DIGIT ("🏗️ 3D construction stages"):
-      // requiring a letter made the match fail on digit-led labels, so the FULL
-      // string (icon included) fell through to auto-translate → icon lost.
+      // Already-translated text (a curated VALUE for this lang, or a t()/tf() output)
+      // must be left as-is — re-translating t()'s French output mangled it.
+      if (_dejaTraduit(key)) return;
+      // Match the icon-STRIPPED core FIRST so curated (icon-less) dict entries beat any
+      // stale full-string auto cache entry that used to shadow them ('Sharpen'->'épingle').
+      // Core may start with a LETTER or DIGIT ("🏗️ 3D construction stages").
       const m = key.match(/^([^\p{L}\p{N}]+)([\p{L}\p{N}][\s\S]*)$/u);
       const core = m ? m[2] : key;
       const prefix = m ? m[1] : '';
-      if (dict[core]) {
-        translated = orig.replace(key, prefix + dict[core]);
-      } else if (dict[key]) {
-        translated = orig.replace(key, dict[key]);
+      const vCore = _chercher(dict, core);
+      const vCle = vCore ? null : _chercher(dict, key);
+      if (vCore) {
+        translated = orig.replace(key, () => prefix + vCore);
+      } else if (vCle) {
+        translated = orig.replace(key, () => vCle);
       } else {
         _queueAuto(core);   // cache by the icon-stripped core so it shares the dict key space
+        if (_rtl() && /[A-Za-z]/.test(key)) translated = orig.replace(key, () => _isoler(key));
       }
     }
     if (node.nodeValue !== translated) node.nodeValue = translated;
   }
 
+  // Attributs traduits : placeholder, title, aria-label. Meme regle que les noeuds
+  // texte (INTERFACE-M06) : « 🔍 Search projects... » trouve l'entree « Search
+  // projects... ». Un attribut REECRIT par le code entre deux passages (title =
+  // 'Already published') remplace l'original memorise au lieu d'etre ecrase par lui.
+  const ATTRS = ['placeholder', 'title', 'aria-label'];
+  function _traduireAttribut(el, attr, dict) {
+    if (!el.hasAttribute || !el.hasAttribute(attr) || _isNoTranslate(el)) return;
+    const ck = '__i18n_' + attr;
+    const cur = el.getAttribute(attr);
+    if (el[ck] === undefined || (cur !== el[ck] && cur !== el[ck + '_t'])) el[ck] = cur;
+    const orig = el[ck];
+    let translated = orig;
+    const key = (orig || '').trim();
+    if (dict && key && !_dejaTraduit(key)) {
+      const m = key.match(/^([^\p{L}\p{N}]+)([\p{L}\p{N}][\s\S]*)$/u);
+      const vCle = _chercher(dict, key);
+      const vCore = vCle ? null : (m ? _chercher(dict, m[2]) : null);
+      if (vCle) translated = vCle;
+      else if (vCore) translated = m[1] + vCore;
+      else _queueAuto(m ? m[2] : key);
+    }
+    el[ck + '_t'] = translated;
+    if (cur !== translated) el.setAttribute(attr, translated);
+  }
   function _translateAttrs(root, dict) {
-    ['placeholder', 'title', 'aria-label'].forEach((attr) => {
-      root.querySelectorAll('[' + attr + ']').forEach((el) => {
-        if (_isNoTranslate(el)) return;
-        const ck = '__i18n_' + attr;
-        if (el[ck] === undefined) el[ck] = el.getAttribute(attr);
-        const orig = el[ck];
-        let translated = orig;
-        if (dict && dict[orig]) translated = dict[orig];
-        else if (orig && orig.trim()) _queueAuto(orig.trim());
-        if (el.getAttribute(attr) !== translated) el.setAttribute(attr, translated);
-      });
+    ATTRS.forEach((attr) => {
+      if (root.hasAttribute && root.hasAttribute(attr)) _traduireAttribut(root, attr, dict);
+      root.querySelectorAll('[' + attr + ']').forEach((el) => _traduireAttribut(el, attr, dict));
     });
+  }
+
+  // Champs de saisie en arabe : dir="auto" (INTERFACE-M07, CHAMPS-18). Un prompt
+  // anglais tape dans un document de droite a gauche voyait sa ponctuation finale
+  // passer en tete de ligne. Pose seulement par nous (data-i18n-dir), retire en LTR.
+  const SAISIES = 'textarea, input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="tel"]';
+  function _directionSaisies(root) {
+    if (!root || !root.querySelectorAll) return;
+    const rtl = _rtl();
+    const liste = (root.matches && root.matches(SAISIES)) ? [root] : [];
+    root.querySelectorAll(SAISIES).forEach((el) => liste.push(el));
+    for (const el of liste) {
+      if (rtl) {
+        if (!el.hasAttribute('dir')) { el.setAttribute('dir', 'auto'); el.setAttribute('data-i18n-dir', '1'); }
+      } else if (el.getAttribute('data-i18n-dir') === '1') {
+        el.removeAttribute('dir'); el.removeAttribute('data-i18n-dir');
+      }
+    }
   }
 
   // Small country flags next to the selector. Windows doesn't render flag
@@ -1936,20 +2046,11 @@
     if (f) {
       // The custom dropdown (once built) carries the flag in its button, so the
       // standalone left flag is hidden to avoid showing it twice.
-      if (_langDD) f.style.display = 'none';
+      if (_menus.some((m) => !m.compact)) f.style.display = 'none';
       else if (src) { f.src = src; f.style.display = ''; }
       else f.style.display = 'none';
     }
-    if (_langDD && _langDD.bimg) {
-      if (src) { _langDD.bimg.src = src; _langDD.bimg.style.display = ''; }
-      else _langDD.bimg.style.display = 'none';
-    }
   }
-
-  // Custom language dropdown so each option can show its flag — native <select>
-  // <option> elements can't contain <img>. It mirrors the hidden #lang-select
-  // (kept as the source of truth, so change events + value reads still work).
-  let _langDD = null;
   function _mkFlagImg(code) {
     const im = document.createElement('img');
     im.alt = '';
@@ -1958,55 +2059,209 @@
     im.style.cssText = 'width:22px;height:15px;border-radius:2px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,0.14);flex:none;';
     return im;
   }
+
+  /* MENUS DE LANGUE (INTERFACE-08, 2026-10-13). Le seul selecteur etait dans les
+   * Reglages (6e section sur 8, hors ecran a l'ouverture) et inutilisable au
+   * clavier : un menu de <div> sans role ni tabindex, qui n'ecoutait que la
+   * souris. Un meme constructeur sert au selecteur des Reglages ET au bouton de
+   * la barre du haut ([data-fab-lang], visible sur toutes les pages) : bouton
+   * aria-haspopup="listbox" / aria-expanded, liste role="listbox" + role="option",
+   * fleches, Debut / Fin, Entree / Espace, Echap, Tab ; noms autonymes. Le
+   * <select id="lang-select"> reste la source de verite (ses ecouteurs gardent
+   * leur effet). */
+  const _menus = [];
+  function _choisirLangue(code) {
+    if (!code) return;
+    try { localStorage.setItem(CLE_CHOIX, code); } catch (_) {}
+    _detectee = false;
+    const sel = document.getElementById('lang-select');
+    if (sel) {
+      if (sel.value !== code) sel.value = code;
+      sel.dispatchEvent(new Event('change'));   // le gestionnaire du select applique la langue
+    } else {
+      _appliquerPublic(code);
+    }
+  }
+  // Par l'API PUBLIQUE (INTERFACE-M04) : index2.js enveloppe FabI18n.applyLang pour
+  // rejouer les noms accessibles ; la fermeture locale contournait l'enveloppe et
+  // les boutons de la barre du haut gardaient l'aria-label de l'ancienne langue.
+  function _appliquerPublic(code) {
+    const f = (window.FabI18n && typeof window.FabI18n.applyLang === 'function') ? window.FabI18n.applyLang : applyLang;
+    f.call(window.FabI18n, code);
+  }
+  function _construireMenu(hote, compact) {
+    const wrap = document.createElement('div');
+    wrap.className = 'fab-lang' + (compact ? ' fab-lang-compact' : '');
+    wrap.setAttribute('translate', 'no');
+    wrap.setAttribute('data-i18n-skip', '');
+    wrap.style.cssText = 'position:relative; display:inline-block;' + (compact ? '' : ' min-width:160px;');
+    const n = _menus.length + 1;
+    const idListe = 'fab-lang-liste-' + n;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'fab-lang-bouton';
+    btn.setAttribute('aria-haspopup', 'listbox');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-controls', idListe);
+    btn.style.cssText = compact
+      ? 'display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 8px; background:transparent; color:var(--text-0,#fff); border:1px solid var(--border,#3a3a4a); border-radius:6px; cursor:pointer; font-size:12px; font-weight:700; letter-spacing:.5px;'
+      : 'display:flex; align-items:center; gap:8px; width:100%; padding:6px 10px; background:var(--bg-2,#1a1a24); color:var(--text-0,#fff); border:1px solid var(--border,#3a3a4a); border-radius:6px; cursor:pointer; font-size:13px;';
+    const bimg = _mkFlagImg(_lang);
+    if (compact) bimg.style.width = '18px';
+    const blab = document.createElement('span');
+    blab.style.cssText = compact ? '' : 'flex:1; text-align:start;';
+    const chev = document.createElement('span');
+    chev.textContent = '▾';
+    chev.setAttribute('aria-hidden', 'true');
+    chev.style.cssText = 'opacity:0.6; font-size:11px;';
+    btn.appendChild(bimg); btn.appendChild(blab); btn.appendChild(chev);
+    const liste = document.createElement('ul');
+    liste.id = idListe;
+    liste.setAttribute('role', 'listbox');
+    liste.tabIndex = -1;
+    liste.style.cssText = 'position:absolute; top:calc(100% + 4px); ' + (compact ? 'inset-inline-end:0; min-width:170px;' : 'left:0; right:0;') + ' margin:0; padding:4px 0; list-style:none; background:var(--bg-1,#15151d); border:1px solid var(--border,#3a3a4a); border-radius:6px; box-shadow:0 10px 28px rgba(0,0,0,0.55); z-index:99999; overflow:hidden auto; max-height:60vh; display:none; outline:none;';
+    const options = ORDRE_MENU.map((code) => {
+      const li = document.createElement('li');
+      li.id = idListe + '-' + code;
+      li.setAttribute('role', 'option');
+      li.setAttribute('lang', code);
+      if (LANGUES_RTL.has(code)) li.setAttribute('dir', 'rtl');
+      li.dataset.lang = code;
+      li.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; color:var(--text-0,#fff); font-size:13px;';
+      const lab = document.createElement('span');
+      lab.textContent = NOMS_LANGUES[code];
+      li.appendChild(_mkFlagImg(code)); li.appendChild(lab);
+      li.addEventListener('mousemove', () => activer(code));
+      li.addEventListener('click', (e) => { e.stopPropagation(); valider(code); });
+      liste.appendChild(li);
+      return li;
+    });
+    let actif = _lang;
+    function activer(code) {
+      actif = code;
+      options.forEach((li) => {
+        const a = li.dataset.lang === code;
+        li.style.background = a ? 'rgba(124,77,255,0.28)' : '';
+        li.style.outline = a ? '2px solid rgba(124,77,255,0.65)' : '';
+        li.style.outlineOffset = '-2px';
+      });
+      liste.setAttribute('aria-activedescendant', idListe + '-' + code);
+    }
+    function ouvert() { return liste.style.display !== 'none'; }
+    function ouvrir() {
+      _menus.forEach((m) => { if (m.liste !== liste) m.fermer(false); });
+      liste.style.display = 'block';
+      btn.setAttribute('aria-expanded', 'true');
+      activer(_lang);
+      try { liste.focus(); } catch (_) {}
+    }
+    function fermer(rendreFocus) {
+      if (!ouvert()) return;
+      liste.style.display = 'none';
+      btn.setAttribute('aria-expanded', 'false');
+      if (rendreFocus) { try { btn.focus(); } catch (_) {} }
+    }
+    function valider(code) {
+      fermer(true);
+      if (code && code !== _lang) _choisirLangue(code);
+    }
+    btn.addEventListener('click', (e) => { e.stopPropagation(); if (ouvert()) fermer(false); else ouvrir(); });
+    btn.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); ouvrir(); }
+    });
+    liste.addEventListener('keydown', (e) => {
+      const i = Math.max(0, ORDRE_MENU.indexOf(actif));
+      if (e.key === 'ArrowDown') { e.preventDefault(); activer(ORDRE_MENU[Math.min(ORDRE_MENU.length - 1, i + 1)]); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); activer(ORDRE_MENU[Math.max(0, i - 1)]); }
+      else if (e.key === 'Home') { e.preventDefault(); activer(ORDRE_MENU[0]); }
+      else if (e.key === 'End') { e.preventDefault(); activer(ORDRE_MENU[ORDRE_MENU.length - 1]); }
+      else if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); valider(actif); }
+      else if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); e.stopPropagation(); fermer(true); }
+      else if (e.key === 'Tab') { fermer(false); }
+    });
+    document.addEventListener('click', () => fermer(false));
+    wrap.appendChild(btn); wrap.appendChild(liste);
+    if (hote.tagName === 'SELECT') hote.parentNode.insertBefore(wrap, hote.nextSibling);
+    else hote.appendChild(wrap);
+    const menu = { btn, bimg, blab, liste, options, compact, fermer, ouvrir };
+    _menus.push(menu);
+    _synchroniserMenus();
+    return menu;
+  }
+  function _synchroniserMenus() {
+    for (const m of _menus) {
+      const s = _flagSrc(_lang);
+      if (s) { m.bimg.src = s; m.bimg.style.display = ''; } else m.bimg.style.display = 'none';
+      m.blab.textContent = m.compact ? _lang.toUpperCase() : (NOMS_LANGUES[_lang] || _lang);
+      // Nom accessible et infobulle dans la langue COURANTE ; le nom de la langue, lui, reste autonyme.
+      const nom = tf('Language: {x}', NOMS_LANGUES[_lang] || _lang);
+      m.btn.setAttribute('aria-label', nom);
+      m.btn.title = nom;
+      m.liste.setAttribute('aria-label', t('Interface language'));
+      m.options.forEach((li) => li.setAttribute('aria-selected', li.dataset.lang === _lang ? 'true' : 'false'));
+    }
+  }
   function _buildLangDropdown() {
     const sel = document.getElementById('lang-select');
     if (!sel || sel.__fabCustom) return;
     sel.__fabCustom = true;
     sel.style.display = 'none';
-    const opts = Array.from(sel.options).map((o) => ({ value: o.value, label: o.textContent.trim() }));
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative; display:inline-block; min-width:160px;';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.style.cssText = 'display:flex; align-items:center; gap:8px; width:100%; padding:6px 10px; background:var(--bg-2,#1a1a24); color:var(--text-0,#fff); border:1px solid var(--border,#3a3a4a); border-radius:6px; cursor:pointer; font-size:13px;';
-    const bimg = _mkFlagImg(sel.value);
-    const blab = document.createElement('span'); blab.style.cssText = 'flex:1; text-align:start;';
-    const chev = document.createElement('span'); chev.textContent = '▾'; chev.style.cssText = 'opacity:0.6; font-size:11px;';
-    btn.appendChild(bimg); btn.appendChild(blab); btn.appendChild(chev);
-    const menu = document.createElement('div');
-    menu.style.cssText = 'position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--bg-1,#15151d); border:1px solid var(--border,#3a3a4a); border-radius:6px; box-shadow:0 10px 28px rgba(0,0,0,0.55); z-index:99999; overflow:hidden auto; max-height:60vh; display:none;';
-    opts.forEach((o) => {
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; color:var(--text-0,#fff); font-size:13px;';
-      const lab = document.createElement('span'); lab.textContent = o.label;
-      row.appendChild(_mkFlagImg(o.value)); row.appendChild(lab);
-      row.addEventListener('mouseenter', () => { row.style.background = 'rgba(124,77,255,0.28)'; });
-      row.addEventListener('mouseleave', () => { row.style.background = ''; });
-      row.addEventListener('click', (e) => {
-        e.stopPropagation();
-        sel.value = o.value;
-        sel.dispatchEvent(new Event('change'));
-        menu.style.display = 'none';
-      });
-      menu.appendChild(row);
-    });
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      menu.style.display = (menu.style.display === 'none') ? 'block' : 'none';
-    });
-    document.addEventListener('click', () => { menu.style.display = 'none'; });
-    wrap.appendChild(btn); wrap.appendChild(menu);
-    sel.parentNode.insertBefore(wrap, sel.nextSibling);
-    _langDD = { btn, bimg, blab, menu };
-    _syncLangDropdownButton();
+    sel.setAttribute('aria-hidden', 'true');
+    sel.tabIndex = -1;
+    _construireMenu(sel, false);
   }
-  function _syncLangDropdownButton() {
-    const sel = document.getElementById('lang-select');
-    if (!sel || !_langDD) return;
-    const o = sel.options[sel.selectedIndex];
-    const s = _flagSrc(sel.value);
-    if (s) { _langDD.bimg.src = s; _langDD.bimg.style.display = ''; } else _langDD.bimg.style.display = 'none';
-    _langDD.blab.textContent = o ? o.textContent.trim() : sel.value;
+
+  /* REPLI EXPLICITE (INTERFACE-01 / -14, 2026-10-13). Un navigateur en allemand,
+   * portugais, russe, japonais… recevait l'anglais sans un mot ; un navigateur en
+   * chinois traditionnel, du chinois simplifie. On le dit UNE fois, dans la langue
+   * servie, avec le nom de la langue demandee ecrit dans cette langue (« Deutsch »),
+   * et un bouton qui ouvre le choix de la langue. */
+  function _autonyme(tag) {
+    try {
+      const court = String(tag).toLowerCase().split('-')[0];
+      const code = (court === 'zh') ? 'zh-Hant' : court;
+      const nom = new Intl.DisplayNames([code], { type: 'language' }).of(code);
+      if (nom && nom !== code) return nom.charAt(0).toLocaleUpperCase(code) + nom.slice(1);
+    } catch (_) { /* Intl.DisplayNames absent */ }
+    return String(tag);
+  }
+  function _avisLangue() {
+    if (!_detectee || !document.body) return null;
+    const a = _analyseNavigateur();
+    if (!a.demandee || a.lang !== _lang) return null;
+    let vu = null;
+    try { vu = localStorage.getItem(CLE_AVIS); } catch (_) {}
+    if (vu === a.demandee) return null;
+    document.getElementById('fab-avis-langue')?.remove();
+    const avis = document.createElement('div');
+    avis.id = 'fab-avis-langue';
+    avis.setAttribute('role', 'status');
+    avis.setAttribute('data-i18n-skip', '');
+    avis.style.cssText = 'position:fixed; top:58px; left:50%; transform:translateX(-50%); z-index:10050; max-width:min(560px, calc(100vw - 24px)); display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; background:var(--bg-1,#15151d); color:var(--text-0,#fff); border:1px solid var(--border,#3a3a4a); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.45); font-size:13px;';
+    const texte = document.createElement('span');
+    texte.style.cssText = 'flex:1; min-width:200px;';
+    texte.textContent = '🌐 ' + tf('MyFabmesh is not available in {x} yet: the interface is shown in {y}.', _autonyme(a.demandee), NOMS_LANGUES[_lang] || _lang);
+    const choisir = document.createElement('button');
+    choisir.type = 'button';
+    choisir.className = 'ghost-btn';
+    choisir.textContent = t('Change language');
+    const fermerAvis = () => { try { localStorage.setItem(CLE_AVIS, a.demandee); } catch (_) {} avis.remove(); };
+    choisir.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fermerAvis();
+      const m = _menus.find((x) => x.compact) || _menus[0];
+      if (m) m.ouvrir();
+    });
+    const croix = document.createElement('button');
+    croix.type = 'button';
+    croix.className = 'icon-btn';
+    croix.textContent = '✕';
+    croix.setAttribute('aria-label', t('Close'));
+    croix.title = t('Close');
+    croix.addEventListener('click', fermerAvis);
+    avis.appendChild(texte); avis.appendChild(choisir); avis.appendChild(croix);
+    document.body.appendChild(avis);
+    return avis;
   }
 
   // --- Runtime auto-translate fallback -------------------------------------
@@ -2099,57 +2354,103 @@
   // -------------------------------------------------------------------------
 
   function applyLang(lang) {
-    _lang = lang || 'en';
-    try { localStorage.setItem('fabmesh.lang', _lang); } catch (_) {}
+    const precedente = _lang;
+    _lang = (lang && (lang === 'en' || I18N[lang])) ? lang : 'en';
+    if (_lang !== precedente) _sorties.clear();
+    try {
+      localStorage.setItem('fabmesh.lang', _lang);
+      if (_detectee) localStorage.setItem(CLE_DETECTEE, '1'); else localStorage.removeItem(CLE_DETECTEE);
+    } catch (_) {}
     try { window.meshyAPI && window.meshyAPI.setSpellcheckLang && window.meshyAPI.setSpellcheckLang(_lang); } catch (_) {}
     if (_lang !== 'en') _loadAutoCache(_lang);
     const dict = _dict();
     try {
       _translateText(document.body, dict);
       _translateAttrs(document.body, dict);
+      _directionSaisies(document.body);
     } catch (e) { try { console.warn('[i18n]', e); } catch (_) {} }
     document.documentElement.setAttribute('lang', _lang);
-    document.documentElement.setAttribute('dir', _lang === 'ar' ? 'rtl' : 'ltr');
+    document.documentElement.setAttribute('dir', _rtl() ? 'rtl' : 'ltr');
     const sel = document.getElementById('lang-select');
     if (sel && sel.value !== _lang) sel.value = _lang;
     _updateFlag(_lang);
-    _syncLangDropdownButton();
+    _synchroniserMenus();
+    // Une enveloppe (index2.js) peut effacer les aria-label apres nous : on resynchronise au tour suivant.
+    try { setTimeout(_synchroniserMenus, 0); } catch (_) {}
+    // Les textes construits en JS (etiquettes de curseurs, aides) se recalculent sur cet evenement (INTERFACE-M04).
+    try { window.dispatchEvent(new CustomEvent('fabmesh:langue', { detail: { lang: _lang, precedente } })); } catch (_) {}
   }
 
   // t(): translate a single string (for JS-built / dynamic UI text).
   function t(s) {
     const dict = _dict();
-    return (dict && dict[s]) || s;
+    const v = (dict && dict[s]) || s;
+    if (v !== s) _retenirSortie(v);
+    return v;
   }
 
   // tf(): translate a TEMPLATE that contains {x}/{y} placeholders, then fill them
   // with args in order. The dict key is the template WITH the placeholders (e.g.
   // 'Generate 3D: {x}'). Falls back to the English template filled in.
+  // Droite a gauche (INTERFACE-05) : chaque valeur inseree (nom de projet, montant,
+  // nombre) est isolee (FSI … PDI) pour ne pas deplacer la ponctuation de la phrase ;
+  // un gabarit sans traduction est isole en entier.
   function tf(template, ...args) {
     const dict = _dict();
-    const s = (dict && dict[template]) || template;
+    const traduit = dict && dict[template];
+    const s = traduit || template;
+    const rtl = _rtl();
     let i = 0;
-    return s.replace(/\{[xy]\}/g, () => (i < args.length ? String(args[i++]) : ''));
+    let out = s.replace(/\{[xy]\}/g, () => {
+      if (i >= args.length) return '';
+      const v = String(args[i++]);
+      return (rtl && traduit && v) ? _isoler(v) : v;
+    });
+    if (rtl && !traduit && /[A-Za-z]/.test(out)) out = _isoler(out);
+    if (traduit || rtl) _retenirSortie(out);
+    return out;
+  }
+
+  // Locale a passer a toLocaleString / Intl (INTERFACE-14) : celle de l'INTERFACE,
+  // pas celle du navigateur. Chiffres latins en arabe, comme le reste de l'interface.
+  function locale() {
+    if (_lang === 'en') {
+      try { const n = String(navigator.language || ''); if (/^en\b/i.test(n)) return n; } catch (_) {}
+      return 'en';
+    }
+    return ({ fr: 'fr-FR', es: 'es-ES', zh: 'zh-CN', hi: 'hi-IN', ar: 'ar-u-nu-latn' })[_lang] || _lang;
   }
 
   // Re-translate dynamically-added content SYNCHRONOUSLY (inside the observer
   // callback, before the browser paints) so freshly-rendered English never
   // flashes on screen — fixes the EN<->FR flicker when panels re-render every
   // second during generation. We only walk the newly-added subtrees (not the
-  // whole body), so it stays cheap. childList only (NOT characterData) so our
-  // own nodeValue swaps never re-trigger us -> no loop.
+  // whole body), so it stays cheap. Our own nodeValue swaps are characterData
+  // (not observed) and our own setAttribute is recognised (value already
+  // translated) -> no loop. 2026-10-13 : attributs observes aussi (title change
+  // par le code), et un texte ajoute DANS un element protege n'est plus traduit.
   const _mo = new MutationObserver((muts) => {
     if (_lang === 'en') return;
     const dict = _dict();
     if (!dict) return;
     for (const mut of muts) {
+      if (mut.type === 'attributes') {
+        const el = mut.target;
+        const v = el.getAttribute && el.getAttribute(mut.attributeName);
+        if (v != null && v !== el['__i18n_' + mut.attributeName + '_t']) _traduireAttribut(el, mut.attributeName, dict);
+        continue;
+      }
       if (!mut.addedNodes) continue;
       mut.addedNodes.forEach((node) => {
         if (node.nodeType === 3) {                                   // text node
+          const pn = node.parentNode;
+          if (pn && (SKIP_TAGS.has(pn.nodeName) || _isNoTranslate(pn))) return;
           _translateNodeValue(node, dict);
         } else if (node.nodeType === 1 && !SKIP_TAGS.has(node.nodeName)) {  // element subtree
+          if (_isNoTranslate(node)) return;
           _translateText(node, dict);
           _translateAttrs(node, dict);
+          if (_rtl()) _directionSaisies(node);
         }
       });
     }
@@ -2159,7 +2460,9 @@
     applyLang,
     t,
     tf,
+    locale,
     get lang() { return _lang; },
+    get rtl() { return _rtl(); },
     register(lang, map) {
       I18N[lang] = Object.assign(I18N[lang] || {}, map);
       (_curated[lang] = _curated[lang] || new Set());
@@ -2168,23 +2471,36 @@
       for (const k in map) _curatedValues[lang].add(map[k]);
     },
     languages() { return ['en'].concat(Object.keys(I18N)); },
+    nomLangue(code) { return NOMS_LANGUES[code] || code; },
+    choisir(code) { _choisirLangue(code); },
+    construireMenu(hote) { return hote ? _construireMenu(hote, true) : null; },
+    avisLangue() { return _avisLangue(); },
+    // Le texte a-t-il une entree dans la langue courante ? (une traduction peut etre identique a la cle :
+    // « Error: {x} » s'ecrit « Error: {x} » en espagnol ; t(s) !== s ne suffit pas a le savoir.)
+    connu(s) { const d = _dict(); return !!(d && s && _chercher(d, String(s))); },
   };
 
   function _init() {
     // Wire the Settings language <select> if present.
     const sel = document.getElementById('lang-select');
     if (sel) {
+      sel.setAttribute('translate', 'no');
       sel.value = _lang;
       sel.addEventListener('change', () => {
         // Choix EXPLICITE : il prime a jamais sur la detection.
         try { localStorage.setItem(CLE_CHOIX, sel.value); } catch (_) {}
-        applyLang(sel.value);
+        _detectee = false;
+        _appliquerPublic(sel.value);
       });
       _buildLangDropdown();
     }
+    // Acces direct hors des Reglages (barre du haut) : tout element [data-fab-lang].
+    document.querySelectorAll('[data-fab-lang]').forEach((h) => { if (!h.__fabLang) { h.__fabLang = true; _construireMenu(h, true); } });
     applyLang(_lang);
-    try { _mo.observe(document.body, { childList: true, subtree: true }); } catch (_) {}
+    try { _mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ATTRS }); } catch (_) {}
+    try { _avisLangue(); } catch (_) {}
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _init);
   else _init();
+  // # --- NOYAU PARTAGE : FIN ---
 }());

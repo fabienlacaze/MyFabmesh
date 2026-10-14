@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Nav } from '@/components/Nav';
 import { CookieBanner } from '@/components/CookieBanner';
 import { SCRIPT_LANGUE, T } from '@/lib/langue';
+import { AvisLangue } from '@/lib/langue-client';
 
 export const metadata: Metadata = {
   // Titre unique (une page statique n'en a qu'un) : l'anglais, langue par
@@ -28,6 +29,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <Nav />
+        {/* Langue du navigateur non servie : repli explicite, dit une fois (lib/langue-client.tsx). */}
+        <AvisLangue />
         <main>{children}</main>
         <CookieBanner />
         <footer className="site-footer">
@@ -42,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 le pied de page ne proposait que des pages juridiques, et le
                 formulaire de contact est derriere la session — precisement ce
                 qu'il n'arrive pas a obtenir. */}
-            <a href={`mailto:${id.supportEmail}`}>Contact</a>
+            <a href={`mailto:${id.supportEmail}`}><T fr="Contact" en="Contact" /></a>
             <a href="https://fabienlacaze.github.io/MyFabmesh" target="_blank"><T fr="Application de bureau" en="Desktop app" /></a>
           </div>
         </footer>

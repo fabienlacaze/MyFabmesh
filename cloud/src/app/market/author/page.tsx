@@ -17,17 +17,19 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Script from 'next/script';
-import { T } from '@/lib/langue';
+import { T, Message, localeDe, texte, type Langue, type Texte } from '@/lib/langue';
+import { useLangue, useTr } from '@/lib/langue-client';
 
 // 2026-10-03 (MP-03 / M3, reglement UE 2024/1689 art. 50) : badge « Genere par IA »
 // sur chaque carte (copie de celui de market/page.tsx : une page Next ne peut pas
 // exporter autre chose que son composant). TOUJOURS affiche, independamment du
 // champ ai_generated des fiches.
 function BadgeIA({ taille = 11 }: { taille?: number }) {
+  const tr = useTr();
   return (
     <span
       data-badge-ia
-      title="AI-generated content / Contenu généré par IA"
+      title={tr('AI-generated content', 'Contenu généré par IA')}
       style={{ display: 'inline-block', fontSize: taille, fontWeight: 600, padding: '1px 8px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-2)', background: 'var(--bg-2)', whiteSpace: 'nowrap' }}
     >
       🤖 <T fr="Généré par IA" en="AI-generated" />
@@ -66,31 +68,33 @@ interface AuthorProfile {
   listings: AuthorListing[];
 }
 
-const LICENCE_LABELS: Record<string, string> = {
-  personal: 'Personal use',
-  cc0: 'CC0 (public domain)',
-  'cc-by': 'CC-BY 4.0',
-  'cc-by-nc': 'CC-BY-NC 4.0',
-  commercial: 'Royalty-free commercial',
+const LICENCE_LABELS: Record<string, Texte> = {
+  personal: texte('Personal use', 'Usage personnel'),
+  cc0: texte('CC0 (public domain)', 'CC0 (domaine public)'),
+  'cc-by': texte('CC-BY 4.0', 'CC-BY 4.0'),
+  'cc-by-nc': texte('CC-BY-NC 4.0', 'CC-BY-NC 4.0'),
+  commercial: texte('Royalty-free commercial', 'Commercial libre de droits'),
 };
 
-function formatPrice(cents: number, currency: string): string {
-  if (cents === 0) return 'Free';
+// « Free » arrive traduit (gratuit = libelle de l'appelant, dans la langue affichee).
+function formatPrice(cents: number, currency: string, gratuit = 'Free'): string {
+  if (cents === 0) return gratuit;
   const amount = (cents / 100).toFixed(2);
   const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency + ' ';
   return symbol + amount;
 }
 
-function formatDate(iso: string): string {
+// Date dans la langue de l'INTERFACE (lib/langue.tsx, localeDe), plus celle du navigateur.
+function formatDate(iso: string, langue: Langue): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+    return d.toLocaleDateString(localeDe(langue), { year: 'numeric', month: 'long' });
   } catch { return iso; }
 }
 
 function StarRating({ avg, count }: { avg?: number; count?: number }) {
   if (!count || count === 0) {
-    return <div style={{ color: 'var(--text-3)', fontSize: 10 }}>No ratings yet</div>;
+    return <div style={{ color: 'var(--text-3)', fontSize: 10 }}><T en="No ratings yet" fr="Pas encore de note" /></div>;
   }
   const filled = Math.round(avg || 0);
   return (
@@ -109,11 +113,15 @@ function AuthorPageInner() {
 
   const [profile, setProfile] = useState<AuthorProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Texte | string | null>(null);
+  const tr = useTr();
+  const langue = useLangue();
+  const gratuit = tr('Free', 'Gratuit');
+  const licence = (k: string) => { const v = LICENCE_LABELS[k]; return v ? tr(v.en, v.fr) : k; };
 
   useEffect(() => {
     if (!id) {
-      setError('Author id required (e.g. /market/author?id=<user_id>)');
+      setError(texte('Author id required (e.g. /market/author?id=<user_id>)', "Identifiant d'auteur requis (par ex. /market/author?id=<user_id>)"));
       setLoading(false);
       return;
     }
@@ -149,7 +157,7 @@ function AuthorPageInner() {
     return (
       <div className="page">
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-2)' }}>
-          Loading author profile…
+          <T en="Loading author profile…" fr="Chargement du profil de l'auteur…" />
         </div>
       </div>
     );
@@ -159,10 +167,13 @@ function AuthorPageInner() {
     return (
       <div className="page">
         <div style={{ padding: 20 }}>
-          <a href="/market" style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'none' }}>← Back to marketplace</a>
+          <a href="/market" style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'none' }}><T en="← Back to marketplace" fr="← Retour à la Marketplace" /></a>
         </div>
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-2)' }}>
-          Could not load this author profile{error ? ` (${error})` : ''}.
+          {typeof error === 'string' && error
+            ? <T en="Could not load this author profile ({x})." fr="Impossible de charger ce profil d'auteur ({x})." vals={[error]} />
+            : error ? <Message m={error} />
+            : <T en="Could not load this author profile." fr="Impossible de charger ce profil d'auteur." />}
         </div>
       </div>
     );
@@ -177,15 +188,15 @@ function AuthorPageInner() {
 
       <div style={{ marginBottom: 12 }}>
         <a href="/market" style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'none' }}>
-          ← Back to marketplace
+          <T en="← Back to marketplace" fr="← Retour à la Marketplace" />
         </a>
       </div>
 
       <div className="page-header" style={{ alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <h2 style={{ marginBottom: 4 }}>👤 {profile.display ?? 'Anonymous'}</h2>
+          <h2 style={{ marginBottom: 4 }}>👤 {profile.display && profile.display !== 'Anonymous' ? profile.display : <T en="Anonymous" fr="Anonyme" />}</h2>
           <div style={{ color: 'var(--text-2)', fontSize: 13 }}>
-            Member since {formatDate(profile.member_since)}
+            <T en="Member since {x}" fr="Membre depuis {x}" vals={[formatDate(profile.member_since, langue)]} />
           </div>
         </div>
       </div>
@@ -193,32 +204,34 @@ function AuthorPageInner() {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 28 }}>
         <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-          <div style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Listings published</div>
+          <div style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}><T en="Listings published" fr="Annonces publiées" /></div>
           <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6 }}>{profile.listings_count ?? 0}</div>
         </div>
         <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-          <div style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total sales</div>
+          <div style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}><T en="Total sales" fr="Ventes au total" /></div>
           <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6 }}>{profile.total_sales ?? 0}</div>
         </div>
         <div style={{ background: 'var(--bg-1)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-          <div style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total earned</div>
+          <div style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}><T en="Total earned" fr="Gains au total" /></div>
           <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
             {(profile.earnings ?? []).length === 0 ? (
               <span style={{ color: 'var(--text-2)', fontSize: 16 }}>—</span>
             ) : (
               (profile.earnings ?? []).map((e) => (
-                <span key={e.currency}>{formatPrice(e.total_cents, e.currency)}</span>
+                <span key={e.currency}>{formatPrice(e.total_cents, e.currency, gratuit)}</span>
               ))
             )}
           </div>
         </div>
       </div>
 
-      <h3 style={{ marginBottom: 14, fontSize: 16 }}>Listings by {profile.display}</h3>
+      <h3 style={{ marginBottom: 14, fontSize: 16 }}>{profile.display && profile.display !== 'Anonymous'
+        ? <T en="Listings by {x}" fr="Annonces de {x}" vals={[profile.display]} />
+        : <T en="Listings by an anonymous creator" fr="Annonces d'un créateur anonyme" />}</h3>
 
       {(profile.listings ?? []).length === 0 ? (
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-2)' }}>
-          This creator hasn&apos;t published anything yet.
+          <T en="This creator hasn't published anything yet." fr="Ce créateur n'a encore rien publié." />
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
@@ -244,11 +257,11 @@ function AuthorPageInner() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.title}</div>
                     <div style={{ background: l.price_cents === 0 ? 'rgba(76,175,80,0.2)' : 'rgba(255,200,80,0.2)', color: l.price_cents === 0 ? 'var(--ok)' : '#ffcc66', padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {formatPrice(l.price_cents, l.currency)}
+                      {formatPrice(l.price_cents, l.currency, gratuit)}
                     </div>
                   </div>
                   <div style={{ color: 'var(--text-3)', fontSize: 10 }}>
-                    {LICENCE_LABELS[l.licence] || l.licence}
+                    {licence(l.licence)}
                   </div>
                   <div><BadgeIA taille={10} /></div>
                   <StarRating avg={l.rating_avg} count={l.rating_count} />
@@ -270,7 +283,7 @@ export default function AuthorPage() {
     <Suspense fallback={
       <div className="page">
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-2)' }}>
-          Loading…
+          <T en="Loading…" fr="Chargement…" />
         </div>
       </div>
     }>

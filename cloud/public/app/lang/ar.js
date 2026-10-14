@@ -217,7 +217,7 @@
       'Pick a version, preview it, modify or convert': 'اختر نسخة، عاينها، عدّلها أو حوّلها',
       'Copy the prompt used to generate this image': 'نسخ الموجّه المستخدم لتوليد هذه الصورة',
       'Copy prompt': 'نسخ الموجّه',
-      'Use this image for 3D →': 'استخدم هذه الصورة للنموذج ثلاثي الأبعاد →',
+      'Use this image for 3D →': 'استخدم هذه الصورة للنموذج ثلاثي الأبعاد ←',
       // ---- Tool group labels ----
       'File': 'ملف',
       'AI tools': 'أدوات الذكاء الاصطناعي',
@@ -294,7 +294,7 @@
       'Shadows': 'الظلال',
       'Light intensity': 'شدة الإضاءة',
       'Pick a mesh version, preview, refine or export': 'اختر نسخة شبكة، عاينها، اصقلها أو صدّرها',
-      'Use this mesh for Rig →': 'استخدم هذه الشبكة للهيكل العظمي →',
+      'Use this mesh for Rig →': 'استخدم هذه الشبكة للهيكل العظمي ←',
       // ---- Mesh tools ----
       'Export...': 'تصدير...',
       'Open in Blender': 'فتح في Blender',
@@ -325,7 +325,7 @@
       'View rig fullscreen': 'عرض الهيكل العظمي بملء الشاشة',
       'Show skeleton': 'إظهار الهيكل العظمي',
       'Bones': 'العظام',
-      'Use this rig for Animation →': 'استخدم هذا الهيكل العظمي للتحريك →',
+      'Use this rig for Animation →': 'استخدم هذا الهيكل العظمي للتحريك ←',
       'Export to Unreal': 'تصدير إلى Unreal',
       'Edit in Blender': 'تعديل في Blender',
       'Re-skin only': 'إعادة التغليف فقط',
@@ -396,7 +396,7 @@
       // ---- 3D lightbox ----
       'Previous (←)': 'السابق (←)',
       'Next (→)': 'التالي (→)',
-      'Use this for next step →': 'استخدم هذا للخطوة التالية →',
+      'Use this for next step →': 'استخدم هذا للخطوة التالية ←',
       'Show landmarks': 'إظهار العلامات المرجعية',
       // ---- 2D lightbox toolbox ----
       'AI TOOLS': 'أدوات الذكاء الاصطناعي',

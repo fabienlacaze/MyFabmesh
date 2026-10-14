@@ -88,6 +88,11 @@ const LIVRES = [
   'cloud/public/app/lang/es.js',
   'cloud/public/app/lang/hi.js',
   'cloud/public/app/lang/zh.js',
+  // lot interface multilingue (2026-10-13) : traductions communes et refus du serveur traduits (fichiers communs bureau / web)
+  'src/renderer/lang/_additions6.js',
+  'cloud/public/app/lang/_additions6.js',
+  'src/renderer/lib/textes-serveur.js',
+  'cloud/public/app/lib/textes-serveur.js',
 ];
 
 /** Les pages HTML embarquent des <script> EN LIGNE. Ils ne sont dans aucun

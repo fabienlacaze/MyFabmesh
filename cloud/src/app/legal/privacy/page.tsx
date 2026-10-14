@@ -7,7 +7,7 @@
 // l'appli choisit laquelle s'affiche (lib/langue.tsx), et BasculeLangue garde
 // l'autre a un clic.
 
-import { BasculeLangue } from '@/components/BasculeLangue';
+import { BasculeLangue, AvisJuridique } from '@/components/BasculeLangue';
 import { PrivacyFr } from './PrivacyFr';
 import { PrivacyEn } from './PrivacyEn';
 
@@ -20,8 +20,9 @@ export default function PrivacyPage() {
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px', lineHeight: 1.65 }}>
       <BasculeLangue />
-      <div className="lang-fr"><PrivacyFr /></div>
-      <div className="lang-en"><PrivacyEn /></div>
+      <AvisJuridique />
+      <div className="juridique-fr" lang="fr" dir="ltr"><PrivacyFr /></div>
+      <div className="juridique-en" lang="en" dir="ltr"><PrivacyEn /></div>
     </main>
   );
 }

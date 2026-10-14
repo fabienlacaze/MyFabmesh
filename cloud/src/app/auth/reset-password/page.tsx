@@ -16,8 +16,27 @@
 
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
+import { T, Message, texte, type Texte } from '@/lib/langue';
+import { useTr } from '@/lib/langue-client';
 
 type Mode = 'init' | 'set-password' | 'enter-code';
+
+/** Messages du service d'authentification les plus frequents sur cet ecran, dans les six langues
+ *  (2026-10-13) ; un message inconnu reste tel quel. */
+function messageReinit(e: unknown): Texte | string {
+  const brut = e instanceof Error ? e.message : String(e);
+  const m = brut.toLowerCase();
+  if (m.includes('otp_expired') || (m.includes('token') && (m.includes('expired') || m.includes('invalid')))) {
+    return texte('That code is invalid or has expired — request a new one.', 'Ce code est invalide ou a expiré : demandez-en un nouveau.');
+  }
+  if (m.includes('rate limit') || m.includes('too many') || m.includes('for security purposes')) {
+    return texte('Too many attempts — please wait a minute and try again.', 'Trop de tentatives : patientez une minute puis réessayez.');
+  }
+  if (m.includes('should be different')) {
+    return texte('The new password must be different from the old one.', "Le nouveau mot de passe doit être différent de l'ancien.");
+  }
+  return brut;
+}
 
 export default function ResetPasswordPage() {
   const [mode, setMode] = useState<Mode>('init');
@@ -31,8 +50,9 @@ export default function ResetPasswordPage() {
   // connexion suivante.
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [error, setError] = useState<Texte | string | null>(null);
+  const [info, setInfo] = useState<Texte | string | null>(null);
+  const tr = useTr();
 
   function client() {
     return createBrowserClient(
@@ -85,10 +105,10 @@ export default function ResetPasswordPage() {
         type: 'recovery',
       });
       if (error) throw error;
-      if (!data.session) throw new Error('Code accepted but no session was created.');
+      if (!data.session) { setError(texte('Code accepted but no session was created.', "Code accepté, mais aucune session n'a été créée.")); return; }
       setMode('set-password');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(messageReinit(e));
     } finally { setBusy(false); }
   }
 
@@ -96,7 +116,7 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setBusy(true); setError(null); setInfo(null);
     try {
-      if (password.length < 6) throw new Error('Password must be at least 6 characters.');
+      if (password.length < 6) { setError(texte('Password must be at least 6 characters.', 'Le mot de passe doit contenir au moins 6 caractères.')); return; }
       const sb = client();
       const { error } = await sb.auth.updateUser({ password });
       if (error) throw error;
@@ -115,66 +135,66 @@ export default function ResetPasswordPage() {
           }),
         }).catch(() => {});
       }
-      setInfo('Password updated — redirecting…');
+      setInfo(texte('Password updated — redirecting…', 'Mot de passe modifié, redirection…'));
       setTimeout(() => { window.location.replace('/app/'); }, 700);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(messageReinit(e));
     } finally { setBusy(false); }
   }
 
   return (
     <main style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 420, width: '100%' }}>
-        <h2 style={{ marginBottom: 6 }}>Reset your password</h2>
+        <h2 style={{ marginBottom: 6 }}><T en="Reset your password" fr="Réinitialiser votre mot de passe" /></h2>
         <p style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 18 }}>
-          Choose a new password for your MyFabmesh.AI account.
+          <T en="Choose a new password for your MyFabmesh.AI account." fr="Choisissez un nouveau mot de passe pour votre compte MyFabmesh.AI." />
         </p>
 
         {mode === 'init' && (
-          <p style={{ color: 'var(--text-2)' }}>Validating link…</p>
+          <p style={{ color: 'var(--text-2)' }}><T en="Validating link…" fr="Vérification du lien…" /></p>
         )}
 
         {mode === 'enter-code' && (
           <form onSubmit={verifyCodeAndStart}>
             <p style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 14 }}>
-              Enter your email and the 6-digit code we sent you to verify your reset request.
+              <T en="Enter your email and the 6-digit code we sent you to verify your reset request." fr="Saisissez votre adresse e-mail et le code à 6 chiffres que nous vous avons envoyé pour confirmer votre demande." />
             </p>
-            <label>Email</label>
+            <label><T en="Email" fr="E-mail" /></label>
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                   placeholder="you@studio.com" autoComplete="email"
+                   placeholder="you@studio.com" autoComplete="email" dir="ltr"
                    style={{ marginBottom: 14 }} autoFocus />
-            <label>Code from the reset email</label>
+            <label><T en="Code from the reset email" fr="Code reçu dans l'e-mail de réinitialisation" /></label>
             <input type="text" required inputMode="numeric" autoComplete="one-time-code"
                    pattern="[0-9]{6}" maxLength={6}
                    value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                   placeholder="123456"
+                   placeholder="123456" dir="ltr"
                    style={{ marginBottom: 14, fontSize: 20, letterSpacing: 6, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
             <button type="submit" className="primary-btn"
                     disabled={busy || code.length !== 6 || !email}
                     style={{ width: '100%' }}>
-              {busy ? '…' : 'Verify code'}
+              {busy ? '…' : <T en="Verify code" fr="Vérifier le code" />}
             </button>
             <p style={{ color: 'var(--text-3)', fontSize: 12, marginTop: 12, textAlign: 'center' }}>
-              No code yet?{' '}
-              <a href="/login" style={{ color: 'var(--accent)' }}>request a new reset</a>.
+              <T en="No code yet?" fr="Pas encore de code ?" />{' '}
+              <a href="/login" style={{ color: 'var(--accent)' }}><T en="Request a new reset" fr="Demander une nouvelle réinitialisation" /></a>
             </p>
-            {error && <div className="banner error" style={{ marginTop: 12 }}>⚠ {error}</div>}
+            {error && <div className="banner error" role="alert" style={{ marginTop: 12 }}>⚠ <Message m={error} /></div>}
           </form>
         )}
 
         {mode === 'set-password' && (
           <form onSubmit={setNewPassword}>
-            <label>New password</label>
+            <label><T en="New password" fr="Nouveau mot de passe" /></label>
             <div style={{ position: 'relative', marginBottom: 14 }}>
               <input type={showPassword ? 'text' : 'password'} required minLength={6}
                      value={password} onChange={(e) => setPassword(e.target.value)}
-                     placeholder="At least 6 characters"
+                     placeholder={tr('At least 6 characters', 'Au moins 6 caractères')}
                      autoComplete="new-password"
-                     style={{ width: '100%', paddingRight: 44, boxSizing: 'border-box', margin: 0 }} autoFocus />
+                     style={{ width: '100%', paddingInlineEnd: 44, boxSizing: 'border-box', margin: 0 }} autoFocus />
               <button type="button" onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                      style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                      aria-label={showPassword ? tr('Hide password', 'Masquer le mot de passe') : tr('Show password', 'Afficher le mot de passe')}
+                      title={showPassword ? tr('Hide password', 'Masquer le mot de passe') : tr('Show password', 'Afficher le mot de passe')}
+                      style={{ position: 'absolute', insetInlineEnd: 8, top: '50%', transform: 'translateY(-50%)',
                                background: 'none', border: 'none', padding: 4, cursor: 'pointer',
                                color: 'var(--text-2, #8a93b2)', display: 'flex', alignItems: 'center' }}>
                 {showPassword ? (
@@ -185,10 +205,10 @@ export default function ResetPasswordPage() {
               </button>
             </div>
             <button type="submit" className="primary-btn" disabled={busy} style={{ width: '100%' }}>
-              {busy ? '…' : 'Set new password'}
+              {busy ? '…' : <T en="Set new password" fr="Enregistrer le nouveau mot de passe" />}
             </button>
-            {info && <div className="banner ok" style={{ marginTop: 12 }}>{info}</div>}
-            {error && <div className="banner error" style={{ marginTop: 12 }}>⚠ {error}</div>}
+            {info && <div className="banner ok" style={{ marginTop: 12 }}><Message m={info} /></div>}
+            {error && <div className="banner error" role="alert" style={{ marginTop: 12 }}>⚠ <Message m={error} /></div>}
           </form>
         )}
       </div>

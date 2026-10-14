@@ -58,6 +58,16 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
 (function () {
   'use strict';
 
+  // Textes construits ICI, traduits (lot interface multilingue, 2026-10-13, INTERFACE-09) : i18n.js est charge apres ce fichier,
+  // mais il existe quand ces fonctions s'executent. Sans lui (test, page sans i18n) : l'anglais, valeurs inserees.
+  const _t = (s) => (window.FabI18n && window.FabI18n.t ? window.FabI18n.t(s) : s);
+  const _tf = (s, ...a) => {
+    if (window.FabI18n && window.FabI18n.tf) return window.FabI18n.tf(s, ...a);
+    let i = 0; return String(s).replace(/\{[xy]\}/g, () => (i < a.length ? String(a[i++]) : ''));
+  };
+  // Dates et montants dans la langue de l'INTERFACE (INTERFACE-14), pas celle du navigateur.
+  const _loc = () => (window.FabI18n && window.FabI18n.locale ? window.FabI18n.locale() : undefined);
+
   // ── Auto-redirect on 401 ─────────────────────────────────────────
   // Anywhere in the /app/ workspace, if a fetch to /api/* comes back
   // 401 we know the Supabase session cookie expired. Send the user
@@ -962,13 +972,13 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         min-width: 30px;
         height: 24px;
         padding: 0 9px 0 7px;
-        margin-left: auto;
+        margin-inline-start: auto;   /* logique : a l'autre bout du bouton en arabe aussi (2026-10-13) */
         font-size: 14px;
         line-height: 1;
       }
-      .generate-cost-pill { margin-left: 8px; }
+      .generate-cost-pill { margin-inline-start: 8px; }
       /* Vignette de prix en bout de ligne d'option (options 3D). */
-      .cloud-cost-badge.opt-cost { height: 20px; min-width: 26px; font-size: 12px; margin-left: auto; }
+      .cloud-cost-badge.opt-cost { height: 20px; min-width: 26px; font-size: 12px; margin-inline-start: auto; }
       /* Topbar balance pill — larger so the balance is the first thing
          the user sees. */
       .credit-badge.lg {
@@ -1327,6 +1337,12 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
    * Grille inconnue : pastille vide, donc masquee. */
   function installImageCostMeter() {
     const $ = (id) => document.getElementById(id);
+    // Infobulles de prix traduites (INTERFACE-09) ; sans i18n (test) : l'anglais.
+    const _tfp = (s, ...a) => {
+      const I = (typeof window !== 'undefined') ? window.FabI18n : null;
+      if (I && I.tf) return I.tf(s, ...a);
+      let i = 0; return String(s).replace(/\{[xy]\}/g, () => (i < a.length ? String(a[i++]) : ''));
+    };
     const pastille = (id, apres, valeur, aide) => {
       let b = $(id);
       if (!b && apres) {
@@ -1372,16 +1388,18 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         if (pill) {
           pill.style.display = total == null ? 'none' : '';
           // Le detail evite la question « pourquoi 16 alors que l'image est a 2 ? ».
+          const pasTxt = supp ? _tfp('{x} steps, T-pose +{y}', pas, supp) : _tfp('{x} steps', pas);
           pill.title = total == null ? ''
             : avecDos
-              ? `${nImg} image(s) x ${pImg} (${pas} steps${supp ? ', T-pose +' + supp : ''}) + ${nImg} back view(s) x ${pBack} = ${total} credits`
-              : `${nImg} image(s) x ${pImg} (${pas} steps${supp ? ', T-pose +' + supp : ''}) = ${total} credits`;
+              ? _tfp('{x} image(s) × {y}', nImg, pImg) + ' (' + pasTxt + ') + ' + _tfp('{x} back view(s) × {y}', nImg, pBack) + ' = ' + _tfp('{x} credits', total)
+              : _tfp('{x} image(s) × {y}', nImg, pImg) + ' (' + pasTxt + ') = ' + _tfp('{x} credits', total);
         }
       }
       // PASTILLES PAR OPTION (2026-09-27) : Quality = prix d'UNE image a ce
       // nombre de pas ; Count et Construction stages = les images demandees.
-      pastille('ws-quality-cost', $('ws-quality-val'), pImg, `${pImg} credit(s) per image at ${pas} steps${supp ? ' (T-pose +' + supp + ' included)' : ''}`);
-      pastille('ws-count-cost', $('ws-count'), (pImg == null || etapes) ? null : n * pImg, `${n} image(s) x ${pImg}`);
+      pastille('ws-quality-cost', $('ws-quality-val'), pImg, _tfp('{x} credit(s) per image at {y} steps', pImg, pas)
+        + (supp ? ' (' + _tfp('T-pose +{x} included', supp) + ')' : ''));
+      pastille('ws-count-cost', $('ws-count'), (pImg == null || etapes) ? null : n * pImg, _tfp('{x} image(s) × {y}', n, pImg));
       const labEtapes = $('ws-img-buildstages')?.closest('label');
       if (labEtapes) {
         labEtapes.style.display = 'flex';
@@ -1395,7 +1413,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           labEtapes.appendChild(bs);
         }
         bs.textContent = pImg == null ? '' : String(3 * pImg);
-        bs.title = pImg == null ? '' : `3 images x ${pImg}`;
+        bs.title = pImg == null ? '' : _tfp('{x} image(s) × {y}', 3, pImg);
       }
       // Pastille de la case « T-pose » : le supplement par image, quand la grille le connait (comme les autres options, le chiffre est celui de l'option).
       const labTpose = $('ws-tpose')?.closest('label');
@@ -1411,7 +1429,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           labTpose.appendChild(bt);
         }
         bt.textContent = typeof suppGrille === 'number' ? '+' + suppGrille : '';
-        bt.title = typeof suppGrille === 'number' ? `+${suppGrille} credit(s) per image when ticked` : '';
+        bt.title = typeof suppGrille === 'number' ? _tfp('+{x} credit(s) per image when ticked', suppGrille) : '';
         bt.style.display = typeof suppGrille === 'number' ? '' : 'none';
       }
     };
@@ -1740,7 +1758,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const chantier = document.getElementById('ws-3d-buildstages');
       const pc = _prixDe('construction3d');
       vignette(chantier && chantier.closest('label'), pc,
-               pc == null ? '' : `3D construction stages, run right after the mesh: ${pc} credit(s)`);
+               pc == null ? '' : _tf('3D construction stages, run right after the mesh: {x} credit(s)', pc));
       // Menu Quality : vignette du palier choisi, en bout de ligne.
       let vp = document.getElementById('ws-trellis2-preset-cost');
       if (!vp && preset.parentElement) {
@@ -2021,9 +2039,9 @@ function sondageAdaptatif(tache, base) {
       _majChipCompte(j?.user?.email || null);
       if (typeof credits === 'number') {
         // Bolt comes from .credit-badge::before, so we just set text.
-        _creditsPillEl.textContent = `${credits} credit${credits === 1 ? '' : 's'}`;
+        _creditsPillEl.textContent = credits === 1 ? _t('1 credit') : _tf('{x} credits', credits);
         _creditsPillEl.href = '/buy';
-        if (j?.user?.email) _creditsPillEl.title = 'Signed in as ' + j.user.email + ' — click to buy more credits';
+        if (j?.user?.email) _creditsPillEl.title = _tf('Signed in as {x} — click to buy more credits', j.user.email);
       } else {
         _creditsPillEl.textContent = 'Sign in';
         _creditsPillEl.href = '/login';
@@ -2394,7 +2412,7 @@ function sondageAdaptatif(tache, base) {
     try {
       const d = new Date(iso);
       if (isNaN(d.getTime())) return '';
-      return d.toLocaleString();
+      return d.toLocaleString(_loc());
     } catch { return ''; }
   }
 
@@ -3840,7 +3858,7 @@ function sondageAdaptatif(tache, base) {
         <button type="button" class="ghost-btn" id="reg-supprimer" style="${_REG_ROUGE}">Delete my account</button>
       </div>
       <div id="reg-supprimer-confirm" hidden style="margin-top:8px;">
-        <p style="margin:0 0 6px; font-size:12px;">This erases your account, every project, image and 3D model, and your payment history. It cannot be undone. Type <strong>DELETE</strong> to confirm.</p>
+        <p style="margin:0 0 6px; font-size:12px;">This erases your account, every project, image and 3D model, and your payment history. It cannot be undone. Type DELETE to confirm.</p>
         <div class="reg-ligne">
           <input type="text" id="reg-supprimer-mot" autocomplete="off" spellcheck="false" style="flex:1; min-width:120px; padding:6px 10px; background:var(--bg-2); color:var(--text-0); border:1px solid var(--border); border-radius:6px;" />
           <button type="button" class="ghost-btn" id="reg-supprimer-go" disabled style="${_REG_ROUGE}">Delete forever</button>
@@ -3868,7 +3886,7 @@ function sondageAdaptatif(tache, base) {
     const ventes = ok(er) ? (er.sales_count || 0) : 0;
     const gagnes = ok(er) ? (er.total_credits_paid || 0) : 0;
     const argent = (ok(er) && Array.isArray(er.cash) ? er.cash : [])
-      .map((b) => (b.amount_cents / 100).toLocaleString(undefined, { style: 'currency', currency: String(b.currency || 'eur').toUpperCase() }))
+      .map((b) => (b.amount_cents / 100).toLocaleString(_loc(), { style: 'currency', currency: String(b.currency || 'eur').toUpperCase() }))
       .join(' · ');
     const stripe = !compte
       ? `<span style="font-size:12px; color:var(--text-2);">To receive money, set up Stripe payouts. Until then, sales are paid in credits.</span>
@@ -3887,7 +3905,7 @@ function sondageAdaptatif(tache, base) {
       <div style="font-size:11px; color:var(--text-2); margin:10px 0 2px; text-transform:uppercase; letter-spacing:.5px;">Receive my earnings as</div>
       <div class="reg-ligne">
         <label class="reg-choix"><input type="radio" name="reg-versement" value="credits" ${choix !== 'cash' ? 'checked' : ''} />
-          <span class="credit-badge icon-only" aria-hidden="true"></span> Credits <small>1 € earned = ${cpe} credits, added right away</small></label>
+          <span class="credit-badge icon-only" aria-hidden="true"></span> Credits <small>${_escReg(_tf('1 € earned = {x} credits, added right away', cpe))}</small></label>
         <label class="reg-choix"><input type="radio" name="reg-versement" value="cash" ${choix === 'cash' ? 'checked' : ''} />
           &#128182; Money <small>paid to your bank through Stripe</small></label>
       </div>
@@ -3922,7 +3940,7 @@ function sondageAdaptatif(tache, base) {
     box.innerHTML = liste.map((r) => `
       <div style="border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin:6px 0;">
         <div style="font-weight:600; font-size:13px;">${_escReg(r.subject)}</div>
-        <div style="font-size:11px; color:var(--text-2); margin:2px 0 6px;">Replied ${_escReg(new Date(r.replied_at).toLocaleString())}</div>
+        <div style="font-size:11px; color:var(--text-2); margin:2px 0 6px;">${_escReg(_tf('Replied {x}', new Date(r.replied_at).toLocaleString(_loc())))}</div>
         <details><summary style="cursor:pointer; font-size:12px; color:var(--text-2);">Your message</summary>
           <div style="white-space:pre-wrap; font-size:12px; margin-top:6px;">${_escReg(r.message)}</div></details>
         <div style="white-space:pre-wrap; font-size:13px; margin-top:8px; padding:8px 10px; border-left:3px solid #4ade80; background:rgba(74,222,128,0.08);">${_escReg(r.reply_body)}</div>
@@ -3940,7 +3958,7 @@ function sondageAdaptatif(tache, base) {
     const intro = '<p style="margin:0 0 8px; font-size:12px; color:var(--text-2);">A 6-digit code from your phone (Microsoft Authenticator, Google Authenticator, Authy…) on top of your password. Strongly recommended.</p>';
     if (verifie) {
       box.innerHTML = intro + `<div class="reg-ligne"><span style="color:#4ade80; font-weight:600; font-size:13px;">&#10003; Enabled</span>
-        <span style="font-size:12px; color:var(--text-2);">since ${_escReg(new Date(verifie.created_at).toLocaleDateString())}</span>
+        <span style="font-size:12px; color:var(--text-2);">${_escReg(_tf('since {x}', new Date(verifie.created_at).toLocaleDateString(_loc())))}</span>
         <button type="button" class="ghost-btn" id="reg-2fa-off" style="margin-left:auto; ${_REG_ROUGE}">Disable</button></div>`;
       const off = document.getElementById('reg-2fa-off');
       off.addEventListener('click', async () => {

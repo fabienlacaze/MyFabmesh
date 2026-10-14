@@ -4788,3 +4788,20 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
 }
 #topbar-more-menu button:hover, #topbar-more-menu button:focus-visible { background: var(--bg-3); color: var(--text-0); outline: none; }
 #topbar-more-menu .tm-ic { width: 22px; flex: none; text-align: center; font-size: 15px; }
+/* ── Arabe : droite a gauche (lot interface multilingue, 2026-10-13 ; constats INTERFACE-05 / -13) ──────────
+   Mesure de l'audit du 11/10 (navigateur, interface en arabe) : 102 elements a texte arabe avec un espacement
+   de lettres (titres d'etape, etiquettes, statuts) et 23 boutons d'outils alignes a gauche.
+   1. L'ecriture arabe est cursive : letter-spacing separe les lettres et casse leur liaison.
+   2. text-align: left (ecrit dans le HTML : palettes Pinceau / Gomme / Selection, en-tetes de tableau ; ou dans
+      ces feuilles : menus, boutons de choix) : remplace par le debut de ligne LOGIQUE.
+   3. La fleche « retour aux projets » suit le sens de lecture ; « taille actuelle -> taille cible » (des
+      nombres) reste lue de gauche a droite.
+   4. Boutons a libelle long (« Restablecer valores por defecto », « Vista previa de la máscara » : audit,
+      INTERFACE-13) : le texte passe a la ligne au lieu de deborder du bouton. */
+html[lang="ar"] body, html[lang="ar"] body * { letter-spacing: normal !important; }
+html[dir="rtl"] [style*="text-align:left"], html[dir="rtl"] [style*="text-align: left"] { text-align: start !important; }
+html[dir="rtl"] .lb-tool-btn, html[dir="rtl"] .lm-list .lm-btn, html[dir="rtl"] .lm-btn, html[dir="rtl"] .choix-btn,
+html[dir="rtl"] #topbar-more-menu button, html[dir="rtl"] #v-kebab-menu .vkm-item, html[dir="rtl"] .onboarding-steps { text-align: start; }
+html[dir="rtl"] #back-to-projects { transform: scaleX(-1); }
+html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
+#at-reset, #ai-preview-btn { white-space: normal; overflow-wrap: anywhere; height: auto; min-height: 42px; padding-top: 4px; padding-bottom: 4px; line-height: 1.2; text-align: center; }

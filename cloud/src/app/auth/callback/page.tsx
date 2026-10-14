@@ -15,10 +15,11 @@
 
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
+import { T, Message, texte, type Texte } from '@/lib/langue';
 
 export default function AuthCallbackPage() {
   const [status, setStatus] = useState<'working' | 'ok' | 'error'>('working');
-  const [message, setMessage] = useState('Signing you in…');
+  const [message, setMessage] = useState<Texte | string>(texte('Signing you in…', 'Connexion en cours…'));
 
   useEffect(() => {
     (async () => {
@@ -69,15 +70,16 @@ export default function AuthCallbackPage() {
         }
 
         setStatus('ok');
-        setMessage('Signed in — redirecting…');
+        setMessage(texte('Signed in — redirecting…', 'Connecté, redirection…'));
         // Strip query/hash before navigating so a reload doesn't loop.
         window.history.replaceState(null, '', window.location.pathname);
         window.location.replace(next);
       } catch (err: unknown) {
         setStatus('error');
-        setMessage(
-          err instanceof Error ? err.message : String(err),
-        );
+        const brut = err instanceof Error ? err.message : String(err);
+        setMessage(brut === 'No session in URL'
+          ? texte('This sign-in link is incomplete or has already been used. Please sign in again.', 'Ce lien de connexion est incomplet ou a déjà servi. Reconnectez-vous.')
+          : brut);
       }
     })();
   }, []);
@@ -89,14 +91,14 @@ export default function AuthCallbackPage() {
           {status === 'working' ? '⏳' : status === 'ok' ? '✓' : '⚠'}
         </div>
         <h2 style={{ marginBottom: 8 }}>
-          {status === 'error' ? 'Sign-in failed' : 'MyFabmesh.AI'}
+          {status === 'error' ? <T en="Sign-in failed" fr="Échec de la connexion" /> : 'MyFabmesh.AI'}
         </h2>
         <p style={{ color: 'var(--text-2)', fontSize: 14, lineHeight: 1.6 }}>
-          {message}
+          <Message m={message} />
         </p>
         {status === 'error' && (
           <a href="/login" style={{ color: '#a855f7', marginTop: 16, display: 'inline-block' }}>
-            ← Back to sign in
+            <T en="← Back to sign in" fr="← Retour à la connexion" />
           </a>
         )}
       </div>

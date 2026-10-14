@@ -12,6 +12,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
+import { T } from '@/lib/langue';
 
 export default function HomePage() {
   const [checking, setChecking] = useState(true);
@@ -57,16 +58,20 @@ export default function HomePage() {
     <div className="page" style={{ textAlign: 'center', paddingTop: 80 }}>
       <h1 style={{ marginBottom: 12 }}>MyFabmesh.AI <span style={{ color: 'var(--accent)' }}>Cloud</span></h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32 }}>
-        Generate game-ready 3D meshes from a single image — same UI as Desktop, on cloud GPU.
+        <T
+          en="Generate game-ready 3D meshes from a single image — same interface as the desktop app, on cloud GPUs."
+          fr="Générez des modèles 3D prêts pour le jeu à partir d'une seule image — la même interface que l'application de bureau, sur des GPU dans le cloud."
+        />
       </p>
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-        <Link href="/login" className="primary-btn">Sign in / Sign up</Link>
+        <Link href="/login" className="primary-btn"><T en="Sign in / Sign up" fr="Se connecter / S'inscrire" /></Link>
         <Link href="https://fabienlacaze.github.io/MyFabmesh" target="_blank" className="ghost-btn">
-          Visit MyFabmesh.AI site →
+          <T en="Visit the MyFabmesh.AI site →" fr="Visiter le site MyFabmesh.AI →" />
         </Link>
       </div>
       <p style={{ color: 'var(--text-3)', fontSize: 12, marginTop: 20 }}>
-        Want the local NVIDIA version ? <Link href="https://fabienlacaze.github.io/MyFabmesh">Download Desktop</Link>.
+        <T en="Want the local version for NVIDIA graphics cards?" fr="Vous voulez la version locale pour carte graphique NVIDIA ?" />{' '}
+        <Link href="https://fabienlacaze.github.io/MyFabmesh"><T en="Download the desktop app" fr="Télécharger l'application de bureau" /></Link>
       </p>
     </div>
   );

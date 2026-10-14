@@ -99,6 +99,8 @@
     let body_;
     try { body_ = await r.json(); } catch { body_ = {}; }
     if (!r.ok) {
+      // Code du refus (worker.ts, avecCodeRefus) retenu pour la traduction a l'affichage (lib/textes-serveur.js).
+      try { if (window.FabMessages) window.FabMessages.retenir(body_); } catch (_) {}
       return { ok: false, success: false, status: r.status, error: (body_ && body_.error) || `HTTP ${r.status}`, ...body_ };
     }
     return body_;
@@ -120,7 +122,7 @@
       // callers like pollPrediction can stop instead of looping on
       // a JSON payload that doesn't carry a `status` field.
       let detail = '';
-      try { const j = await r.clone().json(); detail = j.error || ''; } catch {}
+      try { const j = await r.clone().json(); detail = j.error || ''; if (window.FabMessages) window.FabMessages.retenir(j); } catch {}
       const err = new Error(`HTTP ${r.status}${detail ? ': ' + detail : ''}`);
       err.status = r.status;
       err.detail = detail;
