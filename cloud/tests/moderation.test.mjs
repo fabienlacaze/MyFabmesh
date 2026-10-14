@@ -260,6 +260,18 @@ test('jeu 4d (MODERATION-07, SERVEUR-09) : texte envoye au generateur — longue
   assert.equal(controlerLongueurPrompt('x'.repeat(1_000_000)).safe, false, 'un texte enorme est refuse sans etre parcouru');
 });
 
+// ── Liste plate de l'interface (troisieme relecture du 14/10) ─────────────
+// L'interface du bureau (get-nsfw-keywords : nom et description d'un projet, src/renderer/index2.js) cherche chaque terme de
+// NSFW_KEYWORDS en mot entier (« \b »), SANS les expressions sures ni le retrait des accents. Meme recherche ici.
+test('jeu 4f : NSFW_KEYWORDS ne signale ni le colza ni un violon dans l interface, et signale toujours la nudite', () => {
+  const { NSFW_KEYWORDS } = exportsMod;
+  const echapper = (s) => String(s).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const signale = (texte) => NSFW_KEYWORDS.find((kw) => new RegExp('\\b' + echapper(kw) + '\\b').test(texte.toLowerCase()));
+  for (const t of ['a rape field at sunset', 'the rape flowers in spring', 'a yellow rape field, low poly', 'un violín de madera',
+    'a field of oilseed rape']) assert.equal(signale(t), undefined, t);
+  for (const t of [`${NA} woman`, `a ${NU} statue`, 'gore scene', `the ${F('ra', 'pe')} of a woman`]) assert.notEqual(signale(t), undefined, t);
+});
+
 test('jeu 4e : le filtre reste rapide sur un texte long (nouveaux lexiques compris)', () => {
   for (const p of ['a brave knight in shining armor '.repeat(3000), '子供と犬 '.repeat(8000), 'x '.repeat(30000)]) {
     const t = Date.now();

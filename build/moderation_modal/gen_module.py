@@ -41,6 +41,8 @@ NOMS = [
     'NON_ASSIGNES_U14', 'IDIOMES_RACINES',
     # 2026-10-14 (seconde relecture : age, double sens, eleves de classe, ftfy)
     'DUREES_NON_AGE', 'ADJECTIFS_JEUNESSE', 'CLASSES_ORDINAUX', 'ELEVES_CLASSE', 'MOJIBAKE_EFFACES',
+    # 2026-10-14 (troisieme relecture : lecture « production », gardes des tournures, mineurs construits)
+    'TRANSLIT_HORS_PRODUCTION', 'GARDE_POSSESSIFS', 'GARDE_ARRETS', 'GARDE_CHANTIER', 'AVANT_ESCOLAR', 'NOMBRES_CLASSE',
 ]
 
 src = io.open(TS, encoding='utf-8').read().replace('\r\n', '\n')

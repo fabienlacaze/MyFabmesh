@@ -40,6 +40,11 @@ SECONDE RELECTURE (2026-10-14) : age (liste fermee DUREES_NON_AGE), chiffres col
 double sens « cock » / « erection » seulement dans une tournure ecrite telle quelle, « una escolar », « a first grade girl »,
 maillots au pluriel, references HTML / mojibake / U+FFFC lus comme ftfy les repare, viol d'une personne au filtre general.
 
+TROISIEME RELECTURE (2026-10-14) : LECTURES du texte (`_lire`) — la principale, et celles ou les caracteres effaces ou changes
+separent les mots (« separee », « clip », « ftfy », « production ») ; les vues de toutes les lectures sont reunies, comme dans le
+TypeScript. Garde des tournures de ferme et de chantier lue sur les mots (`_garde_expression`). Durees ajoutees, « escolar » apres
+un determinant ou un adjectif, « grade one girl », « a girl from first grade » (`_RE_MINEURS_CONSTRUITS`).
+
 Dependances : bibliotheque standard seulement (re, time, unicodedata). Rien a ajouter a l'image Modal.
 """
 import re
@@ -295,9 +300,37 @@ def _cle_expression(e):
     return cle
 
 
+# Gardes des tournures de ferme et de chantier (troisieme relecture du 14/10, B3) : lues sur les MOTS qui precedent la tournure
+# (listes GARDE_* generees ; meme regle que `_gardeExpression` du TypeScript). Une expression marquee « <coq> » ou « <chantier> »
+# n'est pas retiree si sa garde trouve un de ces mots.
+_RE_GARDE_EXPRESSION = re.compile("<([a-z]+)> ")
+
+
+def _garde_expression(garde, avant):
+    """Vrai si la garde `garde` refuse l'expression : `avant` est le texte qui la precede (avec son separateur)."""
+    mots = [m for m in re.split("[^a-z0-9]+", avant) if m]
+    if not mots:
+        return False
+    if garde == "chantier":
+        return any(m in GARDE_CHANTIER for m in mots[-2:])
+    if mots[-1].endswith("s"):
+        return True
+    i, n = len(mots) - 1, 0
+    while i >= 0 and n < 6:
+        if mots[i] in GARDE_POSSESSIFS:
+            return True
+        if mots[i] in GARDE_ARRETS:
+            return False
+        i -= 1
+        n += 1
+    return False
+
+
 def _compiler_expression_sure(e):
-    corps = _SEPARATEUR_EXPRESSION.join(("(?:" + m[1:] + ")") if m.startswith("!") else ("(" + m + ")") for m in e.split(" "))
-    return _cle_expression(e), re.compile("(^|[^a-z0-9])" + corps + "(?![a-z0-9])")
+    g = _RE_GARDE_EXPRESSION.match(e)
+    corps = e[g.end():] if g else e
+    regex = _SEPARATEUR_EXPRESSION.join(("(?:" + m[1:] + ")") if m.startswith("!") else ("(" + m + ")") for m in corps.split(" "))
+    return _cle_expression(corps), (g.group(1) if g else ""), re.compile("(^|[^a-z0-9])" + regex + "(?![a-z0-9])")
 
 
 _RE_EXPRESSIONS_SURES = [_compiler_expression_sure(e) for e in EXPRESSIONS_SURES]
@@ -313,13 +346,20 @@ def _garder_mots(m):
     return m.group(1) + " ".join(m.groups()[1:]) + " "
 
 
+def _garder_mots_garde(m, garde):
+    """Comme `_garder_mots`, mais une expression gardee (`_garde_expression`) est laissee telle quelle."""
+    if _garde_expression(garde, m.string[:m.start() + len(m.group(1))]):
+        return m.group(0)
+    return _garder_mots(m)
+
+
 def _sans_expressions_sures(s):
     """Expressions sures (mot marque retire, les autres gardes) et « baby <animal> » -> « young <animal> ». Sur le texte AVANT
     simplification : la ponctuation y separe encore les mots."""
     r = _RE_BEBE_ANIMAL.sub(r"\1young ", s) if ("baby" in s or "bebe" in s) else s
-    for cle, expression in _RE_EXPRESSIONS_SURES:
+    for cle, garde, expression in _RE_EXPRESSIONS_SURES:
         if cle in r:
-            r = expression.sub(_garder_mots, r)
+            r = expression.sub(_garder_mots if not garde else (lambda m, g=garde: _garder_mots_garde(m, g)), r)
     return r
 
 
@@ -447,6 +487,11 @@ def _vue_unicode(net):
 _RE_FRONTIERE_CHIFFRE = re.compile("(?<=[a-z])(?=[0-9])|(?<=[0-9])(?=[a-z])")
 _RE_CHIFFRES_COLLES = re.compile("(?<=[a-z])[0-9]+|[0-9]+(?=[a-z])")
 _RE_FRONTIERE_CHIFFRE_UNICODE = re.compile("(?<=[^ 0-9])(?=[0-9])|(?<=[0-9])(?=[^ 0-9])")
+# Ideogrammes han, comme BasicTokenizer._is_chinese_char (tokenizer CLIP sans ftfy) : un espace entre deux d'entre eux est retire
+# dans une seconde vue Unicode (« 儿 童 » donne a CLIP les memes jetons que « 儿童 » : troisieme relecture du 14/10).
+_HAN = "".join("%s-%s" % (chr(a), chr(b)) for a, b in ((0x3400, 0x4DBF), (0x4E00, 0x9FFF), (0xF900, 0xFAFF), (0x20000, 0x2A6DF),
+                                                         (0x2A700, 0x2CEAF), (0x2F800, 0x2FA1F)))
+_RE_ESPACE_HAN = re.compile("(?<=[" + _HAN + "]) (?=[" + _HAN + "])")
 
 
 def _separees(vues):
@@ -474,6 +519,9 @@ def _vues_plancher(net):
     non_ecrasees = [assembler(t), assembler(t_i), assembler(t_l)]
     chiffres, leet_i, leet_l = _ecraser(non_ecrasees[0]), _ecraser(non_ecrasees[1]), _ecraser(non_ecrasees[2])
     exacte = _vue_exacte(net)
+    uni = _vue_unicode(net)
+    # vue Unicode, puis la meme sans les espaces entre deux ideogrammes han (troisieme relecture du 14/10)
+    unicode = [uni] + [x for x in (_RE_ESPACE_HAN.sub("", uni),) if x != uni]
     return {
         "chiffres": chiffres,
         "leetI": leet_i,
@@ -484,7 +532,7 @@ def _vues_plancher(net):
         "nonEcrasees": non_ecrasees,
         "separees": _separees([chiffres, leet_i, leet_l]),
         "exactes": [exacte] + _separees([exacte]),
-        "unicode": _RE_IDIOMES_UNICODE.sub(" ", _RE_FRONTIERE_CHIFFRE_UNICODE.sub(" ", _vue_unicode(net))),
+        "unicode": [_RE_IDIOMES_UNICODE.sub(" ", _RE_FRONTIERE_CHIFFRE_UNICODE.sub(" ", x)) for x in unicode],
     }
 
 
@@ -508,6 +556,100 @@ def _sans_syntaxe_collee(net):
         return "" if _car_mot(avant) and _car_mot(apres) else m.group(0)
 
     return _RE_SYNTAXE_POIDS.sub(remplacer, net)
+
+
+# LECTURES DU TEXTE (troisieme relecture du 14/10 : B1, B2 ; meme regle que le TypeScript, voir nsfw_filter.ts). La lecture
+# principale (`_nettoyer`) efface les invisibles et les marques, change en lettres les lettres-emoji et les symboles NFKC et decode
+# les references HTML : elle lit les mots deguises. Les lectures ci-dessous traitent ces caracteres comme des SEPARATEURS, comme le
+# tokenizer CLIP (« a child<U+0489>in<U+0489>the<U+0489>bath », « a child&#8203;in&#8203;the&#8203;bath ») ; les vues de toutes
+# les lectures sont reunies.
+#   separee : tout caractere efface ou change est un separateur ; clip : tokenizer CLIP sans ftfy (categorie C, U+FFFD et non
+#   assignes effaces ; lettres hangul vides collees ; references non decodees) ; ftfy : tokenizer CLIP avec ftfy (mojibake repare,
+#   references decodees, seuls les controles retires par ftfy effaces) ; production : normalisation de f86208c0.
+_MODES_LECTURE = ("separee", "clip", "ftfy", "production")
+_COLLES_CLIP_HORS_C = frozenset(chr(x) for x in (0xFFFD, 0x115F, 0x1160, 0x3164, 0xFFA0))
+_COLLES_FTFY = frozenset([chr(x) for x in range(0x00, 0x09)] + [chr(0x0B)] + [chr(x) for x in range(0x0E, 0x20)] + [chr(0x7F)]
+                         + [chr(x) for x in range(0x206A, 0x2070)] + [chr(0xFEFF)] + [chr(x) for x in range(0xFFF9, 0xFFFD)]
+                         + [chr(x) for x in (0x115F, 0x1160, 0x3164, 0xFFA0)])
+_COLLES_PRODUCTION = frozenset([chr(0xAD)] + [chr(x) for x in range(0x200B, 0x2010)] + [chr(x) for x in range(0x202A, 0x202F)]
+                               + [chr(0x2060), chr(0xFEFF)])
+_RE_ASCII_SIMPLE = re.compile("[\t\n\r\x20-\x25\x27-\x7e]*")
+_TRANSLIT_HORS_PRODUCTION = frozenset(TRANSLIT_HORS_PRODUCTION)
+
+
+def _colle_lecture(c, mode):
+    """Caractere de `_efface` que la lecture `mode` COLLE (efface) ; les autres y separent les mots."""
+    if mode == "clip":
+        return unicodedata.category(c)[0] == "C" or c in _COLLES_CLIP_HORS_C or (ord(c) >= 0x378 and _non_assigne_u14(ord(c)))
+    if mode == "ftfy":
+        return c in _COLLES_FTFY
+    if mode == "production":
+        return c in _COLLES_PRODUCTION
+    return False
+
+
+def _effacer_lecture(s, mode):
+    """\\t \\n \\r -> espace ; caracteres effaces par la lecture principale : effaces si la lecture les colle, sinon un espace."""
+    return "".join((("" if _colle_lecture(c, mode) else " ") if _efface(c) else c) for c in _RE_BLANCS_CONTROLE.sub(" ", s))
+
+
+_CACHE_SYMBOLES = {}
+
+
+def _symbole_lettre(c):
+    """Caractere qui n'est pas une lettre mais que NFKC change en lettre (™, ℡, Ⓧ, Ⅹ...), ou lettre-emoji : le tokenizer CLIP,
+    qui n'applique pas NFKC, coupe le mot sur ce caractere."""
+    r = _CACHE_SYMBOLES.get(c)
+    if r is None:
+        r = (unicodedata.category(c)[0] != "L"
+             and (_lettre_symbole(ord(c)) is not None
+                  or any(unicodedata.category(x)[0] == "L" for x in unicodedata.normalize("NFKC", c))))
+        if len(_CACHE_SYMBOLES) >= 4096:
+            _CACHE_SYMBOLES.clear()
+        _CACHE_SYMBOLES[c] = r
+    return r
+
+
+def _symboles_separes(s, mode):
+    """Lettres-emoji et symboles NFKC -> espace (la production ne changeait en espace que les lettres-emoji)."""
+    if s.isascii():
+        return s
+    return "".join(" " if (ord(c) >= 0x80 and _symbole_lettre(c)
+                           and (mode != "production" or _lettre_symbole(ord(c)) is not None)) else c for c in s)
+
+
+def _nettoyer_lecture(brut, mode):
+    """Texte nettoye d'une lecture ou les caracteres effaces ou changes par la lecture principale separent les mots."""
+    s = _sans_mojibake(brut) if mode == "ftfy" else brut
+    s = _effacer_lecture(s, mode)
+    if mode == "ftfy":
+        s = _effacer_lecture(_sans_mojibake(s), mode)
+    s = unicodedata.normalize("NFKC", _symboles_separes(s, mode))
+    if mode == "ftfy" and "&" in s:
+        s = unicodedata.normalize("NFKC", _symboles_separes(_effacer_lecture(_sans_references_html(s), mode), mode))
+    # marques restees seules apres la composition : separateurs (la production effacait celles de U+0300-036F)
+    s = "".join(((" " if not (mode == "production" and 0x300 <= ord(c) <= 0x36F) else "") if _est_marque(c) else c) for c in s)
+    s = _chiffres_ascii(s).lower()
+    # apres les minuscules : « Ħ » et « Ա » deviennent « ħ » et « ա », absents des tables de la production
+    return "".join(" " if c in _TRANSLIT_HORS_PRODUCTION else c for c in s) if mode == "production" else s
+
+
+def _lire(prompt):
+    """Toutes les lectures du texte, chacune aussi sans la syntaxe de poids collee dans un mot ; sans doublon. Rend (nets, vues).
+    Un texte ASCII imprimable sans « & » n'a qu'une lecture."""
+    brut = _en_texte(prompt)
+    lectures = [_nettoyer(brut)]
+    if not _RE_ASCII_SIMPLE.fullmatch(brut):
+        for mode in _MODES_LECTURE:
+            n = _nettoyer_lecture(brut, mode)
+            if n not in lectures:
+                lectures.append(n)
+    nets = []
+    for n in lectures:
+        for x in (n, _sans_syntaxe_collee(n)):
+            if x not in nets:
+                nets.append(x)
+    return nets, [_vues_plancher(n) for n in nets]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -641,6 +783,12 @@ _NB_CHIFFRES_U = "(?<![0-9])(?:1[0-7]|0?[0-9])(?! ?[0-9])"
 _NB_HAN = "(?<![一二三四五六七八九十百千两兩])(?:十[一二三四五六七]?|[一二三四五六七八九两兩])"
 _RE_AGE_UNICODE = re.compile(_NB_CHIFFRES_U + " ?" + _alt(UNITES_AGE_UNICODE) + "|" + _NB_HAN + "(?:岁|歲|歳|才)|"
                              + _alt(PREFIXES_AGE_UNICODE) + " ?" + _NB_CHIFFRES_U)
+# Mineurs CONSTRUITS (troisieme relecture du 14/10) : « escolar » nom apres un determinant ou un adjectif (« una joven escolar »,
+# « mi escolar »), « a grade one girl », « a girl from first grade » (listes AVANT_ESCOLAR, NOMBRES_CLASSE generees).
+_RE_MINEURS_CONSTRUITS = re.compile(
+    "(?:^| )" + _alt(AVANT_ESCOLAR) + r" escolar(?:es)?(?= |\Z)"
+    + "|(?:^| )grade " + _alt(NOMBRES_CLASSE) + " (?:girl|boy|student|pupil)"
+    + "|(?:^| )(?:girl|boy|student|pupil)s? (?:from|in|of) (?:the )?" + _alt(CLASSES_ORDINAUX) + r" grade(?= |\Z)")
 
 
 def _age_par_naissance(vue):
@@ -706,18 +854,15 @@ def check_hard_floor(prompt):
     """Contenu illicite (mineurs) qu'AUCUN reglage, `unrestricted` compris, ne peut lever.
     Plus strict que le filtre general sur les formes (normalisation, ages, langues), mais sans
     vocabulaire de jeu video (« kid friendly », « young hero », « teen titans style » passent)."""
-    net = _nettoyer(prompt)
-    r = _plancher(_vues_plancher(net))
-    if not r["safe"]:
-        return r
-    # Seconde lecture sans la syntaxe de poids collee dans un mot (« na()ked » : revue du 14/10, B1).
-    colle = _sans_syntaxe_collee(net)
-    return r if colle == net else _plancher(_vues_plancher(colle))
+    # Toutes les lectures du texte, sans la syntaxe de poids collee dans un mot comprise (« na()ked » : revue du 14/10, B1).
+    return _plancher(_lire(prompt)[1])
 
 
-def _plancher(v):
-    vues = [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]
-    uni = [v["unicode"]]
+def _plancher(vs):
+    """Plancher sur les vues REUNIES de toutes les lectures (troisieme relecture du 14/10)."""
+    vues = [x for v in vs for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]]
+    uni = [x for v in vs for x in v["unicode"]]
+    exactes = [x for v in vs for x in v["exactes"]]
 
     def bloquer(blocked, reason):
         return {"safe": False, "blocked": blocked, "reason": reason, "categorie": "plancher", "hardFloor": True}
@@ -729,28 +874,30 @@ def _plancher(v):
     mot = _chercher(vues, T_PLANCHER_MOTS)
     if mot:
         return bloquer(_nom(mot), _MSG_PLANCHER)
+    collees = [c for v in vs for c in v["collees"]]
     for i, colle in enumerate(PLANCHER_COLLES):
-        if any(_PLANCHER_COLLES_ECRASES[i] in c for c in v["collees"]):
+        if any(_PLANCHER_COLLES_ECRASES[i] in c for c in collees):
             return bloquer(colle, _MSG_PLANCHER)
 
-    for serie in v["series"]:
+    for serie in [s for v in vs for s in v["series"]]:
         if any(x in serie for x in SERIE_MINEURS) and any(x in serie for x in SERIE_NUDITE):
             return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
     # 1b. Mineur et nudite COLLES dans un meme mot (« childnaked ») : CLIP les lit comme deux mots (M2).
-    if any(_colle(x) for x in vues) or any(_colle(x) for x in v["nonEcrasees"]):
+    if any(_colle(x) for x in vues) or any(_colle(x) for v in vs for x in v["nonEcrasees"]):
         return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
 
     # 2. Mineur x nudite / sexe, mineur x violence exercee sur lui.
-    mineur_fort = _chercher(vues, T_MINEURS_FORT) or _chercher(uni, T_MINEURS_FORT_UNICODE)
+    mineur_fort = (_chercher(vues, T_MINEURS_FORT) or _chercher(uni, T_MINEURS_FORT_UNICODE)
+                   or any(_RE_MINEURS_CONSTRUITS.search(x) for x in vues))
     mineur_ambigu = _chercher(vues, T_MINEURS_AMBIGUS) or _chercher(uni, T_MINEURS_AMBIGUS_UNICODE)
     indice = _chercher(vues, T_MINEURS_INDICES)
     # « une fille, 10 ans de guerre, au bain » : avec un mineur ambigu NOMME ou un indice, « N ans de <duree> » compte aussi
     age_large = (any(_RE_AGE_ROMAN_LARGE.search(x) for x in vues)
                  if (indice or _chercher(vues, T_MINEURS_AMBIGUS_NOMS)) else False)
     age = (age_large or any(_RE_AGE.search(x) or _age_par_naissance(x) for x in vues)
-           or bool(_RE_AGE_UNICODE.search(v["unicode"])))
+           or any(_RE_AGE_UNICODE.search(x) for x in uni))
     if mineur_fort or age or mineur_ambigu or indice:
-        explicite = (_chercher(vues, T_NU_FORT) or _chercher(v["exactes"], T_NU_EXACTS) or _chercher(uni, T_NU_FORT_UNICODE)
+        explicite = (_chercher(vues, T_NU_FORT) or _chercher(exactes, T_NU_EXACTS) or _chercher(uni, T_NU_FORT_UNICODE)
                      or _chercher(uni, T_NU_SUGGESTIF_UNICODE))
         if explicite:
             return bloquer("minor-safety", _MSG_PLANCHER_MINEUR)
@@ -772,20 +919,20 @@ def _plancher(v):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def check_prompt_safety(prompt, unrestricted=False):
-    floor = check_hard_floor(prompt)
+    nets, vs = _lire(prompt)
+    floor = _plancher(vs)
     if not floor["safe"]:
         return floor                       # plancher illicite : jamais contournable
     if unrestricted:
         return {"safe": True}              # `unrestricted` ne leve que les filtres SOUPLES
 
-    net = _nettoyer(prompt)
-    souple = _simple(_sans_expressions_sures(_sans_marques(net)))   # texte tel quel (sans translitteration)
-    v = _vues_plancher(net)
-    toutes = [souple, v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]   # l'explicite est teste sur les formes deguisees aussi
-    # ... et sur la vue sans syntaxe de poids collee dans un mot (revue du 14/10, B1)
-    colle = _sans_syntaxe_collee(net)
-    vc = None if colle == net else _vues_plancher(colle)
-    explicites = toutes + [vc["chiffres"], vc["leetI"], vc["leetL"]] + vc["separees"] if vc else toutes
+    # Toutes les lectures du texte (troisieme relecture du 14/10), chacune aussi sans la syntaxe de poids collee (revue, B1).
+    # textes tels quels (sans translitteration), et coupes entre lettres et chiffres (un chiffre arabe-indien que la production
+    # lisait comme un separateur devient un chiffre ASCII, que CLIP lit seul)
+    bruts = [_simple(_sans_expressions_sures(_sans_marques(n))) for n in nets]
+    souples = bruts + [x for x in _separees(bruts) if x not in bruts]
+    # l'explicite est teste sur les formes deguisees aussi
+    toutes = souples + [x for v in vs for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]]
 
     def refus(t):
         return {"safe": False, "blocked": _nom(t), "categorie": t.cat,
@@ -798,39 +945,39 @@ def check_prompt_safety(prompt, unrestricted=False):
 
     # 1. Termes explicites (sexe, nudite) : mots entiers, y compris deguises ; mots courts sur la vue exacte ; autres
     #    ecritures sur la vue Unicode.
-    sexuel = (_chercher(explicites, T_SEXUEL_DUR)
-              or _chercher(v["exactes"] + vc["exactes"] if vc else v["exactes"], T_SEXUEL_EXACTS)
-              or _chercher([v["unicode"], vc["unicode"]] if vc else [v["unicode"]], T_SEXUEL_UNICODE))
+    sexuel = (_chercher(toutes, T_SEXUEL_DUR)
+              or _chercher([x for v in vs for x in v["exactes"]], T_SEXUEL_EXACTS)
+              or _chercher([x for v in vs for x in v["unicode"]], T_SEXUEL_UNICODE))
     if sexuel:
         return refus(sexuel)
     # 2. Autres familles bloquees seules (gore explicite, drogues dures, terrorisme, haine, auto-agression, armes).
-    autre = _chercher([souple], T_DURS_AUTRES)
+    autre = _chercher(souples, T_DURS_AUTRES)
     if autre:
         return refus(autre)
 
     # 3. Termes AMBIGUS (vocabulaire de jeu) : seulement en contexte.
-    ctx_sexuel = _chercher([souple], T_CTX_SEXUEL)
+    ctx_sexuel = _chercher(souples, T_CTX_SEXUEL)
     if ctx_sexuel and _chercher(toutes, T_CTX_SEXUEL_FAIBLE):
         return refus(ctx_sexuel)
-    ctx_violence = _chercher([souple], T_CTX_VIOLENCE)
-    if ctx_violence and _chercher([souple], T_MINEURS_VIOLENCE):
+    ctx_violence = _chercher(souples, T_CTX_VIOLENCE)
+    if ctx_violence and _chercher(souples, T_MINEURS_VIOLENCE):
         return refus(ctx_violence)
 
     # 4. Combinaisons.
     # 4a. mineur sans ambiguite x vocabulaire de chambre (le plancher a deja traite le reste)
-    mineur = _chercher([souple] + toutes, T_MINEURS_FORT)
+    mineur = _chercher(toutes, T_MINEURS_FORT)
     if mineur:
-        b = _chercher([souple], T_NU_FAIBLE_GENERAL)
+        b = _chercher(souples, T_NU_FAIBLE_GENERAL)
         if b:
             return combinaison(mineur, b, "combinaison")
     # 4b. personne x nudite explicite par periphrase
-    a2 = _chercher([souple], T_PERSONNES)
-    b2 = _chercher([souple], T_NUDITE_EXTREME) if a2 else None
+    a2 = _chercher(souples, T_PERSONNES)
+    b2 = _chercher(souples, T_NUDITE_EXTREME) if a2 else None
     if a2 and b2:
         return combinaison(a2, b2, "combinaison")
     # 4c. enfant x violence
-    a3 = _chercher([souple], T_MINEURS_VIOLENCE)
-    b3 = _chercher([souple], T_VIOLENCE_ENFANT_GENERAL) if a3 else None
+    a3 = _chercher(souples, T_MINEURS_VIOLENCE)
+    b3 = _chercher(souples, T_VIOLENCE_ENFANT_GENERAL) if a3 else None
     if a3 and b3:
         return combinaison(a3, b3, "mineur_violence")
 
