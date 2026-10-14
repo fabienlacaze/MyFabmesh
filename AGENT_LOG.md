@@ -25434,3 +25434,8 @@ Demande du proprietaire (04/10) : la reduction 12-47 M -> 500 K faces efface le 
 - Tests : test_normal_bake.py (29 mutations detectees), test_generation_carte_normales.py (6), test_carte_normales_bureau.py (3, echoue
   sur l'ancien pipeline). Effet visuel NON mesure sur GPU : banc exp_trellis_haute_res.py --etape decoder sur le latent G1792 du volume
   exp-trellis-latents, FABMESH_NORMAL_MAP=1 puis 0.
+- Mesures CPU (banc_normal_bake_durees.py, 495 616 faces finales, atlas 4096, 16 fils) : 2 M sommets fins 4,6 s (pic 1,4 Go) ;
+  12 M sommets fins 8,0 s (axes 2,6 s, arbre KD 0,9 s, ombrage 2,6 s ; pic 2,3 Go). Preuve d'echec : test_generation_carte_normales.py
+  sur modal_app de f86208c0 -> 5 echecs sur 6 (le 6e, FABMESH_NORMAL_MAP=0 identique a l'octet, doit passer).
+- Re-texture (_retexture.py) : le pipeline rend un materiau neuf -> carte perdue (pas fausse). Face fix, affinage, variantes : atlas seul,
+  UV intactes -> carte valide, gardee, re-encodee sans perte par webp_rapide (tous les exports de app.py y passent).
