@@ -241,3 +241,47 @@ test('precision : lettres SANS emprunt anglais (turc, polonais, tcheque...) : un
   // contractions anglaises : « I've » n'est pas le « ve » turc ou tcheque
   for (const t of ["I've got a sword", "we'll make a castle", "they're riding dragons"]) assert.equal(LT.detecterLangue(t).langue, 'en', t);
 });
+
+// ------------------------------------------------------------------------------------------------ SECONDE REVUE DU 2026-10-14
+// B1 residuel : un prompt ANGLAIS qui contient un NOM PROPRE ou une EXPRESSION etrangere etait « surement » etranger : sous une
+// interface anglaise il partait au traducteur, et le filet du serveur le reecrivait (ou le refusait en 422, traducteur en panne).
+// Mesure (corpus de 142 prompts anglais a noms propres et emprunts de la revue) : 14 vises avant, 0 apres ; rappel inchange sur les
+// prompts etrangers, noms propres compris.
+const ANGLAIS_A_NOMS = ['a vintage music box playing Für Elise', 'Puerta del Sol clock tower', 'Santa Maria del Fiore dome',
+  'Hôtel de Ville building', "Côte d'Azur travel poster", 'Pão de Açúcar cable car', "C'est la vie coffee mug", 'Tête de Moine cheese wheel',
+  'Crème de la crème trophy', 'Je ne sais quoi perfume bottle', 'À la carte menu board', 'Ein Prosit beer stein', 'Glück auf miners lamp',
+  'Gasthaus zum Goldenen Hirsch tavern sign', 'El Dorado gold statue', 'Van Helsing monster hunter'];
+const ETRANGERS_A_NOMS = [['fr', 'la cathédrale Notre-Dame de Paris sous la neige'], ['fr', 'un chevalier devant le château de Versailles'],
+  ['fr', 'Le Mont Saint-Michel sous la pluie'], ['es', 'Don Quijote de la Mancha con su lanza'], ['es', 'El Dorado, una ciudad de oro en la selva'],
+  ['de', 'die Burg Hohenzollern im Nebel'], ['de', 'Das Brandenburger Tor bei Nacht'], ['de', 'der König der Elfen'], ['de', 'kleine Hütte im Wald'],
+  ['it', 'la Torre di Pisa con la neve'], ['it', 'il Duomo di Milano al tramonto'], ['pt', 'o Cristo Redentor no Rio de Janeiro à noite'],
+  ['es', 'Los Ángeles de noche con muchas luces'], ['de', 'Ritter, Schwert, Schild'], ['de', 'Ein Roter Drache Mit Flügeln']];
+
+test('seconde revue, B1 residuel : un nom propre ou une expression etrangere dans un prompt ANGLAIS ne le rend pas etranger', () => {
+  const fautes = [];
+  for (const t of ANGLAIS_A_NOMS) {
+    const src = LT.langueSource(t, 'en');
+    if (src) fautes.push(`${t} : traduit depuis ${src} sous une interface anglaise`);
+    const m = LT.morceauxEtrangers(t);
+    if (m.length) fautes.push(`${t} : filet du serveur (${m.map((x) => x.langue).join(',')})`);
+  }
+  assert.deepEqual(fautes, []);
+});
+
+test('seconde revue, rappel : un prompt ETRANGER qui contient un nom propre reste reconnu (interface de sa langue ET interface anglaise)', () => {
+  const fautes = [];
+  for (const [lg, t] of ETRANGERS_A_NOMS) {
+    if (LT.langueSource(t, lg) !== lg) fautes.push(`${t} : interface ${lg} -> ${LT.langueSource(t, lg)}`);
+    if (LT.langueSource(t, 'en') !== lg) fautes.push(`${t} : interface anglaise -> ${LT.langueSource(t, 'en')}`);
+    if (!LT.morceauxEtrangers(t).length) fautes.push(`${t} : ignore par le filet`);
+  }
+  assert.deepEqual(fautes, []);
+});
+
+test('seconde revue : un mot SEUL a lettres accentuees propres reste « sur » (documente), un mot seul sans ces lettres non', () => {
+  for (const [t, lg] of [['épée', 'fr'], ['Gdańsk', 'pl'], ['kılıç', 'tr']]) {
+    const d = LT.detecterLangue(t);
+    assert.deepEqual([d.langue, d.sure], [lg, true], t);
+  }
+  for (const t of ['casque', 'Drache', 'perro']) assert.equal(LT.detecterLangue(t).sure, false, t);
+});

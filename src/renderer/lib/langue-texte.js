@@ -26,9 +26,12 @@
 //    sin, per, pour, beer, rot, helm, kobold, rucksack, sombrero...), ne designe jamais a lui seul une langue ;
 //  - « sure » exige DEUX indices distincts au moins (mots differents, ou un mot et des lettres accentuees propres a la langue), dont un
 //    qui n'existe pas en anglais (ou trois mots) ;
-//  - sous une interface ANGLAISE, seul un texte SUREMENT etranger part au traducteur (avant le lot : jamais rien).
+//  - sous une interface ANGLAISE, seul un texte SUREMENT etranger part au traducteur (avant le lot : jamais rien) ;
+//  - (seconde revue du 14/10) un NOM PROPRE ou une EXPRESSION empruntee dans un texte anglais ne compte plus pour une langue etrangere :
+//    « Puerta del Sol clock tower », « Hôtel de Ville building », « C'est la vie coffee mug » (voir jetonsLatins).
 // Un texte etranger tres court (« Drache », « casque ») reste traduit sous une interface dans sa langue ; sous une interface anglaise,
-// il part tel quel, comme avant le lot : mieux vaut un mot etranger non traduit qu'un prompt anglais reecrit.
+// il part tel quel, comme avant le lot : mieux vaut un mot etranger non traduit qu'un prompt anglais reecrit. Exception : un mot SEUL
+// qui porte les lettres accentuees de sa langue (« épée », « Gdańsk ») est « sur » (deux indices : le mot et ses lettres).
 
 export const VERSION = 2;
 
@@ -126,7 +129,10 @@ const LISTES = {
     + 'eagle deer rabbit mouse pig cow sheep goat duck chicken frog turtle shark whale octopus crab jellyfish bee ant butterfly '
     + 'dinosaur realistic stylized cozy little short thin thick heavy bright night sky evil crystal airship magic epic mystical '
     + 'enchanted haunted hero undead demon beautiful ugly angry happy sad creepy spooky weapon weapons armored leather wood gem jewel '
-    + 'moon sun star stars day sunset cloud clouds rain snow storm lightning ocean'],
+    + 'moon sun star stars day sunset cloud clouds rain snow storm lightning ocean '
+    // noms anglais courants des prompts a nom propre (2026-10-14, B1 residuel : « Santa Maria del Fiore dome », « tavern sign »)
+    + 'dome travel tavern cable coffee mug cheese trophy skyline clock sign crane board church cathedral palace fountain market harbor '
+    + 'harbour shop store bakery pub'],
   fr: [
     'le les une des du et avec sans sur sous dans pour qui est au aux ce cette ces sa ses leur leurs elle ils elles je nous vous '
     + 'mon mes très où par chez pas ne vers qu dont lui à tous toutes toute sont peut être',
@@ -361,21 +367,92 @@ const LIMITE_ANALYSE = 2000;   // un prompt ne depasse guere quelques centaines 
 // francais, l'espagnol, l'allemand ou le portugais : « crème brûlée », « jalapeño », « Mötley Crüe », « São Paulo » sont de l'anglais.
 const SIGNES_SANS_EMPRUNT = new Set(['tr', 'pl', 'cs', 'hu', 'ro', 'vi']);
 
+/* NOMS PROPRES ET EXPRESSIONS EMPRUNTEES (2026-10-14, seconde revue du lot 2, B1 residuel). Un prompt ANGLAIS qui contient un nom propre
+ * ou une expression etrangere etait pris pour de l'etranger : « Puerta del Sol clock tower » (es), « Hôtel de Ville building » (fr),
+ * « Santa Maria del Fiore dome » (it), « a vintage music box playing Für Elise » (de), « C'est la vie coffee mug » (fr). Le filet du
+ * serveur les reecrivait, ou les refusait en 422 quand le traducteur etait en panne. Ne comptent donc plus pour une langue ETRANGERE
+ * (l'anglais, lui, les compte toujours) :
+ *  - un NOM PROPRE : suite d'au moins deux mots a majuscule, eventuellement reliees par des particules (« Puerta del Sol », « Côte
+ *    d'Azur », « Gasthaus zum Goldenen Hirsch »), quand le texte contient AUSSI des mots en minuscules hors de ces suites (un texte tout
+ *    en majuscules initiales, ou une liste de noms allemands, reste juge sur tous ses mots) ;
+ *  - les lettres accentuees d'un mot a majuscule AU MILIEU du texte (« ... from Gdańsk ») ; les mots, eux, comptent encore (un nom
+ *    commun allemand porte une majuscule) ;
+ *  - une EXPRESSION empruntee par l'anglais (liste ci-dessous : « c'est la vie », « je ne sais quoi », « à la carte »...).
+ * Limite connue : un nom propre SEUL en tete de texte (« Gdańsk port crane », « Łódź city skyline ») reste juge sur ses lettres : en
+ * tete, rien ne le distingue d'un mot ordinaire (« Śliczny smok » est du polonais). */
+// Particules qui relient les mots d'un nom propre. PAS les mots outils allemands (der, im, zum, am, und, von...) : l'allemand met une
+// majuscule a tous ses noms, et « kleine Hütte im Wald », « der König der Elfen » ne sont pas des noms propres.
+const PARTICULES_NOMS = new Set(('de del della delle dei degli di da do dos du des la le les los las el lo van y e et en al au aux '
+  + "d' l' of the and on sur ten ter op").split(' '));
+// Mots OUTILS etrangers : en tete de texte, leur majuscule est grammaticale ; ils n'ouvrent pas un nom propre (« Das Brandenburger Tor bei
+// Nacht » garde « das » et « bei » ; « Le Mont Saint-Michel sous la pluie » garde « le », « sous » et « la »).
+const MOTS_OUTILS = new Set(Object.entries(LISTES).filter(([lg]) => lg !== 'en')
+  .flatMap(([, [forts, faibles]]) => (forts + ' ' + faibles).split(/\s+/)).filter(Boolean));
+// Mots surement anglais : mots outils propres et mots courants de la liste anglaise (pas les « faibles » : in, on, a, to... existent ailleurs).
+const MOTS_ANGLAIS_SURS = new Set((LISTES.en[0] + ' ' + LISTES.en[2]).split(/\s+/).filter(Boolean));
+const EXPRESSIONS_EMPRUNTEES = [
+  "c'est la vie", 'je ne sais quoi', 'crème de la crème', 'à la carte', 'à la mode', 'bon appétit', 'déjà vu', 'joie de vivre',
+  "raison d'être", 'fin de siècle', 'belle époque', 'art nouveau', 'art déco', 'film noir', "hors d'oeuvre", "hors d'œuvre", 'coup de grâce',
+  "coup d'état", 'savoir faire', 'savoir-faire', 'tête-à-tête', 'vis-à-vis', 'pièce de résistance', 'laissez-faire', 'carte blanche',
+  "objet d'art", "trompe l'oeil", "trompe l'œil", 'mise en scène', 'papier-mâché', 'papier mâché', 'bon voyage', 'cul-de-sac',
+  'femme fatale', 'nouveau riche', 'enfant terrible', 'esprit de corps', 'haute couture', 'haute cuisine', 'crème brûlée',
+  'pain au chocolat', 'café au lait', 'eau de toilette', 'eau de parfum', 'fleur de lis', 'fleur-de-lis', 'fleur de lys', 'tour de force',
+  'avant-garde', 'du jour', 'cordon bleu', 'nom de plume', 'noblesse oblige', 'bon vivant', 'la dolce vita', 'dolce vita', 'al fresco',
+  'al dente', 'a cappella', 'que sera sera', 'che sarà sarà', 'hasta la vista', 'mi casa es su casa', 'día de los muertos',
+  'dia de los muertos', 'feliz navidad', 'cinco de mayo', 'sturm und drang', 'glück auf', 'ein prosit', 'auf wiedersehen', 'über alles',
+  'vive la france', 'mardi gras', 'ménage à trois', 'pas de deux', 'sous vide', 'crêpe suzette',
+];
+// (pas de lookbehind : un Safari d'avant la 16.4 refuserait le module entier des son chargement)
+const RE_EXPRESSIONS = new RegExp('(^|[^\\p{L}\\p{M}])('
+  + EXPRESSIONS_EMPRUNTEES.map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?=$|[^\\p{L}\\p{M}])', 'giu');
+
+/** Jetons du texte (mots, elisions comprises) et, pour chacun, s'il compte pour une langue ETRANGERE (`etranger`) et si ses lettres
+ *  accentuees comptent (`signes`). Voir NOMS PROPRES ET EXPRESSIONS EMPRUNTEES. */
+function jetonsLatins(t) {
+  const norm = t.replace(/[’‘`´]/g, "'");
+  const jetons = [];
+  for (const m of norm.matchAll(/[\p{L}\p{M}']+/gu)) {
+    jetons.push({ bas: m[0].toLowerCase(), debut: m.index, fin: m.index + m[0].length,
+      majuscule: /^(?:\p{Ll}{1,2}')?\p{Lu}/u.test(m[0]), nom: false });
+  }
+  const colles = (a, b) => /^[\s-]*$/.test(norm.slice(a.fin, b.debut));
+  for (let i = 0; i < jetons.length; i++) {
+    if (!jetons[i].majuscule || MOTS_OUTILS.has(jetons[i].bas)) continue;
+    let j = i, fin = i, majuscules = 1;
+    while (j + 1 < jetons.length && colles(jetons[j], jetons[j + 1])) {
+      const x = jetons[j + 1];
+      if (x.majuscule) { majuscules++; j++; fin = j; } else if (PARTICULES_NOMS.has(x.bas)) j++; else break;
+    }
+    if (majuscules >= 2) { for (let k = i; k <= fin; k++) jetons[k].nom = true; i = fin; }
+  }
+  // Un nom propre n'est ecarte que dans un texte qui a AUSSI des mots en minuscules ET un mot surement anglais hors des noms (« Puerta
+  // del Sol clock TOWER ») : dans « la Torre di Pisa con la neve », « la cathédrale Notre-Dame de Paris sous la neige », le nom reste un
+  // indice (mesure : sans cette condition, 5 prompts etrangers a nom propre sur 28 n'etaient plus reconnus sous une interface anglaise).
+  const minuscules = jetons.some((x) => !x.nom && !x.majuscule && /\p{L}/u.test(x.bas.replace(/'/g, '')));
+  const anglais = jetons.some((x) => !x.nom && (MOTS_ANGLAIS_SURS.has(x.bas) || (x.bas.length >= 5 && /^[a-z]+(?:ing|ed)$/.test(x.bas))));
+  if (!minuscules || !anglais) for (const x of jetons) x.nom = false;
+  for (const e of norm.matchAll(RE_EXPRESSIONS)) {
+    const d = e.index + e[1].length, f = d + e[2].length;
+    for (const x of jetons) if (x.debut >= d && x.fin <= f) x.nom = true;
+  }
+  return jetons.map((x, i) => ({ bas: x.bas, etranger: !x.nom, signes: !x.nom && !(minuscules && x.majuscule && i > 0) }));
+}
+
 /** Scores par langue d'un texte en ecriture latine, et INDICES par langue : `mots` (mots distincts de la langue), `propres` (nombre de
- *  ces mots qui n'existent pas en anglais), `signes` (bonus cumule des lettres accentuees de la langue). */
+ *  ces mots qui n'existent pas en anglais), `signes` (bonus cumule des lettres accentuees de la langue). Les noms propres et les
+ *  expressions empruntees ne comptent que pour l'anglais (jetonsLatins). */
 function scoresLatins(t) {
   const s = Object.fromEntries(LANGUES_LATINES.map((l) => [l, 0]));
   const mots = Object.fromEntries(LANGUES_LATINES.map((l) => [l, new Set()]));
   const propres = Object.fromEntries(LANGUES_LATINES.map((l) => [l, 0]));
   const signes = Object.fromEntries(LANGUES_LATINES.map((l) => [l, 0]));
-  const bas = t.toLowerCase().replace(/[’‘`´]/g, "'");
-  const decoupe = bas.split(/[^\p{L}\p{M}']+/u).filter(Boolean);
+  const jetons = jetonsLatins(t);
   let ing = 0, ed = 0;
-  for (const brut of decoupe) {
+  for (const { bas: brut, etranger } of jetons) {
     const morceaux = brut.split("'").filter((x) => x !== '');
     const elide = brut.includes("'") && morceaux.length >= 2;
     if (elide) {
-      if (ELISIONS_FR.has(morceaux[0])) {
+      if (etranger && ELISIONS_FR.has(morceaux[0])) {
         s.fr += 1;
         // « l'épée », « d'eau » : un indice francais a part entiere (compte une fois par forme)
         if (!mots.fr.has(morceaux[0] + "'")) { mots.fr.add(morceaux[0] + "'"); propres.fr += 1; }
@@ -393,6 +470,7 @@ function scoresLatins(t) {
       const entree = INDEX.get(m);
       if (entree) {
         for (const [lg, p] of entree) {
+          if (lg !== 'en' && !etranger) continue;
           s[lg] += p;
           if (lg === 'en' || mots[lg].has(m)) continue;
           mots[lg].add(m);
@@ -405,6 +483,7 @@ function scoresLatins(t) {
       else if (m.length >= 5 && /^[a-z]+ed$/.test(m) && ed < 3) { s.en += 0.5; ed++; }
     }
   }
+  const bas = jetons.filter((x) => x.signes).map((x) => x.bas).join(' ');
   for (const [re, bonus] of SIGNES) {
     const n = (bas.match(re) || []).length;
     if (!n) continue;
@@ -465,8 +544,11 @@ export function detecterLangue(texte) {
     if (solides >= 1 || nMots >= 2) {
       const assez = (score >= 3 && score >= 2 * en) || (score >= 2 && en === 0);
       // SURE : assez de score ET deux indices distincts dont un solide, ou trois mots de la langue (« la casa de los muertos »), ou deux
-      // indices solides (« caballero a caballo a galope », malgre ses « a » anglais). UN seul mot ne suffit jamais : « que sera sera »,
-      // « Sturm und Drang », « noir detective » restent anglais pour le serveur.
+      // indices solides (« caballero a caballo a galope », malgre ses « a » anglais). Un seul MOT de la liste ne suffit pas : « que sera
+      // sera », « Sturm und Drang », « noir detective » restent anglais pour le serveur. MAIS les lettres accentuees de la langue valent
+      // un indice de plus, meme portees par ce seul mot : « épée », « Für », « Gdańsk », « kılıç » seuls sont « surs » (seconde revue du
+      // 14/10 : le commentaire disait le contraire). Voulu : ces lettres n'existent pas en anglais. Un nom propre au milieu d'un texte
+      // anglais ne compte plus (jetonsLatins) ; reste vise un nom accentue SEUL en tete (« Gdańsk port crane »).
       const sure = (assez && ((solides >= 1 && nMots + accents >= 2) || nMots >= 3)) || (solides >= 2 && score >= 2);
       return { langue: meilleure, sure, ecriture: 'latin' };
     }
