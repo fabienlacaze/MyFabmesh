@@ -550,6 +550,82 @@ test('B3 : un compte SANS credit ne declenche aucun appel au modele (la route re
   assert.equal(ok.ai.appels.length, 1);
 });
 
+// Seconde relecture du correctif B3 (2026-10-14) : seul un compte a 0 credit etait ecarte. Un compte a 1 ou 2 credits, sous le prix de
+// TOUTE route, declenchait encore jusqu'a 6 appels du modele par requete, refusee ensuite faute de credit : des traductions gratuites a
+// volonte (300 par heure et par compte). Le prix de la requete est desormais lu AVANT le filet, sur chaque route qui l'appelle.
+function monterOutilsCredits(credits) {
+  const j = { depenses: [], op: [], dos: [], rect: [], modal: [], jobs: [] };
+  const ai = fauxAI();
+  const w = charger(['handleModifyImage', 'handleAutoInpaint', 'handleMaskInpaint', 'handleRecolor', 'handleGenerateBackView',
+    'handleSegmentPreview', 'handleTexVariant', 'handleRectifyImage', 'handleMeshReshape', 'ESTIMATED_USD_RESHAPE', '_opAtlasGpu',
+    'handleMeshTexVar', 'handleMeshRegionRetex', ...AUXILIAIRES], {
+    ...doublesOutils(j),
+    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits }),
+    callModalRectify: async (_e, _u, input) => { j.rect.push(input); return 'https://r2.example/r.png'; },
+    supabaseAdmin: () => ({ from: () => ({ insert: async (ligne) => { j.jobs.push(ligne); return { error: null }; },
+      update: () => ({ eq: async () => ({}) }) }) }),
+    _provenance: () => 'web', _paysRequete: () => 'FR',
+    fetch: async (url, init) => {
+      j.modal.push({ url: String(url), corps: JSON.parse(init.body) });
+      return new Response(JSON.stringify({ ok: true, glb_base64: btoa('glTF') }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+  const env = { AI: ai, MODAL_IMAGE_OP_URL: 'https://op.example/image_op', MODAL_BACKVIEW_URL: 'https://bv.example', MODAL_RECTIFY_URL: 'https://rect.example',
+    MODAL_SHARED_SECRET: 's', MODAL_MESH_START_URL: 'https://mesh.example/mesh_start', MODAL_MESH_STATUS_URL: 'https://mesh.example/mesh_status',
+    MESHES: creerR2(), R2_PUBLIC_URL: 'https://r2.example' };
+  const A = 'https://r2.example/a.png';
+  const routes = [
+    ['modify', () => w.handleModifyImage(corpsRequete('/api/modify-image', { imageUrl: A, prompt: 'rends le casque rouge et doré' }), env)],
+    ['auto-inpaint', () => w.handleAutoInpaint(corpsRequete('/api/auto-inpaint', { imageUrl: A, targetText: 'le chapeau du chevalier', prompt: 'une couronne en or' }), env)],
+    ['mask-inpaint', () => w.handleMaskInpaint(corpsRequete('/api/mask-inpaint', { imageUrl: A, maskDataUrl: 'data:image/png;base64,AAAA', prompt: 'une épée avec des runes' }), env)],
+    ['recolor', () => w.handleRecolor(corpsRequete('/api/recolor', { imageUrl: A, prompt: 'la cape en rouge' }), env)],
+    ['back-view', () => w.handleGenerateBackView(corpsRequete('/api/generate-back-view', { frontImageUrl: A, promptHint: 'un chevalier avec une cape rouge' }), env)],
+    ['segment-preview', () => w.handleSegmentPreview(corpsRequete('/api/segment-preview', { imageUrl: A, targetText: 'le chapeau du chevalier' }), env)],
+    ['tex-variant', () => w.handleTexVariant(corpsRequete('/api/tex-variant', { imageUrl: A, prompt: 'une armure dorée', strength: 0.5 }), env)],
+    ['rectify', () => w.handleRectifyImage(corpsRequete('/api/rectify-image', { prompt: 'un chevalier en armure', refImageUrl: A }), env)],
+    ['reshape', () => w.handleMeshReshape(corpsRequete('/api/mesh-reshape', { meshUrl: 'https://r2.example/m.glb', vueUrl: 'https://r2.example/v.png',
+      maskDataUrl: 'data:image/png;base64,AAAA', prompt: 'une aile de chauve-souris' }), env)],
+    ['mesh-texvar', () => w.handleMeshTexVar(corpsRequete('/api/mesh-texvar', { meshUrl: 'https://r2.example/m.glb', style: 'rouillé et doré', strength: 0.4, seed: 1 }), env)],
+    ['region-retex', () => w.handleMeshRegionRetex(corpsRequete('/api/mesh-region-retex', { meshUrl: 'https://r2.example/m.glb', mask: 'data:image/png;base64,AAAA',
+      prompt: 'du cuir usé et taché' }), env)],
+  ];
+  return { ai, routes };
+}
+
+test('B3 : credits SOUS le prix de la requete (pas seulement 0) : aucun appel au modele, sur la generation ET sur chaque outil', async () => {
+  // generation d'image : 5 credits pour une image a 6
+  const g = monterBornes({ credits: 5 });
+  const r = await g.generer({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' });
+  assert.equal(g.ai.appels.length, 0, 'image a 6 credits, compte a 5');
+  assert.equal(r.status, 402);
+  // le prix compte le nombre d'images : 4 images a 6 = 24, un compte a 20 ne declenche rien
+  const quatre = monterBornes({ credits: 20 });
+  assert.equal((await quatre.generer({ userPrompt: 'un dragon rouge avec des ailes', numImages: 4, asset_type: 'creature', projectName: 'P' })).status, 402);
+  assert.equal(quatre.ai.appels.length, 0, '4 images a 6 credits, compte a 20');
+  // temoin : exactement le prix -> traduit
+  const juste = monterBornes({ credits: 6 });
+  assert.equal((await juste.generer({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' })).status, 200);
+  assert.equal(juste.ai.appels.length, 1);
+  // outils (prix 3 dans les doublures) : un compte a 2 credits ne declenche aucun appel, sur aucune route
+  const pauvre = monterOutilsCredits(2);
+  const fautes = [];
+  for (const [nom, appeler] of pauvre.routes) {
+    const avant = pauvre.ai.appels.length;
+    await appeler();
+    if (pauvre.ai.appels.length !== avant) fautes.push(`${nom} : ${pauvre.ai.appels.length - avant} appel(s) du modele avec 2 credits pour un prix de 3`);
+  }
+  assert.deepEqual(fautes, []);
+  // temoin : 3 credits (= le prix) -> chaque route traduit (le test n'est pas vide)
+  const assez = monterOutilsCredits(3);
+  const muettes = [];
+  for (const [nom, appeler] of assez.routes) {
+    const avant = assez.ai.appels.length;
+    await appeler();
+    if (assez.ai.appels.length === avant) muettes.push(nom);
+  }
+  assert.deepEqual(muettes, [], 'routes qui ne traduisent plus, credits suffisants');
+});
+
 test('B3 : /api/translate compte CHAQUE appel du modele (texte decoupe) sur le plafond du compte', async () => {
   const r2 = creerR2();
   const { traduire, ai } = monterBornes({ r2 });

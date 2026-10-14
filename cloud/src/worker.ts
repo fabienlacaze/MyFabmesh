@@ -12745,28 +12745,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
       }
     }
   }
-  // FILET DE LANGUE (2026-10-13, lot 2 de l'audit de la langue) : texte manifestement non anglais traduit, ou refuse, AVANT tout debit.
-  // Le prompt enrichi (route T-pose, historique) recoit la meme traduction : meme cache, un seul appel au modele par morceau.
-  let promptEnrichi: string | undefined = prompt;
-  const languesTraduites: string[] = [];
-  {
-    const cache = new Map<string, string>();
-    const compteur = { appels: 0 };
-    const avant = rawPrompt;
-    const f1 = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits });
-    if (f1.refus) return f1.refus;
-    rawPrompt = f1.texte;
-    languesTraduites.push(...f1.langues);
-    if (typeof prompt === 'string' && prompt.trim()) {
-      if (prompt.trim() === avant) promptEnrichi = rawPrompt;   // userPrompt absent : c'etait le meme texte
-      else {
-        const f2 = await _filetLangue(env, user.id, prompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits });
-        if (f2.refus) return f2.refus;
-        promptEnrichi = f2.texte;
-        for (const l of f2.langues) if (!languesTraduites.includes(l)) languesTraduites.push(l);
-      }
-    }
-  }
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
   const n = Math.max(1, Math.min(4, numImages ?? 1));
   // borne aussi ce qui part au calcul : 500 pas se payaient au prix de 30
   // Turbo ne force plus 4 pas : l'accelerateur ne se charge pas sur Modal
@@ -12781,6 +12760,28 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const supplementTpose = useTpose ? await getPrice(env, 'tpose') : 0;
   const COST_PER_IMAGE = _prixImageComplet(await getPrice(env, 'text2image'), turbo ? 4 : pas, supplementTpose);
   const cost = n * COST_PER_IMAGE;
+  // FILET DE LANGUE (2026-10-13, lot 2 de l'audit de la langue) : texte manifestement non anglais traduit, ou refuse, AVANT tout debit.
+  // Le prompt enrichi (route T-pose, historique) recoit la meme traduction : meme cache, un seul appel au modele par morceau.
+  let promptEnrichi: string | undefined = prompt;
+  const languesTraduites: string[] = [];
+  {
+    const cache = new Map<string, string>();
+    const compteur = { appels: 0 };
+    const avant = rawPrompt;
+    const f1 = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits, prix: cost });
+    if (f1.refus) return f1.refus;
+    rawPrompt = f1.texte;
+    languesTraduites.push(...f1.langues);
+    if (typeof prompt === 'string' && prompt.trim()) {
+      if (prompt.trim() === avant) promptEnrichi = rawPrompt;   // userPrompt absent : c'etait le meme texte
+      else {
+        const f2 = await _filetLangue(env, user.id, prompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits, prix: cost });
+        if (f2.refus) return f2.refus;
+        promptEnrichi = f2.texte;
+        for (const l of f2.langues) if (!languesTraduites.includes(l)) languesTraduites.push(l);
+      }
+    }
+  }
 
   // Pick the backend BEFORE the budget check — the budget cap is
   // Replicate-only (Modal has its own provider-side spend cap and
@@ -12950,6 +12951,10 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
   if (!isTrustedAssetHost(env, frontImageUrl)) return err(400, 'frontImageUrl host not allowed');
   let hint = (prompt ?? promptHint ?? '').toString().slice(0, 400);
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const n = Math.max(1, Math.min(4, numImages ?? 1));
+  const COST_PER_BACK = await getPrice(env, 'back_view');
+  const cost = n * COST_PER_BACK;
   // NSFW prompt pre-filter — same policy as text2image / desktop checkPromptSafety.
   {
     // Mirror text2image/modify: per-user parental state OR the env flag (not env only).
@@ -12962,14 +12967,10 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
         blocked: safety.blocked }, { status: 400 });
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : l'indice de la vue de dos etait le texte d'ORIGINE (TRADUCTION-05, CHAMPS-08).
-    const filet = await _filetLangue(env, user.id, hint, { verifie: langueVerifiee, unrestricted, credits: user.credits });
+    const filet = await _filetLangue(env, user.id, hint, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost });
     if (filet.refus) return filet.refus;
     hint = filet.texte.slice(0, 400);
   }
-
-  const n = Math.max(1, Math.min(4, numImages ?? 1));
-  const COST_PER_BACK = await getPrice(env, 'back_view');
-  const cost = n * COST_PER_BACK;
 
   // Pick backend BEFORE budget check (same pattern as text2image).
   const useModal = !!env.MODAL_BACKVIEW_URL;
@@ -13068,6 +13069,9 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
   let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const COST_PER_MODIFY = await getPrice(env, 'modify');
+  const cost = COST_PER_MODIFY;
   // NSFW pre-filter — same policy as text2image/back-view/rectify.
   {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
@@ -13080,13 +13084,11 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
         blocked: safety.blocked }, { status: 400 });
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : le site envoyait la consigne de Modify sans la traduire (TRADUCTION-04).
-    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits });
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
 
-  const COST_PER_MODIFY = await getPrice(env, 'modify');
-  const cost = COST_PER_MODIFY;
   const estimatedTotal = 0.05;  // ≈ back-view cost, warm container
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -13155,16 +13157,16 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
   if (!cibleRecue) return err(400, 'targetText required');
   let targetText = String(cibleRecue);
+  const cost = await getPrice(env, 'segment');  // admin-configurable (Pricing tab)
   // FILET DE LANGUE (lot 2 de l'audit de la langue) : CLIPSeg ne comprend que l'anglais ; le site envoyait la cible telle quelle.
   if (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length) {
     const userState = await getParentalState(env, user.id);
     const filet = await _filetLangue(env, user.id, targetText,
-      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted, credits: user.credits });
+      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted, credits: user.credits, prix: cost });
     if (filet.refus) return filet.refus;
     targetText = filet.texte;
   }
 
-  const cost = await getPrice(env, 'segment');  // admin-configurable (Pricing tab)
   const estimatedTotal = 0.05;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
@@ -13242,6 +13244,9 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   if (!cibleRecue) return err(400, 'targetText required');
   let targetText = String(cibleRecue);
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const COST_PER_INPAINT = await getPrice(env, 'auto_inpaint');
+  const cost = COST_PER_INPAINT;
   let rawPrompt = (prompt ?? '').toString().trim();
   if (rawPrompt || (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length)) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
@@ -13262,18 +13267,16 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     // envoie un mot etranger seul (cle API, ancien client) le voit partir tel quel, comme avant le lot.
     const cache = new Map<string, string>();
     const compteur = { appels: 0 };
-    const fCible = await _filetLangue(env, user.id, targetText, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits });
+    const fCible = await _filetLangue(env, user.id, targetText, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits, prix: cost });
     if (fCible.refus) return fCible.refus;
     targetText = fCible.texte;
     if (rawPrompt) {
-      const fRempl = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits });
+      const fRempl = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, cache, compteur, credits: user.credits, prix: cost });
       if (fRempl.refus) return fRempl.refus;
       rawPrompt = fRempl.texte;
     }
   }
 
-  const COST_PER_INPAINT = await getPrice(env, 'auto_inpaint');
-  const cost = COST_PER_INPAINT;
   const estimatedTotal = 0.08;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -13344,6 +13347,8 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const cost = await getPrice(env, 'tex_variant');
   let rawPrompt = (prompt ?? '').toString().trim();
   if (rawPrompt) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
@@ -13356,12 +13361,11 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue)
     const filet = await _filetLangue(env, user.id, rawPrompt,
-      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted, credits: user.credits });
+      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted, credits: user.credits, prix: cost });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
 
-  const cost = await getPrice(env, 'tex_variant');
   const estimatedTotal = 0.08;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -13443,15 +13447,16 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
       error: safety.reason ?? 'prompt blocked by content filter',
       blocked: safety.blocked }, { status: 400 });
   }
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const cost = await getPrice(env, 'recolor');
   // FILET DE LANGUE (lot 2 de l'audit de la langue) : la partie part a CLIPSeg, la couleur au lexique (anglais) du serveur.
   {
     const filet = await _filetLangue(env, user.id, rawPrompt,
-      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted, credits: user.credits });
+      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted, credits: user.credits, prix: cost });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
 
-  const cost = await getPrice(env, 'recolor');
   // Deux voies cote Modal (2026-09-30, « meme capacite que le PC ») : une COULEUR (« cape rouge ») = CLIPSeg + numpy (~0,02 $) ; une MATIERE
   // ou un STYLE (« cuir vieilli », « sunset gradient ») = re-rendu ControlNet-Tile (~0,08 $, comme tex_variant). La voie n'est connue
   // que de Modal (le lexique de couleurs vit dans le noyau partage scripts/recolor_core.py) : on reserve l'estimation haute, le prix
@@ -13619,6 +13624,8 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
   // requiring a replacement description.
   const isRemoval = !rawPrompt;
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const COST_PER = await getPrice(env, 'mask_inpaint');
   // NSFW pre-filter — only on a real user prompt (the removal prompt is our own
   // fixed, safe string).
   if (!isRemoval) {
@@ -13632,7 +13639,7 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
         blocked: safety.blocked }, { status: 400 });
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : « Replace with » du Paint-mask n'etait traduit nulle part (TRADUCTION-05).
-    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits });
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: COST_PER });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
@@ -13662,7 +13669,6 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
     return err(400, `mask decode failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  const COST_PER = await getPrice(env, 'mask_inpaint');
   const estimatedTotal = 0.07;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -13988,6 +13994,8 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   const projectSlug = ((projectName || 'untitled').toString()
     .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'untitled');
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const cost = await getPrice(env, conf.prixCle);
   // Un texte libre part dans un prompt SDXL : meme filtre que tout le reste.
   const libre = conf.texteLibre ? conf.texteLibre(corps) : '';
   if (libre) {
@@ -14000,13 +14008,12 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : le Style des variantes de texture n'etait traduit nulle part (CHAMPS-03).
     if (conf.champTexteLibre) {
-      const filet = await _filetLangue(env, user.id, libre, { verifie: corps.langueVerifiee, unrestricted, credits: user.credits });
+      const filet = await _filetLangue(env, user.id, libre, { verifie: corps.langueVerifiee, unrestricted, credits: user.credits, prix: cost });
       if (filet.refus) return filet.refus;
       corps[conf.champTexteLibre] = filet.texte;
     }
   }
 
-  const cost = await getPrice(env, conf.prixCle);
   const remainingBudget = await checkAndIncrementModalSpend(env, conf.estimationUsd, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false, error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
@@ -14190,6 +14197,8 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
   if (!isTrustedAssetHost(env, meshUrl) || !isTrustedAssetHost(env, vueUrl)) return err(400, 'url host not allowed');
   let texte = String(prompt || '').trim().slice(0, 500);
   if (!texte) return err(400, 'prompt required (what should replace the part)');
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const cost = await getPrice(env, 'reshape');
   // Filtre de contenu (revue de securite du 2026-10-01 : cette route etait la SEULE a prompt libre sans aucun filtre, plancher illegal compris).
   {
     const etat = await getParentalState(env, user.id);
@@ -14199,7 +14208,7 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue)
     const filet = await _filetLangue(env, user.id, texte,
-      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted, credits: user.credits });
+      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted, credits: user.credits, prix: cost });
     if (filet.refus) return filet.refus;
     texte = filet.texte.slice(0, 500);
   }
@@ -14207,7 +14216,6 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
   const m = masqueDataUrl.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
   if (!m) return err(400, 'mask required (PNG data URL)');
   if (m[1].length > 24_000_000) return err(413, 'mask too large');
-  const cost = await getPrice(env, 'reshape');
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_RESHAPE, user.id);
   if (remainingBudget == null) return err(429, await _spendRefusalMessage(env, user.id));
@@ -18951,6 +18959,9 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
     return err(400, 'refImageUrl host not allowed');
   }
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const COST_PER_RECTIFY = await getPrice(env, 'rectify');   // etait 3 en dur
+  const cost = COST_PER_RECTIFY;
   // NSFW prompt pre-filter (same policy as text2image / back-view).
   if (rawPrompt) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
@@ -18963,7 +18974,7 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
         blocked: safety.blocked }, { status: 400 });
     }
     // FILET DE LANGUE (lot 2 de l'audit de la langue)
-    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits });
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost });
     if (filet.refus) return filet.refus;
     rawPrompt = filet.texte;
   }
@@ -18971,8 +18982,6 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
   // Cost: 1 rectify call ≈ N seeds × back-view ≈ $0.10 × 3 = $0.30 estimate.
   // Credit-wise we charge 3 credits to match the GPU work.
   const nSeeds = Math.max(1, Math.min(5, seeds ?? 3));
-  const COST_PER_RECTIFY = await getPrice(env, 'rectify');   // etait 3 en dur
-  const cost = COST_PER_RECTIFY;
   const estimatedTotal = 0.10 * nSeeds;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -23887,7 +23896,8 @@ function _refusFiletLangue(langue: string, raison: string): Response {
  * le filtre de contenu (qui ne connait que six langues : la traduction lui montre ce que le moteur verra). `verifie === true` :
  * l'interface a deja traite la langue, ou l'utilisateur a choisi « Envoyer tel quel » apres un echec de traduction (choix respecte). */
 async function _filetLangue(env: Env, userId: string, texte: string,
-    opts: { verifie?: unknown; unrestricted?: boolean; cache?: Map<string, string>; credits?: number; compteur?: { appels: number } } = {},
+    opts: { verifie?: unknown; unrestricted?: boolean; cache?: Map<string, string>; credits?: number; prix?: number;
+            compteur?: { appels: number } } = {},
 ): Promise<{ texte: string; refus?: Response; traduit: boolean; langues: string[] }> {
   const t = String(texte ?? '');
   if (!t.trim() || opts.verifie === true) return { texte: t, traduit: false, langues: [] };
@@ -23900,12 +23910,14 @@ async function _filetLangue(env: Env, userId: string, texte: string,
   /* BORNES (2026-10-14, revue du lot 2, B3). Avant : aucune borne de longueur, aucun plafond, et le filet tourne AVANT la verification
    * des credits : UNE requete de 96 000 caracteres francais declenchait 108 appels du modele, et un compte a 0 credit pouvait epuiser
    * le quota du jour pour tout le monde. Desormais, avant tout appel du modele :
-   *  - compte SANS credit : rien n'est traduit (la route refuse ensuite, faute de credit, comme pour un texte anglais) ;
+   *  - compte qui ne peut PAS PAYER la requete (credits < `prix`, au moins 1 credit) : rien n'est traduit, la route refuse ensuite faute
+   *    de credit, comme pour un texte anglais. Avant (premier correctif du 14/10), seul un compte a 0 credit etait ecarte : un compte a
+   *    1 credit, sous le prix de toute route, declenchait jusqu'a 6 appels par requete refusee, sans jamais rien payer ;
    *  - texte etranger de plus de TRADUCTION_MAX_CARACTERES : refus « too-long » (meme borne que /api/translate) ;
    *  - au plus TRADUCTION_APPELS_PAR_REQUETE appels du modele par requete (`compteur` partage entre les champs d'une meme requete) ;
    *  - chaque appel compte sur les plafonds de /api/translate (300 par heure et par compte, 20 000 par jour au total). */
-  if (typeof opts.credits === 'number' && opts.credits <= 0) {
-    console.log('[filet-langue] compte sans credit : texte non traduit, la route refusera faute de credit');
+  if (typeof opts.credits === 'number' && opts.credits < Math.max(1, Number(opts.prix) || 0)) {
+    console.log('[filet-langue] credits insuffisants pour la requete : texte non traduit, la route refusera faute de credit');
     return { texte: t, traduit: false, langues: [] };
   }
   const aTraduire = morceaux.filter((m) => opts.cache?.get(m.langue + '|' + t.slice(m.debut, m.fin)) === undefined);
