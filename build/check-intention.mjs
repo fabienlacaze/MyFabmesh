@@ -10,6 +10,8 @@
  *   - la clause d'objet tenu et le gabarit adapte, avec TOUTES les regles et avec les regles ACTIVES ;
  *   - les notes.
  * Il verifie aussi que les regles actives sont les memes dans les deux fichiers, et que le cas temoin « An orc » ne change pas d'un octet.
+ * NEGATIONS (2026-10-03) : extraireNegations() rejoue les cas ecrits a la main et les cas generes (balayage du lexique) de build/check_intention.py ; assainirNegatifs()
+ * et les constantes MAX_* sont comparees aussi. INTENTION_JS=<fichier> verifie une autre copie du module (preuve qu'un code mute est detecte).
  */
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,7 +26,8 @@ const dossier = mkdtempSync(join(tmpdir(), 'intention-'));
 let J;
 try {
   const copie = join(dossier, 'composeur-intention.mjs');
-  writeFileSync(copie, readFileSync(join(RACINE, 'src/renderer/lib/composeur-intention.js'), 'utf-8'));
+  // INTENTION_JS=<fichier> : verifie une AUTRE copie du jumeau JavaScript (preuve qu'un code mute ou ancien est detecte ; meme usage que MAIN_JS / WORKER_SRC)
+  writeFileSync(copie, readFileSync(process.env.INTENTION_JS || join(RACINE, 'src/renderer/lib/composeur-intention.js'), 'utf-8'));
   J = await import(pathToFileURL(copie).href);
 } finally {
   rmSync(dossier, { recursive: true, force: true });
@@ -67,7 +70,28 @@ for (const a of attendus) {
   for (const [nom, js, py] of verifs) {
     if (!egal(js, py)) dit(`cas ${a.id} : ${nom} different\n      JS     : ${JSON.stringify(js)}\n      Python : ${JSON.stringify(py)}`);
   }
+  if (!egal(J.extraireNegations(a.texte), a.negations)) {
+    dit(`cas ${a.id} : negations differentes\n      JS     : ${JSON.stringify(J.extraireNegations(a.texte))}\n      Python : ${JSON.stringify(a.negations)}`);
+  }
 }
+
+// negations de l'utilisateur : balayage genere (build/check_intention.py, balayage_negations), nettoyeur du champ `negativeExtra`, constantes
+for (const g of grave.negations || []) {
+  const r = J.extraireNegations(g.texte);
+  if (!egal(r, { positif: g.positif, negatifs: g.negatifs })) {
+    dit(`negations ${g.id} « ${g.texte.slice(0, 60)} » : sortie differente\n      JS     : ${JSON.stringify(r)}\n      Python : ${JSON.stringify({ positif: g.positif, negatifs: g.negatifs })}`);
+  }
+}
+if (!grave.negations || !grave.negations.length) dit('intention_attendus.json ne porte aucun cas de negations (python build/check_intention.py --ecrire)');
+for (const e of grave.assainir || []) {
+  const r = J.assainirNegatifs(e.entree);
+  if (!egal(r, e.sortie)) dit(`assainirNegatifs(${JSON.stringify(e.entree).slice(0, 80)}) : ${JSON.stringify(r)} au lieu de ${JSON.stringify(e.sortie)}`);
+}
+if (!grave.assainir || !grave.assainir.length) dit('intention_attendus.json ne porte aucune entree d assainir (python build/check_intention.py --ecrire)');
+for (const [nom, valeur] of Object.entries(grave.constantes || {})) {
+  if (J[nom] !== valeur) dit(`constante ${nom} : JS ${J[nom]} / Python ${valeur}`);
+}
+if (!Object.keys(grave.constantes || {}).length) dit('intention_attendus.json ne porte aucune constante de negations');
 
 // regles actives identiques dans les deux fichiers
 const py = lf(readFileSync(join(RACINE, 'scripts/composeur_intention.py'), 'utf-8'));
@@ -83,6 +107,12 @@ const gabCharacter = grave.gabarits.character;
 const itT = J.analyser('An orc', 'character', 'realistic');
 const [tplT] = J.composerGabarit(gabCharacter, 'character', itT);
 if (tplT !== gabCharacter || J.clauseObjetTenu(itT) !== null) dit('le cas temoin « An orc » a change (JS)');
+// negations : un texte sans negation ressort OCTET POUR OCTET ; l'interrupteur d'urgence (regles vides) coupe l'extraction
+for (const t of ['An orc', 'An  orc ,  warrior', 'A simple character']) {
+  const r = J.extraireNegations(t);
+  if (r.positif !== t || r.negatifs.length) dit(`« ${t} » change sans aucune negation (JS) : ${JSON.stringify(r)}`);
+}
+if (!egal(J.extraireNegations('An orc, no helmet', []), { positif: 'An orc, no helmet', negatifs: [] })) dit('regles=[] devrait couper les negations (JS)');
 
 // relecture d'un prompt enrichi : la clause GENEREE est retiree, jamais l'ecriture de l'utilisateur
 {
