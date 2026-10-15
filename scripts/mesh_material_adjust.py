@@ -81,6 +81,9 @@ def adjust(in_glb, out_glb, brightness=1.2, saturation=1.0, contrast=1.0,
         emissiveFactor=[emissive, emissive, emissive],
         metallicFactor=metallic,
         roughnessFactor=roughness,
+        # 2026-10-14 (parite avec modal_app/_mesh_op.material_adjust) : la carte de normales decrit la FORME, que l'outil ne
+        # touche pas : elle suit le nouveau materiau (export PNG ci-dessous : sans perte).
+        normalTexture=getattr(getattr(m.visual, 'material', None), 'normalTexture', None),
     )
     m.visual = trimesh.visual.TextureVisuals(uv=m.visual.uv, material=material)
     m.export(out_glb)
