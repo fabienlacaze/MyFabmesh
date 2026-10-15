@@ -572,8 +572,10 @@ def _exporter_cible(exporter, vertices, faces, cible, log=print):
 
 
 def _prep_image(path):
-    """Background removal via rembg u2net (Apache 2.0) — skip TRELLIS-2's
-    internal rembg which uses the gated briaai/RMBG-2.0."""
+    """Detourage du sujet avant la 3D (on saute le detourage interne de TRELLIS-2, qui utilise le modele a acces
+    restreint briaai/RMBG-2.0). UNION de Lucida (sous-processus) et de rembg u2net (Apache 2.0), repli u2net seul : voir
+    _detourer_sujet. FABMESH_DETOURAGE : union (defaut, ou auto), u2net, lucida. Une image qui a deja un alpha utile n'est
+    pas detouree."""
     from PIL import Image
     import numpy as np
     image = Image.open(path)
@@ -583,11 +585,11 @@ def _prep_image(path):
         if not (a == 255).all():
             needs_rembg = False
     if needs_rembg:
-        log('rembg u2net (background removal)...')
-        import rembg
-        image = rembg.remove(
-            image.convert('RGBA'),
-            session=rembg.new_session('u2net'))
+        ouverte = image
+        image = _detourer_sujet(ouverte, path)
+        ouverte.close()          # le resultat est une image neuve : on rend la poignee du fichier d'origine
+    else:
+        log("detourage: aucun (l'image a deja un canal alpha utile)")
     # Audit fix: tight-crop to the subject so it fills the frame (FabMesh skips
     # TRELLIS's internal crop via preprocess_image=False). FABMESH_TEX_SKIP_CROP=1
     # to disable.
@@ -602,6 +604,130 @@ def _prep_image(path):
     # Fond noir sous la transparence : voir le noyau partage ci-dessus.
     image = _composite_on_black(image)
     return image
+
+
+def _masque_lucida_sous_processus(orientee):
+    """(alpha, raison, sortie) : le masque Lucida (ndarray uint8 2D, taille de `orientee`) calcule dans un SOUS-PROCESSUS,
+    ou (None, raison) s'il manque ou s'il est aberrant. Ne leve jamais.
+
+    Sous-processus (scripts/lucida_matte.py, delai 240 s, memes variables d'environnement) : la VRAM est rendue au systeme
+    AVANT le chargement du modele 3D, et un plantage ne tue pas la generation. L'entree est `orientee` (EXIF deja applique)
+    ecrite en PNG : Lucida voit exactement l'image que u2net masque. Echecs : code retour, fichier absent ou illisible, delai,
+    taille inattendue, interpreteur introuvable, et masque ABERRANT selon fusion_masques.refus_lucida (regle commune au bureau
+    et a Modal : vide, sous 1 % ou au-dessus de 95 % de l'image, aucune composante d'au moins 0,5 %).
+    FABMESH_LUCIDA_PYTHON : interpreteur du sous-processus (defaut : sys.executable)."""
+    import shutil
+    import subprocess
+    import tempfile
+    from PIL import Image
+    import numpy as np
+    import fusion_masques
+
+    def derniere_ligne(texte):
+        lignes = [l.strip() for l in (texte or '').splitlines() if l.strip()]
+        return lignes[-1][:200] if lignes else ''
+
+    dossier = tempfile.mkdtemp(prefix='fabmesh_detourage_')
+    try:
+        entree = os.path.join(dossier, 'entree.png')
+        sortie = os.path.join(dossier, 'lucida_rgba.png')
+        orientee.convert('RGB').save(entree, 'PNG')
+        cmd = [os.environ.get('FABMESH_LUCIDA_PYTHON') or sys.executable,
+               os.path.join(SCRIPTS, 'lucida_matte.py'), entree, sortie]
+        try:
+            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, errors='replace',
+                               timeout=240, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        except subprocess.TimeoutExpired:
+            return None, 'delai de 240 s depasse', ''
+        except OSError as e:
+            return None, f'lancement impossible ({type(e).__name__}: {e})', ''
+        if r.returncode != 0:
+            return None, f'code retour {r.returncode} : {derniere_ligne(r.stderr) or derniere_ligne(r.stdout)}', r.stdout
+        if not os.path.isfile(sortie):
+            return None, 'aucun fichier produit', r.stdout
+        with Image.open(sortie) as f:
+            candidat = f.convert('RGBA')
+        if candidat.size != orientee.size:
+            return None, f'taille inattendue {candidat.size} (attendu {orientee.size})', r.stdout
+        alpha = np.array(candidat.getchannel('A'), dtype=np.uint8)
+        raison = fusion_masques.refus_lucida(alpha)
+        if raison is not None:
+            return None, raison, r.stdout
+        return alpha, None, r.stdout
+    except Exception as e:
+        return None, f'{type(e).__name__}: {e}', ''
+    finally:
+        shutil.rmtree(dossier, ignore_errors=True)
+
+
+def _detourer_sujet(image, path):
+    """Rend `image` detouree (RGBA) : UNION des masques de Lucida et de u2net, repli u2net seul. Ne leve que si u2net leve
+    (comme avant).
+
+    POURQUOI (audit de fidelite et mesure Modal du 2026-10-03, 36 images reelles). u2net perd en mediane 21,7 % de ce que
+    Lucida garde sur les personnages en T-pose a fond gris (avant-bras, mains, ARMES : 10 % des pixels des armes, 27 % des
+    bras) ; Lucida en recupere 99,99 % mais echoue ailleurs (l'ane gris sur blanc : 5,9 % de l'image contre 31,7 % pour u2net,
+    que la regle d'alpha aberrant ne rattrape PAS). Chacun se trompe par DEFAUT de sujet : le masque est l'UNION
+    (scripts/fusion_masques.py, noyau partage avec modal_app/_detourage.py : meme union, meme regle de refus).
+    COMMENT. Lucida d'abord, en sous-processus (_masque_lucida_sous_processus : VRAM rendue avant la 3D) ; un masque Lucida
+    aberrant est ecarte AVANT l'union. Puis u2net (rembg, processeur) EXACTEMENT comme avant :
+    rembg.remove(image.convert('RGBA'), session=new_session('u2net')) ; son alpha est le masque u2net. Union :
+    alpha = max(Lucida, u2net la ou u2net >= 127) ; decoupe = Image.composite sur fond transparent, le geste de rembg.
+    FABMESH_DETOURAGE : union (defaut ; auto, vide ou inconnu aussi), u2net (saute Lucida : resultat d'avant a l'octet),
+    lucida (Lucida seul, repli u2net). Journal : « detourage: lucida (X s) », « detourage: union : ... »,
+    « detourage: u2net (raison) »."""
+    import re
+    from PIL import Image, ImageOps
+    import numpy as np
+    try:
+        import fusion_masques
+    except Exception as e:
+        # installation incomplete (scripts/fusion_masques.py absent) : Lucida ne fait JAMAIS echouer une generation, u2net seul
+        # EXACTEMENT comme avant le 2026-10-03
+        import rembg
+        log(f'detourage: u2net (module fusion_masques indisponible : {type(e).__name__}: {e})')
+        return rembg.remove(image.convert('RGBA'), session=rembg.new_session('u2net'))
+    brut = (os.environ.get('FABMESH_DETOURAGE') or '').strip().lower()
+    mode = fusion_masques.mode_detourage(brut)
+    if brut not in ('', 'auto') + fusion_masques.MODES:
+        log(f"detourage: FABMESH_DETOURAGE={brut!r} inconnu, mode union")
+    source = image.convert('RGBA')
+    # ce que u2net masque reellement : rembg applique lui-meme l'orientation EXIF a ce qu'il recoit
+    orientee = ImageOps.exif_transpose(source)
+    alpha_lucida, raison = None, 'FABMESH_DETOURAGE=u2net'
+    if mode != 'u2net':
+        t0 = time.time()
+        alpha_lucida, raison, sortie = _masque_lucida_sous_processus(orientee)
+        if alpha_lucida is not None:
+            log(f'detourage: lucida ({time.time() - t0:.1f} s)')
+            for ligne in (sortie or '').splitlines():
+                if ligne.startswith('LUCIDA:'):
+                    log('detourage: ' + ligne[len('LUCIDA:'):].strip())
+            pic = re.search(r'pic_vram_reserve=(\d+)Mo', sortie or '')
+            if pic:
+                log(f'detourage: pic de VRAM PyTorch du sous-processus {pic.group(1)} Mo (hors contexte CUDA)')
+            if mode == 'lucida':
+                return Image.composite(orientee, Image.new('RGBA', orientee.size, 0), Image.fromarray(alpha_lucida))
+    import rembg
+    decoupe_u2 = rembg.remove(source, session=rembg.new_session('u2net'))
+    if alpha_lucida is None:
+        log(f'detourage: u2net ({raison})')
+        return decoupe_u2
+    try:
+        alpha_u2 = np.array(decoupe_u2.convert('RGBA').getchannel('A'), dtype=np.uint8)
+        union = fusion_masques.fusionner_alphas(alpha_u2, alpha_lucida)
+        d = fusion_masques.diagnostic_masques(alpha_u2, alpha_lucida)
+    except Exception as e:
+        log(f'detourage: u2net (union impossible : {type(e).__name__}: {e})')
+        return decoupe_u2
+    ligne = (f"detourage: union : u2net {100 * d['aire_u2']:.1f} %, lucida {100 * d['aire_lucida']:.1f} %, "
+             f"union {100 * d['aire_union']:.1f} %")
+    if d['lucida_defaillant']:
+        ligne += ' ; lucida en defaut'
+    if d['u2net_defaillant']:
+        ligne += ' ; u2net en defaut'
+    log(ligne)
+    return Image.composite(orientee, Image.new('RGBA', orientee.size, 0), Image.fromarray(union))
 
 
 def _corriger_metal_degenere(glb_obj) -> None:
