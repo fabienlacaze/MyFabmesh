@@ -172,12 +172,13 @@ def _poser_carte_normales(glb, ov, carte, log=print) -> dict:
     if not carte:
         return {}
     from modal_app import normal_bake
-    st = normal_bake.ajouter_carte_normales(glb, ov.vertices, ov.faces, log=log)
+    ts = int(carte) if int(carte) >= 256 else None      # --carte 2048 : carte plafonnee a 2048 (essai du 15/10), 1 : taille de l'atlas
+    st = normal_bake.ajouter_carte_normales(glb, ov.vertices, ov.faces, texture_size=ts, log=log)
     return {k: st[k] for k in ("posee", "raison", "duree_s", "taille") if k in st}
 
 
 def _nom_glb(nom, mode, texture_size, faces_cible, carte) -> str:
-    return "hr_%s_%s_t%d_f%d%s.glb" % (nom, mode, texture_size, faces_cible, "_carte" if carte else "")
+    return "hr_%s_%s_t%d_f%d%s.glb" % (nom, mode, texture_size, faces_cible, ("_carte" + (str(int(carte)) if int(carte) >= 256 else "")) if carte else "")
 
 
 @app.function(gpu=GPU_DEC, timeout=10800, secrets=SECRETS, volumes={"/lat": vol})
