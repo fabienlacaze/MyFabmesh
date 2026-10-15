@@ -23914,7 +23914,8 @@ async function _plafondTraduction(env: Env, cle: string, plafond: number, n = 1)
 
 /** Quota du modele de traduction pour un COMPTE : `appels` appels du modele. Rend null s'ils sont accordes, sinon la PORTEE du refus :
  *  'heure' (plafond horaire du compte), 'jour-compte' (plafond du jour du compte), 'jour' (plafond du jour PARTAGE par les comptes qui
- *  n'ont jamais paye), 'indisponible' (un compteur du compte est illisible : refus, rien n'est compte). Le message de refus le dit.
+ *  n'ont jamais paye), 'indisponible' (un compteur du compte est illisible, ou dispute par des requetes simultanees du compte : refus,
+ *  rien n'est compte, « reessaie dans un instant »). Le message de refus le dit.
  *  - Plafonds du COMPTE, STRICTS (une contention ou une erreur R2 refuse : seul ce compte les provoque) :
  *      heure : `_meta/traduction/<uid>-<AAAAMMJJHH>.txt`, 300 appels (60 pour un compte sans credit) ;
  *      jour  : `_meta/traduction/<uid>-jour-<AAAA-MM-JJ>.txt`, TRADUCTION_PLAFOND_JOUR_COMPTE (300) pour un compte qui n'a jamais paye,
@@ -23949,7 +23950,11 @@ async function _quotaTraduction(env: Env, userId: string, appels: number,
     if (r === 'absent') continue;
     await rendre();
     console.log('[translate] plafond du compte', userId, portee, r);
-    return r === 'panne' ? 'indisponible' : portee;   // 'plein' ou 'contention' : refus au plafond du compte
+    /* 'plein' : plafond du compte atteint (le message nomme l'heure ou le jour). 'contention' (six echanges perdus sur SON compteur :
+     * des requetes simultanees du meme compte) et 'panne' (erreur R2) : rien n'est compte, refus 'indisponible' (« reessaie dans un
+     * instant »). Quatrieme relecture du lot 2 (15/10) : une contention rendait la portee du compteur ('heure'), et le message annoncait
+     * « trop de traductions cette heure-ci » a un compte loin de son plafond. */
+    return r === 'plein' ? portee : 'indisponible';
   }
   if (payant) return null;
   const cleJour = porte.filet ? `_meta/traduction/jour-filet-${jour}.txt`

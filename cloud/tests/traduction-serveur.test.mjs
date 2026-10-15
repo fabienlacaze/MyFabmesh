@@ -1297,3 +1297,21 @@ test('quatrieme relecture : TOUTE route qui passe un texte au filet de langue es
   assert.deepEqual([...routes].filter((n) => !couvertes.has(n)).sort(), [], 'route(s) au filet absente(s) de ROUTES_FILET');
 });
 
+test('quatrieme relecture : une CONTENTION sur le compteur du compte (requetes simultanees) ne dit plus « trop de traductions cette heure-ci »', async () => {
+  const r2 = creerR2();
+  const put = r2.put.bind(r2);
+  // echange TOUJOURS perdu sur les compteurs de CE compte (autres requetes simultanees du meme compte) : 'contention', jamais 'plein'
+  r2.put = async (k, v, o) => (String(k).includes('/u-dispute-') && o && o.onlyIf ? null : put(k, v, o));
+  const m = monterComptes({ r2, utilisateur: { id: 'u-dispute', email: 'd', credits: 100 }, payants: ['u-dispute'] });
+  const t = await m.trad({ text: 'un dragon rouge avec des ailes', from: 'fr' });
+  assert.equal(t.corps.translated, false);
+  assert.equal(t.corps.raison, 'unavailable', 'compte loin de son plafond : indisponible, pas rate-limited : ' + JSON.stringify(t.corps));
+  assert.equal(t.corps.portee, undefined);
+  const g = await m.gen({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', projectName: 'P' });
+  assert.equal(g.status, 422);
+  assert.equal(g.corps.raison, 'unavailable');
+  assert.doesNotMatch(g.corps.error, /this hour/);
+  assert.equal(m.ai.appels.length, 0, 'aucun appel du modele');
+  assert.deepEqual(m.j.depenses, [], 'rien debite');
+  assert.equal(r2.lire(`_meta/traduction/u-dispute-${heureCourante()}.txt`), undefined, 'rien n est compte');
+});
