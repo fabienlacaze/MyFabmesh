@@ -38,7 +38,9 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
     // filet de langue neutre ; meme contrat que le vrai (un champ ou une LISTE de champs -> `textes`, seconde revue du lot 2 de la langue)
     _filetLangue: async (_e, _u, texte) => { const textes = Array.isArray(texte) ? texte : [texte]; return { texte: textes[0], textes, traduit: false, langues: [] }; },
   };
-  const w = chargerFonctions(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet'], dbl);
+  // filtre sur la chaine EXACTEMENT envoyee a Modal (quatrieme relecture du lot 2 de la langue) : la vraie aide, sur la doublure du filtre
+  const w = chargerFonctions(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet',
+    ...['_refusChaineEnvoyee'].filter((n) => existe(n))], dbl);
   const env = { MODAL_TPOSE_URL: tposeUrl, MODAL_TEXT2IMAGE_URL: t2iUrl };
   const appeler = (corps) => w.handleGenerateImage(
     new Request('https://x.example/api/generate-image', { method: 'POST', body: JSON.stringify(corps) }), env);

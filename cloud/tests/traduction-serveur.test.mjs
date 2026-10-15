@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { chargerFonctions, existe, creerR2 } from './_charge-worker.mjs';
+import { chargerFonctions, existe, creerR2, lireSource } from './_charge-worker.mjs';
 
 const LIB = process.env.LIB_LANGUE || new URL('../public/app/lib/langue-texte.js', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const dossier = mkdtempSync(join(tmpdir(), 'traduction-serveur-'));
@@ -36,7 +36,7 @@ const charger = (noms, doublures) => chargerFonctions(noms.filter((n) => existe(
 const AUXILIAIRES = ['_traduireVersAnglais', '_decouperPourTraduction', '_derniereCoupe', '_plafondTraduction', 'TRADUCTION_MAX_CARACTERES',
   'TRADUCTION_MORCEAU_MAX', 'TRADUCTION_PLAFOND_HEURE', 'TRADUCTION_PLAFOND_JOUR', 'LANGUES_TRADUITES', '_filetLangue',
   '_quotaTraduction', '_refusFiletLangue', 'TRADUCTION_APPELS_PAR_REQUETE', 'TRADUCTION_PLAFOND_JOUR_COMPTE',
-  'TRADUCTION_PLAFOND_JOUR_COMPTE_PAYANT'];
+  'TRADUCTION_PLAFOND_JOUR_COMPTE_PAYANT', '_refusChaineEnvoyee'];
 
 /** Faux Workers AI : traduit en prefixant « EN: », ou echoue / rend du vide / boucle sur demande. */
 function fauxAI({ mode = 'ok' } = {}) {
@@ -839,7 +839,8 @@ const _jsFiltre = _tsFiltre.transpileModule(_srcFiltre,
 // eslint-disable-next-line no-new-func
 const FILTRE = new Function('exports', 'require', _jsFiltre + '\nreturn { checkPromptSafety: exports.checkPromptSafety, '
   + 'checkHardFloor: exports.checkHardFloor, LISTES: { PERSONNES, NUDITE_EXTREME, MINEURS_FORT, NU_FAIBLE_GENERAL, MINEURS_VIOLENCE, '
-  + 'VIOLENCE_ENFANT_GENERAL, GENERAL_CTX_SEXUEL, CONTEXTE_SEXUEL_FAIBLE, GENERAL_CTX_VIOLENCE } };')({}, _exiger);
+  + 'VIOLENCE_ENFANT_GENERAL, GENERAL_CTX_SEXUEL, CONTEXTE_SEXUEL_FAIBLE, GENERAL_CTX_VIOLENCE }, '
+  + 'IDIOMES: typeof _IDIOMES === \'undefined\' ? null : _IDIOMES };')({}, _exiger);
 const NEUTRE_FR = 'un chevalier avec une lanterne dans la forêt sombre';
 const SUFFIXE = 'plain white background, centered';
 
@@ -1124,3 +1125,175 @@ test('troisieme relecture (mutant W13) : une langue que le traducteur ne prend p
   assert.equal(m.ai.appels.length, 0, 'la cible francaise n est pas traduite pour rien');
   assert.deepEqual(m.j.depenses, []);
 });
+
+// ------------------------------------------------------------------------------------------------------- QUATRIEME RELECTURE (15/10)
+// FILTRE DE CONTENU sur la chaine EXACTEMENT envoyee a Modal (vrai filtre, vraies routes). Le filet verifiait la traduction ENTIERE, puis
+// quatre routes la COUPAIENT (vue de dos a 400 caracteres, Reshape a 500, Texture variants du maillage a 200, Re-texture d'une region a
+// 300) : une coupe au milieu d'un idiome que le filtre neutralise laissait le premier mot, bloque seul, en fin de chaine, et Modal (qui
+// n'applique que le plancher) le recevait avec le statut 200 — 8 fuites sur le banc de la relecture (zz_revue3_coupe), 0 a f86208c0 qui
+// coupait AVANT de verifier. Les idiomes sont tires du filtre a l'execution : aucun terme n'est ecrit ici, aucune assertion ne l'affiche.
+// Ancien code : WORKER_SRC=<worker de f38933b9> node --test --test-name-pattern="quatrieme relecture" tests/traduction-serveur.test.mjs
+const FR_COUPE = ('un vieux chevalier fatigue marche lentement dans la foret sombre et humide avec sa lanterne allumee et son chien fidele '
+  .repeat(4)).trim().slice(0, 390);
+const BOURRE = (n) => 'a calm knight walks slowly through the dark forest with his lantern '.repeat(40).slice(0, Math.max(0, n));
+const PNG_MINI = 'data:image/png;base64,iVBORw0KGgo=';
+
+/** Idiomes que le filtre NEUTRALISE (_IDIOMES) dont le PREMIER mot, seul en fin de chaine, est bloque par le filtre general mais pas par
+ *  le plancher (seul filtre de Modal) : exactement ce qu'une coupe apres la verification laissait passer. */
+function idiomesCoupables() {
+  const m = FILTRE.IDIOMES ? FILTRE.IDIOMES.source.match(/^\(\?:\^\| \)\(\?:(.*)\)\(\?= \|\$\)$/) : null;
+  const out = [];
+  for (const a of (m ? m[1].split('|') : [])) {
+    if (!/^[a-z]+( [a-z]+)+$/.test(a)) continue;
+    const [premier, ...reste] = a.split(' ');
+    const tete = BOURRE(200) + ' ' + premier;
+    if (FILTRE.checkPromptSafety(tete).safe || !FILTRE.checkHardFloor(tete).safe) continue;
+    if (!FILTRE.checkPromptSafety(tete + ' ' + reste.join(' ') + ' and a calm evening').safe) continue;
+    out.push({ premier, suite: ' ' + reste.join(' ') });
+  }
+  return out;
+}
+
+/** TOUTES les routes qui passent un texte de l'utilisateur au filet de langue (le test suivant verifie qu'aucune ne manque) : corps de la
+ *  requete qui place `t` dans le champ libre, et cle de l'entree Modal qui recoit ce texte (traduit). */
+const ROUTES_FILET = [
+  ['handleGenerateImage', (t) => ({ userPrompt: t, asset_type: 'creature', projectName: 'P' }), 'prompt'],
+  // T-pose : prompt enrichi avec des blancs aux bords (Modal recoit la chaine SANS eux : elle doit etre verifiee telle qu'envoyee)
+  ['handleGenerateImage', (t) => ({ userPrompt: t, prompt: ` portrait of a hero, ${t}, plain white background `, asset_type: 'character',
+    projectName: 'P', tpose: true }), 'prompt'],
+  ['handleGenerateBackView', (t) => ({ prompt: t, frontImageUrl: 'https://r2.example/f.png' }), 'promptHint'],
+  ['handleModifyImage', (t) => ({ prompt: t, imageUrl: 'https://r2.example/f.png' }), 'prompt'],
+  ['handleSegmentPreview', (t) => ({ targetText: t, imageUrl: 'https://r2.example/f.png' }), 'targetText'],
+  ['handleAutoInpaint', (t) => ({ targetText: 'hat', prompt: t, imageUrl: 'https://r2.example/f.png' }), 'prompt'],
+  ['handleTexVariant', (t) => ({ prompt: t, imageUrl: 'https://r2.example/f.png' }), 'prompt'],
+  ['handleRecolor', (t) => ({ prompt: t, imageUrl: 'https://r2.example/f.png' }), 'prompt'],
+  ['handleMaskInpaint', (t) => ({ prompt: t, imageUrl: 'https://r2.example/f.png', maskDataUrl: PNG_MINI }), 'prompt'],
+  ['handleRectifyImage', (t) => ({ prompt: t, refImageUrl: 'https://r2.example/f.png' }), 'prompt'],
+  ['handleMeshReshape', (t) => ({ prompt: t, meshUrl: 'https://r2.example/m.glb', vueUrl: 'https://r2.example/v.png', maskDataUrl: PNG_MINI }), 'prompt'],
+  ['handleMeshTexVar', (t) => ({ style: t, meshUrl: 'https://r2.example/m.glb' }), 'style'],
+  ['handleMeshRegionRetex', (t) => ({ prompt: t, meshUrl: 'https://r2.example/m.glb', mask: PNG_MINI }), 'prompt'],
+];
+
+/** Toutes les routes du tableau, chargees UNE fois, avec le VRAI filtre (chaque chaine qu'il voit est notee) et un faux modele qui rend
+ *  `traduction` au premier appel d'une requete. Tout ce qui part a Modal (callModal*, fetch) est capture. */
+function monterRoutesFiltreReel() {
+  const etat = { envoye: [], verifies: [], depenses: [], traduction: '', appels: 0 };
+  const ai = { async run() { etat.appels++; return { translated_text: etat.appels === 1 ? etat.traduction : 'and' }; } };
+  const capter = (nom) => async (_e, _u, i) => {
+    etat.envoye.push([nom, i]);
+    return nom === 'callModalImageOp' ? { url: 'https://r2.example/x.png' } : 'https://r2.example/x.png';
+  };
+  const noms = [...new Set([...ROUTES_FILET.map(([n]) => n), '_opAtlasGpu', '_checkPromptSafetyAlerte', 'categorieContenuGrave',
+    '_prixImageSelonPas', '_prixImageComplet', 'ESTIMATED_USD_RESHAPE', ...AUXILIAIRES])];
+  const w = charger(noms, {
+    getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits: 500 }), err, json, LangueTexte,
+    getParentalState: async () => ({}),
+    checkPromptSafety: (t, u) => { etat.verifies.push(String(t ?? '')); return FILTRE.checkPromptSafety(t, u); },
+    _alerterContenuGrave: async () => {}, _isPaidAccount: async () => true,
+    getPrice: async () => 2, isTrustedAssetHost: () => true,
+    checkAndIncrementModalSpend: async () => 100, checkAndIncrementDailySpend: async () => 100, _spendRefusalMessage: async () => 'refus',
+    checkAndIncrementUserCalls: async () => 10, refundModalSpend: async () => {}, refundDailySpend: async () => {},
+    spendCredits: async (_e, _u, c) => { etat.depenses.push(c); return 500 - c; }, addCredits: async () => {},
+    callModalBackView: capter('callModalBackView'), callModalRectify: capter('callModalRectify'), callModalImageOp: capter('callModalImageOp'),
+    callModalTpose: capter('callModalTpose'), callModalText2Image: capter('callModalText2Image'), callMyfabmeshCog: capter('callMyfabmeshCog'),
+    logOperation: async () => {}, insertUserAsset: async () => {}, r2PathFromPublicUrl: (_e, u) => u,
+    signedR2Url: async () => 'https://r2.example/s.png',
+    supabaseAdmin: () => ({ from: () => ({ insert: async () => ({ error: null }), update: () => ({ eq: async () => ({}) }) }) }),
+    _provenance: () => 'web', _paysRequete: () => null, _recolorEstimation: () => 0.08,
+    fetch: async (_url, init) => {
+      etat.envoye.push(['fetch', JSON.parse(init.body)]);
+      return reponse({ ok: true, glb_base64: btoa('glTF'), job_id: 'j' });
+    },
+  });
+  const appeler = async (nom, corps, traduction) => {
+    Object.assign(etat, { envoye: [], verifies: [], depenses: [], traduction, appels: 0 });
+    const env = { AI: ai, MESHES: creerR2(), R2_PUBLIC_URL: 'https://r2.example', MODAL_SHARED_SECRET: 's',
+      MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MODAL_TPOSE_URL: 'https://tpose.example', MODAL_BACKVIEW_URL: 'https://bv.example',
+      MODAL_IMAGE_OP_URL: 'https://op.example/image_op', MODAL_RECTIFY_URL: 'https://rect.example',
+      MODAL_MESH_START_URL: 'https://mesh.example/mesh_start', MODAL_MESH_STATUS_URL: 'https://mesh.example/mesh_status' };
+    const r = await w[nom](corpsRequete('/api/route', corps), env);
+    let c = null;
+    try { c = await r.json(); } catch { /* corps non JSON */ }
+    return { status: r.status, corps: c, envoye: etat.envoye, verifies: etat.verifies, depenses: etat.depenses, appels: etat.appels };
+  };
+  return { appeler };
+}
+const _chainesDe = (o, out = []) => {
+  if (typeof o === 'string') out.push(o);
+  else if (o && typeof o === 'object') for (const v of Object.values(o)) _chainesDe(v, out);
+  return out;
+};
+/** Coupes appliquees par une route (et par _opAtlasGpu pour les ops d'atlas) : les `.slice(0, N)` de son code. */
+function coupesDe(nom) {
+  const src = lireSource();
+  const sf = _tsFiltre.createSourceFile('worker.ts', src, _tsFiltre.ScriptTarget.ES2022, true, _tsFiltre.ScriptKind.TS);
+  const n = new Set();
+  for (const st of sf.statements) {
+    if (!_tsFiltre.isFunctionDeclaration(st) || !st.name) continue;
+    if (st.name.text !== nom && !(st.name.text === '_opAtlasGpu' && /^handleMesh/.test(nom))) continue;
+    for (const m of st.getText(sf).matchAll(/\.slice\(0,\s*([0-9_]+)\)/g)) n.add(Number(m[1].replace(/_/g, '')));
+  }
+  return [...n].filter((x) => x >= 12 && x <= 1500).sort((a, b) => a - b);
+}
+
+test('quatrieme relecture, FILTRE (vrai filtre) : une traduction sure ENTIERE, coupee par la route, n atteint JAMAIS Modal sans etre reverifiee', async () => {
+  const idiomes = idiomesCoupables().slice(0, 2);
+  assert.ok(idiomes.length >= 1, 'idiome neutralise par le filtre, dont le premier mot seul est bloque');
+  const { appeler } = monterRoutesFiltreReel();
+  const fuites = [], debitsAuRefus = [], routesQuiRefusent = new Set();
+  let essais = 0;
+  for (const [nom, corps] of ROUTES_FILET) {
+    // coupes de la route avec chaque idiome ; une longueur neutre (150) avec le premier, pour toutes les routes
+    const cas = [...coupesDe(nom).flatMap((L) => idiomes.map((i) => [L, i])), [150, idiomes[0]]];
+    for (const [L, { premier, suite }] of cas) {
+      if (L < premier.length + 2) continue;
+      const tete = BOURRE(L - premier.length - 1) + ' ' + premier;
+      const traduction = tete + suite + ' and a calm evening';
+      if (!FILTRE.checkPromptSafety(traduction).safe || FILTRE.checkPromptSafety(tete).safe) continue;   // cas non constructible ici
+      const r = await appeler(nom, corps(FR_COUPE), traduction);
+      essais++;
+      if (r.status === 400) { routesQuiRefusent.add(nom); if (r.depenses.length) debitsAuRefus.push(`${nom} coupe ${L}`); }
+      const nonSures = r.envoye.flatMap(([, i]) => _chainesDe(i)).filter((s) => !FILTRE.checkPromptSafety(s).safe);
+      if (nonSures.length) fuites.push(`${nom} coupe ${L} : statut ${r.status}, ${nonSures.length} chaine(s) non sure(s) envoyee(s) a Modal`);
+    }
+  }
+  assert.deepEqual(fuites, []);
+  assert.deepEqual(debitsAuRefus, [], 'refus AVANT tout debit');
+  assert.ok(essais >= 30, `${essais} essais`);
+  for (const nom of ['handleGenerateBackView', 'handleMeshReshape', 'handleMeshTexVar', 'handleMeshRegionRetex']) {
+    assert.ok(routesQuiRefusent.has(nom), `${nom} refuse la chaine coupee (le banc a bien coupe un idiome)`);
+  }
+});
+
+test('quatrieme relecture : chaque texte traduit envoye a Modal a ete vu par le filtre TEL QU ENVOYE (coupe, blancs aux bords), toutes routes', async () => {
+  const { appeler } = monterRoutesFiltreReel();
+  const traduction = 'a knight with a lantern in the dark forest, ' + BOURRE(1500);
+  const nonVues = [], muettes = [];
+  for (const [nom, corps, cle] of ROUTES_FILET) {
+    const r = await appeler(nom, corps(FR_COUPE), traduction);
+    const textes = r.envoye.map(([, i]) => i && i[cle]).filter((v) => typeof v === 'string' && v);
+    if (r.status !== 200 || !textes.length || r.appels !== 1) {
+      muettes.push(`${nom} (${cle}) : statut ${r.status}, ${textes.length} texte(s) envoye(s), ${r.appels} appel(s) du modele`);
+      continue;
+    }
+    for (const t of textes) {
+      if (!r.verifies.includes(t)) nonVues.push(`${nom} (${cle}) : ${t.length} caracteres envoyes, jamais passes au filtre tels quels`);
+    }
+  }
+  assert.deepEqual(muettes, [], 'chaque route atteint Modal avec le texte traduit (sinon le test ne prouverait rien)');
+  assert.deepEqual(nonVues, []);
+});
+
+test('quatrieme relecture : TOUTE route qui passe un texte au filet de langue est dans le banc de coupe (une route ajoutee sans lui echoue ici)', () => {
+  const src = lireSource();
+  const sf = _tsFiltre.createSourceFile('worker.ts', src, _tsFiltre.ScriptTarget.ES2022, true, _tsFiltre.ScriptKind.TS);
+  const fonctions = new Map();
+  for (const st of sf.statements) if (_tsFiltre.isFunctionDeclaration(st) && st.name && st.body) fonctions.set(st.name.text, st.getText(sf));
+  const appelants = (motif) => [...fonctions].filter(([n, t]) => n !== motif && t.includes(motif + '(')).map(([n]) => n);
+  const routes = new Set(appelants('_filetLangue'));
+  if (routes.delete('_opAtlasGpu')) for (const n of appelants('_opAtlasGpu')) if (fonctions.get(n).includes('champTexteLibre')) routes.add(n);
+  const couvertes = new Set(ROUTES_FILET.map(([n]) => n));
+  assert.ok(routes.size >= 12, 'appelants trouves : ' + [...routes].join(', '));
+  assert.deepEqual([...routes].filter((n) => !couvertes.has(n)).sort(), [], 'route(s) au filet absente(s) de ROUTES_FILET');
+});
+

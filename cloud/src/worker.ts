@@ -12803,6 +12803,14 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
       }
     }
   }
+  /* Prompt EXACT de la route T-pose (quatrieme relecture du lot 2) : celui qui part a Modal (prompt enrichi sans blancs aux bords, sinon
+   * le texte brut) est verifie TEL QU'ENVOYE, comme toute chaine envoyee a Modal (_refusChaineEnvoyee). Le `prompt` (coupe a 512) et le
+   * `full_prompt` (coupe a 1 500) de insertUserAsset ne sont que l'historique du projet : ils ne partent jamais a Modal. */
+  const promptTpose = useTpose ? ((promptEnrichi ?? rawPrompt).toString().trim() || rawPrompt) : '';
+  if (useTpose) {
+    const refusTpose = await _refusChaineEnvoyee(env, user.id, promptTpose, unrestricted);
+    if (refusTpose) return refusTpose;
+  }
 
   // Pick the backend BEFORE the budget check — the budget cap is
   // Replicate-only (Modal has its own provider-side spend cap and
@@ -12877,7 +12885,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
         // Strict T-pose front — verbatim port of desktop generate_front_tpose.py.
         paths.push(await callModalTpose(env, user.id, {
           // prompt ENRICHI (style + gabarit) : le texte brut perdait le style choisi (cartoon…). Passe par le filet de langue.
-          prompt: (promptEnrichi ?? rawPrompt).toString().trim() || rawPrompt,
+          prompt: promptTpose,
           refImageUrl,
           seed: seedBase + i,
           cn_scale,
@@ -12985,6 +12993,9 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
       langueInterface: req.headers.get('x-fabmesh-langue') });
     if (filet.refus) return filet.refus;
     hint = filet.texte.slice(0, 400);
+    // la traduction, verifiee ENTIERE par le filet, vient d'etre COUPEE : la chaine envoyee repasse le filtre (quatrieme relecture)
+    const refusCoupe = await _refusChaineEnvoyee(env, user.id, hint, unrestricted);
+    if (refusCoupe) return refusCoupe;
   }
 
   // Pick backend BEFORE budget check (same pattern as text2image).
@@ -14019,9 +14030,10 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   const cost = await getPrice(env, conf.prixCle);
   // Un texte libre part dans un prompt SDXL : meme filtre que tout le reste.
   const libre = conf.texteLibre ? conf.texteLibre(corps) : '';
+  let unrestricted = false;
   if (libre) {
     const userState = await getParentalState(env, user.id);
-    const unrestricted = env.FABMESH_UNRESTRICTED === '1' || userState.unrestricted;
+    unrestricted = env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted;
     const safety = await _checkPromptSafetyAlerte(env, user.id, libre, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
@@ -14034,6 +14046,14 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
       if (filet.refus) return filet.refus;
       corps[conf.champTexteLibre] = filet.texte;
     }
+  }
+  /* Champs envoyes a Modal, calcules UNE fois : le corps de la requete les reprend TELS QUELS. champs() coupe le texte libre (Style a 200
+   * caracteres, prompt de la region a 300) : apres une traduction, la chaine envoyee n'est plus celle que le filet a verifiee. Elle repasse
+   * donc le filtre telle qu'envoyee (quatrieme relecture du lot 2, _refusChaineEnvoyee). */
+  const envoi = conf.champs(corps);
+  if (libre && conf.champTexteLibre) {
+    const refusCoupe = await _refusChaineEnvoyee(env, user.id, String(envoi[conf.champTexteLibre] ?? ''), unrestricted);
+    if (refusCoupe) return refusCoupe;
   }
 
   const remainingBudget = await checkAndIncrementModalSpend(env, conf.estimationUsd, user.id);
@@ -14061,7 +14081,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   };
   try {
     const url = env.MODAL_IMAGE_OP_URL.replace(/\/[^/]*$/, conf.route);
-    const body = JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, mesh_url: meshUrl, ...conf.champs(corps) });
+    const body = JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, mesh_url: meshUrl, ...envoi });
     const envoyer = () => fetch(url, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body,
       signal: AbortSignal.timeout(300_000),
@@ -14239,6 +14259,9 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
         langueInterface: req.headers.get('x-fabmesh-langue') });
     if (filet.refus) return filet.refus;
     texte = filet.texte.slice(0, 500);
+    // la traduction, verifiee ENTIERE par le filet, vient d'etre COUPEE : la chaine envoyee repasse le filtre (quatrieme relecture)
+    const refusCoupe = await _refusChaineEnvoyee(env, user.id, texte, env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted);
+    if (refusCoupe) return refusCoupe;
   }
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_RESHAPE, user.id);
@@ -24159,6 +24182,20 @@ async function _filetLangue(env: Env, userId: string, texte: string | string[],
   }
   console.log('[filet-langue] traduit', langues.join(','));
   return rendre({ textes: sorties, traduit: true, langues });
+}
+
+/** FILTRE DE CONTENU SUR LA CHAINE EXACTEMENT ENVOYEE A MODAL (2026-10-15, quatrieme relecture du lot 2 de la langue). Le filet verifie la
+ *  traduction ENTIERE ; quatre routes la COUPAIENT ensuite (vue de dos a 400 caracteres, Reshape a 500, Texture variants du maillage a
+ *  200, Re-texture d'une region a 300) et envoyaient a Modal une chaine que le filtre n'avait jamais vue. Or le filtre neutralise des
+ *  idiomes (_IDIOMES de nsfw_filter.ts) : une coupe au milieu de l'un d'eux laissait son premier mot, bloque SEUL, en fin de chaine, et
+ *  Modal, qui n'applique que le plancher, le recevait avec le statut 200 (8 chaines non sures sur le banc de la relecture). Avant le lot,
+ *  ces routes coupaient AVANT de verifier. Regle : toute chaine envoyee a Modal passe ce filtre TELLE QU'ENVOYEE, apres sa derniere coupe
+ *  ou retouche (le cout d'un passage du filtre). Rend la reponse de refus (400, meme forme que les autres refus du filtre), ou null. */
+async function _refusChaineEnvoyee(env: Env, userId: string, chaine: string, unrestricted: boolean): Promise<Response | null> {
+  if (!chaine) return null;
+  const s = await _checkPromptSafetyAlerte(env, userId, chaine, unrestricted);
+  if (s.safe) return null;
+  return json({ ok: false, success: false, error: s.reason ?? 'prompt blocked by content filter', blocked: s.blocked }, { status: 400 });
 }
 
 /* REDACTEUR DE LA FENETRE « NEW PROJECT » (2026-09-30). User : « il faut que ca genere aussi la description quand Auto est
