@@ -35,7 +35,10 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
     insertUserAsset: async (_e, _u, projet, genre) => { j.assets.push({ projet, genre }); },
     r2PathFromPublicUrl: (_e, u) => u,
   };
-  const w = chargerFonctions(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet'], dbl);
+  // negations de l'utilisateur (2026-10-14) : handleGenerateImage nettoie `negativeExtra` et le montre au filtre ; charges seulement s'ils existent
+  // (WORKER_SRC=<ancien worker> reste executable)
+  const negations = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_TERMES', 'NEG_MAX_CARS', 'NEG_SENSIBLES'].filter((n) => existe(n));
+  const w = chargerFonctions(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', ...negations], dbl);
   const env = { MODAL_TPOSE_URL: tposeUrl, MODAL_TEXT2IMAGE_URL: t2iUrl };
   const appeler = (corps) => w.handleGenerateImage(
     new Request('https://x.example/api/generate-image', { method: 'POST', body: JSON.stringify(corps) }), env);
@@ -263,7 +266,8 @@ test('les deux interfaces portent la case, cochee par defaut, et la rendent visi
     assert.match(j, /\(function _wireCaseTpose\(\) \{/, js);
     assert.match(j, /row\.style\.display = \(at === 'character'\) \? '' : 'none'/, js);
     assert.match(j, /function _optionsPose\(assetType\)/, js);
-    assert.match(j, /buildFullPrompt\([^)]*_optionsPose\(assetType\)\)/, js);
+    // l'appel peut choisir entre deux reglages (bureau : `moteur sans negatif ? _optionsAffichage(assetType) : _optionsPose(assetType)`), sur une seule ligne
+    assert.match(j, /buildFullPrompt\([^\n]*_optionsPose\(assetType\)\)/, js);
     assert.match(j, /cbTpose\.checked = !\(meta && meta\.tpose === false\)/, js);
   }
 });

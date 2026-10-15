@@ -1,0 +1,814 @@
+{
+ "description": "Lignes d'anciens gabarits de prompt qui portaient des segments negatifs, relevees dans l'historique git (git log -G sur src/renderer/index2.js, cloud/public/app/index2.js, modal_app/_prompts.py). Les gabarits n'ont plus AUCUNE negation depuis le commit 2bb8f2eb (2026-09-24).",
+ "lignes": [
+  {
+   "texte": "3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders",
+   "vue_de": "d750b055",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "3D game asset reference sheet, full body character sheet, long shot, full figure shot, wide establishing shot, distant camera, entire creature visible from head to feet to tail, body fills 60 percent of frame, isolated, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "3D game asset reference sheet, full body character sheet, long shot, full figure shot, wide establishing shot, distant camera, entire creature visible from head to feet to tail, body fills 60 percent of frame, ONE creature only, single instance, isolated, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot",
+   "vue_de": "d750b055",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, isolated, exactly six legs in total, three legs on the left side and three legs on the right side, six legs and no more, anatomically correct insect leg count, segmented body with distinct head thorax and abdomen, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, NOT eight legs, NOT a spider, NOT an arachnid, no extra legs, no doubled legs, no duplicated legs, no overlapping duplicate limbs, no mirrored extra legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no humanoid posture, NOT a front head-on view, NOT a portrait, NOT a close-up, NOT a headshot, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, exactly six legs in total, three legs on the left side and three legs on the right side, six legs and no more, anatomically correct insect leg count, segmented body with distinct head thorax and abdomen, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, NOT eight legs, NOT a spider, NOT an arachnid, no extra legs, no doubled legs, no duplicated legs, no overlapping duplicate limbs, no mirrored extra legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no humanoid posture, NOT a front head-on view, NOT a portrait, NOT a close-up, NOT a headshot, no second insect, no duplicate, no text, no UI",
+   "vue_de": "90606d2c",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, six legs, segmented body, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, top and side of the thorax and abdomen visible, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, exactly six legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no extra limbs, no humanoid posture, NOT a front head-on view, NOT a symmetric front view, NOT a portrait, NOT a close-up, NOT a headshot, no second insect, no duplicate, no text, no UI",
+   "vue_de": "53b50079",
+   "vue_jusqu_a": "c6cc234e",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, six legs, segmented body, hard exoskeleton, antennae, full body view, plain white background, even studio lighting, no shadows, exactly six legs, NO tail, no fur, NOT a mammal, NOT a quadruped, NOT a cat, NOT a dog, no extra limbs, no humanoid posture, no second insect, no duplicate, no text, no UI, NOT a portrait, NOT a close-up, NOT a headshot",
+   "vue_de": "d0b3853a",
+   "vue_jusqu_a": "d0b3853a",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "architectural building exterior, complete edifice, entire building visible from base to roof, wide establishing shot, long shot, distant camera, the whole structure fits inside the frame with clear margin on every side, building fills about 70 percent of frame, nothing cropped, not touching the frame edges, isolated, full structure, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "35f7dc1f",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "architectural building exterior, complete edifice, isolated, full structure, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town",
+   "vue_de": "23e92b87",
+   "vue_jusqu_a": "1c282b79",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, nothing cropped, plain white background, even studio lighting, no shadows, centered, strict front view, clean silhouette",
+   "vue_de": "dc2f76af",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "complete boat, isolated, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, even studio lighting, no shadows, no water, no wake, no horizon, centered, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "complete passenger aircraft, isolated, 3/4 isometric view, full body visible from nose to tail, both wings visible, tail fin visible, plain white background, even studio lighting, no shadows, no clouds, no horizon, no contrail, centered, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "complete vehicle, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "497a152c",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "flat icon, app icon, UI icon, isolated subject centered in square frame, transparent or pure white background, soft rim light, vibrant colors, clean silhouette, slight isometric 3/4 angle, glossy material, mobile / desktop application icon style, no text, no logo, no extra elements",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "full body shot from head to tail, entire creature visible head to feet, wide shot showing whole body, ONE creature only, single instance, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate, NO portrait, NO headshot, NO close-up, NO head only, NO face only",
+   "vue_de": "ee73ea3e",
+   "vue_jusqu_a": "ee73ea3e",
+   "fichiers": [
+    "cloud/public/app/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "full body shot from nose to tail, entire animal visible head to feet, whole body in frame, wildlife photography of ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, wide shot, distant camera, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI, NO portrait, NO headshot, NO close-up, NO head only, NO face only, NO bust shot, NO head and shoulders",
+   "vue_de": "ee73ea3e",
+   "vue_jusqu_a": "ee73ea3e",
+   "fichiers": [
+    "cloud/public/app/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "full body, isolated, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "497a152c",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "full structure, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "497a152c",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "hand-painted texture, WoW-style stylized, painterly diffuse, no realistic PBR maps, vibrant",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "84b62b36",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "isolated 3D character, full body, fully clothed, wearing a complete outfit, dressed in appropriate clothing, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no rear view inset",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "497a152c",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "497a152c",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "497a152c",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town",
+   "vue_de": "81b7a39e",
+   "vue_jusqu_a": "eeeb2910",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "497a152c",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "ONE animal only, single creature, only one instance, isolated, full body, all four legs on the ground, natural quadruped standing pose, side angle profile view, plain white background, even studio lighting, no shadows, no human stance, no T-pose, no upright posture, centered, clean silhouette, no text, no UI, no duplicate, no second animal",
+   "vue_de": "41da4867",
+   "vue_jusqu_a": "41da4867",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "ONE animal only, single instance, isolated, FULL BODY shown, complete animal from head to tail, all four legs visible, standing on all fours, full creature visible in frame, wide shot, animal photography full body, wildlife full-body photograph, plain white background, even studio lighting, no shadows, no humans, centered, side profile, clean silhouette, no text, no UI, no duplicate, NO close-up, NO portrait, NO headshot, NOT cropped, NOT zoomed on face, body and limbs clearly visible",
+   "vue_de": "bd514390",
+   "vue_jusqu_a": "bd514390",
+   "fichiers": [
+    "modal_app/_prompts.py"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "ONE building only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric angle, clean silhouette, no text, no UI, no duplicate, no second building",
+   "vue_de": "4c039fab",
+   "vue_jusqu_a": "9d55d58f",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "ONE building only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second building, not a village, not a town",
+   "vue_de": "057c0407",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "ONE car only, single vehicle, only one instance, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second car, no twin, no rear view inset",
+   "vue_de": "4c039fab",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "ONE complete boat only, single vessel, only one instance, isolated, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, even studio lighting, no shadows, no water, no wake, no horizon, centered, clean silhouette, no text, no UI, no duplicate, no second boat",
+   "vue_de": "727baee5",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "ONE complete passenger aircraft only, single plane, only one instance, isolated, 3/4 isometric view, full body visible from nose to tail, both wings visible, tail fin visible, plain white background, even studio lighting, no shadows, no clouds, no horizon, no contrail, centered, clean silhouette, no text, no UI, no duplicate, no second plane, no formation",
+   "vue_de": "727baee5",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "ONE creature only, single creature, one subject only, full body, isolated, plain white background, even studio lighting, no shadows, no other creatures, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second creature",
+   "vue_de": "35e7b044",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": false
+   }
+  },
+  {
+   "texte": "ONE creature only, single instance, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate",
+   "vue_de": "4c039fab",
+   "vue_jusqu_a": "00425bf2",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "ONE environment piece only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate",
+   "vue_de": "4c039fab",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "ONE item only, single item, only one instance, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate, no second item",
+   "vue_de": "3bebd897",
+   "vue_jusqu_a": "dc2f76af",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "ONE prop only, single instance, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate",
+   "vue_de": "4c039fab",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "one single building, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric angle, clean silhouette, no text, no UI",
+   "vue_de": "41eac40b",
+   "vue_jusqu_a": "41eac40b",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "one single creature, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI",
+   "vue_de": "41eac40b",
+   "vue_jusqu_a": "41eac40b",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "one single environment piece, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, angled view, clean silhouette, no text, no UI",
+   "vue_de": "41eac40b",
+   "vue_jusqu_a": "41eac40b",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "one single prop, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, angled view, clean silhouette, no text, no UI",
+   "vue_de": "41eac40b",
+   "vue_jusqu_a": "41eac40b",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "one single vehicle, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, angled side view, clean silhouette, no text, no UI",
+   "vue_de": "41eac40b",
+   "vue_jusqu_a": "41eac40b",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "one single weapon, isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI",
+   "vue_de": "41eac40b",
+   "vue_jusqu_a": "41eac40b",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "ONE structure only, single structure, only one instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate, no second structure",
+   "vue_de": "35e7b044",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": false
+   }
+  },
+  {
+   "texte": "ONE subject only, single instance, isolated, complete object, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second instance",
+   "vue_de": "9a007a9c",
+   "vue_jusqu_a": "9a007a9c",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": false
+   }
+  },
+  {
+   "texte": "ONE vehicle only, single vehicle, only one instance, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second vehicle, no twin",
+   "vue_de": "35e7b044",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": false
+   }
+  },
+  {
+   "texte": "ONE weapon only, single instance, isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI, no duplicate",
+   "vue_de": "4c039fab",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single flat icon, app icon, UI icon, ONE element only, isolated subject centered in square frame, transparent or pure white background, soft rim light, vibrant colors, clean silhouette, slight isometric 3/4 angle, glossy material, mobile / desktop application icon style, no text, no logo, no duplicate, no extra elements",
+   "vue_de": "4c039fab",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "single isolated 3D building, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric three-quarter view, clean silhouette, no text, no UI",
+   "vue_de": "7adae053",
+   "vue_jusqu_a": "93774a6f",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D character, full body, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI",
+   "vue_de": "3d015aec",
+   "vue_jusqu_a": "93774a6f",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D character, full body, T-pose neutral stance, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, isometric three-quarter view, clean silhouette, no text, no UI",
+   "vue_de": "7adae053",
+   "vue_jusqu_a": "4543f1c1",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D character, one character only, full body, fully clothed, wearing a complete outfit, dressed in appropriate clothing, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI",
+   "vue_de": "63f9689a",
+   "vue_jusqu_a": "42db0c02",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "single isolated 3D character, one character only, full body, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI",
+   "vue_de": "4c039fab",
+   "vue_jusqu_a": "02ee8f01",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "modal_app/_prompts.py",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D creature, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI",
+   "vue_de": "3d015aec",
+   "vue_jusqu_a": "93774a6f",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D creature, full body, neutral stance, plain white background, even studio lighting, no shadows, no other creatures, centered, isometric three-quarter view, clean silhouette, no text, no UI",
+   "vue_de": "7adae053",
+   "vue_jusqu_a": "4543f1c1",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D environment piece, full structure, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI",
+   "vue_de": "7adae053",
+   "vue_jusqu_a": "93774a6f",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D prop, full item, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI",
+   "vue_de": "7adae053",
+   "vue_jusqu_a": "93774a6f",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D vehicle, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI",
+   "vue_de": "7adae053",
+   "vue_jusqu_a": "93774a6f",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "single isolated 3D weapon, full weapon, plain white background, even studio lighting, no shadows, centered, side view, clean silhouette, no text, no UI",
+   "vue_de": "7adae053",
+   "vue_jusqu_a": "93774a6f",
+   "fichiers": [
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": true,
+    "web": true
+   }
+  },
+  {
+   "texte": "wildlife photography of ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, low camera angle eye-level with the animal, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI",
+   "vue_de": "00425bf2",
+   "vue_jusqu_a": "00425bf2",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  },
+  {
+   "texte": "wildlife photography of ONE animal only, single creature, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, head and tail at the same low height as the spine, tail extending behind, four legs supporting the body from below, low camera angle eye-level with the animal, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI",
+   "vue_de": "fe1941eb",
+   "vue_jusqu_a": "fe1941eb",
+   "fichiers": [
+    "cloud/public/app/index2.js",
+    "src/renderer/index2.js"
+   ],
+   "nettoye_par_l_ancien_code": {
+    "bureau": false,
+    "web": false
+   }
+  }
+ ]
+}
