@@ -657,12 +657,13 @@ function r2Lent(ms = 3) {
   r.put = async (k, v, o) => { await new Promise((x) => setTimeout(x, ms)); return put(k, v, o); };
   return r;
 }
-/** Faux Workers AI LENT (2 ms par appel) : les requetes concurrentes se chevauchent vraiment. */
-function fauxAILent(mode = 'ok') {
+/** Faux Workers AI LENT (2 ms par appel) : les requetes concurrentes se chevauchent vraiment. `ms` = 0 pour un scenario SEQUENTIEL : sous
+ *  Windows, setTimeout(2) dure ~16 ms, et les 4 020 traductions (5 morceaux chacune) du scenario b-1 prenaient 5 minutes de la suite (15/10). */
+function fauxAILent(mode = 'ok', ms = 2) {
   const appels = [];
   return { appels, async run(_m, e) {
     appels.push(e);
-    await new Promise((r) => setTimeout(r, 2));
+    if (ms > 0) await new Promise((r) => setTimeout(r, ms));
     if (mode === 'panne') throw new Error('quota');
     return { translated_text: 'EN<' + e.source_lang + '>:' + e.text };
   } };
@@ -723,7 +724,7 @@ test('seconde revue B3 : 100 generations SIMULTANEES (compte a 6 credits, une se
 
 test('seconde revue B3 : des comptes a 0 credit epuisent LEUR plafond du jour, jamais celui d un client PAYANT (avant : 422 pour lui)', async () => {
   const r2 = creerR2();
-  const m = monterComptes({ r2, utilisateur: { id: 'gratuit0', email: 'g', credits: 0 } });
+  const m = monterComptes({ r2, utilisateur: { id: 'gratuit0', email: 'g', credits: 0 }, ai: fauxAILent('ok', 0) });   // sequentiel
   let refuses = 0;
   for (let c = 0; c < 40; c++) {
     m.changerSession({ id: 'gratuit' + c, email: 'g', credits: 0 });
@@ -946,7 +947,7 @@ const corpsRequeteLangue = (url, corps, langue) => new Request('https://x.exampl
 
 test('troisieme relecture B3 (b-1) : 67 comptes inscrits (15 credits, rien paye) x 60 /api/translate : un client PAYANT est toujours traduit', async () => {
   const r2 = creerR2();
-  const m = monterComptes({ r2, payants: ['client-payant'] });
+  const m = monterComptes({ r2, payants: ['client-payant'], ai: fauxAILent('ok', 0) });   // sequentiel : sans latence simulee
   for (let c = 0; c < 67; c++) {
     m.changerSession({ id: 'inscrit-' + c, email: 'g', credits: 15 });
     for (let k = 0; k < 60; k++) await m.trad({ text: FR_4000, from: 'fr' });
