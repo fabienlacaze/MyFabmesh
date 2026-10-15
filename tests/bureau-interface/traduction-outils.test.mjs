@@ -435,7 +435,8 @@ for (const plateforme of ['bureau', 'web']) {
         maskOverlayCanvas: { width: 8, height: 8 },
         maskOverlayCtx: { getImageData: (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4).fill(255) }) },
         _alerte: (m) => I.journal.toasts.push({ genre: 'alerte', message: String(m) }),
-        _closeMask() {}, addJob: () => ({ id: 'travail-masque' }), completeJob() {}, showLog() {},
+        _closeMask() { I.journal.fermeturesMasque = (I.journal.fermeturesMasque || 0) + 1; },
+        addJob: () => ({ id: 'travail-masque' }), completeJob() {}, showLog() {},
       }, I.journal);
       // eslint-disable-next-line no-new-func
       const h = new Function('__portee', 'with (__portee) { return (__code) => eval(__code); }')(portee)('(' + g.code + ')');
@@ -452,9 +453,12 @@ for (const plateforme of ['bureau', 'web']) {
     const ok = await essai();
     assert.equal(ok.appels('maskInpaint').length, 1, JSON.stringify(ok.journal.toasts));
     assert.equal(ok.appels('maskInpaint')[0].prompt, 'EN:une épée avec des runes');
+    assert.equal(ok.journal.fermeturesMasque, 1, 'envoi : la fenetre du masque se ferme');
     const annule = await essai({ traduire: traducteurEnPanne, choix: ['annuler'] });
     assert.equal(annule.journal.fenetres.length, 1);
     assert.equal(annule.appels('maskInpaint').length, 0, 'annule : rien n est lance');
+    // revue du 2026-10-14 : annuler apres un echec de traduction GARDE la fenetre du masque (avant : fermee avant la traduction, masque perdu)
+    assert.equal(annule.journal.fermeturesMasque || 0, 0, 'annule : la fenetre du masque reste ouverte');
     const tq = await essai({ traduire: traducteurEnPanne, choix: ['tel-quel'] });
     assert.equal(tq.appels('maskInpaint')[0].prompt, 'une épée avec des runes');
     if (site) assert.equal(tq.appels('maskInpaint')[0].langueVerifiee, true);
@@ -493,5 +497,44 @@ for (const plateforme of ['bureau', 'web']) {
     fr.evaluer('_npAutoSync')();
     assert.equal(fr.page.document.getElementById('np-asset-type').value, 'building');
     assert.equal(fr.journal.traductions.length, 0);
+  });
+}
+
+// Revue du 2026-10-14 : la fenetre « traduction impossible » s'ouvre PAR-DESSUS la fenetre du masque ; Echap doit annuler la traduction
+// sans fermer la fenetre du masque (le gestionnaire clavier du masque la fermait aussi : le masque peint etait perdu).
+for (const plateforme of ['bureau', 'web']) {
+  test(`${plateforme} : Paint-mask — Echap sur la fenetre de traduction ne ferme pas la fenetre du masque`, () => {
+    const src = readFileSync(OUTILS_EDITION[plateforme], 'utf-8');
+    const ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'script' });
+    let code = null;
+    const pile = [ast];
+    while (pile.length && !code) {
+      const n = pile.pop();
+      if (n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && n.callee.object.type === 'Identifier'
+          && n.callee.object.name === 'document' && n.callee.property.name === 'addEventListener' && n.arguments[0]?.value === 'keydown') {
+        const c = src.slice(n.arguments[1].start, n.arguments[1].end);
+        if (/maskModal/.test(c) && /_closeMask\(\)/.test(c)) code = c;
+      }
+      for (const k of Object.keys(n)) {
+        const v = n[k];
+        if (Array.isArray(v)) { for (const x of v) if (x && typeof x.type === 'string') pile.push(x); }
+        else if (v && typeof v.type === 'string') pile.push(v);
+      }
+    }
+    assert.ok(code, 'gestionnaire clavier du masque introuvable');
+    const essai = (confirmationOuverte) => {
+      let fermetures = 0;
+      const classes = (cachee) => ({ contains: (c) => c === 'hidden' && cachee });
+      const maskModal = { classList: classes(false) };
+      const confirmation = { classList: classes(!confirmationOuverte) };
+      const document = { getElementById: (id) => (id === 'modal-confirm' ? confirmation : null) };
+      // eslint-disable-next-line no-new-func
+      const h = new Function('maskModal', 'document', '_closeMask', '_maskMgr', 'updateMaskApplyBtn', 'return (' + code + ');')(
+        maskModal, document, () => { fermetures++; }, { undo() {} }, () => {});
+      h({ key: 'Escape', target: { tagName: 'BUTTON' }, preventDefault() {} });
+      return fermetures;
+    };
+    assert.equal(essai(true), 0, 'fenetre de traduction ouverte : Echap ne ferme pas le masque');
+    assert.equal(essai(false), 1, 'sans fenetre par-dessus : Echap ferme le masque, comme avant');
   });
 }

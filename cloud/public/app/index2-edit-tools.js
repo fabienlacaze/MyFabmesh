@@ -536,6 +536,9 @@
     // Keyboard: Esc close, plain Z undo (legacy shortcut)
     document.addEventListener('keydown', function (e) {
       if (!maskModal || maskModal.classList.contains('hidden')) return;
+      // fenetre de confirmation ouverte PAR-DESSUS (« traduction impossible ») : Echap la ferme elle, pas la fenetre du masque
+      var conf = document.getElementById('modal-confirm');
+      if (conf && !conf.classList.contains('hidden')) return;
       var target = e.target;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
         if (e.key === 'Escape') { target.blur(); }
@@ -560,6 +563,7 @@
     var mApply = document.getElementById('mask-apply');
     if (mApply) mApply.addEventListener('click', function () {
       console.log('[edit-tools] mask Apply click, imagePath=', maskCtx.imagePath);
+      if (maskCtx.enTraduction) return;   // second clic pendant la traduction du « Replace with »
 
       var imgPath = maskCtx.imagePath;
       if (!imgPath) {
@@ -603,8 +607,8 @@
       var promptText = promptEl ? promptEl.value.trim() : '';
       var langueVerifiee = false;
 
-      _closeMask();
-
+      // La fenetre du masque reste OUVERTE pendant la traduction du « Replace with » : si l'utilisateur annule apres un echec, il garde son
+      // masque (revue du 2026-10-14 ; avant, _closeMask() precedait la traduction et annuler faisait tout perdre).
       function runInpaint() {
         var job;
         try { job = addJob('Manual mask inpaint', 'inpaint', imgPath); }
@@ -648,13 +652,17 @@
       // « Replace with » TRADUIT avant l'envoi (2026-10-13, lot 2 de l'audit de la langue, TRADUCTION-05 : il ne l'etait nulle part).
       // Echec : l'utilisateur choisit (Reessayer / Envoyer tel quel) ; annule = rien n'est lance. Vide = « juste effacer ».
       if (promptText && typeof window.fabmeshTraduirePourGeneration === 'function') {
+        maskCtx.enTraduction = true;
         window.fabmeshTraduirePourGeneration(promptText).then(function (tr) {
-          if (!tr) return;
+          maskCtx.enTraduction = false;
+          if (!tr) return;   // annule : rien n'est lance, la fenetre du masque reste ouverte
           promptText = tr.texte;
           langueVerifiee = !!tr.telQuel;
+          _closeMask();
           lancer();
-        }, function () { lancer(); });
+        }, function () { maskCtx.enTraduction = false; _closeMask(); lancer(); });
       } else {
+        _closeMask();
         lancer();
       }
     });
