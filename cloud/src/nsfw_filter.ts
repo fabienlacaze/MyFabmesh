@@ -79,6 +79,18 @@
  *    du coq durcie (determinant juste avant, aucun verbe ni adjectif de `GARDE_COQ`).
  *  - Racines de la production retablies : « infant* », « rape* », « spogliat* » (« infantry » et « rapeseed » a part).
  *
+ * 2026-10-15 — CONTROLE EXHAUSTIF DE NON-RECUL (chaque terme et chaque racine des listes de la production, mot par mot du
+ * vocabulaire CLIP ; chaque forme d'age que lit la production ; build/bancs/moderation/banc_non_recul.mjs --exhaustif) :
+ *  - AGES : un nombre en lettres a double sens n'est ecarte qu'apres un prefixe ANGLAIS (`PREFIXES_AGE_ANGLAIS` x
+ *    `NOMBRES_AMBIGUS` : « aged elf », « ages due », « age um », « Moyen Age, une », « an age once lost ») et sans unite de
+ *    temps derriere ; « Alter elf », « edad once », « eta di tre », « idade um », « aged one », « age : un an » sont de nouveau
+ *    des ages (la production les lisait).
+ *  - TOURNURES DE FERME ET OUTILS : les expressions balisees <coq> et <personne> ne retirent plus leur mot quand le texte a un
+ *    contexte sexuel, ou qu'il soit (`CONTEXTE_DESACTIVATION`, termes de contexte sexuel) : « a cock and two hens, a woman sucking
+ *    it », « pussy cats, sexy », « paint stripper, sexy pole dance » (la garde ne lisait que les mots qui precedent).
+ *  - RACINES de la production retablies : « stabb* » (« stabbings »), « seminu* » (« seminudismo ») ; « seminuovo » et « seminuevo »
+ *    (semi-neuf) a part (`IDIOMES_RACINES`).
+ *
  * Le contrat de retour ne change pas : { safe, blocked?, reason? }. Deux
  * champs OPTIONNELS s'y ajoutent (IA-04) pour que l'appelant puisse compter
  * les blocages par compte : `categorie` et `hardFloor`.
@@ -373,7 +385,9 @@ const _IDIOMES = new RegExp('(?:^| )(?:' + IDIOMES.join('|') + ')(?= |$)', 'g');
 // refusait). Une fin inconnue garde le mot entier, lu par les termes « *nude* ».
 const IDIOMES_RACINES: string[] = [
   'nudel(?=(?:n|holz|holzer|suppe|suppen|salat|salate|teig|auflauf|gericht|gerichte|maschine|walker|sieb|topf|topfe|toepfe|nest|nester|pfanne|pfannen|brett|platte|sorte|sorten|wasser|form|formen|bar|laden|rezept|rezepte|chen)?(?![a-z]))',
-  'nacktschneck', 'nacktmull', 'nacktsamer', 'nackthund', 'naaktslak', 'spogliatoi'];
+  'nacktschneck', 'nacktmull', 'nacktsamer', 'nackthund', 'naaktslak', 'spogliatoi',
+  // 2026-10-15 : « seminu* » redevient une racine (comme en production) ; « seminuovo » (it) et « seminuevo » (es) = semi-neuf
+  'seminuov', 'seminuev'];
 const _IDIOMES_RACINES = new RegExp('(?:^| )(?:' + IDIOMES_RACINES.join('|') + ')(?=[a-z]*(?: |$))', 'g');
 
 // EXPRESSIONS SURES : expressions courantes qui contiennent un terme du filtre sans en etre un. 2026-10-13 : le mot marque « ! »
@@ -1048,7 +1062,7 @@ const NU_FORT: string[] = [
   'unterwasche', 'sinnlich*', 'verfuhrerisch*', 'busen', 'titten', 'unterhose*', 'schlupfer*', 'reizwasche', 'entblosst*',
   'barbusig*', 'nackig*', 'fkk', 'geschlechtsverkehr', 'vergewaltig*', 'ficken', 'fickt', 'gefickt',
   // portugais (« nua », « nuas » : NU_EXACTS)
-  'seminu', 'seminus', 'seminua', 'seminuas', 'seminude*', 'seminudo*', 'seminuda*', 'seminudi', 'sem roupa*', 'calcinha*',
+  'seminu*', 'sem roupa*', 'calcinha*',
   'roupa intima', 'peitos', 'seios', 'pelad*', 'de cueca', 'de cuecas', 'em cueca', 'em cuecas', 'despido', 'despida', 'despidos', 'despidas', 'nuazinh*',
   'trajes intimos', 'estupr*',
   // italien
@@ -1277,10 +1291,18 @@ const _NOMBRES_LETTRES: string[] = [
   'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto', 'dieci', 'undici', 'dodici', 'tredici', 'quattordici', 'quindici',
   'sedici', 'diciassette',
 ];
-// Nombres en lettres qui sont AUSSI des mots courants (« aged elf », « age um bikini », « ages due ») : lus comme un age
-// seulement devant une unite (« elf Jahre alt »), jamais apres un simple « aged » / « age of » (2026-10-13, MODERATION-05).
-const NOMBRES_AMBIGUS: string[] = ['elf', 'um', 'uma', 'un', 'une', 'uno', 'una', 'ein', 'eine', 'eins', 'one', 'tre', 'tres', 'sei',
-  'due', 'dos', 'once', 'neuf', 'sept', 'otto'];
+// Nombres en lettres qui sont AUSSI des mots courants apres un prefixe ANGLAIS (« aged elf », « the age of elf », « ages due »,
+// « age um bikini », « Moyen Age, une epee », « an age once forgotten ») : pas lus comme un age apres `PREFIXES_AGE_ANGLAIS`
+// (2026-10-13, MODERATION-05) ; toujours lus devant une unite (« elf Jahre alt »). 2026-10-15 (controle exhaustif des ages de
+// la production) : la liste valait
+// pour TOUS les prefixes et comptait aussi « one », « once », « tres », « otto »... : « eine Person, Alter elf », « edad once »,
+// « eta di tre », « idade um », « a person aged one » perdaient l'age (la production les lisait) ; apres un prefixe d'une autre
+// langue, tout nombre est lu.
+const NOMBRES_AMBIGUS: string[] = ['elf', 'due', 'um', 'un', 'une', 'once'];
+// ... sauf suivis d'une unite de temps (« age : un an », « aged elf Jahre ») : alors un age, comme en production.
+const UNITES_APRES_AMBIGU: string[] = ['an', 'ans', 'annees?', 'mois', 'semaines?', 'jours?', 'anos?', 'ann[oi]', 'jahre?', 'years?', 'months?',
+  'mes', 'meses', 'mesi', 'mese', 'monate?', 'weeks?', 'wochen?'];
+const PREFIXES_AGE_ANGLAIS: string[] = ['aged?', 'age of', 'ages', 'just turned'];
 // Ce qui suit un nombre et en fait un GRAND nombre (« aged ten thousand years », « aged 10 000 years ») : pas un age < 18.
 // 2026-10-14 (quatrieme relecture, R1) : en chiffres, seulement un groupe de TROIS chiffres suivi d'une unite ; avant, un chiffre
 // quelconque suffisait et « aged 12, 2 ponytails » ou « (aged:1.3) 12 » perdaient l'age (la production les lisait).
@@ -1342,8 +1364,8 @@ const DUREES_NON_AGE: string[] = [
 ];
 // Mineurs ambigus qui sont des ADJECTIFS (« un jeune guerrier, dix ans de guerre ») : ils ne font pas lire une duree comme un age.
 const ADJECTIFS_JEUNESSE: string[] = ['young', 'youth', 'youthful', 'jeune', 'jeunes', 'joven', 'jovenes', 'kind'];
-const PREFIXES_AGE: string[] = ['aged?', 'age of', 'ages', 'age de', 'agee de', 'agee', 'edad de', 'edad', 'alter von', 'alter', 'eta di',
-  'idade de', 'idade', 'just turned'];
+// Prefixes des autres langues (fr, es, de, it, pt) : tout nombre de 0 a 17, en chiffres ou en lettres, est lu apres eux.
+const PREFIXES_AGE: string[] = ['age de', 'agee de', 'agee', 'edad de', 'edad', 'alter von', 'alter', 'eta di', 'idade de', 'idade'];
 // Allemand compose : « zehnjaehrig », « elfjaehrige » (le nombre colle a l'unite).
 const NOMBRES_COMPOSES_DE: string[] = ['ein', 'zwei', 'drei', 'vier', 'funf', 'fuenf', 'sechs', 'sieben', 'acht', 'neun', 'zehn', 'elf',
   'zwolf', 'zwoelf', 'dreizehn', 'vierzehn', 'funfzehn', 'fuenfzehn', 'sechzehn', 'siebzehn'];
@@ -1359,15 +1381,17 @@ const PREFIXES_AGE_UNICODE: string[] = ['عمره', 'عمرها', 'بعمر', '�
 const _alt = (l: string[]) => '(?:' + l.join('|') + ')';
 const _parLongueur = (l: string[]) => Array.from(new Set(l)).sort((a, b) => b.length - a.length);
 const _NB_LETTRES = '(?<![a-z])' + _alt(_parLongueur(_NOMBRES_LETTRES).map(_echapper)) + '(?![a-z])';
-const _NB_LETTRES_SURS = '(?<![a-z])' + _alt(_parLongueur(_NOMBRES_LETTRES.filter((x) => !NOMBRES_AMBIGUS.includes(x))).map(_echapper))
-  + '(?![a-z])';
+const _NB_LETTRES_SURS = '(?<![a-z])(?:' + _alt(_parLongueur(_NOMBRES_LETTRES.filter((x) => !NOMBRES_AMBIGUS.includes(x))).map(_echapper))
+  + '|' + _alt(NOMBRES_AMBIGUS) + '(?= ' + _alt(UNITES_APRES_AMBIGU) + '(?![a-z])))(?![a-z])';
 const _NB_CHIFFRES = '(?<![0-9])(?:1[0-7]|0?[0-9])(?![0-9])';
 const _PAS_GRAND = '(?! ?' + _alt(GRANDS_NOMBRES) + '(?![a-z]))';
 const _NB = '(?:' + _NB_CHIFFRES + '|' + _NB_LETTRES + ')' + _PAS_GRAND;
-const _NB_APRES_PREFIXE = '(?:' + _NB_CHIFFRES + '|' + _NB_LETTRES_SURS + ')' + _PAS_GRAND;
+const _NB_APRES_PREFIXE_ANGLAIS = '(?:' + _NB_CHIFFRES + '|' + _NB_LETTRES_SURS + ')' + _PAS_GRAND;
 const _UNITE_ROMANE = _alt(UNITES_AGE_ROMANES) + '(?![a-z])(?! ' + _alt(COMPLEMENTS_DE) + ' ' + _alt(DUREES_NON_AGE) + '(?![a-z]))';
 const _UNITE = '(?:' + _alt(UNITES_AGE) + '(?![a-z])|' + _UNITE_ROMANE + ')';
-const _RE_AGE = new RegExp('(?:^| )' + _NB + ' ?' + _UNITE + '|(?:^| )' + _alt(PREFIXES_AGE) + ' ?' + _NB_APRES_PREFIXE + '(?![a-z0-9])'
+const _RE_AGE = new RegExp('(?:^| )' + _NB + ' ?' + _UNITE
+  + '|(?:^| )' + _alt(PREFIXES_AGE_ANGLAIS) + ' ?' + _NB_APRES_PREFIXE_ANGLAIS + '(?![a-z0-9])'
+  + '|(?:^| )' + _alt(PREFIXES_AGE) + ' ?' + _NB + '(?![a-z0-9])'
   + '|(?:^| )' + _alt(NOMBRES_COMPOSES_DE) + 'jahrig');
 /** « N ans / anos / anni / mois » quel que soit le complement (durees comprises) : lu comme un age quand un mineur ambigu NOMME
  *  ou un indice est dans le texte (2026-10-14, seconde relecture B2). */
@@ -1427,8 +1451,7 @@ const GENERAL_SEXUEL_DUR: string[] = [
   // phrases de nudite et autres langues (IA-02)
   'wearing nothing', 'wears nothing', 'full frontal', 'birthday suit', 'in the nude', 'unclad', 'bare chest*', 'bare breast*',
   'only body paint', 'scantily clad', 'barely clothed',
-  '*desnud*', '*nackt*', 'nudo', 'nuda', 'nudi', 'nudita', 'seminu', 'seminus', 'seminua', 'seminuas', 'seminude*', 'seminudo*',
-  'seminuda*', 'seminudi', 'denud*', 'deshabill*',
+  '*desnud*', '*nackt*', 'nudo', 'nuda', 'nudi', 'nudita', 'seminu*', 'denud*', 'deshabill*',
   '*pornograf*', '*pornograph*', 'erotisch*', 'sinnlich*', 'senos', 'titten', 'tetas', 'tette', 'spogliat*',
   'spogliarsi', 'spogliarell*', 'svestit*',
   // 2026-10-13 (M1, MODERATION-01) : actes et anatomie explicites, nudite d'autres langues
@@ -1466,7 +1489,7 @@ const CONTEXTE_SEXUEL_FAIBLE: string[] = ['sexy', 'sensual*', 'seductive', 'prov
 // Ambigu, VIOLENCE / drogue / jeu : bloque seulement avec un enfant, un terme sexuel explicite ou un terme du plancher.
 const GENERAL_CTX_VIOLENCE: string[] = [
   'blood', 'bloody', 'bleed*', 'murder*', 'kill*', 'torture*', 'torturer', 'cannibal*', 'flesh', 'corpse*', 'cadaver*', 'dead body',
-  'death scene', 'execution', 'hanging', 'strangul*', 'suffocate', 'drown*', 'stab', 'stabs', 'stabbed', 'stabbing', 'stabber*',
+  'death scene', 'execution', 'hanging', 'strangul*', 'suffocate', 'drown*', 'stab', 'stabs', 'stabb*',
   'slash*', 'wound*', 'injury', 'brutal*',
   'savage*', 'slaughter*', 'meurtre*', 'tuer', 'mort', 'cadavre*', 'sang', 'sanglant*', 'violence', 'violent*', 'cruaut*',
   'drug', 'drugs', 'crack', 'snort', 'overdose', 'drogue*', 'stupefi*', 'bomb', 'bombing', 'isis', 'jump off',
@@ -1500,6 +1523,15 @@ const PERSONNES_DESACTIVATION: string[] = ['women', 'men', 'people', 'persons', 
   'his', 'hers', 'herself', 'himself', 'guy', 'guys', 'gal', 'gals', 'ladies', 'females', 'males', 'dancer*', 'model', 'models',
   'wife', 'husband', 'girlfriend', 'boyfriend', 'mother', 'father', 'mom', 'dad', 'sister', 'brother', 'teacher', 'nurse', 'maid',
   'waitress', 'farmer*', 'worker*', 'elle', 'il', 'ella', 'el', 'sie', 'er', 'ela', 'ele', 'lei', 'lui'];
+// CONTEXTE SEXUEL qui desactive les expressions sures balisees <coq>, <chantier> et <personne> (2026-10-15) : la garde du coq ne
+// lisait que les mots qui PRECEDENT la tournure ; « a cock and two hens, a woman sucking it », « pussy cats, sexy », « paint stripper,
+// sexy pole dance » passaient (la production refusait le mot partout). Un de ces mots, OU QU'IL SOIT, ou un terme de contexte sexuel
+// (GENERAL_CTX_SEXUEL, CONTEXTE_SEXUEL_FAIBLE), et la tournure ne retire plus rien. Les scenes de ferme sans ces mots restent
+// une question de politique (« a farm kid feeding a <coq> and two hens »).
+const CONTEXTE_DESACTIVATION: string[] = ['suck*', 'lick*', 'stroking', 'jerking', 'jerk off', 'jerks off', 'jerked off', 'fondl*',
+  'deepthroat*', 'deep throat*', 'gagging', 'swallowing', 'throbbing', 'veiny', 'horny', 'aroused', 'moaning', 'moans', 'worshipping',
+  'worshiping', 'pole', 'poles', 'pole danc*', 'dancing', 'dance', 'dances', 'dancer*', 'twerk*', 'naughty', 'slutty', 'steamy',
+  'lustful', 'lust', 'orgasmic', 'erotically', 'sexually', 'oiled', 'wet t shirt'];
 const NUDITE_EXTREME: string[] = ['without clothes', 'no clothes', 'without clothing', 'no clothing', 'unclothed', 'fully exposed',
   'spread legs', 'spanked', 'sans vetement*', 'sans habit*', 'sin ropa', 'ohne kleidung', 'ohne kleider', 'senza vestiti',
   'sem roupa*'];
@@ -1542,6 +1574,7 @@ const T_DURS_AUTRES: Liste = _fusionner(
 );
 const T_PERSONNES = _compiler(PERSONNES, 'combinaison');
 const T_PERSONNES_DESACTIVATION = _fusionner(T_PERSONNES, _compiler(PERSONNES_DESACTIVATION, 'combinaison'));
+const T_CONTEXTE_DESACTIVATION = _fusionner(T_CTX_SEXUEL, T_CTX_SEXUEL_FAIBLE, _compiler(CONTEXTE_DESACTIVATION, 'contexte'));
 const T_NUDITE_EXTREME = _compiler(NUDITE_EXTREME, 'combinaison');
 const T_VIOLENCE_ENFANT_GENERAL = _compiler(VIOLENCE_ENFANT_GENERAL, 'mineur_violence');
 const _PLANCHER_COLLES_ECRASES = PLANCHER_COLLES.map((s) => s.replace(/([a-z])\1+/g, '$1'));
@@ -1554,9 +1587,13 @@ const _PLANCHER_COLLES_ECRASES = PLANCHER_COLLES.map((s) => s.replace(/([a-z])\1
  *  (« \b » s'arrete sur une lettre accentuee) ; les tournures du viol ajoutees au filtre general par le lot y signalaient « a rape
  *  field » (colza), « the rape flowers », « un violín » (espagnol). Elles restent dans le filtre general (HORS_LISTE_PLATE). */
 const HORS_LISTE_PLATE: string[] = ['the rape', 'a rape', 'un viol'];
+// 2026-10-15 : mots ENTIERS que l'interface lisait en production (« masturbat », « semidesnud ») ou avant le retour de la racine
+// « seminu* » (« seminua », « seminude »...) : la liste plate ne lit pas les racines comme des debuts de mot (« \b...\b »).
+const AJOUTS_LISTE_PLATE: string[] = ['masturbat', 'masturbation', 'masturbating', 'semidesnud', 'semidesnudo', 'semidesnuda',
+  'semidesnudos', 'semidesnudas', 'seminus', 'seminua', 'seminuas', 'seminude', 'seminudes', 'seminudo', 'seminuda', 'seminudi'];
 export const NSFW_KEYWORDS: string[] = Array.from(new Set([
   ...GENERAL_SEXUEL_DUR, ...NU_EXACTS, ...GENERAL_VIOLENCE_DUR, ...GENERAL_DROGUE_DUR, ...GENERAL_EXTREMISME_DUR,
-  ...GENERAL_AUTOBLESSURE_DUR, ...GENERAL_HAINE_DUR, ...GENERAL_ARMES_DUR,
+  ...GENERAL_AUTOBLESSURE_DUR, ...GENERAL_HAINE_DUR, ...GENERAL_ARMES_DUR, ...AJOUTS_LISTE_PLATE,
 ].map(_noyauSource))).filter((k) => !HORS_LISTE_PLATE.includes(k));
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1588,12 +1625,19 @@ function _vuesDesactivees(lecture: Lecture, desactivees: string[]): VuesPlancher
   return touche ? lecture.nets.map((n) => _vuesPlancher(n, desactivees)) : lecture.vues;
 }
 
+/** Vrai si le texte a un contexte sexuel (termes de contexte, ou qu'ils soient) : les expressions balisees <coq>, <chantier> et
+ *  <personne> ne retirent plus leur mot (2026-10-15). */
+function _contexteSexuel(vs: VuesPlancher[]): boolean {
+  return !!_chercher(vs.flatMap((v) => [v.chiffres, v.leetI, v.leetL, ...v.separees]), T_CONTEXTE_DESACTIVATION);
+}
+
 /** Plancher d'une lecture : quand un mineur ou un age est lu, les expressions balisees <mineur> (colza, « pelada de praia ») ne
- *  retirent plus leur mot (« child rape fields », « uma menina pelada de praia » : la production les refusait au plancher). */
+ *  retirent plus leur mot (« child rape fields », « uma menina pelada de praia » : la production les refusait au plancher) ; avec
+ *  un contexte sexuel en plus, ni les tournures de ferme ou de chantier, ni celles balisees <personne> (2026-10-15). */
 function _plancherLecture(lecture: Lecture): PromptSafetyResult {
   const r = _plancher(lecture.vues);
   if (!r.safe || !_mineurLu(lecture.vues)) return r;
-  const vs = _vuesDesactivees(lecture, ['mineur']);
+  const vs = _vuesDesactivees(lecture, _contexteSexuel(lecture.vues) ? ['mineur', 'coq', 'chantier', 'personne'] : ['mineur']);
   return vs === lecture.vues ? r : _plancher(vs);
 }
 
@@ -1676,12 +1720,14 @@ export function checkPromptSafety(
   if (unrestricted) return { safe: true };  // `unrestricted` ne leve que les filtres SOUPLES
 
   // Expressions sures balisees (quatrieme relecture du 14/10, R4, R5) : <mineur> ignorees quand un mineur ou un age est lu,
-  // <personne> (decapant, tournures de ferme) quand une personne ou un mineur est nomme (« a woman sucking a <coq> and two hens »,
-  // « a woman with paint <stripper> » : la production les refusait).
+  // <personne> (decapant, mots sexuels) quand une personne ou un mineur est nomme (« a woman with paint <stripper> » : la production
+  // les refusait) ; <coq>, <chantier> et <personne> quand le texte a un contexte sexuel, ou qu'il soit (2026-10-15 : « a <coq> and
+  // two hens, a woman sucking it », « pussy cats, sexy »).
   const mineurLu = _mineurLu(lecture.vues);
-  const personneLue = mineurLu
+  const contexte = _contexteSexuel(lecture.vues);
+  const personneLue = mineurLu || contexte
     || !!_chercher(lecture.vues.flatMap((v) => [v.chiffres, v.leetI, v.leetL, ...v.separees]), T_PERSONNES_DESACTIVATION);
-  const desactivees = mineurLu ? ['mineur', 'personne'] : (personneLue ? ['personne'] : []);
+  const desactivees = [...(mineurLu ? ['mineur'] : []), ...(personneLue ? ['personne'] : []), ...(contexte ? ['coq', 'chantier'] : [])];
 
   // Toutes les lectures du texte (troisieme relecture du 14/10) : la principale, celles ou les caracteres effaces ou changes
   // separent les mots, et chacune sans la syntaxe de poids collee dans un mot (revue du 14/10, B1).

@@ -799,17 +799,21 @@ def _par_longueur(liste):
 
 
 _NB_LETTRES = "(?<![a-z])" + _alt(re.escape(x) for x in _par_longueur(NOMBRES_LETTRES)) + "(?![a-z])"
-_NB_LETTRES_SURS = ("(?<![a-z])" + _alt(re.escape(x) for x in _par_longueur([x for x in NOMBRES_LETTRES if x not in NOMBRES_AMBIGUS]))
-                    + "(?![a-z])")
+# Apres un prefixe ANGLAIS, les nombres a double sens (« aged elf », « Moyen Age, une ») ne sont lus que devant une unite de
+# temps (« age : un an ») ; apres un prefixe d'une autre langue, tout nombre est lu (2026-10-15, controle exhaustif des ages).
+_NB_LETTRES_SURS = ("(?<![a-z])(?:" + _alt(re.escape(x) for x in _par_longueur([x for x in NOMBRES_LETTRES if x not in NOMBRES_AMBIGUS]))
+                    + "|" + _alt(NOMBRES_AMBIGUS) + "(?= " + _alt(UNITES_APRES_AMBIGU) + "(?![a-z])))(?![a-z])")
 _NB_CHIFFRES = "(?<![0-9])(?:1[0-7]|0?[0-9])(?![0-9])"
 _PAS_GRAND = "(?! ?" + _alt(GRANDS_NOMBRES) + "(?![a-z]))"
 _NB = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES + ")" + _PAS_GRAND
-_NB_APRES_PREFIXE = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES_SURS + ")" + _PAS_GRAND
+_NB_APRES_PREFIXE_ANGLAIS = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES_SURS + ")" + _PAS_GRAND
 _UNITE_ROMANE = (_alt(UNITES_AGE_ROMANES) + "(?![a-z])(?! " + _alt(COMPLEMENTS_DE) + " " + _alt(DUREES_NON_AGE)
                  + "(?![a-z]))")
 _UNITE = "(?:" + _alt(UNITES_AGE) + "(?![a-z])|" + _UNITE_ROMANE + ")"
-_RE_AGE = re.compile("(?:^| )" + _NB + " ?" + _UNITE + "|(?:^| )" + _alt(PREFIXES_AGE) + " ?" + _NB_APRES_PREFIXE
-                     + "(?![a-z0-9])" + "|(?:^| )" + _alt(NOMBRES_COMPOSES_DE) + "jahrig")
+_RE_AGE = re.compile("(?:^| )" + _NB + " ?" + _UNITE
+                     + "|(?:^| )" + _alt(PREFIXES_AGE_ANGLAIS) + " ?" + _NB_APRES_PREFIXE_ANGLAIS + "(?![a-z0-9])"
+                     + "|(?:^| )" + _alt(PREFIXES_AGE) + " ?" + _NB + "(?![a-z0-9])"
+                     + "|(?:^| )" + _alt(NOMBRES_COMPOSES_DE) + "jahrig")
 # « N ans de <duree> » lu comme un age avec un mineur ambigu NOMME ou un indice (seconde relecture du 14/10).
 _RE_AGE_ROMAN_LARGE = re.compile("(?:^| )" + _NB + " ?" + _alt(UNITES_AGE_ROMANES) + "(?![a-z])")
 _RE_NAISSANCE = re.compile("(?:^| )" + _alt(_par_longueur(PREFIXES_NAISSANCE)) + " ((?:19|20)[0-9][0-9])(?![0-9])")
@@ -871,6 +875,7 @@ T_DURS_AUTRES = _fusionner(
 )
 T_PERSONNES = _compiler(PERSONNES, "combinaison")
 T_PERSONNES_DESACTIVATION = _fusionner(T_PERSONNES, _compiler(PERSONNES_DESACTIVATION, "combinaison"))
+T_CONTEXTE_DESACTIVATION = _fusionner(T_CTX_SEXUEL, T_CTX_SEXUEL_FAIBLE, _compiler(CONTEXTE_DESACTIVATION, "contexte"))
 T_NUDITE_EXTREME = _compiler(NUDITE_EXTREME, "combinaison")
 T_VIOLENCE_ENFANT_GENERAL = _compiler(VIOLENCE_ENFANT_GENERAL, "mineur_violence")
 _PLANCHER_COLLES_ECRASES = tuple(_RE_REPETE2.sub(r"\1", s) for s in PLANCHER_COLLES)
@@ -904,12 +909,19 @@ def _vues_desactivees(nets, vs, desactivees):
     return [_vues_plancher(n, desactivees) for n in nets] if touche else vs
 
 
+def _contexte_sexuel(vs):
+    """Vrai si le texte a un contexte sexuel (termes de contexte, ou qu'ils soient) : les expressions balisees <coq>, <chantier>
+    et <personne> ne retirent plus leur mot (2026-10-15)."""
+    return bool(_chercher([x for v in vs for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]], T_CONTEXTE_DESACTIVATION))
+
+
 def _plancher_lecture(nets, vs):
-    """Plancher : quand un mineur ou un age est lu, les expressions balisees <mineur> ne retirent plus leur mot."""
+    """Plancher : quand un mineur ou un age est lu, les expressions balisees <mineur> ne retirent plus leur mot ; avec un
+    contexte sexuel en plus, ni les tournures de ferme ou de chantier, ni celles balisees <personne> (2026-10-15)."""
     r = _plancher(vs)
     if not r["safe"] or not _mineur_lu(vs):
         return r
-    vs2 = _vues_desactivees(nets, vs, ("mineur",))
+    vs2 = _vues_desactivees(nets, vs, ("mineur", "coq", "chantier", "personne") if _contexte_sexuel(vs) else ("mineur",))
     return r if vs2 is vs else _plancher(vs2)
 
 
@@ -994,11 +1006,13 @@ def check_prompt_safety(prompt, unrestricted=False):
         return {"safe": True}              # `unrestricted` ne leve que les filtres SOUPLES
 
     # Expressions sures balisees (quatrieme relecture du 14/10, R4, R5) : <mineur> ignorees quand un mineur ou un age est lu,
-    # <personne> (decapant) quand une personne ou un mineur est nomme.
+    # <personne> (decapant) quand une personne ou un mineur est nomme ; <coq>, <chantier> et <personne> quand le texte a un
+    # contexte sexuel, ou qu'il soit (2026-10-15).
     mineur_lu = _mineur_lu(vs0)
-    personne_lue = mineur_lu or bool(_chercher([x for v in vs0 for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]],
-                                               T_PERSONNES_DESACTIVATION))
-    desactivees = ("mineur", "personne") if mineur_lu else (("personne",) if personne_lue else ())
+    contexte = _contexte_sexuel(vs0)
+    personne_lue = mineur_lu or contexte or bool(_chercher(
+        [x for v in vs0 for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]], T_PERSONNES_DESACTIVATION))
+    desactivees = (("mineur",) if mineur_lu else ()) + (("personne",) if personne_lue else ()) + (("coq", "chantier") if contexte else ())
     vs = _vues_desactivees(nets, vs0, desactivees)
 
     # Toutes les lectures du texte (troisieme relecture du 14/10), chacune aussi sans la syntaxe de poids collee (revue, B1).

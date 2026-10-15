@@ -261,17 +261,16 @@ NU_FORT = (
     "sin nada puesto", "ropa intima", "follar", "follando", "abuso sexual", "*nackt*", "ausgezogen", "entkleidet",
     "unbekleidet", "oben ohne", "ohne kleidung", "ohne kleider", "erotisch*", "sexuell*", "unterwasche", "sinnlich*",
     "verfuhrerisch*", "busen", "titten", "unterhose*", "schlupfer*", "reizwasche", "entblosst*", "barbusig*",
-    "nackig*", "fkk", "geschlechtsverkehr", "vergewaltig*", "ficken", "fickt", "gefickt", "seminu", "seminus",
-    "seminua", "seminuas", "seminude*", "seminudo*", "seminuda*", "seminudi", "sem roupa*", "calcinha*",
-    "roupa intima", "peitos", "seios", "pelad*", "de cueca", "de cuecas", "em cueca", "em cuecas", "despido",
-    "despida", "despidos", "despidas", "nuazinh*", "trajes intimos", "estupr*", "nudo", "nudi", "nudita", "spogliat*",
-    "spogliarsi", "spogliarell*", "svestit*", "senza vestiti", "senza vestito", "senza abiti", "seno nudo",
-    "seni nudi", "nuda", "sessuale", "sesso", "mutande", "mutandin*", "mutandon*", "provocante", "seni", "tette",
-    "biancheria intima", "perizoma", "seno scoperto", "senza niente addosso", "nudin*", "in slip", "*ciplak*",
-    "soyunmus", "soyunuk", "seks", "seksi", "seksuel*", "erotik*", "ic camasir*", "kulot*", "tecavuz*", "taciz*",
-    "cinsel*", "mustehcen*", "naakt*", "ontkleed*", "ondergoed*", "seksueel*", "nagie", "nago", "nagich", "nagosc*",
-    "rozebran*", "bielizn*", "seksualn*", "telanjang", "bugil", "cabul*", "pakaian dalam", "pemerkosa*", "mesum",
-    "khoa than", "khieu dam", "do lot", "hiep dam",
+    "nackig*", "fkk", "geschlechtsverkehr", "vergewaltig*", "ficken", "fickt", "gefickt", "seminu*", "sem roupa*",
+    "calcinha*", "roupa intima", "peitos", "seios", "pelad*", "de cueca", "de cuecas", "em cueca", "em cuecas",
+    "despido", "despida", "despidos", "despidas", "nuazinh*", "trajes intimos", "estupr*", "nudo", "nudi", "nudita",
+    "spogliat*", "spogliarsi", "spogliarell*", "svestit*", "senza vestiti", "senza vestito", "senza abiti",
+    "seno nudo", "seni nudi", "nuda", "sessuale", "sesso", "mutande", "mutandin*", "mutandon*", "provocante", "seni",
+    "tette", "biancheria intima", "perizoma", "seno scoperto", "senza niente addosso", "nudin*", "in slip",
+    "*ciplak*", "soyunmus", "soyunuk", "seks", "seksi", "seksuel*", "erotik*", "ic camasir*", "kulot*", "tecavuz*",
+    "taciz*", "cinsel*", "mustehcen*", "naakt*", "ontkleed*", "ondergoed*", "seksueel*", "nagie", "nago", "nagich",
+    "nagosc*", "rozebran*", "bielizn*", "seksualn*", "telanjang", "bugil", "cabul*", "pakaian dalam", "pemerkosa*",
+    "mesum", "khoa than", "khieu dam", "do lot", "hiep dam",
 )
 
 NU_EXACTS = (
@@ -536,8 +535,7 @@ NOMBRES_LETTRES = (
 )
 
 NOMBRES_AMBIGUS = (
-    "elf", "um", "uma", "un", "une", "uno", "una", "ein", "eine", "eins", "one", "tre", "tres", "sei", "due", "dos",
-    "once", "neuf", "sept", "otto",
+    "elf", "due", "um", "un", "une", "once",
 )
 
 GRANDS_NOMBRES = (
@@ -563,8 +561,7 @@ COMPLEMENTS_DE = (
 )
 
 PREFIXES_AGE = (
-    "aged?", "age of", "ages", "age de", "agee de", "agee", "edad de", "edad", "alter von", "alter", "eta di",
-    "idade de", "idade", "just turned",
+    "age de", "agee de", "agee", "edad de", "edad", "alter von", "alter", "eta di", "idade de", "idade",
 )
 
 NOMBRES_COMPOSES_DE = (
@@ -692,13 +689,12 @@ GENERAL_SEXUEL_DUR = (
     "underage", "dick", "cock", "pussy", "ass", "tits", "boobs", "cum", "slut", "whore", "breasts", "wearing nothing",
     "wears nothing", "full frontal", "birthday suit", "in the nude", "unclad", "bare chest*", "bare breast*",
     "only body paint", "scantily clad", "barely clothed", "*desnud*", "*nackt*", "nudo", "nuda", "nudi", "nudita",
-    "seminu", "seminus", "seminua", "seminuas", "seminude*", "seminudo*", "seminuda*", "seminudi", "denud*",
-    "deshabill*", "*pornograf*", "*pornograph*", "erotisch*", "sinnlich*", "senos", "titten", "tetas", "tette",
-    "spogliat*", "spogliarsi", "spogliarell*", "svestit*", "blowjob*", "blow job*", "handjob*", "hand job*",
-    "footjob*", "foot job*", "titjob*", "titfuck*", "rimjob*", "anilingus", "intercourse", "coitus", "copulat*",
-    "sodomy", "sodomiz*", "sodomis*", "semen", "sperm", "cumshot*", "bukkake", "gang bang*", "bestiality", "zoophil*",
-    "necrophil*", "incest*", "fisting", "butt plug*", "buttplug*", "vulva*", "labia", "clitor*", "clit", "clits",
-    "areola*", "scrotum*", "testicle*", "phallus*", "pubic hair", "pubes", "private parts", "intimate parts",
+    "seminu*", "denud*", "deshabill*", "*pornograf*", "*pornograph*", "erotisch*", "sinnlich*", "senos", "titten",
+    "tetas", "tette", "spogliat*", "spogliarsi", "spogliarell*", "svestit*", "blowjob*", "blow job*", "handjob*",
+    "hand job*", "footjob*", "foot job*", "titjob*", "titfuck*", "rimjob*", "anilingus", "intercourse", "coitus",
+    "copulat*", "sodomy", "sodomiz*", "sodomis*", "semen", "sperm", "cumshot*", "bukkake", "gang bang*", "bestiality",
+    "zoophil*", "necrophil*", "incest*", "fisting", "butt plug*", "buttplug*", "vulva*", "labia", "clitor*", "clit",
+    "clits", "areola*", "scrotum*", "testicle*", "phallus*", "pubic hair", "pubes", "private parts", "intimate parts",
     "molest*", "raped", "raping", "rapist*", "rape scene*", "striptease*", "strip tease*", "strip club*",
     "lap dance*", "making love", "make love", "kama sutra", "doggy style", "doggystyle", "missionary position",
     "camel toe", "nip slip", "skinny dipping", "in the buff", "nudis*", "milf", "milfs", "futanari", "shemale*",
@@ -728,9 +724,9 @@ CONTEXTE_SEXUEL_FAIBLE = (
 GENERAL_CTX_VIOLENCE = (
     "blood", "bloody", "bleed*", "murder*", "kill*", "torture*", "torturer", "cannibal*", "flesh", "corpse*",
     "cadaver*", "dead body", "death scene", "execution", "hanging", "strangul*", "suffocate", "drown*", "stab",
-    "stabs", "stabbed", "stabbing", "stabber*", "slash*", "wound*", "injury", "brutal*", "savage*", "slaughter*",
-    "meurtre*", "tuer", "mort", "cadavre*", "sang", "sanglant*", "violence", "violent*", "cruaut*", "drug", "drugs",
-    "crack", "snort", "overdose", "drogue*", "stupefi*", "bomb", "bombing", "isis", "jump off",
+    "stabs", "stabb*", "slash*", "wound*", "injury", "brutal*", "savage*", "slaughter*", "meurtre*", "tuer", "mort",
+    "cadavre*", "sang", "sanglant*", "violence", "violent*", "cruaut*", "drug", "drugs", "crack", "snort", "overdose",
+    "drogue*", "stupefi*", "bomb", "bombing", "isis", "jump off",
 )
 
 GENERAL_VIOLENCE_DUR = (
@@ -861,7 +857,7 @@ NON_ASSIGNES_U14 = (
 IDIOMES_RACINES = (
    
     "nudel(?=(?:n|holz|holzer|suppe|suppen|salat|salate|teig|auflauf|gericht|gerichte|maschine|walker|sieb|topf|topfe|toepfe|nest|nester|pfanne|pfannen|brett|platte|sorte|sorten|wasser|form|formen|bar|laden|rezept|rezepte|chen)?(?![a-z]))",
-    "nacktschneck", "nacktmull", "nacktsamer", "nackthund", "naaktslak", "spogliatoi",
+    "nacktschneck", "nacktmull", "nacktsamer", "nackthund", "naaktslak", "spogliatoi", "seminuov", "seminuev",
 )
 
 DUREES_NON_AGE = (
@@ -983,6 +979,22 @@ PERSONNES_DESACTIVATION = (
     "himself", "guy", "guys", "gal", "gals", "ladies", "females", "males", "dancer*", "model", "models", "wife",
     "husband", "girlfriend", "boyfriend", "mother", "father", "mom", "dad", "sister", "brother", "teacher", "nurse",
     "maid", "waitress", "farmer*", "worker*", "elle", "il", "ella", "el", "sie", "er", "ela", "ele", "lei", "lui",
+)
+
+PREFIXES_AGE_ANGLAIS = (
+    "aged?", "age of", "ages", "just turned",
+)
+
+UNITES_APRES_AMBIGU = (
+    "an", "ans", "annees?", "mois", "semaines?", "jours?", "anos?", "ann[oi]", "jahre?", "years?", "months?", "mes",
+    "meses", "mesi", "mese", "monate?", "weeks?", "wochen?",
+)
+
+CONTEXTE_DESACTIVATION = (
+    "suck*", "lick*", "stroking", "jerking", "jerk off", "jerks off", "jerked off", "fondl*", "deepthroat*",
+    "deep throat*", "gagging", "swallowing", "throbbing", "veiny", "horny", "aroused", "moaning", "moans",
+    "worshipping", "worshiping", "pole", "poles", "pole danc*", "dancing", "dance", "dances", "dancer*", "twerk*",
+    "naughty", "slutty", "steamy", "lustful", "lust", "orgasmic", "erotically", "sexually", "oiled", "wet t shirt",
 )
 
 
@@ -1607,17 +1619,21 @@ def _par_longueur(liste):
 
 
 _NB_LETTRES = "(?<![a-z])" + _alt(re.escape(x) for x in _par_longueur(NOMBRES_LETTRES)) + "(?![a-z])"
-_NB_LETTRES_SURS = ("(?<![a-z])" + _alt(re.escape(x) for x in _par_longueur([x for x in NOMBRES_LETTRES if x not in NOMBRES_AMBIGUS]))
-                    + "(?![a-z])")
+# Apres un prefixe ANGLAIS, les nombres a double sens (« aged elf », « Moyen Age, une ») ne sont lus que devant une unite de
+# temps (« age : un an ») ; apres un prefixe d'une autre langue, tout nombre est lu (2026-10-15, controle exhaustif des ages).
+_NB_LETTRES_SURS = ("(?<![a-z])(?:" + _alt(re.escape(x) for x in _par_longueur([x for x in NOMBRES_LETTRES if x not in NOMBRES_AMBIGUS]))
+                    + "|" + _alt(NOMBRES_AMBIGUS) + "(?= " + _alt(UNITES_APRES_AMBIGU) + "(?![a-z])))(?![a-z])")
 _NB_CHIFFRES = "(?<![0-9])(?:1[0-7]|0?[0-9])(?![0-9])"
 _PAS_GRAND = "(?! ?" + _alt(GRANDS_NOMBRES) + "(?![a-z]))"
 _NB = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES + ")" + _PAS_GRAND
-_NB_APRES_PREFIXE = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES_SURS + ")" + _PAS_GRAND
+_NB_APRES_PREFIXE_ANGLAIS = "(?:" + _NB_CHIFFRES + "|" + _NB_LETTRES_SURS + ")" + _PAS_GRAND
 _UNITE_ROMANE = (_alt(UNITES_AGE_ROMANES) + "(?![a-z])(?! " + _alt(COMPLEMENTS_DE) + " " + _alt(DUREES_NON_AGE)
                  + "(?![a-z]))")
 _UNITE = "(?:" + _alt(UNITES_AGE) + "(?![a-z])|" + _UNITE_ROMANE + ")"
-_RE_AGE = re.compile("(?:^| )" + _NB + " ?" + _UNITE + "|(?:^| )" + _alt(PREFIXES_AGE) + " ?" + _NB_APRES_PREFIXE
-                     + "(?![a-z0-9])" + "|(?:^| )" + _alt(NOMBRES_COMPOSES_DE) + "jahrig")
+_RE_AGE = re.compile("(?:^| )" + _NB + " ?" + _UNITE
+                     + "|(?:^| )" + _alt(PREFIXES_AGE_ANGLAIS) + " ?" + _NB_APRES_PREFIXE_ANGLAIS + "(?![a-z0-9])"
+                     + "|(?:^| )" + _alt(PREFIXES_AGE) + " ?" + _NB + "(?![a-z0-9])"
+                     + "|(?:^| )" + _alt(NOMBRES_COMPOSES_DE) + "jahrig")
 # « N ans de <duree> » lu comme un age avec un mineur ambigu NOMME ou un indice (seconde relecture du 14/10).
 _RE_AGE_ROMAN_LARGE = re.compile("(?:^| )" + _NB + " ?" + _alt(UNITES_AGE_ROMANES) + "(?![a-z])")
 _RE_NAISSANCE = re.compile("(?:^| )" + _alt(_par_longueur(PREFIXES_NAISSANCE)) + " ((?:19|20)[0-9][0-9])(?![0-9])")
@@ -1679,6 +1695,7 @@ T_DURS_AUTRES = _fusionner(
 )
 T_PERSONNES = _compiler(PERSONNES, "combinaison")
 T_PERSONNES_DESACTIVATION = _fusionner(T_PERSONNES, _compiler(PERSONNES_DESACTIVATION, "combinaison"))
+T_CONTEXTE_DESACTIVATION = _fusionner(T_CTX_SEXUEL, T_CTX_SEXUEL_FAIBLE, _compiler(CONTEXTE_DESACTIVATION, "contexte"))
 T_NUDITE_EXTREME = _compiler(NUDITE_EXTREME, "combinaison")
 T_VIOLENCE_ENFANT_GENERAL = _compiler(VIOLENCE_ENFANT_GENERAL, "mineur_violence")
 _PLANCHER_COLLES_ECRASES = tuple(_RE_REPETE2.sub(r"\1", s) for s in PLANCHER_COLLES)
@@ -1712,12 +1729,19 @@ def _vues_desactivees(nets, vs, desactivees):
     return [_vues_plancher(n, desactivees) for n in nets] if touche else vs
 
 
+def _contexte_sexuel(vs):
+    """Vrai si le texte a un contexte sexuel (termes de contexte, ou qu'ils soient) : les expressions balisees <coq>, <chantier>
+    et <personne> ne retirent plus leur mot (2026-10-15)."""
+    return bool(_chercher([x for v in vs for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]], T_CONTEXTE_DESACTIVATION))
+
+
 def _plancher_lecture(nets, vs):
-    """Plancher : quand un mineur ou un age est lu, les expressions balisees <mineur> ne retirent plus leur mot."""
+    """Plancher : quand un mineur ou un age est lu, les expressions balisees <mineur> ne retirent plus leur mot ; avec un
+    contexte sexuel en plus, ni les tournures de ferme ou de chantier, ni celles balisees <personne> (2026-10-15)."""
     r = _plancher(vs)
     if not r["safe"] or not _mineur_lu(vs):
         return r
-    vs2 = _vues_desactivees(nets, vs, ("mineur",))
+    vs2 = _vues_desactivees(nets, vs, ("mineur", "coq", "chantier", "personne") if _contexte_sexuel(vs) else ("mineur",))
     return r if vs2 is vs else _plancher(vs2)
 
 
@@ -1802,11 +1826,13 @@ def check_prompt_safety(prompt, unrestricted=False):
         return {"safe": True}              # `unrestricted` ne leve que les filtres SOUPLES
 
     # Expressions sures balisees (quatrieme relecture du 14/10, R4, R5) : <mineur> ignorees quand un mineur ou un age est lu,
-    # <personne> (decapant) quand une personne ou un mineur est nomme.
+    # <personne> (decapant) quand une personne ou un mineur est nomme ; <coq>, <chantier> et <personne> quand le texte a un
+    # contexte sexuel, ou qu'il soit (2026-10-15).
     mineur_lu = _mineur_lu(vs0)
-    personne_lue = mineur_lu or bool(_chercher([x for v in vs0 for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]],
-                                               T_PERSONNES_DESACTIVATION))
-    desactivees = ("mineur", "personne") if mineur_lu else (("personne",) if personne_lue else ())
+    contexte = _contexte_sexuel(vs0)
+    personne_lue = mineur_lu or contexte or bool(_chercher(
+        [x for v in vs0 for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]], T_PERSONNES_DESACTIVATION))
+    desactivees = (("mineur",) if mineur_lu else ()) + (("personne",) if personne_lue else ()) + (("coq", "chantier") if contexte else ())
     vs = _vues_desactivees(nets, vs0, desactivees)
 
     # Toutes les lectures du texte (troisieme relecture du 14/10), chacune aussi sans la syntaxe de poids collee (revue, B1).
