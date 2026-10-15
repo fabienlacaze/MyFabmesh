@@ -1,4 +1,9 @@
 #!/bin/bash
+# ATTENTION LICENCE (2026-10-15) : `git clone --recursive` ci-dessous recupere le sous-module cubvh de CuMesh
+# (JeffreyXiang/cubvh ce92267), dont le BVH vient d'instant-ngp : NVIDIA Source Code License, usage « research or
+# evaluation purposes only ». Ce script ne sert qu'a l'environnement de DEVELOPPEMENT (WSL) ; NE PAS en tirer une roue
+# livree ni un service. Pour une roue livrable : python build/reconstruire_roue_cumesh.py ; pour Modal : modal_app/app.py
+# (_CUMESH_MIT). Explication : docs/cumesh_licence_et_fill_holes_2026-10-15.md.
 set -e
 cd ~/TRELLIS.2
 source .venv/bin/activate

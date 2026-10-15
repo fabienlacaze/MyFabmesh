@@ -440,13 +440,39 @@ not redistributed by FabMesh. BSD-3-Clause — commercial use permitted with
 attribution.
 
 --------------------------------------------------------------------------------
- 40. CuMesh (JeffreyXiang/CuMesh)
+ 40. CuMesh (JeffreyXiang/CuMesh) and its BVH component cubvh (ashawkey/cubvh)
 --------------------------------------------------------------------------------
-License: MIT
+License: MIT (CuMesh, Copyright (c) 2025 Jianfeng XIANG; cubvh, Copyright (c) 2022 kiui)
 URL:     https://github.com/JeffreyXiang/CuMesh
-GPU mesh processing library used by the local 3D pipeline.
-Installed with the local AI environment, not redistributed inside the app package.
-MIT License — commercial use permitted.
+         https://github.com/ashawkey/cubvh
+GPU mesh processing library used by the 3D pipeline (hole filling, simplification,
+UV unwrapping, remeshing) and, compiled into the same Python package as
+cumesh/_cubvh, its bounding-volume hierarchy (ray casting, closest-point queries).
+MIT License — commercial use permitted. Files carried by cubvh under their own
+terms: include/gpu/gpu_memory.h (tiny-cuda-nn, Copyright (c) 2020-2022 NVIDIA
+CORPORATION, BSD-3-Clause: the copyright notice and disclaimer of that file must
+accompany binary redistributions), include/gpu/pcg32.h (Wenzel Jakob / Melissa
+O'Neill, Apache-2.0). The extensions are compiled against the Eigen headers (MPL-2.0).
+
+WHICH cubvh. The MIT licence of cubvh covers its BVH only from commit c7379c0
+(2026-08-26), which rewrote it independently; LICENSE_NVIDIA was removed in 191b020.
+Before that commit the BVH was derived from NVIDIA instant-ngp, under the NVIDIA
+Source Code License (use limited to "research or evaluation purposes only"; a copy
+of that licence must accompany any redistribution). CuMesh pins a fork of cubvh
+(JeffreyXiang/cubvh, branch trellis.2, ce92267) that still carries the earlier code.
+- Cloud (MyFabmesh.AI servers, nothing is distributed): the GPU image is rebuilt
+  from CuMesh 12289e1 with ashawkey/cubvh de1badf (2026-08-27, MIT), and the build
+  is refused if instant-ngp code is still present (modal_app/construction_cumesh.py).
+  That change takes effect at the next Modal deployment; until then the running
+  image still uses the earlier build.
+- Desktop: the wheel cumesh 1.0 (SHA-256 d1ed72df...f024, built 2026-03-08 from
+  visualbruno/CuMesh d10e54c) is bundled in the installer (resources/wheels) and
+  installed by the first-run setup. Its _cubvh binary was compiled from the earlier
+  cubvh and CONTAINS the instant-ngp BVH: that component is NOT cleared for
+  commercial redistribution. A replacement built on the MIT rewrite is prepared
+  (build/reconstruire_roue_cumesh.py, cumesh 1.0.1); this section must be updated
+  to name the new wheel's SHA-256 when it replaces the old one, and the old wheel
+  withdrawn (also from the public pre-release trellis2-wheels-v1).
 
 --------------------------------------------------------------------------------
  Bundled rig templates
