@@ -4,11 +4,15 @@ generate() tourne EN ENTIER (preparation de l'image, retouches de couleur, metal
   - un FAUX pipeline TRELLIS dont run() rend un maillage fin connu (plan bossele, repere de la grille Z haut, tenseurs torch comme o_voxel) ;
   - un FAUX o_voxel dont to_glb rend, comme le vrai, un maillage final texture en repere Y haut (UV de trimesh, normales de sommet,
     materiau PBR couleur RGBA + metal/rugosite, OPAQUE).
+OPTION PAR GENERATION (2026-10-15, decision du proprietaire) : generate(normal_map=...), faux par defaut ; la carte est plafonnee a 2048 px.
 Verifie :
-  - FABMESH_NORMAL_MAP=0 : GLB IDENTIQUE A L'OCTET a celui du _mesh.py d'avant (commit REFERENCE_AVANT, lu par git show), memes lignes de
-    journal (chiffres mis a part) ;
-  - defaut : normalTexture (EXT_texture_webp) SANS PERTE et egale a une cuisson directe, attribut NORMAL, couleur et metal/rugosite
-    identiques au GLB sans carte, carte a la taille de l'atlas de couleur, journal [mesh] ;
+  - SANS OPTION (defaut, ou normal_map=False, ou toute valeur qui n'est pas exactement True) : GLB IDENTIQUE A L'OCTET a celui du code
+    d'avant la carte (commit REFERENCE_AVANT = origin/integration-1410) : le _mesh.py de ce commit lu par git show, ET l'arbre modal_app/
+    COMPLET de ce commit execute dans un autre processus ; memes lignes de journal (chiffres mis a part) ; FABMESH_NORMAL_MAP (0 ou 1)
+    n'y change rien ;
+  - FABMESH_NORMAL_MAP=0 avec l'option : GLB sans carte (l'interrupteur d'urgence l'emporte) ;
+  - normal_map=True : normalTexture (EXT_texture_webp) SANS PERTE et egale a une cuisson directe, attribut NORMAL, couleur et metal/rugosite
+    identiques au GLB sans carte, carte a la taille de l'atlas de couleur (sous le plafond), journal [mesh] ; plafond par FABMESH_NORMAL_MAP_MAX ;
   - cuisson qui leve : GLB identique au GLB sans carte, ligne « ABANDONNEE » ;
   - Ultra 8K (agrandissement simule) : couleur x2, carte a la taille de l'atlas d'origine ;
   - le GLB relu puis re-exporte par un outil (affinage, face fix, Ultra 8K apres coup : trimesh.load + webp_rapide + export) garde
@@ -24,6 +28,7 @@ import io
 import json
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -37,7 +42,7 @@ from PIL import Image
 
 RACINE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 RACINE_MODAL = os.environ.get('RACINE_MODAL') or RACINE
-REFERENCE_AVANT = 'f86208c04923bdc92b45d1869357e0d08cbfd945'      # tete de feat/r2-signed-urls avant la carte de normales
+REFERENCE_AVANT = 'f074a45586800983e1aa159be8842538463d37c1'      # origin/integration-1410 : code publie, SANS aucune carte de normales
 if RACINE_MODAL not in sys.path:
     sys.path.insert(0, RACINE_MODAL)
 
@@ -161,12 +166,13 @@ class Environnement:
                 os.environ[k] = v
 
 
-def generer(module=MESH, carte=None, **kw):
-    """(octets du GLB, lignes de journal) ; carte = valeur de FABMESH_NORMAL_MAP (None = absente)."""
+def generer(module=MESH, carte=None, env=None, **kw):
+    """(octets du GLB, lignes de journal) ; carte = valeur de FABMESH_NORMAL_MAP (None = absente) ; env = autres variables ;
+    kw = options de generate (normal_map=...)."""
     import modal_app.acceleration_glb as AG
     AG._TO_GLB_ACCELERE = False             # chaque appel journalise la meme chose (accelerer_to_glb n'ecrit qu'au premier appel)
     sortie = io.StringIO()
-    with Environnement(FABMESH_NORMAL_MAP=carte), contextlib.redirect_stdout(sortie):
+    with Environnement(FABMESH_NORMAL_MAP=carte, **(env or {})), contextlib.redirect_stdout(sortie):
         octets = module.generate(FauxPipeline(), FAUX_O_VOXEL, image_source(), mode='1024', seed=5,
                                  decimation_target=500_000, texture_size=TAILLE, **kw)
     return octets, sortie.getvalue().splitlines()
@@ -197,18 +203,37 @@ class GenerationAvecCarte(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.sans, cls.journal_sans = generer(carte='0')
-        cls.avec, cls.journal_avec = generer(carte=None)
+        cls.sans, cls.journal_sans = generer()                       # option ABSENTE : le GLB d'avant la carte
+        cls.avec, cls.journal_avec = generer(normal_map=True)        # option cochee (case « Game-engine relief »)
 
-    def test_desactivee_identique_a_l_octet_au_code_d_avant(self):
+    def test_sans_option_identique_a_l_octet_au_code_d_avant(self):
         avant = charger_mesh_avant()
-        octets, journal = generer(module=avant, carte='0')
-        self.assertEqual(octets, self.sans, 'FABMESH_NORMAL_MAP=0 doit rendre le GLB d avant, a l octet')
+        octets, journal = generer(module=avant)
+        self.assertEqual(octets, self.sans, 'sans option, le GLB doit etre celui d avant la carte, a l octet')
         self.assertEqual(sans_chiffres(journal), sans_chiffres(self.journal_sans))
         j, _ = lire_glb(self.sans)
         self.assertNotIn('normalTexture', j['materials'][0])
-        # et le code d'avant, sans la variable, rend lui aussi ce GLB : la variable a 0 ne change rien d'autre
-        self.assertEqual(generer(module=avant, carte=None)[0], self.sans)
+        self.assertNotIn('normal_map', ' '.join(self.journal_sans))
+        self.assertFalse([l for l in self.journal_sans if 'normales' in l], 'aucune ligne de carte sans option')
+        # l'interrupteur d'urgence, a 0 ou a 1, ne change rien SANS option : le code d'avant et le code d'aujourd'hui rendent le meme GLB
+        for valeur in ('0', '1'):
+            self.assertEqual(generer(module=avant, carte=valeur)[0], self.sans, valeur)
+            self.assertEqual(generer(carte=valeur)[0], self.sans, valeur)
+
+    def test_option_fausse_ou_ambigue_ne_cuit_rien(self):
+        """Seul le booleen True active la cuisson : False, None, 1, "true", "1", "false" (vrai en Python) donnent le GLB sans carte."""
+        for valeur in (False, None, 1, 0, 1.0, 'true', 'True', '1', 'false', 'yes', [True], {'a': 1}):
+            octets, journal = generer(normal_map=valeur)
+            self.assertEqual(octets, self.sans, repr(valeur))
+            self.assertFalse([l for l in journal if 'normales' in l], repr(valeur))
+
+    def test_interrupteur_d_urgence_l_emporte_sur_l_option(self):
+        for coupe in ('0', 'false', 'off', 'non'):
+            octets, journal = generer(carte=coupe, normal_map=True)
+            self.assertEqual(octets, self.sans, coupe)
+            self.assertFalse([l for l in journal if 'normales' in l], coupe)
+        # et a 1 (ou absent), l'option cuit bien la carte
+        self.assertEqual(generer(carte='1', normal_map=True)[0], self.avec)
 
     def test_carte_posee_sans_perte(self):
         j, blob = lire_glb(self.avec)
@@ -253,7 +278,7 @@ class GenerationAvecCarte(unittest.TestCase):
             raise RuntimeError('panne simulee')
         try:
             NBM.bake_normal_map = casse
-            octets, journal = generer(carte=None)
+            octets, journal = generer(carte=None, normal_map=True)
         finally:
             NBM.bake_normal_map = origine
         self.assertEqual(octets, self.sans)
@@ -265,7 +290,7 @@ class GenerationAvecCarte(unittest.TestCase):
         ancien = sys.modules.get('modal_app._esrgan')
         sys.modules['modal_app._esrgan'] = faux
         try:
-            octets, journal = generer(carte=None, ultra_hd=True)
+            octets, journal = generer(carte=None, ultra_hd=True, normal_map=True)
         finally:
             if ancien is None:
                 sys.modules.pop('modal_app._esrgan', None)
@@ -297,6 +322,91 @@ class GenerationAvecCarte(unittest.TestCase):
         self.assertTrue(np.array_equal(carte, carte0), 'carte re-encodee avec perte par l outil (ecart max %d)'
                         % int(np.abs(carte.astype(int) - carte0.astype(int)).max()))
         self.assertIn('NORMAL', j['meshes'][0]['primitives'][0]['attributes'])
+
+    def test_plafond_de_la_carte_dans_generate(self):
+        """FABMESH_NORMAL_MAP_MAX borne la carte cuite par generate() : atlas de couleur 64, plafond 32 -> carte 32 x 32 (la couleur ne bouge pas)."""
+        octets, journal = generer(env={'FABMESH_NORMAL_MAP_MAX': '32'}, normal_map=True)
+        j, blob = lire_glb(octets)
+        mat = j['materials'][0]
+        self.assertEqual(image(j, blob, mat['normalTexture']['index'])[0].size, (32, 32))
+        self.assertEqual(image(j, blob, mat['pbrMetallicRoughness']['baseColorTexture']['index'])[0].size, (TAILLE, TAILLE))
+        self.assertTrue(any('plafonnee a 32x32 (atlas 64x64, plafond 32)' in l for l in journal), journal)
+        # plafond au-dessus de l'atlas : la carte reste a la taille de l'atlas
+        octets2, journal2 = generer(env={'FABMESH_NORMAL_MAP_MAX': '4096'}, normal_map=True)
+        self.assertEqual(octets2, self.avec)
+        self.assertFalse([l for l in journal2 if 'plafonnee' in l], journal2)
+
+    def test_option_vraie_ne_change_ni_la_couleur_ni_la_geometrie(self):
+        j0, blob0 = lire_glb(self.sans)
+        j1, blob1 = lire_glb(self.avec)
+
+        def positions(j):
+            acc = dict(j['accessors'][j['meshes'][0]['primitives'][0]['attributes']['POSITION']])
+            acc.pop('bufferView', None)                    # l'indice peut changer quand une image s'ajoute
+            return acc
+        self.assertEqual(positions(j0), positions(j1))
+        for cle in ('baseColorTexture', 'metallicRoughnessTexture'):
+            self.assertEqual(image(j1, blob1, j1['materials'][0]['pbrMetallicRoughness'][cle]['index'])[1],
+                             image(j0, blob0, j0['materials'][0]['pbrMetallicRoughness'][cle]['index'])[1], cle)
+
+
+def _sortie_du_code_de_reference(racine_modal, nom_fichier):
+    """Fait generer le GLB (faux pipeline, options absentes) par le paquet modal_app de `racine_modal`, dans un AUTRE processus."""
+    ici = os.path.dirname(os.path.abspath(__file__))
+    code = ('import sys\n'
+            'sys.path.insert(0, %r)\n'
+            'import test_generation_carte_normales as T\n'
+            'octets, journal = T.generer(carte=None)\n'
+            'open(%r, "wb").write(octets)\n') % (ici, nom_fichier)
+    env = dict(os.environ, RACINE_MODAL=racine_modal, PYTHONUTF8='1')
+    r = subprocess.run([sys.executable, '-c', code], cwd=ici, env=env, capture_output=True, text=True, encoding='utf-8',
+                       errors='replace', timeout=600)
+    if r.returncode:
+        raise AssertionError('processus de reference en echec (%s) : %s' % (racine_modal, r.stderr[-2500:]))
+    with open(nom_fichier, 'rb') as f:
+        return f.read()
+
+
+class GlbIdentiqueAIntegration1410(unittest.TestCase):
+    """PREUVE du contrat « sans option, a l'octet » sur les MEMES entrees : l'arbre modal_app/ COMPLET du commit REFERENCE_AVANT
+    (origin/integration-1410, qui ne contient AUCUN code de carte de normales) est extrait par git archive puis execute dans un
+    autre processus ; son GLB doit etre celui du code d'aujourd'hui sans option."""
+
+    @classmethod
+    def setUpClass(cls):
+        import tarfile
+        cls.dossier = tempfile.mkdtemp(prefix='ref_integration_1410_')
+        try:
+            p = subprocess.run(['git', '-C', RACINE, 'archive', '--format=tar', REFERENCE_AVANT, 'modal_app'], capture_output=True, check=True)
+            with tarfile.open(fileobj=io.BytesIO(p.stdout)) as t:
+                try:
+                    t.extractall(cls.dossier, filter='data')
+                except TypeError:                          # Python sans le parametre filter
+                    t.extractall(cls.dossier)
+        except Exception as e:
+            shutil.rmtree(cls.dossier, ignore_errors=True)
+            raise unittest.SkipTest('git archive indisponible : %s' % e)
+        assert not os.path.exists(os.path.join(cls.dossier, 'modal_app', 'normal_bake.py')), 'la reference contient deja la carte'
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dossier, ignore_errors=True)
+
+    def test_sans_option_octet_pour_octet_avec_le_code_d_integration_1410(self):
+        reference = _sortie_du_code_de_reference(self.dossier, os.path.join(self.dossier, 'glb_reference.glb'))
+        courant, journal = generer()
+        self.assertEqual(len(courant), len(reference))
+        self.assertEqual(courant, reference, 'le GLB sans option differe de celui d integration-1410')
+        # la meme comparaison, option explicitement fausse et interrupteur a 1 : toujours le GLB de reference
+        self.assertEqual(generer(normal_map=False, carte='1')[0], reference)
+        j, _ = lire_glb(reference)
+        self.assertNotIn('normalTexture', j['materials'][0])
+
+    def test_la_reference_ne_connait_pas_l_option(self):
+        """Garde-fou du test lui-meme : le generate() de reference n'a pas de parametre normal_map (sinon la comparaison ne prouverait rien)."""
+        src = open(os.path.join(self.dossier, 'modal_app', '_mesh.py'), encoding='utf-8').read()
+        self.assertNotIn('normal_map', src)
+        self.assertNotIn('normal_bake', src)
 
 
 if __name__ == '__main__':

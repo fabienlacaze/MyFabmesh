@@ -9510,7 +9510,7 @@ async function showGenerationHistory(startPath) {
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
     texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
     skeleton: 'Skeleton', anim_type: 'Animation', voxel_grid: 'Voxel grid', tex_steps: 'Texture steps', op_type: 'Operation',
-    prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode',
+    prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode', normal_map: 'Game-engine relief',
   };
   const fmtVal = (k, v) => {
     if (v === true) return '✓';
@@ -10036,6 +10036,9 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   if (trellis2FaceFix) expectedMs += 60000;  // ~60s for SDXL face inpaint
   const trellis2UltraHD = document.getElementById('ws-trellis2-ultra-hd')?.checked || false;
   if (trellis2UltraHD) expectedMs += 280000;  // ~280s for Real-ESRGAN x2 atlas 4k→8k
+  // OPTION « relief pour moteur de jeu » (2026-10-15) : carte de normales plafonnee a 2048 px, GRATUITE, decochee par defaut, lue par le
+  // serveur (worker -> Modal) ou par le pipeline du bureau. Booleen STRICT (=== true) : jamais une valeur ambigue vers le serveur.
+  const trellis2NormalMap = document.getElementById('ws-trellis2-normal-map')?.checked === true;
   const TRELLIS2_PRESETS = {
     fast:     { steps: 12, texSize: 2048, imgRes: 1024 },
     balanced: { steps: 24, texSize: 2048, imgRes: 1024 },
@@ -10082,6 +10085,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     quality_plus: trellis2QualityPlus,
     ultra_q:      trellis2UltraQ,
     face_fix:     trellis2FaceFix,
+    normal_map:   trellis2NormalMap,   // nom lu par le worker (FormData) : option gratuite « relief pour moteur de jeu »
     ultra_hd:     effectiveUltraHD,
     preset:       trellis2Preset,
     // Keep the legacy keys around in case the desktop main process or
@@ -10093,6 +10097,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     trellis2QualityPlus,
     trellis2UltraQ,
     trellis2FaceFix,
+    trellis2NormalMap,
     trellis2UltraHD: effectiveUltraHD,
     trellis2Preset,
     // Network-boundary key: the Worker (/api/generate) reads `asset_type`.
@@ -10108,7 +10113,8 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   const _fmtTris = (n) => n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}K`;
   const _optsActives = [trellis2MultiRef && 'Multi-reference', trellis2RectifySource && 'Auto-rectify',
     trellis2Smooth && 'Texture smooth', trellis2QualityPlus && 'Sharp edges',
-    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Sharpened 8192px'].filter(Boolean);
+    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Sharpened 8192px',
+    trellis2NormalMap && 'Game-engine relief'].filter(Boolean);
   const _nomSource = p.selectedImagePath ? p.selectedImagePath.split('?')[0].split(/[/\\]/).pop() : '--';
   const jobParams = engine === 'native_3d' ? {
     Engine: engineLabel(engine),
@@ -18274,7 +18280,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (t) params['Max triangles'] = t >= 1e6 ? `${+(t / 1e6).toFixed(1)}M` : `${Math.round(t / 1000)}K`;
         const choisies = [o.back_view && 'Multi-reference', o.rectify && 'Auto-rectify',
           o.smooth && 'Texture smooth', o.quality_plus && !o.ultra_q && 'Sharp edges',
-          o.ultra_q && 'Fine geometry', o.ultra_hd && 'Sharpened 8192px'].filter(Boolean);
+          o.ultra_q && 'Fine geometry', o.ultra_hd && 'Sharpened 8192px', o.normal_map === true && 'Game-engine relief'].filter(Boolean);
         params.Options = choisies.join(', ') || 'None';
       }
       const opts = { projectName: project || null };

@@ -21,9 +21,23 @@ CONTRAT
     L'appelant doit donc tester `is not None` avant d'appeler appliquer_carte_normales (qui accepte None et ne fait rien).
   - CHEMINS D'EXPORT (generation bureau et Modal) : ajouter_carte_normales fait cuisson + pose en un appel, lit l'interrupteur
     FABMESH_NORMAL_MAP ("0" : rien n'est fait, la scene reste celle d'avant) et ne leve JAMAIS : au moindre echec, la scene est
-    rendue sans carte (et le journal dit pourquoi). La taille de la carte est celle de l'atlas de COULEUR de la scene.
+    rendue sans carte (et le journal dit pourquoi). La taille de la carte est celle de l'atlas de COULEUR de la scene,
+    PLAFONNEE (voir OPTION ET PLAFOND ci-dessous).
   - OUTILS qui deforment la geometrie ou refont les UV apres coup (lissage, reduction, subdivision...) : retirer_cartes_normales.
     Une carte gardee sur une forme qui a change decrirait un relief qui n'est plus la.
+
+OPTION ET PLAFOND (2026-10-15, decision du proprietaire apres l'essai GPU A/B du 15/10)
+  - La carte n'est PLUS cuite d'office : c'est une OPTION PAR GENERATION ("relief pour moteur de jeu"), desactivee par defaut.
+    Les chemins d'export (modal_app/_mesh.py generate(normal_map=...), scripts/trellis2_native_full_pipeline.py) demandent
+    carte_normales_voulue(option) : vrai SEULEMENT si l'option vaut exactement True (booleen strict : ni une chaine, ni 1) ET que
+    l'interrupteur d'urgence FABMESH_NORMAL_MAP n'est pas a 0 (il l'emporte sur l'option). Sans option, ajouter_carte_normales
+    n'est pas appele : le GLB est celui d'avant, a l'octet. Le BUREAU porte l'option par la variable FABMESH_NORMAL_MAP_OPTION
+    ("1" exactement, option_carte_normales) ; le SITE la porte par la requete (champ normal_map du worker, puis de Modal).
+  - PLAFOND : la carte ne depasse jamais PLAFOND_DEFAUT (2048) pixels pour son cote le plus long, quel que soit l'atlas de
+    couleur (4096 en Quality et Ultra) ; la variable FABMESH_NORMAL_MAP_MAX le change (valeur invalide : 2048). Proportions
+    gardees. MESURE (orc, 500 000 faces, atlas 4096, essai du 15/10) : carte 4096 = +22 Mo sur le GLB, 2048 = +6,4 Mo (presque
+    aussi nette), 1024 = +1,9 Mo (perd le detail fin). Le plafond tient aussi la memoire du worker du site, qui recoit les GLB
+    des outils en base64.
 
 CONVENTIONS (verifiees par build/bancs/noyaux/test_normal_bake.py contre le decodeur de reference de three.js r170 :
 getTangentFrame + normalScale.y = -1 que GLTFLoader pose quand le GLB n'a pas d'attribut TANGENT)
@@ -92,8 +106,10 @@ from types import SimpleNamespace
 import numpy as np
 
 __all__ = ["NORMALE_PLATE", "K_DEFAUT", "PADDING_DEFAUT", "AXES_FINS", "RECALAGE_MAX", "INTERRUPTEUR",
+           "PLAFOND_ENV", "PLAFOND_DEFAUT", "OPTION_ENV",
            "bake_normal_map", "appliquer_carte_normales", "proteger_cartes_normales", "retirer_cartes_normales",
-           "carte_normales_active", "taille_atlas", "ajouter_carte_normales"]
+           "carte_normales_active", "plafond_carte", "borner_taille", "option_carte_normales", "carte_normales_voulue",
+           "taille_atlas", "ajouter_carte_normales"]
 
 #: valeur de la carte la ou rien n'est cuit (normale confondue avec celle du maillage) : (128, 128, 255)
 NORMALE_PLATE = (128, 128, 255)
@@ -107,6 +123,14 @@ AXES_FINS = ("zup_to_yup", "none")
 RECALAGE_MAX = 0.10
 #: variable d'environnement des chemins d'export : "0" (ou false / no / non / off) = pas de carte, export d'avant a l'octet
 INTERRUPTEUR = "FABMESH_NORMAL_MAP"
+#: variable d'environnement du PLAFOND de la carte (pixels, cote le plus long). Decision du proprietaire (2026-10-15) : 2048.
+#: MESURE (orc, 500 000 faces, atlas 4096) : carte 4096 = +22 Mo, 2048 = +6,4 Mo (presque aussi nette), 1024 = +1,9 Mo (perd le detail fin)
+PLAFOND_ENV = "FABMESH_NORMAL_MAP_MAX"
+#: plafond quand PLAFOND_ENV est absente ou invalide
+PLAFOND_DEFAUT = 2048
+#: variable qui porte l'OPTION par generation ("relief pour moteur de jeu") jusqu'au processus du BUREAU ("1" exactement) ;
+#: le site la porte par la requete (generate(normal_map=True))
+OPTION_ENV = "FABMESH_NORMAL_MAP_OPTION"
 #: taille de la carte quand la scene n'a pas d'atlas de couleur
 TAILLE_REPLI = 2048
 #: reglages WebP sans perte appliques a la carte a l'export. MESURE (2026-10-04, carte 4096 x 4096, 56 % couverte, 1 fil) : method 1 /
@@ -876,6 +900,50 @@ def carte_normales_active(environ=None):
     return str(env.get(INTERRUPTEUR, "1")).strip().lower() not in ("0", "false", "no", "non", "off")
 
 
+def plafond_carte(environ=None):
+    """Plafond de la carte en pixels de cote (variable PLAFOND_ENV, defaut PLAFOND_DEFAUT).
+
+    Valeur absente, non numerique, inferieure a 1 ou superieure a 16384 : le defaut (jamais une exception, jamais un plafond
+    absurde qui rouvrirait la memoire du worker)."""
+    env = os.environ if environ is None else environ
+    try:
+        n = int(str(env.get(PLAFOND_ENV, "")).strip())
+    except ValueError:
+        return PLAFOND_DEFAUT
+    return n if 1 <= n <= 16384 else PLAFOND_DEFAUT
+
+
+def borner_taille(taille, plafond=None):
+    """(hauteur, largeur) de `taille` (entier ou couple) ramenee sous `plafond` pixels pour son cote le plus long, proportions
+    gardees (un atlas 4096 x 2048 plafonne a 2048 donne 2048 x 1024). `plafond` None : plafond_carte(). Une taille qui tient
+    deja est rendue telle quelle. Jamais plus grande que la taille demandee."""
+    h, w = _taille_texture(taille)
+    p = plafond_carte() if plafond is None else int(plafond)
+    if p < 1:
+        raise ValueError("plafond : entier >= 1 attendu, recu %r" % (plafond,))
+    plus_long = max(h, w)
+    if plus_long <= p:
+        return h, w
+    f = p / float(plus_long)
+    return max(1, min(p, int(round(h * f)))), max(1, min(p, int(round(w * f))))
+
+
+def option_carte_normales(environ=None):
+    """True si le BUREAU a demande la carte pour cette generation : OPTION_ENV vaut exactement "1" (espaces ignores).
+    Toute autre valeur, ou l'absence de la variable : False (l'option est desactivee par defaut)."""
+    env = os.environ if environ is None else environ
+    return str(env.get(OPTION_ENV, "")).strip() == "1"
+
+
+def carte_normales_voulue(option, environ=None):
+    """La carte de normales doit-elle etre cuite pour CETTE generation ?
+
+    OUI seulement si `option` vaut exactement True (booleen strict : la chaine "true", 1 ou un objet quelconque ne comptent pas)
+    ET que l'interrupteur d'urgence (FABMESH_NORMAL_MAP=0) n'est pas coupe : l'interrupteur l'emporte sur l'option.
+    Sans option : jamais, donc le GLB d'avant a l'octet."""
+    return option is True and carte_normales_active(environ)
+
+
 def taille_atlas(scene):
     """(hauteur, largeur) de la premiere `baseColorTexture` des geometries texturees de `scene`, ou None s'il n'y en a pas."""
     try:
@@ -889,11 +957,14 @@ def taille_atlas(scene):
     return None
 
 
-def ajouter_carte_normales(scene, hi_vertices, hi_faces, texture_size=None, *, log=print, **options):
+def ajouter_carte_normales(scene, hi_vertices, hi_faces, texture_size=None, *, log=print, plafond=None, **options):
     """Cuisson + pose en un appel, pour les CHEMINS D'EXPORT (generation bureau et Modal). NE LEVE JAMAIS.
 
       texture_size : None = taille de l'atlas de COULEUR de la scene (taille_atlas), repli TAILLE_REPLI ; sinon comme bake_normal_map.
+      plafond      : None = plafond_carte() (FABMESH_NORMAL_MAP_MAX, defaut 2048) ; la carte ne depasse JAMAIS ce cote, que la
+                     taille vienne de l'atlas ou d'un texture_size explicite (un banc d'essai passe un plafond plus haut).
       options      : transmis a bake_normal_map (k, padding_px, hi_axes, workers).
+    Ne decide PAS si la carte est voulue (option par generation) : l'appelant teste carte_normales_voulue(option) avant.
     Interrupteur FABMESH_NORMAL_MAP=0 : rien n'est fait (scene inchangee, aucune ligne de journal). Au moindre echec (exception,
     rien a cuire, recalage refuse), la scene reste SANS carte. Rend un dict de mesures : 'posee' (bool), 'raison' (quand la carte
     n'est pas posee), 'duree_s', 'taille' (H, W), plus celles de bake_normal_map."""
@@ -904,7 +975,14 @@ def ajouter_carte_normales(scene, hi_vertices, hi_faces, texture_size=None, *, l
         return stats
     try:
         taille = texture_size if texture_size else (taille_atlas(scene) or TAILLE_REPLI)
-        stats["taille"] = _taille_texture(taille)
+        demandee = _taille_texture(taille)
+        limite = plafond_carte() if plafond is None else int(plafond)
+        taille = borner_taille(demandee, limite)
+        stats["taille"] = taille
+        if taille != demandee:
+            stats["plafonnee"] = True
+            _ligne(log, "[normales] carte plafonnee a %dx%d (atlas %dx%d, plafond %d)"
+                   % (taille[1], taille[0], demandee[1], demandee[0], limite))
         carte = bake_normal_map(scene, hi_vertices, hi_faces, taille, log=log, stats=stats, **options)
         if carte is None:
             stats["raison"] = "refus du recalage" if stats.get("refus") == "recalage" else "rien a cuire"

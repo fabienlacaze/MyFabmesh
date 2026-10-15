@@ -1500,6 +1500,153 @@ class AjouterCarte(unittest.TestCase):
             self.assertEqual(NB.retirer_cartes_normales(rien), 0)
 
 
+class PlafondEtOption(unittest.TestCase):
+    """2026-10-15 (decision du proprietaire) : la carte est une OPTION par generation, desactivee par defaut, plafonnee a 2048 px.
+    carte_normales_voulue : booleen STRICT, l'interrupteur d'urgence l'emporte ; option_carte_normales : variable du bureau ;
+    plafond : jamais depasse, proportions gardees, atlas 4096 -> 2048."""
+
+    def jeu(self, couleur, uv_de=None):
+        h, _ = champ_sinus(0.03, 2, 2)
+        Vh, Fh = grille_fine(65, h)
+        Vq, Fq, UV = quad_final(0, 1, 0, 1, uv_de=uv_de)
+        m = maillage_texture(Vq, Fq, UV)
+        m.visual.material.baseColorTexture = Image.fromarray(np.full((couleur[1], couleur[0], 3), 200, np.uint8))   # largeur x hauteur
+        return m, Vh, Fh
+
+    def test_constantes_publiques(self):
+        self.assertEqual(NB.PLAFOND_ENV, 'FABMESH_NORMAL_MAP_MAX')
+        self.assertEqual(NB.PLAFOND_DEFAUT, 2048)
+        self.assertEqual(NB.OPTION_ENV, 'FABMESH_NORMAL_MAP_OPTION')
+        self.assertEqual(NB.INTERRUPTEUR, 'FABMESH_NORMAL_MAP')          # l'interrupteur d'urgence garde son nom
+
+    def test_plafond_carte_lit_la_variable(self):
+        self.assertEqual(NB.plafond_carte({}), 2048)
+        for brut, attendu in (('1024', 1024), (' 4096 ', 4096), ('16384', 16384), ('1', 1), ('2048', 2048), ('512', 512)):
+            self.assertEqual(NB.plafond_carte({'FABMESH_NORMAL_MAP_MAX': brut}), attendu, brut)
+        for invalide in ('', ' ', 'abc', '0', '-5', '16385', '99999', '2048.5', '1e3', None, 'None'):
+            self.assertEqual(NB.plafond_carte({'FABMESH_NORMAL_MAP_MAX': invalide}), 2048, repr(invalide))
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP_MAX='512'):
+            self.assertEqual(NB.plafond_carte(), 512)
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP_MAX=None):
+            self.assertEqual(NB.plafond_carte(), 2048)
+
+    def test_borner_taille(self):
+        self.assertEqual(NB.borner_taille(4096, 2048), (2048, 2048))
+        self.assertEqual(NB.borner_taille(4096), (2048, 2048))                       # plafond par defaut
+        self.assertEqual(NB.borner_taille(8192), (2048, 2048))
+        self.assertEqual(NB.borner_taille(2048), (2048, 2048))
+        self.assertEqual(NB.borner_taille(1024), (1024, 1024))                       # qui tient deja : inchange
+        self.assertEqual(NB.borner_taille((2048, 4096)), (1024, 2048))               # (hauteur, largeur), proportions gardees
+        self.assertEqual(NB.borner_taille((4096, 2048)), (2048, 1024))
+        self.assertEqual(NB.borner_taille(4096, 1024), (1024, 1024))
+        self.assertEqual(NB.borner_taille((4096, 4096), 5000), (4096, 4096))         # un plafond plus haut ne grandit jamais
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP_MAX='512'):
+            self.assertEqual(NB.borner_taille(4096), (512, 512))
+        with self.assertRaises(ValueError):
+            NB.borner_taille(1024, 0)
+        with self.assertRaises(ValueError):
+            NB.borner_taille(1024, -3)
+
+    def test_borner_taille_jamais_au_dessus_du_plafond(self):
+        for h in (1, 7, 64, 1000, 2047, 2048, 2049, 3001, 4096, 8192):
+            for w in (1, 5, 64, 1500, 2048, 4097, 16384):
+                for p in (1, 3, 100, 2048, 4096):
+                    bh, bw = NB.borner_taille((h, w), p)
+                    self.assertLessEqual(max(bh, bw), p, (h, w, p))
+                    self.assertLessEqual(bh, h)
+                    self.assertLessEqual(bw, w)
+                    self.assertGreaterEqual(min(bh, bw), 1)
+                    if max(h, w) > p:
+                        self.assertEqual(max(bh, bw), p, (h, w, p))                 # le plus long cote vaut le plafond
+
+    def test_atlas_4096_donne_une_carte_2048_par_defaut(self):
+        """Le cas de la PRODUCTION (paliers Quality et Ultra : atlas 4096) avec le vrai plafond par defaut."""
+        m, Vh, Fh = self.jeu((4096, 4096), uv_de=lambda xn, yn: (0.05 + 0.2 * xn, 0.05 + 0.2 * yn))
+        journal = []
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP=None, FABMESH_NORMAL_MAP_MAX=None):
+            stats = NB.ajouter_carte_normales(m, Vh, Fh, log=journal.append)
+        self.assertTrue(stats['posee'], stats)
+        self.assertEqual(stats['taille'], (2048, 2048))
+        self.assertEqual(m.visual.material.normalTexture.size, (2048, 2048))
+        self.assertEqual(m.visual.material.baseColorTexture.size, (4096, 4096))     # la couleur n'est pas touchee
+        self.assertTrue(stats.get('plafonnee'))
+        self.assertTrue(any('plafonnee a 2048x2048 (atlas 4096x4096, plafond 2048)' in l for l in journal), journal)
+        self.assertTrue(any('carte de normales 2048x2048 posee' in l for l in journal), journal)
+
+    def test_atlas_2048_et_moins_ne_sont_pas_plafonnes(self):
+        for cote in (2048, 1024, 64):
+            m, Vh, Fh = self.jeu((cote, cote), uv_de=lambda xn, yn: (0.05 + 0.2 * xn, 0.05 + 0.2 * yn))
+            journal = []
+            stats = NB.ajouter_carte_normales(m, Vh, Fh, log=journal.append)
+            self.assertTrue(stats['posee'], stats)
+            self.assertEqual(stats['taille'], (cote, cote))
+            self.assertNotIn('plafonnee', stats)
+            self.assertFalse([l for l in journal if 'plafonnee' in l], journal)
+
+    def test_plafond_par_variable_et_par_argument(self):
+        m, Vh, Fh = self.jeu((64, 64))
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP_MAX='32'):
+            stats = NB.ajouter_carte_normales(m, Vh, Fh, log=None)
+            self.assertEqual(stats['taille'], (32, 32))
+            self.assertEqual(m.visual.material.normalTexture.size, (32, 32))
+            # une taille EXPLICITE est plafonnee elle aussi (c'est le plafond de la production, pas une valeur par defaut)
+            m2, _, _ = self.jeu((64, 64))
+            self.assertEqual(NB.ajouter_carte_normales(m2, Vh, Fh, 64, log=None)['taille'], (32, 32))
+            # l'argument plafond l'emporte sur la variable (banc d'essai : 4096 / 2048 / 1024)
+            m3, _, _ = self.jeu((64, 64))
+            stats3 = NB.ajouter_carte_normales(m3, Vh, Fh, 64, plafond=48, log=None)
+            self.assertEqual(stats3['taille'], (48, 48))
+            self.assertEqual(m3.visual.material.normalTexture.size, (48, 48))
+            m4, _, _ = self.jeu((64, 64))
+            self.assertEqual(NB.ajouter_carte_normales(m4, Vh, Fh, 64, plafond=16384, log=None)['taille'], (64, 64))
+
+    def test_atlas_non_carre_garde_ses_proportions(self):
+        m, Vh, Fh = self.jeu((64, 32))                                             # 64 de large, 32 de haut
+        stats = NB.ajouter_carte_normales(m, Vh, Fh, plafond=16, log=None)
+        self.assertTrue(stats['posee'], stats)
+        self.assertEqual(stats['taille'], (8, 16))                                 # (hauteur, largeur)
+        self.assertEqual(m.visual.material.normalTexture.size, (16, 8))            # PIL : (largeur, hauteur)
+
+    def test_plafond_invalide_laisse_la_scene_sans_carte(self):
+        m, Vh, Fh = self.jeu((64, 64))
+        stats = NB.ajouter_carte_normales(m, Vh, Fh, plafond=0, log=None)
+        self.assertFalse(stats['posee'])
+        self.assertIn('erreur ValueError', stats['raison'])
+        self.assertIsNone(m.visual.material.normalTexture)
+
+    def test_carte_normales_voulue(self):
+        self.assertTrue(NB.carte_normales_voulue(True, {}))
+        self.assertTrue(NB.carte_normales_voulue(True, {'FABMESH_NORMAL_MAP': '1'}))
+        for coupe in ('0', ' 0 ', 'false', 'False', 'no', 'non', 'off', 'OFF'):
+            self.assertFalse(NB.carte_normales_voulue(True, {'FABMESH_NORMAL_MAP': coupe}), coupe)   # l'urgence l'emporte sur l'option
+        for pas_booleen in (False, None, 1, 0, 1.0, 'true', 'True', '1', 'yes', 'on', [], [True], {}, object(), b'true'):
+            self.assertFalse(NB.carte_normales_voulue(pas_booleen, {}), repr(pas_booleen))           # strict : seul True compte
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP='0'):
+            self.assertFalse(NB.carte_normales_voulue(True))
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP=None):
+            self.assertTrue(NB.carte_normales_voulue(True))
+            self.assertFalse(NB.carte_normales_voulue(False))
+            self.assertFalse(NB.carte_normales_voulue(None))
+
+    def test_option_du_bureau(self):
+        self.assertFalse(NB.option_carte_normales({}))                              # desactivee par defaut
+        for oui in ('1', ' 1 ', '1\n'):
+            self.assertTrue(NB.option_carte_normales({'FABMESH_NORMAL_MAP_OPTION': oui}), repr(oui))
+        for non in ('0', '', ' ', 'true', 'True', 'yes', 'on', 'oui', '2', '11', '-1', None):
+            self.assertFalse(NB.option_carte_normales({'FABMESH_NORMAL_MAP_OPTION': non}), repr(non))
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP_OPTION='1'):
+            self.assertTrue(NB.option_carte_normales())
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP_OPTION='0'):
+            self.assertFalse(NB.option_carte_normales())
+        with EnvironnementTemporaire(FABMESH_NORMAL_MAP_OPTION=None):
+            self.assertFalse(NB.option_carte_normales())
+        # l'option seule ne suffit pas : l'interrupteur d'urgence du bureau l'emporte
+        self.assertFalse(NB.carte_normales_voulue(NB.option_carte_normales({'FABMESH_NORMAL_MAP_OPTION': '1'}),
+                                                  {'FABMESH_NORMAL_MAP': '0', 'FABMESH_NORMAL_MAP_OPTION': '1'}))
+        self.assertTrue(NB.carte_normales_voulue(NB.option_carte_normales({'FABMESH_NORMAL_MAP_OPTION': '1'}),
+                                                 {'FABMESH_NORMAL_MAP_OPTION': '1'}))
+
+
 # =====================================================================================================================
 # Atlas 8192 (opt-in)
 # =====================================================================================================================
@@ -1553,8 +1700,11 @@ class ContratDuModule(unittest.TestCase):
 
     def test_api_publique(self):
         self.assertEqual(set(NB.__all__), {'NORMALE_PLATE', 'K_DEFAUT', 'PADDING_DEFAUT', 'AXES_FINS', 'RECALAGE_MAX', 'INTERRUPTEUR',
+                                           'PLAFOND_ENV', 'PLAFOND_DEFAUT', 'OPTION_ENV',
                                            'bake_normal_map', 'appliquer_carte_normales', 'proteger_cartes_normales',
-                                           'retirer_cartes_normales', 'carte_normales_active', 'taille_atlas', 'ajouter_carte_normales'})
+                                           'retirer_cartes_normales', 'carte_normales_active', 'plafond_carte', 'borner_taille',
+                                           'option_carte_normales', 'carte_normales_voulue', 'taille_atlas', 'ajouter_carte_normales'})
+        self.assertEqual((NB.PLAFOND_ENV, NB.PLAFOND_DEFAUT, NB.OPTION_ENV), ('FABMESH_NORMAL_MAP_MAX', 2048, 'FABMESH_NORMAL_MAP_OPTION'))
         for nom in NB.__all__:
             self.assertTrue(hasattr(NB, nom), nom)
         self.assertEqual(NB.INTERRUPTEUR, 'FABMESH_NORMAL_MAP')
@@ -1646,13 +1796,34 @@ MUTATIONS = [
     ('pose ecrite pendant la preparation (pas tout ou rien)',
      [('        _ = g.vertex_normals\n        a_poser.append((visuel, materiau))',
        '        _ = g.vertex_normals\n        materiau.normalTexture = image\n        a_poser.append((visuel, materiau))', 1)]),
+    # 2026-10-15 : option par generation et plafond de la carte
+    ('plafond ignore : la carte garde la taille de l atlas',
+     [('        taille = borner_taille(demandee, limite)\n', '        taille = demandee\n', 1)]),
+    ('plafond par defaut a 4096', [('PLAFOND_DEFAUT = 2048', 'PLAFOND_DEFAUT = 4096', 1)]),
+    ('variable du plafond ignoree',
+     [('        n = int(str(env.get(PLAFOND_ENV, "")).strip())', '        n = PLAFOND_DEFAUT', 1)]),
+    ('proportions perdues par le plafond (carre force)',
+     [('    f = p / float(plus_long)\n    return max(1, min(p, int(round(h * f)))), max(1, min(p, int(round(w * f))))',
+       '    return p, p', 1)]),
+    ('plafond explicite ignore', [('        limite = plafond_carte() if plafond is None else int(plafond)\n', '        limite = plafond_carte()\n', 1)]),
+    ('plafond jamais verifie (valeur absurde acceptee)',
+     [('    return n if 1 <= n <= 16384 else PLAFOND_DEFAUT', '    return n', 1)]),
+    ('option non exigee : la carte est voulue sans option',
+     [('    return option is True and carte_normales_active(environ)', '    return carte_normales_active(environ)', 1)]),
+    ('interrupteur d urgence sans effet sur l option',
+     [('    return option is True and carte_normales_active(environ)', '    return option is True', 1)]),
+    ('option non stricte (toute valeur vraie)',
+     [('    return option is True and carte_normales_active(environ)', '    return bool(option) and carte_normales_active(environ)', 1)]),
+    ('option du bureau acceptee sur toute valeur non vide',
+     [('    return str(env.get(OPTION_ENV, "")).strip() == "1"', '    return bool(str(env.get(OPTION_ENV, "")).strip())', 1)]),
     ('fenetre trop large : sommes perdues', [('                acc[k, bas:haut] += _somme_coins(coins, w, haut - bas)\n', '                pass\n', 1)]),
     ('un coin des faces fines oublie', [('    s += np.bincount(coins[2], weights=w, minlength=n)\n', '', 1)]),
     ('axes calcules sur la mauvaise tranche de sommets',
      [('axes[ab[0]:ab[1]] = _axe_dominant(acc, ab[0], ab[1])', 'axes[ab[0]:ab[1]] = _axe_dominant(acc, 0, ab[1] - ab[0])', 1)]),
 ]
 
-CLASSES_DES_MUTANTS = ['Plan', 'IlotsConstants', 'Axes', 'Export', 'BlocsEtBandes', 'SphereIlots', 'CasLimites', 'AjouterCarte']
+CLASSES_DES_MUTANTS = ['Plan', 'IlotsConstants', 'Axes', 'Export', 'BlocsEtBandes', 'SphereIlots', 'CasLimites', 'AjouterCarte',
+                       'PlafondEtOption']
 
 
 @unittest.skipIf(ENTRE_MUTANT, 'les mutations ne se rejouent pas dans un mutant')

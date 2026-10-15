@@ -81,6 +81,9 @@ const { writeMeta, readMeta } = require('./meta');
 // NOMS DE PROJET NON LATINS OU ACCENTUES (2026-10-13, audit de la langue) : dossier « ____ » partage par « 兽人战士 » et « 精灵射手 »,
 // accents detruits. Un nom ASCII garde sa regle d'avant ; sinon slug lisible + empreinte du nom exact (voir src/main/slug_projet.js).
 const { slugProjet, nomAffichageAMemoriser, nomPourLeSite } = require('./slug_projet');
+// OPTION « relief pour moteur de jeu » (2026-10-15) : carte de normales plafonnee a 2048 px, GRATUITE, decochee par defaut. Booleen STRICT et
+// variable d'environnement du pipeline natif (scripts/normal_bake.py, OPTION_ENV) : voir src/main/option_normales.js.
+const OptionNormales = require('./option_normales');
 // MARQUAGE « GENERE PAR IA » des GLB derives (2026-10-03, reglement UE 2024/1689 art. 50, echeance 2026-12-02) : les outils de maillage,
 // l'editeur, Paint Mesh et le rig reecrivent le GLB et perdaient asset.extras.aiGenerated posee a la generation. Voir src/main/marquage_ia.js.
 const _marquageIA = require('./marquage_ia');
@@ -9596,7 +9599,7 @@ function _evenementPiloteNvidia(depuisMs) {
   });
 }
 
-ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, rectifyForce, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2Finesse, trellis2MaxTris, assetType }) => {
+ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBack, outputName, textureSize, engine: _engine, targetFaces, effort, jobId, vramFraction, subdivide, trellis2Steps, trellis2TexSize, trellis2ImgRes, trellis2MultiRef, trellis2Refine, trellis2RectifySource, rectifyForce, trellis2Smooth, trellis2QualityPlus, trellis2UltraQ, trellis2FaceFix, trellis2UltraHD, trellis2Preset, trellis2Finesse, trellis2MaxTris, trellis2NormalMap, assetType }) => {
   const _departPilote = Date.now();   // pour retrouver un evenement du pilote NVIDIA pendant ce calcul
   if (jobId) _annulesParUtilisateur.delete(jobId);
   let imagePath = _imagePath;
@@ -9637,6 +9640,7 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
           face_fix: !!trellis2FaceFix,
           multiref: !!trellis2MultiRef,
           back_view: false,
+          normal_map: OptionNormales.optionActive(trellis2NormalMap),   // option gratuite « relief pour moteur de jeu » (le worker la valide)
         },
         maxTris: trellis2MaxTris,   // « Max triangles » (nombre, pas un drapeau)
         outPath: meshPath,
@@ -9662,7 +9666,8 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
                   multiRef: trellis2MultiRef, refine: trellis2Refine,
                   rectifySource: trellis2RectifySource, smooth: trellis2Smooth,
                   qualityPlus: trellis2QualityPlus, ultraQ: trellis2UltraQ,
-                  faceFix: trellis2FaceFix, ultraHD: trellis2UltraHD },
+                  faceFix: trellis2FaceFix, ultraHD: trellis2UltraHD,
+                  normal_map: OptionNormales.optionActive(trellis2NormalMap) },
       });
       return { success: true, meshPath, meshFilename, format: 'glb', size: r.size, sourceImage: imagePath };
     } catch (e) {
@@ -10001,6 +10006,9 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
       // FINESSE DE LA FORME (menu « Shape detail », 2026-10-02) : auto | rapide | fin | max, lue par le pipeline TRELLIS.2 patche
       // (scripts/apply_trellis2_ram_patches.py, patch g). Valeur inconnue = auto.
       ...(engine === 'trellis2_native' ? { FABMESH_TRELLIS2_FINESSE: ['auto', 'rapide', 'fin', 'max'].includes(String(trellis2Finesse)) ? String(trellis2Finesse) : 'auto' } : {}),
+      // OPTION « relief pour moteur de jeu » (2026-10-15) : le pipeline ne cuit la carte de normales (plafonnee a 2048 px) que si cette variable
+      // vaut '1' ; posee a '1' ou '0' a CHAQUE generation. FABMESH_NORMAL_MAP=0 (urgence) reste prioritaire dans le pipeline.
+      ...(engine === 'trellis2_native' ? OptionNormales.variablesEnv(trellis2NormalMap) : {}),
       // PAS DE TEXTURE DU PALIER (constat T2, 2026-10-03) : l'interface envoyait trellis2Steps mais le champ
       // n'etait jamais transmis (le pipeline gardait son defaut de 24 pour tous les paliers). Borne [8, 48] ;
       // pour Fast, 12 devient 24 (comme le web : mesure meilleur que 12). Champ absent = defaut du pipeline.
@@ -10055,6 +10063,7 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
         rectifySource: trellis2RectifySource, smooth: trellis2Smooth,
         qualityPlus: trellis2QualityPlus, ultraQ: trellis2UltraQ,
         faceFix: trellis2FaceFix, ultraHD: trellis2UltraHD,
+        normal_map: OptionNormales.optionActive(trellis2NormalMap),
         voxelMode: env.FABMESH_TRELLIS2_NATIVE_MODE || '1024',
         maxTokens: env.FABMESH_TRELLIS2_MAX_TOKENS,
         seed: 42,  // défaut du bridge (FABMESH_TRELLIS2_NATIVE_SEED jamais posé)

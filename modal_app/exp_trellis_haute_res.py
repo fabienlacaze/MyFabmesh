@@ -174,7 +174,9 @@ def _poser_carte_normales(glb, ov, carte, log=print) -> dict:
         return {}
     from modal_app import normal_bake
     ts = int(carte) if int(carte) >= 256 else None      # --carte 2048 : carte plafonnee a 2048 (essai du 15/10), 1 : taille de l'atlas
-    st = normal_bake.ajouter_carte_normales(glb, ov.vertices, ov.faces, texture_size=ts, log=log)
+    # le plafond de PRODUCTION (2048, normal_bake.PLAFOND_DEFAUT, depuis le 15/10) ne s'applique pas a un banc d'essai : on passe
+    # le plafond demande (--carte 4096 donne bien 4096), ou aucun plafond pratique (16384) pour --carte 1 = taille de l'atlas
+    st = normal_bake.ajouter_carte_normales(glb, ov.vertices, ov.faces, texture_size=ts, plafond=(ts or 16384), log=log)
     return {k: st[k] for k in ("posee", "raison", "duree_s", "taille") if k in st}
 
 

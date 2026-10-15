@@ -3090,6 +3090,10 @@ class MyFabmeshMesh:
                 # Ultra 8K fait AVANT la serialisation (une seule ecriture du GLB) quand
                 # aucune etape ne retouche la texture ensuite (refine, face fix).
                 ultra_hd=ultra_dans_generate,
+                # Case « Game-engine relief (normal map) » : carte de normales plafonnee a 2048, desactivee par defaut.
+                # Lecture STRICTE (`is True`) : bool("false") vaudrait True ; le worker n'envoie de toute facon qu'un
+                # booleen, mais un appel direct ne doit jamais activer la cuisson par une valeur ambigue.
+                normal_map=payload.get("normal_map") is True,
             )
 
             # AFFINAGE DE L ATLAS (case « Detail refine »). Il exige le

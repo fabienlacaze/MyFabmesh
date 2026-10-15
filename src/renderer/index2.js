@@ -10929,7 +10929,7 @@ async function showGenerationHistory(startPath) {
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
     texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
     skeleton: 'Skeleton', anim_type: 'Animation', voxel_grid: 'Voxel grid', tex_steps: 'Texture steps', op_type: 'Operation',
-    prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode',
+    prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode', normal_map: 'Game-engine relief',
     numImages: 'Images', quality: 'Quality', userPrompt: 'Your prompt', cnScale: 'Shape lock', negPrompt: 'Negative prompt', gris: 'Grey level', motifs: 'Patterns',
     targetText: 'Target', replaceText: 'Replace with', precision: 'Precision', dilate: 'Padding', recolorAll: 'Whole image', rel: 'Colour', style: 'Style',
     direction: 'Direction', axisX: 'Axis position', axisAngle: 'Axis angle', brushSize: 'Brush size', tool: 'Tool', color: 'Colour', opacity: 'Opacity',
@@ -11547,6 +11547,9 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   if (trellis2FaceFix) expectedMs += 60000;  // ~60s for SDXL face inpaint
   const trellis2UltraHD = document.getElementById('ws-trellis2-ultra-hd')?.checked || false;
   if (trellis2UltraHD) expectedMs += 280000;  // ~280s for Real-ESRGAN x2 atlas 4k→8k
+  // OPTION « relief pour moteur de jeu » (2026-10-15) : carte de normales plafonnee a 2048 px, GRATUITE, decochee par defaut, lue par le
+  // serveur (worker -> Modal) ou par le pipeline du bureau. Booleen STRICT (=== true) : jamais une valeur ambigue vers le serveur.
+  const trellis2NormalMap = document.getElementById('ws-trellis2-normal-map')?.checked === true;
   const TRELLIS2_PRESETS = {
     // 2026-10-03 (recherche texture T2/T3) : Fast passe de 12 a 24 pas (decision du proprietaire :
     // aligne sur le web, 24/24/32/32). Le champ imgRes a ete retire : il n'etait lu par aucun code
@@ -11591,6 +11594,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     trellis2QualityPlus,
     trellis2UltraQ,
     trellis2FaceFix,
+    trellis2NormalMap,                   // option « relief pour moteur de jeu » (lue par main.js : cloud -> flags.normal_map, local -> FABMESH_NORMAL_MAP_OPTION)
     trellis2UltraHD: effectiveUltraHD,
     // Also send via the snake_case key expected by the python runner.
     ultra_hd: effectiveUltraHD,
@@ -11613,7 +11617,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   const _optsActives = [trellis2MultiRef && 'Multi-reference', trellis2RectifySource && 'Auto-rectify',
     trellis2Smooth && 'Texture smooth', trellis2QualityPlus && 'Sharp edges',
     trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Sharpened 8192px',
-    trellis2Refine && 'Detail refine', trellis2FaceFix && 'Face fix'].filter(Boolean);
+    trellis2Refine && 'Detail refine', trellis2FaceFix && 'Face fix', trellis2NormalMap && 'Game-engine relief'].filter(Boolean);
   const jobParams = engine === 'trellis2_native' ? {
     Engine: engineLabel(engine),
     Quality: qualityDisplay,
