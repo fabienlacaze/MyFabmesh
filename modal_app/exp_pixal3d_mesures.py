@@ -10,7 +10,9 @@ Pieges du projet appliques ici (CLAUDE.md, section 5) :
     arrondies) avant toute mesure de topologie, sinon le maillage parait en milliers de morceaux ;
   - mesurer un atlas sur toute l'image est faux (le vide est noir) : toutes les statistiques de texture sont restreintes aux texels
     reellement couverts par les triangles d'UV ;
-  - normales de faces adjacentes opposees (produit scalaire < -0,5) en % d'aire : detecte les triangles retournes (section 13).
+  - normales de faces adjacentes opposees (produit scalaire < -0,5) en % d'aire : detecte les triangles retournes (section 13) ;
+  - « 0 arete de bord » ne veut pas dire « plein » : un GLB d'O-Voxels est ferme mais a DOUBLE PEAU (peau exterieure + peau interieure a normales inversees) ;
+    volume signe, rapport a l'enveloppe convexe et ecart des deux peaux le disent en nombres (volume_et_ecart_peaux).
 
 Ne conclut rien sur la qualite visuelle : ce sont des nombres, le jugement est fait ailleurs (comparateur cote a cote).
 """
@@ -190,6 +192,34 @@ def _pct_aire_opposee(f, cle_aretes, nv, normales, aire):
     marque[fa[mauvais]] = True
     marque[fb[mauvais]] = True
     return float(100.0 * aire[marque].sum() / aire.sum())
+
+
+def volume_et_ecart_peaux(v, f):
+    """Volume signe (somme des tetraedres origine-triangle : positif quand les normales sortent), aire, volume de l'enveloppe convexe des sommets, et ECART MOYEN ENTRE DEUX PEAUX
+    ACCOLEES = 2 x volume / aire. Pourquoi : un GLB d'O-Voxels (TRELLIS.2, Pixal3D) est ferme (0 arete de bord) mais n'est pas un plein : le remaillage en bande etroite livre une peau
+    exterieure ET une peau interieure a normales inversees (issues #18 de Pixal3D et #140 de TRELLIS.2). Le volume signe des deux se retranche : il vaut ~ aire de la surface x ecart, soit
+    un rapport au volume de l'enveloppe convexe voisin de 0 (un plein de personnage : 0,2 a 0,6) ; pour deux peaux d'ecart g, volume / aire = g / 2. Sommets NON soudes (le volume
+    n'en depend pas) mais recentres sur leur moyenne : sans cela, un modele loin de l'origine perd toute precision (termes de l'ordre de d^3 qui se retranchent)."""
+    v = np.asarray(v, dtype=np.float64)
+    f = np.asarray(f, dtype=np.int64)
+    centre = v.mean(axis=0)
+    c = v - centre
+    p0, p1, p2 = c[f[:, 0]], c[f[:, 1]], c[f[:, 2]]
+    volume = float(np.einsum("ij,ij->i", p0, np.cross(p1, p2)).sum() / 6.0)
+    aire = float(np.linalg.norm(np.cross(p1 - p0, p2 - p0), axis=1).sum() / 2.0)
+    diag = float(np.linalg.norm(v.max(axis=0) - v.min(axis=0)))
+    res = {"volume_signe": volume, "aire": aire,
+           "ecart_peaux_moyen": (2.0 * volume / aire) if aire > 0 else None,
+           "ecart_peaux_moyen_rel_diag": (2.0 * volume / aire / diag) if aire > 0 and diag > 0 else None}
+    try:
+        from scipy.spatial import ConvexHull
+        vh = float(ConvexHull(c).volume)
+        res["volume_enveloppe_convexe"] = vh
+        res["rapport_volume_enveloppe"] = (volume / vh) if vh > 0 else None
+    except Exception:                       # points coplanaires ou trop peu de points : pas d'enveloppe, le reste de la mesure reste valable
+        res["volume_enveloppe_convexe"] = None
+        res["rapport_volume_enveloppe"] = None
+    return res
 
 
 # ----------------------------------------------------------------------------------------------- atlas UV
@@ -428,6 +458,7 @@ def mesurer_glb(source, entree_rgba=None, camera=None, taille_couverture=PAS_AUT
     mn, mx = V.min(axis=0), V.max(axis=0)
     res["bornes"] = {"min": mn, "max": mx, "etendue": mx - mn, "centre": (mn + mx) / 2.0}
     res["topologie"] = topologie(V, F)
+    res["volume"] = volume_et_ecart_peaux(V, F)
     g0 = geoms[0]
     uv = getattr(g0.visual, "uv", None)
     mat = getattr(g0.visual, "material", None)

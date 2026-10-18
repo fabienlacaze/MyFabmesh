@@ -7,7 +7,8 @@ fausserait la comparaison sans que rien ne le signale. Chaque test cible donc un
   - une couverture d'atlas calculee sur toute l'image dilue la mesure dans le vide noir : les statistiques de texture sont restreintes aux texels couverts ;
   - les trous, les fragments, les triangles retournes (normales adjacentes opposees) sont comptes ;
   - l'alignement de silhouette retient le bon repere (un objet decale a droite dans le GLB doit se retrouver a gauche de l'image : x_w = -x') ;
-  - le recadrage de l'entree reproduit celui du modele (carre x 1,1 autour du sujet).
+  - le recadrage de l'entree reproduit celui du modele (carre x 1,1 autour du sujet) ;
+  - un GLB d'O-Voxels est FERME mais a DOUBLE PEAU : volume signe (peau exterieure moins peau interieure) et ecart moyen entre les deux peaux.
 
 Lancer :  <python de l'appli> build/bancs/noyaux/test_pixal3d_mesures.py -v
 Pour prouver l'echec sur une version fautive : NOYAU_MESURES=<copie modifiee de exp_pixal3d_mesures.py>.
@@ -342,6 +343,75 @@ class TestOrientation(unittest.TestCase):
         self.assertNotIn('orientation', MES.mesurer_glb(octets), 'sans entree, aucune mesure liee a l entree')
         import json
         json.dumps(avec_camera)
+
+
+class TestVolumeEtPeaux(unittest.TestCase):
+    """Les coupes planes montrent que les GLB d'O-Voxels (Pixal3D comme TRELLIS.2) sont fermes mais a DOUBLE PEAU accolee : 0 arete de bord, et pourtant un volume signe
+    quasi nul (peau exterieure moins peau interieure a normales inversees). Un maillage « ferme » n'est donc pas un « plein » : la mesure le dit en nombres."""
+
+    @staticmethod
+    def cube(cote, inverse=False, centre=(0.0, 0.0, 0.0)):
+        import trimesh
+        b = trimesh.creation.box(extents=[cote] * 3)
+        V = np.asarray(b.vertices, np.float64) + np.asarray(centre, np.float64)
+        F = np.asarray(b.faces, np.int64)
+        return V, (F[:, ::-1].copy() if inverse else F)
+
+    def test_cube_plein(self):
+        V, F = self.cube(2.0)
+        r = MES.volume_et_ecart_peaux(V, F)
+        self.assertAlmostEqual(r['volume_signe'], 8.0, places=9, msg='positif quand les normales sortent, somme des tetraedres / 6')
+        self.assertAlmostEqual(r['aire'], 24.0, places=9)
+        self.assertAlmostEqual(r['volume_enveloppe_convexe'], 8.0, places=6)
+        self.assertAlmostEqual(r['rapport_volume_enveloppe'], 1.0, places=6)
+        self.assertAlmostEqual(r['ecart_peaux_moyen_rel_diag'], 2.0 * 8.0 / 24.0 / math.sqrt(12.0), places=9)
+
+    def test_double_peau_accolee(self):
+        """Peau exterieure (cote 2) + peau interieure (cote 2 - 2g) a normales INVERSEES : deux peaux separees de g. Fermee, sans bord, et pourtant presque sans volume."""
+        g = 0.02
+        Ve, Fe = self.cube(2.0)
+        Vi, Fi = self.cube(2.0 - 2.0 * g, inverse=True)
+        V = np.concatenate([Ve, Vi])
+        F = np.concatenate([Fe, Fi + len(Ve)])
+        r = MES.volume_et_ecart_peaux(V, F)
+        self.assertAlmostEqual(r['volume_signe'], 8.0 - (2.0 - 2.0 * g) ** 3, places=9)
+        self.assertAlmostEqual(r['ecart_peaux_moyen'], g, delta=0.01 * g, msg='ecart moyen = 2 x volume / aire (volume / aire = g / 2 pour deux peaux)')
+        self.assertLess(r['rapport_volume_enveloppe'], 0.07, 'le rapport au volume de l enveloppe convexe est ~ 0 pour une double peau (1 pour un plein)')
+        self.assertEqual(MES.topologie(V, F)['aretes_de_bord'], 0, 'la double peau est FERMEE : aucun trou ne la trahit')
+
+    def test_orientation_inversee_donne_un_volume_negatif(self):
+        V, F = self.cube(2.0, inverse=True)
+        r = MES.volume_et_ecart_peaux(V, F)
+        self.assertAlmostEqual(r['volume_signe'], -8.0, places=9)
+        self.assertLess(r['ecart_peaux_moyen'], 0.0)
+        self.assertLess(r['rapport_volume_enveloppe'], 0.0)
+
+    def test_translation_lointaine_sans_effet(self):
+        """Sans recentrage, les termes en d^3 (d = 1e6) se retranchent mal : le volume derive de plusieurs unites (13 pour un cube de volume 8). Coordonnees FRACTIONNAIRES : avec des entiers le calcul sans recentrage
+        est exact (tout reste sous 2^53) et le defaut ne se verrait pas."""
+        V, F = self.cube(2.0, centre=(1.0e6 + 0.123456789, -5.0e5 + 0.987654321, 2.5e5 + 0.555555555))
+        r = MES.volume_et_ecart_peaux(V, F)
+        self.assertAlmostEqual(r['volume_signe'], 8.0, places=6)
+        self.assertAlmostEqual(r['aire'], 24.0, places=6)
+
+    def test_maillage_plat_sans_enveloppe(self):
+        """Quatre points coplanaires : pas d'enveloppe convexe (Qhull refuse), le reste de la mesure reste valable et rien ne plante."""
+        V = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], np.float64)
+        F = np.array([[0, 1, 2], [0, 2, 3]], np.int64)
+        r = MES.volume_et_ecart_peaux(V, F)
+        self.assertIsNone(r['volume_enveloppe_convexe'])
+        self.assertIsNone(r['rapport_volume_enveloppe'])
+        self.assertAlmostEqual(r['aire'], 1.0, places=12)
+        self.assertAlmostEqual(r['volume_signe'], 0.0, places=12)
+
+    def test_branche_dans_mesurer_glb(self):
+        _, _, g = sphere(sub=4, taille=256)
+        r = MES.mesurer_glb(g.export(file_type='glb', extension_webp=True))
+        self.assertIn('volume', r, 'mesurer_glb doit rendre la mesure de volume')
+        self.assertGreater(r['volume']['volume_signe'], 0.0)
+        self.assertGreater(r['volume']['rapport_volume_enveloppe'], 0.99, 'une sphere pleine est son propre enveloppe convexe')
+        import json
+        json.dumps(r)
 
 
 if __name__ == '__main__':

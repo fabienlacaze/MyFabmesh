@@ -24,6 +24,9 @@ RACINE = os.path.abspath(os.path.join(ICI, '..', '..', '..'))
 CHEMIN = os.environ.get('NOYAU_OUTILS') or os.path.join(RACINE, 'modal_app', 'exp_pixal3d_outils.py')
 
 
+CHEMIN_BANC = os.environ.get('NOYAU_BANC') or os.path.join(RACINE, 'modal_app', 'exp_pixal3d.py')
+
+
 def charger():
     spec = importlib.util.spec_from_file_location('exp_pixal3d_outils_sous_test', CHEMIN)
     m = importlib.util.module_from_spec(spec)
@@ -355,6 +358,84 @@ class TestTopsDeDistribution(unittest.TestCase):
 
     def test_chemins_a_la_windows(self):
         self.assertEqual(O.tops_de_distribution(None, ['numpy\\core\\x.py', 'numpy-2.dist-info\\METADATA']), {'numpy'})
+
+
+class TestBancStatique(unittest.TestCase):
+    """Analyse `ast` de modal_app/exp_pixal3d.py (aucune importation de modal ni de torch)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import ast
+        cls.arbre = ast.parse(open(CHEMIN_BANC, encoding='utf-8').read())
+
+    def fonction(self, nom):
+        import ast
+        for n in ast.walk(self.arbre):
+            if isinstance(n, ast.FunctionDef) and n.name == nom:
+                return n
+        self.fail('fonction %s introuvable dans le banc' % nom)
+
+    @staticmethod
+    def defaut(fonction, nom_param):
+        import ast
+        args = fonction.args
+        noms = [a.arg for a in args.args]
+        valeurs = [None] * (len(noms) - len(args.defaults)) + list(args.defaults)
+        self_ = dict(zip(noms, valeurs))
+        if nom_param not in self_:
+            return 'ABSENT'
+        v = self_[nom_param]
+        return ast.literal_eval(v) if v is not None else 'SANS DEFAUT'
+
+    def appels(self, fonction, nom_appele):
+        import ast
+        out = []
+        for n in ast.walk(fonction):
+            if isinstance(n, ast.Call):
+                f = n.func
+                nom = f.attr if isinstance(f, ast.Attribute) else (f.id if isinstance(f, ast.Name) else None)
+                if nom == nom_appele:
+                    out.append(n)
+        return out
+
+    def test_remesh_project_vaut_zero_par_defaut_partout(self):
+        # 0 = reglage de l'AUTEUR de Pixal3D (inference.py) : le comportement par defaut du banc ne change pas
+        self.assertEqual(self.defaut(self.fonction('generer'), 'remesh_project'), 0.0)
+        self.assertEqual(self.defaut(self.fonction('main'), 'remesh_project'), 0.0)
+
+    def test_to_glb_recoit_la_valeur_demandee_et_pas_une_constante(self):
+        import ast
+        appels = self.appels(self.fonction('_un_passage'), 'to_glb')
+        self.assertEqual(len(appels), 1, 'un seul export dans _un_passage')
+        mots = {k.arg: k.value for k in appels[0].keywords}
+        self.assertIn('remesh_project', mots)
+        self.assertNotIsInstance(mots['remesh_project'], ast.Constant, 'remesh_project code en dur : l\'option de la ligne de commande serait sans effet')
+        self.assertEqual(ast.dump(mots['remesh_project']), ast.dump(ast.parse('params["remesh_project"]', mode='eval').body))
+
+    def test_generer_range_la_valeur_dans_params_et_dans_les_resultats(self):
+        import ast
+        g = self.fonction('generer')
+        cles_params = cles_resultats = None
+        for n in ast.walk(g):
+            if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) and isinstance(n.value, ast.Call):
+                if n.targets[0].id == 'params':
+                    cles_params = {k.arg for k in n.value.keywords}
+            if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) and n.targets[0].id == 'out' and isinstance(n.value, ast.Dict):
+                for k, v in zip(n.value.keys, n.value.values):
+                    if isinstance(k, ast.Constant) and k.value == 'parametres' and isinstance(v, ast.Call):
+                        cles_resultats = {kw.arg for kw in v.keywords}
+        self.assertIsNotNone(cles_params, 'dict(...) `params` introuvable')
+        self.assertIsNotNone(cles_resultats, '`out["parametres"]` introuvable')
+        self.assertIn('remesh_project', cles_params, 'params doit porter remesh_project jusqu a _un_passage')
+        self.assertIn('remesh_project', cles_resultats, 'le fichier de resultats doit enregistrer le reglage d export utilise')
+
+    def test_main_transmet_la_valeur_a_generer(self):
+        appels = self.appels(self.fonction('main'), 'remote')
+        gen = [a for a in appels if any(k.arg == 'remesh_project' for k in a.keywords)]
+        self.assertEqual(len(gen), 1, 'main doit appeler generer.remote(..., remesh_project=remesh_project)')
+        import ast
+        kw = [k for k in gen[0].keywords if k.arg == 'remesh_project'][0]
+        self.assertEqual(ast.dump(kw.value), ast.dump(ast.parse('remesh_project', mode='eval').body))
 
 
 if __name__ == '__main__':

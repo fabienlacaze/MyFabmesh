@@ -18,6 +18,7 @@ Etapes (chacune reprenable ; `PYTHONUTF8=1 PYTHONIOENCODING=utf-8` obligatoires 
     ... --etape gener --entrees photo --repeter 2                            # photo : passe froide puis chaude
     ... --etape gener --entrees photo --fov 0.349 --etiquette _fov20         # champ de vision IMPOSE (rad) au lieu de l'estimation de MoGe-2 (README : cameras a 20 degres)
     ... --etape gener --max-tokens 98304 --etiquette _t98k                   # variante : plafond de jetons double (resolution effective non reduite)
+    ... --etape gener --entrees orc --remesh-project 0.9 --etiquette _proj09 # reglage d'export de la PRODUCTION TRELLIS.2 (defaut de to_glb) au lieu de 0 (auteur de Pixal3D)
     ... --etape mesurer [--tout]                                             # mesures CPU locales des GLB (modal_app/exp_pixal3d_mesures.py) ; --tout : tout refaire
     ... --etape nettoyer [--tout]                                            # vide les sorties du volume (--tout : poids et caches aussi)
     EXP_GPU=A100-80GB ... pour la carte 80 Go.
@@ -598,7 +599,7 @@ def _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params, passe, de
                         glb = o_voxel.postprocess.to_glb(
                             vertices=mesh.vertices, faces=mesh.faces, attr_volume=mesh.attrs, coords=mesh.coords,
                             attr_layout=pipeline.pbr_attr_layout, grid_size=reso, aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
-                            decimation_target=nb_faces, texture_size=atlas_essai, remesh=True, remesh_band=1, remesh_project=0, use_tqdm=False)
+                            decimation_target=nb_faces, texture_size=atlas_essai, remesh=True, remesh_band=1, remesh_project=params["remesh_project"], use_tqdm=False)
                 atlas_utilise = atlas_essai
                 break
             except torch.cuda.OutOfMemoryError:
@@ -675,7 +676,7 @@ def verifier() -> dict:
 
 @app.function(gpu=GPU, timeout=3000, secrets=SECRETS, volumes={"/cache": vol})
 def generer(entrees: dict, faces: int = 500000, atlas: int = 4096, resolution: int = 1536, seed: int = 42, fov: float = -1.0,
-            natif: bool = False, repeter: int = 1, max_tokens: int = MAX_JETONS_DEFAUT, etiquette: str = "") -> dict:
+            natif: bool = False, repeter: int = 1, max_tokens: int = MAX_JETONS_DEFAUT, etiquette: str = "", remesh_project: float = 0.0) -> dict:
     """Pour chaque entree (nom -> octets PNG RGBA) : cascade Pixal3D + export GLB sur le volume. Le modele est charge UNE fois, puis `repeter` passes
     par image (la passe 1 paie la compilation / le reglage des noyaux Triton, la derniere est « chaude »). L'export a 1 M de faces (reglage par defaut
     de l'auteur) n'est fait qu'a la derniere passe, si `natif`."""
@@ -686,7 +687,7 @@ def generer(entrees: dict, faces: int = 500000, atlas: int = 4096, resolution: i
     _preparer_env()
     repeter = max(1, int(repeter))
     out = {"gpu_demande": GPU, "parametres": dict(faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, repeter=repeter,
-                                                  max_tokens=max_tokens, etiquette=etiquette), "images": {}}
+                                                  max_tokens=max_tokens, etiquette=etiquette, remesh_project=remesh_project), "images": {}}
     torch.zeros(1, device="cuda")                       # contexte CUDA cree ICI (fil principal) avant que la sonde ne lise la carte
     sonde = SondeMemoire(_gpu_occupe_Go).demarrer()
     try:
@@ -697,7 +698,7 @@ def generer(entrees: dict, faces: int = 500000, atlas: int = 4096, resolution: i
         out["vram_apres_chargement_Go"] = round(torch.cuda.memory_allocated() / 1e9, 2)
         out["carte_occupee_apres_chargement_Go"] = round(_gpu_occupe_Go(), 2)
         jetons = _instrumenter(pipeline, chrono)
-        params = dict(faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, max_tokens=max_tokens)
+        params = dict(faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, max_tokens=max_tokens, remesh_project=remesh_project)
         for nom, png in entrees.items():
             passes = []
             for k in range(repeter):
@@ -856,7 +857,8 @@ def _telecharger_du_volume(chemin_volume, dest):
 
 @app.local_entrypoint()
 def main(etape: str = "verif", entrees: str = "orc,photo", faces: int = 500000, atlas: int = 4096, resolution: int = 1536, seed: int = 42,
-         fov: float = -1.0, natif: bool = False, repeter: int = 1, max_tokens: int = MAX_JETONS_DEFAUT, etiquette: str = "", tout: bool = False):
+         fov: float = -1.0, natif: bool = False, repeter: int = 1, max_tokens: int = MAX_JETONS_DEFAUT, etiquette: str = "", tout: bool = False,
+         remesh_project: float = 0.0):
     os.makedirs(SORTIE + "/glb", exist_ok=True)
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))          # racine du depot : `modal_app` importable cote local
     from modal_app.exp_pixal3d_outils import cameras_par_glb, nom_glb_local
@@ -879,7 +881,7 @@ def main(etape: str = "verif", entrees: str = "orc,photo", faces: int = 500000, 
         noms = [n.strip() for n in entrees.split(",") if n.strip()]
         contenu = {n: open(ENTREES[n], "rb").read() for n in noms}
         r = generer.remote(contenu, faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, repeter=repeter,
-                           max_tokens=max_tokens, etiquette=etiquette)
+                           max_tokens=max_tokens, etiquette=etiquette, remesh_project=remesh_project)
         _ecrire_json(SORTIE + "/pixal3d_resultats_%s%s.json" % ("+".join(noms), etiquette), r)       # un fichier par jeu d'entrees : le suivant n'ecrase pas le precedent
         _journal_cout("gener%s %s x%d" % (etiquette, "+".join(noms), repeter), r.get("duree_totale_s", 0))
         for n, bloc in r["images"].items():
