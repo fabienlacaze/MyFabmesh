@@ -257,8 +257,21 @@ def _cloisonner():
         return None
 
 
+def _flux_tolerants():
+    """stdout / stderr ne levent plus sur un caractere que leur codage ne sait pas ecrire. Le chemin du PNG de sortie est dans le dossier
+    temporaire de l'utilisateur : un nom cyrillique, arabe ou chinois, avec un Python hors du mode UTF-8, faisait lever UnicodeEncodeError au
+    « OK: <chemin> » FINAL, APRES l'ecriture du PNG : code retour 1, et le pipeline 3D ecartait un detourage reussi. L'appli pose
+    PYTHONUTF8=1 pour ses sous-processus (main.js) ; ce filet couvre un lancement a la main ou un environnement qui ne l'herite pas."""
+    for flux in (sys.stdout, sys.stderr):
+        try:
+            flux.reconfigure(errors="replace")
+        except Exception:
+            pass
+
+
 def main():
     global _CM
+    _flux_tolerants()
     if len(sys.argv) < 2:
         print("Usage: python lucida_matte.py <image_path> [<output_png>]")
         sys.exit(1)

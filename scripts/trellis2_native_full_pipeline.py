@@ -8,7 +8,8 @@ geometry and texture jointly from a single input image. Validated at
 
 Pipeline:
   1. Auto-patch HF cache (briaai/RMBG-2.0 [gated] -> ZhengPeng7/BiRefNet [Apache])
-  2. rembg u2net image pre-processing (skip TRELLIS-2 internal rembg)
+  2. subject cut-out before the 3D (skip TRELLIS-2 internal rembg): UNION of the Lucida and rembg u2net masks,
+     u2net alone when Lucida is unavailable or its mask is implausible (see _detourer_sujet)
   3. Trellis2ImageTo3DPipeline.run(mode='1024', preprocess_image=False)
   4. o_voxel.postprocess.to_glb (Kaolin shim, commercial-safe)
   5. Auto-brighten baseColor texture (under-lit in ACES viewers)
@@ -19,6 +20,7 @@ Configurable via env:
   FABMESH_TRELLIS2_NATIVE_SEED      int (default 42)
   FABMESH_TRELLIS2_NATIVE_DECIM     decimation target faces (default 500000)
   FABMESH_TRELLIS2_SKIP_BRIGHTEN    1 to disable auto-brighten
+  FABMESH_DETOURAGE                 union (default, or auto) / u2net (the pre-2026-10-03 cut-out, byte for byte) / lucida
 
 Usage:
     python trellis2_native_full_pipeline.py <input_image> <out_glb> [tex_res=2048]
@@ -608,7 +610,7 @@ def _prep_image(path):
 
 def _masque_lucida_sous_processus(orientee):
     """(alpha, raison, sortie) : le masque Lucida (ndarray uint8 2D, taille de `orientee`) calcule dans un SOUS-PROCESSUS,
-    ou (None, raison) s'il manque ou s'il est aberrant. Ne leve jamais.
+    ou (None, raison, sortie) s'il manque ou s'il est aberrant (sortie = la sortie standard du sous-processus, '' s'il n'a pas tourne). Ne leve jamais.
 
     Sous-processus (scripts/lucida_matte.py, delai 240 s, memes variables d'environnement) : la VRAM est rendue au systeme
     AVANT le chargement du modele 3D, et un plantage ne tue pas la generation. L'entree est `orientee` (EXIF deja applique)
@@ -627,7 +629,11 @@ def _masque_lucida_sous_processus(orientee):
         lignes = [l.strip() for l in (texte or '').splitlines() if l.strip()]
         return lignes[-1][:200] if lignes else ''
 
-    dossier = tempfile.mkdtemp(prefix='fabmesh_detourage_')
+    try:
+        dossier = tempfile.mkdtemp(prefix='fabmesh_detourage_')
+    except Exception as e:
+        # disque plein, TEMP non inscriptible... : "Ne leve jamais" vaut aussi AVANT le try principal. u2net seul, comme avant.
+        return None, f'dossier temporaire impossible ({type(e).__name__}: {e})', ''
     try:
         entree = os.path.join(dossier, 'entree.png')
         sortie = os.path.join(dossier, 'lucida_rgba.png')

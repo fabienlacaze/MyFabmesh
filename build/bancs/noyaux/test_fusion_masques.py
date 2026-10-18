@@ -24,6 +24,8 @@ import ast
 import importlib.util
 import json
 import os
+import re
+import subprocess
 import sys
 import unittest
 
@@ -489,6 +491,22 @@ class RefusLucida(unittest.TestCase):
         self.assertIsNotNone(F.refus_lucida(colonnes(81)))     # 81 / 16384 = 0,494 % < 0,5 %
         self.assertIsNone(F.refus_lucida(colonnes(82)))        # 82 / 16384 = 0,500 % : accepte
 
+    def test_composante_exactement_au_seuil_est_acceptee_et_une_seule_case_isolee_est_refusee(self):
+        # 20 x 20 = 400 cases (une par pixel, l'image est plus petite que la grille) : 0,5 % = 2 cases EXACTEMENT. Une composante de 2 cases plus
+        # deux pixels isoles = 4 pixels = 1 % de l'image (l'aire passe) : la regle est une inegalite STRICTE, comme les bornes de surface.
+        a = np.zeros((20, 20), np.uint8)
+        a[0, 0:2] = 255
+        a[5, 5] = 255
+        a[10, 10] = 255
+        self.assertEqual(F.plus_grande_composante(a >= 127), 2 / 400.0)
+        self.assertIsNone(F.refus_lucida(a), 'plus grande composante = 0,5 % pile : acceptee')
+        b = np.zeros((20, 20), np.uint8)
+        for y, x in ((0, 0), (5, 5), (10, 10), (15, 15)):
+            b[y, x] = 255                                       # quatre pixels isoles : meme aire (1 %), plus grande composante 0,25 %
+        r = F.refus_lucida(b)
+        self.assertIsNotNone(r)
+        self.assertTrue(r.startswith('alpha aberrant : aucune composante significative (la plus grande : 0.25%'), r)
+
     def test_entree_non_modifiee_et_lecture_seule(self):
         a = bande(50, 40, 20)
         a.setflags(write=False)
@@ -529,6 +547,15 @@ class PlusGrandeComposante(unittest.TestCase):
         deux[:512, :496] = True
         deux[:512, 512:] = True
         self.assertAlmostEqual(F.plus_grande_composante(deux), 0.25, delta=0.01)
+
+    def test_une_case_a_moitie_pleine_compte_comme_pleine(self):
+        # image de 256 x 256 : grille de 128 x 128 cases de 2 x 2 pixels ; deux pixels sur quatre = LA MOITIE = case pleine (>=), un seul = case vide
+        deux = np.zeros((256, 256), bool)
+        deux[10, 20:22] = True
+        self.assertEqual(F.plus_grande_composante(deux), 1 / (128 * 128.0))
+        un = np.zeros((256, 256), bool)
+        un[10, 20] = True
+        self.assertEqual(F.plus_grande_composante(un), 0.0)
 
     def test_diagonale_n_est_pas_connexe(self):
         self.assertAlmostEqual(F.plus_grande_composante(np.eye(4, dtype=bool)), 1 / 16.0)
@@ -571,6 +598,63 @@ class ContratDuModule(unittest.TestCase):
             texte = lire(chemin)
             accentuees = sorted({c for c in texte if 0xC0 <= ord(c) <= 0xFF and ord(c) not in (0xD7, 0xF7)})   # hors signes multiplier / diviser
             self.assertEqual(accentuees, [], chemin)
+
+
+class UnionSurMesure(unittest.TestCase):
+    """build/bancs/fidelite/union_sur_mesure_modal.py : les regles du noyau appliquees a des MESURES (ici synthetiques, calquees sur le banc Modal)."""
+
+    def charger_analyse(self):
+        chemin = os.path.join(RACINE, 'build', 'bancs', 'fidelite', 'union_sur_mesure_modal.py')
+        chemin_avant, present = list(sys.path), 'fusion_masques' in sys.modules
+        try:
+            spec = importlib.util.spec_from_file_location('union_sur_mesure_sous_test', chemin)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        finally:
+            sys.path[:] = chemin_avant
+            if not present:
+                sys.modules.pop('fusion_masques', None)
+        return mod
+
+    def test_les_regles_du_noyau_sont_appliquees_aux_mesures(self):
+        mod = self.charger_analyse()
+        donnees = {'images': [
+            {'nom': 'orc', 'aire_u2net': 0.1633, 'aire_lucida': 0.2442, 'u2net_manque': 0.3613, 'lucida_manque': 0.0447},
+            {'nom': 'ane', 'aire_u2net': 0.317, 'aire_lucida': 0.059, 'u2net_manque': 0.001, 'lucida_manque': 0.814},
+            {'nom': 'vide', 'aire_u2net': 0.2, 'aire_lucida': 0.005, 'u2net_manque': 0.0, 'lucida_manque': 1.0},
+            {'nom': 'plein', 'aire_u2net': 0.2, 'aire_lucida': 0.96, 'u2net_manque': 1.0, 'lucida_manque': 0.0}]}
+        lignes = {x['nom']: x for x in mod.analyser(donnees)}
+        # l'orc de la mesure du 03/10 : l'union vaut 1,03 x Lucida (la valeur de la memoire du projet)
+        self.assertAlmostEqual(lignes['orc']['union_sur_lucida'], 1.03, delta=0.005)
+        self.assertIsNone(lignes['orc']['refus_aire'])
+        self.assertTrue(lignes['orc']['u2net_defaillant'])
+        self.assertFalse(lignes['orc']['lucida_defaillant'])
+        # l'ane : Lucida defaillant, l'union = u2net (+ 0,1 % de 5,9 %)
+        self.assertTrue(lignes['ane']['lucida_defaillant'])
+        self.assertAlmostEqual(lignes['ane']['aire_union'], 0.317 + 0.001 * 0.059, places=9)
+        self.assertIsNone(lignes['ane']['refus_aire'])
+        # les regles d'aire du noyau (memes seuils, lus dans le noyau)
+        self.assertEqual(lignes['vide']['refus_aire'], 'sujet trop petit')
+        self.assertTrue(lignes['plein']['refus_aire'])
+        self.assertEqual((mod.FM.PART_MIN_LUCIDA, mod.FM.PART_MAX_LUCIDA), (F.PART_MIN_LUCIDA, F.PART_MAX_LUCIDA))
+
+    def test_sans_fichier_de_mesure_code_1(self):
+        mod = self.charger_analyse()
+        self.assertEqual(mod.main(['x', os.path.join(RACINE, 'absent.json')]), 1)
+
+
+@unittest.skipIf(os.environ.get('MUTANTS_LUCIDA_EN_COURS') == '1', 'rejoue par le pilote de mutations lui-meme (sinon recursion sans fin)')
+class PreuveParMutation(unittest.TestCase):
+
+    def test_le_noyau_tue_tous_ses_mutants(self):
+        # build/bancs/noyaux/mutants_lucida.py : chaque mutant change UNE chose dans une COPIE du noyau (seuil >= devenu >, minimum a la place du maximum,
+        # borne exclue...) ; les tests de ce fichier doivent alors ECHOUER. Un mutant qui survit = un comportement sans test. Le pilote s'arrete aussi
+        # quand un extrait n'existe plus (modification voulue du noyau) : mettre sa liste a jour.
+        pilote = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mutants_lucida.py')
+        r = subprocess.run([sys.executable, pilote, 'fusion'], stdin=subprocess.DEVNULL, capture_output=True, text=True, errors='replace', timeout=300)
+        self.assertEqual(r.returncode, 0, r.stdout[-1800:] + r.stderr[-800:])
+        self.assertRegex(r.stdout, r'(\d+) mutant\(s\), \1 tue\(s\), 0 survivant\(s\)')      # tous tues (le nombre de mutants peut evoluer)
+        self.assertGreaterEqual(int(re.search(r'(\d+) mutant\(s\)', r.stdout).group(1)), 15, 'le noyau garde au moins ses quinze mutants')
 
 
 if __name__ == '__main__':

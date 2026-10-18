@@ -24,7 +24,13 @@ Ces tests prouvent, SANS aucun poids, SANS GPU, SANS reseau :
       sur le processeur (CUDA_VISIBLE_DEVICES=-1) ; puis _prep_image avec ce vrai sous-processus. C'est le seul endroit ou la chaine
       entiere est exercee sans les 844 Mo de poids : un argument de from_pretrained que la version installee de transformers
       refuserait, ou un substitut qui manquerait, se verrait ici ;
-  (h) le modele distant se construit avec la configuration REELLE de la machine (le vrai timm s'il est la, un substitut pour kornia).
+  (h) le modele distant se construit avec la configuration REELLE de la machine (le vrai timm s'il est la, un substitut pour kornia) ;
+  (i) le banc BUREAU build/bancs/fidelite/detourage_union_bureau.py (vrais poids, carte graphique : il ne tourne qu'a la demande du proprietaire) :
+      refus sans --oui-gpu, plan a blanc, et son corps EXECUTE avec un faux sous-processus Lucida et un faux rembg (mesures, controles PASS / FAIL,
+      planches) ;
+  (j) (2026-10-18, relecture) un dossier temporaire impossible a creer ne fait pas echouer _prep_image ; la sortie de lucida_matte ne plante pas sur un
+      chemin que son codage ne sait pas ecrire ; la poignee du fichier source est rendue meme pour une image a plusieurs pages.
+  La preuve que ces tests ECHOUENT quand le code change : build/bancs/noyaux/mutants_lucida.py (104 mutants).
 
 Lancer (importe torch : passer par l'executeur commun) :
     bash /c/tmp/lourd.sh <python de l'appli> build/bancs/noyaux/test_lucida_shims.py -v
@@ -41,6 +47,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -831,6 +838,28 @@ class TestContratLucidaMatte(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 1)
         self.assertTrue(str(p.call_args_list[0].args[0]).startswith('LUCIDA_ERROR: image not found'))
 
+    def test_main_ne_plante_pas_sur_un_chemin_que_le_codage_de_la_sortie_ne_sait_pas_ecrire(self):
+        # le PNG de sortie est dans le dossier temporaire de l'utilisateur : un nom cyrillique (ici « vkhod ») avec un Python hors du mode UTF-8
+        # (sortie en cp1252, comme un lancement a la main) faisait lever UnicodeEncodeError au « OK: <chemin> » final, APRES l'ecriture du PNG :
+        # code retour 1, et le pipeline 3D ecartait un detourage reussi.
+        entree = os.path.join(self.tmp.name, 'in.png')
+        Image.new('RGB', (8, 8)).save(entree)
+        dossier = os.path.join(self.tmp.name, 'вход')
+        os.makedirs(dossier)
+        sortie = os.path.join(dossier, 'out.png')
+        flux = io.TextIOWrapper(io.BytesIO(), encoding='cp1252', errors='strict')
+        erreurs = io.TextIOWrapper(io.BytesIO(), encoding='cp1252', errors='strict')
+        with self.assertRaises(UnicodeEncodeError):
+            flux.write(sortie)                                              # precondition : ce codage ne sait pas ecrire ce chemin
+        with mock.patch.object(sys, 'argv', ['lucida_matte.py', entree, sortie]), \
+                mock.patch.object(self.matte, '_source_modele', return_value=('dossier', True, 'test')), \
+                mock.patch.object(self.matte, '_cloisonner', return_value=None), \
+                mock.patch.object(self.matte, 'matte', side_effect=lambda *a: None), \
+                mock.patch.object(sys, 'stdout', flux), mock.patch.object(sys, 'stderr', erreurs):
+            self.matte.main()                                               # ne leve pas
+        flux.flush()
+        self.assertTrue(flux.buffer.getvalue().startswith(b'OK: '), flux.buffer.getvalue())
+
     def test_la_cle_du_journal_est_neutre_et_un_echec_du_cloisonnement_ne_bloque_pas(self):
         # logs/memoire_pics.jsonl : la cle d'un type de calcul peut etre affichee par l'interface, jamais un nom de moteur
         faux_cm = mock.MagicMock()
@@ -1401,6 +1430,20 @@ class TestPrepImage(unittest.TestCase):
         self.assert_repli_u2net(res, appels, 'UnidentifiedImageError')
         self.assert_dossier_temporaire_nettoye(appels)
 
+    def test_dossier_temporaire_impossible_repli_u2net_sans_echouer(self):
+        # disque plein ou TEMP non inscriptible : _masque_lucida_sous_processus ne leve JAMAIS (une generation ne doit pas echouer a cause
+        # de Lucida) ; avant ce test, tempfile.mkdtemp etait appele HORS du try et l'OSError remontait jusqu'a _prep_image.
+        def mkdtemp_en_panne(*a, **k):
+            raise OSError(28, 'No space left on device')
+        with mock.patch.object(tempfile, 'mkdtemp', mkdtemp_en_panne):
+            res, appels = self.prep()
+        self.assertEqual(appels, [], 'aucun sous-processus sans dossier temporaire')
+        self.assertEqual(len(self.rembg.appels), 1, 'repli u2net')
+        self.assertEqual(self.rembg.appels[0][2], ('session', 'u2net'))
+        self.assertIn('dossier temporaire impossible (OSError', self.ligne('detourage: u2net ('))
+        self.assertNotIn('detourage: lucida', ' '.join(self.journal))
+        self.assertEqual(res.mode, 'RGBA')
+
     # --- alpha aberrant -> repli u2net ---
     def test_alpha_vide_repli_u2net(self):
         res, appels = self.prep(self.lucida_qui_reussit(lambda t: Image.new('L', t, 0)))
@@ -1461,6 +1504,19 @@ class TestPrepImage(unittest.TestCase):
         res, appels = self.prep(self.lucida_qui_reussit(lambda t: ellipse(t, 0.3)), chemin=chemin)
         self.assertEqual(len(appels), 1)
         self.ligne('detourage: lucida (')
+
+    def test_la_poignee_du_fichier_est_rendue_meme_pour_une_image_a_plusieurs_pages(self):
+        # PIL ne ferme tout seul le fichier d'une image qu'apres load() ET si elle n'a qu'UNE page : un TIFF a deux pages reste ouvert apres
+        # convert() (Windows : le fichier source ne peut plus etre efface ni remplace). _prep_image doit donc fermer l'image d'origine ELLE-MEME ;
+        # prep() verifie que toute image ouverte pendant l'appel (celle du pipeline comme celle de la doublure) a rendu sa poignee.
+        chemin = os.path.join(self.tmp.name, 'deux_pages.tif')
+        page1 = Image.open(self.image).convert('RGB')
+        page1.save(chemin, save_all=True, append_images=[Image.new('RGB', page1.size, (5, 5, 5))])
+        with Image.open(chemin) as f:
+            self.assertGreater(getattr(f, 'n_frames', 1), 1, 'precondition : une image a plusieurs pages')
+        res, appels = self.prep(self.lucida_qui_reussit(lambda t: ellipse(t, 0.3)), chemin=chemin)
+        self.assertEqual(len(appels), 1)
+        self.assertEqual(res.mode, 'RGBA')
 
     def test_variable_u2net_saute_lucida(self):
         os.environ['FABMESH_DETOURAGE'] = 'u2net'
@@ -1785,6 +1841,153 @@ class TestConfigurationReelle(unittest.TestCase):
             modele.eval()
             sortie = modele(torch.empty(1, 3, 1024, 1024, device='meta'))
             self.assertEqual(tuple(sortie[-1].shape), (1, 1, 1024, 1024))
+
+
+# ---------------------------------------------------------------------------
+# (i) le banc BUREAU build/bancs/fidelite/detourage_union_bureau.py (vrais poids, carte graphique) : ce qui se verifie SANS elle
+# ---------------------------------------------------------------------------
+BANC_BUREAU = os.path.join(RACINE, 'build', 'bancs', 'fidelite', 'detourage_union_bureau.py')
+
+
+class TestBancBureau(unittest.TestCase):
+    """Le banc ne tourne qu'a la demande du proprietaire (carte graphique, 844 Mo de poids) : un banc qui plante sur une faute de frappe coute
+    une session de carte pour rien. Ici : le refus sans --oui-gpu, le plan a blanc, et le corps du banc EXECUTE avec des doublures (faux
+    sous-processus Lucida, faux rembg) : les mesures, les controles PASS / FAIL, les planches."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.images = os.path.join(self.tmp.name, 'images')
+        os.makedirs(self.images)
+        for nom in ('a.png', 'b.png'):
+            fond = Image.new('RGB', (240, 320), (190, 190, 190))
+            fond.paste(Image.new('RGB', (100, 140), (30, 160, 40)), (70, 90))
+            fond.save(os.path.join(self.images, nom))
+        self.sortie = os.path.join(self.tmp.name, 'sortie')
+
+    def lancer(self, *args, env=None):
+        return subprocess.run([sys.executable, BANC_BUREAU, *args], stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                              errors='replace', timeout=120, env=env)
+
+    def test_refuse_de_tourner_sans_oui_gpu(self):
+        r = self.lancer('--images', self.images)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn('--oui-gpu', r.stderr)
+        self.assertNotIn('PASS', r.stdout)
+        self.assertFalse(os.path.exists(self.sortie))
+
+    def test_a_blanc_liste_le_plan_sans_modele(self):
+        r = self.lancer('--a-blanc', '--images', self.images)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('2 image(s), 3 passes chacune (u2net, lucida, union), 4 passage(s) de Lucida sur la carte', r.stdout)
+        self.assertIn('a blanc : aucun modele charge, aucune carte utilisee', r.stdout)
+        r = self.lancer('--a-blanc', '--images', self.images, '--limite', '1')
+        self.assertIn('1 image(s)', r.stdout)
+
+    def test_image_ou_dossier_introuvable_arrete(self):
+        r = self.lancer('--a-blanc', '--images', os.path.join(self.tmp.name, 'absent'))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('introuvable', r.stderr)
+
+    def test_le_plan_echoue_si_le_pipeline_perd_une_fonction(self):
+        # le banc extrait _detourer_sujet et _masque_lucida_sous_processus du pipeline par ast : si l'une disparait, il doit le dire avant de
+        # toucher a la carte
+        with open(PIPELINE, encoding='utf-8') as f:
+            source = f.read()
+        copie = os.path.join(self.tmp.name, 'pipeline_sans_fonction.py')
+        with open(copie, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(source.replace('def _masque_lucida_sous_processus(', 'def _renommee('))
+        env = dict(os.environ, NOYAU_PIPELINE3D=copie)
+        r = self.lancer('--a-blanc', '--images', self.images, env=env)
+        self.assertNotEqual(r.returncode, 0, r.stdout)
+        self.assertIn('_masque_lucida_sous_processus', r.stderr)
+
+    # --- le corps du banc, en processus, avec des doublures ---
+    def banc(self):
+        spec = importlib.util.spec_from_file_location('banc_bureau_sous_test', BANC_BUREAU)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    @staticmethod
+    def faux_sous_processus(alpha_de, stdout=None):
+        sortie = stdout if stdout is not None else ('LUCIDA: model loaded on cuda (cache utilisateur)\n'
+                                                    'FABMESH_MEM_ETAPE etape=lucida pic_vram_reserve=2345Mo\nOK: x\n')
+
+        def run(cmd, **kw):
+            entree = Image.open(cmd[2]).convert('RGB')
+            rgba = entree.copy()
+            rgba.putalpha(alpha_de(entree.size))
+            rgba.save(cmd[3], 'PNG')
+            return subprocess.CompletedProcess(cmd, 0, sortie, '')
+        return run
+
+    def executer(self, run, preparer=None):
+        """Le main() du banc avec doublures ; rend (code de sortie, sortie standard)."""
+        chemin_avant = list(sys.path)
+        self.addCleanup(lambda: sys.path.__setitem__(slice(None), chemin_avant))
+        sys.path.insert(0, os.path.join(RACINE, 'scripts'))
+        modules_avant = set(sys.modules)
+        self.addCleanup(lambda: [sys.modules.pop(k) for k in set(sys.modules) - modules_avant if k == 'fusion_masques'])
+        flux = io.StringIO()
+        with mock.patch.dict(os.environ), mock.patch.dict(sys.modules, {'rembg': FauxRembg()}), mock.patch.object(subprocess, 'run', run):
+            if preparer:
+                preparer()
+            with contextlib.redirect_stdout(flux), contextlib.redirect_stderr(io.StringIO()):
+                code = self.banc().main(['--oui-gpu', '--images', self.images, '--limite', '0', '--sortie', self.sortie])
+        return code, flux.getvalue()
+
+    def test_chaine_complete_avec_doublures_mesures_controles_et_planches(self):
+        code, texte = self.executer(self.faux_sous_processus(lambda t: ellipse(t, 0.3)))
+        self.assertEqual(code, 0, texte)
+        self.assertIn('[PASS] Lucida a fonctionne sur 2 / 2 images', texte)
+        for controle in ('le mode u2net ne sollicite jamais Lucida', 'union >= chaque masque', 'union == fusionner_alphas'):
+            self.assertRegex(texte, r'\[PASS\] ' + re.escape(controle))
+        self.assertNotIn('[FAIL]', texte)
+        with open(os.path.join(self.sortie, 'metriques.json'), encoding='utf-8') as f:
+            m = json.load(f)
+        self.assertEqual([e['nom'] for e in m['images']], ['a', 'b'])
+        for e in m['images']:
+            self.assertTrue(e['lucida_fonctionne'])
+            self.assertEqual(e['pic_vram_pytorch_mo'], 2345, 'le pic de VRAM rapporte par le sous-processus est releve')
+            self.assertGreaterEqual(e['aire_union'], max(e['aire_u2net'], e['aire_lucida']))
+            for cle in ('frange_epaisseur_px', 'frange_part', 'ajout_vs_u2net', 'ecart_fusion', 'sous_processus_lucida_s'):
+                self.assertIn(cle, e)
+            self.assertEqual(e['ecart_fusion'], 0)
+        self.assertEqual(m['resume']['pic_vram_pytorch_mo_median'], 2345)
+        self.assertTrue(all(v['ok'] for v in m['verifications']))
+        self.assertTrue(os.path.isfile(os.path.join(self.sortie, 'planche_1.png')))
+        with Image.open(os.path.join(self.sortie, 'planche_1.png')) as f:
+            self.assertEqual(f.size[0], 256 * 4, 'quatre panneaux par ligne')
+
+    def test_lucida_indisponible_code_3_et_fail(self):
+        def echec(cmd, **kw):
+            return subprocess.CompletedProcess(cmd, 2, '', 'LUCIDA_ERROR: poids Lucida absents : cherches dans ...\n')
+        code, texte = self.executer(echec)
+        self.assertEqual(code, 3, texte)
+        self.assertIn('[FAIL] Lucida a fonctionne sur 0 / 2 images', texte)
+        self.assertIn('Lucida indisponible', texte)
+
+    def test_une_union_qui_perd_un_masque_est_un_fail(self):
+        # la fusion rend u2net seul : l'union ne contient plus Lucida. Les controles du banc doivent le voir.
+        def preparer():
+            import fusion_masques as fm                                   # scripts/ est sur sys.path a ce stade (executer)
+            patcher = mock.patch.object(fm, 'fusionner_alphas', lambda a_u2, a_lucida, seuil_u2=127: a_u2)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        code, texte = self.executer(self.faux_sous_processus(lambda t: ellipse(t, 0.3)), preparer=preparer)
+        self.assertEqual(code, 1, texte)
+        self.assertIn('[FAIL] union >= chaque masque', texte)
+
+    def test_une_image_deja_detouree_est_ignoree(self):
+        rgba = Image.new('RGBA', (240, 320), (0, 0, 0, 0))
+        rgba.paste(Image.new('RGBA', (100, 140), (30, 160, 40, 255)), (70, 90))
+        rgba.save(os.path.join(self.images, 'a.png'))                    # remplace a.png par une image a alpha utile
+        code, texte = self.executer(self.faux_sous_processus(lambda t: ellipse(t, 0.3)))
+        self.assertEqual(code, 0, texte)
+        self.assertIn('deja detoure', texte)
+        with open(os.path.join(self.sortie, 'metriques.json'), encoding='utf-8') as f:
+            self.assertEqual([e['nom'] for e in json.load(f)['images']], ['b'])
 
 
 if __name__ == '__main__':

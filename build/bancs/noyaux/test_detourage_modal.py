@@ -29,6 +29,7 @@ Autre copie du module (preuve d'echec sur l'ancien code ou sur un mutant) : vari
 Classe optionnelle (torch REEL, processeur, un tout petit modele) : DETOURAGE_TEST_TORCH=1 puis
     bash /c/tmp/lourd.sh <python de l'appli> build/bancs/noyaux/test_detourage_modal.py -v
 """
+import ast
 import contextlib
 import importlib.util
 import inspect
@@ -1394,6 +1395,96 @@ class EnveloppeAvecTorchReel(unittest.TestCase):
             with self.assertRaises(RuntimeError) as c:
                 self.mod._construire_lucida()
         self.assertIn('CUDA', str(c.exception))
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# 8. LE BANC GPU modal_app/test_lucida_union.py : ce qui se verifie SANS Modal ni carte (il ne tournera qu'a la demande de l'agent principal,
+#    un banc qui s'arrete sur une faute de frappe coute une session GPU pour rien)
+# ---------------------------------------------------------------------------------------------------------------------
+BANC = os.path.join(RACINE, 'modal_app', 'test_lucida_union.py')
+
+
+class BancLucidaUnion(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with open(BANC, encoding='utf-8') as f:
+            cls.source = f.read()
+        cls.arbre = ast.parse(cls.source, BANC)                       # le banc COMPILE
+        fonctions = [n for n in cls.arbre.body if isinstance(n, ast.FunctionDef) and n.name == '_frange']
+        if len(fonctions) != 1:
+            raise AssertionError('_frange absente (ou en double) dans le banc')
+        ns = {}
+        exec(compile(ast.Module(body=fonctions, type_ignores=[]), BANC, 'exec'), ns)
+        cls._frange = staticmethod(ns['_frange'])
+        try:
+            import cv2
+            cls.cv2 = cv2
+        except Exception:                                               # pragma: no cover (machine sans OpenCV)
+            cls.cv2 = None
+
+    def frange(self, b_lu, b_un):
+        if self.cv2 is None:
+            self.skipTest('OpenCV absent : la mesure du lisere (cv2) ne peut pas tourner ici')
+        return self._frange(np, self.cv2, b_lu, b_un)
+
+    @staticmethod
+    def disque(n, rayon, centre=None):
+        yy, xx = np.mgrid[0:n, 0:n]
+        cx, cy = centre or (n / 2.0, n / 2.0)
+        return (xx - cx) ** 2 + (yy - cy) ** 2 <= rayon ** 2
+
+    def test_le_banc_importe_des_noms_qui_existent_dans_app_py(self):
+        with open(os.path.join(RACINE, 'modal_app', 'app.py'), encoding='utf-8') as f:
+            app = ast.parse(f.read())
+        definis = {t.id for n in app.body if isinstance(n, ast.Assign) for t in n.targets if isinstance(t, ast.Name)}
+        importes = [a.name for n in self.arbre.body if isinstance(n, ast.ImportFrom) and n.module == 'modal_app.app' for a in n.names]
+        self.assertIn('mesh_image', importes)
+        for nom in importes:
+            self.assertIn(nom, definis, 'le banc importe %s de modal_app.app, qui ne le definit pas' % nom)
+        self.assertIn('image_backview', definis, 'le banc teste le conteneur image avec image_backview (poids de Lucida cuits)')
+
+    def test_lisere_de_trois_pixels_autour_d_un_disque(self):
+        lucida = self.disque(1024, 300)
+        union = self.disque(1024, 303)                                  # u2net deborde de 3 px tout autour
+        m = self.frange(lucida, union)
+        self.assertEqual(m['rayon_px'], 6)
+        self.assertEqual(m['frange_part'], 1.0, 'tout ce que u2net ajoute borde Lucida : c\'est un lisere')
+        self.assertTrue(1.5 <= m['frange_epaisseur_px'] <= 4.5, m)
+        self.assertEqual(m['u2net_seul_px'], int(union.sum() - lucida.sum()))
+
+    def test_un_vrai_apport_loin_du_contour_n_est_pas_un_lisere(self):
+        lucida = self.disque(1024, 100, (200, 512))
+        loin = self.disque(1024, 120, (700, 512))                       # le corps que Lucida a manque : a 300 px de son contour
+        m = self.frange(lucida, lucida | loin)
+        self.assertEqual(m['frange_px'], 0)
+        self.assertEqual(m['frange_epaisseur_px'], 0.0)
+        self.assertEqual(m['u2net_seul_px'], int(loin.sum()))
+        self.assertEqual(m['frange_part'], 0.0)
+
+    def test_un_lisere_plus_epais_que_le_rayon_n_est_compte_que_jusqu_au_rayon(self):
+        lucida = self.disque(1024, 300)
+        union = self.disque(1024, 310)                                  # 10 px : 6 px comptes (rayon), 4 px au dela
+        m = self.frange(lucida, union)
+        self.assertTrue(0.45 <= m['frange_part'] <= 0.75, m)
+
+    def test_cas_limites_sans_apport_ou_sans_lucida(self):
+        lucida = self.disque(256, 60)
+        for nom, a, b in (('union = Lucida', lucida, lucida.copy()), ('Lucida vide', np.zeros((256, 256), bool), self.disque(256, 60))):
+            with self.subTest(nom):
+                m = self.frange(a, b)
+                self.assertEqual((m['frange_px'], m['frange_epaisseur_px'], m['frange_part']), (0, 0.0, 0.0))
+        self.assertEqual(self.frange(lucida, lucida)['u2net_seul_px'], 0)
+
+    def test_le_rayon_suit_la_taille_de_l_image(self):
+        for forme, attendu in (((1024, 1024), 6), ((100, 100), 2), ((2000, 1500), 12), ((4096, 3000), 25)):
+            with self.subTest(forme=forme):
+                vide = np.zeros(forme, bool)
+                self.assertEqual(self.frange(vide, vide)['rayon_px'], attendu)
+
+    def test_le_banc_signale_le_lisere_au_dessus_de_trois_pixels(self):
+        self.assertIn('frange_epaisseur_px', self.source)
+        self.assertRegex(self.source, r'frange_epaisseur_px"\] > 3\.0')
+        self.assertIn('entree.update(_frange(np, cv2, b_lu, b_un))', self.source)
 
 
 if __name__ == '__main__':

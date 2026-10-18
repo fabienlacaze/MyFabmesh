@@ -32,7 +32,8 @@ Il mesure aussi : temps par appel (u2net seul / union), chargement de Lucida, VR
 morceaux (une union ne doit pas fragmenter), non-determinisme de Lucida, et releve en [ALERTE] (information, sans echec) un masque Lucida ou
 une union couvrant 90 % de l'image (arriere-plan garde : l'union n'y verrait aucun defaut) ; et rend des planches [original | u2net sur blanc | union sur
 blanc | ce que l'union ajoute (rouge)] a REGARDER (les bords : l'union reprend l'alpha doux de u2net la ou il est sur, verifier l'absence de
-lisere ou de halo sur les fonds blancs).
+lisere ou de halo sur les fonds blancs). La colonne « lisere » le CHIFFRE (`_frange`) : epaisseur moyenne, en pixels, de ce que u2net ajoute le long du
+contour de Lucida ; [ALERTE] au-dessus de 3 px ; 1 a 3 px = l'ordre de grandeur de l'agrandissement 320 -> 1024 de u2net, sans consequence.
 
 Sortie : C:/tmp/fidelite/lucida_union/{metriques_<conteneur>.json, planche_<conteneur>_<n>.png}
 """
@@ -48,6 +49,29 @@ image_backview = getattr(_app_cloud, "image_backview", _app_cloud.image)
 app = modal.App("myfabmesh-test-lucida-union", image=mesh_image)
 
 SEUIL = 127            # seuil de « sujet » des mesures (celui de modal_app/fusion_masques.py)
+
+
+def _frange(np, cv2, b_lu, b_un):
+    """LISERE de l'union : parmi les pixels que l'union tient de u2net SEUL (dans l'union, hors du masque Lucida), la part qui borde le masque de
+    Lucida a moins de `rayon_px` pixels, et l'epaisseur moyenne de ce bord le long du contour de Lucida.
+
+    Question posee (relecture du 2026-10-14, risque « halo » de l'union) : l'alpha de u2net est calcule a 320 x 320 puis agrandi, donc doux et
+    decale de quelques pixels ; reprend-il, autour de Lucida (net, 1024), une frange de fond a demi opaque ? Reponse = `frange_epaisseur_px`
+    (0 = aucun apport de u2net le long du bord ; 1 a 3 = l'ordre de grandeur de l'agrandissement 320 -> 1024 ; bien plus = a regarder sur la
+    planche). Un VRAI apport (le corps de l'ane, une main) est loin du contour de Lucida : il compte dans `u2net_seul_px` mais pas dans la frange.
+    `np`, `cv2` : les modules (injectes pour que la fonction soit testable sans GPU ni Modal). b_lu, b_un : masques booleens 2D de meme forme."""
+    seul_u2 = b_un & ~b_lu
+    n_seul = int(seul_u2.sum())
+    rayon = max(2, int(round(0.006 * max(b_lu.shape))))
+    if n_seul == 0 or not b_lu.any():
+        return {"u2net_seul_px": n_seul, "frange_px": 0, "frange_part": 0.0, "frange_epaisseur_px": 0.0, "rayon_px": rayon}
+    noyau = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * rayon + 1, 2 * rayon + 1))
+    proche = cv2.dilate(b_lu.astype("uint8"), noyau).astype(bool)
+    frange = seul_u2 & proche
+    contour = b_lu & ~cv2.erode(b_lu.astype("uint8"), np.ones((3, 3), "uint8")).astype(bool)
+    n_frange = int(frange.sum())
+    return {"u2net_seul_px": n_seul, "frange_px": n_frange, "frange_part": round(n_frange / n_seul, 4),
+            "frange_epaisseur_px": round(n_frange / max(int(contour.sum()), 1), 2), "rayon_px": rayon}
 
 
 def _mesurer(images: list, noms: list, cuites: bool, conteneur: str) -> dict:
@@ -283,6 +307,10 @@ def _mesurer(images: list, noms: list, cuites: bool, conteneur: str) -> dict:
                            "u2net_defaillant": d["u2net_defaillant"], "union_contient_les_deux": inclus,
                            "ecart_fusion_attendue": ecart_fusion, "morceaux_lucida": morceaux(b_lu),
                            "ajout_vs_u2net": round(float((b_un & ~b_u2).sum() / max(int(b_u2.sum()), 1)), 4)})
+            entree.update(_frange(np, cv2, b_lu, b_un))     # lisere : voir _frange
+            if entree["frange_epaisseur_px"] > 3.0:
+                alertes.append("%s : lisere de u2net autour de Lucida de %.1f px d'epaisseur moyenne (%.0f %% de ce que u2net ajoute) : regarder la planche" % (
+                    nom, entree["frange_epaisseur_px"], 100 * entree["frange_part"]))
             if not inclus or float(b_un.mean()) + 1e-9 < max(float(b_u2.mean()), float(b_lu.mean())):
                 echecs_inclusion.append(nom)
             if ecart_fusion != 0:
@@ -344,7 +372,8 @@ def _mesurer(images: list, noms: list, cuites: bool, conteneur: str) -> dict:
     sortie["resume_groupes"] = {g: {"n": sum(1 for e in sortie["images"] if f(e["nom"])),
                                     "aire_u2net_mediane": med("aire_u2net", f), "aire_union_mediane": med("aire_union", f),
                                     "ajout_vs_u2net_median": med("ajout_vs_u2net", f), "t_u2net_ms_median": med("t_u2net_ms", f),
-                                    "t_union_ms_median": med("t_union_ms", f)} for g, f in groupes.items()}
+                                    "t_union_ms_median": med("t_union_ms", f),
+                                    "frange_epaisseur_px_mediane": med("frange_epaisseur_px", f)} for g, f in groupes.items()}
 
     par_planche = 8
     for d0 in range(0, len(lignes_planche), par_planche):
@@ -381,6 +410,9 @@ def main(cuites: bool = False, conteneur: str = "mesh"):
 
     # memes sources que modal_app/test_lucida_vs_u2net.py
     racine_p = "C:/tmp/fidelite/paires_r2"
+    for d in (racine_p, "C:/tmp/fidelite/ab/orc1"):
+        if not os.path.isdir(d):
+            raise SystemExit("dossier du banc introuvable : %s (memes sources que modal_app/test_lucida_vs_u2net.py)" % d)
     fichiers = [("orc_verif_t80", "images/verif_t80_orc/ref_0.png")]
     for bras in ("A_avant", "B_apres", "C_libre"):
         d = "C:/tmp/fidelite/ab/orc1/" + bras
@@ -391,6 +423,9 @@ def main(cuites: bool = False, conteneur: str = "mesh"):
         p = os.path.join(racine_p, nom, "ref.png")
         if os.path.exists(p) and Image.open(p).mode == "RGB":      # les RGBA sont deja detoures : la preparation d'image ne les remasque pas
             fichiers.append(("paire_" + nom, p))
+    manquants = [p for _, p in fichiers if not os.path.isfile(p)]
+    if manquants:
+        raise SystemExit("images du banc introuvables (a lancer depuis la racine de l'arbre principal, qui garde images/) : %s" % manquants[:3])
     noms = [n for n, _ in fichiers]
     images = [open(p, "rb").read() for _, p in fichiers]
     print("%d images, %.1f Mo" % (len(images), sum(len(b) for b in images) / 1e6))
@@ -411,14 +446,15 @@ def main(cuites: bool = False, conteneur: str = "mesh"):
             print("  journal :", r.get("journal_lucida"))
         print("concurrence (4 fils) :", r["concurrence"])
         print("VRAM fin :", r["vram_fin"], "| pic", r["vram_pic_mo"], "Mo")
-        print("%-34s %6s %6s %6s %7s %7s %7s %4s %4s %6s %6s %s" % (
-            "image", "aireU", "aireL", "aireUn", "+/U2", "u2miss", "lumiss", "cU", "cUn", "ms_u2", "ms_un", "u2==ancien"))
+        print("%-34s %6s %6s %6s %7s %7s %7s %6s %4s %4s %6s %6s %s" % (
+            "image", "aireU", "aireL", "aireUn", "+/U2", "u2miss", "lumiss", "lisere", "cU", "cUn", "ms_u2", "ms_un", "u2==ancien"))
         for e in r["images"]:
-            print("%-34s %6.3f %6s %6.3f %7s %7s %7s %4d %4d %6d %6d %s" % (
+            print("%-34s %6.3f %6s %6.3f %7s %7s %7s %6s %4d %4d %6d %6d %s" % (
                 e["nom"][:34], e["aire_u2net"], ("%.3f" % e["aire_lucida"]) if "aire_lucida" in e else "-", e["aire_union"],
                 ("%.1f%%" % (100 * e["ajout_vs_u2net"])) if "ajout_vs_u2net" in e else "-",
                 ("%.1f%%" % (100 * e["u2net_manque"])) if "u2net_manque" in e else "-",
                 ("%.1f%%" % (100 * e["lucida_manque"])) if "lucida_manque" in e else "-",
+                ("%.1fpx" % e["frange_epaisseur_px"]) if "frange_epaisseur_px" in e else "-",
                 e["morceaux_u2net"], e["morceaux_union"], e["t_u2net_ms"], e["t_union_ms"], e["mode_u2net_identique_ancien"]))
         for g, v in r["resume_groupes"].items():
             print("== %s : %s" % (g, v))
