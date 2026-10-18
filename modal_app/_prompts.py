@@ -137,30 +137,6 @@ def _parle_de_vol(texte: str) -> bool:
     return any(m in _MOTS_VOL for m in _re.split(r'[^a-z0-9]+', t))
 
 
-_POLITESSES = ('please', 'thanks', 'thank you', 'merci')
-
-
-def _retirer_politesse_fin(s: str) -> str:
-    """Retire « please / thanks / thank you / merci » de la FIN du texte, avec la ponctuation qui l'entoure. MEME resultat que l'ancienne regle de _epurer_demande
-    (une expression reguliere ancree en fin de chaine, insensible a la casse) mais en temps LINEAIRE : cette regle etait quadratique sur de longues suites de blancs ou
-    de virgules (mesure du 2026-10-18 : 40 000 blancs = 19 s de calcul, 100 000 = plusieurs minutes, AVANT toute generation, dans le conteneur GPU, et le texte vient du
-    client). Meme correctif que _retirerPolitesseFin du client (src/renderer/index2.js)."""
-    b = len(s)
-    while b > 0 and (s[b - 1].isspace() or s[b - 1] in '.!'):
-        b -= 1
-    for mot in _POLITESSES:
-        debut = b - len(mot)
-        if debut < 0 or s[debut:b].lower() != mot:
-            continue
-        if debut > 0 and (s[debut - 1].isalnum() or s[debut - 1] == '_'):
-            continue                                  # limite de mot : pas au milieu d'un mot
-        a = debut
-        while a > 0 and (s[a - 1].isspace() or s[a - 1] in ',;.!'):
-            a -= 1
-        return s[:a]
-    return s
-
-
 def _epurer_demande(texte: str) -> str:
     """Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide."""
     import re as _re
@@ -179,6 +155,31 @@ def _epurer_demande(texte: str) -> str:
     t = _DEMANDE_FR.sub('', _DEMANDE_EN.sub('', brut, count=1), count=1)
     t = _retirer_politesse_fin(t).strip()
     return t if len(t) >= 3 else brut.strip()
+
+
+_POLITESSE_FIN = None
+
+
+def _retirer_politesse_fin(t: str) -> str:
+    """« un dragon, please! » -> « un dragon » : meme effet que l'ancienne expression
+    [\\s,;.!]*\\b(?:please|thanks|thank you|merci)\\b[\\s.!]*$ appliquee par re.sub, SANS son cout quadratique sur une longue
+    suite de blancs ou de virgules (audit du 11/10, MODERATION-07 : 32 000 blancs = 12,6 s, sous le verrou GPU). Lineaire :
+    on retire la fin [\\s.!]*, on cherche le mot de politesse au bout, puis on remonte les separateurs [\\s,;.!] qui le
+    precedent."""
+    import re as _re
+    global _POLITESSE_FIN
+    if _POLITESSE_FIN is None:
+        _POLITESSE_FIN = _re.compile(r"\b(?:please|thanks|thank you|merci)\Z", _re.I)
+    fin = len(t)
+    while fin > 0 and (t[fin - 1].isspace() or t[fin - 1] in '.!'):
+        fin -= 1
+    m = _POLITESSE_FIN.search(t, 0, fin)
+    if not m:
+        return t
+    debut = m.start()
+    while debut > 0 and (t[debut - 1].isspace() or t[debut - 1] in ',;.!'):
+        debut -= 1
+    return t[:debut]
 
 
 # NEGATIONS DE L'UTILISATEUR (2026-10-03, exigence « l'image doit correspondre EXACTEMENT au prompt »).
