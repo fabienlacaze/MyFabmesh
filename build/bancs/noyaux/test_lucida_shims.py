@@ -1162,6 +1162,17 @@ FONCTIONS_DETOURAGE = {'_prep_image', '_detourer_sujet', '_masque_lucida_sous_pr
                        '_composite_on_black'}
 
 
+def poignee_ouverte(im):
+    """True si le fichier d'une image PIL est ENCORE ouvert. PIL garde la vraie poignee dans `_fp` : `fp` vaut None des le load() meme quand le fichier
+    reste ouvert (image a plusieurs pages : un TIFF a deux pages n'est ferme que par close(), et Windows refuse alors de supprimer le fichier). Une image
+    fermee par close() porte une doublure d'erreur a la place de la poignee : elle compte comme fermee."""
+    poignee = vars(im).get('_fp')
+    try:
+        return poignee is not None and not poignee.closed
+    except Exception:
+        return False
+
+
 class TestPrepImage(unittest.TestCase):
     TAILLE = (240, 320)
 
@@ -1210,6 +1221,7 @@ class TestPrepImage(unittest.TestCase):
             res = self.ns['_prep_image'](chemin or self.image)
         for ouvert, im in ouvertes:
             self.assertIsNone(getattr(im, 'fp', None), f'{ouvert} est reste ouvert : la poignee du fichier doit etre rendue')
+            self.assertFalse(poignee_ouverte(im), f'{ouvert} : le fichier est reste OUVERT (poignee reelle `_fp`) : _prep_image doit fermer l\'image d\'origine')
         return res, appels
 
     def run_interdit(self, appels):
@@ -1508,7 +1520,9 @@ class TestPrepImage(unittest.TestCase):
     def test_la_poignee_du_fichier_est_rendue_meme_pour_une_image_a_plusieurs_pages(self):
         # PIL ne ferme tout seul le fichier d'une image qu'apres load() ET si elle n'a qu'UNE page : un TIFF a deux pages reste ouvert apres
         # convert() (Windows : le fichier source ne peut plus etre efface ni remplace). _prep_image doit donc fermer l'image d'origine ELLE-MEME ;
-        # prep() verifie que toute image ouverte pendant l'appel (celle du pipeline comme celle de la doublure) a rendu sa poignee.
+        # prep() verifie que toute image ouverte pendant l'appel (celle du pipeline comme celle de la doublure) a rendu sa poignee REELLE : PIL garde
+        # le fichier dans `_fp` et met `fp` a None des le load() (mesure : TIFF a deux pages, apres convert() `fp` vaut None, `_fp` n'est pas ferme et
+        # os.remove du fichier est refuse par Windows, WinError 32 ; un PNG a une page est deja ferme). Tester `fp` seul ne voyait pas la fuite.
         chemin = os.path.join(self.tmp.name, 'deux_pages.tif')
         page1 = Image.open(self.image).convert('RGB')
         page1.save(chemin, save_all=True, append_images=[Image.new('RGB', page1.size, (5, 5, 5))])
