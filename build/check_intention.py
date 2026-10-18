@@ -13,6 +13,8 @@
     GENERE des listes de mots du module (faux amis, garde-robe, mots vides : le texte doit ressortir tel quel), temoin « sans negation = octet pour octet ».
     Leurs sorties sont gravees dans intention_attendus.json (cles `negations`, `assainir`, `constantes`) et le jumeau JavaScript doit donner les memes.
     INTENTION_SCRIPTS=<dossier> verifie une autre copie du module (preuve qu'un code mute ou ancien est detecte).
+    Les cas CONSTRUITS (build/bancs/noyaux/negations_constructions.py : le texte ET la sortie attendue sortent du meme gabarit de phrase, rien n'est recopie de la sortie du
+    module) rejoignent le balayage : leur attendu est verifie ici en Python, et grave pour que le JavaScript le reproduise (2026-10-18).
 
     python build/check_intention.py            verifie
     python build/check_intention.py --ecrire   regrave build/intention_attendus.json (apres un changement VOULU du module)
