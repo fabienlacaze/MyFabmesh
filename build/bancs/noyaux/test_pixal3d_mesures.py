@@ -216,5 +216,133 @@ class TestBoutEnBout(unittest.TestCase):
         json.dumps(r)                                   # tout est serialisable
 
 
+class TestOrientation(unittest.TestCase):
+    """Vers quel cote regarde un GLB ? Le comparateur cote a cote n'a de sens que si les deux modeles regardent du meme cote (camera synchronisee) ;
+    la mesure compare le masque d'entree a la silhouette orthographique ajustee dans les deux sens du miroir."""
+
+    @staticmethod
+    def masque_asymetrique():
+        """Disque (rayon 120) + « bras » a DROITE et AU-DESSUS du centre de l'image 512 x 512 (asymetrique dans les deux axes)."""
+        import cv2
+        m = np.zeros((512, 512), np.uint8)
+        cv2.circle(m, (256, 256), 120, 255, -1)
+        cv2.rectangle(m, (330, 196), (470, 246), 255, -1)
+        return m > 0
+
+    @staticmethod
+    def maillage_asymetrique(face_a_moins_z=True):
+        """Sphere (rayon 120) + boite. Image a droite = -x' quand on regarde depuis -Z : le bras est donc a x' dans [-214, -74] (y' dans [10, 60]).
+        face_a_moins_z=False : le meme modele reflete en x' (il regarde alors vers +Z)."""
+        import trimesh
+        s = trimesh.creation.icosphere(subdivisions=3, radius=120.0)
+        b = trimesh.creation.box(extents=[140.0, 50.0, 50.0])
+        b.apply_translation([-144.0, 35.0, 0.0])
+        m = trimesh.util.concatenate([s, b])
+        V = np.asarray(m.vertices, np.float64).copy()
+        if not face_a_moins_z:
+            V[:, 0] = -V[:, 0]
+        return V, np.asarray(m.faces, np.int64)
+
+    def test_modele_qui_regarde_vers_moins_z(self):
+        V, F = self.maillage_asymetrique(True)
+        r = MES.orientation(V, F, self.masque_asymetrique())
+        self.assertEqual(r['regarde'], '-Z')
+        self.assertGreater(r['iou_droite_moins_x'], 0.93, 'la silhouette ajustee doit recouvrir le masque')
+        self.assertLess(r['iou_droite_plus_x'], r['iou_droite_moins_x'] - 0.05)
+        self.assertAlmostEqual(r['iou_silhouette_ajustee'], r['iou_droite_moins_x'])
+
+    def test_modele_qui_regarde_vers_plus_z(self):
+        V, F = self.maillage_asymetrique(False)
+        r = MES.orientation(V, F, self.masque_asymetrique())
+        self.assertEqual(r['regarde'], '+Z')
+        self.assertGreater(r['iou_droite_plus_x'], 0.93)
+        self.assertLess(r['iou_droite_moins_x'], r['iou_droite_plus_x'] - 0.05)
+
+    def test_silhouette_symetrique_est_indeterminee(self):
+        import cv2
+        import trimesh
+        m = np.zeros((512, 512), np.uint8)
+        cv2.circle(m, (256, 256), 120, 255, -1)
+        s = trimesh.creation.icosphere(subdivisions=3, radius=120.0)
+        r = MES.orientation(np.asarray(s.vertices, np.float64), np.asarray(s.faces, np.int64), m > 0)
+        self.assertEqual(r['regarde'], 'indetermine', 'un disque est identique dans son miroir : aucun verdict ne doit etre rendu')
+        self.assertLess(r['ecart'], 0.02)
+
+    def test_la_boite_de_la_silhouette_est_ajustee_a_celle_du_masque(self):
+        # le meme modele deux fois plus grand et decale donne la meme silhouette : l'ajustement est uniforme et centre
+        V, F = self.maillage_asymetrique(True)
+        masque = self.masque_asymetrique()
+        a = MES.silhouette_orthographique(V, F, -1.0, masque)
+        b = MES.silhouette_orthographique(V * 2.0 + np.array([30.0, -10.0, 5.0]), F, -1.0, masque)
+        ys, xs = np.nonzero(masque)
+        for m in (a, b):
+            yy, xx = np.nonzero(m)
+            self.assertLessEqual(abs(int(xx.min()) - int(xs.min())), 2)
+            self.assertLessEqual(abs(int(xx.max()) - int(xs.max())), 2)
+            self.assertLessEqual(abs(int(yy.min()) - int(ys.min())), 2)
+            self.assertLessEqual(abs(int(yy.max()) - int(ys.max())), 2)
+        self.assertGreater(float((a & b).sum()) / float((a | b).sum()), 0.98)
+
+    @staticmethod
+    def decaler_et_mettre_a_l_echelle(masque, echelle, dx, dy):
+        import cv2
+        m = np.array([[echelle, 0.0, 256.0 - echelle * 256.0 + dx], [0.0, echelle, 256.0 - echelle * 256.0 + dy]], np.float32)
+        return cv2.warpAffine(masque.astype(np.uint8), m, (masque.shape[1], masque.shape[0]), flags=cv2.INTER_NEAREST) > 0
+
+    def test_iou_optimise_retrouve_un_decalage_et_une_echelle(self):
+        a = self.masque_asymetrique()
+        self.assertAlmostEqual(MES.iou_optimise(a, a), 1.0, places=3)
+        b = self.decaler_et_mettre_a_l_echelle(a, 1.0, 11, -9)
+        self.assertLess(MES._iou(a, b), 0.9, 'le decalage de test doit etre sensible')
+        self.assertGreater(MES.iou_optimise(a, b), 0.99, 'un decalage de 11 x 9 px est dans la plage de recherche (12 px)')
+        c = self.decaler_et_mettre_a_l_echelle(a, 1.03, 0, 0)
+        self.assertGreater(MES.iou_optimise(a, c), 0.97, 'une echelle de 1,03 est dans la plage essayee')
+
+    def test_iou_optimise_ne_corrige_pas_un_decalage_hors_plage(self):
+        a = self.masque_asymetrique()
+        loin = self.decaler_et_mettre_a_l_echelle(a, 1.0, 40, 0)
+        self.assertLess(MES.iou_optimise(a, loin), 0.8, 'au-dela de 12 px, la recherche ne doit pas inventer une correspondance')
+
+    def test_iou_optimise_entrees_vides(self):
+        vide = np.zeros((512, 512), bool)
+        self.assertEqual(MES.iou_optimise(vide, self.masque_asymetrique()), 0.0)
+        self.assertEqual(MES.iou_optimise(self.masque_asymetrique(), vide), 0.0)
+
+    def test_verdict_stable_quand_la_boite_du_masque_est_faussee(self):
+        """Un point parasite a 28 px du disque elargit la boite du masque : l'ajustement de boite seul retrecit la silhouette de ~8 %. La recherche d'echelle et de
+        decalage rattrape l'essentiel (IoU 0,87 -> 0,98) sans changer le verdict ; le sens inverse reste loin derriere."""
+        V, F = self.maillage_asymetrique(True)
+        parasite = self.masque_asymetrique()
+        parasite[253:260, 108:114] = True
+        r = MES.orientation(V, F, parasite)
+        self.assertEqual(r['regarde'], '-Z')
+        simple = MES._iou(MES.silhouette_orthographique(V, F, -1.0, parasite), parasite)
+        self.assertGreater(r['iou_droite_moins_x'], simple + 0.05, 'la recherche doit apporter quelque chose quand la boite est faussee')
+        self.assertGreater(r['iou_droite_moins_x'], 0.95)
+        self.assertLess(r['iou_droite_plus_x'], 0.7)
+        V2, F2 = self.maillage_asymetrique(False)
+        self.assertEqual(MES.orientation(V2, F2, parasite)['regarde'], '+Z')
+
+    def test_bout_en_bout_dans_mesurer_glb(self):
+        """Avec une entree et SANS camera : orientation mesuree, pas d'alignement perspectif ; avec camera : les deux."""
+        from PIL import Image
+        import trimesh
+        V, F = self.maillage_asymetrique(True)
+        octets = trimesh.Trimesh(vertices=V, faces=F, process=False).export(file_type='glb')
+        rgba = np.zeros((512, 512, 4), np.uint8)
+        rgba[..., :3] = 180
+        rgba[..., 3] = self.masque_asymetrique().astype(np.uint8) * 255
+        entree = Image.fromarray(rgba)
+        sans_camera = MES.mesurer_glb(octets, entree)
+        self.assertEqual(sans_camera['orientation']['regarde'], '-Z')
+        self.assertNotIn('alignement_entree', sans_camera)
+        avec_camera = MES.mesurer_glb(octets, entree, {'camera_angle_x': 0.35, 'distance': 900.0, 'mesh_scale': 1.0})
+        self.assertEqual(avec_camera['orientation']['regarde'], '-Z')
+        self.assertIn('alignement_entree', avec_camera)
+        self.assertNotIn('orientation', MES.mesurer_glb(octets), 'sans entree, aucune mesure liee a l entree')
+        import json
+        json.dumps(avec_camera)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -163,3 +163,42 @@ def nom_glb_local(nom, etiquette, passe, derniere, suffixe):
     if derniere:
         return "pixal3d_%s%s%s.glb" % (nom, etiquette, suffixe)
     return "pixal3d_%s%s_passe%d%s.glb" % (nom, etiquette, int(passe), suffixe)
+
+
+def cameras_par_glb(resultats):
+    """{nom du fichier GLB sans extension : camera} pour UN fichier de resultats (dict lu dans pixal3d_resultats*.json).
+    La camera est celle de la PASSE qui a produit le GLB (champ de vision estime par MoGe-2 ou impose par --fov) ; les noms suivent nom_glb_local."""
+    etiquette = (resultats.get("parametres") or {}).get("etiquette", "")
+    sortie = {}
+    for nom, bloc in (resultats.get("images") or {}).items():
+        finale = (bloc.get("final") or {}).get("passe")
+        for p in bloc.get("passes") or []:
+            if "camera" not in p:
+                continue
+            for suffixe in (p.get("glb") or {}):
+                fichier = nom_glb_local(nom, etiquette, p["passe"], p["passe"] == finale, "" if suffixe == "principal" else suffixe)
+                sortie[fichier[:-4]] = p["camera"]
+    return sortie
+
+
+def tops_de_distribution(top_level_txt, fichiers):
+    """Modules de premier niveau d'une distribution pip. `top_level.txt` s'il existe ; sinon deduits des fichiers installes (RECORD) : premier composant d'un chemin
+    relatif (`numpy/core/x.py` -> `numpy`), nom d'un module isole (`plyfile.py` -> `plyfile`) ; ignores : metadonnees (`*.dist-info`, `*.egg-info`), bibliotheques
+    embarquees (`*.libs`), `__pycache__`, scripts (`../../bin/...`) et chemins absolus."""
+    tops = {x for x in (top_level_txt or "").split() if x}
+    if tops:
+        return tops
+    for chemin in fichiers or []:
+        p = str(chemin).replace("\\", "/")
+        if not p or p.startswith(("../", "/", "__pycache__")):
+            continue
+        premier = p.split("/")[0]
+        if premier.endswith((".dist-info", ".egg-info", ".libs", ".data")) or premier == "__pycache__":
+            continue
+        if "/" not in p:                                    # fichier a la racine : seulement un module Python ou une extension
+            if not premier.endswith((".py", ".so", ".pyd")):
+                continue
+            premier = premier.split(".")[0]
+        if premier:
+            tops.add(premier)
+    return tops

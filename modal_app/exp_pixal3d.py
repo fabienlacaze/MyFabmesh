@@ -6,16 +6,19 @@ Rien n'est ecrit dans Supabase, R2 ni dans les projets de l'utilisateur. Les poi
 Entrees (RGBA deja detourees, memes que les essais TRELLIS.2) :
     C:/tmp/trellis_cloud/entrees/orc_rgba_union_sans_socle.png   (orc, graine d'essai 42 ici : Pixal3D n'a pas la meme structure de bruit)
     C:/tmp/trellis_cloud/entrees/photo_reference.png             (photo du proprietaire, detouree : JAMAIS commitee, jamais copiee dans le depot)
-Sorties : C:/tmp/trellis_cloud/glb/pixal3d_orc.glb , pixal3d_photo.glb (+ pixal3d_resultats.json, pixal3d_mesures.json). Le GLB de la photo est
-efface du volume des qu'il est telecharge.
+Sorties (C:/tmp/trellis_cloud/glb/) : la DERNIERE passe porte le nom attendu par le comparateur (pixal3d_orc.glb, pixal3d_orc_1m.glb, pixal3d_photo.glb), les passes
+precedentes pixal3d_<entree>_passe<k>.glb, une variante pixal3d_<entree><etiquette>.glb ; resultats : pixal3d_resultats_<entrees><etiquette>.json (un fichier par
+execution), mesures : pixal3d_mesures.json (FUSIONNE a chaque appel), couts : pixal3d_couts.json. Les GLB de la photo sont effaces du volume des qu'ils sont telecharges.
 
 Etapes (chacune reprenable ; `PYTHONUTF8=1 PYTHONIOENCODING=utf-8` obligatoires sous Windows) :
     python -m modal run "modal_app/exp_pixal3d.py::main" --etape verif       # versions, depots HF (licences, tailles), poids, chargement, ~0,3 $
-    ... --etape licences                                                     # CPU : textes complets des fiches HF (README, LICENSE, NOTICE), ~0 $
+    ... --etape licences                                                     # CPU : textes complets des fiches HF (README, LICENSE, NOTICE) + historique des revisions, ~0 $
+    ... --etape importes                                                     # L4, sans poids : distributions pip CHARGEES a l'inference + leurs licences, ~0,02 $
     ... --etape gener --entrees orc --repeter 2 --natif                      # orc : passe 1 (froide : compilation / reglage Triton) puis passe 2 (chaude)
-    ... --etape gener --entrees photo                                        # photo : une passe
+    ... --etape gener --entrees photo --repeter 2                            # photo : passe froide puis chaude
+    ... --etape gener --entrees photo --fov 0.349 --etiquette _fov20         # champ de vision IMPOSE (rad) au lieu de l'estimation de MoGe-2 (README : cameras a 20 degres)
     ... --etape gener --max-tokens 98304 --etiquette _t98k                   # variante : plafond de jetons double (resolution effective non reduite)
-    ... --etape mesurer                                                      # mesures CPU locales des GLB (modal_app/exp_pixal3d_mesures.py)
+    ... --etape mesurer [--tout]                                             # mesures CPU locales des GLB (modal_app/exp_pixal3d_mesures.py) ; --tout : tout refaire
     ... --etape nettoyer [--tout]                                            # vide les sorties du volume (--tout : poids et caches aussi)
     EXP_GPU=A100-80GB ... pour la carte 80 Go.
 
@@ -46,9 +49,11 @@ OU EST nvdiffrast (NVIDIA Source Code License « 1-Way Commercial » = usage NON
   `import nvdiffrast.torch as dr` de o_voxel/postprocess.py sur le module de compatibilite kaolin (Apache-2.0, trellis2/renderers/nvdiffrast_kaolin_compat.py : RasterizeCudaContext,
   rasterize, interpolate suffisent a to_glb) + le faux paquet `nvdiffrast` paresseux que kaolin sonde ; ou external_patches/TRELLIS2_win/o_voxel_patch.py (PyTorch pur).
 
-Historique : 15/10 l'etape `verif` a tourne (image construite en ~13 min de CPU, chargement du pipeline 81,8 s, MoGe-2 10,8 s, 19,4 Go de VRAM, 0,26 $ au total) ;
-la generation n'avait JAMAIS ete lancee. 18/10 : relecture critique, sonde de memoire du PERIPHERIQUE (pas seulement de PyTorch), decomposition de l'export GLB,
-plafond de jetons parametrable, une sortie par passe, etape `licences`.
+Historique : 15/10 l'etape `verif` a tourne (image construite en ~13 min de CPU, chargement du pipeline 81,8 s, MoGe-2 10,8 s, 19,4 Go de VRAM, 0,26 $ factures) ;
+la generation n'avait JAMAIS ete lancee. 18/10 : relecture critique (sonde de memoire du PERIPHERIQUE et pic reserve par etape, decomposition de l'export GLB, etape
+« upsample » visible, plafond de jetons parametrable, une sortie par passe, resultats par execution, mesures fusionnees, paquets reellement charges, etape `licences`),
+puis executions : orc (2 passes + 1 M de faces), photo (2 passes), 2e serie en conteneurs neufs a caches disque remplis, photo a champ de vision impose. Resultats, durees,
+couts et licences : entree du 18/10/2026 de AGENT_LOG.md. Tests des parties pures : build/bancs/noyaux/test_pixal3d_outils.py et test_pixal3d_mesures.py.
 """
 import contextlib
 import io
@@ -496,20 +501,26 @@ SUSPECTS = ["plyfile", "easydict", "nvdiffrast", "nvdiffrec_render", "kornia", "
 
 
 def _paquets_charges():
-    """Distributions pip dont au moins un module est EN MEMOIRE (apres une generation complete) + leur licence declaree + modules suspects charges ou non."""
+    """Distributions pip dont au moins un module de premier niveau est EN MEMOIRE, avec leur licence declaree + modules suspects charges ou non. Les modules de premier
+    niveau sont lus dans `top_level.txt` ou, a defaut, deduits des fichiers installes (Python 3.10 : `packages_distributions()` ignore les paquets sans `top_level.txt`)."""
     import importlib.metadata as md
-    try:
-        d2p = md.packages_distributions()
-    except Exception:
-        d2p = {}
-    tops = {m.split(".")[0] for m in list(sys.modules) if m and not m.startswith("_")}
+    from modal_app.exp_pixal3d_outils import tops_de_distribution
     licences = _licences_pip()
+    tops_en_memoire = {m.split(".")[0] for m in list(sys.modules) if m and not m.startswith("_")}
     charges = {}
-    for top in sorted(tops):
-        for dist in d2p.get(top, []):
-            if dist in licences:
-                charges[dist] = dict(licences[dist], via=top)
-    return {"distributions_chargees": charges, "suspects": {m: (m in sys.modules) for m in SUSPECTS}, "n_modules": len(sys.modules)}
+    for d in md.distributions():
+        nom = d.metadata.get("Name")
+        if not nom or nom not in licences:
+            continue
+        try:
+            tops = tops_de_distribution(d.read_text("top_level.txt"), [str(f) for f in (d.files or [])])
+        except Exception:
+            continue
+        via = sorted(tops & tops_en_memoire)
+        if via:
+            charges[nom] = dict(licences[nom], via=via[:4])
+    return {"distributions_chargees": dict(sorted(charges.items(), key=lambda kv: kv[0].lower())), "suspects": {m: (m in sys.modules) for m in SUSPECTS},
+            "n_modules": len(sys.modules)}
 
 
 def _rgba_vers_pil(octets):
@@ -721,6 +732,36 @@ def generer(entrees: dict, faces: int = 500000, atlas: int = 4096, resolution: i
     return _j(out)
 
 
+@app.function(gpu="L4", timeout=900, secrets=SECRETS, volumes={"/cache": vol})
+def importes() -> dict:
+    """Importe TOUT le chemin d'inference de Pixal3D (inference.py, pipeline, extracteurs DINOv3 / NAF, MoGe-2, o_voxel, CuMesh, FlexGEMM) SANS charger de poids ni generer,
+    puis releve les distributions pip chargees. Carte L4 (24 Go) : il suffit d'un GPU pour que les extensions se chargent. Coute ~0,02 $."""
+    import importlib.util
+    t0 = time.time()
+    _preparer_env()
+    out = {}
+    try:
+        spec = importlib.util.spec_from_file_location("pixal3d_inference", "/opt/Pixal3D/inference.py")
+        inf = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(inf)                                # pixal3d.pipelines, o_voxel (-> nvdiffrast, plyfile, trimesh, cv2), torch
+        out["etapes"] = ["inference.py"]
+        from moge.model.v2 import MoGeModel                         # noqa: F401  (load_moge_model)
+        from pixal3d.trainers.flow_matching.mixins.image_conditioned_proj import DinoV3ProjFeatureExtractor  # noqa: F401  (transformers.DINOv3ViTModel)
+        import pixal3d.pipelines.pixal3d_image_to_3d  # noqa: F401
+        out["etapes"] += ["moge", "DinoV3ProjFeatureExtractor", "pixal3d_image_to_3d"]
+        import torch
+        try:                                                        # code de NAF (torch.hub, cache du volume), SANS ses poids : importe natten, einops
+            torch.hub.load("valeoai/NAF", "naf", pretrained=False, device="cpu", trust_repo=True)
+            out["etapes"].append("NAF (sans poids)")
+        except Exception as e:
+            out["naf_erreur"] = repr(e)[:300]
+        out["paquets_charges"] = _paquets_charges()
+    except Exception:
+        out["erreur"] = traceback.format_exc()[-4000:]
+    out["duree_totale_s"] = round(time.time() - t0, 1)
+    return _j(out)
+
+
 @app.function(image=image_legere, secrets=SECRETS, timeout=900)
 def licences_hf() -> dict:
     """CPU seulement : textes COMPLETS des fiches et licences HF utiles a l'avis de licence (la fiche de Pixal3D porte `extra_gated_eu_disallowed: true`)."""
@@ -818,12 +859,18 @@ def main(etape: str = "verif", entrees: str = "orc,photo", faces: int = 500000, 
          fov: float = -1.0, natif: bool = False, repeter: int = 1, max_tokens: int = MAX_JETONS_DEFAUT, etiquette: str = "", tout: bool = False):
     os.makedirs(SORTIE + "/glb", exist_ok=True)
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))          # racine du depot : `modal_app` importable cote local
-    from modal_app.exp_pixal3d_outils import nom_glb_local
+    from modal_app.exp_pixal3d_outils import cameras_par_glb, nom_glb_local
     if etape == "verif":
         r = verifier.remote()
         _ecrire_json(SORTIE + "/pixal3d_verif.json", r)
         print("verif : %.0f s ; erreur : %s" % (r.get("duree_totale_s", -1), "AUCUNE" if "erreur" not in r else r["erreur"][-800:]))
         _journal_cout("verif", r.get("duree_totale_s", 0))
+    elif etape == "importes":
+        r = importes.remote()
+        _ecrire_json(SORTIE + "/pixal3d_importes.json", r)
+        print("importes : %.0f s ; erreur : %s ; modules suspects : %s" % (r.get("duree_totale_s", -1), "AUCUNE" if "erreur" not in r else r["erreur"][-600:],
+                                                                         (r.get("paquets_charges") or {}).get("suspects")))
+        _journal_cout("importes", r.get("duree_totale_s", 0))
     elif etape == "licences":
         r = licences_hf.remote()
         _ecrire_json(SORTIE + "/pixal3d_licences_hf.json", r)
@@ -852,10 +899,12 @@ def main(etape: str = "verif", entrees: str = "orc,photo", faces: int = 500000, 
     elif etape == "mesurer":
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from modal_app.exp_pixal3d_mesures import mesurer_glb
-        cams = {}
-        for f in sorted(os.listdir(SORTIE)):                           # une camera par entree, lue dans les resultats (identique d'une passe a l'autre)
+        cams, cams_glb = {}, {}
+        for f in sorted(os.listdir(SORTIE)):                           # une camera par GLB (celle de SA passe), repli : une par entree
             if f.startswith("pixal3d_resultats") and f.endswith(".json"):                                          # ancien et nouveau nommage
-                for n, bloc in json.load(open(os.path.join(SORTIE, f), encoding="utf-8")).get("images", {}).items():
+                res_f = json.load(open(os.path.join(SORTIE, f), encoding="utf-8"))
+                cams_glb.update(cameras_par_glb(res_f))
+                for n, bloc in res_f.get("images", {}).items():
                     for p in bloc.get("passes", []):
                         if "camera" in p:
                             cams.setdefault(n, p["camera"])
@@ -870,18 +919,20 @@ def main(etape: str = "verif", entrees: str = "orc,photo", faces: int = 500000, 
             m = re.match(r"^pixal3d_(orc|photo)(.*)\.glb$", f)
             if m:
                 n = m.group(1)
-                if f[:-4] in mesures and "erreur" not in mesures[f[:-4]] and not tout:
+                if f[:-4] in mesures and "erreur" not in mesures[f[:-4]] and "orientation" in mesures[f[:-4]] and not tout:
                     continue                                                                                              # deja mesure (--tout pour refaire)
                 try:
-                    mesures[f[:-4]] = mesurer_glb(SORTIE + "/glb/" + f, ENTREES[n] if n in cams else None, cams.get(n))
+                    cam = cams_glb.get(f[:-4], cams.get(n))                                                           # camera de CE fichier, sinon celle de l'entree
+                    mesures[f[:-4]] = mesurer_glb(SORTIE + "/glb/" + f, ENTREES[n] if cam else None, cam)
                 except Exception as e:                                                                                    # fichier tronque / illisible : signale, jamais fatal
                     mesures[f[:-4]] = {"erreur": repr(e)[:300]}
                     print("MESURE IMPOSSIBLE :", f, repr(e)[:200])
         # references TRELLIS.2 (memes entrees, 1792, 500 K faces, atlas 4096) mesurees avec LA MEME regle
-        for cle, f in (("trellis_orc_1792", "hr_G1792_tranches_t4096_f500000.glb"), ("trellis_photo_1792", "hr_photo_G1792_tranches_t4096_f500000.glb")):
+        for cle, f, n in (("trellis_orc_1792", "hr_G1792_tranches_t4096_f500000.glb", "orc"), ("trellis_photo_1792", "hr_photo_G1792_tranches_t4096_f500000.glb", "photo"),
+                          ("trellis_orc_1536", "cmp_G1536_T1.glb", "orc")):
             p = SORTIE + "/glb/" + f
-            if os.path.exists(p):
-                mesures[cle] = mesurer_glb(p)
+            if os.path.exists(p) and (cle not in mesures or "erreur" in mesures[cle] or "orientation" not in mesures[cle] or tout):
+                mesures[cle] = mesurer_glb(p, ENTREES[n])             # sans camera : orientation + IoU de silhouette ajustee, pas d'alignement perspectif
         _ecrire_json(SORTIE + "/pixal3d_mesures.json", mesures)
         print(json.dumps({k: {"Mo": round(v.get("octets", 0) / 1e6, 1), "faces": v.get("topologie", {}).get("faces_utiles"),
                               "composantes": v.get("topologie", {}).get("composantes"), "part_plus_grande": v.get("topologie", {}).get("plus_grande_composante_part_faces"),

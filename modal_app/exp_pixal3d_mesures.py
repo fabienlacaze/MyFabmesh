@@ -339,6 +339,72 @@ def alignement(vertices_glb, faces, camera, masque_in, taille=512):
     return res
 
 
+# ----------------------------------------------------------------------------------------------- orientation (sans camera)
+def silhouette_orthographique(vertices_glb, faces, signe_x, masque_cible, taille=512):
+    """Silhouette orthographique (u = signe_x * x', v = -y') dont la boite est ajustee UNIFORMEMENT a celle de `masque_cible`.
+    Ne suppose aucune camera : applicable a n'importe quel moteur (TRELLIS.2 compris)."""
+    import cv2
+    V = np.asarray(vertices_glb, dtype=np.float64)
+    F = np.asarray(faces, dtype=np.int64)
+    ys, xs = np.nonzero(masque_cible)
+    x0, y0, x1, y1 = xs.min(), ys.min(), xs.max(), ys.max()
+    u = signe_x * V[:, 0]
+    v = -V[:, 1]
+    etendue_u, etendue_v = max(u.max() - u.min(), 1e-12), max(v.max() - v.min(), 1e-12)
+    echelle = min((x1 - x0) / etendue_u, (y1 - y0) / etendue_v)
+    px = (u - (u.min() + u.max()) / 2.0) * echelle + (x0 + x1) / 2.0
+    py = (v - (v.min() + v.max()) / 2.0) * echelle + (y0 + y1) / 2.0
+    pts = np.round(np.stack([px, py], axis=1)[F] * 16.0).astype(np.int32)
+    m = np.zeros((taille, taille), np.uint8)
+    for t in pts:
+        cv2.fillConvexPoly(m, t, 255, lineType=cv2.LINE_8, shift=4)
+    return m > 0
+
+
+ECHELLES_ORIENTATION = (0.94, 0.97, 1.0, 1.03, 1.06)       # mise a l'echelle relative essayee autour du centre de la silhouette
+DECALAGE_ORIENTATION = 12                                  # translation entiere maximale essayee (pixels, image 512 x 512)
+
+
+def iou_optimise(a, b, echelles=ECHELLES_ORIENTATION, decalage_max=DECALAGE_ORIENTATION):
+    """Meilleur IoU de la silhouette `a` (booleen) contre le masque `b` apres une mise a l'echelle (autour du centre de la boite de `a`) et une translation entiere
+    (|dx|, |dy| <= decalage_max, correlation croisee par cv2.matchTemplate : intersection pour TOUS les decalages d'un coup). Tolere la perspective et un cadrage approximatif
+    sans effacer l'asymetrie qui distingue un cote de l'autre."""
+    import cv2
+    ys, xs = np.nonzero(a)
+    if len(xs) == 0 or not b.any():
+        return 0.0
+    cx, cy = (xs.min() + xs.max()) / 2.0, (ys.min() + ys.max()) / 2.0
+    n = int(decalage_max)
+    b_pad = np.pad(b.astype(np.float32), n)
+    somme_b = float(b.sum())
+    meilleur = 0.0
+    au8 = a.astype(np.uint8)
+    for e in echelles:
+        m = np.array([[e, 0.0, cx - e * cx], [0.0, e, cy - e * cy]], np.float32)
+        mise = cv2.warpAffine(au8, m, (a.shape[1], a.shape[0]), flags=cv2.INTER_NEAREST)
+        inter = cv2.matchTemplate(b_pad, mise.astype(np.float32), cv2.TM_CCORR)             # (2n+1) x (2n+1) : intersection pour chaque decalage
+        union = float(mise.sum()) + somme_b - inter
+        meilleur = max(meilleur, float((inter / np.maximum(union, 1e-9)).max()))
+    return meilleur
+
+
+def orientation(vertices_glb, faces, masque_in, seuil_ecart=0.02):
+    """Vers quel cote regarde le GLB ? Compare le masque d'entree a la silhouette orthographique ajustee (boite, puis echelle et decalage : `iou_optimise`) dans les deux sens du
+    miroir. « -Z » : image a droite = -x' (le modele est vu de face depuis -Z) ; « +Z » : image a droite = +x'. Le repere glTF place d'habitude l'avant sur +Z.
+    Rend aussi les deux IoU (fidelite de silhouette sous la MEME regle pour tous les moteurs)."""
+    i_moins = iou_optimise(silhouette_orthographique(vertices_glb, faces, -1.0, masque_in), masque_in)
+    i_plus = iou_optimise(silhouette_orthographique(vertices_glb, faces, +1.0, masque_in), masque_in)
+    ecart = abs(i_moins - i_plus)
+    regarde = "indetermine" if ecart < seuil_ecart else ("-Z" if i_moins > i_plus else "+Z")
+    return {"regarde": regarde, "iou_droite_moins_x": i_moins, "iou_droite_plus_x": i_plus, "ecart": ecart, "iou_silhouette_ajustee": max(i_moins, i_plus)}
+
+
+def _iou(a, b):
+    inter = float((a & b).sum())
+    union = float((a | b).sum())
+    return inter / union if union > 0 else 0.0
+
+
 # ----------------------------------------------------------------------------------------------- point d'entree
 def mesurer_glb(source, entree_rgba=None, camera=None, taille_couverture=PAS_AUTO_COUVERTURE):
     """Mesures d'un GLB (chemin ou octets). entree_rgba (chemin ou PIL) + camera (dict camera_angle_x, distance, mesh_scale) :
@@ -386,10 +452,13 @@ def mesurer_glb(source, entree_rgba=None, camera=None, taille_couverture=PAS_AUT
         res["texture"] = stats_texture(base, mr, couvert)
     else:
         res["atlas"] = {"erreur": "pas d'UV"}
-    if entree_rgba is not None and camera is not None:
+    if entree_rgba is not None:
         try:
-            res["alignement_entree"] = alignement(V, F, camera, masque_entree(entree_rgba))
-        except Exception as e:                       # la mesure d'alignement ne doit jamais faire perdre les autres
+            masque = masque_entree(entree_rgba)
+            res["orientation"] = orientation(V, F, masque)
+            if camera is not None:
+                res["alignement_entree"] = alignement(V, F, camera, masque)
+        except Exception as e:                       # les mesures liees a l'entree ne doivent jamais faire perdre les autres
             res["alignement_entree"] = {"erreur": repr(e)[:300]}
     return _j(res)
 

@@ -273,5 +273,89 @@ class TestNoms(unittest.TestCase):
         self.assertTrue(O.chemin_glb_volume('orc', '', 1, '').startswith('/cache/out/'))
 
 
+class TestCameras(unittest.TestCase):
+    """Une camera par FICHIER GLB (celle de la passe qui l'a produit) : le GLB « photo, champ manuel 20 degres » ne doit pas etre mesure avec le champ de MoGe-2."""
+
+    CAM_MOGE = {'camera_angle_x': 1.0405, 'distance': 0.8727, 'mesh_scale': 1.0}
+    CAM_MANUELLE = {'camera_angle_x': 0.349, 'distance': 2.84, 'mesh_scale': 1.0}
+
+    @staticmethod
+    def passe(numero, camera, *suffixes):
+        return {'passe': numero, 'camera': camera, 'glb': {s: {} for s in (suffixes or ('principal',))}}
+
+    def test_une_camera_par_execution(self):
+        a = O.cameras_par_glb({'parametres': {'etiquette': ''}, 'images': {'photo': {'passes': [self.passe(1, self.CAM_MOGE), self.passe(2, self.CAM_MOGE)],
+                                                                                      'final': self.passe(2, self.CAM_MOGE)}}})
+        b = O.cameras_par_glb({'parametres': {'etiquette': '_fov20'}, 'images': {'photo': {'passes': [self.passe(1, self.CAM_MANUELLE)],
+                                                                                            'final': self.passe(1, self.CAM_MANUELLE)}}})
+        self.assertEqual(a, {'pixal3d_photo_passe1': self.CAM_MOGE, 'pixal3d_photo': self.CAM_MOGE})
+        self.assertEqual(b, {'pixal3d_photo_fov20': self.CAM_MANUELLE})
+        self.assertFalse(set(a) & set(b), 'deux executions ne partagent aucun nom de fichier')
+        fusion = dict(a)
+        fusion.update(b)
+        self.assertEqual(fusion['pixal3d_photo_fov20']['camera_angle_x'], 0.349)
+        self.assertEqual(fusion['pixal3d_photo']['camera_angle_x'], 1.0405)
+
+    def test_les_noms_suivent_nom_glb_local(self):
+        r = {'parametres': {'etiquette': '_r2'}, 'images': {'orc': {'passes': [self.passe(1, self.CAM_MOGE), self.passe(2, self.CAM_MOGE, 'principal', '_1m')],
+                                                                    'final': self.passe(2, self.CAM_MOGE, 'principal', '_1m')}}}
+        attendu = {O.nom_glb_local('orc', '_r2', 1, False, '')[:-4], O.nom_glb_local('orc', '_r2', 2, True, '')[:-4], O.nom_glb_local('orc', '_r2', 2, True, '_1m')[:-4]}
+        self.assertEqual(set(O.cameras_par_glb(r)), attendu)
+        self.assertEqual(attendu, {'pixal3d_orc_r2_passe1', 'pixal3d_orc_r2', 'pixal3d_orc_r2_1m'})
+
+    def test_chaque_passe_garde_sa_camera(self):
+        autre = dict(self.CAM_MOGE, camera_angle_x=0.5)
+        a = O.cameras_par_glb({'parametres': {}, 'images': {'orc': {'passes': [self.passe(1, self.CAM_MOGE), self.passe(2, autre)], 'final': self.passe(2, autre)}}})
+        self.assertEqual(a['pixal3d_orc_passe1']['camera_angle_x'], 1.0405)
+        self.assertEqual(a['pixal3d_orc']['camera_angle_x'], 0.5)
+
+    def test_passe_en_erreur_et_resultats_vides(self):
+        r = {'parametres': {}, 'images': {'orc': {'passes': [{'passe': 1, 'erreur': 'boum'}, self.passe(2, self.CAM_MOGE)], 'final': self.passe(2, self.CAM_MOGE)}}}
+        self.assertEqual(set(O.cameras_par_glb(r)), {'pixal3d_orc'})
+        self.assertEqual(O.cameras_par_glb({}), {})
+        # passe mal formee (un GLB mais pas de camera) : ignoree, jamais une KeyError qui ferait perdre toutes les mesures
+        self.assertEqual(O.cameras_par_glb({'images': {'orc': {'passes': [{'passe': 1, 'glb': {'principal': {}}}], 'final': None}}}), {})
+        self.assertEqual(O.cameras_par_glb({'images': {'orc': {'passes': [], 'final': None}}}), {})
+
+    def test_ancien_fichier_sans_parametres(self):
+        # le fichier pixal3d_resultats.json du 18/10 (avant le renommage par jeu d'entrees) porte bien `parametres.etiquette` = ''
+        r = {'images': {'photo': {'passes': [self.passe(1, self.CAM_MOGE)], 'final': self.passe(1, self.CAM_MOGE)}}}
+        self.assertEqual(set(O.cameras_par_glb(r)), {'pixal3d_photo'})
+
+
+class TestTopsDeDistribution(unittest.TestCase):
+    """Le releve des licences des paquets CHARGES repose sur la correspondance paquet pip -> modules. Python 3.10 (`packages_distributions`) ne lit que `top_level.txt` :
+    numpy, scipy, safetensors, einops, plyfile (GPL-3.0+, charge par o_voxel/io/ply.py) en etaient absents. Les fichiers installes (RECORD) servent de repli."""
+
+    def test_top_level_txt_prime(self):
+        self.assertEqual(O.tops_de_distribution('cumesh\nexemple\n', ['autre/__init__.py']), {'cumesh', 'exemple'})
+
+    def test_deduit_des_fichiers_quand_top_level_manque(self):
+        fichiers = ['numpy/__init__.py', 'numpy/core/_multiarray.so', 'numpy-2.2.6.dist-info/METADATA', 'numpy.libs/libscipy_openblas.so', '../../bin/f2py']
+        self.assertEqual(O.tops_de_distribution(None, fichiers), {'numpy'})
+
+    def test_module_isole_a_la_racine(self):
+        # plyfile : un seul fichier plyfile.py a la racine de site-packages
+        self.assertEqual(O.tops_de_distribution('', ['plyfile.py', 'plyfile-1.1.3.dist-info/RECORD', '__pycache__/plyfile.cpython-310.pyc']), {'plyfile'})
+
+    def test_extension_compilee_a_la_racine(self):
+        self.assertEqual(O.tops_de_distribution(None, ['_cumesh.cpython-310-x86_64-linux-gnu.so', 'cumesh/__init__.py']), {'_cumesh', 'cumesh'})
+
+    def test_plusieurs_paquets_dans_une_distribution(self):
+        self.assertEqual(O.tops_de_distribution(None, ['PIL/Image.py', 'pillow.libs/libjpeg.so', 'pillow-12.0.0.dist-info/RECORD']), {'PIL'})
+        self.assertEqual(O.tops_de_distribution(None, ['nvidia/cudnn/lib/libcudnn.so', 'nvidia_cudnn_cu12-9.1.0.70.dist-info/RECORD']), {'nvidia'})
+
+    def test_ignore_metadonnees_scripts_chemins_absolus_et_fichiers_non_python(self):
+        fichiers = ['x-1.0.dist-info/METADATA', 'x.egg-info/PKG-INFO', 'x.libs/lib.so', 'x-1.0.data/scripts/s', '../../bin/x', '/usr/bin/x', 'README.md', 'LICENSE', '__pycache__/x.pyc', '']
+        self.assertEqual(O.tops_de_distribution(None, fichiers), set())
+
+    def test_entrees_vides(self):
+        self.assertEqual(O.tops_de_distribution(None, None), set())
+        self.assertEqual(O.tops_de_distribution('', []), set())
+
+    def test_chemins_a_la_windows(self):
+        self.assertEqual(O.tops_de_distribution(None, ['numpy\\core\\x.py', 'numpy-2.dist-info\\METADATA']), {'numpy'})
+
+
 if __name__ == '__main__':
     unittest.main()
