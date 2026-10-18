@@ -51,4 +51,5 @@ for fichier, nom, ancien, nouveau in MUTANTS:
     else:
         print('NON DETECTE  : %s (%s)' % (nom, fichier))
 print('%d mutants, %d detectes' % (len(MUTANTS), detectes))
+shutil.rmtree(COPIE, ignore_errors=True)
 sys.exit(0 if detectes == len(MUTANTS) else 1)

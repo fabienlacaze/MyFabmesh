@@ -4,7 +4,7 @@
 // Preuve complementaire sur le code d'AVANT l'option :
 //   git show 3886f61a:cloud/src/worker.ts > <fichier> ; git archive 3886f61a cloud/public/app | tar -x -C <dossier>
 //   cd cloud && WORKER_SRC=<fichier> SITE_RACINE=<dossier>/cloud/public/app node --test tests/option-normales.test.mjs   (12 echecs sur 16 attendus)
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, cpSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, cpSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -65,4 +65,5 @@ MUTANTS.forEach(([cible, nom, ancien, nouveau], i) => {
   if (r.status !== 0) { detectes++; console.log('detecte     : ' + nom); } else console.log('NON DETECTE : ' + nom);
 });
 console.log(`${MUTANTS.length} mutants, ${detectes} detectes`);
+rmSync(SORTIE, { recursive: true, force: true });
 process.exit(detectes === MUTANTS.length ? 0 : 1);

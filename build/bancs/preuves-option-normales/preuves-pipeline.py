@@ -7,6 +7,7 @@ Preuve complementaire sur le code d'AVANT l'option : git show 3886f61a:scripts/t
 PIPELINE_BUREAU=<fichier> python build/bancs/noyaux/test_carte_normales_bureau.py   (3 echecs attendus)
 """
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -53,4 +54,5 @@ for i, (nom, ancien, nouveau) in enumerate(MUTANTS):
     else:
         print('NON DETECTE  : %s' % nom)
 print('%d mutants, %d detectes' % (len(MUTANTS), detectes))
+shutil.rmtree(SORTIE, ignore_errors=True)
 sys.exit(0 if detectes == len(MUTANTS) else 1)

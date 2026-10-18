@@ -3,7 +3,7 @@
 //   node build/bancs/preuves-option-normales/preuves-main.mjs             (code de sortie 0 = tous les mutants sont detectes)
 // Preuve complementaire sur le code d'AVANT l'option :
 //   MAIN_JS=<main.js de 3886f61a> OPTION_NORMALES_JS=<chemin absent> node --test tests/main/option-normales.test.mjs   (8 echecs sur 11 attendus)
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -48,4 +48,5 @@ MUTANTS.forEach(([cle, nom, ancien, nouveau], i) => {
   if (r.status !== 0) { detectes++; console.log('detecte     : ' + nom); } else console.log('NON DETECTE : ' + nom);
 });
 console.log(`${MUTANTS.length} mutants, ${detectes} detectes`);
+rmSync(SORTIE, { recursive: true, force: true });
 process.exit(detectes === MUTANTS.length ? 0 : 1);
