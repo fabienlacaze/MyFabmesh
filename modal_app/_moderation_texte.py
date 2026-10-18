@@ -45,6 +45,12 @@ separent les mots (« separee », « clip », « ftfy », « production ») ; le
 TypeScript. Garde des tournures de ferme et de chantier lue sur les mots (`_garde_expression`). Durees ajoutees, « escolar » apres
 un determinant ou un adjectif, « grade one girl », « a girl from first grade » (`_RE_MINEURS_CONSTRUITS`).
 
+CINQUIEME RELECTURE (2026-10-18, bloquants B1 a B5 ; critere : aucun recul par rapport a la production f86208c0) : lecture
+« production » fidele (les caracteres que la production laissait en place sont de la PONCTUATION, « . », pas un espace : B1),
+vues recollees comme la production, chiffres compris, ajoutees dans `separees` (B2), vue exacte dont toute lettre non ASCII
+restante est un separateur, et vue exacte SANS translitteration lue par le filtre general seulement (B3), « torse nus » / « torses
+nu » dans NU_MOYEN (B4), jalon « -- » a la place d'un mot d'idiome retire (B5).
+
 Dependances : bibliotheque standard seulement (re, time, unicodedata). Rien a ajouter a l'image Modal.
 """
 import re
@@ -287,10 +293,11 @@ NU_MOYEN = (
     "see through outfit", "transparent clothes", "transparent clothing", "transparent dress", "wet t shirt",
     "wet tshirt", "wet shirt", "exposed chest", "exposed torso", "exposed body", "boxer shorts", "boxer briefs",
     "in boxers", "tighty whities", "couche culotte*", "tenue legere", "tenue transparente", "poca ropa",
-    "traje de bano", "sujetador*", "sosten", "torse nu", "torses nus", "badehose*", "ohne hose", "sutia",
-    "roupa transparente", "sem camiseta", "reggiseno", "pigiama trasparente", "calzones", "underpants", "undies",
-    "swimwear", "swim trunks", "swimming trunks", "speedo", "speedos", "in briefs", "in his briefs", "in her briefs",
-    "in their briefs", "swimsuits", "swim suits", "bathing suit", "bathing suits", "swimming costume*",
+    "traje de bano", "sujetador*", "sosten", "torse nu", "torses nus", "torse nus", "torses nu", "badehose*",
+    "ohne hose", "sutia", "roupa transparente", "sem camiseta", "reggiseno", "pigiama trasparente", "calzones",
+    "underpants", "undies", "swimwear", "swim trunks", "swimming trunks", "speedo", "speedos", "in briefs",
+    "in his briefs", "in her briefs", "in their briefs", "swimsuits", "swim suits", "bathing suit", "bathing suits",
+    "swimming costume*",
 )
 
 NU_FAIBLE_PLANCHER = (
@@ -997,6 +1004,11 @@ CONTEXTE_DESACTIVATION = (
     "naughty", "slutty", "steamy", "lustful", "lust", "orgasmic", "erotically", "sexually", "oiled", "wet t shirt",
 )
 
+IDIOMES_PRODUCTION = (
+    "baby shower", "bridal shower", "meteor shower", "shower of", "chinks? in", "bath toys?", "suicide squad",
+    "snuff box(?:es)?", "snuff bottles?", "bikini atoll", "bikini bottom", "nu metal", "anal retentive",
+)
+
 
 # ── Points de code non assignes en Unicode 14 (table fixe partagee avec le TypeScript) ──────────────
 _BORNES_U14 = tuple((int(p.split("-")[0], 16), int(p.split("-")[-1], 16)) for p in NON_ASSIGNES_U14)
@@ -1029,8 +1041,10 @@ def _chiffres_ascii(s):
     return "".join(sortie)
 
 
-def _chiffres_separes(s):
-    """Chiffres decimaux de la table (hors ASCII) -> espace : lectures « production » et « separee » (quatrieme relecture, R2)."""
+def _chiffres_separes(s, rempl=" "):
+    """Chiffres decimaux de la table (hors ASCII) -> `rempl` : un espace pour la lecture « separee » (quatrieme relecture, R2) ;
+    un signe de PONCTUATION (« . ») pour la lecture « production » (cinquieme relecture, B1) : la production les laissait en place,
+    et pour `_joindre_ponctue` un chiffre non ASCII relie les lettres epelees, un espace non."""
     if s.isascii():
         return s
     sortie = []
@@ -1040,7 +1054,7 @@ def _chiffres_separes(s):
         if cp >= 0x80:
             for z in _ZEROS:
                 if z <= cp <= z + 9:
-                    rendu = " "
+                    rendu = rempl
                     break
         sortie.append(rendu)
     return "".join(sortie)
@@ -1119,8 +1133,17 @@ def _translit(s):
 
 # Mots isoles qui contiennent un terme du filtre sans en etre un (liste IDIOMES generee), retires du texte simplifie.
 _IDIOMES = re.compile(r"(?:^| )(?:" + "|".join(IDIOMES) + r")(?= |\Z)")
+# Expressions que la PRODUCTION (f86208c0) retirait ENTIERES du texte simplifie (liste IDIOMES_PRODUCTION generee). Le lot ne retire plus
+# que le mot sensible (EXPRESSIONS_SURES : « bath toys » garde « toys ») ; mais la production RAPPROCHAIT ainsi les mots voisins (« age
+# bath toys 1 » = « age 1 », « k baby shower idporn » = « kidporn »). Quand le texte en contient une, les vues sont AUSSI lues comme elle
+# le faisait (cinquieme relecture, controle des mutations du banc) : `_simple(..., phrases=True)`.
+_IDIOMES_PRODUCTION = re.compile(r"(?:^| )(?:" + "|".join(IDIOMES_PRODUCTION) + r")(?= |\Z)")
+# Indice rapide (un mot de ces expressions) : evite de simplifier le texte quand il n'en contient aucune.
+_RE_INDICE_PHRASES = re.compile("shower|bath|chink|suicide|snuff|bikini|metal|anal")
 # Racines d'idiomes (liste IDIOMES_RACINES generee) : seule la racine est retiree, la fin du mot reste lue (revue du 14/10, B2).
-_IDIOMES_RACINES = re.compile(r"(?:^| )(?:" + "|".join(IDIOMES_RACINES) + r")(?=[a-z]*(?: |\Z))")
+# La fin du mot est CAPTUREE (groupe 1) : `_simple` la remet entre deux jalons, pour qu'une fin d'une seule lettre (« o » de « spogliatoio »,
+# « n » de « nudeln ») ne se recolle pas aux lettres isolees voisines.
+_IDIOMES_RACINES = re.compile(r"(?:^| )(?:" + "|".join(IDIOMES_RACINES) + r")([a-z]*)(?= |\Z)")
 # Expressions sures (liste EXPRESSIONS_SURES generee) : le mot marque « ! » est le SEUL retire, les autres restent lus ; une
 # expression n'est reconnue qu'ecrite telle quelle (espaces, tirets ou soulignes entre les mots), avant la simplification.
 _SEPARATEUR_EXPRESSION = "[ _-]+"
@@ -1210,16 +1233,33 @@ def _sans_expressions_sures(s, desactivees=()):
     return r
 
 
-def _simple(s):
-    """Tout ce qui n'est pas [a-z0-9] devient un espace ; espaces compactes ; idiomes retires (racines : la fin du mot reste)."""
+# Jalon laisse a la place d'un mot d'idiome retire (cinquieme relecture, B5). Retirer le mot SANS rien laisser rapprochait ses
+# voisins : l'article « a » de « a snaked c h i l d naked » se collait aux lettres epelees (« achild »), et la production, qui gardait
+# « snaked » comme un mot, lisait « child » (plancher). Le jalon est un MOT de DEUX signes : il separe les voisins, ne se recolle pas
+# a une lettre ou a un chiffre isole (`_joindre` ne recolle que les jetons d'UN caractere), et aucun terme ne contient de signe (les
+# termes passent par `_simple` aussi, sans jalon : `jalon=False`).
+_JALON_IDIOME = "--"
+
+
+def _simple(s, jalon=True, phrases=False):
+    """Tout ce qui n'est pas [a-z0-9] devient un espace ; espaces compactes ; idiomes retires (racines : la fin du mot reste, entre deux
+    jalons), un jalon a leur place sauf pour les termes des listes (`jalon=False`). Avec `phrases`, les expressions que la production
+    retirait entieres (`IDIOMES_PRODUCTION`) le sont aussi, sans rien laisser : les mots voisins se rapprochent comme chez elle."""
+    j = " " + _JALON_IDIOME + " "
     s = " " + _RE_NON_ALNUM.sub(" ", s).strip(" ") + " "
-    return _RE_WS.sub(" ", _IDIOMES_RACINES.sub(" ", _IDIOMES.sub(" ", s))).strip(" ")
+    s = _IDIOMES.sub(j if jalon else " ", s)
+    s = _IDIOMES_RACINES.sub((lambda m: j + (m.group(1) + j if m.group(1) else "")) if jalon else (lambda m: " " + m.group(1)), s)
+    if phrases:
+        s = _IDIOMES_PRODUCTION.sub(" ", s)
+    return _RE_WS.sub(" ", s).strip(" ")
 
 
-def _joindre(s):
-    """"n u d e" -> "nude" : au moins 3 LETTRES isolees de suite sont recollees (un chiffre isole ne se recolle plus)."""
+def _joindre(s, chiffres=False):
+    """"n u d e" -> "nude" : au moins 3 LETTRES isolees de suite sont recollees (un chiffre isole ne se recolle plus). Avec
+    `chiffres`, tout jeton d'UN caractere se recolle, chiffres compris : c'est la jonction de la PRODUCTION (« 9 y r old » ->
+    « 9yr old »), lue en plus de l'autre (cinquieme relecture, B2)."""
     def lettre(x):
-        return len(x) == 1 and "a" <= x <= "z"
+        return len(x) == 1 and (chiffres or "a" <= x <= "z")
 
     t = s.split(" ")
     sortie = []
@@ -1282,14 +1322,19 @@ def _leet(translit, un_vers):
     return " ".join(jeton_leet(j) for j in _RE_WS.split(translit))
 
 
-def _hors_ascii_en_x(s):
-    """Une lettre hors ASCII devient « x », tout autre caractere hors ASCII un espace."""
-    return "".join(c if ord(c) < 0x80 else ("x" if unicodedata.category(c)[0] == "L" else " ") for c in s)
+def _hors_ascii_en_point(s):
+    """Tout caractere hors ASCII qui reste (lettre d'une autre ecriture, symbole, ponctuation) est un SEPARATEUR, comme dans la
+    production, ou il n'etait ni lettre ni chiffre : « nu<U+0436> » reste le mot « nu » (cinquieme relecture, B3) ; c'est de la
+    PONCTUATION (« . »), qui relie les lettres epelees."""
+    return "".join(c if ord(c) < 0x80 else "." for c in s)
 
 
-def _vue_exacte(net, desactivees=()):
+def _vue_exacte(net, desactivees=(), translit=True):
     """VUE EXACTE pour les mots COURTS « nu », « nue », « nua »... : une lettre a marque distinctive (crochet, tilde, corne,
-    point souscrit) ou d'une autre ecriture devient « x » ; les accents francais sont retires."""
+    point souscrit) devient « x » ; les accents francais sont retires ; toute AUTRE lettre non ASCII est un separateur, comme
+    dans la production (cinquieme relecture, B3). Avec `translit` faux, les lettres des tables de translitteration (cyrillique, grec,
+    « ø », « ß »...) sont elles aussi des separateurs : c'est le texte NON translittere que la production lisait pour le filtre
+    general (`souple`), ou « nu<U+00F8> » etait le mot « nu »."""
     s = unicodedata.normalize("NFD", net)
     sortie = []
     i = 0
@@ -1308,7 +1353,7 @@ def _vue_exacte(net, desactivees=()):
         else:
             sortie.append(c)
         i = j
-    s = _sans_expressions_sures(_hors_ascii_en_x(_translit("".join(sortie))), desactivees)
+    s = _sans_expressions_sures(_hors_ascii_en_point(_translit("".join(sortie)) if translit else "".join(sortie)), desactivees)
     # assemblee comme les autres vues du plancher (quatrieme relecture du 14/10, R3) : « n.u.e », « nuuue », « nu3 »
     vues = []
     for x in (s, _leet(s, "i"), _leet(s, "l")):
@@ -1359,7 +1404,8 @@ def _separees(vues):
 
 def _vues_plancher(net, desactivees=()):
     """Vues du plancher a partir du texte NETTOYE (`_nettoyer`)."""
-    t = _sans_expressions_sures(_translit(_sans_marques(net)), desactivees)
+    t0 = _translit(_sans_marques(net))
+    t = _sans_expressions_sures(t0, desactivees)
 
     def assembler(x):
         return _joindre(_simple(_joindre_ponctue(x)))
@@ -1367,11 +1413,45 @@ def _vues_plancher(net, desactivees=()):
     def coller(v):
         return _RE_REPETE2.sub(r"\1", _RE_NON_LETTRE.sub("", v))
 
+    def assembler_ch(x):
+        return _ecraser(_joindre(_simple(_joindre_ponctue(x)), True))
+
     t_i = _leet(t, "i")
     t_l = _leet(t, "l")
     non_ecrasees = [assembler(t), assembler(t_i), assembler(t_l)]
     chiffres, leet_i, leet_l = _ecraser(non_ecrasees[0]), _ecraser(non_ecrasees[1]), _ecraser(non_ecrasees[2])
+    # Vues recollees COMME LA PRODUCTION (cinquieme relecture, B2) : tout jeton d'UN caractere, chiffre compris, se recolle
+    # (« 9 y r old » -> « 9yr old » : un age que la production lisait). AJOUTEES aux vues ci-dessus (qu'on ne touche pas : « a 8 y o »
+    # y reste un age), sans doublon, dans `separees`.
+    avec_chiffres = []
+    for x in (assembler_ch(t), assembler_ch(t_i), assembler_ch(t_l)):
+        if x not in (chiffres, leet_i, leet_l) and x not in avec_chiffres:
+            avec_chiffres.append(x)
+    collees = [coller(_simple(t_i)), coller(_simple(t_l))]
+    series = (_series(_simple(_joindre_ponctue(t))) + _series(_simple(_joindre_ponctue(t_i))) + _series(_simple(_joindre_ponctue(t_l))))
+    # Quand le texte contient une expression que la PRODUCTION retirait ENTIERE (`IDIOMES_PRODUCTION`), toutes les vues sont AUSSI lues
+    # comme elle (mots voisins rapproches) ; texte sans les exceptions du lot (hors idiomes), qu'elle n'avait pas.
+    separees_phrases = []
+    if _RE_INDICE_PHRASES.search(t0) and _IDIOMES_PRODUCTION.search(_simple(t0)):
+        def vp(x):
+            return _simple(_joindre_ponctue(x), True, True)
+
+        existantes = [chiffres, leet_i, leet_l] + avec_chiffres
+        t0_i, t0_l = _leet(t0, "i"), _leet(t0, "l")
+        for x in (t0, t0_i, t0_l):
+            for v in (_ecraser(_joindre(vp(x))), _ecraser(_joindre(vp(x), True))):
+                if v not in existantes and v not in separees_phrases:
+                    separees_phrases.append(v)
+        for x in (t0_i, t0_l):
+            c = coller(_simple(x, True, True))
+            if c not in collees:
+                collees.append(c)
+        for x in (t0, t0_i, t0_l):
+            for v in _series(vp(x)):
+                if v not in series:
+                    series.append(v)
     exactes = _vue_exacte(net, desactivees)
+    exactes_souples = [x for x in _vue_exacte(net, desactivees, False) if x not in exactes]
     uni = _vue_unicode(net)
     # vue Unicode, puis la meme sans les espaces entre deux ideogrammes han (troisieme relecture du 14/10)
     unicode = [uni] + [x for x in (_RE_ESPACE_HAN.sub("", uni),) if x != uni]
@@ -1379,12 +1459,14 @@ def _vues_plancher(net, desactivees=()):
         "chiffres": chiffres,
         "leetI": leet_i,
         "leetL": leet_l,
-        "collees": [coller(_simple(t_i)), coller(_simple(t_l))],
-        "series": (_series(_simple(_joindre_ponctue(t))) + _series(_simple(_joindre_ponctue(t_i)))
-                   + _series(_simple(_joindre_ponctue(t_l)))),
+        "collees": collees,
+        "series": series,
         "nonEcrasees": non_ecrasees,
-        "separees": _separees([chiffres, leet_i, leet_l]),
+        "separees": _separees([chiffres, leet_i, leet_l]) + avec_chiffres + separees_phrases,
         "exactes": exactes + [x for x in _separees(exactes) if x not in exactes],
+        # la meme SANS translitteration : lue par le filtre GENERAL seulement (jamais par le plancher), comme la production lisait
+        # « nu<U+00F8> » dans `souple` (cinquieme relecture, B3)
+        "exactesSouples": exactes_souples + [x for x in _separees(exactes_souples) if x not in exactes and x not in exactes_souples],
         "unicode": [_RE_IDIOMES_UNICODE.sub(" ", _RE_FRONTIERE_CHIFFRE_UNICODE.sub(" ", x)) for x in unicode],
     }
 
@@ -1441,9 +1523,19 @@ def _colle_lecture(c, mode):
     return False
 
 
+def _ponctuation_production(c):
+    """Ce que la lecture « production » met a la place d'un caractere que la production LAISSAIT EN PLACE (cinquieme relecture,
+    B1) : de la PONCTUATION (« . »), pas un espace. Pour la production tout caractere hors de [a-z0-9] et hors des blancs etait de la
+    ponctuation, et `_joindre_ponctue` relie par de la ponctuation les lettres epelees d'un meme mot : « n.a<U+061C>k.e.d » y etait
+    « naked » ; un espace coupait la serie. Un caractere qui est un blanc pour JavaScript (`\\s`) reste un espace."""
+    return " " if _RE_WS.fullmatch(c) else "."
+
+
 def _effacer_lecture(s, mode):
-    """\\t \\n \\r -> espace ; caracteres effaces par la lecture principale : effaces si la lecture les colle, sinon un espace."""
-    return "".join((("" if _colle_lecture(c, mode) else " ") if _efface(c) else c) for c in _RE_BLANCS_CONTROLE.sub(" ", s))
+    """\\t \\n \\r -> espace ; caracteres effaces par la lecture principale : effaces si la lecture les colle, sinon un espace (de la
+    ponctuation pour la lecture « production »)."""
+    return "".join(("" if _colle_lecture(c, mode) else (_ponctuation_production(c) if mode == "production" else " "))
+                   if _efface(c) else c for c in _RE_BLANCS_CONTROLE.sub(" ", s))
 
 
 _CACHE_SYMBOLES = {}
@@ -1464,15 +1556,42 @@ def _symbole_lettre(c):
 
 
 def _symboles_separes(s, mode):
-    """Lettres-emoji et symboles NFKC -> espace (la production ne changeait en espace que les lettres-emoji)."""
+    """Lettres-emoji et symboles NFKC -> espace (la production ne changeait en espace que les lettres-emoji ; pour elle c'etaient
+    de la ponctuation : un signe « . » dans la lecture « production », cinquieme relecture, B1)."""
     if s.isascii():
         return s
-    return "".join(" " if (ord(c) >= 0x80 and _symbole_lettre(c)
-                           and (mode != "production" or _lettre_symbole(ord(c)) is not None)) else c for c in s)
+    remplacant = "." if mode == "production" else " "
+    return "".join(remplacant if (ord(c) >= 0x80 and _symbole_lettre(c)
+                                  and (mode != "production" or _lettre_symbole(ord(c)) is not None)) else c for c in s)
+
+
+def _lecture_production(brut):
+    """LECTURE « PRODUCTION » : la normalisation de f86208c0 (NFKC, minuscules), puis les seules adaptations que la version de travail
+    exige. Les caracteres exotiques restent EN PLACE jusqu'aux minuscules (cinquieme relecture, B1) : le contexte du « Σ » final (« ς »
+    donne la lettre « s » a la production, « σ » rien) depend de ce qui suit, et un signe de ponctuation mis a la place d'un caractere que
+    la production laissait aurait change ce contexte. Ensuite : les invisibles de la production sont effaces, les autres caracteres
+    effaces, les lettres-emoji, les marques hors U+0300-036F, les chiffres non ASCII et les lettres que les tables du lot ont AJOUTEES a
+    celles de la production deviennent de la PONCTUATION (« . »), ce qu'ils etaient pour elle (`_ponctuation_production`). Seuls les
+    points de code non assignes en Unicode 14 sont traites AVANT NFKC, comme dans toutes les lectures."""
+    # (« / » et non « . » : un point est « case-ignorable » pour les minuscules, un caractere non assigne ne l'est pas)
+    s = _RE_BLANCS_CONTROLE.sub(" ", brut)
+    if not s.isascii():
+        s = "".join("/" if (ord(c) >= 0x378 and _non_assigne_u14(ord(c))) else c for c in s)
+    s = unicodedata.normalize("NFKC", s).lower()
+    s = _effacer_lecture(s, "production")
+    s = _symboles_separes(s, "production")
+    # marques restees apres la composition : la production effacait celles de U+0300-036F et laissait les autres en place
+    s = "".join((("" if 0x300 <= ord(c) <= 0x36F else ".") if _est_marque(c) else c) for c in s)
+    # chiffres non ASCII : la production les lisait comme des separateurs (hors de [a-z0-9])
+    s = _chiffres_separes(s, ".")
+    # lettres des tables du lot absentes de celles de la production (« Ħ » et « Ա » sont devenues « ħ » et « ա » par les minuscules)
+    return "".join("." if c in _TRANSLIT_HORS_PRODUCTION else c for c in s)
 
 
 def _nettoyer_lecture(brut, mode):
     """Texte nettoye d'une lecture ou les caracteres effaces ou changes par la lecture principale separent les mots."""
+    if mode == "production":
+        return _lecture_production(brut)
     s = _sans_mojibake(brut) if mode == "ftfy" else brut
     s = _effacer_lecture(s, mode)
     if mode == "ftfy":
@@ -1480,12 +1599,11 @@ def _nettoyer_lecture(brut, mode):
     s = unicodedata.normalize("NFKC", _symboles_separes(s, mode))
     if mode == "ftfy" and "&" in s:
         s = unicodedata.normalize("NFKC", _symboles_separes(_effacer_lecture(_sans_references_html(s), mode), mode))
-    # marques restees seules apres la composition : separateurs (la production effacait celles de U+0300-036F)
-    s = "".join(((" " if not (mode == "production" and 0x300 <= ord(c) <= 0x36F) else "") if _est_marque(c) else c) for c in s)
-    # chiffres non ASCII : separateurs pour la production et la lecture « separee » (quatrieme relecture du 14/10, R2)
-    s = (_chiffres_separes(s) if mode in ("production", "separee") else _chiffres_ascii(s)).lower()
-    # apres les minuscules : « Ħ » et « Ա » deviennent « ħ » et « ա », absents des tables de la production
-    return "".join(" " if c in _TRANSLIT_HORS_PRODUCTION else c for c in s) if mode == "production" else s
+    # marques restees seules apres la composition : separateurs
+    s = "".join((" " if _est_marque(c) else c) for c in s)
+    # chiffres non ASCII : un espace pour la lecture « separee », des chiffres ASCII pour « clip » et « ftfy » (quatrieme relecture du
+    # 14/10, R2) ; la lecture « production » est a part (`_lecture_production`)
+    return (_chiffres_separes(s) if mode == "separee" else _chiffres_ascii(s)).lower()
 
 
 def _lire(prompt):
@@ -1529,7 +1647,7 @@ def _noyau_source(src):
 
 
 def _forme_terme(src):
-    return _simple(_translit(_base(_noyau_source(src))))
+    return _simple(_translit(_base(_noyau_source(src))), False)
 
 
 def _forme_unicode(src):
@@ -1839,6 +1957,14 @@ def check_prompt_safety(prompt, unrestricted=False):
     # textes tels quels (sans translitteration), et coupes entre lettres et chiffres (un chiffre arabe-indien que la production
     # lisait comme un separateur devient un chiffre ASCII, que CLIP lit seul)
     bruts = [_simple(_sans_expressions_sures(_sans_marques(n), desactivees)) for n in nets]
+    # texte lu aussi comme la production quand il contient une expression qu'elle retirait ENTIERE (`IDIOMES_PRODUCTION`)
+    for n in nets:
+        if _RE_INDICE_PHRASES.search(n):
+            sp = _sans_marques(n)
+            if _IDIOMES_PRODUCTION.search(_simple(sp)):
+                v = _simple(sp, True, True)
+                if v not in bruts:
+                    bruts.append(v)
     souples = bruts + [x for x in _separees(bruts) if x not in bruts]
     # l'explicite est teste sur les formes deguisees aussi
     toutes = souples + [x for v in vs for x in [v["chiffres"], v["leetI"], v["leetL"]] + v["separees"]]
@@ -1855,7 +1981,7 @@ def check_prompt_safety(prompt, unrestricted=False):
     # 1. Termes explicites (sexe, nudite) : mots entiers, y compris deguises ; mots courts sur la vue exacte ; autres
     #    ecritures sur la vue Unicode.
     sexuel = (_chercher(toutes, T_SEXUEL_DUR)
-              or _chercher([x for v in vs for x in v["exactes"]], T_SEXUEL_EXACTS)
+              or _chercher([x for v in vs for x in v["exactes"] + v["exactesSouples"]], T_SEXUEL_EXACTS)
               or _chercher([x for v in vs for x in v["unicode"]], T_SEXUEL_UNICODE))
     if sexuel:
         return refus(sexuel)

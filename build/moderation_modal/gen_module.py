@@ -47,6 +47,8 @@ NOMS = [
     'GARDE_DEBUTS_COQ', 'GARDE_COQ', 'PERSONNES_DESACTIVATION',
     # 2026-10-15 (controle exhaustif de non-recul : prefixes d'age anglais, contexte sexuel des expressions balisees)
     'PREFIXES_AGE_ANGLAIS', 'UNITES_APRES_AMBIGU', 'CONTEXTE_DESACTIVATION',
+    # 2026-10-18 (cinquieme relecture : expressions que la production retirait entieres)
+    'IDIOMES_PRODUCTION',
 ]
 
 src = io.open(TS, encoding='utf-8').read().replace('\r\n', '\n')

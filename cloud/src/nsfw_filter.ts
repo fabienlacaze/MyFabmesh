@@ -91,6 +91,23 @@
  *  - RACINES de la production retablies : « stabb* » (« stabbings »), « seminu* » (« seminudismo ») ; « seminuovo » et « seminuevo »
  *    (semi-neuf) a part (`IDIOMES_RACINES`).
  *
+ * 2026-10-18 — CINQUIEME RELECTURE DU LOT (bloquants B1 a B5 ; meme critere : AUCUN recul par rapport a f86208c0, pour tous les
+ * comptes, `unrestricted` compris) :
+ *  - B1 : la lecture « production » (`_nettoyerLecture`) mettait un ESPACE a la place des caracteres que la production laissait en
+ *    place ; or pour la production tout caractere hors de [a-z0-9] et hors des blancs etait de la PONCTUATION, que `_joindrePonctue`
+ *    employe pour relier les lettres epelees : « n.a<U+061C>k.e.d » y etait « naked ». Ils deviennent un signe « . » (caracteres
+ *    effaces, lettres-emoji, marques hors U+0300-036F, chiffres non ASCII, lettres hors des tables de la production, symboles de la
+ *    vue exacte).
+ *  - B2 : la production recollait les jetons d'UN caractere, chiffres compris (« 9 y r old » -> « 9yr old ») ; le lot ne recolle que
+ *    les lettres. Les vues recollees comme la production sont AJOUTEES (`separees`), les autres inchangees.
+ *  - B3 : vue exacte (« nu », « nue »...) : une lettre non ASCII restante (autre ecriture) est un separateur, comme en production,
+ *    et non plus un « x » : « enfant nu<U+0436> » reste refuse. Les lettres a marque distinctive restent « x » (nữ, nụ, ñu). Le filtre
+ *    GENERAL lit en plus la vue exacte SANS translitteration (`exactesSouples`) : la production lisait « nu<U+00F8> » dans son texte
+ *    non translittere (`souple`) ; le plancher, lui, ne lisait que les vues translitterees et ne change pas.
+ *  - B4 : « torse nus » et « torses nu » (accords que IDIOMES_EXACTS retirait de la vue exacte) rejoignent NU_MOYEN.
+ *  - B5 : un mot d'idiome retire laisse un JALON (« -- », un mot de deux signes) et non plus rien : « a snaked c h i l d naked »
+ *    ne colle plus l'article « a » aux lettres epelees (`_simple`).
+ *
  * Le contrat de retour ne change pas : { safe, blocked?, reason? }. Deux
  * champs OPTIONNELS s'y ajoutent (IA-04) pour que l'appelant puisse compter
  * les blocages par compte : `categorie` et `hardFloor`.
@@ -251,11 +268,13 @@ function _chiffresAscii(s: string): string {
   });
 }
 
-/** Chiffres decimaux de la table (hors ASCII) -> espace : lectures « production » et « separee » (quatrieme relecture, R2). */
-function _chiffresSepares(s: string): string {
+/** Chiffres decimaux de la table (hors ASCII) -> `rempl` : un espace pour la lecture « separee » (quatrieme relecture, R2) ; un
+ *  signe de PONCTUATION (« . ») pour la lecture « production » (cinquieme relecture, B1) : la production les laissait en place, et
+ *  pour `_joindrePonctue` un chiffre non ASCII relie les lettres epelees (« n.a<U+0667>k.e.d »), un espace non. */
+function _chiffresSepares(s: string, rempl = ' '): string {
   return s.replace(/[^\x00-\x7f]/gu, (c) => {
     const cp = c.codePointAt(0) as number;
-    for (const z of _ZEROS) if (cp >= z && cp <= z + 9) return ' ';
+    for (const z of _ZEROS) if (cp >= z && cp <= z + 9) return rempl;
     return c;
   });
 }
@@ -377,6 +396,16 @@ const _LEET: Record<string, string> = { '0': 'o', '3': 'e', '4': 'a', '5': 's', 
 // « 1nf4n711 », « rapeds » passaient) ; « infantry » est retire ici, « rapeseed » par une expression sure balisee <mineur>.
 const IDIOMES: string[] = ['snaked', 'pornic', 'nacktkatzen?', 'infantr(?:y|ies|yman|ymen)', 'infanter(?:ia|ias|ie|ist|isten)', 'infantaria'];
 const _IDIOMES = new RegExp('(?:^| )(?:' + IDIOMES.join('|') + ')(?= |$)', 'g');
+// Expressions que la PRODUCTION (f86208c0) retirait ENTIERES du texte simplifie (son `_IDIOMES`). Le lot ne retire plus que le mot
+// sensible (EXPRESSIONS_SURES : « bath toys » garde « toys ») ; mais la production RAPPROCHAIT ainsi les mots voisins (« age bath toys 1 »
+// = « age 1 », « k baby shower idporn » = « kidporn »). Quand le texte en contient une, les vues sont AUSSI lues comme elle le faisait
+// (cinquieme relecture, controle des mutations du banc) : `_simple(..., phrases = true)`.
+const IDIOMES_PRODUCTION: string[] = ['baby shower', 'bridal shower', 'meteor shower', 'shower of', 'chinks? in', 'bath toys?', 'suicide squad',
+  'snuff box(?:es)?', 'snuff bottles?', 'bikini atoll', 'bikini bottom', 'nu metal', 'anal retentive'];
+const _IDIOMES_PRODUCTION = new RegExp('(?:^| )(?:' + IDIOMES_PRODUCTION.join('|') + ')(?= |$)', 'g');
+const _RE_IDIOMES_PRODUCTION = new RegExp('(?:^| )(?:' + IDIOMES_PRODUCTION.join('|') + ')(?= |$)');
+/** Indice rapide (un mot de ces expressions) : evite de simplifier le texte quand il n'en contient aucune. */
+const _RE_INDICE_PHRASES = /shower|bath|chink|suicide|snuff|bikini|metal|anal/;
 // RACINES d'idiomes suivies d'une fin de mot quelconque (« Nudeln », « Nudelholz », « Nacktschnecken », « spogliatoio ») : SEULE
 // la racine est retiree, la fin reste un mot lu (revue du 14/10, B2). Avant, « nudel[a-z]* » effacait le jeton entier, mot colle
 // derriere compris : « nudel+<nudite> » passait le plancher, alors que CLIP le decoupe « nu del <nudite> » et lit le mot colle.
@@ -388,7 +417,9 @@ const IDIOMES_RACINES: string[] = [
   'nacktschneck', 'nacktmull', 'nacktsamer', 'nackthund', 'naaktslak', 'spogliatoi',
   // 2026-10-15 : « seminu* » redevient une racine (comme en production) ; « seminuovo » (it) et « seminuevo » (es) = semi-neuf
   'seminuov', 'seminuev'];
-const _IDIOMES_RACINES = new RegExp('(?:^| )(?:' + IDIOMES_RACINES.join('|') + ')(?=[a-z]*(?: |$))', 'g');
+// La fin du mot est CAPTUREE (groupe 1) : `_simple` la remet entre deux jalons, pour qu'une fin d'une seule lettre (« o » de
+// « spogliatoio », « n » de « nudeln ») ne se recolle pas aux lettres isolees voisines.
+const _IDIOMES_RACINES = new RegExp('(?:^| )(?:' + IDIOMES_RACINES.join('|') + ')([a-z]*)(?= |$)', 'g');
 
 // EXPRESSIONS SURES : expressions courantes qui contiennent un terme du filtre sans en etre un. 2026-10-13 : le mot marque « ! »
 // est le SEUL retire, les autres restent lus (« naked baby shower » garde « baby » : avant, l'expression entiere disparaissait et
@@ -588,18 +619,31 @@ function _translit(s: string): string {
   return s.replace(/[^\x00-\x7f]/gu, (c) => _LATIN_SPECIAUX[c] ?? _HOMOGLYPHES[c] ?? _lettreSymbole(c.codePointAt(0) as number) ?? c);
 }
 
-/** Tout ce qui n'est pas [a-z0-9] devient un espace ; espaces compactes ; idiomes retires (racines : la fin du mot reste). */
-function _simple(s: string): string {
-  return (' ' + s.replace(/[^a-z0-9]+/g, ' ').trim() + ' ').replace(_IDIOMES, ' ').replace(_IDIOMES_RACINES, ' ')
-    .replace(/\s+/g, ' ').trim();
+/** Jalon laisse a la place d'un mot d'idiome retire (cinquieme relecture, B5). Retirer le mot SANS rien laisser rapprochait ses
+ *  voisins : l'article « a » de « a snaked c h i l d naked » se collait aux lettres epelees (« achild »), et la production, qui
+ *  gardait « snaked » comme un mot, lisait « child » (plancher). Le jalon est un MOT de DEUX signes : il separe les voisins, ne
+ *  se recolle pas a une lettre ou a un chiffre isole (`_joindre` ne recolle que les jetons d'UN caractere), et aucun terme ne
+ *  contient de signe (les termes passent par `_simple` aussi, sans jalon : `jalon = false`). */
+const _JALON_IDIOME = '--';
+
+/** Tout ce qui n'est pas [a-z0-9] devient un espace ; espaces compactes ; idiomes retires (racines : la fin du mot reste, entre deux
+ *  jalons), un jalon a leur place sauf pour les termes des listes (`jalon = false`). Avec `phrases`, les expressions que la production
+ *  retirait entieres (`IDIOMES_PRODUCTION`) le sont aussi, sans rien laisser : les mots voisins se rapprochent comme chez elle. */
+function _simple(s: string, jalon = true, phrases = false): string {
+  const j = ' ' + _JALON_IDIOME + ' ';
+  let r = (' ' + s.replace(/[^a-z0-9]+/g, ' ').trim() + ' ').replace(_IDIOMES, jalon ? j : ' ')
+    .replace(_IDIOMES_RACINES, (_m: string, fin: string) => (jalon ? j + (fin ? fin + j : '') : ' ' + fin));
+  if (phrases) r = r.replace(_IDIOMES_PRODUCTION, ' ');
+  return r.replace(/\s+/g, ' ').trim();
 }
 
 /** "n u d e" -> "nude" : au moins 3 LETTRES isolees de suite sont recollees (2026-10-13 : un chiffre isole ne se recolle plus,
- *  sinon « a 8 y/o » devenait « a8yo » et l'age n'etait plus lu). */
-function _joindre(s: string): string {
+ *  sinon « a 8 y/o » devenait « a8yo » et l'age n'etait plus lu). Avec `chiffres`, tout jeton d'UN caractere se recolle, chiffres
+ *  compris : c'est la jonction de la PRODUCTION (« 9 y r old » -> « 9yr old »), lue en plus de l'autre (cinquieme relecture, B2). */
+function _joindre(s: string, chiffres = false): string {
   const t = s.split(' ');
   const sortie: string[] = [];
-  const lettre = (x: string) => x.length === 1 && x >= 'a' && x <= 'z';
+  const lettre = (x: string) => x.length === 1 && (chiffres || (x >= 'a' && x <= 'z'));
   let i = 0;
   while (i < t.length) {
     if (lettre(t[i])) {
@@ -654,12 +698,19 @@ const _RE_IDIOMES_EXACTS = new RegExp('(?:^| )(?:' + IDIOMES_EXACTS.join('|') + 
 
 /** VUE EXACTE (2026-10-13, MODERATION-05) pour les mots COURTS « nu », « nue », « nua »... : le vietnamien « nữ » (femme),
  *  « nụ » (bouton), « nữa », « nửa » et l'espagnol « ñu » se lisaient « nu » / « nua » une fois les accents retires. Une lettre
- *  a marque distinctive (ou d'une autre ecriture) devient « x » : « nx » n'est plus « nu ». */
-function _vueExacte(net: string, desactivees: string[] = []): string[] {
+ *  a marque distinctive devient « x » : « nx » n'est plus « nu ». Toute AUTRE lettre non ASCII est un separateur, comme dans la
+ *  production (cinquieme relecture, B3 : « nu<U+0436> » reste le mot « nu »). Avec `translit` faux, les lettres des tables de
+ *  translitteration (cyrillique, grec, « ø », « ß »...) sont elles aussi des separateurs : c'est le texte NON translittere que la
+ *  production lisait pour le filtre general (`souple`), ou « nu<U+00F8> » etait le mot « nu ». */
+function _vueExacte(net: string, desactivees: string[] = [], translit = true): string[] {
   let s = net;
   try { s = s.normalize('NFD'); } catch { /* garde */ }
   s = s.replace(/(\P{M})(\p{M}+)/gu, (_m, lettre: string, marques: string) => (_MARQUES_DISTINCTIVES.test(marques) ? 'x' : lettre));
-  s = _sansExpressionsSures(_translit(s).replace(/[^\x00-\x7f]/gu, (c) => (/\p{L}/u.test(c) ? 'x' : ' ')), desactivees);
+  // Tout caractere non ASCII qui reste (lettre d'une autre ecriture, symbole, ponctuation) est un SEPARATEUR, comme dans la
+  // production, ou il n'etait ni lettre ni chiffre : « nu<U+0436> », « nue<U+4E2D> », « nua<U+05D0> » restent le mot « nu » (cinquieme
+  // relecture, B3 ; avant, une lettre restante devenait « x » et « enfant nu<U+0436> » passait) et ce separateur est de la PONCTUATION
+  // (« . »), qui relie les lettres epelees (« n.u<U+0436>e »). Les lettres a marque distinctive sont deja « x » plus haut.
+  s = _sansExpressionsSures((translit ? _translit(s) : s).replace(/[^\x00-\x7f]/gu, '.'), desactivees);
   // Assemblee comme les autres vues du plancher (quatrieme relecture du 14/10, R3) : lettres separees par de la ponctuation ou des
   // espaces recollees (« n.u.e », « n-u-e », « n_u_s »), lettres repetees ecrasees (« nuuue »), leet (« nu3 ») ; la production
   // lisait ces formes (« nu », « nue » etaient des termes de ses vues ordinaires).
@@ -702,10 +753,14 @@ interface VuesPlancher {
   /** les trois premieres vues SANS lettres repetees ecrasees : un mot colle « toplessschoolgirl » y garde ses trois « s » */
   nonEcrasees: string[];
   /** les trois premieres vues coupees entre lettres et chiffres (« 2child » -> « 2 child ») puis sans chiffre colle a une lettre
-   *  (« little1girl » -> « little girl ») ; seulement celles qui different */
+   *  (« little1girl » -> « little girl ») ; seulement celles qui different ; puis (cinquieme relecture, B2) les trois vues recollees
+   *  COMME LA PRODUCTION, chiffres compris (« 9 y r old » -> « 9yr old »), si elles different des trois premieres */
   separees: string[];
   /** vue exacte (accents gardes) pour les mots courts « nu », « nue », « nua »... ; puis sa version coupee si elle differe */
   exactes: string[];
+  /** la meme SANS translitteration, seulement celles qui different : lue par le filtre GENERAL (jamais par le plancher, qui ne lisait
+   *  pas le texte non translittere), comme la production lisait « nu<U+00F8> » dans `souple` (cinquieme relecture, B3) */
+  exactesSouples: string[];
   /** vue Unicode (sans translitteration) pour les termes non latins et les emoji, coupee entre chiffres et autres caracteres ;
    *  puis, si elle differe, la meme SANS les espaces entre deux ideogrammes han (troisieme relecture du 14/10 : le tokenizer CLIP
    *  de Modal, sans ftfy, lit chaque ideogramme seul ; « 儿 童 » et « 儿童 » lui donnent les memes jetons) */
@@ -741,10 +796,17 @@ function _separees(vues: string[]): string[] {
 
 /** Vues du plancher a partir du texte NETTOYE (`_nettoyer`). */
 function _vuesPlancher(net: string, desactivees: string[] = []): VuesPlancher {
-  const t = _sansExpressionsSures(_translit(_sansMarques(net)), desactivees);
+  const t0 = _translit(_sansMarques(net));
+  const t = _sansExpressionsSures(t0, desactivees);
   const assembler = (x: string) => _joindre(_simple(_joindrePonctue(x)));
   const nonEcrasees = [assembler(t), assembler(_leet(t, 'i')), assembler(_leet(t, 'l'))];
   const [chiffres, leetI, leetL] = nonEcrasees.map(_ecraser);
+  // Vues recollees COMME LA PRODUCTION (cinquieme relecture, B2) : tout jeton d'UN caractere, chiffre compris, se recolle (« 9 y r
+  // old » -> « 9yr old » : un age que la production lisait). AJOUTEES aux vues ci-dessus (qu'on ne touche pas : « a 8 y o » y reste
+  // un age), sans doublon, dans `separees`.
+  const assemblerCh = (x: string) => _ecraser(_joindre(_simple(_joindrePonctue(x)), true));
+  const avecChiffres = [assemblerCh(t), assemblerCh(_leet(t, 'i')), assemblerCh(_leet(t, 'l'))]
+    .filter((x, i, l) => ![chiffres, leetI, leetL].includes(x) && l.indexOf(x) === i);
   const coller = (v: string) => v.replace(/[^a-z]/g, '').replace(/([a-z])\1+/g, '$1');
   // La vue collee part du texte sans jonction (les jonctions sont deja des lettres collees).
   const collees = [coller(_simple(_leet(t, 'i'))), coller(_simple(_leet(t, 'l')))];
@@ -752,12 +814,32 @@ function _vuesPlancher(net: string, desactivees: string[] = []): VuesPlancher {
     ..._series(_simple(_joindrePonctue(t))), ..._series(_simple(_joindrePonctue(_leet(t, 'i')))),
     ..._series(_simple(_joindrePonctue(_leet(t, 'l')))),
   ];
+  // Quand le texte contient une expression que la PRODUCTION retirait ENTIERE (`IDIOMES_PRODUCTION`), toutes les vues sont AUSSI lues
+  // comme elle (mots voisins rapproches : « age bath toys 1 » = « age 1 », « k baby shower idporn » = « kidporn ») ; texte sans les
+  // exceptions du lot (hors idiomes), qu'elle n'avait pas.
+  const separeesPhrases: string[] = [];
+  if (_RE_INDICE_PHRASES.test(t0) && _RE_IDIOMES_PRODUCTION.test(_simple(t0))) {
+    const vp = (x: string) => _simple(_joindrePonctue(x), true, true);
+    const existantes = [chiffres, leetI, leetL, ...avecChiffres];
+    for (const x of [t0, _leet(t0, 'i'), _leet(t0, 'l')]) {
+      for (const v of [_ecraser(_joindre(vp(x))), _ecraser(_joindre(vp(x), true))]) {
+        if (!existantes.includes(v) && !separeesPhrases.includes(v)) separeesPhrases.push(v);
+      }
+    }
+    for (const x of [_leet(t0, 'i'), _leet(t0, 'l')]) {
+      const c = coller(_simple(x, true, true));
+      if (!collees.includes(c)) collees.push(c);
+    }
+    for (const x of [t0, _leet(t0, 'i'), _leet(t0, 'l')]) for (const v of _series(vp(x))) if (!series.includes(v)) series.push(v);
+  }
   const exactes = _vueExacte(net, desactivees);
+  const exactesSouples = _vueExacte(net, desactivees, false).filter((x) => !exactes.includes(x));
   const uni = _vueUnicode(net);
   const unicode = [uni, uni.replace(_RE_ESPACE_HAN, '')].filter((x, i, l) => l.indexOf(x) === i)
     .map((x) => x.replace(_RE_FRONTIERE_CHIFFRE_UNICODE, ' ').replace(_RE_IDIOMES_UNICODE, ' '));
-  return { chiffres, leetI, leetL, collees, series, nonEcrasees, separees: _separees([chiffres, leetI, leetL]),
-    exactes: [...exactes, ..._separees(exactes).filter((x) => !exactes.includes(x))], unicode };
+  return { chiffres, leetI, leetL, collees, series, nonEcrasees, separees: [..._separees([chiffres, leetI, leetL]), ...avecChiffres, ...separeesPhrases],
+    exactes: [...exactes, ..._separees(exactes).filter((x) => !exactes.includes(x))],
+    exactesSouples: [...exactesSouples, ..._separees(exactesSouples).filter((x) => !exactes.includes(x) && !exactesSouples.includes(x))], unicode };
 }
 
 // SYNTAXE DE POIDS COLLEE dans un mot (revue du 14/10, B1) : « na()ked », « na[]ked », « (na)(ked) », « (na:1)(ked:1) ». Le
@@ -819,10 +901,19 @@ const TRANSLIT_HORS_PRODUCTION: string[] = [
   '\u0274', '\u1d0f', '\u1d18', '\u0280', '\ua731', '\u1d1b', '\u1d1c', '\u1d20', '\u1d21', '\u028f', '\u1d22',
 ];
 
-/** \t \n \r -> espace ; caracteres de `_EFFACES` : effaces si la lecture les colle, sinon un espace. */
+/** Ce que la lecture « production » met a la place d'un caractere que la production LAISSAIT EN PLACE (cinquieme relecture, B1) : de
+ *  la PONCTUATION (« . »), pas un espace. Pour la production tout caractere hors de [a-z0-9] et hors des blancs etait de la
+ *  ponctuation, et `_joindrePonctue` relie par de la ponctuation les lettres epelees d'un meme mot : « n.a<U+061C>k.e.d » y etait
+ *  « naked » ; un espace coupait la serie et le mot n'etait plus lu. Un caractere qui est un blanc pour JavaScript (`\s`) reste un
+ *  espace. */
+function _ponctuationProduction(c: string): string { return /\s/.test(c) ? ' ' : '.'; }
+
+/** \t \n \r -> espace ; caracteres de `_EFFACES` : effaces si la lecture les colle, sinon un espace (de la ponctuation pour la
+ *  lecture « production »). */
 function _effacerLecture(s: string, mode: ModeLecture): string {
   const colle = mode === 'clip' ? _COLLES_CLIP : mode === 'ftfy' ? _COLLES_FTFY : mode === 'production' ? _COLLES_PRODUCTION : null;
-  return s.replace(/[\t\n\r]/g, ' ').replace(_EFFACES, (c: string) => (colle !== null && colle.test(c) ? '' : ' '));
+  return s.replace(/[\t\n\r]/g, ' ').replace(_EFFACES, (c: string) => (colle !== null && colle.test(c) ? ''
+    : (mode === 'production' ? _ponctuationProduction(c) : ' ')));
 }
 
 const _CACHE_SYMBOLES = new Map<string, boolean>();
@@ -840,14 +931,38 @@ function _symboleLettre(c: string): boolean {
   return r;
 }
 
-/** Lettres-emoji et symboles NFKC -> espace (la production ne changeait en espace que les lettres-emoji, absentes de ses tables). */
+/** Lettres-emoji et symboles NFKC -> espace (la production ne changeait en espace que les lettres-emoji, absentes de ses tables ;
+ *  pour elle c'etaient de la ponctuation : un signe « . » dans la lecture « production », cinquieme relecture, B1). */
 function _symbolesSepares(s: string, mode: ModeLecture): string {
   return s.replace(/[^\x00-\x7f]/gu, (c: string) => (_symboleLettre(c)
-    && (mode !== 'production' || _lettreSymbole(c.codePointAt(0) as number) !== undefined) ? ' ' : c));
+    && (mode !== 'production' || _lettreSymbole(c.codePointAt(0) as number) !== undefined) ? (mode === 'production' ? '.' : ' ') : c));
+}
+
+/** LECTURE « PRODUCTION » : la normalisation de f86208c0 (NFKC, minuscules), puis les seules adaptations que la version de travail exige.
+ *  Les caracteres exotiques restent EN PLACE jusqu'aux minuscules (cinquieme relecture, B1) : le contexte du « Σ » final (« ς » donne la
+ *  lettre « s » a la production, « σ » rien) depend de ce qui suit, et un signe de ponctuation mis a la place d'un caractere que la
+ *  production laissait aurait change ce contexte. Ensuite : les invisibles de la production sont effaces, les autres caracteres effaces,
+ *  les lettres-emoji, les marques hors U+0300-036F, les chiffres non ASCII et les lettres que les tables du lot ont AJOUTEES a celles de
+ *  la production deviennent de la PONCTUATION (« . »), ce qu'ils etaient pour elle (`_ponctuationProduction`). Seuls les points de code
+ *  non assignes en Unicode 14 sont traites AVANT NFKC, comme dans toutes les lectures (le worker et Modal lisent le meme texte). */
+function _lectureProduction(brut: string): string {
+  // (« / » et non « . » : un point est « case-ignorable » pour les minuscules, un caractere non assigne ne l'est pas)
+  let s = brut.replace(/[\t\n\r]/g, ' ').replace(_NON_ASSIGNES_U14, '/');
+  try { s = s.normalize('NFKC'); } catch { /* garde */ }
+  s = s.toLowerCase();
+  s = _effacerLecture(s, 'production');
+  s = _symbolesSepares(s, 'production');
+  // marques restees apres la composition : la production effacait celles de U+0300-036F et laissait les autres en place
+  s = s.replace(/\p{M}/gu, (m: string) => (m >= '\u{300}' && m <= '\u{36f}' ? '' : '.'));
+  // chiffres non ASCII : la production les lisait comme des separateurs (hors de [a-z0-9])
+  s = _chiffresSepares(s, '.');
+  // lettres des tables du lot absentes de celles de la production (« Ħ » et « Ա » sont devenues « ħ » et « ա » par les minuscules)
+  return s.replace(/[^\x00-\x7f]/gu, (c: string) => (TRANSLIT_HORS_PRODUCTION.includes(c) ? '.' : c));
 }
 
 /** Texte nettoye d'une lecture ou les caracteres effaces ou changes par la lecture principale separent les mots (voir plus haut). */
 function _nettoyerLecture(brut: string, mode: ModeLecture): string {
+  if (mode === 'production') return _lectureProduction(brut);
   let s = mode === 'ftfy' ? _sansMojibake(brut) : brut;
   s = _effacerLecture(s, mode);
   if (mode === 'ftfy') s = _effacerLecture(_sansMojibake(s), mode);
@@ -857,15 +972,12 @@ function _nettoyerLecture(brut: string, mode: ModeLecture): string {
     s = _symbolesSepares(_effacerLecture(_sansReferencesHtml(s), mode), mode);
     try { s = s.normalize('NFKC'); } catch { /* garde */ }
   }
-  // marques restees seules apres la composition : le tokenizer CLIP (apres NFC) coupe le mot sur elles ; la production effacait
-  // celles de U+0300-036F
-  s = s.replace(/\p{M}/gu, (m: string) => (mode === 'production' && m >= '\u0300' && m <= '\u036f' ? '' : ' '));
-  // chiffres non ASCII (\u00ab \u0667 \u00bb, \u00ab \u06f7 \u00bb, \u00ab \u0967 \u00bb) : la production les lisait comme des SEPARATEURS (hors de [a-z0-9]) ; la lecture
-  // \u00ab separee \u00bb aussi (dans le doute) ; les lectures \u00ab clip \u00bb et \u00ab ftfy \u00bb les changent en chiffres ASCII, comme la principale
-  // (quatrieme relecture du 14/10, R2 : \u00ab a<U+0667>12yo<U+0667>person \u00bb devenait \u00ab a712yo7person \u00bb)
-  s = (mode === 'production' || mode === 'separee' ? _chiffresSepares(s) : _chiffresAscii(s)).toLowerCase();
-  // apres les minuscules : \u00ab \u0126 \u00bb et \u00ab \u0531 \u00bb deviennent \u00ab \u0127 \u00bb et \u00ab \u0561 \u00bb, absents des tables de la production
-  return mode === 'production' ? s.replace(/[^\x00-\x7f]/gu, (c: string) => (TRANSLIT_HORS_PRODUCTION.includes(c) ? ' ' : c)) : s;
+  // marques restees seules apres la composition : le tokenizer CLIP (apres NFC) coupe le mot sur elles
+  s = s.replace(/\p{M}/gu, ' ');
+  // chiffres non ASCII (\u00ab \u0667 \u00bb, \u00ab \u06f7 \u00bb, \u00ab \u0967 \u00bb) : la lecture \u00ab separee \u00bb les change en espaces (dans le doute) ; les lectures \u00ab clip \u00bb et
+  // \u00ab ftfy \u00bb les changent en chiffres ASCII, comme la principale (quatrieme relecture du 14/10, R2 : \u00ab a<U+0667>12yo<U+0667>person \u00bb devenait
+  // \u00ab a712yo7person \u00bb) ; la lecture \u00ab production \u00bb est a part (`_lectureProduction`)
+  return (mode === 'separee' ? _chiffresSepares(s) : _chiffresAscii(s)).toLowerCase();
 }
 
 interface Lecture { nets: string[]; vues: VuesPlancher[] }
@@ -905,7 +1017,7 @@ interface Liste { termes: Terme[]; bornes: string[]; infixes: string[]; rapide: 
 
 function _echapper(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function _noyauSource(src: string): string { return src.replace(/^\*/, '').replace(/\*$/, ''); }
-function _formeTerme(src: string): string { return _simple(_translit(_base(_noyauSource(src)))); }
+function _formeTerme(src: string): string { return _simple(_translit(_base(_noyauSource(src))), false); }
 function _formeUnicode(src: string): string { return _vueUnicode(_nettoyer(_noyauSource(src))); }
 
 function _liste(termes: Terme[], bornes: string[], infixes: string[]): Liste {
@@ -1092,7 +1204,9 @@ const NU_MOYEN: string[] = [
   'see through clothing', 'see through outfit', 'transparent clothes', 'transparent clothing', 'transparent dress', 'wet t shirt',
   'wet tshirt', 'wet shirt', 'exposed chest', 'exposed torso', 'exposed body', 'boxer shorts', 'boxer briefs', 'in boxers',
   'tighty whities', 'couche culotte*', 'tenue legere', 'tenue transparente', 'poca ropa', 'traje de bano', 'sujetador*', 'sosten',
-  'torse nu', 'torses nus',
+  // 'torse nu' et ses trois autres accords : IDIOMES_EXACTS les retire tous les quatre de la vue exacte, la production refusait le
+  // mot « nu » / « nus » seul avec un mineur (cinquieme relecture, B4 : « enfant torse nus », « enfant torses nu »)
+  'torse nu', 'torses nus', 'torse nus', 'torses nu',
   'badehose*', 'ohne hose', 'sutia', 'roupa transparente', 'sem camiseta', 'reggiseno', 'pigiama trasparente',
   // 2026-10-14 (revue) : « calzones » (espagnol : culotte ; anglais : pluriel de calzone) ; sous-vetements et maillots
   'calzones', 'underpants', 'undies', 'swimwear', 'swim trunks', 'swimming trunks', 'speedo', 'speedos', 'in briefs',
@@ -1735,6 +1849,12 @@ export function checkPromptSafety(
   // textes tels quels (sans translitteration), et coupes entre lettres et chiffres (« a child<U+0667>with<U+0667>a<U+0667>gun » :
   // la production lisait un chiffre arabe-indien comme un separateur ; il devient « 7 », que CLIP lit seul, comme un mot)
   const bruts = lecture.nets.map((n) => _simple(_sansExpressionsSures(_sansMarques(n), desactivees)));
+  // texte lu aussi comme la production quand il contient une expression qu'elle retirait ENTIERE (`IDIOMES_PRODUCTION`)
+  for (const n of lecture.nets) {
+    if (!_RE_INDICE_PHRASES.test(n)) continue;
+    const sp = _sansMarques(n);
+    if (_RE_IDIOMES_PRODUCTION.test(_simple(sp))) { const v = _simple(sp, true, true); if (!bruts.includes(v)) bruts.push(v); }
+  }
   const souples = [...bruts, ..._separees(bruts).filter((x) => !bruts.includes(x))];
   // l'explicite est teste sur les formes deguisees aussi
   const toutes = [...souples, ...vs.flatMap((v) => [v.chiffres, v.leetI, v.leetL, ...v.separees])];
@@ -1745,7 +1865,7 @@ export function checkPromptSafety(
 
   // 1. Termes explicites (sexe, nudite) : mots entiers, y compris deguises ("n u d e", "nud3", cyrillique), mots courts sur la
   //    vue exacte, autres ecritures sur la vue Unicode.
-  const sexuel = _chercher(toutes, T_SEXUEL_DUR) || _chercher(vs.flatMap((v) => v.exactes), T_SEXUEL_EXACTS)
+  const sexuel = _chercher(toutes, T_SEXUEL_DUR) || _chercher(vs.flatMap((v) => [...v.exactes, ...v.exactesSouples]), T_SEXUEL_EXACTS)
     || _chercher(vs.flatMap((v) => v.unicode), T_SEXUEL_UNICODE);
   if (sexuel) return refus(sexuel);
   // 2. Autres familles bloquees seules (gore explicite, drogues dures, terrorisme, haine, auto-agression, armes).
