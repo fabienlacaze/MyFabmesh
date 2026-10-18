@@ -15,7 +15,8 @@
 //
 // TROIS MECANISMES, du plus large au plus precis. Aucun ne touche index2.js :
 //  1. Texture.DEFAULT_ANISOTROPY : toute texture creee ensuite (chargeur GLB, FBX, toile de Paint Mesh...) part avec
-//     le plafond ci-dessous ; three le borne tout seul a ce que la carte supporte au televersement.
+//     le plafond ci-dessous ; three le borne tout seul a ce que la carte supporte au televersement. (Une carte Nearest
+//     voulue par l'auteur porte aussi cette valeur, SANS EFFET : three ignore l'anisotropie quand magFilter est Nearest.)
 //  2. brancherSurChargeurGLTF(GLTFLoader) : a la fin de chaque parse() (donc aussi load() et parseAsync()), toutes les
 //     textures de tous les materiaux du modele sont verifiees AVANT leur premier televersement : aucun televersement
 //     en plus, quelle que soit la vue qui recevra le modele.
@@ -102,20 +103,21 @@ function _preparerTexture(t, cible, renderer, bilan) {
   bilan.textures++;
 
   let change = false;
+  let mipmapsCorriges = false;
   const mipsFournis = Array.isArray(t.mipmaps) && t.mipmaps.length > 1;
   const generable = !t.isCompressedTexture && !mipsFournis;
   const minOk = t.minFilter === THREE.LinearMipmapLinearFilter || t.minFilter === THREE.NearestMipmapLinearFilter;
 
   if (!minOk && (mipsFournis || (generable && _pixels(t) <= PIXELS_MAX_POUR_MIPMAPS))) {
     t.minFilter = THREE.LinearMipmapLinearFilter;
-    bilan.mipmaps++;
-    change = true;
+    mipmapsCorriges = true;
   }
   if (generable && t.generateMipmaps === false
     && (t.minFilter === THREE.LinearMipmapLinearFilter || t.minFilter === THREE.NearestMipmapLinearFilter)) {
     t.generateMipmaps = true;   // un filtre a mipmaps sans mipmaps = texture incomplete = noire
-    change = true;
+    mipmapsCorriges = true;
   }
+  if (mipmapsCorriges) { bilan.mipmaps++; change = true; }   // une texture comptee UNE fois, quel que soit le nombre de reglages touches
   if (!(t.anisotropy >= cible)) {
     t.anisotropy = cible;
     bilan.anisotropie++;

@@ -4,22 +4,26 @@
 // Aucune page, aucun reseau, aucun GPU. Lancer : node --test tests/bureau-interface/filtrage-textures.test.mjs
 //
 // POUR PROUVER QUE CES TESTS ECHOUENT SANS LE CORRECTIF (ou sur un module casse) :
-//   FICHIER_FILTRAGE=<chemin d'une variante du module>   FICHIER_VIEWER3D=<chemin d'un Viewer3D.js ancien>
-// build/bancs/viewer/prouver_tests_filtrage.mjs fabrique six variantes cassees du module et verifie que chacune est refusee.
+//   FICHIER_FILTRAGE=<chemin d'une variante du module>   FICHIER_VIEWER3D=<Viewer3D.js du bureau, ancien>
+//   FICHIER_VIEWER3D_SITE=<Viewer3D.js du site, ancien>
+// build/bancs/viewer/prouver_tests_filtrage.mjs fabrique des variantes cassees du module (et l'etat d'AVANT le correctif :
+// module sans effet + Viewer3D.js de l'ancienne base) et verifie que chacune est refusee. Lancer la meme suite sur la copie
+// du SITE : cloud/tests/filtrage-textures-site.test.mjs.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import v8 from 'node:v8';
 import vm from 'node:vm';
 import { brancherImportmap } from './_importmap-lib.mjs';
-import { glbMinimal, installerDecodeurFactice } from './_glb-minimal.mjs';
+import { glbMinimal, pngDamier, installerDecodeurFactice } from './_glb-minimal.mjs';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const LIB = join(RACINE, 'src/renderer/lib');
 const FICHIER_FILTRAGE = process.env.FICHIER_FILTRAGE || join(LIB, 'filtrage-textures.js');
 const FICHIER_VIEWER3D = process.env.FICHIER_VIEWER3D || join(LIB, 'Viewer3D.js');
+const FICHIER_VIEWER3D_SITE = process.env.FICHIER_VIEWER3D_SITE || join(RACINE, 'cloud/public/app/lib/Viewer3D.js');
 const lire = (p) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 
 brancherImportmap({ three: join(LIB, 'three.module.js'), addons: LIB });
@@ -125,14 +129,20 @@ test('sans l enveloppe de parse, le defaut SEUL laisse la carte de normales et l
 test('parseAsync et load() passent par parse : meme resultat', async () => {
   const a = cartesDe(await new GLTFLoader().parseAsync(glbMinimal(), ''));
   assert.equal(a.normalMap.minFilter, THREE.LinearMipmapLinearFilter, 'parseAsync');
+  // load() lit le corps de la reponse par un flux et annonce la progression avec ProgressEvent (global des navigateurs, absent de Node)
   const fetchAvant = globalThis.fetch;
+  const progressAvant = Object.getOwnPropertyDescriptor(globalThis, 'ProgressEvent');
   globalThis.fetch = async () => new Response(glbMinimal(), { status: 200 });
+  globalThis.ProgressEvent = class ProgressEvent extends Event { constructor(type, init = {}) { super(type); Object.assign(this, init); } };
   try {
     const l = await new Promise((ok, ko) => new GLTFLoader().load('https://exemple.test/modele.glb', ok, undefined, ko));
     const c = cartesDe(l);
     assert.equal(c.normalMap.minFilter, THREE.LinearMipmapLinearFilter, 'load');
     assert.equal(c.map.anisotropy, PLAFOND);
-  } finally { globalThis.fetch = fetchAvant; }
+  } finally {
+    globalThis.fetch = fetchAvant;
+    if (progressAvant) Object.defineProperty(globalThis, 'ProgressEvent', progressAvant); else delete globalThis.ProgressEvent;
+  }
 });
 
 test('l erreur du chargeur et le rappel de l appelant sont transmis intacts (onLoad recoit le meme gltf, onError une vraie erreur)', async () => {
@@ -313,4 +323,100 @@ test('gardes de la construction : le module figure dans la liste des fichiers li
 
 test('les deux copies du module (bureau / web) sont identiques', () => {
   assert.equal(lire(join(RACINE, 'src/renderer/lib/filtrage-textures.js')), lire(join(RACINE, 'cloud/public/app/lib/filtrage-textures.js')));
+});
+
+// ===================================================================================================================
+// Les DEUX cibles, lues telles que livrees (bureau : src/renderer ; site : cloud/public/app).
+const BASE_PAGE = 'http://page.test/';
+const CIBLES = [
+  { nom: 'bureau', page: 'src/renderer/index2.js', html: 'src/renderer/index2.html', lib: 'src/renderer/lib', viewer3d: FICHIER_VIEWER3D },
+  { nom: 'site', page: 'cloud/public/app/index2.js', html: 'cloud/public/app/index.html', lib: 'cloud/public/app/lib', viewer3d: FICHIER_VIEWER3D_SITE },
+];
+const importmapDe = (html) => JSON.parse(/<script type="importmap">([\s\S]*?)<\/script>/.exec(html)[1]).imports;
+/** Resolution d'un specificateur comme le navigateur : URL relative a son fichier, ou nom nu par l'importmap (plus long prefixe « .../ »). */
+function resoudre(specifier, carte, urlDuFichier) {
+  if (/^\.{1,2}\//.test(specifier)) return new URL(specifier, urlDuFichier).href;
+  if (carte[specifier]) return new URL(carte[specifier], BASE_PAGE).href;
+  const prefixe = Object.keys(carte).filter((k) => k.endsWith('/') && specifier.startsWith(k)).sort((a, b) => b.length - a.length)[0];
+  assert.ok(prefixe, 'specificateur absent de l importmap : ' + specifier);
+  return new URL(carte[prefixe] + specifier.slice(prefixe.length), BASE_PAGE).href;
+}
+
+test('Viewer3D.js des DEUX cibles : importe le module depuis son propre dossier lib, expose preparerTextures, et tous ses imports relatifs existent', () => {
+  for (const c of CIBLES) {
+    const src = lire(c.viewer3d);
+    assert.match(src, /^import \{ preparerTexturesModele \} from '\.\/filtrage-textures\.js';$/m, c.nom + ' : import du module (c est lui qui active le reglage pour toute la page)');
+    assert.match(src, /^  preparerTextures\(racine\) \{\n    return preparerTexturesModele\(racine \|\| this\.scene, this\.renderer\);\n  \}$/m, c.nom + ' : methode preparerTextures');
+    const relatifs = [...src.matchAll(/^import .* from '(\.\/[^']+)';$/gm)].map((m) => m[1]);
+    assert.ok(relatifs.includes('./filtrage-textures.js') && relatifs.includes('./lod-maillage.js'), c.nom + ' : imports relatifs lus');
+    for (const rel of relatifs) assert.ok(existsSync(join(RACINE, c.lib, rel)), c.nom + ' : ' + rel + ' absent du dossier ' + c.lib + ' (404 au chargement = plus aucun visualiseur 3D)');
+  }
+});
+
+test('chaine d activation : la page importe Viewer3D.js en tete, l importmap definit three et three/addons/, et AUCUN import de GLTFLoader n y echappe (une copie non enveloppee serait utilisee)', () => {
+  for (const c of CIBLES) {
+    const html = lire(join(RACINE, c.html));
+    const carte = importmapDe(html);
+    assert.ok(carte.three && carte['three/addons/'], c.nom + ' : importmap sans three / three/addons/');
+    assert.match(html, /<script type="module" src="index2\.js"><\/script>/, c.nom + ' : la page charge index2.js comme module');
+    assert.match(lire(join(RACINE, c.page)), /^import \{ Viewer3D \} from '\.\/lib\/Viewer3D\.js';$/m, c.nom + ' : import STATIQUE de Viewer3D.js (le module de filtrage est evalue avant tout chargement de modele)');
+    const canon = resoudre('three/addons/loaders/GLTFLoader.js', carte, BASE_PAGE + 'index2.js');
+    const fichiers = [{ rel: c.page, url: BASE_PAGE + 'index2.js' }].concat(readdirSync(join(RACINE, c.lib))
+      .filter((f) => f.endsWith('.js') && f !== 'three.module.js' && f !== 'three-mesh-bvh.module.js')
+      .map((f) => ({ rel: c.lib + '/' + f, url: BASE_PAGE + 'lib/' + f })));
+    let vus = 0;
+    for (const f of fichiers) {
+      for (const m of lire(join(RACINE, f.rel)).matchAll(/(?:from\s*|import\s*\(\s*)'([^']*GLTFLoader[^']*)'/g)) {
+        vus++;
+        assert.equal(resoudre(m[1], carte, f.url), canon, c.nom + ' : ' + f.rel + ' importe un autre GLTFLoader que celui de l importmap (' + m[1] + ')');
+      }
+    }
+    assert.ok(vus >= 4, c.nom + ' : imports de GLTFLoader trouves : ' + vus);
+  }
+});
+
+test('garde-fou three r170 : l anisotropie n est appliquee que pour magFilter != Nearest ET minFilter = (Nearest|Linear)MipmapLinear, et seulement au televersement — le module en depend', () => {
+  const src = lire(join(LIB, 'three.module.js'));
+  assert.match(src, /^const REVISION = '170';$/m, 'revision de three des pages : si elle change, reverifier ce qui suit');
+  const i = src.indexOf("if ( extensions.has( 'EXT_texture_filter_anisotropic' ) === true ) {\n\n\t\t\tif ( texture.magFilter === NearestFilter ) return;");
+  assert.ok(i > 0, 'bloc d anisotropie de setTextureParameters introuvable : three a change, revoir lib/filtrage-textures.js');
+  const bloc = src.slice(i, i + 900);
+  assert.match(bloc, /if \( texture\.minFilter !== NearestMipmapLinearFilter && texture\.minFilter !== LinearMipmapLinearFilter \) return;/);
+  assert.match(bloc, /Math\.min\( texture\.anisotropy, capabilities\.getMaxAnisotropy\(\) \)/, 'three borne lui-meme la valeur a ce que la carte supporte');
+  // le reglage n'atteint le pilote qu'au televersement : changer l'anisotropie d'une texture deja envoyee exige needsUpdate
+  assert.match(src, /function uploadTexture\( textureProperties, texture, slot \) \{[\s\S]{0,2500}setTextureParameters\( textureType, texture \);/);
+  assert.match(src, /Texture\.DEFAULT_ANISOTROPY = 1;/, 'valeur par defaut de three : 1');
+  assert.match(src, /anisotropy = Texture\.DEFAULT_ANISOTROPY, colorSpace = NoColorSpace/, 'le constructeur lit DEFAULT_ANISOTROPY');
+});
+
+test('GLB de test (_glb-minimal) : entete GLB 2.0 valide, image PNG REELLE quand on la donne, carre a UV repetees, triangle sans options', () => {
+  const lireGlb = (tampon) => {
+    const b = Buffer.from(tampon);
+    assert.equal(b.toString('ascii', 0, 4), 'glTF');
+    assert.equal(b.readUInt32LE(4), 2);
+    assert.equal(b.readUInt32LE(8), b.length, 'longueur declaree = longueur reelle');
+    const longJson = b.readUInt32LE(12);
+    assert.equal(b.readUInt32LE(16), 0x4e4f534a);
+    const debutBin = 20 + longJson;
+    assert.equal(b.readUInt32LE(debutBin + 4), 0x004e4942);
+    return { json: JSON.parse(b.toString('utf8', 20, debutBin)), bin: b.subarray(debutBin + 8, debutBin + 8 + b.readUInt32LE(debutBin)) };
+  };
+  const png = pngDamier(32, 4);
+  assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.equal(png.readUInt32BE(16), 32, 'IHDR : largeur');
+  assert.equal(png.readUInt32BE(20), 32, 'IHDR : hauteur');
+  const { json, bin } = lireGlb(glbMinimal({ png, plan: { cote: 10, repetitions: 6 } }));
+  const vueImage = json.bufferViews[json.images[0].bufferView];
+  assert.equal(vueImage.byteLength, png.length);
+  assert.ok(bin.subarray(vueImage.byteOffset, vueImage.byteOffset + vueImage.byteLength).equals(png), 'l image du GLB est exactement le PNG donne');
+  assert.equal(json.accessors[0].count, 4);
+  assert.equal(json.accessors[3].count, 6);
+  const vueUv = json.bufferViews[2];
+  const uv = new Float32Array(bin.buffer.slice(bin.byteOffset + vueUv.byteOffset, bin.byteOffset + vueUv.byteOffset + vueUv.byteLength));
+  assert.equal(Math.max(...uv), 6, 'UV de 0 a `repetitions`');
+  assert.equal(json.samplers.length, 5);
+  const defaut = lireGlb(glbMinimal());
+  assert.equal(defaut.json.accessors[0].count, 3, 'sans options : le triangle d origine');
+  const vueFausse = defaut.json.bufferViews[defaut.json.images[0].bufferView];
+  assert.equal(vueFausse.byteLength, 8, 'sans options : l en-tete PNG factice d origine');
 });

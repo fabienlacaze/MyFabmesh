@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * BANC NAVIGATEUR de l'anisotropie des visualiseurs 3D (2026-10-15), rendu LOGICIEL uniquement.
+ * BANC NAVIGATEUR de l'anisotropie des visualiseurs 3D (2026-10-15, complete le 2026-10-18), rendu LOGICIEL uniquement.
  *
  * Charge le VRAI lib/Viewer3D.js (bureau ET site), le VRAI GLTFLoader de three r170 et un VRAI GLB texture dans un
  * Chromium de patchright lance avec SwiftShader (--disable-gpu --use-angle=swiftshader) : la carte graphique du
@@ -9,22 +9,32 @@
  * rasante (cos < 0,30), oblique, de face. Il interroge aussi l'etat REEL de la texture cote pilote GL
  * (TEXTURE_MAX_ANISOTROPY_EXT) : c'est la preuve que le reglage atteint le pilote, independamment de l'image.
  *
+ * Trois essais par variante :
+ *   - le GLB donne (--glb), six poses ; mesure de nettete par zone d'incidence ;
+ *   - un GLB de TEST fabrique ici (tests/bureau-interface/_glb-minimal.mjs : carre, damier REEL de 1024 px, cinq cartes
+ *     aux echantillonneurs differents : aucun, 9729, 9985, 9987, 9728) : etat de chaque carte dans le pilote GL, et le chemin
+ *     « texture deja sur la carte » (Viewer3D.preparerTextures apres un rendu) ;
+ *   - un plan a damier vu de tres bas, anisotropie demandee 1 / 2 / 4 / 8 / 16 : CONTROLE que le rendu logiciel applique
+ *     bien l'anisotropie (sinon on ne conclut rien des mesures du GLB).
+ *
  * Variantes : bureau_avant, bureau_apres, site_avant, site_apres. « avant » = lib/Viewer3D.js lu dans git a --ref et
  * sans lib/filtrage-textures.js ; « apres » = l'arbre de travail. Le site charge three depuis unpkg dans la vraie page :
  * ces URL sont servies en local depuis src/renderer/lib (meme revision 170).
  *
  * usage : node build/bancs/viewer/banc_anisotropie.mjs [--glb <fichier.glb>] [--ref origin/integration-1410]
  *           [--sortie C:/tmp/trellis_cloud/montages] [--variantes bureau_avant,bureau_apres,...] [--forcer 8,16]
- *           [--poses trois_quarts,cote_rasant,...] [--sans-damier]
+ *           [--poses trois_quarts,cote_rasant,...] [--etiquette <texte>] [--sans-damier] [--seul-damier]
+ *           [--sans-echant] [--seul-echant]
+ * Sortie : captures aniso_[<etiquette>_]<variante>_<pose>.png, resultats.json (avec la synthese avant / apres).
  * Lancer par `bash /c/tmp/lourd.sh --max-sec 900 node build/bancs/viewer/banc_anisotropie.mjs ...` (un seul processus lourd a la fois).
  */
 import http from 'node:http';
-import { createRequire } from 'node:module';
-import { homedir } from 'node:os';
 import { join, resolve, extname, dirname, sep } from 'node:path';
-import { cpSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync, createReadStream, statSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, createReadStream, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resoudrePatchright, lancerNavigateurLogiciel, brancherReseauLocal } from './_navigateur.mjs';
+import { glbMinimal, pngDamier } from '../../../tests/bureau-interface/_glb-minimal.mjs';
 
 const RACINE = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const args = process.argv.slice(2);
@@ -35,34 +45,27 @@ const SORTIE = resolve(opt('--sortie', 'C:/tmp/trellis_cloud/montages'));
 const VARIANTES = opt('--variantes', 'bureau_avant,bureau_apres,site_avant,site_apres').split(',').filter(Boolean);
 const FORCER = opt('--forcer', '').split(',').filter(Boolean).map(Number);
 const POSES = opt('--poses', '');
+const ETIQ = opt('--etiquette', '');
 const SANS_DAMIER = args.includes('--sans-damier');
 const SEUL_DAMIER = args.includes('--seul-damier');
+const SANS_ECHANT = args.includes('--sans-echant');
+const SEUL_ECHANT = args.includes('--seul-echant');
 const ATTENTE_S = Number(opt('--attente', '300'));   // delai maximal d une page, en secondes
 const HORO = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
 const TRAVAIL = resolve(opt('--travail', `C:/tmp/trellis_cloud/aniso_banc/essai_${HORO}`));
+const PREFIXE = 'aniso_' + (ETIQ ? ETIQ + '_' : '');
 
 if (!existsSync(GLB)) { console.error('GLB introuvable : ' + GLB); process.exit(2); }
 mkdirSync(SORTIE, { recursive: true });
 mkdirSync(TRAVAIL, { recursive: true });
-
-// ---------- patchright (meme resolution que le skill browser-automation) ----------
-function resoudrePatchright() {
-  const bases = [join(homedir(), '.vscode/extensions'), join(homedir(), '.vscode-server/extensions')];
-  for (const base of bases) {
-    if (!existsSync(base)) continue;
-    const dossiers = readdirSync(base).filter((d) => d.startsWith('danielsanmedium.dscodegpt-')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    const dernier = dossiers[dossiers.length - 1];
-    if (!dernier) continue;
-    try { return createRequire(join(base, dernier, 'standalone') + '/')('patchright').chromium; } catch (_) { /* suivant */ }
-  }
-  throw new Error('patchright introuvable (extension CodeGPT absente)');
-}
 
 // ---------- variantes ----------
 const git = (...a) => execFileSync('git', ['-C', RACINE, ...a], { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 });
 const importmapBureau = '<script type="importmap">{"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/"}}</script>';
 // identique a cloud/public/app/index.html (unpkg, three 0.170.0) : servi en local par page.route
 const importmapSite = '<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>';
+// le GLB de test des echantillonneurs : un carre de 40 x 40, damier de 16 px sur 1024 px, repete 4 fois
+const GLB_ECHANT = Buffer.from(glbMinimal({ png: pngDamier(1024, 16), plan: { cote: 40, repetitions: 4 } }));
 
 function preparer(nom) {
   const [cible, etat] = nom.split('_');            // bureau|site , avant|apres
@@ -77,6 +80,7 @@ function preparer(nom) {
   }
   const page = readFileSync(join(RACINE, 'build/bancs/viewer/page_banc.html'), 'utf8').replace('__IMPORTMAP__', cible === 'bureau' ? importmapBureau : importmapSite);
   writeFileSync(join(racine, 'banc.html'), page);
+  writeFileSync(join(racine, 'echant.glb'), GLB_ECHANT);
   return { nom, cible, etat, racine };
 }
 
@@ -104,33 +108,14 @@ const PORT = serveur.address().port;
 
 // ---------- navigateur logiciel ----------
 const chromium = resoudrePatchright();
-const navigateur = await chromium.launch({
-  headless: true, channel: 'chromium',
-  args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-});
+const navigateur = await lancerNavigateurLogiciel(chromium);
 const contexte = await navigateur.newContext({ locale: 'en-US', viewport: { width: 1100, height: 820 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
-// three de unpkg -> fichiers locaux (revision 170 identique)
-const LIB_BUREAU = join(RACINE, 'src/renderer/lib');
-await contexte.route('https://unpkg.com/three@0.170.0/**', async (route) => {
-  const u = new URL(route.request().url());
-  const rel = u.pathname.replace('/three@0.170.0/', '');
-  let f = null;
-  if (rel === 'build/three.module.js') f = join(LIB_BUREAU, 'three.module.js');
-  else if (rel.startsWith('examples/jsm/')) f = join(LIB_BUREAU, rel.slice('examples/jsm/'.length));
-  if (f && existsSync(f)) await route.fulfill({ status: 200, contentType: 'text/javascript', body: readFileSync(f), headers: { 'Access-Control-Allow-Origin': '*' } });
-  else { console.error('[banc] unpkg non servi en local : ' + rel); await route.fulfill({ status: 404, body: 'absent' }); }
-});
-await contexte.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => {
-  const u = route.request().url();
-  if (u.startsWith('https://unpkg.com/three@0.170.0/')) return route.fallback();
-  console.error('[banc] requete externe bloquee : ' + u.slice(0, 120));
-  return route.abort();
-});
+await brancherReseauLocal(contexte, join(RACINE, 'src/renderer/lib'), 'banc', {}, PORT);   // three de unpkg -> fichiers locaux (revision 170 identique) ; aucun autre port local
 
 async function lancer(variante, requete) {
   const page = await contexte.newPage();
   const messages = [];
-  page.on('console', (m) => { if (m.type() === 'log' && m.text().startsWith('[banc]')) { console.log('    ' + m.text().slice(0, 300)); return; } if (['error', 'warning'].includes(m.type())) { const t = m.text(); if (!/GroupMarkerNotSet|swiftshader|Automatic fallback/i.test(t)) messages.push(`[${m.type()}] ${t.slice(0, 240)}`); } });
+  page.on('console', (m) => { if (m.type() === 'log' && m.text().startsWith('[banc]')) { console.log('    ' + m.text().slice(0, 300)); return; } if (['error', 'warning'].includes(m.type())) { const t = m.text(); if (!/GroupMarkerNotSet|swiftshader|Automatic fallback|GPU stall due to ReadPixels/i.test(t)) messages.push(`[${m.type()}] ${t.slice(0, 240)}`); } });
   page.on('pageerror', (e) => { messages.push('[uncaught] ' + String(e).slice(0, 300)); console.log('    ERREUR de page : ' + String(e).slice(0, 300)); });
   page.on('requestfailed', (r) => { if (r.url().startsWith('http://127.0.0.1')) console.log('    requete echouee : ' + r.url().slice(0, 160) + ' ' + (r.failure() && r.failure().errorText)); });
   page.on('response', (r) => { if (r.status() >= 400 && r.url().startsWith('http://127.0.0.1')) console.log('    HTTP ' + r.status() + ' ' + r.url().slice(0, 160)); });
@@ -152,19 +137,39 @@ async function lancer(variante, requete) {
   return r;
 }
 
-const resume = [];
 const toutes = {};
-function enregistrerPng(base, png) { if (!png) return null; const f = join(SORTIE, `aniso_${base}.png`); writeFileSync(f, Buffer.from(png.split(',')[1], 'base64')); return f; }
+function enregistrerPng(base, png) { if (!png) return null; const f = join(SORTIE, `${PREFIXE}${base}.png`); writeFileSync(f, Buffer.from(png.split(',')[1], 'base64')); return f; }
 function sansPng(r) {
   const c = JSON.parse(JSON.stringify(r, (k, v) => (k === 'pngs' ? undefined : (k === 'png' && typeof v === 'string' ? '<png>' : v))));
   return c;
+}
+const ZONES = ['rasant', 'oblique', 'face', 'tout'];
+/** Pour deux executions du GLB (avant, apres) : rapport apres / avant de la variance du laplacien, par pose et par zone,
+ *  et moyenne geometrique par zone (les zones de moins de 200 pixels ne comptent pas : trop bruitees). */
+function synthese(avant, apres) {
+  const parPose = {}, rapports = Object.fromEntries(ZONES.map((z) => [z, []]));
+  for (const pa of avant.poses) {
+    const pb = apres.poses.find((p) => p.nom === pa.nom);
+    if (!pb) continue;
+    parPose[pa.nom] = {};
+    for (const z of ZONES) {
+      const a = pa.regions[z], b = pb.regions[z];
+      if (!a || !b || !a.lapVar || !b.lapVar || a.n < 200 || b.n < 200) { parPose[pa.nom][z] = null; continue; }
+      const q = b.lapVar / a.lapVar;
+      parPose[pa.nom][z] = { avant: a.lapVar, apres: b.lapVar, rapport: Math.round(q * 1000) / 1000, pixels: a.n };
+      rapports[z].push(q);
+    }
+  }
+  const moyenne = {};
+  for (const z of ZONES) { const r = rapports[z]; moyenne[z] = r.length ? { rapport: Math.round(Math.exp(r.reduce((s, x) => s + Math.log(x), 0) / r.length) * 1000) / 1000, poses: r.length, min: Math.round(Math.min(...r) * 1000) / 1000, max: Math.round(Math.max(...r) * 1000) / 1000 } : null; }
+  return { parPose, moyenne };
 }
 
 try {
   for (const nom of VARIANTES) {
     const v = preparer(nom);
     racines.set(nom, v.racine);
-    if (SEUL_DAMIER) continue;
+    if (SEUL_DAMIER || SEUL_ECHANT) continue;
     console.log(`\n=== ${nom} (${v.racine})`);
     const q = `mode=glb&glb=${encodeURIComponent('/glb/modele.glb')}` + (POSES ? `&poses=${POSES}` : '');
     const r = await lancer(nom, q);
@@ -183,7 +188,7 @@ try {
     // l'anisotropie IMPOSEE s'applique sur l'ancien code (bureau_avant) : c'est ce que fait _applyMeshTextureFilter de
     // index2.js apres le chargement dans la vue principale ; a defaut, sur bureau_apres
     const nom = VARIANTES.includes('bureau_avant') ? 'bureau_avant' : (VARIANTES.includes('bureau_apres') ? 'bureau_apres' : null);
-    if (!nom) break;
+    if (!nom || SEUL_DAMIER || SEUL_ECHANT) break;
     const q = `mode=glb&glb=${encodeURIComponent('/glb/modele.glb')}&forcer=${n}` + (POSES ? `&poses=${POSES}` : '');
     console.log(`\n=== ${nom}, anisotropie IMPOSEE a ${n} apres le chargement`);
     const r = await lancer(nom, q);
@@ -193,9 +198,28 @@ try {
     console.log('  textures GL : ' + r.textures.map((t) => `${t.cle}[JS=${t.aniso} GL=${t.gl ? t.gl.aniso : '-'}]`).join(' '));
     for (const p of r.poses) console.log(`  pose ${p.nom.padEnd(15)} rasant ${String(p.regions.rasant.lapVar).padStart(9)} | oblique ${String(p.regions.oblique.lapVar).padStart(9)} | face ${String(p.regions.face.lapVar).padStart(9)} | tout ${String(p.regions.tout.lapVar).padStart(9)}`);
   }
-  if (!SANS_DAMIER || SEUL_DAMIER) {
+  if (!SANS_ECHANT && !SEUL_DAMIER) {
     for (const nom of VARIANTES) {
       if (!racines.has(nom)) continue;
+      console.log(`\n=== ${nom} : GLB de test a cinq echantillonneurs (damier de 1024 px, vu de tres bas)`);
+      const r = await lancer(nom, `mode=echant&glb=${encodeURIComponent('/' + nom + '/echant.glb')}`);
+      if (r.erreur) { console.error('ERREUR : ' + r.erreur); toutes[`${nom}_echant`] = r; continue; }
+      for (const c of r.cartes) enregistrerPng(`${nom}_echant_${c.cle}`, c.png);
+      toutes[`${nom}_echant`] = sansPng(r);
+      console.log(`  Texture.DEFAULT_ANISOTROPY : ${r.defautTextureNeuve} | parse enveloppe : ${r.parseEnveloppe} | Viewer3D.preparerTextures : ${r.aMethodePreparer}`);
+      for (const c of r.cartes) {
+        console.log(`  ${c.cle.padEnd(13)} [${c.echantillonneur}] JS aniso=${c.js.aniso} min=${c.js.min} mag=${c.js.mag} mips=${c.js.mips} cs=${c.js.cs || 'aucun'}`
+          + ` -> GL ${c.gl ? `aniso=${c.gl.aniso} min=${c.gl.min} mag=${c.gl.mag}` : 'non televersee'} | rasant lapVar ${String(c.regions.rasant.lapVar).padStart(9)} (n=${c.regions.rasant.n})`);
+      }
+      if (r.reTeleversement) {
+        const t = r.reTeleversement;
+        console.log(`  texture DEJA televersee avec 1, puis viewer.preparerTextures() : GL ${t.glAvant && t.glAvant.aniso} -> ${t.glApres && t.glApres.aniso} | version ${t.versionAvant} -> ${t.versionApres} | bilan ${JSON.stringify(t.bilan)} | rasant lapVar ${t.regions.rasant.lapVar}`);
+      } else console.log('  (pas de Viewer3D.preparerTextures sur cette variante)');
+    }
+  }
+  if (!SANS_DAMIER || SEUL_DAMIER) {
+    for (const nom of VARIANTES) {
+      if (!racines.has(nom) || SEUL_ECHANT) continue;
       console.log(`\n=== ${nom} : plan a damier vu de tres bas (controle du rendu logiciel)`);
       const r = await lancer(nom, 'mode=damier');
       if (r.erreur) { console.error('ERREUR : ' + r.erreur); continue; }
@@ -209,6 +233,17 @@ try {
   await navigateur.close().catch(() => {});
   serveur.close();
 }
+
+// ---------- synthese avant / apres (meme cible) ----------
+const syntheses = {};
+for (const cible of ['bureau', 'site']) {
+  const a = toutes[`${cible}_avant`], b = toutes[`${cible}_apres`];
+  if (a && b && a.poses && b.poses) syntheses[cible] = synthese(a, b);
+}
+for (const [cible, s] of Object.entries(syntheses)) {
+  console.log(`\nSYNTHESE ${cible} : variance du laplacien, apres / avant le correctif (moyenne geometrique sur les poses ; min..max)`);
+  for (const z of ZONES) { const m = s.moyenne[z]; console.log(`  ${z.padEnd(8)} ${m ? `x${m.rapport.toFixed(3)} (${m.min.toFixed(3)} .. ${m.max.toFixed(3)}, ${m.poses} poses)` : 'trop peu de pixels'}`); }
+}
 const fichierJson = join(TRAVAIL, 'resultats.json');
-writeFileSync(fichierJson, JSON.stringify({ glb: GLB, ref: REF, horodatage: HORO, resultats: toutes }, null, 1));
-console.log('\nresultats : ' + fichierJson + ' | captures : ' + SORTIE + sep + 'aniso_*.png');
+writeFileSync(fichierJson, JSON.stringify({ glb: GLB, ref: REF, horodatage: HORO, etiquette: ETIQ || null, syntheses, resultats: toutes }, null, 1));
+console.log('\nresultats : ' + fichierJson + ' | captures : ' + SORTIE + sep + PREFIXE + '*.png');

@@ -118,6 +118,21 @@ function etatTextures(modele, renderer) {
   renderer.resetState();
   return sortie;
 }
+/** Etat REEL d'une texture cote pilote GL (apres au moins un rendu qui l'utilise), ou null si elle n'a pas ete televersee. */
+function etatGlDe(t, renderer) {
+  const p = renderer.properties.get(t);
+  if (!p || !p.__webglTexture) return null;
+  const gl = renderer.getContext();
+  const ext = gl.getExtension('EXT_texture_filter_anisotropic');
+  gl.bindTexture(gl.TEXTURE_2D, p.__webglTexture);
+  const e = { aniso: ext ? gl.getTexParameter(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT) : null, min: gl.getTexParameter(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER), mag: gl.getTexParameter(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER) };
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  renderer.resetState();
+  return e;
+}
+function etatJsDe(t) {
+  return { aniso: t.anisotropy, min: t.minFilter, mag: t.magFilter, mips: t.generateMipmaps, cs: t.colorSpace, version: t.version };
+}
 function placer(viewer, centre, rayon, az, el, facteur) {
   const fov = viewer.camera.fov * Math.PI / 180;
   const d = rayon * facteur / Math.tan(fov / 2);
@@ -227,8 +242,66 @@ async function modeDamier() {
   return { ...base, balayage: sorties };
 }
 
+// Echantillonneurs glTF du GLB de test (tests/bureau-interface/_glb-minimal.mjs, SAMPLERS) : ce que le fichier DEMANDE a three
+const ECHANTILLONNEURS = {
+  map: 'aucun (defauts de three)', roughnessMap: 'LINEAR / LINEAR 9729 (sans mipmaps)', metalnessMap: 'idem roughnessMap (meme objet)',
+  normalMap: 'LINEAR / LINEAR_MIPMAP_NEAREST 9985', aoMap: 'LINEAR / LINEAR_MIPMAP_LINEAR 9987', emissiveMap: 'NEAREST / NEAREST 9728 (voulu)',
+};
+
+async function modeEchant() {
+  // UN vrai GLB (carre de 40 x 40, damier 1024 px repete 4 fois) dont les cinq cartes ont chacune un echantillonneur
+  // different : pour chacune, l'etat de la texture apres le chargement, l'etat REEL dans le pilote GL apres un rendu, et la
+  // nettete du carre vu de tres bas. Puis le chemin « texture deja televersee » : viewer.preparerTextures() apres rendu.
+  const url = params.get('glb');
+  etape('echant : telechargement du GLB...');
+  const tampon = await (await fetch(url)).arrayBuffer();
+  const gltf = await new Promise((ok, ko) => new GLTFLoader().parse(tampon, '', ok, ko));
+  const modele = gltf.scene;
+  let maillage = null;
+  modele.traverse((o) => { if (o.isMesh && !maillage) maillage = o; });
+  const m0 = maillage.material;
+  const cartes = [['map', m0.map], ['roughnessMap', m0.roughnessMap], ['normalMap', m0.normalMap], ['aoMap', m0.aoMap], ['emissiveMap', m0.emissiveMap]];
+  const apresChargement = cartes.map(([cle, t]) => ({ cle, ...etatJsDe(t) }));
+  viewer.scene.add(modele);
+  viewer.scene.background = new THREE.Color(0x000000);
+  viewer.camera.fov = 40;
+  const placerBas = () => {
+    viewer.camera.position.set(0, 0.6, 14);
+    viewer.camera.near = 0.1; viewer.camera.far = 400; viewer.camera.aspect = L / H; viewer.camera.updateProjectionMatrix();
+    viewer.camera.lookAt(0, 0, 0); viewer.camera.updateMatrixWorld(true);
+  };
+  const sorties = [];
+  for (const [cle, t] of cartes) {
+    maillage.material = new THREE.MeshBasicMaterial({ map: t, toneMapped: false });
+    placerBas();
+    const r = mesurerCadre(viewer);
+    sorties.push({ cle, echantillonneur: ECHANTILLONNEURS[cle], js: etatJsDe(t), gl: etatGlDe(t, viewer.renderer), regions: r.regions, png: r.png });
+  }
+  // chemin « texture deja televersee » : une texture creee ailleurs avec une anisotropie de 1, deja sur la carte, puis reglee
+  let reTeleversement = null;
+  if (typeof viewer.preparerTextures === 'function') {
+    viewer.scene.remove(modele);
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const c2 = cv.getContext('2d');
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { c2.fillStyle = ((i + j) & 1) ? '#f2f2f2' : '#202020'; c2.fillRect(i * 8, j * 8, 8, 8); }
+    const t2 = new THREE.CanvasTexture(cv);
+    t2.anisotropy = 1; t2.wrapS = t2.wrapT = THREE.RepeatWrapping; t2.repeat.set(8, 8);
+    const plan = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: t2, toneMapped: false }));
+    plan.rotation.x = -Math.PI / 2;
+    viewer.scene.add(plan);
+    placerBas();
+    mesurerCadre(viewer);
+    const avant = etatGlDe(t2, viewer.renderer);
+    const versionAvant = t2.version;
+    const bilan = viewer.preparerTextures(plan);
+    const resApres = mesurerCadre(viewer);
+    reTeleversement = { glAvant: avant, glApres: etatGlDe(t2, viewer.renderer), versionAvant, versionApres: t2.version, bilan, regions: resApres.regions };
+  }
+  return { ...base, glb: url, apresChargement, cartes: sorties, reTeleversement };
+}
+
 try {
-  const r = mode === 'damier' ? await modeDamier() : await modeGlb();
+  const r = mode === 'damier' ? await modeDamier() : mode === 'echant' ? await modeEchant() : await modeGlb();
   r.msTotal = duree();
   sortie(r);
 } catch (e) { echec(e); }
