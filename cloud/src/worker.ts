@@ -11333,16 +11333,16 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
   const secret = env.MODAL_SHARED_SECRET;
   if (!url) throw new Error('MODAL_TEXT2IMAGE_URL not set');
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
-
-  const t0 = Date.now();
-  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
-  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
-  const cleRejeu = crypto.randomUUID();
   // Negations de l'utilisateur : re-nettoyees ici (derniere porte avant Modal). La cle n'est envoyee que s'il y en a : sans negation, le corps de la requete
   // est identique, a l'octet, a celui d'avant. Les MEMES champs partent dans les reprises (524, image de remplacement du filtre) : une reprise ne doit
   // perdre ni la case « T-pose » decochee ni les negations.
   const negatifs = _nettoyerNegativeExtra(input.negative_extra);
   const champsPose = { pose_libre: !!input.pose_libre, ...(negatifs.length ? { negative_extra: negatifs } : {}) };
+
+  const t0 = Date.now();
+  // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
+  // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
+  const cleRejeu = crypto.randomUUID();
   const doFetch = () => fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -12776,13 +12776,13 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     cn_scale?: number;
     ip_scale?: number;
   };
+  // Negations de l'utilisateur (« no helmet » -> « helmet »), nettoyees UNE fois pour toutes les images du lot ; calculees AVANT le filtre : il doit les voir.
+  const negatifs = _nettoyerNegativeExtra(negativeExtra);
   // The Cog rebuilds the enriched prompt itself from userPrompt + type
   // + style — we forward those. Fall back to the full enriched prompt
   // the renderer sent in case userPrompt isn't broken out.
   const rawPrompt = (userPrompt ?? prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
-  // Negations de l'utilisateur (« no helmet » -> « helmet »), nettoyees UNE fois pour toutes les images du lot ; calculees AVANT le filtre : il doit les voir.
-  const negatifs = _nettoyerNegativeExtra(negativeExtra);
   // NSFW prompt pre-filter — block keywords and dangerous combos BEFORE
   // we spend credits or hit Modal/Replicate. Saves the user the cost
   // of a generation that the post-image NSFW classifier would block
