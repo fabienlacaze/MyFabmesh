@@ -192,6 +192,8 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
     logOperation: async (_e, _u, type, cout, _d, _f, statut) => { j.journal.push({ type, cout, statut }); },
     insertUserAsset: async (_e, _u, projet, genre, _chemin, _x, meta) => { j.assets.push({ projet, genre, meta }); },
     r2PathFromPublicUrl: (_e, u) => u,
+    // borne de longueur de lot-moderation-langue (MODERATION-07) : doublures neutres, utilisees seulement si le worker les appelle (apres fusion de ce lot)
+    _refusLongueur: () => null, PROMPT_MAX_CARACTERES: 2000, PROMPT_MAX_ENRICHI: 4000,
   };
   const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet'], dbl);
   const env = { MODAL_TPOSE_URL: tposeUrl, MODAL_TEXT2IMAGE_URL: t2iUrl };
@@ -367,6 +369,8 @@ function monterModal(reponses) {
   const doublures = {
     fetch: faux, RAPPELS_524: [1, 1], _incrementAtomique: async () => 0, todayUTC: () => '2026-10-03',
     _writeLastWarmMs: async () => {}, signedR2Url: async (_e, cle) => 'https://signe.example/' + cle,
+    // jetons speciaux / poids du prompt (lot-moderation-langue, MODERATION-07) : identite, utilisee seulement si le worker l'appelle (apres fusion de ce lot)
+    neutraliserSyntaxePrompt: (t) => t,
   };
   const w = charger(['callModalText2Image', 'callModalTpose', '_assertImageBytes', 'COUT_REPRISE_IMAGE_USD'], doublures);
   const env = { MODAL_TEXT2IMAGE_URL: 'https://t2i.example/text2image', MODAL_TPOSE_URL: 'https://tpose.example/tpose', MODAL_SHARED_SECRET: 's',
