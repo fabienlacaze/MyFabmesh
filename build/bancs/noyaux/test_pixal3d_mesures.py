@@ -127,13 +127,17 @@ class TestAtlas(unittest.TestCase):
         self.assertLess(res['part_texels_quasi_noirs'], 0.05)
 
     def test_metal_degenere(self):
+        """Metal 0,94 partout ; moitie haute rugueuse (0,9) = degenere ; moitie basse polie (0,16) = vrai metal, a epargner.
+        Une regle « metal OU rugueux » compterait 100 % au lieu de 50 % et condamnerait les objets reellement metalliques."""
         from PIL import Image
         m = np.ones((64, 64), bool)
         mr = np.zeros((64, 64, 3), np.uint8)
-        mr[..., 1] = 230                                 # rugosite 0,9
-        mr[..., 2] = 240                                 # metal 0,94
+        mr[..., 2] = 240                                 # metal 0,94 partout
+        mr[:32, :, 1] = 230                              # rugosite 0,9 (moitie haute)
+        mr[32:, :, 1] = 40                               # rugosite 0,16 (moitie basse)
         res = MES.stats_texture(None, Image.fromarray(mr), m)
-        self.assertAlmostEqual(res['part_metal_et_rugosite_sup_80pct'], 1.0)
+        self.assertAlmostEqual(res['part_metal_sup_80pct'], 1.0)
+        self.assertAlmostEqual(res['part_metal_et_rugosite_sup_80pct'], 0.5, msg='la regle exige metal ET rugosite eleves simultanement')
         self.assertAlmostEqual(res['metal_moyen'], 240 / 255, places=3)
 
 

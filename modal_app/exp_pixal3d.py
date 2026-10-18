@@ -1,4 +1,4 @@
-"""BANC (15/10/2026) : Pixal3D (Tencent ARC / Tsinghua, SIGGRAPH 2026) contre TRELLIS.2, sur les MEMES entrees.
+"""BANC (15/10/2026, repris le 18/10/2026) : Pixal3D (Tencent ARC / Tsinghua, SIGGRAPH 2026) contre TRELLIS.2, sur les MEMES entrees.
 
 Application EPHEMERE `myfabmesh-exp-pixal3d` (aucun `modal deploy`), image construite pour Pixal3D, GPU L40S (A100-80GB si la memoire manque).
 Rien n'est ecrit dans Supabase, R2 ni dans les projets de l'utilisateur. Les poids et les caches sont sur le volume `exp-pixal3d-cache`.
@@ -9,14 +9,17 @@ Entrees (RGBA deja detourees, memes que les essais TRELLIS.2) :
 Sorties : C:/tmp/trellis_cloud/glb/pixal3d_orc.glb , pixal3d_photo.glb (+ pixal3d_resultats.json, pixal3d_mesures.json). Le GLB de la photo est
 efface du volume des qu'il est telecharge.
 
-Etapes (chacune reprenable) :
-    PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -m modal run "modal_app/exp_pixal3d.py::main" --etape verif    # versions, depots HF (licences, tailles), poids, chargement, ~0,3 $
-    ... --etape gener                                                                                         # orc puis photo : generation + export GLB
-    ... --etape mesurer                                                                                       # mesures CPU locales des GLB (modal_app/exp_pixal3d_mesures.py)
-    ... --etape nettoyer                                                                                      # vide les sorties du volume (--tout : poids et caches aussi)
+Etapes (chacune reprenable ; `PYTHONUTF8=1 PYTHONIOENCODING=utf-8` obligatoires sous Windows) :
+    python -m modal run "modal_app/exp_pixal3d.py::main" --etape verif       # versions, depots HF (licences, tailles), poids, chargement, ~0,3 $
+    ... --etape licences                                                     # CPU : textes complets des fiches HF (README, LICENSE, NOTICE), ~0 $
+    ... --etape gener --entrees orc --repeter 2 --natif                      # orc : passe 1 (froide : compilation / reglage Triton) puis passe 2 (chaude)
+    ... --etape gener --entrees photo                                        # photo : une passe
+    ... --etape gener --max-tokens 98304 --etiquette _t98k                   # variante : plafond de jetons double (resolution effective non reduite)
+    ... --etape mesurer                                                      # mesures CPU locales des GLB (modal_app/exp_pixal3d_mesures.py)
+    ... --etape nettoyer [--tout]                                            # vide les sorties du volume (--tout : poids et caches aussi)
     EXP_GPU=A100-80GB ... pour la carte 80 Go.
 
-Ce que fait Pixal3D (README + inference.py du depot, lus le 15/10/2026, commit f7cf384 du 01/09/2026) :
+Ce que fait Pixal3D (README + inference.py du depot, lus le 15 et le 18/10/2026, commit f7cf384 du 01/09/2026, derniere poussee du depot) :
   - branche `master` = version « Trellis.2 backbone » (le README dit `main`) ; flux en cascade 512 -> 1024 -> 1536 (pipeline_type 1536_cascade, plafond de
     49 152 jetons : la resolution baisse de 128 en 128 jusqu'a 1024 si le sujet en demande plus) ; geometrie + couleur PBR (couleur, metal, rugosite, alpha) ;
   - conditionnement « pixel-aligne » : DINOv3 ViT-L/16 + suréchantillonneur NAF (natten) retro-projetes dans la grille 3D avec une camera DEVINEE par MoGe-2
@@ -24,18 +27,34 @@ Ce que fait Pixal3D (README + inference.py du depot, lus le 15/10/2026, commit f
     cuisson (nvdiffrast) + ajustement par BVH (cumesh.cuBVH) ;
   - mode multi-vues (`inference_mv.py`, 01/09/2026) : poids `ckpts/*_mv` du meme depot, cameras connues (transforms.json). NON mesure ici (une seule vue).
 
-Environnement : torch 2.6.0 / cu124 / Python 3.10 = celui du Space HF de l'auteur (requirements-hfdemo.txt), PAS la base torch 2.4.1 / Python 3.11 de modal_app/app.py
-(natten 0.17.5 a une roue officielle torch 2.6 / cu124 : https://whl.natten.org ; flash-attn 2.7.4.post1 aussi). Aucune dependance au fork TRELLIS2_win.
-Ecarts assumes avec le depot de l'auteur : natten 0.17.5 (API na2d_qk / na2d_av que NAF supporte, celle de ses auteurs) au lieu de 0.21.0 compile ;
-MoGe fige au dernier commit d'avant V3 (0744441) car `git+https://github.com/microsoft/MoGe.git` (requirements.txt) pointe aujourd'hui sur MoGe-3 (numpy>=2, autres deps) ;
-FlexGEMM v1.0.0 (version eprouvee par notre image TRELLIS.2). nvdiffrast v0.4.0 (NVIDIA Source Code License, NON commerciale) est installe POUR LE BANC SEULEMENT :
-il n'est atteint que par o_voxel.postprocess (postprocess.py:10, 230, 237, 249), pas par les renderers de Pixal3D. Substitution propre : kaolin (Apache-2.0) via le
-shim nvdiffrast_kaolin_compat de notre image TRELLIS.2, ou external_patches/TRELLIS2_win/o_voxel_patch.py.
+Environnement : torch 2.6.0 / cu124 / Python 3.10 = celui du Space HF de l'auteur (requirements-hfdemo.txt) ET le `setup.sh --new-env` de TRELLIS.2, PAS la base
+torch 2.4.1 / Python 3.11 de modal_app/app.py (natten 0.17.5 a une roue officielle torch 2.6 / cu124 sur la page des versions de SHI-Labs/NATTEN, 474 Mo,
+sha256 daa43925... ; flash-attn 2.7.4.post1 aussi). Aucune dependance au fork TRELLIS2_win.
+Ecarts assumes avec le depot de l'auteur : natten 0.17.5 (API na2d_qk / na2d_av : NAF essaie d'abord cette API, celle de ses auteurs, puis na2d de natten >= 0.20)
+au lieu de la 0.21.0 compilee ; MoGe fige au dernier commit d'avant V3 (0744441, 02/11/2025) car `git+https://github.com/microsoft/MoGe.git` (requirements.txt)
+pointe aujourd'hui sur MoGe-3 (V3 du 19/08/2026, autres dependances) ; FlexGEMM v1.0.0 (version eprouvee par notre image TRELLIS.2 ; l'auteur publie lui aussi
+une roue flex_gemm-1.0.0) ; flash-attn 2.7.4.post1 en roue au lieu de 2.7.3 compile (setup.sh de TRELLIS.2).
+
+OU EST nvdiffrast (NVIDIA Source Code License « 1-Way Commercial » = usage NON commercial pour un tiers ; installe POUR LE BANC SEULEMENT) :
+  - chemin d'inference de Pixal3D : UNIQUEMENT via `import o_voxel` (o_voxel/__init__.py importe postprocess.py) -> postprocess.py:10 (import), :230
+    (dr.RasterizeCudaContext), :237 (dr.rasterize), :249 (dr.interpolate) ; to_glb s'en sert pour cuire l'atlas. `import o_voxel` est fait par inference.py:17 et par
+    pixal3d/models/sc_vaes/fdg_vae.py:20 : nvdiffrast est donc IMPORTE a chaque inference, meme sans cuisson ;
+  - hors inference (entrainement / visualisation, jamais charges par le pipeline) : pixal3d/renderers/mesh_renderer.py:45 et :85, pbr_mesh_renderer.py:22, :57,
+    :220, :262 (imports differes dans les fonctions) + `from nvdiffrec_render.light import EnvironmentLight` (pbr_mesh_renderer.py:46) ;
+    pixal3d/pipelines/trellis2_texturing.py:13 (import de tete, pipeline de texturage TRELLIS.2 non utilise par Pixal3D, charge a la demande seulement).
+  Substitution propre (non essayee ici) : le meme remplacement que notre image TRELLIS.2 (modal_app/app.py, mesh_image) — repointer l'UNIQUE import
+  `import nvdiffrast.torch as dr` de o_voxel/postprocess.py sur le module de compatibilite kaolin (Apache-2.0, trellis2/renderers/nvdiffrast_kaolin_compat.py : RasterizeCudaContext,
+  rasterize, interpolate suffisent a to_glb) + le faux paquet `nvdiffrast` paresseux que kaolin sonde ; ou external_patches/TRELLIS2_win/o_voxel_patch.py (PyTorch pur).
+
+Historique : 15/10 l'etape `verif` a tourne (image construite en ~13 min de CPU, chargement du pipeline 81,8 s, MoGe-2 10,8 s, 19,4 Go de VRAM, 0,26 $ au total) ;
+la generation n'avait JAMAIS ete lancee. 18/10 : relecture critique, sonde de memoire du PERIPHERIQUE (pas seulement de PyTorch), decomposition de l'export GLB,
+plafond de jetons parametrable, une sortie par passe, etape `licences`.
 """
 import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -52,10 +71,10 @@ ENTREES = {
     "photo": SORTIE + "/entrees/photo_reference.png",
 }
 
-# ------------------------------------------------------------------ versions figees (lues sur GitHub le 15/10/2026)
-PIXAL3D_COMMIT = "f7cf38429b0bd264f1995f0f8743a88b1c728b94"      # master, 01/09/2026 « feat: support multi-view image input »
-TRELLIS2_COMMIT = "75fbf0183001ed9876c8dbb35de6b68552ee08bd"     # main ; o-voxel inchange depuis « Release Training Code » (10/01/2026), le reste = CI
-CUMESH_COMMIT = "12289e1"                                         # 09/05/2026, dernier commit (avant la sortie de Pixal3D le 12/05)
+# ------------------------------------------------------------------ versions figees (lues sur GitHub le 15/10/2026, reverifiees le 18/10/2026)
+PIXAL3D_COMMIT = "f7cf38429b0bd264f1995f0f8743a88b1c728b94"      # master, 01/09/2026 « feat: support multi-view image input » (derniere poussee du depot)
+TRELLIS2_COMMIT = "75fbf0183001ed9876c8dbb35de6b68552ee08bd"     # main ; o-voxel/ inchange depuis la sortie initiale du 09/12/2025 (aucun commit ne le touche ensuite)
+CUMESH_COMMIT = "12289e1"                                         # 09/05/2026, tete de main (avant la sortie de Pixal3D le 12/05) ; sous-module cubvh : voir la licence
 FLEXGEMM_TAG = "v1.0.0"                                           # tag utilise par notre image TRELLIS.2 (mesh_image)
 NVDIFFRAST_TAG = "v0.4.0"                                         # setup.sh de TRELLIS.2
 MOGE_COMMIT = "0744441"                                           # 02/11/2025 ; HEAD = V3 du 19/08/2026 (dependances changees)
@@ -80,6 +99,7 @@ SS = {"steps": 12, "guidance_strength": 7.5, "guidance_rescale": 0.7, "rescale_t
 SHAPE = {"steps": 12, "guidance_strength": 7.5, "guidance_rescale": 0.5, "rescale_t": 3.0}
 TEX = {"steps": 12, "guidance_strength": 1.0, "guidance_rescale": 0.0, "rescale_t": 3.0}
 ROT_EXPORT = [[-1, 0, 0, 0], [0, 0, -1, 0], [0, -1, 0, 0], [0, 0, 0, 1]]          # inference.py : rotation appliquee au GLB avant l'export
+MAX_JETONS_DEFAUT = 49152                                                          # inference.py : max_num_tokens
 
 vol = modal.Volume.from_name("exp-pixal3d-cache", create_if_missing=True)
 SECRETS = [modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])]
@@ -140,6 +160,8 @@ image = (
           "ATTN_BACKEND": "flash_attn", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True", "OPENCV_IO_ENABLE_OPENEXR": "1"})
     .add_local_python_source("modal_app")
 )
+# image LEGERE (CPU) pour l'etape `licences` : lire des fiches HF n'exige ni torch ni les extensions CUDA
+image_legere = modal.Image.debian_slim(python_version="3.11").pip_install("huggingface_hub>=0.34,<1.0")
 app = modal.App(APP_NOM, image=image)
 
 
@@ -160,18 +182,31 @@ def _cmd(*args, **kw):
         return "ERREUR %r" % (e,)
 
 
-class Chrono:
-    """Duree et pic memoire GPU de chaque etape (synchronise la carte avant et apres)."""
+def _gpu_occupe_Go():
+    """Memoire GPU occupee sur TOUT le peripherique, vue du pilote (cudaMemGetInfo), en Go."""
+    import torch
+    libre, total = torch.cuda.mem_get_info()
+    return (total - libre) / 1e9
 
-    def __init__(self):
+
+class Chrono:
+    """Duree et pics memoire de chaque etape (synchronise la carte avant et apres). Deux pics : celui de l'allocateur de PyTorch
+    (`pic_alloue_Go`) et celui du PERIPHERIQUE (`pic_peripherique_Go`, sonde en arriere-plan : voit aussi CuMesh, cuBVH, nvdiffrast, Triton)."""
+
+    def __init__(self, sonde=None):
         self.etapes = []
         self.pic_global_Go = 0.0
+        self.pic_reserve_global_Go = 0.0
+        self.pic_peripherique_global_Go = 0.0
+        self.sonde = sonde
 
     @contextlib.contextmanager
     def etape(self, nom, **extra):
         import torch
         torch.cuda.synchronize()
         torch.cuda.reset_peak_memory_stats()
+        if self.sonde is not None:
+            self.sonde.reinitialiser()
         t0 = time.time()
         try:
             yield
@@ -179,9 +214,16 @@ class Chrono:
             torch.cuda.synchronize()
             dt = time.time() - t0
             pic = torch.cuda.max_memory_allocated() / 1e9
+            pic_res = torch.cuda.max_memory_reserved() / 1e9
             self.pic_global_Go = max(self.pic_global_Go, pic)
-            self.etapes.append(dict({"etape": nom, "s": round(dt, 2), "pic_alloue_Go": round(pic, 2)}, **extra))
-            _log("[etape] %-44s %7.1f s   pic %5.1f Go" % (nom, dt, pic))
+            self.pic_reserve_global_Go = max(self.pic_reserve_global_Go, pic_res)
+            ligne = dict({"etape": nom, "s": round(dt, 2), "pic_alloue_Go": round(pic, 2), "pic_reserve_Go": round(pic_res, 2)}, **extra)
+            if self.sonde is not None:
+                pic_p = self.sonde.lire_pic()
+                self.pic_peripherique_global_Go = max(self.pic_peripherique_global_Go, pic_p)
+                ligne["pic_peripherique_Go"] = round(pic_p, 2)
+            self.etapes.append(ligne)
+            _log("[etape] %-44s %7.1f s   pic torch %5.1f Go   pic carte %s" % (nom, dt, pic, ("%5.1f Go" % ligne["pic_peripherique_Go"]) if "pic_peripherique_Go" in ligne else "  -"))
 
 
 def _preparer_env():
@@ -399,16 +441,8 @@ def _instrumenter(pipeline, chrono):
         setattr(objet, nom_methode, f)
 
     def nom_sampler(a, k):
-        d = k.get("tqdm_desc", "")
-        if "sparse structure" in d:
-            return "echantillonnage structure creuse (SS)"
-        if "texture" in d:
-            return "echantillonnage texture 1024"
-        if "HR shape" in d:
-            return "echantillonnage forme HR " + d.split(",")[-1].strip(" )")
-        if "shape" in d:
-            return "echantillonnage forme LR 512"
-        return "echantillonnage : " + d
+        from modal_app.exp_pixal3d_outils import nom_etape_sampler
+        return nom_etape_sampler(k.get("tqdm_desc", ""))
 
     def noter_jetons(nom, a, k, r):
         noise = a[1] if len(a) > 1 else k.get("noise")
@@ -419,6 +453,10 @@ def _instrumenter(pipeline, chrono):
         envelopper(s, "sample", nom_sampler, noter_jetons)
 
     envelopper(pipeline, "get_proj_cond_ss", "conditionnement SS (DINOv3 + NAF + projection)")
+    try:                                  # etape 3a de pipeline.run : jusqu'ici invisible, elle porte le reglage des noyaux Triton a froid (72 a 191 s)
+        envelopper(pipeline.models["shape_slat_decoder"], "upsample", "upsample LR -> HR (decodeur de forme, convolutions creuses)")
+    except Exception as e:
+        _log("etape upsample non instrumentee :", repr(e)[:160])
 
     def nom_cond(a, k):
         m = a[0] if a else k.get("image_cond_model")
@@ -432,29 +470,75 @@ def _instrumenter(pipeline, chrono):
     return jetons
 
 
+def _cibles_export():
+    """Appels couteux de o_voxel.postprocess.to_glb a chronometrer (modal_app/exp_pixal3d_outils.decomposer). Appelants de plus haut niveau seulement :
+    pas de `read` / `init` (ils sont aussi appeles DANS uv_unwrap et le remaillage, les durees s'additionneraient deux fois)."""
+    import cv2
+    import cumesh
+    import cumesh.remeshing as remaillage
+    import o_voxel.postprocess as pp
+    return [
+        (cumesh.CuMesh, "fill_holes", "cumesh.fill_holes"),
+        (cumesh.cuBVH, "__init__", "cumesh.cuBVH (construction)"),
+        (remaillage, "remesh_narrow_band_dc", "cumesh.remesh_narrow_band_dc (dual contouring)"),
+        (cumesh.CuMesh, "simplify", "cumesh.simplify (decimation)"),
+        (cumesh.CuMesh, "uv_unwrap", "cumesh.uv_unwrap (depliage UV)"),
+        (pp.dr, "rasterize", "nvdiffrast.rasterize (atlas)"),
+        (pp.dr, "interpolate", "nvdiffrast.interpolate"),
+        (cumesh.cuBVH, "unsigned_distance", "cuBVH.unsigned_distance (projection sur le maillage brut)"),
+        (pp, "grid_sample_3d", "flex_gemm.grid_sample_3d (couleur / PBR par voxel)"),
+        (cv2, "inpaint", "cv2.inpaint (retouches d'atlas, CPU)"),
+    ]
+
+
+SUSPECTS = ["plyfile", "easydict", "nvdiffrast", "nvdiffrec_render", "kornia", "timm", "diffusers", "imageio", "gradio", "rembg", "moge", "natten", "flash_attn",
+            "cumesh", "flex_gemm", "o_voxel", "utils3d", "transformers", "xformers", "spconv", "torchsparse", "kaolin"]
+
+
+def _paquets_charges():
+    """Distributions pip dont au moins un module est EN MEMOIRE (apres une generation complete) + leur licence declaree + modules suspects charges ou non."""
+    import importlib.metadata as md
+    try:
+        d2p = md.packages_distributions()
+    except Exception:
+        d2p = {}
+    tops = {m.split(".")[0] for m in list(sys.modules) if m and not m.startswith("_")}
+    licences = _licences_pip()
+    charges = {}
+    for top in sorted(tops):
+        for dist in d2p.get(top, []):
+            if dist in licences:
+                charges[dist] = dict(licences[dist], via=top)
+    return {"distributions_chargees": charges, "suspects": {m: (m in sys.modules) for m in SUSPECTS}, "n_modules": len(sys.modules)}
+
+
 def _rgba_vers_pil(octets):
     from PIL import Image
     return Image.open(io.BytesIO(octets))
 
 
-def _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params):
-    """Une generation complete : pretraitement, camera MoGe-2, cascade, export GLB. Rend (dict de mesures, chemin du GLB)."""
+def _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params, passe, derniere, etiquette=""):
+    """Une generation complete : pretraitement, camera MoGe-2, cascade, export GLB. Rend le dict de mesures (les GLB sont sur le volume)."""
     import numpy as np
     import o_voxel
     import torch
+    from modal_app.exp_pixal3d_outils import Accumulateur, decomposer
 
-    res = {"nom": nom}
+    res = {"nom": nom, "passe": passe}
     chrono.etapes.clear()
     jetons.clear()
+    chrono.pic_global_Go = 0.0
+    chrono.pic_reserve_global_Go = 0.0
+    chrono.pic_peripherique_global_Go = 0.0
     t_total = time.time()
     img = _rgba_vers_pil(png)
     res["entree"] = {"mode": img.mode, "taille": list(img.size)}
     with chrono.etape("pretraitement_image (recadrage + fond noir)"):
         pre = pipeline.preprocess_image(img)
+    res["entree_preparee"] = {"taille": list(pre.size)}
     tmp = "/tmp/pre_%s.png" % nom
     pre.save(tmp)
     if params["fov"] > 0:
-        import math
         camera = {"camera_angle_x": float(params["fov"]), "mesh_scale": 1.0}
         camera["distance"] = inf.distance_from_fov(camera["camera_angle_x"], torch.tensor([-1.0, 0.0, 0.0]),
                                                    torch.tensor([0.0, 511.0]), 1.0, 512)["distance_from_x"]
@@ -471,11 +555,12 @@ def _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params):
     torch.cuda.synchronize()
     mesh_list, (shape_slat, tex_slat, reso) = pipeline.run(
         pre, camera_params=camera, seed=params["seed"], sparse_structure_sampler_params=SS, shape_slat_sampler_params=SHAPE,
-        tex_slat_sampler_params=TEX, preprocess_image=False, return_latent=True, pipeline_type=pipeline_type, max_num_tokens=49152)
+        tex_slat_sampler_params=TEX, preprocess_image=False, return_latent=True, pipeline_type=pipeline_type, max_num_tokens=params["max_tokens"])
     torch.cuda.synchronize()
     res["duree_pipeline_run_s"] = round(time.time() - t_run, 1)
     res["resolution_demandee"] = params["resolution"]
     res["resolution_effective"] = int(reso)
+    res["max_jetons"] = params["max_tokens"]
     res["jetons"] = dict(jetons)
     mesh = mesh_list[0]
     res["maillage_brut"] = {"sommets": int(mesh.vertices.shape[0]), "faces": int(mesh.faces.shape[0]),
@@ -485,35 +570,48 @@ def _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params):
     torch.cuda.empty_cache()
 
     sorties = {}
-    cibles = [("", params["faces"])] + ([("_1m", 1_000_000)] if params["natif"] else [])
+    cibles = [("", params["faces"])] + ([("_1m", 1_000_000)] if (params["natif"] and derniere) else [])
+    res["export_decomposition"] = {}
     for suffixe, nb_faces in cibles:
-        atlas = params["atlas"]
-        for tentative in range(2):
+        glb, atlas_utilise = None, None
+        for atlas_essai in ([params["atlas"]] + ([2048] if params["atlas"] > 2048 else [])):
+            acc = Accumulateur()
             try:
-                with chrono.etape("export_glb%s (remaillage + decimation %d + UV + cuisson %d)" % (suffixe, nb_faces, atlas)):
-                    glb = o_voxel.postprocess.to_glb(
-                        vertices=mesh.vertices, faces=mesh.faces, attr_volume=mesh.attrs, coords=mesh.coords,
-                        attr_layout=pipeline.pbr_attr_layout, grid_size=reso, aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
-                        decimation_target=nb_faces, texture_size=atlas, remesh=True, remesh_band=1, remesh_project=0, use_tqdm=False)
+                with chrono.etape("export_glb%s (remaillage + decimation %d + UV + cuisson %d)" % (suffixe, nb_faces, atlas_essai)):
+                    try:
+                        cadre = decomposer(_cibles_export(), acc, sync=torch.cuda.synchronize)
+                    except Exception as e:                       # l'instrumentation ne doit JAMAIS faire perdre la generation
+                        _log("decomposition de l'export indisponible :", repr(e)[:200])
+                        cadre = contextlib.nullcontext()
+                    with cadre:
+                        glb = o_voxel.postprocess.to_glb(
+                            vertices=mesh.vertices, faces=mesh.faces, attr_volume=mesh.attrs, coords=mesh.coords,
+                            attr_layout=pipeline.pbr_attr_layout, grid_size=reso, aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
+                            decimation_target=nb_faces, texture_size=atlas_essai, remesh=True, remesh_band=1, remesh_project=0, use_tqdm=False)
+                atlas_utilise = atlas_essai
                 break
             except torch.cuda.OutOfMemoryError:
-                _log("MEMOIRE INSUFFISANTE a l'export : repli de l'atlas %d -> 2048" % atlas)
+                _log("MEMOIRE INSUFFISANTE a l'export (atlas %d)" % atlas_essai)
                 torch.cuda.empty_cache()
-                atlas = 2048
-                res.setdefault("replis", []).append("atlas %d -> 2048 (memoire GPU)" % params["atlas"])
+                res.setdefault("replis", []).append("export%s : memoire GPU insuffisante avec un atlas de %d" % (suffixe, atlas_essai))
+        if glb is None:
+            raise RuntimeError("export GLB impossible, meme avec un atlas de 2048 (memoire GPU)")
+        res["export_decomposition"][suffixe or "principal"] = {"appels": acc.resume(), "total_mesure_s": acc.total(), "cibles_introuvables": list(acc.ignorees)}
         glb.apply_transform(np.array(ROT_EXPORT, dtype=np.float64))
-        chemin = "/cache/out/pixal3d_%s%s.glb" % (nom, suffixe)
+        from modal_app.exp_pixal3d_outils import chemin_glb_volume
+        chemin = chemin_glb_volume(nom, etiquette, passe, suffixe)
         with chrono.etape("ecriture_glb%s (WebP)" % suffixe):
             glb.export(chemin, extension_webp=True)
-        sorties[suffixe or "principal"] = {"chemin": chemin, "octets": os.path.getsize(chemin), "faces_cible": nb_faces, "atlas_demande": atlas,
-                                          "faces": int(len(glb.faces)), "sommets": int(len(glb.vertices))}
+        sorties[suffixe or "principal"] = {"chemin": chemin, "octets": os.path.getsize(chemin), "faces_cible": nb_faces, "atlas_demande": params["atlas"],
+                                          "atlas_utilise": atlas_utilise, "faces": int(len(glb.faces)), "sommets": int(len(glb.vertices))}
         del glb
         torch.cuda.empty_cache()
     res["glb"] = sorties
     res["duree_totale_s"] = round(time.time() - t_total, 1)
     res["etapes"] = [dict(e) for e in chrono.etapes]
     res["pic_alloue_global_Go"] = round(chrono.pic_global_Go, 2)
-    res["pic_reserve_Go"] = round(torch.cuda.max_memory_reserved() / 1e9, 2)
+    res["pic_peripherique_global_Go"] = round(chrono.pic_peripherique_global_Go, 2)
+    res["pic_reserve_global_Go"] = round(chrono.pic_reserve_global_Go, 2)
     del mesh, mesh_list
     return res
 
@@ -564,52 +662,131 @@ def verifier() -> dict:
     return _j(out)
 
 
-@app.function(gpu=GPU, timeout=3600, secrets=SECRETS, volumes={"/cache": vol})
+@app.function(gpu=GPU, timeout=3000, secrets=SECRETS, volumes={"/cache": vol})
 def generer(entrees: dict, faces: int = 500000, atlas: int = 4096, resolution: int = 1536, seed: int = 42, fov: float = -1.0,
-            natif: bool = False, repeter: int = 1) -> dict:
-    """Pour chaque entree (nom -> octets PNG RGBA) : cascade Pixal3D + export GLB sur le volume. Le modele est charge UNE fois."""
+            natif: bool = False, repeter: int = 1, max_tokens: int = MAX_JETONS_DEFAUT, etiquette: str = "") -> dict:
+    """Pour chaque entree (nom -> octets PNG RGBA) : cascade Pixal3D + export GLB sur le volume. Le modele est charge UNE fois, puis `repeter` passes
+    par image (la passe 1 paie la compilation / le reglage des noyaux Triton, la derniere est « chaude »). L'export a 1 M de faces (reglage par defaut
+    de l'auteur) n'est fait qu'a la derniere passe, si `natif`."""
     import gc
     import torch
+    from modal_app.exp_pixal3d_outils import SondeMemoire
     t0 = time.time()
     _preparer_env()
-    out = {"gpu_demande": GPU, "parametres": dict(faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, repeter=repeter),
-           "images": {}}
-    chrono = Chrono()
-    inf, pipeline, moge, info = _charger_modele(chrono)
-    out["chargement"] = info
-    out["etapes_chargement"] = [dict(e) for e in chrono.etapes]
-    out["vram_apres_chargement_Go"] = round(torch.cuda.memory_allocated() / 1e9, 2)
-    jetons = _instrumenter(pipeline, chrono)
-    params = dict(faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif)
-    for nom, png in entrees.items():
-        passes = []
-        for k in range(max(1, repeter)):
-            _log("=" * 20, "image", nom, "passage", k + 1, "/", max(1, repeter))
-            try:
-                r = _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params)
-            except torch.cuda.OutOfMemoryError:
-                _log("MEMOIRE INSUFFISANTE : repli en mode low_vram (modeles charges a la demande)")
+    repeter = max(1, int(repeter))
+    out = {"gpu_demande": GPU, "parametres": dict(faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, repeter=repeter,
+                                                  max_tokens=max_tokens, etiquette=etiquette), "images": {}}
+    torch.zeros(1, device="cuda")                       # contexte CUDA cree ICI (fil principal) avant que la sonde ne lise la carte
+    sonde = SondeMemoire(_gpu_occupe_Go).demarrer()
+    try:
+        chrono = Chrono(sonde)
+        inf, pipeline, moge, info = _charger_modele(chrono)
+        out["chargement"] = info
+        out["etapes_chargement"] = [dict(e) for e in chrono.etapes]
+        out["vram_apres_chargement_Go"] = round(torch.cuda.memory_allocated() / 1e9, 2)
+        out["carte_occupee_apres_chargement_Go"] = round(_gpu_occupe_Go(), 2)
+        jetons = _instrumenter(pipeline, chrono)
+        params = dict(faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, max_tokens=max_tokens)
+        for nom, png in entrees.items():
+            passes = []
+            for k in range(repeter):
+                derniere = (k == repeter - 1)
+                _log("=" * 20, "image", nom, "passe", k + 1, "/", repeter)
+                try:
+                    r = _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params, k + 1, derniere, etiquette)
+                except torch.cuda.OutOfMemoryError:
+                    _log("MEMOIRE INSUFFISANTE : repli en mode low_vram (modeles charges a la demande)")
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    pipeline.low_vram = True
+                    try:
+                        r = _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params, k + 1, derniere, etiquette)
+                        r["repli"] = "low_vram apres manque de memoire"
+                    except Exception:
+                        r = {"nom": nom, "passe": k + 1, "erreur": traceback.format_exc()[-5000:]}
+                except Exception:
+                    r = {"nom": nom, "passe": k + 1, "erreur": traceback.format_exc()[-5000:]}
+                    _log("ECHEC", nom, r["erreur"][-1500:])
+                passes.append(r)
                 gc.collect()
                 torch.cuda.empty_cache()
-                pipeline.low_vram = True
-                try:
-                    r = _un_passage(nom, png, inf, pipeline, moge, chrono, jetons, params)
-                    r["repli"] = "low_vram apres manque de memoire"
-                except Exception:
-                    r = {"nom": nom, "erreur": traceback.format_exc()[-5000:]}
-            except Exception:
-                r = {"nom": nom, "erreur": traceback.format_exc()[-5000:]}
-                _log("ECHEC", nom, r["erreur"][-1500:])
-            r["passage"] = k + 1
-            passes.append(r)
-            gc.collect()
-            torch.cuda.empty_cache()
-            vol.commit()
-        out["images"][nom] = {"passes": passes, "final": passes[-1]}
-    _sauver_caches()
+                vol.commit()
+            out["images"][nom] = {"passes": passes, "final": passes[-1]}
+        out["paquets_charges"] = _paquets_charges()
+        _sauver_caches()
+    finally:
+        sonde.arreter()
     out["duree_totale_s"] = round(time.time() - t0, 1)
     out["cout_estime_usd"] = round(out["duree_totale_s"] * TARIFS_GPU_S.get(GPU, 0.0007), 3)
     return _j(out)
+
+
+@app.function(image=image_legere, secrets=SECRETS, timeout=900)
+def licences_hf() -> dict:
+    """CPU seulement : textes COMPLETS des fiches et licences HF utiles a l'avis de licence (la fiche de Pixal3D porte `extra_gated_eu_disallowed: true`)."""
+    from huggingface_hub import hf_hub_download
+    voulus = {
+        "TencentARC/Pixal3D": ["README.md", "LICENSE", "NOTICE", "pipeline.json"],
+        "Ruicheng/moge-2-vitl": ["README.md"],
+        "camenduru/dinov3-vitl16-pretrain-lvd1689m": ["README.md", "LICENSE.md"],
+        "briaai/RMBG-2.0": ["README.md"],
+        "ZhengPeng7/BiRefNet": ["README.md"],
+    }
+    sortie = {}
+    for repo, fichiers in voulus.items():
+        for f in fichiers:
+            try:
+                with open(hf_hub_download(repo, f), encoding="utf-8", errors="replace") as fh:
+                    sortie[repo + "/" + f] = fh.read()
+            except Exception as e:
+                sortie[repo + "/" + f] = "ILLISIBLE : %r" % (str(e)[:300],)
+    sortie["_historique"] = _historique_hf()
+    return sortie
+
+
+def _historique_hf():
+    """Revisions du depot de poids (date, titre) ; pour les plus anciennes, la LICENSE de CHAQUE revision et les empreintes SHA-256 des poids, afin de savoir
+    QUAND la licence est devenue MIT et si les OCTETS des poids ont change depuis. Ne leve jamais."""
+    from huggingface_hub import HfApi, hf_hub_download
+    api = HfApi()
+    sortie = {}
+    for repo in ("TencentARC/Pixal3D", "Ruicheng/moge-2-vitl", "camenduru/dinov3-vitl16-pretrain-lvd1689m"):
+        r = {}
+        try:
+            commits = list(api.list_repo_commits(repo))
+            r["revisions"] = [{"id": c.commit_id, "date": str(c.created_at), "titre": (c.title or "")[:120]} for c in commits][:60]
+            if repo == "TencentARC/Pixal3D":
+                detail = []
+                for c in sorted(commits, key=lambda c: c.created_at)[:12]:
+                    d = {"id": c.commit_id[:10], "date": str(c.created_at), "titre": (c.title or "")[:100]}
+                    try:
+                        with open(hf_hub_download(repo, "LICENSE", revision=c.commit_id), encoding="utf-8", errors="replace") as fh:
+                            txt = fh.read()
+                        d["LICENSE_debut"] = " ".join(txt.split())[:260]
+                        d["LICENSE_mentionne_academique"] = "academic" in txt.lower()
+                        d["LICENSE_mentionne_UE"] = "european union" in txt.lower()
+                    except Exception as e:
+                        d["LICENSE_debut"] = "ILLISIBLE : %r" % (str(e)[:120],)
+                    try:
+                        with open(hf_hub_download(repo, "README.md", revision=c.commit_id), encoding="utf-8", errors="replace") as fh:
+                            tete = fh.read(500)
+                        d["README_extra_gated_eu_disallowed"] = "extra_gated_eu_disallowed" in tete
+                        d["README_license_front_matter"] = [l for l in tete.splitlines()[:8] if l.startswith("license")]
+                    except Exception as e:
+                        d["README_license_front_matter"] = "ILLISIBLE : %r" % (str(e)[:120],)
+                    try:
+                        info = api.model_info(repo, revision=c.commit_id, files_metadata=True)
+                        d["poids_sha256"] = {s.rfilename: ((s.lfs.get("sha256") if isinstance(s.lfs, dict) else getattr(s.lfs, "sha256", None)) or "")[:16]
+                                             for s in (info.siblings or []) if s.rfilename.endswith(".safetensors")}
+                        d["gated"] = info.gated
+                    except Exception as e:
+                        d["poids_sha256"] = "ILLISIBLE : %r" % (str(e)[:120],)
+                    detail.append(d)
+                r["detail_revisions_anciennes"] = detail
+        except Exception as e:
+            r["erreur"] = repr(e)[:300]
+        sortie[repo] = r
+    return sortie
 
 
 # ================================================================================ cote local
@@ -626,61 +803,93 @@ def _journal_cout(etape, duree_s):
     cur["appels"].append({"etape": etape, "gpu": GPU, "duree_s": duree_s, "estime_usd": c, "date": time.strftime("%Y-%m-%d %H:%M:%S")})
     cur["total_estime_usd"] = round(sum(a["estime_usd"] for a in cur["appels"]), 3)
     _ecrire_json(chemin, cur)
-    print("cout estime de cet appel : %.2f $ ; cumul GPU estime du banc : %.2f $ (plafond 5 $, arret a 4 $)" % (c, cur["total_estime_usd"]))
+    print("cout estime de cet appel : %.2f $ ; cumul GPU estime du banc : %.2f $ (plafond 5 $, arret a 4 $ ; la facture Modal compte aussi les constructions d'image)" % (c, cur["total_estime_usd"]))
+
+
+def _telecharger_du_volume(chemin_volume, dest):
+    with open(dest, "wb") as fh:
+        for morceau in vol.read_file(chemin_volume):
+            fh.write(morceau)
+    return os.path.getsize(dest)
 
 
 @app.local_entrypoint()
 def main(etape: str = "verif", entrees: str = "orc,photo", faces: int = 500000, atlas: int = 4096, resolution: int = 1536, seed: int = 42,
-         fov: float = -1.0, natif: bool = False, repeter: int = 1, tout: bool = False):
+         fov: float = -1.0, natif: bool = False, repeter: int = 1, max_tokens: int = MAX_JETONS_DEFAUT, etiquette: str = "", tout: bool = False):
     os.makedirs(SORTIE + "/glb", exist_ok=True)
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))          # racine du depot : `modal_app` importable cote local
+    from modal_app.exp_pixal3d_outils import nom_glb_local
     if etape == "verif":
         r = verifier.remote()
         _ecrire_json(SORTIE + "/pixal3d_verif.json", r)
         print("verif : %.0f s ; erreur : %s" % (r.get("duree_totale_s", -1), "AUCUNE" if "erreur" not in r else r["erreur"][-800:]))
         _journal_cout("verif", r.get("duree_totale_s", 0))
+    elif etape == "licences":
+        r = licences_hf.remote()
+        _ecrire_json(SORTIE + "/pixal3d_licences_hf.json", r)
+        print({k: len(v) for k, v in r.items()})
     elif etape == "gener":
         noms = [n.strip() for n in entrees.split(",") if n.strip()]
         contenu = {n: open(ENTREES[n], "rb").read() for n in noms}
-        r = generer.remote(contenu, faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, repeter=repeter)
-        _ecrire_json(SORTIE + "/pixal3d_resultats.json", r)
-        _journal_cout("gener", r.get("duree_totale_s", 0))
+        r = generer.remote(contenu, faces=faces, atlas=atlas, resolution=resolution, seed=seed, fov=fov, natif=natif, repeter=repeter,
+                           max_tokens=max_tokens, etiquette=etiquette)
+        _ecrire_json(SORTIE + "/pixal3d_resultats_%s%s.json" % ("+".join(noms), etiquette), r)       # un fichier par jeu d'entrees : le suivant n'ecrase pas le precedent
+        _journal_cout("gener%s %s x%d" % (etiquette, "+".join(noms), repeter), r.get("duree_totale_s", 0))
         for n, bloc in r["images"].items():
-            fin = bloc["final"]
-            if "erreur" in fin:
-                print(n, "ECHEC :", fin["erreur"][-600:])
-                continue
-            for suff, g in fin["glb"].items():
-                dest = SORTIE + "/glb/pixal3d_%s%s.glb" % (n, "" if suff == "principal" else suff)
-                with open(dest, "wb") as fh:
-                    for morceau in vol.read_file(g["chemin"].replace("/cache", "", 1)):
-                        fh.write(morceau)
-                print(n, suff, "->", dest, "%.1f Mo" % (os.path.getsize(dest) / 1e6), "| faces", g["faces"], "| duree totale %.0f s" % fin["duree_totale_s"])
-                if n == "photo":                                    # photo d'une personne : on n'en laisse rien sur le volume
-                    vol.remove_file(g["chemin"].replace("/cache", "", 1))
+            for p in bloc["passes"]:
+                if "erreur" in p:
+                    print(n, "passe", p.get("passe"), "ECHEC :", p["erreur"][-900:])
+                    continue
+                derniere = (p["passe"] == bloc["final"]["passe"])      # apres la serialisation, "final" est une copie : on compare les numeros
+                for suff, g in p["glb"].items():
+                    dest = SORTIE + "/glb/" + nom_glb_local(n, etiquette, p["passe"], derniere, "" if suff == "principal" else suff)
+                    octets = _telecharger_du_volume(g["chemin"].replace("/cache", "", 1), dest)
+                    print(n, "passe", p["passe"], suff, "->", dest, "%.1f Mo" % (octets / 1e6), "| faces", g["faces"], "| atlas", g["atlas_utilise"],
+                          "| resolution effective", p["resolution_effective"], "| duree de la passe %.0f s" % p["duree_totale_s"],
+                          "| pic carte %.1f Go" % p.get("pic_peripherique_global_Go", -1))
+                    if n == "photo":                                    # photo d'une personne : on n'en laisse rien sur le volume
+                        vol.remove_file(g["chemin"].replace("/cache", "", 1))
     elif etape == "mesurer":
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from modal_app.exp_pixal3d_mesures import mesurer_glb
-        res_chemin = SORTIE + "/pixal3d_resultats.json"
         cams = {}
-        if os.path.exists(res_chemin):
-            for n, bloc in json.load(open(res_chemin, encoding="utf-8"))["images"].items():
-                if "camera" in bloc["final"]:
-                    cams[n] = bloc["final"]["camera"]
-        mesures = {}
-        for n in ("orc", "photo"):
-            for suff in ("", "_1m"):
-                glb = SORTIE + "/glb/pixal3d_%s%s.glb" % (n, suff)
-                if os.path.exists(glb):
-                    mesures["pixal3d_%s%s" % (n, suff)] = mesurer_glb(glb, ENTREES[n] if n in cams else None, cams.get(n))
+        for f in sorted(os.listdir(SORTIE)):                           # une camera par entree, lue dans les resultats (identique d'une passe a l'autre)
+            if f.startswith("pixal3d_resultats") and f.endswith(".json"):                                          # ancien et nouveau nommage
+                for n, bloc in json.load(open(os.path.join(SORTIE, f), encoding="utf-8")).get("images", {}).items():
+                    for p in bloc.get("passes", []):
+                        if "camera" in p:
+                            cams.setdefault(n, p["camera"])
+        chemin_mesures = SORTIE + "/pixal3d_mesures.json"
+        mesures = json.load(open(chemin_mesures, encoding="utf-8")) if os.path.exists(chemin_mesures) else {}          # FUSION : on n'efface pas les mesures deja faites
+        for cle, v in list(mesures.items()):                                                                              # camera deja mesuree = reprise si les resultats ont ete ecrases
+            m = re.match(r"^pixal3d_(orc|photo)", cle)
+            cam = (v.get("alignement_entree") or {}).get("camera") if isinstance(v, dict) else None
+            if m and cam:
+                cams.setdefault(m.group(1), cam)
+        for f in sorted(os.listdir(SORTIE + "/glb")):
+            m = re.match(r"^pixal3d_(orc|photo)(.*)\.glb$", f)
+            if m:
+                n = m.group(1)
+                if f[:-4] in mesures and "erreur" not in mesures[f[:-4]] and not tout:
+                    continue                                                                                              # deja mesure (--tout pour refaire)
+                try:
+                    mesures[f[:-4]] = mesurer_glb(SORTIE + "/glb/" + f, ENTREES[n] if n in cams else None, cams.get(n))
+                except Exception as e:                                                                                    # fichier tronque / illisible : signale, jamais fatal
+                    mesures[f[:-4]] = {"erreur": repr(e)[:300]}
+                    print("MESURE IMPOSSIBLE :", f, repr(e)[:200])
         # references TRELLIS.2 (memes entrees, 1792, 500 K faces, atlas 4096) mesurees avec LA MEME regle
         for cle, f in (("trellis_orc_1792", "hr_G1792_tranches_t4096_f500000.glb"), ("trellis_photo_1792", "hr_photo_G1792_tranches_t4096_f500000.glb")):
             p = SORTIE + "/glb/" + f
             if os.path.exists(p):
                 mesures[cle] = mesurer_glb(p)
         _ecrire_json(SORTIE + "/pixal3d_mesures.json", mesures)
-        print(json.dumps({k: {"faces": v.get("topologie", {}).get("faces_utiles"), "composantes": v.get("topologie", {}).get("composantes"),
-                              "aretes_de_bord": v.get("topologie", {}).get("aretes_de_bord"), "couverture_atlas": v.get("atlas", {}).get("couverture"),
-                              "iou": (v.get("alignement_entree") or {}).get("iou")} for k, v in mesures.items()}, indent=1))
+        print(json.dumps({k: {"Mo": round(v.get("octets", 0) / 1e6, 1), "faces": v.get("topologie", {}).get("faces_utiles"),
+                              "composantes": v.get("topologie", {}).get("composantes"), "part_plus_grande": v.get("topologie", {}).get("plus_grande_composante_part_faces"),
+                              "aretes_de_bord": v.get("topologie", {}).get("aretes_de_bord"), "non_manifold": v.get("topologie", {}).get("aretes_non_manifold"),
+                              "aire_retournee_pct": v.get("topologie", {}).get("pct_aire_normales_opposees"),
+                              "arete_max_rel_diag": v.get("topologie", {}).get("arete_max_rel_diag"),
+                              "couverture_atlas": v.get("atlas", {}).get("couverture"), "iou": (v.get("alignement_entree") or {}).get("iou")}
+                          for k, v in mesures.items()}, indent=1))
     elif etape == "nettoyer":
         try:
             for e in vol.listdir("/out"):
