@@ -9280,10 +9280,10 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
         const argsCloud = {
           imagesDir,
           assetType: _assetType,
+          negativeExtra: _negatifs,   // « no helmet » du texte de l'utilisateur : termes de negatif pour le serveur (champ `negativeExtra` de /api/generate-image)
           steps,
           turbo: engine === 'local-lightning',
           projectName: safeName,   // -> user_assets: visible aussi sur le site web
-          negativeExtra: _negatifs,   // « no helmet » du texte de l'utilisateur : termes de negatif pour le serveur (champ `negativeExtra` de /api/generate-image)
         };
         // ETAPES DE CONSTRUCTION EN CLOUD (2026-09-30). La case etait ignoree
         // ici : Count images ordinaires. Meme regle que le site
