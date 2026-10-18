@@ -49,6 +49,22 @@ ATTENDUS (ecrits avant le code, reperes : y vers le haut, cube de TRELLIS [-0,5 
      coupe n'a pas touchee, plus haute que 5 % de T, plus lourde que 5 % de l'aire gardee, ou dont la somme depasse 10 %, reste ;
      un corps en miettes (aucune composante dominante) ne declenche rien ; l'orc reel : 32 ilots, la composante principale intacte.
  19. idempotence (une seconde passe ne change rien), scene dont une geometrie est instanciee deux fois (rendue telle quelle).
+ 20. (2026-10-18) FILET DU CROCHET : `init` qui echoue en cours de route (le maillage d'origine est reinjecte) ; depliage qui echoue SANS
+     la dalle (maillage d'origine restitue, depliage rejoue, rapport annule ; pas de rejeu quand la memoire est epuisee ; restitution
+     impossible : l'erreur d'origine remonte) ; une ligne de journal dans tous les cas, y compris « aucune dalle » avec son motif ; l'orc REEL
+     avec ses MATERIAUX (variante apres export : positions, UV, normales explicites et texture conservees, GLB WebP plus leger, seconde
+     passe sans effet).
+ 21. (2026-10-18) `retirer_dalle_glb`, la variante APRES export qui ne leve jamais : une ligne de journal dans tous les cas (le motif d'un
+     refus, y compris une scene non prise en charge), `actif=False` ne fait rien, un objet qui n'est pas une scene est rendu tel quel.
+     Un journal qui leve (flux ferme) ne casse ni le retrait, ni le filet du depliage, ni l'installation du crochet.
+ 22. (2026-10-18) le banc de l'ATLAS (build/bancs/fidelite/dalle_sol_atlas.py, que le protocole GPU rejouera) : chiffres connus sur deux
+     triangles, aller-retour d'un GLB texture, et la variante APRES export qui donne un gain de resolution du corps de x1,00 (les UV ne
+     bougent pas) contre l'estimation 1 / racine(part d'aire du corps) pour un retrait AVANT le depliage ; le gain VISIBLE plafonne par la
+     grille de voxels (la couleur n'a pas plus de detail que ses voxels : orc a 2048 sur une grille de 1024, x1,19 au plus).
+ 23. (2026-10-18) creatures PLATES au ras du sol (focus « ailes » de la relecture) : dragon couche aux ailes etalees, raie, papillon a plat ->
+     aucun faux positif (leurs grandes surfaces horizontales font PARTIE de la silhouette, rapport < 3).
+ 24. (2026-10-18) fumee du banc de mesures sur GLB reels (build/bancs/fidelite/dalle_sol_mesures.py : balayage, echelle dans un processus neuf,
+     inclinaison, decimation, composantes) sur un GLB synthetique : le banc ne pourrit pas, ses chiffres sont ceux du module.
 """
 import importlib.util
 import json
@@ -1091,6 +1107,30 @@ class TestFormesSynthetiques(unittest.TestCase):
         self.assertEqual(rapport, {}, 'des ailes ouvertes a mi-hauteur ont ete prises pour une dalle')
         self.assertTrue(garder.all())
 
+    def test_36_creatures_plates_au_ras_du_sol(self):
+        """Du FOCUS « ailes » : des grandes surfaces horizontales AU RAS DU SOL qui sont le corps lui-meme (ailes etalees d'un dragon couche,
+        raie, papillon a plat) ne sont pas une dalle : leur aire d'une face ne deborde pas la silhouette qu'elles portent. Le garde est
+        le rapport avec la silhouette (0,47 pour le dragon, 0,15 pour la raie), pas la hauteur."""
+        y0 = Y_FEUILLE
+
+        def aile(cote, long_x, demi_z, y, ep=0.01):
+            return ellipsoide((cote * long_x / 2.0, y, 0.0), (long_x / 2.0, ep, demi_z), 40, 80)
+        cas = {
+            'dragon couche': [('torse', *ellipsoide((0, y0 + 0.07, 0), (0.18, 0.07, 0.10), 30, 40)),
+                              ('tete', *ellipsoide((0.26, y0 + 0.10, 0), (0.07, 0.05, 0.05), 20, 30)),
+                              ('queue', *ellipsoide((-0.30, y0 + 0.03, 0), (0.15, 0.03, 0.03), 20, 30)),
+                              ('aile_g', *aile(+1, 0.5, 0.22, y0 + 0.04)), ('aile_d', *aile(-1, 0.5, 0.22, y0 + 0.04))],
+            'raie': [('disque', *ellipsoide((0, y0 + 0.03, 0), (0.5, 0.03, 0.40), 40, 80)),
+                     ('bosse', *ellipsoide((0, y0 + 0.06, 0), (0.12, 0.05, 0.10), 20, 30))],
+            'papillon a plat': [('thorax', *ellipsoide((0, y0 + 0.05, 0), (0.04, 0.04, 0.15), 20, 30)),
+                                ('aile_g', *aile(+1, 0.48, 0.30, y0 + 0.05, ep=0.004)), ('aile_d', *aile(-1, 0.48, 0.30, y0 + 0.05, ep=0.004))],
+        }
+        for nom, parts in cas.items():
+            V, F, idx = fusionner(*parts)
+            garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+            self.assertEqual(rapport, {}, '%s : une partie du corps a ete prise pour une dalle' % nom)
+            self.assertTrue(garder.all(), nom)
+
     def test_34_idempotent(self):
         """Une seconde passe sur le maillage deja nettoye ne change rien : la feuille et les ilots sont partis, la figure garde sa base."""
         import trimesh
@@ -1281,6 +1321,90 @@ class TestTrimesh(unittest.TestCase):
         self.assertTrue(np.allclose(n0, np.asarray(g.vertex_normals)[np.asarray(g.faces)]))
 
 
+class TestRetirerDalleGlb(unittest.TestCase):
+    """La variante APRES export : `glb, _ = retirer_dalle_glb(glb, type_concerne(type_actif), log=log)` juste avant `export`."""
+
+    def setUp(self):
+        self.acc = charger_module()
+        if not hasattr(self.acc, 'retirer_dalle_glb'):
+            self.fail('retirer_dalle_glb absent : ancien code')
+        import trimesh
+        self.trimesh = trimesh
+
+    def test_scene_avec_dalle(self):
+        V, F, idx = scene_figure_sur_feuille()
+        scene = self.trimesh.Scene(self.trimesh.Trimesh(V, F, process=False))
+        journal = []
+        sortie, rapport = self.acc.retirer_dalle_glb(scene, True, log=journal.append)
+        self.assertTrue(rapport)
+        self.assertIsNot(sortie, scene)
+        (g,) = sortie.geometry.values()
+        self.assertEqual(len(g.faces), len(idx['figure']))
+        self.assertEqual(len(journal), 1, journal)
+        self.assertIn('apres export', journal[0])
+        self.assertIn('dalle de sol retiree', journal[0])
+        # les reglages passent au detecteur (un rapport d'empreinte exige trop haut : plus rien ne part)
+        sortie, rapport = self.acc.retirer_dalle_glb(scene, True, log=lambda *_: None, ratio_min=1e6)
+        self.assertEqual(rapport, {})
+        self.assertIs(sortie, scene)
+
+    def test_sans_dalle_meme_objet_et_motif_au_journal(self):
+        Vp, Fp, _ = personnage(-0.30)
+        scene = self.trimesh.Scene(self.trimesh.Trimesh(Vp, Fp, process=False))
+        journal = []
+        sortie, rapport = self.acc.retirer_dalle_glb(scene, True, log=journal.append)
+        self.assertEqual(rapport, {})
+        self.assertIs(sortie, scene)
+        self.assertEqual(len(journal), 1, journal)
+        self.assertIn('aucune', journal[0])
+        self.assertIn('bande horizontale', journal[0], 'le motif du refus doit figurer au journal')
+
+    def test_scene_non_prise_en_charge_dit_pourquoi(self):
+        V, F, _ = scene_figure_sur_feuille()
+        scene = self.trimesh.Scene()
+        scene.add_geometry(self.trimesh.Trimesh(V, F, process=False), node_name='a', geom_name='g')
+        T = np.eye(4)
+        T[0, 3] = 2.0
+        scene.graph.update(frame_to='b', frame_from=scene.graph.base_frame, matrix=T, geometry='g')
+        journal = []
+        sortie, rapport = self.acc.retirer_dalle_glb(scene, True, log=journal.append)
+        self.assertEqual(rapport, {})
+        self.assertIs(sortie, scene)
+        self.assertIn('instanciee', journal[0], journal)
+        vide = self.trimesh.Scene()
+        journal = []
+        self.assertIs(self.acc.retirer_dalle_glb(vide, True, log=journal.append)[0], vide)
+        self.assertIn('sans maillage', journal[0], journal)
+
+    def test_inactif_ne_fait_rien(self):
+        V, F, _ = scene_figure_sur_feuille()
+        scene = self.trimesh.Scene(self.trimesh.Trimesh(V, F, process=False))
+        journal = []
+        sortie, rapport = self.acc.retirer_dalle_glb(scene, False, log=journal.append)
+        self.assertIs(sortie, scene)
+        self.assertEqual(rapport, {})
+        self.assertEqual(journal, [], 'rien ne doit etre journalise quand le type n\'est pas concerne')
+
+    def test_ne_leve_jamais(self):
+        objet = object()                                   # pas une scene, pas un maillage
+        journal = []
+        sortie, rapport = self.acc.retirer_dalle_glb(objet, True, log=journal.append)
+        self.assertIs(sortie, objet)
+        self.assertEqual(rapport, {})
+        self.assertEqual(len(journal), 1, journal)
+        self.assertIn('ignore', journal[0])
+        # un journal qui leve ne casse rien non plus : ni sur le chemin d'exception, ni sur le chemin normal
+        def journal_casse(_):
+            raise OSError('flux ferme')
+        sortie, rapport = self.acc.retirer_dalle_glb(objet, True, log=journal_casse)
+        self.assertIs(sortie, objet)
+        self.assertEqual(rapport, {})
+        V, F, _ = scene_figure_sur_feuille()
+        scene = self.trimesh.Scene(self.trimesh.Trimesh(V, F, process=False))
+        sortie, rapport = self.acc.retirer_dalle_glb(scene, True, log=journal_casse)
+        self.assertTrue(rapport)
+
+
 class FauxCuMesh:
     """Imite l'interface de cumesh.CuMesh utilisee par le retrait (read / init), en numpy."""
 
@@ -1301,6 +1425,13 @@ class FauxCuMesh:
     def uv_unwrap(self, *a, **k):
         self.uv_unwrap_appeles += 1
         return 'depliage'
+
+
+class Casse2(FauxCuMesh):
+    """Un maillage dont read() leve (le retrait doit se replier sur « retrait ignore » sans lever, meme avec un journal casse)."""
+
+    def read(self):
+        raise RuntimeError('boum')
 
 
 class TestAdaptateurCuMesh(unittest.TestCase):
@@ -1416,6 +1547,184 @@ class TestAdaptateurCuMesh(unittest.TestCase):
             self.assertEqual(m.nb_init, 1)
         self.assertEqual(autre, [(0, 1)], 'le depliage d\'un autre fil a ete modifie')
 
+    def test_init_qui_echoue_remet_le_maillage(self):
+        """`init` peut vider le maillage avant d'echouer : les sommets et faces d'ORIGINE (copies de `read()`) sont reinjectes, pas de
+        maillage a moitie construit pour le depliage. Sans cette restitution le maillage reste dans l'etat laisse par l'echec."""
+        class InitUneFoisCasse(FauxCuMesh):
+            def init(self, v, f):
+                self.nb_init += 1
+                if self.nb_init == 1:
+                    self.v, self.f = None, None            # etat inconnu laisse par l'echec
+                    raise RuntimeError('init refuse')
+                self.v, self.f = v, f
+        V, F, _ = scene_figure_sur_feuille()
+        mesh = InitUneFoisCasse(V[:, [0, 2, 1]], F)
+        v0, f0 = mesh.v, mesh.f
+        journal = []
+        self.assertEqual(self.acc.retirer_dalle_cumesh(mesh, 2, log=journal.append), {})
+        self.assertEqual(mesh.nb_init, 2, "le maillage d'origine n'a pas ete reinjecte")
+        self.assertIs(mesh.v, v0)
+        self.assertIs(mesh.f, f0)
+        self.assertTrue(any('init refuse' in ligne for ligne in journal), journal)
+        # restitution impossible elle aussi : rien ne leve, la raison est dite
+        class InitToujoursCasse(FauxCuMesh):
+            def init(self, v, f):
+                raise RuntimeError('init refuse toujours')
+        journal = []
+        self.assertEqual(self.acc.retirer_dalle_cumesh(InitToujoursCasse(V[:, [0, 2, 1]], F), 2, log=journal.append), {})
+        self.assertTrue(any('NON restitue' in ligne for ligne in journal), journal)
+
+    def test_journal_dans_tous_les_cas(self):
+        """UNE ligne de journal par maillage traite : la dalle retiree, ou « aucune » avec le motif du refus. Sur Modal c'est la seule
+        trace de ce que le detecteur a decide (sans elle, un detecteur qui ne declenche jamais est invisible)."""
+        Vp, Fp, _ = personnage(-0.30)
+        journal = []
+        self.assertEqual(self.acc.retirer_dalle_cumesh(FauxCuMesh(Vp[:, [0, 2, 1]], Fp), 2, log=journal.append), {})
+        self.assertEqual(len(journal), 1, journal)
+        self.assertIn('dalle de sol : aucune', journal[0])
+        self.assertIn('bande horizontale', journal[0], 'le motif du refus doit figurer au journal')
+        V, F, _ = scene_figure_sur_feuille()
+        journal = []
+        self.assertTrue(self.acc.retirer_dalle_cumesh(FauxCuMesh(V[:, [0, 2, 1]], F), 2, log=journal.append))
+        self.assertEqual(len(journal), 1, journal)
+        self.assertIn('dalle de sol retiree', journal[0])
+        self.assertIn('analyse', journal[0])
+
+    def _module_avec(self, classe):
+        import types
+        return types.SimpleNamespace(CuMesh=classe)
+
+    def test_un_journal_qui_leve_ne_casse_rien(self):
+        """Flux de journal ferme (print dans un flux ferme, rappel qui leve) : ni le retrait, ni son refus, ni le filet du depliage, ni
+        l'installation du crochet ne doivent en souffrir. Une generation ne se perd pas pour une ligne de journal."""
+        def casse(_):
+            raise OSError('flux ferme')
+        V, F, idx = scene_figure_sur_feuille()
+        mesh = FauxCuMesh(V[:, [0, 2, 1]], F)
+        self.assertTrue(self.acc.retirer_dalle_cumesh(mesh, 2, log=casse))
+        self.assertEqual(len(mesh.f), len(idx['figure']))
+        Vp, Fp, _ = personnage(-0.30)
+        self.assertEqual(self.acc.retirer_dalle_cumesh(FauxCuMesh(Vp[:, [0, 2, 1]], Fp), 2, log=casse), {})
+        self.assertEqual(self.acc.retirer_dalle_cumesh(Casse2(np.zeros((3, 3)), [[0, 1, 2]]), 2, log=casse), {})
+
+        class Capricieux(FauxCuMesh):
+            def __init__(self, V, F):
+                super().__init__(V, F)
+                self.n0 = len(self.f)
+
+            def uv_unwrap(self, *a, **k):
+                self.uv_unwrap_appeles += 1
+                if len(self.f) != self.n0:
+                    raise RuntimeError('depliage impossible')
+                return 'depliage'
+        module = self._module_avec(Capricieux)
+        with self.acc.retrait_dalle_actif(True, log=casse, cumesh_module=module):
+            m = module.CuMesh(V[:, [0, 2, 1]], F)
+            self.assertEqual(m.uv_unwrap(), 'depliage')
+            self.assertEqual(m.uv_unwrap_appeles, 2)
+        # cumesh absent ET journal casse : l'installation rend False sans lever
+        self.assertFalse(self.acc.installer_retrait_dalle(object(), log=casse))
+
+    def test_depliage_qui_echoue_sans_la_dalle_est_rejoue_sur_l_original(self):
+        """FILET du crochet : le depliage n'a JAMAIS ete essaye sur un maillage a bord ouvert sous les pieds (GPU, non mesure). S'il echoue
+        apres le retrait, le maillage d'origine est remis et le depliage rejoue : la generation sort comme avant, sans le retrait, et le
+        rapport du retrait annule n'est plus rendu."""
+        class Capricieux(FauxCuMesh):
+            def __init__(self, V, F):
+                super().__init__(V, F)
+                self.n0 = len(self.f)
+
+            def uv_unwrap(self, *a, **k):
+                self.uv_unwrap_appeles += 1
+                if len(self.f) != self.n0:
+                    raise RuntimeError('depliage impossible sur un bord ouvert')
+                return 'depliage'
+        V, F, _ = scene_figure_sur_feuille(feuille_d_abord=True)
+        module = self._module_avec(Capricieux)
+        journal = []
+        with self.acc.retrait_dalle_actif(True, log=journal.append, cumesh_module=module) as rapports:
+            m = module.CuMesh(V[:, [0, 2, 1]], F)
+            v0, f0 = m.v, m.f
+            self.assertEqual(m.uv_unwrap(), 'depliage')
+            self.assertEqual(m.uv_unwrap_appeles, 2, 'le depliage devait etre rejoue une fois sur le maillage d\'origine')
+            self.assertEqual(m.nb_init, 2)
+            self.assertIs(m.v, v0)
+            self.assertIs(m.f, f0)
+            self.assertEqual(rapports, [], 'le rapport du retrait annule est encore la')
+            m.uv_unwrap()                                            # un depliage ulterieur du meme maillage ne retente rien
+            self.assertEqual(m.nb_init, 2)
+        self.assertTrue(any('restitue' in ligne for ligne in journal), journal)
+        # le meme depliage qui REUSSIT sur le maillage coupe : le rapport est rendu, aucun rejeu
+        module_sain = self._module_avec(type('CuMesh', (FauxCuMesh,), {}))
+        with self.acc.retrait_dalle_actif(True, cumesh_module=module_sain) as rapports:
+            m = module_sain.CuMesh(V[:, [0, 2, 1]], F)
+            m.uv_unwrap()
+            self.assertEqual((m.nb_init, m.uv_unwrap_appeles, len(rapports)), (1, 1, 1))
+
+    def test_depliage_qui_echoue_toujours_leve_comme_avant(self):
+        """Si le depliage echoue AUSSI sur le maillage d'origine, l'erreur remonte comme sans le crochet (le maillage est celui d'origine)."""
+        class Toujours(FauxCuMesh):
+            def uv_unwrap(self, *a, **k):
+                self.uv_unwrap_appeles += 1
+                raise RuntimeError('depliage KO')
+        V, F, _ = scene_figure_sur_feuille()
+        module = self._module_avec(Toujours)
+        with self.acc.retrait_dalle_actif(True, log=lambda *_: None, cumesh_module=module) as rapports:
+            m = module.CuMesh(V[:, [0, 2, 1]], F)
+            f0 = m.f
+            with self.assertRaises(RuntimeError) as ctx:
+                m.uv_unwrap()
+            self.assertIn('depliage KO', str(ctx.exception))
+            self.assertEqual(m.uv_unwrap_appeles, 2, 'un essai sur le maillage coupe, un sur l\'original')
+            self.assertIs(m.f, f0)
+            self.assertEqual(rapports, [])
+
+    def test_memoire_epuisee_pas_de_rejeu(self):
+        """Carte ou RAM epuisee : rejouer sur le maillage COMPLET (plus gros) ne peut pas reussir ; l'erreur remonte tout de suite (le
+        traitement de memoire de l'appelant, par exemple le repli de mode, la voit telle quelle) et le maillage reste coupe."""
+        class OutOfMemoryError(RuntimeError):
+            pass
+
+        class Memoire(FauxCuMesh):
+            def uv_unwrap(self, *a, **k):
+                self.uv_unwrap_appeles += 1
+                raise OutOfMemoryError('CUDA out of memory')
+        V, F, idx = scene_figure_sur_feuille()
+        module = self._module_avec(Memoire)
+        with self.acc.retrait_dalle_actif(True, log=lambda *_: None, cumesh_module=module):
+            m = module.CuMesh(V[:, [0, 2, 1]], F)
+            with self.assertRaises(OutOfMemoryError):
+                m.uv_unwrap()
+            self.assertEqual(m.uv_unwrap_appeles, 1, 'un depliage hors memoire a ete rejoue')
+            self.assertEqual(m.nb_init, 1)
+            self.assertEqual(len(m.f), len(idx['figure']))
+        self.assertTrue(self.acc._memoire_epuisee(MemoryError()))
+        self.assertFalse(self.acc._memoire_epuisee(RuntimeError('autre chose')))
+
+    def test_restitution_impossible_l_erreur_du_depliage_remonte(self):
+        """Le depliage echoue ET la restitution du maillage d'origine echoue : c'est l'erreur du DEPLIAGE qui remonte (pas celle de
+        `init`), et le journal dit que le maillage n'a pas pu etre remis."""
+        class Impossible(FauxCuMesh):
+            def init(self, v, f):
+                self.nb_init += 1
+                if self.nb_init >= 2:
+                    raise RuntimeError('init refuse a la restitution')
+                self.v, self.f = v, f
+
+            def uv_unwrap(self, *a, **k):
+                self.uv_unwrap_appeles += 1
+                raise RuntimeError('depliage KO')
+        V, F, _ = scene_figure_sur_feuille()
+        module = self._module_avec(Impossible)
+        journal = []
+        with self.acc.retrait_dalle_actif(True, log=journal.append, cumesh_module=module):
+            m = module.CuMesh(V[:, [0, 2, 1]], F)
+            with self.assertRaises(RuntimeError) as ctx:
+                m.uv_unwrap()
+            self.assertIn('depliage KO', str(ctx.exception))
+            self.assertEqual(m.uv_unwrap_appeles, 1)
+        self.assertTrue(any('NON restitue' in ligne for ligne in journal), journal)
+
     def test_cumesh_absent(self):
         journal = []
         faux_module = object()                       # pas de CuMesh
@@ -1466,6 +1775,168 @@ class TestAdaptateurTorch(unittest.TestCase):
         m2 = MeshTorch(Vp[:, [0, 2, 1]], Fp)
         self.assertEqual(acc.retirer_dalle_cumesh(m2, 2, log=lambda *_: None), {})
         self.assertEqual(m2.nb_init, 0)
+
+
+def charger_banc_atlas():
+    chemin = os.path.join(RACINE, 'build', 'bancs', 'fidelite', 'dalle_sol_atlas.py')
+    spec = importlib.util.spec_from_file_location('dalle_sol_atlas_sous_test', chemin)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+class TestAtlas(unittest.TestCase):
+    """Le banc de mesure de l'atlas : les chiffres que le protocole GPU compare entre un GLB d'avant et un GLB d'apres."""
+
+    def test_part_atlas_chiffres_connus(self):
+        banc = charger_banc_atlas()
+        # corps : aire 3D 0,5 (y de 0 a 1), aire UV 0,3 ; dalle : aire 3D 1,5 (a y = -1), aire UV 0,1
+        V = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, -1, 0], [3, -1, 0], [0, -1, 1]], float)
+        F = np.array([[0, 1, 2], [3, 4, 5]])
+        UV = np.array([[0, 0], [0.6, 0], [0, 1.0], [0.5, 0.5], [0.9, 0.5], [0.5, 1.0]], float)
+        r = banc.part_atlas(V, F, UV, np.array([True, False]), taille=1000)
+        self.assertAlmostEqual(r['aire_3d_retiree_pct'], 75.0, places=9)
+        self.assertAlmostEqual(r['atlas_retire_pct'], 25.0, places=9)
+        self.assertAlmostEqual(r['atlas_corps_pct'], 75.0, places=9)
+        self.assertAlmostEqual(r['occupation_pct'], 40.0, places=9)
+        self.assertAlmostEqual(r['densite_corps'], np.sqrt(0.3 / 0.5), places=9)
+        self.assertAlmostEqual(r['hauteur_corps'], 1.0, places=9)
+        self.assertAlmostEqual(r['texels_par_unite'], 1000 * np.sqrt(0.6), places=6)
+        self.assertAlmostEqual(r['texels_sur_la_hauteur'], 1000 * np.sqrt(0.6), places=6)
+        json.dumps(r)
+        # tout est corps : rien ne part, la densite est celle de l'ensemble
+        r = banc.part_atlas(V, F, UV, np.array([True, True]))
+        self.assertEqual((r['aire_3d_retiree_pct'], r['atlas_retire_pct']), (0.0, 0.0))
+        self.assertNotIn('texels_par_unite', r)
+
+    def test_gain_visible_plafonne_par_la_grille(self):
+        """L'orc a 2048 : 857 texels par unite contre une grille de 1024 voxels -> au mieux x1,19 de detail visible, pas x1,68 ; la meme
+        texture sur une grille de 1536 voxels profite du plein x1,68 ; une texture deja plus fine que la grille (4096) ne gagne rien."""
+        banc = charger_banc_atlas()
+        self.assertAlmostEqual(banc.gain_utile_estime(1.68, 857.0, 1024), 1024 / 857.0, places=9)
+        self.assertAlmostEqual(banc.gain_utile_estime(1.68, 857.0, 1536), 1.68, places=9)
+        self.assertEqual(banc.gain_utile_estime(1.68, 1714.0, 1024), 1.0)
+        self.assertEqual(banc.gain_utile_estime(1.68, None, 1024), 1.68)           # inconnu : le gain tel quel
+        self.assertEqual(banc.gain_utile_estime(1.68, 857.0, None), 1.68)
+        self.assertEqual(banc.gain_utile_estime(1.05, 857.0, 1024), 1.05)           # jamais plus que le gain lui-meme
+
+    def test_glb_texture_et_gain_de_resolution(self):
+        """Un GLB texture (UV = projection a plat, figure + feuille) : la dalle prend l'essentiel de l'atlas AVANT ; la variante APRES export
+        (UV inchanges) ne gagne rien (x1,00 mesure), alors que l'estimation pour un retrait AVANT le depliage est x1 / racine(part du corps)."""
+        import contextlib
+        import io
+        import tempfile
+        import trimesh
+        from PIL import Image
+        banc = charger_banc_atlas()
+        acc = charger_module()
+        V, F, idx = scene_figure_sur_feuille()
+        uv = np.stack([V[:, 0] + 0.5, V[:, 2] + 0.5], 1) * 0.9 + 0.05          # projection a plat sur le dessus
+        img = Image.fromarray(np.zeros((128, 128, 3), np.uint8))
+        mat = trimesh.visual.material.PBRMaterial(baseColorTexture=img)
+        m = trimesh.Trimesh(V, F, process=False, visual=trimesh.visual.TextureVisuals(uv=uv, material=mat))
+        with tempfile.TemporaryDirectory() as dossier:
+            avant, apres, sortie_json = (os.path.join(dossier, n) for n in ('avant.glb', 'apres.glb', 'sortie.json'))
+            trimesh.Scene(m).export(avant)
+            V2, F2, UV2, taille = banc.charger_glb_uv(avant)
+            self.assertEqual((len(F2), taille), (len(F), 128))
+            self.assertEqual(UV2.shape, (len(V2), 2))
+            self.assertAlmostEqual(float(banc.aires_uv(UV2, F2).sum()), float(banc.aires_uv(uv, F).sum()), places=6)
+            coupe, rapport = acc.retirer_dalle_sol(trimesh.load(avant, force='scene', process=False), 1)
+            self.assertTrue(rapport)
+            coupe.export(apres)
+            sortie = io.StringIO()
+            with contextlib.redirect_stdout(sortie):
+                self.assertEqual(banc.main([avant, apres, '--json', sortie_json]), 0)
+            with open(sortie_json, encoding='utf-8') as f:
+                res = json.load(f)
+        a = res['avant']
+        self.assertEqual(a['detecteur'], 'retire')
+        self.assertGreater(a['aire_3d_retiree_pct'], 50.0)
+        self.assertGreater(a['atlas_retire_pct'], 50.0, "la dalle devrait prendre l'essentiel de l'atlas")
+        self.assertEqual(res['apres']['detecteur'], 'inchange')
+        self.assertAlmostEqual(res['gain_lineaire_mesure'], 1.0, delta=1e-6)           # variante APRES export : les UV n'ont pas bouge
+        part_corps = 1.0 - a['aire_3d_retiree_pct'] / 100.0
+        self.assertAlmostEqual(res['gain_lineaire_estime'], 1.0 / np.sqrt(part_corps), places=9)
+        self.assertGreater(res['gain_lineaire_estime'], 1.5)
+        self.assertIn('GAIN LINEAIRE MESURE', sortie.getvalue())
+
+
+def charger_banc_mesures():
+    chemin = os.path.join(RACINE, 'build', 'bancs', 'fidelite', 'dalle_sol_mesures.py')
+    spec = importlib.util.spec_from_file_location('dalle_sol_mesures_sous_test', chemin)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+class TestBancMesures(unittest.TestCase):
+    """Fumee du banc de mesures sur GLB reels : chaque sous-commande tourne sur un GLB synthetique (figure + feuille) et rend les chiffres du module."""
+
+    def setUp(self):
+        import tempfile
+        import trimesh
+        self.banc = charger_banc_mesures()
+        self.dossier = tempfile.TemporaryDirectory()
+        V, F, self.idx = scene_figure_sur_feuille()
+        self.avec = os.path.join(self.dossier.name, 'avec_dalle.glb')
+        trimesh.Scene(trimesh.Trimesh(V, F, process=False)).export(self.avec)
+        Vp, Fp, _ = personnage(-0.30)
+        self.sans = os.path.join(self.dossier.name, 'sans_dalle.glb')
+        trimesh.Scene(trimesh.Trimesh(Vp, Fp, process=False)).export(self.sans)
+
+    def tearDown(self):
+        self.dossier.cleanup()
+
+    @staticmethod
+    def _args(**kw):
+        import argparse
+        return argparse.Namespace(module=None, **kw)
+
+    def test_balayage(self):
+        sortie = os.path.join(self.dossier.name, 'balayage.json')
+        res = self.banc.cmd_balayage(self._args(cibles=[self.dossier.name], max_mo=300.0, sortie=sortie))
+        par_nom = {r['nom']: r for r in res}
+        self.assertEqual(par_nom['avec_dalle.glb']['decision'], 'retire')
+        self.assertEqual(par_nom['sans_dalle.glb']['decision'], 'inchange')
+        self.assertIn('bande horizontale', par_nom['sans_dalle.glb']['raison'])
+        self.assertAlmostEqual(par_nom['avec_dalle.glb']['faces_pct'], 100.0 * len(self.idx['feuille']) / (len(self.idx['feuille']) + len(self.idx['figure'])), places=1)
+        with open(sortie, encoding='utf-8') as f:
+            self.assertEqual(len(json.load(f)), 2)
+        ignore = self.banc.cmd_balayage(self._args(cibles=[self.avec], max_mo=1e-6, sortie=None))
+        self.assertEqual(ignore[0]['decision'], 'ignore')
+
+    def test_inclinaison(self):
+        res = self.banc.cmd_inclinaison(self._args(glb=self.avec, angles=[0.5, 5.0]))
+        self.assertEqual(len(res), 4)                                          # deux angles autour de Z et de X
+        for r in res:
+            self.assertEqual(r['decision'], 'retire', r)
+            self.assertEqual((r['corps_perdu'], r['dalle_laissee']), (0, 0), r)
+            self.assertAlmostEqual(r['inclinaison_mesuree'], r['degres'], delta=0.03 * r['degres'] + 0.01)
+        self.assertEqual(self.banc.cmd_inclinaison(self._args(glb=self.sans, angles=[1])), [])       # rien a plat : rien a comparer
+
+    def test_composantes(self):
+        res = self.banc.cmd_composantes(self._args(glb=self.avec))
+        self.assertEqual(sorted(res), ['avec', 'sans'])
+        for r in res.values():
+            self.assertGreaterEqual(r['composantes'], 1)
+            self.assertEqual(r['composantes'], r['secondaires'] + 1)
+        self.assertEqual(self.banc.cmd_composantes(self._args(glb=self.sans)), {})
+
+    def test_decimation(self):
+        try:
+            import fast_simplification  # noqa: F401
+        except ImportError:
+            self.skipTest('fast_simplification absent')
+        res = self.banc.cmd_decimation(self._args(glb=self.avec, cibles=[10000, 4000]))
+        self.assertTrue(res and all(r['decision'] in ('retire', 'inchange') for r in res))
+        self.assertEqual(self.banc.cmd_decimation(self._args(glb=self.sans, cibles=[1000])), [])
+
+    def test_echelle_dans_un_processus_neuf(self):
+        res = self.banc.cmd_echelle(self._args(glb=self.avec, k=0, axe=1))
+        self.assertEqual(res['decision'], 'retire')
+        self.assertEqual(res['faces'], len(self.idx['feuille']) + len(self.idx['figure']))
+        self.assertGreater(res['duree_s'], 0.0)
 
 
 @unittest.skipUnless(os.path.exists(GLB_ORC), "GLB reel de l'orc absent (meshes/ n'est pas suivi par git)")
@@ -1555,6 +2026,55 @@ class TestOrcReel(unittest.TestCase):
             self.assertLess(perdu, 0.0005 * int(plat.sum()), '%s : %d faces du corps perdues' % (etiquette, perdu))
             self.assertLess(laisse, 0.001 * int((~plat).sum()), '%s : %d faces de dalle laissees' % (etiquette, laisse))
             self.assertAlmostEqual(rapport['dalle']['inclinaison_deg'], deg, delta=0.03 * deg)
+        # ZONE DE TRANSITION (mesure fine du 18/10, pas de 0,5 degre) : jusqu'a 13 degres le retrait est entier ; de 13,5 a 14,5 (Z) ou 15 (X) la
+        # fenetre de 2 % de la hauteur n'attrape plus toute la feuille et le retrait est PARTIEL (43 % de la dalle part, 57 % reste) ; au-dela
+        # rien n'est retire. Le CORPS, lui, ne souffre jamais : moins de 0,05 % de ses faces, que le retrait soit entier, partiel ou nul.
+        for plan, deg in (((0, 1), 13.0), ((0, 1), 14.0), ((2, 1), 14.0), ((2, 1), 15.0), ((0, 1), 16.0), ((2, 1), 18.0), ((0, 1), 25.0)):
+            garder, rapport = self.acc.masque_dalle_sol(V @ _rotation(plan, deg).T, F, 1)
+            perdu = int((plat & ~garder).sum())
+            self.assertLess(perdu, 0.0005 * int(plat.sum()), 'plan %s, %.1f degres : %d faces du corps perdues' % (plan, deg, perdu))
+            if deg >= 18.0:
+                self.assertEqual(rapport, {}, 'plan %s, %.1f degres : au-dela de la plage de calibrage rien ne doit etre retire (conservateur)' % (plan, deg))
+
+    def test_orc_scene_avec_materiaux(self):
+        """VARIANTE APRES EXPORT sur le GLB REEL avec ses MATERIAUX (la scene que charge trimesh, 21 Mo) : positions, UV et normales de
+        sommet EXPLICITES du fichier suivent les faces gardees (Scene.copy() perdrait ces normales : coutures d'UV durcies, ecart 2,0
+        mesure ici), la texture est celle de l'entree, le GLB reexporte (WebP, comme la production) est nettement plus leger et une
+        seconde passe ne change rien."""
+        import io
+        import trimesh
+        acc = self.acc
+        sc = trimesh.load(GLB_ORC, force='scene', process=False)
+        if len(sc.geometry) != 1 or not np.allclose(np.asarray(sc.graph[sc.graph.nodes_geometry[0]][0]), np.eye(4)):
+            self.skipTest("le GLB de l'orc n'a plus une geometrie unique sous une transformation neutre")
+        g = list(sc.geometry.values())[0]
+        v0, f0 = np.array(g.vertices), np.array(g.faces)
+        n0, uv0 = np.array(g.vertex_normals), np.array(g.visual.uv)
+        garder, _ = acc.masque_dalle_sol(v0, f0, 1)
+        sortie, rapport = acc.retirer_dalle_sol(sc, 1)
+        self.assertTrue(rapport)
+        self.assertIsNot(sortie, sc)
+        (gk,) = sortie.geometry.values()
+        fk, vk = np.asarray(gk.faces), np.asarray(gk.vertices)
+        self.assertEqual(len(fk), int(garder.sum()))
+        self.assertTrue(np.array_equal(vk[fk], v0[f0[garder]]), 'les positions des faces gardees ont change')
+        self.assertTrue(np.array_equal(np.asarray(gk.visual.uv)[fk], uv0[f0[garder]]), 'les UV des faces gardees ont change')
+        ecart = float(np.abs(np.asarray(gk.vertex_normals)[fk] - n0[f0[garder]]).max())
+        self.assertLess(ecart, 1e-6, 'les normales de sommet du fichier ont ete recalculees (ecart max %.2f)' % ecart)
+        self.assertIs(gk.visual.material, g.visual.material, 'le materiau (donc la texture) devait etre PARTAGE')
+        self.assertEqual(len(g.faces), len(f0), "l'entree a ete modifiee")
+        # export comme la production (WebP) : nettement plus leger que l'orc entier, et la relecture redonne les memes faces
+        acc.webp_rapide(sc)
+        acc.webp_rapide(sortie)
+        entier = len(sc.export(file_type='glb', extension_webp=True))
+        coupe = sortie.export(file_type='glb', extension_webp=True)
+        self.assertLess(len(coupe), 0.8 * entier, 'GLB coupe %d octets contre %d pour l\'orc entier' % (len(coupe), entier))
+        relu = trimesh.load(io.BytesIO(coupe), file_type='glb', force='scene', process=False)
+        self.assertEqual(sum(len(x.faces) for x in relu.geometry.values()), int(garder.sum()))
+        # seconde passe : plus rien a retirer, le MEME objet
+        sortie2, rapport2 = acc.retirer_dalle_sol(sortie, 1)
+        self.assertEqual(rapport2, {})
+        self.assertIs(sortie2, sortie)
 
 
 if __name__ == '__main__':

@@ -14,7 +14,9 @@ Rend 0 si tous les mutants sont tues, 1 sinon. Un journal par mutant dans le dos
 
 Historique : la relecture du 03/10 avait laisse survivre cos_horizontal 0,9 -> 0,5 (M0), bande_demi 1 % -> 4 % (M4) et le seuil de double
 face 20 % -> 90 % (M13) ; les tests 29, 30 et 31 les tuent (2026-10-15). Au premier passage du 15/10, 60 mutants sur 63 etaient tues ; les
-trois survivants (I5, I6, I9, tous sur les ilots detaches) ont donne les tests 33 et 33b.
+trois survivants (I5, I6, I9, tous sur les ilots detaches) ont donne les tests 33 et 33b. Le 18/10, les mutants A8 a A15 portent sur le filet du
+crochet (restitution du maillage, rejeu du depliage, journal) ; les tests du point 20 de la suite les tuent. Les mutants V et J portent sur la variante
+apres export (retirer_dalle_glb) et sur les journaux qui ne doivent jamais casser une generation.
 """
 import argparse
 import json
@@ -91,7 +93,7 @@ MUTANTS = {
     'S2_uv_prefixe': ("kw['visual'] = trimesh.visual.TextureVisuals(uv=np.asarray(vis.uv)[utiles], material=vis.material)",
                       "kw['visual'] = trimesh.visual.TextureVisuals(uv=np.asarray(vis.uv)[:len(utiles)], material=vis.material)"),
     'S3_scene_copy_simple': ("            nouvelle.geometry[nom_geo] = g.copy(include_cache=True)", "            pass"),
-    'S4_instance_multiple': ("        if nom_geo in vus:\n            return scene, {}", "        if False:\n            return scene, {}"),
+    'S4_instance_multiple': ("        if nom_geo in vus:\n", "        if False:\n"),
     'S5_materiau_copie': ("material=vis.material)", "material=vis.material.copy())"),
     # --- adaptateur cumesh / crochet
     'A1_dtype_faces': ("        f2 = np.ascontiguousarray(inv.reshape(-1, 3).astype(f_np.dtype))", "        f2 = np.ascontiguousarray(inv.reshape(-1, 3))"),
@@ -101,6 +103,30 @@ MUTANTS = {
     'A5_etat_partage': ("class _EtatRetrait(_threading.local):", "class _EtatRetrait(object):"),
     'A6_exception_non_attrapee': ("    except Exception as e:\n        log(\"[mesh] dalle de sol : retrait ignore", "    except KeyboardInterrupt as e:\n        log(\"[mesh] dalle de sol : retrait ignore"),
     'A7_hors_contexte_actif': ("    if not e.actif or getattr(mesh, '_dalle_traitee', False):", "    if getattr(mesh, '_dalle_traitee', False):"),
+    # --- filet du crochet (2026-10-18)
+    'A8_depliage_sans_filet': ("                if _memoire_epuisee(exc):\n                    raise\n                e = _ETAT_RETRAIT\n",
+                               "                raise\n                e = _ETAT_RETRAIT\n"),
+    'A9_memoire_rejouee': ("                if _memoire_epuisee(exc):\n                    raise\n", "                if False:\n                    raise\n"),
+    'A10_rapport_non_annule': ("                    e.rapports[:] = [r for r in e.rapports if r is not avant[1]]", "                    pass"),
+    'A11_restitution_ignoree': ("                if not _restituer(self, avant[0], journal):\n                    raise\n", "                _restituer(self, avant[0], journal)\n"),
+    'A12_init_sans_restitution': ("        if origine is not None:           # `init` a pu vider le maillage avant d'echouer : on remet celui d'origine\n            _restituer(mesh, origine, log)\n",
+                                  "        if origine is not None:\n            pass\n"),
+    'A13_pas_de_journal_aucune': ("            log(\"[mesh] dalle de sol : aucune (%s)\" % diag.get('raison', 'motif inconnu'))\n", "            pass\n"),
+    'A13b_motif_perdu': ("masque_dalle_sol(vn, fn, axe_haut, conserver_socle, diagnostic=diag, **reglages)", "masque_dalle_sol(vn, fn, axe_haut, conserver_socle, **reglages)"),
+    'A14_sauvegarde_vide': ("        if sauvegarde is not None:\n            sauvegarde.append(origine)\n", "        if sauvegarde is not None:\n            pass\n"),
+    'A15_origine_ignoree': ("    return (sauvegarde[0], rapport) if sauvegarde else None", "    return None"),
+    # --- variante apres export et journaux sans danger (2026-10-18)
+    'V1_glb_leve': ("    except Exception as e:\n        log(\"[mesh] dalle de sol (apres export) : retrait ignore (%s: %s)\" % (type(e).__name__, e))\n        return glb_obj, {}\n",
+                    "    except KeyboardInterrupt as e:\n        log(\"[mesh] dalle de sol (apres export) : retrait ignore (%s: %s)\" % (type(e).__name__, e))\n        return glb_obj, {}\n"),
+    'V2_glb_actif_ignore': ("    if not actif:\n        return glb_obj, {}\n    log = _journal_sur(log)\n", "    if False:\n        return glb_obj, {}\n    log = _journal_sur(log)\n"),
+    'V3_glb_pas_de_journal_refus': ("            log(\"[mesh] dalle de sol (apres export) : aucune (%s)\" % diag.get('raison', 'motif inconnu'))\n", "            pass\n"),
+    'V4_glb_motif_perdu': ("retirer_dalle_sol(glb_obj, 1, conserver_socle, diagnostic=diag, **reglages)", "retirer_dalle_sol(glb_obj, 1, conserver_socle, **reglages)"),
+    'V5_scene_instanciee_sans_motif': ("            _dire_pourquoi(reglages, 'geometrie instanciee plusieurs fois : scene non prise en charge')\n", ""),
+    'V6_scene_vide_sans_motif': ("        _dire_pourquoi(reglages, 'scene sans maillage')\n", ""),
+    'J1_journal_cumesh_non_protege': ("    log = _journal_sur(log)               # un journal qui leve ne doit rien casser\n", ""),
+    'J2_journal_glb_non_protege': ("    if not actif:\n        return glb_obj, {}\n    log = _journal_sur(log)\n    diag = {}\n", "    if not actif:\n        return glb_obj, {}\n    diag = {}\n"),
+    'J3_journal_filet_non_protege': ("                journal = _journal_sur(e.log or print)\n", "                journal = e.log or print\n"),
+    'J4_journal_installation_non_protege': ("    est absent ou refuse l'enveloppe.\"\"\"\n    log = _journal_sur(log)\n", "    est absent ou refuse l'enveloppe.\"\"\"\n"),
 }
 
 

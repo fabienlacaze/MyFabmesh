@@ -55,36 +55,58 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    SIGNATURE : une bande de faces quasi horizontales (|n| >= 0,9), epaisse de 2 % de la hauteur au plus, dans le tiers inferieur,
    faite de composantes connexes GROSSES (sommets soudes par position : les coutures d'UV dupliquent les sommets), dont l'aire
    d'UNE face vaut au moins 3 fois la silhouette (vue de dessus, remplie) du corps qui est au-dessus. Mesure : orc 14,1 ; sanglier
-   23,8 ; le plus fort refus 0,70 (un abri) ; sans cette exigence un abri perdrait 29 % de son aire, un camion 6 %.
+   23,8 ; le plus fort refus 0,84 pour un etre vivant (un essai de l'orc ; 1,16 pour une hutte en bois, type non concerne) sur 94 GLB reels
+   (la campagne de 36 maillages, 3 de 10 M de faces, 43 essais TRELLIS dont toutes les graines de l'orc et de la photo, 12 maillages locaux ;
+   certains sont des variantes d'un meme sujet) : aucune autre dalle, 0 faux positif ; sans cette exigence un abri perdrait 29 % de son
+   aire, un camion 6 %.
    Alors la coupe passe 0,25 % de la hauteur au-dessus de la feuille (la « ligne des pieds ») : tout ce qui est dessous part
    (feuille, rocher du dessous), et RIEN de rattache au corps ne part au-dessus (seules exceptions, les ILOTS ci-dessous). Un socle
    plein plus epais que la fenetre a deux feuilles : la plus haute qui deborde le corps donne la ligne. Au-dela de 15 % de la
    hauteur, seule la feuille a deux faces part (ce qui est dessous pourrait etre le corps). RESIDU ASSUME : le rocher qui est
    au-dessus de la feuille ET rattache aux pieds reste (orc : 5 % des faces, 2 % de l'aire), car rien ne distingue un rocher de
-   bottes evasees ou d'un ourlet de robe par la seule geometrie.
+   bottes evasees ou d'un ourlet de robe par la seule geometrie. LIMITE CONSERVATRICE : une creature etalee dont la silhouette depasse le
+   tiers de l'emprise de la dalle GARDE sa dalle (dragon couche aux ailes etalees sur une feuille de TRELLIS, synthetique : rapport 2,77
+   < 3) ; en revanche aucune creature plate au ras du sol n'est prise pour une dalle (ailes etalees, raie, papillon a plat : test 36).
    FEUILLE PENCHEE (2026-10-15, constat de la relecture du 03/10 : l'orc tourne de 0,25 a 4 degres perdait 1 a 11 % de son corps,
    la coupe horizontale passait au-dessus du bord haut de la feuille ; a 3 degres rien n'etait retire). Un plan est ajuste a la
    dalle (moindres carres ponderes par l'aire), retenu s'il change sa hauteur d'au moins le quart de la marge de coupe d'un bord a
    l'autre et reduit d'au moins 10 % la dispersion des hauteurs ; la bande est reprise autour du plan et la ligne devient un PLAN.
    Une feuille a plat garde la coupe horizontale d'avant, a l'octet. Mesure sur l'orc tourne de 0,02 a 25 degres autour de Z et de
-   X : corps perdu au plus 0,19 % des faces sous 0,1 degre (en dessous de la marge de coupe) et au plus 0,013 % de 0,1 a 12 degres ;
-   a 16 degres et au-dela rien n'est retire (la fenetre de 2 % de la hauteur n'attrape plus assez de la feuille : conservateur).
+   X : corps perdu au plus 0,09 % des faces sous 0,1 degre (en dessous de la marge de coupe) et au plus 0,006 % de 0,1 a 12 degres
+   (re-mesure le 18/10 : 0,036 % au plus sous 0,1 degre, 0,009 % de 0,1 a 13) ; ZONE DE TRANSITION de 13,5 a 14,5 degres (Z) ou 15 (X) :
+   la fenetre de 2 % de la hauteur n'attrape plus toute la feuille et le retrait devient PARTIEL (43 % de la dalle part, 57 % reste, corps
+   perdu 0,028 % au plus) ; a 15 degres (Z) ou 15,5 (X) et au-dela rien n'est retire (conservateur). Le corps ne souffre jamais, que le
+   retrait soit entier, partiel ou nul (test_orc_incline). Les deux dalles reelles (orc, sanglier) sont de niveau : 0,0 degre mesure.
    ILOTS DETACHES (2026-10-15, constat de la relecture : 258 composantes apres retrait sur l'orc, dont des plaques de rocher en
    l'air). Sont retirees avec le socle les composantes du maillage garde qui (1) ne sont pas la dominante (>= la moitie de l'aire
    gardee ; sinon le corps est en miettes et rien n'est decide), (2) ont ete TOUCHEES par la coupe (un sommet commun avec une face
    retiree : un morceau de rocher qui traversait la ligne, pas une piece du corps), (3) sont entierement a moins de 5 % de la
-   hauteur au-dessus de la ligne et (4) petites (5 % de l'aire gardee chacune, 10 % ensemble). Orc : 32 ilots, 9 067 faces, 1,9 % de
-   l'aire ; les 226 autres composantes secondaires (pointes de massue, dents, rivets, 5 a 56 % de la hauteur) ne touchent pas la
-   coupe et restent. `debris_hauteur=0` supprime ce retrait. Limite connue : une piece du corps disjointe, entamee par la coupe et
+   hauteur au-dessus de la ligne et (4) petites (5 % de l'aire gardee chacune, 10 % ensemble). Orc : 32 ilots, 9 067 faces, 0,7 %
+   de l'aire d'origine (1,9 % de l'aire gardee) ; les 226 autres composantes secondaires (pointes de massue, dents, rivets, 5 a 56 %
+   de la hauteur) ne touchent pas la coupe et restent. `debris_hauteur=0` supprime ce retrait. Limite connue : une piece du corps disjointe, entamee par la coupe et
    plus basse que 5 % de la hauteur (une botte detachee de la jambe) serait prise pour un ilot ; aucun des 36 maillages mesures n'en
    porte, et TRELLIS livre une surface d'un seul tenant.
    PISTE ECARTEE (consigne : ligne des pieds par la chute de la section de silhouette, socle = faces dessous hors de l'empreinte du
    corps dilatee, SANS feuille) : mesuree sur les memes 36 maillages, elle ampute de 0,4 a 4 % de leur aire 7 maillages SANS
    dalle (oie, canards, trois humains, un abri : pieds, bottes, soubassement) et ne retire que 49 % de l'aire de l'orc (contre 64 %). Banc : build/bancs/fidelite/dalle_sol_campagne.py.
-   Fonctions pures (numpy ; scipy et cv2 si presents), 0,3 s pour 500 K faces, 2,3 s et 0,9 Go de pic pour 5 M. L'APPELANT choisit
+   Fonctions pures (numpy ; scipy et cv2 si presents). Mesure du 18/10, processus neuf, sommets float32 / faces int32 : 0,7 s et 0,22 Go
+   de pic pour 500 K faces (l'orc), 2,0 s et 0,78 Go pour 2 M, 9,2 s et 3,0 Go pour 8 M (370 a 440 octets par face) ; les trois GLB reels
+   de 10 M de faces, sans dalle, demandent 2,3 a 3,6 s. L'APPELANT choisit
    les types (TYPES_CONCERNES : un batiment ou un vehicule a de vrais planchers). Apres le retrait la peau reste OUVERTE sous les
    pieds : aucune semelle n'est rebouchee (invisible de dessus ; avec conserver_socle=True la jonction feuille / rocher reste
    ouverte aussi).
+   ACCROCHE (NON branchee dans les pipelines : consigne du 03/10 ; proposition detaillee dans AGENT_LOG, entree du 2026-10-18). AVANT le
+   depliage UV, seule position qui rende l'atlas au corps : `with retrait_dalle_actif(type_concerne(type_actif), log=log):` autour de
+   l'appel de to_glb (bureau : main() de trellis2_native_full_pipeline.py apres accelerer_to_glb, FABMESH_RETRAIT_SOL=1 pose par main.js ;
+   Modal : _mesh.generate(..., retirer_sol=False), lu dans app.py, envoye par worker.ts selon asset_type). Le crochet enveloppe
+   CuMesh.uv_unwrap (appele par les DEUX branches de to_glb, avec ou sans remaillage) : aucun texte de to_glb a rechercher, et il voit le
+   maillage deja reduit a la cible, c'est-a-dire la geometrie du GLB sur laquelle les seuils ont ete calibres. Le journal dit a chaque
+   generation ce que le detecteur a decide. FILET : si le depliage echoue sans la dalle (hors memoire), le maillage d'origine est restitue
+   et le depliage rejoue. A NE PAS activer avec « Max triangles » (tris_exact) : le maillage final aurait 38 % de faces en moins que la
+   cible (orc), l'export serait refait pour rien (+30 a 50 s) et le nombre exact ne serait plus tenu. Variante APRES export, sans gain
+   d'atlas (les UV ne bougent pas : x1,00 mesure) mais sans risque GPU : `glb, _ = retirer_dalle_glb(glb, type_concerne(type_actif), log=log)`
+   juste apres to_glb (qui rend un Trimesh ; une Scene chargee d'un fichier marche aussi), avant les finitions et l'`export` (ne leve
+   jamais ; GLB WebP de l'orc 21,5 -> 14,0 Mo).
 """
 
 _INPAINT_AVANT = """    base_color = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_TELEA)
@@ -754,8 +776,9 @@ def _ilots_detaches(V, F, retire, hp, coupe, T, aires, etendue, r):
     """Ilots flottants laisses par la coupe : composantes du maillage GARDE (sommets soudes par position) qui (1) ne sont pas la
     composante dominante, (2) ont ete TOUCHEES par la coupe (elles partagent un sommet avec une face retiree : c'etait un morceau de
     rocher ou de sol qui traversait la ligne, pas une piece du corps), (3) sont entierement a moins de `debris_hauteur` au-dessus de
-    la ligne et (4) petites (`debris_aire_max` chacune, `debris_total_max` ensemble). Mesure sur l'orc : 32 de ces ilots, 9 067 faces,
-    1,9 % de l'aire, de 0 a 3,5 % de T au-dessus de la ligne, des plaques de rocher en l'air autour des pieds ; les 226 autres
+    la ligne et (4) petites (`debris_aire_max` chacune, `debris_total_max` ensemble ; fractions de l'aire GARDEE). Mesure sur l'orc :
+    32 de ces ilots, 9 067 faces, 1,9 % de l'aire gardee (0,7 % de l'aire d'origine), de 0 a 3,5 % de T au-dessus de la ligne, des
+    plaques de rocher en l'air autour des pieds ; les 226 autres
     composantes secondaires (pointes de massue, dents, rivets : 5 a 56 % de T, aucune ne touche la coupe) ne sont pas concernees.
     Rend un masque bool (m,) des faces a retirer en plus, ou None."""
     import numpy as np
@@ -1164,6 +1187,14 @@ def retirer_dalle_sol(maillage, axe_haut=1, conserver_socle=False, **reglages):
     return _sous_maillage(maillage, garder), rapport
 
 
+def _dire_pourquoi(reglages, raison):
+    """Renseigne `diagnostic` (s'il est demande) quand un refus survient AVANT l'analyse (scene non prise en charge)."""
+    d = reglages.get('diagnostic')
+    if isinstance(d, dict):
+        d['decision'] = 'inchange'
+        d['raison'] = raison
+
+
 def _retirer_scene(scene, axe_haut, conserver_socle, **reglages):
     import numpy as np
     noeuds = []
@@ -1174,10 +1205,12 @@ def _retirer_scene(scene, axe_haut, conserver_socle, **reglages):
         if g is None or not hasattr(g, 'faces') or len(g.faces) == 0:
             continue
         if nom_geo in vus:
+            _dire_pourquoi(reglages, 'geometrie instanciee plusieurs fois : scene non prise en charge')
             return scene, {}                      # geometrie instanciee plusieurs fois : non prise en charge, rien n'est touche
         vus.add(nom_geo)
         noeuds.append((nom_geo, g, np.asarray(T, np.float64)))
     if not noeuds:
+        _dire_pourquoi(reglages, 'scene sans maillage')
         return scene, {}
     Vs, Fs, borne = [], [], [0]
     deca = 0
@@ -1206,6 +1239,32 @@ def _retirer_scene(scene, axe_haut, conserver_socle, **reglages):
     return nouvelle, rapport
 
 
+def retirer_dalle_glb(glb_obj, actif=True, conserver_socle=False, log=print, **reglages):
+    """VARIANTE APRES EXPORT (sans gain d'atlas : les UV ne bougent pas, seul le maillage s'allege) : `retirer_dalle_sol` sur le GLB
+    trimesh (le Trimesh que rend to_glb, ou une Scene chargee d'un fichier) juste apres to_glb, avant les finitions et l'`export`.
+    Rend (glb, rapport). NE LEVE JAMAIS : au pire l'objet d'entree et {}. UNE ligne de journal dans tous les cas, avec le motif d'un
+    refus ; `actif=False` : rien n'est fait ni journalise (l'appelant passe `type_concerne(type_actif)`)."""
+    if not actif:
+        return glb_obj, {}
+    log = _journal_sur(log)
+    diag = {}
+    try:
+        sortie, rapport = retirer_dalle_sol(glb_obj, 1, conserver_socle, diagnostic=diag, **reglages)
+    except Exception as e:
+        log("[mesh] dalle de sol (apres export) : retrait ignore (%s: %s)" % (type(e).__name__, e))
+        return glb_obj, {}
+    try:
+        if rapport:
+            log("[mesh] dalle de sol retiree apres export : %d faces (%.1f %%), %.1f %% de l'aire, ligne des pieds a %.1f %% de la hauteur (%s)"
+                % (rapport['faces_retirees'], rapport['faces_retirees_pct'], rapport['aire_retiree_pct'],
+                   100 * rapport['ligne_pieds']['fraction'], '+'.join(rapport['criteres'])))
+        else:
+            log("[mesh] dalle de sol (apres export) : aucune (%s)" % diag.get('raison', 'motif inconnu'))
+    except Exception:
+        pass
+    return sortie, rapport
+
+
 # ---- Branchement AVANT le depliage UV de o_voxel.postprocess.to_glb (la seule position qui redonne de l'atlas
 # au corps : le depliage repartit l'atlas selon l'aire de surface, la dalle et le socle en prennent 65 %).
 # Dans to_glb, `mesh` est un cumesh.CuMesh dans le repere des sommets de TRELLIS (Z vers le haut : to_glb ne
@@ -1217,35 +1276,71 @@ def _en_numpy(x):
     return x.detach().cpu().numpy() if hasattr(x, 'detach') else np.asarray(x)
 
 
-def retirer_dalle_cumesh(mesh, axe_haut=2, conserver_socle=False, log=print, **reglages):
+def _journal_sur(log):
+    """Enveloppe `log` pour qu'il ne leve jamais (flux ferme...) : un journal ne doit rien casser."""
+    def dire(message):
+        try:
+            log(message)
+        except Exception:
+            pass
+    return dire
+
+
+def _restituer(mesh, origine, log):
+    """Remet dans `mesh` les sommets et faces d'avant le retrait (copies rendues par `read()`, qui survivent aux modifications du
+    maillage : to_glb s'en sert apres simplify et uv_unwrap). Ne leve jamais ; rend False si le maillage n'a pas pu etre remis."""
+    try:
+        mesh.init(*origine)
+        return True
+    except Exception as e:
+        log("[mesh] dalle de sol : maillage d'origine NON restitue (%s: %s)" % (type(e).__name__, e))
+        return False
+
+
+def retirer_dalle_cumesh(mesh, axe_haut=2, conserver_socle=False, log=print, sauvegarde=None, **reglages):
     """Retire la dalle de sol d'un cumesh.CuMesh : lecture `mesh.read()`, reinitialisation `mesh.init()` avec les
     seules faces gardees (meme schema que _reduire_sans_plis). Rend le rapport ({} si rien n'est retire).
-    NE LEVE JAMAIS : au pire le maillage reste tel quel et la raison est journalisee."""
+    NE LEVE JAMAIS : au pire le maillage reste tel quel (si `init` echoue en cours de route, le maillage d'origine est reinjecte)
+    et la raison est journalisee. UNE ligne de journal dans tous les cas, retrait ou refus (« dalle de sol : aucune (motif) ») : sur
+    Modal c'est la seule trace de ce que le detecteur a decide pour chaque generation.
+    `sauvegarde` : liste optionnelle qui recoit le couple (sommets, faces) D'ORIGINE quand le maillage a ete modifie : le crochet du
+    depliage s'en sert pour restituer le maillage si le depliage echoue sans la dalle."""
+    log = _journal_sur(log)               # un journal qui leve ne doit rien casser
+    origine = None
     try:
         import numpy as np
         v, f = mesh.read()
         vn = _en_numpy(v)
         f_np = _en_numpy(f)
         fn = f_np.astype(np.int64)
-        garder, rapport = masque_dalle_sol(vn, fn, axe_haut, conserver_socle, **reglages)
+        diag = {}
+        garder, rapport = masque_dalle_sol(vn, fn, axe_haut, conserver_socle, diagnostic=diag, **reglages)
         if not rapport:
+            log("[mesh] dalle de sol : aucune (%s)" % diag.get('raison', 'motif inconnu'))
             return {}
         utiles, inv = np.unique(fn[garder].reshape(-1), return_inverse=True)
         v2 = np.ascontiguousarray(vn[utiles])
         f2 = np.ascontiguousarray(inv.reshape(-1, 3).astype(f_np.dtype))
+        message = ("[mesh] dalle de sol retiree : %d faces (%.1f %%), %.1f %% de l'aire, ligne des pieds a %.1f %% de la hauteur (%s)%s, analyse %.1f s"
+                   % (rapport['faces_retirees'], rapport['faces_retirees_pct'], rapport['aire_retiree_pct'],
+                      100 * rapport['ligne_pieds']['fraction'], '+'.join(rapport['criteres']),
+                      (', dont %d faces d\'ilots detaches' % rapport['ilots']['faces']) if rapport.get('ilots') else '',
+                      rapport.get('duree_s', 0.0)))
+        origine = (v, f)
         if hasattr(v, 'detach'):
             import torch
             mesh.init(torch.from_numpy(v2).to(device=v.device, dtype=v.dtype),
                       torch.from_numpy(f2).to(device=f.device, dtype=f.dtype))
         else:
             mesh.init(v2, f2)
-        log("[mesh] dalle de sol retiree : %d faces (%.1f %%), %.1f %% de l'aire, ligne des pieds a %.1f %% de la hauteur (%s)%s"
-            % (rapport['faces_retirees'], rapport['faces_retirees_pct'], rapport['aire_retiree_pct'],
-               100 * rapport['ligne_pieds']['fraction'], '+'.join(rapport['criteres']),
-               (', dont %d faces d\'ilots detaches' % rapport['ilots']['faces']) if rapport.get('ilots') else ''))
+        if sauvegarde is not None:
+            sauvegarde.append(origine)
+        log(message)                      # `init` a reussi : plus rien ne doit pouvoir lever d'ici
         return rapport
     except Exception as e:
         log("[mesh] dalle de sol : retrait ignore (%s: %s)" % (type(e).__name__, e))
+        if origine is not None:           # `init` a pu vider le maillage avant d'echouer : on remet celui d'origine
+            _restituer(mesh, origine, log)
         return {}
 
 
@@ -1262,22 +1357,34 @@ _ETAT_RETRAIT = _EtatRetrait()
 
 
 def _avant_depliage(mesh):
+    """Retire la dalle de `mesh` avant son PREMIER depliage. Rend None (rien n'a ete modifie) ou (origine, rapport) : `origine` =
+    (sommets, faces) d'avant le retrait, pour restituer le maillage si le depliage echoue."""
     e = _ETAT_RETRAIT
     if not e.actif or getattr(mesh, '_dalle_traitee', False):
-        return
+        return None
     try:
         mesh._dalle_traitee = True            # une seule passe par maillage, meme si le depliage est rejoue
     except Exception:
         pass
-    rapport = retirer_dalle_cumesh(mesh, e.axe_haut, e.conserver_socle, e.log or print, **(e.reglages or {}))
-    if rapport and e.rapports is not None:
+    sauvegarde = []
+    rapport = retirer_dalle_cumesh(mesh, e.axe_haut, e.conserver_socle, e.log or print, sauvegarde=sauvegarde, **(e.reglages or {}))
+    if not rapport:
+        return None
+    if e.rapports is not None:
         e.rapports.append(rapport)
+    return (sauvegarde[0], rapport) if sauvegarde else None
+
+
+def _memoire_epuisee(exc):
+    """Carte ou RAM epuisee : rejouer le depliage sur le maillage COMPLET (plus gros) ne peut pas reussir, inutile d'essayer."""
+    return isinstance(exc, MemoryError) or 'OutOfMemory' in type(exc).__name__
 
 
 def installer_retrait_dalle(cumesh_module=None, log=print) -> bool:
     """Enveloppe (une fois) cumesh.CuMesh.uv_unwrap : tant qu'un `retrait_dalle_actif` est ouvert dans le fil courant,
     la dalle est retiree juste avant le depliage. Hors contexte le crochet ne fait rien. Rend False (journal) si cumesh
     est absent ou refuse l'enveloppe."""
+    log = _journal_sur(log)
     try:
         if cumesh_module is None:
             import cumesh as cumesh_module
@@ -1287,8 +1394,25 @@ def installer_retrait_dalle(cumesh_module=None, log=print) -> bool:
         original = cls.uv_unwrap
 
         def uv_unwrap(self, *args, **kwargs):
-            _avant_depliage(self)
-            return original(self, *args, **kwargs)
+            avant = _avant_depliage(self)
+            if avant is None:
+                return original(self, *args, **kwargs)
+            try:
+                return original(self, *args, **kwargs)
+            except Exception as exc:
+                # FILET : le depliage n'a jamais ete essaye sur un maillage a bord ouvert sous les pieds (GPU, a verifier). S'il
+                # echoue (hors memoire), le maillage d'origine est remis et le depliage rejoue : au pire la generation sort comme avant.
+                if _memoire_epuisee(exc):
+                    raise
+                e = _ETAT_RETRAIT
+                journal = _journal_sur(e.log or print)
+                journal("[mesh] dalle de sol : depliage impossible sans la dalle (%s: %s) : maillage d'origine restitue, depliage rejoue"
+                        % (type(exc).__name__, exc))
+                if e.rapports is not None:
+                    e.rapports[:] = [r for r in e.rapports if r is not avant[1]]
+                if not _restituer(self, avant[0], journal):
+                    raise
+                return original(self, *args, **kwargs)
         uv_unwrap.__wrapped__ = original
         cls.uv_unwrap = uv_unwrap
         cls._fabmesh_retrait_dalle = True
@@ -1302,7 +1426,9 @@ def installer_retrait_dalle(cumesh_module=None, log=print) -> bool:
 def retrait_dalle_actif(actif=True, conserver_socle=False, axe_haut=2, log=print, cumesh_module=None, **reglages):
     """Contexte d'une generation : `with retrait_dalle_actif(type_concerne(type_actif), log=log) as rapports: ...to_glb...`.
     Hors de ce contexte (ou actif=False), to_glb se comporte exactement comme avant. `rapports` : liste des rapports
-    (un par maillage depliee dans le contexte). L'etat est propre au fil et remis a zero a la sortie, meme sur exception."""
+    (un par maillage deplie dans le contexte ; un retrait annule parce que le depliage a echoue sans la dalle en est retire).
+    L'etat est propre au fil et remis a zero a la sortie, meme sur exception : le contexte doit etre ouvert DANS le fil qui appelle
+    to_glb. A ne PAS ouvrir avec « Max triangles » (tris_exact) : voir ACCROCHE dans l'en-tete du fichier."""
     if not actif:
         yield []
         return
