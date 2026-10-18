@@ -541,6 +541,16 @@ _NEG_EXCEPT = frozenset('except excepting excluding besides apart aside save unl
 # Seuls, en fin de segment (« no birds flying »), ils font partie du groupe nie. Liste FERMEE : un nom en -ing (« clothing », « building », « painting ») n'en est pas un.
 _NEG_VERBES = frozenset(('holding wearing carrying standing sitting walking running looking riding having using showing wielding gripping covered '
                          'dressed clad posing facing lying kneeling crouching leaning resting hanging jumping fighting floating hovering').split())
+# participes qui decrivent le SUJET de la phrase, pas l'objet nie : « an orc with no helmet standing », « a man with no hat smiling », « a robot with no head walking ».
+# Contrairement a _NEG_VERBES (qui n'ouvre une autre proposition que si quelque chose le SUIT), ceux-ci ferment le groupe nie MEME en fin de segment : le mot reste dans le
+# positif (« an orc standing ») et n'entre pas dans le terme de negatif, qui deviendrait « helmet standing » et pousserait le modele a NE PAS dessiner un orc debout (constate le
+# 2026-10-18 : le positif perdait « standing » ET le negatif le contenait). Liste FERMEE, sans nom en -ing (« writing », « building ») ni adjectif de groupe nominal (« glowing
+# eyes ») : un mot absent de la liste en fin de groupe reste dans le terme, comme avant.
+_NEG_PARTICIPES_SUJET = frozenset(('standing sitting walking running looking riding posing facing lying kneeling crouching leaning resting jumping fighting flying floating '
+                                   'hovering holding wearing carrying having using showing wielding gripping dancing smiling laughing grinning frowning crying sleeping '
+                                   'waving talking shouting screaming praying meditating punching kicking aiming throwing roaring growling snarling howling barking '
+                                   'perching crawling gazing staring watching listening galloping leaping sprinting marching raising lifting swinging grasping clutching brandishing '
+                                   'hefting').split())
 # formes CONJUGUEES et modaux : le groupe qui les precede est leur SUJET (« no soldier wears a helmet »). En tete de segment la negation est refusee ;
 # au milieu d'une phrase (« a knight without a helmet wears a cape ») le verbe appartient au sujet de la phrase et reste.
 _NEG_FINIS = frozenset('holds wears carries stands sits has have had does do did could would should shall might must can will may'.split())
@@ -722,10 +732,14 @@ def _neg_avant_negatif(sortie):
     return False
 
 
-def _neg_ouvre(jetons, j, w, ferme):
-    """Le mot `w` (jeton j) ouvre-t-il une AUTRE proposition ? Un verbe en -ing de la liste fermee, quand quelque chose le suit dans le segment (« no helmet holding
-    axe », « no wheels floating above the ground »). Seul en fin de segment ou de phrase (« no birds flying »), il fait partie du groupe nie."""
-    return w in _NEG_VERBES and not ferme and j + 1 < len(jetons)
+def _neg_ouvre(jetons, j, w, ferme, sujet=True):
+    """Le mot `w` (jeton j) ouvre-t-il une AUTRE proposition ? Un participe de _NEG_PARTICIPES_SUJET, MEME en fin de segment (« an orc with no helmet standing ») quand la
+    locution se rattache a un sujet (`sujet` : au milieu d'une phrase, ou segment qui commence par une liaison « with no X »). Sinon (`sujet` faux : segment qui COMMENCE par la
+    negation, « a street, no birds flying » : rien dans ce segment pour porter le participe, il appartient au groupe nie) : un participe de _NEG_VERBES ou _NEG_PARTICIPES_SUJET
+    quand quelque chose le suit dans le segment (« no helmet holding axe », « no hat smiling at the camera », « no wheels floating above the ground »)."""
+    if sujet and w in _NEG_PARTICIPES_SUJET:
+        return True
+    return (w in _NEG_VERBES or w in _NEG_PARTICIPES_SUJET) and not ferme and j + 1 < len(jetons)
 
 
 def _neg_suite(jetons, i, decl, ferme):
@@ -756,14 +770,14 @@ def _neg_suite(jetons, i, decl, ferme):
     if m >= n:
         return None
     w3, _ = _neg_coeur(jetons[m])
-    if w3 is None or w3 in _NEG_FIN_GN or w3 in _NEG_EXCEPT or w3 in _NEG_VERBES or w3 in _NEG_FINIS:
+    if (w3 is None or w3 in _NEG_FIN_GN or w3 in _NEG_EXCEPT or w3 in _NEG_VERBES or w3 in _NEG_PARTICIPES_SUJET or w3 in _NEG_FINIS):
         return None
     if not repete and len(w3) >= 5 and w3.endswith('ed'):
         return None
     return k, repete
 
 
-def _neg_liste(jetons, i, decl):
+def _neg_liste(jetons, i, decl, sujet=True):
     """Lit les groupes nominaux nies apres le declencheur `decl` (no / not / never / without), a partir du jeton i.
     -> (termes, fin, ferme) ou None si ce n'est pas une negation exploitable. `fin` : premier jeton APRES la liste ; `ferme` : le dernier groupe finit par une
     ponctuation de fin. Un groupe s'arrete devant : un non-mot, une fin de groupe, un marqueur d'exception, un article (« no beard a mustache »), une parenthese
@@ -778,9 +792,12 @@ def _neg_liste(jetons, i, decl):
     ferme = False
     repete = False
     while True:
+        # a la reprise d'une liste par un declencheur REPETE (« no helmet and not wearing a scarf »), le verbe leger du second declencheur se saute aussi, comme le fait deja
+        # _neg_suite en regardant en avant : sans cela « wearing » devenait un terme et la locution entiere etait refusee (constate le 2026-10-18)
+        saut_g = _NEG_SAUT_AUTRES if (repete or decl != 'no') else saut
         while i < n:
             w, _ = _neg_coeur(jetons[i])
-            if w is not None and w in saut:
+            if w is not None and w in saut_g:
                 i += 1
             else:
                 break
@@ -806,7 +823,7 @@ def _neg_liste(jetons, i, decl):
                 continue
             if w is None or w in _NEG_FIN_GN or w in _NEG_EXCEPT:
                 break
-            if mots and (jetons[j][0] in '([{' or w in _NEG_ARTICLES or w in _NEG_FINIS or _neg_ouvre(jetons, j, w, f)):
+            if mots and (jetons[j][0] in '([{' or w in _NEG_ARTICLES or w in _NEG_FINIS or _neg_ouvre(jetons, j, w, f, sujet)):
                 break
             mots.append(w)
             ferme_groupe = f
@@ -832,6 +849,33 @@ def _neg_liste(jetons, i, decl):
     return termes, fin, ferme
 
 
+# prepositions qui ouvrent un complement du sujet : apres « with no weapons but », elles suivent la conjonction (« but with armor ») ; la conjonction n'a plus rien a lier
+_NEG_PREPS_COMPL = frozenset('with without in on at by from under over near beside behind above below across around inside outside'.split())
+_NEG_CONJ_POSITIF = frozenset('and but yet'.split())
+
+
+def _neg_conj_apres(jetons, fin):
+    """AU MILIEU d'une phrase : la locution negative finit en `fin` (premier jeton apres le groupe nie). Si ce jeton est « and » / « but » / « yet » et qu'il introduit un complement
+    POSITIF (« a man with no beard but a mustache », « an orc with no weapons and armor »), la conjonction n'a plus rien a lier une fois la locution partie (« a man but a mustache »).
+    -> None (on n'y touche pas : fin de texte, ponctuation, une autre negation qui suit, aucune conjonction), ('drop', k) : la conjonction part, on reprend en k (un complement ou un
+    verbe suit : « but with armor », « and wearing a cape » ; ou rien : « with no helmet and »), ('lien', k) : la conjonction est REMPLACEE par le mot qui liait la locution
+    (« with » de « with no X », le verbe de « not wearing X ») et on reprend en k : « a man with no beard but a mustache » -> « a man with a mustache »."""
+    n = len(jetons)
+    if fin >= n:
+        return None
+    w, f = _neg_coeur(jetons[fin])
+    if w not in _NEG_CONJ_POSITIF or f:
+        return None
+    if fin + 1 >= n:
+        return ('drop', n)
+    t, _ = _neg_coeur(jetons[fin + 1])
+    if t is None or t in _NEG_DECLENCHEURS:
+        return None
+    if t in _NEG_PREPS_COMPL or t in _NEG_PRONOMS or t in _NEG_COPULES or _neg_verbal(jetons[fin + 1]):
+        return ('drop', fin + 1)       # un complement, un verbe ou une proposition (« and he is wearing... ») suit
+    return ('lien', fin + 1)
+
+
 def _neg_verbal(jeton):
     w, _ = _neg_coeur(jeton)
     return w is not None and (w in _NEG_VERBES or w in _NEG_FINIS or (len(w) >= 5 and (w.endswith('ing') or w.endswith('ed'))))
@@ -845,7 +889,7 @@ def _neg_suit_ing(jetons, i):
     return w is not None and len(w) >= 5 and w.endswith('ing')
 
 
-def _neg_reprise(jetons, fin, ferme, debut):
+def _neg_reprise(jetons, fin, ferme, debut, sujet=True):
     """Que devient ce qui SUIT le groupe nie (a partir de `fin`) ? -> indice ou reprendre le balayage (les jetons avant lui partent avec la locution), ou -1 : refus,
     le texte reste tel quel.
     Refus dans tous les cas : un marqueur d'exception ou « of » non absorbe (« no armor except a helmet »), un article (« no beard a mustache » : deux groupes sans
@@ -870,7 +914,7 @@ def _neg_reprise(jetons, fin, ferme, debut):
             return -1
         if w in _NEG_COPULES and _neg_suit_ing(jetons, fin):
             return -1
-        if w is not None and _neg_ouvre(jetons, fin, w, f):
+        if w is not None and _neg_ouvre(jetons, fin, w, f, sujet):
             return fin
         for k in range(fin, n):
             wk = _neg_coeur(jetons[k])[0]
@@ -955,11 +999,12 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
             elif w == 'not' and i + 1 < n and _neg_coeur(jetons[i + 1])[0] in _NEG_LEGERS_NOT:
                 decl = w
         if decl is not None:
-            res = _neg_liste(jetons, i + 1, decl)
+            sujet = not (debut and not sortie)         # faux : le segment COMMENCE par la negation (voir _neg_ouvre)
+            res = _neg_liste(jetons, i + 1, decl, sujet)
             reprise = -1
             if res is not None:
                 termes, fin, ferme = res
-                reprise = _neg_reprise(jetons, fin, ferme, debut)
+                reprise = _neg_reprise(jetons, fin, ferme, debut, sujet)
             if reprise >= 0:
                 for t in termes:
                     if t not in etat and len(etat) < MAX_TERMES_NEGATIFS:
@@ -967,9 +1012,26 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
                 modifie = True
                 if debut:
                     sortie = []
-                elif precedent:
-                    sortie.pop()
-                i = reprise
+                    i = reprise
+                else:
+                    # AU MILIEU d'une phrase, une conjonction (« but », « and ») qui suit la locution introduit un complement positif : voir _neg_conj_apres
+                    suite = _neg_conj_apres(jetons, reprise) if reprise == fin else None
+                    lien = None
+                    if suite is not None and suite[0] == 'lien' and not precedent:
+                        # le mot qui liait la locution : « with » (« without X but Y »), le verbe leger de « not wearing X but Y » ; avec un mot AVANT « no » (« with no X »,
+                        # « has no X ») ce mot est deja la, on le GARDE (il n'est pas retire). Rien pour remplacer la conjonction : on n'y touche pas.
+                        if decl == 'without':
+                            lien = 'with'
+                        elif decl == 'not' and i + 1 < n and _neg_coeur(jetons[i + 1])[0] in _NEG_LEGERS_NOT:
+                            lien = jetons[i + 1]
+                        else:
+                            suite = None
+                    if suite is None or suite[0] == 'drop':
+                        if precedent:
+                            sortie.pop()
+                    elif lien:
+                        sortie.append(lien)
+                    i = reprise if suite is None else suite[1]
                 coupe_fin = i >= n
                 continue
         sortie.append(jeton)

@@ -443,6 +443,13 @@ const NEG_EXCEPT = _mots('except excepting excluding besides apart aside save un
 // (« no birds flying »), ils font partie du groupe nie. Liste FERMEE : un nom en -ing (« clothing », « building ») n'en est pas un.
 const NEG_VERBES = _mots('holding wearing carrying standing sitting walking running looking riding having using showing wielding gripping covered '
   + 'dressed clad posing facing lying kneeling crouching leaning resting hanging jumping fighting floating hovering');
+// participes qui decrivent le SUJET de la phrase, pas l'objet nie (« an orc with no helmet standing », « a man with no hat smiling »). Contrairement a NEG_VERBES (qui n'ouvre
+// une autre proposition que si quelque chose le SUIT), ceux-ci ferment le groupe nie MEME en fin de segment. Voir _NEG_PARTICIPES_SUJET (Python). Liste FERMEE.
+const NEG_PARTICIPES_SUJET = _mots('standing sitting walking running looking riding posing facing lying kneeling crouching leaning resting jumping fighting flying floating '
+  + 'hovering holding wearing carrying having using showing wielding gripping dancing smiling laughing grinning frowning crying sleeping '
+  + 'waving talking shouting screaming praying meditating punching kicking aiming throwing roaring growling snarling howling barking '
+  + 'perching crawling gazing staring watching listening galloping leaping sprinting marching raising lifting swinging grasping clutching brandishing '
+  + 'hefting');
 // formes CONJUGUEES et modaux : le groupe qui les precede est leur SUJET (« no soldier wears a helmet »)
 const NEG_FINIS = _mots('holds wears carries stands sits has have had does do did could would should shall might must can will may');
 const NEG_COPULES = _mots('is are was were be been being');
@@ -599,9 +606,12 @@ function negAvantNegatif(sortie) {
   return false;
 }
 
-/** Le mot `w` (jeton j) ouvre-t-il une AUTRE proposition ? Un verbe en -ing de la liste fermee, quand quelque chose le suit dans le segment. */
-function negOuvre(jetons, j, w, ferme) {
-  return NEG_VERBES.has(w) && !ferme && j + 1 < jetons.length;
+/** Le mot `w` (jeton j) ouvre-t-il une AUTRE proposition ? Un participe de NEG_PARTICIPES_SUJET, MEME en fin de segment, quand la locution se rattache a un sujet (`sujet` : milieu
+ *  de phrase, ou segment qui commence par une liaison) ; sinon un participe de NEG_VERBES ou NEG_PARTICIPES_SUJET quand quelque chose le suit dans le segment.
+ *  Voir _neg_ouvre (Python). */
+function negOuvre(jetons, j, w, ferme, sujet = true) {
+  if (sujet && NEG_PARTICIPES_SUJET.has(w)) return true;
+  return (NEG_VERBES.has(w) || NEG_PARTICIPES_SUJET.has(w)) && !ferme && j + 1 < jetons.length;
 }
 
 /** La liste nommee continue-t-elle apres le groupe qui finit en i ? -> [indice ou reprendre, declencheur repete] ou null. */
@@ -625,13 +635,13 @@ function negSuite(jetons, i, decl, ferme) {
   }
   if (m >= n) return null;
   const w3 = negCoeur(jetons[m])[0];
-  if (w3 === null || NEG_FIN_GN.has(w3) || NEG_EXCEPT.has(w3) || NEG_VERBES.has(w3) || NEG_FINIS.has(w3)) return null;
+  if (w3 === null || NEG_FIN_GN.has(w3) || NEG_EXCEPT.has(w3) || NEG_VERBES.has(w3) || NEG_PARTICIPES_SUJET.has(w3) || NEG_FINIS.has(w3)) return null;
   if (!repete && w3.length >= 5 && w3.endsWith('ed')) return null;
   return [k, repete];
 }
 
 /** Groupes nominaux nies apres le declencheur `decl`, a partir du jeton i. -> [termes, fin, ferme] ou null. */
-function negListe(jetons, i, decl) {
+function negListe(jetons, i, decl, sujet = true) {
   const n = jetons.length;
   const saut = decl === 'no' ? NEG_ARTICLES : NEG_SAUT_AUTRES;
   const faux = NEG_FAUX[decl];
@@ -641,9 +651,11 @@ function negListe(jetons, i, decl) {
   let ferme = false;
   let repete = false;
   for (;;) {
+    // reprise d'une liste par un declencheur REPETE (« no helmet and not wearing a scarf ») : le verbe leger du second declencheur se saute aussi (voir _neg_liste, Python)
+    const sautG = (repete || decl !== 'no') ? NEG_SAUT_AUTRES : saut;
     while (i < n) {
       const w = negCoeur(jetons[i])[0];
-      if (w !== null && saut.has(w)) i++; else break;
+      if (w !== null && sautG.has(w)) i++; else break;
     }
     const mots = [];
     let fermeGroupe = false;
@@ -664,7 +676,7 @@ function negListe(jetons, i, decl) {
         continue;
       }
       if (w === null || NEG_FIN_GN.has(w) || NEG_EXCEPT.has(w)) break;
-      if (mots.length && ('([{'.includes(jetons[j][0]) || NEG_ARTICLES.has(w) || NEG_FINIS.has(w) || negOuvre(jetons, j, w, f))) break;
+      if (mots.length && ('([{'.includes(jetons[j][0]) || NEG_ARTICLES.has(w) || NEG_FINIS.has(w) || negOuvre(jetons, j, w, f, sujet))) break;
       mots.push(w);
       fermeGroupe = f;
       j++;
@@ -688,6 +700,25 @@ function negListe(jetons, i, decl) {
   return [termes, fin, ferme];
 }
 
+// prepositions qui ouvrent un complement du sujet (voir _NEG_PREPS_COMPL, Python)
+const NEG_PREPS_COMPL = _mots('with without in on at by from under over near beside behind above below across around inside outside');
+const NEG_CONJ_POSITIF = _mots('and but yet');
+
+/** AU MILIEU d'une phrase : la locution finit en `fin`. Une conjonction (« and », « but », « yet ») qui introduit un complement POSITIF n'a plus rien a lier une fois la locution
+ *  partie (« a man with no beard but a mustache »). -> null (on n'y touche pas), ['drop', k] (la conjonction part, on reprend en k) ou ['lien', k] (elle est REMPLACEE par le
+ *  mot qui liait la locution : « a man with a mustache »). Voir _neg_conj_apres (Python). */
+function negConjApres(jetons, fin) {
+  const n = jetons.length;
+  if (fin >= n) return null;
+  const [w, f] = negCoeur(jetons[fin]);
+  if (!NEG_CONJ_POSITIF.has(w) || f) return null;
+  if (fin + 1 >= n) return ['drop', n];
+  const t = negCoeur(jetons[fin + 1])[0];
+  if (t === null || NEG_DECLENCHEURS.includes(t)) return null;
+  if (NEG_PREPS_COMPL.has(t) || NEG_PRONOMS.has(t) || NEG_COPULES.has(t) || negVerbal(jetons[fin + 1])) return ['drop', fin + 1];   // un complement, un verbe ou une proposition suit
+  return ['lien', fin + 1];
+}
+
 function negVerbal(jeton) {
   const w = negCoeur(jeton)[0];
   return w !== null && (NEG_VERBES.has(w) || NEG_FINIS.has(w) || (w.length >= 5 && (w.endsWith('ing') || w.endsWith('ed'))));
@@ -701,7 +732,7 @@ function negSuitIng(jetons, i) {
 }
 
 /** Que devient ce qui SUIT le groupe nie (a partir de `fin`) ? -> indice ou reprendre le balayage, ou -1 : refus, le texte reste tel quel. Voir _neg_reprise (Python). */
-function negReprise(jetons, fin, ferme, debut) {
+function negReprise(jetons, fin, ferme, debut, sujet = true) {
   const n = jetons.length;
   if (fin >= n) return n;
   if (ferme) return fin;
@@ -712,7 +743,7 @@ function negReprise(jetons, fin, ferme, debut) {
     if (NEG_DECLENCHEURS.includes(w)) return fin;
     if (NEG_FINIS.has(w)) return -1;
     if (NEG_COPULES.has(w) && negSuitIng(jetons, fin)) return -1;
-    if (w !== null && negOuvre(jetons, fin, w, f)) return fin;
+    if (w !== null && negOuvre(jetons, fin, w, f, sujet)) return fin;
     for (let k = fin; k < n; k++) {
       const wk = negCoeur(jetons[k])[0];
       if (NEG_EXCEPT.has(wk) || wk === 'but' || wk === 'exception' || wk === 'exceptions') return -1;
@@ -796,21 +827,38 @@ function negTraiterSegment(jetons, etat, casseLibre) {
       }
     }
     if (decl !== null) {
-      const res = negListe(jetons, i + 1, decl);
+      const sujet = !(debut && !sortie.length);         // faux : le segment COMMENCE par la negation (voir negOuvre)
+      const res = negListe(jetons, i + 1, decl, sujet);
       let reprise = -1;
       let termes = null;
       if (res !== null) {
         termes = res[0];
-        reprise = negReprise(jetons, res[1], res[2], debut);
+        reprise = negReprise(jetons, res[1], res[2], debut, sujet);
       }
       if (reprise >= 0) {
         for (const t of termes) {
           if (!etat.includes(t) && etat.length < MAX_TERMES_NEGATIFS) etat.push(t);
         }
         modifie = true;
-        if (debut) sortie = [];
-        else if (precedent) sortie.pop();
-        i = reprise;
+        if (debut) {
+          sortie = [];
+          i = reprise;
+        } else {
+          // AU MILIEU d'une phrase, une conjonction (« but », « and ») qui suit la locution introduit un complement positif : voir negConjApres
+          let suite = reprise === res[1] ? negConjApres(jetons, reprise) : null;
+          let lien = null;
+          if (suite !== null && suite[0] === 'lien' && !precedent) {
+            if (decl === 'without') lien = 'with';
+            else if (decl === 'not' && i + 1 < n && NEG_LEGERS_NOT.has(negCoeur(jetons[i + 1])[0])) lien = jetons[i + 1];
+            else suite = null;
+          }
+          if (suite === null || suite[0] === 'drop') {
+            if (precedent) sortie.pop();
+          } else if (lien) {
+            sortie.push(lien);
+          }
+          i = suite === null ? reprise : suite[1];
+        }
         coupeFin = i >= n;
         continue;
       }

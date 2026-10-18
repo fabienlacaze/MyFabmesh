@@ -389,6 +389,27 @@ class NegationsServeur(unittest.TestCase):
         self.assertEqual(n('An orc', 'helmet'), [])                                      # pas une liste : ignore
         self.assertEqual(sans_composeur(lambda: n(ORC_NEG, ['helmet'])), [])
 
+    def test_politesse_de_fin_identique_a_l_ancienne_regle_mais_lineaire(self):
+        """_epurer_demande retirait la politesse de fin par une expression reguliere QUADRATIQUE : 40 000 blancs = 19 s de calcul, 100 000 = plusieurs minutes, AVANT toute
+        generation, dans le conteneur GPU, sur un texte qui vient du client (constate le 2026-10-18). Le port lineaire rend la meme chose que l'ancienne regle."""
+        import random
+        ancienne = re.compile(r"[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$", re.I)
+        frag = ['please', 'Please', 'PLEASE', 'thanks', 'thank you', 'Thank You', 'merci', 'Merci', 'displease', 'xplease', 'pleasex', ' ', '  ', ',', ';', '.', '!', '\n', '\t', 'a',
+                'knight', '\u00e9', '_', '3', 'thank  you', 'thankyou', 'thank', 'you', '\u00a0', '-', '?', 'pl\u00e9ase', ', ', '. ', 'no thanks', 'merci,', 'x']
+        rnd = random.Random(20261018)
+        for _ in range(20000):
+            t = ''.join(rnd.choice(frag) for _ in range(rnd.randint(0, 8)))
+            self.assertEqual(P._retirer_politesse_fin(t), ancienne.sub('', t), repr(t))
+        for t, attendu in (('a knight, please', 'a knight'), ('A knight. Thank you!', 'A knight'), ('Un chevalier, merci.', 'Un chevalier'), ('displease', 'displease'),
+                           ('a knightplease', 'a knightplease'), ('please', 'please'), ('a knight, please, thanks', 'a knight, please')):
+            self.assertEqual(P._epurer_demande(t), attendu, t)
+        for entree in (' ' * 100000 + 'x', ', ' * 50000 + 'x', 'x' + ' ' * 100000, ' ' * 100000 + 'please', '\n' * 100000, 'please ' * 20000):
+            t0 = time.time()
+            P._epurer_demande(entree)
+            P.build_enriched_prompt(entree, 'character', 'realistic')
+            P.negatifs_utilisateur(entree, ['helmet'])
+            self.assertLess(time.time() - t0, 2.0, repr(entree[:20]))
+
     # ---------------------------------------------------------------- positif : build_enriched_prompt
     def test_prompt_de_l_orc_avec_negation_est_celui_sans_negation(self):
         self.assertEqual(P.build_enriched_prompt(ORC_NEG, 'character', 'dark-fantasy'), ORC_ATTENDU)

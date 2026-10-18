@@ -137,6 +137,30 @@ def _parle_de_vol(texte: str) -> bool:
     return any(m in _MOTS_VOL for m in _re.split(r'[^a-z0-9]+', t))
 
 
+_POLITESSES = ('please', 'thanks', 'thank you', 'merci')
+
+
+def _retirer_politesse_fin(s: str) -> str:
+    """Retire « please / thanks / thank you / merci » de la FIN du texte, avec la ponctuation qui l'entoure. MEME resultat que l'ancienne regle de _epurer_demande
+    (une expression reguliere ancree en fin de chaine, insensible a la casse) mais en temps LINEAIRE : cette regle etait quadratique sur de longues suites de blancs ou
+    de virgules (mesure du 2026-10-18 : 40 000 blancs = 19 s de calcul, 100 000 = plusieurs minutes, AVANT toute generation, dans le conteneur GPU, et le texte vient du
+    client). Meme correctif que _retirerPolitesseFin du client (src/renderer/index2.js)."""
+    b = len(s)
+    while b > 0 and (s[b - 1].isspace() or s[b - 1] in '.!'):
+        b -= 1
+    for mot in _POLITESSES:
+        debut = b - len(mot)
+        if debut < 0 or s[debut:b].lower() != mot:
+            continue
+        if debut > 0 and (s[debut - 1].isalnum() or s[debut - 1] == '_'):
+            continue                                  # limite de mot : pas au milieu d'un mot
+        a = debut
+        while a > 0 and (s[a - 1].isspace() or s[a - 1] in ',;.!'):
+            a -= 1
+        return s[:a]
+    return s
+
+
 def _epurer_demande(texte: str) -> str:
     """Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide."""
     import re as _re
@@ -153,7 +177,7 @@ def _epurer_demande(texte: str) -> str:
             r"(?:(?:faire|cr[eé]er|g[eé]n[eé]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?", _re.I)
     brut = str(texte if texte is not None else '')
     t = _DEMANDE_FR.sub('', _DEMANDE_EN.sub('', brut, count=1), count=1)
-    t = _re.sub(r"[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$", '', t, flags=_re.I).strip()
+    t = _retirer_politesse_fin(t).strip()
     return t if len(t) >= 3 else brut.strip()
 
 
@@ -218,7 +242,9 @@ def negatifs_utilisateur(texte_brut, extra=None):
     """Tous les termes de negatif d'UNE demande, nettoyes, sans doublon, 8 au plus : d'abord ceux du champ `negative_extra` (clients a jour), puis ceux que
     l'extraction trouve dans le TEXTE brut (anciens clients ; apres _epurer_demande, comme le client). [] si le composeur est coupe."""
     brut = list(extra) if isinstance(extra, (list, tuple)) else []
-    brut += separer_negations(_epurer_demande(texte_brut))[1]
+    t = str(texte_brut if texte_brut is not None else '')
+    if len(t) <= 4000:        # un texte de plus de 2 000 caracteres n'est pas analyse (negations_et_positif) : marge pour la phrase d'intention que _epurer_demande retire, au-dela on ne l'epure meme pas
+        brut += separer_negations(_epurer_demande(t))[1]
     return termes_negatifs_valides(brut)
 
 

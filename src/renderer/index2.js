@@ -3580,7 +3580,7 @@ function populateWorkspace(p) {
   try {
     const atSel = document.getElementById('ws-asset-type');
     if (atSel && !p._assetTypeManual && (!p.assetType || atSel.value === 'character')) {
-      const guess = _autoDetectAssetType(rawPrompt || p.name || '');
+      const guess = _autoDetectAssetType(_sansNegations(rawPrompt) || p.name || '');   // « an orc, no sword » n'est pas une arme : les mots nies ne comptent pas
       if (guess && guess !== atSel.value) {
         atSel.value = guess; p.assetType = guess;
         _applyAssetOptionsProfile(guess);

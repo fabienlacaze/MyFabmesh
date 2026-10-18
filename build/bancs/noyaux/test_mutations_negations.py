@@ -37,7 +37,8 @@ MUTATIONS = [
     ('plafond de mots 3 -> 4', "MAX_MOTS_TERME = 3 ", "MAX_MOTS_TERME = 4 ", "MAX_MOTS_TERME = 3;", "MAX_MOTS_TERME = 4;"),
     ('plafond de caracteres 40 -> 41', "MAX_CARS_TERME = 40\n", "MAX_CARS_TERME = 41\n", "MAX_CARS_TERME = 40;", "MAX_CARS_TERME = 41;"),
     ('troncature 2000 -> 2001', "MAX_TEXTE_NEGATIONS = 2000 ", "MAX_TEXTE_NEGATIONS = 2001 ", "MAX_TEXTE_NEGATIONS = 2000;", "MAX_TEXTE_NEGATIONS = 2001;"),
-    ('verbe « holding » retire', "_NEG_VERBES = frozenset(('holding wearing", "_NEG_VERBES = frozenset(('wearing", "NEG_VERBES = _mots('holding wearing", "NEG_VERBES = _mots('wearing"),
+    # (« holding » ferait un mutant EQUIVALENT cote JavaScript depuis le 2026-10-18 : il est aussi dans la liste des participes du sujet ; « hanging » n'est que dans celle-ci)
+    ('verbe « hanging » retire', "leaning resting hanging jumping", "leaning resting jumping", "leaning resting hanging jumping", "leaning resting jumping"),
     ('fin de groupe « with » retiree', "'and or nor but with without in on at", "'and or nor but without in on at", "'and or nor but with without in on at", "'and or nor but without in on at"),
     ('conjonction « but » retiree', "_NEG_CONJ = frozenset('and or nor but'.split())", "_NEG_CONJ = frozenset('and or nor'.split())",
      "NEG_CONJ = _mots('and or nor but')", "NEG_CONJ = _mots('and or nor')"),
@@ -74,7 +75,7 @@ MUTATIONS = [
     ('garde de la double negation retiree', "            elif _neg_avant_negatif(sortie):\n                decl = None", "            elif False:\n                decl = None",
      "} else if (negAvantNegatif(sortie)) {", "} else if (false) {"),
     ('au-dela du plafond la locution reste dans le positif', "                modifie = True\n                if debut:", "                modifie = any(t in etat for t in termes)\n                if debut:",
-     "        modifie = true;\n        if (debut) sortie = [];", "        modifie = termes.some((t) => etat.includes(t));\n        if (debut) sortie = [];"),
+     "        modifie = true;\n        if (debut) {", "        modifie = termes.some((t) => etat.includes(t));\n        if (debut) {"),
     ('morceau a tiret sensible accepte (« t-shirt »)', "any(p in _NEG_SENSIBLES for p in m.split('-'))", "m in _NEG_SENSIBLES",
      "if (!negMotPropre(m) || m.split('-').some((p) => NEG_SENSIBLES.has(p))) return null;", "if (!negMotPropre(m) || NEG_SENSIBLES.has(m)) return null;"),
     # 2026-10-15 : regles ajoutees aux passes du 14/10 (assainir, enveloppe, complement porte, titre suivi d'un nom)
@@ -95,6 +96,28 @@ MUTATIONS = [
      "    if (jeton[k] >= 'a' && jeton[k] <= 'z') return true;\n  }\n  return false;\n}\n\n/** La casse du texte",
      "    if (jeton[k] >= 'a' && jeton[k] <= 'z') return true;\n  }\n  return true;\n}\n\n/** La casse du texte"),
     ('regle « negations » eteinte par defaut', "REGLES_ACTIVES = ('objets', 'negations')", "REGLES_ACTIVES = ('objets',)", "REGLES_ACTIVES = ['objets', 'negations'];", "REGLES_ACTIVES = ['objets'];"),
+    # 2026-10-18 : participe du sujet, conjonction apres la locution, second declencheur avec un verbe leger
+    ('participe du sujet en fin de segment ignore', "    if sujet and w in _NEG_PARTICIPES_SUJET:\n        return True\n", "    if False and sujet and w in _NEG_PARTICIPES_SUJET:\n        return True\n",
+     "  if (sujet && NEG_PARTICIPES_SUJET.has(w)) return true;\n", "  if (false && sujet && NEG_PARTICIPES_SUJET.has(w)) return true;\n"),
+    ('segment qui commence par la negation traite comme une phrase a sujet', "sujet = not (debut and not sortie)", "sujet = True",
+     "const sujet = !(debut && !sortie.length);", "const sujet = true;"),
+    ('participe pris pour un element de la liste nie', " or w3 in _NEG_PARTICIPES_SUJET or w3 in _NEG_FINIS):", " or w3 in _NEG_FINIS):",
+     " || NEG_PARTICIPES_SUJET.has(w3) || NEG_FINIS.has(w3)) return null;", " || NEG_FINIS.has(w3)) return null;"),
+    ('conjonction apres la locution ignoree', "suite = _neg_conj_apres(jetons, reprise) if reprise == fin else None", "suite = None",
+     "let suite = reprise === res[1] ? negConjApres(jetons, reprise) : null;", "let suite = null;"),
+    ('lien de la conjonction remplacee non repris', "                    elif lien:\n", "                    elif False:\n", "} else if (lien) {", "} else if (false) {"),
+    ('verbe leger du second declencheur non saute', "saut_g = _NEG_SAUT_AUTRES if (repete or decl != 'no') else saut", "saut_g = saut",
+     "const sautG = (repete || decl !== 'no') ? NEG_SAUT_AUTRES : saut;", "const sautG = saut;"),
+    ('conjonction pendante en fin de texte gardee', "    if fin + 1 >= n:\n        return ('drop', n)\n", "    if fin + 1 >= n:\n        return None\n",
+     "if (fin + 1 >= n) return ['drop', n];", "if (fin + 1 >= n) return null;"),
+    ('preposition « with » apres la conjonction non reconnue', "_NEG_PREPS_COMPL = frozenset('with without in on", "_NEG_PREPS_COMPL = frozenset('without in on",
+     "const NEG_PREPS_COMPL = _mots('with without in on", "const NEG_PREPS_COMPL = _mots('without in on"),
+    ('pronom apres la conjonction pris pour un complement', "or t in _NEG_PRONOMS or t in _NEG_COPULES or _neg_verbal(jetons[fin + 1])", "or _neg_verbal(jetons[fin + 1])",
+     "NEG_PRONOMS.has(t) || NEG_COPULES.has(t) || negVerbal(jetons[fin + 1])", "negVerbal(jetons[fin + 1])"),
+    ('participe « smiling » retire', "dancing smiling laughing", "dancing laughing", "dancing smiling laughing", "dancing laughing"),
+    ('verbe « raising » retire', "marching raising lifting", "marching lifting", "marching raising lifting", "marching lifting"),
+    ('participe « standing » retire de la liste du sujet', "_NEG_PARTICIPES_SUJET = frozenset(('standing sitting", "_NEG_PARTICIPES_SUJET = frozenset(('sitting",
+     "const NEG_PARTICIPES_SUJET = _mots('standing sitting", "const NEG_PARTICIPES_SUJET = _mots('sitting"),
 ]
 
 

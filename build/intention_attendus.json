@@ -4974,7 +4974,7 @@ true,
 "negatifs": [
 "helmet"
 ],
-"positif": "a knight and a red cape"
+"positif": "a knight with a red cape"
 },
 "notes_defaut": [],
 "notes_libre": [
@@ -14809,6 +14809,1360 @@ true,
 "notes_toutes": [],
 "style": "realistic",
 "texte": "a man, no jacket",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n107",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "an orc standing"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "an orc with no helmet standing",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n108",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"hat"
+],
+"positif": "a man smiling"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a man with no hat smiling",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n109",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"makeup"
+],
+"positif": "a woman smiling at the camera"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a woman with no makeup smiling at the camera",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n110",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": true,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"dynamic pose",
+"action pose",
+"combat stance",
+"fighting",
+"running",
+"jumping",
+"crouching",
+"bent arms",
+"bent legs",
+"asymmetric",
+"hands on hips",
+"arms at sides",
+"hands touching body"
+]
+],
+"negations": {
+"negatifs": [
+"gloves"
+],
+"positif": "a boxer punching"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"pose demandee : T-pose non imposee"
+],
+"style": "realistic",
+"texte": "a boxer without gloves punching",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n111",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": true,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"weapon"
+],
+"positif": "a warrior raising his fists"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a warrior with no weapon raising his fists",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n112",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": true,
+"objets": [],
+"parties": {},
+"pose_libre": true,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"dynamic pose",
+"action pose",
+"combat stance",
+"fighting",
+"running",
+"jumping",
+"crouching",
+"bent arms",
+"bent legs",
+"asymmetric",
+"hands on hips",
+"arms at sides",
+"hands touching body"
+]
+],
+"negations": {
+"negatifs": [
+"legs"
+],
+"positif": "a ghost floating"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"fully clothed retire (sujet non humain)",
+"pose demandee : T-pose non imposee"
+],
+"style": "realistic",
+"texte": "a ghost with no legs floating",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n113",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": true,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"dynamic pose",
+"action pose",
+"combat stance",
+"fighting",
+"running",
+"jumping",
+"crouching",
+"bent arms",
+"bent legs",
+"asymmetric",
+"hands on hips",
+"arms at sides",
+"hands touching body"
+]
+],
+"negations": {
+"negatifs": [
+"shoes"
+],
+"positif": "a girl, sitting"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"pose demandee : T-pose non imposee"
+],
+"style": "realistic",
+"texte": "a girl, with no shoes sitting",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n114",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "an orc smiling"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "an orc without a helmet and smiling",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n115",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"makeup"
+],
+"positif": "a woman, smiling at the camera"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a woman, no makeup smiling at the camera",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n116",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "a knight smiling"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a knight without a helmet on his head smiling",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n117",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"people walking"
+],
+"positif": "a street"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a street, no people walking",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n118",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"beard"
+],
+"positif": "a man with a mustache"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a man with no beard but a mustache",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n119",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": true,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"weapons"
+],
+"positif": "an orc with armor"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "an orc with no weapons and armor",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n120",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": true,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"weapons"
+],
+"positif": "an orc with armor"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "an orc without weapons but with armor",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n121",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "a viking wearing a hood"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a viking not wearing a helmet but a hood",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n122",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "an orc has a hood"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "an orc has no helmet but a hood",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n123",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"shield"
+],
+"positif": "a knight with a sword and a lance"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a knight with a sword and no shield but a lance",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n124",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "an orc"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "an orc with no helmet and",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n125",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "a knight wearing a hood"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a knight with no helmet but wearing a hood",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n126",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet",
+"beard"
+],
+"positif": "an orc"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "an orc with no helmet but no beard",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n127",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "a fireman with a mask"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a fireman with no helmet and a mask",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n128",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "a knight, but a squire"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "a knight, but a squire",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n129",
+"intent": {
+"arme_nommee": false,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet",
+"scarf"
+],
+"positif": "a knight"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"symmetric retire (asymetrie demandee)"
+],
+"style": "realistic",
+"texte": "a knight, no helmet and not wearing a scarf",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n130",
+"intent": {
+"arme_nommee": false,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet",
+"scarf"
+],
+"positif": "an orc"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"symmetric retire (asymetrie demandee)"
+],
+"style": "realistic",
+"texte": "an orc with no helmet and not wearing a scarf",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "n131",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "an orc he is smiling"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "an orc with no helmet and he is smiling",
 "tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
 "tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
 "tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
@@ -55158,7 +56512,7 @@ true,
 "negatifs": [
 "helmet"
 ],
-"positif": "A knight and a red cape",
+"positif": "A knight with a red cape",
 "texte": "A knight with no helmet and a red cape"
 },
 {
@@ -55345,7 +56699,7 @@ true,
 "negatifs": [
 "helmet"
 ],
-"positif": "A knight but a beard",
+"positif": "A knight with a beard",
 "texte": "A knight without a helmet but a beard"
 },
 {
@@ -55353,7 +56707,7 @@ true,
 "negatifs": [
 "helmet"
 ],
-"positif": "A knight but holding a sword",
+"positif": "A knight holding a sword",
 "texte": "A knight without a helmet but holding a sword"
 },
 {
@@ -55361,7 +56715,7 @@ true,
 "negatifs": [
 "helmet"
 ],
-"positif": "A knight but a red cape",
+"positif": "A knight with a red cape",
 "texte": "A knight with no helmet but a red cape"
 },
 {
@@ -55369,7 +56723,7 @@ true,
 "negatifs": [
 "helmet"
 ],
-"positif": "A knight but covered in mud",
+"positif": "A knight covered in mud",
 "texte": "A knight with no helmet but covered in mud"
 },
 {
@@ -56182,6 +57536,2661 @@ true,
 ],
 "positif": "",
 "texte": "no helmet \t\n and   no beard"
+},
+{
+"id": "g881",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword, no wings"
+},
+{
+"id": "g882",
+"negatifs": [
+"wings"
+],
+"positif": "a sword, carrying a bag",
+"texte": "a sword, no wings, carrying a bag"
+},
+{
+"id": "g883",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword, without a wings"
+},
+{
+"id": "g884",
+"negatifs": [
+"wings"
+],
+"positif": "a sword, carrying a bag",
+"texte": "a sword, carrying a bag, no wings"
+},
+{
+"id": "g885",
+"negatifs": [
+"wings"
+],
+"positif": "a sword carrying a bag",
+"texte": "a sword carrying a bag, no wings"
+},
+{
+"id": "g886",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword, not wearing a wings"
+},
+{
+"id": "g887",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword, never a wings"
+},
+{
+"id": "g888",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword, no wings whatsoever"
+},
+{
+"id": "g889",
+"negatifs": [
+"wings"
+],
+"positif": "a sword, a hood",
+"texte": "a sword, no wings and a hood"
+},
+{
+"id": "g890",
+"negatifs": [
+"wings",
+"mustache"
+],
+"positif": "a sword",
+"texte": "a sword, no wings and no mustache"
+},
+{
+"id": "g891",
+"negatifs": [
+"wings",
+"mustache"
+],
+"positif": "a sword",
+"texte": "a sword, no wings, no mustache"
+},
+{
+"id": "g892",
+"negatifs": [
+"wings",
+"mustache"
+],
+"positif": "a sword, carrying a bag",
+"texte": "a sword, no wings, carrying a bag, no mustache"
+},
+{
+"id": "g893",
+"negatifs": [
+"wings",
+"mustache"
+],
+"positif": "a sword",
+"texte": "a sword without wings or mustache"
+},
+{
+"id": "g894",
+"negatifs": [
+"wings",
+"mustache"
+],
+"positif": "a sword",
+"texte": "a sword with no wings or mustache"
+},
+{
+"id": "g895",
+"negatifs": [
+"wings",
+"mustache"
+],
+"positif": "a sword",
+"texte": "a sword, no wings and not wearing mustache"
+},
+{
+"id": "g896",
+"negatifs": [
+"wings",
+"mustache"
+],
+"positif": "a sword",
+"texte": "a sword without a wings, without mustache"
+},
+{
+"id": "g897",
+"negatifs": [
+"helmet",
+"beard",
+"armor",
+"wings",
+"tail",
+"red cape",
+"plate armor",
+"spiked club"
+],
+"positif": "a sword",
+"texte": "a sword, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
+},
+{
+"id": "g898",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword with no wings"
+},
+{
+"id": "g899",
+"negatifs": [
+"wings"
+],
+"positif": "a sword, carrying a bag",
+"texte": "a sword with no wings, carrying a bag"
+},
+{
+"id": "g900",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword without a wings"
+},
+{
+"id": "g901",
+"negatifs": [
+"wings"
+],
+"positif": "a sword, carrying a bag",
+"texte": "a sword without a wings, carrying a bag"
+},
+{
+"id": "g902",
+"negatifs": [
+"wings"
+],
+"positif": "a sword, carrying a bag",
+"texte": "a sword not wearing a wings, carrying a bag"
+},
+{
+"id": "g903",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword wearing no wings"
+},
+{
+"id": "g904",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword has no wings"
+},
+{
+"id": "g905",
+"negatifs": [
+"wings"
+],
+"positif": "a sword.",
+"texte": "a sword has no wings."
+},
+{
+"id": "g906",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword with no wings at all"
+},
+{
+"id": "g907",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword that has no wings"
+},
+{
+"id": "g908",
+"negatifs": [
+"wings"
+],
+"positif": "a sword",
+"texte": "a sword who is not wearing a wings"
+},
+{
+"id": "g909",
+"negatifs": [
+"wings"
+],
+"positif": "a sword in a forest",
+"texte": "a sword with no wings in a forest"
+},
+{
+"id": "g910",
+"negatifs": [
+"wings"
+],
+"positif": "a sword holding a club",
+"texte": "a sword with no wings holding a club"
+},
+{
+"id": "g911",
+"negatifs": [
+"wings"
+],
+"positif": "a sword with a hood",
+"texte": "a sword with a hood, no wings"
+},
+{
+"id": "g912",
+"negatifs": [
+"wings"
+],
+"positif": "a sword with a hood",
+"texte": "a sword with a hood and no wings"
+},
+{
+"id": "g913",
+"negatifs": [
+"wings"
+],
+"positif": "a sword crouching in a field",
+"texte": "a sword with no wings crouching in a field"
+},
+{
+"id": "g914",
+"negatifs": [
+"wings"
+],
+"positif": "a sword crouching in a field",
+"texte": "a sword without a wings and crouching in a field"
+},
+{
+"id": "g915",
+"negatifs": [
+"wings"
+],
+"positif": "a sword wearing a hood",
+"texte": "a sword without a wings wearing a hood"
+},
+{
+"id": "g916",
+"negatifs": [
+"wings",
+"mustache"
+],
+"positif": "a sword crouching in a field",
+"texte": "a sword with no wings and no mustache crouching in a field"
+},
+{
+"id": "g917",
+"negatifs": [
+"wings"
+],
+"positif": "a sword with a hood",
+"texte": "a sword with no wings but a hood"
+},
+{
+"id": "g918",
+"negatifs": [
+"wings"
+],
+"positif": "a sword with a hood",
+"texte": "a sword with no wings and a hood"
+},
+{
+"id": "g919",
+"negatifs": [
+"wings"
+],
+"positif": "a sword, but a hood",
+"texte": "a sword with no wings, but a hood"
+},
+{
+"id": "g920",
+"negatifs": [
+"wings"
+],
+"positif": "a sword carrying a bag",
+"texte": "a sword (no wings) carrying a bag"
+},
+{
+"id": "g921",
+"negatifs": [
+"wings"
+],
+"positif": "a sword - carrying a bag",
+"texte": "a sword - no wings - carrying a bag"
+},
+{
+"id": "g922",
+"negatifs": [
+"wings"
+],
+"positif": "a sword. carrying a bag",
+"texte": "a sword. No wings. carrying a bag"
+},
+{
+"id": "g923",
+"negatifs": [
+"wings"
+],
+"positif": "a sword; carrying a bag",
+"texte": "a sword; without wings; carrying a bag"
+},
+{
+"id": "g924",
+"negatifs": [
+"wings"
+],
+"positif": "a sword\ncarrying a bag",
+"texte": "a sword\nno wings\ncarrying a bag"
+},
+{
+"id": "g925",
+"negatifs": [
+"wings"
+],
+"positif": "A SWORD, CARRYING A BAG",
+"texte": "A SWORD, NO WINGS, CARRYING A BAG"
+},
+{
+"id": "g926",
+"negatifs": [
+"wings"
+],
+"positif": "A Sword, Carrying A Bag",
+"texte": "A Sword, No Wings, Carrying A Bag"
+},
+{
+"id": "g927",
+"negatifs": [
+"wings"
+],
+"positif": "a sword ,carrying a bag",
+"texte": "a sword ,no wings, carrying a bag"
+},
+{
+"id": "g928",
+"negatifs": [],
+"positif": "a sword with a hood",
+"texte": "a sword with a hood"
+},
+{
+"id": "g929",
+"negatifs": [],
+"positif": "a sword, no wings except a hood",
+"texte": "a sword, no wings except a hood"
+},
+{
+"id": "g930",
+"negatifs": [],
+"positif": "a sword, carrying a bag, hood",
+"texte": "a sword, carrying a bag, hood"
+},
+{
+"id": "g931",
+"negatifs": [],
+"positif": "a sword, no wings a hood",
+"texte": "a sword, no wings a hood"
+},
+{
+"id": "g932",
+"negatifs": [],
+"positif": "a sword, not only wings but also mustache",
+"texte": "a sword, not only wings but also mustache"
+},
+{
+"id": "g933",
+"negatifs": [],
+"positif": "a sword, no longer crouching in a field",
+"texte": "a sword, no longer crouching in a field"
+},
+{
+"id": "g934",
+"negatifs": [],
+"positif": "a sword not a wings",
+"texte": "a sword not a wings"
+},
+{
+"id": "g935",
+"negatifs": [],
+"positif": "a sword never wearing a wings",
+"texte": "a sword never wearing a wings"
+},
+{
+"id": "g936",
+"negatifs": [],
+"positif": "a sword, carrying a bag",
+"texte": "a sword, carrying a bag"
+},
+{
+"id": "g937",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, no carrot nose"
+},
+{
+"id": "g938",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior, wearing a blue hat",
+"texte": "An Orc Warrior, no carrot nose, wearing a blue hat"
+},
+{
+"id": "g939",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, without a carrot nose"
+},
+{
+"id": "g940",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior, wearing a blue hat",
+"texte": "An Orc Warrior, wearing a blue hat, no carrot nose"
+},
+{
+"id": "g941",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior wearing a blue hat",
+"texte": "An Orc Warrior wearing a blue hat, no carrot nose"
+},
+{
+"id": "g942",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, not wearing a carrot nose"
+},
+{
+"id": "g943",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, never a carrot nose"
+},
+{
+"id": "g944",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, no carrot nose whatsoever"
+},
+{
+"id": "g945",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior, a golden crown",
+"texte": "An Orc Warrior, no carrot nose and a golden crown"
+},
+{
+"id": "g946",
+"negatifs": [
+"carrot nose",
+"hood"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, no carrot nose and no hood"
+},
+{
+"id": "g947",
+"negatifs": [
+"carrot nose",
+"hood"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, no carrot nose, no hood"
+},
+{
+"id": "g948",
+"negatifs": [
+"carrot nose",
+"hood"
+],
+"positif": "An Orc Warrior, wearing a blue hat",
+"texte": "An Orc Warrior, no carrot nose, wearing a blue hat, no hood"
+},
+{
+"id": "g949",
+"negatifs": [
+"carrot nose",
+"hood"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior without carrot nose or hood"
+},
+{
+"id": "g950",
+"negatifs": [
+"carrot nose",
+"hood"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior with no carrot nose or hood"
+},
+{
+"id": "g951",
+"negatifs": [
+"carrot nose",
+"hood"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, no carrot nose and not wearing a hood"
+},
+{
+"id": "g952",
+"negatifs": [
+"carrot nose",
+"hood"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior without a carrot nose, without a hood"
+},
+{
+"id": "g953",
+"negatifs": [
+"helmet",
+"beard",
+"armor",
+"wings",
+"tail",
+"red cape",
+"plate armor",
+"spiked club"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
+},
+{
+"id": "g954",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior with no carrot nose"
+},
+{
+"id": "g955",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior, wearing a blue hat",
+"texte": "An Orc Warrior with no carrot nose, wearing a blue hat"
+},
+{
+"id": "g956",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior without a carrot nose"
+},
+{
+"id": "g957",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior, wearing a blue hat",
+"texte": "An Orc Warrior without a carrot nose, wearing a blue hat"
+},
+{
+"id": "g958",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior, wearing a blue hat",
+"texte": "An Orc Warrior not wearing a carrot nose, wearing a blue hat"
+},
+{
+"id": "g959",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior wearing no carrot nose"
+},
+{
+"id": "g960",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior has no carrot nose"
+},
+{
+"id": "g961",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior.",
+"texte": "An Orc Warrior has no carrot nose."
+},
+{
+"id": "g962",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior with no carrot nose at all"
+},
+{
+"id": "g963",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior that has no carrot nose"
+},
+{
+"id": "g964",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior",
+"texte": "An Orc Warrior who is not wearing a carrot nose"
+},
+{
+"id": "g965",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior in a forest",
+"texte": "An Orc Warrior with no carrot nose in a forest"
+},
+{
+"id": "g966",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior holding a club",
+"texte": "An Orc Warrior with no carrot nose holding a club"
+},
+{
+"id": "g967",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior with a golden crown",
+"texte": "An Orc Warrior with a golden crown, no carrot nose"
+},
+{
+"id": "g968",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior with a golden crown",
+"texte": "An Orc Warrior with a golden crown and no carrot nose"
+},
+{
+"id": "g969",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior kneeling",
+"texte": "An Orc Warrior with no carrot nose kneeling"
+},
+{
+"id": "g970",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior kneeling",
+"texte": "An Orc Warrior without a carrot nose and kneeling"
+},
+{
+"id": "g971",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior wearing a golden crown",
+"texte": "An Orc Warrior without a carrot nose wearing a golden crown"
+},
+{
+"id": "g972",
+"negatifs": [
+"carrot nose",
+"hood"
+],
+"positif": "An Orc Warrior kneeling",
+"texte": "An Orc Warrior with no carrot nose and no hood kneeling"
+},
+{
+"id": "g973",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior with a golden crown",
+"texte": "An Orc Warrior with no carrot nose but a golden crown"
+},
+{
+"id": "g974",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior with a golden crown",
+"texte": "An Orc Warrior with no carrot nose and a golden crown"
+},
+{
+"id": "g975",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior, but a golden crown",
+"texte": "An Orc Warrior with no carrot nose, but a golden crown"
+},
+{
+"id": "g976",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior wearing a blue hat",
+"texte": "An Orc Warrior (no carrot nose) wearing a blue hat"
+},
+{
+"id": "g977",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior - wearing a blue hat",
+"texte": "An Orc Warrior - no carrot nose - wearing a blue hat"
+},
+{
+"id": "g978",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior. wearing a blue hat",
+"texte": "An Orc Warrior. No carrot nose. wearing a blue hat"
+},
+{
+"id": "g979",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior; wearing a blue hat",
+"texte": "An Orc Warrior; without carrot nose; wearing a blue hat"
+},
+{
+"id": "g980",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior\nwearing a blue hat",
+"texte": "An Orc Warrior\nno carrot nose\nwearing a blue hat"
+},
+{
+"id": "g981",
+"negatifs": [
+"carrot nose"
+],
+"positif": "AN ORC WARRIOR, WEARING A BLUE HAT",
+"texte": "AN ORC WARRIOR, NO CARROT NOSE, WEARING A BLUE HAT"
+},
+{
+"id": "g982",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior, Wearing A Blue Hat",
+"texte": "An Orc Warrior, No Carrot Nose, Wearing A Blue Hat"
+},
+{
+"id": "g983",
+"negatifs": [
+"carrot nose"
+],
+"positif": "An Orc Warrior ,wearing a blue hat",
+"texte": "An Orc Warrior ,no carrot nose, wearing a blue hat"
+},
+{
+"id": "g984",
+"negatifs": [],
+"positif": "An Orc Warrior with a golden crown",
+"texte": "An Orc Warrior with a golden crown"
+},
+{
+"id": "g985",
+"negatifs": [],
+"positif": "An Orc Warrior, no carrot nose except a golden crown",
+"texte": "An Orc Warrior, no carrot nose except a golden crown"
+},
+{
+"id": "g986",
+"negatifs": [],
+"positif": "An Orc Warrior, wearing a blue hat, golden crown",
+"texte": "An Orc Warrior, wearing a blue hat, golden crown"
+},
+{
+"id": "g987",
+"negatifs": [],
+"positif": "An Orc Warrior, no carrot nose a golden crown",
+"texte": "An Orc Warrior, no carrot nose a golden crown"
+},
+{
+"id": "g988",
+"negatifs": [],
+"positif": "An Orc Warrior, not only carrot nose but also hood",
+"texte": "An Orc Warrior, not only carrot nose but also hood"
+},
+{
+"id": "g989",
+"negatifs": [],
+"positif": "An Orc Warrior, no longer kneeling",
+"texte": "An Orc Warrior, no longer kneeling"
+},
+{
+"id": "g990",
+"negatifs": [],
+"positif": "An Orc Warrior not a carrot nose",
+"texte": "An Orc Warrior not a carrot nose"
+},
+{
+"id": "g991",
+"negatifs": [],
+"positif": "An Orc Warrior never wearing a carrot nose",
+"texte": "An Orc Warrior never wearing a carrot nose"
+},
+{
+"id": "g992",
+"negatifs": [],
+"positif": "An Orc Warrior, wearing a blue hat",
+"texte": "An Orc Warrior, wearing a blue hat"
+},
+{
+"id": "g993",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat, no wings"
+},
+{
+"id": "g994",
+"negatifs": [
+"wings"
+],
+"positif": "a cat, with a long tail",
+"texte": "a cat, no wings, with a long tail"
+},
+{
+"id": "g995",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat, without wings"
+},
+{
+"id": "g996",
+"negatifs": [
+"wings"
+],
+"positif": "a cat, with a long tail",
+"texte": "a cat, with a long tail, no wings"
+},
+{
+"id": "g997",
+"negatifs": [
+"wings"
+],
+"positif": "a cat with a long tail",
+"texte": "a cat with a long tail, no wings"
+},
+{
+"id": "g998",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat, not wearing wings"
+},
+{
+"id": "g999",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat, never wings"
+},
+{
+"id": "g1000",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat, no wings whatsoever"
+},
+{
+"id": "g1001",
+"negatifs": [
+"wings"
+],
+"positif": "a cat, the hood",
+"texte": "a cat, no wings and the hood"
+},
+{
+"id": "g1002",
+"negatifs": [
+"wings",
+"eyepatch"
+],
+"positif": "a cat",
+"texte": "a cat, no wings and no eyepatch"
+},
+{
+"id": "g1003",
+"negatifs": [
+"wings",
+"eyepatch"
+],
+"positif": "a cat",
+"texte": "a cat, no wings, no eyepatch"
+},
+{
+"id": "g1004",
+"negatifs": [
+"wings",
+"eyepatch"
+],
+"positif": "a cat, with a long tail",
+"texte": "a cat, no wings, with a long tail, no eyepatch"
+},
+{
+"id": "g1005",
+"negatifs": [
+"wings",
+"eyepatch"
+],
+"positif": "a cat",
+"texte": "a cat without wings or eyepatch"
+},
+{
+"id": "g1006",
+"negatifs": [
+"wings",
+"eyepatch"
+],
+"positif": "a cat",
+"texte": "a cat with no wings or eyepatch"
+},
+{
+"id": "g1007",
+"negatifs": [
+"wings",
+"eyepatch"
+],
+"positif": "a cat",
+"texte": "a cat, no wings and not wearing an eyepatch"
+},
+{
+"id": "g1008",
+"negatifs": [
+"wings",
+"eyepatch"
+],
+"positif": "a cat",
+"texte": "a cat without wings, without an eyepatch"
+},
+{
+"id": "g1009",
+"negatifs": [
+"helmet",
+"beard",
+"armor",
+"wings",
+"tail",
+"red cape",
+"plate armor",
+"spiked club"
+],
+"positif": "a cat",
+"texte": "a cat, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
+},
+{
+"id": "g1010",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat with no wings"
+},
+{
+"id": "g1011",
+"negatifs": [
+"wings"
+],
+"positif": "a cat, with a long tail",
+"texte": "a cat with no wings, with a long tail"
+},
+{
+"id": "g1012",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat without wings"
+},
+{
+"id": "g1013",
+"negatifs": [
+"wings"
+],
+"positif": "a cat, with a long tail",
+"texte": "a cat without wings, with a long tail"
+},
+{
+"id": "g1014",
+"negatifs": [
+"wings"
+],
+"positif": "a cat, with a long tail",
+"texte": "a cat not wearing wings, with a long tail"
+},
+{
+"id": "g1015",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat wearing no wings"
+},
+{
+"id": "g1016",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat has no wings"
+},
+{
+"id": "g1017",
+"negatifs": [
+"wings"
+],
+"positif": "a cat.",
+"texte": "a cat has no wings."
+},
+{
+"id": "g1018",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat with no wings at all"
+},
+{
+"id": "g1019",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat that has no wings"
+},
+{
+"id": "g1020",
+"negatifs": [
+"wings"
+],
+"positif": "a cat",
+"texte": "a cat who is not wearing wings"
+},
+{
+"id": "g1021",
+"negatifs": [
+"wings"
+],
+"positif": "a cat in a forest",
+"texte": "a cat with no wings in a forest"
+},
+{
+"id": "g1022",
+"negatifs": [
+"wings"
+],
+"positif": "a cat holding a club",
+"texte": "a cat with no wings holding a club"
+},
+{
+"id": "g1023",
+"negatifs": [
+"wings"
+],
+"positif": "a cat with the hood",
+"texte": "a cat with the hood, no wings"
+},
+{
+"id": "g1024",
+"negatifs": [
+"wings"
+],
+"positif": "a cat with the hood",
+"texte": "a cat with the hood and no wings"
+},
+{
+"id": "g1025",
+"negatifs": [
+"wings"
+],
+"positif": "a cat floating",
+"texte": "a cat with no wings floating"
+},
+{
+"id": "g1026",
+"negatifs": [
+"wings"
+],
+"positif": "a cat floating",
+"texte": "a cat without wings and floating"
+},
+{
+"id": "g1027",
+"negatifs": [
+"wings"
+],
+"positif": "a cat wearing the hood",
+"texte": "a cat without wings wearing the hood"
+},
+{
+"id": "g1028",
+"negatifs": [
+"wings",
+"eyepatch"
+],
+"positif": "a cat floating",
+"texte": "a cat with no wings and no eyepatch floating"
+},
+{
+"id": "g1029",
+"negatifs": [
+"wings"
+],
+"positif": "a cat with the hood",
+"texte": "a cat with no wings but the hood"
+},
+{
+"id": "g1030",
+"negatifs": [
+"wings"
+],
+"positif": "a cat with the hood",
+"texte": "a cat with no wings and the hood"
+},
+{
+"id": "g1031",
+"negatifs": [
+"wings"
+],
+"positif": "a cat, but the hood",
+"texte": "a cat with no wings, but the hood"
+},
+{
+"id": "g1032",
+"negatifs": [
+"wings"
+],
+"positif": "a cat with a long tail",
+"texte": "a cat (no wings) with a long tail"
+},
+{
+"id": "g1033",
+"negatifs": [
+"wings"
+],
+"positif": "a cat - with a long tail",
+"texte": "a cat - no wings - with a long tail"
+},
+{
+"id": "g1034",
+"negatifs": [
+"wings"
+],
+"positif": "a cat. with a long tail",
+"texte": "a cat. No wings. with a long tail"
+},
+{
+"id": "g1035",
+"negatifs": [
+"wings"
+],
+"positif": "a cat; with a long tail",
+"texte": "a cat; without wings; with a long tail"
+},
+{
+"id": "g1036",
+"negatifs": [
+"wings"
+],
+"positif": "a cat\nwith a long tail",
+"texte": "a cat\nno wings\nwith a long tail"
+},
+{
+"id": "g1037",
+"negatifs": [
+"wings"
+],
+"positif": "A CAT, WITH A LONG TAIL",
+"texte": "A CAT, NO WINGS, WITH A LONG TAIL"
+},
+{
+"id": "g1038",
+"negatifs": [
+"wings"
+],
+"positif": "A Cat, With A Long Tail",
+"texte": "A Cat, No Wings, With A Long Tail"
+},
+{
+"id": "g1039",
+"negatifs": [
+"wings"
+],
+"positif": "a cat ,with a long tail",
+"texte": "a cat ,no wings, with a long tail"
+},
+{
+"id": "g1040",
+"negatifs": [],
+"positif": "a cat with the hood",
+"texte": "a cat with the hood"
+},
+{
+"id": "g1041",
+"negatifs": [],
+"positif": "a cat, no wings except the hood",
+"texte": "a cat, no wings except the hood"
+},
+{
+"id": "g1042",
+"negatifs": [],
+"positif": "a cat, with a long tail, hood",
+"texte": "a cat, with a long tail, hood"
+},
+{
+"id": "g1043",
+"negatifs": [],
+"positif": "a cat, no wings a hood",
+"texte": "a cat, no wings a hood"
+},
+{
+"id": "g1044",
+"negatifs": [],
+"positif": "a cat, not only wings but also eyepatch",
+"texte": "a cat, not only wings but also eyepatch"
+},
+{
+"id": "g1045",
+"negatifs": [],
+"positif": "a cat, no longer floating",
+"texte": "a cat, no longer floating"
+},
+{
+"id": "g1046",
+"negatifs": [],
+"positif": "a cat not wings",
+"texte": "a cat not wings"
+},
+{
+"id": "g1047",
+"negatifs": [],
+"positif": "a cat never wearing wings",
+"texte": "a cat never wearing wings"
+},
+{
+"id": "g1048",
+"negatifs": [],
+"positif": "a cat, with a long tail",
+"texte": "a cat, with a long tail"
+},
+{
+"id": "g1049",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat, no armor"
+},
+{
+"id": "g1050",
+"negatifs": [
+"armor"
+],
+"positif": "a cat, 8k",
+"texte": "a cat, no armor, 8k"
+},
+{
+"id": "g1051",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat, without any armor"
+},
+{
+"id": "g1052",
+"negatifs": [
+"armor"
+],
+"positif": "a cat, 8k",
+"texte": "a cat, 8k, no armor"
+},
+{
+"id": "g1053",
+"negatifs": [
+"armor"
+],
+"positif": "a cat 8k",
+"texte": "a cat 8k, no armor"
+},
+{
+"id": "g1054",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat, not wearing any armor"
+},
+{
+"id": "g1055",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat, never any armor"
+},
+{
+"id": "g1056",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat, no armor whatsoever"
+},
+{
+"id": "g1057",
+"negatifs": [
+"armor"
+],
+"positif": "a cat, lance",
+"texte": "a cat, no armor and lance"
+},
+{
+"id": "g1058",
+"negatifs": [
+"armor",
+"sharp teeth"
+],
+"positif": "a cat",
+"texte": "a cat, no armor and no sharp teeth"
+},
+{
+"id": "g1059",
+"negatifs": [
+"armor",
+"sharp teeth"
+],
+"positif": "a cat",
+"texte": "a cat, no armor, no sharp teeth"
+},
+{
+"id": "g1060",
+"negatifs": [
+"armor",
+"sharp teeth"
+],
+"positif": "a cat, 8k",
+"texte": "a cat, no armor, 8k, no sharp teeth"
+},
+{
+"id": "g1061",
+"negatifs": [
+"armor",
+"sharp teeth"
+],
+"positif": "a cat",
+"texte": "a cat without armor or sharp teeth"
+},
+{
+"id": "g1062",
+"negatifs": [
+"armor",
+"sharp teeth"
+],
+"positif": "a cat",
+"texte": "a cat with no armor or sharp teeth"
+},
+{
+"id": "g1063",
+"negatifs": [
+"armor",
+"sharp teeth"
+],
+"positif": "a cat",
+"texte": "a cat, no armor and not wearing the sharp teeth"
+},
+{
+"id": "g1064",
+"negatifs": [
+"armor",
+"sharp teeth"
+],
+"positif": "a cat",
+"texte": "a cat without any armor, without the sharp teeth"
+},
+{
+"id": "g1065",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat with no armor"
+},
+{
+"id": "g1066",
+"negatifs": [
+"armor"
+],
+"positif": "a cat, 8k",
+"texte": "a cat with no armor, 8k"
+},
+{
+"id": "g1067",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat without any armor"
+},
+{
+"id": "g1068",
+"negatifs": [
+"armor"
+],
+"positif": "a cat, 8k",
+"texte": "a cat without any armor, 8k"
+},
+{
+"id": "g1069",
+"negatifs": [
+"armor"
+],
+"positif": "a cat, 8k",
+"texte": "a cat not wearing any armor, 8k"
+},
+{
+"id": "g1070",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat wearing no armor"
+},
+{
+"id": "g1071",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat has no armor"
+},
+{
+"id": "g1072",
+"negatifs": [
+"armor"
+],
+"positif": "a cat.",
+"texte": "a cat has no armor."
+},
+{
+"id": "g1073",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat with no armor at all"
+},
+{
+"id": "g1074",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat that has no armor"
+},
+{
+"id": "g1075",
+"negatifs": [
+"armor"
+],
+"positif": "a cat",
+"texte": "a cat who is not wearing any armor"
+},
+{
+"id": "g1076",
+"negatifs": [
+"armor"
+],
+"positif": "a cat in a forest",
+"texte": "a cat with no armor in a forest"
+},
+{
+"id": "g1077",
+"negatifs": [
+"armor"
+],
+"positif": "a cat holding a club",
+"texte": "a cat with no armor holding a club"
+},
+{
+"id": "g1078",
+"negatifs": [
+"armor"
+],
+"positif": "a cat with lance",
+"texte": "a cat with lance, no armor"
+},
+{
+"id": "g1079",
+"negatifs": [
+"armor"
+],
+"positif": "a cat with lance",
+"texte": "a cat with lance and no armor"
+},
+{
+"id": "g1080",
+"negatifs": [
+"armor"
+],
+"positif": "a cat smiling on a rock",
+"texte": "a cat with no armor smiling on a rock"
+},
+{
+"id": "g1081",
+"negatifs": [
+"armor"
+],
+"positif": "a cat smiling on a rock",
+"texte": "a cat without any armor and smiling on a rock"
+},
+{
+"id": "g1082",
+"negatifs": [
+"armor"
+],
+"positif": "a cat wearing lance",
+"texte": "a cat without any armor wearing lance"
+},
+{
+"id": "g1083",
+"negatifs": [
+"armor",
+"sharp teeth"
+],
+"positif": "a cat smiling on a rock",
+"texte": "a cat with no armor and no sharp teeth smiling on a rock"
+},
+{
+"id": "g1084",
+"negatifs": [
+"armor"
+],
+"positif": "a cat with lance",
+"texte": "a cat with no armor but lance"
+},
+{
+"id": "g1085",
+"negatifs": [
+"armor"
+],
+"positif": "a cat with lance",
+"texte": "a cat with no armor and lance"
+},
+{
+"id": "g1086",
+"negatifs": [
+"armor"
+],
+"positif": "a cat, but lance",
+"texte": "a cat with no armor, but lance"
+},
+{
+"id": "g1087",
+"negatifs": [
+"armor"
+],
+"positif": "a cat 8k",
+"texte": "a cat (no armor) 8k"
+},
+{
+"id": "g1088",
+"negatifs": [
+"armor"
+],
+"positif": "a cat - 8k",
+"texte": "a cat - no armor - 8k"
+},
+{
+"id": "g1089",
+"negatifs": [
+"armor"
+],
+"positif": "a cat. 8k",
+"texte": "a cat. No armor. 8k"
+},
+{
+"id": "g1090",
+"negatifs": [
+"armor"
+],
+"positif": "a cat; 8k",
+"texte": "a cat; without armor; 8k"
+},
+{
+"id": "g1091",
+"negatifs": [
+"armor"
+],
+"positif": "a cat\n8k",
+"texte": "a cat\nno armor\n8k"
+},
+{
+"id": "g1092",
+"negatifs": [
+"armor"
+],
+"positif": "A CAT, 8K",
+"texte": "A CAT, NO ARMOR, 8K"
+},
+{
+"id": "g1093",
+"negatifs": [
+"armor"
+],
+"positif": "A Cat, 8K",
+"texte": "A Cat, No Armor, 8K"
+},
+{
+"id": "g1094",
+"negatifs": [
+"armor"
+],
+"positif": "a cat ,8k",
+"texte": "a cat ,no armor, 8k"
+},
+{
+"id": "g1095",
+"negatifs": [],
+"positif": "a cat with lance",
+"texte": "a cat with lance"
+},
+{
+"id": "g1096",
+"negatifs": [],
+"positif": "a cat, no armor except lance",
+"texte": "a cat, no armor except lance"
+},
+{
+"id": "g1097",
+"negatifs": [],
+"positif": "a cat, 8k, lance",
+"texte": "a cat, 8k, lance"
+},
+{
+"id": "g1098",
+"negatifs": [],
+"positif": "a cat, no armor a lance",
+"texte": "a cat, no armor a lance"
+},
+{
+"id": "g1099",
+"negatifs": [],
+"positif": "a cat, not only armor but also sharp teeth",
+"texte": "a cat, not only armor but also sharp teeth"
+},
+{
+"id": "g1100",
+"negatifs": [],
+"positif": "a cat, no longer smiling on a rock",
+"texte": "a cat, no longer smiling on a rock"
+},
+{
+"id": "g1101",
+"negatifs": [],
+"positif": "a cat not any armor",
+"texte": "a cat not any armor"
+},
+{
+"id": "g1102",
+"negatifs": [],
+"positif": "a cat never wearing any armor",
+"texte": "a cat never wearing any armor"
+},
+{
+"id": "g1103",
+"negatifs": [],
+"positif": "a cat, 8k",
+"texte": "a cat, 8k"
+},
+{
+"id": "g1104",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight, no helmet"
+},
+{
+"id": "g1105",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight, in a dark cave",
+"texte": "a knight, no helmet, in a dark cave"
+},
+{
+"id": "g1106",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight, without the helmet"
+},
+{
+"id": "g1107",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight, in a dark cave",
+"texte": "a knight, in a dark cave, no helmet"
+},
+{
+"id": "g1108",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight in a dark cave",
+"texte": "a knight in a dark cave, no helmet"
+},
+{
+"id": "g1109",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight, not wearing the helmet"
+},
+{
+"id": "g1110",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight, never the helmet"
+},
+{
+"id": "g1111",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight, no helmet whatsoever"
+},
+{
+"id": "g1112",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight, red cape",
+"texte": "a knight, no helmet and red cape"
+},
+{
+"id": "g1113",
+"negatifs": [
+"helmet",
+"big ears"
+],
+"positif": "a knight",
+"texte": "a knight, no helmet and no big ears"
+},
+{
+"id": "g1114",
+"negatifs": [
+"helmet",
+"big ears"
+],
+"positif": "a knight",
+"texte": "a knight, no helmet, no big ears"
+},
+{
+"id": "g1115",
+"negatifs": [
+"helmet",
+"big ears"
+],
+"positif": "a knight, in a dark cave",
+"texte": "a knight, no helmet, in a dark cave, no big ears"
+},
+{
+"id": "g1116",
+"negatifs": [
+"helmet",
+"big ears"
+],
+"positif": "a knight",
+"texte": "a knight without helmet or big ears"
+},
+{
+"id": "g1117",
+"negatifs": [
+"helmet",
+"big ears"
+],
+"positif": "a knight",
+"texte": "a knight with no helmet or big ears"
+},
+{
+"id": "g1118",
+"negatifs": [
+"helmet",
+"big ears"
+],
+"positif": "a knight",
+"texte": "a knight, no helmet and not wearing big ears"
+},
+{
+"id": "g1119",
+"negatifs": [
+"helmet",
+"big ears"
+],
+"positif": "a knight",
+"texte": "a knight without the helmet, without big ears"
+},
+{
+"id": "g1120",
+"negatifs": [
+"helmet",
+"beard",
+"armor",
+"wings",
+"tail",
+"red cape",
+"plate armor",
+"spiked club"
+],
+"positif": "a knight",
+"texte": "a knight, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
+},
+{
+"id": "g1121",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight with no helmet"
+},
+{
+"id": "g1122",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight, in a dark cave",
+"texte": "a knight with no helmet, in a dark cave"
+},
+{
+"id": "g1123",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight without the helmet"
+},
+{
+"id": "g1124",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight, in a dark cave",
+"texte": "a knight without the helmet, in a dark cave"
+},
+{
+"id": "g1125",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight, in a dark cave",
+"texte": "a knight not wearing the helmet, in a dark cave"
+},
+{
+"id": "g1126",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight wearing no helmet"
+},
+{
+"id": "g1127",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight has no helmet"
+},
+{
+"id": "g1128",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight.",
+"texte": "a knight has no helmet."
+},
+{
+"id": "g1129",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight with no helmet at all"
+},
+{
+"id": "g1130",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight that has no helmet"
+},
+{
+"id": "g1131",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight",
+"texte": "a knight who is not wearing the helmet"
+},
+{
+"id": "g1132",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight in a forest",
+"texte": "a knight with no helmet in a forest"
+},
+{
+"id": "g1133",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight holding a club",
+"texte": "a knight with no helmet holding a club"
+},
+{
+"id": "g1134",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight with red cape",
+"texte": "a knight with red cape, no helmet"
+},
+{
+"id": "g1135",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight with red cape",
+"texte": "a knight with red cape and no helmet"
+},
+{
+"id": "g1136",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight floating at the camera",
+"texte": "a knight with no helmet floating at the camera"
+},
+{
+"id": "g1137",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight floating at the camera",
+"texte": "a knight without the helmet and floating at the camera"
+},
+{
+"id": "g1138",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight wearing red cape",
+"texte": "a knight without the helmet wearing red cape"
+},
+{
+"id": "g1139",
+"negatifs": [
+"helmet",
+"big ears"
+],
+"positif": "a knight floating at the camera",
+"texte": "a knight with no helmet and no big ears floating at the camera"
+},
+{
+"id": "g1140",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight with red cape",
+"texte": "a knight with no helmet but red cape"
+},
+{
+"id": "g1141",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight with red cape",
+"texte": "a knight with no helmet and red cape"
+},
+{
+"id": "g1142",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight, but red cape",
+"texte": "a knight with no helmet, but red cape"
+},
+{
+"id": "g1143",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight in a dark cave",
+"texte": "a knight (no helmet) in a dark cave"
+},
+{
+"id": "g1144",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight - in a dark cave",
+"texte": "a knight - no helmet - in a dark cave"
+},
+{
+"id": "g1145",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight. in a dark cave",
+"texte": "a knight. No helmet. in a dark cave"
+},
+{
+"id": "g1146",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight; in a dark cave",
+"texte": "a knight; without helmet; in a dark cave"
+},
+{
+"id": "g1147",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight\nin a dark cave",
+"texte": "a knight\nno helmet\nin a dark cave"
+},
+{
+"id": "g1148",
+"negatifs": [
+"helmet"
+],
+"positif": "A KNIGHT, IN A DARK CAVE",
+"texte": "A KNIGHT, NO HELMET, IN A DARK CAVE"
+},
+{
+"id": "g1149",
+"negatifs": [
+"helmet"
+],
+"positif": "A Knight, In A Dark Cave",
+"texte": "A Knight, No Helmet, In A Dark Cave"
+},
+{
+"id": "g1150",
+"negatifs": [
+"helmet"
+],
+"positif": "a knight ,in a dark cave",
+"texte": "a knight ,no helmet, in a dark cave"
+},
+{
+"id": "g1151",
+"negatifs": [],
+"positif": "a knight with red cape",
+"texte": "a knight with red cape"
+},
+{
+"id": "g1152",
+"negatifs": [],
+"positif": "a knight, no helmet except red cape",
+"texte": "a knight, no helmet except red cape"
+},
+{
+"id": "g1153",
+"negatifs": [],
+"positif": "a knight, in a dark cave, red cape",
+"texte": "a knight, in a dark cave, red cape"
+},
+{
+"id": "g1154",
+"negatifs": [],
+"positif": "a knight, no helmet a red cape",
+"texte": "a knight, no helmet a red cape"
+},
+{
+"id": "g1155",
+"negatifs": [],
+"positif": "a knight, not only helmet but also big ears",
+"texte": "a knight, not only helmet but also big ears"
+},
+{
+"id": "g1156",
+"negatifs": [],
+"positif": "a knight, no longer floating at the camera",
+"texte": "a knight, no longer floating at the camera"
+},
+{
+"id": "g1157",
+"negatifs": [],
+"positif": "a knight not the helmet",
+"texte": "a knight not the helmet"
+},
+{
+"id": "g1158",
+"negatifs": [],
+"positif": "a knight never wearing the helmet",
+"texte": "a knight never wearing the helmet"
+},
+{
+"id": "g1159",
+"negatifs": [],
+"positif": "a knight, in a dark cave",
+"texte": "a knight, in a dark cave"
+},
+{
+"id": "g1160",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, no ornate golden spiked helmet"
+},
+{
+"id": "g1161",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers, in a dark cave",
+"texte": "two soldiers, no ornate golden spiked helmet, in a dark cave"
+},
+{
+"id": "g1162",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, without an ornate golden spiked helmet"
+},
+{
+"id": "g1163",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers, in a dark cave",
+"texte": "two soldiers, in a dark cave, no ornate golden spiked helmet"
+},
+{
+"id": "g1164",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers in a dark cave",
+"texte": "two soldiers in a dark cave, no ornate golden spiked helmet"
+},
+{
+"id": "g1165",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, not wearing an ornate golden spiked helmet"
+},
+{
+"id": "g1166",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, never an ornate golden spiked helmet"
+},
+{
+"id": "g1167",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, no ornate golden spiked helmet whatsoever"
+},
+{
+"id": "g1168",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers, the red cape",
+"texte": "two soldiers, no ornate golden spiked helmet and the red cape"
+},
+{
+"id": "g1169",
+"negatifs": [
+"golden spiked helmet",
+"sharp teeth"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, no ornate golden spiked helmet and no sharp teeth"
+},
+{
+"id": "g1170",
+"negatifs": [
+"golden spiked helmet",
+"sharp teeth"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, no ornate golden spiked helmet, no sharp teeth"
+},
+{
+"id": "g1171",
+"negatifs": [
+"golden spiked helmet",
+"sharp teeth"
+],
+"positif": "two soldiers, in a dark cave",
+"texte": "two soldiers, no ornate golden spiked helmet, in a dark cave, no sharp teeth"
+},
+{
+"id": "g1172",
+"negatifs": [
+"golden spiked helmet",
+"sharp teeth"
+],
+"positif": "two soldiers",
+"texte": "two soldiers without ornate golden spiked helmet or sharp teeth"
+},
+{
+"id": "g1173",
+"negatifs": [
+"golden spiked helmet",
+"sharp teeth"
+],
+"positif": "two soldiers",
+"texte": "two soldiers with no ornate golden spiked helmet or sharp teeth"
+},
+{
+"id": "g1174",
+"negatifs": [
+"golden spiked helmet",
+"sharp teeth"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, no ornate golden spiked helmet and not wearing a sharp teeth"
+},
+{
+"id": "g1175",
+"negatifs": [
+"golden spiked helmet",
+"sharp teeth"
+],
+"positif": "two soldiers",
+"texte": "two soldiers without an ornate golden spiked helmet, without a sharp teeth"
+},
+{
+"id": "g1176",
+"negatifs": [
+"helmet",
+"beard",
+"armor",
+"wings",
+"tail",
+"red cape",
+"plate armor",
+"spiked club"
+],
+"positif": "two soldiers",
+"texte": "two soldiers, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
+},
+{
+"id": "g1177",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers with no ornate golden spiked helmet"
+},
+{
+"id": "g1178",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers, in a dark cave",
+"texte": "two soldiers with no ornate golden spiked helmet, in a dark cave"
+},
+{
+"id": "g1179",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers without an ornate golden spiked helmet"
+},
+{
+"id": "g1180",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers, in a dark cave",
+"texte": "two soldiers without an ornate golden spiked helmet, in a dark cave"
+},
+{
+"id": "g1181",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers, in a dark cave",
+"texte": "two soldiers not wearing an ornate golden spiked helmet, in a dark cave"
+},
+{
+"id": "g1182",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers wearing no ornate golden spiked helmet"
+},
+{
+"id": "g1183",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers has no ornate golden spiked helmet"
+},
+{
+"id": "g1184",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers.",
+"texte": "two soldiers has no ornate golden spiked helmet."
+},
+{
+"id": "g1185",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers with no ornate golden spiked helmet at all"
+},
+{
+"id": "g1186",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers that has no ornate golden spiked helmet"
+},
+{
+"id": "g1187",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers",
+"texte": "two soldiers who is not wearing an ornate golden spiked helmet"
+},
+{
+"id": "g1188",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers in a forest",
+"texte": "two soldiers with no ornate golden spiked helmet in a forest"
+},
+{
+"id": "g1189",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers holding a club",
+"texte": "two soldiers with no ornate golden spiked helmet holding a club"
+},
+{
+"id": "g1190",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers with the red cape",
+"texte": "two soldiers with the red cape, no ornate golden spiked helmet"
+},
+{
+"id": "g1191",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers with the red cape",
+"texte": "two soldiers with the red cape and no ornate golden spiked helmet"
+},
+{
+"id": "g1192",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers kneeling on a rock",
+"texte": "two soldiers with no ornate golden spiked helmet kneeling on a rock"
+},
+{
+"id": "g1193",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers kneeling on a rock",
+"texte": "two soldiers without an ornate golden spiked helmet and kneeling on a rock"
+},
+{
+"id": "g1194",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers wearing the red cape",
+"texte": "two soldiers without an ornate golden spiked helmet wearing the red cape"
+},
+{
+"id": "g1195",
+"negatifs": [
+"golden spiked helmet",
+"sharp teeth"
+],
+"positif": "two soldiers kneeling on a rock",
+"texte": "two soldiers with no ornate golden spiked helmet and no sharp teeth kneeling on a rock"
+},
+{
+"id": "g1196",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers with the red cape",
+"texte": "two soldiers with no ornate golden spiked helmet but the red cape"
+},
+{
+"id": "g1197",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers with the red cape",
+"texte": "two soldiers with no ornate golden spiked helmet and the red cape"
+},
+{
+"id": "g1198",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers, but the red cape",
+"texte": "two soldiers with no ornate golden spiked helmet, but the red cape"
+},
+{
+"id": "g1199",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers in a dark cave",
+"texte": "two soldiers (no ornate golden spiked helmet) in a dark cave"
+},
+{
+"id": "g1200",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers - in a dark cave",
+"texte": "two soldiers - no ornate golden spiked helmet - in a dark cave"
+},
+{
+"id": "g1201",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers. in a dark cave",
+"texte": "two soldiers. No ornate golden spiked helmet. in a dark cave"
+},
+{
+"id": "g1202",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers; in a dark cave",
+"texte": "two soldiers; without ornate golden spiked helmet; in a dark cave"
+},
+{
+"id": "g1203",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers\nin a dark cave",
+"texte": "two soldiers\nno ornate golden spiked helmet\nin a dark cave"
+},
+{
+"id": "g1204",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "TWO SOLDIERS, IN A DARK CAVE",
+"texte": "TWO SOLDIERS, NO ORNATE GOLDEN SPIKED HELMET, IN A DARK CAVE"
+},
+{
+"id": "g1205",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "Two Soldiers, In A Dark Cave",
+"texte": "Two Soldiers, No Ornate Golden Spiked Helmet, In A Dark Cave"
+},
+{
+"id": "g1206",
+"negatifs": [
+"golden spiked helmet"
+],
+"positif": "two soldiers ,in a dark cave",
+"texte": "two soldiers ,no ornate golden spiked helmet, in a dark cave"
+},
+{
+"id": "g1207",
+"negatifs": [],
+"positif": "two soldiers with the red cape",
+"texte": "two soldiers with the red cape"
+},
+{
+"id": "g1208",
+"negatifs": [],
+"positif": "two soldiers, no ornate golden spiked helmet except the red cape",
+"texte": "two soldiers, no ornate golden spiked helmet except the red cape"
+},
+{
+"id": "g1209",
+"negatifs": [],
+"positif": "two soldiers, in a dark cave, red cape",
+"texte": "two soldiers, in a dark cave, red cape"
+},
+{
+"id": "g1210",
+"negatifs": [],
+"positif": "two soldiers, no ornate golden spiked helmet a red cape",
+"texte": "two soldiers, no ornate golden spiked helmet a red cape"
+},
+{
+"id": "g1211",
+"negatifs": [],
+"positif": "two soldiers, not only ornate golden spiked helmet but also sharp teeth",
+"texte": "two soldiers, not only ornate golden spiked helmet but also sharp teeth"
+},
+{
+"id": "g1212",
+"negatifs": [],
+"positif": "two soldiers, no longer kneeling on a rock",
+"texte": "two soldiers, no longer kneeling on a rock"
+},
+{
+"id": "g1213",
+"negatifs": [],
+"positif": "two soldiers not an ornate golden spiked helmet",
+"texte": "two soldiers not an ornate golden spiked helmet"
+},
+{
+"id": "g1214",
+"negatifs": [],
+"positif": "two soldiers never wearing an ornate golden spiked helmet",
+"texte": "two soldiers never wearing an ornate golden spiked helmet"
+},
+{
+"id": "g1215",
+"negatifs": [],
+"positif": "two soldiers, in a dark cave",
+"texte": "two soldiers, in a dark cave"
 }
 ]
 }

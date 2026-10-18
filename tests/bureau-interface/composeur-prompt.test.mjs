@@ -32,7 +32,7 @@ const DECLARATIONS = ['ASSET_TYPE_PROMPTS', 'ASSET_STYLE_PROMPTS', 'ASSET_TYPE_P
   '_TENUE_PREHISTORIQUE', '_TENUES_EPOQUE', '_epoqueUnite', '_MOTS_VOL', '_parleDeVol', '_DEMANDE_EN', '_DEMANDE_FR', '_epurerDemande',
   'buildFullPrompt', 'stripKnownPromptSuffixes', '_optionsPose'];
 // declarations ajoutees avec les negations : facultatives ici pour que ce fichier puisse AUSSI tourner contre l'ancien code (ses tests de negations echouent alors, c'est la preuve)
-const DECLARATIONS_NEGATIONS = ['_optionsAffichage', '_sansNegations', '_negativeExtraDe', '_retirerPolitesseFin'];
+const DECLARATIONS_NEGATIONS = ['_optionsAffichage', '_sansNegations', '_negativeExtraDe', '_retirerPolitesseFin', '_autoDetectAssetType'];
 
 const CHEMINS = { 'src/renderer/index2.js': process.env.INDEX2_BUREAU, 'cloud/public/app/index2.js': process.env.INDEX2_WEB };
 function charger(chemin) {
@@ -50,7 +50,7 @@ function charger(chemin) {
   assert.deepEqual(manque, [], chemin + ' : declarations introuvables ' + manque.join(', '));
   const f = new Function('analyserIntention', 'composerGabarit', 'clauseObjetTenu', 'retirerClauseFinale', 'composeurActif', 'modeDepuisTexte',
     'positifSansNegations', 'negationsDe', 'assainirNegatifs', 'texteDUnAncienGabarit', 'retirerNegationsGabarit', 'nettoyerVirgules',
-    morceaux.join('\n') + '\nreturn { buildFullPrompt, stripKnownPromptSuffixes, _optionsPose, ASSET_STYLE_PROMPTS, ASSET_TYPE_PROMPTS, ASSET_TYPE_PREFIXES, _epurerDemande,\n      _optionsAffichage: typeof _optionsAffichage === "function" ? _optionsAffichage : undefined,\n      _sansNegations: typeof _sansNegations === "function" ? _sansNegations : undefined,\n      _negativeExtraDe: typeof _negativeExtraDe === "function" ? _negativeExtraDe : undefined };');
+    morceaux.join('\n') + '\nreturn { buildFullPrompt, stripKnownPromptSuffixes, _optionsPose, ASSET_STYLE_PROMPTS, ASSET_TYPE_PROMPTS, ASSET_TYPE_PREFIXES, _epurerDemande,\n      _optionsAffichage: typeof _optionsAffichage === "function" ? _optionsAffichage : undefined,\n      _sansNegations: typeof _sansNegations === "function" ? _sansNegations : undefined,\n      _negativeExtraDe: typeof _negativeExtraDe === "function" ? _negativeExtraDe : undefined,\n      _autoDetectAssetType: typeof _autoDetectAssetType === "function" ? _autoDetectAssetType : undefined };');
   return f(LIB.analyser, LIB.composerGabarit, LIB.clauseObjetTenu, LIB.retirerClauseFinale, LIB.actif, () => null,
     LIB.positifSansNegations, LIB.negationsDe, LIB.assainirNegatifs, LIB.texteDUnAncienGabarit, LIB.retirerNegationsGabarit, LIB.nettoyerVirgules);
 }
@@ -430,6 +430,7 @@ for (const [nom, chemin] of [['bureau', 'src/renderer/index2.js'], ['web', 'clou
     // les outils qui relisent le prompt ENREGISTRE du projet (il garde maintenant les negations) pour generer ou detecter le lisent sans les locutions negatives
     const consommateurs = nom === 'bureau'
       ? ["const prompt = _sansNegations((p && (p.prompt || p.initialPrompt)) || '');",                                   // etapes de construction 2D
+        "_autoDetectAssetType(_sansNegations(rawPrompt) || p.name || '')",                                                // type d'asset deduit du prompt du projet (2026-10-18)
         "_sansNegations((p && (p.prompt || p.initialPrompt)) || '') || 'high quality, detailed'",                         // variantes
         "_sansNegations(p.prompt || p.initialPrompt || ''))"]                                                            // variantes (sujet)
       : ["_sansNegations(p.prompt || p.initialPrompt || '') || 'variation'", "_sansNegations(p.prompt || p.initialPrompt || ''))"];
@@ -437,6 +438,21 @@ for (const [nom, chemin] of [['bureau', 'src/renderer/index2.js'], ['web', 'clou
     assert.ok(src.includes('modeDepuisTexte([p.name, _sansNegations(p.prompt), p.assetType]'), 'mode d\'animation : « not flying » n\'est pas un vol');
     assert.ok(src.includes('especeDepuisTexte([p.name, _sansNegations(p.prompt), p.assetType]'), 'espece d\'animation');
   });
+
+  if (nom === 'bureau') {
+    test(nom + " : le type d'asset deduit du prompt du projet ignore les mots NIES (« an orc, no sword » n'est pas une arme)", () => avecDocument(() => {
+      // populateWorkspace relit le prompt ENREGISTRE du projet, qui garde maintenant les negations de l'utilisateur : sans _sansNegations, « sword » rangeait un orc parmi les armes
+      assert.equal(typeof P._autoDetectAssetType, 'function');
+      const detecte = (t) => P._autoDetectAssetType(P._sansNegations(t));
+      for (const [t, attendu] of [['An orc warrior, no sword', null], ['a knight with no shield', null], ['a warrior, without weapons', null], ['a dragon, no castle', 'creature'],
+        ['a cat with no car', 'animal'], ['a wizard holding a staff, no hat', null], ['a castle, no towers', 'building'], ['a sword', 'weapon'], ['a car with no wheels', 'vehicle']]) {
+        assert.equal(detecte(t), attendu, t);
+      }
+      // la preuve que le nettoyage sert : sur le texte brut, ces negations changent le type
+      assert.equal(P._autoDetectAssetType('An orc warrior, no sword'), 'weapon');
+      assert.equal(P._autoDetectAssetType('a dragon, no castle'), 'building');
+    }));
+  }
 
   test(nom + " : un texte de plus de 2 000 caracteres n'est ni tronque ni analyse : ses negations restent dans le prompt, rien n'est perdu", () => avecDocument(() => {
     const queue = ' queue-unique-xyz';

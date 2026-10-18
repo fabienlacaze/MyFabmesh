@@ -27,7 +27,9 @@ RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # INTENTION_SCRIPTS=<dossier> : verifie une AUTRE copie de composeur_intention.py (preuve qu'un test echoue sur du code mute ou ancien ; meme usage que MAIN_JS / WORKER_SRC)
 sys.path.insert(0, os.environ.get('INTENTION_SCRIPTS') or os.path.join(RACINE, 'scripts'))
 sys.path.insert(0, RACINE)
+sys.path.insert(1, os.path.join(RACINE, 'build', 'bancs', 'noyaux'))
 import composeur_intention as C  # noqa: E402
+import negations_constructions as K  # noqa: E402
 from modal_app import _prompts as P  # noqa: E402
 
 CAS = os.path.join(RACINE, 'build', 'intention_cas.json')
@@ -275,6 +277,10 @@ def balayage_negations():
     ajoute('Without Remorse, a film poster, without a helmet')
     ajoute('  no helmet  ,   no beard  ')
     ajoute('no helmet \t\n and \u00a0 no beard')
+    # cas CONSTRUITS (2026-10-18, build/bancs/noyaux/negations_constructions.py) : le texte ET la sortie attendue sortent du MEME gabarit (« S with no N but a M » ->
+    # « S with a M » + terme N), pour une grande variete de sujets, de groupes nies et de complements. L'attendu n'est donc pas recopie de la sortie du module.
+    for k in K.construire(2027, 6):
+        cas.append({'id': 'g%03d' % (len(cas) + 1), 'texte': k['texte'], 'inchange': False, 'attendu': {'positif': k['positif'], 'negatifs': k['negatifs']}})
     return cas
 
 
@@ -375,11 +381,13 @@ def main():
         r = canon(C.extraire_negations(c['texte']))
         if c['inchange'] and (r['positif'] != c['texte'] or r['negatifs']):
             neg_echecs.append((c['id'], c['texte'], r))
+        elif c.get('attendu') and (r['positif'] != c['attendu']['positif'] or r['negatifs'] != c['attendu']['negatifs']):
+            neg_echecs.append((c['id'], c['texte'], {'obtenu': r, 'attendu': c['attendu']}))
         neg_grav.append({'id': c['id'], 'texte': c['texte'], 'positif': r['positif'], 'negatifs': r['negatifs']})
     print('[intention] negations : %d cas generes, %d qui doivent rester inchanges, %d echec(s)'
           % (len(neg_cas), sum(1 for c in neg_cas if c['inchange']), len(neg_echecs)))
     for e in neg_echecs:
-        print('  cas %s "%s" devait rester inchange : %s' % (e[0], e[1][:70], e[2]))
+        print('  cas %s "%s" : %s' % (e[0], e[1][:70], ('attendu / obtenu ' if 'attendu' in e[2] else 'devait rester inchange : ') + str(e[2])))
     if neg_echecs:
         code = 1
     assainir = [{'entree': e, 'sortie': C.assainir_negatifs(e)} for e in ENTREES_ASSAINIR]

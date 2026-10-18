@@ -13,12 +13,20 @@ import json
 import os
 import random
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import time
 import unittest
 
 RACINE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 CHEMIN = os.environ.get('COMPOSEUR_PY') or os.path.join(RACINE, 'scripts', 'composeur_intention.py')
 CAS = os.path.join(RACINE, 'build', 'intention_cas.json')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import negations_constructions as K  # noqa: E402
+JS_LIB = os.path.join(RACINE, 'src', 'renderer', 'lib', 'composeur-intention.js')
+JS_SORTIE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'negations_js_sortie.mjs')
 
 
 def charger():
@@ -194,6 +202,8 @@ class Negations(unittest.TestCase):
             for m in mots.findall(tt):
                 reste[m] = reste.get(m, 0) + 1
             for m in mots.findall(positif):
+                if m.lower() == 'with':
+                    continue        # le seul mot que le module AJOUTE : le lien d'une conjonction remplacee (« without X but Y » -> « with Y »), voir test_conjonction_apres_la_locution
                 self.assertGreater(reste.get(m, 0), 0, 'mot invente %r dans le positif de %r' % (m, t))
                 reste[m] -= 1
             if not re.search(r"(?i)\b(no|not|never|without)\b", tt):
@@ -259,6 +269,97 @@ class Negations(unittest.TestCase):
         for texte in ('An orc, no helmet, no beard', 'A man, no long white curly beard', 'a car, not red'):
             negs = self.C.extraire_negations(texte)['negatifs']
             self.assertEqual(self.C.assainir_negatifs(negs), negs)
+
+    # ------------------------------------------------------------------------------------------------------------ relecture du 2026-10-18
+    def test_participe_du_sujet_apres_la_locution_reste_dans_le_positif(self):
+        """« an orc with no helmet standing » envoyait « helmet standing » au NEGATIF (le modele evitait donc un orc debout) et perdait « standing » du positif."""
+        cas = [
+            ('an orc with no helmet standing', 'an orc standing', ['helmet']),
+            ('a man with no hat smiling', 'a man smiling', ['hat']),
+            ('a woman with no makeup smiling at the camera', 'a woman smiling at the camera', ['makeup']),
+            ('a boxer without gloves punching', 'a boxer punching', ['gloves']),
+            ('a warrior with no weapon raising his fists', 'a warrior raising his fists', ['weapon']),
+            ('a ghost with no legs floating', 'a ghost floating', ['legs']),
+            ('a girl, with no shoes sitting', 'a girl, sitting', ['shoes']),                       # segment qui commence par une liaison : il se rattache au sujet
+            ('an orc without a helmet and smiling', 'an orc smiling', ['helmet']),                  # « smiling » n'est pas un element de la liste nie
+            ('a knight without a helmet on his head smiling', 'a knight smiling', ['helmet']),     # le complement porte part, le participe reste
+        ]
+        for texte, positif, negatifs in cas:
+            with self.subTest(texte=texte):
+                self.assertEqual(self.ext(texte), (positif, negatifs))
+
+    def test_participe_apres_une_negation_en_tete_de_segment_reste_dans_le_groupe_nie(self):
+        """« a street, no birds flying » : rien dans ce segment pour porter le participe, il appartient au groupe nie (cas n66). Quelque chose derriere lui : il ouvre une proposition."""
+        self.assertEqual(self.ext('a street, no birds flying'), ('a street', ['birds flying']))
+        self.assertEqual(self.ext('a street, no people walking'), ('a street', ['people walking']))
+        self.assertEqual(self.ext('a woman, no makeup smiling at the camera'), ('a woman, smiling at the camera', ['makeup']))
+        self.assertEqual(self.ext('a king, no crown sitting on a throne'), ('a king, sitting on a throne', ['crown']))
+
+    def test_conjonction_apres_la_locution(self):
+        """« a man with no beard but a mustache » donnait « a man but a mustache » (conjonction pendante) ; elle reprend maintenant le mot qui liait la locution."""
+        cas = [
+            ('a man with no beard but a mustache', 'a man with a mustache', ['beard']),
+            ('an orc with no weapons and armor', 'an orc with armor', ['weapons']),
+            ('a fireman with no helmet and a mask', 'a fireman with a mask', ['helmet']),
+            ('an orc without weapons but with armor', 'an orc with armor', ['weapons']),             # une preposition suit : la conjonction part, « with » n'est pas double
+            ('a viking not wearing a helmet but a hood', 'a viking wearing a hood', ['helmet']),    # le verbe leger de « not wearing »
+            ('an orc has no helmet but a hood', 'an orc has a hood', ['helmet']),                   # le mot qui precedait « no » est garde
+            ('a knight with a sword and no shield but a lance', 'a knight with a sword and a lance', ['shield']),
+            ('a knight with no helmet but wearing a hood', 'a knight wearing a hood', ['helmet']),  # un verbe suit
+            ('an orc with no helmet and', 'an orc', ['helmet']),                                    # conjonction pendante en fin de texte
+            ('an orc with no helmet but no beard', 'an orc', ['helmet', 'beard']),                  # une autre negation suit : elle s'en occupe
+        ]
+        for texte, positif, negatifs in cas:
+            with self.subTest(texte=texte):
+                self.assertEqual(self.ext(texte), (positif, negatifs))
+        # pas de negation : « but » et « and » ne bougent pas
+        for texte in ('a knight, but a squire', 'a knight but a squire', 'a knight and a squire'):
+            self.assertEqual(self.ext(texte), (texte, []))
+
+    def test_second_declencheur_repete_avec_un_verbe_leger(self):
+        """« a knight, no helmet and not wearing a scarf » n'extrayait RIEN : « wearing » devenait un terme et la locution entiere etait refusee."""
+        cas = [
+            ('a knight, no helmet and not wearing a scarf', 'a knight', ['helmet', 'scarf']),
+            ('an orc with no helmet and not wearing a scarf', 'an orc', ['helmet', 'scarf']),
+            ('an orc without a helmet and not wearing a scarf', 'an orc', ['helmet', 'scarf']),
+            ('an orc not wearing a helmet and not wearing a scarf', 'an orc', ['helmet', 'scarf']),
+        ]
+        for texte, positif, negatifs in cas:
+            with self.subTest(texte=texte):
+                self.assertEqual(self.ext(texte), (positif, negatifs))
+
+    def test_cas_construits(self):
+        """Chaque FORME de phrase (build/bancs/noyaux/negations_constructions.py) devient ce qu'elle doit devenir, pour des centaines de sujets / groupes nies / complements
+        (le texte et la sortie attendue sortent du meme gabarit). Sur l'ancien module : plusieurs milliers d'ecarts (participes, conjonctions, second declencheur)."""
+        cas = K.construire(2028, 300)
+        self.assertGreater(len(cas), 10000)
+        echecs = []
+        for c in cas:
+            positif, negatifs = self.ext(c['texte'])
+            if positif != c['positif'] or negatifs != c['negatifs']:
+                echecs.append((c['nom'], c['texte'], (positif, negatifs), (c['positif'], c['negatifs'])))
+        self.assertEqual(echecs[:6], [], '%d ecart(s) sur %d cas construits' % (len(echecs), len(cas)))
+
+    def test_parite_javascript_sur_les_cas_construits(self):
+        """Le jumeau JavaScript donne les memes sorties sur les cas construits (ceux de la garde sont graves, ceux-ci sont d'une autre graine et bien plus nombreux)."""
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('node absent')
+        textes = [c['texte'] for c in K.construire(2029, 120)]
+        rep = tempfile.mkdtemp(prefix='negations-parite-')
+        try:
+            entrees, sorties = os.path.join(rep, 'in.json'), os.path.join(rep, 'out.json')
+            with io.open(entrees, 'w', encoding='utf-8') as f:
+                json.dump(textes, f)
+            r = subprocess.run([node, JS_SORTIE, JS_LIB, entrees, sorties], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr[:500])
+            with io.open(sorties, 'r', encoding='utf-8') as f:
+                js = json.load(f)
+        finally:
+            shutil.rmtree(rep, ignore_errors=True)
+        self.assertEqual(len(js), len(textes))
+        ecarts = [(t, list(self.ext(t)), j) for t, j in zip(textes, js) if list(self.ext(t)) != j]
+        self.assertEqual(ecarts[:5], [], '%d ecart(s) Python / JavaScript sur %d textes' % (len(ecarts), len(textes)))
 
 
 if __name__ == '__main__':
