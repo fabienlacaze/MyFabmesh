@@ -420,6 +420,9 @@ export function nettoyerVirgules(texte) {
 // titres, une liste dont un element est illisible (« without a hat and shirt ») et la garde-robe (« without clothes » : le filtre de moderation doit la VOIR).
 // « of » prolonge un groupe (« no signs of rust »). Une negation en TETE de segment retire son complement mais GARDE la proposition verbale qui la suit
 // (« no helmet holding axe » -> « holding axe ») ; au MILIEU d'une phrase seule la locution part. Au-dela de 8 termes, les negations suivantes quittent aussi le positif.
+// Ce qui SUIT la locution, au milieu d'une phrase (2026-10-18) : un participe qui decrit le SUJET reste dans le positif (« an orc with no helmet standing » -> « an orc standing ») ;
+// une conjonction (« but », « and ») qui introduit un complement positif reprend le mot qui liait la locution (« a man with no beard but a mustache » -> « a man with a mustache »).
+// Un segment qui COMMENCE par la negation (« a street, no birds flying ») garde son participe dans le terme.
 export const MAX_TEXTE_NEGATIONS = 2000;
 export const MAX_TERMES_NEGATIFS = 8;
 export const MAX_CARS_TERME = 40;

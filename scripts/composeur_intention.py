@@ -516,6 +516,9 @@ def negatifs_pont(type_actif, intent, regles=None):
 # (« no hat with a feather »), mais GARDE la proposition verbale qui la suit (« no helmet holding axe » -> « holding axe ») ; au MILIEU d'une phrase seule la
 # locution part (« a knight without a helmet on his head » -> « a knight on his head »). Au-dela de 8 termes, les negations suivantes quittent aussi le positif
 # (elles n'ont pas de place dans le negatif, et laissees dans le positif elles feraient dessiner l'objet) : voir MAX_TERMES_NEGATIFS.
+# Ce qui SUIT la locution, au milieu d'une phrase (2026-10-18) : un participe qui decrit le SUJET reste dans le positif (« an orc with no helmet standing » -> « an orc standing » ;
+# _NEG_PARTICIPES_SUJET) ; une conjonction (« but », « and ») qui introduit un complement positif reprend le mot qui liait la locution (« a man with no beard but a mustache » ->
+# « a man with a mustache » ; _neg_conj_apres). Un segment qui COMMENCE par la negation (« a street, no birds flying ») garde son participe dans le terme.
 MAX_TEXTE_NEGATIONS = 2000     # le texte analyse est tronque a 2 000 caracteres
 MAX_TERMES_NEGATIFS = 8        # termes de negatif envoyes au serveur (champ `negativeExtra`)
 MAX_CARS_TERME = 40
