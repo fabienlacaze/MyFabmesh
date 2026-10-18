@@ -39,7 +39,8 @@ def _marquer_ia(octets):
         return octets
 
 
-# CARTE DE NORMALES (2026-10-13). La generation pose une carte de normales (normal_bake.py) : elle decrit le relief du maillage FIN
+# CARTE DE NORMALES (2026-10-13). La generation pose une carte de normales (normal_bake.py) QUAND L'OPTION « relief pour moteur de jeu »
+# est cochee (2026-10-15 : decochee par defaut ; sans elle ces regles ne s'appliquent a rien) : elle decrit le relief du maillage FIN
 # par rapport a la forme et aux UV du maillage livre. Apres une operation, elle est :
 #   GARDEE  quand la forme et les UV sont intactes, ou deplacees d'un bloc : center, resize (rotation / echelle), fix_normals (le
 #           relief suit l'orientation des faces), fill_holes (faces ajoutees, les autres intactes), align_texture et retex_swap

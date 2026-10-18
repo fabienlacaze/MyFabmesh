@@ -28,7 +28,8 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    octets pre-encodes portent une empreinte de l'image : repris seulement si elle n'a pas change.
 
 2 bis. CARTES DE NORMALES SANS PERTE (preencoder_normales, 2026-10-13). La generation pose une carte
-   de normales (normal_bake.py) ; trimesh l'encoderait en WebP AVEC perte a chaque re-export d'un outil
+   de normales (normal_bake.py) QUAND L'OPTION « relief pour moteur de jeu » EST COCHEE (2026-10-15 : decochee
+   par defaut) ; trimesh l'encoderait en WebP AVEC perte a chaque re-export d'un outil
    (jusqu'a 97 degres d'erreur aux bords des ilots). webp_rapide l'encode donc en WebP SANS PERTE, avec
    le meme mecanisme que la couleur. Sans carte de normales : strictement rien ne change.
 

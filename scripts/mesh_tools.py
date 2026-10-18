@@ -834,7 +834,8 @@ def _retirer_cartes_normales(scene, geoms):
     """Retire la carte de normales (normalTexture) de chaque materiau : l'operation a DEFORME la forme ou refait les UV.
 
     CARTE DE NORMALES (2026-10-14, revue de la branche carte-normales ; meme regle que modal_app/_mesh_op.py). La generation du
-    bureau pose desormais une carte (scripts/normal_bake.py) : elle decrit le relief du maillage FIN par rapport a la forme et aux UV
+    bureau pose une carte (scripts/normal_bake.py) QUAND L'OPTION « relief pour moteur de jeu » est cochee (2026-10-15 : decochee par
+    defaut ; sans elle ces regles ne s'appliquent a rien) : elle decrit le relief du maillage FIN par rapport a la forme et aux UV
     du maillage livre. GARDEE par center, set_pivot, fix_normals, fill_holes, la subdivision au milieu des aretes et le mode
     « seal » de watertight (forme et UV intactes) ; RETIREE par smooth (le relief efface reviendrait a l'eclairage), decimate des
     qu'une geometrie est reduite, la subdivision de Loop et la coque de watertight. Ne leve jamais ; rend le nombre de cartes retirees."""

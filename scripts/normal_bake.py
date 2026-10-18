@@ -37,7 +37,9 @@ OPTION ET PLAFOND (2026-10-15, decision du proprietaire apres l'essai GPU A/B du
     couleur (4096 en Quality et Ultra) ; la variable FABMESH_NORMAL_MAP_MAX le change (valeur invalide : 2048). Proportions
     gardees. MESURE (orc, 500 000 faces, atlas 4096, essai du 15/10) : carte 4096 = +22 Mo sur le GLB, 2048 = +6,4 Mo (presque
     aussi nette), 1024 = +1,9 Mo (perd le detail fin). Le plafond tient aussi la memoire du worker du site, qui recoit les GLB
-    des outils en base64.
+    des outils en base64. MESURE du 18/10 (build/bancs/memoire_worker_glb.mjs, Node/V8, processus neuf) : la route d'un outil du
+    site tient ~3,3 fois la taille du GLB en memoire vivante (isolat limite a 128 Mo) : +6,4 Mo de GLB = ~+21 Mo d'isolat, une
+    carte 4096 (+22 Mo) en aurait ajoute ~73.
 
 CONVENTIONS (verifiees par build/bancs/noyaux/test_normal_bake.py contre le decodeur de reference de three.js r170 :
 getTangentFrame + normalScale.y = -1 que GLTFLoader pose quand le GLB n'a pas d'attribut TANGENT)
