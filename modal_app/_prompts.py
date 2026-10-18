@@ -137,51 +137,6 @@ def _parle_de_vol(texte: str) -> bool:
     return any(m in _MOTS_VOL for m in _re.split(r'[^a-z0-9]+', t))
 
 
-def _epurer_demande(texte: str) -> str:
-    """Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide."""
-    import re as _re
-    global _DEMANDE_EN, _DEMANDE_FR
-    if _DEMANDE_EN is None:
-        _DEMANDE_EN = _re.compile(
-            r"^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?"
-            r"|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
-            r"|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
-            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
-        _DEMANDE_FR = _re.compile(
-            r"^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais"
-            r"|(?:fais|cr[eé]e|g[eé]n[èe]re|dessine|fabrique)(?:-moi)?)\s+"
-            r"(?:(?:faire|cr[eé]er|g[eé]n[eé]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?", _re.I)
-    brut = str(texte if texte is not None else '')
-    t = _DEMANDE_FR.sub('', _DEMANDE_EN.sub('', brut, count=1), count=1)
-    t = _retirer_politesse_fin(t).strip()
-    return t if len(t) >= 3 else brut.strip()
-
-
-_POLITESSE_FIN = None
-
-
-def _retirer_politesse_fin(t: str) -> str:
-    """« un dragon, please! » -> « un dragon » : meme effet que l'ancienne expression
-    [\\s,;.!]*\\b(?:please|thanks|thank you|merci)\\b[\\s.!]*$ appliquee par re.sub, SANS son cout quadratique sur une longue
-    suite de blancs ou de virgules (audit du 11/10, MODERATION-07 : 32 000 blancs = 12,6 s, sous le verrou GPU). Lineaire :
-    on retire la fin [\\s.!]*, on cherche le mot de politesse au bout, puis on remonte les separateurs [\\s,;.!] qui le
-    precedent."""
-    import re as _re
-    global _POLITESSE_FIN
-    if _POLITESSE_FIN is None:
-        _POLITESSE_FIN = _re.compile(r"\b(?:please|thanks|thank you|merci)\Z", _re.I)
-    fin = len(t)
-    while fin > 0 and (t[fin - 1].isspace() or t[fin - 1] in '.!'):
-        fin -= 1
-    m = _POLITESSE_FIN.search(t, 0, fin)
-    if not m:
-        return t
-    debut = m.start()
-    while debut > 0 and (t[debut - 1].isspace() or t[debut - 1] in ',;.!'):
-        debut -= 1
-    return t[:debut]
-
-
 # NEGATIONS DE L'UTILISATEUR (2026-10-03, exigence « l'image doit correspondre EXACTEMENT au prompt »).
 # SDXL ne comprend pas la negation : dans « an orc, no helmet » il voit « helmet » et le dessine (CLAUDE.md §14). La locution quitte donc le POSITIF
 # (separer_negations) et le terme part au NEGATIF (_realvis.build_prompts pour text2image, _tpose.generate pour la T-pose). Le tri est fait par
@@ -260,6 +215,51 @@ def texte_pour_plancher(texte, extra=None):
     if not termes:
         return base
     return base + ', ' + ', '.join('no %s, without %s' % (t, t) for t in termes)
+
+
+def _epurer_demande(texte: str) -> str:
+    """Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide."""
+    import re as _re
+    global _DEMANDE_EN, _DEMANDE_FR
+    if _DEMANDE_EN is None:
+        _DEMANDE_EN = _re.compile(
+            r"^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?"
+            r"|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
+            r"|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
+            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
+        _DEMANDE_FR = _re.compile(
+            r"^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais"
+            r"|(?:fais|cr[eé]e|g[eé]n[èe]re|dessine|fabrique)(?:-moi)?)\s+"
+            r"(?:(?:faire|cr[eé]er|g[eé]n[eé]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?", _re.I)
+    brut = str(texte if texte is not None else '')
+    t = _DEMANDE_FR.sub('', _DEMANDE_EN.sub('', brut, count=1), count=1)
+    t = _retirer_politesse_fin(t).strip()
+    return t if len(t) >= 3 else brut.strip()
+
+
+_POLITESSE_FIN = None
+
+
+def _retirer_politesse_fin(t: str) -> str:
+    """« un dragon, please! » -> « un dragon » : meme effet que l'ancienne expression
+    [\\s,;.!]*\\b(?:please|thanks|thank you|merci)\\b[\\s.!]*$ appliquee par re.sub, SANS son cout quadratique sur une longue
+    suite de blancs ou de virgules (audit du 11/10, MODERATION-07 : 32 000 blancs = 12,6 s, sous le verrou GPU). Lineaire :
+    on retire la fin [\\s.!]*, on cherche le mot de politesse au bout, puis on remonte les separateurs [\\s,;.!] qui le
+    precedent."""
+    import re as _re
+    global _POLITESSE_FIN
+    if _POLITESSE_FIN is None:
+        _POLITESSE_FIN = _re.compile(r"\b(?:please|thanks|thank you|merci)\Z", _re.I)
+    fin = len(t)
+    while fin > 0 and (t[fin - 1].isspace() or t[fin - 1] in '.!'):
+        fin -= 1
+    m = _POLITESSE_FIN.search(t, 0, fin)
+    if not m:
+        return t
+    debut = m.start()
+    while debut > 0 and (t[debut - 1].isspace() or t[debut - 1] in ',;.!'):
+        debut -= 1
+    return t[:debut]
 
 
 def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str, pose_libre: bool = False) -> str:
