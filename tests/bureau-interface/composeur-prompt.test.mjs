@@ -439,6 +439,26 @@ for (const [nom, chemin] of [['bureau', 'src/renderer/index2.js'], ['web', 'clou
     assert.ok(src.includes('especeDepuisTexte([p.name, _sansNegations(p.prompt), p.assetType]'), 'espece d\'animation');
   });
 
+  test(nom + " : les 1 200 cas generes ET construits de intention_attendus.json de bout en bout dans le client : termes envoyes = termes attendus, prompt envoye = positif attendu", () => avecDocument(() => {
+    // intention_attendus.json grave la sortie de extraire_negations (Python) sur le balayage ET sur les cas CONSTRUITS (build/bancs/noyaux/negations_constructions.py, dont
+    // l'attendu sort du gabarit). Ici le VRAI client (buildFullPrompt / _negativeExtraDe de l'index2.js) rejoue ces textes : ce qu'il enverrait au serveur est ce qu'on attend.
+    const grave = JSON.parse(readFileSync(join(RACINE, 'build/intention_attendus.json'), 'utf-8'));
+    assert.ok(grave.negations.length >= 1200, 'cas graves : ' + grave.negations.length);
+    const ecarts = [];
+    let compares = 0;
+    for (const g of grave.negations) {
+      if (g.texte.length > 2000 || P._epurerDemande(g.texte) !== g.texte) continue;     // le client epure la phrase d'intention (« we want... ») avant d'analyser : autre texte
+      compares++;
+      const termes = P._negativeExtraDe(g.texte);
+      if (JSON.stringify(termes) !== JSON.stringify(g.negatifs)) { ecarts.push(['termes', g.texte, termes, g.negatifs]); continue; }
+      const attendu = g.positif.trim() ? g.positif : g.texte;                             // un texte entierement negatif garde son positif tel quel
+      const envoye = P.buildFullPrompt(g.texte, 'building', 'realistic');
+      if (!(', ' + envoye + ', ').includes(', ' + attendu + ', ')) ecarts.push(['prompt envoye', g.texte, envoye.slice(0, 160), attendu]);
+    }
+    assert.ok(compares >= 1150, 'cas rejoues : ' + compares);
+    assert.deepEqual(ecarts.slice(0, 5), [], ecarts.length + ' ecart(s) sur ' + compares + ' cas');
+  }));
+
   if (nom === 'bureau') {
     test(nom + " : le type d'asset deduit du prompt du projet ignore les mots NIES (« an orc, no sword » n'est pas une arme)", () => avecDocument(() => {
       // populateWorkspace relit le prompt ENREGISTRE du projet, qui garde maintenant les negations de l'utilisateur : sans _sansNegations, « sword » rangeait un orc parmi les armes

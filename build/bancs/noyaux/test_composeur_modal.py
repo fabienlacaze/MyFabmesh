@@ -389,6 +389,28 @@ class NegationsServeur(unittest.TestCase):
         self.assertEqual(n('An orc', 'helmet'), [])                                      # pas une liste : ignore
         self.assertEqual(sans_composeur(lambda: n(ORC_NEG, ['helmet'])), [])
 
+    def test_cas_construits_cote_serveur(self):
+        """Les cas CONSTRUITS (build/bancs/noyaux/negations_constructions.py : le texte et la sortie attendue sortent du meme gabarit) rejoues par le SERVEUR : separer_negations
+        rend le positif et les termes attendus ; le prompt enrichi (batiment) porte le positif, jamais la locution ; negatifs_utilisateur rend les termes."""
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import negations_constructions as K
+        cas = [c for c in K.construire(2030, 40) if len(c['texte']) <= 2000]
+        self.assertGreater(len(cas), 1500)
+        echecs = []
+        for c in cas:
+            attendu = c['positif'] if c['positif'].strip() else c['texte']          # un texte entierement negatif garde son positif
+            positif, termes = P.separer_negations(c['texte'])
+            if (positif, termes) != (attendu, c['negatifs']):
+                echecs.append(('separer', c['texte'], (positif, termes), (attendu, c['negatifs'])))
+                continue
+            if P.negatifs_utilisateur(c['texte']) != c['negatifs']:
+                echecs.append(('negatifs_utilisateur', c['texte'], P.negatifs_utilisateur(c['texte']), c['negatifs']))
+                continue
+            enrichi = P.build_enriched_prompt(c['texte'], 'building', 'realistic')
+            if (', ' + enrichi + ', ').find(', ' + attendu + ', ') < 0:
+                echecs.append(('enrichi', c['texte'], enrichi[:160], attendu))
+        self.assertEqual(echecs[:5], [], '%d ecart(s) sur %d cas construits' % (len(echecs), len(cas)))
+
     def test_politesse_de_fin_identique_a_l_ancienne_regle_mais_lineaire(self):
         """_epurer_demande retirait la politesse de fin par une expression reguliere QUADRATIQUE : 40 000 blancs = 19 s de calcul, 100 000 = plusieurs minutes, AVANT toute
         generation, dans le conteneur GPU, sur un texte qui vient du client (constate le 2026-10-18). Le port lineaire rend la meme chose que l'ancienne regle."""
