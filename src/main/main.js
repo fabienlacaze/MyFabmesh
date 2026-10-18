@@ -9132,7 +9132,27 @@ function _causeHiDream(stderr, brut) {
   const derniere = t.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(-1)[0] || 'unknown error';
   return { bloque: false, detail: 'HiDream a echoue : ' + derniere.slice(0, 300), message: 'HiDream failed: ' + derniere.slice(0, 200) };
 }
-ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages, projectName, engine, quality, steps, vramFraction, assetType, buildStages, computeMode }) => {
+// NEGATIONS DE L'UTILISATEUR (2026-10-03). Le renderer sort « no helmet » du prompt et l'envoie au NEGATIF : champ `negativeExtra` (termes de 1 a 3 mots, 8 au plus, 40 caracteres
+// au plus, lettres / espaces / tirets ; meme regle que assainir_negatifs de scripts/composeur_intention.py). Tout ce qui arrive ici est re-verifie : un terme invalide est ecarte.
+function _assainirNegativeExtra(brut) {
+  if (!Array.isArray(brut)) return [];
+  const sortie = [];
+  for (const x of brut) {
+    if (typeof x !== 'string' || x.length > 200) continue;
+    const t = x.toLowerCase().split(/[ \t\r\n\u00a0]+/).filter(Boolean).join(' ');
+    if (!t || t.length > 40 || !/^[a-z]+(?:[ -][a-z]+)*$/.test(t) || sortie.includes(t)) continue;
+    sortie.push(t);
+    if (sortie.length >= 8) break;
+  }
+  return sortie;
+}
+// Le filtre de moderation (controle parental, plancher illicite) doit VOIR les negations : la locution a quitte le prompt (« a child, without clothes » deviendrait « a child »
+// alors que le terme « clothes » part au negatif). On la lui rend sous les deux formes que ses listes connaissent (« no X », « without X »).
+function _texteDeModeration(prompt, negatifs) {
+  if (!negatifs || !negatifs.length) return prompt;
+  return String(prompt) + ', ' + negatifs.map((t) => 'no ' + t + ', without ' + t).join(', ');
+}
+ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages, projectName, engine, quality, steps, vramFraction, assetType, buildStages, computeMode, negativeExtra }) => {
   // GARDE MANQUANTE — cause du REFUS STORE du 2026-08-08 (10.1.2.10
   // « Unusable Feature: Generate »).
   //
@@ -9173,13 +9193,16 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
     };
   }
   try {
+    // Termes de negatif de l'utilisateur (« no helmet » -> « helmet ») : re-verifies, et montres au filtre de moderation (voir _texteDeModeration).
+    const _negatifs = _assainirNegativeExtra(negativeExtra);
+    const _texteModere = _texteDeModeration(prompt, _negatifs);
     // Parental control: check prompt for blocked content
-    const safety = checkPromptSafety(prompt);
+    const safety = checkPromptSafety(_texteModere);
     if (!safety.safe) {
       return { success: false, error: safety.reason };
     }
     // Layer 3: AI text classifier (local, no internet)
-    const aiSafety = await checkPromptSafetyAI(prompt);
+    const aiSafety = await checkPromptSafetyAI(_texteModere);
     if (!aiSafety.safe) {
       return { success: false, error: aiSafety.reason };
     }
@@ -9222,6 +9245,8 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
       FABMESH_ASSET_TYPE: _assetType,
       // Texte BRUT de l'utilisateur (sans gabarit) : le composeur d'intention du pont (scripts/composeur_intention.py) l'analyse pour adapter le negatif.
       FABMESH_USER_PROMPT: String(rawPrompt || '').slice(0, 2000),
+      // Termes de negatif deja extraits par le renderer (sur le texte TRADUIT : FABMESH_USER_PROMPT peut etre dans la langue de l'interface) ; le pont les ajoute a son negatif.
+      ...(_negatifs.length ? { FABMESH_NEGATIVE_EXTRA: JSON.stringify(_negatifs) } : {}),
       PYTORCH_CUDA_ALLOC_CONF: _allocConf,
       ..._ramLimitMB ? { FABMESH_RAM_LIMIT_MB: _ramLimitMB } : {},
       ..._gpuLimit   ? { FABMESH_GPU_LIMIT:   _gpuLimit   } : {},
@@ -9251,6 +9276,7 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
           steps,
           turbo: engine === 'local-lightning',
           projectName: safeName,   // -> user_assets: visible aussi sur le site web
+          negativeExtra: _negatifs,   // « no helmet » du texte de l'utilisateur : termes de negatif pour le serveur (champ `negativeExtra` de /api/generate-image)
         };
         // ETAPES DE CONSTRUCTION EN CLOUD (2026-09-30). La case etait ignoree
         // ici : Count images ordinaires. Meme regle que le site
