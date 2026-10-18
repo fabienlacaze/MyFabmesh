@@ -45,9 +45,10 @@ ATTENDUS (ecrits avant le code, reperes : y vers le haut, cube de TRELLIS [-0,5 
  17. (2026-10-15) SEUILS que la relecture du 03/10 n'avait pas pris (mutants survivants) : cos_horizontal (un sol dont 75 % des
      facettes penchent de plus de 26 degres n'est pas une feuille), bande_demi (le dessus d'un socle reste entier en mode
      conserver_socle), double_face (le dessous pese au moins 20 % du dessus).
- 18. (2026-10-15) ILOTS DETACHES : les calottes de rocher que la coupe laisse en l'air partent ; une composante secondaire que la
-     coupe n'a pas touchee, plus haute que 5 % de T, plus lourde que 5 % de l'aire gardee, ou dont la somme depasse 10 %, reste ;
-     un corps en miettes (aucune composante dominante) ne declenche rien ; l'orc reel : 32 ilots, la composante principale intacte.
+ 18. (2026-10-15) ILOTS DETACHES, OPTION `debris_hauteur=0.05` passee EXPLICITEMENT (eteinte par defaut : point 25) : les calottes de rocher
+     que la coupe laisse en l'air partent ; une composante secondaire que la coupe n'a pas touchee, plus haute que 5 % de T, plus lourde
+     que 5 % de l'aire gardee, ou dont la somme depasse 10 %, reste ; un corps en miettes (aucune composante dominante) ne declenche
+     rien ; l'orc reel : 32 ilots, la composante principale intacte.
  19. idempotence (une seconde passe ne change rien), scene dont une geometrie est instanciee deux fois (rendue telle quelle).
  20. (2026-10-18) FILET DU CROCHET : `init` qui echoue en cours de route (le maillage d'origine est reinjecte) ; depliage qui echoue SANS
      la dalle (maillage d'origine restitue, depliage rejoue, rapport annule ; pas de rejeu quand la memoire est epuisee ; restitution
@@ -65,6 +66,15 @@ ATTENDUS (ecrits avant le code, reperes : y vers le haut, cube de TRELLIS [-0,5 
      aucun faux positif (leurs grandes surfaces horizontales font PARTIE de la silhouette, rapport < 3).
  24. (2026-10-18) fumee du banc de mesures sur GLB reels (build/bancs/fidelite/dalle_sol_mesures.py : balayage, echelle dans un processus neuf,
      inclinaison, decimation, composantes) sur un GLB synthetique : le banc ne pourrit pas, ses chiffres sont ceux du module.
+ 25. (2026-10-18, BLOQUANT B1 de la relecture independante de la piste G) les ILOTS DETACHES sont ETEINTS PAR DEFAUT (`debris_hauteur=0`) : la regle
+     emportait les pieds qui sont des coques SEPAREES de la jambe (os d'un squelette, bottes sans raccord, patins) parce que la coupe tranche
+     leur semelle (« touchee par la coupe ») : « rien au-dessus de la ligne des pieds » etait rompu par defaut sur TOUS les points d'entree. Test 37 :
+     deux pieds en coques separees (soudees ou non a la dalle, de 3 a 4,8 % de T) + temoin (l'option les retire, donc la scene est un vrai piege) ;
+     test 38 : des coques de formes variees posees sur la dalle ; test 39 : retirer_dalle_sol, retirer_dalle_glb, retirer_dalle_cumesh et le
+     crochet du depliage gardent les pieds, et l'option se passe par `**reglages` ; l'orc reel (rien ne part au-dessus de la ligne, l'option retrouve les
+     32 ilots) et le squelette REEL de la relecture (variable GLB_SQUELETTE : 11 ilots / 1 042 faces d'os de pied avec l'option, aucun par defaut) ;
+     le magicien REEL (variable GLB_MAGICIEN : rapport 2,30 pour un seuil de 3,0, donc refuse ; la dalle la plus faible, le squelette, est a 4,41 :
+     les deux GLB bornent la marge du seuil, 1,3 fois seulement cote refus).
 """
 import importlib.util
 import json
@@ -78,6 +88,11 @@ ICI = os.path.dirname(os.path.abspath(__file__))
 RACINE = os.path.abspath(os.path.join(ICI, '..', '..', '..'))
 CHEMIN = os.environ.get('NOYAU_ACCEL') or os.path.join(RACINE, 'scripts', 'acceleration_glb.py')
 GLB_ORC = os.environ.get('GLB_ORC') or os.path.join(RACINE, 'meshes', 'verif_t80_orc_trellis2_native_1791026496124.glb')
+# Squelette a cape du corpus d'entrainement (473 044 faces, dalle reconnue) : le cas REEL que la suite synthetique avait manque (bloquant B1
+# de la relecture du 18/10 : ses pieds sont des coques separees de la jambe). Hors depot ; absent = tests sautes.
+GLB_SQUELETTE = os.environ.get('GLB_SQUELETTE') or 'C:/tmp/training_meshes/humanoid/humanoid_26_seed68.glb'
+# Magicien a robe etalee au sol du meme corpus (484 344 faces) : le refus REEL le plus fort de la relecture (rapport 2,30 pour un seuil de 3,0).
+GLB_MAGICIEN = os.environ.get('GLB_MAGICIEN') or 'C:/tmp/training_meshes/humanoid/humanoid_13_seed55.glb'
 
 
 def charger_module(chemin=CHEMIN):
@@ -251,6 +266,7 @@ def centres_y(V, F, axe=1):
 
 Y_FEUILLE = -0.40          # hauteur de la feuille
 PIEDS = Y_FEUILLE + 0.008  # le bas des pieds : juste au-dessus de la feuille (comme le sanglier)
+ILOTS = {'debris_hauteur': 0.05}   # l'OPTION des ilots detaches, ETEINTE par defaut depuis le 18/10 (bloquant B1) : a passer EXPLICITEMENT
 
 
 def scene_figure_sur_feuille(feuille_d_abord=False, **kw):
@@ -262,6 +278,105 @@ def scene_figure_sur_feuille(feuille_d_abord=False, **kw):
     ordre = (('feuille', Vf, Ff), ('figure', Vp, Fp)) if feuille_d_abord else (('figure', Vp, Fp), ('feuille', Vf, Ff))
     V, F, idx = fusionner(*ordre)
     return V, F, idx
+
+
+def scene_ilots(**fragments):
+    """Corps CONNEXE (une seule composante, comme un vrai maillage : le corps de test des autres scenes est fait d'ellipsoides
+    disjoints, aucune composante ne domine) sur une feuille, plus des fragments de rocher qui TRAVERSENT la feuille."""
+    Vc, Fc = ellipsoide((0, PIEDS + 0.38, 0), (0.12, 0.38, 0.08), 60, 90)
+    Vf, Ff = feuille(Y_FEUILLE, n=40)
+    parts = [('corps', Vc, Fc), ('feuille', Vf, Ff)]
+    for nom, (x, z, rx, ry, rz) in fragments.items():
+        Vg, Fg = ellipsoide((x, Y_FEUILLE, z), (rx, ry, rz), 12, 16)
+        parts.append((nom, Vg, Fg))
+    return fusionner(*parts)
+
+
+H_FIGURE = 0.76 + 0.065    # hauteur de la figure en T de `personnage` (du bas des pieds au sommet de la tete) ; la dalle ajoute 0,002
+
+
+def _sans_parties(Vp, Fp, ip, prefixe):
+    """Sous-maillages (nom, V, F) des parties de `personnage` dont le nom ne commence PAS par `prefixe`."""
+    sortie = []
+    for nom, faces in ip.items():
+        if nom.startswith(prefixe):
+            continue
+        utiles, inv = np.unique(Fp[faces].reshape(-1), return_inverse=True)
+        sortie.append((nom, Vp[utiles], inv.reshape(-1, 3)))
+    return sortie
+
+
+def _cape(y_dessus):
+    """Cape connexe (tronc de cone ferme) qui DOMINE en aire, comme celle du squelette reel : sans composante dominante la regle des
+    ilots dort (test 33e), et c'est ce que la suite synthetique d'ellipsoides disjoints ne voyait pas."""
+    return ('cape', *tronc_cone((0.0, y_dessus + 0.03, 0.0), 0.30, 0.12, 0.62, n=48))
+
+
+def scene_pieds_en_coques(hauteur_pied, soude=True, finesse=(16, 24), demi_longueur=0.07):
+    """Dalle + figure en T dont les deux PIEDS sont des coques SEPAREES des jambes (os d'un squelette, bottes sans raccord, patins de
+    robot) posees sur la dalle, + une cape connexe dominante. `soude=True` : le pole bas de chaque pied est recopie sur un noeud de la
+    dalle (sommet commun apres soudure, ce que TRELLIS livre quand un pied touche le sol) ; sinon la coque ne partage aucun sommet avec
+    la dalle (la coupe de la semelle suffit a la rendre « touchee »). Rend V, F, idx ('pied-1' et 'pied1' y sont), y du dessus de la dalle."""
+    Vf, Ff = feuille(Y_FEUILLE, n=100, bruit=0.0, double_face=True)
+    y_dessus = float(Vf[:, 1].max())
+    Vp, Fp, ip = personnage(y_dessus, finesse=finesse)
+    nl, nm = finesse
+    pieds = []
+    for s in (-1, 1):
+        cx, cz = s * 0.07, 0.03
+        k = int(np.argmin(np.abs(Vf[:, 0] - cx) + np.abs(Vf[:, 2] - cz) + 100 * (Vf[:, 1] < y_dessus - 1e-9)))
+        noeud = Vf[k]
+        Vpied, Fpied = ellipsoide((noeud[0], y_dessus + hauteur_pied / 2, noeud[2]), (0.04, hauteur_pied / 2, demi_longueur), nl, nm)
+        if soude:
+            Vpied = Vpied.copy()
+            Vpied[-1] = noeud            # pole bas recopie sur le noeud de la dalle : meme position a l'octet, donc sommet commun apres soudure
+        pieds.append(('pied%d' % s, Vpied, Fpied))
+    V, F, idx = fusionner(('feuille', Vf, Ff), *_sans_parties(Vp, Fp, ip, 'pied'), *pieds, _cape(y_dessus))
+    return V, F, idx, y_dessus
+
+
+def scene_coques_posees(graine, nombre=6):
+    """Dalle + figure SANS pieds + cape dominante + `nombre` coques SEPAREES de formes variees (ellipsoide, boite, cylindre, rocher bruite)
+    posees sur la dalle, le bas de chacune au niveau du dessus de la dalle (donc tranche par la ligne), hautes de 1 a 4,5 % de T, a des
+    positions pseudo-aleatoires mais deterministes : pied, botte, patin, sabre couche, baton, caillou. La dalle fait 1,5 x 1,5 (et non
+    1 x 1) pour que son rapport avec la silhouette reste franc malgre l'aire que les coques ajoutent. Rend V, F, idx, y du dessus."""
+    rng = np.random.default_rng(graine)
+    Vf, Ff = feuille(Y_FEUILLE, demi=0.75, n=60, bruit=0.0, double_face=True)
+    y_dessus = float(Vf[:, 1].max())
+    Vp, Fp, ip = personnage(y_dessus, finesse=(10, 14))
+    parts = [('feuille', Vf, Ff), *_sans_parties(Vp, Fp, ip, 'pied'), _cape(y_dessus)]
+    for k in range(nombre):
+        h = float(rng.uniform(0.01, 0.045)) * H_FIGURE
+        x, z = (float(a) for a in rng.uniform(-0.42, 0.42, 2))
+        forme = k % 4
+        if forme == 0:
+            Vc, Fc = ellipsoide((x, y_dessus + h / 2, z), (float(rng.uniform(0.02, 0.045)), h / 2, float(rng.uniform(0.03, 0.07))), 10, 14)
+        elif forme == 1:
+            Vc, Fc = boite((x, y_dessus + h / 2, z), (float(rng.uniform(0.02, 0.05)), h / 2, float(rng.uniform(0.02, 0.05))))
+        elif forme == 2:
+            Vc, Fc = cylindre((x, y_dessus, z), float(rng.uniform(0.015, 0.03)), h, n=16)
+        else:
+            rayons = (float(rng.uniform(0.02, 0.04)), h / 2, float(rng.uniform(0.02, 0.04)))
+            Vc, Fc = rocher((x, y_dessus + h / 2, z), rayons, bruit=0.15 * min(rayons), graine=int(rng.integers(1, 99)), n_lat=10, n_lon=14)
+        parts.append(('coque%d' % k, Vc, Fc))
+    V, F, idx = fusionner(*parts)
+    return V, F, idx, y_dessus
+
+
+def charger_glb_nu(chemin):
+    """(sommets, faces) d'un GLB reel, sans materiaux, transformations des noeuds appliquees (repere monde)."""
+    import trimesh
+    sc = trimesh.load(chemin, force='scene', skip_materials=True, process=False)
+    Vs, Fs, deca = [], [], 0
+    for nom in sc.graph.nodes_geometry:
+        T, g = sc.graph[nom]
+        G = sc.geometry[g]
+        if not hasattr(G, 'faces') or len(G.faces) == 0:
+            continue
+        Vs.append(np.asarray(G.vertices, np.float64) @ np.asarray(T)[:3, :3].T + np.asarray(T)[:3, 3])
+        Fs.append(np.asarray(G.faces, np.int64) + deca)
+        deca += len(G.vertices)
+    return np.concatenate(Vs), np.concatenate(Fs)
 
 
 # ------------------------------------------------------------------------------------------------- les tests
@@ -922,24 +1037,16 @@ class TestFormesSynthetiques(unittest.TestCase):
 
     # ---------------------------------------------------------------------------------------------- ilots detaches
     def _scene_ilots(self, **fragments):
-        """Corps CONNEXE (une seule composante, comme un vrai maillage : le corps de test des autres scenes est fait d'ellipsoides
-        disjoints, aucune composante ne domine) sur une feuille, plus des fragments de rocher qui TRAVERSENT la feuille."""
-        Vc, Fc = ellipsoide((0, PIEDS + 0.38, 0), (0.12, 0.38, 0.08), 60, 90)
-        Vf, Ff = feuille(Y_FEUILLE, n=40)
-        parts = [('corps', Vc, Fc), ('feuille', Vf, Ff)]
-        for nom, (x, z, rx, ry, rz) in fragments.items():
-            Vg, Fg = ellipsoide((x, Y_FEUILLE, z), (rx, ry, rz), 12, 16)
-            parts.append((nom, Vg, Fg))
-        return fusionner(*parts)
+        return scene_ilots(**fragments)
 
     def test_32_ilots_de_rocher_retires(self):
-        """Morceaux de rocher qui traversaient la feuille : la coupe en laisse la calotte, disjointe du corps, EN L'AIR au bord de la
-        coupe (l'orc : 32 plaques, 1,9 % de l'aire). Elles partent avec le socle ; le corps reste entier. Avec debris_hauteur=0
-        (interrupteur) la calotte reste, comme avant."""
+        """OPTION `debris_hauteur=0.05` (ETEINTE par defaut, bloquant B1 du 18/10) : morceaux de rocher qui traversaient la feuille, dont
+        la coupe laisse la calotte, disjointe du corps, EN L'AIR au bord de la coupe (l'orc : 32 plaques, 1,9 % de l'aire). Avec l'option
+        elles partent avec le socle ; le corps reste entier. PAR DEFAUT (option eteinte) la calotte reste."""
         frag = {'f%d' % k: (x, z, 0.03, 0.015, 0.03) for k, (x, z) in enumerate(((0.3, 0.3), (-0.3, 0.25), (0.35, -0.3), (-0.25, -0.35), (0.0, 0.4)))}
         V, F, idx = self._scene_ilots(**frag)
         diag = {}
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, diagnostic=diag)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, diagnostic=diag, **ILOTS)
         self.assertTrue(rapport)
         self.assertIn('ilots_detaches', rapport['criteres'])
         self.assertTrue(garder[idx['corps']].all(), 'le corps est entame')
@@ -950,15 +1057,15 @@ class TestFormesSynthetiques(unittest.TestCase):
         self.assertGreater(rapport['ilots']['faces'], 100)
         self.assertLess(rapport['ilots']['aire_pct'], 5.0)
         json.dumps(rapport)
-        # conserver_socle : le rocher reste PAR CHOIX, ses calottes aussi (les ilots ne sont retires qu'avec le socle)
-        gcs, rcs = self.acc.masque_dalle_sol(V, F, 1, conserver_socle=True)
+        # conserver_socle : le rocher reste PAR CHOIX, ses calottes aussi, meme avec l'option (les ilots ne sont retires qu'avec le socle)
+        gcs, rcs = self.acc.masque_dalle_sol(V, F, 1, conserver_socle=True, **ILOTS)
         self.assertEqual(rcs['mode'], 'dalle_seule')
         self.assertNotIn('ilots_detaches', rcs['criteres'])
         self.assertNotIn('ilots', rcs)
         for nom in frag:
             self.assertGreater(int(gcs[idx[nom]].sum()), 0.9 * len(idx[nom]), 'le rocher a ete retire en mode conserver_socle')
-        # interrupteur : la calotte au-dessus de la ligne reste
-        garder0, rapport0 = self.acc.masque_dalle_sol(V, F, 1, debris_hauteur=0)
+        # PAR DEFAUT (option eteinte) : la calotte au-dessus de la ligne reste
+        garder0, rapport0 = self.acc.masque_dalle_sol(V, F, 1)
         self.assertNotIn('ilots_detaches', rapport0['criteres'])
         self.assertNotIn('ilots', rapport0)
         cy = centres_y(V, F)
@@ -975,14 +1082,14 @@ class TestFormesSynthetiques(unittest.TestCase):
         Vf, Ff = feuille(Y_FEUILLE, n=40)
         Vb, Fb = ellipsoide((0.3, Y_FEUILLE + 0.015, 0.3), (0.03, 0.008, 0.03), 12, 16)
         V, F, idx = fusionner(('corps', Vc, Fc), ('feuille', Vf, Ff), ('bijou', Vb, Fb))
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
         self.assertTrue(rapport)
         self.assertNotIn('ilots_detaches', rapport['criteres'])
         self.assertTrue(garder[idx['bijou']].all(), 'un objet que la coupe n\'a pas touche a ete retire')
         # (b) un pieu de 0,20 (24 % de T) planté dans le sol : sa partie haute monte bien au-dela de 5 % de T
         Vp, Fp = cylindre((0.3, Y_FEUILLE - 0.05, 0.3), 0.012, 0.25, n=24)       # 3 % de l'aire gardee : seule la hauteur le garde
         V, F, idx = fusionner(('corps', Vc, Fc), ('feuille', Vf, Ff), ('pieu', Vp, Fp))
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
         self.assertTrue(rapport)
         self.assertNotIn('ilots_detaches', rapport['criteres'])
         cy = centres_y(V, F)
@@ -993,32 +1100,32 @@ class TestFormesSynthetiques(unittest.TestCase):
         # 10 % de la somme : SEUL le plafond par composante le garde
         Vr, Fr = ellipsoide((0.32, Y_FEUILLE, 0.32), (0.08, 0.03, 0.08), 20, 28)
         V, F, idx = fusionner(('corps', Vc, Fc), ('feuille', Vf, Ff), ('rocher', Vr, Fr))
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
         self.assertTrue(rapport)
         self.assertNotIn('ilots_detaches', rapport['criteres'])
         cy = centres_y(V, F)
         calotte = idx['rocher'][cy[idx['rocher']] > rapport['ligne_pieds']['hauteur']]
         self.assertGreater(len(calotte), 100)
         self.assertTrue(garder[calotte].all(), 'un gros rocher a ete retire comme un debris')
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, debris_aire_max=0.10)                     # reglage lu : 10 % le laisse passer
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, debris_aire_max=0.10, **ILOTS)                     # reglage lu : 10 % le laisse passer
         self.assertIn('ilots_detaches', rapport['criteres'])
         # (d) quatre calottes de 1,4 % chacune (somme 5,4 %) : chacune passe, leur somme aussi ; a 1 % de somme maximale tout reste
         pos = ((0.3, 0.3), (-0.3, 0.25), (0.35, -0.3), (-0.25, -0.35))
         V, F, idx = self._scene_ilots(**{'f%d' % k: (x, z, 0.04, 0.015, 0.04) for k, (x, z) in enumerate(pos)})
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
         self.assertIn('ilots_detaches', rapport['criteres'], rapport.get('ilots'))
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, debris_total_max=0.01)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, debris_total_max=0.01, **ILOTS)
         self.assertNotIn('ilots_detaches', rapport['criteres'])
         cy = centres_y(V, F)
         self.assertTrue(garder[cy > rapport['ligne_pieds']['hauteur']].all())
         # (d') quatre calottes de 2,7 % chacune (somme 10,8 %) : chacune passe, mais leur somme depasse 10 % de l'aire gardee : rien ne part
         V, F, idx = self._scene_ilots(**{'f%d' % k: (x, z, 0.06, 0.015, 0.06) for k, (x, z) in enumerate(pos)})
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
         self.assertTrue(rapport)
         self.assertNotIn('ilots_detaches', rapport['criteres'], 'la somme des ilots depasse 10 % de l\'aire gardee : rien ne devait partir')
         cy = centres_y(V, F)
         self.assertTrue(garder[cy > rapport['ligne_pieds']['hauteur']].all())
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, debris_total_max=0.15)                    # reglage lu
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, debris_total_max=0.15, **ILOTS)                    # reglage lu
         self.assertIn('ilots_detaches', rapport['criteres'])
         # (f) la composante PRINCIPALE (la plus lourde en aire) n'est jamais prise pour un ilot, meme avec des plafonds permissifs.
         # Appel direct de l'aide : un grand rocher bas a cheval sur la ligne, plus lourd que le corps mince qui s'eleve a cote, touche
@@ -1034,7 +1141,7 @@ class TestFormesSynthetiques(unittest.TestCase):
         coupe = (Y_FEUILLE + 0.004) - float(V[:, 1].min())
         retire = h < coupe
         etendue = float((V.max(axis=0) - V.min(axis=0)).max())
-        permissif = dict(acc.REGLAGES_DALLE, debris_aire_max=1.0, debris_total_max=1.0)
+        permissif = dict(acc.REGLAGES_DALLE, debris_aire_max=1.0, debris_total_max=1.0, **ILOTS)
         self.assertGreater(float(aires[idx['rocher']][~retire[idx['rocher']]].sum()), float(aires[idx['corps']].sum()), 'le rocher doit etre le plus lourd')
         self.assertIsNone(acc._ilots_detaches(V, F, retire, h, coupe, T, aires, etendue, permissif), 'la composante principale a ete prise pour un ilot')
         # et la meme scene avec un rocher PLUS LEGER que le corps : c'est lui l'ilot
@@ -1051,7 +1158,7 @@ class TestFormesSynthetiques(unittest.TestCase):
         V, F, idx = scene_figure_sur_feuille()
         Vg, Fg = ellipsoide((0.3, Y_FEUILLE, 0.3), (0.03, 0.015, 0.03), 12, 16)
         V, F = np.vstack([V, Vg]), np.vstack([F, Fg + len(V)])
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
         self.assertTrue(rapport)
         self.assertNotIn('ilots_detaches', rapport['criteres'])
         self.assertTrue(garder[len(F) - len(Fg):][centres_y(V, F)[len(F) - len(Fg):] > rapport['ligne_pieds']['hauteur']].all())
@@ -1065,12 +1172,12 @@ class TestFormesSynthetiques(unittest.TestCase):
         Vf, Ff = feuille(Y_FEUILLE, n=40, bruit=0.0)          # noeuds de la grille tous les 0,025 ; dessus a Y_FEUILLE + 0,001
         Vk, Fk = boite((0.325, Y_FEUILLE + 0.001 + 0.01, 0.325), (0.025, 0.01, 0.025))     # bas de la boite = noeuds de la grille
         V, F, idx = fusionner(('corps', Vc, Fc), ('feuille', Vf, Ff), ('colonne', Vk, Fk))
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
         self.assertTrue(rapport)
         self.assertIn('ilots_detaches', rapport['criteres'])
         self.assertFalse(garder[idx['colonne']].any(), 'la colonne soudee flotte encore au-dessus du sol retire')
         self.assertTrue(garder[idx['corps']].all())
-        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, conserver_socle=True)
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1, conserver_socle=True, **ILOTS)
         self.assertEqual(rapport['mode'], 'dalle_seule')
         self.assertNotIn('ilots_detaches', rapport['criteres'])
         cy = centres_y(V, F)
@@ -1132,17 +1239,26 @@ class TestFormesSynthetiques(unittest.TestCase):
             self.assertTrue(garder.all(), nom)
 
     def test_34_idempotent(self):
-        """Une seconde passe sur le maillage deja nettoye ne change rien : la feuille et les ilots sont partis, la figure garde sa base."""
+        """Une seconde passe sur le maillage deja nettoye ne change rien : la feuille (et, avec l'option des ilots, les ilots) sont
+        partis, la figure garde sa base. Vrai par defaut ET avec l'option."""
         import trimesh
         frag = {'f%d' % k: (x, z, 0.03, 0.015, 0.03) for k, (x, z) in enumerate(((0.3, 0.3), (-0.3, 0.25), (0.35, -0.3)))}
         V, F, idx = self._scene_ilots(**frag)
         m = trimesh.Trimesh(V, F, process=False)
-        sortie, rapport = self.acc.retirer_dalle_sol(m, 1)
+        sortie, rapport = self.acc.retirer_dalle_sol(m, 1, **ILOTS)
         self.assertTrue(rapport)
         self.assertIn('ilots_detaches', rapport['criteres'])
-        sortie2, rapport2 = self.acc.retirer_dalle_sol(sortie, 1)
+        sortie2, rapport2 = self.acc.retirer_dalle_sol(sortie, 1, **ILOTS)
         self.assertEqual(rapport2, {})
         self.assertIs(sortie2, sortie)
+        # par defaut (option eteinte) : la calotte reste, mais la seconde passe ne change toujours rien
+        sortie3, rapport3 = self.acc.retirer_dalle_sol(m, 1)
+        self.assertTrue(rapport3)
+        self.assertNotIn('ilots_detaches', rapport3['criteres'])
+        self.assertGreater(len(sortie3.faces), len(sortie.faces))
+        sortie4, rapport4 = self.acc.retirer_dalle_sol(sortie3, 1)
+        self.assertEqual(rapport4, {})
+        self.assertIs(sortie4, sortie3)
 
 
 def _rotation(plan, deg):
@@ -1911,7 +2027,7 @@ class TestBancMesures(unittest.TestCase):
         self.assertEqual(len(res), 4)                                          # deux angles autour de Z et de X
         for r in res:
             self.assertEqual(r['decision'], 'retire', r)
-            self.assertEqual((r['corps_perdu'], r['dalle_laissee']), (0, 0), r)
+            self.assertEqual((r['corps_perdu'], r['dalle_laissee'], r['rocher_entame']), (0, 0, 0), r)
             self.assertAlmostEqual(r['inclinaison_mesuree'], r['degres'], delta=0.03 * r['degres'] + 0.01)
         self.assertEqual(self.banc.cmd_inclinaison(self._args(glb=self.sans, angles=[1])), [])       # rien a plat : rien a comparer
 
@@ -1922,6 +2038,19 @@ class TestBancMesures(unittest.TestCase):
             self.assertGreaterEqual(r['composantes'], 1)
             self.assertEqual(r['composantes'], r['secondaires'] + 1)
         self.assertEqual(self.banc.cmd_composantes(self._args(glb=self.sans)), {})
+
+    def test_composantes_option_des_ilots(self):
+        """La sous-commande `composantes` passe l'OPTION des ilots EXPLICITEMENT (elle est eteinte par defaut depuis le 18/10) : sur un maillage
+        qui porte des calottes de rocher en l'air, « avec » les retire (aucune composante secondaire basse) et « sans » les compte."""
+        import trimesh
+        frag = {'f%d' % k: (x, z, 0.03, 0.015, 0.03) for k, (x, z) in enumerate(((0.3, 0.3), (-0.3, 0.25), (0.35, -0.3), (-0.25, -0.35), (0.0, 0.4)))}
+        V, F, _ = scene_ilots(**frag)
+        chemin = os.path.join(self.dossier.name, 'ilots.glb')
+        trimesh.Scene(trimesh.Trimesh(V, F, process=False)).export(chemin)
+        res = self.banc.cmd_composantes(self._args(glb=chemin))
+        self.assertEqual(res['sans']['en_l_air'], len(frag))
+        self.assertEqual(res['avec']['en_l_air'], 0)
+        self.assertEqual(res['sans']['composantes'] - res['avec']['composantes'], len(frag))
 
     def test_decimation(self):
         try:
@@ -1937,6 +2066,200 @@ class TestBancMesures(unittest.TestCase):
         self.assertEqual(res['decision'], 'retire')
         self.assertEqual(res['faces'], len(self.idx['feuille']) + len(self.idx['figure']))
         self.assertGreater(res['duree_s'], 0.0)
+
+
+class TestPiedsEnCoquesSeparees(unittest.TestCase):
+    """BLOQUANT B1 de la relecture independante du 18/10 : la regle des ILOTS DETACHES (depuis une option eteinte) retirait des pieces du CORPS
+    AU-DESSUS de la ligne des pieds. Un pied qui est une coque separee de la jambe (os d'un squelette, botte sans raccord, patin) a sa semelle
+    tranchee par la ligne, donc « touchee par la coupe » : petit, bas, non dominant, il partait comme un caillou. La suite synthetique ne le voyait
+    pas : son corps est fait d'ellipsoides disjoints (aucune composante ne domine : la regle dormait, test 33e) et ses ilots ne sont que des rochers."""
+
+    POURCENTS = (3.0, 4.0, 4.8)               # hauteur du pied en % de T (l'option des ilots prend tout ce qui reste sous 5 %)
+
+    def setUp(self):
+        self.acc = charger_module()
+        for nom in ('masque_dalle_sol', 'retirer_dalle_sol', 'retirer_dalle_glb', 'retirer_dalle_cumesh', 'retrait_dalle_actif', 'REGLAGES_DALLE'):
+            if not hasattr(self.acc, nom):
+                self.fail('%s absent : ancien code' % nom)
+
+    def _scene(self, pct, soude=True):
+        return scene_pieds_en_coques(pct / 100.0 * H_FIGURE, soude=soude)
+
+    @staticmethod
+    def _etiquette(pct, soude):
+        return 'pieds de %.1f %% de T, %s' % (pct, 'coques soudees a la dalle' if soude else 'coques sans sommet commun avec la dalle')
+
+    def test_37_pieds_en_coques_separees_restent(self):
+        """PAR DEFAUT rien ne part au-dessus de la ligne des pieds : les deux pieds (coques separees de la jambe, de 3 a 4,8 % de T, soudees
+        ou non a la dalle) restent entiers, ainsi que tout le corps ; ce qui part est EXACTEMENT ce qui est sous la ligne."""
+        self.assertEqual(self.acc.REGLAGES_DALLE['debris_hauteur'], 0, "l'option des ilots detaches doit etre ETEINTE par defaut")
+        for soude in (True, False):
+            for pct in self.POURCENTS:
+                et = self._etiquette(pct, soude)
+                V, F, idx, _ = self._scene(pct, soude)
+                garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+                self.assertTrue(rapport, 'la dalle doit etre reconnue : ' + et)
+                self.assertNotIn('ilots_detaches', rapport['criteres'], et)
+                self.assertNotIn('ilots', rapport, et)
+                ligne = rapport['ligne_pieds']['hauteur']
+                cy = centres_y(V, F, 1)
+                self.assertTrue(garder[cy > ligne].all(), 'des faces ont ete retirees AU-DESSUS de la ligne des pieds : ' + et)
+                self.assertFalse(garder[cy < ligne].any(), 'des faces SOUS la ligne sont restees : ' + et)
+                self.assertEqual(rapport['faces_retirees'], int((cy < ligne).sum()), et)
+                for nom in ('pied-1', 'pied1'):
+                    v = idx[nom]
+                    self.assertGreater(int((cy[v] > ligne).sum()), 100, 'le pied doit avoir une partie au-dessus de la ligne : ' + et)
+                    self.assertTrue(garder[v[cy[v] > ligne]].all(), 'le %s a ete entame : %s' % (nom, et))
+
+    def test_37b_temoin_l_option_retire_les_pieds(self):
+        """TEMOIN : avec l'option `debris_hauteur=0.05` les MEMES pieds partent (limite connue de la regle, la raison pour laquelle elle est
+        eteinte). Sans lui le test 37 pourrait passer dans le vide : il prouve que la scene est un vrai piege (dalle reconnue, pieds pris pour
+        des ilots, SEULS les pieds partent). Au-dela de 5 % de T l'option ne les prend pas : son seuil de hauteur fonctionne."""
+        for soude in (True, False):
+            for pct in self.POURCENTS:
+                et = self._etiquette(pct, soude)
+                V, F, idx, _ = self._scene(pct, soude)
+                garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
+                self.assertIn('ilots_detaches', rapport['criteres'], et)
+                ligne = rapport['ligne_pieds']['hauteur']
+                retirees = (~garder) & (centres_y(V, F, 1) > ligne)
+                pieds = np.concatenate([idx['pied-1'], idx['pied1']])
+                self.assertGreater(int(retirees.sum()), 100, et)
+                self.assertEqual(int(retirees[pieds].sum()), int(retirees.sum()), 'autre chose que les pieds est parti : ' + et)
+            et = self._etiquette(6.5, soude)                      # nettement plus haut que 5 % de T : l'option ne le prend pas pour un ilot
+            V, F, idx, _ = self._scene(6.5, soude)
+            garder, rapport = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
+            self.assertTrue(rapport, et)
+            self.assertNotIn('ilots_detaches', rapport['criteres'], 'un pied plus haut que 5 %% de T est pris pour un ilot : %s' % et)
+            self.assertTrue(garder[centres_y(V, F, 1) > rapport['ligne_pieds']['hauteur']].all(), et)
+
+    def test_38_coques_variees_posees_sur_la_dalle(self):
+        """Le contrat « rien au-dessus de la ligne des pieds » tient pour des coques separees de formes variees (pied, botte, patin, sabre
+        couche, baton, caillou), hautes de 1 a 4,5 % de T et posees sur la dalle a des positions pseudo-aleatoires (deux tirages) ; avec
+        l'option des ilots certaines partent, et seulement elles (temoin)."""
+        for graine in (1, 2):
+            V, F, idx, _ = scene_coques_posees(graine)
+            garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+            self.assertTrue(rapport, 'tirage %d : la dalle doit etre reconnue' % graine)
+            self.assertNotIn('ilots_detaches', rapport['criteres'])
+            ligne = rapport['ligne_pieds']['hauteur']
+            cy = centres_y(V, F, 1)
+            self.assertTrue(garder[cy > ligne].all(), 'tirage %d : des faces ont ete retirees AU-DESSUS de la ligne des pieds' % graine)
+            self.assertEqual(rapport['faces_retirees'], int((cy < ligne).sum()), 'tirage %d' % graine)
+            go, ro = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
+            retirees = np.flatnonzero((~go) & (cy > ligne))
+            coques = np.concatenate([idx[n] for n in idx if n.startswith('coque')])
+            self.assertGreater(len(retirees), 0, 'tirage %d : le temoin (l\'option) ne retire rien, la scene ne prouve rien' % graine)
+            self.assertTrue(np.isin(retirees, coques).all(), 'tirage %d : l\'option a retire autre chose que des coques' % graine)
+
+    def test_39_tous_les_points_d_entree_gardent_les_pieds(self):
+        """Le defaut touchait TOUS les points d'entree, pas seulement masque_dalle_sol : retirer_dalle_sol, la variante apres export
+        (retirer_dalle_glb), l'adaptateur cumesh et le crochet du depliage. Chacun garde les pieds par defaut et rend l'option disponible
+        par `**reglages` (temoin)."""
+        import trimesh
+        import types
+        V, F, idx, _ = self._scene(4.8, True)
+        cy = centres_y(V, F, 1)
+        # (a) retirer_dalle_sol (trimesh)
+        sortie, rapport = self.acc.retirer_dalle_sol(trimesh.Trimesh(V, F, process=False), 1)
+        n_sous = int((cy < rapport['ligne_pieds']['hauteur']).sum())
+        self.assertNotIn('ilots_detaches', rapport['criteres'])
+        self.assertEqual(rapport['faces_retirees'], n_sous)
+        self.assertEqual(len(sortie.faces), len(F) - n_sous, 'retirer_dalle_sol a retire des faces AU-DESSUS de la ligne')
+        # (b) la variante apres export
+        journal = []
+        scene = trimesh.Scene(trimesh.Trimesh(V, F, process=False))
+        sortie, rapport = self.acc.retirer_dalle_glb(scene, True, log=journal.append)
+        (g,) = sortie.geometry.values()
+        self.assertEqual(len(g.faces), len(F) - n_sous, 'retirer_dalle_glb a retire des faces AU-DESSUS de la ligne')
+        self.assertNotIn('ilots_detaches', rapport['criteres'])
+        self.assertNotIn('ilots', journal[0], journal)
+        sortie, rapport = self.acc.retirer_dalle_glb(scene, True, log=journal.append, debris_hauteur=0.05)         # temoin : l'option passe
+        (g,) = sortie.geometry.values()
+        self.assertIn('ilots_detaches', rapport['criteres'])
+        self.assertLess(len(g.faces), len(F) - n_sous - 100)
+        self.assertIn('ilots', journal[-1])
+        # (c) l'adaptateur cumesh (repere Z vers le haut, sommets float32 : la ligne se lit dans ce repere)
+        Vz = np.asarray(V[:, [0, 2, 1]], np.float32)
+        cz = Vz[F].astype(np.float64).mean(axis=1)[:, 2]
+        mesh = FauxCuMesh(Vz, F)
+        rapport = self.acc.retirer_dalle_cumesh(mesh, 2, log=journal.append)
+        n_sous_z = int((cz < rapport['ligne_pieds']['hauteur']).sum())
+        self.assertNotIn('ilots_detaches', rapport['criteres'])
+        self.assertEqual(len(mesh.f), len(F) - n_sous_z, 'retirer_dalle_cumesh a retire des faces AU-DESSUS de la ligne')
+        mesh = FauxCuMesh(Vz, F)
+        rapport = self.acc.retirer_dalle_cumesh(mesh, 2, log=journal.append, debris_hauteur=0.05)                   # temoin
+        self.assertIn('ilots_detaches', rapport['criteres'])
+        self.assertLess(len(mesh.f), len(F) - n_sous_z - 100)
+        # (d) le crochet de CuMesh.uv_unwrap
+        faux_module = types.SimpleNamespace(CuMesh=type('CuMesh', (FauxCuMesh,), {}))
+        with self.acc.retrait_dalle_actif(True, log=journal.append, cumesh_module=faux_module) as rapports:
+            m = faux_module.CuMesh(Vz, F)
+            m.uv_unwrap()
+        self.assertEqual(len(rapports), 1)
+        self.assertNotIn('ilots_detaches', rapports[0]['criteres'])
+        self.assertEqual(len(m.f), len(F) - n_sous_z, 'le crochet du depliage a retire des faces AU-DESSUS de la ligne')
+        faux_module = types.SimpleNamespace(CuMesh=type('CuMesh', (FauxCuMesh,), {}))
+        with self.acc.retrait_dalle_actif(True, log=journal.append, cumesh_module=faux_module, debris_hauteur=0.05) as rapports:   # temoin
+            m = faux_module.CuMesh(Vz, F)
+            m.uv_unwrap()
+        self.assertIn('ilots_detaches', rapports[0]['criteres'])
+        self.assertLess(len(m.f), len(F) - n_sous_z - 100)
+
+
+@unittest.skipUnless(os.path.exists(GLB_SQUELETTE), "GLB du squelette a cape de la relecture absent (hors depot : variable GLB_SQUELETTE)")
+class TestSqueletteReel(unittest.TestCase):
+    """Le cas REEL du bloquant B1 (humanoid_26_seed68 du corpus d'entrainement : 473 044 faces, squelette a cape sur une dalle de rapport 4,41,
+    pieds en coques separees) : la relecture independante y mesurait 11 ilots, 1 042 faces retirees au-dessus de la ligne, dont un os de
+    777 faces, de couleur os et non rocher. Par defaut rien ne part au-dessus de la ligne ; l'option retrouve les 11 ilots (temoin)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.acc = charger_module()
+        cls.V, cls.F = charger_glb_nu(GLB_SQUELETTE)
+
+    def test_squelette_rien_au_dessus_de_la_ligne(self):
+        V, F = self.V, self.F
+        garder, rapport = self.acc.masque_dalle_sol(V, F, 1)
+        self.assertTrue(rapport, 'la dalle du squelette n\'a pas ete reconnue')
+        self.assertGreater(rapport['dalle']['ratio_empreinte'], 4.0)
+        self.assertNotIn('ilots_detaches', rapport['criteres'])
+        self.assertNotIn('ilots', rapport)
+        ligne = rapport['ligne_pieds']['hauteur']
+        cy = V[F][:, :, 1].mean(axis=1)
+        self.assertTrue(garder[cy > ligne].all(), '%d faces retirees AU-DESSUS de la ligne des pieds' % int(((~garder) & (cy > ligne)).sum()))
+        self.assertEqual(rapport['faces_retirees'], int((cy < ligne).sum()), 'ce qui part est exactement ce qui est sous la ligne')
+        # TEMOIN : l'option retrouve les ilots de la relecture (des os de pied)
+        go, ro = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
+        retirees = (~go) & (cy > ligne)
+        self.assertIn('ilots_detaches', ro['criteres'])
+        self.assertGreater(int(retirees.sum()), 500, 'le temoin ne retrouve plus les ilots de la relecture (1 042 faces)')
+        self.assertEqual(int(retirees.sum()), ro['ilots']['faces'])
+
+
+@unittest.skipUnless(os.path.exists(GLB_MAGICIEN), "GLB du magicien de la relecture absent (hors depot : variable GLB_MAGICIEN)")
+class TestMagicienReel(unittest.TestCase):
+    """Le refus REEL le plus fort de la relecture independante du 18/10 : humanoid_13_seed55, un magicien a robe etalee au sol (484 344 faces),
+    rapport 2,30 pour un seuil de 3,0. Il borne la MARGE du seuil cote refus (1,3 fois : le seuil n'a ete calibre que sur 2 dalles) ; la dalle
+    la plus faible, le squelette de TestSqueletteReel, est a 4,41. Si un changement de seuil ou d'algorithme rapproche ce rapport de 3, ou le
+    fait passer sous la garde, ce test le dit."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.acc = charger_module()
+        cls.V, cls.F = charger_glb_nu(GLB_MAGICIEN)
+
+    def test_magicien_refuse_avec_une_marge_mince(self):
+        diag = {}
+        garder, rapport = self.acc.masque_dalle_sol(self.V, self.F, 1, diagnostic=diag)
+        self.assertEqual(rapport, {}, 'le magicien a robe etalee a ete pris pour une dalle')
+        self.assertTrue(garder.all())
+        ratio = diag['candidats'][0]['ratio_empreinte']
+        self.assertTrue(2.0 < ratio < 3.0, 'rapport %.2f : la marge de refus a change (2,30 mesure le 18/10, seuil 3,0)' % ratio)
+        # ce que l'exigence du rapport lui evite : sans elle plus de 15 % de l'aire partirait
+        garder0, rapport0 = self.acc.masque_dalle_sol(self.V, self.F, 1, ratio_min=0.0)
+        self.assertTrue(rapport0)
+        self.assertGreater(rapport0['aire_retiree_pct'], 15.0)
 
 
 @unittest.skipUnless(os.path.exists(GLB_ORC), "GLB reel de l'orc absent (meshes/ n'est pas suivi par git)")
@@ -1974,28 +2297,34 @@ class TestOrcReel(unittest.TestCase):
         self.assertIn('plan_mince', rapport['criteres'])
         self.assertIn('socle_epais', rapport['criteres'])
         self.assertGreater(rapport['dalle']['ratio_empreinte'], 5.0)
-        # la figure est intacte : rien n'est retire au-dessus de la ligne des pieds, SAUF les ilots detaches (plaques de rocher
-        # que la coupe a laissees en l'air : 32 composantes, 9 067 faces, 1,9 % de l'aire, de 0 a 3,5 % de T au-dessus de la ligne)
+        # la figure est intacte : RIEN n'est retire au-dessus de la ligne des pieds (les ilots detaches sont une option eteinte, plus bas)
         ligne = rapport['ligne_pieds']['hauteur']
         cy = V[F][:, :, 1].mean(axis=1)
         T = float(V[:, 1].max() - V[:, 1].min())
         au_dessus = (~garder) & (cy > ligne)
-        self.assertEqual(int(au_dessus.sum()), rapport['ilots']['faces'], 'des faces retirees au-dessus de la ligne ne sont pas des ilots')
-        self.assertGreater(rapport['ilots']['faces'], 5_000)
-        self.assertLess(rapport['ilots']['aire_pct'], 3.0)
-        self.assertLess(float((cy[au_dessus].max() - ligne) / T), 0.05, 'un ilot retire monte a plus de 5 % de T au-dessus de la ligne')
-        self.assertIn('ilots_detaches', rapport['criteres'])
+        self.assertEqual(int(au_dessus.sum()), 0, 'des faces ont ete retirees AU-DESSUS de la ligne des pieds')
+        self.assertNotIn('ilots_detaches', rapport['criteres'])
+        self.assertNotIn('ilots', rapport)
         self.assertEqual(int((garder & (cy < ligne)).sum()), 0)
-        # la composante PRINCIPALE du maillage garde (sans retrait d'ilots) est intacte, face par face
-        g0, r0 = self.acc.masque_dalle_sol(V, F, 1, debris_hauteur=0)
-        self.assertNotIn('ilots_detaches', r0['criteres'])
-        Fk = np.flatnonzero(g0)
+        self.assertEqual(rapport['faces_retirees'], int((cy < ligne).sum()), 'ce qui part est exactement ce qui est sous la ligne')
+        # la composante PRINCIPALE du maillage garde est intacte, face par face
+        Fk = np.flatnonzero(garder)
         _, comp = np.unique(self.acc._etiquettes_soudees(self.acc._souder(V, F[Fk], 1.0)), return_inverse=True)
         principale = Fk[comp == int(np.argmax(np.bincount(comp)))]
         self.assertGreater(len(principale), 250_000)
         self.assertTrue(garder[principale].all(), 'la composante principale du corps a ete entamee')
+        # OPTION des ilots detaches (eteinte par defaut) : les plaques de rocher que la coupe a laissees en l'air (32 composantes,
+        # 9 067 faces, 1,9 % de l'aire gardee, de 0 a 3,5 % de T au-dessus de la ligne) partent aussi, la composante principale reste
+        go, ro = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
+        au_dessus_o = (~go) & (cy > ligne)
+        self.assertEqual(int(au_dessus_o.sum()), ro['ilots']['faces'], 'des faces retirees au-dessus de la ligne ne sont pas des ilots')
+        self.assertGreater(ro['ilots']['faces'], 5_000)
+        self.assertLess(ro['ilots']['aire_pct'], 3.0)
+        self.assertLess(float((cy[au_dessus_o].max() - ligne) / T), 0.05, 'un ilot retire monte a plus de 5 % de T au-dessus de la ligne')
+        self.assertIn('ilots_detaches', ro['criteres'])
+        self.assertTrue(go[principale].all(), 'la composante principale du corps a ete entamee par l\'option des ilots')
         # plus aucun ilot apres retrait : les composantes secondaires restantes ne touchent plus la coupe
-        self.assertEqual(int(r0['faces_retirees'] + rapport['ilots']['faces']), rapport['faces_retirees'])
+        self.assertEqual(int(rapport['faces_retirees'] + ro['ilots']['faces']), ro['faces_retirees'])
         # meme hauteur de corps : le sommet de la tete n'a pas bouge
         haut_avant = V[np.unique(F)][:, 1].max()
         haut_apres = V[np.unique(F[garder])][:, 1].max()
@@ -2014,25 +2343,30 @@ class TestOrcReel(unittest.TestCase):
 
     def test_orc_incline(self):
         """L'orc tourne de 0,25 a 12 degres (constat de la relecture : 1,0 % du corps perdu a 0,25 degre, 11 % a 4 degres, plus rien
-        de retire a 3 degres) : le corps garde est celui du maillage a plat, a moins de 0,05 % des faces pres, la dalle part entiere."""
+        de retire a 3 degres) : le corps garde est celui du maillage a plat, a moins de 0,05 % des faces pres, la dalle part entiere.
+        Le CORPS de reference est le plat SANS ses plaques de rocher (celles que l'option des ilots reconnait : 9 067 faces de la couleur du
+        rocher, mesure du 18/10) : le defaut les garde, mais une coupe penchee en entame le bas (185 faces a 14 degres), ce qui n'est pas une
+        perte de corps."""
         V, F = self.V, self.F
         plat, rap_plat = self.acc.masque_dalle_sol(V, F, 1)
+        corps, _ = self.acc.masque_dalle_sol(V, F, 1, **ILOTS)
+        self.assertGreater(int((plat & ~corps).sum()), 5_000, 'les plaques de rocher du plat (32 ilots, 9 067 faces le 18/10) ont disparu de la reference')
         for plan, deg in (((0, 1), 0.25), ((2, 1), 0.25), ((0, 1), 3.0), ((2, 1), 3.0), ((0, 1), 5.0), ((2, 1), 8.0), ((0, 1), 12.0)):
             garder, rapport = self.acc.masque_dalle_sol(V @ _rotation(plan, deg).T, F, 1)
             etiquette = 'plan %s, %.2f degres' % (plan, deg)
             self.assertTrue(rapport, 'feuille inclinee non reconnue : ' + etiquette)
-            perdu = int((plat & ~garder).sum())
+            perdu = int((corps & ~garder).sum())
             laisse = int((~plat & garder).sum())
-            self.assertLess(perdu, 0.0005 * int(plat.sum()), '%s : %d faces du corps perdues' % (etiquette, perdu))
+            self.assertLess(perdu, 0.0005 * int(corps.sum()), '%s : %d faces du corps perdues' % (etiquette, perdu))
             self.assertLess(laisse, 0.001 * int((~plat).sum()), '%s : %d faces de dalle laissees' % (etiquette, laisse))
             self.assertAlmostEqual(rapport['dalle']['inclinaison_deg'], deg, delta=0.03 * deg)
         # ZONE DE TRANSITION (mesure fine du 18/10, pas de 0,5 degre) : jusqu'a 13 degres le retrait est entier ; de 13,5 a 14,5 (Z) ou 15 (X) la
-        # fenetre de 2 % de la hauteur n'attrape plus toute la feuille et le retrait est PARTIEL (43 % de la dalle part, 57 % reste) ; au-dela
+        # fenetre de 2 % de la hauteur n'attrape plus toute la feuille et le retrait est PARTIEL (45 % de la dalle part, 55 % reste) ; au-dela
         # rien n'est retire. Le CORPS, lui, ne souffre jamais : moins de 0,05 % de ses faces, que le retrait soit entier, partiel ou nul.
         for plan, deg in (((0, 1), 13.0), ((0, 1), 14.0), ((2, 1), 14.0), ((2, 1), 15.0), ((0, 1), 16.0), ((2, 1), 18.0), ((0, 1), 25.0)):
             garder, rapport = self.acc.masque_dalle_sol(V @ _rotation(plan, deg).T, F, 1)
-            perdu = int((plat & ~garder).sum())
-            self.assertLess(perdu, 0.0005 * int(plat.sum()), 'plan %s, %.1f degres : %d faces du corps perdues' % (plan, deg, perdu))
+            perdu = int((corps & ~garder).sum())
+            self.assertLess(perdu, 0.0005 * int(corps.sum()), 'plan %s, %.1f degres : %d faces du corps perdues' % (plan, deg, perdu))
             if deg >= 18.0:
                 self.assertEqual(rapport, {}, 'plan %s, %.1f degres : au-dela de la plage de calibrage rien ne doit etre retire (conservateur)' % (plan, deg))
 

@@ -3,9 +3,10 @@ CPU seulement, lecture seule, sans reseau, sans GPU. Chaque chiffre de l'entree 
 
   balayage <glb | dossier> ...   la decision du detecteur sur chaque GLB, un a la fois : faux positifs, marge des seuils (--max-mo 300)
   echelle <glb> <k>              temps et memoire du detecteur sur le GLB subdivise k fois (1 -> x4 faces) ; mesure dans un processus NEUF
-  inclinaison <glb>              le GLB tourne autour de Z et de X (--angles 0.02,1,12,14,16,25) : corps perdu, dalle laissee
+  inclinaison <glb>              le GLB tourne autour de Z et de X (--angles 0.02,1,12,14,16,25) : corps perdu, dalle laissee, plaques de rocher entamees
   decimation <glb>               le GLB decime (--cibles 200000,50000,5000,500 ; exige fast_simplification) : la decision change-t-elle ?
-  composantes <glb>              composantes du maillage GARDE, avec et sans le retrait des ilots (le constat de la relecture du 03/10)
+  composantes <glb>              composantes du maillage GARDE, avec (OPTION debris_hauteur=0.05, eteinte par defaut) et sans le retrait des ilots
+                                 (le constat de la relecture du 03/10)
 
 Lancer :  <python de l'appli> build/bancs/fidelite/dalle_sol_mesures.py <sous-commande> ... [--module scripts/acceleration_glb.py]
 Les GLB de l'orc et des paires : voir build/bancs/fidelite/README.md.
@@ -185,9 +186,13 @@ def cmd_inclinaison(a):
     if not rap0:
         print('rien n\'est retire a plat : rien a comparer')
         return []
-    n_corps, n_dalle = int(plat.sum()), int((~plat).sum())
-    print('a plat : %d faces de corps, %d de dalle' % (n_corps, n_dalle))
-    print('%-5s %-7s %-9s %-22s %-22s %s' % ('plan', 'degres', 'decision', 'corps perdu', 'dalle laissee', 'inclinaison mesuree'))
+    # Le CORPS de reference est le plat SANS les plaques de rocher que l'OPTION des ilots reconnait (eteinte par defaut : le plat les garde,
+    # mais une coupe penchee en entame parfois le bas, 185 faces a 14 degres sur l'orc) : ce n'est pas une perte de corps, elles sont comptees a part.
+    corps, _ = acc.masque_dalle_sol(V, F, 1, debris_hauteur=0.05)
+    rochers = plat & ~corps
+    n_corps, n_dalle = int(corps.sum()), int((~plat).sum())
+    print('a plat : %d faces de corps, %d de dalle, %d de plaques de rocher gardees' % (n_corps, n_dalle, int(rochers.sum())))
+    print('%-5s %-7s %-9s %-22s %-22s %-14s %s' % ('plan', 'degres', 'decision', 'corps perdu', 'dalle laissee', 'rocher entame', 'inclinaison mesuree'))
     res = []
     for plan, nom in (((0, 1), 'Z'), ((2, 1), 'X')):
         for deg in a.angles:
@@ -196,12 +201,12 @@ def cmd_inclinaison(a):
                 res.append({'plan': nom, 'degres': deg, 'decision': 'inchange'})
                 print('%-5s %-7g %-9s' % (nom, deg, 'inchange'))
                 continue
-            perdu, laisse = int((plat & ~g).sum()), int((~plat & g).sum())
+            perdu, laisse, entame = int((corps & ~g).sum()), int((~plat & g).sum()), int((rochers & ~g).sum())
             res.append({'plan': nom, 'degres': deg, 'decision': 'retire', 'corps_perdu': perdu, 'corps_perdu_pct': 100.0 * perdu / n_corps,
-                        'dalle_laissee': laisse, 'dalle_laissee_pct': 100.0 * laisse / n_dalle,
+                        'dalle_laissee': laisse, 'dalle_laissee_pct': 100.0 * laisse / n_dalle, 'rocher_entame': entame,
                         'inclinaison_mesuree': rap['dalle'].get('inclinaison_deg', 0.0)})
-            print('%-5s %-7g %-9s %7d (%.3f %%)      %7d (%.2f %%)      %.3f' % (
-                nom, deg, 'retire', perdu, 100.0 * perdu / n_corps, laisse, 100.0 * laisse / n_dalle, rap['dalle'].get('inclinaison_deg', 0.0)))
+            print('%-5s %-7g %-9s %7d (%.3f %%)      %7d (%.2f %%)      %-14d %.3f' % (
+                nom, deg, 'retire', perdu, 100.0 * perdu / n_corps, laisse, 100.0 * laisse / n_dalle, entame, rap['dalle'].get('inclinaison_deg', 0.0)))
     return res
 
 
@@ -250,7 +255,7 @@ def cmd_composantes(a):
     T = float(V[np.unique(F)][:, 1].max()) - hmin
     etendue = float((V.max(0) - V.min(0)).max())
     res = {}
-    for etiquette, kw in (('avec', {}), ('sans', {'debris_hauteur': 0})):
+    for etiquette, kw in (('avec', {'debris_hauteur': 0.05}), ('sans', {'debris_hauteur': 0})):      # l'option est eteinte par defaut : explicite
         g, rap = acc.masque_dalle_sol(V, F, 1, **kw)
         if not rap:
             print('rien n\'est retire : rien a mesurer')
@@ -271,9 +276,9 @@ def cmd_composantes(a):
                           'secondaires': int(sec.sum()), 'secondaires_faces': int(nbf[sec].sum()),
                           'secondaires_faces_pct': float(100 * nbf[sec].sum() / len(Fk)),
                           'en_l_air': int(en_l_air.sum()), 'en_l_air_faces': int(nbf[en_l_air].sum())}
-        print('%s retrait des ilots : %d composantes gardees, principale %d faces (%.1f %% de l\'aire gardee) ; secondaires %d composantes, %d faces '
+        print('%s retrait des ilots (option debris_hauteur=%s) : %d composantes gardees, principale %d faces (%.1f %% de l\'aire gardee) ; secondaires %d composantes, %d faces '
               '(%.2f %% des faces gardees) ; dont entierement a moins de 5 %% de T au-dessus de la ligne : %d composantes, %d faces' % (
-                  etiquette.upper(), n, nbf[princ], 100 * aire[princ] / aire.sum(), int(sec.sum()), int(nbf[sec].sum()),
+                  etiquette.upper(), kw['debris_hauteur'], n, nbf[princ], 100 * aire[princ] / aire.sum(), int(sec.sum()), int(nbf[sec].sum()),
                   100 * nbf[sec].sum() / len(Fk), int(en_l_air.sum()), int(nbf[en_l_air].sum())))
     return res
 

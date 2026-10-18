@@ -138,8 +138,14 @@ $PY $B/dalle_sol_mesures.py balayage C:/tmp/trellis_cloud/glb --sortie C:/tmp/ba
 $PY $B/dalle_sol_mesures.py echelle meshes/<orc>.glb 2        # 2 subdivisions = 16 fois plus de faces
 $PY $B/dalle_sol_mesures.py inclinaison meshes/<orc>.glb --angles 12,13,14,15,16
 $PY $B/dalle_sol_mesures.py decimation meshes/<orc>.glb --cibles 50000,5000,500
-$PY $B/dalle_sol_mesures.py composantes meshes/<orc>.glb
+$PY $B/dalle_sol_mesures.py composantes meshes/<orc>.glb       # compare l'OPTION des ilots (debris_hauteur=0.05) a son absence
 ```
+
+Depuis la relecture du 18/10 (bloquant B1), la regle des **ilots detaches** est une OPTION eteinte par defaut (`debris_hauteur=0`) : elle emportait les
+pieds qui sont des coques separees de la jambe (os d'un squelette, bottes sans raccord). Le cas reel qui l'a montre est un GLB hors depot que la suite
+`test_dalle_sol.py` charge s'il existe : `GLB_SQUELETTE` (defaut `C:/tmp/training_meshes/humanoid/humanoid_26_seed68.glb`, la dalle reelle la plus
+faible, rapport 4,41) et `GLB_MAGICIEN` (defaut `.../humanoid_13_seed55.glb`, le refus reel le plus fort, rapport 2,30 pour un seuil de 3,0), comme `GLB_ORC`
+pour l'orc ; absents, ces tests sont sautes. `mutants_dalle_sol.py --avec-orc` les rejoue aussi.
 
 ## Fichiers
 

@@ -55,18 +55,25 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    SIGNATURE : une bande de faces quasi horizontales (|n| >= 0,9), epaisse de 2 % de la hauteur au plus, dans le tiers inferieur,
    faite de composantes connexes GROSSES (sommets soudes par position : les coutures d'UV dupliquent les sommets), dont l'aire
    d'UNE face vaut au moins 3 fois la silhouette (vue de dessus, remplie) du corps qui est au-dessus. Mesure : orc 14,1 ; sanglier
-   23,8 ; le plus fort refus 0,84 pour un etre vivant (un essai de l'orc ; 1,16 pour une hutte en bois, type non concerne) sur 94 GLB reels
-   (la campagne de 36 maillages, 3 de 10 M de faces, 43 essais TRELLIS dont toutes les graines de l'orc et de la photo, 12 maillages locaux ;
-   certains sont des variantes d'un meme sujet) : aucune autre dalle, 0 faux positif ; sans cette exigence un abri perdrait 29 % de son
-   aire, un camion 6 %.
+   23,8 ; sur 94 GLB reels de l'auteur (la campagne de 36 maillages, 3 de 10 M de faces, 43 essais TRELLIS dont toutes les graines de
+   l'orc et de la photo, 12 maillages locaux ; certains sont des variantes d'un meme sujet) le plus fort refus est 0,84 (1,16 pour une
+   hutte en bois, type non concerne) : aucune autre dalle, 0 faux positif ; sans cette exigence un abri perdrait 29 % de son aire, un
+   camion 6 %. MARGE REELLE (balayage independant du 18/10 sur 521 GLB, dont 50 humanoides du corpus d'entrainement qui n'avaient pas servi
+   au calibrage) : au moins 6 dalles distinctes (orc, sanglier, fresh.glb, humanoid_26, _27, _47), la plus faible a 4,41 (humanoid_26_seed68) ;
+   le plus fort refus REEL est 2,30 (humanoid_13_seed55 : magicien a robe etalee au sol, 17,6 % de son aire partirait sans cette exigence),
+   soit une marge de 1,3 fois seulement cote refus : le seuil de 3,0 n'a ete calibre que sur 2 dalles, a reverifier sur la production.
    Alors la coupe passe 0,25 % de la hauteur au-dessus de la feuille (la « ligne des pieds ») : tout ce qui est dessous part
-   (feuille, rocher du dessous), et RIEN de rattache au corps ne part au-dessus (seules exceptions, les ILOTS ci-dessous). Un socle
+   (feuille, rocher du dessous), et RIEN ne part au-dessus, pas meme un ilot detache (option ETEINTE : voir ILOTS DETACHES). Un socle
    plein plus epais que la fenetre a deux feuilles : la plus haute qui deborde le corps donne la ligne. Au-dela de 15 % de la
    hauteur, seule la feuille a deux faces part (ce qui est dessous pourrait etre le corps). RESIDU ASSUME : le rocher qui est
    au-dessus de la feuille ET rattache aux pieds reste (orc : 5 % des faces, 2 % de l'aire), car rien ne distingue un rocher de
    bottes evasees ou d'un ourlet de robe par la seule geometrie. LIMITE CONSERVATRICE : une creature etalee dont la silhouette depasse le
    tiers de l'emprise de la dalle GARDE sa dalle (dragon couche aux ailes etalees sur une feuille de TRELLIS, synthetique : rapport 2,77
-   < 3) ; en revanche aucune creature plate au ras du sol n'est prise pour une dalle (ailes etalees, raie, papillon a plat : test 36).
+   < 3). Des creatures plates au ras du sol dont les surfaces horizontales sont EPAISSES (ellipsoides : ailes etalees, raie, papillon a
+   plat, test 36) ne sont pas prises pour une dalle. LIMITE (relecture du 18/10, scenes synthetiques) : une surface MINCE a deux faces qui
+   est du corps (ailes en membrane de 0,9 x 0,45 a 0,4 % de T du sol : rapport 3,6 ; cape etalee a plat : 5,1 ; queue plate : 3,6 ; plateau
+   tenu a 15-33 % de T) est indiscernable d'une feuille de sol et part des qu'elle depasse 3 fois la silhouette ; et la ligne passe alors
+   AU-DESSUS du bas du corps, qui est retire avec elle (ailes a 5 % de T du sol : ligne a 9 %, ventre et queue amputes).
    FEUILLE PENCHEE (2026-10-15, constat de la relecture du 03/10 : l'orc tourne de 0,25 a 4 degres perdait 1 a 11 % de son corps,
    la coupe horizontale passait au-dessus du bord haut de la feuille ; a 3 degres rien n'etait retire). Un plan est ajuste a la
    dalle (moindres carres ponderes par l'aire), retenu s'il change sa hauteur d'au moins le quart de la marge de coupe d'un bord a
@@ -74,23 +81,33 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    Une feuille a plat garde la coupe horizontale d'avant, a l'octet. Mesure sur l'orc tourne de 0,02 a 25 degres autour de Z et de
    X : corps perdu au plus 0,09 % des faces sous 0,1 degre (en dessous de la marge de coupe) et au plus 0,006 % de 0,1 a 12 degres
    (re-mesure le 18/10 : 0,036 % au plus sous 0,1 degre, 0,009 % de 0,1 a 13) ; ZONE DE TRANSITION de 13,5 a 14,5 degres (Z) ou 15 (X) :
-   la fenetre de 2 % de la hauteur n'attrape plus toute la feuille et le retrait devient PARTIEL (43 % de la dalle part, 57 % reste, corps
+   la fenetre de 2 % de la hauteur n'attrape plus toute la feuille et le retrait devient PARTIEL (45 % de la dalle part, 55 % reste, corps
    perdu 0,028 % au plus) ; a 15 degres (Z) ou 15,5 (X) et au-dela rien n'est retire (conservateur). Le corps ne souffre jamais, que le
    retrait soit entier, partiel ou nul (test_orc_incline). Les deux dalles reelles (orc, sanglier) sont de niveau : 0,0 degre mesure.
    ILOTS DETACHES (2026-10-15, constat de la relecture : 258 composantes apres retrait sur l'orc, dont des plaques de rocher en
-   l'air). Sont retirees avec le socle les composantes du maillage garde qui (1) ne sont pas la dominante (>= la moitie de l'aire
-   gardee ; sinon le corps est en miettes et rien n'est decide), (2) ont ete TOUCHEES par la coupe (un sommet commun avec une face
-   retiree : un morceau de rocher qui traversait la ligne, pas une piece du corps), (3) sont entierement a moins de 5 % de la
-   hauteur au-dessus de la ligne et (4) petites (5 % de l'aire gardee chacune, 10 % ensemble). Orc : 32 ilots, 9 067 faces, 0,7 %
-   de l'aire d'origine (1,9 % de l'aire gardee) ; les 226 autres composantes secondaires (pointes de massue, dents, rivets, 5 a 56 %
-   de la hauteur) ne touchent pas la coupe et restent. `debris_hauteur=0` supprime ce retrait. Limite connue : une piece du corps disjointe, entamee par la coupe et
-   plus basse que 5 % de la hauteur (une botte detachee de la jambe) serait prise pour un ilot ; aucun des 36 maillages mesures n'en
-   porte, et TRELLIS livre une surface d'un seul tenant.
+   l'air). REGLE EN OPTION, ETEINTE PAR DEFAUT (`debris_hauteur=0`) depuis la relecture du 18/10. Avec `debris_hauteur=0.05` partent
+   avec le socle les composantes du maillage garde qui (1) ne sont pas la dominante (>= la moitie de l'aire gardee ; sinon le corps
+   est en miettes et rien n'est decide), (2) ont ete TOUCHEES par la coupe (un sommet commun avec une face retiree), (3) sont
+   entierement a moins de 5 % de la hauteur au-dessus de la ligne et (4) petites (5 % de l'aire gardee chacune, 10 % ensemble).
+   Orc : 32 ilots, 9 067 faces, 0,7 % de l'aire d'origine (1,9 % de l'aire gardee), de la COULEUR du rocher (RVB moyen 1, 1, 1, comme la
+   dalle) ; les 226 autres composantes secondaires (pointes de massue, dents, rivets, 5 a 56 % de la hauteur) ne touchent pas la coupe et
+   restent. POURQUOI ELLE EST ETEINTE : « touchee par la coupe » ne distingue pas une calotte de rocher d'une piece du CORPS dont la
+   semelle est tranchee par la ligne. Tout pied qui est une coque separee de la jambe (os d'un squelette, botte sans raccord, patin),
+   plus bas que 5 % de T et plus petit que 5 % de l'aire gardee, part avec le socle : le contrat « rien au-dessus de la ligne des pieds »
+   est rompu. Mesure (relecture independante du 18/10, squelette a cape humanoid_26_seed68, 473 044 faces, dalle reconnue, rapport 4,41) :
+   11 ilots, 1 042 faces retirees au-dessus de la ligne, dont un de 777 faces (le talon et le medio-pied osseux d'un pied), de couleur RVB
+   moyenne (144, 136, 123) = os, contre (17, 15, 13) pour le rocher et la dalle ; scene synthetique (test 37) : 100 % des faces de chaque
+   pied au-dessus de la ligne, coque separee soudee ou non a la dalle. L'hypothese d'origine (« TRELLIS livre une surface d'un seul
+   tenant ; aucun des 36 maillages mesures n'en porte ») est FAUSSE : l'orc a 258 composantes, le squelette des pieds separes.
+   Contrepartie assumee : les plaques de rocher de l'orc (9 067 faces, 0,7 % de l'aire) restent en l'air, invisibles de loin. Ne la
+   rallumer qu'avec une validation par la COULEUR ou la vue (la variante APRES export voit la texture ; l'accroche d'avant le depliage
+   n'a aucune couleur), jamais sur la seule geometrie ; ne pas etendre « touchee » a la proximite d'une face retiree avant cela.
    PISTE ECARTEE (consigne : ligne des pieds par la chute de la section de silhouette, socle = faces dessous hors de l'empreinte du
    corps dilatee, SANS feuille) : mesuree sur les memes 36 maillages, elle ampute de 0,4 a 4 % de leur aire 7 maillages SANS
    dalle (oie, canards, trois humains, un abri : pieds, bottes, soubassement) et ne retire que 49 % de l'aire de l'orc (contre 64 %). Banc : build/bancs/fidelite/dalle_sol_campagne.py.
-   Fonctions pures (numpy ; scipy et cv2 si presents). Mesure du 18/10, processus neuf, sommets float32 / faces int32 : 0,7 s et 0,22 Go
-   de pic pour 500 K faces (l'orc), 2,0 s et 0,78 Go pour 2 M, 9,2 s et 3,0 Go pour 8 M (370 a 440 octets par face) ; les trois GLB reels
+   Fonctions pures (numpy ; scipy et cv2 si presents). Mesure du 18/10, processus neuf, sommets float32 / faces int32, regle des ilots
+   ALLUMEE : 0,7 s et 0,22 Go de pic pour 500 K faces (l'orc), 2,0 s et 0,78 Go pour 2 M, 9,2 s et 3,0 Go pour 8 M (370 a 440 octets par
+   face) ; avec le defaut (ilots eteints) : 0,6 s et 0,12 Go pour 500 K, 1,4 s et 0,30 Go pour 2 M ; les trois GLB reels
    de 10 M de faces, sans dalle, demandent 2,3 a 3,6 s. L'APPELANT choisit
    les types (TYPES_CONCERNES : un batiment ou un vehicule a de vrais planchers). Apres le retrait la peau reste OUVERTE sous les
    pieds : aucune semelle n'est rebouchee (invisible de dessus ; avec conserver_socle=True la jonction feuille / rocher reste
@@ -101,12 +118,13 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    Modal : _mesh.generate(..., retirer_sol=False), lu dans app.py, envoye par worker.ts selon asset_type). Le crochet enveloppe
    CuMesh.uv_unwrap (appele par les DEUX branches de to_glb, avec ou sans remaillage) : aucun texte de to_glb a rechercher, et il voit le
    maillage deja reduit a la cible, c'est-a-dire la geometrie du GLB sur laquelle les seuils ont ete calibres. Le journal dit a chaque
-   generation ce que le detecteur a decide. FILET : si le depliage echoue sans la dalle (hors memoire), le maillage d'origine est restitue
-   et le depliage rejoue. A NE PAS activer avec « Max triangles » (tris_exact) : le maillage final aurait 38 % de faces en moins que la
-   cible (orc), l'export serait refait pour rien (+30 a 50 s) et le nombre exact ne serait plus tenu. Variante APRES export, sans gain
+   generation ce que le detecteur a decide. Les reglages du detecteur (dont l'option `debris_hauteur`) se passent en arguments nommes a
+   retrait_dalle_actif, retirer_dalle_glb et retirer_dalle_cumesh. FILET : si le depliage echoue sans la dalle (hors memoire), le maillage
+   d'origine est restitue et le depliage rejoue. A NE PAS activer avec « Max triangles » (tris_exact) : le maillage final aurait 37 % de
+   faces en moins que la cible (orc), l'export serait refait pour rien (+30 a 50 s) et le nombre exact ne serait plus tenu. Variante APRES export, sans gain
    d'atlas (les UV ne bougent pas : x1,00 mesure) mais sans risque GPU : `glb, _ = retirer_dalle_glb(glb, type_concerne(type_actif), log=log)`
    juste apres to_glb (qui rend un Trimesh ; une Scene chargee d'un fichier marche aussi), avant les finitions et l'`export` (ne leve
-   jamais ; GLB WebP de l'orc 21,5 -> 14,0 Mo).
+   jamais ; GLB WebP de l'orc 21,5 -> 14,4 Mo, 14,0 avec l'option des ilots).
 """
 
 _INPAINT_AVANT = """    base_color = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_TELEA)
@@ -175,7 +193,8 @@ REGLAGES_DALLE = {
     'conserve_min': 0.03,        # garde-fou : jamais moins de 3 % des faces gardees
     'plan_rms': 0.9,             # feuille inclinee : le plan ajuste doit reduire d'au moins 10 % la dispersion des hauteurs
     'plan_variation': 0.25,      # ... et changer la hauteur de la feuille d'au moins 25 % de la marge de coupe d'un bord a l'autre
-    'debris_hauteur': 0.05,      # ilot detache : entierement a moins de 5 % de T au-dessus de la ligne des pieds (0 : jamais d'ilot retire)
+    'debris_hauteur': 0.0,       # ilot detache : OPTION ETEINTE (0 = jamais d'ilot retire) ; 0.05 = ilot entierement a moins de 5 % de T
+                                 # au-dessus de la ligne des pieds, mais il emporte aussi les pieds separes de la jambe : voir l'en-tete
     'debris_aire_max': 0.05,     # ... pesant moins de 5 % de l'aire gardee (chacun)
     'debris_total_max': 0.10,    # ... et tous ensemble moins de 10 % de l'aire gardee (au-dela : on ne touche a rien)
     'debris_dominante': 0.5,     # la plus grosse composante gardee pese au moins la moitie de l'aire gardee (sinon : corps en miettes)
@@ -385,13 +404,16 @@ def _rebord_dalle(centres, h, axes, est_dalle, h_bas, h_sommet, T, etendue):
 
 
 def _ilots_detaches(V, F, retire, hp, coupe, T, aires, etendue, r):
-    """Ilots flottants laisses par la coupe : composantes du maillage GARDE (sommets soudes par position) qui (1) ne sont pas la
-    composante dominante, (2) ont ete TOUCHEES par la coupe (elles partagent un sommet avec une face retiree : c'etait un morceau de
-    rocher ou de sol qui traversait la ligne, pas une piece du corps), (3) sont entierement a moins de `debris_hauteur` au-dessus de
-    la ligne et (4) petites (`debris_aire_max` chacune, `debris_total_max` ensemble ; fractions de l'aire GARDEE). Mesure sur l'orc :
+    """OPTION, ETEINTE PAR DEFAUT (`debris_hauteur=0` : rend None sans rien calculer ; voir « ILOTS DETACHES » dans l'en-tete).
+    Ilots flottants laisses par la coupe : composantes du maillage GARDE (sommets soudes par position) qui (1) ne sont pas la
+    composante dominante, (2) ont ete TOUCHEES par la coupe (elles partagent un sommet avec une face retiree : un morceau de
+    rocher ou de sol qui traversait la ligne... ou la semelle d'un pied qui est une coque separee de la jambe : la geometrie ne
+    les distingue pas), (3) sont entierement a moins de `debris_hauteur` au-dessus de la ligne et (4) petites (`debris_aire_max`
+    chacune, `debris_total_max` ensemble ; fractions de l'aire GARDEE). Mesure sur l'orc avec `debris_hauteur=0.05` :
     32 de ces ilots, 9 067 faces, 1,9 % de l'aire gardee (0,7 % de l'aire d'origine), de 0 a 3,5 % de T au-dessus de la ligne, des
     plaques de rocher en l'air autour des pieds ; les 226 autres
     composantes secondaires (pointes de massue, dents, rivets : 5 a 56 % de T, aucune ne touche la coupe) ne sont pas concernees.
+    Sur un squelette a cape elle emporte des os de pied (11 ilots, 1 042 faces) : c'est pourquoi elle est eteinte.
     Rend un masque bool (m,) des faces a retirer en plus, ou None."""
     import numpy as np
     if not r['debris_hauteur'] > 0:
@@ -665,7 +687,7 @@ def _analyser_dalle(V, F, axe, conserver_socle, r):
         if socle >= max(50, int(0.002 * m)):
             criteres.append('socle_epais')
         info['socle'] = {'profondeur': float(coupe), 'faces': socle}
-        ilots = _ilots_detaches(V, F, sous, hp, coupe, T, aires, etendue, r)
+        ilots = _ilots_detaches(V, F, sous, hp, coupe, T, aires, etendue, r)       # OPTION (debris_hauteur > 0), eteinte par defaut
         if ilots is not None:
             retire = sous | ilots
             criteres.append('ilots_detaches')
@@ -724,10 +746,11 @@ def masque_dalle_sol(sommets, faces, axe_haut=1, conserver_socle=False, diagnost
     CONSERVATEUR : il faut une feuille mince quasi horizontale, dans le tiers inferieur, qui deborde au moins
     3 fois la silhouette du corps vue de dessus. Alors la coupe passe juste au-dessus de la feuille (ligne des
     pieds ; un PLAN si la feuille est penchee, jusqu'a ~12 degres) et tout ce qui est SOUS elle (feuille, rocher,
-    socle) part ; rien de rattache au corps n'est retire au-dessus : seuls partent avec le socle les ILOTS DETACHES
-    (petites composantes disjointes que la coupe a touchees et qui restent a moins de 5 % de la hauteur au-dessus de
-    la ligne : calottes de rocher en l'air ; `rapport['ilots']`, critere « ilots_detaches », `debris_hauteur=0` les
-    garde). Un socle plein plus epais que la fenetre a deux feuilles (dessus et dessous) : la plus haute qui deborde
+    socle) part ; RIEN n'est retire au-dessus de la ligne. Seule exception, en OPTION ETEINTE par defaut :
+    `debris_hauteur=0.05` retire aussi les ILOTS DETACHES (petites composantes disjointes que la coupe a touchees et qui restent a
+    moins de 5 % de la hauteur au-dessus de la ligne : calottes de rocher en l'air ; `rapport['ilots']`, critere « ilots_detaches »),
+    mais elle emporte aussi les pieds qui sont des coques separees de la jambe (voir l'en-tete du fichier). Un socle plein plus
+    epais que la fenetre a deux feuilles (dessus et dessous) : la plus haute qui deborde
     le corps donne la ligne, le socle entier part. Une base PETITE (moins de 3 fois la silhouette), un siege, une
     robe evasee, un disque en hauteur, un champ de petites dalles, un sol dont les facettes penchent de plus de 26
     degres : rien ne part.

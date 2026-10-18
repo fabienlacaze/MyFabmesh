@@ -1,5 +1,5 @@
 """Mutations du retrait de la dalle de sol (scripts/acceleration_glb.py) : la PREUVE que test_dalle_sol.py echoue sans chaque comportement.
-Banc de mesure, HORS garde (une soixantaine de lancements de la suite, ~4 s chacun sans le GLB de l'orc).
+Banc de mesure, HORS garde (une quatre-vingtaine de lancements de la suite, ~5 s chacun sans les GLB reels).
 
 Chaque mutant est UN remplacement exact dans le texte du module (une valeur de reglage, une condition, une ligne). Il est ecrit dans un
 fichier a part, puis la suite test_dalle_sol.py est lancee dessus (variable NOYAU_ACCEL) avec `-f`. Le mutant est TUE si la suite echoue,
@@ -8,15 +8,18 @@ trouve pas son texte EXACTEMENT une fois est INVALIDE (le module a change : mett
 
     python build/bancs/noyaux/mutants_dalle_sol.py [--module CHEMIN] [--sortie DOSSIER] [--avec-orc] [nom_de_mutant ...]
 
---avec-orc : garde GLB_ORC (les tests du GLB reel de l'orc tournent aussi : ~15 s de plus par mutant et ~1 Go de memoire ; a lancer
-sous `bash /c/tmp/lourd.sh`). Par defaut les tests de l'orc sont sautes (scenes synthetiques seules, legeres).
+--avec-orc : garde GLB_ORC, GLB_SQUELETTE et GLB_MAGICIEN (les tests des GLB reels de l'orc, du squelette et du magicien tournent aussi : ~30 s de plus par mutant et ~1 Go
+de memoire ; a lancer sous `bash /c/tmp/lourd.sh`). Par defaut ces tests sont sautes (scenes synthetiques seules, legeres).
 Rend 0 si tous les mutants sont tues, 1 sinon. Un journal par mutant dans le dossier de sortie (defaut : dossier temporaire).
 
 Historique : la relecture du 03/10 avait laisse survivre cos_horizontal 0,9 -> 0,5 (M0), bande_demi 1 % -> 4 % (M4) et le seuil de double
 face 20 % -> 90 % (M13) ; les tests 29, 30 et 31 les tuent (2026-10-15). Au premier passage du 15/10, 60 mutants sur 63 etaient tues ; les
 trois survivants (I5, I6, I9, tous sur les ilots detaches) ont donne les tests 33 et 33b. Le 18/10, les mutants A8 a A15 portent sur le filet du
 crochet (restitution du maillage, rejeu du depliage, journal) ; les tests du point 20 de la suite les tuent. Les mutants V et J portent sur la variante
-apres export (retirer_dalle_glb) et sur les journaux qui ne doivent jamais casser une generation.
+apres export (retirer_dalle_glb) et sur les journaux qui ne doivent jamais casser une generation. Le 18/10 aussi, correction du bloquant B1 de la
+relecture independante : les ilots detaches sont une OPTION ETEINTE par defaut ; I0 et I1b (le defaut rallume) sont tues par les tests 37 a 39, I1c
+et I1d (le seuil de hauteur de l'option) par les tests 32 et 33, A16 et A17 (les reglages, donc l'option, traversent le crochet et l'adaptateur)
+par le test 39.
 """
 import argparse
 import json
@@ -61,10 +64,12 @@ MUTANTS = {
                        "    rebord = _rebord_dalle(centres, h, axes, est_dalle, dalle['h_bas'], dalle['h_sommet'], T, etendue)\n    if mode == 'socle_retire':"),
     'T7_pente_sans_recentrage': ("        hp2 = h - (a * (cx - mx) + b * (cy - my))", "        hp2 = h - (a * cx + b * cy)"),
     'T8_plan_une_iteration': ("    for _ in range(3):\n        plan = _ajuster_plan", "    for _ in range(1):\n        plan = _ajuster_plan"),
-    # --- ilots detaches
-    'I1_debris_off': ("'debris_hauteur': 0.05,", "'debris_hauteur': 0.0,"),
-    'I1b_debris_hauteur_1': ("'debris_hauteur': 0.05,", "'debris_hauteur': 1.0,"),
-    'I1c_debris_hauteur_0.005': ("'debris_hauteur': 0.05,", "'debris_hauteur': 0.005,"),
+    # --- ilots detaches (OPTION ETEINTE par defaut depuis le 18/10 : les mutants du DEFAUT sont tues par les tests 37 a 39 et les orc / squelette
+    # reels ; ceux de la regle elle-meme (I1c a I9) par les tests 32 a 34, qui passent l'option EXPLICITEMENT)
+    'I0_defaut_rallume': ("'debris_hauteur': 0.0,", "'debris_hauteur': 0.05,"),
+    'I1b_defaut_hauteur_1': ("'debris_hauteur': 0.0,", "'debris_hauteur': 1.0,"),
+    'I1c_hauteur_dixieme': ("(haut <= coupe + r['debris_hauteur'] * T)", "(haut <= coupe + r['debris_hauteur'] * T * 0.1)"),
+    'I1d_hauteur_x10': ("(haut <= coupe + r['debris_hauteur'] * T)", "(haut <= coupe + r['debris_hauteur'] * T * 10)"),
     'I2_debris_aire_1': ("'debris_aire_max': 0.05,", "'debris_aire_max': 1.0,"),
     'I2b_debris_aire_0.0001': ("'debris_aire_max': 0.05,", "'debris_aire_max': 0.0001,"),
     'I3_debris_total_1': ("'debris_total_max': 0.10,", "'debris_total_max': 1.0,"),
@@ -115,6 +120,9 @@ MUTANTS = {
     'A13b_motif_perdu': ("masque_dalle_sol(vn, fn, axe_haut, conserver_socle, diagnostic=diag, **reglages)", "masque_dalle_sol(vn, fn, axe_haut, conserver_socle, **reglages)"),
     'A14_sauvegarde_vide': ("        if sauvegarde is not None:\n            sauvegarde.append(origine)\n", "        if sauvegarde is not None:\n            pass\n"),
     'A15_origine_ignoree': ("    return (sauvegarde[0], rapport) if sauvegarde else None", "    return None"),
+    # --- les reglages (dont l'option des ilots) traversent l'adaptateur et le crochet (2026-10-18, temoins du test 39)
+    'A16_reglages_crochet_perdus': ("e.log or print, sauvegarde=sauvegarde, **(e.reglages or {}))", "e.log or print, sauvegarde=sauvegarde)"),
+    'A17_reglages_cumesh_perdus': ("masque_dalle_sol(vn, fn, axe_haut, conserver_socle, diagnostic=diag, **reglages)", "masque_dalle_sol(vn, fn, axe_haut, conserver_socle, diagnostic=diag)"),
     # --- variante apres export et journaux sans danger (2026-10-18)
     'V1_glb_leve': ("    except Exception as e:\n        log(\"[mesh] dalle de sol (apres export) : retrait ignore (%s: %s)\" % (type(e).__name__, e))\n        return glb_obj, {}\n",
                     "    except KeyboardInterrupt as e:\n        log(\"[mesh] dalle de sol (apres export) : retrait ignore (%s: %s)\" % (type(e).__name__, e))\n        return glb_obj, {}\n"),
@@ -159,6 +167,8 @@ def main(argv=None):
         env = dict(os.environ, NOYAU_ACCEL=chemin)
         if not a.avec_orc:
             env['GLB_ORC'] = os.path.join(sortie, 'sans_orc.glb')          # n'existe pas : les tests de l'orc reel sont sautes
+            env['GLB_SQUELETTE'] = os.path.join(sortie, 'sans_squelette.glb')       # idem pour le squelette reel
+            env['GLB_MAGICIEN'] = os.path.join(sortie, 'sans_magicien.glb')         # et le magicien reel
         journal = os.path.join(sortie, nom + '.log')
         t0 = time.time()
         with open(journal, 'wb') as fj:
