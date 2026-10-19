@@ -98,6 +98,15 @@ TRELLIS2_SRC = os.environ.get('FABMESH_TRELLIS2_SRC') or os.path.abspath(
 sys.path.insert(0, TRELLIS2_SRC)
 sys.path.insert(0, SCRIPTS)  # for add_ai_metadata
 
+# Smart App Control (2026-10-19) : cumesh/_xatlas.pyd (compile sur place, non signe) est parfois refuse par Windows (« An Application Control
+# policy has blocked this file ») et `import cumesh` echoue alors tout entier. Si c'est le cas, adaptateur au-dessus du paquet xatlas ;
+# sinon rien ne change. AVANT le premier import de cumesh / o_voxel. Voir scripts/cumesh_xatlas_sac.py.
+try:
+    import cumesh_xatlas_sac as _cxs
+    _cxs.installer(log=lambda m: print(f'[t2_native] {m}', flush=True))
+except Exception as _e_cxs:
+    print(f'[t2_native] parade xatlas non appliquee : {type(_e_cxs).__name__}: {_e_cxs}', flush=True)
+
 # Plafonds RAM / VRAM REELS (2026-09-30), AVANT torch : voir scripts/cloisonnement_memoire.py.
 # La cle du journal des pics distingue les modes (leurs besoins different).
 import cloisonnement_memoire as _cm
