@@ -32118,6 +32118,31 @@ function _poserOptionRessources(cle, on) {
   if (cb) { cb.checked = on; document.getElementById(id + '-row')?.classList.toggle('on', on); }
 }
 window._activerModeEco = function (on) { _poserOptionRessources('fab-mode-eco', on); for (const k of _CLES_ECO) _poserOptionRessources(k, on); };
+// >>> TAMPON ECO
+// TAMPON « MODE ECO » (2026-10-19, user : « le viewer 3D est casse (surement l'eco mode) : il faut un tampon sur le viewer ») : une visionneuse dont le
+// contexte WebGL est libere reste VIDE ; sans explication elle parait cassee. On pose un tampon visible dessus ; il est retire au retour des visionneuses.
+function _poserTamponEco(cv) {
+  try {
+    if (!cv || !cv.parentElement || !(cv.offsetWidth > 0 && cv.offsetHeight > 0)) return;      // visionneuse cachee : rien a montrer
+    const parent = cv.parentElement;
+    if (parent.querySelector(':scope > .tampon-eco')) return;
+    if (getComputedStyle(parent).position === 'static') { parent.dataset.tamponPos = '1'; parent.style.position = 'relative'; }
+    const t = document.createElement('div');
+    t.className = 'tampon-eco'; t.setAttribute('data-i18n-skip', ''); t.setAttribute('translate', 'no'); t.setAttribute('role', 'status');
+    t.innerHTML = '<div class="tampon-eco-cadre"><b>&#127807; ' + _i18nT('Eco mode') + '</b><span>' + _i18nT('Viewer paused: memory given to the generation.')
+      + '</span><span>' + _i18nT('It comes back when the generation is done.') + '</span></div>';
+    parent.appendChild(t);
+  } catch (_) {}
+}
+function _retirerTamponsEco() {
+  try {
+    document.querySelectorAll('.tampon-eco').forEach((t) => {
+      const p = t.parentElement; t.remove();
+      if (p && p.dataset && p.dataset.tamponPos) { p.style.position = ''; delete p.dataset.tamponPos; }
+    });
+  } catch (_) {}
+}
+// <<< TAMPON ECO
 const _glLiberes = [];
 window._libererMemoireGraphique = function () {
   let n = 0;
@@ -32127,13 +32152,14 @@ window._libererMemoireGraphique = function () {
       if (!gl || !cv || gl.isContextLost()) continue;
       const ext = gl.getExtension('WEBGL_lose_context');
       if (!ext) continue;
-      ext.loseContext(); _glLiberes.push(new WeakRef(gl)); n++;
+      ext.loseContext(); _glLiberes.push(new WeakRef(gl)); n++; _poserTamponEco(cv);
     } catch (_) {}
   }
   if (n) { try { showToast(_i18nT('Graphics memory freed for the generation: the viewers come back when it is done.'), 'info', 6000); } catch (_) {} }
   return n;
 };
 window._restaurerMemoireGraphique = function () {
+  _retirerTamponsEco();
   let n = 0;
   while (_glLiberes.length) {
     try {
@@ -32162,6 +32188,9 @@ window._ressourcesFinGeneration = function (job) {
 // Filet : un travail annule ou perdu ne doit pas laisser les visionneuses vides.
 setInterval(() => {
   if (_genEco.size && !(state.jobs || []).some((j) => j.status === 'running')) { _genEco.clear(); window._restaurerMemoireGraphique(); }
+  else if (_genEco.size && _glLiberes.length) {
+    for (const s of (window.__fabGlSuivis || [])) { try { const gl = s.gl.deref(), cv = s.cv.deref(); if (gl && cv && gl.isContextLost()) _poserTamponEco(cv); } catch (_) {} }
+  }
 }, 5000);
 /** Fenetre « memoire graphique juste » (2026-10-01, user : « pas assez clair, trop de boutons, trop de blabla », puis « il faut le bouton normal,
  *  eco mode et annuler »). Un message de deux lignes et TROIS boutons : Annuler (Echap aussi), Normal, Mode eco (conseille ; absent s'il est deja actif).

@@ -5024,3 +5024,10 @@ html[dir="rtl"] #topbar-more-menu button, html[dir="rtl"] #v-kebab-menu .vkm-ite
 html[dir="rtl"] #back-to-projects { transform: scaleX(-1); }
 html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #at-reset, #ai-preview-btn { white-space: normal; overflow-wrap: anywhere; height: auto; min-height: 42px; padding-top: 4px; padding-bottom: 4px; line-height: 1.2; text-align: center; }
+
+/* Tampon « mode eco » sur une visionneuse 3D dont le contexte WebGL est libere pendant une generation (2026-10-19) */
+.tampon-eco { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+.tampon-eco-cadre { transform: rotate(-5deg); border: 3px double #7ee0a1; color: #7ee0a1; background: rgba(12, 22, 18, 0.82); border-radius: 10px; padding: 10px 18px;
+  text-align: center; display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.35; max-width: 85%; box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45); }
+.tampon-eco-cadre b { font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; }
+.tampon-eco-cadre span { color: #cfe9da; }

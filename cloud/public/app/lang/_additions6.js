@@ -1345,6 +1345,8 @@
     "(optional)": [null, "(opcional)", "（可选）", "(वैकल्पिक)", "(اختياري)"],
     // Integration du 14/10 : ligne d'age du panneau « Cloud services » (levier L8, cloud-overrides.js), posee par _tf.
     "Last known state, {x} s old": ["Dernier état connu, il y a {x} s", "Último estado conocido, hace {x} s", "最近一次已知状态：{x} 秒前", "अंतिम ज्ञात स्थिति, {x} सेकंड पहले", "آخر حالة معروفة، منذ {x} ثانية"],
+    "Viewer paused: memory given to the generation.": ["Visionneuse en pause : mémoire cédée à la génération.", "Visor en pausa: memoria cedida a la generación.", "查看器已暂停：内存已让给生成任务。", "व्यूअर रुका है: मेमोरी जनरेशन को दी गई है।", "العارض متوقف مؤقتًا: الذاكرة مخصّصة للتوليد."],
+    "It comes back when the generation is done.": ["Elle revient à la fin de la génération.", "Vuelve cuando termina la generación.", "生成完成后会自动恢复。", "जनरेशन पूरा होने पर यह वापस आ जाएगी।", "تعود عند انتهاء التوليد."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
