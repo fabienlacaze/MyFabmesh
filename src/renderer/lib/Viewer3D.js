@@ -101,6 +101,23 @@ export class Viewer3D {
       try { this._renderWebglFallback(); } catch (_) {}
     }
 
+    // 2026-10-19 : PERTE DE CONTEXTE WEBGL (mode eco de l'appli, pilote reinitialise, trop de contextes ouverts). three.js rebatit seul ce qui vient
+    // du JS (tampons, textures decodees) mais PAS ce qui a ete DESSINE sur la carte : la carte d'environnement (PMREM) revient VIDE et un maillage
+    // metallique rend NOIR (mesure en navigateur). On la refabrique quand le contexte revient. Differe d'un tour de boucle : un renderer pose apres
+    // celui-ci sur le meme canvas (voir index2.js) re-initialise son etat sur ce meme evenement et doit passer en premier.
+    if (this.renderer) {
+      this._surContexteRestaure = () => {
+        setTimeout(() => {
+          try {
+            if (!this.renderer || this.renderer.getContext().isContextLost() || !this.scene.environment) return;
+            this.rebuildEnvironment();
+            this._forceRendu = true;
+          } catch (_) {}
+        }, 0);
+      };
+      this.canvas.addEventListener('webglcontextrestored', this._surContexteRestaure);
+    }
+
     // Scene
     this.scene = new THREE.Scene();
     if (opts.bgColor !== undefined && opts.bgColor !== null) {
@@ -378,6 +395,7 @@ export class Viewer3D {
       try { this._resizeObserver.disconnect(); } catch (_) {}
       this._resizeObserver = null;
     }
+    try { this.canvas.removeEventListener('webglcontextrestored', this._surContexteRestaure); } catch (_) {}
     try { this.controls.dispose(); } catch (_) {}
     try { this.renderer.dispose(); } catch (_) {}
     // Traverse scene and dispose geometries/materials/textures

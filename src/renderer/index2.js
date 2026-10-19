@@ -32152,7 +32152,12 @@ window._libererMemoireGraphique = function () {
       if (!gl || !cv || gl.isContextLost()) continue;
       const ext = gl.getExtension('WEBGL_lose_context');
       if (!ext) continue;
-      ext.loseContext(); _glLiberes.push(new WeakRef(gl)); n++; _poserTamponEco(cv);
+      // 2026-10-19 : l'EXTENSION est gardee, pas seulement le contexte. `gl.getExtension()` rend NULL sur un contexte PERDU : l'ancienne restauration
+      // (`gl.getExtension('WEBGL_lose_context')?.restoreContext()`) ne restaurait donc RIEN et les visionneuses restaient VIDES (blanches) apres la
+      // generation (mesure en navigateur, user : « elle est restee blanche »). L'evenement `webglcontextlost` doit aussi etre « default prevented »
+      // pour que le contexte puisse revenir : three.js le fait, on l'assure pour tout autre canvas.
+      try { cv.addEventListener('webglcontextlost', (e) => e.preventDefault(), { once: true }); } catch (_) {}
+      ext.loseContext(); _glLiberes.push({ gl: new WeakRef(gl), ext: new WeakRef(ext) }); n++; _poserTamponEco(cv);
     } catch (_) {}
   }
   if (n) { try { showToast(_i18nT('Graphics memory freed for the generation: the viewers come back when it is done.'), 'info', 6000); } catch (_) {} }
@@ -32163,11 +32168,14 @@ window._restaurerMemoireGraphique = function () {
   let n = 0;
   while (_glLiberes.length) {
     try {
-      const gl = _glLiberes.pop().deref();
-      if (!gl || !gl.isContextLost()) continue;
-      gl.getExtension('WEBGL_lose_context')?.restoreContext(); n++;
+      const e = _glLiberes.pop(); const gl = e.gl.deref(); const ext = e.ext.deref();
+      if (!gl || !ext || !gl.isContextLost()) continue;
+      ext.restoreContext(); n++;
     } catch (_) {}
   }
+  // Gros maillages : la visionneuse ne redessine que sur ACTIVITE (lib/Viewer3D.js, evenement `resize` compris) : on la reveille une fois
+  // le contexte revenu (la restauration est asynchrone), sinon l'image resterait vide jusqu'au premier mouvement de souris.
+  if (n) { for (const ms of [300, 1200]) setTimeout(() => { try { window.dispatchEvent(new Event('resize')); } catch (_) {} }, ms); }
   return n;
 };
 const _genEco = new Set();      // travaux locaux en cours qui ont declenche l'economie de ressources
